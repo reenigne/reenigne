@@ -1,0 +1,30 @@
+
+String from string literal:
+  String s("foo");
+
+String from command line argument:
+  String s(argv[1]);
+
+String from file:
+  String fileName;
+  File f(fileName);
+  String contents = f.contents();
+
+Save string to file:
+  String fileName;
+  String contents;
+  File f(fileName);
+  f.save(contents);
+
+String to C string
+  Array<Byte> b;      // Problem: OwningBuffer is a ReferenceCounted type
+  String.copyTo(&b);
+  char* p = reinterpret_cast<char*>(&b[0]);
+
+
+// After a reference counted object is created, it should be placed immediately
+// into a Reference:
+//    Reference<T> t(new T);
+
+
+

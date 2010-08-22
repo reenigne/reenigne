@@ -1,0 +1,4 @@
+Error handling philosophy
+  Every error is an Exception
+  A particular error is thrown as Exception unless/until there is a reason to catch one particular error (or set of errors) and not another, then it becomes its own subclass
+  Put as much information as we have into the Exception
