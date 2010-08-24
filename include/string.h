@@ -17,6 +17,7 @@ class Buffer : public ReferenceCounted
 public:
     Buffer() { }
     Buffer(const UInt8* data) : _implementation(new NonOwningBuffer(data)) { }
+    Buffer(Reference<BufferImplementation> implementation) : _implementation(implementation) { }
     bool operator==(const Buffer& other) const { return _implementation == other._implementation; }
     String fileName() const { return _implementation->fileName(); }
 private:
@@ -65,6 +66,15 @@ class String
 {
 public:
     String(const char* data) : _string(new SimpleStringImplementation(reinterpret_cast<const UInt8*>(data), 0, strlen(data))) { }
+    String(const Array<WCHAR>& utf16)
+    {
+        // TODO: Count number of UTF-8 bytes required into n
+        static String system("System");
+        Reference<OwningBufferImplementation> buffer = new OwningBufferImplementation(system);
+        buffer->allocate(n);
+        // TODO: Convert utf16 to buffer
+        _string = new SimpleStringImplementation(
+    }
     String(UInt32 value, int length) : _string(new HexadecimalStringImplementation(value, length)) { }
     String subString(int start, int length)
     {

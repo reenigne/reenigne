@@ -1,1 +1,2 @@
 throwWindowsError
+On Windows, use GetCommandLineW() to retrieve command line
