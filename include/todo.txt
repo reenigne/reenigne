@@ -1,2 +1,3 @@
-throwWindowsError
+throwSystemError
 On Windows, use GetCommandLineW() to retrieve command line
+
