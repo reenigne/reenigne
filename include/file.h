@@ -11,6 +11,12 @@
 
 /*
 TODO:
+  Shouldn't CurrentDirectory and DriveCurrentDirectory be a global variable and an array respectively?
+
+  RootDirectoryImplementation currently has a _parent and a _name, which is not correct.
+    Have a SubDirectoryImplementation which inherits from DirectoryImplementation
+    Make NormalFileSystemObjectImplementation a member of FileImplementation and SubDirectoryImplementation rather than inheriting from it
+
   FileSystemObject::windowsParse
   FileSystemObject::parse
   File::contents
@@ -44,6 +50,9 @@ class Directory : public FileSystemObject
 public:
     Directory(const String& path, const Directory& relativeTo = CurrentDirectory(), bool windowsParsing = false) : FileSystemObject(new DirectoryImplementation(path, relativeTo, windowsParsing)) { }
 
+    Directory subDirectory(const String& subDirectoryName) const { return _implementation->subDirectory(subDirectoryName); }
+    File file(const String& fileName) const { return _implementation->file(fileName); }
+
 private:
     Directory(Reference<DirectoryImplementation> implementation) : FileSystemObject(implementation) { }
 
@@ -52,10 +61,10 @@ private:
     friend class DirectoryImplementation;
 };
 
-class CurrentDirectory : public FileSystemObject
+class CurrentDirectory : public Directory
 {
 public:
-    CurrentDirectory() : FileSystemObject(implementation()) { }
+    CurrentDirectory() : Directory(implementation()) { }
 
 private:
     static Reference<CurrentDirectoryImplementation> _implementation;
@@ -68,7 +77,7 @@ private:
 };
 
 #ifdef _WIN32
-class DriveCurrentDirectory : public FileSystemObject
+class DriveCurrentDirectory : public Directory
 {
 public:
     DriveCurrentDirectory(int drive) : FileSystemObject(implementation(drive)) { }
@@ -83,10 +92,10 @@ private:
 };
 #endif
 
-class RootDirectory : public FileSystemObject
+class RootDirectory : public Directory
 {
 public:
-    RootDirectory() : FileSystemObject(implementation()) { }
+    RootDirectory() : Directory(implementation()) { }
 private:
     static Reference<RootDirectoryImplementation> _implementation;
     static Reference<RootDirectoryImplementation> implementation()
@@ -112,7 +121,6 @@ public:
     virtual String windowsPath() = 0;
     virtual String path() = 0;
     virtual Directory parent() = 0;
-
 };
 
 class NormalFileSystemObjectImplementation : public FileSystemObjectImplementation
@@ -220,36 +228,33 @@ private:
 //    UnixPathPart := (! '/')*;         // Can be ".." or "."
 
         CharacterSource s = path.start();
-        int state = 0;
+        int c = s.get();
+        int p = 1;
         int subDirectoryStart = 0;
-        int p = 0;
-        int c;
+        if (c == '/') {
+            _parent = RootDirectory();
+            subDirectoryStart = 1;
+        }
+        _name = empty;
         do {
-            switch (state) {
-                case 0:  // Start of path
-                    c = s.get();
-                    ++p;
-                    if (c == '/') {
-                        _parent = RootDirectory();
-                        subDirectoryStart = p;
-                    }
-                    if (c == 0) {
-                        state = 5;
-                        break;
-                    }
-                    state = 1;
-                    break;
-                case 1:  // Normal character
-                    c = s.get();
-                    ++p;
-                    if (c == '/') {
-                        String subDirectory = path.subString(subDirectoryStart, p - subDirectoryStart);
-                        if (subDirectory == currentDirectory || subDirectory == empty)
-                            break;
-                        if (subDirectory == parentDirectory)
-                            _parent = _parent->parent();
-                        _parent = _parent->subDirectory
-                    }
+            c = s.get();
+            ++p;
+            if (c == 0)
+                break;
+            if (c == '/') {
+                _name = path.subString(subDirectoryStart, p - subDirectoryStart);
+                if (_name == parentDirectory)
+                    _parent = _parent->parent();
+                else
+                    if (_name != currentDirectory && _name == empty)
+                        _parent = _parent->subDirectory(_name);
+                subDirectoryStart = p;
+            }
+        } while (true);
+        _parent = _
+
+
+
 
 
     }
@@ -300,7 +305,7 @@ public:
     }
 };
 
-class CurrentDirectoryImplementation : public NormalFileSystemObjectImplementation
+class CurrentDirectoryImplementation : public DirectoryImplementation
 {
 public:
     CurrentDirectoryImplementation()
@@ -333,7 +338,7 @@ public:
 };
 
 #ifdef _WIN32
-class DriveCurrentDirectoryImplementation : public NormalFileSystemObjectImplementation
+class DriveCurrentDirectoryImplementation : public DirectoryImplementation
 {
 public:
     DriveCurrentDirectoryImplementation(int drive)
@@ -365,7 +370,7 @@ public:
 };
 #endif
 
-class RootDirectoryImplementation : public FileSystemObjectImplementation
+class RootDirectoryImplementation : public DirectoryImplementation
 {
 public:
     RootDirectory() { }
