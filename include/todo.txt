@@ -1,3 +1,4 @@
 throwSystemError
 On Windows, use GetCommandLineW() to retrieve command line
-
+Some kind of class to hold all the static Strings and avoid duplication between their different instances?
+Improve the path parsing error messages

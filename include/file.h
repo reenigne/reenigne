@@ -11,24 +11,7 @@
 
 /*
 TODO:
-  We have two conflicting inheritance hierarchies:
-    FileSystemObject
-      File
-      Directory
-        RootDirectory
-
-    FileSystemObject
-      NamedFileSystemObject
-        File
-        Directory
-      RootDirectory
-
-  We want the first one for the "outer" FileSystemObject/Directory/File classes
-  What about the "inner" Implementation classes?
-
-
   FileSystemObjectImplementation::windowsParse
-  FileSystemObjectImplementation::parse
   File::contents
   File::save
 
@@ -48,7 +31,7 @@ class FileSystemObject
 public:
     FileSystemObject(const String& path, const Directory& relativeTo = CurrentDirectory(), bool windowsParsing = false)
     {
-        *this = NamedFileSystemObject::parse(path, relativeTo, windowsParsing));
+        *this = FileSystemObject::parse(path, relativeTo, windowsParsing));
     }
 
     Directory parent() const { return _implementation->parent(); }
@@ -83,13 +66,45 @@ public:
     CurrentDirectory() : Directory(implementation()) { }
 
 private:
-    static Reference<CurrentDirectoryImplementation> _implementation;
-    static Reference<CurrentDirectoryImplementation> implementation()
+    static Reference<FileSystemObjectImplementation> _implementation;
+    static Reference<FileSystemObjectImplementation> implementation()
     {
-        if (!_implementation.valid())
-            _implementation = new CurrentDirectoryImplementation();
+        if (!_implementation.valid()) {
+            static String obtainingCurrentDirectory("Obtaining current directory");
+            _implementation = currentDirectory();
+        }
         return _implementation;
     }
+
+    static Reference<CurrentDirectoryImplementation> currentDirectory()
+    {
+#ifdef _WIN32
+        int n = GetCurrentDirectory(0, NULL);
+        if (n == 0)
+            throwSystemError(obtainingCurrentDirectory);
+        Array<WCHAR> buf(n);
+        if (GetCurrentDirectory(n, &buf[0]) == 0)
+            throwSystemError(obtainingCurrentDirectory);
+        String path(buf);
+        return FileSystemObject::parse(path, RootDirectory(), true)._implementation;
+#else
+        size_t size = 100;
+        do {
+            Array<char> buf(size);
+            if (getcwd(&buf[0], size) != 0) {
+                String path(&buf[0]);
+                return FileSystemObject::parse(path, RootDirectory(), false)._implementation;
+            }
+            if (errno != ERANGE)
+                throwSystemError(obtainingCurrentDirectory);
+            size *= 2;
+        } while (true);
+#endif
+    }
+
+#ifdef _WIN32
+    friend class DriveCurrentDirectory
+#endif
 };
 
 #ifdef _WIN32
@@ -98,11 +113,27 @@ class DriveCurrentDirectory : public Directory
 public:
     DriveCurrentDirectory(int drive) : FileSystemObject(implementation(drive)) { }
 private:
-    static Reference<DriveCurrentDirectoryImplementation> _implementations[26];
-    static Reference<DriveCurrentDirectoryImplementation> implementation(int drive)
+    static Reference<FileSystemObjectImplementation> _implementations[26];
+    static Reference<FileSystemObjectImplementation> implementation(int drive)
     {
-        if (!_implementations[drive].valid())
-            _implementations[drive] = new DriveCurrentDirectoryImplementation(drive);
+        if (!_implementations[drive].valid()) {
+            static String settingCurrentDirectory("Setting current directory");
+            static String obtainingCurrentDirectory("Obtaining current directory");  // TODO: can this be shared with the copy in CurrentDirectoryImplementation?
+
+            // Make sure the current directory has been retrieved
+            CurrentDirectory();
+
+            // Change to this drive
+            Array<WCHAR> buf(3);
+            buf[0] = drive + 'A';
+            buf[1] = ':';
+            buf[2] = 0;
+            if (SetCurrentDirectory(&buf[0]) ==0)
+                throwSystemError(settingCurrentDirectory);
+
+            // Retrieve current directory
+            _implementations[drive] = CurrentDirectory::currentDirectory();
+        }
         return _implementations[drive];
     }
 };
@@ -120,7 +151,30 @@ private:
             _implementation = new RootDirectoryImplementation();
         return _implementation;
     }
-}
+};
+
+#ifdef _WIN32
+class DriveRootDirectory : public Directory
+{
+public:
+    DriveRootDirectory(int drive) : FileSystemObject(implementation(drive)) { }
+private:
+    static Reference<FileSystemObjectImplementation> _implementations[26];
+    static Reference<FileSystemObjectImplementation> implementation(int drive)
+    {
+        if (!_implementations[drive].valid())
+            _implementations[drive] = new DriveRootDirectoryImplementation(drive);
+        return _implementations[drive];
+    }
+};
+
+class UNCRootDirectory : public Directory
+{
+public:
+    UNCRootDirectory(const String& server) : FileSystemObject(new UNCRootDirectory(server)) { }
+};
+#endif
+
 
 class File : public FileSystemObject
 {
@@ -163,15 +217,14 @@ public:
     virtual String windowsPath() const = 0;
     virtual String path() const = 0;
     virtual bool isRoot() const = 0;
-};
-
-class NamedFileSystemObjectImplementation : public FileSystemObjectImplementation
-{
-public:
-    NamedFileSystemObjectImplementation(const Directory& parent, const String& name) : _parent(parent), _name(name) { }
 
     static FileSystemObject parse(const String& path, const Directory& relativeTo, bool windowsParsing)
     {
+        if (path.empty()) {
+            static String invalidPath("Invalid path");
+            throw Exception(invalidPath);
+        }
+
 #ifdef _WIN32
         if (windowsParsing)
             return windowsParse(path, relativeTo);
@@ -182,57 +235,122 @@ public:
 #ifdef _WIN32
     static FileSystemObject windowsParse(const String& path, const Directory& relativeTo)
     {
+        static String invalidPath("Invalid path");
+        static String currentDirectory(".");
+        static String parentDirectory("..");
+        static String empty;
         // TODO
-////          null is end of string
-////          / is separator
-////          \ is separator
-////          ?, *, :, |, ", <, > are disallowed
-////          . and space are disallowed at end
-////          1-31 are disallowed
-////    WindowsSeparator := '/' | '\';
-////    RelativeWindowsPath := (WindowsPathPart WindowsSeparator)* WindowsPathPart [WindowsSeparator];
-////    AbsoluteWindowsPath := [DriveRoot | UNCRoot] WindowsSeparator RelativeWindowsPart;
-////    WindowsForbidden := '?' | '*' | ':' | '"' | '<' | '>' | 0-31;
-////    WindowsPathPart := (!WindowsForbidden)* (! (WindowsForbidden | " " | "."));   // Can be ".." or "."
-////    DriveRoot := 'A'..'Z' ':'
-////    UNCRoot := WindowsSeparator WindowsSeparator (WindowsPathPart | '?' | '.');
-//
-//        CharacterSource s = path.start();
-//        int state = 0;
-//        int subDirectoryStart = 0;
-//        int p = 0;
-//        int c0, c1;
-//        do {
-//            switch (state) {
-//                case 0:  // Start of path
-//                    c0 = s.get();
-//                    ++p;
-//                    if (c0 == '/' || c0 == '\\') {
-//                        state = 1;
-//                        break;
-//                    }
-//                    if ((c0 >= 'a' && c0 <= 'z') || (c0 >= 'A' && c0 <= 'Z')) {
-//                        state = 2;
-//                        break;
-//                    }
-//                    state = 3;
-//                    break;
-//                case 1:  // After initial slash or backslash
-//                    c0 = s.get();
-//                    ++p;
-//                    if (c0 == '/' || c0 == '\\') {
-//                        state = 4;
-//                        break;
-//                    }
-//                    _parent = RootDirectory();
-//                    subDirectoryStart = 1;
-//                    state = 3;
-//                    break;
-//                case 2:  // After initial possible drive letter
-//                    c1 = s.get();
-//                    ++p;
-//                    if (c1 == ':')
-//                        _parent = DriveRootDirectory(c0);
+//            null is end of string
+//            / is separator
+//            \ is separator
+//            ?, *, :, |, ", <, > are disallowed
+//            . and space are disallowed at end
+//            1-31 are disallowed
+//      WindowsSeparator := '/' | '\';
+//      RelativeWindowsPath := (WindowsPathPart WindowsSeparator)* WindowsPathPart [WindowsSeparator];
+//      AbsoluteWindowsPath := [DriveRoot | UNCRoot] WindowsSeparator RelativeWindowsPart;
+//      WindowsForbidden := '?' | '*' | ':' | '"' | '<' | '>' | 0-31;
+//      WindowsPathPart := (!WindowsForbidden)* (! (WindowsForbidden | " " | "."));   // Can be ".." or "."
+//      DriveRoot := 'A'..'Z' ':'
+//      UNCRoot := WindowsSeparator WindowsSeparator (WindowsPathPart | '?' | '.');
+
+        CharacterSource s = path.start();
+        int c = s.get();
+        int p = 1;
+        int subDirectoryStart = 0;
+        Directory dir = relativeTo;
+        int last;
+
+        // Process initial slashes
+        if (c == '/' || c == '\\') {
+            dir = RootDirectory();
+            subDirectoryStart = p;
+            if (s.empty())
+                return dir;
+            c = s.get();
+            ++p;
+            if (c == '/' || c == '\\') {
+                int serverStart;
+                if (s.empty())
+                    throw Exception(invalidPath);
+                do {
+                    serverStart = p;
+                    if (s.
+                    c = s.get();
+                    ++p;
+
+
+                // TODO: Handle UNC paths
+            }
+        }
+        else {
+            int drive = (c >= 'a' ? (c - 'a') : (c - 'A'));
+            if (drive >= 0 && drive < 26) {
+                if (s.empty())
+                    return FileSystemObject(relativeTo, path.subString(0, 1);
+                c = s.get();
+                ++p;
+                if (c == ':') {
+                    subDirectoryStart = p;
+                    dir = DriveCurrentDirectory(drive);
+                    if (s.empty())
+                        return dir;
+                    c = s.get();
+                    ++p;
+                    if (c == '/' || c == '\\') {
+                        dir = DriveRootDirectory(drive);
+                        while (c == '/' || c == '\\') {
+                            subDirectoryStart = p;
+                            if (s.empty())
+                                return dir;
+                            c = s.get();
+                            ++p;
+                        }
+                    }
+                }
+            }
+        }
+
+        do {
+            while (c != '/' && c != '\\') {
+                if (c < 32 || c == '?' || c == '*' || c == ':' || c == '"' || c == '<' || c == '>')
+                    throw Exception(invalidPath);
+                if (s.empty())
+                    break;
+                c = s.get();
+                ++p;
+            }
+            String name = path.subString(subDirectoryStart, p - subDirectoryStart);
+            if (name == currentDirectory)
+                name = empty;
+            if (name == parentDirectory) {
+                dir = dir.parent();
+                name = empty;
+            }
+            if (name != empty) {
+                int l = name[name.length() - 1];
+                if (l == '.' || l == ' ')
+                    throw Exception(invalidPath);
+            }
+            if (s.empty())
+                break;
+            while (c == '/' || c == '\\') {
+                subDirectoryStart = p;
+                if (s.empty())
+                    break;
+                c = s.get();
+                ++p;
+            }
+            if (s.empty())
+                break;
+            dir = dir.subDirectory(name);
+        } while (true);
+        if (name == empty) {
+            if (dir.isRoot())
+                return dir;
+            return FileSystemObject(dir.parent(), dir.name());
+        }
+        return FileSystemObject(dir, name);
     }
 #endif
 
@@ -243,28 +361,29 @@ public:
         static String empty;
 
         CharacterSource s = path.start();
-        if (s.empty()) {
-            static String invalidPath("Invalid path");
-            throw Exception(invalidPath);
-        }
-
         int c = s.get();
         int p = 1;  // p always points to the character after c
         int subDirectoryStart = 0;
         Directory dir = relativeTo;
 
         // Process initial slashes
-        while (c == '/') {
-            subDirectoryStart = p;
+        if (c == '/') {
             dir = RootDirectory();
-            if (s.empty())
-                return dir;
-            c = s.get();
-            ++p;
+            while (c == '/') {
+                subDirectoryStart = p;
+                if (s.empty())
+                    return dir;
+                c = s.get();
+                ++p;
+            }
         }
 
         do {
             while (c != '/') {
+                if (c == 0) {
+                    static String invalidPath("Invalid path");
+                    throw Exception(invalidPath);
+                }
                 if (s.empty())
                     break;
                 c = s.get();
@@ -279,7 +398,6 @@ public:
             }
             if (s.empty())
                 break;
-            }
             while (c == '/') {
                 subDirectoryStart = p;
                 if (s.empty())
@@ -298,6 +416,12 @@ public:
         }
         return FileSystemObject(dir, name);
     }
+};
+
+class NamedFileSystemObjectImplementation : public FileSystemObjectImplementation
+{
+public:
+    NamedFileSystemObjectImplementation(const Directory& parent, const String& name) : _parent(parent), _name(name) { }
 
     String windowsPath() const
     {
@@ -321,75 +445,10 @@ private:
     String _name;
 };
 
-//class CurrentDirectoryImplementation : public DirectoryImplementation
-//{
-//public:
-//    CurrentDirectoryImplementation()
-//    {
-//        static String obtainingCurrentDirectory("Obtaining current directory");
-//#ifdef _WIN32
-//        int n = GetCurrentDirectory(0, NULL);
-//        if (n == 0)
-//            throwSystemError(obtainingCurrentDirectory);
-//        Array<WCHAR> buf(n);
-//        if (GetCurrentDirectory(n, &buf[0]) == 0)
-//            throwSystemError(obtainingCurrentDirectory);
-//        String path(buf);
-//        init(path, RootDirectory(), true);
-//#else
-//        size_t size = 100;
-//        do {
-//            Array<char> buf(size);
-//            if (getcwd(&buf[0], size) != 0) {
-//                String path(buf);
-//                init(path, RootDirectory(), false);
-//                return;
-//            }
-//            if (errno != ERANGE)
-//                throwSystemError(obtainingCurrentDirectory);
-//            size *= 2;
-//        } while (true);
-//#endif
-//    }
-//};
-//
-//#ifdef _WIN32
-//class DriveCurrentDirectoryImplementation : public DirectoryImplementation
-//{
-//public:
-//    DriveCurrentDirectoryImplementation(int drive)
-//    {
-//        static String settingCurrentDirectory("Setting current directory");
-//        static String obtainingCurrentDirectory("Obtaining current directory");  // TODO: can this be shared with the copy in CurrentDirectoryImplementation?
-//
-//        // Make sure the current directory has been retrieved
-//        CurrentDirectory();
-//
-//        // Change to this drive
-//        Array<WCHAR> buf(3);
-//        buf[0] = drive + 'A';
-//        buf[1] = ':';
-//        buf[2] = 0;
-//        if (SetCurrentDirectory(&buf[0]) ==0)
-//            throwSystemError(settingCurrentDirectory);
-//
-//        // Retrieve current directory
-//        int n = GetCurrentDirectory(0, NULL);
-//        if (n == 0)
-//            throwSystemError(obtainingCurrentDirectory);
-//        Array<WCHAR> buf(n);
-//        if (GetCurrentDirectory(n, &buf[0]) == 0)
-//            throwSystemError(obtainingCurrentDirectory);
-//        String path(buf);
-//        init(path, RootDirectory(), true);
-//    }
-//};
-//#endif
-
 class RootDirectoryImplementation : public FileSystemObjectImplementation
 {
 public:
-    RootDirectory() { }
+    RootDirectoryImplementation() { }
 
     Directory parent() const { return RootDirectory(); }
     String windowsPath() const
@@ -404,5 +463,44 @@ public:
     }
     bool isRoot() const { return true; }
 };
+
+#ifdef _WIN32
+class DriveRootDirectoryImplementation : public RootDirectoryImplementation
+{
+public:
+    DriveRootDirectoryImplementation(int drive) { }
+
+    Directory parent() const { return DriveRootDirectory(drive); }
+    String windowsPath() const
+    {
+        static String system("System");
+        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(system);
+        bufferImplementation->allocate(3);
+        UInt8* p = bufferImplementation->data();
+        p[0] = drive + 'A';
+        p[1] = ':';
+        p[2] = '\\';
+        return String(Buffer(bufferImplementation), 0, 3);
+    }
+private:
+    int _drive;
+};
+
+class UNCRootDirectoryImplementation : public RootDirectoryImplementation
+{
+public:
+    UNCRootDirectoryImplementation(const String& server) : _server(server) { }
+
+    Directory parent() const { return UNCRootDirectory(_server); }
+    String windowsPath() const
+    {
+        static String backslashBackslash("\\\\");
+        static String backslash("\\");
+        return backslashBackslash + _server + backslash;
+    }
+private:
+    String _server;
+};
+#endif
 
 #endif // INCLUDED_FILE_H

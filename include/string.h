@@ -39,7 +39,7 @@ private:
     const UInt8* _data;
 };
 
-class NonOwningBuffer : public Buffer
+class NonOwningBufferImplementation : public BufferImplementation
 {
 public:
     NonOwningBuffer(const UInt8* data) { setData(data); }
@@ -50,10 +50,10 @@ public:
     }
 };
 
-class OwningBuffer : public Buffer
+class OwningBufferImplementation : public BufferImplementation
 {
 public:
-    OwningBuffer(String fileName) : _fileName(fileName) { }
+    OwningBuffer(const String& fileName) : _fileName(fileName) { }
     void allocate(int bytes) { _data->allocate(bytes); setData(&_data[0]); }
     UInt8* data() { return &_data[0]; }
     String fileName() const { return _fileName; }
@@ -65,24 +65,25 @@ private:
 class String
 {
 public:
-    String(const char* data) : _string(new SimpleStringImplementation(reinterpret_cast<const UInt8*>(data), 0, strlen(data))) { }
+    String(const char* data) : _implementation(new SimpleStringImplementation(reinterpret_cast<const UInt8*>(data), 0, strlen(data))) { }
+    String(const Buffer& buffer, int start, int n) : _implementation(new SimpleStringImplementation(buffer, start, n)) { }
     String(const Array<WCHAR>& utf16)
     {
         // TODO: Count number of UTF-8 bytes required into n
         static String system("System");
-        Reference<OwningBufferImplementation> buffer = new OwningBufferImplementation(system);
-        buffer->allocate(n);
-        // TODO: Convert utf16 to buffer
-        _string = new SimpleStringImplementation(
+        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(system);
+        bufferImplementation->allocate(n);
+        // TODO: Convert utf16 to bufferImplementation
+        _implementation = new SimpleStringImplementation(Buffer(bufferImplementation), 0, n);
     }
-    String(UInt32 value, int length) : _string(new HexadecimalStringImplementation(value, length)) { }
+    String(UInt32 value, int length) : _implementation(new HexadecimalStringImplementation(value, length)) { }
     String subString(int start, int length)
     {
-        return String(_string->subString(start, length));
+        return String(_implementation->subString(start, length));
     }
     const String& operator+=(const String& other)
     {
-        _string = _string->withAppended(other._string);
+        _implementation = _implementation->withAppended(other._implementation);
         return *this;
     }
     String operator+(const String& other)
@@ -95,22 +96,22 @@ public:
     {
         int l = length();
         data->allocate(l + 1);
-        _string->copyTo(&data[0]);
+        _implementation->copyTo(&data[0]);
         data[l] = 0;
     }
-    int hash() const { return _string->hash(0); }
+    int hash() const { return _implementation->hash(0); }
     bool operator==(const String& other) const
     {
         int l = length();
         if (l != other.length())
             return false;
-        return _string->compare(0, other._string, 0, l) == 0;
+        return _implementation->compare(0, other._implementation, 0, l) == 0;
     }
     bool operator<(const String& other) const
     {
         int l = length();
         int otherLength = other.length())
-        int c = _string->compare(0, other._string, 0, min(l, otherLength));
+        int c = _implementation->compare(0, other._implementation, 0, min(l, otherLength));
         if (c != 0)
             return c < 0;
         return l < otherLength;
@@ -118,17 +119,17 @@ public:
     bool operator>(const String& other) const { return other < *this; }
     bool operator<=(const String& other) const { return !operator>(other); }
     bool operator>=(const String& other) const { return !operator<(other); }
-    UInt8 operator[](int offset) const { return _string->byteAt(offset); }
+    UInt8 operator[](int offset) const { return _implementation->byteAt(offset); }
     CharacterSource start() { return CharacterSource(*this); }
-    int length() const { return _string->length(); }
+    int length() const { return _implementation->length(); }
     bool empty() const { return length() == 0; }
 
     void initSimpleData(int offset, Buffer* buffer, int* start, int* length)
     {
-        _string->initSimpleData(offset, buffer, start, length);
+        _implementation->initSimpleData(offset, buffer, start, length);
     }
 private:
-    Reference<StringImplementation> _string;
+    Reference<StringImplementation> _implementation;
 };
 
 class StringImplementation : public ReferenceCounted
