@@ -11,7 +11,6 @@
 
 /*
 TODO:
-  FileSystemObjectImplementation::windowsParse
   File::contents
   File::save
 
@@ -128,7 +127,7 @@ private:
             buf[0] = drive + 'A';
             buf[1] = ':';
             buf[2] = 0;
-            if (SetCurrentDirectory(&buf[0]) ==0)
+            if (SetCurrentDirectory(&buf[0]) == 0)
                 throwSystemError(settingCurrentDirectory);
 
             // Retrieve current directory
@@ -171,7 +170,7 @@ private:
 class UNCRootDirectory : public Directory
 {
 public:
-    UNCRootDirectory(const String& server) : FileSystemObject(new UNCRootDirectory(server)) { }
+    UNCRootDirectory(const String& server, const String& share) : FileSystemObject(new UNCRootDirectory(server, share)) { }
 };
 #endif
 
@@ -185,25 +184,34 @@ public:
     {
 #ifdef _WIN32
         Array<UInt8> data;
-        windowsName().copyToUTF16(&data);
-//        CreateFile(
-//           reinterpret_cast<LPCWSTR>(&data[0]),
-//           GENERIC_READ,
-//           FILE_SHARE_READ,
-//           NULL,
-//           OPEN_EXISTING,
-//           FILE_FLAG_SEQUENTIAL_SCAN,
-//           NULL);
-//        // TODO
-//#else
-//        // TODO
-//#endif
-//    }
-//    void save(const String& contents)
-//    {
-//        // TODO: How do we do this reliably? (Particularly important for the editor case)
-//    }
+        String name = windowsName();
+        name.copyToUTF16(&data);
+        HANDLE h = CreateFile(
+           reinterpret_cast<LPCWSTR>(&data[0]),
+           GENERIC_READ,
+           FILE_SHARE_READ,
+           NULL,
+           OPEN_EXISTING,
+           FILE_FLAG_SEQUENTIAL_SCAN,
+           NULL);
+        if (h == INVALID_HANDLE_VALUE) {
+            static String openingFile("Opening file ");
+            throwSystemError(openingFile + name);
+        }
+        Handle handle(h);
+        // TODO: Determine length
+        // TODO: Allocate buffer
 
+        if (ReadFile(handle, ) == 0
+        // TODO
+#else
+        // TODO
+#endif
+    }
+    void save(const String& contents)
+    {
+        // TODO: How do we do this reliably? (Particularly important for the editor case)
+    }
 private:
 };
 
@@ -239,20 +247,6 @@ public:
         static String currentDirectory(".");
         static String parentDirectory("..");
         static String empty;
-        // TODO
-//            null is end of string
-//            / is separator
-//            \ is separator
-//            ?, *, :, |, ", <, > are disallowed
-//            . and space are disallowed at end
-//            1-31 are disallowed
-//      WindowsSeparator := '/' | '\';
-//      RelativeWindowsPath := (WindowsPathPart WindowsSeparator)* WindowsPathPart [WindowsSeparator];
-//      AbsoluteWindowsPath := [DriveRoot | UNCRoot] WindowsSeparator RelativeWindowsPart;
-//      WindowsForbidden := '?' | '*' | ':' | '"' | '<' | '>' | 0-31;
-//      WindowsPathPart := (!WindowsForbidden)* (! (WindowsForbidden | " " | "."));   // Can be ".." or "."
-//      DriveRoot := 'A'..'Z' ':'
-//      UNCRoot := WindowsSeparator WindowsSeparator (WindowsPathPart | '?' | '.');
 
         CharacterSource s = path.start();
         int c = s.get();
@@ -270,18 +264,37 @@ public:
             c = s.get();
             ++p;
             if (c == '/' || c == '\\') {
-                int serverStart;
+                int serverStart = p;
                 if (s.empty())
                     throw Exception(invalidPath);
                 do {
-                    serverStart = p;
-                    if (s.
                     c = s.get();
                     ++p;
-
-
-                // TODO: Handle UNC paths
+                    if (s.empty())
+                        throw Exception(invalidPath);
+                    // TODO: What characters are actually legal in server names?
+                } while (c != '\\' && c != '/');
+                String server = path.subString(serverStart, p - serverStart);
+                int shareStart = p;
+                do {
+                    c = s.get();
+                    ++p;
+                    if (s.empty())
+                        break;
+                    // TODO: What characters are actually legal in share names?
+                } while (c != '\\' && c != '/');
+                String share = path.subString(shareStart, p - shareStart);
+                dir = UNCRootDirectory(server, share);
+                do {
+                    subDirectoryStart = p;
+                    if (s.empty())
+                        return dir;
+                    c = s.get();
+                    ++p;
+                } while (c == '/' || c == '\\');
             }
+            // TODO: In paths starting \\?\, only \ and \\ are allowed separators, and ?*:"<> are allowed.
+            // see http://docs.racket-lang.org/reference/windowspaths.html for more details
         }
         else {
             int drive = (c >= 'a' ? (c - 'a') : (c - 'A'));
@@ -453,6 +466,8 @@ public:
     Directory parent() const { return RootDirectory(); }
     String windowsPath() const
     {
+        // TODO: Use \\?\ to avoid MAX_PATH limit?
+        // If we do this we need to know the current drive - this is the first character of CurrentDirectory().windowsPath() .
         static String backslash("\\");
         return backslash;
     }
@@ -473,6 +488,7 @@ public:
     Directory parent() const { return DriveRootDirectory(drive); }
     String windowsPath() const
     {
+        // TODO: Use \\?\ to avoid MAX_PATH limit?
         static String system("System");
         Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(system);
         bufferImplementation->allocate(3);
@@ -489,17 +505,18 @@ private:
 class UNCRootDirectoryImplementation : public RootDirectoryImplementation
 {
 public:
-    UNCRootDirectoryImplementation(const String& server) : _server(server) { }
+    UNCRootDirectoryImplementation(const String& server, const String& share) : _server(server), _share(share) { }
 
     Directory parent() const { return UNCRootDirectory(_server); }
     String windowsPath() const
     {
         static String backslashBackslash("\\\\");
         static String backslash("\\");
-        return backslashBackslash + _server + backslash;
+        return backslashBackslash + _server + backslash + _share + backslash;
     }
 private:
     String _server;
+    String _share;
 };
 #endif
 
