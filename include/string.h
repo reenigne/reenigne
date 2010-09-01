@@ -5,13 +5,6 @@
 #include "minimum_maximum.h"
 #include "reference_counted.h"
 
-/*
-TODO:
-  Will probably need DecimalStringImplementation - more complicated than HexadecimalStringImplementation
-    Powers of 10
-  Rename _string member of String to _implementation
-*/
-
 class Buffer : public ReferenceCounted
 {
 public:
@@ -20,6 +13,7 @@ public:
     Buffer(Reference<BufferImplementation> implementation) : _implementation(implementation) { }
     bool operator==(const Buffer& other) const { return _implementation == other._implementation; }
     String fileName() const { return _implementation->fileName(); }
+    const UInt8* data() const { return _implementation->data(); }
 private:
     Reference<BufferImplementation> _implementation;
 };
@@ -62,21 +56,178 @@ private:
     String _fileName;
 };
 
+
+class CharacterSource
+{
+public:
+    CharacterSource(const String& string) : _string(string), _offset(0)
+    {
+        initSimpleData();
+    }
+    int get()
+    {
+        static String overlongEncoding("Overlong encoding");
+        static String codePointTooHigh("Code point too high");
+        static String unexpectedSurrogate("Unexpected surrogate");
+
+        if (_length == 0)
+            return -1;
+        int b0 = _buffer[_start];
+        if (b0 >= 0 && b0 < 0x80)
+            return b;
+        if (b0 < 0xc0 || b0 >= 0xf8)
+            throwUTF8Exception(true);
+        String start = *this;
+        next();
+
+        int b1 = getNextByte();
+        if (b0 >= 0xc0 && b0 < 0xe0) {
+            int r = ((b0 & 0x1f) << 6) | (b1 & 0x3f);
+            if (r < 0x80)
+                start.throwUTF8Exception(overlongEncoding);
+            return r;
+        }
+
+        int b2 = getNextByte();
+        if (b0 >= 0xe0 && b0 < 0xf0) {
+            int r = ((b0 & 0x0f) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
+            if (r < 0x800)
+                start.throwUTF8Exception(overlongEncoding);
+            if (r >= 0xd800 && r < 0xe000)
+                start.throwUTF8Exception(unexpectedSurrogate);
+            return r;
+        }
+
+        int b3 = getNextByte();
+        int r = ((b0 & 0x07) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+        if (r < 0x10000)
+            start.throwUTF8Exception(overlongEncoding);
+        if (r >= 0x110000)
+            start.throwUTF8Exception(codePointTooHigh);
+        return r;
+    }
+    bool empty() const
+    {
+        return _length == 0;
+    }
+private:
+    void throwUTF8Exception(bool first)
+    {
+        static String expectedFirst("Expected 0x00..0x7F or 0xC0..0xF7, found 0x");
+            static String expectedNext("Expected 0x80..0xBF, found 0x");
+        String expected = first ? expectedFirst : expectedNext;
+        static String endOfString("end of string");
+        String s = (_length > 0 ? String::hexadecimal(_buffer[0], 2) : endOfString;
+        throwUTF8Exception(expected + s);
+    }
+    void throwUTF8Exception(String message)
+    {
+        static String at(" at ");
+        static String in(" in ");
+        String s = subString(offset, 1);
+        throw UTF8Exception(message + at + String::hexadecimal(s._implmentation->offset(), 8) + in + s._implementation->buffer()->fileName());
+    }
+    int getNextByte()
+    {
+        if (empty())
+            throwUTF8Exception(false);
+        int b = _buffer[_start];
+        if (b < 0x80 || b >= 0xc0)
+            throwUTF8Exception(false);
+        next();
+        return b;
+    }
+    void initSimpleData()
+    {
+        _string.initSimpleData(_offset, &_buffer, &_start, &_length);
+    }
+    void next()
+    {
+        ++_offset;
+        ++_start;
+        --_length;
+        if (_length != 0)
+            return;
+        initSimpleData();
+    }
+
+    Buffer _buffer;
+    int _start;
+    int _length;
+    String _string;
+    int _offset;
+};
+
+
 class String
 {
 public:
     String(const char* data) : _implementation(new SimpleStringImplementation(reinterpret_cast<const UInt8*>(data), 0, strlen(data))) { }
     String(const Buffer& buffer, int start, int n) : _implementation(new SimpleStringImplementation(buffer, start, n)) { }
-    String(const Array<WCHAR>& utf16)
+#ifdef _WIN32
+    String(const WCHAR* utf16)
     {
-        // TODO: Count number of UTF-8 bytes required into n
+        int n = 0;
+        int i = 0;
+        while (true) {
+            int c = utf16[i++];
+            if (c == 0)
+                break;
+            if (c >= 0xdc00 && c < 0xe000) {
+                static String expected("Expected 0x0000..0xD800 or 0xE000..0xFFFF, found 0x");
+                throw Exception(expected + String::hexadecimal(c, 4));
+            }
+            if (c >= 0xd800 && c < 0xdc00) {
+                int c2 = utf16[i++];
+                if (c2 < 0xdc00 || c2 >= 0xe000) {
+                    static String expected("Expected 0xDC00..0xDFFF, found 0x");
+                    throw Exception(expected + String::hexadecimal(c2, 4));
+                }
+                ++n;
+                continue;
+            }
+            if (c >= 0x800)
+                ++n;
+            if (c >= 0x80)
+                ++n;
+            ++n;
+        }
         static String system("System");
         Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(system);
         bufferImplementation->allocate(n);
-        // TODO: Convert utf16 to bufferImplementation
+        i = 0;
+        UInt8* p = bufferImplementation->data();
+        while (true) {
+            int codePoint = utf16[i++];
+            if (codePoint == 0)
+                break;
+            if (codePoint < 0x80)
+                *(p++) = codePoint;
+            else {
+                if (codePoint < 0x800)
+                    *(p++) = 0xc0 | (codePoint >> 6);
+                else {
+                    if (codePoint >= 0xd800 && codePoint < 0xdc00) {
+                        codePoint = (((codePoint & 0x3ff)<<10) | (utf16[i++] & 0x3ff)) + 0x10000;
+                        *(p++) = 0xf0 | (codePoint >> 18);
+                        *(p++) = 0x80 | ((codePoint >> 12) & 0x3f);
+                    }
+                    else
+                        *(p++) = 0xe0 | (codePoint >> 12);
+                    *(p++) = 0x80 | ((codePoint >> 6) & 0x3f);
+                }
+                *(p++) = 0x80 | (codePoint & 0x3f);
+            }
+        }
         _implementation = new SimpleStringImplementation(Buffer(bufferImplementation), 0, n);
     }
-    String(UInt32 value, int length) : _implementation(new HexadecimalStringImplementation(value, length)) { }
+#endif
+    static String hexadecimal(UInt32 value, int length)
+    {
+        String s;
+        s._implementation = new HexadecimalStringImplementation(value, length);
+        return s;
+    }
     String subString(int start, int length)
     {
         return String(_implementation->subString(start, length));
@@ -99,6 +250,33 @@ public:
         _implementation->copyTo(&data[0]);
         data[l] = 0;
     }
+#ifdef _WIN32
+    void copyToUTF16(Array<WCHAR>* data)
+    {
+        CharacterSource s = start();
+        int l = 2;
+        while (!s.empty()) {
+            int c = s.get();
+            l += 2;
+            if (c >= 0x10000)
+                l += 2;
+        }
+        s = start();
+        data->allocate(l);
+        while (!s.empty()) {
+            int c = s.get();
+            if (c >= 0x10000) {
+                c -= 0x10000;
+                data[l++] = 0xd800 + ((c >> 10) & 0x03ff);
+                data[l++] = 0xdc00 + (c & 0x03ff);
+            }
+            else {
+                data[l++] = c;
+            }
+        }
+        data[l++] = 0;
+    }
+#endif
     int hash() const { return _implementation->hash(0); }
     bool operator==(const String& other) const
     {
@@ -107,6 +285,7 @@ public:
             return false;
         return _implementation->compare(0, other._implementation, 0, l) == 0;
     }
+    bool operator!=(const String& other) const { return !operator==(other); }
     bool operator<(const String& other) const
     {
         int l = length();
@@ -123,6 +302,7 @@ public:
     CharacterSource start() { return CharacterSource(*this); }
     int length() const { return _implementation->length(); }
     bool empty() const { return length() == 0; }
+    void write(const Handle& handle) const { _implementation->write(handle); }
 
     void initSimpleData(int offset, Buffer* buffer, int* start, int* length)
     {
@@ -146,6 +326,7 @@ public:
     virtual Buffer buffer() = 0;
     virtual int offset() = 0;
     virtual void initSampleData(int offset, Buffer* buffer, int* start, int* length) = 0;
+    virtual void write(const Handle& handle) const = 0;
 protected:
     void setLength(int length) { _length = length; }
 private:
@@ -185,18 +366,18 @@ public:
     int hash(int h) const
     {
         for (int i = 0; i < length(); ++i)
-            h = h * 67 + _buffer->data()[_start + i] - 113;
+            h = h * 67 + _buffer.data()[_start + i] - 113;
         return h;
     }
     int compare(int start, const StringImplementation* other, int otherStart, int l) const
     {
-        return -other->compare(otherStart, _buffer->data() + _start + start, l);
+        return -other->compare(otherStart, _buffer,data() + _start + start, l);
     }
     int compare(int start, const UInt8* data, int l) const
     {
         return memcmp(_buffer()->data() + _start + start, data, l);
     }
-    UInt8 byteAt(int offset) const { return _buffer->data()[_start + offset]; }
+    UInt8 byteAt(int offset) const { return _buffer.data()[_start + offset]; }
     Buffer buffer() const { return _buffer; }
     int offset() const { return _start; }
     void initSimpleData(int offset, Buffer* buffer, int* start, int* length)
@@ -204,6 +385,23 @@ public:
         *buffer = _buffer;
         *start = _start + offset;
         *length = length() - offset;
+    }
+    void write(const Handle& handle)
+    {
+#ifdef _WIN32
+        DWORD bytesWritten;
+        if (WriteFile(handle, reinterpret_cast<LPCVOID>(_buffer.data() + _start), length(), &bytesWritten, NULL) == 0 || bytesWritten != length()) {
+            static String writingFile("Writing file ");
+            Exception::throwSystemError(writingFile + handle.name());
+        }
+#else
+        ssize_t writeResult = write(fileDescriptor, static_cast<void*>(_buffer.data() + _start), length());
+        static String readingFile("Writing file ");
+        if (writeResult < length()) {
+            static String writingFile("Writing file ");
+            Exception::throwSystemError(writingFile + handle.name());
+        }
+#endif
     }
 private:
     Buffer _buffer;
@@ -284,6 +482,11 @@ public:
             return _left->initSimpleData(offset, buffer, start, length);
         return _right->initSimpleData(offset - leftLength, buffer, start, length);
     }
+    void write(const Handle& handle)
+    {
+        _left->write(handle);
+        _right->write(handle);
+    }
 private:
     Reference<StringImplementation> _left;
     Reference<StringImplementation> _right;
@@ -347,8 +550,28 @@ public:
     }
     Buffer buffer() const { return Buffer(); }
     int offset() const { return 0; }
+    void write(const Handle& handle)
+    {
+        UInt8 buffer[8];
+        copyTo(buffer);
+#ifdef _WIN32
+        DWORD bytesWritten;
+        if (WriteFile(handle, reinterpret_cast<LPCVOID>(buffer), length(), &bytesWritten, NULL) == 0 || bytesWritten != length()) {
+            static String writingFile("Writing file ");
+            Exception::throwSystemError(writingFile + handle.name());
+        }
+#else
+        ssize_t writeResult = write(fileDescriptor, static_cast<void*>(buffer), length());
+        static String readingFile("Writing file ");
+        if (writeResult < length()) {
+            static String writingFile("Writing file ");
+            Exception::throwSystemError(writingFile + handle.name());
+        }
+#endif
+    }
 private:
     UInt32 _value;
 };
+
 
 #endif // INCLUDED_STRING_H

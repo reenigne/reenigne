@@ -9,20 +9,6 @@
 #include <unistd.h>
 #endif
 
-/*
-TODO:
-  File::contents
-  File::save
-
-  Want to be able to compare FileSystemObjects to see if they correspond to the same file?
-    Do need this for "include" idempotency
-    Don't need to worry about UNC paths, hard-links etc. but we should deal with relative paths correctly
-      Usual case will be the filename is specified relative to the source file which did the "include".
-      Need == and hash?
-        On Windows, paths are generally not case sensitive, on unix they generally are, but not always
-          => compare as case sensitive for this purpose
-*/
-
 extern String pathDelimiter;
 
 class FileSystemObject
@@ -34,6 +20,18 @@ public:
     }
 
     Directory parent() const { return _implementation->parent(); }
+
+    String path() const { return _implementation->path(); }
+
+    bool operator==(const FileSystemObject& other)
+    {
+        return _implementation->compare(other._implementation) == 0;
+    }
+    bool operator!=(const FileSystemObject& other) const { return !operator==(other); }
+    int hash() const { return _implementation->hash(0); }
+#ifdef _WIN32
+    String windowsPath() const { return _implementation->windowsPath(); }
+#endif
 protected:
     FileSystemObject(Reference<FileSystemObjectImplementation> implementation) : _implementation(implementation) { }
 
@@ -80,11 +78,11 @@ private:
 #ifdef _WIN32
         int n = GetCurrentDirectory(0, NULL);
         if (n == 0)
-            throwSystemError(obtainingCurrentDirectory);
+            Exception::throwSystemError(obtainingCurrentDirectory);
         Array<WCHAR> buf(n);
         if (GetCurrentDirectory(n, &buf[0]) == 0)
-            throwSystemError(obtainingCurrentDirectory);
-        String path(buf);
+            Exception::throwSystemError(obtainingCurrentDirectory);
+        String path(&buf[0]);
         return FileSystemObject::parse(path, RootDirectory(), true)._implementation;
 #else
         size_t size = 100;
@@ -95,7 +93,7 @@ private:
                 return FileSystemObject::parse(path, RootDirectory(), false)._implementation;
             }
             if (errno != ERANGE)
-                throwSystemError(obtainingCurrentDirectory);
+                Exception::throwSystemError(obtainingCurrentDirectory);
             size *= 2;
         } while (true);
 #endif
@@ -128,7 +126,7 @@ private:
             buf[1] = ':';
             buf[2] = 0;
             if (SetCurrentDirectory(&buf[0]) == 0)
-                throwSystemError(settingCurrentDirectory);
+                Exception::throwSystemError(settingCurrentDirectory);
 
             // Retrieve current directory
             _implementations[drive] = CurrentDirectory::currentDirectory();
@@ -183,11 +181,11 @@ public:
     String contents() const
     {
 #ifdef _WIN32
-        Array<UInt8> data;
-        String name = windowsName();
-        name.copyToUTF16(&data);
+        Array<WCHAR> data;
+        String filePath = windowsPath();
+        filePath.copyToUTF16(&data);
         HANDLE h = CreateFile(
-           reinterpret_cast<LPCWSTR>(&data[0]),
+           &data[0],
            GENERIC_READ,
            FILE_SHARE_READ,
            NULL,
@@ -196,23 +194,198 @@ public:
            NULL);
         if (h == INVALID_HANDLE_VALUE) {
             static String openingFile("Opening file ");
-            throwSystemError(openingFile + name);
+            Exception::throwSystemError(openingFile + filePath);
         }
-        Handle handle(h);
-        // TODO: Determine length
-        // TODO: Allocate buffer
-
-        if (ReadFile(handle, ) == 0
-        // TODO
+        AutoHandle handle(h);
+        LARGE_INTEGER size;
+        if (GetFileSizeEx(handle, &size) == 0) {
+            static String obtainingLengthOfFile("Obtaining length of file ");
+            Exception::throwSystemError(obtainingLengthOfFile + filePath);
+        }
+        int n = size.LowPart;
+        if (size.HighPart != 0 || n >= 0x80000000) {
+            static String tooLargeFile("2Gb or more in file ");
+            Exception::throwSystemError(tooLargeFile + filePath);
+        }
+        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(filePath);
+        bufferImplementation->allocate(n);
+        DWORD numberOfBytesRead;
+        if (ReadFile(handle, static_cast<LPVOID>(bufferImplementation->data()), n, &numberOfBytesRead, NULL) == 0 || numberOfBytesRead != n) {
+            static String readingFile("Reading file ");
+            Exception::throwSystemError(readingFile + filePath);
+        }
+        return String(Buffer(bufferImplementation), 0, n);
 #else
-        // TODO
+        Array<UInt8> data;
+        String filePath = path();
+        filePath.copyTo(&data);
+        int fileDescriptor = open(
+            reinterpret_cast<const char*>(&data[0]),
+            O_RDONLY);
+        if (fileDescriptor == -1) {
+            static String openingFile("Opening file ");
+            Exception::throwSystemError(openingFile + filePath);
+        }
+        AutoHandle handle(fileDescriptor);
+        off_t n = lseek(fileDescriptor, 0, SEEK_END);
+        static String seekingFile("Seeking file ");
+        if (n == (off_t)(-1))
+            Exception::throwSystemError(seekingFile + filePath);
+        if (n >= 0x80000000) {
+            static String tooLargeFile("2Gb or more in file ");
+            Exception::throwSystemError(tooLargeFile + filePath);
+        }
+        off_t r = lseek(fileDescriptor, 0, SEEK_SET);
+        if (r == (off_t)(-1))
+            Exception::throwSystemError(seekingFile + filePath);
+        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(name);
+        bufferImplementation->allocate(n);
+        ssize_t readResult = read(fileDescriptor, static_cast<void*>(bufferImplementation->data()), n);
+        if (readResult < n) {
+            static String readingFile("Reading file ");
+            Exception::throwSystemError(readingFile + filePath);
+        }
+        return String(Buffer(bufferImplementation), 0, n);
 #endif
     }
     void save(const String& contents)
     {
-        // TODO: How do we do this reliably? (Particularly important for the editor case)
+#ifdef _WIN32
+        Array<WCHAR> data;
+        String filePath = windowsPath();
+        filePath.copyToUTF16(&data);
+        HANDLE h = CreateFile(
+            &data[0],
+            GENERIC_WRITE,
+            0,
+            NULL,
+            CREATE_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL);
+        if (h == INVALID_HANDLE_VALUE) {
+            static String openingFile("Opening file ");
+            Exception::throwSystemError(openingFile + filePath);
+        }
+        AutoHandle handle(h);
+        contents.write(handle);
+#else
+        Array<UInt8> data;
+        String filePath = path();
+        filePath.copyTo(&data);
+        int fileDescriptor = open(
+            reinterpret_cast<const char*>(&data[0]),
+            O_WRONLY | O_CREAT | O_TRUNC);
+        if (fileDescriptor == -1) {
+            static String openingFile("Opening file ");
+            Exception::throwSystemError(openingFile + filePath);
+        }
+        AutoHandle handle(fileDescriptor);
+        contents.write(handle);
+#endif
     }
-private:
+    void secureSave(const String& contents)
+    {
+        // TODO: Backup file?
+#ifdef _WIN32
+        String filePath = windowsPath();
+        Array<WCHAR> data;
+        filePath.copyToUTF16(&data);
+        Array<WCHAR> tempData;
+        int i = 0;
+        do {
+            String tempPath = filePath + String::hexadecimal(i, 8);
+            tempPath.copyToUTF16(&tempData);
+            HANDLE h = CreateFile(
+                &tempData[0],
+                GENERIC_WRITE,
+                0,
+                NULL,
+                CREATE_NEW,
+                FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH,
+                NULL);
+            if (h != INVALID_HANDLE_VALUE)
+                break;
+            if (GetLastError() != ERROR_FILE_EXISTS) {
+                static String openingFile("Opening file ");
+                Exception::throwSystemError(openingFile + tempPath);
+            }
+        } while (true);
+        {
+            AutoHandle handle(h);
+            contents.write(handle);
+        }
+        if (ReplaceFile(&data[0], &tempData[0], NULL, REPLACEFILE_WRITE_THROUGH | REPLACEFILE_IGNORE_MERGE_ERRORS) == 0) {
+            static String replacingFile("Replacing file ");
+            Exception::throwSystemError(replacingFile + filePath);
+        }
+#else
+        String filePath = path();
+        Array<UInt8> data;
+        filePath.copyTo(&data);
+        Array<UInt8> tempData;
+        int i = 0;
+        do {
+            String tempPath = filePath + String::hexadecimal(i, 8);
+            tempPath.copyTo(tempData);
+            int fileDescriptor = open(
+                reinterpret_cast<const char*>(&data[0]),
+                O_WRONLY | O_CREAT | O_EXCL);
+            if (fileDescriptor != -1)
+                break;
+            if (errno != EEXIST) {
+                static String openingFile("Opening file ");
+                Exception::throwSystemError(openingFile + tempPath);
+            }
+        } while (true);
+        {
+            AutoHandle handle(fileDescriptor);
+            contents.write(handle);
+            if (fsync(handle) != 0) {
+                static String synchronizingFile("Synchronizing file ");
+                Exception::throwSystemError(synchronizingFile + filePath);
+            }
+        }
+        if (rename(&tempData[0], &data[0]) != 0) {
+            static String replacingFile("Replacing file ");
+            Exception::throwSystemError(replacingFile + filePath);
+        }
+#endif
+    }
+    void append(const String& contents)
+    {
+#ifdef _WIN32
+        Array<WCHAR> data;
+        String filePath = windowsPath();
+        filePath.copyToUTF16(&data);
+        HANDLE h = CreateFile(
+            &data[0],
+            GENERIC_WRITE,
+            0,
+            NULL,
+            OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL);
+        if (h == INVALID_HANDLE_VALUE) {
+            static String openingFile("Opening file ");
+            Exception::throwSystemError(openingFile + filePath);
+        }
+        AutoHandle handle(h);
+        contents.write(handle);
+#else
+        Array<UInt8> data;
+        String filePath = path();
+        filePath.copyTo(&data);
+        int fileDescriptor = open(
+            reinterpret_cast<const char*>(&data[0]),
+            O_WRONLY | O_APPEND);
+        if (fileDescriptor == -1) {
+            static String openingFile("Opening file ");
+            Exception::throwSystemError(openingFile + filePath);
+        }
+        AutoHandle handle(fileDescriptor);
+        contents.write(handle);
+#endif
+    }
 };
 
 
@@ -225,6 +398,8 @@ public:
     virtual String windowsPath() const = 0;
     virtual String path() const = 0;
     virtual bool isRoot() const = 0;
+    virtual int hash(int h) = 0;
+    virtual int compare(const FileSystemObjectImplementation* other) = 0;
 
     static FileSystemObject parse(const String& path, const Directory& relativeTo, bool windowsParsing)
     {
@@ -453,6 +628,23 @@ public:
     String name() const { return _name; }
 
     bool isRoot() const { return false; }
+
+    virtual int hash(int h)
+    {
+        return _parent.hash(h) * 67 + _name.hash();
+    }
+    virtual int compare(const FileSystemObjectImplementation* other)
+    {
+        const NamedFileSystemObjectImplementation* named = dynamic_cast<const NamedFileSystemObjectImplementation*>(other);
+        if (named == 0)
+            return 1;
+        if (_parent != named->_parent)
+            return 1;
+        if (_name != named->_name)
+            return 1;
+        return 0;
+    }
+
 private:
     Directory _parent;
     String _name;

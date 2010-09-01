@@ -17,7 +17,7 @@ Save string to file:
   f.save(contents);
 
 String to C string
-  Array<Byte> b;      // Problem: OwningBuffer is a ReferenceCounted type
+  Array<Byte> b;
   String.copyTo(&b);
   char* p = reinterpret_cast<char*>(&b[0]);
 

@@ -1,4 +1,22 @@
-throwSystemError
-On Windows, use GetCommandLineW() to retrieve command line
+hash() and compare() for RootDirectoryImplementations
+
 Some kind of class to hold all the static Strings and avoid duplication between their different instances?
+
+DecimalStringImplementation - needed for error messages that include line and character
+  Implementation object contains "UInt8 _data[11];"
+
+What characters are actually legal in server names?
+
+What characters are actually legal in share names?
+
+In paths starting \\?\, only \ and \\ are allowed separators, and ?*:"<> are allowed.
+see http://docs.racket-lang.org/reference/windowspaths.html for more details
+
+TODO: Use \\?\ to avoid MAX_PATH limit?
+If we do this we need to know the current drive - this is the first character of CurrentDirectory().windowsPath() .
+
 Improve the path parsing error messages
+
+On Windows, use GetCommandLineW() to retrieve command line
+
+Determine line ending to use for Windows console write
