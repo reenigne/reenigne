@@ -629,11 +629,9 @@ public:
 
     bool isRoot() const { return false; }
 
-    virtual int hash(int h)
-    {
-        return _parent.hash(h) * 67 + _name.hash();
-    }
-    virtual int compare(const FileSystemObjectImplementation* other)
+    int hash(int h) const { return _parent.hash(h) * 67 + _name.hash(); }
+
+    int compare(const FileSystemObjectImplementation* other) const
     {
         const NamedFileSystemObjectImplementation* named = dynamic_cast<const NamedFileSystemObjectImplementation*>(other);
         if (named == 0)
@@ -669,6 +667,16 @@ public:
         return slash;
     }
     bool isRoot() const { return true; }
+
+    int hash(int h) const { return 0; }
+
+    int compare(const FileSystemObjectImplementation* other) const
+    {
+        const RootDirectoryImplementation* root = dynamic_cast<const RootDirectoryImplementation*>(other);
+        if (root == 0)
+            return 1;
+        return 0;
+    }
 };
 
 #ifdef _WIN32
@@ -690,6 +698,18 @@ public:
         p[2] = '\\';
         return String(Buffer(bufferImplementation), 0, 3);
     }
+
+    int hash(int h) const { return _drive; }
+
+    int compare(const FileSystemObjectImplementation* other) const
+    {
+        const DriveRootDirectoryImplementation* root = dynamic_cast<const DriveRootDirectoryImplementation*>(other);
+        if (root == 0)
+            return 1;
+        if (_drive != root->_drive)
+            return 1;
+        return 0;
+    }
 private:
     int _drive;
 };
@@ -705,6 +725,20 @@ public:
         static String backslashBackslash("\\\\");
         static String backslash("\\");
         return backslashBackslash + _server + backslash + _share + backslash;
+    }
+
+    int hash(int h) const { return (h*67 + _server.hash())*67 + _share.hash(); }
+
+    int compare(const FileSystemObjectImplementation* other) const
+    {
+        const UNCRootDirectoryImplementation* root = dynamic_cast<const UNCRootDirectoryImplementation*>(other);
+        if (root == 0)
+            return 1;
+        if (_server != root->_server)
+            return 1;
+        if (_share != root->_share)
+            return 1;
+        return 0;
     }
 private:
     String _server;
