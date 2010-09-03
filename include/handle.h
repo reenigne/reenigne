@@ -1,5 +1,5 @@
 #ifndef INCLUDED_HANDLE_H
-#deifne INCLUDED_HANDLE_H
+#define INCLUDED_HANDLE_H
 
 #include "uncopyable.h"
 
@@ -54,7 +54,7 @@ class AutoHandle : public Handle
 public:
     AutoHandle() { }
 #ifdef _WIN32
-    AutoHandle(HANDLE handle) : Handle(handle) { }
+    AutoHandle(HANDLE handle, const String& name) : Handle(handle, name) { }
     ~AutoHandle() { if (valid()) CloseHandle(*this); }
 #else
     AutoHandle(int fileDescriptor) : Handle(fileDescriptor) { }

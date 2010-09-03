@@ -11,6 +11,8 @@
 
 extern String pathDelimiter;
 
+class Directory;
+
 class FileSystemObject
 {
 public:

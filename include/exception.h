@@ -68,4 +68,19 @@ private:
     String _message;
 };
 
+#define BEGIN_CHECKED \
+    try { \
+        try
+
+#define END_CHECKED \
+        catch(std::bad_alloc&) { \
+            throw Exception(E_OUTOFMEMORY); \
+        } \
+        catch(std::exception&) { \
+            throw Exception(E_FAIL); \
+        } \
+    } \
+    catch
+
+
 #endif // INCLUDED_EXCEPTION_H
