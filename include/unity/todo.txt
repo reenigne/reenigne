@@ -1,3 +1,7 @@
+Split Buffer and CharacterSource out of string.h
+
+Fix the initSimpleData() interface between CharacterSource and HexadecimalStringImplementation
+
 Some kind of class to hold all the static Strings and avoid duplication between their different instances?
 
 DecimalStringImplementation - needed for error messages that include line and character

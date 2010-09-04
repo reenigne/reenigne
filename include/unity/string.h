@@ -1,12 +1,37 @@
 #ifndef INCLUDED_STRING_H
 #define INCLUDED_STRING_H
 
-#include <string.h>
-#include "minimum_maximum.h"
-#include "reference_counted.h"
-#include "integer_types.h"
+#include "unity/integer_types.h"
 
-class String;
+template<class T> class StringTemplate;
+template<class T> class NonOwningBufferImplementationTemplate;
+template<class T> class OwningBufferImplementationTemplate;
+template<class T> class BufferTemplate;
+template<class T> class CharacterSourceTemplate;
+template<class T> class SimpleStringImplementationTemplate;
+template<class T> class ConcatenatedStringImplementationTemplate;
+
+typedef StringTemplate<UInt8> String;
+typedef NonOwningBufferImplementationTemplate<UInt8> NonOwningBufferImplementation;
+typedef OwningBufferImplementationTemplate<UInt8> OwningBufferImplementation;
+typedef BufferTemplate<UInt8> Buffer;
+typedef CharacterSourceTemplate<UInt8> CharacterSource;
+typedef SimpleStringImplementationTemplate<UInt8> SimpleStringImplementation;
+typedef ConcatenatedStringImplementationTemplate<UInt8> ConcatenatedStringImplementation;
+
+class StringImplementation;
+
+#ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
+#include <string.h>
+#include "unity/minimum_maximum.h"
+#include "unity/reference_counted.h"
+#include "unity/array.h"
+#include "unity/handle.h"
 
 class BufferImplementation : public ReferenceCounted
 {
@@ -23,47 +48,47 @@ private:
     const UInt8* _data;
 };
 
-class NonOwningBufferImplementation : public BufferImplementation
+template<class T> class NonOwningBufferImplementationTemplate : public BufferImplementation
 {
 public:
-    NonOwningBufferImplementation(const UInt8* data) { setData(data); }
-    String fileName() const
+    NonOwningBufferImplementationTemplate(const UInt8* data) { setData(data); }
+    StringTemplate<T> fileName() const
     {
         static String commandLine("Command line");
         return commandLine;
     }
 };
 
-class OwningBufferImplementation : public BufferImplementation
+template<class T> class OwningBufferImplementationTemplate : public BufferImplementation
 {
 public:
-    OwningBufferImplementation(const String& fileName) : _fileName(fileName) { }
+    OwningBufferImplementationTemplate(const String& fileName) : _fileName(fileName) { }
     void allocate(int bytes) { _data->allocate(bytes); setData(&_data[0]); }
     UInt8* data() { return &_data[0]; }
-    String fileName() const { return _fileName; }
+    StringTemplate<T> fileName() const { return _fileName; }
 private:
     Array<UInt8> _data;
     String _fileName;
 };
 
-class Buffer
+template<class T> class BufferTemplate
 {
 public:
-    Buffer() { }
-    Buffer(const UInt8* data) : _implementation(new NonOwningBuffer(data)) { }
-    Buffer(Reference<BufferImplementation> implementation) : _implementation(implementation) { }
+    BufferTemplate() { }
+    BufferTemplate(const UInt8* data) : _implementation(new NonOwningBufferImplementation(data)) { }
+    BufferTemplate(Reference<BufferImplementation> implementation) : _implementation(implementation) { }
     bool operator==(const Buffer& other) const { return _implementation == other._implementation; }
-    String fileName() const { return _implementation->fileName(); }
+    StringTemplate<T> fileName() const { return _implementation->fileName(); }
     const UInt8* data() const { return _implementation->data(); }
 private:
     Reference<BufferImplementation> _implementation;
 };
 
 
-class CharacterSource
+template<class T> class CharacterSourceTemplate
 {
 public:
-    CharacterSource(const String& string) : _string(string), _offset(0)
+    CharacterSourceTemplate(const String& string) : _string(string), _offset(0)
     {
         initSimpleData();
     }
@@ -120,7 +145,7 @@ private:
             static String expectedNext("Expected 0x80..0xBF, found 0x");
         String expected = first ? expectedFirst : expectedNext;
         static String endOfString("end of string");
-        String s = (_length > 0 ? String::hexadecimal(_buffer[0], 2) : endOfString;
+        String s = _length > 0 ? String::hexadecimal(_buffer[0], 2) : endOfString;
         throwUTF8Exception(expected + s);
     }
     void throwUTF8Exception(String message)
@@ -157,18 +182,18 @@ private:
     Buffer _buffer;
     int _start;
     int _length;
-    String _string;
+//    StringTemplate<T> _string;
     int _offset;
 };
 
 
-class String
+template<class T> class StringTemplate
 {
 public:
-    String(const char* data) : _implementation(new SimpleStringImplementation(reinterpret_cast<const UInt8*>(data), 0, strlen(data))) { }
-    String(const Buffer& buffer, int start, int n) : _implementation(new SimpleStringImplementation(buffer, start, n)) { }
+    StringTemplate(const char* data) : _implementation(new SimpleStringImplementation(reinterpret_cast<const UInt8*>(data), 0, strlen(data))) { }
+    StringTemplate(const Buffer& buffer, int start, int n) : _implementation(new SimpleStringImplementation(buffer, start, n)) { }
 #ifdef _WIN32
-    String(const WCHAR* utf16)
+    StringTemplate(const WCHAR* utf16)
     {
         int n = 0;
         int i = 0;
@@ -292,7 +317,7 @@ public:
     bool operator<(const String& other) const
     {
         int l = length();
-        int otherLength = other.length())
+        int otherLength = other.length();
         int c = _implementation->compare(0, other._implementation, 0, min(l, otherLength));
         if (c != 0)
             return c < 0;
@@ -318,53 +343,54 @@ private:
 class StringImplementation : public ReferenceCounted
 {
 public:
+	StringImplementation() : _length(0) { }
     int length() const { return _length; }
-    virtual Reference<StringImplementation> subString(int start, int length) = 0;
-    virtual Reference<StringImplementation> withAppended(StringImplementation* other) = 0;
-    virtual void copyTo(UInt8* buffer) = 0;
-    virtual int hash(int h) = 0;
-    virtual int compare(int start, const StringImplementation* other, int otherStart, int l) = 0;  // works like memcmp(this+start, other+otherStart, l) - returns 1 if this is greater.
-    virtual int compare(int start, const UInt8* data, int l) = 0;  // works like memcmp(this+start, data, l) - returns 1 if this is greater.
-    virtual UInt8 byteAt(int offset) = 0;
-    virtual Buffer buffer() = 0;
-    virtual int offset() = 0;
-    virtual void initSampleData(int offset, Buffer* buffer, int* start, int* length) = 0;
+    virtual Reference<StringImplementation> subString(int start, int length) const = 0;
+    virtual Reference<StringImplementation> withAppended(const Reference<StringImplementation>& other) const = 0;
+    virtual void copyTo(UInt8* buffer) const = 0;
+    virtual int hash(int h) const = 0;
+    virtual int compare(int start, const StringImplementation* other, int otherStart, int l) const = 0;  // works like memcmp(this+start, other+otherStart, l) - returns 1 if this is greater.
+    virtual int compare(int start, const UInt8* data, int l) const = 0;  // works like memcmp(this+start, data, l) - returns 1 if this is greater.
+    virtual UInt8 byteAt(int offset) const = 0;
+    virtual Buffer buffer() const = 0;
+    virtual int offset() const = 0;
+    virtual void initSimpleData(int offset, Buffer* buffer, int* start, int* length) const = 0;
     virtual void write(const Handle& handle) const = 0;
 protected:
     void setLength(int length) { _length = length; }
 private:
-    int _length = 0;
+    int _length;
 };
 
-class SimpleStringImplementation : public StringImplementation
+template<class T> class SimpleStringImplementationTemplate : public StringImplementation
 {
 public:
-    Reference<StringImplementation> subString(int start, int length)
+    Reference<StringImplementation> subString(int start, int length) const
     {
         return new SimpleStringImplementation(_buffer, _start + start, length);
     }
-    SimpleStringImplementation(const UInt8* data, int start, int length)
+    SimpleStringImplementationTemplate(const UInt8* data, int start, int length)
       : _buffer(data),
         _start(start)
     {
         setLength(length);
     }
-    SimpleStringImplementation(const Buffer& buffer, int start, int length)
+    SimpleStringImplementationTemplate(const Buffer& buffer, int start, int length)
       : _buffer(buffer),
         _start(start)
     {
         setLength(length);
     }
-    Reference<StringImplementation> withAppended(StringImplementation* other) const
+    Reference<StringImplementation> withAppended(const Reference<StringImplementation>& other) const
     {
         Reference<SimpleStringImplementation> simpleOther(other);
         if (simpleOther.valid() && _buffer == simpleOther->_buffer && _start + length() == simpleOther->_start)
-            return new SimpleStringImplementation(_buffer, _start, length() + simpleOther->length())
+            return new SimpleStringImplementation(_buffer, _start, length() + simpleOther->length());
         return new ConcatenatedStringImplementation(this, other);
     }
-    void copyTo(UInt8* destination) const
+    void copyTo(UInt8* buffer) const
     {
-        _buffer.copyTo(destination, _start, length());
+        _buffer.copyTo(buffer, _start, length());
     }
     int hash(int h) const
     {
@@ -383,13 +409,13 @@ public:
     UInt8 byteAt(int offset) const { return _buffer.data()[_start + offset]; }
     Buffer buffer() const { return _buffer; }
     int offset() const { return _start; }
-    void initSimpleData(int offset, Buffer* buffer, int* start, int* length)
+    void initSimpleData(int offset, Buffer* buffer, int* start, int* length) const
     {
         *buffer = _buffer;
         *start = _start + offset;
         *length = length() - offset;
     }
-    void write(const Handle& handle)
+    void write(const Handle& handle) const
     {
 #ifdef _WIN32
         DWORD bytesWritten;
@@ -411,10 +437,10 @@ private:
     int _start;
 };
 
-class ConcatenatedStringImplementation : public StringImplemenation
+template<class T> class ConcatenatedStringImplementationTemplate : public StringImplementation
 {
 public:
-    ConcatenatedStringImplementation(StringImplementation* left, StringImplementation* right)
+    ConcatenatedStringImplementationTemplate(StringImplementation* left, StringImplementation* right)
       : _left(left), _right(right) { }
     Reference<StringImplementation> subString(int start, int length) const
     {
@@ -507,7 +533,7 @@ public:
     {
         return new HexadecimalStringImplementation(value >> ((length() - (start + l)) << 2), length);
     }
-    Reference<StringImplementation> withAppended(StringImplementation* other) const
+    Reference<StringImplementation> withAppended(const Reference<StringImplementation>& other) const
     {
         return new ConcatenatedStringImplementation(this, other);
     }
@@ -527,7 +553,7 @@ public:
         UInt8 nybble = (_value >> ((length() - (offset + 1)) << 2)) & 0x0f;
         return (nybble < 10 ? nybble + '0' : nybble + 'A' - 10);
     }
-    int compare(int start, const StringImplementation* other, int otherStart, int l)
+    int compare(int start, const StringImplementation* other, int otherStart, int l) const
     {
         for (int i = 0; i < l; ++i) {
             UInt8 a = byteAt(i);
@@ -539,7 +565,7 @@ public:
         }
         return 0;
     }
-    int compare(int start, const UInt8* data, int l)
+    int compare(int start, const UInt8* data, int l) const
     {
         for (int i = 0; i < l; ++i) {
             UInt8 a = byteAt(i);

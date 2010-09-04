@@ -1,21 +1,29 @@
 #ifndef INCLUDED_HANDLE_H
 #define INCLUDED_HANDLE_H
 
-#include "uncopyable.h"
+#include "unity/integer_types.h"
+
+template<class T> class HandleTemplate;
+typedef HandleTemplate<UInt8> Handle;
+
+#include "unity/uncopyable.h"
+#include "unity/string.h"
 
 #ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
 #include <fcntl.h>
 #include <unistd.h>
 #endif
 
-class Handle : Uncopyable
+template<class T> class HandleTemplate : Uncopyable
 {
 public:
 #ifdef _WIN32
-    Handle() : _handle(INVALID_HANDLE_VALUE) { }
-    Handle(HANDLE handle, const String& name) : _handle(handle), _name(name) { }
+    HandleTemplate() : _handle(INVALID_HANDLE_VALUE) { }
+    HandleTemplate(HANDLE handle, const String& name) : _handle(handle), _name(name) { }
     operator HANDLE() const { return _handle; }
     bool valid() const { return _handle != INVALID_HANDLE_VALUE; }
     static Handle consoleOutput()
@@ -29,8 +37,8 @@ public:
         return Handle(h, console);
     }
 #else
-    Handle() : _fileDescriptor(-1) { }
-    Handle(int fileDescriptor) : _fileDescriptor(fileDescriptor) { }
+    HandleTemplate() : _fileDescriptor(-1) { }
+    HandleTemplate(int fileDescriptor) : _fileDescriptor(fileDescriptor) { }
     operator int() const { return _fileDescriptor; }
     bool valid() const { return _fileDescriptor != -1; }
     static Handle consoleOutput()
@@ -39,14 +47,14 @@ public:
         return Handle(STDOUT_FILENO, console);
     }
 #endif
-    String name() const { return _name; }
+    StringTemplate<T> name() const { return _name; }
 private:
 #ifdef _WIN32
     HANDLE _handle;
 #else
     int _fileDescriptor;
 #endif
-    String _name;
+    StringTemplate<T> _name;
 };
 
 class AutoHandle : public Handle

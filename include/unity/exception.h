@@ -3,10 +3,12 @@
 
 class Exception;
 
-#include "string.h"
-#include "uncopyable.h"
+#include "unity/string.h"
+#include "unity/uncopyable.h"
 
 #ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 class LocalString : Uncopyable

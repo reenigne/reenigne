@@ -3,10 +3,10 @@
 
 class Buffer;
 
-#include "string.h"
-#include "array.h"
-#include "integer_types.h"
-#include "reference_counted.h"
+#include "unity/string.h"
+#include "unity/array.h"
+#include "unity/integer_types.h"
+#include "unity/reference_counted.h"
 
 class Buffer : public ReferenceCounted
 {

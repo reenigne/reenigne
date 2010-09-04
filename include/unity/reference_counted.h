@@ -1,7 +1,7 @@
 #ifndef INCLUDED_REFERENCE_COUNTED_H
 #define INCLUDED_REFERENCE_COUNTED_H
 
-#include "uncopyable.h"
+#include "unity/uncopyable.h"
 
 class ReferenceCounted : Uncopyable
 {
