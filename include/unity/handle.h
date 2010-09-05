@@ -4,7 +4,7 @@
 #include "unity/integer_types.h"
 
 template<class T> class HandleTemplate;
-typedef HandleTemplate<UInt8> Handle;
+typedef HandleTemplate<void> Handle;
 
 #include "unity/uncopyable.h"
 #include "unity/string.h"
