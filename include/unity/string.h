@@ -437,6 +437,12 @@ public:
         }
 #endif
     }
+    void initSimpleData(int offset, Buffer* buffer, int* start, int* length)
+    {
+        *buffer = Buffer();
+        *start =
+        *length = length() - offset;
+    }
 private:
     UInt32 _value;
 };

@@ -63,6 +63,7 @@ public:
     bool operator==(const Buffer& other) const { return _implementation == other._implementation; }
     StringTemplate<T> fileName() const { return _implementation->fileName(); }
     const UInt8* data() const { return _implementation->data(); }
+    bool valid() const { return _implementation.valid(); }
 private:
     Reference<BufferImplementation> _implementation;
 };

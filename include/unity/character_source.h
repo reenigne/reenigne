@@ -23,7 +23,7 @@ public:
 
         if (_length == 0)
             return -1;
-        int b0 = _buffer[_start];
+        int b0 = getByte();
         if (b0 >= 0 && b0 < 0x80)
             return b;
         if (b0 < 0xc0 || b0 >= 0xf8)
@@ -78,11 +78,19 @@ private:
         String s = subString(offset, 1);
         throw Exception(message + at + String::hexadecimal(s._implmentation->offset(), 8) + in + s._implementation->buffer()->fileName());
     }
+    int getByte()
+    {
+        if (_buffer.valid())
+            return _buffer[_start];
+        UInt8 nybble = _start & 0x0f;
+        _start >>= 4;
+        return (nybble < 10 ? nybble + '0' : nybble + 'A' - 10);
+    }
     int getNextByte()
     {
         if (empty())
             throwUTF8Exception(false);
-        int b = _buffer[_start];
+        int b = getByte();
         if (b < 0x80 || b >= 0xc0)
             throwUTF8Exception(false);
         next();
