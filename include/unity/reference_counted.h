@@ -8,9 +8,10 @@ class ReferenceCounted : Uncopyable
 public:
     ReferenceCounted() { _count = 0; }
 
-private:
-    ~ReferenceCounted() { }  // reference counted objects are heap-only.
+protected:
+    virtual ~ReferenceCounted() { };
 
+private:
     void addReference() { ++_count; }
     void release()
     {
@@ -44,20 +45,28 @@ public:
             reset();
             set(other._t);
         }
+        return *this;
     }
-    const Reference& operator=(T* t) { reset(); set(t); }
+    const Reference& operator=(T* t) { reset(); set(t); return *this; }
 
     T** operator&() { return &_t; }
-    T* operator->() { return _t; }
+    T* operator->() const { return _t; }
     operator T*() { return _t; }
     operator const T*() const { return _t; }
-    bool valid() { return _t != 0; }
-    bool operator==(const Reference& other) const { return _t == other->_t; }
+    bool valid() const { return _t != 0; }
+    bool operator==(const Reference& other) const { return _t == other._t; }
 
 private:
     void reset() { if (valid()) _t->release(); }
-    void set(T* t) { _t = t; _t->addReference(); }
+    void set(T* t)
+    {
+        _t = t;
+        if (valid())
+            _t->addReference();
+    }
     T* _t;
+
+    template<class U> friend class Reference;
 };
 
 #endif // INCLUDED_REFERENCE_COUNTED_H
