@@ -1,12 +1,4 @@
-String::codePoint()
-  10 -> "new line"
-  32 -> "space"
-String::decimal()
-
 Some kind of class to hold all the static Strings and avoid duplication between their different instances?
-
-DecimalStringImplementation - needed for error messages that include line and character
-  Implementation object contains "UInt8 _data[11];"
 
 What characters are actually legal in server names?
 
@@ -25,5 +17,14 @@ On Windows, use GetCommandLineW() to retrieve command line
 When parsing paths, should we use:
   getCodePoint() so that Unix paths can contain 0x0a and 0x0d bytes? or
   get() so that error messages contain the correct line and column number?
+    Or make getCodePoint() increase _line/_column appropriately?
+
+CharacterSource currently only returns sensible _line/_column if it is started at the start of file contents
+  Really want to get good locations even for substrings - should SimpleString have a _line/_column?
 
 We should be using substitution into templates instead of concatenation for globalization purposes.
+
+String::codePoint()
+  10 -> "new line"
+  32 -> "space"
+?

@@ -8,11 +8,11 @@ class ReferenceCounted : Uncopyable
 public:
     ReferenceCounted() { _count = 0; }
 
+    void addReference() { ++_count; }
 protected:
     virtual ~ReferenceCounted() { };
 
 private:
-    void addReference() { ++_count; }
     void release()
     {
         --_count;
