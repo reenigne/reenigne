@@ -1,0 +1,14 @@
+Take TRIS into account in readMemory() and writeMemory()
+Make sure we don't have unbounded mutual recursion
+  Never simulate more than a cycle past requested time?
+Take into account reading and writing on the same cycle (read at start of Q2, write at end of Q4).
+
+test that a single bar works how we expect when we prime and request data repeatedly
+benchmark
+Write a "simulate up to time t" routine
+add multiple bars all running at exactly 4MHz and check that we get the right stream back
+vary the clock speed according to a normal distribution - gradually increase the standard deviation and see when it breaks
+randomly add and remove bars as we're running
+Simulate clock drift, jitter, output settling time
+To avoid unbounded time, set root's t=0 and adjust all t when we're done with root.
+
