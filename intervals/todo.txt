@@ -1,4 +1,5 @@
-Take TRIS into account in readMemory() and writeMemory()
+Debug crash
+Suppress instruction output
 Make sure we don't have unbounded mutual recursion
   Never simulate more than a cycle past requested time?
 Take into account reading and writing on the same cycle (read at start of Q2, write at end of Q4).

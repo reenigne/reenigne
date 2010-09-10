@@ -8,7 +8,12 @@
 class Program
 {
 public:
-    Program(CharacterSource source) : _source(source) { }
+    Program(String fileName)
+    {
+		File file(fileName);
+		String contents = file.contents();
+        _source = contents.start();
+    }
 
     void load()
     {
@@ -93,29 +98,14 @@ private:
     CharacterSource _source;
 };
 
-class Component;
-class Connection;
-
-class Simulation
-{
-public:
-    void addComponent(Component* component) { _components.push_back(component); }
-    void addConnection(Connection* connection) { _connections.push_back(connection); }
-    void adjustTime(double t)
-    {
-        for (int i = 0; i < _components.size(); ++i)
-            _components[i]->adjustTime(t);
-        for (int i = 0; i < _connections.size(); ++i)
-            _connections[i]->adjustTime(t);
-    }
-private:
-    std::vector<Component*> _components;
-    std::vector<Connection*> _connections;
-};
+class Simulation;
 
 class Component
 {
 public:
+    Component(Simulation* simulation)
+      : _simulation(simulation), _t(0)
+    { }
     void adjustTime(double t) { _t -= t; }
     virtual void simulateTo(double t) = 0;
 protected:
@@ -152,7 +142,7 @@ public:
         _femaleHigh = true;
     }
     bool maleRead(double t)
-    { 
+    {
         _female->simulateTo(t);
         return _femaleHigh;
     }
@@ -169,6 +159,23 @@ private:
     double _t;
     bool _maleHigh;
     bool _femaleHigh;
+};
+
+class Simulation
+{
+public:
+    void addComponent(Component* component) { _components.push_back(component); }
+    void addConnection(Connection* connection) { _connections.push_back(connection); }
+    void adjustTime(double t)
+    {
+        for (std::vector<Component*>::iterator i = _components.begin(); i != _components.end(); ++i)
+            (*i)->adjustTime(t);
+        for (std::vector<Connection*>::iterator i = _connections.begin(); i != _connections.end(); ++i)
+            (*i)->adjustTime(t);
+    }
+private:
+    std::vector<Component*> _components;
+    std::vector<Connection*> _connections;
 };
 
 class Interval : public Component
@@ -225,9 +232,16 @@ public:
                                     printf("CLRWDT\n");
                                     throw Exception(String("CLRWDT not supported"));
                                     break;
+                                case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
+                                    printf("%c", ((_w & 0x10) != 0) ? '1' : '0');
+                                    break;
                                 case 6:
                                     printf("TRIS GPIO\n");
                                     _tris = _w;
+                                    updateIO();
+                                    break;
+                                case 7:  // Not a real PIC12F08 opcode - used for simulator escape (space)
+                                    printf("\n");
                                     break;
                                 default:
                                     unrecognizedOpcode(op);
@@ -419,26 +433,47 @@ private:
     {
         if (address == 0)
             address = _memory[4] & 0x1f;
-        if (address == 6)  // TODO: Take TRIS into account
-            return
-                (_connections[0]->maleRead(_t) ? 0x10 : 0) |
-                (_connections[1]->femaleRead(_t) ? 0x20 : 0) |
-                (_connections[2]->femaleRead(_t) ? 1 : 0) |
-                (_connections[3]->maleRead(_t) ? 2 : 0);
+        if (address == 6) {
+            UInt8 r = 8;
+            if ((_tris & 1) == 0)
+                r |= (_memory[6] & 1);
+            else
+                r |= (_connections[2]->femaleRead(_t) ? 1 : 0);
+            if ((_tris & 2) == 0)
+                r |= (_memory[6] & 2);
+            else
+                r |= (_connections[3]->maleRead(_t) ? 2 : 0);
+            if ((_tris & 4) == 0)
+                r |= (_memory[6] & 4);
+            else
+                r |= 1;  // Switch not implemented for now
+            if ((_tris & 0x10) == 0)
+                r |= (_memory[6] & 0x10);
+            else
+                r |= (_connections[0]->maleRead(_t) ? 0x10 : 0);
+            if ((_tris & 0x20) == 0)
+                r |= (_memory[6] & 0x20);
+            else
+                r |= (_connections[1]->femaleRead(_t) ? 0x20 : 0);
+            return r;
+        }
         return _memory[address];
+    }
+    void updateIO()
+    {
+        UInt8 h = _memory[6] | _tris;
+        if ((h & 0x10) == 0) _connections[0]->maleLow(_t); else _connections[0]->maleHigh(_t);
+        if ((h & 0x20) == 0) _connections[1]->femaleLow(_t); else _connections[1]->femaleHigh(_t);
+        if ((h & 1) == 0) _connections[2]->femaleLow(_t); else _connections[2]->femaleHigh(_t);
+        if ((h & 2) == 0) _connections[3]->maleLow(_t); else _connections[3]->maleHigh(_t);
     }
     void writeMemory(int address, UInt8 data)
     {
         if (address == 0)
             address = _memory[4] & 0x1f;
-        if (address == 6) {  // TODO: Take TRIS into account
-            if ((data & 0x10) == 0) _connections[0]->maleLow(_t); else _connections[0]->maleHigh(_t);
-            if ((data & 0x20) == 0) _connections[1]->femaleLow(_t); else _connections[1]->femaleHigh(_t);
-            if ((data & 1) == 0) _connections[2]->femaleLow(_t); else _connections[2]->femaleHigh(_t);
-            if ((data & 2) == 0) _connections[3]->maleLow(_t); else _connections[3]->maleHigh(_t);
-            return;
-        }
         _memory[address] = data;
+        if (address == 6)
+            updateIO();
     }
     void unrecognizedOpcode(int op)
     {
@@ -480,34 +515,36 @@ private:
     Connection* _connections[4];
 };
 
-class Root : public Component
-{
-public:
-    void simulateTo(double t)
-    {
-        // TODO
-    }
-};
-
 class Disconnection : public Component
 {
 public:
+    Disconnection(Simulation* simulation) : Component(simulation) { }
     void simulateTo(double t) { }
 };
 
 int main()
 {
 	BEGIN_CHECKED {
-		String fileName("../intervals.HEX");
-		File file(fileName);
-		String contents = file.contents();
-        CharacterSource s = contents.start();
-        Program program(s);
-        program.load();
-        Interval i(&program);
-        
+        Program intervalProgram(String("../intervals.HEX"));
+        intervalProgram.load();
+
+        Simulation simulation;
+
+        Interval interval(&simulation, &intervalProgram);
+
+        Program rootProgram(String("../root.HEX"));
+        rootProgram.load();
+        Interval root(&simulation, &rootProgram);
+
+        Disconnection d(&simulation);
+       
+        Connection c(&simulation);
+
+        c.connectMale(&root);
+        c.connectFemale(&d);
+
         while (true)
-            i.simulateCycle();
+            root.simulateCycle();
 		//contents.write(Handle::consoleOutput());
 	}
 	END_CHECKED(Exception& e) {

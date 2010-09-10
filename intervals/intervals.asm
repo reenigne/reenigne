@@ -509,6 +509,8 @@ waitForDataRequestW ; parent  child
 foundN
   MOVLW IIOO
   CALL clearPrimeN
+  MOVLW childBpresent-1
+  MOVWF FSR
   CALL checkForPrimeE
   MOVLW IOIO
   CALL clearPrimeN
@@ -539,6 +541,8 @@ waitForDataRequestN
 foundE
   MOVLW IOOI
   CALL clearPrimeE
+  MOVLW childBpresent-1
+  MOVWF FSR
   CALL checkForPrimeS
   MOVLW OIOI
   CALL clearPrimeE
@@ -569,6 +573,8 @@ waitForDataRequestE
 foundS
   MOVLW OOII
   CALL clearPrimeS
+  MOVLW childBpresent-1
+  MOVWF FSR
   CALL checkForPrimeW
   MOVLW IOIO
   CALL clearPrimeS
@@ -632,7 +638,7 @@ initDelayLoop
   end
 
 
-; 14 instructions free total, 14 in low page
+; 8 instructions free total, 8 in low page
 
 
 ; TODO:

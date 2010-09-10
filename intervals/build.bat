@@ -1,4 +1,11 @@
 @echo off
-"C:\Program Files\Microchip\MPASM Suite\MPASMWIN.exe" /q /p12F508 "intervals.asm" /l"intervals.lst" /e"intervals.err"
-type intervals.err
-"C:\Program Files\Microchip\MPASM Suite\mplink.exe" /p12F508 "intervals.o" /o"intervals.cof" /M"intervals.map" /W /x
+set TOOLS=C:\Program Files\Microchip\MPASM Suite
+call :build intervals
+call :build root
+goto :EOF
+
+:build
+"%TOOLS%\MPASMWIN.exe" /q /p12F508 %1.asm /l%1.lst /e%1.err
+type %1.err
+"%TOOLS%\mplink.exe" /p12F508 %1.o /o%1.cof /M%1.map /W /x
+goto :EOF

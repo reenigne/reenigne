@@ -487,101 +487,6 @@ protected:
     UInt8 _data[N];
 };
 
-//template<class T> class HexadecimalStringImplementationTemplate : public StringImplementation
-//{
-//public:
-//    HexadecimalStringImplementationTemplate(UInt32 value, int length)
-//      : _value(value)
-//    {
-//        setLength(length);
-//    }
-//    Reference<StringImplementation> subString(int start, int l) const
-//    {
-//        return new HexadecimalStringImplementation(_value >> ((length() - (start + l)) << 2), l);
-//    }
-//    Reference<StringImplementation> withAppended(const Reference<StringImplementation>& other)
-//    {
-//        return new ConcatenatedStringImplementation(this, other);
-//    }
-//    void copyTo(UInt8* destination) const
-//    {
-//        for (int i = 0; i < length(); ++i)
-//            *(destination++) = byteAt(i);
-//    }
-//    int hash(int h) const
-//    {
-//        for (int i = 0; i < length(); ++i)
-//            h = h * 67 + byteAt(i) - 113;
-//        return h;
-//    }
-//    UInt8 byteAt(int offset) const
-//    {
-//        UInt8 nybble = nybbleAt(offset);
-//        return (nybble < 10 ? nybble + '0' : nybble + 'A' - 10);
-//    }
-//    int compare(int start, const StringImplementation* other, int otherStart, int l) const
-//    {
-//        for (int i = 0; i < l; ++i) {
-//            UInt8 a = byteAt(i);
-//            UInt8 b = other->byteAt(i + otherStart);
-//            if (a > b)
-//                return 1;
-//            if (a < b)
-//                return -1;
-//        }
-//        return 0;
-//    }
-//    int compare(int start, const UInt8* data, int l) const
-//    {
-//        for (int i = 0; i < l; ++i) {
-//            UInt8 a = byteAt(i);
-//            UInt8 b = data[i];
-//            if (a > b)
-//                return 1;
-//            if (a < b)
-//                return -1;
-//        }
-//        return 0;
-//    }
-//    Buffer buffer() const { return Buffer(); }
-//    int offset() const { return 0; }
-//    void write(const Handle& handle) const
-//    {
-//        UInt8 buffer[8];
-//        copyTo(buffer);
-//#ifdef _WIN32
-//        DWORD bytesWritten;
-//        if (WriteFile(handle, reinterpret_cast<LPCVOID>(buffer), length(), &bytesWritten, NULL) == 0 || bytesWritten != length()) {
-//            static String writingFile("Writing file ");
-//            Exception::throwSystemError(writingFile + handle.name());
-//        }
-//#else
-//        ssize_t writeResult = write(fileDescriptor, static_cast<void*>(buffer), length());
-//        static String readingFile("Writing file ");
-//        if (writeResult < length()) {
-//            static String writingFile("Writing file ");
-//            Exception::throwSystemError(writingFile + handle.name());
-//        }
-//#endif
-//    }
-//    void initSimpleData(int offset, Buffer* buffer, int* start, int* l) const
-//    {
-//        *buffer = Buffer();
-//        int n = 0;
-//        for (int i = offset; i < length(); ++i)
-//            n = (n << 4) | nybbleAt(i);
-//        *start = n;
-//        *l = length() - offset;
-//    }
-//private:
-//    int nybbleAt(int offset) const
-//    {
-//        return (_value >> ((length() - (offset + 1)) << 2)) & 0x0f;
-//    }
-//
-//    UInt32 _value;
-//};
-
 class HexadecimalStringImplementation : public FixedStringImplementation<8>
 {
 public:
@@ -654,6 +559,7 @@ public:
 template<class T> class CharacterSourceTemplate
 {
 public:
+    CharacterSourceTemplate() { }
     CharacterSourceTemplate(const String& string) : _string(string), _offset(0), _line(1), _column(1)
     {
         initSimpleData();
