@@ -228,7 +228,7 @@ initData                     ; 66
   CLRF lengthLow
   CLRF lengthMiddle
   CLRF lengthHigh
-  CLRF switch
+  MOVWF switch
   NOP
   NOP
 

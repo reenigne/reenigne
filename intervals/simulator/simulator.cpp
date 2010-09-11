@@ -1,8 +1,6 @@
 #include "unity/string.h"
 #include "unity/file.h"
-
 #include <vector>
-
 #include <stdio.h>
 
 class Program
@@ -100,90 +98,39 @@ private:
 
 class Simulation;
 
-class Component
+class MaleConnector
 {
 public:
-    Component(Simulation* simulation)
-      : _simulation(simulation), _t(0)
-    { }
-    void adjustTime(double t) { _t -= t; }
-    virtual void simulateTo(double t) = 0;
-protected:
-    Simulation* _simulation;
-    double _t;
+    virtual void maleWrite(double t, bool d) = 0;
+    virtual bool maleRead(double t) = 0;
 };
 
-class Connection
+class FemaleConnector
 {
 public:
-    Connection(Simulation* simulation)
-      : _simulation(simulation), _t(0), _maleHigh(true), _femaleHigh(true)
-    { }
-    void connectMale(Component* male) { _male = male; }
-    void connectFemale(Component* female) { _female = female; }
-    void maleLow(double t)
-    {
-        _female->simulateTo(t);
-        _maleHigh = false;
-    }
-    void femaleLow(double t)
-    {
-        _male->simulateTo(t);
-        _femaleHigh = false;
-    }
-    void maleHigh(double t)
-    {
-        _female->simulateTo(t);
-        _maleHigh = true;
-    }
-    void femaleHigh(double t)
-    {
-        _male->simulateTo(t);
-        _femaleHigh = true;
-    }
-    bool maleRead(double t)
-    {
-        _female->simulateTo(t);
-        return _femaleHigh;
-    }
-    bool femaleRead(double t)
-    {
-        _male->simulateTo(t);
-        return _maleHigh;
-    }
-    void adjustTime(double t) { _t -= t; }
-private:
-    Component* _male;
-    Component* _female;
-    Simulation* _simulation;
-    double _t;
-    bool _maleHigh;
-    bool _femaleHigh;
+    virtual void femaleWrite(double t, bool d) = 0;
+    virtual bool femaleRead(double t) = 0;
 };
 
-class Simulation
+class DisconnectedMaleConnector : public MaleConnector
 {
 public:
-    void addComponent(Component* component) { _components.push_back(component); }
-    void addConnection(Connection* connection) { _connections.push_back(connection); }
-    void adjustTime(double t)
-    {
-        for (std::vector<Component*>::iterator i = _components.begin(); i != _components.end(); ++i)
-            (*i)->adjustTime(t);
-        for (std::vector<Connection*>::iterator i = _connections.begin(); i != _connections.end(); ++i)
-            (*i)->adjustTime(t);
-    }
-private:
-    std::vector<Component*> _components;
-    std::vector<Connection*> _connections;
+    void maleWrite(double t, bool d) { }
+    bool maleRead(double t) { return true; }
 };
 
-class Interval : public Component
+class DisconnectedFemaleConnector : public FemaleConnector
 {
 public:
-    Interval(Simulation* simulation, const Program* program)
-      : Component(simulation),
-        _program(program)
+    void femaleWrite(double t, bool d) { }
+    bool femaleRead(double t) { return true; }
+};
+
+class Bar : public ReferenceCounted
+{
+public:
+    Bar(const Program* program, bool indent = false)
+      : _program(program), _t(0), _indent(indent)
     {
         for (int i = 0; i < 0x20; ++i)
             _memory[i] = 0;
@@ -197,10 +144,13 @@ public:
     }
     void simulateTo(double t)
     {
-        // TODO
+        while (_t < t)
+            simulateCycle();
     }
+    void adjustTime(double t) { _t -= t; }
     void simulateCycle()
     {
+        _t0 = _t;
         int op = _program->op(_pch | _memory[2]);
         if (_skipping) {
             _skipping = false;
@@ -208,6 +158,8 @@ public:
         }
         incrementPC();
         UInt16 r;
+        if (_indent)
+            printf("        ");
         if ((op & 0x800) == 0) {
             int f = op & 0x1f;
             if ((op & 0x400) == 0) {
@@ -233,7 +185,7 @@ public:
                                     throw Exception(String("CLRWDT not supported"));
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
-                                    printf("%c", ((_w & 0x10) != 0) ? '1' : '0');
+                                    printf("%c\n", ((_w & 0x10) != 0) ? '1' : '0');
                                     break;
                                 case 6:
                                     printf("TRIS GPIO\n");
@@ -241,7 +193,7 @@ public:
                                     updateIO();
                                     break;
                                 case 7:  // Not a real PIC12F08 opcode - used for simulator escape (space)
-                                    printf("\n");
+                                    printf("-\n");
                                     break;
                                 default:
                                     unrecognizedOpcode(op);
@@ -423,14 +375,16 @@ public:
                     break;
             }
         }
+        _t = _t0 + 1.0;
     }
-    void connect(int direction, Connection* connection)
-    {
-        _connections[direction] = connection;
-    }
+    void connectNorth(MaleConnector* north) { _north = north; }
+    void connectEast(FemaleConnector* east) { _east = east; }
+    void connectSouth(FemaleConnector* south) { _south = south; }
+    void connectWest(MaleConnector* west) { _west = west; }
 private:
     UInt8 readMemory(int address)
     {
+        _t = _t0 + 0.25;
         if (address == 0)
             address = _memory[4] & 0x1f;
         if (address == 6) {
@@ -438,11 +392,11 @@ private:
             if ((_tris & 1) == 0)
                 r |= (_memory[6] & 1);
             else
-                r |= (_connections[2]->femaleRead(_t) ? 1 : 0);
+                r |= (_south->femaleRead(_t) ? 1 : 0);
             if ((_tris & 2) == 0)
                 r |= (_memory[6] & 2);
             else
-                r |= (_connections[3]->maleRead(_t) ? 2 : 0);
+                r |= (_west->maleRead(_t) ? 2 : 0);
             if ((_tris & 4) == 0)
                 r |= (_memory[6] & 4);
             else
@@ -450,11 +404,14 @@ private:
             if ((_tris & 0x10) == 0)
                 r |= (_memory[6] & 0x10);
             else
-                r |= (_connections[0]->maleRead(_t) ? 0x10 : 0);
+                r |= (_north->maleRead(_t) ? 0x10 : 0);
             if ((_tris & 0x20) == 0)
                 r |= (_memory[6] & 0x20);
             else
-                r |= (_connections[1]->femaleRead(_t) ? 0x20 : 0);
+                r |= (_east->femaleRead(_t) ? 0x20 : 0);
+            if (_indent)
+                printf("        ");
+            printf("Read 0x%02x\n", r);
             return r;
         }
         return _memory[address];
@@ -462,13 +419,17 @@ private:
     void updateIO()
     {
         UInt8 h = _memory[6] | _tris;
-        if ((h & 0x10) == 0) _connections[0]->maleLow(_t); else _connections[0]->maleHigh(_t);
-        if ((h & 0x20) == 0) _connections[1]->femaleLow(_t); else _connections[1]->femaleHigh(_t);
-        if ((h & 1) == 0) _connections[2]->femaleLow(_t); else _connections[2]->femaleHigh(_t);
-        if ((h & 2) == 0) _connections[3]->maleLow(_t); else _connections[3]->maleHigh(_t);
+        _north->maleWrite(_t, (h & 0x10) != 0);
+        _east->femaleWrite(_t, (h & 0x20) != 0);
+        _south->femaleWrite(_t, (h & 1) != 0);
+        _west->maleWrite(_t, (h & 2) != 0);
+        if (_indent)
+            printf("        ");
+        printf("Wrote 0x%02x\n", h);
     }
     void writeMemory(int address, UInt8 data)
     {
+        _t = _t0 + 1.0;
         if (address == 0)
             address = _memory[4] & 0x1f;
         _memory[address] = data;
@@ -512,40 +473,136 @@ private:
     UInt8 _w;
     bool _skipping;
     double _tPerCycle;
-    Connection* _connections[4];
+    MaleConnector* _north;
+    FemaleConnector* _east;
+    FemaleConnector* _south;
+    MaleConnector* _west;
+    double _t;
+    double _t0;
+    bool _indent;
 };
 
-class Disconnection : public Component
+class ConnectedBars : public MaleConnector, public FemaleConnector, public ReferenceCounted
 {
 public:
-    Disconnection(Simulation* simulation) : Component(simulation) { }
-    void simulateTo(double t) { }
+    ConnectedBars(Bar* male, Bar* female) : _male(male), _female(female), _maleHigh(true), _femaleHigh(true) { }
+    void maleWrite(double t, bool d)
+    {
+        _female->simulateTo(t);
+        _maleHigh = d;
+    }
+    void femaleWrite(double t, bool d)
+    {
+        _male->simulateTo(t);
+        _femaleHigh = d;
+    }
+    bool maleRead(double t)
+    {
+        _female->simulateTo(t);
+        return _femaleHigh;
+    }
+    bool femaleRead(double t)
+    {
+        _male->simulateTo(t);
+        return _maleHigh;
+    }
+private:
+    Bar* _male;
+    Bar* _female;
+    bool _maleHigh;
+    bool _femaleHigh;
+};
+
+class Simulation
+{
+public:
+    Simulation() { }
+    void simulate()
+    {
+        Program intervalProgram(String("../intervals.HEX"));
+        intervalProgram.load();
+
+        Program rootProgram(String("../root.HEX"));
+        rootProgram.load();
+
+        Reference<Bar> root = new Bar(&rootProgram);
+        add(root);
+
+        Reference<Bar> interval = new Bar(&intervalProgram, true);
+        add(interval);
+
+        connect(root, interval, 2, 0);
+
+        while (true) {
+            for (int i = 0; i < 256; ++i)
+                root->simulateCycle();
+            for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
+                (*i)->adjustTime(256.0);
+        }
+    }
+    void add(const Reference<Bar>& bar)
+    {
+        _bars.push_back(bar);
+        bar->connectNorth(&_disconnectedMaleConnector);
+        bar->connectEast(&_disconnectedFemaleConnector);
+        bar->connectSouth(&_disconnectedFemaleConnector);
+        bar->connectWest(&_disconnectedMaleConnector);
+    }
+    void connect(Bar* bar1, Bar* bar2, int direction1, int direction2)
+    {
+        Bar* male;
+        Bar* female;
+        if (direction1 == 0 || direction1 == 3) {
+            male = bar1;
+            female = bar2;
+        }
+        else {
+            female = bar1;
+            male = bar2;
+        }
+        Reference<ConnectedBars> connectedBars = new ConnectedBars(male, female);
+        switch (direction1) {
+            case 0:
+                bar1->connectNorth(connectedBars);
+                break;
+            case 1:
+                bar1->connectEast(connectedBars);
+                break;
+            case 2:
+                bar1->connectSouth(connectedBars);
+                break;
+            case 3:
+                bar1->connectWest(connectedBars);
+                break;
+        }
+        switch (direction2) {
+            case 0:
+                bar2->connectNorth(connectedBars);
+                break;
+            case 1:
+                bar2->connectEast(connectedBars);
+                break;
+            case 2:
+                bar2->connectSouth(connectedBars);
+                break;
+            case 3:
+                bar2->connectWest(connectedBars);
+                break;
+        }
+        _connectedBars.push_back(connectedBars);
+    }
+private:
+    std::vector<Reference<Bar> > _bars;
+    std::vector<Reference<ConnectedBars> > _connectedBars;
+    DisconnectedMaleConnector _disconnectedMaleConnector;
+    DisconnectedFemaleConnector _disconnectedFemaleConnector;
 };
 
 int main()
 {
 	BEGIN_CHECKED {
-        Program intervalProgram(String("../intervals.HEX"));
-        intervalProgram.load();
-
         Simulation simulation;
-
-        Interval interval(&simulation, &intervalProgram);
-
-        Program rootProgram(String("../root.HEX"));
-        rootProgram.load();
-        Interval root(&simulation, &rootProgram);
-
-        Disconnection d(&simulation);
-       
-        Connection c(&simulation);
-
-        c.connectMale(&root);
-        c.connectFemale(&d);
-
-        while (true)
-            root.simulateCycle();
-		//contents.write(Handle::consoleOutput());
+        simulation.simulate();
 	}
 	END_CHECKED(Exception& e) {
 		e.write(Handle::consoleOutput());
