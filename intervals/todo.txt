@@ -1,4 +1,10 @@
-test current system
+00001100 00000000
+plllsbcd plllsbcd
+
+Figure out why child's switch is low - should be high
+
+Debug current system
+  Figure out why the timing is messed up
 Simplify root.asm
   Get rid of initial write
   Flatten
@@ -24,3 +30,15 @@ Simulate clock drift, jitter, output settling time
 Performance
   Add a "care bits" mask to readMemory() and avoid reading bits we don't need. Use in BTFSC and BTFSS.
   Add an output buffer and only call maleWrite()/femaleWrite() on bits that change.
+
+intervals.asm:
+  Can save some space (and 4 cycles per word) by combining write and sendSync
+    When writing the last byte we don't want to sendSync (or it will be interpreted as another prime) so set AlowBhigh and AhighBlow to IIII first
+      Combine "CALL write" and "GOTO reset" in the 4 doA routines
+        Then the time from "CALL receiveSync" to "CALL write" won't be consistent - need to call "writeNoDelay" instead (possibly also increase delay on write)
+          Need 5 cycles of delay
+            GOTO  writeAndReset 2
+            MOVLW IIII          1
+            MOVWF AlowBhigh     1
+            MOVWF AhighBlow     1
+  Delaying the data reads by 1 cycle won't affect synchronization, but could affect data transmission reliability - check this

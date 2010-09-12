@@ -114,7 +114,7 @@ initRW                       ; 8
   MOVWF count                ; 1
   MOVLW data0                ; 1
   MOVWF FSR                  ; 1
-  RETLW 0                    ; 2
+  RETLW IIII                 ; 2
 
 write                        ; 67 -20
   CALL delay4                ; 4  -18
@@ -137,20 +137,22 @@ writeBitsLoop
 readBits macro source        ;      readN should be called 9 cycles after write
   local l                    ; 2  -11
   CALL initRW                ; 8   -9
+  TRIS GPIO
 l
   CLRF INDF                  ; 1   -1
   BTFSC GPIO, source         ; 1    0
   INCF INDF, F               ; 1
   INCF FSR, F                ; 1
-  NOP                        ; 1
+  delay1                     ; 1
   CLRF INDF                  ; 1
   BTFSC GPIO, source         ; 1
   INCF INDF, F               ; 1
   INCF FSR, F                ; 1
-  NOP                        ; 1
+  delay1                     ; 1
   DECFSZ count, F            ; 1
   GOTO l                     ; 2
-  delay2                     ; 2
+  delay1
+;  delay2                     ; 2
   RETLW 0                    ; 2
   endm
 
@@ -197,7 +199,7 @@ sendRSyncW
   sendRSync OIII
 
 
-receiveSync macro source        ; 9..11 cycles     recieveSyncN should be called 9 cycles (+/-1) after sendSync, 5 cycles (+/-1) after sendRSync
+receiveSync macro source        ; 9..11 cycles     receiveSyncN should be called 9 cycles (+/-1) after sendSync, 5 cycles (+/-1) after sendRSync
   local l
   MOVLW 0x3f - (1 << source) ; -1
   MOVWF AlowBhigh           ; 0
@@ -245,7 +247,7 @@ checkForPrimeN
   RETLW 0
   INCF INDF, F
 waitForPrimeCompleteN
-  BTFSC GPIO, 4
+  BTFSS GPIO, 4
   GOTO waitForPrimeCompleteN
   RETLW 0
 checkForPrimeE
@@ -254,7 +256,7 @@ checkForPrimeE
   RETLW 0
   INCF INDF, F
 waitForPrimeCompleteE
-  BTFSC GPIO, 5
+  BTFSS GPIO, 5
   GOTO waitForPrimeCompleteE
   RETLW 0
 checkForPrimeS
@@ -263,7 +265,7 @@ checkForPrimeS
   RETLW 0
   INCF INDF, F
 waitForPrimeCompleteS
-  BTFSC GPIO, 0
+  BTFSS GPIO, 0
   GOTO waitForPrimeCompleteS
   RETLW 0
 checkForPrimeW
@@ -272,7 +274,7 @@ checkForPrimeW
   RETLW 0
   INCF INDF, F
 waitForPrimeCompleteW
-  BTFSC GPIO, 1
+  BTFSS GPIO, 1
   GOTO waitForPrimeCompleteW
   RETLW 0
 
@@ -309,8 +311,8 @@ doBNb               ; 184       80                 2    loop duration 190 cycles
   CALL sendRSyncE   ; 186       82                14
   CALL receiveSyncN ;  10 200   96                10 +/- 1
   CALL write        ;  20      106                67
-  CALL sendSync     ;  87      173                18
-  CALL receiveSyncN ; 105                         10 +/- 1
+  CALL sendSync     ;  87      173                18         leaves B TRIS low
+  CALL receiveSyncN ; 105                         10 +/- 1   leaves TRIS unchanged
   CALL readE        ; 115                         65
   MOVF afterB, W    ; 180                          1
   BTFSS GPIO, 5     ; 181                          1
@@ -604,7 +606,6 @@ waitForDataRequestS
 
 
 initData                     ; 66
-                             ; 2
   MOVWF parentLow            ; 1
   MOVLW 1                    ; 1
   if (length & 1)
@@ -626,19 +627,19 @@ initData                     ; 66
   BTFSC GPIO, 2              ; 1
   INCF switch, F             ; 1
 
-  MOVLW 17                   ; 1
+  MOVLW 0x12                 ; 1
   MOVWF count                ; 1
 initDelayLoop
-  DECFSZ count, F            ; 1*16 + 2
-  GOTO initDelayLoop         ; 2*16
-  delay2                     ; 2
+  DECFSZ count, F            ; 1*17 + 2
+  GOTO initDelayLoop         ; 2*17
+  delay1                     ; 1
   MOVF afterA, W             ; 1
   MOVWF PCL                  ; 1
 
   end
 
 
-; 8 instructions free total, 8 in low page
+; 4 instructions free total, 4 in low page
 
 
 ; TODO:

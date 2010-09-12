@@ -74,7 +74,7 @@ initRW                       ; 8
   MOVWF count                ; 1
   MOVLW data0                ; 1
   MOVWF FSR                  ; 1
-  RETLW 0                    ; 2
+  RETLW IIII                 ; 2
 
 write                        ; 67 -20
   CALL delay4                ; 4  -18
@@ -97,6 +97,7 @@ writeBitsLoop
 readBits macro source        ;      readN should be called 9 cycles after write
   local l                    ; 2  -11
   CALL initRW                ; 8   -9
+  TRIS GPIO
 l
   CLRF INDF                  ; 1   -1
   BTFSC GPIO, source         ; 1    0
@@ -162,7 +163,7 @@ checkForPrime
   RETLW 0
   INCF INDF, F
 waitForPrimeComplete
-  BTFSC GPIO, 0
+  BTFSS GPIO, 0
   GOTO waitForPrimeComplete
   RETLW 0
 
@@ -209,7 +210,7 @@ reset
 
   CALL delay12
   MOVLW doA
-  BTFSC childCpresent, 0
+  BTFSC childBpresent, 0
   MOVLW doC
   MOVWF afterA
   NOP
@@ -232,12 +233,12 @@ initData                     ; 66
   NOP
   NOP
 
-  MOVLW 17                   ; 1
+  MOVLW 0x12                 ; 1
   MOVWF count                ; 1
 initDelayLoop
   DECFSZ count, F            ; 1*16 + 2
   GOTO initDelayLoop         ; 2*16
-  delay2                     ; 2
+  delay1                     ; 2
   MOVF afterA, W             ; 1
   MOVWF PCL                  ; 1
 
