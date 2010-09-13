@@ -459,12 +459,12 @@ startup
   CLRF GPIO
 
 reset
+  CALL allHigh
   CLRF childBpresent
   CLRF childCpresent
   CLRF childDpresent
   MOVLW childBpresent-1
   MOVWF FSR
-  CALL allHigh
 ; Time from input to output: 5-15 cycles
 waitForPrime
   BTFSS GPIO, 4      ; 1 2 2 2 2

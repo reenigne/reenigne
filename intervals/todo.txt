@@ -1,17 +1,3 @@
-00001100 00000000
-plllsbcd plllsbcd
-
-Figure out why child's switch is low - should be high
-
-Debug current system
-  Figure out why the timing is messed up
-Simplify root.asm
-  Get rid of initial write
-  Flatten
-
-benchmark
-add multiple bars all running at exactly 4MHz and check that we get the right stream back
-vary the clock speed according to a normal distribution - gradually increase the standard deviation and see when it breaks
 randomly add and remove bars as we're running
   Remove a random bar
     Pick a bar at random
@@ -24,12 +10,11 @@ randomly add and remove bars as we're running
     Create a new bar
     Pick a random port of the correct gender
     Connect it
+vary the clock speed according to a normal distribution - gradually increase the standard deviation and see when it breaks
+  Are the clock speeds of real PIC12F508s normal or uniform?
+    Write code for the programmer code and speed tester (ideal speed should be 1/3 MHz)
 
 Simulate clock drift, jitter, output settling time
-
-Performance
-  Add a "care bits" mask to readMemory() and avoid reading bits we don't need. Use in BTFSC and BTFSS.
-  Add an output buffer and only call maleWrite()/femaleWrite() on bits that change.
 
 intervals.asm:
   Can save some space (and 4 cycles per word) by combining write and sendSync

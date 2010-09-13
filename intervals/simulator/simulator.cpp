@@ -3,6 +3,8 @@
 #include <vector>
 #include <stdio.h>
 
+#include <time.h>
+
 class Program
 {
 public:
@@ -130,7 +132,7 @@ class Bar : public ReferenceCounted
 {
 public:
     Bar(const Program* program, bool indent = false)
-      : _program(program), _t(0), _indent(indent), _debug(true)
+      : _program(program), _t(0), _indent(indent), _debug(false)
     {
         for (int i = 0; i < 0x20; ++i)
             _memory[i] = 0;
@@ -139,12 +141,18 @@ public:
         _memory[4] = 0xe0;
         _memory[5] = 0xfe;
         _tris = 0x3f;
+        _io = 0x3f;
         _option = 0xff;
         _pch = 0x100;
     }
     void simulateTo(double t)
     {
-        while (_t < t)
+        if (_debug) {
+            if (_indent)
+                printf("        ");
+            printf("Simulating to %lf\n", t);
+        }
+        while (_t <= t - 1)
             simulateCycle();
     }
     void adjustTime(double t) { _t -= t; }
@@ -189,8 +197,8 @@ public:
                                     throw Exception(String("CLRWDT not supported"));
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
-                                    if (_debug) printf("%c\n", ((_w & 0x10) != 0) ? '1' : '0'); else
-                                        printf("%c", ((_w & 0x10) != 0) ? '1' : '0');
+                                    printf("%c", ((_w & 1) != 0) ? '1' : '0');
+                                    if (_debug) printf("\n");
                                     break;
                                 case 6:
                                     if (_debug) printf("TRIS GPIO\n");
@@ -323,14 +331,14 @@ public:
                         break;
                     case 6:
                         if (_debug) printf("BTFSC 0x%02x, %i\n", f, b);
-                        if ((readMemory(f) & m) == 0) {
+                        if ((readMemory(f, m) & m) == 0) {
                             incrementPC();
                             _skipping = true;
                         }
                         break;
                     case 7:
                         if (_debug) printf("BTFSS 0x%02x, %i\n", f, b);
-                        if ((readMemory(f) & m) != 0) {
+                        if ((readMemory(f, m) & m) != 0) {
                             incrementPC();
                             _skipping = true;
                         }
@@ -389,33 +397,37 @@ public:
     void connectSouth(FemaleConnector* south) { _south = south; }
     void connectWest(MaleConnector* west) { _west = west; }
 private:
-    UInt8 readMemory(int address)
+    UInt8 readMemory(int address, UInt8 care = 0xff)
     {
         _t = _t0 + 0.25;
         if (address == 0)
             address = _memory[4] & 0x1f;
         if (address == 6) {
             UInt8 r = 8;
-            if ((_tris & 1) == 0)
-                r |= (_memory[6] & 1);
-            else
-                r |= (_south->femaleRead(_t) ? 1 : 0);
-            if ((_tris & 2) == 0)
-                r |= (_memory[6] & 2);
-            else
-                r |= (_west->maleRead(_t) ? 2 : 0);
+            if ((care & 1) != 0)
+                if ((_tris & 1) == 0)
+                    r |= (_memory[6] & 1);
+                else
+                    r |= (_south->femaleRead(_t) ? 1 : 0);
+            if ((care & 2) != 0)
+                if ((_tris & 2) == 0)
+                    r |= (_memory[6] & 2);
+                else
+                    r |= (_west->maleRead(_t) ? 2 : 0);
             if ((_tris & 4) == 0)
                 r |= (_memory[6] & 4);
             else
                 r |= 4;  // Switch not implemented for now
-            if ((_tris & 0x10) == 0)
-                r |= (_memory[6] & 0x10);
-            else
-                r |= (_north->maleRead(_t) ? 0x10 : 0);
-            if ((_tris & 0x20) == 0)
-                r |= (_memory[6] & 0x20);
-            else
-                r |= (_east->femaleRead(_t) ? 0x20 : 0);
+            if ((care & 0x10) != 0)
+                if ((_tris & 0x10) == 0)
+                    r |= (_memory[6] & 0x10);
+                else
+                    r |= (_north->maleRead(_t) ? 0x10 : 0);
+            if ((care & 0x20) != 0)
+                if ((_tris & 0x20) == 0)
+                    r |= (_memory[6] & 0x20);
+                else
+                    r |= (_east->femaleRead(_t) ? 0x20 : 0);
             if (_debug) {
                 if (_indent)
                     printf("        ");
@@ -427,11 +439,13 @@ private:
     }
     void updateIO()
     {
+        _t = _t0 + 1.0;
         UInt8 h = _memory[6] | _tris;
-        _north->maleWrite(_t, (h & 0x10) != 0);
-        _east->femaleWrite(_t, (h & 0x20) != 0);
-        _south->femaleWrite(_t, (h & 1) != 0);
-        _west->maleWrite(_t, (h & 2) != 0);
+        if ((h & 0x10) != (_io & 0x10)) _north->maleWrite(_t, (h & 0x10) != 0);
+        if ((h & 0x20) != (_io & 0x20)) _east->femaleWrite(_t, (h & 0x20) != 0);
+        if ((h & 1) != (_io & 1)) _south->femaleWrite(_t, (h & 1) != 0);
+        if ((h & 2) != (_io & 2)) _west->maleWrite(_t, (h & 2) != 0);
+        _io = h;
         if (_debug) {
             if (_indent)
                 printf("        ");
@@ -440,7 +454,6 @@ private:
     }
     void writeMemory(int address, UInt8 data)
     {
-        _t = _t0 + 1.0;
         if (address == 0)
             address = _memory[4] & 0x1f;
         _memory[address] = data;
@@ -494,6 +507,7 @@ private:
     double _t0;
     bool _indent;
     bool _debug;
+    UInt8 _io;
 };
 
 class ConnectedBars : public MaleConnector, public FemaleConnector, public ReferenceCounted
@@ -547,12 +561,15 @@ public:
 
         connect(root, interval, 2, 0);
 
-        while (true) {
+        clock_t c0 = clock();
+        for (int j = 0; j < 65536; ++j) {
             for (int i = 0; i < 256; ++i)
                 root->simulateCycle();
             for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                 (*i)->adjustTime(256.0);
         }
+        clock_t c1 = clock();
+        printf("%i\n",c1-c0);
     }
     void add(const Reference<Bar>& bar)
     {

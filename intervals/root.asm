@@ -14,11 +14,6 @@ data6         EQU 0dh
 data7         EQU 0eh
 
 count         EQU 0fh
-afterA        EQU 10h
-afterB        EQU 11h
-afterC        EQU 12h
-AhighBlow     EQU 13h
-AlowBhigh     EQU 14h
 
 lengthLow     EQU 07h
 lengthMiddle  EQU 08h
@@ -31,28 +26,6 @@ childDpresent EQU 0eh
 
 
   __config _MCLRE_OFF & _CP_OFF & _WDT_OFF & _IntRC_OSC
-
-  GOTO startup
-
-doC
-  GOTO doCb
-
-delay16T
-  TRIS GPIO
-delay16
-  GOTO delay14
-delay14
-  GOTO delay12
-delay12
-  GOTO delay10
-delay10
-  GOTO delay8
-delay8
-  GOTO delay6
-delay6
-  GOTO delay4
-delay4
-  RETLW 0
 
 delay1 macro
   NOP
@@ -69,126 +42,6 @@ delay3 macro
   delay1
   endm
 
-initRW                       ; 8
-  MOVLW 4                    ; 1
-  MOVWF count                ; 1
-  MOVLW data0                ; 1
-  MOVWF FSR                  ; 1
-  RETLW IIII                 ; 2
-
-write                        ; 67 -20
-  CALL delay4                ; 4  -18
-  CALL initRW                ; 8  -14
-writeBitsLoop
-  MOVF AlowBhigh, W          ; 1   -6
-  BTFSC INDF, 0              ; 1   -5
-  MOVLW IIII                 ; 1   -4
-  TRIS 5                     ; 1   -3
-  INCF FSR, F                ; 1   -2
-  MOVF AlowBhigh, W          ; 1   -1
-  BTFSC INDF, 0              ; 1    0 <- first read here
-  MOVLW IIII                 ; 1
-  TRIS 5                     ; 1
-  INCF FSR, F                ; 1
-  DECFSZ count, F            ; 1
-  GOTO writeBitsLoop         ; 2
-  RETLW 0                    ; 2
-
-readBits macro source        ;      readN should be called 9 cycles after write
-  local l                    ; 2  -11
-  CALL initRW                ; 8   -9
-  TRIS GPIO
-l
-  CLRF INDF                  ; 1   -1
-  BTFSC GPIO, source         ; 1    0
-  INCF INDF, F               ; 1
-  INCF FSR, F                ; 1
-  NOP                        ; 1
-  CLRF INDF                  ; 1
-  BTFSC GPIO, source         ; 1
-  INCF INDF, F               ; 1
-  INCF FSR, F                ; 1
-  NOP                        ; 1
-  DECFSZ count, F            ; 1
-  GOTO l                     ; 2
-  delay2                     ; 2
-  RETLW 0                    ; 2
-  endm
-
-read
-  readBits 0
-
-sendSync               ; 2    1     total 18
-  MOVF AlowBhigh, W
-  TRIS GPIO
-  CALL delay6          ; 6    1        -8
-  MOVF AhighBlow, W    ; 1    1        -2
-  TRIS GPIO            ; 1    1        -1
-  MOVLW IIII           ; 1    0         0
-  TRIS GPIO            ; 1    0         1
-  MOVF AhighBlow, W    ; 1    1         2
-  TRIS GPIO            ; 1    1         3
-  RETLW 0              ; 2    0         4
-
-sendRSync
-  MOVLW IOII                 ;  1   1    -6
-  TRIS GPIO                  ;  1   1    -5
-  MOVWF AhighBlow            ;  1   0    -4
-  delay3                     ;  3   0    -3
-  MOVLW IIII                 ;  1   0     0
-  TRIS GPIO                  ;  1   0     1
-  MOVF AhighBlow, W          ;  1   1     2
-  TRIS GPIO                  ;  1   1     3
-  RETLW 0                    ;  2   0     4
-
-receiveSync         ; 9..11 cycles     recieveSyncN should be called 9 cycles (+/-1) after sendSync, 5 cycles (+/-1) after sendRSync
-  MOVLW 0x2f
-  MOVWF AlowBhigh
-  NOP
-  NOP
-  NOP
-  NOP
-  RETLW 0
-
-
-clearPrime
-  CALL delay16T
-  MOVLW IIII
-  TRIS GPIO
-  RETLW 0
-
-checkForPrime
-  INCF FSR, F
-  BTFSC GPIO, 0
-  RETLW 0
-  INCF INDF, F
-waitForPrimeComplete
-  BTFSS GPIO, 0
-  GOTO waitForPrimeComplete
-  RETLW 0
-
-allHigh
-  MOVLW IIII
-  TRIS GPIO
-  RETLW 0
-
-doCb                ; 184       80                 2    loop duration 190 cycles +/- 2
-  CALL sendRSync    ; 186       82                14
-  CALL receiveSync  ;  10 200   96                10 +/- 1
-  CALL write        ;  20      106                67
-  CALL sendSync     ;  87      173                18
-  CALL receiveSync  ; 105                         10 +/- 1
-  CALL read         ; 115                         65
-  MOVLW doA         ; 180                          1
-  BTFSS GPIO, 0     ; 181                          1
-  MOVLW doC         ; 182                          1
-  MOVWF PCL         ; 183                          1
-
-doA
-  CALL delay16
-  CALL receiveSync
-  CALL write
-  GOTO reset
 
 startup
   MOVWF OSCCAL
@@ -197,50 +50,127 @@ startup
   CLRF GPIO
 
 reset
+  ; Mark a new data stream
   TRIS 7
-  CLRF childBpresent
-  CLRF childCpresent
-  CLRF childDpresent
+  ; Prime the child
   MOVLW IOII
-  CALL clearPrime
-  MOVLW childBpresent-1
-  MOVWF FSR
-  CALL checkForPrime
-  CALL allHigh
-
-  CALL delay12
-  MOVLW doA
-  BTFSC childBpresent, 0
-  MOVLW doC
-  MOVWF afterA
-  NOP
-  NOP
-  NOP
-  NOP
-  NOP
-  NOP
-  MOVLW 0 ; parent low
-  GOTO initData
-
-initData                     ; 66
-                             ; 2
-  MOVWF parentLow            ; 1
+  TRIS GPIO
+  ; Wait for prime to be recognized
+  CALL delay14
+  ; Clear prime
+  MOVLW IIII
+  TRIS GPIO
+  ; Wait for response to be ready
+  CALL delay7
+  ; Check for child present
+  BTFSC GPIO, 0
+  GOTO reset
+  ; Wait while "prime pending"
+waitForPrimeComplete
+  BTFSS GPIO, 0
+  GOTO waitForPrimeComplete
+  ; Wait for child to set function pointers
+  CALL delay14
+dataLoop
+  delay3
+  ; Send "data request"
+  MOVLW IOII                 ;  1   1    -6
+  TRIS GPIO                  ;  1   1    -5
+  CALL delay4
+  ; Send "sync"
+  MOVLW IIII                 ;  1   0     0
+  TRIS GPIO                  ;  1   0     1
+  MOVLW IOII                 ;  1   1    -6
+  TRIS GPIO                  ;  1   1     3
+  ; Wait for child to read
+  MOVLW 0x1a
+  MOVWF count
+readDelay
+  DECFSZ count, F
+  GOTO readDelay
+  delay2
+  ; Send "sync"
+  MOVLW IIII
+  TRIS GPIO
+  CALL delay6          ; 6    1        -8
+  MOVLW IOII                 ;  1   1    -6
+  TRIS GPIO            ; 1    1        -1
+  MOVLW IIII           ; 1    0         0
+  TRIS GPIO            ; 1    0         1
+  MOVLW IOII                 ;  1   1    -6
+  TRIS GPIO            ; 1    1         3
+  ; Wait for child to start sending data
+  CALL delay21
+  MOVLW IIII                 ; 2
+  TRIS GPIO
+  ; Read and output data bits
+  MOVLW 0                    ; 1   -1
+  BTFSC GPIO, 0              ; 1    0
   MOVLW 1                    ; 1
-  CLRF lengthLow
-  CLRF lengthMiddle
-  CLRF lengthHigh
-  MOVWF switch
-  NOP
-  NOP
+  TRIS 5                     ; 1
+  delay1                     ; 1
+  MOVLW 0                    ; 1
+  BTFSC GPIO, 0              ; 1
+  MOVLW 1                    ; 1
+  TRIS 5                     ; 1
+  CALL delay4
+  MOVLW 0                    ; 1   -1
+  BTFSC GPIO, 0              ; 1    0
+  MOVLW 1                    ; 1
+  TRIS 5                     ; 1
+  delay1                     ; 1
+  MOVLW 0                    ; 1
+  BTFSC GPIO, 0              ; 1
+  MOVLW 1                    ; 1
+  TRIS 5                     ; 1
+  CALL delay4
+  MOVLW 0                    ; 1   -1
+  BTFSC GPIO, 0              ; 1    0
+  MOVLW 1                    ; 1
+  TRIS 5                     ; 1
+  delay1                     ; 1
+  MOVLW 0                    ; 1
+  BTFSC GPIO, 0              ; 1
+  MOVLW 1                    ; 1
+  TRIS 5                     ; 1
+  CALL delay4
+  MOVLW 0                    ; 1   -1
+  BTFSC GPIO, 0              ; 1    0
+  MOVLW 1                    ; 1
+  TRIS 5                     ; 1
+  delay1                     ; 1
+  MOVLW 0                    ; 1
+  BTFSC GPIO, 0              ; 1
+  MOVLW 1                    ; 1
+  TRIS 5                     ; 1
+  CALL delay8
+  ; Check for more data
+  BTFSC GPIO, 0
+  GOTO reset
+  GOTO dataLoop
 
-  MOVLW 0x12                 ; 1
-  MOVWF count                ; 1
-initDelayLoop
-  DECFSZ count, F            ; 1*16 + 2
-  GOTO initDelayLoop         ; 2*16
-  delay1                     ; 2
-  MOVF afterA, W             ; 1
-  MOVWF PCL                  ; 1
+
+delay21
+  NOP
+delay20
+  GOTO delay18
+delay18
+  GOTO delay16
+delay16
+  GOTO delay14
+delay14
+  GOTO delay12
+delay12
+  GOTO delay10
+delay10
+  GOTO delay8
+delay8
+  NOP
+delay7
+  NOP
+delay6
+  GOTO delay4
+delay4
+  RETLW 0
 
   end
-
