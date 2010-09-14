@@ -131,8 +131,8 @@ public:
 class Bar : public ReferenceCounted
 {
 public:
-    Bar(const Program* program, bool indent = false)
-      : _program(program), _t(0), _indent(indent), _debug(false)
+    Bar(Simulation* simulation, const Program* program, bool indent = false)
+      : _simulation(simulation), _program(program), _t(0), _indent(indent), _debug(false)
     {
         for (int i = 0; i < 0x20; ++i)
             _memory[i] = 0;
@@ -197,8 +197,12 @@ public:
                                     throw Exception(String("CLRWDT not supported"));
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
-                                    printf("%c", ((_w & 1) != 0) ? '1' : '0');
-                                    if (_debug) printf("\n");
+                                    {
+                                        bool bit = ((_w & 1) != 0);
+                                        _simulation->streamBit(bit);
+                                        printf("%c", bit ? '1' : '0');
+                                        if (_debug) printf("\n");
+                                    }
                                     break;
                                 case 6:
                                     if (_debug) printf("TRIS GPIO\n");
@@ -206,6 +210,7 @@ public:
                                     updateIO();
                                     break;
                                 case 7:  // Not a real PIC12F08 opcode - used for simulator escape (space)
+                                    _simulation->streamStart();
                                     if (_debug) printf("-\n"); else
                                         printf("\n");
                                     break;
@@ -490,6 +495,7 @@ private:
             _pch ^= 0x100;
     }
 
+    Simulation* _simulation;
     const Program* _program;
     UInt8 _memory[0x20];
     UInt8 _tris;
@@ -546,6 +552,7 @@ class Simulation
 public:
     Simulation() { }
     void simulate()
+      : _totalBars(100);
     {
         Program intervalProgram(String("../intervals.HEX"));
         intervalProgram.load();
@@ -556,8 +563,10 @@ public:
         Reference<Bar> root = new Bar(&rootProgram);
         add(root);
 
-        Reference<Bar> interval = new Bar(&intervalProgram, true);
-        add(interval);
+        for (int i = 0; i < _totalBars; ++i) {
+            Reference<Bar> interval = new Bar(&intervalProgram, true);
+            add(interval);
+        }
 
         connect(root, interval, 2, 0);
 
@@ -622,11 +631,18 @@ public:
         }
         _connectedBars.push_back(connectedBars);
     }
+    void streamBit(bool bit)
+    {
+    }
+    void streamStart()
+    {
+    }
 private:
     std::vector<Reference<Bar> > _bars;
     std::vector<Reference<ConnectedBars> > _connectedBars;
     DisconnectedMaleConnector _disconnectedMaleConnector;
     DisconnectedFemaleConnector _disconnectedFemaleConnector;
+    int _totalBars;
 };
 
 int main()
