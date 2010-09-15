@@ -552,7 +552,7 @@ class Simulation
 public:
     Simulation() { }
     void simulate()
-      : _totalBars(100);
+      : _totalBars(100), _t(0), _badStreamOk(false)
     {
         Program intervalProgram(String("../intervals.HEX"));
         intervalProgram.load();
@@ -568,17 +568,49 @@ public:
             add(interval);
         }
 
+        do {
+            root->simulateCycle();
+            ++_t;
+            if (_t == 256) {
+                _t = 0;
+                for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
+                    (*i)->adjustTime(256.0);
+            }
+            if (random() % 1000 == 0) {
+                _badStreamOk = true;
+                int n = random() % 100;
+                if (n >= _totalConnected) {
+                    // Add a bar
+                    n -= _totalConnected;
+                    for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i) {
+                        if (!((*i)->isConnected())) {
+                            if (n == 0) {
+                                // Try to connect this bar
+                                // TODO: Find number of spare connectors on this bar
+
+                            }
+                            --n;
+                        }
+                    }
+                }
+                else {
+                    // Disconnect a bar
+                    for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i) {
+                        if ((*i)->isConnected()) {
+                            if (n == 0) {
+                                // Disconnect this bar.
+                            }
+                            --n;
+                        }
+                    }
+
+                }
+
+
+
+
         connect(root, interval, 2, 0);
 
-        clock_t c0 = clock();
-        for (int j = 0; j < 65536; ++j) {
-            for (int i = 0; i < 256; ++i)
-                root->simulateCycle();
-            for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                (*i)->adjustTime(256.0);
-        }
-        clock_t c1 = clock();
-        printf("%i\n",c1-c0);
     }
     void add(const Reference<Bar>& bar)
     {
@@ -587,6 +619,7 @@ public:
         bar->connectEast(&_disconnectedFemaleConnector);
         bar->connectSouth(&_disconnectedFemaleConnector);
         bar->connectWest(&_disconnectedMaleConnector);
+        _stream.push_back(0);
     }
     void connect(Bar* bar1, Bar* bar2, int direction1, int direction2)
     {
@@ -633,9 +666,26 @@ public:
     }
     void streamBit(bool bit)
     {
+        if (_streamBit == 0)
+            *_streamPointer = 0;
+        if (bit)
+            *_streamPointer |= (1 << _streamBit);
+        ++_streamBit;
+        if (_streamBit == 8) {
+            _streamBit = 0;
+            ++_streamPointer;
+            ++_streamWords;
+        }
     }
     void streamStart()
     {
+        if (_streamBit != 0 || _streamWords != _totalConnected)
+            printf("Bad stream (found %i bits, expected %i)\n", _streamBit + _streamWords*8, _totalConnected*8);
+        // TODO: Check that
+
+
+        _streamPointer = &_stream[0];
+        _streamWords = 0;
     }
 private:
     std::vector<Reference<Bar> > _bars;
@@ -643,6 +693,13 @@ private:
     DisconnectedMaleConnector _disconnectedMaleConnector;
     DisconnectedFemaleConnector _disconnectedFemaleConnector;
     int _totalBars;
+    std::vector<int> _stream;
+    int* _streamPointer;
+    int _streamWords;
+    int _streamBit;
+    int _totalConnected;
+    int _t;
+    bool _badStreamOk;
 };
 
 int main()

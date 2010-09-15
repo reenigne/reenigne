@@ -1,7 +1,6 @@
 randomly add and remove bars as we're running
-  Fixed number of bars (say 100)
-  At random times, add or remove a bar
-    Pick a number from 0 to 99. If it's less than the number of bars in the tree, make a connection at random. Otherwise, break a connection at random.
+  Want to be able to create arbitrary graphs, not just arbitrary trees
+    Randomly add or remove pairs of connectors?
   Write code to interpret and analyze the bit string and compare it to the interval tree.
 
 
