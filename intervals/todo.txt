@@ -1,21 +1,8 @@
 randomly add and remove bars as we're running
-  Want to be able to create arbitrary graphs, not just arbitrary trees
-    Randomly add or remove pairs of connectors?
+  There are 401 connectors. Pick a connector at random. If it's connected, disconnect it. If it's not connected, pick a random disconnected connector of the opposite gender and connect it.
   Write code to interpret and analyze the bit string and compare it to the interval tree.
 
 
-
-  Remove a random bar
-    Pick a bar at random
-    Figure out if it's a leaf
-    Disconnect it
-    Remove it
-  Add a random bar
-    Pick a bar at random
-    Pick a port at random - see if it's already connected
-    Create a new bar
-    Pick a random port of the correct gender
-    Connect it
 vary the clock speed according to a normal distribution - gradually increase the standard deviation and see when it breaks
   Are the clock speeds of real PIC12F508s normal or uniform?
     Write code for the programmer code and speed tester (ideal speed should be 1/3 MHz)

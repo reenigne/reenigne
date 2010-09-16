@@ -578,7 +578,7 @@ public:
             }
             if (random() % 1000 == 0) {
                 _badStreamOk = true;
-                int n = random() % 100;
+                int n = random() % (4*_totalBars + 1);
                 if (n >= _totalConnected) {
                     // Add a bar
                     n -= _totalConnected;
@@ -666,26 +666,21 @@ public:
     }
     void streamBit(bool bit)
     {
-        if (_streamBit == 0)
-            *_streamPointer = 0;
-        if (bit)
-            *_streamPointer |= (1 << _streamBit);
-        ++_streamBit;
-        if (_streamBit == 8) {
-            _streamBit = 0;
-            ++_streamPointer;
-            ++_streamWords;
-        }
+        *(streamPointer++) = bit;
     }
     void streamStart()
     {
-        if (_streamBit != 0 || _streamWords != _totalConnected)
+        if (!_badStreamOk) {
+            int* streamPointer = &stream[0];
+            // TODO: generate expected stream and compare to current stream
+
+        if (_streamBit != 0 || _streamWords != _totalConnected) {
+
             printf("Bad stream (found %i bits, expected %i)\n", _streamBit + _streamWords*8, _totalConnected*8);
         // TODO: Check that
 
 
         _streamPointer = &_stream[0];
-        _streamWords = 0;
     }
 private:
     std::vector<Reference<Bar> > _bars;
