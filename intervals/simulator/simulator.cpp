@@ -401,6 +401,8 @@ public:
     void connectEast(FemaleConnector* east) { _east = east; }
     void connectSouth(FemaleConnector* south) { _south = south; }
     void connectWest(MaleConnector* west) { _west = west; }
+    bool live() { return _live; }
+
 private:
     UInt8 readMemory(int address, UInt8 care = 0xff)
     {
@@ -514,6 +516,8 @@ private:
     bool _indent;
     bool _debug;
     UInt8 _io;
+    bool _live;
+
 };
 
 class ConnectedBars : public MaleConnector, public FemaleConnector, public ReferenceCounted
@@ -579,8 +583,31 @@ public:
             if (random() % 1000 == 0) {
                 _badStreamOk = true;
                 int n = random() % (4*_totalBars + 1);
-                if (n >= _totalConnected) {
-                    // Add a bar
+                if (n >= _totalConnectedConnectors) {
+                    // Connect two connectors
+                    for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i) {
+                        int n2 = n - ((*i)->disconnectedConnectors());
+                        if (n2 < 0) {
+                            // TODO: Find nth disconnected connector on bar i - this is the one we'll connect
+                            // TODO: Record the gender of this connector
+                        }
+                    }
+                    // TODO: Find a random connector on a connected bar that is of the appropriate gender
+                    // TODO: Make the connection
+
+
+
+                        if (!((*i)->isConnected())) {
+                            if (n == 0) {
+                                // Try to connect this bar
+                                // TODO: Find number of spare connectors on this bar
+
+                            }
+                            --n;
+                        }
+                    }
+
+
                     n -= _totalConnected;
                     for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i) {
                         if (!((*i)->isConnected())) {
