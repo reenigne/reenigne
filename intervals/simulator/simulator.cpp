@@ -397,12 +397,26 @@ public:
         }
         _t = _t0 + 1.0;
     }
-    void connectNorth(MaleConnector* north) { _north = north; }
-    void connectEast(FemaleConnector* east) { _east = east; }
-    void connectSouth(FemaleConnector* south) { _south = south; }
-    void connectWest(MaleConnector* west) { _west = west; }
+//    void connectNorth(MaleConnector* north) { _north = north; }
+//    void connectEast(FemaleConnector* east) { _east = east; }
+//    void connectSouth(FemaleConnector* south) { _south = south; }
+//    void connectWest(MaleConnector* west) { _west = west; }
+    void connect(int direction, int connectedBar, int connectedDirection)
+    {
+        _connectedBar[direction] = connectedBar;
+        _connectedDirection[direction] = connectedDirection;
+    }
     bool live() { return _live; }
-
+    bool read(double t, int direction) const
+    {
+        simulateTo(t);
+        switch (direction)
+            case 0: return (_io & 0x10) != 0;
+            case 1: return (_io & 0x20) != 0;
+            case 2: return (_io & 1) != 0;
+            case 3: return (_io & 2) != 0;
+        }
+    }
 private:
     UInt8 readMemory(int address, UInt8 care = 0xff)
     {
@@ -415,12 +429,14 @@ private:
                 if ((_tris & 1) == 0)
                     r |= (_memory[6] & 1);
                 else
-                    r |= (_south->femaleRead(_t) ? 1 : 0);
+//                    r |= (_south->femaleRead(_t) ? 1 : 0);
+                    r |= (_simulation->read(_t, _connectedBar[2], _connectedDirection[2]) ? 1 : 0);
             if ((care & 2) != 0)
                 if ((_tris & 2) == 0)
                     r |= (_memory[6] & 2);
                 else
-                    r |= (_west->maleRead(_t) ? 2 : 0);
+//                    r |= (_west->maleRead(_t) ? 2 : 0);
+                    r |= (_simulation->read(_t, _connectedBar[3], _connectedDirection[3]) ? 2 : 0);
             if ((_tris & 4) == 0)
                 r |= (_memory[6] & 4);
             else
@@ -429,12 +445,14 @@ private:
                 if ((_tris & 0x10) == 0)
                     r |= (_memory[6] & 0x10);
                 else
-                    r |= (_north->maleRead(_t) ? 0x10 : 0);
+//                    r |= (_north->maleRead(_t) ? 0x10 : 0);
+                    r |= (_simulation->read(_t, _connectedBar[0], _connectedDirection[0]) ? 0x10 : 0);
             if ((care & 0x20) != 0)
                 if ((_tris & 0x20) == 0)
                     r |= (_memory[6] & 0x20);
                 else
-                    r |= (_east->femaleRead(_t) ? 0x20 : 0);
+//                    r |= (_east->femaleRead(_t) ? 0x20 : 0);
+                    r |= (_simulation->read(_t, _connectedBar[1], _connectedDirection[1]) ? 0x20 : 0);
             if (_debug) {
                 if (_indent)
                     printf("        ");
@@ -448,10 +466,14 @@ private:
     {
         _t = _t0 + 1.0;
         UInt8 h = _memory[6] | _tris;
-        if ((h & 0x10) != (_io & 0x10)) _north->maleWrite(_t, (h & 0x10) != 0);
-        if ((h & 0x20) != (_io & 0x20)) _east->femaleWrite(_t, (h & 0x20) != 0);
-        if ((h & 1) != (_io & 1)) _south->femaleWrite(_t, (h & 1) != 0);
-        if ((h & 2) != (_io & 2)) _west->maleWrite(_t, (h & 2) != 0);
+//        if ((h & 0x10) != (_io & 0x10)) _north->maleWrite(_t, (h & 0x10) != 0);
+//        if ((h & 0x20) != (_io & 0x20)) _east->femaleWrite(_t, (h & 0x20) != 0);
+//        if ((h & 1) != (_io & 1)) _south->femaleWrite(_t, (h & 1) != 0);
+//        if ((h & 2) != (_io & 2)) _west->maleWrite(_t, (h & 2) != 0);
+        if ((h & 0x10) != (_io & 0x10)) _simulation->write(_t, _connectedBar[0], _connectedDirection[0], (h & 0x10) != 0);
+        if ((h & 0x20) != (_io & 0x20)) _simulation->write(_t, _connectedBar[1], _connectedDirection[1], (h & 0x20) != 0);
+        if ((h & 1) != (_io & 1)) _simulation->write(_t, _connectedBar[2], _connectedDirection[2], (h & 1) != 0);
+        if ((h & 2) != (_io & 2)) _simulation->write(_t, _connectedBar[3], _connectedDirection[3], (h & 2) != 0);
         _io = h;
         if (_debug) {
             if (_indent)
@@ -507,10 +529,12 @@ private:
     UInt8 _w;
     bool _skipping;
     double _tPerCycle;
-    MaleConnector* _north;
-    FemaleConnector* _east;
-    FemaleConnector* _south;
-    MaleConnector* _west;
+    int _connectedBar[4];
+    int _connectedDirection[4];
+//    MaleConnector* _north;
+//    FemaleConnector* _east;
+//    FemaleConnector* _south;
+//    MaleConnector* _west;
     double _t;
     double _t0;
     bool _indent;
@@ -708,6 +732,19 @@ public:
 
 
         _streamPointer = &_stream[0];
+    }
+
+    bool read(double t, int bar, int direction)
+    {
+        if (bar == -1)
+            return true;
+        _bars[bar]->simulateTo(t);
+        return _bars[bar]->
+    }
+    void write(double t, int bar, int direction, bool value)
+    {
+        if (bar == -1)
+            return;
     }
 private:
     std::vector<Reference<Bar> > _bars;
