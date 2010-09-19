@@ -140,7 +140,7 @@ public:
         _memory[3] = 0x18;
         _memory[4] = 0xe0;
         _memory[5] = 0xfe;
-        _tris = 0x3f;
+        _memory[0x20] = 0x3f;
         _io = 0x3f;
         _option = 0xff;
         _pch = 0x100;
@@ -152,75 +152,80 @@ public:
                 printf("        ");
             printf("Simulating to %lf\n", t);
         }
-        while (_t <= t - 1)
-            simulateCycle();
+        do {
+            if (_t > t)
+                return;
+            if (_debug) {
+                if (_indent)
+                    printf("        ");
+                printf("%lf ", _t);
+            }
+            simulateToRead();
+            _t += 0.25;
+            if (_t > t)
+                return;
+            _t += 0.75;
+            simulateToWrite();
+        } while (true);
     }
     void adjustTime(double t) { _t -= t; }
-    void simulateCycle()
+    void simulateToRead()
     {
-        _t0 = _t;
-        int op = _program->op(_pch | _memory[2]);
         if (_skipping) {
             _skipping = false;
-            _t = _t0 + 1.0;
             return;
         }
+        int op = _program->op(_pch | _memory[2]);
         incrementPC();
         UInt16 r;
-        if (_debug) {
-            if (_indent)
-                printf("        ");
-            printf("%lf ", _t);
-        }
         if ((op & 0x800) == 0) {
-            int f = op & 0x1f;
+            _f = op & 0x1f;
             if ((op & 0x400) == 0) {
                 bool d = ((op & 0x20) != 0);  // true if destination is f, false if destination is W
                 char dc = d ? 'f' : 'W';
                 switch (op >> 6) {
                     case 0x0:
                         if (!d)
-                            switch (f) {
+                            switch (_f) {
                                 case 0:
                                     if (_debug) printf("NOP\n");
+                                    _f = -1;
                                     break;
                                 case 2:
                                     if (_debug) printf("OPTION\n");
+                                    _f = -1;
                                     _option = _w;
                                     break;
                                 case 3:
                                     if (_debug) printf("SLEEP\n");
+                                    _f = -1;
                                     throw Exception(String("SLEEP not supported"));
                                     break;
                                 case 4:
                                     if (_debug) printf("CLRWDT\n");
+                                    _f = -1;
                                     throw Exception(String("CLRWDT not supported"));
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
-                                    {
-                                        bool bit = ((_w & 1) != 0);
-                                        _simulation->streamBit(bit);
-                                        printf("%c", bit ? '1' : '0');
-                                        if (_debug) printf("\n");
-                                    }
+                                    _f = -1;
+                                    _simulation->streamBit((_w & 1) != 0);
                                     break;
                                 case 6:
                                     if (_debug) printf("TRIS GPIO\n");
-                                    _tris = _w;
-                                    updateIO();
+                                    _f = 0x20;
+                                    _data = _w;
                                     break;
                                 case 7:  // Not a real PIC12F08 opcode - used for simulator escape (space)
+                                    _f = -1;
                                     _simulation->streamStart();
-                                    if (_debug) printf("-\n"); else
-                                        printf("\n");
                                     break;
                                 default:
                                     unrecognizedOpcode(op);
                                     break;
                             }
                         else {
-                            if (_debug) printf("MOVWF 0x%02x\n", f);
-                            writeMemory(f, _w);
+                            if (_debug) printf("MOVWF 0x%02x\n", _f);
+                            _data = _w;
                         }
                         break;
                     case 0x1:
@@ -228,93 +233,99 @@ public:
                             if (!d)
                                 printf("CLRW\n");
                             else
-                                printf("CLRF 0x%02x\n", f);
-                        storeZ(0, f, d);
+                                printf("CLRF 0x%02x\n", _f);
+                        storeZ(0, d);
                         break;
                     case 0x2:
-                        if (_debug) printf("SUBWF 0x%02x, %c\n", f, dc);
-                        r = readMemory(f) - _w;
-                        if (r & 0x100)
-                            _memory[3] |= 1;
-                        else
-                            _memory[3] &= 0xfe;
-                        if ((_memory[f] & 0xf) - (_w & 0xf) != (r & 0xf))
-                            _memory[3] |= 2;
-                        else
-                            _memory[3] &= 0xfd;
-                        storeZ(r, f, d);
+                        if (_debug) printf("SUBWF 0x%02x, %c\n", _f, dc);
+                        {
+                            UInt8 m = readMemory(_f);
+                            r = m - _w;
+                            if (r & 0x100)
+                                _memory[3] |= 1;
+                            else
+                                _memory[3] &= 0xfe;
+                            if ((m & 0xf) - (_w & 0xf) != (r & 0xf))
+                                _memory[3] |= 2;
+                            else
+                                _memory[3] &= 0xfd;
+                            storeZ(r, d);
+                        }
                         break;
                     case 0x3:
-                        if (_debug) printf("DECF 0x%02x, %c\n", f, dc);
-                        storeZ(readMemory(f) - 1, f, d);
+                        if (_debug) printf("DECF 0x%02x, %c\n", _f, dc);
+                        storeZ(readMemory(f) - 1, d);
                         break;
                     case 0x4:
-                        if (_debug) printf("IORWF 0x%02x, %c\n", f, dc);
-                        storeZ(readMemory(f) | _w, f, d);
+                        if (_debug) printf("IORWF 0x%02x, %c\n", _f, dc);
+                        storeZ(readMemory(f) | _w, d);
                         break;
                     case 0x5:
-                        if (_debug) printf("ANDWF 0x%02x, %c\n", f, dc);
-                        storeZ(readMemory(f) & _w, f, d);
+                        if (_debug) printf("ANDWF 0x%02x, %c\n", _f, dc);
+                        storeZ(readMemory(f) & _w, d);
                         break;
                     case 0x6:
-                        if (_debug) printf("XORWF 0x%02x, %c\n", f, dc);
-                        storeZ(readMemory(f) ^ _w, f, d);
+                        if (_debug) printf("XORWF 0x%02x, %c\n", _f, dc);
+                        storeZ(readMemory(f) ^ _w, d);
                         break;
                     case 0x7:
-                        if (_debug) printf("ADDWF 0x%02x, %c\n", f, dc);
-                        r = readMemory(f) + _w;
-                        if (r & 0x100)
-                            _memory[3] |= 1;
-                        else
-                            _memory[3] &= 0xfe;
-                        if ((_w & 0xf) + (_memory[f] & 0xf) != (r & 0xf))
-                            _memory[3] |= 2;
-                        else
-                            _memory[3] &= 0xfd;
-                        storeZ(r, f, d);
+                        if (_debug) printf("ADDWF 0x%02x, %c\n", _f, dc);
+                        {
+                            UInt8 m = readMemory(_f);
+                            r = m + _w;
+                            if (r & 0x100)
+                                _memory[3] |= 1;
+                            else
+                                _memory[3] &= 0xfe;
+                            if ((_w & 0xf) + (m & 0xf) != (r & 0xf))
+                                _memory[3] |= 2;
+                            else
+                                _memory[3] &= 0xfd;
+                            storeZ(r, d);
+                        }
                         break;
                     case 0x8:
-                        if (_debug) printf("MOVF 0x%02x, %c\n", f, dc);
-                        storeZ(readMemory(f), f, d);
+                        if (_debug) printf("MOVF 0x%02x, %c\n", _f, dc);
+                        storeZ(readMemory(f), d);
                         break;
                     case 0x9:
-                        if (_debug) printf("COMF 0x%02x, %c\n", f, dc);
-                        storeZ(~readMemory(f), f, d);
+                        if (_debug) printf("COMF 0x%02x, %c\n", _f, dc);
+                        storeZ(~readMemory(f), d);
                         break;
                     case 0xa:
-                        if (_debug) printf("INCF 0x%02x, %c\n", f, dc);
-                        storeZ(readMemory(f) + 1, f, d);
+                        if (_debug) printf("INCF 0x%02x, %c\n", _f, dc);
+                        storeZ(readMemory(f) + 1, d);
                         break;
                     case 0xb:
-                        if (_debug) printf("DECFSZ 0x%02x, %c\n", f, dc);
-                        r = readMemory(f) - 1;
-                        store(r, f, d);
+                        if (_debug) printf("DECFSZ 0x%02x, %c\n", _f, dc);
+                        r = readMemory(_f) - 1;
+                        store(r, d);
                         if (r == 0) {
                             incrementPC();
                             _skipping = true;
                         }
                         break;
                     case 0xc:
-                        if (_debug) printf("RRF 0x%02x, %c\n", f, dc);
-                        r = readMemory(f) | ((_memory[3] & 1) << 8);
+                        if (_debug) printf("RRF 0x%02x, %c\n", _f, dc);
+                        r = readMemory(_f) | ((_memory[3] & 1) << 8);
                         setCarry((r & 1) != 0);
-                        store(r >> 1, f, d);
+                        store(r >> 1, d);
                         break;
                     case 0xd:
-                        if (_debug) printf("RLF 0x%02x, %c\n", f, dc);
+                        if (_debug) printf("RLF 0x%02x, %c\n", _f, dc);
                         r = (readMemory(f) << 1) | (_memory[3] & 1);
                         setCarry((r & 0x100) != 0);
-                        store(r, f, d);
+                        store(r, d);
                         break;
                     case 0xe:
-                        if (_debug) printf("SWAPF 0x%02x, %c\n", f, dc);
+                        if (_debug) printf("SWAPF 0x%02x, %c\n", _f, dc);
                         r = readMemory(f);
-                        store((r >> 4) | (r << 4), f, d);
+                        store((r >> 4) | (r << 4), d);
                         break;
                     case 0xf:
-                        if (_debug) printf("INCFSF 0x%02x, %c\n", f, dc);
-                        r = readMemory(f) + 1;
-                        store(r, f, d);
+                        if (_debug) printf("INCFSF 0x%02x, %c\n", _f, dc);
+                        r = readMemory(_f) + 1;
+                        store(r, d);
                         if (r == 0) {
                             incrementPC();
                             _skipping = true;
@@ -352,6 +363,7 @@ public:
             }
         }
         else {
+            _f = -1;
             int d = op & 0xff;
             switch (op >> 8) {
                 case 0x8:
@@ -395,12 +407,36 @@ public:
                     break;
             }
         }
-        _t = _t0 + 1.0;
     }
-//    void connectNorth(MaleConnector* north) { _north = north; }
-//    void connectEast(FemaleConnector* east) { _east = east; }
-//    void connectSouth(FemaleConnector* south) { _south = south; }
-//    void connectWest(MaleConnector* west) { _west = west; }
+    void simulateToWrite()
+    {
+        if (_skipping)
+            return;
+        if (_address == -1)
+            return;
+        if (_address == 0)
+            _address = _memory[4] & 0x1f;
+        _memory[_address] = _data;
+        if (_address == 6 || _address == 0x20) {
+            UInt8 h = _memory[6] | _memory[0x20];
+            if ((h & 0x10) != (_io & 0x10))
+                _simulation->write(_t, _connectedBar[0], _connectedDirection[0], (h & 0x10) != 0);
+            if ((h & 0x20) != (_io & 0x20))
+                _simulation->write(_t, _connectedBar[1], _connectedDirection[1], (h & 0x20) != 0);
+            if ((h & 1) != (_io & 1))
+                _simulation->write(_t, _connectedBar[2], _connectedDirection[2], (h & 1) != 0);
+            if ((h & 2) != (_io & 2))
+                _simulation->write(_t, _connectedBar[3], _connectedDirection[3], (h & 2) != 0);
+            _io = h;
+            if (_debug) {
+                if (_indent)
+                    printf("        ");
+                printf("Wrote 0x%02x\n", h);
+            }
+        }
+        if (address == 2)
+            _pch = 0;
+    }
     void connect(int direction, int connectedBar, int connectedDirection)
     {
         _connectedBar[direction] = connectedBar;
@@ -429,13 +465,11 @@ private:
                 if ((_tris & 1) == 0)
                     r |= (_memory[6] & 1);
                 else
-//                    r |= (_south->femaleRead(_t) ? 1 : 0);
                     r |= (_simulation->read(_t, _connectedBar[2], _connectedDirection[2]) ? 1 : 0);
             if ((care & 2) != 0)
                 if ((_tris & 2) == 0)
                     r |= (_memory[6] & 2);
                 else
-//                    r |= (_west->maleRead(_t) ? 2 : 0);
                     r |= (_simulation->read(_t, _connectedBar[3], _connectedDirection[3]) ? 2 : 0);
             if ((_tris & 4) == 0)
                 r |= (_memory[6] & 4);
@@ -445,13 +479,11 @@ private:
                 if ((_tris & 0x10) == 0)
                     r |= (_memory[6] & 0x10);
                 else
-//                    r |= (_north->maleRead(_t) ? 0x10 : 0);
                     r |= (_simulation->read(_t, _connectedBar[0], _connectedDirection[0]) ? 0x10 : 0);
             if ((care & 0x20) != 0)
                 if ((_tris & 0x20) == 0)
                     r |= (_memory[6] & 0x20);
                 else
-//                    r |= (_east->femaleRead(_t) ? 0x20 : 0);
                     r |= (_simulation->read(_t, _connectedBar[1], _connectedDirection[1]) ? 0x20 : 0);
             if (_debug) {
                 if (_indent)
@@ -462,50 +494,23 @@ private:
         }
         return _memory[address];
     }
-    void updateIO()
-    {
-        _t = _t0 + 1.0;
-        UInt8 h = _memory[6] | _tris;
-//        if ((h & 0x10) != (_io & 0x10)) _north->maleWrite(_t, (h & 0x10) != 0);
-//        if ((h & 0x20) != (_io & 0x20)) _east->femaleWrite(_t, (h & 0x20) != 0);
-//        if ((h & 1) != (_io & 1)) _south->femaleWrite(_t, (h & 1) != 0);
-//        if ((h & 2) != (_io & 2)) _west->maleWrite(_t, (h & 2) != 0);
-        if ((h & 0x10) != (_io & 0x10)) _simulation->write(_t, _connectedBar[0], _connectedDirection[0], (h & 0x10) != 0);
-        if ((h & 0x20) != (_io & 0x20)) _simulation->write(_t, _connectedBar[1], _connectedDirection[1], (h & 0x20) != 0);
-        if ((h & 1) != (_io & 1)) _simulation->write(_t, _connectedBar[2], _connectedDirection[2], (h & 1) != 0);
-        if ((h & 2) != (_io & 2)) _simulation->write(_t, _connectedBar[3], _connectedDirection[3], (h & 2) != 0);
-        _io = h;
-        if (_debug) {
-            if (_indent)
-                printf("        ");
-            printf("Wrote 0x%02x\n", h);
-        }
-    }
-    void writeMemory(int address, UInt8 data)
-    {
-        if (address == 0)
-            address = _memory[4] & 0x1f;
-        _memory[address] = data;
-        if (address == 6)
-            updateIO();
-        if (address == 2)
-            _pch = 0;
-    }
     void unrecognizedOpcode(int op)
     {
         static String unrecognized("Unrecognized opcode 0x");
         throw Exception(unrecognized + String::hexadecimal(op, 3));
     }
-    void store(UInt16 r, int f, bool d)
+    void store(UInt16 r, bool d)
     {
         if (d)
-            writeMemory(f, static_cast<UInt8>(r));
-        else
+            _data = static_cast<UInt8>(r);
+        else {
+            _f = -1;
             _w = static_cast<UInt8>(r);
+        }
     }
-    void storeZ(UInt16 r, int f, bool d)
+    void storeZ(UInt16 r, bool d)
     {
-        store(r, f, d);
+        store(r, d);
         if (r == 0)
             _memory[3] |= 4;
         else
@@ -521,7 +526,7 @@ private:
 
     Simulation* _simulation;
     const Program* _program;
-    UInt8 _memory[0x20];
+    UInt8 _memory[0x21];
     UInt8 _tris;
     UInt8 _option;
     int _stack[2];
@@ -531,48 +536,13 @@ private:
     double _tPerCycle;
     int _connectedBar[4];
     int _connectedDirection[4];
-//    MaleConnector* _north;
-//    FemaleConnector* _east;
-//    FemaleConnector* _south;
-//    MaleConnector* _west;
     double _t;
-    double _t0;
     bool _indent;
     bool _debug;
     UInt8 _io;
     bool _live;
-
-};
-
-class ConnectedBars : public MaleConnector, public FemaleConnector, public ReferenceCounted
-{
-public:
-    ConnectedBars(Bar* male, Bar* female) : _male(male), _female(female), _maleHigh(true), _femaleHigh(true) { }
-    void maleWrite(double t, bool d)
-    {
-        _female->simulateTo(t);
-        _maleHigh = d;
-    }
-    void femaleWrite(double t, bool d)
-    {
-        _male->simulateTo(t);
-        _femaleHigh = d;
-    }
-    bool maleRead(double t)
-    {
-        _female->simulateTo(t);
-        return _femaleHigh;
-    }
-    bool femaleRead(double t)
-    {
-        _male->simulateTo(t);
-        return _maleHigh;
-    }
-private:
-    Bar* _male;
-    Bar* _female;
-    bool _maleHigh;
-    bool _femaleHigh;
+    int _f;
+    UInt8 _data;
 };
 
 class Simulation
@@ -738,13 +708,13 @@ public:
     {
         if (bar == -1)
             return true;
-        _bars[bar]->simulateTo(t);
-        return _bars[bar]->
+        return _bars[bar]->read(t, direction);
     }
     void write(double t, int bar, int direction, bool value)
     {
         if (bar == -1)
             return;
+        _bars[bar]->simulateTo(t);
     }
 private:
     std::vector<Reference<Bar> > _bars;
