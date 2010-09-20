@@ -1,6 +1,5 @@
 randomly add and remove bars as we're running
-  There are 401 connectors. Pick a connector at random. If it's connected, disconnect it. If it's not connected, pick a random disconnected connector of the opposite gender and connect it.
-  Write code to interpret and analyze the bit string and compare it to the interval tree.
+
 
 
 vary the clock speed according to a normal distribution - gradually increase the standard deviation and see when it breaks

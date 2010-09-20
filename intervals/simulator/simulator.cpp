@@ -100,39 +100,11 @@ private:
 
 class Simulation;
 
-class MaleConnector
-{
-public:
-    virtual void maleWrite(double t, bool d) = 0;
-    virtual bool maleRead(double t) = 0;
-};
-
-class FemaleConnector
-{
-public:
-    virtual void femaleWrite(double t, bool d) = 0;
-    virtual bool femaleRead(double t) = 0;
-};
-
-class DisconnectedMaleConnector : public MaleConnector
-{
-public:
-    void maleWrite(double t, bool d) { }
-    bool maleRead(double t) { return true; }
-};
-
-class DisconnectedFemaleConnector : public FemaleConnector
-{
-public:
-    void femaleWrite(double t, bool d) { }
-    bool femaleRead(double t) { return true; }
-};
-
 class Bar : public ReferenceCounted
 {
 public:
-    Bar(Simulation* simulation, const Program* program, bool indent = false)
-      : _simulation(simulation), _program(program), _t(0), _indent(indent), _debug(false)
+    Bar(Simulation* simulation, const Program* program, bool root = false)
+      : _simulation(simulation), _program(program), _t(0), _root(root), _debug(false)
     {
         for (int i = 0; i < 0x20; ++i)
             _memory[i] = 0;
@@ -148,7 +120,7 @@ public:
     void simulateTo(double t)
     {
         if (_debug) {
-            if (_indent)
+            if (_root)
                 printf("        ");
             printf("Simulating to %lf\n", t);
         }
@@ -156,15 +128,15 @@ public:
             if (_t > t)
                 return;
             if (_debug) {
-                if (_indent)
+                if (_root)
                     printf("        ");
                 printf("%lf ", _t);
             }
+            _t += 0.25*_tPerCycle;
             simulateToRead();
-            _t += 0.25;
             if (_t > t)
                 return;
-            _t += 0.75;
+            _t += 0.75*_tPerCycle;
             simulateToWrite();
         } while (true);
     }
@@ -429,7 +401,7 @@ public:
                 _simulation->write(_t, _connectedBar[3], _connectedDirection[3], (h & 2) != 0);
             _io = h;
             if (_debug) {
-                if (_indent)
+                if (_root)
                     printf("        ");
                 printf("Wrote 0x%02x\n", h);
             }
@@ -442,7 +414,6 @@ public:
         _connectedBar[direction] = connectedBar;
         _connectedDirection[direction] = connectedDirection;
     }
-    bool live() { return _live; }
     bool read(double t, int direction) const
     {
         simulateTo(t);
@@ -453,40 +424,93 @@ public:
             case 3: return (_io & 2) != 0;
         }
     }
+    void prime()
+    {
+        _primed = true;
+        int childB = _connectedBar[(parent + 1) & 3];
+        int childC = _connectedBar[(parent + 2) & 3];
+        int childD = _connectedBar[(parent + 3) & 3];
+        _childBpresent = (childB != -1);
+        if (_childBpresent) {
+            Bar* bar = _simulation->bar(childB);
+            if (bar->primed())
+                _childBpresent = false;
+            else
+                bar->prime();
+        }
+        _childCpresent = (childC != -1);
+        if (_childCpresent) {
+            Bar* bar = _simulation->bar(childC);
+            if (bar->primed())
+                _childCpresent = false;
+            else
+                bar->prime();
+        }
+        _childDpresent = (childD != -1);
+        if (_childDpresent) {
+            Bar* bar = _simulation->bar(childD);
+            if (bar->primed())
+                _childDpresent = false;
+            else
+                bar->prime();
+        }
+    }
+    int* storeExpectedStream(int parent, int* store)
+    {
+        int childB = (parent + 1) & 3;
+        int childC = (parent + 2) & 3;
+        int childD = (parent + 3) & 3;
+        if (!_root) {
+            *(store++) = 0;
+            *(store++) = 0;
+            *(store++) = 0;
+            *(store++) = parent&1;
+            *(store++) = 1;
+            *(store++) = _childBpresent ? 1 : 0;
+            *(store++) = _childCpresent ? 1 : 0;
+            *(store++) = _childDpresent ? 1 : 0;
+        }
+        if (_childBpresent)
+            store = _simulation->bar(_connectedBar[childB])->storeExpectedStream(_connectedDirections[childB], store);
+        if (_childCpresent)
+            store = _simulation->bar(_connectedBar[childC])->storeExpectedStream(_connectedDirections[childC], store);
+        if (_childDpresent)
+            store = _simulation->bar(_connectedBar[childD])->storeExpectedStream(_connectedDirections[childD], store);
+        _primed = false;
+    }
 private:
     UInt8 readMemory(int address, UInt8 care = 0xff)
     {
-        _t = _t0 + 0.25;
         if (address == 0)
             address = _memory[4] & 0x1f;
         if (address == 6) {
             UInt8 r = 8;
             if ((care & 1) != 0)
-                if ((_tris & 1) == 0)
+                if ((_memory[0x20] & 1) == 0)
                     r |= (_memory[6] & 1);
                 else
                     r |= (_simulation->read(_t, _connectedBar[2], _connectedDirection[2]) ? 1 : 0);
             if ((care & 2) != 0)
-                if ((_tris & 2) == 0)
+                if ((_memory[0x20] & 2) == 0)
                     r |= (_memory[6] & 2);
                 else
                     r |= (_simulation->read(_t, _connectedBar[3], _connectedDirection[3]) ? 2 : 0);
-            if ((_tris & 4) == 0)
+            if ((_memory[0x20] & 4) == 0)
                 r |= (_memory[6] & 4);
             else
                 r |= 4;  // Switch not implemented for now
             if ((care & 0x10) != 0)
-                if ((_tris & 0x10) == 0)
+                if ((_memory[0x20] & 0x10) == 0)
                     r |= (_memory[6] & 0x10);
                 else
                     r |= (_simulation->read(_t, _connectedBar[0], _connectedDirection[0]) ? 0x10 : 0);
             if ((care & 0x20) != 0)
-                if ((_tris & 0x20) == 0)
+                if ((_memory[0x20] & 0x20) == 0)
                     r |= (_memory[6] & 0x20);
                 else
                     r |= (_simulation->read(_t, _connectedBar[1], _connectedDirection[1]) ? 0x20 : 0);
             if (_debug) {
-                if (_indent)
+                if (_root)
                     printf("        ");
                 printf("Read 0x%02x\n", r);
             }
@@ -527,7 +551,6 @@ private:
     Simulation* _simulation;
     const Program* _program;
     UInt8 _memory[0x21];
-    UInt8 _tris;
     UInt8 _option;
     int _stack[2];
     int _pch;
@@ -537,12 +560,15 @@ private:
     int _connectedBar[4];
     int _connectedDirection[4];
     double _t;
-    bool _indent;
+    bool _root;
     bool _debug;
     UInt8 _io;
-    bool _live;
     int _f;
     UInt8 _data;
+    bool _primed;
+    bool _childBpresent;
+    bool _childCpresent;
+    bool _childDpresent;
 };
 
 class Simulation
@@ -550,7 +576,7 @@ class Simulation
 public:
     Simulation() { }
     void simulate()
-      : _totalBars(100), _t(0), _badStreamOk(false)
+      : _totalBars(100), _stream(_totalBars*8), _expectedStream(_totalBars*8), _t(0), _badStreamOk(false)
     {
         Program intervalProgram(String("../intervals.HEX"));
         intervalProgram.load();
@@ -558,14 +584,19 @@ public:
         Program rootProgram(String("../root.HEX"));
         rootProgram.load();
 
-        Reference<Bar> root = new Bar(&rootProgram);
-        add(root);
-
-        for (int i = 0; i < _totalBars; ++i) {
-            Reference<Bar> interval = new Bar(&intervalProgram, true);
-            add(interval);
+        for (int i = 0; i <= _totalBars; ++i) {
+            Reference<Bar> bar;
+            if (i == 0)
+                bar = new Bar(&rootProgram);
+            else
+                bar = new Bar(&intervalProgram, true);
+            _bars.push_back(bar);
+            bar->connect(0, -1, 0);
+            bar->connect(1, -1, 0);
+            bar->connect(2, -1, 0);
+            bar->connect(3, -1, 0);
         }
-
+        _streamPointer = &_stream[0];
         do {
             root->simulateCycle();
             ++_t;
@@ -577,130 +608,46 @@ public:
             if (random() % 1000 == 0) {
                 _badStreamOk = true;
                 int n = random() % (4*_totalBars + 1);
-                if (n >= _totalConnectedConnectors) {
-                    // Connect two connectors
-                    for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i) {
-                        int n2 = n - ((*i)->disconnectedConnectors());
-                        if (n2 < 0) {
-                            // TODO: Find nth disconnected connector on bar i - this is the one we'll connect
-                            // TODO: Record the gender of this connector
-                        }
-                    }
-                    // TODO: Find a random connector on a connected bar that is of the appropriate gender
-                    // TODO: Make the connection
-
-
-
-                        if (!((*i)->isConnected())) {
-                            if (n == 0) {
-                                // Try to connect this bar
-                                // TODO: Find number of spare connectors on this bar
-
-                            }
-                            --n;
-                        }
-                    }
-
-
-                    n -= _totalConnected;
-                    for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i) {
-                        if (!((*i)->isConnected())) {
-                            if (n == 0) {
-                                // Try to connect this bar
-                                // TODO: Find number of spare connectors on this bar
-
-                            }
-                            --n;
-                        }
-                    }
-                }
-                else {
-                    // Disconnect a bar
-                    for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i) {
-                        if ((*i)->isConnected()) {
-                            if (n == 0) {
-                                // Disconnect this bar.
-                            }
-                            --n;
-                        }
-                    }
-
-                }
-
-
-
-
-        connect(root, interval, 2, 0);
-
-    }
-    void add(const Reference<Bar>& bar)
-    {
-        _bars.push_back(bar);
-        bar->connectNorth(&_disconnectedMaleConnector);
-        bar->connectEast(&_disconnectedFemaleConnector);
-        bar->connectSouth(&_disconnectedFemaleConnector);
-        bar->connectWest(&_disconnectedMaleConnector);
-        _stream.push_back(0);
-    }
-    void connect(Bar* bar1, Bar* bar2, int direction1, int direction2)
-    {
-        Bar* male;
-        Bar* female;
-        if (direction1 == 0 || direction1 == 3) {
-            male = bar1;
-            female = bar2;
-        }
-        else {
-            female = bar1;
-            male = bar2;
-        }
-        Reference<ConnectedBars> connectedBars = new ConnectedBars(male, female);
-        switch (direction1) {
-            case 0:
-                bar1->connectNorth(connectedBars);
-                break;
-            case 1:
-                bar1->connectEast(connectedBars);
-                break;
-            case 2:
-                bar1->connectSouth(connectedBars);
-                break;
-            case 3:
-                bar1->connectWest(connectedBars);
-                break;
-        }
-        switch (direction2) {
-            case 0:
-                bar2->connectNorth(connectedBars);
-                break;
-            case 1:
-                bar2->connectEast(connectedBars);
-                break;
-            case 2:
-                bar2->connectSouth(connectedBars);
-                break;
-            case 3:
-                bar2->connectWest(connectedBars);
-                break;
-        }
-        _connectedBars.push_back(connectedBars);
+                // Examine connector n
+                // If it's connected, disconnect it.
+                // If it's not connected, pick a random disconnected connector of the opposite gender and connect it.
+            }
+        } while (true);
     }
     void streamBit(bool bit)
     {
-        *(streamPointer++) = bit;
+        *(_streamPointer++) = bit;
     }
     void streamStart()
     {
         if (!_badStreamOk) {
-            int* streamPointer = &stream[0];
-            // TODO: generate expected stream and compare to current stream
-
-        if (_streamBit != 0 || _streamWords != _totalConnected) {
-
-            printf("Bad stream (found %i bits, expected %i)\n", _streamBit + _streamWords*8, _totalConnected*8);
-        // TODO: Check that
-
-
+            int* streamPointer = &_stream[0];
+            int* expectedStreamPointer = &_expectedStream[0];
+            _bars[0]->prime();
+            int* expectedStreamPointerEnd = _bars[0]->storeExpectedStream(0, expectedStreamPointer);
+            bool good = true;
+            do {
+                if ((*streamPointer) != (*expectedStreamPointer)) {
+                    good = false;
+                    break;
+                }
+                ++streamPointer;
+                ++expectedStreamPointer;
+                if ((streamPointer == _streamPointer) != (expectedStreamPointer == expectedStreamPointerEnd)) {
+                    good = false;
+                    break;
+                }
+            } while (true);
+            if (!good) {
+                printf("Bad stream. Expected ");
+                for (expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer)
+                    printf("%i", *expectedStreamPointer);
+                printf(", observed ");
+                for streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer)
+                    printf("%i", *streamPointer);
+                printf("\n");
+            }
+        }
         _streamPointer = &_stream[0];
     }
 
@@ -716,6 +663,7 @@ public:
             return;
         _bars[bar]->simulateTo(t);
     }
+    Bar* bar(int n) { return _bars[n]; }
 private:
     std::vector<Reference<Bar> > _bars;
     std::vector<Reference<ConnectedBars> > _connectedBars;
@@ -723,9 +671,8 @@ private:
     DisconnectedFemaleConnector _disconnectedFemaleConnector;
     int _totalBars;
     std::vector<int> _stream;
+    std::vector<int> _expectedStream;
     int* _streamPointer;
-    int _streamWords;
-    int _streamBit;
     int _totalConnected;
     int _t;
     bool _badStreamOk;
