@@ -1,4 +1,6 @@
-randomly add and remove bars as we're running
+Test current implementation
+  Probably need to re-run tests for the single bar connected case first
+  When we connect or disconnect, we need to bring all bars up to date
 
 
 
