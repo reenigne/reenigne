@@ -1,9 +1,3 @@
-Test current implementation
-  Probably need to re-run tests for the single bar connected case first
-  When we connect or disconnect, we need to bring all bars up to date
-
-
-
 vary the clock speed according to a normal distribution - gradually increase the standard deviation and see when it breaks
   Are the clock speeds of real PIC12F508s normal or uniform?
     Write code for the programmer code and speed tester (ideal speed should be 1/3 MHz)
