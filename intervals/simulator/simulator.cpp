@@ -104,29 +104,19 @@ class Simulation;
 template<class Simulation> class BarTemplate : public ReferenceCounted
 {
 public:
-    BarTemplate(Simulation* simulation, const Program* program, bool root = false)
-      : _simulation(simulation), _program(program), _t(0), _root(root), _debug(false), _readSubCycle(true), _live(root), _tPerCycle(1), _skipping(false), _primed(false)
+    BarTemplate(Simulation* simulation, const Program* program, int number)
+      : _simulation(simulation), _program(program), _t(0), _debug(true), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0)
     {
-        for (int i = 0; i < 0x20; ++i)
-            _memory[i] = 0;
-        _memory[2] = 0xff;
-        _memory[3] = 0x18;
-        _memory[4] = 0xe0;
-        _memory[5] = 0xfe;
-        _memory[0x20] = 0x3f;
-        _io = 0x3f;
-        _option = 0xff;
-        _pch = 0x100;
+        reset();
         for (int i = 0; i < 4; ++i)
             _connectedBar[i] = -1;
     }
     void simulateTo(double t)
     {
-        if (_debug) {
-            if (!_root)
-                printf("        ");
-            printf("Simulating to %lf\n", t);
-        }
+        if (!_live)
+            return;
+        if (_debug)
+            printf("%*sSimulating bar %i to %lf\n", _indent*8, "", _number, t);
         while (_t < t)
             simulateSubcycle();
     }
@@ -151,11 +141,8 @@ public:
     }
     void simulateToRead()
     {
-        if (_debug) {
-            if (!_root)
-                printf("        ");
-            printf("%lf ", _t);
-        }
+        if (_debug)
+            printf("%*s%lf ", _indent*8, "", _t);
         int op = _program->op(_pch | _memory[2]);
         incrementPC();
         UInt16 r;
@@ -189,8 +176,7 @@ public:
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
                                     _f = -1;
-                                    //printf("%i", _w & 1);
-                                    //if (_debug) printf("\n");
+                                    if (_debug) printf("%i\n", _w & 1);
                                     _simulation->streamBit((_w & 1) != 0);
                                     break;
                                 case 6:
@@ -200,7 +186,7 @@ public:
                                     break;
                                 case 7:  // Not a real PIC12F08 opcode - used for simulator escape (space)
                                     _f = -1;
-                                    //printf("\n");
+                                    if (_debug) printf("---\n");
                                     _simulation->streamStart();
                                     break;
                                 default:
@@ -411,11 +397,8 @@ public:
             if ((h & 2) != (_io & 2))
                 _simulation->write(_t, _connectedBar[3], _connectedDirection[3], (h & 2) != 0);
             _io = h;
-            if (_debug) {
-                if (!_root)
-                    printf("        ");
-                printf("Wrote 0x%02x\n", h);
-            }
+            if (_debug)
+                printf("%*sWrote 0x%02x\n", _indent*8, "", h);
         }
         if (_f == 2)
             _pch = 0;
@@ -424,18 +407,8 @@ public:
     {
         _connectedBar[direction] = connectedBar;
         _connectedDirection[direction] = connectedDirection;
-        if (!_root) {
-            // Update live flag
-            bool newLive = false;
-            for (int i = 0; i < 4; ++i)
-                if (_connectedBar[i] != -1 && _simulation->bar(_connectedBar[i])->live()) {
-                    newLive = true;
-                    break;
-                }
-            if (!_live && newLive)
-                _t = t;
-            _live = newLive;
-        }
+        if (_number != 0)
+            updateLive(t);
     }
     bool read(double t, int direction)
     {
@@ -448,8 +421,9 @@ public:
         }
         return true;
     }
-    void prime(int parent)
+    void prime(int parent, int indent = 0)
     {
+        _indent = indent;
         _primed = true;
         int childB = (parent + 1) & 3;
         int childC = (parent + 2) & 3;
@@ -461,7 +435,7 @@ public:
             if (bar->primed())
                 _childBpresent = false;
             else
-                bar->prime(_connectedDirection[childB]);
+                bar->prime(_connectedDirection[childB], indent + 1);
         }
         int childCbar = _connectedBar[childC];
         _childCpresent = (childCbar != -1);
@@ -470,7 +444,7 @@ public:
             if (bar->primed())
                 _childCpresent = false;
             else
-                bar->prime(_connectedDirection[childC]);
+                bar->prime(_connectedDirection[childC], indent + 1);
         }
         int childDbar = _connectedBar[childD];
         _childDpresent = (childDbar != -1);
@@ -479,7 +453,7 @@ public:
             if (bar->primed())
                 _childDpresent = false;
             else
-                bar->prime(_connectedDirection[childD]);
+                bar->prime(_connectedDirection[childD], indent + 1);
         }
     }
     int* storeExpectedStream(int parent, int* store)
@@ -487,7 +461,7 @@ public:
         int childB = (parent + 1) & 3;
         int childC = (parent + 2) & 3;
         int childD = (parent + 3) & 3;
-        if (!_root) {
+        if (_number != 0) {
             *(store++) = 0;
             *(store++) = 0;
             *(store++) = 0;
@@ -509,7 +483,17 @@ public:
     int connectedBar(int direction) const { return _connectedBar[direction]; }
     int connectedDirection(int direction) const { return _connectedDirection[direction]; }
     double time() const { return _t; }
-    bool live() const { return _t; }
+    bool live() const { return _live; }
+    void dumpConnections() const
+    {
+        printf("%03i: ", _number);
+        for (int i = 0; i < 4; ++i)
+            if (_connectedBar[i] == -1)
+                printf("- ");
+            else
+                printf("%03i/%i ", _connectedBar[i], _connectedDirection[i]);
+        printf("  ");
+    }
 private:
     UInt8 readMemory(int address, UInt8 care = 0xff)
     {
@@ -541,11 +525,8 @@ private:
                     r |= (_memory[6] & 0x20);
                 else
                     r |= (_simulation->read(_t, _connectedBar[1], _connectedDirection[1]) ? 0x20 : 0);
-            if (_debug) {
-                if (!_root)
-                    printf("        ");
-                printf("Read 0x%02x\n", r);
-            }
+            if (_debug)
+                printf("%*sRead 0x%02x\n", _indent*8, "", r);
             return r;
         }
         return _memory[address];
@@ -580,6 +561,42 @@ private:
             _pch ^= 0x100;
     }
     bool primed() const { return _primed; }
+    void reset()
+    {
+        for (int i = 0; i < 0x20; ++i)
+            _memory[i] = 0;
+        _memory[2] = 0xff;
+        _memory[3] = 0x18;
+        _memory[4] = 0xe0;
+        _memory[5] = 0xfe;
+        _memory[0x20] = 0x3f;
+        _io = 0x3f;
+        _option = 0xff;
+        _pch = 0x100;
+        _readSubCycle = true;
+    }
+    void updateLive(double t)
+    {
+        // Update live flag
+        bool newLive = false;
+        for (int i = 0; i < 4; ++i)
+            if (_connectedBar[i] != -1 && _simulation->bar(_connectedBar[i])->live()) {
+                newLive = true;
+                break;
+            }
+        if (!_live && newLive) {
+            _t = t;
+            reset();
+        }
+        if (newLive != _live) {
+            _live = newLive;
+            for (int i = 0; i < 4; ++i) {
+                int n = _connectedBar[i];
+                if (n != -1)
+                    _simulation->bar(n)->updateLive(t);
+            }
+        }
+    }
 
     Simulation* _simulation;
     const Program* _program;
@@ -593,7 +610,8 @@ private:
     int _connectedBar[4];
     int _connectedDirection[4];
     double _t;
-    bool _root;
+    int _number;
+    int _indent;
     bool _debug;
     UInt8 _io;
     int _f;
@@ -626,11 +644,11 @@ public:
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
             if (i == 0) {
-                bar = new Bar(this, &rootProgram, true);
+                bar = new Bar(this, &rootProgram, i);
                 root = bar;
             }
             else
-                bar = new Bar(this, &intervalProgram);
+                bar = new Bar(this, &intervalProgram, i);
             _bars.push_back(bar);
         }
 
@@ -649,7 +667,7 @@ public:
                 t -= 256;
                 ++tt;
                 if (tt == 4096) {
-                    printf(".");
+                    printf("%i ", _liveBars);
                     tt = 0;
                 }
             }
@@ -715,19 +733,24 @@ public:
                             }
                         }
                     }
-                    //printf("Connecting bar %i direction %i to bar %i direction %i\n", barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+                    printf("***Connecting bar %i direction %i to bar %i direction %i\n", barNumber, connectorNumber, connectedBarNumber, connectedDirection);
                     bar->connect(t, connectorNumber, connectedBarNumber, connectedDirection);
                     otherBar->connect(t, connectedDirection, barNumber, connectorNumber);
                     ++_connectedPairs;
                 }
                 else {
                     // This connector is connected - disconnect it.
-                    //printf("Disconnecting bar %i direction %i from bar %i direction %i\n", barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+                    printf("***Disconnecting bar %i direction %i from bar %i direction %i\n", barNumber, connectorNumber, connectedBarNumber, connectedDirection);
                     Bar* connectedBar = _bars[connectedBarNumber];
                     bar->connect(t, connectorNumber, -1, 0);
                     connectedBar->connect(t, connectedDirection, -1, 0);
                     --_connectedPairs;
                 }
+                // Prime to update _indent
+                _bars[0]->prime(0);
+                _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
+                for (int i = 0; i <= _totalBars; ++i)
+                    _bars[i]->dumpConnections();
             }
         } while (true);
     }
@@ -743,6 +766,7 @@ public:
             _bars[0]->prime(0);
             int* expectedStreamPointerEnd = _bars[0]->storeExpectedStream(0, expectedStreamPointer);
             bool good = true;
+            _liveBars = 0;
             do {
                 if (streamPointer == _streamPointer) {
                     if (expectedStreamPointer == expectedStreamPointerEnd)
@@ -760,6 +784,7 @@ public:
                 }
                 ++streamPointer;
                 ++expectedStreamPointer;
+                ++_liveBars;
             } while (true);
             if (!good) {
                 printf("Bad stream. Expected ");
@@ -769,9 +794,11 @@ public:
                 for (streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer)
                     printf("%i", *streamPointer);
                 printf("\n");
+                exit(0);
             }
         }
         _streamPointer = &_stream[0];
+        _badStreamOk = false;
     }
 
     bool read(double t, int bar, int direction)
@@ -796,6 +823,7 @@ private:
     int _totalConnected;
     bool _badStreamOk;
     int _connectedPairs;
+    int _liveBars;
 };
 
 int main()
