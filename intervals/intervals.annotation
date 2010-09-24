@@ -1,0 +1,512 @@
+0000 entry:                 GOTO startup
+0001 doBN:                  GOTO doBNb
+0002 doCN:                  GOTO doCNb
+0003 doDN:                  GOTO doDNb
+0004 doBE:                  GOTO doBEb
+0005 doCE:                  GOTO doCEb
+0006 doDE:                  GOTO doDEb
+0007 doBS:                  GOTO doBSb
+0008 doCS:                  GOTO doCSb
+0009 doDS:                  GOTO doDSb
+000A doBW:                  GOTO doBWb
+000B doCW:                  GOTO doCWb
+000C doDW:                  GOTO doDWb
+000D delay16T:              TRIS GPIO
+000E delay16:               GOTO delay14
+000F delay14:               GOTO delay12
+0010 delay12:               GOTO delay10
+0011 delay10:               GOTO delay8
+0012 delay8:                GOTO delay6
+0013 delay6:                GOTO delay4
+0014 delay4:                RETLW 0
+0015 initRW:                MOVLW 4
+0016 initRW                 MOVWF count
+0017 initRW                 MOVLW data0
+0018 initRW                 MOVWF FSR
+0019 initRW                 RETLW IIII
+001A write:                 CALL delay4
+001B write                  CALL initRW
+001C writeBitsLoop:         MOVF AlowBhigh, W
+001D writeBitsLoop          BTFSC INDF, 0
+001E writeBitsLoop          MOVLW IIII  ; bit to write is high
+001F writeBitsLoop          TRIS GPIO
+0020 writeBitsLoop          INCF FSR, F
+0021 writeBitsLoop          MOVF AlowBhigh, W
+0022 writeBitsLoop          BTFSC INDF, 0
+0023 writeBitsLoop          MOVLW IIII  ; bit to write is high
+0024 writeBitsLoop          TRIS GPIO
+0025 writeBitsLoop          INCF FSR, F
+0026 writeBitsLoop          DECFSZ count, F
+0027 writeBitsLoop          GOTO writeBitsLoop
+0028 write                  RETLW 0
+0029 readN:                 CALL initRW
+002A readN                  TRIS GPIO  ; set all to read
+002B readNBitsLoop:         CLRF INDF
+002C readNBitsLoop          BTFSC GPIO, 4
+002D readNBitsLoop          INCF INDF, F  ; bit read was high
+002E readNBitsLoop          INCF FSR, F
+002F readNBitsLoop          NOP  ; delay1
+0030 readNBitsLoop          CLRF INDF
+0031 readNBitsLoop          BTFSC GPIO, 4
+0032 readNBitsLoop          INCF INDF, F  ; bit read was high
+0033 readNBitsLoop          INCF FSR, F
+0034 readNBitsLoop          NOP  ; delay1
+0035 readNBitsLoop          DECFSZ count, F
+0036 readNBitsLoop          GOTO readNBitsLoop
+0037 readN                  NOP  ; delay1
+0038 readN                  RETLW 0
+0039 readE:                 CALL initRW
+003A readE                  TRIS GPIO  ; set all to read
+003B readEBitsLoop:         CLRF INDF
+003C readEBitsLoop          BTFSC GPIO, 5
+003D readEBitsLoop          INCF INDF, F  ; bit read was high
+003E readEBitsLoop          INCF FSR, F
+003F readEBitsLoop          NOP  ; delay1
+0040 readEBitsLoop          CLRF INDF
+0041 readEBitsLoop          BTFSC GPIO, 5
+0042 readEBitsLoop          INCF INDF, F  ; bit read was high
+0043 readEBitsLoop          INCF FSR, F
+0044 readEBitsLoop          NOP  ; delay1
+0045 readEBitsLoop          DECFSZ count, F
+0046 readEBitsLoop          GOTO readEBitsLoop
+0047 readE                  NOP  ; delay1
+0048 readE                  RETLW 0
+0049 readS:                 CALL initRW
+004A readS                  TRIS GPIO  ; set all to read
+004B readSBitsLoop:         CLRF INDF
+004C readSBitsLoop          BTFSC GPIO, 0
+004D readSBitsLoop          INCF INDF, F  ; bit read was high
+004E readSBitsLoop          INCF FSR, F
+004F readSBitsLoop          NOP  ; delay1
+0050 readSBitsLoop          CLRF INDF
+0051 readSBitsLoop          BTFSC GPIO, 0
+0052 readSBitsLoop          INCF INDF, F  ; bit read was high
+0053 readSBitsLoop          INCF FSR, F
+0054 readSBitsLoop          NOP  ; delay1
+0055 readSBitsLoop          DECFSZ count, F
+0056 readSBitsLoop          GOTO readSBitsLoop
+0057 readS                  NOP  ; delay1
+0058 readS                  RETLW 0
+0059 readW:                 CALL initRW
+005A readW                  TRIS GPIO  ; set all to read
+005B readWBitsLoop:         CLRF INDF
+005C readWBitsLoop          BTFSC GPIO, 1
+005D readWBitsLoop          INCF INDF, F  ; bit read was high
+005E readWBitsLoop          INCF FSR, F
+005F readWBitsLoop          NOP  ; delay1
+0060 readWBitsLoop          CLRF INDF
+0061 readWBitsLoop          BTFSC GPIO, 1
+0062 readWBitsLoop          INCF INDF, F  ; bit read was high
+0063 readWBitsLoop          INCF FSR, F
+0064 readWBitsLoop          NOP  ; delay1
+0065 readWBitsLoop          DECFSZ count, F
+0066 readWBitsLoop          GOTO readWBitsLoop
+0067 readW                  NOP  ; delay1
+0068 readW                  RETLW 0
+0069 sendSync:              MOVF AlowBhigh, W
+006A sendSync               TRIS GPIO
+006B sendSync               CALL delay6
+006C sendSync               MOVF AhighBlow, W
+006D sendSync               TRIS GPIO
+006E sendSync               MOVLW IIII
+006F sendSync               TRIS GPIO
+0070 sendSync               MOVF AhighBlow, W
+0071 sendSync               TRIS GPIO
+0072 sendSync               RETLW 0
+0073 sendRSyncN:            MOVLW IIIO
+0074 sendRSyncN             TRIS GPIO
+0075 sendRSyncN             MOVWF AhighBlow
+0076 sendRSyncN             GOTO .+1  ; delay2
+0077 sendRSyncN             NOP  ; delay1
+0078 sendRSyncN             MOVLW IIII
+0079 sendRSyncN             TRIS GPIO
+007A sendRSyncN             MOVF AhighBlow, W
+007B sendRSyncN             TRIS GPIO
+007C sendRSyncN             RETLW 0
+007D sendRSyncE:            MOVLW IIOI
+007E sendRSyncE             TRIS GPIO
+007F sendRSyncE             MOVWF AhighBlow
+0080 sendRSyncE             GOTO .+1  ; delay2
+0081 sendRSyncE             NOP  ; delay1
+0082 sendRSyncE             MOVLW IIII
+0083 sendRSyncE             TRIS GPIO
+0084 sendRSyncE             MOVF AhighBlow, W
+0085 sendRSyncE             TRIS GPIO
+0086 sendRSyncE             RETLW 0
+0087 sendRSyncS:            MOVLW IOII
+0088 sendRSyncS             TRIS GPIO
+0089 sendRSyncS             MOVWF AhighBlow
+008A sendRSyncS             GOTO .+1  ; delay2
+008B sendRSyncS             NOP  ; delay1
+008C sendRSyncS             MOVLW IIII
+008D sendRSyncS             TRIS GPIO
+008E sendRSyncS             MOVF AhighBlow, W
+008F sendRSyncS             TRIS GPIO
+0090 sendRSyncS             RETLW 0
+0091 sendRSyncW:            MOVLW OIII
+0092 sendRSyncW             TRIS GPIO
+0093 sendRSyncW             MOVWF AhighBlow
+0094 sendRSyncW             GOTO .+1  ; delay2
+0095 sendRSyncW             NOP
+0096 sendRSyncW             MOVLW IIII
+0097 sendRSyncW             TRIS GPIO
+0098 sendRSyncW             MOVF AhighBlow, W
+0099 sendRSyncW             TRIS GPIO
+009A sendRSyncW             RETLW 0
+009B receiveSyncN:          MOVLW 0x3f - (1 << 4)
+009C receiveSyncN           MOVWF AlowBhigh
+009D receiveSyncN           BTFSS GPIO, 4
+009E receiveSyncN           GOTO .+1
+009F receiveSyncN           BTFSS GPIO, 4
+00A0 receiveSyncN           RETLW 0
+00A1 receiveSyncN           RETLW 0
+00A2 receiveSyncE:          MOVLW 0x3f - (1 << 5)
+00A3 receiveSyncE           MOVWF AlowBhigh
+00A4 receiveSyncE           BTFSS GPIO, 5
+00A5 receiveSyncE           GOTO .+1
+00A6 receiveSyncE           BTFSS GPIO, 5
+00A7 receiveSyncE           RETLW 0
+00A8 receiveSyncE           RETLW 0
+00A9 receiveSyncS:          MOVLW 0x3f - (1 << 0)
+00AA receiveSyncS           MOVWF AlowBhigh
+00AB receiveSyncS           BTFSS GPIO, 0
+00AC receiveSyncS           GOTO .+1
+00AD receiveSyncS           BTFSS GPIO, 0
+00AE receiveSyncS           RETLW 0
+00AF receiveSyncS           RETLW 0
+00B0 receiveSyncW:          MOVLW 0x3f - (1 << 1)
+00B1 receiveSyncW           MOVWF AlowBhigh
+00B2 receiveSyncW           BTFSS GPIO, 1
+00B3 receiveSyncW           GOTO .+1
+00B4 receiveSyncW           BTFSS GPIO, 1
+00B5 receiveSyncW           RETLW 0
+00B6 receiveSyncW           RETLW 0
+00B7 clearPrimeN:           CALL delay16T
+00B8 clearPrimeN            MOVLW IIIO
+00B9 clearPrimeN            TRIS GPIO
+00BA clearPrimeN            RETLW 0
+00BB clearPrimeE:           CALL delay16T
+00BC clearPrimeE            MOVLW IIOI
+00BD clearPrimeE            TRIS GPIO
+00BE clearPrimeE            RETLW 0
+00BF clearPrimeS:           CALL delay16T
+00C0 clearPrimeS            MOVLW IOII
+00C1 clearPrimeS            TRIS GPIO
+00C2 clearPrimeS            RETLW 0
+00C3 clearPrimeW:           CALL delay16T
+00C4 clearPrimeW            MOVLW OIII
+00C5 clearPrimeW            TRIS GPIO
+00C6 clearPrimeW            RETLW 0
+00C7 checkForPrimeN:        INCF FSR, F
+00C8 checkForPrimeN         BTFSC GPIO, 4
+00C9 checkForPrimeN         RETLW 0  ; no child on N
+00CA checkForPrimeN         INCF INDF, F  ; child on N
+00CB waitForPrimeCompleteN: BTFSS GPIO, 4
+00CC waitForPrimeCompleteN  GOTO waitForPrimeCompleteN
+00CD waitForPrimeCompleteN  RETLW 0
+00CE checkForPrimeE:        INCF FSR, F
+00CF checkForPrimeE         BTFSC GPIO, 5
+00D0 checkForPrimeE         RETLW 0  ; no child on E
+00D1 checkForPrimeE         INCF INDF, F  ; child on E
+00D2 waitForPrimeCompleteE: BTFSS GPIO, 5
+00D3 waitForPrimeCompleteE  GOTO waitForPrimeCompleteE
+00D4 waitForPrimeCompleteE  RETLW 0
+00D5 checkForPrimeS:        INCF FSR, F
+00D6 checkForPrimeS         BTFSC GPIO, 0
+00D7 checkForPrimeS         RETLW 0  ; no child on S
+00D8 checkForPrimeS         INCF INDF, F  ; child on S
+00D9 waitForPrimeCompleteS: BTFSS GPIO, 0
+00DA waitForPrimeCompleteS  GOTO waitForPrimeCompleteS
+00DB waitForPrimeCompleteS  RETLW 0
+00DC checkForPrimeW:        INCF FSR, F
+00DD checkForPrimeW         BTFSC GPIO, 1
+00DE checkForPrimeW         RETLW 0  ; no child on W
+00DF checkForPrimeW         INCF INDF, F  ; child on W
+00E0 waitForPrimeCompleteW: BTFSS GPIO, 1
+00E1 waitForPrimeCompleteW  GOTO waitForPrimeCompleteW
+00E2 waitForPrimeCompleteW  RETLW 0
+00E3 allHigh:               MOVLW IIII
+00E4 allHigh                TRIS GPIO
+00E5 allHigh                RETLW 0
+00E6 doAN:                  CALL delay16
+00E7 doAN                   CALL receiveSyncN
+00E8 doAN                   CALL write
+00E9 doAN                   GOTO reset
+00EA doAE:                  CALL delay16
+00EB doAE                   CALL receiveSyncE
+00EC doAE                   CALL write
+00ED doAE                   GOTO reset
+00EE doAS:                  CALL delay16
+00EF doAS                   CALL receiveSyncS
+00F0 doAS                   CALL write
+00F1 doAS                   GOTO reset
+00F2 doAW:                  CALL delay16
+00F3 doAW                   CALL receiveSyncW
+00F4 doAW                   CALL write
+00F5 doAW                   GOTO reset
+00F6 doBNb:                 CALL sendRSyncE
+00F7 doBNb                  CALL receiveSyncN
+00F8 doBNb                  CALL write
+00F9 doBNb                  CALL sendSync
+00FA doBNb                  CALL receiveSyncN
+00FB doBNb                  CALL readE
+00FC doBNb                  MOVF afterB, W
+00FD doBNb                  BTFSS GPIO, 5
+00FE doBNb                  MOVLW doBN  ; another round
+00FF doBNb                  MOVWF PCL
+0100 doCNb:                 CALL sendRSyncS
+0101 doCNb                  CALL receiveSyncN
+0102 doCNb                  CALL write
+0103 doCNb                  CALL sendSync
+0104 doCNb                  CALL receiveSyncN
+0105 doCNb                  CALL readS
+0106 doCNb                  MOVF afterC, W
+0107 doCNb                  BTFSS GPIO, 0
+0108 doCNb                  MOVLW doCN  ; another round
+0109 doCNb                  MOVWF PCL
+010A doDNb:                 CALL sendRSyncW
+010B doDNb                  CALL receiveSyncN
+010C doDNb                  CALL write
+010D doDNb                  CALL sendSync
+010E doDNb                  CALL receiveSyncN
+010F doDNb                  CALL readW
+0110 doDNb                  MOVLW doAN
+0111 doDNb                  BTFSS GPIO, 1
+0112 doDNb                  MOVLW doDN  ; another round
+0113 doDNb                  MOVWF PCL
+0114 doBEb:                 CALL sendRSyncS
+0115 doBEb                  CALL receiveSyncE
+0116 doBEb                  CALL write
+0117 doBEb                  CALL sendSync
+0118 doBEb                  CALL receiveSyncE
+0119 doBEb                  CALL readS
+011A doBEb                  MOVF afterB, W
+011B doBEb                  BTFSS GPIO, 0
+011C doBEb                  MOVLW doBE  ; another round
+011D doBEb                  MOVWF PCL
+011E doCEb:                 CALL sendRSyncW
+011F doCEb                  CALL receiveSyncE
+0120 doCEb                  CALL write
+0121 doCEb                  CALL sendSync
+0122 doCEb                  CALL receiveSyncE
+0123 doCEb                  CALL readW
+0124 doCEb                  MOVF afterC, W
+0125 doCEb                  BTFSS GPIO, 1
+0126 doCEb                  MOVLW doCE  ; another round
+0127 doCEb                  MOVWF PCL
+0128 doDEb:                 CALL sendRSyncN
+0129 doDEb                  CALL receiveSyncE
+012A doDEb                  CALL write
+012B doDEb                  CALL sendSync
+012C doDEb                  CALL receiveSyncE
+012D doDEb                  CALL readN
+012E doDEb                  MOVLW doAE
+012F doDEb                  BTFSS GPIO, 4
+0130 doDEb                  MOVLW doDE  ; another round
+0131 doDEb                  MOVWF PCL
+0132 doBSb:                 CALL sendRSyncW
+0133 doBSb                  CALL receiveSyncS
+0134 doBSb                  CALL write
+0135 doBSb                  CALL sendSync
+0136 doBSb                  CALL receiveSyncS
+0137 doBSb                  CALL readW
+0138 doBSb                  MOVF afterB, W
+0139 doBSb                  BTFSS GPIO, 1
+013A doBSb                  MOVLW doBS  ; another round
+013B doBSb                  MOVWF PCL
+013C doCSb:                 CALL sendRSyncN
+013D doCSb                  CALL receiveSyncS
+013E doCSb                  CALL write
+013F doCSb                  CALL sendSync
+0140 doCSb                  CALL receiveSyncS
+0141 doCSb                  CALL readN
+0142 doCSb                  MOVF afterC, W
+0143 doCSb                  BTFSS GPIO, 4
+0144 doCSb                  MOVLW doCS  ; another round
+0145 doCSb                  MOVWF PCL
+0146 doDSb:                 CALL sendRSyncE
+0147 doDSb                  CALL receiveSyncS
+0148 doDSb                  CALL write
+0149 doDSb                  CALL sendSync
+014A doDSb                  CALL receiveSyncS
+014B doDSb                  CALL readE
+014C doDSb                  MOVLW doAS
+014D doDSb                  BTFSS GPIO, 5
+014E doDSb                  MOVLW doDS  ; another round
+014F doDSb                  MOVWF PCL
+0150 doBWb:                 CALL sendRSyncN
+0151 doBWb                  CALL receiveSyncW
+0152 doBWb                  CALL write
+0153 doBWb                  CALL sendSync
+0154 doBWb                  CALL receiveSyncW
+0155 doBWb                  CALL readN
+0156 doBWb                  MOVF afterB, W
+0157 doBWb                  BTFSS GPIO, 4
+0158 doBWb                  MOVLW doBW  ; another round
+0159 doBWb                  MOVWF PCL
+015A doCWb:                 CALL sendRSyncE
+015B doCWb                  CALL receiveSyncW
+015C doCWb                  CALL write
+015D doCWb                  CALL sendSync
+015E doCWb                  CALL receiveSyncW
+015F doCWb                  CALL readE
+0160 doCWb                  MOVF afterC, W
+0161 doCWb                  BTFSS GPIO, 5
+0162 doCWb                  MOVLW doCW  ; another round
+0163 doCWb                  MOVWF PCL
+0164 doDWb:                 CALL sendRSyncS
+0165 doDWb                  CALL receiveSyncW
+0166 doDWb                  CALL write
+0167 doDWb                  CALL sendSync
+0168 doDWb                  CALL receiveSyncW
+0169 doDWb                  CALL readS
+016A doDWb                  MOVLW doAW
+016B doDWb                  BTFSS GPIO, 0
+016C doDWb                  MOVLW doDW  ; another round
+016D doDWb                  MOVWF PCL
+016E startup:               MOVWF OSCCAL
+016F startup                MOVLW 80h  ; OPTION bits
+0170 startup                OPTION
+0171 startup                CLRF GPIO
+0172 reset:                 CALL allHigh
+0173 reset                  CLRF childBpresent
+0174 reset                  CLRF childCpresent
+0175 reset                  CLRF childDpresent
+0176 reset                  MOVLW childBpresent-1
+0177 reset                  MOVWF FSR
+0178 waitForPrime:          BTFSS GPIO, 4
+0179 waitForPrime           GOTO foundN
+017A waitForPrime           BTFSS GPIO, 5
+017B waitForPrime           GOTO foundE
+017C waitForPrime           BTFSS GPIO, 0
+017D waitForPrime           GOTO foundS
+017E waitForPrime           BTFSC GPIO, 1
+017F waitForPrime           GOTO waitForPrime
+0180 foundW:                MOVLW OIIO
+0181 foundW                 CALL clearPrimeW
+0182 foundW                 MOVLW childBpresent-1
+0183 foundW                 MOVWF FSR
+0184 foundW                 CALL checkForPrimeN
+0185 foundW                 MOVLW OIOI
+0186 foundW                 CALL clearPrimeW
+0187 foundW                 CALL checkForPrimeE
+0188 foundW                 MOVLW OOII
+0189 foundW                 CALL clearPrimeW
+018A foundW                 CALL checkForPrimeS
+018B foundW                 CALL allHigh
+018C foundW                 MOVLW doAW
+018D foundW                 BTFSC childDpresent, 0
+018E foundW                 MOVLW doDW  ; child D (S) present
+018F foundW                 MOVWF afterC
+0190 foundW                 BTFSC childCpresent, 0
+0191 foundW                 MOVLW doCW  ; child C (E) present
+0192 foundW                 MOVWF afterB
+0193 foundW                 BTFSC childBpresent, 0
+0194 foundW                 MOVLW doBW  ; child B (N) present
+0195 foundW                 MOVWF afterA
+0196 waitForDataRequestW:   BTFSC GPIO, 1
+0197 waitForDataRequestW    GOTO waitForDataRequestW
+0198 foundW                 CALL receiveSyncW
+0199 foundW                 MOVLW 1  ; parent low
+019A foundW                 GOTO initData
+019B foundN:                MOVLW IIOO
+019C foundN                 CALL clearPrimeN
+019D foundN                 MOVLW childBpresent-1
+019E foundN                 MOVWF FSR
+019F foundN                 CALL checkForPrimeE
+01A0 foundN                 MOVLW IOIO
+01A1 foundN                 CALL clearPrimeN
+01A2 foundN                 CALL checkForPrimeS
+01A3 foundN                 MOVLW OIIO
+01A4 foundN                 CALL clearPrimeN
+01A5 foundN                 CALL checkForPrimeW
+01A6 foundN                 CALL allHigh
+01A7 foundN                 MOVLW doAN
+01A8 foundN                 BTFSC childDpresent, 0
+01A9 foundN                 MOVLW doDN  ; child D (W) present
+01AA foundN                 MOVWF afterC
+01AB foundN                 BTFSC childCpresent, 0
+01AC foundN                 MOVLW doCN  ; child C (S) present
+01AD foundN                 MOVWF afterB
+01AE foundN                 BTFSC childBpresent, 0
+01AF foundN                 MOVLW doBN  ; child B (E) present
+01B0 foundN                 MOVWF afterA
+01B1 waitForDataRequestN:   BTFSC GPIO, 4
+01B2 waitForDataRequestN    GOTO waitForDataRequestN
+01B3 foundN                 CALL receiveSyncN
+01B4 foundN                 MOVLW 0  ; parent low
+01B5 foundN                 GOTO initData
+01B6 foundE:                MOVLW IOOI
+01B7 foundE                 CALL clearPrimeE
+01B8 foundE                 MOVLW childBpresent-1
+01B9 foundE                 MOVWF FSR
+01BA foundE                 CALL checkForPrimeS
+01BB foundE                 MOVLW OIOI
+01BC foundE                 CALL clearPrimeE
+01BD foundE                 CALL checkForPrimeW
+01BE foundE                 MOVLW IIOO
+01BF foundE                 CALL clearPrimeE
+01C0 foundE                 CALL checkForPrimeN
+01C1 foundE                 CALL allHigh
+01C2 foundE                 MOVLW doAE
+01C3 foundE                 BTFSC childDpresent, 0
+01C4 foundE                 MOVLW doDE  ; child D (N) present
+01C5 foundE                 MOVWF afterC
+01C6 foundE                 BTFSC childCpresent, 0
+01C7 foundE                 MOVLW doCE  ; child C (W) present
+01C8 foundE                 MOVWF afterB
+01C9 foundE                 BTFSC childBpresent, 0
+01CA foundE                 MOVLW doBE  ; child B (S) present
+01CB foundE                 MOVWF afterA
+01CC waitForDataRequestE:   BTFSC GPIO, 5
+01CD waitForDataRequestE    GOTO waitForDataRequestE
+01CE foundE                 CALL receiveSyncE
+01CF foundE                 MOVLW 1 ; parent low
+01D0 foundE                 GOTO initData
+01D1 foundS:                MOVLW OOII
+01D2 foundS                 CALL clearPrimeS
+01D3 foundS                 MOVLW childBpresent-1
+01D4 foundS                 MOVWF FSR
+01D5 foundS                 CALL checkForPrimeW
+01D6 foundS                 MOVLW IOIO
+01D7 foundS                 CALL clearPrimeS
+01D8 foundS                 CALL checkForPrimeN
+01D9 foundS                 MOVLW IOOI
+01DA foundS                 CALL clearPrimeS
+01DB foundS                 CALL checkForPrimeE
+01DC foundS                 CALL allHigh
+01DD foundS                 MOVLW doAS
+01DE foundS                 BTFSC childDpresent, 0
+01DF foundS                 MOVLW doDS  ; child D (E) present
+01E0 foundS                 MOVWF afterC
+01E1 foundS                 BTFSC childCpresent, 0
+01E2 foundS                 MOVLW doCS  ; child C (N) present
+01E3 foundS                 MOVWF afterB
+01E4 foundS                 BTFSC childBpresent, 0
+01E5 foundS                 MOVLW doBS  ; child B (W) present
+01E6 foundS                 MOVWF afterA
+01E7 waitForDataRequestS:   BTFSC GPIO, 0
+01E8 waitForDataRequestS    GOTO waitForDataRequestS
+01E9 foundS                 CALL receiveSyncS
+01EA foundS                 MOVLW 0 ; parent low
+01EB foundS                 GOTO initData
+01EC initData:              MOVWF parentLow
+01ED initData               MOVLW 1
+01EE initData               CLRF/MOVWF lengthLow
+01EF initData               CLRF/MOVWF lengthMiddle
+01F0 initData               CLRF/MOVWF lengthHigh
+01F1 initData               CLRF switch
+01F2 initData               BTFSC GPIO, 2
+01F3 initData               INCF switch, F
+01F4 initData               MOVLW 0x12
+01F5 initData               MOVWF count
+01F6 initDelayLoop:         DECFSZ count, F
+01F7 initDelayLoop          GOTO initDelayLoop
+01F8 initData               NOP  ; delay1
+01F9 initData               MOVF afterA, W
+01FA initData               MOVWF PCL
+01FB -NO-CODE-
+01FC -NO-CODE-
+01FD -NO-CODE-
+01FE -NO-CODE-
+01FF                        MOVLW osccalValue

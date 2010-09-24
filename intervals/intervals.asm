@@ -61,7 +61,7 @@ doDN
 doBE
   GOTO doBEb
 doCE
-  gOTO doCEb
+  GOTO doCEb
 doDE
   GOTO doDEb
 doBS

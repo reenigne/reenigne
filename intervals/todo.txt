@@ -1,3 +1,5 @@
+
+
 Figure out why we're getting bad streams
   There was a stream start right after the connect - maybe bar 3 isn't ready yet. Allow two bad streams after a change?
 

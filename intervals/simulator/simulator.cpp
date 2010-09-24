@@ -9,11 +9,13 @@
 class Program
 {
 public:
-    Program(String fileName)
+    Program(String fileName, String annotationsFileName)
     {
 		File file(fileName);
 		String contents = file.contents();
         _source = contents.start();
+        File annotationsFile(annotationsFileName);
+        _annotations = annotationsFile.contents();
     }
 
     void load()
@@ -23,6 +25,24 @@ public:
         _done = false;
         while (!_done)
             parseLine();
+        int position = 0;
+        CharacterSource annotations = _annotations.start();
+        for (int i = 0; i < 0x200; ++i) {
+            int end;
+            do {
+                int c = annotations.get();
+                if (c == 10) {
+                    end = annotations.position() - 1;
+                    break;
+                }
+                if (c == -1) {
+                    end = annotations.position();
+                    break;
+                }
+            } while (true);
+            _annotation.push_back(_annotations.subString(position, end - position));
+            position = annotations.position();
+        }
     }
     void parseLine()
     {
@@ -92,11 +112,14 @@ public:
         address <<= 1;
         return _data[address] | (_data[address + 1] << 8);
     }
+    String annotation(int line) const { return _annotation[line]; }
 private:
     UInt8 _data[0x400];
     bool _done;
     int _checkSum;
     CharacterSource _source;
+    String _annotations;
+    std::vector<String> _annotation;
 };
 
 class Simulation;
@@ -105,7 +128,7 @@ template<class Simulation> class BarTemplate : public ReferenceCounted
 {
 public:
     BarTemplate(Simulation* simulation, const Program* program, int number)
-      : _simulation(simulation), _program(program), _t(0), _debug(true), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0)
+      : _simulation(simulation), _program(program), _t(0), _debug(true), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput())
     {
         reset();
         for (int i = 0; i < 4; ++i)
@@ -142,8 +165,9 @@ public:
     void simulateToRead()
     {
         if (_debug)
-            printf("%*s%lf ", _indent*8, "", _t);
-        int op = _program->op(_pch | _memory[2]);
+            printf("%*s% 7.2lf ", _indent*8, "", _t);
+        int pc = _pch | _memory[2];
+        int op = _program->op(pc);
         incrementPC();
         UInt16 r;
         if ((op & 0x800) == 0) {
@@ -156,37 +180,37 @@ public:
                         if (!d)
                             switch (_f) {
                                 case 0:
-                                    if (_debug) printf("NOP\n");
+                                    if (_debug) printf("NOP             ");
                                     _f = -1;
                                     break;
                                 case 2:
-                                    if (_debug) printf("OPTION\n");
+                                    if (_debug) printf("OPTION          ");
                                     _f = -1;
                                     _option = _w;
                                     break;
                                 case 3:
-                                    if (_debug) printf("SLEEP\n");
+                                    if (_debug) printf("SLEEP           ");
                                     _f = -1;
                                     throw Exception(String("SLEEP not supported"));
                                     break;
                                 case 4:
-                                    if (_debug) printf("CLRWDT\n");
+                                    if (_debug) printf("CLRWDT          ");
                                     _f = -1;
                                     throw Exception(String("CLRWDT not supported"));
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
                                     _f = -1;
-                                    if (_debug) printf("%i\n", _w & 1);
+                                    if (_debug) printf("%i               ", _w & 1);
                                     _simulation->streamBit((_w & 1) != 0);
                                     break;
                                 case 6:
-                                    if (_debug) printf("TRIS GPIO\n");
+                                    if (_debug) printf("TRIS GPIO       ");
                                     _f = 0x20;
                                     _data = _w;
                                     break;
                                 case 7:  // Not a real PIC12F08 opcode - used for simulator escape (space)
                                     _f = -1;
-                                    if (_debug) printf("---\n");
+                                    if (_debug) printf("---             ");
                                     _simulation->streamStart();
                                     break;
                                 default:
@@ -194,20 +218,20 @@ public:
                                     break;
                             }
                         else {
-                            if (_debug) printf("MOVWF 0x%02x\n", _f);
+                            if (_debug) printf("MOVWF 0x%02x      ", _f);
                             _data = _w;
                         }
                         break;
                     case 0x1:
                         if (_debug)
                             if (!d)
-                                printf("CLRW\n");
+                                printf("CLRW            ");
                             else
-                                printf("CLRF 0x%02x\n", _f);
+                                printf("CLRF 0x%02x       ", _f);
                         storeZ(0, d);
                         break;
                     case 0x2:
-                        if (_debug) printf("SUBWF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("SUBWF 0x%02x, %c   ", _f, dc);
                         {
                             UInt8 m = readMemory(_f);
                             r = m - _w;
@@ -223,23 +247,23 @@ public:
                         }
                         break;
                     case 0x3:
-                        if (_debug) printf("DECF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("DECF 0x%02x, %c    ", _f, dc);
                         storeZ(readMemory(_f) - 1, d);
                         break;
                     case 0x4:
-                        if (_debug) printf("IORWF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("IORWF 0x%02x, %c   ", _f, dc);
                         storeZ(readMemory(_f) | _w, d);
                         break;
                     case 0x5:
-                        if (_debug) printf("ANDWF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("ANDWF 0x%02x, %c   ", _f, dc);
                         storeZ(readMemory(_f) & _w, d);
                         break;
                     case 0x6:
-                        if (_debug) printf("XORWF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("XORWF 0x%02x, %c   ", _f, dc);
                         storeZ(readMemory(_f) ^ _w, d);
                         break;
                     case 0x7:
-                        if (_debug) printf("ADDWF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("ADDWF 0x%02x, %c   ", _f, dc);
                         {
                             UInt8 m = readMemory(_f);
                             r = m + _w;
@@ -255,19 +279,19 @@ public:
                         }
                         break;
                     case 0x8:
-                        if (_debug) printf("MOVF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("MOVF 0x%02x, %c    ", _f, dc);
                         storeZ(readMemory(_f), d);
                         break;
                     case 0x9:
-                        if (_debug) printf("COMF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("COMF 0x%02x, %c    ", _f, dc);
                         storeZ(~readMemory(_f), d);
                         break;
                     case 0xa:
-                        if (_debug) printf("INCF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("INCF 0x%02x, %c    ", _f, dc);
                         storeZ(readMemory(_f) + 1, d);
                         break;
                     case 0xb:
-                        if (_debug) printf("DECFSZ 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("DECFSZ 0x%02x, %c  ", _f, dc);
                         r = readMemory(_f) - 1;
                         store(r, d);
                         if (r == 0) {
@@ -276,24 +300,24 @@ public:
                         }
                         break;
                     case 0xc:
-                        if (_debug) printf("RRF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("RRF 0x%02x, %c     ", _f, dc);
                         r = readMemory(_f) | ((_memory[3] & 1) << 8);
                         setCarry((r & 1) != 0);
                         store(r >> 1, d);
                         break;
                     case 0xd:
-                        if (_debug) printf("RLF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("RLF 0x%02x, %c     ", _f, dc);
                         r = (readMemory(_f) << 1) | (_memory[3] & 1);
                         setCarry((r & 0x100) != 0);
                         store(r, d);
                         break;
                     case 0xe:
-                        if (_debug) printf("SWAPF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("SWAPF 0x%02x, %c   ", _f, dc);
                         r = readMemory(_f);
                         store((r >> 4) | (r << 4), d);
                         break;
                     case 0xf:
-                        if (_debug) printf("INCFSF 0x%02x, %c\n", _f, dc);
+                        if (_debug) printf("INCFSF 0x%02x, %c  ", _f, dc);
                         r = readMemory(_f) + 1;
                         store(r, d);
                         if (r == 0) {
@@ -308,22 +332,22 @@ public:
                 int m = 1 << b;
                 switch (op >> 8) {
                     case 4:
-                        if (_debug) printf("BCF 0x%02x, %i\n", _f, b);
+                        if (_debug) printf("BCF 0x%02x, %i     ", _f, b);
                         _data = readMemory(_f) & ~m;
                         break;
                     case 5:
-                        if (_debug) printf("BSF 0x%02x, %i\n", _f, b);
+                        if (_debug) printf("BSF 0x%02x, %i     ", _f, b);
                         _data = readMemory(_f) | m;
                         break;
                     case 6:
-                        if (_debug) printf("BTFSC 0x%02x, %i\n", _f, b);
+                        if (_debug) printf("BTFSC 0x%02x, %i   ", _f, b);
                         if ((readMemory(_f, m) & m) == 0) {
                             incrementPC();
                             _skipping = true;
                         }
                         break;
                     case 7:
-                        if (_debug) printf("BTFSS 0x%02x, %i\n", _f, b);
+                        if (_debug) printf("BTFSS 0x%02x, %i   ", _f, b);
                         if ((readMemory(_f, m) & m) != 0) {
                             incrementPC();
                             _skipping = true;
@@ -338,7 +362,7 @@ public:
             int d = op & 0xff;
             switch (op >> 8) {
                 case 0x8:
-                    if (_debug) printf("RETLW 0x%02x\n", d);
+                    if (_debug) printf("RETLW 0x%02x      ", d);
                     _skipping = true;
                     _memory[2] = _stack[0];
                     _pch = _stack[0] & 0x100;
@@ -346,7 +370,7 @@ public:
                     _w = d;
                     break;
                 case 0x9:
-                    if (_debug) printf("CALL 0x%02x\n", d);
+                    if (_debug) printf("CALL  0x%02x      ", d);
                     _skipping = true;
                     _stack[1] = _stack[0];
                     _stack[0] = _memory[2] | _pch;
@@ -355,28 +379,32 @@ public:
                     break;
                 case 0xa:
                 case 0xb:
-                    if (_debug) printf("GOTO 0x%03x\n", op & 0x1ff);
+                    if (_debug) printf("GOTO  0x%03x      ", op & 0x1ff);
                     _skipping = true;
                     _pch = op & 0x100;
                     _memory[2] = d;
                     break;
                 case 0xc:
-                    if (_debug) printf("MOVLW 0x%02x\n", d);
+                    if (_debug) printf("MOVLW 0x%02x      ", d);
                     _w = d;
                     break;
                 case 0xd:
-                    if (_debug) printf("IORLW 0x%02x\n", d);
+                    if (_debug) printf("IORLW 0x%02x      ", d);
                     _w |= d;
                     break;
-                case 0xe:
-                    if (_debug) printf("ANDLW 0x%02\n", d);
+                case 0xe:                                
+                    if (_debug) printf("ANDLW 0x%02x      ", d);
                     _w &= d;
                     break;
                 case 0xf:
-                    if (_debug) printf("XORLW 0x%02x\n", d);
+                    if (_debug) printf("XORLW 0x%02x      ", d);
                     _w ^= d;
                     break;
             }
+        }
+        if (_debug) {
+            _program->annotation(pc).write(_console);
+            printf("\n");
         }
     }
     void simulateToWrite()
@@ -486,13 +514,15 @@ public:
     bool live() const { return _live; }
     void dumpConnections() const
     {
+        if (!_live)
+            return;
         printf("%03i: ", _number);
         for (int i = 0; i < 4; ++i)
             if (_connectedBar[i] == -1)
                 printf("- ");
             else
                 printf("%03i/%i ", _connectedBar[i], _connectedDirection[i]);
-        printf("  ");
+        printf("\n");
     }
 private:
     UInt8 readMemory(int address, UInt8 care = 0xff)
@@ -622,6 +652,7 @@ private:
     bool _childDpresent;
     bool _readSubCycle;
     bool _live;
+    Handle _console;
 };
 
 typedef BarTemplate<Simulation> Bar;
@@ -634,10 +665,10 @@ public:
     { }
     void simulate()
     {
-        Program intervalProgram(String("../intervals.HEX"));
+        Program intervalProgram(String("../intervals.HEX"), String("../intervals.annotation"));
         intervalProgram.load();
 
-        Program rootProgram(String("../root.HEX"));
+        Program rootProgram(String("../root.HEX"), String("../root.annotation"));
         rootProgram.load();
 
         Bar* root;
@@ -760,7 +791,7 @@ public:
     }
     void streamStart()
     {
-        if (!_badStreamOk) {
+//        if (!_badStreamOk) {
             int* streamPointer = &_stream[0];
             int* expectedStreamPointer = &_expectedStream[0];
             _bars[0]->prime(0);
@@ -786,17 +817,37 @@ public:
                 ++expectedStreamPointer;
                 ++_liveBars;
             } while (true);
+            int i;
             if (!good) {
+                if (_badStreamOk)
+                    printf("Ignored: ");
                 printf("Bad stream. Expected ");
-                for (expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer)
+                int i;
+                for (i = 0, expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer, ++i) {
+                    if ((i % 8) == 0)
+                        printf(" ");
                     printf("%i", *expectedStreamPointer);
+                }
                 printf(", observed ");
-                for (streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer)
+                for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
+                    if ((i % 8) == 0)
+                        printf(" ");
                     printf("%i", *streamPointer);
+                }
                 printf("\n");
-                exit(0);
+                if (!_badStreamOk)
+                    exit(0);
             }
-        }
+            else {
+                printf("Good stream: ");
+                for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
+                    if ((i % 8) == 0)
+                        printf(" ");
+                    printf("%i", *streamPointer);
+                }
+                printf("\n");
+            }
+//        }
         _streamPointer = &_stream[0];
         _badStreamOk = false;
     }
@@ -829,6 +880,7 @@ private:
 int main()
 {
 	BEGIN_CHECKED {
+        setbuf(stdout, NULL);
         Simulation simulation;
         simulation.simulate();
 	}

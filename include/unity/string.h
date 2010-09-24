@@ -560,7 +560,7 @@ template<class T> class CharacterSourceTemplate
 {
 public:
     CharacterSourceTemplate() { }
-    CharacterSourceTemplate(const String& string) : _string(string), _offset(0), _line(1), _column(1)
+    CharacterSourceTemplate(const String& string) : _string(string), _offset(0), _line(1), _column(1), _position(0)
     {
         initSimpleData();
     }
@@ -664,7 +664,8 @@ public:
         String s = _string.subString(_offset, 1);
         throw Exception(s._implementation->buffer().fileName() + openBracket + String::decimal(_line) + comma + String::decimal(_column) + closeBracket + message);
     }
-private:
+    int position() const { return _position; }
+private:          
     void throwUTF8Exception(bool first)
     {
         static String expectedFirst("Expected 0x00..0x7F or 0xC0..0xF7, found 0x");
@@ -696,6 +697,7 @@ private:
     }
     void next()
     {
+        ++_position;
         ++_offset;
         ++_start;
         --_length;
@@ -711,6 +713,7 @@ private:
     int _offset;
     int _line;
     int _column;
+    int _position;
 };
 
 template<class T> inline CharacterSource StringTemplate<T>::start() const { return CharacterSource(*this); }
