@@ -127,8 +127,8 @@ class Simulation;
 template<class Simulation> class BarTemplate : public ReferenceCounted
 {
 public:
-    BarTemplate(Simulation* simulation, const Program* program, int number)
-      : _simulation(simulation), _program(program), _t(0), _debug(true), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput())
+    BarTemplate(Simulation* simulation, const Program* program, int number, bool debug)
+      : _simulation(simulation), _program(program), _t(0), _debug(debug), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput())
     {
         reset();
         for (int i = 0; i < 4; ++i)
@@ -180,37 +180,37 @@ public:
                         if (!d)
                             switch (_f) {
                                 case 0:
-                                    if (_debug) printf("NOP             ");
+                                    if (_debug) { printf("NOP             "); _program->annotation(pc).write(_console); printf("\n"); }
                                     _f = -1;
                                     break;
                                 case 2:
-                                    if (_debug) printf("OPTION          ");
+                                    if (_debug) { printf("OPTION          "); _program->annotation(pc).write(_console); printf("\n"); }
                                     _f = -1;
                                     _option = _w;
                                     break;
                                 case 3:
-                                    if (_debug) printf("SLEEP           ");
+                                    if (_debug) { printf("SLEEP           "); _program->annotation(pc).write(_console); printf("\n"); }
                                     _f = -1;
                                     throw Exception(String("SLEEP not supported"));
                                     break;
                                 case 4:
-                                    if (_debug) printf("CLRWDT          ");
+                                    if (_debug) { printf("CLRWDT          "); _program->annotation(pc).write(_console); printf("\n"); }
                                     _f = -1;
                                     throw Exception(String("CLRWDT not supported"));
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
                                     _f = -1;
-                                    if (_debug) printf("%i               ", _w & 1);
+                                    if (_debug) { printf("%i               ", _w & 1); _program->annotation(pc).write(_console); printf("\n"); }
                                     _simulation->streamBit((_w & 1) != 0);
                                     break;
                                 case 6:
-                                    if (_debug) printf("TRIS GPIO       ");
+                                    if (_debug) { printf("TRIS GPIO       "); _program->annotation(pc).write(_console); printf("\n"); }
                                     _f = 0x20;
                                     _data = _w;
                                     break;
                                 case 7:  // Not a real PIC12F08 opcode - used for simulator escape (space)
                                     _f = -1;
-                                    if (_debug) printf("---             ");
+                                    if (_debug) { printf("---             "); _program->annotation(pc).write(_console); printf("\n"); }
                                     _simulation->streamStart();
                                     break;
                                 default:
@@ -218,20 +218,23 @@ public:
                                     break;
                             }
                         else {
-                            if (_debug) printf("MOVWF 0x%02x      ", _f);
+                            if (_debug) { printf("MOVWF 0x%02x      ", _f); _program->annotation(pc).write(_console); printf("\n"); }
                             _data = _w;
                         }
                         break;
                     case 0x1:
-                        if (_debug)
+                        if (_debug) {
                             if (!d)
                                 printf("CLRW            ");
                             else
                                 printf("CLRF 0x%02x       ", _f);
+                             _program->annotation(pc).write(_console);
+                             printf("\n"); 
+                        }
                         storeZ(0, d);
                         break;
                     case 0x2:
-                        if (_debug) printf("SUBWF 0x%02x, %c   ", _f, dc);
+                        if (_debug) { printf("SUBWF 0x%02x, %c   ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         {
                             UInt8 m = readMemory(_f);
                             r = m - _w;
@@ -247,23 +250,23 @@ public:
                         }
                         break;
                     case 0x3:
-                        if (_debug) printf("DECF 0x%02x, %c    ", _f, dc);
+                        if (_debug) { printf("DECF 0x%02x, %c    ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         storeZ(readMemory(_f) - 1, d);
                         break;
                     case 0x4:
-                        if (_debug) printf("IORWF 0x%02x, %c   ", _f, dc);
+                        if (_debug) { printf("IORWF 0x%02x, %c   ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         storeZ(readMemory(_f) | _w, d);
                         break;
                     case 0x5:
-                        if (_debug) printf("ANDWF 0x%02x, %c   ", _f, dc);
+                        if (_debug) { printf("ANDWF 0x%02x, %c   ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         storeZ(readMemory(_f) & _w, d);
                         break;
                     case 0x6:
-                        if (_debug) printf("XORWF 0x%02x, %c   ", _f, dc);
+                        if (_debug) { printf("XORWF 0x%02x, %c   ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         storeZ(readMemory(_f) ^ _w, d);
                         break;
                     case 0x7:
-                        if (_debug) printf("ADDWF 0x%02x, %c   ", _f, dc);
+                        if (_debug) { printf("ADDWF 0x%02x, %c   ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         {
                             UInt8 m = readMemory(_f);
                             r = m + _w;
@@ -279,19 +282,19 @@ public:
                         }
                         break;
                     case 0x8:
-                        if (_debug) printf("MOVF 0x%02x, %c    ", _f, dc);
+                        if (_debug) { printf("MOVF 0x%02x, %c    ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         storeZ(readMemory(_f), d);
                         break;
                     case 0x9:
-                        if (_debug) printf("COMF 0x%02x, %c    ", _f, dc);
+                        if (_debug) { printf("COMF 0x%02x, %c    ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         storeZ(~readMemory(_f), d);
                         break;
                     case 0xa:
-                        if (_debug) printf("INCF 0x%02x, %c    ", _f, dc);
+                        if (_debug) { printf("INCF 0x%02x, %c    ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         storeZ(readMemory(_f) + 1, d);
                         break;
                     case 0xb:
-                        if (_debug) printf("DECFSZ 0x%02x, %c  ", _f, dc);
+                        if (_debug) { printf("DECFSZ 0x%02x, %c  ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         r = readMemory(_f) - 1;
                         store(r, d);
                         if (r == 0) {
@@ -300,24 +303,24 @@ public:
                         }
                         break;
                     case 0xc:
-                        if (_debug) printf("RRF 0x%02x, %c     ", _f, dc);
+                        if (_debug) { printf("RRF 0x%02x, %c     ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         r = readMemory(_f) | ((_memory[3] & 1) << 8);
                         setCarry((r & 1) != 0);
                         store(r >> 1, d);
                         break;
                     case 0xd:
-                        if (_debug) printf("RLF 0x%02x, %c     ", _f, dc);
+                        if (_debug) { printf("RLF 0x%02x, %c     ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         r = (readMemory(_f) << 1) | (_memory[3] & 1);
                         setCarry((r & 0x100) != 0);
                         store(r, d);
                         break;
                     case 0xe:
-                        if (_debug) printf("SWAPF 0x%02x, %c   ", _f, dc);
+                        if (_debug) { printf("SWAPF 0x%02x, %c   ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         r = readMemory(_f);
                         store((r >> 4) | (r << 4), d);
                         break;
                     case 0xf:
-                        if (_debug) printf("INCFSF 0x%02x, %c  ", _f, dc);
+                        if (_debug) { printf("INCFSF 0x%02x, %c  ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
                         r = readMemory(_f) + 1;
                         store(r, d);
                         if (r == 0) {
@@ -332,22 +335,22 @@ public:
                 int m = 1 << b;
                 switch (op >> 8) {
                     case 4:
-                        if (_debug) printf("BCF 0x%02x, %i     ", _f, b);
+                        if (_debug) { printf("BCF 0x%02x, %i     ", _f, b); _program->annotation(pc).write(_console); printf("\n"); }
                         _data = readMemory(_f) & ~m;
                         break;
                     case 5:
-                        if (_debug) printf("BSF 0x%02x, %i     ", _f, b);
+                        if (_debug) { printf("BSF 0x%02x, %i     ", _f, b); _program->annotation(pc).write(_console); printf("\n"); }
                         _data = readMemory(_f) | m;
                         break;
                     case 6:
-                        if (_debug) printf("BTFSC 0x%02x, %i   ", _f, b);
+                        if (_debug) { printf("BTFSC 0x%02x, %i   ", _f, b); _program->annotation(pc).write(_console); printf("\n"); }
                         if ((readMemory(_f, m) & m) == 0) {
                             incrementPC();
                             _skipping = true;
                         }
                         break;
                     case 7:
-                        if (_debug) printf("BTFSS 0x%02x, %i   ", _f, b);
+                        if (_debug) { printf("BTFSS 0x%02x, %i   ", _f, b); _program->annotation(pc).write(_console); printf("\n"); }
                         if ((readMemory(_f, m) & m) != 0) {
                             incrementPC();
                             _skipping = true;
@@ -362,7 +365,7 @@ public:
             int d = op & 0xff;
             switch (op >> 8) {
                 case 0x8:
-                    if (_debug) printf("RETLW 0x%02x      ", d);
+                    if (_debug) { printf("RETLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
                     _skipping = true;
                     _memory[2] = _stack[0];
                     _pch = _stack[0] & 0x100;
@@ -370,7 +373,7 @@ public:
                     _w = d;
                     break;
                 case 0x9:
-                    if (_debug) printf("CALL  0x%02x      ", d);
+                    if (_debug) { printf("CALL  0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
                     _skipping = true;
                     _stack[1] = _stack[0];
                     _stack[0] = _memory[2] | _pch;
@@ -379,32 +382,28 @@ public:
                     break;
                 case 0xa:
                 case 0xb:
-                    if (_debug) printf("GOTO  0x%03x      ", op & 0x1ff);
+                    if (_debug) { printf("GOTO  0x%03x     ", op & 0x1ff); _program->annotation(pc).write(_console); printf("\n"); }
                     _skipping = true;
                     _pch = op & 0x100;
                     _memory[2] = d;
                     break;
                 case 0xc:
-                    if (_debug) printf("MOVLW 0x%02x      ", d);
+                    if (_debug) { printf("MOVLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
                     _w = d;
                     break;
                 case 0xd:
-                    if (_debug) printf("IORLW 0x%02x      ", d);
+                    if (_debug) { printf("IORLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
                     _w |= d;
                     break;
                 case 0xe:                                
-                    if (_debug) printf("ANDLW 0x%02x      ", d);
+                    if (_debug) { printf("ANDLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
                     _w &= d;
                     break;
                 case 0xf:
-                    if (_debug) printf("XORLW 0x%02x      ", d);
+                    if (_debug) { printf("XORLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
                     _w ^= d;
                     break;
             }
-        }
-        if (_debug) {
-            _program->annotation(pc).write(_console);
-            printf("\n");
         }
     }
     void simulateToWrite()
@@ -674,12 +673,9 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-            if (i == 0) {
-                bar = new Bar(this, &rootProgram, i);
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 49 || i == 75));  /* 000 018 017 075 049 034 011 093 */
+            if (i == 0)
                 root = bar;
-            }
-            else
-                bar = new Bar(this, &intervalProgram, i);
             _bars.push_back(bar);
         }
 

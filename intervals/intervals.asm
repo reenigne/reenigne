@@ -3,7 +3,11 @@
 
 #define length 0
 
-; 4210  old
+Nbit EQU 4
+Ebit EQU 5
+Sbit EQU 0
+Wbit EQU 1
+
 ; WSEN
 ; 1054
 IIII EQU 3fh
@@ -21,61 +25,35 @@ OIIO EQU 2dh
 IOIO EQU 2eh
 OIOI EQU 1dh
 
-data0         EQU 07h
-data1         EQU 08h
-data2         EQU 09h
-data3         EQU 0ah
-data4         EQU 0bh
-data5         EQU 0ch
-data6         EQU 0dh
-data7         EQU 0eh
+lengthLow                  EQU 07h
+lengthMiddle               EQU 08h
+lengthHigh                 EQU 09h
+parentLow                  EQU 0ah
+switch                     EQU 0bh
+childBpresent              EQU 0ch
+childCpresent              EQU 0dh
+childDpresent              EQU 0eh
 
-count         EQU 0fh
-afterA        EQU 10h
-afterB        EQU 11h
-afterC        EQU 12h
+count                      EQU 0fh
+afterInitData              EQU 10h
+afterN                     EQU 11h
+afterE                     EQU 12h
+afterS                     EQU 13h
+afterW                     EQU 14h
 
-AhighBlow     EQU 13h
-AlowBhigh     EQU 14h
+AhighXlow                  EQU 15h
+AlowXhigh                  EQU 16h
+AhighXhigh                 EQU 17h
 
-lengthLow     EQU 07h
-lengthMiddle  EQU 08h
-lengthHigh    EQU 09h
-parentLow     EQU 0ah
-switch        EQU 0bh
-childBpresent EQU 0ch
-childCpresent EQU 0dh
-childDpresent EQU 0eh
+afterReceivePostWriteSync  EQU 18h
+afterWrite                 EQU 19h
+afterSendPostReadSync      EQU 1ah
+bits                       EQU 1bh
 
 
   __config _MCLRE_OFF & _CP_OFF & _WDT_OFF & _IntRC_OSC
 
   GOTO startup
-
-doBN
-  GOTO doBNb
-doCN
-  GOTO doCNb
-doDN
-  GOTO doDNb
-doBE
-  GOTO doBEb
-doCE
-  GOTO doCEb
-doDE
-  GOTO doDEb
-doBS
-  GOTO doBSb
-doCS
-  GOTO doCSb
-doDS
-  GOTO doDSb
-doBW
-  GOTO doBWb
-doCW
-  GOTO doCWb
-doDW
-  GOTO doDWb
 
 delay16T
   TRIS GPIO
@@ -109,30 +87,37 @@ delay3 macro
   delay1
   endm
 
-initRW                       ; 8
-  MOVLW 4                    ; 1
-  MOVWF count                ; 1
-  MOVLW data0                ; 1
-  MOVWF FSR                  ; 1
-  RETLW IIII                 ; 2
+initRW
+  MOVLW 8
+  MOVWF count
+  MOVLW lengthLow
+  MOVWF FSR
+  RETLW 0
 
-write                        ; 67 -20
-  CALL delay4                ; 4  -18
-  CALL initRW                ; 8  -14
+write
+;  CALL delay4
+  CALL initRW
 writeBitsLoop
-  MOVF AlowBhigh, W          ; 1   -6
-  BTFSC INDF, 0              ; 1   -5
-  MOVLW IIII                 ; 1   -4
-  TRIS GPIO                  ; 1   -3
-  INCF FSR, F                ; 1   -2
-  MOVF AlowBhigh, W          ; 1   -1
-  BTFSC INDF, 0              ; 1    0 <- first read here
-  MOVLW IIII                 ; 1
-  TRIS GPIO                  ; 1
-  INCF FSR, F                ; 1
-  DECFSZ count, F            ; 1
-  GOTO writeBitsLoop         ; 2
-  RETLW 0                    ; 2
+  MOVF AlowXhigh, W
+  BTFSC INDF, 0
+  MOVF AhighXhigh, W
+  TRIS GPIO
+  INCF FSR, F
+  DECFSZ count, F
+  GOTO writeBitsLoop
+sendPostWriteSync
+  MOVF AlowXhigh, W
+  TRIS GPIO
+;  CALL delay6          ; 6    1        -8
+  MOVF AhighXlow, W    ; 1    1        -2
+  TRIS GPIO            ; 1    1        -1
+  MOVF AhighXhigh, W   ; 1    0         0
+  TRIS GPIO            ; 1    0         1
+  MOVF AhighXlow, W    ; 1    1         2
+  TRIS GPIO            ; 1    1         3
+  MOVF afterWrite, W
+  MOVWF PCL
+
 
 readBits macro source        ;      readN should be called 9 cycles after write
   local l                    ; 2  -11
@@ -144,81 +129,108 @@ l
   INCF INDF, F               ; 1
   INCF FSR, F                ; 1
   delay1                     ; 1
-  CLRF INDF                  ; 1
-  BTFSC GPIO, source         ; 1
-  INCF INDF, F               ; 1
-  INCF FSR, F                ; 1
-  delay1                     ; 1
   DECFSZ count, F            ; 1
   GOTO l                     ; 2
-  delay1
-;  delay2                     ; 2
-  RETLW 0                    ; 2
+;  delay1
+  endm
+
+
+sendPostReadSync macro destination  ;  2     total 14      needs to take 16?
+  MOVLW destination          ;  1   1    -6
+  TRIS GPIO                  ;  1   1    -5
+  MOVWF AhighXlow            ;  1   0    -4
+;  delay3                     ;  3   0    -3
+  MOVF AhighXhigh, W         ;  1   0     0
+  TRIS GPIO                  ;  1   0     1
+  MOVF AhighXlow, W          ;  1   1     2
+  TRIS GPIO                  ;  1   1     3
+  MOVF afterSendPostReadSync, W
+  MOVWF PCL
   endm
 
 readN
-  readBits 4
+  readBits Nbit
+  MOVF afterN, W
+  BTFSC GPIO, Nbit
+  MOVWF PCL
+doN
+  MOVLW readN
+  MOVWF afterReceivePostWriteSync
+sendPostReadSyncN
+  sendPostReadSync IIIO
+
 readE
-  readBits 5
+  readBits Ebit
+  MOVF afterE, W
+  BTFSC GPIO, Ebit
+  MOVWF PCL
+doE
+  MOVLW readE
+  MOVWF afterReceivePostWriteSync
+sendPostReadSyncE
+  sendPostReadSync IIOI
+
 readS
-  readBits 0
+  readBits Sbit
+  MOVF afterS, W
+  BTFSC GPIO, Sbit
+  MOVWF PCL
+doS
+  MOVLW readS
+  MOVWF afterReceivePostWriteSync
+sendPostReadSyncS
+  sendPostReadSync IOII
+
 readW
-  readBits 1
-
-sendRSync macro destination  ;  2     total 14      needs to take 16?
-  MOVLW destination          ;  1   1    -6
-  TRIS GPIO                  ;  1   1    -5
-  MOVWF AhighBlow            ;  1   0    -4
-  delay3                     ;  3   0    -3
-  MOVLW IIII                 ;  1   0     0
-  TRIS GPIO                  ;  1   0     1
-  MOVF AhighBlow, W          ;  1   1     2
-  TRIS GPIO                  ;  1   1     3
-  RETLW 0                    ;  2   0     4
-  endm
-
-sendSync               ; 2    1     total 18
-  MOVF AlowBhigh, W
-  TRIS GPIO
-  CALL delay6          ; 6    1        -8
-  MOVF AhighBlow, W    ; 1    1        -2
-  TRIS GPIO            ; 1    1        -1
-  MOVLW IIII           ; 1    0         0
-  TRIS GPIO            ; 1    0         1
-  MOVF AhighBlow, W    ; 1    1         2
-  TRIS GPIO            ; 1    1         3
-  RETLW 0              ; 2    0         4
-
-sendRSyncN
-  sendRSync IIIO
-sendRSyncE
-  sendRSync IIOI
-sendRSyncS
-  sendRSync IOII
-sendRSyncW
-  sendRSync OIII
+  readBits Wbit
+  MOVF afterW, W
+  BTFSC GPIO, Wbit
+  MOVWF PCL
+doW
+  MOVLW readW
+  MOVWF afterReceivePostWriteSync
+sendPostReadSyncW
+  sendPostReadSync OIII
 
 
-receiveSync macro source        ; 9..11 cycles     receiveSyncN should be called 9 cycles (+/-1) after sendSync, 5 cycles (+/-1) after sendRSync
+receivePostReadSync macro source        ; 9..11 cycles     receivePostReadSyncN should be called 9 cycles (+/-1) after sendPostWriteSync, 5 cycles (+/-1) after sendPostReadSync
   local l
-  MOVLW 0x3f - (1 << source) ; -1
-  MOVWF AlowBhigh           ; 0
   BTFSS GPIO, source        ; 0-2  0-2  2-3  (1)
   GOTO l                    ; 3-5  3-5
 l
   BTFSS GPIO, source        ; 3-4  4-5  4-5
-  RETLW 0                   ;      5-6  5-6
-  RETLW 0                   ; 5-6
+  GOTO write                ;      5-6  5-6
+  GOTO write                ; 5-6
   endm
 
-receiveSyncN
-  receiveSync 4
-receiveSyncE
-  receiveSync 5
-receiveSyncS
-  receiveSync 0
-receiveSyncW
-  receiveSync 1
+receivePostWriteSync macro source        ; 9..11 cycles     receivePostWriteSyncN should be called 9 cycles (+/-1) after sendPostWriteSync, 5 cycles (+/-1) after sendPostReadSync
+  local l
+  MOVF afterReceivePostWriteSync, W
+  BTFSS GPIO, source        ; 0-2  0-2  2-3  (1)
+  GOTO l                    ; 3-5  3-5
+l
+  BTFSS GPIO, source        ; 3-4  4-5  4-5
+  MOVWF PCL                 ;      5-6  5-6
+  MOVWF PCL                 ; 5-6
+  endm
+
+receivePostWriteSyncN
+  receivePostWriteSync Nbit
+receivePostWriteSyncE
+  receivePostWriteSync Ebit
+receivePostWriteSyncS
+  receivePostWriteSync Sbit
+receivePostWriteSyncW
+  receivePostWriteSync Wbit
+
+receivePostReadSyncN
+  receivePostReadSync Nbit
+receivePostReadSyncE
+  receivePostReadSync Ebit
+receivePostReadSyncS
+  receivePostReadSync Sbit
+receivePostReadSyncW
+  receivePostReadSync Wbit
 
 clearPrimeN
   CALL delay16T
@@ -243,213 +255,74 @@ clearPrimeW
 
 checkForPrimeN
   INCF FSR, F
-  BTFSC GPIO, 4
+  BTFSC GPIO, Nbit
   RETLW 0
   INCF INDF, F
 waitForPrimeCompleteN
-  BTFSS GPIO, 4
+  BTFSS GPIO, Nbit
   GOTO waitForPrimeCompleteN
   RETLW 0
 checkForPrimeE
   INCF FSR, F
-  BTFSC GPIO, 5
+  BTFSC GPIO, Ebit
   RETLW 0
   INCF INDF, F
 waitForPrimeCompleteE
-  BTFSS GPIO, 5
+  BTFSS GPIO, Ebit
   GOTO waitForPrimeCompleteE
   RETLW 0
 checkForPrimeS
   INCF FSR, F
-  BTFSC GPIO, 0
+  BTFSC GPIO, Sbit
   RETLW 0
   INCF INDF, F
 waitForPrimeCompleteS
-  BTFSS GPIO, 0
+  BTFSS GPIO, Sbit
   GOTO waitForPrimeCompleteS
   RETLW 0
 checkForPrimeW
   INCF FSR, F
-  BTFSC GPIO, 1
+  BTFSC GPIO, Wbit
   RETLW 0
   INCF INDF, F
 waitForPrimeCompleteW
-  BTFSS GPIO, 1
+  BTFSS GPIO, Wbit
   GOTO waitForPrimeCompleteW
   RETLW 0
 
-allHigh
-  MOVLW IIII
-  TRIS GPIO
-  RETLW 0
 
 doAN
-  CALL delay16
-  CALL receiveSyncN
-  CALL write
-  GOTO reset
+;  CALL delay16
+  MOVLW reset
+  MOVWF afterWrite
+  GOTO receivePostReadSyncN
 
 doAE
-  CALL delay16
-  CALL receiveSyncE
-  CALL write
-  GOTO reset
+;  CALL delay16
+  MOVLW reset
+  MOVWF afterWrite
+  GOTO receivePostReadSyncE
 
 doAS
-  CALL delay16
-  CALL receiveSyncS
-  CALL write
-  GOTO reset
+;  CALL delay16
+  MOVLW reset
+  MOVWF afterWrite
+  GOTO receivePostReadSyncS
 
 doAW
-  CALL delay16
-  CALL receiveSyncW
-  CALL write
-  GOTO reset
+;  CALL delay16
+  MOVLW reset
+  MOVWF afterWrite
+  GOTO receivePostReadSyncW
 
-doBNb               ; 184       80                 2    loop duration 190 cycles +/- 2
-  CALL sendRSyncE   ; 186       82                14
-  CALL receiveSyncN ;  10 200   96                10 +/- 1
-  CALL write        ;  20      106                67
-  CALL sendSync     ;  87      173                18         leaves B TRIS low
-  CALL receiveSyncN ; 105                         10 +/- 1   leaves TRIS unchanged
-  CALL readE        ; 115                         65
-  MOVF afterB, W    ; 180                          1
-  BTFSS GPIO, 5     ; 181                          1
-  MOVLW doBN        ; 182                          1
-  MOVWF PCL         ; 183                          1
 
-doCNb
-  CALL sendRSyncS
-  CALL receiveSyncN
-  CALL write
-  CALL sendSync
-  CALL receiveSyncN
-  CALL readS
-  MOVF afterC, W
-  BTFSS GPIO, 0
-  MOVLW doCN
-  MOVWF PCL
+initData0
+  MOVLW 0  ; parent low
+  GOTO initData
 
-doDNb
-  CALL sendRSyncW
-  CALL receiveSyncN
-  CALL write
-  CALL sendSync
-  CALL receiveSyncN
-  CALL readW
-  MOVLW doAN
-  BTFSS GPIO, 1
-  MOVLW doDN
-  MOVWF PCL
-
-doBEb
-  CALL sendRSyncS
-  CALL receiveSyncE
-  CALL write
-  CALL sendSync
-  CALL receiveSyncE
-  CALL readS
-  MOVF afterB, W
-  BTFSS GPIO, 0
-  MOVLW doBE
-  MOVWF PCL
-
-doCEb
-  CALL sendRSyncW
-  CALL receiveSyncE
-  CALL write
-  CALL sendSync
-  CALL receiveSyncE
-  CALL readW
-  MOVF afterC, W
-  BTFSS GPIO, 1
-  MOVLW doCE
-  MOVWF PCL
-
-doDEb
-  CALL sendRSyncN
-  CALL receiveSyncE
-  CALL write
-  CALL sendSync
-  CALL receiveSyncE
-  CALL readN
-  MOVLW doAE
-  BTFSS GPIO, 4
-  MOVLW doDE
-  MOVWF PCL
-
-doBSb
-  CALL sendRSyncW
-  CALL receiveSyncS
-  CALL write
-  CALL sendSync
-  CALL receiveSyncS
-  CALL readW
-  MOVF afterB, W
-  BTFSS GPIO, 1
-  MOVLW doBS
-  MOVWF PCL
-
-doCSb
-  CALL sendRSyncN
-  CALL receiveSyncS
-  CALL write
-  CALL sendSync
-  CALL receiveSyncS
-  CALL readN
-  MOVF afterC, W
-  BTFSS GPIO, 4
-  MOVLW doCS
-  MOVWF PCL
-
-doDSb
-  CALL sendRSyncE
-  CALL receiveSyncS
-  CALL write
-  CALL sendSync
-  CALL receiveSyncS
-  CALL readE
-  MOVLW doAS
-  BTFSS GPIO, 5
-  MOVLW doDS
-  MOVWF PCL
-
-doBWb
-  CALL sendRSyncN
-  CALL receiveSyncW
-  CALL write
-  CALL sendSync
-  CALL receiveSyncW
-  CALL readN
-  MOVF afterB, W
-  BTFSS GPIO, 4
-  MOVLW doBW
-  MOVWF PCL
-
-doCWb
-  CALL sendRSyncE
-  CALL receiveSyncW
-  CALL write
-  CALL sendSync
-  CALL receiveSyncW
-  CALL readE
-  MOVF afterC, W
-  BTFSS GPIO, 5
-  MOVLW doCW
-  MOVWF PCL
-
-doDWb
-  CALL sendRSyncS
-  CALL receiveSyncW
-  CALL write
-  CALL sendSync
-  CALL receiveSyncW
-  CALL readS
-  MOVLW doAW
-  BTFSS GPIO, 0
-  MOVLW doDW
-  MOVWF PCL
+initData1
+  MOVLW 1  ; parent low
+  GOTO initData
 
 
 startup
@@ -459,7 +332,8 @@ startup
   CLRF GPIO
 
 reset
-  CALL allHigh
+  MOVLW IIII
+  TRIS GPIO
   CLRF childBpresent
   CLRF childCpresent
   CLRF childDpresent
@@ -475,11 +349,9 @@ waitForPrime
   GOTO foundS        ; 0 0 2 0 0
   BTFSC GPIO, 1      ; 0 0 0 2 1
   GOTO waitForPrime  ; 0 0 0 0 2
-;foundW
+foundW
   MOVLW OIIO
   CALL clearPrimeW
-  MOVLW childBpresent-1
-  MOVWF FSR
   CALL checkForPrimeN
   MOVLW OIOI
   CALL clearPrimeW
@@ -487,32 +359,40 @@ waitForPrime
   MOVLW OOII
   CALL clearPrimeW
   CALL checkForPrimeS
-  CALL allHigh
+;  CALL allHigh
 
   MOVLW doAW
+  MOVWF afterS
   BTFSC childDpresent, 0
-  MOVLW doDW
-  MOVWF afterC
+  MOVLW doS
+  MOVWF afterE
   BTFSC childCpresent, 0
-  MOVLW doCW
-  MOVWF afterB
+  MOVLW doE
+  MOVWF afterN
   BTFSC childBpresent, 0
-  MOVLW doBW
-  MOVWF afterA
-waitForDataRequestW ; parent  child
-  BTFSC GPIO, 1             ;   1
-  GOTO waitForDataRequestW
-  CALL receiveSyncW         ;   3
+  MOVLW doN
+  MOVWF afterInitData
 
-  MOVLW 1 ; parent low      ;  13
-  GOTO initData             ;  14
+  MOVLW receivePostReadSyncW
+  MOVWF afterSendPostReadSync
+  MOVLW receivePostWriteSyncW
+  MOVWF afterWrite
+
+  MOVLW initData1
+  MOVWF afterReceivePostWriteSync
+
+  MOVLW OIII
+  MOVWF AlowXhigh
+
+waitForDataRequestW ; parent  child
+  BTFSC GPIO, 1
+  GOTO waitForDataRequestW
+  GOTO receivePostWriteSyncW
 
 
 foundN
   MOVLW IIOO
   CALL clearPrimeN
-  MOVLW childBpresent-1
-  MOVWF FSR
   CALL checkForPrimeE
   MOVLW IOIO
   CALL clearPrimeN
@@ -520,31 +400,40 @@ foundN
   MOVLW OIIO
   CALL clearPrimeN
   CALL checkForPrimeW
-  CALL allHigh
+;  CALL allHigh
 
   MOVLW doAN
+  MOVWF afterW
   BTFSC childDpresent, 0
-  MOVLW doDN
-  MOVWF afterC
+  MOVLW doW
+  MOVWF afterS
   BTFSC childCpresent, 0
-  MOVLW doCN
-  MOVWF afterB
+  MOVLW doS
+  MOVWF afterE
   BTFSC childBpresent, 0
-  MOVLW doBN
-  MOVWF afterA
+  MOVLW doE
+  MOVWF afterInitData
+
+  MOVLW receivePostReadSyncN
+  MOVWF afterSendPostReadSync
+  MOVLW receivePostWriteSyncN
+  MOVWF afterWrite
+
+  MOVLW initData0
+  MOVWF afterReceivePostWriteSync
+
+  MOVLW IIIO
+  MOVWF AlowXhigh
+
 waitForDataRequestN
   BTFSC GPIO, 4
   GOTO waitForDataRequestN
-  CALL receiveSyncN
-  MOVLW 0 ; parent low
-  GOTO initData
+  GOTO receivePostWriteSyncN
 
 
 foundE
   MOVLW IOOI
   CALL clearPrimeE
-  MOVLW childBpresent-1
-  MOVWF FSR
   CALL checkForPrimeS
   MOVLW OIOI
   CALL clearPrimeE
@@ -552,31 +441,40 @@ foundE
   MOVLW IIOO
   CALL clearPrimeE
   CALL checkForPrimeN
-  CALL allHigh
+;  CALL allHigh
 
   MOVLW doAE
+  MOVWF afterN
   BTFSC childDpresent, 0
-  MOVLW doDE
-  MOVWF afterC
+  MOVLW doN
+  MOVWF afterW
   BTFSC childCpresent, 0
-  MOVLW doCE
-  MOVWF afterB
+  MOVLW doW
+  MOVWF afterS
   BTFSC childBpresent, 0
-  MOVLW doBE
-  MOVWF afterA
+  MOVLW doS
+  MOVWF afterInitData
+
+  MOVLW receivePostReadSyncE
+  MOVWF afterSendPostReadSync
+  MOVLW receivePostWriteSyncE
+  MOVWF afterWrite
+
+  MOVLW initData1
+  MOVWF afterReceivePostWriteSync
+
+  MOVLW IIOI
+  MOVWF AlowXhigh
+
 waitForDataRequestE
   BTFSC GPIO, 5
   GOTO waitForDataRequestE
-  CALL receiveSyncE
-  MOVLW 1 ; parent low
-  GOTO initData
+  GOTO receivePostWriteSyncE
 
 
 foundS
   MOVLW OOII
   CALL clearPrimeS
-  MOVLW childBpresent-1
-  MOVWF FSR
   CALL checkForPrimeW
   MOVLW IOIO
   CALL clearPrimeS
@@ -584,25 +482,35 @@ foundS
   MOVLW IOOI
   CALL clearPrimeS
   CALL checkForPrimeE
-  CALL allHigh
+;  CALL allHigh
 
   MOVLW doAS
+  MOVWF afterE
   BTFSC childDpresent, 0
-  MOVLW doDS
-  MOVWF afterC
+  MOVLW doE
+  MOVWF afterN
   BTFSC childCpresent, 0
-  MOVLW doCS
-  MOVWF afterB
+  MOVLW doN
+  MOVWF afterW
   BTFSC childBpresent, 0
-  MOVLW doBS
-  MOVWF afterA
+  MOVLW doW
+  MOVWF afterInitData
+
+  MOVLW receivePostReadSyncS
+  MOVWF afterSendPostReadSync
+  MOVLW receivePostWriteSyncS
+  MOVWF afterWrite
+
+  MOVLW initData0
+  MOVWF afterReceivePostWriteSync
+
+  MOVLW IOII
+  MOVWF AlowXhigh
+
 waitForDataRequestS
   BTFSC GPIO, 0
   GOTO waitForDataRequestS
-  CALL receiveSyncS
-
-  MOVLW 0 ; parent low
-  GOTO initData
+  GOTO receivePostWriteSyncS
 
 
 initData                     ; 66
@@ -633,15 +541,49 @@ initDelayLoop
   DECFSZ count, F            ; 1*17 + 2
   GOTO initDelayLoop         ; 2*17
   delay1                     ; 1
-  MOVF afterA, W             ; 1
+  MOVF afterInitData, W      ; 1
   MOVWF PCL                  ; 1
 
   end
 
 
-; 4 instructions free total, 4 in low page
-
-
 ; TODO:
-;   Write PIC12 simulator to test/debug code
-
+;   Fix receiveSync comments
+;   Move AlowXhigh and AhighXlow init to more suitable places
+;   Keep track of bits
+;   When writing the last byte we don't want to sendSync (or it will be interpreted as another prime) so set AlowXhigh and AhighXlow to IIII first
+;   Fixup timings
+;   Check how we're doing for space
+;   Can we get rid of any of the indirect GOTOs?
+;   read and write loop unroll: 1? 2? 4? 8?
+;   combine readX and doX?
+;
+; initData
+; [afterInitData]
+; doX
+; sendPostReadSyncX          AhighXlow init
+; [afterSendPostReadSync]
+; receivePostReadSyncA
+; write
+; sendPostWriteSync
+; [afterWrite]
+; receivePostWriteSyncA
+; [afterReceivePostWriteSync]
+; readX
+; doXcheck
+; doX or [afterX]
+;
+; Unroll write to 8 costs:
+;   7*4 = 28
+; saves: 4
+;
+; Unroll read to 8 costs:
+;   7*4*4 = 112
+; saves: 21
+;
+; total cost: 115
+;
+; words free: 125
+;
+; => 10 words to get timing and bit tracking correct
+;   => will probably need to save some more space to do full unroll

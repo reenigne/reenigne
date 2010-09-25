@@ -1,7 +1,8 @@
-
-
 Figure out why we're getting bad streams
-  There was a stream start right after the connect - maybe bar 3 isn't ready yet. Allow two bad streams after a change?
+
+If we have a loop and it gets disconnected just so, we'll get a situation where a bar is live and waiting for a data request from a disconnected direction
+  After prime complete signal received, bring line low again and then bring high to signal "data request" instead of low.
+    This means we need to do a lot more work to preserve the bit status while we're communicating
 
 To aid debugging, write a short note for each instructions and put these notes in the dump (instead of the instructions?)
 
@@ -12,14 +13,4 @@ vary the clock speed according to a normal distribution - gradually increase the
 
 Simulate clock drift, jitter, output settling time
 
-intervals.asm:
-  Can save some space (and 4 cycles per word) by combining write and sendSync
-    When writing the last byte we don't want to sendSync (or it will be interpreted as another prime) so set AlowBhigh and AhighBlow to IIII first
-      Combine "CALL write" and "GOTO reset" in the 4 doA routines
-        Then the time from "CALL receiveSync" to "CALL write" won't be consistent - need to call "writeNoDelay" instead (possibly also increase delay on write)
-          Need 5 cycles of delay
-            GOTO  writeAndReset 2
-            MOVLW IIII          1
-            MOVWF AlowBhigh     1
-            MOVWF AhighBlow     1
-  Delaying the data reads by 1 cycle won't affect synchronization, but could affect data transmission reliability - check this
+
