@@ -1,0 +1,186 @@
+; TODO: reverse polarity
+
+; Write synchronization primitives
+;   Assume that TRIS changes the pin at the end of the cycle
+;   Assume that BTFSC/BTFSS reads the pin at the start of the cycle
+;   Assuming the PICs are in sync 0-2 cycles, reduce this to 0-1 cycles
+;     parent:           cycle starts at time   pin at start of cycle
+;       MOVLW IIII      0                      ?
+;       TRIS GPIO       1                      ?
+;       MOVLW IIOI      2                      1
+;       TRIS GPIO       3                      1
+;       ...             4                      0
+;
+;     child:             1    0
+;       BTFSS GPIO, 0   3-4  4-5
+;       GOTO foo             5-6
+;       GOTO foo        5-6
+;
+;   Assuming the PICs are in sync 0-3 cycles, reduce this to 0-1 cycles
+;     parent:           cycle starts at time   pin at start of cycle
+;       MOVLW IIOI      -2                     ?
+;       TRIS GPIO       -1                     ?
+;       MOVLW IIII      0                      0
+;       TRIS GPIO       1                      0
+;       MOVLW IIOI      2                      1
+;       TRIS GPIO       3                      1
+;       ...             4                      0
+;
+;     child:
+;       BTFSS GPIO, 0  0-2  0-2  2-3
+;       GOTO bar       1-3  1-3
+;     bar
+;       BTFSS GPIO, 0  3-4  4-5  4-5
+;       GOTO foo            5-6  5-6
+;       GOTO foo       5-6
+;
+
+
+; Return to 3-pin connector
+; Synchronize only after a full set of data has been transferred
+;   With 3-bit length we always transfer 9 bits at a time (parent low, length low, length middle, length high, child B, child C, child D, switch, more)
+;   Parent sends synchronization bit after each word - child loops 0 or 1 times depending on value
+; Synchronization unnecessary for prime phase - we just wait for events
+; In order to have a predictable delay between request and response, we need to make sure we always have the next word to transmit
+;   So we need to read the next word from the child while we're transmitting the current word.
+;   Store data using INDF/FSR - we can read from one bit and write to another
+; There must be some delay introduced between us being sent data request and us sending data request
+; Once data stream is started it always runs to completion with no waits.
+
+
+
+; clock speed is +/- 1%
+; so we have to tolerate a drift of 2% i.e. 2 cycles over 100.
+
+
+
+
+     parent (root)       b    child (interval)
+
+delta = 4
+
+     sendRSync                receiveSync
+
+ 0   MOVLW destination   ?
+ 1   TRIS GPIO           ?
+ 2   MOVWF AhighBlow     0
+ 3   delay3              0
+ 4                       0    MOVLW 0x3f - (1 << source)
+ 5                       0    MOVWF AlowBhigh
+ 6   MOVLW IIII          0    BTFSS GPIO, source
+ 7   TRIS GPIO           0    GOTO l
+ 8   MOVF AhighBlow, W   1
+ 9   TRIS GPIO           1    BTFSS GPIO, source
+10   RETLW 0             0
+11                            RETLW 0
+
+
+
+delta = 5
+
+     sendRSync                receiveSync
+
+ 0   MOVLW destination    ?
+ 1   TRIS GPIO            ?
+ 2   MOVWF AhighBlow      0
+ 3   delay3               0
+ 4                        0
+ 5                        0   MOVLW 0x3f - (1 << source)
+ 6   MOVLW IIII           0   MOVWF AlowBhigh
+ 7   TRIS GPIO            0   BTFSS GPIO, source
+ 8   MOVF AhighBlow, W    1   GOTO l
+ 9   TRIS GPIO            1
+10   RETLW 0              0   BTFSS GPIO, source
+11                            RETLW 0
+
+
+
+delta = 6
+
+     sendRSync                receiveSync
+
+ 0   MOVLW destination    ?
+ 1   TRIS GPIO            ?
+ 2   MOVWF AhighBlow      0
+ 3   delay3               0
+ 4                        0
+ 5                        0
+ 6   MOVLW IIII           0   MOVLW 0x3f - (1 << source)
+ 7   TRIS GPIO            0   MOVWF AlowBhigh
+ 8   MOVF AhighBlow, W    1   BTFSS GPIO, source
+ 9   TRIS GPIO            1
+10   RETLW 0              0   BTFSS GPIO, source
+11                            RETLW 0
+
+
+
+
+
+delta = 8
+
+     sendSync                 receiveSync
+
+ 0   MOVF AlowBhigh, W   ?
+ 1   TRIS GPIO           ?
+ 2   delay6              1
+ 3                       1
+ 4                       1
+ 5                       1
+ 6                       1
+ 7                       1
+ 8   MOVF AhighBlow, W   1    MOVLW 0x3f - (1 << source)
+ 9   TRIS GPIO           1    MOVWF AlowBhigh
+10   MOVLW IIII          0    BTFSS GPIO, source
+11   TRIS GPIO           0    GOTO l
+12   MOVF AhighBlow, W   1
+13   TRIS GPIO           1    BTFSS GPIO, source
+14   RETLW 0             0
+15                            RETLW 0
+
+
+
+delta = 9
+
+     sendSync                 receiveSync
+
+ 0   MOVF AlowBhigh, W   ?
+ 1   TRIS GPIO           ?
+ 2   delay6              1
+ 3                       1
+ 4                       1
+ 5                       1
+ 6                       1
+ 7                       1
+ 8   MOVF AhighBlow, W   1
+ 9   TRIS GPIO           1    MOVLW 0x3f - (1 << source)
+10   MOVLW IIII          0    MOVWF AlowBhigh
+11   TRIS GPIO           0    BTFSS GPIO, source
+12   MOVF AhighBlow, W   1    GOTO l
+13   TRIS GPIO           1
+14   RETLW 0             0    BTFSS GPIO, source
+15                            RETLW 0
+
+
+
+delta = 10
+
+     sendSync                 receiveSync
+
+ 0   MOVF AlowBhigh, W   ?
+ 1   TRIS GPIO           ?
+ 2   delay6              1
+ 3                       1
+ 4                       1
+ 5                       1
+ 6                       1
+ 7                       1
+ 8   MOVF AhighBlow, W   1
+ 9   TRIS GPIO           1
+10   MOVLW IIII          0    MOVLW 0x3f - (1 << source)
+11   TRIS GPIO           0    MOVWF AlowBhigh
+12   MOVF AhighBlow, W   1    BTFSS GPIO, source
+13   TRIS GPIO           1
+14   RETLW 0             0    BTFSS GPIO, source
+15                            RETLW 0
+
+
