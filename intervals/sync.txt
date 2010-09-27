@@ -1,3 +1,7 @@
+USync is the one that happens first (before read and initData)
+
+
+
 ; TODO: reverse polarity
 
 ; Write synchronization primitives
@@ -53,134 +57,113 @@
 ; so we have to tolerate a drift of 2% i.e. 2 cycles over 100.
 
 
+USync:
 
 
-     parent (root)       b    child (interval)
+     parent (root)           b    child (interval)
 
 delta = 4
 
-     sendRSync                receiveSync
+     sendUSync                    receiveUSync
 
- 0   MOVLW destination   ?
- 1   TRIS GPIO           ?
- 2   MOVWF AhighBlow     0
- 3   delay3              0
- 4                       0    MOVLW 0x3f - (1 << source)
- 5                       0    MOVWF AlowBhigh
- 6   MOVLW IIII          0    BTFSS GPIO, source
- 7   TRIS GPIO           0    GOTO l
- 8   MOVF AhighBlow, W   1
- 9   TRIS GPIO           1    BTFSS GPIO, source
-10   RETLW 0             0
-11                            RETLW 0
+ 0   MOVWF Xlow
+ 1   MOVF bits, W
+ 2   TRIS GPIO               ?                                      <- send "data request"
+ 3   delay2                  1    (MOVWF PCL)
+ 4                           1    MOVF afterReceiveUSync, W
+ 5   ANDWF Xlow, W           1    BTFSC GPIO, source
+ 6   TRIS GPIO               1    GOTO l
+ 7   MOVF bits, W            0
+ 8   TRIS GPIO               0    BTFSC GPIO, source
+ 9   MOVF afterSendUSync, W  1
+10   MOVWF PCL               1    MOVWF PCL
 
 
 
 delta = 5
 
-     sendRSync                receiveSync
+     sendUSync                   receiveUSync
 
- 0   MOVLW destination    ?
- 1   TRIS GPIO            ?
- 2   MOVWF AhighBlow      0
- 3   delay3               0
- 4                        0
- 5                        0   MOVLW 0x3f - (1 << source)
- 6   MOVLW IIII           0   MOVWF AlowBhigh
- 7   TRIS GPIO            0   BTFSS GPIO, source
- 8   MOVF AhighBlow, W    1   GOTO l
- 9   TRIS GPIO            1
-10   RETLW 0              0   BTFSS GPIO, source
-11                            RETLW 0
+ 0   MOVWF Xlow
+ 1   MOVF bits, W
+ 2   TRIS GPIO               ?                                      <- send "data request"
+ 3   delay2                  1
+ 4                           1   (MOVWF PCL)
+ 5   ANDF Xlow, W            1   MOVF afterReceiveUSync, W
+ 6   TRIS GPIO               1   BTFSC GPIO, source
+ 7   MOVF bits, W            0   GOTO l
+ 8   TRIS GPIO               0
+ 9   MOVF afterSendUSync, W  1   BTFSC GPIO, source
+10   MOVWF PCL               1   MOVWF PCL
 
 
 
 delta = 6
 
-     sendRSync                receiveSync
+     sendUSync                   receiveUSync
 
- 0   MOVLW destination    ?
- 1   TRIS GPIO            ?
- 2   MOVWF AhighBlow      0
- 3   delay3               0
- 4                        0
- 5                        0
- 6   MOVLW IIII           0   MOVLW 0x3f - (1 << source)
- 7   TRIS GPIO            0   MOVWF AlowBhigh
- 8   MOVF AhighBlow, W    1   BTFSS GPIO, source
- 9   TRIS GPIO            1
-10   RETLW 0              0   BTFSS GPIO, source
-11                            RETLW 0
-
+ 0   MOVWF Xlow              ?
+ 1   MOVF bits, W            ?
+ 2   TRIS GPIO               ?                                      <- send "data request"
+ 3   delay2                  1
+ 4                           1
+ 5   ANDF Xlow, W            1   (MOVWF PCL)
+ 6   TRIS GPIO               1   MOVF afterReceiveUSync, W
+ 7   MOVF bits, W            0   BTFSC GPIO, source
+ 8   TRIS GPIO               0
+ 9   MOVF afterSendUSync, W  1   BTFSC GPIO, source
+10   MOVWF PCL               1   MOVWF PCL
 
 
 
 
-delta = 8
+VSync:
 
-     sendSync                 receiveSync
 
- 0   MOVF AlowBhigh, W   ?
- 1   TRIS GPIO           ?
- 2   delay6              1
- 3                       1
- 4                       1
- 5                       1
- 6                       1
- 7                       1
- 8   MOVF AhighBlow, W   1    MOVLW 0x3f - (1 << source)
- 9   TRIS GPIO           1    MOVWF AlowBhigh
-10   MOVLW IIII          0    BTFSS GPIO, source
-11   TRIS GPIO           0    GOTO l
-12   MOVF AhighBlow, W   1
-13   TRIS GPIO           1    BTFSS GPIO, source
-14   RETLW 0             0
-15                            RETLW 0
+delta = 3
+
+     sendVSync                receiveVSync
+
+ 0   MOVF bits, W        ??
+ 1   ANDWF more, W       ??
+ 2   TRIS GPIO           ??
+ 3   ANDWF Xlow, W       10   BTFSC GPIO, source
+ 4   TRIS GPIO           10   GOTO l
+ 5   MOVF bits, W        00
+ 6   TRIS GPIO           00   BTFSC GPIO, source
+ 7   MOVF afterWrite, W  11
+ 8   MOVWF PCL           11   GOTO write
 
 
 
-delta = 9
+delta = 4
 
      sendSync                 receiveSync
 
- 0   MOVF AlowBhigh, W   ?
- 1   TRIS GPIO           ?
- 2   delay6              1
- 3                       1
- 4                       1
- 5                       1
- 6                       1
- 7                       1
- 8   MOVF AhighBlow, W   1
- 9   TRIS GPIO           1    MOVLW 0x3f - (1 << source)
-10   MOVLW IIII          0    MOVWF AlowBhigh
-11   TRIS GPIO           0    BTFSS GPIO, source
-12   MOVF AhighBlow, W   1    GOTO l
-13   TRIS GPIO           1
-14   RETLW 0             0    BTFSS GPIO, source
-15                            RETLW 0
+ 0   MOVF bits, W        ??
+ 1   ANDWF more, W       ??
+ 2   TRIS GPIO           ??
+ 3   ANDWF Xlow, W       10
+ 4   TRIS GPIO           10   BTFSC GPIO, source
+ 5   MOVF bits, W        00   GOTO l
+ 6   TRIS GPIO           00
+ 7   MOVF afterWrite, W  11   BTFSC GPIO, source
+ 8   MOVWF PCL           11   GOTO write
 
 
 
-delta = 10
+delta = 5
 
      sendSync                 receiveSync
 
- 0   MOVF AlowBhigh, W   ?
- 1   TRIS GPIO           ?
- 2   delay6              1
- 3                       1
- 4                       1
- 5                       1
- 6                       1
- 7                       1
- 8   MOVF AhighBlow, W   1
- 9   TRIS GPIO           1
-10   MOVLW IIII          0    MOVLW 0x3f - (1 << source)
-11   TRIS GPIO           0    MOVWF AlowBhigh
-12   MOVF AhighBlow, W   1    BTFSS GPIO, source
-13   TRIS GPIO           1
-14   RETLW 0             0    BTFSS GPIO, source
-15                            RETLW 0
+ 0   MOVF bits, W        ??
+ 1   ANDWF more, W       ??
+ 2   TRIS GPIO           ??
+ 3   ANDWF Xlow, W       10
+ 4   TRIS GPIO           10
+ 5   MOVF bits, W        00   BTFSC GPIO, source
+ 6   TRIS GPIO           00
+ 7   MOVF afterWrite, W  11   BTFSC GPIO, source
+ 8   MOVWF PCL           11   GOTO write
 
 

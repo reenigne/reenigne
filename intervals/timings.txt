@@ -1,0 +1,121 @@
+1 +- sendUSync:    MOVWF lowChild -----------+ 1 m |                TRIS GPIO                 | 1
+1 |                MOVF bits, W              | 1 m |                MOVF bits, W              | 0
+1 |                TRIS GPIO                 | 1 m |                TRIS GPIO                 | 0
+1 |                delay2                    | 1 1 |                MOVF afterWrite, W        | 1
+1 |                                          | 1 1 +--------------- MOVWF PCL ----------------+ 1
+1 |                ANDWF lowchild, W         | 1 1 +- receiveUSync: MOVF afterReceiveUSync, W + 1
+1 |                TRIS GPIO                 | 1 1 |               [BTFSC GPIO, bit#v(b)]     | 1
+1 |                MOVF bits, W              | 0 1 |                GOTO lU                   | 1
+1 |                TRIS GPIO                 | 0 1 |                                          | 1
+1 |                MOVF afterSendUSync, W    | 1 1 |               [BTFSC GPIO, bit#v(b)]     | 1
+1 +--------------- MOVWF PCL ----------------+ 1 1 +--------------- MOVWF PCL ----------------+ 1
+1 +- receiveVSync:[BTFSC GPIO, bit#v(b)]-----+ 1 1 +- read:         CLRF lengthLow + 0 -------+ 1   +  initData0:    MOVLW 0 ------------------+
+1 |                GOTO lV                   | 1 1 |                BTFSC GPIO, bit#v(b)      | 1   |                GOTO initData             |
+1 |                                          | 1 1 |               (INCF lengthLow + 0, F)    | 1   +------------------------------------------+
+1 |               [BTFSC GPIO, bit#v(b)]     | 1 1 |                delay1                    | 1   +- initData:     MOVWF parentAxis ---------+
+1 |                GOTO write                | 1 1 |                CLRF lengthLow + 1        | 1   |                MOVLW 1                   |
+1 +------------------------------------------+ 1 1 |                BTFSC GPIO, bit#v(b)      | 1   |                CLRF lengthLow            |
+1 +- write:        MOVF bits, W -------------+ 1 1 |               (INCF lengthLow + 1, F)    | 1   |                CLRF lengthMiddle         |
+1 |                BTFSS lengthLow + 0, 0    | 1 1 |                delay1                    | 1   |                CLRF lengthHigh           |
+1 |               (ANDWF lowParent, W)       | 1 1 |                CLRF lengthLow + 2        | 1   |                CLRF switch               |
+1 |                TRIS GPIO                 | 1 1 |                BTFSC GPIO, bit#v(b)      | 1   |                BTFSC GPIO, 2             |
+A |                MOVF bits, W              | 1 1 |               (INCF lengthLow + 2, F)    | 1   |               (INCF switch, F)           |
+A |                BTFSS lengthLow + 1, 0    | 1 1 |                delay1                    | 1   |                MOVLW 7                   |
+A |               (ANDWF lowParent, W)       | 1 1 |                CLRF lengthLow + 3        | 1   |                MOVWF count               |
+A |                TRIS GPIO                 | 1 1 |                BTFSC GPIO, bit#v(b)      | 1   |                DECFSZ count, F           |
+B |                MOVF bits, W              | 1 1 |               (INCF lengthLow + 3, F)    | 1   |                GOTO initDelayLoop        |
+B |                BTFSS lengthLow + 2, 0    | 1 1 |                delay1                    | 1   |                                          |
+B |               (ANDWF lowParent, W)       | 1 1 |                CLRF lengthLow + 4        | 1   |                DECFSZ count, F           |
+B |                TRIS GPIO                 | 1 1 |                BTFSC GPIO, bit#v(b)      | 1   |                GOTO initDelayLoop        |
+C |                MOVF bits, W              | 1 1 |               (INCF lengthLow + 4, F)    | 1   |                                          |
+C |                BTFSS lengthLow + 3, 0    | 1 1 |                delay1                    | 1   |                DECFSZ count, F           |
+C |               (ANDWF lowParent, W)       | 1 1 |                CLRF lengthLow + 5        | 1   |                GOTO initDelayLoop        |
+C |                TRIS GPIO                 | 1 1 |                BTFSC GPIO, bit#v(b)      | 1   |                                          |
+D |                MOVF bits, W              | 1 1 |               (INCF lengthLow + 5, F)    | 1   |                DECFSZ count, F           |
+D |                BTFSS lengthLow + 4, 0    | 1 1 |                delay1                    | 1   |                GOTO initDelayLoop        |
+D |               (ANDWF lowParent, W)       | 1 1 |                CLRF lengthLow + 6        | 1   |                                          |
+D |                TRIS GPIO                 | 1 1 |                BTFSC GPIO, bit#v(b)      | 1   |                DECFSZ count, F           |
+E |                MOVF bits, W              | 1 1 |               (INCF lengthLow + 6, F)    | 1   |                GOTO initDelayLoop        |
+E |                BTFSS lengthLow + 5, 0    | 1 1 |                delay1                    | 1   |                                          |
+E |               (ANDWF lowParent, W)       | 1 1 |                CLRF lengthLow + 7        | 1   |                DECFSZ count, F           |
+E |                TRIS GPIO                 | 1 1 |                BTFSC GPIO, bit#v(b)      | 1   |                GOTO initDelayLoop        |
+F |                MOVF bits, W              | 1 1 |               (INCF lengthLow + 7, F)    | 1   |                                          |
+F |                BTFSS lengthLow + 6, 0    | 1 1 +--------------- delay1 -------------------+ 1   |                DECFSZ count, F           |
+F |               (ANDWF lowParent, W)       | 1 1 +- checkForMore: MOVF after#v(b), W -------+ 1   |                                          |
+F |                TRIS GPIO                 | 1 1 |                BTFSC GPIO, bit#v(b)      | 1   |                MOVF afterInitData, W     |
+G |                MOVF bits, W              | 1 1 +--------------- MOVWF PCL ----------------+ 1   +--------------- MOVWF PCL ----------------+ x x
+G |                BTFSS lengthLow + 7, 0    | 1 1 +- do:           BSF bits, bit#v(b) -------+ 1                                                    +- doFinalWrite: CALL delay11 -------------+
+G |               (ANDWF lowParent, W)       | 1 1 |                MOVLW read#v(b)           | 1                                                    |                                          |
+G +--------------- TRIS GPIO ----------------+ 1 1 |                MOVWF afterReceiveUSync   | 1                                                    |                                          |
+H +- sendVSync:    delay1 -------------------+ 1 1 |                MOVLW low#v(b)            | 1                                                    |                                          |
+H |                MOVF bits, W              | 1 1 |                GOTO sendUSync            | 1                                                    |                                          |
+H |                ANDWF more, W             | 1 1 +------------------------------------------+ 1                                                    |                                          |
+H |                TRIS GPIO                 | 1 1 +- sendUSync:    MOVWF lowChild -----------+ 1                                                    |                                          |
+m |                CALL delay9               | 1 1 |                MOVF bits, W              | 1                                                    |                                          |
+m |                                          | 1 1 |                TRIS GPIO                 | 1                                                    |                                          |
+m |                                          | 1 1 |                delay2                    | 1                                                    |                                          |
+m |                                          | 1 1 |                                          | 1                                                    |                                          |
+m |                                          | 1 1 |                ANDWF lowChild, W         | 1                                                    |                MOVLW reset               |
+m |                                          | 1 1 |                TRIS GPIO                 | 1                                                    |                MOVWF afterWrite          |
+m |                                          | 1 1 |                MOVF bits, W              | 0                                                    |                MOVLW lowAll              |
+m |                                          | 1 1 |                TRIS GPIO                 | 0                                                    |                MOVWF more                |
+m |                                          | 1 1 |                MOVF afterSendUSync, W    | 1                                                    |                MOVF afterSendUSync, W    |
+m |                ANDWF lowChild, W         | 1 1 +--------------- MOVWF PCL ----------------+ 1                                                    +--------------- MOVWF PCL ----------------+
+m |                TRIS GPIO                 | 1 1 +- receiveVSync:[BTFSC GPIO, bit#v(b)]-----+ 1
+m |                MOVF bits, W              | 0 1 |                GOTO lV                   | 1
+m |                TRIS GPIO                 | 0 1 |                                          | 1
+1 |                MOVF afterWrite, W        | 1 1 |               [BTFSC GPIO, bit#v(b)]     | 1
+1 +--------------- MOVWF PCL ----------------+ 1 1 |                GOTO write                | 1
+1 +- receiveUSync: MOVF afterReceiveUSync, W + 1 1 +------------------------------------------+ 1
+1 |               [BTFSC GPIO, bit#v(b)]     | 1 1 +- write:        MOVF bits, W -------------+ 1
+1 |                GOTO lU                   | 1 1 |                BTFSS lengthLow + 0, 0    | 1
+1 |                                          | 1 1 |               (ANDWF lowParent, W)       | 1
+1 |               [BTFSC GPIO, bit#v(b)]     | 1 1 |                TRIS GPIO                 | 1
+1 +--------------- MOVWF PCL ----------------+ 1 A |                MOVF bits, W              | 1
+1 +- read:         CLRF lengthLow + 0 -------+ 1 A |                BTFSS lengthLow + 1, 0    | 1
+1 |                BTFSC GPIO, bit#v(b)      | 1 A |               (ANDWF lowParent, W)       | 1
+1 |               (INCF lengthLow + 0, F)    | 1 A |                TRIS GPIO                 | 1
+1 |                delay1                    | 1 B |                MOVF bits, W              | 1
+1 |                CLRF lengthLow + 1        | 1 B |                BTFSS lengthLow + 2, 0    | 1
+1 |                BTFSC GPIO, bit#v(b)      | 1 B |               (ANDWF lowParent, W)       | 1
+1 |               (INCF lengthLow + 1, F)    | 1 B |                TRIS GPIO                 | 1
+1 |                delay1                    | 1 C |                MOVF bits, W              | 1
+1 |                CLRF lengthLow + 2        | 1 C |                BTFSS lengthLow + 3, 0    | 1
+1 |                BTFSC GPIO, bit#v(b)      | 1 C |               (ANDWF lowParent, W)       | 1
+1 |               (INCF lengthLow + 2, F)    | 1 C |                TRIS GPIO                 | 1
+1 |                delay1                    | 1 D |                MOVF bits, W              | 1
+1 |                CLRF lengthLow + 3        | 1 D |                BTFSS lengthLow + 4, 0    | 1
+1 |                BTFSC GPIO, bit#v(b)      | 1 D |               (ANDWF lowParent, W)       | 1
+1 |               (INCF lengthLow + 3, F)    | 1 D |                TRIS GPIO                 | 1
+1 |                delay1                    | 1 E |                MOVF bits, W              | 1
+1 |                CLRF lengthLow + 4        | 1 E |                BTFSS lengthLow + 5, 0    | 1
+1 |                BTFSC GPIO, bit#v(b)      | 1 E |               (ANDWF lowParent, W)       | 1
+1 |               (INCF lengthLow + 4, F)    | 1 E |                TRIS GPIO                 | 1
+1 |                delay1                    | 1 F |                MOVF bits, W              | 1
+1 |                CLRF lengthLow + 5        | 1 F |                BTFSS lengthLow + 6, 0    | 1
+1 |                BTFSC GPIO, bit#v(b)      | 1 F |               (ANDWF lowParent, W)       | 1
+1 |               (INCF lengthLow + 5, F)    | 1 F |                TRIS GPIO                 | 1
+1 |                delay1                    | 1 G |                MOVF bits, W              | 1
+1 |                CLRF lengthLow + 6        | 1 G |                BTFSS lengthLow + 7, 0    | 1
+1 |                BTFSC GPIO, bit#v(b)      | 1 G |               (ANDWF lowParent, W)       | 1
+1 |               (INCF lengthLow + 6, F)    | 1 G +--------------- TRIS GPIO ----------------+ 1
+1 |                delay1                    | 1 H +- sendVSync:    delay1 -------------------+ 1
+1 |                CLRF lengthLow + 7        | 1 H |                MOVF bits, W              | 1
+1 |                BTFSC GPIO, bit#v(b)      | 1 H |                ANDWF more, W             | 1
+1 |               (INCF lengthLow + 7, F)    | 1 H |                TRIS GPIO                 | 1
+1 +--------------- delay1 -------------------+ 1 m |                CALL delay9               | 1
+1 +- checkForMore: MOVF after#v(b), W -------+ 1 m |                                          | 1
+1 |                BTFSC GPIO, bit#v(b)      | 1 m |                                          | 1
+1 +--------------- MOVWF PCL ----------------+ 1 m |                                          | 1
+1 +- do:           BSF bits, bit#v(b) -------+ 1 m |                                          | 1
+1 |                MOVLW read#v(b)           | 1 m |                                          | 1
+1 |                MOVWF afterReceiveUSync   | 1 m |                                          | 1
+1 |                MOVLW low#v(b)            | 1 m |                                          | 1
+1 |                GOTO sendUSync            | 1 m |                                          | 1
+1 +------------------------------------------+ 1 m |                ANDWF lowChild, W         | 1
+
+
+
+
+
+
