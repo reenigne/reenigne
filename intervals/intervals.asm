@@ -8,7 +8,7 @@ bit1 EQU 5
 bit2 EQU 0
 bit3 EQU 1
 
-lowAll EQU 3fh
+highAll EQU 3fh
 
 low0 EQU 2fh
 low1 EQU 1fh
@@ -211,7 +211,9 @@ delay14
 delay12
   NOP
 delay11
-  GOTO delay9
+  NOP
+delay10
+  NOP
 delay9
   NOP
 delay8
@@ -223,11 +225,12 @@ delay4
 
 
 doFinalWrite                     ; 17
-  CALL delay11                   ; 11
+  CALL delay10                   ; 10
   MOVLW reset                    ; 1
   MOVWF afterWrite               ; 1
-  MOVLW lowAll                   ; 1
+  MOVLW highAll                  ; 1
   MOVWF more                     ; 1
+  MOVWF lowChild                 ; 1
   MOVF afterSendUSync, W         ; 1
   MOVWF PCL                      ; 1
 
@@ -272,7 +275,7 @@ startup
   MOVLW 80h                  ; wake up on pin change disabled (80h) | weak pull-ups enabled (00h) | timer 0 clock source on instruction cycle (00h) | timer 0 source
   OPTION
   CLRF GPIO
-  MOVLW lowAll
+  MOVLW highAll
   MOVWF bits
 
 resetb
@@ -329,55 +332,6 @@ initDelayLoop
 
 
 ; TODO:
-;   Make sure that the sync after write doesn't cause a new prime on the final cycle
-;   The polarity of USync and VSync doesn't have to be the same
-;   Can we get rid of a pair of syncs?
-;   Fixup timings
-;     initData1 needs to be same length as readX (add delay of 23 cycles + read delay)
-;   Fix receiveSync comments
-;   Use an afterWrite (and change afterWrite to afterSendUSync) instead of more?
-;     Takes an extra cycle in write, but saves 2 instructions
 ;   Does the sendUSync delay (and hence the doFinalWrite delay) need to be longer?
-;                                           p   c
-; receiveUSyncA                 7 +/- 1      4
-; initData0                     3           11
-; initData                      33           13       +read delay
-;
-; doX                           6           46 101
-; sendUSync                    11           52  -1
-; receiveVSyncA                 6 +/- 1     63  10   receiveVSync needs to be started 4 cycles after sendVSync (+/- 1), 36 cycles after write
-; write                        41           69  16
-; receiveUSyncA                 6 +/- 1    112  59   receiveUSync needs to be started 5 cycles after sendUSync - currently 7 cycles
-; readX                        35          119  66   read needs to be started 5 cycles after write - currently 3 before
-;
-; doFinalWrite                 17                    (includes sendUSync delay)
-; receiveVSyncA                 6
-; write                        43
-; reset                         7
 
-;
-; 23 instructions free, 27 in first half
-
-
-
-; cycle  parent          child
-; -------------------------------------
-;   0    sendUSync
-;   5                    receiveUSync
-;  11    receiveVSync
-;  12                    read
-;  17    write
-;  44                    (checkForMore)
-;  47                    do
-;  49    (sendVSync)
-;  53                    sendUSync
-;  60    receiveUSync
-;  64                    receiveVSync
-;  67    read
-;  70                    write
-;  99    (checkForMore)
-; 102    do              (sendVSync)
-; 108    sendUSync
-; 113                    receiveUSync
-
-
+; 20 instructions free, 23 in low page

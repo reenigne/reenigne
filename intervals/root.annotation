@@ -1,512 +1,512 @@
-0000 entry:                 MOVWF OSCCAL
-0001 entry                  MOVLW 80h  ; OPTION bits
-0002 entry                  OPTION
-0003 entry                  CLRF GPIO
-0004 reset:                 TRIS 7
-0005 reset                  MOVLW IOII
-0006 reset                  TRIS GPIO  ; prime the child
-0007 reset                  CALL delay14  ; wait for prime to be recognized
-0008 reset                  MOVLW IIII
-0009 reset                  TRIS GPIO  ; clear prime
-000A reset                  CALL delay7  ; wait for response to be ready
-000B reset                  BTFSC GPIO, 0  ; Check for child present
-000C reset                  GOTO reset
-000D waitForPrimeComplete:  BTFSS GPIO, 0
-000E waitForPrimeComplete   GOTO waitForPrimeComplete
-000F reset                  CALL delay14  ; Wait for child to set function pointers
-0010 dataLoop:              GOTO .+1  ; delay2
-0011 dataLoop               NOP  ; delay1
-0012 dataLoop               MOVLW IOII
-0013 dataLoop               TRIS GPIO  ; send "data request"
-0014 dataLoop               CALL delay4
-0015 dataLoop               MOVLW IIII
-0016 dataLoop               TRIS GPIO  ; send "sync"
-0017 dataLoop               MOVLW IOII
-0018 dataLoop               TRIS GPIO  ; send "sync"
-0019 dataLoop               MOVLW 0x1a
-001A dataLoop               MOVWF count
-001B readDelay:             DECFSZ count, F
-001C readDelay              GOTO readDelay
-001D dataLoop               GOTO .+1  ; delay2
-001E dataLoop               MOVLW IIII
-001F dataLoop               TRIS GPIO  ; send "sync"
-0020 dataLoop               CALL delay6
-0021 dataLoop               MOVLW IOII
-0022 dataLoop               TRIS GPIO  ; send "sync"
-0023 dataLoop               MOVLW IIII
-0024 dataLoop               TRIS GPIO  ; send "sync"
-0025 dataLoop               MOVLW IOII
-0026 dataLoop               TRIS GPIO  ; send "sync"
-0027 dataLoop               CALL delay21  ; wait for child to start sending data
-0028 dataLoop               MOVLW IIII
-0029 dataLoop               TRIS GPIO
-002A dataLoop0              MOVLW 0
-002B dataLoop0              BTFSC GPIO, 0
-002C dataLoop0              MOVLW 1  ; read a 1
-002D dataLoop0              TRIS 5
-002E dataLoop0              NOP  ; delay1
-002F dataLoop1              MOVLW 0
-0030 dataLoop1              BTFSC GPIO, 0
-0031 dataLoop1              MOVLW 1  ; read a 1
-0032 dataLoop1              TRIS 5
-0033 dataLoop1              CALL delay4
-0034 dataLoop2              MOVLW 0
-0035 dataLoop2              BTFSC GPIO, 0
-0036 dataLoop2              MOVLW 1  ; read a 1
-0037 dataLoop2              TRIS 5
-0038 dataLoop2              NOP  ; delay1
-0039 dataLoop3              MOVLW 0
-003A dataLoop3              BTFSC GPIO, 0
-003B dataLoop3              MOVLW 1  ; read a 1
-003C dataLoop3              TRIS 5
-003D dataLoop3              CALL delay4
-003E dataLoop4              MOVLW 0
-003F dataLoop4              BTFSC GPIO, 0
-0040 dataLoop4              MOVLW 1  ; read a 1
-0041 dataLoop4              TRIS 5
-0042 dataLoop4              NOP  ; delay1
-0043 dataLoop5              MOVLW 0
-0044 dataLoop5              BTFSC GPIO, 0
-0045 dataLoop5              MOVLW 1  ; read a 1
-0046 dataLoop5              TRIS 5
-0047 dataLoop5              CALL delay4
-0048 dataLoop6              MOVLW 0
-0049 dataLoop6              BTFSC GPIO, 0
-004A dataLoop6              MOVLW 1  ; read a 1
-004B dataLoop6              TRIS 5
-004C dataLoop6              NOP  ; delay1
-004D dataLoop7              MOVLW 0
-004E dataLoop7              BTFSC GPIO, 0
-004F dataLoop7              MOVLW 1  ; read a 1
-0050 dataLoop7              TRIS 5
-0051 dataLoop7              CALL delay8
-0052 dataLoop               BTFSC GPIO, 0  ; check for more data
-0053 dataLoop               GOTO reset
-0054 dataLoop               GOTO dataLoop
-0055 delay21:               NOP
-0056 delay20:               GOTO delay18
-0057 delay18:               GOTO delay16
-0058 delay16:               GOTO delay14
-0059 delay14:               GOTO delay12
-005A delay12:               GOTO delay10
-005B delay10:               GOTO delay8
-005C delay8:                NOP
-005D delay7:                NOP
-005E delay6:                GOTO delay4
-005F delay4:                RETLW 0
-0060 -NO-CODE-
-0061 -NO-CODE-
-0062 -NO-CODE-
-0063 -NO-CODE-
-0064 -NO-CODE-
-0065 -NO-CODE-
-0066 -NO-CODE-
-0067 -NO-CODE-
-0068 -NO-CODE-
-0069 -NO-CODE-
-006A -NO-CODE-
-006B -NO-CODE-
-006C -NO-CODE-
-006D -NO-CODE-
-006E -NO-CODE-
-006F -NO-CODE-
-0070 -NO-CODE-
-0071 -NO-CODE-
-0072 -NO-CODE-
-0073 -NO-CODE-
-0074 -NO-CODE-
-0075 -NO-CODE-
-0076 -NO-CODE-
-0077 -NO-CODE-
-0078 -NO-CODE-
-0079 -NO-CODE-
-007A -NO-CODE-
-007B -NO-CODE-
-007C -NO-CODE-
-007D -NO-CODE-
-007E -NO-CODE-
-007F -NO-CODE-
-0080 -NO-CODE-
-0081 -NO-CODE-
-0082 -NO-CODE-
-0083 -NO-CODE-
-0084 -NO-CODE-
-0085 -NO-CODE-
-0086 -NO-CODE-
-0087 -NO-CODE-
-0088 -NO-CODE-
-0089 -NO-CODE-
-008A -NO-CODE-
-008B -NO-CODE-
-008C -NO-CODE-
-008D -NO-CODE-
-008E -NO-CODE-
-008F -NO-CODE-
-0090 -NO-CODE-
-0091 -NO-CODE-
-0092 -NO-CODE-
-0093 -NO-CODE-
-0094 -NO-CODE-
-0095 -NO-CODE-
-0096 -NO-CODE-
-0097 -NO-CODE-
-0098 -NO-CODE-
-0099 -NO-CODE-
-009A -NO-CODE-
-009B -NO-CODE-
-009C -NO-CODE-
-009D -NO-CODE-
-009E -NO-CODE-
-009F -NO-CODE-
-00A0 -NO-CODE-
-00A1 -NO-CODE-
-00A2 -NO-CODE-
-00A3 -NO-CODE-
-00A4 -NO-CODE-
-00A5 -NO-CODE-
-00A6 -NO-CODE-
-00A7 -NO-CODE-
-00A8 -NO-CODE-
-00A9 -NO-CODE-
-00AA -NO-CODE-
-00AB -NO-CODE-
-00AC -NO-CODE-
-00AD -NO-CODE-
-00AE -NO-CODE-
-00AF -NO-CODE-
-00B0 -NO-CODE-
-00B1 -NO-CODE-
-00B2 -NO-CODE-
-00B3 -NO-CODE-
-00B4 -NO-CODE-
-00B5 -NO-CODE-
-00B6 -NO-CODE-
-00B7 -NO-CODE-
-00B8 -NO-CODE-
-00B9 -NO-CODE-
-00BA -NO-CODE-
-00BB -NO-CODE-
-00BC -NO-CODE-
-00BD -NO-CODE-
-00BE -NO-CODE-
-00BF -NO-CODE-
-00C0 -NO-CODE-
-00C1 -NO-CODE-
-00C2 -NO-CODE-
-00C3 -NO-CODE-
-00C4 -NO-CODE-
-00C5 -NO-CODE-
-00C6 -NO-CODE-
-00C7 -NO-CODE-
-00C8 -NO-CODE-
-00C9 -NO-CODE-
-00CA -NO-CODE-
-00CB -NO-CODE-
-00CC -NO-CODE-
-00CD -NO-CODE-
-00CE -NO-CODE-
-00CF -NO-CODE-
-00D0 -NO-CODE-
-00D1 -NO-CODE-
-00D2 -NO-CODE-
-00D3 -NO-CODE-
-00D4 -NO-CODE-
-00D5 -NO-CODE-
-00D6 -NO-CODE-
-00D7 -NO-CODE-
-00D8 -NO-CODE-
-00D9 -NO-CODE-
-00DA -NO-CODE-
-00DB -NO-CODE-
-00DC -NO-CODE-
-00DD -NO-CODE-
-00DE -NO-CODE-
-00DF -NO-CODE-
-00E0 -NO-CODE-
-00E1 -NO-CODE-
-00E2 -NO-CODE-
-00E3 -NO-CODE-
-00E4 -NO-CODE-
-00E5 -NO-CODE-
-00E6 -NO-CODE-
-00E7 -NO-CODE-
-00E8 -NO-CODE-
-00E9 -NO-CODE-
-00EA -NO-CODE-
-00EB -NO-CODE-
-00EC -NO-CODE-
-00ED -NO-CODE-
-00EE -NO-CODE-
-00EF -NO-CODE-
-00F0 -NO-CODE-
-00F1 -NO-CODE-
-00F2 -NO-CODE-
-00F3 -NO-CODE-
-00F4 -NO-CODE-
-00F5 -NO-CODE-
-00F6 -NO-CODE-
-00F7 -NO-CODE-
-00F8 -NO-CODE-
-00F9 -NO-CODE-
-00FA -NO-CODE-
-00FB -NO-CODE-
-00FC -NO-CODE-
-00FD -NO-CODE-
-00FE -NO-CODE-
-00FF -NO-CODE-
-0100 -NO-CODE-
-0101 -NO-CODE-
-0102 -NO-CODE-
-0103 -NO-CODE-
-0104 -NO-CODE-
-0105 -NO-CODE-
-0106 -NO-CODE-
-0107 -NO-CODE-
-0108 -NO-CODE-
-0109 -NO-CODE-
-010A -NO-CODE-
-010B -NO-CODE-
-010C -NO-CODE-
-010D -NO-CODE-
-010E -NO-CODE-
-010F -NO-CODE-
-0110 -NO-CODE-
-0111 -NO-CODE-
-0112 -NO-CODE-
-0113 -NO-CODE-
-0114 -NO-CODE-
-0115 -NO-CODE-
-0116 -NO-CODE-
-0117 -NO-CODE-
-0118 -NO-CODE-
-0119 -NO-CODE-
-011A -NO-CODE-
-011B -NO-CODE-
-011C -NO-CODE-
-011D -NO-CODE-
-011E -NO-CODE-
-011F -NO-CODE-
-0120 -NO-CODE-
-0121 -NO-CODE-
-0122 -NO-CODE-
-0123 -NO-CODE-
-0124 -NO-CODE-
-0125 -NO-CODE-
-0126 -NO-CODE-
-0127 -NO-CODE-
-0128 -NO-CODE-
-0129 -NO-CODE-
-012A -NO-CODE-
-012B -NO-CODE-
-012C -NO-CODE-
-012D -NO-CODE-
-012E -NO-CODE-
-012F -NO-CODE-
-0130 -NO-CODE-
-0131 -NO-CODE-
-0132 -NO-CODE-
-0133 -NO-CODE-
-0134 -NO-CODE-
-0135 -NO-CODE-
-0136 -NO-CODE-
-0137 -NO-CODE-
-0138 -NO-CODE-
-0139 -NO-CODE-
-013A -NO-CODE-
-013B -NO-CODE-
-013C -NO-CODE-
-013D -NO-CODE-
-013E -NO-CODE-
-013F -NO-CODE-
-0140 -NO-CODE-
-0141 -NO-CODE-
-0142 -NO-CODE-
-0143 -NO-CODE-
-0144 -NO-CODE-
-0145 -NO-CODE-
-0146 -NO-CODE-
-0147 -NO-CODE-
-0148 -NO-CODE-
-0149 -NO-CODE-
-014A -NO-CODE-
-014B -NO-CODE-
-014C -NO-CODE-
-014D -NO-CODE-
-014E -NO-CODE-
-014F -NO-CODE-
-0150 -NO-CODE-
-0151 -NO-CODE-
-0152 -NO-CODE-
-0153 -NO-CODE-
-0154 -NO-CODE-
-0155 -NO-CODE-
-0156 -NO-CODE-
-0157 -NO-CODE-
-0158 -NO-CODE-
-0159 -NO-CODE-
-015A -NO-CODE-
-015B -NO-CODE-
-015C -NO-CODE-
-015D -NO-CODE-
-015E -NO-CODE-
-015F -NO-CODE-
-0160 -NO-CODE-
-0161 -NO-CODE-
-0162 -NO-CODE-
-0163 -NO-CODE-
-0164 -NO-CODE-
-0165 -NO-CODE-
-0166 -NO-CODE-
-0167 -NO-CODE-
-0168 -NO-CODE-
-0169 -NO-CODE-
-016A -NO-CODE-
-016B -NO-CODE-
-016C -NO-CODE-
-016D -NO-CODE-
-016E -NO-CODE-
-016F -NO-CODE-
-0170 -NO-CODE-
-0171 -NO-CODE-
-0172 -NO-CODE-
-0173 -NO-CODE-
-0174 -NO-CODE-
-0175 -NO-CODE-
-0176 -NO-CODE-
-0177 -NO-CODE-
-0178 -NO-CODE-
-0179 -NO-CODE-
-017A -NO-CODE-
-017B -NO-CODE-
-017C -NO-CODE-
-017D -NO-CODE-
-017E -NO-CODE-
-017F -NO-CODE-
-0180 -NO-CODE-
-0181 -NO-CODE-
-0182 -NO-CODE-
-0183 -NO-CODE-
-0184 -NO-CODE-
-0185 -NO-CODE-
-0186 -NO-CODE-
-0187 -NO-CODE-
-0188 -NO-CODE-
-0189 -NO-CODE-
-018A -NO-CODE-
-018B -NO-CODE-
-018C -NO-CODE-
-018D -NO-CODE-
-018E -NO-CODE-
-018F -NO-CODE-
-0190 -NO-CODE-
-0191 -NO-CODE-
-0192 -NO-CODE-
-0193 -NO-CODE-
-0194 -NO-CODE-
-0195 -NO-CODE-
-0196 -NO-CODE-
-0197 -NO-CODE-
-0198 -NO-CODE-
-0199 -NO-CODE-
-019A -NO-CODE-
-019B -NO-CODE-
-019C -NO-CODE-
-019D -NO-CODE-
-019E -NO-CODE-
-019F -NO-CODE-
-01A0 -NO-CODE-
-01A1 -NO-CODE-
-01A2 -NO-CODE-
-01A3 -NO-CODE-
-01A4 -NO-CODE-
-01A5 -NO-CODE-
-01A6 -NO-CODE-
-01A7 -NO-CODE-
-01A8 -NO-CODE-
-01A9 -NO-CODE-
-01AA -NO-CODE-
-01AB -NO-CODE-
-01AC -NO-CODE-
-01AD -NO-CODE-
-01AE -NO-CODE-
-01AF -NO-CODE-
-01B0 -NO-CODE-
-01B1 -NO-CODE-
-01B2 -NO-CODE-
-01B3 -NO-CODE-
-01B4 -NO-CODE-
-01B5 -NO-CODE-
-01B6 -NO-CODE-
-01B7 -NO-CODE-
-01B8 -NO-CODE-
-01B9 -NO-CODE-
-01BA -NO-CODE-
-01BB -NO-CODE-
-01BC -NO-CODE-
-01BD -NO-CODE-
-01BE -NO-CODE-
-01BF -NO-CODE-
-01C0 -NO-CODE-
-01C1 -NO-CODE-
-01C2 -NO-CODE-
-01C3 -NO-CODE-
-01C4 -NO-CODE-
-01C5 -NO-CODE-
-01C6 -NO-CODE-
-01C7 -NO-CODE-
-01C8 -NO-CODE-
-01C9 -NO-CODE-
-01CA -NO-CODE-
-01CB -NO-CODE-
-01CC -NO-CODE-
-01CD -NO-CODE-
-01CE -NO-CODE-
-01CF -NO-CODE-
-01D0 -NO-CODE-
-01D1 -NO-CODE-
-01D2 -NO-CODE-
-01D3 -NO-CODE-
-01D4 -NO-CODE-
-01D5 -NO-CODE-
-01D6 -NO-CODE-
-01D7 -NO-CODE-
-01D8 -NO-CODE-
-01D9 -NO-CODE-
-01DA -NO-CODE-
-01DB -NO-CODE-
-01DC -NO-CODE-
-01DD -NO-CODE-
-01DE -NO-CODE-
-01DF -NO-CODE-
-01E0 -NO-CODE-
-01E1 -NO-CODE-
-01E2 -NO-CODE-
-01E3 -NO-CODE-
-01E4 -NO-CODE-
-01E5 -NO-CODE-
-01E6 -NO-CODE-
-01E7 -NO-CODE-
-01E8 -NO-CODE-
-01E9 -NO-CODE-
-01EA -NO-CODE-
-01EB -NO-CODE-
-01EC -NO-CODE-
-01ED -NO-CODE-
-01EE -NO-CODE-
-01EF -NO-CODE-
-01F0 -NO-CODE-
-01F1 -NO-CODE-
-01F2 -NO-CODE-
-01F3 -NO-CODE-
-01F4 -NO-CODE-
-01F5 -NO-CODE-
-01F6 -NO-CODE-
-01F7 -NO-CODE-
-01F8 -NO-CODE-
-01F9 -NO-CODE-
-01FA -NO-CODE-
-01FB -NO-CODE-
-01FC -NO-CODE-
-01FD -NO-CODE-
-01FE -NO-CODE-
-01FF                        MOVLW osccalValue
+000 entry:                 MOVWF OSCCAL
+001 entry                  MOVLW 80h
+002 entry                  OPTION
+003 entry                  CLRF GPIO
+004 reset:                 TRIS 7
+005 reset                  MOVLW childLow
+006 reset                  TRIS GPIO
+007 reset                  CALL delay14
+008 reset                  MOVLW allHigh
+009 reset                  TRIS GPIO
+00A reset                  CALL delay7
+00B reset                  BTFSC GPIO, 0
+00C reset                  GOTO reset
+00D waitForPrimeComplete:  BTFSC GPIO, 0
+00E waitForPrimeComplete   GOTO waitForPrimeComplete
+00F reset                  CALL delay21
+010 dataLoop:              CALL delay4
+011 dataLoop               MOVLW allHigh
+012 dataLoop               TRIS GPIO
+013 dataLoop               delay2
+014 dataLoop               MOVLW childLow
+015 dataLoop               TRIS GPIO
+016 dataLoop               MOVLW allHigh
+017 dataLoop               TRIS GPIO
+018 dataLoop               MOVLW 0x11
+019 dataLoop               MOVWF count
+01A readDelay:             DECFSZ count, F
+01B readDelay              GOTO readDelay
+01C dataLoop               delay2
+01D dataLoop               MOVLW childLow
+01E dataLoop               TRIS GPIO
+01F dataLoop               MOVLW allHigh
+020 dataLoop               TRIS GPIO
+021 dataLoop               CALL delay8
+022 dataLoop0              MOVLW 0
+023 dataLoop0              BTFSC GPIO, 0
+024 dataLoop0              MOVLW 1
+025 dataLoop0              TRIS 5
+026 dataLoop1              MOVLW 0
+027 dataLoop1              BTFSC GPIO, 0
+028 dataLoop1              MOVLW 1
+029 dataLoop1              TRIS 5
+02A dataLoop2              MOVLW 0
+02B dataLoop2              BTFSC GPIO, 0
+02C dataLoop2              MOVLW 1
+02D dataLoop2              TRIS 5
+02E dataLoop3              MOVLW 0
+02F dataLoop3              BTFSC GPIO, 0
+030 dataLoop3              MOVLW 1
+031 dataLoop3              TRIS 5
+032 dataLoop4              MOVLW 0
+033 dataLoop4              BTFSC GPIO, 0
+034 dataLoop4              MOVLW 1
+035 dataLoop4              TRIS 5
+036 dataLoop5              MOVLW 0
+037 dataLoop5              BTFSC GPIO, 0
+038 dataLoop5              MOVLW 1
+039 dataLoop5              TRIS 5
+03A dataLoop6              MOVLW 0
+03B dataLoop6              BTFSC GPIO, 0
+03C dataLoop6              MOVLW 1
+03D dataLoop6              TRIS 5
+03E dataLoop7              MOVLW 0
+03F dataLoop7              BTFSC GPIO, 0
+040 dataLoop7              MOVLW 1
+041 dataLoop7              TRIS 5
+042 dataLoop               delay1
+043 dataLoop               BTFSC GPIO, 0
+044 dataLoop               GOTO reset
+045 dataLoop               GOTO dataLoop
+046 delay21:               NOP
+047 delay20:               GOTO delay18
+048 delay18:               GOTO delay16
+049 delay16:               GOTO delay14
+04A delay14:               GOTO delay12
+04B delay12:               GOTO delay10
+04C delay10:               GOTO delay8
+04D delay8:                NOP
+04E delay7:                NOP
+04F delay6:                GOTO delay4
+050 delay4:                RETLW 0
+051 -NO-CODE-
+052 -NO-CODE-
+053 -NO-CODE-
+054 -NO-CODE-
+055 -NO-CODE-
+056 -NO-CODE-
+057 -NO-CODE-
+058 -NO-CODE-
+059 -NO-CODE-
+05A -NO-CODE-
+05B -NO-CODE-
+05C -NO-CODE-
+05D -NO-CODE-
+05E -NO-CODE-
+05F -NO-CODE-
+060 -NO-CODE-
+061 -NO-CODE-
+062 -NO-CODE-
+063 -NO-CODE-
+064 -NO-CODE-
+065 -NO-CODE-
+066 -NO-CODE-
+067 -NO-CODE-
+068 -NO-CODE-
+069 -NO-CODE-
+06A -NO-CODE-
+06B -NO-CODE-
+06C -NO-CODE-
+06D -NO-CODE-
+06E -NO-CODE-
+06F -NO-CODE-
+070 -NO-CODE-
+071 -NO-CODE-
+072 -NO-CODE-
+073 -NO-CODE-
+074 -NO-CODE-
+075 -NO-CODE-
+076 -NO-CODE-
+077 -NO-CODE-
+078 -NO-CODE-
+079 -NO-CODE-
+07A -NO-CODE-
+07B -NO-CODE-
+07C -NO-CODE-
+07D -NO-CODE-
+07E -NO-CODE-
+07F -NO-CODE-
+080 -NO-CODE-
+081 -NO-CODE-
+082 -NO-CODE-
+083 -NO-CODE-
+084 -NO-CODE-
+085 -NO-CODE-
+086 -NO-CODE-
+087 -NO-CODE-
+088 -NO-CODE-
+089 -NO-CODE-
+08A -NO-CODE-
+08B -NO-CODE-
+08C -NO-CODE-
+08D -NO-CODE-
+08E -NO-CODE-
+08F -NO-CODE-
+090 -NO-CODE-
+091 -NO-CODE-
+092 -NO-CODE-
+093 -NO-CODE-
+094 -NO-CODE-
+095 -NO-CODE-
+096 -NO-CODE-
+097 -NO-CODE-
+098 -NO-CODE-
+099 -NO-CODE-
+09A -NO-CODE-
+09B -NO-CODE-
+09C -NO-CODE-
+09D -NO-CODE-
+09E -NO-CODE-
+09F -NO-CODE-
+0A0 -NO-CODE-
+0A1 -NO-CODE-
+0A2 -NO-CODE-
+0A3 -NO-CODE-
+0A4 -NO-CODE-
+0A5 -NO-CODE-
+0A6 -NO-CODE-
+0A7 -NO-CODE-
+0A8 -NO-CODE-
+0A9 -NO-CODE-
+0AA -NO-CODE-
+0AB -NO-CODE-
+0AC -NO-CODE-
+0AD -NO-CODE-
+0AE -NO-CODE-
+0AF -NO-CODE-
+0B0 -NO-CODE-
+0B1 -NO-CODE-
+0B2 -NO-CODE-
+0B3 -NO-CODE-
+0B4 -NO-CODE-
+0B5 -NO-CODE-
+0B6 -NO-CODE-
+0B7 -NO-CODE-
+0B8 -NO-CODE-
+0B9 -NO-CODE-
+0BA -NO-CODE-
+0BB -NO-CODE-
+0BC -NO-CODE-
+0BD -NO-CODE-
+0BE -NO-CODE-
+0BF -NO-CODE-
+0C0 -NO-CODE-
+0C1 -NO-CODE-
+0C2 -NO-CODE-
+0C3 -NO-CODE-
+0C4 -NO-CODE-
+0C5 -NO-CODE-
+0C6 -NO-CODE-
+0C7 -NO-CODE-
+0C8 -NO-CODE-
+0C9 -NO-CODE-
+0CA -NO-CODE-
+0CB -NO-CODE-
+0CC -NO-CODE-
+0CD -NO-CODE-
+0CE -NO-CODE-
+0CF -NO-CODE-
+0D0 -NO-CODE-
+0D1 -NO-CODE-
+0D2 -NO-CODE-
+0D3 -NO-CODE-
+0D4 -NO-CODE-
+0D5 -NO-CODE-
+0D6 -NO-CODE-
+0D7 -NO-CODE-
+0D8 -NO-CODE-
+0D9 -NO-CODE-
+0DA -NO-CODE-
+0DB -NO-CODE-
+0DC -NO-CODE-
+0DD -NO-CODE-
+0DE -NO-CODE-
+0DF -NO-CODE-
+0E0 -NO-CODE-
+0E1 -NO-CODE-
+0E2 -NO-CODE-
+0E3 -NO-CODE-
+0E4 -NO-CODE-
+0E5 -NO-CODE-
+0E6 -NO-CODE-
+0E7 -NO-CODE-
+0E8 -NO-CODE-
+0E9 -NO-CODE-
+0EA -NO-CODE-
+0EB -NO-CODE-
+0EC -NO-CODE-
+0ED -NO-CODE-
+0EE -NO-CODE-
+0EF -NO-CODE-
+0F0 -NO-CODE-
+0F1 -NO-CODE-
+0F2 -NO-CODE-
+0F3 -NO-CODE-
+0F4 -NO-CODE-
+0F5 -NO-CODE-
+0F6 -NO-CODE-
+0F7 -NO-CODE-
+0F8 -NO-CODE-
+0F9 -NO-CODE-
+0FA -NO-CODE-
+0FB -NO-CODE-
+0FC -NO-CODE-
+0FD -NO-CODE-
+0FE -NO-CODE-
+0FF -NO-CODE-
+100 -NO-CODE-
+101 -NO-CODE-
+102 -NO-CODE-
+103 -NO-CODE-
+104 -NO-CODE-
+105 -NO-CODE-
+106 -NO-CODE-
+107 -NO-CODE-
+108 -NO-CODE-
+109 -NO-CODE-
+10A -NO-CODE-
+10B -NO-CODE-
+10C -NO-CODE-
+10D -NO-CODE-
+10E -NO-CODE-
+10F -NO-CODE-
+110 -NO-CODE-
+111 -NO-CODE-
+112 -NO-CODE-
+113 -NO-CODE-
+114 -NO-CODE-
+115 -NO-CODE-
+116 -NO-CODE-
+117 -NO-CODE-
+118 -NO-CODE-
+119 -NO-CODE-
+11A -NO-CODE-
+11B -NO-CODE-
+11C -NO-CODE-
+11D -NO-CODE-
+11E -NO-CODE-
+11F -NO-CODE-
+120 -NO-CODE-
+121 -NO-CODE-
+122 -NO-CODE-
+123 -NO-CODE-
+124 -NO-CODE-
+125 -NO-CODE-
+126 -NO-CODE-
+127 -NO-CODE-
+128 -NO-CODE-
+129 -NO-CODE-
+12A -NO-CODE-
+12B -NO-CODE-
+12C -NO-CODE-
+12D -NO-CODE-
+12E -NO-CODE-
+12F -NO-CODE-
+130 -NO-CODE-
+131 -NO-CODE-
+132 -NO-CODE-
+133 -NO-CODE-
+134 -NO-CODE-
+135 -NO-CODE-
+136 -NO-CODE-
+137 -NO-CODE-
+138 -NO-CODE-
+139 -NO-CODE-
+13A -NO-CODE-
+13B -NO-CODE-
+13C -NO-CODE-
+13D -NO-CODE-
+13E -NO-CODE-
+13F -NO-CODE-
+140 -NO-CODE-
+141 -NO-CODE-
+142 -NO-CODE-
+143 -NO-CODE-
+144 -NO-CODE-
+145 -NO-CODE-
+146 -NO-CODE-
+147 -NO-CODE-
+148 -NO-CODE-
+149 -NO-CODE-
+14A -NO-CODE-
+14B -NO-CODE-
+14C -NO-CODE-
+14D -NO-CODE-
+14E -NO-CODE-
+14F -NO-CODE-
+150 -NO-CODE-
+151 -NO-CODE-
+152 -NO-CODE-
+153 -NO-CODE-
+154 -NO-CODE-
+155 -NO-CODE-
+156 -NO-CODE-
+157 -NO-CODE-
+158 -NO-CODE-
+159 -NO-CODE-
+15A -NO-CODE-
+15B -NO-CODE-
+15C -NO-CODE-
+15D -NO-CODE-
+15E -NO-CODE-
+15F -NO-CODE-
+160 -NO-CODE-
+161 -NO-CODE-
+162 -NO-CODE-
+163 -NO-CODE-
+164 -NO-CODE-
+165 -NO-CODE-
+166 -NO-CODE-
+167 -NO-CODE-
+168 -NO-CODE-
+169 -NO-CODE-
+16A -NO-CODE-
+16B -NO-CODE-
+16C -NO-CODE-
+16D -NO-CODE-
+16E -NO-CODE-
+16F -NO-CODE-
+170 -NO-CODE-
+171 -NO-CODE-
+172 -NO-CODE-
+173 -NO-CODE-
+174 -NO-CODE-
+175 -NO-CODE-
+176 -NO-CODE-
+177 -NO-CODE-
+178 -NO-CODE-
+179 -NO-CODE-
+17A -NO-CODE-
+17B -NO-CODE-
+17C -NO-CODE-
+17D -NO-CODE-
+17E -NO-CODE-
+17F -NO-CODE-
+180 -NO-CODE-
+181 -NO-CODE-
+182 -NO-CODE-
+183 -NO-CODE-
+184 -NO-CODE-
+185 -NO-CODE-
+186 -NO-CODE-
+187 -NO-CODE-
+188 -NO-CODE-
+189 -NO-CODE-
+18A -NO-CODE-
+18B -NO-CODE-
+18C -NO-CODE-
+18D -NO-CODE-
+18E -NO-CODE-
+18F -NO-CODE-
+190 -NO-CODE-
+191 -NO-CODE-
+192 -NO-CODE-
+193 -NO-CODE-
+194 -NO-CODE-
+195 -NO-CODE-
+196 -NO-CODE-
+197 -NO-CODE-
+198 -NO-CODE-
+199 -NO-CODE-
+19A -NO-CODE-
+19B -NO-CODE-
+19C -NO-CODE-
+19D -NO-CODE-
+19E -NO-CODE-
+19F -NO-CODE-
+1A0 -NO-CODE-
+1A1 -NO-CODE-
+1A2 -NO-CODE-
+1A3 -NO-CODE-
+1A4 -NO-CODE-
+1A5 -NO-CODE-
+1A6 -NO-CODE-
+1A7 -NO-CODE-
+1A8 -NO-CODE-
+1A9 -NO-CODE-
+1AA -NO-CODE-
+1AB -NO-CODE-
+1AC -NO-CODE-
+1AD -NO-CODE-
+1AE -NO-CODE-
+1AF -NO-CODE-
+1B0 -NO-CODE-
+1B1 -NO-CODE-
+1B2 -NO-CODE-
+1B3 -NO-CODE-
+1B4 -NO-CODE-
+1B5 -NO-CODE-
+1B6 -NO-CODE-
+1B7 -NO-CODE-
+1B8 -NO-CODE-
+1B9 -NO-CODE-
+1BA -NO-CODE-
+1BB -NO-CODE-
+1BC -NO-CODE-
+1BD -NO-CODE-
+1BE -NO-CODE-
+1BF -NO-CODE-
+1C0 -NO-CODE-
+1C1 -NO-CODE-
+1C2 -NO-CODE-
+1C3 -NO-CODE-
+1C4 -NO-CODE-
+1C5 -NO-CODE-
+1C6 -NO-CODE-
+1C7 -NO-CODE-
+1C8 -NO-CODE-
+1C9 -NO-CODE-
+1CA -NO-CODE-
+1CB -NO-CODE-
+1CC -NO-CODE-
+1CD -NO-CODE-
+1CE -NO-CODE-
+1CF -NO-CODE-
+1D0 -NO-CODE-
+1D1 -NO-CODE-
+1D2 -NO-CODE-
+1D3 -NO-CODE-
+1D4 -NO-CODE-
+1D5 -NO-CODE-
+1D6 -NO-CODE-
+1D7 -NO-CODE-
+1D8 -NO-CODE-
+1D9 -NO-CODE-
+1DA -NO-CODE-
+1DB -NO-CODE-
+1DC -NO-CODE-
+1DD -NO-CODE-
+1DE -NO-CODE-
+1DF -NO-CODE-
+1E0 -NO-CODE-
+1E1 -NO-CODE-
+1E2 -NO-CODE-
+1E3 -NO-CODE-
+1E4 -NO-CODE-
+1E5 -NO-CODE-
+1E6 -NO-CODE-
+1E7 -NO-CODE-
+1E8 -NO-CODE-
+1E9 -NO-CODE-
+1EA -NO-CODE-
+1EB -NO-CODE-
+1EC -NO-CODE-
+1ED -NO-CODE-
+1EE -NO-CODE-
+1EF -NO-CODE-
+1F0 -NO-CODE-
+1F1 -NO-CODE-
+1F2 -NO-CODE-
+1F3 -NO-CODE-
+1F4 -NO-CODE-
+1F5 -NO-CODE-
+1F6 -NO-CODE-
+1F7 -NO-CODE-
+1F8 -NO-CODE-
+1F9 -NO-CODE-
+1FA -NO-CODE-
+1FB -NO-CODE-
+1FC -NO-CODE-
+1FD -NO-CODE-
+1FE -NO-CODE-
+1FF                        MOVLW osccalValue

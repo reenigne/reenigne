@@ -1,4 +1,19 @@
-Figure out why we're getting bad streams
+Figure out what to do about "can't get into sync" problem
+  Try putting a delay into root's reset so that it acts like interval timing-wise.
+    This will let us determine if the problem exists for interval<->interval as well as root<->interval
+
+Put back add/remove testcase
+Run test
+
+Use integers instead of doubles for time
+  1MHz +/- 1% in 256 steps:
+    measure time in units of cycle/(100*256):
+      25.6GHz
+    time step = 0.0390625 ns
+  if time gets too high, simulate everything up to current t and then rebase so that t=0 again.
+    1) avoid having to wait ages for a component that is a long way behind to catch up
+    2) avoid incorrect results due to timers wrapping
+
 
 If we have a loop and it gets disconnected just so, we'll get a situation where a bar is live and waiting for a data request from a disconnected direction
   After prime complete signal received, bring line low again and then bring high to signal "data request" instead of low.

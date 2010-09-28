@@ -1,8 +1,8 @@
   list p=12f508
 #include "P12F508.INC"
 
-IIII EQU 3fh
-IOII EQU 3eh
+allHigh EQU 3fh
+childLow EQU 3eh
 
 data0         EQU 07h
 data1         EQU 08h
@@ -53,12 +53,12 @@ reset
   ; Mark a new data stream
   TRIS 7
   ; Prime the child
-  MOVLW IOII
+  MOVLW childLow
   TRIS GPIO
   ; Wait for prime to be recognized
   CALL delay14
   ; Clear prime
-  MOVLW IIII
+  MOVLW allHigh
   TRIS GPIO
   ; Wait for response to be ready
   CALL delay7
@@ -67,83 +67,69 @@ reset
   GOTO reset
   ; Wait while "prime pending"
 waitForPrimeComplete
-  BTFSS GPIO, 0
+  BTFSC GPIO, 0
   GOTO waitForPrimeComplete
   ; Wait for child to set function pointers
-  CALL delay14
+  CALL delay21
 dataLoop
-  delay3
-  ; Send "data request"
-  MOVLW IOII                 ;  1   1    -6
-  TRIS GPIO                  ;  1   1    -5
   CALL delay4
-  ; Send "sync"
-  MOVLW IIII                 ;  1   0     0
-  TRIS GPIO                  ;  1   0     1
-  MOVLW IOII                 ;  1   1    -6
-  TRIS GPIO                  ;  1   1     3
-  ; Wait for child to read
-  MOVLW 0x1a
-  MOVWF count
-readDelay
-  DECFSZ count, F
-  GOTO readDelay
+  ; Send "data request"
+  MOVLW allHigh              ;  1   1    -6
+  TRIS GPIO                  ;  1   1    -5
   delay2
   ; Send "sync"
-  MOVLW IIII
-  TRIS GPIO
-  CALL delay6          ; 6    1        -8
-  MOVLW IOII                 ;  1   1    -6
-  TRIS GPIO            ; 1    1        -1
-  MOVLW IIII           ; 1    0         0
-  TRIS GPIO            ; 1    0         1
-  MOVLW IOII                 ;  1   1    -6
-  TRIS GPIO            ; 1    1         3
+  MOVLW childLow             ;  1   0     0
+  TRIS GPIO                  ;  1   0     1
+  MOVLW allHigh              ;  1   1    -6
+  TRIS GPIO                  ;  1   1     3
+  ; Wait for child to read
+  MOVLW 0x11                 ; 1
+  MOVWF count                ; 1
+readDelay
+  DECFSZ count, F            ; 1*16 + 2
+  GOTO readDelay             ; 2*16
+  delay2                     ; 2
+  ; Send "sync"
+  MOVLW childLow             ; 1    0         0
+  TRIS GPIO                  ; 1    0         1
+  MOVLW allHigh              ; 1    1        -6
+  TRIS GPIO                  ; 1    1         3
   ; Wait for child to start sending data
-  CALL delay21
-  MOVLW IIII                 ; 2
-  TRIS GPIO
+  CALL delay8
   ; Read and output data bits
   MOVLW 0                    ; 1   -1
   BTFSC GPIO, 0              ; 1    0
   MOVLW 1                    ; 1
   TRIS 5                     ; 1
-  delay1                     ; 1
   MOVLW 0                    ; 1
   BTFSC GPIO, 0              ; 1
   MOVLW 1                    ; 1
   TRIS 5                     ; 1
-  CALL delay4
   MOVLW 0                    ; 1   -1
   BTFSC GPIO, 0              ; 1    0
   MOVLW 1                    ; 1
   TRIS 5                     ; 1
-  delay1                     ; 1
   MOVLW 0                    ; 1
   BTFSC GPIO, 0              ; 1
   MOVLW 1                    ; 1
   TRIS 5                     ; 1
-  CALL delay4
   MOVLW 0                    ; 1   -1
   BTFSC GPIO, 0              ; 1    0
   MOVLW 1                    ; 1
   TRIS 5                     ; 1
-  delay1                     ; 1
   MOVLW 0                    ; 1
   BTFSC GPIO, 0              ; 1
   MOVLW 1                    ; 1
   TRIS 5                     ; 1
-  CALL delay4
   MOVLW 0                    ; 1   -1
   BTFSC GPIO, 0              ; 1    0
   MOVLW 1                    ; 1
   TRIS 5                     ; 1
-  delay1                     ; 1
   MOVLW 0                    ; 1
   BTFSC GPIO, 0              ; 1
   MOVLW 1                    ; 1
   TRIS 5                     ; 1
-  CALL delay8
+  delay1
   ; Check for more data
   BTFSC GPIO, 0
   GOTO reset
