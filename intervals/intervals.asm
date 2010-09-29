@@ -213,9 +213,7 @@ delay12
 delay11
   NOP
 delay10
-  NOP
-delay9
-  NOP
+  GOTO delay8
 delay8
   GOTO delay6
 delay6
@@ -224,8 +222,8 @@ delay4
   RETLW 0
 
 
-doFinalWrite                     ; 17
-  CALL delay10                   ; 10
+doFinalWrite                     ; 18
+  CALL delay11                   ; 11
   MOVLW reset                    ; 1
   MOVWF afterWrite               ; 1
   MOVLW highAll                  ; 1
@@ -248,7 +246,7 @@ write                            ; 43     Write needs to be called 5 cycles befo
   MOVF bits, W                   ;  1
   ANDWF more, W                  ;  1
   TRIS GPIO                      ;  1             ; more/sync init
-  CALL delay9                    ;  9
+  CALL delay10                   ; 10
   ANDWF lowChild, W              ;  1
   TRIS GPIO                      ;  1             ; sync first transition
   MOVF bits, W                   ;  1
@@ -262,7 +260,7 @@ sendUSync
   MOVWF lowChild                 ; 1
   MOVF bits, W                   ; 1
   TRIS GPIO                      ; 1              data request and sync init
-  delay2                         ; 2
+  delay3                         ; 3
   ANDWF lowChild, W              ; 1
   TRIS GPIO                      ; 1              first transition
   MOVF bits, W                   ; 1
@@ -297,7 +295,7 @@ waitForPrime
 
   unroll highPageCode
 
-initData                     ; 33
+initData                     ; 32
   MOVWF parentAxis           ; 1
   MOVLW 1                    ; 1
   if (length & 1)
@@ -324,7 +322,6 @@ initData                     ; 33
 initDelayLoop
   DECFSZ count, F            ; 1*6 + 2
   GOTO initDelayLoop         ; 2*6
-  delay1                     ; 1
   MOVF afterInitData, W      ; 1
   MOVWF PCL                  ; 1
 

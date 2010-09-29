@@ -1,15 +1,19 @@
-Figure out what to do about "can't get into sync" problem
-  Try putting a delay into root's reset so that it acts like interval timing-wise.
-    This will let us determine if the problem exists for interval<->interval as well as root<->interval
+Make sure that "prime complete" is held high for long enough to be recognized, but not so long that it is mistaken for "data request"
+
+Is it possible to confuse "prime pending" with "data"? If so:
+  Check that prime is low ~40 cycles after initial low detected - that should be high for data
+  Make sure "prime pending" is twice as long as data stream (~80 cycles)
 
 Put back add/remove testcase
 Run test
 
+Make simulator.cpp output diagrams like timings.txt
+
 Use integers instead of doubles for time
-  1MHz +/- 1% in 256 steps:
+  4MHz +/- 1% in 256 steps:
     measure time in units of cycle/(100*256):
-      25.6GHz
-    time step = 0.0390625 ns
+      102.4GHz
+    time step = 0.009765625 ns
   if time gets too high, simulate everything up to current t and then rebase so that t=0 again.
     1) avoid having to wait ages for a component that is a long way behind to catch up
     2) avoid incorrect results due to timers wrapping

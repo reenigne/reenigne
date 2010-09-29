@@ -217,66 +217,66 @@
 0D8 delay14:               GOTO delay12
 0D9 delay12:               NOP
 0DA delay11:               NOP
-0DB delay10:               NOP
-0DC delay9:                NOP
-0DD delay8:                GOTO delay6
-0DE delay6:                GOTO delay4
-0DF delay4:                RETLW 0
-0E0 doFinalWrite:          CALL delay10
-0E1 doFinalWrite           MOVLW reset
-0E2 doFinalWrite           MOVWF afterWrite
-0E3 doFinalWrite           MOVLW highAll
-0E4 doFinalWrite           MOVWF more
-0E5 doFinalWrite           MOVWF lowChild
-0E6 doFinalWrite           MOVF afterSendUSync, W
-0E7 doFinalWrite           MOVWF PCL
-0E8 write:                 MOVF bits, W
-0E9 write                  BTFSS data0, 0
-0EA write                  ANDWF lowParent, W
-0EB write                  TRIS GPIO
-0EC write                  MOVF bits, W
-0ED write                  BTFSS data1, 0
-0EE write                  ANDWF lowParent, W
-0EF write                  TRIS GPIO
-0F0 write                  MOVF bits, W
-0F1 write                  BTFSS data2, 0
-0F2 write                  ANDWF lowParent, W
-0F3 write                  TRIS GPIO
-0F4 write                  MOVF bits, W
-0F5 write                  BTFSS data3, 0
-0F6 write                  ANDWF lowParent, W
-0F7 write                  TRIS GPIO
-0F8 write                  MOVF bits, W
-0F9 write                  BTFSS data4, 0
-0FA write                  ANDWF lowParent, W
-0FB write                  TRIS GPIO
-0FC write                  MOVF bits, W
-0FD write                  BTFSS data5, 0
-0FE write                  ANDWF lowParent, W
-0FF write                  TRIS GPIO
-100 write                  MOVF bits, W
-101 write                  BTFSS data6, 0
-102 write                  ANDWF lowParent, W
-103 write                  TRIS GPIO
-104 write                  MOVF bits, W
-105 write                  BTFSS data7, 0
-106 write                  ANDWF lowParent, W
-107 write                  TRIS GPIO
-108 sendVSync:             delay1
-109 sendVSync              MOVF bits, W
-10A sendVSync              ANDWF more, W
-10B sendVSync              TRIS GPIO
-10C sendVSync              CALL delay9
-10D sendVSync              ANDWF lowChild, W
-10E sendVSync              TRIS GPIO
-10F sendVSync              MOVF bits, W
-110 sendVSync              TRIS GPIO
-111 sendVSync              MOVF afterWrite, W
-112 sendVSync              MOVWF PCL
-113 sendUSync:             MOVWF lowChild
-114 sendUSync              MOVF bits, W
-115 sendUSync              TRIS GPIO
-116 sendUSync              delay2
+0DB delay10:               GOTO delay8
+0DC delay8:                GOTO delay6
+0DD delay6:                GOTO delay4
+0DE delay4:                RETLW 0
+0DF doFinalWrite:          CALL delay11
+0E0 doFinalWrite           MOVLW reset
+0E1 doFinalWrite           MOVWF afterWrite
+0E2 doFinalWrite           MOVLW highAll
+0E3 doFinalWrite           MOVWF more
+0E4 doFinalWrite           MOVWF lowChild
+0E5 doFinalWrite           MOVF afterSendUSync, W
+0E6 doFinalWrite           MOVWF PCL
+0E7 write:                 MOVF bits, W
+0E8 write                  BTFSS data0, 0
+0E9 write                  ANDWF lowParent, W
+0EA write                  TRIS GPIO
+0EB write                  MOVF bits, W
+0EC write                  BTFSS data1, 0
+0ED write                  ANDWF lowParent, W
+0EE write                  TRIS GPIO
+0EF write                  MOVF bits, W
+0F0 write                  BTFSS data2, 0
+0F1 write                  ANDWF lowParent, W
+0F2 write                  TRIS GPIO
+0F3 write                  MOVF bits, W
+0F4 write                  BTFSS data3, 0
+0F5 write                  ANDWF lowParent, W
+0F6 write                  TRIS GPIO
+0F7 write                  MOVF bits, W
+0F8 write                  BTFSS data4, 0
+0F9 write                  ANDWF lowParent, W
+0FA write                  TRIS GPIO
+0FB write                  MOVF bits, W
+0FC write                  BTFSS data5, 0
+0FD write                  ANDWF lowParent, W
+0FE write                  TRIS GPIO
+0FF write                  MOVF bits, W
+100 write                  BTFSS data6, 0
+101 write                  ANDWF lowParent, W
+102 write                  TRIS GPIO
+103 write                  MOVF bits, W
+104 write                  BTFSS data7, 0
+105 write                  ANDWF lowParent, W
+106 write                  TRIS GPIO
+107 sendVSync:             delay1
+108 sendVSync              MOVF bits, W
+109 sendVSync              ANDWF more, W
+10A sendVSync              TRIS GPIO
+10B sendVSync              CALL delay10
+10C sendVSync              ANDWF lowChild, W
+10D sendVSync              TRIS GPIO
+10E sendVSync              MOVF bits, W
+10F sendVSync              TRIS GPIO
+110 sendVSync              MOVF afterWrite, W
+111 sendVSync              MOVWF PCL
+112 sendUSync:             MOVWF lowChild
+113 sendUSync              MOVF bits, W
+114 sendUSync              TRIS GPIO
+115 sendUSync              delay2
+116 sendUSync              delay1
 117 sendUSync              ANDWF lowChild, W
 118 sendUSync              TRIS GPIO
 119 sendUSync              MOVF bits, W
@@ -486,9 +486,9 @@
 1E5 initData               MOVWF count
 1E6 initDelayLoop:         DECFSZ count, F
 1E7 initDelayLoop          GOTO initDelayLoop
-1E8 initDelayLoop          delay1
-1E9 initData               MOVF afterInitData, W
-1EA initData               MOVWF PCL
+1E8 initData               MOVF afterInitData, W
+1E9 initData               MOVWF PCL
+1EA -NO-CODE-
 1EB -NO-CODE-
 1EC -NO-CODE-
 1ED -NO-CODE-

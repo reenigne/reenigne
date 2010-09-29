@@ -348,6 +348,7 @@ public:
                             incrementPC();
                             _skipping = true;
                         }
+                        _f = -1;
                         break;
                     case 7:
                         if (_debug) { printf("BTFSS 0x%02x, %i   ", _f, b); _program->annotation(pc).write(_console); printf("\n"); }
@@ -355,9 +356,9 @@ public:
                             incrementPC();
                             _skipping = true;
                         }
+                        _f = -1;
                         break;
                 }
-                _f = -1;
             }
         }
         else {
@@ -673,14 +674,14 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, false);
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, true);
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
         }
 
-        _bars[0]->connect(0, 2, 1, 0);
-        _bars[1]->connect(0, 0, 0, 2);
+        //_bars[0]->connect(0, 2, 1, 0);
+        //_bars[1]->connect(0, 0, 0, 2);
 
         _streamPointer = &_stream[0];
         _connectedPairs = 0;
@@ -698,87 +699,88 @@ public:
                     tt = 0;
                 }
             }
-            //if (rand() % 1000 == 0) {
-            //    // Bring all bars up to date
-            //    for (int i = 1; i <= _totalBars; ++i)
-            //        if (_bars[i]->live())
-            //            _bars[i]->simulateTo(t);
+            if (rand() % 1000 == 0) {
+                // Bring all bars up to date
+                for (int i = 1; i <= _totalBars; ++i)
+                    if (_bars[i]->live())
+                        _bars[i]->simulateTo(t);
 
-            //    _badStreamsOk = 1;
-            //    int n = rand() % (4*_totalBars + 1);
-            //    int barNumber = (n - 1)/4 + 1;
-            //    int connectorNumber = (n - 1)%4;
-            //    if (n == 0) {
-            //        barNumber = 0;
-            //        connectorNumber = 2;
-            //    }
-            //    Bar* bar = _bars[barNumber];
-            //    int connectedBarNumber = bar->connectedBar(connectorNumber);
-            //    int connectedDirection = bar->connectedDirection(connectorNumber);
-            //    if (connectedBarNumber == -1 && _connectedPairs < _totalBars*2) {
-            //        // This connector is not connected - connect it to a random disconnected connector of the opposite gender
-            //        Bar* otherBar;
-            //        if (connectorNumber == 0 || connectorNumber == 3) {
-            //            // This is a male connector.
-            //            n = rand() % (1 + 2*_totalBars - _connectedPairs);
-            //            for (connectedBarNumber = 0; connectedBarNumber <= _totalBars; ++connectedBarNumber) {
-            //                otherBar = _bars[connectedBarNumber];
-            //                if (connectedBarNumber > 0 && otherBar->connectedBar(1) == -1) {
-            //                    if (n == 0) {
-            //                        connectedDirection = 1;
-            //                        break;
-            //                    }
-            //                    --n;
-            //                }
-            //                if (otherBar->connectedBar(2) == -1) {
-            //                    if (n == 0) {
-            //                        connectedDirection = 2;
-            //                        break;
-            //                    }
-            //                    --n;
-            //                }
-            //            }
-            //        }
-            //        else {
-            //            // This is a female connector.
-            //            n = rand() % (2*_totalBars - _connectedPairs);
-            //            for (connectedBarNumber = 1; connectedBarNumber <= _totalBars; ++connectedBarNumber) {
-            //                otherBar = _bars[connectedBarNumber];
-            //                if (otherBar->connectedBar(0) == -1) {
-            //                    if (n == 0) {
-            //                        connectedDirection = 0;
-            //                        break;
-            //                    }
-            //                    --n;
-            //                }
-            //                if (otherBar->connectedBar(3) == -1) {
-            //                    if (n == 0) {
-            //                        connectedDirection = 3;
-            //                        break;
-            //                    }
-            //                    --n;
-            //                }
-            //            }
-            //        }
-            //        printf("***Connecting bar %i direction %i to bar %i direction %i\n", barNumber, connectorNumber, connectedBarNumber, connectedDirection);
-            //        bar->connect(t, connectorNumber, connectedBarNumber, connectedDirection);
-            //        otherBar->connect(t, connectedDirection, barNumber, connectorNumber);
-            //        ++_connectedPairs;
-            //    }
-            //    else {
-            //        // This connector is connected - disconnect it.
-            //        printf("***Disconnecting bar %i direction %i from bar %i direction %i\n", barNumber, connectorNumber, connectedBarNumber, connectedDirection);
-            //        Bar* connectedBar = _bars[connectedBarNumber];
-            //        bar->connect(t, connectorNumber, -1, 0);
-            //        connectedBar->connect(t, connectedDirection, -1, 0);
-            //        --_connectedPairs;
-            //    }
-            //    // Prime to update _indent
-            //    _bars[0]->prime(0);
-            //    _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
-            //    for (int i = 0; i <= _totalBars; ++i)
-            //        _bars[i]->dumpConnections();
-            //}
+                //_badStreamsOk = 1;
+                _badStreamsOk = 100;
+                int n = rand() % (4*_totalBars + 1);
+                int barNumber = (n - 1)/4 + 1;
+                int connectorNumber = (n - 1)%4;
+                if (n == 0) {
+                    barNumber = 0;
+                    connectorNumber = 2;
+                }
+                Bar* bar = _bars[barNumber];
+                int connectedBarNumber = bar->connectedBar(connectorNumber);
+                int connectedDirection = bar->connectedDirection(connectorNumber);
+                if (connectedBarNumber == -1 && _connectedPairs < _totalBars*2) {
+                    // This connector is not connected - connect it to a random disconnected connector of the opposite gender
+                    Bar* otherBar;
+                    if (connectorNumber == 0 || connectorNumber == 3) {
+                        // This is a male connector.
+                        n = rand() % (1 + 2*_totalBars - _connectedPairs);
+                        for (connectedBarNumber = 0; connectedBarNumber <= _totalBars; ++connectedBarNumber) {
+                            otherBar = _bars[connectedBarNumber];
+                            if (connectedBarNumber > 0 && otherBar->connectedBar(1) == -1) {
+                                if (n == 0) {
+                                    connectedDirection = 1;
+                                    break;
+                                }
+                                --n;
+                            }
+                            if (otherBar->connectedBar(2) == -1) {
+                                if (n == 0) {
+                                    connectedDirection = 2;
+                                    break;
+                                }
+                                --n;
+                            }
+                        }
+                    }
+                    else {
+                        // This is a female connector.
+                        n = rand() % (2*_totalBars - _connectedPairs);
+                        for (connectedBarNumber = 1; connectedBarNumber <= _totalBars; ++connectedBarNumber) {
+                            otherBar = _bars[connectedBarNumber];
+                            if (otherBar->connectedBar(0) == -1) {
+                                if (n == 0) {
+                                    connectedDirection = 0;
+                                    break;
+                                }
+                                --n;
+                            }
+                            if (otherBar->connectedBar(3) == -1) {
+                                if (n == 0) {
+                                    connectedDirection = 3;
+                                    break;
+                                }
+                                --n;
+                            }
+                        }
+                    }
+                    printf("***Connecting bar %i direction %i to bar %i direction %i\n", barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+                    bar->connect(t, connectorNumber, connectedBarNumber, connectedDirection);
+                    otherBar->connect(t, connectedDirection, barNumber, connectorNumber);
+                    ++_connectedPairs;
+                }
+                else {
+                    // This connector is connected - disconnect it.
+                    printf("***Disconnecting bar %i direction %i from bar %i direction %i\n", barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+                    Bar* connectedBar = _bars[connectedBarNumber];
+                    bar->connect(t, connectorNumber, -1, 0);
+                    connectedBar->connect(t, connectedDirection, -1, 0);
+                    --_connectedPairs;
+                }
+                // Prime to update _indent
+                _bars[0]->prime(0);
+                _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
+                for (int i = 0; i <= _totalBars; ++i)
+                    _bars[i]->dumpConnections();
+            }
         } while (true);
     }
     void streamBit(bool bit)
