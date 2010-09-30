@@ -166,7 +166,7 @@ dataRequested#v(b)
 prime#v(b)b
   MOVF bits, W
   ANDLW low#v(b)
-  CALL trisAndDelay16
+  CALL trisAndDelay21
   MOVF bits, W
   TRIS GPIO
   INCF FSR, F
@@ -202,8 +202,14 @@ initData1
   MOVLW 1  ; parent axis
   GOTO initData
 
-trisAndDelay16
+trisAndDelay21
   TRIS GPIO
+delay21
+  NOP
+delay20
+  GOTO delay18
+delay18
+  GOTO delay16
 delay16
   GOTO delay14
 delay14
@@ -213,7 +219,9 @@ delay12
 delay11
   NOP
 delay10
-  GOTO delay8
+  NOP
+delay9
+  NOP
 delay8
   GOTO delay6
 delay6
@@ -246,7 +254,8 @@ write                            ; 43     Write needs to be called 5 cycles befo
   MOVF bits, W                   ;  1
   ANDWF more, W                  ;  1
   TRIS GPIO                      ;  1             ; more/sync init
-  CALL delay10                   ;  10
+  CALL delay9                    ;  9
+  MOVF bits, W
   ANDWF lowChild, W              ;  1
   TRIS GPIO                      ;  1             ; sync first transition
   MOVF bits, W                   ;  1

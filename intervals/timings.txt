@@ -44,7 +44,7 @@
 1 |                MOVWF afterReceiveUSync   | 1 m |                                          | 1
 1 |                MOVLW low#v(b)            | 1 m |                                          | 1
 1 |                GOTO sendUSync            | 1 m |                                          | 1
-1 +------------------------------------------+ 1 m |                                          | 1
+1 +------------------------------------------+ 1 m |                MOVF bits, W              | 1
 1 +- sendUSync:    MOVWF lowChild -----------+ 1 m |                ANDWF lowChild, W         | 1
 1 |                MOVF bits, W              | 1 m |                TRIS GPIO                 | 1
 1 |                TRIS GPIO                 | 1 m |                MOVF bits, W              | 0
@@ -99,7 +99,7 @@ H +- sendVSync:    delay1 -------------------+ 1 1 |                MOVLW low#v(
 H |                MOVF bits, W              | 1 1 |                GOTO sendUSync            | 1
 H |                ANDWF more, W             | 1 1 +------------------------------------------+ 1
 H |                TRIS GPIO                 | 1 1 +- sendUSync:    MOVWF lowChild -----------+ 1
-m |                CALL delay10              | 1 1 |                MOVF bits, W              | 1
+m |                CALL delay9               | 1 1 |                MOVF bits, W              | 1
 m |                                          | 1 1 |                TRIS GPIO                 | 1
 m |                                          | 1 1 |                delay3                    | 1
 m |                                          | 1 1 |                                          | 1
@@ -108,7 +108,7 @@ m |                                          | 1 1 |                ANDWF lowChi
 m |                                          | 1 1 |                TRIS GPIO                 | 1
 m |                                          | 1 1 |                MOVF bits, W              | 0
 m |                                          | 1 1 |                TRIS GPIO                 | 0
-m |                                          | 1 1 |                MOVF afterSendUSync, W    | 1
+m |                MOVF bits, W              | 1 1 |                MOVF afterSendUSync, W    | 1
 m |                ANDWF lowChild, W         | 1 1 +--------------- MOVWF PCL ----------------+ 1
 m |                TRIS GPIO                 | 1 1 +- receiveVSync:[BTFSC GPIO, bit#v(b)]-----+ 1
 m |                MOVF bits, W              | 0 1 |                GOTO lV                   | 1
@@ -152,7 +152,7 @@ m |                TRIS GPIO                 | 0 1 |                            
 1 |                CLRF lengthLow + 7        | 1 H |                MOVF bits, W              | 1
 1 |                BTFSC GPIO, bit#v(b)      | 1 H |                ANDWF more, W             | 1
 1 |               (INCF lengthLow + 7, F)    | 1 H |                TRIS GPIO                 | 1
-1 +--------------- delay1 -------------------+ 1 m |                CALL delay10              | 1
+1 +--------------- delay1 -------------------+ 1 m |                CALL delay9               | 1
 1 +- checkForMore: MOVF after#v(b), W -------+ 1 m |                                          | 1
 1 |                BTFSC GPIO, bit#v(b)      | 1 m |                                          | 1
 1 +--------------- MOVWF PCL ----------------+ 1 m |                                          | 1
@@ -216,7 +216,7 @@ m |                TRIS GPIO                 | 0 1 |                            
   |                MOVF bits, W              |
   |                ANDWF more, W             |
   |                TRIS GPIO                 |
-  |                CALL delay10              |
+  |                CALL delay9               |
   |                                          |
   |                                          |
   |                                          |
@@ -225,7 +225,7 @@ m |                TRIS GPIO                 | 0 1 |                            
   |                                          |
   |                                          |
   |                                          |
-  |                                          |
+  |                MOVF bits, W              |
   |                ANDWF lowChild, W         |
   |                TRIS GPIO                 |
   |                MOVF bits, W              |

@@ -661,7 +661,7 @@ class Simulation
 {
 public:
     Simulation()
-      : _totalBars(100), _stream(_totalBars*8), _expectedStream(_totalBars*8), _badStreamsOk(100)
+      : _totalBars(100), _stream(_totalBars*8), _expectedStream(_totalBars*8), _badStreamsOk(100), _good(false)
     { }
     void simulate()
     {
@@ -674,7 +674,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, true);
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 1 || i == 59));
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
@@ -699,7 +699,7 @@ public:
                     tt = 0;
                 }
             }
-            if (rand() % 1000 == 0) {
+            if (_good && rand() % 1000 == 0) {
                 // Bring all bars up to date
                 for (int i = 1; i <= _totalBars; ++i)
                     if (_bars[i]->live())
@@ -794,21 +794,21 @@ public:
             int* expectedStreamPointer = &_expectedStream[0];
             _bars[0]->prime(0);
             int* expectedStreamPointerEnd = _bars[0]->storeExpectedStream(0, expectedStreamPointer);
-            bool good = true;
+            _good = true;
             _liveBars = 0;
             do {
                 if (streamPointer == _streamPointer) {
                     if (expectedStreamPointer == expectedStreamPointerEnd)
                         break;
-                    good = false;
+                    _good = false;
                     break;
                 }
                 if (expectedStreamPointer == expectedStreamPointerEnd) {
-                    good = false;
+                    _good = false;
                     break;
                 }
                 if ((*streamPointer) != (*expectedStreamPointer)) {
-                    good = false;
+                    _good = false;
                     break;
                 }
                 ++streamPointer;
@@ -816,7 +816,7 @@ public:
                 ++_liveBars;
             } while (true);
             int i;
-            if (!good) {
+            if (!_good) {
                 if (_badStreamsOk > 0)
                     printf("Ignored: ");
                 printf("Bad stream. Expected ");
@@ -875,6 +875,7 @@ private:
     int _badStreamsOk;
     int _connectedPairs;
     int _liveBars;
+    bool _good;
 };
 
 int main()
