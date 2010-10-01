@@ -1,11 +1,6 @@
-Make sure that "prime complete" is held high for long enough to be recognized, but not so long that it is mistaken for "data request"
-
 Is it possible to confuse "prime pending" with "data"? If so:
   Check that prime is low ~40 cycles after initial low detected - that should be high for data
   Make sure "prime pending" is twice as long as data stream (~80 cycles)
-
-Put back add/remove testcase
-Run test
 
 Make simulator.cpp output diagrams like timings.txt
 

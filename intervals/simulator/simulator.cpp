@@ -140,28 +140,38 @@ public:
             return;
         if (_debug)
             printf("%*sSimulating bar %i to %lf\n", _indent*8, "", _number, t);
-        while (_t < t)
-            simulateSubcycle();
+        do {
+            double deltaT = timeToNextChange();
+            double newT = _t + deltaT;
+            if (newT >= t)
+                break;
+            _t = newT;
+            if (_readSubCycle) {
+                if (_skipping)
+                    _skipping = false;
+                else {
+                    _readSubCycle = false;
+                    simulateToRead();
+                }
+            }
+            else {
+                _readSubCycle = true;
+                simulateToWrite();
+            }
+        } while (true);
     }
     void adjustTime(double t) { _t -= t; }
-    void simulateSubcycle()
+    double timeToNextChange()
     {
-        if (_skipping) {
-            _skipping = false;
-            _t = _t + 1.0;
-            return;
-        }
-        if (_readSubCycle) {
-            _t += 0.25*_tPerCycle;
-            _readSubCycle = false;
-            simulateToRead();
-        }
-        else {
-            _t += 0.75*_tPerCycle;
-            _readSubCycle = true;
-            simulateToWrite();
-        }
+        if (_readSubCycle)
+            if (_skipping)
+                return 1.0*_tPerCycle;
+            else
+                return 0.25*_tPerCycle;
+        else
+            return 0.75*_tPerCycle;
     }
+
     void simulateToRead()
     {
         if (_debug)
@@ -399,6 +409,7 @@ public:
                 case 0xe:                                
                     if (_debug) { printf("ANDLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
                     _w &= d;
+                    if (_debug) printf("W = 0x%02x\n",_w);
                     break;
                 case 0xf:
                     if (_debug) { printf("XORLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
@@ -425,8 +436,11 @@ public:
             if ((h & 2) != (_io & 2))
                 _simulation->write(_t, _connectedBar[3], _connectedDirection[3], (h & 2) != 0);
             _io = h;
-            if (_debug)
-                printf("%*sWrote 0x%02x\n", _indent*8, "", h);
+            if (_debug) {
+                printf("%*sWrote 0x%02x (0x%02x | 0x%02x)\n", _indent*8, "", h, _memory[6], _memory[0x20]);
+                if (_f == 6 && _data != 0)
+                    printf("%*sGPIO=0x%02x\n", _indent*8, "", _data);
+            }
         }
         if (_f == 2)
             _pch = 0;
@@ -573,6 +587,7 @@ private:
         else {
             _f = -1;
             _w = static_cast<UInt8>(r);
+            if (_debug) printf("W = 0x%02x\n",_w);
         }
     }
     void storeZ(UInt16 r, bool d)
@@ -673,8 +688,8 @@ public:
 
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
-            Reference<Bar> bar;
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 1 || i == 59));
+            Reference<Bar> bar;                                                
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 62 || i == 40));
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
@@ -687,7 +702,6 @@ public:
         _connectedPairs = 0;
         int tt = 0;
         do {
-            root->simulateSubcycle();
             double t = root->time();
             if (t > 256) {
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
@@ -699,7 +713,10 @@ public:
                     tt = 0;
                 }
             }
-            if (_good && rand() % 1000 == 0) {
+            t += -log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*1000;
+            root->simulateTo(t);
+            if (_good) {
+                t = root->time();
                 // Bring all bars up to date
                 for (int i = 1; i <= _totalBars; ++i)
                     if (_bars[i]->live())
