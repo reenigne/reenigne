@@ -128,7 +128,7 @@ template<class Simulation> class BarTemplate : public ReferenceCounted
 {
 public:
     BarTemplate(Simulation* simulation, const Program* program, int number, bool debug)
-      : _simulation(simulation), _program(program), _t(0), _debug(debug), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput())
+      : _simulation(simulation), _program(program), _t(0), _debug(debug), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput()), _tOfLastTris5(0)
     {
         reset();
         for (int i = 0; i < 4; ++i)
@@ -160,7 +160,7 @@ public:
             }
         } while (true);
     }
-    void adjustTime(double t) { _t -= t; }
+    void resetTime() { _tOfLastTris5 -= _t; _t = 0; }
     double timeToNextChange()
     {
         if (_readSubCycle)
@@ -210,6 +210,12 @@ public:
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
                                     _f = -1;
+                                    //if ((_t - _tOfLastTris5) > 2.1) {
+                                    //    _w = 0;
+                                    //    _tOfLastTris5 = _t;
+                                    //}
+                                    //else
+                                    //    _w = 1;
                                     if (_debug) { printf("%i               ", _w & 1); _program->annotation(pc).write(_console); printf("\n"); }
                                     _simulation->streamBit((_w & 1) != 0);
                                     break;
@@ -409,7 +415,7 @@ public:
                 case 0xe:                                
                     if (_debug) { printf("ANDLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
                     _w &= d;
-                    if (_debug) printf("W = 0x%02x\n",_w);
+                    //if (_debug) printf("W = 0x%02x\n",_w);
                     break;
                 case 0xf:
                     if (_debug) { printf("XORLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
@@ -498,6 +504,26 @@ public:
                 bar->prime(_connectedDirection[childD], indent + 1);
         }
     }
+    void dumpConnections(int parent)
+    {
+        int childB = (parent + 1) & 3;
+        int childC = (parent + 2) & 3;
+        int childD = (parent + 3) & 3;
+        printf("%*s%03i: ", _indent*2, "", _number);
+        for (int i = 0; i < 4; ++i)
+            if (_connectedBar[i] == -1)
+                printf("---/- ");
+            else
+                printf("%03i/%i ", _connectedBar[i], _connectedDirection[i]);
+        printf("\n");
+        if (_childBpresent)
+            _simulation->bar(_connectedBar[childB])->dumpConnections(_connectedDirection[childB]);
+        if (_childCpresent)
+            _simulation->bar(_connectedBar[childC])->dumpConnections(_connectedDirection[childC]);
+        if (_childDpresent)
+            _simulation->bar(_connectedBar[childD])->dumpConnections(_connectedDirection[childD]);
+        _primed = false;
+    }
     int* storeExpectedStream(int parent, int* store)
     {
         int childB = (parent + 1) & 3;
@@ -526,18 +552,6 @@ public:
     int connectedDirection(int direction) const { return _connectedDirection[direction]; }
     double time() const { return _t; }
     bool live() const { return _live; }
-    void dumpConnections() const
-    {
-        if (!_live)
-            return;
-        printf("%03i: ", _number);
-        for (int i = 0; i < 4; ++i)
-            if (_connectedBar[i] == -1)
-                printf("- ");
-            else
-                printf("%03i/%i ", _connectedBar[i], _connectedDirection[i]);
-        printf("\n");
-    }
 private:
     UInt8 readMemory(int address, UInt8 care = 0xff)
     {
@@ -587,7 +601,7 @@ private:
         else {
             _f = -1;
             _w = static_cast<UInt8>(r);
-            if (_debug) printf("W = 0x%02x\n",_w);
+//            if (_debug) printf("W = 0x%02x\n",_w);
         }
     }
     void storeZ(UInt16 r, bool d)
@@ -668,6 +682,7 @@ private:
     bool _readSubCycle;
     bool _live;
     Handle _console;
+    double _tOfLastTris5;
 };
 
 typedef BarTemplate<Simulation> Bar;
@@ -689,7 +704,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;                                                
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 62 || i == 40));
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i,/* (i == 62 || i == 13)*/false);
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
@@ -701,27 +716,21 @@ public:
         _streamPointer = &_stream[0];
         _connectedPairs = 0;
         int tt = 0;
+        double t = 0;
         do {
-            double t = root->time();
-            if (t > 256) {
+            t += -log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*10000;
+            while (t > 256) {
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                    (*i)->adjustTime(256.0);
+                    (*i)->simulateTo(256);
+                for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
+                    (*i)->resetTime();
                 t -= 256;
-                ++tt;
-                if (tt == 4096) {
-                    printf("%i ", _liveBars);
-                    tt = 0;
-                }
             }
-            t += -log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*1000;
-            root->simulateTo(t);
+            for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
+                (*i)->simulateTo(t);
+            for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
+                (*i)->resetTime();
             if (_good) {
-                t = root->time();
-                // Bring all bars up to date
-                for (int i = 1; i <= _totalBars; ++i)
-                    if (_bars[i]->live())
-                        _bars[i]->simulateTo(t);
-
                 //_badStreamsOk = 1;
                 _badStreamsOk = 100;
                 int n = rand() % (4*_totalBars + 1);
@@ -795,8 +804,8 @@ public:
                 // Prime to update _indent
                 _bars[0]->prime(0);
                 _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
-                for (int i = 0; i <= _totalBars; ++i)
-                    _bars[i]->dumpConnections();
+                //_bars[0]->prime(0);
+                //_bars[0]->dumpConnections(0);
             }
         } while (true);
     }

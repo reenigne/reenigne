@@ -15,27 +15,27 @@ low1 EQU 1fh
 low2 EQU 3eh
 low3 EQU 3dh
 
-lengthLow                  EQU 07h
-lengthMiddle               EQU 08h
-lengthHigh                 EQU 09h
-parentAxis                 EQU 0ah
-switch                     EQU 0bh
-childBpresent              EQU 0ch
-childCpresent              EQU 0dh
-childDpresent              EQU 0eh
-count                      EQU 0fh
-afterInitData              EQU 10h
-after0                     EQU 11h
-after1                     EQU 12h
-after2                     EQU 13h
-after3                     EQU 14h
-afterReceiveUSync          EQU 15h
-afterWrite                 EQU 16h
-afterSendUSync             EQU 17h
-bits                       EQU 18h
-lowParent                  EQU 19h
-lowChild                   EQU 1ah
-more                       EQU 1bh
+lengthLow         EQU 07h
+lengthMiddle      EQU 08h
+lengthHigh        EQU 09h
+parentAxis        EQU 0ah
+switch            EQU 0bh
+childBpresent     EQU 0ch
+childCpresent     EQU 0dh
+childDpresent     EQU 0eh
+afterInitData     EQU 0fh
+after0            EQU 10h
+after1            EQU 11h
+after2            EQU 12h
+after3            EQU 13h
+afterReceiveUSync EQU 14h
+afterWrite        EQU 15h
+afterSendUSync    EQU 16h
+bits              EQU 17h
+lowParent         EQU 18h
+lowChild          EQU 19h
+more              EQU 1ah
+count             EQU 1bh
 
 
 unroll macro m
@@ -84,6 +84,7 @@ prime#v(b)
   GOTO prime#v(b)b
 
 read#v(b)
+  delay1
   readBit 0, b         ; 4
   readBit 1, b         ; 4
   readBit 2, b         ; 4
@@ -126,6 +127,9 @@ highPageCode macro b
   local waitForPrimeComplete, waitForDataRequest
 
 found#v(b)
+  CALL delay44
+  BTFSC GPIO, bit#v(b)
+  GOTO waitForPrime
   BCF bits, bit#v(b)
   CALL prime#v((b+1)&3)
   CALL prime#v((b+2)&3)
@@ -166,7 +170,7 @@ waitForDataRequest
 prime#v(b)b
   MOVF bits, W
   ANDLW low#v(b)
-  CALL trisAndDelay21
+  CALL trisAndDelay67
   MOVF bits, W
   TRIS GPIO
   INCF FSR, F
@@ -202,32 +206,38 @@ initData1
   MOVLW 1  ; parent axis
   GOTO initData
 
-trisAndDelay21
+delay23      ; 2
+  MOVLW 5    ; 1
+  GOTO delayPlusOne ; 2
+
+delay44      ; 2
+  MOVLW 0x0c ; 1
+  GOTO delayPlusOne ; 2
+
+trisAndDelay67
   TRIS GPIO
-delay21
+delay67      ; 2
+  MOVLW 0x14 ; 1
+  GOTO delay
+
+delay11        ; used
   NOP
-delay20
-  GOTO delay18
-delay18
-  GOTO delay16
-delay16
-  GOTO delay14
-delay14
-  GOTO delay12
-delay12
-  NOP
-delay11
-  NOP
-delay10
-  NOP
-delay9
-  NOP
+delay10        ; used
+  GOTO delay8
 delay8
   GOTO delay6
 delay6
   GOTO delay4
+
+delayPlusOne
+  NOP
+delay
+  MOVWF count        ; 1
+delayLoop
+  DECFSZ count, F    ; 1*count + 2
+  GOTO delayLoop     ; 2*count
 delay4
-  RETLW 0
+  RETLW 0            ; 2
 
 
 doFinalWrite                     ; 18
@@ -254,7 +264,7 @@ write                            ; 43     Write needs to be called 5 cycles befo
   MOVF bits, W                   ;  1
   ANDWF more, W                  ;  1
   TRIS GPIO                      ;  1             ; more/sync init
-  CALL delay9                    ;  9
+  CALL delay10                    ;  9
   MOVF bits, W                   ;  1
   ANDWF lowChild, W              ;  1
   TRIS GPIO                      ;  1             ; sync first transition
@@ -326,18 +336,8 @@ initData                     ; 32
   BTFSC GPIO, 2              ; 1
   INCF switch, F             ; 1
 
-  MOVLW 7                    ; 1
-  MOVWF count                ; 1
-initDelayLoop
-  DECFSZ count, F            ; 1*6 + 2
-  GOTO initDelayLoop         ; 2*6
+  CALL delay23               ; 22
   MOVF afterInitData, W      ; 1
   MOVWF PCL                  ; 1
 
   end
-
-
-; TODO:
-;   Does the sendUSync delay (and hence the doFinalWrite delay) need to be longer?
-
-; 20 instructions free, 23 in low page
