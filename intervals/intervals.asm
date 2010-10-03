@@ -51,9 +51,7 @@ delay1 macro
   endm
 
 delay2 macro
-  local l
-  GOTO l
-l
+  GOTO $+1
   endm
 
 delay3 macro
@@ -62,14 +60,14 @@ delay3 macro
   endm
 
 
-readBit macro i, b       ; 4     read needs to be started 5 cycles after write
+recvBit macro i, b       ; 4     read needs to be started 5 cycles after write
   CLRF lengthLow + i         ; 1   -1
   BTFSC GPIO, bit#v(b)       ; 1    0
   INCF lengthLow + i, F      ; 1
   delay1                     ; 1
   endm
 
-writeBit macro i
+sendBit macro i
   MOVF bits, W                   ; 1    -6
   BTFSS lengthLow + i, 0         ; 1    -5
   ANDWF lowParent, W             ; 1    -4
@@ -83,16 +81,15 @@ lowPageCode macro b
 prime#v(b)
   GOTO prime#v(b)b
 
-read#v(b)
-  delay1
-  readBit 0, b         ; 4
-  readBit 1, b         ; 4
-  readBit 2, b         ; 4
-  readBit 3, b         ; 4
-  readBit 4, b         ; 4
-  readBit 5, b         ; 4
-  readBit 6, b         ; 4
-  readBit 7, b         ; 4
+recvData#v(b)
+  recvBit 0, b         ; 4
+  recvBit 1, b         ; 4
+  recvBit 2, b         ; 4
+  recvBit 3, b         ; 4
+  recvBit 4, b         ; 4
+  recvBit 5, b         ; 4
+  recvBit 6, b         ; 4
+  recvBit 7, b         ; 4
   MOVF after#v(b), W               ;  1
   BTFSC GPIO, bit#v(b)             ;  1  2
   MOVWF PCL                        ;  1  0
@@ -105,8 +102,7 @@ do#v(b)
 
 receiveVSync#v(b)         ; 5-7     receiveVSync needs to be started 4 cycles after sendVSync (+/- 1), 36 cycles after write
   BTFSC GPIO, bit#v(b)      ; 0-2  0-2  2-3  (1)
-  GOTO lU                   ; 3-5  3-5
-lU
+  delay2                    ; 3-5  3-5
   BTFSC GPIO, bit#v(b)      ; 3-4  4-5  4-5
   GOTO write                ;      5-6  5-6
   GOTO write                ; 5-6
@@ -114,8 +110,7 @@ lU
 receiveUSync#v(b)
   MOVF afterReceiveUSync, W
   BTFSC GPIO, bit#v(b)      ; 0-2  0-2  2-3  (1)
-  GOTO lV                   ; 3-5  3-5
-lV
+  delay2                    ; 3-5  3-5
   BTFSC GPIO, bit#v(b)      ; 3-4  4-5  4-5
   MOVWF PCL                 ;      5-6  5-6
   MOVWF PCL                 ; 5-6
@@ -250,15 +245,15 @@ doFinalWrite                     ; 18
   MOVF afterSendUSync, W         ; 1
   MOVWF PCL                      ; 1
 
-write                            ; 43     Write needs to be called 5 cycles before read
-  writeBit 0                     ;  4
-  writeBit 1                     ;  4
-  writeBit 2                     ;  4
-  writeBit 3                     ;  4
-  writeBit 4                     ;  4
-  writeBit 5                     ;  4
-  writeBit 6                     ;  4
-  writeBit 7                     ;  4
+sendData                         ; 43     Write needs to be called 5 cycles before read
+  sendBit 0                      ;  4
+  sendBit 1                      ;  4
+  sendBit 2                      ;  4
+  sendBit 3                      ;  4
+  sendBit 4                      ;  4
+  sendBit 5                      ;  4
+  sendBit 6                      ;  4
+  sendBit 7                      ;  4
 ; sendVSync
   delay1                         ;  1
   MOVF bits, W                   ;  1

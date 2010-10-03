@@ -167,3 +167,92 @@ delta = 5
  8   MOVWF PCL           11   GOTO write
 
 
+
+
+
+
+
+
+The optimimum send/recv data alignment for various quarter-cycle initial offsets
+    5 cycles: -2.25/+1.75  -2.50/+1.50  -2.75/+1.25  -3.00/+1.00
+    4 cycles: -1.25/+2.75  -1.50/+2.50  -1.75/+2.25  -2.00/+2.00
+
+offset 5 cycles, sync 0
+
+0.00 TRIS GPIO    +  BTFSC GPIO, bitX
+0.25              +
+0.50              +
+0.75              +
+1.00 MOVF bits, W -  delay2
+1.25              -
+1.50              -
+1.75              -
+2.00 TRIS GPIO    -
+2.25              -
+2.50              -
+2.75              -
+3.00 MOVF data, W +  BTFSC GPIO, bitX
+3.25              +
+3.50              +
+3.75              +
+4.00 TRIS GPIO    +
+4.25              +
+4.50              +
+4.75              +
+5.00 ...          D
+5.25              D
+5.50              D
+5.75              D
+6.00 ...          D
+6.25              D
+6.50              D
+6.75              D
+7.00 ...          D  BTFSS GPIO, bitX
+7.25              D  read occurs (-2.25, +1.75)
+7.50              D
+7.75              D
+8.00 ...          D
+8.25              D
+8.50              D
+8.75              D
+
+
+offset 5 cycles, sync 0.25
+
+0.00 TRIS GPIO    +
+0.25              +  BTFSC GPIO, bitX
+0.50              +
+0.75              +
+1.00 MOVF bits, W -
+1.25              -  delay2
+1.50              -
+1.75              -
+2.00 TRIS GPIO    -
+2.25              -
+2.50              -
+2.75              -
+3.00 MOVF data, W +
+3.25              +  BTFSC GPIO, bitX
+3.50              +
+3.75              +
+4.00 TRIS GPIO    +
+4.25              +
+4.50              +
+4.75              +
+5.00 ...          D
+5.25              D
+5.50              D
+5.75              D
+6.00 ...          D
+6.25              D
+6.50              D
+6.75              D
+7.00 ...          D
+7.25              D  BTFSS GPIO, bitX
+7.50              D  read occurs (-2.50, +1.50)
+7.75              D
+8.00 ...          D
+8.25              D
+8.50              D
+8.75              D
+
