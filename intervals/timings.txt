@@ -234,191 +234,12 @@ m |                TRIS GPIO                 | 0 1 |                            
   +--------------- MOVWF PCL ----------------+
 
 
-Before:
-  do
-  sendUSync
-  receiveVSync
-  write
-  sendMore
-  sendVSync
-  receiveUSync
-  read
-  checkForMore
-
-afterReceiveUSync child
-afterWrite        parent
-afterSendUSync    parent
-
-
-
-After:
-
-
-  list p=12f508
-#include "P12F508.INC"
-
-#define length 0
-
-bit0 EQU 4
-bit1 EQU 5
-bit2 EQU 0
-bit3 EQU 1
-
-highAll EQU 3fh
-
-low0 EQU 2fh
-low1 EQU 1fh
-low2 EQU 3eh
-low3 EQU 3dh
-
-lengthLow         EQU 07h
-lengthMiddle      EQU 08h
-lengthHigh        EQU 09h
-parentAxis        EQU 0ah
-switch            EQU 0bh
-childBpresent     EQU 0ch
-childCpresent     EQU 0dh
-childDpresent     EQU 0eh
-more              EQU 0fh
-recvData          EQU 10h
-recvUSync         EQU 11h
-recvVSync         EQU 12h
-setup             EQU 13h
-lowPrnt           EQU 14h
-lowChld           EQU 15h
-bits              EQU 16h
-after0            EQU 17h
-after1            EQU 18h
-after2            EQU 19h
-after3            EQU 1ah
-count             EQU 1bh
-
-unroll macro m
-  m 0
-  m 1
-  m 2
-  m 3
-  endm
-
-delay1 macro
-  NOP
-  endm
-
-delay2 macro
-  GOTO $+1
-  endm
-
-delay3 macro
-  delay2
-  delay1
-  endm
-
-recvBit macro i, b
-  CLRF lengthLow + i
-  BTFSC GPIO, bit#v(b)
-  INCF lengthLow + i, F
-  delay1
-  endm
-
-sendBit macro i
-  MOVF bits, W
-  BTFSS lengthLow + i, 0
-  ANDWF lowParent, W
-  TRIS GPIO
-  endm
-
-
-
-sendUSync
-  CALL delay5
-  MOVF bits, W
-  TRIS GPIO
-  ANDWF lowChild, W
-  TRIS GPIO
-  MOVF bits, W
-  TRIS GPIO
-  MOVF recvData, W
-  MOVWF PCL
-
-recvData#v(b)
-  CALL delay5
-  recvBit 0, b
-  recvBit 1, b
-  recvBit 2, b
-  recvBit 3, b
-  recvBit 4, b
-  recvBit 5, b
-  recvBit 6, b
-  recvBit 7, b
-  MOVF after#v(b), W
-  BTFSC GPIO, bit#v(b)
-  MOVWF setup
-  GOTO sendVSync
-
-sendVSync
-  MOVF bits, W
-  TRIS GPIO
-  ANDWF lowChild, W
-  TRIS GPIO
-  MOVF bits, W
-  TRIS GPIO
-  MOVF setup, W
-  MOVWF PCL
-
-setup#v(b)
-  BSF bits, bit#v(b)
-  MOVLW recvData#v(b)
-  MOVWF recvData
-  MOVLW low#v(b)
-  MOVWF lowChild
-  MOVF recvUSync, W
-  MOVWF PCL
-
-setupFinal
-  delay1
-  MOVLW reset
-  MOVWF recvVSync
-  MOVLW allHigh
-  MOVWF more
-  MOVF recvUSync, W
-  MOVWF PCL
-
-recvUSync#v(b)
-  BTFSC GPIO, bit#v(b)
-  delay2
-  BTFSC GPIO, bit#v(b)
-  GOTO sendData
-  GOTO sendData
-
-sendData
-  sendBit 0
-  sendBit 1
-  sendBit 2
-  sendBit 3
-  sendBit 4
-  sendBit 5
-  sendBit 6
-  sendBit 7
-  sendBit 8
-  delay2
-  MOVF bits, W
-  TRIS GPIO
-  delay1
-  MOVF recvVSync, W
-  MOVWF PCL
-
-recvVSync#v(b)
-  BTFSC GPIO, bit#v(b)
-  delay2
-  BTFSC GPIO, bit#v(b)
-  GOTO sendUSync
-  GOTO sendUSync
 
 
 + +- setupC:     BSF bits, bitX ---+ + + +--------------------------------+ +
-+ |              MOVLW recvDataX   | + + +- sendUSync:  CALL delay5       | +
-+ |              MOVWF recvData    | + + |                                | +
-+ |              MOVLW lowX        | + + |                                | +
++ |              MOVLW recvDataX   | + + +- sendUSync:  MOVF bits, W      | +
++ |              MOVWF recvData    | + + |              TRIS GPIO         | +
++ |              MOVLW lowX        | + + |              delay3            | +
 + |              MOVWF lowChld     | + + |                                | +
 + |              MOVF recvUSync, W | + + |                                | +
 + +------------- MOVWF PCL --------+ + + |              ANDWF lowChld, W  | +
@@ -477,9 +298,9 @@ M |              TRIS GPIO         | + + |              GOTO sendVSync    | +
 + |              BTFSC GPIO, bitX  | + + |              MOVF setup, W     | +
 + |              GOTO sendUSync    | + + +------------- MOVWF PCL --------+ +
 + +--------------------------------+ + + +- setupC:     BSF bits, bitX ---+ +
-+ +- sendUSync:  CALL delay5       | + + |              MOVLW recvDataX   | +
-+ |                                | + + |              MOVWF recvData    | +
-+ |                                | + + |              MOVLW lowX        | +
++ +- sendUSync:  MOVF bits, W      | + + |              MOVLW recvDataX   | +
++ |              TRIS GPIO         | + + |              MOVWF recvData    | +
++ |              delay3            | + + |              MOVLW lowX        | +
 + |                                | + + |              MOVWF lowChld     | +
 + |                                | + + |              MOVF recvUSync, W | +
 + |              ANDWF lowChld, W  | + + +------------- MOVWF PCL --------+ +

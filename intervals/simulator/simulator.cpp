@@ -275,7 +275,14 @@ public:
                         break;
                     case 0x5:
                         if (_debug) { printf("ANDWF 0x%02x, %c   ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
-                        storeZ(readMemory(_f) & _w, d);
+                        {
+                            UInt8 w = _w;
+                            UInt8 f = readMemory(_f);
+                            //if (_debug)
+                                //printf("0x%02x & 0x%02x\n",w,f);
+                            //storeZ(readMemory(_f) & _w, d);
+                            storeZ(f & w, d);
+                        }
                         break;
                     case 0x6:
                         if (_debug) { printf("XORWF 0x%02x, %c   ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
@@ -704,7 +711,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;                                                
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i,/* (i == 62 || i == 13)*/false);
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, /*(i == 0 || i == 40 || i == 89)*/ false);
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
@@ -766,7 +773,7 @@ public:
                                 --n;
                             }
                         }
-                    }
+                    }                                                                     
                     else {
                         // This is a female connector.
                         n = rand() % (2*_totalBars - _connectedPairs);

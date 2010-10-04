@@ -1,4 +1,6 @@
+We can save a few startup cycles and a few instruction words by moving startup stuff from "startup" to "initData".
 
+Check that MOVWL OSCCAL works correctly when it isn't the first (second) instruction executed
 
 Need a way to figure out what's going wrong
   Add marks to annotation (write for "TRIS GPIO")
