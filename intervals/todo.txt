@@ -1,11 +1,11 @@
-We can save a few startup cycles and a few instruction words by moving startup stuff from "startup" to "initData".
+When the hardware doesn't work:
+  Check that MOVWL OSCCAL works correctly when it isn't the first (second) instruction executed
+  Get something simpler working
+  Run timing tests (make sure MOVWF PCL takes one cycle)
 
-Check that MOVWL OSCCAL works correctly when it isn't the first (second) instruction executed
-
-Need a way to figure out what's going wrong
-  Add marks to annotation (write for "TRIS GPIO")
-
-Make simulator.cpp output diagrams like timings.txt
+Debugging helpers:
+  Add value markers to annotation (possible read values, parent write value, child write value, all pins write value)
+  Make simulator.cpp output diagrams like timings.txt
 
 Use integers instead of doubles for time
   4MHz +/- 1% in 256 steps:
@@ -15,13 +15,6 @@ Use integers instead of doubles for time
   if time gets too high, simulate everything up to current t and then rebase so that t=0 again.
     1) avoid having to wait ages for a component that is a long way behind to catch up
     2) avoid incorrect results due to timers wrapping
-
-
-If we have a loop and it gets disconnected just so, we'll get a situation where a bar is live and waiting for a data request from a disconnected direction
-  After prime complete signal received, bring line low again and then bring high to signal "data request" instead of low.
-    This means we need to do a lot more work to preserve the bit status while we're communicating
-
-To aid debugging, write a short note for each instructions and put these notes in the dump (instead of the instructions?)
 
 vary the clock speed according to a normal distribution - gradually increase the standard deviation and see when it breaks
   Are the clock speeds of real PIC12F508s normal or uniform?

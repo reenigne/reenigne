@@ -113,7 +113,6 @@ recvData#v(b)
   GOTO sendVSync
 
 setup#v(b)
-  BSF bits, bit#v(b)
   MOVLW recvData#v(b)
   MOVWF recvData
   MOVLW low#v(b)
@@ -161,6 +160,7 @@ prime
   MOVWF count      ; 1
   DECFSZ count, F  ; 1*16 + 2
   GOTO $-1         ; 2*16
+  delay1
 
   MOVF bits, W
   TRIS GPIO
@@ -213,9 +213,11 @@ sendVSync
   MOVWF PCL
 
 sendUSync
-  MOVF bits, W
+  COMF lowChld, W
+  IORWF bits, W
   TRIS GPIO
-  delay3
+  MOVWF bits
+  delay2
   ANDWF lowChld, W
   TRIS GPIO
   MOVF bits, W
@@ -227,13 +229,6 @@ startup
   MOVWF OSCCAL
   MOVLW 80h                  ; wake up on pin change disabled (80h) | weak pull-ups enabled (00h) | timer 0 clock source on instruction cycle (00h) | timer 0 source
   OPTION
-  CLRF GPIO
-  MOVLW highAll
-  MOVWF bits
-  MOVLW (recvVSync0 - init0)
-  MOVWF delta1
-  MOVLW (waitDReq0 - recvVSync0)
-  MOVWF delta2
 
 resetB
   CLRF childBpresent     ; 1
@@ -281,6 +276,7 @@ found#v(b)
   MOVWF after#v((b+1)&3)
   BTFSC childBpresent, 0
   MOVLW setup#v((b+1)&3)
+  MOVWF setup
   MOVWF PCL
 
 init#v(b)B
@@ -342,8 +338,13 @@ initData
   BTFSC GPIO, 2
   INCF switch, F
   CLRF more
-  delay2
-  CALL delay5
+  CLRF GPIO
+  MOVLW highAll
+  MOVWF bits
+  MOVLW (recvVSync0 - init0)
+  MOVWF delta1
+  MOVLW (waitDReq0 - recvVSync0)
+  MOVWF delta2
   RETLW 0
 
   end

@@ -236,72 +236,72 @@ m |                TRIS GPIO                 | 0 1 |                            
 
 
 
-+ +- setupC:     BSF bits, bitX ---+ + + +--------------------------------+ +
-+ |              MOVLW recvDataX   | + + +- sendUSync:  MOVF bits, W      | +
-+ |              MOVWF recvData    | + + |              TRIS GPIO         | +
-+ |              MOVLW lowX        | + + |              delay3            | +
-+ |              MOVWF lowChld     | + + |                                | +
-+ |              MOVF recvUSync, W | + + |                                | +
-+ +------------- MOVWF PCL --------+ + + |              ANDWF lowChld, W  | +
-+ +- recvUSyncP: BTFSC GPIO, bitX -+ + + |              TRIS GPIO         | +
-+ |              delay2            | + + |              MOVF bits, W      | -
-+ |                                | + + |              TRIS GPIO         | -
-+ |              BTFSC GPIO, bitX  | + + |              MOVF recvData, W  | +
-+ |              GOTO sendData     | + + +------------- MOVWF PCL --------+ +
-+ +--------------------------------+ + + +- recvDataC:  CALL delay5 ------+ +
-+ +- sendData:   MOVF bits, W -----+ + + |                                | +
-+ |              BTFSS data0, 0    | + + |                                | +
++ +- setupC:     MOVLW recvDataX --+ + + +--------------------------------+ +
++ |              MOVWF recvData    | + + +- sendUSync:  COMF lowChld, W --+ +
++ |              MOVLW lowX        | + + |              IORWF bits, W     | +
++ |              MOVWF lowChld     | + + |              TRIS GPIO         | +
++ |              MOVF recvUSync, W | + + |              MOVWF bits        | +
++ +------------- MOVWF PCL --------+ + + |              delay2            | +
++ +- recvUSyncP: BTFSC GPIO, bitX -+ + + |                                | +
++ |              delay2            | + + |              ANDWF lowChld, W  | +
++ |                                | + + |              TRIS GPIO         | +
++ |              BTFSC GPIO, bitX  | + + |              MOVF bits, W      | -
++ |              GOTO sendData     | + + |              TRIS GPIO         | -
++ +--------------------------------+ + + |              MOVF recvData, W  | +
++ +- sendData:   MOVF bits, W -----+ + + +------------- MOVWF PCL --------+ +
++ |              BTFSS data0, 0    | + + +- recvDataC:  CALL delay5 ------+ +
 + |             (ANDWF lowPrnt, W) | + + |                                | +
 + |              TRIS GPIO         | + + |                                | +
-0 |              MOVF bits, W      | + + |              CLRF data0        | +
-0 |              BTFSS data1, 0    | + + |              BTFSC GPIO, bitX  | +
-0 |             (ANDWF lowPrnt, W) | + + |             (INCF data0, F)    | +
-0 |              TRIS GPIO         | + + |              delay1            | +
-1 |              MOVF bits, W      | + + |              CLRF data1        | +
-1 |              BTFSS data2, 0    | + + |              BTFSC GPIO, bitX  | +
-1 |             (ANDWF lowPrnt, W) | + + |             (INCF data1, F)    | +
-1 |              TRIS GPIO         | + + |              delay1            | +
-2 |              MOVF bits, W      | + + |              CLRF data2        | +
-2 |              BTFSS data3, 0    | + + |              BTFSC GPIO, bitX  | +
-2 |             (ANDWF lowPrnt, W) | + + |             (INCF data2, F)    | +
-2 |              TRIS GPIO         | + + |              delay1            | +
-3 |              MOVF bits, W      | + + |              CLRF data3        | +
-3 |              BTFSS data4, 0    | + + |              BTFSC GPIO, bitX  | +
-3 |             (ANDWF lowPrnt, W) | + + |             (INCF data3, F)    | +
-3 |              TRIS GPIO         | + + |              delay1            | +
-4 |              MOVF bits, W      | + + |              CLRF data4        | +
-4 |              BTFSS data5, 0    | + + |              BTFSC GPIO, bitX  | +
-4 |             (ANDWF lowPrnt, W) | + + |             (INCF data4, F)    | +
-4 |              TRIS GPIO         | + + |              delay1            | +
-5 |              MOVF bits, W      | + + |              CLRF data5        | +
-5 |              BTFSS data6, 0    | + + |              BTFSC GPIO, bitX  | +
-5 |             (ANDWF lowPrnt, W) | + + |             (INCF data5, F)    | +
-5 |              TRIS GPIO         | + + |              delay1            | +
-6 |              MOVF bits, W      | + + |              CLRF data6        | +
-6 |              BTFSS data7, 0    | + + |              BTFSC GPIO, bitX  | +
-6 |             (ANDWF lowPrnt, W) | + + |             (INCF data6, F)    | +
-6 |              TRIS GPIO         | + + |              delay1            | +
-7 |              MOVF bits, W      | + + |              CLRF data7        | +
-7 |              BTFSC more, 0     | + + |              BTFSC GPIO, bitX  | +
-7 |             (ANDWF lowPrnt, W) | + + |             (INCF data7, F)    | +
-7 |              TRIS GPIO         | + + |              delay1            | +
-M |              delay2            | + + |              MOVF afterX, W    | +
-M |                                | + + |              BTFSC GPIO, bitX  | +
-M |              MOVF bits, W      | + + |              MOVWF setup       | +
-M |              TRIS GPIO         | + + |              GOTO sendVSync    | +
-+ |              delay1            | + + +--------------------------------+ +
-+ |              MOVF recvVSync, W | + + +- sendVSync:  MOVF bits, W      | +
-+ +------------- MOVWF PCL --------+ + + |              ANDWF lowChld, W  | +
-+ +- recvVSyncP: BTFSC GPIO, bitX -+ + + |              TRIS GPIO         | +
-+ |              delay2            | + + |              MOVF bits, W      | -
-+ |                                | + + |              TRIS GPIO         | -
-+ |              BTFSC GPIO, bitX  | + + |              MOVF setup, W     | +
-+ |              GOTO sendUSync    | + + +------------- MOVWF PCL --------+ +
-+ +--------------------------------+ + + +- setupC:     BSF bits, bitX ---+ +
-+ +- sendUSync:  MOVF bits, W      | + + |              MOVLW recvDataX   | +
+0 |              MOVF bits, W      | + + |                                | +
+0 |              BTFSS data1, 0    | + + |                                | +
+0 |             (ANDWF lowPrnt, W) | + + |              CLRF data0        | +
+0 |              TRIS GPIO         | + + |              BTFSC GPIO, bitX  | +
+1 |              MOVF bits, W      | + + |             (INCF data0, F)    | +
+1 |              BTFSS data2, 0    | + + |              delay1            | +
+1 |             (ANDWF lowPrnt, W) | + + |              CLRF data1        | +
+1 |              TRIS GPIO         | + + |              BTFSC GPIO, bitX  | +
+2 |              MOVF bits, W      | + + |             (INCF data1, F)    | +
+2 |              BTFSS data3, 0    | + + |              delay1            | +
+2 |             (ANDWF lowPrnt, W) | + + |              CLRF data2        | +
+2 |              TRIS GPIO         | + + |              BTFSC GPIO, bitX  | +
+3 |              MOVF bits, W      | + + |             (INCF data2, F)    | +
+3 |              BTFSS data4, 0    | + + |              delay1            | +
+3 |             (ANDWF lowPrnt, W) | + + |              CLRF data3        | +
+3 |              TRIS GPIO         | + + |              BTFSC GPIO, bitX  | +
+4 |              MOVF bits, W      | + + |             (INCF data3, F)    | +
+4 |              BTFSS data5, 0    | + + |              delay1            | +
+4 |             (ANDWF lowPrnt, W) | + + |              CLRF data4        | +
+4 |              TRIS GPIO         | + + |              BTFSC GPIO, bitX  | +
+5 |              MOVF bits, W      | + + |             (INCF data4, F)    | +
+5 |              BTFSS data6, 0    | + + |              delay1            | +
+5 |             (ANDWF lowPrnt, W) | + + |              CLRF data5        | +
+5 |              TRIS GPIO         | + + |              BTFSC GPIO, bitX  | +
+6 |              MOVF bits, W      | + + |             (INCF data5, F)    | +
+6 |              BTFSS data7, 0    | + + |              delay1            | +
+6 |             (ANDWF lowPrnt, W) | + + |              CLRF data6        | +
+6 |              TRIS GPIO         | + + |              BTFSC GPIO, bitX  | +
+7 |              MOVF bits, W      | + + |             (INCF data6, F)    | +
+7 |              BTFSC more, 0     | + + |              delay1            | +
+7 |             (ANDWF lowPrnt, W) | + + |              CLRF data7        | +
+7 |              TRIS GPIO         | + + |              BTFSC GPIO, bitX  | +
+M |              delay2            | + + |             (INCF data7, F)    | +
+M |                                | + + |              delay1            | +
+M |              MOVF bits, W      | + + |              MOVF afterX, W    | +
+M |              TRIS GPIO         | + + |              BTFSC GPIO, bitX  | +
++ |              delay1            | + + |              MOVWF setup       | +
++ |              MOVF recvVSync, W | + + |              GOTO sendVSync    | +
++ +------------- MOVWF PCL --------+ + + +--------------------------------+ +
++ +- recvVSyncP: BTFSC GPIO, bitX -+ + + +- sendVSync:  MOVF bits, W      | +
++ |              delay2            | + + |              ANDWF lowChld, W  | +
++ |                                | + + |              TRIS GPIO         | +
++ |              BTFSC GPIO, bitX  | + + |              MOVF bits, W      | -
++ |              GOTO sendUSync    | + + |              TRIS GPIO         | -
++ +--------------------------------+ + + |              MOVF setup, W     | +
++ +- sendUSync:  COMF lowChld, W --+ + + +------------- MOVWF PCL --------+ +
++ |              IORWF bits, W     | + + +- setupC:     MOVLW recvDataX --+ +
 + |              TRIS GPIO         | + + |              MOVWF recvData    | +
-+ |              delay3            | + + |              MOVLW lowX        | +
-+ |                                | + + |              MOVWF lowChld     | +
++ |              MOVWF bits        | + + |              MOVLW lowX        | +
++ |              delay2            | + + |              MOVWF lowChld     | +
 + |                                | + + |              MOVF recvUSync, W | +
 + |              ANDWF lowChld, W  | + + +------------- MOVWF PCL --------+ +
 + |              TRIS GPIO         | + + +- recvUSyncP: BTFSC GPIO, bitX -+ +

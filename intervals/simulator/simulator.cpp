@@ -711,7 +711,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;                                                
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, /*(i == 0 || i == 40 || i == 89)*/ false);
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 0 || i == 40 || i == 89));
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
