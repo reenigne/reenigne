@@ -1,7 +1,7 @@
-When the hardware doesn't work:
-  Check that MOVWL OSCCAL works correctly when it isn't the first (second) instruction executed
-  Get something simpler working
-  Run timing tests (make sure MOVWF PCL takes one cycle)
+Add to Bar a char[4]. Init to * on startup
+When reading annotations, set
+When we execute an
+
 
 Debugging helpers:
   Add value markers to annotation (possible read values, parent write value, child write value, all pins write value)
@@ -23,4 +23,8 @@ vary the clock speed according to a normal distribution - gradually increase the
 
 Simulate clock drift, jitter, output settling time
 
+When the hardware doesn't work:
+  Check that MOVWL OSCCAL works correctly when it isn't the first (second) instruction executed
+  Get something simpler working
+  Run timing tests (make sure MOVWF PCL takes one cycle)
 

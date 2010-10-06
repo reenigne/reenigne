@@ -711,7 +711,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;                                                
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 0 || i == 40 || i == 89));
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 39 || i == 39));
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
@@ -810,9 +810,9 @@ public:
                 }
                 // Prime to update _indent
                 _bars[0]->prime(0);
-                _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
+                //_bars[0]->storeExpectedStream(0, &_expectedStream[0]);
                 //_bars[0]->prime(0);
-                //_bars[0]->dumpConnections(0);
+                _bars[0]->dumpConnections(0);
             }
         } while (true);
     }
