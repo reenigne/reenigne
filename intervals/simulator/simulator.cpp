@@ -20,6 +20,7 @@ public:
 
     void load()
     {
+        String empty("");
         for (int i = 0; i < 0x400; ++i)
             _data[i] = 0;
         _done = false;
@@ -29,6 +30,8 @@ public:
         CharacterSource annotations = _annotations.start();
         for (int i = 0; i < 0x200; ++i) {
             int end;
+            int col = 0;
+            int marker = 0;
             do {
                 int c = annotations.get();
                 if (c == 10) {
@@ -39,9 +42,16 @@ public:
                     end = annotations.position();
                     break;
                 }
+                ++col;
+                if (col == 50)
+                    marker = annotations.position();
             } while (true);
             _annotation.push_back(_annotations.subString(position, end - position));
             position = annotations.position();
+            if (marker == 0)
+                _markers.push_back(empty);
+            else
+                _markers.push_back(_annotations.subString(marker, end - marker));
         }
     }
     void parseLine()
@@ -120,6 +130,7 @@ private:
     CharacterSource _source;
     String _annotations;
     std::vector<String> _annotation;
+    std::vector<String> _markers;
 };
 
 class Simulation;
@@ -430,6 +441,7 @@ public:
                     break;
             }
         }
+
     }
     void simulateToWrite()
     {
@@ -711,7 +723,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;                                                
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 39 || i == 39));
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, false /*(i == 39 || i == 39)*/);
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
@@ -810,9 +822,9 @@ public:
                 }
                 // Prime to update _indent
                 _bars[0]->prime(0);
-                //_bars[0]->storeExpectedStream(0, &_expectedStream[0]);
+                _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
                 //_bars[0]->prime(0);
-                _bars[0]->dumpConnections(0);
+                //_bars[0]->dumpConnections(0);
             }
         } while (true);
     }
