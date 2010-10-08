@@ -257,39 +257,39 @@
 100 sendData0:    NOP
 101 sendData0     NOP
 102 sendData0     NOP
-103 sendData0     NOP                             c0
+103 sendData0     NOP
 104 sendData1     NOP
 105 sendData1     NOP
 106 sendData1     NOP
-107 sendData1     NOP                             c1
+107 sendData1     NOP
 108 sendData2     NOP
 109 sendData2     NOP
 10A sendData2     NOP
-10B sendData2     NOP                             c2
+10B sendData2     NOP
 10C sendData3     NOP
 10D sendData3     NOP
 10E sendData3     NOP
-10F sendData3     NOP                             c3
+10F sendData3     NOP
 110 sendData4     NOP
 111 sendData4     NOP
 112 sendData4     NOP
-113 sendData4     NOP                             c4
+113 sendData4     NOP
 114 sendData5     NOP
 115 sendData5     NOP
 116 sendData5     NOP
-117 sendData5     NOP                             c5
+117 sendData5     NOP
 118 sendData6     NOP
 119 sendData6     NOP
 11A sendData6     NOP
-11B sendData6     NOP                             c6
+11B sendData6     NOP
 11C sendData7     NOP
 11D sendData7     NOP
 11E sendData7     NOP
-11F sendData7     NOP                             c7
+11F sendData7     NOP
 120 sendDataM     NOP
 121 sendDataM     NOP
 122 sendDataM     NOP
-123 sendDataM     NOP                             cM
+123 sendDataM     NOP
 124 sendData      delay2
 125 sendData      MOVF bits, W
 126 sendData      TRIS GPIO                       c+
@@ -322,20 +322,20 @@
 141 resetB        CLRF childDpresent
 142 resetB        MOVLW childBpresent-1
 143 resetB        MOVWF FSR
-144 waitForPrime: TRIS 7                          r.*BHJ
+144 waitForPrime: TRIS 7
 145 waitForPrime  GOTO found0
-146 waitForPrime  NOP                             r.*BHJ
+146 waitForPrime  NOP
 147 waitForPrime  NOP
-148 waitForPrime  NOP                             r.*BHJ
+148 waitForPrime  NOP
 149 waitForPrime  NOP
-14A waitForPrime  NOP                             r.*BHJ
+14A waitForPrime  NOP
 14B waitForPrime  NOP
 14C found0:       CALL initData0                  P0
 14D found0        MOVLW low0
 14E found0        MOVWF lowPrnt
 14F found0        MOVLW init0
 150 found0        CALL initHelper
-151 found0        NOP                             rB
+151 found0        NOP
 152 found0        NOP
 153 found0        BCF bits, bit0
 154 found0        CALL prime1
@@ -374,7 +374,7 @@
 175 found1        MOVWF lowPrnt
 176 found1        MOVLW init1
 177 found1        CALL initHelper
-178 found1        NOP                             rB
+178 found1        NOP
 179 found1        NOP
 17A found1        BCF bits, bit1
 17B found1        CALL prime2
@@ -413,7 +413,7 @@
 19C found2        MOVWF lowPrnt
 19D found2        MOVLW init2
 19E found2        CALL initHelper
-19F found2        NOP                             rB
+19F found2        NOP
 1A0 found2        NOP
 1A1 found2        BCF bits, bit2
 1A2 found2        CALL prime3
@@ -452,7 +452,7 @@
 1C3 found3        MOVWF lowPrnt
 1C4 found3        MOVLW init3
 1C5 found3        CALL initHelper
-1C6 found3        NOP                             rB
+1C6 found3        NOP
 1C7 found3        NOP
 1C8 found3        BCF bits, bit3
 1C9 found3        CALL prime0

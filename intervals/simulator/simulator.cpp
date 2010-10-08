@@ -123,6 +123,7 @@ public:
         return _data[address] | (_data[address + 1] << 8);
     }
     String annotation(int line) const { return _annotation[line]; }
+    String marker(int line) const { return _markers[line]; }
 private:
     UInt8 _data[0x400];
     bool _done;
@@ -142,8 +143,12 @@ public:
       : _simulation(simulation), _program(program), _t(0), _debug(debug), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput()), _tOfLastTris5(0)
     {
         reset();
-        for (int i = 0; i < 4; ++i)
+        for (int i = 0; i < 4; ++i) {
             _connectedBar[i] = -1;
+            _marker[i] = '.';
+        }
+        _child = 0;
+        _parent = 0;
     }
     void simulateTo(double t)
     {
@@ -189,6 +194,7 @@ public:
             printf("%*s% 7.2lf ", _indent*8, "", _t);
         int pc = _pch | _memory[2];
         int op = _program->op(pc);
+        String markerCode = _program->marker(pc);
         incrementPC();
         UInt16 r;
         if ((op & 0x800) == 0) {
@@ -256,7 +262,7 @@ public:
                             else
                                 printf("CLRF 0x%02x       ", _f);
                              _program->annotation(pc).write(_console);
-                             printf("\n"); 
+                             printf("\n");
                         }
                         storeZ(0, d);
                         break;
@@ -394,6 +400,7 @@ public:
                         break;
                 }
             }
+
         }
         else {
             _f = -1;
@@ -430,7 +437,7 @@ public:
                     if (_debug) { printf("IORLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
                     _w |= d;
                     break;
-                case 0xe:                                
+                case 0xe:
                     if (_debug) { printf("ANDLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
                     _w &= d;
                     //if (_debug) printf("W = 0x%02x\n",_w);
@@ -441,7 +448,47 @@ public:
                     break;
             }
         }
-
+        CharacterSource c = markerCode.start();
+        do {
+            int ch = c.get();
+            if (ch == -1)
+                break;
+            switch (ch) {
+                case 'P':
+                    _parent = c.get() - '0';
+                    break;
+                case 'C':
+                    _child = c.get() - '0';
+                    break;
+                case 'p':
+                    _marker[_parent] = c.get();
+                    break;
+                case 'c':
+                    _marker[_child] = c.get();
+                    break;
+                case 'o':
+                    {
+                        int m = c.get();
+                        for (int i = 0; i < 4; ++i)
+                            if (i != _parent && i != _child)
+                                _marker[i] = m;
+                    }
+                    break;
+                case 'r':
+                    do {
+                        int r = c.get();
+                        if (r == _readMarker)
+                            break;
+                        if (r == -1) {
+                            printf("Bar %i read marker %c, expected ", _number, _readMarker);
+                            markerCode.write(_console);
+                            printf("\n");
+                            break;
+                        }
+                    } while (true);
+                    break;
+            }
+        } while (true);
     }
     void simulateToWrite()
     {
@@ -474,17 +521,26 @@ public:
     {
         _connectedBar[direction] = connectedBar;
         _connectedDirection[direction] = connectedDirection;
+        _marker[direction] = '.';
         if (_number != 0)
             updateLive(t);
     }
-    bool read(double t, int direction)
+    bool read(double t, int direction, char* readMarker)
     {
         simulateTo(t);
         switch (direction) {
-            case 0: return (_io & 0x10) != 0;
-            case 1: return (_io & 0x20) != 0;
-            case 2: return (_io & 1) != 0;
-            case 3: return (_io & 2) != 0;
+            case 0:
+                *readMarker = _marker[0];
+                return (_io & 0x10) != 0;
+            case 1:
+                *readMarker = _marker[1];
+                return (_io & 0x20) != 0;
+            case 2:
+                *readMarker = _marker[2];
+                return (_io & 1) != 0;
+            case 3:
+                *readMarker = _marker[3];
+                return (_io & 2) != 0;
         }
         return true;
     }
@@ -582,12 +638,12 @@ private:
                 if ((_memory[0x20] & 1) == 0)
                     r |= (_memory[6] & 1);
                 else
-                    r |= (_simulation->read(_t, _connectedBar[2], _connectedDirection[2]) ? 1 : 0);
+                    r |= (_simulation->read(_t, _connectedBar[2], _connectedDirection[2], &_readMarker) ? 1 : 0);
             if ((care & 2) != 0)
                 if ((_memory[0x20] & 2) == 0)
                     r |= (_memory[6] & 2);
                 else
-                    r |= (_simulation->read(_t, _connectedBar[3], _connectedDirection[3]) ? 2 : 0);
+                    r |= (_simulation->read(_t, _connectedBar[3], _connectedDirection[3], &_readMarker) ? 2 : 0);
             if ((_memory[0x20] & 4) == 0)
                 r |= (_memory[6] & 4);
             else
@@ -596,12 +652,12 @@ private:
                 if ((_memory[0x20] & 0x10) == 0)
                     r |= (_memory[6] & 0x10);
                 else
-                    r |= (_simulation->read(_t, _connectedBar[0], _connectedDirection[0]) ? 0x10 : 0);
+                    r |= (_simulation->read(_t, _connectedBar[0], _connectedDirection[0], &_readMarker) ? 0x10 : 0);
             if ((care & 0x20) != 0)
                 if ((_memory[0x20] & 0x20) == 0)
                     r |= (_memory[6] & 0x20);
                 else
-                    r |= (_simulation->read(_t, _connectedBar[1], _connectedDirection[1]) ? 0x20 : 0);
+                    r |= (_simulation->read(_t, _connectedBar[1], _connectedDirection[1], &_readMarker) ? 0x20 : 0);
             if (_debug)
                 printf("%*sRead 0x%02x\n", _indent*8, "", r);
             return r;
@@ -702,6 +758,10 @@ private:
     bool _live;
     Handle _console;
     double _tOfLastTris5;
+    char _marker[4];
+    char _readMarker;
+    int _parent;
+    int _child;
 };
 
 typedef BarTemplate<Simulation> Bar;
@@ -722,7 +782,7 @@ public:
 
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
-            Reference<Bar> bar;                                                
+            Reference<Bar> bar;
             bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, false /*(i == 39 || i == 39)*/);
             if (i == 0)
                 root = bar;
@@ -785,7 +845,7 @@ public:
                                 --n;
                             }
                         }
-                    }                                                                     
+                    }
                     else {
                         // This is a female connector.
                         n = rand() % (2*_totalBars - _connectedPairs);
@@ -822,9 +882,9 @@ public:
                 }
                 // Prime to update _indent
                 _bars[0]->prime(0);
-                _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
+                //_bars[0]->storeExpectedStream(0, &_expectedStream[0]);
                 //_bars[0]->prime(0);
-                //_bars[0]->dumpConnections(0);
+                _bars[0]->dumpConnections(0);
             }
         } while (true);
     }
@@ -897,11 +957,11 @@ public:
             --_badStreamsOk;
     }
 
-    bool read(double t, int bar, int direction)
+    bool read(double t, int bar, int direction, char* readMarker)
     {
         if (bar == -1)
             return true;
-        return _bars[bar]->read(t, direction);
+        return _bars[bar]->read(t, direction, readMarker);
     }
     void write(double t, int bar, int direction, bool value)
     {

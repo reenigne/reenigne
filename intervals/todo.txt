@@ -1,38 +1,6 @@
-
-0 data bit 0 (length low)
-1 data bit 1 (length middle)
-2 data bit 2 (length high)
-3 data bit 3 (parent axis)
-4 data bit 4 (switch)
-5 data bit 5 (child B present)
-6 data bit 6 (child C present)
-7 data bit 7 (child D present)
-M more data to come if low
-* initialized (high)
-. disconnected (high)
-A "prime pending" (low)
-B "prime" (low)
-C "clear prime" (high)
-D "data request" (high)
-E "U Sync falling" (low)
-F "U Sync rising" (high)
-G "V Sync falling" (low)
-H "V Sync rising" (high) or complete
-I "prime complete" (high)
-J "wait for data request" (low) or "child absent or untried" (high)
-
-P set parent to
-C set child to
-c write child bit
-p write parent bit
-o write other bits
-r read bit
+Figure out why marker isn't getting initialized
 
 Debugging helpers:
-  Add value markers to annotation (possible read values, parent write value, child write value, all pins write value)
-    Add to Bar a char[4]. Init to * on startup
-    When reading annotations, set
-    When we execute an
   Make simulator.cpp output diagrams like timings.txt
 
 Use integers instead of doubles for time
