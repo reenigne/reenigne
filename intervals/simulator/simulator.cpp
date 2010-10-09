@@ -143,10 +143,8 @@ public:
       : _simulation(simulation), _program(program), _t(0), _debug(debug), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput()), _tOfLastTris5(0)
     {
         reset();
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 4; ++i)
             _connectedBar[i] = -1;
-            _marker[i] = '.';
-        }
         _child = 0;
         _parent = 0;
     }
@@ -461,17 +459,17 @@ public:
                     _child = c.get() - '0';
                     break;
                 case 'p':
-                    _marker[_parent] = c.get();
+                    _newMarker[_parent] = c.get();
                     break;
                 case 'c':
-                    _marker[_child] = c.get();
+                    _newMarker[_child] = c.get();
                     break;
                 case 'o':
                     {
                         int m = c.get();
                         for (int i = 0; i < 4; ++i)
                             if (i != _parent && i != _child)
-                                _marker[i] = m;
+                                _newMarker[i] = m;
                     }
                     break;
                 case 'r':
@@ -513,6 +511,8 @@ public:
                 if (_f == 6 && _data != 0)
                     printf("%*sGPIO=0x%02x\n", _indent*8, "", _data);
             }
+            for (int i = 0; i < 4; ++i)
+                _marker[i] = _newMarker[i];
         }
         if (_f == 2)
             _pch = 0;
@@ -521,7 +521,7 @@ public:
     {
         _connectedBar[direction] = connectedBar;
         _connectedDirection[direction] = connectedDirection;
-        _marker[direction] = '.';
+        _marker[direction] = _newMarker[direction] = '.';
         if (_number != 0)
             updateLive(t);
     }
@@ -708,6 +708,8 @@ private:
         _option = 0xff;
         _pch = 0x100;
         _readSubCycle = true;
+        for (int i = 0; i < 4; ++i)
+            _marker[i] = _newMarker[i] = '.';
     }
     void updateLive(double t)
     {
@@ -762,6 +764,7 @@ private:
     char _readMarker;
     int _parent;
     int _child;
+    char _newMarker[4];
 };
 
 typedef BarTemplate<Simulation> Bar;
@@ -770,7 +773,7 @@ class Simulation
 {
 public:
     Simulation()
-      : _totalBars(100), _stream(_totalBars*8), _expectedStream(_totalBars*8), _badStreamsOk(100), _good(false)
+      : _totalBars(100), _stream(_totalBars*8), _expectedStream(_totalBars*8), _badStreamsOk(10), _good(false)
     { }
     void simulate()
     {
@@ -783,7 +786,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, false /*(i == 39 || i == 39)*/);
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 66 || i == 58));
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
@@ -811,7 +814,7 @@ public:
                 (*i)->resetTime();
             if (_good) {
                 //_badStreamsOk = 1;
-                _badStreamsOk = 100;
+                _badStreamsOk = 10;
                 int n = rand() % (4*_totalBars + 1);
                 int barNumber = (n - 1)/4 + 1;
                 int connectorNumber = (n - 1)%4;
@@ -959,8 +962,10 @@ public:
 
     bool read(double t, int bar, int direction, char* readMarker)
     {
-        if (bar == -1)
+        if (bar == -1) {
+            *readMarker = '.';
             return true;
+        }
         return _bars[bar]->read(t, direction, readMarker);
     }
     void write(double t, int bar, int direction, bool value)

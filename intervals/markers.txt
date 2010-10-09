@@ -7,8 +7,8 @@
 6 data bit 6 (child C present)
 7 data bit 7 (child D present)
 M more data to come if low
-* initialized (high)
-. disconnected (high)
++ high between send more and receive VSync
+. default/disconnected (high)
 A "prime pending" (low)
 B "prime" (low)
 C "clear prime" (high)

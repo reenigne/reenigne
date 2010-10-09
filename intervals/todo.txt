@@ -1,5 +1,3 @@
-Figure out why marker isn't getting initialized
-
 Debugging helpers:
   Make simulator.cpp output diagrams like timings.txt
 

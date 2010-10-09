@@ -366,7 +366,7 @@
 16D prime0B       RETLW 0
 16E prime0B       INCF INDF, F
 16F prime0B       BCF bits, bit0
-170 prime0B       BTFSS GPIO, bit0                rAC
+170 prime0B       BTFSS GPIO, bit0                rAI
 171 prime0B       GOTO waitForPrimeComplete
 172 prime0B       RETLW 0
 173 found1:       CALL initData1                  P1
@@ -405,7 +405,7 @@
 194 prime1B       RETLW 0
 195 prime1B       INCF INDF, F
 196 prime1B       BCF bits, bit1
-197 prime1B       BTFSS GPIO, bit1                rAC
+197 prime1B       BTFSS GPIO, bit1                rAI
 198 prime1B       GOTO waitForPrimeComplete
 199 prime1B       RETLW 0
 19A found2:       CALL initData0                  P2
@@ -444,7 +444,7 @@
 1BB prime2B       RETLW 0
 1BC prime2B       INCF INDF, F
 1BD prime2B       BCF bits, bit2
-1BE prime2B       BTFSS GPIO, bit2                rAC
+1BE prime2B       BTFSS GPIO, bit2                rAI
 1BF prime2B       GOTO waitForPrimeComplete
 1C0 prime2B       RETLW 0
 1C1 found3:       CALL initData1                  P3
@@ -483,7 +483,7 @@
 1E2 prime3B       RETLW 0
 1E3 prime3B       INCF INDF, F
 1E4 prime3B       BCF bits, bit3
-1E5 prime3B       BTFSS GPIO, bit3                rAC
+1E5 prime3B       BTFSS GPIO, bit3                rAI
 1E6 prime3B       GOTO waitForPrimeComplete
 1E7 prime3B       RETLW 0
 1E8 init:         MOVWF recvUSync
@@ -509,4 +509,4 @@
 1FC initData      MOVLW (waitDReq0 - recvVSync0)
 1FD initData      MOVWF delta2
 1FE initData      RETLW 0
-1FF               MOVLW osccalValue               c*p*o*
+1FF               MOVLW osccalValue
