@@ -454,9 +454,33 @@ public:
             switch (ch) {
                 case 'P':
                     _parent = c.get() - '0';
+                    printf("%*sBar %i parent %i -> (", _indent*2, "", _number, _parent);
+                    if (_connectedBar[_parent] == -1)
+                        printf("disconnected");
+                    else
+                        printf("%i/%i", _connectedBar[_parent], _connectedDirection[_parent]);
+                    printf(") child %i (", _child);
+                    if (_connectedBar[_child] == -1)
+                        printf("disconnected");
+                    else
+                        printf("%i/%i", _connectedBar[_child], _connectedDirection[_child]);
+                    printf(")\n");
+                    if (_parent != _staticParent)
+                        printf("Expected %i not %i for parent of %i\n",_staticParent, _parent, _number);
                     break;
                 case 'C':
                     _child = c.get() - '0';
+                    printf("%*sBar %i parent %i (", _indent*2, "", _number, _parent);
+                    if (_connectedBar[_parent] == -1)
+                        printf("disconnected");
+                    else
+                        printf("%i/%i", _connectedBar[_parent], _connectedDirection[_parent]);
+                    printf(") child %i -> (", _child);
+                    if (_connectedBar[_child] == -1)
+                        printf("disconnected");
+                    else
+                        printf("%i/%i", _connectedBar[_child], _connectedDirection[_child]);
+                    printf(")\n");
                     break;
                 case 'p':
                     _newMarker[_parent] = c.get();
@@ -478,7 +502,7 @@ public:
                         if (r == _readMarker)
                             break;
                         if (r == -1) {
-                            printf("Bar %i read marker %c, expected ", _number, _readMarker);
+                            printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
                             markerCode.write(_console);
                             printf("\n");
                             break;
@@ -546,6 +570,7 @@ public:
     }
     void prime(int parent, int indent = 0)
     {
+        _staticParent = parent;
         _indent = indent;
         _primed = true;
         int childB = (parent + 1) & 3;
@@ -637,13 +662,17 @@ private:
             if ((care & 1) != 0)
                 if ((_memory[0x20] & 1) == 0)
                     r |= (_memory[6] & 1);
-                else
+                else {
+                    _readFromBar = _connectedBar[2];
                     r |= (_simulation->read(_t, _connectedBar[2], _connectedDirection[2], &_readMarker) ? 1 : 0);
+                }
             if ((care & 2) != 0)
                 if ((_memory[0x20] & 2) == 0)
                     r |= (_memory[6] & 2);
-                else
+                else {
+                    _readFromBar = _connectedBar[3];
                     r |= (_simulation->read(_t, _connectedBar[3], _connectedDirection[3], &_readMarker) ? 2 : 0);
+                }
             if ((_memory[0x20] & 4) == 0)
                 r |= (_memory[6] & 4);
             else
@@ -651,13 +680,17 @@ private:
             if ((care & 0x10) != 0)
                 if ((_memory[0x20] & 0x10) == 0)
                     r |= (_memory[6] & 0x10);
-                else
+                else {
+                    _readFromBar = _connectedBar[0];
                     r |= (_simulation->read(_t, _connectedBar[0], _connectedDirection[0], &_readMarker) ? 0x10 : 0);
+                }
             if ((care & 0x20) != 0)
                 if ((_memory[0x20] & 0x20) == 0)
                     r |= (_memory[6] & 0x20);
-                else
+                else {
+                    _readFromBar = _connectedBar[1];
                     r |= (_simulation->read(_t, _connectedBar[1], _connectedDirection[1], &_readMarker) ? 0x20 : 0);
+                }
             if (_debug)
                 printf("%*sRead 0x%02x\n", _indent*8, "", r);
             return r;
@@ -762,9 +795,11 @@ private:
     double _tOfLastTris5;
     char _marker[4];
     char _readMarker;
+    int _readFromBar;
     int _parent;
     int _child;
     char _newMarker[4];
+    int _staticParent;
 };
 
 typedef BarTemplate<Simulation> Bar;
@@ -786,7 +821,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 66 || i == 58));
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, false /*(i == 72 || i == 25)*/);
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
