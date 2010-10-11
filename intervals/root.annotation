@@ -237,7 +237,7 @@
 0EC prime         MOVWF count
 0ED prime         DECFSZ count, F
 0EE prime         GOTO $-1
-0EF prime         delay1
+0EF prime         delay2
 0F0 prime         MOVF bits, W
 0F1 prime         TRIS GPIO                       cC
 0F2 prime         INCF FSR, F

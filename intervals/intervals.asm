@@ -159,7 +159,7 @@ prime
   MOVWF count      ; 1
   DECFSZ count, F  ; 1*16 + 2
   GOTO $-1         ; 2*16
-  delay1
+  delay2
 
   MOVF bits, W
   TRIS GPIO

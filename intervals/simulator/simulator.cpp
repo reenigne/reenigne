@@ -140,7 +140,7 @@ template<class Simulation> class BarTemplate : public ReferenceCounted
 {
 public:
     BarTemplate(Simulation* simulation, const Program* program, int number, bool debug)
-      : _simulation(simulation), _program(program), _t(0), _debug(debug), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput()), _tOfLastTris5(0)
+      : _simulation(simulation), _program(program), _t(0), _debug(debug), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput())
     {
         reset();
         for (int i = 0; i < 4; ++i)
@@ -174,7 +174,7 @@ public:
             }
         } while (true);
     }
-    void resetTime() { _tOfLastTris5 -= _t; _t = 0; }
+    void resetTime() { _t = 0; }
     double timeToNextChange()
     {
         if (_readSubCycle)
@@ -225,12 +225,6 @@ public:
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
                                     _f = -1;
-                                    //if ((_t - _tOfLastTris5) > 2.1) {
-                                    //    _w = 0;
-                                    //    _tOfLastTris5 = _t;
-                                    //}
-                                    //else
-                                    //    _w = 1;
                                     if (_debug) { printf("%i               ", _w & 1); _program->annotation(pc).write(_console); printf("\n"); }
                                     _simulation->streamBit((_w & 1) != 0);
                                     break;
@@ -546,8 +540,6 @@ public:
         _connectedBar[direction] = connectedBar;
         _connectedDirection[direction] = connectedDirection;
         _marker[direction] = _newMarker[direction] = '.';
-        if (_number != 0)
-            updateLive(t);
     }
     bool read(double t, int direction, char* readMarker)
     {
@@ -570,6 +562,7 @@ public:
     }
     void prime(int parent, int indent = 0)
     {
+        _live = true;
         _staticParent = parent;
         _indent = indent;
         _primed = true;
@@ -652,6 +645,7 @@ public:
     int connectedDirection(int direction) const { return _connectedDirection[direction]; }
     double time() const { return _t; }
     bool live() const { return _live; }
+    void clearLive() { _live = false; }
 private:
     UInt8 readMemory(int address, UInt8 care = 0xff)
     {
@@ -744,28 +738,6 @@ private:
         for (int i = 0; i < 4; ++i)
             _marker[i] = _newMarker[i] = '.';
     }
-    void updateLive(double t)
-    {
-        // Update live flag
-        bool newLive = false;
-        for (int i = 0; i < 4; ++i)
-            if (_connectedBar[i] != -1 && _simulation->bar(_connectedBar[i])->live()) {
-                newLive = true;
-                break;
-            }
-        if (!_live && newLive) {
-            _t = t;
-            reset();
-        }
-        if (newLive != _live) {
-            _live = newLive;
-            for (int i = 0; i < 4; ++i) {
-                int n = _connectedBar[i];
-                if (n != -1)
-                    _simulation->bar(n)->updateLive(t);
-            }
-        }
-    }
 
     Simulation* _simulation;
     const Program* _program;
@@ -821,7 +793,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, false /*(i == 72 || i == 25)*/);
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 0 || i == 89));
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
@@ -919,6 +891,8 @@ public:
                     --_connectedPairs;
                 }
                 // Prime to update _indent
+                for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
+                    (*i)->clearLive();
                 _bars[0]->prime(0);
                 //_bars[0]->storeExpectedStream(0, &_expectedStream[0]);
                 //_bars[0]->prime(0);

@@ -1,3 +1,8 @@
+Bar 66 read marker J from 58, expected r.     ok (loop)
+Bar 58 read marker J from 66, expected r.A    ok (loop)
+Bar 36 read marker . from -1, expected rAI    ok (disconnected during waitForPrimeComplete)
+
+
 Debugging helpers:
   Make simulator.cpp output diagrams like timings.txt
 

@@ -237,7 +237,7 @@
 0EC prime         MOVWF count
 0ED prime         DECFSZ count, F
 0EE prime         GOTO $-1
-0EF prime         delay1
+0EF prime         delay2
 0F0 prime         MOVF bits, W
 0F1 prime         TRIS GPIO                       cC
 0F2 prime         INCF FSR, F
@@ -357,7 +357,7 @@
 164 init0B:       MOVLW recvUSync0
 165 init0B        GOTO init
 166 waitDReq0B:   MOVF recvUSync, W
-167 waitDReq0C:   BTFSS GPIO, bit0                rJD
+167 waitDReq0C:   BTFSS GPIO, bit0                rJD+
 168 waitDReq0C    GOTO waitDReq0C
 169 waitDReq0C    MOVWF PCL
 16A prime0B:      MOVLW low0
@@ -396,7 +396,7 @@
 18B init1B:       MOVLW recvUSync1
 18C init1B        GOTO init
 18D waitDReq1B:   MOVF recvUSync, W
-18E waitDReq1C:   BTFSS GPIO, bit1                rJD
+18E waitDReq1C:   BTFSS GPIO, bit1                rJD+
 18F waitDReq1C    GOTO waitDReq1C
 190 waitDReq1C    MOVWF PCL
 191 prime1B:      MOVLW low1
@@ -435,7 +435,7 @@
 1B2 init2B:       MOVLW recvUSync2
 1B3 init2B        GOTO init
 1B4 waitDReq2B:   MOVF recvUSync, W
-1B5 waitDReq2C:   BTFSS GPIO, bit2                rJD
+1B5 waitDReq2C:   BTFSS GPIO, bit2                rJD+
 1B6 waitDReq2C    GOTO waitDReq2C
 1B7 waitDReq2C    MOVWF PCL
 1B8 prime2B:      MOVLW low2
@@ -474,7 +474,7 @@
 1D9 init3B:       MOVLW recvUSync3
 1DA init3B        GOTO init
 1DB waitDReq3B:   MOVF recvUSync, W
-1DC waitDReq3C:   BTFSS GPIO, bit3                rJD
+1DC waitDReq3C:   BTFSS GPIO, bit3                rJD+
 1DD waitDReq3C    GOTO waitDReq3
 1DE waitDReq3C    MOVWF PCL
 1DF prime3B:      MOVLW low3
