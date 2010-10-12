@@ -242,7 +242,7 @@
 0F1 prime         TRIS GPIO                       cC
 0F2 prime         INCF FSR, F
 0F3 prime         RETLW 0
-0F4 setupFinal:   delay2
+0F4 setupFinal:   delay1
 0F5 setupFinal    MOVLW reset
 0F6 setupFinal    MOVWF recvVSync
 0F7 setupFinal    MOVWF more
@@ -322,13 +322,13 @@
 141 resetB        CLRF childDpresent
 142 resetB        MOVLW childBpresent-1
 143 resetB        MOVWF FSR
-144 waitForPrime: BTFSS GPIO, bit3                r.*BHJ
+144 waitForPrime: BTFSS GPIO, bit3                r.*BHJ+
 145 waitForPrime  GOTO found3
-146 waitForPrime  BTFSS GPIO, bit2                r.*BHJ
+146 waitForPrime  BTFSS GPIO, bit2                r.*BHJ+
 147 waitForPrime  GOTO found2
-148 waitForPrime  BTFSS GPIO, bit1                r.*BHJ
+148 waitForPrime  BTFSS GPIO, bit1                r.*BHJ+
 149 waitForPrime  GOTO found1
-14A waitForPrime  BTFSC GPIO, bit0                r.*BHJ
+14A waitForPrime  BTFSC GPIO, bit0                r.*BHJ+
 14B waitForPrime  GOTO waitForPrime
 14C found0:       CALL initData0                  P0
 14D found0        MOVLW low0

@@ -168,7 +168,7 @@ prime
   RETLW 0
 
 setupFinal
-  delay2
+  delay1
   MOVLW reset
   MOVWF recvVSync  ; Check that low bit is 1 so that "more" is set correctly
   MOVWF more

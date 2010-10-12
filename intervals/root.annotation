@@ -242,7 +242,7 @@
 0F1 prime         TRIS GPIO                       cC
 0F2 prime         INCF FSR, F
 0F3 prime         RETLW 0
-0F4 setupFinal:   delay2
+0F4 setupFinal:   delay1
 0F5 setupFinal    MOVLW reset
 0F6 setupFinal    MOVWF recvVSync
 0F7 setupFinal    MOVWF more

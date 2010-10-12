@@ -1,6 +1,33 @@
+
+Bar 89 read marker C from 0, expected rB        ok (settling)
+Bar 89 read marker C from 0, expected r.*BHJ+   ok (settling)
+Bar 66 read marker J from 58, expected r.A      ok (loop)
+Bar 58 read marker J from 66, expected r.A      ok (loop)
+Bar 11 read marker J from 94, expected r.A      ok (loop)
+Bar 25 read marker J from 18, expected r.A      ok (loop)
+Bar 71 read marker J from 32, expected r.A      ok (loop)
+Bar 32 read marker J from 71, expected r.A      ok (loop)
+Bar 94 read marker J from 11, expected r.A      ok (loop)
+Bar 18 read marker J from 25, expected r.A      ok (loop)
+Bar 47 read marker + from 79, expected r0
+
+
+
+
+
 Bar 66 read marker J from 58, expected r.     ok (loop)
 Bar 58 read marker J from 66, expected r.A    ok (loop)
 Bar 36 read marker . from -1, expected rAI    ok (disconnected during waitForPrimeComplete)
+Bar 36 read marker . from -1, expected r0     ok (disconnected during waitForPrimeComplete)
+Bar 36 read marker . from -1, expected r1     ok (disconnected during waitForPrimeComplete)
+Bar 36 read marker . from -1, expected r2     ok (disconnected during waitForPrimeComplete)
+Bar 36 read marker . from -1, expected r3     ok (disconnected during waitForPrimeComplete)
+Bar 36 read marker . from -1, expected r4     ok (disconnected during waitForPrimeComplete)
+Bar 36 read marker . from -1, expected r5     ok (disconnected during waitForPrimeComplete)
+Bar 36 read marker . from -1, expected r6     ok (disconnected during waitForPrimeComplete)
+Bar 36 read marker . from -1, expected r7     ok (disconnected during waitForPrimeComplete)
+Bar 36 read marker . from -1, expected rM     ok (disconnected during waitForPrimeComplete)
+
 
 
 Debugging helpers:
