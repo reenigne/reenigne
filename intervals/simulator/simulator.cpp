@@ -225,8 +225,14 @@ public:
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
                                     _f = -1;
-                                    if (_debug) { printf("%i               ", _w & 1); _program->annotation(pc).write(_console); printf("\n"); }
-                                    _simulation->streamBit((_w & 1) != 0);
+                                    {
+                                        for (int i = 0; i < 8; ++i) {
+                                            _simulation->streamBit((_memory[7+i] & 1) != 0);
+                                            if (_debug)
+                                                printf("%i", _memory[7+i] & 1);
+                                        }
+                                    }
+                                    if (_debug) { printf("        "); _program->annotation(pc).write(_console); printf("\n"); }
                                     break;
                                 case 6:
                                     if (_debug) { printf("TRIS GPIO       "); _program->annotation(pc).write(_console); printf("\n"); }
@@ -570,29 +576,29 @@ public:
         int childC = (parent + 2) & 3;
         int childD = (parent + 3) & 3;
         int childBbar = _connectedBar[childB];
-        _childBpresent = (childBbar != -1);
-        if (_childBpresent) {
+        _childBabsent = (childBbar == -1);
+        if (!_childBabsent) {
             Bar* bar = _simulation->bar(childBbar);
             if (bar->primed())
-                _childBpresent = false;
+                _childBabsent = true;
             else
                 bar->prime(_connectedDirection[childB], indent + 1);
         }
         int childCbar = _connectedBar[childC];
-        _childCpresent = (childCbar != -1);
-        if (_childCpresent) {
+        _childCabsent = (childCbar == -1);
+        if (!_childCabsent) {
             Bar* bar = _simulation->bar(childCbar);
             if (bar->primed())
-                _childCpresent = false;
+                _childCabsent = true;
             else
                 bar->prime(_connectedDirection[childC], indent + 1);
         }
         int childDbar = _connectedBar[childD];
-        _childDpresent = (childDbar != -1);
-        if (_childDpresent) {
+        _childDabsent = (childDbar == -1);
+        if (!_childDabsent) {
             Bar* bar = _simulation->bar(childDbar);
             if (bar->primed())
-                _childDpresent = false;
+                _childDabsent = true;
             else
                 bar->prime(_connectedDirection[childD], indent + 1);
         }
@@ -609,11 +615,11 @@ public:
             else
                 printf("%03i/%i ", _connectedBar[i], _connectedDirection[i]);
         printf("\n");
-        if (_childBpresent)
+        if (!_childBabsent)
             _simulation->bar(_connectedBar[childB])->dumpConnections(_connectedDirection[childB]);
-        if (_childCpresent)
+        if (!_childCabsent)
             _simulation->bar(_connectedBar[childC])->dumpConnections(_connectedDirection[childC]);
-        if (_childDpresent)
+        if (!_childDabsent)
             _simulation->bar(_connectedBar[childD])->dumpConnections(_connectedDirection[childD]);
         _primed = false;
     }
@@ -628,15 +634,15 @@ public:
             *(store++) = 0;
             *(store++) = parent&1;
             *(store++) = 1;
-            *(store++) = _childBpresent ? 1 : 0;
-            *(store++) = _childCpresent ? 1 : 0;
-            *(store++) = _childDpresent ? 1 : 0;
+            *(store++) = _childBabsent ? 1 : 0;
+            *(store++) = _childCabsent ? 1 : 0;
+            *(store++) = _childDabsent ? 1 : 0;
         }
-        if (_childBpresent)
+        if (!_childBabsent)
             store = _simulation->bar(_connectedBar[childB])->storeExpectedStream(_connectedDirection[childB], store);
-        if (_childCpresent)
+        if (!_childCabsent)
             store = _simulation->bar(_connectedBar[childC])->storeExpectedStream(_connectedDirection[childC], store);
-        if (_childDpresent)
+        if (!_childDabsent)
             store = _simulation->bar(_connectedBar[childD])->storeExpectedStream(_connectedDirection[childD], store);
         _primed = false;
         return store;
@@ -761,9 +767,9 @@ private:
     int _f;
     UInt8 _data;
     bool _primed;
-    bool _childBpresent;
-    bool _childCpresent;
-    bool _childDpresent;
+    bool _childBabsent;
+    bool _childCabsent;
+    bool _childDabsent;
     bool _readSubCycle;
     bool _live;
     Handle _console;
@@ -797,7 +803,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, false /*(i == 78 || i == 7)*/);
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 0 || i == 89));
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
@@ -897,12 +903,12 @@ public:
                     --_connectedPairs;
                 }
                 changes++;
-                if (changes == 696) {
-                    _bars[7]->debug();
-                    _bars[78]->debug();
-                }
-                if (changes == 698)
-                    exit(0);
+//                if (changes == 696) {
+//                    _bars[7]->debug();
+//                    _bars[78]->debug();
+//                }
+//                if (changes == 698)
+//                    exit(0);
                 // Prime to update _indent
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->clearLive();

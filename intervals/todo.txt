@@ -1,4 +1,7 @@
-Saw a desync between 78 and 7 - investigate
+Make Sync correct up to 4 cycles
+  Fix up root
+  Fix up annotations
+
 
 Figure out if there are any situations where we stay out of sync permanently (or take more than linear time to get back into sync)
   Show number of cycles from connect/disconnect to good stream

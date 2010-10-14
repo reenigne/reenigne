@@ -20,25 +20,22 @@ lengthMiddle      EQU 08h
 lengthHigh        EQU 09h
 parentAxis        EQU 0ah
 switch            EQU 0bh
-childBpresent     EQU 0ch
-childCpresent     EQU 0dh
-childDpresent     EQU 0eh
+childBabsent      EQU 0ch
+childCabsent      EQU 0dh
+childDabsent      EQU 0eh
 more              EQU 0fh
 recvData          EQU 10h
-recvUSync         EQU 11h
-recvVSync         EQU 12h
-setup             EQU 13h
-lowPrnt           EQU 14h
-lowChld           EQU 15h
-bits              EQU 16h
-after0            EQU 17h
-after1            EQU 18h
-after2            EQU 19h
-after3            EQU 1ah
-count             EQU 1bh
-waitDReq          EQU 1ch
-delta1            EQU 1dh
-delta2            EQU 1eh
+recvSync          EQU 11h
+lowPrnt           EQU 12h
+lowChld           EQU 13h
+bits              EQU 14h
+after0            EQU 15h
+after1            EQU 16h
+after2            EQU 17h
+after3            EQU 18h
+count             EQU 19h
+waitDReq          EQU 1ah
+delta             EQU 1bh
 
 
 unroll macro m
@@ -64,10 +61,9 @@ delay3 macro
 
 
 recvBit macro i, b
-  MOVLW 0
   BTFSC GPIO, bit#v(b)
-  MOVLW 1
-  TRIS 5
+  INCF lengthLow + i, F
+  delay2
   endm
 
 sendBit macro i
@@ -83,8 +79,6 @@ sendBit macro i
 ; --- low page ---
 
   GOTO startup
-reset                ; Don't move this label - it's also used to set "more"
-  GOTO resetB
 foundHelper
   GOTO foundHelperB
 
@@ -98,7 +92,6 @@ waitDReq#v(b)
   GOTO waitDReq#v(b)B
 
 recvData#v(b)
-  CALL delay5
   recvBit 0, b
   recvBit 1, b
   recvBit 2, b
@@ -106,33 +99,32 @@ recvData#v(b)
   recvBit 4, b
   recvBit 5, b
   recvBit 6, b
-  recvBit 7, b
+  BTFSC GPIO, bit#v(b)
+  INCF lengthLow + 7, F
+  TRIS 5
   MOVF after#v(b), W
   BTFSC GPIO, bit#v(b)
-  MOVWF setup
-  GOTO sendVSync
-
+  MOVWF PCL
 setup#v(b)
   MOVLW recvData#v(b)
   MOVWF recvData
   MOVLW low#v(b)
+setupF#v(b)
   MOVWF lowChld
-  MOVF recvUSync, W
+  MOVF recvSync, W
   MOVWF PCL
 
-recvUSync#v(b)
+recvSync#v(b)
+  BTFSC GPIO, bit#v(b)
+  delay2
+  delay1
+  BTFSS GPIO, bit#v(b)
+  delay2
   BTFSC GPIO, bit#v(b)
   delay2
   BTFSC GPIO, bit#v(b)
   GOTO sendData
   GOTO sendData
-
-recvVSync#v(b)
-  BTFSC GPIO, bit#v(b)
-  delay2
-  BTFSC GPIO, bit#v(b)
-  GOTO sendUSync
-  GOTO sendUSync
 
   endm
 
@@ -147,15 +139,11 @@ initData1
   MOVLW 1  ; parent axis
   GOTO initData
 
-delay5     ; used
-  delay1
-  RETLW 0
-
 prime
   ANDWF bits, W
   TRIS GPIO
 
-  ; delay for 46 + 6 cycles (can't use a subroutine - already have prime#v(b) and found#v(b) on the stack)
+  ; delay for 54 cycles
   MOVLW 0x11       ; 1
   MOVWF count      ; 1
   DECFSZ count, F  ; 1*16 + 2
@@ -168,23 +156,17 @@ prime
   RETLW 0
 
 setupFinal
-  delay1
-  MOVLW reset
-  MOVWF recvVSync  ; Check that low bit is 1 so that "more" is set correctly
-  MOVWF more
-  MOVF recvUSync, W
-  MOVWF PCL
+  CLRF more
+  GOTO setupF0
 
 initHelper
-  MOVWF recvUSync
-  ADDWF delta1, W
-  MOVWF recvVSync
-  ADDWF delta2, W
+  MOVWF recvSync
+  ADDWF delta, W
   MOVWF waitDReq
   RETLW 0
 
 
-; --- high page (actually starts somewhere in initHelper) ---
+; --- high page (actually starts somewhere in sendData, can be anywhere after initHelper label) ---
 
 sendData
   sendBit 0
@@ -194,34 +176,32 @@ sendData
   sendBit 4
   sendBit 5
   sendBit 6
-  sendBit 7
-  sendBit 8
-  delay2
-  MOVF bits, W
-  TRIS GPIO
-  delay1
-  MOVF recvVSync, W
-  MOVWF PCL
-
-sendVSync
-  MOVF bits, W
-  ANDWF lowChld, W
-  TRIS GPIO
-  MOVF bits, W
-  TRIS GPIO
-  MOVF setup, W
-  MOVWF PCL
-
-sendUSync
+  sendBit 7         ; If there's no more data the child bits are guaranteed to be 1 (or their data would follow) so we don't need to send "more" separately
+  BTFSS more, 0
+  GOTO reset
+  NOP
+  NOP
   COMF lowChld, W
   IORWF bits, W
-  TRIS GPIO
   MOVWF bits
-  delay2
+  TRIS GPIO         ; clear "more" and send "data request" or "sync initial high" to child
+  CLRF lengthLow + 0
+  CLRF lengthLow + 1
   ANDWF lowChld, W
-  TRIS GPIO
+  TRIS GPIO         ; send "sync first falling" to child
+  CLRF lengthLow + 2
   MOVF bits, W
-  TRIS GPIO
+  TRIS GPIO         ; send "sync first rising" to child
+  ANDWF lowChld, W
+  TRIS GPIO         ; send "sync second falling" to child
+  MOVF bits, W
+  TRIS GPIO         ; send "sync second rising" to child
+  CLRF lengthLow + 3
+  CLRF lengthLow + 4
+  CLRF lengthLow + 5
+  CLRF lengthLow + 6
+  CLRF lengthLow + 7
+  delay1
   MOVF recvData, W
   MOVWF PCL
 
@@ -230,11 +210,12 @@ startup
   MOVLW 80h                  ; wake up on pin change disabled (80h) | weak pull-ups enabled (00h) | timer 0 clock source on instruction cycle (00h) | timer 0 source
   OPTION
 
-resetB
-  CLRF childBpresent     ; 1
-  CLRF childCpresent     ; 1
-  CLRF childDpresent     ; 1
-  MOVLW childBpresent-1  ; 1
+reset
+  MOVLW 1                ; 1
+  MOVWF childBabsent     ; 1
+  MOVWF childCabsent     ; 1
+  MOVWF childDabsent     ; 1
+  MOVLW childBabsent-1   ; 1
   MOVWF FSR              ; 1
 waitForPrime
   TRIS 7
@@ -247,7 +228,6 @@ waitForPrime
   NOP
 
 highPageCode macro b
-  local waitForPrimeComplete
 
   ; We get here 1.75-11.75 cycles after prime goes low
 found#v(b)
@@ -268,46 +248,47 @@ found#v(b)
   BSF bits, bit#v(b)
   CALL foundHelper
   MOVWF after#v((b+3)&3)
-  BTFSC childDpresent, 0
+  BTFSS childDabsent, 0
   MOVLW setup#v((b+3)&3)
   MOVWF after#v((b+2)&3)
-  BTFSC childCpresent, 0
+  BTFSS childCabsent, 0
   MOVLW setup#v((b+2)&3)
   MOVWF after#v((b+1)&3)
-  BTFSC childBpresent, 0
+  BTFSS childBabsent, 0
   MOVLW setup#v((b+1)&3)
-  MOVWF setup
   MOVWF PCL
 
 init#v(b)B
-  MOVLW recvUSync#v(b)
+  MOVLW recvSync#v(b)
   GOTO init
 
 waitDReq#v(b)B
-  MOVF recvUSync, W
-waitDReq#v(b)C
   BTFSS GPIO, bit#v(b)
-  GOTO waitDReq#v(b)C
-  MOVWF PCL
+  GOTO $-1
+  GOTO gotDReq
 
 prime#v(b)B
   MOVLW low#v(b)
   CALL prime
   BTFSC GPIO, bit#v(b)
   RETLW 0
-  INCF INDF, F
+  DECF INDF, F
   BCF bits, bit#v(b)
-waitForPrimeComplete
-  BTFSS GPIO, bit#v(b)
-  GOTO waitForPrimeComplete
+  BTFSS GPIO, bit#v(b)  ; wait for prime complete
+  GOTO $-1
   RETLW 0
 
   endm
 
   unroll highPageCode
 
+gotDReq
+  MOVLW 5
+  ADDWF recvSync, W
+  MOVWF PCL
+
 init
-  MOVWF recvUSync
+  MOVWF recvSync
   MOVF waitDReq, W
   MOVWF PCL
 
@@ -334,17 +315,15 @@ initData
   else
     CLRF lengthHigh
   endif
+  MOVWF more
   CLRF switch
   BTFSC GPIO, 2
   INCF switch, F
-  CLRF more
   CLRF GPIO
   MOVLW highAll
   MOVWF bits
-  MOVLW (recvVSync0 - init0)
-  MOVWF delta1
-  MOVLW (waitDReq0 - recvVSync0)
-  MOVWF delta2
+  MOVLW (waitDReq0 - init0)
+  MOVWF delta
   RETLW 0
 
   end

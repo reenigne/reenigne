@@ -1,258 +1,114 @@
-USync is the one that happens first (before read and initData)
+  parent:                 cycle starts at time   pin at start of cycle
+    MOVF bits, W          0                      ?
+    TRIS GPIO             1                      ?
+    delay2                2                      1
+                          3                      1
+    ANDWF lowChld, W      4                      1
+    TRIS GPIO             5                      1
+    delay1                6                      0
+    MOVF bits, W          7                      0
+    TRIS GPIO             8                      0
+    ANDWF lowChld, W      9                      1
+    TRIS GPIO            10                      1
+    MOVF bits, W         11                      0
+    TRIS GPIO            12                      0
+    ...                  13                      1
+  child:
+    BTFSC GPIO, bit#v(b)  2-3   3-4   4-5   5-6   6-7
+    delay2                3-4   4-5   5-6   6-7
+    delay1                5-6   6-7   7-8   8-9   8-9
+    BTFSS GPIO, bit#v(b)  6-7   7-8   8-9   9-10  9-10
+    delay2                7-8   8-9   9-10
+    BTFSC GPIO, bit#v(b)  9-10 10-11 12-12 11-12 11-12
+    delay2               10-11 11-12
+    BTFSC GPIO, bit#v(b) 12-13 13-14 13-14 13-14 13-14
+    GOTO sendData              14-15 14-15 14-15 14-15
+    GOTO sendData        14-15
 
 
+    sendSync                 b    receiveSync
+14-cycle:
+ 0  MOVF bits, W             ?
+ 1  TRIS GPIO                ?
+ 2  delay2                   1    BTFSC GPIO, bit#v(b)
+ 3                           1    delay2
+ 4  ANDWF lowChld, W         1
+ 5  TRIS GPIO                1    delay1
+ 6  delay1                   0    BTFSS GPIO, bit#v(b)
+ 7  MOVF bits, W             0    delay2
+ 8  TRIS GPIO                0
+ 9  ANDWF lowChld, W         1    BTFSC GPIO, bit#v(b)
+10  TRIS GPIO                1    delay2
+11  MOVF bits, W             0
+12  TRIS GPIO                0    BTFSC GPIO, bit#v(b)
+13                           1
+14                                GOTO sendData
 
-; TODO: reverse polarity
+13-cycle:
+ 0  MOVF bits, W             ?
+ 1  TRIS GPIO                ?
+ 2  delay2                   1
+ 3                           1    BTFSC GPIO, bit#v(b)
+ 4  ANDWF lowChld, W         1    delay2
+ 5  TRIS GPIO                1
+ 6  delay1                   0    delay1
+ 7  MOVF bits, W             0    BTFSS GPIO, bit#v(b)
+ 8  TRIS GPIO                0    delay2
+ 9  ANDWF lowChld, W         1
+10  TRIS GPIO                1    BTFSC GPIO, bit#v(b)
+11  MOVF bits, W             0    delay2
+12  TRIS GPIO                0
+13                           1    BTFSC GPIO, bit#v(b)
+14                                GOTO sendData
 
-; Write synchronization primitives
-;   Assume that TRIS changes the pin at the end of the cycle
-;   Assume that BTFSC/BTFSS reads the pin at the start of the cycle
-;   Assuming the PICs are in sync 0-2 cycles, reduce this to 0-1 cycles
-;     parent:           cycle starts at time   pin at start of cycle
-;       MOVLW IIII      0                      ?
-;       TRIS GPIO       1                      ?
-;       MOVLW IIOI      2                      1
-;       TRIS GPIO       3                      1
-;       ...             4                      0
-;
-;     child:             1    0
-;       BTFSS GPIO, 0   3-4  4-5
-;       GOTO foo             5-6
-;       GOTO foo        5-6
-;
-;   Assuming the PICs are in sync 0-3 cycles, reduce this to 0-1 cycles
-;     parent:           cycle starts at time   pin at start of cycle
-;       MOVLW IIOI      -2                     ?
-;       TRIS GPIO       -1                     ?
-;       MOVLW IIII      0                      0
-;       TRIS GPIO       1                      0
-;       MOVLW IIOI      2                      1
-;       TRIS GPIO       3                      1
-;       ...             4                      0
-;
-;     child:
-;       BTFSS GPIO, 0  0-2  0-2  2-3
-;       GOTO bar       1-3  1-3
-;     bar
-;       BTFSS GPIO, 0  3-4  4-5  4-5
-;       GOTO foo            5-6  5-6
-;       GOTO foo       5-6
-;
+12-cycle:
+ 0  MOVF bits, W             ?
+ 1  TRIS GPIO                ?
+ 2  delay2                   1
+ 3                           1
+ 4  ANDWF lowChld, W         1    BTFSC GPIO, bit#v(b)
+ 5  TRIS GPIO                1    delay2
+ 6  delay1                   0
+ 7  MOVF bits, W             0    delay1
+ 8  TRIS GPIO                0    BTFSS GPIO, bit#v(b)
+ 9  ANDWF lowChld, W         1    delay2
+10  TRIS GPIO                1
+11  MOVF bits, W             0    BTFSC GPIO, bit#v(b)
+12  TRIS GPIO                0
+13                           1    BTFSC GPIO, bit#v(b)
+14                                GOTO sendData
 
+11-cycle:
+ 0  MOVF bits, W             ?
+ 1  TRIS GPIO                ?
+ 2  delay2                   1
+ 3                           1
+ 4  ANDWF lowChld, W         1
+ 5  TRIS GPIO                1    BTFSC GPIO, bit#v(b)
+ 6  delay1                   0    delay2
+ 7  MOVF bits, W             0
+ 8  TRIS GPIO                0    delay1
+ 9  ANDWF lowChld, W         1    BTFSS GPIO, bit#v(b)
+10  TRIS GPIO                1
+11  MOVF bits, W             0    BTFSC GPIO, bit#v(b)
+12  TRIS GPIO                0
+13                           1    BTFSC GPIO, bit#v(b)
+14                                GOTO sendData
 
-; Return to 3-pin connector
-; Synchronize only after a full set of data has been transferred
-;   With 3-bit length we always transfer 9 bits at a time (parent low, length low, length middle, length high, child B, child C, child D, switch, more)
-;   Parent sends synchronization bit after each word - child loops 0 or 1 times depending on value
-; Synchronization unnecessary for prime phase - we just wait for events
-; In order to have a predictable delay between request and response, we need to make sure we always have the next word to transmit
-;   So we need to read the next word from the child while we're transmitting the current word.
-;   Store data using INDF/FSR - we can read from one bit and write to another
-; There must be some delay introduced between us being sent data request and us sending data request
-; Once data stream is started it always runs to completion with no waits.
-
-
-
-; clock speed is +/- 1%
-; so we have to tolerate a drift of 2% i.e. 2 cycles over 100.
-
-
-USync:
-
-
-     parent (root)           b    child (interval)
-
-delta = 4
-
-     sendUSync                    receiveUSync
-
- 0   MOVWF Xlow
- 1   MOVF bits, W
- 2   TRIS GPIO               ?                                      <- send "data request"
- 3   delay2                  1    (MOVWF PCL)
- 4                           1    MOVF afterReceiveUSync, W
- 5   ANDWF Xlow, W           1    BTFSC GPIO, source
- 6   TRIS GPIO               1    GOTO l
- 7   MOVF bits, W            0
- 8   TRIS GPIO               0    BTFSC GPIO, source
- 9   MOVF afterSendUSync, W  1
-10   MOVWF PCL               1    MOVWF PCL
-
-
-
-delta = 5
-
-     sendUSync                   receiveUSync
-
- 0   MOVWF Xlow
- 1   MOVF bits, W
- 2   TRIS GPIO               ?                                      <- send "data request"
- 3   delay2                  1
- 4                           1   (MOVWF PCL)
- 5   ANDF Xlow, W            1   MOVF afterReceiveUSync, W
- 6   TRIS GPIO               1   BTFSC GPIO, source
- 7   MOVF bits, W            0   GOTO l
- 8   TRIS GPIO               0
- 9   MOVF afterSendUSync, W  1   BTFSC GPIO, source
-10   MOVWF PCL               1   MOVWF PCL
-
-
-
-delta = 6
-
-     sendUSync                   receiveUSync
-
- 0   MOVWF Xlow              ?
- 1   MOVF bits, W            ?
- 2   TRIS GPIO               ?                                      <- send "data request"
- 3   delay2                  1
- 4                           1
- 5   ANDF Xlow, W            1   (MOVWF PCL)
- 6   TRIS GPIO               1   MOVF afterReceiveUSync, W
- 7   MOVF bits, W            0   BTFSC GPIO, source
- 8   TRIS GPIO               0
- 9   MOVF afterSendUSync, W  1   BTFSC GPIO, source
-10   MOVWF PCL               1   MOVWF PCL
-
-
-
-
-VSync:
-
-
-delta = 3
-
-     sendVSync                receiveVSync
-
- 0   MOVF bits, W        ??
- 1   ANDWF more, W       ??
- 2   TRIS GPIO           ??
- 3   ANDWF Xlow, W       10   BTFSC GPIO, source
- 4   TRIS GPIO           10   GOTO l
- 5   MOVF bits, W        00
- 6   TRIS GPIO           00   BTFSC GPIO, source
- 7   MOVF afterWrite, W  11
- 8   MOVWF PCL           11   GOTO write
-
-
-
-delta = 4
-
-     sendSync                 receiveSync
-
- 0   MOVF bits, W        ??
- 1   ANDWF more, W       ??
- 2   TRIS GPIO           ??
- 3   ANDWF Xlow, W       10
- 4   TRIS GPIO           10   BTFSC GPIO, source
- 5   MOVF bits, W        00   GOTO l
- 6   TRIS GPIO           00
- 7   MOVF afterWrite, W  11   BTFSC GPIO, source
- 8   MOVWF PCL           11   GOTO write
-
-
-
-delta = 5
-
-     sendSync                 receiveSync
-
- 0   MOVF bits, W        ??
- 1   ANDWF more, W       ??
- 2   TRIS GPIO           ??
- 3   ANDWF Xlow, W       10
- 4   TRIS GPIO           10
- 5   MOVF bits, W        00   BTFSC GPIO, source
- 6   TRIS GPIO           00
- 7   MOVF afterWrite, W  11   BTFSC GPIO, source
- 8   MOVWF PCL           11   GOTO write
-
-
-
-
-
-
-
-
-The optimimum send/recv data alignment for various quarter-cycle initial offsets
-    5 cycles: -2.25/+1.75  -2.50/+1.50  -2.75/+1.25  -3.00/+1.00
-    4 cycles: -1.25/+2.75  -1.50/+2.50  -1.75/+2.25  -2.00/+2.00
-
-offset 5 cycles, sync 0
-
-0.00 TRIS GPIO    +  BTFSC GPIO, bitX
-0.25              +
-0.50              +
-0.75              +
-1.00 MOVF bits, W -  delay2
-1.25              -
-1.50              -
-1.75              -
-2.00 TRIS GPIO    -
-2.25              -
-2.50              -
-2.75              -
-3.00 MOVF data, W +  BTFSC GPIO, bitX
-3.25              +
-3.50              +
-3.75              +
-4.00 TRIS GPIO    +
-4.25              +
-4.50              +
-4.75              +
-5.00 ...          D
-5.25              D
-5.50              D
-5.75              D
-6.00 ...          D
-6.25              D
-6.50              D
-6.75              D
-7.00 ...          D  BTFSS GPIO, bitX
-7.25              D  read occurs (-2.25, +1.75)
-7.50              D
-7.75              D
-8.00 ...          D
-8.25              D
-8.50              D
-8.75              D
-
-
-offset 5 cycles, sync 0.25
-
-0.00 TRIS GPIO    +
-0.25              +  BTFSC GPIO, bitX
-0.50              +
-0.75              +
-1.00 MOVF bits, W -
-1.25              -  delay2
-1.50              -
-1.75              -
-2.00 TRIS GPIO    -
-2.25              -
-2.50              -
-2.75              -
-3.00 MOVF data, W +
-3.25              +  BTFSC GPIO, bitX
-3.50              +
-3.75              +
-4.00 TRIS GPIO    +
-4.25              +
-4.50              +
-4.75              +
-5.00 ...          D
-5.25              D
-5.50              D
-5.75              D
-6.00 ...          D
-6.25              D
-6.50              D
-6.75              D
-7.00 ...          D
-7.25              D  BTFSS GPIO, bitX
-7.50              D  read occurs (-2.50, +1.50)
-7.75              D
-8.00 ...          D
-8.25              D
-8.50              D
-8.75              D
+10-cycle:
+ 0  MOVF bits, W             ?
+ 1  TRIS GPIO                ?
+ 2  delay2                   1
+ 3                           1
+ 4  ANDWF lowChld, W         1
+ 5  TRIS GPIO                1
+ 6  delay1                   0    BTFSC GPIO, bit#v(b)
+ 7  MOVF bits, W             0
+ 8  TRIS GPIO                0    delay1
+ 9  ANDWF lowChld, W         1    BTFSS GPIO, bit#v(b)
+10  TRIS GPIO                1
+11  MOVF bits, W             0    BTFSC GPIO, bit#v(b)
+12  TRIS GPIO                0
+13                           1    BTFSC GPIO, bit#v(b)
+14                                GOTO sendData
 
