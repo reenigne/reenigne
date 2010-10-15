@@ -1,20 +1,8 @@
-Make Sync correct up to 4 cycles
-  Fix up root
-  Fix up annotations
+Seeing desynchronization when the off sync takes 14 cycles
 
+Investigate failure to settle
 
-Figure out if there are any situations where we stay out of sync permanently (or take more than linear time to get back into sync)
-  Show number of cycles from connect/disconnect to good stream
-    Show it incrementally when it hasn't occurred yet.
-      GetConsoleScreenBufferInfo
-      SetConsoleCursorPosition
-  When we get a good stream, show the number of cycles since the last stream and the number of cycles per bar
-
-Simulation is too slow
-  Profile
-  Lack of buffering? Convert everything to use String and re-implement buffering
-
-Make simulator.cpp output diagrams like timings.txt
+Allow connection/disconnection when not in good state
 
 Use integers instead of doubles for time
   4MHz +/- 1% in 256 steps:
@@ -30,10 +18,18 @@ vary the clock speed according to a normal distribution - gradually increase the
     Write code for the programmer code and speed tester (ideal speed should be 1/3 MHz)
   Might need to rearrange simulateCycle() as simulateToTime()
 
-Simulate clock drift, jitter, output settling time
+Simulation is too slow
+  Profile
+  Lack of buffering? Convert everything to use String and re-implement buffering
+
+Make simulator.cpp output diagrams like timings.txt
 
 When the hardware doesn't work:
   Check that MOVWL OSCCAL works correctly when it isn't the first (second) instruction executed
   Get something simpler working
   Run timing tests (make sure MOVWF PCL takes one cycle)
 
+Speed up the program - should be able to get nearly 50% increase by:
+  Read all the pins at once
+  Put a high pause in the middle of the write cycle to reduce the maximum low time during data transfer
+  Reduce the prime check wait time

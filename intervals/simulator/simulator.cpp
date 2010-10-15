@@ -790,7 +790,7 @@ class Simulation
 {
 public:
     Simulation()
-      : _totalBars(100), _stream(_totalBars*8), _expectedStream(_totalBars*8), _badStreamsOk(100), _good(false)
+      : _totalBars(100), _stream(_totalBars*8), _expectedStream(_totalBars*8), _badStreamsOk(100), _good(false), _cyclesThisStream(0), _settlingCycles(0), _maxSettlingCycles(0), _console(Handle::consoleOutput())
     { }
     void simulate()
     {
@@ -803,7 +803,7 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, (i == 0 || i == 89));
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, false /*(i == 0 || i == 89)*/);
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
@@ -817,21 +817,24 @@ public:
         int changes = 0;
         do {
             double t = _bars[0]->time() - log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*10000;
-            double adj;
-            while (t > 256) {
+            bool final = false;
+            do {
+                double req = t;
+                if (req > 256)
+                    req = 256;
+                else
+                    final = true;
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                    (*i)->simulateTo(256);
-                adj = _bars[0]->time();
+                    (*i)->simulateTo(req);
+                double adj = _bars[0]->time();
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->adjustTime(-adj);
                 t -= adj;
-            }
-            for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                (*i)->simulateTo(t);
-            adj = _bars[0]->time();
-            for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                (*i)->adjustTime(-adj);
+                _settlingCycles += adj;
+                _cyclesThisStream += adj;
+            } while (!final);
             if (_good) {
+                _settlingCycles = 0;
                 //_badStreamsOk = 1;
                 _badStreamsOk = 100;
                 int n = rand() % (4*_totalBars + 1);
@@ -889,32 +892,31 @@ public:
                             }
                         }
                     }
-                    printf("***%i: Connecting bar %i direction %i to bar %i direction %i\n", changes, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+                    //printf("***%i: Connecting bar %i direction %i to bar %i direction %i\n", changes, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
                     bar->connect(t, connectorNumber, connectedBarNumber, connectedDirection);
                     otherBar->connect(t, connectedDirection, barNumber, connectorNumber);
                     ++_connectedPairs;
                 }
                 else {
                     // This connector is connected - disconnect it.
-                    printf("***%i: Disconnecting bar %i direction %i from bar %i direction %i\n", changes, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+                    //printf("***%i: Disconnecting bar %i direction %i from bar %i direction %i\n", changes, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
                     Bar* connectedBar = _bars[connectedBarNumber];
                     bar->connect(t, connectorNumber, -1, 0);
                     connectedBar->connect(t, connectedDirection, -1, 0);
                     --_connectedPairs;
                 }
                 changes++;
-//                if (changes == 696) {
-//                    _bars[7]->debug();
-//                    _bars[78]->debug();
-//                }
-//                if (changes == 698)
-//                    exit(0);
+                //if (changes == 618) {
+                    _bars[98]->debug();
+                    _bars[75]->debug();
+                //}
+                if (changes == 621)
+                    exit(0);
                 // Prime to update _indent
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->clearLive();
                 _bars[0]->prime(0);
                 //_bars[0]->storeExpectedStream(0, &_expectedStream[0]);
-                //_bars[0]->prime(0);
                 _bars[0]->dumpConnections(0);
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetNewlyConnected();
@@ -973,6 +975,14 @@ public:
                 printf("\n");
                 if (_badStreamsOk == 0)
                     exit(0);
+                if (!_oldGood)
+                    SetConsoleCursorPosition(_console, _cursorPosition);
+                CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
+                GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
+                _cursorPosition = consoleScreenBufferInfo.dwCursorPosition;
+                printf("Settling: %lf (maximum %lf)\n", _settlingCycles, _maxSettlingCycles);
+                if (_settlingCycles > _maxSettlingCycles)
+                    _maxSettlingCycles = _settlingCycles;
             }
             else {
                 _badStreamsOk = 0;
@@ -983,8 +993,16 @@ public:
                     printf("%i", *streamPointer);
                 }
                 printf("\n");
+                if (_oldGood)
+                    SetConsoleCursorPosition(_console, _cursorPosition);
+                CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
+                GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
+                _cursorPosition = consoleScreenBufferInfo.dwCursorPosition;
+                printf("Cycles: %lf (%lf per word for %i words)\n", _cyclesThisStream, _cyclesThisStream/(i/8 + 1), i/8);
             }
+            _oldGood = _good;
 //        }
+        _cyclesThisStream = 0;
         _streamPointer = &_stream[0];
         if (_badStreamsOk > 0)
             --_badStreamsOk;
@@ -1016,6 +1034,12 @@ private:
     int _connectedPairs;
     int _liveBars;
     bool _good;
+    double _cyclesThisStream;
+    double _settlingCycles;
+    double _maxSettlingCycles;
+    bool _oldGood;
+    COORD _cursorPosition;
+    HANDLE _console;
 };
 
 int main()
