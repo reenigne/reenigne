@@ -185,6 +185,7 @@ sendData
   IORWF bits, W
   MOVWF bits
   TRIS GPIO         ; clear "more" and send "data request" or "sync initial high" to child
+  delay2
   CLRF lengthLow + 0
   CLRF lengthLow + 1
   ANDWF lowChld, W
@@ -263,9 +264,10 @@ init#v(b)B
   GOTO init
 
 waitDReq#v(b)B
+  MOVF recvSync, W
   BTFSS GPIO, bit#v(b)
   GOTO $-1
-  GOTO gotDReq
+  MOVWF PCL
 
 prime#v(b)B
   MOVLW low#v(b)
@@ -281,11 +283,6 @@ prime#v(b)B
   endm
 
   unroll highPageCode
-
-gotDReq
-  MOVLW 5
-  ADDWF recvSync, W
-  MOVWF PCL
 
 init
   MOVWF recvSync

@@ -1,4 +1,15 @@
 Seeing desynchronization when the off sync takes 14 cycles
+  We're seeing one phase relationship after initial post-data-request sync, then another after the following sync (which takes 13 cycles)
+    Do we need to separate data request and sync?
+    Would the subsequent recvSyncs take 12 cycles? - presumably yes
+    Is it valid to jump into the middle of recvSync as we do?
+      I guess not, or we would see the observed problem
+
+    Look at the phase after the full sync
+      Figure out why the half sync didn't create this phase
+
+
+
 
 Investigate failure to settle
 

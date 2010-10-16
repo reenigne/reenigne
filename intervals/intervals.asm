@@ -185,6 +185,7 @@ sendData
   IORWF bits, W
   MOVWF bits
   TRIS GPIO         ; clear "more" and send "data request" or "sync initial high" to child
+  delay2
   CLRF lengthLow + 0
   CLRF lengthLow + 1
   ANDWF lowChld, W
@@ -263,9 +264,10 @@ init#v(b)B
   GOTO init
 
 waitDReq#v(b)B
+  MOVF recvSync, W
   BTFSS GPIO, bit#v(b)
   GOTO $-1
-  GOTO gotDReq
+  MOVWF PCL
 
 prime#v(b)B
   MOVLW low#v(b)
@@ -281,11 +283,6 @@ prime#v(b)B
   endm
 
   unroll highPageCode
-
-gotDReq
-  MOVLW 5
-  ADDWF recvSync, W
-  MOVWF PCL
 
 init
   MOVWF recvSync
@@ -329,3 +326,27 @@ initData
   end
 
 ; 56 instructions free, 52 in low page
+
+
+
+
+
+; Data request happens somewhere between 0.25 and 3.25
+
+; 0  BTFSS GPIO, bit#v(b)
+; 1  GOTO $-1                    TRIS GPIO
+; 2
+; 3  BTFSS GPIO, bit#v(b)
+; 4
+; 5  MOVWF PCL
+; 6  BTFSC GPIO, bit#v(b)
+; 7  delay2                      TRIS GPIO
+; 8
+; 9  delay1                      MOVF bits, W
+;10  BTFSS GPIO, bit#v(b)        TRIS GPIO
+;11  delay2                      ANDWF lowChld, W
+;12                              TRIS GPIO
+;13  BTFSC GPIO, bit#v(b)        MOVF bits, W
+;14                              TRIS GPIO
+;15  BTFSC GPIO, bit#v(b)
+;16  GOTO sendData

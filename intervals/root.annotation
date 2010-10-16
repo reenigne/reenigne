@@ -245,216 +245,216 @@
 0F4 sendSync      IORWF bits, W
 0F5 sendSync      MOVWF bits
 0F6 sendSync      TRIS GPIO                       cD
-0F7 sendSync      CLRF data0
-0F8 sendSync      CLRF data1
-0F9 sendSync      ANDWF lowChld, W
-0FA sendSync      TRIS GPIO                       cE
-0FB sendSync      CLRF data2
-0FC sendSync      MOVF bits, W
-0FD sendSync      TRIS GPIO                       cF
-0FE sendSync      ANDWF lowChld, W
-0FF sendSync      TRIS GPIO                       cG
-100 sendSync      MOVF bits, W
-101 sendSync      TRIS GPIO                       cH
-102 sendSync      CLRF data3
-103 sendSync      CLRF data4
-104 sendSync      CLRF data5
-105 sendSync      CLRF data6
-106 sendSync      CLRF data7
-107 sendSync      delay1
-108 sendSync      MOVF recvData, W
-109 sendSync      MOVWF PCL
-10A startup:      MOVWF OSCCAL
-10B startup       MOVLW 80h
-10C startup       OPTION
-10D reset:        MOVLW 1
-10E reset         MOVWF childBabsent
-10F reset         MOVWF childCabsent
-110 reset         MOVWF childDabsent
-111 reset         MOVLW childBabsent-1
-112 reset         MOVWF FSR
-113 waitForPrime: TRIS 7
-114 waitForPrime  GOTO found0
-115 waitForPrime  NOP
+0F7 sendSync      delay2
+0F8 sendSync      CLRF data0
+0F9 sendSync      CLRF data1
+0FA sendSync      ANDWF lowChld, W
+0FB sendSync      TRIS GPIO                       cE
+0FC sendSync      CLRF data2
+0FD sendSync      MOVF bits, W
+0FE sendSync      TRIS GPIO                       cF
+0FF sendSync      ANDWF lowChld, W
+100 sendSync      TRIS GPIO                       cG
+101 sendSync      MOVF bits, W
+102 sendSync      TRIS GPIO                       cH
+103 sendSync      CLRF data3
+104 sendSync      CLRF data4
+105 sendSync      CLRF data5
+106 sendSync      CLRF data6
+107 sendSync      CLRF data7
+108 sendSync      delay1
+109 sendSync      MOVF recvData, W
+10A sendSync      MOVWF PCL
+10B startup:      MOVWF OSCCAL
+10C startup       MOVLW 80h
+10D startup       OPTION
+10E reset:        MOVLW 1
+10F reset         MOVWF childBabsent
+110 reset         MOVWF childCabsent
+111 reset         MOVWF childDabsent
+112 reset         MOVLW childBabsent-1
+113 reset         MOVWF FSR
+114 waitForPrime: TRIS 7
+115 waitForPrime  GOTO found0
 116 waitForPrime  NOP
 117 waitForPrime  NOP
 118 waitForPrime  NOP
 119 waitForPrime  NOP
 11A waitForPrime  NOP
-11B found0:       CALL initData0                  P0
-11C found0        MOVLW low0
-11D found0        MOVWF lowPrnt
-11E found0        MOVLW init0
-11F found0        CALL initHelper
-120 found0        NOP
+11B waitForPrime  NOP
+11C found0:       CALL initData0                  P0
+11D found0        MOVLW low0
+11E found0        MOVWF lowPrnt
+11F found0        MOVLW init0
+120 found0        CALL initHelper
 121 found0        NOP
-122 found0        BCF bits, bit0
-123 found0        CALL prime1
-124 found0        CALL prime2
-125 found0        CALL prime3
-126 found0        BSF bits, bit0
-127 found0        CALL foundHelper
-128 found0        MOVWF after3
-129 found0        BTFSS childDabsent, 0
-12A found0        MOVLW setup3
-12B found0        MOVWF after2
-12C found0        BTFSS childCabsent, 0
-12D found0        MOVLW setup2
-12E found0        MOVWF after1
-12F found0        BTFSS childBabsent, 0
-130 found0        MOVLW setup1
-131 found0        MOVWF PCL
-132 init0B:       MOVLW recvSync0
-133 init0B        GOTO init
-134 waitDReq0B:   BTFSS GPIO, bit0
-135 waitDReq0B    GOTO waitDReq0B
-136 waitDReq0B    GOTO gotDReq
-137 prime0B:      MOVLW low0
-138 prime0B       CALL prime
-139 prime0B       BTFSC GPIO, bit0                r.AJ
-13A prime0B       RETLW 0
-13B prime0B       DECF INDF, F
-13C prime0B       BCF bits, bit0
-13D waitPrimeCt0: BTFSS GPIO, bit0                rAI.
-13E waitPrimeCt0  GOTO waitPrimeCt0
-13F prime0B       RETLW 0
-140 found1:       CALL initData1                  P1
-141 found1        MOVLW low1
-142 found1        MOVWF lowPrnt
-143 found1        MOVLW init1
-144 found1        CALL initHelper
-145 found1        NOP
-146 found1        NOP
-147 found1        BCF bits, bit1
-148 found1        CALL prime2
-149 found1        CALL prime3
-14A found1        CALL prime0
-14B found1        BSF bits, bit1
-14C found1        CALL foundHelper
-14D found1        MOVWF after0
-14E found1        BTFSS childDabsent, 0
-14F found1        MOVLW setup0
-150 found1        MOVWF after3
-151 found1        BTFSS childCabsent, 0
-152 found1        MOVLW setup3
-153 found1        MOVWF after2
-154 found1        BTFSS childBabsent, 0
-155 found1        MOVLW setup2
-156 found1        MOVWF PCL
-157 init1B:       MOVLW recvSync1
-158 init1B        GOTO init
-159 waitDReq1B:   BTFSS GPIO, bit1
-15A waitDReq1B    GOTO waitDReq1B
-15B waitDReq1B    GOTO gotDReq
-15C prime1B:      MOVLW low1
-15D prime1B       CALL prime
-15E prime1B       BTFSC GPIO, bit1                r.AJ
-15F prime1B       RETLW 0
-160 prime1B       INCF INDF, F
-161 prime1B       BCF bits, bit1
-162 waitPrimeCt1: BTFSS GPIO, bit1                rAI.
-163 waitPrimeCt1  GOTO waitPrimeCt1
-164 prime1B       RETLW 0
-165 found2:       CALL initData0                  P2
-166 found2        MOVLW low2
-167 found2        MOVWF lowPrnt
-168 found2        MOVLW init2
-169 found2        CALL initHelper
-16A found2        NOP
-16B found2        NOP
-16C found2        BCF bits, bit2
-16D found2        CALL prime3
-16E found2        CALL prime0
-16F found2        CALL prime1
-170 found2        BSF bits, bit2
-171 found2        CALL foundHelper
-172 found2        MOVWF after1
-173 found2        BTFSS childDabsent, 0
-174 found2        MOVLW setup1
-175 found2        MOVWF after0
-176 found2        BTFSS childCabsent, 0
-177 found2        MOVLW setup0
-178 found2        MOVWF after3
-179 found2        BTFSS childBabsent, 0
-17A found2        MOVLW setup3
-17B found2        MOVWF PCL
-17C init2B:       MOVLW recvSync2
-17D init2B        GOTO init
-17E waitDReq2B:   BTFSS GPIO, bit2
-17F waitDReq2B    GOTO waitDReq2B
-180 waitDReq2B    GOTO gotDReq
-181 prime2B:      MOVLW low2
-182 prime2B       CALL prime
-183 prime2B       BTFSC GPIO, bit2                r.AJ
-184 prime2B       RETLW 0
-185 prime2B       INCF INDF, F
-186 prime2B       BCF bits, bit2
-187 waitPrimeCt2: BTFSS GPIO, bit2                rAI.
-188 waitPrimeCt2  GOTO waitPrimeCt2
-189 prime2B       RETLW 0
-18A found3:       CALL initData1                  P3
-18B found3        MOVLW low3
-18C found3        MOVWF lowPrnt
-18D found3        MOVLW init3
-18E found3        CALL initHelper
-18F found3        BTFSC GPIO, bit3
-190 found3        GOTO waitForPrime
-191 found3        BCF bits, bit3
-192 found3        CALL prime0
-193 found3        CALL prime1
-194 found3        CALL prime2
-195 found3        BSF bits, bit3
-196 found3        CALL foundHelper
-197 found3        MOVWF after2
-198 found3        BTFSS childDabsent, 0
-199 found3        MOVLW setup2
-19A found3        MOVWF after1
-19B found3        BTFSS childCabsent, 0
-19C found3        MOVLW setup1
-19D found3        MOVWF after0
-19E found3        BTFSS childBabsent, 0
-19F found3        MOVLW setup0
-1A0 found3        MOVWF PCL
-1A1 init3B:       MOVLW recvUSync3
-1A2 init3B        GOTO init
-1A3 waitDReq3B:   BTFSS GPIO, bit3
-1A4 waitDReq3B    GOTO waitDReq3B
-1A5 waitDReq3B    GOTO gotDReq
-1A6 prime3B:      MOVLW low3
-1A7 prime3B       CALL prime
-1A8 prime3B       BTFSC GPIO, bit3                r.AJ
-1A9 prime3B       RETLW 0
-1AA prime3B       INCF INDF, F
-1AB prime3B       BCF bits, bit3
-1AC waitPrimeCt3: BTFSS GPIO, bit3                rAI.
-1AD waitPrimeCt3  GOTO waitPrimeCt3
+122 found0        NOP
+123 found0        BCF bits, bit0
+124 found0        CALL prime1
+125 found0        CALL prime2
+126 found0        CALL prime3
+127 found0        BSF bits, bit0
+128 found0        CALL foundHelper
+129 found0        MOVWF after3
+12A found0        BTFSS childDabsent, 0
+12B found0        MOVLW setup3
+12C found0        MOVWF after2
+12D found0        BTFSS childCabsent, 0
+12E found0        MOVLW setup2
+12F found0        MOVWF after1
+130 found0        BTFSS childBabsent, 0
+131 found0        MOVLW setup1
+132 found0        MOVWF PCL
+133 init0B:       MOVLW recvSync0
+134 init0B        GOTO init
+135 waitDReq0B:   MOVF recvSync, W
+136 waitDReq0B    BTFSS GPIO, bit0
+137 waitDReq0B    GOTO $-1
+138 waitDReq0B    MOVWF PCL
+139 prime0B:      MOVLW low0
+13A prime0B       CALL prime
+13B prime0B       BTFSC GPIO, bit0                r.AJ
+13C prime0B       RETLW 0
+13D prime0B       DECF INDF, F
+13E prime0B       BCF bits, bit0
+13F waitPrimeCt0: BTFSS GPIO, bit0                rAI.
+140 waitPrimeCt0  GOTO waitPrimeCt0
+141 prime0B       RETLW 0
+142 found1:       CALL initData1                  P1
+143 found1        MOVLW low1
+144 found1        MOVWF lowPrnt
+145 found1        MOVLW init1
+146 found1        CALL initHelper
+147 found1        NOP
+148 found1        NOP
+149 found1        BCF bits, bit1
+14A found1        CALL prime2
+14B found1        CALL prime3
+14C found1        CALL prime0
+14D found1        BSF bits, bit1
+14E found1        CALL foundHelper
+14F found1        MOVWF after0
+150 found1        BTFSS childDabsent, 0
+151 found1        MOVLW setup0
+152 found1        MOVWF after3
+153 found1        BTFSS childCabsent, 0
+154 found1        MOVLW setup3
+155 found1        MOVWF after2
+156 found1        BTFSS childBabsent, 0
+157 found1        MOVLW setup2
+158 found1        MOVWF PCL
+159 init1B:       MOVLW recvSync1
+15A init1B        GOTO init
+15B waitDReq1B:   MOVF recvSync, W
+15C waitDReq1B    BTFSS GPIO, bit1
+15D waitDReq1B    GOTO $-1
+15E waitDReq1B    MOVWF PCL
+15F prime1B:      MOVLW low1
+160 prime1B       CALL prime
+161 prime1B       BTFSC GPIO, bit1                r.AJ
+162 prime1B       RETLW 0
+163 prime1B       INCF INDF, F
+164 prime1B       BCF bits, bit1
+165 waitPrimeCt1: BTFSS GPIO, bit1                rAI.
+166 waitPrimeCt1  GOTO waitPrimeCt1
+167 prime1B       RETLW 0
+168 found2:       CALL initData0                  P2
+169 found2        MOVLW low2
+16A found2        MOVWF lowPrnt
+16B found2        MOVLW init2
+16C found2        CALL initHelper
+16D found2        NOP
+16E found2        NOP
+16F found2        BCF bits, bit2
+170 found2        CALL prime3
+171 found2        CALL prime0
+172 found2        CALL prime1
+173 found2        BSF bits, bit2
+174 found2        CALL foundHelper
+175 found2        MOVWF after1
+176 found2        BTFSS childDabsent, 0
+177 found2        MOVLW setup1
+178 found2        MOVWF after0
+179 found2        BTFSS childCabsent, 0
+17A found2        MOVLW setup0
+17B found2        MOVWF after3
+17C found2        BTFSS childBabsent, 0
+17D found2        MOVLW setup3
+17E found2        MOVWF PCL
+17F init2B:       MOVLW recvSync2
+180 init2B        GOTO init
+181 waitDReq2B:   MOVF recvSync, W
+182 waitDReq2B    BTFSS GPIO, bit2
+183 waitDReq2B    GOTO $-1
+184 waitDReq2B    MOVWF PCL
+185 prime2B:      MOVLW low2
+186 prime2B       CALL prime
+187 prime2B       BTFSC GPIO, bit2                r.AJ
+188 prime2B       RETLW 0
+189 prime2B       INCF INDF, F
+18A prime2B       BCF bits, bit2
+18B waitPrimeCt2: BTFSS GPIO, bit2                rAI.
+18C waitPrimeCt2  GOTO waitPrimeCt2
+18D prime2B       RETLW 0
+18E found3:       CALL initData1                  P3
+18F found3        MOVLW low3
+190 found3        MOVWF lowPrnt
+191 found3        MOVLW init3
+192 found3        CALL initHelper
+193 found3        BTFSC GPIO, bit3
+194 found3        GOTO waitForPrime
+195 found3        BCF bits, bit3
+196 found3        CALL prime0
+197 found3        CALL prime1
+198 found3        CALL prime2
+199 found3        BSF bits, bit3
+19A found3        CALL foundHelper
+19B found3        MOVWF after2
+19C found3        BTFSS childDabsent, 0
+19D found3        MOVLW setup2
+19E found3        MOVWF after1
+19F found3        BTFSS childCabsent, 0
+1A0 found3        MOVLW setup1
+1A1 found3        MOVWF after0
+1A2 found3        BTFSS childBabsent, 0
+1A3 found3        MOVLW setup0
+1A4 found3        MOVWF PCL
+1A5 init3B:       MOVLW recvUSync3
+1A6 init3B        GOTO init
+1A7 waitDReq3B:   MOVF recvSync, W
+1A8 waitDReq3B    BTFSS GPIO, bit3
+1A9 waitDReq3B    GOTO $-1
+1AA waitDReq3B    MOVWF PCL
+1AB prime3B:      MOVLW low3
+1AC prime3B       CALL prime
+1AD prime3B       BTFSC GPIO, bit3                r.AJ
 1AE prime3B       RETLW 0
-1AF gotDReq:      MOVLW 5
-1B0 gotDReq       ADDWF recvSync, W
-1B1 gotDReq       MOVWF PCL
-1B2 init:         MOVWF recvUSync
-1B3 init          MOVF waitDReq, W
-1B4 init          MOVWF PCL
-1B5 foundHelperB: MOVF bits, W
-1B6 foundHelperB  TRIS GPIO                       pIcJoJ
-1B7 foundHelperB  RETLW setupFinal
-1B8 initData:     MOVWF parentAxis
-1B9 initData      MOVLW 1
-1BA initData      CLRF lengthLow
-1BB initData      CLRF lengthMiddle
-1BC initData      CLRF lengthHigh
-1BD initData      MOVWF more
-1BE initData      CLRF switch
-1BF initData      BTFSC GPIO, 2
-1C0 initData      INCF switch, F
-1C1 initData      CLRF GPIO
-1C2 initData      MOVLW highAll
-1C3 initData      MOVWF bits
-1C4 initData      MOVLW (waitDReq0 - init0)
-1C5 initData      MOVWF delta
-1C6 initData      RETLW 0
-1C7 -NO-CODE-
-1C8 -NO-CODE-
+1AF prime3B       INCF INDF, F
+1B0 prime3B       BCF bits, bit3
+1B1 waitPrimeCt3: BTFSS GPIO, bit3                rAI.
+1B2 waitPrimeCt3  GOTO waitPrimeCt3
+1B3 prime3B       RETLW 0
+1B4 init:         MOVWF recvUSync
+1B5 init          MOVF waitDReq, W
+1B6 init          MOVWF PCL
+1B7 foundHelperB: MOVF bits, W
+1B8 foundHelperB  TRIS GPIO                       pIcJoJ
+1B9 foundHelperB  RETLW setupFinal
+1BA initData:     MOVWF parentAxis
+1BB initData      MOVLW 1
+1BC initData      CLRF lengthLow
+1BD initData      CLRF lengthMiddle
+1BE initData      CLRF lengthHigh
+1BF initData      MOVWF more
+1C0 initData      CLRF switch
+1C1 initData      BTFSC GPIO, 2
+1C2 initData      INCF switch, F
+1C3 initData      CLRF GPIO
+1C4 initData      MOVLW highAll
+1C5 initData      MOVWF bits
+1C6 initData      MOVLW (waitDReq0 - init0)
+1C7 initData      MOVWF delta
+1C8 initData      RETLW 0
 1C9 -NO-CODE-
 1CA -NO-CODE-
 1CB -NO-CODE-

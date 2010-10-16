@@ -140,7 +140,7 @@ template<class Simulation> class BarTemplate : public ReferenceCounted
 {
 public:
     BarTemplate(Simulation* simulation, const Program* program, int number, bool debug)
-      : _simulation(simulation), _program(program), _t(0), _debug(debug), _tPerCycle(1), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput())
+      : _simulation(simulation), _program(program), _t(0), _debug(debug), _skipping(false), _primed(false), _live(number == 0), _number(number), _indent(0), _console(Handle::consoleOutput())
     {
         reset();
         for (int i = 0; i < 4; ++i)
@@ -148,44 +148,46 @@ public:
         _child = 0;
         _parent = 0;
     }
-    void simulateTo(double t)
+    void simulateTo(int t)
     {
         if (!_live)
             return;
         if (_debug)
-            printf("%*sSimulating bar %i to %lf\n", _indent*8, "", _number, t);
+            printf("%*sSimulating bar %i to %lf\n", _indent*8, "", _number, t/(400.0*256.0));
         do {
-            double deltaT = timeToNextChange();
-            double newT = _t + deltaT;
-            if (newT >= t)
+            if (_tNextStop >= t)
                 break;
-            _t = newT;
-            if (_readSubCycle) {
-                if (_skipping)
-                    _skipping = false;
-                else {
-                    _readSubCycle = false;
+            _t = _tNextStop;
+            switch (_state) {
+                case 0:
+                    // 0.00 to 0.25: read
                     simulateToRead();
-                }
-            }
-            else {
-                _readSubCycle = true;
-                simulateToWrite();
+                    _state = 1;
+                    _tNextStop += 3*_tPerQuarterCycle;
+                    break;
+                case 1:
+                    // 0.25 to 1.00: write
+                    simulateToWrite();
+                    if (_skipping) {
+                        _skipping = false;
+                        _state = 2;
+                        _tNextStop += 4*_tPerQuarterCycle;
+                    }
+                    else {
+                        _state = 0;
+                        _tNextStop += _tPerQuarterCycle;
+                    }
+                    break;
+                case 2:
+                    // 1.00 to 2.00: skip
+                    _state = 0;
+                    _tNextStop += 4*_tPerQuarterCycle;
+                    break;
             }
         } while (true);
+        _t = t;
     }
-    void adjustTime(double t) { _t += t; }
-    double timeToNextChange()
-    {
-        if (_readSubCycle)
-            if (_skipping)
-                return 1.0*_tPerCycle;
-            else
-                return 0.25*_tPerCycle;
-        else
-            return 0.75*_tPerCycle;
-    }
-
+    void resetTime() { _tNextStop -= _t; _t = 0; }
     void simulateToRead()
     {
         if (_debug)
@@ -446,71 +448,71 @@ public:
                     break;
             }
         }
-        CharacterSource c = markerCode.start();
-        do {
-            int ch = c.get();
-            if (ch == -1)
-                break;
-            switch (ch) {
-                case 'P':
-                    _parent = c.get() - '0';
-                    //printf("%*sBar %i parent %i -> (", _indent*2, "", _number, _parent);
-                    //if (_connectedBar[_parent] == -1)
-                    //    printf("disconnected");
-                    //else
-                    //    printf("%i/%i", _connectedBar[_parent], _connectedDirection[_parent]);
-                    //printf(") child %i (", _child);
-                    //if (_connectedBar[_child] == -1)
-                    //    printf("disconnected");
-                    //else
-                    //    printf("%i/%i", _connectedBar[_child], _connectedDirection[_child]);
-                    //printf(")\n");
-                    //if (_parent != _staticParent)
-                    //    printf("Expected %i not %i for parent of %i\n",_staticParent, _parent, _number);
-                    break;
-                case 'C':
-                    _child = c.get() - '0';
-                    //printf("%*sBar %i parent %i (", _indent*2, "", _number, _parent);
-                    //if (_connectedBar[_parent] == -1)
-                    //    printf("disconnected");
-                    //else
-                    //    printf("%i/%i", _connectedBar[_parent], _connectedDirection[_parent]);
-                    //printf(") child %i -> (", _child);
-                    //if (_connectedBar[_child] == -1)
-                    //    printf("disconnected");
-                    //else
-                    //    printf("%i/%i", _connectedBar[_child], _connectedDirection[_child]);
-                    //printf(")\n");
-                    break;
-                case 'p':
-                    _newMarker[_parent] = c.get();
-                    break;
-                case 'c':
-                    _newMarker[_child] = c.get();
-                    break;
-                case 'o':
-                    {
-                        int m = c.get();
-                        for (int i = 0; i < 4; ++i)
-                            if (i != _parent && i != _child)
-                                _newMarker[i] = m;
-                    }
-                    break;
-                case 'r':
-                    do {
-                        int r = c.get();
-                        if (r == _readMarker)
-                            break;
-                        if (r == -1) {
-                            printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
-                            markerCode.write(_console);
-                            printf("\n");
-                            break;
-                        }
-                    } while (true);
-                    break;
-            }
-        } while (true);
+        //CharacterSource c = markerCode.start();
+        //do {
+        //    int ch = c.get();
+        //    if (ch == -1)
+        //        break;
+        //    switch (ch) {
+        //        case 'P':
+        //            _parent = c.get() - '0';
+        //            //printf("%*sBar %i parent %i -> (", _indent*2, "", _number, _parent);
+        //            //if (_connectedBar[_parent] == -1)
+        //            //    printf("disconnected");
+        //            //else
+        //            //    printf("%i/%i", _connectedBar[_parent], _connectedDirection[_parent]);
+        //            //printf(") child %i (", _child);
+        //            //if (_connectedBar[_child] == -1)
+        //            //    printf("disconnected");
+        //            //else
+        //            //    printf("%i/%i", _connectedBar[_child], _connectedDirection[_child]);
+        //            //printf(")\n");
+        //            //if (_parent != _staticParent)
+        //            //    printf("Expected %i not %i for parent of %i\n",_staticParent, _parent, _number);
+        //            break;
+        //        case 'C':
+        //            _child = c.get() - '0';
+        //            //printf("%*sBar %i parent %i (", _indent*2, "", _number, _parent);
+        //            //if (_connectedBar[_parent] == -1)
+        //            //    printf("disconnected");
+        //            //else
+        //            //    printf("%i/%i", _connectedBar[_parent], _connectedDirection[_parent]);
+        //            //printf(") child %i -> (", _child);
+        //            //if (_connectedBar[_child] == -1)
+        //            //    printf("disconnected");
+        //            //else
+        //            //    printf("%i/%i", _connectedBar[_child], _connectedDirection[_child]);
+        //            //printf(")\n");
+        //            break;
+        //        case 'p':
+        //            _newMarker[_parent] = c.get();
+        //            break;
+        //        case 'c':
+        //            _newMarker[_child] = c.get();
+        //            break;
+        //        case 'o':
+        //            {
+        //                int m = c.get();
+        //                for (int i = 0; i < 4; ++i)
+        //                    if (i != _parent && i != _child)
+        //                        _newMarker[i] = m;
+        //            }
+        //            break;
+        //        case 'r':
+        //            do {
+        //                int r = c.get();
+        //                if (r == _readMarker)
+        //                    break;
+        //                if (r == -1) {
+        //                    printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
+        //                    markerCode.write(_console);
+        //                    printf("\n");
+        //                    break;
+        //                }
+        //            } while (true);
+        //            break;
+        //    }
+        //} while (true);
     }
     void simulateToWrite()
     {
@@ -541,13 +543,13 @@ public:
         if (_f == 2)
             _pch = 0;
     }
-    void connect(double t, int direction, int connectedBar, int connectedDirection)
+    void connect(int direction, int connectedBar, int connectedDirection)
     {
         _connectedBar[direction] = connectedBar;
         _connectedDirection[direction] = connectedDirection;
         _marker[direction] = _newMarker[direction] = '.';
     }
-    bool read(double t, int direction, char* readMarker)
+    bool read(int t, int direction, char* readMarker)
     {
         simulateTo(t);
         switch (direction) {
@@ -566,8 +568,9 @@ public:
         }
         return true;
     }
-    void prime(int parent, int indent = 0)
+    int prime(int parent, int indent = 0)
     {
+        int liveBars = 1;
         _live = true;
         _staticParent = parent;
         _indent = indent;
@@ -582,7 +585,7 @@ public:
             if (bar->primed())
                 _childBabsent = true;
             else
-                bar->prime(_connectedDirection[childB], indent + 1);
+                liveBars += bar->prime(_connectedDirection[childB], indent + 1);
         }
         int childCbar = _connectedBar[childC];
         _childCabsent = (childCbar == -1);
@@ -591,7 +594,7 @@ public:
             if (bar->primed())
                 _childCabsent = true;
             else
-                bar->prime(_connectedDirection[childC], indent + 1);
+                liveBars += bar->prime(_connectedDirection[childC], indent + 1);
         }
         int childDbar = _connectedBar[childD];
         _childDabsent = (childDbar == -1);
@@ -600,21 +603,22 @@ public:
             if (bar->primed())
                 _childDabsent = true;
             else
-                bar->prime(_connectedDirection[childD], indent + 1);
+                liveBars += bar->prime(_connectedDirection[childD], indent + 1);
         }
+        return liveBars;
     }
     void dumpConnections(int parent)
     {
         int childB = (parent + 1) & 3;
         int childC = (parent + 2) & 3;
         int childD = (parent + 3) & 3;
-        printf("%*s%03i: ", _indent*2, "", _number);
-        for (int i = 0; i < 4; ++i)
-            if (_connectedBar[i] == -1)
-                printf("---/- ");
-            else
-                printf("%03i/%i ", _connectedBar[i], _connectedDirection[i]);
-        printf("\n");
+        //printf("%*s%03i: ", _indent*2, "", _number);
+        //for (int i = 0; i < 4; ++i)
+        //    if (_connectedBar[i] == -1)
+        //        printf("---/- ");
+        //    else
+        //        printf("%03i/%i ", _connectedBar[i], _connectedDirection[i]);
+        //printf("\n");
         if (!_childBabsent)
             _simulation->bar(_connectedBar[childB])->dumpConnections(_connectedDirection[childB]);
         if (!_childCabsent)
@@ -649,7 +653,7 @@ public:
     }
     int connectedBar(int direction) const { return _connectedBar[direction]; }
     int connectedDirection(int direction) const { return _connectedDirection[direction]; }
-    double time() const { return _t; }
+    int time() const { return _t; }
     bool live() const { return _live; }
     void clearLive() { _oldLive = _live; _live = false; }
     void resetNewlyConnected() { if (_live && !_oldLive) reset(); }
@@ -742,10 +746,12 @@ private:
         _io = 0x3f;
         _option = 0xff;
         _pch = 0x100;
-        _readSubCycle = true;
         for (int i = 0; i < 4; ++i)
             _marker[i] = _newMarker[i] = '.';
         _t = 0;
+        _tPerQuarterCycle = (rand() % 512) + 99*256;  // 99*256 to 101*256 units of cycle/(100*256)
+        _state = 0;
+        _tNextStop = _tPerQuarterCycle;
     }
 
     Simulation* _simulation;
@@ -756,10 +762,11 @@ private:
     int _pch;
     UInt8 _w;
     bool _skipping;
-    double _tPerCycle;
+    int _tPerQuarterCycle;
     int _connectedBar[4];
     int _connectedDirection[4];
-    double _t;
+    int _t;
+    int _tNextStop;
     int _number;
     int _indent;
     bool _debug;
@@ -770,10 +777,8 @@ private:
     bool _childBabsent;
     bool _childCabsent;
     bool _childDabsent;
-    bool _readSubCycle;
     bool _live;
     Handle _console;
-    double _tOfLastTris5;
     char _marker[4];
     char _readMarker;
     int _readFromBar;
@@ -782,6 +787,7 @@ private:
     char _newMarker[4];
     int _staticParent;
     bool _oldLive;
+    int _state;
 };
 
 typedef BarTemplate<Simulation> Bar;
@@ -790,8 +796,12 @@ class Simulation
 {
 public:
     Simulation()
-      : _totalBars(100), _stream(_totalBars*8), _expectedStream(_totalBars*8), _badStreamsOk(100), _good(false), _cyclesThisStream(0), _settlingCycles(0), _maxSettlingCycles(0), _console(Handle::consoleOutput())
-    { }
+      : _totalBars(100), _stream(_totalBars*8), _expectedStream(_totalBars*8), _badStreams(0), _good(false), _cyclesThisStream(0), _settlingCycles(0), _maxSettlingCycles(0), _console(Handle::consoleOutput()), _changes(0), _totalSettlingCycles(0), _settlings(0), _streams(0), _wall(0), _goodCycles(0), _goodWords(0), _t(0)
+    {
+        CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
+        GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
+        _cursorPosition = consoleScreenBufferInfo.dwCursorPosition;
+    }
     void simulate()
     {
         Program intervalProgram(String("../intervals.HEX"), String("../intervals.annotation"));
@@ -814,29 +824,31 @@ public:
 
         _streamPointer = &_stream[0];
         _connectedPairs = 0;
-        int changes = 0;
         do {
-            double t = _bars[0]->time() - log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*10000;
+            double cyclesBeforeChange = -log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*10000.0;
             bool final = false;
             do {
-                double req = t;
-                if (req > 256)
-                    req = 256;
-                else
+                int t;
+                if (cyclesBeforeChange > 256.0) {
+                    t = 256*400*256;
+                    cyclesBeforeChange -= 256.0;
+                }
+                else {
+                    t = static_cast<int>(cyclesBeforeChange*400*256);
                     final = true;
+                }
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                    (*i)->simulateTo(req);
-                double adj = _bars[0]->time();
+                    (*i)->simulateTo(t);
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                    (*i)->adjustTime(-adj);
-                t -= adj;
-                _settlingCycles += adj;
-                _cyclesThisStream += adj;
+                    (*i)->resetTime();
+                _settlingCycles += t/(400.0*256.0);
+                _cyclesThisStream += t/(400.0*256.0);
+                _t += t/(1000000.0*400.0*256.0);
             } while (!final);
             if (_good) {
+                _good = false;
+                _totalSettlingCycles += _settlingCycles;
                 _settlingCycles = 0;
-                //_badStreamsOk = 1;
-                _badStreamsOk = 100;
                 int n = rand() % (4*_totalBars + 1);
                 int barNumber = (n - 1)/4 + 1;
                 int connectorNumber = (n - 1)%4;
@@ -892,26 +904,26 @@ public:
                             }
                         }
                     }
-                    //printf("***%i: Connecting bar %i direction %i to bar %i direction %i\n", changes, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
-                    bar->connect(t, connectorNumber, connectedBarNumber, connectedDirection);
-                    otherBar->connect(t, connectedDirection, barNumber, connectorNumber);
+                    //printf("***%i: Connecting bar %i direction %i to bar %i direction %i\n", _changes, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+                    bar->connect(connectorNumber, connectedBarNumber, connectedDirection);
+                    otherBar->connect(connectedDirection, barNumber, connectorNumber);
                     ++_connectedPairs;
                 }
                 else {
                     // This connector is connected - disconnect it.
-                    //printf("***%i: Disconnecting bar %i direction %i from bar %i direction %i\n", changes, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+                    //printf("***%i: Disconnecting bar %i direction %i from bar %i direction %i\n", _changes, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
                     Bar* connectedBar = _bars[connectedBarNumber];
-                    bar->connect(t, connectorNumber, -1, 0);
-                    connectedBar->connect(t, connectedDirection, -1, 0);
+                    bar->connect(connectorNumber, -1, 0);
+                    connectedBar->connect(connectedDirection, -1, 0);
                     --_connectedPairs;
                 }
-                changes++;
-                //if (changes == 618) {
-                    _bars[98]->debug();
-                    _bars[75]->debug();
+                _changes++;
+                //if (_changes == 2247) {
+                //    _bars[77]->debug();
+                //    _bars[53]->debug();
                 //}
-                if (changes == 621)
-                    exit(0);
+                //if (_changes == 2248)
+                //    exit(0);
                 // Prime to update _indent
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->clearLive();
@@ -932,10 +944,9 @@ public:
 //        if (!_badStreamOk) {
             int* streamPointer = &_stream[0];
             int* expectedStreamPointer = &_expectedStream[0];
-            _bars[0]->prime(0);
+            int liveBars = _bars[0]->prime(0);
             int* expectedStreamPointerEnd = _bars[0]->storeExpectedStream(0, expectedStreamPointer);
             _good = true;
-            _liveBars = 0;
             do {
                 if (streamPointer == _streamPointer) {
                     if (expectedStreamPointer == expectedStreamPointerEnd)
@@ -953,62 +964,68 @@ public:
                 }
                 ++streamPointer;
                 ++expectedStreamPointer;
-                ++_liveBars;
             } while (true);
-            int i;
             if (!_good) {
-                if (_badStreamsOk > 0)
-                    printf("Ignored: ");
-                printf("Bad stream. Expected ");
-                int i;
-                for (i = 0, expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer, ++i) {
-                    if ((i % 8) == 0)
-                        printf(" ");
-                    printf("%i", *expectedStreamPointer);
-                }
-                printf(", observed ");
-                for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
-                    if ((i % 8) == 0)
-                        printf(" ");
-                    printf("%i", *streamPointer);
-                }
-                printf("\n");
-                if (_badStreamsOk == 0)
-                    exit(0);
-                if (!_oldGood)
-                    SetConsoleCursorPosition(_console, _cursorPosition);
-                CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
-                GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
-                _cursorPosition = consoleScreenBufferInfo.dwCursorPosition;
-                printf("Settling: %lf (maximum %lf)\n", _settlingCycles, _maxSettlingCycles);
+                ++_badStreams;
+                //if (_badStreamsOk > 0)
+                //    printf("Ignored: ");
+                //printf("Bad stream. Expected ");
+                //int i;
+                //for (i = 0, expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer, ++i) {
+                //    if ((i % 8) == 0)
+                //        printf(" ");
+                //    printf("%i", *expectedStreamPointer);
+                //}
+                //printf(", observed ");
+                //for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
+                //    if ((i % 8) == 0)
+                //        printf(" ");
+                //    printf("%i", *streamPointer);
+                //}
+                //printf("\n");
+                //if (_badStreamsOk == 0)
+                //    exit(0);
+                if (_oldGood)
+                    ++_settlings;
                 if (_settlingCycles > _maxSettlingCycles)
                     _maxSettlingCycles = _settlingCycles;
             }
             else {
-                _badStreamsOk = 0;
-                printf("Good stream: ");
-                for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
-                    if ((i % 8) == 0)
-                        printf(" ");
-                    printf("%i", *streamPointer);
-                }
-                printf("\n");
-                if (_oldGood)
-                    SetConsoleCursorPosition(_console, _cursorPosition);
-                CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
-                GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
-                _cursorPosition = consoleScreenBufferInfo.dwCursorPosition;
-                printf("Cycles: %lf (%lf per word for %i words)\n", _cyclesThisStream, _cyclesThisStream/(i/8 + 1), i/8);
+                _badStreams = 0;
+                //printf("Good stream: ");
+                //for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
+                //    if ((i % 8) == 0)
+                //        printf(" ");
+                //    printf("%i", *streamPointer);
+                //}
+                //printf("\n");
+                _goodCycles += _cyclesThisStream;
+                _goodWords += liveBars;
             }
+            ++_streams;
+            clock_t wall = clock();
+            if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
+                _wall = wall;
+                SetConsoleCursorPosition(_console, _cursorPosition);
+                printf("Configuration: %i\n", _changes);
+                printf("Time: %lf\n", _t);
+                printf("Bars: %i  \n", liveBars);
+                printf("Streams: %i\n", _streams);
+                printf("Attempt: %i       \n", _badStreams);
+                printf("Maximum settling cycles: %lf\n", _maxSettlingCycles);
+                printf("Mean settling cycles: %lf  \n", _totalSettlingCycles/_settlings);
+                printf("Cycles: %lf  \n", _cyclesThisStream);
+                printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
+            }
+            if (_maxSettlingCycles > 30000000)
+                exit(0);
             _oldGood = _good;
 //        }
         _cyclesThisStream = 0;
         _streamPointer = &_stream[0];
-        if (_badStreamsOk > 0)
-            --_badStreamsOk;
     }
 
-    bool read(double t, int bar, int direction, char* readMarker)
+    bool read(int t, int bar, int direction, char* readMarker)
     {
         if (bar == -1) {
             *readMarker = '.';
@@ -1016,7 +1033,7 @@ public:
         }
         return _bars[bar]->read(t, direction, readMarker);
     }
-    void write(double t, int bar, int direction, bool value)
+    void write(int t, int bar, int direction, bool value)
     {
         if (bar == -1)
             return;
@@ -1030,9 +1047,8 @@ private:
     std::vector<int> _expectedStream;
     int* _streamPointer;
     int _totalConnected;
-    int _badStreamsOk;
+    int _badStreams;
     int _connectedPairs;
-    int _liveBars;
     bool _good;
     double _cyclesThisStream;
     double _settlingCycles;
@@ -1040,6 +1056,14 @@ private:
     bool _oldGood;
     COORD _cursorPosition;
     HANDLE _console;
+    double _t;
+    int _changes;
+    double _totalSettlingCycles;
+    int _settlings;
+    int _streams;
+    clock_t _wall;
+    double _goodCycles;
+    double _goodWords;
 };
 
 int main()
