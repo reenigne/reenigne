@@ -1,37 +1,14 @@
-Seeing desynchronization when the off sync takes 14 cycles
-  We're seeing one phase relationship after initial post-data-request sync, then another after the following sync (which takes 13 cycles)
-    Do we need to separate data request and sync?
-    Would the subsequent recvSyncs take 12 cycles? - presumably yes
-    Is it valid to jump into the middle of recvSync as we do?
-      I guess not, or we would see the observed problem
+Figure out why we're failing to sync with more than about +/- 0.015% (4 of 256 works, 8 of 256 stalls eventually, 16 of 256 stalls after a little while)
+  Problem is that at extremes of frequency difference (parent fast, child slow) even with a correct sync we still get out of sync during data transfer
+    Add NOPs so we have a 5 cycle per bit read and write loop
+      Adjust prime timings correspondingly
 
-    Look at the phase after the full sync
-      Figure out why the half sync didn't create this phase
-
-
-
-
-Investigate failure to settle
 
 Allow connection/disconnection when not in good state
-
-Use integers instead of doubles for time
-  4MHz +/- 1% in 256 steps:
-    measure time in units of cycle/(100*256):
-      102.4GHz
-    time step = 0.009765625 ns
-  if time gets too high, simulate everything up to current t and then rebase so that t=0 again.
-    1) avoid having to wait ages for a component that is a long way behind to catch up
-    2) avoid incorrect results due to timers wrapping
 
 vary the clock speed according to a normal distribution - gradually increase the standard deviation and see when it breaks
   Are the clock speeds of real PIC12F508s normal or uniform?
     Write code for the programmer code and speed tester (ideal speed should be 1/3 MHz)
-  Might need to rearrange simulateCycle() as simulateToTime()
-
-Simulation is too slow
-  Profile
-  Lack of buffering? Convert everything to use String and re-implement buffering
 
 Make simulator.cpp output diagrams like timings.txt
 

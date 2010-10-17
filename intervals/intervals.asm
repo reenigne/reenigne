@@ -64,6 +64,7 @@ recvBit macro i, b
   BTFSC GPIO, bit#v(b)
   INCF lengthLow + i, F
   delay2
+  delay1
   endm
 
 sendBit macro i
@@ -71,6 +72,7 @@ sendBit macro i
   BTFSS lengthLow + i, 0
   ANDWF lowPrnt, W
   TRIS GPIO
+  delay1
   endm
 
   __config _MCLRE_OFF & _CP_OFF & _WDT_OFF & _IntRC_OSC
@@ -92,6 +94,7 @@ waitDReq#v(b)
   GOTO waitDReq#v(b)B
 
 recvData#v(b)
+  delay1
   recvBit 0, b
   recvBit 1, b
   recvBit 2, b
@@ -101,7 +104,7 @@ recvData#v(b)
   recvBit 6, b
   BTFSC GPIO, bit#v(b)
   INCF lengthLow + 7, F
-  delay1
+  delay2
   MOVF after#v(b), W
   BTFSC GPIO, bit#v(b)
   MOVWF PCL
@@ -139,12 +142,17 @@ initData1
   MOVLW 1  ; parent axis
   GOTO initData
 
+delay5
+  NOP
+delay4
+  RETLW 0
+
 prime
   ANDWF bits, W
   TRIS GPIO
 
-  ; delay for 54 cycles
-  MOVLW 0x11       ; 1
+  ; delay for 54+9 cycles
+  MOVLW 0x14       ; 1
   MOVWF count      ; 1
   DECFSZ count, F  ; 1*16 + 2
   GOTO $-1         ; 2*16
@@ -181,6 +189,7 @@ sendData
   GOTO reset
   ANDWF lowPrnt, W
   TRIS GPIO         ; send "more" (low)
+  delay1
   COMF lowChld, W
   IORWF bits, W
   MOVWF bits
@@ -232,8 +241,8 @@ highPageCode macro b
 
   ; We get here 1.75-11.75 cycles after prime goes low
 found#v(b)
-  ; These lines need to take 35 cycles so we avoid confusing prime with data
-  ; (36 for data+more, +1 for clock drift, -2 for the BTFSCs)
+  ; These lines need to take 35+9 cycles so we avoid confusing prime with data
+  ; (36+9 for data+more, +1 for clock drift, -2 for the BTFSCs)
   CALL initData#v(b&1)   ; 23
   MOVLW low#v(b)         ;  1
   MOVWF lowPrnt          ;  1
@@ -321,32 +330,11 @@ initData
   MOVWF bits
   MOVLW (waitDReq0 - init0)
   MOVWF delta
+  CALL delay4
+  CALL delay5
   RETLW 0
 
   end
 
 ; 56 instructions free, 52 in low page
 
-
-
-
-
-; Data request happens somewhere between 0.25 and 3.25
-
-; 0  BTFSS GPIO, bit#v(b)
-; 1  GOTO $-1                    TRIS GPIO
-; 2
-; 3  BTFSS GPIO, bit#v(b)
-; 4
-; 5  MOVWF PCL
-; 6  BTFSC GPIO, bit#v(b)
-; 7  delay2                      TRIS GPIO
-; 8
-; 9  delay1                      MOVF bits, W
-;10  BTFSS GPIO, bit#v(b)        TRIS GPIO
-;11  delay2                      ANDWF lowChld, W
-;12                              TRIS GPIO
-;13  BTFSC GPIO, bit#v(b)        MOVF bits, W
-;14                              TRIS GPIO
-;15  BTFSC GPIO, bit#v(b)
-;16  GOTO sendData

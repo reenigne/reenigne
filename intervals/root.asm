@@ -92,6 +92,7 @@ waitDReq#v(b)
   GOTO waitDReq#v(b)B
 
 recvData#v(b)
+  delay1
   recvBit 0, b
   recvBit 1, b
   recvBit 2, b
@@ -143,8 +144,8 @@ prime
   ANDWF bits, W
   TRIS GPIO
 
-  ; delay for 54 cycles
-  MOVLW 0x11       ; 1
+  ; delay for 54+9 cycles
+  MOVLW 0x14       ; 1
   MOVWF count      ; 1
   DECFSZ count, F  ; 1*16 + 2
   GOTO $-1         ; 2*16
