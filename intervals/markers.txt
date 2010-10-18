@@ -1,22 +1,22 @@
-0 data bit 0 (length low)
-1 data bit 1 (length middle)
-2 data bit 2 (length high)
-3 data bit 3 (parent axis)
-4 data bit 4 (switch)
-5 data bit 5 (child B present)
-6 data bit 6 (child C present)
-7 data bit 7 (child D present)
-M more data to come if low
-+ high between send more and receive VSync
+0 data bit 0, length low
+1 data bit 1, length middle
+2 data bit 2, length high
+3 data bit 3, parent axis
+4 data bit 4, switch
+5 data bit 5, child B present
+6 data bit 6, child C present
+7 data bit 7, child D present
+R "data request" (high)
+S "sync falling" (low)
+T "sync rising" (high)
+W "wait for data request" (low)
+M "more data to come" (low)
 . default/disconnected (high)
 A "prime pending" (low)
 B "prime" (low)
 C "clear prime" (high)
-D "data request" (high)
-E "U Sync falling" (low)
-F "U Sync rising" (high)
-G "V Sync falling" (low)
-H "V Sync rising" (high) or complete
+D "wait for initial data request" (low)
+E "child absent or untried" (high)
++ high between send more and subsequent sendData
 I "prime complete" (high)
-J "wait for data request" (low) or "child absent or untried" (high)
 

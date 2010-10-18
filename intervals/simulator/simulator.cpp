@@ -6,7 +6,7 @@
 
 #include <time.h>
 
-//#define DUMP
+#define DUMP
 
 class Program
 {
@@ -232,14 +232,9 @@ public:
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
                                     _f = -1;
-                                    {
-                                        for (int i = 0; i < 8; ++i) {
-                                            _simulation->streamBit((_memory[7+i] & 1) != 0);
-                                            if (_debug)
-                                                printf("%i", _memory[7+i] & 1);
-                                        }
-                                    }
-                                    if (_debug) { printf("        "); _program->annotation(pc).write(_console); printf("\n"); }
+                                    if (_debug) { printf("%i               ", _w & 1); _program->annotation(pc).write(_console); printf("\n"); }
+                                    _simulation->streamBit((_w & 1) != 0);
+                                    _skipping = true;
                                     break;
                                 case 6:
                                     if (_debug) { printf("TRIS GPIO       "); _program->annotation(pc).write(_console); printf("\n"); }
@@ -297,14 +292,7 @@ public:
                         break;
                     case 0x5:
                         if (_debug) { printf("ANDWF 0x%02x, %c   ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
-                        {
-                            UInt8 w = _w;
-                            UInt8 f = readMemory(_f);
-                            //if (_debug)
-                                //printf("0x%02x & 0x%02x\n",w,f);
-                            //storeZ(readMemory(_f) & _w, d);
-                            storeZ(f & w, d);
-                        }
+                        storeZ(readMemory(_f) & _w, d);
                         break;
                     case 0x6:
                         if (_debug) { printf("XORWF 0x%02x, %c   ", _f, dc); _program->annotation(pc).write(_console); printf("\n"); }
@@ -440,16 +428,15 @@ public:
                     break;
                 case 0xd:
                     if (_debug) { printf("IORLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
-                    _w |= d;
+                    storeZ(_w | d, false);
                     break;
                 case 0xe:
                     if (_debug) { printf("ANDLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
-                    _w &= d;
-                    //if (_debug) printf("W = 0x%02x\n",_w);
+                    storeZ(_w & d, false);
                     break;
                 case 0xf:
                     if (_debug) { printf("XORLW 0x%02x      ", d); _program->annotation(pc).write(_console); printf("\n"); }
-                    _w ^= d;
+                    storeZ(_w ^ d, false);
                     break;
             }
         }
@@ -491,17 +478,57 @@ public:
                     //printf(")\n");
                     break;
                 case 'p':
-                    _newMarker[_parent] = c.get();
+                    {
+                        int cLow = c.get();
+                        int cHigh = c.get();
+                        switch (_parent) {
+                            case 0:
+                                _newMarker[0] = (_data & 0x10) ? cHigh : cLow;
+                                break;
+                            case 1:
+                                _newMarker[1] = (_data & 0x20) ? cHigh : cLow;
+                                break;
+                            case 2:
+                                _newMarker[2] = (_data & 1) ? cHigh : cLow;
+                                break;
+                            case 3:
+                                _newMarker[3] = (_data & 2) ? cHigh : cLow;
+                                break;
+                        }
+                    }
                     break;
                 case 'c':
-                    _newMarker[_child] = c.get();
+                    {
+                        int cLow = c.get();
+                        int cHigh = c.get();
+                        switch (_child) {
+                            case 0:
+                                _newMarker[0] = (_data & 0x10) ? cHigh : cLow;
+                                break;
+                            case 1:
+                                _newMarker[1] = (_data & 0x20) ? cHigh : cLow;
+                                break;
+                            case 2:
+                                _newMarker[2] = (_data & 1) ? cHigh : cLow;
+                                break;
+                            case 3:
+                                _newMarker[3] = (_data & 2) ? cHigh : cLow;
+                                break;
+                        }
+                    }
                     break;
                 case 'o':
                     {
-                        int m = c.get();
-                        for (int i = 0; i < 4; ++i)
-                            if (i != _parent && i != _child)
-                                _newMarker[i] = m;
+                        int cLow = c.get();
+                        int cHigh = c.get();
+                        if (_parent != 0 && _child != 0)
+                            _newMarker[0] = (_data & 0x10) ? cHigh : cLow;
+                        if (_parent != 1 && _child != 1)
+                            _newMarker[1] = (_data & 0x20) ? cHigh : cLow;
+                        if (_parent != 2 && _child != 2)
+                            _newMarker[2] = (_data & 1) ? cHigh : cLow;
+                        if (_parent != 3 && _child != 3)
+                            _newMarker[3] = (_data & 2) ? cHigh : cLow;
                     }
                     break;
                 case 'r':
@@ -761,8 +788,8 @@ private:
         if (_number == 0)
             _tPerQuarterCycle = 100*256;
         else
-            _tPerQuarterCycle = 100*256 + rand()*0;
-            //_tPerQuarterCycle = (rand() % 512) + 99*256;  // 99*256 to 101*256 units of cycle/(100*256)
+            //_tPerQuarterCycle = 100*256 + rand()*0;
+            _tPerQuarterCycle = (rand() % 512) + 99*256;  // 99*256 to 101*256 units of cycle/(100*256)
         //_tPerQuarterCycle = 100*256 + ((rand() % 8) - 4);
         _state = 0;
         _tNextStop = _tPerQuarterCycle;
@@ -827,11 +854,11 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-//#ifdef DUMP
-//            bool debug = (i == 38 || i == 15);
-//#else
+#ifdef DUMP
+            bool debug = (i == 67 || i == 32);
+#else
             bool debug = false;
-//#endif
+#endif
             bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, debug);
             if (i == 0)
                 root = bar;
@@ -1047,8 +1074,8 @@ public:
                 printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
             }
 #endif
-            //if (_badStreams > 10)
-            //    exit(0);
+            if (_badStreams > 10)
+                exit(0);
             _oldGood = _good;
 //        }
         _cyclesThisStream = 0;

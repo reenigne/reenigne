@@ -34,8 +34,7 @@ after1            EQU 16h
 after2            EQU 17h
 after3            EQU 18h
 count             EQU 19h
-waitDReq          EQU 1ah
-delta             EQU 1bh
+temp              EQU 1ah
 
 
 unroll macro m
@@ -61,12 +60,14 @@ delay3 macro
 
 
 recvBit macro i, b
+  MOVLW 0
   BTFSC GPIO, bit#v(b)
-  INCF lengthLow + i, F
-  delay2
+  MOVLW 1
+  TRIS 5
   endm
 
 sendBit macro i
+  NOP
   NOP
   NOP
   NOP
@@ -86,13 +87,8 @@ lowPageCode macro b
 
 prime#v(b)
   GOTO prime#v(b)B
-init#v(b)
-  GOTO init#v(b)B
-waitDReq#v(b)
-  GOTO waitDReq#v(b)B
 
 recvData#v(b)
-  delay1
   recvBit 0, b
   recvBit 1, b
   recvBit 2, b
@@ -100,9 +96,7 @@ recvData#v(b)
   recvBit 4, b
   recvBit 5, b
   recvBit 6, b
-  BTFSC GPIO, bit#v(b)
-  INCF lengthLow + 7, F
-  TRIS 5
+  recvBit 7, b
   MOVF after#v(b), W
   BTFSC GPIO, bit#v(b)
   MOVWF PCL
@@ -110,17 +104,17 @@ setup#v(b)
   MOVLW recvData#v(b)
   MOVWF recvData
   MOVLW low#v(b)
-setupF#v(b)
   MOVWF lowChld
+  ANDWF bits, F
+setupF#v(b)
+  MOVF bits, W
+  TRIS GPIO            ; send W "wait for data request" (low) to child
   MOVF recvSync, W
   MOVWF PCL
 
 recvSync#v(b)
-  BTFSC GPIO, bit#v(b)
-  delay2
-  delay1
   BTFSS GPIO, bit#v(b)
-  delay2
+  GOTO $-1
   BTFSC GPIO, bit#v(b)
   delay2
   BTFSC GPIO, bit#v(b)
@@ -140,6 +134,11 @@ initData1
   MOVLW 1  ; parent axis
   GOTO initData
 
+delay6
+  delay2
+delay4
+  RETLW 0
+
 prime
   ANDWF bits, W
   TRIS GPIO
@@ -158,16 +157,11 @@ prime
 
 setupFinal
   CLRF more
+  delay2
   GOTO setupF0
 
-initHelper
-  MOVWF recvSync
-  ADDWF delta, W
-  MOVWF waitDReq
-  RETLW 0
 
-
-; --- high page (actually starts somewhere in sendData, can be anywhere after initHelper label) ---
+; --- high page (actually starts somewhere in sendData, can be anywhere after setupFinal label) ---
 
 sendData
   sendBit 0
@@ -182,28 +176,17 @@ sendData
   GOTO reset
   NOP
   NOP
+  delay1
   COMF lowChld, W
   IORWF bits, W
   MOVWF bits
-  TRIS GPIO         ; clear "more" and send "data request" or "sync initial high" to child
+  TRIS GPIO         ; clear "more" (high) and send R "data request" (high) to child
   delay2
-  CLRF lengthLow + 0
-  CLRF lengthLow + 1
   ANDWF lowChld, W
-  TRIS GPIO         ; send "sync first falling" to child
-  CLRF lengthLow + 2
+  TRIS GPIO         ; send S "sync falling" (low) to child
   MOVF bits, W
-  TRIS GPIO         ; send "sync first rising" to child
-  ANDWF lowChld, W
-  TRIS GPIO         ; send "sync second falling" to child
-  MOVF bits, W
-  TRIS GPIO         ; send "sync second rising" to child
-  CLRF lengthLow + 3
-  CLRF lengthLow + 4
-  CLRF lengthLow + 5
-  CLRF lengthLow + 6
-  CLRF lengthLow + 7
-  delay1
+  TRIS GPIO         ; send T "sync rising" (high) to child
+  CALL delay6
   MOVF recvData, W
   MOVWF PCL
 
@@ -228,18 +211,20 @@ waitForPrime
   NOP
   NOP
   NOP
+  NOP
+  NOP
+  NOP
 
 highPageCode macro b
 
-  ; We get here 1.75-11.75 cycles after prime goes low
 found#v(b)
-  ; These lines need to take 35 cycles so we avoid confusing prime with data
-  ; (36 for data+more, +1 for clock drift, -2 for the BTFSCs)
-  CALL initData#v(b&1)   ; 23
+  ; These lines need to take 35+9 cycles so we avoid confusing prime with data
+  ; (36+9 for data+more, +1 for clock drift, -2 for the BTFSCs)
+  CALL initData#v(b&1)   ; 23+19
   MOVLW low#v(b)         ;  1
   MOVWF lowPrnt          ;  1
-  MOVLW init#v(b)        ;  1
-  CALL initHelper        ;  9
+  MOVLW recvSync#v(b)    ;  1
+  MOVWF recvSync         ;  1
 
   NOP
   NOP
@@ -260,16 +245,6 @@ found#v(b)
   MOVLW setup#v((b+1)&3)
   MOVWF PCL
 
-init#v(b)B
-  MOVLW recvSync#v(b)
-  GOTO init
-
-waitDReq#v(b)B
-  MOVF recvSync, W
-  BTFSS GPIO, bit#v(b)
-  GOTO $-1
-  MOVWF PCL
-
 prime#v(b)B
   MOVLW low#v(b)
   CALL prime
@@ -284,11 +259,6 @@ prime#v(b)B
   endm
 
   unroll highPageCode
-
-init
-  MOVWF recvSync
-  MOVF waitDReq, W
-  MOVWF PCL
 
 foundHelperB
   MOVF bits, W
@@ -320,8 +290,9 @@ initData
   CLRF GPIO
   MOVLW highAll
   MOVWF bits
-  MOVLW (waitDReq0 - init0)
-  MOVWF delta
+  CALL delay6
+  CALL delay6
+  CALL delay6
   RETLW 0
 
   end

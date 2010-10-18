@@ -1,8 +1,10 @@
-Figure out why we're failing to sync with more than about +/- 0.015% (4 of 256 works, 8 of 256 stalls eventually, 16 of 256 stalls after a little while)
-  Problem is that at extremes of frequency difference (parent fast, child slow) even with a correct sync we still get out of sync during data transfer
-    Add NOPs so we have a 5 cycle per bit read and write loop
-      Adjust prime timings correspondingly
+Fix up markers in intervals.annotation
+Fix up root.annotation
 
+Speed:
+  Can we switch back to 4 cycles per bit data?
+  Reduce the prime check wait time
+    Put a high pause in the middle of the write cycle to reduce the maximum low time during data transfer
 
 Allow connection/disconnection when not in good state
 
@@ -17,7 +19,3 @@ When the hardware doesn't work:
   Get something simpler working
   Run timing tests (make sure MOVWF PCL takes one cycle)
 
-Speed up the program - should be able to get nearly 50% increase by:
-  Read all the pins at once
-  Put a high pause in the middle of the write cycle to reduce the maximum low time during data transfer
-  Reduce the prime check wait time

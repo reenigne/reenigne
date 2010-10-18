@@ -34,8 +34,7 @@ after1            EQU 16h
 after2            EQU 17h
 after3            EQU 18h
 count             EQU 19h
-waitDReq          EQU 1ah
-delta             EQU 1bh
+temp              EQU 1ah
 
 
 unroll macro m
@@ -61,10 +60,10 @@ delay3 macro
 
 
 recvBit macro i, b
+  CLRF lengthLow + i
   BTFSC GPIO, bit#v(b)
   INCF lengthLow + i, F
   delay2
-  delay1
   endm
 
 sendBit macro i
@@ -88,13 +87,8 @@ lowPageCode macro b
 
 prime#v(b)
   GOTO prime#v(b)B
-init#v(b)
-  GOTO init#v(b)B
-waitDReq#v(b)
-  GOTO waitDReq#v(b)B
 
 recvData#v(b)
-  delay1
   recvBit 0, b
   recvBit 1, b
   recvBit 2, b
@@ -102,9 +96,7 @@ recvData#v(b)
   recvBit 4, b
   recvBit 5, b
   recvBit 6, b
-  BTFSC GPIO, bit#v(b)
-  INCF lengthLow + 7, F
-  delay2
+  recvBit 7, b
   MOVF after#v(b), W
   BTFSC GPIO, bit#v(b)
   MOVWF PCL
@@ -112,17 +104,17 @@ setup#v(b)
   MOVLW recvData#v(b)
   MOVWF recvData
   MOVLW low#v(b)
-setupF#v(b)
   MOVWF lowChld
+  ANDWF bits, F
+setupF#v(b)
+  MOVF bits, W
+  TRIS GPIO            ; send W "wait for data request" (low) to child
   MOVF recvSync, W
   MOVWF PCL
 
 recvSync#v(b)
-  BTFSC GPIO, bit#v(b)
-  delay2
-  delay1
   BTFSS GPIO, bit#v(b)
-  delay2
+  GOTO $-1
   BTFSC GPIO, bit#v(b)
   delay2
   BTFSC GPIO, bit#v(b)
@@ -142,8 +134,8 @@ initData1
   MOVLW 1  ; parent axis
   GOTO initData
 
-delay5
-  NOP
+delay6
+  delay2
 delay4
   RETLW 0
 
@@ -165,16 +157,11 @@ prime
 
 setupFinal
   CLRF more
+  delay2
   GOTO setupF0
 
-initHelper
-  MOVWF recvSync
-  ADDWF delta, W
-  MOVWF waitDReq
-  RETLW 0
 
-
-; --- high page (actually starts somewhere in sendData, can be anywhere after initHelper label) ---
+; --- high page (actually starts somewhere in sendData, can be anywhere after setupFinal label) ---
 
 sendData
   sendBit 0
@@ -188,30 +175,18 @@ sendData
   BTFSS more, 0
   GOTO reset
   ANDWF lowPrnt, W
-  TRIS GPIO         ; send "more" (low)
+  TRIS GPIO         ; send M "more data to come" (low) to parent
   delay1
   COMF lowChld, W
   IORWF bits, W
   MOVWF bits
-  TRIS GPIO         ; clear "more" and send "data request" or "sync initial high" to child
+  TRIS GPIO         ; clear "more" (high) and send R "data request" (high) to child
   delay2
-  CLRF lengthLow + 0
-  CLRF lengthLow + 1
   ANDWF lowChld, W
-  TRIS GPIO         ; send "sync first falling" to child
-  CLRF lengthLow + 2
+  TRIS GPIO         ; send S "sync falling" (low) to child
   MOVF bits, W
-  TRIS GPIO         ; send "sync first rising" to child
-  ANDWF lowChld, W
-  TRIS GPIO         ; send "sync second falling" to child
-  MOVF bits, W
-  TRIS GPIO         ; send "sync second rising" to child
-  CLRF lengthLow + 3
-  CLRF lengthLow + 4
-  CLRF lengthLow + 5
-  CLRF lengthLow + 6
-  CLRF lengthLow + 7
-  delay1
+  TRIS GPIO         ; send T "sync rising" (high) to child
+  CALL delay6
   MOVF recvData, W
   MOVWF PCL
 
@@ -228,26 +203,28 @@ reset
   MOVLW childBabsent-1   ; 1
   MOVWF FSR              ; 1
 waitForPrime
-  BTFSS GPIO, bit3   ; 1 2 2 2 2
-  GOTO found3        ; 2 0 0 0 0
-  BTFSS GPIO, bit2   ; 0 1 2 2 2
-  GOTO found2        ; 0 2 0 0 0
-  BTFSS GPIO, bit1   ; 0 0 1 2 2
-  GOTO found1        ; 0 0 2 0 0
-  BTFSC GPIO, bit0   ; 0 0 0 2 1
-  GOTO waitForPrime  ; 0 0 0 0 2
+  COMF GPIO, W
+  ANDLW 33h              ; 0.75
+  BTFSC STATUS, Z
+  GOTO waitForPrime
+  MOVWF temp             ; 3.75-8.75
+  BTFSC temp, bit3
+  GOTO found3
+  BTFSC temp, bit2
+  GOTO found2
+  BTFSC temp, bit1
+  GOTO found1
 
 highPageCode macro b
 
-  ; We get here 1.75-11.75 cycles after prime goes low
 found#v(b)
-  ; These lines need to take 35+9 cycles so we avoid confusing prime with data
-  ; (36+9 for data+more, +1 for clock drift, -2 for the BTFSCs)
-  CALL initData#v(b&1)   ; 23
+  ; These lines need to take 38 cycles so we avoid confusing prime with data
+  ; (45 for data+more, +1 for clock drift, -8 for the BTFSCs)
+  CALL initData#v(b&1)   ; 34
   MOVLW low#v(b)         ;  1
   MOVWF lowPrnt          ;  1
-  MOVLW init#v(b)        ;  1
-  CALL initHelper        ;  9
+  MOVLW recvSync#v(b)    ;  1
+  MOVWF recvSync         ;  1
 
   BTFSC GPIO, bit#v(b)
   GOTO waitForPrime
@@ -268,16 +245,6 @@ found#v(b)
   MOVLW setup#v((b+1)&3)
   MOVWF PCL
 
-init#v(b)B
-  MOVLW recvSync#v(b)
-  GOTO init
-
-waitDReq#v(b)B
-  MOVF recvSync, W
-  BTFSS GPIO, bit#v(b)
-  GOTO $-1
-  MOVWF PCL
-
 prime#v(b)B
   MOVLW low#v(b)
   CALL prime
@@ -293,48 +260,42 @@ prime#v(b)B
 
   unroll highPageCode
 
-init
-  MOVWF recvSync
-  MOVF waitDReq, W
-  MOVWF PCL
-
 foundHelperB
   MOVF bits, W
   TRIS GPIO
   RETLW setupFinal
 
-initData
-  MOVWF parentAxis
-  MOVLW 1
+initData                   ; 2
+  MOVWF parentAxis         ; 1
+  MOVLW 1                  ; 1
   if (length & 1)
     MOVWF lengthLow
   else
-    CLRF lengthLow
+    CLRF lengthLow         ; 1
   endif
   if ((length >> 1) & 1)
     MOVWF lengthMiddle
   else
-    CLRF lengthMiddle
+    CLRF lengthMiddle      ; 1
   endif
   if ((length >> 2) & 1)
     MOVWF lengthHigh
   else
-    CLRF lengthHigh
+    CLRF lengthHigh        ; 1
   endif
-  MOVWF more
-  CLRF switch
-  BTFSC GPIO, 2
-  INCF switch, F
-  CLRF GPIO
-  MOVLW highAll
-  MOVWF bits
-  MOVLW (waitDReq0 - init0)
-  MOVWF delta
-  CALL delay4
-  CALL delay5
-  RETLW 0
+  MOVWF more               ; 1
+  CLRF switch              ; 1
+  BTFSC GPIO, 2            ; 1
+  INCF switch, F           ; 1
+  CLRF GPIO                ; 1
+  MOVLW highAll            ; 1
+  MOVWF bits               ; 1
+  CALL delay6
+  CALL delay6
+  CALL delay6
+  RETLW 0                  ; 2
 
   end
 
-; 56 instructions free, 52 in low page
+; 15 instructions free, 17 in low page
 
