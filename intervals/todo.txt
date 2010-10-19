@@ -1,21 +1,29 @@
-Fix up markers in intervals.annotation
-Fix up root.annotation
-
-Speed:
-  Can we switch back to 4 cycles per bit data?
-  Reduce the prime check wait time
-    Put a high pause in the middle of the write cycle to reduce the maximum low time during data transfer
+Bad after settling in ~1700
+  Look for bad after 500000 cycles of good rather than 10 goods?
 
 Allow connection/disconnection when not in good state
 
-vary the clock speed according to a normal distribution - gradually increase the standard deviation and see when it breaks
-  Are the clock speeds of real PIC12F508s normal or uniform?
-    Write code for the programmer code and speed tester (ideal speed should be 1/3 MHz)
+Finish writing code for programmer:
+  AVR code
+    Transfer program to/from PC
+    Speed test host code
+  PC code
+    Transfer program to/from AVR
+  PIC code
+    Speed test client code
 
-Make simulator.cpp output diagrams like timings.txt
+Buy connectors and resistors
+
+Build first interval bar - octave
+
+Build programmer
+  13V supply and switch
+
+Check the speeds of the PICs we have
+  Try varying the OSCCAL value and see what happens to the speed
 
 When the hardware doesn't work:
-  Check that MOVWL OSCCAL works correctly when it isn't the first (second) instruction executed
+  Check that MOVWF OSCCAL works correctly when it isn't the first (second) instruction executed
   Get something simpler working
   Run timing tests (make sure MOVWF PCL takes one cycle)
 

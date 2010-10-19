@@ -6,7 +6,7 @@
 
 #include <time.h>
 
-#define DUMP
+//#define DUMP
 
 class Program
 {
@@ -197,9 +197,9 @@ public:
             printf("%*s% 7.2lf ", _indent*8, "", _tNextStop/(400.0*256.0));
         int pc = _pch | _memory[2];
         int op = _program->op(pc);
-#ifdef DUMP
+//#ifdef DUMP
         String markerCode = _program->marker(pc);
-#endif
+//#endif
         incrementPC();
         UInt16 r;
         if ((op & 0x800) == 0) {
@@ -232,9 +232,18 @@ public:
                                     break;
                                 case 5:  // Not a real PIC12F508 opcode - used for simulator escape (data)
                                     _f = -1;
-                                    if (_debug) { printf("%i               ", _w & 1); _program->annotation(pc).write(_console); printf("\n"); }
-                                    _simulation->streamBit((_w & 1) != 0);
-                                    _skipping = true;
+                                    //if (_debug) { printf("%i               ", _w & 1); _program->annotation(pc).write(_console); printf("\n"); }
+                                    //_simulation->streamBit((_w & 1) != 0);
+                                    //_skipping = true;
+
+                                    {
+                                        for (int i = 0; i < 8; ++i) {
+                                            _simulation->streamBit((_memory[7+i] & 1) != 0);
+                                            if (_debug)
+                                                printf("%i", _memory[7+i] & 1);
+                                        }
+                                    }
+                                    if (_debug) { printf("        "); _program->annotation(pc).write(_console); printf("\n"); }
                                     break;
                                 case 6:
                                     if (_debug) { printf("TRIS GPIO       "); _program->annotation(pc).write(_console); printf("\n"); }
@@ -837,7 +846,24 @@ class Simulation
 {
 public:
     Simulation()
-      : _totalBars(100), _stream(_totalBars*8), _expectedStream(_totalBars*8), _badStreams(0), _good(false), _cyclesThisStream(0), _settlingCycles(0), _maxSettlingCycles(0), _console(Handle::consoleOutput()), _changes(0), _totalSettlingCycles(0), _settlings(0), _streams(0), _wall(0), _goodCycles(0), _goodWords(0), _t(0)
+      : _totalBars(100), 
+        _stream(_totalBars*8), 
+        _expectedStream(_totalBars*8), 
+        _good(false), 
+        _cyclesThisStream(0), 
+        _settlingCycles(0), 
+        _maxSettlingCycles(0), 
+        _console(Handle::consoleOutput()), 
+        _changes(0), 
+        _totalSettlingCycles(0), 
+        _streams(0), 
+        _wall(0), 
+        _goodCycles(0), 
+        _goodWords(0), 
+        _t(0), 
+        _goodSinceLastConnection(false), 
+        _goodsInARow(0), 
+        _settled(false)
     {
         CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
         GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
@@ -854,10 +880,9 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-#ifdef DUMP
-            bool debug = (i == 67 || i == 32);
-#else
             bool debug = false;
+#ifdef DUMP
+//            debug = (i == 57 || i == 41);
 #endif
             bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, debug);
             if (i == 0)
@@ -893,10 +918,12 @@ public:
                 //if (_t >= 0.1)
                 //    exit(0);
             } while (!final);
-            if (_good) {
+            if (_settled) {
+                _goodsInARow = 0;
+                _goodSinceLastConnection = false;
                 _good = false;
-                _totalSettlingCycles += _settlingCycles;
                 _settlingCycles = 0;
+                _settled = false;
                 int n = rand() % (4*_totalBars + 1);
                 int barNumber = (n - 1)/4 + 1;
                 int connectorNumber = (n - 1)%4;
@@ -970,11 +997,11 @@ public:
                     --_connectedPairs;
                 }
                 _changes++;
-                //if (_changes == 2247) {
-                //    _bars[77]->debug();
-                //    _bars[53]->debug();
+                //if (_changes == 321) {
+                //    _bars[93]->debug();
+                //    _bars[96]->debug();
                 //}
-                //if (_changes == 2248)
+                //if (_changes == 322)
                 //    exit(0);
                 // Prime to update _indent
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
@@ -989,95 +1016,97 @@ public:
     }
     void streamBit(bool bit)
     {
-        *(_streamPointer++) = bit;
+        if (_streamPointer != &*_stream.end())
+            *(_streamPointer++) = bit;
     }
     void streamStart()
     {
-//        if (!_badStreamOk) {
-            int* streamPointer = &_stream[0];
-            int* expectedStreamPointer = &_expectedStream[0];
-            int liveBars = _bars[0]->prime(0);
-            int* expectedStreamPointerEnd = _bars[0]->storeExpectedStream(0, expectedStreamPointer);
-            _good = true;
-            do {
-                if (streamPointer == _streamPointer) {
-                    if (expectedStreamPointer == expectedStreamPointerEnd)
-                        break;
-                    _good = false;
+        int* streamPointer = &_stream[0];
+        int* expectedStreamPointer = &_expectedStream[0];
+        int liveBars = _bars[0]->prime(0);
+        int* expectedStreamPointerEnd = _bars[0]->storeExpectedStream(0, expectedStreamPointer);
+        _good = true;
+        do {
+            if (streamPointer == _streamPointer) {
+                if (expectedStreamPointer == expectedStreamPointerEnd)
                     break;
-                }
-                if (expectedStreamPointer == expectedStreamPointerEnd) {
-                    _good = false;
-                    break;
-                }
-                if ((*streamPointer) != (*expectedStreamPointer)) {
-                    _good = false;
-                    break;
-                }
-                ++streamPointer;
-                ++expectedStreamPointer;
-            } while (true);
-            int i;
-            if (!_good) {
-                ++_badStreams;
+                _good = false;
+                break;
+            }
+            if (expectedStreamPointer == expectedStreamPointerEnd) {
+                _good = false;
+                break;
+            }
+            if ((*streamPointer) != (*expectedStreamPointer)) {
+                _good = false;
+                break;
+            }
+            ++streamPointer;
+            ++expectedStreamPointer;
+        } while (true);
+        int i;
+        if (!_good) {
 #ifdef DUMP
-                printf("Bad stream. Expected ");
-                for (i = 0, expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer, ++i) {
-                    if ((i % 8) == 0)
-                        printf(" ");
-                    printf("%i", *expectedStreamPointer);
-                }
-                printf(", observed ");
-                for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
-                    if ((i % 8) == 0)
-                        printf(" ");
-                    printf("%i", *streamPointer);
-                }
-                printf("\n");
+            printf("Bad stream. Expected ");
+            for (i = 0, expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer, ++i) {
+                if ((i % 8) == 0)
+                    printf(" ");
+                printf("%i", *expectedStreamPointer);
+            }
+            printf(", observed ");
+            for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
+                if ((i % 8) == 0)
+                    printf(" ");
+                printf("%i", *streamPointer);
+            }
+            printf("\n");
 #endif
-                if (_oldGood)
-                    ++_settlings;
-                if (_settlingCycles > _maxSettlingCycles)
-                    _maxSettlingCycles = _settlingCycles;
-#ifdef DUMP
-                //exit(0);
-#endif
+//#ifdef DUMP
+            if (_settled) {
+                printf("Bad after settled!\n");
+                exit(0);
+            }
+//#endif
+        }
+        else {
+            if (_goodsInARow < 20) {
+                ++_goodsInARow;
+                if (_goodsInARow == 20) {
+                    _settled = true;
+                    if (_settlingCycles > _maxSettlingCycles)
+                        _maxSettlingCycles = _settlingCycles;
+                    _totalSettlingCycles += _settlingCycles;
+                }
             }
             else {
-                _badStreams = 0;
-#ifdef DUMP
-                printf("Good stream: ");
-                for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
-                    if ((i % 8) == 0)
-                        printf(" ");
-                    printf("%i", *streamPointer);
-                }
-                printf("\n");
-#endif
                 _goodCycles += _cyclesThisStream;
                 _goodWords += liveBars;
             }
-            ++_streams;
-#ifndef DUMP
-            clock_t wall = clock();
-            if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
-                _wall = wall;
-                SetConsoleCursorPosition(_console, _cursorPosition);
-                printf("Configuration: %i\n", _changes);
-                printf("Time: %lf\n", _t);
-                printf("Bars: %i  \n", liveBars);
-                printf("Streams: %i\n", _streams);
-                printf("Attempt: %i       \n", _badStreams);
-                printf("Maximum settling cycles: %lf\n", _maxSettlingCycles);
-                printf("Mean settling cycles: %lf  \n", _totalSettlingCycles/_settlings);
-                printf("Cycles: %lf  \n", _cyclesThisStream);
-                printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
+#ifdef DUMP
+            printf("Good stream: ");
+            for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
+                if ((i % 8) == 0)
+                    printf(" ");
+                printf("%i", *streamPointer);
             }
+            printf("\n");
 #endif
-            if (_badStreams > 10)
-                exit(0);
-            _oldGood = _good;
-//        }
+        }
+        ++_streams;
+#ifndef DUMP
+        clock_t wall = clock();
+        if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
+            _wall = wall;
+            SetConsoleCursorPosition(_console, _cursorPosition);
+            printf("Configuration: %i\n", _changes);
+            printf("Time: %lf\n", _t);
+            printf("Bars: %i  \n", liveBars);
+            printf("Streams: %i\n", _streams);
+            printf("Maximum settling cycles: %lf\n", _maxSettlingCycles);
+            printf("Mean settling cycles: %lf  \n", _totalSettlingCycles/_changes);
+            printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
+        }
+#endif
         _cyclesThisStream = 0;
         _streamPointer = &_stream[0];
     }
@@ -1103,24 +1132,23 @@ private:
     std::vector<int> _stream;
     std::vector<int> _expectedStream;
     int* _streamPointer;
-    int _totalConnected;
-    int _badStreams;
     int _connectedPairs;
     bool _good;
     double _cyclesThisStream;
     double _settlingCycles;
     double _maxSettlingCycles;
-    bool _oldGood;
     COORD _cursorPosition;
     HANDLE _console;
     double _t;
     int _changes;
     double _totalSettlingCycles;
-    int _settlings;
     int _streams;
     clock_t _wall;
     double _goodCycles;
     double _goodWords;
+    bool _goodSinceLastConnection;
+    int _goodsInARow;
+    bool _settled;
 };
 
 int main()

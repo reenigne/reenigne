@@ -60,14 +60,12 @@ delay3 macro
 
 
 recvBit macro i, b
-  MOVLW 0
   BTFSC GPIO, bit#v(b)
-  MOVLW 1
-  TRIS 5
+  INCF lengthLow + i, F
+  delay2
   endm
 
 sendBit macro i
-  NOP
   NOP
   NOP
   NOP
@@ -89,6 +87,7 @@ prime#v(b)
   GOTO prime#v(b)B
 
 recvData#v(b)
+  delay1
   recvBit 0, b
   recvBit 1, b
   recvBit 2, b
@@ -96,7 +95,9 @@ recvData#v(b)
   recvBit 4, b
   recvBit 5, b
   recvBit 6, b
-  recvBit 7, b
+  BTFSC GPIO, bit#v(b)
+  INCF lengthLow + 7, F
+  TRIS 5
   MOVF after#v(b), W
   BTFSC GPIO, bit#v(b)
   MOVWF PCL
@@ -113,12 +114,12 @@ setupF#v(b)
   MOVWF PCL
 
 recvSync#v(b)
-  BTFSS GPIO, bit#v(b)
-  GOTO $-1
-  BTFSC GPIO, bit#v(b)
   delay2
-  BTFSC GPIO, bit#v(b)
-  GOTO sendData
+  delay2
+  delay2
+  delay1
+  delay1
+  delay1
   GOTO sendData
 
   endm
@@ -134,8 +135,8 @@ initData1
   MOVLW 1  ; parent axis
   GOTO initData
 
-delay6
-  delay2
+delay5
+  delay1
 delay4
   RETLW 0
 
@@ -144,7 +145,7 @@ prime
   TRIS GPIO
 
   ; delay for 54+9 cycles
-  MOVLW 0x14       ; 1
+  MOVLW 0x12       ; 1
   MOVWF count      ; 1
   DECFSZ count, F  ; 1*16 + 2
   GOTO $-1         ; 2*16
@@ -176,17 +177,22 @@ sendData
   GOTO reset
   NOP
   NOP
-  delay1
   COMF lowChld, W
   IORWF bits, W
   MOVWF bits
   TRIS GPIO         ; clear "more" (high) and send R "data request" (high) to child
-  delay2
+  CLRF lengthLow + 0
+  CLRF lengthLow + 1
   ANDWF lowChld, W
   TRIS GPIO         ; send S "sync falling" (low) to child
   MOVF bits, W
   TRIS GPIO         ; send T "sync rising" (high) to child
-  CALL delay6
+  CLRF lengthLow + 2
+  CLRF lengthLow + 3
+  CLRF lengthLow + 4
+  CLRF lengthLow + 5
+  CLRF lengthLow + 6
+  CLRF lengthLow + 7
   MOVF recvData, W
   MOVWF PCL
 
@@ -290,9 +296,8 @@ initData
   CLRF GPIO
   MOVLW highAll
   MOVWF bits
-  CALL delay6
-  CALL delay6
-  CALL delay6
+  CALL delay4
+  CALL delay5
   RETLW 0
 
   end
