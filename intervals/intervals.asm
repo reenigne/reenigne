@@ -144,12 +144,12 @@ prime
   ANDWF bits, W
   TRIS GPIO
 
-  ; delay for 54 cycles
+  ; delay for 57 cycles
   MOVLW 0x12       ; 1
   MOVWF count      ; 1
-  DECFSZ count, F  ; 1*16 + 2
-  GOTO $-1         ; 2*16
-  delay2
+  DECFSZ count, F  ; 1*17 + 2
+  GOTO $-1         ; 2*17
+  delay2           ; 2
 
   MOVF bits, W
   TRIS GPIO

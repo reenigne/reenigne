@@ -197,9 +197,9 @@ public:
             printf("%*s% 7.2lf ", _indent*8, "", _tNextStop/(400.0*256.0));
         int pc = _pch | _memory[2];
         int op = _program->op(pc);
-//#ifdef DUMP
+#ifdef DUMP1
         String markerCode = _program->marker(pc);
-//#endif
+#endif
         incrementPC();
         UInt16 r;
         if ((op & 0x800) == 0) {
@@ -449,7 +449,7 @@ public:
                     break;
             }
         }
-#ifdef DUMP
+#ifdef DUMP1
         CharacterSource c = markerCode.start();
         do {
             int ch = c.get();
@@ -655,7 +655,7 @@ public:
         int childB = (parent + 1) & 3;
         int childC = (parent + 2) & 3;
         int childD = (parent + 3) & 3;
-#ifdef DUMP
+#ifdef DUMP1
         printf("%*s%03i: ", _indent*2, "", _number);
         for (int i = 0; i < 4; ++i)
             if (_connectedBar[i] == -1)
@@ -861,8 +861,8 @@ public:
         _goodCycles(0), 
         _goodWords(0), 
         _t(0), 
-        _goodSinceLastConnection(false), 
-        _goodsInARow(0), 
+        _streamsSinceLastChange(0),
+        _goodsSinceLastChange(0),
         _settled(false)
     {
         CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
@@ -918,11 +918,13 @@ public:
                 //if (_t >= 0.1)
                 //    exit(0);
             } while (!final);
-            if (_settled) {
-                _goodsInARow = 0;
-                _goodSinceLastConnection = false;
+            double goodStreamProportion = static_cast<double>(_goodsSinceLastChange) / static_cast<double>(_streamsSinceLastChange);
+
+            if (goodStreamProportion > 0.67) {
                 _good = false;
                 _settlingCycles = 0;
+                _streamsSinceLastChange = 0;
+                _goodsSinceLastChange = 0;
                 _settled = false;
                 int n = rand() % (4*_totalBars + 1);
                 int barNumber = (n - 1)/4 + 1;
@@ -934,6 +936,7 @@ public:
                 Bar* bar = _bars[barNumber];
                 int connectedBarNumber = bar->connectedBar(connectorNumber);
                 int connectedDirection = bar->connectedDirection(connectorNumber);
+                ++_changes;
                 if (connectedBarNumber == -1 && _connectedPairs < _totalBars*2) {
                     // This connector is not connected - connect it to a random disconnected connector of the opposite gender
                     Bar* otherBar;
@@ -980,7 +983,7 @@ public:
                         }
                     }
 #ifdef DUMP
-                    printf("***%i, %lf: Connecting bar %i direction %i to bar %i direction %i\n", _changes, _t, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+                    printf("Configuration %i, time %lf: Connecting bar %i direction %i to bar %i direction %i. ", _changes, _t, barNumber, connectorNumber, connectedBarNumber, connectedDirection, );
 #endif
                     bar->connect(connectorNumber, connectedBarNumber, connectedDirection);
                     otherBar->connect(connectedDirection, barNumber, connectorNumber);
@@ -989,14 +992,13 @@ public:
                 else {
                     // This connector is connected - disconnect it.
 #ifdef DUMP
-                    printf("***%i, %lf: Disconnecting bar %i direction %i from bar %i direction %i\n", _changes, _t, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+                    printf("Configuration %i, time %lf: Disconnecting bar %i direction %i from bar %i direction %i. ", _changes, _t, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
 #endif
                     Bar* connectedBar = _bars[connectedBarNumber];
                     bar->connect(connectorNumber, -1, 0);
                     connectedBar->connect(connectedDirection, -1, 0);
                     --_connectedPairs;
                 }
-                _changes++;
                 //if (_changes == 321) {
                 //    _bars[93]->debug();
                 //    _bars[96]->debug();
@@ -1006,11 +1008,14 @@ public:
                 // Prime to update _indent
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->clearLive();
-                _bars[0]->prime(0);
+                int liveBars = _bars[0]->prime(0);
                 //_bars[0]->storeExpectedStream(0, &_expectedStream[0]);
                 _bars[0]->dumpConnections(0);
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetNewlyConnected();
+#ifdef DUMP
+                printf("Live %i connections %i\n", liveBars, _connectedPairs);
+#endif
             }
         } while (true);
     }
@@ -1047,7 +1052,7 @@ public:
         int i;
         if (!_good) {
 #ifdef DUMP
-            printf("Bad stream. Expected ");
+            printf("Time %lf, Stream %i is bad. Expected", _t, _streams);
             for (i = 0, expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer, ++i) {
                 if ((i % 8) == 0)
                     printf(" ");
@@ -1061,29 +1066,13 @@ public:
             }
             printf("\n");
 #endif
-//#ifdef DUMP
-            if (_settled) {
-                printf("Bad after settled!\n");
-                exit(0);
-            }
-//#endif
         }
         else {
-            if (_goodsInARow < 20) {
-                ++_goodsInARow;
-                if (_goodsInARow == 20) {
-                    _settled = true;
-                    if (_settlingCycles > _maxSettlingCycles)
-                        _maxSettlingCycles = _settlingCycles;
-                    _totalSettlingCycles += _settlingCycles;
-                }
-            }
-            else {
-                _goodCycles += _cyclesThisStream;
-                _goodWords += liveBars;
-            }
+            ++_goodsSinceLastChange;
+            _goodCycles += _cyclesThisStream;
+            _goodWords += liveBars;
 #ifdef DUMP
-            printf("Good stream: ");
+            printf("Time %lf, Stream %i is good:", _t, _streams);
             for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
                 if ((i % 8) == 0)
                     printf(" ");
@@ -1093,6 +1082,24 @@ public:
 #endif
         }
         ++_streams;
+        ++_streamsSinceLastChange;
+        if (!_settled) {
+            double goodStreamProportion = static_cast<double>(_goodsSinceLastChange) / static_cast<double>(_streamsSinceLastChange);
+            if (goodStreamProportion > 0.67) {
+                _settled = true;
+#ifdef DUMP
+                printf("Time %lf, Configuration %i settled in %lf\n", _t, _changes, _settlingCycles);
+#endif
+                if (_settlingCycles > _maxSettlingCycles) {
+                    _maxSettlingCycles = _settlingCycles;
+#ifdef DUMP
+                    if (_maxSettlingCycles > 40000000)
+                        exit(0);
+#endif
+                }
+                _totalSettlingCycles += _settlingCycles;
+            }
+        }
 #ifndef DUMP
         clock_t wall = clock();
         if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
@@ -1146,9 +1153,9 @@ private:
     clock_t _wall;
     double _goodCycles;
     double _goodWords;
-    bool _goodSinceLastConnection;
-    int _goodsInARow;
     bool _settled;
+    int _goodsSinceLastChange;
+    int _streamsSinceLastChange;
 };
 
 int main()

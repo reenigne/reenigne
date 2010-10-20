@@ -1,16 +1,10 @@
-Bad after settling in ~1700
-  Look for bad after 500000 cycles of good rather than 10 goods?
-
-Allow connection/disconnection when not in good state
-
 Finish writing code for programmer:
   AVR code
     Transfer program to/from PC
+      HEX file decoder
     Speed test host code
   PC code
     Transfer program to/from AVR
-  PIC code
-    Speed test client code
 
 Buy connectors and resistors
 
