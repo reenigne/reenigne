@@ -1,3 +1,5 @@
+.global __do_clear_bss  ; This line causes the linker to include this routine to clear the .bss section.
+
 ; Timer 1 interrupt vector.
 
 .global __vector_13
@@ -15,16 +17,43 @@ __vector_13:  ; TIMER1_OVF_vect
 
 .global __vector_10
 __vector_10:  ; TIMER1_CAPT_vect
+  push r31
+  push r30
+  push r27
+  push r26
+  push r25
+  push r24
+  push r23
+  push r22
+  push r21
+  push r20
+  push r19
+  push r18
+  push r1
   push r0
   in r0, 0x3f
   push r0
 
-  in r5, ICR1L
-  in r6, ICR1H
+  lds r5, 0x86
+  lds r6, 0x87
+  rcall sendTimerData
 
   pop r0
   out 0x3f, r0
   pop r0
+  pop r1
+  pop r18
+  pop r19
+  pop r20
+  pop r21
+  pop r22
+  pop r23
+  pop r24
+  pop r25
+  pop r26
+  pop r27
+  pop r30
+  pop r31
   reti
 
 
@@ -58,52 +87,6 @@ main:
   ;   PORTB7         0  XTAL2/TOSC2
   ldi r31, 0x11
   out 0x05, r31
-
-  ; DDRC value:   0x07  (Port C Data Direction Register)
-  ;   DDC0           1  Volume potentiometer (ADC0) - input
-  ;   DDC1           2  Tempo potentiometer (ADC1)  - input
-  ;   DDC2           4  Tuning potentiometer (ADC2) - input
-  ;   DDC3           0  Switch selector A           - output
-  ;   DDC4           0  Switch selector B           - output
-  ;   DDC5           0  Switch selector C           - output
-  ;   DDC6           0  ~RESET
-  ldi r31, 0x07
-  out 0x07, r31
-
-  ; PORTC value:  0x00  (Port C Data Register)
-  ;   PORTC0         0  Volume potentiometer (ADC0)
-  ;   PORTC1         0  Tempo potentiometer (ADC1)
-  ;   PORTC2         0  Tuning potentiometer (ADC2)
-  ;   PORTC3         0  Switch selector A           - low
-  ;   PORTC4         0  Switch selector B           - low
-  ;   PORTC5         0  Switch selector C           - low
-  ;   PORTC6         0  ~RESET
-  ldi r31, 0x00
-  out 0x08, r31
-
-  ; DDRD value:   0x6c  (Port D Data Direction Register)
-  ;   DDD0           0  Debugging (RXD)
-  ;   DDD1           0  Debugging (TXD)
-  ;   DDD2           4  Sync out                    - output
-  ;   DDD3           8  Audio output (OC2B)         - output
-  ;   DDD4           0  Switch input 0              - input
-  ;   DDD5        0x20  Red LED (OC0B)              - output
-  ;   DDD6        0x40  Green LED (OC0A)            - output
-  ;   DDD7           0  Switch input 1              - input
-  ldi r31, 0x6c
-  out 0x0a, r31
-
-  ; PORTD value:  0x91  (Port D Data Register)
-  ;   PORTD0         1  Debugging (RXD)             - pull-up enabled
-  ;   PORTD1         0  Debugging (TXD)
-  ;   PORTD2         0  Sync out                    - low
-  ;   PORTD3         0  Audio output (OC2B)
-  ;   PORTD4      0x10  Switch input 0              - pull-up enabled
-  ;   PORTD5         0  Red LED (OC0B)
-  ;   PORTD6         0  Green LED (OC0A)
-  ;   PORTD7      0x80  Switch input 1              - pull-up enabled
-  ldi r31, 0x91
-  out 0x0b, r31
 
   ; TCCR0A value: 0xa3  (Timer/Counter 0 Control Register A)
   ;   WGM00          1  } Waveform Generation Mode = 3 (Fast PWM, TOP=0xff)
@@ -143,7 +126,7 @@ main:
   ;
   ;
   ;   ICIE1       0x20  Timer 1 input capture: interrupt
-  ldi r31, 0x20
+  ldi r31, 0x00
   sts 0x6f, r31
 
   ; TIMSK2 value: 0x00  (Timer/Counter 2 Interrupt Mask Register)
@@ -244,74 +227,74 @@ main:
   ldi r31, 0x00
   sts 0xc5, r31
 
-
-; Initialize registers
-  eor r2, r2                      ; r2 = 0
-  eor r4, r4                      ; r4 = 0
-
-; Clear RAM.
-  ldi r31, 1
-  ldi r30, 0
-clearLoop:
-  st Z+, r2
-  cpi r31, 9
-  brne clearLoop
-
   sei  ; enable interrupts
 
+idleLoop:
   jmp idleLoop
 
 
+.global raiseVDD
 raiseVDD:
   sbi 0x05, 3
   ret
 
+.global lowerVDD
 lowerVDD:
   cbi 0x05, 3
   ret
 
+.global raiseVPP
 raiseVPP:
   sbi 0x05, 2
   ret
 
+.global lowerVPP
 lowerVPP:
   cbi 0x05, 2
   ret
 
+.global raiseClock
 raiseClock:
   sbi 0x05, 1
   ret
 
+.global lowerClock
 lowerClock:
   cbi 0x05, 1
   ret
 
+.global raiseData
 raiseData:
   sbi 0x05, 0
   ret
 
+.global lowerData
 lowerData:
   cbi 0x05, 0
   ret
 
+.global getData
 getData:
   eor r12, r12
   sbic 0x03, 0
   inc r12
   ret
 
+.global setDataInput
 setDataInput:
   cbi 0x04, 0
   ret
 
-setDataOuput:
+.global setDataOutput
+setDataOutput:
   sbi 0x04, 0
   ret
 
-wait80ns:
+.global wait100ns
 wait100ns:  ; 2 cycles
   ret
 
+.global wait1us
 wait1us:    ; 16 cycles
   ldi r31, 5         ; 1
 wait1usLoop:
@@ -319,6 +302,7 @@ wait1usLoop:
   brne wait1usLoop   ; 4*2 + 1
   ret                ; 2
 
+.global wait5us
 wait5us:    ; 80 cycles
   ldi r30, 5
 wait5usLoop:
@@ -327,6 +311,7 @@ wait5usLoop:
   brne wait5usLoop
   ret
 
+.global wait100us
 wait100us:  ; 1600 cycles
   ldi r27, 20
 wait100usLoop:
@@ -335,6 +320,7 @@ wait100usLoop:
   brne wait100usLoop
   ret
 
+.global wait2ms
 wait2ms:    ; 32000 cycles
   ldi r26, 20
 wait2msLoop:
@@ -343,11 +329,24 @@ wait2msLoop:
   brne wait2msLoop
   ret
 
+.global wait10ms
 wait10ms:   ; 160000 cycles
   ldi r25, 5
 wait10msLoop:
   rcall wait2ms
   dec r25
   brne wait10msLoop
+  ret
+
+.global startTimer
+startTimer:
+  ldi r31, 0x21
+  sts 0x6f, r31
+  ret
+
+.global stopTimer
+stopTimer:
+  ldi r31, 0x00
+  sts 0x6f, r31
   ret
 

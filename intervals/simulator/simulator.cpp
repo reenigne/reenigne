@@ -6,7 +6,7 @@
 
 #include <time.h>
 
-//#define DUMP
+#define DUMP
 
 class Program
 {
@@ -197,7 +197,7 @@ public:
             printf("%*s% 7.2lf ", _indent*8, "", _tNextStop/(400.0*256.0));
         int pc = _pch | _memory[2];
         int op = _program->op(pc);
-#ifdef DUMP1
+#ifdef DUMP
         String markerCode = _program->marker(pc);
 #endif
         incrementPC();
@@ -449,7 +449,7 @@ public:
                     break;
             }
         }
-#ifdef DUMP1
+#ifdef DUMP
         CharacterSource c = markerCode.start();
         do {
             int ch = c.get();
@@ -863,7 +863,8 @@ public:
         _t(0), 
         _streamsSinceLastChange(0),
         _goodsSinceLastChange(0),
-        _settled(false)
+        _settled(false),
+        _oldGood(false)
     {
         CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
         GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
@@ -922,6 +923,7 @@ public:
 
             if (goodStreamProportion > 0.67) {
                 _good = false;
+                _oldGood = false;
                 _settlingCycles = 0;
                 _streamsSinceLastChange = 0;
                 _goodsSinceLastChange = 0;
@@ -983,7 +985,7 @@ public:
                         }
                     }
 #ifdef DUMP
-                    printf("Configuration %i, time %lf: Connecting bar %i direction %i to bar %i direction %i. ", _changes, _t, barNumber, connectorNumber, connectedBarNumber, connectedDirection, );
+                    printf("Configuration %i, time %lf: Connecting bar %i direction %i to bar %i direction %i. ", _changes, _t, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
 #endif
                     bar->connect(connectorNumber, connectedBarNumber, connectedDirection);
                     otherBar->connect(connectedDirection, barNumber, connectorNumber);
@@ -1066,6 +1068,10 @@ public:
             }
             printf("\n");
 #endif
+            if (_oldGood) {
+                printf("Bad after good\n");
+                exit(0);
+            }
         }
         else {
             ++_goodsSinceLastChange;
@@ -1081,6 +1087,11 @@ public:
             printf("\n");
 #endif
         }
+        if (_streams == 50613) {
+            _bars[28]->debug();
+            _bars[99]->debug();
+        }
+        _oldGood = _good;
         ++_streams;
         ++_streamsSinceLastChange;
         if (!_settled) {
@@ -1156,6 +1167,7 @@ private:
     bool _settled;
     int _goodsSinceLastChange;
     int _streamsSinceLastChange;
+    bool _oldGood;
 };
 
 int main()

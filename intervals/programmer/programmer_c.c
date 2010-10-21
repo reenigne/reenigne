@@ -1,3 +1,12 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <avr/pgmspace.h>
+#include <avr/eeprom.h>
+
+typedef uint8_t bool;
+#define true 1
+#define false 0
+
 // 1 cycle @ 16MHz = 62.5ns
 //
 // MCLR rise time < 1us  (16 cycles)
@@ -38,9 +47,29 @@
 //  3FF     - configuration word, default location
 
 
-register uint8_t lineInFrame __asm__ ("r4");
-register uint8_t frameInBeatLow __asm__ ("r5");
-register uint8_t frameInBeatHigh __asm__ ("r6");
+register uint8_t timerTick __asm__ ("r4");  // Increments every 65536 clock cycles
+register uint8_t picTickLow __asm__ ("r5");
+register uint8_t picTickHigh __asm__ ("r6");
+
+void raiseVDD();
+void lowerVDD();
+void raiseVPP();
+void lowerVPP();
+void raiseClock();
+void lowerClock();
+void raiseData();
+void lowerData();
+void setDataInput();
+void setDataOutput();
+void wait100ns();
+void wait1us();
+void wait5us();
+void wait100us();
+void wait2ms();
+void wait10ms();
+void startTimer();
+void stopTimer();
+bool getData();
 
 void enterProgrammingMode()
 {
@@ -113,6 +142,7 @@ uint16_t readData()
     readBit();
     setDataOutput();
     wait1us();
+    return d;
 }
 
 bool programData(uint16_t data)
@@ -155,34 +185,380 @@ void bulkErase()
     wait10ms();
 }
 
-void readAll()
+uint16_t data[0x206];
+uint16_t dataIndex = 0;
+
+void doRead(bool all)
 {
     enterProgrammingMode();
     data[0x205] = readData();
     for (int16_t pc = 0; pc < 0x205; ++pc) {
         incrementAddress();
-        data[pc] = readData();
+        if (all || pc == 0x1ff)
+            data[pc] = readData();
     }
     leaveProgrammingMode();
 }
 
-bool writeAll()
+uint8_t spaceAvailable = true;
+uint8_t sendState = 0;
+uint8_t receiveState = 0;
+uint8_t hexFileState = 0;
+uint8_t hexLineState = 0;
+uint8_t byteCount = 0;
+uint16_t address = 0;
+uint8_t recordType = 0;
+uint8_t checkSum = 0;
+uint8_t dataByte = 0;
+uint8_t* dataPointer = 0;
+uint8_t receivedCheckSum = 0;
+uint8_t timerTickBuffer;
+uint8_t picTickLowBuffer;
+uint8_t picTickHighBuffer;
+uint16_t zero = 0;
+
+void startNextHexLine()
 {
-    enterProgrammingMode();
-    for (int16_t pc = 0; pc < 0x201; ++pc)
-        incrementAddress();
-    bulkErase();
-    leaveProgrammingMode();
+    switch (hexFileState) {
+        case 0:  // Send extended linear address record
+            byteCount = 2;
+            address = -0x10;
+            recordType = 4;
+            dataPointer = (uint8_t*)(&zero);
+            hexFileState = 1;
+            dataIndex = 0;
+            break;
+        case 1:  // Send normal data
+            if (dataIndex < 0x1f5)
+                byteCount = 0x10;
+            else {
+                byteCount = 0x205 - dataIndex;
+                hexFileState = 2;
+            }
+            address += 0x10;
+            dataPointer = (uint8_t*)(&data[dataIndex]);
+            dataIndex += byteCount;
+            recordType = 0;
+            break;
+        case 2:  // Send configuration bits
+            byteCount = 2;
+            address = 0x1ffe;
+            dataPointer = (uint8_t*)(&data[0x205]);
+            recordType = 0;
+            hexFileState = 3;
+            break;
+        case 3:  // Send end of file marker
+            byteCount = 0;
+            address = 0;
+            recordType = 1;
+            hexFileState = 255;
+            break;
+    }
+}
+
+uint8_t getHexByte()
+{
+    switch (hexLineState) {
+        case 0:  // First byte of HEX line, byte count
+            hexLineState = 1;
+            return byteCount;
+        case 1:  // Second byte of HEX line, address high
+            hexLineState = 2;
+            return address >> 8;
+        case 2:  // Third byte of HEX line, address low
+            hexLineState = 3;
+            return address;
+        case 3:  // Fourth byte of HEX line, record type
+            hexLineState = 4;
+            return recordType;
+        case 4:  // Fifth and subsequent bytes of HEX line, data and checksum
+            if (byteCount == 0) {
+                startNextHexLine();
+                hexLineState = 255;
+                return -checkSum;
+            }
+            --byteCount;
+            return *(dataPointer++);
+    }
+    return 0;
+}
+
+uint8_t encodeHexNybble(int b)
+{
+    if (b < 10)
+        return b + '0';
+    return b + 'A' - 10;
+}
+
+void sendNextByte()
+{
+    if (!spaceAvailable)
+        return;
+    switch (sendState) {
+        case 1:
+            UDR0 = 'K';  // Success
+            sendState = 0;
+            break;
+        case 2:
+            UDR0 = 'E';  // Failure
+            sendState = 0;
+            break;
+        case 3:    // First character of HEX line
+            UDR0 = ':';
+            sendState = 4;
+            checkSum = 0;
+            break;
+        case 4:    // First nybble of HEX byte
+            dataByte = getHexByte();
+            checkSum += dataByte;
+            UDR0 = encodeHexNybble((dataByte >> 4) & 0x0f);
+            sendState = 5;
+            break;
+        case 5:    // Second nybble of HEX byte
+            UDR0 = encodeHexNybble(dataByte & 0x0f);
+            if (hexLineState == 255)
+                sendState = 6;
+            else
+                sendState = 4;
+            break;
+        case 6:    // HEX line terminator
+            UDR0 = 10;
+            if (hexFileState != 255) {
+                hexLineState = 0;
+                sendState = 3;
+            }
+            else
+                sendState = 1;
+            break;
+        case 7:    // First nybble of timer tick packet
+            UDR0 = encodeHexNybble((timerTickBuffer >> 4) & 0x0f);
+            sendState = 8;
+            break;
+        case 8:
+            UDR0 = encodeHexNybble(timerTickBuffer & 0x0f);
+            sendState = 9;
+            break;
+        case 9:    // First nybble of timer tick packet
+            UDR0 = encodeHexNybble((picTickHighBuffer >> 4) & 0x0f);
+            sendState = 10;
+            break;
+        case 10:
+            UDR0 = encodeHexNybble(picTickHighBuffer & 0x0f);
+            sendState = 11;
+            break;
+        case 11:    // First nybble of timer tick packet
+            UDR0 = encodeHexNybble((picTickLowBuffer >> 4) & 0x0f);
+            sendState = 12;
+            break;
+        case 12:
+            UDR0 = encodeHexNybble(picTickLowBuffer & 0x0f);
+            sendState = 13;
+            break;
+        case 13:
+            UDR0 = ';';
+            sendState = 0;
+            break;
+    }
+}
+
+uint8_t success()
+{
+    sendState = 1;
+    sendNextByte();
+    receiveState = 0;
+    return 1;
+}
+
+uint8_t failure()
+{
+    sendState = 2;
+    sendNextByte();
+    receiveState = 0;
+    return 0;
+}
+
+// Currently there's no code path that calls doWrite(true). We'll add this dangerous ability only if necessary.
+uint8_t doWrite(bool plusBackup)
+{
+    if (plusBackup) {
+        enterProgrammingMode();
+        for (int16_t pc = 0; pc < 0x201; ++pc)
+            incrementAddress();
+        bulkErase();
+        leaveProgrammingMode();
+    }
 
     enterProgrammingMode();
+    if (!plusBackup)
+        bulkErase();
     if (!programData(data[0x205]))
-        return false;
+        return failure();
     for (int16_t pc = 0; pc < 0x205; ++pc) {
         incrementAddress();
-        if (!programData(data[pc]))
-            return false;
+        if (plusBackup || pc < 0x200)
+            if (!programData(data[pc]))
+                return failure();
     }
     leaveProgrammingMode();
+    return success();
 }
 
+uint8_t processHexByte()
+{
+    switch (hexFileState) {
+        case 0:  // byte count
+            byteCount = dataByte;
+            hexFileState = 1;
+            break;
+        case 1:  // address high
+            address = dataByte << 8;
+            hexFileState = 2;
+            break;
+        case 2:  // address low
+            address |= dataByte;
+            hexFileState = 3;
+            if (address >= 0x1ffe)
+                address += 0x40a - 0x1ffe;
+            if (address + byteCount > 0x40c)
+                return failure();
+            dataPointer = (uint8_t*)(&data[0]) + address;
+            hexFileState = 3;
+            break;
+        case 3:  // record type
+            recordType = dataByte;
+            if (recordType > 1 && recordType != 4)
+                return failure();
+            if (recordType == 1 && dataByte != 0)
+                return failure();
+            hexFileState = 4;
+            break;
+        case 4:  // data byte
+            if (recordType == 0)
+                *(dataPointer++) = dataByte;
+            --byteCount;
+            if (byteCount == 0)
+                hexFileState = 5;
+            break;
+        case 5:  // checksum byte
+            if (checkSum != 0)
+                return failure();
+            if (recordType == 1)
+                hexFileState = 255;
+            else
+                hexFileState = 0;
+            break;
+    }
+    return true;
+}
 
+uint8_t decodeHexNybble(uint8_t hex)
+{
+    if (hex >= '0' && hex <= '9')
+        return hex - '0';
+    if (hex >= 'A' && hex <= 'F')
+        return hex + 10 - 'A';
+    if (hex >= 'a' && hex <= 'f')
+        return hex + 10 - 'a';
+    failure();
+    return 255;
+}
+
+uint8_t processCharacter(uint8_t received)
+{
+    uint8_t nybble;
+    switch (receiveState) {
+        case 0:  // Default state - expect a command
+            switch (received) {
+                case 'W':        // W: Write program from buffer to device
+                case 'w':
+                    doRead(false);  // Read the OSCCAL value
+                    return doWrite(false);
+                case 'O':        // O: Write program from buffer to device, including OSCCAL value (necessary if write failed, or if we want to use a different OSCCAL value)
+                case 'o':
+                    return doWrite(false);
+                case 'R':        // R: Read program from device to buffer
+                case 'r':
+                    doRead(true);
+                    return success();
+                case 'U':        // U: Upload program from host to buffer
+                case 'u':
+                    receiveState = 1;
+                    dataIndex = 0;
+                    break;
+                case 'L':        // L: Download program from buffer to host
+                case 'l':
+                    hexLineState = 0;
+                    hexFileState = 0;
+                    startNextHexLine();
+                    sendState = 3;
+                    sendNextByte();
+                    break;
+                case 'T':        // T: Start timing mode
+                case 't':
+                    raiseVDD();
+                    startTimer();
+                    return success();
+                case 'Q':        // Q: Stop timing mode
+                case 'q':
+                    lowerVDD();
+                    stopTimer();
+                    return success();
+            }
+            break;
+        case 1:  // Expect first character of a HEX file line - start code or newline character
+            if (received == 10 || received == 13)
+                break;
+            if (received != ':')
+                return failure();
+            receiveState = 2;
+            checkSum = 0;
+            hexFileState = 0;
+            break;
+        case 2:  // Expect first nybble (high) of HEX file byte
+            nybble = decodeHexNybble(received);
+            if (nybble == 255)
+                return false;
+            dataByte = nybble << 4;
+            receiveState = 3;
+            break;
+        case 3:  // Expect second nybble (low) of a HEX file byte
+            nybble = decodeHexNybble(received);
+            if (nybble == 255)
+                return false;
+            dataByte |= nybble;
+            checkSum += dataByte;
+            if (!processHexByte())
+                return false;
+            if (hexFileState == 255)
+                receiveState = 0;
+            else
+                if (hexFileState == 0)
+                    receiveState = 1;
+                else
+                    receiveState = 2;
+            break;
+    }
+    return true;
+}
+
+SIGNAL(USART_RX_vect)
+{
+    processCharacter(UDR0);
+}
+
+SIGNAL(USART_UDRE_vect)
+{
+    spaceAvailable = true;
+    sendNextByte();
+}
+
+void sendTimerData()
+{
+    if (sendState == 0) {
+        timerTickBuffer = timerTick;
+        picTickLowBuffer = picTickLow;
+        picTickHighBuffer = picTickHigh;
+        sendState = 7;
+        sendNextByte();
+    }
+}

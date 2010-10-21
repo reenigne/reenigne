@@ -1,14 +1,13 @@
-Finish writing code for programmer:
-  AVR code
-    Transfer program to/from PC
-      HEX file decoder
-    Speed test host code
-  PC code
-    Transfer program to/from AVR
+Investigate glitching states some more?
+  Failure to sync? Cured by reducing the word rate? (reduced it by 3 since last tried)
 
-Buy connectors and resistors
+Test programmer
 
 Build first interval bar - octave
+
+Run speed test
+
+Buy connectors and resistors
 
 Build programmer
   13V supply and switch
