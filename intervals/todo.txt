@@ -1,19 +1,42 @@
 Investigate glitching states some more?
-  Failure to sync? Cured by reducing the word rate? (reduced it by 3 since last tried)
+  Make a one-line per cycle timing display
+    100x256 array of counts of:
+      (local) cycles since last sync
+      bar number
+    Sync happens when child set to R.
+    Bar becomes active when parent set to 0.
+    Output when we reset timers
+  The sync pulses seem to be "bunching" - getting closer and closer together as we go further into the graph?
+  Have the root back off the pulse rate on bad
 
-Test programmer
+Programmer returning error on end-of-file line
+  Re-test with error codes
+
+Programmer not putting things in the right places?
+  Do an 'L' with the new programmer with preloaded waveform.hex
 
 Build first interval bar - octave
-
-Run speed test
-
-Buy connectors and resistors
+  Break off first piece of PCB
+  Break off 164.5mm x 28m piece of PCB
+  Fix up PCB layout
+  Print PCB layout
+  Iron onto board
+  Touch up
+  Etch
+  Clean
+  Drill
+  Solder jumpers and programming wires (temporarily)
+  Solder PIC
 
 Build programmer
   13V supply and switch
 
-Check the speeds of the PICs we have
+Test programmer
+
+Run speed test
   Try varying the OSCCAL value and see what happens to the speed
+
+Buy connectors and resistors
 
 When the hardware doesn't work:
   Check that MOVWF OSCCAL works correctly when it isn't the first (second) instruction executed

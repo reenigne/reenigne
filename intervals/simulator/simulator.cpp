@@ -166,6 +166,7 @@ public:
                     simulateToRead();
                     _state = 1;
                     _tNextStop += 3*_tPerQuarterCycle;
+                    ++_cyclesSinceLastSync;
                     break;
                 case 1:
                     // 0.25 to 1.00: write
@@ -184,6 +185,7 @@ public:
                     // 1.00 to 2.00: skip
                     _state = 0;
                     _tNextStop += _tPerQuarterCycle;
+                    ++_cyclesSinceLastSync;
                     break;
             }
         } while (true);
@@ -509,6 +511,15 @@ public:
                 case 'c':
                     {
                         int cLow = c.get();
+                        if (cLow == 'R') {
+                            if (_number != _simulation->getNumberForIndent(_indent)) {
+                                _simulation->setNumberForIndent(_indent, _number);
+                                _simulation->setMatrix(_t/(400*256), _indent, -(_number + 1));
+                            }
+                            else
+                                _simulation->setMatrix(_t/(400*256), _indent, _cyclesSinceLastSync);
+                            _cyclesSinceLastSync = 0;
+                        }
                         int cHigh = c.get();
                         switch (_child) {
                             case 0:
@@ -546,9 +557,9 @@ public:
                         if (r == _readMarker)
                             break;
                         if (r == -1) {
-                            printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
-                            markerCode.write(_console);
-                            printf("\n");
+                            //printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
+                            //markerCode.write(_console);
+                            //printf("\n");
                             break;
                         }
                     } while (true);
@@ -838,6 +849,7 @@ private:
     int _staticParent;
     bool _oldLive;
     int _state;
+    int _cyclesSinceLastSync;
 };
 
 typedef BarTemplate<Simulation> Bar;
@@ -846,25 +858,28 @@ class Simulation
 {
 public:
     Simulation()
-      : _totalBars(100), 
-        _stream(_totalBars*8), 
-        _expectedStream(_totalBars*8), 
-        _good(false), 
-        _cyclesThisStream(0), 
-        _settlingCycles(0), 
-        _maxSettlingCycles(0), 
-        _console(Handle::consoleOutput()), 
-        _changes(0), 
-        _totalSettlingCycles(0), 
-        _streams(0), 
-        _wall(0), 
-        _goodCycles(0), 
-        _goodWords(0), 
-        _t(0), 
+      : _totalBars(100),
+        _stream(_totalBars*8),
+        _expectedStream(_totalBars*8),
+        _good(false),
+        _cyclesThisStream(0),
+        _settlingCycles(0),
+        _maxSettlingCycles(0),
+        _console(Handle::consoleOutput()),
+        _changes(0),
+        _totalSettlingCycles(0),
+        _streams(0),
+        _wall(0),
+        _goodCycles(0),
+        _goodWords(0),
+        _t(0),
         _streamsSinceLastChange(0),
         _goodsSinceLastChange(0),
         _settled(false),
-        _oldGood(false)
+        _oldGood(false),
+        _matrix(101*256),
+        _numbers(101, -1),
+        _dumpMatrix(false)
     {
         CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
         GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
@@ -900,6 +915,8 @@ public:
             double cyclesBeforeChange = -log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*10000.0;
             bool final = false;
             do {
+                for (int i = 0; i < 101*256; ++i)
+                    _matrix[i] = 0;
                 int t;
                 if (cyclesBeforeChange > 256.0) {
                     t = 256*400*256;
@@ -913,6 +930,22 @@ public:
                     (*i)->simulateTo(t);
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetTime();
+                if (_dumpMatrix)
+                    for (int i = 0; i < t/(400*256); ++i) {
+                        for (int j = 0; j < 101; ++j) {
+                            int n = _matrix[j + i*101];
+                            if (n == 0)
+                                printf("    ");
+                            else
+                                printf("~~~~");
+                                //if (n < 0)
+                                //    printf("-%03i", -n);
+                                //else
+                                //    printf("%3i ", n);
+
+                        }
+                        printf("\n");
+                    }                                                                                     
                 _settlingCycles += t/(400.0*256.0);
                 _cyclesThisStream += t/(400.0*256.0);
                 _t += t/(1000000.0*400.0*256.0);
@@ -1068,10 +1101,10 @@ public:
             }
             printf("\n");
 #endif
-            if (_oldGood) {
-                printf("Bad after good\n");
-                exit(0);
-            }
+            //if (_oldGood) {
+            //    printf("Bad after good\n");
+            //    exit(0);
+            //}
         }
         else {
             ++_goodsSinceLastChange;
@@ -1088,9 +1121,14 @@ public:
 #endif
         }
         if (_streams == 50613) {
-            _bars[28]->debug();
-            _bars[99]->debug();
+            //_bars[28]->debug();
+            //_bars[99]->debug();
+            _dumpMatrix = true;
         }
+        if (_streams == 50615)
+            exit(0);
+        for (int i = 0; i < 101; ++i)
+            _numbers[i] = -1;
         _oldGood = _good;
         ++_streams;
         ++_streamsSinceLastChange;
@@ -1144,6 +1182,11 @@ public:
         _bars[bar]->simulateTo(t);
     }
     Bar* bar(int n) { return _bars[n]; }
+
+    int getNumberForIndent(int indent) { return _numbers[indent]; }
+    void setNumberForIndent(int indent, int number) { _numbers[indent] = number; }
+    void setMatrix(int t, int indent, int value) { _matrix[indent + t*101] = value; }
+
 private:
     std::vector<Reference<Bar> > _bars;
     int _totalBars;
@@ -1168,6 +1211,9 @@ private:
     int _goodsSinceLastChange;
     int _streamsSinceLastChange;
     bool _oldGood;
+    std::vector<int> _matrix;
+    std::vector<int> _numbers;
+    bool _dumpMatrix;
 };
 
 int main()

@@ -216,26 +216,28 @@ uint8_t timerTickBuffer;
 uint8_t picTickLowBuffer;
 uint8_t picTickHighBuffer;
 uint16_t zero = 0;
+uint8_t errorCode;
 
 void startNextHexLine()
 {
     switch (hexFileState) {
         case 0:  // Send extended linear address record
             byteCount = 2;
-            address = -0x10;
+            address = 0;
             recordType = 4;
             dataPointer = (uint8_t*)(&zero);
             hexFileState = 1;
             dataIndex = 0;
             break;
         case 1:  // Send normal data
+            if (dataIndex == 0)
+                address = 0;
             if (dataIndex < 0x1f5)
                 byteCount = 0x10;
             else {
                 byteCount = 0x205 - dataIndex;
                 hexFileState = 2;
             }
-            address += 0x10;
             dataPointer = (uint8_t*)(&data[dataIndex]);
             dataIndex += byteCount;
             recordType = 0;
@@ -251,6 +253,9 @@ void startNextHexLine()
             byteCount = 0;
             address = 0;
             recordType = 1;
+            hexFileState = 4;
+            break;
+        case 4:  // Finish
             hexFileState = 255;
             break;
     }
@@ -278,6 +283,7 @@ uint8_t getHexByte()
                 return -checkSum;
             }
             --byteCount;
+            ++address;
             return *(dataPointer++);
     }
     return 0;
@@ -301,6 +307,10 @@ void sendNextByte()
             break;
         case 2:
             UDR0 = 'E';  // Failure
+            sendState = 14;
+            break;
+        case 14:
+            UDR0 = errorCode;
             sendState = 0;
             break;
         case 3:    // First character of HEX line
@@ -364,16 +374,17 @@ void sendNextByte()
 uint8_t success()
 {
     sendState = 1;
-    sendNextByte();
     receiveState = 0;
+    sendNextByte();
     return 1;
 }
 
-uint8_t failure()
+uint8_t failure(uint8_t code)
 {
     sendState = 2;
-    sendNextByte();
+    errorCode = code;
     receiveState = 0;
+    sendNextByte();
     return 0;
 }
 
@@ -392,12 +403,12 @@ uint8_t doWrite(bool plusBackup)
     if (!plusBackup)
         bulkErase();
     if (!programData(data[0x205]))
-        return failure();
+        return failure('F');  // Config fuses didn't verify
     for (int16_t pc = 0; pc < 0x205; ++pc) {
         incrementAddress();
         if (plusBackup || pc < 0x200)
             if (!programData(data[pc]))
-                return failure();
+                return failure('V');  // Program, OSCCAL, user IDs or backup OSCCAL didn't verify
     }
     leaveProgrammingMode();
     return success();
@@ -420,16 +431,16 @@ uint8_t processHexByte()
             if (address >= 0x1ffe)
                 address += 0x40a - 0x1ffe;
             if (address + byteCount > 0x40c)
-                return failure();
+                return failure('R');  // Out of range
             dataPointer = (uint8_t*)(&data[0]) + address;
             hexFileState = 3;
             break;
         case 3:  // record type
             recordType = dataByte;
             if (recordType > 1 && recordType != 4)
-                return failure();
-            if (recordType == 1 && dataByte != 0)
-                return failure();
+                return failure('U');  // Unknown record type
+            if (recordType == 1 && byteCount != 0)
+                return failure('Z');  // Non-zero byte count in end-of-file marker
             hexFileState = 4;
             break;
         case 4:  // data byte
@@ -441,7 +452,7 @@ uint8_t processHexByte()
             break;
         case 5:  // checksum byte
             if (checkSum != 0)
-                return failure();
+                return failure('C');  // Checksum failure
             if (recordType == 1)
                 hexFileState = 255;
             else
@@ -459,7 +470,7 @@ uint8_t decodeHexNybble(uint8_t hex)
         return hex + 10 - 'A';
     if (hex >= 'a' && hex <= 'f')
         return hex + 10 - 'a';
-    failure();
+    failure('H');  // Incorrect hex digit
     return 255;
 }
 
@@ -496,6 +507,7 @@ uint8_t processCharacter(uint8_t received)
                 case 'T':        // T: Start timing mode
                 case 't':
                     raiseVDD();
+                    setDataInput();
                     startTimer();
                     return success();
                 case 'Q':        // Q: Stop timing mode
@@ -509,7 +521,7 @@ uint8_t processCharacter(uint8_t received)
             if (received == 10 || received == 13)
                 break;
             if (received != ':')
-                return failure();
+                return failure(':');  // Colon expected
             receiveState = 2;
             checkSum = 0;
             hexFileState = 0;
@@ -561,4 +573,172 @@ void sendTimerData()
         sendState = 7;
         sendNextByte();
     }
+}
+
+int main()
+{
+    // Initialize hardware ports
+
+    // DDRB value:   0x0f  (Port B Data Direction Register)
+    //   DDB0           1  Data                        - output
+    //   DDB1           2  Clock                       - output
+    //   DDB2           4  VPP                         - output
+    //   DDB3           8  VDD                         - output
+    //   DDB4           0
+    //   DDB5           0
+    //   DDB6           0
+    //   DDB7           0
+    DDRB = 0x0f;
+
+    // PORTB value:  0x00  (Port B Data Register)
+    //   PORTB0         0  Data                        - low
+    //   PORTB1         0  Clock                       - low
+    //   PORTB2         0  VPP                         - low
+    //   PORTB3         0  VDD                         - low
+    //   PORTB4         0
+    //   PORTB5         0
+    //   PORTB6         0
+    //   PORTB7         0
+    PORTB = 0;
+
+    // TCCR0A value: 0xa3  (Timer/Counter 0 Control Register A)
+    //   WGM00          1  } Waveform Generation Mode = 3 (Fast PWM, TOP=0xff)
+    //   WGM01          2  }
+    //
+    //
+    //   COM0B0         0  } Compare Output Mode for Channel B: non-inverting mode
+    //   COM0B1      0x20  }
+    //   COM0A0         0  } Compare Output Mode for Channel A: non-inverting mode
+    //   COM0A1      0x80  }
+    TCCR0A = 0xa3;
+
+    // TCCR0B value: 0x01  (Timer/Counter 0 Control Register B)
+    //   CS00           1  } Clock select: clkIO/1 (no prescaling)
+    //   CS01           0  }
+    //   CS02           0  }
+    //   WGM02          0  Waveform Generation Mode = 3 (Fast PWM, TOP=0xff)
+    //
+    //
+    //   FOC0B          0  Force Output Compare B
+    //   FOC0A          0  Force Output Compare A
+    TCCR0B = 0x01;
+
+    // TIMSK0 value: 0x00  (Timer/Counter 0 Interrupt Mask Register)
+    //   TOIE0          0  Timer 0 overflow:  no interrupt
+    //   OCIE0A         0  Timer 0 compare A: no interrupt
+    //   OCIE0B         0  Timer 0 compare B: no interrupt
+    TIMSK0 = 0x00;
+
+    // TIMSK1 value: 0x21  (Timer/Counter 1 Interrupt Mask Register)
+    //   TOIE1          1  Timer 1 overflow:  interrupt
+    //   OCIE1A         0  Timer 1 compare A: no interrupt
+    //   OCIE1B         0  Timer 1 compare B: no interrupt
+    //
+    //
+    //   ICIE1       0x20  Timer 1 input capture: interrupt
+    TIMSK1 = 0x00;
+
+    // TIMSK2 value: 0x00  (Timer/Counter 2 Interrupt Mask Register)
+    //   TOIE2          0  Timer 2 overflow:  no interrupt
+    //   OCIE2A         0  Timer 2 compare A: no interrupt
+    //   OCIE2B         0  Timer 2 compare B: no interrupt
+    TIMSK2 = 0x00;
+
+    // TCCR1A value: 0x00  (Timer/Counter 1 Control Register A)
+    //   WGM10          0  } Waveform Generation Mode = 0 (Normal)
+    //   WGM11          0  }
+    //
+    //
+    //   COM1B0         0  } Compare Output Mode for Channel B: normal port operation, OC1B disconnected
+    //   COM1B1         0  }
+    //   COM1A0         0  } Compare Output Mode for Channel A: normal port operation, OC1A disconnected
+    //   COM1A1         0  }
+    TCCR1A = 0x00;
+
+    // TCCR1B value: 0x01  (Timer/Counter 1 Control Register B)
+    //   CS10           1  } Clock select: clkIO/1 (no prescaling)
+    //   CS11           0  }
+    //   CS12           0  }
+    //   WGM12          0  } Waveform Generation Mode = 0 (Normal)
+    //   WGM13          0  }
+    //
+    //   ICES1          0  Input Capture Edge Select: falling
+    //   ICNC1          0  Input Capture Noise Canceler: disabled
+    TCCR1B = 0x01;
+
+    // TCCR1C value: 0x00  (Timer/Counter 1 Control Register C)
+    //
+    //
+    //
+    //
+    //
+    //
+    //   FOC1B          0  Force Output Compare for Channel B
+    //   FOC1A          0  Force Output Compare for Channel A
+    TCCR1C = 0x00;
+
+    // UCSR0A value: 0x00  (USART Control and Status Register 0 A)
+    //   MPCM0          0  Multi-processor Communcation Mode: disabled
+    //   U2X0           0  Double the USART Transmission Speed: disabled
+    //
+    //
+    //
+    //
+    //   TXC0           0  USART Transmit Complete: not cleared
+    UCSR0A = 0x00;
+
+    // UCSR0B value: 0xb8  (USART Control and Status Register 0 B)
+    //   TXB80          0  Transmit Data Bit 8 0
+    //
+    //   UCSZ02         0  Character Size 0: 8 bit
+    //   TXEN0          8  Transmitter Enable 0: enabled
+    //   RXEN0       0x10  Receiver Enable 0: enabled
+    //   UDRIE0      0x20  USART Data Register Empty Interrupt Enable 0: disabled
+    //   TXCIE0         0  TX Complete Interrupt Enable 0: disabled
+    //   RXCIE0      0x80  RX Complete Interrupt Enable 0: disabled
+    UCSR0B = 0xb8;
+
+    // UCSR0C value: 0x06  (USART Control and Status Register 0 C)
+    //   UCPOL0         0  Clock Polarity
+    //   UCSZ00         2  Character Size: 8 bit
+    //   UCSZ01         4  Character Size: 8 bit
+    //   USBS0          0  Stop Bit Select: 1-bit
+    //   UPM00          0  Parity Mode: disabled
+    //   UPM01          0  Parity Mode: disabled
+    //   UMSEL00        0  USART Mode Select: asynchronous
+    //   UMSEL01        0  USART Mode Select: asynchronous
+    UCSR0C = 0x06;
+
+    // UBRR0L value: 0x67  (USART Baud Rate Register Low) - 9600bps
+    UBRR0L = 0x67;
+
+    // UBRR0H value: 0x00  (USART Baud Rate Register High)
+    UBRR0H = 0x00;
+
+ 	sei();
+
+    // waveform program
+    data[0x00] = 0x025;
+    data[0x01] = 0xc80;
+    data[0x02] = 0x002;
+    data[0x03] = 0x07f;
+    data[0x04] = 0xa05;
+    data[0x05] = 0xa06;
+    data[0x06] = 0xa07;
+    data[0x07] = 0xa08;
+    data[0x08] = 0xa09;
+    data[0x09] = 0xa0a;
+    data[0x0a] = 0x000;
+    data[0x0b] = 0x2ff;
+    data[0x0c] = 0xa04;
+    data[0x0d] = 0xa0e;
+    data[0x0e] = 0xa0f;
+    data[0x0f] = 0xa10;
+    data[0x10] = 0xa11;
+    data[0x11] = 0xa12;
+    data[0x12] = 0x506;
+    data[0x13] = 0x406;
+    data[0x14] = 0xa04;
+
+    while (true);
 }
