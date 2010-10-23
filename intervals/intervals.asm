@@ -24,17 +24,18 @@ childBabsent      EQU 0ch
 childCabsent      EQU 0dh
 childDabsent      EQU 0eh
 more              EQU 0fh
-recvData          EQU 10h
-recvSync          EQU 11h
-lowPrnt           EQU 12h
-lowChld           EQU 13h
-bits              EQU 14h
-after0            EQU 15h
-after1            EQU 16h
-after2            EQU 17h
-after3            EQU 18h
-count             EQU 19h
-temp              EQU 1ah
+catchUp           EQU 10h
+recvData          EQU 11h
+recvSync          EQU 12h
+lowPrnt           EQU 13h
+lowChld           EQU 14h
+bits              EQU 15h
+after0            EQU 16h
+after1            EQU 17h
+after2            EQU 18h
+after3            EQU 19h
+count             EQU 1ah
+temp              EQU 1bh
 
 
 unroll macro m
@@ -101,6 +102,7 @@ recvData#v(b)
   MOVF after#v(b), W
   BTFSC GPIO, bit#v(b)
   MOVWF PCL
+
 setup#v(b)
   MOVLW recvData#v(b)
   MOVWF recvData
@@ -110,12 +112,19 @@ setup#v(b)
 setupF#v(b)
   MOVF bits, W
   TRIS GPIO            ; send W "wait for data request" (low) to child
+  BSF catchUp, 0
   MOVF recvSync, W
   MOVWF PCL
 
+  CLRF catchUp
 recvSync#v(b)
   BTFSS GPIO, bit#v(b)
-  GOTO $-1
+  GOTO $-2
+  BTFSC GPIO, bit#v(b)
+  delay2
+  delay1
+  BTFSS GPIO, bit#v(b)
+  delay2
   BTFSC GPIO, bit#v(b)
   delay2
   BTFSC GPIO, bit#v(b)
@@ -177,16 +186,26 @@ sendData
   GOTO reset
   ANDWF lowPrnt, W
   TRIS GPIO         ; send M "more data to come" (low) to parent
-  COMF lowChld, W
-  IORWF bits, W
-  MOVWF bits
-  TRIS GPIO         ; clear "more" (high) and send R "data request" (high) to child
   CLRF lengthLow + 0
   CLRF lengthLow + 1
+  MOVF bits, W
+  TRIS GPIO         ; send + "clear more" (high) to parent
+  BTFSC catchUp, 0
+  CALL delay4
+  COMF lowChld, W
+  IORWF bits, W
+  TRIS GPIO         ; send R "data request" (high) to child
+  MOVWF bits
+  delay2
   ANDWF lowChld, W
   TRIS GPIO         ; send S "sync falling" (low) to child
+  delay1
   MOVF bits, W
   TRIS GPIO         ; send T "sync rising" (high) to child
+  ANDWF lowChld, W
+  TRIS GPIO         ; send U "sync falling" (low) to child
+  MOVF bits, W
+  TRIS GPIO         ; send V "sync rising" (high) to child
   CLRF lengthLow + 2
   CLRF lengthLow + 3
   CLRF lengthLow + 4
@@ -273,34 +292,32 @@ foundHelperB
 
 initData                   ; 2
   MOVWF parentAxis         ; 1
-  MOVLW 1                  ; 1
   if (length & 1)
-    MOVWF lengthLow
+    BSF lengthLow, 0
   else
-    CLRF lengthLow         ; 1
+    BCF lengthLow, 0       ; 1
   endif
   if ((length >> 1) & 1)
-    MOVWF lengthMiddle
+    BSF lengthMiddle, 0
   else
-    CLRF lengthMiddle      ; 1
+    BCF lengthMiddle, 0    ; 1
   endif
   if ((length >> 2) & 1)
-    MOVWF lengthHigh
+    BSF lengthHigh, 0
   else
-    CLRF lengthHigh        ; 1
+    BCF lengthHigh, 0      ; 1
   endif
-  MOVWF more               ; 1
+  BSF more, 0              ; 1
   CLRF switch              ; 1
   BTFSC GPIO, 2            ; 1
   INCF switch, F           ; 1
   CLRF GPIO                ; 1
   MOVLW highAll            ; 1
   MOVWF bits               ; 1
-  CALL delay4
+  CALL delay5
   CALL delay5
   RETLW 0                  ; 2
 
   end
 
-; 15 instructions free, 17 in low page
-
+; 77 instructions free,

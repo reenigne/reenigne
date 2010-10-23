@@ -232,13 +232,13 @@ void startNextHexLine()
         case 1:  // Send normal data
             if (dataIndex == 0)
                 address = 0;
-            if (dataIndex < 0x1f5)
+            if (dataIndex < 0x3fa)
                 byteCount = 0x10;
             else {
-                byteCount = 0x205 - dataIndex;
+                byteCount = 0x40a - dataIndex;
                 hexFileState = 2;
             }
-            dataPointer = (uint8_t*)(&data[dataIndex]);
+            dataPointer = (uint8_t*)(&data[0]) + dataIndex;
             dataIndex += byteCount;
             recordType = 0;
             break;
@@ -441,7 +441,10 @@ uint8_t processHexByte()
                 return failure('U');  // Unknown record type
             if (recordType == 1 && byteCount != 0)
                 return failure('Z');  // Non-zero byte count in end-of-file marker
-            hexFileState = 4;
+            if (byteCount == 0)
+                hexFileState = 5;
+            else
+                hexFileState = 4;
             break;
         case 4:  // data byte
             if (recordType == 0)
@@ -518,7 +521,7 @@ uint8_t processCharacter(uint8_t received)
             }
             break;
         case 1:  // Expect first character of a HEX file line - start code or newline character
-            if (received == 10 || received == 13)
+            if (received == 10 || received == 13 || received == ' ')
                 break;
             if (received != ':')
                 return failure(':');  // Colon expected
@@ -541,8 +544,10 @@ uint8_t processCharacter(uint8_t received)
             checkSum += dataByte;
             if (!processHexByte())
                 return false;
-            if (hexFileState == 255)
+            if (hexFileState == 255) {
                 receiveState = 0;
+                return success();
+            }
             else
                 if (hexFileState == 0)
                     receiveState = 1;

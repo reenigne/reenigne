@@ -3,93 +3,111 @@
                           1                      0 W
     MOVF bits, W          2                      0 W
     TRIS GPIO             3                      0 W
-    delay2                4                      1 R
-                          5                      1 R
-    ANDWF lowChld, W      6                      1 R
-    TRIS GPIO             7                      1 R
-    MOVF bits, W          8                      0 S
-    TRIS GPIO             9                      0 S
-    ...                  10                      1 T
+    delay1                4                      1 R
+    delay2                5                      1 R
+                          6                      1 R
+    ANDWF lowChld, W      7                      1 R
+    TRIS GPIO             8                      1 R
+    delay1                9                      0 S
+    MOVF bits, W         10                      0 S
+    TRIS GPIO            11                      0 S
+    ANDWF lowChld, W     12                      1 T
+    TRIS GPIO            13                      1 T
+    MOVF bits, W         14                      0 U
+    TRIS GPIO            15                      0 U
+    ...                  16                      1 V
 
   child:
     BTFSS GPIO, bit#v(b)  0-1   1-2   2-3   3-4
-    GOTO $-1              1-2   2-3   3-4   4-5
-    BTFSS GPIO, bit#v(b)  3-4   4-5   5-6   6-7
-    GOTO $-1              4-5
-    BTFSS GPIO, bit#v(b)  6-7
-    BTFSC GPIO, bit#v(b)  8-9   6-7   7-8   8-9
-    delay2                      7-8   8-9
-    BTFSC GPIO, bit#v(b) 10-11  9-10 10-11 10-11
-    GOTO sendData        11-12       11-12 11-12
-    GOTO sendData              11-12
+    GOTO $-2              1-2   2-3   3-4   4-5
+    CLRF catchUp          3-4   4-5   5-6   6-7
+    BTFSS GPIO, bit#v(b)  4-5   5-6   6-7   7-8
+    BTFSC GPIO, bit#v(b)  6-7   7-8   8-9   9-10
+    delay2                7-8   8-9
+    delay1                9-10 10-11 10-11 11-12
+    BTFSS GPIO, bit#v(b) 10-11 11-12 11-12 12-13
+    delay2               11-12 12-13 12-13
+    BTFSC GPIO, bit#v(b) 13-14 14-15 14-15 14-15
+    delay2               14-15
+    BTFSC GPIO, bit#v(b) 16-17 16-17 16-17 16-17
+    GOTO sendData        17-18 17-18 17-18 17-18
+    GOTO sendData
 
+                      b
 
-    sendSync                 b    receiveSync
- 7-cycle:
-                             ?
-                             ?
-                             1
- 0  delay2                   0 W
- 1                           0 W
- 2  MOVF bits, W             0 W
- 3  TRIS GPIO                0 W
- 4  delay2                   1 R
- 5                           1 R
- 6  ANDWF lowChld, W         1 R  BTFSS GPIO, bit#v(b)
- 7  TRIS GPIO                1 R
- 8  MOVF bits, W             0 S  BTFSC GPIO, bit#v(b)
- 9  TRIS GPIO                0 S
-10                           1 T  BTFSC GPIO, bit#v(b)
-11                                GOTO sendData
+ 0  delay2            0 W
+ 1                    0 W
+ 2  MOVF bits, W      0 W
+ 3  TRIS GPIO         0 W
+ 4  delay1            1 R  BTFSS GPIO, bit#v(b)
+ 5  delay2            1 R
+ 6                    1 R  BTFSC GPIO, bit#v(b)
+ 7  ANDWF lowChld, W  1 R  delay2
+ 8  TRIS GPIO         1 R
+ 9  delay1            0 S  delay1
+10  MOVF bits, W      0 S  BTFSS GPIO, bit#v(b)
+11  TRIS GPIO         0 S  delay2
+12  ANDWF lowChld, W  1 T
+13  TRIS GPIO         1 T  BTFSC GPIO, bit#v(b)
+14  MOVF bits, W      0 U  delay2
+15  TRIS GPIO         0 U
+16                    1 V  BTFSC GPIO, bit#v(b)
+17                         GOTO sendData
 
- 8-cycle:
-                             ?
-                             ?
-                             1
- 0  delay2                   0 W
- 1                           0 W
- 2  MOVF bits, W             0 W
- 3  TRIS GPIO                0 W
- 4  delay2                   1 R
- 5                           1 R  BTFSS GPIO, bit#v(b)
- 6  ANDWF lowChld, W         1 R
- 7  TRIS GPIO                1 R  BTFSC GPIO, bit#v(b)
- 8  MOVF bits, W             0 S  delay2
- 9  TRIS GPIO                0 S
-10                           1 T  BTFSC GPIO, bit#v(b)
-11                                GOTO sendData
+ 0  delay2            0 W
+ 1                    0 W
+ 2  MOVF bits, W      0 W
+ 3  TRIS GPIO         0 W
+ 4  delay1            1 R
+ 5  delay2            1 R  BTFSS GPIO, bit#v(b)
+ 6                    1 R
+ 7  ANDWF lowChld, W  1 R  BTFSC GPIO, bit#v(b)
+ 8  TRIS GPIO         1 R  delay2
+ 9  delay1            0 S
+10  MOVF bits, W      0 S  delay1
+11  TRIS GPIO         0 S  BTFSS GPIO, bit#v(b)
+12  ANDWF lowChld, W  1 T  delay2
+13  TRIS GPIO         1 T
+14  MOVF bits, W      0 U  BTFSC GPIO, bit#v(b)
+15  TRIS GPIO         0 U
+16                    1 V  BTFSC GPIO, bit#v(b)
+17                         GOTO sendData
 
- 9-cycle:
-                             ?
-                             ?
-                             1
- 0  delay2                   0 W
- 1                           0 W
- 2  MOVF bits, W             0 W
- 3  TRIS GPIO                0 W
- 4  delay2                   1 R  BTFSS GPIO, bit#v(b)
- 5                           1 R
- 6  ANDWF lowChld, W         1 R  BTFSC GPIO, bit#v(b)
- 7  TRIS GPIO                1 R  delay2
- 8  MOVF bits, W             0 S
- 9  TRIS GPIO                0 S  BTFSC GPIO, bit#v(b)
-10                           1 T
-11                                GOTO sendData
+ 0  delay2            0 W
+ 1                    0 W
+ 2  MOVF bits, W      0 W
+ 3  TRIS GPIO         0 W
+ 4  delay1            1 R
+ 5  delay2            1 R
+ 6                    1 R  BTFSS GPIO, bit#v(b)
+ 7  ANDWF lowChld, W  1 R
+ 8  TRIS GPIO         1 R  BTFSC GPIO, bit#v(b)
+ 9  delay1            0 S  delay2
+10  MOVF bits, W      0 S
+11  TRIS GPIO         0 S  delay1
+12  ANDWF lowChld, W  1 T  BTFSS GPIO, bit#v(b)
+13  TRIS GPIO         1 T
+14  MOVF bits, W      0 U  BTFSC GPIO, bit#v(b)
+15  TRIS GPIO         0 U
+16                    1 V  BTFSC GPIO, bit#v(b)
+17                         GOTO sendData
 
-10-cycle:
-                             ?
-                             ?
-                             1
- 0  delay2                   0 W
- 1                           0 W
- 2  MOVF bits, W             0 W
- 3  TRIS GPIO                0 W  BTFSS GPIO, bit#v(b)
- 4  delay2                   1 R  GOTO $-1
- 5                           1 R
- 6  ANDWF lowChld, W         1 R  BTFSS GPIO, bit#v(b)
- 7  TRIS GPIO                1 R
- 8  MOVF bits, W             0 S  BTFSC GPIO, bit#v(b)
- 9  TRIS GPIO                0 S
-10                           1 T  BTFSC GPIO, bit#v(b)
-11                                GOTO sendData
+ 0  delay2            0 W
+ 1                    0 W
+ 2  MOVF bits, W      0 W
+ 3  TRIS GPIO         0 W
+ 4  delay1            1 R
+ 5  delay2            1 R
+ 6                    1 R
+ 7  ANDWF lowChld, W  1 R  BTFSS GPIO, bit#v(b)
+ 8  TRIS GPIO         1 R
+ 9  delay1            0 S  BTFSC GPIO, bit#v(b)
+10  MOVF bits, W      0 S
+11  TRIS GPIO         0 S  delay1
+12  ANDWF lowChld, W  1 T  BTFSS GPIO, bit#v(b)
+13  TRIS GPIO         1 T
+14  MOVF bits, W      0 U  BTFSC GPIO, bit#v(b)
+15  TRIS GPIO         0 U
+16                    1 V  BTFSC GPIO, bit#v(b)
+17                         GOTO sendData
 

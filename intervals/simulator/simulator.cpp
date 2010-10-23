@@ -6,7 +6,7 @@
 
 #include <time.h>
 
-#define DUMP
+//#define DUMP
 
 class Program
 {
@@ -557,9 +557,9 @@ public:
                         if (r == _readMarker)
                             break;
                         if (r == -1) {
-                            //printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
-                            //markerCode.write(_console);
-                            //printf("\n");
+                            printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
+                            markerCode.write(_console);
+                            printf("\n");
                             break;
                         }
                     } while (true);
@@ -915,8 +915,10 @@ public:
             double cyclesBeforeChange = -log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*10000.0;
             bool final = false;
             do {
+#ifdef DUMP1
                 for (int i = 0; i < 101*256; ++i)
                     _matrix[i] = 0;
+#endif
                 int t;
                 if (cyclesBeforeChange > 256.0) {
                     t = 256*400*256;
@@ -930,6 +932,7 @@ public:
                     (*i)->simulateTo(t);
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetTime();
+#ifdef DUMP1
                 if (_dumpMatrix)
                     for (int i = 0; i < t/(400*256); ++i) {
                         for (int j = 0; j < 101; ++j) {
@@ -937,15 +940,14 @@ public:
                             if (n == 0)
                                 printf("    ");
                             else
-                                printf("~~~~");
-                                //if (n < 0)
-                                //    printf("-%03i", -n);
-                                //else
-                                //    printf("%3i ", n);
-
+                                if (n < 0)
+                                    printf("-%03i", -(n-1));
+                                else
+                                    printf("%3i ", n);
                         }
                         printf("\n");
-                    }                                                                                     
+                    }
+#endif
                 _settlingCycles += t/(400.0*256.0);
                 _cyclesThisStream += t/(400.0*256.0);
                 _t += t/(1000000.0*400.0*256.0);
@@ -1101,10 +1103,10 @@ public:
             }
             printf("\n");
 #endif
-            //if (_oldGood) {
-            //    printf("Bad after good\n");
-            //    exit(0);
-            //}
+            if (_oldGood) {
+                printf("Bad after good\n");
+                exit(0);
+            }
         }
         else {
             ++_goodsSinceLastChange;
@@ -1119,36 +1121,48 @@ public:
             }
             printf("\n");
 #endif
+            _settled = true;
+#ifdef DUMP
+            printf("Time %lf, Configuration %i settled in %lf\n", _t, _changes, _settlingCycles);
+#endif
+            if (_settlingCycles > _maxSettlingCycles) {
+                _maxSettlingCycles = _settlingCycles;
+#ifdef DUMP
+                if (_maxSettlingCycles > 2000000)
+                    exit(0);
+#endif
+            }
+            _totalSettlingCycles += _settlingCycles;
         }
-        if (_streams == 50613) {
-            //_bars[28]->debug();
-            //_bars[99]->debug();
-            _dumpMatrix = true;
-        }
-        if (_streams == 50615)
-            exit(0);
+        //if (_streams == 19000) {
+        //    _bars[7]->debug();
+        //    _bars[75]->debug();
+        //    _dumpMatrix = true;
+        //}
+        //if (_streams == 50615)
+        //    exit(0);
         for (int i = 0; i < 101; ++i)
             _numbers[i] = -1;
         _oldGood = _good;
         ++_streams;
         ++_streamsSinceLastChange;
-        if (!_settled) {
-            double goodStreamProportion = static_cast<double>(_goodsSinceLastChange) / static_cast<double>(_streamsSinceLastChange);
-            if (goodStreamProportion > 0.67) {
-                _settled = true;
-#ifdef DUMP
-                printf("Time %lf, Configuration %i settled in %lf\n", _t, _changes, _settlingCycles);
-#endif
-                if (_settlingCycles > _maxSettlingCycles) {
-                    _maxSettlingCycles = _settlingCycles;
-#ifdef DUMP
-                    if (_maxSettlingCycles > 40000000)
-                        exit(0);
-#endif
-                }
-                _totalSettlingCycles += _settlingCycles;
-            }
-        }
+//        if (!_settled) {
+//            double goodStreamProportion = static_cast<double>(_goodsSinceLastChange) / static_cast<double>(_streamsSinceLastChange);
+//            if (goodStreamProportion > 0.67) {
+//                _settled = true;
+//#ifdef DUMP
+//                printf("Time %lf, Configuration %i settled in %lf\n", _t, _changes, _settlingCycles);
+//#endif
+//                if (_settlingCycles > _maxSettlingCycles) {
+//                    _maxSettlingCycles = _settlingCycles;
+//#ifdef DUMP
+//                    if (_maxSettlingCycles > 2000000)
+//                        exit(0);
+//#endif
+//                }
+//                _totalSettlingCycles += _settlingCycles;
+//            }
+//        }
 #ifndef DUMP
         clock_t wall = clock();
         if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
