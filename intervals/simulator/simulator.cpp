@@ -666,7 +666,7 @@ public:
         int childB = (parent + 1) & 3;
         int childC = (parent + 2) & 3;
         int childD = (parent + 3) & 3;
-#ifdef DUMP1
+#ifdef DUMP
         printf("%*s%03i: ", _indent*2, "", _number);
         for (int i = 0; i < 4; ++i)
             if (_connectedBar[i] == -1)
@@ -948,7 +948,8 @@ public:
                         printf("\n");
                     }
 #endif
-                _settlingCycles += t/(400.0*256.0);
+                if (!_settled)
+                    _settlingCycles += t/(400.0*256.0);
                 _cyclesThisStream += t/(400.0*256.0);
                 _t += t/(1000000.0*400.0*256.0);
                 //if (_t >= 0.1)
@@ -956,7 +957,7 @@ public:
             } while (!final);
             double goodStreamProportion = static_cast<double>(_goodsSinceLastChange) / static_cast<double>(_streamsSinceLastChange);
 
-            if (goodStreamProportion > 0.67) {
+            if (_settled) {
                 _good = false;
                 _oldGood = false;
                 _settlingCycles = 0;
@@ -1121,18 +1122,13 @@ public:
             }
             printf("\n");
 #endif
-            _settled = true;
+            if (!_settled) {
+                _settled = true;
 #ifdef DUMP
-            printf("Time %lf, Configuration %i settled in %lf\n", _t, _changes, _settlingCycles);
+                printf("Time %lf, Configuration %i settled in %lf\n", _t, _changes, _settlingCycles);
 #endif
-            if (_settlingCycles > _maxSettlingCycles) {
-                _maxSettlingCycles = _settlingCycles;
-#ifdef DUMP
-                if (_maxSettlingCycles > 2000000)
-                    exit(0);
-#endif
+                _totalSettlingCycles += _settlingCycles;
             }
-            _totalSettlingCycles += _settlingCycles;
         }
         //if (_streams == 19000) {
         //    _bars[7]->debug();
@@ -1146,23 +1142,13 @@ public:
         _oldGood = _good;
         ++_streams;
         ++_streamsSinceLastChange;
-//        if (!_settled) {
-//            double goodStreamProportion = static_cast<double>(_goodsSinceLastChange) / static_cast<double>(_streamsSinceLastChange);
-//            if (goodStreamProportion > 0.67) {
-//                _settled = true;
-//#ifdef DUMP
-//                printf("Time %lf, Configuration %i settled in %lf\n", _t, _changes, _settlingCycles);
-//#endif
-//                if (_settlingCycles > _maxSettlingCycles) {
-//                    _maxSettlingCycles = _settlingCycles;
-//#ifdef DUMP
-//                    if (_maxSettlingCycles > 2000000)
-//                        exit(0);
-//#endif
-//                }
-//                _totalSettlingCycles += _settlingCycles;
-//            }
-//        }
+        if (_settlingCycles > _maxSettlingCycles) {
+            _maxSettlingCycles = _settlingCycles;
+#ifdef DUMP
+            if (_maxSettlingCycles > 2000000)
+                exit(0);
+#endif
+        }
 #ifndef DUMP
         clock_t wall = clock();
         if ((wall - _wall) > CLOCKS_PER_SEC / 10) {

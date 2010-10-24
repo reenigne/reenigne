@@ -1,6 +1,3 @@
-Fix "tardy sync chain" problem if possible
-  Build and run
-
 Build first interval bar - octave
   Fix up PCB layout
   Print PCB layout
