@@ -730,7 +730,7 @@ public:
     {
         HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
         if (h == INVALID_HANDLE_VALUE || h == NULL) {
-            static String openingConsole("Getting console handle ");
+            static String openingConsole("Getting console handle");
             Exception::throwSystemError(openingConsole);
         }
         static String console("console");

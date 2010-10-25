@@ -1,0 +1,64 @@
+Write very simple interpreter
+  Parse command line
+    How should command lines be passed
+      Windows way - a single string containing all paramters
+        Advantage: Conceptual simplicity
+        Advantage: Programs have greater control
+      Unix way - an array of strings
+        Advantage: Simplicity of programming
+        Advantage: Consistency
+      Advantage Unix
+    Roll my own Windows command line parser or use CommandLineToArgvW()?
+      CommandLineToArgvW way
+        Advantage: Easy
+        Advantage: Consistency with other Windows programs
+      Roll my own parser
+        Advantage: Can add glob expansion etc here for consistency with Unix
+        Advantage: Simpler OS dependency
+      Advantage CommandLineToArgvW
+    How does Linux parse:
+      foo "bar baz"
+      foo bar\ baz
+    ?
+  What should command line options be?
+    First argument is name of program to run
+    Remaining arguments are passed to program
+  Initial source program is just a string
+    Start off with arbitrary characters delimited by double quotes
+    Add escaped characters
+  Add ability to concatenate strings
+  Add integers
+  Add built-in print function
+  Add variables
+  Add multi-line strings
+
+Initial test program:
+
+"Pass.\n"
+
+Initial grammar:
+
+:= DoubleQuotedString;
+
+DoubleQuotedString = '"' ( !(NonStringCharacter | '"') | EscapedCharacter)* '"' {[Space]};
+
+Character = '\n' | '\r' | ' '..'\U+10FFFF';
+
+NonStringCharacter = NewLineCharacter | '\\';
+
+NewLineCharacter = {'\n' | '\r'};
+
+EscapedCharacter = '\\' ('\\' | '\'' | '\`' | '\"' | 'n' | 'r' | 't' | UnicodeSequence);
+
+UnicodeSequence = 'U+' HexadecimalDigit HexadecimalDigit HexadecimalDigit HexadecimalDigit [HexadecimalDigit [HexadecimalDigit]];
+
+Space = {(' ' | NewLine | Comment)+};
+
+NewLine = {'\n\r' | '\r\n' | NewLineCharacter};
+
+SingleLineComment = '//' NonNewLineCharacter*;
+
+MultipleLineComment = '/*' (Comment | !'*/' Character)* '*/';
+
+Comment = SingleLineComment | MultipleLineComment;
+
