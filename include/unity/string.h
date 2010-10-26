@@ -121,12 +121,11 @@ public:
     StringTemplate(const char* data) : _implementation(new SimpleStringImplementation(reinterpret_cast<const UInt8*>(data), 0, strlen(data))) { }
     StringTemplate(const Buffer& buffer, int start, int n) : _implementation(new SimpleStringImplementation(buffer, start, n)) { }
 #ifdef _WIN32
-    StringTemplate(const WCHAR* utf16)
+    static int countBytes(const WCHAR* utf16)
     {
         int n = 0;
-        int i = 0;
         while (true) {
-            int c = utf16[i++];
+            int c = *(utf16++);
             if (c == 0)
                 break;
             if (c >= 0xdc00 && c < 0xe000) {
@@ -134,7 +133,7 @@ public:
                 throw Exception(expected + String::hexadecimal(c, 4));
             }
             if (c >= 0xd800 && c < 0xdc00) {
-                int c2 = utf16[i++];
+                int c2 = *(utf16);
                 if (c2 < 0xdc00 || c2 >= 0xe000) {
                     static String expected("Expected 0xDC00..0xDFFF, found 0x");
                     throw Exception(expected + String::hexadecimal(c2, 4));
@@ -148,13 +147,13 @@ public:
                 ++n;
             ++n;
         }
-        static String system("System");
-        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(system);
-        bufferImplementation->allocate(n);
-        i = 0;
-        UInt8* p = bufferImplementation->data();
+        return n;
+    }
+    static UInt8* addToBuffer(const WCHAR* utf16, UInt8* p)
+    {
+        int i = 0;
         while (true) {
-            int codePoint = utf16[i++];
+            int codePoint = *(utf16++);
             if (codePoint == 0)
                 break;
             if (codePoint < 0x80)
@@ -164,7 +163,7 @@ public:
                     *(p++) = 0xc0 | (codePoint >> 6);
                 else {
                     if (codePoint >= 0xd800 && codePoint < 0xdc00) {
-                        codePoint = (((codePoint & 0x3ff)<<10) | (utf16[i++] & 0x3ff)) + 0x10000;
+                        codePoint = (((codePoint & 0x3ff)<<10) | ((*(utf16++)) & 0x3ff)) + 0x10000;
                         *(p++) = 0xf0 | (codePoint >> 18);
                         *(p++) = 0x80 | ((codePoint >> 12) & 0x3f);
                     }
@@ -175,6 +174,16 @@ public:
                 *(p++) = 0x80 | (codePoint & 0x3f);
             }
         }
+        return p;
+    }
+
+    StringTemplate(const WCHAR* utf16)
+    {
+        static String system("System");
+        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(system);
+        int n = countBytes(utf16);
+        bufferImplementation->allocate(n);
+        addToBuffer(utf16, bufferImplementation->data());
         _implementation = new SimpleStringImplementation(Buffer(bufferImplementation), 0, n);
     }
 #endif
