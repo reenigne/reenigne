@@ -374,6 +374,8 @@ public:
     }
     void write(const Handle& handle) const
     {
+        if (length() == 0)
+            return;
 #ifdef _WIN32
         DWORD bytesWritten;
         if (WriteFile(handle, reinterpret_cast<LPCVOID>(_buffer.data() + _start), length(), &bytesWritten, NULL) == 0 || bytesWritten != length()) {
@@ -674,6 +676,7 @@ public:
         throw Exception(s._implementation->buffer().fileName() + openBracket + String::decimal(_line) + comma + String::decimal(_column) + closeBracket + message);
     }
     int position() const { return _position; }
+    String subString(int start, int end) { return _string.subString(start, end - start); }
 private:          
     void throwUTF8Exception(bool first)
     {
@@ -797,8 +800,11 @@ template<class T> class ExceptionTemplate
 {
 public:
     ExceptionTemplate(const String& message) : _message(message) { }
-    void write(const Handle& handle) const { _message.write(handle); }
-
+    void write(const Handle& handle) const
+    { 
+        static String newLine("\n");
+        (_message + newLine).write(handle);
+    }
     static void throwSystemError(const String& message)
     {
         String m;

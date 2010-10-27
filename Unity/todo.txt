@@ -1,24 +1,34 @@
-Write very simple interpreter
-  Initial source program is just a string
-    Start off with arbitrary characters delimited by double quotes
-    Add escaped characters
-  Add ability to concatenate strings
-  Add integers
-  Add built-in print function
-  Add variables
-  Add multi-line strings
+Add whitespace
+Add ability to concatenate strings
+Add integers
+Add built-in print function
+Add variables
+Add multi-line strings
+Add PHP-style string inserts:
+  "Hello $name"
+  "Hello ${sin(x) + strlen("bar")}"
 
-Initial test program:
+For String::throwUnexpected(), print name (or hex) of found character to avoid putting unprintable characters in error messages.
 
-"Pass.\n"
+Parse functions need to be able to fail without throwing
+  Make the parse functions static
+  On failure return null
+    Return boolean for productions with no state  
+
 
 Initial grammar:
 
 := DoubleQuotedString;
 
-DoubleQuotedString = '"' ( !(NonStringCharacter | '"') | EscapedCharacter)* '"' {[Space]};
-
 Character = '\n' | '\r' | ' '..'\U+10FFFF';
+
+UnicodeSequence = 'U+' HexadecimalDigit HexadecimalDigit HexadecimalDigit HexadecimalDigit [HexadecimalDigit [HexadecimalDigit]];
+
+NewLine = {'\n\r' | '\r\n' | NewLineCharacter};
+
+
+
+DoubleQuotedString = '"' ( !(NonStringCharacter | '"') | EscapedCharacter)* '"' {[Space]};
 
 NonStringCharacter = NewLineCharacter | '\\';
 
@@ -26,11 +36,7 @@ NewLineCharacter = {'\n' | '\r'};
 
 EscapedCharacter = '\\' ('\\' | '\'' | '\`' | '\"' | 'n' | 'r' | 't' | UnicodeSequence);
 
-UnicodeSequence = 'U+' HexadecimalDigit HexadecimalDigit HexadecimalDigit HexadecimalDigit [HexadecimalDigit [HexadecimalDigit]];
-
 Space = {(' ' | NewLine | Comment)+};
-
-NewLine = {'\n\r' | '\r\n' | NewLineCharacter};
 
 SingleLineComment = '//' NonNewLineCharacter*;
 

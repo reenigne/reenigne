@@ -4,6 +4,7 @@
 template<class T> class List
 {
 public:
+    virtual bool empty() = 0;
     virtual T first() = 0;
     virtual List<T> rest() = 0;
 };

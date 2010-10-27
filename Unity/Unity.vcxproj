@@ -78,6 +78,9 @@
   <ItemGroup>
     <ClCompile Include="Unity.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="test.unity" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

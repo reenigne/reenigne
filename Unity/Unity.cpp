@@ -7,6 +7,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 
 class CommandLine
 {
@@ -73,6 +74,146 @@ private:
     int _nArguments;
 };
 
+class Space
+{
+public:
+    static void parse(CharacterSource* source)
+    {
+
+    }
+};
+
+class DoubleQuotedString
+{
+public:
+    DoubleQuotedString(CharacterSource* source)
+    {
+        static String endOfFile("End of file in string");
+        static String endOfLine("End of line in string");
+        static String printableCharacter("printable character");
+        static String escapedCharacter("escaped character");
+        static String hexadecimalDigit("hexadecimal digit");
+        static String newLine = String::codePoint(10);
+        static String tab = String::codePoint(9);
+        static String backslash = String::codePoint('\\');
+        static String doubleQuote = String::codePoint('"');
+        static String dollar = String::codePoint('$');
+        static String singleQuote = String::codePoint('\'');
+        static String backQuote = String::codePoint('`');
+        source->assert('"');
+        int start = source->position();
+        int end;
+        static String insert;
+        int n;
+        int nn;
+        do {
+            CharacterSource o = *source;
+            end = source->position();
+            int c = source->get();
+            if (c < 0x20) {
+                if (c == 10)
+                    o.throwError(endOfLine);
+                if (c == -1)
+                    o.throwError(endOfFile);
+                o.throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+            }
+            switch (c) {
+                case '"':
+                    _string += source->subString(start, end);
+                    return;
+                case '\\':
+                    _string += source->subString(start, end);
+                    o = *source;
+                    c = source->get();
+                    if (c < 0x20) {
+                        if (c == 10)
+                            o.throwError(endOfLine);
+                        if (c == -1)
+                            o.throwError(endOfFile);
+                        o.throwUnexpected(escapedCharacter, String::hexadecimal(c, 2));
+                    }
+                    switch (c) {
+                        case 'n':
+                            insert = newLine;
+                            break;
+                        case 't':
+                            insert = tab;
+                            break;
+                        case '$':
+                            insert = dollar;
+                            break;
+                        case '"':
+                            insert = doubleQuote;
+                            break;
+                        case '\'':
+                            insert = singleQuote;
+                            break;
+                        case '`':
+                            insert = backQuote;
+                            break;
+                        case 'U':
+                            source->assert('+');
+                            n = 0;
+                            o = *source;
+                            nn = parseHexadecimalCharacter(source);
+                            if (nn == -1)
+                                o.throwUnexpected(hexadecimalDigit, String::codePoint(source->get()));
+                            n = (n << 4) | nn;
+                            nn = parseHexadecimalCharacter(source);
+                            if (nn == -1)
+                                o.throwUnexpected(hexadecimalDigit, String::codePoint(source->get()));
+                            n = (n << 4) | nn;
+                            nn = parseHexadecimalCharacter(source);
+                            if (nn == -1)
+                                o.throwUnexpected(hexadecimalDigit, String::codePoint(source->get()));
+                            n = (n << 4) | nn;
+                            nn = parseHexadecimalCharacter(source);
+                            if (nn == -1)
+                                o.throwUnexpected(hexadecimalDigit, String::codePoint(source->get()));
+                            n = (n << 4) | nn;
+                            nn = parseHexadecimalCharacter(source);
+                            if (nn != -1) {
+                                n = (n << 4) | nn;
+                                nn = parseHexadecimalCharacter(source);
+                                if (nn != -1)
+                                    n = (n << 4) | nn;
+                            }
+                            insert = String::codePoint(n);
+                            break;
+                        default:
+                            o.throwUnexpected(escapedCharacter, String::codePoint(c));
+                    }
+                    _string += insert;
+                    start = source->position();
+                    break;
+            }
+        } while (true);
+    }
+    void output()
+    {
+        _string.write(Handle::consoleOutput());
+    }
+private:
+    int parseHexadecimalCharacter(CharacterSource* source)
+    {
+        CharacterSource o = *source;
+        int c = o.get();
+        if (c >= '0' && c <= '9') {
+            *source = o;
+            return c - '0';
+        }
+        if (c >= 'A' && c <= 'F') {
+            *source = o;
+            return c + 10 - 'A';
+        }
+        if (c >= 'a' && c <= 'f') {
+            *source = o;
+            return c + 10 - 'a';
+        }
+        return -1;
+    }
+    String _string;
+};
 
 #ifdef _WIN32
 int main()
@@ -86,12 +227,21 @@ int main(int argc, char* argv[])
 #else
         CommandLine commandLine(argc, argv);
 #endif
-        int n = commandLine.arguments();
-        for (int i = 0; i < n; ++i) {
-            printf("%i: ", i);
-            commandLine.argument(i).write(Handle::consoleOutput());
-            printf("\n");
+        if (commandLine.arguments() < 2) {
+            static String syntax1("Syntax: ");
+            static String syntax2(" <input file name>\n");
+            (syntax1 + commandLine.argument(0) + syntax2).write(Handle::consoleOutput());
+            exit(1);
         }
+		File file(commandLine.argument(1));
+		String contents = file.contents();
+        CharacterSource source = contents.start();
+        DoubleQuotedString program(&source);
+        if (!source.empty()) {
+            static String error("Expected end of file");
+            source.throwError(error);
+        }
+        program.output();
 	}
 	END_CHECKED(Exception& e) {
 		e.write(Handle::consoleOutput());
