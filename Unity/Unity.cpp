@@ -79,14 +79,144 @@ class Space
 public:
     static void parse(CharacterSource* source)
     {
-
+        CharacterSource o = *source;
+        do {
+            int c = o.get();
+            if (c == ' ' || c == 10) {
+                *source = o;
+                continue;
+            }
+            if (parseComment(source))
+                continue;
+            return;
+        } while (true);
+    }
+private:
+    static bool parseComment(CharacterSource* source)
+    {
+        static String endOfFile("End of file in comment");
+        static String printableCharacter("printable character");
+        CharacterSource o = *source;
+        int c = o.get();
+        if (c != '/')
+            return false;
+        c = o.get();
+        if (c == '/') {
+            do {
+                c = o.get();
+                if (c == 10 || c == -1)
+                    break;
+                if (c < 0x20)
+                    o.throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+            } while (true);
+            *source = o;
+            return true;
+        }
+        if (c == '*') {
+            do {
+                if (parseComment(&o))
+                    continue;
+                c = o.get();
+                if (c == -1)
+                    o.throwError(endOfFile);
+                if (c == '*') {
+                    c = o.get();
+                    if (c == -1)
+                        o.throwError(endOfFile);
+                    if (c == '/') {
+                        *source = o;
+                        return true;
+                    }
+                }
+                if (c < 0x20 && c != 10)
+                    o.throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+            } while (true);
+        }
+        return false;
     }
 };
 
-class DoubleQuotedString
+template<class T> class ExpressionTemplate : public ReferenceCounted
 {
 public:
-    DoubleQuotedString(CharacterSource* source)
+    static Reference<ExpressionTemplate> parse(CharacterSource* source)
+    {
+        Reference<Expression> e = Literal::parse(source);
+        CharacterSource o;
+        do {
+            o = *source;
+            int c = o.get();
+            if (c == '+') {
+                Space::parse(&o);
+                Reference<Expression> e2 = Literal::parse(&o);
+                if (!e2.valid()) {
+                    static String literal("literal");
+                    source->throwUnexpected(literal, String::codePoint(c));
+                }
+                e = new AddExpression(e, e2);
+                *source = o;
+            }
+            else
+                return e;
+        } while (true);
+    }
+    virtual String output() const = 0;
+};
+
+typedef ExpressionTemplate<void> Expression;
+
+template<class T> class LiteralTemplate : public Expression
+{
+public:
+    static Reference<LiteralTemplate> parse(CharacterSource* source)
+    {
+        Reference<Literal> e = DoubleQuotedString::parse(source);
+        if (e.valid())
+            return e;
+        e = Integer::parse(source);
+        if (e.valid())
+            return e;
+        return 0;
+    }
+};
+
+typedef LiteralTemplate<void> Literal;
+
+class Integer : public Literal
+{
+public:
+    static Reference<Integer> parse(CharacterSource* source)
+    {
+        CharacterSource o = *source;
+        int n = 0;
+        int c = o.get();
+        if (c < '0' || c > '9')
+            return 0;
+        *source = o;
+        do {
+            n = n*10 + c - '0';
+            c = o.get();
+            if (c < '0' || c > '9') {
+                Space::parse(source);
+                return new Integer(n);
+            }
+            *source = o;
+        } while (true);
+    }
+    String output() const
+    {
+        return String::decimal(_n);
+    }
+    int value() const { return _n; }
+private:
+    Integer(int n) : _n(n) { }
+    int _n;
+};
+
+class DoubleQuotedString : public Literal
+{
+public:
+    static Reference<DoubleQuotedString> parse(CharacterSource* source)
     {
         static String endOfFile("End of file in string");
         static String endOfLine("End of line in string");
@@ -100,14 +230,18 @@ public:
         static String dollar = String::codePoint('$');
         static String singleQuote = String::codePoint('\'');
         static String backQuote = String::codePoint('`');
-        source->assert('"');
+        CharacterSource o = *source;
+        if (o.get() != '"')
+            return 0;
+        *source = o;
         int start = source->position();
         int end;
-        static String insert;
+        String insert;
         int n;
         int nn;
+        String string;
         do {
-            CharacterSource o = *source;
+            o = *source;
             end = source->position();
             int c = source->get();
             if (c < 0x20) {
@@ -119,10 +253,11 @@ public:
             }
             switch (c) {
                 case '"':
-                    _string += source->subString(start, end);
-                    return;
+                    string += source->subString(start, end);
+                    Space::parse(source);
+                    return new DoubleQuotedString(string);
                 case '\\':
-                    _string += source->subString(start, end);
+                    string += source->subString(start, end);
                     o = *source;
                     c = source->get();
                     if (c < 0x20) {
@@ -154,23 +289,13 @@ public:
                         case 'U':
                             source->assert('+');
                             n = 0;
-                            o = *source;
-                            nn = parseHexadecimalCharacter(source);
-                            if (nn == -1)
-                                o.throwUnexpected(hexadecimalDigit, String::codePoint(source->get()));
-                            n = (n << 4) | nn;
-                            nn = parseHexadecimalCharacter(source);
-                            if (nn == -1)
-                                o.throwUnexpected(hexadecimalDigit, String::codePoint(source->get()));
-                            n = (n << 4) | nn;
-                            nn = parseHexadecimalCharacter(source);
-                            if (nn == -1)
-                                o.throwUnexpected(hexadecimalDigit, String::codePoint(source->get()));
-                            n = (n << 4) | nn;
-                            nn = parseHexadecimalCharacter(source);
-                            if (nn == -1)
-                                o.throwUnexpected(hexadecimalDigit, String::codePoint(source->get()));
-                            n = (n << 4) | nn;
+                            for (int i = 0; i < 4; ++i) {
+                                o = *source;
+                                nn = parseHexadecimalCharacter(source);
+                                if (nn == -1)
+                                    o.throwUnexpected(hexadecimalDigit, String::codePoint(source->get()));
+                                n = (n << 4) | nn;
+                            }
                             nn = parseHexadecimalCharacter(source);
                             if (nn != -1) {
                                 n = (n << 4) | nn;
@@ -178,23 +303,23 @@ public:
                                 if (nn != -1)
                                     n = (n << 4) | nn;
                             }
+                            o = *source;
                             insert = String::codePoint(n);
                             break;
                         default:
                             o.throwUnexpected(escapedCharacter, String::codePoint(c));
                     }
-                    _string += insert;
+                    string += insert;
                     start = source->position();
                     break;
             }
         } while (true);
     }
-    void output()
-    {
-        _string.write(Handle::consoleOutput());
-    }
+    String output() const { return _string; }
 private:
-    int parseHexadecimalCharacter(CharacterSource* source)
+    DoubleQuotedString(String string) : _string(string) { }
+
+    static int parseHexadecimalCharacter(CharacterSource* source)
     {
         CharacterSource o = *source;
         int c = o.get();
@@ -213,6 +338,23 @@ private:
         return -1;
     }
     String _string;
+};
+
+class AddExpression : public Expression
+{
+public:
+    AddExpression(Reference<Expression> left, Reference<Expression> right) : _left(left), _right(right) { }
+    String output() const
+    {
+        Reference<Integer> l = _left;
+        Reference<Integer> r = _right;
+        if (l.valid() && r.valid())
+            return String::decimal(l->value() + r->value());
+        return _left->output() + _right->output(); 
+    }
+private:
+    Reference<Expression> _left;
+    Reference<Expression> _right;
 };
 
 #ifdef _WIN32
@@ -236,12 +378,16 @@ int main(int argc, char* argv[])
 		File file(commandLine.argument(1));
 		String contents = file.contents();
         CharacterSource source = contents.start();
-        DoubleQuotedString program(&source);
+        Reference<Expression> program = Expression::parse(&source);
+        if (!program.valid()) {
+            static String error("Expected expression");
+            source.throwError(error);
+        }
         if (!source.empty()) {
             static String error("Expected end of file");
             source.throwError(error);
         }
-        program.output();
+        program->output().write(Handle::consoleOutput());
 	}
 	END_CHECKED(Exception& e) {
 		e.write(Handle::consoleOutput());

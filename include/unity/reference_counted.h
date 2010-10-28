@@ -30,13 +30,7 @@ template<class T> class Reference
 public:
     Reference() : _t(0) { }
     Reference(const Reference& other) { set(other._t); }
-    template<class U> Reference(const Reference<U>& other)
-      : _t(0)
-    {
-        T* t = dynamic_cast<T*>(other._t);
-        if (t != 0)
-            set(t);
-    }
+    template<class U> Reference(const Reference<U>& other) { set(dynamic_cast<T*>(other._t)); }
     Reference(T* t) { set(t); }
     ~Reference() { reset(); }
     const Reference& operator=(const Reference& other)
@@ -45,6 +39,12 @@ public:
             reset();
             set(other._t);
         }
+        return *this;
+    }
+    template<class U> Reference& operator=(const Reference<U>& other)
+    {
+        reset();
+        set(dynamic_cast<T*>(other._t));
         return *this;
     }
     const Reference& operator=(T* t) { reset(); set(t); return *this; }

@@ -1,46 +1,11 @@
-Add whitespace
-Add ability to concatenate strings
-Add integers
+Add parentheses
 Add built-in print function
 Add variables
 Add multi-line strings
 Add PHP-style string inserts:
   "Hello $name"
   "Hello ${sin(x) + strlen("bar")}"
+Add ability to define functions
 
 For String::throwUnexpected(), print name (or hex) of found character to avoid putting unprintable characters in error messages.
-
-Parse functions need to be able to fail without throwing
-  Make the parse functions static
-  On failure return null
-    Return boolean for productions with no state  
-
-
-Initial grammar:
-
-:= DoubleQuotedString;
-
-Character = '\n' | '\r' | ' '..'\U+10FFFF';
-
-UnicodeSequence = 'U+' HexadecimalDigit HexadecimalDigit HexadecimalDigit HexadecimalDigit [HexadecimalDigit [HexadecimalDigit]];
-
-NewLine = {'\n\r' | '\r\n' | NewLineCharacter};
-
-
-
-DoubleQuotedString = '"' ( !(NonStringCharacter | '"') | EscapedCharacter)* '"' {[Space]};
-
-NonStringCharacter = NewLineCharacter | '\\';
-
-NewLineCharacter = {'\n' | '\r'};
-
-EscapedCharacter = '\\' ('\\' | '\'' | '\`' | '\"' | 'n' | 'r' | 't' | UnicodeSequence);
-
-Space = {(' ' | NewLine | Comment)+};
-
-SingleLineComment = '//' NonNewLineCharacter*;
-
-MultipleLineComment = '/*' (Comment | !'*/' Character)* '*/';
-
-Comment = SingleLineComment | MultipleLineComment;
-
+Make sure we have a sensible error message when no memory can be allocated at all
