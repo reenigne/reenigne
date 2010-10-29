@@ -67,12 +67,12 @@ lowerVDD:
 
 .global raiseVPP
 raiseVPP:
-  sbi 0x05, 2
+  cbi 0x05, 2
   ret
 
 .global lowerVPP
 lowerVPP:
-  cbi 0x05, 2
+  sbi 0x05, 2
   ret
 
 .global raiseClock

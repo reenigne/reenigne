@@ -518,6 +518,10 @@ uint8_t processCharacter(uint8_t received)
                     lowerVDD();
                     stopTimer();
                     return success();
+                case 'B':
+                case 'b':
+                    receiveState = 4;
+                    break;
             }
             break;
         case 1:  // Expect first character of a HEX file line - start code or newline character
@@ -553,6 +557,11 @@ uint8_t processCharacter(uint8_t received)
                     receiveState = 1;
                 else
                     receiveState = 2;
+            break;
+        case 4:  // Expect a hex nybble for port B
+            nybble = decodeHexNybble(received);
+            PORTB = nybble;
+            receiveState = 0;
             break;
     }
     return true;
@@ -598,13 +607,13 @@ int main()
     // PORTB value:  0x00  (Port B Data Register)
     //   PORTB0         0  Data                        - low
     //   PORTB1         0  Clock                       - low
-    //   PORTB2         0  VPP                         - low
+    //   PORTB2         4  VPP                         - high  (for 0V on VPP)
     //   PORTB3         0  VDD                         - low
     //   PORTB4         0
     //   PORTB5         0
     //   PORTB6         0
     //   PORTB7         0
-    PORTB = 0;
+    PORTB = 4;
 
     // TCCR0A value: 0xa3  (Timer/Counter 0 Control Register A)
     //   WGM00          1  } Waveform Generation Mode = 3 (Fast PWM, TOP=0xff)

@@ -141,16 +141,16 @@ template<class T> class ExpressionTemplate : public ReferenceCounted
 public:
     static Reference<ExpressionTemplate> parse(CharacterSource* source)
     {
-        Reference<Expression> e = Literal::parse(source);
+        Reference<Expression> e = parseComponent(source);
         CharacterSource o;
         do {
             o = *source;
             int c = o.get();
             if (c == '+') {
                 Space::parse(&o);
-                Reference<Expression> e2 = Literal::parse(&o);
+                Reference<Expression> e2 = parseComponent(&o);
                 if (!e2.valid()) {
-                    static String literal("literal");
+                    static String literal("literal or opening parenthesis");
                     source->throwUnexpected(literal, String::codePoint(c));
                 }
                 e = new AddExpression(e, e2);
@@ -160,29 +160,139 @@ public:
                 return e;
         } while (true);
     }
-    virtual String output() const = 0;
-};
-
-typedef ExpressionTemplate<void> Expression;
-
-template<class T> class LiteralTemplate : public Expression
-{
-public:
-    static Reference<LiteralTemplate> parse(CharacterSource* source)
+    static Reference<ExpressionTemplate> parseComponent(CharacterSource* source)
     {
-        Reference<Literal> e = DoubleQuotedString::parse(source);
+        Reference<Expression> e = DoubleQuotedString::parse(source);
         if (e.valid())
             return e;
         e = Integer::parse(source);
         if (e.valid())
             return e;
+        CharacterSource o = *source;
+        int c = o.get();
+        if (c == '(') {
+            *source = o;
+            Space::parse(source);
+            e = parse(source);
+            o = *source;
+            c = o.get();
+            if (c != ')') {
+                static String closingParenthesis("closing parenthesis");
+                source->throwUnexpected(closingParenthesis, String::codePoint(c));
+            }
+            Space::parse(&o);
+            *source = o;
+            return e;
+        }
+        return 0;
+    }
+    virtual String output() const = 0;
+};
+
+typedef ExpressionTemplate<void> Expression;
+
+class Identifier : public Expression
+{
+public:
+    static Reference<Identifier> parse(CharacterSource* source)
+    {
+        CharacterSource o = *source;
+        int start = o.position();
+        int c = o.get();
+        if (c < 'a' || c > 'z')
+            return 0;
+        do {
+            c = o.get();
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')
+                continue;
+            break;
+        } while (true);
+        int end = o.position();
+        Space::parse(&o);
+        *source = o;
+        return new Identifier(o.subString(start, end));
+    }
+    String output() const { return _value->output(); }
+private:
+    Identifier(String name) : _name(name) { }
+    String _name;
+    Reference<Expression> _value;
+};
+
+class Statement : public ReferenceCounted
+{
+public:
+    static Reference<Statement> parse(CharacterSource* source)
+    {
+        Reference<Statement> s = FunctionCallStatement::parse(source);
+        if (s.valid())
+            return s;
         return 0;
     }
 };
 
-typedef LiteralTemplate<void> Literal;
+class StatementSequence
+{
+public:
+    static Reference<StatementSequence> parse(CharacterSource* source)
+    {
 
-class Integer : public Literal
+    }
+};
+
+class FunctionCallStatement : public Statement
+{
+public:
+    static Reference<FunctionCallStatement> parse(CharacterSource* source)
+    {
+        CharacterSource o = *source;
+        Reference<Identifier> functionName = Identifier::parse(&o);
+        if (!functionName.valid())
+            return 0;
+        int c = o.get();
+        if (c != '(')
+            return 0;
+        Space::parse(&o);
+        CharacterSource o2 = o;
+        int n = 0;
+        c = o.get();
+        while (c != ')') {
+            Reference<Expression> e = Expression::parse(&o);
+            if (!e.valid()) {
+                static String expression("Expected expression");
+                o.throwError(expression);
+            }
+            ++n;
+            CharacterSource oo = o;
+            c = o.get();
+            if (c != ',' && c != ')') {
+                static String commaOrCloseParentheses(", or )");
+                oo.throwUnexpected(commaOrCloseParentheses, String::codePoint(c));
+            }
+            Space::parse(&o);
+        } while (true);
+        o.assert(';');
+        *source = o;
+        Reference<FunctionCallStatement> functionCall = new FunctionCallStatement(functionName, n);
+        for (int i = 0; i < n; ++i) {
+            functionCall->setArgument(i, Expression::parse(&o2));
+            o2.get();
+            Space::parse(&o2);
+        }
+        return functionCall;
+    }
+private:
+    FunctionCallStatement(Reference<Identifier> functionName, int n) : _functionName(functionName)
+    {
+        _arguments.allocate(n);
+    }
+    void setArgument(int i, Reference<Expression> argument) { _arguments[i] = argument; }
+
+    Reference<Identifier> _functionName;
+    Array<Reference<Expression> > _arguments;
+};
+
+class Integer : public Expression
 {
 public:
     static Reference<Integer> parse(CharacterSource* source)
@@ -213,7 +323,7 @@ private:
     int _n;
 };
 
-class DoubleQuotedString : public Literal
+class DoubleQuotedString : public Expression
 {
 public:
     static Reference<DoubleQuotedString> parse(CharacterSource* source)

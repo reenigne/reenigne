@@ -1,11 +1,21 @@
-Add parentheses
+
+Make a Context class
+  Put CharacterSource* in it
+  Pass Context to parse() functions instead of CharacterSource*
+Make a SymbolTable class
+  Put it in Context
+  Keep values in the symbol table for now
+Change program to be a sequence of statements
+Write interpreter main loop
 Add built-in print function
-Add variables
+Add variable declaration statement
+Add assignment statement
 Add multi-line strings
 Add PHP-style string inserts:
   "Hello $name"
   "Hello ${sin(x) + strlen("bar")}"
 Add ability to define functions
+Add include statement
 
 For String::throwUnexpected(), print name (or hex) of found character to avoid putting unprintable characters in error messages.
 Make sure we have a sensible error message when no memory can be allocated at all
