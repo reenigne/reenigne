@@ -1,7 +1,4 @@
-
-Make a Context class
-  Put CharacterSource* in it
-  Pass Context to parse() functions instead of CharacterSource*
+Pass Context to parse() functions instead of CharacterSource*
 Make a SymbolTable class
   Put it in Context
   Keep values in the symbol table for now
