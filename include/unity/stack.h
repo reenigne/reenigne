@@ -26,7 +26,6 @@ public:
         for (int i = _n - 1; i >= 0; --i)
             (*array)[i] = pop();
     }
-private:
     T pop()
     {
         T t = _top->_t;
@@ -36,6 +35,7 @@ private:
         --_n;
         return t;
     }
+private:
     bool empty() const { return _top == 0; }
 
     class Entry

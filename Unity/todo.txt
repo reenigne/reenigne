@@ -1,10 +1,6 @@
-Pass Context to parse() functions instead of CharacterSource*
-Make a SymbolTable class
-  Put it in Context
-  Keep values in the symbol table for now
+Add print to symbol table
 Change program to be a sequence of statements
 Write interpreter main loop
-Add built-in print function
 Add variable declaration statement
 Add assignment statement
 Add multi-line strings

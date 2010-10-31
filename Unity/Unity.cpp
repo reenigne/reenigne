@@ -2,6 +2,7 @@
 #include "unity/array.h"
 #include "unity/file.h"
 #include "unity/stack.h"
+#include "unity/hashtable.h"
 
 #ifdef _WIN32
 #include "shellapi.h"
@@ -75,11 +76,61 @@ private:
     int _nArguments;
 };
 
-class SymbolTable
+class Type : public ReferenceCounted
 {
 public:
-private:
+    virtual bool isString() const = 0;
+};
 
+class IntegerType : public Type
+{
+public:
+    bool isString() const { return false; }
+};
+
+class StringType : public Type
+{
+public:
+    bool isString() const { return true; }
+};
+
+class Context;
+
+class Function
+{
+public:
+    virtual void call(Context* context) = 0;
+};
+
+class Value
+{
+public:
+    String getString() { return _stringValue; }
+private:
+    int _integerValue;
+    String _stringValue;
+    Function* _functionValue;
+//    Reference<Type> _type;
+};
+
+class Symbol : public ReferenceCounted
+{
+private:
+    Value _value;
+};
+
+class PrintFunction : public Function
+{
+public:
+    PrintFunction() : _consoleOutput(Handle::consoleOutput())
+    {
+    }
+    void call(Context* context)
+    {
+        context->pop().getString().write(_consoleOutput);
+    }
+private:
+    Handle _consoleOutput;
 };
 
 class Context
@@ -88,9 +139,16 @@ public:
     CharacterSource getSource() const { return _source; }
     void setSource(const CharacterSource& source) { _source = source; }
     int get() { return _source.get(); }
-
+    Value pop() { return _stack.pop(); }
+    void addFunction(String name, Function* function)
+    {
+        
+    }
+       
 private:
     CharacterSource _source;
+    HashTable<String, Symbol> _symbolTable;
+    Stack<Value> _stack;
 };
 
 class Space
@@ -248,13 +306,25 @@ public:
 
 typedef StatementTemplate<void> Statement;
 
-class StatementSequence
+class StatementSequence : public ReferenceCounted
 {
 public:
     static Reference<StatementSequence> parse(Context* context)
     {
-
-    }
+        Stack<Reference<Statement> > statements;
+        do {
+            Reference<Statement> statement = Statement::parse(context);
+            if (!statement.valid())
+                break;
+            statements.push(statement);
+        } while (true);
+        Reference<StatementSequence> statementSequence = new StatementSequence;
+        statements.toArray(&statementSequence->_statements);
+        return statementSequence;
+    }   
+private:
+    StatementSequence() { }
+    Array<Reference<Statement> > _statements;
 };
 
 class FunctionCallStatement : public Statement
@@ -489,7 +559,7 @@ int main()
 int main(int argc, char* argv[])
 #endif
 {
-	BEGIN_CHECKED {
+	BEGIN_CHECKED {         
 #ifdef _WIN32
         CommandLine commandLine;
 #else
@@ -501,23 +571,21 @@ int main(int argc, char* argv[])
             (syntax1 + commandLine.argument(0) + syntax2).write(Handle::consoleOutput());
             exit(1);
         }
+        PrintFunction print;
+
 		File file(commandLine.argument(1));
 		String contents = file.contents();
         Context context;
+        context.addFunction(String("print"), &print);  // TODO: print's type signature
         CharacterSource source = contents.start();
         context.setSource(source);
         Space::parse(&context);
-        Reference<Expression> program = Expression::parse(&context);
-        if (!program.valid()) {
-            static String error("Expected expression");
-            source.throwError(error);
-        }
-        source = context.getSource();
-        if (!source.empty()) {
+        Reference<StatementSequence> program = StatementSequence::parse(&context);
+        if (!context.getSource().empty()) {
             static String error("Expected end of file");
             source.throwError(error);
         }
-        program->output().write(Handle::consoleOutput());
+        program->run();
 	}
 	END_CHECKED(Exception& e) {
 		e.write(Handle::consoleOutput());
