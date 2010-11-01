@@ -76,22 +76,77 @@ private:
     int _nArguments;
 };
 
-class Type : public ReferenceCounted
+template<class T> class TypeTemplate : public ReferenceCounted
 {
 public:
-    virtual bool isString() const = 0;
+    Reference<IntType> intType()
+    {
+        if (!_intType.valid())
+            _intType = new IntType;
+        return _intType;
+    }
+    Reference<StringType> stringType()
+    {
+        if (!_stringType.valid())
+            _stringType = new StringType;
+        return _stringType;
+    }
+    virtual bool equals(Type* other) = 0;
+private:
+    static Reference<IntType> _intType;
+    static Reference<StringType> _stringType;
 };
 
-class IntegerType : public Type
+typedef TypeTemplate<void> Type;
+
+class IntType : public Type
 {
 public:
-    bool isString() const { return false; }
+    bool equals(Type* other)
+    {
+        if (dynamic_cast<IntType*>(other) != 0)
+            return true;
+        return false;
+    }
 };
 
 class StringType : public Type
 {
 public:
-    bool isString() const { return true; }
+    bool equals(Type* other)
+    {
+        if (dynamic_cast<IntType*>(other) != 0)
+            return true;
+        return false;
+    }
+};
+
+class FunctionType : public Type
+{
+public:
+    FunctionType(Reference<Type> returnType, Stack<Reference<Type> > argumentTypes)
+      : _returnType(returnType)
+    {
+        argumentTypes.toArray(&_argumentTypes);
+    }
+    bool equals(Type* other)
+    {
+        FunctionType* f = dynamic_cast<FunctionType*>(other);
+        if (f == 0)
+            return false;
+        if (!f->_returnType->equals(_returnType))
+            return false;
+        int n = _argumentTypes.count();
+        if (!f->_argumentTypes.count() != n)
+            return false;
+        for (int i = 0; i < n; ++i)
+            if (!f->_argumentTypes[i]->equals(_argumentTypes[i]))
+                return false;
+        return true;
+    }
+private:
+    Reference<Type> _returnType;
+    Array<Reference<Type> > _argumentTypes;
 };
 
 class Context;
@@ -107,7 +162,7 @@ class Value
 public:
     String getString() { return _stringValue; }
 private:
-    int _integerValue;
+    int _intValue;
     String _stringValue;
     Function* _functionValue;
 //    Reference<Type> _type;
@@ -140,7 +195,7 @@ public:
     void setSource(const CharacterSource& source) { _source = source; }
     int get() { return _source.get(); }
     Value pop() { return _stack.pop(); }
-    void addFunction(String name, Function* function)
+    void addFunction(String name, Reference<Type> signature, Function* function)
     {
         
     }
@@ -149,6 +204,7 @@ private:
     CharacterSource _source;
     HashTable<String, Symbol> _symbolTable;
     Stack<Value> _stack;
+
 };
 
 class Space
@@ -576,6 +632,8 @@ int main(int argc, char* argv[])
 		File file(commandLine.argument(1));
 		String contents = file.contents();
         Context context;
+        StringType stringType;
+        context.addType(String("String"), 
         context.addFunction(String("print"), &print);  // TODO: print's type signature
         CharacterSource source = contents.start();
         context.setSource(source);

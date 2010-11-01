@@ -1,3 +1,6 @@
+How to do function overloading?
+  A symbol can be defined as a function or a variable, but not both.
+  If it's defined as a function, it can be overloaded.
 Add print to symbol table
 Change program to be a sequence of statements
 Write interpreter main loop
