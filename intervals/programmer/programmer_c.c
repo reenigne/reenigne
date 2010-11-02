@@ -73,6 +73,7 @@ bool getData();
 
 void enterProgrammingMode()
 {
+    setDataOutput();
     raiseVDD();
     wait5us();
     raiseVPP();
@@ -191,12 +192,15 @@ uint16_t dataIndex = 0;
 void doRead(bool all)
 {
     enterProgrammingMode();
-    data[0x205] = readData();
+    if (all)
+        data[0x205] = readData();
     for (int16_t pc = 0; pc < 0x205; ++pc) {
         incrementAddress();
-        if (all || pc == 0x1ff)
+        if (all || pc >= 0x1ff)
             data[pc] = readData();
     }
+    if (!all)
+        data[0x1ff] = data[0x204];
     leaveProgrammingMode();
 }
 
@@ -388,7 +392,6 @@ uint8_t failure(uint8_t code)
     return 0;
 }
 
-// Currently there's no code path that calls doWrite(true). We'll add this dangerous ability only if necessary.
 uint8_t doWrite(bool plusBackup)
 {
     if (plusBackup) {
@@ -477,6 +480,50 @@ uint8_t decodeHexNybble(uint8_t hex)
     return 255;
 }
 
+void autoCalibrate()
+{
+    // waveform program - pulses GPIO pin 0 every 4096 cycles
+    data[0x000] = 0x025;  // MOVWF OSCCAL
+    data[0x001] = 0xc80;  // MOVLW 80h
+    data[0x002] = 0x002;  // OPTION
+    data[0x003] = 0xcfe;  // MOVLW 0xfe
+    data[0x004] = 0x006;  // TRIS GPIO
+    data[0x005] = 0xcff;  // loop1: MOVLW 0xff
+    data[0x006] = 0x03f;  // MOVWF 0x1f
+    data[0x007] = 0xa08;  // loop: GOTO $+1
+    data[0x008] = 0xa09;  // GOTO $+1
+    data[0x009] = 0xa0a;  // GOTO $+1
+    data[0x00a] = 0xa0b;  // GOTO $+1
+    data[0x00b] = 0xa0c;  // GOTO $+1
+    data[0x00c] = 0xa0d;  // GOTO $+1
+    data[0x00d] = 0x000;  // NOP
+    data[0x00e] = 0x2ff;  // DECFSZ 0x1f, F
+    data[0x00f] = 0xa07;  // GOTO loop
+    data[0x010] = 0xa11;  // GOTO $+1
+    data[0x011] = 0xa12;  // GOTO $+1
+    data[0x012] = 0xa13;  // GOTO $+1
+    data[0x013] = 0xa14;  // GOTO $+1
+    data[0x014] = 0xa15;  // GOTO $+1
+    data[0x015] = 0x000;  // NOP
+    data[0x016] = 0x506;  // BSF GPIO, 0
+    data[0x017] = 0x406;  // BCF GPIO, 0
+    data[0x018] = 0xa05;  // GOTO loop1
+    data[0x205] = 0xfea;  // No program protection, internal oscillator
+
+    uint8_t t = 255;
+    while ((t++) != 0) {
+        data[0x1ff] = 0xc00 | t;
+        doWrite(false);
+        // TODO: start timing
+        // TODO: wait until we've read 10 data points
+        // TODO: stop timing
+        // TODO: compute mean and s.d.
+        // TOOO: update best
+        // TODO: start sending result on serial
+    }
+    // TODO: use best
+}
+
 uint8_t processCharacter(uint8_t received)
 {
     uint8_t nybble;
@@ -490,6 +537,9 @@ uint8_t processCharacter(uint8_t received)
                 case 'O':        // O: Write program from buffer to device, including OSCCAL value (necessary if write failed, or if we want to use a different OSCCAL value)
                 case 'o':
                     return doWrite(false);
+                case 'P':
+                case 'p':        // P: Write program from buffer to device, including OSCCAL value and backup OSCCAL value - only use if the backup OSCCAL value got screwed up somehow.
+                    return doWrite(true);
                 case 'R':        // R: Read program from device to buffer
                 case 'r':
                     doRead(true);
@@ -516,8 +566,12 @@ uint8_t processCharacter(uint8_t received)
                 case 'Q':        // Q: Stop timing mode
                 case 'q':
                     lowerVDD();
+                    setDataOutput();
                     stopTimer();
                     return success();
+                case 'A':
+                    autoCalibrate();
+                    break;
                 case 'B':
                 case 'b':
                     receiveState = 4;
@@ -731,28 +785,6 @@ int main()
 
  	sei();
 
-    // waveform program
-    data[0x00] = 0x025;
-    data[0x01] = 0xc80;
-    data[0x02] = 0x002;
-    data[0x03] = 0x07f;
-    data[0x04] = 0xa05;
-    data[0x05] = 0xa06;
-    data[0x06] = 0xa07;
-    data[0x07] = 0xa08;
-    data[0x08] = 0xa09;
-    data[0x09] = 0xa0a;
-    data[0x0a] = 0x000;
-    data[0x0b] = 0x2ff;
-    data[0x0c] = 0xa04;
-    data[0x0d] = 0xa0e;
-    data[0x0e] = 0xa0f;
-    data[0x0f] = 0xa10;
-    data[0x10] = 0xa11;
-    data[0x11] = 0xa12;
-    data[0x12] = 0x506;
-    data[0x13] = 0x406;
-    data[0x14] = 0xa04;
 
     while (true);
 }

@@ -97,9 +97,9 @@ lowerData:
 
 .global getData
 getData:
-  eor r12, r12
+  eor r24, r24
   sbic 0x03, 0
-  inc r12
+  inc r24
   ret
 
 .global setDataInput
