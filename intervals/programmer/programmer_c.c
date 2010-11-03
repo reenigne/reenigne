@@ -71,6 +71,12 @@ void startTimer();
 void stopTimer();
 bool getData();
 
+volatile uint32_t lastTick;
+volatile uint32_t totalCycles;
+volatile float totalCyclesSquared;
+volatile uint8_t ticks;
+volatile bool lastTickValid;
+
 void enterProgrammingMode()
 {
     setDataOutput();
@@ -511,17 +517,35 @@ void autoCalibrate()
     data[0x205] = 0xfea;  // No program protection, internal oscillator
 
     uint8_t t = 255;
+    uint8_t bestOSCCAL;
+    uint32_t bestDrift = 0x20000;
     while ((t++) != 0) {
         data[0x1ff] = 0xc00 | t;
         doWrite(false);
-        // TODO: start timing
-        // TODO: wait until we've read 10 data points
-        // TODO: stop timing
-        // TODO: compute mean and s.d.
-        // TOOO: update best
+        ticks = 0;
+        totalCycles = 0;
+        totalCyclesSquared = 0;
+        lastTickValid = false;
+        raiseVDD();
+        setDataInput();
+        startTimer();
+        while (ticks < 10);
+        lowerVDD();
+        setDataOutput();
+        stopTimer();
+        int32_t mean = totalCycles / ticks;
+        int32_t drift = 0x10000 - delta;
+        if (drift < 0)
+            drift = -drift;
+        if (drift < bestDrift) {
+            bestDrift = drift;
+            bestOSCCAL = t;
+        }
+        float total = totalCycles;
+        float stdDev = sqrt((totalCyclesSquared - total*total/ticks)/(ticks - 1));
         // TODO: start sending result on serial
     }
-    // TODO: use best
+    data[0x1ff] = 0xc00 | bestOSCCAL;
 }
 
 uint8_t processCharacter(uint8_t received)
@@ -634,13 +658,24 @@ SIGNAL(USART_UDRE_vect)
 
 void sendTimerData()
 {
-    if (sendState == 0) {
-        timerTickBuffer = timerTick;
-        picTickLowBuffer = picTickLow;
-        picTickHighBuffer = picTickHigh;
-        sendState = 7;
-        sendNextByte();
-    }
+//    if (sendState == 0) {
+//        timerTickBuffer = timerTick;
+//        picTickLowBuffer = picTickLow;
+//        picTickHighBuffer = picTickHigh;
+//        sendState = 7;
+//        sendNextByte();
+//    }
+    uint32_t tick = (timerTick << 16) | (picTickHigh << 8) | picTickLow;
+    uint32_t delta = lastTick - tick;
+    lastTick = tick;
+    if (delta > 0x20000 || delta < 0x8000 || !lastTickValid)
+        return;
+    ++ticks;
+    totalCycles += delta;
+    float t = delta;
+    t *= t;
+    totalCyclesSquared += t;
+    lastTickValid = true;
 }
 
 int main()

@@ -879,7 +879,8 @@ public:
         _oldGood(false),
         _matrix(101*256),
         _numbers(101, -1),
-        _dumpMatrix(false)
+        _dumpMatrix(false),
+        _badStreams(0)
     {
         CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
         GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
@@ -1037,7 +1038,7 @@ public:
                     connectedBar->connect(connectedDirection, -1, 0);
                     --_connectedPairs;
                 }
-                //if (_changes == 321) {
+                //if (_changes == 774430) {
                 //    _bars[93]->debug();
                 //    _bars[96]->debug();
                 //}
@@ -1089,27 +1090,31 @@ public:
         } while (true);
         int i;
         if (!_good) {
-#ifdef DUMP
-            printf("Time %lf, Stream %i is bad. Expected", _t, _streams);
-            for (i = 0, expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer, ++i) {
-                if ((i % 8) == 0)
-                    printf(" ");
-                printf("%i", *expectedStreamPointer);
+            if (_changes == 774430) {
+                printf("Time %lf, Stream %i is bad. Expected", _t, _streams);
+                for (i = 0, expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer, ++i) {
+                    if ((i % 8) == 0)
+                        printf(" ");
+                    printf("%i", *expectedStreamPointer);
+                }
+                printf(", observed ");
+                for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
+                    if ((i % 8) == 0)
+                        printf(" ");
+                    printf("%i", *streamPointer);
+                }
+                printf("\n");
             }
-            printf(", observed ");
-            for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
-                if ((i % 8) == 0)
-                    printf(" ");
-                printf("%i", *streamPointer);
-            }
-            printf("\n");
-#endif
             if (_oldGood) {
                 printf("Bad after good\n");
                 exit(0);
             }
+            ++_badStreams;
+            if (_badStreams > 100)
+                exit(0);
         }
         else {
+            _badStreams = 0;
             ++_goodsSinceLastChange;
             _goodCycles += _cyclesThisStream;
             _goodWords += liveBars;
@@ -1149,20 +1154,21 @@ public:
                 exit(0);
 #endif
         }
-#ifndef DUMP
-        clock_t wall = clock();
-        if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
-            _wall = wall;
-            SetConsoleCursorPosition(_console, _cursorPosition);
-            printf("Configuration: %i\n", _changes);
-            printf("Time: %lf\n", _t);
-            printf("Bars: %i  \n", liveBars);
-            printf("Streams: %i\n", _streams);
-            printf("Maximum settling cycles: %lf\n", _maxSettlingCycles);
-            printf("Mean settling cycles: %lf  \n", _totalSettlingCycles/_changes);
-            printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
-        }
-#endif
+//#ifndef DUMP
+//        clock_t wall = clock();
+//        if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
+//            _wall = wall;
+//            SetConsoleCursorPosition(_console, _cursorPosition);
+//            printf("Configuration: %i\n", _changes);
+//            printf("Time: %lf\n", _t);
+//            printf("Bars: %i  \n", liveBars);
+//            printf("Streams: %i\n", _streams);
+//            printf("Maximum settling cycles: %lf\n", _maxSettlingCycles);
+//            printf("Mean settling cycles: %lf  \n", _totalSettlingCycles/_changes);
+//            printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
+//            printf("Bad streams: %i  \n", _badStreams);
+//        }
+//#endif
         _cyclesThisStream = 0;
         _streamPointer = &_stream[0];
     }
@@ -1214,6 +1220,7 @@ private:
     std::vector<int> _matrix;
     std::vector<int> _numbers;
     bool _dumpMatrix;
+    int _badStreams;
 };
 
 int main()

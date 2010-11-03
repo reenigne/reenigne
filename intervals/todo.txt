@@ -1,14 +1,13 @@
+Stall in configuration 774430
+  Glitch or real?
+  Could something have overflowed?
+  Add ability to dump state so that it can be restored once we've got some debugging equipment in place
+  ~100 streams per second - only about 26 of the bars are giving data (on average)
+
 Programmer
   Write back backup OSCCAL to PIC (0xC24)
-
   Write code to automatically test speed:
-    Put waveform code in buffer
-    Loop
-      Run timing for 10 cycles
-      Compute mean and std dev
-      Output over serial: OSCCAL value, Hertz value, Hertz std dev
-        000 0987654 +/-
-        f = 65536000000 / t     delta t of 1 cycle gives delta f of 65536000000/65535 ~= 15 Hz
+    Output over serial: OSCCAL value, mean and std dev
 
 Buy connectors and resistors
 
