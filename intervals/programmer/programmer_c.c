@@ -2,6 +2,7 @@
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 #include <avr/eeprom.h>
+#include <math.h>
 
 typedef uint8_t bool;
 #define true 1
@@ -76,6 +77,10 @@ volatile uint32_t totalCycles;
 volatile float totalCyclesSquared;
 volatile uint8_t ticks;
 volatile bool lastTickValid;
+
+uint8_t osccal;
+uint32_t frequency;
+uint16_t freqStdDev;
 
 void enterProgrammingMode()
 {
@@ -211,7 +216,7 @@ void doRead(bool all)
 }
 
 uint8_t spaceAvailable = true;
-uint8_t sendState = 0;
+volatile uint8_t sendState = 0;
 uint8_t receiveState = 0;
 uint8_t hexFileState = 0;
 uint8_t hexLineState = 0;
@@ -378,6 +383,78 @@ void sendNextByte()
             UDR0 = ';';
             sendState = 0;
             break;
+        case 32:
+            UDR0 = '0' + (osccal/100);
+            sendState = 15;
+            break;
+        case 15:
+            UDR0 = '0' + (osccal/10)%10;
+            sendState = 16;
+            break;
+        case 16:
+            UDR0 = '0' + osccal%10;
+            sendState = 17;
+            break;
+        case 17:
+            UDR0 = ' ';
+            sendState = 18;
+            break;
+        case 18:
+            UDR0 = '0' + frequency/1000000;
+            sendState = 19;
+            break;
+        case 19:
+            UDR0 = '0' + (frequency/100000)%10;
+            sendState = 20;
+            break;
+        case 20:
+            UDR0 = '0' + (frequency/10000)%10;
+            sendState = 21;
+            break;
+        case 21:
+            UDR0 = '0' + (frequency/1000)%10;
+            sendState = 22;
+            break;
+        case 22:
+            UDR0 = '0' + (frequency/100)%10;
+            sendState = 23;
+            break;
+        case 23:
+            UDR0 = '0' + (frequency/10)%10;
+            sendState = 24;
+            break;
+        case 24:
+            UDR0 = '0' + frequency%10;
+            sendState = 25;
+            break;
+        case 25:
+            UDR0 = ' ';
+            sendState = 26;
+            break;
+        case 26:
+            UDR0 = '0' + (freqStdDev/10000);
+            sendState = 27;
+            break;
+        case 27:
+            UDR0 = '0' + (freqStdDev/1000)%10;
+            sendState = 28;
+            break;
+        case 28:
+            UDR0 = '0' + (freqStdDev/100)%10;
+            sendState = 29;
+            break;
+        case 29:
+            UDR0 = '0' + (freqStdDev/10)%10;
+            sendState = 30;
+            break;
+        case 30:
+            UDR0 = '0' + freqStdDev%10;
+            sendState = 31;
+            break;
+        case 31:
+            UDR0 = 10;
+            sendState = 0;
+            break;
     }
 }
 
@@ -486,6 +563,8 @@ uint8_t decodeHexNybble(uint8_t hex)
     return 255;
 }
 
+volatile bool calibrating = 0;
+
 void autoCalibrate()
 {
     // waveform program - pulses GPIO pin 0 every 4096 cycles
@@ -516,11 +595,11 @@ void autoCalibrate()
     data[0x018] = 0xa05;  // GOTO loop1
     data[0x205] = 0xfea;  // No program protection, internal oscillator
 
-    uint8_t t = 255;
-    uint8_t bestOSCCAL;
+    osccal = 255;
+    uint8_t bestOSCCAL = 0;
     uint32_t bestDrift = 0x20000;
-    while ((t++) != 0) {
-        data[0x1ff] = 0xc00 | t;
+    while ((osccal++) != 0) {
+        data[0x1ff] = 0xc00 | osccal;
         doWrite(false);
         ticks = 0;
         totalCycles = 0;
@@ -534,16 +613,19 @@ void autoCalibrate()
         setDataOutput();
         stopTimer();
         int32_t mean = totalCycles / ticks;
-        int32_t drift = 0x10000 - delta;
+        int32_t drift = 0x10000 - mean;
         if (drift < 0)
             drift = -drift;
         if (drift < bestDrift) {
             bestDrift = drift;
-            bestOSCCAL = t;
+            bestOSCCAL = osccal;
         }
         float total = totalCycles;
         float stdDev = sqrt((totalCyclesSquared - total*total/ticks)/(ticks - 1));
-        // TODO: start sending result on serial
+        frequency = (uint32_t)((65536000000.0f*ticks)/total);
+        freqStdDev = (uint16_t)(stdDev*(1000000.0f/65535.0f));
+        sendState = 32;
+        while (sendState != 0);
     }
     data[0x1ff] = 0xc00 | bestOSCCAL;
 }
@@ -594,7 +676,7 @@ uint8_t processCharacter(uint8_t received)
                     stopTimer();
                     return success();
                 case 'A':
-                    autoCalibrate();
+                    calibrating = true;
                     break;
                 case 'B':
                 case 'b':
@@ -665,17 +747,23 @@ void sendTimerData()
 //        sendState = 7;
 //        sendNextByte();
 //    }
-    uint32_t tick = (timerTick << 16) | (picTickHigh << 8) | picTickLow;
+    if (picTickHigh == 0 || picTickHigh == 0xff) {
+        lastTickValid = false;
+        return;
+    }
+    uint32_t tick = (((uint32_t)(timerTick)) << 16) | (picTickHigh << 8) | picTickLow;
     uint32_t delta = lastTick - tick;
     lastTick = tick;
-    if (delta > 0x20000 || delta < 0x8000 || !lastTickValid)
+    if (delta > 0x20000 || delta < 0x8000 || !lastTickValid) {
+        lastTickValid = true;
         return;
+    }
+    lastTickValid = true;
     ++ticks;
     totalCycles += delta;
     float t = delta;
     t *= t;
     totalCyclesSquared += t;
-    lastTickValid = true;
 }
 
 int main()
@@ -821,5 +909,10 @@ int main()
  	sei();
 
 
-    while (true);
+    while (true) {
+        if (calibrating) {
+            autoCalibrate();
+            calibrating = false;
+        }
+    }
 }

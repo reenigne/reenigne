@@ -666,7 +666,7 @@ public:
         int childB = (parent + 1) & 3;
         int childC = (parent + 2) & 3;
         int childD = (parent + 3) & 3;
-#ifdef DUMP
+//#ifdef DUMP
         printf("%*s%03i: ", _indent*2, "", _number);
         for (int i = 0; i < 4; ++i)
             if (_connectedBar[i] == -1)
@@ -674,7 +674,7 @@ public:
             else
                 printf("%03i/%i ", _connectedBar[i], _connectedDirection[i]);
         printf("\n");
-#endif
+//#endif
         if (!_childBabsent)
             _simulation->bar(_connectedBar[childB])->dumpConnections(_connectedDirection[childB]);
         if (!_childCabsent)
@@ -880,7 +880,8 @@ public:
         _matrix(101*256),
         _numbers(101, -1),
         _dumpMatrix(false),
-        _badStreams(0)
+        _badStreams(0),
+        _maxBadStreams(0)
     {
         CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
         GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
@@ -1038,18 +1039,20 @@ public:
                     connectedBar->connect(connectedDirection, -1, 0);
                     --_connectedPairs;
                 }
-                //if (_changes == 774430) {
-                //    _bars[93]->debug();
-                //    _bars[96]->debug();
-                //}
+                if (_changes == 774430) {
+                    _bars[87]->debug();
+                    _bars[44]->debug();
+                }
                 //if (_changes == 322)
                 //    exit(0);
                 // Prime to update _indent
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->clearLive();
                 int liveBars = _bars[0]->prime(0);
-                //_bars[0]->storeExpectedStream(0, &_expectedStream[0]);
-                _bars[0]->dumpConnections(0);
+                if (_changes >= 774430)
+                    _bars[0]->dumpConnections(0);
+                else
+                    _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetNewlyConnected();
 #ifdef DUMP
@@ -1110,8 +1113,10 @@ public:
                 exit(0);
             }
             ++_badStreams;
-            if (_badStreams > 100)
+            if (_changes == 774430 && _badStreams > 10)
                 exit(0);
+            if (_badStreams >= _maxBadStreams)
+                _maxBadStreams = _badStreams;
         }
         else {
             _badStreams = 0;
@@ -1167,6 +1172,7 @@ public:
 //            printf("Mean settling cycles: %lf  \n", _totalSettlingCycles/_changes);
 //            printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
 //            printf("Bad streams: %i  \n", _badStreams);
+//            printf("Max bad streams: %i\n", _maxBadStreams);
 //        }
 //#endif
         _cyclesThisStream = 0;
@@ -1221,6 +1227,7 @@ private:
     std::vector<int> _numbers;
     bool _dumpMatrix;
     int _badStreams;
+    int _maxBadStreams;
 };
 
 int main()

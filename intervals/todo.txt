@@ -1,13 +1,16 @@
 Stall in configuration 774430
-  Glitch or real?
-  Could something have overflowed?
   Add ability to dump state so that it can be restored once we've got some debugging equipment in place
   ~100 streams per second - only about 26 of the bars are giving data (on average)
+    Since stream rate is consistent this is probably due to failure to prime
+      Prime not being received - no
+      Prime pending not being received?
+      Child receiving data request too early?
+  Check dump - see if we've got a prime pending timing problem
 
 Programmer
+  Try new calibration routines
   Write back backup OSCCAL to PIC (0xC24)
-  Write code to automatically test speed:
-    Output over serial: OSCCAL value, mean and std dev
+
 
 Buy connectors and resistors
 
