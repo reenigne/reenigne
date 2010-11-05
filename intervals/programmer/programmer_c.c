@@ -73,16 +73,14 @@ void stopTimer();
 bool getData();
 
 volatile uint32_t lastTick;
-volatile uint32_t totalCycles;
-volatile float totalCyclesSquared;
 volatile uint8_t ticks;
 volatile bool lastTickValid;
 
-uint8_t osccal;
+volatile uint8_t osccal;
 uint32_t frequency;
 uint16_t freqStdDev;
 
-void enterProgrammingMode()
+void enterProgrammingMode()  // ~10us
 {
     setDataOutput();
     raiseVDD();
@@ -91,26 +89,26 @@ void enterProgrammingMode()
     wait5us();
 }
 
-void leaveProgrammingMode()
+void leaveProgrammingMode()  // ~10ms
 {
     lowerVPP();
     lowerVDD();
     wait10ms();
 }
 
-void sendBit(bool b)
+void sendBit(bool b)  // ~200ns
 {
     raiseClock();
     if (b)
         raiseData();
     else
         lowerData();
-    wait100ns();
+    //wait100ns();
     lowerClock();
-    wait100ns();
+    //wait100ns();
 }
 
-void sendCommand(uint8_t command)
+void sendCommand(uint8_t command)  // ~1.2us
 {
     sendBit((command & 1) != 0);
     sendBit((command & 2) != 0);
@@ -120,17 +118,17 @@ void sendCommand(uint8_t command)
     sendBit(false);
 }
 
-bool readBit()
+bool readBit()                     // ~200ns
 {
     raiseClock();
-    wait100ns();  // data should be valid after 80ns
+    //wait100ns();  // data should be valid after 80ns
     bool r = getData();
     lowerClock();
-    wait100ns();
+    //wait100ns();
     return r;
 }
 
-uint16_t readData()
+uint16_t readData()                // ~6.4us
 {
     sendCommand(4);
     wait1us();
@@ -157,41 +155,43 @@ uint16_t readData()
     return d;
 }
 
-bool programData(uint16_t data)
+bool programData(uint16_t data)    // ~6.4us with no write, ~2.1ms with write
 {
-    sendCommand(2);
-    wait1us();
-    sendBit(false);
-    sendBit((data & 1) != 0);
-    sendBit((data & 2) != 0);
-    sendBit((data & 4) != 0);
-    sendBit((data & 8) != 0);
-    sendBit((data & 0x10) != 0);
-    sendBit((data & 0x20) != 0);
-    sendBit((data & 0x40) != 0);
-    sendBit((data & 0x80) != 0);
-    sendBit((data & 0x100) != 0);
-    sendBit((data & 0x200) != 0);
-    sendBit((data & 0x400) != 0);
-    sendBit((data & 0x800) != 0);
-    sendBit(false);
-    sendBit(false);
-    sendBit(false);
-    wait1us();
-    sendCommand(8);
-    wait2ms();
-    sendCommand(14);
-    wait100us();
+    if (data != 0xfff) {
+        sendCommand(2);
+        wait1us();
+        sendBit(false);
+        sendBit((data & 1) != 0);
+        sendBit((data & 2) != 0);
+        sendBit((data & 4) != 0);
+        sendBit((data & 8) != 0);
+        sendBit((data & 0x10) != 0);
+        sendBit((data & 0x20) != 0);
+        sendBit((data & 0x40) != 0);
+        sendBit((data & 0x80) != 0);
+        sendBit((data & 0x100) != 0);
+        sendBit((data & 0x200) != 0);
+        sendBit((data & 0x400) != 0);
+        sendBit((data & 0x800) != 0);
+        sendBit(false);
+        sendBit(false);
+        sendBit(false);
+        wait1us();
+        sendCommand(8);
+        wait2ms();
+        sendCommand(14);
+        wait100us();
+    }
     return (readData() == data);
 }
 
-void incrementAddress()
+void incrementAddress()  // ~2.2us
 {
     sendCommand(6);
     wait1us();
 }
 
-void bulkErase()
+void bulkErase()         // ~10ms
 {
     sendCommand(9);
     wait10ms();
@@ -217,6 +217,7 @@ void doRead(bool all)
 
 uint8_t spaceAvailable = true;
 volatile uint8_t sendState = 0;
+uint8_t sendValue = 'Z';
 uint8_t receiveState = 0;
 uint8_t hexFileState = 0;
 uint8_t hexLineState = 0;
@@ -316,15 +317,17 @@ void sendNextByte()
     if (!spaceAvailable)
         return;
     switch (sendState) {
+        case 0:
+            return;
         case 1:
             UDR0 = 'K';  // Success
             sendState = 0;
             break;
         case 2:
             UDR0 = 'E';  // Failure
-            sendState = 14;
+            sendState = 7;
             break;
-        case 14:
+        case 7:
             UDR0 = errorCode;
             sendState = 0;
             break;
@@ -355,35 +358,11 @@ void sendNextByte()
             else
                 sendState = 1;
             break;
-        case 7:    // First nybble of timer tick packet
-            UDR0 = encodeHexNybble((timerTickBuffer >> 4) & 0x0f);
-            sendState = 8;
-            break;
-        case 8:
-            UDR0 = encodeHexNybble(timerTickBuffer & 0x0f);
-            sendState = 9;
-            break;
-        case 9:    // First nybble of timer tick packet
-            UDR0 = encodeHexNybble((picTickHighBuffer >> 4) & 0x0f);
-            sendState = 10;
-            break;
-        case 10:
-            UDR0 = encodeHexNybble(picTickHighBuffer & 0x0f);
-            sendState = 11;
-            break;
-        case 11:    // First nybble of timer tick packet
-            UDR0 = encodeHexNybble((picTickLowBuffer >> 4) & 0x0f);
-            sendState = 12;
-            break;
-        case 12:
-            UDR0 = encodeHexNybble(picTickLowBuffer & 0x0f);
-            sendState = 13;
-            break;
         case 13:
             UDR0 = ';';
             sendState = 0;
             break;
-        case 32:
+        case 14:
             UDR0 = '0' + (osccal/100);
             sendState = 15;
             break;
@@ -455,7 +434,19 @@ void sendNextByte()
             UDR0 = 10;
             sendState = 0;
             break;
+        case 255:
+            UDR0 = sendValue;
+            sendState = 0;
+            break;
     }
+    spaceAvailable = false;
+}
+
+void send(uint8_t c)
+{
+    sendState = 255;
+    sendValue = c;
+    sendNextByte();
 }
 
 uint8_t success()
@@ -563,7 +554,8 @@ uint8_t decodeHexNybble(uint8_t hex)
     return 255;
 }
 
-volatile bool calibrating = 0;
+volatile bool calibrating = false;
+uint32_t tickData[11];
 
 void autoCalibrate()
 {
@@ -593,17 +585,32 @@ void autoCalibrate()
     data[0x016] = 0x506;  // BSF GPIO, 0
     data[0x017] = 0x406;  // BCF GPIO, 0
     data[0x018] = 0xa05;  // GOTO loop1
+    for (int i = 0x19; i < 0x1ff; ++i)
+        data[i] = 0xfff;
     data[0x205] = 0xfea;  // No program protection, internal oscillator
 
-    osccal = 255;
+    osccal = 0;
     uint8_t bestOSCCAL = 0;
     uint32_t bestDrift = 0x20000;
-    while ((osccal++) != 0) {
+    do {
         data[0x1ff] = 0xc00 | osccal;
-        doWrite(false);
+
+        enterProgrammingMode();      // ~10us
+        bulkErase();                 // ~10ms
+        if (!programData(data[0x205])) {  // ~2.1ms
+            failure('F');  // Config fuses didn't verify
+            return;
+        }
+        for (int16_t pc = 0; pc < 0x200; ++pc) {
+            incrementAddress();                    // 512*2.2us = 1.1ms
+            if (!programData(data[pc])) {          // 25*2.1ms + 487*6.4us = 55.6ms
+                failure('V');
+                return;
+            }
+        }
+        leaveProgrammingMode();                    // 10ms - total programming time = 78.8ms
+
         ticks = 0;
-        totalCycles = 0;
-        totalCyclesSquared = 0;
         lastTickValid = false;
         raiseVDD();
         setDataInput();
@@ -612,7 +619,19 @@ void autoCalibrate()
         lowerVDD();
         setDataOutput();
         stopTimer();
-        int32_t mean = totalCycles / ticks;
+        double total = 0;
+        for (int i = 0; i < ticks; ++i)
+            total += tickData[i];
+        double mean = total/ticks;
+        double var = 0;
+        for (int i = 0; i < ticks; ++i) {
+            double v = tickData[i] - mean;
+            var += v*v;
+        }
+        double stdDev = sqrt(var/(ticks - 1));
+        frequency = (uint32_t)(65536000000.0/mean);
+        freqStdDev = (uint16_t)(stdDev*(1000000.0/65536.0));
+
         int32_t drift = 0x10000 - mean;
         if (drift < 0)
             drift = -drift;
@@ -620,13 +639,12 @@ void autoCalibrate()
             bestDrift = drift;
             bestOSCCAL = osccal;
         }
-        float total = totalCycles;
-        float stdDev = sqrt((totalCyclesSquared - total*total/ticks)/(ticks - 1));
-        frequency = (uint32_t)((65536000000.0f*ticks)/total);
-        freqStdDev = (uint16_t)(stdDev*(1000000.0f/65535.0f));
-        sendState = 32;
+
+        sendState = 14;
+        sendNextByte();
         while (sendState != 0);
-    }
+        ++osccal;
+    } while (osccal != 0 && calibrating);
     data[0x1ff] = 0xc00 | bestOSCCAL;
 }
 
@@ -674,7 +692,9 @@ uint8_t processCharacter(uint8_t received)
                     lowerVDD();
                     setDataOutput();
                     stopTimer();
+                    calibrating = true;
                     return success();
+                case 'a':
                 case 'A':
                     calibrating = true;
                     break;
@@ -740,30 +760,19 @@ SIGNAL(USART_UDRE_vect)
 
 void sendTimerData()
 {
-//    if (sendState == 0) {
-//        timerTickBuffer = timerTick;
-//        picTickLowBuffer = picTickLow;
-//        picTickHighBuffer = picTickHigh;
-//        sendState = 7;
-//        sendNextByte();
-//    }
     if (picTickHigh == 0 || picTickHigh == 0xff) {
         lastTickValid = false;
         return;
     }
-    uint32_t tick = (((uint32_t)(timerTick)) << 16) | (picTickHigh << 8) | picTickLow;
-    uint32_t delta = lastTick - tick;
+    uint32_t tick = (((uint32_t)(timerTick)) << 16) | (((uint32_t)(picTickHigh)) << 8) | picTickLow;
+    uint32_t delta = tick - lastTick;
     lastTick = tick;
     if (delta > 0x20000 || delta < 0x8000 || !lastTickValid) {
         lastTickValid = true;
         return;
     }
-    lastTickValid = true;
+    tickData[ticks] = delta;
     ++ticks;
-    totalCycles += delta;
-    float t = delta;
-    t *= t;
-    totalCyclesSquared += t;
 }
 
 int main()
@@ -792,8 +801,10 @@ int main()
     //   PORTB7         0
     PORTB = 4;
 
+    DDRD |= 0x60;
+
     // TCCR0A value: 0xa3  (Timer/Counter 0 Control Register A)
-    //   WGM00          1  } Waveform Generation Mode = 3 (Fast PWM, TOP=0xff)
+    //   WGM00          1  } Waveform Generation Mode = 7 (Fast PWM, TOP=OCR0A)
     //   WGM01          2  }
     //
     //
@@ -803,16 +814,19 @@ int main()
     //   COM0A1      0x80  }
     TCCR0A = 0xa3;
 
-    // TCCR0B value: 0x01  (Timer/Counter 0 Control Register B)
-    //   CS00           1  } Clock select: clkIO/1 (no prescaling)
+    // TCCR0B value: 0x0d  (Timer/Counter 0 Control Register B)
+    //   CS00           1  } Clock select: clkIO/1024 from prescaler
     //   CS01           0  }
-    //   CS02           0  }
-    //   WGM02          0  Waveform Generation Mode = 3 (Fast PWM, TOP=0xff)
+    //   CS02           4  }
+    //   WGM02          8  Waveform Generation Mode = 7 (Fast PWM, TOP=OCR0A)
     //
     //
     //   FOC0B          0  Force Output Compare B
     //   FOC0A          0  Force Output Compare A
-    TCCR0B = 0x01;
+    TCCR0B = 0x0d;
+
+    OCR0A = 79;
+    OCR0B = 40;
 
     // TIMSK0 value: 0x00  (Timer/Counter 0 Interrupt Mask Register)
     //   TOIE0          0  Timer 0 overflow:  no interrupt

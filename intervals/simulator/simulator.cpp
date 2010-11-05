@@ -199,9 +199,9 @@ public:
             printf("%*s% 7.2lf ", _indent*8, "", _tNextStop/(400.0*256.0));
         int pc = _pch | _memory[2];
         int op = _program->op(pc);
-#ifdef DUMP
+//#ifdef DUMP
         String markerCode = _program->marker(pc);
-#endif
+//#endif
         incrementPC();
         UInt16 r;
         if ((op & 0x800) == 0) {
@@ -451,7 +451,7 @@ public:
                     break;
             }
         }
-#ifdef DUMP
+//#ifdef DUMP
         CharacterSource c = markerCode.start();
         do {
             int ch = c.get();
@@ -557,16 +557,16 @@ public:
                         if (r == _readMarker)
                             break;
                         if (r == -1) {
-                            printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
-                            markerCode.write(_console);
-                            printf("\n");
+//                            printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
+                            //markerCode.write(_console);
+                            //printf("\n");
                             break;
                         }
                     } while (true);
                     break;
             }
         } while (true);
-#endif
+//#endif
     }
     void simulateToWrite()
     {
@@ -917,10 +917,10 @@ public:
             double cyclesBeforeChange = -log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*10000.0;
             bool final = false;
             do {
-#ifdef DUMP1
+//#ifdef DUMP1
                 for (int i = 0; i < 101*256; ++i)
                     _matrix[i] = 0;
-#endif
+//#endif
                 int t;
                 if (cyclesBeforeChange > 256.0) {
                     t = 256*400*256;
@@ -934,7 +934,7 @@ public:
                     (*i)->simulateTo(t);
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetTime();
-#ifdef DUMP1
+//#ifdef DUMP1
                 if (_dumpMatrix)
                     for (int i = 0; i < t/(400*256); ++i) {
                         for (int j = 0; j < 101; ++j) {
@@ -949,7 +949,7 @@ public:
                         }
                         printf("\n");
                     }
-#endif
+//#endif
                 if (!_settled)
                     _settlingCycles += t/(400.0*256.0);
                 _cyclesThisStream += t/(400.0*256.0);
@@ -1107,6 +1107,7 @@ public:
                     printf("%i", *streamPointer);
                 }
                 printf("\n");
+                _dumpMatrix = true;
             }
             if (_oldGood) {
                 printf("Bad after good\n");

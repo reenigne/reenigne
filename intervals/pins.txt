@@ -36,7 +36,7 @@ pin Arduino Port PCINT
  9  XTAL1    B6     6   TOSC1 XTAL1      XTAL1
 10  XTAL2    B7     7   TOSC2 XTAL2      XTAL2
 11    5      D5    21   T1    OC0B PWM
-12    6      D6    22   AIN0  OC0A PWM
+12    6      D6    22   AIN0  OC0A PWM   test 195Hz waveform (81920 cycles)
 13    7      D7    23   AIN1
 14    8      B0     0   ICP1  CLKO       programming data
 15    9      B1     1         OC1A PWM   programming clock

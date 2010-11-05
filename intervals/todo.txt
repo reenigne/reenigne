@@ -8,7 +8,8 @@ Stall in configuration 774430
   Check dump - see if we've got a prime pending timing problem
 
 Programmer
-  Try new calibration routines
+  Why are we losing a character?
+  Programming is rather slow
   Write back backup OSCCAL to PIC (0xC24)
 
 
