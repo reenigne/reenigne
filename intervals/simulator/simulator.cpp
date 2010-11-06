@@ -199,9 +199,9 @@ public:
             printf("%*s% 7.2lf ", _indent*8, "", _tNextStop/(400.0*256.0));
         int pc = _pch | _memory[2];
         int op = _program->op(pc);
-//#ifdef DUMP
+#ifdef DUMP
         String markerCode = _program->marker(pc);
-//#endif
+#endif
         incrementPC();
         UInt16 r;
         if ((op & 0x800) == 0) {
@@ -237,7 +237,6 @@ public:
                                     //if (_debug) { printf("%i               ", _w & 1); _program->annotation(pc).write(_console); printf("\n"); }
                                     //_simulation->streamBit((_w & 1) != 0);
                                     //_skipping = true;
-
                                     {
                                         for (int i = 0; i < 8; ++i) {
                                             _simulation->streamBit((_memory[7+i] & 1) != 0);
@@ -451,7 +450,7 @@ public:
                     break;
             }
         }
-//#ifdef DUMP
+#ifdef DUMP
         CharacterSource c = markerCode.start();
         do {
             int ch = c.get();
@@ -557,7 +556,7 @@ public:
                         if (r == _readMarker)
                             break;
                         if (r == -1) {
-//                            printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
+                            printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
                             //markerCode.write(_console);
                             //printf("\n");
                             break;
@@ -566,7 +565,7 @@ public:
                     break;
             }
         } while (true);
-//#endif
+#endif
     }
     void simulateToWrite()
     {
@@ -666,7 +665,7 @@ public:
         int childB = (parent + 1) & 3;
         int childC = (parent + 2) & 3;
         int childD = (parent + 3) & 3;
-//#ifdef DUMP
+#ifdef DUMP
         printf("%*s%03i: ", _indent*2, "", _number);
         for (int i = 0; i < 4; ++i)
             if (_connectedBar[i] == -1)
@@ -674,7 +673,7 @@ public:
             else
                 printf("%03i/%i ", _connectedBar[i], _connectedDirection[i]);
         printf("\n");
-//#endif
+#endif
         if (!_childBabsent)
             _simulation->bar(_connectedBar[childB])->dumpConnections(_connectedDirection[childB]);
         if (!_childCabsent)
@@ -714,6 +713,24 @@ public:
     void clearLive() { _oldLive = _live; _live = false; }
     void resetNewlyConnected() { if (_live && !_oldLive) reset(); }
     void debug() { _debug = true; }
+    void dump()
+    {
+        if (!_live)
+            return;
+        printf("Bar %i:\n", _live);
+        printf("  Memory: %02x", _w);
+        for (int i = 0; i < 0x21; ++i)
+            printf(" %02x", _memory[i]);
+        printf(" %02x\n", _option);
+        printf("  Stack: %03x %03x %03x %c\n", _memory[2] | _pch, _stack[0], _stack[1], _skipping ? 'S' : 'N');
+        printf("  Connections:");
+        for (int i = 0; i < 4; ++i)
+            if (_connectedBar[i] == -1)
+                printf(" ---/-");
+            else
+                printf(" %03i/%i", _connectedBar[i], _connectedDirection[i]);
+        printf("\n");
+    }
 private:
     UInt8 readMemory(int address, UInt8 care = 0xff)
     {
@@ -771,7 +788,6 @@ private:
         else {
             _f = -1;
             _w = static_cast<UInt8>(r);
-//            if (_debug) printf("W = 0x%02x\n",_w);
         }
     }
     void storeZ(UInt16 r, bool d)
@@ -808,9 +824,7 @@ private:
         if (_number == 0)
             _tPerQuarterCycle = 100*256;
         else
-            //_tPerQuarterCycle = 100*256 + rand()*0;
             _tPerQuarterCycle = (rand() % 512) + 99*256;  // 99*256 to 101*256 units of cycle/(100*256)
-        //_tPerQuarterCycle = 100*256 + ((rand() % 8) - 4);
         _state = 0;
         _tNextStop = _tPerQuarterCycle;
     }
@@ -898,18 +912,11 @@ public:
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
             Reference<Bar> bar;
-            bool debug = false;
-#ifdef DUMP
-//            debug = (i == 57 || i == 41);
-#endif
-            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, debug);
+            bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, false);
             if (i == 0)
                 root = bar;
             _bars.push_back(bar);
         }
-
-        //_bars[0]->connect(0, 2, 1, 0);
-        //_bars[1]->connect(0, 0, 0, 2);
 
         _streamPointer = &_stream[0];
         _connectedPairs = 0;
@@ -917,10 +924,10 @@ public:
             double cyclesBeforeChange = -log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*10000.0;
             bool final = false;
             do {
-//#ifdef DUMP1
+#ifdef DUMP1
                 for (int i = 0; i < 101*256; ++i)
                     _matrix[i] = 0;
-//#endif
+#endif
                 int t;
                 if (cyclesBeforeChange > 256.0) {
                     t = 256*400*256;
@@ -934,7 +941,7 @@ public:
                     (*i)->simulateTo(t);
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetTime();
-//#ifdef DUMP1
+#ifdef DUMP1
                 if (_dumpMatrix)
                     for (int i = 0; i < t/(400*256); ++i) {
                         for (int j = 0; j < 101; ++j) {
@@ -949,7 +956,7 @@ public:
                         }
                         printf("\n");
                     }
-//#endif
+#endif
                 if (!_settled)
                     _settlingCycles += t/(400.0*256.0);
                 _cyclesThisStream += t/(400.0*256.0);
@@ -1039,12 +1046,10 @@ public:
                     connectedBar->connect(connectedDirection, -1, 0);
                     --_connectedPairs;
                 }
-                if (_changes == 774430) {
-                    _bars[87]->debug();
-                    _bars[44]->debug();
-                }
-                //if (_changes == 322)
-                //    exit(0);
+                //if (_changes == 774430) {
+                //    _bars[87]->debug();
+                //    _bars[44]->debug();
+                //}
                 // Prime to update _indent
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->clearLive();
@@ -1114,8 +1119,10 @@ public:
                 exit(0);
             }
             ++_badStreams;
-            if (_changes == 774430 && _badStreams > 10)
-                exit(0);
+            if (_changes == 774430 && _badStreams > 10) {
+                for (int i = 0; i <= _totalBars; ++i)
+                    _bars[i]->dump();
+            }
             if (_badStreams >= _maxBadStreams)
                 _maxBadStreams = _badStreams;
         }
@@ -1141,41 +1148,28 @@ public:
                 _totalSettlingCycles += _settlingCycles;
             }
         }
-        //if (_streams == 19000) {
-        //    _bars[7]->debug();
-        //    _bars[75]->debug();
-        //    _dumpMatrix = true;
-        //}
-        //if (_streams == 50615)
-        //    exit(0);
-        for (int i = 0; i < 101; ++i)
-            _numbers[i] = -1;
         _oldGood = _good;
         ++_streams;
         ++_streamsSinceLastChange;
         if (_settlingCycles > _maxSettlingCycles) {
             _maxSettlingCycles = _settlingCycles;
-#ifdef DUMP
-            if (_maxSettlingCycles > 2000000)
-                exit(0);
-#endif
         }
-//#ifndef DUMP
-//        clock_t wall = clock();
-//        if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
-//            _wall = wall;
-//            SetConsoleCursorPosition(_console, _cursorPosition);
-//            printf("Configuration: %i\n", _changes);
-//            printf("Time: %lf\n", _t);
-//            printf("Bars: %i  \n", liveBars);
-//            printf("Streams: %i\n", _streams);
-//            printf("Maximum settling cycles: %lf\n", _maxSettlingCycles);
-//            printf("Mean settling cycles: %lf  \n", _totalSettlingCycles/_changes);
-//            printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
-//            printf("Bad streams: %i  \n", _badStreams);
-//            printf("Max bad streams: %i\n", _maxBadStreams);
-//        }
-//#endif
+#ifndef DUMP
+        clock_t wall = clock();
+        if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
+            _wall = wall;
+            SetConsoleCursorPosition(_console, _cursorPosition);
+            printf("Configuration: %i\n", _changes);
+            printf("Time: %lf\n", _t);
+            printf("Bars: %i  \n", liveBars);
+            printf("Streams: %i\n", _streams);
+            printf("Maximum settling cycles: %lf\n", _maxSettlingCycles);
+            printf("Mean settling cycles: %lf  \n", _totalSettlingCycles/_changes);
+            printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
+            printf("Bad streams: %i  \n", _badStreams);
+            printf("Max bad streams: %i\n", _maxBadStreams);
+        }
+#endif
         _cyclesThisStream = 0;
         _streamPointer = &_stream[0];
     }
