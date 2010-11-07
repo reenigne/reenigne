@@ -1,11 +1,7 @@
 Stall in configuration 774430
-  Add ability to dump state so that it can be restored once we've got some debugging equipment in place
-  ~100 streams per second - only about 26 of the bars are giving data (on average)
-    Since stream rate is consistent this is probably due to failure to prime
-      Prime not being received - no
-      Prime pending not being received?
-      Child receiving data request too early?
-  Check dump - see if we've got a prime pending timing problem
+  Only a few markers in matrix - do we have a "waiting for prime" loop?
+    Look at dump - see if this is the case.
+    How could this happen? We can't change more than one connection whilst there is a prime pending as it won't have settled.
 
 Programmer
   Why are we losing a character?

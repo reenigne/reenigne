@@ -209,7 +209,7 @@ public:
             if ((op & 0x400) == 0) {
                 bool d = ((op & 0x20) != 0);  // true if destination is f, false if destination is W
                 char dc = d ? 'f' : 'W';
-                switch (op >> 6) {
+                switch (op >> 6) { 
                     case 0x0:
                         if (!d)
                             switch (_f) {
@@ -717,12 +717,12 @@ public:
     {
         if (!_live)
             return;
-        printf("Bar %i:\n", _live);
+        printf("Bar %i:\n", _number);
         printf("  Memory: %02x", _w);
         for (int i = 0; i < 0x21; ++i)
             printf(" %02x", _memory[i]);
         printf(" %02x\n", _option);
-        printf("  Stack: %03x %03x %03x %c\n", _memory[2] | _pch, _stack[0], _stack[1], _skipping ? 'S' : 'N');
+        printf("  Stack: %03x %03x %03x %c %i %0x08x\n", _memory[2] | _pch, _stack[0], _stack[1], _skipping ? 'S' : 'N', _state, _tNextStop);
         printf("  Connections:");
         for (int i = 0; i < 4; ++i)
             if (_connectedBar[i] == -1)
@@ -964,6 +964,10 @@ public:
                 //if (_t >= 0.1)
                 //    exit(0);
             } while (!final);
+            if (_changes >= 774430)
+                for (int i = 0; i <= _totalBars; ++i)
+                    _bars[i]->dump();
+
             double goodStreamProportion = static_cast<double>(_goodsSinceLastChange) / static_cast<double>(_streamsSinceLastChange);
 
             if (_settled) {
@@ -1029,40 +1033,39 @@ public:
                             }
                         }
                     }
-#ifdef DUMP
-                    printf("Configuration %i, time %lf: Connecting bar %i direction %i to bar %i direction %i. ", _changes, _t, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
-#endif
+//#ifdef DUMP
+                    if (_changes >= 774420)
+                        printf("Configuration %i, time %lf: Connecting bar %i direction %i to bar %i direction %i. ", _changes, _t, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+//#endif
                     bar->connect(connectorNumber, connectedBarNumber, connectedDirection);
                     otherBar->connect(connectedDirection, barNumber, connectorNumber);
                     ++_connectedPairs;
                 }
                 else {
                     // This connector is connected - disconnect it.
-#ifdef DUMP
-                    printf("Configuration %i, time %lf: Disconnecting bar %i direction %i from bar %i direction %i. ", _changes, _t, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
-#endif
+//#ifdef DUMP
+                    if (_changes >= 774420)
+                          printf("Configuration %i, time %lf: Disconnecting bar %i direction %i from bar %i direction %i. ", _changes, _t, barNumber, connectorNumber, connectedBarNumber, connectedDirection);
+//#endif
                     Bar* connectedBar = _bars[connectedBarNumber];
                     bar->connect(connectorNumber, -1, 0);
                     connectedBar->connect(connectedDirection, -1, 0);
                     --_connectedPairs;
                 }
-                //if (_changes == 774430) {
-                //    _bars[87]->debug();
-                //    _bars[44]->debug();
-                //}
                 // Prime to update _indent
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->clearLive();
                 int liveBars = _bars[0]->prime(0);
-                if (_changes >= 774430)
+//#ifdef DUMP
+                if (_changes >= 774420)
+                    printf("Live %i connections %i\n", liveBars, _connectedPairs);
+//#endif
+                if (_changes >= 774420)
                     _bars[0]->dumpConnections(0);
                 else
                     _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetNewlyConnected();
-#ifdef DUMP
-                printf("Live %i connections %i\n", liveBars, _connectedPairs);
-#endif
             }
         } while (true);
     }
@@ -1119,10 +1122,8 @@ public:
                 exit(0);
             }
             ++_badStreams;
-            if (_changes == 774430 && _badStreams > 10) {
-                for (int i = 0; i <= _totalBars; ++i)
-                    _bars[i]->dump();
-            }
+            if (_changes == 774430 && _badStreams > 10)
+                exit(0);
             if (_badStreams >= _maxBadStreams)
                 _maxBadStreams = _badStreams;
         }
