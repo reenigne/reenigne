@@ -665,7 +665,7 @@ public:
         int childB = (parent + 1) & 3;
         int childC = (parent + 2) & 3;
         int childD = (parent + 3) & 3;
-#ifdef DUMP
+//#ifdef DUMP
         printf("%*s%03i: ", _indent*2, "", _number);
         for (int i = 0; i < 4; ++i)
             if (_connectedBar[i] == -1)
@@ -673,7 +673,7 @@ public:
             else
                 printf("%03i/%i ", _connectedBar[i], _connectedDirection[i]);
         printf("\n");
-#endif
+//#endif
         if (!_childBabsent)
             _simulation->bar(_connectedBar[childB])->dumpConnections(_connectedDirection[childB]);
         if (!_childCabsent)
@@ -717,12 +717,12 @@ public:
     {
         if (!_live)
             return;
-        printf("Bar %i:\n", _number);
+        printf("Bar %i:", _number);
         printf("  Memory: %02x", _w);
         for (int i = 0; i < 0x21; ++i)
             printf(" %02x", _memory[i]);
-        printf(" %02x\n", _option);
-        printf("  Stack: %03x %03x %03x %c %i %0x08x\n", _memory[2] | _pch, _stack[0], _stack[1], _skipping ? 'S' : 'N', _state, _tNextStop);
+        printf(" %02x", _option);
+        printf("  Stack: %03x %03x %03x %c %i 0x%08x", _memory[2] | _pch, _stack[0], _stack[1], _skipping ? 'S' : 'N', _state, _tNextStop);
         printf("  Connections:");
         for (int i = 0; i < 4; ++i)
             if (_connectedBar[i] == -1)
@@ -1101,7 +1101,7 @@ public:
         } while (true);
         int i;
         if (!_good) {
-            if (_changes == 774430) {
+            if (_changes >= 774420) {
                 printf("Time %lf, Stream %i is bad. Expected", _t, _streams);
                 for (i = 0, expectedStreamPointer = &_expectedStream[0]; expectedStreamPointer != expectedStreamPointerEnd; ++expectedStreamPointer, ++i) {
                     if ((i % 8) == 0)
@@ -1132,20 +1132,23 @@ public:
             ++_goodsSinceLastChange;
             _goodCycles += _cyclesThisStream;
             _goodWords += liveBars;
-#ifdef DUMP
-            printf("Time %lf, Stream %i is good:", _t, _streams);
-            for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
-                if ((i % 8) == 0)
-                    printf(" ");
-                printf("%i", *streamPointer);
+//#ifdef DUMP
+            if (_changes >= 774420) {
+                printf("Time %lf, Stream %i is good:", _t, _streams);
+                for (i = 0, streamPointer = &_stream[0]; streamPointer != _streamPointer; ++streamPointer, ++i) {
+                    if ((i % 8) == 0)
+                        printf(" ");
+                    printf("%i", *streamPointer);
+                }
+                printf("\n");
             }
-            printf("\n");
-#endif
+//#endif
             if (!_settled) {
                 _settled = true;
-#ifdef DUMP
-                printf("Time %lf, Configuration %i settled in %lf\n", _t, _changes, _settlingCycles);
-#endif
+//#ifdef DUMP
+                if (_changes >= 774420)
+                    printf("Time %lf, Configuration %i settled in %lf\n", _t, _changes, _settlingCycles);
+//#endif
                 _totalSettlingCycles += _settlingCycles;
             }
         }
@@ -1156,19 +1159,21 @@ public:
             _maxSettlingCycles = _settlingCycles;
         }
 #ifndef DUMP
-        clock_t wall = clock();
-        if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
-            _wall = wall;
-            SetConsoleCursorPosition(_console, _cursorPosition);
-            printf("Configuration: %i\n", _changes);
-            printf("Time: %lf\n", _t);
-            printf("Bars: %i  \n", liveBars);
-            printf("Streams: %i\n", _streams);
-            printf("Maximum settling cycles: %lf\n", _maxSettlingCycles);
-            printf("Mean settling cycles: %lf  \n", _totalSettlingCycles/_changes);
-            printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
-            printf("Bad streams: %i  \n", _badStreams);
-            printf("Max bad streams: %i\n", _maxBadStreams);
+        if (_changes < 774420) {
+            clock_t wall = clock();
+            if ((wall - _wall) > CLOCKS_PER_SEC / 10) {
+                _wall = wall;
+                SetConsoleCursorPosition(_console, _cursorPosition);
+                printf("Configuration: %i\n", _changes);
+                printf("Time: %lf\n", _t);
+                printf("Bars: %i  \n", liveBars);
+                printf("Streams: %i\n", _streams);
+                printf("Maximum settling cycles: %lf\n", _maxSettlingCycles);
+                printf("Mean settling cycles: %lf  \n", _totalSettlingCycles/_changes);
+                printf("Cycles per word: %lf  \n", _goodCycles/_goodWords);
+                printf("Bad streams: %i  \n", _badStreams);
+                printf("Max bad streams: %i\n", _maxBadStreams);
+            }
         }
 #endif
         _cyclesThisStream = 0;
