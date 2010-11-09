@@ -8,8 +8,10 @@ I "prime complete"                          high  child to parent
 
 W "wait for data request"                   low   parent to child
 R "data request"                            high  parent to child
-S "sync falling"                            low   parent to child
-T "sync rising"                             high  parent to child
+S "sync falling 1"                          low   parent to child
+T "sync rising 1"                           high  parent to child
+U "sync falling 2"                          low   parent to child
+V "sync rising 2"                           high  parent to child
 
 0 data bit 0, length low                    both  child to parent
 1 data bit 1, length middle                 both  child to parent

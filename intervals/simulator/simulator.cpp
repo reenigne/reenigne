@@ -199,9 +199,9 @@ public:
             printf("%*s% 7.2lf ", _indent*8, "", _tNextStop/(400.0*256.0));
         int pc = _pch | _memory[2];
         int op = _program->op(pc);
-#ifdef DUMP
+//#ifdef DUMP
         String markerCode = _program->marker(pc);
-#endif
+//#endif
         incrementPC();
         UInt16 r;
         if ((op & 0x800) == 0) {
@@ -450,122 +450,124 @@ public:
                     break;
             }
         }
-#ifdef DUMP
-        CharacterSource c = markerCode.start();
-        do {
-            int ch = c.get();
-            if (ch == -1)
-                break;
-            switch (ch) {
-                case 'P':
-                    _parent = c.get() - '0';
-                    //printf("%*sBar %i parent %i -> (", _indent*2, "", _number, _parent);
-                    //if (_connectedBar[_parent] == -1)
-                    //    printf("disconnected");
-                    //else
-                    //    printf("%i/%i", _connectedBar[_parent], _connectedDirection[_parent]);
-                    //printf(") child %i (", _child);
-                    //if (_connectedBar[_child] == -1)
-                    //    printf("disconnected");
-                    //else
-                    //    printf("%i/%i", _connectedBar[_child], _connectedDirection[_child]);
-                    //printf(")\n");
-                    //if (_parent != _staticParent)
-                    //    printf("Expected %i not %i for parent of %i\n",_staticParent, _parent, _number);
+//#ifdef DUMP
+        if (_debug) {
+            CharacterSource c = markerCode.start();
+            do {
+                int ch = c.get();
+                if (ch == -1)
                     break;
-                case 'C':
-                    _child = c.get() - '0';
-                    //printf("%*sBar %i parent %i (", _indent*2, "", _number, _parent);
-                    //if (_connectedBar[_parent] == -1)
-                    //    printf("disconnected");
-                    //else
-                    //    printf("%i/%i", _connectedBar[_parent], _connectedDirection[_parent]);
-                    //printf(") child %i -> (", _child);
-                    //if (_connectedBar[_child] == -1)
-                    //    printf("disconnected");
-                    //else
-                    //    printf("%i/%i", _connectedBar[_child], _connectedDirection[_child]);
-                    //printf(")\n");
-                    break;
-                case 'p':
-                    {
-                        int cLow = c.get();
-                        int cHigh = c.get();
-                        switch (_parent) {
-                            case 0:
-                                _newMarker[0] = (_data & 0x10) ? cHigh : cLow;
-                                break;
-                            case 1:
-                                _newMarker[1] = (_data & 0x20) ? cHigh : cLow;
-                                break;
-                            case 2:
-                                _newMarker[2] = (_data & 1) ? cHigh : cLow;
-                                break;
-                            case 3:
-                                _newMarker[3] = (_data & 2) ? cHigh : cLow;
-                                break;
-                        }
-                    }
-                    break;
-                case 'c':
-                    {
-                        int cLow = c.get();
-                        if (cLow == 'R') {
-                            if (_number != _simulation->getNumberForIndent(_indent)) {
-                                _simulation->setNumberForIndent(_indent, _number);
-                                _simulation->setMatrix(_t/(400*256), _indent, -(_number + 1));
+                switch (ch) {
+                    case 'P':
+                        _parent = c.get() - '0';
+                        //printf("%*sBar %i parent %i -> (", _indent*2, "", _number, _parent);
+                        //if (_connectedBar[_parent] == -1)
+                        //    printf("disconnected");
+                        //else
+                        //    printf("%i/%i", _connectedBar[_parent], _connectedDirection[_parent]);
+                        //printf(") child %i (", _child);
+                        //if (_connectedBar[_child] == -1)
+                        //    printf("disconnected");
+                        //else
+                        //    printf("%i/%i", _connectedBar[_child], _connectedDirection[_child]);
+                        //printf(")\n");
+                        //if (_parent != _staticParent)
+                        //    printf("Expected %i not %i for parent of %i\n",_staticParent, _parent, _number);
+                        break;
+                    case 'C':
+                        _child = c.get() - '0';
+                        //printf("%*sBar %i parent %i (", _indent*2, "", _number, _parent);
+                        //if (_connectedBar[_parent] == -1)
+                        //    printf("disconnected");
+                        //else
+                        //    printf("%i/%i", _connectedBar[_parent], _connectedDirection[_parent]);
+                        //printf(") child %i -> (", _child);
+                        //if (_connectedBar[_child] == -1)
+                        //    printf("disconnected");
+                        //else
+                        //    printf("%i/%i", _connectedBar[_child], _connectedDirection[_child]);
+                        //printf(")\n");
+                        break;
+                    case 'p':
+                        {
+                            int cLow = c.get();
+                            int cHigh = c.get();
+                            switch (_parent) {
+                                case 0:
+                                    _newMarker[0] = (_data & 0x10) ? cHigh : cLow;
+                                    break;
+                                case 1:
+                                    _newMarker[1] = (_data & 0x20) ? cHigh : cLow;
+                                    break;
+                                case 2:
+                                    _newMarker[2] = (_data & 1) ? cHigh : cLow;
+                                    break;
+                                case 3:
+                                    _newMarker[3] = (_data & 2) ? cHigh : cLow;
+                                    break;
                             }
-                            else
-                                _simulation->setMatrix(_t/(400*256), _indent, _cyclesSinceLastSync);
-                            _cyclesSinceLastSync = 0;
                         }
-                        int cHigh = c.get();
-                        switch (_child) {
-                            case 0:
+                        break;
+                    case 'c':
+                        {
+                            int cLow = c.get();
+                            if (cLow == 'R') {
+                                if (_number != _simulation->getNumberForIndent(_indent)) {
+                                    _simulation->setNumberForIndent(_indent, _number);
+                                    _simulation->setMatrix(_t/(400*256), _indent, -(_number + 1));
+                                }
+                                else
+                                    _simulation->setMatrix(_t/(400*256), _indent, _cyclesSinceLastSync);
+                                _cyclesSinceLastSync = 0;
+                            }
+                            int cHigh = c.get();
+                            switch (_child) {
+                                case 0:
+                                    _newMarker[0] = (_data & 0x10) ? cHigh : cLow;
+                                    break;
+                                case 1:
+                                    _newMarker[1] = (_data & 0x20) ? cHigh : cLow;
+                                    break;
+                                case 2:
+                                    _newMarker[2] = (_data & 1) ? cHigh : cLow;
+                                    break;
+                                case 3:
+                                    _newMarker[3] = (_data & 2) ? cHigh : cLow;
+                                    break;
+                            }
+                        }
+                        break;
+                    case 'o':
+                        {
+                            int cLow = c.get();
+                            int cHigh = c.get();
+                            if (_parent != 0 && _child != 0)
                                 _newMarker[0] = (_data & 0x10) ? cHigh : cLow;
-                                break;
-                            case 1:
+                            if (_parent != 1 && _child != 1)
                                 _newMarker[1] = (_data & 0x20) ? cHigh : cLow;
-                                break;
-                            case 2:
+                            if (_parent != 2 && _child != 2)
                                 _newMarker[2] = (_data & 1) ? cHigh : cLow;
-                                break;
-                            case 3:
+                            if (_parent != 3 && _child != 3)
                                 _newMarker[3] = (_data & 2) ? cHigh : cLow;
+                        }
+                        break;
+                    case 'r':
+                        do {
+                            int r = c.get();
+                            if (r == _readMarker)
                                 break;
-                        }
-                    }
-                    break;
-                case 'o':
-                    {
-                        int cLow = c.get();
-                        int cHigh = c.get();
-                        if (_parent != 0 && _child != 0)
-                            _newMarker[0] = (_data & 0x10) ? cHigh : cLow;
-                        if (_parent != 1 && _child != 1)
-                            _newMarker[1] = (_data & 0x20) ? cHigh : cLow;
-                        if (_parent != 2 && _child != 2)
-                            _newMarker[2] = (_data & 1) ? cHigh : cLow;
-                        if (_parent != 3 && _child != 3)
-                            _newMarker[3] = (_data & 2) ? cHigh : cLow;
-                    }
-                    break;
-                case 'r':
-                    do {
-                        int r = c.get();
-                        if (r == _readMarker)
-                            break;
-                        if (r == -1) {
-                            printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
-                            //markerCode.write(_console);
-                            //printf("\n");
-                            break;
-                        }
-                    } while (true);
-                    break;
-            }
-        } while (true);
-#endif
+                            if (r == -1) {
+                                printf("Bar %i read marker %c from %i, expected ", _number, _readMarker, _readFromBar);
+                                markerCode.write(_console);
+                                printf("\n");
+                                break;
+                            }
+                        } while (true);
+                        break;
+                }
+            } while (true);
+        }
+//#endif
     }
     void simulateToWrite()
     {
@@ -1057,8 +1059,11 @@ public:
                     (*i)->clearLive();
                 int liveBars = _bars[0]->prime(0);
 //#ifdef DUMP
-                if (_changes >= 774420)
+                if (_changes >= 774420) {
                     printf("Live %i connections %i\n", liveBars, _connectedPairs);
+                    _bars[48]->debug();
+                    _bars[72]->debug();
+                }
 //#endif
                 if (_changes >= 774420)
                     _bars[0]->dumpConnections(0);
