@@ -79,13 +79,14 @@ sendBit macro i
 ; --- low page ---
 
   GOTO startup
+
 foundHelper
-  GOTO foundHelperB
+  MOVF bits, W
+  TRIS GPIO
+  RETLW setupFinal
+
 
 lowPageCode macro b
-
-prime#v(b)
-  GOTO prime#v(b)B
 
 recvData#v(b)
   delay1
@@ -144,25 +145,7 @@ initData1
   MOVLW 1  ; parent axis
   GOTO initData
 
-delay5
-  delay1
 delay4
-  RETLW 0
-
-prime
-  ANDWF bits, W
-  TRIS GPIO
-
-  ; delay for 57 cycles
-  MOVLW 0x12       ; 1
-  MOVWF count      ; 1
-  DECFSZ count, F  ; 1*17 + 2
-  GOTO $-1         ; 2*17
-  delay2           ; 2
-
-  MOVF bits, W
-  TRIS GPIO
-  INCF FSR, F
   RETLW 0
 
 setupFinal
@@ -170,8 +153,31 @@ setupFinal
   delay2
   GOTO setupF0
 
+prime
+  ANDWF bits, W
+  TRIS GPIO
+  MOVWF temp       ; 1
+  delay1           ; 1
+  MOVLW 9          ; 1
+  MOVWF count      ; 1
+  MOVF bits, W     ; 1
+  TRIS GPIO        ; 1
 
-; --- high page (actually starts somewhere in sendData, can be anywhere after setupFinal label) ---
+  DECFSZ count, F  ; 1*8 + 2
+  GOTO $-1         ; 2*8
+  delay2           ; 2
+
+  MOVF temp, W     ; 1
+  TRIS GPIO        ; 1
+  CALL delay4      ; 4
+  INCF FSR, F      ; 1
+  MOVF bits, W     ; 1
+  TRIS GPIO        ; 1
+  delay2           ; 2
+  RETLW 0
+
+
+; --- high page (actually starts somewhere in prime, can be anywhere after prime label) ---
 
 sendData
   sendBit 0
@@ -216,9 +222,9 @@ sendData
   MOVWF PCL
 
 startup
-  MOVWF OSCCAL
-  MOVLW 80h                  ; wake up on pin change disabled (80h) | weak pull-ups enabled (00h) | timer 0 clock source on instruction cycle (00h) | timer 0 source
-  OPTION
+  MOVWF OSCCAL           ; 1
+  MOVLW 80h              ; 1    ; wake up on pin change disabled (80h) | weak pull-ups enabled (00h) | timer 0 clock source on instruction cycle (00h) | timer 0 source
+  OPTION                 ; 1
 
 reset
   MOVLW 1                ; 1
@@ -243,79 +249,86 @@ waitForPrime
 highPageCode macro b
 
 found#v(b)
-  ; These lines need to take 35+9 cycles so we avoid confusing prime with data
-  ; (36+9 for data+more, +1 for clock drift, -2 for the BTFSCs)
-  CALL initData#v(b&1)   ; 23+19
-  MOVLW low#v(b)         ;  1
-  MOVWF lowPrnt          ;  1
-  MOVLW recvSync#v(b)    ;  1
-  MOVWF recvSync         ;  1
+  if b == 0
+    delay1               ; 1 0 0 0          ; 11
+  else
+  if b == 2
+    delay2               ; 0 0 2 0          ; 12
+  else
+  if b == 3
+    CALL delay4          ; 0 0 0 4          ; 12
+  endif
+  endif
+  endif
 
   NOP
   NOP
-  BCF bits, bit#v(b)
-  CALL prime#v((b+1)&3)
-  CALL prime#v((b+2)&3)
-  CALL prime#v((b+3)&3)
-  BSF bits, bit#v(b)
-  CALL foundHelper
-  MOVWF after#v((b+3)&3)
-  BTFSS childDabsent, 0
-  MOVLW setup#v((b+3)&3)
-  MOVWF after#v((b+2)&3)
-  BTFSS childCabsent, 0
-  MOVLW setup#v((b+2)&3)
-  MOVWF after#v((b+1)&3)
-  BTFSS childBabsent, 0
-  MOVLW setup#v((b+1)&3)
-  MOVWF PCL
 
-prime#v(b)B
+  CALL initData#v(b&1)
+  MOVLW recvSync#v(b)
+  MOVWF recvSync
   MOVLW low#v(b)
+  MOVWF lowPrnt
+  MOVWF bits
+
+  NOP
+  NOP
+  TRIS GPIO
+
+prime#v((b+1)&3)
+  MOVLW low#v((b+1)&3)
   CALL prime
-  BTFSC GPIO, bit#v(b)
-  RETLW 0
+  BTFSC GPIO, bit#v((b+1)&3)
+  GOTO primed#v((b+1)&3)
   DECF INDF, F
-  BCF bits, bit#v(b)
-  BTFSS GPIO, bit#v(b)  ; wait for prime complete
+  BCF bits, bit#v((b+1)&3)
+  BTFSS GPIO, bit#v((b+1)&3)  ; wait for prime complete
   GOTO $-1
-  RETLW 0
+primed#v((b+1)&3)
+  BTFSC lowPrnt, bit#v((b+2)&3)
+  GOTO prime#v((b+2)&3)
+
+;foundB#v((b+2)&3)
+  BSF bits, bit#v((b+2)&3)
+  CALL foundHelper
+  MOVWF after#v((b+1)&3)
+  BTFSS childDabsent, 0
+  MOVLW setup#v((b+1)&3)
+  MOVWF after#v(b)
+  BTFSS childCabsent, 0
+  MOVLW setup#v(b)
+  MOVWF after#v((b+3)&3)
+  BTFSS childBabsent, 0
+  MOVLW setup#v((b+3)&3)
+  MOVWF PCL
 
   endm
 
   unroll highPageCode
 
-foundHelperB
-  MOVF bits, W
-  TRIS GPIO
-  RETLW setupFinal
-
-initData
-  MOVWF parentAxis
+initData                   ; 2 + 1 + 2
+  MOVWF parentAxis         ; 1
   if (length & 1)
     BSF lengthLow, 0
   else
-    BCF lengthLow, 0
+    BCF lengthLow, 0       ; 1
   endif
   if ((length >> 1) & 1)
     BSF lengthMiddle, 0
   else
-    BCF lengthMiddle, 0
+    BCF lengthMiddle, 0    ; 1
   endif
   if ((length >> 2) & 1)
     BSF lengthHigh, 0
   else
-    BCF lengthHigh, 0
+    BCF lengthHigh, 0      ; 1
   endif
-  BSF more, 0
-  CLRF switch
-  BTFSC GPIO, 2
-  INCF switch, F
-  CLRF GPIO
-  MOVLW highAll
-  MOVWF bits
-  CALL delay5
-  CALL delay5
-  RETLW 0
+  BSF more, 0              ; 1
+  CLRF switch              ; 1
+  BTFSC GPIO, 2            ; 1
+  INCF switch, F           ; 1
+  CLRF GPIO                ; 1
+  delay2                   ; 2
+  RETLW 0                  ; 2
 
   end

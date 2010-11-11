@@ -1,9 +1,6 @@
-Stall in configuration 774430 - a "wait for sync" loop.
-  Make prime signal less confusable:
-    Fix up intervals.annotation
-    Fix up root.asm
-    Fix up root.annotation
-  Test
+Figure out why configuration 4251 isn't settling.
+Make sure stall in configuration 774430 is fixed
+Run for a week
 
 Programmer
   Programming is rather slow
@@ -15,4 +12,5 @@ Buy connectors and resistors
 When the hardware doesn't work:
   Get something simpler working
   Run timing tests (make sure MOVWF PCL takes one cycle)
+
 

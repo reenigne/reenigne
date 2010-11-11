@@ -79,22 +79,14 @@ sendBit macro i
 ; --- low page ---
 
   GOTO startup
+
 foundHelper
-  GOTO foundHelperB
+  MOVF bits, W
+  TRIS GPIO
+  RETLW setupFinal
+
 
 lowPageCode macro b
-
-prime#v(b)
-  MOVLW low#v(b)
-  CALL prime
-  BTFSC GPIO, bit#v(b)
-  RETLW 0
-  DECF INDF, F
-  BCF bits, bit#v(b)
-  BTFSS GPIO, bit#v(b)  ; wait for prime complete
-  GOTO $-1
-  RETLW 0
-
 
 recvData#v(b)
   delay1
@@ -164,29 +156,28 @@ setupFinal
 prime
   ANDWF bits, W
   TRIS GPIO
-  MOVWF temp       ; 1        ; 0
-  delay1           ; 1        ; 1
-  MOVLW 0x0a       ; 1        ; 2
-  MOVWF count      ; 1        ; 3
-  MOVF bits, W     ; 1        ; 4
-  TRIS GPIO        ; 1        ; 5
+  MOVWF temp       ; 1
+  delay1           ; 1
+  MOVLW 9          ; 1
+  MOVWF count      ; 1
+  MOVF bits, W     ; 1
+  TRIS GPIO        ; 1
 
-  DECFSZ count, F  ; 1*9 + 2  ; 6       0-6 = 6 cycles low
-  GOTO $-1         ; 2*9
+  DECFSZ count, F  ; 1*8 + 2
+  GOTO $-1         ; 2*8
+  delay2           ; 2
 
-  MOVF temp, W     ; 1        ; 35
-  TRIS GPIO        ; 1        ; 36
-  delay2           ; 2        ; 37      6-37 = 31 cycles high
-  delay1           ; 1        ; 39
-  INCF FSR, F      ; 1        ; 40
-  MOVF bits, W     ; 1        ; 41
-  TRIS GPIO        ; 1        ; 42
-                              ; 43      37-43 = 6 cycles low
+  MOVF temp, W     ; 1
+  TRIS GPIO        ; 1
+  CALL delay4      ; 4
+  INCF FSR, F      ; 1
+  MOVF bits, W     ; 1
+  TRIS GPIO        ; 1
+  delay2           ; 2
   RETLW 0
 
 
-
-; --- high page (actually starts somewhere in sendData, can be anywhere after prime label) ---
+; --- high page (actually starts somewhere in prime, can be anywhere after prime label) ---
 
 sendData
   sendBit 0
@@ -260,10 +251,14 @@ highPageCode macro b
 found#v(b)
   if b == 0
     delay1               ; 1 0 0 0          ; 11
-  else if b == 2
+  else
+  if b == 2
     delay2               ; 0 0 2 0          ; 12
-  else if b == 3
+  else
+  if b == 3
     CALL delay4          ; 0 0 0 4          ; 12
+  endif
+  endif
   endif
 
   BTFSS GPIO, bit#v(b)   ; 2                ; 12
@@ -277,32 +272,39 @@ found#v(b)
   MOVWF bits
 
   BTFSC GPIO, bit#v(b)                      ; 37
-  TRIS GPIO
   GOTO waitForPrime
-  CALL prime#v((b+1)&3)
-  CALL prime#v((b+2)&3)
-  CALL prime#v((b+3)&3)
-  BSF bits, bit#v(b)
+  TRIS GPIO
+
+prime#v((b+1)&3)
+  MOVLW low#v((b+1)&3)
+  CALL prime
+  BTFSC GPIO, bit#v((b+1)&3)
+  GOTO primed#v((b+1)&3)
+  DECF INDF, F
+  BCF bits, bit#v((b+1)&3)
+  BTFSS GPIO, bit#v((b+1)&3)  ; wait for prime complete
+  GOTO $-1
+primed#v((b+1)&3)
+  BTFSC lowPrnt, bit#v((b+2)&3)
+  GOTO prime#v((b+2)&3)
+
+;foundB#v((b+2)&3)
+  BSF bits, bit#v((b+2)&3)
   CALL foundHelper
-  MOVWF after#v((b+3)&3)
-  BTFSS childDabsent, 0
-  MOVLW setup#v((b+3)&3)
-  MOVWF after#v((b+2)&3)
-  BTFSS childCabsent, 0
-  MOVLW setup#v((b+2)&3)
   MOVWF after#v((b+1)&3)
-  BTFSS childBabsent, 0
+  BTFSS childDabsent, 0
   MOVLW setup#v((b+1)&3)
+  MOVWF after#v(b)
+  BTFSS childCabsent, 0
+  MOVLW setup#v(b)
+  MOVWF after#v((b+3)&3)
+  BTFSS childBabsent, 0
+  MOVLW setup#v((b+3)&3)
   MOVWF PCL
 
   endm
 
   unroll highPageCode
-
-foundHelperB
-  MOVF bits, W
-  TRIS GPIO
-  RETLW setupFinal
 
 initData                   ; 2 + 1 + 2
   MOVWF parentAxis         ; 1
@@ -331,4 +333,4 @@ initData                   ; 2 + 1 + 2
 
   end
 
-; 77 instructions free,
+; 47 instructions free, 39 in low page
