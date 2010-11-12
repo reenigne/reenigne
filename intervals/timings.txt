@@ -113,8 +113,6 @@ M |             TRIS GPIO         | W + |             ANDWF bits, F     | T
 
 
 
-
-
 + |  waitForPrime: COMF GPIO, W           | +
 + |                ANDLW 33h              | +
 + |                BTFSC STATUS, Z        | +
@@ -155,124 +153,161 @@ M |             TRIS GPIO         | W + |             ANDWF bits, F     | T
 + |  confirm       BTFSC GPIO, bit0       | +
 + |                                       | +
 + |                TRIS GPIO              | +
+- |                CALL sendConfirm       | +
+- |                                       | +
+- |                  CALL delay4          | +
+- |                                       | +
+- |                    RETLW 0            | +
+- |                                       | +
+- |                  MOVLW allHigh        | +
+- |                  TRIS GPIO            | +
++ |                  CALL delay6          | +
++ |                                       | +
++ |                    delay1             | +
++ |                    delay1             | +
++ |                    RETLW 0            | +
++ |                                       | +
++ |                  MOVF bits, W         | +
++ |                  TRIS GPIO            | +
+- |                                       | +
+- |                  RETLW 0              | +
 - |                                       | +
 - |  prime1:       MOVLW low1             | +
 - |                CALL prime             | +
 - |                                       | +
 - |    prime:        ANDWF bits, W        | +
-- |                  TRIS GPIO            | +
-- |                  MOVWF temp           | -
-- |                  delay1               | -
-- |                  MOVLW 0x0a           | -
-- |                  MOVWF count          | -
-- |                  MOVF bits, W         | -
+- |                  TRIS GPIO            | +>
+- |                  MOVWF temp           | ->
+- |                  delay1               | ->
+- |                  MOVLW 0x0a           | ->
+- |                  MOVWF count          | ->
+- |                  MOVF bits, W         | ->
 - |                  TRIS GPIO            | ->
-- |                  DECFSZ count, F      | +
-- |                  GOTO $-1             | +
-- |                                       | +
-- |                  DECFSZ count, F      | +
-- |                  GOTO $-1             | +
-- |                                       | +
-- |                  DECFSZ count, F      | +
-- |                  GOTO $-1             | +
-- |                                       | +
-- |                  DECFSZ count, F      | +
-- |                  GOTO $-1             | +
-- |                                       | +>
-- |                  DECFSZ count, F      | +
-- |                  GOTO $-1             | +
-- |                                       | +
-- |                  DECFSZ count, F      | +
-- |                  GOTO $-1             | +
-- |                                       | +
-- |                  DECFSZ count, F      | +
-- |                  GOTO $-1             | +
-- |                                       | +
-- |                  DECFSZ count, F      | +
-- |                  GOTO $-1             | +
-- |                                       | +
-- |                  DECFSZ count, F      | +
-- |                                       | +
-- |                  delay2               | +
-- |                                       | +
-- |                  MOVF temp, W         | +
-- |                  TRIS GPIO            | +
-- |                  CALL delay4          | -
-- |                                       | -
-- |                    RETLW 0            | -
-- |                                       | -
-- |                  INCF FSR, F          | -
-- |                  MOVF bits, W         | -
-- |                  TRIS GPIO            | ->
-- |                  delay1               | +
-- |                  RETLW 0              | +
-- |                                       | +
-- |  prime1B       BTFSC GPIO, bit1       | +<
-- |                                       | +
-- |  prime1Bok     DECF INDF, F           | +
-- |                BCF bits, bit1         | +
-- |                BTFSS GPIO, bit1       | +
-- |                GOTO $-1               | +
-
-- |                BTFSC lowPrnt, bit2    | +
-- |                GOTO prime2            | +
-
-- |                BTFSC lowPrnt, bit3    | +
-- |                GOTO prime3            | +
-
-- |                BTFSC lowPrnt, bit0    | +
-- |                                       | +
-- |  foundB0:      BSF bits, bit2
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- |                  DECFSZ count, F      | +>+ |  waitForPrime: COMF GPIO, W           | +
+- |                  GOTO $-1             | + + |                ANDLW 33h              | +
+- |                                       | + + |                BTFSC STATUS, Z        | +
+- |                  DECFSZ count, F      | + + |                                       | +
+- |                  GOTO $-1             | + + |  found         MOVWF temp             | +
+- |                                       | + + |                BTFSC temp, bit3       | +
+- |                  DECFSZ count, F      | + + |                                       | +
+- |                  GOTO $-1             | + + |                BTFSC temp, bit2       | +
+- |                                       | + + |                                       | +
+- |                  DECFSZ count, F      | + + |                BTFSC temp, bit1       | +
+- |                  GOTO $-1             | + + |                                       | +
+- |                                       | +>+ |                delay1                 | +
+- |                  DECFSZ count, F      | + + |  found0:       BTFSS GPIO, bit0       | +
+- |                  GOTO $-1             | + + |                                       | +
+- |                                       | + + |                CALL initData0         | +
+- |                  DECFSZ count, F      | + + |                                       | +
+- |                  GOTO $-1             | + + |    initData0:    MOVLW 0              | +
+- |                                       | + + |                  GOTO initData        | +
+- |                  DECFSZ count, F      | + + |                                       | +
+- |                  GOTO $-1             | + + |    initData:     MOVWF parentAxis     | +
+- |                                       | + + |                  BCF lengthLow, 0     | +
+- |                  DECFSZ count, F      | + + |                  BCF lengthMiddle, 0  | +
+- |                  GOTO $-1             | + + |                  BCF lengthHigh, 0    | +
+- |                                       | + + |                  BSF more, 0          | +
+- |                  DECFSZ count, F      | + + |                  CLRF switch          | +
+- |                                       | + + |                  BTFSC GPIO, 2        | +
+- |                  delay2               | + + |                  INCF switch, F       | +
+- |                                       | + + |                  CLRF GPIO            | +
+- |                  MOVF temp, W         | + + |                  delay2               | +
+- |                  TRIS GPIO            | + + |                                       | +
+- |                  CALL delay4          | - + |                  RETLW 0              | +
+- |                                       | - + |                                       | +
+- |                    RETLW 0            | - + |                MOVLW recvSync0        | +
+- |                                       | - + |                MOVWF recvSync         | +
+- |                  INCF FSR, F          | - + |                MOVLW low0             | +
+- |                  MOVF bits, W         | - + |                MOVWF lowPrnt          | +
+- |                  TRIS GPIO            | ->+ |                MOVWF bits             | +
+- |                  delay1               | + + |  confirm       BTFSC GPIO, bit0       | +
+- |                  RETLW 0              | + + |                                       | +
+- |                                       | + + |                TRIS GPIO              | +
+- |  prime1B       BTFSC GPIO, bit1       | +<- |                CALL sendConfirm       | +
+- |                                       | + - |                                       | +
+- |                CALL delay6            | + - |                  CALL delay4          | +
+- |                                       | + - |                                       | +
+- |                  delay1               | + - |                    RETLW 0            | +
+- |                  delay1               | + - |                                       | +
+- |                  RETLW 0              | + - |                  MOVLW allHigh        | +
+- |                                       | + - |                  TRIS GPIO            | +
+- |                BTFSS GPIO, bit1       | +<+ |                  CALL delay6          | +
+- |                                       | + + |                                       | +
+- |                CALL delay4            | + + |                    delay1             | +
+- |                                       | + + |                    delay1             | +
+- |                  RETLW 0              | + + |                    RETLW 0            | +
+- |                                       | + + |                                       | +
+- |  prime1Bok     DECF INDF, F           | + + |                  MOVF bits, W         | +
+- |                BCF bits, bit1         | + + |                  TRIS GPIO            | +
+- |                BTFSS GPIO, bit1       | +<- |                                       | +
+- |                GOTO $-1               | + - |                  RETLW 0              | +
+                                              - |                                       | +
+                                              - |  prime1:       MOVLW low1             | +
+                                              - |                CALL prime             | +
+                                              - |                                       | +
+                                              - |    prime:        ANDWF bits, W        | +
+                                              - |                  TRIS GPIO            | +>
+                                              - |                  MOVWF temp           | ->
+                                              - |                  delay1               | ->
+                                              - |                  MOVLW 0x0a           | ->
+                                              - |                  MOVWF count          | ->
+                                              - |                  MOVF bits, W         | ->
+                                              - |                  TRIS GPIO            | ->
+                                              - |                  DECFSZ count, F      | +>
+                                              - |                  GOTO $-1             | +
+                                              - |                                       | +
+                                              - |                  DECFSZ count, F      | +
+                                              - |                  GOTO $-1             | +
+                                              - |                                       | +
+                                              - |                  DECFSZ count, F      | +
+                                              - |                  GOTO $-1             | +
+                                              - |                                       | +
+                                              - |                  DECFSZ count, F      | +
+                                              - |                  GOTO $-1             | +
+                                              - |                                       | +>
+                                              - |                  DECFSZ count, F      | +
+                                              - |                  GOTO $-1             | +
+                                              - |                                       | +
+                                              - |                  DECFSZ count, F      | +
+                                              - |                  GOTO $-1             | +
+                                              - |                                       | +
+                                              - |                  DECFSZ count, F      | +
+                                              - |                  GOTO $-1             | +
+                                              - |                                       | +
+                                              - |                  DECFSZ count, F      | +
+                                              - |                  GOTO $-1             | +
+                                              - |                                       | +
+                                              - |                  DECFSZ count, F      | +
+                                              - |                                       | +
+                                              - |                  delay2               | +
+                                              - |                                       | +
+                                              - |                  MOVF temp, W         | +
+                                              - |                  TRIS GPIO            | +
+                                              - |                  CALL delay4          | -
+                                              - |                                       | -
+                                              - |                    RETLW 0            | -
+                                              - |                                       | -
+                                              - |                  INCF FSR, F          | -
+                                              - |                  MOVF bits, W         | -
+                                              - |                  TRIS GPIO            | ->
+                                              - |                  delay1               | +
+                                              - |                  RETLW 0              | +
+                                              - |                                       | +
+                                              - |  prime1B       BTFSC GPIO, bit1       | +<
+                                              - |                                       | +
+                                              - |                CALL delay6            | +
+                                              - |                                       | +
+                                              - |                  delay1               | +
+                                              - |                  delay1               | +
+                                              - |                  RETLW 0              | +
+                                              - |                                       | +
+                                              - |                BTFSS GPIO, bit1       | +<
+                                              - |                                       | +
+                                              - |                CALL delay4            | +
+                                              - |                                       | +
+                                              - |                  RETLW 0              | +
+                                              - |                                       | +
+                                              - |  prime1Bok     DECF INDF, F           | +
+                                              - |                BCF bits, bit1         | +
+                                              - |                BTFSS GPIO, bit1       | +<
+                                              - |                GOTO $-1               | +

@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define DUMP
+//#define DUMP
 
 class Program
 {
@@ -203,6 +203,7 @@ public:
 #endif
         incrementPC();
         UInt16 r;
+
         if ((op & 0x800) == 0) {
             _f = op & 0x1f;
             if ((op & 0x400) == 0) {
@@ -899,7 +900,8 @@ public:
         _numbers(101, -1),
         _dumpMatrix(false),
         _badStreams(0),
-        _maxBadStreams(0)
+        _maxBadStreams(0),
+        _dumping(false)
     {
         CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
         GetConsoleScreenBufferInfo(_console, &consoleScreenBufferInfo);
@@ -926,6 +928,7 @@ public:
 //        _bars[39]->debug();
 
         _streamPointer = &_stream[0];
+        _streamEndPointer = _streamPointer + _totalBars*8;
         _connectedPairs = 0;
         do {
             double cyclesBeforeChange = -log((static_cast<double>(rand()) + 1)/(static_cast<double>(RAND_MAX) + 1))*10000.0;
@@ -970,7 +973,22 @@ public:
                 _t += t/(1000000.0*400.0*256.0);
             } while (!final);
 
+            if (!_dumping && (GetKeyState('D')&0x80000000) != 0) {
+                for (int i = 0; i <= _totalBars; ++i)
+                    _bars[i]->dump();
+                _dumping = true;
+            }
+            if (_dumping && (GetKeyState('D')&0x80000000) == 0)
+                _dumping = false;
             double goodStreamProportion = static_cast<double>(_goodsSinceLastChange) / static_cast<double>(_streamsSinceLastChange);
+
+            //if (_changes == 33254) {
+            //    _bars[1]->debug();
+            //    _bars[57]->debug();
+            //}
+
+            //if (_changes == 33255 && _cyclesThisStream >= 1000000)
+            //    exit(0);
 
             if (_settled) {
                 _good = false;
@@ -1066,17 +1084,17 @@ public:
 #endif
                 for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetNewlyConnected();
-                if (_changes == 4251) {
-                    //_bars[30]->debug();
-                    _bars[98]->debug();
-                    _bars[37]->debug();
-                }
+                //if (_changes == 4251) {
+                //    //_bars[30]->debug();
+                //    _bars[98]->debug();
+                //    _bars[37]->debug();
+                //}
             }
         } while (true);
     }
     void streamBit(bool bit)
     {
-        if (_streamPointer != &*_stream.end())
+        if (_streamPointer != &*_streamEndPointer)
             *(_streamPointer++) = bit;
     }
     void streamStart()
@@ -1152,10 +1170,10 @@ public:
             }
         }
         _oldGood = _good;
-        if (_changes == 4251) {
-            if (_badStreams > 10)
-                exit(0);
-        }
+        //if (_changes == 4251) {
+        //    if (_badStreams > 10)
+        //        exit(0);
+        //}
         //if (_streams == 8900) {
         //    _bars[98]->debug();
         //    _bars[80]->debug();
@@ -1180,13 +1198,9 @@ public:
             printf("Bad streams: %i  \n", _badStreams);
             printf("Max bad streams: %i\n", _maxBadStreams);
         }
-        if ((GetKeyState('D')&0x80000000) != 0) {
-            for (int i = 0; i <= _totalBars; ++i)
-                _bars[i]->dump();
-        }
 #endif
-        //if (_badStreams > 10)
-        //    exit(0);
+        if (_badStreams > 100)
+            exit(0);
         _cyclesThisStream = 0;
         _streamPointer = &_stream[0];
     }
@@ -1217,6 +1231,7 @@ private:
     std::vector<int> _stream;
     std::vector<int> _expectedStream;
     int* _streamPointer;
+    int* _streamEndPointer;
     int _connectedPairs;
     bool _good;
     double _cyclesThisStream;
@@ -1240,6 +1255,7 @@ private:
     bool _dumpMatrix;
     int _badStreams;
     int _maxBadStreams;
+    bool _dumping;
 };
 
 int main()

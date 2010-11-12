@@ -1,12 +1,14 @@
 . default/disconnected                      high  both
-A "prime pending"                           low   child to parent
 B "prime"                                   low   parent to child
 F "prime2"                                  high  parent to child
 G "prime3"                                  low   parent to child
 C "clear prime"                             high  parent to child
+A "prime pending"                           low   child to parent
+J "prime pending confirmed"                 high  child to parent
+K "wait for prime complete"                 low   child to parent
+I "prime complete"                          high  child to parent
 D "wait for initial data request"           low   parent to child
 E "child absent or untried"                 high  parent to child
-I "prime complete"                          high  child to parent
 
 W "wait for data request"                   low   parent to child
 R "data request"                            high  parent to child

@@ -145,7 +145,18 @@ initData1
   MOVLW 1  ; parent axis
   GOTO initData
 
+delay6
+  delay2
 delay4
+  RETLW 0
+
+sendConfirm
+  CALL delay4
+  MOVLW highAll
+  TRIS GPIO
+  CALL delay6
+  MOVF bits, W
+  TRIS GPIO
   RETLW 0
 
 setupFinal
@@ -173,7 +184,7 @@ prime
   INCF FSR, F      ; 1
   MOVF bits, W     ; 1
   TRIS GPIO        ; 1
-  delay2           ; 2
+  delay1           ; 1
   RETLW 0
 
 
@@ -233,6 +244,8 @@ reset
   MOVWF childDabsent     ; 1
   MOVLW childBabsent-1   ; 1
   MOVWF FSR              ; 1
+  MOVLW highAll          ; 1
+  TRIS GPIO              ; 1
 waitForPrime
   TRIS 7
   GOTO found0
@@ -274,12 +287,17 @@ found#v(b)
   NOP
   NOP
   TRIS GPIO
+  CALL sendConfirm
 
 prime#v((b+1)&3)
   MOVLW low#v((b+1)&3)
   CALL prime
   BTFSC GPIO, bit#v((b+1)&3)
   GOTO primed#v((b+1)&3)
+  CALL delay6
+  BTFSS GPIO, bit#v((b+1)&3)
+  GOTO primed#v((b+1)&3)
+  CALL delay4
   DECF INDF, F
   BCF bits, bit#v((b+1)&3)
   BTFSS GPIO, bit#v((b+1)&3)  ; wait for prime complete
