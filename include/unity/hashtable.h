@@ -8,7 +8,7 @@ template<class Key, class Value> class HashTable
 public:
     HashTable() : _n(0)
     {
-        _table->allocate(1);
+        _table.allocate(1);
     }
     void add(const Key& key, const Value& value)
     {
@@ -27,7 +27,7 @@ public:
         return _table[row(key)].value(key);
     }
 private:
-    int row(const Key& key)( { return key.hash() & (_table.count() - 1); }
+    int row(const Key& key) { return key.hash() & (_table.count() - 1); }
     class TableEntry
     {
     public:

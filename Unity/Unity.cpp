@@ -76,6 +76,10 @@ private:
     int _nArguments;
 };
 
+class IntType;
+
+class StringType;
+
 template<class T> class TypeTemplate : public ReferenceCounted
 {
 public:
@@ -91,7 +95,7 @@ public:
             _stringType = new StringType;
         return _stringType;
     }
-    virtual bool equals(Type* other) = 0;
+    virtual bool equals(TypeTemplate* other) = 0;
 private:
     static Reference<IntType> _intType;
     static Reference<StringType> _stringType;
@@ -121,13 +125,24 @@ public:
     }
 };
 
+class VoidType : public Type
+{
+public:
+    bool equals(Type* other)
+    {
+        if (dynamic_cast<VoidType*>(other) != 0)
+            return true;
+        return false;
+    }
+};
+
 class FunctionType : public Type
 {
 public:
-    FunctionType(Reference<Type> returnType, Stack<Reference<Type> > argumentTypes)
+    FunctionType(Reference<Type> returnType, Stack<Reference<Type> >* argumentTypes)
       : _returnType(returnType)
     {
-        argumentTypes.toArray(&_argumentTypes);
+        argumentTypes->toArray(&_argumentTypes);
     }
     bool equals(Type* other)
     {
@@ -174,6 +189,39 @@ private:
     Value _value;
 };
 
+class FunctionName : public Symbol
+{
+    // TODO
+};
+
+class Variable : public Symbol
+{
+    // TODO
+};
+
+class Context
+{
+public:
+    CharacterSource getSource() const { return _source; }
+    void setSource(const CharacterSource& source) { _source = source; }
+    int get() { return _source.get(); }
+    Value pop() { return _stack.pop(); }
+    void addFunction(String name, Reference<Type> signature, Function* function)
+    {
+        // TODO
+    }
+    void addType(const String& name, Type* type)
+    {
+        // TODO
+    }
+       
+private:
+    CharacterSource _source;
+    HashTable<String, Symbol> _symbolTable;
+    Stack<Value> _stack;
+
+};
+
 class PrintFunction : public Function
 {
 public:
@@ -186,25 +234,6 @@ public:
     }
 private:
     Handle _consoleOutput;
-};
-
-class Context
-{
-public:
-    CharacterSource getSource() const { return _source; }
-    void setSource(const CharacterSource& source) { _source = source; }
-    int get() { return _source.get(); }
-    Value pop() { return _stack.pop(); }
-    void addFunction(String name, Reference<Type> signature, Function* function)
-    {
-        
-    }
-       
-private:
-    CharacterSource _source;
-    HashTable<String, Symbol> _symbolTable;
-    Stack<Value> _stack;
-
 };
 
 class Space
@@ -358,6 +387,7 @@ public:
             return s;
         return 0;
     }
+    virtual void run(Context* context) = 0;
 };
 
 typedef StatementTemplate<void> Statement;
@@ -377,7 +407,12 @@ public:
         Reference<StatementSequence> statementSequence = new StatementSequence;
         statements.toArray(&statementSequence->_statements);
         return statementSequence;
-    }   
+    }
+    void run(Context* context)
+    {
+        for (int i = 0; i < _statements.count(); ++i)
+            _statements[i]->run(context);
+    }
 private:
     StatementSequence() { }
     Array<Reference<Statement> > _statements;
@@ -420,6 +455,10 @@ public:
         Reference<FunctionCallStatement> functionCall = new FunctionCallStatement(functionName, n);
         stack.toArray(&functionCall->_arguments);
         return functionCall;
+    }
+    void run(Context* context)
+    {
+        // TODO
     }
 private:
     FunctionCallStatement(Reference<Identifier> functionName, int n) : _functionName(functionName)
@@ -627,14 +666,22 @@ int main(int argc, char* argv[])
             (syntax1 + commandLine.argument(0) + syntax2).write(Handle::consoleOutput());
             exit(1);
         }
-        PrintFunction print;
-
 		File file(commandLine.argument(1));
 		String contents = file.contents();
         Context context;
-        StringType stringType;
-        context.addType(String("String"), 
-        context.addFunction(String("print"), &print);  // TODO: print's type signature
+
+        Reference<Type> stringType = new StringType;
+        context.addType(String("String"), stringType);
+
+        Reference<Type> voidType = new VoidType;
+        context.addType(String("Void"), voidType);
+
+        PrintFunction print;
+        Stack<Reference<Type> > printArgumentTypes;
+        printArgumentTypes.push(stringType);
+        Reference<Type> printFunctionType = new FunctionType(voidType, &printArgumentTypes);
+        context.addFunction(String("print"), printFunctionType, &print);  // TODO: print's type signature
+
         CharacterSource source = contents.start();
         context.setSource(source);
         Space::parse(&context);

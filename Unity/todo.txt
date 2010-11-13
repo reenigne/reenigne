@@ -1,9 +1,9 @@
+Move Type classes to their own file
+Implement FunctionCallStatement::run()
+  Need an intermediate phase which transforms the Identifier in this to a Function
 How to do function overloading?
   A symbol can be defined as a function or a variable, but not both.
   If it's defined as a function, it can be overloaded.
-Add print to symbol table
-Change program to be a sequence of statements
-Write interpreter main loop
 Add variable declaration statement
 Add assignment statement
 Add multi-line strings
