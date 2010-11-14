@@ -3,6 +3,7 @@
 #include "unity/file.h"
 #include "unity/stack.h"
 #include "unity/hashtable.h"
+#include "Type.cpp"
 
 #ifdef _WIN32
 #include "shellapi.h"
@@ -76,94 +77,6 @@ private:
     int _nArguments;
 };
 
-class IntType;
-
-class StringType;
-
-template<class T> class TypeTemplate : public ReferenceCounted
-{
-public:
-    Reference<IntType> intType()
-    {
-        if (!_intType.valid())
-            _intType = new IntType;
-        return _intType;
-    }
-    Reference<StringType> stringType()
-    {
-        if (!_stringType.valid())
-            _stringType = new StringType;
-        return _stringType;
-    }
-    virtual bool equals(TypeTemplate* other) = 0;
-private:
-    static Reference<IntType> _intType;
-    static Reference<StringType> _stringType;
-};
-
-typedef TypeTemplate<void> Type;
-
-class IntType : public Type
-{
-public:
-    bool equals(Type* other)
-    {
-        if (dynamic_cast<IntType*>(other) != 0)
-            return true;
-        return false;
-    }
-};
-
-class StringType : public Type
-{
-public:
-    bool equals(Type* other)
-    {
-        if (dynamic_cast<IntType*>(other) != 0)
-            return true;
-        return false;
-    }
-};
-
-class VoidType : public Type
-{
-public:
-    bool equals(Type* other)
-    {
-        if (dynamic_cast<VoidType*>(other) != 0)
-            return true;
-        return false;
-    }
-};
-
-class FunctionType : public Type
-{
-public:
-    FunctionType(Reference<Type> returnType, Stack<Reference<Type> >* argumentTypes)
-      : _returnType(returnType)
-    {
-        argumentTypes->toArray(&_argumentTypes);
-    }
-    bool equals(Type* other)
-    {
-        FunctionType* f = dynamic_cast<FunctionType*>(other);
-        if (f == 0)
-            return false;
-        if (!f->_returnType->equals(_returnType))
-            return false;
-        int n = _argumentTypes.count();
-        if (!f->_argumentTypes.count() != n)
-            return false;
-        for (int i = 0; i < n; ++i)
-            if (!f->_argumentTypes[i]->equals(_argumentTypes[i]))
-                return false;
-        return true;
-    }
-private:
-    Reference<Type> _returnType;
-    Array<Reference<Type> > _argumentTypes;
-};
-
 class Context;
 
 class Function
@@ -214,7 +127,7 @@ public:
     {
         // TODO
     }
-       
+
 private:
     CharacterSource _source;
     HashTable<String, Symbol> _symbolTable;
@@ -641,7 +554,7 @@ public:
         Reference<Integer> r = _right;
         if (l.valid() && r.valid())
             return String::decimal(l->value() + r->value());
-        return _left->output() + _right->output(); 
+        return _left->output() + _right->output();
     }
 private:
     Reference<Expression> _left;
@@ -654,7 +567,7 @@ int main()
 int main(int argc, char* argv[])
 #endif
 {
-	BEGIN_CHECKED {         
+	BEGIN_CHECKED {
 #ifdef _WIN32
         CommandLine commandLine;
 #else
@@ -690,7 +603,7 @@ int main(int argc, char* argv[])
             static String error("Expected end of file");
             source.throwError(error);
         }
-        program->run();
+        program->run(&context);
 	}
 	END_CHECKED(Exception& e) {
 		e.write(Handle::consoleOutput());
