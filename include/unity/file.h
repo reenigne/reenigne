@@ -1,8 +1,6 @@
 #ifndef INCLUDED_FILE_H
 #define INCLUDED_FILE_H
 
-class FileSystemObjectImplementation;
-
 template<class T> class CurrentDirectoryTemplate;
 typedef CurrentDirectoryTemplate<void> CurrentDirectory;
 
@@ -25,12 +23,6 @@ template<class T> class NamedFileSystemObjectImplementationTemplate;
 typedef NamedFileSystemObjectImplementationTemplate<void> NamedFileSystemObjectImplementation;
 
 #ifdef _WIN32
-template<class T> class DriveRootDirectoryImplementationTemplate;
-typedef DriveRootDirectoryImplementationTemplate<void> DriveRootDirectoryImplementation;
-
-template<class T> class UNCRootDirectoryImplementationTemplate;
-typedef UNCRootDirectoryImplementationTemplate<void> UNCRootDirectoryImplementation;
-
 template<class T> class DriveRootDirectoryTemplate;
 typedef DriveRootDirectoryTemplate<void> DriveRootDirectory;
 
@@ -73,10 +65,24 @@ public:
 #ifdef _WIN32
     String windowsPath() const { return _implementation->windowsPath(); }
 #endif
-protected:
-    FileSystemObjectTemplate(Reference<FileSystemObjectImplementation> implementation) : _implementation(implementation) { }
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        virtual Directory parent() const = 0;
+        virtual String name() const = 0;
+    #ifdef _WIN32
+        virtual String windowsPath() const = 0;
+    #endif
+        virtual String path() const = 0;
+        virtual bool isRoot() const = 0;
+        virtual int hash(int h) const = 0;
+        virtual int compare(const Implementation* other) const = 0;
+    };
 
-    Reference<FileSystemObjectImplementation> _implementation;
+protected:
+    FileSystemObjectTemplate(Reference<Implementation> implementation) : _implementation(implementation) { }
+
+    Reference<Implementation> _implementation;
 private:
 
     static FileSystemObject parse(const String& path, const Directory& relativeTo, bool windowsParsing)
@@ -307,7 +313,7 @@ public:
         return File(fileName, *this);
     }
 protected:
-    DirectoryTemplate(Reference<FileSystemObjectImplementation> implementation) : FileSystemObject(implementation) { }
+    DirectoryTemplate(Reference<FileSystemObject::Implementation> implementation) : FileSystemObject(implementation) { }
 };
 
 template<class T> class CurrentDirectoryTemplate : public Directory
@@ -316,15 +322,15 @@ public:
     CurrentDirectoryTemplate() : Directory(implementation()) { }
 
 private:
-    static Reference<FileSystemObjectImplementation> _implementation;
-    static Reference<FileSystemObjectImplementation> implementation()
+    static Reference<FileSystemObject::Implementation> _implementation;
+    static Reference<FileSystemObject::Implementation> implementation()
     {
         if (!_implementation.valid())
             _implementation = currentDirectory();
         return _implementation;
     }
 
-    static Reference<FileSystemObjectImplementation> currentDirectory()
+    static Reference<FileSystemObject::Implementation> currentDirectory()
     {
         static String obtainingCurrentDirectory("Obtaining current directory");
 #ifdef _WIN32
@@ -357,7 +363,7 @@ private:
 #endif
 };
 
-template<class T> Reference<FileSystemObjectImplementation> CurrentDirectoryTemplate<T>::_implementation;
+template<class T> Reference<FileSystemObject::Implementation> CurrentDirectoryTemplate<T>::_implementation;
 
 #ifdef _WIN32
 template<class T> class DriveCurrentDirectoryTemplate : public Directory
@@ -365,8 +371,8 @@ template<class T> class DriveCurrentDirectoryTemplate : public Directory
 public:
     DriveCurrentDirectoryTemplate(int drive) : Directory(implementation(drive)) { }
 private:
-    static Reference<FileSystemObjectImplementation> _implementations[26];
-    static Reference<FileSystemObjectImplementation> implementation(int drive)
+    static Reference<FileSystemObject::Implementation> _implementations[26];
+    static Reference<FileSystemObject::Implementation> implementation(int drive)
     {
         if (!_implementations[drive].valid()) {
             static String settingCurrentDirectory("Setting current directory");
@@ -390,7 +396,7 @@ private:
     }
 };
 
-template<class T> Reference<FileSystemObjectImplementation> DriveCurrentDirectoryTemplate<T>::_implementations[26];
+template<class T> Reference<FileSystemObject::Implementation> DriveCurrentDirectoryTemplate<T>::_implementations[26];
 
 #endif
 
@@ -398,17 +404,56 @@ template<class T> class RootDirectoryTemplate : public Directory
 {
 public:
     RootDirectoryTemplate() : Directory(implementation()) { }
+
+    class Implementation : public FileSystemObject::Implementation
+    {
+    public:
+        Implementation() { }
+
+        Directory parent() const { return RootDirectory(); }
+        String name() const
+        {
+            static String empty;
+            return empty;
+        }
+    #ifdef _WIN32
+        String windowsPath() const
+        {
+            // TODO: Use \\?\ to avoid MAX_PATH limit?
+            // If we do this we need to know the current drive - this is the first character of CurrentDirectory().windowsPath() .
+            static String backslash("\\");
+            return backslash;
+        }
+    #endif
+        String path() const
+        {
+            static String slash("/");
+            return slash;
+        }
+        bool isRoot() const { return true; }
+
+        int hash(int h) const { return 0; }
+
+        int compare(const FileSystemObject::Implementation* other) const
+        {
+            const Implementation* root = dynamic_cast<const Implementation*>(other);
+            if (root == 0)
+                return 1;
+            return 0;
+        }
+    };
 private:
-    static Reference<RootDirectoryImplementation> _implementation;
-    static Reference<RootDirectoryImplementation> implementation()
+    static Reference<Implementation> _implementation;
+    static Reference<Implementation> implementation()
     {
         if (!_implementation.valid())
-            _implementation = new RootDirectoryImplementation();
+            _implementation = new Implementation();
         return _implementation;
     }
 };
 
-template<class T> Reference<RootDirectoryImplementation> RootDirectoryTemplate<T>::_implementation;
+
+template<class T> Reference<RootDirectory::Implementation> RootDirectoryTemplate<T>::_implementation;
 
 #ifdef _WIN32
 template<class T> class DriveRootDirectoryTemplate : public Directory
@@ -416,21 +461,85 @@ template<class T> class DriveRootDirectoryTemplate : public Directory
 public:
     DriveRootDirectoryTemplate(int drive) : Directory(implementation(drive)) { }
 private:
-    static Reference<FileSystemObjectImplementation> _implementations[26];
-    static Reference<FileSystemObjectImplementation> implementation(int drive)
+    static Reference<FileSystemObject::Implementation> _implementations[26];
+    static Reference<FileSystemObject::Implementation> implementation(int drive)
     {
         if (!_implementations[drive].valid())
-            _implementations[drive] = new DriveRootDirectoryImplementation(drive);
+            _implementations[drive] = new Implementation(drive);
         return _implementations[drive];
     }
+    class Implementation : public RootDirectory::Implementation
+    {
+    public:
+        Implementation(int drive) : _drive(drive) { }
+
+        Directory parent() const { return DriveRootDirectory(_drive); }
+        String windowsPath() const
+        {
+            // TODO: Use \\?\ to avoid MAX_PATH limit?
+            static String system("System");
+            Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(system);
+            bufferImplementation->allocate(2);
+            UInt8* p = bufferImplementation->data();
+            p[0] = _drive + 'A';
+            p[1] = ':';
+            return String(Buffer(bufferImplementation), 0, 2);
+        }
+
+        int hash(int h) const { return _drive; }
+
+        int compare(const FileSystemObject::Implementation* other) const
+        {
+            const Implementation* root = dynamic_cast<const Implementation*>(other);
+            if (root == 0)
+                return 1;
+            if (_drive != root->_drive)
+                return 1;
+            return 0;
+        }
+    private:
+        int _drive;
+    };
+
 };
 
-template<class T> Reference<FileSystemObjectImplementation> DriveRootDirectoryTemplate<T>::_implementations[26];
+template<class T> Reference<FileSystemObject::Implementation> DriveRootDirectoryTemplate<T>::_implementations[26];
 
 template<class T> class UNCRootDirectoryTemplate : public Directory
 {
 public:
-    UNCRootDirectoryTemplate(const String& server, const String& share) : Directory(new UNCRootDirectoryImplementation(server, share)) { }
+    UNCRootDirectoryTemplate(const String& server, const String& share) : Directory(new Implementation(server, share)) { }
+private:
+    class Implementation : public RootDirectory::Implementation
+    {
+    public:
+        Implementation(const String& server, const String& share) : _server(server), _share(share) { }
+
+        Directory parent() const { return UNCRootDirectory(_server, _share); }
+        String windowsPath() const
+        {
+            static String backslashBackslash("\\\\");
+            static String backslash("\\");
+            return backslashBackslash + _server + backslash + _share;
+        }
+
+        int hash(int h) const { return (h*67 + _server.hash())*67 + _share.hash(); }
+
+        int compare(const FileSystemObject::Implementation* other) const
+        {
+            const Implementation* root = dynamic_cast<const Implementation*>(other);
+            if (root == 0)
+                return 1;
+            if (_server != root->_server)
+                return 1;
+            if (_share != root->_share)
+                return 1;
+            return 0;
+        }
+    private:
+        String _server;
+        String _share;
+    };
 };
 #endif
 
@@ -651,23 +760,7 @@ public:
 };
 
 
-// Implementation classes
-
-class FileSystemObjectImplementation : public ReferenceCounted
-{
-public:
-    virtual Directory parent() const = 0;
-    virtual String name() const = 0;
-#ifdef _WIN32
-    virtual String windowsPath() const = 0;
-#endif
-    virtual String path() const = 0;
-    virtual bool isRoot() const = 0;
-    virtual int hash(int h) const = 0;
-    virtual int compare(const FileSystemObjectImplementation* other) const = 0;
-};
-
-template<class T> class NamedFileSystemObjectImplementationTemplate : public FileSystemObjectImplementation
+template<class T> class NamedFileSystemObjectImplementationTemplate : public FileSystemObject::Implementation
 {
 public:
     NamedFileSystemObjectImplementationTemplate(const Directory& parent, const String& name) : _parent(parent), _name(name) { }
@@ -692,7 +785,7 @@ public:
 
     int hash(int h) const { return (h*67 + _parent.hash())*67 + _name.hash(); }
 
-    int compare(const FileSystemObjectImplementation* other) const
+    int compare(const FileSystemObject::Implementation* other) const
     {
         const NamedFileSystemObjectImplementation* named = dynamic_cast<const NamedFileSystemObjectImplementation*>(other);
         if (named == 0)
@@ -709,108 +802,7 @@ private:
     String _name;
 };
 
-template<class T> class RootDirectoryImplementationTemplate : public FileSystemObjectImplementation
-{
-public:
-    RootDirectoryImplementationTemplate() { }
-
-    Directory parent() const { return RootDirectory(); }
-    String name() const
-    {
-        static String empty;
-        return empty;
-    }
 #ifdef _WIN32
-    String windowsPath() const
-    {
-        // TODO: Use \\?\ to avoid MAX_PATH limit?
-        // If we do this we need to know the current drive - this is the first character of CurrentDirectory().windowsPath() .
-        static String backslash("\\");
-        return backslash;
-    }
-#endif
-    String path() const
-    {
-        static String slash("/");
-        return slash;
-    }
-    bool isRoot() const { return true; }
-
-    int hash(int h) const { return 0; }
-
-    int compare(const FileSystemObjectImplementation* other) const
-    {
-        const RootDirectoryImplementation* root = dynamic_cast<const RootDirectoryImplementation*>(other);
-        if (root == 0)
-            return 1;
-        return 0;
-    }
-};
-
-#ifdef _WIN32
-template<class T> class DriveRootDirectoryImplementationTemplate : public RootDirectoryImplementation
-{
-public:
-    DriveRootDirectoryImplementationTemplate(int drive) : _drive(drive) { }
-
-    Directory parent() const { return DriveRootDirectory(_drive); }
-    String windowsPath() const
-    {
-        // TODO: Use \\?\ to avoid MAX_PATH limit?
-        static String system("System");
-        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(system);
-        bufferImplementation->allocate(2);
-        UInt8* p = bufferImplementation->data();
-        p[0] = _drive + 'A';
-        p[1] = ':';
-        return String(Buffer(bufferImplementation), 0, 2);
-    }
-
-    int hash(int h) const { return _drive; }
-
-    int compare(const FileSystemObjectImplementation* other) const
-    {
-        const DriveRootDirectoryImplementation* root = dynamic_cast<const DriveRootDirectoryImplementation*>(other);
-        if (root == 0)
-            return 1;
-        if (_drive != root->_drive)
-            return 1;
-        return 0;
-    }
-private:
-    int _drive;
-};
-
-template<class T> class UNCRootDirectoryImplementationTemplate : public RootDirectoryImplementation
-{
-public:
-    UNCRootDirectoryImplementationTemplate(const String& server, const String& share) : _server(server), _share(share) { }
-
-    Directory parent() const { return UNCRootDirectory(_server, _share); }
-    String windowsPath() const
-    {
-        static String backslashBackslash("\\\\");
-        static String backslash("\\");
-        return backslashBackslash + _server + backslash + _share;
-    }
-
-    int hash(int h) const { return (h*67 + _server.hash())*67 + _share.hash(); }
-
-    int compare(const FileSystemObjectImplementation* other) const
-    {
-        const UNCRootDirectoryImplementation* root = dynamic_cast<const UNCRootDirectoryImplementation*>(other);
-        if (root == 0)
-            return 1;
-        if (_server != root->_server)
-            return 1;
-        if (_share != root->_share)
-            return 1;
-        return 0;
-    }
-private:
-    String _server;
-    String _share;
-};
 #endif
 
 #endif // INCLUDED_FILE_H

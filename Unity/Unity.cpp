@@ -93,7 +93,7 @@ private:
     int _intValue;
     String _stringValue;
     Function* _functionValue;
-//    Reference<Type> _type;
+//    Type _type;
 };
 
 class Symbol : public ReferenceCounted
@@ -112,6 +112,8 @@ class Variable : public Symbol
     // TODO
 };
 
+class Identifier;
+
 class Context
 {
 public:
@@ -119,18 +121,23 @@ public:
     void setSource(const CharacterSource& source) { _source = source; }
     int get() { return _source.get(); }
     Value pop() { return _stack.pop(); }
-    void addFunction(String name, Reference<Type> signature, Function* function)
+    void addFunction(String name, Type signature, Function* function)
+    {
+
+        // TODO
+    }
+    void addType(String name, Type type)
     {
         // TODO
     }
-    void addType(const String& name, Type* type)
+    Reference<Function> resolveFunction(Reference<Identifier> identifier)
     {
         // TODO
     }
 
 private:
     CharacterSource _source;
-    HashTable<String, Symbol> _symbolTable;
+    HashTable<String, Reference<Symbol> > _symbolTable;
     Stack<Value> _stack;
 
 };
@@ -139,8 +146,7 @@ class PrintFunction : public Function
 {
 public:
     PrintFunction() : _consoleOutput(Handle::consoleOutput())
-    {
-    }
+    { }
     void call(Context* context)
     {
         context->pop().getString().write(_consoleOutput);
@@ -300,6 +306,7 @@ public:
             return s;
         return 0;
     }
+    virtual void resolveFunctions(Context* context) = 0;
     virtual void run(Context* context) = 0;
 };
 
@@ -320,6 +327,11 @@ public:
         Reference<StatementSequence> statementSequence = new StatementSequence;
         statements.toArray(&statementSequence->_statements);
         return statementSequence;
+    }
+    void resolveFunctions(Context* context)
+    {
+        for (int i = 0; i < _statements.count(); ++i)
+            _statements[i]->resolveFunctions(context);
     }
     void run(Context* context)
     {
@@ -371,7 +383,11 @@ public:
     }
     void run(Context* context)
     {
-        // TODO
+        _function->call(context);
+    }
+    void resolveFunctions(Context* context)
+    {
+        _function = context->resolveFunction(_functionName);
     }
 private:
     FunctionCallStatement(Reference<Identifier> functionName, int n) : _functionName(functionName)
@@ -380,6 +396,7 @@ private:
     }
 
     Reference<Identifier> _functionName;
+    Reference<Function> _function;
     Array<Reference<Expression> > _arguments;
 };
 
@@ -583,17 +600,15 @@ int main(int argc, char* argv[])
 		String contents = file.contents();
         Context context;
 
-        Reference<Type> stringType = new StringType;
-        context.addType(String("String"), stringType);
-
-        Reference<Type> voidType = new VoidType;
-        context.addType(String("Void"), voidType);
+        context.addType(String("String"), StringType());
+        context.addType(String("Void"), VoidType());
 
         PrintFunction print;
-        Stack<Reference<Type> > printArgumentTypes;
-        printArgumentTypes.push(stringType);
-        Reference<Type> printFunctionType = new FunctionType(voidType, &printArgumentTypes);
-        context.addFunction(String("print"), printFunctionType, &print);  // TODO: print's type signature
+        TypeList printArgumentTypes;
+        printArgumentTypes.push(StringType());
+        printArgumentTypes.finalize();
+        Type printFunctionType = FunctionType(VoidType(), printArgumentTypes);
+        context.addFunction(String("print"), printFunctionType, &print);
 
         CharacterSource source = contents.start();
         context.setSource(source);
@@ -603,6 +618,9 @@ int main(int argc, char* argv[])
             static String error("Expected end of file");
             source.throwError(error);
         }
+
+        program->resolveFunctions(&context);
+
         program->run(&context);
 	}
 	END_CHECKED(Exception& e) {

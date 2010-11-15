@@ -1,27 +1,53 @@
-class TypeImplementation : public ReferenceCounted
+class VoidType;
+
+template<class T> class TypeTemplate
 {
 public:
-    virtual bool equals(TypeImplementation* other) = 0;
-};
-
-class Type
-{
-public:
-protected:
-    Type(Reference<TypeImplementation> implementation) : _implementation(implementation) { }
-    bool operator==(const Type& other) { return _implementation->equals(other._implementation); }
-private:
-    Reference<TypeImplementation> _implementation;
-};
-
-
-class IntTypeImplementation : public TypeImplementation
-{
-public:
-    bool equals(TypeImplementation* other)
+    TypeTemplate() : _implementation(VoidType::implementation()) { }
+    bool operator==(const TypeTemplate& other)
     {
-        return (dynamic_cast<IntTypeImplementation*>(other) != 0);
+        return _implementation->equals(other._implementation);
     }
+    bool operator!=(const TypeTemplate& other)
+    {
+        return !_implementation->equals(other._implementation);
+    }
+protected:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        virtual bool equals(const Implementation* other) = 0;
+    };
+    TypeTemplate(Reference<Implementation> implementation)
+      : _implementation(implementation)
+    { }
+private:
+    Reference<Implementation> _implementation;
+};
+
+typedef TypeTemplate<void> Type;
+
+class VoidType : public Type
+{
+public:
+    VoidType() : Type(implementation()) { }
+private:
+    static Reference<Type::Implementation> _implementation;
+    static Reference<Type::Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation;
+        return _implementation;
+    }
+    class Implementation : public Type::Implementation
+    {
+    public:
+        bool equals(const Type::Implementation* other)
+        {
+            return (dynamic_cast<const Implementation*>(other) != 0);
+        }
+    };
+    friend class TypeTemplate<void>;
 };
 
 class IntType : public Type
@@ -29,117 +55,139 @@ class IntType : public Type
 public:
     IntType() : Type(implementation()) { }
 private:
-    static Reference<TypeImplementation> _implementation;
-    static Reference<TypeImplementation> implementation()
+    static Reference<Type::Implementation> _implementation;
+    static Reference<Type::Implementation> implementation()
     {
         if (!_implementation.valid())
-            _implementation = new IntTypeImplementation;
+            _implementation = new Implementation;
         return _implementation;
     }
-};
-
-
-class StringTypeImplementation : public TypeImplementation
-{
-public:
-    bool equals(TypeImplementation* other)
+    class Implementation : public Type::Implementation
     {
-        return (dynamic_cast<StringTypeImplementation*>(other) != 0);
-    }
+    public:
+        bool equals(const Type::Implementation* other)
+        {
+            return (dynamic_cast<const Implementation*>(other) != 0);
+        }
+    };
 };
+
+Reference<Type::Implementation> IntType::_implementation;
 
 class StringType : public Type
 {
 public:
     StringType() : Type(implementation()) { }
 private:
-    static Reference<TypeImplementation> _implementation;
-    static Reference<TypeImplementation> implementation()
+    static Reference<Type::Implementation> _implementation;
+    static Reference<Type::Implementation> implementation()
     {
         if (!_implementation.valid())
-            _implementation = new StringTypeImplementation;
+            _implementation = new Implementation;
         return _implementation;
     }
-};
-
-
-class VoidTypeImplementation : public TypeImplementation
-{
-public:
-    bool equals(TypeImplementation* other)
+    class Implementation : public Type::Implementation
     {
-        return (dynamic_cast<VoidTypeImplementation*>(other) != 0);
-    }
+    public:
+        bool equals(const Type::Implementation* other)
+        {
+            return (dynamic_cast<const Implementation*>(other) != 0);
+        }
+    };
 };
 
-class VoidType : public Type
-{
-public:
-    VoidType() : Type(implementation()) { }
-private:
-    static Reference<TypeImplementation> _implementation;
-    static Reference<TypeImplementation> implementation()
-    {
-        if (!_implementation.valid())
-            _implementation = new VoidTypeImplementation;
-        return _implementation;
-    }
-};
+Reference<Type::Implementation> StringType::_implementation;
 
-
-class PointerTypeImplementation : public TypeImplementation
-{
-public:
-    PointerTypeImplementation(Type referentType) : _referentType(referentType) { }
-    bool equals(TypeImplementation* other)
-    {
-        PointerTypeImplementation* otherImplementation = dynamic_cast<PointerTypeImplementation*>(other);
-        if (otherImplementation == 0)
-            return false;
-        return _referentType == other->_referentType;
-    }
-private:
-    Type _referentType;
-};
+Reference<Type::Implementation> VoidType::_implementation;
 
 class PointerType : public Type
 {
 public:
-    PointerType(Type referentType) : Type(new PointerTypeImplementation(referentType)) { }
+    PointerType(Type referentType) : Type(new Implementation(referentType)) { }
+private:
+    class Implementation : public Type::Implementation
+    {
+    public:
+        Implementation(Type referentType) : _referentType(referentType) { }
+        bool equals(const Type::Implementation* otherBase)
+        {
+            const Implementation* other = dynamic_cast<const Implementation*>(otherBase);
+            if (other == 0)
+                return false;
+            return _referentType == other->_referentType;
+        }
+    private:
+        Type _referentType;
+    };
 };
 
-
-class FunctionTypeImplementation : public TypeImplementation
+class TypeList
 {
-    Array<Type>
+public:
+    TypeList() : _implementation(new Implementation) { }
+    void push(Type type)
+    {
+        _implementation->push(type);
+    }
+    void finalize()
+    {
+        _implementation->finalize();
+    }
+    bool operator==(const TypeList& other) { return _implementation->equals(other._implementation); }
+    bool operator!=(const TypeList& other) { return !_implementation->equals(other._implementation); }
+private:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        void push(Type type)
+        {
+            _stack.push(type);
+        }
+        void finalize()
+        {
+            _stack.toArray(&_array);
+        }
+        bool equals(const Implementation* other)
+        {
+            int n = _array.count();
+            if (n != other->_array.count())
+                return false;
+            for (int i = 0 ; i < n; ++i)
+                if (_array[i] != other->_array[i])
+                    return false;
+            return true;
+        }
+    private:
+        Stack<Type> _stack;
+        Array<Type> _array;
+    };
+    Reference<Implementation> _implementation;
 };
 
 class FunctionType : public Type
 {
-public:
-    FunctionType(Reference<Type> returnType, Stack<Reference<Type> >* argumentTypes)
-      : _returnType(returnType)
-    {
-        argumentTypes->toArray(&_argumentTypes);
-    }
-    bool equals(Type* other)
-    {
-        FunctionType* f = dynamic_cast<FunctionType*>(other);
-        if (f == 0)
-            return false;
-        if (!f->_returnType->equals(_returnType))
-            return false;
-        int n = _argumentTypes.count();
-        if (!f->_argumentTypes.count() != n)
-            return false;
-        for (int i = 0; i < n; ++i)
-            if (!f->_argumentTypes[i]->equals(_argumentTypes[i]))
-                return false;
-        return true;
-    }
 private:
-    Reference<Type> _returnType;
-    Array<Reference<Type> > _argumentTypes;
+    class Implementation : public Type::Implementation
+    {
+    public:
+        Implementation(Type returnType, TypeList argumentTypes)
+          : _returnType(returnType), _argumentTypes(argumentTypes)
+        { }
+        bool equals(const Type::Implementation* otherBase)
+        {
+            const Implementation* other = dynamic_cast<const Implementation*>(otherBase);
+            if (other == 0)
+                return false;
+            return (_returnType == other->_returnType && _argumentTypes == other->_argumentTypes);
+        }
+    private:
+        Type _returnType;
+        TypeList _argumentTypes;
+    };
+public:
+    FunctionType(Type returnType, TypeList argumentTypes)
+      : Type(new Implementation(returnType, argumentTypes))
+    { }
 };
 
 

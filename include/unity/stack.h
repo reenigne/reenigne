@@ -15,9 +15,8 @@ public:
     void push(T t)
     {
         Entry* top = _top;
-        _top = new Entry;
+        _top = new Entry(t);
         _top->_next = top;
-        _top->_t = t;
         ++_n;
     }
     void toArray(Array<T>* array)
@@ -41,6 +40,7 @@ private:
     class Entry
     {
     public:
+        Entry(T t) : _t(t) { }
         T _t;
         Entry* _next;
     };
