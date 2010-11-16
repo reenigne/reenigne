@@ -104,7 +104,13 @@ private:
 
 class FunctionName : public Symbol
 {
-    // TODO
+public:
+    void addOverload(TypeList argumentTypes, Function* function)
+    {
+        // TODO
+    }
+private:
+    HashTable<TypeList, Function*> _overloads;
 };
 
 class Variable : public Symbol
@@ -121,14 +127,26 @@ public:
     void setSource(const CharacterSource& source) { _source = source; }
     int get() { return _source.get(); }
     Value pop() { return _stack.pop(); }
-    void addFunction(String name, Type signature, Function* function)
+    void addFunction(String name, TypeList argumentTypes, Function* function)
     {
-
-        // TODO
+        Reference<Symbol> symbol = _symbolTable.lookUp(name);
+        FunctionName* functionName;
+        if (symbol.valid()) {
+            functionName = dynamic_cast<FunctionName*>(symbol);
+            if (functionName == 0) {
+                static String error(" is already defined as a variable");
+                _source.throwError(name + error);  // TODO: is this the right location?
+            }
+        }
+        else {
+            functionName = new FunctionName;
+            _symbolTable.add(name, functionName);
+        }
+        functionName->addOverload(argumentTypes, function);
     }
     void addType(String name, Type type)
     {
-        // TODO
+        _typeTable.add(name, type);  // TODO: Handle name already being there
     }
     Reference<Function> resolveFunction(Reference<Identifier> identifier)
     {
@@ -138,6 +156,7 @@ public:
 private:
     CharacterSource _source;
     HashTable<String, Reference<Symbol> > _symbolTable;
+    HashTable<String, Type> _typeTable;
     Stack<Value> _stack;
 
 };
