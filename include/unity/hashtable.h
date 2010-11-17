@@ -14,13 +14,17 @@ public:
     {
         if (_n == _table.count()) {
             Array<TableEntry> table;
-            table->allocate(_table.count() * 2);
+            table.allocate(_table.count() * 2);
             table.swap(_table);
             for (int i = 0; i < table.count(); ++i)
                 table[i].addAllTo(this);
         }
         _table[row(key)].add(key, value);
         ++_n;
+    }
+    bool hasKey(const Key& key)
+    {
+        return _table[row(key)].hasKey(key);
     }
     Value lookUp(const Key& key)
     {
@@ -34,46 +38,61 @@ private:
         TableEntry() : _next(0) { }
         ~TableEntry()
         {
-            while (_next != 0) {
+            while (_next != 0 && _next != this) {
                 TableEntry* t = _next->_next;
                 delete _next;
                 _next = t;
             }
         }
+        bool hasKey(const Key& key)
+        {
+            if (_next == 0)
+                return false;
+            TableEntry* t = this;
+            do {
+                if (t->_key == key)
+                    return true;
+                t = t->_next;
+            } while (t != this);
+            return false;
+        }
         Value value(const Key& key)
         {
+            if (_next == 0)
+                return Value();
             TableEntry* t = this;
             do {
                 if (t->_key == key)
                     return t->_value;
                 t = t->_next;
-            } while (t != 0);
+            } while (t != this);
             return Value();
         }
         void add(const Key& key, const Value& value)
         {
-            if (_value == Value()) {
+            if (_next == 0) {
                 _key = key;
                 _value = value;
+                _next = this;
                 return;
             }
             TableEntry* t = this;
-            while (t->_next != 0)
+            while (t->_next != this)
                 t = t->_next;
             t->_next = new TableEntry();
             t->_next->_key = key;
             t->_next->_value = value;
+            t->_next->_next = this;
         }
         void addAllTo(HashTable* table)
         {
-            if (_value == Value())
+            if (_next == 0)
                 return;
-            table->add(_key, _value);
-            TableEntry* t = _next;
-            while (t != 0) {
+            TableEntry* t = this;
+            do {
                 table->add(t->_key, t->_value);
                 t = t->_next;
-            }
+            } while (t != this);
         }
     private:
         Key _key;

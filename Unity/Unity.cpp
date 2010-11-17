@@ -107,7 +107,11 @@ class FunctionName : public Symbol
 public:
     void addOverload(TypeList argumentTypes, Function* function)
     {
-        // TODO
+        if (_overloads.hasKey(argumentTypes)) {
+            // TODO: Throw an error to say that this has already been defined.
+        }
+        _overloads.add(argumentTypes, function);
+        
     }
 private:
     HashTable<TypeList, Function*> _overloads;
@@ -129,10 +133,10 @@ public:
     Value pop() { return _stack.pop(); }
     void addFunction(String name, TypeList argumentTypes, Function* function)
     {
-        Reference<Symbol> symbol = _symbolTable.lookUp(name);
         FunctionName* functionName;
-        if (symbol.valid()) {
-            functionName = dynamic_cast<FunctionName*>(symbol);
+        if (_symbolTable.hasKey(name)) {
+            Reference<Symbol> symbol = _symbolTable.lookUp(name);
+            functionName = dynamic_cast<FunctionName*>(static_cast<Symbol*>(symbol));
             if (functionName == 0) {
                 static String error(" is already defined as a variable");
                 _source.throwError(name + error);  // TODO: is this the right location?
@@ -603,7 +607,7 @@ int main()
 int main(int argc, char* argv[])
 #endif
 {
-	BEGIN_CHECKED {
+    BEGIN_CHECKED {
 #ifdef _WIN32
         CommandLine commandLine;
 #else
@@ -615,8 +619,8 @@ int main(int argc, char* argv[])
             (syntax1 + commandLine.argument(0) + syntax2).write(Handle::consoleOutput());
             exit(1);
         }
-		File file(commandLine.argument(1));
-		String contents = file.contents();
+        File file(commandLine.argument(1));
+        String contents = file.contents();
         Context context;
 
         context.addType(String("String"), StringType());
@@ -627,7 +631,7 @@ int main(int argc, char* argv[])
         printArgumentTypes.push(StringType());
         printArgumentTypes.finalize();
         Type printFunctionType = FunctionType(VoidType(), printArgumentTypes);
-        context.addFunction(String("print"), printFunctionType, &print);
+        context.addFunction(String("print"), printArgumentTypes, &print);
 
         CharacterSource source = contents.start();
         context.setSource(source);
@@ -641,8 +645,8 @@ int main(int argc, char* argv[])
         program->resolveFunctions(&context);
 
         program->run(&context);
-	}
-	END_CHECKED(Exception& e) {
-		e.write(Handle::consoleOutput());
-	}
+    }
+    END_CHECKED(Exception& e) {
+        e.write(Handle::consoleOutput());
+    }
 }

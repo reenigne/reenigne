@@ -1,3 +1,5 @@
+Need to make TypeList (and hence Type) hashable
+
 How to do function overloading?
   A symbol can be defined as a function or a variable, but not both.
   If it's defined as a function, it can be overloaded.

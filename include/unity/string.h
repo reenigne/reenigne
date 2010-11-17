@@ -300,7 +300,7 @@ private:
 class StringImplementation : public ReferenceCounted
 {
 public:
-	StringImplementation() : _length(0) { }
+    StringImplementation() : _length(0) { }
     int length() const { return _length; }
     virtual Reference<StringImplementation> subString(int start, int length) const = 0;
     virtual Reference<StringImplementation> withAppended(const Reference<StringImplementation>& other) = 0;
