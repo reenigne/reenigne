@@ -13,10 +13,10 @@ public:
     void swap(Array<T> other)
     {
         T* d = other._data;
-        _other._data = _data;
+        other._data = _data;
         _data = d;
         int n = other._n;
-        _other._n = _n;
+        other._n = _n;
         _n = n;
     }
 private:

@@ -84,6 +84,14 @@
   <ItemGroup>
     <None Include="test.unity" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\include\unity\array.h" />
+    <ClInclude Include="..\include\unity\file.h" />
+    <ClInclude Include="..\include\unity\hashtable.h" />
+    <ClInclude Include="..\include\unity\integer_types.h" />
+    <ClInclude Include="..\include\unity\reference_counted.h" />
+    <ClInclude Include="..\include\unity\string.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

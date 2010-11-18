@@ -12,11 +12,13 @@ public:
     {
         return !_implementation->equals(other._implementation);
     }
+    int hash() const { return _implementation->hash(); }
 protected:
     class Implementation : public ReferenceCounted
     {
     public:
         virtual bool equals(const Implementation* other) = 0;
+        virtual int hash() const = 0;
     };
     TypeTemplate(Reference<Implementation> implementation)
       : _implementation(implementation)
@@ -46,6 +48,7 @@ private:
         {
             return (dynamic_cast<const Implementation*>(other) != 0);
         }
+        int hash() const { return 0; }
     };
     friend class TypeTemplate<void>;
 };
@@ -69,6 +72,7 @@ private:
         {
             return (dynamic_cast<const Implementation*>(other) != 0);
         }
+        int hash() const { return 1; }
     };
 };
 
@@ -93,6 +97,7 @@ private:
         {
             return (dynamic_cast<const Implementation*>(other) != 0);
         }
+        int hash() const { return 2; }
     };
 };
 
@@ -116,6 +121,7 @@ private:
                 return false;
             return _referentType == other->_referentType;
         }
+        int hash() const { return 3 * 67 + _referentType.hash(); }
     private:
         Type _referentType;
     };
@@ -135,6 +141,7 @@ public:
     }
     bool operator==(const TypeList& other) { return _implementation->equals(other._implementation); }
     bool operator!=(const TypeList& other) { return !_implementation->equals(other._implementation); }
+    int hash() const { return _implementation->hash(); }
 private:
     class Implementation : public ReferenceCounted
     {
@@ -156,6 +163,13 @@ private:
                 if (_array[i] != other->_array[i])
                     return false;
             return true;
+        }
+        int hash() const
+        {
+            int h = 0;
+            for (int i = 0; i < _array.count(); ++i)
+                h = h * 67 + _array[i].hash();
+            return h;
         }
     private:
         Stack<Type> _stack;
@@ -179,6 +193,10 @@ private:
             if (other == 0)
                 return false;
             return (_returnType == other->_returnType && _argumentTypes == other->_argumentTypes);
+        }
+        int hash() const
+        {
+            return (4*67 + _returnType.hash())*67 + _argumentTypes.hash();
         }
     private:
         Type _returnType;

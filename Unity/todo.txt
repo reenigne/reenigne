@@ -1,8 +1,10 @@
-Need to make TypeList (and hence Type) hashable
-
-How to do function overloading?
-  A symbol can be defined as a function or a variable, but not both.
-  If it's defined as a function, it can be overloaded.
+Error handling in FunctionName::addOverload()
+Error handling in FunctionName::lookUpOverload()
+Error handling in FunctionName::type()
+Error handling in Context::addFunction()
+Error handling in Context::addType()
+Error handling in Context::resolveFunction()
+Error handling in AddExpression::type()
 Add variable declaration statement
 Add assignment statement
 Add multi-line strings
@@ -11,6 +13,8 @@ Add PHP-style string inserts:
   "Hello ${sin(x) + strlen("bar")}"
 Add ability to define functions
 Add include statement
+
+Use operator[] instead of lookUp and add in HashTable?
 
 For String::throwUnexpected(), print name (or hex) of found character to avoid putting unprintable characters in error messages.
 Make sure we have a sensible error message when no memory can be allocated at all

@@ -30,6 +30,7 @@ public:
     {
         return _table[row(key)].value(key);
     }
+    int count() const { return _n; }
 private:
     int row(const Key& key) { return key.hash() & (_table.count() - 1); }
     class TableEntry

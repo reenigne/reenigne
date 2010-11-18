@@ -77,12 +77,15 @@ private:
     int _nArguments;
 };
 
-class Context;
+template<class T> class ContextTemplate;
+
+typedef ContextTemplate<void> Context;
 
 class Function
 {
 public:
     virtual void call(Context* context) = 0;
+    virtual Type returnType() const = 0;
 };
 
 class Value
@@ -98,8 +101,8 @@ private:
 
 class Symbol : public ReferenceCounted
 {
-private:
-    Value _value;
+public:
+    virtual Type type() const = 0;
 };
 
 class FunctionName : public Symbol
@@ -111,10 +114,29 @@ public:
             // TODO: Throw an error to say that this has already been defined.
         }
         _overloads.add(argumentTypes, function);
-        
+        if (_overloads.count() == 1)
+            _functionType = FunctionType(function->returnType(), argumentTypes);
+
+    }
+    Function* lookUpOverload(TypeList argumentTypes)
+    {
+        if (!_overloads.hasKey(argumentTypes)) {
+            // TODO: Throw an error to say that this overload is not available.
+        }
+        return _overloads.lookUp(argumentTypes);
+    }
+    Type type() const
+    {
+        if (_overloads.count() > 1) {
+            // TODO: Throw an error to say that this is an overloaded function,
+            // so the symbol itself does not have a definite type.
+        }
+        return _functionType;
     }
 private:
+    int _overloadCount;
     HashTable<TypeList, Function*> _overloads;
+    Type _functionType;
 };
 
 class Variable : public Symbol
@@ -124,7 +146,7 @@ class Variable : public Symbol
 
 class Identifier;
 
-class Context
+template<class T> class ContextTemplate
 {
 public:
     CharacterSource getSource() const { return _source; }
@@ -150,20 +172,38 @@ public:
     }
     void addType(String name, Type type)
     {
-        _typeTable.add(name, type);  // TODO: Handle name already being there
+        if (_typeTable.hasKey(name)) {
+            static String error(" has already been defined.");
+            _source.throwError(name + error);  // TODO: is this the right location?
+        }
+        _typeTable.add(name, type);
     }
-    Reference<Function> resolveFunction(Reference<Identifier> identifier)
+    Function* resolveFunction(Reference<Identifier> identifier, TypeList typeList)
     {
-        // TODO
+        if (!_symbolTable.hasKey(identifier->name()))
+            return 0;
+        Reference<Symbol> symbol = _symbolTable.lookUp(identifier->name());
+        FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<Symbol*>(symbol));
+        if (functionName == 0) {
+            static String error(" is not a function");
+            _source.throwError(identifier->name() + error);  // TODO: is this the right location?
+        }
+        return functionName->lookUpOverload(typeList);
     }
-
+    Reference<Symbol> resolveSymbol(String name)
+    {
+        if (!_symbolTable.hasKey(name))
+            return Reference<Symbol>();
+        return _symbolTable.lookUp(name);
+    }
 private:
     CharacterSource _source;
     HashTable<String, Reference<Symbol> > _symbolTable;
     HashTable<String, Type> _typeTable;
     Stack<Value> _stack;
-
 };
+
+typedef ContextTemplate<void> Context;
 
 class PrintFunction : public Function
 {
@@ -174,6 +214,7 @@ public:
     {
         context->pop().getString().write(_consoleOutput);
     }
+    Type returnType() const { return VoidType(); }
 private:
     Handle _consoleOutput;
 };
@@ -285,7 +326,8 @@ public:
         context->setSource(s);
         return 0;
     }
-    virtual String output() const = 0;
+    virtual void compile(Context* context) = 0;
+    virtual Type type() const = 0;
 };
 
 typedef ExpressionTemplate<void> Expression;
@@ -310,13 +352,25 @@ public:
         } while (true);
         int end = context->getSource().position();
         Space::parse(context);
-        return new Identifier(context->getSource().subString(start, end));
+        return new Identifier(s, context->getSource().subString(start, end));
     }
-    String output() const { return _value->output(); }
+    Type type() const { return _symbol->type(); }
+    String name() const { return _name; }
+    void compile(Context* context)
+    {
+        _symbol = context->resolveSymbol(_name);
+        if (!_symbol.valid()) {
+            static String error("Undefined symbol ");
+            _source.throwError(error + _name);
+        }
+    }
 private:
-    Identifier(String name) : _name(name) { }
+    Identifier(CharacterSource source, String name)
+      : _source(source), _name(name) 
+    { }
+    CharacterSource _source;
     String _name;
-    Reference<Expression> _value;
+    Reference<Symbol> _symbol;
 };
 
 template<class T> class StatementTemplate : public ReferenceCounted
@@ -329,7 +383,7 @@ public:
             return s;
         return 0;
     }
-    virtual void resolveFunctions(Context* context) = 0;
+    virtual void compile(Context* context) = 0;
     virtual void run(Context* context) = 0;
 };
 
@@ -351,10 +405,10 @@ public:
         statements.toArray(&statementSequence->_statements);
         return statementSequence;
     }
-    void resolveFunctions(Context* context)
+    void compile(Context* context)
     {
         for (int i = 0; i < _statements.count(); ++i)
-            _statements[i]->resolveFunctions(context);
+            _statements[i]->compile(context);
     }
     void run(Context* context)
     {
@@ -408,9 +462,16 @@ public:
     {
         _function->call(context);
     }
-    void resolveFunctions(Context* context)
+    void compile(Context* context)
     {
-        _function = context->resolveFunction(_functionName);
+
+        TypeList argumentTypes;
+        for (int i = 0; i < _arguments.count(); ++i) {
+            _arguments[i]->compile(context);
+            argumentTypes.push(_arguments[i]->type());
+        }
+        argumentTypes.finalize();
+        _function = context->resolveFunction(_functionName, argumentTypes);
     }
 private:
     FunctionCallStatement(Reference<Identifier> functionName, int n) : _functionName(functionName)
@@ -419,7 +480,7 @@ private:
     }
 
     Reference<Identifier> _functionName;
-    Reference<Function> _function;
+    Function* _function;
     Array<Reference<Expression> > _arguments;
 };
 
@@ -446,11 +507,8 @@ public:
             }
         } while (true);
     }
-    String output() const
-    {
-        return String::decimal(_n);
-    }
-    int value() const { return _n; }
+    void compile(Context* context) { }
+    Type type() const { return IntType(); }
 private:
     Integer(int n) : _n(n) { }
     int _n;
@@ -564,7 +622,8 @@ public:
             }
         } while (true);
     }
-    String output() const { return _string; }
+    void compile(Context* context) { }
+    Type type() const { return StringType(); }
 private:
     DoubleQuotedString(String string) : _string(string) { }
 
@@ -588,13 +647,22 @@ class AddExpression : public Expression
 {
 public:
     AddExpression(Reference<Expression> left, Reference<Expression> right) : _left(left), _right(right) { }
-    String output() const
+    Type type() const
     {
-        Reference<Integer> l = _left;
-        Reference<Integer> r = _right;
-        if (l.valid() && r.valid())
-            return String::decimal(l->value() + r->value());
-        return _left->output() + _right->output();
+        if (_left->type() == StringType())
+            if (_right->type() == IntType() || _right->type() == StringType())
+                return StringType();
+        if (_right->type() == StringType())
+            if (_left->type() == IntType())
+                return StringType();
+        if (_left->type() == IntType() && _right->type() == IntType())
+            return IntType();
+        // TODO: error
+    }
+    void compile(Context* context)
+    {
+        _left->compile(context);
+        _right->compile(context);
     }
 private:
     Reference<Expression> _left;
@@ -642,7 +710,7 @@ int main(int argc, char* argv[])
             source.throwError(error);
         }
 
-        program->resolveFunctions(&context);
+        program->compile(&context);
 
         program->run(&context);
     }
