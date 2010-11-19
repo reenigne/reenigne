@@ -1,3 +1,4 @@
+Separate get() from advance() in CharacterSource
 Error handling in FunctionName::addOverload()
 Error handling in FunctionName::lookUpOverload()
 Error handling in FunctionName::type()

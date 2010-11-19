@@ -232,6 +232,7 @@ public:
             if (parseComment(context))
                 continue;
             context->setSource(s);
+            return;
         } while (true);
     }
 private:

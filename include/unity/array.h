@@ -10,7 +10,7 @@ public:
     T& operator[](int i) { return _data[i]; }
     const T& operator[](int i) const { return _data[i]; }
     int count() const { return _n; }
-    void swap(Array<T> other)
+    void swap(Array<T>& other)
     {
         T* d = other._data;
         other._data = _data;

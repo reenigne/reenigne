@@ -16,6 +16,7 @@ public:
             Array<TableEntry> table;
             table.allocate(_table.count() * 2);
             table.swap(_table);
+            _n = 0;
             for (int i = 0; i < table.count(); ++i)
                 table[i].addAllTo(this);
         }
