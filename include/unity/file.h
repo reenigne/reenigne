@@ -107,7 +107,7 @@ private:
         static String parentDirectory("..");
         static String empty;
 
-        CharacterSource s = path.start();
+        CharacterSource s(path, String());
         int c = s.getCodePoint();
         int p = 1;
         int subDirectoryStart = 0;
@@ -234,7 +234,7 @@ private:
         static String parentDirectory("..");
         static String empty;
 
-        CharacterSource s = path.start();
+        CharacterSource s(path, String());
         int c = s.getCodePoint();
         int p = 1;  // p always points to the character after c
         int subDirectoryStart = 0;
@@ -477,8 +477,7 @@ private:
         String windowsPath() const
         {
             // TODO: Use \\?\ to avoid MAX_PATH limit?
-            static String system("System");
-            Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(system);
+            Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation();
             bufferImplementation->allocate(2);
             UInt8* p = bufferImplementation->data();
             p[0] = _drive + 'A';
@@ -578,7 +577,7 @@ public:
             static String tooLargeFile("2Gb or more in file ");
             Exception::throwSystemError(tooLargeFile + filePath);
         }
-        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(filePath);
+        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation();
         bufferImplementation->allocate(n);
         DWORD numberOfBytesRead;
         if (ReadFile(handle, static_cast<LPVOID>(bufferImplementation->data()), n, &numberOfBytesRead, NULL) == 0 || numberOfBytesRead != n) {
@@ -609,7 +608,7 @@ public:
         off_t r = lseek(fileDescriptor, 0, SEEK_SET);
         if (r == (off_t)(-1))
             Exception::throwSystemError(seekingFile + filePath);
-        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(name);
+        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation();
         bufferImplementation->allocate(n);
         ssize_t readResult = read(fileDescriptor, static_cast<void*>(bufferImplementation->data()), n);
         if (readResult < n) {

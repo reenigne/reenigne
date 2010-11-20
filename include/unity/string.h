@@ -33,15 +33,6 @@ template<class T> class LocalStringTemplate;
 typedef LocalStringTemplate<void> LocalString;
 #endif
 
-template<class T> class NonOwningBufferImplementationTemplate;
-typedef NonOwningBufferImplementationTemplate<void> NonOwningBufferImplementation;
-
-template<class T> class OwningBufferImplementationTemplate;
-typedef OwningBufferImplementationTemplate<void> OwningBufferImplementation;
-
-template<class T> class BufferTemplate;
-typedef BufferTemplate<void> Buffer;
-
 #ifdef _WIN32
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
@@ -59,60 +50,7 @@ typedef BufferTemplate<void> Buffer;
 #include "unity/minimum_maximum.h"
 #include "unity/reference_counted.h"
 #include "unity/array.h"
-
-class BufferImplementation : public ReferenceCounted
-{
-public:
-    void copyTo(UInt8* destination, int start, int length)
-    {
-        memcpy(destination, _data + start, length);
-    }
-    virtual String fileName() const = 0;
-    const UInt8* data() const { return &_data[0]; }
-protected:
-    void setData(const UInt8* data) { _data = data; }
-private:
-    const UInt8* _data;
-};
-
-template<class T> class NonOwningBufferImplementationTemplate : public BufferImplementation
-{
-public:
-    NonOwningBufferImplementationTemplate(const UInt8* data) { setData(data); }
-    StringTemplate<T> fileName() const
-    {
-        static String commandLine("Command line");
-        return commandLine;
-    }
-};
-
-template<class T> class OwningBufferImplementationTemplate : public BufferImplementation
-{
-public:
-    OwningBufferImplementationTemplate(const String& fileName) : _fileName(fileName) { }
-    void allocate(int bytes) { _data.allocate(bytes); setData(&_data[0]); }
-    UInt8* data() { return &_data[0]; }
-    StringTemplate<T> fileName() const { return _fileName; }
-private:
-    Array<UInt8> _data;
-    String _fileName;
-};
-
-template<class T> class BufferTemplate
-{
-public:
-    BufferTemplate() { }
-    BufferTemplate(const UInt8* data) : _implementation(new NonOwningBufferImplementation(data)) { }
-    BufferTemplate(Reference<BufferImplementation> implementation) : _implementation(implementation) { }
-    bool operator==(const Buffer& other) const { return _implementation == other._implementation; }
-    StringTemplate<T> fileName() const { return _implementation->fileName(); }
-    const UInt8* data() const { return _implementation->data(); }
-    bool valid() const { return _implementation.valid(); }
-    void copyTo(UInt8* destination, int start, int length) const { _implementation->copyTo(destination, start, length); }
-    const UInt8& operator[](int i) const { return data()[i]; }
-private:
-    Reference<BufferImplementation> _implementation;
-};
+#include "unity/buffer.h"
 
 template<class T> class StringTemplate
 {
@@ -179,8 +117,7 @@ public:
 
     StringTemplate(const WCHAR* utf16)
     {
-        static String system("System");
-        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(system);
+        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation();
         int n = countBytes(utf16);
         bufferImplementation->allocate(n);
         addToBuffer(utf16, bufferImplementation->data());
@@ -230,7 +167,8 @@ public:
 #ifdef _WIN32
     void copyToUTF16(Array<WCHAR>* data) const
     {
-        CharacterSource s = start();
+        CharacterSource start(*this, String());
+        CharacterSource s = start;
         int l = 1;
         while (!s.empty()) {
             int c = s.get();
@@ -238,7 +176,7 @@ public:
             if (c >= 0x10000)
                 ++l;
         }
-        s = start();
+        s = start;
         data->allocate(l);
         WCHAR* d = &(*data)[0];
         l = 0;
@@ -280,7 +218,6 @@ public:
     bool operator<=(const String& other) const { return !operator>(other); }
     bool operator>=(const String& other) const { return !operator<(other); }
     UInt8 operator[](int offset) const { return _implementation->byteAt(offset); }
-    CharacterSource start() const;
     int length() const { return _implementation->length(); }
     bool empty() const { return length() == 0; }
     void write(const Handle& handle) const { _implementation->write(handle); }
@@ -566,12 +503,35 @@ public:
     }
 };
 
+class DiagnosticLocation
+{
+public:
+    DiagnosticLocation() { }
+    DiagnosticLocation(String fileName)
+      : _fileName(fileName), _line(1), _column(1)
+    { }
+    String asString() const
+    {
+        static String openBracket("(");
+        static String comma(",");
+        static String closeBracket(")");
+        return _fileName + openBracket + String::decimal(_line) + comma +
+            String::decimal(_column) + closeBracket;
+    }
+    String fileName() const { return _fileName; }
+    void advanceColumn() { ++_column; }
+    void advanceLine() { _column = 1; ++_line; }
+    String _fileName;
+    int _line;
+    int _column;
+};
 
 template<class T> class CharacterSourceTemplate
 {
 public:
     CharacterSourceTemplate() { }
-    CharacterSourceTemplate(const String& string) : _string(string), _offset(0), _line(1), _column(1), _position(0)
+    CharacterSourceTemplate(const String& string, const String& fileName)
+      : _string(string), _offset(0), _position(0), _location(fileName)
     {
         initSimpleData();
     }
@@ -631,21 +591,19 @@ public:
     int get()
     {
         int c = getCodePoint();
-        ++_column;
+        _location.advanceColumn();
         if (c == 10) {
             CharacterSource s = *this;
             if (s.getCodePoint() == 13)
                 *this = s;
-            _column = 0;
-            ++_line;
+            _location.advanceLine();
             return 10;
         }
         if (c == 13) {
             CharacterSource s = *this;
             if (s.getCodePoint() == 10)
                 *this = s;
-            _column = 0;
-            ++_line;
+            _location.advanceLine();
             return 10;
         }
         return c;
@@ -669,11 +627,8 @@ public:
     }
     void throwError(const String& message)
     {
-        static String openBracket("(");
-        static String comma(",");
-        static String closeBracket("): ");
-        String s = _string.subString(_offset, 1);
-        throw Exception(s._implementation->buffer().fileName() + openBracket + String::decimal(_line) + comma + String::decimal(_column) + closeBracket + message);
+        static String colon(": ");
+        throw Exception(_location.asString() + colon + message);
     }
     int position() const { return _position; }
     String subString(int start, int end) { return _string.subString(start, end - start); }
@@ -692,7 +647,7 @@ private:
         static String at(" at ");
         static String in(" in ");
         String s = _string.subString(_offset, 1);
-        throw Exception(message + at + String::hexadecimal(s._implementation->offset(), 8) + in + s._implementation->buffer().fileName());
+        throw Exception(message + at + String::hexadecimal(s._implementation->offset(), 8) + in + _location.fileName());
     }
     int getNextByte()
     {
@@ -723,12 +678,9 @@ private:
     int _length;
     String _string;
     int _offset;
-    int _line;
-    int _column;
     int _position;
+    DiagnosticLocation _location;
 };
-
-template<class T> inline CharacterSource StringTemplate<T>::start() const { return CharacterSource(*this); }
 
 template<class T> class HandleTemplate : Uncopyable
 {

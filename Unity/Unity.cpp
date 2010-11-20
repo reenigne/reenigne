@@ -25,8 +25,7 @@ public:
         int nBytes = 0;
         for (int i = 0; i < nArgs; ++i)
             nBytes += String::countBytes(szArglist[i]);
-        static String commandLine("Command line");
-        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation(commandLine);
+        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation;
         bufferImplementation->allocate(nBytes);
         Buffer buffer(bufferImplementation);
         UInt8* p = bufferImplementation->data();
@@ -339,21 +338,24 @@ public:
     static Reference<Identifier> parse(Context* context)
     {
         CharacterSource s = context->getSource();
+        CharacterSource s2 = s;
         int start = s.position();
-        int c = context->get();
-        if (c < 'a' || c > 'z') {
-            context->setSource(s);
+        int c = s.get();
+        if (c < 'a' || c > 'z')
             return 0;
-        }
+        s2 = s;
         do {
-            c = context->get();
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')
+            c = s.get();
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
+                s2 = s;
                 continue;
+            }
             break;
         } while (true);
-        int end = context->getSource().position();
+        int end = s.position();
+        context->setSource(s2);
         Space::parse(context);
-        return new Identifier(s, context->getSource().subString(start, end));
+        return new Identifier(s, s.subString(start, end));
     }
     Type type() const { return _symbol->type(); }
     String name() const { return _name; }
@@ -702,7 +704,7 @@ int main(int argc, char* argv[])
         Type printFunctionType = FunctionType(VoidType(), printArgumentTypes);
         context.addFunction(String("print"), printArgumentTypes, &print);
 
-        CharacterSource source = contents.start();
+        CharacterSource source(contents, file.path());
         context.setSource(source);
         Space::parse(&context);
         Reference<StatementSequence> program = StatementSequence::parse(&context);
