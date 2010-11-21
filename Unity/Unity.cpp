@@ -467,7 +467,6 @@ public:
     }
     void compile(Context* context)
     {
-
         TypeList argumentTypes;
         for (int i = 0; i < _arguments.count(); ++i) {
             _arguments[i]->compile(context);

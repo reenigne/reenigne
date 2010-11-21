@@ -526,68 +526,135 @@ public:
     int _column;
 };
 
-template<class T> class CharacterSourceTemplate
+class ByteSource
 {
 public:
-    CharacterSourceTemplate() { }
-    CharacterSourceTemplate(const String& string, const String& fileName)
-      : _string(string), _offset(0), _position(0), _location(fileName)
+    ByteSource() { }
+    ByteSource(const String& string) : _string(string), _offset(0)
     {
         initSimpleData();
+        advance();
     }
-    int getByte()
+    int get() const { return _byte; }
+    void advance()
     {
-        if (empty())
-            return -1;
+        if (empty()) {
+            _byte = -1;
+            return;
+        }
         if (_buffer.valid()) {
-            int r = _buffer[_start];
-            next();
-            return r;
+            _byte = _buffer[_start];
+            ++_offset;
+            ++_start;
+            --_length;
+            if (_length == 0)
+                initSimpleData();
+            return;
         }
         UInt8 nybble = _start & 0x0f;
         _start >>= 4;
-        return (nybble < 10 ? nybble + '0' : nybble + 'A' - 10);
+        _byte = (nybble < 10 ? nybble + '0' : nybble + 'A' - 10);
     }
-    int getCodePoint()
+    int offset() const { return _offset; }
+private:
+    void initSimpleData()
     {
-        static String overlongEncoding("Overlong encoding");
-        static String codePointTooHigh("Code point too high");
-        static String unexpectedSurrogate("Unexpected surrogate");
+        _string.initSimpleData(_offset, &_buffer, &_start, &_length);
+    }
+    Buffer _buffer;
+    int _start;
+    int _length;
+    String _string;
+    int _offset;
+    int _byte;
+};
 
-        int b0 = getByte();
+class CodePointSource
+{
+public:
+    CodePointSource() { }
+    CodePointSource(const String& string) : _byteSource(string)
+    {
+        advance();
+    }
+    int get() const { return _codePoint; }
+    void advance()
+    {
+    //    static String overlongEncoding("Overlong encoding");
+    //    static String codePointTooHigh("Code point too high");
+    //    static String unexpectedSurrogate("Unexpected surrogate");
+
+        ByteSource start = _byteSource;
+        int b0 = _byteSource.get();
         if (b0 < 0x80)
             return b0;
         if (b0 < 0xc0 || b0 >= 0xf8)
-            throwUTF8Exception(true);
-        CharacterSource start = *this;
-        next();
+            throwUTF8Exception(true, b0);
+        
 
-        int b1 = getNextByte();
-        if (b0 >= 0xc0 && b0 < 0xe0) {
-            int r = ((b0 & 0x1f) << 6) | (b1 & 0x3f);
-            if (r < 0x80)
-                start.throwUTF8Exception(overlongEncoding);
-            return r;
-        }
+    //    int b1 = getNextByte();
+    //    if (b0 >= 0xc0 && b0 < 0xe0) {
+    //        int r = ((b0 & 0x1f) << 6) | (b1 & 0x3f);
+    //        if (r < 0x80)
+    //            start.throwUTF8Exception(overlongEncoding);
+    //        return r;
+    //    }
 
-        int b2 = getNextByte();
-        if (b0 >= 0xe0 && b0 < 0xf0) {
-            int r = ((b0 & 0x0f) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
-            if (r < 0x800)
-                start.throwUTF8Exception(overlongEncoding);
-            if (r >= 0xd800 && r < 0xe000)
-                start.throwUTF8Exception(unexpectedSurrogate);
-            return r;
-        }
+    //    int b2 = getNextByte();
+    //    if (b0 >= 0xe0 && b0 < 0xf0) {
+    //        int r = ((b0 & 0x0f) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
+    //        if (r < 0x800)
+    //            start.throwUTF8Exception(overlongEncoding);
+    //        if (r >= 0xd800 && r < 0xe000)
+    //            start.throwUTF8Exception(unexpectedSurrogate);
+    //        return r;
+    //    }
 
-        int b3 = getNextByte();
-        int r = ((b0 & 0x07) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
-        if (r < 0x10000)
-            start.throwUTF8Exception(overlongEncoding);
-        if (r >= 0x110000)
-            start.throwUTF8Exception(codePointTooHigh);
-        return r;
+    //    int b3 = getNextByte();
+    //    int r = ((b0 & 0x07) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+    //    if (r < 0x10000)
+    //        start.throwUTF8Exception(overlongEncoding);
+    //    if (r >= 0x110000)
+    //        start.throwUTF8Exception(codePointTooHigh);
+    //    return r;
+    //}
+private:
+    void throwUTF8Exception(bool first, int b)
+    {
+        static String expectedFirst("Expected 0x00..0x7F or 0xC0..0xF7, found 0x");
+        static String expectedNext("Expected 0x80..0xBF, found 0x");
+        String expected = first ? expectedFirst : expectedNext;
+        static String endOfString("end of string");
+        String s = (b == -1) ? endOfString : String::hexadecimal(b, 2);
+        throwUTF8Exception(expected + s);
     }
+    void throwUTF8Exception(String message)
+    {
+        static String at(" at ");
+        static String in(" in ");
+        throw Exception(message + at + String::hexadecimal(_byteSource.offset(), 8) + in + _location.fileName());
+    }
+    //int getNextByte()
+    //{
+    //    if (empty())
+    //        throwUTF8Exception(false);
+    //    int b = getByte();
+    //    if (b < 0x80 || b >= 0xc0)
+    //        throwUTF8Exception(false);
+    //    return b;
+    //}
+
+    ByteSource _byteSource;
+    int _codePoint;
+};
+
+class CharacterSource
+{
+public:
+    CharacterSource() { }
+    CharacterSource(const String& string, const String& fileName)
+      : _string(string), _location(fileName)
+    { }
     int get()
     {
         int c = getCodePoint();
@@ -633,51 +700,6 @@ public:
     int position() const { return _position; }
     String subString(int start, int end) { return _string.subString(start, end - start); }
 private:          
-    void throwUTF8Exception(bool first)
-    {
-        static String expectedFirst("Expected 0x00..0x7F or 0xC0..0xF7, found 0x");
-        static String expectedNext("Expected 0x80..0xBF, found 0x");
-        String expected = first ? expectedFirst : expectedNext;
-        static String endOfString("end of string");
-        String s = _length > 0 ? String::hexadecimal(_buffer[_start], 2) : endOfString;
-        throwUTF8Exception(expected + s);
-    }
-    void throwUTF8Exception(String message)
-    {
-        static String at(" at ");
-        static String in(" in ");
-        String s = _string.subString(_offset, 1);
-        throw Exception(message + at + String::hexadecimal(s._implementation->offset(), 8) + in + _location.fileName());
-    }
-    int getNextByte()
-    {
-        if (empty())
-            throwUTF8Exception(false);
-        int b = getByte();
-        if (b < 0x80 || b >= 0xc0)
-            throwUTF8Exception(false);
-        return b;
-    }
-    void initSimpleData()
-    {
-        _string.initSimpleData(_offset, &_buffer, &_start, &_length);
-    }
-    void next()
-    {
-        ++_position;
-        ++_offset;
-        ++_start;
-        --_length;
-        if (_length != 0)
-            return;
-        initSimpleData();
-    }
-
-    Buffer _buffer;
-    int _start;
-    int _length;
-    String _string;
-    int _offset;
     int _position;
     DiagnosticLocation _location;
 };
