@@ -1,9 +1,9 @@
 #include "unity/string.h"
+#include "unity/character_source.h"
 #include "unity/array.h"
 #include "unity/file.h"
 #include "unity/stack.h"
 #include "unity/hashtable.h"
-#include "Type.cpp"
 
 #ifdef _WIN32
 #include "shellapi.h"
@@ -76,9 +76,73 @@ private:
     int _nArguments;
 };
 
+class Space
+{
+public:
+    static void parse(CharacterSource* source, Context* context)
+    {
+        do {
+            CharacterSource s = *source;
+            int c = s.get();
+            if (c == ' ' || c == 10) {
+                *source = s;
+                continue;
+            }
+            if (parseComment(source, context))
+                continue;
+            return;
+        } while (true);
+    }
+private:
+    static bool parseComment(CharacterSource* source, Context* context)
+    {
+        static String endOfFile("End of file in comment");
+        static String printableCharacter("printable character");
+        CharacterSource s = *source;
+        int c = s.get();
+        if (c != '/')
+            return false;
+        c = s.get();
+        if (c == '/') {
+            do {
+                *source = s;
+                c = s.get();
+                if (c == 10 || c == -1)
+                    break;
+                if (c < 0x20)
+                    source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+            } while (true);
+            *source = s;
+            return true;
+        }
+        if (c == '*') {
+            do {
+                if (parseComment(&s, context))
+                    continue;
+                *source = s;
+                c = s.get();
+                while (c == '*') {
+                    c = s.get();
+                    if (c == '/') {
+                        *source = s;
+                        return true;
+                    }
+                }
+                if (c == -1)
+                    source->location().throwError(endOfFile);
+                if (c < 0x20 && c != 10)
+                    source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+            } while (true);
+        }
+        return false;
+    }
+};
+
 template<class T> class ContextTemplate;
 
 typedef ContextTemplate<void> Context;
+
+#include "Type.cpp"
 
 class Function
 {
@@ -90,48 +154,53 @@ public:
 class Value
 {
 public:
-    String getString() { return _stringValue; }
+    Value() { }
+    Value(int intValue) : _intValue(intValue) { }
+    Value(String stringValue) : _stringValue(stringValue) { }
+    int getInt() const { return _intValue; }
+    String getString() const { return _stringValue; }
 private:
     int _intValue;
     String _stringValue;
-    Function* _functionValue;
-//    Type _type;
 };
 
 class Symbol : public ReferenceCounted
 {
 public:
-    virtual Type type() const = 0;
+    virtual Type type(String name, DiagnosticLocation location) const = 0;
+    virtual Value value() const = 0;
 };
 
 class FunctionName : public Symbol
 {
 public:
-    void addOverload(TypeList argumentTypes, Function* function)
-    {
+    void addOverload(TypeList argumentTypes, Function* function, DiagnosticLocation location)
+    {                                                             
         if (_overloads.hasKey(argumentTypes)) {
-            // TODO: Throw an error to say that this has already been defined.
+            static String error("This overload has already been defined.");
+            location.throwError(error);
         }
         _overloads.add(argumentTypes, function);
         if (_overloads.count() == 1)
             _functionType = FunctionType(function->returnType(), argumentTypes);
-
+    }
+    bool hasOverload(TypeList argumentTypes)
+    {
+        return _overloads.hasKey(argumentTypes);
     }
     Function* lookUpOverload(TypeList argumentTypes)
     {
-        if (!_overloads.hasKey(argumentTypes)) {
-            // TODO: Throw an error to say that this overload is not available.
-        }
         return _overloads.lookUp(argumentTypes);
     }
-    Type type() const
+    Type type(String name, DiagnosticLocation location) const
     {
         if (_overloads.count() > 1) {
-            // TODO: Throw an error to say that this is an overloaded function,
-            // so the symbol itself does not have a definite type.
+            static String error(" is an overloaded function - I don't know which overload you mean.");
+            location.throwError(name + error);
         }
         return _functionType;
     }
+    Value value() const { return Value(); }
 private:
     int _overloadCount;
     HashTable<TypeList, Function*> _overloads;
@@ -140,7 +209,14 @@ private:
 
 class Variable : public Symbol
 {
-    // TODO
+public:
+    Variable(Type type) : _type(type) { }
+    Type type(String name, DiagnosticLocation location) const { return _type; }
+    Value value() const { return _value; }
+    void setValue(Value value) { _value = value; }
+private:
+    Type _type;
+    Value _value;
 };
 
 class Identifier;
@@ -148,11 +224,9 @@ class Identifier;
 template<class T> class ContextTemplate
 {
 public:
-    CharacterSource getSource() const { return _source; }
-    void setSource(const CharacterSource& source) { _source = source; }
-    int get() { return _source.get(); }
+    void push(Value value) { _stack.push(value); }
     Value pop() { return _stack.pop(); }
-    void addFunction(String name, TypeList argumentTypes, Function* function)
+    void addFunction(String name, TypeList argumentTypes, Function* function, DiagnosticLocation location)
     {
         FunctionName* functionName;
         if (_symbolTable.hasKey(name)) {
@@ -160,24 +234,32 @@ public:
             functionName = dynamic_cast<FunctionName*>(static_cast<Symbol*>(symbol));
             if (functionName == 0) {
                 static String error(" is already defined as a variable");
-                _source.throwError(name + error);  // TODO: is this the right location?
+                location.throwError(name + error);
             }
         }
         else {
             functionName = new FunctionName;
             _symbolTable.add(name, functionName);
         }
-        functionName->addOverload(argumentTypes, function);
+        functionName->addOverload(argumentTypes, function, location);
     }
-    void addType(String name, Type type)
+    void addType(String name, Type type, DiagnosticLocation location)
     {
         if (_typeTable.hasKey(name)) {
             static String error(" has already been defined.");
-            _source.throwError(name + error);  // TODO: is this the right location?
+            location.throwError(name + error);
         }
         _typeTable.add(name, type);
     }
-    Function* resolveFunction(Reference<Identifier> identifier, TypeList typeList)
+    void addVariable(String name, Type type, DiagnosticLocation location)
+    {
+        if (_symbolTable.hasKey(name)) {
+            static String error(" is already defined");
+            location.throwError(name + error);
+        }
+        _symbolTable.add(name, new Variable(type));
+    }
+    Function* resolveFunction(Reference<Identifier> identifier, TypeList typeList, DiagnosticLocation location)
     {
         if (!_symbolTable.hasKey(identifier->name()))
             return 0;
@@ -185,18 +267,23 @@ public:
         FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<Symbol*>(symbol));
         if (functionName == 0) {
             static String error(" is not a function");
-            _source.throwError(identifier->name() + error);  // TODO: is this the right location?
+            location.throwError(identifier->name() + error);
+        }
+        if (!functionName->hasOverload(typeList)) {
+            static String error(" has no overload with argument types ");
+            location.throwError(identifier->name() + error + typeList.toString());
         }
         return functionName->lookUpOverload(typeList);
     }
-    Reference<Symbol> resolveSymbol(String name)
+    Reference<Symbol> resolveSymbol(String name, DiagnosticLocation location)
     {
-        if (!_symbolTable.hasKey(name))
-            return Reference<Symbol>();
+        if (!_symbolTable.hasKey(name)) {
+            static String error("Undefined symbol ");
+            location.throwError(error + name);
+        }
         return _symbolTable.lookUp(name);
     }
 private:
-    CharacterSource _source;
     HashTable<String, Reference<Symbol> > _symbolTable;
     HashTable<String, Type> _typeTable;
     Stack<Value> _stack;
@@ -218,82 +305,22 @@ private:
     Handle _consoleOutput;
 };
 
-class Space
-{
-public:
-    static void parse(Context* context)
-    {
-        do {
-            CharacterSource s = context->getSource();
-            int c = context->get();
-            if (c == ' ' || c == 10)
-                continue;
-            if (parseComment(context))
-                continue;
-            context->setSource(s);
-            return;
-        } while (true);
-    }
-private:
-    static bool parseComment(Context* context)
-    {
-        static String endOfFile("End of file in comment");
-        static String printableCharacter("printable character");
-        CharacterSource s = context->getSource();
-        int c = context->get();
-        if (c != '/') {
-            context->setSource(s);
-            return false;
-        }
-        c = context->get();
-        if (c == '/') {
-            do {
-                s = context->getSource();
-                c = context->get();
-                if (c == 10 || c == -1)
-                    break;
-                if (c < 0x20)
-                    s.throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
-            } while (true);
-            return true;
-        }
-        if (c == '*') {
-            do {
-                if (parseComment(context))
-                    continue;
-                s = context->getSource();
-                c = context->get();
-                while (c == '*') {
-                    s = context->getSource();
-                    c = context->get();
-                    if (c == '/')
-                        return true;
-                }
-                if (c == -1)
-                    s.throwError(endOfFile);
-                if (c < 0x20 && c != 10)
-                    s.throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
-            } while (true);
-        }
-        return false;
-    }
-};
-
 template<class T> class ExpressionTemplate : public ReferenceCounted
 {
 public:
-    static Reference<ExpressionTemplate> parse(Context* context)
+    static Reference<ExpressionTemplate> parse(CharacterSource* source, Context* context)
     {
-        Reference<Expression> e = parseComponent(context);
+        Reference<Expression> e = parseComponent(source, context);
         do {
-            int c = context->get();
+            CharacterSource s = *source;
+            int c = s.get();
             if (c == '+') {
-                Space::parse(context);
-                CharacterSource s = context->getSource();
-                Reference<Expression> e2 = parseComponent(context);
+                *source = s;
+                Space::parse(source, context);
+                Reference<Expression> e2 = parseComponent(source, context);
                 if (!e2.valid()) {
                     static String literal("literal or opening parenthesis");
-                    s.throwUnexpected(literal, String::codePoint(c));
+                    source->throwUnexpected(literal, String::codePoint(c));
                 }
                 e = new AddExpression(e, e2);
             }
@@ -301,33 +328,34 @@ public:
                 return e;
         } while (true);
     }
-    static Reference<ExpressionTemplate> parseComponent(Context* context)
+    static Reference<ExpressionTemplate> parseComponent(CharacterSource* source, Context* context)
     {
-        Reference<Expression> e = DoubleQuotedString::parse(context);
+        Reference<Expression> e = DoubleQuotedString::parse(source, context);
         if (e.valid())
             return e;
-        e = Integer::parse(context);
+        e = Integer::parse(source, context);
         if (e.valid())
             return e;
-        CharacterSource s = context->getSource();
-        int c = context->get();
+        CharacterSource s = *source;
+        int c = s.get();
         if (c == '(') {
-            Space::parse(context);
-            e = parse(context);
-            CharacterSource s = context->getSource();
-            c = context->get();
+            *source = s;
+            Space::parse(source, context);
+            e = parse(source, context);
+            c = s.get();
             if (c != ')') {
                 static String closingParenthesis("closing parenthesis");
-                s.throwUnexpected(closingParenthesis, String::codePoint(c));
+                source->throwUnexpected(closingParenthesis, String::codePoint(c));
             }
-            Space::parse(context);
+            *source = s;
+            Space::parse(source, context);
             return e;
         }
-        context->setSource(s);
         return 0;
     }
     virtual void compile(Context* context) = 0;
     virtual Type type() const = 0;
+    virtual void push(Context* context) = 0;
 };
 
 typedef ExpressionTemplate<void> Expression;
@@ -335,53 +363,53 @@ typedef ExpressionTemplate<void> Expression;
 class Identifier : public Expression
 {
 public:
-    static Reference<Identifier> parse(Context* context)
+    static Reference<Identifier> parse(CharacterSource* source, Context* context)
     {
-        CharacterSource s = context->getSource();
-        CharacterSource s2 = s;
-        int start = s.position();
+        CharacterSource s = *source;
+        DiagnosticLocation location = s.location();
+        int start = s.offset();
         int c = s.get();
         if (c < 'a' || c > 'z')
             return 0;
-        s2 = s;
         do {
+            *source = s;
             c = s.get();
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
-                s2 = s;
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')
                 continue;
-            }
             break;
         } while (true);
-        int end = s.position();
-        context->setSource(s2);
-        Space::parse(context);
-        return new Identifier(s, s.subString(start, end));
+        int end = source->offset();
+        Space::parse(source, context);
+        return new Identifier(s.subString(start, end), location);
     }
-    Type type() const { return _symbol->type(); }
+    Type type() const { return _symbol->type(_name, _location); }
     String name() const { return _name; }
+    void push(Context* context)
+    {
+        context->push(_symbol->value());
+    }
     void compile(Context* context)
     {
-        _symbol = context->resolveSymbol(_name);
-        if (!_symbol.valid()) {
-            static String error("Undefined symbol ");
-            _source.throwError(error + _name);
-        }
+        _symbol = context->resolveSymbol(_name, _location);
     }
 private:
-    Identifier(CharacterSource source, String name)
-      : _source(source), _name(name) 
+    Identifier(String name, DiagnosticLocation location)
+      : _name(name), _location(location)
     { }
-    CharacterSource _source;
     String _name;
     Reference<Symbol> _symbol;
+    DiagnosticLocation _location;
 };
 
 template<class T> class StatementTemplate : public ReferenceCounted
 {
 public:
-    static Reference<StatementTemplate> parse(Context* context)
+    static Reference<StatementTemplate> parse(CharacterSource* source, Context* context)
     {
-        Reference<Statement> s = FunctionCallStatement::parse(context);
+        Reference<Statement> s = FunctionCallStatement::parse(source, context);
+        if (s.valid())
+            return s;
+        s = VariableDeclarationStatement::parse(source, context);
         if (s.valid())
             return s;
         return 0;
@@ -395,11 +423,11 @@ typedef StatementTemplate<void> Statement;
 class StatementSequence : public ReferenceCounted
 {
 public:
-    static Reference<StatementSequence> parse(Context* context)
+    static Reference<StatementSequence> parse(CharacterSource* source, Context* context)
     {
         Stack<Reference<Statement> > statements;
         do {
-            Reference<Statement> statement = Statement::parse(context);
+            Reference<Statement> statement = Statement::parse(source, context);
             if (!statement.valid())
                 break;
             statements.push(statement);
@@ -426,43 +454,47 @@ private:
 class FunctionCallStatement : public Statement
 {
 public:
-    static Reference<FunctionCallStatement> parse(Context* context)
+    static Reference<FunctionCallStatement> parse(CharacterSource* source, Context* context)
     {
-        CharacterSource s = context->getSource();
-        Reference<Identifier> functionName = Identifier::parse(context);
+        CharacterSource s = *source;
+        DiagnosticLocation location = s.location();
+        Reference<Identifier> functionName = Identifier::parse(&s, context);
         if (!functionName.valid())
             return 0;
-        int c = context->get();
-        if (c != '(') {
-            context->setSource(s);
+        int c = s.get();
+        if (c != '(')
             return 0;
-        }
-        Space::parse(context);
+        Space::parse(&s, context);
         int n = 0;
-        c = context->get();
+        *source = s;
+        c = s.get();
         Stack<Reference<Expression> > stack;
         while (c != ')') {
-            Reference<Expression> e = Expression::parse(context);
+            Reference<Expression> e = Expression::parse(source, context);
             if (!e.valid()) {
                 static String expression("Expected expression");
-                context->getSource().throwError(expression);
+                source->location().throwError(expression);
             }
             stack.push(e);
-            s = context->getSource();
-            c = context->get();
+            s = *source;
+            c = s.get();
             if (c != ',' && c != ')') {
                 static String commaOrCloseParentheses(", or )");
-                s.throwUnexpected(commaOrCloseParentheses, String::codePoint(c));
+                source->throwUnexpected(commaOrCloseParentheses, String::codePoint(c));
             }
-            Space::parse(context);
-        } while (true);
-        context->getSource().assert(';');
-        Reference<FunctionCallStatement> functionCall = new FunctionCallStatement(functionName, n);
+            *source = s;
+            Space::parse(source, context);
+        } 
+        source->assert(';');
+        Space::parse(source, context);
+        Reference<FunctionCallStatement> functionCall = new FunctionCallStatement(functionName, n, location);
         stack.toArray(&functionCall->_arguments);
         return functionCall;
     }
     void run(Context* context)
     {
+        for (int i = 0; i < _arguments.count(); ++i)
+            _arguments[i]->push(context);
         _function->call(context);
     }
     void compile(Context* context)
@@ -473,10 +505,11 @@ public:
             argumentTypes.push(_arguments[i]->type());
         }
         argumentTypes.finalize();
-        _function = context->resolveFunction(_functionName, argumentTypes);
+        _function = context->resolveFunction(_functionName, argumentTypes, _location);
     }
 private:
-    FunctionCallStatement(Reference<Identifier> functionName, int n) : _functionName(functionName)
+    FunctionCallStatement(Reference<Identifier> functionName, int n, DiagnosticLocation location)
+      : _functionName(functionName), _location(location)
     {
         _arguments.allocate(n);
     }
@@ -484,33 +517,82 @@ private:
     Reference<Identifier> _functionName;
     Function* _function;
     Array<Reference<Expression> > _arguments;
+    DiagnosticLocation _location;
+};
+
+class VariableDeclarationStatement : public Statement
+{
+public:
+    static Reference<VariableDeclarationStatement> parse(CharacterSource* source, Context* context)
+    {
+        DiagnosticLocation location = source->location();
+        CharacterSource s = *source;
+        Type type = Type::parse(&s, context);
+        if (!type.valid())
+            return 0;
+        Reference<Identifier> identifier = Identifier::parse(&s, context);
+        if (!identifier.valid())
+            return 0;
+        int c = s.get();
+        if (c != '=')
+            return 0;
+        Space::parse(&s, context);
+        *source = s;
+        Reference<Expression> e = Expression::parse(source, context);
+        if (!e.valid()) {
+            static String expression("Expected expression");
+            source->location().throwError(expression);
+        }
+        source->assert(';');
+        Space::parse(source, context);
+        return new VariableDeclarationStatement(type, identifier, e, location);
+    }
+    void compile(Context* context)
+    {
+        _variable = context->addVariable(_identifier->name(), _type, _location);
+    }
+    void run(Context* context)
+    {
+        _initializer->push(context);
+        _variable->setValue(context->pop());
+    }
+private:
+    VariableDeclarationStatement(Type type, Reference<Identifier> identifier, Reference<Expression> initializer, DiagnosticLocation location)
+      : _type(type), _identifier(identifier), _initializer(initializer), _location(location)
+    { }
+    Type _type;
+    Reference<Identifier> _identifier;
+    Reference<Expression> _initializer;
+    DiagnosticLocation _location;
+    Reference<Variable> _variable;
 };
 
 class Integer : public Expression
 {
 public:
-    static Reference<Integer> parse(Context* context)
+    static Reference<Integer> parse(CharacterSource* source, Context* context)
     {
-        CharacterSource s = context->getSource();
+        CharacterSource s = *source;
         int n = 0;
-        int c = context->get();
-        if (c < '0' || c > '9') {
-            context->setSource(s);
+        int c = s.get();
+        if (c < '0' || c > '9')
             return 0;
-        }
         do {
             n = n*10 + c - '0';
-            s = context->getSource();
+            *source = s;
             c = s.get();
             if (c < '0' || c > '9') {
-                context->setSource(s);
-                Space::parse(context);
+                Space::parse(source, context);
                 return new Integer(n);
             }
         } while (true);
     }
     void compile(Context* context) { }
     Type type() const { return IntType(); }
+    void push(Context* context)
+    {
+        context->push(Value(_n));
+    }
 private:
     Integer(int n) : _n(n) { }
     int _n;
@@ -519,7 +601,7 @@ private:
 class DoubleQuotedString : public Expression
 {
 public:
-    static Reference<DoubleQuotedString> parse(Context* context)
+    static Reference<DoubleQuotedString> parse(CharacterSource* source, Context* context)
     {
         static String endOfFile("End of file in string");
         static String endOfLine("End of line in string");
@@ -533,44 +615,44 @@ public:
         static String dollar = String::codePoint('$');
         static String singleQuote = String::codePoint('\'');
         static String backQuote = String::codePoint('`');
-        CharacterSource s = context->getSource();
-        if (context->get() != '"') {
-            context->setSource(s);
+        CharacterSource s = *source;
+        if (s.get() != '"')
             return 0;
-        }
-        int start = context->getSource().position();
+        *source = s;
+        int start = s.offset();
         int end;
         String insert;
         int n;
         int nn;
         String string;
         do {
-            s = context->getSource();
-            end = s.position();
-            int c = context->get();
+            s = *source;
+            end = s.offset();
+            int c = s.get();
             if (c < 0x20) {
                 if (c == 10)
-                    s.throwError(endOfLine);
+                    source->location().throwError(endOfLine);
                 if (c == -1)
-                    s.throwError(endOfFile);
-                s.throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+                    source->location().throwError(endOfFile);
+                source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
             }
+            *source = s;
             switch (c) {
                 case '"':
-                    string += context->getSource().subString(start, end);
-                    Space::parse(context);
+                    string += s.subString(start, end);
+                    Space::parse(source, context);
                     return new DoubleQuotedString(string);
                 case '\\':
-                    s = context->getSource();
                     string += s.subString(start, end);
-                    c = context->get();
+                    c = s.get();
                     if (c < 0x20) {
                         if (c == 10)
-                            s.throwError(endOfLine);
+                            source->location().throwError(endOfLine);
                         if (c == -1)
-                            s.throwError(endOfFile);
-                        s.throwUnexpected(escapedCharacter, String::hexadecimal(c, 2));
+                            source->location().throwError(endOfFile);
+                        source->throwUnexpected(escapedCharacter, String::hexadecimal(c, 2));
                     }
+                    *source = s;
                     switch (c) {
                         case 'n':
                             insert = newLine;
@@ -591,55 +673,59 @@ public:
                             insert = backQuote;
                             break;
                         case 'U':
-                            context->getSource().assert('+');
+                            source->assert('+');
                             n = 0;
                             for (int i = 0; i < 4; ++i) {
-                                s = context->getSource();
-                                nn = parseHexadecimalCharacter(context);
-                                if (nn == -1)
-                                    s.throwUnexpected(hexadecimalDigit, String::codePoint(context->get()));
+                                nn = parseHexadecimalCharacter(source, context);
+                                if (nn == -1) {
+                                    s = *source;
+                                    source->throwUnexpected(hexadecimalDigit, String::codePoint(s.get()));
+                                }
                                 n = (n << 4) | nn;
                             }
-                            s = context->getSource();
-                            nn = parseHexadecimalCharacter(context);
+                            nn = parseHexadecimalCharacter(source, context);
                             if (nn != -1) {
                                 n = (n << 4) | nn;
-                                s = context->getSource();
-                                nn = parseHexadecimalCharacter(context);
+                                nn = parseHexadecimalCharacter(source, context);
                                 if (nn != -1)
                                     n = (n << 4) | nn;
-                                else
-                                    context->setSource(s);
                             }
-                            else
-                                context->setSource(s);
                             insert = String::codePoint(n);
                             break;
                         default:
-                            s.throwUnexpected(escapedCharacter, String::codePoint(c));
+                            source->throwUnexpected(escapedCharacter, String::codePoint(c));
                     }
                     string += insert;
-                    start = context->getSource().position();
+                    start = source->offset();
                     break;
             }
         } while (true);
     }
     void compile(Context* context) { }
     Type type() const { return StringType(); }
+    void push(Context* context)
+    {
+        context->push(Value(_string));
+    }
 private:
     DoubleQuotedString(String string) : _string(string) { }
 
-    static int parseHexadecimalCharacter(Context* context)
+    static int parseHexadecimalCharacter(CharacterSource* source, Context* context)
     {
-        CharacterSource s = context->getSource();
-        int c = context->get();
-        if (c >= '0' && c <= '9')
+        CharacterSource s = *source;
+        int c = s.get();
+        if (c >= '0' && c <= '9') {
+            *source = s;
             return c - '0';
-        if (c >= 'A' && c <= 'F')
+        }
+        if (c >= 'A' && c <= 'F') {
+            *source = s;
             return c + 10 - 'A';
-        if (c >= 'a' && c <= 'f')
+        }
+        if (c >= 'a' && c <= 'f') {
+            *source = s;
             return c + 10 - 'a';
-        context->setSource(s);
+        }
         return -1;
     }
     String _string;
@@ -659,12 +745,31 @@ public:
                 return StringType();
         if (_left->type() == IntType() && _right->type() == IntType())
             return IntType();
-        // TODO: error
+        static String error1("Don't know how to add a ");
+        static String error2(" to a ");
+        throw Exception(error1 + _left->type().toString() + error2 + _right->type().toString());
     }
     void compile(Context* context)
     {
         _left->compile(context);
         _right->compile(context);
+    }
+    void push(Context* context)
+    {
+        _right->push(context);
+        _left->push(context);
+        Value l = context->pop();
+        Value r = context->pop();
+        if (_left->type() == StringType())
+            if (_right->type() == StringType())
+                context->push(Value(l.getString() + r.getString()));
+            else
+                context->push(Value(l.getString() + String::decimal(r.getInt())));
+        else
+            if (_right->type() == StringType())
+                context->push(Value(String::decimal(l.getInt()) + r.getString()));
+            else
+                context->push(Value(l.getInt() + r.getInt()));
     }
 private:
     Reference<Expression> _left;
@@ -693,23 +798,23 @@ int main(int argc, char* argv[])
         String contents = file.contents();
         Context context;
 
-        context.addType(String("String"), StringType());
-        context.addType(String("Void"), VoidType());
+        context.addType(String("String"), StringType(), DiagnosticLocation());
+        context.addType(String("Void"), VoidType(), DiagnosticLocation());
 
         PrintFunction print;
         TypeList printArgumentTypes;
         printArgumentTypes.push(StringType());
         printArgumentTypes.finalize();
         Type printFunctionType = FunctionType(VoidType(), printArgumentTypes);
-        context.addFunction(String("print"), printArgumentTypes, &print);
+        context.addFunction(String("print"), printArgumentTypes, &print, DiagnosticLocation());
 
         CharacterSource source(contents, file.path());
-        context.setSource(source);
-        Space::parse(&context);
-        Reference<StatementSequence> program = StatementSequence::parse(&context);
-        if (!context.getSource().empty()) {
+        Space::parse(&source, &context);
+        Reference<StatementSequence> program = StatementSequence::parse(&source, &context);
+        CharacterSource s = source;
+        if (s.get() != -1) {
             static String error("Expected end of file");
-            source.throwError(error);
+            source.location().throwError(error);
         }
 
         program->compile(&context);

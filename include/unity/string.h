@@ -12,15 +12,9 @@ typedef SimpleStringImplementationTemplate<void> SimpleStringImplementation;
 template<class T> class ConcatenatedStringImplementationTemplate;
 typedef ConcatenatedStringImplementationTemplate<void> ConcatenatedStringImplementation;
 
-//template<class T> class HexadecimalStringImplementationTemplate;
-//typedef HexadecimalStringImplementationTemplate<void> HexadecimalStringImplementation;
-
 class HexadecimalStringImplementation;
 class DecimalStringImplementation;
 class CodePointStringImplementation;
-
-template<class T> class CharacterSourceTemplate;
-typedef CharacterSourceTemplate<void> CharacterSource;
 
 template<class T> class HandleTemplate;
 typedef HandleTemplate<void> Handle;
@@ -170,18 +164,22 @@ public:
         CharacterSource start(*this, String());
         CharacterSource s = start;
         int l = 1;
-        while (!s.empty()) {
+        do {
             int c = s.get();
+            if (c == -1)
+                break;
             ++l;
             if (c >= 0x10000)
                 ++l;
-        }
+        } while (true);
         s = start;
         data->allocate(l);
         WCHAR* d = &(*data)[0];
         l = 0;
-        while (!s.empty()) {
+        do {
             int c = s.get();
+            if (c == -1)
+                break;
             if (c >= 0x10000) {
                 c -= 0x10000;
                 d[l++] = 0xd800 + ((c >> 10) & 0x03ff);
@@ -190,7 +188,7 @@ public:
             else {
                 d[l++] = c;
             }
-        }
+        } while (true);
         d[l++] = 0;
     }
 #endif
@@ -503,207 +501,6 @@ public:
     }
 };
 
-class DiagnosticLocation
-{
-public:
-    DiagnosticLocation() { }
-    DiagnosticLocation(String fileName)
-      : _fileName(fileName), _line(1), _column(1)
-    { }
-    String asString() const
-    {
-        static String openBracket("(");
-        static String comma(",");
-        static String closeBracket(")");
-        return _fileName + openBracket + String::decimal(_line) + comma +
-            String::decimal(_column) + closeBracket;
-    }
-    String fileName() const { return _fileName; }
-    void advanceColumn() { ++_column; }
-    void advanceLine() { _column = 1; ++_line; }
-    String _fileName;
-    int _line;
-    int _column;
-};
-
-class ByteSource
-{
-public:
-    ByteSource() { }
-    ByteSource(const String& string) : _string(string), _offset(0)
-    {
-        initSimpleData();
-        advance();
-    }
-    int get() const { return _byte; }
-    void advance()
-    {
-        if (empty()) {
-            _byte = -1;
-            return;
-        }
-        if (_buffer.valid()) {
-            _byte = _buffer[_start];
-            ++_offset;
-            ++_start;
-            --_length;
-            if (_length == 0)
-                initSimpleData();
-            return;
-        }
-        UInt8 nybble = _start & 0x0f;
-        _start >>= 4;
-        _byte = (nybble < 10 ? nybble + '0' : nybble + 'A' - 10);
-    }
-    int offset() const { return _offset; }
-private:
-    void initSimpleData()
-    {
-        _string.initSimpleData(_offset, &_buffer, &_start, &_length);
-    }
-    Buffer _buffer;
-    int _start;
-    int _length;
-    String _string;
-    int _offset;
-    int _byte;
-};
-
-class CodePointSource
-{
-public:
-    CodePointSource() { }
-    CodePointSource(const String& string) : _byteSource(string)
-    {
-        advance();
-    }
-    int get() const { return _codePoint; }
-    void advance()
-    {
-    //    static String overlongEncoding("Overlong encoding");
-    //    static String codePointTooHigh("Code point too high");
-    //    static String unexpectedSurrogate("Unexpected surrogate");
-
-        ByteSource start = _byteSource;
-        int b0 = _byteSource.get();
-        if (b0 < 0x80)
-            return b0;
-        if (b0 < 0xc0 || b0 >= 0xf8)
-            throwUTF8Exception(true, b0);
-        
-
-    //    int b1 = getNextByte();
-    //    if (b0 >= 0xc0 && b0 < 0xe0) {
-    //        int r = ((b0 & 0x1f) << 6) | (b1 & 0x3f);
-    //        if (r < 0x80)
-    //            start.throwUTF8Exception(overlongEncoding);
-    //        return r;
-    //    }
-
-    //    int b2 = getNextByte();
-    //    if (b0 >= 0xe0 && b0 < 0xf0) {
-    //        int r = ((b0 & 0x0f) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
-    //        if (r < 0x800)
-    //            start.throwUTF8Exception(overlongEncoding);
-    //        if (r >= 0xd800 && r < 0xe000)
-    //            start.throwUTF8Exception(unexpectedSurrogate);
-    //        return r;
-    //    }
-
-    //    int b3 = getNextByte();
-    //    int r = ((b0 & 0x07) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
-    //    if (r < 0x10000)
-    //        start.throwUTF8Exception(overlongEncoding);
-    //    if (r >= 0x110000)
-    //        start.throwUTF8Exception(codePointTooHigh);
-    //    return r;
-    //}
-private:
-    void throwUTF8Exception(bool first, int b)
-    {
-        static String expectedFirst("Expected 0x00..0x7F or 0xC0..0xF7, found 0x");
-        static String expectedNext("Expected 0x80..0xBF, found 0x");
-        String expected = first ? expectedFirst : expectedNext;
-        static String endOfString("end of string");
-        String s = (b == -1) ? endOfString : String::hexadecimal(b, 2);
-        throwUTF8Exception(expected + s);
-    }
-    void throwUTF8Exception(String message)
-    {
-        static String at(" at ");
-        static String in(" in ");
-        throw Exception(message + at + String::hexadecimal(_byteSource.offset(), 8) + in + _location.fileName());
-    }
-    //int getNextByte()
-    //{
-    //    if (empty())
-    //        throwUTF8Exception(false);
-    //    int b = getByte();
-    //    if (b < 0x80 || b >= 0xc0)
-    //        throwUTF8Exception(false);
-    //    return b;
-    //}
-
-    ByteSource _byteSource;
-    int _codePoint;
-};
-
-class CharacterSource
-{
-public:
-    CharacterSource() { }
-    CharacterSource(const String& string, const String& fileName)
-      : _string(string), _location(fileName)
-    { }
-    int get()
-    {
-        int c = getCodePoint();
-        _location.advanceColumn();
-        if (c == 10) {
-            CharacterSource s = *this;
-            if (s.getCodePoint() == 13)
-                *this = s;
-            _location.advanceLine();
-            return 10;
-        }
-        if (c == 13) {
-            CharacterSource s = *this;
-            if (s.getCodePoint() == 10)
-                *this = s;
-            _location.advanceLine();
-            return 10;
-        }
-        return c;
-    }
-    bool empty() const { return _length == 0; }
-    void assert(int codePoint)
-    {
-        CharacterSource start = *this;
-        int found = get();
-        if (found == codePoint)
-            return;
-        start.throwUnexpected(String::codePoint(codePoint), String::codePoint(found));
-    }
-    int line() const { return _line; }
-    int column() const { return _column; }
-    void throwUnexpected(const String& expected, const String& observed)
-    {
-        static String expectedMessage("Expected ");
-        static String found(", found ");
-        throwError(expectedMessage + expected + found + observed);
-    }
-    void throwError(const String& message)
-    {
-        static String colon(": ");
-        throw Exception(_location.asString() + colon + message);
-    }
-    int position() const { return _position; }
-    String subString(int start, int end) { return _string.subString(start, end - start); }
-private:          
-    int _position;
-    DiagnosticLocation _location;
-};
-
 template<class T> class HandleTemplate : Uncopyable
 {
 public:
@@ -807,6 +604,7 @@ public:
         throw Exception(unspecifiedError);
 #endif
     }
+    String message() const { return _message; }
 private:
 #ifdef _WIN32
     static String messageForSystemCode(DWORD error)

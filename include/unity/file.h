@@ -107,8 +107,8 @@ private:
         static String parentDirectory("..");
         static String empty;
 
-        CharacterSource s(path, String());
-        int c = s.getCodePoint();
+        CodePointSource s(path);
+        int c = s.get();
         int p = 1;
         int subDirectoryStart = 0;
         Directory dir = relativeTo;
@@ -117,37 +117,35 @@ private:
         if (c == '/' || c == '\\') {
             dir = RootDirectory();
             subDirectoryStart = p;
-            if (s.empty())
+            c = s.get();
+            if (c == -1)
                 return dir;
-            c = s.getCodePoint();
             ++p;
             if (c == '/' || c == '\\') {
                 int serverStart = p;
-                if (s.empty())
-                    throw Exception(invalidPath);
                 do {
-                    c = s.getCodePoint();
-                    ++p;
-                    if (s.empty())
+                    c = s.get();
+                    if (c == -1)
                         throw Exception(invalidPath);
+                    ++p;
                     // TODO: What characters are actually legal in server names?
                 } while (c != '\\' && c != '/');
                 String server = path.subString(serverStart, p - (serverStart + 1));
                 int shareStart = p;
                 do {
-                    c = s.getCodePoint();
-                    ++p;
-                    if (s.empty())
+                    c = s.get();
+                    if (c == -1)
                         break;
+                    ++p;
                     // TODO: What characters are actually legal in share names?
                 } while (c != '\\' && c != '/');
                 String share = path.subString(shareStart, p - (shareStart + 1));
                 dir = UNCRootDirectory(server, share);
                 do {
                     subDirectoryStart = p;
-                    if (s.empty())
+                    c = s.get();
+                    if (c == -1)
                         return dir;
-                    c = s.getCodePoint();
                     ++p;
                 } while (c == '/' || c == '\\');
             }
@@ -157,23 +155,23 @@ private:
         else {
             int drive = (c >= 'a' ? (c - 'a') : (c - 'A'));
             if (drive >= 0 && drive < 26) {
-                if (s.empty())
+                c = s.get();
+                if (c == -1)
                     return FileSystemObject(relativeTo, path.subString(0, 1));
-                c = s.getCodePoint();
                 ++p;
                 if (c == ':') {
                     subDirectoryStart = p;
-                    if (s.empty())
+                    c = s.get();
+                    if (c == -1)
                         return DriveCurrentDirectory(drive);
-                    c = s.getCodePoint();
                     ++p;
                     if (c == '/' || c == '\\') {
                         dir = DriveRootDirectory(drive);
                         while (c == '/' || c == '\\') {
                             subDirectoryStart = p;
-                            if (s.empty())
+                            c = s.get();
+                            if (c == -1)
                                 return dir;
-                            c = s.getCodePoint();
                             ++p;
                         }
                     }
@@ -189,9 +187,9 @@ private:
                 if (c < 32 || c == '?' || c == '*' || c == ':' || c == '"' || c == '<' || c == '>')
                     throw Exception(invalidPath);
                 ++p;
-                if (s.empty())
+                c = s.get();
+                if (c == -1)
                     break;
-                c = s.getCodePoint();
             }
             name = path.subString(subDirectoryStart, p - (subDirectoryStart + 1));
             if (name == currentDirectory)
@@ -205,16 +203,16 @@ private:
                 if (l == '.' || l == ' ')
                     throw Exception(invalidPath);
             }
-            if (s.empty())
+            if (c == -1)
                 break;
             while (c == '/' || c == '\\') {
                 subDirectoryStart = p;
-                if (s.empty())
+                c = s.get();
+                if (c == -1)
                     break;
-                c = s.getCodePoint();
                 ++p;
             }
-            if (s.empty())
+            if (c == -1)
                 break;
             if (name != empty)
                 dir = dir.subDirectory(name);
@@ -235,7 +233,7 @@ private:
         static String empty;
 
         CharacterSource s(path, String());
-        int c = s.getCodePoint();
+        int c = s.get();
         int p = 1;  // p always points to the character after c
         int subDirectoryStart = 0;
         Directory dir = relativeTo;
@@ -245,9 +243,9 @@ private:
             dir = RootDirectory();
             while (c == '/') {
                 subDirectoryStart = p;
-                if (s.empty())
+                c = s.get();
+                if (c == -1)
                     return dir;
-                c = s.getCodePoint();
                 ++p;
             }
         }
@@ -260,9 +258,9 @@ private:
                     throw Exception(invalidPath);
                 }
                 ++p;
-                if (s.empty())
+                c = s.get();
+                if (c == -1)
                     break;
-                c = s.getCodePoint();
             }
             name = path.subString(subDirectoryStart, p - (subDirectoryStart + 1));
             if (name == currentDirectory)
@@ -271,16 +269,16 @@ private:
                 dir = dir.parent();
                 name = empty;
             }
-            if (s.empty())
+            if (c == -1)
                 break;
             while (c == '/') {
                 subDirectoryStart = p;
-                if (s.empty())
+                c = s.get();
+                if (c == -1)
                     break;
-                c = s.getCodePoint();
                 ++p;
             }
-            if (s.empty())
+            if (c == -1)
                 break;
             if (name != empty)
                 dir = dir.subDirectory(name);
@@ -427,8 +425,8 @@ public:
     #endif
         String path() const
         {
-            static String slash("/");
-            return slash;
+            static String empty("");
+            return empty;
         }
         bool isRoot() const { return true; }
 
@@ -483,6 +481,11 @@ private:
             p[0] = _drive + 'A';
             p[1] = ':';
             return String(Buffer(bufferImplementation), 0, 2);
+        }
+        String path() const
+        {
+            static String colonSlash(":");
+            return String::codePoint('A' + _drive) + colonSlash;
         }
 
         int hash(int h) const { return _drive; }

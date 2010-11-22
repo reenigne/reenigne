@@ -1,13 +1,6 @@
-Get rid of Context::get()?
-Fix incorrect DoubleQuotedString parsing?
-Error handling in FunctionName::addOverload()
-Error handling in FunctionName::lookUpOverload()
-Error handling in FunctionName::type()
-Error handling in Context::addFunction()
-Error handling in Context::addType()
-Error handling in Context::resolveFunction()
-Error handling in AddExpression::type()
-Add variable declaration statement
+Implement TypeList::parse()
+How should we deal with built in types?
+  Need a class with instances for String, Int, Void etc.
 Add assignment statement
 Add multi-line strings
 Add PHP-style string inserts:
