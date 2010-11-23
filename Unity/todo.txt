@@ -1,15 +1,20 @@
-Implement TypeList::parse()
-How should we deal with built in types?
-  Need a class with instances for String, Int, Void etc.
-Add assignment statement
-Add multi-line strings
+Test EmbeddedLiteral::parse()
 Add PHP-style string inserts:
   "Hello $name"
   "Hello ${sin(x) + strlen("bar")}"
 Add ability to define functions
 Add include statement
-
+Add some more operators
+Add some more statements
+Add some more types
+Allow use of more LValues
+Add classes
+Add templates
+Compile to executable code
+                                                                   
 Use operator[] instead of lookUp and add in HashTable?
-
+Need a better error message when statement isn't recognized as such
 For String::throwUnexpected(), print name (or hex) of found character to avoid putting unprintable characters in error messages.
+  Need a way to convert any codepoint into an ASCII printable string
+    Use U+xxxx
 Make sure we have a sensible error message when no memory can be allocated at all

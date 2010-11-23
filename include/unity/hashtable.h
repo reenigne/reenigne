@@ -42,6 +42,7 @@ private:
         {
             while (_next != 0 && _next != this) {
                 TableEntry* t = _next->_next;
+                _next->_next = 0;
                 delete _next;
                 _next = t;
             }

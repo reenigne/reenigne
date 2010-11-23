@@ -1,65 +1,8 @@
 class VoidType;
 
-class TypeIdentifier : public ReferenceCounted
-{
-public:
-    static Reference<TypeIdentifier> parse(CharacterSource* source, Context* context)
-    {
-        CharacterSource s = *source;
-        DiagnosticLocation location = s.location();
-        int start = s.offset();
-        int c = s.get();
-        if (c < 'A' || c > 'Z')
-            return 0;
-        do {
-            *source = s;
-            c = s.get();
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')
-                continue;
-            break;
-        } while (true);
-        int end = source->offset();
-        Space::parse(source, context);
-        return new TypeIdentifier(s, s.subString(start, end), location);
-    }
-    String name() const { return _name; }
-private:
-    TypeIdentifier(String name, DiagnosticLocation location)
-      : _name(name), _location(location)
-    { }
-    String _name;
-    DiagnosticLocation _location;
-};
-
 template<class T> class TypeTemplate
 {
 public:
-    static Type parse(CharacterSource* source, Context* context)
-    {
-        Reference<TypeIdentifier> identifier = TypeIdentifier::parse(source, context);
-        if (!identifier.valid())
-            return Type();
-        Type type = SimpleType(identifier);
-        do {
-            CharacterSource s = *source;
-            int c = s.get();
-            if (c == '*') {
-                *source = s;
-                Space::parse(source, context);
-                type = PointerType(type);
-                continue;
-            }
-            if (c == '(') {
-                *source = s;
-                Space::parse(source, context);
-                TypeList typeList = TypeList::parse(source, context);
-                type = FunctionType(type, typeList);
-                continue;
-            }
-            break;
-        } while (true);
-        return type;
-    }
     TypeTemplate() : _implementation(VoidType::implementation()) { }
     bool operator==(const TypeTemplate& other)
     {
@@ -179,32 +122,6 @@ private:
 Reference<Type::Implementation> StringType::_implementation;
 
 Reference<Type::Implementation> VoidType::_implementation;
-
-class SimpleType : public Type
-{
-public:
-    SimpleType(Reference<TypeIdentifier> identifier) : Type(new Implementation(identifier)) { }
-private:
-    class Implementation : public Type::Implementation
-    {
-    public:
-        Implementation(Reference<TypeIdentifier> identifier) : _identifier(identifier) { }
-        bool equals(const Type::Implemntation* otherBase)
-        {
-            const Implementation* other = dynamic_cast<const Implementation*>(otherBase);
-            if (other == 0)
-                return false;
-            return _identifier->name() == other->_identifier->name();
-        }
-        int hash() const { return _identifier->name().hash(); }
-        String toString() const
-        {
-            return _identifier->name();
-        }
-    private:
-        Reference<TypeIdentifier> _identifier;
-    };
-};
 
 class PointerType : public Type
 {
@@ -333,5 +250,3 @@ public:
       : Type(new Implementation(returnType, argumentTypes))
     { }
 };
-
-

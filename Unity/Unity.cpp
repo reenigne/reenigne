@@ -76,68 +76,6 @@ private:
     int _nArguments;
 };
 
-class Space
-{
-public:
-    static void parse(CharacterSource* source, Context* context)
-    {
-        do {
-            CharacterSource s = *source;
-            int c = s.get();
-            if (c == ' ' || c == 10) {
-                *source = s;
-                continue;
-            }
-            if (parseComment(source, context))
-                continue;
-            return;
-        } while (true);
-    }
-private:
-    static bool parseComment(CharacterSource* source, Context* context)
-    {
-        static String endOfFile("End of file in comment");
-        static String printableCharacter("printable character");
-        CharacterSource s = *source;
-        int c = s.get();
-        if (c != '/')
-            return false;
-        c = s.get();
-        if (c == '/') {
-            do {
-                *source = s;
-                c = s.get();
-                if (c == 10 || c == -1)
-                    break;
-                if (c < 0x20)
-                    source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
-            } while (true);
-            *source = s;
-            return true;
-        }
-        if (c == '*') {
-            do {
-                if (parseComment(&s, context))
-                    continue;
-                *source = s;
-                c = s.get();
-                while (c == '*') {
-                    c = s.get();
-                    if (c == '/') {
-                        *source = s;
-                        return true;
-                    }
-                }
-                if (c == -1)
-                    source->location().throwError(endOfFile);
-                if (c < 0x20 && c != 10)
-                    source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
-            } while (true);
-        }
-        return false;
-    }
-};
-
 template<class T> class ContextTemplate;
 
 typedef ContextTemplate<void> Context;
@@ -175,7 +113,7 @@ class FunctionName : public Symbol
 {
 public:
     void addOverload(TypeList argumentTypes, Function* function, DiagnosticLocation location)
-    {                                                             
+    {
         if (_overloads.hasKey(argumentTypes)) {
             static String error("This overload has already been defined.");
             location.throwError(error);
@@ -251,13 +189,15 @@ public:
         }
         _typeTable.add(name, type);
     }
-    void addVariable(String name, Type type, DiagnosticLocation location)
+    Reference<Variable> addVariable(String name, Type type, DiagnosticLocation location)
     {
         if (_symbolTable.hasKey(name)) {
             static String error(" is already defined");
             location.throwError(name + error);
         }
-        _symbolTable.add(name, new Variable(type));
+        Reference<Variable> variable = new Variable(type);
+        _symbolTable.add(name, variable);
+        return variable;
     }
     Function* resolveFunction(Reference<Identifier> identifier, TypeList typeList, DiagnosticLocation location)
     {
@@ -283,6 +223,14 @@ public:
         }
         return _symbolTable.lookUp(name);
     }
+    Type resolveType(String name, DiagnosticLocation location)
+    {
+        if (!_typeTable.hasKey(name)) {
+            static String error("Undefined type ");
+            location.throwError(error + name);
+        }
+        return _typeTable.lookUp(name);
+    }
 private:
     HashTable<String, Reference<Symbol> > _symbolTable;
     HashTable<String, Type> _typeTable;
@@ -304,6 +252,216 @@ public:
 private:
     Handle _consoleOutput;
 };
+
+class Space
+{
+public:
+    static void parse(CharacterSource* source, Context* context)
+    {
+        do {
+            CharacterSource s = *source;
+            int c = s.get();
+            if (c == ' ' || c == 10) {
+                *source = s;
+                continue;
+            }
+            if (parseComment(source, context))
+                continue;
+            return;
+        } while (true);
+    }
+private:
+    static bool parseComment(CharacterSource* source, Context* context)
+    {
+        static String endOfFile("End of file in comment");
+        static String printableCharacter("printable character");
+        CharacterSource s = *source;
+        int c = s.get();
+        if (c != '/')
+            return false;
+        c = s.get();
+        if (c == '/') {
+            do {
+                *source = s;
+                c = s.get();
+                if (c == 10 || c == -1)
+                    break;
+                if (c < 0x20)
+                    source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+            } while (true);
+            *source = s;
+            return true;
+        }
+        if (c == '*') {
+            do {
+                if (parseComment(&s, context))
+                    continue;
+                *source = s;
+                c = s.get();
+                while (c == '*') {
+                    c = s.get();
+                    if (c == '/') {
+                        *source = s;
+                        return true;
+                    }
+                }
+                if (c == -1)
+                    source->location().throwError(endOfFile);
+                if (c < 0x20 && c != 10)
+                    source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+            } while (true);
+        }
+        return false;
+    }
+};
+
+class TypeIdentifier;
+
+template<class T> class TypeSpecifierTemplate : public ReferenceCounted
+{
+public:
+    static Reference<TypeSpecifierTemplate> parse(CharacterSource* source, Context* context)
+    {
+        Reference<TypeSpecifierTemplate> typeSpecifier = TypeIdentifier::parse(source, context);
+        if (!typeSpecifier.valid())
+            return 0;
+        do {
+            CharacterSource s = *source;
+            int c = s.get();
+            if (c == '*') {
+                *source = s;
+                Space::parse(source, context);
+                typeSpecifier = new PointerTypeSpecifier(typeSpecifier);
+                continue;
+            }
+            if (c == '(') {
+                *source = s;
+                Space::parse(source, context);
+                Reference<TypeListSpecifier> typeListSpecifier = TypeListSpecifier::parse(source, context);
+                typeSpecifier = new FunctionTypeSpecifier(typeSpecifier, typeListSpecifier);
+                continue;
+            }
+            break;
+        } while (true);
+        return typeSpecifier;
+    }
+    virtual void compile(Context* context) = 0;
+    Type type() const { return _type; }
+protected:
+    Type _type;
+};
+
+typedef TypeSpecifierTemplate<void> TypeSpecifier;
+
+class TypeIdentifier : public TypeSpecifier
+{
+public:
+    static Reference<TypeIdentifier> parse(CharacterSource* source, Context* context)
+    {
+        CharacterSource s = *source;
+        DiagnosticLocation location = s.location();
+        int start = s.offset();
+        int c = s.get();
+        if (c < 'A' || c > 'Z')
+            return 0;
+        do {
+            *source = s;
+            c = s.get();
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')
+                continue;
+            break;
+        } while (true);
+        int end = source->offset();
+        Space::parse(source, context);
+        return new TypeIdentifier(s.subString(start, end), location);
+    }
+    String name() const { return _name; }
+    void compile(Context* context)
+    {
+        _type = context->resolveType(_name, _location);
+    }
+private:
+    TypeIdentifier(String name, DiagnosticLocation location)
+      : _name(name), _location(location)
+    { }
+    String _name;
+    DiagnosticLocation _location;
+};
+
+class PointerTypeSpecifier : public TypeSpecifier
+{
+public:
+    PointerTypeSpecifier(Reference<TypeSpecifier> referentTypeSpecifier)
+      : _referentTypeSpecifier(referentTypeSpecifier)
+    { }
+    void compile(Context* context)
+    {
+        _referentTypeSpecifier->compile(context);
+        _type = PointerType(_referentTypeSpecifier->type());
+    }
+private:
+    Reference<TypeSpecifier> _referentTypeSpecifier;
+};
+
+class TypeListSpecifier : public ReferenceCounted
+{
+public:
+    static Reference<TypeListSpecifier> parse(CharacterSource* source, Context* context)
+    {
+        Stack<Reference<TypeSpecifier> > _stack;
+        do {
+            Reference<TypeSpecifier> typeSpecifier = TypeSpecifier::parse(source, context);
+            if (!typeSpecifier.valid()) {
+                static String error("Type specifier expected");
+                source->location().throwError(error);
+            }
+            _stack.push(typeSpecifier);
+            CharacterSource s = *source;
+            int c = s.get();
+            if (c == ',') {
+                *source = s;
+                Space::parse(source, context);
+                continue;
+            }
+            break;
+        } while (true);
+        return new TypeListSpecifier(&_stack);
+    }
+    void compile(Context* context)
+    {
+        for (int i = 0; i < _array.count(); ++i) {
+            _array[i]->compile(context);
+            _typeList.push(_array[i]->type());
+        }
+        _typeList.finalize();
+    }
+    TypeList typeList() const { return _typeList; }
+private:
+    TypeListSpecifier(Stack<Reference<TypeSpecifier> >* stack)
+    {
+        stack->toArray(&_array);
+    }
+    Array<Reference<TypeSpecifier> > _array;
+    TypeList _typeList;
+};
+
+class FunctionTypeSpecifier : public TypeSpecifier
+{
+public:
+    FunctionTypeSpecifier(Reference<TypeSpecifier> returnTypeSpecifier, Reference<TypeListSpecifier> argumentTypeListSpecifier)
+      : _returnTypeSpecifier(returnTypeSpecifier), _argumentTypeListSpecifier(argumentTypeListSpecifier)
+    { }
+    void compile(Context* context)
+    {
+        _returnTypeSpecifier->compile(context);
+        _argumentTypeListSpecifier->compile(context);
+        _type = FunctionType(_returnTypeSpecifier->type(), _argumentTypeListSpecifier->typeList());
+    }
+private:
+    Reference<TypeSpecifier> _returnTypeSpecifier;
+    Reference<TypeListSpecifier> _argumentTypeListSpecifier;
+};
+
 
 template<class T> class ExpressionTemplate : public ReferenceCounted
 {
@@ -333,7 +491,13 @@ public:
         Reference<Expression> e = DoubleQuotedString::parse(source, context);
         if (e.valid())
             return e;
+        e = EmbeddedLiteral::parse(source, context);
+        if (e.valid())
+            return e;
         e = Integer::parse(source, context);
+        if (e.valid())
+            return e;
+        e = Identifier::parse(source, context);
         if (e.valid())
             return e;
         CharacterSource s = *source;
@@ -412,6 +576,9 @@ public:
         s = VariableDeclarationStatement::parse(source, context);
         if (s.valid())
             return s;
+        s = AssignmentStatement::parse(source, context);
+        if (s.valid())
+            return s;
         return 0;
     }
     virtual void compile(Context* context) = 0;
@@ -484,7 +651,7 @@ public:
             }
             *source = s;
             Space::parse(source, context);
-        } 
+        }
         source->assert(';');
         Space::parse(source, context);
         Reference<FunctionCallStatement> functionCall = new FunctionCallStatement(functionName, n, location);
@@ -527,8 +694,8 @@ public:
     {
         DiagnosticLocation location = source->location();
         CharacterSource s = *source;
-        Type type = Type::parse(&s, context);
-        if (!type.valid())
+        Reference<TypeSpecifier> typeSpecifier = TypeSpecifier::parse(&s, context);
+        if (!typeSpecifier.valid())
             return 0;
         Reference<Identifier> identifier = Identifier::parse(&s, context);
         if (!identifier.valid())
@@ -545,11 +712,12 @@ public:
         }
         source->assert(';');
         Space::parse(source, context);
-        return new VariableDeclarationStatement(type, identifier, e, location);
+        return new VariableDeclarationStatement(typeSpecifier, identifier, e, location);
     }
     void compile(Context* context)
     {
-        _variable = context->addVariable(_identifier->name(), _type, _location);
+        _typeSpecifier->compile(context);
+        _variable = context->addVariable(_identifier->name(), _typeSpecifier->type(), _location);
     }
     void run(Context* context)
     {
@@ -557,12 +725,60 @@ public:
         _variable->setValue(context->pop());
     }
 private:
-    VariableDeclarationStatement(Type type, Reference<Identifier> identifier, Reference<Expression> initializer, DiagnosticLocation location)
-      : _type(type), _identifier(identifier), _initializer(initializer), _location(location)
+    VariableDeclarationStatement(Reference<TypeSpecifier> typeSpecifier, Reference<Identifier> identifier, Reference<Expression> initializer, DiagnosticLocation location)
+      : _typeSpecifier(typeSpecifier), _identifier(identifier), _initializer(initializer), _location(location)
     { }
-    Type _type;
+    Reference<TypeSpecifier> _typeSpecifier;
     Reference<Identifier> _identifier;
     Reference<Expression> _initializer;
+    DiagnosticLocation _location;
+    Reference<Variable> _variable;
+};
+
+class AssignmentStatement : public Statement
+{
+public:
+    static Reference<AssignmentStatement> parse(CharacterSource* source, Context* context)
+    {
+        DiagnosticLocation location = source->location();
+        CharacterSource s = *source;
+        Reference<Identifier> identifier = Identifier::parse(&s, context);
+        if (!identifier.valid())
+            return 0;
+        int c = s.get();
+        if (c != '=')
+            return 0;
+        Space::parse(&s, context);
+        *source = s;
+        Reference<Expression> e = Expression::parse(source, context);
+        if (!e.valid()) {
+            static String expression("Expected expression");
+            source->location().throwError(expression);
+        }
+        source->assert(';');
+        Space::parse(source, context);
+        return new AssignmentStatement(identifier, e, location);
+    }
+    void compile(Context* context)
+    {
+        String name = _identifier->name();
+        _variable = context->resolveSymbol(name, _location);
+        if (!_variable.valid()) {
+            static String error(" is not a variable");
+            _location.throwError(name + error);
+        }
+    }
+    void run(Context* context)
+    {
+        _value->push(context);
+        _variable->setValue(context->pop());
+    }
+private:
+    AssignmentStatement(Reference<Identifier> identifier, Reference<Expression> value, DiagnosticLocation location)
+      : _identifier(identifier), _value(value), _location(location)
+    { }
+    Reference<Identifier> _identifier;
+    Reference<Expression> _value;
     DiagnosticLocation _location;
     Reference<Variable> _variable;
 };
@@ -703,14 +919,12 @@ public:
     }
     void compile(Context* context) { }
     Type type() const { return StringType(); }
-    void push(Context* context)
-    {
-        context->push(Value(_string));
-    }
+    void push(Context* context) { context->push(Value(_string)); }
 private:
     DoubleQuotedString(String string) : _string(string) { }
 
-    static int parseHexadecimalCharacter(CharacterSource* source, Context* context)
+    static int parseHexadecimalCharacter(CharacterSource* source,
+        Context* context)
     {
         CharacterSource s = *source;
         int c = s.get();
@@ -731,10 +945,96 @@ private:
     String _string;
 };
 
+class EmbeddedLiteral : public Expression
+{
+public:
+    static Reference<EmbeddedLiteral> parse(CharacterSource* source,
+        Context* context)
+    {
+        static String empty;
+        static String endOfFile("End of file in string");
+        CharacterSource s = *source;
+        if (s.get() != '#')
+            return 0;
+        if (s.get() != '#')
+            return 0;
+        if (s.get() != '#')
+            return 0;
+        int start = s.offset();
+        do {
+            *source = s;
+            int c = s.get();
+            if (c == -1)
+                source->location().throwError(endOfFile);
+        } while (c != 10);
+        int end = source->offset();
+        String terminator = source->subString(start, end);
+        start = s.offset();
+        CharacterSource terminatorSource(terminator, empty);
+        int cc = terminatorSource.get();
+        String string;
+        do {
+            *source = s;
+            int c = s.get();
+            if (c == -1)
+                source->location().throwError(endOfFile);
+            if (cc == -1) {
+                if (c != '#')
+                    continue;
+                CharacterSource s2 = s;
+                if (s2.get() != '#')
+                    continue;
+                if (s2.get() != '#')
+                    continue;
+                string += s.subString(start, source->offset());
+                *source = s2;
+                Space::parse(source, context);
+                return new EmbeddedLiteral(string);
+            }
+            else
+                if (c == cc) {
+                    CharacterSource s2 = s;
+                    CharacterSource st = terminatorSource;
+                    do {
+                        int ct = st.get();
+                        if (ct == -1) {
+                            if (s2.get() != '#')
+                                break;
+                            if (s2.get() != '#')
+                                break;
+                            if (s2.get() != '#')
+                                break;
+                            string += s.subString(start, source->offset());
+                            *source = s2;
+                            Space::parse(source, context);
+                            return new EmbeddedLiteral(string);
+                        }
+                        int cs = s2.get();
+                        if (ct != cs)
+                            break;
+                    } while (true);
+                }
+            if (c == 10) {
+                string += s.subString(start, source->offset());
+                start = s.offset();
+            }
+        } while (true);
+    }
+    void compile(Context* context) { }
+    Type type() const { return StringType(); }
+    void push(Context* context) { context->push(Value(_string)); }
+private:
+    EmbeddedLiteral(String string) : _string(string) { }
+
+    String _string;
+};
+
 class AddExpression : public Expression
 {
 public:
-    AddExpression(Reference<Expression> left, Reference<Expression> right) : _left(left), _right(right) { }
+    AddExpression(Reference<Expression> left, Reference<Expression> right)
+      : _left(left), _right(right)
+    { }
     Type type() const
     {
         if (_left->type() == StringType())
@@ -800,6 +1100,7 @@ int main(int argc, char* argv[])
 
         context.addType(String("String"), StringType(), DiagnosticLocation());
         context.addType(String("Void"), VoidType(), DiagnosticLocation());
+        context.addType(String("Int"), IntType(), DiagnosticLocation());
 
         PrintFunction print;
         TypeList printArgumentTypes;

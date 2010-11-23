@@ -1,3 +1,5 @@
-print("foo" + 123 + "\n");
+String bar = "baz";
+bar = "bee";
+print("foo" + bar + "\n");
 //"foo" + (234 + 123)
 // foo
