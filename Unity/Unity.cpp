@@ -469,6 +469,8 @@ public:
     static Reference<ExpressionTemplate> parse(CharacterSource* source, Context* context)
     {
         Reference<Expression> e = parseComponent(source, context);
+        if (!e.valid())
+            return 0;
         do {
             CharacterSource s = *source;
             int c = s.get();
@@ -506,12 +508,7 @@ public:
             *source = s;
             Space::parse(source, context);
             e = parse(source, context);
-            c = s.get();
-            if (c != ')') {
-                static String closingParenthesis("closing parenthesis");
-                source->throwUnexpected(closingParenthesis, String::codePoint(c));
-            }
-            *source = s;
+            source->assert(')');
             Space::parse(source, context);
             return e;
         }
@@ -578,6 +575,9 @@ public:
             return s;
         s = AssignmentStatement::parse(source, context);
         if (s.valid())
+            return s;
+        s = FunctionDeclarationStatement::parse(source, context);
+        if (s.valid()
             return s;
         return 0;
     }
@@ -700,19 +700,21 @@ public:
         Reference<Identifier> identifier = Identifier::parse(&s, context);
         if (!identifier.valid())
             return 0;
-        int c = s.get();
-        if (c != '=')
-            return 0;
-        Space::parse(&s, context);
+        Reference<Expression> initializer;
         *source = s;
-        Reference<Expression> e = Expression::parse(source, context);
-        if (!e.valid()) {
-            static String expression("Expected expression");
-            source->location().throwError(expression);
+        int c = s.get();
+        if (c == '=') {
+            s = *source;
+            Space::parse(source, context);
+            initializer = Expression::parse(source, context);
+            if (!initializer.valid()) {
+                static String expression("Expected expression");
+                source->location().throwError(expression);
+            }
         }
         source->assert(';');
         Space::parse(source, context);
-        return new VariableDeclarationStatement(typeSpecifier, identifier, e, location);
+        return new VariableDeclarationStatement(typeSpecifier, identifier, initializer, location);
     }
     void compile(Context* context)
     {
@@ -721,8 +723,10 @@ public:
     }
     void run(Context* context)
     {
-        _initializer->push(context);
-        _variable->setValue(context->pop());
+        if (_initializer.valid()) {
+            _initializer->push(context);
+            _variable->setValue(context->pop());
+        }
     }
 private:
     VariableDeclarationStatement(Reference<TypeSpecifier> typeSpecifier, Reference<Identifier> identifier, Reference<Expression> initializer, DiagnosticLocation location)
@@ -783,6 +787,50 @@ private:
     Reference<Variable> _variable;
 };
 
+class FunctionDeclarationStatement : public Statement
+{
+public:
+    static Reference<FunctionDeclarationStatement> parse(CharacterSource* source, Context* context)
+    {
+        Reference<TypeSpecifier> returnTypeSpecifier = TypeSpecifier::parse(source, context);
+        if (!returnTypeSpecifier.valid())
+            return 0;
+        Reference<Identifier> name = Identifier::parse(source, context);
+        if (!name.valid())
+            return 0;
+        CharacterSource s = *source;
+        int c = s.get();
+        if (c != '(')
+            return 0;
+        *source = s;
+        Space::parse(source, context);
+        Stack<Reference<Argument> > stack;
+        do {
+            Reference<Argument> argument = Argument::parse(source, context);
+            stack.push(argument);
+            s = *source;
+            int c = s.get();
+            if (c == ',') {
+                *source = s;
+                Space::parse(source, context);
+                continue;
+            }
+            source->assert(')');
+            break;
+        } while (true);
+
+        
+        return new FunctionDeclarationStatement(returnTypeSpecifier, name, &stack);
+    }
+    void compile(Context* context)
+    { }
+    void run(Context* context)
+    { }
+private:
+    FunctionDeclarationStatement()
+    { }
+};
+
 class Integer : public Expression
 {
 public:
@@ -814,11 +862,59 @@ private:
     int _n;
 };
 
+class AddExpression : public Expression
+{
+public:
+    AddExpression(Reference<Expression> left, Reference<Expression> right)
+      : _left(left), _right(right)
+    { }
+    Type type() const
+    {
+        if (_left->type() == StringType())
+            if (_right->type() == IntType() || _right->type() == StringType())
+                return StringType();
+        if (_right->type() == StringType())
+            if (_left->type() == IntType())
+                return StringType();
+        if (_left->type() == IntType() && _right->type() == IntType())
+            return IntType();
+        static String error1("Don't know how to add a ");
+        static String error2(" to a ");
+        throw Exception(error1 + _left->type().toString() + error2 + _right->type().toString());
+    }
+    void compile(Context* context)
+    {
+        _left->compile(context);
+        _right->compile(context);
+    }
+    void push(Context* context)
+    {
+        _right->push(context);
+        _left->push(context);
+        Value l = context->pop();
+        Value r = context->pop();
+        if (_left->type() == StringType())
+            if (_right->type() == StringType())
+                context->push(Value(l.getString() + r.getString()));
+            else
+                context->push(Value(l.getString() + String::decimal(r.getInt())));
+        else
+            if (_right->type() == StringType())
+                context->push(Value(String::decimal(l.getInt()) + r.getString()));
+            else
+                context->push(Value(l.getInt() + r.getInt()));
+    }
+private:
+    Reference<Expression> _left;
+    Reference<Expression> _right;
+};
+
 class DoubleQuotedString : public Expression
 {
 public:
-    static Reference<DoubleQuotedString> parse(CharacterSource* source, Context* context)
+    static Reference<Expression> parse(CharacterSource* source, Context* context)
     {
+        static String empty("");
         static String endOfFile("End of file in string");
         static String endOfLine("End of line in string");
         static String printableCharacter("printable character");
@@ -837,17 +933,17 @@ public:
         *source = s;
         int start = s.offset();
         int end;
-        String insert;
+        String insert(empty);
         int n;
         int nn;
-        String string;
+        String string(empty);
+        Reference<Expression> expression;
+        Reference<Expression> part;
         do {
             s = *source;
             end = s.offset();
             int c = s.get();
-            if (c < 0x20) {
-                if (c == 10)
-                    source->location().throwError(endOfLine);
+            if (c < 0x20 && c != 10) {
                 if (c == -1)
                     source->location().throwError(endOfFile);
                 source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
@@ -857,7 +953,7 @@ public:
                 case '"':
                     string += s.subString(start, end);
                     Space::parse(source, context);
-                    return new DoubleQuotedString(string);
+                    return combine(expression, new DoubleQuotedString(string));
                 case '\\':
                     string += s.subString(start, end);
                     c = s.get();
@@ -914,6 +1010,26 @@ public:
                     string += insert;
                     start = source->offset();
                     break;
+                case '$':
+                    part = Identifier::parse(source, context);
+                    if (!part.valid()) {
+                        s = *source;
+                        c = s.get();
+                        if (c == '(') {
+                            *source = s;
+                            Space::parse(source, context);
+                            part = Expression::parse(source, context);
+                            source->assert(')');
+                            if (!part.valid())
+                                break;
+                        }
+                    }
+                    string += s.subString(start, end);
+                    start = source->offset();
+                    expression = combine(expression, new DoubleQuotedString(string));
+                    string = empty;
+                    expression = combine(expression, part);
+                    break;
             }
         } while (true);
     }
@@ -921,6 +1037,12 @@ public:
     Type type() const { return StringType(); }
     void push(Context* context) { context->push(Value(_string)); }
 private:
+    static Reference<Expression> combine(Reference<Expression> left, Reference<Expression> right)
+    {
+        if (left.valid())
+            return new AddExpression(left, right);
+        return right;
+    }
     DoubleQuotedString(String string) : _string(string) { }
 
     static int parseHexadecimalCharacter(CharacterSource* source,
@@ -966,7 +1088,9 @@ public:
             int c = s.get();
             if (c == -1)
                 source->location().throwError(endOfFile);
-        } while (c != 10);
+            if (c == 10)
+                break;
+        } while (true);
         int end = source->offset();
         String terminator = source->subString(start, end);
         start = s.offset();
@@ -1015,7 +1139,7 @@ public:
                     } while (true);
                 }
             if (c == 10) {
-                string += s.subString(start, source->offset());
+                string += s.subString(start, source->offset()) + String::codePoint(10);
                 start = s.offset();
             }
         } while (true);
@@ -1027,53 +1151,6 @@ private:
     EmbeddedLiteral(String string) : _string(string) { }
 
     String _string;
-};
-
-class AddExpression : public Expression
-{
-public:
-    AddExpression(Reference<Expression> left, Reference<Expression> right)
-      : _left(left), _right(right)
-    { }
-    Type type() const
-    {
-        if (_left->type() == StringType())
-            if (_right->type() == IntType() || _right->type() == StringType())
-                return StringType();
-        if (_right->type() == StringType())
-            if (_left->type() == IntType())
-                return StringType();
-        if (_left->type() == IntType() && _right->type() == IntType())
-            return IntType();
-        static String error1("Don't know how to add a ");
-        static String error2(" to a ");
-        throw Exception(error1 + _left->type().toString() + error2 + _right->type().toString());
-    }
-    void compile(Context* context)
-    {
-        _left->compile(context);
-        _right->compile(context);
-    }
-    void push(Context* context)
-    {
-        _right->push(context);
-        _left->push(context);
-        Value l = context->pop();
-        Value r = context->pop();
-        if (_left->type() == StringType())
-            if (_right->type() == StringType())
-                context->push(Value(l.getString() + r.getString()));
-            else
-                context->push(Value(l.getString() + String::decimal(r.getInt())));
-        else
-            if (_right->type() == StringType())
-                context->push(Value(String::decimal(l.getInt()) + r.getString()));
-            else
-                context->push(Value(l.getInt() + r.getInt()));
-    }
-private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
 };
 
 #ifdef _WIN32

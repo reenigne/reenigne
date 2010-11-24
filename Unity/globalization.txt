@@ -1,0 +1,46 @@
+How do we want to do globalization?
+
+* It should be easy to add a string
+  - Just include it in the program
+  - Don't want to have to make up a name for it
+  - Don't want to have to find the next free ordinal
+
+* Strings should be tracked somehow
+  - If the English text of a string changes, we still want to be able to associate it with the translations
+  - Translations should be flagged to see if they need to be changed too
+  - Track them using the source control system?
+    - No, if the code changes too dramatically, the association might be lost.
+  - When a translation is added, add a unique ID tag to the string.
+    - "$(/*12345*/)Message goes here"
+    - This is good: translators work in the version control system too.
+    - Programmers can see when a string gets translated, so they know it's now expensive to change.
+    - Translators can identify strings with a symbol or number as they see fit.
+
+* Translators should be able to permute, duplicate, add, remove and modify inserts.
+  - Standard language-dependent functions should be possible, e.g. ordinal, cardinal
+  - Translation involving a recompile is okay (necessary in any case if translators add an insert that the code doesn't have)
+
+* How are the strings stored in the binary?
+  - Want to avoid having to parse the string for insert numbers.
+  - Since we're recompiling for translation anyway, can just transform it to (locale-dependent) expression code.
+  - In the presence of localization, a (locale-dependent) String literal compiles to a call to a function pointer obtained from a table (indexed by a String literal ID and a locale ID)
+    - The arguments to this function are the union of the inputs used by the translations of that string
+      - Would like to avoid computing things not needed for the current locale - can we pass just the local variables? Or a pointer to the current closure?
+      - The functions need to be evaluated in the local context, so they should be conceptually local functions.
+
+* What is the format of the files that are written by the translators?
+  - One file per language/binary combination
+  - "Original text", "Translated text"
+  - Header giving lcid
+  - Filename schema name.lcid.translation is a convention. Usual system is:
+    - Project contains a file name.lcids which includes a list like:
+      include name + ".de.translation"
+      include name + ".jp.translation"
+    - This file can be used for all binaries in the project, so there is a canonical list of translation languages.
+  - Add language support for translation data
+
+* Translation tool
+  - Built into compiler
+  - Finds all strings without translations (or whose translations are not up to date) for a given lcid and outputs a list (including file, line and column for source files)
+  - We don't want the compiler to modify the source files
+  - A second tool can take the list, add IDs to the strings in the source files, update the translation files - this might be a GUI tool.

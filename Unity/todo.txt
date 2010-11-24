@@ -1,8 +1,15 @@
-Test EmbeddedLiteral::parse()
-Add PHP-style string inserts:
-  "Hello $name"
-  "Hello ${sin(x) + strlen("bar")}"
 Add ability to define functions
+  Statement form
+  Add compound statements
+  Add scopes
+    There are two types of scopes (at least), variable scopes and function scopes
+    Declaring a variable creates a new variable scope but not a new function scope
+    Compound statement create a new function scope as well as a new variable scope
+    Types go into the variable scope
+Make function call an expression, not a statement
+  Make Expression a subclass of Statement
+  Add an error when we find an expression statement that has no effect
+    Effectful expressions are calls of non-pure functions
 Add include statement
 Add some more operators
 Add some more statements

@@ -1,5 +1,8 @@
 String bar = "baz";
-bar = "bee";
-print("foo" + bar + "\n");
+bar = ###foo
+bee###
+barfoo##baz
+bipfoo###;
+print("foo$(/*foo*/bar/*baz*/)\n");
 //"foo" + (234 + 123)
 // foo

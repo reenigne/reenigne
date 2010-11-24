@@ -1,0 +1,72 @@
+LowerCaseLetter = 'a'..'z';
+
+UpperCaseLetter = 'A'..'Z';
+
+Letter = LowerCaseLetter | UpperCaseLetter;
+
+DecimalDigit = '0'..'9';
+
+HexadecimalDigit = Digit | 'A'..'F' | 'a'..'f';
+
+AlphabeticCharacter = Letter | '_';
+
+AlphanumericCharacter = AlphabeticCharacter | DecimalDigit;
+
+UnicodeSequence = 'U+' HexadecimalDigit HexadecimalDigit HexadecimalDigit HexadecimalDigit [HexadecimalDigit [HexadecimalDigit]];
+
+EscapedCharacter = '\\' ('\\' | '\'' | '\`' | '\"' | '$' | 'n' | 't' | UnicodeSequence);
+
+NewLineCharacter = {'\n' | '\r'};
+
+NonStringCharacter = NewLineCharacter | '\\';
+
+NonNewLineCharacter = Character-NewLine;
+
+
+NewLine = {'\n\r' | '\r\n' | NewLineCharacter};
+
+SingleLineComment = '//' NonNewLineCharacter*;
+
+MultipleLineComment = '/*' (Comment | !'*/' Character)* '*/';
+
+Comment = SingleLineComment | MultipleLineComment;
+
+Space = {(' ' | NewLine | Comment)+};
+
+_ = {!AlphanumericCharacter [Space]};
+
+
+TypeIdentifier = UpperCaseLetter AlphanumericCharacter* {[Space]};
+
+Identifier = LowerCaseLetter AlphanumericCharacter* {[Space]};
+
+DecimalNumber = DecimalDigit+ {[Space]};
+
+DoubleQuotedString = '"' ('$' (Identifier | '(' [Expression] ')') | !(NonStringCharacter | '"') | EscapedCharacter)* '"' {[Space]};
+
+EmbeddedLiteral = `###` end=(NonNewLineCharacter*) NewLine (!end Character)* end `###` {[Space]};
+
+
+Type =
+    TypeIdentifier
+  | Type "*"
+  | Type "(" Type \ "," ")"
+  ;
+
+Expression =
+    ( DecimalNumber
+    | DoubleQuotedString
+    | EmbeddedLiteral
+    | '(' Expression ')'
+    )
+  \ "+";
+
+Statement =
+    `nothing`
+  | Identifier "=" Expression ";"
+  | Type Identifier "=" Expression ";"
+  | Type Identifier "(" (Type ValueIdentifier) \ "," ")" (Statement | `from` DoubleQuotedString ";")
+  ;
+
+= Statement*;
+
