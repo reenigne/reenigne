@@ -1,7 +1,7 @@
 #ifndef INCLUDED_ARRAY_H
 #define INCLUDED_ARRAY_H
 
-template<class T> class Array
+template<class T> class Array : Uncopyable
 {
 public:
     Array() : _data(0) { }

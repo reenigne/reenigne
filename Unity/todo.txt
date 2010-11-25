@@ -1,15 +1,23 @@
-Add ability to define functions
-  Statement form
-  Add compound statements
-  Add scopes
-    There are two types of scopes (at least), variable scopes and function scopes
-    Declaring a variable creates a new variable scope but not a new function scope
-    Compound statement create a new function scope as well as a new variable scope
-    Types go into the variable scope
-Make function call an expression, not a statement
-  Make Expression a subclass of Statement
-  Add an error when we find an expression statement that has no effect
-    Effectful expressions are calls of non-pure functions
+In order to add the function declaration to the scope, we first need to resolve the argument types.
+  1) Add all the type definitions (can do this during parsing)
+  2) Resolve all the type references (during compile())
+  3) Add the function definitions and variable definitions (during compile())
+  4) Resolve all the function definitions and variable definitions (second compilation phase needed?)
+
+Add scopes
+  There are two types of scopes (at least), variable scopes and function scopes
+  Declaring a variable creates a new variable scope but not a new function scope
+  Compound statement and function create a new function scope as well as a new variable scope
+  Types go into the function scope
+
+Add a FunctionScope class
+
+
+Imported functions
+  How to set up the stack for these in the interpreter?
+
+Pop function arguments into local variables
+
 Add include statement
 Add some more operators
 Add some more statements
@@ -18,7 +26,7 @@ Allow use of more LValues
 Add classes
 Add templates
 Compile to executable code
-                                                                   
+
 Use operator[] instead of lookUp and add in HashTable?
 Need a better error message when statement isn't recognized as such
 For String::throwUnexpected(), print name (or hex) of found character to avoid putting unprintable characters in error messages.

@@ -3,7 +3,7 @@
 
 #include "unity/array.h"
 
-template<class Key, class Value> class HashTable
+template<class Key, class Value> class HashTable : Uncopyable
 {
 public:
     HashTable() : _n(0)

@@ -178,13 +178,22 @@ public:
         }
         return c;
     }
-    void assert(int codePoint)
+    bool parse(int character)
+    {
+        CharacterSource s = *this;
+        if (s.get() == character) {
+            *this = s;
+            return true;
+        }
+        return false;
+    }
+    void assert(int character)
     {
         CharacterSource start = *this;
         int found = get();
-        if (found == codePoint)
+        if (found == character)
             return;
-        start.throwUnexpected(String::codePoint(codePoint), String::codePoint(found));
+        start.throwUnexpected(String::codePoint(character), String::codePoint(found));
     }
     DiagnosticLocation location() const { return _location; }
     void throwUnexpected(const String& expected, const String& observed)
