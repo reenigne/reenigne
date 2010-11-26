@@ -1,5 +1,5 @@
-#ifndef INCLUDED_HASHTABLE_H
-#define INCLUDED_HASHTABLE_H
+#ifndef INCLUDED_HASH_TABLE_H
+#define INCLUDED_HASH_TABLE_H
 
 #include "unity/array.h"
 
@@ -106,4 +106,4 @@ private:
     int _n;
 };
 
-#endif // INCLUDED_HASHTABLE_H
+#endif // INCLUDED_HASH_TABLE_H

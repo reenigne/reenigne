@@ -89,7 +89,7 @@
     <ClInclude Include="..\include\unity\buffer.h" />
     <ClInclude Include="..\include\unity\character_source.h" />
     <ClInclude Include="..\include\unity\file.h" />
-    <ClInclude Include="..\include\unity\hashtable.h" />
+    <ClInclude Include="..\include\unity\hash_table.h" />
     <ClInclude Include="..\include\unity\integer_types.h" />
     <ClInclude Include="..\include\unity\reference_counted.h" />
     <ClInclude Include="..\include\unity\string.h" />

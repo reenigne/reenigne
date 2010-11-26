@@ -1,8 +1,16 @@
-String bar = "baz";
-bar = ###foo
-bee###
-barfoo##baz
-bipfoo###;
-print("foo$(/*foo*/bar/*baz*/)\n");
+//String bar = "baz";
+//bar = ###foo
+//bee###
+//barfoo##baz
+//bipfoo###;
+//print("$(/*bar*/)foo$(/*foo*/bar/*baz*/)\n\n");
+
+Void f(String s)
+{
+  print(s + "\n");
+}
+
+f("neep");
+
 //"foo" + (234 + 123)
 // foo

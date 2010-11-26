@@ -3,7 +3,7 @@
 #include "unity/array.h"
 #include "unity/file.h"
 #include "unity/stack.h"
-#include "unity/hashtable.h"
+#include "unity/hash_table.h"
 
 #ifdef _WIN32
 #include "shellapi.h"
@@ -138,6 +138,8 @@ private:
 
 typedef FunctionNameTemplate<void> FunctionName;
 
+class TypeDefinitionStatement;
+
 class Variable : public Symbol
 {
 public:
@@ -156,13 +158,19 @@ template<class T> class ScopeTemplate;
 
 typedef ScopeTemplate<void> Scope;
 
-class FunctionScope;
-
-template<class T> class ScopeTemplate : Uncopyable
+template<class T> class ScopeTemplate : public ReferenceCounted
 {
 public:
-    ScopeTemplate(Scope* parent, FunctionScope* functionScope) : _parent(parent), _functionScope(functionScope) { }
-    FunctionScope* functionScope() const { return _functionScope; }
+    ScopeTemplate(Scope* outer, bool functionScope = false)
+      : _outer(outer)
+    {
+        if (functionScope)
+            _functionScope = this;
+        else
+            _functionScope = outer->_functionScope;
+    }
+    Scope* outer() const { return _outer; }
+    Scope* functionScope() const { return _functionScope; }
     Reference<Variable> addVariable(String name, Type type, DiagnosticLocation location)
     {
         if (_symbolTable.hasKey(name)) {
@@ -176,23 +184,31 @@ public:
     Reference<Symbol> resolveSymbol(String name, DiagnosticLocation location)
     {
         if (!_symbolTable.hasKey(name)) {
+            if (_outer != 0)
+                return _outer->resolveSymbol(name, location);
             static String error("Undefined symbol ");
             location.throwError(error + name);
         }
         return _symbolTable.lookUp(name);
     }
-protected:
-    HashTable<String, Reference<Symbol> > _symbolTable;
-private:
-    Scope* _parent;
-    FunctionScope* _functionScope;
-};
-
-class FunctionScope : public Scope
-{
-public:
-    FunctionScope(FunctionScope* parent) : _parent(parent) { }
     void addFunction(String name, TypeList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
+    {
+        _functionScope->doAddFunction(name, argumentTypes, function, location);
+    }
+    void addType(String name, TypeDefinitionStatement* type, DiagnosticLocation location)
+    {
+        _functionScope->doAddType(name, type, location);
+    }
+    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, TypeList typeList, DiagnosticLocation location)
+    {
+        return _functionScope->doResolveFunction(identifier, typeList, location);
+    }
+    TypeDefinitionStatement* resolveType(String name, DiagnosticLocation location)
+    {
+        return _functionScope->doResolveType(name, location);
+    }
+private:
+    void doAddFunction(String name, TypeList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
     {
         FunctionName* functionName;
         if (_symbolTable.hasKey(name)) {
@@ -209,7 +225,7 @@ public:
         }
         functionName->addOverload(argumentTypes, function, location);
     }
-    void addType(String name, Type type, DiagnosticLocation location)
+    void doAddType(String name, TypeDefinitionStatement* type, DiagnosticLocation location)
     {
         if (_typeTable.hasKey(name)) {
             static String error(" has already been defined.");
@@ -217,33 +233,43 @@ public:
         }
         _typeTable.add(name, type);
     }
-    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, TypeList typeList, DiagnosticLocation location)
+    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, TypeList typeList, DiagnosticLocation location)
     {
-        if (!_symbolTable.hasKey(identifier->name()))
-            return 0;
-        Reference<Symbol> symbol = _symbolTable.lookUp(identifier->name());
+        String name = identifier->name();
+        if (!_symbolTable.hasKey(name)) {
+            if (_outer == 0) {
+                static String error("Undefined function ");
+                location.throwError(error + name);
+            }
+            return _outer->resolveFunction(identifier, typeList, location);
+        }
+        Reference<Symbol> symbol = _symbolTable.lookUp(name);
         FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<Symbol*>(symbol));
         if (functionName == 0) {
             static String error(" is not a function");
-            location.throwError(identifier->name() + error);
+            location.throwError(name + error);
         }
         if (!functionName->hasOverload(typeList)) {
             static String error(" has no overload with argument types ");
-            location.throwError(identifier->name() + error + typeList.toString());
+            location.throwError(name + error + typeList.toString());
         }
         return functionName->lookUpOverload(typeList);
     }
-    Type resolveType(String name, DiagnosticLocation location)
+    TypeDefinitionStatement* doResolveType(String name, DiagnosticLocation location)
     {
         if (!_typeTable.hasKey(name)) {
-            static String error("Undefined type ");
-            location.throwError(error + name);
+            if (_outer == 0) {
+                static String error("Undefined type ");
+                location.throwError(error + name);
+            }
+            return _outer->resolveType(name, location);
         }
         return _typeTable.lookUp(name);
     }
-private:
-    HashTable<String, Type> _typeTable;
-    FunctionScope* _parent;
+    HashTable<String, Reference<Symbol> > _symbolTable;
+    HashTable<String, TypeDefinitionStatement*> _typeTable;
+    Scope* _outer;
+    Scope* _functionScope;
 };
 
 class Space
@@ -320,7 +346,8 @@ private:
     }
 };
 
-class TypeIdentifier;
+template<class T> class TypeIdentifierTemplate;
+typedef TypeIdentifierTemplate<void> TypeIdentifier;
 
 template<class T> class TypeSpecifierTemplate : public ReferenceCounted
 {
@@ -344,15 +371,12 @@ public:
         } while (true);
         return typeSpecifier;
     }
-    virtual void compile() = 0;
-    Type type() const { return _type; }
-protected:
-    Type _type;
+    virtual Type type() = 0;
 };
 
 typedef TypeSpecifierTemplate<void> TypeSpecifier;
 
-class TypeIdentifier : public TypeSpecifier
+template<class T> class TypeIdentifierTemplate : public TypeSpecifier
 {
 public:
     static Reference<TypeIdentifier> parse(CharacterSource* source, Scope* scope)
@@ -375,17 +399,28 @@ public:
         return new TypeIdentifier(scope, s.subString(start, end), location);
     }
     String name() const { return _name; }
-    void compile()
+    Type type()
     {
-        _type = _scope->resolveType(_name, _location);
+        if (!_type.valid()) {
+            if (_resolving) {
+                static String error("A type cannot be defined in terms of itself");
+                _location.throwError(error);
+            }
+            _resolving = true;
+            _type = _scope->resolveType(_name, _location)->type();
+            _resolving = false;
+        }
+        return _type;
     }
 private:
-    TypeIdentifier(Scope* scope, String name, DiagnosticLocation location)
-      : _scope(scope), _name(name), _location(location)
+    TypeIdentifierTemplate(Scope* scope, String name, DiagnosticLocation location)
+      : _scope(scope), _name(name), _location(location), _resolving(false)
     { }
     Scope* _scope;
     String _name;
     DiagnosticLocation _location;
+    bool _resolving;
+    Type _type;
 };
 
 class PointerTypeSpecifier : public TypeSpecifier
@@ -394,13 +429,15 @@ public:
     PointerTypeSpecifier(Reference<TypeSpecifier> referentTypeSpecifier)
       : _referentTypeSpecifier(referentTypeSpecifier)
     { }
-    void compile()
+    Type type()
     {
-        _referentTypeSpecifier->compile();
-        _type = PointerType(_referentTypeSpecifier->type());
+        if (!_type.valid())
+            _type = PointerType(_referentTypeSpecifier->type());
+        return _type;
     }
 private:
     Reference<TypeSpecifier> _referentTypeSpecifier;
+    Type _type;
 };
 
 class TypeListSpecifier : public ReferenceCounted
@@ -422,15 +459,15 @@ public:
         } while (true);
         return new TypeListSpecifier(&stack);
     }
-    void compile()
+    TypeList typeList()
     {
-        for (int i = 0; i < _array.count(); ++i) {
-            _array[i]->compile();
-            _typeList.push(_array[i]->type());
+        if (!_typeList.valid()) {
+            for (int i = 0; i < _array.count(); ++i)
+                _typeList.push(_array[i]->type());
+            _typeList.finalize();
         }
-        _typeList.finalize();
+        return _typeList;
     }
-    TypeList typeList() const { return _typeList; }
 private:
     TypeListSpecifier(Stack<Reference<TypeSpecifier> >* stack)
     {
@@ -446,15 +483,16 @@ public:
     FunctionTypeSpecifier(Reference<TypeSpecifier> returnTypeSpecifier, Reference<TypeListSpecifier> argumentTypeListSpecifier)
       : _returnTypeSpecifier(returnTypeSpecifier), _argumentTypeListSpecifier(argumentTypeListSpecifier)
     { }
-    void compile()
+    Type type()
     {
-        _returnTypeSpecifier->compile();
-        _argumentTypeListSpecifier->compile();
-        _type = FunctionType(_returnTypeSpecifier->type(), _argumentTypeListSpecifier->typeList());
+        if (!_type.valid())
+            _type = FunctionType(_returnTypeSpecifier->type(), _argumentTypeListSpecifier->typeList());
+        return _type;
     }
 private:
     Reference<TypeSpecifier> _returnTypeSpecifier;
     Reference<TypeListSpecifier> _argumentTypeListSpecifier;
+    Type _type;
 };
 
 
@@ -732,15 +770,15 @@ public:
                         if (Space::parseCharacter(source, '(')) {
                             part = Expression::parse(source, scope);
                             source->assert(')');
-                            if (!part.valid())
-                                break;
                         }
                     }
                     string += s.subString(start, end);
                     start = source->offset();
-                    expression = combine(expression, new DoubleQuotedString(string));
-                    string = empty;
-                    expression = combine(expression, part);
+                    if (part.valid()) {
+                        expression = combine(expression, new DoubleQuotedString(string));
+                        string = empty;
+                        expression = combine(expression, part);
+                    }
                     break;
             }
         } while (true);
@@ -872,20 +910,24 @@ public:
         Reference<Statement> s = FunctionCallStatement::parse(source, scope);
         if (s.valid())
             return s;
+        s = FunctionDeclarationStatement::parse(source, scope);
+        if (s.valid())
+            return s;
         s = VariableDeclarationStatement::parse(source, scope);
         if (s.valid())
             return s;
         s = AssignmentStatement::parse(source, scope);
         if (s.valid())
             return s;
-        s = FunctionDeclarationStatement::parse(source, scope);
+        s = CompoundStatement::parse(source, scope);
         if (s.valid())
             return s;
-        s = CompoundStatement::parse(source, scope);
+        s = TypeAliasStatement::parse(source, scope);
         if (s.valid())
             return s;
         return 0;
     }
+    virtual void resolveTypes() = 0;
     virtual void compile() = 0;
     virtual void run(Stack<Value>* stack) = 0;
 };
@@ -908,6 +950,11 @@ public:
         statements.toArray(&statementSequence->_statements);
         return statementSequence;
     }
+    void resolveTypes()
+    {
+        for (int i = 0; i < _statements.count(); ++i)
+            _statements[i]->resolveTypes();
+    }
     void compile()
     {
         for (int i = 0; i < _statements.count(); ++i)
@@ -928,6 +975,7 @@ class FunctionDeclarationStatement : public Statement
 public:
     static Reference<FunctionDeclarationStatement> parse(CharacterSource* source, Scope* scope)
     {
+        DiagnosticLocation location = source->location();
         CharacterSource s = *source;
         Reference<TypeSpecifier> returnTypeSpecifier = TypeSpecifier::parse(&s, scope);
         if (!returnTypeSpecifier.valid())
@@ -937,7 +985,7 @@ public:
             return 0;
         if (!Space::parseCharacter(&s, '('))
             return 0;
-        Reference<Scope> inner = new Scope(scope, scope->functionScope());
+        Reference<Scope> inner = new Scope(scope, true);
         *source = s;
         Stack<Reference<Argument> > stack;
         do {
@@ -950,23 +998,31 @@ public:
 
         Reference<Identifier> identifier = Identifier::parse(source, inner);
         static String from("from");
-        if (identifier->name() == from) {
+        if (identifier.valid() && identifier->name() == from) {
             Reference<Expression> dll = DoubleQuotedString::parse(source, inner);
             if (dll.valid())
-                return new FunctionDeclarationStatement(returnTypeSpecifier, name, &stack, dll);
+                return new FunctionDeclarationStatement(inner, returnTypeSpecifier, name, &stack, dll, location);
             static String error("Expected string");
             source->location().throwError(error);
         }
-        Reference<Statement> statement = Identifier::parse(source, inner);
+        Reference<Statement> statement = Statement::parse(source, inner);
         if (!statement.valid()) {
             static String error("Expected statement");
             source->location().throwError(error);
         }
-        return new FunctionDeclarationStatement(inner, returnTypeSpecifier, name, &stack, statement);
+        return new FunctionDeclarationStatement(inner, returnTypeSpecifier, name, &stack, statement, location);
+    }
+    void resolveTypes()
+    {
+        _returnType = _returnTypeSpecifier->type();
+        TypeList typeList;
+        for (int i = 0; i < _arguments.count(); ++i)
+            typeList.push(_arguments[i]->type());
+        typeList.finalize();
+        _scope->outer()->addFunction(_name->name(), typeList, this, _location);
     }
     void compile()
     {
-        _returnTypeSpecifier->compile();
         if (_statement.valid())
             _statement->compile();
     }
@@ -975,6 +1031,8 @@ public:
     virtual void call(Stack<Value>* stack)
     {
         if (_statement.valid()) {
+            for (int i = 0; i < _arguments.count(); ++i)
+                _arguments[i]->setValue(stack->pop(), _scope);
             _statement->run(stack);
         }
         else {
@@ -1001,6 +1059,12 @@ private:
             }
             return new Argument(typeSpecifier, name);
         }
+        Type type() { return _typeSpecifier->type(); }
+        void setValue(Value value, Scope* scope)
+        {
+            Reference<Variable> variable = scope->resolveSymbol(_name->name(), DiagnosticLocation());
+            variable->setValue(value);
+        }
     private:
         Argument(Reference<TypeSpecifier> typeSpecifier, Reference<Identifier> name)
           : _typeSpecifier(typeSpecifier), _name(name)
@@ -1008,13 +1072,13 @@ private:
         Reference<TypeSpecifier> _typeSpecifier;
         Reference<Identifier> _name;
     };
-    FunctionDeclarationStatement(Reference<Scope> scope, Reference<TypeSpecifier> returnTypeSpecifier, Reference<Identifier> name, Stack<Reference<Argument> >* stack, Reference<Expression> dll)
-      : _scope(scope), _returnTypeSpecifier(returnTypeSpecifier), _name(name), _dll(dll)
+    FunctionDeclarationStatement(Reference<Scope> scope, Reference<TypeSpecifier> returnTypeSpecifier, Reference<Identifier> name, Stack<Reference<Argument> >* stack, Reference<Expression> dll, DiagnosticLocation location)
+      : _scope(scope), _returnTypeSpecifier(returnTypeSpecifier), _name(name), _dll(dll), _location(location)
     {
         stack->toArray(&_arguments);
     }
-    FunctionDeclarationStatement(Reference<Scope> scope, Reference<TypeSpecifier> returnTypeSpecifier, Reference<Identifier> name, Stack<Reference<Argument> >* stack, Reference<Statement> statement)
-      : _scope(scope), _returnTypeSpecifier(returnTypeSpecifier), _name(name), _statement(statement)
+    FunctionDeclarationStatement(Reference<Scope> scope, Reference<TypeSpecifier> returnTypeSpecifier, Reference<Identifier> name, Stack<Reference<Argument> >* stack, Reference<Statement> statement, DiagnosticLocation location)
+      : _scope(scope), _returnTypeSpecifier(returnTypeSpecifier), _name(name), _statement(statement), _location(location)
     {
         stack->toArray(&_arguments);
     }
@@ -1025,6 +1089,8 @@ private:
     Array<Reference<Argument> > _arguments;
     Reference<Expression> _dll;
     Reference<Statement> _statement;
+    Type _returnType;
+    DiagnosticLocation _location;
 };
 
 class FunctionCallStatement : public Statement
@@ -1061,6 +1127,7 @@ public:
         stack.toArray(&functionCall->_arguments);
         return functionCall;
     }
+    void resolveTypes() { }
     void compile()
     {
         TypeList argumentTypes;
@@ -1073,7 +1140,7 @@ public:
     }
     void run(Stack<Value>* stack)
     {
-        for (int i = 0; i < _arguments.count(); ++i)
+        for (int i = _arguments.count() - 1; i >= 0; --i)
             _arguments[i]->push(stack);
         _function->run(stack);
     }
@@ -1096,30 +1163,34 @@ class VariableDeclarationStatement : public Statement
 public:
     static Reference<VariableDeclarationStatement> parse(CharacterSource* source, Scope* scope)
     {
+        Reference<Scope> inner = new Scope(scope);
         DiagnosticLocation location = source->location();
         CharacterSource s = *source;
-        Reference<TypeSpecifier> typeSpecifier = TypeSpecifier::parse(&s, scope);
+        Reference<TypeSpecifier> typeSpecifier = TypeSpecifier::parse(&s, inner);
         if (!typeSpecifier.valid())
             return 0;
-        Reference<Identifier> identifier = Identifier::parse(&s, scope);
+        Reference<Identifier> identifier = Identifier::parse(&s, inner);
         if (!identifier.valid())
             return 0;
         *source = s;
         Reference<Expression> initializer;
         if (Space::parseCharacter(source, '=')) {
-            initializer = Expression::parse(source, scope);
+            initializer = Expression::parse(source, inner);
             if (!initializer.valid()) {
                 static String expression("Expected expression");
                 source->location().throwError(expression);
             }
         }
         Space::assertCharacter(source, ';');
-        return new VariableDeclarationStatement(scope, typeSpecifier, identifier, initializer, location);
+        return new VariableDeclarationStatement(inner, typeSpecifier, identifier, initializer, location);
+    }
+    void resolveTypes()
+    {
+        _typeSpecifier->type();
     }
     void compile()
     {
-        _typeSpecifier->compile();
-        _variable = _scope->addVariable(_identifier->name(), _typeSpecifier->type(), _location);
+        _variable = _scope->outer()->addVariable(_identifier->name(), _typeSpecifier->type(), _location);
     }
     void run(Stack<Value>* stack)
     {
@@ -1129,10 +1200,10 @@ public:
         }
     }
 private:
-    VariableDeclarationStatement(Scope* scope, Reference<TypeSpecifier> typeSpecifier, Reference<Identifier> identifier, Reference<Expression> initializer, DiagnosticLocation location)
+    VariableDeclarationStatement(Reference<Scope> scope, Reference<TypeSpecifier> typeSpecifier, Reference<Identifier> identifier, Reference<Expression> initializer, DiagnosticLocation location)
       : _scope(scope), _typeSpecifier(typeSpecifier), _identifier(identifier), _initializer(initializer), _location(location)
     { }
-    Scope* _scope;
+    Reference<Scope> _scope;
     Reference<TypeSpecifier> _typeSpecifier;
     Reference<Identifier> _identifier;
     Reference<Expression> _initializer;
@@ -1161,6 +1232,7 @@ public:
         Space::assertCharacter(source, ';');
         return new AssignmentStatement(scope, identifier, e, location);
     }
+    void resolveTypes() { }
     void compile()
     {
         String name = _identifier->name();
@@ -1191,6 +1263,7 @@ class PrintFunction : public FunctionDeclarationStatement
 public:
     PrintFunction() : _consoleOutput(Handle::consoleOutput())
     { }
+    void resolveTypes() { }
     void compile() { }
     void run(Stack<Value>* stack)
     {
@@ -1208,9 +1281,14 @@ public:
     {
         if (!Space::parseCharacter(source, '{'))
             return 0;
-        Reference<StatementSequence> sequence = StatementSequence::parse(source, scope);
+        Reference<Scope> inner = new Scope(scope, true);
+        Reference<StatementSequence> sequence = StatementSequence::parse(source, inner);
         Space::assertCharacter(source, '}');
-        return new CompoundStatement(sequence);
+        return new CompoundStatement(inner, sequence);
+    }
+    void resolveTypes()
+    {
+        _sequence->resolveTypes();
     }
     void compile()
     {
@@ -1221,10 +1299,71 @@ public:
         _sequence->run(stack);
     }
 private:
-    CompoundStatement(Reference<StatementSequence> sequence)
-      : _sequence(sequence)
+    CompoundStatement(Reference<Scope> scope, Reference<StatementSequence> sequence)
+      : _scope(scope), _sequence(sequence)
     { }
+    Reference<Scope> _scope;
     Reference<StatementSequence> _sequence;
+};
+
+class TypeDefinitionStatement : public Statement
+{
+public:
+    void resolveTypes() { }
+    void compile() { }
+    void run(Stack<Value>* stack) { }
+    virtual Type type() = 0;
+};
+
+class TypeAliasStatement : public TypeDefinitionStatement
+{
+public:
+    static Reference<TypeAliasStatement> parse(CharacterSource* source, Scope* scope)
+    {
+        CharacterSource s = *source;
+        CharacterSource s2 = s;
+        Reference<TypeIdentifier> typeIdentifier = TypeIdentifier::parse(&s, scope);
+        if (!typeIdentifier.valid())
+            return 0;
+        if (!Space::parseCharacter(&s, '='))
+            return 0;
+        *source = s;
+        Reference<TypeSpecifier> typeSpecifier = TypeSpecifier::parse(source, scope);
+        Space::assertCharacter(source, ';');
+        Reference<TypeAliasStatement> typeAliasStatement = new TypeAliasStatement(scope, typeIdentifier, typeSpecifier);
+        scope->addType(typeIdentifier->name(), typeAliasStatement, s2.location());
+        return typeAliasStatement;
+    }
+    void resolveTypes()
+    {
+        _typeIdentifier->type();
+    }
+    Type type() { return _typeSpecifier->type(); }
+private:
+    TypeAliasStatement(Scope* scope, Reference<TypeIdentifier> typeIdentifier, Reference<TypeSpecifier> typeSpecifier)
+      : _scope(scope), _typeIdentifier(typeIdentifier), _typeSpecifier(typeSpecifier)
+    { }
+    Scope* _scope;
+    Reference<TypeIdentifier> _typeIdentifier;
+    Reference<TypeSpecifier> _typeSpecifier;
+};
+
+class StringTypeDefinitionStatement : public TypeDefinitionStatement
+{
+public:
+    Type type() { return StringType(); }
+};
+
+class IntTypeDefinitionStatement : public TypeDefinitionStatement
+{
+public:
+    Type type() { return IntType(); }
+};
+
+class VoidTypeDefinitionStatement : public TypeDefinitionStatement
+{
+public:
+    Type type() { return VoidType(); }
 };
 
 #ifdef _WIN32
@@ -1247,29 +1386,32 @@ int main(int argc, char* argv[])
         }
         File file(commandLine.argument(1));
         String contents = file.contents();
-        Reference<FunctionScope> functionScope = new FunctionScope(0);
-        Reference<Scope> scope = new Scope(0, functionScope);
-
-        scope.addType(String("String"), StringType(), DiagnosticLocation());
-        scope.addType(String("Void"), VoidType(), DiagnosticLocation());
-        scope.addType(String("Int"), IntType(), DiagnosticLocation());
+        Reference<Scope> scope = new Scope(0, true);
 
         Reference<PrintFunction> print = new PrintFunction();
         TypeList printArgumentTypes;
         printArgumentTypes.push(StringType());
         printArgumentTypes.finalize();
         Type printFunctionType = FunctionType(VoidType(), printArgumentTypes);
-        scope.addFunction(String("print"), printArgumentTypes, print, DiagnosticLocation());
+        scope->addFunction(String("print"), printArgumentTypes, print, DiagnosticLocation());
 
         CharacterSource source(contents, file.path());
         Space::parse(&source);
-        Reference<StatementSequence> program = StatementSequence::parse(&source, &scope);
+        Reference<StatementSequence> program = StatementSequence::parse(&source, scope);
         CharacterSource s = source;
         if (s.get() != -1) {
             static String error("Expected end of file");
             source.location().throwError(error);
         }
 
+        Reference<StringTypeDefinitionStatement> stringTypeDefinitionStatement = new StringTypeDefinitionStatement();
+        scope->addType(String("String"), stringTypeDefinitionStatement, DiagnosticLocation());
+        Reference<VoidTypeDefinitionStatement> voidTypeDefinitionStatement = new VoidTypeDefinitionStatement();
+        scope->addType(String("Void"), voidTypeDefinitionStatement, DiagnosticLocation());
+        Reference<IntTypeDefinitionStatement> intTypeDefinitionStatement = new IntTypeDefinitionStatement();
+        scope->addType(String("Int"), intTypeDefinitionStatement, DiagnosticLocation());
+
+        program->resolveTypes();
         program->compile();
 
         Stack<Value> stack;

@@ -1,22 +1,8 @@
-In order to add the function declaration to the scope, we first need to resolve the argument types.
-  1) Add all the type definitions (can do this during parsing)
-  2) Resolve all the type references (during compile())
-  3) Add the function definitions and variable definitions (during compile())
-  4) Resolve all the function definitions and variable definitions (second compilation phase needed?)
-
-Add scopes
-  There are two types of scopes (at least), variable scopes and function scopes
-  Declaring a variable creates a new variable scope but not a new function scope
-  Compound statement and function create a new function scope as well as a new variable scope
-  Types go into the function scope
-
-Add a FunctionScope class
-
+Test declaring functions
+  Function body getting into main statement sequence?
 
 Imported functions
   How to set up the stack for these in the interpreter?
-
-Pop function arguments into local variables
 
 Add include statement
 Add some more operators
