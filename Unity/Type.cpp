@@ -1,9 +1,13 @@
 class VoidType;
 
+template<class T> class TypeTemplate;
+
+typedef TypeTemplate<void> Type;
+
 template<class T> class TypeTemplate
 {
 public:
-    TypeTemplate() : _implementation(VoidType::implementation()) { }
+    TypeTemplate() { }
     bool operator==(const TypeTemplate& other)
     {
         return _implementation->equals(other._implementation);
@@ -15,6 +19,7 @@ public:
     int hash() const { return _implementation->hash(); }
     String toString() const { return _implementation->toString(); }
     bool valid() const { return _implementation.valid(); }
+    Type referentType() const { return _implementation->referentType(); }
 protected:
     class Implementation : public ReferenceCounted
     {
@@ -22,6 +27,7 @@ protected:
         virtual bool equals(const Implementation* other) = 0;
         virtual int hash() const = 0;
         virtual String toString() const = 0;
+        virtual Type referentType() const = 0;
     };
     TypeTemplate(Reference<Implementation> implementation)
       : _implementation(implementation)
@@ -29,8 +35,6 @@ protected:
 private:
     Reference<Implementation> _implementation;
 };
-
-typedef TypeTemplate<void> Type;
 
 class VoidType : public Type
 {
@@ -57,6 +61,7 @@ private:
             static String s("Void");
             return s;
         }
+        Type referentType() const { return Type(); }
     };
     friend class TypeTemplate<void>;
 };
@@ -86,6 +91,7 @@ private:
             static String s("Int");
             return s;
         }
+        Type referentType() const { return Type(); }
     };
 };
 
@@ -116,10 +122,42 @@ private:
             static String s("String");
             return s;
         }
+        Type referentType() const { return Type(); }
     };
 };
 
 Reference<Type::Implementation> StringType::_implementation;
+
+class BooleanType : public Type
+{
+public:
+    BooleanType() : Type(implementation()) { }
+private:
+    static Reference<Type::Implementation> _implementation;
+    static Reference<Type::Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation;
+        return _implementation;
+    }
+    class Implementation : public Type::Implementation
+    {
+    public:
+        bool equals(const Type::Implementation* other)
+        {
+            return (dynamic_cast<const Implementation*>(other) != 0);
+        }
+        int hash() const { return 5; }
+        String toString() const
+        {
+            static String s("Boolean");
+            return s;
+        }
+        Type referentType() const { return Type(); }
+    };
+};
+
+Reference<Type::Implementation> BooleanType::_implementation;
 
 Reference<Type::Implementation> VoidType::_implementation;
 
@@ -145,6 +183,7 @@ private:
             static String s("*");
             return _referentType.toString() + s;
         }
+        Type referentType() const { return _referentType; }
     private:
         Type _referentType;
     };
@@ -241,6 +280,7 @@ private:
             static String close(")");
             return _returnType.toString() + open + _argumentTypes.toString() + close;
         }
+        Type referentType() const { return Type(); }
     private:
         Type _returnType;
         TypeList _argumentTypes;

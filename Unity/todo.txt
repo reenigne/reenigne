@@ -1,21 +1,68 @@
-Test declaring functions
-  Function body getting into main statement sequence?
+Test taking the address of a variable and modifying it via a pointer
+  Make sure we can't break the interpreter doing things like this
 
-Imported functions
-  How to set up the stack for these in the interpreter?
-
-Add include statement
-Add some more operators
-Add some more statements
-Add some more types
-Allow use of more LValues
+Add statement `return` [Expression] ";"
+Add statement (`if` | `unless`) ConditionedStatement ((`elseif` | `elseunless`) ConditionedStatement)* [`else` Statement]
+Add statement (`switch` ParentheticalExpression "{" ((`case` Expression \ "," | `default`) ":" Statement)* "}"
+Add statement [`do` Statement] (`while` | `until`) ParentheticalExpression LoopBody
+Add statement `for` "(" (Statement | ";") [Expression] ";" [Statement] ")" LoopBody
+Add statement `foreach` "(" Type ValueIdentifer `in` Expression ")" LoopBody
+Add statement `break`* (`break` | `continue`) ";"
+Add statement `assembly` AssemblyStatement
+Add statement `forever` Statement
+Add statement `delete` ["[" "]"] Expression ";"
+Add TypeOf type specifier
+Add type Auto
+Add Int32, UInt32 and NInt32 types
+Add 8-bit and 16-bit types
+Add 64-bit types
+Add arbitrary precision WordString, Integer and Unsigned types
+Add Float32 and Float64 IEEE754 types
+Add Float16 and Float128 types
+Add type Word
+Add type Float
+Add type Bit
 Add classes
-Add templates
+Add hexadecimal constants
+Add floating-point constants
+Add character literals
+Add array/structure literals #{1,2,3}
+Add Boolean literals true, false
+Add "null" literal
+Add truncate_cast
+Add operator  2 .                 LtR
+Add operator  2 ->                LtR
+Add operator  2 []                LtR  LValue
+Add operator  4 sizeof            RtL
+Add template classes
+  Add type Fixed<N,B>
+    Add fixed-point decimal and hexadecimal constants (0x0000.0001)
+  Add type Complex<R>
+  Add type Rational<I>
+Add template functions
+Make all the operators functions so we don't have to have AddExpression etc. classes
 Compile to executable code
-
+  Implement calling external functions
+  Need to evaluate dll expression at compile time
+Make Identifier and TypeIdentifier disallow keywords
+Make include statement work
+  Problem: the include statement could change the meaning of the expression in it's argument, if (for example) it redefined a function that was called to construct the argument.
+  Solution: to evaluate the expression, pretend that the included file is empty and evaluate the filename on that assumption.
+Add operator  1 ::                LtR
+Add operator  2 typeid            LtR
+Add const_cast, dynamic_cast, reinterpret_cast and static_cast (LtR, precedence 2)
+Add operator  4 ()(type cast)     RtL
+Add operator  4 new               RtL
+Add operator  4 new[]             RtL
+Add operator  5 .*                LtR
+Add operator  5 ->*               LtR
+Add operator 16 ?:                RtL  
 Use operator[] instead of lookUp and add in HashTable?
 Need a better error message when statement isn't recognized as such
 For String::throwUnexpected(), print name (or hex) of found character to avoid putting unprintable characters in error messages.
   Need a way to convert any codepoint into an ASCII printable string
     Use U+xxxx
 Make sure we have a sensible error message when no memory can be allocated at all
+Add 1-bit, 2-bit, 4-bit, 128-bit, 256-bit and 512-bit types
+Add "fastest at least n bit" integral and floating-point types
+Add half/double/quad Word/Int/UInt types

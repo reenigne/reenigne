@@ -47,10 +47,10 @@ DoubleQuotedString = '"' ('$' (Identifier | '(' [Expression] ')') | !(NonStringC
 EmbeddedLiteral = `###` end=(NonNewLineCharacter*) NewLine (!end Character)* end `###` {[Space]};
 
 
-Type =
+TypeSpecifier =
     TypeIdentifier
-  | Type "*"
-  | Type "(" Type \ "," ")"
+  | TypeSpecifier "*"
+  | TypeSpecifier "(" TypeSpecifier \ "," ")"
   ;
 
 Expression =
@@ -59,13 +59,16 @@ Expression =
     | EmbeddedLiteral
     | '(' Expression ')'
     )
-  \ "+";
+  \ ("+" | "-");
 
 Statement =
-    `nothing`
+    `nothing` ";"
   | Identifier "=" Expression ";"
   | Type Identifier "=" Expression ";"
-  | Type Identifier "(" (Type ValueIdentifier) \ "," ")" (Statement | `from` DoubleQuotedString ";")
+  | Type Identifier "(" (Type ValueIdentifier) \ "," ")" (Statement | `from` Expression ";")
+  | TypeIdentifier = TypeSpecifier ";"
+  | `include` Expression ";"
+  | "{" Statement* "}"
   ;
 
 = Statement*;

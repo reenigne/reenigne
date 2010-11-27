@@ -1,0 +1,81 @@
+  1 ::                LtR
+  2 ++(postfix)       LtR  remove
+  2 --(postfix)       LtR  remove
+  2 ()(function call) LtR  done
+  2 []                LtR  todo
+  2 .                 LtR  todo
+  2 ->                LtR  todo
+  2 typeid            LtR
+  2 const_cast        LtR
+  2 dynamic_cast      LtR
+  2 reinterpret_cast  LtR
+  2 static_cast       LtR
+  3                   RtL  reserved for power: ^
+  4 ++(prefix)        RtL  statement
+  4 --(prefix)        RtL  statement
+  4 +(unary)          RtL  todo
+  4 -(unary)          RtL  todo
+  4 !                 RtL  todo
+  4 ~                 RtL  todo
+  4 ()(type cast)     RtL
+  4 *(indirection)    RtL  todo
+  4 &(address of)     RtL  todo
+  4 sizeof            RtL  todo
+  4 new               RtL
+  4 new[]             RtL
+  4 delete            RtL
+  4 delete[]          RtL
+  5 .*                LtR
+  5 ->*               LtR
+  6 *                 LtR  todo
+  6 /                 LtR  todo
+  6 %                 LtR  todo
+  7 +                 LtR  done
+  7 -                 LtR  done
+  8 <<                LtR  todo
+  8 >>                LtR  todo
+  9 <                 LtR  todo
+  9 <=                LtR  todo
+  9 >                 LtR  todo
+  9 >=                LtR  todo
+ 10 ==                LtR  todo
+ 10 !=                LtR  todo
+ 11 &                 LtR  todo
+ 12 ^                 LtR  todo (rename to ~)
+ 13 |                 LtR  todo
+ 14 &&                LtR  todo
+ 15 ||                LtR  todo
+ 16 ?:                RtL
+ 17 =                 RtL  statement
+ 17 +=                RtL  statement
+ 17 -=                RtL  statement
+ 17 *=                RtL  statement
+ 17 /=                RtL  statement
+ 17 %=                RtL  statement
+ 17 <<=               RtL  statement
+ 17 >>=               RtL  statement
+ 17 &=                RtL  statement
+ 17 ^=                RtL  statement
+ 17 |=                RtL  statement
+ 18 throw             RtL  statement
+ 19 ,                 LtR
+
+-y^2 should be -(y^2), not (-y)^2, so ^ needs to bind more tightly than unary-
+x^y^z should be x^(y^z) not (x^y)^z == x^(y*z) so ^ needs to associate right-to-left
+x.y^2 should be (x.y)^2 not x.(y^2) so ^ needs to bind less tightly that .
+
+a ? b ? c : d : e can only mean a ? (b ? c : d) : e
+a ? b : c ? d : e means a ? b : (c ? d : e) not (a ? b : c) ? d : e
+
+//  \ ("*" | "/" | "%")
+//  \ ("+" | "-")
+//  \ ("<<" | ">>")
+//  \ ("<" | ">" | "<=" | ">=")
+//  \ ("==" | "!=")
+//  \ "&"
+//  \ "~"
+//  \ "|"
+//  \ "&&"
+//  \ "||" ["?" Expression ":" Expression];
+
+
