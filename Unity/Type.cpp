@@ -20,6 +20,7 @@ public:
     String toString() const { return _implementation->toString(); }
     bool valid() const { return _implementation.valid(); }
     Type referentType() const { return _implementation->referentType(); }
+    Type returnType() const { return _implementation->returnType(); }
 protected:
     class Implementation : public ReferenceCounted
     {
@@ -28,6 +29,7 @@ protected:
         virtual int hash() const = 0;
         virtual String toString() const = 0;
         virtual Type referentType() const = 0;
+        virtual Type returnType() const = 0;
     };
     TypeTemplate(Reference<Implementation> implementation)
       : _implementation(implementation)
@@ -62,9 +64,12 @@ private:
             return s;
         }
         Type referentType() const { return Type(); }
+        Type returnType() const { return Type(); }
     };
     friend class TypeTemplate<void>;
 };
+
+Reference<Type::Implementation> VoidType::_implementation;
 
 class IntType : public Type
 {
@@ -92,6 +97,7 @@ private:
             return s;
         }
         Type referentType() const { return Type(); }
+        Type returnType() const { return Type(); }
     };
 };
 
@@ -123,6 +129,7 @@ private:
             return s;
         }
         Type referentType() const { return Type(); }
+        Type returnType() const { return Type(); }
     };
 };
 
@@ -154,12 +161,171 @@ private:
             return s;
         }
         Type referentType() const { return Type(); }
+        Type returnType() const { return Type(); }
     };
 };
 
 Reference<Type::Implementation> BooleanType::_implementation;
 
-Reference<Type::Implementation> VoidType::_implementation;
+class BitType : public Type
+{
+public:
+    BitType() : Type(implementation()) { }
+private:
+    static Reference<Type::Implementation> _implementation;
+    static Reference<Type::Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation;
+        return _implementation;
+    }
+    class Implementation : public Type::Implementation
+    {
+    public:
+        bool equals(const Type::Implementation* other)
+        {
+            return (dynamic_cast<const Implementation*>(other) != 0);
+        }
+        int hash() const { return 6; }
+        String toString() const
+        {
+            static String s("Bit");
+            return s;
+        }
+        Type referentType() const { return Type(); }
+        Type returnType() const { return Type(); }
+    };
+};
+
+Reference<Type::Implementation> BitType::_implementation;
+
+class ByteType : public Type
+{
+public:
+    ByteType() : Type(implementation()) { }
+private:
+    static Reference<Type::Implementation> _implementation;
+    static Reference<Type::Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation;
+        return _implementation;
+    }
+    class Implementation : public Type::Implementation
+    {
+    public:
+        bool equals(const Type::Implementation* other)
+        {
+            return (dynamic_cast<const Implementation*>(other) != 0);
+        }
+        int hash() const { return 7; }
+        String toString() const
+        {
+            static String s("Byte");
+            return s;
+        }
+        Type referentType() const { return Type(); }
+        Type returnType() const { return Type(); }
+    };
+};
+
+Reference<Type::Implementation> ByteType::_implementation;
+
+class CharacterType : public Type
+{
+public:
+    CharacterType() : Type(implementation()) { }
+private:
+    static Reference<Type::Implementation> _implementation;
+    static Reference<Type::Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation;
+        return _implementation;
+    }
+    class Implementation : public Type::Implementation
+    {
+    public:
+        bool equals(const Type::Implementation* other)
+        {
+            return (dynamic_cast<const Implementation*>(other) != 0);
+        }
+        int hash() const { return 8; }
+        String toString() const
+        {
+            static String s("Character");
+            return s;
+        }
+        Type referentType() const { return Type(); }
+        Type returnType() const { return Type(); }
+    };
+};
+
+Reference<Type::Implementation> CharacterType::_implementation;
+
+class UIntType : public Type
+{
+public:
+    UIntType() : Type(implementation()) { }
+private:
+    static Reference<Type::Implementation> _implementation;
+    static Reference<Type::Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation;
+        return _implementation;
+    }
+    class Implementation : public Type::Implementation
+    {
+    public:
+        bool equals(const Type::Implementation* other)
+        {
+            return (dynamic_cast<const Implementation*>(other) != 0);
+        }
+        int hash() const { return 9; }
+        String toString() const
+        {
+            static String s("UInt");
+            return s;
+        }
+        Type referentType() const { return Type(); }
+        Type returnType() const { return Type(); }
+    };
+};
+
+Reference<Type::Implementation> UIntType::_implementation;
+
+class WordType : public Type
+{
+public:
+    WordType() : Type(implementation()) { }
+private:
+    static Reference<Type::Implementation> _implementation;
+    static Reference<Type::Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation;
+        return _implementation;
+    }
+    class Implementation : public Type::Implementation
+    {
+    public:
+        bool equals(const Type::Implementation* other)
+        {
+            return (dynamic_cast<const Implementation*>(other) != 0);
+        }
+        int hash() const { return 10; }
+        String toString() const
+        {
+            static String s("Word");
+            return s;
+        }
+        Type referentType() const { return Type(); }
+        Type returnType() const { return Type(); }
+    };
+};
+
+Reference<Type::Implementation> WordType::_implementation;
 
 class PointerType : public Type
 {
@@ -184,6 +350,7 @@ private:
             return _referentType.toString() + s;
         }
         Type referentType() const { return _referentType; }
+        Type returnType() const { return Type(); }
     private:
         Type _referentType;
     };
@@ -281,6 +448,7 @@ private:
             return _returnType.toString() + open + _argumentTypes.toString() + close;
         }
         Type referentType() const { return Type(); }
+        Type returnType() const { return _returnType; }
     private:
         Type _returnType;
         TypeList _argumentTypes;
@@ -289,4 +457,34 @@ public:
     FunctionType(Type returnType, TypeList argumentTypes)
       : Type(new Implementation(returnType, argumentTypes))
     { }
+};
+
+class ClassType : public Type
+{
+    class Implementation : public Type::Implementation
+    {
+    public:
+        Implementation()
+        { }
+        bool equals(const Type::Implementation* otherBase)
+        {
+            const Implementation* other = dynamic_cast<const Implementation*>(otherBase);
+            if (other == 0)
+                return false;
+            return this == other;
+        }
+        int hash() const
+        {
+            return reinterpret_cast<int>(this);
+        }
+        String toString() const
+        {
+            static String c("Class");
+            return c + String::hexadecimal(reinterpret_cast<UInt32>(this), 8);
+        }
+        Type referentType() const { return Type(); }
+        Type returnType() const { return Type(); }
+    };
+public:
+    ClassType() : Type(new Implementation) { }
 };

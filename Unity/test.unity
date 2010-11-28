@@ -1,3 +1,8 @@
+Int x = 123;
+Int* p = &x;
+*p = 1;
+f("noop", x);
+
 //String bar = "baz";
 //bar = ###foo
 //bee###

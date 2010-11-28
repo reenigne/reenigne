@@ -1,7 +1,9 @@
+template<class T> class ExpressionTemplate;
+typedef ExpressionTemplate<void> Expression;
 template<class T> class ExpressionTemplate : public ReferenceCounted
 {
 public:
-    static Reference<ExpressionTemplate> parse(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parse(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = parsePrecedence14(source, scope);
         if (!e.valid())
@@ -23,10 +25,10 @@ public:
     virtual void compile() = 0;
     virtual Type type() const = 0;
     virtual void push(Stack<Value>* stack) = 0;
-    virtual bool isLValue() const = 0;
-    virtual void setValue(Stack<Value>* stack, Value value) = 0;
+    virtual bool isLValue() = 0;
+    virtual Variable* variable(Stack<Value>* stack) = 0;
 private:
-    static Reference<ExpressionTemplate> parsePrecedence14(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence14(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = parsePrecedence13(source, scope);
         if (!e.valid())
@@ -45,7 +47,7 @@ private:
         } while (true);
     }
 
-    static Reference<ExpressionTemplate> parsePrecedence13(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence13(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = parsePrecedence12(source, scope);
         if (!e.valid())
@@ -63,7 +65,7 @@ private:
         } while (true);
     }
 
-    static Reference<ExpressionTemplate> parsePrecedence12(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence12(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = parsePrecedence11(source, scope);
         if (!e.valid())
@@ -81,7 +83,7 @@ private:
         } while (true);
     }
 
-    static Reference<ExpressionTemplate> parsePrecedence11(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence11(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = parsePrecedence10(source, scope);
         if (!e.valid())
@@ -99,7 +101,7 @@ private:
         } while (true);
     }
 
-    static Reference<ExpressionTemplate> parsePrecedence10(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence10(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = parsePrecedence9(source, scope);
         if (!e.valid())
@@ -126,7 +128,7 @@ private:
         } while (true);
     }
 
-    static Reference<ExpressionTemplate> parsePrecedence9(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence9(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = parsePrecedence8(source, scope);
         if (!e.valid())
@@ -167,7 +169,7 @@ private:
         } while (true);
     }
 
-    static Reference<ExpressionTemplate> parsePrecedence8(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence8(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = parsePrecedence7(source, scope);
         if (!e.valid())
@@ -193,7 +195,7 @@ private:
             return e;
         } while (true);
     }
-    static Reference<ExpressionTemplate> parsePrecedence7(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence7(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = parsePrecedence6(source, scope);
         if (!e.valid())
@@ -217,7 +219,7 @@ private:
             return e;
         } while (true);
     }
-    static Reference<ExpressionTemplate> parsePrecedence6(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence6(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = parsePrecedence4(source, scope);
         if (!e.valid())
@@ -248,38 +250,38 @@ private:
             return e;
         } while (true);
     }
-    static Reference<ExpressionTemplate> parsePrecedence4(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence4(CharacterSource* source, Scope* scope)
     {
         DiagnosticLocation location = source->location();
         if (Space::parseCharacter(source, '!')) {
-            Reference<ExpressionTemplate> e = parsePrecedence4(source, scope);
+            Reference<Expression> e = parsePrecedence4(source, scope);
             return new LogicalNotExpression(e, location);
         }
         if (Space::parseCharacter(source, '~')) {
-            Reference<ExpressionTemplate> e = parsePrecedence4(source, scope);
+            Reference<Expression> e = parsePrecedence4(source, scope);
             return new LogicalNotExpression(e, location);
         }
         if (Space::parseCharacter(source, '+')) {
-            Reference<ExpressionTemplate> e = parsePrecedence4(source, scope);
+            Reference<Expression> e = parsePrecedence4(source, scope);
             return new PositiveExpression(e, location);
         }
         if (Space::parseCharacter(source, '-')) {
-            Reference<ExpressionTemplate> e = parsePrecedence4(source, scope);
+            Reference<Expression> e = parsePrecedence4(source, scope);
             return new NegativeExpression(e, location);
         }
         if (Space::parseCharacter(source, '*')) {
-            Reference<ExpressionTemplate> e = parsePrecedence4(source, scope);
+            Reference<Expression> e = parsePrecedence4(source, scope);
             return new DereferenceExpression(e, location);
         }
         if (Space::parseCharacter(source, '&')) {
-            Reference<ExpressionTemplate> e = parsePrecedence4(source, scope);
+            Reference<Expression> e = parsePrecedence4(source, scope);
             return new AddressOfExpression(e, location);
         }
         return parsePrecedence3(source, scope);
     }
-    static Reference<ExpressionTemplate> parsePrecedence3(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence3(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence0(source, scope);
+        Reference<Expression> e = parsePrecedence2(source, scope);
         if (!e.valid())
             return 0;
         DiagnosticLocation location = source->location();
@@ -291,7 +293,21 @@ private:
         }
         return e;
     }
-    static Reference<ExpressionTemplate> parsePrecedence0(CharacterSource* source, Scope* scope)
+    static Reference<Expression> parsePrecedence2(CharacterSource* source, Scope* scope)
+    {
+        Reference<Expression> e = parsePrecedence0(source, scope);
+        if (!e.valid())
+            return 0;
+        do {
+            if (!Space::parseCharacter(source, '('))
+                break;
+            e = FunctionCallExpression::parse(source, scope, e);
+            if (!e.valid())
+                throwError(source);
+        } while (true);
+        return e;
+    }
+    static Reference<Expression> parsePrecedence0(CharacterSource* source, Scope* scope)
     {
         Reference<Expression> e = DoubleQuotedString::parse(source, scope);
         if (e.valid())
@@ -310,6 +326,12 @@ private:
             Space::assertCharacter(source, ')');
             return e;
         }
+        e = BooleanConstant::parse(source);
+        if (e.valid())
+            return e;
+        e = NullConstant::parse(source);
+        if (e.valid())
+            return e;
         return 0;
     }
     static void throwError(CharacterSource* source)
@@ -318,8 +340,6 @@ private:
         source->location().throwError(expected);
     }
 };
-
-typedef ExpressionTemplate<void> Expression;
 
 class Identifier : public Expression
 {
@@ -332,16 +352,55 @@ public:
         int c = s.get();
         if (c < 'a' || c > 'z')
             return 0;
+        CharacterSource s2;
         do {
-            *source = s;
+            s2 = s;
             c = s.get();
             if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')
                 continue;
             break;
         } while (true);
-        int end = source->offset();
-        Space::parse(source);
-        return new Identifier(scope, s.subString(start, end), location);
+        int end = s2.offset();
+        Space::parse(&s2);
+        String name = s2.subString(start, end);
+        static String keywords[] = {
+            String("assembly"),
+            String("break"),
+            String("case"),
+            String("catch"),
+            String("continue"),
+            String("default"),
+            String("delete"),
+            String("do"),
+            String("done"),
+            String("else"),
+            String("elseIf"),
+            String("elseUnless"),
+            String("false"),
+            String("finally"),
+            String("from"),
+            String("for"),
+            String("forever"),
+            String("if"),
+            String("in"),
+            String("new"),
+            String("nothing"),
+            String("null"),
+            String("return"),
+            String("switch"),
+            String("this"),
+            String("throw"),
+            String("true"),
+            String("try"),
+            String("unless"),
+            String("until"),
+            String("while")
+        };
+        for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); ++i)
+            if (name == keywords[i])
+                return 0;
+        *source = s2;
+        return new Identifier(scope, name, location);
     }
     Type type() const { return _symbol->type(_name, _location); }
     String name() const { return _name; }
@@ -353,15 +412,15 @@ public:
     {
         _symbol = _scope->resolveSymbol(_name, _location);
     }
-    bool isLValue() const
+    bool isLValue()
     {
         Reference<Variable> variable = _symbol;
         return variable.valid();
     }
-    void setValue(Stack<Value>* stack, Value value)
+    Variable* variable(Stack<Value>* stack)
     {
         Reference<Variable> variable = _symbol;
-        variable->setValue(value);
+        return variable;
     }
 private:
     Identifier(Scope* scope, String name, DiagnosticLocation location)
@@ -376,8 +435,8 @@ private:
 class RValueExpression : public Expression
 {
 public:
-    bool isLValue() const { return false; }
-    void setValue(Stack<Value>* stack, Value value) { }
+    bool isLValue() { return false; }
+    Variable* variable(Stack<Value>* stack) { return 0; }
 };
 
 class Integer : public RValueExpression
@@ -1230,14 +1289,13 @@ public:
     }
     void push(Stack<Value>* stack)
     {
-        _expression->push(stack);
-        stack->push(stack->pop().getPointer()->value());
+        stack->push(variable(stack)->value());
     }
-    bool isLValue() const { return true; }
-    void setValue(Stack<Value>* stack, Value value)
+    bool isLValue() { return true; }
+    Variable* variable(Stack<Value>* stack)
     {
         _expression->push(stack);
-        stack->pop().getPointer()->setValue(value);
+        return stack->pop().getPointer();
     }
 private:
     Reference<Expression> _expression;
@@ -1264,8 +1322,7 @@ public:
     }
     void push(Stack<Value>* stack)
     {
-        _expression->push(stack);
-
+        stack->push(Value(_expression->variable(stack)));
     }
 private:
     Reference<Expression> _expression;
@@ -1318,6 +1375,71 @@ private:
     }
     Reference<Expression> _left;
     Reference<Expression> _right;
+    DiagnosticLocation _location;
+};
+
+class FunctionCallExpression : public Expression
+{
+public:
+    static Reference<FunctionCallExpression> parse(CharacterSource* source, Scope* scope, Reference<Expression> function)
+    {
+        DiagnosticLocation location = source->location();
+        int n = 0;
+        Stack<Reference<Expression> > stack;
+        if (!Space::parseCharacter(source, ')')) {
+            do {
+                Reference<Expression> e = Expression::parse(source, scope);
+                if (!e.valid()) {
+                    static String expression("Expected expression");
+                    source->location().throwError(expression);
+                }
+                stack.push(e);
+                ++n;
+                if (Space::parseCharacter(source, ')'))
+                    break;
+                Space::assertCharacter(source, ',');
+            } while (true);
+        }
+        Space::assertCharacter(source, ';');
+        Reference<FunctionCallExpression> functionCall = new FunctionCallExpression(scope, function, n, location);
+        stack.toArray(&functionCall->_arguments);
+        return functionCall;
+    }
+    Type type() const
+    {
+
+        return _function->type().returnType();
+    }
+
+    //void resolveTypes() { }
+    //void compile()
+    //{
+    //    TypeList argumentTypes;
+    //    for (int i = 0; i < _arguments.count(); ++i) {
+    //        _arguments[i]->compile();
+    //        argumentTypes.push(_arguments[i]->type());
+    //    }
+    //    argumentTypes.finalize();
+    //    _functionDeclaration = _scope->resolveFunction(_function, argumentTypes, _location);
+    //}
+    void push(Stack<Value>* stack)
+    {
+        for (int i = _arguments.count() - 1; i >= 0; --i)
+            _arguments[i]->push(stack);
+
+        _functionDeclaration->call(stack);
+    }
+private:
+    FunctionCallExpression(Scope* scope, Reference<Expression> function, int n, DiagnosticLocation location)
+      : _scope(scope), _function(function), _location(location)
+    {
+        _arguments.allocate(n);
+    }
+
+    Scope* _scope;
+    Reference<Expression> _function;
+    FunctionDeclarationStatement* _functionDeclaration;
+    Array<Reference<Expression> > _arguments;
     DiagnosticLocation _location;
 };
 

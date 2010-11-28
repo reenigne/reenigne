@@ -1,3 +1,5 @@
+class ExtricationStatement;
+
 template<class T> class StatementTemplate : public ReferenceCounted
 {
 public:
@@ -31,7 +33,7 @@ public:
     }
     virtual void resolveTypes() = 0;
     virtual void compile() = 0;
-    virtual void run(Stack<Value>* stack) = 0;
+    virtual ExtricationStatement* run(Stack<Value>* stack) = 0;
 };
 
 typedef StatementTemplate<void> Statement;
@@ -62,14 +64,54 @@ public:
         for (int i = 0; i < _statements.count(); ++i)
             _statements[i]->compile();
     }
-    void run(Stack<Value>* stack)
+    ExtricationStatement* run(Stack<Value>* stack)
     {
-        for (int i = 0; i < _statements.count(); ++i)
-            _statements[i]->run(stack);
+        for (int i = 0; i < _statements.count(); ++i) {
+            ExtricationStatement* statement = _statements[i]->run(stack);
+            if (statement != 0)
+                return statement;
+        }
+        return 0;
     }
 private:
     StatementSequence() { }
     Array<Reference<Statement> > _statements;
+};
+
+class ExtricationStatement : public Statement
+{
+};
+
+class ReturnStatement : public ExtricationStatement
+{
+public:
+    static Reference<ReturnStatement> parse(CharacterSource* source, Scope* scope)
+    {
+        static String keyword("return");
+        if (!Space::parseKeyword(source, keyword))
+            return 0;
+        Reference<Expression> expression = Expression::parse(source, scope);
+        if (!expression.valid()) {
+            static String error("Expected expression");
+            source->location().throwError(error);
+        }
+        Space::assertCharacter(source, ';');
+        return new ReturnStatement(expression);
+    }
+    void resolveTypes() { }
+    void compile()
+    {
+        _expression->compile();
+    }
+    ExtricationStatement* run(Stack<Value>* stack)
+    {
+        _expression->push(stack);
+        return this;
+    }
+private:
+    ReturnStatement(Reference<Expression> expression) : _expression(expression)
+    { }
+    Reference<Expression> _expression;
 };
 
 class FunctionDeclarationStatement : public Statement
@@ -98,9 +140,8 @@ public:
             Space::assertCharacter(source, ',');
         } while (true);
 
-        Reference<Identifier> identifier = Identifier::parse(source, inner);
         static String from("from");
-        if (identifier.valid() && identifier->name() == from) {
+        if (Space::parseKeyword(source, from)) {
             Reference<Expression> dll = Expression::parse(source, inner);
             if (dll.valid())
                 return new FunctionDeclarationStatement(inner, returnTypeSpecifier, name, &stack, dll, location);
@@ -130,7 +171,7 @@ public:
         if (_statement.valid())
             _statement->compile();
     }
-    void run(Stack<Value>* stack) { }
+    ExtricationStatement* run(Stack<Value>* stack) { return 0; }
     virtual Type returnType() const { return _returnTypeSpecifier->type(); }
     virtual void call(Stack<Value>* stack)
     {
@@ -200,69 +241,38 @@ private:
     DiagnosticLocation _location;
 };
 
-class FunctionCallStatement : public Statement
+class ExpressionStatement : public Statement
 {
 public:
-    static Reference<FunctionCallStatement> parse(CharacterSource* source, Scope* scope)
+    static Reference<ExpressionStatement> parse(CharacterSource* source, Scope* scope)
     {
-        CharacterSource s = *source;
-        DiagnosticLocation location = s.location();
-        Reference<Identifier> functionName = Identifier::parse(&s, scope);
-        if (!functionName.valid())
+        Reference<Expression> expression = Expression::parse(source, scope);
+        if (!expression.valid())
             return 0;
-        if (!Space::parseCharacter(&s, '('))
-            return 0;
-        int n = 0;
-        Stack<Reference<Expression> > stack;
-        *source = s;
-        if (!Space::parseCharacter(source, ')')) {
-            do {
-                Reference<Expression> e = Expression::parse(source, scope);
-                if (!e.valid()) {
-                    static String expression("Expected expression");
-                    source->location().throwError(expression);
-                }
-                stack.push(e);
-                ++n;
-                if (Space::parseCharacter(source, ')'))
-                    break;
-                Space::assertCharacter(source, ',');
-            } while (true);
+        FunctionCallExpression* functionCallExpression = dynamic_cast<FunctionCallExpression*>(static_cast<Expression*>(expression));
+        if (functionCallExpression == 0) {
+            static String error("Statement has no effect");
+            source->location().throwError(error);
         }
-        Space::assertCharacter(source, ';');
-        Reference<FunctionCallStatement> functionCall = new FunctionCallStatement(scope, functionName, n, location);
-        stack.toArray(&functionCall->_arguments);
-        return functionCall;
+        return new ExpressionStatement(expression);
     }
     void resolveTypes() { }
     void compile()
     {
-        TypeList argumentTypes;
-        for (int i = 0; i < _arguments.count(); ++i) {
-            _arguments[i]->compile();
-            argumentTypes.push(_arguments[i]->type());
-        }
-        argumentTypes.finalize();
-        _function = _scope->resolveFunction(_functionName, argumentTypes, _location);
+        _expression->compile();
     }
-    void run(Stack<Value>* stack)
+    ExtricationStatement* run(Stack<Value>* stack)
     {
-        for (int i = _arguments.count() - 1; i >= 0; --i)
-            _arguments[i]->push(stack);
-        _function->call(stack);
+        _expression->push(stack);
+        if (_expression->type() != VoidType())
+            stack->pop();
+        return 0;
     }
 private:
-    FunctionCallStatement(Scope* scope, Reference<Identifier> functionName, int n, DiagnosticLocation location)
-      : _scope(scope), _functionName(functionName), _location(location)
-    {
-        _arguments.allocate(n);
-    }
-
-    Scope* _scope;
-    Reference<Identifier> _functionName;
-    FunctionDeclarationStatement* _function;
-    Array<Reference<Expression> > _arguments;
-    DiagnosticLocation _location;
+    ExpressionStatement(Reference<Expression> expression)
+      : _expression(expression)
+    { }
+    Reference<Expression> _expression;
 };
 
 class VariableDeclarationStatement : public Statement
@@ -297,14 +307,20 @@ public:
     }
     void compile()
     {
-        _variable = _scope->outer()->addVariable(_identifier->name(), _typeSpecifier->type(), _location);
+        Type type = _typeSpecifier->type();
+        AutoTypeSpecifier* autoTypeSpecifier = dynamic_cast<AutoTypeSpecifier*>(static_cast<TypeSpecifier*>(_typeSpecifier));
+        if (autoTypeSpecifier != 0)
+            type = _initializer->type();
+        _initializer->compile();
+        _variable = _scope->outer()->addVariable(_identifier->name(), type, _location);
     }
-    void run(Stack<Value>* stack)
+    ExtricationStatement* run(Stack<Value>* stack)
     {
         if (_initializer.valid()) {
             _initializer->push(stack);
             _variable->setValue(stack->pop());
         }
+        return 0;
     }
 private:
     VariableDeclarationStatement(Reference<Scope> scope, Reference<TypeSpecifier> typeSpecifier, Reference<Identifier> identifier, Reference<Expression> initializer, DiagnosticLocation location)
@@ -331,7 +347,7 @@ public:
             return 0;
         int type = 0;
         static String addAssignment("+=");
-        static String subtractAssignment("+=");
+        static String subtractAssignment("-=");
         static String multiplyAssignment("*=");
         static String divideAssignment("/=");
         static String moduloAssignment("%=");
@@ -342,29 +358,29 @@ public:
         static String xorAssignment("~=");
         static String powerAssignment("^=");
 
-        if (!Space::parseCharacter(&s, '='))
+        if (Space::parseCharacter(&s, '='))
             type = 1;
-        else if (!Space::parseOperator(&s, addAssignment))
+        else if (Space::parseOperator(&s, addAssignment))
             type = 2;
-        else if (!Space::parseOperator(&s, subtractAssignment))
+        else if (Space::parseOperator(&s, subtractAssignment))
             type = 3;
-        else if (!Space::parseOperator(&s, multiplyAssignment))
+        else if (Space::parseOperator(&s, multiplyAssignment))
             type = 4;
-        else if (!Space::parseOperator(&s, divideAssignment))
+        else if (Space::parseOperator(&s, divideAssignment))
             type = 5;
-        else if (!Space::parseOperator(&s, moduloAssignment))
+        else if (Space::parseOperator(&s, moduloAssignment))
             type = 6;
-        else if (!Space::parseOperator(&s, shiftLeftAssignment))
+        else if (Space::parseOperator(&s, shiftLeftAssignment))
             type = 7;
-        else if (!Space::parseOperator(&s, shiftRightAssignment))
+        else if (Space::parseOperator(&s, shiftRightAssignment))
             type = 8;
-        else if (!Space::parseOperator(&s, andAssignment))
+        else if (Space::parseOperator(&s, andAssignment))
             type = 9;
-        else if (!Space::parseOperator(&s, orAssignment))
+        else if (Space::parseOperator(&s, orAssignment))
             type = 10;
-        else if (!Space::parseOperator(&s, xorAssignment))
+        else if (Space::parseOperator(&s, xorAssignment))
             type = 11;
-        else if (!Space::parseOperator(&s, powerAssignment))
+        else if (Space::parseOperator(&s, powerAssignment))
             type = 12;
         if (type == 0)
             return 0;
@@ -413,8 +429,15 @@ public:
         }
         return new AssignmentStatement(scope, lValue, e, location);
     }
-    void resolveTypes()
+    void resolveTypes() { }
+    void compile()
     {
+        _lValue->compile();
+        _value->compile();
+        if (!_lValue->isLValue()) {
+            static String error("LValue required");
+            _location.throwError(error);
+        }
         Type l = _lValue->type();
         Type r = _value->type();
         if (l != r) {
@@ -423,17 +446,11 @@ public:
             _location.throwError(error1 + l.toString() + error2 + r.toString());
         }
     }
-    void compile()
-    {
-        if (!_lValue->isLValue()) {
-            static String error("LValue required");
-            _location.throwError(error);
-        }
-    }
-    void run(Stack<Value>* stack)
+    ExtricationStatement* run(Stack<Value>* stack)
     {
         _value->push(stack);
-        _variable->setValue(stack->pop());
+        _lValue->variable(stack)->setValue(stack->pop());
+        return 0;
     }
 private:
     AssignmentStatement(Scope* scope, Reference<Expression> lValue, Reference<Expression> value, DiagnosticLocation location)
@@ -443,7 +460,6 @@ private:
     Reference<Expression> _lValue;
     Reference<Expression> _value;
     DiagnosticLocation _location;
-    Reference<Variable> _variable;
 };
 
 class PrintFunction : public FunctionDeclarationStatement
@@ -482,9 +498,9 @@ public:
     {
         _sequence->compile();
     }
-    void run(Stack<Value>* stack)
+    ExtricationStatement* run(Stack<Value>* stack)
     {
-        _sequence->run(stack);
+        return _sequence->run(stack);
     }
 private:
     CompoundStatement(Reference<Scope> scope, Reference<StatementSequence> sequence)
@@ -499,7 +515,7 @@ class TypeDefinitionStatement : public Statement
 public:
     void resolveTypes() { }
     void compile() { }
-    void run(Stack<Value>* stack) { }
+    ExtricationStatement* run(Stack<Value>* stack) { return 0; }
     virtual Type type() = 0;
 };
 
@@ -541,9 +557,8 @@ class IncludeStatement : public Statement
 public:
     static Reference<IncludeStatement> parse(CharacterSource* source, Scope* scope)
     {
-        Reference<Identifier> identifier = Identifier::parse(source, scope);
         static String include("include");
-        if (!identifier.valid() || identifier->name() != include)
+        if (!Space::parseKeyword(source, include))
             return 0;
         Reference<Expression> expression = Expression::parse(source, scope);
         if (!expression.valid()) {
@@ -555,7 +570,7 @@ public:
     }
     void resolveTypes() { }
     void compile() { }
-    void run(Stack<Value>* stack) { }
+    ExtricationStatement* run(Stack<Value>* stack) { return 0; }
 private:
     IncludeStatement(Scope* scope, Reference<Expression> expression)
       : _scope(scope), _expression(expression)
@@ -569,16 +584,107 @@ class NothingStatement : public Statement
 public:
     static Reference<NothingStatement> parse(CharacterSource* source, Scope* scope)
     {
-        Reference<Identifier> identifier = Identifier::parse(source, scope);
         static String nothing("nothing");
-        if (!identifier.valid() || identifier->name() != nothing)
+        if (!Space::parseKeyword(source, nothing))
             return 0;
         Space::assertCharacter(source, ';');
         return new NothingStatement();
     }
     void resolveTypes() { }
     void compile() { }
-    void run(Stack<Value>* stack) { }
+    ExtricationStatement* run(Stack<Value>* stack) { return 0; }
+};
+
+class BreakStatement;
+
+class ContinueStatement;
+
+template<class T> class BreakOrContinueStatementTemplate;
+
+typedef BreakOrContinueStatementTemplate<void> BreakOrContinueStatement;
+
+template<class T> class BreakOrContinueStatementTemplate : public ExtricationStatement
+{
+public:
+    static Reference<BreakOrContinueStatement> parse(CharacterSource* source, Scope* scope)
+    {
+        Reference<BreakStatement> breakStatement = BreakStatement::parse(source, scope);
+        if (breakStatement.valid())
+            return breakStatement;
+        return ContinueStatement::parse(source, scope);
+    }
+    void resolveTypes() { }
+    void compile() { }
+    ExtricationStatement* run(Stack<Value>* stack) { return this; }
+};
+
+class BreakStatement : public BreakOrContinueStatement
+{
+public:
+    static Reference<BreakStatement> parse(CharacterSource* source, Scope* scope)
+    {
+        static String keyword("break");
+        if (!Space::parseKeyword(source, keyword))
+            return 0;
+        Reference<BreakOrContinueStatement> statement = BreakOrContinueStatement::parse(source, scope);
+        if (!statement.valid())
+            Space::assertCharacter(source, ';');
+        return new BreakStatement(statement);
+    }
+    BreakOrContinueStatement* nextAction() { return _statement; }
+private:
+    BreakStatement(Reference<BreakOrContinueStatement> statement) : _statement(statement) { }
+    Reference<BreakOrContinueStatement> _statement;
+};
+
+class ContinueStatement : public BreakOrContinueStatement
+{
+public:
+    static Reference<ContinueStatement> parse(CharacterSource* source, Scope* scope)
+    {
+        static String keyword("continue");
+        if (!Space::parseKeyword(source, keyword))
+            return 0;
+        Space::assertCharacter(source, ';');
+        return new ContinueStatement();
+    }
+};
+
+class ForeverStatement : public Statement
+{
+public:
+    static Reference<ForeverStatement> parse(CharacterSource* source, Scope* scope)
+    {
+        static String forever("forever");
+        if (!Space::parseKeyword(source, forever))
+            return 0;
+        Reference<Statement> statement = Statement::parse(source, scope);
+        if (!statement.valid()) {
+            static String error("Expected statement");
+            source->location().throwError(error);
+        }
+        return new ForeverStatement(statement);
+    }
+    void resolveTypes() { _statement->resolveTypes(); }
+    void compile() { _statement->compile(); }
+    ExtricationStatement* run(Stack<Value>* stack)
+    {
+        do {
+            ExtricationStatement* statement = _statement->run(stack);
+            BreakStatement* breakStatement = dynamic_cast<BreakStatement*>(statement);
+            if (breakStatement != 0)
+                return breakStatement->nextAction();
+            ContinueStatement* continueStatement = dynamic_cast<ContinueStatement*>(statement);
+            if (continueStatement != 0)
+                continue;
+            return statement;  // must be a throw or return statement
+        } while (true);
+    }
+public:
+    ForeverStatement(Reference<Statement> statement)
+      : _statement(statement)
+    { }
+    Reference<Statement> _statement;
 };
 
 class IncrementStatement : public Statement
@@ -605,10 +711,11 @@ public:
             _location.throwError(error);
         }
     }
-    void run(Stack<Value>* stack)
+    ExtricationStatement* run(Stack<Value>* stack)
     { 
         _lValue->push(stack);
-        _lValue->setValue(stack, Value(stack->pop().getInt() + 1));
+        _lValue->variable(stack)->setValue(Value(stack->pop().getInt() + 1));
+        return 0;
     }
 private:
     IncrementStatement(Scope* scope, Reference<Expression> lValue, DiagnosticLocation location)
@@ -643,10 +750,11 @@ public:
             _location.throwError(error);
         }
     }
-    void run(Stack<Value>* stack)
+    ExtricationStatement* run(Stack<Value>* stack)
     { 
         _lValue->push(stack);
-        _lValue->setValue(stack, Value(stack->pop().getInt() - 1));
+        _lValue->variable(stack)->setValue(Value(stack->pop().getInt() - 1));
+        return 0;
     }
 private:
     DecrementStatement(Scope* scope, Reference<Expression> lValue, DiagnosticLocation location)

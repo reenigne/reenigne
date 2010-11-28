@@ -322,6 +322,26 @@ public:
         parse(source);
         return true;
     }
+    static bool parseKeyword(CharacterSource* source, String keyword)
+    {
+        static String empty("");
+        CharacterSource s = *source;
+        CharacterSource o(keyword, empty);
+        do {
+            int c = o.get();
+            if (c == -1)
+                break;
+            if (s.get() != c)
+                return false;
+        } while (true);
+        CharacterSource s2 = s;
+        int c = s2.get();
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')
+            return false;
+        *source = s;
+        parse(source);
+        return true;
+    }
 private:
     static bool parseComment(CharacterSource* source)
     {
@@ -368,7 +388,6 @@ private:
 };
 
 #include "TypeSpecifier.cpp"
-#include "Expression.cpp"
 #include "Statement.cpp"
 
 #ifdef _WIN32

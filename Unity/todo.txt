@@ -1,35 +1,29 @@
-Test taking the address of a variable and modifying it via a pointer
-  Make sure we can't break the interpreter doing things like this
-
-Add statement `return` [Expression] ";"
+Fix up FunctionCallExpression
+Allow empty return, and don't push a value in this case
+Add Boolean literals true, false
+Add "null" literal
 Add statement (`if` | `unless`) ConditionedStatement ((`elseif` | `elseunless`) ConditionedStatement)* [`else` Statement]
 Add statement (`switch` ParentheticalExpression "{" ((`case` Expression \ "," | `default`) ":" Statement)* "}"
 Add statement [`do` Statement] (`while` | `until`) ParentheticalExpression LoopBody
 Add statement `for` "(" (Statement | ";") [Expression] ";" [Statement] ")" LoopBody
-Add statement `foreach` "(" Type ValueIdentifer `in` Expression ")" LoopBody
-Add statement `break`* (`break` | `continue`) ";"
-Add statement `assembly` AssemblyStatement
-Add statement `forever` Statement
-Add statement `delete` ["[" "]"] Expression ";"
-Add TypeOf type specifier
-Add type Auto
+
+Refactor to avoid repetition
+  Type and TypeSpecifier classes for built in types
+  Make all the operators functions so we don't have to have AddExpression etc. classes
+
+In break/continue statement's compile(), make sure we are inside a suitable loop/switch
+
+Use an intermediate language instead of current data structures?
+
 Add Int32, UInt32 and NInt32 types
 Add 8-bit and 16-bit types
 Add 64-bit types
-Add arbitrary precision WordString, Integer and Unsigned types
-Add Float32 and Float64 IEEE754 types
-Add Float16 and Float128 types
-Add type Word
-Add type Float
-Add type Bit
+Add behaviors for types Bit, Byte, Character, Word, UInt
 Add classes
 Add hexadecimal constants
-Add floating-point constants
 Add character literals
 Add array/structure literals #{1,2,3}
-Add Boolean literals true, false
-Add "null" literal
-Add truncate_cast
+Add truncateCast
 Add operator  2 .                 LtR
 Add operator  2 ->                LtR
 Add operator  2 []                LtR  LValue
@@ -40,10 +34,10 @@ Add template classes
   Add type Complex<R>
   Add type Rational<I>
 Add template functions
-Make all the operators functions so we don't have to have AddExpression etc. classes
 Compile to executable code
   Implement calling external functions
   Need to evaluate dll expression at compile time
+Add statement `assembly` AssemblyStatement
 Make Identifier and TypeIdentifier disallow keywords
 Make include statement work
   Problem: the include statement could change the meaning of the expression in it's argument, if (for example) it redefined a function that was called to construct the argument.
@@ -52,8 +46,6 @@ Add operator  1 ::                LtR
 Add operator  2 typeid            LtR
 Add const_cast, dynamic_cast, reinterpret_cast and static_cast (LtR, precedence 2)
 Add operator  4 ()(type cast)     RtL
-Add operator  4 new               RtL
-Add operator  4 new[]             RtL
 Add operator  5 .*                LtR
 Add operator  5 ->*               LtR
 Add operator 16 ?:                RtL  
@@ -66,3 +58,25 @@ Make sure we have a sensible error message when no memory can be allocated at al
 Add 1-bit, 2-bit, 4-bit, 128-bit, 256-bit and 512-bit types
 Add "fastest at least n bit" integral and floating-point types
 Add half/double/quad Word/Int/UInt types
+Implement constructors and destructors
+  Add operator  4 new               RtL
+  Add operator  4 new[]             RtL
+  Add statement `delete` ["[" "]"] Expression ";"
+  Implement malloc/free
+Implement exceptions
+  throw statement
+  try/catch/finally statement
+  catch block determination
+    Want to catch by run-time type, not compile-time type, so need a table for each catch block and each subtype of a thrown type
+  unwinding
+  return ThrowStatement* from FunctionDeclaration
+Floating point:
+  Add Float32 and Float64 types
+  Add Float16 and Float128 types
+  Add type Float
+  Add floating-point constants
+Add arbitrary precision WordString, Integer, Unsigned and Floating types
+  Add compile-time evaluation of arbitrary precision Integers and arbitrary precision constants
+Add coroutines
+Detect pure functions
+Add statement `for` "(" Type ValueIdentifer `in` Expression ")" LoopBody
