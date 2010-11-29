@@ -470,6 +470,48 @@ private:
     int _n;
 };
 
+class BooleanConstant : public RValueExpression
+{
+public:
+    static Reference<BooleanConstant> parse(CharacterSource* source)
+    {
+        static String trueKeyword("true");
+        if (Space::parseKeyword(source, trueKeyword))
+            return new BooleanConstant(true);
+        static String falseKeyword("false");
+        if (Space::parseKeyword(source, falseKeyword))
+            return new BooleanConstant(false);
+        return 0;
+    }
+    void compile() { }
+    Type type() const { return BooleanType(); }
+    void push(Stack<Value>* stack)
+    {
+        stack->push(Value(_value ? 1 : 0));
+    }
+private:
+    BooleanConstant(bool value) : _value(value) { }
+    bool _value;
+};
+
+class NullConstant : public RValueExpression
+{
+public:
+    static Reference<NullConstant> parse(CharacterSource* source)
+    {
+        static String keyword("null");
+        if (Space::parseKeyword(source, keyword))
+            return new NullConstant();
+        return 0;
+    }
+    void compile() { }
+    Type type() const { return PointerType(VoidType()); }
+    void push(Stack<Value>* stack)
+    {
+        stack->push(Value(0));
+    }
+};
+
 class LogicalAndExpression : public RValueExpression
 {
 public:
@@ -1378,7 +1420,9 @@ private:
     DiagnosticLocation _location;
 };
 
-class FunctionCallExpression : public Expression
+template<class T> class FunctionCallExpressionTemplate;
+typedef FunctionCallExpressionTemplate<void> FunctionCallExpression;
+template<class T> class FunctionCallExpressionTemplate : public Expression
 {
 public:
     static Reference<FunctionCallExpression> parse(CharacterSource* source, Scope* scope, Reference<Expression> function)
@@ -1400,37 +1444,43 @@ public:
                 Space::assertCharacter(source, ',');
             } while (true);
         }
-        Space::assertCharacter(source, ';');
         Reference<FunctionCallExpression> functionCall = new FunctionCallExpression(scope, function, n, location);
         stack.toArray(&functionCall->_arguments);
         return functionCall;
     }
     Type type() const
     {
-
         return _function->type().returnType();
     }
-
-    //void resolveTypes() { }
-    //void compile()
-    //{
-    //    TypeList argumentTypes;
-    //    for (int i = 0; i < _arguments.count(); ++i) {
-    //        _arguments[i]->compile();
-    //        argumentTypes.push(_arguments[i]->type());
-    //    }
-    //    argumentTypes.finalize();
-    //    _functionDeclaration = _scope->resolveFunction(_function, argumentTypes, _location);
-    //}
+    void compile()
+    {
+        _function->compile();
+        TypeList argumentTypes;
+        for (int i = 0; i < _arguments.count(); ++i) {
+            _arguments[i]->compile();
+            argumentTypes.push(_arguments[i]->type());
+        }
+        argumentTypes.finalize();
+        Reference<Identifier> identifier(_function);
+        if (identifier != 0)
+            _functionDeclaration = _scope->resolveFunction(identifier, argumentTypes, _location);
+    }
     void push(Stack<Value>* stack)
     {
         for (int i = _arguments.count() - 1; i >= 0; --i)
             _arguments[i]->push(stack);
-
-        _functionDeclaration->call(stack);
+        Identifier* identifier = dynamic_cast<Identifier*>(static_cast<Expression*>(_function));
+        if (_functionDeclaration != 0)
+            _functionDeclaration->call(stack);
+        else {
+            _function->push(stack);
+            stack->pop().getFunctionDeclaration()->call(stack);
+        }
     }
+    bool isLValue() { return false; }
+    Variable* variable(Stack<Value>* stack) { return 0; }
 private:
-    FunctionCallExpression(Scope* scope, Reference<Expression> function, int n, DiagnosticLocation location)
+    FunctionCallExpressionTemplate(Scope* scope, Reference<Expression> function, int n, DiagnosticLocation location)
       : _scope(scope), _function(function), _location(location)
     {
         _arguments.allocate(n);

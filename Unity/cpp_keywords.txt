@@ -65,6 +65,7 @@ String
 TypeOf
 UInt
 Unsigned
+Void
 Word
 WordString
 

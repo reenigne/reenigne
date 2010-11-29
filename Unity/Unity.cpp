@@ -79,6 +79,7 @@ private:
 #include "Type.cpp"
 
 class Variable;
+class FunctionDeclarationStatement;
 
 class Value
 {
@@ -87,13 +88,15 @@ public:
     Value(int intValue) : _intValue(intValue) { }
     Value(String stringValue) : _stringValue(stringValue) { }
     Value(Variable* pointerValue) : _pointerValue(pointerValue) { }
+    Value(FunctionDeclarationStatement* functionDeclaration) : _pointerValue(functionDeclaration) { }
     int getInt() const { return _intValue; }
     String getString() const { return _stringValue; }
-    Variable* getPointer() const { return _pointerValue; }
+    Variable* getPointer() const { return static_cast<Variable*>(_pointerValue); }
+    FunctionDeclarationStatement* getFunctionDeclaration() const { return static_cast<FunctionDeclarationStatement*>(_pointerValue); }
 private:
     int _intValue;
     String _stringValue;
-    Variable* _pointerValue;
+    void* _pointerValue;
 };
 
 class Symbol : public ReferenceCounted
@@ -134,11 +137,15 @@ public:
         }
         return _functionType;
     }
-    Value value() const { return Value(); }
+    Value value() const
+    { 
+        return Value(_functionDeclaration);
+    }
 private:
-    int _overloadCount;
+    String _name;
     HashTable<TypeList, FunctionDeclarationStatement*> _overloads;
     Type _functionType;
+    FunctionDeclarationStatement* _functionDeclaration;
 };
 
 typedef FunctionNameTemplate<void> FunctionName;

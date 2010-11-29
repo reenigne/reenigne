@@ -5,7 +5,7 @@ template<class T> class StatementTemplate : public ReferenceCounted
 public:
     static Reference<StatementTemplate> parse(CharacterSource* source, Scope* scope)
     {
-        Reference<Statement> s = FunctionCallStatement::parse(source, scope);
+        Reference<Statement> s = ExpressionStatement::parse(source, scope);
         if (s.valid())
             return s;
         s = FunctionDeclarationStatement::parse(source, scope);
@@ -27,6 +27,9 @@ public:
         if (s.valid())
             return s;
         s = IncrementStatement::parse(source, scope);
+        if (s.valid())
+            return s;
+        s = ConditionalStatement::parse(source, scope);
         if (s.valid())
             return s;
         return 0;
@@ -91,21 +94,19 @@ public:
         if (!Space::parseKeyword(source, keyword))
             return 0;
         Reference<Expression> expression = Expression::parse(source, scope);
-        if (!expression.valid()) {
-            static String error("Expected expression");
-            source->location().throwError(error);
-        }
         Space::assertCharacter(source, ';');
         return new ReturnStatement(expression);
     }
     void resolveTypes() { }
     void compile()
     {
-        _expression->compile();
+        if (_expression.valid())
+            _expression->compile();
     }
     ExtricationStatement* run(Stack<Value>* stack)
     {
-        _expression->push(stack);
+        if (_expression.valid())
+            _expression->push(stack);
         return this;
     }
 private:
@@ -246,9 +247,13 @@ class ExpressionStatement : public Statement
 public:
     static Reference<ExpressionStatement> parse(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> expression = Expression::parse(source, scope);
+        CharacterSource s = *source;
+        Reference<Expression> expression = Expression::parse(&s, scope);
         if (!expression.valid())
             return 0;
+        if (!Space::parseCharacter(&s, ';'))
+            return 0;
+        *source = s;
         FunctionCallExpression* functionCallExpression = dynamic_cast<FunctionCallExpression*>(static_cast<Expression*>(expression));
         if (functionCallExpression == 0) {
             static String error("Statement has no effect");
@@ -763,6 +768,95 @@ private:
     Scope* _scope;
     Reference<Expression> _lValue;
     DiagnosticLocation _location;
+};
+
+class ConditionalStatement : public Statement
+{
+public:
+    static Reference<ConditionalStatement> parse(CharacterSource* source, Scope* scope)
+    {
+        static String ifKeyword("if");
+        static String unlessKeyword("unless");
+        if (Space::parseKeyword(source, ifKeyword))
+            return parse(source, scope, false);
+        if (Space::parseKeyword(source, unlessKeyword))
+            return parse(source, scope, true);
+        return 0;
+    }
+    void resolveTypes()
+    {
+        if (_trueStatement.valid())
+            _trueStatement->resolveTypes();
+        if (_falseStatement.valid())
+            _falseStatement->resolveTypes();
+    }
+    void compile()
+    {
+        _condition->compile();
+        if (_condition->type() != BooleanType()) {
+            static String error("Boolean expression expected");
+            _location.throwError(error);
+        }
+        if (_trueStatement.valid())
+            _trueStatement->compile();
+        if (_falseStatement.valid())
+            _falseStatement->compile();
+    }
+    ExtricationStatement* run(Stack<Value>* stack)
+    {
+        _condition->push(stack);
+        bool result = (stack->pop().getInt() != 0);
+        if (result) {
+            if (_trueStatement.valid())
+                return _trueStatement->run(stack);
+        }
+        else
+            if (_falseStatement.valid())
+                return _falseStatement->run(stack);
+        return 0;
+    }
+private:
+    ConditionalStatement(DiagnosticLocation location, Reference<Expression> condition, Reference<Statement> trueStatement, Reference<Statement> falseStatement)
+        : _location(location), _condition(condition), _trueStatement(trueStatement), _falseStatement(falseStatement)
+    { }
+    static Reference<ConditionalStatement> parse(CharacterSource* source, Scope* scope, bool unlessStatement)
+    {
+        static String elseKeyword("else");
+        static String elseIfKeyword("elseIf");
+        static String elseUnlessKeyword("elseUnless");
+        Space::assertCharacter(source, '(');
+        DiagnosticLocation location = source->location();
+        Reference<Expression> condition = Expression::parse(source, scope);
+        if (!condition.valid()) {
+            static String error("Expected expression");
+            source->location().throwError(error);
+        }
+        Space::assertCharacter(source, ')');
+        Reference<Statement> conditionedStatement = Statement::parse(source, scope);
+        static String expectedStatement("Expected statement");
+        if (!conditionedStatement.valid())
+            source->location().throwError(expectedStatement);
+        Reference<Statement> elseStatement;
+        if (Space::parseKeyword(source, elseKeyword)) {
+            elseStatement = Statement::parse(source, scope);
+            if (!elseStatement.valid())
+                source->location().throwError(expectedStatement);
+        }
+        else
+            if (Space::parseKeyword(source, elseIfKeyword))
+                elseStatement = parse(source, scope, false);
+            else
+                if (Space::parseKeyword(source, elseUnlessKeyword))
+                    elseStatement = parse(source, scope, true);
+        if (unlessStatement)
+            return new ConditionalStatement(location, condition, elseStatement, conditionedStatement);
+        return new ConditionalStatement(location, condition, conditionedStatement, elseStatement);
+    }
+
+    DiagnosticLocation _location;
+    Reference<Expression> _condition;
+    Reference<Statement> _trueStatement;
+    Reference<Statement> _falseStatement;
 };
 
 class StringTypeDefinitionStatement : public TypeDefinitionStatement
