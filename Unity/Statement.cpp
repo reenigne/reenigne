@@ -32,6 +32,9 @@ public:
         s = ConditionalStatement::parse(source, scope);
         if (s.valid())
             return s;
+        s = SwitchStatement::parse(source, scope);
+        if (s.valid())
+            return s;
         return 0;
     }
     virtual void resolveTypes() = 0;
@@ -857,6 +860,47 @@ private:
     Reference<Expression> _condition;
     Reference<Statement> _trueStatement;
     Reference<Statement> _falseStatement;
+};
+
+class SwitchStatement : public Statement
+{
+public:
+    static Reference<ConditionalStatement> parse(CharacterSource* source, Scope* scope)
+    {
+        static String switchKeyword("switch");
+        if (!Space::parseKeyword(source, switchKeyword))
+            return 0;
+        Space::assertCharacter(source, '(');
+        Reference<Expression> expression = Expression::parse(source, scope);
+        if (!expression.valid()) {
+            static String error("Expected expression");
+            source->location().throwError(error);
+        }
+        Space::assertCharacter(source, ')');
+        Space::assertCharacter(source, '{');
+        Stack<Reference<Case> > cases;
+        do {
+            if (Space::parseCharacter(source, '}'))
+                break;
+            cases.push(Case::parse(source, scope));
+        } while (true);
+        return new SwitchStatement(
+
+    }
+private:
+    class Case : public ReferenceCounted
+    {
+    public:
+        static Case parse(CharacterSource* source, Scope* scope)
+        {
+        }
+    private:
+        bool _default;
+        Array<Reference<Expression> > _expressions;
+        Reference<Statement> _statement;
+    };
+    Reference<Expression> _expression;
+    Array<Refernce<Case> > _cases;
 };
 
 class StringTypeDefinitionStatement : public TypeDefinitionStatement

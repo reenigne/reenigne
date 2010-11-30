@@ -19,6 +19,19 @@ public:
         other._n = _n;
         _n = n;
     }
+    bool operator==(const Array& other)
+    {
+        if (_n != other._n)
+            return false;
+        for (int i = 0; i < _n; ++i)
+            if (_data[i] != other._data[i])
+                return false;
+        return true;
+    }
+    bool operator!=(const Array& other)
+    {
+        return !operator==(other);
+    }
 private:
     void release() { if (_data != 0) delete[] _data; }
 

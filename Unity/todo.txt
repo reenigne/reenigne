@@ -78,3 +78,4 @@ Add arbitrary precision WordString, Integer, Unsigned and Floating types
 Add coroutines
 Detect pure functions
 Add statement `for` "(" Type ValueIdentifer `in` Expression ")" LoopBody
+Add goto and label statements
