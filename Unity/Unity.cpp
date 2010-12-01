@@ -1,9 +1,9 @@
 #include "unity/string.h"
-#include "unity/character_source.h"
 #include "unity/array.h"
 #include "unity/file.h"
 #include "unity/stack.h"
 #include "unity/hash_table.h"
+#include "unity/character_source.h"
 
 #ifdef _WIN32
 #include "shellapi.h"
@@ -76,7 +76,18 @@ private:
     int _nArguments;
 };
 
+#include "Symbol.cpp"
 #include "Type.cpp"
+
+DiagnosticLocation locationFromSymbol(TupleSymbol symbol)
+{
+    return DiagnosticLocation(symbol.symbol1().string().value(), symbol.symbol2().integer().value(), symbol.symbol3().integer().value());
+}
+
+Symbol symbolFromLocation(DiagnosticLocation location)
+{
+    return ListSymbol(atomLocation, location.fileName(), location.line(), location.column());
+}
 
 class Variable;
 class FunctionDeclarationStatement;
@@ -99,7 +110,7 @@ private:
     void* _pointerValue;
 };
 
-class Symbol : public ReferenceCounted
+class SymbolName : public ReferenceCounted
 {
 public:
     virtual Type type(String name, DiagnosticLocation location) const = 0;
@@ -108,7 +119,7 @@ public:
 
 class FunctionDeclarationStatement;
 
-template<class T> class FunctionNameTemplate : public Symbol
+template<class T> class FunctionNameTemplate : public SymbolName
 {
 public:
     void addOverload(TypeList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
@@ -152,7 +163,7 @@ typedef FunctionNameTemplate<void> FunctionName;
 
 class TypeDefinitionStatement;
 
-class Variable : public Symbol
+class Variable : public SymbolName
 {
 public:
     Variable(Type type) : _type(type) { }
@@ -193,11 +204,11 @@ public:
         _symbolTable.add(name, variable);
         return variable;
     }
-    Reference<Symbol> resolveSymbol(String name, DiagnosticLocation location)
+    Reference<SymbolName> resolveSymbolName(String name, DiagnosticLocation location)
     {
         if (!_symbolTable.hasKey(name)) {
             if (_outer != 0)
-                return _outer->resolveSymbol(name, location);
+                return _outer->resolveSymbolName(name, location);
             static String error("Undefined symbol ");
             location.throwError(error + name);
         }
@@ -224,8 +235,8 @@ private:
     {
         FunctionName* functionName;
         if (_symbolTable.hasKey(name)) {
-            Reference<Symbol> symbol = _symbolTable.lookUp(name);
-            functionName = dynamic_cast<FunctionName*>(static_cast<Symbol*>(symbol));
+            Reference<SymbolName> symbol = _symbolTable.lookUp(name);
+            functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
             if (functionName == 0) {
                 static String error(" is already defined as a variable");
                 location.throwError(name + error);
@@ -255,8 +266,8 @@ private:
             }
             return _outer->resolveFunction(identifier, typeList, location);
         }
-        Reference<Symbol> symbol = _symbolTable.lookUp(name);
-        FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<Symbol*>(symbol));
+        Reference<SymbolName> symbol = _symbolTable.lookUp(name);
+        FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
         if (functionName == 0) {
             static String error(" is not a function");
             location.throwError(name + error);
@@ -278,7 +289,7 @@ private:
         }
         return _typeTable.lookUp(name);
     }
-    HashTable<String, Reference<Symbol> > _symbolTable;
+    HashTable<String, Reference<SymbolName> > _symbolTable;
     HashTable<String, TypeDefinitionStatement*> _typeTable;
     Scope* _outer;
     Scope* _functionScope;

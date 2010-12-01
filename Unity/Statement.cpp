@@ -213,7 +213,7 @@ private:
         }
         void setValue(Value value, Scope* scope)
         {
-            Reference<Variable> variable = scope->resolveSymbol(_name->name(), _location);
+            Reference<Variable> variable = scope->resolveSymbolName(_name->name(), _location);
             variable->setValue(value);
         }
     private:
@@ -865,7 +865,7 @@ private:
 class SwitchStatement : public Statement
 {
 public:
-    static Reference<ConditionalStatement> parse(CharacterSource* source, Scope* scope)
+    static Reference<SwitchStatement> parse(CharacterSource* source, Scope* scope)
     {
         static String switchKeyword("switch");
         if (!Space::parseKeyword(source, switchKeyword))
@@ -879,28 +879,147 @@ public:
         Space::assertCharacter(source, ')');
         Space::assertCharacter(source, '{');
         Stack<Reference<Case> > cases;
+        Reference<Case> defaultCase;
         do {
             if (Space::parseCharacter(source, '}'))
                 break;
-            cases.push(Case::parse(source, scope));
+            CharacterSource s = *source;
+            Reference<Case> c = Case::parse(source, scope);
+            if (c->isDefault()) {
+                if (defaultCase.valid()) {
+                    static String error("This switch statement already has a default case");
+                    s.location().throwError(error);
+                }
+                defaultCase = c;
+            }
+            else
+                cases.push(c);
         } while (true);
-        return new SwitchStatement(
-
+        return new SwitchStatement(expression, defaultCase, &cases);
+    }
+    void resolveTypes()
+    {
+        for (int i = 0; i < _cases.count(); ++i)
+            _cases[i]->resolveTypes();
+        if (_default.valid())
+            _default->resolveTypes();
+    }
+    void compile()
+    {
+        _expression->compile();
+        _type = _expression->type();
+        for (int i = 0; i < _cases.count(); ++i)
+            _cases[i]->compile(_type);
+        if (_default.valid())
+            _default->resolveTypes();
+    }
+    ExtricationStatement* run(Stack<Value>* stack)
+    {
+        _expression->push(stack);
+        Value v = stack->pop();
+        for (int i = 0; i < _cases.count(); ++i)
+            if (_cases[i]->matches(_type, v, stack))
+                return _cases[i]->run(stack);
+        if (_default.valid())
+            return _default->run(stack);
+        return 0;
     }
 private:
     class Case : public ReferenceCounted
     {
     public:
-        static Case parse(CharacterSource* source, Scope* scope)
+        static Reference<Case> parse(CharacterSource* source, Scope* scope)
         {
+            static String caseKeyword("case");
+            static String defaultKeyword("default");
+            Stack<Reference<Expression> > expressions;
+            bool defaultType;
+            if (Space::parseKeyword(source, caseKeyword)) {
+                defaultType = false;
+                do {
+                    Reference<Expression> expression = Expression::parse(source, scope);
+                    if (!expression.valid()) {
+                        static String error("Expected expression");
+                        source->location().throwError(error);
+                    }
+                    expressions.push(expression);
+                    if (!Space::parseCharacter(source, ','))
+                        break;
+                } while (true);
+            }
+            else {
+                defaultType = true;
+                if (Space::parseKeyword(source, defaultKeyword))
+                    Space::assertCharacter(source, ':');
+                else {
+                    static String error("Expected case or default");
+                    source->location().throwError(error);
+                }
+            }
+            Reference<Statement> statement = Statement::parse(source, scope);
+            if (!statement.valid()) {
+                static String error("Expected statement");
+                source->location().throwError(error);
+            }
+            return new Case(defaultType, &expressions, statement);
+        }
+        bool isDefault() const { return _default; }
+        void resolveTypes()
+        {
+            _statement->resolveTypes();
+        }
+        void compile(Type type)
+        {
+            for (int i = 0; i < _expressions.count(); ++i) {
+                _expressions[i]->compile();
+                if (_expressions[i]->type() != type) {
+                    static String error("Type mismatch");
+                    _location.throwError(error);
+                }
+            }
+            _statement->compile();
+        }
+        bool matches(Type type, Value value, Stack<Value>* stack)
+        {
+            for (int i = 0; i < _expressions.count(); ++i) {
+                _expressions[i]->push(stack);
+                Value v = stack->pop();
+                if (type == StringType()) {
+                    if (v.getString() == value.getString()) {
+                        return true;
+                    }
+                }
+                else {
+                    if (v.getInt() == value.getInt())
+                        return true;
+                }
+            }
+            return false;
+        }
+        ExtricationStatement* run(Stack<Value>* stack)
+        {
+            return _statement->run(stack);
         }
     private:
+        Case(bool defaultType, Stack<Reference<Expression> >* stack, Reference<Statement> statement)
+          : _default(defaultType), _statement(statement)
+        {
+            stack->toArray(&_expressions);
+        }
         bool _default;
         Array<Reference<Expression> > _expressions;
         Reference<Statement> _statement;
+        DiagnosticLocation _location;
     };
+    SwitchStatement(Reference<Expression> expression, Reference<Case> defaultCase, Stack<Reference<Case> >* cases)
+      : _expression(expression), _default(defaultCase)
+    {
+        cases->toArray(&_cases);
+    }
     Reference<Expression> _expression;
-    Array<Refernce<Case> > _cases;
+    Reference<Case> _default;
+    Array<Reference<Case> > _cases;
+    Type _type;
 };
 
 class StringTypeDefinitionStatement : public TypeDefinitionStatement

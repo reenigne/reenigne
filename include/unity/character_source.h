@@ -8,6 +8,9 @@ public:
     DiagnosticLocation(String fileName)
       : _fileName(fileName), _line(1), _column(1)
     { }
+    DiagnosticLocation(String fileName, int line, int column)
+      : _fileName(fileName), _line(line), _column(column)
+    { }
     String asString() const
     {
         static String openBracket("(");
@@ -24,6 +27,8 @@ public:
         static String colon(": ");
         throw Exception(asString() + colon + message);
     }
+    int line() const { return _line; }
+    int column() const { return _column; }
 private:
     String _fileName;
     int _line;

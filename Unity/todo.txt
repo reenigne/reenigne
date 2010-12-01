@@ -1,6 +1,14 @@
-Test conditional statements
+Convert to use Symbol
+  Statement
+  Expression
+  Case
 
-Add statement (`switch` ParentheticalExpression "{" ((`case` Expression \ "," | `default`) ":" Statement)* "}"
+Test conditional statements
+Test switch statement
+
+More detail in switch type mismatch error
+Allow overloads over operator== for switch comparison
+
 Add statement [`do` Statement] (`while` | `until`) ParentheticalExpression LoopBody
 Add statement `for` "(" (Statement | ";") [Expression] ";" [Statement] ")" LoopBody
 
@@ -10,7 +18,6 @@ Refactor to avoid repetition
 
 In break/continue statement's compile(), make sure we are inside a suitable loop/switch
 
-Use an intermediate language instead of current data structures?
 
 Add Int32, UInt32 and NInt32 types
 Add 8-bit and 16-bit types

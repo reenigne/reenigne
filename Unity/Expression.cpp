@@ -3,19 +3,19 @@ typedef ExpressionTemplate<void> Expression;
 template<class T> class ExpressionTemplate : public ReferenceCounted
 {
 public:
-    static Reference<Expression> parse(CharacterSource* source, Scope* scope)
+    static Symbol parse(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence14(source, scope);
+        Symbol e = parsePrecedence14(source, scope);
         if (!e.valid())
             return 0;
         do {
             DiagnosticLocation location = source->location();
             static String logicalAnd("||");
             if (Space::parseOperator(source, logicalAnd)) {
-                Reference<Expression> e2 = parsePrecedence14(source, scope);
+                Symbol e2 = parsePrecedence14(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new LogicalOrExpression(e, e2, location);
+                e = TupleSymbol(atomLogicalOr, e, e2, symbolFromLocation(location));
                 continue;
             }
             return e;
@@ -28,274 +28,274 @@ public:
     virtual bool isLValue() = 0;
     virtual Variable* variable(Stack<Value>* stack) = 0;
 private:
-    static Reference<Expression> parsePrecedence14(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence14(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence13(source, scope);
+        Symbol e = parsePrecedence13(source, scope);
         if (!e.valid())
             return 0;
         do {
             DiagnosticLocation location = source->location();
             static String logicalAnd("&&");
             if (Space::parseOperator(source, logicalAnd)) {
-                Reference<Expression> e2 = parsePrecedence13(source, scope);
+                Symbol e2 = parsePrecedence13(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new LogicalAndExpression(e, e2, location);
+                e = TupleSymbol(atomLogicalAnd, e, e2, symbolFromLocation(location));
                 continue;
             }
             return e;
         } while (true);
     }
 
-    static Reference<Expression> parsePrecedence13(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence13(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence12(source, scope);
+        Symbol e = parsePrecedence12(source, scope);
         if (!e.valid())
             return 0;
         do {
             DiagnosticLocation location = source->location();
             if (Space::parseCharacter(source, '|')) {
-                Reference<Expression> e2 = parsePrecedence12(source, scope);
+                Symbol e2 = parsePrecedence12(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new BitwiseOrExpression(e, e2, location);
+                e = TupleSymbol(atomBitwiseOr, e, e2, symbolFromLocation(location));
                 continue;
             }
             return e;
         } while (true);
     }
 
-    static Reference<Expression> parsePrecedence12(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence12(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence11(source, scope);
+        Symbol e = parsePrecedence11(source, scope);
         if (!e.valid())
             return 0;
         do {
             DiagnosticLocation location = source->location();
             if (Space::parseCharacter(source, '~')) {
-                Reference<Expression> e2 = parsePrecedence11(source, scope);
+                Symbol e2 = parsePrecedence11(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new BitwiseXorExpression(e, e2, location);
+                e = TupleSymbol(atomBitwiseXor, e, e2, symbolFromLocation(location));
                 continue;
             }
             return e;
         } while (true);
     }
 
-    static Reference<Expression> parsePrecedence11(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence11(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence10(source, scope);
+        Symbol e = parsePrecedence10(source, scope);
         if (!e.valid())
             return 0;
         do {
             DiagnosticLocation location = source->location();
             if (Space::parseCharacter(source, '&')) {
-                Reference<Expression> e2 = parsePrecedence10(source, scope);
+                Symbol e2 = parsePrecedence10(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new BitwiseAndExpression(e, e2, location);
+                e = TupleSymbol(atomBitwiseAnd, e, e2, symbolFromLocation(location));
                 continue;
             }
             return e;
         } while (true);
     }
 
-    static Reference<Expression> parsePrecedence10(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence10(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence9(source, scope);
+        Symbol e = parsePrecedence9(source, scope);
         if (!e.valid())
             return 0;
         do {
             DiagnosticLocation location = source->location();
             static String equalTo("==");
             if (Space::parseOperator(source, equalTo)) {
-                Reference<Expression> e2 = parsePrecedence9(source, scope);
+                Symbol e2 = parsePrecedence9(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new EqualToExpression(e, e2, location);
+                e = TupleSymbol(atomEqualTo, e, e2, symbolFromLocation(location));
                 continue;
             }
             static String notEqualTo("!=");
             if (Space::parseOperator(source, notEqualTo)) {
-                Reference<Expression> e2 = parsePrecedence9(source, scope);
+                Symbol e2 = parsePrecedence9(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new NotEqualToExpression(e, e2, location);
+                e = TupleSymbol(atomNotEqualTo, e, e2, symbolFromLocation(location));
                 continue;
             }
             return e;
         } while (true);
     }
 
-    static Reference<Expression> parsePrecedence9(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence9(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence8(source, scope);
+        Symbol e = parsePrecedence8(source, scope);
         if (!e.valid())
             return 0;
         do {
             DiagnosticLocation location = source->location();
             static String lessThanOrEqualTo("<=");
             if (Space::parseOperator(source, lessThanOrEqualTo)) {
-                Reference<Expression> e2 = parsePrecedence8(source, scope);
+                Symbol e2 = parsePrecedence8(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new LessThanOrEqualToExpression(e, e2, location);
+                e = TupleSymbol(atomLessThanOrEqualTo, e, e2, symbolFromLocation(location));
                 continue;
             }
             static String greaterThanOrEqualTo(">=");
             if (Space::parseOperator(source, greaterThanOrEqualTo)) {
-                Reference<Expression> e2 = parsePrecedence8(source, scope);
+                Symbol e2 = parsePrecedence8(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new GreaterThanOrEqualToExpression(e, e2, location);
+                e = TupleSymbol(atomGreaterThanOrEqualTo, e, e2, symbolFromLocation(location));
                 continue;
             }
             if (Space::parseCharacter(source, '<')) {
-                Reference<Expression> e2 = parsePrecedence8(source, scope);
+                Symbol e2 = parsePrecedence8(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new LessThanExpression(e, e2, location);
+                e = TupleSymbol(atomLessThan, e, e2, symbolFromLocation(location));
                 continue;
             }
             if (Space::parseCharacter(source, '>')) {
-                Reference<Expression> e2 = parsePrecedence8(source, scope);
+                Symbol e2 = parsePrecedence8(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new GreaterThanExpression(e, e2, location);
+                e = TupleSymbol(atomGreaterThan, e, e2, symbolFromLocation(location));
                 continue;
             }
             return e;
         } while (true);
     }
 
-    static Reference<Expression> parsePrecedence8(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence8(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence7(source, scope);
+        Symbol e = parsePrecedence7(source, scope);
         if (!e.valid())
             return 0;
         do {
             DiagnosticLocation location = source->location();
             static String leftShift("<<");
             if (Space::parseOperator(source, leftShift)) {
-                Reference<Expression> e2 = parsePrecedence7(source, scope);
+                Symbol e2 = parsePrecedence7(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new ShiftLeftExpression(e, e2, location);
+                e = TupleSymbol(atomLeftShift, e, e2, symbolFromLocation(location));
                 continue;
             }
             static String rightShift(">>");
             if (Space::parseOperator(source, rightShift)) {
-                Reference<Expression> e2 = parsePrecedence7(source, scope);
+                Symbol e2 = parsePrecedence7(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new ShiftRightExpression(e, e2, location);
+                e = TupleSymbol(atomRightShift, e, e2, symbolFromLocation(location));
                 continue;
             }
             return e;
         } while (true);
     }
-    static Reference<Expression> parsePrecedence7(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence7(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence6(source, scope);
+        Symbol e = parsePrecedence6(source, scope);
         if (!e.valid())
             return 0;
         do {
             DiagnosticLocation location = source->location();
             if (Space::parseCharacter(source, '+')) {
-                Reference<Expression> e2 = parsePrecedence6(source, scope);
+                Symbol e2 = parsePrecedence6(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new AddExpression(e, e2, location);
+                e = TupleSymbol(atomAdd, e, e2, symbolFromLocation(location));
                 continue;
             }
             if (Space::parseCharacter(source, '-')) {
-                Reference<Expression> e2 = parsePrecedence6(source, scope);
+                Symbol e2 = parsePrecedence6(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new SubtractExpression(e, e2, location);
+                e = TupleSymbol(atomSubtract, e, e2, symbolFromLocation(location));
                 continue;
             }
             return e;
         } while (true);
     }
-    static Reference<Expression> parsePrecedence6(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence6(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence4(source, scope);
+        Symbol e = parsePrecedence4(source, scope);
         if (!e.valid())
             return 0;
         do {
             DiagnosticLocation location = source->location();
             if (Space::parseCharacter(source, '*')) {
-                Reference<Expression> e2 = parsePrecedence4(source, scope);
+                Symbol e2 = parsePrecedence4(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new MultiplyExpression(e, e2, location);
+                e = TupleSymbol(atomMultiply, e, e2, symbolFromLocation(location));
                 continue;
             }
             if (Space::parseCharacter(source, '/')) {
-                Reference<Expression> e2 = parsePrecedence4(source, scope);
+                Symbol e2 = parsePrecedence4(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new DivideExpression(e, e2, location);
+                e = TupleSymbol(atomDivide, e, e2, symbolFromLocation(location));
                 continue;
             }
             if (Space::parseCharacter(source, '%')) {
-                Reference<Expression> e2 = parsePrecedence4(source, scope);
+                Symbol e2 = parsePrecedence4(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = new ModuloExpression(e, e2, location);
+                e = TupleSymbol(atomModulo, e, e2, symbolFromLocation(location));
                 continue;
             }
             return e;
         } while (true);
     }
-    static Reference<Expression> parsePrecedence4(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence4(CharacterSource* source, Scope* scope)
     {
         DiagnosticLocation location = source->location();
         if (Space::parseCharacter(source, '!')) {
-            Reference<Expression> e = parsePrecedence4(source, scope);
-            return new LogicalNotExpression(e, location);
+            Symbol e = parsePrecedence4(source, scope);
+            return TupleSymbol(atomLogicalNot, e, symbolFromLocation(location));
         }
         if (Space::parseCharacter(source, '~')) {
-            Reference<Expression> e = parsePrecedence4(source, scope);
-            return new LogicalNotExpression(e, location);
+            Symbol e = parsePrecedence4(source, scope);
+            return TupleSymbol(atomBitwiseNot, e, symbolFromLocation(location));
         }
         if (Space::parseCharacter(source, '+')) {
-            Reference<Expression> e = parsePrecedence4(source, scope);
-            return new PositiveExpression(e, location);
+            Symbol e = parsePrecedence4(source, scope);
+            return TupleSymbol(atomPositive, e, symbolFromLocation(location));
         }
         if (Space::parseCharacter(source, '-')) {
-            Reference<Expression> e = parsePrecedence4(source, scope);
-            return new NegativeExpression(e, location);
+            Symbol e = parsePrecedence4(source, scope);
+            return TupleSymbol(atomNegative, e, symbolFromLocation(location));
         }
         if (Space::parseCharacter(source, '*')) {
-            Reference<Expression> e = parsePrecedence4(source, scope);
-            return new DereferenceExpression(e, location);
+            Symbol e = parsePrecedence4(source, scope);
+            return TupleSymbol(atomDereference, e, symbolFromLocation(location));
         }
         if (Space::parseCharacter(source, '&')) {
-            Reference<Expression> e = parsePrecedence4(source, scope);
-            return new AddressOfExpression(e, location);
+            Symbol e = parsePrecedence4(source, scope);
+            return TupleSymbol(atomAddressOf, e, symbolFromLocation(location));
         }
         return parsePrecedence3(source, scope);
     }
-    static Reference<Expression> parsePrecedence3(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence3(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence2(source, scope);
+        Symbol e = parsePrecedence2(source, scope);
         if (!e.valid())
             return 0;
         DiagnosticLocation location = source->location();
         if (Space::parseCharacter(source, '^')) {
-            Reference<Expression> e2 = parsePrecedence3(source, scope);
+            Symbol e2 = parsePrecedence3(source, scope);
             if (!e2.valid())
                 throwError(source);
-            e = new PowerExpression(e, e2, location);
+                e = TupleSymbol(atomPower, e, e2, symbolFromLocation(location));
         }
         return e;
     }
-    static Reference<Expression> parsePrecedence2(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence2(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = parsePrecedence0(source, scope);
+        Symbol e = parsePrecedence0(source, scope);
         if (!e.valid())
             return 0;
         do {
@@ -307,9 +307,9 @@ private:
         } while (true);
         return e;
     }
-    static Reference<Expression> parsePrecedence0(CharacterSource* source, Scope* scope)
+    static Symbol parsePrecedence0(CharacterSource* source, Scope* scope)
     {
-        Reference<Expression> e = DoubleQuotedString::parse(source, scope);
+        Symbol e = DoubleQuotedString::parse(source, scope);
         if (e.valid())
             return e;
         e = EmbeddedLiteral::parse(source);
@@ -402,24 +402,24 @@ public:
         *source = s2;
         return new Identifier(scope, name, location);
     }
-    Type type() const { return _symbol->type(_name, _location); }
+    Type type() const { return _symbolName->type(_name, _location); }
     String name() const { return _name; }
     void push(Stack<Value>* stack)
     {
-        stack->push(_symbol->value());
+        stack->push(_symbolName->value());
     }
     void compile()
     {
-        _symbol = _scope->resolveSymbol(_name, _location);
+        _symbolName = _scope->resolveSymbolName(_name, _location);
     }
     bool isLValue()
     {
-        Reference<Variable> variable = _symbol;
+        Reference<Variable> variable = _symbolName;
         return variable.valid();
     }
     Variable* variable(Stack<Value>* stack)
     {
-        Reference<Variable> variable = _symbol;
+        Reference<Variable> variable = _symbolName;
         return variable;
     }
 private:
@@ -428,7 +428,7 @@ private:
     { }
     Scope* _scope;
     String _name;
-    Reference<Symbol> _symbol;
+    Reference<SymbolName> _symbolName;
     DiagnosticLocation _location;
 };
 
@@ -515,7 +515,7 @@ public:
 class LogicalAndExpression : public RValueExpression
 {
 public:
-    LogicalAndExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    LogicalAndExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -540,15 +540,15 @@ public:
         _right->push(stack);
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class LogicalOrExpression : public RValueExpression
 {
 public:
-    LogicalOrExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    LogicalOrExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -573,15 +573,15 @@ public:
         _right->push(stack);
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class BitwiseAndExpression : public RValueExpression
 {
 public:
-    BitwiseAndExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    BitwiseAndExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -609,15 +609,15 @@ public:
         stack->push(Value(l.getInt() & r.getInt()));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class BitwiseOrExpression : public RValueExpression
 {
 public:
-    BitwiseOrExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    BitwiseOrExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -645,15 +645,15 @@ public:
         stack->push(Value(l.getInt() | r.getInt()));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class BitwiseXorExpression : public RValueExpression
 {
 public:
-    BitwiseXorExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    BitwiseXorExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -681,15 +681,15 @@ public:
         stack->push(Value(l.getInt() ^ r.getInt()));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class EqualToExpression : public RValueExpression
 {
 public:
-    EqualToExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    EqualToExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -720,15 +720,15 @@ public:
             stack->push(Value(l.getInt() == r.getInt() ? 1 : 0));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class NotEqualToExpression : public RValueExpression
 {
 public:
-    NotEqualToExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    NotEqualToExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -759,15 +759,15 @@ public:
             stack->push(Value(l.getInt() != r.getInt() ? 1 : 0));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class LessThanExpression : public RValueExpression
 {
 public:
-    LessThanExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    LessThanExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -798,15 +798,15 @@ public:
             stack->push(Value(l.getString() < r.getString() ? 1 : 0));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class GreaterThanExpression : public RValueExpression
 {
 public:
-    GreaterThanExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    GreaterThanExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -837,15 +837,15 @@ public:
             stack->push(Value(l.getString() > r.getString() ? 1 : 0));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class LessThanOrEqualToExpression : public RValueExpression
 {
 public:
-    LessThanOrEqualToExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    LessThanOrEqualToExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -876,15 +876,15 @@ public:
             stack->push(Value(l.getString() <= r.getString() ? 1 : 0));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class GreaterThanOrEqualToExpression : public RValueExpression
 {
 public:
-    GreaterThanOrEqualToExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    GreaterThanOrEqualToExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -915,15 +915,15 @@ public:
             stack->push(Value(l.getString() >= r.getString() ? 1 : 0));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class ShiftLeftExpression : public RValueExpression
 {
 public:
-    ShiftLeftExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    ShiftLeftExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -951,15 +951,15 @@ public:
         stack->push(Value(l.getInt() << r.getInt()));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class ShiftRightExpression : public RValueExpression
 {
 public:
-    ShiftRightExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    ShiftRightExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -987,15 +987,15 @@ public:
         stack->push(Value(l.getInt() >> r.getInt()));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class AddExpression : public RValueExpression
 {
 public:
-    AddExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    AddExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -1048,15 +1048,15 @@ public:
                     stack->push(Value((l.getInt() != 0 ? trueString : falseString) + r.getString()));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class SubtractExpression : public RValueExpression
 {
 public:
-    SubtractExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    SubtractExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -1084,15 +1084,15 @@ public:
         stack->push(Value(l.getInt() - r.getInt()));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class MultiplyExpression : public RValueExpression
 {
 public:
-    MultiplyExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    MultiplyExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -1120,15 +1120,15 @@ public:
         stack->push(Value(l.getInt() * r.getInt()));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class DivideExpression : public RValueExpression
 {
 public:
-    DivideExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    DivideExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -1156,15 +1156,15 @@ public:
         stack->push(Value(l.getInt() / r.getInt()));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class ModuloExpression : public RValueExpression
 {
 public:
-    ModuloExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    ModuloExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -1192,15 +1192,15 @@ public:
         stack->push(Value(l.getInt() % r.getInt()));
     }
 private:
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
 class NegativeExpression : public RValueExpression
 {
 public:
-    NegativeExpression(Reference<Expression> expression, DiagnosticLocation location)
+    NegativeExpression(Symbol expression, DiagnosticLocation location)
       : _expression(expression), _location(location)
     { }
     Type type() const
@@ -1222,14 +1222,14 @@ public:
         stack->push(Value(-stack->pop().getInt()));
     }
 private:
-    Reference<Expression> _expression;
+    Symbol _expression;
     DiagnosticLocation _location;
 };
 
 class PositiveExpression : public RValueExpression
 {
 public:
-    PositiveExpression(Reference<Expression> expression, DiagnosticLocation location)
+    PositiveExpression(Symbol expression, DiagnosticLocation location)
       : _expression(expression), _location(location)
     { }
     Type type() const
@@ -1247,14 +1247,14 @@ public:
     }
     void push(Stack<Value>* stack) { }
 private:
-    Reference<Expression> _expression;
+    Symbol _expression;
     DiagnosticLocation _location;
 };
 
 class BitwiseNotExpression : public RValueExpression
 {
 public:
-    BitwiseNotExpression(Reference<Expression> expression, DiagnosticLocation location)
+    BitwiseNotExpression(Symbol expression, DiagnosticLocation location)
       : _expression(expression), _location(location)
     { }
     Type type() const
@@ -1276,14 +1276,14 @@ public:
         stack->push(Value(~stack->pop().getInt()));
     }
 private:
-    Reference<Expression> _expression;
+    Symbol _expression;
     DiagnosticLocation _location;
 };
 
 class LogicalNotExpression : public RValueExpression
 {
 public:
-    LogicalNotExpression(Reference<Expression> expression, DiagnosticLocation location)
+    LogicalNotExpression(Symbol expression, DiagnosticLocation location)
       : _expression(expression), _location(location)
     { }
     Type type() const
@@ -1305,14 +1305,14 @@ public:
         stack->push(Value(!stack->pop().getInt()));
     }
 private:
-    Reference<Expression> _expression;
+    Symbol _expression;
     DiagnosticLocation _location;
 };
 
 class DereferenceExpression : public Expression
 {
 public:
-    DereferenceExpression(Reference<Expression> expression, DiagnosticLocation location)
+    DereferenceExpression(Symbol expression, DiagnosticLocation location)
       : _expression(expression), _location(location)
     { }
     Type type() const
@@ -1340,14 +1340,14 @@ public:
         return stack->pop().getPointer();
     }
 private:
-    Reference<Expression> _expression;
+    Symbol _expression;
     DiagnosticLocation _location;
 };
 
 class AddressOfExpression : public RValueExpression
 {
 public:
-    AddressOfExpression(Reference<Expression> expression, DiagnosticLocation location)
+    AddressOfExpression(Symbol expression, DiagnosticLocation location)
       : _expression(expression), _location(location)
     { }
     Type type() const
@@ -1367,14 +1367,14 @@ public:
         stack->push(Value(_expression->variable(stack)));
     }
 private:
-    Reference<Expression> _expression;
+    Symbol _expression;
     DiagnosticLocation _location;
 };
 
 class PowerExpression : public RValueExpression
 {
 public:
-    PowerExpression(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    PowerExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
     Type type() const
@@ -1415,8 +1415,8 @@ private:
         }
         return r;
     }
-    Reference<Expression> _left;
-    Reference<Expression> _right;
+    Symbol _left;
+    Symbol _right;
     DiagnosticLocation _location;
 };
 
@@ -1425,14 +1425,14 @@ typedef FunctionCallExpressionTemplate<void> FunctionCallExpression;
 template<class T> class FunctionCallExpressionTemplate : public Expression
 {
 public:
-    static Reference<FunctionCallExpression> parse(CharacterSource* source, Scope* scope, Reference<Expression> function)
+    static Reference<FunctionCallExpression> parse(CharacterSource* source, Scope* scope, Symbol function)
     {
         DiagnosticLocation location = source->location();
         int n = 0;
-        Stack<Reference<Expression> > stack;
+        Stack<Symbol > stack;
         if (!Space::parseCharacter(source, ')')) {
             do {
-                Reference<Expression> e = Expression::parse(source, scope);
+                Symbol e = Expression::parse(source, scope);
                 if (!e.valid()) {
                     static String expression("Expected expression");
                     source->location().throwError(expression);
@@ -1480,23 +1480,23 @@ public:
     bool isLValue() { return false; }
     Variable* variable(Stack<Value>* stack) { return 0; }
 private:
-    FunctionCallExpressionTemplate(Scope* scope, Reference<Expression> function, int n, DiagnosticLocation location)
+    FunctionCallExpressionTemplate(Scope* scope, Symbol function, int n, DiagnosticLocation location)
       : _scope(scope), _function(function), _location(location)
     {
         _arguments.allocate(n);
     }
 
     Scope* _scope;
-    Reference<Expression> _function;
+    Symbol _function;
     FunctionDeclarationStatement* _functionDeclaration;
-    Array<Reference<Expression> > _arguments;
+    Array<Symbol > _arguments;
     DiagnosticLocation _location;
 };
 
 class DoubleQuotedString : public RValueExpression
 {
 public:
-    static Reference<Expression> parse(CharacterSource* source, Scope* scope)
+    static Symbol parse(CharacterSource* source, Scope* scope)
     {
         static String empty("");
         static String endOfFile("End of file in string");
@@ -1519,8 +1519,8 @@ public:
         int n;
         int nn;
         String string(empty);
-        Reference<Expression> expression;
-        Reference<Expression> part;
+        Symbol expression;
+        Symbol part;
         DiagnosticLocation location;
         DiagnosticLocation location2;
         do {
@@ -1619,7 +1619,7 @@ public:
     Type type() const { return StringType(); }
     void push(Stack<Value>* stack) { stack->push(Value(_string)); }
 private:
-    static Reference<Expression> combine(Reference<Expression> left, Reference<Expression> right, DiagnosticLocation location)
+    static Symbol combine(Symbol left, Symbol right, DiagnosticLocation location)
     {
         if (left.valid())
             return new AddExpression(left, right, location);
@@ -1733,3 +1733,14 @@ private:
 
     String _string;
 };
+
+void typeCheckExpression(Symbol expression)
+{
+
+}
+
+Symbol typeFromExpression(Symbol expression)
+{
+
+    switch (expression.atom
+}

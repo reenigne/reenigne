@@ -19,7 +19,7 @@ public:
         other._n = _n;
         _n = n;
     }
-    bool operator==(const Array& other)
+    bool operator==(const Array& other) const
     {
         if (_n != other._n)
             return false;
@@ -28,7 +28,7 @@ public:
                 return false;
         return true;
     }
-    bool operator!=(const Array& other)
+    bool operator!=(const Array& other) const
     {
         return !operator==(other);
     }
