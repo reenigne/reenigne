@@ -1,3 +1,15 @@
+Add Symbol labels:
+  Don't want to make the labelled table hold references - then a labelled symbol will never go away
+    Make a growable Array
+    Build HashTable on top of this
+    Modify HashTable so that the value for a key can be modified
+    When we remove a labelled TupleSymbol, remove it from the labelled table
+    Thread a heap through the labelled array so we can reuse old labels
+  Make different implementations for different sizes of TupleSymbol instead of using an array, to avoid a dereference.
+  When creating a TupleSymbol, can give it a label, then it will be added to the table
+    What's the syntax for creating a TupleSymbol with a label?
+      Have the label be a specific Symbol type? In a known position in the Tuple?
+
 Convert to use Symbol
   Statement
   Expression

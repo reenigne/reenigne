@@ -33,6 +33,7 @@ public:
     }
     int count() const { return _n; }
 private:
+    int hash(const Key& key) { return key.hash(); }
     int row(const Key& key) { return key.hash() & (_table.count() - 1); }
     class TableEntry
     {
@@ -104,6 +105,12 @@ private:
     };
     Array<TableEntry> _table;
     int _n;
+};
+
+template<int, class Value> class HashTable : Uncopyable
+{
+private:
+    int hash(int key) { return key; }
 };
 
 #endif // INCLUDED_HASH_TABLE_H

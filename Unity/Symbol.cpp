@@ -1,11 +1,3 @@
-enum SymbolType
-{
-    symbolInteger,
-    symbolString,
-    symbolList,
-    symbolTuple
-};
-
 enum Atom
 {
     atomBit,
@@ -21,6 +13,30 @@ enum Atom
     atomWord,
 
     atomLogicalOr,
+    atomLogicalAnd,
+    atomBitwiseOr,
+    atomBitwiseXor,
+    atomBitwiseAnd,
+    atomEqualTo,
+    atomNotEqualTo,
+    atomLessThanOrEqualTo,
+    atomGreaterThanOrEqualTo,
+    atomLessThan,
+    atomGreaterThan,
+    atomLeftShift,
+    atomRightShift,
+    atomAdd,
+    atomSubtract,
+    atomMultiply,
+    atomDivide,
+    atomModulo,
+    atomLogicalNot,
+    atomBitwiseNot,
+    atomPositive,
+    atomNegative,
+    atomDereference,
+    atomAddressOf,
+    atomPower,
     
     atomLast
 };
@@ -45,6 +61,30 @@ String atomToString(Atom atom)
             _table[atomWord] = String("Word");
 
             _table[atomLogicalOr] = String("||");
+            _table[atomLogicalAnd] = String("&&");
+            _table[atomBitwiseOr] = String("|");
+            _table[atomBitwiseXor] = String("~");
+            _table[atomBitwiseAnd] = String("&");
+            _table[atomEqualTo] = String("==");
+            _table[atomNotEqualTo] = String("!=");
+            _table[atomLessThanOrEqualTo] = String("<=");
+            _table[atomGreaterThanOrEqualTo] = String(">=");
+            _table[atomLessThan] = String("<");
+            _table[atomGreaterThan] = String(">");
+            _table[atomLeftShift] = String("<<");
+            _table[atomRightShift] = String(">>");
+            _table[atomAdd] = String("+");
+            _table[atomSubtract] = String("-");
+            _table[atomMultiply] = String("*");
+            _table[atomDivide] = String("/");
+            _table[atomModulo] = String("%");
+            _table[atomLogicalNot] = String("!");
+            _table[atomBitwiseNot] = String("u~");
+            _table[atomPositive] = String("u+");
+            _table[atomNegative] = String("u-");
+            _table[atomDereference] = String("u*");
+            _table[atomAddressOf] = String("u&");
+            _table[atomPower] = String("^");
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:
@@ -88,27 +128,33 @@ public:
     {
         return !_implementation->equals(other._implementation);
     }
-    IntegerSymbol integer() const { return static_cast<IntegerSymbol>(_implementation); }
-    StringSymbol string() const { return static_cast<StringSymbol>(_implementation); }
+    int integer() const { return static_cast<IntegerSymbol>(_implementation).value(); }
+    String string() const { return static_cast<StringSymbol>(_implementation).value(); }
     ListSymbol list() const { return static_cast<ListSymbol>(_implementation); }
     TupleSymbol tuple() const { return static_cast<TupleSymbol>(_implementation); }
+    Atom atom() const { return tuple().atom(); }
+    Symbol head() const { return list().head(); }
+    ListSymbol tail() const { return list().tail(); }
+    Reference<ReferenceCounted> reference() const { return static_cast<ReferenceSymbol>(_implementation).value(); }
     bool valid() const { return _implementation.valid(); }
     String toString() const { return _implementation->toString(); }
-    SymbolType type() const { return _implementation->type(); }
+    TupleSymbol label() const { return _labelled[integer()]; }
 protected:
     class Implementation : public ReferenceCounted
     {
     public:
         virtual bool equals(const Implementation* other) const = 0;
         virtual String toString() const = 0;
-        virtual SymbolType type() const = 0;
     };
     Symbol(Implementation* implementation) : _implementation(implementation) { }
     Symbol(Reference<Implementation> implementation) : _implementation(implementation) { }
     const Implementation* implementation() const { return _implementation; }
 private:
     Reference<Implementation> _implementation;
+    static HashTable<int, TupleSymbol> _labelled;
 };
+
+HashTable<int, TupleSymbol> Symbol::_labelled;
 
 class IntegerSymbol : public Symbol
 {
@@ -129,7 +175,6 @@ private:
         }
         String toString() const { return String::decimal(_value); }
         int value() const { return _value; }
-        SymbolType type() const { return symbolInteger; }
     private:
         int _value;
     };
@@ -156,7 +201,6 @@ private:
         }
         String toString() const { return quote(_value); }
         String value() const { return _value; }
-        SymbolType type() const { return symbolString; }
     private:
         String _value;
     };
@@ -179,7 +223,6 @@ private:
     public:
         virtual bool isEmpty() const = 0;
         virtual String toString2() const = 0;
-        SymbolType type() const { return symbolList; }
     };
     class Implementation : public ListImplementation
     {
@@ -298,11 +341,40 @@ private:
                 s += space + _array[i].toString();
             return s + closeParenthesis;
         }
-        SymbolType type() const { return symbolTuple; }
     private:
         Atom _atom;
         Array<Symbol> _array;
     };
     TupleSymbol(Reference<Symbol::Implementation> implementation) : Symbol(implementation) { }
+    friend class Symbol;
+};
+
+class ReferenceSymbol : public Symbol
+{
+public:
+    ReferenceSymbol(Reference<ReferenceCounted> reference) : Symbol(new Implementation(reference)) { }
+    Reference<ReferenceCounted> value() const { return dynamic_cast<const Implementation*>(implementation())->value(); }
+private:
+    class Implementation : public Symbol::Implementation
+    {
+    public:
+        Implementation(Reference<ReferenceCounted> reference) : _reference(reference) { }
+        bool equals(const Symbol::Implementation* other) const
+        {
+            const Implementation* o = dynamic_cast<const Implementation*>(other);
+            if (o == 0)
+                return false;
+            return _reference == o->_reference;
+        }
+        Reference<ReferenceCounted> value() const { return _reference; }
+        String toString() const
+        {
+            static String reference("<reference>");
+            return reference;
+        }
+    private:
+        Reference<ReferenceCounted> _reference;
+    };
+    ReferenceSymbol(Reference<Symbol::Implementation> implementation) : Symbol(implementation) { }
     friend class Symbol;
 };

@@ -15,7 +15,7 @@ public:
                 Symbol e2 = parsePrecedence14(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomLogicalOr, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomLogicalOr, symbolFromLocation(location), e, e2);
                 continue;
             }
             return e;
@@ -40,7 +40,7 @@ private:
                 Symbol e2 = parsePrecedence13(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomLogicalAnd, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomLogicalAnd, symbolFromLocation(location), e, e2);
                 continue;
             }
             return e;
@@ -58,7 +58,7 @@ private:
                 Symbol e2 = parsePrecedence12(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomBitwiseOr, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomBitwiseOr, symbolFromLocation(location), e, e2);
                 continue;
             }
             return e;
@@ -76,7 +76,7 @@ private:
                 Symbol e2 = parsePrecedence11(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomBitwiseXor, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomBitwiseXor, symbolFromLocation(location), e, e2);
                 continue;
             }
             return e;
@@ -94,7 +94,7 @@ private:
                 Symbol e2 = parsePrecedence10(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomBitwiseAnd, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomBitwiseAnd, symbolFromLocation(location), e, e2);
                 continue;
             }
             return e;
@@ -113,7 +113,7 @@ private:
                 Symbol e2 = parsePrecedence9(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomEqualTo, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomEqualTo, symbolFromLocation(location), e, e2);
                 continue;
             }
             static String notEqualTo("!=");
@@ -121,7 +121,7 @@ private:
                 Symbol e2 = parsePrecedence9(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomNotEqualTo, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomNotEqualTo, symbolFromLocation(location), e, e2);
                 continue;
             }
             return e;
@@ -140,7 +140,7 @@ private:
                 Symbol e2 = parsePrecedence8(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomLessThanOrEqualTo, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomLessThanOrEqualTo, symbolFromLocation(location), e, e2);
                 continue;
             }
             static String greaterThanOrEqualTo(">=");
@@ -148,21 +148,21 @@ private:
                 Symbol e2 = parsePrecedence8(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomGreaterThanOrEqualTo, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomGreaterThanOrEqualTo, symbolFromLocation(location), e, e2);
                 continue;
             }
             if (Space::parseCharacter(source, '<')) {
                 Symbol e2 = parsePrecedence8(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomLessThan, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomLessThan, symbolFromLocation(location), e, e2);
                 continue;
             }
             if (Space::parseCharacter(source, '>')) {
                 Symbol e2 = parsePrecedence8(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomGreaterThan, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomGreaterThan, symbolFromLocation(location), e, e2);
                 continue;
             }
             return e;
@@ -181,7 +181,7 @@ private:
                 Symbol e2 = parsePrecedence7(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomLeftShift, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomLeftShift, symbolFromLocation(location), e, e2);
                 continue;
             }
             static String rightShift(">>");
@@ -189,7 +189,7 @@ private:
                 Symbol e2 = parsePrecedence7(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomRightShift, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomRightShift, symbolFromLocation(location), e, e2);
                 continue;
             }
             return e;
@@ -206,14 +206,14 @@ private:
                 Symbol e2 = parsePrecedence6(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomAdd, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomAdd, symbolFromLocation(location), e, e2);
                 continue;
             }
             if (Space::parseCharacter(source, '-')) {
                 Symbol e2 = parsePrecedence6(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomSubtract, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomSubtract, symbolFromLocation(location), e, e2);
                 continue;
             }
             return e;
@@ -230,21 +230,21 @@ private:
                 Symbol e2 = parsePrecedence4(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomMultiply, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomMultiply, symbolFromLocation(location), e, e2);
                 continue;
             }
             if (Space::parseCharacter(source, '/')) {
                 Symbol e2 = parsePrecedence4(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomDivide, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomDivide, symbolFromLocation(location), e, e2);
                 continue;
             }
             if (Space::parseCharacter(source, '%')) {
                 Symbol e2 = parsePrecedence4(source, scope);
                 if (!e2.valid())
                     throwError(source);
-                e = TupleSymbol(atomModulo, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomModulo, symbolFromLocation(location), e, e2);
                 continue;
             }
             return e;
@@ -255,27 +255,27 @@ private:
         DiagnosticLocation location = source->location();
         if (Space::parseCharacter(source, '!')) {
             Symbol e = parsePrecedence4(source, scope);
-            return TupleSymbol(atomLogicalNot, e, symbolFromLocation(location));
+            return TupleSymbol(atomLogicalNot, symbolFromLocation(location), e);
         }
         if (Space::parseCharacter(source, '~')) {
             Symbol e = parsePrecedence4(source, scope);
-            return TupleSymbol(atomBitwiseNot, e, symbolFromLocation(location));
+            return TupleSymbol(atomBitwiseNot, symbolFromLocation(location), e);
         }
         if (Space::parseCharacter(source, '+')) {
             Symbol e = parsePrecedence4(source, scope);
-            return TupleSymbol(atomPositive, e, symbolFromLocation(location));
+            return TupleSymbol(atomPositive, symbolFromLocation(location), e);
         }
         if (Space::parseCharacter(source, '-')) {
             Symbol e = parsePrecedence4(source, scope);
-            return TupleSymbol(atomNegative, e, symbolFromLocation(location));
+            return TupleSymbol(atomNegative, symbolFromLocation(location), e);
         }
         if (Space::parseCharacter(source, '*')) {
             Symbol e = parsePrecedence4(source, scope);
-            return TupleSymbol(atomDereference, e, symbolFromLocation(location));
+            return TupleSymbol(atomDereference, symbolFromLocation(location), e);
         }
         if (Space::parseCharacter(source, '&')) {
             Symbol e = parsePrecedence4(source, scope);
-            return TupleSymbol(atomAddressOf, e, symbolFromLocation(location));
+            return TupleSymbol(atomAddressOf, symbolFromLocation(location), e);
         }
         return parsePrecedence3(source, scope);
     }
@@ -289,7 +289,7 @@ private:
             Symbol e2 = parsePrecedence3(source, scope);
             if (!e2.valid())
                 throwError(source);
-                e = TupleSymbol(atomPower, e, e2, symbolFromLocation(location));
+                e = TupleSymbol(atomPower, symbolFromLocation(location), e, e2);
         }
         return e;
     }
@@ -1734,13 +1734,52 @@ private:
     String _string;
 };
 
-void typeCheckExpression(Symbol expression)
+void checkBoolean(TupleSymbol expression)
 {
-
+    if (!
 }
 
-Symbol typeFromExpression(Symbol expression)
+TupleSymbol typeFromExpression(TupleSymbol expression)
 {
+    TupleSymbol tuple = expression.tuple();
+    switch (tuple.atom()) {
+        case atomLogicalOr:
+        case atomLogicalAnd:
+            if (typeFromExpression(tuple.symbol1()).atom() != atomBoolean) {
+                expectedBoolean(tuple.symbol1());
 
-    switch (expression.atom
+
+        case atomEqualTo:
+        case atomNotEqualTo:
+        case atomLessThanOrEqualTo:
+        case atomGreaterThanOrEqualTo:
+        case atomLessThan:
+        case atomGreaterThan:
+
+    atomLogicalAnd,
+    atomBitwiseOr,
+    atomBitwiseXor,
+    atomBitwiseAnd,
+    atomEqualTo,
+    atomNotEqualTo,
+    atomLessThanOrEqualTo,
+    atomGreaterThanOrEqualTo,
+    atomLessThan,
+    atomGreaterThan,
+    atomLeftShift,
+    atomRightShift,
+    atomAdd,
+    atomSubtract,
+    atomMultiply,
+    atomDivide,
+    atomModulo,
+    atomLogicalNot,
+    atomBitwiseNot,
+    atomPositive,
+    atomNegative,
+    atomDereference,
+    atomAddressOf,
+    atomPower,
+
+    }
 }
