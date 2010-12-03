@@ -39,4 +39,44 @@ private:
     int _n;
 };
 
+template<class T> class GrowableArray : Uncopyable
+{
+public:
+    GrowableArray() : _n(0)
+    {
+        _array.allocate(1);
+    }
+    T& operator[](int i) { return _array[i]; }
+    const T& operator[](int i) const { return _array[i]; }
+    int count() const { return _n; }
+    bool operator==(const GrowableArray& other) const
+    {
+        if (_n != other._n)
+            return false;
+        for (int i = 0; i < _n; ++i)
+            if (_array[i] != other._array[i])
+                return false;
+        return true;
+    }
+    bool operator!=(const Array& other) const
+    {
+        return !operator==(other);
+    }
+    void append(const T& value)
+    {
+        if (_n == _array.count()) {
+            Array<T> n;
+            n.allocate(_n*2);
+            n.swap(_array);
+            for (int i = 0; i < _n; ++i)
+                _array[i] = n[i];
+        }
+        _array[_n] = value;
+        ++_n;
+    }
+private:
+    Array<T> _array;
+    int _n;
+};
+
 #endif // INCLUDED_ARRAY_H

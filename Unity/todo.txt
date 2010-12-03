@@ -1,14 +1,22 @@
+How to do Scope with immutable Symbol and no ReferenceSymbol?
+  Step 1 - walk tree and build up local (single level) scope tables
+  Step 2 - walk tree and link in parent tables
+  Optimization: To do O(1) lookup, need SymbolArray : SymbolEntry. Create by converting SymbolList to SymbolArray
+
 Add Symbol labels:
-  Don't want to make the labelled table hold references - then a labelled symbol will never go away
-    Make a growable Array
-    Build HashTable on top of this
-    Modify HashTable so that the value for a key can be modified
-    When we remove a labelled TupleSymbol, remove it from the labelled table
+  When we remove a labelled Symbol, remove it from the labelled table
     Thread a heap through the labelled array so we can reuse old labels
-  Make different implementations for different sizes of TupleSymbol instead of using an array, to avoid a dereference.
-  When creating a TupleSymbol, can give it a label, then it will be added to the table
+      Create a class SymbolLabelTarget to put in the array
+        void* that is converted to Symbol* or SymbolLabelTarget*
+        Compute index from SymbolLabelTarget* by subtraction and division.
+  Optimization: Shrink the array if the second half is all empty to avoid pooling memory. To do this, need to remove elements from the list when they're at the end of the array
+  When creating a Symbol, can give it a label, then it will be added to the table
     What's the syntax for creating a TupleSymbol with a label?
       Have the label be a specific Symbol type? In a known position in the Tuple?
+    int Symbol::label()  // Get the next unused label number
+    Symbol(int n)  // Get the symbol from label n
+    Initially, give all symbols a label slot
+      Optimization: Later add LabelledSymbol : Symbol
 
 Convert to use Symbol
   Statement
@@ -30,6 +38,7 @@ Refactor to avoid repetition
 
 In break/continue statement's compile(), make sure we are inside a suitable loop/switch
 
+Use operator[] instead of add in HashTable?
 
 Add Int32, UInt32 and NInt32 types
 Add 8-bit and 16-bit types
@@ -66,7 +75,6 @@ Add operator  4 ()(type cast)     RtL
 Add operator  5 .*                LtR
 Add operator  5 ->*               LtR
 Add operator 16 ?:                RtL  
-Use operator[] instead of lookUp and add in HashTable?
 Need a better error message when statement isn't recognized as such
 For String::throwUnexpected(), print name (or hex) of found character to avoid putting unprintable characters in error messages.
   Need a way to convert any codepoint into an ASCII printable string

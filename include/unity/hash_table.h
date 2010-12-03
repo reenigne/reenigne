@@ -10,30 +10,32 @@ public:
     {
         _table.allocate(1);
     }
-    void add(const Key& key, const Value& value)
-    {
-        if (_n == _table.count()) {
-            Array<TableEntry> table;
-            table.allocate(_table.count() * 2);
-            table.swap(_table);
-            _n = 0;
-            for (int i = 0; i < table.count(); ++i)
-                table[i].addAllTo(this);
-        }
-        _table[row(key)].add(key, value);
-        ++_n;
-    }
     bool hasKey(const Key& key)
     {
         return _table[row(key)].hasKey(key);
     }
-    Value lookUp(const Key& key)
+    Value operator[](const Key& key) const
     {
+        return _table[row(key)].value(key);
+    }
+    Value& operator[](const Key& key)
+    {
+        if (!hasKey(key) {
+            if (_n == _table.count()) {
+                Array<TableEntry> table;
+                table.allocate(_table.count() * 2);
+                table.swap(_table);
+                _n = 0;
+                for (int i = 0; i < table.count(); ++i)
+                    table[i].addAllTo(this);
+            }
+            _table[row(key)].add(key, value);
+            ++_n;
+        }
         return _table[row(key)].value(key);
     }
     int count() const { return _n; }
 private:
-    int hash(const Key& key) { return key.hash(); }
     int row(const Key& key) { return key.hash() & (_table.count() - 1); }
     class TableEntry
     {
@@ -105,12 +107,6 @@ private:
     };
     Array<TableEntry> _table;
     int _n;
-};
-
-template<int, class Value> class HashTable : Uncopyable
-{
-private:
-    int hash(int key) { return key; }
 };
 
 #endif // INCLUDED_HASH_TABLE_H
