@@ -142,7 +142,7 @@ public:
     SymbolList tail() const { return list().tail(); }
     bool valid() const { return _implementation.valid(); }
     String toString() const { return _implementation->toString(); }
-    Symbol label() const { return Symbol::_labelled[integer()]; }
+    Symbol labelled() const { return *Symbol::_labelled[integer()].symbol(); }
 protected:
     class Implementation : public ReferenceCounted
     {
@@ -183,7 +183,6 @@ protected:
         String _value;
     };
     SymbolEntry(Implementation* implementation) : _implementation(implementation) { }
-    //SymbolEntry(Reference<Implementation> implementation) : _implementation(implementation) { }
     const Implementation* implementation() const { return _implementation; }
 private:
     Reference<Implementation> _implementation;
@@ -193,13 +192,25 @@ String openParenthesis("(");
 String closeParenthesis(")");
 String space(" ");
 
+class SymbolLabelTarget
+{
+public:
+    SymbolLabelTarget() { }
+    SymbolLabelTarget(Symbol* symbol) : _pointer(symbol) { }
+    SymbolLabelTarget(SymbolLabelTarget* target) : _pointer(target) { }
+    Symbol* symbol() const { return static_cast<Symbol*>(_pointer); }
+    SymbolLabelTarget* target() const { return static_cast<SymbolLabelTarget*>(_pointer); }
+private:
+    void* _pointer;
+};
+
 class Symbol : public SymbolEntry
 {
 public:
-    Symbol(Atom atom) : SymbolEntry(new Implementation0(atom)) { }
-    Symbol(Atom atom, SymbolEntry symbol1) : SymbolEntry(new Implementation1(atom, symbol1)) { }
-    Symbol(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2) : SymbolEntry(new Implementation2(atom, symbol1, symbol2)) { }
-    Symbol(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3) : SymbolEntry(new Implementation3(atom, symbol1, symbol2, symbol3)) { }
+    Symbol(int label, Atom atom) : SymbolEntry(new Implementation0(label, atom)) { addToTable(); }
+    Symbol(int label, Atom atom, SymbolEntry symbol1) : SymbolEntry(new Implementation1(label, atom, symbol1)) { addToTable(); }
+    Symbol(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2) : SymbolEntry(new Implementation2(label, atom, symbol1, symbol2)) { addToTable(); }
+    Symbol(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3) : SymbolEntry(new Implementation3(label, atom, symbol1, symbol2, symbol3)) { addToTable(); }
     Atom atom() const { return dynamic_cast<const Implementation0*>(implementation())->atom(); }
     SymbolEntry entry1() const { return dynamic_cast<const Implementation1*>(implementation())->entry1(); }
     SymbolEntry entry2() const { return dynamic_cast<const Implementation2*>(implementation())->entry2(); }
@@ -208,7 +219,7 @@ private:
     class Implementation0 : public SymbolEntry::Implementation
     {
     public:
-        Implementation0(Atom atom) : _atom(atom) { }
+        Implementation0(int label, Atom atom) : _label(label), _atom(atom) { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
             const Implementation0* o = dynamic_cast<const Implementation0*>(other);
@@ -218,14 +229,23 @@ private:
         }
         String toString() const { return openParenthesis + toString2() + closeParenthesis; }
         Atom atom() const { return _atom; }
+        int label() const { return _label; }
     protected:
+        ~Implementation0()
+        {
+            if (_label == -1)
+                return;
+            _labelled[_label] = SymbolLabelTarget(&_labelled[_nextFreeLabel]);
+            _nextFreeLabel = _label;
+        }
         String toString2() const { return atomToString(_atom); }
+        int _label;
         Atom _atom;
     };
     class Implementation1 : public Implementation0
     {
     public:
-        Implementation1(Atom atom, SymbolEntry entry1) : Implementation0(atom), _entry1(entry1) { }
+        Implementation1(int label, Atom atom, SymbolEntry entry1) : Implementation0(label, atom), _entry1(entry1) { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
             const Implementation1* o = dynamic_cast<const Implementation1*>(other);
@@ -242,7 +262,7 @@ private:
     class Implementation2 : public Implementation1
     {
     public:
-        Implementation2(Atom atom, SymbolEntry entry1, SymbolEntry entry2) : Implementation1(atom, entry1), _entry2(entry2) { }
+        Implementation2(int label, Atom atom, SymbolEntry entry1, SymbolEntry entry2) : Implementation1(label, atom, entry1), _entry2(entry2) { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
             const Implementation2* o = dynamic_cast<const Implementation2*>(other);
@@ -259,7 +279,7 @@ private:
     class Implementation3 : public Implementation2
     {
     public:
-        Implementation3(Atom atom, SymbolEntry entry1, SymbolEntry entry2, SymbolEntry entry3) : Implementation2(atom, entry1, entry2), _entry3(entry3) { }
+        Implementation3(int label, Atom atom, SymbolEntry entry1, SymbolEntry entry2, SymbolEntry entry3) : Implementation2(label, atom, entry1, entry2), _entry3(entry3) { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
             const Implementation3* o = dynamic_cast<const Implementation3*>(other);
@@ -274,12 +294,36 @@ private:
         SymbolEntry _entry3;
     };
 
+    int labelFromTarget(SymbolLabelTarget* target)
+    {
+        return (target - &_labelled[0])/sizeof(SymbolLabelTarget*);
+    }
+
+    int label()
+    {
+        int l = _nextFreeLabel;
+        if (l == _labelled.count()) {
+            ++_nextFreeLabel;
+            _labelled.append(SymbolLabelTarget());
+        }
+        else
+            _nextFreeLabel = labelFromTarget(_labelled[l].target());
+        return l;
+    }
+
+    void addToTable()
+    {
+        _labelled[dynamic_cast<const Implementation0*>(implementation())->label()] = SymbolLabelTarget(this);
+    }
+
     Symbol(Reference<Symbol::Implementation> implementation) : SymbolEntry(implementation) { }
     friend class SymbolEntry;
-    static GrowableArray<int, Symbol*> _labelled;
+    static GrowableArray<SymbolLabelTarget> _labelled;
+    static int _nextFreeLabel;
 };
 
-GrowableArray<Symbol*> Symbol::_labelled;
+GrowableArray<SymbolLabelTarget> Symbol::_labelled;
+int Symbol::_nextFreeLabel = 0;
 
 class SymbolList : public SymbolEntry
 {
@@ -352,10 +396,8 @@ private:
         return _emptyList;
     }
     static Reference<ListImplementation> _emptyList;
-//    SymbolList(Reference<Symbol::Implementation> implementation) : SymbolEntry(implementation) { }
     friend class Symbol;
     String toString2() { return dynamic_cast<const ListImplementation*>(implementation())->toString2(); } 
 };
 
 Reference<SymbolList::ListImplementation> SymbolList::_emptyList;
-

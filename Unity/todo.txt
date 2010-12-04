@@ -1,22 +1,12 @@
-How to do Scope with immutable Symbol and no ReferenceSymbol?
+When adding a Symbol to the label table, need to remove any symbol that already has the label
+  Need to be able to tell if the table entry is a Symbol* or a SymbolTableEntry*
+
+Need a method to get a Symbol's label.
+
+Scope:
   Step 1 - walk tree and build up local (single level) scope tables
   Step 2 - walk tree and link in parent tables
   Optimization: To do O(1) lookup, need SymbolArray : SymbolEntry. Create by converting SymbolList to SymbolArray
-
-Add Symbol labels:
-  When we remove a labelled Symbol, remove it from the labelled table
-    Thread a heap through the labelled array so we can reuse old labels
-      Create a class SymbolLabelTarget to put in the array
-        void* that is converted to Symbol* or SymbolLabelTarget*
-        Compute index from SymbolLabelTarget* by subtraction and division.
-  Optimization: Shrink the array if the second half is all empty to avoid pooling memory. To do this, need to remove elements from the list when they're at the end of the array
-  When creating a Symbol, can give it a label, then it will be added to the table
-    What's the syntax for creating a TupleSymbol with a label?
-      Have the label be a specific Symbol type? In a known position in the Tuple?
-    int Symbol::label()  // Get the next unused label number
-    Symbol(int n)  // Get the symbol from label n
-    Initially, give all symbols a label slot
-      Optimization: Later add LabelledSymbol : Symbol
 
 Convert to use Symbol
   Statement
@@ -106,3 +96,6 @@ Add coroutines
 Detect pure functions
 Add statement `for` "(" Type ValueIdentifer `in` Expression ")" LoopBody
 Add goto and label statements
+Optimization: Add a LabelledSymbol class deriving from Symbol so that Symbol doesn't need a _label member
+Optimization: Shrink Symbol::_labelled if the second half is all empty to avoid pooling memory.
+  To do this, need to remove elements from the list when they're at the end of the array.
