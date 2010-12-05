@@ -1,12 +1,15 @@
-When adding a Symbol to the label table, need to remove any symbol that already has the label
-  Need to be able to tell if the table entry is a Symbol* or a SymbolTableEntry*
+Labels should point at the Implementation, not the Symbol.
 
-Need a method to get a Symbol's label.
+Symbol::toString()
+  Add labels: nnn:(...)
+  Indent to make it readable for debugging
 
 Scope:
   Step 1 - walk tree and build up local (single level) scope tables
   Step 2 - walk tree and link in parent tables
   Optimization: To do O(1) lookup, need SymbolArray : SymbolEntry. Create by converting SymbolList to SymbolArray
+
+Implement compilation steps as Symbol transformations
 
 Convert to use Symbol
   Statement

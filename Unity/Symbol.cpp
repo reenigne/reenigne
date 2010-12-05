@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 enum Atom
 {
     atomBit,
@@ -142,7 +144,7 @@ public:
     SymbolList tail() const { return list().tail(); }
     bool valid() const { return _implementation.valid(); }
     String toString() const { return _implementation->toString(); }
-    Symbol labelled() const { return *Symbol::_labelled[integer()].symbol(); }
+    Symbol target() const { return *Symbol::_labelled[integer()].symbol(); }
 protected:
     class Implementation : public ReferenceCounted
     {
@@ -184,6 +186,7 @@ protected:
     };
     SymbolEntry(Implementation* implementation) : _implementation(implementation) { }
     const Implementation* implementation() const { return _implementation; }
+    Implementation* implementation() { return _implementation; }
 private:
     Reference<Implementation> _implementation;
 };
@@ -195,11 +198,12 @@ String space(" ");
 class SymbolLabelTarget
 {
 public:
-    SymbolLabelTarget() { }
+    SymbolLabelTarget() : _pointer(0) { }
     SymbolLabelTarget(Symbol* symbol) : _pointer(symbol) { }
-    SymbolLabelTarget(SymbolLabelTarget* target) : _pointer(target) { }
+    SymbolLabelTarget(SymbolLabelTarget* target) : _pointer(reinterpret_cast<char*>(target) + 1)) { }
     Symbol* symbol() const { return static_cast<Symbol*>(_pointer); }
-    SymbolLabelTarget* target() const { return static_cast<SymbolLabelTarget*>(_pointer); }
+    SymbolLabelTarget* target() const { return reinterpret_cast<SymbolLabelTarget*>(static_cast<char*>(_pointer) - 1); }
+    bool isSymbol() const { return (reinterpret_cast<uintptr_t>(_pointer) & 1) == 0; }
 private:
     void* _pointer;
 };
@@ -215,6 +219,7 @@ public:
     SymbolEntry entry1() const { return dynamic_cast<const Implementation1*>(implementation())->entry1(); }
     SymbolEntry entry2() const { return dynamic_cast<const Implementation2*>(implementation())->entry2(); }
     SymbolEntry entry3() const { return dynamic_cast<const Implementation3*>(implementation())->entry3(); }
+    int label() const { return dynamic_cast<const Implementation0*>(implementation())->label(); }
 private:
     class Implementation0 : public SymbolEntry::Implementation
     {
@@ -230,6 +235,7 @@ private:
         String toString() const { return openParenthesis + toString2() + closeParenthesis; }
         Atom atom() const { return _atom; }
         int label() const { return _label; }
+        void removeLabel() { _label = -1; }
     protected:
         ~Implementation0()
         {
@@ -294,12 +300,12 @@ private:
         SymbolEntry _entry3;
     };
 
-    int labelFromTarget(SymbolLabelTarget* target)
+    static int labelFromTarget(SymbolLabelTarget* target)
     {
         return (target - &_labelled[0])/sizeof(SymbolLabelTarget*);
     }
 
-    int label()
+    static int newLabel()
     {
         int l = _nextFreeLabel;
         if (l == _labelled.count()) {
@@ -313,7 +319,15 @@ private:
 
     void addToTable()
     {
-        _labelled[dynamic_cast<const Implementation0*>(implementation())->label()] = SymbolLabelTarget(this);
+        int l = label();
+        if (_labelled[l].isSymbol())
+            _labelled[l].symbol()->removeLabel();
+        _labelled[l] = SymbolLabelTarget(this);
+    }
+
+    void removeLabel()
+    {
+        dynamic_cast<Implementation0*>(implementation())->removeLabel();
     }
 
     Symbol(Reference<Symbol::Implementation> implementation) : SymbolEntry(implementation) { }
