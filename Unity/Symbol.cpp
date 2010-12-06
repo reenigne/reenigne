@@ -98,8 +98,9 @@ String atomToString(Atom atom)
 
 String quote(String string)
 {
+    static String doubleQuote("\"");
     CodePointSource s(string);
-    String r;
+    String r = doubleQuote;
     int start = 0;
     int end;
     do {
@@ -107,7 +108,7 @@ String quote(String string)
         if (c == -1) {
             end = s.offset();
             r += s.subString(start, end);
-            return r;
+            return r + doubleQuote;
         }
         if (c == '"' || c == '\\') {
             end = s.offset();
@@ -117,6 +118,35 @@ String quote(String string)
             r += backslash;
         }
     } while (true);
+}
+
+int quotedLength(String stinrg)
+{
+    static String doubleQuote("\"");
+    CodePointSource s(string);
+    int r = 2;
+    do {
+        int c = s.get();
+        if (c == -1)
+            return r;
+        if (c == '"' || c == '\\')
+            ++r;
+        ++r;
+    } while (true);
+}
+
+int decimalLength(int v)
+{
+    int l = 1;
+    if (v < 0) {
+        ++l;
+        v = -v;
+    }
+    while (v > 9) {
+        ++l;
+        v /= 10;
+    }
+    return l;
 }
 
 
@@ -137,20 +167,21 @@ public:
     }
     int integer() const { return dynamic_cast<const IntegerImplementation*>(implementation())->value(); }
     String string() const { return dynamic_cast<const StringImplementation*>(implementation())->value(); }
-    SymbolList list() const { return static_cast<SymbolList>(_implementation); }
-    Symbol symbol() const { return static_cast<Symbol>(_implementation); }
+    SymbolList list() const { return SymbolList(_implementation); }
+    Symbol symbol() const { return Symbol(_implementation); }
     Atom atom() const { return symbol().atom(); }
     Symbol head() const { return list().head(); }
     SymbolList tail() const { return list().tail(); }
     bool valid() const { return _implementation.valid(); }
-    String toString() const { return _implementation->toString(); }
-    Symbol target() const { return *Symbol::_labelled[integer()].symbol(); }
+    String toString(bool ownLine = true) const { return _implementation->toString(ownLine); }
+    Symbol target() const { return Symbol::_labelled[integer()].symbol(); }
 protected:
     class Implementation : public ReferenceCounted
     {
     public:
         virtual bool equals(const Implementation* other) const = 0;
-        virtual String toString() const = 0;
+        virtual int length(int max) const = 0;
+        virtual String toString(bool ownLine) const = 0;
     };
     class IntegerImplementation : public Implementation
     {
@@ -164,6 +195,7 @@ protected:
             return _value == o->_value;
         }
         String toString() const { return String::decimal(_value); }
+        int length(int max) const { return decimalLength(_value); }
         int value() const { return _value; }
     private:
         int _value;
@@ -180,6 +212,7 @@ protected:
             return _value == o->_value;
         }
         String toString() const { return quote(_value); }
+        int length(int max) const { return quotedLength(_value); }
         String value() const { return _value; }
     private:
         String _value;
@@ -189,6 +222,8 @@ protected:
     Implementation* implementation() { return _implementation; }
 private:
     Reference<Implementation> _implementation;
+    friend class Symbol;
+    friend class SymbolList;
 };
 
 String openParenthesis("(");
@@ -200,8 +235,8 @@ class SymbolLabelTarget
 public:
     SymbolLabelTarget() : _pointer(0) { }
     SymbolLabelTarget(Symbol* symbol) : _pointer(symbol) { }
-    SymbolLabelTarget(SymbolLabelTarget* target) : _pointer(reinterpret_cast<char*>(target) + 1)) { }
-    Symbol* symbol() const { return static_cast<Symbol*>(_pointer); }
+    SymbolLabelTarget(SymbolLabelTarget* target) : _pointer(reinterpret_cast<char*>(target) + 1) { }
+    Symbol symbol() const { return Symbol(static_cast<Symbol::Implementation0*>(_pointer)); }
     SymbolLabelTarget* target() const { return reinterpret_cast<SymbolLabelTarget*>(static_cast<char*>(_pointer) - 1); }
     bool isSymbol() const { return (reinterpret_cast<uintptr_t>(_pointer) & 1) == 0; }
 private:
@@ -232,7 +267,22 @@ private:
                 return false;
             return _atom == o->_atom;
         }
-        String toString() const { return openParenthesis + toString2() + closeParenthesis; }
+        int length(int max) const
+        {
+            int r = 2 + atomToString(_atom).length();
+            if (_label != -1)
+                r += 1 + decimalLength(_label);
+            return r;
+        }
+        String toString() const
+        {
+            String s = openParenthesis;
+            if (_label != -1) {
+                static String colon(":");
+                s = String::decimal(_label) + colon + s;
+            }
+            return s + toString2() + closeParenthesis;
+        }
         Atom atom() const { return _atom; }
         int label() const { return _label; }
         void removeLabel() { _label = -1; }
@@ -244,7 +294,7 @@ private:
             _labelled[_label] = SymbolLabelTarget(&_labelled[_nextFreeLabel]);
             _nextFreeLabel = _label;
         }
-        String toString2() const { return atomToString(_atom); }
+        virtual String toString2() const { return atomToString(_atom); }
         int _label;
         Atom _atom;
     };
@@ -259,8 +309,14 @@ private:
                 return false;
             return _atom == o->_atom && _entry1 == o->_entry1;
         }
-        String toString() const { return openParenthesis + toString2() + closeParenthesis; }
         SymbolEntry entry1() const { return _entry1; }
+        int length(int max) const
+        {
+            int r = Implementation0::length(max);
+            if (r < max)
+                r += 1 + _entry1.implementation()->length(max - r);
+            return r;
+        }
     protected:
         String toString2() const { return Implementation0::toString2() + space + _entry1.toString(); }
         SymbolEntry _entry1;
@@ -276,8 +332,14 @@ private:
                 return false;
             return _atom == o->_atom && _entry1 == o->_entry1 && _entry2 == o->_entry2;
         }
-        String toString() const { return openParenthesis + toString2() + closeParenthesis; }
         SymbolEntry entry2() const { return _entry1; }
+        int length(int max) const
+        {
+            int r = Implementation1::length(max);
+            if (r < max)
+                r += 1 + _entry2.implementation()->length(max - r);
+            return r;
+        }
     protected:
         String toString2() const { return Implementation1::toString2() + space + _entry2.toString(); }
         SymbolEntry _entry2;
@@ -293,8 +355,14 @@ private:
                 return false;
             return _atom == o->_atom && _entry1 == o->_entry1 && _entry2 == o->_entry2 && _entry3 == o->_entry3;
         }
-        String toString() const { return openParenthesis + toString2() + closeParenthesis; }
         SymbolEntry entry3() const { return _entry1; }
+        int length(int max) const
+        {
+            int r = Implementation2::length(max);
+            if (r < max)
+                r += 1 + _entry3.implementation()->length(max - r);
+            return r;
+        }
     protected:
         String toString2() const { return Implementation2::toString2() + space + _entry2.toString(); }
         SymbolEntry _entry3;
@@ -321,7 +389,7 @@ private:
     {
         int l = label();
         if (_labelled[l].isSymbol())
-            _labelled[l].symbol()->removeLabel();
+            _labelled[l].symbol().removeLabel();
         _labelled[l] = SymbolLabelTarget(this);
     }
 
@@ -330,8 +398,9 @@ private:
         dynamic_cast<Implementation0*>(implementation())->removeLabel();
     }
 
-    Symbol(Reference<Symbol::Implementation> implementation) : SymbolEntry(implementation) { }
+    Symbol(Reference<Symbol::Implementation0> implementation) : SymbolEntry(implementation) { }
     friend class SymbolEntry;
+    friend class SymbolLabelTarget;
     static GrowableArray<SymbolLabelTarget> _labelled;
     static int _nextFreeLabel;
 };
@@ -354,6 +423,8 @@ private:
     public:
         virtual bool isEmpty() const = 0;
         virtual String toString2() const = 0;
+        int length(int max) const { return 2 + length2(max - 2); }
+        virtual int length2(int max) const = 0;
     };
     class Implementation : public ListImplementation
     {
@@ -380,6 +451,13 @@ private:
             static String space(" ");
             return space + _head.toString() + _tail.list().toString2();
         }
+        int length2(int max) const
+        {
+            int r = _head.implementation()->length(max);
+            if (r < max && dynamic_cast<Implementation*>(_tail.implementation()) != 0)
+                r += 1 + _tail.implementation()->length(max - r);
+            return r;
+        }
     private:
         Symbol _head;
         Symbol _tail;
@@ -402,6 +480,7 @@ private:
             static String s("");
             return s;
         }
+        int length2(int max) const { return 0; }
     };
     static Reference<Implementation> emptyList()
     {
@@ -410,8 +489,9 @@ private:
         return _emptyList;
     }
     static Reference<ListImplementation> _emptyList;
-    friend class Symbol;
+    friend class SymbolEntry;
     String toString2() { return dynamic_cast<const ListImplementation*>(implementation())->toString2(); } 
+    SymbolList(Reference<ListImplementation> implementation) : SymbolEntry(implementation) { }
 };
 
 Reference<SymbolList::ListImplementation> SymbolList::_emptyList;
