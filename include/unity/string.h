@@ -9,6 +9,9 @@ class StringImplementation;
 template<class T> class SimpleStringImplementationTemplate;
 typedef SimpleStringImplementationTemplate<void> SimpleStringImplementation;
 
+template<class T> class PaddingStringImplementationTemplate;
+typedef PaddingStringImplementationTemplate<void> PaddingStringImplementation;
+
 template<class T> class ConcatenatedStringImplementationTemplate;
 typedef ConcatenatedStringImplementationTemplate<void> ConcatenatedStringImplementation;
 
@@ -128,6 +131,12 @@ public:
     {
         String s;
         s._implementation = new DecimalStringImplementation(value);
+        return s;
+    }
+    static String padding(int length)
+    {
+        String s;
+        s._implementation = new PaddingStringImplementation(length);
         return s;
     }
     static String codePoint(int codePoint)
@@ -330,6 +339,93 @@ protected:
     Buffer _buffer;
     int _start;
 };
+
+template<class T> class PaddingStringImplementationTemplate : public StringImplementation
+{
+public:
+    PaddingStringImplementationTemplate(int length) { setLength(length); }
+    Reference<StringImplementation> subString(int start, int length) const
+    {
+        return new PaddingStringImplementation(length);
+    }
+    Reference<StringImplementation> withAppended(cnst Reference<StringImplementation>& other)
+    {
+        Reference<PaddedStringImplementation> paddedOther(other);
+        if (paddedOther.valid())
+            return new PaddedStringImplementation(length() + other->length());
+        return new ConcatenatedStringImplementation(this, other);
+    }
+    void copyTo(UInt8* buffer) const
+    {
+        memset(buffer, ' ', length());
+    }
+    int hash(int h) const
+    {
+        for (int i = 0; i < length(); ++i)
+            h = h * 67 + ' ' - 113;
+        return h;
+    }
+    int compare(int start, const StringImplementation* other, int otherStart, int l) const
+    {
+        for (int i = 0; i < l; ++i) {
+            UInt8 character = ' ';
+            int r = -other->compare(otherStart, &character, 1);
+            ++otherStart;
+            if (r != 0)
+                return r;
+        }
+        return 0;
+    }
+    int compare(int start, const UInt8* data, int l) const
+    {
+        for (int i = 0; i < l; ++i) {
+            if (' ' < data[l])
+                return -1;
+            if (' ' > data[l])
+                return 0;
+        }
+        return 0;
+    }
+    UInt8 byteAt(int offset) const { return ' '; }
+    Buffer buffer() const { return emptyBuffer(); }
+    int offset() const { return 0; }
+    void initSimpleData(int offset, Buffer* buffer, int* start, int* l) const
+    {
+        *buffer = buffer();
+        *start = offset;
+        *l = length() - offset;
+    }
+    void write(const Handle& handle) const
+    {
+        for (int i = 0; i < length(); ++i) {
+            UInt8 character = ' ';
+#ifdef _WIN32
+            DWORD bytesWritten;
+            if (WriteFile(handle, reinterpret_cast<LPCVOID>(&character), 1, &bytesWritten, NULL) == 0 || bytesWritten != 1) {
+                static String writingFile("Writing file ");
+                Exception::throwSystemError(writingFile + handle.name());
+            }
+#else
+            ssize_t writeResult = write(fileDescriptor, static_cast<void*>(&character), 1);
+            static String readingFile("Writing file ");
+            if (writeResult < 1) {
+                static String writingFile("Writing file ");
+                Exception::throwSystemError(writingFile + handle.name());
+            }
+#endif
+        }
+    }
+private:
+    static Buffer emptyBuffer()
+    {
+        if (!_buffer.valid())
+            _buffer = new NonOwningBufferImplementation(0);
+        return _buffer;
+    }
+    static Buffer _buffer;
+};
+
+Buffer PaddingStringImplementation::_buffer;
 
 template<class T> class ConcatenatedStringImplementationTemplate : public StringImplementation
 {

@@ -173,7 +173,7 @@ public:
     Symbol head() const { return list().head(); }
     SymbolList tail() const { return list().tail(); }
     bool valid() const { return _implementation.valid(); }
-    String toString(bool ownLine = true) const { return _implementation->toString(ownLine); }
+    String toString(int width = 80, int spacesPerIndent = 2, bool ownLine = true, int indent = 0) const { return _implementation->toString(width, spacesPerIndent, ownLine, indent); }
     Symbol target() const { return Symbol::_labelled[integer()].symbol(); }
 protected:
     class Implementation : public ReferenceCounted
@@ -181,7 +181,7 @@ protected:
     public:
         virtual bool equals(const Implementation* other) const = 0;
         virtual int length(int max) const = 0;
-        virtual String toString(bool ownLine) const = 0;
+        virtual String toString(int width, int spacesPerIndent, bool ownLine, int indent) const = 0;
     };
     class IntegerImplementation : public Implementation
     {
@@ -194,7 +194,16 @@ protected:
                 return false;
             return _value == o->_value;
         }
-        String toString() const { return String::decimal(_value); }
+        String toString(int width, int spacesPerIndent, bool ownLine, int indent) const
+        { 
+            static String space(" ");
+            static String newLine = String::codePoint(10);
+            if (!ownLine && (width - indent) > 1 + decimalLength(_value))
+                return space + String::decimal(_value);
+            if (!ownLine)
+                return newLine + String::padding(indent) + String::decimal(_value);
+            return String::padding(indent) + String::decimal(_value);
+        }
         int length(int max) const { return decimalLength(_value); }
         int value() const { return _value; }
     private:
@@ -211,7 +220,16 @@ protected:
                 return false;
             return _value == o->_value;
         }
-        String toString() const { return quote(_value); }
+        String toString(int width, int spacesPerIndent, bool ownLine, int indent) const
+        {
+            static String space(" ");
+            static String newLine = String::codePoint(10);
+            if (!ownLine && (width - indent) > 1 + quotedLength(_value))
+                return space + quote(_value);
+            if (!ownLine)
+                return newLine + String::padding(indent) + quote(_value);
+            return String::padding(indent) + quote(_value);
+        }
         int length(int max) const { return quotedLength(_value); }
         String value() const { return _value; }
     private:
@@ -274,7 +292,7 @@ private:
                 r += 1 + decimalLength(_label);
             return r;
         }
-        String toString() const
+        String toString(int width, int spacesPerIndent, bool ownLine, int indent) const
         {
             String s = openParenthesis;
             if (_label != -1) {
@@ -440,7 +458,7 @@ private:
         bool isEmpty() const { return false; }
         Symbol head() const { return _head; }
         SymbolList tail() const { return _tail; }
-        String toString() const
+        String toString(int width, int spacesPerIndent, bool ownLine, int indent) const
         { 
             static String openBracket("[");
             static String closeBracket("]");
@@ -454,7 +472,7 @@ private:
         int length2(int max) const
         {
             int r = _head.implementation()->length(max);
-            if (r < max && dynamic_cast<Implementation*>(_tail.implementation()) != 0)
+            if (r < max && dynamic_cast<const Implementation*>(_tail.implementation()) != 0)
                 r += 1 + _tail.implementation()->length(max - r);
             return r;
         }
@@ -470,7 +488,7 @@ private:
             return static_cast<const SymbolEntry::Implementation*>(this) == other;
         }
         bool isEmpty() const { return true; }
-        String toString() const
+        String toString(int width, int spacesPerIndent, bool ownLine, int indent) const
         {
             static String s("[]");
             return s;

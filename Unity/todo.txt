@@ -97,6 +97,7 @@ Optimization: Add a LabelledSymbol class deriving from Symbol so that Symbol doe
 Optimization: Shrink Symbol::_labelled if the second half is all empty to avoid pooling memory.
   To do this, need to remove elements from the list when they're at the end of the array.
 Make Symbol::toString() do pretty indenting
+  Where do we leave the "cursor"?
   Rules:
     1) Don't split a IntegerSymbolEntry, a StringSymbolEntry, a label or an Atom.
     2) Don't put anything else on the same line as a partial SymbolEntry.
