@@ -149,6 +149,11 @@ int decimalLength(int v)
     return l;
 }
 
+String openParenthesis("(");
+String closeParenthesis(")");
+String space(" ");
+String newLine = String::codePoint(10);
+
 
 class Symbol;
 
@@ -173,7 +178,11 @@ public:
     Symbol head() const { return list().head(); }
     SymbolList tail() const { return list().tail(); }
     bool valid() const { return _implementation.valid(); }
-    String toString(int width = 80, int spacesPerIndent = 2, bool ownLine = true, int indent = 0) const { return _implementation->toString(width, spacesPerIndent, ownLine, indent); }
+    String toString(int width = 80, int spacesPerIndent = 2, bool ownLine = true, int indent = 0) const
+    {
+        int x = 0;
+        return _implementation->toString(width, spacesPerIndent, ownLine, indent, x);
+    }
     Symbol target() const { return Symbol::_labelled[integer()].symbol(); }
 protected:
     class Implementation : public ReferenceCounted
@@ -181,7 +190,7 @@ protected:
     public:
         virtual bool equals(const Implementation* other) const = 0;
         virtual int length(int max) const = 0;
-        virtual String toString(int width, int spacesPerIndent, bool ownLine, int indent) const = 0;
+        virtual String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const = 0;
     };
     class IntegerImplementation : public Implementation
     {
@@ -194,12 +203,16 @@ protected:
                 return false;
             return _value == o->_value;
         }
-        String toString(int width, int spacesPerIndent, bool ownLine, int indent) const
+        String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const
         { 
             static String space(" ");
             static String newLine = String::codePoint(10);
-            if (!ownLine && (width - indent) > 1 + decimalLength(_value))
+            int l = decimalLength(_value);
+            if (!ownLine && (width - x) > 1 + l) {
+                x += l + 1;
                 return space + String::decimal(_value);
+            }
+            x = indent + l;
             if (!ownLine)
                 return newLine + String::padding(indent) + String::decimal(_value);
             return String::padding(indent) + String::decimal(_value);
@@ -220,12 +233,14 @@ protected:
                 return false;
             return _value == o->_value;
         }
-        String toString(int width, int spacesPerIndent, bool ownLine, int indent) const
+        String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const
         {
-            static String space(" ");
-            static String newLine = String::codePoint(10);
-            if (!ownLine && (width - indent) > 1 + quotedLength(_value))
+            int l = quotedLength(_value);
+            if (!ownLine && (width - x) > 1 + l) {
+                x += l + 1;
                 return space + quote(_value);
+            }
+            x = indent + l;
             if (!ownLine)
                 return newLine + String::padding(indent) + quote(_value);
             return String::padding(indent) + quote(_value);
@@ -243,10 +258,6 @@ private:
     friend class Symbol;
     friend class SymbolList;
 };
-
-String openParenthesis("(");
-String closeParenthesis(")");
-String space(" ");
 
 class SymbolLabelTarget
 {
@@ -292,10 +303,10 @@ private:
                 r += 1 + decimalLength(_label);
             return r;
         }
-        String toString(int width, int spacesPerIndent, bool ownLine, int indent) const
+        String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const
         {
             String s = openParenthesis;
-            if (_label != -1) {
+            if (_label != -1) {                                                        
                 static String colon(":");
                 s = String::decimal(_label) + colon + s;
             }
@@ -447,7 +458,7 @@ private:
     class Implementation : public ListImplementation
     {
     public:
-        Implementation(Symbol head, SymbolList tail) : _head(head), _tail(tail) { }
+        Implementation(Symbol head, Reference<ListImplementation> tail) : _head(head), _tail(tail) { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
             const Implementation* o = dynamic_cast<const Implementation*>(other);
@@ -458,27 +469,55 @@ private:
         bool isEmpty() const { return false; }
         Symbol head() const { return _head; }
         SymbolList tail() const { return _tail; }
-        String toString(int width, int spacesPerIndent, bool ownLine, int indent) const
-        { 
+        String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const
+        {
             static String openBracket("[");
             static String closeBracket("]");
-            return openBracket + _head.toString() + _tail.list().toString2() + closeBracket;
+
+            int l = length2(width - indent);
+            String s;
+            if (!ownLine) {
+                if ((width - x) > 1 + l) {
+                    x += l + 1;
+                    return space + openBracket + _head.toString() + _tail->toString2() + closeBracket;
+                }
+                s = newLine;
+                x = indent;
+            }
+            if ((width - x) > l)
+                return s + openBracket + _head.toString() + _tail->toString2() + closeBracket;
+            do {
+
+
+                
+            //if (fits entirely on the line)
+            //    output as single line
+            //else
+            //    add sub-elements to line until it is full, then start a new line at the same indent level, until we're done.
+
+            x = indent + l;
+            if (!ownLine)
+                return newLine + String::padding(indent) + String::decimal(_value);
+            return String::padding(indent) + String::decimal(_value);
+
+
+            return openBracket + _head.toString() + _tail->toString2() + closeBracket;
         }
         String toString2() const
         {
             static String space(" ");
-            return space + _head.toString() + _tail.list().toString2();
+            return space + _head.toString() + _tail->toString2();
         }
         int length2(int max) const
         {
             int r = _head.implementation()->length(max);
-            if (r < max && dynamic_cast<const Implementation*>(_tail.implementation()) != 0)
-                r += 1 + _tail.implementation()->length(max - r);
+            if (r < max && dynamic_cast<const Implementation*>(static_cast<const ListImplementation*>(_tail)) != 0)
+                r += 1 + _tail->length(max - r);
             return r;
         }
     private:
         Symbol _head;
-        Symbol _tail;
+        Reference<ListImplementation> _tail;
     };
     class EmptyImplementation : public ListImplementation
     {
@@ -488,10 +527,17 @@ private:
             return static_cast<const SymbolEntry::Implementation*>(this) == other;
         }
         bool isEmpty() const { return true; }
-        String toString(int width, int spacesPerIndent, bool ownLine, int indent) const
+        String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const
         {
             static String s("[]");
-            return s;
+            if (!ownLine && (width - x) > 3) {
+                x += 3;
+                return space + s;
+            }
+            x = indent + 2;
+            if (!ownLine)
+                return newLine + String::padding(indent) + s;
+            return String::padding(indent) + s;
         }
         String toString2() const
         {
