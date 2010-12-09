@@ -477,31 +477,25 @@ private:
             int l = length2(width - indent);
             String s;
             if (!ownLine) {
-                if ((width - x) > 1 + l) {
-                    x += l + 1;
+                if ((width - x) > 3 + l) {
+                    x += l + 3;
                     return space + openBracket + _head.toString() + _tail->toString2() + closeBracket;
                 }
                 s = newLine;
                 x = indent;
             }
-            if ((width - x) > l)
+            if ((width - x) > l) {
+                x += l + 2;
                 return s + openBracket + _head.toString() + _tail->toString2() + closeBracket;
-            do {
+            }
 
+            // add sub-elements to line until it is full, then start a new line at the same indent level, until we're done.
 
-                
-            //if (fits entirely on the line)
-            //    output as single line
-            //else
-            //    add sub-elements to line until it is full, then start a new line at the same indent level, until we're done.
+            const Implementation* list = this;
+            s += String::padding(indent) + openBracket + list->_head.toString();
+            list = dynamic_cast<const Implementation*>(
 
-            x = indent + l;
-            if (!ownLine)
-                return newLine + String::padding(indent) + String::decimal(_value);
-            return String::padding(indent) + String::decimal(_value);
-
-
-            return openBracket + _head.toString() + _tail->toString2() + closeBracket;
+            
         }
         String toString2() const
         {
