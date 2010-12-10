@@ -178,11 +178,6 @@ public:
     Symbol head() const { return list().head(); }
     SymbolList tail() const { return list().tail(); }
     bool valid() const { return _implementation.valid(); }
-    String toString(int width = 80, int spacesPerIndent = 2, bool ownLine = true, int indent = 0) const
-    {
-        int x = 0;
-        return _implementation->toString(width, spacesPerIndent, ownLine, indent, x);
-    }
     Symbol target() const { return Symbol::_labelled[integer()].symbol(); }
 protected:
     class Implementation : public ReferenceCounted
@@ -190,7 +185,6 @@ protected:
     public:
         virtual bool equals(const Implementation* other) const = 0;
         virtual int length(int max) const = 0;
-        virtual String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const = 0;
     };
     class IntegerImplementation : public Implementation
     {
@@ -203,20 +197,7 @@ protected:
                 return false;
             return _value == o->_value;
         }
-        String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const
-        { 
-            static String space(" ");
-            static String newLine = String::codePoint(10);
-            int l = decimalLength(_value);
-            if (!ownLine && (width - x) > 1 + l) {
-                x += l + 1;
-                return space + String::decimal(_value);
-            }
-            x = indent + l;
-            if (!ownLine)
-                return newLine + String::padding(indent) + String::decimal(_value);
-            return String::padding(indent) + String::decimal(_value);
-        }
+        String toString() const { return String::decimal(_value); }
         int length(int max) const { return decimalLength(_value); }
         int value() const { return _value; }
     private:
@@ -233,18 +214,7 @@ protected:
                 return false;
             return _value == o->_value;
         }
-        String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const
-        {
-            int l = quotedLength(_value);
-            if (!ownLine && (width - x) > 1 + l) {
-                x += l + 1;
-                return space + quote(_value);
-            }
-            x = indent + l;
-            if (!ownLine)
-                return newLine + String::padding(indent) + quote(_value);
-            return String::padding(indent) + quote(_value);
-        }
+        String toString() const { return quote(_value); }
         int length(int max) const { return quotedLength(_value); }
         String value() const { return _value; }
     private:
@@ -521,21 +491,9 @@ private:
             return static_cast<const SymbolEntry::Implementation*>(this) == other;
         }
         bool isEmpty() const { return true; }
-        String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const
+        String toString() const
         {
             static String s("[]");
-            if (!ownLine && (width - x) > 3) {
-                x += 3;
-                return space + s;
-            }
-            x = indent + 2;
-            if (!ownLine)
-                return newLine + String::padding(indent) + s;
-            return String::padding(indent) + s;
-        }
-        String toString2() const
-        {
-            static String s("");
             return s;
         }
         int length2(int max) const { return 0; }

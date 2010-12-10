@@ -1,3 +1,18 @@
+Make Symbol::toString() do pretty indenting
+  if (not the only thing on the line)
+      if (fits on the line) {
+          output in line
+          return;
+      }
+      output new line
+  }
+  if (fits entirely on the line)
+      output as single line
+  else
+      add sub-elements to line until it is full, then start a new line at the same indent level, until we're done.
+
+Replace PaddingString with RepeatedString.
+
 Scope:
   Step 1 - walk tree and build up local (single level) scope tables
   Step 2 - walk tree and link in parent tables
@@ -96,27 +111,4 @@ Add goto and label statements
 Optimization: Add a LabelledSymbol class deriving from Symbol so that Symbol doesn't need a _label member
 Optimization: Shrink Symbol::_labelled if the second half is all empty to avoid pooling memory.
   To do this, need to remove elements from the list when they're at the end of the array.
-Make Symbol::toString() do pretty indenting
-  Where do we leave the "cursor"?
-    ownLine == false: at the place where a small token would be inserted
-    ownLine == true: at the beginning of the line
-  What does indent mean?
-    
-  Rules:
-    1) Don't split a IntegerSymbolEntry, a StringSymbolEntry, a label or an Atom.
-    2) Don't put anything else on the same line as a partial SymbolEntry.
-    3) Indent by two spaces for each Symbol or SymbolList we're inside.
-    4) Don't put any characters past the 79th column unless we need to to avoid breaking the preceding rules.
-  if (not the only thing on the line)
-      if (fits on the line) {
-          output in line
-          return;
-      }
-      else
-          output new line
-  }
-  if (fits entirely on the line)
-      output as single line
-  else
-      add sub-elements to line until it is full, then start a new line at the same indent level, until we're done.
     
