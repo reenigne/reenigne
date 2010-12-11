@@ -58,7 +58,7 @@ public:
                 return false;
         return true;
     }
-    bool operator!=(const Array& other) const
+    bool operator!=(const GrowableArray& other) const
     {
         return !operator==(other);
     }

@@ -39,6 +39,8 @@ enum Atom
     atomDereference,
     atomAddressOf,
     atomPower,
+
+    atomLocation,
     
     atomLast
 };
@@ -87,6 +89,8 @@ String atomToString(Atom atom)
             _table[atomDereference] = String("u*");
             _table[atomAddressOf] = String("u&");
             _table[atomPower] = String("^");
+
+            _table[atomLocation] = String("location");
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:
@@ -98,7 +102,6 @@ String atomToString(Atom atom)
 
 String quote(String string)
 {
-    static String doubleQuote("\"");
     CodePointSource s(string);
     String r = doubleQuote;
     int start = 0;
@@ -114,15 +117,13 @@ String quote(String string)
             end = s.offset();
             r += s.subString(start, end);
             start = end;
-            static String backslash("\\");
             r += backslash;
         }
     } while (true);
 }
 
-int quotedLength(String stinrg)
+int quotedLength(String string)
 {
-    static String doubleQuote("\"");
     CodePointSource s(string);
     int r = 2;
     do {
@@ -149,19 +150,22 @@ int decimalLength(int v)
     return l;
 }
 
-String openParenthesis("(");
-String closeParenthesis(")");
-String space(" ");
-String newLine = String::codePoint(10);
 
 
-class Symbol;
+template<class T> class SymbolEntryTemplate;
+typedef SymbolEntryTemplate<void> SymbolEntry;
 
-class SymbolEntry
+template<class T> class SymbolListTemplate;
+typedef SymbolListTemplate<void> SymbolList;
+
+template<class T> class SymbolTemplate;
+typedef SymbolTemplate<void> Symbol;
+
+template<class T> class SymbolEntryTemplate
 {
 public:
-    SymbolEntry(int value) : _implementation(new IntegerImplementation(value)) { }
-    SymbolEntry(String value) : _implementation(new StringImplementation(value)) { }
+    SymbolEntryTemplate(int value) : _implementation(new IntegerImplementation(value)) { }
+    SymbolEntryTemplate(String value) : _implementation(new StringImplementation(value)) { }
     bool operator==(const SymbolEntry& other) const
     {
         return _implementation->equals(other._implementation);
@@ -172,19 +176,22 @@ public:
     }
     int integer() const { return dynamic_cast<const IntegerImplementation*>(implementation())->value(); }
     String string() const { return dynamic_cast<const StringImplementation*>(implementation())->value(); }
-    SymbolList list() const { return SymbolList(_implementation); }
-    Symbol symbol() const { return Symbol(_implementation); }
+    SymbolListTemplate<T> list() const { return SymbolList(_implementation); }
+    SymbolTemplate<T> symbol() const { return Symbol(_implementation); }
     Atom atom() const { return symbol().atom(); }
-    Symbol head() const { return list().head(); }
-    SymbolList tail() const { return list().tail(); }
+    SymbolTemplate<T> head() const { return list().head(); }
+    SymbolListTemplate<T> tail() const { return list().tail(); }
     bool valid() const { return _implementation.valid(); }
-    Symbol target() const { return Symbol::_labelled[integer()].symbol(); }
+    SymbolTemplate<T> target() const { return Symbol::_labelled[integer()].symbol(); }
+    int length(int max) const { return implementation()->length(max); }
+    String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const { return _implementation->toString(width, spacesPerIndex, indent, x, more); }
 protected:
     class Implementation : public ReferenceCounted
     {
     public:
         virtual bool equals(const Implementation* other) const = 0;
         virtual int length(int max) const = 0;
+        virtual String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const = 0;
     };
     class IntegerImplementation : public Implementation
     {
@@ -197,7 +204,12 @@ protected:
                 return false;
             return _value == o->_value;
         }
-        String toString() const { return String::decimal(_value); }
+        String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const
+        { 
+            x += decimalLength(_value);
+            more = true;
+            return String::decimal(_value);
+        }
         int length(int max) const { return decimalLength(_value); }
         int value() const { return _value; }
     private:
@@ -214,41 +226,37 @@ protected:
                 return false;
             return _value == o->_value;
         }
-        String toString() const { return quote(_value); }
+        String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const
+        { 
+            x += quotedLength(_value);
+            more = true;
+            return quote(_value);
+        }
         int length(int max) const { return quotedLength(_value); }
         String value() const { return _value; }
     private:
         String _value;
     };
-    SymbolEntry(Implementation* implementation) : _implementation(implementation) { }
+    SymbolEntryTemplate(Implementation* implementation) : _implementation(implementation) { }
     const Implementation* implementation() const { return _implementation; }
     Implementation* implementation() { return _implementation; }
 private:
     Reference<Implementation> _implementation;
-    friend class Symbol;
-    friend class SymbolList;
+    template<class T> friend class SymbolTemplate;
+    template<class T> friend class SymbolListTemplate;
 };
 
-class SymbolLabelTarget
+template<class T> class SymbolTemplate : public SymbolEntryTemplate<T>
 {
 public:
-    SymbolLabelTarget() : _pointer(0) { }
-    SymbolLabelTarget(Symbol* symbol) : _pointer(symbol) { }
-    SymbolLabelTarget(SymbolLabelTarget* target) : _pointer(reinterpret_cast<char*>(target) + 1) { }
-    Symbol symbol() const { return Symbol(static_cast<Symbol::Implementation0*>(_pointer)); }
-    SymbolLabelTarget* target() const { return reinterpret_cast<SymbolLabelTarget*>(static_cast<char*>(_pointer) - 1); }
-    bool isSymbol() const { return (reinterpret_cast<uintptr_t>(_pointer) & 1) == 0; }
-private:
-    void* _pointer;
-};
-
-class Symbol : public SymbolEntry
-{
-public:
-    Symbol(int label, Atom atom) : SymbolEntry(new Implementation0(label, atom)) { addToTable(); }
-    Symbol(int label, Atom atom, SymbolEntry symbol1) : SymbolEntry(new Implementation1(label, atom, symbol1)) { addToTable(); }
-    Symbol(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2) : SymbolEntry(new Implementation2(label, atom, symbol1, symbol2)) { addToTable(); }
-    Symbol(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3) : SymbolEntry(new Implementation3(label, atom, symbol1, symbol2, symbol3)) { addToTable(); }
+    SymbolTemplate(int label, Atom atom) : SymbolEntry(new Implementation0(label, atom)) { addToTable(); }
+    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1) : SymbolEntry(new Implementation1(label, atom, symbol1)) { addToTable(); }
+    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2) : SymbolEntry(new Implementation2(label, atom, symbol1, symbol2)) { addToTable(); }
+    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3) : SymbolEntry(new Implementation3(label, atom, symbol1, symbol2, symbol3)) { addToTable(); }
+    SymbolTemplate(Atom atom) : SymbolEntry(new Implementation0(label, atom)) { addToTable(); }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1) : SymbolEntry(new Implementation1(-1, atom, symbol1)) { addToTable(); }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2) : SymbolEntry(new Implementation2(-1, atom, symbol1, symbol2)) { addToTable(); }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3) : SymbolEntry(new Implementation3(-1, atom, symbol1, symbol2, symbol3)) { addToTable(); }
     Atom atom() const { return dynamic_cast<const Implementation0*>(implementation())->atom(); }
     SymbolEntry entry1() const { return dynamic_cast<const Implementation1*>(implementation())->entry1(); }
     SymbolEntry entry2() const { return dynamic_cast<const Implementation2*>(implementation())->entry2(); }
@@ -273,14 +281,79 @@ private:
                 r += 1 + decimalLength(_label);
             return r;
         }
-        String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const
+        String toString(int width, int spacesPerIndent, int indent, int& x, bool& more) const
         {
+            ++x;
+            more = true;
             String s = openParenthesis;
             if (_label != -1) {                                                        
-                static String colon(":");
                 s = String::decimal(_label) + colon + s;
+                x += 1 + decimalLength(_label);
             }
-            return s + toString2() + closeParenthesis;
+            String a = atomToString(_atom);
+            x += a.length();
+            s += a;
+            bool canInlineNext = true;
+            more = true;
+            const Implementation1* implementation1 = dynamic_cast<const Implementation1*>(this);
+            if (implementation1 == 0) {
+                ++x;
+                return s + closeParenthesis;
+            }
+            SymbolEntry entry1 = implementation1->entry1();
+            if (canInlineNext && x + 1 + entry1.length(width - x) <= width - 1) {
+                // Fits on the line - inline it
+                s += space;
+                ++x;
+            }
+            else {
+                // Doesn't fit on the line - put it on its own line.
+                s += newLine + String::padding(indent + 2);
+                x = indent + 2;
+                more = false;
+            }
+            s += entry1.toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
+
+            const Implementation2* implementation2 = dynamic_cast<const Implementation2*>(this);
+            if (implementation2 == 0) {
+                ++x;
+                return s + closeParenthesis;
+            }
+            SymbolEntry entry2 = implementation2->entry2();
+            if (canInlineNext && x + 1 + entry2.length(width - x) <= width - 1) {
+                // Fits on the line - inline it
+                s += space;
+                ++x;
+            }
+            else {
+                // Doesn't fit on the line - put it on its own line.
+                s += newLine + String::padding(indent + 2);
+                x = indent + 2;
+                more = false;
+            }
+            s += entry2.toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
+
+            const Implementation3* implementation3 = dynamic_cast<const Implementation3*>(this);
+            if (implementation3 == 0) {
+                ++x;
+                return s + closeParenthesis;
+            }
+            SymbolEntry entry3 = implementation3->entry3();
+            if (canInlineNext && x + 1 + entry3.length(width - x) <= width - 1) {
+                // Fits on the line - inline it
+                s += space;
+                ++x;
+            }
+            else {
+                // Doesn't fit on the line - put it on its own line.
+                s += newLine + String::padding(indent + 2);
+                x = indent + 2;
+                more = false;
+            }
+            s += entry3.toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
+
+            ++x;
+            return s + closeParenthesis;
         }
         Atom atom() const { return _atom; }
         int label() const { return _label; }
@@ -290,10 +363,9 @@ private:
         {
             if (_label == -1)
                 return;
-            _labelled[_label] = SymbolLabelTarget(&_labelled[_nextFreeLabel]);
+            _labelled[_label] = LabelTarget(&_labelled[_nextFreeLabel]);
             _nextFreeLabel = _label;
         }
-        virtual String toString2() const { return atomToString(_atom); }
         int _label;
         Atom _atom;
     };
@@ -317,7 +389,6 @@ private:
             return r;
         }
     protected:
-        String toString2() const { return Implementation0::toString2() + space + _entry1.toString(); }
         SymbolEntry _entry1;
     };
     class Implementation2 : public Implementation1
@@ -340,7 +411,6 @@ private:
             return r;
         }
     protected:
-        String toString2() const { return Implementation1::toString2() + space + _entry2.toString(); }
         SymbolEntry _entry2;
     };
     class Implementation3 : public Implementation2
@@ -363,13 +433,25 @@ private:
             return r;
         }
     protected:
-        String toString2() const { return Implementation2::toString2() + space + _entry2.toString(); }
         SymbolEntry _entry3;
     };
 
-    static int labelFromTarget(SymbolLabelTarget* target)
+    class LabelTarget
     {
-        return (target - &_labelled[0])/sizeof(SymbolLabelTarget*);
+    public:
+        LabelTarget() : _pointer(0) { }
+        LabelTarget(Symbol* symbol) : _pointer(symbol) { }
+        LabelTarget(LabelTarget* target) : _pointer(reinterpret_cast<char*>(target) + 1) { }
+        Symbol symbol() const { return Symbol(static_cast<Implementation0*>(_pointer)); }
+        LabelTarget* target() const { return reinterpret_cast<LabelTarget*>(static_cast<char*>(_pointer) - 1); }
+        bool isSymbol() const { return (reinterpret_cast<uintptr_t>(_pointer) & 1) == 0; }
+    private:
+        void* _pointer;
+    };
+
+    static int labelFromTarget(LabelTarget* target)
+    {
+        return (target - &_labelled[0])/sizeof(LabelTarget*);
     }
 
     static int newLabel()
@@ -377,7 +459,7 @@ private:
         int l = _nextFreeLabel;
         if (l == _labelled.count()) {
             ++_nextFreeLabel;
-            _labelled.append(SymbolLabelTarget());
+            _labelled.append(LabelTarget());
         }
         else
             _nextFreeLabel = labelFromTarget(_labelled[l].target());
@@ -389,7 +471,7 @@ private:
         int l = label();
         if (_labelled[l].isSymbol())
             _labelled[l].symbol().removeLabel();
-        _labelled[l] = SymbolLabelTarget(this);
+        _labelled[l] = LabelTarget(this);
     }
 
     void removeLabel()
@@ -397,22 +479,22 @@ private:
         dynamic_cast<Implementation0*>(implementation())->removeLabel();
     }
 
-    Symbol(Reference<Symbol::Implementation0> implementation) : SymbolEntry(implementation) { }
-    friend class SymbolEntry;
-    friend class SymbolLabelTarget;
-    static GrowableArray<SymbolLabelTarget> _labelled;
+    SymbolTemplate(Reference<Symbol::Implementation0> implementation) : SymbolEntry(implementation) { }
+
+    template<class T> friend class SymbolEntryTemplate;
+    static GrowableArray<LabelTarget> _labelled;
     static int _nextFreeLabel;
 };
 
-GrowableArray<SymbolLabelTarget> Symbol::_labelled;
+GrowableArray<Symbol::LabelTarget> Symbol::_labelled;
 int Symbol::_nextFreeLabel = 0;
 
-class SymbolList : public SymbolEntry
+template<class T> class SymbolListTemplate : public SymbolEntry
 {
 public:
-    SymbolList() : SymbolEntry(emptyList()) { }
-    SymbolList(Symbol head) : SymbolEntry(new Implementation(head, SymbolList())) { }
-    SymbolList(Symbol head, SymbolList tail) : SymbolEntry(new Implementation(head, tail)) { }
+    SymbolListTemplate() : SymbolEntry(emptyList()) { }
+    SymbolListTemplate(Symbol head) : SymbolEntry(new Implementation(head, emptyList())) { }
+    SymbolListTemplate(Symbol head, SymbolList tail) : SymbolEntry(new Implementation(head, Reference<ListImplementation>(_implementation))) { }
     bool isEmpty() const { return dynamic_cast<const ListImplementation*>(implementation())->isEmpty(); }
     Symbol head() const { return dynamic_cast<const Implementation*>(implementation())->head(); }
     SymbolList tail() const { return dynamic_cast<const Implementation*>(implementation())->tail(); }
@@ -421,7 +503,6 @@ private:
     {
     public:
         virtual bool isEmpty() const = 0;
-        virtual String toString2() const = 0;
         int length(int max) const { return 2 + length2(max - 2); }
         virtual int length2(int max) const = 0;
     };
@@ -439,44 +520,40 @@ private:
         bool isEmpty() const { return false; }
         Symbol head() const { return _head; }
         SymbolList tail() const { return _tail; }
-        String toString(int width, int spacesPerIndent, bool ownLine, int indent, int& x) const
+        String toString(int width, int spacesPerIndent, int indent, int& x, bool& more) const
         {
-            static String openBracket("[");
-            static String closeBracket("]");
+            ++x;
+            bool canInlineNext;
+            String s = openBracket + _head.toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
 
-            int l = length2(width - indent);
-            String s;
-            if (!ownLine) {
-                if ((width - x) > 3 + l) {
-                    x += l + 3;
-                    return space + openBracket + _head.toString() + _tail->toString2() + closeBracket;
+            const Implementation* tail = this;
+            more = true;
+            do {
+                tail = dynamic_cast<const Implementation*>(static_cast<const ListImplementation*>(tail->_tail));
+                if (tail == 0) {
+                    ++x;
+                    return s + closeBracket;
                 }
-                s = newLine;
-                x = indent;
-            }
-            if ((width - x) > l) {
-                x += l + 2;
-                return s + openBracket + _head.toString() + _tail->toString2() + closeBracket;
-            }
-
-            // add sub-elements to line until it is full, then start a new line at the same indent level, until we're done.
-
-            const Implementation* list = this;
-            s += String::padding(indent) + openBracket + list->_head.toString();
-            list = dynamic_cast<const Implementation*>(
-
-            
-        }
-        String toString2() const
-        {
-            static String space(" ");
-            return space + _head.toString() + _tail->toString2();
+                Symbol next = tail->_head;
+                if (canInlineNext && x + 1 + next.length(width - x) <= width - 1) {
+                    // Fits on the line - inline it
+                    s += space;
+                    ++x;
+                }
+                else {
+                    // Doesn't fit on the line - put it on its own line.
+                    s += newLine + String::padding(indent + 2);
+                    x = indent + 2;
+                    more = false;
+                }
+                s += next.toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
+            } while (true);
         }
         int length2(int max) const
         {
             int r = _head.implementation()->length(max);
             if (r < max && dynamic_cast<const Implementation*>(static_cast<const ListImplementation*>(_tail)) != 0)
-                r += 1 + _tail->length(max - r);
+                r += 1 + _tail->length2(max - r);
             return r;
         }
     private:
@@ -491,8 +568,10 @@ private:
             return static_cast<const SymbolEntry::Implementation*>(this) == other;
         }
         bool isEmpty() const { return true; }
-        String toString() const
+        String toString(int width, int spacesPerIndent, int indent, int& x, bool& more) const
         {
+            x += 2;
+            more = true;
             static String s("[]");
             return s;
         }
@@ -505,9 +584,9 @@ private:
         return _emptyList;
     }
     static Reference<ListImplementation> _emptyList;
-    friend class SymbolEntry;
-    String toString2() { return dynamic_cast<const ListImplementation*>(implementation())->toString2(); } 
-    SymbolList(Reference<ListImplementation> implementation) : SymbolEntry(implementation) { }
+    template<class T> friend class SymbolEntryTemplate;
+    SymbolListTemplate(Reference<ListImplementation> implementation) : SymbolEntry(implementation) { }
 };
 
 Reference<SymbolList::ListImplementation> SymbolList::_emptyList;
+

@@ -20,7 +20,7 @@ public:
     }
     Value& operator[](const Key& key)
     {
-        if (!hasKey(key) {
+        if (!hasKey(key)) {
             if (_n == _table.count()) {
                 Array<TableEntry> table;
                 table.allocate(_table.count() * 2);

@@ -1,27 +1,22 @@
-String openParenthesis("(");
-String closeParenthesis(")");
-String commaSpace(", ");
-String asterisk("*");
-
-String typeToString(TupleSymbol type)
+String typeToString(Symbol type)
 {
     switch (type.atom()) {
         case atomFunction:
             {
-                String s = typeToString(type.symbol1().tuple()) + openParenthesis;
-                ListSymbol list = type.symbol2();
+                String s = typeToString(type.entry1().symbol()) + openParenthesis;
+                SymbolList list = type.entry2().list();
                 bool hasArguments = false;
                 while (!list.isEmpty()) {
                     if (hasArguments)
                         s += commaSpace;
-                    s += typeToString(list.head().tuple());
+                    s += typeToString(list.head());
                     hasArguments = true;
                     list = list.tail();
                 }
                 return s + closeParenthesis;
             }
         case atomPointer:
-            return typeToString(type.symbol1().tuple()) + asterisk;
+            return typeToString(type.entry1().symbol()) + asterisk;
         default:
             return atomToString(type.atom());
     }

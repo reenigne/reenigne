@@ -348,7 +348,7 @@ public:
     {
         return new PaddingStringImplementation(length);
     }
-    Reference<StringImplementation> withAppended(cnst Reference<StringImplementation>& other)
+    Reference<StringImplementation> withAppended(const Reference<StringImplementation>& other)
     {
         Reference<PaddedStringImplementation> paddedOther(other);
         if (paddedOther.valid())
@@ -745,5 +745,19 @@ private:
         } \
     } \
     catch
+
+String openParenthesis("(");
+String closeParenthesis(")");
+String commaSpace(", ");
+String asterisk("*");
+String space(" ");
+String newLine = String::codePoint(10);
+String doubleQuote("\"");
+String backslash("\\");
+String colon(":");
+String openBracket("[");
+String closeBracket("]");
+
+
 
 #endif // INCLUDED_STRING_H

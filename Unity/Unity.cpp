@@ -79,14 +79,14 @@ private:
 #include "Symbol.cpp"
 #include "Type.cpp"
 
-DiagnosticLocation locationFromSymbol(TupleSymbol symbol)
+DiagnosticLocation locationFromSymbol(Symbol symbol)
 {
-    return DiagnosticLocation(symbol.symbol1().string().value(), symbol.symbol2().integer().value(), symbol.symbol3().integer().value());
+    return DiagnosticLocation(symbol.entry1().string(), symbol.entry2().integer(), symbol.entry3().integer());
 }
 
 Symbol symbolFromLocation(DiagnosticLocation location)
 {
-    return ListSymbol(atomLocation, location.fileName(), location.line(), location.column());
+    return Symbol(-1, atomLocation, location.fileName(), location.line(), location.column());
 }
 
 class Variable;
@@ -113,7 +113,7 @@ private:
 class SymbolName : public ReferenceCounted
 {
 public:
-    virtual Type type(String name, DiagnosticLocation location) const = 0;
+    virtual Symbol type(String name, DiagnosticLocation location) const = 0;
     virtual Value value() const = 0;
 };
 
@@ -122,7 +122,7 @@ class FunctionDeclarationStatement;
 template<class T> class FunctionNameTemplate : public SymbolName
 {
 public:
-    void addOverload(TypeList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
+    void addOverload(SymbolList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
     {
         if (_overloads.hasKey(argumentTypes)) {
             static String error("This overload has already been defined.");
@@ -132,15 +132,15 @@ public:
         if (_overloads.count() == 1)
             _functionType = FunctionType(function->returnType(), argumentTypes);
     }
-    bool hasOverload(TypeList argumentTypes)
+    bool hasOverload(SymbolList argumentTypes)
     {
         return _overloads.hasKey(argumentTypes);
     }
-    FunctionDeclarationStatement* lookUpOverload(TypeList argumentTypes)
+    FunctionDeclarationStatement* lookUpOverload(SymbolList argumentTypes)
     {
         return _overloads.lookUp(argumentTypes);
     }
-    Type type(String name, DiagnosticLocation location) const
+    Symbol type(String name, DiagnosticLocation location) const
     {
         if (_overloads.count() > 1) {
             static String error(" is an overloaded function - I don't know which overload you mean.");
@@ -154,8 +154,8 @@ public:
     }
 private:
     String _name;
-    HashTable<TypeList, FunctionDeclarationStatement*> _overloads;
-    Type _functionType;
+    HashTable<SymbolList, FunctionDeclarationStatement*> _overloads;
+    Symbol _functionType;
     FunctionDeclarationStatement* _functionDeclaration;
 };
 
@@ -166,12 +166,12 @@ class TypeDefinitionStatement;
 class Variable : public SymbolName
 {
 public:
-    Variable(Type type) : _type(type) { }
-    Type type(String name, DiagnosticLocation location) const { return _type; }
+    Variable(Symbol type) : _type(type) { }
+    Symbol type(String name, DiagnosticLocation location) const { return _type; }
     Value value() const { return _value; }
     void setValue(Value value) { _value = value; }
 private:
-    Type _type;
+    Symbol _type;
     Value _value;
 };
 
@@ -194,7 +194,7 @@ public:
     }
     Scope* outer() const { return _outer; }
     Scope* functionScope() const { return _functionScope; }
-    Reference<Variable> addVariable(String name, Type type, DiagnosticLocation location)
+    Reference<Variable> addVariable(String name, Symbol type, DiagnosticLocation location)
     {
         if (_symbolTable.hasKey(name)) {
             static String error(" is already defined");
@@ -214,7 +214,7 @@ public:
         }
         return _symbolTable.lookUp(name);
     }
-    void addFunction(String name, TypeList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
+    void addFunction(String name, SymbolList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
     {
         _functionScope->doAddFunction(name, argumentTypes, function, location);
     }
@@ -222,7 +222,7 @@ public:
     {
         _functionScope->doAddType(name, type, location);
     }
-    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, TypeList typeList, DiagnosticLocation location)
+    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, DiagnosticLocation location)
     {
         return _functionScope->doResolveFunction(identifier, typeList, location);
     }
@@ -231,7 +231,7 @@ public:
         return _functionScope->doResolveType(name, location);
     }
 private:
-    void doAddFunction(String name, TypeList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
+    void doAddFunction(String name, SymbolList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
     {
         FunctionName* functionName;
         if (_symbolTable.hasKey(name)) {
@@ -256,7 +256,7 @@ private:
         }
         _typeTable.add(name, type);
     }
-    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, TypeList typeList, DiagnosticLocation location)
+    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, DiagnosticLocation location)
     {
         String name = identifier->name();
         if (!_symbolTable.hasKey(name)) {

@@ -1,15 +1,4 @@
-Make Symbol::toString() do pretty indenting
-  if (not the only thing on the line)
-      if (fits on the line) {
-          output in line
-          return;
-      }
-      output new line
-  }
-  if (fits entirely on the line)
-      output as single line
-  else
-      add sub-elements to line until it is full, then start a new line at the same indent level, until we're done.
+Implement Symbol::hash() and SymbolList::hash()
 
 Replace PaddingString with RepeatedString.
 

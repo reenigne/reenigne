@@ -23,7 +23,7 @@ public:
     }
 
     virtual void compile() = 0;
-    virtual Type type() const = 0;
+    virtual Symbol type() const = 0;
     virtual void push(Stack<Value>* stack) = 0;
     virtual bool isLValue() = 0;
     virtual Variable* variable(Stack<Value>* stack) = 0;
@@ -402,7 +402,7 @@ public:
         *source = s2;
         return new Identifier(scope, name, location);
     }
-    Type type() const { return _symbolName->type(_name, _location); }
+    Symbol type() const { return _symbolName->type(_name, _location); }
     String name() const { return _name; }
     void push(Stack<Value>* stack)
     {
@@ -460,7 +460,7 @@ public:
         } while (true);
     }
     void compile() { }
-    Type type() const { return IntType(); }
+    Symbol type() const { return Symbol(atomInt); }
     void push(Stack<Value>* stack)
     {
         stack->push(Value(_n));
@@ -484,7 +484,7 @@ public:
         return 0;
     }
     void compile() { }
-    Type type() const { return BooleanType(); }
+    Symbol type() const { return Symbol(atomBoolean); }
     void push(Stack<Value>* stack)
     {
         stack->push(Value(_value ? 1 : 0));
@@ -505,7 +505,7 @@ public:
         return 0;
     }
     void compile() { }
-    Type type() const { return PointerType(VoidType()); }
+    Symbol type() const { return Symbol(atomPointer, Symbol(atomVoid)); }
     void push(Stack<Value>* stack)
     {
         stack->push(Value(0));
@@ -518,7 +518,7 @@ public:
     LogicalAndExpression(Symbol left, Symbol right, DiagnosticLocation location)
       : _left(left), _right(right), _location(location)
     { }
-    Type type() const
+    Symbol type() const
     {
         if (_left->type() != BooleanType() || _right->type() != BooleanType()) {
            static String error("Both operands of && must be of Boolean type.");
