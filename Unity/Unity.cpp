@@ -89,6 +89,11 @@ Symbol symbolFromLocation(DiagnosticLocation location)
     return Symbol(-1, atomLocation, location.fileName(), location.line(), location.column());
 }
 
+Symbol symbolFromSpan(DiagnosticLocation start, DiagnosticLocation end)
+{
+    return Symbol(-1, atomSpan, start.fileName(), start.line(), start.column(), start.line(), start.column());
+}
+
 class Variable;
 class FunctionDeclarationStatement;
 
@@ -319,10 +324,12 @@ public:
         parse(source);
         return true;
     }
-    static void assertCharacter(CharacterSource* source, int character)
+    static DiagnosticLocation assertCharacter(CharacterSource* source, int character)
     {
         source->assert(character);
+        DiagnosticLocation l = source->location();
         parse(source);
+        return l;
     }
     static bool parseOperator(CharacterSource* source, String op)
     {

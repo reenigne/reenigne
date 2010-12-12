@@ -748,6 +748,7 @@ private:
 
 String openParenthesis("(");
 String closeParenthesis(")");
+String comma(",");
 String commaSpace(", ");
 String asterisk("*");
 String space(" ");
@@ -757,6 +758,7 @@ String backslash("\\");
 String colon(":");
 String openBracket("[");
 String closeBracket("]");
+String colonSpace(": ");
 
 
 

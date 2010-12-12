@@ -1,3 +1,14 @@
+Make sure that the span is entry1 on all Expression symbols
+  Similarly with TypeSpecifier, Statement and Case?
+
+In parseExpressionElement(), Fix up the span on bracketed expressions so that it includes the brackets (otherwise we can't use the expression end for the superexpression end).
+  How do we express this without repetition and without knowing how many entries are in the expression symbol?
+    Implement Symbol similarly to SymbolList and allow construction in terms of head and tail?
+
+Need DiagnosticSpan as well as DiagnosticLocation
+
+All expression Symbols need to have entry1 be the DiagnosticSpan of the expression
+
 Implement Symbol::hash() and SymbolList::hash()
 
 Replace PaddingString with RepeatedString.

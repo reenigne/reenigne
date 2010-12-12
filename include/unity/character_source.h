@@ -13,19 +13,15 @@ public:
     { }
     String asString() const
     {
-        static String openBracket("(");
-        static String comma(",");
-        static String closeBracket(")");
-        return _fileName + openBracket + String::decimal(_line) + comma +
-            String::decimal(_column) + closeBracket;
+        return _fileName + openParenthesis + String::decimal(_line) + comma +
+            String::decimal(_column) + closeParenthesis;
     }
     String fileName() const { return _fileName; }
     void advanceColumn() { ++_column; }
     void advanceLine() { _column = 1; ++_line; }
     void throwError(const String& message) const
     {
-        static String colon(": ");
-        throw Exception(asString() + colon + message);
+        throw Exception(asString() + colonSpace + message);
     }
     int line() const { return _line; }
     int column() const { return _column; }

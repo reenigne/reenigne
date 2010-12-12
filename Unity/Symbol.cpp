@@ -2,14 +2,18 @@
 
 enum Atom
 {
+    atomAuto,
     atomBit,
     atomBoolean,
     atomByte,
     atomCharacter,
+    atomClass,
     atomFunction,
     atomInt,
     atomPointer,
     atomString,
+    atomTypeIdentifier,
+    atomTypeOf,
     atomUInt,
     atomVoid,
     atomWord,
@@ -39,8 +43,16 @@ enum Atom
     atomDereference,
     atomAddressOf,
     atomPower,
+    atomFunctionCall,
+    atomStringConstant,
+    atomIdentifier,
+    atomIntegerConstant,
+    atomTrue,
+    atomFalse,
+    atomNull,
 
     atomLocation,
+    atomSpan,
     
     atomLast
 };
@@ -249,18 +261,38 @@ private:
 template<class T> class SymbolTemplate : public SymbolEntryTemplate<T>
 {
 public:
-    SymbolTemplate(int label, Atom atom) : SymbolEntry(new Implementation0(label, atom)) { addToTable(); }
-    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1) : SymbolEntry(new Implementation1(label, atom, symbol1)) { addToTable(); }
-    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2) : SymbolEntry(new Implementation2(label, atom, symbol1, symbol2)) { addToTable(); }
-    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3) : SymbolEntry(new Implementation3(label, atom, symbol1, symbol2, symbol3)) { addToTable(); }
-    SymbolTemplate(Atom atom) : SymbolEntry(new Implementation0(label, atom)) { addToTable(); }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1) : SymbolEntry(new Implementation1(-1, atom, symbol1)) { addToTable(); }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2) : SymbolEntry(new Implementation2(-1, atom, symbol1, symbol2)) { addToTable(); }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3) : SymbolEntry(new Implementation3(-1, atom, symbol1, symbol2, symbol3)) { addToTable(); }
+    SymbolTemplate(int label, Atom atom)
+      : SymbolEntry(new Implementation0(label, atom)) { addToTable(); }
+    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1)
+      : SymbolEntry(new Implementation1(label, atom, symbol1)) { addToTable(); }
+    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2)
+      : SymbolEntry(new Implementation2(label, atom, symbol1, symbol2)) { addToTable(); }
+    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3)
+      : SymbolEntry(new Implementation3(label, atom, symbol1, symbol2, symbol3)) { addToTable(); }
+    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4)
+      : SymbolEntry(new Implementation4(label, atom, symbol1, symbol2, symbol3, symbol4)) { addToTable(); }
+    SymbolTemplate(int label, Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5)
+      : SymbolEntry(new Implementation5(label, atom, symbol1, symbol2, symbol3, symbol4, symbol5)) { addToTable(); }
+    SymbolTemplate() { }
+    SymbolTemplate(Atom atom)
+      : SymbolEntry(new Implementation0(label, atom)) { addToTable(); }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1)
+      : SymbolEntry(new Implementation1(-1, atom, symbol1)) { addToTable(); }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2)
+      : SymbolEntry(new Implementation2(-1, atom, symbol1, symbol2)) { addToTable(); }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3)
+      : SymbolEntry(new Implementation3(-1, atom, symbol1, symbol2, symbol3)) { addToTable(); }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4)
+      : SymbolEntry(new Implementation4(-1, atom, symbol1, symbol2, symbol3, symbol4)) { addToTable(); }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5)
+      : SymbolEntry(new Implementation5(-1, atom, symbol1, symbol2, symbol3, symbol4, symbol5)) { addToTable(); }
+
     Atom atom() const { return dynamic_cast<const Implementation0*>(implementation())->atom(); }
     SymbolEntry entry1() const { return dynamic_cast<const Implementation1*>(implementation())->entry1(); }
     SymbolEntry entry2() const { return dynamic_cast<const Implementation2*>(implementation())->entry2(); }
     SymbolEntry entry3() const { return dynamic_cast<const Implementation3*>(implementation())->entry3(); }
+    SymbolEntry entry4() const { return dynamic_cast<const Implementation4*>(implementation())->entry4(); }
+    SymbolEntry entry5() const { return dynamic_cast<const Implementation5*>(implementation())->entry5(); }
     int label() const { return dynamic_cast<const Implementation0*>(implementation())->label(); }
 private:
     class Implementation0 : public SymbolEntry::Implementation
@@ -352,6 +384,44 @@ private:
             }
             s += entry3.toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
 
+            const Implementation4* implementation4 = dynamic_cast<const Implementation4*>(this);
+            if (implementation4 == 0) {
+                ++x;
+                return s + closeParenthesis;
+            }
+            SymbolEntry entry4 = implementation4->entry4();
+            if (canInlineNext && x + 1 + entry4.length(width - x) <= width - 1) {
+                // Fits on the line - inline it
+                s += space;
+                ++x;
+            }
+            else {
+                // Doesn't fit on the line - put it on its own line.
+                s += newLine + String::padding(indent + 2);
+                x = indent + 2;
+                more = false;
+            }
+            s += entry4.toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
+
+            const Implementation5* implementation5 = dynamic_cast<const Implementation5*>(this);
+            if (implementation5 == 0) {
+                ++x;
+                return s + closeParenthesis;
+            }
+            SymbolEntry entry5 = implementation5->entry5();
+            if (canInlineNext && x + 1 + entry5.length(width - x) <= width - 1) {
+                // Fits on the line - inline it
+                s += space;
+                ++x;
+            }
+            else {
+                // Doesn't fit on the line - put it on its own line.
+                s += newLine + String::padding(indent + 2);
+                x = indent + 2;
+                more = false;
+            }
+            s += entry5.toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
+
             ++x;
             return s + closeParenthesis;
         }
@@ -372,7 +442,8 @@ private:
     class Implementation1 : public Implementation0
     {
     public:
-        Implementation1(int label, Atom atom, SymbolEntry entry1) : Implementation0(label, atom), _entry1(entry1) { }
+        Implementation1(int label, Atom atom, SymbolEntry entry1)
+          : Implementation0(label, atom), _entry1(entry1) { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
             const Implementation1* o = dynamic_cast<const Implementation1*>(other);
@@ -394,7 +465,8 @@ private:
     class Implementation2 : public Implementation1
     {
     public:
-        Implementation2(int label, Atom atom, SymbolEntry entry1, SymbolEntry entry2) : Implementation1(label, atom, entry1), _entry2(entry2) { }
+        Implementation2(int label, Atom atom, SymbolEntry entry1, SymbolEntry entry2)
+          : Implementation1(label, atom, entry1), _entry2(entry2) { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
             const Implementation2* o = dynamic_cast<const Implementation2*>(other);
@@ -402,7 +474,7 @@ private:
                 return false;
             return _atom == o->_atom && _entry1 == o->_entry1 && _entry2 == o->_entry2;
         }
-        SymbolEntry entry2() const { return _entry1; }
+        SymbolEntry entry2() const { return _entry2; }
         int length(int max) const
         {
             int r = Implementation1::length(max);
@@ -416,7 +488,8 @@ private:
     class Implementation3 : public Implementation2
     {
     public:
-        Implementation3(int label, Atom atom, SymbolEntry entry1, SymbolEntry entry2, SymbolEntry entry3) : Implementation2(label, atom, entry1, entry2), _entry3(entry3) { }
+        Implementation3(int label, Atom atom, SymbolEntry entry1, SymbolEntry entry2, SymbolEntry entry3)
+          : Implementation2(label, atom, entry1, entry2), _entry3(entry3) { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
             const Implementation3* o = dynamic_cast<const Implementation3*>(other);
@@ -424,7 +497,7 @@ private:
                 return false;
             return _atom == o->_atom && _entry1 == o->_entry1 && _entry2 == o->_entry2 && _entry3 == o->_entry3;
         }
-        SymbolEntry entry3() const { return _entry1; }
+        SymbolEntry entry3() const { return _entry3; }
         int length(int max) const
         {
             int r = Implementation2::length(max);
@@ -434,6 +507,52 @@ private:
         }
     protected:
         SymbolEntry _entry3;
+    };
+    class Implementation4 : public Implementation3
+    {
+    public:
+        Implementation4(int label, Atom atom, SymbolEntry entry1, SymbolEntry entry2, SymbolEntry entry3, SymbolEntry entry4)
+          : Implementation3(label, atom, entry1, entry2, entry3), _entry4(entry4) { }
+        bool equals(const SymbolEntry::Implementation* other) const
+        {
+            const Implementation4* o = dynamic_cast<const Implementation4*>(other);
+            if (o == 0)
+                return false;
+            return _atom == o->_atom && _entry1 == o->_entry1 && _entry2 == o->_entry2 && _entry3 == o->_entry3 && _entry4 == o->_entry4;
+        }
+        SymbolEntry entry4() const { return _entry4; }
+        int length(int max) const
+        {
+            int r = Implementation3::length(max);
+            if (r < max)
+                r += 1 + _entry4.implementation()->length(max - r);
+            return r;
+        }
+    protected:
+        SymbolEntry _entry4;
+    };
+    class Implementation5 : public Implementation4
+    {
+    public:
+        Implementation5(int label, Atom atom, SymbolEntry entry1, SymbolEntry entry2, SymbolEntry entry3, SymbolEntry entry4, SymbolEntry entry5)
+          : Implementation3(label, atom, entry1, entry2, entry3, entry4), _entry5(entry5) { }
+        bool equals(const SymbolEntry::Implementation* other) const
+        {
+            const Implementation5* o = dynamic_cast<const Implementation5*>(other);
+            if (o == 0)
+                return false;
+            return _atom == o->_atom && _entry1 == o->_entry1 && _entry2 == o->_entry2 && _entry3 == o->_entry3 && _entry4 == o->_entry4 && _entry5 == o->_entry5;
+        }
+        SymbolEntry entry5() const { return _entry5; }
+        int length(int max) const
+        {
+            int r = Implementation4::length(max);
+            if (r < max)
+                r += 1 + _entry5.implementation()->length(max - r);
+            return r;
+        }
+    protected:
+        SymbolEntry _entry5;
     };
 
     class LabelTarget
@@ -454,6 +573,7 @@ private:
         return (target - &_labelled[0])/sizeof(LabelTarget*);
     }
 
+public:
     static int newLabel()
     {
         int l = _nextFreeLabel;
@@ -466,6 +586,7 @@ private:
         return l;
     }
 
+private:
     void addToTable()
     {
         int l = label();
