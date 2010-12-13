@@ -746,20 +746,24 @@ private:
     } \
     catch
 
-String openParenthesis("(");
-String closeParenthesis(")");
-String comma(",");
+String openParenthesis = String::codePoint('(');
+String closeParenthesis = String::codePoint((')');
+String comma = String::codePoint(',');
 String commaSpace(", ");
-String asterisk("*");
-String space(" ");
+String asterisk = String::codePoint('*');
+String space = String::codePoint(' ');
 String newLine = String::codePoint(10);
-String doubleQuote("\"");
-String backslash("\\");
-String colon(":");
-String openBracket("[");
-String closeBracket("]");
+String backslash = String::codePoint('\\');
+String colon = String::codePoint(':');
+String openBracket = String::codePoint('[');
+String closeBracket = String::codePoint(']');
 String colonSpace(": ");
-
-
+String empty("");
+String tab = String::codePoint(9);
+String backslash = String::codePoint('\\');
+String doubleQuote = String::codePoint('"');
+String dollar = String::codePoint('$');
+String singleQuote = String::codePoint('\'');
+String backQuote = String::codePoint('`');
 
 #endif // INCLUDED_STRING_H

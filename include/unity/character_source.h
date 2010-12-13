@@ -31,6 +31,47 @@ private:
     int _column;
 };
 
+class DiagnosticSpan
+{
+public:
+    DiagnosticSpan(DiagnosticLocation start, DiagnosticLocation end)
+      : _fileName(start.fileName()),
+        _startLine(start.line()),
+        _startColumn(start.column()),
+        _endLine(end.line()),
+        _endColumn(end.column())
+    { }
+    DiagnosticSpan(String fileName, int startLine, int startColumn, int endLine, int endColumn)
+      : _fileName(fileName),
+        _startLine(startLine),
+        _startColumn(startColumn),
+        _endLine(endLine),
+        _endColumn(endColumn)
+    { }
+    String fileName() const { return _fileName; }
+    int startLine() const { return _startLine; }
+    int startColumn() const { return _startColumn; }
+    int endLine() const { return _endLine; }
+    int endColumn() const { return _endColumn; }
+    String asString() const
+    {
+        static String s(")-(");
+        return _fileName + openParenthesis + String::decimal(_startLine) + comma +
+            String::decimal(_startColumn) + s + String::decimal(_endLine) + comma + 
+            String::decimal(_endColumn) + closeParenthesis;
+    }
+    void throwError(const String& message) const
+    {
+        throw Exception(asString() + colonSpace + message);
+    }
+private:
+    String _fileName;
+    int _startLine;
+    int _startColumn;
+    int _endLine;
+    int _endColumn;
+};
+
 class ByteSource
 {
 public:

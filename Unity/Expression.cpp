@@ -9,7 +9,7 @@ Symbol parseExpression(CharacterSource* source);
 Symbol combine(Symbol left, Symbol right, Symbol span)
 {
     if (left.valid())
-        return Symbol(atomAdd, span, left, right);
+        return Symbol(atomFunctionCall, span, Symbol(atomAdd), SymbolList(left, right));
     return right;
 }
 
@@ -91,19 +91,12 @@ Symbol parseIdentifier(CharacterSource* source)
 
 Symbol parseDoubleQuotedString(CharacterSource* source)
 {
-    static String empty("");
     static String endOfFile("End of file in string");
     static String endOfLine("End of line in string");
     static String printableCharacter("printable character");
     static String escapedCharacter("escaped character");
     static String hexadecimalDigit("hexadecimal digit");
-    static String newLine = String::codePoint(10);
-    static String tab = String::codePoint(9);
-    static String backslash = String::codePoint('\\');
-    static String doubleQuote = String::codePoint('"');
-    static String dollar = String::codePoint('$');
-    static String singleQuote = String::codePoint('\'');
-    static String backQuote = String::codePoint('`');
+    static String toString("toString");
     DiagnosticLocation startLocation = source->location();
     DiagnosticLocation stringStartLocation = startLocation;
     DiagnosticLocation stringEndLocation;
@@ -199,6 +192,10 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
                         source->assert(')');
                     }
                 }
+                part = Symbol(atomFunctionCall, part.entry1(), 
+                    Symbol(atomDot, part.entry1(),
+                        SymbolList(part, Symbol(atomIdentifier, toString))),     
+                    SymbolList());
                 string += s.subString(start, end);
                 start = source->offset();
                 if (part.valid()) {
@@ -243,7 +240,7 @@ Symbol parseEmbeddedLiteral(CharacterSource* source)
     String string;
     do {
         *source = s;
-        int c = s.get();
+        int c = s.get();                 
         if (c == -1)
             source->location().throwError(endOfFile);
         if (cc == -1) {
@@ -370,7 +367,7 @@ Symbol parseFunctionCallExpression(CharacterSource* source)
             break;
         SymbolList arguments = parseExpressionList(source);
         DiagnosticLocation location = Space::assertCharacter(source, ')');
-        e = Symbol(Symbol::newLabel(), atomFunctionCall, symbolFromSpan(startLocation, location), e, arguments);
+        e = Symbol(atomFunctionCall, symbolFromSpan(startLocation, location), e, arguments);
     } while (true);
     return e;
 }
@@ -383,7 +380,7 @@ DiagnosticLocation endLocation(Symbol expression)
 
 Symbol binaryOperation(Atom atom, DiagnosticLocation startLocation, Symbol left, Symbol right)
 {
-    return Symbol(atom, symbolFromSpan(startLocation, endLocation(right)), left, right);
+    return Symbol(atomFunctionCall, symbolFromSpan(startLocation, endLocation(right)), Symbol(atom), SymbolList(left, right));
 }
 
 Symbol parsePowerExpression(CharacterSource* source)
@@ -404,13 +401,9 @@ Symbol parsePowerExpression(CharacterSource* source)
 Symbol parseUnaryExpression(CharacterSource* source)
 {
     DiagnosticLocation startLocation = source->location();
-    if (Space::parseCharacter(source, '!')) {
+    if (Space::parseCharacter(source, '~') || Space::parseCharacter(source, '!')) {
         Symbol e = parseUnaryExpression(source);
-        return Symbol(atomLogicalNot, symbolFromSpan(startLocation, endLocation(e)), e);
-    }
-    if (Space::parseCharacter(source, '~')) {
-        Symbol e = parseUnaryExpression(source);
-        return Symbol(atomBitwiseNot, symbolFromSpan(startLocation, endLocation(e)), e);
+        return Symbol(atomFunctionCall, symbolFromSpan(startLocation, endLocation(e)), Symbol(atomNot), SymbolList(e));
     }
     if (Space::parseCharacter(source, '+')) {
         Symbol e = parseUnaryExpression(source);
@@ -418,15 +411,15 @@ Symbol parseUnaryExpression(CharacterSource* source)
     }
     if (Space::parseCharacter(source, '-')) {
         Symbol e = parseUnaryExpression(source);
-        return Symbol(atomNegative, symbolFromSpan(startLocation, endLocation(e)), e);
+        return Symbol(atomFunctionCall, symbolFromSpan(startLocation, endLocation(e)), Symbol(atomNegative), SymbolList(e));
     }
     if (Space::parseCharacter(source, '*')) {
         Symbol e = parseUnaryExpression(source);
-        return Symbol(atomDereference, symbolFromSpan(startLocation, endLocation(e)), e);
+        return Symbol(atomFunctionCall, symbolFromSpan(startLocation, endLocation(e)), Symbol(atomDereference), SymbolList(e));
     }
     if (Space::parseCharacter(source, '&')) {
         Symbol e = parseUnaryExpression(source);
-        return Symbol(atomAddressOf, symbolFromSpan(startLocation, endLocation(e)), e);
+        return Symbol(atomFunctionCall, symbolFromSpan(startLocation, endLocation(e)), Symbol(atomAddressOf), SymbolList(e));
     }
     return parsePowerExpression(source);
 }
@@ -650,7 +643,7 @@ Symbol parseLogicalAndExpression(CharacterSource* source)
             Symbol e2 = parseBitwiseOrExpression(source);
             if (!e2.valid())
                 throwError(source);
-            e = binaryOperation(atomLogicalAnd, startLocation, e, e2);
+            e = Symbol(atomLogicalAnd, symbolFromSpan(startLocation, endLocation(e2)), e, e2);
             continue;
         }
         return e;
@@ -670,23 +663,24 @@ Symbol parseExpression(CharacterSource* source)
             Symbol e2 = parseLogicalAndExpression(source);
             if (!e2.valid())
                 throwError(source);
-            e = binaryOperation(atomLogicalOr, startLocation, e, e2);
+            e = Symbol(atomLogicalOr, symbolFromSpan(startLocation, endLocation(e2)), e, e2);
             continue;
         }
         return e;
     } while (true);
-
 }
 
-//void checkBoolean(TupleSymbol expression)
-//{
-//    if (!
-//}
-
-void expectedBoolean(Symbol expression)
+DiagnosticSpan spanFromExpression(Symbol expression)
 {
+    return spanFromSymbol(expression.entry1().symbol());
+}
+
+void checkBoolean(Symbol expression)
+{
+    if (typeOfExpression(expression).atom() == atomBoolean)
+        return;
     static String error("Expected an expression of type Boolean, this has type ");
-    locationFromSymbol(expression.entry1().symbol()).throwError(error + typeToString(typeOfExpression(expression)));
+    spanFromExpression(expression).throwError(error + typeToString(typeOfExpression(expression)));
 }
 
 Symbol typeOfExpression(Symbol expression)
@@ -694,42 +688,14 @@ Symbol typeOfExpression(Symbol expression)
     switch (expression.atom()) {
         case atomLogicalOr:
         case atomLogicalAnd:
-            if (typeOfExpression(expression.entry2().symbol()).atom() != atomBoolean) {
-                expectedBoolean(expression.entry2().symbol());
-            }
-
-
-        case atomEqualTo:
-        case atomNotEqualTo:
-        case atomLessThanOrEqualTo:
-        case atomGreaterThanOrEqualTo:
-        case atomLessThan:
-        case atomGreaterThan:
-
-    atomLogicalAnd,
-    atomBitwiseOr,
-    atomBitwiseXor,
-    atomBitwiseAnd,
-    atomEqualTo,
-    atomNotEqualTo,
-    atomLessThanOrEqualTo,
-    atomGreaterThanOrEqualTo,
-    atomLessThan,
-    atomGreaterThan,
-    atomLeftShift,
-    atomRightShift,
-    atomAdd,
-    atomSubtract,
-    atomMultiply,
-    atomDivide,
-    atomModulo,
-    atomLogicalNot,
-    atomBitwiseNot,
-    atomPositive,
-    atomNegative,
-    atomDereference,
-    atomAddressOf,
-    atomPower,
-
+            checkBoolean(expression.entry2().symbol());
+            checkBoolean(expression.entry3().symbol());
+            return Symbol(atomBoolean);
+        case atomFunctionCall:
+            // TODO
+            break;
+        case atomDot:
+            // TODO
+            break;
     }
 }

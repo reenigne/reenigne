@@ -20,6 +20,8 @@ enum Atom
 
     atomLogicalOr,
     atomLogicalAnd,
+    atomDot,
+
     atomBitwiseOr,
     atomBitwiseXor,
     atomBitwiseAnd,
@@ -36,14 +38,14 @@ enum Atom
     atomMultiply,
     atomDivide,
     atomModulo,
-    atomLogicalNot,
-    atomBitwiseNot,
+    atomNot,
     atomPositive,
     atomNegative,
     atomDereference,
     atomAddressOf,
     atomPower,
     atomFunctionCall,
+
     atomStringConstant,
     atomIdentifier,
     atomIntegerConstant,

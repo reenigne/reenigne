@@ -1,5 +1,4 @@
-Make sure that the span is entry1 on all Expression symbols
-  Similarly with TypeSpecifier, Statement and Case?
+Make sure that the span is entry1 on all TypeSpecifier, Statement and Case labels?
 
 In parseExpressionElement(), Fix up the span on bracketed expressions so that it includes the brackets (otherwise we can't use the expression end for the superexpression end).
   How do we express this without repetition and without knowing how many entries are in the expression symbol?
