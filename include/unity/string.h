@@ -52,7 +52,7 @@ typedef LocalStringTemplate<void> LocalString;
 template<class T> class StringTemplate
 {
 public:
-    StringTemplate() : _implementation(new SimpleStringImplementation(Buffer(), 0, 0)) { }
+    StringTemplate() : _implementation(_emptyImplementation) { }
     StringTemplate(const char* data) : _implementation(new SimpleStringImplementation(reinterpret_cast<const UInt8*>(data), 0, strlen(data))) { }
     StringTemplate(const Buffer& buffer, int start, int n) : _implementation(new SimpleStringImplementation(buffer, start, n)) { }
 #ifdef _WIN32
@@ -123,41 +123,69 @@ public:
 #endif
     static String hexadecimal(UInt32 value, int length)
     {
-        String s;
-        s._implementation = new HexadecimalStringImplementation(value, length);
-        return s;
+        return String(new HexadecimalStringImplementation(value, length));
     }
     static String decimal(SInt32 value)
     {
-        String s;
-        s._implementation = new DecimalStringImplementation(value);
-        return s;
-    }
-    static String padding(int length)
-    {
-        String s;
-        s._implementation = new PaddingStringImplementation(length);
-        return s;
+        return String(new DecimalStringImplementation(value));
     }
     static String codePoint(int codePoint)
     {
-        String s;
-        s._implementation = new CodePointStringImplementation(codePoint);
-        return s;
+        return String(new CodePointStringImplementation(codePoint));
     }
     String subString(int start, int length) const
     {
+        if (length == 0)
+            return String();
         return String(_implementation->subString(start, length));
     }
     const String& operator+=(const String& other)
     {
-        _implementation = _implementation->withAppended(other._implementation);
-        return *this;
+        if (length() == 0)
+            return other;
+        if (other.length() == 0)
+            return *this;
+        {
+            const SimpleStringImplementation* l = _implementation;
+            const SimpleStringImplementation* r = other._implementation;
+            if (l != 0 && r != 0 && l->buffer() == r->buffer() && l->offset() + l->length() == r->offset())
+                return new SimpleStringImplementation(l->buffer(), l->offset(), l->length() + r->length());
+        }
+        if (*this == other)
+            return String(new RepeatedStringImplementation(*this, 2));
+        {
+            const RepeatedStringImplementation* l = _implementation;
+            const RepeatedStringImplementation* r = other._implementation;
+            if (l != 0 && r != 0 && l->_string == r->_string)
+                return new RepeatedStringImplementation(l->_string, l->_count + r->_count);
+            if (l == 0 && r != 0 && *this == r->_string)
+                return new RepeatedStringImplementation(r->_string, 1 + r->_count);
+            if (r == 0 && l != 0 && other == l->_string)
+                return new RepeatedStringImplementation(l->_string, 1 + l->_count);
+        }
+        return String(new ConcatenatedStringImplementation(_implementation, other._implementation);
+    }
+    const String& operator*=(int n)
+    {
+        if (n == 0 || length() == 0)
+            return String(_emptyImplementation);
+        if (n == 1)
+            return *this;
+        const RepeatedStringImplementation* r = dynamic_cast<const RepeatedStringImplementation*>(_implementation);
+        if (r != 0)
+            return new RepeatedStringImplementation(r->_string, n*r->_count);
+        return new RepeatedStringImplementation(*this, n);
     }
     String operator+(const String& other) const
     {
         String t = *this;
         t += other;
+        return t;
+    }
+    String operator*(int n) const
+    {
+        String t = *this;
+        t *= n;
         return t;
     }
     void copyTo(Array<UInt8>* data) const
@@ -239,7 +267,12 @@ private:
     Reference<StringImplementation> _implementation;
 
     template<class T> friend class CharacterSourceTemplate;
+    template<class T> friend class RepeatedStringImplementationTemplate;
+
+    static Reference<StringImplementation> _emptyImplementation;
 };
+
+Reference<StringImplementation> String::_emptyImplementation = new SimpleStringImplementation(Buffer(), 0, 0);
 
 class StringImplementation : public ReferenceCounted
 {
@@ -247,7 +280,6 @@ public:
     StringImplementation() : _length(0) { }
     int length() const { return _length; }
     virtual Reference<StringImplementation> subString(int start, int length) const = 0;
-    virtual Reference<StringImplementation> withAppended(const Reference<StringImplementation>& other) = 0;
     virtual void copyTo(UInt8* buffer) const = 0;
     virtual int hash(int h) const = 0;
     virtual int compare(int start, const StringImplementation* other, int otherStart, int l) const = 0;  // works like memcmp(this+start, other+otherStart, l) - returns 1 if this is greater.
@@ -266,7 +298,7 @@ private:
 template<class T> class SimpleStringImplementationTemplate : public StringImplementation
 {
 public:
-    Reference<StringImplementation> subString(int start, int length) const
+    StringImplementation* subString(int start, int length) const
     {
         return new SimpleStringImplementation(_buffer, _start + start, length);
     }
@@ -281,13 +313,6 @@ public:
         _start(start)
     {
         setLength(length);
-    }
-    Reference<StringImplementation> withAppended(const Reference<StringImplementation>& other)
-    {
-        Reference<SimpleStringImplementation> simpleOther(other);
-        if (simpleOther.valid() && _buffer == simpleOther->_buffer && _start + length() == simpleOther->_start)
-            return new SimpleStringImplementation(_buffer, _start, length() + simpleOther->length());
-        return new ConcatenatedStringImplementation(this, other);
     }
     void copyTo(UInt8* buffer) const
     {
@@ -340,54 +365,96 @@ protected:
     int _start;
 };
 
-template<class T> class PaddingStringImplementationTemplate : public StringImplementation
+template<class T> class RepeatedStringImplementationTemplate : public StringImplementation
 {
 public:
-    PaddingStringImplementationTemplate(int length) { setLength(length); }
-    Reference<StringImplementation> subString(int start, int length) const
-    {
-        return new PaddingStringImplementation(length);
+    RepeatedStringImplementationTemplate(String string, int count)
+      : _string(string)
+    { 
+        setLength(count*string.length());
     }
-    Reference<StringImplementation> withAppended(const Reference<StringImplementation>& other)
+    Reference<StringImplementation> subString(int start, int l) const
     {
-        Reference<PaddedStringImplementation> paddedOther(other);
-        if (paddedOther.valid())
-            return new PaddedStringImplementation(length() + other->length());
-        return new ConcatenatedStringImplementation(this, other);
+        int sl = _string.length();
+        int s = start % sl;
+        int ll = sl - s;
+        if (l < ll)
+            ll = l;
+        String r = _string.subString(s, ll);
+        start += ll;
+        l -= ll;
+
+        r += _string * (l / sl);
+        l %= sl;
+
+        return (r + _string.subString(0, l))._implementation;
     }
     void copyTo(UInt8* buffer) const
     {
-        memset(buffer, ' ', length());
+        for (int i = 0; i < length(); ++i) {
+            _string.copyTo(buffer);
+            buffer += _string.length();
+        }
     }
     int hash(int h) const
     {
         for (int i = 0; i < length(); ++i)
-            h = h * 67 + ' ' - 113;
+            h = _string.hash(h);
         return h;
     }
     int compare(int start, const StringImplementation* other, int otherStart, int l) const
     {
-        for (int i = 0; i < l; ++i) {
-            UInt8 character = ' ';
-            int r = -other->compare(otherStart, &character, 1);
-            ++otherStart;
+        int sl = _string.length();
+        int s = start % sl;
+        int ll = sl - s;
+        if (l < ll)
+            ll = l;
+        int r = _string._implementation->compare(s, other, otherStart, ll);
+        if (r != 0)
+            return r;
+        start += ll;
+        l -= ll;
+        otherStart += ll;
+        while (l >= sl) {
+            r = _string._implementation->compare(0, other, otherStart, sl);
             if (r != 0)
                 return r;
+            l -= sl;
+            otherStart += sl;
         }
-        return 0;
+        if (l == 0)
+            return 0;
+        return _string._implementation->compare(0, other, otherStart, l);
     }
     int compare(int start, const UInt8* data, int l) const
     {
-        for (int i = 0; i < l; ++i) {
-            if (' ' < data[l])
-                return -1;
-            if (' ' > data[l])
-                return 0;
+        int sl = _string.length();
+        int s = start % sl;
+        int ll = sl - s;
+        if (l < ll)
+            ll = l;
+        int r = _string._implementation->compare(s, data, ll);
+        if (r != 0)
+            return r;
+        start += ll;
+        l -= ll;
+        data += ll;
+        while (l >= sl) {
+            r = _string._implementation->compare(0, data, sl);
+            if (r != 0)
+                return r;
+            l -= sl;
+            data += sl;
         }
-        return 0;
+        if (l == 0)
+            return 0;
+        return _string._implementation->compare(0, data, l);
     }
-    UInt8 byteAt(int offset) const { return ' '; }
-    Buffer buffer() const { return emptyBuffer(); }
+    UInt8 byteAt(int offset) const
+    {
+        return _string.byteAt(offset % _count);
+    }
+    Buffer buffer() const { return _string.buffer(); }
     int offset() const { return 0; }
     void initSimpleData(int offset, Buffer* buffer, int* start, int* l) const
     {
@@ -397,35 +464,13 @@ public:
     }
     void write(const Handle& handle) const
     {
-        for (int i = 0; i < length(); ++i) {
-            UInt8 character = ' ';
-#ifdef _WIN32
-            DWORD bytesWritten;
-            if (WriteFile(handle, reinterpret_cast<LPCVOID>(&character), 1, &bytesWritten, NULL) == 0 || bytesWritten != 1) {
-                static String writingFile("Writing file ");
-                Exception::throwSystemError(writingFile + handle.name());
-            }
-#else
-            ssize_t writeResult = write(fileDescriptor, static_cast<void*>(&character), 1);
-            static String readingFile("Writing file ");
-            if (writeResult < 1) {
-                static String writingFile("Writing file ");
-                Exception::throwSystemError(writingFile + handle.name());
-            }
-#endif
-        }
+        for (int i = 0; i < _count; ++i)
+            _string.write(handle);
     }
 private:
-    static Buffer emptyBuffer()
-    {
-        if (!_buffer.valid())
-            _buffer = new NonOwningBufferImplementation(0);
-        return _buffer;
-    }
-    static Buffer _buffer;
+    String _string;
+    int _count;
 };
-
-Buffer PaddingStringImplementation::_buffer;
 
 template<class T> class ConcatenatedStringImplementationTemplate : public StringImplementation
 {
@@ -445,10 +490,6 @@ public:
         return new ConcatenatedStringImplementation(
             _left->subString(start, leftLength - start),
             _right->subString(0, length - leftLength));
-    }
-    Reference<StringImplementation> withAppended(const Reference<StringImplementation>& other)
-    {
-        return new ConcatenatedStringImplementation(this, other);
     }
     void copyTo(UInt8* destination) const
     {

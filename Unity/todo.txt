@@ -1,16 +1,16 @@
-Make sure that the span is entry1 on all TypeSpecifier, Statement and Case labels?
+TypeSpecifier
+  Fix up span stuff
+  Make built-in TypeIdentifiers work like Identifiers
 
-In parseExpressionElement(), Fix up the span on bracketed expressions so that it includes the brackets (otherwise we can't use the expression end for the superexpression end).
-  How do we express this without repetition and without knowing how many entries are in the expression symbol?
-    Implement Symbol similarly to SymbolList and allow construction in terms of head and tail?
+Statement
 
-Need DiagnosticSpan as well as DiagnosticLocation
+Case
 
-All expression Symbols need to have entry1 be the DiagnosticSpan of the expression
-
-Implement Symbol::hash() and SymbolList::hash()
-
-Replace PaddingString with RepeatedString.
+Algorithm for resolving names in the presence of overloading
+  Make a list of all the targets with matching names and potential number of arguments
+  Choose the one which fits best.
+  Use dynamic programming to figure out a "cost" associated with converting any type to any other type
+    Allow conversion operators to specify a cost?
 
 Scope:
   Step 1 - walk tree and build up local (single level) scope tables
@@ -18,11 +18,6 @@ Scope:
   Optimization: To do O(1) lookup, need SymbolArray : SymbolEntry. Create by converting SymbolList to SymbolArray
 
 Implement compilation steps as Symbol transformations
-
-Convert to use Symbol
-  Statement
-  Expression
-  Case
 
 Test conditional statements
 Test switch statement

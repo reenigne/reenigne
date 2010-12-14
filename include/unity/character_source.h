@@ -34,6 +34,7 @@ private:
 class DiagnosticSpan
 {
 public:
+    DiagnosticSpan() { }
     DiagnosticSpan(DiagnosticLocation start, DiagnosticLocation end)
       : _fileName(start.fileName()),
         _startLine(start.line()),
@@ -63,6 +64,14 @@ public:
     void throwError(const String& message) const
     {
         throw Exception(asString() + colonSpace + message);
+    }
+    DiagnosticLocation start() const
+    { 
+        return DiagnosticLocation(_fileName, _startLine, _startColumn);
+    }
+    DiagnosticLocation end() const
+    {
+        return DiagnosticLocation(_fileName, _endLine, _endColumn);
     }
 private:
     String _fileName;

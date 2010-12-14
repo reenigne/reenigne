@@ -15,6 +15,7 @@ Symbol parseTypeIdentifier(CharacterSource* source)
         break;
     } while (true);
     int end = s2.offset();
+    DiagnosticLocation endLocation = s2.location();
     Space::parse(&s2);
     String name = s2.subString(start, end);
     static String keywords[] = {
@@ -50,22 +51,24 @@ Symbol parseTypeIdentifier(CharacterSource* source)
         if (name == keywords[i])
             return Symbol();
     *source = s2;
-    return Symbol(atomTypeIdentifier, name, symbolFromLocation(location));
+    return Symbol(atomTypeIdentifier, DiagnosticSpan(location, endLocation), name);
 }
 
 Symbol parseClassTypeSpecifier(CharacterSource* source)
 {
     static String keyword("Class");
+    DiagnosticLocation start = source->location();
     if (!Space::parseKeyword(source, keyword))
         return Symbol();
     Space::assertCharacter(source, '{');
     // TODO: Parse class contents
-    Space::assertCharacter(source, '}');
-    return Symbol(atomClass);
+    DiagnosticLocation end = Space::assertCharacter(source, '}');
+    return Symbol(atomClass, DiagnosticSpan(start, end));
 }
 
 Symbol parseFundamentalTypeSpecifier(CharacterSource* source)
 {
+    DiagnosticLocation start = source->location();
     Symbol typeSpecifier = parseTypeIdentifier(source);
     if (typeSpecifier.valid())
         return typeSpecifier;

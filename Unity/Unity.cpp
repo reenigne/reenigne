@@ -79,26 +79,6 @@ private:
 #include "Symbol.cpp"
 #include "Type.cpp"
 
-DiagnosticLocation locationFromSymbol(Symbol symbol)
-{
-    return DiagnosticLocation(symbol.entry1().string(), symbol.entry2().integer(), symbol.entry3().integer());
-}
-
-Symbol symbolFromLocation(DiagnosticLocation location)
-{
-    return Symbol(-1, atomLocation, location.fileName(), location.line(), location.column());
-}
-
-DiagnosticSpan spanFromSymbol(Symbol symbol)
-{
-    return DiagnosticSpan(symbol.entry1().string(), symbol.entry2().integer(), symbol.entry3().integer(), symbol.entry4().integer(), symbol.entry5().integer());
-}
-
-Symbol symbolFromSpan(DiagnosticLocation start, DiagnosticLocation end)
-{
-    return Symbol(-1, atomSpan, start.fileName(), start.line(), start.column(), start.line(), start.column());
-}
-
 class Variable;
 class FunctionDeclarationStatement;
 
