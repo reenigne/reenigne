@@ -53,6 +53,26 @@ enum Atom
     atomFalse,
     atomNull,
 
+    atomParameter,
+
+    atomExpressionStatement,
+    atomFunctionDefinitionStatement,
+    atomFromStatement,
+    atomVariableDefinitionStatement,
+    atomAssignmentStatement,
+    atomAddAssignmentStatement,
+    atomSubtractAssignmentStatement,
+    atomMultiplyAssignmentStatement,
+    atomDivideAssignmentStatement,
+    atomModuloAssignmentStatement,
+    atomShiftLeftAssignmentStatement,
+    atomShiftRightAssignmentStatement,
+    atomAndAssignmentStatement,
+    atomOrAssignmentStatement,
+    atomXorAssignmentStatement,
+    atomPowerAssignmentStatement,
+    atomCompoundStatement,
+
     atomLocation,
     atomSpan,
     
@@ -66,20 +86,26 @@ String atomToString(Atom atom)
     public:
         LookupTable()
         {
+            _table[atomAuto] = String("Auto");
             _table[atomBit] = String("Bit");
             _table[atomBoolean] = String("Boolean");
             _table[atomByte] = String("Byte");
             _table[atomCharacter] = String("Character");
+            _table[atomClass] = String("Class");
             _table[atomFunction] = String("Function");
-            _table[atomPointer] = String("Pointer");
             _table[atomInt] = String("Int");
+            _table[atomPointer] = String("Pointer");
             _table[atomString] = String("String");
+            _table[atomTypeIdentifier] = String("TypeIdentifier");
+            _table[atomTypeOf] = String("TypeOf");
             _table[atomUInt] = String("UInt");
             _table[atomVoid] = String("Void");
             _table[atomWord] = String("Word");
 
             _table[atomLogicalOr] = String("||");
             _table[atomLogicalAnd] = String("&&");
+            _table[atomDot] = String(".");
+
             _table[atomBitwiseOr] = String("|");
             _table[atomBitwiseXor] = String("~");
             _table[atomBitwiseAnd] = String("&");
@@ -96,15 +122,43 @@ String atomToString(Atom atom)
             _table[atomMultiply] = String("*");
             _table[atomDivide] = String("/");
             _table[atomModulo] = String("%");
-            _table[atomLogicalNot] = String("!");
-            _table[atomBitwiseNot] = String("u~");
+            _table[atomNot] = String("!");
             _table[atomPositive] = String("u+");
             _table[atomNegative] = String("u-");
             _table[atomDereference] = String("u*");
             _table[atomAddressOf] = String("u&");
             _table[atomPower] = String("^");
+            _table[atomFunctionCall] = String("call");
+
+            _table[atomStringConstant] = String("string");
+            _table[atomIdentifier] = String("identifier");
+            _table[atomIntegerConstant] = String("integer");
+            _table[atomTrue] = String("true");
+            _table[atomFalse] = String("false");
+            _table[atomNull] = String("null");
+
+            _table[atomParameter] = String("parameter");
+
+            _table[atomExpressionStatement] = String("expression");
+            _table[atomFunctionDefinitionStatement] = String("functionDefinition");
+            _table[atomFromStatement] = String("from");
+            _table[atomVariableDefinitionStatement] = String("variableDefinition");
+            _table[atomAssignmentStatement] = String("=");
+            _table[atomAddAssignmentStatement] = String("+=");
+            _table[atomSubtractAssignmentStatement] = String("-=");
+            _table[atomMultiplyAssignmentStatement] = String("*=");
+            _table[atomDivideAssignmentStatement] = String("/=");
+            _table[atomModuloAssignmentStatement] = String("%=");
+            _table[atomShiftLeftAssignmentStatement] = String("<<=");
+            _table[atomShiftRightAssignmentStatement] = String(">>=");
+            _table[atomAndAssignmentStatement] = String("&=");
+            _table[atomOrAssignmentStatement] = String("|=");
+            _table[atomXorAssignmentStatement] = String("~=");
+            _table[atomPowerAssignmentStatement] = String("^=");
+            _table[atomCompoundStatement] = String("compound");
 
             _table[atomLocation] = String("location");
+            _table[atomSpan] = String("span");
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:
@@ -296,7 +350,7 @@ private:
 template<class T> class SymbolTemplate : public SymbolEntryTemplate<T>
 {
 public:
-    SymbolTemplate(int label, Atom atom, DiagnosticSpan span = DiagnosticSpan())
+    SymbolTemplate(int label, Atom atom, DiagnosticSpan span)
       : SymbolEntry(new Implementation(label, atom, span, 0)) { addToTable(); }
     SymbolTemplate(int label, Atom atom, DiagnosticSpan span, SymbolEntry symbol1)
       : SymbolEntry(new Implementation(label, atom, span, SymbolTail(symbol1, 0))) { addToTable(); }
@@ -309,7 +363,7 @@ public:
     SymbolTemplate(int label, Atom atom, DiagnosticSpan span, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5)
       : SymbolEntry(new Implementation(label, atom, span, SymbolTail(symbol1, SymbolTail(symbol2, SymbolTail(symbol3, SymbolTail(symbol4, SymbolTail(symbol5, 0))))))) { addToTable(); }
     SymbolTemplate() { }
-    SymbolTemplate(Atom atom, DiagnosticSpan span = DiagnosticSpan())
+    SymbolTemplate(Atom atom, DiagnosticSpan span)
       : SymbolEntry(new Implementation(-1, atom, span, 0)) { }
     SymbolTemplate(Atom atom, DiagnosticSpan span, SymbolEntry symbol1)
       : SymbolEntry(new Implementation(-1, atom, span, SymbolTail(symbol1, 0))) { }

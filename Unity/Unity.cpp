@@ -302,10 +302,12 @@ public:
             return;
         } while (true);
     }
-    static bool parseCharacter(CharacterSource* source, int character)
+    static bool parseCharacter(CharacterSource* source, int character, DiagnosticSpan& span)
     {
+        DiagnosticLocation start = source->location();
         if (!source->parse(character))
             return false;
+        span = DiagnosticSpan(start, source->location());
         parse(source);
         return true;
     }
@@ -316,8 +318,9 @@ public:
         parse(source);
         return l;
     }
-    static bool parseOperator(CharacterSource* source, String op)
+    static bool parseOperator(CharacterSource* source, String op, DiagnosticSpan& span)
     {
+        DiagnosticLocation start = source->location();
         static String empty("");
         CharacterSource s = *source;
         CharacterSource o(op, empty);
@@ -329,11 +332,13 @@ public:
                 return false;
         } while (true);
         *source = s;
+        span = DiagnosticSpan(start, source->location());
         parse(source);
         return true;
     }
-    static bool parseKeyword(CharacterSource* source, String keyword)
+    static bool parseKeyword(CharacterSource* source, String keyword, DiagnosticSpan& span)
     {
+        DiagnosticLocation start = source->location();
         static String empty("");
         CharacterSource s = *source;
         CharacterSource o(keyword, empty);
@@ -349,6 +354,7 @@ public:
         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')
             return false;
         *source = s;
+        span = DiagnosticSpan(start, source->location());
         parse(source);
         return true;
     }

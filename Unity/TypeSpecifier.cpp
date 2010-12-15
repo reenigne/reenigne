@@ -19,11 +19,6 @@ Symbol parseTypeIdentifier(CharacterSource* source)
     Space::parse(&s2);
     String name = s2.subString(start, end);
     static String keywords[] = {
-        String("Auto"),
-        String("Bit"),
-        String("Boolean"),
-        String("Byte"),
-        String("Character"),
         String("Class"),
         String("Complex"),
         String("DInt"),
@@ -34,17 +29,13 @@ Symbol parseTypeIdentifier(CharacterSource* source)
         String("HInt"),
         String("HUInt"),
         String("HWord"),
-        String("Int"),
         String("Integer"),
         String("QInt"),
         String("QUInt"),
         String("QWord"),
         String("Rational"),
-        String("String"),
         String("TypeOf"),
-        String("UInt"),
         String("Unsigned"),
-        String("Word"),
         String("WordString")
     };
     for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); ++i)
@@ -70,50 +61,54 @@ Symbol parseFundamentalTypeSpecifier(CharacterSource* source)
 {
     DiagnosticLocation start = source->location();
     Symbol typeSpecifier = parseTypeIdentifier(source);
-    if (typeSpecifier.valid())
+    if (typeSpecifier.valid()) {
+        String s = typeSpecifier[1].string();
+        static String autoKeyword("Auto");
+        if (s == autoKeyword)
+            return Symbol(atomAuto, typeSpecifier.span());
+        static String bitKeyword("Bit");
+        if (s == bitKeyword)
+            return Symbol(atomBit, typeSpecifier.span());
+        static String booleanKeyword("Boolean");
+        if (s == booleanKeyword)
+            return Symbol(atomBoolean, typeSpecifier.span());
+        static String byteKeyword("Byte");
+        if (s == byteKeyword)
+            return Symbol(atomByte, typeSpecifier.span());
+        static String characterKeyword("Character");
+        if (s == characterKeyword)
+            return Symbol(atomCharacter, typeSpecifier.span());
+        static String intKeyword("Int");
+        if (s == intKeyword)
+            return Symbol(atomInt, typeSpecifier.span());
+        static String stringKeyword("String");
+        if (s == stringKeyword)
+            return Symbol(atomString, typeSpecifier.span());
+        static String uIntKeyword("UInt");
+        if (s == uIntKeyword)
+            return Symbol(atomUInt, typeSpecifier.span());
+        static String voidKeyword("Void");
+        if (s == voidKeyword)
+            return Symbol(atomVoid, typeSpecifier.span());
+        static String wordKeyword("Word");
+        if (s == wordKeyword)
+            return Symbol(atomVoid, typeSpecifier.span());
+
         return typeSpecifier;
-    static String autoKeyword("Auto");
-    if (Space::parseKeyword(source, autoKeyword))
-        return Symbol(atomAuto);
-    static String bitKeyword("Bit");
-    if (Space::parseKeyword(source, bitKeyword))
-        return Symbol(atomBit);
-    static String booleanKeyword("Boolean");
-    if (Space::parseKeyword(source, booleanKeyword))
-        return Symbol(atomBoolean);
-    static String byteKeyword("Byte");
-    if (Space::parseKeyword(source, byteKeyword))
-        return Symbol(atomByte);
-    static String characterKeyword("Character");
-    if (Space::parseKeyword(source, characterKeyword))
-        return Symbol(atomCharacter);
+    }
     typeSpecifier = parseClassTypeSpecifier(source);
     if (typeSpecifier.valid())
         return typeSpecifier;
-    static String intKeyword("Int");
-    if (Space::parseKeyword(source, intKeyword))
-        return Symbol(atomInt);
-    static String stringKeyword("String");
-    if (Space::parseKeyword(source, stringKeyword))
-        return Symbol(atomString);
     typeSpecifier = parseTypeOfTypeSpecifier(source);
     if (typeSpecifier.valid())
         return typeSpecifier;
-    static String uIntKeyword("UInt");
-    if (Space::parseKeyword(source, uIntKeyword))
-        return Symbol(atomUInt);
-    static String voidKeyword("Void");
-    if (Space::parseKeyword(source, voidKeyword))
-        return Symbol(atomVoid);
-    static String wordKeyword("Word");
-    if (Space::parseKeyword(source, wordKeyword))
-        return Symbol(atomVoid);
     return Symbol();
 }
 
 SymbolList parseTypeListSpecifier2(Symbol typeSpecifier, CharacterSource* source)
 {
-    if (!Space::parseCharacter(source, ','))
+    DiagnosticSpan span;
+    if (!Space::parseCharacter(source, ',', span))
         return SymbolList(typeSpecifier);
     Symbol typeSpecifier2 = parseTypeSpecifier(source);
     if (!typeSpecifier2.valid()) {
@@ -137,13 +132,15 @@ Symbol parseTypeSpecifier(CharacterSource* source)
     if (!typeSpecifier.valid())
         return Symbol();
     do {
-        if (Space::parseCharacter(source, '*')) {
-            typeSpecifier = Symbol(atomPointer, typeSpecifier);
+        DiagnosticSpan span;
+        if (Space::parseCharacter(source, '*', span)) {
+            typeSpecifier = Symbol(atomPointer, DiagnosticSpan(typeSpecifier.span().start(), span.end()), typeSpecifier);
             continue;
         }
-        if (Space::parseCharacter(source, '(')) {
-            typeSpecifier = Symbol(atomFunction, typeSpecifier, parseTypeListSpecifier(source));
-            Space::assertCharacter(source, ')');
+        if (Space::parseCharacter(source, '(', span)) {
+            SymbolList typeListSpecifier = parseTypeListSpecifier(source);
+            DiagnosticLocation end = Space::assertCharacter(source, ')');
+            typeSpecifier = Symbol(atomFunction, DiagnosticSpan(typeSpecifier.span().start(), end), typeSpecifier, typeListSpecifier);
             continue;
         }
     } while (true);
@@ -154,8 +151,9 @@ Symbol parseTypeSpecifier(CharacterSource* source)
 
 Symbol parseTypeOfTypeSpecifier(CharacterSource* source)
 {
+    DiagnosticSpan span;
     static String keyword("TypeOf");
-    if (!Space::parseKeyword(source, keyword))
+    if (!Space::parseKeyword(source, keyword, span))
         return Symbol();
     Space::assertCharacter(source, '(');
     Symbol expression = parseExpression(source);
@@ -163,6 +161,6 @@ Symbol parseTypeOfTypeSpecifier(CharacterSource* source)
         static String error("Expression expected");
         source->location().throwError(error);
     }
-    Space::assertCharacter(source, ')');
-    return Symbol(atomTypeOf, expression);
+    DiagnosticLocation end = Space::assertCharacter(source, ')');
+    return Symbol(atomTypeOf, DiagnosticSpan(span.start(), end), expression);
 }

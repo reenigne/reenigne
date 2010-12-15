@@ -1,10 +1,14 @@
-TypeSpecifier
-  Fix up span stuff
-  Make built-in TypeIdentifiers work like Identifiers
+Convert Statement to Symbol
 
-Statement
+Convert Case to Symbol
 
-Case
+Come up with a low-level intermediate form
+  32-bits per entry stack, say 1Mb default size
+  heap memory shared with interpreter
+  Low-level instructions
+    Compile the program to one long instruction stream? One instruction stream per function?
+      Need to be able to address functions and labels within functions
+      Need a better form than SymbolList?
 
 Algorithm for resolving names in the presence of overloading
   Make a list of all the targets with matching names and potential number of arguments
@@ -13,9 +17,7 @@ Algorithm for resolving names in the presence of overloading
     Allow conversion operators to specify a cost?
 
 Scope:
-  Step 1 - walk tree and build up local (single level) scope tables
-  Step 2 - walk tree and link in parent tables
-  Optimization: To do O(1) lookup, need SymbolArray : SymbolEntry. Create by converting SymbolList to SymbolArray
+  Make a special slot in Symbol
 
 Implement compilation steps as Symbol transformations
 
