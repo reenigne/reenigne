@@ -33,7 +33,7 @@ Symbol parseParameter(CharacterSource* source)
 //        Type type() { return _typeSpecifier->type(); }
 //        void addToScope(Scope* scope)
 //        {
-//            scope->addVariable(_name->name(), type(), _location); 
+//            scope->addVariable(_name->name(), type(), _location);
 //        }
 //        void setValue(Value value, Scope* scope)
 //        {
@@ -94,9 +94,9 @@ Symbol parseFunctionDefinitionStatement(CharacterSource* source)
             return Symbol(
                 atomFunctionDefinitionStatement,
                 DiagnosticSpan(location, dll.span().end()),
-                returnTypeSpecifier, 
-                name, 
-                parameterList, 
+                returnTypeSpecifier,
+                name,
+                parameterList,
                 Symbol(atomFromStatement, DiagnosticSpan(span.start(), dll.span().end()), dll));
         static String error("Expected expression");
         source->location().throwError(error);
@@ -289,171 +289,13 @@ Symbol parseAssignmentStatement(CharacterSource* source)
 //        }
 //    }
 
-Symbol parseCompoundStatement(CharacterSource* source)
+SymbolList parseStatementSequence(CharacterSource* source)
 {
-    DiagnosticLocation start = source->location();
-    if (!Space::parseCharacter(source, '{'))
-        return Symbol();
-    SymbolList sequence = parseStatementSequence(source);
-    DiagnosticLocation end = Space::assertCharacter(source, '}');
-    return Symbol(atomCompoundStatement, DiagnosticSpan(start, end), sequence);
+    Symbol statement = parseStatement(source);
+    if (!statement.valid())
+        return SymbolList();
+    return SymbolList(statement, parseStatementSequence(source));
 }
-//    void resolveTypes()
-//    {
-//        _sequence->resolveTypes();
-//    }
-//    void compile()
-//    {
-//        _sequence->compile();
-//    }
-//    ExtricationStatement* run(Stack<Value>* stack)
-//    {
-//        return _sequence->run(stack);
-//    }
-
-Symbol parseStatement(CharacterSource* source)
-{
-    Symbol s = parseExpressionStatement(source);
-    if (s.valid())
-        return s;
-    s = parseFunctionDefinitionStatement(source);
-    if (s.valid())
-        return s;
-    s = parseVariableDefinitionStatement(source);
-    if (s.valid())
-        return s;
-    s = parseAssignmentStatement(source);
-    if (s.valid())
-        return s;
-    s = parseCompoundStatement(source);
-    if (s.valid())
-        return s;
-    s = parseTypeAliasStatement(source);
-    if (s.valid())
-        return s;
-    s = parseNothingStatement(source);
-    if (s.valid())
-        return s;
-    s = parseIncrementStatement(source);
-    if (s.valid())
-        return s;
-    s = parseConditionalStatement(source);
-    if (s.valid())
-        return s;
-    s = parseSwitchStatement(source);
-    if (s.valid())
-        return s;
-    return Symbol();
-}
-
-Symbol* run(Symbol statement, Stack<Value>* stack)
-{
-    Address a;
-    switch (statement.atom()) {
-        case atomExpressionStatement:
-            pushValue(statement[1], stack);
-            if (typeOfExpression(statement[1].symbol()).atom() != atomVoid)
-                stack->pop();
-            return 0;
-        case atomFunctionDefinitionStatement:
-            return 0;
-        case atomVariableDefinitionStatement:
-            if (statement[3].valid()) {
-                pushValue(statement[3], stack);
-                setValue(statement[2], stack->pop());
-            }
-            return 0;
-        case atomAssignmentStatement:
-            pushValue(statement[2], stack);
-            setValue(statement[1], stack->pop());
-            return 0;
-        case atomAddAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, a.getValue() + stack->pop());
-            return 0;
-        case atomSubtractAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, a.getValue() - stack->pop());
-            return 0;
-        case atomMultiplyAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, a.getValue() * stack->pop());
-            return 0;
-        case atomDivideAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, a.getValue() / stack->pop());
-            return 0;
-        case atomModuloAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, a.getValue() % stack->pop());
-            return 0;
-        case atomShiftLeftAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, a.getValue() << stack->pop());
-            return 0;
-        case atomShiftRightAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, a.getValue() >> stack->pop());
-            return 0;
-        case atomAndAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, a.getValue() & stack->pop());
-            return 0;
-        case atomOrAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, a.getValue() | stack->pop());
-            return 0;
-        case atomXorAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, a.getValue() ^ stack->pop());
-            return 0;
-        case atomPowerAssignmentStatement:
-            pushValue(statement[2], stack);
-            pushAddress(statement[1], stack);
-            a = stack->pop().address();
-            setValue(a, power(a.getValue(), stack->pop()));
-            return 0;
-    }
-}
-
-//typedef StatementTemplate<void> Statement;
-//
-//class StatementSequence : public ReferenceCounted
-//{
-//public:
-//    static Reference<StatementSequence> parse(CharacterSource* source, Scope* scope)
-//    {
-//        Stack<Reference<Statement> > statements;
-//        do {
-//            Reference<Statement> statement = Statement::parse(source, scope);
-//            if (!statement.valid())
-//                break;
-//            statements.push(statement);
-//        } while (true);
-//        Reference<StatementSequence> statementSequence = new StatementSequence;
-//        statements.toArray(&statementSequence->_statements);
-//        return statementSequence;
-//    }
 //    void resolveTypes()
 //    {
 //        for (int i = 0; i < _statements.count(); ++i)
@@ -473,256 +315,75 @@ Symbol* run(Symbol statement, Stack<Value>* stack)
 //        }
 //        return 0;
 //    }
-//private:
-//    StatementSequence() { }
-//    Array<Reference<Statement> > _statements;
-//};
-//
-//class ExtricationStatement : public Statement
-//{
-//};
-//
-//class ReturnStatement : public ExtricationStatement
-//{
-//public:
-//    static Reference<ReturnStatement> parse(CharacterSource* source, Scope* scope)
+
+Symbol parseCompoundStatement(CharacterSource* source)
+{
+    DiagnosticSpan span;
+    if (!Space::parseCharacter(source, '{', span))
+        return Symbol();
+    SymbolList sequence = parseStatementSequence(source);
+    DiagnosticLocation end = Space::assertCharacter(source, '}');
+    return Symbol(atomCompoundStatement, DiagnosticSpan(span.start(), end), sequence);
+}
+//    void resolveTypes()
 //    {
-//        static String keyword("return");
-//        if (!Space::parseKeyword(source, keyword))
-//            return 0;
-//        Reference<Expression> expression = Expression::parse(source, scope);
-//        Space::assertCharacter(source, ';');
-//        return new ReturnStatement(expression);
+//        _sequence->resolveTypes();
 //    }
-//    void resolveTypes() { }
 //    void compile()
 //    {
-//        if (_expression.valid())
-//            _expression->compile();
+//        _sequence->compile();
 //    }
 //    ExtricationStatement* run(Stack<Value>* stack)
 //    {
-//        if (_expression.valid())
-//            _expression->push(stack);
-//        return this;
+//        return _sequence->run(stack);
 //    }
-//private:
-//    ReturnStatement(Reference<Expression> expression) : _expression(expression)
-//    { }
-//    Reference<Expression> _expression;
-//};
-//
-//class PrintFunction : public FunctionDeclarationStatement
-//{
-//public:
-//    PrintFunction() : _consoleOutput(Handle::consoleOutput())
-//    { }
-//    void resolveTypes() { }
-//    void compile() { }
-//    void call(Stack<Value>* stack)
-//    {
-//        stack->pop().getString().write(_consoleOutput);
-//    }
-//    Type returnType() const { return VoidType(); }
-//private:
-//    Handle _consoleOutput;
-//};
-//
-//class TypeDefinitionStatement : public Statement
-//{
-//public:
-//    void resolveTypes() { }
-//    void compile() { }
-//    ExtricationStatement* run(Stack<Value>* stack) { return 0; }
-//    virtual Type type() = 0;
-//};
-//
-//class TypeAliasStatement : public TypeDefinitionStatement
-//{
-//public:
-//    static Reference<TypeAliasStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        CharacterSource s = *source;
-//        CharacterSource s2 = s;
-//        Reference<TypeIdentifier> typeIdentifier = TypeIdentifier::parse(&s, scope);
-//        if (!typeIdentifier.valid())
-//            return 0;
-//        if (!Space::parseCharacter(&s, '='))
-//            return 0;
-//        *source = s;
-//        Reference<TypeSpecifier> typeSpecifier = TypeSpecifier::parse(source, scope);
-//        Space::assertCharacter(source, ';');
-//        Reference<TypeAliasStatement> typeAliasStatement = new TypeAliasStatement(scope, typeIdentifier, typeSpecifier);
-//        scope->addType(typeIdentifier->name(), typeAliasStatement, s2.location());
-//        return typeAliasStatement;
-//    }
+
+Symbol parseTypeAliasStatement(CharacterSource* source)
+{
+    CharacterSource s = *source;
+    CharacterSource s2 = s;
+    Symbol typeIdentifier = parseTypeIdentifier(&s);
+    if (!typeIdentifier.valid())
+        return Symbol();
+    DiagnosticSpan span;
+    if (!Space::parseCharacter(&s, '=', span))
+        return Symbol();
+    *source = s;
+    Symbol typeSpecifier = parseTypeSpecifier(source);
+    DiagnosticLocation end = Space::assertCharacter(source, ';');
+    return Symbol(atomTypeAliasStatement, DiagnosticSpan(typeIdentifier.span().start(), end), typeIdentifier, typeSpecifier);
+}
 //    void resolveTypes()
 //    {
 //        _typeIdentifier->type();
 //    }
 //    Type type() { return _typeSpecifier->type(); }
-//private:
-//    TypeAliasStatement(Scope* scope, Reference<TypeIdentifier> typeIdentifier, Reference<TypeSpecifier> typeSpecifier)
-//      : _scope(scope), _typeIdentifier(typeIdentifier), _typeSpecifier(typeSpecifier)
-//    { }
-//    Scope* _scope;
-//    Reference<TypeIdentifier> _typeIdentifier;
-//    Reference<TypeSpecifier> _typeSpecifier;
-//};
-//
-//class IncludeStatement : public Statement
-//{
-//public:
-//    static Reference<IncludeStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        static String include("include");
-//        if (!Space::parseKeyword(source, include))
-//            return 0;
-//        Reference<Expression> expression = Expression::parse(source, scope);
-//        if (!expression.valid()) {
-//            static String error("Expected expression");
-//            source->location().throwError(error);
-//        }
-//        Space::assertCharacter(source, ';');
-//        return new IncludeStatement(scope, expression);
-//    }
-//    void resolveTypes() { }
-//    void compile() { }
-//    ExtricationStatement* run(Stack<Value>* stack) { return 0; }
-//private:
-//    IncludeStatement(Scope* scope, Reference<Expression> expression)
-//      : _scope(scope), _expression(expression)
-//    { }
-//    Scope* _scope;
-//    Reference<Expression> _expression;
-//};
-//
-//class NothingStatement : public Statement
-//{
-//public:
-//    static Reference<NothingStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        static String nothing("nothing");
-//        if (!Space::parseKeyword(source, nothing))
-//            return 0;
-//        Space::assertCharacter(source, ';');
-//        return new NothingStatement();
-//    }
-//    void resolveTypes() { }
-//    void compile() { }
-//    ExtricationStatement* run(Stack<Value>* stack) { return 0; }
-//};
-//
-//class BreakStatement;
-//
-//class ContinueStatement;
-//
-//template<class T> class BreakOrContinueStatementTemplate;
-//
-//typedef BreakOrContinueStatementTemplate<void> BreakOrContinueStatement;
-//
-//template<class T> class BreakOrContinueStatementTemplate : public ExtricationStatement
-//{
-//public:
-//    static Reference<BreakOrContinueStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        Reference<BreakStatement> breakStatement = BreakStatement::parse(source, scope);
-//        if (breakStatement.valid())
-//            return breakStatement;
-//        return ContinueStatement::parse(source, scope);
-//    }
-//    void resolveTypes() { }
-//    void compile() { }
-//    ExtricationStatement* run(Stack<Value>* stack) { return this; }
-//};
-//
-//class BreakStatement : public BreakOrContinueStatement
-//{
-//public:
-//    static Reference<BreakStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        static String keyword("break");
-//        if (!Space::parseKeyword(source, keyword))
-//            return 0;
-//        Reference<BreakOrContinueStatement> statement = BreakOrContinueStatement::parse(source, scope);
-//        if (!statement.valid())
-//            Space::assertCharacter(source, ';');
-//        return new BreakStatement(statement);
-//    }
-//    BreakOrContinueStatement* nextAction() { return _statement; }
-//private:
-//    BreakStatement(Reference<BreakOrContinueStatement> statement) : _statement(statement) { }
-//    Reference<BreakOrContinueStatement> _statement;
-//};
-//
-//class ContinueStatement : public BreakOrContinueStatement
-//{
-//public:
-//    static Reference<ContinueStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        static String keyword("continue");
-//        if (!Space::parseKeyword(source, keyword))
-//            return 0;
-//        Space::assertCharacter(source, ';');
-//        return new ContinueStatement();
-//    }
-//};
-//
-//class ForeverStatement : public Statement
-//{
-//public:
-//    static Reference<ForeverStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        static String forever("forever");
-//        if (!Space::parseKeyword(source, forever))
-//            return 0;
-//        Reference<Statement> statement = Statement::parse(source, scope);
-//        if (!statement.valid()) {
-//            static String error("Expected statement");
-//            source->location().throwError(error);
-//        }
-//        return new ForeverStatement(statement);
-//    }
-//    void resolveTypes() { _statement->resolveTypes(); }
-//    void compile() { _statement->compile(); }
-//    ExtricationStatement* run(Stack<Value>* stack)
-//    {
-//        do {
-//            ExtricationStatement* statement = _statement->run(stack);
-//            BreakStatement* breakStatement = dynamic_cast<BreakStatement*>(statement);
-//            if (breakStatement != 0)
-//                return breakStatement->nextAction();
-//            ContinueStatement* continueStatement = dynamic_cast<ContinueStatement*>(statement);
-//            if (continueStatement != 0)
-//                continue;
-//            return statement;  // must be a throw or return statement
-//        } while (true);
-//    }
-//public:
-//    ForeverStatement(Reference<Statement> statement)
-//      : _statement(statement)
-//    { }
-//    Reference<Statement> _statement;
-//};
-//
-//class IncrementStatement : public Statement
-//{
-//public:
-//    static Reference<IncrementStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        static String incrementOperator("++");
-//        if (!Space::parseOperator(source, incrementOperator))
-//            return 0;
-//        DiagnosticLocation location = source->location();
-//        CharacterSource s = *source;
-//        Reference<Expression> lValue = Expression::parse(&s, scope);
-//        *source = s;
-//        Space::assertCharacter(source, ';');
-//        return new IncrementStatement(scope, lValue, location);
-//    }
+
+Symbol parseNothingStatement(CharacterSource* source)
+{
+    static String nothing("nothing");
+    DiagnosticSpan span;
+    if (!Space::parseKeyword(source, nothing, span))
+        return Symbol();
+    DiagnosticLocation end = Space::assertCharacter(source, ';');
+    return Symbol(atomNothingStatement, DiagnosticSpan(span.start(), end));
+}
+
+Symbol parseIncrementStatement(CharacterSource* source)
+{
+    static String incrementOperator("++");
+    DiagnosticSpan span;
+    if (!Space::parseOperator(source, incrementOperator, span))
+        return Symbol();
+    CharacterSource s = *source;
+    Symbol lValue = parseExpression(&s);
+    *source = s;
+    DiagnosticLocation end = Space::assertCharacter(source, ';');
+    return Symbol(atomIncrementStatement, DiagnosticSpan(span.start(), end), lValue);
+}
 //    void resolveTypes() { _lValue->type(); }
 //    void compile()
-//    { 
+//    {
 //        _lValue->compile();
 //        if (_lValue->isLValue()) {
 //            static String error("LValue required");
@@ -730,38 +391,27 @@ Symbol* run(Symbol statement, Stack<Value>* stack)
 //        }
 //    }
 //    ExtricationStatement* run(Stack<Value>* stack)
-//    { 
+//    {
 //        _lValue->push(stack);
 //        _lValue->variable(stack)->setValue(Value(stack->pop().getInt() + 1));
 //        return 0;
 //    }
-//private:
-//    IncrementStatement(Scope* scope, Reference<Expression> lValue, DiagnosticLocation location)
-//      : _scope(scope), _lValue(lValue), _location(location)
-//    { }
-//    Scope* _scope;
-//    Reference<Expression> _lValue;
-//    DiagnosticLocation _location;
-//};
-//
-//class DecrementStatement : public Statement
-//{
-//public:
-//    static Reference<DecrementStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        static String decrementOperator("--");
-//        if (!Space::parseOperator(source, decrementOperator))
-//            return 0;
-//        DiagnosticLocation location = source->location();
-//        CharacterSource s = *source;
-//        Reference<Expression> lValue = Expression::parse(&s, scope);
-//        *source = s;
-//        Space::assertCharacter(source, ';');
-//        return new DecrementStatement(scope, lValue, location);
-//    }
+
+Symbol parseDecrementStatement(CharacterSource* source)
+{
+    static String decrementOperator("--");
+    DiagnosticSpan span;
+    if (!Space::parseOperator(source, decrementOperator, span))
+        return Symbol();
+    CharacterSource s = *source;
+    Symbol lValue = parseExpression(&s);
+    *source = s;
+    DiagnosticLocation end = Space::assertCharacter(source, ';');
+    return Symbol(atomIncrementStatement, DiagnosticSpan(span.start(), end), lValue);
+}
 //    void resolveTypes() { _lValue->type(); }
 //    void compile()
-//    { 
+//    {
 //        _lValue->compile();
 //        if (_lValue->isLValue()) {
 //            static String error("LValue required");
@@ -769,33 +419,57 @@ Symbol* run(Symbol statement, Stack<Value>* stack)
 //        }
 //    }
 //    ExtricationStatement* run(Stack<Value>* stack)
-//    { 
+//    {
 //        _lValue->push(stack);
 //        _lValue->variable(stack)->setValue(Value(stack->pop().getInt() - 1));
 //        return 0;
 //    }
-//private:
-//    DecrementStatement(Scope* scope, Reference<Expression> lValue, DiagnosticLocation location)
-//      : _scope(scope), _lValue(lValue), _location(location)
-//    { }
-//    Scope* _scope;
-//    Reference<Expression> _lValue;
-//    DiagnosticLocation _location;
-//};
-//
-//class ConditionalStatement : public Statement
-//{
-//public:
-//    static Reference<ConditionalStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        static String ifKeyword("if");
-//        static String unlessKeyword("unless");
-//        if (Space::parseKeyword(source, ifKeyword))
-//            return parse(source, scope, false);
-//        if (Space::parseKeyword(source, unlessKeyword))
-//            return parse(source, scope, true);
-//        return 0;
-//    }
+
+Symbol parseConditionalStatement2(CharacterSource* source, DiagnosticLocation start, bool unlessStatement)
+{
+    static String elseKeyword("else");
+    static String elseIfKeyword("elseIf");
+    static String elseUnlessKeyword("elseUnless");
+    Space::assertCharacter(source, '(');
+    DiagnosticSpan span;
+    Symbol condition = parseExpression(source);
+    if (!condition.valid()) {
+        static String error("Expected expression");
+        source->location().throwError(error);
+    }
+    Space::assertCharacter(source, ')');
+    Symbol conditionedStatement = parseStatement(source);
+    static String expectedStatement("Expected statement");
+    if (!conditionedStatement.valid())
+        source->location().throwError(expectedStatement);
+    Symbol elseStatement;
+    if (Space::parseKeyword(source, elseKeyword, span)) {
+        elseStatement = parseStatement(source);
+        if (!elseStatement.valid())
+            source->location().throwError(expectedStatement);
+    }
+    else
+        if (Space::parseKeyword(source, elseIfKeyword, span))
+            elseStatement = parseConditionalStatement2(source, span.start(), false);
+        else
+            if (Space::parseKeyword(source, elseUnlessKeyword, span))
+                elseStatement = parseConditionalStatement2(source, span.start(), true);
+    if (unlessStatement)
+        return Symbol(atomIfStatement, DiagnosticSpan(start, elseStatement.span().end()), condition, elseStatement, conditionedStatement);
+    return Symbol(atomIfStatement, DiagnosticSpan(start, elseStatement.span().end()), condition, conditionedStatement, elseStatement);
+}
+
+Symbol parseConditionalStatement(CharacterSource* source)
+{
+    static String ifKeyword("if");
+    static String unlessKeyword("unless");
+    DiagnosticSpan span;
+    if (Space::parseKeyword(source, ifKeyword, span))
+        return parseConditionalStatement2(source, span.start(), false);
+    if (Space::parseKeyword(source, unlessKeyword, span))
+        return parseConditionalStatement2(source, span.start(), true);
+    return Symbol();
+}
 //    void resolveTypes()
 //    {
 //        if (_trueStatement.valid())
@@ -828,85 +502,40 @@ Symbol* run(Symbol statement, Stack<Value>* stack)
 //                return _falseStatement->run(stack);
 //        return 0;
 //    }
-//private:
-//    ConditionalStatement(DiagnosticLocation location, Reference<Expression> condition, Reference<Statement> trueStatement, Reference<Statement> falseStatement)
-//        : _location(location), _condition(condition), _trueStatement(trueStatement), _falseStatement(falseStatement)
-//    { }
-//    static Reference<ConditionalStatement> parse(CharacterSource* source, Scope* scope, bool unlessStatement)
-//    {
-//        static String elseKeyword("else");
-//        static String elseIfKeyword("elseIf");
-//        static String elseUnlessKeyword("elseUnless");
-//        Space::assertCharacter(source, '(');
-//        DiagnosticLocation location = source->location();
-//        Reference<Expression> condition = Expression::parse(source, scope);
-//        if (!condition.valid()) {
-//            static String error("Expected expression");
-//            source->location().throwError(error);
-//        }
-//        Space::assertCharacter(source, ')');
-//        Reference<Statement> conditionedStatement = Statement::parse(source, scope);
-//        static String expectedStatement("Expected statement");
-//        if (!conditionedStatement.valid())
-//            source->location().throwError(expectedStatement);
-//        Reference<Statement> elseStatement;
-//        if (Space::parseKeyword(source, elseKeyword)) {
-//            elseStatement = Statement::parse(source, scope);
-//            if (!elseStatement.valid())
-//                source->location().throwError(expectedStatement);
-//        }
-//        else
-//            if (Space::parseKeyword(source, elseIfKeyword))
-//                elseStatement = parse(source, scope, false);
-//            else
-//                if (Space::parseKeyword(source, elseUnlessKeyword))
-//                    elseStatement = parse(source, scope, true);
-//        if (unlessStatement)
-//            return new ConditionalStatement(location, condition, elseStatement, conditionedStatement);
-//        return new ConditionalStatement(location, condition, conditionedStatement, elseStatement);
-//    }
-//
-//    DiagnosticLocation _location;
-//    Reference<Expression> _condition;
-//    Reference<Statement> _trueStatement;
-//    Reference<Statement> _falseStatement;
-//};
-//
-//class SwitchStatement : public Statement
-//{
-//public:
-//    static Reference<SwitchStatement> parse(CharacterSource* source, Scope* scope)
-//    {
-//        static String switchKeyword("switch");
-//        if (!Space::parseKeyword(source, switchKeyword))
-//            return 0;
-//        Space::assertCharacter(source, '(');
-//        Reference<Expression> expression = Expression::parse(source, scope);
-//        if (!expression.valid()) {
-//            static String error("Expected expression");
-//            source->location().throwError(error);
-//        }
-//        Space::assertCharacter(source, ')');
-//        Space::assertCharacter(source, '{');
-//        Stack<Reference<Case> > cases;
-//        Reference<Case> defaultCase;
-//        do {
-//            if (Space::parseCharacter(source, '}'))
-//                break;
-//            CharacterSource s = *source;
-//            Reference<Case> c = Case::parse(source, scope);
-//            if (c->isDefault()) {
-//                if (defaultCase.valid()) {
-//                    static String error("This switch statement already has a default case");
-//                    s.location().throwError(error);
-//                }
-//                defaultCase = c;
-//            }
-//            else
-//                cases.push(c);
-//        } while (true);
-//        return new SwitchStatement(expression, defaultCase, &cases);
-//    }
+
+SymbolList parseCaseList(CharacterSource* source, Symbol& defaultCase)
+{
+    CharacterSource s = *source;
+    Symbol c = parseCase(source);
+    if (c.atom() == atomDefaultCase) {
+        if (defaultCase.valid()) {
+            static String error("This switch statement already has a default case");
+            s.location().throwError(error);
+        }
+        defaultCase = c;
+        return parseCaseList(source, defaultCase);
+    }
+    return SymbolList(c, parseCaseList(source, defaultCase);
+}
+
+Symbol parseSwitchStatement(CharacterSource* source)
+{
+    DiagnosticSpan startSpan;
+    static String switchKeyword("switch");
+    if (!Space::parseKeyword(source, switchKeyword, startSpan))
+        return Symbol();
+    Space::assertCharacter(source, '(');
+    Symbol expression = parseExpression(source);
+    if (!expression.valid()) {
+        static String error("Expected expression");
+        source->location().throwError(error);
+    }
+    Space::assertCharacter(source, ')');
+    Space::assertCharacter(source, '{');
+    Symbol defaultCase;
+    SymbolList cases = parseCaseList(source, defaultCase);
+    return new SwitchStatement(expression, defaultCase, &cases);
+}
 //    void resolveTypes()
 //    {
 //        for (int i = 0; i < _cases.count(); ++i)
@@ -1026,10 +655,311 @@ Symbol* run(Symbol statement, Stack<Value>* stack)
 //    {
 //        cases->toArray(&_cases);
 //    }
+
+Symbol parseStatement(CharacterSource* source)
+{
+    Symbol s = parseExpressionStatement(source);
+    if (s.valid())
+        return s;
+    s = parseFunctionDefinitionStatement(source);
+    if (s.valid())
+        return s;
+    s = parseVariableDefinitionStatement(source);
+    if (s.valid())
+        return s;
+    s = parseAssignmentStatement(source);
+    if (s.valid())
+        return s;
+    s = parseCompoundStatement(source);
+    if (s.valid())
+        return s;
+    s = parseTypeAliasStatement(source);
+    if (s.valid())
+        return s;
+    s = parseNothingStatement(source);
+    if (s.valid())
+        return s;
+    s = parseIncrementStatement(source);
+    if (s.valid())
+        return s;
+    s = parseDecrementStatement(source);
+    if (s.valid())
+        return s;
+    s = parseConditionalStatement(source);
+    if (s.valid())
+        return s;
+    s = parseSwitchStatement(source);
+    if (s.valid())
+        return s;
+    return Symbol();
+}
+
+Symbol* run(Symbol statement, Stack<Value>* stack)
+{
+    Address a;
+    switch (statement.atom()) {
+        case atomExpressionStatement:
+            pushValue(statement[1], stack);
+            if (typeOfExpression(statement[1].symbol()).atom() != atomVoid)
+                stack->pop();
+            return 0;
+        case atomFunctionDefinitionStatement:
+            return 0;
+        case atomVariableDefinitionStatement:
+            if (statement[3].valid()) {
+                pushValue(statement[3], stack);
+                setValue(statement[2], stack->pop());
+            }
+            return 0;
+        case atomAssignmentStatement:
+            pushValue(statement[2], stack);
+            setValue(statement[1], stack->pop());
+            return 0;
+        case atomAddAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, a.getValue() + stack->pop());
+            return 0;
+        case atomSubtractAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, a.getValue() - stack->pop());
+            return 0;
+        case atomMultiplyAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, a.getValue() * stack->pop());
+            return 0;
+        case atomDivideAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, a.getValue() / stack->pop());
+            return 0;
+        case atomModuloAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, a.getValue() % stack->pop());
+            return 0;
+        case atomShiftLeftAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, a.getValue() << stack->pop());
+            return 0;
+        case atomShiftRightAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, a.getValue() >> stack->pop());
+            return 0;
+        case atomAndAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, a.getValue() & stack->pop());
+            return 0;
+        case atomOrAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, a.getValue() | stack->pop());
+            return 0;
+        case atomXorAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, a.getValue() ^ stack->pop());
+            return 0;
+        case atomPowerAssignmentStatement:
+            pushValue(statement[2], stack);
+            pushAddress(statement[1], stack);
+            a = stack->pop().address();
+            setValue(a, power(a.getValue(), stack->pop()));
+            return 0;
+    }
+}
+
+//class ExtricationStatement : public Statement
+//{
+//};
+//
+//class ReturnStatement : public ExtricationStatement
+//{
+//public:
+//    static Reference<ReturnStatement> parse(CharacterSource* source, Scope* scope)
+//    {
+//        static String keyword("return");
+//        if (!Space::parseKeyword(source, keyword))
+//            return 0;
+//        Reference<Expression> expression = Expression::parse(source, scope);
+//        Space::assertCharacter(source, ';');
+//        return new ReturnStatement(expression);
+//    }
+//    void resolveTypes() { }
+//    void compile()
+//    {
+//        if (_expression.valid())
+//            _expression->compile();
+//    }
+//    ExtricationStatement* run(Stack<Value>* stack)
+//    {
+//        if (_expression.valid())
+//            _expression->push(stack);
+//        return this;
+//    }
+//private:
+//    ReturnStatement(Reference<Expression> expression) : _expression(expression)
+//    { }
 //    Reference<Expression> _expression;
-//    Reference<Case> _default;
-//    Array<Reference<Case> > _cases;
-//    Type _type;
+//};
+//
+//class PrintFunction : public FunctionDeclarationStatement
+//{
+//public:
+//    PrintFunction() : _consoleOutput(Handle::consoleOutput())
+//    { }
+//    void resolveTypes() { }
+//    void compile() { }
+//    void call(Stack<Value>* stack)
+//    {
+//        stack->pop().getString().write(_consoleOutput);
+//    }
+//    Type returnType() const { return VoidType(); }
+//private:
+//    Handle _consoleOutput;
+//};
+//
+//class TypeDefinitionStatement : public Statement
+//{
+//public:
+//    void resolveTypes() { }
+//    void compile() { }
+//    ExtricationStatement* run(Stack<Value>* stack) { return 0; }
+//    virtual Type type() = 0;
+//};
+//
+//class IncludeStatement : public Statement
+//{
+//public:
+//    static Reference<IncludeStatement> parse(CharacterSource* source, Scope* scope)
+//    {
+//        static String include("include");
+//        if (!Space::parseKeyword(source, include))
+//            return 0;
+//        Reference<Expression> expression = Expression::parse(source, scope);
+//        if (!expression.valid()) {
+//            static String error("Expected expression");
+//            source->location().throwError(error);
+//        }
+//        Space::assertCharacter(source, ';');
+//        return new IncludeStatement(scope, expression);
+//    }
+//    void resolveTypes() { }
+//    void compile() { }
+//    ExtricationStatement* run(Stack<Value>* stack) { return 0; }
+//private:
+//    IncludeStatement(Scope* scope, Reference<Expression> expression)
+//      : _scope(scope), _expression(expression)
+//    { }
+//    Scope* _scope;
+//    Reference<Expression> _expression;
+//};
+//
+//class BreakStatement;
+//
+//class ContinueStatement;
+//
+//template<class T> class BreakOrContinueStatementTemplate;
+//
+//typedef BreakOrContinueStatementTemplate<void> BreakOrContinueStatement;
+//
+//template<class T> class BreakOrContinueStatementTemplate : public ExtricationStatement
+//{
+//public:
+//    static Reference<BreakOrContinueStatement> parse(CharacterSource* source, Scope* scope)
+//    {
+//        Reference<BreakStatement> breakStatement = BreakStatement::parse(source, scope);
+//        if (breakStatement.valid())
+//            return breakStatement;
+//        return ContinueStatement::parse(source, scope);
+//    }
+//    void resolveTypes() { }
+//    void compile() { }
+//    ExtricationStatement* run(Stack<Value>* stack) { return this; }
+//};
+//
+//class BreakStatement : public BreakOrContinueStatement
+//{
+//public:
+//    static Reference<BreakStatement> parse(CharacterSource* source, Scope* scope)
+//    {
+//        static String keyword("break");
+//        if (!Space::parseKeyword(source, keyword))
+//            return 0;
+//        Reference<BreakOrContinueStatement> statement = BreakOrContinueStatement::parse(source, scope);
+//        if (!statement.valid())
+//            Space::assertCharacter(source, ';');
+//        return new BreakStatement(statement);
+//    }
+//    BreakOrContinueStatement* nextAction() { return _statement; }
+//private:
+//    BreakStatement(Reference<BreakOrContinueStatement> statement) : _statement(statement) { }
+//    Reference<BreakOrContinueStatement> _statement;
+//};
+//
+//class ContinueStatement : public BreakOrContinueStatement
+//{
+//public:
+//    static Reference<ContinueStatement> parse(CharacterSource* source, Scope* scope)
+//    {
+//        static String keyword("continue");
+//        if (!Space::parseKeyword(source, keyword))
+//            return 0;
+//        Space::assertCharacter(source, ';');
+//        return new ContinueStatement();
+//    }
+//};
+//
+//class ForeverStatement : public Statement
+//{
+//public:
+//    static Reference<ForeverStatement> parse(CharacterSource* source, Scope* scope)
+//    {
+//        static String forever("forever");
+//        if (!Space::parseKeyword(source, forever))
+//            return 0;
+//        Reference<Statement> statement = Statement::parse(source, scope);
+//        if (!statement.valid()) {
+//            static String error("Expected statement");
+//            source->location().throwError(error);
+//        }
+//        return new ForeverStatement(statement);
+//    }
+//    void resolveTypes() { _statement->resolveTypes(); }
+//    void compile() { _statement->compile(); }
+//    ExtricationStatement* run(Stack<Value>* stack)
+//    {
+//        do {
+//            ExtricationStatement* statement = _statement->run(stack);
+//            BreakStatement* breakStatement = dynamic_cast<BreakStatement*>(statement);
+//            if (breakStatement != 0)
+//                return breakStatement->nextAction();
+//            ContinueStatement* continueStatement = dynamic_cast<ContinueStatement*>(statement);
+//            if (continueStatement != 0)
+//                continue;
+//            return statement;  // must be a throw or return statement
+//        } while (true);
+//    }
+//public:
+//    ForeverStatement(Reference<Statement> statement)
+//      : _statement(statement)
+//    { }
+//    Reference<Statement> _statement;
 //};
 //
 //class StringTypeDefinitionStatement : public TypeDefinitionStatement

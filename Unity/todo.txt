@@ -1,14 +1,20 @@
-Convert Statement to Symbol
+SymbolLists are created in reverse order (so we don't need to put the whole thing on the call stack)
+  When added to a Symbol, convert to a SymbolArray
+    Use an array for now, can switch to am AVL tree later if necessary for the instruction stream
 
-Convert Case to Symbol
+Convert Statement to Symbol
+  Switch
+    Convert Case to Symbol
+  Return
+  Include
+  Break
+  Continue
+  Forever
 
 Come up with a low-level intermediate form
   32-bits per entry stack, say 1Mb default size
   heap memory shared with interpreter
   Low-level instructions
-    Compile the program to one long instruction stream? One instruction stream per function?
-      Need to be able to address functions and labels within functions
-      Need a better form than SymbolList?
 
 Algorithm for resolving names in the presence of overloading
   Make a list of all the targets with matching names and potential number of arguments

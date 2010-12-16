@@ -72,6 +72,11 @@ enum Atom
     atomXorAssignmentStatement,
     atomPowerAssignmentStatement,
     atomCompoundStatement,
+    atomTypeAliasStatement,
+    atomNothingStatement,
+    atomIncrementStatement,
+    atomDecrementStatement,
+    atomIfStatement,
 
     atomLocation,
     atomSpan,
@@ -156,6 +161,11 @@ String atomToString(Atom atom)
             _table[atomXorAssignmentStatement] = String("~=");
             _table[atomPowerAssignmentStatement] = String("^=");
             _table[atomCompoundStatement] = String("compound");
+            _table[atomTypeAliasStatement] = String("type");
+            _table[atomNothingStatement] = String("nothing");
+            _table[atomIncrementStatement] = String("++");
+            _table[atomDecrementStatement] = String("--");
+            _table[atomIfStatement] = String("if");
 
             _table[atomLocation] = String("location");
             _table[atomSpan] = String("span");
