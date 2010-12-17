@@ -103,7 +103,7 @@ private:
 class SymbolName : public ReferenceCounted
 {
 public:
-    virtual Symbol type(String name, DiagnosticLocation location) const = 0;
+    virtual Symbol type(String name, Location location) const = 0;
     virtual Value value() const = 0;
 };
 
@@ -112,7 +112,7 @@ class FunctionDeclarationStatement;
 template<class T> class FunctionNameTemplate : public SymbolName
 {
 public:
-    void addOverload(SymbolList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
+    void addOverload(SymbolList argumentTypes, FunctionDeclarationStatement* function, Location location)
     {
         if (_overloads.hasKey(argumentTypes)) {
             static String error("This overload has already been defined.");
@@ -130,7 +130,7 @@ public:
     {
         return _overloads.lookUp(argumentTypes);
     }
-    Symbol type(String name, DiagnosticLocation location) const
+    Symbol type(String name, Location location) const
     {
         if (_overloads.count() > 1) {
             static String error(" is an overloaded function - I don't know which overload you mean.");
@@ -139,7 +139,7 @@ public:
         return _functionType;
     }
     Value value() const
-    { 
+    {
         return Value(_functionDeclaration);
     }
 private:
@@ -157,7 +157,7 @@ class Variable : public SymbolName
 {
 public:
     Variable(Symbol type) : _type(type) { }
-    Symbol type(String name, DiagnosticLocation location) const { return _type; }
+    Symbol type(String name, Location location) const { return _type; }
     Value value() const { return _value; }
     void setValue(Value value) { _value = value; }
 private:
@@ -184,7 +184,7 @@ public:
     }
     Scope* outer() const { return _outer; }
     Scope* functionScope() const { return _functionScope; }
-    Reference<Variable> addVariable(String name, Symbol type, DiagnosticLocation location)
+    Reference<Variable> addVariable(String name, Symbol type, Location location)
     {
         if (_symbolTable.hasKey(name)) {
             static String error(" is already defined");
@@ -194,7 +194,7 @@ public:
         _symbolTable.add(name, variable);
         return variable;
     }
-    Reference<SymbolName> resolveSymbolName(String name, DiagnosticLocation location)
+    Reference<SymbolName> resolveSymbolName(String name, Location location)
     {
         if (!_symbolTable.hasKey(name)) {
             if (_outer != 0)
@@ -204,24 +204,24 @@ public:
         }
         return _symbolTable.lookUp(name);
     }
-    void addFunction(String name, SymbolList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
+    void addFunction(String name, SymbolList argumentTypes, FunctionDeclarationStatement* function, Location location)
     {
         _functionScope->doAddFunction(name, argumentTypes, function, location);
     }
-    void addType(String name, TypeDefinitionStatement* type, DiagnosticLocation location)
+    void addType(String name, TypeDefinitionStatement* type, Location location)
     {
         _functionScope->doAddType(name, type, location);
     }
-    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, DiagnosticLocation location)
+    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
     {
         return _functionScope->doResolveFunction(identifier, typeList, location);
     }
-    TypeDefinitionStatement* resolveType(String name, DiagnosticLocation location)
+    TypeDefinitionStatement* resolveType(String name, Location location)
     {
         return _functionScope->doResolveType(name, location);
     }
 private:
-    void doAddFunction(String name, SymbolList argumentTypes, FunctionDeclarationStatement* function, DiagnosticLocation location)
+    void doAddFunction(String name, SymbolList argumentTypes, FunctionDeclarationStatement* function, Location location)
     {
         FunctionName* functionName;
         if (_symbolTable.hasKey(name)) {
@@ -238,7 +238,7 @@ private:
         }
         functionName->addOverload(argumentTypes, function, location);
     }
-    void doAddType(String name, TypeDefinitionStatement* type, DiagnosticLocation location)
+    void doAddType(String name, TypeDefinitionStatement* type, Location location)
     {
         if (_typeTable.hasKey(name)) {
             static String error(" has already been defined.");
@@ -246,7 +246,7 @@ private:
         }
         _typeTable.add(name, type);
     }
-    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, DiagnosticLocation location)
+    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
     {
         String name = identifier->name();
         if (!_symbolTable.hasKey(name)) {
@@ -268,7 +268,7 @@ private:
         }
         return functionName->lookUpOverload(typeList);
     }
-    TypeDefinitionStatement* doResolveType(String name, DiagnosticLocation location)
+    TypeDefinitionStatement* doResolveType(String name, Location location)
     {
         if (!_typeTable.hasKey(name)) {
             if (_outer == 0) {
@@ -302,25 +302,25 @@ public:
             return;
         } while (true);
     }
-    static bool parseCharacter(CharacterSource* source, int character, DiagnosticSpan& span)
+    static bool parseCharacter(CharacterSource* source, int character, Span& span)
     {
-        DiagnosticLocation start = source->location();
+        Location start = source->location();
         if (!source->parse(character))
             return false;
-        span = DiagnosticSpan(start, source->location());
+        span = Span(start, source->location());
         parse(source);
         return true;
     }
-    static DiagnosticLocation assertCharacter(CharacterSource* source, int character)
+    static Location assertCharacter(CharacterSource* source, int character)
     {
         source->assert(character);
-        DiagnosticLocation l = source->location();
+        Location l = source->location();
         parse(source);
         return l;
     }
-    static bool parseOperator(CharacterSource* source, String op, DiagnosticSpan& span)
+    static bool parseOperator(CharacterSource* source, String op, Span& span)
     {
-        DiagnosticLocation start = source->location();
+        Location start = source->location();
         static String empty("");
         CharacterSource s = *source;
         CharacterSource o(op, empty);
@@ -332,13 +332,13 @@ public:
                 return false;
         } while (true);
         *source = s;
-        span = DiagnosticSpan(start, source->location());
+        span = Span(start, source->location());
         parse(source);
         return true;
     }
-    static bool parseKeyword(CharacterSource* source, String keyword, DiagnosticSpan& span)
+    static bool parseKeyword(CharacterSource* source, String keyword, Span& span)
     {
-        DiagnosticLocation start = source->location();
+        Location start = source->location();
         static String empty("");
         CharacterSource s = *source;
         CharacterSource o(keyword, empty);
@@ -354,7 +354,7 @@ public:
         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')
             return false;
         *source = s;
-        span = DiagnosticSpan(start, source->location());
+        span = Span(start, source->location());
         parse(source);
         return true;
     }
@@ -428,12 +428,12 @@ int main(int argc, char* argv[])
         String contents = file.contents();
         Reference<Scope> scope = new Scope(0, true);
 
-        Reference<PrintFunction> print = new PrintFunction();
+        Symbol print(Symbol::newLabel(), atomPrintFunction, Span());
         TypeList printArgumentTypes;
         printArgumentTypes.push(StringType());
         printArgumentTypes.finalize();
         Type printFunctionType = FunctionType(VoidType(), printArgumentTypes);
-        scope->addFunction(String("print"), printArgumentTypes, print, DiagnosticLocation());
+        scope->addFunction(String("print"), printArgumentTypes, print, Location());
 
         CharacterSource source(contents, file.path());
         Space::parse(&source);
@@ -445,13 +445,13 @@ int main(int argc, char* argv[])
         }
 
         Reference<StringTypeDefinitionStatement> stringTypeDefinitionStatement = new StringTypeDefinitionStatement();
-        scope->addType(String("String"), stringTypeDefinitionStatement, DiagnosticLocation());
+        scope->addType(String("String"), stringTypeDefinitionStatement, Location());
         Reference<VoidTypeDefinitionStatement> voidTypeDefinitionStatement = new VoidTypeDefinitionStatement();
-        scope->addType(String("Void"), voidTypeDefinitionStatement, DiagnosticLocation());
+        scope->addType(String("Void"), voidTypeDefinitionStatement, Location());
         Reference<IntTypeDefinitionStatement> intTypeDefinitionStatement = new IntTypeDefinitionStatement();
-        scope->addType(String("Int"), intTypeDefinitionStatement, DiagnosticLocation());
+        scope->addType(String("Int"), intTypeDefinitionStatement, Location());
         Reference<BooleanTypeDefinitionStatement> booleanTypeDefinitionStatement = new BooleanTypeDefinitionStatement();
-        scope->addType(String("Boolean"), booleanTypeDefinitionStatement, DiagnosticLocation());
+        scope->addType(String("Boolean"), booleanTypeDefinitionStatement, Location());
 
         program->resolveTypes();
         program->compile();

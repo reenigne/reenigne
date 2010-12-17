@@ -5,7 +5,13 @@ template<class T> class Array : Uncopyable
 {
 public:
     Array() : _data(0) { }
-    void allocate(int n) { release(); _data = new T[n]; _n = n; }
+    void allocate(int n)
+    { 
+        release();
+        if (n != 0)
+            _data = new T[n];
+        _n = n;
+    }
     ~Array() { release(); }
     T& operator[](int i) { return _data[i]; }
     const T& operator[](int i) const { return _data[i]; }
@@ -33,7 +39,7 @@ public:
         return !operator==(other);
     }
 private:
-    void release() { if (_data != 0) delete[] _data; }
+    void release() { if (_data != 0) delete[] _data; _data = 0; }
 
     T* _data;
     int _n;

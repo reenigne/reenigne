@@ -1,7 +1,7 @@
 Symbol parseTypeIdentifier(CharacterSource* source)
 {
     CharacterSource s = *source;
-    DiagnosticLocation location = s.location();
+    Location location = s.location();
     int start = s.offset();
     int c = s.get();
     if (c < 'A' || c > 'Z')
@@ -15,7 +15,7 @@ Symbol parseTypeIdentifier(CharacterSource* source)
         break;
     } while (true);
     int end = s2.offset();
-    DiagnosticLocation endLocation = s2.location();
+    Location endLocation = s2.location();
     Space::parse(&s2);
     String name = s2.subString(start, end);
     static String keywords[] = {
@@ -42,24 +42,24 @@ Symbol parseTypeIdentifier(CharacterSource* source)
         if (name == keywords[i])
             return Symbol();
     *source = s2;
-    return Symbol(atomTypeIdentifier, DiagnosticSpan(location, endLocation), name);
+    return Symbol(atomTypeIdentifier, Span(location, endLocation), name);
 }
 
 Symbol parseClassTypeSpecifier(CharacterSource* source)
 {
     static String keyword("Class");
-    DiagnosticLocation start = source->location();
+    Location start = source->location();
     if (!Space::parseKeyword(source, keyword))
         return Symbol();
     Space::assertCharacter(source, '{');
     // TODO: Parse class contents
-    DiagnosticLocation end = Space::assertCharacter(source, '}');
-    return Symbol(atomClass, DiagnosticSpan(start, end));
+    Location end = Space::assertCharacter(source, '}');
+    return Symbol(atomClass, Span(start, end));
 }
 
 Symbol parseFundamentalTypeSpecifier(CharacterSource* source)
 {
-    DiagnosticLocation start = source->location();
+    Location start = source->location();
     Symbol typeSpecifier = parseTypeIdentifier(source);
     if (typeSpecifier.valid()) {
         String s = typeSpecifier[1].string();
@@ -105,25 +105,23 @@ Symbol parseFundamentalTypeSpecifier(CharacterSource* source)
     return Symbol();
 }
 
-SymbolList parseTypeListSpecifier2(Symbol typeSpecifier, CharacterSource* source)
+SymbolArray parseTypeSpecifierList(CharacterSource* source)
 {
-    DiagnosticSpan span;
-    if (!Space::parseCharacter(source, ',', span))
-        return SymbolList(typeSpecifier);
-    Symbol typeSpecifier2 = parseTypeSpecifier(source);
-    if (!typeSpecifier2.valid()) {
-        static String error("Type specifier expected");
-        source->location().throwError(error);
-    }
-    return SymbolList(typeSpecifier, parseTypeListSpecifier2(typeSpecifier2, source));
-}
-
-SymbolList parseTypeListSpecifier(CharacterSource* source)
-{
+    SymbolList list;
     Symbol typeSpecifier = parseTypeSpecifier(source);
     if (!typeSpecifier.valid())
-        return SymbolList();
-    return parseTypeListSpecifier2(typeSpecifier, source);
+        return list;
+    list.add(typeSpecifier);
+    Span span;
+    while (Space::parseCharacter(source, ',', span)) {
+        typeSpecifier = parseTypeSpecifier(source);
+        if (!typeSpecifier.valid()) {
+            static String error("Type specifier expected");
+            source->location().throwError(error);
+        }
+        list.add(typeSpecifier);
+    }
+    return list;
 }
 
 Symbol parseTypeSpecifier(CharacterSource* source)
@@ -132,15 +130,15 @@ Symbol parseTypeSpecifier(CharacterSource* source)
     if (!typeSpecifier.valid())
         return Symbol();
     do {
-        DiagnosticSpan span;
+        Span span;
         if (Space::parseCharacter(source, '*', span)) {
-            typeSpecifier = Symbol(atomPointer, DiagnosticSpan(typeSpecifier.span().start(), span.end()), typeSpecifier);
+            typeSpecifier = Symbol(atomPointer, Span(typeSpecifier.span().start(), span.end()), typeSpecifier);
             continue;
         }
         if (Space::parseCharacter(source, '(', span)) {
-            SymbolList typeListSpecifier = parseTypeListSpecifier(source);
-            DiagnosticLocation end = Space::assertCharacter(source, ')');
-            typeSpecifier = Symbol(atomFunction, DiagnosticSpan(typeSpecifier.span().start(), end), typeSpecifier, typeListSpecifier);
+            SymbolArray typeListSpecifier = parseTypeSpecifierList(source);
+            Location end = Space::assertCharacter(source, ')');
+            typeSpecifier = Symbol(atomFunction, Span(typeSpecifier.span().start(), end), typeSpecifier, typeListSpecifier);
             continue;
         }
     } while (true);
@@ -151,16 +149,12 @@ Symbol parseTypeSpecifier(CharacterSource* source)
 
 Symbol parseTypeOfTypeSpecifier(CharacterSource* source)
 {
-    DiagnosticSpan span;
+    Span span;
     static String keyword("TypeOf");
     if (!Space::parseKeyword(source, keyword, span))
         return Symbol();
     Space::assertCharacter(source, '(');
-    Symbol expression = parseExpression(source);
-    if (!expression.valid()) {
-        static String error("Expression expected");
-        source->location().throwError(error);
-    }
-    DiagnosticLocation end = Space::assertCharacter(source, ')');
-    return Symbol(atomTypeOf, DiagnosticSpan(span.start(), end), expression);
+    Symbol expression = parseExpressionOrFail(source);
+    Location end = Space::assertCharacter(source, ')');
+    return Symbol(atomTypeOf, Span(span.start(), end), expression);
 }

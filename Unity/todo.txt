@@ -1,15 +1,17 @@
-SymbolLists are created in reverse order (so we don't need to put the whole thing on the call stack)
-  When added to a Symbol, convert to a SymbolArray
-    Use an array for now, can switch to am AVL tree later if necessary for the instruction stream
+Implement compilation steps as Symbol transformations
+  Phase: Initialize Scopes and add symbols
+  Phase: Resolve symbols (augment Identifier with label number)
+  Phase: Check types and resolve overloaded function calls
+  Phase: Compile to low-level code
+  Phase: Run
 
-Convert Statement to Symbol
-  Switch
-    Convert Case to Symbol
-  Return
-  Include
-  Break
-  Continue
-  Forever
+Class contents:
+  public/private/protected
+  friend declaration
+  member variable
+  method definition
+  include
+    Or have a 'Class X from y' form instead?
 
 Come up with a low-level intermediate form
   32-bits per entry stack, say 1Mb default size
@@ -25,24 +27,10 @@ Algorithm for resolving names in the presence of overloading
 Scope:
   Make a special slot in Symbol
 
-Implement compilation steps as Symbol transformations
-
-Test conditional statements
-Test switch statement
-
 More detail in switch type mismatch error
 Allow overloads over operator== for switch comparison
 
-Add statement [`do` Statement] (`while` | `until`) ParentheticalExpression LoopBody
-Add statement `for` "(" (Statement | ";") [Expression] ";" [Statement] ")" LoopBody
-
-Refactor to avoid repetition
-  Type and TypeSpecifier classes for built in types
-  Make all the operators functions so we don't have to have AddExpression etc. classes
-
 In break/continue statement's compile(), make sure we are inside a suitable loop/switch
-
-Use operator[] instead of add in HashTable?
 
 Add Int32, UInt32 and NInt32 types
 Add 8-bit and 16-bit types
@@ -113,4 +101,5 @@ Add goto and label statements
 Optimization: Add a LabelledSymbol class deriving from Symbol so that Symbol doesn't need a _label member
 Optimization: Shrink Symbol::_labelled if the second half is all empty to avoid pooling memory.
   To do this, need to remove elements from the list when they're at the end of the array.
-    
+Optimization: switch SymbolArray to am AVL tree
+Change semicolon parsing on increment/decrement/expression statements so that "for (i = 0; i < n; ++i)" is valid.

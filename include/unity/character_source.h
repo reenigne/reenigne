@@ -1,14 +1,14 @@
 #ifndef INCLUDED_CHARACTER_SOURCE_H
 #define INCLUDED_CHARACTER_SOURCE_H
 
-class DiagnosticLocation
+class Location
 {
 public:
-    DiagnosticLocation() { }
-    DiagnosticLocation(String fileName)
+    Location() { }
+    Location(String fileName)
       : _fileName(fileName), _line(1), _column(1)
     { }
-    DiagnosticLocation(String fileName, int line, int column)
+    Location(String fileName, int line, int column)
       : _fileName(fileName), _line(line), _column(column)
     { }
     String asString() const
@@ -31,18 +31,18 @@ private:
     int _column;
 };
 
-class DiagnosticSpan
+class Span
 {
 public:
-    DiagnosticSpan() { }
-    DiagnosticSpan(DiagnosticLocation start, DiagnosticLocation end)
+    Span() { }
+    Span(Location start, Location end)
       : _fileName(start.fileName()),
         _startLine(start.line()),
         _startColumn(start.column()),
         _endLine(end.line()),
         _endColumn(end.column())
     { }
-    DiagnosticSpan(String fileName, int startLine, int startColumn, int endLine, int endColumn)
+    Span(String fileName, int startLine, int startColumn, int endLine, int endColumn)
       : _fileName(fileName),
         _startLine(startLine),
         _startColumn(startColumn),
@@ -58,20 +58,20 @@ public:
     {
         static String s(")-(");
         return _fileName + openParenthesis + String::decimal(_startLine) + comma +
-            String::decimal(_startColumn) + s + String::decimal(_endLine) + comma + 
+            String::decimal(_startColumn) + s + String::decimal(_endLine) + comma +
             String::decimal(_endColumn) + closeParenthesis;
     }
     void throwError(const String& message) const
     {
         throw Exception(asString() + colonSpace + message);
     }
-    DiagnosticLocation start() const
-    { 
-        return DiagnosticLocation(_fileName, _startLine, _startColumn);
-    }
-    DiagnosticLocation end() const
+    Location start() const
     {
-        return DiagnosticLocation(_fileName, _endLine, _endColumn);
+        return Location(_fileName, _startLine, _startColumn);
+    }
+    Location end() const
+    {
+        return Location(_fileName, _endLine, _endColumn);
     }
 private:
     String _fileName;
@@ -246,7 +246,7 @@ public:
             return;
         start.throwUnexpected(String::codePoint(character), String::codePoint(found));
     }
-    DiagnosticLocation location() const { return _location; }
+    Location location() const { return _location; }
     void throwUnexpected(const String& expected, const String& observed)
     {
         static String expectedMessage("Expected ");
@@ -255,9 +255,9 @@ public:
     }
     int offset() const { return _codePointSource.offset(); }
     String subString(int start, int end) { return _codePointSource.subString(start, end); }
-private:          
+private:
     CodePointSource _codePointSource;
-    DiagnosticLocation _location;
+    Location _location;
 };
 
 #endif // INCLUDED_CHARACTER_SOURCE_H

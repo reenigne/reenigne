@@ -3,10 +3,10 @@ String typeToString(Symbol type)
     switch (type.atom()) {
         case atomFunction:
             {
-                String s = typeToString(type.entry1().symbol()) + openParenthesis;
-                SymbolList list = type.entry2().list();
+                String s = typeToString(type[1].symbol()) + openParenthesis;
+                SymbolArray list = type[2].list();
                 bool hasArguments = false;
-                while (!list.isEmpty()) {
+                while (list.count() != 0) {
                     if (hasArguments)
                         s += commaSpace;
                     s += typeToString(list.head());
@@ -16,7 +16,7 @@ String typeToString(Symbol type)
                 return s + closeParenthesis;
             }
         case atomPointer:
-            return typeToString(type.entry1().symbol()) + asterisk;
+            return typeToString(type[1].symbol()) + asterisk;
         default:
             return atomToString(type.atom());
     }
