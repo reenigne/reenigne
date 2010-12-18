@@ -184,44 +184,44 @@ public:
     }
     Scope* outer() const { return _outer; }
     Scope* functionScope() const { return _functionScope; }
-    Reference<Variable> addVariable(String name, Symbol type, Location location)
+//    Reference<Variable> addVariable(String name, Symbol type, Location location)
+//    {
+//        if (_symbolTable.hasKey(name)) {
+//            static String error(" is already defined");
+//            location.throwError(name + error);
+//        }
+//        Reference<Variable> variable = new Variable(type);
+//        _symbolTable.add(name, variable);
+//        return variable;
+//    }
+//    Reference<SymbolName> resolveSymbolName(String name, Location location)
+//    {
+//        if (!_symbolTable.hasKey(name)) {
+//            if (_outer != 0)
+//                return _outer->resolveSymbolName(name, location);
+//            static String error("Undefined symbol ");
+//            location.throwError(error + name);
+//        }
+//        return _symbolTable.lookUp(name);
+//    }
+    void addFunction(String name, int label)
     {
-        if (_symbolTable.hasKey(name)) {
-            static String error(" is already defined");
-            location.throwError(name + error);
-        }
-        Reference<Variable> variable = new Variable(type);
-        _symbolTable.add(name, variable);
-        return variable;
+        _functionScope->doAddFunction(name, label);
     }
-    Reference<SymbolName> resolveSymbolName(String name, Location location)
-    {
-        if (!_symbolTable.hasKey(name)) {
-            if (_outer != 0)
-                return _outer->resolveSymbolName(name, location);
-            static String error("Undefined symbol ");
-            location.throwError(error + name);
-        }
-        return _symbolTable.lookUp(name);
-    }
-    void addFunction(String name, SymbolList argumentTypes, FunctionDeclarationStatement* function, Location location)
-    {
-        _functionScope->doAddFunction(name, argumentTypes, function, location);
-    }
-    void addType(String name, TypeDefinitionStatement* type, Location location)
-    {
-        _functionScope->doAddType(name, type, location);
-    }
-    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
-    {
-        return _functionScope->doResolveFunction(identifier, typeList, location);
-    }
-    TypeDefinitionStatement* resolveType(String name, Location location)
-    {
-        return _functionScope->doResolveType(name, location);
-    }
+//    void addType(String name, TypeDefinitionStatement* type, Location location)
+//    {
+//        _functionScope->doAddType(name, type, location);
+//    }
+//    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
+//    {
+//        return _functionScope->doResolveFunction(identifier, typeList, location);
+//    }
+//    TypeDefinitionStatement* resolveType(String name, Location location)
+//    {
+//        return _functionScope->doResolveType(name, location);
+//    }
 private:
-    void doAddFunction(String name, SymbolList argumentTypes, FunctionDeclarationStatement* function, Location location)
+    void doAddFunction(String name, int label)
     {
         FunctionName* functionName;
         if (_symbolTable.hasKey(name)) {
@@ -236,51 +236,51 @@ private:
             functionName = new FunctionName;
             _symbolTable.add(name, functionName);
         }
-        functionName->addOverload(argumentTypes, function, location);
+        functionName->addOverload(label);
     }
-    void doAddType(String name, TypeDefinitionStatement* type, Location location)
-    {
-        if (_typeTable.hasKey(name)) {
-            static String error(" has already been defined.");
-            location.throwError(name + error);
-        }
-        _typeTable.add(name, type);
-    }
-    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
-    {
-        String name = identifier->name();
-        if (!_symbolTable.hasKey(name)) {
-            if (_outer == 0) {
-                static String error("Undefined function ");
-                location.throwError(error + name);
-            }
-            return _outer->resolveFunction(identifier, typeList, location);
-        }
-        Reference<SymbolName> symbol = _symbolTable.lookUp(name);
-        FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
-        if (functionName == 0) {
-            static String error(" is not a function");
-            location.throwError(name + error);
-        }
-        if (!functionName->hasOverload(typeList)) {
-            static String error(" has no overload with argument types ");
-            location.throwError(name + error + typeList.toString());
-        }
-        return functionName->lookUpOverload(typeList);
-    }
-    TypeDefinitionStatement* doResolveType(String name, Location location)
-    {
-        if (!_typeTable.hasKey(name)) {
-            if (_outer == 0) {
-                static String error("Undefined type ");
-                location.throwError(error + name);
-            }
-            return _outer->resolveType(name, location);
-        }
-        return _typeTable.lookUp(name);
-    }
+//    void doAddType(String name, TypeDefinitionStatement* type, Location location)
+//    {
+//        if (_typeTable.hasKey(name)) {
+//            static String error(" has already been defined.");
+//            location.throwError(name + error);
+//        }
+//        _typeTable.add(name, type);
+//    }
+//    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
+//    {
+//        String name = identifier->name();
+//        if (!_symbolTable.hasKey(name)) {
+//            if (_outer == 0) {
+//                static String error("Undefined function ");
+//                location.throwError(error + name);
+//            }
+//            return _outer->resolveFunction(identifier, typeList, location);
+//        }
+//        Reference<SymbolName> symbol = _symbolTable.lookUp(name);
+//        FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
+//        if (functionName == 0) {
+//            static String error(" is not a function");
+//            location.throwError(name + error);
+//        }
+//        if (!functionName->hasOverload(typeList)) {
+//            static String error(" has no overload with argument types ");
+//            location.throwError(name + error + typeList.toString());
+//        }
+//        return functionName->lookUpOverload(typeList);
+//    }
+//    TypeDefinitionStatement* doResolveType(String name, Location location)
+//    {
+//        if (!_typeTable.hasKey(name)) {
+//            if (_outer == 0) {
+//                static String error("Undefined type ");
+//                location.throwError(error + name);
+//            }
+//            return _outer->resolveType(name, location);
+//        }
+//        return _typeTable.lookUp(name);
+//    }
     HashTable<String, Reference<SymbolName> > _symbolTable;
-    HashTable<String, TypeDefinitionStatement*> _typeTable;
+    HashTable<String, int> _typeTable;
     Scope* _outer;
     Scope* _functionScope;
 };
@@ -406,6 +406,74 @@ private:
 #include "TypeSpecifier.cpp"
 #include "Statement.cpp"
 
+Scope* setStatementScope(Symbol statement, Scope* scope)
+{
+    statement.cache() = scope;
+    Reference<Scope> inner;
+    switch (statement.atom()) {
+        case atomExpressionStatement:
+        case atomAssignmentStatement:
+        case atomAddAssignmentStatement:
+        case atomSubtractAssignmentStatement:
+        case atomMultiplyAssignmentStatement:
+        case atomDivideAssignmentStatement:
+        case atomModuloAssignmentStatement:
+        case atomShiftLeftAssignmentStatement:
+        case atomShiftRightAssignmentStatement:
+        case atomAndAssignmentStatement:
+        case atomOrAssignmentStatement:
+        case atomXorAssignmentStatement:
+        case atomPowerAssignmentStatement:
+        case atomFromStatement:
+        case atomTypeAliasStatement:
+        case atomNothingStatement:
+        case atomIncrementStatement:
+        case atomDecrementStatement:
+            break;
+
+        case atomFunctionDefinitionStatement:
+            inner = new Scope(scope, true);
+            statement.cache() = inner;
+            setStatementScope(statement[4].symbol(), inner);
+            break;
+
+        case atomVariableDefinitionStatement:
+            scope = new Scope(scope);
+            statement.cache() = scope;
+            break;
+
+        case atomCompoundStatement:
+            inner = new Scope(scope, true);
+            statement.cache() = inner;
+            setStatementArrayScope(statement[1].list(), inner);
+            break;
+
+        case atomIfStatement:
+            inner = new Scope(scope, true);
+            setStatementScope(statement[2].symbol(), inner);
+            inner = new Scope(scope, true);
+            setStatementScope(statement[3].symbol(), inner);
+            break;
+
+        case atomSwitchStatement:
+        case atomReturnStatement:
+        case atomIncludeStatement:
+        case atomBreakStatement:
+        case atomContinueStatement:
+        case atomForeverStatement:
+        case atomWhileStatement:
+        case atomUntilStatement:
+        case atomForStatement:
+    }
+    return scope;
+}
+
+void setStatementArrayScope(SymbolArray program, Scope* scope)
+{
+    for (int i = 0; i < program.count(); ++i)
+        scope = setStatementScope(program[i], scope);
+}
+
 #ifdef _WIN32
 int main()
 #else
@@ -428,36 +496,20 @@ int main(int argc, char* argv[])
         String contents = file.contents();
         Reference<Scope> scope = new Scope(0, true);
 
-        Symbol print(Symbol::newLabel(), atomPrintFunction, Span());
-        TypeList printArgumentTypes;
-        printArgumentTypes.push(StringType());
-        printArgumentTypes.finalize();
-        Type printFunctionType = FunctionType(VoidType(), printArgumentTypes);
-        scope->addFunction(String("print"), printArgumentTypes, print, Location());
+        int printLabel = Symbol::newLabel();
+        Symbol print(printLabel, atomPrintFunction, Span(), Symbol(atomVoid, Span()), String("print"), SymbolArray(Symbol(atomString, Span())));
+        scope->addFunction(String("print"), printLabel);
 
         CharacterSource source(contents, file.path());
         Space::parse(&source);
-        Reference<StatementSequence> program = StatementSequence::parse(&source, scope);
+        SymbolArray program = parseStatementSequence(&source);
         CharacterSource s = source;
         if (s.get() != -1) {
             static String error("Expected end of file");
             source.location().throwError(error);
         }
 
-        Reference<StringTypeDefinitionStatement> stringTypeDefinitionStatement = new StringTypeDefinitionStatement();
-        scope->addType(String("String"), stringTypeDefinitionStatement, Location());
-        Reference<VoidTypeDefinitionStatement> voidTypeDefinitionStatement = new VoidTypeDefinitionStatement();
-        scope->addType(String("Void"), voidTypeDefinitionStatement, Location());
-        Reference<IntTypeDefinitionStatement> intTypeDefinitionStatement = new IntTypeDefinitionStatement();
-        scope->addType(String("Int"), intTypeDefinitionStatement, Location());
-        Reference<BooleanTypeDefinitionStatement> booleanTypeDefinitionStatement = new BooleanTypeDefinitionStatement();
-        scope->addType(String("Boolean"), booleanTypeDefinitionStatement, Location());
-
-        program->resolveTypes();
-        program->compile();
-
-        Stack<Value> stack;
-        program->run(&stack);
+        setStatementArrayScope(program, scope);
     }
     END_CHECKED(Exception& e) {
         e.write(Handle::consoleOutput());

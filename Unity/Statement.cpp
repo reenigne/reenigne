@@ -229,7 +229,7 @@ Symbol parseTypeAliasStatement(CharacterSource* source)
     *source = s;
     Symbol typeSpecifier = parseTypeSpecifier(source);
     Location end = Space::assertCharacter(source, ';');
-    return Symbol(atomTypeAliasStatement, Span(typeIdentifier.span().start(), end), typeIdentifier, typeSpecifier);
+    return Symbol(Symbol::newLabel(), atomTypeAliasStatement, Span(typeIdentifier.span().start(), end), typeIdentifier, typeSpecifier);
 }
 
 Symbol parseNothingStatement(CharacterSource* source)

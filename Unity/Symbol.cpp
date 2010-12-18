@@ -93,6 +93,8 @@ enum Atom
     atomLocation,
     atomSpan,
 
+    atomPrintFunction,
+
     atomLast
 };
 
@@ -193,6 +195,8 @@ String atomToString(Atom atom)
 
             _table[atomLocation] = String("location");
             _table[atomSpan] = String("span");
+
+            _table[atomPrintFunction] = String("print");
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:
