@@ -1,4 +1,4 @@
-Add name/label associations to scopes for varaible/parameter/function/type definitions while scopes are being set up
+Add name/label associations to scopes for variable/parameter/function/type definitions while scopes are being set up
 
 
 

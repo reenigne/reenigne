@@ -406,12 +406,32 @@ private:
 #include "TypeSpecifier.cpp"
 #include "Statement.cpp"
 
+void setExpressionScope(Symbol expression, Scope* scope)
+{
+    expression.cache() = scope;
+    // TODO: set scope of subexpressions
+}
+
+void setTypeSpecifierScope(Symbol typeSpecifier, Scope* scope)
+{
+    typeSpecifier.cache() = scope;
+    // TODO: set scope of members
+}
+
+void setParametersScope(SymbolArray parameters, Scope* scope)
+{
+    for (int i = 0; i < parameters.count(); ++i)
+        setTypeSpecifierScope(parameters[i][1].symbol(), scope);
+}
+
 Scope* setStatementScope(Symbol statement, Scope* scope)
 {
     statement.cache() = scope;
     Reference<Scope> inner;
     switch (statement.atom()) {
         case atomExpressionStatement:
+            setExpressionScope(statement[1].symbol(), scope);
+            break;
         case atomAssignmentStatement:
         case atomAddAssignmentStatement:
         case atomSubtractAssignmentStatement:
@@ -424,38 +444,50 @@ Scope* setStatementScope(Symbol statement, Scope* scope)
         case atomOrAssignmentStatement:
         case atomXorAssignmentStatement:
         case atomPowerAssignmentStatement:
+            setExpressionScope(statement[1].symbol(), scope);
+            setExpressionScope(statement[2].symbol(), scope);
+            break;
         case atomFromStatement:
+            setExpressionScope(statement[1].symbol(), scope);
+            break;
         case atomTypeAliasStatement:
+            setTypeSpecifierScope(statement[2].symbol(), scope);
+            break;
         case atomNothingStatement:
+            break;
         case atomIncrementStatement:
         case atomDecrementStatement:
+            setExpressionScope(statement[1].symbol(), scope);
             break;
-
         case atomFunctionDefinitionStatement:
             inner = new Scope(scope, true);
             statement.cache() = inner;
+            setTypeSpecifierScope(statement[1].symbol(), inner);
+            setParametersScope(statement[3].symbol(), inner);
             setStatementScope(statement[4].symbol(), inner);
+            scope->addFunction(statement[2].string(), statement.label());
             break;
-
         case atomVariableDefinitionStatement:
             scope = new Scope(scope);
             statement.cache() = scope;
+            setTypeSpecifierScope(statement[1].symbol(), scope);
+            setExpressionScope(statement[3].symbol(), scope);
+            scope->addVariable(statement[2].string(), statement.label());
             break;
-
         case atomCompoundStatement:
             inner = new Scope(scope, true);
             statement.cache() = inner;
-            setStatementArrayScope(statement[1].list(), inner);
+            setStatementArrayScope(statement[1].array(), inner);
             break;
-
         case atomIfStatement:
+            setExpressionScope(statement[1].symbol(), scope);
             inner = new Scope(scope, true);
             setStatementScope(statement[2].symbol(), inner);
             inner = new Scope(scope, true);
             setStatementScope(statement[3].symbol(), inner);
             break;
-
         case atomSwitchStatement:
+
         case atomReturnStatement:
         case atomIncludeStatement:
         case atomBreakStatement:
