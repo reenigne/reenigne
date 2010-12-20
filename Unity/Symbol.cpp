@@ -107,7 +107,7 @@ String atomToString(Atom atom)
             _table[atomBoolean] = String("Boolean");
             _table[atomByte] = String("Byte");
             _table[atomCharacter] = String("Character");
-            _table[atomClass] = String("Class");                                     
+            _table[atomClass] = String("Class");
             _table[atomFunction] = String("Function");                               // returnType     argumentTypes
             _table[atomInt] = String("Int");
             _table[atomPointer] = String("Pointer");                                 // referentType
@@ -279,6 +279,8 @@ public:
     int length(int max) const { return implementation()->length(max); }
     String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const { return _implementation->toString(width, spacesPerIndex, indent, x, more); }
     int hash() const { return implementation()->hash(); }
+    bool isSymbol() const { return _implementation()->isSymbol(); }
+    bool isArray() const { return _implementation()->isArray(); }
 protected:
     class Implementation : public ReferenceCounted
     {
@@ -287,6 +289,8 @@ protected:
         virtual int length(int max) const = 0;
         virtual String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const = 0;
         int hash() const = 0;
+        bool isSymbol() const = 0;
+        bool isArray() const = 0;
     };
     class IntegerImplementation : public Implementation
     {
@@ -308,6 +312,8 @@ protected:
         int length(int max) const { return decimalLength(_value); }
         int value() const { return _value; }
         int hash() const { return _value; }
+        bool isSymbol() const { return false; }
+        bool isArray() const { return false; }
     private:
         int _value;
     };
@@ -331,6 +337,8 @@ protected:
         int length(int max) const { return quotedLength(_value); }
         String value() const { return _value; }
         int hash() const { return _value.hash(); }
+        bool isSymbol() const { return false; }
+        bool isArray() const { return false; }
     private:
         String _value;
     };
@@ -497,6 +505,8 @@ private:
             return h;
         }
         Reference<ReferenceCounted>& cache() { return _cache; }
+        bool isSymbol() const { return true; }
+        bool isArray() const { return false; }
     private:
         ~Implementation()
         {
@@ -699,8 +709,8 @@ private:
             ++x;
             return s + closeBracket;
         }
-
-
+        bool isSymbol() const { return false; }
+        bool isArray() const { return true; }
     private:
         Array<Symbol> _symbols;
     };

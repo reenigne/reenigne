@@ -1,32 +1,13 @@
-Add name/label associations to scopes for variable/parameter/function/type definitions while scopes are being set up
-
-
-
 Implement compilation steps as Symbol transformations
-  Phase: Initialize Scopes and add symbols
   Phase: Resolve symbols (augment Identifier with label number)
   Phase: Check types and resolve overloaded function calls
   Phase: Compile to low-level code
   Phase: Run
 
-Adding scopes to Symbols
-  Should this be done during parsing or as a separate phase?
-    It's not really conceptually part of the parsing phase - the only reasons to do so are concision and performance
-  In function declarations:
-    Reference<Scope> inner = new Scope(scope, true); - use inner scope for arguments, dll and statement
-    Add function to scope: _scope->outer()->addFunction(_name->name(), typeList, this, _location);
-  In variable definitions:
-    Reference<Scope> inner = new Scope(scope); - use inner scope for all parts
-    Add variable to scope: _variable = _scope->outer()->addVariable(_identifier->name(), type, _location);
-  Add type to scope:
-    scope->addType(typeIdentifier->name(), typeAliasStatement, s2.location());
-
 Find type of each expression
   Need to know which function overloads are called
     Need to know about all the overloads, the types of the arguments, the available conversion functions and their costs
 
-Phase: Add scopes to symbols
-Phase: Add variable and function declarations to scopes (no type annotations for variables yet, but type annotations for functions must be present)
 Phase: Resolve variable references to variable definitions and parameters
   Only need to look for first 
 Phase:
@@ -132,3 +113,6 @@ Optimization: Shrink Symbol::_labelled if the second half is all empty to avoid 
   To do this, need to remove elements from the list when they're at the end of the array.
 Optimization: switch SymbolArray to am AVL tree
 Change semicolon parsing on increment/decrement/expression statements so that "for (i = 0; i < n; ++i)" is valid.
+
+Should "done" blocks be in different scopes to the loop body blocks?
+  What about do vs while/until blocks?

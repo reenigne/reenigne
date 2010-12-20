@@ -184,16 +184,16 @@ public:
     }
     Scope* outer() const { return _outer; }
     Scope* functionScope() const { return _functionScope; }
-//    Reference<Variable> addVariable(String name, Symbol type, Location location)
-//    {
-//        if (_symbolTable.hasKey(name)) {
-//            static String error(" is already defined");
-//            location.throwError(name + error);
-//        }
-//        Reference<Variable> variable = new Variable(type);
-//        _symbolTable.add(name, variable);
-//        return variable;
-//    }
+    Reference<Variable> addVariable(String name, int label)
+    {
+        if (_symbolTable.hasKey(name)) {
+            static String error(" is already defined");
+            location.throwError(name + error);
+        }
+        Reference<Variable> variable = new Variable(type);
+        _symbolTable.add(name, variable);
+        return variable;
+    }
 //    Reference<SymbolName> resolveSymbolName(String name, Location location)
 //    {
 //        if (!_symbolTable.hasKey(name)) {
@@ -208,10 +208,10 @@ public:
     {
         _functionScope->doAddFunction(name, label);
     }
-//    void addType(String name, TypeDefinitionStatement* type, Location location)
-//    {
-//        _functionScope->doAddType(name, type, location);
-//    }
+    void addType(String name, int label)
+    {
+        _functionScope->doAddType(name, label);
+    }
 //    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
 //    {
 //        return _functionScope->doResolveFunction(identifier, typeList, location);
@@ -238,14 +238,14 @@ private:
         }
         functionName->addOverload(label);
     }
-//    void doAddType(String name, TypeDefinitionStatement* type, Location location)
-//    {
-//        if (_typeTable.hasKey(name)) {
-//            static String error(" has already been defined.");
-//            location.throwError(name + error);
-//        }
-//        _typeTable.add(name, type);
-//    }
+    void doAddType(String name, TypeDefinitionStatement* type, Location location)
+    {
+        if (_typeTable.hasKey(name)) {
+            static String error(" has already been defined.");
+            location.throwError(name + error);
+        }
+        _typeTable.add(name, type);
+    }
 //    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
 //    {
 //        String name = identifier->name();
@@ -406,104 +406,78 @@ private:
 #include "TypeSpecifier.cpp"
 #include "Statement.cpp"
 
-void setExpressionScope(Symbol expression, Scope* scope)
+Scope* setScope(SymbolEntry entry, Scope* scope)
 {
-    expression.cache() = scope;
-    // TODO: set scope of subexpressions
-}
-
-void setTypeSpecifierScope(Symbol typeSpecifier, Scope* scope)
-{
-    typeSpecifier.cache() = scope;
-    // TODO: set scope of members
-}
-
-void setParametersScope(SymbolArray parameters, Scope* scope)
-{
-    for (int i = 0; i < parameters.count(); ++i)
-        setTypeSpecifierScope(parameters[i][1].symbol(), scope);
-}
-
-Scope* setStatementScope(Symbol statement, Scope* scope)
-{
-    statement.cache() = scope;
-    Reference<Scope> inner;
-    switch (statement.atom()) {
-        case atomExpressionStatement:
-            setExpressionScope(statement[1].symbol(), scope);
-            break;
-        case atomAssignmentStatement:
-        case atomAddAssignmentStatement:
-        case atomSubtractAssignmentStatement:
-        case atomMultiplyAssignmentStatement:
-        case atomDivideAssignmentStatement:
-        case atomModuloAssignmentStatement:
-        case atomShiftLeftAssignmentStatement:
-        case atomShiftRightAssignmentStatement:
-        case atomAndAssignmentStatement:
-        case atomOrAssignmentStatement:
-        case atomXorAssignmentStatement:
-        case atomPowerAssignmentStatement:
-            setExpressionScope(statement[1].symbol(), scope);
-            setExpressionScope(statement[2].symbol(), scope);
-            break;
-        case atomFromStatement:
-            setExpressionScope(statement[1].symbol(), scope);
-            break;
-        case atomTypeAliasStatement:
-            setTypeSpecifierScope(statement[2].symbol(), scope);
-            break;
-        case atomNothingStatement:
-            break;
-        case atomIncrementStatement:
-        case atomDecrementStatement:
-            setExpressionScope(statement[1].symbol(), scope);
-            break;
+    if (entry.isArray()) {
+        SymbolArray array = entry.array();
+        for (int i = 0; i < array.count(); ++i)
+            scope = setScope(array[i], scope);
+        return scope;
+    }
+    if (!entry.isSymbol())
+        return;
+    Symbol symbol = entry.symbol();
+    Reference<Scope> inner = scope;
+    switch (symbol.atom()) {
         case atomFunctionDefinitionStatement:
             inner = new Scope(scope, true);
-            statement.cache() = inner;
-            setTypeSpecifierScope(statement[1].symbol(), inner);
-            setParametersScope(statement[3].symbol(), inner);
-            setStatementScope(statement[4].symbol(), inner);
-            scope->addFunction(statement[2].string(), statement.label());
+            symbol.cache() = inner;
+            setScope(symbol[1], inner);
+            scope->addFunction(symbol[2].string(), symbol.label());
+            setScope(symbol[3], inner);
+            setScope(symbol[4], inner);
             break;
         case atomVariableDefinitionStatement:
             scope = new Scope(scope);
-            statement.cache() = scope;
-            setTypeSpecifierScope(statement[1].symbol(), scope);
-            setExpressionScope(statement[3].symbol(), scope);
-            scope->addVariable(statement[2].string(), statement.label());
+            symbol.cache() = scope;
+            setScope(symbol[1], scope);
+            scope->addVariable(symbol[2].string(), symbol.label());
+            setScope(symbol[3], scope);
             break;
-        case atomCompoundStatement:
-            inner = new Scope(scope, true);
-            statement.cache() = inner;
-            setStatementArrayScope(statement[1].array(), inner);
+        case atomTypeAliasStatement:
+            scope->addType(symbol[2].string(), symbol.label());
             break;
         case atomIfStatement:
-            setExpressionScope(statement[1].symbol(), scope);
+            symbol.cache() = scope;
+            setScope(symbol[1], scope);
             inner = new Scope(scope, true);
-            setStatementScope(statement[2].symbol(), inner);
+            setScope(symbol[2], inner);
             inner = new Scope(scope, true);
-            setStatementScope(statement[3].symbol(), inner);
-            break;
-        case atomSwitchStatement:
-
-        case atomReturnStatement:
-        case atomIncludeStatement:
-        case atomBreakStatement:
-        case atomContinueStatement:
+            setScope(symbol[3], inner);
+            return;
+        case atomCompoundStatement:
         case atomForeverStatement:
         case atomWhileStatement:
         case atomUntilStatement:
         case atomForStatement:
+        case atomCase:
+        case atomDefaultCase:
+            inner = new Scope(scope, true);
+            break;
+
+    }
+    symbol.cache() = inner;
+    const SymbolTail* tail = symbol.tail();
+    while (tail != 0) {
+        setScope(tail->head(), inner);
+        tail = tail->tail();
     }
     return scope;
 }
 
-void setStatementArrayScope(SymbolArray program, Scope* scope)
+// Determine types of variables and expressions, add them to the Symbols
+// Resolve identifiers to labels
+SymbolEntry resolveIdentifiers(SymbolEntry entry)
 {
-    for (int i = 0; i < program.count(); ++i)
-        scope = setStatementScope(program[i], scope);
+    if (entry.isArray()) {
+        SymbolArray array = entry.array();
+        for (int i = 0; i < array.count(); ++i)
+            resolveIdentifiers(array[i]);
+        return;
+    }
+    if (!entry.isSymbol())
+        return;
+
 }
 
 #ifdef _WIN32
@@ -541,7 +515,8 @@ int main(int argc, char* argv[])
             source.location().throwError(error);
         }
 
-        setStatementArrayScope(program, scope);
+        setScope(program, scope);
+        resolveIdentifiers(program);
     }
     END_CHECKED(Exception& e) {
         e.write(Handle::consoleOutput());
