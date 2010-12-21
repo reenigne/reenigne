@@ -1,3 +1,7 @@
+Simplications:
+  Disallow function overloading altogether
+  Disallow implict conversions (function calls must have exactly the right arguments)
+
 Implement compilation steps as Symbol transformations
   Phase: Resolve symbols (augment Identifier with label number)
   Phase: Check types and resolve overloaded function calls
