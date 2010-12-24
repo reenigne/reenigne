@@ -38,9 +38,6 @@ Algorithm for resolving names in the presence of overloading
   Use dynamic programming to figure out a "cost" associated with converting any type to any other type
     Allow conversion operators to specify a cost?
 
-Scope:
-  Make a special slot in Symbol
-
 More detail in switch type mismatch error
 Allow overloads over operator== for switch comparison
 

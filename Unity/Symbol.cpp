@@ -385,18 +385,6 @@ private:
 template<class T> class SymbolTemplate : public SymbolEntryTemplate<T>
 {
 public:
-    SymbolTemplate(int label, Atom atom, Span span)
-      : SymbolEntry(new Implementation(label, atom, span, 0)) { addToTable(); }
-    SymbolTemplate(int label, Atom atom, Span span, SymbolEntry symbol1)
-      : SymbolEntry(new Implementation(label, atom, span, SymbolTail(symbol1, 0))) { addToTable(); }
-    SymbolTemplate(int label, Atom atom, Span span, SymbolEntry symbol1, SymbolEntry symbol2)
-      : SymbolEntry(new Implementation(label, atom, span, SymbolTail(symbol1, SymbolTail(symbol2, 0)))) { addToTable(); }
-    SymbolTemplate(int label, Atom atom, Span span, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3)
-      : SymbolEntry(new Implementation(label, atom, span, SymbolTail(symbol1, SymbolTail(symbol2, SymbolTail(symbol3, 0))))) { addToTable(); }
-    SymbolTemplate(int label, Atom atom, Span span, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4)
-      : SymbolEntry(new Implementation(label, atom, span, SymbolTail(symbol1, SymbolTail(symbol2, SymbolTail(symbol3, SymbolTail(symbol4, 0)))))) { addToTable(); }
-    SymbolTemplate(int label, Atom atom, Span span, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5)
-      : SymbolEntry(new Implementation(label, atom, span, SymbolTail(symbol1, SymbolTail(symbol2, SymbolTail(symbol3, SymbolTail(symbol4, SymbolTail(symbol5, 0))))))) { addToTable(); }
     SymbolTemplate() { }
     SymbolTemplate(Atom atom, Span span)
       : SymbolEntry(new Implementation(-1, atom, span, 0)) { }
@@ -414,8 +402,8 @@ public:
     SymbolTemplate(Atom atom, Span span, const SymbolTail* tail)
       : SymbolEntry(new Implementation(-1, atom, span, tail)) { }
 
-    Atom atom() const { return dynamic_cast<const Implementation*>(implementation())->atom(); }
-    Span span() const { return dynamic_cast<const Implementation*>(implementation())->span(); }
+    Atom atom() const { return implementation()->atom(); }
+    Span span() const { return implementation()->span(); }
     SymbolEntry operator[](int n) const
     {
         SymbolTail* t = tail();
@@ -425,9 +413,13 @@ public:
         }
         return _tail.head();
     }
-    int label() const { return dynamic_cast<const Implementation*>(implementation())->label(); }
-    const SymbolTail* tail() const { return dynamic_cast<const Implementation*>(implementation())->tail(); }
-    Reference<ReferenceCounted>& cache() { return dynamic_cast<const Implementation*>(implementation())->cache(); }
+    int label() const { return implementation()->label(); }
+    const SymbolTail* tail() const { return implementation()->tail(); }
+    Reference<ReferenceCounted>& cache() { return implementation()->cache(); }
+    void setLabel(int label) { implementation()->setLabel(label); }
+    void setSpan(Span span) { implementation()->setSpan(label); }
+    void setLabelTarget(int label) { implementation()->setLabelTarget(label); }
+    void setType(Symbol type) { implementation()->setType(type); }
 private:
     class Implementation : public SymbolEntry::Implementation
     {
@@ -566,6 +558,9 @@ private:
     {
         dynamic_cast<Implementation0*>(implementation())->removeLabel();
     }
+
+    const Implementation* implementation() const { return dynamic_cast<const Implementation*>(implementation()); }
+    Implementation* implementation() { return dynamic_cast<Implementation*>(implementation()); }
 
     SymbolTemplate(Reference<Symbol::Implementation0> implementation) : SymbolEntry(implementation) { }
 

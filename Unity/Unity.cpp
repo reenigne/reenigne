@@ -194,16 +194,16 @@ public:
         _symbolTable.add(name, variable);
         return variable;
     }
-//    Reference<SymbolName> resolveSymbolName(String name, Location location)
-//    {
-//        if (!_symbolTable.hasKey(name)) {
-//            if (_outer != 0)
-//                return _outer->resolveSymbolName(name, location);
-//            static String error("Undefined symbol ");
-//            location.throwError(error + name);
-//        }
-//        return _symbolTable.lookUp(name);
-//    }
+    Reference<SymbolName> resolveSymbolName(String name, Location location)
+    {
+        if (!_symbolTable.hasKey(name)) {
+            if (_outer != 0)
+                return _outer->resolveSymbolName(name, location);
+            static String error("Undefined symbol ");
+            location.throwError(error + name);
+        }
+        return _symbolTable.lookUp(name);
+    }
     void addFunction(String name, int label)
     {
         _functionScope->doAddFunction(name, label);
@@ -212,14 +212,14 @@ public:
     {
         _functionScope->doAddType(name, label);
     }
-//    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
-//    {
-//        return _functionScope->doResolveFunction(identifier, typeList, location);
-//    }
-//    TypeDefinitionStatement* resolveType(String name, Location location)
-//    {
-//        return _functionScope->doResolveType(name, location);
-//    }
+    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
+    {
+        return _functionScope->doResolveFunction(identifier, typeList, location);
+    }
+    TypeDefinitionStatement* resolveType(String name, Location location)
+    {
+        return _functionScope->doResolveType(name, location);
+    }
 private:
     void doAddFunction(String name, int label)
     {
@@ -246,39 +246,39 @@ private:
         }
         _typeTable.add(name, type);
     }
-//    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
-//    {
-//        String name = identifier->name();
-//        if (!_symbolTable.hasKey(name)) {
-//            if (_outer == 0) {
-//                static String error("Undefined function ");
-//                location.throwError(error + name);
-//            }
-//            return _outer->resolveFunction(identifier, typeList, location);
-//        }
-//        Reference<SymbolName> symbol = _symbolTable.lookUp(name);
-//        FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
-//        if (functionName == 0) {
-//            static String error(" is not a function");
-//            location.throwError(name + error);
-//        }
-//        if (!functionName->hasOverload(typeList)) {
-//            static String error(" has no overload with argument types ");
-//            location.throwError(name + error + typeList.toString());
-//        }
-//        return functionName->lookUpOverload(typeList);
-//    }
-//    TypeDefinitionStatement* doResolveType(String name, Location location)
-//    {
-//        if (!_typeTable.hasKey(name)) {
-//            if (_outer == 0) {
-//                static String error("Undefined type ");
-//                location.throwError(error + name);
-//            }
-//            return _outer->resolveType(name, location);
-//        }
-//        return _typeTable.lookUp(name);
-//    }
+    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
+    {
+        String name = identifier->name();
+        if (!_symbolTable.hasKey(name)) {
+            if (_outer == 0) {
+                static String error("Undefined function ");
+                location.throwError(error + name);
+            }
+            return _outer->resolveFunction(identifier, typeList, location);
+        }
+        Reference<SymbolName> symbol = _symbolTable.lookUp(name);
+        FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
+        if (functionName == 0) {
+            static String error(" is not a function");
+            location.throwError(name + error);
+        }
+        if (!functionName->hasOverload(typeList)) {
+            static String error(" has no overload with argument types ");
+            location.throwError(name + error + typeList.toString());
+        }
+        return functionName->lookUpOverload(typeList);
+    }
+    TypeDefinitionStatement* doResolveType(String name, Location location)
+    {
+        if (!_typeTable.hasKey(name)) {
+            if (_outer == 0) {
+                static String error("Undefined type ");
+                location.throwError(error + name);
+            }
+            return _outer->resolveType(name, location);
+        }
+        return _typeTable.lookUp(name);
+    }
     HashTable<String, Reference<SymbolName> > _symbolTable;
     HashTable<String, int> _typeTable;
     Scope* _outer;
@@ -477,7 +477,14 @@ SymbolEntry resolveIdentifiers(SymbolEntry entry)
     }
     if (!entry.isSymbol())
         return;
-
+    Symbol symbol = entry.symbol();
+    Reference<Scope> scope = symbol.cache();
+    switch (symbol.atom()) {
+        case atomIdentifier:
+            return Symbol(atomIdentifier, symbol.span(), symbol[1], scope->resolveSymbolName(symbol[1].string()));
+            
+    }
+    return symbol;  // TODO: call recursively
 }
 
 #ifdef _WIN32
