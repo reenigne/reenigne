@@ -163,7 +163,7 @@ public:
             if (r == 0 && l != 0 && other == l->_string)
                 return new RepeatedStringImplementation(l->_string, 1 + l->_count);
         }
-        return String(new ConcatenatedStringImplementation(_implementation, other._implementation);
+        return String(new ConcatenatedStringImplementation(_implementation, other._implementation));
     }
     const String& operator*=(int n)
     {
@@ -272,14 +272,12 @@ private:
     static Reference<StringImplementation> _emptyImplementation;
 };
 
-Reference<StringImplementation> String::_emptyImplementation = new SimpleStringImplementation(Buffer(), 0, 0);
-
 class StringImplementation : public ReferenceCounted
 {
 public:
     StringImplementation() : _length(0) { }
     int length() const { return _length; }
-    virtual Reference<StringImplementation> subString(int start, int length) const = 0;
+    virtual StringImplementation* subString(int start, int length) const = 0;
     virtual void copyTo(UInt8* buffer) const = 0;
     virtual int hash(int h) const = 0;
     virtual int compare(int start, const StringImplementation* other, int otherStart, int l) const = 0;  // works like memcmp(this+start, other+otherStart, l) - returns 1 if this is greater.
@@ -365,6 +363,8 @@ protected:
     int _start;
 };
 
+Reference<StringImplementation> String::_emptyImplementation = new SimpleStringImplementation(Buffer(), 0, 0);
+
 template<class T> class RepeatedStringImplementationTemplate : public StringImplementation
 {
 public:
@@ -373,7 +373,7 @@ public:
     { 
         setLength(count*string.length());
     }
-    Reference<StringImplementation> subString(int start, int l) const
+    StringImplementation* subString(int start, int l) const
     {
         int sl = _string.length();
         int s = start % sl;
@@ -480,7 +480,7 @@ public:
     {
         setLength(_left->length() + _right->length());
     }
-    Reference<StringImplementation> subString(int start, int length) const
+    StringImplementation* subString(int start, int length) const
     {
         int leftLength = _left->length();
         if (start >= leftLength)
@@ -788,7 +788,7 @@ private:
     catch
 
 String openParenthesis = String::codePoint('(');
-String closeParenthesis = String::codePoint((')');
+String closeParenthesis = String::codePoint(')');
 String comma = String::codePoint(',');
 String commaSpace(", ");
 String asterisk = String::codePoint('*');
@@ -801,7 +801,6 @@ String closeBracket = String::codePoint(']');
 String colonSpace(": ");
 String empty("");
 String tab = String::codePoint(9);
-String backslash = String::codePoint('\\');
 String doubleQuote = String::codePoint('"');
 String dollar = String::codePoint('$');
 String singleQuote = String::codePoint('\'');
