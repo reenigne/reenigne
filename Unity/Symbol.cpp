@@ -291,9 +291,9 @@ protected:
         virtual bool equals(const Implementation* other) const = 0;
         virtual int length(int max) const = 0;
         virtual String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const = 0;
-        int hash() const = 0;
-        bool isSymbol() const = 0;
-        bool isArray() const = 0;
+        virtual int hash() const = 0;
+        virtual bool isSymbol() const = 0;
+        virtual bool isArray() const = 0;
     };
     class IntegerImplementation : public Implementation
     {
@@ -351,7 +351,7 @@ protected:
 private:
     Reference<Implementation> _implementation;
     template<class T> friend class SymbolTemplate;
-    friend class SymbolArray;
+    template<class T> friend class SymbolArrayTemplate;
 };
 
 class SymbolTail : public ReferenceCounted
@@ -419,6 +419,22 @@ public:
 
     const SymbolTail* tail() const { return implementation()->tail(); }
 
+    class Cache : public ReferenceCounted
+    {
+    public:
+        Cache() : _label(-1) { }
+        int label() const { return _label; }
+        Span span() const { return _span; }
+        Symbol type() const { return _type; }
+        void setLabel(int label) { _label = label; }
+        void setSpan(Span span) { _span = span; }
+        void setType(Symbol type) { _type = type; }
+    private:
+        int _label;
+        Span _span;
+        Symbol _type;
+    };
+
     Cache* cache() { return implementation()->cache(); }
     int label() const { return implementation()->label(); }
     Span span() const { return implementation()->span(); }
@@ -436,21 +452,6 @@ public:
         return l;
     }
 
-    class Cache : public ReferenceCounted
-    {
-    public:
-        Cache() : _label(-1) { }
-        int label() const { return _label; }
-        Span span() const { return _span; }
-        Symbol type() const { return _type; }
-        void setLabel(int label) { _label = label; }
-        void setSpan(Span span) { _span = span; }
-        void setType(Symbol type) { _type = type; }
-    private:
-        int _label;
-        Span _span;
-        Symbol _type;
-    };
 private:
     class Implementation : public SymbolEntry::Implementation
     {
@@ -601,7 +602,7 @@ private:
         }
     }
 
-    friend class SymbolArray;
+    template<class T> friend class SymbolArrayTemplate;
 };
 
 template<class T> class SymbolArrayTemplate : public SymbolEntry

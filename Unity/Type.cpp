@@ -4,14 +4,13 @@ String typeToString(Symbol type)
         case atomFunction:
             {
                 String s = typeToString(type[1].symbol()) + openParenthesis;
-                SymbolArray list = type[2].list();
+                SymbolArray array = type[2].array();
                 bool hasArguments = false;
-                while (list.count() != 0) {
+                for (int i = 0; i < array.count(); ++i) {
                     if (hasArguments)
                         s += commaSpace;
-                    s += typeToString(list.head());
+                    s += typeToString(array[i]);
                     hasArguments = true;
-                    list = list.tail();
                 }
                 return s + closeParenthesis;
             }

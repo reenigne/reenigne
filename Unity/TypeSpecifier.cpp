@@ -42,20 +42,23 @@ Symbol parseTypeIdentifier(CharacterSource* source)
         if (name == keywords[i])
             return Symbol();
     *source = s2;
-    return Symbol(atomTypeIdentifier, Span(location, endLocation), name);
+    return Symbol(atomTypeIdentifier, name, Span(location, endLocation));
 }
 
 Symbol parseClassTypeSpecifier(CharacterSource* source)
 {
     static String keyword("Class");
     Location start = source->location();
-    if (!Space::parseKeyword(source, keyword))
+    Span span;
+    if (!Space::parseKeyword(source, keyword, span))
         return Symbol();
     Space::assertCharacter(source, '{');
     // TODO: Parse class contents
     Location end = Space::assertCharacter(source, '}');
     return Symbol(atomClass, Span(start, end));
 }
+
+Symbol parseTypeOfTypeSpecifier(CharacterSource* source);
 
 Symbol parseFundamentalTypeSpecifier(CharacterSource* source)
 {
