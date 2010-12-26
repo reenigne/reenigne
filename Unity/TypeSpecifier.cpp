@@ -108,6 +108,8 @@ Symbol parseFundamentalTypeSpecifier(CharacterSource* source)
     return Symbol();
 }
 
+Symbol parseTypeSpecifier(CharacterSource* source);
+
 SymbolArray parseTypeSpecifierList(CharacterSource* source)
 {
     SymbolList list;
@@ -135,13 +137,13 @@ Symbol parseTypeSpecifier(CharacterSource* source)
     do {
         Span span;
         if (Space::parseCharacter(source, '*', span)) {
-            typeSpecifier = Symbol(atomPointer, Span(typeSpecifier.span().start(), span.end()), typeSpecifier);
+            typeSpecifier = Symbol(atomPointer, typeSpecifier, Span(typeSpecifier.span().start(), span.end()));
             continue;
         }
         if (Space::parseCharacter(source, '(', span)) {
             SymbolArray typeListSpecifier = parseTypeSpecifierList(source);
             Location end = Space::assertCharacter(source, ')');
-            typeSpecifier = Symbol(atomFunction, Span(typeSpecifier.span().start(), end), typeSpecifier, typeListSpecifier);
+            typeSpecifier = Symbol(atomFunction, typeSpecifier, typeListSpecifier, Span(typeSpecifier.span().start(), end));
             continue;
         }
     } while (true);
@@ -159,5 +161,5 @@ Symbol parseTypeOfTypeSpecifier(CharacterSource* source)
     Space::assertCharacter(source, '(');
     Symbol expression = parseExpressionOrFail(source);
     Location end = Space::assertCharacter(source, ')');
-    return Symbol(atomTypeOf, Span(span.start(), end), expression);
+    return Symbol(atomTypeOf, expression, Span(span.start(), end));
 }

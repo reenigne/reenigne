@@ -15,7 +15,7 @@ Symbol parseExpressionStatement(CharacterSource* source)
         static String error("Statement has no effect");
         source->location().throwError(error);
     }
-    return Symbol(atomExpressionStatement, Span(expression.span().start(), span.end()), expression);
+    return Symbol(atomExpressionStatement, expression, Span(expression.span().start(), span.end()));
 }
 
 Symbol parseParameter(CharacterSource* source)
@@ -29,7 +29,7 @@ Symbol parseParameter(CharacterSource* source)
         static String error("Expected identifier");
         source->location().throwError(error);
     }
-    return Symbol(atomParameter, Span(location, name.span().end()), typeSpecifier, name);
+    return Symbol(atomParameter, typeSpecifier, name, Span(location, name.span().end()));
 }
 
 SymbolArray parseParameterList(CharacterSource* source)
@@ -72,21 +72,23 @@ Symbol parseFunctionDefinitionStatement(CharacterSource* source)
         Symbol dll = parseExpressionOrFail(source);
         return Symbol(
             atomFunctionDefinitionStatement,
-            Span(returnTypeSpecifier.span().start(), dll.span().end()),
             returnTypeSpecifier,
             name,
             parameterList,
-            Symbol(atomFromStatement, Span(span.start(), dll.span().end()), dll));
+            Symbol(atomFromStatement, dll,
+                Span(span.start(), dll.span().end())),
+            Span(returnTypeSpecifier.span().start(), dll.span().end()));
     }
     Symbol statement = parseStatementOrFail(source);
-    return Symbol(
-        Symbol::newLabel(),
+    statement = Symbol(
         atomFunctionDefinitionStatement,
-        Span(returnTypeSpecifier.span().start(), statement.span().end()),
         returnTypeSpecifier,
         name,
         parameterList,
-        statement);
+        statement,
+        Span(returnTypeSpecifier.span().start(), statement.span().end()));
+    statement.setLabelTarget(Symbol::newLabel());
+    return statement;
 }
 
 Symbol parseVariableDefinitionStatement(CharacterSource* source)
@@ -104,13 +106,13 @@ Symbol parseVariableDefinitionStatement(CharacterSource* source)
     if (Space::parseCharacter(source, '=', span))
         initializer = parseExpressionOrFail(source);
     Location end = Space::assertCharacter(source, ';');
-    return Symbol(
-        Symbol::newLabel(),
-        atomVariableDefinitionStatement,
-        Span(typeSpecifier.span().start(), end),
+    Symbol statement = Symbol(atomVariableDefinitionStatement,
         typeSpecifier,
         identifier,
-        initializer);
+        initializer,
+        Span(typeSpecifier.span().start(), end));
+    statement.setLabelTarget(Symbol::newLabel());
+    return statement;
 }
 
 Symbol parseAssignmentStatement(CharacterSource* source)
@@ -165,32 +167,32 @@ Symbol parseAssignmentStatement(CharacterSource* source)
     Symbol e = parseExpressionOrFail(source);
     Location end = Space::assertCharacter(source, ';');
 
-    Span span(lValue.span().start(), end);
+    span = Span(lValue.span().start(), end);
     switch (type) {
         case 1:
-            return Symbol(atomAssignmentStatement, span, lValue, e);
+            return Symbol(atomAssignmentStatement, lValue, e, span);
         case 2:
-            return Symbol(atomAddAssignmentStatement, span, lValue, e);
+            return Symbol(atomAddAssignmentStatement, lValue, e, span);
         case 3:
-            return Symbol(atomSubtractAssignmentStatement, span, lValue, e);
+            return Symbol(atomSubtractAssignmentStatement, lValue, e, span);
         case 4:
-            return Symbol(atomMultiplyAssignmentStatement, span, lValue, e);
+            return Symbol(atomMultiplyAssignmentStatement, lValue, e, span);
         case 5:
-            return Symbol(atomDivideAssignmentStatement, span, lValue, e);
+            return Symbol(atomDivideAssignmentStatement, lValue, e, span);
         case 6:
-            return Symbol(atomModuloAssignmentStatement, span, lValue, e);
+            return Symbol(atomModuloAssignmentStatement, lValue, e, span);
         case 7:
-            return Symbol(atomShiftLeftAssignmentStatement, span, lValue, e);
+            return Symbol(atomShiftLeftAssignmentStatement, lValue, e, span);
         case 8:
-            return Symbol(atomShiftRightAssignmentStatement, span, lValue, e);
+            return Symbol(atomShiftRightAssignmentStatement, lValue, e, span);
         case 9:
-            return Symbol(atomAndAssignmentStatement, span, lValue, e);
+            return Symbol(atomAndAssignmentStatement, lValue, e, span);
         case 10:
-            return Symbol(atomOrAssignmentStatement, span, lValue, e);
+            return Symbol(atomOrAssignmentStatement, lValue, e, span);
         case 11:
-            return Symbol(atomXorAssignmentStatement, span, lValue, e);
+            return Symbol(atomXorAssignmentStatement, lValue, e, span);
         case 12:
-            return Symbol(atomPowerAssignmentStatement, span, lValue, e);
+            return Symbol(atomPowerAssignmentStatement, lValue, e, span);
     }
     return Symbol();
 }
@@ -213,7 +215,7 @@ Symbol parseCompoundStatement(CharacterSource* source)
         return Symbol();
     SymbolArray sequence = parseStatementSequence(source);
     Location end = Space::assertCharacter(source, '}');
-    return Symbol(atomCompoundStatement, Span(span.start(), end), sequence);
+    return Symbol(atomCompoundStatement, sequence, Span(span.start(), end));
 }
 
 Symbol parseTypeAliasStatement(CharacterSource* source)
@@ -229,7 +231,9 @@ Symbol parseTypeAliasStatement(CharacterSource* source)
     *source = s;
     Symbol typeSpecifier = parseTypeSpecifier(source);
     Location end = Space::assertCharacter(source, ';');
-    return Symbol(Symbol::newLabel(), atomTypeAliasStatement, Span(typeIdentifier.span().start(), end), typeIdentifier, typeSpecifier);
+    Symbol statement = Symbol(atomTypeAliasStatement, typeIdentifier, typeSpecifier, Span(typeIdentifier.span().start(), end));
+    statement.setLabelTarget(Symbol::newLabel());
+    return statement;
 }
 
 Symbol parseNothingStatement(CharacterSource* source)
@@ -252,7 +256,7 @@ Symbol parseIncrementStatement(CharacterSource* source)
     Symbol lValue = parseExpression(&s);
     *source = s;
     Location end = Space::assertCharacter(source, ';');
-    return Symbol(atomIncrementStatement, Span(span.start(), end), lValue);
+    return Symbol(atomIncrementStatement, lValue, Span(span.start(), end));
 }
 
 Symbol parseDecrementStatement(CharacterSource* source)
@@ -265,7 +269,7 @@ Symbol parseDecrementStatement(CharacterSource* source)
     Symbol lValue = parseExpression(&s);
     *source = s;
     Location end = Space::assertCharacter(source, ';');
-    return Symbol(atomIncrementStatement, Span(span.start(), end), lValue);
+    return Symbol(atomIncrementStatement, lValue, Span(span.start(), end));
 }
 
 Symbol parseConditionalStatement2(CharacterSource* source, Location start, bool unlessStatement)
@@ -288,8 +292,8 @@ Symbol parseConditionalStatement2(CharacterSource* source, Location start, bool 
             if (Space::parseKeyword(source, elseUnlessKeyword, span))
                 elseStatement = parseConditionalStatement2(source, span.start(), true);
     if (unlessStatement)
-        return Symbol(atomIfStatement, Span(start, elseStatement.span().end()), condition, elseStatement, conditionedStatement);
-    return Symbol(atomIfStatement, Span(start, elseStatement.span().end()), condition, conditionedStatement, elseStatement);
+        return Symbol(atomIfStatement, condition, elseStatement, conditionedStatement, Span(start, elseStatement.span().end()));
+    return Symbol(atomIfStatement, condition, conditionedStatement, elseStatement, Span(start, elseStatement.span().end()));
 }
 
 Symbol parseConditionalStatement(CharacterSource* source)
@@ -332,8 +336,8 @@ Symbol parseCase(CharacterSource* source)
     Symbol statement = parseStatementOrFail(source);
     span = Span(span.start(), statement.span().end());
     if (defaultType)
-        return Symbol(atomDefaultCase, span, statement);
-    return Symbol(atomCase, span, SymbolArray(expressions), statement);
+        return Symbol(atomDefaultCase, statement, span);
+    return Symbol(atomCase, SymbolArray(expressions), statement, span);
 }
 
 Symbol parseSwitchStatement(CharacterSource* source)
@@ -365,7 +369,7 @@ Symbol parseSwitchStatement(CharacterSource* source)
             cases.add(c);
     } while (true);
     Location end = Space::assertCharacter(source, '}');
-    return Symbol(atomSwitchStatement, Span(startSpan.start(), end), expression, defaultCase, SymbolArray(cases));
+    return Symbol(atomSwitchStatement, expression, defaultCase, SymbolArray(cases), Span(startSpan.start(), end));
 }
 
 Symbol parseReturnStatement(CharacterSource* source)
@@ -376,7 +380,7 @@ Symbol parseReturnStatement(CharacterSource* source)
         return Symbol();
     Symbol expression = parseExpression(source);
     Location end = Space::assertCharacter(source, ';');
-    return Symbol(atomReturnStatement, Span(span.start(), end), expression);
+    return Symbol(atomReturnStatement, expression, Span(span.start(), end));
 }
 
 Symbol parseIncludeStatement(CharacterSource* source)
@@ -387,8 +391,11 @@ Symbol parseIncludeStatement(CharacterSource* source)
         return Symbol();
     Symbol expression = parseExpressionOrFail(source);
     Location end = Space::assertCharacter(source, ';');
-    return Symbol(atomIncludeStatement, Span(span.start(), end), expression);
+    return Symbol(atomIncludeStatement, expression, Span(span.start(), end));
 }
+
+Symbol parseBreakStatement(CharacterSource* source);
+Symbol parseContinueStatement(CharacterSource* source);
 
 Symbol parseBreakOrContinueStatement(CharacterSource* source)
 {
@@ -410,7 +417,7 @@ Symbol parseBreakStatement(CharacterSource* source)
         end = Space::assertCharacter(source, ';');
     else
         end = statement.span().end();
-    return Symbol(atomBreakStatement, Span(span.start(), end), statement);
+    return Symbol(atomBreakStatement, statement, Span(span.start(), end));
 }
 
 Symbol parseContinueStatement(CharacterSource* source)
@@ -430,7 +437,7 @@ Symbol parseForeverStatement(CharacterSource* source)
     if (!Space::parseKeyword(source, forever, span))
         return Symbol();
     Symbol statement = parseStatementOrFail(source);
-    return Symbol(atomForeverStatement, Span(span.start(), statement.span().end()), statement);
+    return Symbol(atomForeverStatement, statement, Span(span.start(), statement.span().end()));
 }
 
 Symbol parseWhileStatement(CharacterSource* source)
@@ -479,8 +486,8 @@ Symbol parseWhileStatement(CharacterSource* source)
         end = doneStatement.span().end();
     }
     if (foundWhile)
-        return Symbol(atomWhileStatement, Span(start, end), doStatement, condition, statement, doneStatement);
-    return Symbol(atomUntilStatement, Span(start, end), doStatement, condition, statement, doneStatement);
+        return Symbol(atomWhileStatement, doStatement, condition, statement, doneStatement, Span(start, end));
+    return Symbol(atomUntilStatement, doStatement, condition, statement, doneStatement, Span(start, end));
 }
 
 Symbol parseForStatement(CharacterSource* source)
@@ -497,7 +504,8 @@ Symbol parseForStatement(CharacterSource* source)
     Symbol expression = parseExpression(source);
     Space::assertCharacter(source, ';');
     Symbol postStatement = parseStatement(source);
-    Space::parseCharacter(source, ')');
+    Span span2;
+    Space::parseCharacter(source, ')', span2);
     Symbol statement = parseStatementOrFail(source);
     Symbol doneStatement;
     Location end = statement.span().end();
@@ -505,7 +513,7 @@ Symbol parseForStatement(CharacterSource* source)
         doneStatement = parseStatementOrFail(source);
         end = doneStatement.span().end();
     }
-    return Symbol(atomForStatement, Span(span.start(), end), preStatement, expression, postStatement, statement, doneStatement);
+    return Symbol(atomForStatement, preStatement, expression, postStatement, statement, doneStatement, Span(span.start(), end));
 }
 
 Symbol parseStatement(CharacterSource* source)

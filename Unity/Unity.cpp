@@ -171,7 +171,7 @@ template<class T> class ScopeTemplate;
 
 typedef ScopeTemplate<void> Scope;
 
-template<class T> class ScopeTemplate : public ReferenceCounted
+template<class T> class ScopeTemplate : public Symbol::Cache
 {
 public:
     ScopeTemplate(Scope* outer, bool functionScope = false)
@@ -194,13 +194,13 @@ public:
         _symbolTable.add(name, variable);
         return variable;
     }
-    Reference<SymbolName> resolveSymbolName(String name, Location location)
+    Reference<SymbolName> resolveSymbolName(String name, Span span)
     {
         if (!_symbolTable.hasKey(name)) {
             if (_outer != 0)
-                return _outer->resolveSymbolName(name, location);
+                return _outer->resolveSymbolName(name, span);
             static String error("Undefined symbol ");
-            location.throwError(error + name);
+            span.throwError(error + name);
         }
         return _symbolTable.lookUp(name);
     }
@@ -415,13 +415,13 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
         return scope;
     }
     if (!entry.isSymbol())
-        return;
+        return scope;
     Symbol symbol = entry.symbol();
     Reference<Scope> inner = scope;
     switch (symbol.atom()) {
         case atomFunctionDefinitionStatement:
             inner = new Scope(scope, true);
-            symbol.cache() = inner;
+            symbol.setCache(inner);
             setScope(symbol[1], inner);
             scope->addFunction(symbol[2].string(), symbol.label());
             setScope(symbol[3], inner);
@@ -429,7 +429,7 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
             break;
         case atomVariableDefinitionStatement:
             scope = new Scope(scope);
-            symbol.cache() = scope;
+            symbol.setCache(scope);
             setScope(symbol[1], scope);
             scope->addVariable(symbol[2].string(), symbol.label());
             setScope(symbol[3], scope);
@@ -438,13 +438,13 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
             scope->addType(symbol[2].string(), symbol.label());
             break;
         case atomIfStatement:
-            symbol.cache() = scope;
+            symbol.setCache(scope);
             setScope(symbol[1], scope);
             inner = new Scope(scope, true);
             setScope(symbol[2], inner);
             inner = new Scope(scope, true);
             setScope(symbol[3], inner);
-            return;
+            return scope;
         case atomCompoundStatement:
         case atomForeverStatement:
         case atomWhileStatement:
@@ -456,7 +456,7 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
             break;
 
     }
-    symbol.cache() = inner;
+    symbol.setCache(inner);
     const SymbolTail* tail = symbol.tail();
     while (tail != 0) {
         setScope(tail->head(), inner);
@@ -467,7 +467,7 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
 
 // Determine types of variables and expressions, add them to the Symbols
 // Resolve identifiers to labels
-SymbolEntry resolveIdentifiers(SymbolEntry entry)
+void resolveIdentifiers(SymbolEntry entry)
 {
     if (entry.isArray()) {
         SymbolArray array = entry.array();
@@ -478,10 +478,10 @@ SymbolEntry resolveIdentifiers(SymbolEntry entry)
     if (!entry.isSymbol())
         return;
     Symbol symbol = entry.symbol();
-    Reference<Scope> scope = symbol.cache();
+    Scope* scope = dynamic_cast<Scope*>(symbol.cache());
     switch (symbol.atom()) {
         case atomIdentifier:
-            return Symbol(atomIdentifier, symbol.span(), symbol[1], scope->resolveSymbolName(symbol[1].string()));
+            symbol.setLabel(scope->resolveSymbolName(symbol[1].string(), symbol.span()));
             
     }
     return symbol;  // TODO: call recursively

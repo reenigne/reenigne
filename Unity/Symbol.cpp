@@ -518,21 +518,20 @@ private:
 
         Atom atom() const { return _atom; }
 
-        Cache* cache()
-        {
-            if (!_cache.valid())
-                _cache = new Cache;
-            return _cache;
-        }
-        int label() const { return cache()->label(); }
-        Span span() const { return cache()->span(); }
-        Symbol type() const { return cache()->type(); }
+        Cache* cache() { return _cache; }
+        int label() const { return _label; }
+        Span span() const { return _span; }
+        Symbol type() const { return _type; }
 
-        void setCache(Reference<Cache> cache) { _cache = cache; }
-        void setLabel(int label) { cache()->setLabel(label); }
-        void setLabelTarget(int lable) { cache()->setLabel(label); _labelled[label] = this; }
-        void setSpan(Span span) { cache()->setSpan(span); }
-        void setType(Symbol type) { cache()->setType(type); }
+        void setCache(Reference<ReferenceCounted> cache) { _cache = cache; }
+        void setLabel(int label) { _label = label; }
+        void setLabelTarget(int lable)
+        {
+            _label = label;
+            _labelled[label] = this;
+        }
+        void setSpan(Span span) { _span = span; }
+        void setType(Symbol type) { _type = type; }
 
         int hash() const
         {
@@ -557,6 +556,9 @@ private:
         Atom _atom;
         Reference<SymbolTail> _tail;
         Reference<Cache> _cache;
+        int _label;
+        Span _span;
+        Symbol _type;
     };
 
     const Implementation* implementation() const { return dynamic_cast<const Implementation*>(implementation()); }
