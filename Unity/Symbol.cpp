@@ -419,27 +419,11 @@ public:
 
     const SymbolTail* tail() const { return implementation()->tail(); }
 
-    class Cache : public ReferenceCounted
-    {
-    public:
-        Cache() : _label(-1) { }
-        int label() const { return _label; }
-        Span span() const { return _span; }
-        Symbol type() const { return _type; }
-        void setLabel(int label) { _label = label; }
-        void setSpan(Span span) { _span = span; }
-        void setType(Symbol type) { _type = type; }
-    private:
-        int _label;
-        Span _span;
-        Symbol _type;
-    };
-
-    Cache* cache() { return implementation()->cache(); }
+    ReferenceCounted* cache() { return implementation()->cache(); }
     int label() const { return implementation()->label(); }
     Span span() const { return implementation()->span(); }
 
-    void setCache(Reference<Cache> cache) { implementation()->setCache(cache); }
+    void setCache(Reference<ReferenceCounted> cache) { implementation()->setCache(cache); }
     void setLabel(int label) { implementation()->setLabel(label); }
     void setLabelTarget(int label) { implementation()->setLabelTarget(label); }
     void setSpan(Span span) { implementation()->setSpan(label); }
@@ -518,7 +502,7 @@ private:
 
         Atom atom() const { return _atom; }
 
-        Cache* cache() { return _cache; }
+        ReferenceCounted* cache() { return _cache; }
         int label() const { return _label; }
         Span span() const { return _span; }
         Symbol type() const { return _type; }
@@ -555,7 +539,7 @@ private:
 
         Atom _atom;
         Reference<SymbolTail> _tail;
-        Reference<Cache> _cache;
+        Reference<ReferenceCounted> _cache;
         int _label;
         Span _span;
         Symbol _type;

@@ -79,99 +79,134 @@ private:
 #include "Symbol.cpp"
 #include "Type.cpp"
 
-class Variable;
-class FunctionDeclarationStatement;
+//class Variable;
+//class FunctionDeclarationStatement;
+//
+//class Value
+//{
+//public:
+//    Value() { }
+//    Value(int intValue) : _intValue(intValue) { }
+//    Value(String stringValue) : _stringValue(stringValue) { }
+//    Value(Variable* pointerValue) : _pointerValue(pointerValue) { }
+//    Value(FunctionDeclarationStatement* functionDeclaration) : _pointerValue(functionDeclaration) { }
+//    int getInt() const { return _intValue; }
+//    String getString() const { return _stringValue; }
+//    Variable* getPointer() const { return static_cast<Variable*>(_pointerValue); }
+//    FunctionDeclarationStatement* getFunctionDeclaration() const { return static_cast<FunctionDeclarationStatement*>(_pointerValue); }
+//private:
+//    int _intValue;
+//    String _stringValue;
+//    void* _pointerValue;
+//};
+//
+//class SymbolName : public ReferenceCounted
+//{
+//public:
+//    virtual Symbol type(String name, Location location) const = 0;
+//    virtual Value value() const = 0;
+//};
+//
+//class FunctionDeclarationStatement;
+//
+//template<class T> class FunctionNameTemplate : public SymbolName
+//{
+//public:
+//    void addOverload(SymbolList argumentTypes, FunctionDeclarationStatement* function, Location location)
+//    {
+//        if (_overloads.hasKey(argumentTypes)) {
+//            static String error("This overload has already been defined.");
+//            location.throwError(error);
+//        }
+//        _overloads.add(argumentTypes, function);
+//        if (_overloads.count() == 1)
+//            _functionType = FunctionType(function->returnType(), argumentTypes);
+//    }
+//    bool hasOverload(SymbolList argumentTypes)
+//    {
+//        return _overloads.hasKey(argumentTypes);
+//    }
+//    FunctionDeclarationStatement* lookUpOverload(SymbolList argumentTypes)
+//    {
+//        return _overloads.lookUp(argumentTypes);
+//    }
+//    Symbol type(String name, Location location) const
+//    {
+//        if (_overloads.count() > 1) {
+//            static String error(" is an overloaded function - I don't know which overload you mean.");
+//            location.throwError(name + error);
+//        }
+//        return _functionType;
+//    }
+//    Value value() const
+//    {
+//        return Value(_functionDeclaration);
+//    }
+//private:
+//    String _name;
+//    HashTable<SymbolList, FunctionDeclarationStatement*> _overloads;
+//    Symbol _functionType;
+//    FunctionDeclarationStatement* _functionDeclaration;
+//};
+//
+//typedef FunctionNameTemplate<void> FunctionName;
+//
+//class TypeDefinitionStatement;
+//
+//class Variable : public SymbolName
+//{
+//public:
+//    Variable(Symbol type) : _type(type) { }
+//    Symbol type(String name, Location location) const { return _type; }
+//    Value value() const { return _value; }
+//    void setValue(Value value) { _value = value; }
+//private:
+//    Symbol _type;
+//    Value _value;
+//};
+//
+//class Identifier;
 
-class Value
+class SymbolName
 {
 public:
-    Value() { }
-    Value(int intValue) : _intValue(intValue) { }
-    Value(String stringValue) : _stringValue(stringValue) { }
-    Value(Variable* pointerValue) : _pointerValue(pointerValue) { }
-    Value(FunctionDeclarationStatement* functionDeclaration) : _pointerValue(functionDeclaration) { }
-    int getInt() const { return _intValue; }
-    String getString() const { return _stringValue; }
-    Variable* getPointer() const { return static_cast<Variable*>(_pointerValue); }
-    FunctionDeclarationStatement* getFunctionDeclaration() const { return static_cast<FunctionDeclarationStatement*>(_pointerValue); }
+    virtual int resolveIdentifier(Span span) = 0;
+};
+
+class VariableName : public SymbolName
+{
+public:
+    VariableName(int label) : _label(label) { }
+    int resolveIdentifier(Span span)
+    {
+        return _label;
+    }
 private:
-    int _intValue;
-    String _stringValue;
-    void* _pointerValue;
+    int _label;
 };
 
-class SymbolName : public ReferenceCounted
+class FunctionName : public FunctionName
 {
 public:
-    virtual Symbol type(String name, Location location) const = 0;
-    virtual Value value() const = 0;
-};
-
-class FunctionDeclarationStatement;
-
-template<class T> class FunctionNameTemplate : public SymbolName
-{
-public:
-    void addOverload(SymbolList argumentTypes, FunctionDeclarationStatement* function, Location location)
-    {
-        if (_overloads.hasKey(argumentTypes)) {
-            static String error("This overload has already been defined.");
-            location.throwError(error);
-        }
-        _overloads.add(argumentTypes, function);
-        if (_overloads.count() == 1)
-            _functionType = FunctionType(function->returnType(), argumentTypes);
-    }
-    bool hasOverload(SymbolList argumentTypes)
-    {
-        return _overloads.hasKey(argumentTypes);
-    }
-    FunctionDeclarationStatement* lookUpOverload(SymbolList argumentTypes)
-    {
-        return _overloads.lookUp(argumentTypes);
-    }
-    Symbol type(String name, Location location) const
+    int resolveIdentifier(Span span)
     {
         if (_overloads.count() > 1) {
             static String error(" is an overloaded function - I don't know which overload you mean.");
-            location.throwError(name + error);
+            span.throwError(_name + error);
         }
-        return _functionType;
-    }
-    Value value() const
-    {
-        return Value(_functionDeclaration);
+        return _label;
     }
 private:
+    HashTable<SymbolList, int> _overloads;
+    int _label;
     String _name;
-    HashTable<SymbolList, FunctionDeclarationStatement*> _overloads;
-    Symbol _functionType;
-    FunctionDeclarationStatement* _functionDeclaration;
 };
-
-typedef FunctionNameTemplate<void> FunctionName;
-
-class TypeDefinitionStatement;
-
-class Variable : public SymbolName
-{
-public:
-    Variable(Symbol type) : _type(type) { }
-    Symbol type(String name, Location location) const { return _type; }
-    Value value() const { return _value; }
-    void setValue(Value value) { _value = value; }
-private:
-    Symbol _type;
-    Value _value;
-};
-
-class Identifier;
 
 template<class T> class ScopeTemplate;
 
 typedef ScopeTemplate<void> Scope;
 
-template<class T> class ScopeTemplate : public Symbol::Cache
+template<class T> class ScopeTemplate : public ReferenceCounted
 {
 public:
     ScopeTemplate(Scope* outer, bool functionScope = false)
@@ -194,7 +229,7 @@ public:
         _symbolTable.add(name, variable);
         return variable;
     }
-    Reference<SymbolName> resolveSymbolName(String name, Span span)
+    int resolveIdentifier(String name, Span span)
     {
         if (!_symbolTable.hasKey(name)) {
             if (_outer != 0)
@@ -202,7 +237,7 @@ public:
             static String error("Undefined symbol ");
             span.throwError(error + name);
         }
-        return _symbolTable.lookUp(name);
+        return _symbolTable.lookUp(name)->resolveIdentifier(span);
     }
     void addFunction(String name, int label)
     {
@@ -481,7 +516,9 @@ void resolveIdentifiers(SymbolEntry entry)
     Scope* scope = dynamic_cast<Scope*>(symbol.cache());
     switch (symbol.atom()) {
         case atomIdentifier:
-            symbol.setLabel(scope->resolveSymbolName(symbol[1].string(), symbol.span()));
+            symbol.setLabel(scope->resolveIdentifier(symbol[1].string(), symbol.span()));
+            break;
+
             
     }
     return symbol;  // TODO: call recursively
