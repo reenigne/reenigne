@@ -262,6 +262,7 @@ typedef SymbolArrayTemplate<void> SymbolArray;
 template<class T> class SymbolEntryTemplate
 {
 public:
+    SymbolEntryTemplate() { }
     SymbolEntryTemplate(int value) : _implementation(new IntegerImplementation(value)) { }
     SymbolEntryTemplate(String value) : _implementation(new StringImplementation(value)) { }
     bool operator==(const SymbolEntry& other) const
@@ -274,16 +275,16 @@ public:
     }
     int integer() const { return dynamic_cast<const IntegerImplementation*>(implementation())->value(); }
     String string() const { return dynamic_cast<const StringImplementation*>(implementation())->value(); }
-    SymbolArrayTemplate<T> array() const { return SymbolArray(_implementation); }
-    SymbolTemplate<T> symbol() const { return Symbol(_implementation); }
+    SymbolArrayTemplate<T> array() const { return SymbolArrayTemplate<T>(_implementation); }
+    SymbolTemplate<T> symbol() const { return SymbolTemplate<T>(_implementation); }
     Atom atom() const { return symbol().atom(); }
     bool valid() const { return _implementation.valid(); }
     SymbolTemplate<T> target() const { return Symbol::_labelled[integer()].symbol(); }
     int length(int max) const { return implementation()->length(max); }
     String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const { return _implementation->toString(width, spacesPerIndex, indent, x, more); }
     int hash() const { return implementation()->hash(); }
-    bool isSymbol() const { return _implementation()->isSymbol(); }
-    bool isArray() const { return _implementation()->isArray(); }
+    bool isSymbol() const { return _implementation->isSymbol(); }
+    bool isArray() const { return _implementation->isArray(); }
 protected:
     class Implementation : public ReferenceCounted
     {
@@ -392,15 +393,15 @@ public:
     SymbolTemplate(Atom atom, Span span = Span())
       : SymbolEntry(new Implementation(-1, atom, span, 0)) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, SymbolTail(symbol1, 0))) { }
+      : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, 0))) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, SymbolTail(symbol1, SymbolEntry(symbol2, 0)))) { }
+      : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, new SymbolTail(symbol2, 0)))) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, SymbolTail(symbol1, SymbolTail(symbol2, SymbolTail(symbol3, 0))))) { }
+      : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, 0))))) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, SymbolTail(symbol1, SymbolTail(symbol2, SymbolTail(symbol3, SymbolTail(symbol4, 0)))))) { }
+      : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, new SymbolTail(symbol4, 0)))))) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, SymbolTail(symbol1, SymbolTail(symbol2, SymbolTail(symbol3, SymbolTail(symbol4, SymbolTail(symbol5, 0))))))) { }
+      : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, new SymbolTail(symbol4, new SymbolTail(symbol5, 0))))))) { }
 
     SymbolTemplate(Atom atom, const SymbolTail* tail, Span span)
       : SymbolEntry(new Implementation(-1, atom, span, tail)) { }
@@ -408,13 +409,12 @@ public:
     Atom atom() const { return implementation()->atom(); }
     SymbolEntry operator[](int n) const
     {
-        SymbolTail* t = tail();
+        const SymbolTail* t = tail();
         while (n > 1) {
             --n;
             t = t->tail();
         }
-        return _tail.head();
-
+        return t->head();
     }
 
     const SymbolTail* tail() const { return implementation()->tail(); }
@@ -437,6 +437,8 @@ public:
     }
 
 private:
+    SymbolTemplate(const Implementation* implementation) : SymbolEntry(implementation) { }
+
     class Implementation : public SymbolEntry::Implementation
     {
     public:
@@ -549,6 +551,8 @@ private:
     Implementation* implementation() { return dynamic_cast<Implementation*>(implementation()); }
 
     template<class T> friend class SymbolEntryTemplate;
+    template<class T> friend class SymbolTemplate;
+
     static GrowableArray<Symbol::Implementation*> _labelled;
 };
 
@@ -601,6 +605,8 @@ public:
     int count() const { return dynamic_cast<const Implementation*>(implementation())->count(); }
     Symbol operator[](int i) { return (*dynamic_cast<const Implementation*>(implementation()))[i]; }
 private:
+    SymbolArrayTemplate(const Implementation* implementation) : SymbolEntry(implementation) { }
+
     class Implementation : public SymbolEntry::Implementation
     {
     public:
@@ -692,6 +698,8 @@ private:
         Array<Symbol> _symbols;
     };
     static Reference<Implementation> _empty;
+
+    template<class T> friend class SymbolEntryTemplate;
 };
 
 Reference<SymbolArray::Implementation> SymbolArray::_empty = new SymbolArray::Implementation();

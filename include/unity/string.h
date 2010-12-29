@@ -15,6 +15,9 @@ typedef PaddingStringImplementationTemplate<void> PaddingStringImplementation;
 template<class T> class ConcatenatedStringImplementationTemplate;
 typedef ConcatenatedStringImplementationTemplate<void> ConcatenatedStringImplementation;
 
+template<class T> class RepeatedStringImplementationTemplate;
+typedef RepeatedStringImplementationTemplate<void> RepeatedStringImplementation;
+
 class HexadecimalStringImplementation;
 class DecimalStringImplementation;
 class CodePointStringImplementation;
@@ -141,29 +144,42 @@ public:
     }
     const String& operator+=(const String& other)
     {
-        if (length() == 0)
-            return other;
+        if (length() == 0) {
+            *this = other;
+            return *this;
+        }
         if (other.length() == 0)
             return *this;
         {
-            const SimpleStringImplementation* l = _implementation;
-            const SimpleStringImplementation* r = other._implementation;
-            if (l != 0 && r != 0 && l->buffer() == r->buffer() && l->offset() + l->length() == r->offset())
-                return new SimpleStringImplementation(l->buffer(), l->offset(), l->length() + r->length());
+            const SimpleStringImplementation* l = dynamic_cast<const SimpleStringImplementation*>(static_cast<const StringImplementation*>(_implementation));
+            const SimpleStringImplementation* r = dynamic_cast<const SimpleStringImplementation*>(static_cast<const StringImplementation*>(other._implementation));
+            if (l != 0 && r != 0 && l->buffer() == r->buffer() && l->offset() + l->length() == r->offset()) {
+                _implementation = new SimpleStringImplementation(l->buffer(), l->offset(), l->length() + r->length());
+                return *this;
+            }
         }
-        if (*this == other)
-            return String(new RepeatedStringImplementation(*this, 2));
+        if (*this == other) {
+            _implementation = new RepeatedStringImplementation(*this, 2);
+            return *this;
+        }
         {
-            const RepeatedStringImplementation* l = _implementation;
-            const RepeatedStringImplementation* r = other._implementation;
-            if (l != 0 && r != 0 && l->_string == r->_string)
-                return new RepeatedStringImplementation(l->_string, l->_count + r->_count);
-            if (l == 0 && r != 0 && *this == r->_string)
-                return new RepeatedStringImplementation(r->_string, 1 + r->_count);
-            if (r == 0 && l != 0 && other == l->_string)
-                return new RepeatedStringImplementation(l->_string, 1 + l->_count);
+            const RepeatedStringImplementation* l = dynamic_cast<const RepeatedStringImplementation*>(static_cast<const StringImplementation*>(_implementation));
+            const RepeatedStringImplementation* r = dynamic_cast<const RepeatedStringImplementation*>(static_cast<const StringImplementation*>(other._implementation));
+            if (l != 0 && r != 0 && l->_string == r->_string) {
+                _implementation = new RepeatedStringImplementation(l->_string, l->_count + r->_count);
+                return *this;
+            }
+            if (l == 0 && r != 0 && *this == r->_string) {
+                _implementation = new RepeatedStringImplementation(r->_string, 1 + r->_count);
+                return *this;
+            }
+            if (r == 0 && l != 0 && other == l->_string) {
+                _implementation = new RepeatedStringImplementation(l->_string, 1 + l->_count);
+                return *this;
+            }
         }
-        return String(new ConcatenatedStringImplementation(_implementation, other._implementation));
+        _implementation = new ConcatenatedStringImplementation(_implementation, other._implementation);
+        return *this;
     }
     const String& operator*=(int n)
     {
@@ -470,6 +486,8 @@ public:
 private:
     String _string;
     int _count;
+
+    friend class StringTemplate<T>;
 };
 
 template<class T> class ConcatenatedStringImplementationTemplate : public StringImplementation

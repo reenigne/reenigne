@@ -185,7 +185,7 @@ private:
     int _label;
 };
 
-class FunctionName : public FunctionName
+class FunctionName : public SymbolName
 {
 public:
     int resolveIdentifier(Span span)
@@ -219,15 +219,13 @@ public:
     }
     Scope* outer() const { return _outer; }
     Scope* functionScope() const { return _functionScope; }
-    Reference<Variable> addVariable(String name, int label)
+    void addVariable(String name, int label)
     {
         if (_symbolTable.hasKey(name)) {
             static String error(" is already defined");
             location.throwError(name + error);
         }
-        Reference<Variable> variable = new Variable(type);
-        _symbolTable.add(name, variable);
-        return variable;
+        _symbolTable.add(name, new VariableName(label));
     }
     int resolveIdentifier(String name, Span span)
     {
@@ -247,14 +245,14 @@ public:
     {
         _functionScope->doAddType(name, label);
     }
-    FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
-    {
-        return _functionScope->doResolveFunction(identifier, typeList, location);
-    }
-    TypeDefinitionStatement* resolveType(String name, Location location)
-    {
-        return _functionScope->doResolveType(name, location);
-    }
+    //FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
+    //{
+    //    return _functionScope->doResolveFunction(identifier, typeList, location);
+    //}
+    //TypeDefinitionStatement* resolveType(String name, Location location)
+    //{
+    //    return _functionScope->doResolveType(name, location);
+    //}
 private:
     void doAddFunction(String name, int label)
     {
@@ -273,47 +271,47 @@ private:
         }
         functionName->addOverload(label);
     }
-    void doAddType(String name, TypeDefinitionStatement* type, Location location)
-    {
-        if (_typeTable.hasKey(name)) {
-            static String error(" has already been defined.");
-            location.throwError(name + error);
-        }
-        _typeTable.add(name, type);
-    }
-    FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
-    {
-        String name = identifier->name();
-        if (!_symbolTable.hasKey(name)) {
-            if (_outer == 0) {
-                static String error("Undefined function ");
-                location.throwError(error + name);
-            }
-            return _outer->resolveFunction(identifier, typeList, location);
-        }
-        Reference<SymbolName> symbol = _symbolTable.lookUp(name);
-        FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
-        if (functionName == 0) {
-            static String error(" is not a function");
-            location.throwError(name + error);
-        }
-        if (!functionName->hasOverload(typeList)) {
-            static String error(" has no overload with argument types ");
-            location.throwError(name + error + typeList.toString());
-        }
-        return functionName->lookUpOverload(typeList);
-    }
-    TypeDefinitionStatement* doResolveType(String name, Location location)
-    {
-        if (!_typeTable.hasKey(name)) {
-            if (_outer == 0) {
-                static String error("Undefined type ");
-                location.throwError(error + name);
-            }
-            return _outer->resolveType(name, location);
-        }
-        return _typeTable.lookUp(name);
-    }
+    //void doAddType(String name, TypeDefinitionStatement* type, Location location)
+    //{
+    //    if (_typeTable.hasKey(name)) {
+    //        static String error(" has already been defined.");
+    //        location.throwError(name + error);
+    //    }
+    //    _typeTable.add(name, type);
+    //}
+    //FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
+    //{
+    //    String name = identifier->name();
+    //    if (!_symbolTable.hasKey(name)) {
+    //        if (_outer == 0) {
+    //            static String error("Undefined function ");
+    //            location.throwError(error + name);
+    //        }
+    //        return _outer->resolveFunction(identifier, typeList, location);
+    //    }
+    //    Reference<SymbolName> symbol = _symbolTable.lookUp(name);
+    //    FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
+    //    if (functionName == 0) {
+    //        static String error(" is not a function");
+    //        location.throwError(name + error);
+    //    }
+    //    if (!functionName->hasOverload(typeList)) {
+    //        static String error(" has no overload with argument types ");
+    //        location.throwError(name + error + typeList.toString());
+    //    }
+    //    return functionName->lookUpOverload(typeList);
+    //}
+    //TypeDefinitionStatement* doResolveType(String name, Location location)
+    //{
+    //    if (!_typeTable.hasKey(name)) {
+    //        if (_outer == 0) {
+    //            static String error("Undefined type ");
+    //            location.throwError(error + name);
+    //        }
+    //        return _outer->resolveType(name, location);
+    //    }
+    //    return _typeTable.lookUp(name);
+    //}
     HashTable<String, Reference<SymbolName> > _symbolTable;
     HashTable<String, int> _typeTable;
     Scope* _outer;
@@ -521,7 +519,7 @@ void resolveIdentifiers(SymbolEntry entry)
 
             
     }
-    return symbol;  // TODO: call recursively
+    // TODO: call recursively
 }
 
 #ifdef _WIN32
@@ -547,7 +545,8 @@ int main(int argc, char* argv[])
         Reference<Scope> scope = new Scope(0, true);
 
         int printLabel = Symbol::newLabel();
-        Symbol print(printLabel, atomPrintFunction, Span(), Symbol(atomVoid, Span()), String("print"), SymbolArray(Symbol(atomString, Span())));
+        Symbol print(atomPrintFunction, Symbol(atomVoid), String("print"), SymbolArray(Symbol(atomString)));
+        print.setLabelTarget(printLabel);
         scope->addFunction(String("print"), printLabel);
 
         CharacterSource source(contents, file.path());
