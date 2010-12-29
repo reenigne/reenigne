@@ -275,8 +275,8 @@ public:
     }
     int integer() const { return dynamic_cast<const IntegerImplementation*>(implementation())->value(); }
     String string() const { return dynamic_cast<const StringImplementation*>(implementation())->value(); }
-    SymbolArrayTemplate<T> array() const { return SymbolArrayTemplate<T>(_implementation); }
-    SymbolTemplate<T> symbol() const { return SymbolTemplate<T>(_implementation); }
+    SymbolArrayTemplate<T> array() { return SymbolArrayTemplate<T>(_implementation); }
+    SymbolTemplate<T> symbol() { return SymbolTemplate<T>(dynamic_cast<Symbol::Implementation*>(implementation())); }
     Atom atom() const { return symbol().atom(); }
     bool valid() const { return _implementation.valid(); }
     SymbolTemplate<T> target() const { return Symbol::_labelled[integer()].symbol(); }
@@ -437,7 +437,7 @@ public:
     }
 
 private:
-    SymbolTemplate(const Implementation* implementation) : SymbolEntry(implementation) { }
+    SymbolTemplate(Implementation* implementation) : SymbolEntry(implementation) { }
 
     class Implementation : public SymbolEntry::Implementation
     {
@@ -508,6 +508,7 @@ private:
         int label() const { return _label; }
         Span span() const { return _span; }
         Symbol type() const { return _type; }
+        SymbolTail* tail() const { return _tail; }
 
         void setCache(Reference<ReferenceCounted> cache) { _cache = cache; }
         void setLabel(int label) { _label = label; }
@@ -552,6 +553,7 @@ private:
 
     template<class T> friend class SymbolEntryTemplate;
     template<class T> friend class SymbolTemplate;
+    template<class T> friend class SymbolArrayTemplate;
 
     static GrowableArray<Symbol::Implementation*> _labelled;
 };
@@ -599,13 +601,13 @@ template<class T> class SymbolArrayTemplate : public SymbolEntry
 {
 public:
     SymbolArrayTemplate() : SymbolEntry(_empty) { }
-    SymbolArrayTemplate(Symbol s1) : SymbolEntry(new Implementation(s)) { }
+    SymbolArrayTemplate(Symbol s1) : SymbolEntry(new Implementation(s1)) { }
     SymbolArrayTemplate(Symbol s1, Symbol s2) : SymbolEntry(new Implementation(s1, s2)) { }
     SymbolArrayTemplate(SymbolList list) : SymbolEntry(new Implementation(list)) { }
     int count() const { return dynamic_cast<const Implementation*>(implementation())->count(); }
     Symbol operator[](int i) { return (*dynamic_cast<const Implementation*>(implementation()))[i]; }
 private:
-    SymbolArrayTemplate(const Implementation* implementation) : SymbolEntry(implementation) { }
+    SymbolArrayTemplate(Implementation* implementation) : SymbolEntry(implementation) { }
 
     class Implementation : public SymbolEntry::Implementation
     {

@@ -219,31 +219,31 @@ public:
     }
     Scope* outer() const { return _outer; }
     Scope* functionScope() const { return _functionScope; }
-    void addVariable(String name, int label)
+    void addVariable(String name, int label, Span span)
     {
         if (_symbolTable.hasKey(name)) {
             static String error(" is already defined");
-            location.throwError(name + error);
+            span.throwError(name + error);
         }
-        _symbolTable.add(name, new VariableName(label));
+        _symbolTable[name] = new VariableName(label);
     }
     int resolveIdentifier(String name, Span span)
     {
         if (!_symbolTable.hasKey(name)) {
             if (_outer != 0)
-                return _outer->resolveSymbolName(name, span);
+                return _outer->resolveIdentifier(name, span);
             static String error("Undefined symbol ");
             span.throwError(error + name);
         }
-        return _symbolTable.lookUp(name)->resolveIdentifier(span);
+        return _symbolTable[name]->resolveIdentifier(span);
     }
-    void addFunction(String name, int label)
+    void addFunction(String name, int label, Span span)
     {
-        _functionScope->doAddFunction(name, label);
+        _functionScope->doAddFunction(name, label, span);
     }
-    void addType(String name, int label)
+    void addType(String name, int label, Span span)
     {
-        _functionScope->doAddType(name, label);
+        _functionScope->doAddType(name, label, span);
     }
     //FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
     //{
@@ -254,31 +254,31 @@ public:
     //    return _functionScope->doResolveType(name, location);
     //}
 private:
-    void doAddFunction(String name, int label)
+    void doAddFunction(String name, int label, Span span)
     {
         FunctionName* functionName;
         if (_symbolTable.hasKey(name)) {
-            Reference<SymbolName> symbol = _symbolTable.lookUp(name);
+            Reference<SymbolName> symbol = _symbolTable[name];
             functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
             if (functionName == 0) {
                 static String error(" is already defined as a variable");
-                location.throwError(name + error);
+                span.throwError(name + error);
             }
         }
         else {
             functionName = new FunctionName;
-            _symbolTable.add(name, functionName);
+            _symbolTable[name] = functionName;
         }
         functionName->addOverload(label);
     }
-    //void doAddType(String name, TypeDefinitionStatement* type, Location location)
-    //{
-    //    if (_typeTable.hasKey(name)) {
-    //        static String error(" has already been defined.");
-    //        location.throwError(name + error);
-    //    }
-    //    _typeTable.add(name, type);
-    //}
+    void doAddType(String name, int label, Span span)
+    {
+        if (_typeTable.hasKey(name)) {
+            static String error(" has already been defined.");
+            span.throwError(name + error);
+        }
+        _typeTable[name] = label;
+    }
     //FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
     //{
     //    String name = identifier->name();
@@ -456,7 +456,7 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
             inner = new Scope(scope, true);
             symbol.setCache(inner);
             setScope(symbol[1], inner);
-            scope->addFunction(symbol[2].string(), symbol.label());
+            scope->addFunction(symbol[2].string(), symbol.label(), symbol.span());
             setScope(symbol[3], inner);
             setScope(symbol[4], inner);
             break;
@@ -464,11 +464,11 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
             scope = new Scope(scope);
             symbol.setCache(scope);
             setScope(symbol[1], scope);
-            scope->addVariable(symbol[2].string(), symbol.label());
+            scope->addVariable(symbol[2].string(), symbol.label(), symbol.span());
             setScope(symbol[3], scope);
             break;
         case atomTypeAliasStatement:
-            scope->addType(symbol[2].string(), symbol.label());
+            scope->addType(symbol[2].string(), symbol.label(), symbol.span());
             break;
         case atomIfStatement:
             symbol.setCache(scope);
@@ -547,7 +547,7 @@ int main(int argc, char* argv[])
         int printLabel = Symbol::newLabel();
         Symbol print(atomPrintFunction, Symbol(atomVoid), String("print"), SymbolArray(Symbol(atomString)));
         print.setLabelTarget(printLabel);
-        scope->addFunction(String("print"), printLabel);
+        scope->addFunction(String("print"), printLabel, Span());
 
         CharacterSource source(contents, file.path());
         Space::parse(&source);

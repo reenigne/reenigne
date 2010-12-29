@@ -29,7 +29,7 @@ public:
                 for (int i = 0; i < table.count(); ++i)
                     table[i].addAllTo(this);
             }
-            _table[row(key)].add(key, value);
+            _table[row(key)].add(key, Value());
             ++_n;
         }
         return _table[row(key)].value(key);
@@ -62,7 +62,7 @@ private:
             } while (t != this);
             return false;
         }
-        Value value(const Key& key)
+        Value& value(const Key& key)
         {
             if (_next == 0)
                 return Value();
