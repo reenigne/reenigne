@@ -185,6 +185,26 @@ private:
     int _label;
 };
 
+Symbol typeOf(Symbol symbol)
+{
+    Symbol type = symbol.type();
+    if (type.valid())
+        return type;
+    switch (symbol.atom()) {
+        case atomFunctionDefinitionStatement:
+            {
+                Symbol returnType = symbol[1].symbol();
+                SymbolList list;
+                SymbolArray parameters = symbol[3].array();
+                for (int i = 0; i < parameters.count(); ++i)
+                    list.add(parameters[i][1].symbol());
+                type = Symbol(atomFunction, returnType, SymbolArray(list));
+            }
+    }
+    symbol.setType(type);
+    return type;
+}
+
 class FunctionName : public SymbolName
 {
 public:
@@ -196,8 +216,21 @@ public:
         }
         return _label;
     }
+    void addOverload(int label)
+    {
+        Symbol functionDefinition = Symbol::target(label);
+        Symbol type = typeOf(functionDefinition);
+        SymbolArray types = type[2].array();
+        if (_overloads.hasKey(types)) {
+            static String error("This overload has already been defined.");
+            functionDefinition.span().throwError(error);
+        }
+        _overloads.add(types, label);
+        if (_overloads.count() == 1)
+            _functionType = FunctionType(function->returnType(), argumentTypes);
+    }
 private:
-    HashTable<SymbolList, int> _overloads;
+    HashTable<SymbolArray, int> _overloads;
     int _label;
     String _name;
 };

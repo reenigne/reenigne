@@ -279,7 +279,6 @@ public:
     SymbolTemplate<T> symbol() { return SymbolTemplate<T>(dynamic_cast<Symbol::Implementation*>(implementation())); }
     Atom atom() const { return symbol().atom(); }
     bool valid() const { return _implementation.valid(); }
-    SymbolTemplate<T> target() const { return Symbol::_labelled[integer()].symbol(); }
     int length(int max) const { return implementation()->length(max); }
     String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const { return _implementation->toString(width, spacesPerIndex, indent, x, more); }
     int hash() const { return implementation()->hash(); }
@@ -422,6 +421,7 @@ public:
     ReferenceCounted* cache() { return implementation()->cache(); }
     int label() const { return implementation()->label(); }
     Span span() const { return implementation()->span(); }
+    Symbol type() const { return implementation()->type(); }
 
     void setCache(Reference<ReferenceCounted> cache) { implementation()->setCache(cache); }
     void setLabel(int label) { implementation()->setLabel(label); }
@@ -435,6 +435,8 @@ public:
         _labelled.append(0);
         return l;
     }
+
+    static SymbolTemplate<T> target(int label) const { return SymbolTemplate(_labelled[label]); }
 
 private:
     SymbolTemplate(Implementation* implementation) : SymbolEntry(implementation) { }
