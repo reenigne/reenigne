@@ -227,12 +227,13 @@ public:
         }
         _overloads.add(types, label);
         if (_overloads.count() == 1)
-            _functionType = FunctionType(function->returnType(), argumentTypes);
+            _argumentTypes = types;
     }
 private:
     HashTable<SymbolArray, int> _overloads;
     int _label;
     String _name;
+    SymbolArray _argumentTypes;
 };
 
 template<class T> class ScopeTemplate;
@@ -258,7 +259,7 @@ public:
             static String error(" is already defined");
             span.throwError(name + error);
         }
-        _symbolTable[name] = new VariableName(label);
+        _symbolTable.add(name,new VariableName(label));
     }
     int resolveIdentifier(String name, Span span)
     {
@@ -300,7 +301,7 @@ private:
         }
         else {
             functionName = new FunctionName;
-            _symbolTable[name] = functionName;
+            _symbolTable.add(name, functionName);
         }
         functionName->addOverload(label);
     }
@@ -310,7 +311,7 @@ private:
             static String error(" has already been defined.");
             span.throwError(name + error);
         }
-        _typeTable[name] = label;
+        _typeTable.add(name, label);
     }
     //FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
     //{

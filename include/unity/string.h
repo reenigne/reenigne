@@ -408,14 +408,14 @@ public:
     void copyTo(UInt8* buffer) const
     {
         for (int i = 0; i < length(); ++i) {
-            _string.copyTo(buffer);
+            _string._implementation->copyTo(buffer);
             buffer += _string.length();
         }
     }
     int hash(int h) const
     {
         for (int i = 0; i < length(); ++i)
-            h = _string.hash(h);
+            h = _string._implementation->hash(h);
         return h;
     }
     int compare(int start, const StringImplementation* other, int otherStart, int l) const
@@ -468,13 +468,13 @@ public:
     }
     UInt8 byteAt(int offset) const
     {
-        return _string.byteAt(offset % _count);
+        return _string._implementation->byteAt(offset % _count);
     }
-    Buffer buffer() const { return _string.buffer(); }
+    Buffer buffer() const { return _string._implementation->buffer(); }
     int offset() const { return 0; }
-    void initSimpleData(int offset, Buffer* buffer, int* start, int* l) const
+    void initSimpleData(int offset, Buffer* buf, int* start, int* l) const
     {
-        *buffer = buffer();
+        *buf = buffer();
         *start = offset;
         *l = length() - offset;
     }

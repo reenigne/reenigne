@@ -402,7 +402,7 @@ public:
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5, Span span = Span())
       : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, new SymbolTail(symbol4, new SymbolTail(symbol5, 0))))))) { }
 
-    SymbolTemplate(Atom atom, const SymbolTail* tail, Span span)
+    SymbolTemplate(Atom atom, SymbolTail* tail, Span span)
       : SymbolEntry(new Implementation(-1, atom, span, tail)) { }
 
     Atom atom() const { return implementation()->atom(); }
@@ -416,7 +416,7 @@ public:
         return t->head();
     }
 
-    const SymbolTail* tail() const { return implementation()->tail(); }
+    SymbolTail* tail() { return implementation()->tail(); }
 
     ReferenceCounted* cache() { return implementation()->cache(); }
     int label() const { return implementation()->label(); }
@@ -436,7 +436,7 @@ public:
         return l;
     }
 
-    static SymbolTemplate<T> target(int label) const { return SymbolTemplate(_labelled[label]); }
+    static SymbolTemplate<T> target(int label) { return SymbolTemplate(_labelled[label]); }
 
 private:
     SymbolTemplate(Implementation* implementation) : SymbolEntry(implementation) { }
@@ -444,7 +444,7 @@ private:
     class Implementation : public SymbolEntry::Implementation
     {
     public:
-        Implementation(int label, Atom atom, Span span, const SymbolTail* tail)
+        Implementation(int label, Atom atom, Span span, SymbolTail* tail)
           : _label(label), _atom(atom), _tail(tail)
         {
             setSpan(span);
@@ -454,7 +454,7 @@ private:
             const Implementation* o = dynamic_cast<const Implementation*>(other);
             if (o == 0)
                 return false;
-            return _atom == o->_atom && _tail->equals(other->_tail);
+            return _atom == o->_atom && _tail->equals(o->_tail);
         }
         int length(int max) const
         {
@@ -483,7 +483,7 @@ private:
             bool canInlineNext = true;
             more = true;
 
-            SymbolTail* tail = _tail;
+            const SymbolTail* tail = _tail;
             while (tail != 0) {
                 SymbolEntry entry = tail->head();
                 if (canInlineNext && x + 1 + entry.length(width - x) <= width - 1) {
@@ -493,7 +493,7 @@ private:
                 }
                 else {
                     // Doesn't fit on the line - put it on its own line.
-                    s += newLine + String::padding(indent + 2);
+                    s += newLine + space*(indent + 2);
                     x = indent + 2;
                     more = false;
                 }
@@ -510,7 +510,7 @@ private:
         int label() const { return _label; }
         Span span() const { return _span; }
         Symbol type() const { return _type; }
-        SymbolTail* tail() const { return _tail; }
+        SymbolTail* tail() { return _tail; }
 
         void setCache(Reference<ReferenceCounted> cache) { _cache = cache; }
         void setLabel(int label) { _label = label; }

@@ -14,29 +14,26 @@ public:
     {
         return _table[row(key)].hasKey(key);
     }
-    Value operator[](const Key& key) const
+    const Value& operator[](const Key& key) const
     {
         return _table[row(key)].value(key);
     }
-    Value& operator[](const Key& key)
+    void add(const Key& key, const Value& value)
     {
-        if (!hasKey(key)) {
-            if (_n == _table.count()) {
-                Array<TableEntry> table;
-                table.allocate(_table.count() * 2);
-                table.swap(_table);
-                _n = 0;
-                for (int i = 0; i < table.count(); ++i)
-                    table[i].addAllTo(this);
-            }
-            _table[row(key)].add(key, Value());
-            ++_n;
+        if (_n == _table.count()) {
+            Array<TableEntry> table;
+            table.allocate(_table.count() * 2);
+            table.swap(_table);
+            _n = 0;
+            for (int i = 0; i < table.count(); ++i)
+                table[i].addAllTo(this);
         }
-        return _table[row(key)].value(key);
+        _table[row(key)].add(key, value);
+        ++_n;
     }
     int count() const { return _n; }
 private:
-    int row(const Key& key) { return key.hash() & (_table.count() - 1); }
+    int row(const Key& key) const { return key.hash() & (_table.count() - 1); }
     class TableEntry
     {
     public:
@@ -62,7 +59,7 @@ private:
             } while (t != this);
             return false;
         }
-        Value& value(const Key& key)
+        const Value& value(const Key& key) const
         {
             if (_next == 0)
                 return Value();
