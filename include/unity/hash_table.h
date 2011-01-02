@@ -14,7 +14,7 @@ public:
     {
         return _table[row(key)].hasKey(key);
     }
-    const Value& operator[](const Key& key) const
+    Value operator[](const Key& key) const
     {
         return _table[row(key)].value(key);
     }
@@ -59,11 +59,11 @@ private:
             } while (t != this);
             return false;
         }
-        const Value& value(const Key& key) const
+        Value value(const Key& key) const
         {
             if (_next == 0)
                 return Value();
-            TableEntry* t = this;
+            const TableEntry* t = this;
             do {
                 if (t->_key == key)
                     return t->_value;

@@ -183,14 +183,19 @@ public:
     }
     const String& operator*=(int n)
     {
-        if (n == 0 || length() == 0)
-            return String(_emptyImplementation);
+        if (n == 0 || length() == 0) {
+            *this = String(_emptyImplementation);
+            return *this;
+        }
         if (n == 1)
             return *this;
-        const RepeatedStringImplementation* r = dynamic_cast<const RepeatedStringImplementation*>(_implementation);
-        if (r != 0)
-            return new RepeatedStringImplementation(r->_string, n*r->_count);
-        return new RepeatedStringImplementation(*this, n);
+        const RepeatedStringImplementation* r = dynamic_cast<const RepeatedStringImplementation*>(static_cast<const StringImplementation*>(_implementation));
+        if (r != 0) {
+            _implementation = new RepeatedStringImplementation(r->_string, n*r->_count);
+            return *this;
+        }
+        _implementation = new RepeatedStringImplementation(*this, n);
+        return *this;
     }
     String operator+(const String& other) const
     {

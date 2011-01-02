@@ -167,7 +167,7 @@ private:
 //
 //class Identifier;
 
-class SymbolName
+class SymbolName : public ReferenceCounted
 {
 public:
     virtual int resolveIdentifier(Span span) = 0;

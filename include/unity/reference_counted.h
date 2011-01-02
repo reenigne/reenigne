@@ -8,21 +8,22 @@ class ReferenceCounted : Uncopyable
 public:
     ReferenceCounted() { _count = 0; }
 
-    void addReference() { ++_count; }
+    void addReference() const { ++_count; }
 protected:
     virtual ~ReferenceCounted() { };
 
 private:
-    void release()
+    void release() const
     {
         --_count;
         if (_count == 0)
             delete this;
     }
 
-    int _count;
+    mutable int _count;
 
     template<class T> friend class Reference;
+    template<class T> friend class ConstReference;
 };
 
 template<class T> class Reference
@@ -65,6 +66,48 @@ private:
             _t->addReference();
     }
     T* _t;
+
+    template<class U> friend class Reference;
+};
+
+template<class T> class ConstReference
+{
+public:
+    ConstReference() : _t(0) { }
+    ConstReference(const ConstReference& other) { set(other._t); }
+    template<class U> ConstReference(const ConstReference<U>& other) { set(dynamic_cast<T*>(other._t)); }
+    ConstReference(const T* t) { set(t); }
+    ~ConstReference() { reset(); }
+    const ConstReference& operator=(const ConstReference& other)
+    {
+        if (this != &other) {
+            reset();
+            set(other._t);
+        }
+        return *this;
+    }
+    template<class U> ConstReference& operator=(const ConstReference<U>& other)
+    {
+        reset();
+        set(dynamic_cast<T*>(other._t));
+        return *this;
+    }
+    const ConstReference& operator=(const T* t) { reset(); set(t); return *this; }
+
+    const T* operator->() const { return _t; }
+    operator const T*() const { return _t; }
+    bool valid() const { return _t != 0; }
+    bool operator==(const ConstReference& other) const { return _t == other._t; }
+
+private:
+    void reset() { if (valid()) _t->release(); }
+    void set(const T* t)
+    {
+        _t = t;
+        if (valid())
+            _t->addReference();
+    }
+    const T* _t;
 
     template<class U> friend class Reference;
 };

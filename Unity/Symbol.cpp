@@ -373,7 +373,7 @@ public:
             return _tail->equals(other->_tail);
         return !other->_tail.valid();
     }
-    int length(int max)
+    int length(int max) const
     {
         int r = _head.length(max);
         if (r < max && _tail.valid())
@@ -402,7 +402,7 @@ public:
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5, Span span = Span())
       : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, new SymbolTail(symbol4, new SymbolTail(symbol5, 0))))))) { }
 
-    SymbolTemplate(Atom atom, SymbolTail* tail, Span span)
+    SymbolTemplate(Atom atom, const SymbolTail* tail, Span span)
       : SymbolEntry(new Implementation(-1, atom, span, tail)) { }
 
     Atom atom() const { return implementation()->atom(); }
@@ -416,7 +416,7 @@ public:
         return t->head();
     }
 
-    SymbolTail* tail() { return implementation()->tail(); }
+    const SymbolTail* tail() const { return implementation()->tail(); }
 
     ReferenceCounted* cache() { return implementation()->cache(); }
     int label() const { return implementation()->label(); }
@@ -444,7 +444,7 @@ private:
     class Implementation : public SymbolEntry::Implementation
     {
     public:
-        Implementation(int label, Atom atom, Span span, SymbolTail* tail)
+        Implementation(int label, Atom atom, Span span, const SymbolTail* tail)
           : _label(label), _atom(atom), _tail(tail)
         {
             setSpan(span);
@@ -510,11 +510,11 @@ private:
         int label() const { return _label; }
         Span span() const { return _span; }
         Symbol type() const { return _type; }
-        SymbolTail* tail() { return _tail; }
+        const SymbolTail* tail() const { return _tail; }
 
         void setCache(Reference<ReferenceCounted> cache) { _cache = cache; }
         void setLabel(int label) { _label = label; }
-        void setLabelTarget(int lable)
+        void setLabelTarget(int label)
         {
             _label = label;
             _labelled[label] = this;
@@ -525,10 +525,10 @@ private:
         int hash() const
         {
             int h = atom();
-            SymbolTail* t = _tail;
+            const SymbolTail* t = _tail;
             while (t != 0) {
                 h = h * 67 + t->head().hash() - 113;
-                t = t->_tail;
+                t = t->tail();
             }
             return h;
         }
@@ -538,20 +538,19 @@ private:
     private:
         bool isTarget() const
         { 
-            int l = cache()->label();
-            return l > 0 && _labelled[l] == this;
+            return _label > 0 && _labelled[_label] == this;
         }
 
         Atom _atom;
-        Reference<SymbolTail> _tail;
+        ConstReference<SymbolTail> _tail;
         Reference<ReferenceCounted> _cache;
         int _label;
         Span _span;
         Symbol _type;
     };
 
-    const Implementation* implementation() const { return dynamic_cast<const Implementation*>(implementation()); }
-    Implementation* implementation() { return dynamic_cast<Implementation*>(implementation()); }
+    const Implementation* implementation() const { return dynamic_cast<const Implementation*>(SymbolEntryTemplate::implementation()); }
+    Implementation* implementation() { return dynamic_cast<Implementation*>(SymbolEntryTemplate::implementation()); }
 
     template<class T> friend class SymbolEntryTemplate;
     template<class T> friend class SymbolTemplate;
