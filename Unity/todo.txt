@@ -1,5 +1,12 @@
+resolveIdentifiers
+  Handle atomFunctionCall
+    Find types of arguments
+    Resolve
+
+typeOf
+  The type field contains computed 
+
 Implement compilation steps as Symbol transformations
-  Phase: Resolve symbols (augment Identifier with label number)
   Phase: Check types and resolve overloaded function calls
   Phase: Compile to low-level code
   Phase: Run
