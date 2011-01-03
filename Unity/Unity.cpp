@@ -185,8 +185,18 @@ private:
     int _label;
 };
 
-Symbol typeOf(Symbol symbol)
+SymbolEntry typeOf(SymbolEntry entry)
 {
+    if (entry.isArray()) {
+        SymbolList list;
+        SymbolArray array = entry.array();
+        for (int i = 0; i < array.count(); ++i)
+            list.add(typeOf(array[i]).symbol());
+        return SymbolArray(list);
+    }
+    if (!entry.isSymbol())
+        return Symbol();
+    Symbol symbol = entry.symbol();
     Symbol type = symbol.type();
     if (type.valid())
         return type;
@@ -200,23 +210,37 @@ Symbol typeOf(Symbol symbol)
                     list.add(parameters[i][1].symbol());
                 type = Symbol(atomFunction, returnType, SymbolArray(list));
             }
+            break;
+        case atomAuto:
+        case atomBit:
+        case atomBoolean:
+        case atomByte:
+        case atomCharacter:
+        case atomInt:
+        case atomString:
+        case atomUInt:
+        case atomVoid:
+        case atomWord:
+            type = symbol;
+            break;
+        case atomPointer:
+            type = Symbol(atomPointer, typeOf(symbol[1]));
+            break;
+        case atomFunction:
+            type = Symbol(atomFunction, typeOf(symbol[1]), typeOf(symbol[2]));
+            break;
+        case atomClass:
+            // TODO
+            break;
+        case atomTypeIdentifier:
+            {
+                int label = scope->resolveType(symbol[1].string(), symbol.span());
+            type = 
+        case atomTypeOf:
 
-        case 
-            _table[atomAuto] = String("Auto");
-            _table[atomBit] = String("Bit");
-            _table[atomBoolean] = String("Boolean");
-            _table[atomByte] = String("Byte");
-            _table[atomCharacter] = String("Character");
-            _table[atomClass] = String("Class");
-            _table[atomFunction] = String("Function");                               // returnType     argumentTypes
-            _table[atomInt] = String("Int");
-            _table[atomPointer] = String("Pointer");                                 // referentType
-            _table[atomString] = String("String");
-            _table[atomTypeIdentifier] = String("TypeIdentifier");                   // name
-            _table[atomTypeOf] = String("TypeOf");                                   // expression
-            _table[atomUInt] = String("UInt");                     
-            _table[atomVoid] = String("Void");
-            _table[atomWord] = String("Word");
+
+
+
 
             _table[atomLogicalOr] = String("||");                                    // leftExpression rightExpression
             _table[atomLogicalAnd] = String("&&");                                   // leftExpression rightExpression
@@ -642,17 +666,24 @@ void resolveIdentifiers(SymbolEntry entry)
     Scope* scope = dynamic_cast<Scope*>(symbol.cache());
     int label;
     Symbol target;
-    if (symbol.atom() == atomIdentifier) {
-        label = scope->resolveIdentifier(symbol[1].string(), symbol.span());
-        symbol.setLabel(label);
-        target = Symbol::target(label);
-        symbol.setType(typeOf(target));
-        return;
-    }
-    else
-        if (symbol.atom() == atomFunctionCall) {
-            // TODO
+    switch (symbol.atom()) {
+        case atomIdentifier:
+            label = scope->resolveIdentifier(symbol[1].string(), symbol.span());
+            symbol.setLabel(label);
+            target = Symbol::target(label);
+            symbol.setType(typeOf(target).symbol());
+            return;
         }
+        case atomFunctionCall:
+            // TODO
+            break;
+        case atomTypeIdentifier:
+            label = scope->resolveType(symbol[1].string(), symbol.span());
+            symbol.setLabel(label);
+            target = Symbol::target(label);
+            symbol.setType(typeOf(target).symbol());
+            return;
+    }
 
     const SymbolTail* tail = symbol.tail();
     while (tail != 0) {
