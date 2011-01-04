@@ -4,7 +4,8 @@ resolveIdentifiers
     Resolve
 
 typeOf
-  The type field contains computed 
+  The type field contains computed type always, plus Auto
+  symbol.setType needed in atomTypeIdentifier case of resolveIdentifiers?  
 
 Implement compilation steps as Symbol transformations
   Phase: Check types and resolve overloaded function calls

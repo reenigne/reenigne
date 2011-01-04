@@ -233,88 +233,111 @@ SymbolEntry typeOf(SymbolEntry entry)
             // TODO
             break;
         case atomTypeIdentifier:
-            {
-                int label = scope->resolveType(symbol[1].string(), symbol.span());
-            type = 
+            resolveIdentifiers(symbol);
+            type = symbol.type();
+            break;
         case atomTypeOf:
+            resolveIdentifiers(symbol);
+            type = typeOf(symbol[1]).symbol();
+            break;
+        case atomLogicalOr:
+        case atomLogicalAnd:
+            {
+                static String error("expression is of type ");
+                static String error2(", Boolean expected");
+                type = typeOf(symbol[1]);
+                if (type.atom() != atomBoolean)
+                    symbol[1].span().throwError(error + typeToString(type) + error2);
+                type = typeOf(symbol[2]);
+                if (type.atom() != atomBoolean)
+                    symbol[2].span().throwError(error + typeToString(type) + error2);
+            }
+            break;
+        case atomDot:
+            // TODO
+            break;
+        case atomTrue:
+        case atomFalse:
+            type = Symbol(atomBoolean);
+            break;
+        case atomStringConstant:
+            type = Symbol(atomString);
+            break;
+        case atomIdentifier:
+            resolveIdentifiers(symbol);
+            type = symbol.type();
+            break;
+        case atomIntegerConstant:
+            type = Symbol(atomInteger);
+            break;
+        case 
 
+            //_table[atomDot] = String(".");                                           // leftExpression rightExpression
 
+            //_table[atomBitwiseOr] = String("|");                                     // leftExpression rightExpression
+            //_table[atomBitwiseXor] = String("~");                                    // leftExpression rightExpression
+            //_table[atomBitwiseAnd] = String("&");                                    // leftExpression rightExpression
+            //_table[atomEqualTo] = String("==");                                      // leftExpression rightExpression
+            //_table[atomNotEqualTo] = String("!=");                                   // leftExpression rightExpression
+            //_table[atomLessThanOrEqualTo] = String("<=");                            // leftExpression rightExpression
+            //_table[atomGreaterThanOrEqualTo] = String(">=");                         // leftExpression rightExpression
+            //_table[atomLessThan] = String("<");                                      // leftExpression rightExpression
+            //_table[atomGreaterThan] = String(">");                                   // leftExpression rightExpression
+            //_table[atomLeftShift] = String("<<");                                    // leftExpression rightExpression
+            //_table[atomRightShift] = String(">>");                                   // leftExpression rightExpression
+            //_table[atomAdd] = String("+");                                           // leftExpression rightExpression
+            //_table[atomSubtract] = String("-");                                      // leftExpression rightExpression
+            //_table[atomMultiply] = String("*");                                      // leftExpression rightExpression
+            //_table[atomDivide] = String("/");                                        // leftExpression rightExpression
+            //_table[atomModulo] = String("%");                                        // leftExpression rightExpression
+            //_table[atomNot] = String("!");                                           // expression
+            //_table[atomPositive] = String("u+");                                     // expression
+            //_table[atomNegative] = String("u-");                                     // expression
+            //_table[atomDereference] = String("u*");                                  // expression
+            //_table[atomAddressOf] = String("u&");                                    // expression
+            //_table[atomPower] = String("^");                                         // leftExpression rightExpression
+            //_table[atomFunctionCall] = String("call");                               // expression     arguments
 
+            //_table[atomNull] = String("null");
 
+            //_table[atomParameter] = String("parameter");                             // typeSpecifier  name
 
-            _table[atomLogicalOr] = String("||");                                    // leftExpression rightExpression
-            _table[atomLogicalAnd] = String("&&");                                   // leftExpression rightExpression
-            _table[atomDot] = String(".");                                           // leftExpression rightExpression
+            //_table[atomExpressionStatement] = String("expression");                  // expression
+            //_table[atomFunctionDefinitionStatement] = String("functionDefinition");  // returnType     name            parameters     statement
+            //_table[atomFromStatement] = String("from");                              // dllExpression
+            //_table[atomVariableDefinitionStatement] = String("variableDefinition");  // typeSpecifier  identifier      initializer
+            //_table[atomAssignmentStatement] = String("=");                           // leftExpression rightExpression
+            //_table[atomAddAssignmentStatement] = String("+=");                       // leftExpression rightExpression
+            //_table[atomSubtractAssignmentStatement] = String("-=");                  // leftExpression rightExpression
+            //_table[atomMultiplyAssignmentStatement] = String("*=");                  // leftExpression rightExpression
+            //_table[atomDivideAssignmentStatement] = String("/=");                    // leftExpression rightExpression
+            //_table[atomModuloAssignmentStatement] = String("%=");                    // leftExpression rightExpression
+            //_table[atomShiftLeftAssignmentStatement] = String("<<=");                // leftExpression rightExpression
+            //_table[atomShiftRightAssignmentStatement] = String(">>=");               // leftExpression rightExpression
+            //_table[atomAndAssignmentStatement] = String("&=");                       // leftExpression rightExpression
+            //_table[atomOrAssignmentStatement] = String("|=");                        // leftExpression rightExpression
+            //_table[atomXorAssignmentStatement] = String("~=");                       // leftExpression rightExpression
+            //_table[atomPowerAssignmentStatement] = String("^=");                     // leftExpression rightExpression
+            //_table[atomCompoundStatement] = String("compound");                      // statements
+            //_table[atomTypeAliasStatement] = String("type");                         // typeIdentifier typeSpecifier
+            //_table[atomNothingStatement] = String("nothing");
+            //_table[atomIncrementStatement] = String("++");                           // expression
+            //_table[atomDecrementStatement] = String("--");                           // expression
+            //_table[atomIfStatement] = String("if");                                  // condition      trueStatement   falseStatement
+            //_table[atomSwitchStatement] = String("switch");                          // expression     defaultCase     cases
+            //_table[atomReturnStatement] = String("return");                          // expression
+            //_table[atomIncludeStatement] = String("include");                        // expression
+            //_table[atomBreakStatement] = String("break");                            // statement
+            //_table[atomContinueStatement] = String("continue");
+            //_table[atomForeverStatement] = String("forever");                        // statement
+            //_table[atomWhileStatement] = String("while");                            // doStatement    condition       statement      doneStatement
+            //_table[atomUntilStatement] = String("until");                            // doStatement    condition       statement      doneStatement
+            //_table[atomForStatement] = String("for");                                // preStatement   expression      postStatement  statement     doneStatement
 
-            _table[atomBitwiseOr] = String("|");                                     // leftExpression rightExpression
-            _table[atomBitwiseXor] = String("~");                                    // leftExpression rightExpression
-            _table[atomBitwiseAnd] = String("&");                                    // leftExpression rightExpression
-            _table[atomEqualTo] = String("==");                                      // leftExpression rightExpression
-            _table[atomNotEqualTo] = String("!=");                                   // leftExpression rightExpression
-            _table[atomLessThanOrEqualTo] = String("<=");                            // leftExpression rightExpression
-            _table[atomGreaterThanOrEqualTo] = String(">=");                         // leftExpression rightExpression
-            _table[atomLessThan] = String("<");                                      // leftExpression rightExpression
-            _table[atomGreaterThan] = String(">");                                   // leftExpression rightExpression
-            _table[atomLeftShift] = String("<<");                                    // leftExpression rightExpression
-            _table[atomRightShift] = String(">>");                                   // leftExpression rightExpression
-            _table[atomAdd] = String("+");                                           // leftExpression rightExpression
-            _table[atomSubtract] = String("-");                                      // leftExpression rightExpression
-            _table[atomMultiply] = String("*");                                      // leftExpression rightExpression
-            _table[atomDivide] = String("/");                                        // leftExpression rightExpression
-            _table[atomModulo] = String("%");                                        // leftExpression rightExpression
-            _table[atomNot] = String("!");                                           // expression
-            _table[atomPositive] = String("u+");                                     // expression
-            _table[atomNegative] = String("u-");                                     // expression
-            _table[atomDereference] = String("u*");                                  // expression
-            _table[atomAddressOf] = String("u&");                                    // expression
-            _table[atomPower] = String("^");                                         // leftExpression rightExpression
-            _table[atomFunctionCall] = String("call");                               // expression     arguments
+            //_table[atomCase] = String("case");                                       // expressions    statement
+            //_table[atomDefaultCase] = String("default");                             // statement
 
-            _table[atomStringConstant] = String("string");                           // string
-            _table[atomIdentifier] = String("identifier");                           // name
-            _table[atomIntegerConstant] = String("integer");                         // value
-            _table[atomTrue] = String("true");
-            _table[atomFalse] = String("false");
-            _table[atomNull] = String("null");
-
-            _table[atomParameter] = String("parameter");                             // typeSpecifier  name
-
-            _table[atomExpressionStatement] = String("expression");                  // expression
-            _table[atomFunctionDefinitionStatement] = String("functionDefinition");  // returnType     name            parameters     statement
-            _table[atomFromStatement] = String("from");                              // dllExpression
-            _table[atomVariableDefinitionStatement] = String("variableDefinition");  // typeSpecifier  identifier      initializer
-            _table[atomAssignmentStatement] = String("=");                           // leftExpression rightExpression
-            _table[atomAddAssignmentStatement] = String("+=");                       // leftExpression rightExpression
-            _table[atomSubtractAssignmentStatement] = String("-=");                  // leftExpression rightExpression
-            _table[atomMultiplyAssignmentStatement] = String("*=");                  // leftExpression rightExpression
-            _table[atomDivideAssignmentStatement] = String("/=");                    // leftExpression rightExpression
-            _table[atomModuloAssignmentStatement] = String("%=");                    // leftExpression rightExpression
-            _table[atomShiftLeftAssignmentStatement] = String("<<=");                // leftExpression rightExpression
-            _table[atomShiftRightAssignmentStatement] = String(">>=");               // leftExpression rightExpression
-            _table[atomAndAssignmentStatement] = String("&=");                       // leftExpression rightExpression
-            _table[atomOrAssignmentStatement] = String("|=");                        // leftExpression rightExpression
-            _table[atomXorAssignmentStatement] = String("~=");                       // leftExpression rightExpression
-            _table[atomPowerAssignmentStatement] = String("^=");                     // leftExpression rightExpression
-            _table[atomCompoundStatement] = String("compound");                      // statements
-            _table[atomTypeAliasStatement] = String("type");                         // typeIdentifier typeSpecifier
-            _table[atomNothingStatement] = String("nothing");
-            _table[atomIncrementStatement] = String("++");                           // expression
-            _table[atomDecrementStatement] = String("--");                           // expression
-            _table[atomIfStatement] = String("if");                                  // condition      trueStatement   falseStatement
-            _table[atomSwitchStatement] = String("switch");                          // expression     defaultCase     cases
-            _table[atomReturnStatement] = String("return");                          // expression
-            _table[atomIncludeStatement] = String("include");                        // expression
-            _table[atomBreakStatement] = String("break");                            // statement
-            _table[atomContinueStatement] = String("continue");
-            _table[atomForeverStatement] = String("forever");                        // statement
-            _table[atomWhileStatement] = String("while");                            // doStatement    condition       statement      doneStatement
-            _table[atomUntilStatement] = String("until");                            // doStatement    condition       statement      doneStatement
-            _table[atomForStatement] = String("for");                                // preStatement   expression      postStatement  statement     doneStatement
-
-            _table[atomCase] = String("case");                                       // expressions    statement
-            _table[atomDefaultCase] = String("default");                             // statement
-
-            _table[atomPrintFunction] = String("print");                             // returnType     name            parameters
+            //_table[atomPrintFunction] = String("print");                             // returnType     name            parameters
 
     }
     symbol.setType(type);
@@ -664,7 +687,9 @@ void resolveIdentifiers(SymbolEntry entry)
         return;
     Symbol symbol = entry.symbol();
     Scope* scope = dynamic_cast<Scope*>(symbol.cache());
-    int label;
+    int label = symbol.label();
+    if (label != -1)
+        return;
     Symbol target;
     switch (symbol.atom()) {
         case atomIdentifier:
