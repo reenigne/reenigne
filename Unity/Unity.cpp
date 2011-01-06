@@ -245,12 +245,12 @@ SymbolEntry typeOf(SymbolEntry entry)
             {
                 static String error("expression is of type ");
                 static String error2(", Boolean expected");
-                type = typeOf(symbol[1]);
+                type = typeOf(symbol[1]).symbol();
                 if (type.atom() != atomBoolean)
-                    symbol[1].span().throwError(error + typeToString(type) + error2);
-                type = typeOf(symbol[2]);
+                    symbol[1].symbol().span().throwError(error + typeToString(type) + error2);
+                type = typeOf(symbol[2]).symbol();
                 if (type.atom() != atomBoolean)
-                    symbol[2].span().throwError(error + typeToString(type) + error2);
+                    symbol[2].symbol().span().throwError(error + typeToString(type) + error2);
             }
             break;
         case atomDot:
@@ -268,34 +268,14 @@ SymbolEntry typeOf(SymbolEntry entry)
             type = symbol.type();
             break;
         case atomIntegerConstant:
-            type = Symbol(atomInteger);
+            type = Symbol(atomInt);  // TODO: the type is actually one of several depending on the value
             break;
-        case 
+        case atomFunctionCall:
+
+
 
             //_table[atomDot] = String(".");                                           // leftExpression rightExpression
 
-            //_table[atomBitwiseOr] = String("|");                                     // leftExpression rightExpression
-            //_table[atomBitwiseXor] = String("~");                                    // leftExpression rightExpression
-            //_table[atomBitwiseAnd] = String("&");                                    // leftExpression rightExpression
-            //_table[atomEqualTo] = String("==");                                      // leftExpression rightExpression
-            //_table[atomNotEqualTo] = String("!=");                                   // leftExpression rightExpression
-            //_table[atomLessThanOrEqualTo] = String("<=");                            // leftExpression rightExpression
-            //_table[atomGreaterThanOrEqualTo] = String(">=");                         // leftExpression rightExpression
-            //_table[atomLessThan] = String("<");                                      // leftExpression rightExpression
-            //_table[atomGreaterThan] = String(">");                                   // leftExpression rightExpression
-            //_table[atomLeftShift] = String("<<");                                    // leftExpression rightExpression
-            //_table[atomRightShift] = String(">>");                                   // leftExpression rightExpression
-            //_table[atomAdd] = String("+");                                           // leftExpression rightExpression
-            //_table[atomSubtract] = String("-");                                      // leftExpression rightExpression
-            //_table[atomMultiply] = String("*");                                      // leftExpression rightExpression
-            //_table[atomDivide] = String("/");                                        // leftExpression rightExpression
-            //_table[atomModulo] = String("%");                                        // leftExpression rightExpression
-            //_table[atomNot] = String("!");                                           // expression
-            //_table[atomPositive] = String("u+");                                     // expression
-            //_table[atomNegative] = String("u-");                                     // expression
-            //_table[atomDereference] = String("u*");                                  // expression
-            //_table[atomAddressOf] = String("u&");                                    // expression
-            //_table[atomPower] = String("^");                                         // leftExpression rightExpression
             //_table[atomFunctionCall] = String("call");                               // expression     arguments
 
             //_table[atomNull] = String("null");
@@ -358,7 +338,7 @@ public:
     void addOverload(int label)
     {
         Symbol functionDefinition = Symbol::target(label);
-        Symbol type = typeOf(functionDefinition);
+        Symbol type = typeOf(functionDefinition).symbol();
         SymbolArray types = type[2].array();
         if (_overloads.hasKey(types)) {
             static String error("This overload has already been defined.");
