@@ -271,6 +271,13 @@ SymbolEntry typeOf(SymbolEntry entry)
             type = Symbol(atomInt);  // TODO: the type is actually one of several depending on the value
             break;
         case atomFunctionCall:
+            {
+                SymbolList list;
+                SymbolArray arguments = symbol[2].array();
+                for (int i = 0; i < arguments.count(); ++i)
+                    list.add(typeOf(arguments[i]);
+                Scope* scope = dynamic_cast<Scope*>(symbol.cache());
+
 
 
 
@@ -392,23 +399,6 @@ public:
     }
     void addFunction(String name, int label, Span span)
     {
-        _functionScope->doAddFunction(name, label, span);
-    }
-    void addType(String name, int label, Span span)
-    {
-        _functionScope->doAddType(name, label, span);
-    }
-    //FunctionDeclarationStatement* resolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
-    //{
-    //    return _functionScope->doResolveFunction(identifier, typeList, location);
-    //}
-    //TypeDefinitionStatement* resolveType(String name, Location location)
-    //{
-    //    return _functionScope->doResolveType(name, location);
-    //}
-private:
-    void doAddFunction(String name, int label, Span span)
-    {
         FunctionName* functionName;
         if (_symbolTable.hasKey(name)) {
             Reference<SymbolName> symbol = _symbolTable[name];
@@ -424,7 +414,7 @@ private:
         }
         functionName->addOverload(label);
     }
-    void doAddType(String name, int label, Span span)
+    void addType(String name, int label, Span span)
     {
         if (_typeTable.hasKey(name)) {
             static String error(" has already been defined.");
@@ -432,39 +422,39 @@ private:
         }
         _typeTable.add(name, label);
     }
-    //FunctionDeclarationStatement* doResolveFunction(Reference<Identifier> identifier, SymbolList typeList, Location location)
-    //{
-    //    String name = identifier->name();
-    //    if (!_symbolTable.hasKey(name)) {
-    //        if (_outer == 0) {
-    //            static String error("Undefined function ");
-    //            location.throwError(error + name);
-    //        }
-    //        return _outer->resolveFunction(identifier, typeList, location);
-    //    }
-    //    Reference<SymbolName> symbol = _symbolTable.lookUp(name);
-    //    FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
-    //    if (functionName == 0) {
-    //        static String error(" is not a function");
-    //        location.throwError(name + error);
-    //    }
-    //    if (!functionName->hasOverload(typeList)) {
-    //        static String error(" has no overload with argument types ");
-    //        location.throwError(name + error + typeList.toString());
-    //    }
-    //    return functionName->lookUpOverload(typeList);
-    //}
-    //TypeDefinitionStatement* doResolveType(String name, Location location)
-    //{
-    //    if (!_typeTable.hasKey(name)) {
-    //        if (_outer == 0) {
-    //            static String error("Undefined type ");
-    //            location.throwError(error + name);
-    //        }
-    //        return _outer->resolveType(name, location);
-    //    }
-    //    return _typeTable.lookUp(name);
-    //}
+    int resolveFunction(String name, SymbolArray argumentTypes, Span span)
+    {
+        if (!_symbolTable.hasKey(name)) {
+            if (_outer == 0) {
+                static String error("Undefined function ");
+                location.throwError(error + name);
+            }
+            return _outer->resolveFunction(identifier, typeList, location);
+        }
+        Reference<SymbolName> symbol = _symbolTable.lookUp(name);
+        FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
+        if (functionName == 0) {
+            static String error(" is not a function");
+            location.throwError(name + error);
+        }
+        if (!functionName->hasOverload(typeList)) {
+            static String error(" has no overload with argument types ");
+            location.throwError(name + error + typeList.toString());
+        }
+        return functionName->lookUpOverload(typeList);
+    }
+    int resolveType(String name, Location location)
+    {
+        if (!_typeTable.hasKey(name)) {
+            if (_outer == 0) {
+                static String error("Undefined type ");
+                location.throwError(error + name);
+            }
+            return _outer->resolveType(name, location);
+        }
+        return _typeTable.lookUp(name);
+    }
+private:
     HashTable<String, Reference<SymbolName> > _symbolTable;
     HashTable<String, int> _typeTable;
     Scope* _outer;
