@@ -272,11 +272,16 @@ SymbolEntry typeOf(SymbolEntry entry)
             break;
         case atomFunctionCall:
             {
+                Symbol function = symbol[1];
+                if (function.atom() == atomIdentifier) {
                 SymbolList list;
                 SymbolArray arguments = symbol[2].array();
                 for (int i = 0; i < arguments.count(); ++i)
-                    list.add(typeOf(arguments[i]);
+                    list.add(typeOf(arguments[i]).symbol());
                 Scope* scope = dynamic_cast<Scope*>(symbol.cache());
+                int label = scope->resolveFunction(symbol[1][1]
+            }
+            break;
 
 
 
@@ -355,6 +360,11 @@ public:
         if (_overloads.count() == 1)
             _argumentTypes = types;
     }
+    int lookUpOverload(SymbolArray argumentTypes)
+    {
+        return _overloads.lookUp(argumentTypes);
+    }
+
 private:
     HashTable<SymbolArray, int> _overloads;
     int _label;
@@ -427,9 +437,9 @@ public:
         if (!_symbolTable.hasKey(name)) {
             if (_outer == 0) {
                 static String error("Undefined function ");
-                location.throwError(error + name);
+                span.throwError(error + name);
             }
-            return _outer->resolveFunction(identifier, typeList, location);
+            return _outer->resolveFunction(name, argumentTypes, span);
         }
         Reference<SymbolName> symbol = _symbolTable.lookUp(name);
         FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
@@ -437,11 +447,11 @@ public:
             static String error(" is not a function");
             location.throwError(name + error);
         }
-        if (!functionName->hasOverload(typeList)) {
+        if (!functionName->hasOverload(argumentTypes)) {
             static String error(" has no overload with argument types ");
-            location.throwError(name + error + typeList.toString());
+            location.throwError(name + error + typesToString(argumentTypes);
         }
-        return functionName->lookUpOverload(typeList);
+        return functionName->lookUpOverload(argumentTypes);
     }
     int resolveType(String name, Location location)
     {

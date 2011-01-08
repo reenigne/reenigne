@@ -20,3 +20,14 @@ String typeToString(Symbol type)
             return atomToString(type.atom());
     }
 }
+
+String typesToString(SymbolArray array)
+{
+    String s = openParenthesis;
+    for (int i = 0; i < array.count(); ++i) {
+        if (i != 0)
+            s += commaSpace;
+        s += typeToString(array[i]);
+    }
+    return s + closeParenthesis;
+}
