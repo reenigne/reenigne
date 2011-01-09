@@ -272,14 +272,20 @@ SymbolEntry typeOf(SymbolEntry entry)
             break;
         case atomFunctionCall:
             {
-                Symbol function = symbol[1];
+                Symbol function = symbol[1].symbol();
                 if (function.atom() == atomIdentifier) {
-                SymbolList list;
-                SymbolArray arguments = symbol[2].array();
-                for (int i = 0; i < arguments.count(); ++i)
-                    list.add(typeOf(arguments[i]).symbol());
-                Scope* scope = dynamic_cast<Scope*>(symbol.cache());
-                int label = scope->resolveFunction(symbol[1][1]
+                    SymbolList list;
+                    SymbolArray arguments = symbol[2].array();
+                    for (int i = 0; i < arguments.count(); ++i)
+                        list.add(typeOf(arguments[i]).symbol());
+                    Scope* scope = dynamic_cast<Scope*>(symbol.cache());
+                    Symbol functionName = function[1].symbol();
+                    int label = scope->resolveFunction(functionName.string(), list, functionName.span());
+                    Symbol target = Symbol::target(label);
+                    type = target[1].symbol();
+                }
+                else
+                    type = typeOf(function).symbol()[1];
             }
             break;
 
@@ -362,7 +368,7 @@ public:
     }
     int lookUpOverload(SymbolArray argumentTypes)
     {
-        return _overloads.lookUp(argumentTypes);
+        return _overloads[argumentTypes];
     }
 
 private:
