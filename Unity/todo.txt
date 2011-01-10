@@ -1,7 +1,6 @@
-resolveIdentifiers
-  Handle atomFunctionCall
-    Find types of arguments
-    Resolve
+Where do we check that expression statements have an effect? (i.e. are function calls?)
+
+Separate typeOf and checkTypes
 
 typeOf
   The type field contains computed type always, plus Auto
@@ -12,14 +11,11 @@ Implement compilation steps as Symbol transformations
   Phase: Compile to low-level code
   Phase: Run
 
-Find type of each expression
-
 Phase: Resolve variable references to variable definitions and parameters
   Only need to look for first 
 Phase:
   Resolve variable types      } Need to do these at the same type, in case of Auto r = foo(x); bar(r);
   Resolve function overloads  }
-
 
 Class contents:
   public/private/protected

@@ -79,94 +79,6 @@ private:
 #include "Symbol.cpp"
 #include "Type.cpp"
 
-//class Variable;
-//class FunctionDeclarationStatement;
-//
-//class Value
-//{
-//public:
-//    Value() { }
-//    Value(int intValue) : _intValue(intValue) { }
-//    Value(String stringValue) : _stringValue(stringValue) { }
-//    Value(Variable* pointerValue) : _pointerValue(pointerValue) { }
-//    Value(FunctionDeclarationStatement* functionDeclaration) : _pointerValue(functionDeclaration) { }
-//    int getInt() const { return _intValue; }
-//    String getString() const { return _stringValue; }
-//    Variable* getPointer() const { return static_cast<Variable*>(_pointerValue); }
-//    FunctionDeclarationStatement* getFunctionDeclaration() const { return static_cast<FunctionDeclarationStatement*>(_pointerValue); }
-//private:
-//    int _intValue;
-//    String _stringValue;
-//    void* _pointerValue;
-//};
-//
-//class SymbolName : public ReferenceCounted
-//{
-//public:
-//    virtual Symbol type(String name, Location location) const = 0;
-//    virtual Value value() const = 0;
-//};
-//
-//class FunctionDeclarationStatement;
-//
-//template<class T> class FunctionNameTemplate : public SymbolName
-//{
-//public:
-//    void addOverload(SymbolList argumentTypes, FunctionDeclarationStatement* function, Location location)
-//    {
-//        if (_overloads.hasKey(argumentTypes)) {
-//            static String error("This overload has already been defined.");
-//            location.throwError(error);
-//        }
-//        _overloads.add(argumentTypes, function);
-//        if (_overloads.count() == 1)
-//            _functionType = FunctionType(function->returnType(), argumentTypes);
-//    }
-//    bool hasOverload(SymbolList argumentTypes)
-//    {
-//        return _overloads.hasKey(argumentTypes);
-//    }
-//    FunctionDeclarationStatement* lookUpOverload(SymbolList argumentTypes)
-//    {
-//        return _overloads.lookUp(argumentTypes);
-//    }
-//    Symbol type(String name, Location location) const
-//    {
-//        if (_overloads.count() > 1) {
-//            static String error(" is an overloaded function - I don't know which overload you mean.");
-//            location.throwError(name + error);
-//        }
-//        return _functionType;
-//    }
-//    Value value() const
-//    {
-//        return Value(_functionDeclaration);
-//    }
-//private:
-//    String _name;
-//    HashTable<SymbolList, FunctionDeclarationStatement*> _overloads;
-//    Symbol _functionType;
-//    FunctionDeclarationStatement* _functionDeclaration;
-//};
-//
-//typedef FunctionNameTemplate<void> FunctionName;
-//
-//class TypeDefinitionStatement;
-//
-//class Variable : public SymbolName
-//{
-//public:
-//    Variable(Symbol type) : _type(type) { }
-//    Symbol type(String name, Location location) const { return _type; }
-//    Value value() const { return _value; }
-//    void setValue(Value value) { _value = value; }
-//private:
-//    Symbol _type;
-//    Value _value;
-//};
-//
-//class Identifier;
-
 class SymbolName : public ReferenceCounted
 {
 public:
@@ -229,9 +141,6 @@ SymbolEntry typeOf(SymbolEntry entry)
         case atomFunction:
             type = Symbol(atomFunction, typeOf(symbol[1]), typeOf(symbol[2]));
             break;
-        case atomClass:
-            // TODO
-            break;
         case atomTypeIdentifier:
             resolveIdentifiers(symbol);
             type = symbol.type();
@@ -254,7 +163,7 @@ SymbolEntry typeOf(SymbolEntry entry)
             }
             break;
         case atomDot:
-            // TODO
+            // TODO: Resolve type of left, look up right identifier in class symbol table
             break;
         case atomTrue:
         case atomFalse:
@@ -282,63 +191,71 @@ SymbolEntry typeOf(SymbolEntry entry)
                     Symbol functionName = function[1].symbol();
                     int label = scope->resolveFunction(functionName.string(), list, functionName.span());
                     Symbol target = Symbol::target(label);
+                    typeOf(target);
                     type = target[1].symbol();
                 }
                 else
-                    type = typeOf(function).symbol()[1];
+                    type = typeOf(function).symbol()[1].symbol();
             }
             break;
-
-
-
-
-            //_table[atomDot] = String(".");                                           // leftExpression rightExpression
-
-            //_table[atomFunctionCall] = String("call");                               // expression     arguments
-
-            //_table[atomNull] = String("null");
-
-            //_table[atomParameter] = String("parameter");                             // typeSpecifier  name
-
-            //_table[atomExpressionStatement] = String("expression");                  // expression
-            //_table[atomFunctionDefinitionStatement] = String("functionDefinition");  // returnType     name            parameters     statement
-            //_table[atomFromStatement] = String("from");                              // dllExpression
-            //_table[atomVariableDefinitionStatement] = String("variableDefinition");  // typeSpecifier  identifier      initializer
-            //_table[atomAssignmentStatement] = String("=");                           // leftExpression rightExpression
-            //_table[atomAddAssignmentStatement] = String("+=");                       // leftExpression rightExpression
-            //_table[atomSubtractAssignmentStatement] = String("-=");                  // leftExpression rightExpression
-            //_table[atomMultiplyAssignmentStatement] = String("*=");                  // leftExpression rightExpression
-            //_table[atomDivideAssignmentStatement] = String("/=");                    // leftExpression rightExpression
-            //_table[atomModuloAssignmentStatement] = String("%=");                    // leftExpression rightExpression
-            //_table[atomShiftLeftAssignmentStatement] = String("<<=");                // leftExpression rightExpression
-            //_table[atomShiftRightAssignmentStatement] = String(">>=");               // leftExpression rightExpression
-            //_table[atomAndAssignmentStatement] = String("&=");                       // leftExpression rightExpression
-            //_table[atomOrAssignmentStatement] = String("|=");                        // leftExpression rightExpression
-            //_table[atomXorAssignmentStatement] = String("~=");                       // leftExpression rightExpression
-            //_table[atomPowerAssignmentStatement] = String("^=");                     // leftExpression rightExpression
-            //_table[atomCompoundStatement] = String("compound");                      // statements
-            //_table[atomTypeAliasStatement] = String("type");                         // typeIdentifier typeSpecifier
-            //_table[atomNothingStatement] = String("nothing");
-            //_table[atomIncrementStatement] = String("++");                           // expression
-            //_table[atomDecrementStatement] = String("--");                           // expression
-            //_table[atomIfStatement] = String("if");                                  // condition      trueStatement   falseStatement
-            //_table[atomSwitchStatement] = String("switch");                          // expression     defaultCase     cases
-            //_table[atomReturnStatement] = String("return");                          // expression
-            //_table[atomIncludeStatement] = String("include");                        // expression
-            //_table[atomBreakStatement] = String("break");                            // statement
-            //_table[atomContinueStatement] = String("continue");
-            //_table[atomForeverStatement] = String("forever");                        // statement
-            //_table[atomWhileStatement] = String("while");                            // doStatement    condition       statement      doneStatement
-            //_table[atomUntilStatement] = String("until");                            // doStatement    condition       statement      doneStatement
-            //_table[atomForStatement] = String("for");                                // preStatement   expression      postStatement  statement     doneStatement
-
-            //_table[atomCase] = String("case");                                       // expressions    statement
-            //_table[atomDefaultCase] = String("default");                             // statement
-
-            //_table[atomPrintFunction] = String("print");                             // returnType     name            parameters
-
+        case atomNull:
+            type = Symbol(atomPointer);
+            break;
+        case atomVariableDefinitionStatement:
+            // TODO: Check that type of initializer (3) is same as typeSpecifier (1)
+            // TODO: Handle "Auto" variables
+            break;
+        case atomAssignmentStatement:
+        case atomAddAssignmentStatement:
+        case atomSubtractAssignmentStatement:
+        case atomMultiplyAssignmentStatement:
+        case atomDivideAssignmentStatement:
+        case atomModuloAssignmentStatement:
+        case atomShiftLeftAssignmentStatement:
+        case atomShiftRightAssignmentStatement:
+        case atomAndAssignmentStatement:
+        case atomOrAssignmentStatement:
+        case atomXorAssignmentStatement:
+        case atomPowerAssignmentStatement:
+            // TODO: Check that types are the same
+            break;
+        case atomTypeAliasStatement:
+            // TODO
+            break;
+        case atomIfStatement:
+            // TODO: Check that condition has type Boolean
+            break;
+        case atomSwitchStatement:
+            // TODO: Check that types of cases are same as type of expression
+            break;
+        case atomReturnStatement:
+            // TODO: Check that type of expression matches return type of current function
+            break;
+        case atomIncludeStatement:
+            // TODO
+            break;
+        case atomWhileStatement:
+        case atomUntilStatement:
+            // TODO: Check that condition has type Boolean
+            break;
+        case atomForStatement:
+            // TODO: Check that condition has type Boolean
+            break;
+        case atomCase:
+            // TODO
+            break;
+        case atomPrintFunction:
+            type = Symbol(atomVoid);
+            break;
     }
     symbol.setType(type);
+
+    const SymbolTail* tail = symbol.tail();
+    while (tail != 0) {
+        typeOf(tail->head());
+        tail = tail->tail();
+    }
+
     return type;
 }
 
@@ -459,14 +376,14 @@ public:
         }
         return functionName->lookUpOverload(argumentTypes);
     }
-    int resolveType(String name, Location location)
+    int resolveType(String name, Span span)
     {
         if (!_typeTable.hasKey(name)) {
             if (_outer == 0) {
                 static String error("Undefined type ");
                 location.throwError(error + name);
             }
-            return _outer->resolveType(name, location);
+            return _outer->resolveType(name, span);
         }
         return _typeTable.lookUp(name);
     }
@@ -684,7 +601,6 @@ void resolveIdentifiers(SymbolEntry entry)
             target = Symbol::target(label);
             symbol.setType(typeOf(target).symbol());
             return;
-        }
         case atomFunctionCall:
             // TODO
             break;
