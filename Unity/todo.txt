@@ -2,6 +2,8 @@ Where do we check that expression statements have an effect? (i.e. are function 
 
 Separate typeOf and checkTypes
 
+Rewrite (e.g.) "x += y" as "t = &x; *t = *t + y;" so that operator overloading works properly?
+
 typeOf
   The type field contains computed type always, plus Auto
   symbol.setType needed in atomTypeIdentifier case of resolveIdentifiers?  

@@ -97,6 +97,123 @@ private:
     int _label;
 };
 
+SymbolEntry typeOf(SymbolEntry entry);
+
+void assertTypeBoolean(Symbol expression)
+{
+    static String error("expression is of type ");
+    static String error2(", Boolean expected");
+    Symbol type = typeOf(expression).symbol();
+    if (type.atom() != atomBoolean)
+        expression.span().throwError(error + typeToString(type) + error2);
+}
+
+void checkTypes(SymbolEntry entry)
+{
+    if (entry.isArray()) {
+        SymbolList list;
+        SymbolArray array = entry.array();
+        for (int i = 0; i < array.count(); ++i)
+            checkTypes(array[i]);
+    }
+    if (!entry.isSymbol())
+        return;
+    Symbol symbol = entry.symbol();
+    switch (symbol.atom()) {
+        case atomLogicalOr:
+        case atomLogicalAnd:
+            assertTypeBoolean(symbol[1].symbol());
+            assertTypeBoolean(symbol[2].symbol());
+            break;
+        case atomFunctionCall:
+            {
+                Symbol function = symbol[1].symbol();
+                SymbolArray parameterTypes = typeOf(function).symbol()[2].array();
+                SymbolArray argumentTypes = typeOf(symbol[2]).array();
+                if (parameterTypes != argumentTypes) {
+                    static String error("function requires arguments of types ");
+                    static String error2(" but passed arguments of types ");
+                    symbol.span().throwError(error + typesToString(parameterTypes) + error2 + typesToString(argumentTypes));
+                }
+            }
+            break;
+        case atomVariableDefinitionStatement:
+            {
+                Symbol initializerType = typeOf(symbol[3]).symbol();
+                Symbol variableType = typeOf(symbol[1]).symbol();
+                if (variableType != initializerType) {
+                    static String error("variable declared as type ");
+                    static String error2(" but initialized with expression of type ");
+                    symbol.span().throwError(error + typeToString(variableType) + error2 + typeToString(initializerType));
+                }
+            }
+            break;
+        case atomAssignmentStatement:
+        case atomAddAssignmentStatement:
+        case atomSubtractAssignmentStatement:
+        case atomMultiplyAssignmentStatement:
+        case atomDivideAssignmentStatement:
+        case atomModuloAssignmentStatement:
+        case atomShiftLeftAssignmentStatement:
+        case atomShiftRightAssignmentStatement:
+        case atomAndAssignmentStatement:
+        case atomOrAssignmentStatement:
+        case atomXorAssignmentStatement:
+        case atomPowerAssignmentStatement:
+            {
+                Symbol lValueType = typeOf(symbol[1]).symbol();
+                Symbol rValueType = typeOf(symbol[2]).symbol();
+                if (lValueType != rValueType) {
+                    static String error("Can't assign a expression of type ");
+                    static String error2(" to a variable of type ");
+                    symbol.span().throwError(error + typeToString(rValueType) + error2 + typeToString(lValueType));
+                }
+            }
+            break;
+        case atomIfStatement:
+            assertTypeBoolean(symbol[1].symbol());
+            break;
+        case atomSwitchStatement:
+            {
+                Symbol type = typeOf(symbol[1]).symbol();
+                SymbolArray cases = symbol[2].array();
+                for (int i = 0; i < cases.count(); ++i) {
+                    Symbol c = cases[i];
+                    SymbolArray expressions = c[1].array();
+                    for (int j = 0; j < expressions.count(); ++j) {
+                        Symbol expression = expressions[j];
+                        Symbol expressionType = typeOf(expression).symbol();
+                        if (type != expressionType) {
+                            static String error("Can't compare an expression of type ");
+                            static String error(" to an epxression of type ");
+                            expression.span().throwError(error + typeToString(type) + error2 + expressionType);
+                        }
+                    }
+                }
+            }
+            break;
+        case atomReturnStatement:
+            // TODO: Check that type of expression matches return type of current function
+            break;
+        case atomIncludeStatement:
+            // TODO
+            break;
+        case atomWhileStatement:
+        case atomUntilStatement:
+            // TODO: Check that condition has type Boolean
+            break;
+        case atomForStatement:
+            // TODO: Check that condition has type Boolean
+            break;
+    }
+
+    const SymbolTail* tail = symbol.tail();
+    while (tail != 0) {
+        checkTypes(tail->head());
+        tail = tail->tail();
+    }
+}
+
 SymbolEntry typeOf(SymbolEntry entry)
 {
     if (entry.isArray()) {
@@ -151,16 +268,7 @@ SymbolEntry typeOf(SymbolEntry entry)
             break;
         case atomLogicalOr:
         case atomLogicalAnd:
-            {
-                static String error("expression is of type ");
-                static String error2(", Boolean expected");
-                type = typeOf(symbol[1]).symbol();
-                if (type.atom() != atomBoolean)
-                    symbol[1].symbol().span().throwError(error + typeToString(type) + error2);
-                type = typeOf(symbol[2]).symbol();
-                if (type.atom() != atomBoolean)
-                    symbol[2].symbol().span().throwError(error + typeToString(type) + error2);
-            }
+            type = Symbol(atomBoolean);
             break;
         case atomDot:
             // TODO: Resolve type of left, look up right identifier in class symbol table
@@ -202,60 +310,13 @@ SymbolEntry typeOf(SymbolEntry entry)
             type = Symbol(atomPointer);
             break;
         case atomVariableDefinitionStatement:
-            // TODO: Check that type of initializer (3) is same as typeSpecifier (1)
             // TODO: Handle "Auto" variables
             break;
-        case atomAssignmentStatement:
-        case atomAddAssignmentStatement:
-        case atomSubtractAssignmentStatement:
-        case atomMultiplyAssignmentStatement:
-        case atomDivideAssignmentStatement:
-        case atomModuloAssignmentStatement:
-        case atomShiftLeftAssignmentStatement:
-        case atomShiftRightAssignmentStatement:
-        case atomAndAssignmentStatement:
-        case atomOrAssignmentStatement:
-        case atomXorAssignmentStatement:
-        case atomPowerAssignmentStatement:
-            // TODO: Check that types are the same
-            break;
-        case atomTypeAliasStatement:
-            // TODO
-            break;
-        case atomIfStatement:
-            // TODO: Check that condition has type Boolean
-            break;
-        case atomSwitchStatement:
-            // TODO: Check that types of cases are same as type of expression
-            break;
-        case atomReturnStatement:
-            // TODO: Check that type of expression matches return type of current function
-            break;
-        case atomIncludeStatement:
-            // TODO
-            break;
-        case atomWhileStatement:
-        case atomUntilStatement:
-            // TODO: Check that condition has type Boolean
-            break;
-        case atomForStatement:
-            // TODO: Check that condition has type Boolean
-            break;
-        case atomCase:
-            // TODO
-            break;
         case atomPrintFunction:
-            type = Symbol(atomVoid);
+            type = Symbol(atomVoid);  // TODO: is this right?
             break;
     }
     symbol.setType(type);
-
-    const SymbolTail* tail = symbol.tail();
-    while (tail != 0) {
-        typeOf(tail->head());
-        tail = tail->tail();
-    }
-
     return type;
 }
 
@@ -657,6 +718,7 @@ int main(int argc, char* argv[])
 
         setScope(program, scope);
         resolveIdentifiers(program);
+        checkTypes(program);
     }
     END_CHECKED(Exception& e) {
         e.write(Handle::consoleOutput());
