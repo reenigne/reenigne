@@ -108,13 +108,13 @@ void assertTypeBoolean(Symbol expression)
         expression.span().throwError(error + typeToString(type) + error2);
 }
 
-void checkTypes(SymbolEntry entry)
+void checkTypes(SymbolEntry entry, Symbol returnType)
 {
     if (entry.isArray()) {
         SymbolList list;
         SymbolArray array = entry.array();
         for (int i = 0; i < array.count(); ++i)
-            checkTypes(array[i]);
+            checkTypes(array[i], returnType);
     }
     if (!entry.isSymbol())
         return;
@@ -137,6 +137,10 @@ void checkTypes(SymbolEntry entry)
                 }
             }
             break;
+        case atomFunctionDefinitionStatement:
+            checkTypes(symbol[3], returnType);
+            checkTypes(symbol[4], symbol[1].symbol());
+            return;
         case atomVariableDefinitionStatement:
             {
                 Symbol initializerType = typeOf(symbol[3]).symbol();
@@ -164,7 +168,7 @@ void checkTypes(SymbolEntry entry)
                 Symbol lValueType = typeOf(symbol[1]).symbol();
                 Symbol rValueType = typeOf(symbol[2]).symbol();
                 if (lValueType != rValueType) {
-                    static String error("Can't assign a expression of type ");
+                    static String error("can't assign a expression of type ");
                     static String error2(" to a variable of type ");
                     symbol.span().throwError(error + typeToString(rValueType) + error2 + typeToString(lValueType));
                 }
@@ -184,35 +188,55 @@ void checkTypes(SymbolEntry entry)
                         Symbol expression = expressions[j];
                         Symbol expressionType = typeOf(expression).symbol();
                         if (type != expressionType) {
-                            static String error("Can't compare an expression of type ");
-                            static String error(" to an epxression of type ");
-                            expression.span().throwError(error + typeToString(type) + error2 + expressionType);
+                            static String error("can't compare an expression of type ");
+                            static String error2(" to an epxression of type ");
+                            expression.span().throwError(error + typeToString(type) + error2 + typeToString(expressionType));
                         }
                     }
                 }
             }
             break;
         case atomReturnStatement:
-            // TODO: Check that type of expression matches return type of current function
+            {
+                Symbol expression = symbol[1].symbol();
+                Symbol type;
+                if (expression.valid())
+                    type = typeOf(expression).symbol();
+                else
+                    type = Symbol(atomVoid);
+                if (type != returnType) {
+                    static String error("returning an expression of type ");
+                    static String error2(" from a function with return type ");
+                    symbol.span().throwError(error + typeToString(type) + error2 + typeToString(returnType));
+                }
+            }
             break;
         case atomIncludeStatement:
-            // TODO
+            {
+                Symbol expression = symbol[1].symbol();
+                Symbol type = typeOf(expression).symbol();
+                if (type.atom() != atomString) {
+                    static String error("argument to include is of type ");
+                    static String error2(", expected String");
+                    expression.span().throwError(error + typeToString(type) + error2);
+                }
+            }
             break;
         case atomWhileStatement:
         case atomUntilStatement:
-            // TODO: Check that condition has type Boolean
-            break;
         case atomForStatement:
-            // TODO: Check that condition has type Boolean
+            assertTypeBoolean(symbol[2].symbol());
             break;
     }
 
     const SymbolTail* tail = symbol.tail();
     while (tail != 0) {
-        checkTypes(tail->head());
+        checkTypes(tail->head(), returnType);
         tail = tail->tail();
     }
 }
+
+void resolveIdentifiers(SymbolEntry entry);
 
 SymbolEntry typeOf(SymbolEntry entry)
 {
@@ -230,6 +254,9 @@ SymbolEntry typeOf(SymbolEntry entry)
     if (type.valid())
         return type;
     switch (symbol.atom()) {
+        case atomParameter:
+            type = typeOf(symbol[1]).symbol();
+            break;
         case atomFunctionDefinitionStatement:
             {
                 Symbol returnType = symbol[1].symbol();
@@ -288,32 +315,27 @@ SymbolEntry typeOf(SymbolEntry entry)
             type = Symbol(atomInt);  // TODO: the type is actually one of several depending on the value
             break;
         case atomFunctionCall:
-            {
-                Symbol function = symbol[1].symbol();
-                if (function.atom() == atomIdentifier) {
-                    SymbolList list;
-                    SymbolArray arguments = symbol[2].array();
-                    for (int i = 0; i < arguments.count(); ++i)
-                        list.add(typeOf(arguments[i]).symbol());
-                    Scope* scope = dynamic_cast<Scope*>(symbol.cache());
-                    Symbol functionName = function[1].symbol();
-                    int label = scope->resolveFunction(functionName.string(), list, functionName.span());
-                    Symbol target = Symbol::target(label);
-                    typeOf(target);
-                    type = target[1].symbol();
-                }
-                else
-                    type = typeOf(function).symbol()[1].symbol();
-            }
+            type = typeOf(symbol[1]).symbol()[1].symbol();
             break;
         case atomNull:
             type = Symbol(atomPointer);
             break;
         case atomVariableDefinitionStatement:
-            // TODO: Handle "Auto" variables
+            {
+                type = typeOf(symbol[1]).symbol();
+                if (type.atom() == atomAuto) {
+                    Symbol initializer = symbol[3].symbol();
+                    if (!initializer.valid()) {
+                        static String error("Auto variable declarations must be initialized");
+                        symbol.span().throwError(error);
+                    }
+                    type = typeOf(symbol[3]).symbol();
+                    symbol[1].symbol().setType(type);
+                }
+            }
             break;
         case atomPrintFunction:
-            type = Symbol(atomVoid);  // TODO: is this right?
+            type = Symbol(atomFunction, Symbol(atomVoid), SymbolArray(Symbol(atomString)));
             break;
     }
     symbol.setType(type);
@@ -343,6 +365,10 @@ public:
         _overloads.add(types, label);
         if (_overloads.count() == 1)
             _argumentTypes = types;
+    }
+    bool hasOverload(SymbolArray argumentTypes)
+    {
+        return _overloads.hasKey(argumentTypes);
     }
     int lookUpOverload(SymbolArray argumentTypes)
     {
@@ -425,15 +451,15 @@ public:
             }
             return _outer->resolveFunction(name, argumentTypes, span);
         }
-        Reference<SymbolName> symbol = _symbolTable.lookUp(name);
+        Reference<SymbolName> symbol = _symbolTable[name];
         FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
         if (functionName == 0) {
             static String error(" is not a function");
-            location.throwError(name + error);
+            span.throwError(name + error);
         }
         if (!functionName->hasOverload(argumentTypes)) {
             static String error(" has no overload with argument types ");
-            location.throwError(name + error + typesToString(argumentTypes);
+            span.throwError(name + error + typesToString(argumentTypes));
         }
         return functionName->lookUpOverload(argumentTypes);
     }
@@ -442,11 +468,11 @@ public:
         if (!_typeTable.hasKey(name)) {
             if (_outer == 0) {
                 static String error("Undefined type ");
-                location.throwError(error + name);
+                span.throwError(error + name);
             }
             return _outer->resolveType(name, span);
         }
-        return _typeTable.lookUp(name);
+        return _typeTable[name];
     }
 private:
     HashTable<String, Reference<SymbolName> > _symbolTable;
@@ -663,7 +689,19 @@ void resolveIdentifiers(SymbolEntry entry)
             symbol.setType(typeOf(target).symbol());
             return;
         case atomFunctionCall:
-            // TODO
+            {
+                Symbol function = symbol[1].symbol();
+                if (function.atom() == atomIdentifier) {
+                    SymbolList list;
+                    SymbolArray arguments = symbol[2].array();
+                    for (int i = 0; i < arguments.count(); ++i)
+                        list.add(typeOf(arguments[i]).symbol());
+                    Symbol functionName = function[1].symbol();
+                    int label = scope->resolveFunction(functionName.string(), list, functionName.span());
+                    target = Symbol::target(label);
+                    return;
+                }
+            }
             break;
         case atomTypeIdentifier:
             label = scope->resolveType(symbol[1].string(), symbol.span());
@@ -678,6 +716,16 @@ void resolveIdentifiers(SymbolEntry entry)
         resolveIdentifiers(tail->head());
         tail = tail->tail();
     }
+}
+
+SymbolArray compile(SymbolArray program)
+{
+    // TODO
+}
+
+void run(SymbolArray program)
+{
+    // TODO
 }
 
 #ifdef _WIN32
@@ -718,7 +766,9 @@ int main(int argc, char* argv[])
 
         setScope(program, scope);
         resolveIdentifiers(program);
-        checkTypes(program);
+        checkTypes(program, Symbol(atomVoid));
+        SymbolArray compiledProgram = compile(program);
+        run(compiledProgram);
     }
     END_CHECKED(Exception& e) {
         e.write(Handle::consoleOutput());

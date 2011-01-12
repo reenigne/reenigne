@@ -1,23 +1,20 @@
-Where do we check that expression statements have an effect? (i.e. are function calls?)
+Figure out compiled program representation
+  program is SymbolArray of function definitions
+    Function definition is SymbolArray of instructions
+      Instruction is one of:
+        atomStringConstant
+        atomIntegerConstant
+        atomTrue
+        atomFalse
+        atomNull
+        atoms for each of the fundamental operations
+        atom that points to a function definition (make it an integer constant and give all the function definitions labels)
+        atomCall
 
-Separate typeOf and checkTypes
+Implement run()
 
-Rewrite (e.g.) "x += y" as "t = &x; *t = *t + y;" so that operator overloading works properly?
-
-typeOf
-  The type field contains computed type always, plus Auto
-  symbol.setType needed in atomTypeIdentifier case of resolveIdentifiers?  
-
-Implement compilation steps as Symbol transformations
-  Phase: Check types and resolve overloaded function calls
-  Phase: Compile to low-level code
-  Phase: Run
-
-Phase: Resolve variable references to variable definitions and parameters
-  Only need to look for first 
-Phase:
-  Resolve variable types      } Need to do these at the same type, in case of Auto r = foo(x); bar(r);
-  Resolve function overloads  }
+Implement compile()
+  When compiling break/continue statement, make sure we are inside a suitable loop/switch
 
 Class contents:
   public/private/protected
@@ -43,8 +40,6 @@ Algorithm for resolving names in the presence of overloading
 
 More detail in switch type mismatch error
 Allow overloads over operator== for switch comparison
-
-In break/continue statement's compile(), make sure we are inside a suitable loop/switch
 
 Add Int32, UInt32 and NInt32 types
 Add 8-bit and 16-bit types
@@ -120,3 +115,5 @@ Change semicolon parsing on increment/decrement/expression statements so that "f
 
 Should "done" blocks be in different scopes to the loop body blocks?
   What about do vs while/until blocks?
+
+Rewrite (e.g.) "x += y" as "t = &x; *t = *t + y;" so that operator overloading works properly?
