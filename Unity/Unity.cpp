@@ -725,6 +725,15 @@ SymbolArray compile(SymbolArray program)
 
 void run(SymbolArray program)
 {
+    Symbol block = program[0];
+    int instruction = 0;
+    int instructionsInBlock = block[1].integer();
+    do {
+
+        if (instruction == instructionsInBlock) {
+
+
+
     // TODO
 }
 

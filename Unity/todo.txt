@@ -1,17 +1,19 @@
 Figure out compiled program representation
-  program is SymbolArray of function definitions
-    Function definition is SymbolArray of instructions
-      Instruction is one of:
-        atomStringConstant
-        atomIntegerConstant
-        atomTrue
-        atomFalse
-        atomNull
-        atoms for each of the fundamental operations
-        atom that points to a function definition (make it an integer constant and give all the function definitions labels)
-        atomCall
+  program is SymbolArray of atomBasicBlock
+    atomBasicBlock is instructions(array) nextBlock(integer)
+    Instruction is one of:
+      atomStringConstant
+      atomIntegerConstant
+      atomTrue
+      atomFalse
+      atomNull
+      atoms for each of the fundamental operations
+      atom that points to a function definition (make it an integer constant and give all the function definitions labels)
+      atomCall
+      atomGoto
 
 Implement run()
+    
 
 Implement compile()
   When compiling break/continue statement, make sure we are inside a suitable loop/switch

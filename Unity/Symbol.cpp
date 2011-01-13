@@ -92,6 +92,8 @@ enum Atom
 
     atomPrintFunction,
 
+    atomBasicBlock,
+
     atomLast
 };
 
@@ -191,6 +193,8 @@ String atomToString(Atom atom)
             _table[atomDefaultCase] = String("default");                             // statement
 
             _table[atomPrintFunction] = String("print");                             // returnType     name            parameters
+
+            _table[atomBasicBlock] = String("block");                                // instructions   nextBlock
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:
