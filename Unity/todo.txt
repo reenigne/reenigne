@@ -1,19 +1,15 @@
-Figure out compiled program representation
-  program is SymbolArray of atomBasicBlock
-    atomBasicBlock is instructions(array) nextBlock(integer)
-    Instruction is one of:
-      atomStringConstant
-      atomIntegerConstant
+Make the stack memory instead of a linked list of Values so we can take addresses properly
+  32-bits per entry stack, say 1Mb default size
+    eventually measure stack size and allocate frames for unbounded recursive functions on heap
+
+Implement run()
       atomTrue
       atomFalse
       atomNull
       atoms for each of the fundamental operations
       atom that points to a function definition (make it an integer constant and give all the function definitions labels)
       atomCall
-      atomGoto
-
-Implement run()
-    
+      atomGoto    
 
 Implement compile()
   When compiling break/continue statement, make sure we are inside a suitable loop/switch
@@ -25,11 +21,6 @@ Class contents:
   method definition
   include
     Or have a 'Class X from y' form instead?
-
-Come up with a low-level intermediate form
-  32-bits per entry stack, say 1Mb default size
-  heap memory shared with interpreter
-  Low-level instructions
 
 Allow implicit type conversions
   Need to know about all the overloads, the types of the arguments, the available conversion functions and their costs

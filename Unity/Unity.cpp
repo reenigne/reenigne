@@ -725,12 +725,40 @@ SymbolArray compile(SymbolArray program)
 
 void run(SymbolArray program)
 {
+    Array<UInt32> stack;
+    stack.allocate(0x40000);  // 1Mb of stack space
     Symbol block = program[0];
-    int instruction = 0;
-    int instructionsInBlock = block[1].integer();
+    SymbolArray instructions = block[1].array();
+    int i = 0;
+    int n = instructions.count();
     do {
-
-        if (instruction == instructionsInBlock) {
+        Symbol instruction = instructions[i];
+        switch (instruction.atom()) {
+            case atomExit:
+                return;
+            case atomPrintFunction:
+                {
+                    String s = stack.pop().string();
+                    s.write(Handle::consoleOutput());
+                }
+                break;
+            case atomIntegerConstant:
+                stack.push(instruction[1].integer());
+                break;
+            case atomStringConstant:
+                stack.push(instruction[1].string());
+                break;
+            case atomCall:
+                stack.push(
+        }
+        ++i;
+        if (i == n) {
+            block = Symbol::target(instruction[2].integer());
+            instructions = block[1].array();
+            i = 0;
+            n = instructions.count();
+        }
+    } while (true);
 
 
 
