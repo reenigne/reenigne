@@ -282,8 +282,10 @@ public:
     {
         _implementation->initSimpleData(offset, buffer, start, length);
     }
-private:
+
     StringTemplate(const Reference<StringImplementation>& implementation) : _implementation(implementation) { }
+    Reference<StringImplementation> implementation() { return _implementation; }
+private:
 
     Reference<StringImplementation> _implementation;
 

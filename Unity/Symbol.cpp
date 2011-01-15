@@ -117,7 +117,7 @@ String atomToString(Atom atom)
             _table[atomString] = String("String");
             _table[atomTypeIdentifier] = String("TypeIdentifier");                   // name
             _table[atomTypeOf] = String("TypeOf");                                   // expression
-            _table[atomUInt] = String("UInt");                     
+            _table[atomUInt] = String("UInt");
             _table[atomVoid] = String("Void");
             _table[atomWord] = String("Word");
 
@@ -197,6 +197,9 @@ String atomToString(Atom atom)
             _table[atomExit] = String("exit");
 
             _table[atomBasicBlock] = String("block");                                // instructions   nextBlock
+
+            _table[atomCall] = String("call");
+            _table[atomReturn] = String("return");
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:
@@ -543,7 +546,7 @@ private:
 
     private:
         bool isTarget() const
-        { 
+        {
             return _label > 0 && _labelled[_label] == this;
         }
 
@@ -679,10 +682,10 @@ private:
                 static String s("[]");
                 return s;
             }
-             
+
             bool canInlineNext;
             String s = openBracket + _symbols[0].toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
-            
+
             for (int i = 1; i < n; ++i) {
                 Symbol symbol = _symbols[i];
                 if (canInlineNext && x + 1 + symbol.length(width - x) <= width - 1) {

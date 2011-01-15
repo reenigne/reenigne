@@ -8,8 +8,6 @@ Implement run()
       atomNull
       atoms for each of the fundamental operations
       atom that points to a function definition (make it an integer constant and give all the function definitions labels)
-      atomCall
-      atomGoto    
 
 Implement compile()
   When compiling break/continue statement, make sure we are inside a suitable loop/switch
@@ -68,7 +66,7 @@ Add const_cast, dynamic_cast, reinterpret_cast and static_cast (LtR, precedence 
 Add operator  4 ()(type cast)     RtL
 Add operator  5 .*                LtR
 Add operator  5 ->*               LtR
-Add operator 16 ?:                RtL  
+Add operator 16 ?:                RtL
 Need a better error message when statement isn't recognized as such
 For String::throwUnexpected(), print name (or hex) of found character to avoid putting unprintable characters in error messages.
   Need a way to convert any codepoint into an ASCII printable string

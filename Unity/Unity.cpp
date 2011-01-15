@@ -727,6 +727,7 @@ void run(SymbolArray program)
 {
     Array<UInt32> stack;
     stack.allocate(0x40000);  // 1Mb of stack space
+    UInt32* sp = &stack[0x40000];
     Symbol block = program[0];
     SymbolArray instructions = block[1].array();
     int i = 0;
@@ -738,18 +739,49 @@ void run(SymbolArray program)
                 return;
             case atomPrintFunction:
                 {
-                    String s = stack.pop().string();
+                    StringImplementation* si = reinterpret_cast<StringImplementation*>(*(sp++));
+                    String s = String(si);
                     s.write(Handle::consoleOutput());
                 }
                 break;
             case atomIntegerConstant:
-                stack.push(instruction[1].integer());
+                *(--sp) = instruction[1].integer();
                 break;
             case atomStringConstant:
-                stack.push(instruction[1].string());
+                {
+                    String s = instruction[1].string();
+                    StringImplementation* si = s.implementation();
+                    *(--sp) = reinterpret_cast<UInt32>(si);
+                }
+                break;
+            case atomTrue:
+                *(--sp) = reinterpret_cast<UInt32>(-1);
+                break;
+            case atomFalse:
+            case atomNull:
+                *(--sp) = reinterpret_cast<UInt32>(0);
                 break;
             case atomCall:
-                stack.push(
+                {
+                    int label = *(sp++);
+                    *(--sp) = reinterpret_cast<UInt32>(block[2].integer());
+                    block = Symbol::target(label);
+                    instructions = block[1].array();
+                    i = 0;
+                    n = instructions.count();
+                }
+                break;
+            case atomReturn:
+            case atomGoto:
+                {
+                    int label = *(sp++);
+                    block = Symbol::target(label);
+                    instructions = block[1].array();
+                    i = 0;
+                    n = instructions.count();
+                }
+                break;
+
         }
         ++i;
         if (i == n) {
