@@ -652,7 +652,6 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
         case atomDefaultCase:
             inner = new Scope(scope, true);
             break;
-
     }
     symbol.setCache(inner);
     const SymbolTail* tail = symbol.tail();
@@ -725,76 +724,263 @@ SymbolArray compile(SymbolArray program)
 
 void run(SymbolArray program)
 {
-    Array<UInt32> stack;
-    stack.allocate(0x40000);  // 1Mb of stack space
-    UInt32* sp = &stack[0x40000];
-    Symbol block = program[0];
-    SymbolArray instructions = block[1].array();
-    int i = 0;
-    int n = instructions.count();
+    class Stack
+    {
+    public:
+        Stack(int bytes)
+        {
+            int entries = bytes >> 2;
+            _data.allocate(entries);
+            _sp = &stack[entries];
+
+        }
+        template<class T> T pop()
+        {
+            UInt32 value = *_sp;
+            ++_sp;
+            return reinterpret_cast<T>(value);
+        }
+        template<> String pop<String>()
+        {
+            return pop<StringImplementation*>();
+        }
+        template<class T> void push(T value)
+        {
+            --_sp;
+            _data[sp] = reinterpret_cast<UInt32>(value);
+        }
+        template<> void push<String>(String value)
+        {
+            push(value.implementation());
+        }
+        UInt32* pointer() const { return _sp; }
+    private:
+        Array<UInt32> _data;
+        UInt32* _sp;
+    };
+    class InstructionPointer
+    {
+    public:
+        InstructionPointer(SymbolArray program)
+        {
+            _block = program[0];
+            setup();
+        }
+        void jump(int label)
+        {
+            _block = Symbol::target(label);
+            setup();
+        }
+        Symbol instruction()
+        {
+            Symbol instruction = _instructions[_instruction];
+            ++_instruction;
+            if (_instruction == _instructionsInBlock) {
+                _label = block[2].integer();
+                jump(_label);
+            }
+        }
+        int labe() { return _label; }
+    private:
+        void setup()
+        {
+            _instructions = _block[1].array();
+            _instruction = 0;
+            _instructionsInBlock = _instructions.count();
+        }
+        Symbol _block;
+        SymbolArray _instructions;
+        int _instruction;
+        int _instructionsInBlock;
+        int _label;
+    };
+    Stack stack;
+    InstructionPointer ip;
     do {
-        Symbol instruction = instructions[i];
+        Symbol instruction = ip.instruction();
         switch (instruction.atom()) {
             case atomExit:
                 return;
             case atomPrintFunction:
-                {
-                    StringImplementation* si = reinterpret_cast<StringImplementation*>(*(sp++));
-                    String s = String(si);
-                    s.write(Handle::consoleOutput());
-                }
+                stack.pop<String>().write(Handle::consoleOutput());
                 break;
             case atomIntegerConstant:
-                *(--sp) = instruction[1].integer();
+                stack.push(instruction[1].integer());
                 break;
             case atomStringConstant:
-                {
-                    String s = instruction[1].string();
-                    StringImplementation* si = s.implementation();
-                    *(--sp) = reinterpret_cast<UInt32>(si);
-                }
+                stack.push(instruction[1].string());
                 break;
             case atomTrue:
-                *(--sp) = reinterpret_cast<UInt32>(-1);
+                stack.push(true);
                 break;
             case atomFalse:
+                stack.push(false);
+                break;
             case atomNull:
-                *(--sp) = reinterpret_cast<UInt32>(0);
+                stack.push(0);
                 break;
             case atomCall:
                 {
-                    int label = *(sp++);
-                    *(--sp) = reinterpret_cast<UInt32>(block[2].integer());
-                    block = Symbol::target(label);
-                    instructions = block[1].array();
-                    i = 0;
-                    n = instructions.count();
+                    int label = stack.pop<int>();
+                    stack.push(ip.label());
+                    ip.jump(label);
                 }
                 break;
             case atomReturn:
             case atomGoto:
+                ip.jump(stack.pop<int>());
+                break;
+            case atomJumpIfTrue:
                 {
-                    int label = *(sp++);
-                    block = Symbol::target(label);
-                    instructions = block[1].array();
-                    i = 0;
-                    n = instructions.count();
+                    int label = stack.pop<int>();
+                    if (stack.pop<bool>())
+                        ip.jump(label);
+                }
+                break;
+            // TODO: Need implementations of the following for each possible type.
+            case atomBitwiseOr:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l - r);
+                }
+                break;
+            case atomBitwiseXpr:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l ^ r);
+                }
+                break;
+            case atomBitwiseAnd:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l & r);
+                }
+                break;
+            case atomEqualTo:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l == r);
+                }
+                break;
+            case atomNotEqualTo:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l != r);
+                }
+                break;
+            case atomLessThanOrEqualTo:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l <= r);
+                }
+                break;
+            case atomGreaterThanOrEqualTo:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l >= r);
+                }
+                break;
+            case atomLessThan:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l < r);
+                }
+                break;
+            case atomGreaterThan:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l > r);
+                }
+                break;
+            case atomLeftShift:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l << r);
+                }
+                break;
+            case atomRightShift:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l >> r);
+                }
+                break;
+            case atomAdd:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l + r);
+                }
+                break;
+            case atomSubtract:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l - r);
+                }
+                break;
+            case atomMultiply:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l * r);
+                }
+                break;
+            case atomDivide:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l / r);
+                }
+                break;
+            case atomModulo:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(l % r);
+                }
+                break;
+            case atomNot:
+                stack.push(~stack.pop<int>);
+                break;
+            case atomNegative:
+                stack.push(-stack.pop<int>);
+                break;
+            case atomStackPointer:
+                stack.push(stack.pointer());
+                break;
+            case atomDereference:
+                stack.push(*stack.pop<int*>());
+                break;
+            case atomPower:
+                {
+                    int l = stack.pop<int>();
+                    int r = stack.pop<int>();
+                    stack.push(power(l, r));
                 }
                 break;
 
-        }
-        ++i;
-        if (i == n) {
-            block = Symbol::target(instruction[2].integer());
-            instructions = block[1].array();
-            i = 0;
-            n = instructions.count();
+            case atomStringConcatenate:
+                {
+                    String l = stack.pop<String>();
+                    String r = stack.pop<String>();
+                    stack.push(l + r);
+                }
+                break;
+
+
         }
     } while (true);
-
-
-
-    // TODO
 }
 
 #ifdef _WIN32

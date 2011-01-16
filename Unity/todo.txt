@@ -1,13 +1,5 @@
-Make the stack memory instead of a linked list of Values so we can take addresses properly
-  32-bits per entry stack, say 1Mb default size
-    eventually measure stack size and allocate frames for unbounded recursive functions on heap
-
 Implement run()
-      atomTrue
-      atomFalse
-      atomNull
-      atoms for each of the fundamental operations
-      atom that points to a function definition (make it an integer constant and give all the function definitions labels)
+  atoms for each of the fundamental operations
 
 Implement compile()
   When compiling break/continue statement, make sure we are inside a suitable loop/switch
@@ -108,3 +100,6 @@ Should "done" blocks be in different scopes to the loop body blocks?
   What about do vs while/until blocks?
 
 Rewrite (e.g.) "x += y" as "t = &x; *t = *t + y;" so that operator overloading works properly?
+
+Measure stack size and allocate frames for unbounded recursive functions on heap
+
