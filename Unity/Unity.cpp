@@ -722,42 +722,57 @@ SymbolArray compile(SymbolArray program)
     // TODO
 }
 
+class RunTimeStack
+{
+public:
+    RunTimeStack(int bytes)
+    {
+        int entries = bytes >> 2;
+        _data.allocate(entries);
+        _sp = &_data[entries];
+
+    }
+    template<class T> T pop()
+    {
+        UInt32 value = *_sp;
+        ++_sp;
+        return reinterpret_cast<T>(value);
+    }
+    template<> String pop<String>()
+    {
+        return pop<StringImplementation*>();
+    }
+    template<class T> void push(T value)
+    {
+        --_sp;
+        _data[_sp] = reinterpret_cast<UInt32>(value);
+    }
+    template<> void push<String>(String value)
+    {
+        push(value.implementation());
+    }
+    UInt32* pointer() const { return _sp; }
+private:
+    Array<UInt32> _data;
+    UInt32* _sp;
+};
+
+int power(int a, int b)
+{
+    if (b < 0)
+        return 1/power(a, -b);
+    int r = 1;
+    while (b != 0) {
+        if ((b & 1) != 0)
+            r *= a;
+        b >>= 1;
+        a *= a;
+    }
+    return r;
+}
+
 void run(SymbolArray program)
 {
-    class Stack
-    {
-    public:
-        Stack(int bytes)
-        {
-            int entries = bytes >> 2;
-            _data.allocate(entries);
-            _sp = &stack[entries];
-
-        }
-        template<class T> T pop()
-        {
-            UInt32 value = *_sp;
-            ++_sp;
-            return reinterpret_cast<T>(value);
-        }
-        template<> String pop<String>()
-        {
-            return pop<StringImplementation*>();
-        }
-        template<class T> void push(T value)
-        {
-            --_sp;
-            _data[sp] = reinterpret_cast<UInt32>(value);
-        }
-        template<> void push<String>(String value)
-        {
-            push(value.implementation());
-        }
-        UInt32* pointer() const { return _sp; }
-    private:
-        Array<UInt32> _data;
-        UInt32* _sp;
-    };
     class InstructionPointer
     {
     public:
@@ -776,11 +791,11 @@ void run(SymbolArray program)
             Symbol instruction = _instructions[_instruction];
             ++_instruction;
             if (_instruction == _instructionsInBlock) {
-                _label = block[2].integer();
+                _label = _block[2].integer();
                 jump(_label);
             }
         }
-        int labe() { return _label; }
+        int label() const { return _label; }
     private:
         void setup()
         {
@@ -794,8 +809,8 @@ void run(SymbolArray program)
         int _instructionsInBlock;
         int _label;
     };
-    Stack stack;
-    InstructionPointer ip;
+    RunTimeStack stack(0x100000);
+    InstructionPointer ip(program);
     do {
         Symbol instruction = ip.instruction();
         switch (instruction.atom()) {
@@ -845,7 +860,7 @@ void run(SymbolArray program)
                     stack.push(l - r);
                 }
                 break;
-            case atomBitwiseXpr:
+            case atomBitwiseXor:
                 {
                     int l = stack.pop<int>();
                     int r = stack.pop<int>();
@@ -951,10 +966,10 @@ void run(SymbolArray program)
                 }
                 break;
             case atomNot:
-                stack.push(~stack.pop<int>);
+                stack.push(~stack.pop<int>());
                 break;
             case atomNegative:
-                stack.push(-stack.pop<int>);
+                stack.push(-stack.pop<int>());
                 break;
             case atomStackPointer:
                 stack.push(stack.pointer());

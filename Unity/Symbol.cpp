@@ -95,6 +95,20 @@ enum Atom
 
     atomBasicBlock,
 
+    atomCall,
+    atomReturn,
+    atomGoto,
+    atomJumpIfTrue,
+    atomStackPointer,
+    
+    atomStringConcatenate,
+    atomStringEqualTo,
+    atomStringNotEqualTo,
+    atomStringLessThanOrEqualTo,
+    atomStringGreaterThanOrEqualTo,
+    atomStringLessThan,
+    atomStringGreaterThan,
+
     atomLast
 };
 
@@ -200,6 +214,17 @@ String atomToString(Atom atom)
 
             _table[atomCall] = String("call");
             _table[atomReturn] = String("return");
+            _table[atomGoto] = String("goto");
+            _table[atomJumpIfTrue] = String("jumpIfTrue");
+            _table[atomStackPointer] = String("stackPointer");
+
+            _table[atomStringConcatenate] = String("String::+");
+            _table[atomStringEqualTo] = String("String::==");
+            _table[atomStringNotEqualTo] = String("String::!=");
+            _table[atomStringLessThanOrEqualTo] = String("String::<=");
+            _table[atomStringGreaterThanOrEqualTo] = String("String::>=");
+            _table[atomStringLessThan] = String("String::<");
+            _table[atomStringGreaterThan] = String("String::>");
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:
