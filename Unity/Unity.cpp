@@ -719,7 +719,9 @@ void resolveIdentifiers(SymbolEntry entry)
 
 SymbolArray compile(SymbolArray program)
 {
+    SymbolArray compiledProgram;
     // TODO
+    return compiledProgram;
 }
 
 class RunTimeStack
@@ -734,9 +736,9 @@ public:
     }
     template<class T> T pop()
     {
-        UInt32 value = *_sp;
+        UInt32* p = _sp;
         ++_sp;
-        return reinterpret_cast<T>(value);
+        return *reinterpret_cast<T*>(p);
     }
     template<> String pop<String>()
     {
@@ -745,11 +747,11 @@ public:
     template<class T> void push(T value)
     {
         --_sp;
-        _data[_sp] = reinterpret_cast<UInt32>(value);
+        *reinterpret_cast<T*>(_sp) = value;
     }
     template<> void push<String>(String value)
     {
-        push(value.implementation());
+        push(static_cast<StringImplementation*>(value.implementation()));
     }
     UInt32* pointer() const { return _sp; }
 private:
@@ -794,6 +796,7 @@ void run(SymbolArray program)
                 _label = _block[2].integer();
                 jump(_label);
             }
+            return instruction;
         }
         int label() const { return _label; }
     private:
