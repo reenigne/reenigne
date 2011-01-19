@@ -720,7 +720,11 @@ void resolveIdentifiers(SymbolEntry entry)
 SymbolArray compile(SymbolArray program)
 {
     SymbolArray compiledProgram;
-    // TODO
+    for (int i = 0; i < program.count(); ++i) {
+        switch (program[i].atom()) {
+            case 
+        }
+    }
     return compiledProgram;
 }
 
@@ -995,8 +999,54 @@ void run(SymbolArray program)
                     stack.push(l + r);
                 }
                 break;
-
-
+            case atomStringEqualTo:
+                {
+                    String l = stack.pop<String>();
+                    String r = stack.pop<String>();
+                    stack.push(l == r);
+                }
+                break;
+            case atomStringNotEqualTo:
+                {
+                    String l = stack.pop<String>();
+                    String r = stack.pop<String>();
+                    stack.push(l != r);
+                }
+                break;
+            case atomStringLessThanOrEqualTo:
+                {
+                    String l = stack.pop<String>();
+                    String r = stack.pop<String>();
+                    stack.push(l <= r);
+                }
+                break;
+            case atomStringGreaterThanOrEqualTo:
+                {
+                    String l = stack.pop<String>();
+                    String r = stack.pop<String>();
+                    stack.push(l >= r);
+                }
+                break;
+            case atomStringLessThan:
+                {
+                    String l = stack.pop<String>();
+                    String r = stack.pop<String>();
+                    stack.push(l < r);
+                }
+                break;
+            case atomStringGreaterThan:
+                {
+                    String l = stack.pop<String>();
+                    String r = stack.pop<String>();
+                    stack.push(l > r);
+                }
+                break;
+            case atomStringIntegerMultiply:
+                {
+                    String l = stack.pop<String>();
+                    int r = stack.pop<int>();
+                    stack.push(l * r);
+                }
         }
     } while (true);
 }

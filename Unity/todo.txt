@@ -1,6 +1,3 @@
-Implement run()
-  atoms for each of the fundamental operations
-
 Implement compile()
   When compiling break/continue statement, make sure we are inside a suitable loop/switch
 

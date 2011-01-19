@@ -108,6 +108,7 @@ enum Atom
     atomStringGreaterThanOrEqualTo,
     atomStringLessThan,
     atomStringGreaterThan,
+    atomStringIntegerMultiply,
 
     atomLast
 };
@@ -225,6 +226,7 @@ String atomToString(Atom atom)
             _table[atomStringGreaterThanOrEqualTo] = String("String::>=");
             _table[atomStringLessThan] = String("String::<");
             _table[atomStringGreaterThan] = String("String::>");
+            _table[atomStringIntegerMultiply] = String("String::*");
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:
