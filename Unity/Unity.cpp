@@ -717,12 +717,50 @@ void resolveIdentifiers(SymbolEntry entry)
     }
 }
 
+void compile(Symbol expression, SymbolList* compiledProgram)
+{
+    // TODO
+}
+
 SymbolArray compile(SymbolArray program)
 {
-    SymbolArray compiledProgram;
+    SymbolList compiledProgram;
     for (int i = 0; i < program.count(); ++i) {
         switch (program[i].atom()) {
-            case 
+            case atomExpressionStatement:
+                compile(program[i], &compiledProgram);
+                break;            
+            case atomFunctionDefinitionStatement:
+            case atomFromStatement:
+            case atomVariableDefinitionStatement:
+            case atomAssignmentStatement:
+            case atomAddAssignmentStatement:
+            case atomSubtractAssignmentStatement:
+            case atomMultiplyAssignmentStatement:
+            case atomDivideAssignmentStatement:
+            case atomModuloAssignmentStatement:
+            case atomShiftLeftAssignmentStatement:
+            case atomShiftRightAssignmentStatement:
+            case atomAndAssignmentStatement:
+            case atomOrAssignmentStatement:
+            case atomXorAssignmentStatement:
+            case atomPowerAssignmentStatement:
+            case atomCompoundStatement:
+            case atomTypeAliasStatement:
+            case atomNothingStatement:
+            case atomIncrementStatement:
+            case atomDecrementStatement:
+            case atomIfStatement:
+            case atomSwitchStatement:
+            case atomReturnStatement:
+            case atomIncludeStatement:
+            case atomBreakStatement:
+            case atomContinueStatement:
+            case atomForeverStatement:
+            case atomWhileStatement:
+            case atomUntilStatement:
+            case atomForStatement:
+
         }
     }
     return compiledProgram;
