@@ -717,8 +717,38 @@ void resolveIdentifiers(SymbolEntry entry)
     }
 }
 
+// Add instructions to push the value of expression onto the stack.
 void compile(Symbol expression, SymbolList* compiledProgram)
 {
+    switch (expression.atom()) {
+        case atomBitwiseOr:
+            compile(expression[2].symbol(), compiledProgram);
+            compile(expression[1].symbol(), compiledProgram);
+            compiledProgram->add(Symbol(atomBitwiseOr), 
+        case atomBitwiseXor:
+        case atomBitwiseAnd:
+        case atomEqualTo:
+        case atomNotEqualTo:
+        case atomLessThanOrEqualTo:
+        case atomGreaterThanOrEqualTo:
+        case atomLessThan:
+        case atomGreaterThan:
+        case atomLeftShift:
+        case atomRightShift:
+        case atomAdd:
+        case atomSubtract:
+        case atomMultiply:
+        case atomDivide:
+        case atomModulo:
+        case atomNot:
+        case atomPositive:
+        case atomNegative:
+        case atomDereference:
+        case atomAddressOf:
+        case atomPower:
+        case atomFunctionCall:
+
+    }
     // TODO
 }
 
@@ -726,9 +756,10 @@ SymbolArray compile(SymbolArray program)
 {
     SymbolList compiledProgram;
     for (int i = 0; i < program.count(); ++i) {
-        switch (program[i].atom()) {
+        Symbol statement = program[i];
+        switch (statement.atom()) {
             case atomExpressionStatement:
-                compile(program[i], &compiledProgram);
+                compile(statement[1].symbol(), &compiledProgram);
                 break;            
             case atomFunctionDefinitionStatement:
             case atomFromStatement:
