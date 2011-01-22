@@ -721,31 +721,8 @@ void resolveIdentifiers(SymbolEntry entry)
 void compile(Symbol expression, SymbolList* compiledProgram)
 {
     switch (expression.atom()) {
-        case atomBitwiseOr:
-            compile(expression[2].symbol(), compiledProgram);
-            compile(expression[1].symbol(), compiledProgram);
-            compiledProgram->add(Symbol(atomBitwiseOr), 
-        case atomBitwiseXor:
-        case atomBitwiseAnd:
-        case atomEqualTo:
-        case atomNotEqualTo:
-        case atomLessThanOrEqualTo:
-        case atomGreaterThanOrEqualTo:
-        case atomLessThan:
-        case atomGreaterThan:
-        case atomLeftShift:
-        case atomRightShift:
-        case atomAdd:
-        case atomSubtract:
-        case atomMultiply:
-        case atomDivide:
-        case atomModulo:
-        case atomNot:
-        case atomPositive:
-        case atomNegative:
         case atomDereference:
         case atomAddressOf:
-        case atomPower:
         case atomFunctionCall:
 
     }
