@@ -717,10 +717,23 @@ void resolveIdentifiers(SymbolEntry entry)
     }
 }
 
+void finishBasicBlock(SymbolList* compiledProgram, SymbolList* basicBlock, int label, int nextLabel)
+{
+    Symbol block(atomBasicBlock, SymbolArray(*basicBlock), nextLabel);
+    block.setLabelTarget(label);
+    compiledProgram->add(block);
+    *basicBlock = SymbolList();
+}
+
 // Add instructions to push the value of expression onto the stack.
-void compile(Symbol expression, SymbolList* compiledProgram)
+void compile(Symbol expression, SymbolList* compiledProgram, SymbolList* basicBlock)
 {
     switch (expression.atom()) {
+        case atomLogicalOr:
+            compile(expression[1].symbol(), &compiledProgram);
+            compiledProgram->add(Symbol(
+    atomLogicalAnd,
+    atomDot,
         case atomDereference:
         case atomAddressOf:
         case atomFunctionCall:
