@@ -670,7 +670,7 @@ void resolveIdentifiers(SymbolEntry entry)
         SymbolArray array = entry.array();
         for (int i = 0; i < array.count(); ++i)
             resolveIdentifiers(array[i]);
-        return;
+        return;                                                                                                                                                                       
     }
     if (!entry.isSymbol())
         return;
@@ -726,20 +726,45 @@ void finishBasicBlock(SymbolList* compiledProgram, SymbolList* basicBlock, int l
 }
 
 // Add instructions to push the value of expression onto the stack.
-void compile(Symbol expression, SymbolList* compiledProgram, SymbolList* basicBlock)
+void compile(Symbol expression, SymbolList* compiledProgram, SymbolList* basicBlock, int* label)
 {
     switch (expression.atom()) {
         case atomLogicalOr:
-            compile(expression[1].symbol(), &compiledProgram);
-            compiledProgram->add(Symbol(
-    atomLogicalAnd,
-    atomDot,
+            {
+                int pushRight = Symbol::newLabel();
+                int push1 = Symbol::newLabel();
+                int done = Symbol::newLabel();
+                compile(expression[1].symbol(), compiledProgram, basicBlock, label);
+                basicBlock->add(Symbol(atomIntegerConstant, push1));
+                basicBlock->add(Symbol(atomJumpIfTrue));
+                finishBasicBlock(compiledProgram, basicBlock, *label, pushRight);
+                *label = pushRight;
+                compile(expression[2].symbol(), compiledProgram, basicBlock, label);
+                basicBlock->add(Symbol(atomIntegerConstant, done));
+                basicBlock->add(Symbol(atomGoto));
+                finishBasicBlock(compiledProgram, basicBlock, *label, -1);
+                *label = push1;
+                basicBlock->add(Symbol(atomTrue));
+                finishBasicBlock(compiledProgram, basicBlock, *label, done);
+                *label = done;
+            }
+            break;
+        case atomLogicalAnd:
+            // TODO
+            break;
+        case atomDot:
+            // TODO
+            break;
         case atomDereference:
+            // TODO
+            break;
         case atomAddressOf:
+            // TODO
+            break;
         case atomFunctionCall:
-
+            // TODO
+            break;
     }
-    // TODO
 }
 
 SymbolArray compile(SymbolArray program)
