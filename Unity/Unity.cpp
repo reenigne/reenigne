@@ -93,8 +93,11 @@ public:
     {
         return _label;
     }
+    int frameOffset() const { return _frameOffset; }
+    void setframeOffset(int frameOffset) { _frameOffset = frameOffset; }
 private:
     int _label;
+    int _frameOffset;
 };
 
 SymbolEntry typeOf(SymbolEntry entry);
@@ -717,100 +720,142 @@ void resolveIdentifiers(SymbolEntry entry)
     }
 }
 
-void finishBasicBlock(SymbolList* compiledProgram, SymbolList* basicBlock, int label, int nextLabel)
+class Compiler
 {
-    Symbol block(atomBasicBlock, SymbolArray(*basicBlock), nextLabel);
-    block.setLabelTarget(label);
-    compiledProgram->add(block);
-    *basicBlock = SymbolList();
-}
+public:
+    void compile(SymbolArray program)
+    {
+        for (int i = 0; i < program.count(); ++i) {
+            Symbol statement = program[i];
+            switch (statement.atom()) {
+                case atomExpressionStatement:
+                    compile(statement[1].symbol());
+                    break;            
+                case atomFunctionDefinitionStatement:
+                case atomFromStatement:
+                case atomVariableDefinitionStatement:
+                case atomAssignmentStatement:
+                case atomAddAssignmentStatement:
+                case atomSubtractAssignmentStatement:
+                case atomMultiplyAssignmentStatement:
+                case atomDivideAssignmentStatement:
+                case atomModuloAssignmentStatement:
+                case atomShiftLeftAssignmentStatement:
+                case atomShiftRightAssignmentStatement:
+                case atomAndAssignmentStatement:
+                case atomOrAssignmentStatement:
+                case atomXorAssignmentStatement:
+                case atomPowerAssignmentStatement:
+                case atomCompoundStatement:
+                case atomTypeAliasStatement:
+                case atomNothingStatement:
+                case atomIncrementStatement:
+                case atomDecrementStatement:
+                case atomIfStatement:
+                case atomSwitchStatement:
+                case atomReturnStatement:
+                case atomIncludeStatement:
+                case atomBreakStatement:
+                case atomContinueStatement:
+                case atomForeverStatement:
+                case atomWhileStatement:
+                case atomUntilStatement:
+                case atomForStatement:
 
-// Add instructions to push the value of expression onto the stack.
-void compile(Symbol expression, SymbolList* compiledProgram, SymbolList* basicBlock, int* label)
-{
-    switch (expression.atom()) {
-        case atomLogicalOr:
-            {
-                int pushRight = Symbol::newLabel();
-                int push1 = Symbol::newLabel();
-                int done = Symbol::newLabel();
-                compile(expression[1].symbol(), compiledProgram, basicBlock, label);
-                basicBlock->add(Symbol(atomIntegerConstant, push1));
-                basicBlock->add(Symbol(atomJumpIfTrue));
-                finishBasicBlock(compiledProgram, basicBlock, *label, pushRight);
-                *label = pushRight;
-                compile(expression[2].symbol(), compiledProgram, basicBlock, label);
-                basicBlock->add(Symbol(atomIntegerConstant, done));
-                basicBlock->add(Symbol(atomGoto));
-                finishBasicBlock(compiledProgram, basicBlock, *label, -1);
-                *label = push1;
-                basicBlock->add(Symbol(atomTrue));
-                finishBasicBlock(compiledProgram, basicBlock, *label, done);
-                *label = done;
             }
-            break;
-        case atomLogicalAnd:
-            // TODO
-            break;
-        case atomDot:
-            // TODO
-            break;
-        case atomDereference:
-            // TODO
-            break;
-        case atomAddressOf:
-            // TODO
-            break;
-        case atomFunctionCall:
-            // TODO
-            break;
-    }
-}
-
-SymbolArray compile(SymbolArray program)
-{
-    SymbolList compiledProgram;
-    for (int i = 0; i < program.count(); ++i) {
-        Symbol statement = program[i];
-        switch (statement.atom()) {
-            case atomExpressionStatement:
-                compile(statement[1].symbol(), &compiledProgram);
-                break;            
-            case atomFunctionDefinitionStatement:
-            case atomFromStatement:
-            case atomVariableDefinitionStatement:
-            case atomAssignmentStatement:
-            case atomAddAssignmentStatement:
-            case atomSubtractAssignmentStatement:
-            case atomMultiplyAssignmentStatement:
-            case atomDivideAssignmentStatement:
-            case atomModuloAssignmentStatement:
-            case atomShiftLeftAssignmentStatement:
-            case atomShiftRightAssignmentStatement:
-            case atomAndAssignmentStatement:
-            case atomOrAssignmentStatement:
-            case atomXorAssignmentStatement:
-            case atomPowerAssignmentStatement:
-            case atomCompoundStatement:
-            case atomTypeAliasStatement:
-            case atomNothingStatement:
-            case atomIncrementStatement:
-            case atomDecrementStatement:
-            case atomIfStatement:
-            case atomSwitchStatement:
-            case atomReturnStatement:
-            case atomIncludeStatement:
-            case atomBreakStatement:
-            case atomContinueStatement:
-            case atomForeverStatement:
-            case atomWhileStatement:
-            case atomUntilStatement:
-            case atomForStatement:
-
         }
     }
-    return compiledProgram;
-}
+    SymbolArray compiledProgram() const { return _compiledProgram; }
+private:
+    void finishBasicBlock(int nextLabel)
+    {
+        Symbol block(atomBasicBlock, SymbolArray(_basicBlock), nextLabel);
+        block.setLabelTarget(_label);
+        _compiledProgram.add(block);
+        _basicBlock = SymbolList();
+        _label = nextLabel;
+    }
+    // Add instructions to push the value of expression onto the stack.
+    void compile(Symbol expression)
+    {
+        switch (expression.atom()) {
+            case atomLogicalOr:
+                {
+                    int pushRight = Symbol::newLabel();
+                    int pushTrue = Symbol::newLabel();
+                    int done = Symbol::newLabel();
+                    compile(expression[1].symbol());
+                    addJumpIfTrue(pushTrue);
+                    addLabel(pushRight);
+                    compile(expression[2].symbol());
+                    addGoto(done);
+                    addLabel(pushTrue);
+                    add(Symbol(atomTrue));
+                    addLabel(done);
+                }
+                break;
+            case atomLogicalAnd:
+                {
+                    int pushRight = Symbol::newLabel();
+                    int pushFalse = Symbol::newLabel();
+                    int done = Symbol::newLabel();
+                    compile(expression[1].symbol());
+                    add(Symbol(atomNot));
+                    addJumpIfTrue(pushFalse);
+                    compile(expression[2].symbol());
+                    addGoto(done);
+                    addLabel(pushFalse);
+                    add(Symbol(atomFalse));
+                    addLabel(done);
+                }
+                break;
+            case atomDot:
+                // TODO
+                break;
+            case atomDereference:
+                // TODO
+                break;
+            case atomAddressOf:
+                // TODO
+                break;
+            case atomFunctionCall:
+                // TODO
+                break;
+        }
+    }
+    void add(Symbol symbol)
+    {
+        _basicBlock.add(symbol);
+        _blockEnds = false;
+    }
+    void addGoto(int destination)
+    {
+        add(Symbol(atomIntegerConstant, destination));
+        add(Symbol(atomGoto));
+        _blockEnds = true;
+    }
+    void addJumpIfTrue(int destination)
+    {
+        add(Symbol(atomIntegerConstant, destination));
+        add(Symbol(atomJumpIfTrue));
+    }
+    void addLabel(int label)
+    {
+        int follows = label;
+        if (_blockEnds)
+            follows = -1;
+        Symbol block(atomBasicBlock, SymbolArray(_basicBlock), follows);
+        block.setLabelTarget(_label);
+        _compiledProgram.add(block);
+        _basicBlock = SymbolList();
+        _label = label;
+    }
+
+    SymbolList _compiledProgram;
+    SymbolList _basicBlock;
+    int _label;
+    bool _blockEnds;
+};
 
 class RunTimeStack
 {
@@ -1174,7 +1219,9 @@ int main(int argc, char* argv[])
         setScope(program, scope);
         resolveIdentifiers(program);
         checkTypes(program, Symbol(atomVoid));
-        SymbolArray compiledProgram = compile(program);
+        Compiler compiler;
+        compiler.compile(program);
+        SymbolArray compiledProgram = compiler.compiledProgram();
         run(compiledProgram);
     }
     END_CHECKED(Exception& e) {

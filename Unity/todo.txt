@@ -1,5 +1,7 @@
-Put compiledProgram, basicBlock and label into a class with some helper methods:
-  
+Make a function to compile a function
+  Make it compile the program as well
+  Compute offsets of local variables
+    Need to know sizes of types
 
 Implement compile()
   When compiling break/continue statement, make sure we are inside a suitable loop/switch
