@@ -761,7 +761,7 @@ public:
                 case atomWhileStatement:
                 case atomUntilStatement:
                 case atomForStatement:
-
+                    break;
             }
         }
     }
@@ -819,7 +819,17 @@ private:
                 // TODO
                 break;
             case atomFunctionCall:
-                // TODO
+                {
+                    SymbolArray arguments = expression[2].array();
+                    for (int i = arguments.count() - 1; i >= 0; --i)
+                        compile(arguments[i]);
+                    compile(expression[1].symbol());
+                    add(Symbol(atomCall));
+                }
+                break;
+            case atomIntegerConstant:
+            case atomStringConstant:
+                add(expression);
                 break;
         }
     }
