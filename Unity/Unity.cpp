@@ -725,45 +725,8 @@ class Compiler
 public:
     void compile(SymbolArray program)
     {
-        for (int i = 0; i < program.count(); ++i) {
-            Symbol statement = program[i];
-            switch (statement.atom()) {
-                case atomExpressionStatement:
-                    compile(statement[1].symbol());
-                    break;            
-                case atomFunctionDefinitionStatement:
-                case atomFromStatement:
-                case atomVariableDefinitionStatement:
-                case atomAssignmentStatement:
-                case atomAddAssignmentStatement:
-                case atomSubtractAssignmentStatement:
-                case atomMultiplyAssignmentStatement:
-                case atomDivideAssignmentStatement:
-                case atomModuloAssignmentStatement:
-                case atomShiftLeftAssignmentStatement:
-                case atomShiftRightAssignmentStatement:
-                case atomAndAssignmentStatement:
-                case atomOrAssignmentStatement:
-                case atomXorAssignmentStatement:
-                case atomPowerAssignmentStatement:
-                case atomCompoundStatement:
-                case atomTypeAliasStatement:
-                case atomNothingStatement:
-                case atomIncrementStatement:
-                case atomDecrementStatement:
-                case atomIfStatement:
-                case atomSwitchStatement:
-                case atomReturnStatement:
-                case atomIncludeStatement:
-                case atomBreakStatement:
-                case atomContinueStatement:
-                case atomForeverStatement:
-                case atomWhileStatement:
-                case atomUntilStatement:
-                case atomForStatement:
-                    break;
-            }
-        }
+        for (int i = 0; i < program.count(); ++i)
+            compileStatement(program[i]);
     }
     SymbolArray compiledProgram() const { return _compiledProgram; }
 private:
@@ -775,8 +738,67 @@ private:
         _basicBlock = SymbolList();
         _label = nextLabel;
     }
+    void compileStatement(Symbol statement)
+    {
+        switch (statement.atom()) {
+            case atomExpressionStatement:
+                compile(statement[1].symbol());
+                break;            
+            case atomFunctionDefinitionStatement:
+            case atomFromStatement:
+            case atomVariableDefinitionStatement:
+            case atomAssignmentStatement:
+            case atomAddAssignmentStatement:
+            case atomSubtractAssignmentStatement:
+            case atomMultiplyAssignmentStatement:
+            case atomDivideAssignmentStatement:
+            case atomModuloAssignmentStatement:
+            case atomShiftLeftAssignmentStatement:
+            case atomShiftRightAssignmentStatement:
+            case atomAndAssignmentStatement:
+            case atomOrAssignmentStatement:
+            case atomXorAssignmentStatement:
+            case atomPowerAssignmentStatement:
+                // TODO
+                break;
+            case atomCompoundStatement:
+                compileStatementSequence(statement[1].array());
+                break;
+            case atomTypeAliasStatement:
+            case atomNothingStatement:
+            case atomIncrementStatement:
+            case atomDecrementStatement:
+                // TODO
+                break;
+            case atomIfStatement:
+                {
+                    int falseClause = Symbol::newLabel();
+                    int done = Symbol::newLabel();
+                    compileExpression(statement[1].symbol());
+                    add(Symbol(atomNot));
+                    addJumpIfTrue(falseClause);
+                    compileStatement(statement[2].symbol());
+                    addGoto(done);
+                    addLabel(falseClause);
+                    compileStatement(statement[3].symbol());
+                    addLabel(done);
+                }
+                break;
+            case atomSwitchStatement:
+            case atomReturnStatement:
+            case atomIncludeStatement:
+            case atomBreakStatement:
+            case atomContinueStatement:
+            case atomForeverStatement:
+            case atomWhileStatement:
+            case atomUntilStatement:
+            case atomForStatement:
+                // TODO
+                break;
+        }
+    }
     // Add instructions to push the value of expression onto the stack.
-    void compile(Symbol expression)
+    void compileExpression(Symbol expression)
     {
         switch (expression.atom()) {
             case atomLogicalOr:
@@ -784,10 +806,10 @@ private:
                     int pushRight = Symbol::newLabel();
                     int pushTrue = Symbol::newLabel();
                     int done = Symbol::newLabel();
-                    compile(expression[1].symbol());
+                    compileExpression(expression[1].symbol());
                     addJumpIfTrue(pushTrue);
                     addLabel(pushRight);
-                    compile(expression[2].symbol());
+                    compileExpression(expression[2].symbol());
                     addGoto(done);
                     addLabel(pushTrue);
                     add(Symbol(atomTrue));
@@ -799,10 +821,10 @@ private:
                     int pushRight = Symbol::newLabel();
                     int pushFalse = Symbol::newLabel();
                     int done = Symbol::newLabel();
-                    compile(expression[1].symbol());
+                    compileExpression(expression[1].symbol());
                     add(Symbol(atomNot));
                     addJumpIfTrue(pushFalse);
-                    compile(expression[2].symbol());
+                    compileExpression(expression[2].symbol());
                     addGoto(done);
                     addLabel(pushFalse);
                     add(Symbol(atomFalse));
@@ -822,8 +844,8 @@ private:
                 {
                     SymbolArray arguments = expression[2].array();
                     for (int i = arguments.count() - 1; i >= 0; --i)
-                        compile(arguments[i]);
-                    compile(expression[1].symbol());
+                        compileExpression(arguments[i]);
+                    compileExpression(expression[1].symbol());
                     add(Symbol(atomCall));
                 }
                 break;

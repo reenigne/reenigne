@@ -1,3 +1,9 @@
+file.h:
+  Allow FileSystemObject to represent a wildcard?
+    Or, have function that calls a functor for each file matching a wildcarded string
+      Want to be able to handle *\* case
+  Add a method to Directory that calls a functor for each file in the directory
+
 Make a function to compile a function
   Make it compile the program as well
   Compute offsets of local variables
