@@ -723,13 +723,16 @@ void resolveIdentifiers(SymbolEntry entry)
 class Compiler
 {
 public:
-    void compile(SymbolArray program)
+    void compileFunction(SymbolArray functionBody)
+    {
+    }
+    SymbolArray compiledProgram() const { return _compiledProgram; }
+private:
+    void compileStatementSequence(SymbolArray program)
     {
         for (int i = 0; i < program.count(); ++i)
             compileStatement(program[i]);
     }
-    SymbolArray compiledProgram() const { return _compiledProgram; }
-private:
     void finishBasicBlock(int nextLabel)
     {
         Symbol block(atomBasicBlock, SymbolArray(_basicBlock), nextLabel);
@@ -742,7 +745,7 @@ private:
     {
         switch (statement.atom()) {
             case atomExpressionStatement:
-                compile(statement[1].symbol());
+                compileExpression(statement[1].symbol());
                 break;            
             case atomFunctionDefinitionStatement:
             case atomFromStatement:
@@ -789,7 +792,19 @@ private:
             case atomIncludeStatement:
             case atomBreakStatement:
             case atomContinueStatement:
+                // TODO
+                break;
             case atomForeverStatement:
+                {
+                    int done = Symbol::newLabel();
+                    int start = getLabel();
+                    _breakContinueStack.push(BreakContinueStackEntry(done, start));
+                    compileStatement(statement[1].symbol());
+                    addGoto(start);
+                    addLabel(done);
+                    _breakContinueStack.pop();
+                }
+                break;
             case atomWhileStatement:
             case atomUntilStatement:
             case atomForStatement:
@@ -859,6 +874,7 @@ private:
     {
         _basicBlock.add(symbol);
         _blockEnds = false;
+        _atBlockStart = false;
     }
     void addGoto(int destination)
     {
@@ -881,12 +897,30 @@ private:
         _compiledProgram.add(block);
         _basicBlock = SymbolList();
         _label = label;
+        _atBlockStart = true;
+    }
+    int getLabel()
+    {
+        if (!_atBlockStart)
+            addLabel(Symbol::newLabel());
+        return _label;
     }
 
     SymbolList _compiledProgram;
     SymbolList _basicBlock;
     int _label;
     bool _blockEnds;
+    bool _atBlockStart;
+    
+    class BreakContinueStackEntry
+    {
+    public:
+        BreakContinueStackEntry(int breakLabel, int continueLabel)
+          : _breakLabel(breakLabel), _continueLabel(continueLabel) { }
+        int _breakLabel;
+        int _continueLabel;
+    };
+    Stack<BreakContinueStackEntry> _breakContinueStack;
 };
 
 class RunTimeStack

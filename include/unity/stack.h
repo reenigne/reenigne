@@ -34,6 +34,15 @@ public:
         --_n;
         return t;
     }
+    T value(int offset) const
+    {
+        Entry* top = _top;
+        while (offset > 0) {
+            --offset;
+            top = top->_next;
+        }
+        return top->_t;
+    }
 private:
     bool empty() const { return _top == 0; }
 
@@ -48,4 +57,4 @@ private:
     int _n;
 };
 
-#endif // INCLUDED_LIST_H
+#endif // INCLUDED_STACK_H

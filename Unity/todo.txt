@@ -10,7 +10,7 @@ Make a function to compile a function
     Need to know sizes of types
     Interaction with local variable elimination?
 
-
+Figure out how to do break and continue
 
 Implement compile()
   When compiling break/continue statement, make sure we are inside a suitable loop/switch
