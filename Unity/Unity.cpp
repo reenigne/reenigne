@@ -768,7 +768,9 @@ private:
                 compileStatementSequence(statement[1].array());
                 break;
             case atomTypeAliasStatement:
+                break;
             case atomNothingStatement:
+                break;
             case atomIncrementStatement:
             case atomDecrementStatement:
                 // TODO
@@ -806,6 +808,22 @@ private:
                 }
                 break;
             case atomWhileStatement:
+                {
+                    int done = Symbol::newLabel();
+                    int final = Symbol::newLabel();
+                    int start = getLabel();
+                    _breakContinueStack.push(BreakContinueStackEntry(final, start));
+                    compileStatement(statement[1].symbol());
+                    compileExpression(statement[2].symbol());
+                    add(Symbol(atomNot));
+                    addJumpIfTrue(done);
+                    compileStatement(statement[3].symbol());
+                    addGoto(start);
+                    _breakContinueStack.pop();
+                    addLabel(done);
+                    compileStatement(statement[4].symbol());
+                }
+                break;
             case atomUntilStatement:
             case atomForStatement:
                 // TODO
