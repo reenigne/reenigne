@@ -310,6 +310,38 @@ public:
     {
         return File(fileName, *this);
     }
+    template<class F> void applyToContents(F functor, const String& wildcard = String("*")) const
+    {
+    #ifdef _WIN32
+        WIN32_FIND_DATA data;
+        //HANDLE h = FindFirstFile(path, &data);
+        //if (h == INVALID_HANDLE_VALUE)
+        //    displayError(path);  
+        //do {
+        //    if (data.cFileName[0] == '.') {
+        //        if (data.cFileName[1] == 0)
+        //            continue;
+        //        if (data.cFileName[1] == '.')
+        //            if (data.cFileName[2] == 0)
+        //                continue;
+        //    }
+        //    int pl2 = bl + 1 + wcslen(data.cFileName);
+        //    wchar_t* p = (wchar_t*)malloc(sizeof(wchar_t)*(pl2 + 1));
+        //    wchar_t* p2 = wcscpy(p, base) + bl;
+        //    *(p2++) = '\\';
+        //    wcscpy(p2, data.cFileName);
+        //    doUnknown(base, bl, p, pl2);
+        //    free(p);
+        //} while (FindNextFile(h, &data) != 0);
+ 
+        //DWORD dwError = GetLastError();
+        //if (dwError != ERROR_NO_MORE_FILES)
+        //    displayError(path);
+        //FindClose(h);
+    #else
+        // TODO
+    #endif
+    }
 protected:
     DirectoryTemplate(Reference<FileSystemObject::Implementation> implementation) : FileSystemObject(implementation) { }
 };
@@ -804,7 +836,194 @@ private:
     String _name;
 };
 
+
+template<class T> void applyToWildcard(T functor, const String& wildcard, int recurseIntoDirectories = true, const Directory& relativeTo = CurrentDirectory())
+{
 #ifdef _WIN32
+    //static String invalidPath("Invalid path");
+    //static String currentDirectory(".");
+    //static String parentDirectory("..");
+    //static String empty;
+
+    CodePointSource s(wildcard);
+    int c = s.get();
+    int p = 1;
+    int subDirectoryStart = 0;
+    Directory dir = relativeTo;
+
+    // Process initial slashes
+    if (c == '/' || c == '\\') {
+        dir = RootDirectory();
+        subDirectoryStart = p;
+        c = s.get();
+        if (c == -1)
+            return dir;
+        ++p;
+        if (c == '/' || c == '\\') {
+            int serverStart = p;
+            do {
+                c = s.get();
+                if (c == -1)
+                    throw Exception(invalidPath);
+                ++p;
+                // TODO: What characters are actually legal in server names?
+            } while (c != '\\' && c != '/');
+            String server = path.subString(serverStart, p - (serverStart + 1));
+            int shareStart = p;
+            do {
+                c = s.get();
+                if (c == -1)
+                    break;
+                ++p;
+                // TODO: What characters are actually legal in share names?
+            } while (c != '\\' && c != '/');
+            String share = path.subString(shareStart, p - (shareStart + 1));
+            dir = UNCRootDirectory(server, share);
+            do {
+                subDirectoryStart = p;
+                c = s.get();
+                if (c == -1)
+                    return dir;
+                ++p;
+            } while (c == '/' || c == '\\');
+        }
+        // TODO: In paths starting \\?\, only \ and \\ are allowed separators, and ?*:"<> are allowed.
+        // see http://docs.racket-lang.org/reference/windowspaths.html for more details
+    }
+    else {
+        int drive = (c >= 'a' ? (c - 'a') : (c - 'A'));
+        if (drive >= 0 && drive < 26) {
+            c = s.get();
+            if (c == -1)
+                return FileSystemObject(relativeTo, path.subString(0, 1));
+            ++p;
+            if (c == ':') {
+                subDirectoryStart = p;
+                c = s.get();
+                if (c == -1)
+                    return DriveCurrentDirectory(drive);
+                ++p;
+                if (c == '/' || c == '\\') {
+                    dir = DriveRootDirectory(drive);
+                    while (c == '/' || c == '\\') {
+                        subDirectoryStart = p;
+                        c = s.get();
+                        if (c == -1)
+                            return dir;
+                        ++p;
+                    }
+                }
+                else
+                    dir = DriveCurrentDirectory(drive);
+            }
+        }
+    }
+
+    String name;
+    do {
+        while (c != '/' && c != '\\') {
+            if (c < 32 || c == ':' || c == '"' || c == '<' || c == '>')
+                throw Exception(invalidPath);
+            ++p;
+            c = s.get();
+            if (c == -1)
+                break;
+        }
+        name = path.subString(subDirectoryStart, p - (subDirectoryStart + 1));
+        if (name == currentDirectory)
+            name = empty;
+        if (name == parentDirectory) {
+            dir = dir.parent();
+            name = empty;
+        }
+        if (name != empty) {
+            int l = name[name.length() - 1];
+            if (l == '.' || l == ' ')
+                throw Exception(invalidPath);
+        }
+        if (c == -1)
+            break;
+        while (c == '/' || c == '\\') {
+            subDirectoryStart = p;
+            c = s.get();
+            if (c == -1)
+                break;
+            ++p;
+        }
+        if (c == -1)
+            break;
+        if (name != empty)
+            dir = dir.subDirectory(name);
+    } while (true);
+    //if (name == empty) {
+    //    if (dir.isRoot())
+    //        return dir;
+    //    return FileSystemObject(dir.parent(), dir.name());
+    //}
+    //return FileSystemObject(dir, name);
+#else
+    //static String currentDirectory(".");
+    //static String parentDirectory("..");
+    //static String empty;
+
+    //CharacterSource s(path, String());
+    //int c = s.get();
+    //int p = 1;  // p always points to the character after c
+    //int subDirectoryStart = 0;
+    //Directory dir = relativeTo;
+
+    //// Process initial slashes
+    //if (c == '/') {
+    //    dir = RootDirectory();
+    //    while (c == '/') {
+    //        subDirectoryStart = p;
+    //        c = s.get();
+    //        if (c == -1)
+    //            return dir;
+    //        ++p;
+    //    }
+    //}
+
+    //String name;
+    //do {
+    //    while (c != '/') {
+    //        if (c == 0) {
+    //            static String invalidPath("Invalid path");
+    //            throw Exception(invalidPath);
+    //        }
+    //        ++p;
+    //        c = s.get();
+    //        if (c == -1)
+    //            break;
+    //    }
+    //    name = path.subString(subDirectoryStart, p - (subDirectoryStart + 1));
+    //    if (name == currentDirectory)
+    //        name = empty;
+    //    if (name == parentDirectory) {
+    //        dir = dir.parent();
+    //        name = empty;
+    //    }
+    //    if (c == -1)
+    //        break;
+    //    while (c == '/') {
+    //        subDirectoryStart = p;
+    //        c = s.get();
+    //        if (c == -1)
+    //            break;
+    //        ++p;
+    //    }
+    //    if (c == -1)
+    //        break;
+    //    if (name != empty)
+    //        dir = dir.subDirectory(name);
+    //} while (true);
+    //if (name == empty) {
+    //    if (dir.isRoot())
+    //        return dir;
+    //    return FileSystemObject(dir.parent(), dir.name());
+    //}
+    //return FileSystemObject(dir, name);
 #endif
+}
 
 #endif // INCLUDED_FILE_H

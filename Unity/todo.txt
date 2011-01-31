@@ -1,4 +1,13 @@
 file.h:
+  finish Directory::applyToContents
+    Windows
+      Need an owning object for the FindFirstFile handle
+    Unix (using readdir)
+      Need an owning object?
+  
+  
+  Add a function that takes a wildcard string 
+
   Allow FileSystemObject to represent a wildcard?
     Or, have function that calls a functor for each file matching a wildcarded string
       Want to be able to handle *\* case
