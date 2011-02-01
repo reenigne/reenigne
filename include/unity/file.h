@@ -297,6 +297,51 @@ private:
     template<class T> friend class CurrentDirectoryTemplate;
 };
 
+#ifdef _WIN32
+class FindHandle
+{
+public:
+    FindHandle(const String& path) : _path(path), _complete(false)
+    {
+        Array<WCHAR> data;
+        _path.copyToUTF16(&data);
+        _handle = FindFirstFile(&data[0], &_data);
+        if (_handle == INVALID_HANDLE_VALUE) {
+            if (GetLastError() == ERROR_FILE_NOT_FOUND)
+                _complete = true;
+            else
+                throwError();
+        }
+    }
+    void next()
+    {
+        if (FindNextFile(_handle, &_data) == 0)
+            if (GetLastError() == ERROR_NO_MORE_FILES)
+                _complete = true;
+            else
+                throwError();
+    }
+    ~FindHandle()
+    {
+        if (_handle != INVALID_HANDLE_VALUE)
+            FindClose(_handle);
+    }
+    WIN32_FIND_DATA* data() { return &_data; }
+    bool complete() { return _complete; }
+private:
+    void throwError()
+    {
+        static String findingFiles("Finding files ");
+        Exception::throwSystemError(findingFiles + _path);
+    }
+
+    HANDLE _handle;
+    WIN32_FIND_DATA _data;
+    String _path;
+    bool _complete;
+};
+#endif
+
 template<class T> class DirectoryTemplate : public FileSystemObject
 {
 public:
@@ -313,31 +358,26 @@ public:
     template<class F> void applyToContents(F functor, const String& wildcard = String("*")) const
     {
     #ifdef _WIN32
-        WIN32_FIND_DATA data;
-        //HANDLE h = FindFirstFile(path, &data);
-        //if (h == INVALID_HANDLE_VALUE)
-        //    displayError(path);  
-        //do {
-        //    if (data.cFileName[0] == '.') {
-        //        if (data.cFileName[1] == 0)
-        //            continue;
-        //        if (data.cFileName[1] == '.')
-        //            if (data.cFileName[2] == 0)
-        //                continue;
-        //    }
-        //    int pl2 = bl + 1 + wcslen(data.cFileName);
-        //    wchar_t* p = (wchar_t*)malloc(sizeof(wchar_t)*(pl2 + 1));
-        //    wchar_t* p2 = wcscpy(p, base) + bl;
-        //    *(p2++) = '\\';
-        //    wcscpy(p2, data.cFileName);
-        //    doUnknown(base, bl, p, pl2);
-        //    free(p);
-        //} while (FindNextFile(h, &data) != 0);
- 
-        //DWORD dwError = GetLastError();
-        //if (dwError != ERROR_NO_MORE_FILES)
-        //    displayError(path);
-        //FindClose(h);
+        FindHandle handle(wildcard);
+        WIN32_FIND_DATA* data = handle.data();
+        do {
+            bool skip = false;
+            if (data->cFileName[0] == '.') {
+                if (data->cFileName[1] == 0)
+                    skip = true;
+                if (data->cFileName[1] == '.')
+                    if (data->cFileName[2] == 0)
+                        skip = true;
+            }
+            if (!skip) {
+                String name(data->cFileName);
+                if ((data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+                    functor(subDirectory(name));
+                else
+                    functor(file(name));
+            }
+            handle.next();
+        } while (!handle.complete());
     #else
         // TODO
     #endif
