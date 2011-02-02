@@ -41,6 +41,7 @@ typedef DriveCurrentDirectoryTemplate<void> DriveCurrentDirectory;
 #include <windows.h>
 #else
 #include <unistd.h>
+#include <dirent.h>
 #endif
 
 template<class T> class FileSystemObjectTemplate
@@ -301,7 +302,8 @@ private:
 class FindHandle
 {
 public:
-    FindHandle(const String& path) : _path(path), _complete(false)
+    FindHandle(const String& path) : _path(path), _complete(false),
+        _handle(INVALID_HANDLE_VALUE)
     {
         Array<WCHAR> data;
         _path.copyToUTF16(&data);
@@ -337,6 +339,47 @@ private:
 
     HANDLE _handle;
     WIN32_FIND_DATA _data;
+    String _path;
+    bool _complete;
+};
+#else
+class FindHandle
+{
+public:
+    FindHandle(const String& path) : _path(path), _complete(false), _dir(NULL)
+    {
+        Array<UInt8> data;
+        String filePath = path();
+        filePath.copyTo(&data);
+        _dir = opendir(reinterpret_cast<const char*>(&data[0]));
+        if (_dir == NULL) {
+            static String openingFile("Opening directory ");
+            Exception::throwSystemError(openingDirectory + path);
+        }
+        next();
+    }
+    void next()
+    {
+        errno = 0;
+        _data = readdir(_dir);
+        if (_data == NULL)
+            if (errno == 0)
+                _complete = true;
+            else {
+                static String openingFile("Reading directory ");
+                Exception::throwSystemError(openingDirectory + path);
+            }
+    }
+    ~FindHandle()
+    {
+        if (_handle != NULL)
+            closedir(_dir);
+    }
+    struct dirent* data() { return &_data; }
+    bool complete() { return _complete; }
+private:
+    struct dirent* _data;
+    DIR* _dir;
     String _path;
     bool _complete;
 };
@@ -379,7 +422,27 @@ public:
             handle.next();
         } while (!handle.complete());
     #else
-        // TODO
+        FindHandle handle(wildcard);
+        do {
+            bool skip = false;
+            struct dirent* data = handle.data();
+            if (data->d_name[0] == '.') {
+                if (data->d_name[1] == 0)
+                    skip = true;
+                if (data->d_name[1] == '.')
+                    if (data->d_name[2] == 0)
+                        skip = true;
+            }
+            if (!skip) {
+                String name(data->d_name);
+                // TODO: Check that name matches wildcard
+                if (data->d_type == DT_DIR)
+                    functor(subDirectory(name));
+                else
+                    functor(file(name));
+            }
+            handle.next();
+        } while (!handle.complete());
     #endif
     }
 protected:
@@ -574,7 +637,6 @@ private:
     private:
         int _drive;
     };
-
 };
 
 template<class T> Reference<FileSystemObject::Implementation> DriveRootDirectoryTemplate<T>::_implementations[26];

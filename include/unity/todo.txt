@@ -1,3 +1,8 @@
+file.h:
+  Wildcard test for Unix port of Directory::applyToContents
+  Implement applyToWildcard()
+    Refactor with parse
+
 Some kind of class to hold all the static Strings and avoid duplication between their different instances?
 
 What characters are actually legal in server names?
