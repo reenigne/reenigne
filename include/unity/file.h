@@ -101,15 +101,12 @@ private:
     }
 
 #ifdef _WIN32
-    static FileSystemObject windowsParse(const String& path, const Directory& relativeTo)
+    static Directory windowsParseDirectory(const String& path, const Directory& relativeTo, CodePointSource& s)
     {
         static String invalidPath("Invalid path");
-        static String currentDirectory(".");
-        static String parentDirectory("..");
-        static String empty;
 
-        CodePointSource s(path);
-        int c = s.get();
+        CodePointSource s2 = s;
+        int c = s2.get();
         int p = 1;
         int subDirectoryStart = 0;
         Directory dir = relativeTo;
@@ -158,7 +155,7 @@ private:
             if (drive >= 0 && drive < 26) {
                 c = s.get();
                 if (c == -1)
-                    return FileSystemObject(relativeTo, path.subString(0, 1));
+                    return dir;
                 ++p;
                 if (c == ':') {
                     subDirectoryStart = p;
@@ -181,6 +178,19 @@ private:
                 }
             }
         }
+        return dir;
+    }
+
+    static FileSystemObject windowsParse(const String& path, const Directory& relativeTo)
+    {
+        static String currentDirectory(".");
+        static String parentDirectory("..");
+        static String empty;
+
+        CodePointSource s(path);
+        Directory dir = windowsParseDirectory(path, relativeTo, s);
+        int c = s.get();
+        int subDirectoryStart = 0;
 
         String name;
         do {
@@ -226,6 +236,8 @@ private:
         return FileSystemObject(dir, name);
     }
 #endif
+
+    static Directory parseDirectory(const String& path, const Directory& relativeTo, CodePointSource& s)
 
     static FileSystemObject parse(const String& path, const Directory& relativeTo)
     {

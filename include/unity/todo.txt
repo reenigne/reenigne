@@ -2,6 +2,8 @@ file.h:
   Wildcard test for Unix port of Directory::applyToContents
   Implement applyToWildcard()
     Refactor with parse
+  Re-implement crc32 with new tools
+  Implement runrandom
 
 Some kind of class to hold all the static Strings and avoid duplication between their different instances?
 
