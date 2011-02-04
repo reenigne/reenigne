@@ -101,84 +101,64 @@ private:
     }
 
 #ifdef _WIN32
-    static Directory windowsParseDirectory(const String& path, const Directory& relativeTo, CodePointSource& s)
+    static Directory windowsParseRoot(const String& path, const Directory& relativeTo, CodePointSource& s)
     {
         static String invalidPath("Invalid path");
 
         CodePointSource s2 = s;
         int c = s2.get();
-        int p = 1;
-        int subDirectoryStart = 0;
         Directory dir = relativeTo;
 
         // Process initial slashes
         if (c == '/' || c == '\\') {
+            s = s2;
             dir = RootDirectory();
-            subDirectoryStart = p;
-            c = s.get();
+            c = s2.get();
             if (c == -1)
                 return dir;
-            ++p;
             if (c == '/' || c == '\\') {
-                int serverStart = p;
+                s = s2;
+                int serverStart = s2.offset();
                 do {
-                    c = s.get();
+                    c = s2.get();
                     if (c == -1)
                         throw Exception(invalidPath);
-                    ++p;
                     // TODO: What characters are actually legal in server names?
                 } while (c != '\\' && c != '/');
-                String server = path.subString(serverStart, p - (serverStart + 1));
-                int shareStart = p;
+                String server = path.subString(serverStart, s2.offset() - (serverStart + 1));
+                int shareStart = s2.offset();
                 do {
-                    c = s.get();
-                    if (c == -1)
-                        break;
-                    ++p;
+                    c = s2.get();
                     // TODO: What characters are actually legal in share names?
-                } while (c != '\\' && c != '/');
-                String share = path.subString(shareStart, p - (shareStart + 1));
+                } while (c != '\\' && c != '/' && c != -1);
+                String share = path.subString(shareStart, s2.offset() - (shareStart + 1));
                 dir = UNCRootDirectory(server, share);
                 do {
-                    subDirectoryStart = p;
-                    c = s.get();
-                    if (c == -1)
-                        return dir;
-                    ++p;
+                    s = s2;
+                    c = s2.get();
                 } while (c == '/' || c == '\\');
             }
             // TODO: In paths starting \\?\, only \ and \\ are allowed separators, and ?*:"<> are allowed.
             // see http://docs.racket-lang.org/reference/windowspaths.html for more details
+            return dir;
         }
-        else {
-            int drive = (c >= 'a' ? (c - 'a') : (c - 'A'));
-            if (drive >= 0 && drive < 26) {
-                c = s.get();
-                if (c == -1)
-                    return dir;
-                ++p;
-                if (c == ':') {
-                    subDirectoryStart = p;
-                    c = s.get();
-                    if (c == -1)
-                        return DriveCurrentDirectory(drive);
-                    ++p;
-                    if (c == '/' || c == '\\') {
-                        dir = DriveRootDirectory(drive);
-                        while (c == '/' || c == '\\') {
-                            subDirectoryStart = p;
-                            c = s.get();
-                            if (c == -1)
-                                return dir;
-                            ++p;
-                        }
-                    }
-                    else
-                        dir = DriveCurrentDirectory(drive);
-                }
+        int drive = (c >= 'a' ? (c - 'a') : (c - 'A'));
+        if (drive < 0 || drive >= 26)
+            return dir;
+        c = s2.get();
+        if (c != ':')
+            return dir;
+        s = s2;
+        c = s2.get();
+        if (c == '/' || c == '\\') {
+            dir = DriveRootDirectory(drive);
+            while (c == '/' || c == '\\') {
+                s = s2;
+                c = s2.get();
             }
+            return dir;
         }
-        return dir;
+        return DriveCurrentDirectory(drive);
     }
 
     static FileSystemObject windowsParse(const String& path, const Directory& relativeTo)
@@ -188,21 +168,20 @@ private:
         static String empty;
 
         CodePointSource s(path);
-        Directory dir = windowsParseDirectory(path, relativeTo, s);
+        Directory dir = windowsParseRoot(path, relativeTo, s);
+        int subDirectoryStart = s.offset();
         int c = s.get();
-        int subDirectoryStart = 0;
 
         String name;
         do {
             while (c != '/' && c != '\\') {
                 if (c < 32 || c == '?' || c == '*' || c == ':' || c == '"' || c == '<' || c == '>')
                     throw Exception(invalidPath);
-                ++p;
                 c = s.get();
                 if (c == -1)
                     break;
             }
-            name = path.subString(subDirectoryStart, p - (subDirectoryStart + 1));
+            name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
             if (name == currentDirectory)
                 name = empty;
             if (name == parentDirectory) {
@@ -217,11 +196,10 @@ private:
             if (c == -1)
                 break;
             while (c == '/' || c == '\\') {
-                subDirectoryStart = p;
+                subDirectoryStart = s.offset();
                 c = s.get();
                 if (c == -1)
                     break;
-                ++p;
             }
             if (c == -1)
                 break;
@@ -237,7 +215,22 @@ private:
     }
 #endif
 
-    static Directory parseDirectory(const String& path, const Directory& relativeTo, CodePointSource& s)
+    static Directory parseRoot(const String& path, const Directory& relativeTo, CodePointSource& s)
+    {
+        CodePointSource s2 = s;
+        int c = s.get();
+        Directory dir = relativeTo;
+
+        // Process initial slashes
+        if (c == '/') {
+            dir = RootDirectory();
+            while (c == '/') {
+                s = s2;
+                c = s2.get();
+            }
+        }
+        return dir;
+    }
 
     static FileSystemObject parse(const String& path, const Directory& relativeTo)
     {
@@ -245,23 +238,10 @@ private:
         static String parentDirectory("..");
         static String empty;
 
-        CharacterSource s(path, String());
+        CodePointSource s(path, String());
+        Directory dir = parseRoot(path, relativeTo, s);
+        int subDirectoryStart = s.offset();
         int c = s.get();
-        int p = 1;  // p always points to the character after c
-        int subDirectoryStart = 0;
-        Directory dir = relativeTo;
-
-        // Process initial slashes
-        if (c == '/') {
-            dir = RootDirectory();
-            while (c == '/') {
-                subDirectoryStart = p;
-                c = s.get();
-                if (c == -1)
-                    return dir;
-                ++p;
-            }
-        }
 
         String name;
         do {
@@ -270,12 +250,11 @@ private:
                     static String invalidPath("Invalid path");
                     throw Exception(invalidPath);
                 }
-                ++p;
                 c = s.get();
                 if (c == -1)
                     break;
             }
-            name = path.subString(subDirectoryStart, p - (subDirectoryStart + 1));
+            name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
             if (name == currentDirectory)
                 name = empty;
             if (name == parentDirectory) {
@@ -285,7 +264,7 @@ private:
             if (c == -1)
                 break;
             while (c == '/') {
-                subDirectoryStart = p;
+                subDirectoryStart = s.offset();
                 c = s.get();
                 if (c == -1)
                     break;
@@ -631,8 +610,8 @@ private:
         }
         String path() const
         {
-            static String colonSlash(":");
-            return String::codePoint('A' + _drive) + colonSlash;
+            static String colon(":");
+            return String::codePoint('A' + _drive) + colon;
         }
 
         int hash(int h) const { return _drive; }
@@ -950,100 +929,51 @@ private:
     String _name;
 };
 
-
-template<class T> void applyToWildcard(T functor, const String& wildcard, int recurseIntoDirectories = true, const Directory& relativeTo = CurrentDirectory())
+template<class T> void applyToWildcard(T functor, CodePointSource s, int recurseIntoDirectories, const Directory& directory)
 {
 #ifdef _WIN32
-    //static String invalidPath("Invalid path");
-    //static String currentDirectory(".");
-    //static String parentDirectory("..");
-    //static String empty;
+    static String currentDirectory(".");
+    static String parentDirectory("..");
+    static String empty;
 
-    CodePointSource s(wildcard);
+    int subDirectoryStart = s.offset();
     int c = s.get();
-    int p = 1;
-    int subDirectoryStart = 0;
-    Directory dir = relativeTo;
 
-    // Process initial slashes
-    if (c == '/' || c == '\\') {
-        dir = RootDirectory();
-        subDirectoryStart = p;
+    while (c != '/' && c != '\\') {
+        if (c < 32 || c == ':' || c == '"' || c == '<' || c == '>')
+            throw Exception(invalidPath);
         c = s.get();
         if (c == -1)
-            return dir;
-        ++p;
-        if (c == '/' || c == '\\') {
-            int serverStart = p;
-            do {
-                c = s.get();
-                if (c == -1)
-                    throw Exception(invalidPath);
-                ++p;
-                // TODO: What characters are actually legal in server names?
-            } while (c != '\\' && c != '/');
-            String server = path.subString(serverStart, p - (serverStart + 1));
-            int shareStart = p;
-            do {
-                c = s.get();
-                if (c == -1)
-                    break;
-                ++p;
-                // TODO: What characters are actually legal in share names?
-            } while (c != '\\' && c != '/');
-            String share = path.subString(shareStart, p - (shareStart + 1));
-            dir = UNCRootDirectory(server, share);
-            do {
-                subDirectoryStart = p;
-                c = s.get();
-                if (c == -1)
-                    return dir;
-                ++p;
-            } while (c == '/' || c == '\\');
-        }
-        // TODO: In paths starting \\?\, only \ and \\ are allowed separators, and ?*:"<> are allowed.
-        // see http://docs.racket-lang.org/reference/windowspaths.html for more details
+            break;
     }
-    else {
-        int drive = (c >= 'a' ? (c - 'a') : (c - 'A'));
-        if (drive >= 0 && drive < 26) {
-            c = s.get();
-            if (c == -1)
-                return FileSystemObject(relativeTo, path.subString(0, 1));
-            ++p;
-            if (c == ':') {
-                subDirectoryStart = p;
-                c = s.get();
-                if (c == -1)
-                    return DriveCurrentDirectory(drive);
-                ++p;
-                if (c == '/' || c == '\\') {
-                    dir = DriveRootDirectory(drive);
-                    while (c == '/' || c == '\\') {
-                        subDirectoryStart = p;
-                        c = s.get();
-                        if (c == -1)
-                            return dir;
-                        ++p;
-                    }
-                }
-                else
-                    dir = DriveCurrentDirectory(drive);
-            }
-        }
+    String name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
+    while (c == '/' || c == '\\') {
+        subDirectoryStart = s.offset();
+        c = s.get();
+        if (c == -1)
+            break;
+    }
+    if (name == currentDirectory)
+        applyToWildcard(functor, s, recurseIntoDirectories, directory);
+    if (name == parentDirectory)
+        applyToWildcard(functor, s, recurseIntoDirectories, directory.parent());
+    if (name != empty) {
+        int l = name[name.length() - 1];
+        if (l == '.' || l == ' ')
+            throw Exception(invalidPath);
     }
 
-    String name;
+
+
     do {
         while (c != '/' && c != '\\') {
             if (c < 32 || c == ':' || c == '"' || c == '<' || c == '>')
                 throw Exception(invalidPath);
-            ++p;
             c = s.get();
             if (c == -1)
                 break;
         }
-        name = path.subString(subDirectoryStart, p - (subDirectoryStart + 1));
+        name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
         if (name == currentDirectory)
             name = empty;
         if (name == parentDirectory) {
@@ -1058,11 +988,10 @@ template<class T> void applyToWildcard(T functor, const String& wildcard, int re
         if (c == -1)
             break;
         while (c == '/' || c == '\\') {
-            subDirectoryStart = p;
+            subDirectoryStart = s.offset();
             c = s.get();
             if (c == -1)
                 break;
-            ++p;
         }
         if (c == -1)
             break;
@@ -1076,27 +1005,15 @@ template<class T> void applyToWildcard(T functor, const String& wildcard, int re
     //}
     //return FileSystemObject(dir, name);
 #else
+
     //static String currentDirectory(".");
     //static String parentDirectory("..");
     //static String empty;
 
-    //CharacterSource s(path, String());
+    //CodePointSource s(path);
+    //Directory dir = FileSystemObject::parse(wildcard, relativeTo, s);
     //int c = s.get();
-    //int p = 1;  // p always points to the character after c
-    //int subDirectoryStart = 0;
-    //Directory dir = relativeTo;
-
-    //// Process initial slashes
-    //if (c == '/') {
-    //    dir = RootDirectory();
-    //    while (c == '/') {
-    //        subDirectoryStart = p;
-    //        c = s.get();
-    //        if (c == -1)
-    //            return dir;
-    //        ++p;
-    //    }
-    //}
+    //int subDirectoryStart = s.offset();
 
     //String name;
     //do {
@@ -1105,12 +1022,11 @@ template<class T> void applyToWildcard(T functor, const String& wildcard, int re
     //            static String invalidPath("Invalid path");
     //            throw Exception(invalidPath);
     //        }
-    //        ++p;
     //        c = s.get();
     //        if (c == -1)
     //            break;
     //    }
-    //    name = path.subString(subDirectoryStart, p - (subDirectoryStart + 1));
+    //    name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
     //    if (name == currentDirectory)
     //        name = empty;
     //    if (name == parentDirectory) {
@@ -1120,11 +1036,10 @@ template<class T> void applyToWildcard(T functor, const String& wildcard, int re
     //    if (c == -1)
     //        break;
     //    while (c == '/') {
-    //        subDirectoryStart = p;
+    //        subDirectoryStart = s.offset();
     //        c = s.get();
     //        if (c == -1)
     //            break;
-    //        ++p;
     //    }
     //    if (c == -1)
     //        break;
@@ -1137,6 +1052,19 @@ template<class T> void applyToWildcard(T functor, const String& wildcard, int re
     //    return FileSystemObject(dir.parent(), dir.name());
     //}
     //return FileSystemObject(dir, name);
+#endif
+}
+
+template<class T> void applyToWildcard(T functor, const String& wildcard, int recurseIntoDirectories = true, const Directory& relativeTo = CurrentDirectory())
+{
+#ifdef _WIN32
+    CodePointSource s(wildcard);
+    Directory dir = FileSystemObject::windowsParseRoot(wildcard, relativeTo, s);
+    applyToWildcard(functor, s, recurseIntoDirectories, dir);
+#else
+    CodePointSource s(path);
+    Directory dir = FileSystemObject::parse(wildcard, relativeTo, s);
+    applyToWildcard(functor, s, recursiveIntoDirectories, dir);
 #endif
 }
 
