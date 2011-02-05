@@ -319,6 +319,14 @@ public:
         if (_handle != INVALID_HANDLE_VALUE)
             FindClose(_handle);
     }
+    bool isDirectory() const
+    {
+        return (_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    }
+    String name() const
+    {
+        return _data.cFileName;
+    }
     WIN32_FIND_DATA* data() { return &_data; }
     bool complete() { return _complete; }
 private:
@@ -389,7 +397,7 @@ public:
     {
         return File(fileName, *this);
     }
-    template<class F> void applyToContents(F functor, const String& wildcard = String("*")) const
+    template<class F> void applyToContents(F functor, bool recursive, const String& wildcard = String("*")) const
     {
     #ifdef _WIN32
         FindHandle handle(wildcard);
@@ -405,8 +413,13 @@ public:
             }
             if (!skip) {
                 String name(data->cFileName);
-                if ((data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
-                    functor(subDirectory(name));
+                if ((data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+                    Directory child = subDirectory(name);
+                    if (recursive)
+                        child.applyToContents(functor, true);
+                    else
+                        functor(subDirectory(name));
+                }
                 else
                     functor(file(name));
             }
@@ -427,8 +440,10 @@ public:
             if (!skip) {
                 String name(data->d_name);
                 // TODO: Check that name matches wildcard
-                if (data->d_type == DT_DIR)
+                if (data->d_type == DT_DIR) {
+                    Directory child = subDirectory(name)
                     functor(subDirectory(name));
+                }
                 else
                     functor(file(name));
             }
@@ -947,111 +962,73 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
             break;
     }
     String name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
-    while (c == '/' || c == '\\') {
-        subDirectoryStart = s.offset();
+    while (c == '/' || c == '\\')
         c = s.get();
-        if (c == -1)
-            break;
-    }
-    if (name == currentDirectory)
+    if (name == currentDirectory) {
         applyToWildcard(functor, s, recurseIntoDirectories, directory);
-    if (name == parentDirectory)
+        return;
+    }
+    if (name == parentDirectory) {
         applyToWildcard(functor, s, recurseIntoDirectories, directory.parent());
+        return;
+    }
     if (name != empty) {
         int l = name[name.length() - 1];
         if (l == '.' || l == ' ')
             throw Exception(invalidPath);
     }
-
-
-
+    FindHandle handle(directory.file(name));
+    WIN32_FIND_DATA* data = handle.data();
     do {
-        while (c != '/' && c != '\\') {
-            if (c < 32 || c == ':' || c == '"' || c == '<' || c == '>')
-                throw Exception(invalidPath);
-            c = s.get();
+        bool skip = false;
+        if (data->cFileName[0] == '.') {
+            if (data->cFileName[1] == 0)
+                skip = true;
+            if (data->cFileName[1] == '.')
+                if (data->cFileName[2] == 0)
+                    skip = true;
+        }
+        if (!skip) {
+            String name(data->cFileName);
             if (c == -1)
-                break;
+                if ((data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+                    if (recurseIntoDirectories)
+                        directory.applyToContents(functor, true);
+                    else
+                        functor(subDirectory(name));
+                }
+                else
+                    functor(file(name));
+            else
+                if ((data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+                    applyToWildcard(functor, s, recurseIntoDirectories, directory);
         }
-        name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
-        if (name == currentDirectory)
-            name = empty;
-        if (name == parentDirectory) {
-            dir = dir.parent();
-            name = empty;
-        }
-        if (name != empty) {
-            int l = name[name.length() - 1];
-            if (l == '.' || l == ' ')
-                throw Exception(invalidPath);
-        }
-        if (c == -1)
-            break;
-        while (c == '/' || c == '\\') {
-            subDirectoryStart = s.offset();
-            c = s.get();
-            if (c == -1)
-                break;
-        }
-        if (c == -1)
-            break;
-        if (name != empty)
-            dir = dir.subDirectory(name);
-    } while (true);
-    //if (name == empty) {
-    //    if (dir.isRoot())
-    //        return dir;
-    //    return FileSystemObject(dir.parent(), dir.name());
-    //}
-    //return FileSystemObject(dir, name);
+        handle.next();
+    } while (!handle.complete());
 #else
 
-    //static String currentDirectory(".");
-    //static String parentDirectory("..");
-    //static String empty;
+    static String currentDirectory(".");
+    static String parentDirectory("..");
+    static String empty;
 
-    //CodePointSource s(path);
-    //Directory dir = FileSystemObject::parse(wildcard, relativeTo, s);
-    //int c = s.get();
-    //int subDirectoryStart = s.offset();
+    CodePointSource s(path);
+    Directory dir = FileSystemObject::parse(wildcard, relativeTo, s);
+    int c = s.get();
+    int subDirectoryStart = s.offset();
 
-    //String name;
-    //do {
-    //    while (c != '/') {
-    //        if (c == 0) {
-    //            static String invalidPath("Invalid path");
-    //            throw Exception(invalidPath);
-    //        }
-    //        c = s.get();
-    //        if (c == -1)
-    //            break;
-    //    }
-    //    name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
-    //    if (name == currentDirectory)
-    //        name = empty;
-    //    if (name == parentDirectory) {
-    //        dir = dir.parent();
-    //        name = empty;
-    //    }
-    //    if (c == -1)
-    //        break;
-    //    while (c == '/') {
-    //        subDirectoryStart = s.offset();
-    //        c = s.get();
-    //        if (c == -1)
-    //            break;
-    //    }
-    //    if (c == -1)
-    //        break;
-    //    if (name != empty)
-    //        dir = dir.subDirectory(name);
-    //} while (true);
-    //if (name == empty) {
-    //    if (dir.isRoot())
-    //        return dir;
-    //    return FileSystemObject(dir.parent(), dir.name());
-    //}
-    //return FileSystemObject(dir, name);
+    String name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
+    while (c == '/')
+        c = s.get();
+    if (name == currentDirectory) {
+        applyToWildcard(functor, s, recurseIntoDirectories, directory);
+        return;
+    }
+    if (name == parentDirectory) {
+        applyToWildcard(functor, s, recurseIntoDirectories, directory.parent());
+        return;
+    }
+    FindHandle handle(directory.file(name));
+    // TODO
 #endif
 }
 

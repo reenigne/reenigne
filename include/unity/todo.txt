@@ -1,5 +1,6 @@
 file.h:
   Wildcard test for Unix port of Directory::applyToContents
+    Refactor so we only need one Directory::applyToContents implementation - put everything else in FindHandle
   Implement applyToWildcard()
     Refactor with parse
   Re-implement crc32 with new tools
