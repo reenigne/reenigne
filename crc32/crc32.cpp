@@ -1,11 +1,8 @@
+#include "unity/file.h"
 #include <stdio.h>
-#include <string.h>
-#include <errno.h>
 #include <stdlib.h>
-#include <windows.h>
-#include <strsafe.h>
 
-static DWORD crc_32_tab[]={ /* CRC polynomial 0xedb88320 */
+static UInt32 crc_32_tab[]={ /* CRC polynomial 0xedb88320 */
 0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
 0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
@@ -51,120 +48,48 @@ static DWORD crc_32_tab[]={ /* CRC polynomial 0xedb88320 */
 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-void doFile(wchar_t* path)
+class Crc32
 {
-    FILE* fp = _wfopen(path, L"rb");
-    if (fp == 0) {
-        wprintf(L"<in use> %s\n", path);
-        return;
-    }
-    fseek(fp, 0, SEEK_END);
-    long l = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    DWORD crc = 0xffffffff;
-    for (long i = 0; i < l; ++i) {
-        int c = getc(fp);
-        crc = (crc_32_tab[((crc)^((BYTE)c))&0xff]^((crc)>>8));
-    }
-    if (ferror(fp)) {
-        wprintf(L"Error reading file %s: ", path);
-        printf("%s\n", sys_errlist[errno]);
-        exit(1);
-    }
-    fclose(fp);
-    wprintf(L"%08x %s\n", ~crc, path);
-}
+public:
+    void operator()(const File& file)
+    {
+        Array<UInt8> data;
+        String filePath = file.path();
+        filePath.copyTo(&data);
+        const char* path = reinterpret_cast<char*>(&data[0]);
 
-void displayError(wchar_t* lpszFunction) 
-{ 
-    // Retrieve the system error message for the last-error code
-
-    LPVOID lpMsgBuf;
-    LPVOID lpDisplayBuf;
-    DWORD dw = GetLastError(); 
-
-    FormatMessage(
-        FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-        FORMAT_MESSAGE_FROM_SYSTEM |
-        FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL,
-        dw,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        (LPTSTR) &lpMsgBuf,
-        0, NULL );
-
-    // Display the error message and clean up
-
-    lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT, 
-        (lstrlen((LPCTSTR)lpMsgBuf)+lstrlen((LPCTSTR)lpszFunction)+40)*sizeof(TCHAR)); 
-    StringCchPrintf((LPTSTR)lpDisplayBuf, 
-        LocalSize(lpDisplayBuf) / sizeof(TCHAR),
-        TEXT("%s failed with error %d: %s"), 
-        lpszFunction, dw, lpMsgBuf); 
-    wprintf(L"Error: %s\n", lpDisplayBuf); 
-
-    LocalFree(lpMsgBuf);
-    LocalFree(lpDisplayBuf);
-    exit(1);
-}
-
-void doUnknown(wchar_t* base, int bl, wchar_t* path, int pl);
-
-void doWildcard(wchar_t* base, int bl, wchar_t* path, int pl)
-{
-    WIN32_FIND_DATA data;
-    HANDLE h = FindFirstFile(path, &data);
-    if (h == INVALID_HANDLE_VALUE)
-        displayError(path);  
-    do {
-        if (data.cFileName[0] == '.') {
-            if (data.cFileName[1] == 0)
-                continue;
-            if (data.cFileName[1] == '.')
-                if (data.cFileName[2] == 0)
-                    continue;
+        FILE* fp = fopen(path, "rb");
+        if (fp == 0) {
+            printf("<in use> %s\n", path);
+            return;
         }
-        int pl2 = bl + 1 + wcslen(data.cFileName);
-        wchar_t* p = (wchar_t*)malloc(sizeof(wchar_t)*(pl2 + 1));
-        wchar_t* p2 = wcscpy(p, base) + bl;
-        *(p2++) = '\\';
-        wcscpy(p2, data.cFileName);
-        doUnknown(base, bl, p, pl2);
-        free(p);
-    } while (FindNextFile(h, &data) != 0);
- 
-    DWORD dwError = GetLastError();
-    if (dwError != ERROR_NO_MORE_FILES)
-        displayError(path);
-    FindClose(h);
-}
-
-void doUnknown(wchar_t* base, int bl, wchar_t* path, int pl)
-{
-    DWORD dwAttributes = GetFileAttributes(path);
-    if (dwAttributes == INVALID_FILE_ATTRIBUTES)
-        doWildcard(base, bl, path, pl);
-    else if ((dwAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
-        int pl2 = pl + 2;
-        wchar_t* p = (wchar_t*)malloc(sizeof(wchar_t)*(pl2 + 1));
-        wchar_t* p2 = wcscpy(p, path) + pl;
-        *(p2++) = '\\';
-        *(p2++) = '*';
-        *(p2++) = 0;
-        doWildcard(path, pl, p, pl2);
+        fseek(fp, 0, SEEK_END);
+        long l = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        DWORD crc = 0xffffffff;
+        for (long i = 0; i < l; ++i) {
+            int c = getc(fp);
+            crc = (crc_32_tab[((crc)^((BYTE)c))&0xff]^((crc)>>8));
+        }
+        if (ferror(fp)) {
+            printf("Error reading file %s: %s\n", path, sys_errlist[errno]);
+            exit(1);
+        }
+        fclose(fp);
+        printf("%08x %s\n", ~crc, path);
     }
-    else
-        doFile(path);
-}
-                   
+    void operator()(const Directory& directory) { }
+};
+
 int wmain(int argc, wchar_t** argv)
 {
+    Crc32 crc32;
     if (argc == 1) {
-        wprintf(L"Usage: crc32 <path>\n");
+        printf("Usage: crc32 <path>\n");
         exit(1);
     }
     argv++;
     for (;*argv; ++argv)
-        doUnknown(L"", 0, *argv, wcslen(*argv));
+        applyToWildcard(crc32, String(*argv));
     return 0;
 }

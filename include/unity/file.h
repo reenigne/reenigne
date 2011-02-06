@@ -7,6 +7,9 @@ typedef CurrentDirectoryTemplate<void> CurrentDirectory;
 template<class T> class FileSystemObjectTemplate;
 typedef FileSystemObjectTemplate<void> FileSystemObject;
 
+template<class T> class FindHandleTemplate;
+typedef FindHandleTemplate<void> FindHandle;
+
 template<class T> class DirectoryTemplate;
 typedef DirectoryTemplate<void> Directory;
 
@@ -34,6 +37,7 @@ typedef DriveCurrentDirectoryTemplate<void> DriveCurrentDirectory;
 #endif
 
 #include "unity/string.h"
+#include "unity/character_source.h"
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -101,7 +105,7 @@ private:
     }
 
 #ifdef _WIN32
-    static Directory windowsParseRoot(const String& path, const Directory& relativeTo, CodePointSource& s)
+    static DirectoryTemplate<T> windowsParseRoot(const String& path, const Directory& relativeTo, CodePointSource& s)
     {
         static String invalidPath("Invalid path");
 
@@ -163,6 +167,7 @@ private:
 
     static FileSystemObject windowsParse(const String& path, const Directory& relativeTo)
     {
+        static String invalidPath("Invalid path");
         static String currentDirectory(".");
         static String parentDirectory("..");
         static String empty;
@@ -215,7 +220,7 @@ private:
     }
 #endif
 
-    static Directory parseRoot(const String& path, const Directory& relativeTo, CodePointSource& s)
+    static DirectoryTemplate<T> parseRoot(const String& path, const Directory& relativeTo, CodePointSource& s)
     {
         CodePointSource s2 = s;
         int c = s.get();
@@ -238,7 +243,7 @@ private:
         static String parentDirectory("..");
         static String empty;
 
-        CodePointSource s(path, String());
+        CodePointSource s(path);
         Directory dir = parseRoot(path, relativeTo, s);
         int subDirectoryStart = s.offset();
         int c = s.get();
@@ -268,7 +273,6 @@ private:
                 c = s.get();
                 if (c == -1)
                     break;
-                ++p;
             }
             if (c == -1)
                 break;
@@ -287,16 +291,21 @@ private:
 
     template<class T> friend class NamedFileSystemObjectImplementationTemplate;
     template<class T> friend class CurrentDirectoryTemplate;
+    template<class T> friend class DirectoryTemplate;
+
+    template<class T> friend void applyToWildcard(T functor, const String& wildcard, int recurseIntoDirectories, const Directory& relativeTo);
 };
 
 #ifdef _WIN32
-class FindHandle
+template<class T> class FindHandleTemplate
 {
 public:
-    FindHandle(const String& path) : _path(path), _complete(false),
+    FindHandleTemplate(const Directory& directory, const String& wildcard)
+      : _directory(directory), _wildcard(wildcard), _complete(false),
         _handle(INVALID_HANDLE_VALUE)
     {
         Array<WCHAR> data;
+        _path = directory.child(wildcard).windowsPath();
         _path.copyToUTF16(&data);
         _handle = FindFirstFile(&data[0], &_data);
         if (_handle == INVALID_HANDLE_VALUE) {
@@ -308,13 +317,23 @@ public:
     }
     void next()
     {
-        if (FindNextFile(_handle, &_data) == 0)
-            if (GetLastError() == ERROR_NO_MORE_FILES)
-                _complete = true;
-            else
-                throwError();
+        do {
+            if (FindNextFile(_handle, &_data) == 0)
+                if (GetLastError() == ERROR_NO_MORE_FILES) {
+                    _complete = true;
+                    return;
+                }
+                else
+                    throwError();
+            String n = name();
+            static String currentDirectory(".");
+            static String parentDirectory("..");
+            if (n == currentDirectory || n == parentDirectory)
+                continue;
+            break;
+        } while (true);
     }
-    ~FindHandle()
+    ~FindHandleTemplate()
     {
         if (_handle != INVALID_HANDLE_VALUE)
             FindClose(_handle);
@@ -327,7 +346,18 @@ public:
     {
         return _data.cFileName;
     }
-    WIN32_FIND_DATA* data() { return &_data; }
+    FileSystemObject object() const
+    {
+        return _directory.child(name());
+    }
+    DirectoryTemplate<T> directory() const
+    {
+        return _directory.subDirectory(name());
+    }
+    FileTemplate<T> file() const
+    {
+        return _directory.file(name());
+    }
     bool complete() { return _complete; }
 private:
     void throwError()
@@ -338,45 +368,108 @@ private:
 
     HANDLE _handle;
     WIN32_FIND_DATA _data;
+    Directory _directory;
+    String _wildcard;
     String _path;
     bool _complete;
 };
 #else
-class FindHandle
+template<class T> class FindHandleTemplate
 {
 public:
-    FindHandle(const String& path) : _path(path), _complete(false), _dir(NULL)
+    FindHandleTemplate(const Directory& directory, const String& wildcard)
+      : _directory(directory), _wildcard(wildcard), _complete(false),
+        _dir(NULL)
     {
         Array<UInt8> data;
-        String filePath = path();
-        filePath.copyTo(&data);
+        _path = directory.path();
+        _path.copyTo(&data);
         _dir = opendir(reinterpret_cast<const char*>(&data[0]));
         if (_dir == NULL) {
             static String openingFile("Opening directory ");
-            Exception::throwSystemError(openingDirectory + path);
+            Exception::throwSystemError(openingDirectory + _path);
         }
         next();
     }
     void next()
     {
-        errno = 0;
-        _data = readdir(_dir);
-        if (_data == NULL)
-            if (errno == 0)
-                _complete = true;
-            else {
-                static String openingFile("Reading directory ");
-                Exception::throwSystemError(openingDirectory + path);
-            }
+        do {
+            errno = 0;
+            _data = readdir(_dir);
+            if (_data == NULL)
+                if (errno == 0)
+                    _complete = true;
+                else {
+                    static String openingFile("Reading directory ");
+                    Exception::throwSystemError(openingDirectory + _path);
+                }
+            String n = name();
+            static String currentDirectory(".");
+            static String parentDirectory("..");
+            if (n == currentDirectory || n == parentDirectory)
+                continue;
+            if (!matches(n, wildcard))
+                continue;
+            break;
+        } while (true);
     }
     ~FindHandle()
     {
         if (_handle != NULL)
             closedir(_dir);
     }
-    struct dirent* data() { return &_data; }
+    bool isDirectory() const
+    {
+        return _dirent->d_type == DT_DIR;
+    }
+    String name() const
+    {
+        return _data.d_name;
+    }
+    FileSystemObject object() const
+    {
+        return _directory.child(name());
+    }
+    Directory directory() const
+    {
+        return _directory.subDirectory(name());
+    }
+    File file() const
+    {
+        return _directory.file(name());
+    }
     bool complete() { return _complete; }
 private:
+    static bool matches(String name, String wildcard)
+    {
+        CodePointSource sw(wildcard);
+        CodePointSource sn(name);
+        do {
+            int cs = sw.get();
+            int cn = sn.get();
+            switch (cs) {
+                case '?':
+                    if (cn == -1)
+                        return false;
+                    continue;
+                case '*':
+                    // TODO: this code is O(n^p) where p is number of stars, we can do better using dynamic programming.
+                    if (cn == -1)
+                        continue;
+                    do {
+                        if (matches(name.subString(sn.offset(), name.length() - sn.offset()), sw.offset(), wildcard.length() - sw.offset()))
+                            return true;
+                        cn = sn.get();
+                    } while (cn != -1);
+                    return false;
+                case -1:
+                    return (cn == -1);
+                default:
+                    return (cn == cs);
+            }
+        } while (true);
+    }
+
     struct dirent* _data;
     DIR* _dir;
     String _path;
@@ -388,7 +481,10 @@ template<class T> class DirectoryTemplate : public FileSystemObject
 {
 public:
     DirectoryTemplate(const String& path, const Directory& relativeTo = CurrentDirectory(), bool windowsParsing = false) : FileSystemObject(path, relativeTo, windowsParsing) { }
-
+    FileSystemObject child(const String& name) const
+    { 
+        return FileSystemObject(*this, name);
+    }
     Directory subDirectory(const String& subDirectoryName) const
     {
         return Directory(subDirectoryName, *this);
@@ -399,57 +495,19 @@ public:
     }
     template<class F> void applyToContents(F functor, bool recursive, const String& wildcard = String("*")) const
     {
-    #ifdef _WIN32
-        FindHandle handle(wildcard);
-        WIN32_FIND_DATA* data = handle.data();
+        FindHandle handle(*this, wildcard);
         do {
-            bool skip = false;
-            if (data->cFileName[0] == '.') {
-                if (data->cFileName[1] == 0)
-                    skip = true;
-                if (data->cFileName[1] == '.')
-                    if (data->cFileName[2] == 0)
-                        skip = true;
-            }
-            if (!skip) {
-                String name(data->cFileName);
-                if ((data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
-                    Directory child = subDirectory(name);
-                    if (recursive)
-                        child.applyToContents(functor, true);
-                    else
-                        functor(subDirectory(name));
-                }
+            if (handle.isDirectory()) {
+                Directory child = handle.directory();
+                if (recursive)
+                    child.applyToContents(functor, true);
                 else
-                    functor(file(name));
+                    functor(child);
             }
+            else
+                functor(handle.file());
             handle.next();
         } while (!handle.complete());
-    #else
-        FindHandle handle(wildcard);
-        do {
-            bool skip = false;
-            struct dirent* data = handle.data();
-            if (data->d_name[0] == '.') {
-                if (data->d_name[1] == 0)
-                    skip = true;
-                if (data->d_name[1] == '.')
-                    if (data->d_name[2] == 0)
-                        skip = true;
-            }
-            if (!skip) {
-                String name(data->d_name);
-                // TODO: Check that name matches wildcard
-                if (data->d_type == DT_DIR) {
-                    Directory child = subDirectory(name)
-                    functor(subDirectory(name));
-                }
-                else
-                    functor(file(name));
-            }
-            handle.next();
-        } while (!handle.complete());
-    #endif
     }
 protected:
     DirectoryTemplate(Reference<FileSystemObject::Implementation> implementation) : FileSystemObject(implementation) { }
@@ -946,22 +1004,20 @@ private:
 
 template<class T> void applyToWildcard(T functor, CodePointSource s, int recurseIntoDirectories, const Directory& directory)
 {
-#ifdef _WIN32
+    static String invalidPath("Invalid path");
     static String currentDirectory(".");
     static String parentDirectory("..");
     static String empty;
 
     int subDirectoryStart = s.offset();
     int c = s.get();
-
-    while (c != '/' && c != '\\') {
+#ifdef _WIN32
+    while (c != '/' && c != '\\' && c != -1) {
         if (c < 32 || c == ':' || c == '"' || c == '<' || c == '>')
             throw Exception(invalidPath);
         c = s.get();
-        if (c == -1)
-            break;
     }
-    String name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
+    String name = s.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
     while (c == '/' || c == '\\')
         c = s.get();
     if (name == currentDirectory) {
@@ -977,45 +1033,9 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
         if (l == '.' || l == ' ')
             throw Exception(invalidPath);
     }
-    FindHandle handle(directory.file(name));
-    WIN32_FIND_DATA* data = handle.data();
-    do {
-        bool skip = false;
-        if (data->cFileName[0] == '.') {
-            if (data->cFileName[1] == 0)
-                skip = true;
-            if (data->cFileName[1] == '.')
-                if (data->cFileName[2] == 0)
-                    skip = true;
-        }
-        if (!skip) {
-            String name(data->cFileName);
-            if (c == -1)
-                if ((data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
-                    if (recurseIntoDirectories)
-                        directory.applyToContents(functor, true);
-                    else
-                        functor(subDirectory(name));
-                }
-                else
-                    functor(file(name));
-            else
-                if ((data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
-                    applyToWildcard(functor, s, recurseIntoDirectories, directory);
-        }
-        handle.next();
-    } while (!handle.complete());
 #else
-
-    static String currentDirectory(".");
-    static String parentDirectory("..");
-    static String empty;
-
-    CodePointSource s(path);
-    Directory dir = FileSystemObject::parse(wildcard, relativeTo, s);
-    int c = s.get();
-    int subDirectoryStart = s.offset();
-
+    while (c != '/' && c != -1)
+        c = s.get();
     String name = path.subString(subDirectoryStart, s.offset() - (subDirectoryStart + 1));
     while (c == '/')
         c = s.get();
@@ -1027,9 +1047,24 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
         applyToWildcard(functor, s, recurseIntoDirectories, directory.parent());
         return;
     }
-    FindHandle handle(directory.file(name));
-    // TODO
 #endif
+    FindHandle handle(directory, name);
+    do {
+        if (handle.isDirectory()) {
+            Directory child = handle.directory();
+            if (c == -1)
+                if (recurseIntoDirectories)
+                    child.applyToContents(functor, true);
+                else
+                    functor(child);
+            else
+                applyToWildcard(functor, s, recurseIntoDirectories, child);
+        }
+        else
+            if (c == -1)
+                functor(handle.file());
+        handle.next();
+    } while (!handle.complete());
 }
 
 template<class T> void applyToWildcard(T functor, const String& wildcard, int recurseIntoDirectories = true, const Directory& relativeTo = CurrentDirectory())

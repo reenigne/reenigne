@@ -213,8 +213,8 @@ public:
     {
         int l = length();
         data->allocate(l + 1);
-        _implementation->copyTo(&data[0]);
-        data[l] = 0;
+        _implementation->copyTo(&(*data)[0]);
+        (*data)[l] = 0;
     }
 #ifdef _WIN32
     void copyToUTF16(Array<WCHAR>* data) const

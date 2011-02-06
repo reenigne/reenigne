@@ -1,8 +1,4 @@
 file.h:
-  Wildcard test for Unix port of Directory::applyToContents
-    Refactor so we only need one Directory::applyToContents implementation - put everything else in FindHandle
-  Implement applyToWildcard()
-    Refactor with parse
   Re-implement crc32 with new tools
   Implement runrandom
 
@@ -36,3 +32,5 @@ String::codePoint()
   10 -> "new line"
   32 -> "space"
 ?
+
+Performance: Use dynamic programming for Unix FindHandle::matches().
