@@ -83,13 +83,18 @@ public:
 
 int wmain(int argc, wchar_t** argv)
 {
-    Crc32 crc32;
-    if (argc == 1) {
-        printf("Usage: crc32 <path>\n");
-        exit(1);
+    BEGIN_CHECKED {
+        Crc32 crc32;
+        if (argc == 1) {
+            printf("Usage: crc32 <path>\n");
+            exit(1);
+        }
+        argv++;
+        for (;*argv; ++argv)
+            applyToWildcard(crc32, String(*argv));
     }
-    argv++;
-    for (;*argv; ++argv)
-        applyToWildcard(crc32, String(*argv));
+    END_CHECKED(Exception& e) {
+        e.write(Handle::consoleOutput());
+    }
     return 0;
 }
