@@ -1,6 +1,4 @@
-file.h:
-  Re-implement crc32 with new tools
-  Implement runrandom
+String::subString() takes start and length, CodePointSource::subString() takes start and end.
 
 Some kind of class to hold all the static Strings and avoid duplication between their different instances?
 

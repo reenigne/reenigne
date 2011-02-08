@@ -100,7 +100,7 @@ enum Atom
     atomGoto,
     atomJumpIfTrue,
     atomStackPointer,
-    
+
     atomStringConcatenate,
     atomStringEqualTo,
     atomStringNotEqualTo,
@@ -592,10 +592,10 @@ private:
     template<class T> friend class SymbolTemplate;
     template<class T> friend class SymbolArrayTemplate;
 
-    static GrowableArray<Symbol::Implementation*> _labelled;
+    static AppendableArray<Symbol::Implementation*> _labelled;
 };
 
-GrowableArray<Symbol::Implementation*> Symbol::_labelled;
+AppendableArray<Symbol::Implementation*> Symbol::_labelled;
 
 class SymbolList
 {

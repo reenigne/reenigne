@@ -45,17 +45,17 @@ private:
     int _n;
 };
 
-template<class T> class GrowableArray : Uncopyable
+template<class T> class AppendableArray : Uncopyable
 {
 public:
-    GrowableArray() : _n(0)
+    AppendableArray() : _n(0)
     {
         _array.allocate(1);
     }
     T& operator[](int i) { return _array[i]; }
     const T& operator[](int i) const { return _array[i]; }
     int count() const { return _n; }
-    bool operator==(const GrowableArray& other) const
+    bool operator==(const AppendableArray& other) const
     {
         if (_n != other._n)
             return false;
@@ -64,7 +64,7 @@ public:
                 return false;
         return true;
     }
-    bool operator!=(const GrowableArray& other) const
+    bool operator!=(const AppendableArray& other) const
     {
         return !operator==(other);
     }
@@ -83,6 +83,49 @@ public:
 private:
     Array<T> _array;
     int _n;
+};
+
+template<class T> class PrependableArray : Uncopyable
+{
+public:
+    PrependableArray() : _n(0)
+    {
+        _array.allocate(1);
+    }
+    T& operator[](int i) { return _array[i + offset()]; }
+    const T& operator[](int i) const { return _array[i + offset()]; }
+    int count() const { return _n; }
+    bool operator==(const PrependableArray& other) const
+    {
+        if (_n != other._n)
+            return false;
+        for (int i = 0; i < _n; ++i)
+            if ((*this)[i] != other[i])
+                return false;
+        return true;
+    }
+    bool operator!=(const PrependableArray& other) const
+    {
+        return !operator==(other);
+    }
+    void prepend(const T& value)
+    {
+        if (_n == _array.count()) {
+            Array<T> n;
+            n.allocate(_n*2);
+            n.swap(_array);
+            for (int i = 0; i < _n; ++i)
+                _array[i + offset()] = n[i];
+        }
+        ++_n;
+        (*this)[0] = value;
+    }
+private:
+    int offset() const { return _array.count() - _n; }
+    Array<T> _array;
+    int _n;
+
+    friend class Array<T>;
 };
 
 #endif // INCLUDED_ARRAY_H

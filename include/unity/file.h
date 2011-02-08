@@ -60,7 +60,6 @@ public:
     String name() const { return _implementation->name(); }
     bool isRoot() const { return _implementation->isRoot(); }
     String path() const { return _implementation->path(); }
-    void dump() const { _implementation->dump(); }
 
     bool operator==(const FileSystemObject& other) const
     {
@@ -83,7 +82,6 @@ public:
         virtual bool isRoot() const = 0;
         virtual int hash(int h) const = 0;
         virtual int compare(const Implementation* other) const = 0;
-        virtual void dump() const = 0;
     };
 
 protected:
@@ -123,21 +121,27 @@ private:
             if (c == -1)
                 return dir;
             if (c == '/' || c == '\\') {
-                s = s2;
                 int serverStart = s2.offset();
+                int p;
                 do {
+                    p = s2.offset();
                     c = s2.get();
                     if (c == -1)
                         throw Exception(invalidPath);
                     // TODO: What characters are actually legal in server names?
                 } while (c != '\\' && c != '/');
-                String server = path.subString(serverStart, s2.offset() - serverStart);
-                int shareStart = s2.offset();
+                String server = s2.subString(serverStart, p);
+                int shareStart;
                 do {
+                    shareStart = s2.offset();
+                    c = s2.get();
+                } while (c == '/' || c == '\\');
+                do {
+                    p = s2.offset();
                     c = s2.get();
                     // TODO: What characters are actually legal in share names?
                 } while (c != '\\' && c != '/' && c != -1);
-                String share = path.subString(shareStart, s2.offset() - shareStart);
+                String share = s2.subString(shareStart, p);
                 dir = UNCRootDirectory(server, share);
                 do {
                     s = s2;
@@ -181,16 +185,16 @@ private:
 
         String name;
         do {
-            int p = s.offset();
+            int p;
             while (c != '/' && c != '\\') {
                 if (c < 32 || c == '?' || c == '*' || c == ':' || c == '"' || c == '<' || c == '>')
                     throw Exception(invalidPath);
+                p = s.offset();
                 c = s.get();
-                ++p;
                 if (c == -1)
                     break;
             }
-            name = path.subString(subDirectoryStart, p - (subDirectoryStart + 1));
+            name = s.subString(subDirectoryStart, p);
             if (name == currentDirectory)
                 name = empty;
             if (name == parentDirectory) {
@@ -202,7 +206,6 @@ private:
                 if (l == '.' || l == ' ')
                     throw Exception(invalidPath);
             }
-            (name + String("\n")).write(Handle::consoleOutput());
             if (c == -1)
                 break;
             while (c == '/' || c == '\\') {
@@ -255,16 +258,18 @@ private:
 
         String name;
         do {
+            int p;
             while (c != '/') {
                 if (c == 0) {
                     static String invalidPath("Invalid path");
                     throw Exception(invalidPath);
                 }
+                p = s.offset();
                 c = s.get();
                 if (c == -1)
                     break;
             }
-            name = path.subString(subDirectoryStart, s.offset() - subDirectoryStart);
+            name = s.subString(subDirectoryStart, p);
             if (name == currentDirectory)
                 name = empty;
             if (name == parentDirectory) {
@@ -319,6 +324,11 @@ public:
             else
                 throwError();
         }
+        String n = name();
+        static String currentDirectory(".");
+        static String parentDirectory("..");
+        if (n == currentDirectory || n == parentDirectory)
+            next();
     }
     void next()
     {
@@ -492,16 +502,16 @@ public:
     }
     Directory subDirectory(const String& subDirectoryName) const
     {
-        return Directory(subDirectoryName, *this);
+        return Directory(child(subDirectoryName));
     }
     FileTemplate<T> file(const String& fileName) const
     {
-        return File(fileName, *this);
+        return File(child(fileName));
     }
     template<class F> void applyToContents(F functor, bool recursive, const String& wildcard = String("*")) const
     {
         FindHandle handle(*this, wildcard);
-        do {
+        while (!handle.complete()) {
             if (handle.isDirectory()) {
                 Directory child = handle.directory();
                 if (recursive)
@@ -512,9 +522,10 @@ public:
             else
                 functor(handle.file());
             handle.next();
-        } while (!handle.complete());
+        }
     }
 protected:
+    DirectoryTemplate(FileSystemObject object) : FileSystemObject(object) { }
     DirectoryTemplate(Reference<FileSystemObject::Implementation> implementation) : FileSystemObject(implementation) { }
 };
 
@@ -643,7 +654,6 @@ public:
                 return 1;
             return 0;
         }
-        void dump() const { String("/").write(Handle::consoleOutput()); }
     };
 private:
     static Reference<Implementation> _implementation;
@@ -704,7 +714,6 @@ private:
                 return 1;
             return 0;
         }
-        void dump() const { (String::codePoint('A' + _drive)+String(":/")).write(Handle::consoleOutput()); }
     private:
         int _drive;
     };
@@ -743,7 +752,6 @@ private:
                 return 1;
             return 0;
         }
-        void dump() const { (String("\\\\") + _server + String("\\") + _share + String("/")).write(Handle::consoleOutput()); }
     private:
         String _server;
         String _share;
@@ -965,6 +973,10 @@ public:
         contents.write(handle);
 #endif
     }
+private:
+    FileTemplate(FileSystemObject object) : FileSystemObject(object) { }
+
+    friend class DirectoryTemplate<T>;
 };
 
 
@@ -1004,14 +1016,12 @@ public:
             return 1;
         return 0;
     }
-    void dump() const { _parent.dump(); _name.write(Handle::consoleOutput()); }
-
 private:
     Directory _parent;
     String _name;
 };
 
-template<class T> void applyToWildcard(T functor, CodePointSource s, int recurseIntoDirectories, const Directory& directory)
+template<class T> void applyToWildcard(T functor, CodePointSource s, int recurseIntoDirectories, Directory directory)
 {
     static String invalidPath("Invalid path");
     static String currentDirectory(".");
@@ -1020,34 +1030,59 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
 
     int subDirectoryStart = s.offset();
     int c = s.get();
+    int p;
 #ifdef _WIN32
     while (c != '/' && c != '\\' && c != -1) {
         if (c < 32 || c == ':' || c == '"' || c == '<' || c == '>')
             throw Exception(invalidPath);
+        p = s.offset();
         c = s.get();
     }
-    String name = s.subString(subDirectoryStart, s.offset() - subDirectoryStart);
-    printf("%i %i\n", subDirectoryStart, s.offset());
-    while (c == '/' || c == '\\')
-        c = s.get();
+    String name = s.subString(subDirectoryStart, p);
+    CodePointSource s2 = s;
+    while (c == '/' || c == '\\') {
+        s = s2;
+        c = s2.get();
+    }
     if (name == currentDirectory) {
-        applyToWildcard(functor, s, recurseIntoDirectories, directory);
-        return;
+        if (c == -1)
+            if (recurseIntoDirectories)
+                name = String("*");
+            else {
+                functor(directory);
+                return;
+            }
+        else {
+            applyToWildcard(functor, s, recurseIntoDirectories, directory);
+            return;
+        }
     }
     if (name == parentDirectory) {
-        applyToWildcard(functor, s, recurseIntoDirectories, directory.parent());
-        return;
+        if (c == -1)
+            if (recurseIntoDirectories) {
+                name = String("*");
+                directory = directory.parent();
+            }
+            else {
+                functor(directory.parent());
+                return;
+            }
+        else {
+            applyToWildcard(functor, s, recurseIntoDirectories, directory.parent());
+            return;
+        }
     }
     if (name != empty) {
         int l = name[name.length() - 1];
         if (l == '.' || l == ' ')
             throw Exception(invalidPath);
     }
-    name.write(Handle::consoleOutput());
 #else
-    while (c != '/' && c != -1)
+    while (c != '/' && c != -1) {
+        p = s.offset();
         c = s.get();
-    String name = path.subString(subDirectoryStart, s.offset() - subDirectoryStart);
+    }
+    String name = s.subString(subDirectoryStart, p);
     while (c == '/')
         c = s.get();
     if (name == currentDirectory) {
@@ -1060,7 +1095,7 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
     }
 #endif
     FindHandle handle(directory, name);
-    do {
+    while (!handle.complete()) {
         if (handle.isDirectory()) {
             Directory child = handle.directory();
             if (c == -1)
@@ -1075,23 +1110,18 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
             if (c == -1)
                 functor(handle.file());
         handle.next();
-    } while (!handle.complete());
+    } 
 }
 
 template<class T> void applyToWildcard(T functor, const String& wildcard, int recurseIntoDirectories = true, const Directory& relativeTo = CurrentDirectory())
 {
-#ifdef _WIN32
-    (wildcard + String("\n")).write(Handle::consoleOutput());
     CodePointSource s(wildcard);
+#ifdef _WIN32
     Directory dir = FileSystemObject::windowsParseRoot(wildcard, relativeTo, s);
-    (dir.windowsPath() + String("\n")).write(Handle::consoleOutput());
-    dir.dump();
-    applyToWildcard(functor, s, recurseIntoDirectories, dir);
 #else
-    CodePointSource s(path);
     Directory dir = FileSystemObject::parse(wildcard, relativeTo, s);
-    applyToWildcard(functor, s, recursiveIntoDirectories, dir);
 #endif
+    applyToWildcard(functor, s, recurseIntoDirectories, dir);
 }
 
 #endif // INCLUDED_FILE_H
