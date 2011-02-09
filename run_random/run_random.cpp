@@ -5,18 +5,16 @@
 #include <stdlib.h>
 #include <ShellAPI.h>
 
-#include <vector>
-
 class Collection
 {
 public:
     void append(const File& file)
     {
-        _array.push_back(file); //.append(file);
+        _array.append(file);
     }
     void runRandom()
     {
-        int n = _array.size();  // _array.count();
+        int n = _array.count();
         if (n == 0)
             throw Exception(String("No files to choose from"));
         unsigned int r;
@@ -32,8 +30,7 @@ public:
             Exception::throwSystemError(String("Execution of ") + p + (" failed"));
     }
 private:
-    ///AppendableArray<File> _array;
-    std::vector<File> _array;
+    AppendableArray<File> _array;
 };
 
 class Collect
