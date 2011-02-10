@@ -604,7 +604,14 @@ public:
     void add(Symbol symbol)
     {
         _first = new Implementation(symbol, _first);
+        if (_count == 0)
+            _last = _first;
         ++_count;
+    }
+    void add(SymbolList list)
+    {
+        _first = list._last;
+        _count += list._count;
     }
 private:
     class Implementation : public ReferenceCounted
@@ -619,6 +626,7 @@ private:
         Reference<Implementation> _next;
     };
     Reference<Implementation> _first;
+    Reference<Implementation> _last;
     int _count;
 
     void copyTo(Array<Symbol>* symbols)

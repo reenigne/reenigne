@@ -1,6 +1,8 @@
-Make a function to compile a function
-  Make it compile the program as well
+compileFunction:
   Compute offsets of local variables
+    Stack slots are essentially extra registers
+      Initially, put each local in its own stack slot. When we compile to machine
+       code, eliminate as many stack slots as possible.
     Need to know sizes of types
     Interaction with local variable elimination?
 

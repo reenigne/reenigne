@@ -725,8 +725,9 @@ class Compiler
 public:
     void compileFunction(SymbolArray functionBody)
     {
+        compileStatementSequence(functionBody);
     }
-    SymbolArray compiledProgram() const { return _compiledProgram; }
+    SymbolList compiledProgram() const { return _compiledProgram; }
 private:
     void compileStatementSequence(SymbolArray program)
     {
@@ -748,6 +749,12 @@ private:
                 compileExpression(statement[1].symbol());
                 break;            
             case atomFunctionDefinitionStatement:
+                {
+                    Compiler compiler;
+                    compiler.compileFunction(statement[4].array());
+                    _compiledProgram.add(compiler.compiledProgram());
+                }
+                break;
             case atomFromStatement:
             case atomVariableDefinitionStatement:
             case atomAssignmentStatement:
@@ -884,6 +891,14 @@ private:
                 break;
             case atomIntegerConstant:
             case atomStringConstant:
+                add(expression);
+                break;
+            case atomIdentifier:
+                // TODO
+                break;
+            case atomTrue:
+            case atomFalse:
+            case atomNull:
                 add(expression);
                 break;
         }
@@ -1304,7 +1319,7 @@ int main(int argc, char* argv[])
         resolveIdentifiers(program);
         checkTypes(program, Symbol(atomVoid));
         Compiler compiler;
-        compiler.compile(program);
+        compiler.compileFunction(program);
         SymbolArray compiledProgram = compiler.compiledProgram();
         run(compiledProgram);
     }
