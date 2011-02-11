@@ -1,10 +1,7 @@
 compileFunction:
   Compute offsets of local variables
-    Stack slots are essentially extra registers
-      Initially, put each local in its own stack slot. When we compile to machine
-       code, eliminate as many stack slots as possible.
-    Need to know sizes of types
-    Interaction with local variable elimination?
+    In Type's cache, put the size of the type
+    In cache of parameter and variabledefinitionstatement (Scope) store stack offsets
 
 Figure out how to do break and continue
 

@@ -477,11 +477,14 @@ public:
         }
         return _typeTable[name];
     }
+    void setStackOffset(int offset) { _offset = offset; }
+    int getStackOffset() { return _offset; }
 private:
     HashTable<String, Reference<SymbolName> > _symbolTable;
     HashTable<String, int> _typeTable;
     Scope* _outer;
     Scope* _functionScope;
+    int _offset;
 };
 
 class Space
@@ -723,9 +726,19 @@ void resolveIdentifiers(SymbolEntry entry)
 class Compiler
 {
 public:
-    void compileFunction(SymbolArray functionBody)
+    void compileFunctionBody(SymbolArray program)
     {
-        compileStatementSequence(functionBody);
+        // TODO:
+        //   Walk through the statement tree (but not child classes and functions)
+        //     Assign a stack offset to each 
+        compileStatementSequence(program);
+    }
+    void compileFunction(Symbol functionDefinitionStatement)
+    {
+        // TODO:
+        //   Assign a stack offset to each parameter
+        //     Compute number of stack slots for each type
+        compileFunctionBody(functionDefinitionStatement[4].array());
     }
     SymbolList compiledProgram() const { return _compiledProgram; }
 private:
@@ -751,7 +764,7 @@ private:
             case atomFunctionDefinitionStatement:
                 {
                     Compiler compiler;
-                    compiler.compileFunction(statement[4].array());
+                    compiler.compileFunction(statement);
                     _compiledProgram.add(compiler.compiledProgram());
                 }
                 break;
@@ -1319,7 +1332,7 @@ int main(int argc, char* argv[])
         resolveIdentifiers(program);
         checkTypes(program, Symbol(atomVoid));
         Compiler compiler;
-        compiler.compileFunction(program);
+        compiler.compileFunctionBody(program);
         SymbolArray compiledProgram = compiler.compiledProgram();
         run(compiledProgram);
     }
