@@ -421,25 +421,29 @@ private:
     Reference<SymbolTail> _tail;
 };
 
+class SymbolCache : public ReferenceCounted
+{
+};
+
 template<class T> class SymbolTemplate : public SymbolEntryTemplate<T>
 {
 public:
     SymbolTemplate() { }
-    SymbolTemplate(Atom atom, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, 0)) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, 0))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, new SymbolTail(symbol2, 0)))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, 0))))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, new SymbolTail(symbol4, 0)))))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5, Span span = Span())
-      : SymbolEntry(new Implementation(-1, atom, span, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, new SymbolTail(symbol4, new SymbolTail(symbol5, 0))))))) { }
+    SymbolTemplate(Atom atom, SymbolCache* cache = 0)
+      : SymbolEntry(new Implementation(atom, cache, 0)) { }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolCache* cache = 0)
+      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1, 0))) { }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolCache* cache = 0)
+      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1, new SymbolTail(symbol2, 0)))) { }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolCache* cache = 0)
+      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, 0))))) { }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolCache* cache = 0)
+      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, new SymbolTail(symbol4, 0)))))) { }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5, SymbolCache* cache = 0)
+      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, new SymbolTail(symbol4, new SymbolTail(symbol5, 0))))))) { }
 
-    SymbolTemplate(Atom atom, const SymbolTail* tail, Span span)
-      : SymbolEntry(new Implementation(-1, atom, span, tail)) { }
+    SymbolTemplate(Atom atom, const SymbolTail* tail, SymbolCache* cache)
+      : SymbolEntry(new Implementation(atom, cache, tail)) { }
 
     Atom atom() const { return implementation()->atom(); }
     SymbolEntry operator[](int n) const
@@ -454,16 +458,7 @@ public:
 
     const SymbolTail* tail() const { return implementation()->tail(); }
 
-    ReferenceCounted* cache() { return implementation()->cache(); }
-    int label() const { return implementation()->label(); }
-    Span span() const { return implementation()->span(); }
-    Symbol type() const { return implementation()->type(); }
-
-    void setCache(Reference<ReferenceCounted> cache) { implementation()->setCache(cache); }
-    void setLabel(int label) { implementation()->setLabel(label); }
-    void setLabelTarget(int label) { implementation()->setLabelTarget(label); }
-    void setSpan(Span span) { implementation()->setSpan(label); }
-    void setType(Symbol type) { implementation()->setType(type); }
+    SymbolCache* cache() { return implementation()->cache(); }
 
     static int newLabel()
     {
@@ -472,19 +467,18 @@ public:
         return l;
     }
 
-    static SymbolTemplate<T> target(int label) { return SymbolTemplate(_labelled[label]); }
+    static SymbolTemplate<T> labelled(int label) { return SymbolTemplate(_labelled[label]); }
 
+    void setLabel(int label) { _labelled[label] = _implementation; }
 private:
     SymbolTemplate(Implementation* implementation) : SymbolEntry(implementation) { }
 
     class Implementation : public SymbolEntry::Implementation
     {
     public:
-        Implementation(int label, Atom atom, Span span, const SymbolTail* tail)
-          : _label(label), _atom(atom), _tail(tail)
-        {
-            setSpan(span);
-        }
+        Implementation(Atom atom, SymbolCache cache, const SymbolTail* tail)
+          : _atom(atom), _cache(cache), _tail(tail)
+        { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
             const Implementation* o = dynamic_cast<const Implementation*>(other);
@@ -542,7 +536,7 @@ private:
 
         Atom atom() const { return _atom; }
 
-        ReferenceCounted* cache() { return _cache; }
+        SymbolCache* cache() { return _cache; }
         int label() const { return _label; }
         Span span() const { return _span; }
         Symbol type() const { return _type; }

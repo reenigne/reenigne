@@ -8,11 +8,13 @@ class ReferenceCounted : Uncopyable
 public:
     ReferenceCounted() { _count = 0; }
 
-    void addReference() const { ++_count; }
+    template<class U> U* cast() { return dynamic_cast<U*>(this); }
 protected:
     virtual ~ReferenceCounted() { };
 
 private:
+    void addReference() const { ++_count; }
+
     void release() const
     {
         --_count;
@@ -56,7 +58,6 @@ public:
     operator const T*() const { return _t; }
     bool valid() const { return _t != 0; }
     bool operator==(const Reference& other) const { return _t == other._t; }
-
 private:
     void reset() { if (valid()) _t->release(); }
     void set(T* t)

@@ -10,10 +10,8 @@ typedef signed int         SInt32;
 
 typedef void               Void;
 
-#if sizeof(Void*)==sizeof(UInt32)
 typedef SInt32             PSInt;
 typedef UInt32             PUInt;
 typedef PSInt              PointerDifference;
-#endif
 
 #endif // INCLUDED_INTEGER_TYPES_H

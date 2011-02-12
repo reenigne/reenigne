@@ -100,6 +100,33 @@ private:
     int _frameOffset;
 };
 
+class SpanCache : public SymbolCache
+{
+public:
+    SpanCache(Span span) : _span(span) { }
+    Span span() const { return _span; }
+private:
+    Span _span;
+};
+
+Span span(Symbol symbol) { return symbol.cache()->cast<SpanCache>()->span(); }
+
+class ExpressionCache : public SpanCache
+{
+public:
+    ExpressionCache(Span span) : SpanCache(span) { }
+    void setType(Symbol type) { _type = type; }
+    Symbol type() const { return _type; }
+private:
+    Symbol _type;
+};
+
+class StatementCache : public SpanCache
+{
+public:
+    StatementCache(Span span) : SpanCache(span) { }
+};
+
 SymbolEntry typeOf(SymbolEntry entry);
 
 void assertTypeBoolean(Symbol expression)
@@ -108,7 +135,7 @@ void assertTypeBoolean(Symbol expression)
     static String error2(", Boolean expected");
     Symbol type = typeOf(expression).symbol();
     if (type.atom() != atomBoolean)
-        expression.span().throwError(error + typeToString(type) + error2);
+        span(expression).throwError(error + typeToString(type) + error2);
 }
 
 void checkTypes(SymbolEntry entry, Symbol returnType)
@@ -136,7 +163,7 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
                 if (parameterTypes != argumentTypes) {
                     static String error("function requires arguments of types ");
                     static String error2(" but passed arguments of types ");
-                    symbol.span().throwError(error + typesToString(parameterTypes) + error2 + typesToString(argumentTypes));
+                    span(symbol).throwError(error + typesToString(parameterTypes) + error2 + typesToString(argumentTypes));
                 }
             }
             break;
@@ -151,7 +178,7 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
                 if (variableType != initializerType) {
                     static String error("variable declared as type ");
                     static String error2(" but initialized with expression of type ");
-                    symbol.span().throwError(error + typeToString(variableType) + error2 + typeToString(initializerType));
+                    span(symbol).throwError(error + typeToString(variableType) + error2 + typeToString(initializerType));
                 }
             }
             break;
@@ -173,7 +200,7 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
                 if (lValueType != rValueType) {
                     static String error("can't assign a expression of type ");
                     static String error2(" to a variable of type ");
-                    symbol.span().throwError(error + typeToString(rValueType) + error2 + typeToString(lValueType));
+                    span(symbol).throwError(error + typeToString(rValueType) + error2 + typeToString(lValueType));
                 }
             }
             break;
@@ -193,7 +220,7 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
                         if (type != expressionType) {
                             static String error("can't compare an expression of type ");
                             static String error2(" to an epxression of type ");
-                            expression.span().throwError(error + typeToString(type) + error2 + typeToString(expressionType));
+                            span(expression).throwError(error + typeToString(type) + error2 + typeToString(expressionType));
                         }
                     }
                 }
@@ -210,7 +237,7 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
                 if (type != returnType) {
                     static String error("returning an expression of type ");
                     static String error2(" from a function with return type ");
-                    symbol.span().throwError(error + typeToString(type) + error2 + typeToString(returnType));
+                    span(symbol).throwError(error + typeToString(type) + error2 + typeToString(returnType));
                 }
             }
             break;
@@ -221,7 +248,7 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
                 if (type.atom() != atomString) {
                     static String error("argument to include is of type ");
                     static String error2(", expected String");
-                    expression.span().throwError(error + typeToString(type) + error2);
+                    span(expression).throwError(error + typeToString(type) + error2);
                 }
             }
             break;
@@ -253,7 +280,7 @@ SymbolEntry typeOf(SymbolEntry entry)
     if (!entry.isSymbol())
         return Symbol();
     Symbol symbol = entry.symbol();
-    Symbol type = symbol.type();
+    Symbol type = symbol.cache()->cast<ExpressionCache>()->type();
     if (type.valid())
         return type;
     switch (symbol.atom()) {
@@ -330,10 +357,10 @@ SymbolEntry typeOf(SymbolEntry entry)
                     Symbol initializer = symbol[3].symbol();
                     if (!initializer.valid()) {
                         static String error("Auto variable declarations must be initialized");
-                        symbol.span().throwError(error);
+                        symbol.cache()->cast<VariableDefinitionStatementCache>()->throwError(error);
                     }
                     type = typeOf(symbol[3]).symbol();
-                    symbol[1].symbol().setType(type);
+                    symbol[1].symbol().cache()->cast<VariableDefinitionStatementCache>()->setType(type);
                 }
             }
             break;
@@ -341,7 +368,7 @@ SymbolEntry typeOf(SymbolEntry entry)
             type = Symbol(atomFunction, Symbol(atomVoid), SymbolArray(Symbol(atomString)));
             break;
     }
-    symbol.setType(type);
+    //symbol.setType(type);
     return type;
 }
 
@@ -485,6 +512,10 @@ private:
     Scope* _outer;
     Scope* _functionScope;
     int _offset;
+};
+
+class StatementSymbolCache : public SymbolCache
+{
 };
 
 class Space
