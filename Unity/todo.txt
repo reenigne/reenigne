@@ -107,3 +107,9 @@ Rewrite (e.g.) "x += y" as "t = &x; *t = *t + y;" so that operator overloading w
 
 Measure stack size and allocate frames for unbounded recursive functions on heap
 
+Advanced types
+  null: "Null" - only one value: "null"
+  sequence: "[T]" or "Reference<ISequence<T>>" or "Empty | (T, [T])"
+  tuple: "(U, V)" or "Tuple<U, V>"
+  union: "U | V" or "Reference<Union<U, V>>" - get U out with "w.U" or "w as U" or "cast<U>(w)", find out if it is U with "w is U"
+  option: "Maybe<T>" or "T?" or "T | Null"
