@@ -77,7 +77,6 @@ private:
 };
 
 #include "Symbol.cpp"
-#include "Type.cpp"
 
 class SymbolName : public ReferenceCounted
 {
@@ -100,6 +99,10 @@ private:
     int _frameOffset;
 };
 
+template<class T> class ScopeTemplate;
+
+typedef ScopeTemplate<void> Scope;
+
 class SpanCache : public SymbolCache
 {
 public:
@@ -109,12 +112,16 @@ private:
     Span _span;
 };
 
-Span span(Symbol symbol) { return symbol.cache()->cast<SpanCache>()->span(); }
+Span spanOf(Symbol symbol) { return symbol.cache<SpanCache>()->span(); }
 
 SpanCache* newSpan(Location start, Location end)
 {
     return new SpanCache(Span(start, end));
 }
+
+SpanCache* newSpan(Symbol symbol) { return new SpanCache(spanOf(symbol)); }
+
+SpanCache* newSpan(Span span) { return new SpanCache(span); }
 
 class ExpressionCache : public SpanCache
 {
@@ -126,9 +133,9 @@ private:
     Symbol _type;
 };
 
-Symbol typeOf(Symbol expression)
+Symbol typeOf(SymbolEntry expression)
 { 
-    return expression.cache()->cast<ExpressionCache>()->type();
+    return expression.symbol().cache<ExpressionCache>()->type();
 }
 
 class SymbolDefinitionCache : public SpanCache
@@ -139,15 +146,16 @@ public:
     { }
     int label() const { return _label; }
 
-    Scope* scope() const { return _scope; }
+    void setScope(Scope* scope) { _scope = scope; }
+    Scope* scope() { return _scope; }
 private:
     int _label;
     Reference<Scope> _scope;
 };
 
-int label(Symbol symbol)
+int labelOf(Symbol symbol)
 {
-    return symbol.cache()->cast<SymbolDefinitionCache>()->label();
+    return symbol.cache<SymbolDefinitionCache>()->label();
 }
 
 class TypeDefinitionCache : public SymbolDefinitionCache
@@ -160,13 +168,15 @@ private:
     Symbol _type;
 };
 
+#include "Type.cpp"
+
 void assertTypeBoolean(Symbol expression)
 {
     static String error("expression is of type ");
     static String error2(", Boolean expected");
-    Symbol type = typeOf(expression).symbol();
+    Symbol type = typeOf(expression);
     if (type.atom() != atomBoolean)
-        span(expression).throwError(error + typeToString(type) + error2);
+        spanOf(expression).throwError(error + typeToString(type) + error2);
 }
 
 void checkTypes(SymbolEntry entry, Symbol returnType)
@@ -189,12 +199,12 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
         case atomFunctionCall:
             {
                 Symbol function = symbol[1].symbol();
-                SymbolArray parameterTypes = typeOf(function).symbol()[2].array();
+                SymbolArray parameterTypes = typeOf(function)[2].array();
                 SymbolArray argumentTypes = typeOf(symbol[2]).array();
                 if (parameterTypes != argumentTypes) {
                     static String error("function requires arguments of types ");
                     static String error2(" but passed arguments of types ");
-                    span(symbol).throwError(error + typesToString(parameterTypes) + error2 + typesToString(argumentTypes));
+                    spanOf(symbol).throwError(error + typesToString(parameterTypes) + error2 + typesToString(argumentTypes));
                 }
             }
             break;
@@ -204,12 +214,12 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
             return;
         case atomVariableDefinitionStatement:
             {
-                Symbol initializerType = typeOf(symbol[3]).symbol();
-                Symbol variableType = typeOf(symbol[1]).symbol();
+                Symbol initializerType = typeOf(symbol[3]);
+                Symbol variableType = typeOf(symbol[1]);
                 if (variableType != initializerType) {
                     static String error("variable declared as type ");
                     static String error2(" but initialized with expression of type ");
-                    span(symbol).throwError(error + typeToString(variableType) + error2 + typeToString(initializerType));
+                    spanOf(symbol).throwError(error + typeToString(variableType) + error2 + typeToString(initializerType));
                 }
             }
             break;
@@ -226,12 +236,12 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
         case atomXorAssignmentStatement:
         case atomPowerAssignmentStatement:
             {
-                Symbol lValueType = typeOf(symbol[1]).symbol();
-                Symbol rValueType = typeOf(symbol[2]).symbol();
+                Symbol lValueType = typeOf(symbol[1]);
+                Symbol rValueType = typeOf(symbol[2]);
                 if (lValueType != rValueType) {
                     static String error("can't assign a expression of type ");
                     static String error2(" to a variable of type ");
-                    span(symbol).throwError(error + typeToString(rValueType) + error2 + typeToString(lValueType));
+                    spanOf(symbol).throwError(error + typeToString(rValueType) + error2 + typeToString(lValueType));
                 }
             }
             break;
@@ -240,18 +250,18 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
             break;
         case atomSwitchStatement:
             {
-                Symbol type = typeOf(symbol[1]).symbol();
+                Symbol type = typeOf(symbol[1]);
                 SymbolArray cases = symbol[2].array();
                 for (int i = 0; i < cases.count(); ++i) {
                     Symbol c = cases[i];
                     SymbolArray expressions = c[1].array();
                     for (int j = 0; j < expressions.count(); ++j) {
                         Symbol expression = expressions[j];
-                        Symbol expressionType = typeOf(expression).symbol();
+                        Symbol expressionType = typeOf(expression);
                         if (type != expressionType) {
                             static String error("can't compare an expression of type ");
                             static String error2(" to an epxression of type ");
-                            span(expression).throwError(error + typeToString(type) + error2 + typeToString(expressionType));
+                            spanOf(expression).throwError(error + typeToString(type) + error2 + typeToString(expressionType));
                         }
                     }
                 }
@@ -262,24 +272,24 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
                 Symbol expression = symbol[1].symbol();
                 Symbol type;
                 if (expression.valid())
-                    type = typeOf(expression).symbol();
+                    type = typeOf(expression);
                 else
                     type = Symbol(atomVoid);
                 if (type != returnType) {
                     static String error("returning an expression of type ");
                     static String error2(" from a function with return type ");
-                    span(symbol).throwError(error + typeToString(type) + error2 + typeToString(returnType));
+                    spanOf(symbol).throwError(error + typeToString(type) + error2 + typeToString(returnType));
                 }
             }
             break;
         case atomIncludeStatement:
             {
                 Symbol expression = symbol[1].symbol();
-                Symbol type = typeOf(expression).symbol();
+                Symbol type = typeOf(expression);
                 if (type.atom() != atomString) {
                     static String error("argument to include is of type ");
                     static String error2(", expected String");
-                    span(expression).throwError(error + typeToString(type) + error2);
+                    spanOf(expression).throwError(error + typeToString(type) + error2);
                 }
             }
             break;
@@ -311,11 +321,11 @@ public:
     void addOverload(int label)
     {
         Symbol functionDefinition = Symbol::labelled(label);
-        Symbol type = typeOf(functionDefinition).symbol();
+        Symbol type = typeOf(functionDefinition);
         SymbolArray types = type[2].array();
         if (_overloads.hasKey(types)) {
             static String error("This overload has already been defined.");
-            span(functionDefinition).throwError(error);
+            spanOf(functionDefinition).throwError(error);
         }
         _overloads.add(types, label);
         if (_overloads.count() == 1)
@@ -336,10 +346,6 @@ private:
     String _name;
     SymbolArray _argumentTypes;
 };
-
-template<class T> class ScopeTemplate;
-
-typedef ScopeTemplate<void> Scope;
 
 template<class T> class ScopeTemplate : public ReferenceCounted
 {
@@ -437,10 +443,6 @@ private:
     Scope* _outer;
     Scope* _functionScope;
     int _offset;
-};
-
-class StatementSymbolCache : public SymbolCache
-{
 };
 
 class Space
@@ -579,26 +581,26 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
     switch (symbol.atom()) {
         case atomFunctionDefinitionStatement:
             inner = new Scope(scope, true);
-            symbol.cache()->cast<SymbolDefinitionCache>().setCache(inner);
+            symbol.cache<SymbolDefinitionCache>()->setScope(inner);
             setScope(symbol[1], inner);
-            scope->addFunction(symbol[2].string(), label(symbol), span(symbol));
+            scope->addFunction(symbol[2].string(), labelOf(symbol), spanOf(symbol));
             setScope(symbol[3], inner);
             setScope(symbol[4], inner);
             break;
         case atomVariableDefinitionStatement:
         case atomParameter:
             scope = new Scope(scope);
-            symbol.setCache(scope);
+            symbol.cache<SymbolDefinitionCache>()->setScope(scope);
             setScope(symbol[1], scope);
-            scope->addVariable(symbol[2].string(), label(symbol), span(symbol));
+            scope->addVariable(symbol[2].string(), labelOf(symbol), spanOf(symbol));
             if (symbol.atom() == atomVariableDefinitionStatement)
                 setScope(symbol[3], scope);
             break;
         case atomTypeAliasStatement:
-            scope->addType(symbol[2].string(), label(symbol), span(symbol));
+            scope->addType(symbol[2].string(), labelOf(symbol), spanOf(symbol));
             break;
         case atomIfStatement:
-            symbol.setCache(scope);
+            symbol.cache<SymbolDefinitionCache>()->setScope(scope);
             setScope(symbol[1], scope);
             inner = new Scope(scope, true);
             setScope(symbol[2], inner);
@@ -615,7 +617,6 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
             inner = new Scope(scope, true);
             break;
     }
-    symbol.setCache(inner);
     const SymbolTail* tail = symbol.tail();
     while (tail != 0) {
         setScope(tail->head(), inner);
@@ -626,21 +627,14 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
 
 void resolveIdentifiers(SymbolEntry entry, Scope* scope);
 
-SymbolEntry resolveType(SymbolEntry entry, Scope* scope)
+void resolveTypes(SymbolEntry entry, Scope* scope)
 {
-    if (entry.isArray()) {
-        SymbolList list;
-        SymbolArray array = entry.array();
-        for (int i = 0; i < array.count(); ++i)
-            list.add(typeOf(array[i]).symbol());
-        return SymbolArray(list);
-    }
     if (!entry.isSymbol())
-        return Symbol();
+        return;
     Symbol symbol = entry.symbol();
-    Symbol type = symbol.cache()->cast<ExpressionCache>()->type();
+    Symbol type = typeOf(symbol);
     if (type.valid())
-        return type;
+        return;
     switch (symbol.atom()) {
         case atomParameter:
             type = typeOf(symbol[1]).symbol();
@@ -674,12 +668,12 @@ SymbolEntry resolveType(SymbolEntry entry, Scope* scope)
             type = Symbol(atomFunction, typeOf(symbol[1]), typeOf(symbol[2]));
             break;
         case atomTypeIdentifier:
-            resolveIdentifiers(symbol);
-            type = symbol.type();
+            resolveIdentifiers(symbol, scope);
+            type = typeOf(symbol);
             break;
         case atomTypeOf:
             resolveIdentifiers(symbol);
-            type = typeOf(symbol[1]).symbol();
+            type = typeOf(symbol[1].symbol()).symbol();
             break;
         case atomLogicalOr:
         case atomLogicalAnd:
@@ -697,28 +691,28 @@ SymbolEntry resolveType(SymbolEntry entry, Scope* scope)
             break;
         case atomIdentifier:
             resolveIdentifiers(symbol);
-            type = symbol.cache()->cast<ExpressionCache>()->type();
+            type = symbol.cache<ExpressionCache>()->type();
             break;
         case atomIntegerConstant:
             type = Symbol(atomInt);  // TODO: the type is actually one of several depending on the value
             break;
         case atomFunctionCall:
-            type = typeOf(symbol[1]).symbol()[1].symbol();
+            type = typeOf(symbol[1].symbol()).symbol()[1].symbol();
             break;
         case atomNull:
             type = Symbol(atomPointer);
             break;
         case atomVariableDefinitionStatement:
             {
-                type = typeOf(symbol[1]).symbol();
+                type = typeOf(symbol[1].symbol()).symbol();
                 if (type.atom() == atomAuto) {
                     Symbol initializer = symbol[3].symbol();
                     if (!initializer.valid()) {
                         static String error("Auto variable declarations must be initialized");
-                        span(symbol).throwError(error);
+                        spanOf(symbol).throwError(error);
                     }
-                    type = typeOf(symbol[3]).symbol();
-                    symbol[1].symbol().cache()->cast<ExpressionCache>()->setType(type);
+                    type = typeOf(symbol[3].symbol()).symbol();
+                    symbol[1].symbol().cache<ExpressionCache>()->setType(type);
                 }
             }
             break;
@@ -726,8 +720,7 @@ SymbolEntry resolveType(SymbolEntry entry, Scope* scope)
             type = Symbol(atomFunction, Symbol(atomVoid), SymbolArray(Symbol(atomString)));
             break;
     }
-    //symbol.setType(type);
-    return type;
+    symbol.cache<ExpressionCache>()->setType(type);
 }
 
 // Determine types of variables and expressions, add them to the Symbols
@@ -737,23 +730,22 @@ void resolveIdentifiers(SymbolEntry entry, Scope* scope)
     if (entry.isArray()) {
         SymbolArray array = entry.array();
         for (int i = 0; i < array.count(); ++i)
-            resolveIdentifiers(array[i]);
+            resolveIdentifiers(array[i], scope);
         return;                                                                                                                                                                       
     }
     if (!entry.isSymbol())
         return;
     Symbol symbol = entry.symbol();
-    Scope* scope = symbol.cache()->cast<SymbolDefinitionCache>()->scope();
-    int label = symbol.label();
+    int label = labelOf(symbol);
     if (label != -1)
         return;
     Symbol target;
     switch (symbol.atom()) {
         case atomIdentifier:
-            label = scope->resolveIdentifier(symbol[1].string(), symbol.span());
+            label = scope->resolveIdentifier(symbol[1].string(), spanOf(symbol));
             symbol.setLabel(label);
-            target = Symbol::target(label);
-            symbol.setType(typeOf(target).symbol());
+            target = Symbol::labelled(label);
+            symbol.cache<ExpressionCache>()->setType(typeOf(target).symbol());
             return;
         case atomFunctionCall:
             {
@@ -764,17 +756,17 @@ void resolveIdentifiers(SymbolEntry entry, Scope* scope)
                     for (int i = 0; i < arguments.count(); ++i)
                         list.add(typeOf(arguments[i]).symbol());
                     Symbol functionName = function[1].symbol();
-                    int label = scope->resolveFunction(functionName.string(), list, functionName.span());
-                    target = Symbol::target(label);
+                    int label = scope->resolveFunction(functionName.string(), list, spanOf(functionName));
+                    target = Symbol::labelled(label);
                     return;
                 }
             }
             break;
         case atomTypeIdentifier:
-            label = scope->resolveType(symbol[1].string(), symbol.span());
+            label = scope->resolveType(symbol[1].string(), spanOf(symbol));
             symbol.setLabel(label);
-            target = Symbol::target(label);
-            symbol.setType(typeOf(target).symbol());
+            target = Symbol::labelled(label);
+            symbol.cache<ExpressionCache>()->setType(typeOf(target).symbol());
             return;
     }
 
@@ -811,8 +803,8 @@ private:
     }
     void finishBasicBlock(int nextLabel)
     {
-        Symbol block(atomBasicBlock, SymbolArray(_basicBlock), nextLabel);
-        block.setLabelTarget(_label);
+        Symbol block(atomBasicBlock, SymbolArray(_basicBlock), _label, nextLabel);
+        block.setLabel(_label);
         _compiledProgram.add(block);
         _basicBlock = SymbolList();
         _label = nextLabel;
@@ -1000,8 +992,8 @@ private:
         int follows = label;
         if (_blockEnds)
             follows = -1;
-        Symbol block(atomBasicBlock, SymbolArray(_basicBlock), follows);
-        block.setLabelTarget(_label);
+        Symbol block(atomBasicBlock, SymbolArray(_basicBlock), _label, follows);
+        block.setLabel(_label);
         _compiledProgram.add(block);
         _basicBlock = SymbolList();
         _label = label;
@@ -1092,7 +1084,7 @@ void run(SymbolArray program)
         }
         void jump(int label)
         {
-            _block = Symbol::target(label);
+            _block = Symbol::labelled(label);
             setup();
         }
         Symbol instruction()
@@ -1376,9 +1368,10 @@ int main(int argc, char* argv[])
         String contents = file.contents();
         Reference<Scope> scope = new Scope(0, true);
 
-        int printLabel = Symbol::newLabel();
-        Symbol print(atomPrintFunction, Symbol(atomVoid), String("print"), SymbolArray(Symbol(atomString)));
-        print.setLabelTarget(printLabel);
+        SymbolDefinitionCache* printCache = new SymbolDefinitionCache(Span());
+        int printLabel = printCache->label();
+        Symbol print(atomPrintFunction, Symbol(atomVoid), String("print"), SymbolArray(Symbol(atomString)), printCache);
+        print.setLabel(printLabel);
         scope->addFunction(String("print"), printLabel, Span());
 
         CharacterSource source(contents, file.path());

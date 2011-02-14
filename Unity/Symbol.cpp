@@ -211,7 +211,7 @@ String atomToString(Atom atom)
             _table[atomPrintFunction] = String("print");                             // returnType     name            parameters
             _table[atomExit] = String("exit");
 
-            _table[atomBasicBlock] = String("block");                                // instructions   nextBlock
+            _table[atomBasicBlock] = String("block");                                // instructions   label           nextBlock
 
             _table[atomCall] = String("call");
             _table[atomReturn] = String("return");
@@ -458,7 +458,7 @@ public:
 
     const SymbolTail* tail() const { return implementation()->tail(); }
 
-    SymbolCache* cache() { return implementation()->cache(); }
+    template<class U> U* cache() { return implementation()->cache()->cast<U>; }
 
     static int newLabel()
     {

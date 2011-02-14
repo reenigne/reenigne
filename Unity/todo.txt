@@ -1,3 +1,37 @@
+call resolveType() in resolveType().
+
+Make sure that in all the places cache needs to be something other than SpanCache, it is.
+  ExpressionCache
+  SymbolDefinitionCache
+
+ReferenceCounted
+  SymbolCache
+    SpanCache                span
+      ExpressionCache          type
+      SymbolDefinitionCache    scope label
+        TypeDefinitionCache      type
+
+Type/identifier resolution phase:
+  Need to have identifiers resolved to be able to resolve types because:
+    "TypeOf(a) x;"
+  Need to have types resolved to be able to resolve identifiers because:
+    "f(x)" where f is an overloaded function
+  Can we create a resolution loop?
+    variables are only used below where they are declared. Functions and types
+     can be used above where they are declared.
+    Yes:
+      T x;
+      T = TypeOf(x);
+  3 functions:
+    resolveIdentifiersAndTypes()
+      walks the tree and resolves everything.
+    resolveTypeOfExpression()
+      resolves just what we need to compute the type of an expression
+      if the type is already set, just return it
+      need a flag to say "we're already doing this one"
+    resolveIdentifier()
+      resolves an identifier to 
+
 compileFunction:
   Compute offsets of local variables
     In Type's cache, put the size of the type
@@ -113,3 +147,4 @@ Advanced types
   tuple: "(U, V)" or "Tuple<U, V>"
   union: "U | V" or "Reference<Union<U, V>>" - get U out with "w.U" or "w as U" or "cast<U>(w)", find out if it is U with "w is U"
   option: "Maybe<T>" or "T?" or "T | Null"
+  function: "U -> V"
