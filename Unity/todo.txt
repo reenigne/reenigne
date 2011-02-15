@@ -8,8 +8,8 @@ ReferenceCounted
   SymbolCache
     SpanCache                span
       ExpressionCache          type
-      SymbolDefinitionCache    scope label
-        TypeDefinitionCache      type
+        IdentifierCache          label
+          SymbolDefinitionCache    scope
 
 Type/identifier resolution phase:
   Need to have identifiers resolved to be able to resolve types because:
@@ -22,15 +22,21 @@ Type/identifier resolution phase:
     Yes:
       T x;
       T = TypeOf(x);
-  3 functions:
+  Functions:
     resolveIdentifiersAndTypes()
       walks the tree and resolves everything.
-    resolveTypeOfExpression()
-      resolves just what we need to compute the type of an expression
+    resolveTypeOf()
+      resolves just what we need to compute the type of an expression or symbol definition
       if the type is already set, just return it
       need a flag to say "we're already doing this one"
+        Can we use Auto for this?
+          Yes, we can arrange for it never to otherwise appear in the type field
+        Need to figure out how to make a sensible error message
+          Keep a SymbolList around with pairs of "to find type of x, need to
+           know type of y"?
     resolveIdentifier()
-      resolves an identifier to 
+      resolves an identifier to its definition
+    resolveTypeOfSymbolDefinition()
 
 compileFunction:
   Compute offsets of local variables

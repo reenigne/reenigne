@@ -138,34 +138,44 @@ Symbol typeOf(SymbolEntry expression)
     return expression.symbol().cache<ExpressionCache>()->type();
 }
 
-class SymbolDefinitionCache : public SpanCache
+void setType(Symbol symbol, Symbol type)
+{
+    symbol.cache<ExpressionCache>()->setType(type);
+}
+
+class IdentifierCache : public ExpressionCache
 {
 public:
-    SymbolDefinitionCache(Span span)
-      : SpanCache(span), _label(Symbol::newLabel())
-    { }
+    IdentifierCache(Span span) : ExpressionCache(span), _label(-1) { }
+    void setLabel(int label) { _label = label; }
     int label() const { return _label; }
-
-    void setScope(Scope* scope) { _scope = scope; }
-    Scope* scope() { return _scope; }
 private:
     int _label;
-    Reference<Scope> _scope;
 };
 
 int labelOf(Symbol symbol)
 {
-    return symbol.cache<SymbolDefinitionCache>()->label();
+    return symbol.cache<IdentifierCache>()->label();
 }
 
-class TypeDefinitionCache : public SymbolDefinitionCache
+void setLabel(Symbol symbol, int label)
+{
+    symbol.cache<IdentifierCache>()->setLabel(label);
+}
+
+class SymbolDefinitionCache : public IdentifierCache
 {
 public:
-    TypeDefinitionCache(Span span) : SymbolDefinitionCache(span) { }
-    void setType(Symbol type) { _type = type; }
-    Symbol type() const { return _type; }
+    SymbolDefinitionCache(Span span)
+      : IdentifierCache(span)
+    {
+        setLabel(Symbol::newLabel());
+    }
+    void setScope(Scope* scope) { _scope = scope; }
+    Scope* scope() { return _scope; }
 private:
-    Symbol _type;
+    void setLabel(int label) { IdentifierCache::setLabel(label); }
+    Reference<Scope> _scope;
 };
 
 #include "Type.cpp"
@@ -586,7 +596,7 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
             scope->addFunction(symbol[2].string(), labelOf(symbol), spanOf(symbol));
             setScope(symbol[3], inner);
             setScope(symbol[4], inner);
-            break;
+            return scope;
         case atomVariableDefinitionStatement:
         case atomParameter:
             scope = new Scope(scope);
@@ -600,7 +610,6 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
             scope->addType(symbol[2].string(), labelOf(symbol), spanOf(symbol));
             break;
         case atomIfStatement:
-            symbol.cache<SymbolDefinitionCache>()->setScope(scope);
             setScope(symbol[1], scope);
             inner = new Scope(scope, true);
             setScope(symbol[2], inner);
@@ -625,157 +634,194 @@ Scope* setScope(SymbolEntry entry, Scope* scope)
     return scope;
 }
 
-void resolveIdentifiers(SymbolEntry entry, Scope* scope);
+void resolveIdentifier(SymbolEntry identifier, Scope* scope);
+void resolveTypeOf(Symbol symbol, Scope* scope);
 
-void resolveTypes(SymbolEntry entry, Scope* scope)
-{
-    if (!entry.isSymbol())
-        return;
-    Symbol symbol = entry.symbol();
-    Symbol type = typeOf(symbol);
-    if (type.valid())
-        return;
-    switch (symbol.atom()) {
-        case atomParameter:
-            type = typeOf(symbol[1]).symbol();
-            break;
-        case atomFunctionDefinitionStatement:
-            {
-                Symbol returnType = symbol[1].symbol();
-                SymbolList list;
-                SymbolArray parameters = symbol[3].array();
-                for (int i = 0; i < parameters.count(); ++i)
-                    list.add(parameters[i][1].symbol());
-                type = Symbol(atomFunction, returnType, SymbolArray(list));
-            }
-            break;
-        case atomAuto:
-        case atomBit:
-        case atomBoolean:
-        case atomByte:
-        case atomCharacter:
-        case atomInt:
-        case atomString:
-        case atomUInt:
-        case atomVoid:
-        case atomWord:
-            type = symbol;
-            break;
-        case atomPointer:
-            type = Symbol(atomPointer, typeOf(symbol[1]));
-            break;
-        case atomFunction:
-            type = Symbol(atomFunction, typeOf(symbol[1]), typeOf(symbol[2]));
-            break;
-        case atomTypeIdentifier:
-            resolveIdentifiers(symbol, scope);
-            type = typeOf(symbol);
-            break;
-        case atomTypeOf:
-            resolveIdentifiers(symbol);
-            type = typeOf(symbol[1].symbol()).symbol();
-            break;
-        case atomLogicalOr:
-        case atomLogicalAnd:
-            type = Symbol(atomBoolean);
-            break;
-        case atomDot:
-            // TODO: Resolve type of left, look up right identifier in class symbol table
-            break;
-        case atomTrue:
-        case atomFalse:
-            type = Symbol(atomBoolean);
-            break;
-        case atomStringConstant:
-            type = Symbol(atomString);
-            break;
-        case atomIdentifier:
-            resolveIdentifiers(symbol);
-            type = symbol.cache<ExpressionCache>()->type();
-            break;
-        case atomIntegerConstant:
-            type = Symbol(atomInt);  // TODO: the type is actually one of several depending on the value
-            break;
-        case atomFunctionCall:
-            type = typeOf(symbol[1].symbol()).symbol()[1].symbol();
-            break;
-        case atomNull:
-            type = Symbol(atomPointer);
-            break;
-        case atomVariableDefinitionStatement:
-            {
-                type = typeOf(symbol[1].symbol()).symbol();
-                if (type.atom() == atomAuto) {
-                    Symbol initializer = symbol[3].symbol();
-                    if (!initializer.valid()) {
-                        static String error("Auto variable declarations must be initialized");
-                        spanOf(symbol).throwError(error);
-                    }
-                    type = typeOf(symbol[3].symbol()).symbol();
-                    symbol[1].symbol().cache<ExpressionCache>()->setType(type);
-                }
-            }
-            break;
-        case atomPrintFunction:
-            type = Symbol(atomFunction, Symbol(atomVoid), SymbolArray(Symbol(atomString)));
-            break;
-    }
-    symbol.cache<ExpressionCache>()->setType(type);
-}
-
-// Determine types of variables and expressions, add them to the Symbols
-// Resolve identifiers to labels
-void resolveIdentifiers(SymbolEntry entry, Scope* scope)
+Scope* resolveIdentifiersAndTypes(SymbolEntry entry, Scope* scope)
 {
     if (entry.isArray()) {
         SymbolArray array = entry.array();
         for (int i = 0; i < array.count(); ++i)
-            resolveIdentifiers(array[i], scope);
-        return;                                                                                                                                                                       
+            scope = resolveIdentifiersAndTypes(array[i], scope);
+        return scope;                                                                                                                                                                       
     }
     if (!entry.isSymbol())
-        return;
+        return scope;
     Symbol symbol = entry.symbol();
-    int label = labelOf(symbol);
-    if (label != -1)
-        return;
-    Symbol target;
     switch (symbol.atom()) {
         case atomIdentifier:
-            label = scope->resolveIdentifier(symbol[1].string(), spanOf(symbol));
-            symbol.setLabel(label);
-            target = Symbol::labelled(label);
-            symbol.cache<ExpressionCache>()->setType(typeOf(target).symbol());
-            return;
+        case atomTypeIdentifier:
+            resolveIdentifier(symbol, scope);
+            resolveTypeOf(symbol, scope);            
+            return scope;
         case atomFunctionCall:
             {
                 Symbol function = symbol[1].symbol();
                 if (function.atom() == atomIdentifier) {
                     SymbolList list;
                     SymbolArray arguments = symbol[2].array();
-                    for (int i = 0; i < arguments.count(); ++i)
-                        list.add(typeOf(arguments[i]).symbol());
-                    Symbol functionName = function[1].symbol();
-                    int label = scope->resolveFunction(functionName.string(), list, spanOf(functionName));
-                    target = Symbol::labelled(label);
+                    for (int i = 0; i < arguments.count(); ++i) {
+                        resolveIdentifiersAndTypes(arguments[i], scope);
+                        list.add(typeOf(arguments[i]));
+                    }
+                    int label = scope->resolveFunction(function[1].string(), list, spanOf(function));
+                    setLabel(function, label);
+                    return;
+                }
+            }
+            resolveIdentifier(symbol, scope);
+            resolveTypeOf(symbol, scope);            
+            return scope;
+    }
+
+//    const SymbolTail* tail = symbol.tail();
+//    while (tail != 0) {
+//        resolveIdentifiersAndTypes(tail->head());
+//        tail = tail->tail();
+//    }
+}
+
+void resolveIdentifier(Symbol symbol, Scope* scope)
+{
+    int label = labelOf(symbol);
+    if (label != -1)
+        return;
+    switch (symbol.atom()) {
+        case atomIdentifier:
+            label = scope->resolveIdentifier(symbol[1].string(), spanOf(symbol));
+            setLabel(symbol, label);
+            break;
+        case atomTypeIdentifier:
+            label = scope->resolveType(symbol[1].string(), spanOf(symbol));
+            setLabel(symbol, label);
+            break;
+        case atomFunctionCall:
+            {
+                Symbol function = symbol[1].symbol();
+                if (function.atom() == atomIdentifier) {
+                    SymbolList list;
+                    SymbolArray arguments = symbol[2].array();
+                    for (int i = 0; i < arguments.count(); ++i) {
+                        resolveIdentifiersAndTypes(arguments[i], scope);
+                        list.add(typeOf(arguments[i]));
+                    }
+                    int label = scope->resolveFunction(function[1].string(), list, spanOf(function));
+                    setLabel(function, label);
                     return;
                 }
             }
             break;
-        case atomTypeIdentifier:
-            label = scope->resolveType(symbol[1].string(), spanOf(symbol));
-            symbol.setLabel(label);
-            target = Symbol::labelled(label);
-            symbol.cache<ExpressionCache>()->setType(typeOf(target).symbol());
-            return;
-    }
-
-    const SymbolTail* tail = symbol.tail();
-    while (tail != 0) {
-        resolveIdentifiers(tail->head());
-        tail = tail->tail();
     }
 }
+
+void resolveTypeOf(Symbol symbol, Scope* scope)
+{
+    Symbol type = typeOf(symbol);
+    if (type.valid()) {
+        if (type.atom() == atomAuto)
+            spanOf(symbol).throwError(String("Cycle in type resolution")); // TODO - improve error message to explain cycle
+        return;
+    }
+    setType(symbol, Symbol(atomAuto));
+    switch (symbol.atom()) {
+        case atomIdentifier:
+        case atomTypeIdentifier:
+            resolveIdentifier(symbol, scope);
+            setType(symbol, Symbol::labelled(labelOf(symbol)));
+            break;
+        case atomFunctionCall:
+            {
+                Symbol function = symbol[1].symbol();
+                resolveTypeOf(function, scope);
+                setType(symbol, typeOf(function)[1]);
+                break;
+            }
+
+
+        //case atomParameter:
+        //    resolveTypeOf(symbol[1].symbol());
+        //    symbol.
+        //    type = typeOf(symbol[1]);
+        //    break;
+//        case atomFunctionDefinitionStatement:
+//            {
+//                Symbol returnType = symbol[1].symbol();
+//                SymbolList list;
+//                SymbolArray parameters = symbol[3].array();
+//                for (int i = 0; i < parameters.count(); ++i)
+//                    list.add(parameters[i][1].symbol());
+//                type = Symbol(atomFunction, returnType, SymbolArray(list));
+//            }
+//            break;
+//        case atomAuto:
+//        case atomBit:
+//        case atomBoolean:
+//        case atomByte:
+//        case atomCharacter:
+//        case atomInt:
+//        case atomString:
+//        case atomUInt:
+//        case atomVoid:
+//        case atomWord:
+//            type = symbol;
+//            break;
+//        case atomPointer:
+//            type = Symbol(atomPointer, typeOf(symbol[1]));
+//            break;
+//        case atomFunction:
+//            type = Symbol(atomFunction, typeOf(symbol[1]), typeOf(symbol[2]));
+//            break;
+//        case atomTypeIdentifier:
+//            resolveIdentifiers(symbol, scope);
+//            type = typeOf(symbol);
+//            break;
+//        case atomTypeOf:
+//            resolveIdentifiers(symbol);
+//            type = typeOf(symbol[1].symbol()).symbol();
+//            break;
+//        case atomLogicalOr:
+//        case atomLogicalAnd:
+//            type = Symbol(atomBoolean);
+//            break;
+//        case atomDot:
+//            // TODO: Resolve type of left, look up right identifier in class symbol table
+//            break;
+//        case atomTrue:
+//        case atomFalse:
+//            type = Symbol(atomBoolean);
+//            break;
+//        case atomStringConstant:
+//            type = Symbol(atomString);
+//            break;
+//        case atomIntegerConstant:
+//            type = Symbol(atomInt);  // TODO: the type is actually one of several depending on the value
+//            break;
+//        case atomFunctionCall:
+//            type = typeOf(symbol[1].symbol()).symbol()[1].symbol();
+//            break;
+//        case atomNull:
+//            type = Symbol(atomPointer);
+//            break;
+//        case atomVariableDefinitionStatement:
+//            {
+//                type = typeOf(symbol[1].symbol()).symbol();
+//                if (type.atom() == atomAuto) {
+//                    Symbol initializer = symbol[3].symbol();
+//                    if (!initializer.valid()) {
+//                        static String error("Auto variable declarations must be initialized");
+//                        spanOf(symbol).throwError(error);
+//                    }
+//                    type = typeOf(symbol[3].symbol()).symbol();
+//                    symbol[1].symbol().cache<ExpressionCache>()->setType(type);
+//                }
+//            }
+//            break;
+//        case atomPrintFunction:
+//            type = Symbol(atomFunction, Symbol(atomVoid), SymbolArray(Symbol(atomString)));
+//            break;
+//    }
+//    symbol.cache<ExpressionCache>()->setType(type);
+//}
 
 class Compiler
 {
