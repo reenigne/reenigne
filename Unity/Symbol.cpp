@@ -458,7 +458,10 @@ public:
 
     const SymbolTail* tail() const { return implementation()->tail(); }
 
-    template<class U> U* cache() { return implementation()->cache()->cast<U>; }
+    template<class U> U* cache()
+    {
+        return implementation()->cache()->cast<U>();
+    }
 
     static int newLabel()
     {
@@ -469,14 +472,14 @@ public:
 
     static SymbolTemplate<T> labelled(int label) { return SymbolTemplate(_labelled[label]); }
 
-    void setLabel(int label) { _labelled[label] = _implementation; }
+    void setLabel(int label) { _labelled[label] = _implementation->cast<SymbolTemplate<T>::Implementation>(); }
 private:
     SymbolTemplate(Implementation* implementation) : SymbolEntry(implementation) { }
 
     class Implementation : public SymbolEntry::Implementation
     {
     public:
-        Implementation(Atom atom, SymbolCache cache, const SymbolTail* tail)
+        Implementation(Atom atom, SymbolCache* cache, const SymbolTail* tail)
           : _atom(atom), _cache(cache), _tail(tail)
         { }
         bool equals(const SymbolEntry::Implementation* other) const
@@ -573,7 +576,7 @@ private:
 
         Atom _atom;
         ConstReference<SymbolTail> _tail;
-        Reference<ReferenceCounted> _cache;
+        Reference<SymbolCache> _cache;
         int _label;
         Span _span;
         Symbol _type;

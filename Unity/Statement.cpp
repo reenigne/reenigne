@@ -15,7 +15,8 @@ Symbol parseExpressionStatement(CharacterSource* source)
         static String error("Statement has no effect");
         source->location().throwError(error);
     }
-    return Symbol(atomExpressionStatement, expression, newSpan(spanOf(expression).start(), span.end()));
+    return Symbol(atomExpressionStatement, expression,
+        newSpan(spanOf(expression).start(), span.end()));
 }
 
 Symbol parseParameter(CharacterSource* source)
@@ -29,7 +30,8 @@ Symbol parseParameter(CharacterSource* source)
         static String error("Expected identifier");
         source->location().throwError(error);
     }
-    return Symbol(atomParameter, typeSpecifier, name, newSpan(location, spanOf(name).end()));
+    return Symbol(atomParameter, typeSpecifier, name,
+        new IdentifierCache(Span(location, spanOf(name).end()), Symbol::newLabel()));
 }
 
 SymbolArray parseParameterList(CharacterSource* source)
@@ -78,8 +80,8 @@ Symbol parseFunctionDefinitionStatement(CharacterSource* source)
             parameterList,
             Symbol(atomFromStatement, dll,
                 new ExpressionCache(Span(span.start(), end))),
-            new SymbolDefinitionCache(
-                Span(spanOf(returnTypeSpecifier).start(), end)));
+            new IdentifierCache(Span(spanOf(returnTypeSpecifier).start(), end),
+                Symbol::newLabel()));
     }
     Symbol statement = parseStatementOrFail(source);
     statement = Symbol(
@@ -88,8 +90,9 @@ Symbol parseFunctionDefinitionStatement(CharacterSource* source)
         name,
         parameterList,
         statement,
-        new SymbolDefinitionCache(
-            Span(spanOf(returnTypeSpecifier).start(), spanOf(statement).end())));
+        new IdentifierCache(
+            Span(spanOf(returnTypeSpecifier).start(), spanOf(statement).end()),
+            Symbol::newLabel()));
     return statement;
 }
 
@@ -112,7 +115,8 @@ Symbol parseVariableDefinitionStatement(CharacterSource* source)
         typeSpecifier,
         identifier,
         initializer,
-        new SymbolDefinitionCache(Span(spanOf(typeSpecifier).start(), end)));
+        new IdentifierCache(Span(spanOf(typeSpecifier).start(), end),
+            Symbol::newLabel()));
     return statement;
 }
 
@@ -233,7 +237,9 @@ Symbol parseTypeAliasStatement(CharacterSource* source)
     Symbol typeSpecifier = parseTypeSpecifier(source);
     Location end = Space::assertCharacter(source, ';');
     Symbol statement = Symbol(atomTypeAliasStatement, typeIdentifier,
-        typeSpecifier, new TypeDefinitionCache(Span(spanOf(typeIdentifier).start(), end)));
+        typeSpecifier, new IdentifierCache(
+            Span(spanOf(typeIdentifier).start(), end),
+            Symbol::newLabel()));
     return statement;
 }
 
@@ -388,7 +394,7 @@ Symbol parseReturnStatement(CharacterSource* source)
         return Symbol();
     Symbol expression = parseExpression(source);
     Location end = Space::assertCharacter(source, ';');
-    return Symbol(atomReturnStatement, expression, Span(span.start(), end));
+    return Symbol(atomReturnStatement, expression, newSpan(span.start(), end));
 }
 
 Symbol parseIncludeStatement(CharacterSource* source)
@@ -399,7 +405,7 @@ Symbol parseIncludeStatement(CharacterSource* source)
         return Symbol();
     Symbol expression = parseExpressionOrFail(source);
     Location end = Space::assertCharacter(source, ';');
-    return Symbol(atomIncludeStatement, expression, Span(span.start(), end));
+    return Symbol(atomIncludeStatement, expression, newSpan(span.start(), end));
 }
 
 Symbol parseBreakStatement(CharacterSource* source);
@@ -524,7 +530,8 @@ Symbol parseForStatement(CharacterSource* source)
         doneStatement = parseStatementOrFail(source);
         end = spanOf(doneStatement).end();
     }
-    return Symbol(atomForStatement, preStatement, expression, postStatement, statement, doneStatement, Span(span.start(), end));
+    return Symbol(atomForStatement, preStatement, expression, postStatement,
+        statement, doneStatement, newSpan(span.start(), end));
 }
 
 Symbol parseStatement(CharacterSource* source)

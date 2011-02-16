@@ -1,42 +1,13 @@
-call resolveType() in resolveType().
+atomExit is not currently used
 
-Make sure that in all the places cache needs to be something other than SpanCache, it is.
-  ExpressionCache
-  SymbolDefinitionCache
+IdentifierCache:
+  parameter
+  function definition
+  variable definition
+  type alias
+  type identifier
+  class type specifier
 
-ReferenceCounted
-  SymbolCache
-    SpanCache                span
-      ExpressionCache          type
-        IdentifierCache          label
-          SymbolDefinitionCache    scope
-
-Type/identifier resolution phase:
-  Need to have identifiers resolved to be able to resolve types because:
-    "TypeOf(a) x;"
-  Need to have types resolved to be able to resolve identifiers because:
-    "f(x)" where f is an overloaded function
-  Can we create a resolution loop?
-    variables are only used below where they are declared. Functions and types
-     can be used above where they are declared.
-    Yes:
-      T x;
-      T = TypeOf(x);
-  Functions:
-    resolveIdentifiersAndTypes()
-      walks the tree and resolves everything.
-    resolveTypeOf()
-      resolves just what we need to compute the type of an expression or symbol definition
-      if the type is already set, just return it
-      need a flag to say "we're already doing this one"
-        Can we use Auto for this?
-          Yes, we can arrange for it never to otherwise appear in the type field
-        Need to figure out how to make a sensible error message
-          Keep a SymbolList around with pairs of "to find type of x, need to
-           know type of y"?
-    resolveIdentifier()
-      resolves an identifier to its definition
-    resolveTypeOfSymbolDefinition()
 
 compileFunction:
   Compute offsets of local variables
@@ -154,3 +125,13 @@ Advanced types
   union: "U | V" or "Reference<Union<U, V>>" - get U out with "w.U" or "w as U" or "cast<U>(w)", find out if it is U with "w is U"
   option: "Maybe<T>" or "T?" or "T | Null"
   function: "U -> V"
+
+Have a run-time type operator typeOf()?
+  And "Type" - the type of the value that it returns
+  The Type object of type T is T::type.
+  print("Compile-time type is ${TypeOf(x)::type}, run-time type is ${typeOf(x)}\n");
+    Type has a toString() method, but the strings are not linked in unless used.
+  
+Allow parameters to have type Auto which creates a template function?
+
+Have a Symbol-like type built in - the atoms are Type objects (or pointers to them)

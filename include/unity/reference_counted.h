@@ -8,13 +8,13 @@ class ReferenceCounted : Uncopyable
 public:
     ReferenceCounted() { _count = 0; }
 
+    void addReference() const { ++_count; }
+
     template<class U> U* cast() { return dynamic_cast<U*>(this); }
 protected:
     virtual ~ReferenceCounted() { };
 
 private:
-    void addReference() const { ++_count; }
-
     void release() const
     {
         --_count;

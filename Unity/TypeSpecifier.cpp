@@ -42,7 +42,8 @@ Symbol parseTypeIdentifier(CharacterSource* source)
         if (name == keywords[i])
             return Symbol();
     *source = s2;
-    return Symbol(atomTypeIdentifier, name, Span(location, endLocation));
+    return Symbol(atomTypeIdentifier, name,
+        new IdentifierCache(Span(location, endLocation)));
 }
 
 Symbol parseClassTypeSpecifier(CharacterSource* source)
@@ -55,7 +56,8 @@ Symbol parseClassTypeSpecifier(CharacterSource* source)
     Space::assertCharacter(source, '{');
     // TODO: Parse class contents
     Location end = Space::assertCharacter(source, '}');
-    return Symbol(atomClass, Span(start, end));
+    return Symbol(atomClass, new IdentifierCache(Span(start, end),
+        Symbol::newLabel()));
 }
 
 Symbol parseTypeOfTypeSpecifier(CharacterSource* source);
@@ -151,8 +153,6 @@ Symbol parseTypeSpecifier(CharacterSource* source)
     } while (true);
     return typeSpecifier;
 }
-
-#include "Expression.cpp"
 
 Symbol parseTypeOfTypeSpecifier(CharacterSource* source)
 {
