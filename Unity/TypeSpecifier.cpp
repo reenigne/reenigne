@@ -56,7 +56,7 @@ Symbol parseClassTypeSpecifier(CharacterSource* source)
     Space::assertCharacter(source, '{');
     // TODO: Parse class contents
     Location end = Space::assertCharacter(source, '}');
-    return Symbol(atomClass, new IdentifierCache(Span(start, end),
+    return Symbol(atomClass, new TypeCache(Span(start, end), -1, -1,
         Symbol::newLabel()));
 }
 
@@ -68,36 +68,37 @@ Symbol parseFundamentalTypeSpecifier(CharacterSource* source)
     Symbol typeSpecifier = parseTypeIdentifier(source);
     if (typeSpecifier.valid()) {
         String s = typeSpecifier[1].string();
+        Span span = spanOf(typeSpecifier);
         static String autoKeyword("Auto");
         if (s == autoKeyword)
-            return Symbol(atomAuto, newSpan(typeSpecifier));
+            return Symbol(atomAuto, newSpan(span));
         static String bitKeyword("Bit");
         if (s == bitKeyword)
-            return Symbol(atomBit, newSpan(typeSpecifier));
+            return Symbol(atomBit, new TypeCache(span, 1, 1));
         static String booleanKeyword("Boolean");
         if (s == booleanKeyword)
-            return Symbol(atomBoolean, newSpan(typeSpecifier));
+            return Symbol(atomBoolean, new TypeCache(span, 1, 1));
         static String byteKeyword("Byte");
         if (s == byteKeyword)
-            return Symbol(atomByte, newSpan(typeSpecifier));
+            return Symbol(atomByte, new TypeCache(span, 1, 1));
         static String characterKeyword("Character");
         if (s == characterKeyword)
-            return Symbol(atomCharacter, newSpan(typeSpecifier));
+            return Symbol(atomCharacter, new TypeCache(span, 4, 4));
         static String intKeyword("Int");
         if (s == intKeyword)
-            return Symbol(atomInt, newSpan(typeSpecifier));
+            return Symbol(atomInt, new TypeCache(span, 4, 4));
         static String stringKeyword("String");
         if (s == stringKeyword)
-            return Symbol(atomString, newSpan(typeSpecifier));
+            return Symbol(atomString, new TypeCache(span, 4, 4));
         static String uIntKeyword("UInt");
         if (s == uIntKeyword)
-            return Symbol(atomUInt, newSpan(typeSpecifier));
+            return Symbol(atomUInt, new TypeCache(span, 4, 4));
         static String voidKeyword("Void");
         if (s == voidKeyword)
-            return Symbol(atomVoid, newSpan(typeSpecifier));
+            return Symbol(atomVoid, new TypeCache(span, 0, 0));
         static String wordKeyword("Word");
         if (s == wordKeyword)
-            return Symbol(atomVoid, newSpan(typeSpecifier));
+            return Symbol(atomVoid, new TypeCache(span, 4, 4));
 
         return typeSpecifier;
     }
@@ -140,14 +141,14 @@ Symbol parseTypeSpecifier(CharacterSource* source)
         Span span;
         if (Space::parseCharacter(source, '*', span)) {
             typeSpecifier = Symbol(atomPointer, typeSpecifier,
-                newSpan(spanOf(typeSpecifier).start(), span.end()));
+                new TypeCache(Span(spanOf(typeSpecifier).start(), span.end()), 4, 4));
             continue;
         }
         if (Space::parseCharacter(source, '(', span)) {
             SymbolArray typeListSpecifier = parseTypeSpecifierList(source);
             Location end = Space::assertCharacter(source, ')');
             typeSpecifier = Symbol(atomFunction, typeSpecifier,
-                typeListSpecifier, newSpan(spanOf(typeSpecifier).start(), end));
+                typeListSpecifier, new TypeCache(Span(spanOf(typeSpecifier).start(), end), 0, 0));
             continue;
         }
     } while (true);

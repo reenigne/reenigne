@@ -7,7 +7,11 @@ IdentifierCache:
   type alias
   type identifier
   class type specifier
+  atomic type
 
+TypeCache - output of typeOf()
+  class type specifier
+  atomic type
 
 compileFunction:
   Compute offsets of local variables
@@ -36,6 +40,9 @@ Algorithm for resolving names in the presence of overloading
   Use dynamic programming to figure out a "cost" associated with converting any type to any other type
     Allow conversion operators to specify a cost?
 
+Implement assignment statements
+  push(address) dup dereference op store
+
 More detail in switch type mismatch error
 Allow overloads over operator== for switch comparison
 
@@ -44,6 +51,8 @@ Add 8-bit and 16-bit types
 Add 64-bit types
 Add behaviors for types Bit, Byte, Character, Word, UInt
 Add classes
+  Implement resolveSize
+  Call resolveSize
 Add hexadecimal constants
 Add character literals
 Add array/structure literals #{1,2,3}
@@ -135,3 +144,8 @@ Have a run-time type operator typeOf()?
 Allow parameters to have type Auto which creates a template function?
 
 Have a Symbol-like type built in - the atoms are Type objects (or pointers to them)
+
+Need to thing about what Type::toString() returns for class types
+  keep track of first name assigned to type if it's defined with an alias
+
+Optimization: If g is only ever called by f, we can do the stack correction for g at the same time we do the stack correction for f.

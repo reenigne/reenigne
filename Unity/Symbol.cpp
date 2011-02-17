@@ -100,6 +100,10 @@ enum Atom
     atomGoto,
     atomJumpIfTrue,
     atomStackPointer,
+    atomSetStackPointer,
+    atomStore,
+    atomDuplicate,
+    atomDrop,
 
     atomStringConcatenate,
     atomStringEqualTo,
@@ -218,6 +222,10 @@ String atomToString(Atom atom)
             _table[atomGoto] = String("goto");
             _table[atomJumpIfTrue] = String("jumpIfTrue");
             _table[atomStackPointer] = String("stackPointer");
+            _table[atomSetStackPointer] = String("setStackPointer");
+            _table[atomStore] = String("store");
+            _table[atomDuplicate] = String("duplicate");
+            _table[atomDrop] = String("drop");
 
             _table[atomStringConcatenate] = String("String::+");
             _table[atomStringEqualTo] = String("String::==");

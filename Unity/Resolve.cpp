@@ -83,6 +83,39 @@ int offsetOf(Symbol symbol)
     return symbol.cache<IdentifierCache>()->offset();
 }
 
+class TypeCache : public IdentifierCache
+{
+public:
+    TypeCache(Span span, int size = -1, int alignment = -1, int label = -1)
+      : IdentifierCache(span, label) { }
+    void setSize(int size) { _size = size; }
+    int size() const { return _size; }
+    void setAlignment(int alignment) { _alignment = alignment; }
+    int alignment() const { return _alignment; }
+private:
+    int _size;
+    int _alignment;
+};
+
+void setSize(Symbol symbol, int size)
+{
+    symbol.cache<TypeCache>()->setSize(size);
+}
+
+int sizeOf(Symbol symbol)
+{
+    return symbol.cache<TypeCache>()->size();
+}
+
+void setAlignment(Symbol symbol, int alignment)
+{
+    symbol.cache<TypeCache>()->setAlignment(alignment);
+}
+
+int alignmentOf(Symbol symbol)
+{
+    return symbol.cache<TypeCache>()->alignment();
+}
 
 class SymbolName : public ReferenceCounted
 {
@@ -553,100 +586,71 @@ void resolveTypeOf(Symbol symbol)
     setType(symbol, type);
 }
 
+void resolveSize(Symbol symbol)
+{
+    // TODO (nothing to do yet until we have classes)
+}
+
 void resolveOffset(Symbol symbol)
 {
     int offset = offsetOf(symbol);
     if (offset != -1)
         return;
     switch (symbol.atom()) {
-        case atomBit:
-        case atomBoolean:
-        case atomByte:
-        case atomCharacter:
-        case atomInt:
-        case atomPointer:
-            offset = 4;
-
-        case atomClass:
-        case atomFunction:
-        case atomString:
-        case atomTypeIdentifier:
-        case atomTypeOf:
-        case atomUInt:
-        case atomVoid:
-        case atomWord:
-
-        case atomLogicalOr:
-        case atomLogicalAnd:
-        case atomDot:
-
-        case atomBitwiseOr:
-        case atomBitwiseXor:
-        case atomBitwiseAnd:
-        case atomEqualTo:
-        case atomNotEqualTo:
-        case atomLessThanOrEqualTo:
-        case atomGreaterThanOrEqualTo:
-        case atomLessThan:
-        case atomGreaterThan:
-        case atomLeftShift:
-        case atomRightShift:
-        case atomAdd:
-        case atomSubtract:
-        case atomMultiply:
-        case atomDivide:
-        case atomModulo:
-        case atomNot:
-        case atomPositive:
-        case atomNegative:
-        case atomDereference:
-        case atomAddressOf:
-        case atomPower:
-        case atomFunctionCall:
-
-        case atomStringConstant:
-        case atomIdentifier:
-        case atomIntegerConstant:
-        case atomTrue:
-        case atomFalse:
-        case atomNull:
-
-        case atomParameter:
-
-        case atomExpressionStatement:
         case atomFunctionDefinitionStatement:
-        case atomFromStatement:
-        case atomVariableDefinitionStatement:
-        case atomAssignmentStatement:
-        case atomAddAssignmentStatement:
-        case atomSubtractAssignmentStatement:
-        case atomMultiplyAssignmentStatement:
-        case atomDivideAssignmentStatement:
-        case atomModuloAssignmentStatement:
-        case atomShiftLeftAssignmentStatement:
-        case atomShiftRightAssignmentStatement:
-        case atomAndAssignmentStatement:
-        case atomOrAssignmentStatement:
-        case atomXorAssignmentStatement:
-        case atomPowerAssignmentStatement:
-        case atomCompoundStatement:
-        case atomTypeAliasStatement:
-        case atomNothingStatement:
-        case atomIncrementStatement:
-        case atomDecrementStatement:
-        case atomIfStatement:
-        case atomSwitchStatement:
-        case atomReturnStatement:
-        case atomIncludeStatement:
-        case atomBreakStatement:
-        case atomContinueStatement:
-        case atomForeverStatement:
-        case atomWhileStatement:
-        case atomUntilStatement:
-        case atomForStatement:
-
-        case atomCase:
-        case atomDefaultCase:
+            {
+                SymbolArray parameters = symbol[3].array();
+                offset = 4;
+                for (int i = 0; i < parameters.count(); ++i) {
+                    Symbol parameter = parameters[i];
+                    setOffset(parameter, offset);
+                    offset += sizeOf(typeOf(parameter));
+                    int alignment = alignmentOf(
+                }
+            }
+            break;
+        case atom
     }
     setOffset(symbol, offset);
 }
+
+int computeOffsets(Symbol symbol)
+{
+
+}
+
+// Adjust before after
+//        [sp]   [sp+adj]    contains the last value pushed - the return address
+//        [sp+4] [sp+adj+4]  contains the (first word of the) first argument
+//        [sp-4] [sp+adj-4]  contains the (first word of the) first variable
+// Need an algorithm to compute offsets of parameters and arguments and the stack adjustment
+//   Treat parameters as an object, round up to stack alignment (4 bytes for 32-bit)
+//     Need an algorithm to compute offsets for an object 
+
+// sp increasing ^
+//   last incoming argument word
+//   ...
+//   first incoming argument word
+//   return address
+//   [optional alignment word]
+//   last variable word
+//   ...
+//   first variable word
+//   [optional alignment word]
+//   last outgoing argument word
+//   ...
+//   first outgoing argument word
+//   [optional alignment word]
+//   return address
+
+// Suppose we have a function with a double argument. The calling function has the responsibility of aligning the stack, so it always looks like this:
+//   argumentHigh    odd
+//   argumentLow     even
+//   return address  odd
+
+// Suppose we have a function that doesn't have a double argument
+// and
+//   argumentHigh    odd
+//   argumentLow     even
+//   return address  odd
+// 

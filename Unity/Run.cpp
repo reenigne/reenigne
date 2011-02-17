@@ -28,6 +28,7 @@ public:
         push(static_cast<StringImplementation*>(value.implementation()));
     }
     UInt32* pointer() const { return _sp; }
+    void setPointer(UInt32* pointer) { _sp = pointer; }
 private:
     Array<UInt32> _data;
     UInt32* _sp;
@@ -251,8 +252,27 @@ void run(SymbolArray program)
             case atomStackPointer:
                 stack.push(stack.pointer());
                 break;
+            case atomSetStackPointer:
+                stack.setPointer(stack.pop<UInt32*>());
+                break;
             case atomDereference:
-                stack.push(*stack.pop<int*>());
+                stack.push(*stack.pop<int*>());        
+                break;
+            case atomDuplicate:
+                {
+                    int value = stack.pop<int>();
+                    stack.push(value);
+                    stack.push(value);
+                }
+                break;
+            case atomDrop:
+                stack.pop<int>();
+                break;
+            case atomStore:
+                {
+                    int value = stack.pop<int>();
+                    *stack.pop<int*>() = value;
+                }
                 break;
             case atomPower:
                 {
@@ -261,7 +281,6 @@ void run(SymbolArray program)
                     stack.push(power(l, r));
                 }
                 break;
-
             case atomStringConcatenate:
                 {
                     String l = stack.pop<String>();
