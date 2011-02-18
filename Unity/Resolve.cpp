@@ -591,66 +591,34 @@ void resolveSize(Symbol symbol)
     // TODO (nothing to do yet until we have classes)
 }
 
-void resolveOffset(Symbol symbol)
+// resolve offsets in "symbol", return the "high water mark" of stack usage
+int resolveOffsets(Symbol symbol)
 {
     int offset = offsetOf(symbol);
     if (offset != -1)
-        return;
+        return 0;
     switch (symbol.atom()) {
         case atomFunctionDefinitionStatement:
             {
                 SymbolArray parameters = symbol[3].array();
-                offset = 4;
+                offset = 0;
                 for (int i = 0; i < parameters.count(); ++i) {
                     Symbol parameter = parameters[i];
-                    setOffset(parameter, offset);
+                    Symbol type = typeOf(parameter);
+                    offset &= -alignmentOf(type);
+                    setOffset(parameter, offset + 4);
                     offset += sizeOf(typeOf(parameter));
-                    int alignment = alignmentOf(
+                    // TODO: Move the following line after the loop to compress the arguments to a Class-like layout
+                    offset = (offset + 3) & -4;  // Minimum stack alignment is 4 words
                 }
+                // TODO: adjust offset for variables and outgoing parameters
+
             }
             break;
-        case atom
+        case atomFunctionCall:
+            // TODO
+            break;
     }
     setOffset(symbol, offset);
 }
 
-int computeOffsets(Symbol symbol)
-{
-
-}
-
-// Adjust before after
-//        [sp]   [sp+adj]    contains the last value pushed - the return address
-//        [sp+4] [sp+adj+4]  contains the (first word of the) first argument
-//        [sp-4] [sp+adj-4]  contains the (first word of the) first variable
-// Need an algorithm to compute offsets of parameters and arguments and the stack adjustment
-//   Treat parameters as an object, round up to stack alignment (4 bytes for 32-bit)
-//     Need an algorithm to compute offsets for an object 
-
-// sp increasing ^
-//   last incoming argument word
-//   ...
-//   first incoming argument word
-//   return address
-//   [optional alignment word]
-//   last variable word
-//   ...
-//   first variable word
-//   [optional alignment word]
-//   last outgoing argument word
-//   ...
-//   first outgoing argument word
-//   [optional alignment word]
-//   return address
-
-// Suppose we have a function with a double argument. The calling function has the responsibility of aligning the stack, so it always looks like this:
-//   argumentHigh    odd
-//   argumentLow     even
-//   return address  odd
-
-// Suppose we have a function that doesn't have a double argument
-// and
-//   argumentHigh    odd
-//   argumentLow     even
-//   return address  odd
-// 
