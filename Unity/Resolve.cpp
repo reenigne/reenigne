@@ -315,13 +315,33 @@ Scope* setScopes(SymbolEntry entry, Scope* scope)
             return scope;
         case atomCompoundStatement:
         case atomForeverStatement:
-        case atomWhileStatement:
-        case atomUntilStatement:
-        case atomForStatement:
         case atomCase:
         case atomDefaultCase:
             inner = new Scope(scope, true);
             break;
+        case atomWhileStatement:
+        case atomUntilStatement:
+            inner = new Scope(scope, true);
+            setScopes(symbol[1], inner);
+            setScopes(symbol[2], scope);
+            inner = new Scope(scope, true);
+            setScopes(symbol[3], inner);
+            inner = new Scope(scope, true);
+            setScopes(symbol[4], inner);
+            return scope;
+        case atomForStatement:
+            {
+                inner = new Scope(scope, true);
+                setScopes(symbol[1], inner);
+                setScopes(symbol[2], inner);
+                Reference<Scope> inner2 = new Scope(inner, true);
+                setScopes(symbol[3], inner2);
+                Reference<Scope> inner3 = new Scope(inner2, true);
+                setScopes(symbol[4], inner3);
+                inner3 = new Scope(inner3, true);
+                setScopes(symbol[5], inner3);
+            }
+            return scope;
         case atomIdentifier:
         case atomTypeIdentifier:
             symbol.cache<IdentifierCache>()->setScope(scope);
@@ -592,7 +612,7 @@ void resolveSize(Symbol symbol)
 }
 
 // resolve offsets in "symbol", return the "high water mark" of stack usage
-int resolveOffsets(Symbol symbol)
+int resolveOffsets(Symbol symbol, int o = 0)
 {
     int offset = offsetOf(symbol);
     if (offset != -1)
@@ -612,10 +632,40 @@ int resolveOffsets(Symbol symbol)
                     offset = (offset + 3) & -4;  // Minimum stack alignment is 4 words
                 }
                 // TODO: adjust offset for variables and outgoing parameters
-
+                offset = resolveOffsets(symbol[4].symbol());
             }
             break;
-        case atomFunctionCall:
+        case atomVariableDefinitionStatement:
+            {
+                Symbol type = symbol[1].symbol();
+                setOffset(symbol, o);
+                int size = sizeOf(type);
+                size = (size + 3) & -4;
+                o += size;
+            }
+            return o;
+        case atomIfStatement:
+            offset = resolveOffsets(symbol[2].symbol(), o);
+            return max(resolveOffsets(symbol[3].symbol(), o), offset);
+        case atomCompoundStatement:
+            {
+                SymbolArray statements = symbol[1].array();
+                offset = 0;
+                for (int i = 0; i < statements.count(); ++i)
+                    offset = resolveOffsets(statements[i].symbol(), offset);
+            }
+            return offset;
+        case atomForeverStatement:
+            return resolveOffsets(symbol[1].symbol(), o);
+        case atomWhileStatement:
+        case atomUntilStatement:
+            offset = resolveOffsets(symbol[1].symbol());
+            offset = max(resolveOffsets(symbol[3].symbol()), offset);
+            return max(resolveOffsets(symbol[4].symbol()), offset);
+        case atomForStatement:
+            // TODO
+            break;
+        case atomSwitchStatement:
             // TODO
             break;
     }

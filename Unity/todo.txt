@@ -1,4 +1,37 @@
-atomExit is not currently used
+Should "done" blocks be in different scopes to the loop body blocks?
+  What about do vs while/until blocks?
+
+  int i = 1;
+  int j = 2;
+  while (j < 5) {
+    int i = 2;
+    ++j;
+    if (k())
+      break;
+  }
+  done {
+    print(i);  // should print "
+  }
+
+  for (int i = 0; i < 10; ++i)
+    if (bar())
+      break;
+  done
+    foo();
+
+  is equivalent to:
+    {
+      int i = 0;
+      while (i < 10) {
+        {
+          if (bar())
+            break;
+        }
+        ++i;
+      }
+      done
+        foo();
+    }
 
 compileFunction:
   Compute offsets of local variables
@@ -106,9 +139,6 @@ Optimization: Shrink Symbol::_labelled if the second half is all empty to avoid 
 Optimization: switch SymbolArray to am AVL tree
 Change semicolon parsing on increment/decrement/expression statements so that "for (i = 0; i < n; ++i)" is valid.
 
-Should "done" blocks be in different scopes to the loop body blocks?
-  What about do vs while/until blocks?
-
 Rewrite (e.g.) "x += y" as "t = &x; *t = *t + y;" so that operator overloading works properly?
 
 Measure stack size and allocate frames for unbounded recursive functions on heap
@@ -147,12 +177,12 @@ Optimization: If g is only ever called by f, we can do the stack correction for 
 // sp increasing ^
 //   last incoming argument word
 //   ...
-//   first incoming argument word
-//   return address
-//   [optional alignment word]
-//   last variable word
-//   ...
-//   first variable word
+//   first incoming argument word     
+//   return address                   
+//   [optional alignment word]        
+//   last variable word               
+//   ...                              
+//   first variable word              
 //   [optional alignment word]
 //   last outgoing argument word
 //   ...
@@ -205,3 +235,5 @@ An ABI is a property of a function, not an architecture. It encompasses:
     Flags that must be preserved?
     Other global state (e.g. FPU state)
     CPU features that can be assumed?
+
+atomExit is not currently used
