@@ -355,6 +355,87 @@ Scope* setScopes(SymbolEntry entry, Scope* scope)
     return scope;
 }
 
+// resolve offsets in "symbol"
+int resolveOffsets(Symbol symbol, int o, int* highWaterMark)
+{
+    int offset = offsetOf(symbol);
+    if (offset != -1)
+        return 0;
+    switch (symbol.atom()) {
+        case atomFunctionDefinitionStatement:
+            {
+                SymbolArray parameters = symbol[3].array();
+                offset = 0;
+                for (int i = 0; i < parameters.count(); ++i) {
+                    Symbol parameter = parameters[i];
+                    Symbol type = typeOf(parameter);
+                    offset &= -alignmentOf(type);
+                    setOffset(parameter, offset + 4);
+                    offset += sizeOf(typeOf(parameter));
+                    // TODO: Move the following line after the loop to compress the arguments to a Class-like layout
+                    offset = (offset + 3) & -4;  // Minimum stack alignment is 4 words
+                }
+                // TODO: adjust offset for variables and outgoing parameters
+                int h = 0;
+                resolveOffsets(symbol[4].symbol(), 0, &h);
+                setOffset(symbol, h);
+            }
+            return o;
+        case atomVariableDefinitionStatement:
+            {
+                Symbol type = symbol[1].symbol();
+                setOffset(symbol, o);
+                int size = sizeOf(type);
+                size = (size + 3) & -4;
+                o += size;
+                *highWaterMark = max(o, *highWaterMark);
+            }
+            return o;
+        case atomIfStatement:
+            resolveOffsets(symbol[2].symbol(), o, highWaterMark);
+            resolveOffsets(symbol[3].symbol(), o, highWaterMark);
+            return o;
+        case atomCompoundStatement:
+            {
+                SymbolArray statements = symbol[1].array();
+                offset = o;
+                for (int i = 0; i < statements.count(); ++i)
+                    offset = resolveOffsets(statements[i].symbol(), offset, highWaterMark);
+            }
+            return offset;
+        case atomForeverStatement:
+            resolveOffsets(symbol[1].symbol(), o, highWaterMark);
+            return o;
+        case atomWhileStatement:
+        case atomUntilStatement:
+            resolveOffsets(symbol[1].symbol(), o, highWaterMark);
+            resolveOffsets(symbol[3].symbol(), o, highWaterMark);
+            resolveOffsets(symbol[4].symbol(), o, highWaterMark);
+            return o;
+        case atomForStatement:
+            offset = resolveOffsets(symbol[1].symbol(), o, highWaterMark);
+            resolveOffsets(symbol[3].symbol(), offset, highWaterMark);
+            resolveOffsets(symbol[4].symbol(), offset, highWaterMark);
+            resolveOffsets(symbol[5].symbol(), offset, highWaterMark);
+            return o;
+        case atomSwitchStatement:
+            {
+                resolveOffsets(symbol[2].symbol(), o, highWaterMark);
+                SymbolArray cases = symbol[3].array();
+                for (int i = 0; i < cases.count(); ++i)
+                    resolveOffsets(cases[i], o, highWaterMark);
+            }
+            return o;
+        case atomDefaultCase:
+            resolveOffsets(symbol[1].symbol(), o, highWaterMark);
+            return o;
+        case atomCase:
+            resolveOffsets(symbol[2].symbol(), o, highWaterMark);
+            return o;
+    }
+    return o;
+}
+
 void resolveIdentifier(Symbol identifier);
 void resolveTypeOf(Symbol symbol);
 
@@ -385,6 +466,8 @@ void resolveIdentifiersAndTypes(SymbolEntry entry)
                 else
                     resolveIdentifiersAndTypes(function);
                 resolveTypeOf(symbol);
+                int highWaterMark = 0;
+                resolveOffsets(symbol, 0, &highWaterMark);
             }
             return;
         case atomFunctionDefinitionStatement:
@@ -605,70 +688,3 @@ void resolveTypeOf(Symbol symbol)
     }
     setType(symbol, type);
 }
-
-void resolveSize(Symbol symbol)
-{
-    // TODO (nothing to do yet until we have classes)
-}
-
-// resolve offsets in "symbol", return the "high water mark" of stack usage
-int resolveOffsets(Symbol symbol, int o = 0)
-{
-    int offset = offsetOf(symbol);
-    if (offset != -1)
-        return 0;
-    switch (symbol.atom()) {
-        case atomFunctionDefinitionStatement:
-            {
-                SymbolArray parameters = symbol[3].array();
-                offset = 0;
-                for (int i = 0; i < parameters.count(); ++i) {
-                    Symbol parameter = parameters[i];
-                    Symbol type = typeOf(parameter);
-                    offset &= -alignmentOf(type);
-                    setOffset(parameter, offset + 4);
-                    offset += sizeOf(typeOf(parameter));
-                    // TODO: Move the following line after the loop to compress the arguments to a Class-like layout
-                    offset = (offset + 3) & -4;  // Minimum stack alignment is 4 words
-                }
-                // TODO: adjust offset for variables and outgoing parameters
-                offset = resolveOffsets(symbol[4].symbol());
-            }
-            break;
-        case atomVariableDefinitionStatement:
-            {
-                Symbol type = symbol[1].symbol();
-                setOffset(symbol, o);
-                int size = sizeOf(type);
-                size = (size + 3) & -4;
-                o += size;
-            }
-            return o;
-        case atomIfStatement:
-            offset = resolveOffsets(symbol[2].symbol(), o);
-            return max(resolveOffsets(symbol[3].symbol(), o), offset);
-        case atomCompoundStatement:
-            {
-                SymbolArray statements = symbol[1].array();
-                offset = 0;
-                for (int i = 0; i < statements.count(); ++i)
-                    offset = resolveOffsets(statements[i].symbol(), offset);
-            }
-            return offset;
-        case atomForeverStatement:
-            return resolveOffsets(symbol[1].symbol(), o);
-        case atomWhileStatement:
-        case atomUntilStatement:
-            offset = resolveOffsets(symbol[1].symbol());
-            offset = max(resolveOffsets(symbol[3].symbol()), offset);
-            return max(resolveOffsets(symbol[4].symbol()), offset);
-        case atomForStatement:
-            // TODO
-            break;
-        case atomSwitchStatement:
-            // TODO
-            break;
-    }
-    setOffset(symbol, offset);
-}
-

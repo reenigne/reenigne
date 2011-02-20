@@ -44,8 +44,9 @@ int main(int argc, char* argv[])
         Reference<Scope> scope = new Scope(0, true);
 
         int printLabel = Symbol::newLabel();
+        Symbol voidType(atomVoid);
         IdentifierCache* printCache = new IdentifierCache(Span(), printLabel);
-        Symbol print(atomPrintFunction, Symbol(atomVoid), String("print"), SymbolArray(Symbol(atomString)), printCache);
+        Symbol print(atomPrintFunction, voidType, String("print"), SymbolArray(Symbol(atomString)), printCache);
         print.setLabel(printLabel);
         scope->addFunction(String("print"), printLabel, Span());
 
@@ -57,12 +58,13 @@ int main(int argc, char* argv[])
             static String error("Expected end of file");
             source.location().throwError(error);
         }
+        Symbol main(atomFunctionDefinitionStatement, voidType, String(), SymbolArray(), Symbol(atomCompoundStatement, program));
 
-        setScopes(program, scope);
-        resolveIdentifiersAndTypes(program);
-        checkTypes(program, Symbol(atomVoid));
+        setScopes(main, scope);
+        resolveIdentifiersAndTypes(main);
+        checkTypes(main, Symbol(atomVoid));
         Compiler compiler;
-        compiler.compileFunctionBody(program);
+        compiler.compileFunction(main);
         SymbolArray compiledProgram = compiler.compiledProgram();
         run(compiledProgram);
     }

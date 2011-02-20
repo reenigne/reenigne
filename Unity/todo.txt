@@ -1,54 +1,24 @@
-Should "done" blocks be in different scopes to the loop body blocks?
-  What about do vs while/until blocks?
-
-  int i = 1;
-  int j = 2;
-  while (j < 5) {
-    int i = 2;
-    ++j;
-    if (k())
-      break;
-  }
-  done {
-    print(i);  // should print "
-  }
-
-  for (int i = 0; i < 10; ++i)
-    if (bar())
-      break;
-  done
-    foo();
-
-  is equivalent to:
-    {
-      int i = 0;
-      while (i < 10) {
-        {
-          if (bar())
-            break;
-        }
-        ++i;
-      }
-      done
-        foo();
-    }
-
-compileFunction:
-  Compute offsets of local variables
-  Compute stack adjustment for function
+compileFunction
+  Need to keep track of:
+    function's stack adjustment
+    function's return type (for "return" statements)?
+    current break and continue addresses (and whether each are valid)
 
 Figure out how to do break and continue
 
 Implement compile()
   When compiling break/continue statement, make sure we are inside a suitable loop/switch
 
-Class contents:
-  public/private/protected
-  friend declaration
-  member variable
-  method definition
-  include
-    Or have a 'Class X from y' form instead?
+Add classes
+  Implement resolveSize
+  Call resolveSize
+  Class contents:
+    public/private/protected
+    friend declaration
+    member variable
+    method definition
+    include
+      Or have a 'Class X from y' form instead?
 
 Allow implicit type conversions
   Need to know about all the overloads, the types of the arguments, the available conversion functions and their costs
@@ -69,9 +39,6 @@ Add Int32, UInt32 and NInt32 types
 Add 8-bit and 16-bit types
 Add 64-bit types
 Add behaviors for types Bit, Byte, Character, Word, UInt
-Add classes
-  Implement resolveSize
-  Call resolveSize
 Add hexadecimal constants
 Add character literals
 Add array/structure literals #{1,2,3}

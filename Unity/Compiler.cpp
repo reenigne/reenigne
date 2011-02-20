@@ -1,19 +1,23 @@
 class Compiler
 {
 public:
-    void compileFunctionBody(SymbolArray program)
-    {
-        // TODO:
-        //   Walk through the statement tree (but not child classes and functions)
-        //     Assign a stack offset to each 
-        compileStatementSequence(program);
-    }
     void compileFunction(Symbol functionDefinitionStatement)
     {
-        // TODO:
-        //   Assign a stack offset to each parameter
-        //     Compute number of stack slots for each type
-        compileFunctionBody(functionDefinitionStatement[4].array());
+        int stackAdjust = offsetOf(functionDefinitionStatement);
+        if (stackAdjust != 0) {
+            add(Symbol(atomStackPointer));
+            add(Symbol(atomIntegerConstant, -stackAdjust));
+            add(Symbol(atomAdd));
+            add(Symbol(atomSetStackPointer));
+        }
+        compileStatementSequence(functionDefinitionStatement[4].array());
+        if (stackAdjust != 0) {
+            add(Symbol(atomStackPointer));
+            add(Symbol(atomIntegerConstant, stackAdjust));
+            add(Symbol(atomAdd));
+            add(Symbol(atomSetStackPointer));
+        }
+        add(Symbol(atomReturn));
     }
     SymbolList compiledProgram() const { return _compiledProgram; }
 private:
@@ -44,9 +48,24 @@ private:
                 }
                 break;
             case atomFromStatement:
+                // TODO
+                break;
             case atomVariableDefinitionStatement:
+                addAddressOf(statement[2].symbol());
+                compileExpression(statement[3].symbol());
+                add(Symbol(atomStore));
+                break;
             case atomAssignmentStatement:
+                addAddressOf(statement[1].symbol());
+                compileExpression(statement[2].symbol());
+                add(Symbol(atomStore));
+                break;
             case atomAddAssignmentStatement:
+                addAddressOf(statement[1].symbol());
+
+                compileExpression(statement[2].symbol());
+                add(Symbol(atomStore));
+                break;
             case atomSubtractAssignmentStatement:
             case atomMultiplyAssignmentStatement:
             case atomDivideAssignmentStatement:
@@ -190,6 +209,13 @@ private:
                 add(expression);
                 break;
         }
+    }
+    void addAddressOf(Symbol symbol)
+    {
+        int offset = offsetOf(symbol);
+        add(Symbol(atomStackPointer));  // TODO: there might be temporaries on the stack - keep track and correct for this
+        add(Symbol(atomIntegerConstant, offset));
+        add(Symbol(atomAdd));
     }
     void add(Symbol symbol)
     {
