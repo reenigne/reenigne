@@ -1,3 +1,59 @@
+Eliminate repetition in operator assignment
+  Parsing
+  Compiling
+
+Compiling operator assignment for strings
+
+Allowing overloading of operator assignment
+  Define adapter functions that the compiler can use to try to resolve missing overloads:
+    T operator+<T>(T x, T y) { T z = x; z += y; return z; }
+    Void operator+=<T>(T& x, T y) { x = x + y; }
+    T operator-<T>(T x, T y) { T z = x; z -= y; return z; }
+    T operator-<T>(T x, T y) { T z = x; z += -y; return z; }
+    Void operator-=<T>(T& x, T y) { x = x - y; }
+    Void operator-=<T>(T& x, T y) { x = x + -y; }
+    T operator|<T>(T x, T y) { T z = x; z |= y; return z; }
+    Void operator|=<T>(T& x, T y) { x = x | y; }
+    T operator&<T>(T x, T y) { T z = x; z &= y; return z; }
+    Void operator&=<T>(T& x, T y) { x = x & y; }
+    T operator~<T>(T x, T y) { T z = x; z ~= y; return z; }
+    Void operator~=<T>(T& x, T y) { x = x ~ y; }
+    T operator<<<T>(T x, int y) { T z = x; z <<= y; return z; }
+    Void operator<<=<T>(T& x, int y) { x = x << y; }
+    T operator>><T>(T x, int y) { T z = x; z >>= y; return z; }
+    Void operator>>=<T>(T& x, int y) { x = x >> y; }
+    T operator*<T>(T x, T y) { T z = x; z *= y; return z; }
+    Void operator*=<T>(T& x, T y) { x = x * y; }
+    T operator/<T>(T x, T y) { T z = x; z /= y; return z; }
+    Void operator/=<T>(T& x, T y) { x = x / y; }
+    T operator%<T>(T x, T y) { T z = x; z %= y; return z; }
+    Void operator%=<T>(T& x, T y) { x = x % y; }
+    T operator^<T>(T x, T y) { T z = x; z ^= y; return z; }
+    Void operator^=<T>(T& x, T y) { x = x ^ y; }
+    Boolean operator<<T>(T x, T y) { return y > x; }
+    Boolean operator<<T>(T x, T y) { return !(x >= y); }
+    Boolean operator<<T>(T x, T y) { return !(y <= x); }
+    Boolean operator><T>(T x, T y) { return x < y; }
+    Boolean operator><T>(T x, T y) { return !(x <= y); }
+    Boolean operator><T>(T x, T y) { return !(y >= x); }
+    Boolean operator<=<T>(T x, T y) { return !(x > y); }
+    Boolean operator<=<T>(T x, T y) { return y >= x; }
+    Boolean operator<=<T>(T x, T y) { return !(y < x); }
+    Boolean operator>=<T>(T x, T y) { return !(x < y); }
+    Boolean operator>=<T>(T x, T y) { return y <= x; }
+    Boolean operator>=<T>(T x, T y) { return !(y > x); }
+    Boolean operator==<T>(T x, T y) { return !(x != y); }
+    Boolean operator==<T>(T x, T y) { return (x >= y && y >= x); }
+    Boolean operator==<T>(T x, T y) { return !(x < y || y < x); }
+    Boolean operator==<T>(T x, T y) { return (x <= y && y <= x); }
+    Boolean operator==<T>(T x, T y) { return !(x > y || y > x); }
+    Boolean operator!=<T>(T x, T y) { return !(x == y); }
+    Boolean operator!=<T>(T x, T y) { return !(x >= y && y >= x); }
+    Boolean operator!=<T>(T x, T y) { return (x < y || y < x); }
+    Boolean operator!=<T>(T x, T y) { return !(x <= y && y <= x); }
+    Boolean operator!=<T>(T x, T y) { return (x > y || y > x); }
+  Allow different types for the two operands (particularly the relational ones)?
+
 compileFunction
   Need to keep track of:
     function's stack adjustment
