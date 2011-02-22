@@ -1,3 +1,5 @@
+Make sure all the calls to addAddressOf() pass the definition
+
 Eliminate repetition in operator assignment
   Parsing
   Compiling
@@ -138,6 +140,8 @@ Implement constructors and destructors
   Add operator  4 new[]             RtL
   Add statement `delete` ["[" "]"] Expression ";"
   Implement malloc/free
+  Call destructors when leaving scope
+    Need to keep track of where scopes end
 Implement exceptions
   throw statement
   try/catch/finally statement

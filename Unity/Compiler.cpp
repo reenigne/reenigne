@@ -237,7 +237,22 @@ private:
                 }
                 break;
             case atomForStatement:
-                // TODO
+                {
+                    compileStatement(statement[1].symbol());
+                    int done = Symbol::newLabel();
+                    int final = Symbol::newLabel();
+                    int start = getLabel();
+                    _breakContinueStack.push(BreakContinueStackEntry(final, start));
+                    compileExpression(statement[2].symbol());
+                    add(Symbol(atomNot));
+                    addJumpIfTrue(done);
+                    compileStatement(statement[3].symbol());
+                    compileStatement(statement[4].symbol());
+                    addGoto(start);
+                    _breakContinueStack.pop();
+                    addLabel(done);
+                    compileStatement(statement[5].symbol());
+                }
                 break;
         }
     }
@@ -279,10 +294,11 @@ private:
                 // TODO
                 break;
             case atomDereference:
-                // TODO
+                addAddressOf(expression[1].symbol());
+                add(Symbol(atomDereference));
                 break;
             case atomAddressOf:
-                // TODO
+                addAddressOf(expression[1].symbol());
                 break;
             case atomFunctionCall:
                 {
@@ -298,7 +314,11 @@ private:
                 add(expression);
                 break;
             case atomIdentifier:
-                // TODO
+                {
+                    Symbol definition = Symbol::labelled(labelOf(expression));
+                    addAddressOf(definition);
+                    add(Symbol(atomDereference));
+                }
                 break;
             case atomTrue:
             case atomFalse:
