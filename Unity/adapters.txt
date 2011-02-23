@@ -1,0 +1,47 @@
+T operator+<T>(T x, T y) { T z = x; z += y; return z; }
+Void operator+=<T>(T& x, T y) { x = x + y; }
+T operator-<T>(T x, T y) { T z = x; z -= y; return z; }
+T operator-<T>(T x, T y) { T z = x; z += -y; return z; }
+Void operator-=<T>(T& x, T y) { x = x - y; }
+Void operator-=<T>(T& x, T y) { x = x + -y; }
+T operator|<T>(T x, T y) { T z = x; z |= y; return z; }
+Void operator|=<T>(T& x, T y) { x = x | y; }
+T operator&<T>(T x, T y) { T z = x; z &= y; return z; }
+Void operator&=<T>(T& x, T y) { x = x & y; }
+T operator~<T>(T x, T y) { T z = x; z ~= y; return z; }
+Void operator~=<T>(T& x, T y) { x = x ~ y; }
+T operator<<<T>(T x, int y) { T z = x; z <<= y; return z; }
+Void operator<<=<T>(T& x, int y) { x = x << y; }
+T operator>><T>(T x, int y) { T z = x; z >>= y; return z; }
+Void operator>>=<T>(T& x, int y) { x = x >> y; }
+T operator*<T>(T x, T y) { T z = x; z *= y; return z; }
+Void operator*=<T>(T& x, T y) { x = x * y; }
+T operator/<T>(T x, T y) { T z = x; z /= y; return z; }
+Void operator/=<T>(T& x, T y) { x = x / y; }
+T operator%<T>(T x, T y) { T z = x; z %= y; return z; }
+Void operator%=<T>(T& x, T y) { x = x % y; }
+T operator^<T>(T x, T y) { T z = x; z ^= y; return z; }
+Void operator^=<T>(T& x, T y) { x = x ^ y; }
+Boolean operator<<T>(T x, T y) { return y > x; }
+Boolean operator<<T>(T x, T y) { return !(x >= y); }
+Boolean operator<<T>(T x, T y) { return !(y <= x); }
+Boolean operator><T>(T x, T y) { return x < y; }
+Boolean operator><T>(T x, T y) { return !(x <= y); }
+Boolean operator><T>(T x, T y) { return !(y >= x); }
+Boolean operator<=<T>(T x, T y) { return !(x > y); }
+Boolean operator<=<T>(T x, T y) { return y >= x; }
+Boolean operator<=<T>(T x, T y) { return !(y < x); }
+Boolean operator>=<T>(T x, T y) { return !(x < y); }
+Boolean operator>=<T>(T x, T y) { return y <= x; }
+Boolean operator>=<T>(T x, T y) { return !(y > x); }
+Boolean operator==<T>(T x, T y) { return !(x != y); }
+Boolean operator==<T>(T x, T y) { return (x >= y && y >= x); }
+Boolean operator==<T>(T x, T y) { return !(x < y || y < x); }
+Boolean operator==<T>(T x, T y) { return (x <= y && y <= x); }
+Boolean operator==<T>(T x, T y) { return !(x > y || y > x); }
+Boolean operator!=<T>(T x, T y) { return !(x == y); }
+Boolean operator!=<T>(T x, T y) { return !(x >= y && y >= x); }
+Boolean operator!=<T>(T x, T y) { return (x < y || y < x); }
+Boolean operator!=<T>(T x, T y) { return !(x <= y && y <= x); }
+Boolean operator!=<T>(T x, T y) { return (x > y || y > x); }
+

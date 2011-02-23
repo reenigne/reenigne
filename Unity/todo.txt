@@ -1,4 +1,19 @@
-Make sure all the calls to addAddressOf() pass the definition
+Keep track of number of stack slots pushed below local variables
+  Need to know number of stack slots taken by each type
+
+Make sure all the calls to addAddressOf() pass the definition (or change addAddressOf() to look up the definition)
+
+Add predefined functions for operators
+  It would be nice to be able to define these in Unity language rather than C++
+    Need a way to specify an implementation of a function using low-level instructions
+      Similar to "assembly { }" statement - have a "gil { }" statement?
+        Might rename this in the future
+        Create a GIL parser
+        Need GIL expressions as well
+          Pseudo-function parseGIL() - takes a string and 
+          Pseudo-functions parseGIL() and emit().
+      Need to allow operator overloading syntax
+Int operator+(Int x, Int y) return parseGIL("[(`push` y) (`push` x) (`+`)]");
 
 Eliminate repetition in operator assignment
   Parsing
@@ -8,52 +23,6 @@ Compiling operator assignment for strings
 
 Allowing overloading of operator assignment
   Define adapter functions that the compiler can use to try to resolve missing overloads:
-    T operator+<T>(T x, T y) { T z = x; z += y; return z; }
-    Void operator+=<T>(T& x, T y) { x = x + y; }
-    T operator-<T>(T x, T y) { T z = x; z -= y; return z; }
-    T operator-<T>(T x, T y) { T z = x; z += -y; return z; }
-    Void operator-=<T>(T& x, T y) { x = x - y; }
-    Void operator-=<T>(T& x, T y) { x = x + -y; }
-    T operator|<T>(T x, T y) { T z = x; z |= y; return z; }
-    Void operator|=<T>(T& x, T y) { x = x | y; }
-    T operator&<T>(T x, T y) { T z = x; z &= y; return z; }
-    Void operator&=<T>(T& x, T y) { x = x & y; }
-    T operator~<T>(T x, T y) { T z = x; z ~= y; return z; }
-    Void operator~=<T>(T& x, T y) { x = x ~ y; }
-    T operator<<<T>(T x, int y) { T z = x; z <<= y; return z; }
-    Void operator<<=<T>(T& x, int y) { x = x << y; }
-    T operator>><T>(T x, int y) { T z = x; z >>= y; return z; }
-    Void operator>>=<T>(T& x, int y) { x = x >> y; }
-    T operator*<T>(T x, T y) { T z = x; z *= y; return z; }
-    Void operator*=<T>(T& x, T y) { x = x * y; }
-    T operator/<T>(T x, T y) { T z = x; z /= y; return z; }
-    Void operator/=<T>(T& x, T y) { x = x / y; }
-    T operator%<T>(T x, T y) { T z = x; z %= y; return z; }
-    Void operator%=<T>(T& x, T y) { x = x % y; }
-    T operator^<T>(T x, T y) { T z = x; z ^= y; return z; }
-    Void operator^=<T>(T& x, T y) { x = x ^ y; }
-    Boolean operator<<T>(T x, T y) { return y > x; }
-    Boolean operator<<T>(T x, T y) { return !(x >= y); }
-    Boolean operator<<T>(T x, T y) { return !(y <= x); }
-    Boolean operator><T>(T x, T y) { return x < y; }
-    Boolean operator><T>(T x, T y) { return !(x <= y); }
-    Boolean operator><T>(T x, T y) { return !(y >= x); }
-    Boolean operator<=<T>(T x, T y) { return !(x > y); }
-    Boolean operator<=<T>(T x, T y) { return y >= x; }
-    Boolean operator<=<T>(T x, T y) { return !(y < x); }
-    Boolean operator>=<T>(T x, T y) { return !(x < y); }
-    Boolean operator>=<T>(T x, T y) { return y <= x; }
-    Boolean operator>=<T>(T x, T y) { return !(y > x); }
-    Boolean operator==<T>(T x, T y) { return !(x != y); }
-    Boolean operator==<T>(T x, T y) { return (x >= y && y >= x); }
-    Boolean operator==<T>(T x, T y) { return !(x < y || y < x); }
-    Boolean operator==<T>(T x, T y) { return (x <= y && y <= x); }
-    Boolean operator==<T>(T x, T y) { return !(x > y || y > x); }
-    Boolean operator!=<T>(T x, T y) { return !(x == y); }
-    Boolean operator!=<T>(T x, T y) { return !(x >= y && y >= x); }
-    Boolean operator!=<T>(T x, T y) { return (x < y || y < x); }
-    Boolean operator!=<T>(T x, T y) { return !(x <= y && y <= x); }
-    Boolean operator!=<T>(T x, T y) { return (x > y || y > x); }
   Allow different types for the two operands (particularly the relational ones)?
 
 compileFunction
@@ -116,9 +85,8 @@ Compile to executable code
   Implement calling external functions
   Need to evaluate dll expression at compile time
 Add statement `assembly` AssemblyStatement
-Make Identifier and TypeIdentifier disallow keywords
 Make include statement work
-  Problem: the include statement could change the meaning of the expression in it's argument, if (for example) it redefined a function that was called to construct the argument.
+  Problem: the include statement could change the meaning of the expression in its argument, if (for example) it redefined a function that was called to construct the argument.
   Solution: to evaluate the expression, pretend that the included file is empty and evaluate the filename on that assumption.
 Add operator  1 ::                LtR
 Add operator  2 typeid            LtR
@@ -165,8 +133,9 @@ Optimization: Shrink Symbol::_labelled if the second half is all empty to avoid 
   To do this, need to remove elements from the list when they're at the end of the array.
 Optimization: switch SymbolArray to am AVL tree
 Change semicolon parsing on increment/decrement/expression statements so that "for (i = 0; i < n; ++i)" is valid.
-
-Rewrite (e.g.) "x += y" as "t = &x; *t = *t + y;" so that operator overloading works properly?
+Add operator ".." which creates a Range value from two integers
+  Allow a String to be indexed by a Range to yield a substring
+Allow "a < b < c" (same as "a < b && b < c" but b is only evaluated once) and similar expressions    
 
 Measure stack size and allocate frames for unbounded recursive functions on heap
 
@@ -264,3 +233,4 @@ An ABI is a property of a function, not an architecture. It encompasses:
     CPU features that can be assumed?
 
 atomExit is not currently used
+

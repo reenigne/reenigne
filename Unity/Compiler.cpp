@@ -1,6 +1,7 @@
 class Compiler
 {
 public:
+    Compiler() : _stackOffset(0) { }
     void compileFunction(Symbol functionDefinitionStatement)
     {
         int stackAdjust = offsetOf(functionDefinitionStatement);
@@ -331,8 +332,9 @@ private:
     {
         int offset = offsetOf(symbol);
         add(Symbol(atomStackPointer));  // TODO: there might be temporaries on the stack - keep track and correct for this
-        add(Symbol(atomIntegerConstant, offset));
+        add(Symbol(atomIntegerConstant, offset + _stackOffset));
         add(Symbol(atomAdd));
+        _stackOffset += 4;
     }
     void add(Symbol symbol)
     {
@@ -375,6 +377,7 @@ private:
     int _label;
     bool _blockEnds;
     bool _atBlockStart;
+    int _stackOffset;
     
     class BreakContinueStackEntry
     {
