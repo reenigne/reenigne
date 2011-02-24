@@ -1,5 +1,10 @@
 Keep track of number of stack slots pushed below local variables
-  Need to know number of stack slots taken by each type
+  Handle calls correctly
+  Set _stackOffset at the start of each basic block
+    If a basic block can be reached from more than one other, make sure _stackOffset is the same for all of them
+
+A function should be responsible for popping its arguments from the stack
+  (Some back-ends might change this as an optimization)
 
 Make sure all the calls to addAddressOf() pass the definition (or change addAddressOf() to look up the definition)
 
@@ -234,3 +239,4 @@ An ABI is a property of a function, not an architecture. It encompasses:
 
 atomExit is not currently used
 
+Value range propagation

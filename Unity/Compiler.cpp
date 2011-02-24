@@ -1,7 +1,6 @@
 class Compiler
 {
 public:
-    Compiler() : _stackOffset(0) { }
     void compileFunction(Symbol functionDefinitionStatement)
     {
         int stackAdjust = offsetOf(functionDefinitionStatement);
@@ -11,6 +10,7 @@ public:
             add(Symbol(atomAdd));
             add(Symbol(atomSetStackPointer));
         }
+        _stackOffset = 0;
         compileStatementSequence(functionDefinitionStatement[4].array());
         if (stackAdjust != 0) {
             add(Symbol(atomStackPointer));
@@ -332,15 +332,74 @@ private:
     {
         int offset = offsetOf(symbol);
         add(Symbol(atomStackPointer));  // TODO: there might be temporaries on the stack - keep track and correct for this
-        add(Symbol(atomIntegerConstant, offset + _stackOffset));
+        add(Symbol(atomIntegerConstant, offset + _stackOffset - 4));
         add(Symbol(atomAdd));
-        _stackOffset += 4;
     }
     void add(Symbol symbol)
     {
         _basicBlock.add(symbol);
         _blockEnds = false;
         _atBlockStart = false;
+        int adjust = 0;
+        switch (symbol.atom()) {
+            case atomBitwiseOr:
+            case atomBitwiseXor:
+            case atomBitwiseAnd:
+            case atomEqualTo:
+            case atomNotEqualTo:
+            case atomLessThanOrEqualTo:
+            case atomGreaterThanOrEqualTo:
+            case atomLessThan:
+            case atomGreaterThan:
+            case atomLeftShift:
+            case atomRightShift:
+            case atomAdd:
+            case atomSubtract:
+            case atomMultiply:
+            case atomDivide:
+            case atomModulo:
+            case atomPower:
+            case atomGoto:
+            case atomDrop:
+            case atomStringConcatenate:
+            case atomStringEqualTo:
+            case atomStringNotEqualTo:
+            case atomStringLessThanOrEqualTo:
+            case atomStringGreaterThanOrEqualTo:
+            case atomStringLessThan:
+            case atomStringGreaterThan:
+            case atomStringIntegerMultiply:
+            case atomPrintFunction:
+                adjust = -4;
+                break;
+
+            case atomNot:
+            case atomNegative:
+            case atomDereference:
+                adjust = 0;
+                break;
+
+            case atomStringConstant:
+            case atomIntegerConstant:
+            case atomTrue:
+            case atomFalse:
+            case atomNull:
+            case atomStackPointer:
+            case atomDuplicate:
+                adjust = 4;
+                break;
+
+            case atomCall:
+                // TODO: adjust by 4*(1 + number of arguments)
+                break;
+
+            case atomJumpIfTrue:
+            case atomStore:
+                adjust = -8;
+                break;
+
+        }
+        _stackOffset += adjust;
     }
     void addGoto(int destination)
     {
