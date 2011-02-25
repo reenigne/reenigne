@@ -303,6 +303,7 @@ private:
                 break;
             case atomFunctionCall:
                 {
+                    _stackOffsetStack.push(_stackOffset);
                     SymbolArray arguments = expression[2].array();
                     for (int i = arguments.count() - 1; i >= 0; --i)
                         compileExpression(arguments[i]);
@@ -390,7 +391,7 @@ private:
                 break;
 
             case atomCall:
-                // TODO: adjust by 4*(1 + number of arguments)
+                adjust = _stackOffsetStack.pop() - _stackOffset;
                 break;
 
             case atomJumpIfTrue:
@@ -437,6 +438,7 @@ private:
     bool _blockEnds;
     bool _atBlockStart;
     int _stackOffset;
+    Stack<int> _stackOffsetStack;
     
     class BreakContinueStackEntry
     {

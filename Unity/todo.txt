@@ -1,5 +1,4 @@
 Keep track of number of stack slots pushed below local variables
-  Handle calls correctly
   Set _stackOffset at the start of each basic block
     If a basic block can be reached from more than one other, make sure _stackOffset is the same for all of them
 
