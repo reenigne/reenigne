@@ -3,10 +3,10 @@
 
 #include "unity/array.h"
 
-template<class Key, class Value> class HashTable : Uncopyable
+template<class Key, class Value> class HashTableBase : Uncopyable
 {
 public:
-    HashTable() : _n(0)
+    HashTableBase() : _n(0)
     {
         _table.allocate(1);
     }
@@ -33,7 +33,6 @@ public:
     }
     int count() const { return _n; }
 private:
-    int row(const Key& key) const { return key.hash() & (_table.count() - 1); }
     class TableEntry
     {
     public:
@@ -104,6 +103,18 @@ private:
     };
     Array<TableEntry> _table;
     int _n;
+};
+
+template<class Key, class Value> class HashTable : public HashTableBase<Key, Value>
+{
+private:
+    int row(const Key& key) const { return key.hash() & (_table.count() - 1); }
+};
+
+template<class Value> class HashTable<int, Value> : public HashTableBase<int, Value>
+{
+private:
+    int row(int key) const { return key & (_table.count() - 1); }
 };
 
 #endif // INCLUDED_HASH_TABLE_H

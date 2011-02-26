@@ -303,7 +303,7 @@ private:
                 break;
             case atomFunctionCall:
                 {
-                    _stackOffsetStack.push(_stackOffset);
+                    //_stackOffsetStack.push(_stackOffset);
                     SymbolArray arguments = expression[2].array();
                     for (int i = arguments.count() - 1; i >= 0; --i)
                         compileExpression(arguments[i]);
@@ -391,14 +391,14 @@ private:
                 break;
 
             case atomCall:
-                adjust = _stackOffsetStack.pop() - _stackOffset;
+                //adjust = _stackOffsetStack.pop() - _stackOffset;
+                adjust = -4;
                 break;
 
             case atomJumpIfTrue:
             case atomStore:
                 adjust = -8;
                 break;
-
         }
         _stackOffset += adjust;
     }
@@ -406,19 +406,24 @@ private:
     {
         add(Symbol(atomIntegerConstant, destination));
         add(Symbol(atomGoto));
+        checkBlockStackOffset(destination);
         _blockEnds = true;
     }
     void addJumpIfTrue(int destination)
     {
         add(Symbol(atomIntegerConstant, destination));
         add(Symbol(atomJumpIfTrue));
+        checkBlockStackOffset(destination);
     }
     void addLabel(int label)
     {
         int follows = label;
         if (_blockEnds)
             follows = -1;
+        else
+            checkBlockStackOffset(follows);
         Symbol block(atomBasicBlock, SymbolArray(_basicBlock), _label, follows);
+        checkBlockStackOffset(_label);
         block.setLabel(_label);
         _compiledProgram.add(block);
         _basicBlock = SymbolList();
@@ -431,6 +436,19 @@ private:
             addLabel(Symbol::newLabel());
         return _label;
     }
+    void checkBlockStackOffset(int label)
+    {
+        if (_blockStackOffsets.hasKey(label)) {
+            int stackOffset = _blockStackOffsets[label];
+            if (stackOffset != _stackOffset) {
+                static String error("Stack offset mismatch. Expected ");
+                static String error2(" found ");
+                throw Exception(error + String::decimal(stackOffset) + error2 + String::decimal(_stackOffset));
+            }
+        }
+        else
+            _blockStackOffsets.add(label, _stackOffset);
+    }
 
     SymbolList _compiledProgram;
     SymbolList _basicBlock;
@@ -439,6 +457,7 @@ private:
     bool _atBlockStart;
     int _stackOffset;
     Stack<int> _stackOffsetStack;
+    HashTable<int, int> _blockStackOffsets;
     
     class BreakContinueStackEntry
     {

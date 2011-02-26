@@ -1,0 +1,17 @@
+An ABI is a property of a function, not an architecture. It encompasses:
+  How are the arguments passed to the function?
+    In registers or on the stack?
+    If in registers, which ones?
+    If on the stack, how is the stack arranged?
+  How are is the return value returned?
+    In registers or on the stack or in a location pointed to by an argument?
+  How must the caller align the stack?
+    Alignment and offset
+  Which registers can the callee stomp?
+  What name should the function have for linking purposes?
+  Other architecture specific information:
+    Flags that must be preserved?
+    Other global state (e.g. FPU state)
+    CPU features that can be assumed?
+
+

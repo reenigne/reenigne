@@ -1,9 +1,17 @@
-Keep track of number of stack slots pushed below local variables
-  Set _stackOffset at the start of each basic block
-    If a basic block can be reached from more than one other, make sure _stackOffset is the same for all of them
-
-A function should be responsible for popping its arguments from the stack
-  (Some back-ends might change this as an optimization)
+Implement operators as identifiers
+  |
+  ~ (unary and binary)
+  & (binary only - unary can't be overridden)
+  == != <= < > >=
+  << >>
+  + (unary and binary)
+  - (unary and binary)
+  /
+  * (unary and binary)
+  %
+  ^
+  ()
+  []
 
 Make sure all the calls to addAddressOf() pass the definition (or change addAddressOf() to look up the definition)
 
@@ -165,76 +173,6 @@ Need to thing about what Type::toString() returns for class types
   keep track of first name assigned to type if it's defined with an alias
 
 Optimization: If g is only ever called by f, we can do the stack correction for g at the same time we do the stack correction for f.
-
-// Adjust before after
-//        [sp]   [sp+adj]    contains the last value pushed - the return address
-//        [sp+4] [sp+adj+4]  contains the (first word of the) first argument
-//        [sp-4] [sp+adj-4]  contains the (first word of the) first variable
-// Need an algorithm to compute offsets of parameters and arguments and the stack adjustment
-//   Treat parameters as an object, round up to stack alignment (4 bytes for 32-bit)
-//     Need an algorithm to compute offsets for an object
-
-// sp increasing ^
-//   last incoming argument word
-//   ...
-//   first incoming argument word     
-//   return address                   
-//   [optional alignment word]        
-//   last variable word               
-//   ...                              
-//   first variable word              
-//   [optional alignment word]
-//   last outgoing argument word
-//   ...
-//   first outgoing argument word
-//   [optional alignment word]
-//   return address
-
-// => The calling function has the responsibility of aligning the stack.
-//   What happens if f doesn't need the stack aligned, but g (called by f) does?
-//     f needs to decide in its prologue whether to add the alignment word or not
-//     Or, it can specify that its caller needs to align the stack
-
-Should functions be able to use PUSH and POP?
-  They might be slower (depending on the CPU) but often take up less space. We
-   should allow the compiler the possibility of generating them when they are
-   preferred.
-  Two styles of code generation:
-    1) PUSH/POP
-      * put everything on the stack
-      * easy compilation
-      * don't reserve stack space for outgoing arguments
-      * shouldn't have two arguments in a single stack slot
-    2) no PUSH/POP
-      * may need to create extra variables for temporaries
-      * arguments are laid out as in a class
-      * probably faster on modern machines
-    Can these styles interact in a single function?
-      If we PUSH something under the outgoing arguments area (storing a
-       temporary variable across a function call), then we need to PUSH the
-       arguments too.
-Plan:
-  First implementation:
-    Use PUSH/POP
-
-  Reserve stack space for outgoing arguments
-   Use this space if PUSH/POP are not preferred
-     
-An ABI is a property of a function, not an architecture. It encompasses:
-  How are the arguments passed to the function?
-    In registers or on the stack?
-    If in registers, which ones?
-    If on the stack, how is the stack arranged?
-  How are is the return value returned?
-    In registers or on the stack or in a location pointed to by an argument?
-  How must the caller align the stack?
-    Alignment and offset
-  Which registers can the callee stomp?
-  What name should the function have for linking purposes?
-  Other architecture specific information:
-    Flags that must be preserved?
-    Other global state (e.g. FPU state)
-    CPU features that can be assumed?
 
 atomExit is not currently used
 
