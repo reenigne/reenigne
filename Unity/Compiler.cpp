@@ -39,7 +39,17 @@ private:
     {
         switch (statement.atom()) {
             case atomExpressionStatement:
-                compileExpression(statement[1].symbol());
+                {
+                    Symbol expression = statement[1].symbol();
+                    compileExpression(expression);
+                    // Pop (unused) return value from stack
+                    Symbol type = typeOf(expression).atom();
+                    int adjust = (sizeOf(type) + 3) & -4;
+                    while (adjust != 0) {
+                        add(Symbol(atomDrop));
+                        adjust -= 4;
+                    }
+                }
                 break;            
             case atomFunctionDefinitionStatement:
                 {
@@ -307,8 +317,22 @@ private:
                     SymbolArray arguments = expression[2].array();
                     for (int i = arguments.count() - 1; i >= 0; --i)
                         compileExpression(arguments[i]);
-                    compileExpression(expression[1].symbol());
+                    Symbol function = expression[1].symbol();
+                    compileExpression(function);
                     add(Symbol(atomCall));
+                    int adjust = 0;
+                    for (int i = 0 ; i < arguments.count(); ++i) {
+                        Symbol type = typeOf(arguments[i]);
+                        adjust += (sizeOf(type) + 3) & -4;
+                    }
+                    if (adjust != 0) {
+                        // Pop arguments from stack.
+                        // TODO: need to move the return value first.
+                        add(Symbol(atomStackPointer));
+                        add(Symbol(atomIntegerConstant, adjust));
+
+                    }
+
                 }
                 break;
             case atomIntegerConstant:
