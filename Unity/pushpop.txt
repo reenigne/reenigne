@@ -9,12 +9,12 @@
 // sp increasing ^
 //   last incoming argument word
 //   ...
-//   first incoming argument word     
-//   return address                   
-//   [optional alignment word]        
-//   last variable word               
-//   ...                              
-//   first variable word              
+//   first incoming argument word
+//   return address
+//   [optional alignment word]
+//   last variable word
+//   ...
+//   first variable word
 //   [optional alignment word]
 //   last outgoing argument word
 //   ...
@@ -22,40 +22,29 @@
 //   [optional alignment word]
 //   return address
 
-// => The calling function has the responsibility of aligning the stack.
-//   What happens if f doesn't need the stack aligned, but g (called by f) does?
-//     f needs to decide in its prologue whether to add the alignment word or not
-//     Or, it can specify that its caller needs to align the stack
 
-Should functions be able to use PUSH and POP?
-  They might be slower (depending on the CPU) but often take up less space. We
-   should allow the compiler the possibility of generating them when they are
-   preferred.
-  Two styles of code generation:
-    1) PUSH/POP
-      * put everything on the stack
-      * easy compilation
-      * don't reserve stack space for outgoing arguments
-      * shouldn't have two arguments in a single stack slot
-    2) no PUSH/POP
-      * may need to create extra variables for temporaries
-      * arguments are laid out as in a class
-      * probably faster on modern machines
-    Can these styles interact in a single function?
-      If we PUSH something under the outgoing arguments area (storing a
-       temporary variable across a function call), then we need to PUSH the
-       arguments too.
-    When writing directly in intermediate language, probably want to be able to use push and pop.
-Plan:
-  First implementation:
-    Use PUSH/POP
+To implement PUSH/POP (initial):
+  Don't reserve frame space for outgoing arguments
+  Functions pop their arguments
+  Don't need to allocate temporaries explicitly
+  Epilogue needs to change stack from (return value, return address, parameters) to (return address, return value) before returning
+  At most 1 argument in each stack slot
+  May have smaller code in some cases
+  When writing functions directly in intermediate language (for run time code generation) write them in this style and they are optimized by the compiler
+  Align stack as required (in prologue if there is a variable with alignment requirements, or when pushing arguments)
 
-  Reserve stack space for outgoing arguments
-   Use this space if PUSH/POP are not preferred
+To implement non-PUSH/POP (optimized):
+  Reserve frame space for outgoing arguments
+  Functions do not pop their arguments
+  Need to create extra variables for temporaries
+  Above outgoing arguments reserve space for the function to place its return value
+  Arguments laid out as in a class
+  Probably faster in general on modern machines
+  Probably won't write code like this directly - only compiler-generated
+  Calling function has the responsibility of aligning the stack (it can do so in the prologue, or pass the responsibility on to its callers)
 
-
-When using PUSH/POP
-  Don't need to save space in frame for arguments
-  Can have functions pop their arguments
-
+Can these styles interact in a single function?
+  If we PUSH something under the outgoing arguments area (storing a
+   temporary variable across a function call), then we need to PUSH the
+   arguments too.
 

@@ -4,20 +4,24 @@ public:
     void compileFunction(Symbol functionDefinitionStatement)
     {
         int stackAdjust = offsetOf(functionDefinitionStatement);
-        if (stackAdjust != 0) {
-            add(Symbol(atomStackPointer));
-            add(Symbol(atomIntegerConstant, -stackAdjust));
-            add(Symbol(atomAdd));
-            add(Symbol(atomSetStackPointer));
-        }
+        if (stackAdjust != 0)
+            addAdjustStackPointer(-stackAdjust);
         _stackOffset = 0;
         compileStatementSequence(functionDefinitionStatement[4].array());
-        if (stackAdjust != 0) {
-            add(Symbol(atomStackPointer));
-            add(Symbol(atomIntegerConstant, stackAdjust));
-            add(Symbol(atomAdd));
-            add(Symbol(atomSetStackPointer));
-        }
+        // Before: returnValue localVariables returnAddress parameters
+        // After: returnAddress returnValue
+        Symbol type = typeOf(functionDefinitionStatement);
+        Symbol returnType = type[1].symbol();
+        int returnTypeSize = (sizeOf(returnType) + 3) & -4;
+        int parametersSize = 0;
+        SymbolArray parameterTypes = type[2].array();
+        for (int i = 0; i < parameterTypes.count(); ++i)
+            parametersSize += (sizeOf(parameterTypes[i]) + 3) & -4;
+        addLoadWordFromStackRelativeAddress(returnTypeSize + stackAdjust);
+        addMoveBlock(0, stackAdjust + 4 + parametersSize, 1 + returnTypeSize/4);
+        
+        if (stackAdjust != 0)
+            addAdjustStackPointer(stackAdjust);
         add(Symbol(atomReturn));
     }
     SymbolList compiledProgram() const { return _compiledProgram; }
@@ -43,12 +47,7 @@ private:
                     Symbol expression = statement[1].symbol();
                     compileExpression(expression);
                     // Pop (unused) return value from stack
-                    Symbol type = typeOf(expression).atom();
-                    int adjust = (sizeOf(type) + 3) & -4;
-                    while (adjust != 0) {
-                        add(Symbol(atomDrop));
-                        adjust -= 4;
-                    }
+                    addAdjustStackPointer((sizeOf(typeOf(expression)) + 3) & -4);
                 }
                 break;            
             case atomFunctionDefinitionStatement:
@@ -313,26 +312,12 @@ private:
                 break;
             case atomFunctionCall:
                 {
-                    //_stackOffsetStack.push(_stackOffset);
                     SymbolArray arguments = expression[2].array();
                     for (int i = arguments.count() - 1; i >= 0; --i)
                         compileExpression(arguments[i]);
                     Symbol function = expression[1].symbol();
                     compileExpression(function);
                     add(Symbol(atomCall));
-                    int adjust = 0;
-                    for (int i = 0 ; i < arguments.count(); ++i) {
-                        Symbol type = typeOf(arguments[i]);
-                        adjust += (sizeOf(type) + 3) & -4;
-                    }
-                    if (adjust != 0) {
-                        // Pop arguments from stack.
-                        // TODO: need to move the return value first.
-                        add(Symbol(atomStackPointer));
-                        add(Symbol(atomIntegerConstant, adjust));
-
-                    }
-
                 }
                 break;
             case atomIntegerConstant:
@@ -353,12 +338,63 @@ private:
                 break;
         }
     }
+    void addPushStackRelativeAddress(int offset)
+    {
+        add(Symbol(atomStackPointer));
+        add(Symbol(atomIntegerConstant, offset));
+        add(Symbol(atomAdd));
+    }
+    void addLoadWordFromStackRelativeAddress(int offset)
+    {
+        addPushStackRelativeAddress(offset);
+        add(Symbol(atomDereference));
+    }
+    void addStoreWordToStackRelativeAddress(int offset)
+    {
+        addPushStackRelativeAddress(offset);
+        addLoadWordFromStackRelativeAddress(4);
+        add(Symbol(atomStore));
+        add(Symbol(atomDrop));
+    }
+    void addMoveWord(int fromOffset, int toOffset)
+    {
+        if (fromOffset != toOffset) {
+            addLoadWordFromStackRelativeAddress(fromOffset);
+            addStoreWordToStackRelativeAddress(toOffset + 4);
+        }
+    }
+    void addMoveBlock(int fromOffset, int toOffset, int words)
+    {
+        for (int i = 0; i < words; ++i) {
+            addMoveWord(fromOffset, toOffset);
+            fromOffset += 4;
+            toOffset += 4;
+        }
+    }
+    void addAdjustStackPointer(int offset)
+    {
+        if (offset == 12) {
+            offset -= 4;
+            add(Symbol(atomDrop));
+        }
+        if (offset == 8) {
+            offset -= 4;
+            add(Symbol(atomDrop));
+        }
+        if (offset == 4) {
+            offset -= 4;
+            add(Symbol(atomDrop));
+        }
+        if (offset == 0)
+            return;
+        add(Symbol(atomStackPointer));
+        add(Symbol(atomIntegerConstant, offset));
+        add(Symbol(atomAdd));
+        add(Symbol(atomSetStackPointer));
+    }
     void addAddressOf(Symbol symbol)
     {
-        int offset = offsetOf(symbol);
-        add(Symbol(atomStackPointer));  // TODO: there might be temporaries on the stack - keep track and correct for this
-        add(Symbol(atomIntegerConstant, offset + _stackOffset - 4));
-        add(Symbol(atomAdd));
+        addPushStackRelativeAddress(offsetOf(symbol) + _stackOffset - 4);
     }
     void add(Symbol symbol)
     {
@@ -415,7 +451,6 @@ private:
                 break;
 
             case atomCall:
-                //adjust = _stackOffsetStack.pop() - _stackOffset;
                 adjust = -4;
                 break;
 
@@ -480,7 +515,6 @@ private:
     bool _blockEnds;
     bool _atBlockStart;
     int _stackOffset;
-    Stack<int> _stackOffsetStack;
     HashTable<int, int> _blockStackOffsets;
     
     class BreakContinueStackEntry

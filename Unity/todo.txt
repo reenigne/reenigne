@@ -22,7 +22,7 @@ Add predefined functions for operators
         Might rename this in the future
         Create a GIL parser
         Need GIL expressions as well
-          Pseudo-function parseGIL() - takes a string and 
+          Pseudo-function parseGIL() - takes a string and
           Pseudo-functions parseGIL() and emit().
       Need to allow operator overloading syntax
 Int operator+(Int x, Int y) return parseGIL("[(`push` y) (`push` x) (`+`)]");
@@ -147,7 +147,7 @@ Optimization: switch SymbolArray to am AVL tree
 Change semicolon parsing on increment/decrement/expression statements so that "for (i = 0; i < n; ++i)" is valid.
 Add operator ".." which creates a Range value from two integers
   Allow a String to be indexed by a Range to yield a substring
-Allow "a < b < c" (same as "a < b && b < c" but b is only evaluated once) and similar expressions    
+Allow "a < b < c" (same as "a < b && b < c" but b is only evaluated once) and similar expressions
 
 Measure stack size and allocate frames for unbounded recursive functions on heap
 
@@ -164,7 +164,7 @@ Have a run-time type operator typeOf()?
   The Type object of type T is T::type.
   print("Compile-time type is ${TypeOf(x)::type}, run-time type is ${typeOf(x)}\n");
     Type has a toString() method, but the strings are not linked in unless used.
-  
+
 Allow parameters to have type Auto which creates a template function?
 
 Have a Symbol-like type built in - the atoms are Type objects (or pointers to them)
