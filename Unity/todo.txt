@@ -13,7 +13,7 @@ Implement operators as identifiers
   ()
   []
 
-Make sure all the calls to addAddressOf() pass the definition (or change addAddressOf() to look up the definition)
+Rewrite assignment operators to call operator functions
 
 Add predefined functions for operators
   It would be nice to be able to define these in Unity language rather than C++

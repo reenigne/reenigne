@@ -18,8 +18,7 @@ public:
         for (int i = 0; i < parameterTypes.count(); ++i)
             parametersSize += (sizeOf(parameterTypes[i]) + 3) & -4;
         addLoadWordFromStackRelativeAddress(returnTypeSize + stackAdjust);
-        addMoveBlock(0, stackAdjust + 4 + parametersSize, 1 + returnTypeSize/4);
-        
+        addMoveBlock(0, stackAdjust + 4 + parametersSize, 1 + returnTypeSize/4);        
         if (stackAdjust != 0)
             addAdjustStackPointer(stackAdjust);
         add(Symbol(atomReturn));
@@ -394,7 +393,8 @@ private:
     }
     void addAddressOf(Symbol symbol)
     {
-        addPushStackRelativeAddress(offsetOf(symbol) + _stackOffset - 4);
+        Symbol definition = Symbol::labelled(labelOf(symbol));
+        addPushStackRelativeAddress(offsetOf(definition) + _stackOffset - 4);
     }
     void add(Symbol symbol)
     {
