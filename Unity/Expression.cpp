@@ -40,6 +40,26 @@ int parseHexadecimalCharacter(CharacterSource* source)
     return -1;
 }
 
+String equalTo("==");
+String notEqualTo("!=");
+String lessThanOrEqualTo("<=");
+String greaterThanOrEqualTo(">=");
+String shiftLeft("<<");
+String shiftRight(">>");
+String addAssignment("+=");
+String subtractAssignment("-=");
+String multiplyAssignment("*=");
+String divideAssignment("/=");
+String moduloAssignment("%=");
+String shiftLeftAssignment("<<=");
+String shiftRightAssignment(">>=");
+String bitwiseAndAssignment("&=");
+String bitwiseOrAssignment("|=");
+String bitwiseXorAssignment("~=");
+String powerAssignment("^=");
+String increment("++");
+String decrement("--");
+
 Symbol parseIdentifier(CharacterSource* source)
 {
     CharacterSource s = *source;
@@ -93,8 +113,90 @@ Symbol parseIdentifier(CharacterSource* source)
     for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); ++i)
         if (name == keywords[i])
             return Symbol();
-    *source = s2;
-    return Symbol(atomIdentifier, name, newSpan(startLocation, endLocation));
+    String op("operator");
+    if (name != op) {
+        *source = s2;
+        return Symbol(atomIdentifier, name, newSpan(startLocation, endLocation));
+    }
+    Span span2;
+    Atom atom = atomLast;
+    if (Space::parseCharacter(&s2, '|', span2))
+        atom = atomBitwiseOr;
+    else if (Space::parseCharacter(&s2, '~', span2))
+        atom = atomBitwiseXor;
+    else if (Space::parseCharacter(&s2, '&', span2))
+        atom = atomBitwiseAnd;
+    else if (Space::parseOperator(&s2, equalTo, span2))
+        atom = atomEqualTo;
+    else if (Space::parseOperator(&s2, notEqualTo, span2))
+        atom = atomNotEqualTo;
+    else if (Space::parseOperator(&s2, lessThanOrEqualTo, span2))
+        atom = atomLessThanOrEqualTo;
+    else if (Space::parseCharacter(&s2, '<', span2))
+        atom = atomLessThan;
+    else if (Space::parseOperator(&s2, greaterThanOrEqualTo, span2))
+        atom = atomGreaterThanOrEqualTo;
+    else if (Space::parseCharacter(&s2, '>', span2))
+        atom = atomGreaterThan;
+    else if (Space::parseOperator(&s2, shiftLeft, span2))
+        atom = atomShiftLeft;
+    else if (Space::parseOperator(&s2, shiftRight, span2))
+        atom = atomShiftRight;
+    else if (Space::parseCharacter(&s2, '+', span2))
+        atom = atomAdd;
+    else if (Space::parseCharacter(&s2, '-', span2))
+        atom = atomSubtract;
+    else if (Space::parseCharacter(&s2, '/', span2))
+        atom = atomDivide;
+    else if (Space::parseCharacter(&s2, '*', span2))
+        atom = atomMultiply;
+    else if (Space::parseCharacter(&s2, '%', span2))
+        atom = atomModulo;
+    else if (Space::parseCharacter(&s2, '(', span2)) {
+        if (Space::parseCharacter(&s2, ')', span2))
+            atom = atomFunctionCall;
+        else {
+            static String expected("Expected )");
+            s2.location().throwError(expected);
+        }
+    }
+    else if (Space::parseCharacter(&s2, '[', span2)) {
+        if (Space::parseCharacter(&s2, ']', span2))
+            atom = atomFunctionCall;
+        else {
+            static String expected("Expected ]");
+            s2.location().throwError(expected);
+        }
+    }
+    else if (Space::parseCharacter(&s2, '=', span2))
+        atom = atomAssignment;
+    else if (Space::parseOperator(&s2, addAssignment, span2))
+        atom = atomAddAssignment;
+    else if (Space::parseOperator(&s2, subtractAssignment, span2))
+        atom = atomSubtractAssignment;
+    else if (Space::parseOperator(&s2, multiplyAssignment, span2))
+        atom = atomMultiplyAssignment;
+    else if (Space::parseOperator(&s2, divideAssignment, span2))
+        atom = atomDivideAssignment;
+    else if (Space::parseOperator(&s2, moduloAssignment, span2))
+        atom = atomModuloAssignment;
+    else if (Space::parseOperator(&s2, shiftLeftAssignment, span2))
+        atom = atomShiftLeftAssignment;
+    else if (Space::parseOperator(&s2, shiftRightAssignment, span2))
+        atom = atomShiftRightAssignment;
+    else if (Space::parseOperator(&s2, bitwiseAndAssignment, span2))
+        atom = atomBitwiseAndAssignment;
+    else if (Space::parseOperator(&s2, bitwiseOrAssignment, span2))
+        atom = atomBitwiseOrAssignment;
+    else if (Space::parseOperator(&s2, bitwiseXorAssignment, span2))
+        atom = atomBitwiseXorAssignment;
+    else if (Space::parseOperator(&s2, powerAssignment, span2))
+        atom = atomPowerAssignment;
+    else {
+        static String expected("Expected an operator");
+        s2.location().throwError(expected);
+    }
+    return Symbol(atom, newSpan(startLocation, span2.end()));
 }
 
 Symbol parseDoubleQuotedString(CharacterSource* source)
@@ -429,7 +531,7 @@ Symbol parseUnaryExpression(CharacterSource* source)
     }
     if (Space::parseCharacter(source, '-', span)) {
         Symbol e = parseUnaryExpression(source);
-        return unaryOperation(atomNegative, span, startLocation, e);
+        return unaryOperation(atomSubtract, span, startLocation, e);
     }
     if (Space::parseCharacter(source, '*', span)) {
         Symbol e = parseUnaryExpression(source);
@@ -506,20 +608,18 @@ Symbol parseShiftExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        static String leftShift("<<");
-        if (Space::parseOperator(source, leftShift, span)) {
+        if (Space::parseOperator(source, shiftLeft, span)) {
             Symbol e2 = parseAdditiveExpression(source);
             if (!e2.valid())
                 throwError(source);
-            e = binaryOperation(atomLeftShift, span, e, e2);
+            e = binaryOperation(atomShiftLeft, span, e, e2);
             continue;
         }
-        static String rightShift(">>");
-        if (Space::parseOperator(source, rightShift, span)) {
+        if (Space::parseOperator(source, shiftRight, span)) {
             Symbol e2 = parseAdditiveExpression(source);
             if (!e2.valid())
                 throwError(source);
-            e = binaryOperation(atomRightShift, span, e, e2);
+            e = binaryOperation(atomShiftRight, span, e, e2);
             continue;
         }
         return e;
@@ -533,7 +633,6 @@ Symbol parseComparisonExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        static String lessThanOrEqualTo("<=");
         if (Space::parseOperator(source, lessThanOrEqualTo, span)) {
             Symbol e2 = parseShiftExpression(source);
             if (!e2.valid())
@@ -541,7 +640,6 @@ Symbol parseComparisonExpression(CharacterSource* source)
             e = binaryOperation(atomLessThanOrEqualTo, span, e, e2);
             continue;
         }
-        static String greaterThanOrEqualTo(">=");
         if (Space::parseOperator(source, greaterThanOrEqualTo, span)) {
             Symbol e2 = parseShiftExpression(source);
             if (!e2.valid())
@@ -574,7 +672,6 @@ Symbol parseEqualityExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        static String equalTo("==");
         if (Space::parseOperator(source, equalTo, span)) {
             Symbol e2 = parseComparisonExpression(source);
             if (!e2.valid())
@@ -582,7 +679,6 @@ Symbol parseEqualityExpression(CharacterSource* source)
             e = binaryOperation(atomEqualTo, span, e, e2);
             continue;
         }
-        static String notEqualTo("!=");
         if (Space::parseOperator(source, notEqualTo, span)) {
             Symbol e2 = parseComparisonExpression(source);
             if (!e2.valid())

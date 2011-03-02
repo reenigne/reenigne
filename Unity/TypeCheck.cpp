@@ -51,28 +51,6 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
                 }
             }
             break;
-        case atomAssignmentStatement:
-        case atomAddAssignmentStatement:
-        case atomSubtractAssignmentStatement:
-        case atomMultiplyAssignmentStatement:
-        case atomDivideAssignmentStatement:
-        case atomModuloAssignmentStatement:
-        case atomShiftLeftAssignmentStatement:
-        case atomShiftRightAssignmentStatement:
-        case atomAndAssignmentStatement:
-        case atomOrAssignmentStatement:
-        case atomXorAssignmentStatement:
-        case atomPowerAssignmentStatement:
-            {
-                Symbol lValueType = typeOf(symbol[1]);
-                Symbol rValueType = typeOf(symbol[2]);
-                if (lValueType != rValueType) {
-                    static String error("can't assign a expression of type ");
-                    static String error2(" to a variable of type ");
-                    spanOf(symbol).throwError(error + typeToString(rValueType) + error2 + typeToString(lValueType));
-                }
-            }
-            break;
         case atomIfStatement:
             assertTypeBoolean(symbol[1].symbol());
             break;

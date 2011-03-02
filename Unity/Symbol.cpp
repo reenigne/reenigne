@@ -31,8 +31,8 @@ enum Atom
     atomGreaterThanOrEqualTo,
     atomLessThan,
     atomGreaterThan,
-    atomLeftShift,
-    atomRightShift,
+    atomShiftLeft,
+    atomShiftRight,
     atomAdd,
     atomSubtract,
     atomMultiply,
@@ -59,23 +59,23 @@ enum Atom
     atomFunctionDefinitionStatement,
     atomFromStatement,
     atomVariableDefinitionStatement,
-    atomAssignmentStatement,
-    atomAddAssignmentStatement,
-    atomSubtractAssignmentStatement,
-    atomMultiplyAssignmentStatement,
-    atomDivideAssignmentStatement,
-    atomModuloAssignmentStatement,
-    atomShiftLeftAssignmentStatement,
-    atomShiftRightAssignmentStatement,
-    atomAndAssignmentStatement,
-    atomOrAssignmentStatement,
-    atomXorAssignmentStatement,
-    atomPowerAssignmentStatement,
+    atomAssignment,
+    atomAddAssignment,
+    atomSubtractAssignment,
+    atomMultiplyAssignment,
+    atomDivideAssignment,
+    atomModuloAssignment,
+    atomShiftLeftAssignment,
+    atomShiftRightAssignment,
+    atomBitwiseAndAssignment,
+    atomBitwiseOrAssignment,
+    atomBitwiseXorAssignment,
+    atomPowerAssignment,
     atomCompoundStatement,
     atomTypeAliasStatement,
     atomNothingStatement,
-    atomIncrementStatement,
-    atomDecrementStatement,
+    atomIncrement,
+    atomDecrement,
     atomIfStatement,
     atomSwitchStatement,
     atomReturnStatement,
@@ -153,8 +153,8 @@ String atomToString(Atom atom)
             _table[atomGreaterThanOrEqualTo] = String(">=");                         // leftExpression rightExpression
             _table[atomLessThan] = String("<");                                      // leftExpression rightExpression
             _table[atomGreaterThan] = String(">");                                   // leftExpression rightExpression
-            _table[atomLeftShift] = String("<<");                                    // leftExpression rightExpression
-            _table[atomRightShift] = String(">>");                                   // leftExpression rightExpression
+            _table[atomShiftLeft] = String("<<");                                    // leftExpression rightExpression
+            _table[atomShiftRight] = String(">>");                                   // leftExpression rightExpression
             _table[atomAdd] = String("+");                                           // leftExpression rightExpression
             _table[atomSubtract] = String("-");                                      // leftExpression rightExpression
             _table[atomMultiply] = String("*");                                      // leftExpression rightExpression
@@ -181,23 +181,23 @@ String atomToString(Atom atom)
             _table[atomFunctionDefinitionStatement] = String("functionDefinition");  // returnType     name            parameters     statement
             _table[atomFromStatement] = String("from");                              // dllExpression
             _table[atomVariableDefinitionStatement] = String("variableDefinition");  // typeSpecifier  identifier      initializer
-            _table[atomAssignmentStatement] = String("=");                           // leftExpression rightExpression
-            _table[atomAddAssignmentStatement] = String("+=");                       // leftExpression rightExpression
-            _table[atomSubtractAssignmentStatement] = String("-=");                  // leftExpression rightExpression
-            _table[atomMultiplyAssignmentStatement] = String("*=");                  // leftExpression rightExpression
-            _table[atomDivideAssignmentStatement] = String("/=");                    // leftExpression rightExpression
-            _table[atomModuloAssignmentStatement] = String("%=");                    // leftExpression rightExpression
-            _table[atomShiftLeftAssignmentStatement] = String("<<=");                // leftExpression rightExpression
-            _table[atomShiftRightAssignmentStatement] = String(">>=");               // leftExpression rightExpression
-            _table[atomAndAssignmentStatement] = String("&=");                       // leftExpression rightExpression
-            _table[atomOrAssignmentStatement] = String("|=");                        // leftExpression rightExpression
-            _table[atomXorAssignmentStatement] = String("~=");                       // leftExpression rightExpression
-            _table[atomPowerAssignmentStatement] = String("^=");                     // leftExpression rightExpression
+            _table[atomAssignment] = String("=");     
+            _table[atomAddAssignment] = String("+=");  
+            _table[atomSubtractAssignment] = String("-=");   
+            _table[atomMultiplyAssignment] = String("*=");   
+            _table[atomDivideAssignment] = String("/=");     
+            _table[atomModuloAssignment] = String("%=");     
+            _table[atomShiftLeftAssignment] = String("<<="); 
+            _table[atomShiftRightAssignment] = String(">>=");
+            _table[atomBitwiseAndAssignment] = String("&=");        
+            _table[atomBitwiseOrAssignment] = String("|=");         
+            _table[atomBitwiseXorAssignment] = String("~=");        
+            _table[atomPowerAssignment] = String("^=");      
             _table[atomCompoundStatement] = String("compound");                      // statements
             _table[atomTypeAliasStatement] = String("type");                         // typeIdentifier typeSpecifier
             _table[atomNothingStatement] = String("nothing");
-            _table[atomIncrementStatement] = String("++");                           // expression
-            _table[atomDecrementStatement] = String("--");                           // expression
+            _table[atomIncrement] = String("++");    
+            _table[atomDecrement] = String("--");    
             _table[atomIfStatement] = String("if");                                  // condition      trueStatement   falseStatement
             _table[atomSwitchStatement] = String("switch");                          // expression     defaultCase     cases
             _table[atomReturnStatement] = String("return");                          // expression

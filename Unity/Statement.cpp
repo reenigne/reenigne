@@ -127,79 +127,41 @@ Symbol parseAssignmentStatement(CharacterSource* source)
     Location operatorLocation = s.location();
     if (!lValue.valid())
         return Symbol();
-    int type = 0;
-    static String addAssignment("+=");
-    static String subtractAssignment("-=");
-    static String multiplyAssignment("*=");
-    static String divideAssignment("/=");
-    static String moduloAssignment("%=");
-    static String shiftLeftAssignment("<<=");
-    static String shiftRightAssignment(">>=");
-    static String andAssignment("&=");
-    static String orAssignment("|=");
-    static String xorAssignment("~=");
-    static String powerAssignment("^=");
-
+    Symbol function;
     Span span;
     if (Space::parseCharacter(&s, '=', span))
-        type = 1;
+        function = Symbol(atomAssignment);
     else if (Space::parseOperator(&s, addAssignment, span))
-        type = 2;
+        function = Symbol(atomAddAssignment);
     else if (Space::parseOperator(&s, subtractAssignment, span))
-        type = 3;
+        function = Symbol(atomSubtractAssignment);
     else if (Space::parseOperator(&s, multiplyAssignment, span))
-        type = 4;
+        function = Symbol(atomMultiplyAssignment);
     else if (Space::parseOperator(&s, divideAssignment, span))
-        type = 5;
+        function = Symbol(atomDivideAssignment);
     else if (Space::parseOperator(&s, moduloAssignment, span))
-        type = 6;
+        function = Symbol(atomModuloAssignment);
     else if (Space::parseOperator(&s, shiftLeftAssignment, span))
-        type = 7;
+        function = Symbol(atomShiftLeftAssignment);
     else if (Space::parseOperator(&s, shiftRightAssignment, span))
-        type = 8;
-    else if (Space::parseOperator(&s, andAssignment, span))
-        type = 9;
-    else if (Space::parseOperator(&s, orAssignment, span))
-        type = 10;
-    else if (Space::parseOperator(&s, xorAssignment, span))
-        type = 11;
+        function = Symbol(atomShiftRightAssignment);
+    else if (Space::parseOperator(&s, bitwiseAndAssignment, span))
+        function = Symbol(atomBitwiseAndAssignment);
+    else if (Space::parseOperator(&s, bitwiseOrAssignment, span))
+        function = Symbol(atomBitwiseOrAssignment);
+    else if (Space::parseOperator(&s, bitwiseXorAssignment, span))
+        function = Symbol(atomBitwiseXorAssignment);
     else if (Space::parseOperator(&s, powerAssignment, span))
-        type = 12;
-    if (type == 0)
+        function = Symbol(atomPowerAssignment);
+    if (!function.valid())
         return Symbol();
 
     *source = s;
     Symbol e = parseExpressionOrFail(source);
     Location end = Space::assertCharacter(source, ';');
 
-    SpanCache* cache = newSpan(Span(spanOf(lValue).start(), end));
-    switch (type) {
-        case 1:
-            return Symbol(atomAssignmentStatement, lValue, e, cache);
-        case 2:
-            return Symbol(atomAddAssignmentStatement, lValue, e, cache);
-        case 3:
-            return Symbol(atomSubtractAssignmentStatement, lValue, e, cache);
-        case 4:
-            return Symbol(atomMultiplyAssignmentStatement, lValue, e, cache);
-        case 5:
-            return Symbol(atomDivideAssignmentStatement, lValue, e, cache);
-        case 6:
-            return Symbol(atomModuloAssignmentStatement, lValue, e, cache);
-        case 7:
-            return Symbol(atomShiftLeftAssignmentStatement, lValue, e, cache);
-        case 8:
-            return Symbol(atomShiftRightAssignmentStatement, lValue, e, cache);
-        case 9:
-            return Symbol(atomAndAssignmentStatement, lValue, e, cache);
-        case 10:
-            return Symbol(atomOrAssignmentStatement, lValue, e, cache);
-        case 11:
-            return Symbol(atomXorAssignmentStatement, lValue, e, cache);
-        case 12:
-            return Symbol(atomPowerAssignmentStatement, lValue, e, cache);
-    }
-    return Symbol();
+    return Symbol(atomFunctionCall, function, SymbolArray(lValue, e),
+        new ExpressionCache(Span(spanOf(lValue).start(), end)));
 }
 
 SymbolArray parseStatementSequence(CharacterSource* source)
@@ -253,30 +215,21 @@ Symbol parseNothingStatement(CharacterSource* source)
     return Symbol(atomNothingStatement, newSpan(span.start(), end));
 }
 
-Symbol parseIncrementStatement(CharacterSource* source)
+Symbol parseIncrementDecrementStatement(CharacterSource* source)
 {
-    static String incrementOperator("++");
     Span span;
-    if (!Space::parseOperator(source, incrementOperator, span))
+    Symbol function;
+    if (Space::parseOperator(source, increment, span))
+        function = Symbol(atomIncrement);
+    else if (Space::parseOperator(source, decrement, span))
+        function = Symbol(atomDecrement);
+    else
         return Symbol();
     CharacterSource s = *source;
     Symbol lValue = parseExpression(&s);
     *source = s;
     Location end = Space::assertCharacter(source, ';');
-    return Symbol(atomIncrementStatement, lValue, newSpan(span.start(), end));
-}
-
-Symbol parseDecrementStatement(CharacterSource* source)
-{
-    static String decrementOperator("--");
-    Span span;
-    if (!Space::parseOperator(source, decrementOperator, span))
-        return Symbol();
-    CharacterSource s = *source;
-    Symbol lValue = parseExpression(&s);
-    *source = s;
-    Location end = Space::assertCharacter(source, ';');
-    return Symbol(atomIncrementStatement, lValue, newSpan(span.start(), end));
+    return Symbol(atomFunctionCall, function, SymbolArray(lValue), newSpan(span.start(), end));
 }
 
 Symbol parseConditionalStatement2(CharacterSource* source, Location start,
@@ -557,10 +510,7 @@ Symbol parseStatement(CharacterSource* source)
     s = parseNothingStatement(source);
     if (s.valid())
         return s;
-    s = parseIncrementStatement(source);
-    if (s.valid())
-        return s;
-    s = parseDecrementStatement(source);
+    s = parseIncrementDecrementStatement(source);
     if (s.valid())
         return s;
     s = parseConditionalStatement(source);

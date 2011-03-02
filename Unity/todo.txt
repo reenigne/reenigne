@@ -1,19 +1,14 @@
-Implement operators as identifiers
-  |
-  ~ (unary and binary)
-  & (binary only - unary can't be overridden)
-  == != <= < > >=
-  << >>
-  + (unary and binary)
-  - (unary and binary)
-  /
-  * (unary and binary)
-  %
-  ^
-  ()
-  []
+compileStatement:
+  atomSwitchStatement:
+  atomReturnStatement:
+  atomBreakStatement:
+  atomContinueStatement:
+  Need to keep track of:
+    function's return type (for "return" statements)?
+    current break and continue addresses (and whether each are valid)
+  atomIncludeStatement:
 
-Rewrite assignment operators to call operator functions
+Handle reference parameters for operator overloading
 
 Add predefined functions for operators
   It would be nice to be able to define these in Unity language rather than C++
@@ -27,26 +22,11 @@ Add predefined functions for operators
       Need to allow operator overloading syntax
 Int operator+(Int x, Int y) return parseGIL("[(`push` y) (`push` x) (`+`)]");
 
-Eliminate repetition in operator assignment
-  Parsing
-  Compiling
-
 Compiling operator assignment for strings
 
 Allowing overloading of operator assignment
   Define adapter functions that the compiler can use to try to resolve missing overloads:
   Allow different types for the two operands (particularly the relational ones)?
-
-compileFunction
-  Need to keep track of:
-    function's stack adjustment
-    function's return type (for "return" statements)?
-    current break and continue addresses (and whether each are valid)
-
-Figure out how to do break and continue
-
-Implement compile()
-  When compiling break/continue statement, make sure we are inside a suitable loop/switch
 
 Add classes
   Implement resolveSize
@@ -67,9 +47,6 @@ Algorithm for resolving names in the presence of overloading
   Choose the one which fits best.
   Use dynamic programming to figure out a "cost" associated with converting any type to any other type
     Allow conversion operators to specify a cost?
-
-Implement assignment statements
-  push(address) dup dereference op store
 
 More detail in switch type mismatch error
 Allow overloads over operator== for switch comparison

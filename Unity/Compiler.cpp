@@ -8,8 +8,6 @@ public:
             addAdjustStackPointer(-stackAdjust);
         _stackOffset = 0;
         compileStatementSequence(functionDefinitionStatement[4].array());
-        // Before: returnValue localVariables returnAddress parameters
-        // After: returnAddress returnValue
         Symbol type = typeOf(functionDefinitionStatement);
         Symbol returnType = type[1].symbol();
         int returnTypeSize = (sizeOf(returnType) + 3) & -4;
@@ -45,7 +43,6 @@ private:
                 {
                     Symbol expression = statement[1].symbol();
                     compileExpression(expression);
-                    // Pop (unused) return value from stack
                     addAdjustStackPointer((sizeOf(typeOf(expression)) + 3) & -4);
                 }
                 break;            
@@ -64,121 +61,12 @@ private:
                 compileExpression(statement[3].symbol());
                 add(Symbol(atomStore));
                 break;
-            case atomAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomStore));
-                break;
-            case atomAddAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomAdd));
-                add(Symbol(atomStore));
-                break;
-            case atomSubtractAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomSubtract));
-                add(Symbol(atomStore));
-                break;
-            case atomMultiplyAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomMultiply));
-                add(Symbol(atomStore));
-                break;
-            case atomDivideAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomDivide));
-                add(Symbol(atomStore));
-                break;
-            case atomModuloAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomModulo));
-                add(Symbol(atomStore));
-                break;
-            case atomShiftLeftAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomLeftShift));
-                add(Symbol(atomStore));
-                break;
-            case atomShiftRightAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomRightShift));
-                add(Symbol(atomStore));
-                break;
-            case atomAndAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomBitwiseAnd));
-                add(Symbol(atomStore));
-                break;
-            case atomOrAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomBitwiseOr));
-                add(Symbol(atomStore));
-                break;
-            case atomXorAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomBitwiseXor));
-                add(Symbol(atomStore));
-                break;
-            case atomPowerAssignmentStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                compileExpression(statement[2].symbol());
-                add(Symbol(atomPower));
-                add(Symbol(atomStore));
-                break;
             case atomCompoundStatement:
                 compileStatementSequence(statement[1].array());
                 break;
             case atomTypeAliasStatement:
                 break;
             case atomNothingStatement:
-                break;
-            case atomIncrementStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                add(Symbol(atomIntegerConstant, 1));
-                add(Symbol(atomAdd));
-                add(Symbol(atomStore));
-                break;
-            case atomDecrementStatement:
-                addAddressOf(statement[1].symbol());
-                add(Symbol(atomDuplicate));
-                add(Symbol(atomDereference));
-                add(Symbol(atomIntegerConstant, 1));
-                add(Symbol(atomSubtract));
-                add(Symbol(atomStore));
                 break;
             case atomIfStatement:
                 {
@@ -412,8 +300,8 @@ private:
             case atomGreaterThanOrEqualTo:
             case atomLessThan:
             case atomGreaterThan:
-            case atomLeftShift:
-            case atomRightShift:
+            case atomShiftLeft:
+            case atomShiftRight:
             case atomAdd:
             case atomSubtract:
             case atomMultiply:
