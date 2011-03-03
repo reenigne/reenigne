@@ -3,6 +3,10 @@ class Compiler
 public:
     void compileFunction(Symbol functionDefinitionStatement)
     {
+        _epilogueStack.push(Symbol::newLabel());
+        //Symbol type = typeOf(functionDefinitionStatement);
+        //Symbol returnType = type[1].symbol();
+        //_returnTypeStack.push(returnType);
         int stackAdjust = offsetOf(functionDefinitionStatement);
         if (stackAdjust != 0)
             addAdjustStackPointer(-stackAdjust);
@@ -15,11 +19,17 @@ public:
         SymbolArray parameterTypes = type[2].array();
         for (int i = 0; i < parameterTypes.count(); ++i)
             parametersSize += (sizeOf(parameterTypes[i]) + 3) & -4;
+        if (_reachable && returnType.atom() != atomVoid) {
+            static String error("Control reaches end of non-Void function");
+            spanOf(functionDefinitionStatement).end().throwError(error);
+        }
+        addLabel(_epilogueStack.pop());
         addLoadWordFromStackRelativeAddress(returnTypeSize + stackAdjust);
-        addMoveBlock(0, stackAdjust + 4 + parametersSize, 1 + returnTypeSize/4);        
+        addMoveBlock(0, stackAdjust + 4 + parametersSize, 1 + returnTypeSize/4);
         if (stackAdjust != 0)
             addAdjustStackPointer(stackAdjust);
         add(Symbol(atomReturn));
+        //_returnTypeStack.pop();
     }
     SymbolList compiledProgram() const { return _compiledProgram; }
 private:
@@ -84,10 +94,30 @@ private:
                 break;
             case atomSwitchStatement:
             case atomReturnStatement:
+                compileExpression(statement[1].symbol());
+                addGoto(_epilogueStack.top());
+                break;
             case atomIncludeStatement:
-            case atomBreakStatement:
-            case atomContinueStatement:
                 // TODO
+                break;
+            case atomBreakStatement:
+                {
+                    int n = 0;
+                    Symbol tail = statement[1].symbol();
+                    bool isContinue = false;
+                    while (tail.valid()) {
+                        isContinue = (tail.atom() == atomContinueStatement);
+                        ++n;
+                        tail = tail[1].symbol();
+                    }
+                    if (isContinue)
+                        addGoto(_breakContinueStack.fromTop(n)._continueLabel);
+                    else
+                        addGoto(_breakContinueStack.fromTop(n)._breakLabel);
+                }
+                break;
+            case atomContinueStatement:
+                addGoto(_breakContinueStack.top()._continueLabel);
                 break;
             case atomForeverStatement:
                 {
@@ -355,6 +385,7 @@ private:
         add(Symbol(atomGoto));
         checkBlockStackOffset(destination);
         _blockEnds = true;
+        _reachable = false;
     }
     void addJumpIfTrue(int destination)
     {
@@ -376,6 +407,7 @@ private:
         _basicBlock = SymbolList();
         _label = label;
         _atBlockStart = true;
+        _reachable = true;
     }
     int getLabel()
     {
@@ -402,8 +434,11 @@ private:
     int _label;
     bool _blockEnds;
     bool _atBlockStart;
+    bool _reachable;
     int _stackOffset;
     HashTable<int, int> _blockStackOffsets;
+//    Stack<Symbol> _returnTypeStack;
+    Stack<int> _epilogueStack;
     
     class BreakContinueStackEntry
     {

@@ -160,7 +160,7 @@ Symbol parseAssignmentStatement(CharacterSource* source)
     Symbol e = parseExpressionOrFail(source);
     Location end = Space::assertCharacter(source, ';');
 
-    return Symbol(atomFunctionCall, function, SymbolArray(lValue, e),
+    return Symbol(atomFunctionCall, function, SymbolArray(Symbol(atomAddressOf, lValue), e),
         new ExpressionCache(Span(spanOf(lValue).start(), end)));
 }
 

@@ -1,32 +1,17 @@
-compileStatement:
-  atomSwitchStatement:
-  atomReturnStatement:
-  atomBreakStatement:
-  atomContinueStatement:
-  Need to keep track of:
-    function's return type (for "return" statements)?
-    current break and continue addresses (and whether each are valid)
-  atomIncludeStatement:
+Implement parseSymbolEntry()
+  Need to be able to run this function at compile time
 
-Handle reference parameters for operator overloading
+Implement _emit
+  It can be used as an operator (lower priority than function call) or a statement
 
-Add predefined functions for operators
-  It would be nice to be able to define these in Unity language rather than C++
-    Need a way to specify an implementation of a function using low-level instructions
-      Similar to "assembly { }" statement - have a "gil { }" statement?
-        Might rename this in the future
-        Create a GIL parser
-        Need GIL expressions as well
-          Pseudo-function parseGIL() - takes a string and
-          Pseudo-functions parseGIL() and emit().
-      Need to allow operator overloading syntax
-Int operator+(Int x, Int y) return parseGIL("[(`push` y) (`push` x) (`+`)]");
-
-Compiling operator assignment for strings
-
-Allowing overloading of operator assignment
-  Define adapter functions that the compiler can use to try to resolve missing overloads:
-  Allow different types for the two operands (particularly the relational ones)?
+Make compiler look for functions to resolve missing overloads
+Allow implicit type conversions
+  Need to know about all the overloads, the types of the arguments, the available conversion functions and their costs
+Algorithm for resolving names in the presence of overloading
+  Make a list of all the targets with matching names and potential number of arguments
+  Choose the one which fits best.
+  Use dynamic programming to figure out a "cost" associated with converting any type to any other type
+    Allow conversion operators to specify a cost?
 
 Add classes
   Implement resolveSize
@@ -39,17 +24,22 @@ Add classes
     include
       Or have a 'Class X from y' form instead?
 
-Allow implicit type conversions
-  Need to know about all the overloads, the types of the arguments, the available conversion functions and their costs
+Implement switch:
+  compileStatement: atomSwitchStatement
+  More detail in switch type mismatch error
+  Allow overloads over operator== for switch comparison
 
-Algorithm for resolving names in the presence of overloading
-  Make a list of all the targets with matching names and potential number of arguments
-  Choose the one which fits best.
-  Use dynamic programming to figure out a "cost" associated with converting any type to any other type
-    Allow conversion operators to specify a cost?
-
-More detail in switch type mismatch error
-Allow overloads over operator== for switch comparison
+Implement closures/inner functions/lambdas:
+  At least initially, disallow usage of the closure outside of the scope of the variables it uses
+    If it turns out to be useful, make scopes heap allocated and reference counted (when necessary) and allow them to persist outside the enclosing scope
+  How does static chain pointer work?
+    Might return multiple closures referencing the same environment
+      => closure is "fat pointer" with pointers to environment object and method
+    http://www.hokstad.com/how-to-implement-closures.html
+  Allow inner functions to return return, break and continue
+    Need unwinding to remove intermediate frames
+    Can a function that accepts a closure specify that the closure must not throw?
+      Can the function catch these pseudo-exceptions? My intuition says no.
 
 Add Int32, UInt32 and NInt32 types
 Add 8-bit and 16-bit types
@@ -63,6 +53,7 @@ Add operator  2 .                 LtR
   Argument dependent lookup: need to pass a TypeList to resolveTypes() so that we can figure out which function overload is being called?
 Add operator  2 ->                LtR
 Add operator  2 []                LtR  LValue
+  The return value of [] needs to be dereferenced to obtain an LValue or RValue.
 Add operator  4 sizeof            RtL
 Add template classes
   Add type Fixed<N,B>
@@ -75,6 +66,7 @@ Compile to executable code
   Need to evaluate dll expression at compile time
 Add statement `assembly` AssemblyStatement
 Make include statement work
+  compileStatement: atomIncludeStatement
   Problem: the include statement could change the meaning of the expression in its argument, if (for example) it redefined a function that was called to construct the argument.
   Solution: to evaluate the expression, pretend that the included file is empty and evaluate the filename on that assumption.
 Add operator  1 ::                LtR
@@ -120,7 +112,7 @@ Add goto and label statements
 Optimization: Add a LabelledSymbol class deriving from Symbol so that Symbol doesn't need a _label member
 Optimization: Shrink Symbol::_labelled if the second half is all empty to avoid pooling memory.
   To do this, need to remove elements from the list when they're at the end of the array.
-Optimization: switch SymbolArray to am AVL tree
+Optimization: change SymbolArray to an AVL tree
 Change semicolon parsing on increment/decrement/expression statements so that "for (i = 0; i < n; ++i)" is valid.
 Add operator ".." which creates a Range value from two integers
   Allow a String to be indexed by a Range to yield a substring
@@ -154,3 +146,7 @@ Optimization: If g is only ever called by f, we can do the stack correction for 
 atomExit is not currently used
 
 Value range propagation
+
+The operator*() function call returns a pointer, so we need to actually dereference it to get an LValue or RValue.
+
+adapters.txt: Allow different types for the two operands (particularly the relational ones)?

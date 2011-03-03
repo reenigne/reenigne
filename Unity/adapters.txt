@@ -1,27 +1,29 @@
 T operator+<T>(T x, T y) { T z = x; z += y; return z; }
-Void operator+=<T>(T& x, T y) { x = x + y; }
 T operator-<T>(T x, T y) { T z = x; z -= y; return z; }
 T operator-<T>(T x, T y) { T z = x; z += -y; return z; }
-Void operator-=<T>(T& x, T y) { x = x - y; }
-Void operator-=<T>(T& x, T y) { x = x + -y; }
 T operator|<T>(T x, T y) { T z = x; z |= y; return z; }
-Void operator|=<T>(T& x, T y) { x = x | y; }
 T operator&<T>(T x, T y) { T z = x; z &= y; return z; }
-Void operator&=<T>(T& x, T y) { x = x & y; }
 T operator~<T>(T x, T y) { T z = x; z ~= y; return z; }
-Void operator~=<T>(T& x, T y) { x = x ~ y; }
 T operator<<<T>(T x, int y) { T z = x; z <<= y; return z; }
-Void operator<<=<T>(T& x, int y) { x = x << y; }
 T operator>><T>(T x, int y) { T z = x; z >>= y; return z; }
-Void operator>>=<T>(T& x, int y) { x = x >> y; }
 T operator*<T>(T x, T y) { T z = x; z *= y; return z; }
-Void operator*=<T>(T& x, T y) { x = x * y; }
 T operator/<T>(T x, T y) { T z = x; z /= y; return z; }
-Void operator/=<T>(T& x, T y) { x = x / y; }
 T operator%<T>(T x, T y) { T z = x; z %= y; return z; }
-Void operator%=<T>(T& x, T y) { x = x % y; }
 T operator^<T>(T x, T y) { T z = x; z ^= y; return z; }
-Void operator^=<T>(T& x, T y) { x = x ^ y; }
+
+Void operator+=<T>(T* x, T y) { *x = *x + y; }
+Void operator-=<T>(T* x, T y) { *x = *x - y; }
+Void operator-=<T>(T* x, T y) { *x = *x + -y; }
+Void operator|=<T>(T* x, T y) { *x = *x | y; }
+Void operator&=<T>(T* x, T y) { *x = *x & y; }
+Void operator~=<T>(T* x, T y) { *x = *x ~ y; }
+Void operator<<=<T>(T* x, int y) { *x = *x << y; }
+Void operator>>=<T>(T* x, int y) { *x = *x >> y; }
+Void operator*=<T>(T* x, T y) { *x = *x * y; }
+Void operator/=<T>(T* x, T y) { *x = *x / y; }
+Void operator%=<T>(T* x, T y) { *x = *x % y; }
+Void operator^=<T>(T* x, T y) { *x = *x ^ y; }
+
 Boolean operator<<T>(T x, T y) { return y > x; }
 Boolean operator<<T>(T x, T y) { return !(x >= y); }
 Boolean operator<<T>(T x, T y) { return !(y <= x); }
@@ -45,3 +47,42 @@ Boolean operator!=<T>(T x, T y) { return (x < y || y < x); }
 Boolean operator!=<T>(T x, T y) { return !(x <= y && y <= x); }
 Boolean operator!=<T>(T x, T y) { return (x > y || y > x); }
 
+Void operator++<T>(T* x) { *x = *x + 1; }
+Void operator--<T>(T* x) { *x = *x - 1; }
+
+T* operator*<T>(T* x) return x;
+
+Int operator+(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (+)]");
+Int operator-(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (-)]");
+Int operator*(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (*)]");
+Int operator/(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (/)]");
+Int operator%(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (%)]");
+Int operator|(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (|)]");
+Int operator~(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (~)]");
+Int operator&(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (&)]");
+Int operator==(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (==)]");
+Int operator!=(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (!=)]");
+Int operator<=(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (<=)]");
+Int operator>=(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (>=)]");
+Int operator<(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (<)]");
+Int operator>(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (>)]");
+Int operator<<(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (<<)]");
+Int operator>>(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (>>)]");
+Int operator^(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (^)]");
+
+Int operator+(Int x) return x;
+
+Int operator-(Int x) return _emit<Int> parseSymbolEntry("[(push \"x\") (u-)]"));
+Int operator~(Int x) return _emit<Int> parseSymbolEntry("[(push \"x\") (!)]"));
+
+String operator+(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::+)]"); 
+String operator==(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::==)]"); 
+String operator!=(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::!=)]"); 
+String operator<=(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::<=)]"); 
+String operator>=(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::>=)]"); 
+String operator<(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::<)]"); 
+String operator>(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::>)]"); 
+
+String operator*(String x, Int y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::*)]"); 
+
+T* operator[]<T>(T* x, Int y) return reinterpret_cast<T*>(reinterpret_cast<Int>(x) + y*sizeOf<T>);

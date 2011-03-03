@@ -27,7 +27,7 @@ public:
     }
     T pop()
     {
-        T t = _top->_t;
+        T t = top();
         Entry* top = _top;
         _top = top->_next;
         delete top;
@@ -41,6 +41,14 @@ public:
             --offset;
             top = top->_next;
         }
+        return top->_t;
+    }
+    T top() const { return _top->_t; }
+    T fromTop(int n) const
+    {
+        Entry* top = _top;
+        while (n > 0)
+            top = top->_next;
         return top->_t;
     }
 private:

@@ -130,6 +130,7 @@
     <ClInclude Include="..\include\unity\hash_table.h" />
     <ClInclude Include="..\include\unity\integer_types.h" />
     <ClInclude Include="..\include\unity\reference_counted.h" />
+    <ClInclude Include="..\include\unity\stack.h" />
     <ClInclude Include="..\include\unity\string.h" />
     <ClInclude Include="..\include\unity\uncopyable.h" />
   </ItemGroup>

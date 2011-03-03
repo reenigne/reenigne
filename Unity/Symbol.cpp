@@ -458,6 +458,8 @@ public:
     {
         const SymbolTail* t = tail();
         while (n > 1) {
+            if (t == 0)
+                return Symbol();
             --n;
             t = t->tail();
         }

@@ -194,14 +194,14 @@ void run(SymbolArray program)
                     stack.push(l > r);
                 }
                 break;
-            case atomLeftShift:
+            case atomShiftLeft:
                 {
                     int l = stack.pop<int>();
                     int r = stack.pop<int>();
                     stack.push(l << r);
                 }
                 break;
-            case atomRightShift:
+            case atomShiftRight:
                 {
                     int l = stack.pop<int>();
                     int r = stack.pop<int>();
