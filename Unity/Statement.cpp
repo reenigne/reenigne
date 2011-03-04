@@ -487,6 +487,17 @@ Symbol parseForStatement(CharacterSource* source)
         statement, doneStatement, newSpan(span.start(), end));
 }
 
+Symbol parseEmitStatement(CharacterSource* source)
+{
+    static String emitKeyword("_emit");
+    Span span;
+    if (!Space::parseKeyword(source, emitKeyword, span))
+        return Symbol();
+    Symbol expression = parseExpressionOrFail(source);
+    Location end = Space::assertCharacter(source, ';');
+    return Symbol(atomEmit, expression, newSpan(span.start(), end));
+}
+
 Symbol parseStatement(CharacterSource* source)
 {
     Symbol s = parseExpressionStatement(source);
@@ -535,6 +546,9 @@ Symbol parseStatement(CharacterSource* source)
     if (s.valid())
         return s;
     s = parseForStatement(source);
+    if (s.valid())
+        return s;
+    s = parseEmitStatement(source);
     if (s.valid())
         return s;
     return Symbol();

@@ -40,6 +40,8 @@ int parseHexadecimalCharacter(CharacterSource* source)
     return -1;
 }
 
+SymbolArray parseTemplateArgumentList(CharacterSource* source);
+
 String equalTo("==");
 String notEqualTo("!=");
 String lessThanOrEqualTo("<=");
@@ -119,40 +121,10 @@ Symbol parseIdentifier(CharacterSource* source)
         return Symbol(atomIdentifier, name, newSpan(startLocation, endLocation));
     }
     Span span2;
+    Span span3;
     Atom atom = atomLast;
-    if (Space::parseCharacter(&s2, '|', span2))
-        atom = atomBitwiseOr;
-    else if (Space::parseCharacter(&s2, '~', span2))
-        atom = atomBitwiseXor;
-    else if (Space::parseCharacter(&s2, '&', span2))
-        atom = atomBitwiseAnd;
-    else if (Space::parseOperator(&s2, equalTo, span2))
-        atom = atomEqualTo;
-    else if (Space::parseOperator(&s2, notEqualTo, span2))
-        atom = atomNotEqualTo;
-    else if (Space::parseOperator(&s2, lessThanOrEqualTo, span2))
-        atom = atomLessThanOrEqualTo;
-    else if (Space::parseCharacter(&s2, '<', span2))
-        atom = atomLessThan;
-    else if (Space::parseOperator(&s2, greaterThanOrEqualTo, span2))
-        atom = atomGreaterThanOrEqualTo;
-    else if (Space::parseCharacter(&s2, '>', span2))
-        atom = atomGreaterThan;
-    else if (Space::parseOperator(&s2, shiftLeft, span2))
-        atom = atomShiftLeft;
-    else if (Space::parseOperator(&s2, shiftRight, span2))
-        atom = atomShiftRight;
-    else if (Space::parseCharacter(&s2, '+', span2))
-        atom = atomAdd;
-    else if (Space::parseCharacter(&s2, '-', span2))
-        atom = atomSubtract;
-    else if (Space::parseCharacter(&s2, '/', span2))
-        atom = atomDivide;
-    else if (Space::parseCharacter(&s2, '*', span2))
-        atom = atomMultiply;
-    else if (Space::parseCharacter(&s2, '%', span2))
-        atom = atomModulo;
-    else if (Space::parseCharacter(&s2, '(', span2)) {
+    CharacterSource s3 = s2;
+    if (Space::parseCharacter(&s2, '(', span2)) {
         if (Space::parseCharacter(&s2, ')', span2))
             atom = atomFunctionCall;
         else {
@@ -168,6 +140,8 @@ Symbol parseIdentifier(CharacterSource* source)
             s2.location().throwError(expected);
         }
     }
+    else if (Space::parseOperator(&s2, equalTo, span2))
+        atom = atomEqualTo;
     else if (Space::parseCharacter(&s2, '=', span2))
         atom = atomAssignment;
     else if (Space::parseOperator(&s2, addAssignment, span2))
@@ -192,6 +166,45 @@ Symbol parseIdentifier(CharacterSource* source)
         atom = atomBitwiseXorAssignment;
     else if (Space::parseOperator(&s2, powerAssignment, span2))
         atom = atomPowerAssignment;
+    else if (Space::parseCharacter(&s2, '|', span2))
+        atom = atomBitwiseOr;
+    else if (Space::parseCharacter(&s2, '~', span2))
+        atom = atomBitwiseXor;
+    else if (Space::parseCharacter(&s2, '&', span2))
+        atom = atomBitwiseAnd;
+    else if (Space::parseOperator(&s2, notEqualTo, span2))
+        atom = atomNotEqualTo;
+    else if (Space::parseOperator(&s2, lessThanOrEqualTo, span2))
+        atom = atomLessThanOrEqualTo;
+    else if (Space::parseOperator(&s2, shiftRight, span2))
+        atom = atomShiftRight;
+    else if (Space::parseCharacter(&s3, '<', span3)) {
+        atom = atomLessThan;
+        // Only if we know it's not operator<<T>() can we try operator<<()
+        CharacterSource s4 = s3;
+        SymbolArray templateArgumentList = parseTemplateArgumentList(&s4);
+        if (templateArgumentList.count() == 0 && 
+            Space::parseOperator(&s2, shiftLeft, span2))
+            atom = atomShiftLeft;
+        else {
+            s2 = s3;
+            span2 = span3;
+        }
+    }
+    else if (Space::parseOperator(&s2, greaterThanOrEqualTo, span2))
+        atom = atomGreaterThanOrEqualTo;
+    else if (Space::parseCharacter(&s2, '>', span2))
+        atom = atomGreaterThan;
+    else if (Space::parseCharacter(&s2, '+', span2))
+        atom = atomAdd;
+    else if (Space::parseCharacter(&s2, '-', span2))
+        atom = atomSubtract;
+    else if (Space::parseCharacter(&s2, '/', span2))
+        atom = atomDivide;
+    else if (Space::parseCharacter(&s2, '*', span2))
+        atom = atomMultiply;
+    else if (Space::parseCharacter(&s2, '%', span2))
+        atom = atomModulo;
     else {
         static String expected("Expected an operator");
         s2.location().throwError(expected);

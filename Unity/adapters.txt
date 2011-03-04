@@ -52,37 +52,37 @@ Void operator--<T>(T* x) { *x = *x - 1; }
 
 T* operator*<T>(T* x) return x;
 
-Int operator+(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (+)]");
-Int operator-(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (-)]");
-Int operator*(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (*)]");
-Int operator/(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (/)]");
-Int operator%(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (%)]");
-Int operator|(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (|)]");
-Int operator~(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (~)]");
-Int operator&(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (&)]");
-Int operator==(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (==)]");
-Int operator!=(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (!=)]");
-Int operator<=(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (<=)]");
-Int operator>=(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (>=)]");
-Int operator<(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (<)]");
-Int operator>(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (>)]");
-Int operator<<(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (<<)]");
-Int operator>>(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (>>)]");
-Int operator^(Int x, Int y) return _emit<Int> parseSymbolEntry("[(push \"y\") (push \"x\") (^)]");
+Int operator+(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.Add<Int>()};
+Int operator-(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.Subtract<Int>()};
+Int operator*(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.Multiply<Int>()};
+Int operator/(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.Divide<Int>()};
+Int operator%(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.Modulo<Int>()};
+Int operator|(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.BitwiseOr<Int>()};
+Int operator~(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.BitwiseXor<Int>()};
+Int operator&(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.BitwiseAnd<Int>()};
+Int operator==(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.EqualTo<Int>()};
+Int operator!=(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.NotEqualTo<Int>()};
+Int operator<=(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.LessThanOrEqualTo<Int>()};
+Int operator>=(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.GreaterThanOrEqualTo<Int>()};
+Int operator<(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.LessThan<Int>()};
+Int operator>(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.GreaterThan<Int>()};
+Int operator<<(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.ShiftLeft<Int>()};
+Int operator>>(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.ShiftRight<Int>()};
+Int operator^(Int x, Int y) return _emit<Int> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.Power<Int>()};
 
 Int operator+(Int x) return x;
 
-Int operator-(Int x) return _emit<Int> parseSymbolEntry("[(push \"x\") (u-)]"));
-Int operator~(Int x) return _emit<Int> parseSymbolEntry("[(push \"x\") (!)]"));
+Int operator-(Int x) return _emit<Int> #{ Compiler.Push("x"), Compiler.Negate<Int>()};
+Int operator~(Int x) return _emit<Int> #{ Compiler.Push("x"), Compiler.BitwiseNot<Int>()};
 
-String operator+(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::+)]"); 
-String operator==(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::==)]"); 
-String operator!=(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::!=)]"); 
-String operator<=(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::<=)]"); 
-String operator>=(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::>=)]"); 
-String operator<(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::<)]"); 
-String operator>(String x, String y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::>)]"); 
+String operator+(String x, String y) return _emit<String> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.Add<String>()};
+String operator==(String x, String y) return _emit<String> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.EqualTo<String>()};
+String operator!=(String x, String y) return _emit<String> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.NotEqualTo<String>()};
+String operator<=(String x, String y) return _emit<String> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.LessThanOrEqualTo<String>()};
+String operator>=(String x, String y) return _emit<String> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.GreaterThanOrEqualTo<String>()};
+String operator<(String x, String y) return _emit<String> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.LessThan<String>()};
+String operator>(String x, String y) return _emit<String> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.GreaterThan<String>()};
 
-String operator*(String x, Int y) return _emit<String> parseSymbolEntry("[(push \"y\") (push \"x\") (String::*)]"); 
+String operator*(String x, Int y) return _emit<String> #{ Compiler.Push("y"), Compiler.Push("x"), Compiler.Multiply<String>()};
 
 T* operator[]<T>(T* x, Int y) return reinterpret_cast<T*>(reinterpret_cast<Int>(x) + y*sizeOf<T>);

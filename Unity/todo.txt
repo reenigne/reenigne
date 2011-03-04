@@ -1,8 +1,28 @@
-Implement parseSymbolEntry()
-  Need to be able to run this function at compile time
-
 Implement _emit
-  It can be used as an operator (lower priority than function call) or a statement
+  It can be used as an operator (lower priority than function call, higher than ^) or a statement
+
+Implement #{} literal array syntax
+  Or use []?
+
+How do we define the inner types of Compiler?
+
+What is the relationship between types and atoms?
+  An atom can be thought of as a vtable pointer. It has type Atom and if type T
+   has a run-time idenitity its atom is T::atom.
+  An atom by itself doesn't tell you:
+    How many members the type has
+    What their types are
+    What the methods in the vtable are
+   You need a separate type definition to find those.
+  Given an atom, all you can do with it is compare it to other Atom values for
+   equality.
+
+Symbol is a completely dynamic type (with no vtable) in the C++ implementation
+ due to the limitations of C++. In Unity, each Symbol atom should correspond to
+ a real type, and we should still be able to do all the pattern-matching stuff
+ we need to.
+
+Implement construction expressions
 
 Make compiler look for functions to resolve missing overloads
 Allow implicit type conversions
@@ -41,6 +61,8 @@ Implement closures/inner functions/lambdas:
     Can a function that accepts a closure specify that the closure must not throw?
       Can the function catch these pseudo-exceptions? My intuition says no.
 
+Implement template functions
+
 Add Int32, UInt32 and NInt32 types
 Add 8-bit and 16-bit types
 Add 64-bit types
@@ -70,6 +92,15 @@ Make include statement work
   Problem: the include statement could change the meaning of the expression in its argument, if (for example) it redefined a function that was called to construct the argument.
   Solution: to evaluate the expression, pretend that the included file is empty and evaluate the filename on that assumption.
 Add operator  1 ::                LtR
+  Or just use . instead?
+    Uses:
+      At start to escape to global namespace
+        Maybe have an "outer" keyword here instead?
+          How is an "outer" level determined given that every variable declaration creates a new scope?
+            Just walk up scopes until we find another variable of the right name?
+      Inner type T::U
+      Static value T::u
+      Static method T::u()
 Add operator  2 typeid            LtR
 Add const_cast, dynamic_cast, reinterpret_cast and static_cast (LtR, precedence 2)
 Add operator  4 ()(type cast)     RtL

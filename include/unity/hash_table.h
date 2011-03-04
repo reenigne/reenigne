@@ -3,7 +3,7 @@
 
 #include "unity/array.h"
 
-template<class Key, class Value> class HashTableBase : Uncopyable
+template<class Key, class Value, class Base> class HashTableBase : public Base
 {
 public:
     HashTableBase() : _n(0)
@@ -33,6 +33,8 @@ public:
     }
     int count() const { return _n; }
 private:
+    int row(const Key& key) const { return hash(key) & (_table.count() - 1); }
+
     class TableEntry
     {
     public:
@@ -86,7 +88,7 @@ private:
             t->_next->_value = value;
             t->_next->_next = this;
         }
-        void addAllTo(HashTable* table)
+        void addAllTo(HashTableBase* table)
         {
             if (_next == 0)
                 return;
@@ -105,16 +107,20 @@ private:
     int _n;
 };
 
-template<class Key, class Value> class HashTable : public HashTableBase<Key, Value>
+template<class Key, class Value> class HashTableRow : Uncopyable
 {
-private:
-    int row(const Key& key) const { return key.hash() & (_table.count() - 1); }
+protected:
+    int hash(const Key& key) const { return key.hash(); }
 };
 
-template<class Value> class HashTable<int, Value> : public HashTableBase<int, Value>
+template<class Value> class HashTableRow<int, Value> : Uncopyable
 {
-private:
-    int row(int key) const { return key & (_table.count() - 1); }
+protected:
+    int hash(int key) const { return key; }
+};
+
+template<class Key, class Value> class HashTable : public HashTableBase<Key, Value, HashTableRow<Key, Value> >
+{
 };
 
 #endif // INCLUDED_HASH_TABLE_H

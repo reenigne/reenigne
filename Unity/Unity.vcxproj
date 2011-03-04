@@ -118,6 +118,7 @@
     <ClCompile Include="Unity.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="adapters.txt" />
     <None Include="test.unity" />
     <None Include="todo.txt" />
   </ItemGroup>

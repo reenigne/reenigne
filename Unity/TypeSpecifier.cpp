@@ -166,3 +166,16 @@ Symbol parseTypeOfTypeSpecifier(CharacterSource* source)
     Location end = Space::assertCharacter(source, ')');
     return Symbol(atomTypeOf, expression, newSpan(span.start(), end));
 }
+
+SymbolArray parseTemplateArgumentList(CharacterSource* source)
+{
+    Span span;
+    if (!Space::parseCharacter(source, '<', span))
+        return SymbolArray();
+    SymbolArray array = parseTypeSpecifierList(source);
+    if (array.count() == 0)
+        return SymbolArray();
+    if (!Space::parseCharacter(source, '>', span))
+        return SymbolArray();
+    return array;
+}
