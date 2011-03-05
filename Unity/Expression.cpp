@@ -502,6 +502,24 @@ Symbol parseFunctionCallExpression(CharacterSource* source)
     return e;
 }
 
+Symbol parseEmitExpression(CharacterSource* source)
+{
+    Location startLocation = source->location();
+    Span span;
+    String emitKeyword("_emit");
+    if (Space::parseKeyword(source, emitKeyword, span)) {
+        SymbolArray argumentList = parseTemplateArgumentList(source);
+        if (!argumentList.valid() || argumentList.count() != 1) {
+            static String error("Expected type list with single type");
+            source->location().throwError(error);
+        }
+        Symbol e = parseEmitExpression(source);
+        return Symbol(atomEmit, argumentList, e, 
+            new ExpressionCache(Span(span.start(), spanOf(e).end())));
+    }
+    return parseFunctionCallExpression(source);
+}
+
 Symbol binaryOperation(Atom atom, Span span, Symbol left, Symbol right)
 {
     return Symbol(atomFunctionCall, Symbol(atom, newSpan(span)),
@@ -511,7 +529,7 @@ Symbol binaryOperation(Atom atom, Span span, Symbol left, Symbol right)
 
 Symbol parsePowerExpression(CharacterSource* source)
 {
-    Symbol e = parseFunctionCallExpression(source);
+    Symbol e = parseEmitExpression(source);
     if (!e.valid())
         return Symbol();
     Span span;

@@ -1,5 +1,7 @@
-Implement _emit
-  It can be used as an operator (lower priority than function call, higher than ^) or a statement
+Implement atomEmit expression and statement in compiler
+  Need to force evaluation of the argument expression, which involves compiling
+   any functions it needs.
+    If those functions call the one being compiled, need to detect this loop and error out.
 
 Implement #{} literal array syntax
   Or use []?
