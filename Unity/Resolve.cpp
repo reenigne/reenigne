@@ -117,6 +117,18 @@ int alignmentOf(Symbol symbol)
     return symbol.cache<TypeCache>()->alignment();
 }
 
+class FunctionDefinitionCache : public IdentifierCache
+{
+public:
+    FunctionDefinitionCache(Span span)
+      : IdentifierCache(span, Symbol::newLabel()), _compiling(false)
+    { }
+    void setCompilingFlag(bool compiling) { _compiling = compiling; }
+    bool getCompilingFlag() const { return _compiling; }
+private:
+    bool _compiling;
+};
+
 class SymbolName : public ReferenceCounted
 {
 public:

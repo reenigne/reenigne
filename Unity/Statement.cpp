@@ -90,9 +90,8 @@ Symbol parseFunctionDefinitionStatement(CharacterSource* source)
         name,
         parameterList,
         statement,
-        new IdentifierCache(
-            Span(spanOf(returnTypeSpecifier).start(), spanOf(statement).end()),
-            Symbol::newLabel()));
+        new FunctionDefinitionCache(
+            Span(spanOf(returnTypeSpecifier).start(), spanOf(statement).end())));
     return statement;
 }
 

@@ -3,6 +3,11 @@ class Compiler
 public:
     void compileFunction(Symbol functionDefinitionStatement)
     {
+        if (functionDefinitionStatement.cache<FunctionDefinitionCache>()->getCompilingFlag()) {
+            static String error("Function called during its own compilation");  // TODO: Give more details about what's being evaluated and how that came to call this
+            spanOf(functionDefinitionStatement).end().throwError(error);
+        }
+        functionDefinitionStatement.cache<FunctionDefinitionCache>()->setCompilingFlag(true);
         _epilogueStack.push(Symbol::newLabel());
         //Symbol type = typeOf(functionDefinitionStatement);
         //Symbol returnType = type[1].symbol();
@@ -20,7 +25,7 @@ public:
         for (int i = 0; i < parameterTypes.count(); ++i)
             parametersSize += (sizeOf(parameterTypes[i]) + 3) & -4;
         if (_reachable && returnType.atom() != atomVoid) {
-            static String error("Control reaches end of non-Void function");
+            static String error("Control reaches end of non-Void function");  // TODO: Give more details about how it got there
             spanOf(functionDefinitionStatement).end().throwError(error);
         }
         addLabel(_epilogueStack.pop());
@@ -30,6 +35,7 @@ public:
             addAdjustStackPointer(stackAdjust);
         add(Symbol(atomReturn));
         //_returnTypeStack.pop();
+        functionDefinitionStatement.cache<FunctionDefinitionCache>()->setCompilingFlag(false);
     }
     SymbolList compiledProgram() const { return _compiledProgram; }
 private:
@@ -179,6 +185,13 @@ private:
                     _breakContinueStack.pop();
                     addLabel(done);
                     compileStatement(statement[5].symbol());
+                }
+                break;
+            case atomEmit:
+                {
+                    SymbolArray array = evaluate<SymbolArray>(statement[1].symbol());
+                    for (int i = 0; i < array.count(); ++i)
+                        add(array[i]);
                 }
                 break;
         }

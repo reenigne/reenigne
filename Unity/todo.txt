@@ -1,28 +1,46 @@
+Need a symbol type for label. Gets a label number on creation.
+  Add it has the same effect as Compiler::addLabel()
+  All labels are in the same space, so we can re-use the label numbers
+
+Implement evaluate()
+  Force compilation of any functions called
+  Need Compiler* argument?
+  Need to make Compiler re-entrant.
+    Just finish block before calling evaluate()?
+    Or:
+      Split Compiler into Compiler and Program
+      Use a separate Compiler object with the same Program object
+
+In type-checking, need to make sure that argument to emit has type SymbolArray
+  And the argument to include has type String
+
 Implement atomEmit expression and statement in compiler
   Need to force evaluation of the argument expression, which involves compiling
    any functions it needs.
     If those functions call the one being compiled, need to detect this loop and error out.
+Make include statement work
+  compileStatement: atomIncludeStatement
+  Problem: the include statement could change the meaning of the expression in its argument, if (for example) it redefined a function that was called to construct the argument.
+  Solution: to evaluate the expression, pretend that the included file is empty and evaluate the filename on that assumption.
+  Putting an include statement in an if statement isn't terribly useful, because it will only affect the inner scope.
+    To get the effect of a conditional include, make 'include ""' a no-op. Then we can 'include a ? "foo" : ""'.
+  Included files should be able to include their dependencies without being concerned about multiple inclusion
+    => Include should be idempotent
+  But if a function uses some include that pollutes the namespace, it should just be able to include locally without affecting anywhere else
+    => idempotency needs to be per-scope
+      But if the file has been included in an outer scope, re-including it in an inner scope should be a no-op (for performance if nothing else)
+
+How to do compile-time expression evaluation for emit and include
+  These expressions (and the functions they call) can't depend on any outside state
+    But they will in general need to (e.g.) allocate memory, which will involve setting up heap state
+      Will need a mechanism to allow programs to set up state for compile-time evaluated expressions
+        Set this up on first call to evaluate()
+      Is it always the same? Might we need faciliites other than memory? Shouldn't do I think...
 
 Implement #{} literal array syntax
   Or use []?
 
 How do we define the inner types of Compiler?
-
-What is the relationship between types and atoms?
-  An atom can be thought of as a vtable pointer. It has type Atom and if type T
-   has a run-time idenitity its atom is T::atom.
-  An atom by itself doesn't tell you:
-    How many members the type has
-    What their types are
-    What the methods in the vtable are
-   You need a separate type definition to find those.
-  Given an atom, all you can do with it is compare it to other Atom values for
-   equality.
-
-Symbol is a completely dynamic type (with no vtable) in the C++ implementation
- due to the limitations of C++. In Unity, each Symbol atom should correspond to
- a real type, and we should still be able to do all the pattern-matching stuff
- we need to.
 
 Implement construction expressions
 
@@ -89,10 +107,6 @@ Compile to executable code
   Implement calling external functions
   Need to evaluate dll expression at compile time
 Add statement `assembly` AssemblyStatement
-Make include statement work
-  compileStatement: atomIncludeStatement
-  Problem: the include statement could change the meaning of the expression in its argument, if (for example) it redefined a function that was called to construct the argument.
-  Solution: to evaluate the expression, pretend that the included file is empty and evaluate the filename on that assumption.
 Add operator  1 ::                LtR
   Or just use . instead?
     Uses:
