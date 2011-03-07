@@ -52,17 +52,20 @@ int main(int argc, char* argv[])
 
         CharacterSource source(contents, file.path());
         Space::parse(&source);
-        SymbolArray program = parseStatementSequence(&source);
+        SymbolArray mainCode = parseStatementSequence(&source);
         CharacterSource s = source;
         if (s.get() != -1) {
             static String error("Expected end of file");
             source.location().throwError(error);
         }
-        Symbol main(atomFunctionDefinitionStatement, voidType, String(), SymbolArray(), Symbol(atomCompoundStatement, program));
+        Symbol main(atomFunctionDefinitionStatement, voidType, String(), SymbolArray(), Symbol(atomCompoundStatement, mainCode), new FunctionDefinitionCache(Span()));
+        int mainLabel = labelOf(main);
 
         setScopes(main, scope);
         resolveIdentifiersAndTypes(main);
         checkTypes(main, Symbol(atomVoid));
+        Program program;
+        evaluate(&program, Symbol(atomFunctionCall, Symbol(atomIdentifier, new IdentifierCache(Span(), mainLabel))));
         Compiler compiler;
         compiler.compileFunction(main);
         SymbolArray compiledProgram = compiler.compiledProgram();

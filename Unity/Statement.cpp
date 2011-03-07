@@ -80,8 +80,7 @@ Symbol parseFunctionDefinitionStatement(CharacterSource* source)
             parameterList,
             Symbol(atomFromStatement, dll,
                 new ExpressionCache(Span(span.start(), end))),
-            new IdentifierCache(Span(spanOf(returnTypeSpecifier).start(), end),
-                Symbol::newLabel()));
+            new FunctionDefinitionCache(Span(spanOf(returnTypeSpecifier).start(), end)));
     }
     Symbol statement = parseStatementOrFail(source);
     statement = Symbol(

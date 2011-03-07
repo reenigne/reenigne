@@ -1,0 +1,17 @@
+What is the relationship between types and atoms?
+  An atom can be thought of as a vtable pointer. It has type Atom and if type T
+   has a run-time idenitity its atom is T::atom.
+  An atom by itself doesn't tell you:
+    How many members the type has
+    What their types are
+    What the methods in the vtable are
+   You need a separate type definition to find those.
+  Given an atom, all you can do with it is compare it to other Atom values for
+   equality.
+
+Symbol is a completely dynamic type (with no vtable) in the C++ implementation
+ due to the limitations of C++. In Unity, each Symbol atom should correspond to
+ a real type, and we should still be able to do all the pattern-matching stuff
+ we need to.
+
+

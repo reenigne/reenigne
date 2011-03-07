@@ -1,3 +1,7 @@
+Split Compiler into Compiler and Program
+
+
+
 Need a symbol type for label. Gets a label number on creation.
   Add it has the same effect as Compiler::addLabel()
   All labels are in the same space, so we can re-use the label numbers
@@ -5,11 +9,6 @@ Need a symbol type for label. Gets a label number on creation.
 Implement evaluate()
   Force compilation of any functions called
   Need Compiler* argument?
-  Need to make Compiler re-entrant.
-    Just finish block before calling evaluate()?
-    Or:
-      Split Compiler into Compiler and Program
-      Use a separate Compiler object with the same Program object
 
 In type-checking, need to make sure that argument to emit has type SymbolArray
   And the argument to include has type String
@@ -106,6 +105,8 @@ Add template functions
 Compile to executable code
   Implement calling external functions
   Need to evaluate dll expression at compile time
+  When interpreting, only need to compile the functions we actually call, but
+   when compiling, need to compile any function which could be called.
 Add statement `assembly` AssemblyStatement
 Add operator  1 ::                LtR
   Or just use . instead?
