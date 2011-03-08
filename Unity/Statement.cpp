@@ -496,6 +496,34 @@ Symbol parseEmitStatement(CharacterSource* source)
     return Symbol(atomEmit, expression, newSpan(span.start(), end));
 }
 
+Symbol parseLabelStatement(CharacterSource* source)
+{
+    static String labelKeyword("label");
+    Span span;
+    if (!Space::parseKeyword(source, labelKeyword, span))
+        return Symbol();
+    Symbol identifier = parseIdentifier(source);
+    if (!identifier.valid()) {
+        static String error("Identifier expected");
+        source->location().throwError(error);
+    }
+    Span span2;
+    Space::parseCharacter(source, ';', span2);
+    return Symbol(atomLabelStatement, identifier, new IdentifierCache(Span(span.start(), span2.end())));
+}
+
+Symbol parseGotoStatement(CharacterSource* source)
+{
+    static String labelKeyword("label");
+    Span span;
+    if (!Space::parseKeyword(source, labelKeyword, span))
+        return Symbol();
+    Symbol expression = parseExpressionOrFail(source);
+    Span span2;
+    Space::parseCharacter(source, ';', span2);
+    return Symbol(atomLabelStatement, expression, newSpan(span.start(), span2.end()));
+}
+
 Symbol parseStatement(CharacterSource* source)
 {
     Symbol s = parseExpressionStatement(source);
@@ -547,6 +575,12 @@ Symbol parseStatement(CharacterSource* source)
     if (s.valid())
         return s;
     s = parseEmitStatement(source);
+    if (s.valid())
+        return s;
+    s = parseLabelStatement(source);
+    if (s.valid())
+        return s;
+    s = parseGotoStatement(source);
     if (s.valid())
         return s;
     return Symbol();

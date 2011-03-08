@@ -1,6 +1,15 @@
+class Program
+{
+public:
+    void add(Symbol basicBlock) { _basicBlocks.add(basicBlock); }
+private:
+    SymbolList _basicBlocks;
+};
+
 class Compiler
 {
 public:
+    Compiler(Program* program) : _program(program) { }
     void compileFunction(Symbol functionDefinitionStatement)
     {
         if (functionDefinitionStatement.cache<FunctionDefinitionCache>()->getCompilingFlag()) {
@@ -37,7 +46,6 @@ public:
         //_returnTypeStack.pop();
         functionDefinitionStatement.cache<FunctionDefinitionCache>()->setCompilingFlag(false);
     }
-    SymbolList compiledProgram() const { return _compiledProgram; }
 private:
     void compileStatementSequence(SymbolArray program)
     {
@@ -48,7 +56,7 @@ private:
     {
         Symbol block(atomBasicBlock, SymbolArray(_basicBlock), _label, nextLabel);
         block.setLabel(_label);
-        _compiledProgram.add(block);
+        _program->add(block);
         _basicBlock = SymbolList();
         _label = nextLabel;
     }
@@ -64,9 +72,8 @@ private:
                 break;            
             case atomFunctionDefinitionStatement:
                 {
-                    Compiler compiler;
+                    Compiler compiler(_program);
                     compiler.compileFunction(statement);
-                    _compiledProgram.add(compiler.compiledProgram());
                 }
                 break;
             case atomFromStatement:
@@ -442,7 +449,7 @@ private:
             _blockStackOffsets.add(label, _stackOffset);
     }
 
-    SymbolList _compiledProgram;
+    Program* _program;
     SymbolList _basicBlock;
     int _label;
     bool _blockEnds;

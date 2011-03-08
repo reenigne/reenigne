@@ -1,6 +1,5 @@
-Split Compiler into Compiler and Program
-
-
+Add goto and label statement handling in Compiler
+  label has type Label and goto's argument accepts Label.
 
 Need a symbol type for label. Gets a label number on creation.
   Add it has the same effect as Compiler::addLabel()
@@ -8,7 +7,8 @@ Need a symbol type for label. Gets a label number on creation.
 
 Implement evaluate()
   Force compilation of any functions called
-  Need Compiler* argument?
+  Need Program* argument and RuntimeStack* argument?
+    Combine these into VirtualMachine?
 
 In type-checking, need to make sure that argument to emit has type SymbolArray
   And the argument to include has type String
@@ -156,7 +156,6 @@ Add arbitrary precision WordString, Integer, Unsigned and Floating types
 Add coroutines
 Detect pure functions
 Add statement `for` "(" Type ValueIdentifer `in` Expression ")" LoopBody
-Add goto and label statements
 Optimization: Add a LabelledSymbol class deriving from Symbol so that Symbol doesn't need a _label member
 Optimization: Shrink Symbol::_labelled if the second half is all empty to avoid pooling memory.
   To do this, need to remove elements from the list when they're at the end of the array.

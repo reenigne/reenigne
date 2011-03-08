@@ -87,6 +87,8 @@ enum Atom
     atomUntilStatement,
     atomForStatement,
     atomEmit,
+    atomLabelStatement,
+    atomGotoStatement,
 
     atomCase,
     atomDefaultCase,
@@ -210,6 +212,8 @@ String atomToString(Atom atom)
             _table[atomUntilStatement] = String("until");                            // doStatement    condition       statement      doneStatement
             _table[atomForStatement] = String("for");                                // preStatement   expression      postStatement  statement     doneStatement
             _table[atomEmit] = String("_emit");                                      // expression
+            _table[atomLabelStatement] = String("label");                            // identifier
+            _table[atomGotoStatement] = String("goto");                              // identifier
 
             _table[atomCase] = String("case");                                       // expressions    statement
             _table[atomDefaultCase] = String("default");                             // statement
