@@ -60,16 +60,11 @@ int main(int argc, char* argv[])
         }
         Symbol main(atomFunctionDefinitionStatement, voidType, String(), SymbolArray(), Symbol(atomCompoundStatement, mainCode), new FunctionDefinitionCache(Span()));
         int mainLabel = labelOf(main);
-
         setScopes(main, scope);
         resolveIdentifiersAndTypes(main);
         checkTypes(main, Symbol(atomVoid));
         Program program;
         evaluate(&program, Symbol(atomFunctionCall, Symbol(atomIdentifier, new IdentifierCache(Span(), mainLabel))));
-        Compiler compiler;
-        compiler.compileFunction(main);
-        SymbolArray compiledProgram = compiler.compiledProgram();
-        run(compiledProgram);
     }
     END_CHECKED(Exception& e) {
         e.write(Handle::consoleOutput());

@@ -253,6 +253,8 @@ public:
     int hash() const { return _implementation->hash(0); }
     bool operator==(const String& other) const
     {
+        if (_implementation == other->_implementation)
+            return true;
         int l = length();
         if (l != other.length())
             return false;

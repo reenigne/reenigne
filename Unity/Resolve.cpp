@@ -190,6 +190,14 @@ private:
     SymbolArray _argumentTypes;
 };
 
+String identifierToString(SymbolEntry identifier)
+{
+    if (!identifier.isSymbol())
+        return identifier.string();
+    static String op("operator");
+    return op + atomToString(identifier.symbol().atom());
+}
+
 class Scope : public ReferenceCounted
 {
 public:
@@ -203,86 +211,86 @@ public:
     }
     Scope* outer() const { return _outer; }
     Scope* functionScope() const { return _functionScope; }
-    void addVariable(String name, int label, Span span)
+    void addVariable(SymbolEntry identifier, int label, Span span)
     {
-        if (_symbolTable.hasKey(name)) {
+        if (_symbolTable.hasKey(identifier)) {
             static String error(" is already defined");
-            span.throwError(name + error);
+            span.throwError(identifierToString(identifier) + error);
         }
-        _symbolTable.add(name,new VariableName(label));
+        _symbolTable.add(identifier, new VariableName(label));
     }
-    int resolveIdentifier(String name, Span span)
+    int resolveIdentifier(SymbolEntry identifier, Span span)
     {
-        if (!_symbolTable.hasKey(name)) {
+        if (!_symbolTable.hasKey(identifier)) {
             if (_outer != 0)
-                return _outer->resolveIdentifier(name, span);
+                return _outer->resolveIdentifier(identifier, span);
             static String error("Undefined symbol ");
-            span.throwError(error + name);
+            span.throwError(error + identifierToString(identifier));
         }
-        return _symbolTable[name]->resolveIdentifier(span);
+        return _symbolTable[identifier]->resolveIdentifier(span);
     }
-    void addFunction(String name, int label, Span span)
+    void addFunction(SymbolEntry identifier, int label, Span span)
     {
         FunctionName* functionName;
-        if (_symbolTable.hasKey(name)) {
-            Reference<SymbolName> symbol = _symbolTable[name];
+        if (_symbolTable.hasKey(identifier)) {
+            Reference<SymbolName> symbol = _symbolTable[identifier];
             functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
             if (functionName == 0) {
                 static String error(" is already defined as a variable");
-                span.throwError(name + error);
+                span.throwError(identifierToString(identifier) + error);
             }
         }
         else {
             functionName = new FunctionName;
-            _symbolTable.add(name, functionName);
+            _symbolTable.add(identifier, functionName);
         }
         functionName->addOverload(label);
     }
-    void addType(String name, int label, Span span)
+    void addType(SymbolEntry identifier, int label, Span span)
     {
-        if (_typeTable.hasKey(name)) {
+        if (_typeTable.hasKey(identifier)) {
             static String error(" has already been defined.");
-            span.throwError(name + error);
+            span.throwError(identifierToString(identifier) + error);
         }
-        _typeTable.add(name, label);
+        _typeTable.add(identifier, label);
     }
-    int resolveFunction(String name, SymbolArray argumentTypes, Span span)
+    int resolveFunction(SymbolEntry identifier, SymbolArray argumentTypes, Span span)
     {
-        if (!_symbolTable.hasKey(name)) {
+        if (!_symbolTable.hasKey(identifier)) {
             if (_outer == 0) {
                 static String error("Undefined function ");
-                span.throwError(error + name);
+                span.throwError(error + identifierToString(identifier));
             }
-            return _outer->resolveFunction(name, argumentTypes, span);
+            return _outer->resolveFunction(identifier, argumentTypes, span);
         }
-        Reference<SymbolName> symbol = _symbolTable[name];
+        Reference<SymbolName> symbol = _symbolTable[identifier];
         FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
         if (functionName == 0) {
             static String error(" is not a function");
-            span.throwError(name + error);
+            span.throwError(identifierToString(identifier) + error);
         }
         if (!functionName->hasOverload(argumentTypes)) {
             static String error(" has no overload with argument types ");
-            span.throwError(name + error + typesToString(argumentTypes));
+            span.throwError(identifierToString(identifier) + error + typesToString(argumentTypes));
         }
         return functionName->lookUpOverload(argumentTypes);
     }
-    int resolveType(String name, Span span)
+    int resolveType(SymbolEntry identifier, Span span)
     {
-        if (!_typeTable.hasKey(name)) {
+        if (!_typeTable.hasKey(identifier)) {
             if (_outer == 0) {
                 static String error("Undefined type ");
-                span.throwError(error + name);
+                span.throwError(error + identifierToString(identifier));
             }
-            return _outer->resolveType(name, span);
+            return _outer->resolveType(identifier, span);
         }
-        return _typeTable[name];
+        return _typeTable[identifier];
     }
     void setStackOffset(int offset) { _offset = offset; }
     int getStackOffset() { return _offset; }
 private:
-    HashTable<String, Reference<SymbolName> > _symbolTable;
-    HashTable<String, int> _typeTable;
+    HashTable<SymbolEntry, Reference<SymbolName> > _symbolTable;
+    HashTable<SymbolEntry, int> _typeTable;
     Scope* _outer;
     Scope* _functionScope;
     int _offset;
@@ -303,20 +311,20 @@ Scope* setScopes(SymbolEntry entry, Scope* scope)
     switch (symbol.atom()) {
         case atomFunctionDefinitionStatement:
             inner = new Scope(scope, true);
-            scope->addFunction(symbol[2].string(), labelOf(symbol), spanOf(symbol));
+            scope->functionScope()->addFunction(symbol[2], labelOf(symbol), spanOf(symbol));
             break;
         case atomVariableDefinitionStatement:
             scope = new Scope(scope);
             inner = scope;
-            scope->addVariable(symbol[2].string(), labelOf(symbol), spanOf(symbol));
+            scope->addVariable(symbol[2], labelOf(symbol), spanOf(symbol));
             break;
         case atomParameter:
             scope = new Scope(scope);
             inner = scope;
-            scope->addVariable(symbol[2].string(), labelOf(symbol), spanOf(symbol));
+            scope->addVariable(symbol[2], labelOf(symbol), spanOf(symbol));
             break;
         case atomTypeAliasStatement:
-            scope->addType(symbol[2].string(), labelOf(symbol), spanOf(symbol));
+            scope->functionScope()->addType(symbol[2], labelOf(symbol), spanOf(symbol));
             break;
         case atomIfStatement:
             setScopes(symbol[1], scope);
@@ -357,6 +365,9 @@ Scope* setScopes(SymbolEntry entry, Scope* scope)
         case atomIdentifier:
         case atomTypeIdentifier:
             symbol.cache<IdentifierCache>()->setScope(scope);
+            break;
+        case atomLabelStatement:
+            scope->functionScope()->addVariable(symbol[1], labelOf(symbol), spanOf(symbol));
             break;
     }
     const SymbolTail* tail = symbol.tail();
@@ -528,6 +539,9 @@ void resolveIdentifiersAndTypes(SymbolEntry entry)
             resolveTypeOf(symbol);
             // TODO: look up right identifier in class symbol table
             break;
+        case atomLabelStatement:
+            resolveTypeOf(symbol);
+            return;
     }
 
     const SymbolTail* tail = symbol.tail();
@@ -546,14 +560,14 @@ void resolveIdentifier(Symbol symbol)
         case atomIdentifier:
             {
                 Scope* scope = scopeOf(symbol);
-                label = scope->resolveIdentifier(symbol[1].string(), spanOf(symbol));
+                label = scope->resolveIdentifier(symbol[1], spanOf(symbol));
                 setLabel(symbol, label);
             }
             return;
         case atomTypeIdentifier:
             {
                 Scope* scope = scopeOf(symbol);
-                label = scope->resolveType(symbol[1].string(), spanOf(symbol));
+                label = scope->resolveType(symbol[1], spanOf(symbol));
                 setLabel(symbol, label);
             }
             return;
@@ -566,7 +580,7 @@ void resolveIdentifier(Symbol symbol)
                     SymbolArray arguments = symbol[2].array();
                     for (int i = 0; i < arguments.count(); ++i)
                         list.add(typeOf(arguments[i]));
-                    int label = scope->resolveFunction(function[1].string(), list, spanOf(function));
+                    int label = scope->resolveFunction(function[1], list, spanOf(function));
                     setLabel(function, label);
                     return;
                 }
@@ -696,6 +710,9 @@ void resolveTypeOf(Symbol symbol)
             break;
         case atomPrintFunction:
             type = Symbol(atomFunction, Symbol(atomVoid), SymbolArray(Symbol(atomString)));
+            break;
+        case atomLabelStatement:
+            type = Symbol(atomLabel);
             break;
     }
     setType(symbol, type);

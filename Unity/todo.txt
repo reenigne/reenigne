@@ -1,5 +1,4 @@
 Add goto and label statement handling in Compiler
-  label has type Label and goto's argument accepts Label.
 
 Need a symbol type for label. Gets a label number on creation.
   Add it has the same effect as Compiler::addLabel()
@@ -9,6 +8,7 @@ Implement evaluate()
   Force compilation of any functions called
   Need Program* argument and RuntimeStack* argument?
     Combine these into VirtualMachine?
+  Limit number of steps per evaluate() call when compiling (don't bother when interpreting)
 
 In type-checking, need to make sure that argument to emit has type SymbolArray
   And the argument to include has type String
@@ -197,3 +197,10 @@ Value range propagation
 The operator*() function call returns a pointer, so we need to actually dereference it to get an LValue or RValue.
 
 adapters.txt: Allow different types for the two operands (particularly the relational ones)?
+                                  
+Build the static String table and String data table
+  Want to make it as small as possible
+    If a is a substring of b, only need to put b in the table.
+    If the start of a overlaps the end of b, can put the rest of a after b.
+    When two strings are identical, only need 1 entry in the String table.
+  Regular expression matching algorithm?

@@ -104,6 +104,18 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
         case atomForStatement:
             assertTypeBoolean(symbol[2].symbol());
             break;
+        case atomGotoStatement:
+            {
+                Symbol expression = symbol[1].symbol();
+                Symbol type = typeOf(expression);
+                if (type.atom() != atomLabel) {
+                    static String error("expression is of type ");
+                    static String error2(", Label expected");
+                    if (type.atom() != atomLabel)
+                        spanOf(expression).throwError(error + typeToString(type) + error2);
+                }
+            }
+            break;
     }
 
     const SymbolTail* tail = symbol.tail();

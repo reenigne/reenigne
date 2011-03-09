@@ -498,25 +498,22 @@ Symbol parseEmitStatement(CharacterSource* source)
 
 Symbol parseLabelStatement(CharacterSource* source)
 {
-    static String labelKeyword("label");
-    Span span;
-    if (!Space::parseKeyword(source, labelKeyword, span))
+    CharacterSource s2 = *source;
+    Symbol identifier = parseIdentifier(&s2);
+    if (!identifier.valid())
         return Symbol();
-    Symbol identifier = parseIdentifier(source);
-    if (!identifier.valid()) {
-        static String error("Identifier expected");
-        source->location().throwError(error);
-    }
-    Span span2;
-    Space::parseCharacter(source, ';', span2);
-    return Symbol(atomLabelStatement, identifier, new IdentifierCache(Span(span.start(), span2.end())));
+    Span span;
+    if (!Space::parseCharacter(&s2, ':', span))
+        return Symbol();
+    return Symbol(atomLabelStatement, identifier,
+        new IdentifierCache(Span(spanOf(identifier).start(), span.end())));
 }
 
 Symbol parseGotoStatement(CharacterSource* source)
 {
-    static String labelKeyword("label");
+    static String gotoKeyword("goto");
     Span span;
-    if (!Space::parseKeyword(source, labelKeyword, span))
+    if (!Space::parseKeyword(source, gotoKeyword, span))
         return Symbol();
     Symbol expression = parseExpressionOrFail(source);
     Span span2;

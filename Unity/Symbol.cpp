@@ -17,6 +17,7 @@ enum Atom
     atomUInt,
     atomVoid,
     atomWord,
+    atomLabel,
 
     atomLogicalOr,
     atomLogicalAnd,
@@ -142,6 +143,7 @@ String atomToString(Atom atom)
             _table[atomUInt] = String("UInt");
             _table[atomVoid] = String("Void");
             _table[atomWord] = String("Word");
+            _table[atomLabel] = String("Label");
 
             _table[atomLogicalOr] = String("||");                                    // leftExpression rightExpression
             _table[atomLogicalAnd] = String("&&");                                   // leftExpression rightExpression

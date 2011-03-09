@@ -423,7 +423,7 @@ private:
         Symbol block(atomBasicBlock, SymbolArray(_basicBlock), _label, follows);
         checkBlockStackOffset(_label);
         block.setLabel(_label);
-        _compiledProgram.add(block);
+        _program->add(block);
         _basicBlock = SymbolList();
         _label = label;
         _atBlockStart = true;

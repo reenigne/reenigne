@@ -209,7 +209,7 @@ Symbol parseIdentifier(CharacterSource* source)
         static String expected("Expected an operator");
         s2.location().throwError(expected);
     }
-    return Symbol(atom, newSpan(startLocation, span2.end()));
+    return Symbol(atomIdentifier, Symbol(atom), newSpan(startLocation, span2.end()));
 }
 
 Symbol parseDoubleQuotedString(CharacterSource* source)
