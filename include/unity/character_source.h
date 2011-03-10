@@ -34,7 +34,7 @@ private:
 class Span
 {
 public:
-    Span() { }
+    Span() : _startLine(-1) { }
     Span(Location start, Location end)
       : _fileName(start.fileName()),
         _startLine(start.line()),
@@ -57,9 +57,10 @@ public:
     String asString() const
     {
         static String s(")-(");
-        return _fileName + openParenthesis + String::decimal(_startLine) + comma +
-            String::decimal(_startColumn) + s + String::decimal(_endLine) + comma +
-            String::decimal(_endColumn) + closeParenthesis;
+        return _fileName + openParenthesis + String::decimal(_startLine) +
+            comma + String::decimal(_startColumn) + s +
+            String::decimal(_endLine) + comma + String::decimal(_endColumn) +
+            closeParenthesis;
     }
     void throwError(const String& message) const
     {
@@ -72,6 +73,17 @@ public:
     Location end() const
     {
         return Location(_fileName, _endLine, _endColumn);
+    }
+    Span operator+(const Span& other) const
+    {
+        if (_startLine == -1)
+            return other;
+        return Span(start(), other.end());
+    }
+    const Span& operator+=(const Span& other)
+    { 
+        *this = *this + other;
+        return *this;
     }
 private:
     String _fileName;
@@ -202,7 +214,43 @@ public:
     CharacterSource(const String& string, const String& fileName)
       : _codePointSource(string), _location(fileName)
     { }
-    int get()
+    int get(Span* span = 0)
+    {
+        Location start = location();
+        int c = doGet();
+        if (span != 0)
+            *span = Span(start, location());
+        return c;
+    }
+    bool parse(int character, Span* span)
+    {
+        CharacterSource s = *this;
+        if (s.get(span) == character) {
+            *this = s;
+            return true;
+        }
+        return false;
+    }
+    void assert(int character, Span* span)
+    {
+        if (!parse(character, span))
+            throwUnexpected(String::codePoint(character),
+                String::codePoint(doGet()));
+    }
+    Location location() const { return _location; }
+    void throwUnexpected(const String& expected, const String& observed)
+    {
+        static String expectedMessage("Expected ");
+        static String found(", found ");
+        _location.throwError(expectedMessage + expected + found + observed);
+    }
+    int offset() const { return _codePointSource.offset(); }
+    String subString(int start, int end)
+    {
+        return _codePointSource.subString(start, end);
+    }
+private:
+    int doGet()
     {
         int c = -1;
         try {
@@ -229,33 +277,6 @@ public:
         }
         return c;
     }
-    bool parse(int character)
-    {
-        CharacterSource s = *this;
-        if (s.get() == character) {
-            *this = s;
-            return true;
-        }
-        return false;
-    }
-    void assert(int character)
-    {
-        CharacterSource start = *this;
-        int found = get();
-        if (found == character)
-            return;
-        start.throwUnexpected(String::codePoint(character), String::codePoint(found));
-    }
-    Location location() const { return _location; }
-    void throwUnexpected(const String& expected, const String& observed)
-    {
-        static String expectedMessage("Expected ");
-        static String found(", found ");
-        _location.throwError(expectedMessage + expected + found + observed);
-    }
-    int offset() const { return _codePointSource.offset(); }
-    String subString(int start, int end) { return _codePointSource.subString(start, end); }
-private:
     CodePointSource _codePointSource;
     Location _location;
 };

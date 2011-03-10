@@ -1,17 +1,39 @@
-Add goto and label statement handling in Compiler
-
-Need a symbol type for label. Gets a label number on creation.
-  Add it has the same effect as Compiler::addLabel()
-  All labels are in the same space, so we can re-use the label numbers
-
 Implement evaluate()
   Force compilation of any functions called
   Need Program* argument and RuntimeStack* argument?
     Combine these into VirtualMachine?
   Limit number of steps per evaluate() call when compiling (don't bother when interpreting)
 
-In type-checking, need to make sure that argument to emit has type SymbolArray
-  And the argument to include has type String
+In type-checking, need to make sure that argument to emit has type Sequence<Compiler.Instruction>
+  Implement generic types
+    When resolving types, need to find the correct instantiation (or make a new one)
+
+    Need to figure out syntax
+      Does "A f<A>() { }" mean a generic function or a specialization?
+    In C++ you would have:
+      template<class A> A f() { }    // template
+      template<> Int f<Int>() { }    // specialization
+      template<class A> class B { }  // template
+      template<> class B<Int> { }    // specialization
+      template<template<class A> class B> class C { }  // template template
+    In Unity:
+
+      A f<@A>() { }
+      Int f<Int>() { }
+
+      Void g<@A, @B>(A a, B b) { }
+      Void g<Int, @B>(Int a, B b) { }  // partial specialization
+
+      B<@A> = Class { }
+      B<Int> = Class { }
+      C<@B<@A>> = Class { }
+      C<Foo<@A>> = Class { }   // not valid
+      C<Foo<Int>> = Class { }  // not valid
+      C<@B<Int>> = Class { }   // not valid
+      C<B> = Class { }   // specialization of a template template
+
+      How to do partial specialization for pointers?
+        B<@A*> = Class { }  - so the @ prefix binds more tightly than *
 
 Implement atomEmit expression and statement in compiler
   Need to force evaluation of the argument expression, which involves compiling
@@ -36,8 +58,6 @@ How to do compile-time expression evaluation for emit and include
         Set this up on first call to evaluate()
       Is it always the same? Might we need faciliites other than memory? Shouldn't do I think...
 
-Implement #{} literal array syntax
-  Or use []?
 
 How do we define the inner types of Compiler?
 
@@ -184,6 +204,8 @@ Have a run-time type operator typeOf()?
 Allow parameters to have type Auto which creates a template function?
 
 Have a Symbol-like type built in - the atoms are Type objects (or pointers to them)
+  All objects with a vtable pointer derive from some base type (Dynamic?)
+  All objects derive from Object
 
 Need to thing about what Type::toString() returns for class types
   keep track of first name assigned to type if it's defined with an alias
@@ -204,3 +226,9 @@ Build the static String table and String data table
     If the start of a overlaps the end of b, can put the rest of a after b.
     When two strings are identical, only need 1 entry in the String table.
   Regular expression matching algorithm?
+
+goto statement handling in compiler
+  Call destructors for any objects which leave scope
+  Check that we are not skipping any constructor calls
+
+Avoid having Span* arguments to parsing functions - return a Symbol instead.

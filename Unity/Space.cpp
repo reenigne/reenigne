@@ -15,59 +15,59 @@ public:
             return;
         } while (true);
     }
-    static bool parseCharacter(CharacterSource* source, int character, Span& span)
+    static bool parseCharacter(CharacterSource* source, int character, Span* span)
     {
-        Location start = source->location();
-        if (!source->parse(character))
+        if (!source->parse(character, span))
             return false;
-        span = Span(start, source->location());
         parse(source);
         return true;
     }
-    static Location assertCharacter(CharacterSource* source, int character)
+    static void assertCharacter(CharacterSource* source, int character, Span* span)
     {
-        source->assert(character);
-        Location l = source->location();
+        source->assert(character, span);
         parse(source);
-        return l;
     }
-    static bool parseOperator(CharacterSource* source, String op, Span& span)
+    static bool parseOperator(CharacterSource* source, String op, Span* span)
     {
-        Location start = source->location();
-        static String empty("");
         CharacterSource s = *source;
         CharacterSource o(op, empty);
+        Span sp;
         do {
+            Span sp2;
             int c = o.get();
             if (c == -1)
                 break;
-            if (s.get() != c)
+            if (s.get(&sp2) != c)
                 return false;
+            sp += sp2;
         } while (true);
         *source = s;
-        span = Span(start, source->location());
+        if (span != 0)
+            *span = sp;
         parse(source);
         return true;
     }
-    static bool parseKeyword(CharacterSource* source, String keyword, Span& span)
+    static bool parseKeyword(CharacterSource* source, String keyword, Span* span)
     {
-        Location start = source->location();
-        static String empty("");
         CharacterSource s = *source;
         CharacterSource o(keyword, empty);
+        Span sp;
+        Span sp2;
         do {
             int c = o.get();
             if (c == -1)
                 break;
-            if (s.get() != c)
+            if (s.get(&sp2) != c)
                 return false;
+            sp += sp2;
         } while (true);
         CharacterSource s2 = s;
-        int c = s2.get();
+        int c = s2.get(&sp2);
         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')
             return false;
         *source = s;
-        span = Span(start, source->location());
+        if (span != 0)
+            *span = sp;
         parse(source);
         return true;
     }

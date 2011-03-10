@@ -53,6 +53,7 @@ enum Atom
     atomTrue,
     atomFalse,
     atomNull,
+    atomArrayLiteral,
 
     atomParameter,
 
@@ -179,6 +180,7 @@ String atomToString(Atom atom)
             _table[atomTrue] = String("true");
             _table[atomFalse] = String("false");
             _table[atomNull] = String("null");
+            _table[atomArrayLiteral] = String("array");                              // values
 
             _table[atomParameter] = String("parameter");                             // typeSpecifier  name
 

@@ -51,12 +51,13 @@ Symbol parseClassTypeSpecifier(CharacterSource* source)
     static String keyword("Class");
     Location start = source->location();
     Span span;
-    if (!Space::parseKeyword(source, keyword, span))
+    if (!Space::parseKeyword(source, keyword, &span))
         return Symbol();
-    Space::assertCharacter(source, '{');
+    Span span2;
+    Space::assertCharacter(source, '{', &span2);
     // TODO: Parse class contents
-    Location end = Space::assertCharacter(source, '}');
-    return Symbol(atomClass, new TypeCache(Span(start, end), -1, -1,
+    Space::assertCharacter(source, '}', &span2);
+    return Symbol(atomClass, new TypeCache(span + span2, -1, -1,
         Symbol::newLabel()));
 }
 
@@ -121,7 +122,7 @@ SymbolArray parseTypeSpecifierList(CharacterSource* source)
         return list;
     list.add(typeSpecifier);
     Span span;
-    while (Space::parseCharacter(source, ',', span)) {
+    while (Space::parseCharacter(source, ',', &span)) {
         typeSpecifier = parseTypeSpecifier(source);
         if (!typeSpecifier.valid()) {
             static String error("Type specifier expected");
@@ -139,16 +140,16 @@ Symbol parseTypeSpecifier(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        if (Space::parseCharacter(source, '*', span)) {
+        if (Space::parseCharacter(source, '*', &span)) {
             typeSpecifier = Symbol(atomPointer, typeSpecifier,
-                new TypeCache(Span(spanOf(typeSpecifier).start(), span.end()), 4, 4));
+                new TypeCache(spanOf(typeSpecifier) + span, 4, 4));
             continue;
         }
-        if (Space::parseCharacter(source, '(', span)) {
+        if (Space::parseCharacter(source, '(', &span)) {
             SymbolArray typeListSpecifier = parseTypeSpecifierList(source);
-            Location end = Space::assertCharacter(source, ')');
+            Space::assertCharacter(source, ')', &span);
             typeSpecifier = Symbol(atomFunction, typeSpecifier,
-                typeListSpecifier, new TypeCache(Span(spanOf(typeSpecifier).start(), end), 0, 0));
+                typeListSpecifier, new TypeCache(spanOf(typeSpecifier) + span, 0, 0));
             continue;
         }
     } while (true);
@@ -159,23 +160,24 @@ Symbol parseTypeOfTypeSpecifier(CharacterSource* source)
 {
     Span span;
     static String keyword("TypeOf");
-    if (!Space::parseKeyword(source, keyword, span))
+    if (!Space::parseKeyword(source, keyword, &span))
         return Symbol();
-    Space::assertCharacter(source, '(');
+    Span span2;
+    Space::assertCharacter(source, '(', &span2);
     Symbol expression = parseExpressionOrFail(source);
-    Location end = Space::assertCharacter(source, ')');
-    return Symbol(atomTypeOf, expression, newSpan(span.start(), end));
+    Space::assertCharacter(source, ')', &span2);
+    return Symbol(atomTypeOf, expression, newSpan(span + span2));
 }
 
 SymbolArray parseTemplateArgumentList(CharacterSource* source)
 {
     Span span;
-    if (!Space::parseCharacter(source, '<', span))
+    if (!Space::parseCharacter(source, '<', &span))
         return SymbolArray();
     SymbolArray array = parseTypeSpecifierList(source);
     if (array.count() == 0)
         return SymbolArray();
-    if (!Space::parseCharacter(source, '>', span))
+    if (!Space::parseCharacter(source, '>', &span))
         return SymbolArray();
     return array;
 }

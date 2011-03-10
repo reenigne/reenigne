@@ -99,6 +99,17 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
                 }
             }
             break;
+        case atomFromStatement:
+            {
+                Symbol expression = symbol[1].symbol();
+                Symbol type = typeOf(expression);
+                if (type.atom() != atomString) {
+                    static String error("argument to from is of type ");
+                    static String error2(", expected String");
+                    spanOf(expression).throwError(error + typeToString(type) + error2);
+                }
+            }
+            break;
         case atomWhileStatement:
         case atomUntilStatement:
         case atomForStatement:
@@ -115,6 +126,9 @@ void checkTypes(SymbolEntry entry, Symbol returnType)
                         spanOf(expression).throwError(error + typeToString(type) + error2);
                 }
             }
+            break;
+        case atomEmit:
+            // TODO: Check that type of argument is Sequence<Compiler.Instruction>
             break;
     }
 

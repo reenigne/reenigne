@@ -21,10 +21,10 @@ Symbol combine(Symbol left, Symbol right, SymbolCache* cache)
     return right;
 }
 
-int parseHexadecimalCharacter(CharacterSource* source)
+int parseHexadecimalCharacter(CharacterSource* source, Span* span)
 {
     CharacterSource s = *source;
-    int c = s.get();
+    int c = s.get(span);
     if (c >= '0' && c <= '9') {
         *source = s;
         return c - '0';
@@ -66,22 +66,24 @@ Symbol parseIdentifier(CharacterSource* source)
 {
     CharacterSource s = *source;
     Location startLocation = s.location();
-    int start = s.offset();
-    int c = s.get();
+    int startOffset;
+    Span startSpan;
+    Span endSpan;
+    int c = s.get(&startSpan);
     if (c < 'a' || c > 'z')
         return Symbol();
     CharacterSource s2;
     do {
         s2 = s;
-        c = s.get();
+        c = s.get(&endSpan);
         if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')
             continue;
         break;
     } while (true);
-    int end = s2.offset();
+    int endOffset = s2.offset();
     Location endLocation = s2.location();
     Space::parse(&s2);
-    String name = s2.subString(start, end);
+    String name = s2.subString(startOffset, endOffset);
     static String keywords[] = {
         String("assembly"),
         String("break"),
@@ -118,98 +120,95 @@ Symbol parseIdentifier(CharacterSource* source)
     String op("operator");
     if (name != op) {
         *source = s2;
-        return Symbol(atomIdentifier, name, newSpan(startLocation, endLocation));
+        return Symbol(atomIdentifier, name, newSpan(startSpan + endSpan));
     }
-    Span span2;
     Span span3;
     Atom atom = atomLast;
     CharacterSource s3 = s2;
-    if (Space::parseCharacter(&s2, '(', span2)) {
-        if (Space::parseCharacter(&s2, ')', span2))
+    if (Space::parseCharacter(&s2, '(', &endSpan)) {
+        if (Space::parseCharacter(&s2, ')', &endSpan))
             atom = atomFunctionCall;
         else {
             static String expected("Expected )");
             s2.location().throwError(expected);
         }
     }
-    else if (Space::parseCharacter(&s2, '[', span2)) {
-        if (Space::parseCharacter(&s2, ']', span2))
+    else if (Space::parseCharacter(&s2, '[', &endSpan)) {
+        if (Space::parseCharacter(&s2, ']', &endSpan))
             atom = atomFunctionCall;
         else {
             static String expected("Expected ]");
             s2.location().throwError(expected);
         }
     }
-    else if (Space::parseOperator(&s2, equalTo, span2))
+    else if (Space::parseOperator(&s2, equalTo, &endSpan))
         atom = atomEqualTo;
-    else if (Space::parseCharacter(&s2, '=', span2))
+    else if (Space::parseCharacter(&s2, '=', &endSpan))
         atom = atomAssignment;
-    else if (Space::parseOperator(&s2, addAssignment, span2))
+    else if (Space::parseOperator(&s2, addAssignment, &endSpan))
         atom = atomAddAssignment;
-    else if (Space::parseOperator(&s2, subtractAssignment, span2))
+    else if (Space::parseOperator(&s2, subtractAssignment, &endSpan))
         atom = atomSubtractAssignment;
-    else if (Space::parseOperator(&s2, multiplyAssignment, span2))
+    else if (Space::parseOperator(&s2, multiplyAssignment, &endSpan))
         atom = atomMultiplyAssignment;
-    else if (Space::parseOperator(&s2, divideAssignment, span2))
+    else if (Space::parseOperator(&s2, divideAssignment, &endSpan))
         atom = atomDivideAssignment;
-    else if (Space::parseOperator(&s2, moduloAssignment, span2))
+    else if (Space::parseOperator(&s2, moduloAssignment, &endSpan))
         atom = atomModuloAssignment;
-    else if (Space::parseOperator(&s2, shiftLeftAssignment, span2))
+    else if (Space::parseOperator(&s2, shiftLeftAssignment, &endSpan))
         atom = atomShiftLeftAssignment;
-    else if (Space::parseOperator(&s2, shiftRightAssignment, span2))
+    else if (Space::parseOperator(&s2, shiftRightAssignment, &endSpan))
         atom = atomShiftRightAssignment;
-    else if (Space::parseOperator(&s2, bitwiseAndAssignment, span2))
+    else if (Space::parseOperator(&s2, bitwiseAndAssignment, &endSpan))
         atom = atomBitwiseAndAssignment;
-    else if (Space::parseOperator(&s2, bitwiseOrAssignment, span2))
+    else if (Space::parseOperator(&s2, bitwiseOrAssignment, &endSpan))
         atom = atomBitwiseOrAssignment;
-    else if (Space::parseOperator(&s2, bitwiseXorAssignment, span2))
+    else if (Space::parseOperator(&s2, bitwiseXorAssignment, &endSpan))
         atom = atomBitwiseXorAssignment;
-    else if (Space::parseOperator(&s2, powerAssignment, span2))
+    else if (Space::parseOperator(&s2, powerAssignment, &endSpan))
         atom = atomPowerAssignment;
-    else if (Space::parseCharacter(&s2, '|', span2))
+    else if (Space::parseCharacter(&s2, '|', &endSpan))
         atom = atomBitwiseOr;
-    else if (Space::parseCharacter(&s2, '~', span2))
+    else if (Space::parseCharacter(&s2, '~', &endSpan))
         atom = atomBitwiseXor;
-    else if (Space::parseCharacter(&s2, '&', span2))
+    else if (Space::parseCharacter(&s2, '&', &endSpan))
         atom = atomBitwiseAnd;
-    else if (Space::parseOperator(&s2, notEqualTo, span2))
+    else if (Space::parseOperator(&s2, notEqualTo, &endSpan))
         atom = atomNotEqualTo;
-    else if (Space::parseOperator(&s2, lessThanOrEqualTo, span2))
+    else if (Space::parseOperator(&s2, lessThanOrEqualTo, &endSpan))
         atom = atomLessThanOrEqualTo;
-    else if (Space::parseOperator(&s2, shiftRight, span2))
+    else if (Space::parseOperator(&s2, shiftRight, &endSpan))
         atom = atomShiftRight;
-    else if (Space::parseCharacter(&s3, '<', span3)) {
+    else if (Space::parseCharacter(&s3, '<', &endSpan)) {
         atom = atomLessThan;
         // Only if we know it's not operator<<T>() can we try operator<<()
         CharacterSource s4 = s3;
         SymbolArray templateArgumentList = parseTemplateArgumentList(&s4);
         if (templateArgumentList.count() == 0 && 
-            Space::parseOperator(&s2, shiftLeft, span2))
+            Space::parseOperator(&s2, shiftLeft, &endSpan))
             atom = atomShiftLeft;
-        else {
+        else
             s2 = s3;
-            span2 = span3;
-        }
     }
-    else if (Space::parseOperator(&s2, greaterThanOrEqualTo, span2))
+    else if (Space::parseOperator(&s2, greaterThanOrEqualTo, &endSpan))
         atom = atomGreaterThanOrEqualTo;
-    else if (Space::parseCharacter(&s2, '>', span2))
+    else if (Space::parseCharacter(&s2, '>', &endSpan))
         atom = atomGreaterThan;
-    else if (Space::parseCharacter(&s2, '+', span2))
+    else if (Space::parseCharacter(&s2, '+', &endSpan))
         atom = atomAdd;
-    else if (Space::parseCharacter(&s2, '-', span2))
+    else if (Space::parseCharacter(&s2, '-', &endSpan))
         atom = atomSubtract;
-    else if (Space::parseCharacter(&s2, '/', span2))
+    else if (Space::parseCharacter(&s2, '/', &endSpan))
         atom = atomDivide;
-    else if (Space::parseCharacter(&s2, '*', span2))
+    else if (Space::parseCharacter(&s2, '*', &endSpan))
         atom = atomMultiply;
-    else if (Space::parseCharacter(&s2, '%', span2))
+    else if (Space::parseCharacter(&s2, '%', &endSpan))
         atom = atomModulo;
     else {
         static String expected("Expected an operator");
         s2.location().throwError(expected);
     }
-    return Symbol(atomIdentifier, Symbol(atom), newSpan(startLocation, span2.end()));
+    return Symbol(atomIdentifier, Symbol(atom), newSpan(startSpan + endSpan));
 }
 
 Symbol parseDoubleQuotedString(CharacterSource* source)
@@ -220,14 +219,14 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
     static String escapedCharacter("escaped character");
     static String hexadecimalDigit("hexadecimal digit");
     static String toString("toString");
-    Location startLocation = source->location();
-    Location stringStartLocation = startLocation;
-    Location stringEndLocation;
     Span span;
-    if (!source->parse('"'))
+    Span startSpan;
+    if (!source->parse('"', &startSpan))
         return Symbol();
-    int start = source->offset();
-    int end;
+    Span stringStartSpan = startSpan;
+    Span stringEndSpan = startSpan;
+    int startOffset = source->offset();
+    int endOffset;
     String insert(empty);
     int n;
     int nn;
@@ -236,8 +235,8 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
     Symbol part;
     do {
         CharacterSource s = *source;
-        end = s.offset();
-        int c = s.get();
+        endOffset = s.offset();
+        int c = s.get(&span);
         if (c < 0x20 && c != 10) {
             if (c == -1)
                 source->location().throwError(endOfFile);
@@ -246,15 +245,15 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
         *source = s;
         switch (c) {
             case '"':
-                string += s.subString(start, end);
+                string += s.subString(startOffset, endOffset);
                 Space::parse(source);
                 return combine(expression,
                     Symbol(atomStringConstant, string,
-                        new ExpressionCache(Span(stringStartLocation, s.location()))),
-                    new ExpressionCache(Span(startLocation, s.location())));
+                        new ExpressionCache(stringStartSpan + span)),
+                    new ExpressionCache(startSpan + span));
             case '\\':
-                string += s.subString(start, end);
-                c = s.get();
+                string += s.subString(startOffset, endOffset);
+                c = s.get(&stringEndSpan);
                 if (c < 0x20) {
                     if (c == 10)
                         source->location().throwError(endOfLine);
@@ -283,20 +282,20 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
                         insert = backQuote;
                         break;
                     case 'U':
-                        source->assert('+');
+                        source->assert('+', &stringEndSpan);
                         n = 0;
                         for (int i = 0; i < 4; ++i) {
-                            nn = parseHexadecimalCharacter(source);
+                            nn = parseHexadecimalCharacter(source, &stringEndSpan);
                             if (nn == -1) {
                                 s = *source;
                                 source->throwUnexpected(hexadecimalDigit, String::codePoint(s.get()));
                             }
                             n = (n << 4) | nn;
                         }
-                        nn = parseHexadecimalCharacter(source);
+                        nn = parseHexadecimalCharacter(source, &stringEndSpan);
                         if (nn != -1) {
                             n = (n << 4) | nn;
-                            nn = parseHexadecimalCharacter(source);
+                            nn = parseHexadecimalCharacter(source, &stringEndSpan);
                             if (nn != -1)
                                 n = (n << 4) | nn;
                         }
@@ -306,49 +305,55 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
                         source->throwUnexpected(escapedCharacter, String::codePoint(c));
                 }
                 string += insert;
-                start = source->offset();
+                startOffset = source->offset();
                 break;
             case '$':
-                stringEndLocation = source->location();
                 part = parseIdentifier(source);
                 if (!part.valid()) {
-                    if (Space::parseCharacter(source, '(', span)) {
+                    if (Space::parseCharacter(source, '(', &span)) {
                         part = parseExpression(source);
-                        source->assert(')');
+                        source->assert(')', &span);
+                    }
+                    else {
+                        static String error("Expected identifier or parenthesized expression");
+                        source->location().throwError(error);
                     }
                 }
                 part = Symbol(atomFunctionCall,
                     Symbol(atomDot, part, Symbol(atomIdentifier, toString),
                         part.cache<ExpressionCache>()),
                     SymbolArray(), part.cache<ExpressionCache>());
-                string += s.subString(start, end);
-                start = source->offset();
+                string += s.subString(startOffset, endOffset);
+                startOffset = source->offset();
                 if (part.valid()) {
                     expression = combine(expression,
                         Symbol(atomStringConstant, string,
-                            new ExpressionCache(Span(stringStartLocation, stringEndLocation))),
-                        new ExpressionCache(Span(startLocation, stringEndLocation)));
+                            new ExpressionCache(stringStartSpan + stringEndSpan)),
+                        new ExpressionCache(startSpan + stringEndSpan));
                     string = empty;
-                    stringStartLocation = source->location();
                     expression = combine(expression, part,
-                        new ExpressionCache(Span(startLocation, stringStartLocation)));
+                        new ExpressionCache(startSpan + span));
                 }
                 break;
+            default:
+                stringEndSpan = span;
         }
     } while (true);
 }
 
 Symbol parseEmbeddedLiteral(CharacterSource* source)
 {
+    Span startSpan;
+    Span endSpan;
     static String empty;
     static String endOfFile("End of file in string");
-    if (!source->parse('#'))
+    if (!source->parse('#', &startSpan))
         return Symbol();
-    if (!source->parse('#'))
+    if (!source->parse('#', &endSpan))
         return Symbol();
-    if (!source->parse('#'))
+    if (!source->parse('#', &endSpan))
         return Symbol();
-    int start = source->offset();
+    int startOffset = source->offset();
     Location location = source->location();
     CharacterSource s = *source;
     do {
@@ -359,9 +364,9 @@ Symbol parseEmbeddedLiteral(CharacterSource* source)
             break;
         *source = s;
     } while (true);
-    int end = source->offset();
-    String terminator = source->subString(start, end);
-    start = s.offset();
+    int endOffset = source->offset();
+    String terminator = source->subString(startOffset, endOffset);
+    startOffset = s.offset();
     CharacterSource terminatorSource(terminator, empty);
     int cc = terminatorSource.get();
     String string;
@@ -376,13 +381,13 @@ Symbol parseEmbeddedLiteral(CharacterSource* source)
             CharacterSource s2 = s;
             if (s2.get() != '#')
                 continue;
-            if (s2.get() != '#')
+            if (s2.get(&endSpan) != '#')
                 continue;
-            string += s.subString(start, source->offset());
+            string += s.subString(startOffset, source->offset());
             *source = s2;
             Space::parse(source);
             return Symbol(atomStringConstant, string,
-                new ExpressionCache(Span(location, s2.location())));
+                new ExpressionCache(startSpan + endSpan));
         }
         else
             if (c == cc) {
@@ -395,13 +400,13 @@ Symbol parseEmbeddedLiteral(CharacterSource* source)
                             break;
                         if (s2.get() != '#')
                             break;
-                        if (s2.get() != '#')
+                        if (s2.get(&endSpan) != '#')
                             break;
-                        string += s.subString(start, source->offset());
+                        string += s.subString(startOffset, source->offset());
                         *source = s2;
                         Space::parse(source);
                         return Symbol(atomStringConstant, string,
-                            new ExpressionCache(Span(location, s2.location())));
+                            new ExpressionCache(startSpan + endSpan));
                     }
                     int cs = s2.get();
                     if (ct != cs)
@@ -409,8 +414,8 @@ Symbol parseEmbeddedLiteral(CharacterSource* source)
                 } while (true);
             }
         if (c == 10) {
-            string += s.subString(start, source->offset()) + String::codePoint(10);
-            start = s.offset();
+            string += s.subString(startOffset, source->offset()) + String::codePoint(10);
+            startOffset = s.offset();
         }
     } while (true);
 }
@@ -418,20 +423,21 @@ Symbol parseEmbeddedLiteral(CharacterSource* source)
 Symbol parseInteger(CharacterSource* source)
 {
     CharacterSource s = *source;
-    Location location = s.location();
     int n = 0;
-    int c = s.get();
+    Span span;
+    int c = s.get(&span);
     if (c < '0' || c > '9')
         return Symbol();
     do {
         n = n*10 + c - '0';
         *source = s;
-        c = s.get();
+        Span span2;
+        c = s.get(&span2);
         if (c < '0' || c > '9') {
             Space::parse(source);
-            return Symbol(atomIntegerConstant, n,
-                new ExpressionCache(Span(location, s.location())));
+            return Symbol(atomIntegerConstant, n, new ExpressionCache(span));
         }
+        span += span2;
     } while (true);
 }
 
@@ -462,11 +468,33 @@ Symbol parseExpressionElement(CharacterSource* source)
         return e;
     }
     Span span;
-    if (Space::parseCharacter(source, '(', span)) {
+    if (Space::parseCharacter(source, '(', &span)) {
         e = parseExpression(source);
-        Location end = Space::assertCharacter(source, ')');
-        return Symbol(e.atom(), e.tail(),
-            new ExpressionCache(Span(location, end)));
+        if (!e.valid())
+            return Symbol();
+        Span span2;
+        Space::assertCharacter(source, ')', &span2);
+        return Symbol(e.atom(), e.tail(), new ExpressionCache(span + span2));
+    }
+    CharacterSource s2 = *source;
+    if (Space::parseCharacter(&s2, '{', &span)) {
+        SymbolList expressions;
+        do {
+            e = parseExpression(&s2);
+            if (!e.valid())
+                return Symbol();
+            expressions.add(e);
+            Span span2;
+            bool seenComma = Space::parseCharacter(&s2, ',', &span2);
+            if (Space::parseCharacter(&s2, '}', &span2)) {
+                *source = s2;
+                return Symbol(atomArrayLiteral, SymbolArray(expressions),
+                    newSpan(span + span2));
+            }
+            if (!seenComma)
+                return Symbol();
+        } while (true);
+
     }
     return Symbol();
 }
@@ -479,35 +507,33 @@ SymbolArray parseExpressionList(CharacterSource* source)
         return list;
     list.add(expression);
     Span span;
-    while (Space::parseCharacter(source, ',', span))
+    while (Space::parseCharacter(source, ',', &span))
         list.add(parseExpressionOrFail(source));
     return list;
 }
 
 Symbol parseFunctionCallExpression(CharacterSource* source)
 {
-    Location startLocation = source->location();
     Symbol e = parseExpressionElement(source);
     if (!e.valid())
         return Symbol();
     do {
         Span span;
-        if (!Space::parseCharacter(source, '(', span))
+        if (!Space::parseCharacter(source, '(', &span))
             break;
         SymbolArray arguments = parseExpressionList(source);
-        Location location = Space::assertCharacter(source, ')');
+        Space::assertCharacter(source, ')', &span);
         e = Symbol(atomFunctionCall, e, arguments,
-            new ExpressionCache(Span(startLocation, location)));
+            new ExpressionCache(spanOf(e) + span));
     } while (true);
     return e;
 }
 
 Symbol parseEmitExpression(CharacterSource* source)
 {
-    Location startLocation = source->location();
     Span span;
     String emitKeyword("_emit");
-    if (Space::parseKeyword(source, emitKeyword, span)) {
+    if (Space::parseKeyword(source, emitKeyword, &span)) {
         SymbolArray argumentList = parseTemplateArgumentList(source);
         if (!argumentList.valid() || argumentList.count() != 1) {
             static String error("Expected type list with single type");
@@ -515,7 +541,7 @@ Symbol parseEmitExpression(CharacterSource* source)
         }
         Symbol e = parseEmitExpression(source);
         return Symbol(atomEmit, argumentList, e, 
-            new ExpressionCache(Span(span.start(), spanOf(e).end())));
+            new ExpressionCache(span + spanOf(e)));
     }
     return parseFunctionCallExpression(source);
 }
@@ -524,7 +550,7 @@ Symbol binaryOperation(Atom atom, Span span, Symbol left, Symbol right)
 {
     return Symbol(atomFunctionCall, Symbol(atom, newSpan(span)),
         SymbolArray(left, right),
-        new ExpressionCache(Span(spanOf(left).start(), spanOf(right).end())));
+        new ExpressionCache(spanOf(left) + spanOf(right)));
 }
 
 Symbol parsePowerExpression(CharacterSource* source)
@@ -533,7 +559,7 @@ Symbol parsePowerExpression(CharacterSource* source)
     if (!e.valid())
         return Symbol();
     Span span;
-    if (Space::parseCharacter(source, '^', span)) {
+    if (Space::parseCharacter(source, '^', &span)) {
         Symbol e2 = parsePowerExpression(source);
         if (!e2.valid())
             throwError(source);
@@ -542,35 +568,35 @@ Symbol parsePowerExpression(CharacterSource* source)
     return e;
 }
 
-Symbol unaryOperation(Atom atom, Span span, Location location, Symbol e)
+Symbol unaryOperation(Atom atom, Span span, Symbol e)
 {
-    return Symbol(atomFunctionCall, Symbol(atom, newSpan(span)), SymbolArray(e),
-        new ExpressionCache(Span(location, spanOf(e).end())));
+    return Symbol(atomFunctionCall, Symbol(atom, newSpan(span)),
+        SymbolArray(e), new ExpressionCache(span + spanOf(e)));
 }
 
 Symbol parseUnaryExpression(CharacterSource* source)
 {
-    Location startLocation = source->location();
     Span span;
-    if (Space::parseCharacter(source, '~', span) || Space::parseCharacter(source, '!', span)) {
+    if (Space::parseCharacter(source, '~', &span) || 
+        Space::parseCharacter(source, '!', &span)) {
         Symbol e = parseUnaryExpression(source);
-        return unaryOperation(atomNot, span, startLocation, e);
+        return unaryOperation(atomNot, span, e);
     }
-    if (Space::parseCharacter(source, '+', span)) {
+    if (Space::parseCharacter(source, '+', &span)) {
         Symbol e = parseUnaryExpression(source);
-        return unaryOperation(atomPositive, span, startLocation, e);
+        return unaryOperation(atomPositive, span, e);
     }
-    if (Space::parseCharacter(source, '-', span)) {
+    if (Space::parseCharacter(source, '-', &span)) {
         Symbol e = parseUnaryExpression(source);
-        return unaryOperation(atomSubtract, span, startLocation, e);
+        return unaryOperation(atomSubtract, span, e);
     }
-    if (Space::parseCharacter(source, '*', span)) {
+    if (Space::parseCharacter(source, '*', &span)) {
         Symbol e = parseUnaryExpression(source);
-        return unaryOperation(atomDereference, span, startLocation, e);
+        return unaryOperation(atomDereference, span, e);
     }
-    if (Space::parseCharacter(source, '&', span)) {
+    if (Space::parseCharacter(source, '&', &span)) {
         Symbol e = parseUnaryExpression(source);
-        return unaryOperation(atomAddressOf, span, startLocation, e);
+        return unaryOperation(atomAddressOf, span, e);
     }
     return parsePowerExpression(source);
 }
@@ -582,21 +608,21 @@ Symbol parseMultiplicativeExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        if (Space::parseCharacter(source, '*', span)) {
+        if (Space::parseCharacter(source, '*', &span)) {
             Symbol e2 = parseUnaryExpression(source);
             if (!e2.valid())
                 throwError(source);
             e = binaryOperation(atomMultiply, span, e, e2);
             continue;
         }
-        if (Space::parseCharacter(source, '/', span)) {
+        if (Space::parseCharacter(source, '/', &span)) {
             Symbol e2 = parseUnaryExpression(source);
             if (!e2.valid())
                 throwError(source);
             e = binaryOperation(atomDivide, span, e, e2);
             continue;
         }
-        if (Space::parseCharacter(source, '%', span)) {
+        if (Space::parseCharacter(source, '%', &span)) {
             Symbol e2 = parseUnaryExpression(source);
             if (!e2.valid())
                 throwError(source);
@@ -614,14 +640,14 @@ Symbol parseAdditiveExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        if (Space::parseCharacter(source, '+', span)) {
+        if (Space::parseCharacter(source, '+', &span)) {
             Symbol e2 = parseMultiplicativeExpression(source);
             if (!e2.valid())
                 throwError(source);
             e = binaryOperation(atomAdd, span, e, e2);
             continue;
         }
-        if (Space::parseCharacter(source, '-', span)) {
+        if (Space::parseCharacter(source, '-', &span)) {
             Symbol e2 = parseMultiplicativeExpression(source);
             if (!e2.valid())
                 throwError(source);
@@ -639,14 +665,14 @@ Symbol parseShiftExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        if (Space::parseOperator(source, shiftLeft, span)) {
+        if (Space::parseOperator(source, shiftLeft, &span)) {
             Symbol e2 = parseAdditiveExpression(source);
             if (!e2.valid())
                 throwError(source);
             e = binaryOperation(atomShiftLeft, span, e, e2);
             continue;
         }
-        if (Space::parseOperator(source, shiftRight, span)) {
+        if (Space::parseOperator(source, shiftRight, &span)) {
             Symbol e2 = parseAdditiveExpression(source);
             if (!e2.valid())
                 throwError(source);
@@ -664,28 +690,28 @@ Symbol parseComparisonExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        if (Space::parseOperator(source, lessThanOrEqualTo, span)) {
+        if (Space::parseOperator(source, lessThanOrEqualTo, &span)) {
             Symbol e2 = parseShiftExpression(source);
             if (!e2.valid())
                 throwError(source);
             e = binaryOperation(atomLessThanOrEqualTo, span, e, e2);
             continue;
         }
-        if (Space::parseOperator(source, greaterThanOrEqualTo, span)) {
+        if (Space::parseOperator(source, greaterThanOrEqualTo, &span)) {
             Symbol e2 = parseShiftExpression(source);
             if (!e2.valid())
                 throwError(source);
             e = binaryOperation(atomGreaterThanOrEqualTo, span, e, e2);
             continue;
         }
-        if (Space::parseCharacter(source, '<', span)) {
+        if (Space::parseCharacter(source, '<', &span)) {
             Symbol e2 = parseShiftExpression(source);
             if (!e2.valid())
                 throwError(source);
             e = binaryOperation(atomLessThan, span, e, e2);
             continue;
         }
-        if (Space::parseCharacter(source, '>', span)) {
+        if (Space::parseCharacter(source, '>', &span)) {
             Symbol e2 = parseShiftExpression(source);
             if (!e2.valid())
                 throwError(source);
@@ -703,14 +729,14 @@ Symbol parseEqualityExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        if (Space::parseOperator(source, equalTo, span)) {
+        if (Space::parseOperator(source, equalTo, &span)) {
             Symbol e2 = parseComparisonExpression(source);
             if (!e2.valid())
                 throwError(source);
             e = binaryOperation(atomEqualTo, span, e, e2);
             continue;
         }
-        if (Space::parseOperator(source, notEqualTo, span)) {
+        if (Space::parseOperator(source, notEqualTo, &span)) {
             Symbol e2 = parseComparisonExpression(source);
             if (!e2.valid())
                 throwError(source);
@@ -728,7 +754,7 @@ Symbol parseBitwiseAndExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        if (Space::parseCharacter(source, '&', span)) {
+        if (Space::parseCharacter(source, '&', &span)) {
             Symbol e2 = parseEqualityExpression(source);
             if (!e2.valid())
                 throwError(source);
@@ -746,7 +772,7 @@ Symbol parseXorExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        if (Space::parseCharacter(source, '~', span)) {
+        if (Space::parseCharacter(source, '~', &span)) {
             Symbol e2 = parseBitwiseAndExpression(source);
             if (!e2.valid())
                 throwError(source);
@@ -764,7 +790,7 @@ Symbol parseBitwiseOrExpression(CharacterSource* source)
         return Symbol();
     do {
         Span span;
-        if (Space::parseCharacter(source, '|', span)) {
+        if (Space::parseCharacter(source, '|', &span)) {
             Symbol e2 = parseXorExpression(source);
             if (!e2.valid())
                 throwError(source);
@@ -783,12 +809,12 @@ Symbol parseLogicalAndExpression(CharacterSource* source)
     do {
         Span span;
         static String logicalAnd("&&");
-        if (Space::parseOperator(source, logicalAnd, span)) {
+        if (Space::parseOperator(source, logicalAnd, &span)) {
             Symbol e2 = parseBitwiseOrExpression(source);
             if (!e2.valid())
                 throwError(source);
             e = Symbol(atomLogicalAnd, Symbol(atomLogicalAnd, newSpan(span)),
-                e, e2, new ExpressionCache(Span(spanOf(e).start(), spanOf(e2).end())));
+                e, e2, new ExpressionCache(spanOf(e) + spanOf(e2)));
             continue;
         }
         return e;
@@ -804,12 +830,12 @@ Symbol parseExpression(CharacterSource* source)
     do {
         Span span;
         static String logicalOr("||");
-        if (Space::parseOperator(source, logicalOr, span)) {
+        if (Space::parseOperator(source, logicalOr, &span)) {
             Symbol e2 = parseLogicalAndExpression(source);
             if (!e2.valid())
                 throwError(source);
             e = Symbol(atomLogicalOr, Symbol(atomLogicalOr, newSpan(span)), e,
-                e2, new ExpressionCache(Span(spanOf(e).start(), spanOf(e2).end())));
+                e2, new ExpressionCache(spanOf(e) + spanOf(e2)));
             continue;
         }
         return e;

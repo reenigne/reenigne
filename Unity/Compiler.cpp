@@ -12,6 +12,8 @@ public:
     Compiler(Program* program) : _program(program) { }
     void compileFunction(Symbol functionDefinitionStatement)
     {
+        _label = Symbol::newLabel();
+        setBasicBlockLabel(functionDefinitionStatement, _label);
         if (functionDefinitionStatement.cache<FunctionDefinitionCache>()->getCompilingFlag()) {
             static String error("Function called during its own compilation");  // TODO: Give more details about what's being evaluated and how that came to call this
             spanOf(functionDefinitionStatement).end().throwError(error);
@@ -201,6 +203,21 @@ private:
                         add(array[i]);
                 }
                 break;
+            case atomGotoStatement:
+                {
+                    compileExpression(statement[1].symbol());
+                    add(Symbol(atomGoto));
+                    _blockEnds = true;
+                    _reachable = false;
+                }
+                break;
+            case atomLabelStatement:
+                {
+                    int label = Symbol::newLabel();
+                    setBasicBlockLabel(statement, label);
+                    add(statement);
+                }
+                break;
         }
     }
     // Add instructions to push the value of expression onto the stack.
@@ -336,6 +353,10 @@ private:
     }
     void add(Symbol symbol)
     {
+        if (symbol.atom() == atomLabelStatement) {
+            addLabel(basicBlockLabelOf(symbol));
+            return;
+        }
         _basicBlock.add(symbol);
         _blockEnds = false;
         _atBlockStart = false;

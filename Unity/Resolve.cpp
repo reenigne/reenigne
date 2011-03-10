@@ -125,9 +125,22 @@ public:
     { }
     void setCompilingFlag(bool compiling) { _compiling = compiling; }
     bool getCompilingFlag() const { return _compiling; }
+    void setBasicBlockLabel(int label) { _basicBlockLabel = label; }
+    int getBasicBlockLabel() const { return _basicBlockLabel; }
 private:
     bool _compiling;
+    int _basicBlockLabel;
 };
+
+int basicBlockLabelOf(Symbol symbol)
+{
+    return symbol.cache<FunctionDefinitionCache>()->getBasicBlockLabel();
+}
+
+void setBasicBlockLabel(Symbol symbol, int label)
+{
+    symbol.cache<FunctionDefinitionCache>()->setBasicBlockLabel(label);
+}
 
 class SymbolName : public ReferenceCounted
 {
