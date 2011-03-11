@@ -1,4 +1,4 @@
-Symbol parseTypeIdentifier(CharacterSource* source)
+Symbol parseSimpleTypeIdentifier(CharacterSource* source)
 {
     CharacterSource s = *source;
     Location location = s.location();
@@ -44,6 +44,34 @@ Symbol parseTypeIdentifier(CharacterSource* source)
     *source = s2;
     return Symbol(atomTypeIdentifier, name,
         new IdentifierCache(Span(location, endLocation)));
+}
+
+Symbol parseTypeIdentifier(CharacterSource* source)
+{
+    Symbol simpleTypeIdentifier = parseSimpleTypeIdentifier(source);
+    if (!simpleTypeIdentifier.valid())
+        return Symbol();
+    Span span;
+    if (!Space::parseCharacter(source, '<', &span))
+        return simpleTypeIdentifier;
+    SymbolList argumentTypeSpecifiers;
+    do {
+        Symbol typeSpecifier = parseTypeSpecifier(source);
+        if (!typeSpecifier.valid()) {
+            static String error("Type specifier expected");
+            source->location().throwError(error);
+        }
+        argumentTypeSpecifiers.add(typeSpecifier);
+        if (!Space::parseCharacter(source, ',', &span))
+            break;
+    } while (true);
+    if (!Space::parseCharacter(source, '>', &span)) {
+        static String error(", or > expected");
+        source->location().throwError(error);
+    }
+    return Symbol(atomTemplateTypeIdentifier, simpleTypeIdentifier,
+        SymbolArray(argumentTypeSpecifiers),
+        newSpan(spanOf(simpleTypeIdentifier) + span));
 }
 
 Symbol parseClassTypeSpecifier(CharacterSource* source)
@@ -180,4 +208,9 @@ SymbolArray parseTemplateArgumentList(CharacterSource* source)
     if (!Space::parseCharacter(source, '>', &span))
         return SymbolArray();
     return array;
+}
+
+Symbol kindOf(Symbol typeConstructor)
+{
+    // TODO
 }

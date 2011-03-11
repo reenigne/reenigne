@@ -18,6 +18,7 @@ enum Atom
     atomVoid,
     atomWord,
     atomLabel,
+    atomTemplateTypeIdentifier,
 
     atomLogicalOr,
     atomLogicalAnd,
@@ -119,6 +120,9 @@ enum Atom
     atomStringGreaterThan,
     atomStringIntegerMultiply,
 
+    atomTypeKind,
+    atomGenericKind,
+
     atomLast
 };
 
@@ -145,6 +149,7 @@ String atomToString(Atom atom)
             _table[atomVoid] = String("Void");
             _table[atomWord] = String("Word");
             _table[atomLabel] = String("Label");
+            _table[atomTemplateTypeIdentifier] = String("TemplateTypeIdentifier");   // typeIdentifier argumentTypeSpecifiers
 
             _table[atomLogicalOr] = String("||");                                    // leftExpression rightExpression
             _table[atomLogicalAnd] = String("&&");                                   // leftExpression rightExpression
@@ -245,6 +250,9 @@ String atomToString(Atom atom)
             _table[atomStringLessThan] = String("String::<");
             _table[atomStringGreaterThan] = String("String::>");
             _table[atomStringIntegerMultiply] = String("String::*");
+
+            _table[atomTypeKind] = String("@");
+            _table[atomGenericKind] = String("@<>");
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:

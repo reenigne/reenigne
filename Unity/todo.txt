@@ -1,3 +1,47 @@
+Implement:
+
+TemplateTypeIdentifier :=  // This is something we're actually defining
+    SimpleTypeIdentifier [ "<" TemplateParameter \ "," ">" ]
+
+SpecializedTypeIdentifier :=
+    TypeSpecifier
+  | "@" SimpleTypeIdentifier
+  | SpecializedTypeIdentifier "*"
+  | SpecializedTypeIdentifier "(" [SpecializedTypeIdentifier \ ","] ")"
+
+KindList := 
+    [ "<" ("@" [SimpleTypeIdentifier] KindList) \ "," ">" ]
+
+TemplateParameter :=
+    "@" SimpleTypeIdentifier KindList
+  | SpecializedTypeIdentifier
+
+Implement generic types:
+  Get nomenclature correct
+    * TypeConstructor: A (*) or B<@C> (*=>*) or D<@E<@>> ((*=>*)=>*) etc.
+    * Generic TypeConstructor: A TypeConstructor that is not a Type
+    * Kind: The property of a TypeConstuctor which distinguishes between A and B<@C>
+    * Template parameter: The @C bit in B<@C>
+    * Template argument: The C bit in B<C>
+    * Specialization: Obtaining a TypeConstructor of lower order from a TypeConstructor of higher order
+    * Full specialization: Obtaining a Type from a TypeConstructor
+    * TypeConstructor
+  For each generic type constuctor, need to keep a table of instantiations:
+    * Function that, when given a TypeConstructor and a list of argument TypeConstructors, returns the resulting Type from the table
+      Need to check to see if it matches a specialization
+        Pick the most specific specialization that matches.
+  Need a function to determine the Kind of a TypeConstructor
+    * Given a TypeConstructor, returns an atomTypeKind or atomGenericKind Symbol.
+  When using a TypeConstructor, need to check it's Kind to make sure it's what we expect
+    * Only a Type can be used in a parameter/variable declaration, as the referent of a pointer Type or an argument or return value of a function Type.
+      * This is because Generic TypeConstructors have no values associated with them.
+  Rename?
+    * TypeIdentifier
+    * TypeSpecifier
+    * 
+  Make Foo<Bar> atomTypeIdentifier instead of atomTemplateTypeIdentifier?
+
+
 Implement evaluate()
   Force compilation of any functions called
   Need Program* argument and RuntimeStack* argument?
@@ -5,35 +49,6 @@ Implement evaluate()
   Limit number of steps per evaluate() call when compiling (don't bother when interpreting)
 
 In type-checking, need to make sure that argument to emit has type Sequence<Compiler.Instruction>
-  Implement generic types
-    When resolving types, need to find the correct instantiation (or make a new one)
-
-    Need to figure out syntax
-      Does "A f<A>() { }" mean a generic function or a specialization?
-    In C++ you would have:
-      template<class A> A f() { }    // template
-      template<> Int f<Int>() { }    // specialization
-      template<class A> class B { }  // template
-      template<> class B<Int> { }    // specialization
-      template<template<class A> class B> class C { }  // template template
-    In Unity:
-
-      A f<@A>() { }
-      Int f<Int>() { }
-
-      Void g<@A, @B>(A a, B b) { }
-      Void g<Int, @B>(Int a, B b) { }  // partial specialization
-
-      B<@A> = Class { }
-      B<Int> = Class { }
-      C<@B<@A>> = Class { }
-      C<Foo<@A>> = Class { }   // not valid
-      C<Foo<Int>> = Class { }  // not valid
-      C<@B<Int>> = Class { }   // not valid
-      C<B> = Class { }   // specialization of a template template
-
-      How to do partial specialization for pointers?
-        B<@A*> = Class { }  - so the @ prefix binds more tightly than *
 
 Implement atomEmit expression and statement in compiler
   Need to force evaluation of the argument expression, which involves compiling
@@ -232,3 +247,7 @@ goto statement handling in compiler
   Check that we are not skipping any constructor calls
 
 Avoid having Span* arguments to parsing functions - return a Symbol instead.
+
+Variadic templates
+Default arguments for template parameters
+Restriction of type parameters

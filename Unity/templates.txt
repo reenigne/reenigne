@@ -1,0 +1,39 @@
+Implement generic types
+
+  Need to figure out syntax
+    Does "A f<A>() { }" mean a generic function or a specialization?
+  In C++ you would have:
+    template<class A> A f() { }    // template
+    template<> Int f<Int>() { }    // specialization
+    template<class A> class B { }  // template
+    template<> class B<Int> { }    // specialization
+    template<template<class A> class B> class C { }  // template template
+  In Unity:
+
+    A f<@A>() { }
+    Int f<Int>() { }
+
+    Void g<@A, @B>(A a, B b) { }
+    Void g<Int, @B>(Int a, B b) { }  // partial specialization
+
+    B<@A> = Class { }
+    B<Int> = Class { }
+    C<@B<A>> = Class { }    // The "A" here is ignored - it's allowed for documentation purposes
+    C<@B<>> = Class { }  // same as above
+    C<Foo<@A>> = Class { }   // not valid
+    C<Foo<Int>> = Class { }  // not valid
+    C<@B<Int>> = Class { }   // not valid
+    C<B> = Class { }   // specialization of a template template
+
+    How to do partial specialization for pointers?
+      B<@A*> = Class { }  - so the @ prefix binds more tightly than *
+
+    B<@A<@>*>
+
+Need a Kind system
+  A Kind is either:
+    Type
+    A list of Kinds
+  Need a function to parse a type list
+  KindSpecifier := "<" ([TypeConstructorIdentifier] [KindSpecifier]) \ ",") ">"
+
