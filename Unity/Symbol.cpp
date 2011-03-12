@@ -12,13 +12,13 @@ enum Atom
     atomInt,
     atomPointer,
     atomString,
-    atomTypeIdentifier,
+    atomTypeConstructorIdentifier,
     atomTypeOf,
     atomUInt,
     atomVoid,
     atomWord,
     atomLabel,
-    atomTemplateTypeIdentifier,
+//    atomTemplateTypeIdentifier,
 
     atomLogicalOr,
     atomLogicalAnd,
@@ -121,7 +121,7 @@ enum Atom
     atomStringIntegerMultiply,
 
     atomTypeKind,
-    atomGenericKind,
+    atomTemplateKind,
 
     atomLast
 };
@@ -143,13 +143,13 @@ String atomToString(Atom atom)
             _table[atomInt] = String("Int");
             _table[atomPointer] = String("Pointer");                                 // referentType
             _table[atomString] = String("String");
-            _table[atomTypeIdentifier] = String("TypeIdentifier");                   // name
+            _table[atomTypeConstructorIdentifier] = String("TypeConstructorIdentifier"); // name
             _table[atomTypeOf] = String("TypeOf");                                   // expression
             _table[atomUInt] = String("UInt");
             _table[atomVoid] = String("Void");
             _table[atomWord] = String("Word");
             _table[atomLabel] = String("Label");
-            _table[atomTemplateTypeIdentifier] = String("TemplateTypeIdentifier");   // typeIdentifier argumentTypeSpecifiers
+//            _table[atomTemplateTypeIdentifier] = String("TemplateTypeIdentifier");   // typeIdentifier argumentTypeSpecifiers
 
             _table[atomLogicalOr] = String("||");                                    // leftExpression rightExpression
             _table[atomLogicalAnd] = String("&&");                                   // leftExpression rightExpression
@@ -251,8 +251,8 @@ String atomToString(Atom atom)
             _table[atomStringGreaterThan] = String("String::>");
             _table[atomStringIntegerMultiply] = String("String::*");
 
-            _table[atomTypeKind] = String("@");
-            _table[atomGenericKind] = String("@<>");
+            _table[atomTypeKind] = String("TypeKind");
+            _table[atomTemplateKind] = String("TemplateKind");                       // returnKind parameterKinds
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:

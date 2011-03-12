@@ -183,21 +183,22 @@ Symbol parseCompoundStatement(CharacterSource* source)
     return Symbol(atomCompoundStatement, sequence, newSpan(span + span2));
 }
 
-Symbol parseTypeAliasStatement(CharacterSource* source)
+Symbol parseTypeConstructorDefinitionStatement(CharacterSource* source)
 {
     CharacterSource s = *source;
     CharacterSource s2 = s;
-    Symbol typeIdentifier = parseTypeIdentifier(&s);
-    if (!typeIdentifier.valid())
+    Symbol typeConstructorSignifier = parseTypeConstructorSignifier(&s);
+    if (!typeConstructorSignifier.valid())
         return Symbol();
     Span span;
     if (!Space::parseCharacter(&s, '=', &span))
         return Symbol();
     *source = s;
-    Symbol typeSpecifier = parseTypeSpecifier(source);
+    Symbol typeConstructorSpecifier = parseTypeConstructorSpecifier(source);
     Space::assertCharacter(source, ';', &span);
-    Symbol statement = Symbol(atomTypeAliasStatement, typeIdentifier,
-        typeSpecifier, new IdentifierCache(spanOf(typeIdentifier) + span,
+    Symbol statement = Symbol(atomTypeConstructorDefinitionStatement,
+        typeConstructorSignifier, typeConstructorSpecifier,
+        new IdentifierCache(spanOf(typeConstructorSignifier) + span,
             Symbol::newLabel()));
     return statement;
 }

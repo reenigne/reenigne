@@ -1,32 +1,33 @@
 Implement:
 
-TemplateTypeIdentifier :=  // This is something we're actually defining
-    SimpleTypeIdentifier [ "<" TemplateParameter \ "," ">" ]
+TypeConstructorSpecifier :=
+    TypeConstructorIdentifier ("<" TypeConstructorSpecifier \ "," ">")*
+  | TypeConstructorSpecifier "*"
+  | TypeConstructorSpecifier "(" [(TypeConstructorSpecifier [Identifier] \ ","] ")"
+  | "Class" "{" ClassDefinition "}"
+  | "TypeOf" "(" Expression ")"
 
-SpecializedTypeIdentifier :=
-    TypeSpecifier
-  | "@" SimpleTypeIdentifier
-  | SpecializedTypeIdentifier "*"
-  | SpecializedTypeIdentifier "(" [SpecializedTypeIdentifier \ ","] ")"
+TypeConstructorDefinitionStatement := TypeConstructorSignifier "=" TypeConstructorSpecifier
 
-KindList := 
-    [ "<" ("@" [SimpleTypeIdentifier] KindList) \ "," ">" ]
+TypeConstructorSignifier := TypeConstructorIdentifier ("<" TemplateParameter \ "*" ">")*
 
-TemplateParameter :=
-    "@" SimpleTypeIdentifier KindList
-  | SpecializedTypeIdentifier
+KindSpecifier := ("<" [([TypeConstructorIdentifier] KindSpecifier) \ ","] ">")*
+
+TemplateParameter := 
+    "@" TypeConstructorIdentifier KindSpecifier
+  | SpecializedTypeConstructorSpecifier
+ 
+SpecializedTypeConstructorSpecifier :=
+    TypeConstructorSpecifier
+  | "@" TypeConstructorIdentifier
+  | SpecializedTypeConstructorSpecifier "*"
+  | SpecializedTypeConstructorSpecifier "(" [SpecializedTypeConstructorSpecifier \ ","] ")"
+
+Rename *TypeConstructor* as *Type* for concision? 
+
 
 Implement generic types:
-  Get nomenclature correct
-    * TypeConstructor: A (*) or B<@C> (*=>*) or D<@E<@>> ((*=>*)=>*) etc.
-    * Generic TypeConstructor: A TypeConstructor that is not a Type
-    * Kind: The property of a TypeConstuctor which distinguishes between A and B<@C>
-    * Template parameter: The @C bit in B<@C>
-    * Template argument: The C bit in B<C>
-    * Specialization: Obtaining a TypeConstructor of lower order from a TypeConstructor of higher order
-    * Full specialization: Obtaining a Type from a TypeConstructor
-    * TypeConstructor
-  For each generic type constuctor, need to keep a table of instantiations:
+  For each TemplateTypeDefinition that is a Class, need to keep a table of instantiations:
     * Function that, when given a TypeConstructor and a list of argument TypeConstructors, returns the resulting Type from the table
       Need to check to see if it matches a specialization
         Pick the most specific specialization that matches.
@@ -35,10 +36,6 @@ Implement generic types:
   When using a TypeConstructor, need to check it's Kind to make sure it's what we expect
     * Only a Type can be used in a parameter/variable declaration, as the referent of a pointer Type or an argument or return value of a function Type.
       * This is because Generic TypeConstructors have no values associated with them.
-  Rename?
-    * TypeIdentifier
-    * TypeSpecifier
-    * 
   Make Foo<Bar> atomTypeIdentifier instead of atomTemplateTypeIdentifier?
 
 

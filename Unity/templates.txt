@@ -1,5 +1,3 @@
-Implement generic types
-
   Need to figure out syntax
     Does "A f<A>() { }" mean a generic function or a specialization?
   In C++ you would have:
@@ -37,3 +35,53 @@ Need a Kind system
   Need a function to parse a type list
   KindSpecifier := "<" ([TypeConstructorIdentifier] [KindSpecifier]) \ ",") ">"
 
+
+Suppose we have A<@B><@C> = Class { ... }
+Then the TypeConstructorDefinitionStatement
+  D = A<E>
+is equivalent to
+  D<@C> = A<E><C>
+It's easier to understand what's going on there, but does require introducing
+ otherwise unnecessary bound variables
+
+A = Class { B<@C> = Class { ... } }
+D = Class { B = Class { ... } }
+E<@F> = F.B   // A TypeConstructorDefinitionStatement of unknown Kind
+
+E<A><Int> f;
+E<D> g;
+E<E> h;  // Not valid - expands to E.B but E is a template and therefore has no members
+
+  
+A<@B> = C<D<B>>
+
+  Get nomenclature correct
+    * TypeConstructor: A in A or A<@B> or A<@B<>> etc.
+    * TemplateTypeConstructor: A TypeConstructor that is not a Type
+    * TemplateType: A Type constructed from a TemplateTypeConstructor
+    * TypeSpecifier: A piece of program code that represents a Type
+    * TemplateTypeSpecifier: A piece of program code that represents a TemplateType
+    * TypeConstructorSignifier: That which goes on the left of a TypeConstructorDefinitionStatement
+    * TemplateTypeConstructorSignifier: The TypeConstructorSignifier of a TypeConstructorDefinitionStatement which defines a TemplateTypeConstructor
+    * TypeConstructorDefinitionStatement: A statement that defines a TypeConstructor
+    * Kind: The property of a TypeConstuctor which determines what you have to give it to get a Type
+    * KindSpecifier: The string which represents a Kind in a template parameter
+
+    * Template parameter: The @C bit in the TemplateTypeSignifier B<@C>
+    * Template argument: The C bit in B<C>
+    * Specialization: Obtaining a TypeConstructor of lower order from a TypeConstructor of higher order
+    * Full specialization: Obtaining a Type from a TypeConstructor
+    * TypeIdentifier: Something that identifies a type (such as A<B>).
+
+
+Have A<@B><@C> be alternate syntax for A<@B,@C> (i.e. currying)?
+  This is nice because when we can pass A<B> as a parameter to a D<@E<>> template without making a separate alias first
+    Still need to create a separate alias if we wanted to do this:
+      F<@B> = A<B><G>
+      D<F> foo;
+
+
+If we have:
+  A<@B> = C<B>
+  C<@B> = A<B>
+Need to detect the loop and error out to avoid
