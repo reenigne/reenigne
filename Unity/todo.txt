@@ -1,15 +1,4 @@
-Implement:
 
-TypeConstructorSpecifier :=
-    TypeConstructorIdentifier ("<" TypeConstructorSpecifier \ "," ">")*
-  | TypeConstructorSpecifier "*"
-  | TypeConstructorSpecifier "(" [(TypeConstructorSpecifier [Identifier] \ ","] ")"
-  | "Class" "{" ClassDefinition "}"
-  | "TypeOf" "(" Expression ")"
-
-TypeConstructorDefinitionStatement := TypeConstructorSignifier "=" TypeConstructorSpecifier
-
-TypeConstructorSignifier := TypeConstructorIdentifier ("<" TemplateParameter \ "*" ">")*
 
 KindSpecifier := ("<" [([TypeConstructorIdentifier] KindSpecifier) \ ","] ">")*
 

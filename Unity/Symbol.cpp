@@ -18,7 +18,7 @@ enum Atom
     atomVoid,
     atomWord,
     atomLabel,
-//    atomTemplateTypeIdentifier,
+    atomTemplateTypeConstructorSpecifier,
 
     atomLogicalOr,
     atomLogicalAnd,
@@ -149,7 +149,7 @@ String atomToString(Atom atom)
             _table[atomVoid] = String("Void");
             _table[atomWord] = String("Word");
             _table[atomLabel] = String("Label");
-//            _table[atomTemplateTypeIdentifier] = String("TemplateTypeIdentifier");   // typeIdentifier argumentTypeSpecifiers
+            _table[atomTemplateTypeConstructorSpecifier] = String("TemplateTypeConstructorSpecifier");   // name argumentTypeSpecifiers
 
             _table[atomLogicalOr] = String("||");                                    // leftExpression rightExpression
             _table[atomLogicalAnd] = String("&&");                                   // leftExpression rightExpression

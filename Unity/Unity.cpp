@@ -9,12 +9,11 @@
 #include <stdlib.h>
 
 #include "Symbol.cpp"
-#include "Type.cpp"
 #include "Resolve.cpp"
-
 #include "Space.cpp"
+
+#include "Type.cpp"
 #include "Expression.cpp"
-#include "TypeSpecifier.cpp"
 #include "Statement.cpp"
 
 #include "TypeCheck.cpp"

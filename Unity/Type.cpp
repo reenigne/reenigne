@@ -47,34 +47,6 @@ Symbol parseTypeConstructorIdentifier(CharacterSource* source)
         new IdentifierCache(Span(location, endLocation)));
 }
 
-//Symbol parseTypeIdentifier(CharacterSource* source)
-//{
-//    Symbol simpleTypeIdentifier = parseSimpleTypeIdentifier(source);
-//    if (!simpleTypeIdentifier.valid())
-//        return Symbol();
-//    Span span;
-//    if (!Space::parseCharacter(source, '<', &span))
-//        return simpleTypeIdentifier;
-//    SymbolList argumentTypeSpecifiers;
-//    do {
-//        Symbol typeSpecifier = parseTypeSpecifier(source);
-//        if (!typeSpecifier.valid()) {
-//            static String error("Type specifier expected");
-//            source->location().throwError(error);
-//        }
-//        argumentTypeSpecifiers.add(typeSpecifier);
-//        if (!Space::parseCharacter(source, ',', &span))
-//            break;
-//    } while (true);
-//    if (!Space::parseCharacter(source, '>', &span)) {
-//        static String error(", or > expected");
-//        source->location().throwError(error);
-//    }
-//    return Symbol(atomTemplateTypeIdentifier, simpleTypeIdentifier,
-//        SymbolArray(argumentTypeSpecifiers),
-//        newSpan(spanOf(simpleTypeIdentifier) + span));
-//}
-
 Symbol parseClassTypeSpecifier(CharacterSource* source)
 {
     static String keyword("Class");
@@ -92,45 +64,77 @@ Symbol parseClassTypeSpecifier(CharacterSource* source)
 
 Symbol parseTypeOfTypeSpecifier(CharacterSource* source);
 
-Symbol parseFundamentalTypeSpecifier(CharacterSource* source)
+Symbol parseFundamentalTypeConstructorSpecifier(CharacterSource* source)
 {
-    Location start = source->location();
-    Symbol typeSpecifier = parseTypeIdentifier(source);
+    CharacterSource s2 = *source;
+    Symbol typeSpecifier = parseTypeConstructorIdentifier(&s2);
     if (typeSpecifier.valid()) {
         String s = typeSpecifier[1].string();
         Span span = spanOf(typeSpecifier);
         static String autoKeyword("Auto");
-        if (s == autoKeyword)
+        if (s == autoKeyword) {
+            *source = s2;
             return Symbol(atomAuto, newSpan(span));
+        }
         static String bitKeyword("Bit");
-        if (s == bitKeyword)
+        if (s == bitKeyword) {
+            *source = s2;
             return Symbol(atomBit, new TypeCache(span, 1, 1));
+        }
         static String booleanKeyword("Boolean");
-        if (s == booleanKeyword)
+        if (s == booleanKeyword) {
+            *source = s2;
             return Symbol(atomBoolean, new TypeCache(span, 1, 1));
+        }
         static String byteKeyword("Byte");
-        if (s == byteKeyword)
+        if (s == byteKeyword) {
+            *source = s2;
             return Symbol(atomByte, new TypeCache(span, 1, 1));
+        }
         static String characterKeyword("Character");
-        if (s == characterKeyword)
+        if (s == characterKeyword) {
+            *source = s2;
             return Symbol(atomCharacter, new TypeCache(span, 4, 4));
+        }
         static String intKeyword("Int");
-        if (s == intKeyword)
+        if (s == intKeyword) {
+            *source = s2;
             return Symbol(atomInt, new TypeCache(span, 4, 4));
+        }
         static String stringKeyword("String");
-        if (s == stringKeyword)
+        if (s == stringKeyword) {
+            *source = s2;
             return Symbol(atomString, new TypeCache(span, 4, 4));
+        }
         static String uIntKeyword("UInt");
-        if (s == uIntKeyword)
+        if (s == uIntKeyword) {
+            *source = s2;
             return Symbol(atomUInt, new TypeCache(span, 4, 4));
+        }
         static String voidKeyword("Void");
-        if (s == voidKeyword)
+        if (s == voidKeyword) {
+            *source = s2;
             return Symbol(atomVoid, new TypeCache(span, 0, 0));
+        }
         static String wordKeyword("Word");
-        if (s == wordKeyword)
+        if (s == wordKeyword) {
+            *source = s2;
             return Symbol(atomVoid, new TypeCache(span, 4, 4));
-
-        return typeSpecifier;
+        }
+        SymbolList templateArguments;
+        while (Space::parseCharacter(&s2, '<', &span)) {
+            do {
+                Symbol templateArgument = parseTypeConstructorSpecifier(&s2);
+                if (!templateArgument.valid())
+                    return Symbol();
+                templateArguments.add(templateArgument);
+            } while (Space::parseCharacter(&s2, ',', &span));
+            if (!Space::parseCharacter(&s2, '>', &span))
+                return Symbol();
+        }
+        return Symbol(atomTypeConstructorIdentifier, typeSpecifier,
+            SymbolArray(templateArguments),
+            newSpan(spanOf(typeSpecifier) + span));
     }
     typeSpecifier = parseClassTypeSpecifier(source);
     if (typeSpecifier.valid())
@@ -141,30 +145,36 @@ Symbol parseFundamentalTypeSpecifier(CharacterSource* source)
     return Symbol();
 }
 
-//Symbol parseTypeSpecifier(CharacterSource* source);
-//
-//SymbolArray parseTypeSpecifierList(CharacterSource* source)
-//{
-//    SymbolList list;
-//    Symbol typeSpecifier = parseTypeSpecifier(source);
-//    if (!typeSpecifier.valid())
-//        return list;
-//    list.add(typeSpecifier);
-//    Span span;
-//    while (Space::parseCharacter(source, ',', &span)) {
-//        typeSpecifier = parseTypeSpecifier(source);
-//        if (!typeSpecifier.valid()) {
-//            static String error("Type specifier expected");
-//            source->location().throwError(error);
-//        }
-//        list.add(typeSpecifier);
-//    }
-//    return list;
-//}
+Symbol parseTypeSpecifier(CharacterSource* source);
 
+SymbolArray parseTypeConstructorSpecifierList(CharacterSource* source)
+{
+    SymbolList list;
+    Symbol typeSpecifier = parseTypeConstructorSpecifier(source);
+    if (!typeSpecifier.valid())
+        return list;
+    list.add(typeSpecifier);
+    Span span;
+    while (Space::parseCharacter(source, ',', &span)) {
+        typeSpecifier = parseTypeSpecifier(source);
+        if (!typeSpecifier.valid()) {
+            static String error("Type specifier expected");
+            source->location().throwError(error);
+        }
+        list.add(typeSpecifier);
+    }
+    return list;
+}
+
+//TypeConstructorSpecifier :=
+//    TypeConstructorIdentifier ("<" TypeConstructorSpecifier \ "," ">")*
+//  | TypeConstructorSpecifier "*"
+//  | TypeConstructorSpecifier "(" [(TypeConstructorSpecifier [Identifier] \ ","] ")"
+//  | "Class" "{" ClassDefinition "}"
+//  | "TypeOf" "(" Expression ")"
 Symbol parseTypeConstructorSpecifier(CharacterSource* source)
 {
-    Symbol typeSpecifier = parseFundamentalTypeSpecifier(source);
+    Symbol typeSpecifier = parseFundamentalTypeConstructorSpecifier(source);
     if (!typeSpecifier.valid())
         return Symbol();
     do {
@@ -175,7 +185,7 @@ Symbol parseTypeConstructorSpecifier(CharacterSource* source)
             continue;
         }
         if (Space::parseCharacter(source, '(', &span)) {
-            SymbolArray typeListSpecifier = parseTypeSpecifierList(source);
+            SymbolArray typeListSpecifier = parseTypeConstructorSpecifierList(source);
             Space::assertCharacter(source, ')', &span);
             typeSpecifier = Symbol(atomFunction, typeSpecifier,
                 typeListSpecifier, new TypeCache(spanOf(typeSpecifier) + span, 0, 0));
@@ -210,6 +220,28 @@ Symbol parseTypeOfTypeSpecifier(CharacterSource* source)
 //        return SymbolArray();
 //    return array;
 //}
+
+//TypeConstructorSignifier := TypeConstructorIdentifier ("<" TemplateParameter \ "*" ">")*     
+Symbol parseTypeConstructorSignifier(CharacterSource* source)
+{
+    CharacterSource s2 = *source;
+    Symbol typeConstructorIdentifer = parseTypeConstructorIdentifier(source);
+    if (!typeConstructorIdentifer.valid())
+        return Symbol();
+    SymbolList templateArguments;
+    Span span;
+    while (Space::parseCharacter(&s2, '<', &span)) {
+        do {
+            Symbol templateArgument = parseTypeConstructorSpecifier(&s2);
+            if (!templateArgument.valid())
+                return Symbol();
+            templateArguments.add(templateArgument);
+        } while (Space::parseCharacter(&s2, ',', &span));
+        if (!Space::parseCharacter(&s2, '>', &span))
+            return Symbol();
+    }
+
+}
 
 Symbol kindOf(Symbol typeConstructor)
 {

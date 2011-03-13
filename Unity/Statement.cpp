@@ -183,6 +183,7 @@ Symbol parseCompoundStatement(CharacterSource* source)
     return Symbol(atomCompoundStatement, sequence, newSpan(span + span2));
 }
 
+//TypeConstructorDefinitionStatement := TypeConstructorSignifier "=" TypeConstructorSpecifier
 Symbol parseTypeConstructorDefinitionStatement(CharacterSource* source)
 {
     CharacterSource s = *source;
