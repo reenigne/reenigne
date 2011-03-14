@@ -1,17 +1,9 @@
+Symbol parseExpression(CharacterSource* source);
+
 void throwError(CharacterSource* source)
 {
     static String expected("Expected expression");
     source->location().throwError(expected);
-}
-
-Symbol parseExpression(CharacterSource* source);
-
-Symbol parseExpressionOrFail(CharacterSource* source)
-{
-    Symbol expression = parseExpression(source);
-    if (!expression.valid())
-        throwError(source);
-    return expression;
 }
 
 Symbol combine(Symbol left, Symbol right, SymbolCache* cache)
@@ -840,4 +832,12 @@ Symbol parseExpression(CharacterSource* source)
         }
         return e;
     } while (true);
+}
+
+Symbol parseExpressionOrFail(CharacterSource* source)
+{
+    Symbol expression = parseExpression(source);
+    if (!expression.valid())
+        throwError(source);
+    return expression;
 }

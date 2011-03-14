@@ -19,6 +19,9 @@ enum Atom
     atomWord,
     atomLabel,
     atomTemplateTypeConstructorSpecifier,
+    atomTypeConstructorSignifier,
+    atomTemplateParameter,
+    atomTypeConstructorDefinitionStatement,
 
     atomLogicalOr,
     atomLogicalAnd,
@@ -252,7 +255,7 @@ String atomToString(Atom atom)
             _table[atomStringIntegerMultiply] = String("String::*");
 
             _table[atomTypeKind] = String("TypeKind");
-            _table[atomTemplateKind] = String("TemplateKind");                       // returnKind parameterKinds
+            _table[atomTemplateKind] = String("TemplateKind");                       // parameterKinds
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:

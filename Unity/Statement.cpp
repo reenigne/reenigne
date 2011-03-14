@@ -21,7 +21,7 @@ Symbol parseExpressionStatement(CharacterSource* source)
 
 Symbol parseParameter(CharacterSource* source)
 {
-    Symbol typeSpecifier = parseTypeSpecifier(source);
+    Symbol typeSpecifier = parseTypeConstructorSpecifier(source);
     if (!typeSpecifier.valid())
         return Symbol();
     Symbol name = parseIdentifier(source);
@@ -55,7 +55,7 @@ SymbolArray parseParameterList(CharacterSource* source)
 Symbol parseFunctionDefinitionStatement(CharacterSource* source)
 {
     CharacterSource s = *source;
-    Symbol returnTypeSpecifier = parseTypeSpecifier(&s);
+    Symbol returnTypeSpecifier = parseTypeConstructorSpecifier(&s);
     if (!returnTypeSpecifier.valid())
         return Symbol();
     Symbol name = parseIdentifier(&s);
@@ -97,7 +97,7 @@ Symbol parseFunctionDefinitionStatement(CharacterSource* source)
 Symbol parseVariableDefinitionStatement(CharacterSource* source)
 {
     CharacterSource s = *source;
-    Symbol typeSpecifier = parseTypeSpecifier(&s);
+    Symbol typeSpecifier = parseTypeConstructorSpecifier(&s);
     if (!typeSpecifier.valid())
         return Symbol();
     Symbol identifier = parseIdentifier(&s);
@@ -549,7 +549,7 @@ Symbol parseStatement(CharacterSource* source)
     s = parseCompoundStatement(source);
     if (s.valid())
         return s;
-    s = parseTypeAliasStatement(source);
+    s = parseTypeConstructorDefinitionStatement(source);
     if (s.valid())
         return s;
     s = parseNothingStatement(source);

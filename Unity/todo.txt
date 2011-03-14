@@ -1,32 +1,28 @@
-
-
-KindSpecifier := ("<" [([TypeConstructorIdentifier] KindSpecifier) \ ","] ">")*
-
-TemplateParameter := 
-    "@" TypeConstructorIdentifier KindSpecifier
-  | SpecializedTypeConstructorSpecifier
- 
-SpecializedTypeConstructorSpecifier :=
-    TypeConstructorSpecifier
-  | "@" TypeConstructorIdentifier
-  | SpecializedTypeConstructorSpecifier "*"
-  | SpecializedTypeConstructorSpecifier "(" [SpecializedTypeConstructorSpecifier \ ","] ")"
-
-Rename *TypeConstructor* as *Type* for concision? 
-
+Use a SymbolLabel class instead of ints and an array for labels
 
 Implement generic types:
-  For each TemplateTypeDefinition that is a Class, need to keep a table of instantiations:
-    * Function that, when given a TypeConstructor and a list of argument TypeConstructors, returns the resulting Type from the table
+  Figure out exactly which atoms we want to have. Currently:
+    atomTypeConstructorIdentifier
+    atomTemplateTypeConstructorSpecifier
+    atomTypeConstructorSignifier
+    atomTemplateParameter
+    atomTypeKind
+    atomTemplateKind
+    atomTypeConstructorDefinitionStatement
+
+  Resolve TypeConstructorIdentifiers to TypeConstructorDefinitionStatements instead of resolving TypeIdentifiers to TypeAliasStatements
+  Resolve template TypeSpecifiers to instantiated Type
+  For each template TypeConstructorDefinitionStatement that is a Class, need to keep a table of instantiations:
+    * Function that, when given a TypeConstructorDefinitionStatement and a list of argument TypeConstructorDefinitionStatements, returns the resulting Type from the table
       Need to check to see if it matches a specialization
         Pick the most specific specialization that matches.
-  Need a function to determine the Kind of a TypeConstructor
-    * Given a TypeConstructor, returns an atomTypeKind or atomGenericKind Symbol.
+          How to rank specializations?
+            Need to determine if one specialization is a sub-specialization of another
+  Need a function to determine the Kind of a TypeConstructorDefinitionStatement
+    * Given a TypeConstructorDefinitionStatement, returns an atomTypeKind or atomTemplateKind Symbol.
   When using a TypeConstructor, need to check it's Kind to make sure it's what we expect
     * Only a Type can be used in a parameter/variable declaration, as the referent of a pointer Type or an argument or return value of a function Type.
       * This is because Generic TypeConstructors have no values associated with them.
-  Make Foo<Bar> atomTypeIdentifier instead of atomTemplateTypeIdentifier?
-
 
 Implement evaluate()
   Force compilation of any functions called
@@ -58,7 +54,6 @@ How to do compile-time expression evaluation for emit and include
       Will need a mechanism to allow programs to set up state for compile-time evaluated expressions
         Set this up on first call to evaluate()
       Is it always the same? Might we need faciliites other than memory? Shouldn't do I think...
-
 
 How do we define the inner types of Compiler?
 

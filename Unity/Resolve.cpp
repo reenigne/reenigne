@@ -211,6 +211,8 @@ String identifierToString(SymbolEntry identifier)
     return op + atomToString(identifier.symbol().atom());
 }
 
+String typesToString(SymbolArray array);
+
 class Scope : public ReferenceCounted
 {
 public:
@@ -376,7 +378,7 @@ Scope* setScopes(SymbolEntry entry, Scope* scope)
             }
             return scope;
         case atomIdentifier:
-        case atomTypeIdentifier:
+        case atomTypeConstructorIdentifier:
             symbol.cache<IdentifierCache>()->setScope(scope);
             break;
         case atomLabelStatement:
@@ -487,7 +489,7 @@ void resolveIdentifiersAndTypes(SymbolEntry entry)
     Symbol symbol = entry.symbol();
     switch (symbol.atom()) {
         case atomIdentifier:
-        case atomTypeIdentifier:
+        case atomTypeConstructorIdentifier:
             resolveIdentifier(symbol);
             resolveTypeOf(symbol);
             return;
@@ -577,7 +579,7 @@ void resolveIdentifier(Symbol symbol)
                 setLabel(symbol, label);
             }
             return;
-        case atomTypeIdentifier:
+        case atomTypeConstructorIdentifier:
             {
                 Scope* scope = scopeOf(symbol);
                 label = scope->resolveType(symbol[1], spanOf(symbol));
@@ -613,7 +615,7 @@ void resolveTypeOf(Symbol symbol)
     setType(symbol, Symbol(atomAuto));
     switch (symbol.atom()) {
         case atomIdentifier:
-        case atomTypeIdentifier:
+        case atomTypeConstructorIdentifier:
             {
                 resolveIdentifier(symbol);
                 int label = labelOf(symbol);
