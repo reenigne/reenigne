@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "unity/linked_list.h"
 
 enum Atom
 {
@@ -493,17 +494,6 @@ public:
     {
         return implementation()->cache()->cast<U>();
     }
-
-    static int newLabel()
-    {
-        int l = _labelled.count();
-        _labelled.append(0);
-        return l;
-    }
-
-    static SymbolTemplate<T> labelled(int label) { return SymbolTemplate(_labelled[label]); }
-
-    void setLabel(int label) { _labelled[label] = _implementation->cast<SymbolTemplate<T>::Implementation>(); }
 private:
     SymbolTemplate(Implementation* implementation) : SymbolEntry(implementation) { }
 
@@ -523,8 +513,8 @@ private:
         int length(int max) const
         {
             int r = 2 + atomToString(_atom).length();
-            if (isTarget())
-                r += 1 + decimalLength(_label);
+            //if (isTarget())
+            //    r += 1 + decimalLength(_label);
             if (r < max && _tail.valid()) {
                 ++r;
                 r += _tail->length(max - r);
@@ -537,10 +527,10 @@ private:
             ++x;
             more = true;
             String s = openParenthesis;
-            if (isTarget()) {
-                s = String::decimal(_label) + colon + s;
-                x += 1 + decimalLength(_label);
-            }
+            //if (isTarget()) {
+            //    s = String::decimal(_label) + colon + s;
+            //    x += 1 + decimalLength(_label);
+            //}
             String a = atomToString(_atom);
             x += a.length();
             s += a;
@@ -571,18 +561,11 @@ private:
         Atom atom() const { return _atom; }
 
         SymbolCache* cache() { return _cache; }
-        int label() const { return _label; }
         Span span() const { return _span; }
         Symbol type() const { return _type; }
         const SymbolTail* tail() const { return _tail; }
 
         void setCache(Reference<ReferenceCounted> cache) { _cache = cache; }
-        void setLabel(int label) { _label = label; }
-        void setLabelTarget(int label)
-        {
-            _label = label;
-            _labelled[label] = this;
-        }
         void setSpan(Span span) { _span = span; }
         void setType(Symbol type) { _type = type; }
 
@@ -600,17 +583,12 @@ private:
         bool isArray() const { return false; }
 
     private:
-        bool isTarget() const
-        {
-            return _label > 0 && _labelled[_label] == this;
-        }
-
         Atom _atom;
         ConstReference<SymbolTail> _tail;
         Reference<SymbolCache> _cache;
-        int _label;
         Span _span;
         Symbol _type;
+        LinkedList<SymbolLabel> _labels;
     };
 
     const Implementation* implementation() const { return dynamic_cast<const Implementation*>(SymbolEntryTemplate::implementation()); }
@@ -619,11 +597,8 @@ private:
     template<class T> friend class SymbolEntryTemplate;
     template<class T> friend class SymbolTemplate;
     template<class T> friend class SymbolArrayTemplate;
-
-    static AppendableArray<Symbol::Implementation*> _labelled;
+    friend class SymbolLabel;
 };
-
-AppendableArray<Symbol::Implementation*> Symbol::_labelled;
 
 class SymbolList
 {
@@ -778,3 +753,37 @@ private:
 };
 
 Reference<SymbolArray::Implementation> SymbolArray::_empty = new SymbolArray::Implementation();
+
+class SymbolLabel
+{
+public:
+    SymbolLabel() : _implementation(new Implementation) { }
+    Symbol target() { return Symbol(_implementation->target()); }
+    void setTarget(Symbol symbol)
+    {
+        _implementation->setTarget(symbol.implementation());
+    }
+private:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        Symbol::Implementation* target() { return _target; }
+    private:
+        class LabelListMembership : public LinkedListMember<LabelListMembership>
+        {
+        public:
+            ~LabelListMembership()
+            {
+                remove();
+            }
+        };
+        int _labelNumber;
+        Symbol::Implementation* _target;
+        friend class Symbol::Implementation;
+    };
+    static int _nextLabelNumber;
+
+    Reference<Implementation> _implementation;
+};
+
+int SymbolLabel::_nextLabelNumber = 0;
