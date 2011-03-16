@@ -59,7 +59,7 @@ Symbol parseClassTypeSpecifier(CharacterSource* source)
     // TODO: Parse class contents
     Space::assertCharacter(source, '}', &span2);
     return Symbol(atomClass, new TypeCache(span + span2, -1, -1,
-        Symbol::newLabel()));
+        SymbolLabel()));
 }
 
 Symbol parseTypeOfTypeSpecifier(CharacterSource* source);

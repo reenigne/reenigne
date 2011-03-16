@@ -12,14 +12,14 @@ public:
     Compiler(Program* program) : _program(program) { }
     void compileFunction(Symbol functionDefinitionStatement)
     {
-        _label = Symbol::newLabel();
+        _label = SymbolLabel();
         setBasicBlockLabel(functionDefinitionStatement, _label);
         if (functionDefinitionStatement.cache<FunctionDefinitionCache>()->getCompilingFlag()) {
             static String error("Function called during its own compilation");  // TODO: Give more details about what's being evaluated and how that came to call this
             spanOf(functionDefinitionStatement).end().throwError(error);
         }
         functionDefinitionStatement.cache<FunctionDefinitionCache>()->setCompilingFlag(true);
-        _epilogueStack.push(Symbol::newLabel());
+        _epilogueStack.push(SymbolLabel());
         //Symbol type = typeOf(functionDefinitionStatement);
         //Symbol returnType = type[1].symbol();
         //_returnTypeStack.push(returnType);
@@ -54,10 +54,9 @@ private:
         for (int i = 0; i < program.count(); ++i)
             compileStatement(program[i]);
     }
-    void finishBasicBlock(int nextLabel)
+    void finishBasicBlock(SymbolLabel nextLabel)
     {
-        Symbol block(atomBasicBlock, SymbolArray(_basicBlock), _label, nextLabel);
-        block.setLabel(_label);
+        Symbol block(atomBasicBlock, SymbolArray(_basicBlock), nextLabel);
         _program->add(block);
         _basicBlock = SymbolList();
         _label = nextLabel;
@@ -95,8 +94,8 @@ private:
                 break;
             case atomIfStatement:
                 {
-                    int falseClause = Symbol::newLabel();
-                    int done = Symbol::newLabel();
+                    SymbolLabel falseClause;
+                    SymbolLabel done;
                     compileExpression(statement[1].symbol());
                     add(Symbol(atomNot));
                     addJumpIfTrue(falseClause);
@@ -136,8 +135,8 @@ private:
                 break;
             case atomForeverStatement:
                 {
-                    int done = Symbol::newLabel();
-                    int start = getLabel();
+                    SymbolLabel done;
+                    SymbolLabel start = getLabel();
                     _breakContinueStack.push(BreakContinueStackEntry(done, start));
                     compileStatement(statement[1].symbol());
                     addGoto(start);
@@ -147,9 +146,9 @@ private:
                 break;
             case atomWhileStatement:
                 {
-                    int done = Symbol::newLabel();
-                    int final = Symbol::newLabel();
-                    int start = getLabel();
+                    SymbolLabel done;
+                    SymbolLabel final;
+                    SymbolLabel start = getLabel();
                     _breakContinueStack.push(BreakContinueStackEntry(final, start));
                     compileStatement(statement[1].symbol());
                     compileExpression(statement[2].symbol());
@@ -164,9 +163,9 @@ private:
                 break;
             case atomUntilStatement:
                 {
-                    int done = Symbol::newLabel();
-                    int final = Symbol::newLabel();
-                    int start = getLabel();
+                    SymbolLabel done;
+                    SymbolLabel final;
+                    SymbolLabel start = getLabel();
                     _breakContinueStack.push(BreakContinueStackEntry(final, start));
                     compileStatement(statement[1].symbol());
                     compileExpression(statement[2].symbol());
@@ -181,9 +180,9 @@ private:
             case atomForStatement:
                 {
                     compileStatement(statement[1].symbol());
-                    int done = Symbol::newLabel();
-                    int final = Symbol::newLabel();
-                    int start = getLabel();
+                    SymbolLabel done;
+                    SymbolLabel final;
+                    SymbolLabel start = getLabel();
                     _breakContinueStack.push(BreakContinueStackEntry(final, start));
                     compileExpression(statement[2].symbol());
                     add(Symbol(atomNot));
@@ -213,7 +212,7 @@ private:
                 break;
             case atomLabelStatement:
                 {
-                    int label = Symbol::newLabel();
+                    SymbolLabel label;
                     setBasicBlockLabel(statement, label);
                     add(statement);
                 }
@@ -226,12 +225,10 @@ private:
         switch (expression.atom()) {
             case atomLogicalOr:
                 {
-                    int pushRight = Symbol::newLabel();
-                    int pushTrue = Symbol::newLabel();
-                    int done = Symbol::newLabel();
+                    SymbolLabel pushTrue;
+                    SymbolLabel done;
                     compileExpression(expression[1].symbol());
                     addJumpIfTrue(pushTrue);
-                    addLabel(pushRight);
                     compileExpression(expression[2].symbol());
                     addGoto(done);
                     addLabel(pushTrue);
@@ -241,9 +238,8 @@ private:
                 break;
             case atomLogicalAnd:
                 {
-                    int pushRight = Symbol::newLabel();
-                    int pushFalse = Symbol::newLabel();
-                    int done = Symbol::newLabel();
+                    SymbolLabel pushFalse;
+                    SymbolLabel done;
                     compileExpression(expression[1].symbol());
                     add(Symbol(atomNot));
                     addJumpIfTrue(pushFalse);
@@ -280,7 +276,7 @@ private:
                 break;
             case atomIdentifier:
                 {
-                    Symbol definition = Symbol::labelled(labelOf(expression));
+                    Symbol definition = labelOf(expression).target();
                     addAddressOf(definition);
                     add(Symbol(atomDereference));
                 }
@@ -348,7 +344,7 @@ private:
     }
     void addAddressOf(Symbol symbol)
     {
-        Symbol definition = Symbol::labelled(labelOf(symbol));
+        Symbol definition = labelOf(symbol).target();
         addPushStackRelativeAddress(offsetOf(definition) + _stackOffset - 4);
     }
     void add(Symbol symbol)
@@ -420,25 +416,25 @@ private:
         }
         _stackOffset += adjust;
     }
-    void addGoto(int destination)
+    void addGoto(SymbolLabel destination)
     {
-        add(Symbol(atomIntegerConstant, destination));
+        add(Symbol(atomLabelConstant, destination));
         add(Symbol(atomGoto));
         checkBlockStackOffset(destination);
         _blockEnds = true;
         _reachable = false;
     }
-    void addJumpIfTrue(int destination)
+    void addJumpIfTrue(SymbolLabel destination)
     {
-        add(Symbol(atomIntegerConstant, destination));
+        add(Symbol(atomLabelConstant, destination));
         add(Symbol(atomJumpIfTrue));
         checkBlockStackOffset(destination);
     }
-    void addLabel(int label)
+    void addLabel(SymbolLabel label)
     {
-        int follows = label;
+        SymbolLabel follows = label;
         if (_blockEnds)
-            follows = -1;
+            follows = SymbolLabel();
         else
             checkBlockStackOffset(follows);
         Symbol block(atomBasicBlock, SymbolArray(_basicBlock), _label, follows);
@@ -450,13 +446,13 @@ private:
         _atBlockStart = true;
         _reachable = true;
     }
-    int getLabel()
+    SymbolLabel getLabel()
     {
         if (!_atBlockStart)
-            addLabel(Symbol::newLabel());
+            addLabel(SymbolLabel());
         return _label;
     }
-    void checkBlockStackOffset(int label)
+    void checkBlockStackOffset(SymbolLabel label)
     {
         if (_blockStackOffsets.hasKey(label)) {
             int stackOffset = _blockStackOffsets[label];
@@ -472,22 +468,22 @@ private:
 
     Program* _program;
     SymbolList _basicBlock;
-    int _label;
+    SymbolLabel _label;
     bool _blockEnds;
     bool _atBlockStart;
     bool _reachable;
     int _stackOffset;
-    HashTable<int, int> _blockStackOffsets;
+    HashTable<SymbolLabel, int> _blockStackOffsets;
 //    Stack<Symbol> _returnTypeStack;
-    Stack<int> _epilogueStack;
+    Stack<SymbolLabel> _epilogueStack;
     
     class BreakContinueStackEntry
     {
     public:
-        BreakContinueStackEntry(int breakLabel, int continueLabel)
+        BreakContinueStackEntry(SymbolLabel breakLabel, SymbolLabel continueLabel)
           : _breakLabel(breakLabel), _continueLabel(continueLabel) { }
-        int _breakLabel;
-        int _continueLabel;
+        SymbolLabel _breakLabel;
+        SymbolLabel _continueLabel;
     };
     Stack<BreakContinueStackEntry> _breakContinueStack;
 };

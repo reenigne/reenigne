@@ -43,27 +43,27 @@ class Scope;
 class IdentifierCache : public ExpressionCache
 {
 public:
-    IdentifierCache(Span span, int label = -1)
+    IdentifierCache(Span span, SymbolLabel label = SymbolLabel())
       : ExpressionCache(span), _label(label), _offset(-1)
     { }
-    void setLabel(int label) { _label = label; }
-    int label() const { return _label; }
+    void setLabel(SymbolLabel label) { _label = label; }
+    SymbolLabel label() const { return _label; }
     void setScope(Scope* scope) { _scope = scope; }
     Scope* scope() { return _scope; }
     void setOffset(int offset) { _offset = offset; }
     int offset() const { return _offset; }
 private:
-    int _label;
+    SymbolLabel _label;
     Reference<Scope> _scope;
     int _offset;
 };
 
-int labelOf(Symbol symbol)
+SymbolLabel labelOf(Symbol symbol)
 {
     return symbol.cache<IdentifierCache>()->label();
 }
 
-void setLabel(Symbol symbol, int label)
+void setLabel(Symbol symbol, SymbolLabel label)
 {
     symbol.cache<IdentifierCache>()->setLabel(label);
 }
@@ -86,7 +86,7 @@ int offsetOf(Symbol symbol)
 class TypeCache : public IdentifierCache
 {
 public:
-    TypeCache(Span span, int size = -1, int alignment = -1, int label = -1)
+    TypeCache(Span span, int size = -1, int alignment = -1, SymbolLabel label = SymbolLabel())
       : IdentifierCache(span, label) { }
     void setSize(int size) { _size = size; }
     int size() const { return _size; }
@@ -121,23 +121,23 @@ class FunctionDefinitionCache : public IdentifierCache
 {
 public:
     FunctionDefinitionCache(Span span)
-      : IdentifierCache(span, Symbol::newLabel()), _compiling(false)
+      : IdentifierCache(span, SymbolLabel()), _compiling(false)
     { }
     void setCompilingFlag(bool compiling) { _compiling = compiling; }
     bool getCompilingFlag() const { return _compiling; }
-    void setBasicBlockLabel(int label) { _basicBlockLabel = label; }
-    int getBasicBlockLabel() const { return _basicBlockLabel; }
+    void setBasicBlockLabel(SymbolLabel label) { _basicBlockLabel = label; }
+    SymbolLabel getBasicBlockLabel() const { return _basicBlockLabel; }
 private:
     bool _compiling;
-    int _basicBlockLabel;
+    SymbolLabel _basicBlockLabel;
 };
 
-int basicBlockLabelOf(Symbol symbol)
+SymbolLabel basicBlockLabelOf(Symbol symbol)
 {
     return symbol.cache<FunctionDefinitionCache>()->getBasicBlockLabel();
 }
 
-void setBasicBlockLabel(Symbol symbol, int label)
+void setBasicBlockLabel(Symbol symbol, SymbolLabel label)
 {
     symbol.cache<FunctionDefinitionCache>()->setBasicBlockLabel(label);
 }
@@ -145,28 +145,28 @@ void setBasicBlockLabel(Symbol symbol, int label)
 class SymbolName : public ReferenceCounted
 {
 public:
-    virtual int resolveIdentifier(Span span) = 0;
+    virtual SymbolLabel resolveIdentifier(Span span) = 0;
 };
 
 class VariableName : public SymbolName
 {
 public:
-    VariableName(int label) : _label(label) { }
-    int resolveIdentifier(Span span)
+    VariableName(SymbolLabel label) : _label(label) { }
+    SymbolLabel resolveIdentifier(Span span)
     {
         return _label;
     }
     int frameOffset() const { return _frameOffset; }
     void setframeOffset(int frameOffset) { _frameOffset = frameOffset; }
 private:
-    int _label;
+    SymbolLabel _label;
     int _frameOffset;
 };
 
 class FunctionName : public SymbolName
 {
 public:
-    int resolveIdentifier(Span span)
+    SymbolLabel resolveIdentifier(Span span)
     {
         if (_overloads.count() > 1) {
             static String error(" is an overloaded function - I don't know which overload you mean.");
@@ -174,9 +174,9 @@ public:
         }
         return _label;
     }
-    void addOverload(int label)
+    void addOverload(SymbolLabel label)
     {
-        Symbol functionDefinition = Symbol::labelled(label);
+        Symbol functionDefinition = label.target();
         Symbol type = typeOf(functionDefinition);
         SymbolArray types = type[2].array();
         if (_overloads.hasKey(types)) {
@@ -191,14 +191,14 @@ public:
     {
         return _overloads.hasKey(argumentTypes);
     }
-    int lookUpOverload(SymbolArray argumentTypes)
+    SymbolLabel lookUpOverload(SymbolArray argumentTypes)
     {
         return _overloads[argumentTypes];
     }
 
 private:
-    HashTable<SymbolArray, int> _overloads;
-    int _label;
+    HashTable<SymbolArray, SymbolLabel> _overloads;
+    SymbolLabel _label;
     String _name;
     SymbolArray _argumentTypes;
 };
@@ -226,7 +226,7 @@ public:
     }
     Scope* outer() const { return _outer; }
     Scope* functionScope() const { return _functionScope; }
-    void addVariable(SymbolEntry identifier, int label, Span span)
+    void addVariable(SymbolEntry identifier, SymbolLabel label, Span span)
     {
         if (_symbolTable.hasKey(identifier)) {
             static String error(" is already defined");
@@ -234,7 +234,7 @@ public:
         }
         _symbolTable.add(identifier, new VariableName(label));
     }
-    int resolveIdentifier(SymbolEntry identifier, Span span)
+    SymbolLabel resolveIdentifier(SymbolEntry identifier, Span span)
     {
         if (!_symbolTable.hasKey(identifier)) {
             if (_outer != 0)
@@ -244,7 +244,7 @@ public:
         }
         return _symbolTable[identifier]->resolveIdentifier(span);
     }
-    void addFunction(SymbolEntry identifier, int label, Span span)
+    void addFunction(SymbolEntry identifier, SymbolLabel label, Span span)
     {
         FunctionName* functionName;
         if (_symbolTable.hasKey(identifier)) {
@@ -261,7 +261,7 @@ public:
         }
         functionName->addOverload(label);
     }
-    void addType(SymbolEntry identifier, int label, Span span)
+    void addType(SymbolEntry identifier, SymbolLabel label, Span span)
     {
         if (_typeTable.hasKey(identifier)) {
             static String error(" has already been defined.");
@@ -269,7 +269,7 @@ public:
         }
         _typeTable.add(identifier, label);
     }
-    int resolveFunction(SymbolEntry identifier, SymbolArray argumentTypes, Span span)
+    SymbolLabel resolveFunction(SymbolEntry identifier, SymbolArray argumentTypes, Span span)
     {
         if (!_symbolTable.hasKey(identifier)) {
             if (_outer == 0) {
@@ -290,7 +290,7 @@ public:
         }
         return functionName->lookUpOverload(argumentTypes);
     }
-    int resolveType(SymbolEntry identifier, Span span)
+    SymbolLabel resolveType(SymbolEntry identifier, Span span)
     {
         if (!_typeTable.hasKey(identifier)) {
             if (_outer == 0) {
@@ -305,7 +305,7 @@ public:
     int getStackOffset() { return _offset; }
 private:
     HashTable<SymbolEntry, Reference<SymbolName> > _symbolTable;
-    HashTable<SymbolEntry, int> _typeTable;
+    HashTable<SymbolEntry, SymbolLabel> _typeTable;
     Scope* _outer;
     Scope* _functionScope;
     int _offset;
@@ -568,8 +568,8 @@ void resolveIdentifiersAndTypes(SymbolEntry entry)
 
 void resolveIdentifier(Symbol symbol)
 {
-    int label = labelOf(symbol);
-    if (label != -1)
+    SymbolLabel label = labelOf(symbol);
+    if (label.target().valid())
         return;
     switch (symbol.atom()) {
         case atomIdentifier:
@@ -595,7 +595,7 @@ void resolveIdentifier(Symbol symbol)
                     SymbolArray arguments = symbol[2].array();
                     for (int i = 0; i < arguments.count(); ++i)
                         list.add(typeOf(arguments[i]));
-                    int label = scope->resolveFunction(function[1], list, spanOf(function));
+                    label = scope->resolveFunction(function[1], list, spanOf(function));
                     setLabel(function, label);
                     return;
                 }
@@ -618,8 +618,8 @@ void resolveTypeOf(Symbol symbol)
         case atomTypeConstructorIdentifier:
             {
                 resolveIdentifier(symbol);
-                int label = labelOf(symbol);
-                Symbol definition = Symbol::labelled(label);
+                SymbolLabel label = labelOf(symbol);
+                Symbol definition = label.target();
                 resolveTypeOf(definition);
                 type = typeOf(definition);
             }

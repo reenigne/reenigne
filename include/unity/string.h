@@ -832,5 +832,7 @@ String doubleQuote = String::codePoint('"');
 String dollar = String::codePoint('$');
 String singleQuote = String::codePoint('\'');
 String backQuote = String::codePoint('`');
+String lessThan = String::codePoint('<');
+String greaterThan = String::codePoint('>');
 
 #endif // INCLUDED_STRING_H

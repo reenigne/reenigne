@@ -58,9 +58,9 @@ void run(SymbolArray program)
             _block = program[0];
             setup();
         }
-        void jump(int label)
+        void jump(SymbolLabel label)
         {
-            _block = Symbol::labelled(label);
+            _block = label.target();
             setup();
         }
         Symbol instruction()
@@ -68,7 +68,7 @@ void run(SymbolArray program)
             Symbol instruction = _instructions[_instruction];
             ++_instruction;
             if (_instruction == _instructionsInBlock) {
-                _label = _block[2].integer();
+                _label = _block[2].label();
                 jump(_label);
             }
             return instruction;
@@ -85,7 +85,7 @@ void run(SymbolArray program)
         SymbolArray _instructions;
         int _instruction;
         int _instructionsInBlock;
-        int _label;
+        SymbolLabel _label;
     };
     RunTimeStack stack(0x100000);
     InstructionPointer ip(program);

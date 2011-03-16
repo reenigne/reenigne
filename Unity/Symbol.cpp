@@ -55,6 +55,7 @@ enum Atom
     atomStringConstant,
     atomIdentifier,
     atomIntegerConstant,
+    atomLabelConstant,
     atomTrue,
     atomFalse,
     atomNull,
@@ -186,6 +187,7 @@ String atomToString(Atom atom)
             _table[atomStringConstant] = String("string");                           // string
             _table[atomIdentifier] = String("identifier");                           // name
             _table[atomIntegerConstant] = String("integer");                         // value
+            _table[atomLabelConstant] = String("labelConstant");                     // label
             _table[atomTrue] = String("true");
             _table[atomFalse] = String("false");
             _table[atomNull] = String("null");
@@ -234,7 +236,7 @@ String atomToString(Atom atom)
             _table[atomPrintFunction] = String("print");                             // returnType     name            parameters
             _table[atomExit] = String("exit");
 
-            _table[atomBasicBlock] = String("block");                                // instructions   label           nextBlock
+            _table[atomBasicBlock] = String("block");                                // instructions   nextBlock
 
             _table[atomCall] = String("call");
             _table[atomReturn] = String("return");
@@ -325,6 +327,9 @@ typedef SymbolTemplate<void> Symbol;
 template<class T> class SymbolArrayTemplate;
 typedef SymbolArrayTemplate<void> SymbolArray;
 
+template<class T> class SymbolLabelTemplate;
+typedef SymbolLabelTemplate<void> SymbolLabel;
+
 template<class T> class SymbolEntryTemplate
 {
 public:
@@ -343,6 +348,7 @@ public:
     String string() const { return dynamic_cast<const StringImplementation*>(implementation())->value(); }
     SymbolArrayTemplate<T> array() { return SymbolArrayTemplate<T>(_implementation); }
     SymbolTemplate<T> symbol() { return SymbolTemplate<T>(dynamic_cast<Symbol::Implementation*>(implementation())); }
+    SymbolLabelTemplate<T> label() { return SymbolLabelTemplate<T>(dynamic_cast<Symbol::Implementation*>(implementation())); }
     Atom atom() const { return symbol().atom(); }
     bool valid() const { return _implementation.valid(); }
     int length(int max) const { return implementation()->length(max); }
@@ -426,6 +432,7 @@ public:
     SymbolTail(SymbolEntry head) : _head(head) { }
     SymbolTail(SymbolEntry head, SymbolTail* tail) : _head(head), _tail(tail) { }
     SymbolEntry head() const { return _head; }
+    SymbolEntry& head() { return _head; }
     const SymbolTail* tail() const { return _tail; }
     bool equals(const SymbolTail* other) const
     {
@@ -488,6 +495,18 @@ public:
         return t->head();
     }
 
+    SymbolEntry& operator[](int n)
+    {
+        SymbolTail* t = tail();
+        while (n > 1) {
+            if (t == 0)
+                return Symbol();
+            --n;
+            t = t->tail();
+        }
+        return t->head();
+    }
+
     const SymbolTail* tail() const { return implementation()->tail(); }
 
     template<class U> U* cache()
@@ -501,7 +520,8 @@ private:
     {
     public:
         Implementation(Atom atom, SymbolCache* cache, const SymbolTail* tail)
-          : _atom(atom), _cache(cache), _tail(tail)
+          : _atom(atom), _cache(cache), _tail(tail), _labelReferences(0),
+          _labelNumber(-1)
         { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
@@ -513,8 +533,8 @@ private:
         int length(int max) const
         {
             int r = 2 + atomToString(_atom).length();
-            //if (isTarget())
-            //    r += 1 + decimalLength(_label);
+            if (_labelReferences > 0)
+                r += 1 + decimalLength(label());
             if (r < max && _tail.valid()) {
                 ++r;
                 r += _tail->length(max - r);
@@ -527,10 +547,10 @@ private:
             ++x;
             more = true;
             String s = openParenthesis;
-            //if (isTarget()) {
-            //    s = String::decimal(_label) + colon + s;
-            //    x += 1 + decimalLength(_label);
-            //}
+            if (_labelReferences > 0) {
+                s = String::decimal(label()) + colon + s;
+                x += 1 + decimalLength(label());
+            }
             String a = atomToString(_atom);
             x += a.length();
             s += a;
@@ -561,13 +581,9 @@ private:
         Atom atom() const { return _atom; }
 
         SymbolCache* cache() { return _cache; }
-        Span span() const { return _span; }
-        Symbol type() const { return _type; }
         const SymbolTail* tail() const { return _tail; }
 
         void setCache(Reference<ReferenceCounted> cache) { _cache = cache; }
-        void setSpan(Span span) { _span = span; }
-        void setType(Symbol type) { _type = type; }
 
         int hash() const
         {
@@ -582,13 +598,24 @@ private:
         bool isSymbol() const { return true; }
         bool isArray() const { return false; }
 
+        int label() const
+        {
+            if (_labelNumber == -1) {
+                _labelNumber = _labels;
+                ++_labels;
+            }
+            return _labelNumber;
+        }
+        int addLabel() { ++_labelReferences; }
+        int removeLabel() { --_labelReferences; }
     private:
         Atom _atom;
         ConstReference<SymbolTail> _tail;
         Reference<SymbolCache> _cache;
-        Span _span;
-        Symbol _type;
-        LinkedList<SymbolLabel> _labels;
+        mutable int _labelNumber;
+        int _labelReferences;
+
+        static int _labels;
     };
 
     const Implementation* implementation() const { return dynamic_cast<const Implementation*>(SymbolEntryTemplate::implementation()); }
@@ -597,8 +624,10 @@ private:
     template<class T> friend class SymbolEntryTemplate;
     template<class T> friend class SymbolTemplate;
     template<class T> friend class SymbolArrayTemplate;
-    friend class SymbolLabel;
+    template<class T> friend class SymbolLabelTemplate;
 };
+
+int Symbol::Implementation::_labels = 0;
 
 class SymbolList
 {
@@ -710,6 +739,7 @@ private:
         }
         int count() const { return _symbols.count(); }
         Symbol operator[](int i) const { return _symbols[i]; }
+        Symbol& operator[](int i) { return _symbols[i]; }
         String toString(int width, int spacesPerIndent, int indent, int& x, bool& more) const
         {
             ++x;
@@ -752,38 +782,49 @@ private:
     template<class T> friend class SymbolEntryTemplate;
 };
 
-Reference<SymbolArray::Implementation> SymbolArray::_empty = new SymbolArray::Implementation();
+Reference<SymbolArray::Implementation> SymbolArray::_empty =
+    new SymbolArray::Implementation();
 
-class SymbolLabel
+template<class T> class SymbolLabelTemplate : public SymbolEntry
 {
 public:
-    SymbolLabel() : _implementation(new Implementation) { }
+    SymbolLabelTemplate() { }
+    SymbolLabelTemplate(Symbol target)
+      : _implementation(new Implementation(target._implementation)) { }
     Symbol target() { return Symbol(_implementation->target()); }
-    void setTarget(Symbol symbol)
-    {
-        _implementation->setTarget(symbol.implementation());
-    }
 private:
-    class Implementation : public ReferenceCounted
+    class Implementation : public SymbolEntry::Implementation
     {
     public:
-        Symbol::Implementation* target() { return _target; }
-    private:
-        class LabelListMembership : public LinkedListMember<LabelListMembership>
+        Implementation(Symbol::Implementation* target) : _target(target)
         {
-        public:
-            ~LabelListMembership()
-            {
-                remove();
-            }
-        };
-        int _labelNumber;
+            _target->addLabel();
+        }
+        ~Implementation() { _target->removeLabel(); }
+        Symbol::Implementation* target() { return _target; }
+        bool equals(const Symbol::Implementation* other) const
+        { 
+            const Implementation* o =
+                dynamic_cast<const Implementation*>(other);
+            if (o == 0)
+                return false;
+            return _target == o->_target;
+        }
+        int length(int max) const
+        {
+            return 2 + decimalLength(_target->label());
+        }
+        String toString(int width, int spacesPerIndex, int indent, int& x,
+            bool& more) const
+        {
+            x += length();
+            more = true;
+            return lessThan + String::decimal(_target->label()) + greaterThan;
+        }
+        int hash() const { return reinterpret_cast<int>(_target); }
+        bool isSymbol() const { return false; }
+        bool isArray() const { return false; }
+    private:
         Symbol::Implementation* _target;
-        friend class Symbol::Implementation;
     };
-    static int _nextLabelNumber;
-
-    Reference<Implementation> _implementation;
 };
-
-int SymbolLabel::_nextLabelNumber = 0;

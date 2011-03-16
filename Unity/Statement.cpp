@@ -30,7 +30,8 @@ Symbol parseParameter(CharacterSource* source)
         source->location().throwError(error);
     }
     return Symbol(atomParameter, typeSpecifier, name,
-        new IdentifierCache(spanOf(typeSpecifier) + spanOf(name), Symbol::newLabel()));
+        new IdentifierCache(spanOf(typeSpecifier) + spanOf(name),
+            SymbolLabel()));
 }
 
 SymbolArray parseParameterList(CharacterSource* source)
@@ -113,7 +114,7 @@ Symbol parseVariableDefinitionStatement(CharacterSource* source)
         typeSpecifier,
         identifier,
         initializer,
-        new IdentifierCache(spanOf(typeSpecifier) + span, Symbol::newLabel()));
+        new IdentifierCache(spanOf(typeSpecifier) + span, SymbolLabel()));
     return statement;
 }
 
@@ -200,7 +201,7 @@ Symbol parseTypeConstructorDefinitionStatement(CharacterSource* source)
     Symbol statement = Symbol(atomTypeConstructorDefinitionStatement,
         typeConstructorSignifier, typeConstructorSpecifier,
         new IdentifierCache(spanOf(typeConstructorSignifier) + span,
-            Symbol::newLabel()));
+            SymbolLabel()));
     return statement;
 }
 

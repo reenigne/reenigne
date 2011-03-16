@@ -1,0 +1,19 @@
+  When converting Symbol to string, we want to be able to see which symbol is referenced
+  Also want to be able to restore a Symbol tree from a string, including all label references
+    What about SymbolCache stuff? It would be useful to be able to restore that too
+Uses of text input/output:
+  External programs interfacing with parts of the compiler off-line
+    Source preprocessor for making testcases
+  Debugging
+    Want to be able to emit entire compiler state
+  Formats:
+    Input: normal source file with dependencies
+    Output: list of source files accessed in compilation
+    Both: unparsed and parsed source code with any combination of "include"s, "emit"s, "from"s and constants evaluated and substituted
+    Both: stack-based code
+All Symbols must be owned by some root or they will be reference counted
+  They might be owned by a HashTable in a Cache belonging to a TypeConstructorDefinitionStatement
+  We need to enumerate them all when dumping
+    For Unity, we need to have some kind of reflection so that this logic doesn't need to be in all of the Symbol classes
+      Classes need to opt in to run-time reflection (this makes no code differences, it just makes the debug information available at run-time)
+
