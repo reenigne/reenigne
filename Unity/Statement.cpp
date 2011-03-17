@@ -90,6 +90,7 @@ Symbol parseFunctionDefinitionStatement(CharacterSource* source)
         name,
         parameterList,
         statement,
+        SymbolLabel(),
         new FunctionDefinitionCache(
             spanOf(returnTypeSpecifier) + spanOf(statement)));
     return statement;

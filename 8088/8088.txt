@@ -1,0 +1,1780 @@
+lodsw            16c       1b
+mov  bx,ax       2c        2b
+mov  ax,es:[di]  12c+5c+2c 3b
+and  al,bh       3c        2b
+or   al,bl       3c        2b
+stosw            15c       1b
+
+
+     BIU                   Q EU
+T1 fetch lodsw           1 0
+T2 fetch lodsw           1 0
+T3 fetch lodsw           1 0
+T4 fetch lodsw           1 0
+T1 fetch mov bx,ax       1 0 execute lodsw            1
+T2 fetch mov bx,ax       1 0 execute lodsw            2
+T3 fetch mov bx,ax       1 0 execute lodsw            3
+T4 fetch mov bx,ax       1 0 execute lodsw            4
+T1 fetch [si]            1 1 execute lodsw            5
+T2 fetch [si]            1 1 execute lodsw            6
+T3 fetch [si]            1 1 execute lodsw            7
+T4 fetch [si]            1 1 execute lodsw            8
+T1 fetch [si]            2 1 execute lodsw            9
+T2 fetch [si]            2 1 execute lodsw           10
+T3 fetch [si]            2 1 execute lodsw           11
+T4 fetch [si]            2 1 execute lodsw           12
+T1 fetch mov bx,ax       1 1 execute lodsw           13
+T2 fetch mov bx,ax       1 1 execute lodsw           14
+T3 fetch mov bx,ax       1 1 execute lodsw           15
+T4 fetch mov bx,ax       1 1 execute lodsw           16
+T1 fetch mov ax,es:[di]  1 0 execute mov bx,ax        1
+T2 fetch mov ax,es:[di]  1 0 execute mov bx,ax        2
+T3 fetch mov ax,es:[di]  1 0
+T4 fetch mov ax,es:[di]  1 0
+T1 fetch mov ax,es:[di]  2 1
+T2 fetch mov ax,es:[di]  2 1
+T3 fetch mov ax,es:[di]  2 1
+T4 fetch mov ax,es:[di]  2 1
+T1 fetch mov ax,es:[di]  3 2
+T2 fetch mov ax,es:[di]  3 2
+T3 fetch mov ax,es:[di]  3 2
+T4 fetch mov ax,es:[di]  3 2
+T1 fetch and al,bh       1 0 execute mov ax,es:[di]   1
+T2 fetch and al,bh       1 0 execute mov ax,es:[di]   2
+T3 fetch and al,bh       1 0 execute mov ax,es:[di]   3
+T4 fetch and al,bh       1 0 execute mov ax,es:[di]   4
+T1 fetch es:[di]         1 1 execute mov ax,es:[di]   5
+T2 fetch es:[di]         1 1 execute mov ax,es:[di]   6
+T3 fetch es:[di]         1 1 execute mov ax,es:[di]   7
+T4 fetch es:[di]         1 1 execute mov ax,es:[di]   8
+T1 fetch es:[di]         2 1 execute mov ax,es:[di]   9
+T2 fetch es:[di]         2 1 execute mov ax,es:[di]  10
+T3 fetch es:[di]         2 1 execute mov ax,es:[di]  11
+T4 fetch es:[di]         2 1 execute mov ax,es:[di]  12
+T1 fetch and al,bh       2 1 execute mov ax,es:[di]  13
+T2 fetch and al,bh       2 1 execute mov ax,es:[di]  14
+T3 fetch and al,bh       2 1 execute mov ax,es:[di]  15
+T4 fetch and al,bh       2 1 execute mov ax,es:[di]  16
+T1 fetch or al,bl        1 2 execute mov ax,es:[di]  17
+T2 fetch or al,bl        1 2 execute mov ax,es:[di]  18
+T3 fetch or al,bl        1 2 execute mov ax,es:[di]  19
+T4 fetch or al,bl        1 1 execute and al,bh        1
+T1 fetch or al,bl        2 2 execute and al,bh        2
+T2 fetch or al,bl        2 2 execute and al,bh        3
+T3 fetch or al,bl        2 2
+T4 fetch or al,bl        2 2
+T1 fetch stosw           1 0 execute or al,bl         1
+T2 fetch stosw           1 0 execute or al,bl         2
+T3 fetch stosw           2 0 execute or al,bl         3
+T4 fetch stosw           2 0
+T1 fetch lodsw           2 0 execute stosw            1
+T2 fetch lodsw           2 0 execute stosw            2
+T3 fetch lodsw           1 0 execute stosw            3
+T4 fetch lodsw           1 0 execute stosw            4
+T1 store [di]            1 1 execute stosw            5
+T2 store [di]            1 1 execute stosw            6
+T3 store [di]            1 1 execute stosw            7
+T4 store [di]            1 1 execute stosw            8
+T1 store [di]            2 1 execute stosw            9
+T2 store [di]            2 1 execute stosw           10
+T3 store [di]            2 1 execute stosw           11
+T4 store [di]            2 1 execute stosw           12
+T1 fetch mov bx,ax       1 1 execute stosw           13
+T2 fetch mov bx,ax       1 1 execute stosw           14
+T3 fetch mov bx,ax       1 1 execute stosw           15
+T4 fetch mov bx,ax       1 0 execute lodsw            1
+T1 fetch mov bx,ax       2 1 execute lodsw            2
+T2 fetch mov bx,ax       2 1 execute lodsw            3
+T3 fetch mov bx,ax       2 1 execute lodsw            4
+T4 fetch mov bx,ax       2 1 execute lodsw            5
+T1 fetch [si]            1 2 execute lodsw            6
+T2 fetch [si]            1 2 execute lodsw            7
+T3 fetch [si]            1 2 execute lodsw            8
+T4 fetch [si]            1 2 execute lodsw            9
+T1 fetch [si]            2 2 execute lodsw           10
+T2 fetch [si]            2 2 execute lodsw           11
+T3 fetch [si]            2 2 execute lodsw           12
+T4 fetch [si]            2 2 execute lodsw           13
+T1 fetch mov ax,es:[di]  1 2 execute lodsw           14
+T2 fetch mov ax,es:[di]  1 2 execute lodsw           15
+T3 fetch mov ax,es:[di]  1 2 execute lodsw           16
+T4 fetch mov ax,es:[di]  1 0 execute mov bx,ax        1
+T1 fetch mov ax,es:[di]  2 1 execute mov bx,ax        2
+T2 fetch mov ax,es:[di]  2 1
+T3 fetch mov ax,es:[di]  2 1
+T4 fetch mov ax,es:[di]  2 1
+T1 fetch mov ax,es:[di]  3 2
+T2 fetch mov ax,es:[di]  3 2
+T3 fetch mov ax,es:[di]  3 2
+T4 fetch mov ax,es:[di]  3 2
+
+11 bytes, 68 cycles
+
+
+
+mov  dx,[bx+NUM] 12+9=21c 3b
+lodsw            16c      1b
+and  al,dh       3c       2b
+or   al,dl       3c       2b
+stosw            15c      1b
+
+T1 fetch mov dx,[bx+n]   1 0
+T2 fetch mov dx,[bx+n]   1 0
+T3 fetch mov dx,[bx+n]   1 0
+T4 fetch mov dx,[bx+n]   1 0
+T1 fetch mov dx,[bx+n]   2 1
+T2 fetch mov dx,[bx+n]   2 1
+T3 fetch mov dx,[bx+n]   2 1
+T4 fetch mov dx,[bx+n]   2 1
+T1 fetch mov dx,[bx+n]   3 2
+T2 fetch mov dx,[bx+n]   3 2
+T3 fetch mov dx,[bx+n]   3 2
+T4 fetch mov dx,[bx+n]   3 2
+T1 fetch lodsw           1 0 execute mov dx,[bx+n]    1
+T2 fetch lodsw           1 0 execute mov dx,[bx+n]    2
+T3 fetch lodsw           1 0 execute mov dx,[bx+n]    3
+T4 fetch lodsw           1 0 execute mov dx,[bx+n]    4
+T1 fetch [bx+n]          1 1 execute mov dx,[bx+n]    5
+T2 fetch [bx+n]          1 1 execute mov dx,[bx+n]    6
+T3 fetch [bx+n]          1 1 execute mov dx,[bx+n]    7
+T4 fetch [bx+n]          1 1 execute mov dx,[bx+n]    8
+T1 fetch [bx+n]          2 1 execute mov dx,[bx+n]    9
+T2 fetch [bx+n]          2 1 execute mov dx,[bx+n]   10
+T3 fetch [bx+n]          2 1 execute mov dx,[bx+n]   11
+T4 fetch [bx+n]          2 1 execute mov dx,[bx+n]   12
+T1 fetch and al,dh       1 1 execute mov dx,[bx+n]   13
+T2 fetch and al,dh       1 1 execute mov dx,[bx+n]   14
+T3 fetch and al,dh       1 1 execute mov dx,[bx+n]   15
+T4 fetch and al,dh       1 1 execute mov dx,[bx+n]   16
+T1 fetch and al,dh       2 2 execute mov dx,[bx+n]   17
+T2 fetch and al,dh       2 2 execute mov dx,[bx+n]   18
+T3 fetch and al,dh       2 2 execute mov dx,[bx+n]   19
+T4 fetch and al,dh       2 2 execute mov dx,[bx+n]   20
+T1 fetch or al,dl        1 3 execute mov dx,[bx+n]   21
+T2 fetch or al,dl        1 2 execute lodsw            1
+T3 fetch or al,dl        1 2 execute lodsw            2
+T4 fetch or al,dl        1 2 execute lodsw            3
+T1 fetch or al,dl        2 3 execute lodsw            4
+T2 fetch or al,dl        2 3 execute lodsw            5
+T3 fetch or al,dl        2 3 execute lodsw            6
+T4 fetch or al,dl        2 3 execute lodsw            7
+T1 fetch [si]            1 4 execute lodsw            8
+T2 fetch [si]            1 4 execute lodsw            9
+T3 fetch [si]            1 4 execute lodsw           10
+T4 fetch [si]            1 4 execute lodsw           11
+T1 fetch [si]            2 4 execute lodsw           12
+T2 fetch [si]            2 4 execute lodsw           13
+T3 fetch [si]            2 4 execute lodsw           14
+T4 fetch [si]            2 4 execute lodsw           15
+--                         4 execute lodsw           16
+T1 fetch stosw           1 2 execute and al,dh        1
+T2 fetch stosw           1 2 execute and al,dh        2
+T3 fetch stosw           1 2 execute and al,dh        3
+T4 fetch stosw           1 0 execute or al,dl         1
+T1 fetch mov dx,[bx+n]   1 1 execute or al,dl         2
+T2 fetch mov dx,[bx+n]   1 1 execute or al,dl         3
+T3 fetch mov dx,[bx+n]   1 0 execute stosw            1
+T4 fetch mov dx,[bx+n]   1 0 execute stosw            2
+T1 fetch mov dx,[bx+n]   2 1 execute stosw            3
+T2 fetch mov dx,[bx+n]   2 1 execute stosw            4
+T3 fetch mov dx,[bx+n]   2 1 execute stosw            5
+T4 fetch mov dx,[bx+n]   2 1 execute stosw            6
+T1 store [di]            1 2 execute stosw            7
+T2 store [di]            1 2 execute stosw            8
+T3 store [di]            1 2 execute stosw            9
+T4 store [di]            1 2 execute stosw           10
+T1 store [di]            2 2 execute stosw           11
+T2 store [di]            2 2 execute stosw           12
+T3 store [di]            2 2 execute stosw           13
+T4 store [di]            2 2 execute stosw           14
+T1 fetch mov dx,[bx+n]   3 2 execute stosw           15
+T2 fetch mov dx,[bx+n]   3 2
+T3 fetch mov dx,[bx+n]   3 2
+T4 fetch mov dx,[bx+n]   3 2
+
+9 bytes, 61 cycles
+
+
+
+mov  ax,[bx+NUM] 12+9=21c   3b
+and  al,es:[di]  9+5+2=16c  3b
+or   al,ah       3c         2b
+stosb            11c        1b
+inc  di          3c         1b
+
+T1 fetch mov ax,[bx+n]   1 0
+T2 fetch mov ax,[bx+n]   1 0
+T3 fetch mov ax,[bx+n]   1 0
+T4 fetch mov ax,[bx+n]   1 0
+T1 fetch mov ax,[bx+n]   2 1
+T2 fetch mov ax,[bx+n]   2 1
+T3 fetch mov ax,[bx+n]   2 1
+T4 fetch mov ax,[bx+n]   2 1
+T1 fetch mov ax,[bx+n]   3 2
+T2 fetch mov ax,[bx+n]   3 2
+T3 fetch mov ax,[bx+n]   3 2
+T4 fetch mov ax,[bx+n]   3 2
+T1 fetch and al,es:[di]  1 0 execute mov ax,[bx+n]    1
+T2 fetch and al,es:[di]  1 0 execute mov ax,[bx+n]    2
+T3 fetch and al,es:[di]  1 0 execute mov ax,[bx+n]    3
+T4 fetch and al,es:[di]  1 0 execute mov ax,[bx+n]    4
+T1 fetch [bx+n]          1 1 execute mov ax,[bx+n]    5
+T2 fetch [bx+n]          1 1 execute mov ax,[bx+n]    6
+T3 fetch [bx+n]          1 1 execute mov ax,[bx+n]    7
+T4 fetch [bx+n]          1 1 execute mov ax,[bx+n]    8
+T1 fetch [bx+n]          2 1 execute mov ax,[bx+n]    9
+T2 fetch [bx+n]          2 1 execute mov ax,[bx+n]   10
+T3 fetch [bx+n]          2 1 execute mov ax,[bx+n]   11
+T4 fetch [bx+n]          2 1 execute mov ax,[bx+n]   12
+T1 fetch and al,es:[di]  2 1 execute mov ax,[bx+n]   13
+T2 fetch and al,es:[di]  2 1 execute mov ax,[bx+n]   14
+T3 fetch and al,es:[di]  2 1 execute mov ax,[bx+n]   15
+T4 fetch and al,es:[di]  2 1 execute mov ax,[bx+n]   16
+T1 fetch and al,es:[di]  3 2 execute mov ax,[bx+n]   17
+T2 fetch and al,es:[di]  3 2 execute mov ax,[bx+n]   18
+T3 fetch and al,es:[di]  3 2 execute mov ax,[bx+n]   19
+T4 fetch and al,es:[di]  3 2 execute mov ax,[bx+n]   20
+T1 fetch or al,ah        1 3 execute mov ax,[bx+n]   21
+T2 fetch or al,ah        1 0 execute and al,es:[di]   1
+T3 fetch or al,ah        1 0 execute and al,es:[di]   2
+T4 fetch or al,ah        1 0 execute and al,es:[di]   3
+T1 fetch or al,ah        2 1 execute and al,es:[di]   4
+T2 fetch or al,ah        2 1 execute and al,es:[di]   5
+T3 fetch or al,ah        2 1 execute and al,es:[di]   6
+T4 fetch or al,ah        2 1 execute and al,es:[di]   7
+T1 fetch stosb           1 2 execute and al,es:[di]   8
+T2 fetch stosb           1 2 execute and al,es:[di]   9
+T3 fetch stosb           1 2 execute and al,es:[di]  10
+T4 fetch stosb           1 2 execute and al,es:[di]  11
+T1 fetch [di]            1 3 execute and al,es:[di]  12
+T2 fetch [di]            1 3 execute and al,es:[di]  13
+T3 fetch [di]            1 3 execute and al,es:[di]  14
+T4 fetch [di]            1 3 execute and al,es:[di]  15
+T1 fetch inc di          1 3 execute and al,es:[di]  16
+T2 fetch inc di          1 1 execute or al,ah         1
+T3 fetch inc di          1 1 execute or al,ah         2
+T4 fetch inc di          1 1 execute or al,ah         3
+T1 fetch mov ax,[bx+n]   1 1 execute stosb            1
+T2 fetch mov ax,[bx+n]   1 1 execute stosb            2
+T3 fetch mov ax,[bx+n]   1 1 execute stosb            3
+T4 fetch mov ax,[bx+n]   1 1 execute stosb            4
+T1 fetch mov ax,[bx+n]   2 2 execute stosb            5
+T2 fetch mov ax,[bx+n]   2 2 execute stosb            6
+T3 fetch mov ax,[bx+n]   2 2 execute stosb            7
+T4 fetch mov ax,[bx+n]   2 2 execute stosb            8
+T1 store [di]            1 3 execute stosb            9
+T2 store [di]            1 3 execute stosb           10
+T3 store [di]            1 3 execute stosb           11
+T4 store [di]            1 3
+T1 fetch mov ax,[bx+n]   3 3
+T2 fetch mov ax,[bx+n]   3 2 execute inc di           1
+T3 fetch mov ax,[bx+n]   3 2 execute inc di           2
+T4 fetch mov ax,[bx+n]   3 2 execute inc di           3
+
+10 bytes, 56 cycles
+
+
+
+
+
+
+
+
+
+
+; Q1: Can the EU start executing on the cycle after the fetch has finished?
+; Q2: Does the BIU fetch [si] or "mov bx,ax" first?
+; Q3: At what point in an instruction's execution does it stop taking up space in the prefetch queue?
+
+
+
+pins:
+  1 GND
+  2 A14
+  3 A13
+  4 A12
+  5 A11
+  6 A10
+  7 A9
+  8 A8
+  9 AD7
+ 10 AD6
+ 11 AD5
+ 12 AD4
+ 13 AD3
+ 14 AD2
+ 15 AD1
+ 16 AD0
+ 17 NMI
+ 18 INTR
+ 19 CLK
+ 20 GND
+ 21 RESET
+ 22 READY
+ 23 ~TEST
+ 24 ~INTA QS1
+ 25 ALE   QS0
+ 26 ~DEN  ~S0
+ 27 DT/~R ~S1
+ 28 IO/~M ~S2
+ 29 ~WR   ~LOCK
+ 30 HLDA  ~RQ/~GT1
+ 31 HOLD  ~RQ/~GT0
+ 32 ~RD
+ 33 MN/~MX
+ 34 ~SS0  HIGH
+ 35 A19   S6
+ 36 A18   S5
+ 37 A17   S4
+ 38 A16   S3
+ 39 A15
+ 40 VCC
+
+Effective address timings:
+        Displacement                                        6
+        Base or Index (BX,BP,SI,DI)                         5
+        Displacement+(Base or Index)                        9
+        Base+Index (BP+DI,BX+SI)                            7
+        Base+Index (BP+SI,BX+DI)                            8
+        Base+Index+Displacement (BP+DI,BX+SI)              11
+        Base+Index+Displacement (BP+SI+disp,BX+DI+disp)    12
+
+        - add 4 cycles for word operands at odd addresses
+        - add 2 cycles for segment override
+
+	- all timings are for best case and do not take into account:
+	    wait states
+	    the state of the prefetch queue
+  	    DMA refresh cycles
+  	    exception processing
+
+
+instructions:
+
+   00 /r          ADD rmb,rb            p0normal
+   01 /r          ADD rmw,rw            p0normal
+   02 /r          ADD rb,rmb            p0normal
+   03 /r          ADD rw,rmw            p0normal
+   04 ib          ADD AL,ib             p0normal
+   05 iw          ADD AX,iw             p0normal
+   06             PUSH ES               p0normal
+   07             POP ES                p0normal
+   08 /r          OR rmb,rb             p0normal
+   09 /r          OR rmw,rw             p0normal
+   0A /r          OR rb,rmb             p0normal
+   0B /r          OR rw,rmw             p0normal
+   0C ib          OR AL,ib              p0normal
+   0D iw          OR AX,iw              p0normal
+   0E             PUSH CS               p0normal
+   0F             POP CS              R p0popcs
+   10 /r          ADC rmb,rb            p0normal      3
+   11 /r          ADC rmw,rw            p0normal      3
+   12 /r          ADC rb,rmb            p0normal      3
+   13 /r          ADC rw,rmw            p0normal      3
+   14 ib          ADC AL,ib             p0normal
+   15 iw          ADC AX,iw             p0normal
+   16             PUSH SS               p0normal
+   17             POP SS                p0normal
+   18 /r          SBB rmb,rb            p0normal
+   19 /r          SBB rmw,rw            p0normal
+   1A /r          SBB rb,rmb            p0normal
+   1B /r          SBB rw,rmw            p0normal
+   1C ib          SBB AL,ib             p0normal
+   1D iw          SBB AX,iw             p0normal
+   1E             PUSH DS               p0normal
+   1F             POP DS                p0normal
+   20 /r          AND rmb,rb            p0normal
+   21 /r          AND rmw,rw            p0normal
+   22 /r          AND rb,rmb            p0normal
+   23 /r          AND rw,rmw            p0normal
+   24 ib          AND AL,ib             p0normal
+   25 iw          AND AX,iw             p0normal
+   26             ES:                 p p0normal
+   27             DAA                   p0bcd        4
+   28 /r          SUB rmb,rb            p0normal
+   29 /r          SUB rmw,rw            p0normal
+   2A /r          SUB rb,rmb            p0normal
+   2B /r          SUB rw,rmw            p0normal
+   2C ib          SUB AL,ib             p0normal
+   2D iw          SUB AX,iw             p0normal
+   2E             CS:                 p p0normal
+   2F             DAS                   p0bcd        4
+   30 /r          XOR rmb,rb            p0normal
+   31 /r          XOR rmw,rw            p0normal
+   32 /r          XOR rb,rmb            p0normal
+   33 /r          XOR rw,rmw            p0normal
+   34 ib          XOR AL,ib             p0normal
+   35 iw          XOR AX,iw             p0normal
+   36             SS:                 p p0normal
+   37             AAA                   p0bcd        8
+   38 /r          CMP rmb,rb            p0normal
+   39 /r          CMP rmw,rw            p0normal
+   3A /r          CMP rb,rmb            p0normal
+   3B /r          CMP rw,rmw            p0normal
+   3C ib          CMP AL,ib             p0normal
+   3D iw          CMP AX,iw             p0normal
+   3E             DS:                 p p0normal
+   3F             AAS                   p0bcd        8
+   40             INC AX                p0normal
+   41             INC CX                p0normal
+   42             INC DX                p0normal
+   43             INC BX                p0normal
+   44             INC SP                p0normal
+   45             INC BP                p0normal
+   46             INC SI                p0normal
+   47             INC DI                p0normal
+   48             DEC AX                p0normal
+   49             DEC CX                p0normal
+   4A             DEC DX                p0normal
+   4B             DEC BX                p0normal
+   4C             DEC SP                p0normal
+   4D             DEC BP                p0normal
+   4E             DEC SI                p0normal
+   4F             DEC DI                p0normal
+   50             PUSH AX               p0normal
+   51             PUSH CX               p0normal
+   52             PUSH DX               p0normal
+   53             PUSH BX               p0normal
+   54             PUSH SP               p0normal
+   55             PUSH BP               p0normal
+   56             PUSH SI               p0normal
+   57             PUSH DI               p0normal
+   58             POP AX                p0normal
+   59             POP CX                p0normal
+   5A             POP DX                p0normal
+   5B             POP BX                p0normal
+   5C             POP SP                p0normal
+   5D             POP BP                p0normal
+   5E             POP SI                p0normal
+   5F             POP DI                p0normal
+   70 cb          JO cb              3  p0normal
+   71 cb          JNO cb             3  p0normal
+   72 cb          JB cb              3  p0normal
+   73 cb          JAE cb             3  p0normal
+   74 cb          JE cb              3  p0normal
+   75 cb          JNE cb             3  p0normal
+   76 cb          JBE cb             3  p0normal
+   77 cb          JA cb              3  p0normal
+   78 cb          JS cb              3  p0normal
+   79 cb          JNS cb             3  p0normal
+   7A cb          JP cb              3  p0normal
+   7B cb          JNP cb             3  p0normal
+   7C cb          JL cb              3  p0normal
+   7D cb          JGE cb             3  p0normal
+   7E cb          JLE cb             3  p0normal
+   7F cb          JG cb              3  p0normal
+   80 /0 ib       ADD rmb,ib            p0normal
+   80 /1 ib       OR rmb,ib             p0normal
+   80 /2 ib       ADC rmb,ib            p0normal
+   80 /3 ib       SBB rmb,ib            p0normal
+   80 /4 ib       AND rmb,ib            p0normal
+   80 /5 ib       SUB rmb,ib            p0normal
+   80 /6 ib       XOR rmb,ib            p0normal
+   80 /7 ib       CMP rmb,ib            p0normal
+   81 /0 iw       ADD rmw,iw            p0normal
+   81 /1 iw       OR rmw,iw             p0normal
+   81 /2 iw       ADC rmw,iw            p0normal
+   81 /3 iw       SBB rmw,iw            p0normal
+   81 /4 iw       AND rmw,iw            p0normal
+   81 /5 iw       SUB rmw,iw            p0normal
+   81 /6 iw       XOR rmw,iw            p0normal
+   81 /7 iw       CMP rmw,iw            p0normal
+   82 /0 ib       ADD rmb,ib        a   p0alias
+   82 /1 ib       OR rmb,ib         a   p0alias
+   82 /2 ib       ADC rmb,ib        a   p0alias
+   82 /3 ib       SBB rmb,ib        a   p0alias
+   82 /4 ib       AND rmb,ib        a   p0alias
+   82 /5 ib       SUB rmb,ib        a   p0alias
+   82 /6 ib       XOR rmb,ib        a   p0alias
+   82 /7 ib       CMP rmb,ib        a   p0alias
+   83 /0 ib       ADD rmw,ib            p0normal
+   83 /1 ib       OR rmw,ib             p0normal
+   83 /2 ib       ADC rmw,ib            p0normal
+   83 /3 ib       SBB rmw,ib            p0normal
+   83 /4 ib       AND rmw,ib            p0normal
+   83 /5 ib       SUB rmw,ib            p0normal
+   83 /6 ib       XOR rmw,ib            p0normal
+   83 /7 ib       CMP rmw,ib            p0normal
+   84 /r          TEST rmb,rb           p0normal
+   85 /r          TEST rmw,rw           p0normal
+   86 /r          XCHG rmb,rb           p0normal
+   87 /r          XCHG rmw,rw           p0normal
+   88 /r          MOV rmb,rb            p0normal
+   89 /r          MOV rmw,rw            p0normal
+   8A /r          MOV rb,rmb            p0normal
+   8B /r          MOV rw,rmw            p0normal
+   8C /r          MOV rmw,segreg        p0normal
+   8D /r          LEA rv,m              p0normal
+   8E /r          MOV segreg,rmw        p0normal
+   8F /0          POP mw                p0normal
+   8F /r          POP mw            a   p0alias
+   90             NOP                   p0nop
+   91             XCHG AX,BX            p0normal
+   92             XCHG AX,CX            p0normal
+   93             XCHG AX,DX            p0normal
+   94             XCHG AX,SP            p0normal
+   95             XCHG AX,BP            p0normal
+   96             XCHG AX,SI            p0normal
+   97             XCHG AX,DI            p0normal
+   98             CBW                   p0normal     2
+   99             CWD                   p0normal     5
+   9A cp          CALL cp            4  p0normal
+   9B             WAIT                  p0fwait
+   9C             PUSHF                 p0flag
+   9D             POPF                  p0flag
+   9E             SAHF                  p0flag
+   9F             LAHF                  p0flag
+   A0 iw          MOV AL,xb             p0normal
+   A1 iw          MOV AX,xw             p0normal
+   A2 iw          MOV xb,AL             p0normal
+   A3 iw          MOV xw,AX             p0normal
+   A4             MOVSB                 p0string
+   A5             MOVSW                 p0string
+   A6             CMPSB                 p0string     22
+   A7             CMPSW                 p0string     30
+   A8 ib          TEST AL,ib            p0normal
+   A9 iw          TEST AX,iw            p0normal
+   AA             STOSB                 p0string
+   AB             STOSW                 p0string
+   AC             LODSB                 p0string
+   AD             LODSW                 p0string
+   AE             SCASB                 p0string
+   AF             SCASW                 p0string
+   B0 ib          MOV AL,ib             p0normal
+   B1 ib          MOV CL,ib             p0normal
+   B2 ib          MOV DL,ib             p0normal
+   B3 ib          MOV BL,ib             p0normal
+   B4 ib          MOV AH,ib             p0normal
+   B5 ib          MOV CH,ib             p0normal
+   B6 ib          MOV DH,ib             p0normal
+   B7 ib          MOV BH,ib             p0normal
+   B8 iw          MOV AX,iw             p0normal
+   B9 iw          MOV CX,iw             p0normal
+   BA iw          MOV DX,iw             p0normal
+   BB iw          MOV BX,iw             p0normal
+   BC iw          MOV SP,iw             p0normal
+   BD iw          MOV BP,iw             p0normal
+   BE iw          MOV SI,iw             p0normal
+   BF iw          MOV DI,iw             p0normal
+   C2 iw          RET iw             0  p0normal
+   C3             RET                0  p0normal
+   C4 /r          LES rw,m              p0normal
+   C5 /r          LDS rw,m              p0normal
+   C6 /0 ib       MOV rmb,ib            p0normal
+   C6 /r ib       MOV rmb,ib        a   p0alias
+   C7 /0 iw       MOV rmw,iw            p0normal
+   C7 /r iw       MOV rmw,iw        a   p0alias
+   CA iw          RETF iw            0  p0normal
+   CB             RETF               0  p0normal
+   CC             INT 3              5  p0os         72
+   CD ib          INT ib             5  p0normal     71
+   CE             INTO               5  p0into       4/73
+   CF             IRET               0  p0hard       44
+   D0 /0          ROL rmb,1             p0rot
+   D0 /1          ROR rmb,1             p0rot
+   D0 /2          RCL rmb,1             p0normal
+   D0 /3          RCR rmb,1             p0normal
+   D0 /4          SHL rmb,1             p0normal
+   D0 /5          SHR rmb,1             p0normal
+   D0 /6          SHL rmb,1         a   p0alias
+   D0 /7          SAR rmb,1             p0normal
+   D1 /0          ROL rmw,1             p0rot
+   D1 /1          ROR rmw,1             p0rot
+   D1 /2          RCL rmw,1             p0normal
+   D1 /3          RCR rmw,1             p0normal
+   D1 /4          SHL rmw,1             p0normal
+   D1 /5          SHR rmw,1             p0normal
+   D1 /6          SHL rmw,1         a   p0alias
+   D1 /7          SAR rmw,1             p0normal
+   D2 /0          ROL rmb,CL            p0rot
+   D2 /1          ROR rmb,CL            p0rot
+   D2 /2          RCL rmb,CL            p0normal
+   D2 /3          RCR rmb,CL            p0normal
+   D2 /4          SHL rmb,CL            p0normal
+   D2 /5          SHR rmb,CL            p0normal
+   D2 /6          SHL rmb,CL        a   p0alias
+   D2 /7          SAR rmb,CL            p0normal
+   D3 /0          ROL rmw,CL            p0rot
+   D3 /1          ROR rmw,CL            p0rot
+   D3 /2          RCL rmw,CL            p0normal
+   D3 /3          RCR rmw,CL            p0normal
+   D3 /4          SHL rmw,CL            p0normal
+   D3 /5          SHR rmw,CL            p0normal
+   D3 /6          SHL rmw,CL        a   p0alias
+   D3 /7          SAR rmw,CL            p0normal
+   D4 ib          AAM (ib)              p0bcd        83
+   D5 ib          AAD (ib)              p0bcd        60
+   D6             SALC                  p0undoc
+   D7             XLATB                 p0xlat
+   D8+i /r        ESC i,r,rm            p0nofp       2
+   E0 cb          LOOPNE cb          3  p0normal
+   E1 cb          LOOPE cb           3  p0normal
+   E2 cb          LOOP cb            3  p0normal
+   E3 cb          JCXZ cb            3  p0normal
+   E4 ib          IN AL,ib              p0hard
+   E5 ib          IN AX,ib              p0hard
+   E6 ib          OUT ib,AL             p0hard
+   E7 ib          OUT ib,AX             p0hard
+   E8 cw          CALL cw            4  p0normal
+   E9 cw          JMP cw             2  p0normal
+   EA cp          JMP cp             2  p0normal
+   EB cb          JMP cb             2  p0normal
+   EC             IN AL,DX              p0hard
+   ED             IN AX,DX              p0hard
+   EE             OUT DX,AL             p0hard
+   EF             OUT DX,AX             p0hard
+   F0             LOCK                  p0os
+   F2             REPNE               p p0string
+   F3             REP                 p p0string
+   F4             HLT                 p p0os         2
+   F5             CMC                   p0normal     2
+   F6 /0 ib       TEST rmb,ib           p0normal
+   F6 /1 ib       TEST rmb,ib       a   p0alias
+   F6 /2          NOT rmb               p0normal
+   F6 /3          NEG rmb               p0normal
+   F6 /4          MUL rmb               p0normal
+   F6 /5          IMUL rmb              p0normal
+   F6 /6          DIV rmb               p0normal
+   F6 /7          IDIV rmb              p0normal
+   F7 /0 iw       TEST rmw,iw           p0normal
+   F7 /1 iw       TEST rmw,iw       a   p0alias
+   F7 /2          NOT rmw               p0normal
+   F7 /3          NEG rmw               p0normal
+   F7 /4          MUL rmw               p0normal
+   F7 /5          IMUL rmw              p0normal
+   F7 /6          DIV rmw               p0normal
+   F7 /7          IDIV rmw              p0normal
+   F8             CLC                   p0normal     2
+   F9             STC                   p0normal     2
+   FA             CLI                   p0hard       2
+   FB             STI                   p0hard       2
+   FC             CLD                   p0string     2
+   FD             STD                   p0string     2
+   FE /0          INC rmb               p0normal
+   FE /1          DEC rmb               p0normal
+   FF /0          INC rmw               p0normal
+   FF /1          DEC rmw               p0normal
+   FF /2          CALL rmw          i4  p0normal
+   FF /3          CALL mp           i4  p0normal
+   FF /4          JMP rmw           i2  p0normal
+   FF /5          JMP mp            i2  p0normal
+   FF /6          PUSH rmw              p0normal
+
+
+
+
+
+
+
+^ADC - Add With Carry
+
+        Usage:  ADC     dest,src
+        Modifies flags: AF CF OF SF PF ZF
+
+        Sums two binary operands placing the result in the destination.
+        If CF is set, a 1 is added to the destination.
+
+        reg,reg           3            2
+        mem,reg         16+EA         2-4  (W88=24+EA)
+        reg,mem          9+EA         2-4  (W88=13+EA)
+        reg,immed         4           3-4
+        mem,immed       17+EA         3-6  (W88=23+EA)
+        accum,immed       4           2-3
+
+
+^ADD - Arithmetic Addition
+
+        Usage:  ADD     dest,src
+        Modifies flags: AF CF OF PF SF ZF
+
+        Adds "src" to "dest" and replacing the original contents of "dest".
+        Both operands are binary.
+
+        reg,reg           3            2
+        mem,reg         16+EA         2-4  (W88=24+EA)
+        reg,mem          9+EA         2-4  (W88=13+EA)
+        reg,immed         4           3-4
+        mem,immed       17+EA         3-6  (W88=23+EA)
+        accum,immed       4           2-3
+
+
+^AND - Logical And
+
+        Usage:  AND     dest,src
+        Modifies flags: CF OF PF SF ZF (AF undefined)
+
+        Performs a logical AND of the two operands replacing the destination
+        with the result.
+
+        reg,reg           3            2
+        mem,reg         16+EA         2-4  (W88=24+EA)
+        reg,mem          9+EA         2-4  (W88=13+EA)
+        reg,immed         4           3-4
+        mem,immed       17+EA         3-6  (W88=23+EA)
+        accum,immed       4           2-3
+
+
+^CMP - Compare
+
+        Usage:  CMP     dest,src
+        Modifies flags: AF CF OF PF SF ZF
+
+        Subtracts source from destination and updates the flags but does
+        not save result.  Flags can subsequently be checked for conditions.
+
+        reg,reg           3            2
+        mem,reg          9+EA         2-4  (W88=13+EA)
+        reg,mem          9+EA         2-4  (W88=13+EA)
+        reg,immed         4           3-4
+        mem,immed       10+EA         3-6  (W88=14+EA)
+        accum,immed       4           2-3
+
+
+^OR - Inclusive Logical OR
+
+        Usage:  OR      dest,src
+        Modifies flags: CF OF PF SF ZF (AF undefined)
+
+        Logical inclusive OR of the two operands returning the result in
+        the destination.  Any bit set in either operand will be set in the
+        destination.
+
+        reg,reg           3            2
+        mem,reg         16+EA         2-4  (W88=24+EA)
+        reg,mem          9+EA         2-4  (W88=13+EA)
+        reg,immed         4           3-4
+        mem8,immed8     17+EA         3-6
+        mem16,immed16   25+EA         3-6
+        accum,immed       4           2-3
+
+
+^SUB - Subtract
+
+        Usage:  SUB     dest,src
+        Modifies flags: AF CF OF PF SF ZF
+
+        The source is subtracted from the destination and the result is
+        stored in the destination.
+
+        reg,reg           3            2
+        mem,reg         16+EA         2-4  (W88=24+EA)
+        reg,mem          9+EA         2-4  (W88=13+EA)
+        reg,immed         4           3-4
+        mem,immed       17+EA         3-6  (W88=25+EA)
+        accum,immed       4           2-3
+
+
+^XOR - Exclusive OR
+
+        Usage:  XOR     dest,src
+        Modifies flags: CF OF PF SF ZF (AF undefined)
+
+        Performs a bitwise exclusive OR of the operands and returns
+        the result in the destination.
+
+        reg,reg           3            2
+        mem,reg         16+EA         2-4  (W88=24+EA)
+        reg,mem          9+EA         2-4  (W88=13+EA)
+        reg,immed         4           3-4
+        mem,immed       17+EA         3-6  (W88=25+EA)
+        accum,immed       4           2-3
+
+
+^SBB - Subtract with Borrow
+
+        Usage:  SBB     dest,src
+        Modifies flags: AF CF OF PF SF ZF
+
+        Subtracts the source from the destination, and subtracts 1 extra if
+        the Carry Flag is set.   Results are returned in "dest".
+
+        reg,reg           3            2
+        mem,reg         16+EA         2-4  (W88=24+EA)
+        reg,mem          9+EA         2-4  (W88=13+EA)
+        reg,immed         4           3-4
+        mem,immed       17+EA         3-6  (W88=25+EA)
+        accum,immed       4           2-3
+
+
+
+
+
+^CALL - Procedure Call
+
+        Usage:  CALL    destination
+        Modifies flags: None
+
+        Pushes Instruction Pointer (and Code Segment for far calls) onto
+        stack and loads Instruction Pointer with the address of proc-name.
+        Code continues with execution at CS:IP.
+
+        rel16 (near, IP relative)                19
+        reg16 (near, register indirect)          16
+        ptr16:16 (far, full ptr supplied)        28
+        m16:16 (far, indirect)                 37+EA
+
+
+
+
+^DEC - Decrement
+
+        Usage:  DEC     dest
+        Modifies flags: AF OF PF SF ZF
+
+        Unsigned binary subtraction of one from the destination.
+
+        reg8              3            2
+        mem             15+EA         2-4
+        reg16/32          3            1
+
+
+^DIV - Divide
+
+        Usage:  DIV     src
+        Modifies flags: (AF,CF,OF,PF,SF,ZF undefined)
+
+        Unsigned binary division of accumulator by source.  If the source
+        divisor is a byte value then AX is divided by "src" and the quotient
+        is placed in AL and the remainder in AH.  If source operand is a word
+        value, then DX:AX is divided by "src" and the quotient is stored in AX
+        and the remainder in DX.
+
+        reg8             80-90         2
+        reg16           144-162        2
+        mem8        (86-96)+EA        2-4
+        mem16     (150-168)+EA        2-4  (W88=158-176+EA)
+
+
+^IDIV - Signed Integer Division
+
+        Usage:   IDIV   src
+        Modifies flags: (AF,CF,OF,PF,SF,ZF undefined)
+
+        Signed binary division of accumulator by source.  If source is a
+        byte value, AX is divided by "src" and the quotient is stored in
+        AL and the remainder in AH.  If source is a word value, DX:AX is
+        divided by "src", and the quotient is stored in AL and the
+        remainder in DX.
+
+        reg8          101-112          2
+        reg16         165-184          2
+        mem8     (107-118)+EA         2-4
+        mem16    (171-190)+EA         2-4  (W88=175-194)
+
+
+^IMUL - Signed Multiply
+
+        Usage:  IMUL    src
+                IMUL    src,immed  (286+ only)
+                IMUL    dest,src,immed8  (286+ only)
+                IMUL    dest,src  (386+ only)
+        Modifies flags: CF OF (AF,PF,SF,ZF undefined)
+
+        Signed multiplication of accumulator by "src" with result placed
+        in the accumulator.  If the source operand is a byte value, it
+        is multiplied by AL and the result stored in AX.  If the source
+        operand is a word value it is multiplied by AX and the result is
+        stored in DX:AX.  Other variations of this instruction allow
+        specification of source and destination registers as well as a
+        third immediate factor.
+
+        reg8             80-98         2
+        reg16           128-154        2
+        mem8             86-104       2-4
+        mem16           134-160       2-4
+
+
+^IN - Input Byte or Word From Port
+
+        Usage:  IN      accum,port
+        Modifies flags: None
+
+        A byte, word or dword is read from "port" and placed in AL, AX or
+        EAX respectively.  If the port number is in the range of 0-255
+        it can be specified as an immediate, otherwise the port number
+        must be specified in DX.  Valid port ranges on the PC are 0-1024,
+        though values through 65535 may be specified and recognized by
+        third party vendors and PS/2's.
+
+        accum,immed8    10/14          2
+        accum,DX         8/12          1
+
+
+^INC - Increment
+
+        Usage:  INC     dest
+        Modifies flags: AF OF PF SF ZF
+
+        Adds one to destination unsigned binary operand.
+
+        reg8              3            2
+        reg16             3            1
+        reg32             3            1
+        mem             15+EA         2-4  (W88=23+EA)
+
+
+^IRET/IRETD - Interrupt Return
+
+        Usage:  IRET
+                IRETD  (386+ only)
+        Modifies flags: AF CF DF IF PF SF TF ZF
+
+        Returns control to point of interruption by popping IP, CS
+        and then the Flags from the stack and continues execution at
+        this location.  CPU exception interrupts will return to the
+        instruction that cause the exception because the CS:IP placed
+        on the stack during the interrupt is the address of the offending
+        instruction.
+
+        iret                       32/44            1
+
+
+^JA/JNBE - Jump Above / Jump Not Below or Equal
+
+        Usage:  JA      label
+                JNBE    label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Carry Flag and Zero Flag
+        are both clear.  Unsigned comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JAE/JNB - Jump Above or Equal / Jump on Not Below
+
+        Usage:  JAE     label
+                JNB     label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Carry Flag is clear.
+        Functionally similar to ~JNC~.  Unsigned comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JB/JNAE - Jump Below / Jump Not Above or Equal
+
+        Usage:  JB      label
+                JNAE    label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Carry Flag is set.
+        Functionally similar to ~JC~.  Unsigned comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JBE/JNA - Jump Below or Equal / Jump Not Above
+
+        Usage:  JBE     label
+                JNA     label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Carry Flag or
+        the Zero Flag is set.   Unsigned comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JC - Jump on Carry
+
+        Usage:  JC      label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Carry Flag is set.
+        Functionally similar to ~JB~ and ~JNAE~.  Unsigned comparision.
+
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JCXZ - Jump if Register (E)CX is Zero
+
+        Usage:  JCXZ    label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if register CX is zero.  Uses
+        unsigned comparision.
+
+        label:  jump      18           2
+                no jump    6
+
+
+^JE/JZ - Jump Equal / Jump Zero
+
+        Usage:  JE      label
+                JZ      label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Zero Flag is set.  Uses
+        unsigned comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JG/JNLE - Jump Greater / Jump Not Less or Equal
+
+        Usage:  JG      label
+                JNLE    label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Zero Flag is clear or
+        the Sign Flag equals the Overflow Flag.  Signed comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JGE/JNL - Jump Greater or Equal / Jump Not Less
+
+        Usage:  JGE     label
+                JNL     label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Sign Flag equals
+        the Overflow Flag.  Signed comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JL/JNGE - Jump Less / Jump Not Greater or Equal
+
+        Usage:  JL      label
+                JNGE    label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Sign Flag is not equal
+        to Overflow Flag.  Unsigned comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JLE/JNG - Jump Less or Equal / Jump Not Greater
+
+        Usage:  JLE     label
+                JNG     label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Zero Flag is set or the
+        Sign Flag is not equal to the Overflow Flag.  Signed comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JMP - Unconditional Jump
+
+        Usage:  JMP     target
+        Modifies flags: None
+
+        Unconditionally transfers control to "label".  Jumps by default
+        are within -32768 to 32767 bytes from the instruction following
+        the jump.  NEAR and SHORT jumps cause the IP to be updated while FAR
+        jumps cause CS and IP to be updated.
+
+        rel8  (relative)                        15
+        rel16 (relative)                        15
+        reg16 (near, register indirect)         11
+        mem16 (near, mem indirect)             18+EA
+        mem32 (near, mem indirect)             24+EA
+
+
+^JNC - Jump Not Carry
+
+        Usage:  JNC     label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Carry Flag is clear.
+        Functionally similar to ~JAE~ or ~JNB~.  Unsigned comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JNE/JNZ - Jump Not Equal / Jump Not Zero
+
+        Usage:  JNE     label
+                JNZ     label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Zero Flag is clear.
+        Unsigned comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JNO - Jump Not Overflow
+
+        Usage:  JNO     label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Overflow Flag is clear.
+        Signed comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JNS - Jump Not Signed
+
+        Usage:  JNS     label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Sign Flag is clear.
+        Signed comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JNP/JPO - Jump Not Parity / Jump Parity Odd
+
+        Usage:  JNP     label
+                JPO     label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Parity Flag is clear.
+        Unsigned comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JO - Jump on Overflow
+
+        Usage:  JO  label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Overflow Flag is set.
+        Signed comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JP/JPE - Jump on Parity / Jump on Parity Even
+
+        Usage:  JP      label
+                JPE     label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Parity Flag is set.
+        Unsigned comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^JS - Jump Signed
+
+        Usage:  JS      label
+        Modifies flags: None
+
+        Causes execution to branch to "label" if the Sign Flag is set.
+        Signed comparision.
+
+        label:  jump      16          2-4
+                no jump   4
+
+
+^LAHF - Load Register AH From Flags
+
+        Usage:  LAHF
+        Modifies flags: None
+
+        Copies bits 0-7 of the flags register into AH.  This includes flags
+        AF, CF, PF, SF and ZF other bits are undefined.
+
+        none              4            1
+
+
+^LDS - Load Pointer Using DS
+
+        Usage:  LDS     dest,src
+        Modifies flags: None
+
+
+        Loads 32-bit pointer from memory source to destination register
+        and DS.  The offset is placed in the destination register and the
+        segment is placed in DS.  To use this instruction the word at the
+        lower memory address must contain the offset and the word at the
+        higher address must contain the segment.  This simplifies the loading
+        of far pointers from the stack and the interrupt vector table.
+
+
+        reg16,mem32     16+EA         2-4
+
+
+^LEA - Load Effective Address
+
+        Usage:  LEA     dest,src
+        Modifies flags: None
+
+        Transfers offset address of "src" to the destination register.
+
+        reg,mem          2+EA         2-4
+
+
+^LES - Load Pointer Using ES
+
+        Usage:  LES     dest,src
+        Modifies flags: None
+
+        Loads 32-bit pointer from memory source to destination register
+        and ES.  The offset is placed in the destination register and the
+        segment is placed in ES.  To use this instruction the word at the
+        lower memory address must contain the offset and the word at the
+        higher address must contain the segment.  This simplifies the loading
+        of far pointers from the stack and the interrupt vector table.
+
+        reg,mem         16+EA         2-4  (W88=24+EA)
+
+
+^LOCK - Lock Bus
+
+        Usage:  LOCK
+        Modifies flags: None
+
+        This instruction is a prefix that causes the CPU assert bus lock
+        signal during the execution of the next instruction.  Used to
+        avoid two processors from updating the same data location.  The
+        286 always asserts lock during an XCHG with memory operands.  This
+        should only be used to lock the bus prior to ~XCHG~, ~MOV~, ~IN~ and
+        ~OUT~ instructions.
+
+        none              2            1
+
+
+^LODS - Load String (Byte, Word or Double)
+
+        Usage:  LODS    src
+                LODSB
+                LODSW
+        Modifies flags: None
+
+        Transfers string element addressed by DS:SI (even if an operand is
+        supplied) to the accumulator.   SI is incremented based on the size
+        of the operand or based on the instruction used.  If the Direction
+        Flag is set SI is decremented, if the Direction Flag is clear SI
+        is incremented.  Use with REP prefixes.
+
+        src             12/16          1
+
+
+^LOOP - Decrement CX and Loop if CX Not Zero
+
+        Usage:  LOOP    label
+        Modifies flags: None
+
+        Decrements CX by 1 and transfers control to "label" if CX is not
+        Zero.  The "label" operand must be within -128 or 127 bytes of the
+        instruction following the loop instruction
+
+        label:  jump      18           2
+                no jump    5
+
+
+^LOOPE/LOOPZ - Loop While Equal / Loop While Zero
+
+        Usage:  LOOPE   label
+                LOOPZ   label
+        Modifies flags: None
+
+        Decrements CX by 1 (without modifying the flags) and transfers
+        control to "label" if CX != 0 and the Zero Flag is set.  The
+        "label" operand must be within -128 or 127 bytes of the instruction
+        following the loop instruction.
+
+        label:  jump      18           2
+                no jump    5
+
+
+^LOOPNZ/LOOPNE - Loop While Not Zero / Loop While Not Equal
+
+        Usage:  LOOPNZ  label
+                LOOPNE  label
+        Modifies flags: None
+
+        Decrements CX by 1 (without modifying the flags) and transfers
+        control to "label" if CX != 0 and the Zero Flag is clear.  The
+        "label" operand must be within -128 or 127 bytes of the instruction
+        following the loop instruction.
+
+        label:  jump      19           2
+                no jump    5
+
+
+^MOV - Move Byte or Word
+
+        Usage:  MOV     dest,src
+        Modifies flags: None
+
+        Copies byte or word from the source operand to the destination
+        operand.  If the destination is SS interrupts are disabled except
+        on early buggy 808x CPUs.  Some CPUs disable interrupts if the
+        destination is any of the segment registers
+
+        reg,reg           2            2
+        mem,reg          9+EA         2-4  (W88=13+EA)
+        reg,mem          8+EA         2-4  (W88=12+EA)
+        mem,immed       10+EA         3-6  (W88=14+EA)
+        reg,immed         4           2-3
+        mem,accum         10           3   (W88=14)
+        accum,mem         10           3   (W88=14)
+        segreg,reg16      2            2
+        segreg,mem16     8+EA         2-4  (W88=12+EA)
+        reg16,segreg      2            2
+        mem16,segreg     9+EA         2-4  (W88=13+EA)
+
+
+^MOVS - Move String (Byte or Word)
+
+        Usage:  MOVS    dest,src
+                MOVSB
+                MOVSW
+        Modifies flags: None
+
+        Copies data from addressed by DS:SI (even if operands are given) to
+        the location ES:DI destination and updates SI and DI based on the
+        size of the operand or instruction used.  SI and DI are incremented
+        when the Direction Flag is cleared and decremented when the Direction
+        Flag is Set.  Use with ~REP~ prefixes.
+
+        dest,src          18           1   (W88=26)
+
+
+^MUL - Unsigned Multiply
+
+        Usage:  MUL     src
+        Modifies flags: CF OF (AF,PF,SF,ZF undefined)
+
+        Unsigned multiply of the accumulator by the source.  If "src" is
+        a byte value, then AL is used as the other multiplicand and the
+        result is placed in AX.  If "src" is a word value, then AX is
+        multiplied by "src" and DX:AX receives the result.  If "src" is
+        a double word value, then EAX is multiplied by "src" and EDX:EAX
+        receives the result.  The 386+ uses an early out algorithm which
+        makes multiplying any size value in EAX as fast as in the 8 or 16
+        bit registers.
+
+        reg8            70-77          2
+        reg16          118-113         2
+        mem8        (76-83)+EA        2-4
+        mem16     (124-139)+EA        2-4
+
+
+^NEG - Two's Complement Negation
+
+        Usage:  NEG     dest
+        Modifies flags: AF CF OF PF SF ZF
+
+        Subtracts the destination from 0 and saves the 2s complement of
+        "dest" back into "dest".
+
+        reg               3            2
+        mem             16+EA         2-4  (W88=24+EA)
+
+
+^NOP - No Operation (90h)
+
+        Usage:  NOP
+        Modifies flags: None
+
+        This is a do nothing instruction.  It results in occupation of both
+        space and time and is most useful for patching code segments.
+
+        none              3            1
+
+
+^NOT - One's Compliment Negation (Logical NOT)
+
+        Usage:  NOT     dest
+        Modifies flags: None
+
+        Inverts the bits of the "dest" operand forming the 1s complement.
+
+        reg               3            2
+        mem             16+EA         2-4  (W88=24+EA)
+
+
+^OUT - Output Data to Port
+
+        Usage:  OUT     port,accum
+        Modifies flags: None
+
+        Transfers byte in AL,word in AX or dword in EAX to the specified
+        hardware port address.  If the port number is in the range of 0-255
+        it can be specified as an immediate.  If greater than 255 then the
+        port number must be specified in DX.  Since the PC only decodes 10
+        bits of the port address, values over 1023 can only be decoded by
+        third party vendor equipment and also map to the port range 0-1023.
+
+        immed8,accum    10/14          2
+        DX,accum         8/12          1
+
+
+^POP - Pop Word off Stack
+
+        Usage:  POP     dest
+        Modifies flags: None
+
+        Transfers word at the current stack top (SS:SP) to the destination
+        then increments SP by two to point to the new stack top.  CS is not
+        a valid destination.
+
+        reg16             8            1
+        segreg            8            1
+        mem16           17+EA         2-4
+
+
+^POPF/POPFD - Pop Flags off Stack
+
+        Usage:  POPF
+        Modifies flags: all flags
+
+        Pops word/doubleword from stack into the Flags Register and then
+        increments SP by 2 (for POPF) or 4 (for POPFD).
+
+        none             8/12          1  (W88=12)
+
+
+^PUSH - Push Word onto Stack
+
+        Usage:  PUSH    src
+        Modifies flags: None
+
+        Decrements SP by the size of the operand (two or four, byte values
+        are sign extended) and transfers one word from source to the stack
+        top (SS:SP).
+
+        reg16           11/15          1
+        mem16           16+EA         2-4  (W88=24+EA)
+        segreg          10/14          1
+
+
+^PUSHF/PUSHFD - Push Flags onto Stack
+
+        Usage:  PUSHF
+        Modifies flags: None
+
+        Transfers the Flags Register onto the stack.  PUSHF saves a 16 bit
+        value while PUSHFD saves a 32 bit value.
+
+        none            10/14          1
+
+
+^RCL - Rotate Through Carry Left
+
+        Usage:  RCL     dest,count
+        Modifies flags: CF OF
+
+        Rotates the bits in the destination to the left "count" times with
+        all data pushed out the left side re-entering on the right.  The
+        Carry Flag holds the last bit rotated out.
+
+        reg,1             2           2
+        mem,1           15+EA        2-4  (W88=23+EA)
+        reg,CL           8+4n         2
+        mem,CL        20+EA+4n       2-4  (W88=28+EA+4n)
+
+
+^RCR - Rotate Through Carry Right
+
+        Usage:  RCR     dest,count
+        Modifies flags: CF OF
+
+        Rotates the bits in the destination to the right "count" times with
+        all data pushed out the right side re-entering on the left.  The
+        Carry Flag holds the last bit rotated out.
+
+        reg,1             2           2
+        mem,1           15+EA        2-4   (W88=23+EA)
+        reg,CL           8+4n         2
+        mem,CL        20+EA+4n       2-4   (W88=28+EA+4n)
+
+
+^REP - Repeat String Operation
+
+        Usage:  REP
+        Modifies flags: None
+
+        Repeats execution of string instructions while CX != 0.  After
+        each string operation, CX is decremented and the Zero Flag is
+        tested.  The combination of a repeat prefix and a segment override
+        on CPU's before the 386 may result in errors if an interrupt occurs
+        before CX=0.  The following code shows code that is susceptible to
+        this and how to avoid it:
+
+         again:  rep movs  byte ptr ES:[DI],ES:[SI]   ; vulnerable instr.
+                     jcxz  next              ; continue if REP successful
+                     loop  again             ; interrupt goofed count
+         next:
+
+        none              2            1
+
+
+^REPE/REPZ - Repeat Equal / Repeat Zero
+
+        Usage:  REPE
+                REPZ
+        Modifies flags: None
+
+        Repeats execution of string instructions while CX != 0 and the Zero
+        Flag is set.  CX is decremented and the Zero Flag tested after
+        each string operation.   The combination of a repeat prefix and a
+        segment override on processors other than the 386 may result in
+        errors if an interrupt occurs before CX=0.
+
+        none              2            1
+
+
+^REPNE/REPNZ - Repeat Not Equal / Repeat Not Zero
+
+        Usage:  REPNE
+                REPNZ
+        Modifies flags: None
+
+        Repeats execution of string instructions while CX != 0 and the Zero
+        Flag is clear.   CX is decremented and the Zero Flag tested after
+        each string operation.   The combination of a repeat prefix and a
+        segment override on processors other than the 386 may result in
+        errors if an interrupt occurs before CX=0.
+
+        none              2            1
+
+
+^RET/RETF - Return From Procedure
+
+        Usage:  RET     nBytes
+                RETF    nBytes
+                RETN    nBytes
+        Modifies flags: None
+
+        Transfers control from a procedure back to the instruction address
+        saved on the stack.  "n bytes" is an optional number of bytes to
+        release.  Far returns pop the IP followed by the CS, while near
+        returns pop only the IP register.
+
+        retn            16/20          1
+        retn immed      20/24          3
+        retf            26/34          1
+        retf immed      25/33          3
+
+
+^ROL - Rotate Left
+
+        Usage:  ROL     dest,count
+        Modifies flags: CF OF
+
+        Rotates the bits in the destination to the left "count" times with
+        all data pushed out the left side re-entering on the right.  The
+        Carry Flag will contain the value of the last bit rotated out.
+
+        reg,1             2            2
+        mem,1           15+EA         2-4  (W88=23+EA)
+        reg,CL           8+4n          2
+        mem,CL        20+EA+4n        2-4  (W88=28+EA+4n)
+
+
+^ROR - Rotate Right
+
+        Usage:  ROR     dest,count
+        Modifies flags: CF OF
+
+        Rotates the bits in the destination to the right "count" times with
+        all data pushed out the right side re-entering on the left.  The
+        Carry Flag will contain the value of the last bit rotated out.
+
+        reg,1             2            2
+        mem,1           15+EA         2-4  (W88=23+EA)
+        reg,CL           8+4n          2
+        mem,CL        20+EA+4n        2-4  (W88=28+EA+4n)
+
+
+^SAHF - Store AH Register into FLAGS
+
+        Usage:  SAHF
+        Modifies flags: AF CF PF SF ZF
+
+        Transfers bits 0-7 of AH into the Flags Register.  This includes
+        AF, CF, PF, SF and ZF.
+
+        none              4            1
+
+
+^SAL/SHL - Shift Arithmetic Left / Shift Logical Left
+
+        Usage:  SAL     dest,count
+                SHL     dest,count
+        Modifies flags: CF OF PF SF ZF (AF undefined)
+
+        Shifts the destination left by "count" bits with zeroes shifted
+        in on right.  The Carry Flag contains the last bit shifted out.
+
+        reg,1             2           2
+        mem,1           15+EA        2-4  (W88=23+EA)
+        reg,CL           8+4n         2
+        mem,CL        20+EA+4n       2-4  (W88=28+EA+4n)
+
+
+^SAR - Shift Arithmetic Right
+
+        Usage:  SAR     dest,count
+        Modifies flags: CF OF PF SF ZF (AF undefined)
+
+        Shifts the destination right by "count" bits with the current sign
+        bit replicated in the leftmost bit.  The Carry Flag contains the
+        last bit shifted out.
+
+        reg,1             2            2
+        mem,1           15+EA         2-4  (W88=23+EA)
+        reg,CL           8+4n          2
+        mem,CL        20+EA+4n        2-4  (W88=28+EA+4n)
+
+
+^SCAS - Scan String  (Byte, Word or Doubleword)
+
+        Usage:  SCAS    string
+                SCASB
+                SCASW
+        Modifies flags: AF CF OF PF SF ZF
+
+        Compares value at ES:DI (even if operand is specified) from the
+        accumulator and sets the flags similar to a subtraction.  DI is
+        incremented/decremented based on the instruction format (or
+        operand size) and the state of the Direction Flag.  Use with REP
+        prefixes.
+
+        string            15           1  (W88=19)
+
+
+^SHR - Shift Logical Right
+
+        Usage:  SHR     dest,count
+        Modifies flags: CF OF PF SF ZF (AF undefined)
+
+        Shifts the destination right by "count" bits with zeroes shifted
+        in on the left.  The Carry Flag contains the last bit shifted out.
+
+        reg,1             2            2
+        mem,1           15+EA         2-4   (W88=23+EA)
+        reg,CL           8+4n          2
+        mem,CL        20+EA+4n        2-4   (W88=28+EA+4n)
+
+
+^STC - Set Carry
+
+        Usage:  STC
+        Modifies flags: CF
+
+        Sets the Carry Flag to 1.
+
+        none              2            1
+
+
+^STD - Set Direction Flag
+
+        Usage:  STD
+        Modifies flags: DF
+
+        Sets the Direction Flag to 1 causing string instructions to
+        auto-decrement SI and DI instead of auto-increment.
+
+        none              2            1
+
+
+^STI - Set Interrupt Flag  (Enable Interrupts)
+
+        Usage:  STI
+        Modifies flags: IF
+
+        Sets the Interrupt Flag to 1, enabling recognition of all CPU
+        hardware interrupts.
+
+        none              2            1
+
+
+^STOS - Store String  (Byte, Word or Doubleword)
+
+        Usage:  STOS    dest
+                STOSB
+                STOSW
+        Modifies flags: None
+
+        Stores value in accumulator to location at ES:(E)DI (even if operand
+        is given).  (E)DI is incremented/decremented based on the size of
+        the operand (or instruction format) and the state of the Direction
+        Flag.   Use with ~REP~ prefixes.
+
+        dest              11           1  (W88=15)
+
+
+^TEST - Test For Bit Pattern
+
+        Usage:  TEST    dest,src
+        Modifies flags: CF OF PF SF ZF (AF undefined)
+
+        Performs a logical ~AND~ of the two operands updating the flags
+        register without saving the result.
+
+        reg,reg           3            2
+        reg,mem          9+EA         2-4  (W88=13+EA)
+        mem,reg          9+EA         2-4  (W88=13+EA)
+        reg,immed         5           3-4
+        mem,immed       11+EA         3-6
+        accum,immed       4           2-3
+
+
+^WAIT/FWAIT - Event Wait
+
+        Usage:  WAIT
+                FWAIT
+        Modifies flags: None
+
+        CPU enters wait state until the coprocessor signals it has finished
+        it's operation.  This instruction is used to prevent the CPU from
+        accessing memory that may be temporarily in use by the coprocessor.
+        WAIT and FWAIT are identical.
+
+        none              4            1
+
+
+^XCHG - Exchange
+
+        Usage:  XCHG    dest,src
+        Modifies flags: None
+
+        Exchanges contents of source and destination.
+
+        reg,reg           4            2
+        mem,reg         17+EA         2-4  (W88=25+EA)
+        reg,mem         17+EA         2-4  (W88=25+EA)
+        accum,reg         3            1
+        reg,accum         3            1
+
+
+^XLAT/XLATB - Translate
+
+        Usage:  XLAT    translation-table
+                XLATB   (masm 5.x)
+        Modifies flags: None
+
+        Replaces the byte in AL with byte from a user table addressed by
+        BX.  The original value of AL is the index into the translate table.
+
+        table             11           1
+
+
+
+
+

@@ -114,18 +114,18 @@ void run(SymbolArray program)
                 break;
             case atomCall:
                 {
-                    int label = stack.pop<int>();
-                    stack.push(ip.label());
+                    SymbolLabel label = stack.pop<SymbolLabel>();
+                    stack.push(SymbolLabel(instruction));  // TODO: Check this
                     ip.jump(label);
                 }
                 break;
             case atomReturn:
             case atomGoto:
-                ip.jump(stack.pop<int>());
+                ip.jump(stack.pop<SymbolLabel>());
                 break;
             case atomJumpIfTrue:
                 {
-                    int label = stack.pop<int>();
+                    SymbolLabel label = stack.pop<SymbolLabel>();
                     if (stack.pop<bool>())
                         ip.jump(label);
                 }

@@ -12,8 +12,6 @@ public:
     Compiler(Program* program) : _program(program) { }
     void compileFunction(Symbol functionDefinitionStatement)
     {
-        _label = SymbolLabel();
-        setBasicBlockLabel(functionDefinitionStatement, _label);
         if (functionDefinitionStatement.cache<FunctionDefinitionCache>()->getCompilingFlag()) {
             static String error("Function called during its own compilation");  // TODO: Give more details about what's being evaluated and how that came to call this
             spanOf(functionDefinitionStatement).end().throwError(error);
@@ -47,6 +45,7 @@ public:
         add(Symbol(atomReturn));
         //_returnTypeStack.pop();
         functionDefinitionStatement.cache<FunctionDefinitionCache>()->setCompilingFlag(false);
+        functionDefinitionStatement[5] = SymbolLabel(_firstBasicBlock);
     }
 private:
     void compileStatementSequence(SymbolArray program)
@@ -437,7 +436,7 @@ private:
             follows = SymbolLabel();
         else
             checkBlockStackOffset(follows);
-        Symbol block(atomBasicBlock, SymbolArray(_basicBlock), _label, follows);
+        Symbol block(atomBasicBlock, SymbolArray(_basicBlock), follows);
         checkBlockStackOffset(_label);
         block.setLabel(_label);
         _program->add(block);
@@ -468,7 +467,7 @@ private:
 
     Program* _program;
     SymbolList _basicBlock;
-    SymbolLabel _label;
+    Symbol _previousBlock;
     bool _blockEnds;
     bool _atBlockStart;
     bool _reachable;

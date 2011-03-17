@@ -12,8 +12,8 @@ class Program
 public:
     Program(String fileName, String annotationsFileName)
     {
-		File file(fileName);
-		String contents = file.contents();
+        File file(fileName);
+        String contents = file.contents();
         _source = contents.start();
         File annotationsFile(annotationsFileName);
         _annotations = annotationsFile.contents();
@@ -1260,12 +1260,12 @@ private:
 
 int main()
 {
-	BEGIN_CHECKED {
+    BEGIN_CHECKED {
         setbuf(stdout, NULL);
         Simulation simulation;
         simulation.simulate();
-	}
-	END_CHECKED(Exception& e) {
-		e.write(Handle::consoleOutput());
-	}
+    }
+    END_CHECKED(Exception& e) {
+        e.write(Handle::consoleOutput());
+    }
 }

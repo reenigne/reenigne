@@ -196,7 +196,7 @@ String atomToString(Atom atom)
             _table[atomParameter] = String("parameter");                             // typeSpecifier  name
 
             _table[atomExpressionStatement] = String("expression");                  // expression
-            _table[atomFunctionDefinitionStatement] = String("functionDefinition");  // returnType     name            parameters     statement
+            _table[atomFunctionDefinitionStatement] = String("functionDefinition");  // returnType     name            parameters     statement     basicBlock
             _table[atomFromStatement] = String("from");                              // dllExpression
             _table[atomVariableDefinitionStatement] = String("variableDefinition");  // typeSpecifier  identifier      initializer
             _table[atomAssignment] = String("=");     
@@ -792,6 +792,10 @@ public:
     SymbolLabelTemplate(Symbol target)
       : _implementation(new Implementation(target._implementation)) { }
     Symbol target() { return Symbol(_implementation->target()); }
+    void setTarget(Symbol target)
+    {
+        _implementation->setTarget(target._implementation);
+    }
 private:
     class Implementation : public SymbolEntry::Implementation
     {
@@ -802,6 +806,12 @@ private:
         }
         ~Implementation() { _target->removeLabel(); }
         Symbol::Implementation* target() { return _target; }
+        void setTarget(Symbol::Implementation* target)
+        {
+            _target->removeLabel();
+            _target = target;
+            _target->addLabel();
+        }
         bool equals(const Symbol::Implementation* other) const
         { 
             const Implementation* o =
