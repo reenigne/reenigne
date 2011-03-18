@@ -1,0 +1,24 @@
+How are bytes removed from the prefetch queue?
+  Model 1: Bytes are removed as they are decoded
+    Cycle 1: Opcode byte removed from prefetch queue
+    Cycle 2: ModRM byte removed from prefetch queue
+  Model 2: All instruction bytes are removed when execution starts. If the instruction is longer than 4 bytes, further bytes are removed immediately after loading.
+
+PUSHF:
+  Model 1: 10 cycles on 8086 and 14 on 8088
+  Model 2: 10 cycles when aligned and 14 otherwise
+
+PUSH rmw:
+  Model 1: 16+EA cycles on 8086 and 24+EA on 8088
+  Model 2: 16+EA cycles when aligned and 24+EA otherwise
+
+PUSH r:
+  Model 1: 11 cycles on 8086 and 15 on 8088
+  Model 2: 11 cycles when aligned and 15 otherwise
+
+How long does SALC take?
+
+When doing an OUT to CGA, is there a wait state?
+
+When doing CGA memory operations, under what condition do we get a wait state?
+  What about other peripherals?

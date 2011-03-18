@@ -45,7 +45,7 @@ public:
         add(Symbol(atomReturn));
         //_returnTypeStack.pop();
         functionDefinitionStatement.cache<FunctionDefinitionCache>()->setCompilingFlag(false);
-        functionDefinitionStatement[5] = SymbolLabel(_firstBasicBlock);
+        functionDefinitionStatement[5].label().setTarget(_firstBasicBlock.target());
     }
 private:
     void compileStatementSequence(SymbolArray program)
@@ -438,7 +438,7 @@ private:
             checkBlockStackOffset(follows);
         Symbol block(atomBasicBlock, SymbolArray(_basicBlock), follows);
         checkBlockStackOffset(_label);
-        block.setLabel(_label);
+        _label.setTarget(block);
         _program->add(block);
         _basicBlock = SymbolList();
         _label = label;
@@ -467,7 +467,8 @@ private:
 
     Program* _program;
     SymbolList _basicBlock;
-    Symbol _previousBlock;
+    SymbolLabel _firstBasicBlock;
+    SymbolLabel _label;
     bool _blockEnds;
     bool _atBlockStart;
     bool _reachable;
