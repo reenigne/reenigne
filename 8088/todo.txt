@@ -22,3 +22,7 @@ When doing an OUT to CGA, is there a wait state?
 
 When doing CGA memory operations, under what condition do we get a wait state?
   What about other peripherals?
+
+Is the "RETF iw" timing correct? (Surely it shouldn't be less than RETF)
+
+Is the "TEST rmw,iw" timing correct? (Surely it shouldn't be the same as "TEST rmb,ib")
