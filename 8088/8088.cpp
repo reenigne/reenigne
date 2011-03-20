@@ -166,11 +166,11 @@ public:
                         break;
                     case 4:  // mod R/M required
                         if (_biu->instructionByteAvailable()) {
-                            _modRM = _biu->getInstructionByte();
-                            switch (_modRM & 0xc0) {
+                            _modRm = _biu->getInstructionByte();
+                            switch (_modRm & 0xc0) {
                                 case 0x00:
                                     _state = 5;
-                                    if (_modRM == 0x06)
+                                    if (_modRm == 0x06)
                                         _state = 6;
                                     break;
                                 case 0x40:
@@ -186,44 +186,44 @@ public:
                         }
                         break;
                     case 5:  // Got data for mod R/M
-                        switch (_modRM & 0xc7) {
-                            case 0x00: _biu->setAddress(bx() + si()               ); _biu->setSegment(3); _wait =  7; break;
-                            case 0x01: _biu->setAddress(bx() + di()               ); _biu->setSegment(3); _wait =  8; break;
-                            case 0x02: _biu->setAddress(bp() + si()               ); _biu->setSegment(2); _wait =  8; break;
-                            case 0x03: _biu->setAddress(bp() + di()               ); _biu->setSegment(2); _wait =  7; break;
-                            case 0x04: _biu->setAddress(       si()               ); _biu->setSegment(3); _wait =  5; break;
-                            case 0x05: _biu->setAddress(       di()               ); _biu->setSegment(3); _wait =  5; break;
-                            case 0x06: _biu->setAddress(              _modRMOffset); _biu->setSegment(3); _wait =  6; break;
-                            case 0x07: _biu->setAddress(bx()                      ); _biu->setSegment(3); _wait =  5; break;
-                            case 0x40: _biu->setAddress(bx() + si() + _modRMOffset); _biu->setSegment(3); _wait = 11; break;
-                            case 0x41: _biu->setAddress(bx() + di() + _modRMOffset); _biu->setSegment(3); _wait = 12; break;
-                            case 0x42: _biu->setAddress(bp() + si() + _modRMOffset); _biu->setSegment(2); _wait = 12; break;
-                            case 0x43: _biu->setAddress(bp() + di() + _modRMOffset); _biu->setSegment(2); _wait = 11; break;
-                            case 0x44: _biu->setAddress(       si() + _modRMOffset); _biu->setSegment(3); _wait =  9; break;
-                            case 0x45: _biu->setAddress(       di() + _modRMOffset); _biu->setSegment(3); _wait =  9; break;
-                            case 0x46: _biu->setAddress(bp() +        _modRMOffset); _biu->setSegment(2); _wait =  9; break;
-                            case 0x47: _biu->setAddress(bx() +        _modRMOffset); _biu->setSegment(3); _wait =  9; break;
-                            case 0x80: _biu->setAddress(bx() + si() + _modRMOffset); _biu->setSegment(3); _wait = 11; break;
-                            case 0x81: _biu->setAddress(bx() + di() + _modRMOffset); _biu->setSegment(3); _wait = 12; break;
-                            case 0x82: _biu->setAddress(bp() + si() + _modRMOffset); _biu->setSegment(2); _wait = 12; break;
-                            case 0x83: _biu->setAddress(bp() + di() + _modRMOffset); _biu->setSegment(2); _wait = 11; break;
-                            case 0x84: _biu->setAddress(       si() + _modRMOffset); _biu->setSegment(3); _wait =  9; break;
-                            case 0x85: _biu->setAddress(       di() + _modRMOffset); _biu->setSegment(3); _wait =  9; break;
-                            case 0x86: _biu->setAddress(bp() +        _modRMOffset); _biu->setSegment(2); _wait =  9; break;
-                            case 0x87: _biu->setAddress(bx() +        _modRMOffset); _biu->setSegment(3); _wait =  9; break;
+                        switch (_modRm & 0xc7) {
+                            case 0x00: _biu->setAddress(bx() + si()            ); _biu->setSegment(3); _wait =  7; break;
+                            case 0x01: _biu->setAddress(bx() + di()            ); _biu->setSegment(3); _wait =  8; break;
+                            case 0x02: _biu->setAddress(bp() + si()            ); _biu->setSegment(2); _wait =  8; break;
+                            case 0x03: _biu->setAddress(bp() + di()            ); _biu->setSegment(2); _wait =  7; break;
+                            case 0x04: _biu->setAddress(       si()            ); _biu->setSegment(3); _wait =  5; break;
+                            case 0x05: _biu->setAddress(       di()            ); _biu->setSegment(3); _wait =  5; break;
+                            case 0x06: _biu->setAddress(              _eaOffset); _biu->setSegment(3); _wait =  6; break;
+                            case 0x07: _biu->setAddress(bx()                   ); _biu->setSegment(3); _wait =  5; break;
+                            case 0x40: _biu->setAddress(bx() + si() + _eaOffset); _biu->setSegment(3); _wait = 11; break;
+                            case 0x41: _biu->setAddress(bx() + di() + _eaOffset); _biu->setSegment(3); _wait = 12; break;
+                            case 0x42: _biu->setAddress(bp() + si() + _eaOffset); _biu->setSegment(2); _wait = 12; break;
+                            case 0x43: _biu->setAddress(bp() + di() + _eaOffset); _biu->setSegment(2); _wait = 11; break;
+                            case 0x44: _biu->setAddress(       si() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                            case 0x45: _biu->setAddress(       di() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                            case 0x46: _biu->setAddress(bp() +        _eaOffset); _biu->setSegment(2); _wait =  9; break;
+                            case 0x47: _biu->setAddress(bx() +        _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                            case 0x80: _biu->setAddress(bx() + si() + _eaOffset); _biu->setSegment(3); _wait = 11; break;
+                            case 0x81: _biu->setAddress(bx() + di() + _eaOffset); _biu->setSegment(3); _wait = 12; break;
+                            case 0x82: _biu->setAddress(bp() + si() + _eaOffset); _biu->setSegment(2); _wait = 12; break;
+                            case 0x83: _biu->setAddress(bp() + di() + _eaOffset); _biu->setSegment(2); _wait = 11; break;
+                            case 0x84: _biu->setAddress(       si() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                            case 0x85: _biu->setAddress(       di() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                            case 0x86: _biu->setAddress(bp() +        _eaOffset); _biu->setSegment(2); _wait =  9; break;
+                            case 0x87: _biu->setAddress(bx() +        _eaOffset); _biu->setSegment(3); _wait =  9; break;
                         }
                         break;
                     case 6:  // Need first of two bytes for mod R/M offset
                         if (_biu->instructionByteAvailable()) {
-                            _modRMOffset = _biu->getInstructionByte();
+                            _eaOffset = _biu->getInstructionByte();
                             _state = 9;
                         }
                         break;
                     case 7:  // Need one byte for mod R/M offset
                         if (_biu->instructionByteAvailable()) {
-                            _modRMOffset = _biu->getInstructionByte();
-                            if (_modRMOffset >= 0x80)
-                                _modRMOffset -= 0x100;
+                            _eaOffset = _biu->getInstructionByte();
+                            if (_eaOffset >= 0x80)
+                                _eaOffset -= 0x100;
                             _state = 5;
                         }
                         break;
@@ -231,12 +231,14 @@ public:
                         // TODO
                         switch (_operation) {
                             case 0:
+                                setDestination(alu((_opcode >> 3) & 7, getDestination(), getSource()));
+                                break;
 
                         }
                         break;
                     case 9:  // Need second of two bytes for mod R/M offset
                         if (_biu->instructionByteAvailable()) {
-                            _modRMOffset |= _biu->getInstructionByte() << 8;
+                            _eaOffset |= _biu->getInstructionByte() << 8;
                             _state = 5;
                         }
                         break;
@@ -252,8 +254,8 @@ public:
             _state = 3;
         }
     private:
-        void o00() { /* TODO: alu modrm */ _state = 4; _operation = 0; }
-        void o04() { /* TODO: alu accum, imm */ }
+        void o00() { /* alu modrm */ _state = 4; _operation = 0; }
+        void o04() { /* TODO: alu accum, imm */ _operation = 1; }
         void o06() { /* TODO: PUSH segreg */ }
         void o07() { /* TODO: POP  segreg */ }
         void o26() { /* TODO: segment override */ }
@@ -336,6 +338,45 @@ public:
         UInt8& ah() { return byteRegister(4); }
         bool carry() { return (_flags & 1) != 0; }
 
+        bool wordSize() { return (_opcode & 1) != 0; }
+        bool eaSource() { return (_opcode & 2) != 0; }
+        int modRmReg() { return (_modRm >> 3) & 7; }
+        UInt16& modRmRw() { return _registers[modRmReg()]; }
+        UInt8& modRmRb() { return byteRegister(modRmReg()); }
+        UInt16 getReg() { return !wordSize() ? modRmRb() : modRmRw(); }
+        void setReg(UInt16 value) { if (!wordSize()) modRmRb() = value : modRmRw() = value; }
+        UInt16 getEaValue() { /* TODO */ }
+        void setEaValue(UInt16 value) { /* TODO */ }
+
+        UInt16 alu(int operation, UInt16 a, UInt16 b)
+        {
+            switch (operation) {
+                case 0: return add(a, b);
+                case 1: return or(a, b);
+                case 2: return adc(a, b);
+                case 3: return sbb(a, b);
+                case 4: return and(a, b);
+                case 5: return sub(a, b);
+                case 6: return xor(a, b);
+                case 7: return cmp(a, b);
+            }
+        }
+
+        UInt16 add(UInt16 a, UInt16 b)
+        {
+            return a + b;
+            // TODO: set the flags
+        }
+        UInt16 or(UInt16 a, UInt16 b)
+        {
+            return a | b;
+            // TODO: set the flags
+        }
+
+        UInt16 getDestination() { if (eaSource()) return getReg(); else return getEaValue(); }
+        UInt16 getSource() { if (eaSource()) return getEaValue(); else return getReg(); }
+        void setDestination(UInt16 value) { if (eaSource()) setReg(value); else setEaValue(value); }
+
         void push(UInt16 value) { /* TODO */ }
 
         UInt8& byteRegister(int n) /* AL CL DL BL AH CH DH BH */
@@ -350,9 +391,9 @@ public:
         int _wait;
         int _state;
         UInt8 _opcode;
-        UInt8 _modRM;
-        bool _useModRM;
-        UInt16 _modRMOffset;
+        UInt8 _modRm;
+        bool _useModRm;
+        UInt16 _eaOffset;
         int _operation;
 
         typedef void (ExecutionUnit::*opcodeFunction)();
