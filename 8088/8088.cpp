@@ -55,11 +55,11 @@ public:
                     switch (_pendingType) {
                         case 1:
                             _data = *physicalAddress();
-                            _eu->readComplete();
+                            _eu->ioComplete(_nextState);
                             break;
                         case 2:
                             *physicalAddress() = _data;
-                            _eu->writeComplete();
+                            _eu->ioComplete(_nextState);
                             break;
                         case 3:
                             _prefetchQueue[(_prefetchOffset + _prefetched) & 3] = *physicalAddress();
@@ -107,6 +107,7 @@ public:
             --_prefetched;
             return byte;
         }
+        void initRead(UInt16 address, int nextState
         void setAddress(UInt16 address) { /* TODO */ }
         void setSegment(int segment) { /* TODO */ }
         bool instructionByteAvailable() const { return _prefetched > 1; }
@@ -127,6 +128,7 @@ public:
         Array<UInt8> _memory;
         int _pendingType;
         UInt16 _prefetchAddress;
+        int _nextState;
     };
     class ExecutionUnit
     {
@@ -245,13 +247,9 @@ public:
                 }
             } while (true);
         }
-        void readComplete()
+        void ioComplete(int newState)
         {
-            _state = 2;
-        }
-        void writeComplete()
-        {
-            _state = 3;
+            _state = newState;
         }
     private:
         void o00() { /* alu modrm */ _state = 4; _operation = 0; }

@@ -159,19 +159,22 @@ startTime:
 
   ; The following code isn't executed directly, it's copied elsewhere first
 timerStartStart:
-  cli                  ; 00250
-  in al,040            ; 00228 00064
-  mov ah,al            ; 00136 00196
-  in al,040            ; 00228 00064
-  mov [startTime],ax   ; 00163 00036 00002
+  cli
+  in al,040
+  mov ah,al
+  in al,040
+  xchg ah,al
+  mov [startTime],ax
   ; Code to be timed will be copied here
 timerEndStart:
-  in al,040            ; 00228 00064
-  mov ah,al            ; 00136 00196
-  in al,040            ; 00228 00064
-  mov dx,[startTime]   ; 00138 00022 00036 00002
-  sub dx,ax            ; 00041 00194
-  sti                  ; 00251
+  in al,040
+  mov ah,al
+  in al,040
+  xchg ah,al
+  mov dx,[startTime]
+  sub dx,ax
+  sti
+  mov ax,dx
   ret
 timerEndEnd:
 
