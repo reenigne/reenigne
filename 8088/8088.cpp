@@ -33,9 +33,7 @@ public:
           : _ip(0xfff0),
             _prefetchOffset(0),
             _prefetched(0),
-            _segment(0),  // ?
-            _readRequested(false),
-            _writeRequested(false)
+            _segmentOverride(-1)
         {
             _segmentRegisters[0] = 0x0000;  // ?
             _segmentRegisters[1] = 0xf000;
@@ -52,35 +50,39 @@ public:
         {
             switch (_tState) {
                 case 0:  // T1
-                    switch (_pendingType) {
-                        case 1:
-                            _data = *physicalAddress();
-                            _eu->ioComplete(_nextState);
-                            break;
-                        case 2:
-                            *physicalAddress() = _data;
-                            _eu->ioComplete(_nextState);
-                            break;
-                        case 3:
-                            _prefetchQueue[(_prefetchOffset + _prefetched) & 3] = *physicalAddress();
-                            ++_prefetched;
-                            break;
+                    switch (_ioType) {
+                        case 0:
+
                     }
-                    _pendingType = 0;
-                    if (_readRequested) {
-                        _readRequested = false;
-                        _pendingType = 1;
-                    }
-                    else
-                        if (_writeRequested) {
-                            _writeRequested = false;
-                            _pendingType = 2;
-                        }
-                        else
-                            if (_prefetched < 4)
-                                _pendingType = 3;
-                    if (_pendingType != 0)
-                        _tState = 1;
+                    //switch (_pendingType) {
+                    //    case 1:
+                    //        _data = *physicalAddress();
+                    //        _eu->setState(_nextState);
+                    //        break;
+                    //    case 2:
+                    //        *physicalAddress() = _data;
+                    //        _eu->setState(_nextState);
+                    //        break;
+                    //    case 3:
+                    //        _prefetchQueue[(_prefetchOffset + _prefetched) & 3] = *physicalAddress();
+                    //        ++_prefetched;
+                    //        break;
+                    //}
+                    //_pendingType = 0;
+                    //if (_readRequested) {
+                    //    _readRequested = false;
+                    //    _pendingType = 1;
+                    //}
+                    //else
+                    //    if (_writeRequested) {
+                    //        _writeRequested = false;
+                    //        _pendingType = 2;
+                    //    }
+                    //    else
+                    //        if (_prefetched < 4)
+                    //            _pendingType = 3;
+                    //if (_pendingType != 0)
+                    //    _tState = 1;
                     break;
                 case 1:  // T2
                     _tState = 2;
@@ -96,9 +98,50 @@ public:
                     break;
             }
         }
+        void initInstructionFetch(int nextState, bool wordSize)
+        {
+            _segment = 1;
+            _nextState = nextState;
+            _ioType = (!wordSize ? 1 : 2);
+            if (!wordSize) {
+                if (_prefetched > 0) {
+                    _eu->ioComplete(_nextState, getInstructionByte());
+                    _ioType = 0;
+                }
+            }
+            else {
+                if (_prefetched > 1) {
+                    UInt16 data = getInstructionByte();
+                    data |= static_cast<UInt16>(getInstructionByte()) << 8;
+                    _eu->ioComplete(_nextState, data);
+                    _ioType = 0;
+                }
+            }
+
+        }
+        void initRead(UInt16 address, int segment, int nextState, bool wordSize)
+        {
+            _address = address;
+            _segment = segment;
+            _nextState = nextState;
+            _ioType = (!wordSize ? 2 : 3);
+        }
+        void initWrite(UInt16 address, int segment, int nextState, bool wordSize)
+        {
+            _address = address;
+            _segment = segment;
+            _nextState = nextState;
+            _ioType = (!wordSize ? 4 : 5);
+        }
+        void setSegmentOverride(int segment) { _segmentOverride = segment; }
+        void clearSegmentOverride() { _segmentOverride = -1; }
+    private:
         UInt8* physicalAddress()
         {
-            return &_memory[((_segmentRegisters[_segment] << 4) + _address) & 0xfffff];
+            int segment = _segment;
+            if (_segmentOverride != -1)
+                segment = _segmentOverride;
+            return &_memory[((_segmentRegisters[segment] << 4) + _address) & 0xfffff];
         }
         UInt8 getInstructionByte()
         {
@@ -107,21 +150,18 @@ public:
             --_prefetched;
             return byte;
         }
-        void initRead(UInt16 address, int nextState
-        void setAddress(UInt16 address) { /* TODO */ }
-        void setSegment(int segment) { /* TODO */ }
-        bool instructionByteAvailable() const { return _prefetched > 1; }
-    private:
+
         UInt16 _segmentRegisters[4];  /* ES CS SS DS */
         UInt16 _ip;
         UInt8 _prefetchQueue[4];
         UInt8 _prefetchOffset;
         UInt8 _prefetched;
         int _segment;
-        bool _readRequested;
-        bool _writeRequested;
+        int _segmentOverride;
+        //bool _readRequested;
+        //bool _writeRequested;
         int _tState;
-        UInt8 _data;
+        UInt16 _data;
         Simulator* _simulator;
         ExecutionUnit* _eu;
         UInt16 _address;
@@ -129,12 +169,22 @@ public:
         int _pendingType;
         UInt16 _prefetchAddress;
         int _nextState;
+        int _ioType;
+        // IO types:
+        //   0 = no IO requested
+        //   1 = 1-byte instruction fetch
+        //   2 = 2-byte instruction fetch
+        //   3 = 1-byte read
+        //   4 = 2-byte read
+        //   5 = 1-byte write
+        //   6 = 2-byte write
     };
     class ExecutionUnit
     {
     public:
         ExecutionUnit()
-          : _flags(0x0002)  // ?
+          : _flags(0x0002),  // ?
+            _state(0)
         {
             for (int i = 0; i < 8; ++i)
                 _registers[i] = 0;  // ?
@@ -152,104 +202,127 @@ public:
                     return;
                 }
                 switch (_state) {
-                    case 0:  // Start next instruction if possible
-                        if (_biu->instructionByteAvailable()) {
-                            _opcode = _biu->getInstructionByte();
-                            (this->*_opcodeTable[_opcode])();
-                        }
+                    case 0:  // Request next opcode byte
+                        _biu->initInstructionFetch(1, false);
                         break;
-                    case 1:  // Waiting for BIU
+                    case 1:  // Opcode byte available - decode
+                        _opcode = _data;
+                        (this->*_opcodeTable[_opcode])();
                         break;
-                    case 2:  // Read completed
-                        // TODO
-                        break;
-                    case 3:  // Write completed
-                        // TODO
-                        break;
-                    case 4:  // mod R/M required
-                        if (_biu->instructionByteAvailable()) {
-                            _modRm = _biu->getInstructionByte();
-                            switch (_modRm & 0xc0) {
-                                case 0x00:
-                                    _state = 5;
-                                    if (_modRm == 0x06)
-                                        _state = 6;
-                                    break;
-                                case 0x40:
-                                    _state = 7;
-                                    break;
-                                case 0x80:
-                                    _state = 6;
-                                    break;
-                                case 0xc0:
-                                    _state = 8;
-                                    break;
-                            }
-                        }
-                        break;
-                    case 5:  // Got data for mod R/M
-                        switch (_modRm & 0xc7) {
-                            case 0x00: _biu->setAddress(bx() + si()            ); _biu->setSegment(3); _wait =  7; break;
-                            case 0x01: _biu->setAddress(bx() + di()            ); _biu->setSegment(3); _wait =  8; break;
-                            case 0x02: _biu->setAddress(bp() + si()            ); _biu->setSegment(2); _wait =  8; break;
-                            case 0x03: _biu->setAddress(bp() + di()            ); _biu->setSegment(2); _wait =  7; break;
-                            case 0x04: _biu->setAddress(       si()            ); _biu->setSegment(3); _wait =  5; break;
-                            case 0x05: _biu->setAddress(       di()            ); _biu->setSegment(3); _wait =  5; break;
-                            case 0x06: _biu->setAddress(              _eaOffset); _biu->setSegment(3); _wait =  6; break;
-                            case 0x07: _biu->setAddress(bx()                   ); _biu->setSegment(3); _wait =  5; break;
-                            case 0x40: _biu->setAddress(bx() + si() + _eaOffset); _biu->setSegment(3); _wait = 11; break;
-                            case 0x41: _biu->setAddress(bx() + di() + _eaOffset); _biu->setSegment(3); _wait = 12; break;
-                            case 0x42: _biu->setAddress(bp() + si() + _eaOffset); _biu->setSegment(2); _wait = 12; break;
-                            case 0x43: _biu->setAddress(bp() + di() + _eaOffset); _biu->setSegment(2); _wait = 11; break;
-                            case 0x44: _biu->setAddress(       si() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
-                            case 0x45: _biu->setAddress(       di() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
-                            case 0x46: _biu->setAddress(bp() +        _eaOffset); _biu->setSegment(2); _wait =  9; break;
-                            case 0x47: _biu->setAddress(bx() +        _eaOffset); _biu->setSegment(3); _wait =  9; break;
-                            case 0x80: _biu->setAddress(bx() + si() + _eaOffset); _biu->setSegment(3); _wait = 11; break;
-                            case 0x81: _biu->setAddress(bx() + di() + _eaOffset); _biu->setSegment(3); _wait = 12; break;
-                            case 0x82: _biu->setAddress(bp() + si() + _eaOffset); _biu->setSegment(2); _wait = 12; break;
-                            case 0x83: _biu->setAddress(bp() + di() + _eaOffset); _biu->setSegment(2); _wait = 11; break;
-                            case 0x84: _biu->setAddress(       si() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
-                            case 0x85: _biu->setAddress(       di() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
-                            case 0x86: _biu->setAddress(bp() +        _eaOffset); _biu->setSegment(2); _wait =  9; break;
-                            case 0x87: _biu->setAddress(bx() +        _eaOffset); _biu->setSegment(3); _wait =  9; break;
-                        }
-                        break;
-                    case 6:  // Need first of two bytes for mod R/M offset
-                        if (_biu->instructionByteAvailable()) {
-                            _eaOffset = _biu->getInstructionByte();
-                            _state = 9;
-                        }
-                        break;
-                    case 7:  // Need one byte for mod R/M offset
-                        if (_biu->instructionByteAvailable()) {
-                            _eaOffset = _biu->getInstructionByte();
-                            if (_eaOffset >= 0x80)
-                                _eaOffset -= 0x100;
-                            _state = 5;
-                        }
-                        break;
-                    case 8:  // continue instruction
-                        // TODO
-                        switch (_operation) {
-                            case 0:
-                                setDestination(alu((_opcode >> 3) & 7, getDestination(), getSource()));
-                                break;
 
-                        }
+                    case 2:  // "alu modrm" - request mod R/M byte
+                        _biu->initInstructionFetch(3, false);
                         break;
-                    case 9:  // Need second of two bytes for mod R/M offset
-                        if (_biu->instructionByteAvailable()) {
-                            _eaOffset |= _biu->getInstructionByte() << 8;
-                            _state = 5;
-                        }
+                    case 3:  // "alu modrm" - mod R/M byte available
+                        _modrm = _data;
+                        readEffectiveAddress(4);
                         break;
+                    case 4:  // "alu modrm" - memory data available
+                        
+                          
                 }
+
+
+
+                    //case 0:  // Start next instruction if possible
+                    //    if (_biu->instructionByteAvailable()) {
+                    //        _opcode = _biu->getInstructionByte();
+                    //        (this->*_opcodeTable[_opcode])();
+                    //    }
+                    //    break;
+                    //case 1:  // Waiting for BIU
+                    //    break;
+                    //case 2:  // Read completed
+                    //    // TODO
+                    //    break;
+                    //case 3:  // Write completed
+                    //    // TODO
+                    //    break;
+                    //case 4:  // mod R/M required
+                    //    if (_biu->instructionByteAvailable()) {
+                    //        _modRm = _biu->getInstructionByte();
+                    //        switch (_modRm & 0xc0) {
+                    //            case 0x00:
+                    //                _state = 5;
+                    //                if (_modRm == 0x06)
+                    //                    _state = 6;
+                    //                break;
+                    //            case 0x40:
+                    //                _state = 7;
+                    //                break;
+                    //            case 0x80:
+                    //                _state = 6;
+                    //                break;
+                    //            case 0xc0:
+                    //                _state = 8;
+                    //                break;
+                    //        }
+                    //    }
+                    //    break;
+                    //case 5:  // Got data for mod R/M
+                    //    switch (_modRm & 0xc7) {
+                    //        case 0x00: _biu->setAddress(bx() + si()            ); _biu->setSegment(3); _wait =  7; break;
+                    //        case 0x01: _biu->setAddress(bx() + di()            ); _biu->setSegment(3); _wait =  8; break;
+                    //        case 0x02: _biu->setAddress(bp() + si()            ); _biu->setSegment(2); _wait =  8; break;
+                    //        case 0x03: _biu->setAddress(bp() + di()            ); _biu->setSegment(2); _wait =  7; break;
+                    //        case 0x04: _biu->setAddress(       si()            ); _biu->setSegment(3); _wait =  5; break;
+                    //        case 0x05: _biu->setAddress(       di()            ); _biu->setSegment(3); _wait =  5; break;
+                    //        case 0x06: _biu->setAddress(              _eaOffset); _biu->setSegment(3); _wait =  6; break;
+                    //        case 0x07: _biu->setAddress(bx()                   ); _biu->setSegment(3); _wait =  5; break;
+                    //        case 0x40: _biu->setAddress(bx() + si() + _eaOffset); _biu->setSegment(3); _wait = 11; break;
+                    //        case 0x41: _biu->setAddress(bx() + di() + _eaOffset); _biu->setSegment(3); _wait = 12; break;
+                    //        case 0x42: _biu->setAddress(bp() + si() + _eaOffset); _biu->setSegment(2); _wait = 12; break;
+                    //        case 0x43: _biu->setAddress(bp() + di() + _eaOffset); _biu->setSegment(2); _wait = 11; break;
+                    //        case 0x44: _biu->setAddress(       si() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                    //        case 0x45: _biu->setAddress(       di() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                    //        case 0x46: _biu->setAddress(bp() +        _eaOffset); _biu->setSegment(2); _wait =  9; break;
+                    //        case 0x47: _biu->setAddress(bx() +        _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                    //        case 0x80: _biu->setAddress(bx() + si() + _eaOffset); _biu->setSegment(3); _wait = 11; break;
+                    //        case 0x81: _biu->setAddress(bx() + di() + _eaOffset); _biu->setSegment(3); _wait = 12; break;
+                    //        case 0x82: _biu->setAddress(bp() + si() + _eaOffset); _biu->setSegment(2); _wait = 12; break;
+                    //        case 0x83: _biu->setAddress(bp() + di() + _eaOffset); _biu->setSegment(2); _wait = 11; break;
+                    //        case 0x84: _biu->setAddress(       si() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                    //        case 0x85: _biu->setAddress(       di() + _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                    //        case 0x86: _biu->setAddress(bp() +        _eaOffset); _biu->setSegment(2); _wait =  9; break;
+                    //        case 0x87: _biu->setAddress(bx() +        _eaOffset); _biu->setSegment(3); _wait =  9; break;
+                    //    }
+                    //    break;
+                    //case 6:  // Need first of two bytes for mod R/M offset
+                    //    if (_biu->instructionByteAvailable()) {
+                    //        _eaOffset = _biu->getInstructionByte();
+                    //        _state = 9;
+                    //    }
+                    //    break;
+                    //case 7:  // Need one byte for mod R/M offset
+                    //    if (_biu->instructionByteAvailable()) {
+                    //        _eaOffset = _biu->getInstructionByte();
+                    //        if (_eaOffset >= 0x80)
+                    //            _eaOffset -= 0x100;
+                    //        _state = 5;
+                    //    }
+                    //    break;
+                    //case 8:  // continue instruction
+                    //    // TODO
+                    //    switch (_operation) {
+                    //        case 0:
+                    //            setDestination(alu((_opcode >> 3) & 7, getDestination(), getSource()));
+                    //            break;
+
+                    //    }
+                    //    break;
+                    //case 9:  // Need second of two bytes for mod R/M offset
+                    //    if (_biu->instructionByteAvailable()) {
+                    //        _eaOffset |= _biu->getInstructionByte() << 8;
+                    //        _state = 5;
+                    //    }
+                    //    break;
+                //}
             } while (true);
         }
-        void ioComplete(int newState)
+        void ioComplete(int newState, UInt16 data)
         {
             _state = newState;
+            _data = data;
         }
     private:
         void o00() { /* alu modrm */ _state = 4; _operation = 0; }
@@ -393,6 +466,7 @@ public:
         bool _useModRm;
         UInt16 _eaOffset;
         int _operation;
+        UInt16 _data;  // Data from BIU
 
         typedef void (ExecutionUnit::*opcodeFunction)();
 
