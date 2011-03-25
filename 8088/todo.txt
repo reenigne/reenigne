@@ -26,3 +26,5 @@ When doing CGA memory operations, under what condition do we get a wait state?
 Is the "RETF iw" timing correct? (Surely it shouldn't be less than RETF)
 
 Is the "TEST rmw,iw" timing correct? (Surely it shouldn't be the same as "TEST rmb,ib")
+
+Is the AF ever set after an OR operation?
