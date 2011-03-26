@@ -59,88 +59,88 @@ Effective address timings:
   	    exception processing
 
 
-instructions:                                                                                              Difference between mb and mw
+instructions:
 
-   00 /r          ADD rmb,rb            p0normal      3  8+EA+4+4      AF CF OF PF SF ZF
-   01 /r          ADD rmw,rw            p0normal      3  8+EA+8+8
-   02 /r          ADD rb,rmb            p0normal      3  5+EA+4
-   03 /r          ADD rw,rmw            p0normal      3  5+EA+8
-   04 ib          ADD AL,ib             p0normal      4
-   05 iw          ADD AX,iw             p0normal      4
+   00 /r          ADD rmb,rb            p0normal      3  8+EA+4+4                                            AF CF OF PF SF ZF
+   01 /r          ADD rmw,rw            p0normal      3  8+EA+8+8                                            AF CF OF PF SF ZF
+   02 /r          ADD rb,rmb            p0normal      3  5+EA+4                                              AF CF OF PF SF ZF
+   03 /r          ADD rw,rmw            p0normal      3  5+EA+8                                              AF CF OF PF SF ZF
+   04 ib          ADD AL,ib             p0normal      4                                                      AF CF OF PF SF ZF
+   05 iw          ADD AX,iw             p0normal      4                                                      AF CF OF PF SF ZF
    06             PUSH ES               p0normal     14
    07             POP ES                p0normal      8
-   08 /r          OR rmb,rb             p0normal      3 16+EA          CF OF PF SF ZF (AF undefined)
-   09 /r          OR rmw,rw             p0normal      3 24+EA
-   0A /r          OR rb,rmb             p0normal      3  9+EA
-   0B /r          OR rw,rmw             p0normal      3 13+EA
-   0C ib          OR AL,ib              p0normal      4
-   0D iw          OR AX,iw              p0normal      4
+   08 /r          OR rmb,rb             p0normal      3 16+EA                                                CF OF PF SF ZF (AF undefined)
+   09 /r          OR rmw,rw             p0normal      3 24+EA                                                CF OF PF SF ZF (AF undefined)
+   0A /r          OR rb,rmb             p0normal      3  9+EA                                                CF OF PF SF ZF (AF undefined)
+   0B /r          OR rw,rmw             p0normal      3 13+EA                                                CF OF PF SF ZF (AF undefined)
+   0C ib          OR AL,ib              p0normal      4                                                      CF OF PF SF ZF (AF undefined)
+   0D iw          OR AX,iw              p0normal      4                                                      CF OF PF SF ZF (AF undefined)
    0E             PUSH CS               p0normal     14
    0F             POP CS              R p0popcs       8
-   10 /r          ADC rmb,rb            p0normal      3 16+EA          AF CF OF SF PF ZF
-   11 /r          ADC rmw,rw            p0normal      3 24+EA
-   12 /r          ADC rb,rmb            p0normal      3  9+EA
-   13 /r          ADC rw,rmw            p0normal      3 13+EA
-   14 ib          ADC AL,ib             p0normal      4
-   15 iw          ADC AX,iw             p0normal      4
+   10 /r          ADC rmb,rb            p0normal      3 16+EA                                                AF CF OF SF PF ZF
+   11 /r          ADC rmw,rw            p0normal      3 24+EA                                                AF CF OF PF SF ZF
+   12 /r          ADC rb,rmb            p0normal      3  9+EA                                                AF CF OF PF SF ZF
+   13 /r          ADC rw,rmw            p0normal      3 13+EA                                                AF CF OF PF SF ZF
+   14 ib          ADC AL,ib             p0normal      4                                                      AF CF OF PF SF ZF
+   15 iw          ADC AX,iw             p0normal      4                                                      AF CF OF PF SF ZF
    16             PUSH SS               p0normal     14
    17             POP SS                p0normal      8
-   18 /r          SBB rmb,rb            p0normal      3 16+EA          AF CF OF PF SF ZF
-   19 /r          SBB rmw,rw            p0normal      3 24+EA
-   1A /r          SBB rb,rmb            p0normal      3  9+EA
-   1B /r          SBB rw,rmw            p0normal      3 13+EA
-   1C ib          SBB AL,ib             p0normal      4
-   1D iw          SBB AX,iw             p0normal      4
+   18 /r          SBB rmb,rb            p0normal      3 16+EA                                                AF CF OF PF SF ZF
+   19 /r          SBB rmw,rw            p0normal      3 24+EA                                                AF CF OF PF SF ZF
+   1A /r          SBB rb,rmb            p0normal      3  9+EA                                                AF CF OF PF SF ZF
+   1B /r          SBB rw,rmw            p0normal      3 13+EA                                                AF CF OF PF SF ZF
+   1C ib          SBB AL,ib             p0normal      4                                                      AF CF OF PF SF ZF
+   1D iw          SBB AX,iw             p0normal      4                                                      AF CF OF PF SF ZF
    1E             PUSH DS               p0normal     14
    1F             POP DS                p0normal      8
-   20 /r          AND rmb,rb            p0normal      3 16+EA          CF OF PF SF ZF (AF undefined)
-   21 /r          AND rmw,rw            p0normal      3 24+EA
-   22 /r          AND rb,rmb            p0normal      3  9+EA
-   23 /r          AND rw,rmw            p0normal      3 13+EA
-   24 ib          AND AL,ib             p0normal      4
-   25 iw          AND AX,iw             p0normal      4
+   20 /r          AND rmb,rb            p0normal      3 16+EA                                                CF OF PF SF ZF (AF undefined)
+   21 /r          AND rmw,rw            p0normal      3 24+EA                                                CF OF PF SF ZF (AF undefined)
+   22 /r          AND rb,rmb            p0normal      3  9+EA                                                CF OF PF SF ZF (AF undefined)
+   23 /r          AND rw,rmw            p0normal      3 13+EA                                                CF OF PF SF ZF (AF undefined)
+   24 ib          AND AL,ib             p0normal      4                                                      CF OF PF SF ZF (AF undefined)
+   25 iw          AND AX,iw             p0normal      4                                                      CF OF PF SF ZF (AF undefined)
    26             ES:                 p p0normal
-   27             DAA                   p0bcd         4
-   28 /r          SUB rmb,rb            p0normal      3 16+EA          AF CF OF PF SF ZF
-   29 /r          SUB rmw,rw            p0normal      3 24+EA
-   2A /r          SUB rb,rmb            p0normal      3  9+EA
-   2B /r          SUB rw,rmw            p0normal      3 13+EA
-   2C ib          SUB AL,ib             p0normal      4
-   2D iw          SUB AX,iw             p0normal      4
+   27             DAA                   p0bcd         4                                                      AF CF PF SF ZF (OF undefined)
+   28 /r          SUB rmb,rb            p0normal      3 16+EA                                                AF CF OF PF SF ZF
+   29 /r          SUB rmw,rw            p0normal      3 24+EA                                                AF CF OF PF SF ZF
+   2A /r          SUB rb,rmb            p0normal      3  9+EA                                                AF CF OF PF SF ZF
+   2B /r          SUB rw,rmw            p0normal      3 13+EA                                                AF CF OF PF SF ZF
+   2C ib          SUB AL,ib             p0normal      4                                                      AF CF OF PF SF ZF
+   2D iw          SUB AX,iw             p0normal      4                                                      AF CF OF PF SF ZF
    2E             CS:                 p p0normal
    2F             DAS                   p0bcd         4
-   30 /r          XOR rmb,rb            p0normal      3 16+EA          CF OF PF SF ZF (AF undefined)
-   31 /r          XOR rmw,rw            p0normal      3 24+EA
-   32 /r          XOR rb,rmb            p0normal      3  9+EA
-   33 /r          XOR rw,rmw            p0normal      3 13+EA
-   34 ib          XOR AL,ib             p0normal      4
-   35 iw          XOR AX,iw             p0normal      4
+   30 /r          XOR rmb,rb            p0normal      3 16+EA                                                CF OF PF SF ZF (AF undefined)
+   31 /r          XOR rmw,rw            p0normal      3 24+EA                                                CF OF PF SF ZF (AF undefined)
+   32 /r          XOR rb,rmb            p0normal      3  9+EA                                                CF OF PF SF ZF (AF undefined)
+   33 /r          XOR rw,rmw            p0normal      3 13+EA                                                CF OF PF SF ZF (AF undefined)
+   34 ib          XOR AL,ib             p0normal      4                                                      CF OF PF SF ZF (AF undefined)
+   35 iw          XOR AX,iw             p0normal      4                                                      CF OF PF SF ZF (AF undefined)
    36             SS:                 p p0normal
-   37             AAA                   p0bcd         8
-   38 /r          CMP rmb,rb            p0normal      3  9+EA          AF CF OF PF SF ZF
-   39 /r          CMP rmw,rw            p0normal      3 13+EA
-   3A /r          CMP rb,rmb            p0normal      3  9+EA
-   3B /r          CMP rw,rmw            p0normal      3 13+EA
-   3C ib          CMP AL,ib             p0normal      4
-   3D iw          CMP AX,iw             p0normal      4
+   37             AAA                   p0bcd         8                                                      AF CF (OF,PF,SF,ZF undefined)
+   38 /r          CMP rmb,rb            p0normal      3  9+EA                                                AF CF OF PF SF ZF
+   39 /r          CMP rmw,rw            p0normal      3 13+EA                                                AF CF OF PF SF ZF
+   3A /r          CMP rb,rmb            p0normal      3  9+EA                                                AF CF OF PF SF ZF
+   3B /r          CMP rw,rmw            p0normal      3 13+EA                                                AF CF OF PF SF ZF
+   3C ib          CMP AL,ib             p0normal      4                                                      AF CF OF PF SF ZF
+   3D iw          CMP AX,iw             p0normal      4                                                      AF CF OF PF SF ZF
    3E             DS:                 p p0normal
    3F             AAS                   p0bcd         8
-   40             INC AX                p0normal      3                AF OF PF SF ZF
-   41             INC CX                p0normal      3                AF OF PF SF ZF
-   42             INC DX                p0normal      3                AF OF PF SF ZF
-   43             INC BX                p0normal      3                AF OF PF SF ZF
-   44             INC SP                p0normal      3                AF OF PF SF ZF
-   45             INC BP                p0normal      3                AF OF PF SF ZF
-   46             INC SI                p0normal      3                AF OF PF SF ZF
-   47             INC DI                p0normal      3                AF OF PF SF ZF
-   48             DEC AX                p0normal      3                AF OF PF SF ZF
-   49             DEC CX                p0normal      3                AF OF PF SF ZF
-   4A             DEC DX                p0normal      3                AF OF PF SF ZF
-   4B             DEC BX                p0normal      3                AF OF PF SF ZF
-   4C             DEC SP                p0normal      3                AF OF PF SF ZF
-   4D             DEC BP                p0normal      3                AF OF PF SF ZF
-   4E             DEC SI                p0normal      3                AF OF PF SF ZF
-   4F             DEC DI                p0normal      3                AF OF PF SF ZF
+   40             INC AX                p0normal      3                                                      AF OF PF SF ZF
+   41             INC CX                p0normal      3                                                      AF OF PF SF ZF
+   42             INC DX                p0normal      3                                                      AF OF PF SF ZF
+   43             INC BX                p0normal      3                                                      AF OF PF SF ZF
+   44             INC SP                p0normal      3                                                      AF OF PF SF ZF
+   45             INC BP                p0normal      3                                                      AF OF PF SF ZF
+   46             INC SI                p0normal      3                                                      AF OF PF SF ZF
+   47             INC DI                p0normal      3                                                      AF OF PF SF ZF
+   48             DEC AX                p0normal      3                                                      AF OF PF SF ZF
+   49             DEC CX                p0normal      3                                                      AF OF PF SF ZF
+   4A             DEC DX                p0normal      3                                                      AF OF PF SF ZF
+   4B             DEC BX                p0normal      3                                                      AF OF PF SF ZF
+   4C             DEC SP                p0normal      3                                                      AF OF PF SF ZF
+   4D             DEC BP                p0normal      3                                                      AF OF PF SF ZF
+   4E             DEC SI                p0normal      3                                                      AF OF PF SF ZF
+   4F             DEC DI                p0normal      3                                                      AF OF PF SF ZF
    50             PUSH AX               p0normal     15
    51             PUSH CX               p0normal     15
    52             PUSH DX               p0normal     15
@@ -173,51 +173,51 @@ instructions:                                                                   
    7D cb          JGE cb             3  p0normal      4/16
    7E cb          JLE cb             3  p0normal      4/16
    7F cb          JG cb              3  p0normal      4/16
-   80 /0 ib       ADD rmb,ib            p0normal      4 17+EA
-   80 /1 ib       OR rmb,ib             p0normal      4 17+EA
-   80 /2 ib       ADC rmb,ib            p0normal      4 17+EA
-   80 /3 ib       SBB rmb,ib            p0normal      4 17+EA
-   80 /4 ib       AND rmb,ib            p0normal      4 17+EA
-   80 /5 ib       SUB rmb,ib            p0normal      4 17+EA
-   80 /6 ib       XOR rmb,ib            p0normal      4 17+EA
-   80 /7 ib       CMP rmb,ib            p0normal      4 10+EA
-   81 /0 iw       ADD rmw,iw            p0normal      4 23+EA                                                            6?
-   81 /1 iw       OR rmw,iw             p0normal      4 25+EA                                                            8
-   81 /2 iw       ADC rmw,iw            p0normal      4 23+EA                                                            6?
-   81 /3 iw       SBB rmw,iw            p0normal      4 25+EA                                                            8
-   81 /4 iw       AND rmw,iw            p0normal      4 23+EA                                                            6?
-   81 /5 iw       SUB rmw,iw            p0normal      4 25+EA                                                            8
-   81 /6 iw       XOR rmw,iw            p0normal      4 25+EA                                                            8
-   81 /7 iw       CMP rmw,iw            p0normal      4 14+EA                                                            4
-   82 /0 ib       ADD rmb,ib        a   p0alias       4 17+EA
-   82 /1 ib       OR rmb,ib         a   p0alias       4 17+EA
-   82 /2 ib       ADC rmb,ib        a   p0alias       4 17+EA
-   82 /3 ib       SBB rmb,ib        a   p0alias       4 17+EA
-   82 /4 ib       AND rmb,ib        a   p0alias       4 17+EA
-   82 /5 ib       SUB rmb,ib        a   p0alias       4 17+EA
-   82 /6 ib       XOR rmb,ib        a   p0alias       4 17+EA
-   82 /7 ib       CMP rmb,ib        a   p0alias       4 10+EA
-   83 /0 ib       ADD rmw,ib            p0normal      4 23+EA                                                            6?
-   83 /1 ib       OR rmw,ib             p0normal      4 25+EA (?)                                                        8?
-   83 /2 ib       ADC rmw,ib            p0normal      4 23+EA                                                            6?
-   83 /3 ib       SBB rmw,ib            p0normal      4 25+EA                                                            8
-   83 /4 ib       AND rmw,ib            p0normal      4 23+EA                                                            6?
-   83 /5 ib       SUB rmw,ib            p0normal      4 25+EA                                                            8
-   83 /6 ib       XOR rmw,ib            p0normal      4 25+EA (?)                                                        6?
-   83 /7 ib       CMP rmw,ib            p0normal      4 14+EA                                                            4
-   84 /r          TEST rmb,rb           p0normal      3  9+EA
-   85 /r          TEST rmw,rw           p0normal      3 13+EA                                                            4
-   86 /r          XCHG rmb,rb           p0normal      4 17+EA
-   87 /r          XCHG rmw,rw           p0normal      4 25+EA                                                            8
-   88 /r          MOV rmb,rb            p0normal      2  9+EA
-   89 /r          MOV rmw,rw            p0normal      2 13+EA                                                            4
-   8A /r          MOV rb,rmb            p0normal      2  8+EA
-   8B /r          MOV rw,rmw            p0normal      2 12+EA                                                            4
-   8C /r          MOV rmw,segreg        p0normal      2 13+EA
+   80 /0 ib       ADD rmb,ib            p0normal      4  9+EA+4+4                                            AF CF OF PF SF ZF
+   80 /1 ib       OR rmb,ib             p0normal      4  9+EA+4+4                                            CF OF PF SF ZF (AF undefined)
+   80 /2 ib       ADC rmb,ib            p0normal      4  9+EA+4+4                                            AF CF OF PF SF ZF
+   80 /3 ib       SBB rmb,ib            p0normal      4  9+EA+4+4                                            AF CF OF PF SF ZF
+   80 /4 ib       AND rmb,ib            p0normal      4  9+EA+4+4                                            CF OF PF SF ZF (AF undefined)
+   80 /5 ib       SUB rmb,ib            p0normal      4  9+EA+4+4                                            AF CF OF PF SF ZF
+   80 /6 ib       XOR rmb,ib            p0normal      4  9+EA+4+4                                            CF OF PF SF ZF (AF undefined)
+   80 /7 ib       CMP rmb,ib            p0normal      4  6+EA+4                                              AF CF OF PF SF ZF
+   81 /0 iw       ADD rmw,iw            p0normal      4  7+EA+8+8                                            AF CF OF PF SF ZF
+   81 /1 iw       OR rmw,iw             p0normal      4  9+EA+8+8                                            CF OF PF SF ZF (AF undefined)
+   81 /2 iw       ADC rmw,iw            p0normal      4  7+EA+8+8                                            AF CF OF PF SF ZF
+   81 /3 iw       SBB rmw,iw            p0normal      4  9+EA+8+8                                            AF CF OF PF SF ZF
+   81 /4 iw       AND rmw,iw            p0normal      4  7+EA+8+8                                            CF OF PF SF ZF (AF undefined)
+   81 /5 iw       SUB rmw,iw            p0normal      4  9+EA+8+8                                            AF CF OF PF SF ZF
+   81 /6 iw       XOR rmw,iw            p0normal      4  9+EA+8+8                                            CF OF PF SF ZF (AF undefined)
+   81 /7 iw       CMP rmw,iw            p0normal      4  6+EA+8                                              AF CF OF PF SF ZF
+   82 /0 ib       ADD rmb,ib        a   p0alias       4  9+EA+4+4                                            AF CF OF PF SF ZF
+   82 /1 ib       OR rmb,ib         a   p0alias       4  9+EA+4+4                                            CF OF PF SF ZF (AF undefined)
+   82 /2 ib       ADC rmb,ib        a   p0alias       4  9+EA+4+4                                            AF CF OF PF SF ZF
+   82 /3 ib       SBB rmb,ib        a   p0alias       4  9+EA+4+4                                            AF CF OF PF SF ZF
+   82 /4 ib       AND rmb,ib        a   p0alias       4  9+EA+4+4                                            CF OF PF SF ZF (AF undefined)
+   82 /5 ib       SUB rmb,ib        a   p0alias       4  9+EA+4+4                                            AF CF OF PF SF ZF
+   82 /6 ib       XOR rmb,ib        a   p0alias       4  9+EA+4+4                                            CF OF PF SF ZF (AF undefined)
+   82 /7 ib       CMP rmb,ib        a   p0alias       4  6+EA+4                                              AF CF OF PF SF ZF
+   83 /0 ib       ADD rmw,ib            p0normal      4  7+EA+8+8                                            AF CF OF PF SF ZF
+   83 /1 ib       OR rmw,ib             p0normal      4  9+EA+8+8                                            CF OF PF SF ZF (AF undefined)
+   83 /2 ib       ADC rmw,ib            p0normal      4  7+EA+8+8                                            AF CF OF PF SF ZF
+   83 /3 ib       SBB rmw,ib            p0normal      4  9+EA+8+8                                            AF CF OF PF SF ZF
+   83 /4 ib       AND rmw,ib            p0normal      4  7+EA+8+8                                            CF OF PF SF ZF (AF undefined)
+   83 /5 ib       SUB rmw,ib            p0normal      4  9+EA+8+8                                            AF CF OF PF SF ZF
+   83 /6 ib       XOR rmw,ib            p0normal      4  9+EA+8+8                                            CF OF PF SF ZF (AF undefined)
+   83 /7 ib       CMP rmw,ib            p0normal      4  6+EA+8                                              AF CF OF PF SF ZF
+   84 /r          TEST rmb,rb           p0normal      3  5+EA+4                                              CF OF PF SF ZF (AF undefined)
+   85 /r          TEST rmw,rw           p0normal      3  5+EA+8                                              CF OF PF SF ZF (AF undefined)
+   86 /r          XCHG rmb,rb           p0normal      4  9+EA+4+4
+   87 /r          XCHG rmw,rw           p0normal      4  9+EA+8+8
+   88 /r          MOV rmb,rb            p0normal      2  5+EA+4
+   89 /r          MOV rmw,rw            p0normal      2  5+EA+8
+   8A /r          MOV rb,rmb            p0normal      2  4+EA+4
+   8B /r          MOV rw,rmw            p0normal      2  4+EA+8
+   8C /r          MOV rmw,segreg        p0normal      2  5+EA+8
    8D /r          LEA rw,m              p0normal         2+EA
-   8E /r          MOV segreg,rmw        p0normal      2 12+EA
-   8F /0          POP mw                p0normal        17+EA
-   8F /r          POP mw            a   p0alias         17+EA
+   8E /r          MOV segreg,rmw        p0normal      2  4+EA+8
+   8F /0          POP mw                p0normal         1+EA+8+8
+   8F /r          POP mw            a   p0alias          1+EA+8+8
    90             NOP                   p0nop         3
    91             XCHG AX,BX            p0normal      3
    92             XCHG AX,CX            p0normal      3
@@ -228,28 +228,28 @@ instructions:                                                                   
    97             XCHG AX,DI            p0normal      3
    98             CBW                   p0normal      2
    99             CWD                   p0normal      5
-   9A cp          CALL cp            4  p0normal     28
+   9A cp          CALL cp            4  p0normal     12+8+8
    9B             WAIT                  p0fwait       4
-   9C             PUSHF                 p0flag       14
-   9D             POPF                  p0flag       12                all
+   9C             PUSHF                 p0flag        6+8
+   9D             POPF                  p0flag        4+8                                                    all
    9E             SAHF                  p0flag        4
    9F             LAHF                  p0flag        4
-   A0 iw          MOV AL,xb             p0normal     10
-   A1 iw          MOV AX,xw             p0normal     14                                                                  4
-   A2 iw          MOV xb,AL             p0normal     10
-   A3 iw          MOV xw,AX             p0normal     14                                                                  4
-   A4             MOVSB                 p0string     18
-   A5             MOVSW                 p0string     26                                                                  8
-   A6             CMPSB                 p0string     22
-   A7             CMPSW                 p0string     30                                                                  8
-   A8 ib          TEST AL,ib            p0normal      4                CF OF PF SF ZF (AF undefined)
-   A9 iw          TEST AX,iw            p0normal      4                CF OF PF SF ZF (AF undefined)
-   AA             STOSB                 p0string     11
-   AB             STOSW                 p0string     15                                                                  4
-   AC             LODSB                 p0string     12
-   AD             LODSW                 p0string     16                                                                  4
-   AE             SCASB                 p0string     15
-   AF             SCASW                 p0string     19                                                                  4
+   A0 iw          MOV AL,xb             p0normal      6+4
+   A1 iw          MOV AX,xw             p0normal      6+8
+   A2 iw          MOV xb,AL             p0normal      6+4
+   A3 iw          MOV xw,AX             p0normal      6+8
+   A4             MOVSB                 p0string     10+4+4
+   A5             MOVSW                 p0string     10+8+8
+   A6             CMPSB                 p0string     14+4+4
+   A7             CMPSW                 p0string     14+8+8
+   A8 ib          TEST AL,ib            p0normal      4                                                      CF OF PF SF ZF (AF undefined)
+   A9 iw          TEST AX,iw            p0normal      4                                                      CF OF PF SF ZF (AF undefined)
+   AA             STOSB                 p0string      7+4
+   AB             STOSW                 p0string      7+8
+   AC             LODSB                 p0string      8+4
+   AD             LODSW                 p0string      8+8
+   AE             SCASB                 p0string     11+4
+   AF             SCASW                 p0string     11+8
    B0 ib          MOV AL,ib             p0normal      4
    B1 ib          MOV CL,ib             p0normal      4
    B2 ib          MOV DL,ib             p0normal      4
@@ -266,90 +266,90 @@ instructions:                                                                   
    BD iw          MOV BP,iw             p0normal      4
    BE iw          MOV SI,iw             p0normal      4
    BF iw          MOV DI,iw             p0normal      4
-   C2 iw          RET iw             0  p0normal     24
-   C3             RET                0  p0normal     20
-   C4 /r          LES rw,m              p0normal     24+EA
-   C5 /r          LDS rw,m              p0normal     16+EA
-   C6 /0 ib       MOV rmb,ib            p0normal      4 10+EA
-   C6 /r ib       MOV rmb,ib        a   p0alias       4 10+EA
-   C7 /0 iw       MOV rmw,iw            p0normal      4 14+EA
-   C7 /r iw       MOV rmw,iw        a   p0alias       4 14+EA
-   CA iw          RETF iw            0  p0normal     33
-   CB             RETF               0  p0normal     34
-   CC             INT 3              5  p0os         72
-   CD ib          INT ib             5  p0normal     71
-   CE             INTO               5  p0into        4/73
-   CF             IRET               0  p0hard       44
-   D0 /0          ROL rmb,1             p0rot         2 15+EA          CF OF
-   D0 /1          ROR rmb,1             p0rot         2 15+EA          CF OF
-   D0 /2          RCL rmb,1             p0normal      2 15+EA          CF OF
-   D0 /3          RCR rmb,1             p0normal      2 15+EA          CF OF
-   D0 /4          SHL rmb,1             p0normal      2 15+EA          CF OF PF SF ZF (AF undefined)
-   D0 /5          SHR rmb,1             p0normal      2 15+EA          CF OF PF SF ZF (AF undefined)
-   D0 /6          SHL rmb,1         a   p0alias       2 15+EA          CF OF PF SF ZF (AF undefined)
-   D0 /7          SAR rmb,1             p0normal      2 15+EA          CF OF PF SF ZF (AF undefined)
-   D1 /0          ROL rmw,1             p0rot         2 23+EA          CF OF                                                  8
-   D1 /1          ROR rmw,1             p0rot         2 23+EA          CF OF                                                  8
-   D1 /2          RCL rmw,1             p0normal      2 23+EA          CF OF                                                  8
-   D1 /3          RCR rmw,1             p0normal      2 23+EA          CF OF                                                  8
-   D1 /4          SHL rmw,1             p0normal      2 23+EA          CF OF PF SF ZF (AF undefined)                                                  8
-   D1 /5          SHR rmw,1             p0normal      2 23+EA          CF OF PF SF ZF (AF undefined)                                                  8
-   D1 /6          SHL rmw,1         a   p0alias       2 23+EA          CF OF PF SF ZF (AF undefined)                                                  8
-   D1 /7          SAR rmw,1             p0normal      2 23+EA          CF OF PF SF ZF (AF undefined)                                                  8
-   D2 /0          ROL rmb,CL            p0rot         8+4n 20+EA+4n    CF OF
-   D2 /1          ROR rmb,CL            p0rot         8+4n 20+EA+4n    CF OF
-   D2 /2          RCL rmb,CL            p0normal      8+4n 20+EA+4n    CF OF
-   D2 /3          RCR rmb,CL            p0normal      8+4n 20+EA+4n    CF OF
-   D2 /4          SHL rmb,CL            p0normal      8+4n 20+EA+4n    CF OF PF SF ZF (AF undefined)
-   D2 /5          SHR rmb,CL            p0normal      8+4n 20+EA+4n    CF OF PF SF ZF (AF undefined)
-   D2 /6          SHL rmb,CL        a   p0alias       8+4n 20+EA+4n    CF OF PF SF ZF (AF undefined)
-   D2 /7          SAR rmb,CL            p0normal      8+4n 20+EA+4n    CF OF PF SF ZF (AF undefined)
-   D3 /0          ROL rmw,CL            p0rot         8+4n 28+EA+4n    CF OF                                                  8
-   D3 /1          ROR rmw,CL            p0rot         8+4n 28+EA+4n    CF OF                                                  8
-   D3 /2          RCL rmw,CL            p0normal      8+4n 28+EA+4n    CF OF                                                  8
-   D3 /3          RCR rmw,CL            p0normal      8+4n 28+EA+4n    CF OF                                                  8
-   D3 /4          SHL rmw,CL            p0normal      8+4n 28+EA+4n    CF OF PF SF ZF (AF undefined)                                                  8
-   D3 /5          SHR rmw,CL            p0normal      8+4n 28+EA+4n    CF OF PF SF ZF (AF undefined)                                                  8
-   D3 /6          SHL rmw,CL        a   p0alias       8+4n 28+EA+4n    CF OF PF SF ZF (AF undefined)                                                  8
-   D3 /7          SAR rmw,CL            p0normal      8+4n 28+EA+4n    CF OF PF SF ZF (AF undefined)                                                  8
-   D4 ib          AAM (ib)              p0bcd        83
-   D5 ib          AAD (ib)              p0bcd        60
+   C2 iw          RET iw             0  p0normal     16+8
+   C3             RET                0  p0normal     12+8
+   C4 /r          LES rw,m              p0normal      8+EA+8+8
+   C5 /r          LDS rw,m              p0normal      8+EA+8+8   (was 16+EA but that can't be right)
+   C6 /0 ib       MOV rmb,ib            p0normal      4  6+EA+4
+   C6 /r ib       MOV rmb,ib        a   p0alias       4  6+EA+4
+   C7 /0 iw       MOV rmw,iw            p0normal      4  6+EA+8
+   C7 /r iw       MOV rmw,iw        a   p0alias       4  6+EA+8
+   CA iw          RETF iw            0  p0normal     17+8+8
+   CB             RETF               0  p0normal     18+8+8
+   CC             INT 3              5  p0os         32+8+8+8+8+8                                            TF IF
+   CD ib          INT ib             5  p0normal     31+8+8+8+8+8                                            TF IF
+   CE             INTO               5  p0into        4/33+8+8+8+8+8                                         TF IF
+   CF             IRET               0  p0hard       20+8+8+8                                                all
+   D0 /0          ROL rmb,1             p0rot         2  7+EA+4+4                                            CF OF
+   D0 /1          ROR rmb,1             p0rot         2  7+EA+4+4                                            CF OF
+   D0 /2          RCL rmb,1             p0normal      2  7+EA+4+4                                            CF OF
+   D0 /3          RCR rmb,1             p0normal      2  7+EA+4+4                                            CF OF
+   D0 /4          SHL rmb,1             p0normal      2  7+EA+4+4                                            CF OF PF SF ZF (AF undefined)
+   D0 /5          SHR rmb,1             p0normal      2  7+EA+4+4                                            CF OF PF SF ZF (AF undefined)
+   D0 /6          SHL rmb,1         a   p0alias       2  7+EA+4+4                                            CF OF PF SF ZF (AF undefined)
+   D0 /7          SAR rmb,1             p0normal      2  7+EA+4+4                                            CF OF PF SF ZF (AF undefined)
+   D1 /0          ROL rmw,1             p0rot         2  7+EA+8+8                                            CF OF
+   D1 /1          ROR rmw,1             p0rot         2  7+EA+8+8                                            CF OF
+   D1 /2          RCL rmw,1             p0normal      2  7+EA+8+8                                            CF OF
+   D1 /3          RCR rmw,1             p0normal      2  7+EA+8+8                                            CF OF
+   D1 /4          SHL rmw,1             p0normal      2  7+EA+8+8                                            CF OF PF SF ZF (AF undefined)
+   D1 /5          SHR rmw,1             p0normal      2  7+EA+8+8                                            CF OF PF SF ZF (AF undefined)
+   D1 /6          SHL rmw,1         a   p0alias       2  7+EA+8+8                                            CF OF PF SF ZF (AF undefined)
+   D1 /7          SAR rmw,1             p0normal      2  7+EA+8+8                                            CF OF PF SF ZF (AF undefined)
+   D2 /0          ROL rmb,CL            p0rot         8+4n 12+EA+4n+4+4                                      CF OF
+   D2 /1          ROR rmb,CL            p0rot         8+4n 12+EA+4n+4+4                                      CF OF
+   D2 /2          RCL rmb,CL            p0normal      8+4n 12+EA+4n+4+4                                      CF OF
+   D2 /3          RCR rmb,CL            p0normal      8+4n 12+EA+4n+4+4                                      CF OF
+   D2 /4          SHL rmb,CL            p0normal      8+4n 12+EA+4n+4+4                                      CF OF PF SF ZF (AF undefined)
+   D2 /5          SHR rmb,CL            p0normal      8+4n 12+EA+4n+4+4                                      CF OF PF SF ZF (AF undefined)
+   D2 /6          SHL rmb,CL        a   p0alias       8+4n 12+EA+4n+4+4                                      CF OF PF SF ZF (AF undefined)
+   D2 /7          SAR rmb,CL            p0normal      8+4n 12+EA+4n+4+4                                      CF OF PF SF ZF (AF undefined)
+   D3 /0          ROL rmw,CL            p0rot         8+4n 12+EA+4n+8+8                                      CF OF
+   D3 /1          ROR rmw,CL            p0rot         8+4n 12+EA+4n+8+8                                      CF OF
+   D3 /2          RCL rmw,CL            p0normal      8+4n 12+EA+4n+8+8                                      CF OF
+   D3 /3          RCR rmw,CL            p0normal      8+4n 12+EA+4n+8+8                                      CF OF
+   D3 /4          SHL rmw,CL            p0normal      8+4n 12+EA+4n+8+8                                      CF OF PF SF ZF (AF undefined)
+   D3 /5          SHR rmw,CL            p0normal      8+4n 12+EA+4n+8+8                                      CF OF PF SF ZF (AF undefined)
+   D3 /6          SHL rmw,CL        a   p0alias       8+4n 12+EA+4n+8+8                                      CF OF PF SF ZF (AF undefined)
+   D3 /7          SAR rmw,CL            p0normal      8+4n 12+EA+4n+8+8                                      CF OF PF SF ZF (AF undefined)
+   D4 ib          AAM (ib)              p0bcd        83                                                      SF ZF PF (OF AF CF undefined)
+   D5 ib          AAD (ib)              p0bcd        60                                                      SF ZF PF (OF AF CF undefined)
    D6             SALC                  p0undoc
-   D7             XLATB                 p0xlat       11
+   D7             XLATB                 p0xlat        7+4
    D8+i /r        ESC i,r,rm            p0nofp        2
    E0 cb          LOOPNE cb          3  p0normal      5/19
    E1 cb          LOOPE cb           3  p0normal      5/18
    E2 cb          LOOP cb            3  p0normal      5/18
    E3 cb          JCXZ cb            3  p0normal      6/18
-   E4 ib          IN AL,ib              p0hard       10
-   E5 ib          IN AX,ib              p0hard       14
-   E6 ib          OUT ib,AL             p0hard       10
-   E7 ib          OUT ib,AX             p0hard       14
-   E8 cw          CALL cw            4  p0normal     19
+   E4 ib          IN AL,ib              p0hard        6+4
+   E5 ib          IN AX,ib              p0hard        6+8
+   E6 ib          OUT ib,AL             p0hard        6+4
+   E7 ib          OUT ib,AX             p0hard        6+8
+   E8 cw          CALL cw            4  p0normal     11+8
    E9 cw          JMP cw             2  p0normal     15
    EA cp          JMP cp             2  p0normal      ?
    EB cb          JMP cb             2  p0normal     15
-   EC             IN AL,DX              p0hard        8
-   ED             IN AX,DX              p0hard       12
-   EE             OUT DX,AL             p0hard        8
-   EF             OUT DX,AX             p0hard       12
+   EC             IN AL,DX              p0hard        4+4
+   ED             IN AX,DX              p0hard        4+8
+   EE             OUT DX,AL             p0hard        4+4
+   EF             OUT DX,AX             p0hard        4+8
    F0             LOCK                  p0os          2
    F2             REPNE               p p0string      2
    F3             REP                 p p0string      2
    F4             HLT                 p p0os          2
    F5             CMC                   p0normal      2
-   F6 /0 ib       TEST rmb,ib           p0normal      5 11+EA          CF OF PF SF ZF (AF undefined)
-   F6 /1 ib       TEST rmb,ib       a   p0alias       5 11+EA          CF OF PF SF ZF (AF undefined)
-   F6 /2          NOT rmb               p0normal      3 16+EA
-   F6 /3          NEG rmb               p0normal      3 16+EA          AF CF OF PF SF ZF
-   F6 /4          MUL rmb               p0normal     70-77 (76-83)+EA       8                                CF OF (AF,PF,SF,ZF undefined)
-   F6 /5          IMUL rmb              p0normal     80-98 (86-104)+EA     19                                CF OF (AF,PF,SF,ZF undefined)
-   F6 /6          DIV rmb               p0normal     80-90 (86-96)+EA      11                                (AF,CF,OF,PF,SF,ZF undefined)
-   F6 /7          IDIV rmb              p0normal    101-112 (107-118)+EA   12                                (AF,CF,OF,PF,SF,ZF undefined)
+   F6 /0 ib       TEST rmb,ib           p0normal      5  7+EA+4                                              CF OF PF SF ZF (AF undefined)
+   F6 /1 ib       TEST rmb,ib       a   p0alias       5  7+EA+4                                              CF OF PF SF ZF (AF undefined)
+   F6 /2          NOT rmb               p0normal      3  8+EA+4+4
+   F6 /3          NEG rmb               p0normal      3  8+EA+4+4                                            AF CF OF PF SF ZF
+   F6 /4          MUL rmb               p0normal     70-77 (72-79)+EA+4     8                                CF OF (AF,PF,SF,ZF undefined)
+   F6 /5          IMUL rmb              p0normal     80-98 (82-100)+EA+4   19                                CF OF (AF,PF,SF,ZF undefined)
+   F6 /6          DIV rmb               p0normal     80-90 (82-92)+EA+4    11                                (AF,CF,OF,PF,SF,ZF undefined)
+   F6 /7          IDIV rmb              p0normal    101-112 (103-114)+EA+4 12                                (AF,CF,OF,PF,SF,ZF undefined)
    F7 /0 iw       TEST rmw,iw           p0normal      5 11+EA
    F7 /1 iw       TEST rmw,iw       a   p0alias       5 11+EA
    F7 /2          NOT rmw               p0normal      3 24+EA
-   F7 /3          NEG rmw               p0normal      3 24+EA          AF CF OF PF SF ZF
+   F7 /3          NEG rmw               p0normal      3 24+EA                                                AF CF OF PF SF ZF
    F7 /4          MUL rmw               p0normal    118-133 (124-139)+EA   16    (133 was 113)               CF OF (AF,PF,SF,ZF undefined)
    F7 /5          IMUL rmw              p0normal    128-154 (134-160)+EA   27                                CF OF (AF,PF,SF,ZF undefined)
    F7 /6          DIV rmw               p0normal    144-162 (158-176)+EA   19    (why +14 instead of +16?)   (AF,CF,OF,PF,SF,ZF undefined)
@@ -360,10 +360,10 @@ instructions:                                                                   
    FB             STI                   p0hard        2
    FC             CLD                   p0string      2
    FD             STD                   p0string      2
-   FE /0          INC rmb               p0normal      3 15+EA          AF OF PF SF ZF
-   FE /1          DEC rmb               p0normal      3 15+EA          AF OF PF SF ZF
-   FF /0          INC rmw               p0normal      3 23+EA          AF OF PF SF ZF
-   FF /1          DEC rmw               p0normal      3 15+EA (?)      AF OF PF SF ZF
+   FE /0          INC rmb               p0normal      3 15+EA                                                AF OF PF SF ZF
+   FE /1          DEC rmb               p0normal      3 15+EA                                                AF OF PF SF ZF
+   FF /0          INC rmw               p0normal      3 23+EA                                                AF OF PF SF ZF
+   FF /1          DEC rmw               p0normal      3 15+EA (?)                                            AF OF PF SF ZF
    FF /2          CALL rmw          i4  p0normal     16 21+EA
    FF /3          CALL mp           i4  p0normal        37+EA
    FF /4          JMP rmw           i2  p0normal     11 18+EA
