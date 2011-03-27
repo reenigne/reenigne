@@ -50,3 +50,7 @@ Find out what hardware does with LEA when mod == 3
 Make sure that "ES: POP [BX]" doesn't 
 
 Check that LDS and LES take the same time (HELPPC says LDS is 16+EA which can't be right)
+
+Determine semantics of WAIT instruction
+
+Check that "POP AX" etc really are 8 instructions
