@@ -17,7 +17,7 @@ class Simulator
 public:
     Simulator()
       : _flags(0x0002),  // ?
-        _state(stateFetchOpcode),
+        _state(stateFetch),
         _ip(0xfff0),
         _prefetchOffset(0),
         _prefetched(0),
@@ -135,16 +135,13 @@ public:
                 case stateWaitingForBIU:
                     return;
 
-
-                // Handle opcode
-
                 case stateFetch: fetch(stateFetch2, false); break;
                 case stateFetch2:
                     {
                         _opcode = _data;
                         _wordSize = ((_opcode & 1) != 0);
                         _sourceIsRM = ((_opcode & 2) != 0);
-                        static State stateForOpcode[256] = {
+                        static State stateForOpcode[0x100] = {
                             stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
                             stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
                             stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
@@ -153,40 +150,38 @@ public:
                             stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateDAS,
                             stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateAAA,
                             stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateAAS,
-                            stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW, 
-                            stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,                                 
+                            stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,
+                            stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,
                             statePushRW,       statePushRW,       statePushRW,       statePushRW,       statePushRW,       statePushRW,       statePushRW,       statePushRW,
-                            statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,    
-                            stateInvalid60,    stateInvalid60,    stateInvalid60,    stateInvalid60,    stateInvalid60,    stateInvalid60,    stateInvalid60,    stateInvalid60, 
-                            stateInvalid60,    stateInvalid60,    stateInvalid60,    stateInvalid60,    stateInvalid60,    stateInvalid60,    stateInvalid60,    stateInvalid60, 
-                            stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,     
-                            stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,     
+                            statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,
+                            stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
+                            stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
+                            stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,
+                            stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,
                             stateALURMImm,     stateALURMImm,     stateALURMImm,     stateALURMImm,     stateTestRMReg,    stateTestRMReg,    stateXchgRMReg,    stateXchgRMReg,
                             stateMovRMReg,     stateMovRMReg,     stateMovRegRM,     stateMovRegRM,     stateMovRMWSegReg, stateLEA,          stateMovSegRegRMW, statePopMW,
-                            stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     
+                            stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,
                             stateCBW,          stateCWD,          stateCallCP,       stateWait,         statePushF,        statePopF,         stateSAHF,         stateLAHF,
                             stateMovAccumInd,  stateMovAccumInd,  stateMovIndAccum,  stateMovIndAccum,  stateMovS,         stateMovS,         stateCmpS,         stateCmpS,
                             stateTestAccumImm, stateTestAccumImm, stateStoS,         stateStoS,         stateLodS,         stateLodS,         stateScaS,         stateScaS,
-                            stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    
-                            stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    
-                            stateInvalidC0,    stateInvalidC0,    stateRet,          stateRet,          stateLoadFar,      stateLoadFar,      stateMovRMImm,     stateMovRMImm,     
-                            stateInvalidC0,    stateInvalidC0,    stateRet,          stateRet,          stateInt,          stateInt,          stateIntO,         stateIRet, 
+                            stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
+                            stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
+                            stateInvalid,      stateInvalid,      stateRet,          stateRet,          stateLoadFar,      stateLoadFar,      stateMovRMImm,     stateMovRMImm,
+                            stateInvalid,      stateInvalid,      stateRet,          stateRet,          stateInt,          stateInt,          stateIntO,         stateIRet,
                             stateShift,        stateShift,        stateShift,        stateShift,        stateAAM,          stateAAD,          stateSALC,         stateXlatB,
-                            stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       
+                            stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,
                             stateLoop,         stateLoop,         stateLoop,         stateLoop,         stateIn,           stateIn,           stateOut,          stateOut,
                             stateCallCW,       stateJmpCW,        stateJmpCP,        stateJmpCb,        stateIn,           stateIn,           stateOut,          stateOut,
-                            stateLock,         stateInvalidF1,    stateRep,          stateRep,          stateHlt,          stateCmC,          stateMath,         stateMath,
-                            stateCLC,          stateSTC,          stateCLI,          stateSTI,          stateCLD,          stateSTD,          stateMisc,         stateMisc};
+                            stateLock,         stateInvalid,      stateRep,          stateRep,          stateHlt,          stateCmC,          stateMath,         stateMath,
+                            stateLoadC,        stateLoadC,        stateLoadI,        stateLoadI,        stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         _state = stateForOpcode[_opcode];
                     }
                     break;
                 case stateEndInstruction:
                     _segmentOverride = -1;
                     _state = stateFetch;
+                    _rep = 0;
                     break;
-
-
-                // Handle effective address reads and writes
 
                 case stateModRM: fetch(stateModRM2, false); break;
                 case stateModRM2:
@@ -265,7 +260,7 @@ public:
                     _address = sp();
                     _segment = 2;
                     _wait = 6;
-                    initIO(stateEndInstruction, ioWrite, true);
+                    initIO(_afterIO, ioWrite, true);
                     break;
                 case statePop:
                     _address = sp();
@@ -274,14 +269,11 @@ public:
                     initIO(_afterIO, ioRead, true);
                     break;
 
-
-                // alu reg<->regmem
-
                 case stateALU: readEA(stateALU2); break;
                 case stateALU2:
                     _wait = 5;
                     if (!_sourceIsRM) {
-                        _destination = _data;                        
+                        _destination = _data;
                         _source = getReg();
                         _wait += 3;
                     }
@@ -297,20 +289,16 @@ public:
                 case stateALU3:
                     doALUOperation();
                     if (_aluOperation != 7) {
-                        if (!_sourceIsRM) {
-                            _ioType = ioWrite;
-                            _afterIO = stateEndInstruction;
-                            _state = stateIO;
-                        }
-                        else
+                        if (!_sourceIsRM)
+                            writeEA(_data, 0);
+                        else {
+                            setReg(_data);
                             _state = stateEndInstruction;
+                        }
                     }
                     else
                         _state = stateEndInstruction;
                     break;
-
-
-                // alu accum, imm
 
                 case stateALUAccumImm: fetch(stateALUAccumImm2, _wordSize); break;
                 case stateALUAccumImm2:
@@ -323,24 +311,12 @@ public:
                     end(4);
                     break;
 
-
-                // PUSH segreg
-
                 case statePushSegReg: push(_segmentRegisters[_opcode >> 3]); break;
-
-
-                // POP segreg
 
                 case statePopSegReg: pop(statePopSegReg2); break;
                 case statePopSegReg2: _segmentRegisters[_opcode >> 3] = _data; end(0); break;
 
-
-                // segreg:
-
                 case stateSegOverride: _segmentOverride = (_opcode >> 3) & 3; _state = stateFetch; _wait = 2; break;
-
-
-                // BCD instructions
 
                 case stateDAA:
                     if (af() || (al() & 0x0f) > 9) {
@@ -406,9 +382,6 @@ public:
                     end(8);
                     break;
 
-
-                // INC/DEC/PUSH/POP rw
-
                 case stateIncDecRW:
                     _destination = rw();
                     _source = 1;
@@ -430,13 +403,7 @@ public:
                 case statePopRW: pop(statePopRW2); break;
                 case statePopRW2: rw() = _data; end(0); break;
 
-
-                // Invalid opcodes
-
-                case stateInvalid60: end(0); break;
-
-
-                // JCond cb
+                case stateInvalid: end(0); break;
 
                 case stateJCond: fetch(stateJCond2, false); break;
                 case stateJCond2:
@@ -460,9 +427,6 @@ public:
                     }
                     break;
 
-
-                // alu regmem, imm
-
                 case stateALURMImm: readEA(stateALURMImm2); break;
                 case stateALURMImm2: _destination = _data; fetch(stateALURMImm3, _opcode == 0x81); break;
                 case stateALURMImm3:
@@ -470,7 +434,7 @@ public:
                         _source = _data;
                     else
                         _source = signExtend(_data);
-                    _aluOperation = (_modRM >> 3) & 7;
+                    _aluOperation = modRMReg();
                     _wait = 9;
                     if (_aluOperation == 7)
                         _wait = 6;
@@ -485,233 +449,256 @@ public:
                         _state = stateEndInstruction;
                     break;
 
-
-                // TEST regmem, reg
-
                 case stateTestRMReg: readEA(stateTestRMReg2); break;
-                case stateTestRMReg2:
-                    _destination = _data;
-                    _source = getReg();
-                    bitwise(_destination & _source);
-                    end(_useMemory ? 5 : 3);
-                    break;
-                        
-                   
-                // XCHG regmem, reg
-
+                case stateTestRMReg2: test(_data, getReg()); end(_useMemory ? 5 : 3); break;
                 case stateXchgRMReg: readEA(stateXchgRMReg2); break;
-                case stateXchgRMReg2:
-                    _source = getReg();
-                    setReg(_data);
-                    _data = _source;
-                    _wait = (_useMemory ? 9 : 4);
-                    writeEA(stateEndInstruction);
-                    break;
-
-
-                // MOV regmem, reg
-                       
+                case stateXchgRMReg2: _source = getReg(); setReg(_data); writeEA(_source, _useMemory ? 9 : 4); break;
                 case stateMovRMReg: loadEA(stateMovRMReg2); break;
-                case stateMovRMReg2:
-                    _data = getReg();
-                    _wait = (_useMemory ? 5 : 2);
-                    writeEA(stateEndInstruction);
-                    break;
-
-
-                // MOV reg, regmem
-
+                case stateMovRMReg2: writeEA(getReg(), _useMemory ? 5 : 2); break;
                 case stateMovRegRM: readEA(stateMovRegRM2); break;
                 case stateMovRegRM2: setReg(_data); end(_useMemory ? 4 : 2); break;
-
-
-                // MOV rmw, segreg
-
-                case stateMovRMWSegReg: loadEA(stateMovRMWSegReg2); break;
-                case stateMovRMWSegReg2:
-                    _wordSize = true;
-                    _data = _segmentRegisters[modRMReg() & 3];
-                    _wait = (_useMemory ? 5 : 2);
-                    writeEA(stateEndInstruction);
-                    break;
-
-
-                // LEA rw, mem
-
+                case stateMovRMWSegReg: _wordSize = true; loadEA(stateMovRMWSegReg2); break;
+                case stateMovRMWSegReg2: writeEA(_segmentRegisters[modRMReg() & 3], _useMemory ? 5 : 2); break;
                 case stateLEA: loadEA(stateLEA2); break;
                 case stateLEA2: setReg(_address); end(2); break;
-
-
-                // MOV segreg, rmw
-
                 case stateMovSegRegRMW: _wordSize = true; readEA(stateMovSegRegRMW2); break;
                 case stateMovSegRegRMW2: _segmentRegisters[modRMReg() & 3] = _data; end(_useMemory ? 4 : 2); break;
-
-
-                // POP mw
-
-                case statePopMW:
-                    _afterIO = statePopMW2;
-                    loadEA(statePop);
-                    break;
-                case statePopMW2:
-                    _wait = 1;
-                    writeEA(stateEndInstruction);
-                    break;
-
-
-                // XCHG AX,rw
-
+                case statePopMW: _afterIO = statePopMW2; loadEA(statePop); break;
+                case statePopMW2: writeEA(_data, 1); break;
                 case stateXchgAxRW: _data = rw(); rw() = ax(); ax() = _data; end(3); break;
-                    
-
-                // CBW
-
                 case stateCBW: ax() = signExtend(al()); end(2); break;
-
-
-                // CWD
-
                 case stateCWD: dx() = ((ax() & 0x8000) == 0 ? 0x0000 : 0xffff); end(5); break;
-
-
-                // CALL cp
-
                 case stateCallCP: fetch(stateCallCP2, true); break;
                 case stateCallCP2: _savedIP = _data; fetch(stateCallCP3, true); break;
-                case stateCallCP3: _savedCS = _data;
-                    _afterIO = stateCallCP4;
-                    _state = statePush;
-                    _data = _segmentRegisters[1];
-                    break;
-                case stateCallCP4:
-                    _afterIO = stateCallCP5;
-                    _state = statePush;
-                    _data = _ip;
-                    break;
-                case stateCallCP5:
-                    _segmentRegisters[1] = _savedCS;
-                    setIP(_savedIP);
-                    end(12);
-                    break;
-
-
-                // WAIT
-
+                case stateCallCP3: _savedCS = _data; push(cs(), 0, stateCallCP4); break;
+                case stateCallCP4: push(_ip, 0, stateCallCP5); break;
+                case stateCallCP5: _segmentRegisters[1] = _savedCS; setIP(_savedIP); end(0); break;
                 case stateWait: end(4); break;
-
-
-                // PUSHF
-
                 case statePushF: push(_flags & 0x0fd7, 0); break;
-
-
-                // POPF
-
                 case statePopF: pop(statePopF2); break;
                 case statePopF2: _flags = _data | 2; end(4); break;
-
-
-                // SAHF
-
                 case stateSAHF: _flags = (_flags & 0xff02) | ah(); end(4); break;
-
-
-                // LAHF
-
                 case stateLAHF: ah() = _flags & 0xd7; end(4); break;
-
-
-                // MOV accum, [iw]
 
                 case stateMovAccumInd: fetch(stateMovAccumInd2, true); break;
                 case stateMovAccumInd2: _address = _data; initIO(stateMovAccumInd3, ioRead, _wordSize); break;
                 case stateMovAccumInd3: setAccum(); end(6); break;
-
-
-                // MOV [iw], accum
-
                 case stateMovIndAccum: fetch(stateMovIndAccum2, true); break;
-                case stateMovIndAccum2:
-                    _address = _data;
-                    _data = getAccum();
-                    _wait = 6;
-                    initIO(stateEndInstruction, ioWrite, _wordSize);
-                    break;
+                case stateMovIndAccum2: _address = _data; _data = getAccum(); _wait = 6; initIO(stateEndInstruction, ioWrite, _wordSize); break;
 
-
-                // MOVSB/MOVSW
-
-                case stateMovS:
-                    _address = si();
-                    _segment = 3;
-                    initIO(stateMovS, ioRead, _wordSize);
-
-                    break;
-                //void oA4() { /* TODO: MOVS */ }
-
-                case stateCmpS:
-                //void oA6() { /* TODO: CMPS */ }
-
-                case stateTestAccumImm:
-                //void oA8() { /* TODO: TEST accum,imm */ }
-
-                case stateStoS:
-                //void oAA() { /* TODO: STOS */ }
-
-                case stateLodS:
-                //void oAC() { /* TODO: LODS */ }
-
-                case stateScaS:
-                //void oAE() { /* TODO: SCAS */ }
-
-                case stateMovRegImm:
-                //void oB0() { /* TODO: MOV reg,imm */ _wait = 4; }
-
-                case stateInvalidC0:
-                //void oC0() { /* TODO: invalid */ }
-
-                case stateRet:
-                //void oC2() { /* TODO: RET/RETF */ }
-
-                case stateLoadFar:
-                //void oC4() { /* TODO: Lsegreg rw,m */ _state = 4; }
-
-                case stateMovRMImm:
-                //void oC6() { /* TODO: MOV  rm,imm */ _state = 4; }
-
-                case stateInt:
-                //void oCC() { /* TODO: INT  3 */ }
-                //void oCD() { /* TODO: INT  ib */ }
-
-                case stateIntO:
-                //void oCE() { /* TODO: INTO */ }
-
-                case stateIRet:
-                //void oCF() { /* TODO: IRET */ }
-
-                case stateShift:
-                //void oD0() { /* TODO: shift */ _state = 4; }
-
-                case stateAAM:
-                //void oD4() { /* TODO: AAM  ib */ }
-
-                case stateAAD:
-                //void oD5() { /* TODO: AAD  ib */ }
-
-                case stateSALC:
-                    al() = cf() ? 0xff : 0x00;
-                    _wait = 4;
+                case stateMovS: _wait = 10; lodS(stateMovS2); break;
+                case stateMovS2: _afterRep = stateMovS; stoS(stateRepAction); break;
+                case stateRepAction:
                     _state = stateEndInstruction;
+                    if (_rep != 0) {
+                        --cx();
+                        if (cx() == 0 || (zf() == (_rep == 1)))
+                            _state = _afterRep;
+                    }
                     break;
+                case stateCmpS: _wait = 14; lodS(stateCmpS2); break;
+                case stateCmpS2: _destination = _data; lodDIS(stateCmpS3); break;
+                case stateCmpS3: _source = _data; sub(); _afterRep = stateCmpS; _state = stateRepAction; break;
+
+                case stateTestAccumImm: fetch(stateTestAccumImm2, _wordSize); break;
+                case stateTestAccumImm2: test(getAccum(), _data); end(4); break;
+
+                case stateStoS: _wait = 7; _data = getAccum(); _afterRep = stateStoS; stoS(stateRepAction); break;
+                case stateLodS: _wait = 8; lodS(stateLodS2); break;
+                case stateLodS2: setAccum(); _afterRep = stateLodS; _state = stateRepAction; break;
+                case stateScaS: _wait = 11; lodDIS(stateScaS2); break;
+                case stateScaS2: _destination = getAccum(); _source = _data; sub(); _afterRep = stateScaS; _state = stateRepAction; break;
+
+                case stateMovRegImm: _wordSize = ((_opcode & 8) != 0); fetch(stateMovRegImm2, _wordSize); break;
+                case stateMovRegImm2: setAccum(); end(4); break;
+
+                case stateRet: pop(stateRet2); break;
+                case stateRet2:
+                    _savedIP = _data;
+                    if ((_opcode & 8) == 0) {
+                        _savedCS = _segmentRegisters[1];
+                        _state = stateRet4;
+                        _wait = (!_wordSize ? 16 : 12);
+                    }
+                    else {
+                        pop(stateRet3);
+                        _wait = (!_wordSize ? 17 : 18);
+                    }
+                    break;
+                case stateRet3:
+                    _savedCS = _data;
+                    _state = stateRet4;
+                    break;
+                case stateRet4:
+                    if (!_wordSize)
+                        fetch(stateRet5, true);
+                    else
+                        _state = stateRet6;
+                    break;
+                case stateRet5:
+                    sp() += _data;
+                    _state = stateRet6;
+                    break;
+                case stateRet6:
+                    _segmentRegisters[1] = _savedCS;
+                    setIP(_savedIP);
+                    end(0);
+                    break;
+
+                case stateLoadFar: readEA(stateLoadFar2); break;
+                case stateLoadFar2: setReg(_data); _segment[_afterIO = stateLoadFar3; _state = stateLoadFar3; break;
+                case stateLoadFar3: _segmentRegisters[!_wordSize ? 0 : 3] = _data; end(8); break;
+
+                case stateMovRMImm: loadEA(stateMovRMImm2); break;
+                case stateMovRMImm2: fetch(stateMovRMImm2, _wordSize); break;
+                case stateMovRMImm3: writeEA(_data, _useMemory ? 6 : 4); break;
+
+                case stateInt: interrupt(3); _wait = 1; break;
+                case stateInt3: fetch(stateIntAction, false); break;
+                case stateIntAction: _source = _data; push(_flags & 0x0fd7, 0, stateIntAction2); break;
+                case stateIntAction2: setIF(false); setTF(false); push(cs(), 0, stateIntAction3); break;
+                case stateIntAction3: push(_ip, 0, stateIntAction4); break;
+                case stateIntAction4:
+                    _address = _source << 2;
+                    _segment = 1;
+                    cs() = 0;
+                    initIO(stateIntAction5, ioRead, true);
+                    break;
+                case stateIntAction5:
+                    _savedIP = _data;
+                    _address += 2;
+                    initIO(stateIntAction6, ioRead, true);
+                    break;
+                case stateIntAction6:
+                    cs() = _data;
+                    setIP(_savedIP);
+                    break;  
+                case stateIntO:
+                    if (of()) {
+                        interrupt(4);
+                        _wait = 2;
+                    }
+                    else
+                        end(4);
+                    break;
+                case stateIRet: pop(stateIRet2); break;
+                case stateIRet2: _savedIP = _data; pop(stateIRet3); break;
+                case stateIRet3: _savedCS = _data; pop(stateIRet4); break;
+                case stateIRet4: _flags = _data | 2; cs() = _savedCS; setIP(_savedIP); _wait = 20; break;
+
+                case stateShift: readEA(stateShift2); break;
+                case stateShift2:
+                    if ((_opcode & 2) == 0) {
+                        _source = 1;
+                        _wait = (_useMemory ? 7 : 2);
+                    }
+                    else {
+                        _source = cl();
+                        _wait = (_useMemory ? 12 : 8);
+                    }
+                    _state = stateShift3;
+                    break;
+                case stateShift3:
+                    if (_source == 0) {
+                        writeEA(_data, 0);
+                        break;
+                    }
+                    _destination = _data;
+                    switch (modRMReg()) {
+                        case 0:  // ROL
+                            _data <<= 1;
+                            doCF();
+                            _data |= (cf() ? 1 : 0);
+                            setOFRotate();
+                            break;
+                        case 1:  // ROR
+                            setCF((_data & 1) != 0);
+                            _data >>= 1;
+                            if (cf())
+                                _data |= (!_wordSize ? 0x80 : 0x8000);
+                            setOFRotate();
+                            break;
+                        case 2:  // RCL
+                            _data = (_data << 1) | (cf() ? 1 : 0);
+                            doCF();
+                            setOFRotate();
+                            break;
+                        case 3:  // RCR
+                            _data >>= 1;
+                            if (cf())
+                                _data |= (!_wordSize ? 0x80 : 0x8000);
+                            setCF((_destination & 1) != 0);
+                            setOFRotate();
+                            break;
+                        case 4:  // SHL
+                        case 6:
+                            _data <<= 1;
+                            doCF();
+                            setOFRotate();
+                            setPZS();
+                            break;
+                        case 5:  // SHR
+                            setCF((_data & 1) != 0);
+                            _data >>= 1;
+                            setOFRotate();
+                            setAF(true);
+                            setPZS();
+                            break;
+                        case 7:  // SAR
+                            setCF((_data & 1) != 0);
+                            _data >>= 1;
+                            if (!_wordSize)
+                                _data |= (_destination & 0x80);
+                            else
+                                _data |= (_destination & 0x8000);
+                            setOFRotate();
+                            setAF(true);
+                            setPZS();
+                            break;
+                    }
+                    if ((_opcode & 2) != 0)
+                        _wait = 4;
+                    --_source;
+                    break;
+
+                case stateAAM: fetch(stateAAM2, false); break;
+                case stateAAM2:
+                    if (_data == 0)
+                        interrupt(0);
+                    else {
+                        ah() = al() / _data;
+                        al() %= _data;
+                        _wordSize = true;
+                        setPZS();
+                        end(83);
+                    }
+                    break;
+                case stateAAD: fetch(stateAAD2, false); break;
+                case stateAAD2:
+                    al() += ah()*_data;
+                    ah() = 0;
+                    setPZS();
+                    end(60);
+                    break;
+
+                case stateSALC: al() = (cf() ? 0xff : 0x00); end(4); break;
 
                 case stateXlatB:
-                //void oD7() { /* TODO: XLATB */ }
+                    _address = bx() + al();
+                    initIO(stateXlatB2, ioRead, false);
+                    break;
+                case stateXlatB2:
+                    al() = _data;
+                    end(7);
+                    break;
 
-                case stateEscape:
-                //void oD8() { /* TODO: ESC */ _wait = 2; _state = 4; }
+                case stateEscape: loadEA(stateEscape2); break;
+                case stateEscape2: end(2); break;
 
-                case stateLoop:
+                case stateLoop: fetch(stateLoop2, false); break;
+                case stateLoop2:
+
+
                 //void oE0() { /* TODO: loop cb */ }
 
                 case stateIn:
@@ -729,55 +716,18 @@ public:
 
                 case stateLock:
                 //void oF0() { /* TODO: LOCK */ _wait = 2; }
-                case stateInvalidF1:
-                //void oF1() { /* TODO: invalid */ }
-                case stateRep:
-                //void oF2() { /* TODO: REPNE/REP */ _wait = 2; }
-                case stateHlt:
-                //void oF4() { /* TODO: HLT */ _wait = 2; }
 
 
-                // CMC
-
-                case stateCmC:
-                    _flags ^= 1;
-                    _wait = 2;
-                    _state = stateEndInstruction;
-                    break;
-
+                case stateRep: _rep = (_opcode == 0xf2 ? 1 : 2); _wait = 2; _state = stateFetch; break;
+                case stateHlt: end(2); break;
+                case stateCmC: _flags ^= 1; end(2); break;
 
                 case stateMath:
                 //void oF6() { /* TODO: misc1 */ _state = 4; }
 
-
-                // CLC/STC
-
-                case stateCLC:
-                case stateSTC:
-                    _flags = (_flags & 0xfffe) | (_opcode & 1);
-                    _wait = 2;
-                    _state = stateEndInstruction;
-                    break;
-
-
-                // CLI/STI
-
-                case stateCLI:
-                case stateSTI:
-                    _flags = (_flags & 0xfdff) | ((_opcode & 1) << 9);
-                    _wait = 2;
-                    _state = stateEndInstruction;
-                    break;
-
-
-                // CLD/STD
-
-                case stateCLD:
-                case stateSTD:
-                    _flags = (_flags & 0xfbff) | ((_opcode & 1) << 10);
-                    _wait = 2; 
-                    _state = stateEndInstruction;
-                    break;
+                case stateLoadC: setCF(_wordSize); end(2); break;
+                case stateLoadI: setIF(_wordSize); end(2); break;
+                case stateLoadD: setDF(_wordSize); end(2); break;
 
                 case stateMisc:
                 //void oFE() { /* TODO: misc2 */ _state = 4; }
@@ -796,12 +746,10 @@ private:
     {
         stateWaitingForBIU,
 
-        stateFetch,
-        stateFetch2,
+        stateFetch, stateFetch2,
         stateEndInstruction,
 
-        stateModRM,
-        stateModRM2,
+        stateModRM, stateModRM2,
         stateEAOffset,
         stateEARegisters,
         stateEAByte,
@@ -811,117 +759,73 @@ private:
         statePush,
         statePop,
 
-        stateALU,
-        stateALU2,
-        stateALU3,
+        stateALU, stateALU2, stateALU3,
 
-        stateALUAccumImm,
-        stateALUAccumImm2,
+        stateALUAccumImm, stateALUAccumImm2,
 
         statePushSegReg,
-
-        statePopSegReg,
-        statePopSegReg2,
-
+        statePopSegReg, statePopSegReg2,
         stateSegOverride,
 
-        stateDAA,
-        stateDAS,
-        stateDA,
-        stateAAA,
-        stateAAS,
-        stateAA,
+        stateDAA, stateDAS, stateDA, stateAAA, stateAAS, stateAA,
 
-        stateIncDecRW,
-        statePushRW,
-        statePopRW,
-        statePopRW2,
+        stateIncDecRW, statePushRW, statePopRW, statePopRW2,
 
-        stateInvalid60,
+        stateInvalid,
 
-        stateJCond,
-        stateJCond2,
+        stateJCond, stateJCond2,
 
-        stateALURMImm,
-        stateALURMImm2,
-        stateALURMImm3,
+        stateALURMImm, stateALURMImm2, stateALURMImm3,
 
-        stateTestRMReg,
-        stateTestRMReg2,
-
-        stateXchgRMReg,
-        stateXchgRMReg2,
-
-        stateMovRMReg,
-        stateMovRMReg2,
-        stateMovRegRM,
-        stateMovRegRM2,
-
-        stateMovRMWSegReg,
-        stateMovRMWSegReg2,
-        stateLEA,
-        stateLEA2,
-        stateMovSegRegRMW,
-        stateMovSegRegRMW2,
-        statePopMW,
-        statePopMW2,
+        stateTestRMReg, stateTestRMReg2,
+        stateXchgRMReg, stateXchgRMReg2,
+        stateMovRMReg, stateMovRMReg2,
+        stateMovRegRM, stateMovRegRM2,
+        stateMovRMWSegReg, stateMovRMWSegReg2,
+        stateLEA, stateLEA2,
+        stateMovSegRegRMW, stateMovSegRegRMW2,
+        statePopMW, statePopMW2,
 
         stateXchgAxRW,
-            
-        stateCBW,
-        stateCWD,
 
-        stateCallCP,
-        stateCallCP2,
-        stateCallCP3,
-        stateCallCP4,
-        stateCallCP5,
-
+        stateCBW, stateCWD,
+        stateCallCP, stateCallCP2, stateCallCP3, stateCallCP4, stateCallCP5,
         stateWait,
+        statePushF, statePopF, statePopF2,
+        stateSAHF, stateLAHF,
+        stateMovAccumInd, stateMovAccumInd2, stateMovAccumInd3,
+        stateMovIndAccum, stateMovIndAccum2,
 
-        statePushF,
-        statePopF,
-        statePopF2,
-        stateSAHF,
-        stateLAHF,
+        stateMovS, stateMovS2, stateRepAction,
+        stateCmpS, stateCmpS2, stateCmpS3,
 
-        stateMovAccumInd,
-        stateMovAccumInd2,
-        stateMovAccumInd3,
-        stateMovIndAccum,
-        stateMovIndAccum2,
-
-        stateMovS,
-        stateCmpS,
-
-        stateTestAccumImm,
+        stateTestAccumImm, stateTestAccumImm2,
 
         stateStoS,
-        stateLodS,
-        stateScaS,
+        stateLodS, stateLodS2,
+        stateScaS, stateScaS2,
 
-        stateMovRegImm,
+        stateMovRegImm, stateMovRegImm2,
 
-        stateInvalidC0,
+        stateRet, stateRet2, stateRet3, stateRet4, stateRet5, stateRet6,
 
-        stateRet,
+        stateLoadFar, stateLoadFar2, stateLoadFar3,
 
-        stateLoadFar,
+        stateMovRMImm, stateMovRMImm2, stateMovRMImm3,
 
-        stateMovRMImm,
-
-        stateInt,
+        stateInt, stateInt3, stateIntAction, stateIntAction2, stateIntAction3,
+        stateIntAction4, stateIntAction5, stateIntAction6,
         stateIntO,
-        stateIRet,
+        stateIRet, stateIRet2, stateIRet3, stateIRet4,
 
-        stateShift,
+        stateShift, stateShift2, stateShift3,
 
-        stateAAM,
-        stateAAD,
+        stateAAM, stateAAM2,
+        stateAAD, stateAAD2,
         stateSALC,
-        stateXlatB,
+        stateXlatB, stateXlatB2,
 
-        stateEscape,
+        stateEscape, stateEscape2,
 
         stateLoop,
 
@@ -934,17 +838,13 @@ private:
         stateJmpCb,
 
         stateLock,
-        stateInvalidF1,
         stateRep,
         stateHlt,
         stateCmC,
         stateMath,
-        stateCLC,
-        stateSTC,
-        stateCLI,
-        stateSTI,
-        stateCLD,
-        stateSTD,
+        stateLoadC,
+        stateLoadI,
+        stateLoadD,
         stateMisc
     };
     enum BusState
@@ -963,18 +863,34 @@ private:
         ioWordSecond
     };
 
-    void end(int wait) { _wait = wait; _state = stateEndInstruction); }
-    void push(UInt16 data, int wait = 1)
+    void interrupt(UInt8 number) { _data = number; _state = stateIntAction; }
+    void test(UInt16 destination, UInt16 source)
+    {
+        _destination = destination;
+        _source = source;
+        bitwise(_destination & _source);
+    }
+    int stringIncrement()
+    {
+        int r = (_wordSize ? 2 : 1);
+        return !df() ? r : -r;
+    }
+    void lodS(State state) { _address = si(); si() += stringIncrement(); _segment = 3; initIO(state, ioRead, _wordSize); }
+    void lodDIS(State state) { _address = di(); di() += stringIncrement(); _segment = 0; initIO(state, ioRead, _wordSize); }
+    void stoS(State state) { _address = di(); di() += stringIncrement(); _segment = 0; initIO(state, ioWrite, _wordSize); }
+    void end(int wait) { _wait = wait; _state = stateEndInstruction; }
+    void push(UInt16 data, int wait = 1, State state = stateEndInstruction)
     {
         _data = data;
         _wait = wait;
+        _afterIO = state;
         _state = statePush;
     }
     void pop(State state) { _afterIO = state; _state = statePop; }
     void loadEA(State state) { _afterEA = state; _state = stateModRM; }
     void readEA(State state) { _afterIO = state; _ioType = ioRead; loadEA(stateIO); }
     void fetch(State state, bool wordSize) { initIO(state, ioInstructionFetch, wordSize); }
-    void writeEA(State state) { _afterIO = state; _ioType = ioWrite; _state = stateIO; }
+    void writeEA(UInt16 data, int wait) { _data = data; _wait = wait; _afterIO = stateEndInstruction; _ioType = ioWrite; _state = stateIO; }
     void setCA()
     {
         setCF(true);
@@ -1003,11 +919,12 @@ private:
         setPZS();
     }
     void doAF() { setAF(((_data ^ _source ^ _destination) & 0x10) != 0); }
+    void doCF() { setCF((_data & (!_wordSize ? 0x100 : 0x10000)) != 0); }
     void setCAPZS()
     {
         setPZS();
         doAF();
-        setCF((_data & (!_wordSize ? 0x100 : 0x10000)) != 0);
+        doCF(); 
     }
     void setOFAdd()
     {
@@ -1031,6 +948,10 @@ private:
         setCAPZS();
         setOFSub();
     }
+    void setOFRotate()
+    {
+        setOF(((_data ^ _destination) & (!_wordSize ? 0x80 : 0x8000)) != 0);
+    }
 
     void doALUOperation()
     {
@@ -1039,8 +960,8 @@ private:
             case 1: bitwise(_destination | _source); break;
             case 2: _source += cf() ? 1 : 0; add(); break;
             case 3: _source += cf() ? 1 : 0; sub(); break;
-            case 4: bitwise(_destination & _source); break;
-            case 5: 
+            case 4: test(_destination, _source); break;
+            case 5:
             case 7: sub(); break;
             case 6: bitwise(_destination ^ _source); break;
         }
@@ -1061,13 +982,14 @@ private:
     UInt8& al() { return byteRegister(0); }
     UInt8& cl() { return byteRegister(1); }
     UInt8& ah() { return byteRegister(4); }
+    UInt16& cs() { return _segmentRegisters[1]; }
 
     bool cf() { return (_flags & 1) != 0; }
     void setCF(bool cf) { _flags = (_flags & ~1) | (cf ? 1 : 0); }
     bool pf() { return (_flags & 4) != 0; }
     void setPF()
-    { 
-        static UInt8 table[256] = {
+    {
+        static UInt8 table[0x100] = {
             4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
             0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
             0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
@@ -1084,7 +1006,7 @@ private:
             0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
             0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
             4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4};
-        _flags = (_flags & ~4) | table[_data & 0xff]; 
+        _flags = (_flags & ~4) | table[_data & 0xff];
     }
     bool af() { return (_flags & 0x10) != 0; }
     void setAF(bool af) { _flags = (_flags & ~0x10) | (af ? 0x10 : 0); }
@@ -1092,6 +1014,8 @@ private:
     void setZF() { _flags = (_flags & ~0x40) | ((_data & (!_wordSize ? 0xff : 0xffff)) != 0 ? 0x40 : 0); }
     bool sf() { return (_flags & 0x80) != 0; }
     void setSF() { _flags = (_flags & ~0x80) | ((_data & (!_wordSize ? 0x80 : 0x8000)) != 0 ? 0x80 : 0); }
+    bool tf() { return (_flags & 0x100) != 0; }
+    void setTF(bool tf) { _flags = (_flags & ~0x100) | (tf ? 0x100 : 0); }
     bool intf() { return (_flags & 0x200) != 0; }
     void setIF(bool intf) { _flags = (_flags & ~0x200) | (intf ? 0x200 : 0); }
     bool df() { return (_flags & 0x400) != 0; }
@@ -1204,9 +1128,11 @@ private:
     int _aluOperation;
     State _afterEA;
     State _afterIO;
+    State _afterRep;
     bool _sourceIsRM;
     UInt16 _savedCS;
     UInt16 _savedIP;
+    int _rep;
 };
 
 

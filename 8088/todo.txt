@@ -47,10 +47,15 @@ Find out what hardware does with "MOV rmw<->segreg" when modRMReg >= 4
 
 Find out what hardware does with LEA when mod == 3
 
-Make sure that "ES: POP [BX]" doesn't 
+Make sure that "ES: POP [BX]" doesn't
 
 Check that LDS and LES take the same time (HELPPC says LDS is 16+EA which can't be right)
+Find out what hardware does with LES/LDS when mod == 3
 
 Determine semantics of WAIT instruction
 
 Check that "POP AX" etc really are 8 instructions
+
+The RET timings seem suspect
+
+Timings for "AAD 0"
