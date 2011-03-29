@@ -26,7 +26,8 @@ public:
         _ioRequested(ioNone),
         _ioInProgress(ioInstructionFetch),
         _busState(t1),
-        _abandonFetch(false)
+        _abandonFetch(false),
+        _useIO(false)
     {
         for (int i = 0; i < 8; ++i)
             _registers[i] = 0;  // ?
@@ -181,6 +182,7 @@ public:
                     _segmentOverride = -1;
                     _state = stateFetch;
                     _rep = 0;
+                    _useIO = false;
                     break;
 
                 case stateModRM: fetch(stateModRM2, false); break;
@@ -259,7 +261,6 @@ public:
                     sp() -= 2;
                     _address = sp();
                     _segment = 2;
-                    _wait = 6;
                     initIO(_afterIO, ioWrite, true);
                     break;
                 case statePop:
@@ -311,7 +312,7 @@ public:
                     end(4);
                     break;
 
-                case statePushSegReg: push(_segmentRegisters[_opcode >> 3]); break;
+                case statePushSegReg: push(_segmentRegisters[_opcode >> 3]); _wait = 6; break;
 
                 case statePopSegReg: pop(statePopSegReg2); break;
                 case statePopSegReg2: _segmentRegisters[_opcode >> 3] = _data; end(0); break;
@@ -399,7 +400,7 @@ public:
                     rw() = _data;
                     end(4);
                     break;
-                case statePushRW: push(rw()); break;
+                case statePushRW: push(rw()); _wait = 7; break;
                 case statePopRW: pop(statePopRW2); break;
                 case statePopRW2: rw() = _data; end(0); break;
 
@@ -422,7 +423,7 @@ public:
                         if ((_opcode & 1) != 0)
                             jump = !jump;
                         if (jump)
-                            setIP(_ip + signExtend(_data));
+                            jumpShort();
                         end(jump ? 16 : 4);
                     }
                     break;
@@ -468,13 +469,13 @@ public:
                 case stateXchgAxRW: _data = rw(); rw() = ax(); ax() = _data; end(3); break;
                 case stateCBW: ax() = signExtend(al()); end(2); break;
                 case stateCWD: dx() = ((ax() & 0x8000) == 0 ? 0x0000 : 0xffff); end(5); break;
-                case stateCallCP: fetch(stateCallCP2, true); break;
+                case stateCallCP: fetch(stateCallCP2, true); _wait = 7; break;
                 case stateCallCP2: _savedIP = _data; fetch(stateCallCP3, true); break;
-                case stateCallCP3: _savedCS = _data; push(cs(), 0, stateCallCP4); break;
-                case stateCallCP4: push(_ip, 0, stateCallCP5); break;
-                case stateCallCP5: _segmentRegisters[1] = _savedCS; setIP(_savedIP); end(0); break;
+                case stateCallCP3: _savedCS = _data; push(cs(), stateCallCP4); break;
+                case stateCallCP4: push(_ip, stateCallCP5); break;
+                case stateCallCP5: cs() = _savedCS; setIP(_savedIP); end(5); break;
                 case stateWait: end(4); break;
-                case statePushF: push(_flags & 0x0fd7, 0); break;
+                case statePushF: push(_flags & 0x0fd7); _wait = 6; break;
                 case statePopF: pop(statePopF2); break;
                 case statePopF2: _flags = _data | 2; end(4); break;
                 case stateSAHF: _flags = (_flags & 0xff02) | ah(); end(4); break;
@@ -555,9 +556,9 @@ public:
 
                 case stateInt: interrupt(3); _wait = 1; break;
                 case stateInt3: fetch(stateIntAction, false); break;
-                case stateIntAction: _source = _data; push(_flags & 0x0fd7, 0, stateIntAction2); break;
-                case stateIntAction2: setIF(false); setTF(false); push(cs(), 0, stateIntAction3); break;
-                case stateIntAction3: push(_ip, 0, stateIntAction4); break;
+                case stateIntAction: _source = _data; push(_flags & 0x0fd7, stateIntAction2); break;
+                case stateIntAction2: setIF(false); setTF(false); push(cs(), stateIntAction3); break;
+                case stateIntAction3: push(_ip, stateIntAction4); break;
                 case stateIntAction4:
                     _address = _source << 2;
                     _segment = 1;
@@ -572,6 +573,7 @@ public:
                 case stateIntAction6:
                     cs() = _data;
                     setIP(_savedIP);
+                    _wait = 31;
                     break;  
                 case stateIntO:
                     if (of()) {
@@ -697,40 +699,253 @@ public:
 
                 case stateLoop: fetch(stateLoop2, false); break;
                 case stateLoop2:
+                    {
+                        bool jump;
+                        if (_opcode != 0xe3) {
+                            _wait = 5;
+                            --cx();
+                            jump = (cx() != 0);
+                            switch (_opcode) {
+                                case 0xe0: if (zf()) jump = false; break;
+                                case 0xe1: if (!zf()) jump = false; break;
+                            }
+                        }
+                        else {
+                            _wait = 6;
+                            jump = (cx() == 0);
+                        }
+                        if (jump) {
+                            jumpShort();
+                            _wait = (_opcode == 0xe0 ? 19 : 18);
+                        }
+                    }
+                    end(_wait);
+                    break;
 
+                case stateInOut:
+                    if ((_opcode & 8) == 0) {
+                        fetch(stateInOut2, false);
+                        _wait = 2;
+                    }
+                    else {
+                        _data = dx();
+                        _state = stateInOut2;
+                    }
+                    break;
+                case stateInOut2:
+                    _useIO = true;
+                    _ioType = ((_opcode & 2) == 0 ? ioRead : ioWrite);
+                    initIO(stateInOut3, _ioType, _wordSize);
+                    break;
+                case stateInOut3:
+                    if (_ioType == ioRead)
+                        setAccum();
+                    end(4);
+                    break;
 
-                //void oE0() { /* TODO: loop cb */ }
+                case stateCallCW: fetch(stateCallCW2, true); _wait = 7; break;
+                case stateCallCW2: _savedIP = _data; push(_ip, stateCallCW3); break;
+                case stateCallCW3: setIP(_savedIP); end(5); break;
 
-                case stateIn:
-                case stateOut:
-                //void oE4() { /* TODO: IN/OUT */ }
+                case stateJmpCW: fetch(stateJmpCW2, true); _wait = 5; break;
+                case stateJmpCW2: setIP(_data); end(10); break;
 
-                case stateCallCW:
-                //void oE8() { /* TODO: CALL cw */ }
-                case stateJmpCW:
-                //void oE9() { /* TODO: JMP  cw */ }
-                case stateJmpCP:
-                //void oEA() { /* TODO: JMP  cp */ }
-                case stateJmpCb:
-                //void oEB() { /* TODO: JMP  cb */ }
+                case stateJmpCP: fetch(stateJmpCP2, true); _wait = 8; break;
+                case stateJmpCP2: _savedIP = _data; fetch(stateJmpCP3, true); break;
+                case stateJmpCP3: _savedCS = _data; cs() = _savedCS; setIP(_savedIP); end(8); break;
 
-                case stateLock:
-                //void oF0() { /* TODO: LOCK */ _wait = 2; }
+                case stateJmpCB: fetch(stateJmpCB2, false); break;
+                case stateJmpCB2: jumpShort(); end(15); break;
 
-
+                case stateLock: end(2); break;
                 case stateRep: _rep = (_opcode == 0xf2 ? 1 : 2); _wait = 2; _state = stateFetch; break;
                 case stateHlt: end(2); break;
                 case stateCmC: _flags ^= 1; end(2); break;
 
-                case stateMath:
-                //void oF6() { /* TODO: misc1 */ _state = 4; }
+                case stateMath: readEA(stateMath2); break;
+                case stateMath2:
+                    if ((modRMReg() & 6) == 0) {
+                        _destination = _data;
+                        fetch(stateMath3, _wordSize);
+                    }
+                    else
+                        _state = stateMath3;
+                    break;
+                case stateMath3:
+                    switch (modRMReg()) {
+                        case 0:
+                        case 1:  // TEST
+                            test(_destination, _data);
+                            end(_useMemory ? 3 + (_wordSize ? 4 : 0) : 5);
+                            break;
+                        case 2:  // NOT
+                            writeEA(~_data, _useMemory ? 8 : 3);
+                            break;
+                        case 3:  // NEG
+                            _source = _data;
+                            _destination = 0;
+                            sub();
+                            writeEA(_data, _useMemory ? 8 : 3);
+                            break;
+                        case 4:  // MUL
+                        case 5:  // IMUL
+                            _source = _data;
+                            _destination = getAccum();
+                            _data = _destination;
+                            setSF();
+                            setPF();
+                            _data *= _source;
+                            ax() = _data;
+                            if (!_wordSize)
+                                if (modRMReg() == 4) {
+                                    setCF(ah() != 0);
+                                    _wait = (_useMemory ? 72 : 70);
+                                }
+                                else {
+                                    if ((_source & 0x80) != 0)
+                                        ah() += _destination;
+                                    if ((_destination & 0x80) != 0)
+                                        ah() += _source;
+                                    setCF(ah() == ((al() & 0x80) == 0 ? 0 : 0xff));
+                                    _wait = (_useMemory ? 82 : 80);
+                                }
+                            else
+                                if (modRMReg() == 4) {
+                                    dx() = _data >> 16;
+                                    _data |= dx();
+                                    setCF(dx() != 0);
+                                    _wait = (_useMemory ? 116 : 118);
+                                }
+                                else {
+                                    dx() = _data >> 16;
+                                    if ((_source & 0x8000) != 0)
+                                        dx() += _destination;
+                                    if ((_destination & 0x8000) != 0)
+                                        dx() += _source;
+                                    _data |= dx();
+                                    setCF(dx() == ((ax() & 0x8000) == 0 ? 0 : 0xffff));
+                                    _wait = (_useMemory ? 126 : 128);
+                                }
+                            setZF();
+                            setOF(cf());
+                            _state = stateEndInstruction;
+                            break;
+
+                        case 6:  // DIV
+                        case 7:  // IDIV
+                            _source = _data;
+                            if (_source == 0) {
+                                interrupt(0);
+                                break;
+                            }
+                            if (!_wordSize) {
+                                _destination = ax();
+                                if (modRMReg() == 4) {
+                                    div();
+                                    if (_data > 0xff) {
+                                        interrupt(0);
+                                        break;
+                                    }
+                                    _wait = (_useMemory ? 82 : 80);
+                                }
+                                else {
+                                    _destination = ax();
+                                    if ((_destination & 0x8000) != 0)
+                                        _destination |= 0xffff0000;
+                                    _source = signExtend(_source);
+                                    div();
+                                    if (_data > 0x7f && _data < 0xffffff80) {
+                                        interrupt(0);
+                                        break;
+                                    }
+                                    _wait = (_useMemory ? 103 : 101);
+                                }
+                                ah() = _remainder;
+                                al() = _data;
+                            }
+                            else {
+                                _destination = (dx() << 16) + ax();
+                                div();
+                                if (modRMReg() == 4) {
+                                    if (_data > 0xffff) {
+                                        interrupt(0);
+                                        break;
+                                    }
+                                    _wait = (_useMemory ? 150 : 144);
+                                }
+                                else {
+                                if (_data > 0x7fff && _data <  0xffff8000) {
+                                    interrupt(0);
+                                    break;
+                                }
+                                _wait = (_useMemory ? 167 : 165);
+                                }
+                                dx() = _remainder;
+                                ax() = _data;
+                            }
+                            _state = stateEndInstruction;
+                            break;
+                    }
+                    break;
 
                 case stateLoadC: setCF(_wordSize); end(2); break;
                 case stateLoadI: setIF(_wordSize); end(2); break;
                 case stateLoadD: setDF(_wordSize); end(2); break;
 
-                case stateMisc:
-                //void oFE() { /* TODO: misc2 */ _state = 4; }
+                case stateMisc: readEA(stateMisc2); break;
+                case stateMisc2:
+                    switch (modRMReg()) {
+                        case 0: 
+                        case 1:
+                            _destination = _data;
+                            _source = 1;
+                            if (modRMReg() == 0) {
+                                _data = _destination + _source;
+                                setOFAdd();
+                            }
+                            else {
+                                _data = _destination - _source;
+                                setOFSub();
+                            }
+                            doAF();
+                            setPZS();
+                            writeEA(_data, _useMemory ? 7 : 3);
+                            break;
+                        case 2:
+                            _wait = (_useMemory ? 0 : 3);
+                            _state = stateCallCW2;
+                            break;
+                        case 3:
+                            if (_useMemory) {
+                                _savedIP = _data;
+                                _address += 2;
+                                readEA(stateCallCP3);
+                            }
+                            else
+                                end(0);
+                            break;
+                        case 4:
+                            _wait = (_useMemory ? 0 : 1);
+                            _state = stateJmpCW2;
+                            break;
+                        case 5:
+                            if (_useMemory) {
+                                _savedIP = _data;
+                                _address += 2;
+                                readEA(stateJmpCP3);
+                            }
+                            else
+                                end(0);
+                            break;
+                        case 6:
+                            push(_data, stateEndInstruction);
+                            _wait = (_useMemory ? 8 : 7);
+                            break;
+                        case 7:
+                            end(0);
+                            break;
+                    }
+                    break;
             }
         } while (true);
     }
@@ -745,10 +960,8 @@ private:
     enum State
     {
         stateWaitingForBIU,
-
         stateFetch, stateFetch2,
         stateEndInstruction,
-
         stateModRM, stateModRM2,
         stateEAOffset,
         stateEARegisters,
@@ -760,23 +973,15 @@ private:
         statePop,
 
         stateALU, stateALU2, stateALU3,
-
         stateALUAccumImm, stateALUAccumImm2,
-
         statePushSegReg,
         statePopSegReg, statePopSegReg2,
         stateSegOverride,
-
         stateDAA, stateDAS, stateDA, stateAAA, stateAAS, stateAA,
-
         stateIncDecRW, statePushRW, statePopRW, statePopRW2,
-
         stateInvalid,
-
         stateJCond, stateJCond2,
-
         stateALURMImm, stateALURMImm2, stateALURMImm3,
-
         stateTestRMReg, stateTestRMReg2,
         stateXchgRMReg, stateXchgRMReg2,
         stateMovRMReg, stateMovRMReg2,
@@ -785,9 +990,7 @@ private:
         stateLEA, stateLEA2,
         stateMovSegRegRMW, stateMovSegRegRMW2,
         statePopMW, statePopMW2,
-
         stateXchgAxRW,
-
         stateCBW, stateCWD,
         stateCallCP, stateCallCP2, stateCallCP3, stateCallCP4, stateCallCP5,
         stateWait,
@@ -795,57 +998,36 @@ private:
         stateSAHF, stateLAHF,
         stateMovAccumInd, stateMovAccumInd2, stateMovAccumInd3,
         stateMovIndAccum, stateMovIndAccum2,
-
         stateMovS, stateMovS2, stateRepAction,
         stateCmpS, stateCmpS2, stateCmpS3,
-
         stateTestAccumImm, stateTestAccumImm2,
-
         stateStoS,
         stateLodS, stateLodS2,
         stateScaS, stateScaS2,
-
         stateMovRegImm, stateMovRegImm2,
-
         stateRet, stateRet2, stateRet3, stateRet4, stateRet5, stateRet6,
-
         stateLoadFar, stateLoadFar2, stateLoadFar3,
-
         stateMovRMImm, stateMovRMImm2, stateMovRMImm3,
-
         stateInt, stateInt3, stateIntAction, stateIntAction2, stateIntAction3,
         stateIntAction4, stateIntAction5, stateIntAction6,
         stateIntO,
         stateIRet, stateIRet2, stateIRet3, stateIRet4,
-
         stateShift, stateShift2, stateShift3,
-
         stateAAM, stateAAM2,
         stateAAD, stateAAD2,
         stateSALC,
         stateXlatB, stateXlatB2,
-
         stateEscape, stateEscape2,
-
-        stateLoop,
-
-        stateIn,
-        stateOut,
-
-        stateCallCW,
-        stateJmpCW,
-        stateJmpCP,
-        stateJmpCb,
-
-        stateLock,
-        stateRep,
-        stateHlt,
-        stateCmC,
-        stateMath,
-        stateLoadC,
-        stateLoadI,
-        stateLoadD,
-        stateMisc
+        stateLoop, stateLoop2,
+        stateInOut, stateInOut2, stateInOut3,
+        stateCallCW, stateCallCW2, stateCallCW3,
+        stateJmpCW, stateJmpCW2,
+        stateJmpCP, stateJmpCP2, stateJmpCP3,
+        stateJmpCB, stateJmpCB2,
+        stateLock, stateRep, stateHlt, stateCmC,
+        stateMath, stateMath2, stateMath3,
+        stateLoadC, stateLoadI, stateLoadD,
+        stateMisc, stateMisc2
     };
     enum BusState
     {
@@ -862,7 +1044,34 @@ private:
         ioWordFirst,
         ioWordSecond
     };
-
+    void div()
+    {
+        bool negative = false;
+        if (modRMReg() == 7) {
+            if ((_destination & 0x80000000) != 0) {
+                _destination = -_destination;
+                negative = !negative;
+            }
+            if ((_source & 0x8000) != 0) {
+                _source = (-_source) & 0xffff;
+                negative = !negative;
+            }
+        }
+        _data = _destination / _source;
+        UInt32 product = _data * _source;
+        // ISO C++ 2003 does not specify a rounding mode, but the x86 always
+        // rounds towards zero.
+        if (product > _destination) {
+            --_data;
+            product -= _source;
+        }
+        _remainder = _destination - product;
+        if (negative) {
+            _data = -_data;
+            _remainder = -_remainder;
+        }
+    }
+    void jumpShort() { setIP(_ip + signExtend(_data)); }
     void interrupt(UInt8 number) { _data = number; _state = stateIntAction; }
     void test(UInt16 destination, UInt16 source)
     {
@@ -875,79 +1084,74 @@ private:
         int r = (_wordSize ? 2 : 1);
         return !df() ? r : -r;
     }
-    void lodS(State state) { _address = si(); si() += stringIncrement(); _segment = 3; initIO(state, ioRead, _wordSize); }
-    void lodDIS(State state) { _address = di(); di() += stringIncrement(); _segment = 0; initIO(state, ioRead, _wordSize); }
-    void stoS(State state) { _address = di(); di() += stringIncrement(); _segment = 0; initIO(state, ioWrite, _wordSize); }
+    void lodS(State state)
+    {
+        _address = si();
+        si() += stringIncrement();
+        _segment = 3;
+        initIO(state, ioRead, _wordSize); 
+    }
+    void lodDIS(State state)
+    {
+        _address = di();
+        di() += stringIncrement();
+        _segment = 0;
+        initIO(state, ioRead, _wordSize);
+    }
+    void stoS(State state)
+    {
+        _address = di();
+        di() += stringIncrement();
+        _segment = 0;
+        initIO(state, ioWrite, _wordSize);
+    }
     void end(int wait) { _wait = wait; _state = stateEndInstruction; }
-    void push(UInt16 data, int wait = 1, State state = stateEndInstruction)
+    void push(UInt16 data, State state = stateEndInstruction)
     {
         _data = data;
-        _wait = wait;
         _afterIO = state;
         _state = statePush;
     }
     void pop(State state) { _afterIO = state; _state = statePop; }
     void loadEA(State state) { _afterEA = state; _state = stateModRM; }
-    void readEA(State state) { _afterIO = state; _ioType = ioRead; loadEA(stateIO); }
-    void fetch(State state, bool wordSize) { initIO(state, ioInstructionFetch, wordSize); }
-    void writeEA(UInt16 data, int wait) { _data = data; _wait = wait; _afterIO = stateEndInstruction; _ioType = ioWrite; _state = stateIO; }
-    void setCA()
+    void readEA(State state)
     {
-        setCF(true);
-        setAF(true);
+        _afterIO = state;
+        _ioType = ioRead;
+        loadEA(stateIO);
     }
-    void clearCA()
+    void fetch(State state, bool wordSize)
     {
-        setCF(false);
-        setAF(false);
+        initIO(state, ioInstructionFetch, wordSize);
     }
-    void clearCAO()
-    {
-        clearCA();
-        setOF(false);
-    }
-    void setPZS()
-    {
-        setPF();
-        setZF();
-        setSF();
-    }
-    void bitwise(UInt16 data)
+    void writeEA(UInt16 data, int wait)
     {
         _data = data;
-        clearCAO();
-        setPZS();
+        _wait = wait;
+        _afterIO = stateEndInstruction;
+        _ioType = ioWrite;
+        _state = stateIO;
     }
+    void setCA() { setCF(true); setAF(true); }
+    void clearCA() { setCF(false); setAF(false); }
+    void clearCAO() { clearCA(); setOF(false); }
+    void setPZS() { setPF(); setZF(); setSF(); }
+    void bitwise(UInt16 data) { _data = data; clearCAO(); setPZS(); }
     void doAF() { setAF(((_data ^ _source ^ _destination) & 0x10) != 0); }
     void doCF() { setCF((_data & (!_wordSize ? 0x100 : 0x10000)) != 0); }
-    void setCAPZS()
-    {
-        setPZS();
-        doAF();
-        doCF(); 
-    }
+    void setCAPZS() { setPZS(); doAF(); doCF(); }
     void setOFAdd()
     {
         UInt16 t = (_data ^ _source) & (_data ^ _destination);
         setOF((t & (!_wordSize ? 0x80 : 0x8000)) != 0);
     }
-    void add()
-    {
-        _data = _destination + _source;
-        setCAPZS();
-        setOFAdd();
-    }
+    void add() { _data = _destination + _source; setCAPZS(); setOFAdd(); }
     void setOFSub()
     {
         UInt16 t = (_destination ^ _source) & (_data ^ _destination);
         setOF((t & (!_wordSize ? 0x80 : 0x8000)) != 0);
     }
-    void sub()
-    {
-        _data = _destination - _source;
-        setCAPZS();
-        setOFSub();
-    }
+    void sub() { _data = _destination - _source; setCAPZS(); setOFSub(); }
     void setOFRotate()
     {
         setOF(((_data ^ _destination) & (!_wordSize ? 0x80 : 0x8000)) != 0);
@@ -966,9 +1170,7 @@ private:
             case 6: bitwise(_destination ^ _source); break;
         }
     }
-
     UInt16 signExtend(UInt8 data) { return data + (data < 0x80 ? 0 : 0xff00); }
-
     UInt16& rw() { return _registers[_opcode & 7]; }
     UInt16& ax() { return _registers[0]; }
     UInt16& cx() { return _registers[1]; }
@@ -983,7 +1185,6 @@ private:
     UInt8& cl() { return byteRegister(1); }
     UInt8& ah() { return byteRegister(4); }
     UInt16& cs() { return _segmentRegisters[1]; }
-
     bool cf() { return (_flags & 1) != 0; }
     void setCF(bool cf) { _flags = (_flags & ~1) | (cf ? 1 : 0); }
     bool pf() { return (_flags & 4) != 0; }
@@ -1011,9 +1212,17 @@ private:
     bool af() { return (_flags & 0x10) != 0; }
     void setAF(bool af) { _flags = (_flags & ~0x10) | (af ? 0x10 : 0); }
     bool zf() { return (_flags & 0x40) != 0; }
-    void setZF() { _flags = (_flags & ~0x40) | ((_data & (!_wordSize ? 0xff : 0xffff)) != 0 ? 0x40 : 0); }
+    void setZF()
+    { 
+        _flags = (_flags & ~0x40) | 
+            ((_data & (!_wordSize ? 0xff : 0xffff)) != 0 ? 0x40 : 0);
+    }
     bool sf() { return (_flags & 0x80) != 0; }
-    void setSF() { _flags = (_flags & ~0x80) | ((_data & (!_wordSize ? 0x80 : 0x8000)) != 0 ? 0x80 : 0); }
+    void setSF()
+    {
+        _flags = (_flags & ~0x80) |
+            ((_data & (!_wordSize ? 0x80 : 0x8000)) != 0 ? 0x80 : 0);
+    }
     bool tf() { return (_flags & 0x100) != 0; }
     void setTF(bool tf) { _flags = (_flags & ~0x100) | (tf ? 0x100 : 0); }
     bool intf() { return (_flags & 0x200) != 0; }
@@ -1022,20 +1231,24 @@ private:
     void setDF(bool df) { _flags = (_flags & ~0x400) | (df ? 0x400 : 0); }
     bool of() { return (_flags & 0x800) != 0; }
     void setOF(bool of) { _flags = (_flags & ~0x800) | (of ? 0x800 : 0); }
-
     int modRMReg() { return (_modRM >> 3) & 7; }
     UInt16& modRMRW() { return _registers[modRMReg()]; }
     UInt8& modRMRB() { return byteRegister(modRMReg()); }
     UInt16 getReg() { return !_wordSize ? modRMRB() : modRMRW(); }
     UInt16 getAccum() { return !_wordSize ? al() : ax(); }
     void setAccum() { if (!_wordSize) al() = _data; else ax() = _data; }
-    void setReg(UInt16 value) { if (!_wordSize) modRMRB() = value; else modRMRW() = value; }
-
+    void setReg(UInt16 value)
+    { 
+        if (!_wordSize)
+            modRMRB() = value;
+        else
+            modRMRW() = value;
+    }
     UInt8& byteRegister(int n) /* AL CL DL BL AH CH DH BH */
     {
-        return *(reinterpret_cast<UInt8*>(&_registers[n & 3]) + (n >= 4 ? 1 : 0));
+        return *(reinterpret_cast<UInt8*>(
+            &_registers[n & 3]) + (n >= 4 ? 1 : 0));
     }
-
     void initIO(State nextState, IOType ioType, bool wordSize)
     {
         _state = stateWaitingForBIU;
@@ -1047,7 +1260,6 @@ private:
     }
     UInt16 getIP() { return _ip; }
     void setIP(UInt16 value) { _ip = value; _abandonFetch = true; }
-
     UInt8* physicalAddress(UInt16 address)
     {
         int segment = _segment;
@@ -1122,6 +1334,7 @@ private:
     UInt32 _data;
     UInt32 _source;
     UInt32 _destination;
+    UInt32 _remainder;
     UInt16 _address;
     bool _useMemory;
     bool _wordSize;
@@ -1133,6 +1346,7 @@ private:
     UInt16 _savedCS;
     UInt16 _savedIP;
     int _rep;
+    bool _useIO;
 };
 
 

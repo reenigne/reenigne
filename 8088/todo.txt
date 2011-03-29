@@ -52,10 +52,29 @@ Make sure that "ES: POP [BX]" doesn't
 Check that LDS and LES take the same time (HELPPC says LDS is 16+EA which can't be right)
 Find out what hardware does with LES/LDS when mod == 3
 
-Determine semantics of WAIT instruction
+Determine semantics of WAIT, LOCK, HLT and escape instructions
 
 Check that "POP AX" etc really are 8 instructions
 
 The RET timings seem suspect
 
 Timings for "AAD 0"
+
+Find timings for "JMP cp"
+
+Check timings for "TEST rm,imm" - probably not same for byte and word
+
+Check timings for MUL
+  Memory shouldn't be faster than registers, surely?
+  Determine if additional cycles are given by 1 bits or 0 bits in source or destination
+  Are there 8 or 9 possible cycle counts for byte multiplication? If 8, is *0 the same length as *1 or *0xff the same as *0x7f?
+    Similarly with word multiplication
+  Timings for IMUL: Penalties for negative inputs? Negative output?
+
+Check that the semantics of x86 remainder is (destination - product)*(negative ? -1 : 1) always
+
+Check the timings for "DEC mw" - HELPPC says 15+EA but I think 23+EA (same as "INC mw") is more likely.
+
+Figure out what "CALL mp" and "JMP mp" do with a register argument
+Figure out what opcode FE does with modRMReg() > 1
+Figure out what opcodes FE and FF do with modRMReg() == 7

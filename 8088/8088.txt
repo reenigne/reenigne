@@ -360,12 +360,12 @@ instructions:
    FB             STI                   p0hard        2
    FC             CLD                   p0string      2
    FD             STD                   p0string      2
-   FE /0          INC rmb               p0normal      3 15+EA                                                AF OF PF SF ZF
-   FE /1          DEC rmb               p0normal      3 15+EA                                                AF OF PF SF ZF
-   FF /0          INC rmw               p0normal      3 23+EA                                                AF OF PF SF ZF
-   FF /1          DEC rmw               p0normal      3 15+EA (?)                                            AF OF PF SF ZF
-   FF /2          CALL rmw          i4  p0normal     16 21+EA
-   FF /3          CALL mp           i4  p0normal        37+EA
+   FE /0          INC rmb               p0normal      3  7+EA+4+4                                            AF OF PF SF ZF
+   FE /1          DEC rmb               p0normal      3  7+EA+4+4                                            AF OF PF SF ZF
+   FF /0          INC rmw               p0normal      3  7+EA+8+8                                            AF OF PF SF ZF
+   FF /1          DEC rmw               p0normal      3 -1+EA+8+8 (?)                                        AF OF PF SF ZF
+   FF /2          CALL rmw          i4  p0normal      8+8 5+EA+8+8
+   FF /3          CALL mp           i4  p0normal         5+EA+8+8+8+8
    FF /4          JMP rmw           i2  p0normal     11 18+EA
    FF /5          JMP mp            i2  p0normal        24+EA
    FF /6          PUSH rmw              p0normal     15 24+EA
