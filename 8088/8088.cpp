@@ -312,10 +312,10 @@ public:
                     end(4);
                     break;
 
-                case statePushSegReg: push(_segmentRegisters[_opcode >> 3]); _wait = 6; break;
+                case statePushSegReg: push(_segmentRegisters[_opcode >> 3]); break;
 
                 case statePopSegReg: pop(statePopSegReg2); break;
-                case statePopSegReg2: _segmentRegisters[_opcode >> 3] = _data; end(0); break;
+                case statePopSegReg2: _segmentRegisters[_opcode >> 3] = _data; end(4); break;
 
                 case stateSegOverride: _segmentOverride = (_opcode >> 3) & 3; _state = stateFetch; _wait = 2; break;
 
@@ -364,9 +364,7 @@ public:
                     }
                     else
                         clearCA();
-                    al() &= 0x0f;
-                    _wait = 8;
-                    _state = stateEndInstruction;
+                    _state = stateAA;
                     break;
                 case stateAAS:
                     if (af() || ((al() & 0xf) > 9)) {
@@ -380,7 +378,7 @@ public:
                     break;
                 case stateAA:
                     al() &= 0x0f;
-                    end(8);
+                    end(4);
                     break;
 
                 case stateIncDecRW:
@@ -398,11 +396,11 @@ public:
                     doAF();
                     setPZS();
                     rw() = _data;
-                    end(4);
+                    end(2);
                     break;
-                case statePushRW: push(rw()); _wait = 7; break;
+                case statePushRW: push(rw()); _wait += 1; break;
                 case statePopRW: pop(statePopRW2); break;
-                case statePopRW2: rw() = _data; end(0); break;
+                case statePopRW2: rw() = _data; end(4); break;
 
                 case stateInvalid: end(0); break;
 
@@ -417,7 +415,7 @@ public:
                             case 0x76: jump =  cf() || zf(); break;
                             case 0x78: jump =  sf(); break;
                             case 0x7a: jump =  pf(); break;
-                            case 0x7c: jump = (sf() != of()) && !zf(); break;
+                            case 0x7c: jump = (sf() != of()); break;
                             case 0x7e: jump = (sf() != of()) ||  zf(); break;
                         }
                         if ((_opcode & 1) != 0)
@@ -439,8 +437,6 @@ public:
                     _wait = 9;
                     if (_aluOperation == 7)
                         _wait = 6;
-                    if (_wordSize && (_aluOperation == 0 || _aluOperation == 2 || _aluOperation == 4))
-                        _wait = 7;
                     if (!_useMemory)
                         _wait = 4;
                     doALUOperation();
@@ -465,17 +461,16 @@ public:
                 case stateMovSegRegRMW: _wordSize = true; readEA(stateMovSegRegRMW2); break;
                 case stateMovSegRegRMW2: _segmentRegisters[modRMReg() & 3] = _data; end(_useMemory ? 4 : 2); break;
                 case statePopMW: _afterIO = statePopMW2; loadEA(statePop); break;
-                case statePopMW2: writeEA(_data, 1); break;
+                case statePopMW2: writeEA(_data, _useMemory ? 9 : 12); break;
                 case stateXchgAxRW: _data = rw(); rw() = ax(); ax() = _data; end(3); break;
                 case stateCBW: ax() = signExtend(al()); end(2); break;
                 case stateCWD: dx() = ((ax() & 0x8000) == 0 ? 0x0000 : 0xffff); end(5); break;
-                case stateCallCP: fetch(stateCallCP2, true); _wait = 7; break;
+                case stateCallCP: fetch(stateCallCP2, true); break;
                 case stateCallCP2: _savedIP = _data; fetch(stateCallCP3, true); break;
-                case stateCallCP3: _savedCS = _data; push(cs(), stateCallCP4); break;
-                case stateCallCP4: push(_ip, stateCallCP5); break;
-                case stateCallCP5: cs() = _savedCS; setIP(_savedIP); end(5); break;
+                case stateCallCP3: _savedCS = _data; _wait = 2; push(cs(), stateCallCP4); break;
+                case stateCallCP4: push(_ip, stateJmpCP4); break;
                 case stateWait: end(4); break;
-                case statePushF: push(_flags & 0x0fd7); _wait = 6; break;
+                case statePushF: push(_flags & 0x0fd7); break;
                 case statePopF: pop(statePopF2); break;
                 case statePopF2: _flags = _data | 2; end(4); break;
                 case stateSAHF: _flags = (_flags & 0xff02) | ah(); end(4); break;
@@ -487,7 +482,7 @@ public:
                 case stateMovIndAccum: fetch(stateMovIndAccum2, true); break;
                 case stateMovIndAccum2: _address = _data; _data = getAccum(); _wait = 6; initIO(stateEndInstruction, ioWrite, _wordSize); break;
 
-                case stateMovS: _wait = 10; lodS(stateMovS2); break;
+                case stateMovS: _wait = (_rep != 0 ? 9 : 10); lodS(stateMovS2); break;
                 case stateMovS2: _afterRep = stateMovS; stoS(stateRepAction); break;
                 case stateRepAction:
                     _state = stateEndInstruction;
@@ -504,8 +499,8 @@ public:
                 case stateTestAccumImm: fetch(stateTestAccumImm2, _wordSize); break;
                 case stateTestAccumImm2: test(getAccum(), _data); end(4); break;
 
-                case stateStoS: _wait = 7; _data = getAccum(); _afterRep = stateStoS; stoS(stateRepAction); break;
-                case stateLodS: _wait = 8; lodS(stateLodS2); break;
+                case stateStoS: _wait = (_rep != 0 ? 6 : 7); _data = getAccum(); _afterRep = stateStoS; stoS(stateRepAction); break;
+                case stateLodS: _wait = (_rep != 0 ? 9 : 8); lodS(stateLodS2); break;
                 case stateLodS2: setAccum(); _afterRep = stateLodS; _state = stateRepAction; break;
                 case stateScaS: _wait = 11; lodDIS(stateScaS2); break;
                 case stateScaS2: _destination = getAccum(); _source = _data; sub(); _afterRep = stateScaS; _state = stateRepAction; break;
@@ -573,7 +568,7 @@ public:
                 case stateIntAction6:
                     cs() = _data;
                     setIP(_savedIP);
-                    _wait = 31;
+                    _wait = 13;
                     break;  
                 case stateIntO:
                     if (of()) {
@@ -706,7 +701,7 @@ public:
                             --cx();
                             jump = (cx() != 0);
                             switch (_opcode) {
-                                case 0xe0: if (zf()) jump = false; break;
+                                case 0xe0: if (zf()) jump = false; _wait = 6; break;
                                 case 0xe1: if (!zf()) jump = false; break;
                             }
                         }
@@ -716,7 +711,7 @@ public:
                         }
                         if (jump) {
                             jumpShort();
-                            _wait = (_opcode == 0xe0 ? 19 : 18);
+                            _wait = (_opcode == 0xe0 ? 19 : (_opcode == 0xe2 ? 17 : 18));
                         }
                     }
                     end(_wait);
@@ -743,22 +738,24 @@ public:
                     end(4);
                     break;
 
-                case stateCallCW: fetch(stateCallCW2, true); _wait = 7; break;
-                case stateCallCW2: _savedIP = _data; push(_ip, stateCallCW3); break;
-                case stateCallCW3: setIP(_savedIP); end(5); break;
+                case stateCallCW: fetch(stateCallCW2, true); break;
+                case stateCallCW2: _savedIP = _data + _ip; _wait = 3; _state = stateCallCW3; break;
+                case stateCallCW3: push(_ip, stateJmpCW3); break;
 
-                case stateJmpCW: fetch(stateJmpCW2, true); _wait = 5; break;
-                case stateJmpCW2: setIP(_data); end(10); break;
+                case stateJmpCW: fetch(stateJmpCW2, true); break;
+                case stateJmpCW2: _savedIP = _data + _ip; _wait = 9; _state = stateJmpCW3; break;
+                case stateJmpCW3: setIP(_savedIP); end(6); break;
 
-                case stateJmpCP: fetch(stateJmpCP2, true); _wait = 8; break;
+                case stateJmpCP: fetch(stateJmpCP2, true); break;
                 case stateJmpCP2: _savedIP = _data; fetch(stateJmpCP3, true); break;
-                case stateJmpCP3: _savedCS = _data; cs() = _savedCS; setIP(_savedIP); end(8); break;
+                case stateJmpCP3: _savedCS = _data; _wait = 9; _state = stateJmpCP4; break;
+                case stateJmpCP4: cs() = _savedCS; _state = stateJmpCW3; break;
 
                 case stateJmpCB: fetch(stateJmpCB2, false); break;
                 case stateJmpCB2: jumpShort(); end(15); break;
 
                 case stateLock: end(2); break;
-                case stateRep: _rep = (_opcode == 0xf2 ? 1 : 2); _wait = 2; _state = stateFetch; break;
+                case stateRep: _rep = (_opcode == 0xf2 ? 1 : 2); _wait = 9; _state = stateFetch; break;
                 case stateHlt: end(2); break;
                 case stateCmC: _flags ^= 1; end(2); break;
 
@@ -776,7 +773,7 @@ public:
                         case 0:
                         case 1:  // TEST
                             test(_destination, _data);
-                            end(_useMemory ? 3 + (_wordSize ? 4 : 0) : 5);
+                            end(_useMemory ? 7 : 5);
                             break;
                         case 2:  // NOT
                             writeEA(~_data, _useMemory ? 8 : 3);
@@ -799,7 +796,7 @@ public:
                             if (!_wordSize)
                                 if (modRMReg() == 4) {
                                     setCF(ah() != 0);
-                                    _wait = (_useMemory ? 72 : 70);
+                                    _wait = 70;
                                 }
                                 else {
                                     if ((_source & 0x80) != 0)
@@ -807,14 +804,14 @@ public:
                                     if ((_destination & 0x80) != 0)
                                         ah() += _source;
                                     setCF(ah() == ((al() & 0x80) == 0 ? 0 : 0xff));
-                                    _wait = (_useMemory ? 82 : 80);
+                                    _wait = 80;
                                 }
                             else
                                 if (modRMReg() == 4) {
                                     dx() = _data >> 16;
                                     _data |= dx();
                                     setCF(dx() != 0);
-                                    _wait = (_useMemory ? 116 : 118);
+                                    _wait = 118;
                                 }
                                 else {
                                     dx() = _data >> 16;
@@ -824,13 +821,14 @@ public:
                                         dx() += _source;
                                     _data |= dx();
                                     setCF(dx() == ((ax() & 0x8000) == 0 ? 0 : 0xffff));
-                                    _wait = (_useMemory ? 126 : 128);
+                                    _wait = 128;
                                 }
                             setZF();
                             setOF(cf());
+                            if (_useMemory)
+                                _wait += 2;
                             _state = stateEndInstruction;
                             break;
-
                         case 6:  // DIV
                         case 7:  // IDIV
                             _source = _data;
@@ -846,7 +844,7 @@ public:
                                         interrupt(0);
                                         break;
                                     }
-                                    _wait = (_useMemory ? 82 : 80);
+                                    _wait = 80;
                                 }
                                 else {
                                     _destination = ax();
@@ -858,7 +856,7 @@ public:
                                         interrupt(0);
                                         break;
                                     }
-                                    _wait = (_useMemory ? 103 : 101);
+                                    _wait = 101;
                                 }
                                 ah() = _remainder;
                                 al() = _data;
@@ -871,18 +869,20 @@ public:
                                         interrupt(0);
                                         break;
                                     }
-                                    _wait = (_useMemory ? 150 : 144);
+                                    _wait = 144;
                                 }
                                 else {
                                 if (_data > 0x7fff && _data <  0xffff8000) {
                                     interrupt(0);
                                     break;
                                 }
-                                _wait = (_useMemory ? 167 : 165);
+                                _wait = 165;
                                 }
                                 dx() = _remainder;
                                 ax() = _data;
                             }
+                            if (_useMemory)
+                                _wait += 2;
                             _state = stateEndInstruction;
                             break;
                     }
@@ -894,6 +894,7 @@ public:
 
                 case stateMisc: readEA(stateMisc2); break;
                 case stateMisc2:
+                    _savedIP = _data;
                     switch (modRMReg()) {
                         case 0: 
                         case 1:
@@ -912,26 +913,26 @@ public:
                             writeEA(_data, _useMemory ? 7 : 3);
                             break;
                         case 2:
-                            _wait = (_useMemory ? 0 : 3);
-                            _state = stateCallCW2;
+                            _wait = (_useMemory ? 1 : 0);
+                            _state = stateCallCW3;
                             break;
                         case 3:
                             if (_useMemory) {
-                                _savedIP = _data;
                                 _address += 2;
+                                _wait = 1;
                                 readEA(stateCallCP3);
                             }
                             else
                                 end(0);
                             break;
                         case 4:
-                            _wait = (_useMemory ? 0 : 1);
-                            _state = stateJmpCW2;
+                            _wait = (_useMemory ? 8 : 5);
+                            _state = stateJmpCW3;
                             break;
                         case 5:
                             if (_useMemory) {
-                                _savedIP = _data;
                                 _address += 2;
+                                _wait = 1;
                                 readEA(stateJmpCP3);
                             }
                             else
@@ -939,7 +940,7 @@ public:
                             break;
                         case 6:
                             push(_data, stateEndInstruction);
-                            _wait = (_useMemory ? 8 : 7);
+                            _wait += (_useMemory ? 2 : 1);
                             break;
                         case 7:
                             end(0);
@@ -1020,9 +1021,9 @@ private:
         stateEscape, stateEscape2,
         stateLoop, stateLoop2,
         stateInOut, stateInOut2, stateInOut3,
-        stateCallCW, stateCallCW2, stateCallCW3,
-        stateJmpCW, stateJmpCW2,
-        stateJmpCP, stateJmpCP2, stateJmpCP3,
+        stateCallCW, stateCallCW2, stateCallCW3, stateCallCW4,
+        stateJmpCW, stateJmpCW2, stateJmpCW3,
+        stateJmpCP, stateJmpCP2, stateJmpCP3, stateJmpCP4,
         stateJmpCB, stateJmpCB2,
         stateLock, stateRep, stateHlt, stateCmC,
         stateMath, stateMath2, stateMath3,
@@ -1111,6 +1112,7 @@ private:
         _data = data;
         _afterIO = state;
         _state = statePush;
+        _wait += 6;
     }
     void pop(State state) { _afterIO = state; _state = statePop; }
     void loadEA(State state) { _afterEA = state; _state = stateModRM; }

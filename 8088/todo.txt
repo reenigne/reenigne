@@ -38,7 +38,7 @@ Sanity check the BCD instructions
 Determine behavior of invalid opcodes:
   6x
 
-stateALURegMemImmCalculate _wait=7 code seems odd - check if the real hardware does this
+Check timings of "alu rmw,imm" with ADD/ADC/AND - HELPPC says 23+EA which seems wrong. Zen says 25+EA which seems right.
 
 When setting IP, need to abandon currently pending fetch
   Reset abandon flag
@@ -47,22 +47,32 @@ Find out what hardware does with "MOV rmw<->segreg" when modRMReg >= 4
 
 Find out what hardware does with LEA when mod == 3
 
-Make sure that "ES: POP [BX]" doesn't
+Make sure that "ES: POP [BX]" doesn't ???
 
-Check that LDS and LES take the same time (HELPPC says LDS is 16+EA which can't be right)
-Find out what hardware does with LES/LDS when mod == 3
+Check that LDS and LES take the same time (HELPPC says LDS is 16+EA which can't be right. Zen says 24+EA which seems right.)
 
-Determine semantics of WAIT, LOCK, HLT and escape instructions
+Determine semantics of:
+  WAIT (HELPPC says 4 cycles, Zen says 3).
+  LOCK
+  HLT
+  escape
+  Invalid opcodes 6x
+  Invalid opcodes c0/c1/c8/c9
+  Invalid opcode f1
+  Figure out what "CALL mp" and "JMP mp" do with a register argument
+  Figure out what opcode FE does with modRMReg() > 1
+  Figure out what opcodes FE and FF do with modRMReg() == 7
+  Find out what hardware does with LES/LDS when mod == 3
 
-Check that "POP AX" etc really are 8 instructions
+Check that "POP AX" etc are 12 cycles as Zen says, and not 8 as HELPPC says
 
 The RET timings seem suspect
 
 Timings for "AAD 0"
 
-Find timings for "JMP cp"
+Check timings for "JMP cp" - Zen says 15, HELPPC has no opinion.
 
-Check timings for "TEST rm,imm" - probably not same for byte and word
+Check timings for "TEST rmw,iw" - HELPPC says 11+EA (probably incorrectly), Zen says 15+EA.
 
 Check timings for MUL
   Memory shouldn't be faster than registers, surely?
@@ -73,8 +83,34 @@ Check timings for MUL
 
 Check that the semantics of x86 remainder is (destination - product)*(negative ? -1 : 1) always
 
-Check the timings for "DEC mw" - HELPPC says 15+EA but I think 23+EA (same as "INC mw") is more likely.
+Check that AAA/AAS is 4 cycles (as Zen says) instead of 8 (as HELPPC says)
 
-Figure out what "CALL mp" and "JMP mp" do with a register argument
-Figure out what opcode FE does with modRMReg() > 1
-Figure out what opcodes FE and FF do with modRMReg() == 7
+Check that "INC/DEC rw" is 2 cycles (as Zen says) instead of 3 (as HELPPC says) and that it is 3 cycles when using opcode FF. 
+Check the timings for "DEC mw" - HELPPC says 15+EA but I think 23+EA (same as "INC mw") is more likely - so does Zen.
+
+Check timings of "POP rmw" (opcode 8F)
+  With register arguments, does it still take 12 cycles as with opcodes 58+r?
+  HELPPC says 17+EA which seems wrong. Zen says 25+EA which seems right.
+
+Check timings of "CALL cp" - HELPPC says 28, Zen says 36.
+Check timings of "CALL cw" - HELPPC says 19, Zen says 23.
+Check timings of "CALL rmw" - HELPPC says 16 21+EA, Zen says 20 29+EA.
+Check timings of "CALL mp" - HELPPC says 37+EA, Zen says 53+EA.
+Check timings of "JMP mw" - HELPPC says 18+EA, Zen says 22+EA.
+Check timings of "JMP mp" - HELPPC says 24+EA, Zen says 32+EA.
+
+Check "REP" timings - Zen says 9, HELPPC says 2.
+
+Check timings of LOOPE - HELPPC says 5/18, Zen says 6/18.
+Check timings of LOOP - HELPPC says 5/18, Zen says 5/17.
+
+Check timings of "MUL rmw" - HELPPC says 118-113 (sic) (124-139)+EA, Zen says 118-133 (128-143)+EA
+Check timings of "IMUL rmw" - HELPPC says 128-154 (134-160)+EA, Zen says 128-154 (138-164)+EA
+Check timings of "DIV rmw" - HELPPC says 144-162 (150-168)+EA, Zen says 144-162 (154-172)+EA
+
+Check timings of "REP MOVSB" - HELPPC says 18 per, Zen says 17 per
+Check timings of "REP MOVSW" - HELPPC says 26 per, Zen says 25 per
+Check timings of "REP STOSB" - HELPPC says 11 per, Zen says 10 per
+Check timings of "REP STOSW" - HELPPC says 15 per, Zen says 14 per
+Check timings of "REP LODSB" - HELPPC says 12 per, Zen says 13 per
+Check timings of "REP LODSW" - HELPPC says 16 per, Zen says 17 per
