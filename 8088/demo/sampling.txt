@@ -1,0 +1,216 @@
+Cycles per ccycle            4/3    =   1.3333
+Frames per buffer            1      =   1
+Pixels per cycle             4      =   4
+Fields per buffer            1      =   1
+Pixels per ccycle            3      =   3
+Cycles per line            228      = 228
+CCycles per line           304      = 304
+Pixels per line            912      = 912
+Lines per second       3281250/209  =  15.6998 K
+Cycles per second     39375000/11   =   3.5795 M
+CCycles per second    52500000/11   =   4.7727 M
+Pixels per second    157500000/11   =  14.3182 M
+
+
+
+TCycles per second    13125000/11   =   1.1932 M
+CCycles per tCycle           4      =   4
+Pixels per tCycle           12      =  12
+TCycles per line            76      =  76
+Samples per block          256      = 256
+Blocks per segment       16384      =  16.384  K
+
+
+TCycles per sample  Samples per second         CCycles per sample  blocks per second             Seconds per segment
+        1           13125000/11  =   1.1932 M          4           1640625/352    =   4.6609 K   5750784/1640625 =   3.5052
+        2            6562500/11  = 596.5909 K          8           1640625/704    =   2.3304 K  11501748/1640625 =   7.0106
+        4            3281250/11  = 298.2955 K         16           1640625/1408   =   1.1652 K  23003496/1640625 =  14.0212
+        8            1640625/11  = 149.1477 K         32           1640625/2816   = 582.6083    46006992/1640625 =  28.0424
+       16            1640625/22  =  74.5739 K         64           1640625/5632   = 291.3042    92013984/1640625 =  56.0847
+       18            2187500/33  =  66.2879 K         72           1640625/6336   = 258.9370   103514112/1640625 =  63.0943  (1m 3s)
+       32            1640625/44  =  37.2869 K        128           1640625/11264  = 145.6521   184027968/1640625 = 112.1694  (1m 52s)
+       36            1093750/33  =  33.1439 K        144           1640625/12672  = 129.4685   207028224/1640625 = 126.1886  (2m 6s)
+       64            1640625/88  =  18.6435 K        256           1640625/22528  =  72.8260   368055936/1640625 = 224.3389  (3m 44s)
+       72             546875/33  =  16.5720 K        288           1640625/25344  =  64.7343   414056448/1640625 = 252.3773  (4m 12s)
+       76            3281250/209 =  15.6998 K        304           1640625/26752  =  61.3272   438304768/1640625 = 267.1572  (4m 27s)
+       90             437500/33  =  13.2576 K        360           1640625/31680  =  51.7874   517570560/1640625 = 315.4716  (5m 15s)  <=
+      128            1640625/176 =   9.3217 K        512           1640625/45056  =  36.4130   736111872/1640625 = 448.6777  (7m 28s)
+      256            1640625/352 =   4.6609 K       1024           1640625/90112  =  18.2065  1472223744/1640625 = 897.3554 (14m 57s)
+
+
+CX = sample counter
+DX = speaker port
+BX = waveform table pointer (BL = 0)
+AX = (AH = sample accumulator), (AL = temporary)
+SI = data block pointer (data block is at address DS:0)
+DI = last command executed
+SP = song pointer
+BP =
+
+Data block:
+  0 = counter1 low
+  1 = counter1 high
+  2 = counter2 low
+  3 = counter2 high
+  4 = counter3 low
+  5 = counter3 high
+  6 = counter4 low
+  7 = counter4 high
+
+Instruction                  Bytes  IO-bytes  BIU-cycles  EU-cycles
+
+looptop:
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+tempo:
+  sub cx,9999                  4       0          16           4
+  or cl,1                      3       0          12           4
+
+waveform1:
+  mov bh,99                    2       0           8           4
+velocity1:
+  add w[si],9999               4       4          32          30
+  inc si                       1       0           4           2
+  lodsb                        1       1           8          12
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+
+waveform2:
+  mov bh,99                    2       0           8           4
+velocity2:
+  add w[si],9999               4       4          32          30
+  inc si                       1       0           4           2
+  lodsb                        1       1           8          12
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+
+waveform3:
+  mov bh,99                    2       0           8           4
+velocity3:
+  add w[si],9999               4       4          32          30
+  inc si                       1       0           4           2
+  lodsb                        1       1           8          12
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+
+waveform4:
+  mov bh,99                    2       0           8           4
+velocity4:
+  add w[si],9999               4       4          32          30
+  inc si                       1       0           4           2
+  lodsb                        1       1           8          12
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+
+  xor si,si                    2       0           8           3
+  loop looptop                 2       2          16/8        17/5 (2 IOs to repopulate prefetch queue)
+
+  pop di                       1       2          12          12
+  pop ax                       1       2          12          12
+  stosw                        1       2          12          15
+
+  jmp waveform1                2       2          16          15  (2 IOs to repopulate prefetch queue)
+
+; total 60 bytes
+
+; TODO:
+;   Can we get better cx behaviour by using jcxz instead of loop and moving nextCommand immediately before waveform1?
+;   Put in an "and cl,???" as well?
+;   Determine the number of possible tempos
+
+
+Commands:
+  tempo+2     xx xx  - change how often new song doublewords are read
+  waveform1   xx B7  - change volume and timbre of voice 1
+  velocity1+2 xx xx  - change pitch of voice 1
+  waveform2   xx B7  - change volume and timbre of voice 2
+  velocity2+2 xx xx  - change pitch of voice 2
+  waveform3   xx B7  - change volume and timbre of voice 3
+  velocity3+2 xx xx  - change pitch of voice 3
+  waveform4   xx B7  - change volume and timbre of voice 4
+  velocity4+2 xx xx  - change pitch of voice 4
+
+Waveform patterns - we can fit in 255
+  Waveforms 1, 2 and 3:
+    Silence (9)
+    18 volume levels for each of:
+      Square
+      Sine
+      Sawtooth
+      Triangle
+      Noise
+      Major
+      Minor
+  Waveform 4:
+    36 volume levels for each of:
+
+
+
+looptop:
+  lodsw                        1       2          12          16
+velocity1:
+  add ax,9999                  3       0          12           4
+  stosw                        1       2          12          15
+  mov bl,ah                    2       0           8           2
+waveform1:
+  mov bh,99                    2       0           8           4
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+
+  lodsw                        1       2          12          16
+velocity2:
+  add ax,9999                  3       0          12           4
+  stosw                        1       2          12          15
+  mov bl,ah                    2       0           8           2
+waveform2:
+  mov bh,99                    2       0           8           4
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+
+  lodsw                        1       2          12          16
+velocity3:
+  add ax,9999                  3       0          12           4
+  stosw                        1       2          12          15
+  mov bl,ah                    2       0           8           2
+waveform3:
+  mov bh,99                    2       0           8           4
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+
+  lodsw                        1       2          12          16
+velocity4:
+  add ax,9999                  3       0          12           4
+  stosw                        1       2          12          15
+  mov bl,ah                    2       0           8           2
+waveform4:
+  mov bh,99                    2       0           8           4
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+
+  xor si,si                    2       0           8           3
+  xor di,di                    2       0           8           3
+  loop looptop                 2       2          12/8        17/5 (1 IO to repopulate prefetch queue)
+
+  sub ch,ch                    2       0           8           3
+  loop looptop                 2       1          12          17  (1 IO to repopualte prefetch queue)
+
+total:                        57                 308
+
+
+
+
+
+
+CX = sample counter
+DX = speaker port
+BX = waveform table pointer
+AX = (AH = sample accumulator), (AL = temporary)
+SI = data block pointer (data block is at address DS:0)
+DI = data block pointer (data block is at address DS:0)
+SP = song pointer
+BP =
+
+
+

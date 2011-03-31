@@ -12,6 +12,26 @@ class SourceProgram
 {
 };
 
+class Simulator;
+
+class Disassembler
+{
+public:
+    void setSimulator(Simulator* simulator) { _simulator = simulator; }
+    String disassemble(UInt16 address)
+    {
+        _address = address;
+        UInt8 opcode = getByte();
+        if ((opcode & 
+        switch (getByte()) {
+
+    }
+private:
+    UInt8 getByte() { return _simulator->mem(1, _address); ++_address; }
+    Simulator* _simulator;
+    UInt16 _address;
+};
+
 class Simulator
 {
 public:
@@ -37,6 +57,11 @@ public:
         _segmentRegisters[2] = 0x0000;  // ?
         _segmentRegisters[3] = 0x0000;  // ?
         _memory.allocate(0x100000);
+    }
+    UInt8& mem(int segment, UInt16 address)
+    {
+        return _memory[
+            ((_segmentRegisters[segment] << 4) + address) & 0xfffff];
     }
     void simulateCycle()
     {
@@ -64,16 +89,18 @@ public:
                                 _ioRequested = ioNone;
                                 switch (_byte) {
                                     case ioSingleByte:
-                                        _data = *physicalAddress(_address);
+                                        _data = physicalAddress(_address);
                                         _state = _afterIO;
                                         break;
                                     case ioWordFirst:
-                                        _data = *physicalAddress(_address);
+                                        _data = physicalAddress(_address);
                                         _ioInProgress = ioRead;
                                         _byte = ioWordSecond;
                                         break;
                                     case ioWordSecond:
-                                        _data |= static_cast<UInt16>(*physicalAddress(_address + 1)) << 8;
+                                        _data |= static_cast<UInt16>(
+                                            physicalAddress(_address + 1))
+                                                << 8;
                                         _state = _afterIO;
                                         break;
                                 }
@@ -85,16 +112,17 @@ public:
                                 _ioRequested = ioNone;
                                 switch (_byte) {
                                     case ioSingleByte:
-                                        *physicalAddress(_address) = _data;
+                                        physicalAddress(_address) = _data;
                                         _state = _afterIO;
                                         break;
                                     case ioWordFirst:
-                                        *physicalAddress(_address) = _data;
+                                        physicalAddress(_address) = _data;
                                         _ioInProgress = ioWrite;
                                         _byte = ioWordSecond;
                                         break;
                                     case ioWordSecond:
-                                        *physicalAddress(_address + 1) = _data >> 8;
+                                        physicalAddress(_address + 1) =
+                                            _data >> 8;
                                         _state = _afterIO;
                                         break;
                                 }
@@ -102,8 +130,9 @@ public:
                             break;
                         case ioInstructionFetch:
                             if (!_abandonFetch) {
-                                _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
-                                    _memory[((_segmentRegisters[1] << 4) + _prefetchAddress) & 0xfffff];
+                                _prefetchQueue[
+                                    (_prefetchOffset + _prefetched) & 3] =
+                                    mem(1, _prefetchAddress);
                                 ++_prefetched;
                                 ++_prefetchAddress;
                             }
@@ -171,8 +200,8 @@ public:
                             stateInvalid,      stateInvalid,      stateRet,          stateRet,          stateInt,          stateInt,          stateIntO,         stateIRet,
                             stateShift,        stateShift,        stateShift,        stateShift,        stateAAM,          stateAAD,          stateSALC,         stateXlatB,
                             stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,
-                            stateLoop,         stateLoop,         stateLoop,         stateLoop,         stateIn,           stateIn,           stateOut,          stateOut,
-                            stateCallCW,       stateJmpCW,        stateJmpCP,        stateJmpCb,        stateIn,           stateIn,           stateOut,          stateOut,
+                            stateLoop,         stateLoop,         stateLoop,         stateLoop,         stateInOut,        stateInOut,        stateInOut,        stateInOut,        
+                            stateCallCW,       stateJmpCW,        stateJmpCP,        stateJmpCB,        stateInOut,        stateInOut,        stateInOut,        stateInOut,        
                             stateLock,         stateInvalid,      stateRep,          stateRep,          stateHlt,          stateCmC,          stateMath,         stateMath,
                             stateLoadC,        stateLoadC,        stateLoadI,        stateLoadI,        stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         _state = stateForOpcode[_opcode];
@@ -416,7 +445,7 @@ public:
                             case 0x78: jump =  sf(); break;
                             case 0x7a: jump =  pf(); break;
                             case 0x7c: jump = (sf() != of()); break;
-                            case 0x7e: jump = (sf() != of()) ||  zf(); break;
+                            case 0x7e: jump = (sf() != of()) || zf(); break;
                         }
                         if ((_opcode & 1) != 0)
                             jump = !jump;
@@ -441,49 +470,108 @@ public:
                         _wait = 4;
                     doALUOperation();
                     if (_aluOperation != 7)
-                        writeEA(stateEndInstruction);
+                        writeEA(stateEndInstruction, _wait);
                     else
                         _state = stateEndInstruction;
                     break;
 
                 case stateTestRMReg: readEA(stateTestRMReg2); break;
-                case stateTestRMReg2: test(_data, getReg()); end(_useMemory ? 5 : 3); break;
+                case stateTestRMReg2:
+                    test(_data, getReg());
+                    end(_useMemory ? 5 : 3);
+                    break;
                 case stateXchgRMReg: readEA(stateXchgRMReg2); break;
-                case stateXchgRMReg2: _source = getReg(); setReg(_data); writeEA(_source, _useMemory ? 9 : 4); break;
+                case stateXchgRMReg2:
+                    _source = getReg();
+                    setReg(_data);
+                    writeEA(_source, _useMemory ? 9 : 4);
+                    break;
                 case stateMovRMReg: loadEA(stateMovRMReg2); break;
-                case stateMovRMReg2: writeEA(getReg(), _useMemory ? 5 : 2); break;
+                case stateMovRMReg2:
+                    writeEA(getReg(), _useMemory ? 5 : 2);
+                    break;
                 case stateMovRegRM: readEA(stateMovRegRM2); break;
-                case stateMovRegRM2: setReg(_data); end(_useMemory ? 4 : 2); break;
-                case stateMovRMWSegReg: _wordSize = true; loadEA(stateMovRMWSegReg2); break;
-                case stateMovRMWSegReg2: writeEA(_segmentRegisters[modRMReg() & 3], _useMemory ? 5 : 2); break;
+                case stateMovRegRM2:
+                    setReg(_data);
+                    end(_useMemory ? 4 : 2);
+                    break;
+                case stateMovRMWSegReg:
+                    _wordSize = true;
+                    loadEA(stateMovRMWSegReg2);
+                    break;
+                case stateMovRMWSegReg2:
+                    writeEA(_segmentRegisters[modRMReg() & 3],
+                        _useMemory ? 5 : 2);
+                    break;
                 case stateLEA: loadEA(stateLEA2); break;
                 case stateLEA2: setReg(_address); end(2); break;
-                case stateMovSegRegRMW: _wordSize = true; readEA(stateMovSegRegRMW2); break;
-                case stateMovSegRegRMW2: _segmentRegisters[modRMReg() & 3] = _data; end(_useMemory ? 4 : 2); break;
-                case statePopMW: _afterIO = statePopMW2; loadEA(statePop); break;
+                case stateMovSegRegRMW:
+                    _wordSize = true;
+                    readEA(stateMovSegRegRMW2);
+                    break;
+                case stateMovSegRegRMW2:
+                    _segmentRegisters[modRMReg() & 3] = _data;
+                    end(_useMemory ? 4 : 2);
+                    break;
+                case statePopMW:
+                    _afterIO = statePopMW2;
+                    loadEA(statePop);
+                    break;
                 case statePopMW2: writeEA(_data, _useMemory ? 9 : 12); break;
-                case stateXchgAxRW: _data = rw(); rw() = ax(); ax() = _data; end(3); break;
+                case stateXchgAxRW:
+                    _data = rw();
+                    rw() = ax();
+                    ax() = _data;
+                    end(3);
+                    break;
                 case stateCBW: ax() = signExtend(al()); end(2); break;
-                case stateCWD: dx() = ((ax() & 0x8000) == 0 ? 0x0000 : 0xffff); end(5); break;
+                case stateCWD:
+                    dx() = ((ax() & 0x8000) == 0 ? 0x0000 : 0xffff);
+                    end(5);
+                    break;
                 case stateCallCP: fetch(stateCallCP2, true); break;
-                case stateCallCP2: _savedIP = _data; fetch(stateCallCP3, true); break;
-                case stateCallCP3: _savedCS = _data; _wait = 2; push(cs(), stateCallCP4); break;
+                case stateCallCP2:
+                    _savedIP = _data;
+                    fetch(stateCallCP3, true);
+                    break;
+                case stateCallCP3:
+                    _savedCS = _data;
+                    _wait = 2; 
+                    push(cs(), stateCallCP4); 
+                    break;
                 case stateCallCP4: push(_ip, stateJmpCP4); break;
                 case stateWait: end(4); break;
                 case statePushF: push(_flags & 0x0fd7); break;
                 case statePopF: pop(statePopF2); break;
                 case statePopF2: _flags = _data | 2; end(4); break;
-                case stateSAHF: _flags = (_flags & 0xff02) | ah(); end(4); break;
+                case stateSAHF:
+                    _flags = (_flags & 0xff02) | ah();
+                    end(4);
+                    break;
                 case stateLAHF: ah() = _flags & 0xd7; end(4); break;
 
                 case stateMovAccumInd: fetch(stateMovAccumInd2, true); break;
-                case stateMovAccumInd2: _address = _data; initIO(stateMovAccumInd3, ioRead, _wordSize); break;
+                case stateMovAccumInd2:
+                    _address = _data;
+                    initIO(stateMovAccumInd3, ioRead, _wordSize);
+                    break;
                 case stateMovAccumInd3: setAccum(); end(6); break;
                 case stateMovIndAccum: fetch(stateMovIndAccum2, true); break;
-                case stateMovIndAccum2: _address = _data; _data = getAccum(); _wait = 6; initIO(stateEndInstruction, ioWrite, _wordSize); break;
+                case stateMovIndAccum2:
+                    _address = _data;
+                    _data = getAccum();
+                    _wait = 6;
+                    initIO(stateEndInstruction, ioWrite, _wordSize);
+                    break;
 
-                case stateMovS: _wait = (_rep != 0 ? 9 : 10); lodS(stateMovS2); break;
-                case stateMovS2: _afterRep = stateMovS; stoS(stateRepAction); break;
+                case stateMovS:
+                    _wait = (_rep != 0 ? 9 : 10);
+                    lodS(stateMovS2);
+                    break;
+                case stateMovS2:
+                    _afterRep = stateMovS;
+                    stoS(stateRepAction);
+                    break;
                 case stateRepAction:
                     _state = stateEndInstruction;
                     if (_rep != 0) {
@@ -493,19 +581,53 @@ public:
                     }
                     break;
                 case stateCmpS: _wait = 14; lodS(stateCmpS2); break;
-                case stateCmpS2: _destination = _data; lodDIS(stateCmpS3); break;
-                case stateCmpS3: _source = _data; sub(); _afterRep = stateCmpS; _state = stateRepAction; break;
+                case stateCmpS2:
+                    _destination = _data;
+                    lodDIS(stateCmpS3);
+                    break;
+                case stateCmpS3:
+                    _source = _data;
+                    sub();
+                    _afterRep = stateCmpS;
+                    _state = stateRepAction;
+                    break;
 
-                case stateTestAccumImm: fetch(stateTestAccumImm2, _wordSize); break;
-                case stateTestAccumImm2: test(getAccum(), _data); end(4); break;
+                case stateTestAccumImm:
+                    fetch(stateTestAccumImm2, _wordSize);
+                    break;
+                case stateTestAccumImm2:
+                    test(getAccum(), _data);
+                    end(4); 
+                    break;
 
-                case stateStoS: _wait = (_rep != 0 ? 6 : 7); _data = getAccum(); _afterRep = stateStoS; stoS(stateRepAction); break;
-                case stateLodS: _wait = (_rep != 0 ? 9 : 8); lodS(stateLodS2); break;
-                case stateLodS2: setAccum(); _afterRep = stateLodS; _state = stateRepAction; break;
+                case stateStoS:
+                    _wait = (_rep != 0 ? 6 : 7);
+                    _data = getAccum(); 
+                    _afterRep = stateStoS;
+                    stoS(stateRepAction);
+                    break;
+                case stateLodS:
+                    _wait = (_rep != 0 ? 9 : 8);
+                    lodS(stateLodS2);
+                    break;
+                case stateLodS2:
+                    setAccum();
+                    _afterRep = stateLodS;
+                    _state = stateRepAction;
+                    break;
                 case stateScaS: _wait = 11; lodDIS(stateScaS2); break;
-                case stateScaS2: _destination = getAccum(); _source = _data; sub(); _afterRep = stateScaS; _state = stateRepAction; break;
+                case stateScaS2:
+                    _destination = getAccum();
+                    _source = _data;
+                    sub();
+                    _afterRep = stateScaS;
+                    _state = stateRepAction;
+                    break;
 
-                case stateMovRegImm: _wordSize = ((_opcode & 8) != 0); fetch(stateMovRegImm2, _wordSize); break;
+                case stateMovRegImm:
+                    _wordSize = ((_opcode & 8) != 0);
+                    fetch(stateMovRegImm2, _wordSize);
+                    break;
                 case stateMovRegImm2: setAccum(); end(4); break;
 
                 case stateRet: pop(stateRet2); break;
@@ -542,8 +664,15 @@ public:
                     break;
 
                 case stateLoadFar: readEA(stateLoadFar2); break;
-                case stateLoadFar2: setReg(_data); _segment[_afterIO = stateLoadFar3; _state = stateLoadFar3; break;
-                case stateLoadFar3: _segmentRegisters[!_wordSize ? 0 : 3] = _data; end(8); break;
+                case stateLoadFar2:
+                    setReg(_data);
+                    _afterIO = stateLoadFar3;
+                    _state = stateLoadFar3;
+                    break;
+                case stateLoadFar3:
+                    _segmentRegisters[!_wordSize ? 0 : 3] = _data;
+                    end(8);
+                    break;
 
                 case stateMovRMImm: loadEA(stateMovRMImm2); break;
                 case stateMovRMImm2: fetch(stateMovRMImm2, _wordSize); break;
@@ -551,8 +680,15 @@ public:
 
                 case stateInt: interrupt(3); _wait = 1; break;
                 case stateInt3: fetch(stateIntAction, false); break;
-                case stateIntAction: _source = _data; push(_flags & 0x0fd7, stateIntAction2); break;
-                case stateIntAction2: setIF(false); setTF(false); push(cs(), stateIntAction3); break;
+                case stateIntAction:
+                    _source = _data;
+                    push(_flags & 0x0fd7, stateIntAction2);
+                    break;
+                case stateIntAction2:
+                    setIF(false);
+                    setTF(false);
+                    push(cs(), stateIntAction3);
+                    break;
                 case stateIntAction3: push(_ip, stateIntAction4); break;
                 case stateIntAction4:
                     _address = _source << 2;
@@ -581,7 +717,12 @@ public:
                 case stateIRet: pop(stateIRet2); break;
                 case stateIRet2: _savedIP = _data; pop(stateIRet3); break;
                 case stateIRet3: _savedCS = _data; pop(stateIRet4); break;
-                case stateIRet4: _flags = _data | 2; cs() = _savedCS; setIP(_savedIP); _wait = 20; break;
+                case stateIRet4:
+                    _flags = _data | 2;
+                    cs() = _savedCS;
+                    setIP(_savedIP); 
+                    _wait = 20;
+                    break;
 
                 case stateShift: readEA(stateShift2); break;
                 case stateShift2:
@@ -701,7 +842,11 @@ public:
                             --cx();
                             jump = (cx() != 0);
                             switch (_opcode) {
-                                case 0xe0: if (zf()) jump = false; _wait = 6; break;
+                                case 0xe0:
+                                    if (zf())
+                                        jump = false;
+                                    _wait = 6;
+                                    break;
                                 case 0xe1: if (!zf()) jump = false; break;
                             }
                         }
@@ -711,7 +856,8 @@ public:
                         }
                         if (jump) {
                             jumpShort();
-                            _wait = (_opcode == 0xe0 ? 19 : (_opcode == 0xe2 ? 17 : 18));
+                            _wait = _opcode == 0xe0 ? 19 :
+                                _opcode == 0xe2 ? 17 : 18;
                         }
                     }
                     end(_wait);
@@ -739,23 +885,42 @@ public:
                     break;
 
                 case stateCallCW: fetch(stateCallCW2, true); break;
-                case stateCallCW2: _savedIP = _data + _ip; _wait = 3; _state = stateCallCW3; break;
+                case stateCallCW2:
+                    _savedIP = _data + _ip;
+                    _wait = 3;
+                    _state = stateCallCW3;
+                    break;
                 case stateCallCW3: push(_ip, stateJmpCW3); break;
 
                 case stateJmpCW: fetch(stateJmpCW2, true); break;
-                case stateJmpCW2: _savedIP = _data + _ip; _wait = 9; _state = stateJmpCW3; break;
+                case stateJmpCW2:
+                    _savedIP = _data + _ip;
+                    _wait = 9;
+                    _state = stateJmpCW3;
+                    break;
                 case stateJmpCW3: setIP(_savedIP); end(6); break;
 
                 case stateJmpCP: fetch(stateJmpCP2, true); break;
-                case stateJmpCP2: _savedIP = _data; fetch(stateJmpCP3, true); break;
-                case stateJmpCP3: _savedCS = _data; _wait = 9; _state = stateJmpCP4; break;
+                case stateJmpCP2:
+                    _savedIP = _data;
+                    fetch(stateJmpCP3, true);
+                    break;
+                case stateJmpCP3:
+                    _savedCS = _data;
+                    _wait = 9;
+                    _state = stateJmpCP4;
+                    break;
                 case stateJmpCP4: cs() = _savedCS; _state = stateJmpCW3; break;
 
                 case stateJmpCB: fetch(stateJmpCB2, false); break;
                 case stateJmpCB2: jumpShort(); end(15); break;
 
                 case stateLock: end(2); break;
-                case stateRep: _rep = (_opcode == 0xf2 ? 1 : 2); _wait = 9; _state = stateFetch; break;
+                case stateRep:
+                    _rep = (_opcode == 0xf2 ? 1 : 2);
+                    _wait = 9;
+                    _state = stateFetch;
+                    break;
                 case stateHlt: end(2); break;
                 case stateCmC: _flags ^= 1; end(2); break;
 
@@ -803,7 +968,8 @@ public:
                                         ah() += _destination;
                                     if ((_destination & 0x80) != 0)
                                         ah() += _source;
-                                    setCF(ah() == ((al() & 0x80) == 0 ? 0 : 0xff));
+                                    setCF(ah() == 
+                                        ((al() & 0x80) == 0 ? 0 : 0xff));
                                     _wait = 80;
                                 }
                             else
@@ -820,7 +986,8 @@ public:
                                     if ((_destination & 0x8000) != 0)
                                         dx() += _source;
                                     _data |= dx();
-                                    setCF(dx() == ((ax() & 0x8000) == 0 ? 0 : 0xffff));
+                                    setCF(dx() ==
+                                        ((ax() & 0x8000) == 0 ? 0 : 0xffff));
                                     _wait = 128;
                                 }
                             setZF();
@@ -1261,13 +1428,23 @@ private:
             completeInstructionFetch();
     }
     UInt16 getIP() { return _ip; }
-    void setIP(UInt16 value) { _ip = value; _abandonFetch = true; }
-    UInt8* physicalAddress(UInt16 address)
+    void setIP(UInt16 value)
+    { 
+        _ip = value; 
+        _abandonFetch = true; 
+        _prefetched = 0; 
+    }
+    UInt8& mem(int segment, UInt16 address)
+    {
+        return _memory[
+            ((_segmentRegisters[segment] << 4) + address) & 0xfffff];
+    }
+    UInt8& physicalAddress(UInt16 address)
     {
         int segment = _segment;
         if (_segmentOverride != -1)
             segment = _segmentOverride;
-        return &_memory[((_segmentRegisters[segment] << 4) + address) & 0xfffff];
+        return mem(segment, address);
     }
     UInt8 getInstructionByte()
     {

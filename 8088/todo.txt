@@ -45,8 +45,6 @@ When setting IP, need to abandon currently pending fetch
 
 Find out what hardware does with "MOV rmw<->segreg" when modRMReg >= 4
 
-Find out what hardware does with LEA when mod == 3
-
 Make sure that "ES: POP [BX]" doesn't ???
 
 Check that LDS and LES take the same time (HELPPC says LDS is 16+EA which can't be right. Zen says 24+EA which seems right.)
@@ -62,7 +60,7 @@ Determine semantics of:
   Figure out what "CALL mp" and "JMP mp" do with a register argument
   Figure out what opcode FE does with modRMReg() > 1
   Figure out what opcodes FE and FF do with modRMReg() == 7
-  Find out what hardware does with LES/LDS when mod == 3
+  Find out what hardware does with LES/LDS/LEA when mod == 3
 
 Check that "POP AX" etc are 12 cycles as Zen says, and not 8 as HELPPC says
 

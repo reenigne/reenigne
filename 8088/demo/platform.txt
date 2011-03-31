@@ -1,0 +1,20 @@
+IBM 5150 PC                             -5
+  CGA                                   +1
+    NTSC monitor - find an old CRT TV
+    IBM 5153 RGB montior
+  MDA                                   +1
+    IBM 5151 Mono monitor
+  640Kb (needs non-IBM parts)           +1? (Is it possible to get a RAM + RS232 card?)
+  Intel 8088 @ 4.77MHz
+  Floppy drive adapter                  +1
+    2x 360Kb floppy drives
+  Intel 8087                                - not used for demos?
+  RS232 card                            +1  - not used for demos
+    Serial mouse                            - not used for demos
+  Keyboard                                  - not used for demos
+  Game port                             +1  - not used for demos
+    Joystick                                - not used for demos
+    Joystick                                - not used for demos
+  IBM 5161 Expansion Chassis?           -8  - not used for demos
+    Extender card?                      +1  - not used for demos
+    Receiver card?                      +1  - not used for demos
