@@ -43,9 +43,13 @@ DX = speaker port
 BX = waveform table pointer (BL = 0)
 AX = (AH = sample accumulator), (AL = temporary)
 SI = data block pointer (data block is at address DS:0)
-DI = last command executed
+DI = command address
+BP = command data
 SP = song pointer
-BP =
+CS = code segment
+DS = data segment - same as code address
+SS = song
+ES = screen segment
 
 Data block:
   0 = counter1 low
@@ -60,13 +64,12 @@ Data block:
 Instruction                  Bytes  IO-bytes  BIU-cycles  EU-cycles
 
 looptop:
-  nop                          1       0           4           3
-  nop                          1       0           4           3
+  mov [di],bp                  2       2          16          18
+  es: mov [di],bp              3       2          20          20
   nop                          1       0           4           3
   nop                          1       0           4           3
 tempo:
   sub cx,9999                  4       0          16           4
-  or cl,1                      3       0          12           4
 
 waveform1:
   mov bh,99                    2       0           8           4
@@ -108,9 +111,10 @@ velocity4:
   loop looptop                 2       2          16/8        17/5 (2 IOs to repopulate prefetch queue)
 
   pop di                       1       2          12          12
-  pop ax                       1       2          12          12
-  stosw                        1       2          12          15
+  pop bp                       1       2          12          12
+;  stosw                        1       2          12          15
 
+end:
   jmp waveform1                2       2          16          15  (2 IOs to repopulate prefetch queue)
 
 ; total 60 bytes
@@ -119,6 +123,37 @@ velocity4:
 ;   Can we get better cx behaviour by using jcxz instead of loop and moving nextCommand immediately before waveform1?
 ;   Put in an "and cl,???" as well?
 ;   Determine the number of possible tempos
+;   Can we get screen writes as well?
+;     Problem: wait states. What are they? Present even in 80-column text mode?
+;   Test that the theoretical sound is reasonable
+;     Write code to resample 1.193MHz 1-bit sound to 44.1KHz 16-bit sound
+;   Get sidplayer working
+;     Add code to output volume/frequency/other changes
+
+; 1 byte at a time
+screenWrite:
+  mov ax,ac00                  3       0          12           4
+  mov es,ax                    2       0           8           2
+  mov al,99                    2       0           8           4
+  mov b[di],al                 2       1          12          14
+  mov ax,cs                    2       0           8           2
+  mov es,ax                    2       0           8           2
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+
+; 2 bytes at a time
+screenWrite:
+  mov ax,ac00                  3       0          12           4
+  mov es,ax                    2       0           8           2
+  mov ax,9999                  3       0          12           4
+  mov w[di],ax                 2       2          16          18
+  mov ax,cs                    2       0           8           2
+  mov es,ax                    2       0           8           2
+  nop                          1       0           4           3
+
+Screen memory is b8000 to bbfff
+If we use page ac00 then screen memory will be c000-ffff
 
 
 Commands:
@@ -126,11 +161,14 @@ Commands:
   waveform1   xx B7  - change volume and timbre of voice 1
   velocity1+2 xx xx  - change pitch of voice 1
   waveform2   xx B7  - change volume and timbre of voice 2
+              88 F8  - use ring modulation
   velocity2+2 xx xx  - change pitch of voice 2
   waveform3   xx B7  - change volume and timbre of voice 3
   velocity3+2 xx xx  - change pitch of voice 3
   waveform4   xx B7  - change volume and timbre of voice 4
   velocity4+2 xx xx  - change pitch of voice 4
+  end         EB xx  - end of song
+
 
 Waveform patterns - we can fit in 255
   Waveforms 1, 2 and 3:

@@ -328,6 +328,7 @@ instructions:
    E8 cw          CALL cw            4  p0normal     15+8                                                                                                9+6
    E9 cw          JMP cw             2  p0normal     15
    EA cp          JMP cp             2  p0normal     15
+   EB cb          JMP cb             2  p0normal     15
    EC             IN AL,DX              p0hard        4+4
    ED             IN AX,DX              p0hard        4+8
    EE             OUT DX,AL             p0hard        4+4
