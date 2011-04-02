@@ -370,3 +370,50 @@ instructions:
    FF /5          JMP mp            i2  p0normal        16+EA+8+8
    FF /6          PUSH rmw              p0normal      7+8 8+EA+8+8
 
+
+
+rb                           AL  CL  DL  BL  AH  CH  DH  BH
+rw                           AX  CX  DX  BX  SP  BP  SI  DI
+segreg                       ES  CS  SS  DS
+/r                           0   1   2   3   4   5   6   7
+reg                          000 001 010 011 100 101 110 111
+
+effective address  mod  R/M  value of mod R/M byte (hex)
+
+[BX+SI]            00   000  00  08  10  18  20  28  30  38
+[BX+DI]                 001  01  09  11  19  21  29  31  39
+[BP+SI]                 010  02  0A  12  1A  22  2A  32  3A
+[BP+DI]                 011  03  0B  13  1B  23  2B  33  3B
+[SI]                    100  04  0C  14  1C  24  2C  34  3C
+[DI]                    101  05  0D  15  1D  25  2D  35  3D
+[iw]                    110  06  0E  16  1E  26  2E  36  3E
+[BX]                    111  07  0F  17  1F  27  2F  37  3F
+
+[BX+SI+sb]         01   000  40  48  50  58  60  68  70  78
+[BX+DI+sb]              001  41  49  51  59  61  69  71  79
+[BP+SI+sb]              010  42  4A  52  5A  62  6A  72  7A
+[BP+DI+sb]              011  43  4B  53  5B  63  6B  73  7B
+[SI+sb]                 100  44  4C  54  5C  64  6C  74  7C
+[DI+sb]                 101  45  4D  55  5D  65  6D  75  7D
+[BP+sb]                 110  46  4E  56  5E  66  6E  76  7E
+[BX+sb]                 111  47  4F  57  5F  67  6F  77  7F
+
+[BX+SI+iw]         10   000  80  88  90  98  A0  A8  B0  B8
+[BX+DI+iw]              001  81  89  91  99  A1  A9  B1  B9
+[BP+SI+iw]              010  82  8A  92  9A  A2  AA  B2  BA
+[BP+DI+iw]              011  83  8B  93  9B  A3  AB  B3  BB
+[SI+iw]                 100  84  8C  94  9C  A4  AC  B4  BC
+[DI+iw]                 101  85  8D  95  9D  A5  AD  B5  BD
+[BP+iw]                 110  86  8E  96  9E  A6  AE  B6  BE
+[BX+iw]                 111  87  8F  97  9F  A7  AF  B7  BF
+
+AL/AX              11   000  C0  C8  D0  D8  E0  E8  F0  F8
+CL/CX                   001  C1  C9  D1  D9  E1  E9  F1  F9
+DL/DX                   010  C2  CA  D2  DA  E2  EA  F2  FA
+BL/BX                   011  C3  CB  D3  DB  E3  EB  F3  FB
+AH/SP                   100  C4  CC  D4  DC  E4  EC  F4  FC
+CH/BP                   101  C5  CD  D5  DD  E5  ED  F5  FD
+DH/SI                   110  C6  CE  D6  DE  E6  EE  F6  FE
+BH/DI                   111  C7  CF  D7  DF  E7  EF  F7  FF
+
+
