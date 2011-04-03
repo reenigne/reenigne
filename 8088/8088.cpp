@@ -1839,6 +1839,7 @@ Output one line per cycle
   CPU state
   Bus address/data
   Instruction being executed
+    From source if available, otherwise disassemble
 
 
 */

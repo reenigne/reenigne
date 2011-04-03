@@ -8,11 +8,21 @@ template<class T> class Array : Uncopyable
 public:
     Array() : _data(0) { }
     void allocate(int n)
-    { 
+    {
         release();
         if (n != 0)
             _data = static_cast<T*>(operator new (n * sizeof(T)));
         _n = n;
+    }
+    void constructElements(const T& initializer = T())
+    {
+        for (int i = 0; i < _n; ++i)
+            new(static_cast<void*>(&(*this)[i])) T(initializer);
+    }
+    void destructElements()
+    {
+        for (int i = 0; i < _n; ++i)
+            (&(*this)[i])->~T();
     }
     ~Array() { release(); }
     T& operator[](int i) { return _data[i]; }
