@@ -138,7 +138,7 @@ end:
 ;       Try it and see
 ;     Song uses filters but we can get away without them
 ;     Test bit not used
-;     Multiple waveforms at once not used?
+;     Multiple waveforms at once not used
 ;   6*50 changes per second => ~400Kb
 ;     Will need a way to change SS when SP reaches the end - use alternate looptops for this
 ;     Encode so it takes only a few Kb on disk and then decompress on load
@@ -146,10 +146,9 @@ end:
 ;   Instead of disabling interrupts, leave keyboard interrupts enabled and just disable timer interrupt (using PIC)
 ;     Allow escape to end song, skip backwards and forwards. Any other controls where we don't mind clicks?
 ;
-;   1) Check to see if multiple waveforms at once are used
-;   2) Try changing the accumulator XOR ring modulation to sample multiplication ring modulation and see how it changes the sound
-;   3) Try changing the 24-bit LFSR to a 256-element table and see how it changes the sound
-;   4) Assuming that sounds okay, disable ring modulation and enumerate waveform combinations
+;   * Try changing the accumulator XOR ring modulation to sample multiplication ring modulation and see how it changes the sound
+;   * Try changing the 24-bit LFSR to a 256-element table and see how it changes the sound
+;   * Assuming that sounds okay, disable ring modulation and enumerate waveform combinations
 ;        How can we do that?
 ;          Have a key consisting of all waveform parameters:
 ;            Shape

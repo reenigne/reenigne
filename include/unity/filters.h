@@ -527,11 +527,11 @@ public:
 
 
 // A pipe that interpolates using the nearest-neighbor algorithm.
-template<class T, class Interpolator = int> class NearestNeighborInterpolator : public Pipe<T, T>
+template<class T, class Rate = int> class NearestNeighborInterpolator : public Pipe<T, T>
 {
 public:
     // For every "consumerRate" samples consumed we will produce "producerRate" samples.
-    NearestNeighborInterpolator(Interpolator producerRate, Interpolator consumerRate, int n = defaultFilterCount, Interpolator offset = 0, Producer<T>* producer = 0)
+    NearestNeighborInterpolator(Rate producerRate, Rate consumerRate, int n = defaultFilterCount, Rate offset = 0, Producer<T>* producer = 0)
       : Pipe(n, producer),
         _producerRate(producerRate),
         _consumerRate(consumerRate),
@@ -541,7 +541,7 @@ public:
     {
         // TODO: We can probably speed this up somewhat by copying blocks
         Buffer<T> reader = _consumer.reader(_n);
-        Buffer<T> writer = _producer.writer(static_cast<int>((static_cast<Interpolator>(_n)*_producerRate)/_consumerRate) + 1);
+        Buffer<T> writer = _producer.writer(static_cast<int>((static_cast<Rate>(_n)*_producerRate)/_consumerRate) + 1);
         int written = 0;
         for (int i = 0; i < _n; ++i) {
             T sample = reader.item();
@@ -556,17 +556,17 @@ public:
         _producer.written(written);
     }
 private:
-    Interpolator _producerRate;
-    Interpolator _consumerRate;
-    Interpolator _offset;
+    Rate _producerRate;
+    Rate _consumerRate;
+    Rate _offset;
 };
 
 // A pipe that interpolates using the linear interpolation.
-template<class T, class Interpolator = int> class LinearInterpolator : public Pipe<T, T>
+template<class T, class Rate = int> class LinearInterpolator : public Pipe<T, T>
 {
 public:
     // For every "consumerRate" samples consumed we will produce "producerRate" samples.
-    LinearInterpolator(Interpolator producerRate, Interpolator consumerRate, int n = defaultFilterCount, Interpolator offset = 0, T previous = 0, Producer<T>* producer = 0)
+    LinearInterpolator(Rate producerRate, Rate consumerRate, int n = defaultFilterCount, Rate offset = 0, T previous = 0, Producer<T>* producer = 0)
       : Pipe(n, producer),
         _producerRate(producerRate),
         _consumerRate(consumerRate),
@@ -576,12 +576,12 @@ public:
     void process()
     {
         Buffer<T> reader = _consumer.reader(_n);
-        Buffer<T> writer = _producer.writer(static_cast<int>((static_cast<Interpolator>(_n)*_producerRate)/_consumerRate) + 1);
+        Buffer<T> writer = _producer.writer(static_cast<int>((static_cast<Rate>(_n)*_producerRate)/_consumerRate) + 1);
         int written = 0;
         for (int i = 0; i < _n; ++i) {
             T sample = reader.item();
             while (_offset >= 0) {
-                writer.item() = sample + static_cast<T>((static_cast<Interpolator>(_previous - sample)*_offset)/_consumerRate);
+                writer.item() = sample + static_cast<T>((static_cast<Rate>(_previous - sample)*_offset)/_consumerRate);
                 ++written;
                 _offset -= _producerRate;
             }
@@ -592,9 +592,9 @@ public:
         _producer.written(written);
     }
 private:
-    Interpolator _producerRate;
-    Interpolator _consumerRate;
-    Interpolator _offset;
+    Rate _producerRate;
+    Rate _consumerRate;
+    Rate _offset;
     T _previous;
 };
 
