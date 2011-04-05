@@ -1,3 +1,6 @@
+// Pipes that convolve with a kernel function to act as a finite impulse
+// response filter, and classes to define such kernel functions.
+
 #ifndef INCLUDED_CONVOLUTION_PIPE_H
 #define INCLUDED_CONVOLUTION_PIPE_H
 
@@ -6,6 +9,7 @@
 #include "unity/reference_counted.h"
 #include "float.h"
 
+// A convolution kernel is indexed in such a way that the input samples correspond to integer input values.
 class ConvolutionKernel
 {
 public:
@@ -32,13 +36,18 @@ private:
     Reference<Implementation> _implementation;
 };
 
+// Sinc filter corresponds to perfect band-limited interpolation - it removes
+// all frequencies higher than the sample rate (if x is measured in samples).
 class SincFilter : public ConvolutionKernel
 {
 public:
     SincFilter() : ConvolutionKernel(new Implementation) { }
     class Implementation : public ConvolutionKernel::Implementation
     {
-        virtual double operator()(double offset) const { return sin(x)/x; }
+        virtual double operator()(double x) const
+        {
+            return sin(M_PI*x)/(M_PI*x);
+        }
     };
 };
 
@@ -125,19 +134,65 @@ public:
     };
 };
 
-// A pipe that produces output by convolving the input.
-template<class T, class Rate = int> class ConvolutionPipe : public Pipe<T, T>
+// A convolution pipe which computes kernel coefficients as they are needed,
+// which is likely to be very slow. The kernel is measured in output samples
+// which is the appropriate default for downsampling. For upsampling, scale
+// the
+template<class T, class Rate = int> class SmallConvolutionPipe : public Pipe<T, T>
+{
+public:
+    SmallConvolutionPipe(Rate producerRate, Rate consumerRate, ConvolutionKernel kernel, int n = defaultFilterCount, Producer<T>* producer = 0)
+      : Pipe(n, producer),
+        _kernel(kernel),
+        _t(0),
+        _r(static_cast<double>(producerRate)/consumerRate)
+    { }
+    void process()
+    {
+        Buffer<T> reader = _consumer.reader((_n + (_kernel.rightExtent() - _kernel.leftExtent())/_r));
+        Buffer<T> writer = _producer.writer(_n);
+        int read = 0;
+        for (int i = 0; i < _n; ++i) {
+            T sample = 0;
+            int j = read;
+            for (double k = _t + _kernel.leftExtent(); k < _kernel.rightExtent(); k += _r) {
+                sample += reader.item(j)*_kernel(k);
+                ++j;
+            }
+            writer.item() = sample;
+
+            int r = static_cast<int>((_r + 1.0 - _t)/_r);
+            _t += r*_r;
+            read += r;
+        }
+        _consumer.read(read);
+        _producer.written(_n);
+    }
+private:
+    ConvolutionKernel _kernel;
+    double _t;
+    double _r;
+};
+
+// A convolution pipe that stores the kernel coefficients it requires. This
+// may use a lot of memory if the producing and consuming rates have a high
+// lowest common multiple.
+template<class T, class Rate = int> class LCMConvolutionPipe : public Pipe<T, T>
 {
 public:
     // For every "consumerRate" samples consumed we will produce "producerRate" samples.
-    BandLimitedInterpolator(Rate producerRate, Rate consumerRate, ConvolutionKernel kernel, int n = defaultFilterCount, Producer<T>* producer = 0)
+    LCMConvolutionPipe(Rate producerRate, Rate consumerRate, ConvolutionKernel kernel, int n = defaultFilterCount, Producer<T>* producer = 0)
       : Pipe(n, producer),
-        _offset(0)
+        _t(0)
     {
         Rate l = lcm(producerRate, consumerRate);  // 275625000
         int c = l/producerRate;  // 6250
-        int p = l/consumerRate;  // 231
-        double extent = kernel.rightExtent() - kernel.leftExtent();  // 10
+        _delta = l/consumerRate;  // 231
+        double le = kernel.leftExtent();
+        double re = kernel.rightExtent();
+        double extent = re-le;  // 10
+        _kernelSize = extent*c;
+        // TODO: rearrange kernel coefficients so that they are adjacent in memory
 
 
 
@@ -145,31 +200,52 @@ public:
         _kernelSize = (_kernel.rightExtent() - _kernel.leftExtent())*f;
         _kernel.allocate(_kernelSize);
         for (int i = 0; i < _kernelSize; ++i)
-            _kernel[i] = kernel(i*a+b);
+            _kernel[i] = kernel(static_cast<double>(i)/c + le);
+
     }
     void process()
     {
-        Buffer<T> reader = _consumer.reader(_n);
-        Buffer<T> writer = _producer.writer(static_cast<int>((static_cast<Rate>(_n)*_producerRate)/_consumerRate) + 1);
+        Buffer<T> reader = _consumer.reader((_n + (_kernel.rightExtent() - _kernel.leftExtent())/_r));   // TODO: check
+        Buffer<T> writer = _producer.writer(_n);
         int read = 0;
         for (int i = 0; i < _n; ++i) {
             T sample = 0;
-            int j = 0;
-            for (int k = _offset; k < _kernelSize; k += _delta) {
-                sample += reader.item(j)*_kernel[_offset];
+            int j = read;
+            for (int k = _t; k < _kernelSize; k += _delta) {
+                sample += reader.item(j)*_kernel[k];
                 ++j;
             }
             writer.item() = sample;
+            int r = static_cast<int>((c + _delta - _t)/_delta);
+            _t += r*_delta;
+            read += r;
         }
         // TODO: Figure out "read" and "_offset" in terms of "_producerRate" and "_consumerRate"
         _consumer.read(read);
         _producer.written(_n);
     }
 private:
-    Array<T> _kernel;
+    Array<T> _kernel;  // indexed in units of 1/c of an output sample and offset by le output samples
     int _kernelSize;
-    int _offset;
+    int _t;
     int _delta;
+    int _t;
 };
+
+// A convolution pipe that computes a fixed number of kernel coefficients, and
+// uses the closest one to the one required.
+template<class T, class Rate = int> class NearestNeighborConvolutionPipe : public Pipe<T, T>
+{
+    // TODO
+};
+
+// A convolution pipe that computes a fixed number of kernel coefficients, and
+// uses linear interpolation to find the others.
+template<class T, class Rate = int> class NearestNeighborConvolutionPipe : public Pipe<T, T>
+{
+};
+
+
+// 985428/44100 == 492714/22050 == 246357/11025 == 82119/3675 == 27373/1225
 
 #endif // INCLUDED_CONVOLUTION_PIPE_H
