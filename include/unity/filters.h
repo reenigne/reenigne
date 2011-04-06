@@ -501,8 +501,8 @@ public:
     void process()
     {
         _producer.writer(_n).items(CopyFrom<Buffer<T> >(_consumer.reader(_n)), _n);
-        _consumer.read(n);
-        _producer.written(n);
+        _consumer.read(_n);
+        _producer.written(_n);
     }
 };
 
@@ -561,7 +561,7 @@ private:
     Rate _offset;
 };
 
-// A pipe that interpolates using the linear interpolation.
+// A pipe that interpolates using the linear interpolation. TODO: modify this so it downsamples as well.
 template<class T, class Rate = int> class LinearInterpolator : public Pipe<T, T>
 {
 public:
@@ -596,6 +596,81 @@ private:
     Rate _consumerRate;
     Rate _offset;
     T _previous;
+};
+
+// A pipe that can be both pulled from and pushed to, and which resamples its
+// data to match the pull and push rates. The "timeConstant" parameter must be
+// tuned. If it is too small, the resampling rate will fluctuate wildly as
+// samples are pushed and pulled. If it is too large, it will take too long to
+// adjust to changes in the push or pull rates, leading to high latencies or
+// stalls waiting for the connected Source to push (we never pull from the
+// connected source). "timeConstant" is measured in samples consumed. The
+// base class is used to actually do the interpolation.
+// TODO: this needs to be thread-safe, as generally one thread will be pushing
+// and another pulling.
+// Places where data can be found:
+//   In the external Producer connected to _sink.consumer() - we remove when data is pushed to us
+//   In _sink.producer() - ready to be interpolated
+//   In _interpolator.producer() - having just been interpolated
+//   In _source.producer() - ready to be pulled
+// TODO: Can we remove some of these?
+//   Need some other way of getting notified when pulls and pushes happen
+template<class T, class Interpolator> class PushPullPipe : public Filter
+{
+public:
+    PushPullPipe(int timeConstant, Interpolator* interpolator, Producer<T>* producer = 0)
+      : _timeConstant(timeConstant),
+        _interpolator(interpolator),
+        _source(this),
+        _sink(this, producer)
+        _sourceConnection(interpolator->producer(), _source.consumer()),
+        _sinkConnection(_sink.producer(), interpolator->consumer())
+    { }
+    Producer<T>* producer() { return _source.producer(); }
+    Consumer<T>* consumer() { return _sink.consumer(); }
+    void produce()
+    {
+        int n = _interpolator->producer()->count();
+        _producer.writer(n).
+    }
+    void consume()
+    {
+        int n = _sink.consumer()->count();
+        _producer.writer(n).items(CopyFrom<Buffer<T> >(_consumer.reader(n)), n);
+        _consumer.read(n);
+        _producer.written(n);
+        // TODO: account for n samples being pushed to us
+        _interpolator->process();
+    }
+private:
+    class Source : public Pipe
+    {
+    public:
+        Source(PushPullPipe* pipe, Producer<T>* producer)
+          : Pipe(defaultFilterCount, producer),
+            _pipe(pipe)
+        { }
+        void process() { _pipe->produce(); }
+    private:
+        PushPullPipe* _pipe;
+    };
+    class Sink : public Pipe
+    {
+    public:
+        Sink(PushPullPipe* pipe, Producer<T>* producer)
+          : Pipe(defaultFilterCount, producer),
+            _pipe(pipe)
+        { }
+        void process() { _pipe->consume(); }
+    private:
+        PushPullPipe* _pipe;
+    };
+    int _timeConstant;
+    Interpolator* _interpolator;
+    Source _source;
+    Sink _sink;
+    Connection<T> _sourceConnection;
+    Connection<T> _sinkConnection;
 };
 
 #endif // INCLUDED_FILTERS_H

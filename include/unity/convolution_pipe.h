@@ -145,17 +145,20 @@ public:
       : Pipe(n, producer),
         _kernel(kernel),
         _t(0),
-        _r(static_cast<double>(producerRate)/consumerRate)
+        _r(static_cast<double>(producerRate)/consumerRate),
+        _le(kernel.leftExtent()),
+        _re(kernel.rightExtent()),
+        _maxRead((n + (_re - _le))/_r)
     { }
     void process()
     {
-        Buffer<T> reader = _consumer.reader((_n + (_kernel.rightExtent() - _kernel.leftExtent())/_r));
+        Buffer<T> reader = _consumer.reader(_maxRead);
         Buffer<T> writer = _producer.writer(_n);
         int read = 0;
         for (int i = 0; i < _n; ++i) {
             T sample = 0;
             int j = read;
-            for (double k = _t + _kernel.leftExtent(); k < _kernel.rightExtent(); k += _r) {
+            for (double k = _t + _le; k < _re; k += _r) {
                 sample += reader.item(j)*_kernel(k);
                 ++j;
             }
@@ -172,11 +175,15 @@ private:
     ConvolutionKernel _kernel;
     double _t;
     double _r;
+    int _maxRead;  // Maximum number of samples that are read at once
+    double _le;
+    double _re;
 };
 
 // A convolution pipe that stores the kernel coefficients it requires. This
 // may use a lot of memory if the producing and consuming rates have a high
-// lowest common multiple.
+// lowest common multiple, and it can't be used if the resampling factor
+// changes.
 template<class T, class Rate = int> class LCMConvolutionPipe : public Pipe<T, T>
 {
 public:
@@ -191,21 +198,16 @@ public:
         double le = kernel.leftExtent();
         double re = kernel.rightExtent();
         double extent = re-le;  // 10
+        _maxRead = (n + extent)/_r;
         _kernelSize = extent*c;
-        // TODO: rearrange kernel coefficients so that they are adjacent in memory
-
-
-
-        // TODO: initialize a, b, f, _offset and _delta
-        _kernelSize = (_kernel.rightExtent() - _kernel.leftExtent())*f;
+        // TODO: rearrange kernel coefficients so that they are adjacent in memory for better cache performance
         _kernel.allocate(_kernelSize);
         for (int i = 0; i < _kernelSize; ++i)
             _kernel[i] = kernel(static_cast<double>(i)/c + le);
-
     }
     void process()
     {
-        Buffer<T> reader = _consumer.reader((_n + (_kernel.rightExtent() - _kernel.leftExtent())/_r));   // TODO: check
+        Buffer<T> reader = _consumer.reader(_maxRead);
         Buffer<T> writer = _producer.writer(_n);
         int read = 0;
         for (int i = 0; i < _n; ++i) {
@@ -220,7 +222,6 @@ public:
             _t += r*_delta;
             read += r;
         }
-        // TODO: Figure out "read" and "_offset" in terms of "_producerRate" and "_consumerRate"
         _consumer.read(read);
         _producer.written(_n);
     }
@@ -241,7 +242,7 @@ template<class T, class Rate = int> class NearestNeighborConvolutionPipe : publi
 
 // A convolution pipe that computes a fixed number of kernel coefficients, and
 // uses linear interpolation to find the others.
-template<class T, class Rate = int> class NearestNeighborConvolutionPipe : public Pipe<T, T>
+template<class T, class Rate = int> class LinearConvolutionPipe : public Pipe<T, T>
 {
 };
 
