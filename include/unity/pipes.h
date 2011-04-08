@@ -141,7 +141,7 @@ private:
 template<class T> class CopyTo<Accessor<T> >
 {
 public:
-    CopyTo(Buffer<T> destination) : _destination(destination) { }
+    CopyTo(Accessor<T> destination) : _destination(destination) { }
     void operator()(T* source, int n)
     {
         _destination.items(CopyFrom<T>(source), n);
@@ -170,7 +170,7 @@ private:
 template<class T> class CopyFrom<Accessor<T> >
 {
 public:
-    CopyFrom(Buffer<T> source) : _source(source) { }
+    CopyFrom(Accessor<T> source) : _source(source) { }
     void operator()(T* destination, int n)
     {
         _source.items(CopyTo<T>(destination), n);
@@ -195,7 +195,7 @@ public:
 template<class T> class EndPoint : public Filter
 {
 protected:
-    Accessor<T> buffer() { return Buffer<T>(_buffer, _position, _mask); }
+    Accessor<T> accessor() { return Accessor<T>(_buffer, _position, _mask); }
     int offset(int delta) { return (delta + _position)&_mask; }
 
     T* _buffer;
@@ -212,7 +212,7 @@ template<class T> class Source;
 // Sink and no Source can just inherit from Sink, others should include it as
 // a member. The argument to the constructor should be increased if
 // defaultSampleCount is too few samples for consume() to do anything with,
-// or if it's so many that latency will be too high.
+// or decreased if it's so many that latency will be too high.
 template<class T> class Sink : public EndPoint
 {
 public:
@@ -230,7 +230,7 @@ public:
         source->connect(this);
     }
     virtual void consume(int n) = 0;
-    Accessor<T> reader(int n) { _source->ensureData(n); return buffer(); }
+    Accessor<T> reader(int n) { _source->ensureData(n); return accessor(); }
     void read(int n)
     {
         _count -= n;
@@ -291,14 +291,12 @@ public:
             _size = newSize;
             _buffer = newBuffer;
             _mask = _size - 1;
-
-            // Disconnect and reconnect to refresh the Sink's data.
-            Sink<T>* sink = _sink;
-            connect(0);
-            connect(sink);
+            _sink->_buffer = _buffer;
+            _sink->_size = _size;
+            _sink->_mask = _mask;
+            _sink->_position = 0;
         }
-
-        return buffer();
+        return accessor();
     }
     void written(int n)
     {
@@ -314,7 +312,7 @@ public:
     {
         _pulling = true;
         while (_count < n)
-            produce();
+            produce(n - _count);
         _pulling = false;
     }
 private:
@@ -439,7 +437,7 @@ template<class T> class NopPipe : public Pipe<T, T, NopPipe<T> >
 public:
     void produce(int n)
     {
-        _source.writer(n).items(CopyFrom<Buffer<T> >(_sink.reader(n)), n);
+        _source.writer(n).items(CopyFrom<Accessor<T> >(_sink.reader(n)), n);
         _sink.read(n);
         _source.written(n);
     }
@@ -538,13 +536,82 @@ private:
 };
 
 
-// A pipe that can be both pulled from and pushed to, and which resamples its
-// data to match the pull and push rates. The "timeConstant" parameter must be
-// tuned. If it is too small, the resampling rate will fluctuate wildly as
-// samples are pushed and pulled. If it is too large, it will take too long to
-// adjust to changes in the push or pull rates, leading to high latencies or
-// stalls waiting for the connected Source to push (PushPullPipe will never
-// push or pull itself). "timeConstant" is measured in samples consumed.
+// A pipe that neither pushes or pulls. If you try to push to it without
+// pulling, it continues to accumulate data until it runs out of memory. If
+// you try to pull from it without pushing, it blocks until data is pushed.
+template<class T> class Tank : public Pipe<T, T, Tank<T> >
+{
+public:
+    Tank()
+      : _buffer(new T[1]),
+        _size(1),
+        _count(0),
+        _mask(0),
+        _readPosition(0),
+        _writePosition(0)
+    { }
+    void produce(int n)
+    {
+        while (_count < n)
+            _event.wait();
+        Lock lock(&_mutex);
+        _source.writer(n).items(CopyFrom<Accessor<T> >(reader()), n);
+        _readPosition = (_readPosition + n) & _mask;
+        _count -= n;
+    }
+    void consume(int n)
+    {
+        Lock lock(&_mutex);
+        // Make sure we have enough space for an additional n items
+        int newN = n + _count;
+        if (_size < newN) {
+            // Double the size of the buffer until it's big enough.
+            int newSize = _size;
+            while (newSize < newN)
+                newSize <<= 1;
+            T* newBuffer = new T[newSize];
+            int start = offset(-_count);
+            int n1 = min(_count, _size - start);
+            memcpy(newBuffer, _buffer + start, n1*sizeof(T));
+            memcpy(newBuffer + n1, _buffer, (_size - n1)*sizeof(T));
+            delete[] _buffer;
+            _writePosition = _count;
+            _readPosition = 0;
+            _size = newSize;
+            _buffer = newBuffer;
+            _mask = _size - 1;
+        }
+        writer().items(CopyFrom<Accessor<T> >(_sink.reader(n)), n);
+        _sink.read(n);
+        _writePosition = (_writePosition + n) & _mask;
+        _count += n;
+        _event.set();
+        _event.reset();
+    }
+private:
+    Mutex _mutex;
+    Event _event;
+
+    Accessor<T> reader() { return Accessor<T>(_buffer, _readPosition, _mask); }
+    Accessor<T> writer() { return Accessor<T>(_buffer, _writePosition, _mask); }
+
+    T* _buffer;
+    int _size;
+    volatile int _count;
+    int _mask;
+    int _readPosition;
+    int _writePosition;
+};
+
+
+// A pipe that can be both pulled from and pushed to, and which adjusts the
+// rate of a connected interpolator to match the pull rate to the push rate.
+// The "timeConstant" parameter must be tuned. If it is too small, the
+// resampling rate will fluctuate wildly as samples are pushed and pulled. If
+// it is too large, it will take too long to adjust to changes in the push or
+// pull rates, leading to high latencies or stalls waiting for the connected
+// Source to push (PushPullPipe will never push or pull itself). "timeConstant"
+// is measured in samples consumed.
 // TODO: this needs to be thread-safe, as generally one thread will be pushing
 // and another pulling.
 template<class T, class Interpolator> class PushPullPipe
@@ -553,53 +620,24 @@ template<class T, class Interpolator> class PushPullPipe
 public:
     PushPullPipe(int timeConstant, Interpolator* interpolator)
       : _timeConstant(timeConstant),
-        _interpolator(interpolator),
-        _interpolatorSource(this),
-        _interpolatorSink(this)
-    {
-        _interpolatorSink.connect(interpolator->source());
-        _interpolatorSource.connect(interpolator->sink());
-    }
+        _interpolator(interpolator)
+    { }
     void produce(int n)
     {
         // TODO: account for n samples being pulled from us
-
+        _produced += n*_rate;
     }
     void consume(int n)
     {
         // TODO: account for n samples being pushed to us
-
-    }
-    void interpolatorProduce(int n)
-    {
-        // TODO: account for the interpolator pulling n samples from us
-    }
-    void interpolatorConsume(int n)
-    {
-        // TODO: account for the interpolator pushing n samples to us
+        _consumed /= exp(
+        _consumed += n;
     }
 private:
-    class InterpolatorSource : public Source<T>
-    {
-    public:
-        InterpolatorSource(PushPullPipe* p) : _p(p) { }
-        void produce(int n) { _p->interpolatorProduce(n); }
-    private:
-        PushPullPipe* _p;
-    };
-    class InterpolatorSink : public Sink<T>
-    {
-    public:
-        InterpolatorSink(PushPullPipe* p) : _p(p) { }
-        void consume(int n) { _p->interpolatorConsume(n); }
-    private:
-        PushPullPipe* _p;
-    };
-    InterpolatorSource _interpolatorSource;
-    InterpolatorSink _interpolatorSink;
-
     int _timeConstant;
     Interpolator* _interpolator;
+    double _produced;
+    double _consumed;
 };
 
 #endif // INCLUDED_PIPES_H
