@@ -539,7 +539,7 @@ private:
 // A pipe that neither pushes or pulls. If you try to push to it without
 // pulling, it continues to accumulate data until it runs out of memory. If
 // you try to pull from it without pushing, it blocks until data is pushed.
-template<class T> class Tank : public Pipe<T, T, Tank<T> >
+template<class T, class C = Tank<T> > class Tank : public Pipe<T, T, C>
 {
 public:
     Tank()
@@ -585,8 +585,7 @@ public:
         _sink.read(n);
         _writePosition = (_writePosition + n) & _mask;
         _count += n;
-        _event.set();
-        _event.reset();
+        _event.signal();
     }
 private:
     Mutex _mutex;
@@ -612,10 +611,8 @@ private:
 // pull rates, leading to high latencies or stalls waiting for the connected
 // Source to push (PushPullPipe will never push or pull itself). "timeConstant"
 // is measured in samples consumed.
-// TODO: this needs to be thread-safe, as generally one thread will be pushing
-// and another pulling.
 template<class T, class Interpolator> class PushPullPipe
-  : public Pipe<T, T, PushPullPipe<T, Interpolator> >
+  : public Tank<T, PushPullPipe<T, Interpolator> >
 {
 public:
     PushPullPipe(int timeConstant, Interpolator* interpolator)
@@ -624,20 +621,32 @@ public:
     { }
     void produce(int n)
     {
-        // TODO: account for n samples being pulled from us
         _produced += n*_rate;
+        updateRate();
+        Tank::produce(n);
     }
     void consume(int n)
     {
-        // TODO: account for n samples being pushed to us
-        _consumed /= exp(
+        double c = exp(-n/_timeConstant);
+        _produced *= c;
+        _consumed *= c;
         _consumed += n;
+        updateRate();
+        Tank::consume(n);
     }
 private:
+    void updateRate()
+    {
+        // TODO: Adjust slightly so that we speed up if we have a large number of samples
+        _rate = _produced/_consumed;
+        _interpolator->setRate(_rate);
+    }
+
     int _timeConstant;
     Interpolator* _interpolator;
     double _produced;
     double _consumed;
+    double _rate;
 };
 
 #endif // INCLUDED_PIPES_H

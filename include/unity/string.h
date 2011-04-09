@@ -395,7 +395,7 @@ template<class T> class RepeatedStringImplementationTemplate : public StringImpl
 public:
     RepeatedStringImplementationTemplate(String string, int count)
       : _string(string)
-    { 
+    {
         setLength(count*string.length());
     }
     StringImplementation* subString(int start, int l) const
@@ -736,7 +736,7 @@ template<class T> class ExceptionTemplate
 public:
     ExceptionTemplate(const String& message) : _message(message) { }
     void write(const Handle& handle) const
-    { 
+    {
         static String newLine("\n");
         (_message + newLine).write(handle);
     }
@@ -799,6 +799,29 @@ private:
 
     String _message;
 };
+
+#define CODE_MACRO(x) do { x } while (false)
+
+#define IF_TRUE_THROW(expr,exception) CODE_MACRO( \
+    if (expr) \
+        throw exception; \
+)
+
+#define IF_FALSE_THROW(expr) IF_TRUE_THROW(!(expr), Exception())
+#define IF_MINUS_ONE_THROW(expr) IF_TRUE_THROW((expr) == -1, Exception())
+#define IF_ZERO_THROW(expr) IF_TRUE_THROW((expr) == 0, Exception())
+#define IF_NULL_THROW(expr) IF_TRUE_THROW((expr) == NULL, Exception())
+#define IF_NONZERO_THROW(expr) IF_TRUE_THROW((expr) != 0, Exception())
+
+#define IF_ERROR_THROW(expr) CODE_MACRO( \
+    HRESULT hrMacro = (expr); \
+    IF_TRUE_THROW(FAILED(hrMacro), Exception(hrMacro)); \
+)
+
+#define IF_ZERO_CHECK_THROW_LAST_ERROR(expr) CODE_MACRO( \
+    if ((expr) == 0) \
+        IF_FALSE_THROW(GetLastError() == 0); \
+)
 
 #define BEGIN_CHECKED \
     try { \
