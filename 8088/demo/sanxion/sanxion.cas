@@ -1,0 +1,1287 @@
+#ASM source for file sanxion.sid
+#Init addr: $BE00, Play addr: $BE20
+#Load addr: $B000, End addr: $CD3F, Length: 7488 bytes
+#----------------------------------------------------------------
+-------
+B000: 00 00 00 00
+B004: 00 00 00 00
+B008: 00
+-------
+B009: 24 F8    :BIT $F8                   bit mstatus      ;test music status
+B00B: 30 2E    :BMI $2E                   bmi moff         ;$80 and $c0 is off
+B00D: 50 43    :BVC $43                   bvc contplay     ;$40 init, else play
+B00F: A2 1F    :LDX #$1F                  lda #$00         ;init counter
+B011: 8E 18 D4 :STX $D418                 sta counter
+B014: AE 3A B5 :LDX $B53A                 ldx #3-1
+B017: A9 00    :LDA #$00
+B019: BC 0F B5 :LDY $B50F,X
+B01C: 99 04 D4 :STA $D404,Y
+B01F: 9D 13 B5 :STA $B513,X               sta posoffset,x  ;init pos offsets
+B022: 9D 16 B5 :STA $B516,X               sta patoffset,x  ;init pat offsets
+B025: 9D 19 B5 :STA $B519,X               sta lengthleft,x ;get note right away
+B028: 9D 1F B5 :STA $B51F,X               sta notenum,x
+B02B: 99 06 D4 :STA $D406,Y
+B02E: A9 1B    :LDA #$1B
+B030: 9D 25 B5 :STA $B525,X
+B033: CA       :DEX                       dex
+B034: 10 E1    :BPL $E1                   bpl b017
+B036: 85 F8    :STA $F8                   sta mstatus      ;signal music play
+B038: 4C 42 B4 :JMP $B442                 jmp contplay
+B03B: 50 12    :BVC $12        moff=*     bvc +            ;if mstatus $c0 then
+B03D: A9 00    :LDA #$00                  lda #$00
+B03F: AE 3A B5 :LDX $B53A
+B042: BC 0F B5 :LDY $B50F,X
+B045: 99 04 D4 :STA $D404,Y               sta $d404        ;kill voice 1,2,3         Control1
+B048: CA       :DEX
+B049: 10 F7    :BPL $F7
+B04B: A9 80    :LDA #$80
+B04D: 85 F8    :STA $F8
+B04F: 4C 42 B4 :JMP $B442
+B052: AE 3A B5 :LDX $B53A
+B055: CE 39 B5 :DEC $B539
+B058: 10 08    :BPL $08
+B05A: A9 6C    :LDA #$6C
+B05C: 8D 39 B5 :STA $B539
+B05F: 4C 6D B0 :JMP $B06D
+B062: CE 37 B5 :DEC $B537
+B065: 10 06    :BPL $06
+B067: AD 38 B5 :LDA $B538
+B06A: 8D 37 B5 :STA $B537
+B06D: BD 0F B5 :LDA $B50F,X
+B070: 8D 12 B5 :STA $B512
+B073: A8       :TAY
+B074: AD 39 B5 :LDA $B539
+B077: F0 1A    :BEQ $1A
+B079: AD 37 B5 :LDA $B537
+B07C: CD 38 B5 :CMP $B538
+B07F: D0 12    :BNE $12
+B081: BD 3C B7 :LDA $B73C,X
+B084: 85 F0    :STA $F0
+B086: BD 3F B7 :LDA $B73F,X
+B089: 85 F1    :STA $F1
+B08B: DE 19 B5 :DEC $B519,X
+B08E: 30 06    :BMI $06
+B090: 4C A8 B1 :JMP $B1A8
+B093: 4C BC B1 :JMP $B1BC
+B096: BC 13 B5 :LDY $B513,X
+B099: B1 F0    :LDA ($F0),Y
+B09B: C9 FF    :CMP #$FF
+B09D: F0 0B    :BEQ $0B
+B09F: C9 FE    :CMP #$FE
+B0A1: D0 15    :BNE $15
+B0A3: A9 C0    :LDA #$C0
+B0A5: 85 F8    :STA $F8
+B0A7: 4C 42 B4 :JMP $B442
+B0AA: A9 00    :LDA #$00
+B0AC: 9D 19 B5 :STA $B519,X
+B0AF: 9D 13 B5 :STA $B513,X
+B0B2: 9D 16 B5 :STA $B516,X
+B0B5: 4C 96 B0 :JMP $B096
+B0B8: A8       :TAY
+B0B9: B9 42 B7 :LDA $B742,Y
+B0BC: 85 F2    :STA $F2
+B0BE: B9 5D B7 :LDA $B75D,Y
+B0C1: 85 F3    :STA $F3
+B0C3: A9 00    :LDA #$00
+B0C5: 9D 45 B5 :STA $B545,X
+B0C8: 9D 55 B5 :STA $B555,X
+B0CB: 9D 58 B5 :STA $B558,X
+B0CE: 9D 5B B5 :STA $B55B,X
+B0D1: BC 16 B5 :LDY $B516,X
+B0D4: A9 FF    :LDA #$FF
+B0D6: 9D 28 B5 :STA $B528,X
+B0D9: B1 F2    :LDA ($F2),Y
+B0DB: 9D 1C B5 :STA $B51C,X
+B0DE: 8D 2B B5 :STA $B52B
+B0E1: 29 1F    :AND #$1F
+B0E3: 9D 19 B5 :STA $B519,X
+B0E6: A9 84    :LDA #$84
+B0E8: 38       :SEC
+B0E9: ED 14 B5 :SBC $B514
+B0EC: C9 0F    :CMP #$0F
+B0EE: B0 05    :BCS $05
+B0F0: 09 10    :ORA #$10
+B0F2: 8D 18 D4 :STA $D418                                                            ModeVol
+B0F5: 2C 2B B5 :BIT $B52B
+B0F8: 70 3E    :BVS $3E
+B0FA: FE 16 B5 :INC $B516,X
+B0FD: AD 2B B5 :LDA $B52B
+B100: 10 1A    :BPL $1A
+B102: C8       :INY
+B103: B1 F2    :LDA ($F2),Y
+B105: 10 0F    :BPL $0F
+B107: 9D 45 B5 :STA $B545,X
+B10A: C8       :INY
+B10B: B1 F2    :LDA ($F2),Y
+B10D: 9D 42 B5 :STA $B542,X
+B110: FE 16 B5 :INC $B516,X
+B113: 4C 19 B1 :JMP $B119
+B116: 9D 25 B5 :STA $B525,X
+B119: FE 16 B5 :INC $B516,X
+B11C: C8       :INY
+B11D: B1 F2    :LDA ($F2),Y
+B11F: 8D 4A B5 :STA $B54A
+B122: 29 7F    :AND #$7F
+B124: 9D 22 B5 :STA $B522,X
+B127: 0A       :ASL A
+B128: A8       :TAY
+B129: B9 4D B4 :LDA $B44D,Y
+B12C: 9D 3F B5 :STA $B53F,X
+B12F: B9 4E B4 :LDA $B44E,Y
+B132: 9D 3C B5 :STA $B53C,X
+B135: 4C 3B B1 :JMP $B13B
+B138: DE 28 B5 :DEC $B528,X
+B13B: AC 12 B5 :LDY $B512
+B13E: BD 25 B5 :LDA $B525,X
+B141: 8E 2D B5 :STX $B52D
+B144: 0A       :ASL A
+B145: 0A       :ASL A
+B146: 0A       :ASL A
+B147: AA       :TAX
+B148: BD 6E B5 :LDA $B56E,X
+B14B: 8D 2E B5 :STA $B52E
+B14E: AD 4A B5 :LDA $B54A
+B151: 30 35    :BMI $35
+B153: BD 6C B5 :LDA $B56C,X
+B156: 99 02 D4 :STA $D402,Y                                                          PulseWidthLow1
+B159: 48       :PHA
+B15A: BD 6D B5 :LDA $B56D,X
+B15D: 99 03 D4 :STA $D403,Y                                                          PulseWidthHigh1
+B160: 48       :PHA
+B161: BD 57 B6 :LDA $B657,X
+B164: 48       :PHA
+B165: BD 6F B5 :LDA $B56F,X
+B168: 99 05 D4 :STA $D405,Y                                                          AttackDecay1
+B16B: BD 70 B5 :LDA $B570,X
+B16E: 99 06 D4 :STA $D406,Y                                                          SustainRelease1
+B171: AE 2D B5 :LDX $B52D
+B174: A9 00    :LDA #$00
+B176: 9D 34 B5 :STA $B534,X
+B179: 9D 31 B5 :STA $B531,X
+B17C: 68       :PLA
+B17D: 9D 52 B5 :STA $B552,X
+B180: 68       :PLA
+B181: 9D 4F B5 :STA $B54F,X
+B184: 68       :PLA
+B185: 9D 4C B5 :STA $B54C,X
+B188: AD 2E B5 :LDA $B52E
+B18B: AE 2D B5 :LDX $B52D
+B18E: 9D 1F B5 :STA $B51F,X
+B191: FE 16 B5 :INC $B516,X
+B194: BC 16 B5 :LDY $B516,X
+B197: B1 F2    :LDA ($F2),Y
+B199: C9 FF    :CMP #$FF
+B19B: D0 08    :BNE $08
+B19D: A9 00    :LDA #$00
+B19F: 9D 16 B5 :STA $B516,X
+B1A2: FE 13 B5 :INC $B513,X
+B1A5: 4C 21 B4 :JMP $B421
+B1A8: AC 12 B5 :LDY $B512
+B1AB: BD 1C B5 :LDA $B51C,X
+B1AE: 29 20    :AND #$20
+B1B0: D0 0A    :BNE $0A
+B1B2: BD 19 B5 :LDA $B519,X
+B1B5: D0 05    :BNE $05
+B1B7: A9 FE    :LDA #$FE
+B1B9: 9D 28 B5 :STA $B528,X
+B1BC: BD 25 B5 :LDA $B525,X
+B1BF: 0A       :ASL A
+B1C0: 0A       :ASL A
+B1C1: 0A       :ASL A
+B1C2: A8       :TAY
+B1C3: 8C 3B B5 :STY $B53B
+B1C6: B9 73 B5 :LDA $B573,Y
+B1C9: 8D 48 B5 :STA $B548
+B1CC: B9 72 B5 :LDA $B572,Y
+B1CF: 8D 30 B5 :STA $B530
+B1D2: B9 71 B5 :LDA $B571,Y
+B1D5: D0 03    :BNE $03
+B1D7: 4C 80 B2 :JMP $B280
+B1DA: 48       :PHA
+B1DB: 29 78    :AND #$78
+B1DD: 4A       :LSR A
+B1DE: 4A       :LSR A
+B1DF: 4A       :LSR A
+B1E0: 9D 03 B0 :STA $B003,X
+B1E3: 68       :PLA
+B1E4: 29 07    :AND #$07
+B1E6: 8D 2F B5 :STA $B52F
+B1E9: BD 06 B0 :LDA $B006,X
+B1EC: 10 0A    :BPL $0A
+B1EE: DE 00 B0 :DEC $B000,X
+B1F1: D0 19    :BNE $19
+B1F3: FE 06 B0 :INC $B006,X
+B1F6: 10 14    :BPL $14
+B1F8: FE 00 B0 :INC $B000,X
+B1FB: BD 03 B0 :LDA $B003,X
+B1FE: DD 00 B0 :CMP $B000,X
+B201: B0 09    :BCS $09
+B203: 9D 00 B0 :STA $B000,X
+B206: DE 06 B0 :DEC $B006,X
+B209: DE 00 B0 :DEC $B000,X
+B20C: BD 45 B5 :LDA $B545,X
+B20F: F0 03    :BEQ $03
+B211: 4C 80 B2 :JMP $B280
+B214: BD 22 B5 :LDA $B522,X
+B217: 0A       :ASL A
+B218: A8       :TAY
+B219: 38       :SEC
+B21A: B9 4D B4 :LDA $B44D,Y
+B21D: F9 4B B4 :SBC $B44B,Y
+B220: 85 F5    :STA $F5
+B222: B9 4E B4 :LDA $B44E,Y
+B225: F9 4C B4 :SBC $B44C,Y
+B228: CE 2F B5 :DEC $B52F
+B22B: 30 06    :BMI $06
+B22D: 4A       :LSR A
+B22E: 66 F5    :ROR $F5
+B230: 4C 28 B2 :JMP $B228
+B233: 85 F4    :STA $F4
+B235: B9 4D B4 :LDA $B44D,Y
+B238: 85 F6    :STA $F6
+B23A: B9 4E B4 :LDA $B44E,Y
+B23D: 85 F7    :STA $F7
+B23F: BD 03 B0 :LDA $B003,X
+B242: 4A       :LSR A
+B243: A8       :TAY
+B244: 88       :DEY
+B245: 30 10    :BMI $10
+B247: 38       :SEC
+B248: A5 F6    :LDA $F6
+B24A: E5 F5    :SBC $F5
+B24C: 85 F6    :STA $F6
+B24E: A5 F7    :LDA $F7
+B250: E5 F4    :SBC $F4
+B252: 85 F7    :STA $F7
+B254: 4C 44 B2 :JMP $B244
+B257: BD 1C B5 :LDA $B51C,X
+B25A: 29 1F    :AND #$1F
+B25C: C9 03    :CMP #$03
+B25E: 90 20    :BCC $20
+B260: BC 00 B0 :LDY $B000,X
+B263: 88       :DEY
+B264: 30 10    :BMI $10
+B266: 18       :CLC
+B267: A5 F6    :LDA $F6
+B269: 65 F5    :ADC $F5
+B26B: 85 F6    :STA $F6
+B26D: A5 F7    :LDA $F7
+B26F: 65 F4    :ADC $F4
+B271: 85 F7    :STA $F7
+B273: 4C 63 B2 :JMP $B263
+B276: A5 F6    :LDA $F6
+B278: 9D 3F B5 :STA $B53F,X
+B27B: A5 F7    :LDA $F7
+B27D: 9D 3C B5 :STA $B53C,X
+B280: AD 30 B5 :LDA $B530
+B283: F0 5C    :BEQ $5C
+B285: AC 3B B5 :LDY $B53B
+B288: B9 59 B6 :LDA $B659,Y
+B28B: 29 0F    :AND #$0F
+B28D: 8D CA B2 :STA $B2CA
+B290: B9 59 B6 :LDA $B659,Y
+B293: 4A       :LSR A
+B294: 4A       :LSR A
+B295: 4A       :LSR A
+B296: 4A       :LSR A
+B297: 8D B0 B2 :STA $B2B0
+B29A: BD 34 B5 :LDA $B534,X
+B29D: D0 1A    :BNE $1A
+B29F: AD 30 B5 :LDA $B530
+B2A2: 18       :CLC
+B2A3: 7D 4C B5 :ADC $B54C,X
+B2A6: 48       :PHA
+B2A7: BD 4F B5 :LDA $B54F,X
+B2AA: 69 00    :ADC #$00
+B2AC: 29 0F    :AND #$0F
+B2AE: 48       :PHA
+B2AF: C9 02    :CMP #$02
+B2B1: D0 1D    :BNE $1D
+B2B3: FE 34 B5 :INC $B534,X
+B2B6: 4C D0 B2 :JMP $B2D0
+B2B9: 38       :SEC
+B2BA: BD 4C B5 :LDA $B54C,X
+B2BD: ED 30 B5 :SBC $B530
+B2C0: 48       :PHA
+B2C1: BD 4F B5 :LDA $B54F,X
+B2C4: E9 00    :SBC #$00
+B2C6: 29 0F    :AND #$0F
+B2C8: 48       :PHA
+B2C9: C9 00    :CMP #$00
+B2CB: D0 03    :BNE $03
+B2CD: DE 34 B5 :DEC $B534,X
+B2D0: AC 12 B5 :LDY $B512
+B2D3: 68       :PLA
+B2D4: 9D 4F B5 :STA $B54F,X
+B2D7: 99 03 D4 :STA $D403,Y                                                          PulseWidthHigh1
+B2DA: 68       :PLA
+B2DB: 9D 4C B5 :STA $B54C,X
+B2DE: 99 02 D4 :STA $D402,Y                                                          PulseWidthLow1
+B2E1: BD 45 B5 :LDA $B545,X
+B2E4: F0 35    :BEQ $35
+B2E6: C9 BF    :CMP #$BF
+B2E8: 90 1A    :BCC $1A
+B2EA: 29 3F    :AND #$3F
+B2EC: 8D FD B2 :STA $B2FD
+B2EF: 38       :SEC
+B2F0: BD 3F B5 :LDA $B53F,X
+B2F3: FD 42 B5 :SBC $B542,X
+B2F6: 9D 3F B5 :STA $B53F,X
+B2F9: BD 3C B5 :LDA $B53C,X
+B2FC: E9 00    :SBC #$00
+B2FE: 9D 3C B5 :STA $B53C,X
+B301: 4C 1B B3 :JMP $B31B
+B304: 29 3F    :AND #$3F
+B306: 8D 17 B3 :STA $B317
+B309: 18       :CLC
+B30A: BD 3F B5 :LDA $B53F,X
+B30D: 7D 42 B5 :ADC $B542,X
+B310: 9D 3F B5 :STA $B53F,X
+B313: BD 3C B5 :LDA $B53C,X
+B316: 69 00    :ADC #$00
+B318: 9D 3C B5 :STA $B53C,X
+B31B: AC 3B B5 :LDY $B53B
+B31E: AD 48 B5 :LDA $B548
+B321: 29 01    :AND #$01
+B323: F0 26    :BEQ $26
+B325: BD 3C B5 :LDA $B53C,X
+B328: F0 21    :BEQ $21
+B32A: BD 19 B5 :LDA $B519,X
+B32D: F0 1C    :BEQ $1C
+B32F: BD 1C B5 :LDA $B51C,X
+B332: 29 1F    :AND #$1F
+B334: 38       :SEC
+B335: E9 01    :SBC #$01
+B337: DD 19 B5 :CMP $B519,X
+B33A: 90 0A    :BCC $0A
+B33C: DE 3C B5 :DEC $B53C,X
+B33F: A9 FE    :LDA #$FE
+B341: 9D 28 B5 :STA $B528,X
+B344: D0 05    :BNE $05
+B346: A9 80    :LDA #$80
+B348: 9D 1F B5 :STA $B51F,X
+B34B: AD 48 B5 :LDA $B548
+B34E: 29 02    :AND #$02
+B350: F0 16    :BEQ $16
+B352: AC 3B B5 :LDY $B53B
+B355: BD 55 B5 :LDA $B555,X
+B358: 29 01    :AND #$01
+B35A: F0 06    :BEQ $06
+B35C: B9 6E B5 :LDA $B56E,Y
+B35F: 4C 65 B3 :JMP $B365
+B362: B9 56 B6 :LDA $B656,Y
+B365: 9D 1F B5 :STA $B51F,X
+B368: AD 48 B5 :LDA $B548
+B36B: 29 04    :AND #$04
+B36D: F0 14    :BEQ $14
+B36F: BD 52 B5 :LDA $B552,X
+B372: F0 09    :BEQ $09
+B374: DE 52 B5 :DEC $B552,X
+B377: B9 55 B6 :LDA $B655,Y
+B37A: 4C 80 B3 :JMP $B380
+B37D: B9 6E B5 :LDA $B56E,Y
+B380: 9D 1F B5 :STA $B51F,X
+B383: AD 48 B5 :LDA $B548
+B386: 29 08    :AND #$08
+B388: F0 21    :BEQ $21
+B38A: BD 55 B5 :LDA $B555,X
+B38D: 29 01    :AND #$01
+B38F: F0 06    :BEQ $06
+B391: BD 22 B5 :LDA $B522,X
+B394: 4C 9A B3 :JMP $B39A
+B397: B9 58 B6 :LDA $B658,Y
+B39A: 0A       :ASL A
+B39B: A8       :TAY
+B39C: B9 4D B4 :LDA $B44D,Y
+B39F: 9D 3F B5 :STA $B53F,X
+B3A2: B9 4E B4 :LDA $B44E,Y
+B3A5: 9D 3C B5 :STA $B53C,X
+B3A8: AC 3B B5 :LDY $B53B
+B3AB: AD 48 B5 :LDA $B548
+B3AE: 29 10    :AND #$10
+B3B0: F0 2C    :BEQ $2C
+B3B2: B9 54 B6 :LDA $B654,Y
+B3B5: 0A       :ASL A
+B3B6: A8       :TAY
+B3B7: B9 62 B5 :LDA $B562,Y
+B3BA: 8D 60 B5 :STA $B560
+B3BD: B9 63 B5 :LDA $B563,Y
+B3C0: 8D 61 B5 :STA $B561
+B3C3: AC 5E B5 :LDY $B55E
+B3C6: 18       :CLC
+B3C7: BD 22 B5 :LDA $B522,X
+B3CA: 79 5F B5 :ADC $B55F,Y
+B3CD: 0A       :ASL A
+B3CE: A8       :TAY
+B3CF: B9 4D B4 :LDA $B44D,Y
+B3D2: 9D 3F B5 :STA $B53F,X
+B3D5: B9 4E B4 :LDA $B44E,Y
+B3D8: 9D 3C B5 :STA $B53C,X
+B3DB: AC 3B B5 :LDY $B53B
+B3DE: AD 48 B5 :LDA $B548
+B3E1: 29 20    :AND #$20
+B3E3: F0 13    :BEQ $13
+B3E5: BD 5B B5 :LDA $B55B,X
+B3E8: 18       :CLC
+B3E9: 79 5B B6 :ADC $B65B,Y
+B3EC: 9D 5B B5 :STA $B55B,X
+B3EF: 8D 16 D4 :STA $D416                                                            FilterControlHigh
+B3F2: B9 5A B6 :LDA $B65A,Y
+B3F5: 8D 17 D4 :STA $D417                                                            ResonanceFilter
+B3F8: 2C 48 B5 :BIT $B548
+B3FB: 50 24    :BVC $24
+B3FD: BD 52 B5 :LDA $B552,X
+B400: F0 09    :BEQ $09
+B402: DE 52 B5 :DEC $B552,X
+B405: B9 54 B6 :LDA $B654,Y
+B408: 4C 13 B4 :JMP $B413
+B40B: B9 71 B5 :LDA $B571,Y
+B40E: D0 11    :BNE $11
+B410: BD 22 B5 :LDA $B522,X
+B413: 0A       :ASL A                     asl              ;dump the corresponding
+B414: A8       :TAY                       tay              ;frequencies
+B415: B9 4D B4 :LDA $B44D,Y               lda frequenzlo,y
+B418: 9D 3F B5 :STA $B53F,X
+B41B: B9 4E B4 :LDA $B44E,Y               lda frequenzhi,y
+B41E: 9D 3C B5 :STA $B53C,X
+B421: AC 12 B5 :LDY $B512
+B424: BD 1F B5 :LDA $B51F,X
+B427: 3D 28 B5 :AND $B528,X
+B42A: 99 04 D4 :STA $D404,Y                                                          Control1
+B42D: BD 3C B5 :LDA $B53C,X
+B430: 99 01 D4 :STA $D401,Y               sta $d401,y                                FrequencyHigh1
+B433: BD 3F B5 :LDA $B53F,X               lda tempfreq
+B436: 99 00 D4 :STA $D400,Y               sta $d400,y                                FrequencyLow1
+B439: FE 55 B5 :INC $B555,X
+B43C: CA       :DEX                       dex              ;dbf mainloop
+B43D: 30 03    :BMI $03                   bmi musicend (contplay?)
+B43F: 4C 6D B0 :JMP $B06D                 jmp mainloop
+B442: CE 5E B5 :DEC $B55E      contplay=*
+B445: 10 05    :BPL $05
+B447: A9 02    :LDA #$02
+B449: 8D 5E B5 :STA $B55E
+B44C: 60       :RTS            musicend=*
+-------
+
+frequenz data
+
+B44D: 16 01 27 01 38 01 4B 01
+B455: 5F 01 73 01 8A 01 A1 01
+B45D: BA 01 D4 01 F0 01 0E 02
+B465: 2D 02 4E 02 71 02 96 02
+B46D: BD 02 E7 02 13 03 42 03
+B475: 74 03 A9 03 E0 03 1B 04
+B47D: 5A 04 9B 04 E2 04 2C 05
+B485: 7B 05 CE 05 27 06 85 06
+B48D: E8 06 51 07 C1 07 37 08
+B495: B4 08 37 09 C4 09 57 0A
+B49D: F5 0A 9C 0B 4E 0C 09 0D
+B4A5: D0 0D A3 0E 82 0F 6E 10
+B4AD: 68 11 6E 12 88 13 AF 14
+B4B5: EB 15 39 17 9C 18 13 1A
+B4BD: A1 1B 46 1D 04 1F DC 20
+B4C5: D0 22 DC 24 10 27 5E 29
+B4CD: D6 2B 72 2E 38 31 26 34
+B4D5: 42 37 8C 3A 08 3E B8 41
+B4DD: A0 45 B8 49 20 4E BC 52
+B4E5: AC 57 E4 5C 70 62 4C 68
+B4ED: 84 6E 18 75 10 7C 70 83
+B4F5: 40 8B 70 93 40 9C 78 A5
+B4FD: 58 AF C8 B9 E0 C4 98 D0
+B505: 08 DD 30 EA 20 F8 2E FD
+
+regoffsets
+B50D: 00 00 00 07
+B511: 0E 00 08 0C
+B515: 0F 29 1F 1B
+B519: 02 02 00 03
+B51D: 83 01 41 11
+B521: 41 3A 30 2E
+B525: 04 02 00 FF
+B529: FE FE 03 00
+B52D: 00 41 FF 80
+B531: 00 00 00 00
+B535: 00 00 02 02
+B539: 47 02 20 1F
+B53D: 11 0F 04 68
+B541: 82 34 3B 00
+B545: 00 00 00 44
+B549: 00 3A 00 80
+B54D: 40 30 04 0C
+B551: 01 00 01 00
+B555: 04 04 04 00
+B559: 00 00 00 00
+B55D: 00 01 00 00
+B561: 00 F4 00 FA
+B565: F7 FB F7 F9
+B569: F5 0C 0C
+
+  00 01 41 0F F9 00 10 44   0: pulse width low  1: pulse width high  2: control register  3: attack/decay  4: sustain/release  5: vibrato depth  6: pulse speed  7: instrument fx
+  40 0C 11 0B 03 00 00 2B
+  40 0C 11 09 09 00 00 2B
+  00 08 81 05 07 00 00 00
+  00 03 41 19 09 00 80 44
+  00 00 41 2C C9 33 10 04
+  00 00 00 00 00 00 00 00
+  00 01 43 29 80 00 30 00
+  00 08 15 0A 00 00 00 00
+  60 01 41 DC 8D 1A 28 00
+  40 01 41 DC AD 12 60 00
+  40 0E 15 86 FC 22 00 00
+  80 00 41 08 CA 00 10 44
+  20 08 17 08 08 10 00 44
+  80 00 43 48 C9 22 30 04
+  80 00 43 48 C9 1A 30 00
+  80 00 41 CA CF 00 10 00
+  C0 0E 41 48 69 13 08 00
+  80 08 41 38 49 1B 03 00
+  80 08 11 28 48 00 00 0A
+  80 08 15 63 00 00 00 0A
+  00 08 41 BA 00 1A 30 00
+  A0 01 51 B8 FF 00 30 04
+  A0 00 41 CC DA 33 0C 00
+  80 01 15 09 08 00 00 0A
+  80 08 41 0F 0A 00 00 03
+  80 08 41 7E 08 00 30 0A
+  00 00 00 00 00 00 00 00
+  80 08 11 48 6B 13 00 00
+  47 81 81 02 40 FD 00 00
+  00 15 81 01 36 FD F2 1C
+  00 15 81 01 3C FD 00 00
+  00 21 81 04 3C 20 F2 18
+  4F 15 00 04 00 20 00 00
+  00 11 00 08 00 F8 00 00
+  01 21 11 03 00 FC 00 00
+  02 21 11 03 00 FC 00 00
+  03 21 81 03 00 FC 00 00
+  00 21 00 04 00 FC F4 20
+  00 21 00 04 00 FB F4 20
+  00 81 81 02 40 FE F4 18
+  2B 15 00 46 00 FD 00 00
+  49 17 00 02 00 31 00 00
+  00 41 00 70 00 EB 00 00
+  00 41 00 00 00 EB 00 00
+  04 11 00 04 00 31 00 00
+  00 21 00 01 00 20 00 00
+  00 81 81 01 5B 00 00 00
+  00 81 81 01 40 00 00 00
+  00 81 81 01 38 00 00 00
+  00 43 00 03 00 F8 00 00
+  00 41 81 05 3E FA 00 00
+  00 41 81 05 3E FE 00 00
+  00 81 81 05 42 97 00 00
+  00 81 81 05 42 97 00 00
+  00 81 81 05 63 FD 00 00
+  00 00 00 00 00 00 00 00
+  00 81 81 01 38 00 00 00
+
+;====================================
+;Sanxion main theme
+;====================================
+
+songs =*
+B73C: .byt $78,$bb,$47     <sanxionr1, <sanxionr2, <sanxionr3
+B73F: .byt $b7,$b7,$b8     >sanxionr1, >sanxionr2, >sanxionr3
+
+
+;====================================
+;pointers to the patterns
+
+B742:    F1 F3 BF
+B745: 7B 9D EE 15
+B749: 37 59 8C CF
+B74D: D9 B6 39 1B
+B751: 7C D9 35 3C
+B755: 78 7F ED D5
+B759: DC FF C2 E3
+
+B75D: B8 B8 B9 B9
+B761: B9 B9 B9 B9
+B765: B9 BA BA BA
+B769: BA BA BB BB
+B76D: BB BA BA BB
+B771: BB BB BA BA
+B775: BB BC BB
+
+
+F1 F3 BF 7B 9D EE 15 37 59 8C CF D9 B6 39 1B 7C D9 35 3C 78 7F ED D5 DC FF C2 E3
+B8 B8 B9 B9 B9 B9 B9 B9 B9 BA BA BA BA BA BB BB BB BA BA BB BB BB BA BA BB BC BB
+
+
+
+;====================================
+;tracks
+;====================================
+
+sanxionr1 =*
+B778:          0A
+B779: 0A 00 00 00
+B77D: 00 0C 05 0D
+B781: 0C 05 09 0A
+B785: 05 0C 0B 16
+B789: 17 16 17 0E
+B78D: 00 00 00 00
+B791: 11 12 11 12
+B795: 11 12 11 12
+B799: 18 19 09 11
+B79D: 12 0B 05 0D
+B7A1: 0C 05 11 12
+B7A5: 11 12 11 12
+B7A9: 1A 00 00 00
+B7AD: 00 00 00 00
+B7B1: 00 00 00 00
+B7B5: 00 00 00 00
+B7B9: 00 FE
+
+sanxionr2 =*
+            0B 0B
+B7BD: 0B 02 02 02
+B7C1: 02 02 02 02
+B7C5: 02 02 02 02
+B7C9: 02 02 02 02
+B7CD: 02 02 02 02
+B7D1: 02 02 02 02
+B7D5: 02 02 02 0B
+B7D9: 02 02 02 02
+B7DD: 02 02 0C 15
+B7E1: 0F 00 00 00
+B7E5: 00 02 02 02
+B7E9: 02 02 02 02
+B7ED: 02 02 02 02
+B7F1: 02 02 02 02
+B7F5: 02 02 02 02
+B7F9: 02 02 02 02
+B7FD: 02 02 02 02
+B801: 02 02 02 02
+B805: 02 02 02 02
+B809: 02 02 02 02
+B80D: 02 02 02 02
+B811: 02 02 02 02
+B815: 02 02 02 02
+B819: 02 02 02 02
+B81D: 02 02 02 02
+B821: 02 0C 02 02
+B825: 02 02 02 02
+B829: 02 02 02 02
+B82D: 02 02 02 02
+B831: 02 02 02 02
+B835: 0C 0C 0C 0C
+B839: 0C 0C 0C 0C
+B83D: 0C 0C 0C 00
+B841: 00 00 00 00
+B845: 00 FE
+
+sanxionr3 =*
+            00 00
+B849: 00 00 00 00
+B84D: 01 01 01 01
+B851: 01 03 04 01
+B855: 03 06 04 01
+B859: 01 01 01 03
+B85D: 04 01 06 06
+B861: 07 07 04 04
+B865: 08 08 08 08
+B869: 01 03 04 01
+B86D: 01 01 01 01
+B871: 11 12 01 01
+B875: 01 01 07 07
+B879: 01 01 01 01
+B87D: 01 01 07 07
+B881: 01 01 06 06
+B885: 04 04 01 01
+B889: 01 01 01 01
+B88D: 15 15 01 03
+B891: 04 01 01 03
+B895: 04 01 07 07
+B899: 04 04 01 01
+B89D: 03 03 07 07
+B8A1: 04 04 01 01
+B8A5: 03 03 07 07
+B8A9: 04 04 01 01
+B8AD: 03 03 07 07
+B8B1: 04 04 01 01
+B8B5: 03 03 06 06
+B8B9: 07 07 04 04
+B8BD: 08 08 00 00
+B8C1: 00 00 01 01
+B8C5: 01 03 04 01
+B8C9: 03 06 04 01
+B8CD: 01 01 01 03
+B8D1: 04 01 00 00
+B8D5: 00 00 00 00
+B8D9: 00 00 00 00
+B8DD: 00 00 1A 00
+B8E1: 00 00 00 00
+B8E5: 00 00 00 00
+B8E9: 00 00 00 00
+B8ED: 00 00 00 FE
+
+
+
+;====================================
+;patterns
+;====================================
+
+   00:B8F1 01:B8F3 02:B9BF
+03:B97B 04:B99D 05:B9EE 06:B915
+07:B937 08:B959 09:BA8C 0a:BACF
+0b:BAD9 0c:BAB6 0d:BA39 0e:BB1B
+0f:BB7C 10:BBD9 11:BA35 12:BA3C
+13:BB78 14:BB7F 15:BBED 16:BAD5
+17:BADC 18:BBFF 19:BCC2 1a:BBE3
+
+ptn00 =*
+B8F1: 5F
+      FF
+
+ptn01 =*
+      81 00 13
+      01 2B
+      01 1F
+      01 1F
+      01 2B
+      01 1F
+      01 13
+      01 1F
+      01 13
+      01 2B
+      01 60
+      01 1F
+      01 2B
+      01 1F
+      01 13
+      01 1F
+      FF
+
+ptn06 =*
+B915: 81 00 16
+      01 2E
+      01 22
+      01 22
+      01 2E
+      01 22
+      01 16
+      01 22
+      01 16
+      01 2E
+      01 60
+      01 22
+      01 2E
+      01 22
+      01 16
+      01 22
+      FF
+
+ptn07 =*
+      81 00 1B
+      01 33
+      01 27
+      01 27
+      01 33
+      01 27
+      01 1B
+      01 27
+      01 1B
+      01 33
+      01 60
+      01 27
+      01 33
+      01 27
+      01 1B
+      01 27
+      FF
+
+ptn08 =*
+B959: 81 00 1A
+      01 32
+      01 26
+      01 26
+      01 32
+      01 26
+      01 1A
+      01 26
+      01 1A
+      01 32
+      01 60
+      01 26
+      01 32
+      01 26
+      01 1A
+      01 26
+      FF
+
+ptn03 =*
+      81 00 11
+      01 29
+      01 1D
+      01 1D
+      01 29
+      01 1D
+      01 11
+      01 1D
+      01 11
+      01 29
+      01 60
+      01 1D
+      01 29
+      01 1D
+      01 11
+      01 1D
+      FF
+
+ptn04 =*
+B99D: 81 00 18
+      01 30
+      01 24
+      01 24
+      01 30
+      01 24
+      01 18
+      01 24
+      01 18
+      01 30
+      01 60
+      01 24
+      01 30
+      01 24
+      01 18
+      01 24
+      FF
+
+ptn02 =*
+      81 01 2B
+      81 03 43
+B9C5: 01 40
+      81 01 2B
+      83 02 30
+B9CD: 81 01 2B
+      41 01 2B      ???
+      81 03 40
+      01 43
+      81 01 2B
+      83 02 30
+      81 01 2B
+B9E1: 01 2B
+      FF
+
+ptnUnused =*
+      83 02 30
+      83 01 2B
+      83 02 30
+B9ED: FF
+
+ptn05 =*
+      81 04 43
+B9F1: 01 43
+      03 3E
+B9F5: 03 41
+      01 3C
+B9F9: 03 3E
+      03 3A
+B9FD: 01 35
+      03 37
+BA01: 01 41
+      01 43
+BA05: 01 3A
+      01 3A
+BA09: 03 3C
+      03 39
+BA0D: 01 3C
+      01 41
+BA11: 01 46
+      01 46
+BA15: 03 45
+      03 41
+BA19: 03 3C
+      01 3A
+BA1D: 01 3A
+      03 3C
+BA21: 03 46
+      01 3C
+BA25: 01 46
+      01 48
+BA29: 01 46
+      03 3C
+BA2D: 03 3A
+      03 35
+BA31: 07 37
+      57 FF
+
+ptn11 =*
+BA35: 81 0D 41
+      FF
+
+ptn0d =*
+BA39: 81 04 41
+
+ptn12 =*
+      01 41
+      03 3C
+      03 3A
+      01 39
+      03 3A
+      03 3A
+      01 3C
+      03 39
+      01 3C
+      01 41
+      01 46
+      01 46
+      03 45
+      03 41
+      03 3C
+      01 3A
+      03 39
+      01 41
+      03 3A
+      01 35
+      01 41
+      01 3A
+      01 3A
+      03 3C
+      03 46
+      01 3C
+      01 46
+      01 48
+      01 46
+      03 3C
+      01 46
+      01 46
+      03 41
+      03 43
+      01 43
+      01 41
+      03 3A
+      01 35
+      01 37
+      4F FF
+
+ptn09 =*
+      BF 05 3E 17
+      C1 21 BE 21
+      C1 21 BE 01
+      C1 27 41 37
+      C3 37 C6 21
+      C3 21 C6 21
+      C3 01 C6 3F
+      48 37
+      C8 21 C3 21
+      C6 03 C8 3F
+      4A 1F
+      CA
+BAB5: FF
+
+ptn0c =*
+      41 85
+      08 43
+      47 41
+      05 43
+      43 03
+      43 41
+      05 43
+      03 43
+      43 41
+      05 43
+      03 43
+      03 43
+      FF
+
+ptn0a =*
+      BF 06 26
+      1F 32
+      FF
+
+ptn16 =*
+BAD5: 81 0D 26
+      FF
+
+ptn0b =*
+BAD9: 81 07 26
+
+ptn17 =*
+      01 27
+      01 28
+      01 29
+      01 2A
+      01 2B
+      01 2B
+      01 2C
+      01 2D
+      01 2E
+      01 2F
+      01 30
+      01 31
+      01 32
+      01 33
+      01 34
+      01 35
+      01 36
+      01 37
+      01 38
+      01 39
+      01 3A
+      01 3B
+      01 3C
+      01 3D
+      01 3E
+      01 3F
+      01 40
+      01 41
+      01 42
+      01 43
+      01 44
+      FF
+
+ptn0e =*
+      BF 09
+      3E 27
+      BE A7
+      81 27 BE
+      2B C7
+      A3 C0 54
+      C7 1F
+      C6 4F 2B 43
+      A3 C0 43 C3 37 C2
+BB35: A7 80 8D C2 3F C6 07 C7
+BB3D: 57 5F 3F 3E
+BB41: 27 BE A7 81
+BB45: 27 BE 2B C7
+BB49: A3 C0 54 C7
+BB4D: 1F C6 4F 2B
+BB51: 3E A3 C0 32
+BB55: BE 37 BD A7
+BB59: C0 40 BD 3F
+BB5D: BA 3F BB 27
+BB61: BB A7 80 F8
+BB65: BB 2B C4 A3
+BB69: C0 47 C4
+      3F C3
+      3F C0
+      3F BF
+      3F BE
+      3F BE
+      5F
+      FF
+
+ptn13 =*
+      BF 0B 3B
+      FF
+
+ptn0f =*
+      BF 0A 3B
+
+ptn14 =*
+      27 BB
+BB81: A7 80 F8
+      BB
+BB85: 2B C4 A3 C0
+BB89: 47 C4 1F C3
+BB8D: 4F 2B 3E A3
+BB91: 80 34 BE 37
+BB95: BF A7 80 90
+BB99: BF 3F C3 07
+BB9D: C3 57 5F 3F
+BBA1: 3B 27 BB A7
+BBA5: 80 F8 BB 2B
+BBA9: C4 A3 C0 47
+BBAD: C4 1F C3 4F
+BBB1: 2B 3B A3 C0
+BBB5: 29 BB 37 BA
+BBB9: A7 C0 36 BA
+BBBD: 3F B7 3F B7
+BBC1: 27 B7 A7 80
+BBC5: E1 B7
+      2B C1
+BBC9: A3 C0
+      3B C1
+BBCD: 3F C0
+      3F BD
+BBD1: 3F BC
+      3F BC
+BBD5: 3F BB
+      5F
+      FF
+
+ptn10 =*
+BBD9: BF 0C 13
+      3F 93
+      3F 93
+      1F 93
+      FF
+
+ptn1a =*
+      BF 10 13
+      3F 93
+      3F 93
+      1F 93
+      FF
+
+ptn15 =*
+BBED: 8F 06 26
+      0F 24
+      0F 1F
+      0F 26
+      0F 1F
+      0F 29
+      07 24
+      17 1F
+      FF
+
+ptn18 =*
+      8B 0E 33
+      07 3A
+      A3 80 34 BE 07
+BC09: BF 2B 44 0B
+BC0D: C3 A3 80 83
+BC11: C1 03 C3 0B
+BC15: 2E 07 33 A3
+BC19: 80 57 3A 27
+BC1D: BC 23 BC A3
+BC21: C0 57 BC 0F
+BC25: BA A3 80 57
+BC29: BA 03 BC 0B
+BC2D: 3A 2B 38 07
+BC31: B7 A3 80 34
+BC35: BE 27 BF A3
+BC39: C0 34 BF 27
+BC3D: BE 07 BA 0B
+BC41: 35 0B 3C A3
+BC45: 80 75 BF 83
+BC49: 0F C1 A3 80
+BC4D: 50 C5 A3 C0
+BC51: 54 C6 2F C5
+BC55: 0F 3C A3 0E
+BC59: 3F A3 80 34
+BC5D: BE 27 BF A3
+BC61: 80 34 BE 07
+BC65: BF 03 41 07
+BC69: 3E 23 3C 13
+BC6D: BA 23 3F A3
+BC71: 80 34 BE 27
+BC75: BF A3 80 47
+BC79: C3 07 C4 03
+BC7D: 46 07 43 23
+BC81: 41 23 BF 23
+BC85: BA 03 B8 0B
+BC89: 37 A7 0F 41
+BC8D: A3 80 83 C1
+BC91: 07 C3 8B 0E
+BC95: 3A A7 0F 45
+BC99: A3 80 50 C5
+BC9D: 0F C6 A3 0E
+BCA1: 41 A3 80 75
+BCA5: BF 27 C1 A3
+BCA9: 80 75 BF A7
+BCAD: 0F C1 A3 80
+BCB1: 75 BF 23 C1
+BCB5: A3 80 83 C1
+BCB9: 23 C3 A3 C0
+BCBD: 83 C3 07 C1
+BCC1: FF
+
+ptn19 =*
+         43 A3 0E
+BCC5: 32 23 B3 23
+BCC9: BA A3 80 34
+BCCD: BE 23 BF 23
+BCD1: C6 03 BA 03
+BCD5: 37 03 37 A3
+BCD9: 80 83 C1 23
+BCDD: C3 03 C4 23
+BCE1: 44 23 C6 A3
+BCE5: 80 AF C6 27
+BCE9: C8 27 C6 27
+BCED: C4 03 C3 07
+BCF1: B7 23 32 23
+BCF5: B3 23 BA 23
+BCF9: BC 23 BF 23
+BCFD: C3 83 0F C4
+BD01: 27 C3 A3 80
+BD05: 47 C3 27 C4
+BD09: A3 C0 47 C4
+BD0D: 07 C3 23 3F
+BD11: A7 0E BE 27
+BD15: BA 0B B7 AB
+BD19: 0F 35 A3 80
+BD1D: 75 BF 27 C1
+BD21: A7 80 70 CB
+BD25: 2B CD A3 0E
+BD29: C8 23 C6 23
+BD2D: C5 23 C1 03
+BD31: BC 37 33 A7
+BD35: 80 E5 B3 21
+BD39: BF 21 BE 13
+BD3D: BF 23 33 23
+BD41: B5 37 B7 A7
+BD45: 81 21 B7 21
+BD49: C3 21 C1 93
+BD4D: 0F C3 A3 0E
+BD51: 37 23 B8 37
+BD55: BA A7 81 58
+BD59: BA AB 0F C6
+BD5D: 23 C4 23 C3
+BD61: 23 BE 23 BA
+BD65: 83 0E B7 2B
+BD69: 35 27 B7 A3
+BD6D: 80 49 B7 27
+BD71: B9 2B BA 2B
+BD75: BC A3 80 34
+BD79: BE 03 BF FF
+
+BD7D: 00 00 00 00
+BD81: 00 00 00 00
+BD85: 00 00 00 00
+BD89: 00 00 00 00
+BD8D: 00 00 00 00
+BD91: 00 00 00 00
+BD95: 00 00 00 00
+BD99: 00 00 00 00
+BD9D: 00 00 00 00
+BDA1: 00 00 00 00
+BDA5: 00 00 00 00
+BDA9: 00 00 00 00
+BDAD: 00 00 00 00
+BDB1: 00 00 00 00
+BDB5: 00 00 00 00
+BDB9: 00 00 00 00
+BDBD: 00 00 00 00
+BDC1: 00 00 00 00
+BDC5: 00 00 00 00
+BDC9: 00 00 00 00
+BDCD: 00 00 00 00
+BDD1: 00 00 00 00
+BDD5: 00 00 00 00
+BDD9: 00 00 00 00
+BDDD: 00 00 00 00
+BDE1: 00 00 00 00
+BDE5: 00 00 00 00
+BDE9: 00 00 00 00
+BDED: 00 00 00 00
+BDF1: 00 00 00 00
+BDF5: 00 00 00 00
+BDF9: 00 00 00 00
+BDFD: 00 00 00
+-------
+BE00: AA       :TAX
+BE01: D0 0A    :BNE $0A
+BE03: A9 40    :LDA #$40
+BE05: 85 F8    :STA $F8
+BE07: A0 B0    :LDY #$B0
+BE09: A2 09    :LDX #$09
+BE0B: D0 09    :BNE $09
+BE0D: A9 40    :LDA #$40
+BE0F: 8D 20 CD :STA $CD20
+BE12: A0 C0    :LDY #$C0
+BE14: A2 10    :LDX #$10
+BE16: 8C 22 BE :STY $BE22
+BE19: 8E 21 BE :STX $BE21
+BE1C: 60       :RTS
+-------
+BE1D: 00 00 00
+-------
+BE20: 4C 09 B0 :JMP $B009
+-------
+
+
+
+http://www.1xn.org/text/C64/rob_hubbards_music.txt

@@ -8,6 +8,8 @@
 #include <xaudio2.h>
 #include "unity/thread.h"
 
+// TODO: mmsystem implementation?
+
 // TODO: Allow setting of the buffer length, bits-per-sample, sample rate and number of channels in the constructors
 
 //static const double bufferLength = .04; // .04
