@@ -1,6 +1,43 @@
 #ifndef INCLUDED_STRING_H
 #define INCLUDED_STRING_H
 
+#define CODE_MACRO(x) do { x } while (false)
+
+#define IF_TRUE_THROW(expr,exception) CODE_MACRO( \
+    if (expr) \
+        throw exception; \
+)
+
+#define IF_FALSE_THROW(expr) \
+    IF_TRUE_THROW(!(expr), Exception::systemError())
+#define IF_MINUS_ONE_THROW(expr) \
+    IF_TRUE_THROW((expr) == -1, Exception::systemError())
+#define IF_ZERO_THROW(expr) \
+    IF_TRUE_THROW((expr) == 0, Exception::systemError())
+#define IF_NULL_THROW(expr) \
+    IF_TRUE_THROW((expr) == NULL, Exception::systemError())
+#define IF_NONZERO_THROW(expr) \
+    IF_TRUE_THROW((expr) != 0, Exception::systemError())
+
+#define IF_ZERO_CHECK_THROW_LAST_ERROR(expr) CODE_MACRO( \
+    if ((expr) == 0) \
+        IF_FALSE_THROW(GetLastError() == 0); \
+)
+
+#define BEGIN_CHECKED \
+    try { \
+        try
+
+#define END_CHECKED \
+        catch(std::bad_alloc&) { \
+            throw Exception::outOfMemory(); \
+        } \
+        catch(std::exception&) { \
+            throw Exception::unknown(); \
+        } \
+    } \
+    catch
+
 template<class T> class StringTemplate;
 typedef StringTemplate<void> String;
 
@@ -253,7 +290,7 @@ public:
     int hash() const { return _implementation->hash(0); }
     bool operator==(const String& other) const
     {
-        if (_implementation == other->_implementation)
+        if (_implementation == other._implementation)
             return true;
         int l = length();
         if (l != other.length())
@@ -372,14 +409,14 @@ public:
         DWORD bytesWritten;
         if (WriteFile(handle, reinterpret_cast<LPCVOID>(_buffer.data() + _start), length(), &bytesWritten, NULL) == 0 || bytesWritten != length()) {
             static String writingFile("Writing file ");
-            Exception::throwSystemError(writingFile + handle.name());
+            throw Exception::systemError(writingFile + handle.name());
         }
 #else
         ssize_t writeResult = write(fileDescriptor, static_cast<void*>(_buffer.data() + _start), length());
         static String readingFile("Writing file ");
         if (writeResult < length()) {
             static String writingFile("Writing file ");
-            Exception::throwSystemError(writingFile + handle.name());
+            throw Exception::systemError(writingFile + handle.name());
         }
 #endif
     }
@@ -670,7 +707,9 @@ template<class T> class HandleTemplate : Uncopyable
 public:
 #ifdef _WIN32
     HandleTemplate() : _handle(INVALID_HANDLE_VALUE) { }
-    HandleTemplate(HANDLE handle, const String& name) : _handle(handle), _name(name) { }
+    HandleTemplate(HANDLE handle, const String& name)
+      : _handle(handle), _name(name)
+    { }
     operator HANDLE() const { return _handle; }
     bool valid() const { return _handle != INVALID_HANDLE_VALUE; }
     static Handle consoleOutput()
@@ -683,6 +722,7 @@ public:
         static String console("console");
         return Handle(h, console);
     }
+    void set(HANDLE handle) { _handle = handle; }
 #else
     HandleTemplate() : _fileDescriptor(-1) { }
     HandleTemplate(int fileDescriptor) : _fileDescriptor(fileDescriptor) { }
@@ -704,74 +744,58 @@ private:
     String _name;
 };
 
-class AutoHandle : public Handle
-{
-public:
-    AutoHandle() { }
-#ifdef _WIN32
-    AutoHandle(HANDLE handle, const String& name) : Handle(handle, name) { }
-    ~AutoHandle() { if (valid()) CloseHandle(*this); }
-#else
-    AutoHandle(int fileDescriptor) : Handle(fileDescriptor) { }
-    ~AutoHandle() { if (valid()) close(*this); }
-#endif
-};
-
-#ifdef _WIN32
-template<class T> class LocalStringTemplate : Uncopyable
-{
-public:
-    LocalStringTemplate() : _str(NULL) { }
-    ~LocalStringTemplate() { LocalFree(_str); }
-    LPWSTR* operator&() { return &_str; }
-    String string() { return String(_str); }
-    operator LPWSTR() { return _str; }
-private:
-    LPWSTR _str;
-};
-#endif
-
 template<class T> class ExceptionTemplate
 {
 public:
+#ifdef _WIN32
+    ExceptionTemplate() : _message(messageFromErrorCode(E_FAIL)) { }
+#else
+    ExceptionTemplate() : _message("Unspecified error") { }
+#endif
     ExceptionTemplate(const String& message) : _message(message) { }
     void write(const Handle& handle) const
     {
         static String newLine("\n");
         (_message + newLine).write(handle);
     }
-    static void throwSystemError(const String& message)
+    static Exception systemError(const String& message = "")
     {
         String m;
 #ifdef _WIN32
-        m = messageForSystemCode(GetLastError());
+        m = messageFromErrorCode(GetLastError());
 #else
         m = String(strerror(errno));
 #endif
+        if (message.length() == 0)
+            return Exception(m);
         static String colon(" : ");
-        throw Exception(message + colon + m);
+        return Exception(message + colon + m);
     }
-    static void throwOutOfMemory()
+    static Exception outOfMemory()
     {
 #ifdef _WIN32
-        throw Exception(messageForSystemCode(E_OUTOFMEMORY));
+        return Exception(messageFromErrorCode(E_OUTOFMEMORY));
 #else
-        throw Exception(strerror(ENOMEM));
+        return Exception(strerror(ENOMEM));
 #endif
     }
-    static void throwUnknown()
-    {
-#ifdef _WIN32
-        throw Exception(messageForSystemCode(E_FAIL));
-#else
-        static String unspecifiedError("Unspecified error");
-        throw Exception(unspecifiedError);
-#endif
-    }
+    static Exception unknown() { return Exception(); }
     String message() const { return _message; }
+
+#ifdef _WIN32
+    static Exception fromErrorCode(DWORD error)
+    {
+        return Exception(messageFromErrorCode(error));
+    }
+#else
+    static Exception fromErrorCode(int error)
+    {
+        return Exception(strerror(error));
+    }
+#endif
 private:
 #ifdef _WIN32
-    static String messageForSystemCode(DWORD error)
+    static String messageFromErrorCode(DWORD error)
     {
         if (error == 0) {
             // If there was really no error we wouldn't be here. Avoid emitting
@@ -796,46 +820,42 @@ private:
         return strMessage.string();
     }
 #endif
-
     String _message;
 };
 
-#define CODE_MACRO(x) do { x } while (false)
+class AutoHandle : public Handle
+{
+public:
+    AutoHandle() { }
+#ifdef _WIN32
+    AutoHandle(HANDLE handle) : Handle(handle, "") { check(); }
+    AutoHandle(HANDLE handle, const String& name) : Handle(handle, name)
+    {
+        check();
+    }
+    void set(HANDLE handle) { set(handle); check(); }
+    ~AutoHandle() { if (valid()) CloseHandle(*this); }
+private:
+    void check() { IF_NULL_THROW(operator HANDLE()); }
+#else
+    AutoHandle(int fileDescriptor) : Handle(fileDescriptor) { }
+    ~AutoHandle() { if (valid()) close(*this); }
+#endif
+};
 
-#define IF_TRUE_THROW(expr,exception) CODE_MACRO( \
-    if (expr) \
-        throw exception; \
-)
-
-#define IF_FALSE_THROW(expr) IF_TRUE_THROW(!(expr), Exception())
-#define IF_MINUS_ONE_THROW(expr) IF_TRUE_THROW((expr) == -1, Exception())
-#define IF_ZERO_THROW(expr) IF_TRUE_THROW((expr) == 0, Exception())
-#define IF_NULL_THROW(expr) IF_TRUE_THROW((expr) == NULL, Exception())
-#define IF_NONZERO_THROW(expr) IF_TRUE_THROW((expr) != 0, Exception())
-
-#define IF_ERROR_THROW(expr) CODE_MACRO( \
-    HRESULT hrMacro = (expr); \
-    IF_TRUE_THROW(FAILED(hrMacro), Exception(hrMacro)); \
-)
-
-#define IF_ZERO_CHECK_THROW_LAST_ERROR(expr) CODE_MACRO( \
-    if ((expr) == 0) \
-        IF_FALSE_THROW(GetLastError() == 0); \
-)
-
-#define BEGIN_CHECKED \
-    try { \
-        try
-
-#define END_CHECKED \
-        catch(std::bad_alloc&) { \
-            Exception::throwOutOfMemory(); \
-        } \
-        catch(std::exception&) { \
-            Exception::throwUnknown(); \
-        } \
-    } \
-    catch
+#ifdef _WIN32
+template<class T> class LocalStringTemplate : Uncopyable
+{
+public:
+    LocalStringTemplate() : _str(NULL) { }
+    ~LocalStringTemplate() { LocalFree(_str); }
+    LPWSTR* operator&() { return &_str; }
+    String string() { return String(_str); }
+    operator LPWSTR() { return _str; }
+private:
+    LPWSTR _str;
+};
+#endif
 
 String openParenthesis = String::codePoint('(');
 String closeParenthesis = String::codePoint(')');
@@ -857,5 +877,7 @@ String singleQuote = String::codePoint('\'');
 String backQuote = String::codePoint('`');
 String lessThan = String::codePoint('<');
 String greaterThan = String::codePoint('>');
+
+#include "unity/character_source.h"
 
 #endif // INCLUDED_STRING_H

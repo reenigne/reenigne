@@ -1,4 +1,6 @@
 Write my own SID simulator that takes this data as input
+  Write main
+  Check that we don't use any frequencies too low for our player
   Write it as a Source and plug it into the audio Sink
     Just use nearest neighbour interpolation like sidplay currently does for now
     Once that's working try band-limited interpolation from the 1MHz SID output and see how that sounds
@@ -6,5 +8,7 @@ Write my own SID simulator that takes this data as input
     See what resampling from 1-bit PWM 1.193MHz sounds like to get an idea of whine in demo
     Try generating 256-element waveforms and change lists instead of sound
       We'll have too many waveforms to begin with - write code to combine them
-Port of c64mp3?
-  Need to find a suitable piece of music
+mp3 player
+  Use a genetic algorithm to evolve a solution for a given piece of music
+    Can use breeding genomes method
+    Use mp3 psycho-acoustic model to evaluate fitness

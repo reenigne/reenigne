@@ -1,6 +1,8 @@
 #ifndef INCLUDED_LOCK_H
 #define INCLUDED_LOCK_H
 
+#include "unity/string.h"
+
 // TODO: Posix version
 
 class Event : public AutoHandle
@@ -8,8 +10,11 @@ class Event : public AutoHandle
 public:
     Event() : AutoHandle(CreateEvent(NULL, FALSE, FALSE, NULL))
     { }
-    void signal() { IF_ZERO_THROW(SetEvent(_handle)); }
-    void wait() { IF_FALSE_THROW(WaitForSingleObject(_handle, INFINITE)==0); }
+    void signal() { IF_ZERO_THROW(SetEvent(operator HANDLE())); }
+    void wait()
+    {
+        IF_FALSE_THROW(WaitForSingleObject(operator HANDLE(), INFINITE) == 0);
+    }
 };
 
 class Thread : public AutoHandle
@@ -20,33 +25,33 @@ public:
         _error(false)
     {
         AutoHandle::set(CreateThread(
-            NULL, 0, threadStaticProc, this, CREATE_SUSPENDED, NULL));  // TODO: Make sure our AutoHandle is sufficient for this
+            NULL, 0, threadStaticProc, this, CREATE_SUSPENDED, NULL));
     }
     void setPriority(int nPriority)
     {
-        IF_ZERO_THROW(SetThreadPriority(_handle, nPriority));
+        IF_ZERO_THROW(SetThreadPriority(operator HANDLE(), nPriority));
     }
     void join()
     {
         if (!_started)
             return;
         IF_FALSE_THROW(
-            WaitForSingleObject(_handle, INFINITE) == WAIT_OBJECT_0);
+            WaitForSingleObject(operator HANDLE(), INFINITE) == WAIT_OBJECT_0);
         if (_error)
             throw _exception;
     }
-    void start() { IF_MINUS_ONE_THROW(ResumeThread(_handle)); }
+    void start() { IF_MINUS_ONE_THROW(ResumeThread(operator HANDLE())); }
 
 private:
     static DWORD WINAPI threadStaticProc(LPVOID lpParameter)
     {
+        Thread* thread = reinterpret_cast<Thread*>(lpParameter);
+        thread->_started = true;
         BEGIN_CHECKED {
-            Thread* thread = reinterpret_cast<Thread*>(lpParameter);
-            thread->_started = true;
             thread->threadProc();
         } END_CHECKED(Exception& e) {
-            _exception = e;  // TODO: Make sure Exception can be copied safely
-            _error = true;
+            thread->_exception = e;
+            thread->_error = true;
         }
         return 0;
     }

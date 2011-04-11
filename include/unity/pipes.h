@@ -67,6 +67,8 @@
 #define INCLUDED_PIPES_H
 
 #include "unity/minimum_maximum.h"
+#include "unity/uncopyable.h"
+#include "unity/thread.h"
 #include <vector>
 #include <string.h>
 
@@ -86,8 +88,8 @@ template<class T> class Accessor
 {
 public:
     Accessor() { }
-    Accessor(T* data, int position, int mask)
-      : _data(data),
+    Accessor(T* buffer, int position, int mask)
+      : _buffer(buffer),
         _position(position),
         _mask(mask)
     { }
@@ -213,7 +215,7 @@ template<class T> class Source;
 // a member. The argument to the constructor should be increased if
 // defaultSampleCount is too few samples for consume() to do anything with,
 // or decreased if it's so many that latency will be too high.
-template<class T> class Sink : public EndPoint
+template<class T> class Sink : public EndPoint<T>
 {
 public:
     Sink(int n = defaultSampleCount) : _n(n) { }
@@ -245,22 +247,25 @@ public:
 private:
     Source<T>* _source;
     int _n;
+
+    friend class Source<T>;
 };
 
 
 // A Source is the means by which a Filter produces data. Filters with a
 // single Source and no Sink can just inherit from Source, others should
 // include it as a member.
-template<class T> class Source : public EndPoint
+template<class T> class Source : public EndPoint<T>
 {
 public:
     Source()
-      : _buffer(new T[1]),
-        _mask(0),
-        _count(0),
-        _size(1),
-        _position(0)
-    { }
+    {
+        _position = 0;
+        _size = 1;
+        _count = 0;
+        _mask = 0;
+        _buffer = new T[1];
+    }
     ~Source() { delete[] _buffer; }
     void connect(Sink<T>* sink)
     {
@@ -318,6 +323,8 @@ public:
 private:
     Sink<T>* _sink;
     bool _pulling;
+
+    friend class Sink<T>;
 };
 
 
@@ -325,12 +332,15 @@ private:
 
 // Base class that can be used by a filter with a single Source and a single
 // Sink.
-template<class ProducedT, class ConsumedT, class P> class Pipe : public Filter
+#pragma warning( push )
+#pragma warning( disable : 4355 )
+
+template<class ConsumedT, class ProducedT, class P> class Pipe : public Filter
 {
-    Pipe(int n = defaultSampleCount) : _source(this), _sink(this, n) { }
-    Source<T>* source() { return &_source; }
-    Sink<T>* sink() { return &_sink; }
-    void consume(int n) { produce(n); }
+public:
+    Pipe(P* p, int n = defaultSampleCount) : _source(p), _sink(p, n) { }
+    Source<ProducedT>* source() { return &_source; }
+    Sink<ConsumedT>* sink() { return &_sink; }
 protected:
     class PipeSource : public Source<ProducedT>
     {
@@ -351,6 +361,7 @@ protected:
     PipeSource _source;
     PipeSink _sink;
 };
+#pragma warning ( pop )
 
 
 // Filter implementations

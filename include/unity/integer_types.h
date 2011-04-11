@@ -8,6 +8,8 @@ typedef signed short int   SInt16;
 typedef unsigned int       UInt32;
 typedef signed int         SInt32;
 
+typedef UInt8              Byte;
+
 typedef void               Void;
 
 typedef SInt32             PSInt;

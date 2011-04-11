@@ -497,7 +497,7 @@ template<class T> class DirectoryTemplate : public FileSystemObject
 public:
     DirectoryTemplate(const String& path, const Directory& relativeTo = CurrentDirectory(), bool windowsParsing = false) : FileSystemObject(path, relativeTo, windowsParsing) { }
     FileSystemObject child(const String& name) const
-    { 
+    {
         return FileSystemObject(*this, name);
     }
     Directory subDirectory(const String& subDirectoryName) const
@@ -1110,7 +1110,7 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
             if (c == -1)
                 functor(handle.file());
         handle.next();
-    } 
+    }
 }
 
 template<class T> void applyToWildcard(T functor, const String& wildcard, int recurseIntoDirectories = true, const Directory& relativeTo = CurrentDirectory())
