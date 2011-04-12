@@ -1,8 +1,8 @@
-#include "unity\audio.h"
 #include "unity\pipes.h"
 #include "unity\assert.h"
+#include "unity\audio.h"
 
-typedef signed int Sample;
+typedef signed short Sample;
 
 class MOSSID : public Pipe<Byte, Sample, MOSSID>
 {
@@ -139,7 +139,8 @@ private:
             _bit23 = bit23;
             bool bit19 = ((_accumulator & 0x80000) != 0);
             if (bit19 && !_bit19)
-                _lfsr = ((_lfsr << 1) & 0x7fffff) | (((_lfsr>>22) ^ (_lfsr>>17)) & 1);
+                _lfsr = ((_lfsr << 1) & 0x7fffff) |
+                    (((_lfsr>>22) ^ (_lfsr>>17)) & 1);
             _bit19 = bit19;
 
             // Update envelope
@@ -178,6 +179,8 @@ private:
             if (!update)
                 return;
             _exponentialCounter = 0;
+            if (_holdZero)
+                return;
             switch (_envelopeState) {
                 case 0:
                     _envelope = (_envelope + 1) & 0xff;
@@ -185,7 +188,8 @@ private:
                         _envelopeState = 1;
                     break;
                 case 1:
-                    if (_envelope != ((_sustainRelease & 0xf0) | (_sustainRelease >> 4)))
+                    if (_envelope !=
+                        ((_sustainRelease & 0xf0) | (_sustainRelease >> 4)))
                         --_envelope;
                     break;
                 case 2:
@@ -290,7 +294,9 @@ int main(int argc, char* argv[])
     BEGIN_CHECKED {
         MOSSID sid;
         XAudio2Sink<Sample> sink;
-        // TODO: 
+        // TODO: Fix XAudio2Sink and DirectAudioSink
+        // TODO: Write file PeriodicSource
+        //
     }
     END_CHECKED(Exception& e) {
         e.write(Handle::consoleOutput());

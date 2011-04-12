@@ -717,7 +717,7 @@ public:
         HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
         if (h == INVALID_HANDLE_VALUE || h == NULL) {
             static String openingConsole("Getting console handle");
-            Exception::throwSystemError(openingConsole);
+            throw Exception::systemError(openingConsole);
         }
         static String console("console");
         return Handle(h, console);
@@ -833,7 +833,7 @@ public:
     {
         check();
     }
-    void set(HANDLE handle) { set(handle); check(); }
+    void set(HANDLE handle) { Handle::set(handle); check(); }
     ~AutoHandle() { if (valid()) CloseHandle(*this); }
 private:
     void check() { IF_NULL_THROW(operator HANDLE()); }

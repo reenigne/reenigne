@@ -3,66 +3,51 @@
 
 // TODO: Posix port
 
+#include "unity/thread.h"
 #include <mmreg.h>
 #include <dsound.h>
 #include <xaudio2.h>
-#include "unity/thread.h"
+#include "unity/com.h"
 
 // TODO: mmsystem implementation?
-
-// TODO: Allow setting of the buffer length, bits-per-sample, sample rate and number of channels in the constructors
-
-//static const double bufferLength = .04; // .04
-//static const int sampleBytes = sampleBits/8;
-////static const int bufferBytes = static_cast<int>(
-////    sampleRate*sampleBytes*bufferLength);
-//static const int bufferBytes = 7057;  // 4096 bad  6144 bad  6631 bad  6874 bad  6996 bad  7118 good  8192 good
-//static const int nBlockAlign = sampleBits*channels/8;
+// TODO: .wav writer sink
 
 template<class Sample> class DirectSoundSink : public Sink<Sample>
 {
     class ProcessingThread : public Thread
     {
     public:
+        ProcessingThread() : _ending(false) { }
         void setSink(DirectSoundSink* sink) { _sink = sink; }
 
         void threadProc()
         {
-            HANDLE hWaitHandles[2];
-            hWaitHandles[0] = _eventBuffer;
-            hWaitHandles[1] = _eventEnd;
-
-            bool done = false;
-            while (!done)
-                switch (WaitForMultipleObjects(2, hWaitHandles, FALSE,
-                    INFINITE)) {
-                    case WAIT_OBJECT_0 + 0:
-		                _sound->fillNextHalfBuffer();
-                        _eventBuffer.reset();
-                        break;
-                    case WAIT_OBJECT_0 + 1:
-                        done = true;
-                        break;
-	                default:
-                        throw Exception();
-                }
+            while (true) {
+                _sink->_event.wait();
+                if (_ending)
+                    return;
+      	        _sink->fillNextHalfBuffer();
+            }
         }
 
-        HANDLE getBufferEvent() { return _eventBuffer; }
-
-        void end()  // TODO: I like the
+        void end()
         {
-            _eventEnd.set();
+            _ending = true;
+            _sink->_event.signal();
             join();
         }
     private:
-        Event _eventBuffer;
-        Event _eventEnd;
         DirectSoundSink* _sink;
+        bool _ending;
     };
 
 public:
-    DirectSoundSink(HWND hWnd, int sampleRate) : _hWnd(hWnd)
+    // A smaller buffer would probably be preferred but the DirectSound
+    // implementation in Vista fails with small buffers - see
+    // http://www.reenigne.org/blog/what-happened-to-directsound/ .
+    // TODO: Could try instead using a timer and IDirectSoundBuffer::GetCurrentPosition().
+    // TODO: Change samplesPerBuffer parameter to secondsPerBuffer?
+    DirectSoundSink(HWND hWnd, int samplesPerSecond = 44100, int samplesPerBuffer = 4096, int channels = 1) : _hWnd(hWnd)
     {
         IF_ERROR_THROW(DirectSoundCreate8(NULL, &_directSound, NULL));
 
@@ -70,15 +55,18 @@ public:
         IF_ERROR_THROW(
             _directSound->SetCooperativeLevel(hWnd, DSSCL_PRIORITY));
 
-        WAVEFORMATEX wfx;
-        ZeroMemory(&wfx, sizeof(WAVEFORMATEX));
-        wfx.wFormatTag = WAVE_FORMAT_PCM;
-        wfx.nChannels = 1;
-        wfx.nSamplesPerSec = sampleRate;
-        wfx.wBitsPerSample = 16;
-        _bytesPerSample = wfx.wBitsPerSample/8;
-        wfx.nBlockAlign = _bytesPerSample;
-        wfx.nAvgBytesPerSec = wfx.nSamplesPerSec*_bytesPerSample;
+        WAVEFORMATEX format;
+        ZeroMemory(&format, sizeof(WAVEFORMATEX));
+        format.wFormatTag = WAVE_FORMAT_PCM;
+        format.nChannels = channels;
+        format.nSamplesPerSec = samplesPerSecond;
+        int nBlockAlign = channels*sizeof(Sample);
+        format.nAvgBytesPerSec = samplesPerSecond*nBlockAlign;
+        format.nBlockAlign = nBlockAlign;
+        format.wBitsPerSample = sizeof(Sample)*8;
+        format.cbSize = 0;
+
+        _bytesPerSample = sizeof(Sample);
 
         // Set primary buffer format
         {
@@ -96,14 +84,13 @@ public:
                 &spDSBPrimary,
                 NULL));
 
-            IF_ERROR_THROW(spDSBPrimary->SetFormat(&wfx));
+            IF_ERROR_THROW(spDSBPrimary->SetFormat(&format));
         }
 
         // Set background thread priority
         _thread.setPriority(THREAD_PRIORITY_TIME_CRITICAL);
         SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 
-        int samplesPerBuffer = _waveform.samplesPerBuffer();  // TODO
         int bufferBytes = wfx.nBlockAlign*samplesPerBuffer;
 
         DSBUFFERDESC dsbd = {0};
@@ -129,19 +116,21 @@ public:
         _starts[1] = midpoint;
         _lengths[1] = bufferBytes - midpoint;
         aPosNotify[0].dwOffset = midpoint - 1;
-        aPosNotify[0].hEventNotify = _thread.getBufferEvent();
+        aPosNotify[0].hEventNotify = _event;
         aPosNotify[1].dwOffset = bufferBytes - 1;
-        aPosNotify[1].hEventNotify = _thread.getBufferEvent();
+        aPosNotify[1].hEventNotify = _event;
         IF_ERROR_THROW(spDSN->SetNotificationPositions(2, aPosNotify));
 
         _next = 0;
-        fillNextHalfBuffer();
-        fillNextHalfBuffer();
-
-        IF_ERROR_THROW(_directSoundBuffer->SetCurrentPosition(0));
-
         _thread.setSink(this);
         _thread.start();
+
+        IF_ERROR_THROW(_directSoundBuffer->SetCurrentPosition(0));
+    }
+    void play()
+    {
+        fillNextHalfBuffer();
+        fillNextHalfBuffer();
         IF_ERROR_THROW(_directSoundBuffer->Play(0, 0, DSBPLAY_LOOPING));
     }
 
@@ -174,7 +163,9 @@ public:
         _next = 1 - _next;
     }
 
-    ~DirectSoundSound()
+    void consume(int n) { _consumeEvent.wait(); }
+
+    ~DirectSoundSink()
     {
         _directSoundBuffer->Stop();
         _thread.end();
@@ -189,7 +180,7 @@ private:
         for (int i = 0; i < length; ++i)
             *(sample++) = r.item();
         read(length);
-        _event.signal();
+        _consumeEvent.signal();
     }
 
     void consume(int n) { _event.wait(); }
@@ -208,6 +199,9 @@ private:
     WPARAM _wparam;
     int _bytesPerSample;
     Event _event;
+    Event _consumeEvent;
+
+    friend class ProcessingThread;
 };
 
 template<class Sample> class XAudio2Sink : public Sink<Sample>
@@ -224,36 +218,29 @@ template<class Sample> class XAudio2Sink : public Sink<Sample>
         virtual void __stdcall OnLoopEnd(void*) { }
         virtual void __stdcall OnVoiceError(void*, HRESULT) { }
     private:
-        XAudio2Sink* _sound;
+        XAudio2Sink* _sink;
     };
 
     class ProcessingThread : public Thread
     {
     public:
         ProcessingThread() : _ending(false) { }
-
         void setSink(XAudio2Sink* sink) { _sink = sink; }
 
         void threadProc()
         {
-            BEGIN_CHECKED {
-                while (true) {
-                    _sink->_event.wait();
-                    if (_ending)
-                        return;
-      	            _sink->fillNextBuffer();
-                }
-            } END_CHECKED(Exception& e) {
-                e.display();  // TODO: this probably isn't right - can we marshall the exception over to the main thread and rethrow it there?
+            while (true) {
+                _sink->_event.wait();
+                if (_ending)
+                    return;
+      	        _sink->fillNextBuffer();
             }
         }
-
-        HANDLE getBufferEvent() { return m_eventBuffer; }
 
         void end()
         {
             _ending = true;
-            _sound->_event.set();
+            _sink->_event.signal();
             join();
         }
     private:
@@ -262,7 +249,7 @@ template<class Sample> class XAudio2Sink : public Sink<Sample>
     };
 
 public:
-    XAudio2Sound() : _next(0)
+    XAudio2Sink(int samplesPerSecond = 44100, int samplesPerBuffer = 512, int channels = 1) : _next(0)
     {
         _callback.setSink(this);
         _thread.setSink(this);
@@ -273,34 +260,38 @@ public:
         IF_ERROR_THROW(
             _xAudio2->CreateMasteringVoice(&_xAudio2MasteringVoice));
 
-        WAVEFORMATEX waveFormatEx;
-        waveFormatEx.wFormatTag = WAVE_FORMAT_PCM;
-        waveFormatEx.nChannels = 1;
-        waveFormatEx.nSamplesPerSec = _waveform.samplesPerSecond();
-        waveFormatEx.nBlockAlign = 2;
-        waveFormatEx.nAvgBytesPerSec =
-            waveFormatEx.nSamplesPerSec*waveFormatEx.nBlockAlign;
-        waveFormatEx.wBitsPerSample = 16;
-        waveFormatEx.cbSize = 0;
+        WAVEFORMATEX format;
+        ZeroMemory(&format, sizeof(WAVEFORMATEX));
+        format.wFormatTag = WAVE_FORMAT_PCM;
+        format.nChannels = channels;
+        format.nSamplesPerSec = samplesPerSecond;
+        int nBlockAlign = channels*sizeof(Sample);
+        format.nAvgBytesPerSec = samplesPerSecond*nBlockAlign;
+        format.nBlockAlign = nBlockAlign;
+        format.wBitsPerSample = sizeof(Sample)*8;
+        format.cbSize = 0;
 
         IF_ERROR_THROW(
             _xAudio2->CreateSourceVoice(
                 &_xAudio2SourceVoice,
-                &waveFormatEx,
+                &format,
                 0,                     // Flags
                 1.0f,                  // MaxFrequencyRatio
                 &_callback));
 
-        _samplesPerBuffer = _waveform.samplesPerBuffer();  // TODO
+        _samplesPerBuffer = samplesPerBuffer;
         _data.allocate(_samplesPerBuffer*2);
         _bytesPerBuffer = waveFormatEx.nBlockAlign*_samplesPerBuffer;
+    }
+    void play()
+    {
         fillNextBuffer();
         fillNextBuffer();
         IF_ERROR_THROW(_xAudio2SourceVoice->Start(0));
     }
-    ~XAudio2Sound() { _thread.end(); }
+    ~XAudio2Sink() { _thread.end(); }
 private:
-    void bufferEnded() { _event.set(); }
+    void bufferEnded() { _event.signal(); }
     void fillNextBuffer()
     {
         do {
@@ -320,7 +311,7 @@ private:
             for (int i = 0; i < _samplesPerBuffer; ++i)
                 *(sample++) = r.item();
             read(_samplesPerBuffer);
-            _consumeEvent.set();
+            _consumeEvent.signal();
             IF_ERROR_THROW(_xAudio2SourceVoice->SubmitSourceBuffer(&buffer));
             _next = 1 - _next;
         } while (true);
@@ -344,5 +335,83 @@ private:
     friend class Callback;
 };
 
+template<class Sample> class WaveOutSink : public Sink<Sample>
+{
+public:
+    WaveOutSink(int samplesPerSecond = 44100, int samplesPerBufferChannel = 512, int channels = 1)
+    {
+        WAVEFORMATEX format;
+        ZeroMemory(&format, sizeof(WAVEFORMATEX));
+        format.wFormatTag = WAVE_FORMAT_PCM;
+        format.nChannels = channels;
+        format.nSamplesPerSec = samplesPerSecond;
+        int nBlockAlign = channels*sizeof(Sample);
+        format.nAvgBytesPerSec = samplesPerSecond*nBlockAlign;
+        format.nBlockAlign = nBlockAlign;
+        format.wBitsPerSample = sizeof(Sample)*8;
+        format.cbSize = 0;
+
+        IF_FALSE_THROW(waveOutOpen(&_device, WAVE_MAPPER, &format,
+            reinterpret_cast<DWORD_PTR>(waveOutProc),
+            reinterpret_cast<DWORD_PTR>(this), CALLBACK_FUNCTION)
+            == MMSYSERR_NOERROR);
+
+        _samplesPerBuffer = samplesPerBufferChannel * channels;
+        _data.allocate(_samplesPerBuffer * 2);
+
+        for (int i = 0; i < 2; ++i) {
+            ZeroMemory(&_headers[i], sizeof(WAVEHDR));
+            _headers[i].lpData = &_data[i*_samplesPerBuffer];
+            _headers[i].dwBufferLength = _samplesPerBuffer*sizeof(Sample);
+        }
+        _header = 0;
+        _ending = false;
+    }
+    void play()
+    {
+        playBuffer();
+        playBuffer();
+    }
+    ~WaveOutSink()
+    {
+        waveOutReset(_device);
+        waveOutClose(_device);
+    }
+    void consume(int n) { _consumeEvent.wait(); }
+private:
+    static void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg,
+        DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
+    {
+        if (uMsg == WOM_DONE)
+            reinterpret_cast<WaveOutSink*>(dwInstance)->nextBlock();
+    }
+    void nextBlock()
+    {
+        IF_FALSE_THROW(waveOutUnprepareHeader(_device, &_headers[_header],
+            sizeof(WAVEHDR)) == MMSYSERR_NOERROR);
+        if (!_ending)
+            playBuffer();
+    }
+    void playBuffer()
+    {
+        Sample* p = &_data[_header*_samplesPerBuffer];
+        Accessor<Sample> r = reader(_samplesPerBuffer);
+        for (int i = 0; i < _samplesPerBuffer; ++i)
+            *(p++) = r.item();
+        read(_samplesPerBuffer);
+        IF_FALSE_THROW(waveOutPrepareHeader(_device, &_headers[_header],
+            sizeof(WAVEHDR));
+        IF_FALSE_THROW(waveOutWrite(_device, &_headers[_header],
+            sizeof(WAVEHDR));
+    }
+    int _samplesPerBuffer;
+    Event _consumeEvent;
+    HWAVEOUT _device;
+    WAVEHDR _headers[2];
+    int _header;
+    Array<Sample> _data;
+    int _samplesPerBuffer;
+    bool _ending;
+};
 
 #endif // INCLUDED_AUDIO_H

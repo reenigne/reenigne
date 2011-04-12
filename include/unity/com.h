@@ -1,9 +1,10 @@
 #ifndef INCLUDED_COM_H
 #define INCLUDED_COM_H
 
-#include <ObjBase.h>
-
 #include "unity/string.h"
+#include <ObjBase.h>
+#include <OleAuto.h>
+
 
 #define IF_ERROR_THROW(expr) CODE_MACRO( \
     HRESULT hrMacro = (expr); \
@@ -80,10 +81,10 @@ Exception exceptionFromHResult(HRESULT hresult)
     if (GetErrorInfo(0, &spIEI) == S_OK) {
         Bstr bstrDescription;
         spIEI->GetDescription(&bstrDescription);
-        _description = bstrDescription;
+        return Exception(bstrDescription);
     }
     else
-        return Exception::fromErrorCode(hr);
+        return Exception::fromErrorCode(hresult);
 }
 
 
