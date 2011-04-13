@@ -9,10 +9,30 @@
 #include <xaudio2.h>
 #include "unity/com.h"
 
-// TODO: mmsystem implementation?
 // TODO: .wav writer sink
+//   We would like sources to be able to tell sinks "the stream is ending" for recording purposes.
+//   Have a "pulls" flag - if set then play() just calls consume() repeatedly until stream ends
+//   Write dummy header, then write data to disk and fixup header on close - avoid caching entire wav in memory
 
-template<class Sample> class DirectSoundSink : public Sink<Sample>
+template<class Sample> class AudioSink : public Sink<Sample>
+{
+protected:
+    AudioSink(int samplesPerSecond, int channels)
+    {
+        ZeroMemory(&_format, sizeof(WAVEFORMATEX));
+        _format.wFormatTag = WAVE_FORMAT_PCM;
+        _format.nChannels = channels;
+        _format.nSamplesPerSec = samplesPerSecond;
+        int nBlockAlign = channels*sizeof(Sample);
+        _format.nAvgBytesPerSec = samplesPerSecond*nBlockAlign;
+        _format.nBlockAlign = nBlockAlign;
+        _format.wBitsPerSample = sizeof(Sample)*8;
+        _format.cbSize = 0;
+    }
+    WAVEFORMATEX _format;
+};
+
+template<class Sample> class DirectSoundSink : public AudioSink<Sample>
 {
     class ProcessingThread : public Thread
     {
@@ -47,24 +67,16 @@ public:
     // http://www.reenigne.org/blog/what-happened-to-directsound/ .
     // TODO: Could try instead using a timer and IDirectSoundBuffer::GetCurrentPosition().
     // TODO: Change samplesPerBuffer parameter to secondsPerBuffer?
-    DirectSoundSink(HWND hWnd, int samplesPerSecond = 44100, int samplesPerBuffer = 4096, int channels = 1) : _hWnd(hWnd)
+    DirectSoundSink(HWND hWnd, int samplesPerSecond = 44100,
+        int samplesPerBuffer = 4096, int channels = 1)
+      : AudioSink(samplesPerSecond, channels),
+        _hWnd(hWnd)
     {
         IF_ERROR_THROW(DirectSoundCreate8(NULL, &_directSound, NULL));
 
         // Set priority cooperative level
         IF_ERROR_THROW(
             _directSound->SetCooperativeLevel(hWnd, DSSCL_PRIORITY));
-
-        WAVEFORMATEX format;
-        ZeroMemory(&format, sizeof(WAVEFORMATEX));
-        format.wFormatTag = WAVE_FORMAT_PCM;
-        format.nChannels = channels;
-        format.nSamplesPerSec = samplesPerSecond;
-        int nBlockAlign = channels*sizeof(Sample);
-        format.nAvgBytesPerSec = samplesPerSecond*nBlockAlign;
-        format.nBlockAlign = nBlockAlign;
-        format.wBitsPerSample = sizeof(Sample)*8;
-        format.cbSize = 0;
 
         _bytesPerSample = sizeof(Sample);
 
@@ -84,7 +96,7 @@ public:
                 &spDSBPrimary,
                 NULL));
 
-            IF_ERROR_THROW(spDSBPrimary->SetFormat(&format));
+            IF_ERROR_THROW(spDSBPrimary->SetFormat(&_format));
         }
 
         // Set background thread priority
@@ -204,7 +216,7 @@ private:
     friend class ProcessingThread;
 };
 
-template<class Sample> class XAudio2Sink : public Sink<Sample>
+template<class Sample> class XAudio2Sink : public AudioSink<Sample>
 {
     class Callback : public IXAudio2VoiceCallback
     {
@@ -249,7 +261,10 @@ template<class Sample> class XAudio2Sink : public Sink<Sample>
     };
 
 public:
-    XAudio2Sink(int samplesPerSecond = 44100, int samplesPerBuffer = 512, int channels = 1) : _next(0)
+    XAudio2Sink(int samplesPerSecond = 44100, int samplesPerBuffer = 512,
+        int channels = 1)
+      : AudioSink(samplesPerSecond, channels),
+        _next(0)
     {
         _callback.setSink(this);
         _thread.setSink(this);
@@ -260,21 +275,10 @@ public:
         IF_ERROR_THROW(
             _xAudio2->CreateMasteringVoice(&_xAudio2MasteringVoice));
 
-        WAVEFORMATEX format;
-        ZeroMemory(&format, sizeof(WAVEFORMATEX));
-        format.wFormatTag = WAVE_FORMAT_PCM;
-        format.nChannels = channels;
-        format.nSamplesPerSec = samplesPerSecond;
-        int nBlockAlign = channels*sizeof(Sample);
-        format.nAvgBytesPerSec = samplesPerSecond*nBlockAlign;
-        format.nBlockAlign = nBlockAlign;
-        format.wBitsPerSample = sizeof(Sample)*8;
-        format.cbSize = 0;
-
         IF_ERROR_THROW(
             _xAudio2->CreateSourceVoice(
                 &_xAudio2SourceVoice,
-                &format,
+                &_format,
                 0,                     // Flags
                 1.0f,                  // MaxFrequencyRatio
                 &_callback));
@@ -335,23 +339,14 @@ private:
     friend class Callback;
 };
 
-template<class Sample> class WaveOutSink : public Sink<Sample>
+template<class Sample> class WaveOutSink : public AudioSink<Sample>
 {
 public:
-    WaveOutSink(int samplesPerSecond = 44100, int samplesPerBufferChannel = 512, int channels = 1)
+    WaveOutSink(int samplesPerSecond = 44100,
+        int samplesPerBufferChannel = 512, int channels = 1)
+      : AudioSink(samplesPerSecond, channels)
     {
-        WAVEFORMATEX format;
-        ZeroMemory(&format, sizeof(WAVEFORMATEX));
-        format.wFormatTag = WAVE_FORMAT_PCM;
-        format.nChannels = channels;
-        format.nSamplesPerSec = samplesPerSecond;
-        int nBlockAlign = channels*sizeof(Sample);
-        format.nAvgBytesPerSec = samplesPerSecond*nBlockAlign;
-        format.nBlockAlign = nBlockAlign;
-        format.wBitsPerSample = sizeof(Sample)*8;
-        format.cbSize = 0;
-
-        IF_FALSE_THROW(waveOutOpen(&_device, WAVE_MAPPER, &format,
+        IF_FALSE_THROW(waveOutOpen(&_device, WAVE_MAPPER, &_format,
             reinterpret_cast<DWORD_PTR>(waveOutProc),
             reinterpret_cast<DWORD_PTR>(this), CALLBACK_FUNCTION)
             == MMSYSERR_NOERROR);
@@ -412,6 +407,18 @@ private:
     Array<Sample> _data;
     int _samplesPerBuffer;
     bool _ending;
+};
+
+template<class Sample> class WaveFileSink : public AudioSink<Sample>
+{
+public:
+    WaveFileSink(File file, int samplesPerSecond = 44100, int channels = 1,
+        int samplesPerBufferChannel = 1024)
+      : AudioSink(samplesPerSecond, channels)
+    {
+    }
+private:
+
 };
 
 #endif // INCLUDED_AUDIO_H

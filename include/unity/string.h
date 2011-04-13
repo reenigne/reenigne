@@ -702,12 +702,14 @@ public:
     }
 };
 
+String empty("");
+
 template<class T> class HandleTemplate : Uncopyable
 {
 public:
 #ifdef _WIN32
-    HandleTemplate() : _handle(INVALID_HANDLE_VALUE) { }
-    HandleTemplate(HANDLE handle, const String& name)
+    HandleTemplate() : _handle(INVALID_HANDLE_VALUE), _name(empty) { }
+    HandleTemplate(HANDLE handle, const String& name = empty)
       : _handle(handle), _name(name)
     { }
     operator HANDLE() const { return _handle; }
@@ -722,16 +724,27 @@ public:
         static String console("console");
         return Handle(h, console);
     }
-    void set(HANDLE handle) { _handle = handle; }
+    void set(HANDLE handle, const String& name = empty)
+    {
+        _handle = handle;
+        _name = name;
+    }
 #else
-    HandleTemplate() : _fileDescriptor(-1) { }
-    HandleTemplate(int fileDescriptor) : _fileDescriptor(fileDescriptor) { }
+    HandleTemplate() : _fileDescriptor(-1), _name(empty) { }
+    HandleTemplate(int fileDescriptor, const String& name = empty)
+      : _fileDescriptor(fileDescriptor), _name(name)
+    { }
     operator int() const { return _fileDescriptor; }
     bool valid() const { return _fileDescriptor != -1; }
     static Handle consoleOutput()
     {
         static String console("console");
         return Handle(STDOUT_FILENO, console);
+    }
+    void set(int fileDescriptor, const String& name = empty)
+    {
+        _fileDescriptor = fileDescriptor;
+        _name = name;
     }
 #endif
     String name() const { return _name; }
@@ -828,18 +841,15 @@ class AutoHandle : public Handle
 public:
     AutoHandle() { }
 #ifdef _WIN32
-    AutoHandle(HANDLE handle) : Handle(handle, "") { check(); }
-    AutoHandle(HANDLE handle, const String& name) : Handle(handle, name)
-    {
-        check();
-    }
-    void set(HANDLE handle) { Handle::set(handle); check(); }
-    ~AutoHandle() { if (valid()) CloseHandle(*this); }
-private:
-    void check() { IF_NULL_THROW(operator HANDLE()); }
+    AutoHandle(HANDLE handle, const String& name = empty)
+      : Handle(handle, name)
+    { }
+    ~AutoHandle() { if (valid()) CloseHandle(operator HANDLE()); }
 #else
-    AutoHandle(int fileDescriptor) : Handle(fileDescriptor) { }
-    ~AutoHandle() { if (valid()) close(*this); }
+    AutoHandle(int fileDescriptor, const String& name = empty)
+      : Handle(fileDescriptor, name)
+    { }
+    ~AutoHandle() { if (valid()) close(operator int()); }
 #endif
 };
 
@@ -869,7 +879,6 @@ String colon = String::codePoint(':');
 String openBracket = String::codePoint('[');
 String closeBracket = String::codePoint(']');
 String colonSpace(": ");
-String empty("");
 String tab = String::codePoint(9);
 String doubleQuote = String::codePoint('"');
 String dollar = String::codePoint('$');

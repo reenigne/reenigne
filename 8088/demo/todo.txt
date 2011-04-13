@@ -1,4 +1,15 @@
 Write my own SID simulator that takes this data as input
+  File improvements
+    Add secureSave functionality to FileHandle
+    Add append functionality to FileHandle
+    Add getSize functionality to FileHandle
+    Add read and write functionality to FileHandle
+    Refactor FileHandle
+  Write .wav writer
+    Inherit all audio sinks from a single one with a format helper method
+    Write to file on demand - don't keep the entire file in memory
+  Write non-periodic file source
+    Read from file only on demand - don't keep the entire file in memory
   Write main
   Check that we don't use any frequencies too low for our player
   Write it as a Source and plug it into the audio Sink
@@ -11,4 +22,9 @@ Write my own SID simulator that takes this data as input
 mp3 player
   Use a genetic algorithm to evolve a solution for a given piece of music
     Can use breeding genomes method
-    Use mp3 psycho-acoustic model to evaluate fitness
+    Fitness function:
+      1) Sum of squared samplewise differences
+      2) Transform to frequency domain and discard phase information
+      3) Weight frequencies psycho-acoustically
+      4) Reduce weighting of masked out sounds
+

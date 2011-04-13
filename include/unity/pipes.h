@@ -69,6 +69,7 @@
 #include "unity/minimum_maximum.h"
 #include "unity/uncopyable.h"
 #include "unity/thread.h"
+#include "unity/file.h"
 #include <vector>
 #include <string.h>
 
@@ -218,7 +219,7 @@ template<class T> class Source;
 template<class T> class Sink : public EndPoint<T>
 {
 public:
-    Sink(int n = defaultSampleCount) : _n(n) { }
+    Sink(int n = defaultSampleCount) : _n(n), _samplesToEnd(-1) { }
     void connect(Source<T>* source)
     {
         if (_source == source)
@@ -232,12 +233,18 @@ public:
         source->connect(this);
     }
     virtual void consume(int n) = 0;
+    virtual void finish() { }   // How a Source can tell a Sink that its data stream is coming to an end
     Accessor<T> reader(int n) { _source->ensureData(n); return accessor(); }
     void read(int n)
     {
         _count -= n;
         _position = offset(n);
         _source->_count -= n;
+        if (_samplesToEnd > 0) {
+            _samplesToEnd -= n;
+            if (_samplesToEnd <= 0)
+                finish();
+        }
     }
     void consume()
     {
@@ -245,8 +252,13 @@ public:
             consume(_count);
     }
 private:
+    void ending()
+    {
+        _samplesToEnd = _count;
+    }
     Source<T>* _source;
     int _n;
+    int _samplesToEnd;
 
     friend class Source<T>;
 };
@@ -320,6 +332,8 @@ public:
             produce(n - _count);
         _pulling = false;
     }
+protected:
+    void finish() { _sink->ending(); }
 private:
     Sink<T>* _sink;
     bool _pulling;
@@ -335,12 +349,16 @@ private:
 #pragma warning( push )
 #pragma warning( disable : 4355 )
 
-template<class ConsumedT, class ProducedT, class P> class Pipe : public Filter
+template<class ConsumedT, class ProducedT, class Pipe> class PipeBase
+    : public Filter
 {
 public:
-    Pipe(P* p, int n = defaultSampleCount) : _source(p), _sink(p, n) { }
+    PipeBase(Pipe* p, int n = defaultSampleCount) : _source(pipe), _sink(pipe, n) { }
     Source<ProducedT>* source() { return &_source; }
     Sink<ConsumedT>* sink() { return &_sink; }
+    virtual void produce(int n) { consume(n); }
+    virtual void consume(int n) { produce(n); }
+    virtual void finish() { }
 protected:
     class PipeSource : public Source<ProducedT>
     {
@@ -355,12 +373,14 @@ protected:
     public:
         PipeSink(P* p, int n) : Sink(n), _p(p) { }
         void consume(int n) { _p->consume(n); }
+        void finish() { _p->finish(); }
     private:
         P* _p;
     };
     PipeSource _source;
     PipeSink _sink;
 };
+
 #pragma warning ( pop )
 
 
@@ -375,7 +395,7 @@ public:
 };
 
 
-// A Source that always produces the same sample. Pull only.
+// A Source that always produces the same sample. Pull only. Never finishes.
 template<class T> class ConstantSource : public Source<T>
 {
 public:
@@ -394,6 +414,7 @@ private:
 
 // Data for a PeriodicSource filter. This is separate from PeriodicSource so
 // that several producers can use the same data.
+// TODO: initialize from File.
 template<class T> class PeriodicSourceData
 {
 public:
@@ -410,7 +431,7 @@ private:
 };
 
 
-// A Source that produces the same information repeatedly. Pull only.
+// A Source that produces the same information repeatedly. Pull only. Never finishes.
 template<class T> class PeriodicSource : public Source<T>
 {
 public:

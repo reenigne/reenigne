@@ -8,8 +8,12 @@
 class Event : public AutoHandle
 {
 public:
-    Event() : AutoHandle(CreateEvent(NULL, FALSE, FALSE, NULL))
-    { }
+    Event() : AutoHandle()
+    {
+        HANDLE handle = CreateEvent(NULL, FALSE, FALSE, NULL);
+        IF_NULL_THROW(handle);
+        set(handle);
+    }
     void signal() { IF_ZERO_THROW(SetEvent(operator HANDLE())); }
     void wait()
     {
@@ -24,8 +28,10 @@ public:
       : _started(false),
         _error(false)
     {
-        AutoHandle::set(CreateThread(
-            NULL, 0, threadStaticProc, this, CREATE_SUSPENDED, NULL));
+        HANDLE handle = CreateThread(
+            NULL, 0, threadStaticProc, this, CREATE_SUSPENDED, NULL);
+        IF_NULL_THROW(handle);
+        set(handle);
     }
     void setPriority(int nPriority)
     {
@@ -45,15 +51,18 @@ public:
 private:
     static DWORD WINAPI threadStaticProc(LPVOID lpParameter)
     {
-        Thread* thread = reinterpret_cast<Thread*>(lpParameter);
-        thread->_started = true;
-        BEGIN_CHECKED {
-            thread->threadProc();
-        } END_CHECKED(Exception& e) {
-            thread->_exception = e;
-            thread->_error = true;
-        }
+        reinterpret_cast<Thread*>(lpParameter)->process();
         return 0;
+    }
+    void process()
+    {
+        _started = true;
+        BEGIN_CHECKED {
+            threadProc();
+        } END_CHECKED(Exception& e) {
+            _exception = e;
+            _error = true;
+        }
     }
 
     virtual void threadProc() { }

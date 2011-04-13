@@ -759,18 +759,15 @@ private:
 };
 #endif
 
-
-template<class T> class FileTemplate : public FileSystemObject
+class FileHandle : public AutoHandle
 {
 public:
-    FileTemplate(const String& path, const Directory& relativeTo = CurrentDirectory(), bool windowsParsing = false) : FileSystemObject(path, relativeTo, windowsParsing) { }
-
-    String contents() const
+    void openRead(const File& file)
     {
 #ifdef _WIN32
         Array<WCHAR> data;
-        String filePath = windowsPath();
-        filePath.copyToUTF16(&data);
+        String path = file.windowsPath();
+        path.copyToUTF16(&data);
         HANDLE h = CreateFile(
            &data[0],
            GENERIC_READ,
@@ -781,9 +778,68 @@ public:
            NULL);
         if (h == INVALID_HANDLE_VALUE) {
             static String openingFile("Opening file ");
-            Exception::throwSystemError(openingFile + filePath);
+            throw Exception::systemError(openingFile + path);
         }
-        AutoHandle handle(h, filePath);
+        set(h, path);
+#else
+        Array<UInt8> data;
+        String path = file.path();
+        path.copyTo(&data);
+        int fileDescriptor = open(
+            reinterpret_cast<const char*>(&data[0]),
+            O_RDONLY);
+        if (fileDescriptor == -1) {
+            static String openingFile("Opening file ");
+            throw Exception::systemError(openingFile + path);
+        }
+        set(fileDescriptor, path);
+#endif
+    }
+    void openWrite(const File& file)
+    {
+#ifdef _WIN32
+        Array<WCHAR> data;
+        String path = file.windowsPath();
+        path.copyToUTF16(&data);
+        HANDLE h = CreateFile(
+            &data[0],
+            GENERIC_WRITE,
+            0,
+            NULL,
+            CREATE_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL);
+        if (h == INVALID_HANDLE_VALUE) {
+            static String openingFile("Opening file ");
+            Exception::throwSystemError(openingFile + path);
+        }
+        set(h, path);
+#else
+        Array<UInt8> data;
+        String path = file.path();
+        path.copyTo(&data);
+        int fileDescriptor = open(
+            reinterpret_cast<const char*>(&data[0]),
+            O_WRONLY | O_CREAT | O_TRUNC);
+        if (fileDescriptor == -1) {
+            static String openingFile("Opening file ");
+            Exception::throwSystemError(openingFile + path);
+        }
+        set(fileDescriptor, path);
+#endif
+    }
+};
+
+template<class T> class FileTemplate : public FileSystemObject
+{
+public:
+    FileTemplate(const String& path, const Directory& relativeTo = CurrentDirectory(), bool windowsParsing = false) : FileSystemObject(path, relativeTo, windowsParsing) { }
+
+    String contents() const
+    {
+        FileHandle handle;
+        handle.openRead(*this);
+#ifdef _WIN32
         LARGE_INTEGER size;
         if (GetFileSizeEx(handle, &size) == 0) {
             static String obtainingLengthOfFile("Obtaining length of file ");
@@ -803,17 +859,6 @@ public:
         }
         return String(Buffer(bufferImplementation), 0, n);
 #else
-        Array<UInt8> data;
-        String filePath = path();
-        filePath.copyTo(&data);
-        int fileDescriptor = open(
-            reinterpret_cast<const char*>(&data[0]),
-            O_RDONLY);
-        if (fileDescriptor == -1) {
-            static String openingFile("Opening file ");
-            Exception::throwSystemError(openingFile + filePath);
-        }
-        AutoHandle handle(fileDescriptor);
         off_t n = lseek(fileDescriptor, 0, SEEK_END);
         static String seekingFile("Seeking file ");
         if (n == (off_t)(-1))
@@ -837,38 +882,9 @@ public:
     }
     void save(const String& contents)
     {
-#ifdef _WIN32
-        Array<WCHAR> data;
-        String filePath = windowsPath();
-        filePath.copyToUTF16(&data);
-        HANDLE h = CreateFile(
-            &data[0],
-            GENERIC_WRITE,
-            0,
-            NULL,
-            CREATE_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL,
-            NULL);
-        if (h == INVALID_HANDLE_VALUE) {
-            static String openingFile("Opening file ");
-            Exception::throwSystemError(openingFile + filePath);
-        }
-        AutoHandle handle(h);
+        FileHandle handle;
+        handle.openWrite(*this);
         contents.write(handle);
-#else
-        Array<UInt8> data;
-        String filePath = path();
-        filePath.copyTo(&data);
-        int fileDescriptor = open(
-            reinterpret_cast<const char*>(&data[0]),
-            O_WRONLY | O_CREAT | O_TRUNC);
-        if (fileDescriptor == -1) {
-            static String openingFile("Opening file ");
-            Exception::throwSystemError(openingFile + filePath);
-        }
-        AutoHandle handle(fileDescriptor);
-        contents.write(handle);
-#endif
     }
     void secureSave(const String& contents)
     {
