@@ -59,7 +59,9 @@
 // multiplied by the number of Connections should be less than this.
 //
 // A Pipe with a single Source and a single Sink can be implemented using the
-// Pipe helper classes.
+// Pipe helper class.
+//
+// Sources can specify 
 //
 // See also: http://dancinghacker.com/code/dataflow/ which is similar.
 
@@ -191,6 +193,34 @@ public:
     {
         memset(destination, 0, n*sizeof(T));
     }
+};
+
+
+// Functor to read samples from a FileHandle.
+template<class T> class ReadFrom
+{
+public:
+    ReadFrom(FileHandle* handle) : _handle(handle) { }
+    void operator()(T* destination, int n)
+    {
+        _handle->read(destination, n);
+    }
+private:
+    FileHandle* _handle;
+};
+
+
+// Functor to write samples to a FileHandle.
+template<class T> class WriteTo
+{
+public:
+    WriteTo(FileHandle* handle) : _handle(handle) { }
+    void operator()(T* source, int n)
+    {
+        _handle->write(source, n);
+    }
+private:
+    FileHandle* _handle;
 };
 
 
@@ -332,7 +362,6 @@ public:
             produce(n - _count);
         _pulling = false;
     }
-protected:
     void finish() { _sink->ending(); }
 private:
     Sink<T>* _sink;
@@ -346,19 +375,18 @@ private:
 
 // Base class that can be used by a filter with a single Source and a single
 // Sink.
-#pragma warning( push )
-#pragma warning( disable : 4355 )
-
-template<class ConsumedT, class ProducedT, class Pipe> class PipeBase
+template<class ConsumedT, class ProducedT, class P> class Pipe
     : public Filter
 {
 public:
-    PipeBase(Pipe* p, int n = defaultSampleCount) : _source(pipe), _sink(pipe, n) { }
+    Pipe(P* p, int n = defaultSampleCount)
+      : _source(p), _sink(p, n), _finished(false)
+    { }
     Source<ProducedT>* source() { return &_source; }
     Sink<ConsumedT>* sink() { return &_sink; }
     virtual void produce(int n) { consume(n); }
     virtual void consume(int n) { produce(n); }
-    virtual void finish() { }
+    void finish() { _finished = true; }
 protected:
     class PipeSource : public Source<ProducedT>
     {
@@ -379,9 +407,8 @@ protected:
     };
     PipeSource _source;
     PipeSink _sink;
+    bool _finished;
 };
-
-#pragma warning ( pop )
 
 
 // Filter implementations
@@ -472,6 +499,8 @@ public:
         _source.writer(n).items(CopyFrom<Accessor<T> >(_sink.reader(n)), n);
         _sink.read(n);
         _source.written(n);
+        if (_finished)
+            _source.finish();
     }
 };
 
@@ -489,6 +518,8 @@ public:
             writer.item() = static_cast<ProducedT>(reader.item());
         _sink.read(n);
         _source.written(n);
+        if (_finished)
+            _source.finish();
     }
 };
 
@@ -521,8 +552,9 @@ public:
         }
         _sink.read(n);
         _source.written(written);
+        if (_finished)
+            _source.finish();
     }
-    void consume(int n) { produce(n); }
 private:
     Rate _producerRate;
     Rate _consumerRate;
@@ -536,7 +568,7 @@ template<class T, class Rate = int> class LinearInterpolator
 {
 public:
     // For every "consumerRate" samples consumed we will produce "producerRate" samples.
-    LinearInterpolator(Rate producerRate, Rate consumerRate,Rate offset = 0, T previous = 0)
+    LinearInterpolator(Rate producerRate, Rate consumerRate, Rate offset = 0, T previous = 0)
       : _producerRate(producerRate),
         _consumerRate(consumerRate),
         _offset(offset),
@@ -545,7 +577,8 @@ public:
     void produce(int n)
     {
         Accessor<T> reader = _sink.reader(n);
-        Accessor<T> writer = _source.writer(static_cast<int>((static_cast<Rate>(n)*_producerRate)/_consumerRate) + 1);
+        Accessor<T> writer = _source.writer(static_cast<int>(
+            (static_cast<Rate>(n)*_producerRate)/_consumerRate) + 1);
         int written = 0;
         for (int i = 0; i < n; ++i) {
             T sample = reader.item();
@@ -559,6 +592,11 @@ public:
         }
         _sink.read(n);
         _source.written(written);
+        // TODO: Should we avoid calling finish() until we're done with the
+        // last sample that came from before finish() was called?
+        // Should we be keeping track of the number of post-finish samples?
+        if (_finished)
+            _source.finish();
     }
 private:
     Rate _producerRate;
@@ -590,6 +628,9 @@ public:
         _source.writer(n).items(CopyFrom<Accessor<T> >(reader()), n);
         _readPosition = (_readPosition + n) & _mask;
         _count -= n;
+        _source.written(n);
+        if (_finished)
+            _source.finish();
     }
     void consume(int n)
     {

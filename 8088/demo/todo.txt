@@ -1,13 +1,5 @@
 Write my own SID simulator that takes this data as input
-  File improvements
-    Add secureSave functionality to FileHandle
-    Add append functionality to FileHandle
-    Add getSize functionality to FileHandle
-    Add read and write functionality to FileHandle
-    Refactor FileHandle
-  Write .wav writer
-    Inherit all audio sinks from a single one with a format helper method
-    Write to file on demand - don't keep the entire file in memory
+  Change pipe finish to samplesSinceFinished
   Write non-periodic file source
     Read from file only on demand - don't keep the entire file in memory
   Write main
@@ -27,4 +19,18 @@ mp3 player
       2) Transform to frequency domain and discard phase information
       3) Weight frequencies psycho-acoustically
       4) Reduce weighting of masked out sounds
+    Initially try at 44100Hz, 16-bit
+      44100Hz : steps of .67Hz
+      Change every 256 samples gives 172 changes per second
+        3 channels gives 57 changes per second
+        1 change = 3 bytes:
+          1 byte: waveform
+          2 bytes: frequency
+        517 bytes per second == 4Kbits/sec == 121Kb for a 4 minute song
+
+      For compression purposes, try some different parameters:
+        Number of waveforms
+        Number of samples per waveform
+        Number of changes per second
+        Huffman coding of change
 

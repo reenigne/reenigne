@@ -72,7 +72,6 @@ typedef LocalStringTemplate<void> LocalString;
 
 #ifdef _WIN32
 #define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
 #include <errno.h>
@@ -334,6 +333,38 @@ private:
     static Reference<StringImplementation> _emptyImplementation;
 };
 
+class NullTerminatedString
+{
+public:
+    NullTerminatedString(String s)
+    {
+        s.copyTo(&_buffer);
+    }
+    operator const char*()
+    {
+        return reinterpret_cast<const char*>(&_buffer[0]);
+    }
+private:
+    Array<UInt8> _buffer;
+};
+
+#ifdef _WIN32
+class NullTerminatedWideString
+{
+public:
+    NullTerminatedWideString(String s)
+    {
+        s.copyToUTF16(&_buffer);
+    }
+    operator const WCHAR*()
+    {
+        return &_buffer[0];
+    }
+private:
+    Array<WCHAR> _buffer;
+};
+#endif
+
 class StringImplementation : public ReferenceCounted
 {
 public:
@@ -405,20 +436,7 @@ public:
     {
         if (length() == 0)
             return;
-#ifdef _WIN32
-        DWORD bytesWritten;
-        if (WriteFile(handle, reinterpret_cast<LPCVOID>(_buffer.data() + _start), length(), &bytesWritten, NULL) == 0 || bytesWritten != length()) {
-            static String writingFile("Writing file ");
-            throw Exception::systemError(writingFile + handle.name());
-        }
-#else
-        ssize_t writeResult = write(fileDescriptor, static_cast<void*>(_buffer.data() + _start), length());
-        static String readingFile("Writing file ");
-        if (writeResult < length()) {
-            static String writingFile("Writing file ");
-            throw Exception::systemError(writingFile + handle.name());
-        }
-#endif
+        handle.write(static_cast<const void*>(_buffer.data() + _start), length());
     }
 protected:
     Buffer _buffer;
@@ -748,6 +766,34 @@ public:
     }
 #endif
     String name() const { return _name; }
+    void write(const void* buffer, int bytes) const
+    {
+        static String writingFile("Writing file ");
+#ifdef _WIN32
+        DWORD bytesWritten;
+        if (WriteFile(_handle, buffer, bytes, &bytesWritten, NULL) == 0 ||
+            bytesWritten != bytes)
+            throw Exception::systemError(writingFile + _name);
+#else
+        ssize_t writeResult = write(_fileDescriptor, buffer, bytes);
+        if (writeResult < length())
+            throw Exception::systemError(writingFile + _name);
+#endif
+    }
+    void read(void* buffer, int bytes) const
+    {
+        static String readingFile("Reading file ");
+#ifdef _WIN32
+        DWORD bytesRead;
+        if (ReadFile(_handle, buffer, bytes, &bytesRead, NULL) == 0 ||
+            numberOfBytesRead != bytes)
+            throw Exception::systemError(readingFile + _name);
+#else
+        ssize_t readResult = read(_fileDescriptor, buffer, bytes);
+        if (readResult < bytes)
+            throw Exception::systemError(readingFile + _name);
+#endif
+    }
 private:
 #ifdef _WIN32
     HANDLE _handle;

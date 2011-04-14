@@ -9,15 +9,11 @@
 #include <xaudio2.h>
 #include "unity/com.h"
 
-// TODO: .wav writer sink
-//   We would like sources to be able to tell sinks "the stream is ending" for recording purposes.
-//   Have a "pulls" flag - if set then play() just calls consume() repeatedly until stream ends
-//   Write dummy header, then write data to disk and fixup header on close - avoid caching entire wav in memory
-
 template<class Sample> class AudioSink : public Sink<Sample>
 {
 protected:
     AudioSink(int samplesPerSecond, int channels)
+      : _channels(channels)
     {
         ZeroMemory(&_format, sizeof(WAVEFORMATEX));
         _format.wFormatTag = WAVE_FORMAT_PCM;
@@ -30,6 +26,7 @@ protected:
         _format.cbSize = 0;
     }
     WAVEFORMATEX _format;
+    int _channels;
 };
 
 template<class Sample> class DirectSoundSink : public AudioSink<Sample>
@@ -195,8 +192,6 @@ private:
         _consumeEvent.signal();
     }
 
-    void consume(int n) { _event.wait(); }
-
     COMPointer<IDirectSound8> _directSound;
     ProcessingThread _thread;
 
@@ -285,7 +280,7 @@ public:
 
         _samplesPerBuffer = samplesPerBuffer;
         _data.allocate(_samplesPerBuffer*2);
-        _bytesPerBuffer = waveFormatEx.nBlockAlign*_samplesPerBuffer;
+        _bytesPerBuffer = _format.nBlockAlign*_samplesPerBuffer;
     }
     void play()
     {
@@ -395,9 +390,9 @@ private:
             *(p++) = r.item();
         read(_samplesPerBuffer);
         IF_FALSE_THROW(waveOutPrepareHeader(_device, &_headers[_header],
-            sizeof(WAVEHDR));
+            sizeof(WAVEHDR)));
         IF_FALSE_THROW(waveOutWrite(_device, &_headers[_header],
-            sizeof(WAVEHDR));
+            sizeof(WAVEHDR)));
     }
     int _samplesPerBuffer;
     Event _consumeEvent;
@@ -405,7 +400,6 @@ private:
     WAVEHDR _headers[2];
     int _header;
     Array<Sample> _data;
-    int _samplesPerBuffer;
     bool _ending;
 };
 
@@ -414,11 +408,48 @@ template<class Sample> class WaveFileSink : public AudioSink<Sample>
 public:
     WaveFileSink(File file, int samplesPerSecond = 44100, int channels = 1,
         int samplesPerBufferChannel = 1024)
-      : AudioSink(samplesPerSecond, channels)
+      : AudioSink(samplesPerSecond, channels),
+        _samplesPerBuffer(samplesPerBuffer * channels)
+        _handle(file),
+        _bytes(0);
     {
+        // TODO: make endian-neutral. Posix port.
+        _handle.openWrite();
+        _handle.write("RIFF", 4);
+        DWORD t = 36;
+        _handle.write(&t, 4);
+        _handle.write("WAVE", 4);
+        _handle.write("fmt ", 4);
+        t = 16;
+        _handle.write(&t, 4);
+        _handle.write(&_format, 16);
+        _handle.write("data", 4);
+        t = 0;
+        _handle.write(&t, 4);
+    }
+    void play()
+    {
+        do {
+            consume(_samplesPerBuffer);
+        } while (!_finished);
+    }
+    void consume(int n)
+    {
+        Accessor<Sample> r = reader(_samplesPerBuffer);
+        r.items(WriteTo<Sample>(&_handle), 0, _samplesPerBuffer);
+        _bytes += _samplesPerBuffer*sizeof(Sample);
+        r.read();
+        if (_finished) {
+            _handle.seek(4);
+            _handle.write(_bytes + 36);
+            _handle.seek(40);
+            _handle.write(_bytes);
+        }
     }
 private:
-
+    int _samplesPerBuffer;
+    FileHandle _handle;
+    int _bytes;
 };
 
 #endif // INCLUDED_AUDIO_H
