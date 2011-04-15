@@ -292,11 +292,14 @@ int main(int argc, char* argv[])
 #endif
 {
     BEGIN_CHECKED {
+        COMInitializer com;
+        File file(String("sid.dat"));
+        FileSource<Byte> source(file);
         MOSSID sid;
         XAudio2Sink<Sample> sink;
-        // TODO: Fix XAudio2Sink and DirectAudioSink
-        // TODO: Write file PeriodicSource
-        //
+        source.connect(sid.sink());
+        sid.source()->connect(&sink);
+        sink.play();
     }
     END_CHECKED(Exception& e) {
         e.write(Handle::consoleOutput());

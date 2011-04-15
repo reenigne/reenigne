@@ -82,6 +82,7 @@
     <ClInclude Include="..\..\..\include\unity\array.h" />
     <ClInclude Include="..\..\..\include\unity\audio.h" />
     <ClInclude Include="..\..\..\include\unity\buffer.h" />
+    <ClInclude Include="..\..\..\include\unity\com.h" />
     <ClInclude Include="..\..\..\include\unity\command_line.h" />
     <ClInclude Include="..\..\..\include\unity\file.h" />
     <ClInclude Include="..\..\..\include\unity\integer_types.h" />

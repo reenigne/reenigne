@@ -411,7 +411,7 @@ public:
       : AudioSink(samplesPerSecond, channels),
         _samplesPerBuffer(samplesPerBuffer * channels)
         _handle(file),
-        _bytes(0);
+        _bytes(0)
     {
         // TODO: make endian-neutral. Posix port.
         _handle.openWrite();

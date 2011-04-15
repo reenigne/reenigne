@@ -786,7 +786,7 @@ public:
 #ifdef _WIN32
         DWORD bytesRead;
         if (ReadFile(_handle, buffer, bytes, &bytesRead, NULL) == 0 ||
-            numberOfBytesRead != bytes)
+            bytesRead != bytes)
             throw Exception::systemError(readingFile + _name);
 #else
         ssize_t readResult = read(_fileDescriptor, buffer, bytes);

@@ -61,7 +61,9 @@
 // A Pipe with a single Source and a single Sink can be implemented using the
 // Pipe helper class.
 //
-// Sources can specify 
+// Sources can specify how many samples are remaining by calling "remaining".
+// Sinks can obtain this figure (suitably adjusted for the latency caused by
+// intermediate pipes) by calling "remaining".
 //
 // See also: http://dancinghacker.com/code/dataflow/ which is similar.
 
@@ -203,7 +205,7 @@ public:
     ReadFrom(FileHandle* handle) : _handle(handle) { }
     void operator()(T* destination, int n)
     {
-        _handle->read(destination, n);
+        _handle->read(destination, n*sizeof(T));
     }
 private:
     FileHandle* _handle;
@@ -215,10 +217,7 @@ template<class T> class WriteTo
 {
 public:
     WriteTo(FileHandle* handle) : _handle(handle) { }
-    void operator()(T* source, int n)
-    {
-        _handle->write(source, n);
-    }
+    void operator()(T* source, int n) { _handle->write(source, n*sizeof(T)); }
 private:
     FileHandle* _handle;
 };
@@ -236,6 +235,7 @@ protected:
     int _position;
     int _count;
     int _size;
+    int _remaining;
 };
 
 
@@ -249,7 +249,7 @@ template<class T> class Source;
 template<class T> class Sink : public EndPoint<T>
 {
 public:
-    Sink(int n = defaultSampleCount) : _n(n), _samplesToEnd(-1) { }
+    Sink(int n = defaultSampleCount) : _n(n), _finite(false) { }
     void connect(Source<T>* source)
     {
         if (_source == source)
@@ -263,32 +263,34 @@ public:
         source->connect(this);
     }
     virtual void consume(int n) = 0;
-    virtual void finish() { }   // How a Source can tell a Sink that its data stream is coming to an end
+    virtual void remaining(int n) { }
     Accessor<T> reader(int n) { _source->ensureData(n); return accessor(); }
     void read(int n)
     {
         _count -= n;
         _position = offset(n);
         _source->_count -= n;
-        if (_samplesToEnd > 0) {
-            _samplesToEnd -= n;
-            if (_samplesToEnd <= 0)
-                finish();
-        }
+        _remaining -= n;
     }
     void consume()
     {
         while (_count >= _n)
             consume(_count);
     }
-private:
-    void ending()
+    int remaining()
     {
-        _samplesToEnd = _count;
+        if (!_finite)
+            return 0x40000000;
+        else
+            return _remaining;
     }
+    bool finite() { return _finite(); }
+private:
+    void remining(int n) { _remaining = n; _finite = true; }
     Source<T>* _source;
     int _n;
-    int _samplesToEnd;
+    bool _finite;
+    int _remaining;
 
     friend class Source<T>;
 };
@@ -362,7 +364,7 @@ public:
             produce(n - _count);
         _pulling = false;
     }
-    void finish() { _sink->ending(); }
+    void remaining(int n) { _sink->remaining(n + _count); }
 private:
     Sink<T>* _sink;
     bool _pulling;
@@ -380,13 +382,12 @@ template<class ConsumedT, class ProducedT, class P> class Pipe
 {
 public:
     Pipe(P* p, int n = defaultSampleCount)
-      : _source(p), _sink(p, n), _finished(false)
+      : _source(p), _sink(p, n)
     { }
     Source<ProducedT>* source() { return &_source; }
     Sink<ConsumedT>* sink() { return &_sink; }
     virtual void produce(int n) { consume(n); }
     virtual void consume(int n) { produce(n); }
-    void finish() { _finished = true; }
 protected:
     class PipeSource : public Source<ProducedT>
     {
@@ -401,13 +402,11 @@ protected:
     public:
         PipeSink(P* p, int n) : Sink(n), _p(p) { }
         void consume(int n) { _p->consume(n); }
-        void finish() { _p->finish(); }
     private:
         P* _p;
     };
     PipeSource _source;
     PipeSink _sink;
-    bool _finished;
 };
 
 
@@ -422,7 +421,7 @@ public:
 };
 
 
-// A Source that always produces the same sample. Pull only. Never finishes.
+// A Source that always produces the same sample. Pull only. Infinite.
 template<class T> class ConstantSource : public Source<T>
 {
 public:
@@ -441,11 +440,23 @@ private:
 
 // Data for a PeriodicSource filter. This is separate from PeriodicSource so
 // that several producers can use the same data.
-// TODO: initialize from File.
+// TODO: refactor File constructor with File::contents().
 template<class T> class PeriodicSourceData
 {
 public:
     PeriodicSourceData(int size) : _buffer(size) { }
+    PeriodicSourceData(File file)
+    {
+        FileHandle handle(file);
+        handle.openRead();
+        UInt64 size = handle.size();
+        if (size >= 0x80000000) {
+            static String tooLargeFile("2Gb or more in file ");
+            throw Exception(tooLargeFile + file.messagePath());
+        }
+        _buffer.resize(size / sizeof(T));
+        handle.read(&_buffer[0], size);
+    }
 
     // Function for accessing the underlying buffer directly (to fill it, and
     // for use by PeriodicSource).
@@ -458,7 +469,8 @@ private:
 };
 
 
-// A Source that produces the same information repeatedly. Pull only. Never finishes.
+// A Source that produces the same information repeatedly. Pull only. Never
+// finishes.
 template<class T> class PeriodicSource : public Source<T>
 {
 public:
@@ -487,6 +499,30 @@ private:
 };
 
 
+// A Source that takes data from a file. Pull only. Finishes.
+template<class T> class FileSource : public Source<T>
+{
+public:
+    FileSource(File file) : _handle(file)
+    {
+        _handle.openRead();
+        _size = _handle.size() / sizeof(T);
+    }
+    void produce(int n)
+    {
+        if (n > _size)
+            n = static_cast<int>(_size);
+        writer(n).items(ReadFrom<T>(&_handle), n);
+        _size -= n;
+        if (_size < 0x40000000)
+            remaining(static_cast<int>(_size));
+    }
+private:
+    FileHandle _handle;
+    UInt64 _size;
+};
+
+
 // A pipe that just takes samples from its Sink and sends them directly to its
 // Source. This is useful as a pump: external code can call the produce()
 // method directly to cause data to be pulled via the Sink and then pushed via
@@ -499,8 +535,8 @@ public:
         _source.writer(n).items(CopyFrom<Accessor<T> >(_sink.reader(n)), n);
         _sink.read(n);
         _source.written(n);
-        if (_finished)
-            _source.finish();
+        if (_sink.finite())
+            _source.remaining(_sink.remaining());
     }
 };
 
@@ -518,9 +554,57 @@ public:
             writer.item() = static_cast<ProducedT>(reader.item());
         _sink.read(n);
         _source.written(n);
-        if (_finished)
-            _source.finish();
+        if (_sink.finite())
+            _source.remaining(_sink.remaining());
     }
+};
+
+
+// A filter with one sink and two sources, each of which yields identical data
+// to the Sink. A pull from one Source may result in a push from the other.
+template<class T> class Tee
+{
+public:
+    Tee(int n = defaultSampleCount)
+      : _source(this), _sink(this, n)
+    { }
+    Sink<T>* sink() { return &_sink; }
+    Source<T>* source1() { return &_source1; }
+    Source<T>* source2() { return &_source2; }
+    void process(int n)
+    {
+        Accessor<T> r = _sink.reader(n);
+        _source1.writer(n).items(CopyFrom<Accessor<T> >(r), n);
+        _source1.written(n);
+        _source2.writer(n).items(CopyFrom<Accessor<T> >(r), n);
+        _source2.written(n);
+        _sink.read(n);
+        if (_sink.finite()) {
+            _source1.remaining(_sink.remaining());
+            _source2.remaining(_sink.remaining());
+        }
+    }
+protected:
+    class TeeSource : public Source<T>
+    {
+    public:
+        TeeSource(Tee* t) : _t(t) { }
+        void produce(int n) { _t->process(n); }
+    private:
+        Tee* _t;
+    };
+    class TeeSink : public Sink<T>
+    {
+    public:
+        TeeSink(Tee* t, int n) : Sink(n), _t(t) { }
+        void consume(int n) { _t->process(n); }
+        void remaining(int n) { _t->remaining(n); }
+    private:
+        Tee* _t;
+    };
+    TeeSink _sink;
+    TeeSource _source1;
+    TeeSource _source2;
 };
 
 
@@ -539,7 +623,7 @@ public:
     {
         // TODO: We can probably speed this up somewhat by copying blocks
         Accessor<T> reader = _sink.reader(n);
-        Accessor<T> writer = _source.writer(static_cast<int>((static_cast<Rate>(n)*_producerRate)/_consumerRate) + 1);
+        Accessor<T> writer = _source.writer(toProduce(n) + 1);
         int written = 0;
         for (int i = 0; i < n; ++i) {
             T sample = reader.item();
@@ -552,10 +636,16 @@ public:
         }
         _sink.read(n);
         _source.written(written);
-        if (_finished)
-            _source.finish();
+        // TODO: Correct for _offset so that remaining goes down smoothly
+        if (_sink.finite())
+            _source.remaining(toProduce(_sink.remaining()));
     }
 private:
+    int toProduce(int consume)
+    {
+        return static_cast<int>(
+            (static_cast<Rate>(n)*_producerRate)/_consumerRate);
+    }
     Rate _producerRate;
     Rate _consumerRate;
     Rate _offset;
@@ -577,8 +667,7 @@ public:
     void produce(int n)
     {
         Accessor<T> reader = _sink.reader(n);
-        Accessor<T> writer = _source.writer(static_cast<int>(
-            (static_cast<Rate>(n)*_producerRate)/_consumerRate) + 1);
+        Accessor<T> writer = _source.writer(toProduce(n) + 1);
         int written = 0;
         for (int i = 0; i < n; ++i) {
             T sample = reader.item();
@@ -592,13 +681,16 @@ public:
         }
         _sink.read(n);
         _source.written(written);
-        // TODO: Should we avoid calling finish() until we're done with the
-        // last sample that came from before finish() was called?
-        // Should we be keeping track of the number of post-finish samples?
-        if (_finished)
-            _source.finish();
+        // TODO: Correct for _offset so that remaining goes down smoothly
+        if (_sink.finite())
+            _source.remaining(toProduce(_sink.remaining()));
     }
 private:
+    int toProduce(int consume)
+    {
+        return static_cast<int>(
+            (static_cast<Rate>(n)*_producerRate)/_consumerRate);
+    }
     Rate _producerRate;
     Rate _consumerRate;
     Rate _offset;
@@ -629,8 +721,8 @@ public:
         _readPosition = (_readPosition + n) & _mask;
         _count -= n;
         _source.written(n);
-        if (_finished)
-            _source.finish();
+        if (_sink.finite())
+            _source.remaining(_sink.remaining() + _count);
     }
     void consume(int n)
     {

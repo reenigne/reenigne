@@ -1,8 +1,6 @@
 Write my own SID simulator that takes this data as input
-  Change pipe finish to samplesSinceFinished
-  Write non-periodic file source
-    Read from file only on demand - don't keep the entire file in memory
-  Write main
+  Find out why no sound is being generated
+    Try wave writer?
   Check that we don't use any frequencies too low for our player
   Write it as a Source and plug it into the audio Sink
     Just use nearest neighbour interpolation like sidplay currently does for now
@@ -23,6 +21,8 @@ mp3 player
       44100Hz : steps of .67Hz
       Change every 256 samples gives 172 changes per second
         3 channels gives 57 changes per second
+        Change each parameter at regular intervals or have a field specifying which parameter to change (as in x86 player)?
+        Separate volume parameter?
         1 change = 3 bytes:
           1 byte: waveform
           2 bytes: frequency
@@ -33,4 +33,5 @@ mp3 player
         Number of samples per waveform
         Number of changes per second
         Huffman coding of change
+
 

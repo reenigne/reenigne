@@ -234,7 +234,7 @@ private:
     static DirectoryTemplate<T> parseRoot(const String& path, const Directory& relativeTo, CodePointSource& s)
     {
         CodePointSource s2 = s;
-        int c = s.get();
+        int c = s2.get();
         Directory dir = relativeTo;
 
         // Process initial slashes
@@ -380,7 +380,7 @@ private:
     void throwError()
     {
         static String findingFiles("Finding files ");
-        Exception::throwSystemError(findingFiles + _path);
+        throw Exception::systemError(findingFiles + _path);
     }
 
     HANDLE _handle;
@@ -402,7 +402,7 @@ public:
         _dir = opendir(data);
         if (_dir == NULL) {
             static String openingFile("Opening directory ");
-            Exception::throwSystemError(openingDirectory + _path);
+            throw Exception::systemError(openingDirectory + _path);
         }
         next();
     }
@@ -416,7 +416,7 @@ public:
                     _complete = true;
                 else {
                     static String openingFile("Reading directory ");
-                    Exception::throwSystemError(openingDirectory + _path);
+                    throw Exception::systemError(openingDirectory + _path);
                 }
             String n = name();
             static String currentDirectory(".");
@@ -549,11 +549,11 @@ private:
 #ifdef _WIN32
         int n = GetCurrentDirectory(0, NULL);
         if (n == 0)
-            Exception::throwSystemError(obtainingCurrentDirectory);
+            throw Exception::systemError(obtainingCurrentDirectory);
         Array<WCHAR> buf;
         buf.allocate(n);
         if (GetCurrentDirectory(n, &buf[0]) == 0)
-            Exception::throwSystemError(obtainingCurrentDirectory);
+            throw Exception::systemError(obtainingCurrentDirectory);
         String path(&buf[0]);
         return FileSystemObject::parse(path, RootDirectory(), true)._implementation;
 #else
@@ -565,7 +565,7 @@ private:
                 return FileSystemObject::parse(path, RootDirectory(), false)._implementation;
             }
             if (errno != ERANGE)
-                Exception::throwSystemError(obtainingCurrentDirectory);
+                throw Exception::systemError(obtainingCurrentDirectory);
             size *= 2;
         } while (true);
 #endif
@@ -600,7 +600,7 @@ private:
             buf[1] = ':';
             buf[2] = 0;
             if (SetCurrentDirectory(&buf[0]) == 0)
-                Exception::throwSystemError(settingCurrentDirectory);
+                throw Exception::systemError(settingCurrentDirectory);
 
             // Retrieve current directory
             _implementations[drive] = CurrentDirectory::currentDirectory();
@@ -817,7 +817,7 @@ public:
 //        if (rename(tempData, data) != 0) {
 //            // TODO: Delete temporary file?
 //            static String replacingFile("Replacing file ");
-//            Exception::throwSystemError(replacingFile + messagePath());
+//            throw Exception::systemError(replacingFile + messagePath());
 //        }
 //#endif
 //    }
