@@ -4,15 +4,25 @@
 #ifndef INCLUDED_CONVOLUTION_PIPE_H
 #define INCLUDED_CONVOLUTION_PIPE_H
 
-#include "unity/filters.h"
-#include "unity/lcm.h"
+#include "unity/pipes.h"
+#include "unity/gcd.h"
 #include "unity/reference_counted.h"
 #include "float.h"
+
+class ProductKernel;
 
 // A convolution kernel is indexed in such a way that the input samples correspond to integer input values.
 class ConvolutionKernel
 {
 public:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        virtual double operator()(double x) const = 0;
+        virtual double leftExtent() const { return -DBL_MAX; }
+        virtual double rightExtent() const { return DBL_MAX; }
+    };
+
     ConvolutionKernel(Implementation* implementation) : _implementation(implementation) { }
     double operator()(double x) const { return (*_implementation)(x); }
     double leftExtent() const { return _implementation->leftExtent(); }
@@ -24,14 +34,6 @@ public:
     ConvolutionKernel operator*(const ConvolutionKernel& right) { ConvolutionKernel k = *this; k *= right; return k; }
     ConvolutionKernel operator+(const ConvolutionKernel& right) { ConvolutionKernel k = *this; k += right; return k; }
     ConvolutionKernel operator-(const ConvolutionKernel& right) { ConvolutionKernel k = *this; k -= right; return k; }
-
-    class Implementation : public ReferenceCounted
-    {
-    public:
-        virtual double operator()(double x) const = 0;
-        virtual double leftExtent() const { return -DBL_MAX; }
-        virtual double rightExtent() const { return DBL_MAX; }
-    };
 private:
     Reference<Implementation> _implementation;
 };

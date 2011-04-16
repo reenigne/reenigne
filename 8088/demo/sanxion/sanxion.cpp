@@ -1,8 +1,97 @@
 #include "unity\pipes.h"
 #include "unity\assert.h"
 #include "unity\audio.h"
+#include "unity\hash_table.h"
+//#include "unity\convolution_pipe.h"
 
 typedef signed short Sample;
+
+class WaveBank
+{
+public:
+    class WaveDescriptor
+    {
+    public:
+        WaveDescriptor(int volume, int pulseWidth, int type, int scale)
+          : _volume(volume),
+            _pulseWidth(pulseWidth),
+            _type(type),
+            _scale(scale)
+        {
+            if (type != 2)
+                _pulseWidth = 0;
+        }
+        int hash() const
+        {
+            if (_volume == 0)
+                return 0;
+            return _volume + (_pulseWidth << 12) + (_type << 21) + (_scale << 24);
+        }
+        bool operator==(const WaveDescriptor& other) const
+        {
+            if (_volume == 0 && other._volume == 0)
+                return true;
+            if (_volume != other._volume)
+                return false;
+            if (_pulseWidth != other._pulseWidth)
+                return false;
+            if (_type != other._type)
+                return false;
+            if (_scale != other._scale)
+                return false;
+            return true;
+        }
+        int volume() const { return _volume; }
+        int pulseWidth() const { return _pulseWidth; }
+        int type() const { return _type; }
+        int scale() const { return _scale; }
+        int operator[](int offset)  // offset = 0..0xff, returns -0x800000..0x7fffff
+        {
+            return (unscaled((offset*_scale) >> 8) - 0x800)*_volume;
+        }
+    private:
+        int unscaled(int position)  // position = 0..0xffff, returns 0..0xfff
+        {
+            switch (_type) {
+                case 0:
+                    return (((position & 0x8000) != 0 ? ~position : position) >> 4) & 0xfff;
+                case 1:
+                    return (position >> 4) & 0xfff;
+                case 2:
+                    return (((position >> 8) & 0xff) >= _pulseWidth) ? 0xfff : 0;
+                case 3:
+                    // TODO: noise
+                    break;
+            }
+        }
+        int _volume;     // 0 to 0xfff (really 0xff*0xf = 0xef1)
+        int _pulseWidth; // 0 to 0x100
+        int _type;       // 0 = triangle, 1 = sawtooth, 2 = square/pulse, 3 = noise
+        int _scale;      // Number of cycles (for sync) in units of 1/256 of a cycle
+    };
+    class Wave : public ReferenceCounted
+    {
+    public:
+        int& operator[](int offset) { return _data[offset]; }
+        const int& operator[](int offset) const { return _data[offset]; }
+    private:
+        Array<int> _data;
+    };
+    int getSample(WaveDescriptor descriptor, int offset)
+    {
+        Reference<Wave> wave;
+        if (!_bank.hasKey(descriptor)) {
+            wave = new Wave;
+            for (int i = 0; i < 256; ++i)
+                (*wave)[i] = descriptor[i];
+        }
+        else
+            wave = _bank[descriptor];
+        return (*wave)[offset];
+    }
+private:
+    HashTable<WaveDescriptor, Reference<Wave> > _bank;
+};
 
 class MOSSID : public Pipe<Byte, Sample, MOSSID>
 {
@@ -56,9 +145,9 @@ public:
         for (int i = 0; i < 19656; ++i) {
             for (int j = 0; j < 3; ++j)
                 _oscillators[j].update();
-            int s1 = (_oscillators[0].sample() - 2048) << 10;
-            int s2 = (_oscillators[1].sample() - 2048) << 10;
-            int s3 = (_oscillators[2].sample() - 2048) << 10;
+            int s1 = _oscillators[0].sample() << 10;
+            int s2 = _oscillators[1].sample() << 10;
+            int s3 = _oscillators[2].sample() << 10;
             int unfiltered = 0;
             int filtered = 0;
             if ((_resonanceFilter & 1) == 0)
@@ -80,6 +169,8 @@ public:
             writer.item() = static_cast<Sample>(s >> 16);
         }
         _source.written(19656);
+        if (_sink.finite() && _sink.remaining() <= 0)
+            _source.remaining(0);
     }
 private:
     class Oscillator
@@ -117,7 +208,7 @@ private:
                     _pulseWidth = (_pulseWidth & 0xf00) | value;
                     break;
                 case 3:
-                    _pulseWidth = (_pulseWidth & 0xff) | ((value << 8) & 0x0f);
+                    _pulseWidth = (_pulseWidth & 0xff) | ((value << 8) & 0xf00);
                     break;
                 case 4:
                     _control = value;
@@ -209,7 +300,7 @@ private:
                     break;
             }
         }
-        int sample()  // 0 to 0xfff*0xff
+        int sample()  // -0x80000 to 0x7ffff
         {
             if (synchronize() && !_previous->synchronize())
                 _accumulator = 0;
@@ -220,8 +311,8 @@ private:
                 case 0x10:
                     {
                         UInt32 a = _accumulator;
-                        if (ringModulation())
-                            a ^= _previous->_accumulator;
+                        //if (ringModulation())
+                        //    a ^= _previous->_accumulator;
                         s = (((a & 0x800000) != 0 ? ~_accumulator : _accumulator) >> 11) & 0xfff;
                     }
                     break;
@@ -245,7 +336,7 @@ private:
                     // Others not used in Sanxion
                     assert(false);
             }
-            return s*_envelope;
+            return (s - 0x800)*_envelope;
         }
         void setPrevious(Oscillator* previous)
         {
@@ -283,6 +374,7 @@ private:
     Byte _resonanceFilter;
     Byte _modeVol;
     Oscillator _oscillators[3];
+    int _frame;
 };
 
 #ifdef _WIN32
@@ -296,10 +388,17 @@ int main(int argc, char* argv[])
         File file(String("sid.dat"));
         FileSource<Byte> source(file);
         MOSSID sid;
-        XAudio2Sink<Sample> sink;
+        //NearestNeighborInterpolator<Sample> interpolator(985248, 44100);
+        LinearInterpolator<Sample> interpolator(985248, 44100);
+        //XAudio2Sink<Sample> sink;
+        //DirectSoundSink<Sample> sink(NULL, 44100, 1024, 1);
+        //WaveOutSink<Sample> sink;
+        WaveFileSink<Sample> sink(File(String("sanxion.wav")));
         source.connect(sid.sink());
-        sid.source()->connect(&sink);
+        sid.source()->connect(interpolator.sink());
+        interpolator.source()->connect(&sink);
         sink.play();
+        //sink.wait();
     }
     END_CHECKED(Exception& e) {
         e.write(Handle::consoleOutput());

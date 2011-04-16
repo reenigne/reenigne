@@ -119,7 +119,8 @@ protected:
     int hash(int key) const { return key; }
 };
 
-template<class Key, class Value> class HashTable : public HashTableBase<Key, Value, HashTableRow<Key, Value> >
+template<class Key, class Value> class HashTable
+    : public HashTableBase<Key, Value, HashTableRow<Key, Value> >
 {
 };
 

@@ -100,7 +100,7 @@ public:
         _thread.setPriority(THREAD_PRIORITY_TIME_CRITICAL);
         SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 
-        int bufferBytes = wfx.nBlockAlign*samplesPerBuffer;
+        int bufferBytes = _format.nBlockAlign*samplesPerBuffer;
 
         DSBUFFERDESC dsbd = {0};
         dsbd.dwSize = sizeof(DSBUFFERDESC);
@@ -108,7 +108,7 @@ public:
             DSBCAPS_CTRLPOSITIONNOTIFY;
         dsbd.dwBufferBytes   = bufferBytes;
         dsbd.guid3DAlgorithm = GUID_NULL;
-        dsbd.lpwfxFormat     = &wfx;
+        dsbd.lpwfxFormat     = &_format;
 
         IF_ERROR_THROW(_directSound->
             CreateSoundBuffer(&dsbd, &_directSoundBuffer, NULL));
@@ -179,6 +179,7 @@ public:
         _directSoundBuffer->Stop();
         _thread.end();
     }
+    void wait() { _finish.wait(); }
 
 private:
     void fillBuffer(void* data, int length)
@@ -190,6 +191,8 @@ private:
             *(sample++) = r.item();
         read(length);
         _consumeEvent.signal();
+        if (finite() && remaining() <= 0)
+            _finish.signal();
     }
 
     COMPointer<IDirectSound8> _directSound;
@@ -207,6 +210,7 @@ private:
     int _bytesPerSample;
     Event _event;
     Event _consumeEvent;
+    Event _finish;
 
     friend class ProcessingThread;
 };
@@ -288,6 +292,7 @@ public:
         fillNextBuffer();
         IF_ERROR_THROW(_xAudio2SourceVoice->Start(0));
     }
+    void wait() { _finish.wait(); }
     ~XAudio2Sink() { _thread.end(); }
 private:
     void bufferEnded() { _event.signal(); }
@@ -313,6 +318,8 @@ private:
             _consumeEvent.signal();
             IF_ERROR_THROW(_xAudio2SourceVoice->SubmitSourceBuffer(&buffer));
             _next = 1 - _next;
+            if (finite() && remaining() <= 0)
+                _finish.signal();
         } while (true);
     }
 
@@ -329,6 +336,7 @@ private:
     int _samplesPerBuffer;
     int _bytesPerBuffer;
     Event _consumeEvent;
+    Event _finish;
 
     friend class ProcessingThread;
     friend class Callback;
@@ -351,7 +359,8 @@ public:
 
         for (int i = 0; i < 2; ++i) {
             ZeroMemory(&_headers[i], sizeof(WAVEHDR));
-            _headers[i].lpData = &_data[i*_samplesPerBuffer];
+            _headers[i].lpData =
+                reinterpret_cast<LPSTR>(&_data[i*_samplesPerBuffer]);
             _headers[i].dwBufferLength = _samplesPerBuffer*sizeof(Sample);
         }
         _header = 0;
@@ -368,6 +377,7 @@ public:
         waveOutClose(_device);
     }
     void consume(int n) { _consumeEvent.wait(); }
+    void wait() { _finish.wait(); }
 private:
     static void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg,
         DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
@@ -390,9 +400,12 @@ private:
             *(p++) = r.item();
         read(_samplesPerBuffer);
         IF_FALSE_THROW(waveOutPrepareHeader(_device, &_headers[_header],
-            sizeof(WAVEHDR)));
+            sizeof(WAVEHDR)) == MMSYSERR_NOERROR);
         IF_FALSE_THROW(waveOutWrite(_device, &_headers[_header],
-            sizeof(WAVEHDR)));
+            sizeof(WAVEHDR)) == MMSYSERR_NOERROR);
+        if (finite() && remaining() <= 0)
+            _finish.signal();
+        _header = 1 - _header;
     }
     int _samplesPerBuffer;
     Event _consumeEvent;
@@ -401,6 +414,7 @@ private:
     int _header;
     Array<Sample> _data;
     bool _ending;
+    Event _finish;
 };
 
 template<class Sample> class WaveFileSink : public AudioSink<Sample>
@@ -409,7 +423,7 @@ public:
     WaveFileSink(File file, int samplesPerSecond = 44100, int channels = 1,
         int samplesPerBufferChannel = 1024)
       : AudioSink(samplesPerSecond, channels),
-        _samplesPerBuffer(samplesPerBuffer * channels)
+        _samplesPerBuffer(samplesPerBufferChannel * channels),
         _handle(file),
         _bytes(0)
     {
@@ -431,19 +445,25 @@ public:
     {
         do {
             consume(_samplesPerBuffer);
-        } while (!_finished);
+        } while (!finite() || remaining() > 0);
     }
     void consume(int n)
     {
-        Accessor<Sample> r = reader(_samplesPerBuffer);
-        r.items(WriteTo<Sample>(&_handle), 0, _samplesPerBuffer);
-        _bytes += _samplesPerBuffer*sizeof(Sample);
-        r.read();
-        if (_finished) {
+        if (finite() && n > remaining())
+            n = remaining();
+        if (n > 0) {
+            Accessor<Sample> r = reader(n);
+            r.items(WriteTo<Sample>(&_handle), 0, n);
+            _bytes += n*sizeof(Sample);
+            read(n);
+        }
+        if (finite() && remaining() <= 0) {
             _handle.seek(4);
-            _handle.write(_bytes + 36);
+            DWORD t = _bytes + 36;
+            _handle.write(&t, 4);
             _handle.seek(40);
-            _handle.write(_bytes);
+            t = _bytes;
+            _handle.write(&t, 4);
         }
     }
 private:

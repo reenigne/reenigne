@@ -116,7 +116,7 @@ public:
     template<class F> void items(F& f, int position, int count)
     {
         int start = offset(position);
-        int n = min(count, _mask + 1 - off);
+        int n = min(count, _mask + 1 - (_position + position));
         f(_buffer + start, n);
         f(_buffer, count - n);
     }
@@ -263,7 +263,6 @@ public:
         source->connect(this);
     }
     virtual void consume(int n) = 0;
-    virtual void remaining(int n) { }
     Accessor<T> reader(int n) { _source->ensureData(n); return accessor(); }
     void read(int n)
     {
@@ -284,9 +283,9 @@ public:
         else
             return _remaining;
     }
-    bool finite() { return _finite(); }
+    bool finite() { return _finite; }
 private:
-    void remining(int n) { _remaining = n; _finite = true; }
+    void remaining(int n) { _remaining = n; _finite = true; }
     Source<T>* _source;
     int _n;
     bool _finite;
@@ -510,16 +509,25 @@ public:
     }
     void produce(int n)
     {
-        if (n > _size)
-            n = static_cast<int>(_size);
-        writer(n).items(ReadFrom<T>(&_handle), n);
+        int nRead = n;
+        int nRemaining = n;
+        if (nRead > _size)
+            nRead = static_cast<int>(_size);
+        Accessor<T> w = writer(n);
+        if (nRead > 0) {
+            w.items(ReadFrom<T>(&_handle), nRead);
+            nRemaining -= nRead;
+        }
+        if (nRemaining > 0)
+            w.items(Zero<T>(), nRemaining);
         _size -= n;
+        written(n);
         if (_size < 0x40000000)
             remaining(static_cast<int>(_size));
     }
 private:
     FileHandle _handle;
-    UInt64 _size;
+    SInt64 _size;
 };
 
 
@@ -614,8 +622,10 @@ template<class T, class Rate = int> class NearestNeighborInterpolator
 {
 public:
     // For every "consumerRate" samples consumed we will produce "producerRate" samples.
-    NearestNeighborInterpolator(Rate producerRate, Rate consumerRate, Rate offset = 0)
-      : _producerRate(producerRate),
+    NearestNeighborInterpolator(Rate producerRate, Rate consumerRate,
+        Rate offset = 0, int n = defaultSampleCount)
+      : Pipe(this, n),
+        _producerRate(producerRate),
         _consumerRate(consumerRate),
         _offset(offset)
     { }
@@ -644,7 +654,7 @@ private:
     int toProduce(int consume)
     {
         return static_cast<int>(
-            (static_cast<Rate>(n)*_producerRate)/_consumerRate);
+            (static_cast<Rate>(consume)*_producerRate)/_consumerRate);
     }
     Rate _producerRate;
     Rate _consumerRate;
@@ -658,8 +668,9 @@ template<class T, class Rate = int> class LinearInterpolator
 {
 public:
     // For every "consumerRate" samples consumed we will produce "producerRate" samples.
-    LinearInterpolator(Rate producerRate, Rate consumerRate, Rate offset = 0, T previous = 0)
-      : _producerRate(producerRate),
+    LinearInterpolator(Rate producerRate, Rate consumerRate, Rate offset = 0, T previous = 0, int n = defaultSampleCount)
+      : Pipe(this, n),
+        _producerRate(producerRate),
         _consumerRate(consumerRate),
         _offset(offset),
         _previous(0)
@@ -689,7 +700,7 @@ private:
     int toProduce(int consume)
     {
         return static_cast<int>(
-            (static_cast<Rate>(n)*_producerRate)/_consumerRate);
+            (static_cast<Rate>(consume)*_producerRate)/_consumerRate);
     }
     Rate _producerRate;
     Rate _consumerRate;

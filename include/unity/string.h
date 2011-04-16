@@ -768,6 +768,8 @@ public:
     String name() const { return _name; }
     void write(const void* buffer, int bytes) const
     {
+        if (bytes == 0)
+            return;
         static String writingFile("Writing file ");
 #ifdef _WIN32
         DWORD bytesWritten;
@@ -782,12 +784,17 @@ public:
     }
     void read(void* buffer, int bytes) const
     {
+        if (bytes == 0)
+            return;
         static String readingFile("Reading file ");
 #ifdef _WIN32
         DWORD bytesRead;
-        if (ReadFile(_handle, buffer, bytes, &bytesRead, NULL) == 0 ||
-            bytesRead != bytes)
+        if (ReadFile(_handle, buffer, bytes, &bytesRead, NULL) == 0)
             throw Exception::systemError(readingFile + _name);
+        if (bytesRead != bytes) {
+            static String endOfFile("End of file reading file ");
+            throw Exception(endOfFile + _name);
+        }
 #else
         ssize_t readResult = read(_fileDescriptor, buffer, bytes);
         if (readResult < bytes)
