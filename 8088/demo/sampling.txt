@@ -41,6 +41,21 @@ TCycles per sample  Samples per second         CCycles per sample  blocks per se
       256            1640625/352 =   4.6609 K       1024           1640625/90112  =  18.2065  1472223744/1640625 = 897.3554 (14m 57s)
 
 
+Data block:
+  0 = counter1 low
+  1 = counter1 high
+  2 = counter2 low
+  3 = counter2 high
+  4 = counter3 low
+  5 = counter3 high
+  6 = counter4 low
+  7 = counter4 high
+
+Implementation 1:
+  Positions at [0]
+  add w[si], imm
+  68 cycles per channel sample
+
 CX = sample counter
 DX = speaker port
 BX = waveform table pointer (BL = 0)
@@ -54,15 +69,7 @@ DS = data segment - same as code address
 SS = song
 ES = screen segment
 
-Data block:
-  0 = counter1 low
-  1 = counter1 high
-  2 = counter2 low
-  3 = counter2 high
-  4 = counter3 low
-  5 = counter3 high
-  6 = counter4 low
-  7 = counter4 high
+
 
 Instruction                  Bytes  IO-bytes  BIU-cycles  EU-cycles
 
@@ -128,40 +135,6 @@ end:
 ;   Determine the number of possible tempos
 ;   Can we get screen writes as well?
 ;     Problem: wait states. What are they? Present even in 80-column text mode?
-;   Test that the theoretical sound is reasonable
-;     Write code to resample 1.193MHz 1-bit sound to 44.1KHz 16-bit sound
-;   Change sidplayer to output waveforms:
-;     Square (pulse width modulated), triangle, noise (fake with 256 entry noise wave)
-;     Sync and pulse width modulation
-;     Volume modulation, ring modulation
-;     => There are a *lot* of possible combinations - need to examine them all and pick the most different ones
-;       Use different sets of waveforms for different sections?
-;         Multiple waveform segments implies multiple code and data segments
-;     SID's ring modulation works differently than ours - does this break the song?
-;       Try it and see
-;     Song uses filters but we can get away without them
-;     Test bit not used
-;     Multiple waveforms at once not used
-;   6*50 changes per second => ~400Kb
-;     Will need a way to change SS when SP reaches the end - use alternate looptops for this
-;     Encode so it takes only a few Kb on disk and then decompress on load
-;       Use Hubbard encoding?
-;   Instead of disabling interrupts, leave keyboard interrupts enabled and just disable timer interrupt (using PIC)
-;     Allow escape to end song, skip backwards and forwards. Any other controls where we don't mind clicks?
-;
-;   * Try changing the accumulator XOR ring modulation to sample multiplication ring modulation and see how it changes the sound
-;   * Try changing the 24-bit LFSR to a 256-element table and see how it changes the sound
-;   * Assuming that sounds okay, disable ring modulation and enumerate waveform combinations
-;        How can we do that?
-;          Have a key consisting of all waveform parameters:
-;            Shape
-;            Width
-;            Volume
-;            Sync parameters: sync bit, our frequency, other frequency
-;          Figure out to generate 256-byte waveform cycle. We should be able to fit all of these in RAM.
-;            Compute a distance between two waveforms.
-;              Cycle them so that their highest point is at the start
-;              Sum of square of differences
 
 
 ; 1 byte at a time
@@ -219,6 +192,19 @@ Waveform patterns - we can fit in 255
     36 volume levels for each of:
 
 
+Implementation 2:
+  Positions at [0]
+  lodsw / add ax,imm / stosw
+  68 cycles per channel sample
+
+CX = sample counter
+DX = speaker port
+BX = waveform table pointer
+AX = (AH = sample accumulator), (AL = temporary)
+SI = data block pointer (data block is at address DS:0)
+DI = data block pointer (data block is at address DS:0)
+SP = song pointer
+BP =
 
 looptop:
   lodsw                        1       2          12          16
@@ -275,14 +261,134 @@ total:                        57                 308
 
 
 
-CX = sample counter
-DX = speaker port
-BX = waveform table pointer
-AX = (AH = sample accumulator), (AL = temporary)
-SI = data block pointer (data block is at address DS:0)
-DI = data block pointer (data block is at address DS:0)
-SP = song pointer
-BP =
 
 
+
+Implementation 3:
+  Positions in cx, si, di and bp
+  add r,imm
+  56 cycles per channel sample
+
+AX = various
+BX = table pointer (BL = 0)
+CX = channel 1 velocity
+DX = speaker port (0x0042)
+SI =
+
+velocity1:
+  add cx,9999                  4       0          16           4
+  mov al,ch                    2       0           8           2
+waveform1:
+  mov bh,99                    2       0           8           4
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+
+velocity2:
+  add si,9999                  4       0          16           4
+  mov ax,si                    2       0           8           2
+  mov al,ah                    2       0           8           2
+waveform2:
+  mov bh,99                    2       0           8           4
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+
+velocity3:
+  add di,9999                  4       0          16           4
+  mov ax,di                    2       0           8           2
+  mov al,ah                    2       0           8           2
+waveform3:
+  mov bh,99                    2       0           8           4
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+
+velocity4:
+  add bp,9999                  4       0          16           4
+  mov ax,bp                    2       0           8           2
+  mov al,ah                    2       0           8           2
+waveform4:
+  mov bh,99                    2       0           8           4
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
+
+;  nop                          1       0           4           3
+;  nop                          1       0           4           3
+;  nop                          1       0           4           3
+;  nop                          1       0           4           3
+;  nop                          1       0           4           3
+  dec w[counter]               4       4          32          29
+  jnz looptop                  2       0                       4/16
+
+
+
+
+  out dx,al                    1       1           8           8
+  out 042,al                   2       1          12          10
+
+
+  xlatb                        1       1           8          11
+  mov al,b[bx]                 2       1          12          13
+
+
+
+
+
+
+Implementation 4:
+  Positions in CS
+  Separate high and low bytes
+  72 cycles per channel sample
+  No registers
+
+
+                      +---- position high
+                      |  +- waveform
+                      v  v
+  mov al,[9988]  ; A0 88 99
+
+
+  add b[di+1], 99              4       2          24          23
+  adc b[di+9], 99              4       2          24          23
+  mov al,b[sample]             3       1          16          10
+  out dx,al                    1       1           8           8
+
+
+
+
+
+Implementation 5:
+  Positions in bl, bh, cl, ch, ah
+  Separate high and low bytes
+  60 cycles per channel sample
+
+
+  add ah,99                    3       0          12           4
+  adc b[di+9], 99              4       2          24          23
+  mov al,b[sample]             3       1          16          10
+  out dx,al                    1       1           8           8
+
+
+
+
+Implementation 6:
+  Positions in cl, ch, ah
+  Separate high and low bytes
+  Double lookup for volume tables
+  80 cycles per channel sample
+
+
+  add ah,99                    3       0          12           4
+  adc b[di+9], 99              4       2          24          23
+  mov bl,b[sample]             4       1          20          14
+  mov bh,99                    2       0           8           4
+  xlatb                        1       1           8          11
+  out dx,al                    1       1           8           8
 

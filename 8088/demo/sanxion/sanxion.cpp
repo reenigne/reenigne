@@ -2,6 +2,7 @@
 #include "unity\assert.h"
 #include "unity\audio.h"
 #include "unity\hash_table.h"
+#include "unity\owning_array.h"
 //#include "unity\convolution_pipe.h"
 
 typedef signed short Sample;
@@ -9,15 +10,23 @@ typedef signed short Sample;
 class WaveBank
 {
 public:
+    WaveBank() : _count(0) { _waveFile = fopen("waves.raw","wb"); }
+    ~WaveBank()
+    {
+        printf("%i\n",_count);
+        fclose(_waveFile);
+    }
     class WaveDescriptor
     {
     public:
+        WaveDescriptor() : _volume(0) { }
         WaveDescriptor(int volume, int pulseWidth, int type, int scale)
           : _volume(volume),
             _pulseWidth(pulseWidth),
             _type(type),
             _scale(scale)
         {
+            //_volume = (((_volume * 0xf) / 0xef1) * 0xfff) / 0xf;
             if (type != 2)
                 _pulseWidth = 0;
         }
@@ -47,21 +56,54 @@ public:
         int scale() const { return _scale; }
         int operator[](int offset)  // offset = 0..0xff, returns -0x800000..0x7fffff
         {
-            return (unscaled((offset*_scale) >> 8) - 0x800)*_volume;
+            return (unscaled(offset*_scale) - 0x800)*_volume;
         }
+//        void print() { printf("%03x %02x %01x %04x\n",_volume,_pulseWidth,_type,_scale); }
     private:
         int unscaled(int position)  // position = 0..0xffff, returns 0..0xfff
         {
+            static int noise[256] = {
+                0xda0, 0xe30, 0x900, 0xaf0, 0x050, 0x720, 0x070, 0xc90,
+                0x2e0, 0xd70, 0x190, 0x860, 0x7e0, 0x280, 0x950, 0x3c0,
+                0x4b0, 0x700, 0xba0, 0xcd0, 0x300, 0xf60, 0x400, 0xa80,
+                0xe40, 0x590, 0x810, 0xd20, 0x6b0, 0x810, 0xb70, 0x060,
+                0x420, 0x250, 0xcd0, 0x0e0, 0x920, 0x580, 0x0c0, 0xbd0,
+                0x300, 0x120, 0x290, 0x690, 0x770, 0x920, 0xc30, 0x650,
+                0xee0, 0x870, 0x900, 0x4e0, 0x4c0, 0xb90, 0x940, 0x1a0,
+                0x290, 0x700, 0x3e0, 0x800, 0x710, 0x650, 0xca0, 0xa20,
+                0xd10, 0x4c0, 0x870, 0xf00, 0x020, 0x8d0, 0x290, 0x570,
+                0x130, 0x8a0, 0x670, 0x3c0, 0x870, 0x140, 0x6b0, 0x4c0,
+                0xba0, 0x9c0, 0x510, 0x3d0, 0xe20, 0x3a0, 0xa00, 0x5c0,
+                0x650, 0xd00, 0xe30, 0x880, 0xea0, 0x150, 0xd00, 0x070,
+                0xe10, 0x2b0, 0x860, 0x1b0, 0x450, 0x560, 0xae0, 0x800,
+                0x3c0, 0x0d0, 0x580, 0x320, 0xd90, 0x280, 0xb60, 0x700,
+                0x000, 0xe40, 0x690, 0xc10, 0x930, 0xcb0, 0x420, 0xb70,
+                0x850, 0x060, 0x270, 0x480, 0x0e0, 0x9c0, 0x590, 0x140,
+                0xbb0, 0x280, 0x320, 0x3d0, 0x410, 0x770, 0xe30, 0xcb0,
+                0xa60, 0xde0, 0x440, 0x950, 0xec0, 0x0a0, 0xb90, 0x190,
+                0x5f0, 0x330, 0xf30, 0x260, 0xae0, 0x640, 0x550, 0xcc0,
+                0xcb0, 0xf90, 0x9b0, 0x9f0, 0x330, 0x760, 0x270, 0xac0,
+                0x670, 0x5d0, 0xca0, 0xdf0, 0xf90, 0x9f0, 0xb70, 0x3b0,
+                0x660, 0x3f0, 0xed0, 0x570, 0xff0, 0xca0, 0xff0, 0xbd0,
+                0xde0, 0x370, 0xf80, 0x6e0, 0xbc0, 0xf80, 0x550, 0xf80,
+                0xea0, 0xf10, 0xb90, 0xc60, 0x720, 0xe00, 0xc40, 0xac0,
+                0xc00, 0x500, 0x890, 0xc80, 0x320, 0x910, 0x010, 0x260,
+                0x620, 0x000, 0x840, 0x4d0, 0x410, 0x930, 0x8a0, 0x0a0,
+                0x350, 0x150, 0x060, 0x220, 0x690, 0x0c0, 0x9e0, 0x510,
+                0x510, 0xaf0, 0xaa0, 0x320, 0x150, 0x4c0, 0x670, 0xf10,
+                0x8a0, 0x8e0, 0x780, 0x540, 0x950, 0xa80, 0x630, 0x390,
+                0x8b0, 0x570, 0x730, 0xc60, 0xa60, 0xac0, 0x440, 0x1d0,
+                0xc80, 0x5b0, 0xb80, 0x9b0, 0x340, 0x330, 0x640, 0x220,
+                0xed0, 0x410, 0xdf0, 0xc20, 0xdb0, 0xa50, 0x9f0, 0x270};
             switch (_type) {
                 case 0:
-                    return (((position & 0x8000) != 0 ? ~position : position) >> 4) & 0xfff;
+                    return (((position & 0x8000) != 0 ? ~position : position) >> 3) & 0xfff;
                 case 1:
                     return (position >> 4) & 0xfff;
                 case 2:
                     return (((position >> 8) & 0xff) >= _pulseWidth) ? 0xfff : 0;
                 case 3:
-                    // TODO: noise
-                    break;
+                    return noise[(position >> 8) & 0xff];
             }
         }
         int _volume;     // 0 to 0xfff (really 0xff*0xf = 0xef1)
@@ -69,28 +111,38 @@ public:
         int _type;       // 0 = triangle, 1 = sawtooth, 2 = square/pulse, 3 = noise
         int _scale;      // Number of cycles (for sync) in units of 1/256 of a cycle
     };
-    class Wave : public ReferenceCounted
+    class Wave
     {
     public:
         int& operator[](int offset) { return _data[offset]; }
         const int& operator[](int offset) const { return _data[offset]; }
     private:
-        Array<int> _data;
+        int _data[256];
     };
-    int getSample(WaveDescriptor descriptor, int offset)
+    Wave* getWave(WaveDescriptor descriptor)
     {
-        Reference<Wave> wave;
+//        descriptor.print();
+        Wave* wave;
         if (!_bank.hasKey(descriptor)) {
             wave = new Wave;
-            for (int i = 0; i < 256; ++i)
+            _waves.add(wave);
+            _bank.add(descriptor, wave);
+            for (int i = 0; i < 256; ++i) {
                 (*wave)[i] = descriptor[i];
+                fputc((*wave)[i] >> 8, _waveFile);
+                fputc((*wave)[i] >> 16, _waveFile);
+            }
+            ++_count;
         }
         else
             wave = _bank[descriptor];
-        return (*wave)[offset];
+        return wave;
     }
 private:
-    HashTable<WaveDescriptor, Reference<Wave> > _bank;
+    HashTable<WaveDescriptor, Wave*> _bank;
+    OwningArray<Wave> _waves;
+    int _count;
+    FILE* _waveFile;
 };
 
 class MOSSID : public Pipe<Byte, Sample, MOSSID>
@@ -103,10 +155,13 @@ public:
          _filterControlLow(0),
         _filterControlHigh(0),
         _resonanceFilter(0),
-        _modeVol(0)
+        _modeVol(0),
+        _frame(0)
     {
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < 3; ++i) {
             _oscillators[i].setPrevious(&_oscillators[(i + 2)%3]);
+            _oscillators[i].setSID(this);
+        }
     }
 #pragma warning ( pop )
     void consume(int n) { produce(n); }
@@ -137,17 +192,28 @@ public:
                         _resonanceFilter = value;
                         break;
                     case 0x18:
+                        //if ((value & 0x80) != (_modeVol & 0x80))
+                        //    printf("3off changed to %i\n",value >> 7);
+                        //if ((value & 0x1) != (_modeVol & 0x1))
+                        //    printf("filt1 changed to %i\n",(value >> 0) & 1);
+                        //if ((value & 0x2) != (_modeVol & 0x2))
+                        //    printf("filt2 changed to %i\n",(value >> 1) & 1);
+                        //if ((value & 0x4) != (_modeVol & 0x4))
+                        //    printf("filt3 changed to %i\n",(value >> 2) & 1);
                         _modeVol = value;
                         break;
                 }
         } while (true);
+        int volume = _modeVol & 0x0f;
+        for (int i = 0; i < 3; ++i)
+            _oscillators[i].setWave(volume);
         _sink.read(read);
         for (int i = 0; i < 19656; ++i) {
             for (int j = 0; j < 3; ++j)
                 _oscillators[j].update();
-            int s1 = _oscillators[0].sample() << 10;
-            int s2 = _oscillators[1].sample() << 10;
-            int s3 = _oscillators[2].sample() << 10;
+            int s1 = _oscillators[0].sample(volume);
+            int s2 = _oscillators[1].sample(volume);
+            int s3 = _oscillators[2].sample(volume);
             int unfiltered = 0;
             int filtered = 0;
             if ((_resonanceFilter & 1) == 0)
@@ -161,16 +227,21 @@ public:
             if ((_resonanceFilter & 4) == 0)
                 filtered += s3;
             else
-                if ((_modeVol & 0x80) == 0)
+                //if ((_modeVol & 0x80) == 0)   // 3OFF not used in Sanxion
                     unfiltered += s3;
-            // TODO: filter "filtered"
-            int s = (unfiltered + filtered) >> 4;
-            s *= (_modeVol & 0x0f);
-            writer.item() = static_cast<Sample>(s >> 16);
+            // TODO: filter "filtered" - Sanxion sounds fine without it though for the most part - the filters are only used in the end fade-out.
+            int s = unfiltered + filtered;
+            //s *= (_modeVol & 0x0f);
+            writer.item() = static_cast<Sample>(s >> 10);
         }
         _source.written(19656);
         if (_sink.finite() && _sink.remaining() <= 0)
             _source.remaining(0);
+        ++_frame;
+        if (_frame == 50) {
+            printf(".");
+            _frame = 0;
+        }
     }
 private:
     class Oscillator
@@ -195,6 +266,7 @@ private:
             _gate(false),
             _holdZero(true)
         { }
+        void setSID(MOSSID* sid) { _sid = sid; }
         void write(int address, Byte value)
         {
             switch (address) {
@@ -224,7 +296,12 @@ private:
         void update()
         {
             // Update waveform generator
-            _accumulator = (_accumulator + _frequency) & 0xffffff;
+            int frequency = _frequency;
+            if ((_control & 0xf0) == 0x80)
+                frequency >>= 4;       // TODO: Fix up ring modulation
+            if ((_control & 2) != 0)
+                frequency = _previous->_frequency;
+            _accumulator = (_accumulator + frequency) & 0xffffff;
             bool bit23 = ((_accumulator & 0x800000) != 0);
             _bit23Rising = (bit23 && !_bit23);
             _bit23 = bit23;
@@ -300,20 +377,33 @@ private:
                     break;
             }
         }
-        int sample()  // -0x80000 to 0x7ffff
+        int sample(int volume)  // -0x800000 to 0x7fffff
+        {
+            //return unenvelopedSample()*_envelope*volume;
+            return sample1(_envelope*volume);
+        }
+        int unenvelopedSample()  // -0x800 to 0x7ff
         {
             if (synchronize() && !_previous->synchronize())
                 _accumulator = 0;
             int s = 0;
-            switch (_control & 0xf0) {
+            int type = _control & 0xf0;
+            //if (_next->ringModulation() && (_next->_control & 0xf0) == 0x10 /*&& _envelope == 0*/)
+            //    type = 1;
+            switch (type) {
                 case 0:
                     break;
+                //case 1:
+                //    s = ((_accumulator & 0x800000) != 0 ? 0xfff : 0);
+                //    break;
                 case 0x10:
                     {
                         UInt32 a = _accumulator;
-                        //if (ringModulation())
-                        //    a ^= _previous->_accumulator;
+                        if (ringModulation())
+                            a ^= _previous->_accumulator;
                         s = (((a & 0x800000) != 0 ? ~_accumulator : _accumulator) >> 11) & 0xfff;
+                        //if (ringModulation())
+                        //    s = ((((s - 0x800)*_previous->unenvelopedSample()) >> 11) + 0x800) & 0xfff;
                     }
                     break;
                 case 0x20:
@@ -336,7 +426,13 @@ private:
                     // Others not used in Sanxion
                     assert(false);
             }
-            return (s - 0x800)*_envelope;
+            //if (!(_next->ringModulation() && (_next->_control & 0xf0) == 0x10 && _next->_envelope != 0))
+            //    return 0;
+            return s - 0x800;
+        }
+        int sample1(int volume)
+        {
+            return (*_wave)[_accumulator >> 16];
         }
         void setPrevious(Oscillator* previous)
         {
@@ -348,7 +444,35 @@ private:
         {
             return ((_control & 2) != 0) && _previous->_bit23Rising;
         }
+        void setWave(int volume)
+        {
+            volume *= _envelope;
+            int type;
+            switch (_control & 0xf0) {
+                case 0:
+                    volume = 0;
+                    type = 0;
+                    break;
+                case 0x10:
+                    type = 0;
+                    break;
+                case 0x20:
+                    type = 1;
+                    break;
+                case 0x40:
+                    type = 2;
+                    break;
+                case 0x80:
+                    type = 3;
+                    break;
+            }
+            int scale = 0x100;
+            if ((_control & 2) != 0)
+                scale = 0x100*_previous->_frequency/_frequency;
+            _wave = _sid->_bank.getWave(WaveBank::WaveDescriptor(volume, _pulseWidth >> 4, type, scale));
+        }
     private:
+        MOSSID* _sid;
         UInt16 _frequency;
         UInt16 _pulseWidth;
         UInt32 _accumulator;
@@ -368,6 +492,7 @@ private:
         UInt8 _envelope;
         bool _gate;
         bool _holdZero;
+        WaveBank::Wave* _wave;
     };
     Byte _filterControlLow;
     Byte _filterControlHigh;
@@ -375,6 +500,8 @@ private:
     Byte _modeVol;
     Oscillator _oscillators[3];
     int _frame;
+public:
+    WaveBank _bank;
 };
 
 #ifdef _WIN32
@@ -383,6 +510,24 @@ int main()
 int main(int argc, char* argv[])
 #endif
 {
+    //UInt32 lfsr = 0x7ffff8;
+    //for (int i = 0; i < 16384; ++i)
+    //    lfsr = ((lfsr << 1) & 0x7fffff) |
+    //        (((lfsr>>22) ^ (lfsr>>17)) & 1);
+    //for (int i = 0; i < 256; ++i) {
+    //    lfsr = ((lfsr << 1) & 0x7fffff) |
+    //        (((lfsr>>22) ^ (lfsr>>17)) & 1);
+    //    int s = 
+    //        ((lfsr >> 11) & 0x800) |
+    //        ((lfsr >> 10) & 0x400) |
+    //        ((lfsr >>  7) & 0x200) |
+    //        ((lfsr >>  5) & 0x100) |
+    //        ((lfsr >>  4) & 0x080) |
+    //        ((lfsr >>  1) & 0x040) |
+    //        ((lfsr <<  1) & 0x020) |
+    //        ((lfsr <<  2) & 0x010);
+    //    printf("0x%03x, ", s);
+    //}
     BEGIN_CHECKED {
         COMInitializer com;
         File file(String("sid.dat"));

@@ -94,6 +94,7 @@
     <ClInclude Include="..\..\..\include\unity\hash_table.h" />
     <ClInclude Include="..\..\..\include\unity\integer_types.h" />
     <ClInclude Include="..\..\..\include\unity\minimum_maximum.h" />
+    <ClInclude Include="..\..\..\include\unity\owning_array.h" />
     <ClInclude Include="..\..\..\include\unity\pipes.h" />
     <ClInclude Include="..\..\..\include\unity\reference_counted.h" />
     <ClInclude Include="..\..\..\include\unity\string.h" />

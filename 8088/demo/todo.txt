@@ -29,3 +29,34 @@ mp3 player
         Huffman coding of change
 
 Get DirectSoundSink and WaveOutSink working
+
+
+
+;   Change sanxion to output waveforms:
+;     Square (pulse width modulated), triangle, noise (fake with 256 entry noise wave)
+;     Sync and pulse width modulation
+;     Volume modulation, ring modulation
+;     => There are a *lot* of possible combinations - need to examine them all and pick the most different ones
+;       Use different sets of waveforms for different sections?
+;         Multiple waveform segments implies multiple code and data segments
+;   6*50 changes per second => ~400Kb
+;     Will need a way to change SS when SP reaches the end - use alternate looptops for this
+;     Encode so it takes only a few Kb on disk and then decompress on load
+;       Use Hubbard encoding?
+;   Instead of disabling interrupts, leave keyboard interrupts enabled and just disable timer interrupt (using PIC)
+;     Allow escape to end song, skip backwards and forwards. Any other controls where we don't mind clicks?
+;
+;   * Try changing the accumulator XOR ring modulation to sample multiplication ring modulation and see how it changes the sound
+;   * Try changing the 24-bit LFSR to a 256-element table and see how it changes the sound
+;   * Assuming that sounds okay, disable ring modulation and enumerate waveform combinations
+;        How can we do that?
+;          Have a key consisting of all waveform parameters:
+;            Shape
+;            Width
+;            Volume
+;            Sync parameters: sync bit, our frequency, other frequency
+;          Figure out to generate 256-byte waveform cycle. We should be able to fit all of these in RAM.
+;            Compute a distance between two waveforms.
+;              Cycle them so that their highest point is at the start
+;              Sum of square of differences
+
