@@ -26,7 +26,7 @@ public:
             _type(type),
             _scale(scale)
         {
-            //_volume = (((_volume * 0xf) / 0xef1) * 0xfff) / 0xf;
+//            _volume = (((_volume * 0xf) / 0xef1) * 0xfff) / 0xf;
             if (type != 2)
                 _pulseWidth = 0;
         }
@@ -97,27 +97,41 @@ public:
                 0xed0, 0x410, 0xdf0, 0xc20, 0xdb0, 0xa50, 0x9f0, 0x270};
             switch (_type) {
                 case 0:
-                    return (((position & 0x8000) != 0 ? ~position : position) >> 3) & 0xfff;
+                    return (((position & 0x800000) != 0 ? ~position : position) >> 11) & 0xfff;
                 case 1:
-                    return (position >> 4) & 0xfff;
+                    return (position >> 12) & 0xfff;
                 case 2:
-                    return (((position >> 8) & 0xff) >= _pulseWidth) ? 0xfff : 0;
+                    return (((position >> 16) & 0xff) >= _pulseWidth) ? 0xfff : 0;
                 case 3:
-                    return noise[(position >> 8) & 0xff];
+                    return noise[(position >> 16) & 0xff];
             }
         }
         int _volume;     // 0 to 0xfff (really 0xff*0xf = 0xef1)
         int _pulseWidth; // 0 to 0x100
         int _type;       // 0 = triangle, 1 = sawtooth, 2 = square/pulse, 3 = noise
-        int _scale;      // Number of cycles (for sync) in units of 1/256 of a cycle
+        int _scale;      // Number of cycles (for sync) in units of 1/65536 of a cycle
     };
     class Wave
     {
     public:
+        int hash() const
+        {
+            int h = 0;
+            for (int i = 0; i < 0x100; ++i)
+                h = h * 67 + _data[i] - 113;
+            return h;
+        }
+        bool operator==(const Wave& other)
+        {
+            for (int i = 0; i < 0x100; ++i)
+                if (_data[i] != other._data[i])
+                    return false;
+            return true;
+        }
         int& operator[](int offset) { return _data[offset]; }
         const int& operator[](int offset) const { return _data[offset]; }
     private:
-        int _data[256];
+        int _data[0x100];
     };
     Wave* getWave(WaveDescriptor descriptor)
     {
@@ -127,18 +141,22 @@ public:
             wave = new Wave;
             _waves.add(wave);
             _bank.add(descriptor, wave);
-            for (int i = 0; i < 256; ++i) {
-                (*wave)[i] = descriptor[i];
+            for (int i = 0; i < 0x100; ++i) {
+                (*wave)[i] = (((descriptor[i] + 0x800000) * 72) & 0xff000000) / 72 - 0x800000;
                 fputc((*wave)[i] >> 8, _waveFile);
                 fputc((*wave)[i] >> 16, _waveFile);
             }
-            ++_count;
+            if (!_descriptors.hasKey(*wave)) {
+                _descriptors.add(*wave, descriptor);
+                ++_count;
+            }
         }
         else
             wave = _bank[descriptor];
         return wave;
     }
 private:
+    HashTable<Wave, WaveDescriptor> _descriptors;
     HashTable<WaveDescriptor, Wave*> _bank;
     OwningArray<Wave> _waves;
     int _count;
@@ -299,7 +317,7 @@ private:
             int frequency = _frequency;
             if ((_control & 0xf0) == 0x80)
                 frequency >>= 4;       // TODO: Fix up ring modulation
-            if ((_control & 2) != 0)
+            if ((_control & 2) != 0 && _previous->_frequency != 0)
                 frequency = _previous->_frequency;
             _accumulator = (_accumulator + frequency) & 0xffffff;
             bool bit23 = ((_accumulator & 0x800000) != 0);
@@ -466,9 +484,9 @@ private:
                     type = 3;
                     break;
             }
-            int scale = 0x100;
-            if ((_control & 2) != 0)
-                scale = 0x100*_previous->_frequency/_frequency;
+            int scale = 0x10000;
+            if ((_control & 2) != 0 && _previous->_frequency != 0)
+                scale = 0x10000*_frequency/_previous->_frequency;
             _wave = _sid->_bank.getWave(WaveBank::WaveDescriptor(volume, _pulseWidth >> 4, type, scale));
         }
     private:

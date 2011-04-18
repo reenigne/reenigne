@@ -1,3 +1,6 @@
+Write a Set class and use it instead of HashTable for _descriptors
+Count unique waves, not unique wave descriptors
+  72-point quantization
 Try band-limited interpolation from the 1MHz SID output and see how that sounds
   If it sounds odd, try resampling some known-good 1MHz data (from a simple upsampling?)
 See what resampling from 1-bit PWM 1.193MHz sounds like to get an idea of whine in demo
