@@ -1,65 +1,30 @@
-Write a Set class and use it instead of HashTable for _descriptors
-Count unique waves, not unique wave descriptors
-  72-point quantization
+Rewrite HashTable in terms of Set?
+
+Reduce number of waveforms:
+  Cycle waveform so that phases are all aligned
+    Convolve with sine and look for peak
+  Whenever we add a waveform, compute distance between this waveform and all others
+    Sum of square of differences
+  Set a delta below which two waveforms will be considered equivalent
+    re-use old waveform if below this delta
+    Tweak delta until number of waveforms is low enough
+    See how it sounds
+
 Try band-limited interpolation from the 1MHz SID output and see how that sounds
   If it sounds odd, try resampling some known-good 1MHz data (from a simple upsampling?)
-See what resampling from 1-bit PWM 1.193MHz sounds like to get an idea of whine in demo
-Try generating 256-element waveforms and change lists instead of sound
-  We'll have too many waveforms to begin with - write code to combine them
-mp3 player
-  Use a genetic algorithm to evolve a solution for a given piece of music
-    Can use breeding genomes method
-    Fitness function:
-      1) Sum of squared samplewise differences
-      2) Transform to frequency domain and discard phase information
-      3) Weight frequencies psycho-acoustically
-      4) Reduce weighting of masked out sounds
-    Initially try at 44100Hz, 16-bit
-      44100Hz : steps of .67Hz
-      Change every 256 samples gives 172 changes per second
-        3 channels gives 57 changes per second
-        Change each parameter at regular intervals or have a field specifying which parameter to change (as in x86 player)?
-        Separate volume parameter?
-        1 change = 3 bytes:
-          1 byte: waveform
-          2 bytes: frequency
-        517 bytes per second == 4Kbits/sec == 121Kb for a 4 minute song
 
-      For compression purposes, try some different parameters:
-        Number of waveforms
-        Number of samples per waveform
-        Number of changes per second
-        Huffman coding of change
+See what resampling from 1-bit PWM 1.193MHz sounds like to get an idea of whine in demo
 
 Get DirectSoundSink and WaveOutSink working
 
+Use different sets of waveforms for different sections?
+  Multiple waveform segments implies multiple code and data segments
 
+6*50 changes per second => ~400Kb
+  Will need a way to change SS when SP reaches the end - use alternate looptops for this
+  Encode so it takes only a few Kb on disk and then decompress on load
+    Use Hubbard encoding? Or just zip?
 
-;   Change sanxion to output waveforms:
-;     Square (pulse width modulated), triangle, noise (fake with 256 entry noise wave)
-;     Sync and pulse width modulation
-;     Volume modulation, ring modulation
-;     => There are a *lot* of possible combinations - need to examine them all and pick the most different ones
-;       Use different sets of waveforms for different sections?
-;         Multiple waveform segments implies multiple code and data segments
-;   6*50 changes per second => ~400Kb
-;     Will need a way to change SS when SP reaches the end - use alternate looptops for this
-;     Encode so it takes only a few Kb on disk and then decompress on load
-;       Use Hubbard encoding?
-;   Instead of disabling interrupts, leave keyboard interrupts enabled and just disable timer interrupt (using PIC)
-;     Allow escape to end song, skip backwards and forwards. Any other controls where we don't mind clicks?
-;
-;   * Try changing the accumulator XOR ring modulation to sample multiplication ring modulation and see how it changes the sound
-;   * Try changing the 24-bit LFSR to a 256-element table and see how it changes the sound
-;   * Assuming that sounds okay, disable ring modulation and enumerate waveform combinations
-;        How can we do that?
-;          Have a key consisting of all waveform parameters:
-;            Shape
-;            Width
-;            Volume
-;            Sync parameters: sync bit, our frequency, other frequency
-;          Figure out to generate 256-byte waveform cycle. We should be able to fit all of these in RAM.
-;            Compute a distance between two waveforms.
-;              Cycle them so that their highest point is at the start
-;              Sum of square of differences
+Instead of disabling interrupts, leave keyboard interrupts enabled and just disable timer interrupt (using PIC)
+  Allow escape to end song, skip backwards and forwards. Any other controls where we don't mind clicks?
 

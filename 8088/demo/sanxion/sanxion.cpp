@@ -26,7 +26,8 @@ public:
             _type(type),
             _scale(scale)
         {
-//            _volume = (((_volume * 0xf) / 0xef1) * 0xfff) / 0xf;
+            //_volume = (((_volume * 0xf) / 0xef1) * 0xfff) / 0xf;
+            //_pulseWidth &= 0xf0;
             if (type != 2)
                 _pulseWidth = 0;
         }
