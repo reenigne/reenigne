@@ -1,33 +1,22 @@
-Use a genetic algorithm to evolve a solution for a given piece of music
-  Can use breeding genomes method
-  Fitness function:
-    1) Sum of squared samplewise differences
-    2) Transform to frequency domain and discard phase information
-    3) Weight frequencies psycho-acoustically
-    4) Reduce weighting of masked out sounds
-  Initially try at 44100Hz, 16-bit
-    44100Hz : steps of .67Hz
-    Change every 256 samples gives 172 changes per second
-      3 channels gives 57 changes per second
-      Change each parameter at regular intervals or have a field specifying which parameter to change (as in x86 player)?
-      Separate volume parameter?
-      1 change = 3 bytes:
-        1 byte: waveform
-        2 bytes: frequency
-      517 bytes per second == 4Kbits/sec == 121Kb for a 4 minute song
+Improve evolution speed:
+  Try a better initial population
+    Pre-seed waveforms with some likely candidates
+      Fundamental frequency + some set of overtones
+    Pre-seed song data with some likely candidates
+      For each change
+        Find the best frequency
+        Try each candidate waveform
+        Scale to best volume
+        Subtract and repeat for other channels
 
-    For compression purposes, try some different parameters:
-      Number of waveforms
-      Number of samples per waveform
-      Number of changes per second
-      Huffman coding of change
+Improve fitness function:
+  2) Transform to frequency domain and discard phase information
+  3) Weight frequencies psycho-acoustically
+  4) Reduce weighting of masked out sounds
 
-
-Initial implementation:
-  * Fixed length (226s)
-  * Fixed change rate (50/s)
-  * Each change changes all parameters
-  * One-point crossover + mutation
-  * Fixed number of channels (4)
-  * Fixed number of waveforms (256)
-  * Fixed number of samples per waveform (256)
+Try some different parameters
+  Number of waveforms
+  Number of samples per waveform
+  Number of changes per second
+  Huffman coding of change
+  Have a field specifying which parameter to change (as in 8088 player)?
