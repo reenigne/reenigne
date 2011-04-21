@@ -1,8 +1,6 @@
 #ifndef INCLUDED_HASH_TABLE_H
 #define INCLUDED_HASH_TABLE_H
 
-#include "unity/array.h"
-
 template<class Key, class Value, class Base> class HashTableBase : public Base
 {
 public:

@@ -1,8 +1,4 @@
-Rewrite HashTable in terms of Set?
-
 Reduce number of waveforms:
-  Cycle waveform so that phases are all aligned
-    Convolve with sine and look for peak
   Whenever we add a waveform, compute distance between this waveform and all others
     Sum of square of differences
   Set a delta below which two waveforms will be considered equivalent

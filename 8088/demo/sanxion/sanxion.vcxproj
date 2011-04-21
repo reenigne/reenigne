@@ -97,6 +97,7 @@
     <ClInclude Include="..\..\..\include\unity\owning_array.h" />
     <ClInclude Include="..\..\..\include\unity\pipes.h" />
     <ClInclude Include="..\..\..\include\unity\reference_counted.h" />
+    <ClInclude Include="..\..\..\include\unity\set.h" />
     <ClInclude Include="..\..\..\include\unity\string.h" />
     <ClInclude Include="..\..\..\include\unity\thread.h" />
     <ClInclude Include="..\..\..\include\unity\uncopyable.h" />

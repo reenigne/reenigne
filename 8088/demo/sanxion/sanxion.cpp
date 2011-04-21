@@ -3,6 +3,10 @@
 #include "unity\audio.h"
 #include "unity\hash_table.h"
 #include "unity\owning_array.h"
+#include "unity\set.h"
+#include "unity\gcd.h"
+#define _USE_MATH_DEFINES
+#include <math.h>
 //#include "unity\convolution_pipe.h"
 
 typedef signed short Sample;
@@ -10,10 +14,10 @@ typedef signed short Sample;
 class WaveBank
 {
 public:
-    WaveBank() : _count(0) { _waveFile = fopen("waves.raw","wb"); }
+    WaveBank() { _waveFile = fopen("waves.raw","wb"); }
     ~WaveBank()
     {
-        printf("%i\n",_count);
+        printf("%i\n",_waves.count());
         fclose(_waveFile);
     }
     class WaveDescriptor
@@ -131,6 +135,15 @@ public:
         }
         int& operator[](int offset) { return _data[offset]; }
         const int& operator[](int offset) const { return _data[offset]; }
+        UInt64 distance(const Wave* other)
+        {
+            UInt64 total = 0;
+            for (int sample = 0; sample < 0x100; ++sample) {
+                int d = _data[sample] - other->_data[sample];
+                total += d*d;
+            }
+            return total;
+        }
     private:
         int _data[0x100];
     };
@@ -139,28 +152,122 @@ public:
 //        descriptor.print();
         Wave* wave;
         if (!_bank.hasKey(descriptor)) {
-            wave = new Wave;
-            _waves.add(wave);
+            Wave t;
             _bank.add(descriptor, wave);
             for (int i = 0; i < 0x100; ++i) {
-                (*wave)[i] = (((descriptor[i] + 0x800000) * 72) & 0xff000000) / 72 - 0x800000;
-                fputc((*wave)[i] >> 8, _waveFile);
-                fputc((*wave)[i] >> 16, _waveFile);
+                //t[i] = (((descriptor[i] + 0x800000) * 72) & 0xff000000) / 72 - 0x800000;
+                t[i] = descriptor[i];
+                fputc(t[i] >> 8, _waveFile);
+                fputc(t[i] >> 16, _waveFile);
             }
-            if (!_descriptors.hasKey(*wave)) {
-                _descriptors.add(*wave, descriptor);
-                ++_count;
+            SInt64 s = 0;
+            SInt64 c = 0;
+            static int sineTable[0x100] = {
+                 0x0000, 0x0324, 0x0647, 0x096a, 0x0c8b, 0x0fab, 0x12c8, 0x15e2,
+                 0x18f8, 0x1c0b, 0x1f19, 0x2223, 0x2528, 0x2826, 0x2b1f, 0x2e11,
+                 0x30fb, 0x33de, 0x36ba, 0x398c, 0x3c56, 0x3f17, 0x41ce, 0x447a,
+                 0x471c, 0x49b4, 0x4c3f, 0x4ebf, 0x5133, 0x539b, 0x55f5, 0x5842,
+                 0x5a82, 0x5cb4, 0x5ed7, 0x60ec, 0x62f2, 0x64e8, 0x66cf, 0x68a6,
+                 0x6a6d, 0x6c24, 0x6dca, 0x6f5f, 0x70e2, 0x7255, 0x73b5, 0x7504,
+                 0x7641, 0x776c, 0x7884, 0x798a, 0x7a7d, 0x7b5d, 0x7c29, 0x7ce3,
+                 0x7d8a, 0x7e1d, 0x7e9d, 0x7f09, 0x7f62, 0x7fa7, 0x7fd8, 0x7ff6,
+                 0x8000, 0x7ff6, 0x7fd8, 0x7fa7, 0x7f62, 0x7f09, 0x7e9d, 0x7e1d,
+                 0x7d8a, 0x7ce3, 0x7c29, 0x7b5d, 0x7a7d, 0x798a, 0x7884, 0x776c,
+                 0x7641, 0x7504, 0x73b5, 0x7255, 0x70e2, 0x6f5f, 0x6dca, 0x6c24,
+                 0x6a6d, 0x68a6, 0x66cf, 0x64e8, 0x62f2, 0x60ec, 0x5ed7, 0x5cb4,
+                 0x5a82, 0x5842, 0x55f5, 0x539b, 0x5133, 0x4ebf, 0x4c3f, 0x49b4,
+                 0x471c, 0x447a, 0x41ce, 0x3f17, 0x3c56, 0x398c, 0x36ba, 0x33de,
+                 0x30fb, 0x2e11, 0x2b1f, 0x2826, 0x2528, 0x2223, 0x1f19, 0x1c0b,
+                 0x18f8, 0x15e2, 0x12c8, 0x0fab, 0x0c8b, 0x096a, 0x0647, 0x0324,
+                 0x0000,-0x0324,-0x0647,-0x096a,-0x0c8b,-0x0fab,-0x12c8,-0x15e2,
+                -0x18f8,-0x1c0b,-0x1f19,-0x2223,-0x2528,-0x2826,-0x2b1f,-0x2e11,
+                -0x30fb,-0x33de,-0x36ba,-0x398c,-0x3c56,-0x3f17,-0x41ce,-0x447a,
+                -0x471c,-0x49b4,-0x4c3f,-0x4ebf,-0x5133,-0x539b,-0x55f5,-0x5842,
+                -0x5a82,-0x5cb4,-0x5ed7,-0x60ec,-0x62f2,-0x64e8,-0x66cf,-0x68a6,
+                -0x6a6d,-0x6c24,-0x6dca,-0x6f5f,-0x70e2,-0x7255,-0x73b5,-0x7504,
+                -0x7641,-0x776c,-0x7884,-0x798a,-0x7a7d,-0x7b5d,-0x7c29,-0x7ce3,
+                -0x7d8a,-0x7e1d,-0x7e9d,-0x7f09,-0x7f62,-0x7fa7,-0x7fd8,-0x7ff6,
+                -0x8000,-0x7ff6,-0x7fd8,-0x7fa7,-0x7f62,-0x7f09,-0x7e9d,-0x7e1d,
+                -0x7d8a,-0x7ce3,-0x7c29,-0x7b5d,-0x7a7d,-0x798a,-0x7884,-0x776c,
+                -0x7641,-0x7504,-0x73b5,-0x7255,-0x70e2,-0x6f5f,-0x6dca,-0x6c24,
+                -0x6a6d,-0x68a6,-0x66cf,-0x64e8,-0x62f2,-0x60ec,-0x5ed7,-0x5cb4,
+                -0x5a82,-0x5842,-0x55f5,-0x539b,-0x5133,-0x4ebf,-0x4c3f,-0x49b4,
+                -0x471c,-0x447a,-0x41ce,-0x3f17,-0x3c56,-0x398c,-0x36ba,-0x33de,
+                -0x30fb,-0x2e11,-0x2b1f,-0x2826,-0x2528,-0x2223,-0x1f19,-0x1c0b,
+                -0x18f8,-0x15e2,-0x12c8,-0x0fab,-0x0c8b,-0x096a,-0x0647,-0x0324};
+            for (int i = 0; i < 0x100; ++i) {
+                s += t[i]*sineTable[i];
+                c += t[i]*sineTable[(i+0x40)&0xff];
             }
+            int phase = static_cast<int>(0x100*atan2(static_cast<double>(c),static_cast<double>(s))/M_PI);
+            Wave shifted;
+            for (int i = 0; i < 0x100; ++i)
+                shifted[i] = t[(i-phase)&0xff];
+            
+            SInt64 best = 0x7fffffffffffffffLL;
+            int bestIndex = -1;
+            Wave* wave;
+            for (int i = 0; i < _waves.count(); ++i) {
+                SInt64 t = 0;
+                for (int j = 0; j < 0x100; ++j) {
+                    int d = shifted[j] - (*(_waves[i]))[j];
+                    t += d*d;
+                }
+                if (t < best) {
+                    wave = _waves[i];
+                    best = t;
+                }
+            }
+            if (best >= 10*0x100) {  // TODO: tune
+                wave = new Wave(shifted);
+                _waves.add(wave);
+            }
+            _bank.add(descriptor, wave);
         }
         else
             wave = _bank[descriptor];
         return wave;
     }
+    class RingModulationParameters
+    {
+    public:
+        RingModulationParameters()
+            : _tFrequency(0), _sFrequency(0), _volume(0)
+        { }
+        RingModulationParameters(UInt16 tFrequency, UInt16 sFrequency,
+            int volume)
+          : _tFrequency(tFrequency), _sFrequency(sFrequency), _volume(volume)
+        { }
+        int hash() const
+        {
+            if (_volume == 0)
+                return 0;
+            return ((_tFrequency << 16) + _sFrequency)^_volume;
+        }
+        bool operator==(const RingModulationParameters& other)
+        {
+            if (_volume == 0 && other._volume)
+                return true;
+            return _tFrequency == other._tFrequency &&
+                _sFrequency == other._sFrequency && _volume == other._volume;
+        }
+    private:
+        UInt16 _tFrequency;
+        UInt16 _sFrequency;
+        int _volume;
+    };
+    void setRingModulation(UInt16 tFrequency, UInt16 sFrequency, int volume)
+    {
+        RingModulationParameters parameters(tFrequency, sFrequency, volume);
+        if (!_ringModulations.has(parameters)) {
+            _ringModulations.add(parameters);
+            printf("0x%04x 0x%04x 0x%08x %lf %i\n", tFrequency, sFrequency, lcm(static_cast<int>(tFrequency), static_cast<int>(sFrequency)), static_cast<double>(tFrequency)/static_cast<double>(sFrequency), volume);
+        }
+    }
 private:
-    HashTable<Wave, WaveDescriptor> _descriptors;
     HashTable<WaveDescriptor, Wave*> _bank;
+    Set<RingModulationParameters> _ringModulations;
     OwningArray<Wave> _waves;
-    int _count;
     FILE* _waveFile;
 };
 
@@ -258,7 +365,7 @@ public:
             _source.remaining(0);
         ++_frame;
         if (_frame == 50) {
-            printf(".");
+//            printf(".");
             _frame = 0;
         }
     }
@@ -449,10 +556,7 @@ private:
             //    return 0;
             return s - 0x800;
         }
-        int sample1(int volume)
-        {
-            return (*_wave)[_accumulator >> 16];
-        }
+        int sample1(int volume) { return (*_wave)[_accumulator >> 16]; }
         void setPrevious(Oscillator* previous)
         {
             _previous = previous;
@@ -489,6 +593,8 @@ private:
             if ((_control & 2) != 0 && _previous->_frequency != 0)
                 scale = 0x10000*_frequency/_previous->_frequency;
             _wave = _sid->_bank.getWave(WaveBank::WaveDescriptor(volume, _pulseWidth >> 4, type, scale));
+            //if (ringModulation())
+            //    _sid->_bank.setRingModulation(_frequency, _previous->_frequency, volume);
         }
     private:
         MOSSID* _sid;
@@ -529,6 +635,13 @@ int main()
 int main(int argc, char* argv[])
 #endif
 {
+    //for (int i = 0; i < 0x100; ++i) {
+    //    int s = static_cast<int>(0x8000*sin(i*2*M_PI/0x100));
+    //    printf("%c0x%04x,",s<0 ? '-' : ' ',abs(s));
+    //    if (i % 8 == 7)
+    //        printf("\n");
+    //}
+
     //UInt32 lfsr = 0x7ffff8;
     //for (int i = 0; i < 16384; ++i)
     //    lfsr = ((lfsr << 1) & 0x7fffff) |

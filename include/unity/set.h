@@ -72,7 +72,7 @@ private:
             t->_next->_key = key;
             t->_next->_next = this;
         }
-        void addAllTo(HashTableBase* table)
+        void addAllTo(SetBase* table)
         {
             if (_next == 0)
                 return;

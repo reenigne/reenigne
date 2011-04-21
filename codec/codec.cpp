@@ -24,7 +24,7 @@ Sample* original;
 //int distance(Sample* wave1, Sample* wave2)
 //{
 //    UInt64 total = 0;
-//    for (int sample = 0; i < totalSamples; ++sample) {
+//    for (int sample = 0; sample < totalSamples; ++sample) {
 //        Sample s1 = *wave1;
 //        Sample s2 = *wave2;
 //        ++wave1;
