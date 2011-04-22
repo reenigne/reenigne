@@ -2,6 +2,7 @@
 #include "unity/file.h"
 #include "unity/random.h"
 #include <stdio.h>
+#define _USE_MATH_DEFINES
 #include <math.h>
 
 static const int samplesPerSecond = 44100;
@@ -87,7 +88,8 @@ public:
 
     void mutate()
     {
-        _data[random(sizeof(_data))] ^= 1 << random(8);
+        for (int i = 0; i < 100; ++i)
+            _data[random(sizeof(_data))] ^= 1 << random(8);
     }
     void copyTo(Chromosome* chromosome)
     {
@@ -160,6 +162,44 @@ int main(int argc, char* argv[])
 #endif
 {
     BEGIN_CHECKED {
+        {
+            Array<Sample> waves;
+            Array<double> wave;
+            wave.allocate(samplesPerWaveform);
+            waves.allocate(samplesPerWaveform * totalWaveforms);
+            for (int sample = 0; sample < samplesPerWaveform; ++sample)
+                waves[sample] = clamp(-32768.0, 
+                    0x8000*sin(sample*2*M_PI/samplesPerWaveform), 32767.0);
+            File file(String("waves.raw"));
+            FileHandle handle(file);
+            handle.openWrite();
+            for (int i = 0; i < 50; ++i)
+                handle.write(&waves[0], samplesPerWaveform * sizeof(Sample));
+            for (int waveform = 1; waveform < totalWaveforms; ++waveform) {
+                for (int sample = 0; sample < samplesPerWaveform; ++sample)
+                    wave[sample] = 0;
+                double power = tan((waveform - totalWaveforms) * M_PI / (2 * totalWaveforms));
+                for (int harmonic = 1; harmonic < samplesPerWaveform; ++harmonic) {
+                    double amplitude = pow(harmonic, power)*(random(0x100) + 1);
+                    for (int sample = 0; sample < samplesPerWaveform; ++sample)
+                        wave[sample] += sin(sample*2*M_PI*harmonic/samplesPerWaveform)*amplitude;
+                    if (amplitude < 1/32768.0)
+                        break;
+                }
+                printf("Waveform %i\n",waveform);
+                double scale = 0;
+                for (int sample = 0; sample < samplesPerWaveform; ++sample) {
+                    scale = max(scale, wave[sample]);
+                    scale = max(scale, -wave[sample]);
+                }
+                for (int sample = 0; sample < samplesPerWaveform; ++sample)
+                    waves[waveform*samplesPerWaveform + sample] =
+                        wave[sample] * 0x7fff / scale;
+                for (int i = 0; i < 50; ++i)
+                    handle.write(&waves[waveform*samplesPerWaveform],samplesPerWaveform * sizeof(Sample));
+            }
+        }
+
         Array<Sample> hbfs;
         {
             File file(String("hbfs.wav"));

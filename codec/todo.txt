@@ -1,3 +1,5 @@
+Initialize chromosomes with generated initial waveforms
+
 Improve evolution speed:
   Try a better initial population
     Pre-seed waveforms with some likely candidates

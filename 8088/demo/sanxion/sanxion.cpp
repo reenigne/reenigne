@@ -153,12 +153,9 @@ public:
         Wave* wave;
         if (!_bank.hasKey(descriptor)) {
             Wave t;
-            _bank.add(descriptor, wave);
             for (int i = 0; i < 0x100; ++i) {
                 //t[i] = (((descriptor[i] + 0x800000) * 72) & 0xff000000) / 72 - 0x800000;
                 t[i] = descriptor[i];
-                fputc(t[i] >> 8, _waveFile);
-                fputc(t[i] >> 16, _waveFile);
             }
             SInt64 s = 0;
             SInt64 c = 0;
@@ -206,11 +203,10 @@ public:
             
             SInt64 best = 0x7fffffffffffffffLL;
             int bestIndex = -1;
-            Wave* wave;
             for (int i = 0; i < _waves.count(); ++i) {
                 SInt64 t = 0;
                 for (int j = 0; j < 0x100; ++j) {
-                    int d = shifted[j] - (*(_waves[i]))[j];
+                    int d = (shifted[j] - (*(_waves[i]))[j]) >> 8;
                     t += d*d;
                 }
                 if (t < best) {
@@ -218,9 +214,13 @@ public:
                     best = t;
                 }
             }
-            if (best >= 10*0x100) {  // TODO: tune
+            if (best >= 100000000LL*0x100) {  // TODO: tune
                 wave = new Wave(shifted);
                 _waves.add(wave);
+                for (int i = 0; i < 0x100; ++i) {
+                    fputc(shifted[i] >> 8, _waveFile);
+                    fputc(shifted[i] >> 16, _waveFile);
+                }
             }
             _bank.add(descriptor, wave);
         }
@@ -365,7 +365,7 @@ public:
             _source.remaining(0);
         ++_frame;
         if (_frame == 50) {
-//            printf(".");
+            printf(".");
             _frame = 0;
         }
     }

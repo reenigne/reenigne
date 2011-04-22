@@ -1,10 +1,5 @@
-Reduce number of waveforms:
-  Whenever we add a waveform, compute distance between this waveform and all others
-    Sum of square of differences
-  Set a delta below which two waveforms will be considered equivalent
-    re-use old waveform if below this delta
-    Tweak delta until number of waveforms is low enough
-    See how it sounds
+With 270 waveforms, sounds pretty bad...
+  Try using the GA encoder instead, if we can get it to work
 
 Try band-limited interpolation from the 1MHz SID output and see how that sounds
   If it sounds odd, try resampling some known-good 1MHz data (from a simple upsampling?)
