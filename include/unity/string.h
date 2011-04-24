@@ -73,6 +73,9 @@ typedef LocalStringTemplate<void> LocalString;
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
+#ifdef _WINDOWS
+#define UTF16_MESSAGES
+#endif
 #else
 #include <errno.h>
 #include <fcntl.h>
@@ -814,11 +817,17 @@ template<class T> class ExceptionTemplate
 {
 public:
 #ifdef _WIN32
-    ExceptionTemplate() : _message(messageFromErrorCode(E_FAIL)) { }
+    ExceptionTemplate()
+      : _message(new OwningImplementation(messageFromErrorCode(E_FAIL)))
+    { }
 #else
-    ExceptionTemplate() : _message("Unspecified error") { }
+    ExceptionTemplate()
+      : _message(new StaticImplementation("Unspecified error"))
+    { }
 #endif
-    ExceptionTemplate(const String& message) : _message(message) { }
+    ExceptionTemplate(const String& message)
+      : _implementation(new OwningImplementation(message)
+    { }
     void write(const Handle& handle) const
     {
         static String newLine("\n");
@@ -860,6 +869,40 @@ public:
     }
 #endif
 private:
+    class Implementation
+    {
+    public:
+#ifdef UTF16_MESSAGES
+        virtual const WCHAR* message() = 0;
+#else
+        virtual const char* message() = 0;
+#endif
+    };
+    class OwningImplementation : public Implementation
+    {
+    public:
+        Implementation(String string) : _string(string) { }
+    private:
+#ifdef UTF16_MESSAGES
+        NullTerminatedWideString _string;
+#else
+        NullTerminatedString _string;
+#endif
+    };
+    class StaticImplemenation : public Implementation
+    {
+#ifdef UTF16_MESSAGES
+    public:
+        Implementation(const WCHAR* string) : _string(string) { }
+    private:
+        const WCHAR* _string;
+#else
+    public:
+        Implementation(const char* string) : _string(string) { }
+    private:
+        const char* _string;
+#endif
+    };
 #ifdef _WIN32
     static String messageFromErrorCode(DWORD error)
     {
@@ -886,7 +929,7 @@ private:
         return strMessage.string();
     }
 #endif
-    String _message;
+    ReferenceCounted<Implementation> _implementation;
 };
 
 class AutoHandle : public Handle
