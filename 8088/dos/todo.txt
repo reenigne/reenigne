@@ -1,0 +1,42 @@
+8088 DOS
+  Ability to use another machine (over serial) as a drive (with very large capacity)
+  Ability to control the 8088 via the serial port
+  Uses:
+    Transferring data to the 8088 whilst minimizing messing with floppies
+    Running tests for emulator making
+    Launching demos and games
+  Use of 115200 bps serial on a 4.77MHz 8088? Polling instead of interrupts required?
+    Transmit blocks of 512 bytes (22.5 Hz) and then check for interrupts
+      When servicing other interrupts, set RTS/CTS (or DTR/DSR?) to avoid losing bytes
+
+Bootstrapping
+  Come up with a typable program (based on my bootstrap compiler) that can receive data from serial and execute it
+  If ctty is available, this can be sent from the host
+    If not, maybe "copy com1 t.bat"?
+      Need "mode" to set baud rate etc.
+
+Make it multi-tasking:
+  We should be able to copy a file between serial and disk and still be able to accept keyboard input
+  Full-duplex serial should be possible (although can't read and write from a disk at the same time)
+  Allow timeslicing of cooperating programs
+  Use memory as disk cache - cooperating programs specify how much memory they need
+
+Disk transfer rate:
+  300 rpm, 4608 bytes per track gives peak of 23040 bytes/second (probably closer to 12KB/sec on average - 30 seconds to read the whole disk?)
+    = 1 byte every ~207 CPU cycles (~52 IO cycles) - slightly less than 3 times the DRAM refresh rate
+
+Serial transfer rate:
+  115200 bps, 1 start bit, 1 stop bit = 11520 bytes per second
+    = 1 byte every ~414 CPU cycles (~104 IO cycles) - slightly less than 6 times the DRAM refresh rate
+
+Parallel transfer?
+  Nybble at a time: output through pins 2/3/4/5, input through pins 10/11/12/13?
+    laplink cable - 40-60KB/sec (80-300KB/sec if we have bidirectional 8-bit port)
+      Faster than disk!
+      Downside is that bootstrapping is more difficult
+      Is there a standard protocol? Probably should just make up our own, since we'll be making up a high-level protocol anyway
+
+TODO:
+  Write a skeleton kernel dispatch
+  Write a serial transfer routine
+

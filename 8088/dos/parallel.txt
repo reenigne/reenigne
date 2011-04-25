@@ -1,0 +1,88 @@
+Use standard cable:
+
+2 <=> 15
+3 <=> 13
+4 <=> 12
+5 <=> 10
+6 <=> 11
+
+PLIP uses Ack (pin 10) to indicate nybble
+However, we can get better performance by using Error (pin 15) to indicate nybble.
+
+Host to 8088:
+          8088                    host
+  bit     line       pin  pin     line       bit
+   0   On-line       13    3   Data bit 1    1
+   1   Out-of-paper  12    4   Data bit 2    2
+   2   Acknowledge   10    5   Data bit 3    3
+   3   Busy          11    6   Data bit 4    4
+   N   Error         15    2   Data bit 0    0
+
+8088 to host:
+   0   Data bit 0     2   15   Error         (3)
+   1   Data bit 1     3   13   On-line       (4)
+   2   Data bit 2     4   12   Out-of-paper  (5)
+   3   Data bit 3     5   10   Acknowledge   (6)
+   N   Data bit 4     6   11   Busy          (7)
+
+
+Arbitrary choice:
+  N=0 initially
+  Switch to N=1: Low nybble available/low nybble received
+  Switch to N=0: High nybble available/high nybble received
+
+
+;Transmit routine:
+;  Input:
+;    DS:SI = buffer
+;       CX = number of bytes
+;       DX = parallel port address (0278, 0378, 03BC...)
+transmit:
+  lodsb                          ; 1 1 8 12
+  mov ah,al                      ; 2 0 8  2
+  or al,010                      ; 2 0 8  4
+  out dx,al                      ; 1 1 8  8
+  shr ah,1                       ; 2 0 8  2
+  shr ah,1                       ; 2 0 8  2
+  shr ah,1                       ; 2 0 8  2
+  shr ah,1                       ; 2 0 8  2
+  inc dx                         ; 1 0 4  2
+waitForLowNybbleReceived:
+  in al,dx                       ; 1 1 8  8
+  test al,8                      ; 2 0 8  4
+  jz waitForLowNybbleReceived    ; 2 0 8  4
+  mov al,ah                      ; 2 0 8  2
+  dec dx                         ; 1 0 4  2
+  out dx,al                      ; 1 1 8  8
+  inc dx                         ; 1 0 4  2
+waitForHighNybbleReceived:
+  in al,dx                       ; 1 1 8  8
+  test al,8                      ; 2 0 8  4
+  jnz waitForHighNybbleReceived  ; 2 0 8  4
+  dec dx                         ; 1 0 4  2
+  loop transmit                  ; 2 0 8 17
+  ret
+
+; 152 cycles per byte minimum = 29655 bytes/sec
+
+
+;Receive routine:
+;  Input:
+;    ES:DI = buffer
+;       CX = number of bytes
+;       DX = parallel port address (0278, 0378, 03BC...)
+receive:
+
+
+
+
+
+
+  shl al,1
+  shl al,1
+  shl al,1
+  shl al,1
+  or al,8
+  out dx,al
+  inc dx
+

@@ -319,7 +319,7 @@ public:
     bool empty() const { return length() == 0; }
     void write(const Handle& handle) const { _implementation->write(handle); }
 
-    void initSimpleData(int offset, Buffer* buffer, int* start, int* length)
+    void initSimpleData(int offset, Buffer* buffer, int* start, int* length) const
     {
         _implementation->initSimpleData(offset, buffer, start, length);
     }
@@ -452,7 +452,7 @@ template<class T> class RepeatedStringImplementationTemplate : public StringImpl
 {
 public:
     RepeatedStringImplementationTemplate(String string, int count)
-      : _string(string)
+      : _string(string), _count(count)
     {
         setLength(count*string.length());
     }
@@ -541,9 +541,7 @@ public:
     int offset() const { return 0; }
     void initSimpleData(int offset, Buffer* buf, int* start, int* l) const
     {
-        *buf = buffer();
-        *start = offset;
-        *l = length() - offset;
+        _string.initSimpleData(offset % _string.length(), buf, start, l);
     }
     void write(const Handle& handle) const
     {
@@ -818,15 +816,18 @@ template<class T> class ExceptionTemplate
 public:
 #ifdef _WIN32
     ExceptionTemplate()
-      : _message(new OwningImplementation(messageFromErrorCode(E_FAIL)))
+      : _message(messageFromErrorCode(E_FAIL)),
+        _implementation(new OwningImplementation(_message))
     { }
 #else
     ExceptionTemplate()
-      : _message(new StaticImplementation("Unspecified error"))
+      : _message("Unspecified error"),
+        _implementation(new StaticImplementation(_message))
     { }
 #endif
     ExceptionTemplate(const String& message)
-      : _implementation(new OwningImplementation(message)
+      : _message(message),
+        _implementation(new OwningImplementation(message))
     { }
     void write(const Handle& handle) const
     {
@@ -869,7 +870,7 @@ public:
     }
 #endif
 private:
-    class Implementation
+    class Implementation : public ReferenceCounted
     {
     public:
 #ifdef UTF16_MESSAGES
@@ -881,7 +882,12 @@ private:
     class OwningImplementation : public Implementation
     {
     public:
-        Implementation(String string) : _string(string) { }
+        OwningImplementation(String string) : _string(string) { }
+#ifdef UTF16_MESSAGES
+        const WCHAR* message() { return _string; }
+#else
+        const char* message() { return _string; }
+#endif
     private:
 #ifdef UTF16_MESSAGES
         NullTerminatedWideString _string;
@@ -889,16 +895,18 @@ private:
         NullTerminatedString _string;
 #endif
     };
-    class StaticImplemenation : public Implementation
+    class StaticImplementation : public Implementation
     {
 #ifdef UTF16_MESSAGES
     public:
-        Implementation(const WCHAR* string) : _string(string) { }
+        StaticImplementation(const WCHAR* string) : _string(string) { }
+        const WCHAR* message() { return _string; }
     private:
         const WCHAR* _string;
 #else
     public:
-        Implementation(const char* string) : _string(string) { }
+        StaticImplementation(const char* string) : _string(string) { }
+        const char* message() { return _string; }
     private:
         const char* _string;
 #endif
@@ -929,7 +937,8 @@ private:
         return strMessage.string();
     }
 #endif
-    ReferenceCounted<Implementation> _implementation;
+    String _message;
+    Reference<Implementation> _implementation;
 };
 
 class AutoHandle : public Handle

@@ -624,25 +624,16 @@ public:
         Implementation() { }
 
         Directory parent() const { return RootDirectory(); }
-        String name() const
-        {
-            static String empty;
-            return empty;
-        }
+        String name() const { return empty; }
 #ifdef _WIN32
         String windowsPath() const
         {
             // TODO: Use \\?\ to avoid MAX_PATH limit?
             // If we do this we need to know the current drive - this is the first character of CurrentDirectory().windowsPath() .
-            static String backslash("\\");
-            return backslash;
-        }
-#endif
-        String path() const
-        {
-            static String empty("");
             return empty;
         }
+#endif
+        String path() const { return empty; }
         bool isRoot() const { return true; }
 
         int hash(int h) const { return 0; }
