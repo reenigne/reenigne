@@ -37,7 +37,7 @@ Arbitrary choice:
 ;    DS:SI = buffer
 ;       CX = number of bytes
 ;       DX = parallel port address (0278, 0378, 03BC...)
-transmit:
+transmitParallel:
   lodsb                          ; 1 1 8 12
   mov ah,al                      ; 2 0 8  2
   or al,010                      ; 2 0 8  4
@@ -60,7 +60,7 @@ waitForHighNybbleReceived:
   test al,8                      ; 2 0 8  4
   jnz waitForHighNybbleReceived  ; 2 0 8  4
   dec dx                         ; 1 0 4  2
-  loop transmit                  ; 2 0 8 17
+  loop transmitParallel          ; 2 0 8 17
   ret
 
 ; 152 cycles per byte minimum = 29655 bytes/sec
@@ -71,18 +71,60 @@ waitForHighNybbleReceived:
 ;    ES:DI = buffer
 ;       CX = number of bytes
 ;       DX = parallel port address (0278, 0378, 03BC...)
-receive:
+receiveParallel:
+  inc dx                         ; 1 0 4  2
+waitForLowNybbleAvailable:
+  in al,dx                       ; 1 1 8  8
+  test al,8                      ; 2 0 8  4
+  jz waitForLowNybbleAvailable   ; 2 0 8  4
+  in al,dx                       ; 1 1 8  8
+  mov ah,al                      ; 2 0 8  2
+  mov al,010                     ; 2 0 8  4
+  dec dx                         ; 1 0 4  2
+  out dx,al                      ; 1 1 8  8
+  inc dx                         ; 1 0 4  2
+  shr ah,1                       ; 2 0 8  2
+  shr ah,1                       ; 2 0 8  2
+  shr ah,1                       ; 2 0 8  2
+  shr ah,1                       ; 2 0 8  2
+waitForHighNybbleAvailable:
+  in al,dx                       ; 1 1 8  8
+  test al,8                      ; 2 0 8  4
+  jnz waitForHighNybbleAvailable ; 2 0 8  4
+  in al,dx                       ; 1 1 8  8
+  and al,0f0                     ; 2 0 8  4
+  or al,ah                       ; 2 0 8  3
+  stosb                          ; 1 1 8 11
+  dec dx                         ; 1 0 4  2
+  mov al,0                       ; 2 0 8  4
+  out dx,al                      ; 1 1 8  8
+  loop receiveParallel           ; 2 0 8 17
+  ret
+
+; 184 cycles per byte minimum =  24498 bytes/sec
 
 
 
-
-
-
-  shl al,1
-  shl al,1
-  shl al,1
-  shl al,1
-  or al,8
+;Transmit and receive simultaneously routine:
+;  Input:
+;    DS:SI = transmit buffer
+;    ES:DI = receive buffer
+;       CX = number of bytes
+;       DX = parallel port address (0278, 0378, 03BC...)
+transmitReceiveParallel:
+  lodsb
+  mov ah,al
+  or al,010
   out dx,al
+  shr ah,1
+  shr ah,1
+  shr ah,1
+  shr ah,1
   inc dx
-
+waitForLowNybble:
+  in al,dx
+  test al,8
+  jz waitForLowNybble
+  in al,dx
+  mov bh,al
+  mov al,

@@ -273,7 +273,9 @@ AX = various
 BX = table pointer (BL = 0)
 CX = channel 1 velocity
 DX = speaker port (0x0042)
-SI =
+SI = channel 2 velocity
+DI = channel 3 velocity
+BP = channel 4 velocity
 
 velocity1:
   add cx,9999                  4       0          16           4
