@@ -112,19 +112,52 @@ waitForHighNybbleAvailable:
 ;       CX = number of bytes
 ;       DX = parallel port address (0278, 0378, 03BC...)
 transmitReceiveParallel:
-  lodsb
+  lodsb                          ; byte to send
   mov ah,al
   or al,010
+  out dx,al                      ; send low nybble and set N=1 (low nybble available/low nybble received)
+  shr ah,1
+  shr ah,1
+  shr ah,1
+  shr ah,1
+  inc dx                         ; dx = status port
+waitForHighNybble:
+  in al,dx
+  test al,8
+  jnz waitForHighNybble
+  in al,dx
+  and al,0f0
+  or al,bh
+  stosb
+  mov al,ah
+  dec dx
   out dx,al
-  shr ah,1
-  shr ah,1
-  shr ah,1
-  shr ah,1
   inc dx
 waitForLowNybble:
   in al,dx
   test al,8
-  jz waitForLowNybble
+  jz waitForHighNybble
   in al,dx
+  shr al,1
+  shr al,1
+  shr al,1
+  shr al,1
   mov bh,al
-  mov al,
+  loop transmitReceiveParallel
+
+
+
+
+
+Loop:
+  Output low nybble and set N=1
+  Wait for N=0 (high nybble available and high nybble received)
+  Input high nybble
+  Output high nybble and set N=0
+  Wait for N=1 (low nybble available and low nybble received)
+  Input low nybble
+
+
+Arrange things so we can do both shifts at once
+
+
