@@ -1,0 +1,56 @@
+; DS:SI = buffer
+; CX = byte count
+; DX = serial port (03F8/02F8)
+
+serialTransmit:
+  add dx,5
+waitForTHRE:
+  in al,dx
+  test al,020
+  jz waitForTHRE
+  lodsb
+  sub dx,5
+  out dx,al
+  loop serialTransmit
+
+
+; ES:DI = buffer
+; CX = byte count
+; DX = serial port (03F8/02F8)
+
+serialReceive:
+  add dx,5
+waitForData:
+  in al,dx
+  test al,1
+  jz waitForData
+  sub dx,5
+  in al,dx
+  stosb
+  loop serialReceive
+
+
+; DS:SI = outgoing buffer
+; ES:DI = incoming buffer
+; CX = byte count
+; DX = serial port (03F8/02F8)
+
+serialTransmitReceive:
+  add dx,5
+wait:
+  in al,dx
+  test al,020
+  jz checkForData
+  lodsb
+  sub dx,5
+  out dx,al
+  loop serialTransmitReceive
+  jmp doneSerialTransmitReceieve
+checkForData:
+  test al,1
+  jz wait
+  sub dx,5
+  in al,dx
+  stosb
+  loop serialTransmitReceive
+doneSerialTransmitReceive:

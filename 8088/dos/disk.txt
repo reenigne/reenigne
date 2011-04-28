@@ -1,0 +1,14 @@
+necOutput:
+  mov dx,03f4
+  mov ah,al
+necWait:
+  in al,dx
+  test al,040
+  jnz necWait
+  test al,080
+  jz necWait
+  inc dx
+  mov al,ah
+  out dx,al
+
+TODO: Figure out timeouts - use timer interrupt
