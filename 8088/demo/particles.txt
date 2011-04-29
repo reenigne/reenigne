@@ -148,3 +148,84 @@ plotParticles:
 ; => We need to erase them individually
 ; Store screen address of each particle after plotting it for quick erase?
 
+
+; Use a 64-byte stride video mode and don't use odd lines.
+; X format: XXXXXXxx xxxxxxxx
+; Y format: YYYYYYYY yyyyyyyy
+
+; DS:SI = particle data (AOS: x (word), y (word), oldAddress (word))
+; ES = 0b800
+; DS:0 = x velocity field (64x100 words)
+; DS:03200 = y velocity field (64x100 words)
+; CX = number of particles
+; DL =
+; AX, BX, DI = scratch
+; DX, BP, SS, SP = unused
+;
+
+particles:
+  inc si     ; skip x low                  ; 1 0  4  2
+  lodsb      ; load x high                 ; 1 1  8 12
+  mov bl,al                                ; 2 0  8  2
+  inc si     ; skip y low                  ; 1 0  4  2
+  lodsb      ; skip y high                 ; 1 1  8 12
+  mov bh,al                                ; 2 0  8  2
+  shr bx,1                                 ; 2 0  8  2
+  shr bx,1   ; 64-byte stride              ; 2 0  8  2
+  lodsw                                    ; 1 2 12 16
+  mov di,ax                                ; 2 0  8  2
+  es: mov [di],dl   ; extinguish (dirty)   ; 3 1 16 16
+  es: mov [bx],dh   ; illuminate           ; 3 1 16 16
+  mov [si-2],bx                            ; 3 2 20 22
+  shl bx,1                                 ; 2 0  8  2
+  mov ax,[bx]       ; x velocity           ; 2 2 16 17
+  add [si-6],ax     ; move x               ; 3 4 28 33
+  mov ax,[bx+03200] ; y velocity           ; 4 2 24 21
+  add [si-4],ax     ; move y               ; 3 4 28 33
+  loop particles                           ; 2 0  8 17
+
+; 240 cycles = 331 particles
+
+
+
+
+; Position field:
+
+; lodsw          ; 1 2 12 16
+; mov di,ax      ; 2 0  8  2
+; mov [si-2],bx  ; 3 2 20 22
+
+; mov di,[si] ; 2 2 16 17
+; mov [si],bx ; 2 2 16 18
+; inc si      ; 1 0  4  2
+; inc si      ; 1 0  4  2
+
+
+positionField:
+  lodsw               ; 1 2 12 16
+  mov di,ax           ; 2 0  8  2
+  mov bx,[di]         ; 2 2 16 18
+  es: mov [di],dl     ; 3 1 16 16
+  es: mov [bx],dh     ; 3 1 16 16
+  mov [si-2],bx       ; 3 2 20 22
+  loop positionField  ; 2 0  8 17
+
+; 96 cycles = 716 particles
+; 90 cycles in unroll limit = 835 particles. Complete unroll = 11690 bytes
+
+
+
+; AL = 0
+; AH = 0xff
+; DS = CS
+
+
+  mov di,9999      ; 3 0 12  4
+  stosb            ; 1 1  8 11
+  mov bx,[di]      ; 2 2 16 18
+  es: mov [bx],ah  ; 3 1 16 16
+  mov [8888],bx    ; 4 2 24 19   ; 8888 = address of earlier 9999
+
+; 76 cycles = 989 particles
+
+

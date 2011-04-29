@@ -54,3 +54,7 @@ checkForData:
   stosb
   loop serialTransmitReceive
 doneSerialTransmitReceive:
+
+
+Interrupt overhead ~= 71+44 = 115 cycles
+

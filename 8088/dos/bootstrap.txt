@@ -1,0 +1,62 @@
+Bootstrapping from BASIC:
+
+DEF SEG = &H1800
+DEFINT B-Z
+P = 0
+FOR D = 1 TO ...
+READ A$
+FOR B = 1 TO 64
+C = C*64 + ASC(MID$(A$,B)) - 48
+E = 64\(4^(B MOD 4))
+POKE P,C\E
+IF E < 64 THEN P = P + 1
+NEXT
+NEXT
+P = 0
+CALL P
+DATA "..."
+DATA "..."
+DATA "..."
+
+Each DATA line is a 64-character string consisting of characters from the subset
+0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmno
+Representing 48 bytes.
+
+receiveParallel is 39 bytes so we can get away with:
+
+DEF SEG = &H1800
+DEFINT B-Z
+P = 0
+A$ = "..."                          <= TODO: adjust this
+FOR B = 1 TO 64                     <= TODO: adjust this
+C = C*64 + ASC(MID$(A$,B)) - 48
+E = 64\(4^(B MOD 4))
+POKE P,C\E
+IF E < 64 THEN P = P + 1
+NEXT
+P = 0
+CALL P
+
+
+........ ..aaaaaa  no poke      0  64
+....AAAA AABBbbbb  C\16         1  16
+aaaabbBB BBCCCCcc  C\4          2   4
+bbbbcccc CCDDDDDD  C            3   1
+
+
+
+OPEN "COM1:9600,N,8" AS 1
+
+BLOAD "COM1:
+
+
+Will this work?
+
+DEF SEG = &H1800
+DEFINT B
+B = 0
+BLOAD "COM1:9600,N,8",0
+CALL B
+
+
+

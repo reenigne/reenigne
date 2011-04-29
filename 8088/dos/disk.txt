@@ -12,3 +12,44 @@ necWait:
   out dx,al
 
 TODO: Figure out timeouts - use timer interrupt
+
+
+; Send a read or write command to the 765
+; AL = command (MT = 1, MF = 1, SK = 1)
+
+sendReadWrite:
+  call necOutput
+  mov al,[commandByte1]
+  call necOutput
+  mov al,[cylinder]
+  call necOutput
+  mov al,[head]
+  call necOutput
+  mov al,[sector]
+  call necOutput
+  mov al,[bytesPerSector]
+  call necOutput
+  mov al,[endOfTrack]
+  call necOutput
+  mov al,[gap3Length]
+  call necOutput
+  mov al,[dataLength]
+  call necOutput
+
+
+; Read 765 byte
+
+necInput:
+  mov dx,03f4
+necWaitInput:
+  in al,dx
+  test al,080
+  jz necWaitInput
+  test al,040
+  jz necWaitInput
+  inc dx
+  in al,dx
+  ; TODO: Make sure number of results returned is as expected
+
+
+; TODO: DMA
