@@ -24,7 +24,6 @@ public:
 
 int main()
 {
-    Point points[width*height];
     for (int i = 0; i < width*height; ++i) {
         points[i]._number = i;
         points[i]._next = (i + 1) % (width*height);
