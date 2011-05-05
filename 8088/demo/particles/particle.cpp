@@ -13,21 +13,23 @@ typedef signed char        SInt8;
 
 static const UInt16 width = 80;
 static const UInt16 height = 200;
-static const UInt16 pointCount = 16192;
-static const UInt16 particleCount = 989;
-static const UInt16 particleSize = 13;
+static const UInt16 pointCount = 16193;
+static const UInt16 particleCount = 948;
+static const UInt16 particleSize = 15;
 static const UInt16 headerSize = 15;
 static const UInt16 footerSize = 5;
 
 static const UInt8 particleCode[] = {
     0xbf, 0x00, 0x00,        // mov di,0000
     0xaa,                    // stosb
-    0x8b, 0x1d,              // mov bx,[di]
-    0x26, 0x88, 0x27,        // es: mov [bx],ah
-    0x89, 0x1e, 0x00, 0x00,  // mov [0000],bx
+    0xd1, 0xe7,              // shl di,1
+    0x8b, 0x3d,              // mov di,[di]
+    0x26, 0x88, 0x25,        // es: mov [di],ah
+    0x89, 0x3e, 0x00, 0x00,  // mov [0000],di
 };
 
 static const UInt8 headerCode[] = {
+//    0xcc,                    // int 3
     0x06,                    // push es
     0x1e,                    // push ds
     0x57,                    // push di
@@ -48,44 +50,111 @@ static const UInt8 footerCode[] = {
     0xcb                     // retf
 };
 
+// These arrays form a set of doubly-linked lists. At each location in the
+// array is the point number of the next/previous point in the chain.
+// The top bit of pointsNext is a flag meaning "on free list".
+UInt16 far* pointsNext;
+UInt16 far* pointsPrev;
+
+// The following are either:
+//   0xffff: The corresponding list is empty.
+//   anything else: A point in the list.
+UInt16 freeList;  // List of points which haven't been placed in their final locations yet.
+UInt16 gapList;   // List of points which are not on screen and should be ignored.
+UInt16 usedList;  // List of points which are finalized.
+
+UInt16 next(UInt16 point)
+{
+    return pointsNext[point] & 0x7fff;
+}
+
+UInt16 prev(UInt16 point)
+{
+    return pointsPrev[point];
+}
+
+// Moves a point to its own list.
+void remove(UInt16 point)
+{
+    UInt16 oldPrev = prev(point);
+    UInt16 oldNext = next(point);
+    pointsNext[oldPrev] = oldNext;  // TODO: Need to preserve free flag here.
+    pointsPrev[oldNext] = oldPrev;
+    pointsNext[point] = point;
+    pointsPrev[point] = point;
+}
+
+// Moves a point to (the end of) list.
+void place(UInt16* list, UInt16 point)
+{
+    if (*list == 0xffff) {
+        remove(point);
+        *list = point;
+    }
+    else {
+        remove(point);
+
+
+        pointsNext[point] = *list;
+    }
+}
+
+bool isFree(UInt16 point)
+{
+    return (pointsNext[point] & 0x8000) != 0;
+}
+
+void freeAll()
+{
+    for (UInt16 point = 0; point < pointCount - 1; ++point)
+        pointsNext[i] |= 0x8000;
+    // TODO: Put all points on free list.
+}
 
 int main()
 {
-    UInt8 huge* program = (UInt8 huge*)(halloc(
-        pointCount*2 + particleCount*particleSize + 9, 1));
+    UInt8 far* program = (UInt8 far*)(_fmalloc(pointCount*2 +
+        particleCount*particleSize + headerSize + footerSize));
     UInt32 address = ((UInt32)(FP_SEG(program))) << 4;
     address += (UInt32)(FP_OFF(program));
     UInt16 segment = (UInt16)((address + 0xf) >> 4);
     UInt16 far* points = (UInt16 far*)MK_FP(segment, 0);
+    pointsPrev = (UInt16 far*)(_fmalloc(pointCount*2));
 
-    UInt16 point;
-    for (point = 0; point < pointCount; ++point)
-        points[point] = 0;
+    _fmemset(points, 0, pointCount*2);
 
     // Initialize the code block
     UInt8 far* particles = (UInt8 far*)MK_FP(segment, pointCount*2);
     _fmemcpy(particles, headerCode, headerSize);
+    particles += headerSize;
     for (UInt16 particle = 0; particle < particleCount; ++particle) {
         // Copy the code
-        UInt8 far* p = particles + particle*particleSize + headerSize;
-        _fmemcpy(p, particleCode, particleSize);
+        _fmemcpy(particles, particleCode, particleSize);
 
-        // Find an unused random point
-        UInt16 r = particle;
+        // Find an unused random point. TODO: Don't use gap points.
+        UInt16 r;
         do {
-            r = rand() % pointCount;
+            r = rand() % (pointCount - 1);
         } while (points[r] != 0);
         points[r] = 1;
 
         // Fill in the operands
-        *(UInt16 far*)(&p[1]) = r;
-        *(UInt16 far*)(&p[11]) = pointCount*2 + particle*particleSize + headerSize + 1;
+        UInt8 far* p = &particles[1];
+        *(UInt16 far*)(p) = r;
+        *(UInt16 far*)(&particles[13]) = FP_OFF(p);
+
+        particles += particleSize;
     }
-    _fmemcpy(particles + particleCount*particleSize + headerSize, footerCode, footerSize);
+    _fmemcpy(particles, footerCode, footerSize);
+    pointsNext = points + 1;
 
     // Initialize the points with a pattern. TODO: Make a more interesting pattern
-    for (point = 0; point < pointCount; ++point)
-        points[point] = (point + 19) % pointCount;
+    for (UInt16 point = 0; point < pointCount - 1; ++point) {
+        UInt16 next = (point + 1) % pointCount;
+        pointsNext[point] = next;
+        pointsPrev[next] = point;
+    }
+    freeAll();
 
     // Set screen mode to 4 (CGA 320x200 2bpp)
     union REGS regs;
