@@ -111,6 +111,19 @@ void freeAll()
     // TODO: Put all points on free list.
 }
 
+bool isVisible(UInt16 point)
+{
+    return (point & 1fff) < 80*100;
+}
+
+void shuffle()
+{
+    // TODO: Fill pointsPrev with the list of visible points
+    // TODO: Shuffle pointsPrev
+    // TODO: Go through pointsPrev and use it to set up singly linked list in pointsNext
+    // TODO: Make the list doubly linked
+}
+
 int main()
 {
     UInt8 far* program = (UInt8 far*)(_fmalloc(pointCount*2 +
