@@ -52,7 +52,6 @@ static const UInt8 footerCode[] = {
 
 // These arrays form a set of doubly-linked lists. At each location in the
 // array is the point number of the next/previous point in the chain.
-// The top bit of pointsNext is a flag meaning "on free list".
 UInt16 far* pointsNext;
 UInt16 far* pointsPrev;
 
@@ -60,25 +59,14 @@ UInt16 far* pointsPrev;
 //   0xffff: The corresponding list is empty.
 //   anything else: A point in the list.
 UInt16 freeList;  // List of points which haven't been placed in their final locations yet.
-UInt16 gapList;   // List of points which are not on screen and should be ignored.
 UInt16 usedList;  // List of points which are finalized.
-
-UInt16 next(UInt16 point)
-{
-    return pointsNext[point] & 0x7fff;
-}
-
-UInt16 prev(UInt16 point)
-{
-    return pointsPrev[point];
-}
 
 // Moves a point to its own list.
 void remove(UInt16 point)
 {
-    UInt16 oldPrev = prev(point);
-    UInt16 oldNext = next(point);
-    pointsNext[oldPrev] = oldNext;  // TODO: Need to preserve free flag here.
+    UInt16 oldPrev = pointsPrev[point];
+    UInt16 oldNext = pointsNext[point];
+    pointsNext[oldPrev] = oldNext;
     pointsPrev[oldNext] = oldPrev;
     pointsNext[point] = point;
     pointsPrev[point] = point;
@@ -99,18 +87,6 @@ void place(UInt16* list, UInt16 point)
     }
 }
 
-bool isFree(UInt16 point)
-{
-    return (pointsNext[point] & 0x8000) != 0;
-}
-
-void freeAll()
-{
-    for (UInt16 point = 0; point < pointCount - 1; ++point)
-        pointsNext[i] |= 0x8000;
-    // TODO: Put all points on free list.
-}
-
 bool isVisible(UInt16 point)
 {
     return (point & 1fff) < 80*100;
@@ -118,10 +94,30 @@ bool isVisible(UInt16 point)
 
 void shuffle()
 {
-    // TODO: Fill pointsPrev with the list of visible points
-    // TODO: Shuffle pointsPrev
-    // TODO: Go through pointsPrev and use it to set up singly linked list in pointsNext
-    // TODO: Make the list doubly linked
+    UInt16 visible = 0;
+    UInt16 p;
+    // Fill pointsPrev with the indexes of visible points
+    for (p = 0; p < pointCount; ++p)
+        if (isVisible(p)) {
+            pointsPrev[visible] = p;
+            ++visible;
+        }
+    // Shuffle pointsPrev
+    for (p = 0; p < visible - 1; ++p) {
+        UInt16 q = rand() % (visible - p) + p;
+        if (q != p) {
+            UInt16 t = pointsPrev[p];
+            pointsPrev[p] = pointsPrev[q];
+            pointsPrev[q] = t;
+        }
+    }
+    // Make a singly linked list from the index array.
+    freeList = pointsPrev[0];
+    for (p = 0; p < visible - 1; ++p)
+        pointsNext[pointsPrev[p]] = pointsPrev[p + 1];
+    pointsNext[pointsPrev[visible - 1]] = freeList;
+    // Make the list doubly linked
+    for (p = 0; p <
 }
 
 int main()

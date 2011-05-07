@@ -96,6 +96,7 @@ zeroRandomIndex2:
 
   mov di,9999      ; 3 0 12  4
   stosb            ; 1 1  8 11
+  shl di,1         ; 2 0  8  2
   mov bx,[di]      ; 2 2 16 18
   es: mov [bx],ah  ; 3 1 16 16
   mov [8888],bx    ; 4 2 24 19   ; 8888 = address of earlier 9999
