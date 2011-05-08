@@ -39,7 +39,10 @@ static const UInt8 headerCode[] = {
     0x8e, 0xc0,              // mov es,ax
     0x0e,                    // push cs
     0x1f,                    // pop ds
-    0xb8, 0x00, 0xff         // mov ax,0ff00
+    0xb8, 0x00, 0xff,        // mov ax,0ff00
+    0xb9, 0x55, 0xaa,        // mov cx,0aa55
+    0xba, 0x11, 0x22,        // mov dx,02211
+    0xbb, 0xdd, 0xee         // mov bx,0eedd
 };
 
 static const UInt8 footerCode[] = {
@@ -66,6 +69,11 @@ void remove(UInt16 point)
 {
     UInt16 oldPrev = pointsPrev[point];
     UInt16 oldNext = pointsNext[point];
+    if (freeList == point)
+        if (oldNext == freeList)
+            freeList == 0xffff;
+        else
+            freeList = oldNext;
     pointsNext[oldPrev] = oldNext;
     pointsPrev[oldNext] = oldPrev;
     pointsNext[point] = point;
@@ -81,10 +89,16 @@ void place(UInt16* list, UInt16 point)
     }
     else {
         remove(point);
-
-
         pointsNext[point] = *list;
+        pointsPrev[point] = pointsPrev[*list];
+        pointsNext[pointsPrev[point]] = point;
+        pointsPrev[pointsNext[point]] = point;
     }
+}
+
+bool haveFree()
+{
+    return freeList != 0xffff;
 }
 
 bool isVisible(UInt16 point)
@@ -117,7 +131,19 @@ void shuffle()
         pointsNext[pointsPrev[p]] = pointsPrev[p + 1];
     pointsNext[pointsPrev[visible - 1]] = freeList;
     // Make the list doubly linked
-    for (p = 0; p <
+    for (p = 0; p < pointCount; ++p)
+        if (isVisible(p))
+            pointsPrev[pointsNext[p]] = p;
+}
+
+void setMotion(int pattern)
+{
+    switch (pattern) {
+        case 0:
+            // Rightwards
+            for (UInt16 point = 0; point < pointCount; ++point) {
+
+            }
 }
 
 int main()
