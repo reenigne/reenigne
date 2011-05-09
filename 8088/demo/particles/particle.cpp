@@ -103,7 +103,17 @@ bool haveFree()
 
 bool isVisible(UInt16 point)
 {
-    return (point & 1fff) < 80*100;
+    return (point & 0x1fff) < width*height/2;
+}
+
+int xCoordinate(UInt16 point)
+{
+    return (point & 0x1fff) % width;
+}
+
+int yCoordinate(UInt16 point)
+{
+    return ((point & 0x1fff) / width)*2 + (point >> 13);
 }
 
 void shuffle()
@@ -136,14 +146,68 @@ void shuffle()
             pointsPrev[pointsNext[p]] = p;
 }
 
+UInt16 leftOf(UInt16 point)
+{
+    if (xCoordinate(point) == 0)
+        return point + width - 1;
+    return point - 1;
+}
+
+UInt16 rightOf(UInt16 point)
+{
+    if (xCoordinate(point) == width - 1)
+        return point + 1 - width;
+    return point + 1;
+}
+
+UInt16 above(UInt16 point)
+{
+    UInt16 y = yCoordinate(point);
+    if (yCoordinate(point) == 0)
+        return point + 0x2000 + width*(height - 2);
+    if (
+    return point - ;
+}
+
+UInt16 below(UInt16 point)
+{
+    if (yCoordinate(point) == height - 1)
+        return point + 1 - height;
+    return
+}
+
 void setMotion(int pattern)
 {
     switch (pattern) {
         case 0:
             // Rightwards
-            for (UInt16 point = 0; point < pointCount; ++point) {
+            for (UInt16 point = 0; point < pointCount; ++point)
+                pointsNext[point] =
 
+                if (!isVisible(point)
+                    continue;
+                x = xCoordinate(point);
+                if (x == width - 1)
+                    n = point - 79;
+                else
+                    n = point + 1;
+                pointsNext[point] = n;
             }
+            break;
+        case 1:
+            // Leftwards
+            for (UInt16 point = 0; point < pointCount; ++point) {
+                if (!isVisible(point)
+                    continue;
+                x = xCoordiante(point);
+                if (x == 0)
+                    n = point + 79;
+                else
+                    n = point - 1;
+                pointsNext[point] = n;
+            }
+            break;
+
 }
 
 int main()
