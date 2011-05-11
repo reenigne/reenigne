@@ -20,7 +20,7 @@ static const UInt16 particleCount = 948;
 static const UInt16 particleSize = 15;
 static const UInt16 headerSize = 24;
 static const UInt16 footerSize = 5;
-static const UInt16 patterns = 19;
+static const UInt16 patterns = 21;
 
 static const Bool true = 1;
 static const Bool false = 0;
@@ -227,6 +227,7 @@ UInt16 far* pointsPrev;
 //   anything else: A point in the list.
 UInt16 freeList;  // List of points which haven't been placed in their final locations yet.
 UInt16 usedList;  // List of points which are finalized.
+UInt16 oddList;   // List of points which we can't find anywhere else for.
 
 // Moves a point to its own list.
 //void remove(UInt16 point)
@@ -245,7 +246,7 @@ UInt16 usedList;  // List of points which are finalized.
 //}
 
 // Moves a point to (the end of) usedList.
-void place(UInt16 point)
+void place(UInt16 point, UInt16* list = &usedList)
 {
     UInt16 oldPrev = pointsPrev[point];
     UInt16 oldNext = pointsNext[point] & 0x7fff;
@@ -264,22 +265,27 @@ void place(UInt16 point)
             usedList = 0xffff;
         else
             usedList = oldNext;
+    if (oddList == point)
+        if (oldNext == oddList)
+            oddList = 0xffff;
+        else
+            oddList = oldNext;
     pointsNext[oldPrev] = (pointsNext[oldPrev] & 0x8000) | oldNext;
     pointsPrev[oldNext] = oldPrev;
 
 //    printf("Placing point 0x%04x",point);
-    if (usedList == 0xffff) {
+    if (*list == 0xffff) {
 //        printf(", first on list\n");
-        usedList = point;
+        *list = point;
         pointsNext[point] = point;
         pointsPrev[point] = point;
     }
     else {
 //        printf("\n");
-        pointsNext[point] = usedList;
-        pointsPrev[point] = pointsPrev[usedList];
-        pointsNext[pointsPrev[usedList]] = point;
-        pointsPrev[usedList] = point;
+        pointsNext[point] = *list;
+        pointsPrev[point] = pointsPrev[*list];
+        pointsNext[pointsPrev[*list]] = point;
+        pointsPrev[*list] = point;
     }
 //    printf("between 0x%04x and 0x%04x\n",pointsPrev[point], pointsNext[point]);
 }
@@ -384,6 +390,31 @@ UInt16 below(UInt16 point)
     if ((y & 1) == 0)
         return point + 0x2000;
     return point + width - 0x2000;
+}
+
+UInt16 isqrt(UInt32 x2)
+{
+    UInt16 x = 1;
+    UInt16 rem;
+    UInt16 div;
+    UInt16 x2b = 30;
+    if (x2 == 0)
+        return 0;
+    while ((rem = (UInt16)(x2>>x2b)) == 0)
+        x2b -= 2;
+    if (x2b == 0)
+        return 1;
+    --rem;
+    while (x2b != 0) {
+        rem = (rem<<2) | ((UInt16)(x2>>(x2b -= 2))&3);
+        div = (x<<2) + 1;
+        x <<= 1;
+        if (rem >= div) {
+            rem -= div;
+            x |= 1;
+        }
+    }
+    return x;
 }
 
 void setMotion(int pattern)
@@ -513,6 +544,123 @@ void setMotion(int pattern)
                     pointsNext[point] = below(point);
             break;
         case 16:
+            for (point = 0; point < pointCount; ++point) {
+                SInt16 x = xCoordinate(point)*2 - 79;
+                SInt16 y = yCoordinate(point)*2 - 199;
+                SInt16 a = x+y/3;
+                SInt16 b = x-y/3;
+                if (a > 0)
+                    if (b > 0)
+                        pointsNext[point] = below(below(below(point)));
+                    else
+                        pointsNext[point] = leftOf(point);
+                else
+                    if (a < 0)
+                        if (b >= 0)
+                            pointsNext[point] = rightOf(point);
+                        else
+                            pointsNext[point] = above(above(above(point)));
+                    else
+                        if (b > 0)
+                            pointsNext[point] = below(point);
+                        else
+                            pointsNext[point] = above(point);
+            }
+            break;
+        case 17:
+            {
+                shuffle();
+                UInt16 first = freeList;
+                for (int i = 0; i < pointCount; ++i)
+                    pointsNext[i] |= 0x8000;
+                oddList = 0xffff;
+                do {
+                    point = freeList;
+                    freeList = pointsNext[point] & 0x7fff;
+                    usedList = 0xffff;
+                    Bool placed = false;
+                    place(point);
+                    do {
+//                        ++*(UInt8 far*)MK_FP(0xb800, point);
+                        SInt16 ox = (xCoordinate(point) - 40)<<8;
+                        SInt16 oy = (yCoordinate(point) - 100)<<8;
+                        SInt32 oxl = (ox * 16L)/5;
+                        SInt32 oyl = (oy * 24L)/25;
+                        UInt16 d = isqrt(oxl*oxl + oyl*oyl);
+                        d >>= 8;
+                        if (d == 0)
+                            d = 1;
+                        SInt32 vx = 450L*oyl/d;
+                        SInt32 vy = -1500L*oxl/d;
+                        SInt16 x = ox + (short)(vx>>8);
+                        SInt16 y = oy + (short)(vy>>8);
+                        if (x >= 0x2800 || x < -0x2800 || y >= 0x6400 || y < -0x6400)
+                            break;
+                        UInt16 p = pointFromCoordinates((x >> 8) + 40, (y >> 8) + 100);
+                        if ((pointsNext[p] & 0x8000) == 0)
+                            break;
+                        place(p);
+                        point = p;
+                        placed = true;
+                    } while (true);
+                    if (!placed)
+                        place(point, &oddList);
+                } while (freeList != 0xffff);
+            }
+            break;
+        case 18:
+            {
+                shuffle();
+                UInt16 first = freeList;
+                for (int i = 0; i < pointCount; ++i)
+                    pointsNext[i] |= 0x8000;
+                oddList = 0xffff;
+                do {
+                    point = freeList;
+                    freeList = pointsNext[point] & 0x7fff;
+                    usedList = 0xffff;
+                    Bool placed = false;
+                    place(point);
+                    do {
+//                        ++*(UInt8 far*)MK_FP(0xb800, point);
+                        SInt16 ox = (xCoordinate(point) - 40)<<8;
+                        SInt16 oy = (yCoordinate(point) - 100)<<8;
+                        SInt32 vx = oy*0x180L/5;
+                        SInt32 vy = -ox*0xa00L/3;
+                        SInt16 x = ox + (short)((vx/10)>>8);
+                        SInt16 y = oy + (short)((vy/10)>>8);
+                        if (x >= 0x2800 || x < -0x2800 || y >= 0x6400 || y < -0x6400)
+                            break;
+                        UInt16 p = pointFromCoordinates((x >> 8) + 40, (y >> 8) + 100);
+                        if ((pointsNext[p] & 0x8000) == 0)
+                            break;
+                        place(p);
+                        point = p;
+                        placed = true;
+                    } while (true);
+                    if (!placed)
+                        place(point, &oddList);
+                } while (freeList != 0xffff);
+            }
+            break;
+        case 19:
+            {
+                shuffle();
+                UInt32 xa = 0;
+                UInt32 ya = 0;
+                usedList = 0xffff;
+                do {
+                    SInt16 x = sinTableX[(xa >> 16) & 0x3ff];
+                    SInt16 y = sinTableY[(ya >> 16) & 0x3ff];
+                    xa += 0x10000;
+                    ya += 48219;
+                    UInt16 p = pointFromCoordinates(x, y);
+                    ++*(UInt8 far*)MK_FP(0xb800, p);
+                    place(p);
+                } while (freeList != 0xffff);
+            }
+            break;
+        case 20:
             {
                 shuffle();
                 SInt16* factors;
@@ -577,52 +725,6 @@ void setMotion(int pattern)
                 free(factors);
             }
             break;
-        case 17:
-            {
-                shuffle();
-                UInt32 xa = 0;
-                UInt32 ya = 0;
-                usedList = 0xffff;
-                do {
-                    SInt16 x = sinTableX[(xa >> 16) & 0x3ff];
-                    SInt16 y = sinTableY[(ya >> 16) & 0x3ff];
-                    xa += 0x10000;
-                    ya += 48219;
-                    UInt16 p = pointFromCoordinates(x, y);
-                    ++*(UInt8 far*)MK_FP(0xb800, p);
-                    place(p);
-                } while (freeList != 0xffff);
-            }
-            break;
-        case 18:
-            {
-                shuffle();
-                UInt16 first = freeList;
-                for (int i = 0; i < pointCount; ++i)
-                    pointsNext[i] |= 0x8000;
-                // TODO: Make sure we don't have two next pointers pointing to the same point.
-                // A point has a valid next pointer if it's not in the free list
-                // Set bit 15 for points in the free list, clear it for points which have been placed.
-                do {
-                    point = freeList;
-                    freeList = pointsNext[point];
-                    usedList = 0xffff;
-                    do {
-                        SInt16 ox = (xCoordinate(point) - 40)<<8;
-                        SInt16 oy = (yCoordinate(point) - 100)<<8;
-                        SInt32 vx = oy*0x200L/5;
-                        SInt32 vy = -ox*0x500L/2;
-                        SInt16 x = ox + (short)((vx/10)>>8);
-                        SInt16 y = oy + (short)((vy/10)>>8);
-                        UInt16 p = pointFromCoordinates((x >> 8) + 40, (y >> 8) + 100);
-                        if (!isVisible(p) ||
-                        if (!isVisible(p))
-                            p = pointsNext[point];
-                    ++*(UInt8 far*)MK_FP(0xb800, p);
-                    pointsNext[point] = p;
-                } while (freeList != first);
-            }
-            break;
     }
 }
 
@@ -646,7 +748,7 @@ int main()
         // Copy the code
         _fmemcpy(particles, particleCode, particleSize);
 
-        // Find an unused random point. TODO: Don't use gap points.
+        // Find an unused random point.
         UInt16 r;
         do {
             r = rand() % pointCount;
@@ -672,9 +774,9 @@ int main()
     // Call code repeatedly. TODO: jmp instead of retf in the code and use interrupt for keyboard
     void (far* code)() = (void (far*)())MK_FP(segment, (pointCount + 1)*2);
     int k = 0;
-    int pattern = 18;
+    int pattern = 0;
     setMotion(pattern);
- //   printf("OK!\n");
+
     do {
         code();
         if (kbhit()) {
