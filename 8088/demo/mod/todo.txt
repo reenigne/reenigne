@@ -1,0 +1,43 @@
+Read file into memory
+Dilate all samples (just repeating section, if there is one) to 256 points
+Scale samples to 7 volume levels (leaving 2048 bytes for player code and positions)
+Determine scale factor for each sample
+Work through song in time, adding to memory as needed
+  How many changes per second should we have? (1 change = 4 bytes)
+    If we want to allow changing the sample and velocity for each of 4 channels in each division, need 8 changes (32 bytes) per division
+    6 ticks per division = 32*50/6 = 267 bytes per second = 16000 bytes per minute
+      8*50/6 = 66.6 changes per second
+      CX =  437500/33/66.6 = 198
+    1 tick per division = 96000 bytes per minute
+
+  6 ticks per division initially == 125 beats per minute
+  4 divisions per beat
+  16 divisions per pattern
+
+6 ticks/division = 125 beats/minute
+24 ticks/beat = 125 beats/minute = 1/125 minutes/beat
+
+ticks per minute = 24*125 = 3000
+ticks per second = 50
+
+
+Implement effects as they are needed
+For better quality later, implement one voice as unscaled longer samples
+
+
+Memory map:
+  Initial CS:     mod interpreter
+  Initial DS/SS:  global data
+                  heap
+                    mod file
+                  stack
+  Player CS/DS:   positions
+                  player code
+                  samples
+  Player SS:      song data
+
+
+PAL Clock rate = 17734475/2.5 = 7093790 Hz   cycles per tick = 141875.8
+NTSC Clock rate = 78750000/11 = 7159091 Hz   equivalent NTSC tick = 50.4603 Hz  (scale factor = 39375000/11*3546895  = 7875000/7803169 = 1.009205
+
+

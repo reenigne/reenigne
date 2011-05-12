@@ -163,6 +163,17 @@ Screen memory is b8000 to bbfff
 If we use page ac00 then screen memory will be c000-ffff
 
 
+
+  mov si,9999                  3       2          20           4
+  lodsb                        1       1           8          12
+  mov [cccc],si                4       2          24          19
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+  nop                          1       0           4           3
+
+
+
 Commands:
   tempo+2     xx xx  - change how often new song doublewords are read
   waveform1   xx B7  - change volume and timbre of voice 1
