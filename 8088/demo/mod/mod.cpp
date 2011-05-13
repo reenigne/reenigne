@@ -30,8 +30,17 @@ int main(int argc, char* argv[])
     }
     fread((void*)mod, (UInt16)s, 1, in);
     fclose(in);
-    // TODO: Compute offset of start of samples
-    // TODO: Compute segment for player/sample data
+    UInt8 positions = mod[950];
+    UInt8 highestPosition = 0;
+    for (UInt8 position = 0; position < positions; ++position) {
+        UInt8 pattern = mod[952+position];
+        if (pattern > highestPosition)
+            highestPosition = pattern;
+    }
+    UInt8 samplesStart = 1084 + (highestPosition + 1)*1024;
+    UInt8 far* p = &samplesStart;
+    UInt16 ss = FP_SEG(p);
+    UInt16 playerSegment = ss + 0x1000;
 
 }
 
