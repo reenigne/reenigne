@@ -1,0 +1,20 @@
+Video:
+  CRTC restarts
+  Split screen graphics and 40-column text mode
+  Particle system
+    Position field
+    Velocity field
+  Static
+  Unmoving snow
+  Lines
+  Filled polygons
+    Flat-shaded 3D
+  Video
+
+Sound:
+  Simple t2 beeps
+  Arpeggios
+  Digger-style music
+  PWM audio
+  4-channel player
+  Effects
