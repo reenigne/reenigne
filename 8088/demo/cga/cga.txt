@@ -2,9 +2,11 @@
 ; BX = x
 ; SI = y
 
-  mov di,[xtable + bx]  ; 4 2 24 21
-  add di,[ytable + si]  ; 4 2 24 22
-  mov al,[mtable + bx]  ; 4 1 20 17
+  mov al,[mTable + bx]  ; 4 1 20 17
+  shl si,1              ; 2 0  8  2
+  shl bx,1              ; 2 0  8  2
+  mov di,[xTable + bx]  ; 4 2 24 21
+  add di,[yTable + si]  ; 4 2 24 22
 
 ; DI = location
 ; AL = mask
@@ -169,9 +171,11 @@ rTable:
 ; SI = y
 ; CL = c
 ; ES = 0b800
-  mov di,[xtable + bx]  ; 4 2 24 21
-  add di,[ytable + si]  ; 4 2 24 22
-  mov ah,[rtable + bx]  ; 4 1 20 17
+  mov ah,[rTable + bx]  ; 4 1 20 17
+  shl si,1              ; 2 0  8  2
+  shl bx,1              ; 2 0  8  2
+  mov di,[xTable + bx]  ; 4 2 24 21
+  add di,[yTable + si]  ; 4 2 24 22
   es: mov al,[di]       ; 3 1 16 15
   and al,ah             ; 2 0  8  3
   not ah                ; 2 0  8  3
@@ -182,17 +186,133 @@ rTable:
 
 ; Horizontal line
 ; DI = xLeft
-; DX = xRight
-; BX = y
-; CL = c
+; BX = xRight
+; SI = y
+; AH = c
 ; ES = 0b800
 
-  mov bx,[ytable + bx]
-  mov si,di
-  and si,
-  mov dl,[
+  shl si,1                ; 2 0  8  2
+  mov si,[yTable + si]    ; 4 2 24 21
 
+  mov dl,[leftData + di]  ; 4 1 20 17
+  shl di,1                ; 2 0  8  2
+  mov di,[xTable + di]    ; 4 2 24 21
+  add di,si               ; 2 0  8  3
 
+  mov dh,[rightData + bx] ; 4 1 20 17
+  shl bx,1                ; 2 0  8  2
+  mov cx,[xTable + bx]    ; 4 2 24 21
+  add cx,si               ; 2 0  8  3
+
+  es: mov al,[di]         ; 3 1 16 15
+  cmp di,cx               ; 2 0  8  3
+  je oneByte              ; 2 0  8  4
+  and al,dl               ; 2 0  8  3
+  not dl                  ; 2 0  8  3
+  and dl,ah               ; 2 0  8  3
+  or al,dl                ; 2 0  8  3
+  stosb                   ; 1 1  8 15
+  mov al,ah               ; 2 0  8  2
+  sub cx,di               ; 2 0  8  3
+  jcxz noStos             ; 2 0  8  6
+  rep stosb               ; 2
+noStos:
+  es: mov al,[di]         ; 3 1 16 15
+done:
+  and al,dh               ; 2 0  8  3
+  not dh                  ; 2 0  8  3
+  and dh,ah               ; 2 0  8  3
+  or al,dh                ; 2 0  8  3
+  stosb                   ; 1 1  8 15
+  ret  ; or jmp
+
+oneByte:
+  or dh,dl                ; 2 0  8  3
+  jmp done                ; 2 2 16 16
+
+leftData:
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+  db 000, 0c0, 0f0, 0fc, 000, 0c0, 0f0, 0fc
+
+rightData:
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
+  db 03f, 00f, 003, 000, 03f, 00f, 003, 000
 
 ; Store with byte boundaries
   jcxz skip
@@ -207,3 +327,16 @@ skip:
   jz noByte
   stosb
 noByte:
+
+
+; Shift timings
+  shr si,1              ; 2 0  8  2         8 16 24 32
+
+  mov cl,1              ; 2 0  8  4
+  shr si,cl             ; 2 0  8  8+4n     16 20 24 28
+
+  mov bl,[stable + si]  ; 4 1 20 17
+
+
+
+
