@@ -2,14 +2,14 @@
 ; BX = x
 ; SI = y
 
-  mov al,[mTable + bx]  ; 4 1 20 17
+  mov ah,[mTable + bx]  ; 4 1 20 17
   shl si,1              ; 2 0  8  2
   shl bx,1              ; 2 0  8  2
   mov di,[xTable + bx]  ; 4 2 24 21
   add di,[yTable + si]  ; 4 2 24 22
 
 ; DI = location
-; AL = mask
+; AH = mask
 
 ; TODO: generate these programmatically - it'll be smaller
 
@@ -184,6 +184,32 @@ rTable:
   stosb                 ; 1 1  8 11
 
 
+; XOR Plot pixel at x,y, colour c
+; BX = x
+; SI = y
+; CL = c
+; ES = 0b800
+  mov al,[cTable + bx]  ; 4 1 20 17
+  shl si,1              ; 2 0  8  2
+  shl bx,1              ; 2 0  8  2
+  mov di,[xTable + bx]  ; 4 2 24 21
+  add di,[yTable + si]  ; 4 2 24 22
+  and al,cl             ; 2 0  8  3
+  es: xor [di], al      ; 3 2 20 23
+
+
+; Clear pixel at x,y
+; BX = x
+; SI = y
+; ES = 0b800
+  mov al,[rTable + bx]  ; 4 1 20 17
+  shl si,1              ; 2 0  8  2
+  shl bx,1              ; 2 0  8  2
+  mov di,[xTable + bx]  ; 4 2 24 21
+  add di,[yTable + si]  ; 4 2 24 22
+  es: and [di], al      ; 3 2 20 23
+
+
 ; Horizontal line
 ; DI = xLeft
 ; BX = xRight
@@ -338,5 +364,210 @@ noByte:
   mov bl,[stable + si]  ; 4 1 20 17
 
 
+; XOR plot horizontal line
+; DI = xLeft
+; BX = xRight
+; SI = y
+; AH = c
+; ES = 0b800
+
+  shl si,1                ; 2 0  8  2
+  mov si,[yTable + si]    ; 4 2 24 21
+
+  mov dl,[leftData + di]  ; 4 1 20 17
+  shl di,1                ; 2 0  8  2
+  mov di,[xTable + di]    ; 4 2 24 21
+  add di,si               ; 2 0  8  3
+
+  mov dh,[rightData + bx] ; 4 1 20 17
+  shl bx,1                ; 2 0  8  2
+  mov cx,[xTable + bx]    ; 4 2 24 21
+  add cx,si               ; 2 0  8  3
+
+  cmp di,cx               ; 2 0  8  3
+  je oneByte              ; 2 0  8  4
+  mov al,ah               ; 2 0  8  3
+  and al,dl               ; 2 0  8  3
+  es: xor [di],al         ; 3 2 20 23
+  sub cx,di               ; 2 0  8  3
+  jcxz done               ; 2 0  8  6
+loopTop:
+  es: xor [di],ah         ; 3 2 20 23
+  loop loopTop
+done:
+  and ah,dh               ; 2 0  8  3
+  es: xor [di],ah         ; 3 2 20 23
+  ret  ; or jmp
+
+oneByte:
+  and dh,dl               ; 2 0  8  3
+  jmp done                ; 2 2 16 16
+
+leftData:
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+  db 0ff, 03f, 00f, 003, 0ff, 03f, 00f, 003
+
+rightData:
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
+  db 0c0, 0f0, 0fc, 0ff, 0c0, 0f0, 0fc, 0ff
 
 
+
+; Clear screen to black
+; ES = 0b800
+
+  xor di,di            ; 2    0     8     3
+  mov cx,0fa0          ; 3    0    12     4
+  xor ax,ax            ; 2    0     8     3
+  rep stosw            ; 2 8000 32008 56009
+  mov di,02000         ; 3    0    12     4
+  mov cx,0fa0          ; 3    0    12     4
+  rep stosw            ; 2 8000 32008 56009
+
+
+; Move down (location in DI)
+  add di,02000         ; 4 0 16  4
+  cmp di,04000         ; 4 0 16  4
+  jl done              ; 2 0  8  4/16
+  sub di,03fb0         ; 4 0 16  4
+
+; Move down (location in BX)
+  add bh,020           ; 3 0 12  4
+  cmp bh,040           ; 3 0 12  4
+  jl done              ; 2 0  8  4/16
+  sub bx,03fb0         ; 4 0 16  4
+
+; Move up (location in DI)
+  sub di,02000         ; 4 0 16  4
+  jge done             ; 2 0  8  4/16
+  add di,03fb0         ; 4 0 16  4
+
+; Move up (location in BX)
+  sub bh,020           ; 3 0 12  4
+  jge done             ; 2 0  8  4/16
+  add bx,03fb0         ; 4 0 16  4
+
+; Move left (location in DI, positive mask in AH)
+  shl ah,1             ; 2 0  8  2
+  shl ah,1             ; 2 0  8  2
+  jnc done             ; 2 0  8  4/16
+  mov ah,3             ; 2 0  8  4
+  dec di               ; 1 0  4  2
+done:
+
+; Move right (location in DI, positive mask in AH)
+  shr ah,1             ; 2 0  8  2
+  shr ah,1             ; 2 0  8  2
+  jnc done             ; 2 0  8  4/16
+  mov ah,0c0           ; 2 0  8  4
+  inc di               ; 1 0  4  2
+done:
+
+; Plot DH at DI/AH/BL preserving position
+  es: mov al,[di]      ; 3 1 16 15
+  and al,ah            ; 2 0  8  3
+  mov dl,dh            ; 2 0  8  4
+  and dl,bl            ; 2 0  8  3
+  or al,dl             ; 2 0  8  3
+  stosb                ; 1 1  8 11
+  dec di               ; 1 0  4  2
+
+; XOR Plot DH at DI/AH preserving position
+  mov al,dh            ; 2 0  8  4
+  and al,ah            ; 2 0  8  3
+  es: xor [di], al     ; 3 2 20 23
+
+; Clear DI/AH preserving position
+  es: and [di], ah     ; 3 2 20 23
+
+; Set DI/AH preserving position
+  es: or [di], ah      ; 3 2 20 23
+
+; XOR plot DI/AH with colour 3
+  es: xor [di], ah     ; 3 2 20 23
+
+; Clear one bit and set another
+  es: and [di], ah     ; 3 2 20 23
+  es: or [di], bl      ; 3 2 20 23
+
+  es: mov al,[di]      ; 3 1 16 15 <- may actually be faster due to wait states
+  and al,ah            ; 2 0  8  3
+  or al,bl             ; 2 0  8  3
+  stosb                ; 1 1  8 11
+  dec di               l 1 0  4  2
