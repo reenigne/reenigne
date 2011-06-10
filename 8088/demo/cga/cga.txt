@@ -384,19 +384,22 @@ noByte:
   mov cx,[xTable + bx]    ; 4 2 24 21
   add cx,si               ; 2 0  8  3
 
+  mov ax,es               ; 2 0  8  2
+  mov ds,ax               ; 2 0  8  2
+
   cmp di,cx               ; 2 0  8  3
   je oneByte              ; 2 0  8  4
   mov al,ah               ; 2 0  8  3
   and al,dl               ; 2 0  8  3
-  es: xor [di],al         ; 3 2 20 23
+  xor [di],al             ; 2 2 16 21
   sub cx,di               ; 2 0  8  3
   jcxz done               ; 2 0  8  6
 loopTop:
-  es: xor [di],ah         ; 3 2 20 23
+  xor [di],al             ; 2 2 16 21
   loop loopTop
 done:
   and ah,dh               ; 2 0  8  3
-  es: xor [di],ah         ; 3 2 20 23
+  xor [di],al             ; 2 2 16 21
   ret  ; or jmp
 
 oneByte:
@@ -540,7 +543,7 @@ done:
 done:
 
 ; Plot DH at DI/AH/BL preserving position
-  es: mov al,[di]      ; 3 1 16 15
+  mov al,[di]          ; 2 1 12 13
   and al,ah            ; 2 0  8  3
   mov dl,dh            ; 2 0  8  4
   and dl,bl            ; 2 0  8  3
@@ -551,23 +554,53 @@ done:
 ; XOR Plot DH at DI/AH preserving position
   mov al,dh            ; 2 0  8  4
   and al,ah            ; 2 0  8  3
-  es: xor [di], al     ; 3 2 20 23
+  xor [di], al         ; 2 2 16 21
 
 ; Clear DI/AH preserving position
-  es: and [di], ah     ; 3 2 20 23
+  and [di], ah         ; 2 2 16 21
 
 ; Set DI/AH preserving position
-  es: or [di], ah      ; 3 2 20 23
+  or [di], ah          ; 2 2 16 21
 
 ; XOR plot DI/AH with colour 3
-  es: xor [di], ah     ; 3 2 20 23
+  xor [di], ah         ; 2 2 16 21
 
 ; Clear one bit and set another
-  es: and [di], ah     ; 3 2 20 23
-  es: or [di], bl      ; 3 2 20 23
+  and [di], ah         ; 2 2 16 21
+  or [di], bl          ; 2 2 16 21
 
-  es: mov al,[di]      ; 3 1 16 15 <- may actually be faster due to wait states
+  mov al,[di]          ; 2 1 12 13 <- may actually be faster due to wait states?
   and al,ah            ; 2 0  8  3
   or al,bl             ; 2 0  8  3
   stosb                ; 1 1  8 11
-  dec di               l 1 0  4  2
+  dec di               ; 1 0  4  2
+
+
+; Vertical line
+vLine0:
+  xor [bx], ah         ; 2 2 16 21
+  add bh,020           ; 3 0 12  4
+  loop vLine1          ; 2 3 20 17
+  jmp done
+vLine1:
+  xor [bx], ah         ; 2 2 16 21
+  sub bx,01fb0         ; 4 0 16  4
+  loop vLine0          ; 2 3 20 17
+done:
+
+; Vertical line (ending on an odd line)
+vLine:
+  xor [bx], ah         ; 2 2 16 21
+  xor [bx+02000], ah   ; 4 2 24 25
+  add bx,050           ; 3 0 12  4
+  loop vLine           ; 2 3 20 17
+
+
+
+; Kefrens bars effect
+loopTop:
+  stosb                ; 1 1  8 11
+  lodsb                ; 1 1  8 12
+  mov di,ax            ; 2 0  8  4
+  mov al,01e           ; 2 0  8  4
+  loop loopTop         ; 2 1 12 17

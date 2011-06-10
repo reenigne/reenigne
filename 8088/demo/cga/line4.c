@@ -157,7 +157,7 @@ void line(UInt16 x0, UInt16 y0, UInt16 x1, UInt16 y1, UInt8 c)
 
 // Non-unrolled
 lineLoop:
-  es: xor [bx], ah     ; 3 2 20 23
+  xor [bx], ah         ; 2 2 16 21
   add bh,020           ; 3 0 12  4
   cmp bh,040           ; 3 0 12  4
   jl oddLine           ; 2 0  8  4/16
@@ -177,8 +177,7 @@ noAdjust:
 
 // Unrolled
 lineLoop0:
-  es: xor [bx], ah     ; 3 2 20 23
-  add bh,020           ; 3 0 12  4
+  xor [bx], ah         ; 2 2 16 21
   add si,bp            ; 2 0  8  3
   jle noAdjust0        ; 2 0  8  4/16
   shr ah,1             ; 2 0  8  2
@@ -192,8 +191,8 @@ noAdjust0:
   loop lineLoop1       ; 2 0  8  5/17
   jmp done
 lineLoop1:
-  es: xor [bx], ah     ; 3 2 20 23
-  sub bx,01fb0         ; 4 0 16  4
+  xor [bx+02000], ah   ; 4 2 24 25
+  add bx,050           ; 3 0 12  4
   add si,bp            ; 2 0  8  3
   jle noAdjust1        ; 2 0  8  4/16
   shr ah,1             ; 2 0  8  2
@@ -211,7 +210,7 @@ done:
 
 // Non-unrolled
 lineLoop:
-  es: xor [bx], ah     ; 3 2 20 23
+  xor [bx], ah         ; 2 2 16 21
   shr ah,1             ; 2 0  8  2
   shr ah,1             ; 2 0  8  2
   jnc noNewByte        ; 2 0  8  4/16
@@ -229,9 +228,9 @@ oddLine:
 noAdjust:
   loop lineLoop        ; 2 0  8  5/17
 
-// Unrolled
+// Unrolled: AX = 030c0, DX = 030c
 lineLoop0:
-  es: xor [bx], al     ; 3 2 20 23
+  xor [bx], al         ; 2 2 16 21
   add si,bp            ; 2 0  8  3
   jle noAdjust0        ; 2 0  8  4/16
   add bh,020           ; 3 0 12  4
@@ -244,7 +243,7 @@ noAdjust0:
   loop lineLoop1       ; 2 0  8  5/17
   jmp done
 lineLoop1:
-  es: xor [bx], ah     ; 3 2 20 23
+  xor [bx], ah         ; 2 2 16 21
   add si,bp            ; 2 0  8  3
   jle noAdjust1        ; 2 0  8  4/16
   add bh,020           ; 3 0 12  4
@@ -257,7 +256,7 @@ noAdjust1:
   loop lineLoop2       ; 2 0  8  5/17
   jmp done
 lineLoop2:
-  es: xor [bx], dl     ; 3 2 20 23
+  xor [bx], dl         ; 2 2 16 21
   add si,bp            ; 2 0  8  3
   jle noAdjust2        ; 2 0  8  4/16
   add bh,020           ; 3 0 12  4
@@ -270,7 +269,7 @@ noAdjust2:
   loop lineLoop3       ; 2 0  8  5/17
   jmp done
 lineLoop3:
-  es: xor [bx], dh     ; 3 2 20 23
+  xor [bx], dh         ; 2 2 16 21
   inc bx               ; 1 0  4  2
   add si,bp            ; 2 0  8  3
   jle noAdjust3        ; 2 0  8  4/16
@@ -284,6 +283,7 @@ noAdjust3:
   loop lineLoop0       ; 2 0  8  5/17
 done:
 
+// Draw (horizontal major) lines bottom to top to eliminate "cmp bh,040"
 
 
 void draw_line(int xP, int yP, int xQ, int yQ)

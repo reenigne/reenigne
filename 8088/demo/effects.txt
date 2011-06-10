@@ -9,7 +9,43 @@ Video:
   Lines
   Filled polygons
     Flat-shaded 3D
+    Glenz
   Video
+  Wikipedia list:
+    Old skool:
+      Raster bars
+      Kefrens bars - this one's fairly easy: combine with raster bars and/or 1-channel PWM synthesizer
+      Scrollers
+      Sprites
+      Starfield
+      Smooth horizontal waving of graphics images in a per-scanline basis
+      Shadebobs
+      Infinite bobs
+      Plasma
+      Moire
+      Zoomers
+      Simple rotating 3D objects rendered in dots, lines or filled polygons.
+      Spline
+      Glenz
+      Blenk
+      Rubber
+    Chunky pixel:
+      Effects based on static screen-to-texture lookup tables
+        Texture-mapped tunnels and other objects rotating around their axis of symmetry
+        Wobblers, rotators and other similar effects for 2D images
+        Objects that reflect or refract underlying bitmap images
+      Texture-mapped tunnel with freely moving camera, typically based on realtime raytracing
+      Rotozoomer
+      Mandelbrot zoomer
+      Fire effect and other effects based on 2D filters and feedback
+      Heightfield landscape (often called "voxel landscape")
+      2D bump mapping
+      Metaballs
+    Display hacks:
+      Munching squares
+      Smoking clover
+  oldskool.org list: http://www.oldskool.org/demos/explained/demo_graphics.html
+
 
 Sound:
   Simple t2 beeps
