@@ -418,6 +418,14 @@ BH/DI                   111  C7  CF  D7  DF  E7  EF  F7  FF
 
 
 
+        Displacement                                        6
+        Base or Index (BX,BP,SI,DI)                         5
+        Displacement+(Base or Index)                        9
+        Base+Index (BP+DI,BX+SI)                            7
+        Base+Index (BP+SI,BX+DI)                            8
+        Base+Index+Displacement (BP+DI,BX+SI)              11
+        Base+Index+Displacement (BP+SI+disp,BX+DI+disp)    12
+        - add 2 cycles for segment override
 
 
 

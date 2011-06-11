@@ -601,6 +601,135 @@ vLine:
 loopTop:
   stosb                ; 1 1  8 11
   lodsb                ; 1 1  8 12
-  mov di,ax            ; 2 0  8  4
+  mov di,ax            ; 2 0  8  2
   mov al,01e           ; 2 0  8  4
   loop loopTop         ; 2 1 12 17
+
+; Kefrens + copper + audio:
+; DX = 03d9
+; CX = audio position
+; BP = audio velocity
+; BX = audio waveform
+; AH = video paragraph (0)
+; SI = Kefrens position buffer
+  add cx,bp            ; 2 0  8  3
+  mov bl,ch            ; 2 0  8  2
+  xlatb                ; 1 1  8 11
+  out 042,al           ; 2 1 12 10
+  lodsb                ; 1 1  8 12
+  mov di,ax            ; 2 0  8  2
+  mov al,01e           ; 2 0  8  4
+  stosb                ; 1 1  8 11
+  mov al,03f           ; 2 0  8  4
+  out dx,al            ; 1 1  8  8
+
+; total: 84 cycles - need to save >8 (possibly more, depending on CGA and DRAM refresh wait states)
+;  Leave out xlatb? Fix a sawtooth wave?
+;  Combine two or more of:
+;    Audio data (0-76)
+;    Kefrens data (0-255)
+;    Kefrens position (0-80ish)
+;    Copper data (0-63)
+;  Don't try to change everything on every scanline (need to save audio sample if we're going to leave it unchanged)
+
+; Don't change copper: 68 cycles
+  add cx,bp            ; 2 0  8  3
+  mov al,ch            ; 2 0  8  2
+  xlatb                ; 1 1  8 11
+  out 042,al           ; 2 1 12 10
+  lodsb                ; 1 1  8 12
+  mov di,ax            ; 2 0  8  2
+  mov al,01e           ; 2 0  8  4
+  stosb                ; 1 1  8 11
+
+; Don't change Kefrens: 52 cycles
+  add cx,bp            ; 2 0  8  3
+  mov al,ch            ; 2 0  8  2
+  xlatb                ; 1 1  8 11
+  out 042,al           ; 2 1 12 10
+  mov al,03f           ; 2 0  8  4
+  out dx,al            ; 1 1  8  8
+
+; Audio only every other scanline: 76 cycles
+  add cx,bp            ; 2 0  8  3
+  mov al,ch            ; 2 0  8  2
+  xlatb                ; 1 1  8 11
+  out 042,al           ; 2 1 12 10
+  xchg sp,ax           ; 1 0  4  3
+  lodsb                ; 1 1  8 12
+  mov di,ax            ; 2 0  8  2
+  mov al,01e           ; 2 0  8  4
+  stosb                ; 1 1  8 11
+  mov al,03f           ; 2 0  8  4
+  out dx,al            ; 1 1  8  8
+  xchg sp,ax           ; 1 0  4  3
+  out 042,al           ; 2 1 12 10
+  lodsb                ; 1 1  8 12
+  mov di,ax            ; 2 0  8  2
+  mov al,01e           ; 2 0  8  4
+  stosb                ; 1 1  8 11
+  mov al,03f           ; 2 0  8  4
+  out dx,al            ; 1 1  8  8
+
+; Load Kefrens position from IP instead of SI: 80 cycles
+  add cx,bp            ; 2 0  8  3
+  mov al,ch            ; 2 0  8  2
+  xlatb                ; 1 1  8 11
+  out 042,al           ; 2 1 12 10
+  mov di,9999          ; 3 0 12  4
+  mov al,01e           ; 2 0  8  4
+  stosb                ; 1 1  8 11
+  mov al,03f           ; 2 0  8  4
+  out dx,al            ; 1 1  8  8
+
+; Fixed frequency audio: 64 cycles
+  lodsb                ; 1 1  8 12
+  out 042,al           ; 2 1 12 10
+  mov di,9999          ; 3 0 12  4
+  mov al,01e           ; 2 0  8  4
+  stosb                ; 1 1  8 11
+  mov al,03f           ; 2 0  8  4
+  out dx,al            ; 1 1  8  8
+
+; Use mov instead of stosb: 76 cycles
+  add cx,bp            ; 2 0  8  3
+  mov al,ch            ; 2 0  8  2
+  xlatb                ; 1 1  8 11
+  out 042,al           ; 2 1 12 10
+  es: mov [di+39], 01e ; 5 1 24 21
+  mov al,03f           ; 2 0  8  4
+  out dx,al            ; 1 1  8  8
+
+
+; TODO: Outline and filled ellipses
+; Get some source vector video for a test demo
+
+
+; Modify palette (DX = 03d9)
+  mov al,03f           ; 3 0 12  4
+  out dx,al            ; 1 1  8  8
+
+
+
+
+; Trixter's rotozoomer inner loop: 100 cycles
+  add cx,si    ; 2 0  8  3
+  add dx,bp    ; 2 0  8  3
+  mov bl,ch    ; 2 0  8  2
+  mov bh,dh    ; 2 0  8  2
+  mov al,[bx]  ; 2 1 12 13
+  add cx,si    ; 2 0  8  3
+  add dx,bp    ; 2 0  8  3
+  mov bl,ch    ; 2 0  8  2
+  mov bh,dh    ; 2 0  8  2
+  mov ah,[bx]  ; 2 1 12 13
+  stosw        ; 1 2 12 15
+
+; BL = 0
+  add cx,si    ; 2 0  8  3
+  add dx,bp    ; 2 0  8  3
+  mov al,ch    ; 2 0  8  2
+  mov bh,dh    ; 2 0  8  2
+  xlatb        ; 1 1  8 11
+  stosb        ; 1 1  8 11
+
