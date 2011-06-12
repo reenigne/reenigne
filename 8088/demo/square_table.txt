@@ -45,18 +45,26 @@ a*b = (a+b)^2/4 - (a-b)^2/4
   sub bx,cx            ; 2 0  8  3
   sub ax,[si+bx]       ; 2 2 16 20
 
-  add bl,cl            ; 2 0  8  3
+  ; inputs in bx and cx
+  mov si,offset table  ; 3 0 12  4
+  shl cx,1             ; 2 0  8  2
+  add si,cx            ; 2 0  8  3
+  mov ax,[si+bx]       ; 2 2 16 19
+  neg bx               ; 2 0  8  3
+  sub ax,[si+bx]       ; 2 2 16 20
+  sub si,cx            ; 2 0  8  3
+
+  ; Inputs in bx and cx
+  add bx,cx            ; 2 0  8  3
   mov al,[si+bx]       ; 2 2 12 15
-  sub bl,cl            ; 2 0  8  3
-  sub bl,cl            ; 2 0  8  3
+  sub bx,cx            ; 2 0  8  3
+  sub bx,cx            ; 2 0  8  3
   sub al,[si+bx]       ; 2 2 12 16
 
-
-
-  mov al,[bx]
-  mov
-
-
-
-
+  ; Inputs in bx and cx
+  add si,cx            ; 2 0  8  3
+  mov al,[si+bx]       ; 2 2 12 15
+  neg bx               ; 2 0  8  3
+  sub al,[si+bx]       ; 2 2 12 16
+  sub si,cx            ; 2 0  8  3
 
