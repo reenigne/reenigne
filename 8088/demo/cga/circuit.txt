@@ -1,0 +1,622 @@
+Sheet 1 (CRTC):
+
+CRTC (6845):
+  Inputs:
+    RS        = +A0
+    -RES      = -RESET
+    -CS       = -6845CS
+    E         = +E
+    R/W       = -IOW
+    CLK       = -CCLK
+    LPEN      = +LPEN STR
+  Outputs:
+    RA2       = +RA2
+    RA1       = +RA1
+    RA0       = +RA0
+    CURSOR    = +CURSOR
+    DISPLAYEN = +DISPEN
+    VSYNC     = +VSYNC
+    HSYNC     = +HSYNC
+    MA0       = +MA0
+    MA1       = +MA1
+    MA2       = +MA2
+    MA3       = +MA3
+    MA4       = +MA4
+    MA5       = +MA5
+    MA6       = +MA6
+    MA7       = +MA7
+    MA8       = +MA8
+    MA9       = +MA9
+    MA10      = +MA10
+    MA11      = +MA11
+    MA12      = +MA12
+  I/O:
+    D0        = +D0
+    D1        = +D1
+    D2        = +D2
+    D3        = +D3
+    D4        = +D4
+    D5        = +D5
+    D6        = +D6
+    D7        = +D7
+
+RAM (8x 2118-4):
+  Inputs:
+    VRAM A0
+    VRAM A1
+    VRAM A2
+    VRAM A3
+    VRAM A4
+    VRAM A5
+    VRAM A6
+    VRAM A7
+    -WE       = -WE
+    -CAS      = -CAS
+    -RAS      = -RAS
+  I/O:
+    MD0
+    MD1
+    MD2
+    MD3
+    MD4
+    MD5
+    MD6
+    MD7
+
+Memory address latches:
+  Latch U58: (CRT high)
+    D1  = +MA7                                           Q1 = VRAM A0
+    D2  = +MA8                                           Q2 = VRAM A1
+    D3  = +MA9                                           Q3 = VRAM A2
+    D4  = +MA10                                          Q4 = VRAM A3
+    D5  = +MA11                                          Q5 = VRAM A4
+          -HCLK (high impedance when -EN CRT CAS ADDR high) = VRAM A5
+    D6  = (+RA0 AND +GRPH) OR (+MA12 AND -GRPH)          Q6 = VRAM A6
+    CLK = -RAS
+    EN  = -EN CRT CAS ADDR
+  Latch U59: (CRT low)
+    D1  = +MA0                                           Q1 = VRAM A0
+    D2  = +MA1                                           Q2 = VRAM A1
+    D3  = +MA2                                           Q3 = VRAM A2
+    D4  = +MA3                                           Q4 = VRAM A3
+    D5  = +MA4                                           Q5 = VRAM A4
+    D6  = +MA5                                           Q6 = VRAM A5
+    D7  = +MA6                                           Q7 = VRAM A6
+    CLK = -RAS
+    EN  = -EN CRT RAS ADDR
+  Latch U60: (CPU low)
+    D1  = +A1                                            Q1 = VRAM A0
+    D2  = +A2                                            Q2 = VRAM A1
+    D3  = +A3                                            Q3 = VRAM A2
+    D4  = +A4                                            Q4 = VRAM A3
+    D5  = +A5                                            Q5 = VRAM A4
+    D6  = +A6                                            Q6 = VRAM A5
+    D7  = +A7                                            Q7 = VRAM A6
+    CLK = +Q1
+    EN  = -EN CPU RAS ADDR
+  Latch U61: (CPU high)
+    D1  = +A8                                            Q1 = VRAM A0
+    D2  = +A9                                            Q2 = VRAM A1
+    D3  = +A10                                           Q3 = VRAM A2
+    D4  = +A11                                           Q4 = VRAM A3
+    D5  = +A12                                           Q5 = VRAM A4
+    D6  = +A0                                            Q6 = VRAM A5
+    D7  = +A13                                           Q7 = VRAM A6
+    CLK = +Q1
+    EN  = -EN CPU RAS ADDR
+
++ALPHA DOTS = (-CURSOR BLINK NOR -CURSOR DLY) OR (+CHG DOTS AND (-BLINK OR 3NAND(-CURSOR DLY, +ENABLE BLINK, +AT7)))
+
+
+Sheet 2 (sequencer):
+
+U7: 2bpp low shift register
+  Inputs:
+    CLR = -CLR S/R
+    S/L = +S/L
+    CLK = +DOT CLK
+    H   = CC6
+    G   = CC4
+    F   = CC2
+    E   = CC0
+    D   = AT6
+    C   = AT4
+    B   = AT2
+    A   = AT0
+  Outputs:
+    QH = +C0
+
+U8: 2bpp high shift register
+  Inputs:
+    CLR = -CLR S/R
+    S/L = +S/L
+    CLK = +DOT CLK
+    H   = CC7
+    G   = CC5
+    F   = CC3
+    E   = CC1
+    D   = AT7
+    C   = AT5
+    B   = AT3
+    A   = AT1
+  Outputs:
+    QH = +C1
+
+U9: Red/Green multiplexer (0 = text foreground, 1 = text background, 2 = 2bpp, 3 = overscan)
+  Inputs:
+    1C0 = AT2
+    1C1 = AT6
+    2C0 = AT1
+    2C1 = AT5
+    1C2 = +C1
+    2C2 = +C0
+    1C3 = +OVERSCAN R
+    2C3 = +OVERSCAN G
+    A   = MUX A
+    B   = MUX B
+    1G  = +STR
+    2G  = +STR
+  Outputs:
+    1Y  = +R'
+    2Y  = +G'
+
+U10: Blue/Intense multiplexer (0 = text foreground, 1 = text background, 2 = 2bpp, 3 = overscan)
+  Inputs:
+    1C0 = AT0
+    1C1 = AT4
+    2C0 = AT3
+    2C1 = +AT7 AND -ENABLE BLICK
+    1C2 = +SEL BLUE
+    2C2 = +BACKGROUD I
+    1C3 = +OVERSCAN B
+    2C3 = +OVERSCAN I
+    A   = MUX A
+    B   = MUX B
+    1G  = +STR
+    2G  = +STR
+  Outputs:
+    1Y  = +B'
+    2Y  = +I'
+
+U24: status register
+  Inputs:
+    A4  = -DISPEN      Y4 = D0
+    A3  = +LPEN STR    Y3 = D1
+    A2  = -LPEN SW     Y2 = D2
+    A1  = +VSYNC DLY   Y1 = D3
+    -GT = -STATUS SEL
+
+U32: character shift register
+  Inputs:
+    CLR = -CLR S/R
+    S/L = +S/L
+    CLK = +DOT CLK
+    H   = MK36000 Q8
+    G   = MK36000 Q7
+    F   = MK36000 Q6
+    E   = MK36000 Q5
+    D   = MK36000 Q4
+    C   = MK36000 Q3
+    B   = MK36000 Q2
+    A   = MK36000 Q1
+  Outputs:
+    QH  = +CHG DOTS
+
+U33: MK36000 character ROM
+  Inputs:
+     A0 = +RA0
+     A1 = +RA1
+     A2 = +RA2
+     A3 = CC0
+     A4 = CC1
+     A5 = CC2
+     A6 = CC3
+     A7 = CC4
+     A8 = CC5
+     A9 = CC6
+    A10 = CC7
+    -CE = +RESET XOR (-LCLK XOR +Q4)
+
+U34: character latch
+  Inputs:
+    CLK = +CC LATCH
+  D1 = MD0  Q1 = CC7
+  D2 = MD1  Q2 = CC6
+  D3 = MD2  Q3 = CC5
+  D4 = MD3  Q4 = CC4
+  D5 = MD4  Q5 = CC3
+  D6 = MD5  Q6 = CC2
+  D7 = MD6  Q7 = CC1
+  D8 = MD7  Q8 = CC0
+
+U35: attribute latch
+  Inputs:
+    CLK = +AT LATCH
+    CLR = -CLR S/R
+  D1 = MD0  Q1 = +AT7
+  D2 = MD1  Q2 = AT6
+  D3 = MD2  Q3 = AT5
+  D4 = MD3  Q4 = AT4
+  D5 = MD4  Q5 = AT3
+  D6 = MD5  Q6 = AT2
+  D7 = MD6  Q7 = AT1
+  D8 = MD7  Q8 = AT0
+
+U36: IO buffer
+  Inputs:
+    -GY1 = -WE
+    -GT2 = -WE
+  Y1 = MD0  A1 = +D0
+  Y2 = MD1  A2 = +D1
+  Y3 = MD2  A3 = +D2
+  Y4 = MD3  A4 = +D3
+  Y5 = MD4  A5 = +D4
+  Y6 = MD5  A6 = +D5
+  Y7 = MD6  A7 = +D6
+  Y8 = MD7  A8 = +D7
+
+U37: IO buffer
+  Inputs:
+    CLK = +XACK
+    EN  = -RD GATE
+  D1 = MD0  Q1 = +D0
+  D2 = MD1  Q2 = +D1
+  D3 = MD2  Q3 = +D2
+  D4 = MD3  Q4 = +D3
+  D5 = MD4  Q5 = +D4
+  D6 = MD5  Q6 = +D5
+  D7 = MD6  Q7 = +D6
+  D8 = MD7  Q8 = +D7
+
+U39: palette register
+  Inputs:
+    CLK = -SEL 2
+    CLR = -RESET
+    D1 = +D0
+    D2 = +D1
+    D3 = +D2
+    D4 = +D3
+    D5 = +D4
+    D6 = +D5
+  Outputs:
+    Q1 = +OVERSCAN B
+    Q2 = +OVERSCAN G
+    Q3 = +OVERSCAN R
+    Q4 = +OVERSCAN I
+    Q5 = +BACKGROUND I
+    Q6 = +COLOR SEL
+
+U101: Pixel latch
+  D1 = +R'     Q1 = +R
+  D2 = +G'     Q2 = +G
+  D3 = +B'     Q3 = +B
+  D4 = +I'     Q4 = +I
+  D5 = -RESET  Q5 = -RESET1
+  D6 = -RESET1 Q6 = RESET
+  CLK = -14 MHZ
+
+
+Sheet 3: clock generation and chip selection
+
+U1:
+  Inputs:
+    J   = +Q5
+    K   = NOT +Q5
+    CLK = +14 MHZ
+  Outputs:
+    Q   = U1Q
+
+U4: Clock generator
+  CLK = +14 MHZ
+  CLR = -RESET
+  D1 = -Q2'    Q1 = -LCLK
+  D2 = -LCLK   Q2 = +Q2
+  D3 = +Q2     Q3 = +Q3
+  D4 = +Q3     Q4 = +Q4
+  D5 = +Q4     Q5 = +Q5
+  D6 = +Q5     Q6 = +Q6
+
+U5: Clock generator
+  CLK = +14 MHZ
+  CLR = -RESET
+  D1 = +Q6            Q1 = +Q1'
+  D2 = +Q1'           Q2 = +Q2'
+  D3 = +Q4 XOR +LCLK  Q3 = +HCLK
+  D4 = -7MHZ          Q4 = +7MHZ
+  D5 = NOT +Q6'       Q5 = +3.58 MHZ
+  D6 = +3.58 MHZ      Q6 = +Q6'
+
+U11:
+  Inputs:
+    CLR1 = LPEN CLR
+    PR1  = LPEN PR
+    CLK1 = NOT -L PEN INPUT
+    D2   = +IO
+    CLR2 = +IO
+    CLK2 = +IO CLOCK
+  Outputs:
+    Q1   = +LPEN STR
+    Q2   = +E
+
+U12: Blink generator
+  CLKD = +VSYNC DLY     QD = -CURSOR BLINK
+  CLKA = -CURSOR BLINK  QA = -BLINK
+
+U17: Register selector
+  Inputs:
+    A    = +A0
+    B    = +A1
+    C    = +A2
+    G1   = +A3
+    -G2A = -IO
+    -G2B = -REGISTERS
+  Outputs:
+    Y0   = -SEL 1      (IO address 03d8)
+    Y1   = -SEL 2      (IO address 03d9)
+    Y2   = +STATUS SEL (IO address 03da)
+    Y3   = LPEN CLR    (IO address 03db)
+    Y4   = LPEN PR     (IO address 03dc)
+
+U18:
+  Inputs:
+    A    = +A4
+    B    = +A6
+    C    = +A7
+    -G2B = +A5
+    -G2A = +AEN
+    G1   = +A8 AND +A9
+  Outputs:
+    Y7   = -REGISTERS   ((address & 0x3f0) != 0x3d0)
+
+U19:
+  Inputs:
+    A    = +A15
+    B    = +A16
+    C    = +A17
+    G1   = +A19
+    -G2A = +A18
+    -G2B = -MEMR AND -MEMW
+  Outputs:
+    Y7   = -CPU MEM SEL  ((address & 0xf8000) != 0xb8000)
+
+-14MHZ     = NOT +14 MHZ
++LCLK      = NOT -LCLK
+-Q2'       = NOT +Q2'
+-7MHZ      = NOT +7MHZ
++CAS CC    = +Q2 XOR +Q4
+-CAS       = (NOT +CAS CC) AND (-LCLK XOR U1Q)
++RAS       = -LCLK XOR +Q1'
++S/L'      = (-LCLK XOR +Q2') OR (+Q2 NOR +HRES)
+-HCLK      = NOT +HCLK
++IO        = -IOR NAND -IOW
+-IO        = NOT +IO
+-6845 CS   = -A3 AND -REGISTERS
++DATA GATE = -CPU MEM SEL AND (-REGISTERS OR +IO)
+
+
+Sheet 4: Miscellaneous
+
+U1:
+  Inputs:
+    J   = +RAS
+    K   = -RAS
+    CLK = +14MHZ
+  Outputs:
+    Q   = +EN CAS ADDR
+    -Q  = +EN RAS ADDR
+
+U2:
+  Inputs:
+    D1   = -CPU MEM SEL
+    CLK1 = +Q1'
+    PR1  = -XACK
+    D2   = U2Q1
+    CLK2 = -RAS
+    PR2  = NOT -CPU MEM SEL
+    CLR2 = -XACK
+  Outputs:
+    Q1   = U2Q1
+    -Q1  = -U2Q1
+    Q2   = -XACK
+    -Q2  = +XACK
+
+
+U40: mode register
+  Inputs:
+    CLK = -SEL 1
+    CLR = -RESET
+    D1 = +D0
+    D2 = +D1
+    D3 = +D2
+    D4 = +D3
+    D5 = +D4
+    D6 = +D5
+  Outputs:
+    Q1 = +HRES
+    Q2 = +GRPH
+    Q3 = +BW
+    Q4 = +VIDEO ENABLE
+    Q5 = +1BPP
+    Q6 = +ENABLE BLINK
+
+-RAS             = NOT +RAS
++I/O READY       = +XACK (high impedance if -CPU MEM SEL)
+-EN CPU CAS ADDR = +EN CAS ADDR NAND +EN CPU ADDR
+-EN CPU RAS ADDR = +EN RAS ADDR NAND +EN CPU ADDR
+-EN CRT CAS ADDR = +EN CAS ADDR NAND +EN CRT ADDR
+-EN CRT RAS ADDR = +EN RAS ADDR NAND +EN CRT ADDR
++AT LATCH        = (+GRPH AND -Q2') NOR (-CCLK AND -GRPH)
++CC LATCH        = (+HRES OR -CCLK) NAND +CAS CC
+-WE              = 3NAND(U49_4, NOT -MEMW, -U2Q1)
+-RD GATE         = -MEMR OR -CPU MEM SEL
++SEL BLUE        = NOT ((+COLOR SEL AND -BW 2) OR (+BW AND +C0))
+-CCLK            = (+HRES AND +HCLK) NOR (-HRES AND +LCLK)
+-BLANK           = +VSYNC DLY NOR +HSYNC DLY
++STR             = NOT (-BLANK AND (-DISPEN DLY NAND +1BPP) AND ((NOT +1BPP) NOR U26_8))
++MUX A           = ((-GRPH AND +ALPHA DOTS) NOR (+GRPH AND (NOT +1BPP) AND (+C0 OR +C1))) OR -DISPEN DLY
++DOT CLOCK       = (+HRES AND -14 MHZ) NOR (-HRES AND -7MHZ)
+-BW 1            = NOT +BW
+-ENABLE BLINK    = NOT +ENABLE BLINK
+-GRPH            = NOT +GRPH
+-BW 2            = NOT +BW
+-HRES            = NOT +HRES
+U26_8            = NOT ((+C0 AND U25_3) NOR (U25_11 AND +C1))
+U49_4            = (NOT -Q2') AND (NOT +Q5)
++EN CRT ADDR     = (-U2Q1 AND +HRES) NOR (+Q1' AND -HRES)
++EN CPU ADDR     = NOT +EN CRT ADDR
+U25_3            = U25_11 NAND +DOT CLOCK
+U25_11           = U25_3 NAND NOT +DOT CLOCK
+
+
+Sheet 5: Output
+
+-DISPEN = NOT +DISPEN
+-CLR S/R = +VIDEO ENABLE AND (-DISPEN DLY NAND DISPEN')
++S/L' U30-8 = +S/L
+
+U21:
+  D1 = NOT +CURSOR  Q1 = CURSOR'
+  D2 = -DISPEN      Q2 = DISPEN'
+  D3 = +HSYNC       Q3 = +HSYNC DLY
+  D4 = +VSYNC       Q4 = +VSYNC DLY
+  D5 = CURSOR'      Q5 = -CURSOR DLY
+  D6 = DISPEN'      Q6 = -DISPEN DLY
+
+U43: Yellow/blue generator
+  Inputs:
+    D1   = U64-QH
+    CLK1 = LCLK (shown as connected to +VSYNC DLY, incorrectly)
+    CLR1 = +VSYNC DLY (shown as disconnected, incorrectly)
+    PR1  = -BW2
+    D2   = +3.58 MHZ
+    CLK2 = +14 MHZ
+    CLR2 = -BW2
+    PR2  = -BW2
+  Outputs:
+    Q1   = U43-Q1
+    Q2   = YELLOW BURST
+    -Q2  = BLUE
+
+U44: Red/cyan/magenta/green generator
+  Inputs:
+    D1   = YELLOW BURST
+    CLK1 = +14 MHZ
+    CLR1 = -BW1
+    PR1  = -BW1
+    D2   = CYAN [sic, should be RED]
+    CLK2 = -14 MHZ
+    CLR2 = -BW1
+    PR2  = -BW1
+  Outputs:
+    Q1   = CYAN [sic, should be RED]
+    -Q1  = RED [sic, should be CYAN]
+    Q2   = MAGENTA
+    -Q2  = GREEN
+
+U45: Chroma multiplexer
+  Inputs:
+    A = +B
+    B = +G XOR +HBURST
+    C = +R XOR +HBURST
+    D0 = 0
+    D1 = BLUE
+    D2 = GREEN
+    D3 = RED [sic, should be CYAN]
+    D4 = CYAN [sic, should be RED]
+    D5 = MAGENTA
+    D6 = YELLOW BURST
+    D7 = 1
+  Outputs:
+    Y = CHROMA
+
+U63:
+  D1  = 1       Q1 = U63-Q1
+  D2  = U63-Q1  Q2 = U63-Q2
+  D3  = U63-Q2  Q3 = U63-Q3
+  D4  = U63-Q4  Q4 = U63-Q4
+  CLK = U42-8
+  CLR = +VSYNC DLY
+
+U64:
+  Inputs:
+    CLK = LCLK (shown as connected to +VSYNC DLY, incorrectly)
+    CLR = +VSYNC DLY (shown as disconnected, incorrectly)
+    A = 1
+    B = 1
+  Outputs:
+    QH = U64-QH
+    QG = U64-QG
+    QB = U64-QB
+    QF = U64-QF
+
+COMP VID = f(CHROMA @ 2.2K, +I @ 5.6K, -BLANK @ 13K, -SYNC @ 3.3K)
+R OUT = +R
+G OUT = +G
+B OUT = +B
+I OUT = +I
+-SYNC = NOT (VSYNC OUT XOR HSYNC OUT)
+VSYNC OUT = U63-Q1 AND U63-Q4 (-Q4?)
+HSYNC OUT = U64-QB XOR U64-QF
++HBURST = (NOT +VSYNC DLY) AND (NOT -BURST)
+-BURST = U43-Q1 OR NOT U64-QG
+
+
+Sheet 6: Interface
+
+U66: bus driver
+  B1 = D0  A1 = BD0
+  B2 = D1  A2 = BD1
+  B3 = D2  A3 = BD2
+  B4 = D3  A4 = BD3
+  B5 = D4  A5 = BD4
+  B6 = D5  A6 = BD5
+  B7 = D6  A7 = BD6
+  B8 = D7  A8 = BD7
+  -G = +DATA GATE
+  DIR = -MEMR AND (-IOR OR +AEN)
+
+P5: ISA bus:
+  Outputs:
+    A31       = +A0
+    A30       = +A1
+    A29       = +A2
+    A28       = +A3
+    A27       = +A4
+    A26       = +A5
+    A25       = +A6
+    A24       = +A7
+    A23       = +A8
+    A22       = +A9
+    A21       = +A10
+    A20       = +A11
+    A19       = +A12
+    A18       = +A13
+    A17       = +A14 (unused?)
+    A16       = +A15
+    A15       = +A16
+    A14       = +A17
+    A13       = +A18
+    A12       = +A19
+    B14       = -IOR
+    B13       = -IOW
+    B11       = -MEMW
+    B12       = -MEMR
+    A11       = +AEN
+    B20       = +IOCLK
+    B02       = +RESET
+    B30       = B30
+  Inputs:
+    A10       = +IO READY
+  I/O:
+    A09       = BD0
+    A08       = BD1
+    A07       = BD2
+    A06       = BD3
+    A05       = BD4
+    A04       = BD5
+    A03       = BD6
+    A02       = BD7
+
+
++14 MHZ = NOT B30
+-RESET  = NOT +RESET
