@@ -110,7 +110,7 @@ Memory address latches:
 
 Sheet 2 (sequencer):
 
-U7: 2bpp low shift register
+U7: low/right bits shift register
   Inputs:
     CLR = -CLR S/R
     S/L = +S/L
@@ -126,7 +126,7 @@ U7: 2bpp low shift register
   Outputs:
     QH = +C0
 
-U8: 2bpp high shift register
+U8: high/left bits shift register
   Inputs:
     CLR = -CLR S/R
     S/L = +S/L
@@ -215,7 +215,7 @@ U33: MK36000 character ROM
      A8 = CC5
      A9 = CC6
     A10 = CC7
-    -CE = +RESET XOR (-LCLK XOR +Q4)
+    -CE = +RESET6 XOR (-LCLK XOR +Q4)
 
 U34: character latch
   Inputs:
@@ -242,7 +242,7 @@ U35: attribute latch
   D7 = MD6  Q7 = AT1
   D8 = MD7  Q8 = AT0
 
-U36: IO buffer
+U36: CPU write latch
   Inputs:
     -GY1 = -WE
     -GT2 = -WE
@@ -255,7 +255,7 @@ U36: IO buffer
   Y7 = MD6  A7 = +D6
   Y8 = MD7  A8 = +D7
 
-U37: IO buffer
+U37: CPU read latch
   Inputs:
     CLK = +XACK
     EN  = -RD GATE
@@ -287,12 +287,12 @@ U39: palette register
     Q6 = +COLOR SEL
 
 U101: Pixel latch
-  D1 = +R'     Q1 = +R
-  D2 = +G'     Q2 = +G
-  D3 = +B'     Q3 = +B
-  D4 = +I'     Q4 = +I
-  D5 = -RESET  Q5 = -RESET1
-  D6 = -RESET1 Q6 = RESET
+  D1 = +R'      Q1 = +R
+  D2 = +G'      Q2 = +G
+  D3 = +B'      Q3 = +B
+  D4 = +I'      Q4 = +I
+  D5 = -RESET6  Q5 = -RESET6'
+  D6 = -RESET6' Q6 = -RESET
   CLK = -14 MHZ
 
 
@@ -409,15 +409,15 @@ U2:
   Inputs:
     D1   = -CPU MEM SEL
     CLK1 = +Q1'
-    PR1  = -XACK
-    D2   = U2Q1
+    PR1  = -XACK'
+    D2   = -CPU MEM SEL DLY
     CLK2 = -RAS
     PR2  = NOT -CPU MEM SEL
-    CLR2 = -XACK
+    CLR2 = -XACK'
   Outputs:
-    Q1   = U2Q1
-    -Q1  = -U2Q1
-    Q2   = -XACK
+    Q1   = -CPU MEM SEL DLY
+    -Q1  = +CPU MEM SEL DLY
+    Q2   = -XACK'
     -Q2  = +XACK
 
 
@@ -447,12 +447,12 @@ U40: mode register
 -EN CRT RAS ADDR = +EN RAS ADDR NAND +EN CRT ADDR
 +AT LATCH        = (+GRPH AND -Q2') NOR (-CCLK AND -GRPH)
 +CC LATCH        = (+HRES OR -CCLK) NAND +CAS CC
--WE              = 3NAND(U49_4, NOT -MEMW, -U2Q1)
+-WE              = 3NAND(+WR CLK, NOT -MEMW, +CPU MEM SEL DLY)
 -RD GATE         = -MEMR OR -CPU MEM SEL
 +SEL BLUE        = NOT ((+COLOR SEL AND -BW 2) OR (+BW AND +C0))
 -CCLK            = (+HRES AND +HCLK) NOR (-HRES AND +LCLK)
 -BLANK           = +VSYNC DLY NOR +HSYNC DLY
-+STR             = NOT (-BLANK AND (-DISPEN DLY NAND +1BPP) AND ((NOT +1BPP) NOR U26_8))
++STR             = NOT (-BLANK AND (-DISPEN DLY NAND +1BPP) AND ((NOT +1BPP) OR +1BPP DOTS))          [final OR is incorrect on diagram, shown as NOR]
 +MUX A           = ((-GRPH AND +ALPHA DOTS) NOR (+GRPH AND (NOT +1BPP) AND (+C0 OR +C1))) OR -DISPEN DLY
 +DOT CLOCK       = (+HRES AND -14 MHZ) NOR (-HRES AND -7MHZ)
 -BW 1            = NOT +BW
@@ -460,12 +460,12 @@ U40: mode register
 -GRPH            = NOT +GRPH
 -BW 2            = NOT +BW
 -HRES            = NOT +HRES
-U26_8            = NOT ((+C0 AND U25_3) NOR (U25_11 AND +C1))
-U49_4            = (NOT -Q2') AND (NOT +Q5)
-+EN CRT ADDR     = (-U2Q1 AND +HRES) NOR (+Q1' AND -HRES)
++1BPP DOTS       = NOT ((+C0 AND +RIGHT DOT) NOR (+LEFT DOT AND +C1))
++WR CLK          = (NOT -Q2') AND (NOT +Q5)
++EN CRT ADDR     = (+CPU MEM SEL DLY AND +HRES) NOR (+Q1' AND -HRES)
 +EN CPU ADDR     = NOT +EN CRT ADDR
-U25_3            = U25_11 NAND +DOT CLOCK
-U25_11           = U25_3 NAND NOT +DOT CLOCK
++RIGHT DOT       = +LEFT DOT NAND +DOT CLOCK
++LEFT DOT        = +RIGHT DOT NAND NOT +DOT CLOCK
 
 
 Sheet 5: Output
@@ -530,10 +530,10 @@ U45: Chroma multiplexer
     Y = CHROMA
 
 U63:
-  D1  = 1       Q1 = U63-Q1
-  D2  = U63-Q1  Q2 = U63-Q2
-  D3  = U63-Q2  Q3 = U63-Q3
-  D4  = U63-Q4  Q4 = U63-Q4
+  D1  = 1        Q1 = U63+Q1
+  D2  = U63+Q1   Q2 = U63+Q2
+  D3  = U63+Q2   Q3 = U63+Q3
+  D4  = U63+Q3  -Q4 = U63-Q4
   CLK = U42-8
   CLR = +VSYNC DLY
 
@@ -555,7 +555,7 @@ G OUT = +G
 B OUT = +B
 I OUT = +I
 -SYNC = NOT (VSYNC OUT XOR HSYNC OUT)
-VSYNC OUT = U63-Q1 AND U63-Q4 (-Q4?)
+VSYNC OUT = U63+Q1 AND U63-Q4
 HSYNC OUT = U64-QB XOR U64-QF
 +HBURST = (NOT +VSYNC DLY) AND (NOT -BURST)
 -BURST = U43-Q1 OR NOT U64-QG
@@ -603,7 +603,7 @@ P5: ISA bus:
     B12       = -MEMR
     A11       = +AEN
     B20       = +IOCLK
-    B02       = +RESET
+    B02       = +RESET6
     B30       = B30
   Inputs:
     A10       = +IO READY
@@ -619,4 +619,4 @@ P5: ISA bus:
 
 
 +14 MHZ = NOT B30
--RESET  = NOT +RESET
+-RESET6 = NOT +RESET6

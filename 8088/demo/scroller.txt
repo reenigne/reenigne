@@ -1,0 +1,29 @@
+Lockstep
+by
+CRTC
+(The Cathode Ray Tube Controllers)
+A computer demonstration program
+for the IBM PC 5150 and XT 5160
+with genuine IBM CGA
+
+4.77MHz = 105/22
+
+Apparently this is possible
+
+We will control the horizontal.
+We will control the vertical.
+We can roll the image, make it flutter.
+We can change the focus to a soft blur
+Or sharpen it to crystal clarity.
+
+This demo takes exactly 2,000,000,000 CPU cycles to run
+(after CPU, CGA, PIT and CRTC are all in running in lockstep).
+People have counted cycles before.
+But nobody has ever counted them *all* before.
+
+In order to test this demo and make sure
+it wouldn't burn out any flyback transformers,
+we had to make our own emulator.
+No other emulator was accurate enough.
+
+

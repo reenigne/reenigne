@@ -58,6 +58,13 @@ We can do an 80x200 16-colour mode.
         dots from character generator
   This means that blinking is suppressed under the cursor (not the entire character, only the part under the cursor).
 
+Blinking and cursor:
+  Blinking: 16 frames on, 16 frames off
+  Cursor: 8 frames on, 8 frames off
+  Assuming a frame rate of 60Hz (+VSYNC DLY):
+    Cursor: 3.75Hz
+    Blinkink: 1.875Hz
+
 
  1 hdot                640  912  width of a pixel in 80x25 text mode and 640x200 graphics mode.                         (70ns)
  2 hdots = 1 ldot      320  456  width of a pixel in 40x25 text mode and 320x200 graphics mode.                        (140ns)
@@ -165,6 +172,10 @@ U1Q                             |                               |               
 +RAS          |                       |       |                       |       |                       |       |                       |       |
            ---+                       +-------+                       +-------+                       +-------+                       +-------+
 
+           ---+                       +-------+                       +-------+                       +-------+                       +-------+
+-RAS          |                       |       |                       |       |                       |       |                       |       |
+              +-----------------------+       +-----------------------+       +-----------------------+       +-----------------------+       +-
+
               +---------------------------+   +---------------------------+   +---------------------------+   +---------------------------+   +-
 +S/L' (hi)    |                           |   |                           |   |                           |   |                           |   |
            ---+                           +---+                           +---+                           +---+                           +---+
@@ -217,11 +228,92 @@ RAS ADDR                                |       |                               
 CAS ADDR        |                     |                               | |       |                     |                               | |
 (lo)            +---------------------+                               +-+       +---------------------+                               +-+
 
-
 -EN CRT         +-------------------------------------------------------+       +-------------------------------------------------------+
 RAS ADDR        |                                                       |       |                                                       |
 (lo)       -----+                                                       +-------+                                                       +-------
 
+-EN CRT    -----+                       +-------+                       +-------+                       +-------+                       +-------
+CAS ADDR        |                       |       |                       |       |                       |       |                       |
+(hi, n/s)       +-----------------------+       +-----------------------+       +-----------------------+       +-----------------------+
+
+-EN CRT         +-----------------------+       +-----------------------+       +-----------------------+       +-----------------------+
+RAS ADDR        |                       |       |                       |       |                       |       |                       |
+(hi, n/s)  -----+                       +-------+                       +-------+                       +-------+                       +-------
+
+                                                              +-----------+                                                   +-----------+
++WR CLK                                                       |           |                                                   |           |
+           ---------------------------------------------------+           +---------------------------------------------------+           +-----
+
+
+
+U2/1:
+
+(D)        --------------------+                                                  +-------------------------------------------------------------
+-CPU MEM                       |                                                  |
+ SEL                           +--------------------------------------------------+
+
+(CLK)                                 +-------------------------------+                               +-------------------------------+
++Q1'                                  |                               |                               |                               |
+           ---------------------------+                               +-------------------------------+                               +---------
+
+(CLR)      -------------------------------------------------------------------------------------------------------------------------------------
++5V
+
+
+(PR)       ------------------------------------------------------------+           +------------------------------------------------------------
+-XACK'                                                                 |           |
+                                                                       +-----------+
+
+(Q)        ---------------------------+                                 +-----------------------------------------------------------------------
+-CPU MEM                               \                               /
+ SEL DLY                               +-------------------------------+
+
+(-Q)                                   +-------------------------------+
++CPU MEM                               /                               \
+ SEL DLY   ---------------------------+                                 +-----------------------------------------------------------------------
+
+
+
+
+U2/2:
+
+(PR)                           +--------------------------------------------------+
++CPU MEM                       |                                                  |
+ SEL       --------------------+                                                  +-------------------------------------------------------------
+
+(D)        ----------------------------+                                +-----------------------------------------------------------------------
+-CPU MEM                               |                                |
+ SEL DLY                               +--------------------------------+
+
+(CLK)      ---+                       +-------+                       +-------+                       +-------+                       +-------+
+-RAS          |                       |       |                       |       |                       |       |                       |       |
+              +-----------------------+       +-----------------------+       +-----------------------+       +-----------------------+       +-
+
+(CLR)      -----------------------------------------------------------+            +------------------------------------------------------------
+-XACK'                                                                 \          /
+(Q)                                                                    +----------+
+
+                                                                       +-----------+
++XACK                                                                  /            \
+(-Q)       -----------------------------------------------------------+             +-----------------------------------------------------------
+
+
+So, wait time (between -CPU MEM SEL going low to +XACK going high) is to the next +Q1' rising (0-1 lchar or 0-6 cycles), then one hchar, so total 0.5-1.5 lchar or 3-8 cycles.
+  => to get full lcokstep, first do a CGA read or write, then restart timer 1.
+  Am I right about the 1 hchar? If not, we might be able to do wait-free CGA writes by timing correctly:
+    3 lchars = 48 hdots = 16 cycles
+  Otherwise the best we can do is 3 wait states:
+    9 hdots + 13 cycles = 3 lchars
+  Or if we stick to tcycles, 4 wait states:
+    12 hdots + 12 cycles = 3 lchars
+
+
+Snow happens because:
+  When we have +HRES, we always latch the character (+CC LATCH == +CAS CC) even on cycles when the CGA's memory address comes from the CPU.
+  In +HRES, +EN CPU ADDR is only high when we have +CPU MEM SEL DLY instead of every +Q1' so there isn't snow on every character.
+
+
+The reason we can't use +GRPH and +HRES is that in +GRPH, we only have -AT LATCH every -Q2' instead of every -CCLK as in -GRPH.
 
 
 
@@ -305,17 +397,16 @@ VSYNC OUT         |              |
 Address line A14 is unused, which means that the CGA memory b8000-bbfff is duplicated at bc000-bffff
 
 
-TODO:
-  Understand sheet 4
-    Work out what the C0/C1 flip-flop is doing - sequencing the +1BPP mode
-    Work through the various IO signals for a read and a write in +HRES and -HRES modes
-    Make waveforms for RAS/CAS signals in +HRES modes
-      Depends on -U2Q1 which depends on -CPU MEM SEL
-    Figure out snow and wait states
-
 
 The 2118-4 has a maximum access time of 120ns (1 ldot) and a "Read/Write" cycle time of 270ns (1 ccycle).
-  RAS pulse width = 140ns
+  RAS minimum pulse width = 140ns  actual = 140ns
   CAS pulse width = 65ns
 
 
+
+mov al,01  ; 2 0 8  4
+stosb      ; 1 1 8 11
+
+TODO:
+  Check actual wait states for various intervals between CGA accesses
+  Check for snow on read (should be there)
