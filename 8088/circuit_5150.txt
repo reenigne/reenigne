@@ -1,0 +1,954 @@
+Sheet 1: 8088 CPU, 8087 FPU, 8259 PIC and 8284 clock generator
+
+U2: 8259A PIC
+  Inputs:
+    -CS     = -INTR CS
+    -WR     = -XIOW
+    -RD     = -XIOR
+  Outputs:
+    INT     = 8088+INTR
+  I/O:
+    D0      = AD0
+    D1      = AD1
+    D2      = AD2
+    D3      = AD3
+    D4      = AD4
+    D5      = AD5
+    D6      = AD6
+    D7      = AD7
+    CAS0    = n/c
+    CAS1    = n/c
+    CAS2    = n/c
+    -SP/-EN = 8259-SP/-EN
+    IR0     = IRQ0
+    IR1     = IRQ1
+    IR2     = IRQ2
+    IR3     = IRQ3
+    IR4     = IRQ4
+    IR5     = IRQ5
+    IR6     = IRQ6
+    IR7     = IRQ7
+    -INTA   = 8259-INTA
+    -A0     = XA0
+
+U3: 8088 CPU
+  Inputs:
+    MN/-MX        = 0
+    INTR          = 8088+INTR
+    READY         = READY
+    -TEST         = 8088-TEST
+    NMI           = NMI
+    RESET         = RESET
+    CLK           = CLK88
+  Outputs:
+    A8            = A8
+    A9            = A9
+    A10           = A10
+    A11           = A11
+    A12           = A12
+    A13           = A13
+    A14           = A14
+    A15           = A15
+    A16/S3        = A16
+    A17/S4        = A17
+    A18/S5        = A18
+    A19/S6        = A19
+    -RD
+    IO/-M/-S2     = -S2
+    -INTA/QS1     = QS1
+    ALE/QS0       = QS0
+    DT/-R/-S1     = -S1
+    -DEN/-S0      = -S0
+    -SS0
+    -WR/-LOCK     = -LOCK
+  I/O:
+    AD0           = AD0
+    AD1           = AD1
+    AD2           = AD2
+    AD3           = AD3
+    AD4           = AD4
+    AD5           = AD5
+    AD6           = AD6
+    AD7           = AD7
+    -RQ/-GT0/HOLD = 1
+    -RQ/-GT1/HLDA = -RQ/-GT
+
+XU4: 8087 FPU
+  Inputs:
+    READY         = +READY
+    RESET         = RESET
+    CLK           = CLK88
+    QS0           = QS0
+    QS1           = QS1
+  Outputs:
+    INT           = N.P. NP1
+    BUSY          = 8088-TEST (pulled up)
+  I/O:
+    AD0           = AD0
+    AD1           = AD1
+    AD2           = AD2
+    AD3           = AD3
+    AD4           = AD4
+    AD5           = AD5
+    AD6           = AD6
+    AD7           = AD7
+    AD8           = A8
+    AD9           = A9
+    AD10          = A10
+    AD11          = A11
+    AD12          = A12
+    AD13          = A13
+    AD14          = A14
+    AD15          = A15
+    A16/S3        = A16
+    A17/S4        = A17
+    A18/S5        = A18
+    A19/S6        = A19
+    BHE/S7        = 1
+    -S0           = -S0
+    -S1           = -S1
+    -S2           = -S2
+    -RQ/-GT0      = -RQ/-GT
+    -RQ/-GT1      = 1
+
+U6: 8288 Bus Controller
+  Inputs:
+    IOB       = 0
+    CLK       = CLK88
+    -S0       = -S0
+    -S1       = -S1
+    -S2       = -S2
+    -AEN      = AEN BRD
+    CEN       = -AEN
+  Outputs:
+    DT/-R     = 8288+DT/-R
+    ALE       = ALE (via 27R resistor)
+    -MRDC     = -MEMW (via 27R resistor, pulled to 8259-SP/-EN)
+    -AMWC     = -MEMR (via 27R resistor, pulled to 8259-SP/-EN)
+    -MWTC     = n/c
+    -IOWC     = n/c
+    -AIOWC    = -IOR (via 27R resistor, pulled to 8259-SP/-EN)
+    -IORC     = -IOW (via 27R resistor, pulled to 8259-SP/-EN)
+    -INTA     = 8259-INTA
+    DEN       = 8288+DEN
+    MCE/-PDEN = n/c
+
+U7: Address 0-7 latch
+  D   = AD0 Q = A0
+  D   = AD1 Q = A1
+  D   = AD2 Q = A2
+  D   = AD3 Q = A3
+  D   = AD4 Q = A4
+  D   = AD5 Q = A5
+  D   = AD6 Q = A6
+  D   = AD7 Q = A7
+  G   = ALE
+  -OE = AEN BRD
+
+U8: Data latch
+  A   = AD0 B = A0
+  A   = AD1 B = A1
+  A   = AD2 B = A2
+  A   = AD3 B = A3
+  A   = AD4 B = A4
+  A   = AD5 B = A5
+  A   = AD6 B = A6
+  A   = AD7 B = A7
+  DIR = 8288+DT/R
+  -G  = 8288+DEN NAND 8259-SP/-EN
+
+U9: Address 8-15 latch
+  D   = A8  Q = A8
+  D   = A9  Q = A9
+  D   = A10 Q = A10
+  D   = A11 Q = A11
+  D   = A12 Q = A12
+  D   = A13 Q = A13
+  D   = A14 Q = A14
+  D   = A15 Q = A15
+  G   = ALE
+  -OE = AEN BRD
+
+U10: Address 16-19 latch
+  D   = A16 Q = A16
+  D   = A17 Q = A17
+  D   = A18 Q = A18
+  D   = A19 Q = A19
+  G   = ALE
+  -OE = AEN BRD
+
+U11: 8284A Clock generator
+  Inputs:
+    -AEN1  = -RDY/WAIT
+    -AEN2  = 1
+    RDY1   = -DMA WAIT
+    RDY2   = 0
+    -ASYNC = 0
+    X1     = XTAL-1
+    X2     = XTAL-2
+    F/-C   = 0
+    EFI    = n/c
+    -RES   = PWR GOOD
+    CSYNC  = 0
+  Ouputs:
+    READY  = READY
+    CLK    = CLK88
+    PCLK   = PCLK
+    OSC    = OSC
+    RESET  = RESET
+
+
+Sheet 2: Miscellaneous
+
+TD2: 7ns
+  IN = NOT CLK
+  OUT = TD2-OUT
+
+U67:
+  Inputs:
+    D    = U98+Q3
+    ^CLK = -CLK
+    -PR  = -HOLDA'
+    -CLR = +HRQ DMA
+  Outputs:
+    Q    = HOLDA
+    -Q   = -HOLDA'
+
+U82:
+  Inputs:
+    D    = 1
+    ^CLK = U82^CLK
+    -PR  = I/O CH RDY (pulled up)
+    -CLR = U82-CLR
+  Outputs:
+    Q    = -RDY/WAIT
+    -Q   = RDY/WAIT'
+
+U96:
+  Inputs:
+    D    = XD7
+    ^CLK = -WRT NMI REG
+    -PR  = 1
+    -CLR = -RESET DRV
+  Outputs:
+    Q    = ALLOW NMI
+    -Q   = n/c
+
+U98:
+  Inputs:
+    D0   = HOLDA
+    D1   = AEN BRD
+    D2   = U82+Q
+    D3   = U98+D3
+    ^CLK = CLK
+    -CLR = -RESET DRV
+  Outputs:
+    Q0   = AEN BRD
+    -Q0  = -AEN
+    Q1   = +DMA WAIT'
+    -Q1  = -DMA WAIT
+    Q2   = n/c
+    -Q2  = U98-Q2
+    Q3   = U98+Q3
+    -Q3  = n/c
+
+RDY TO DMA = RDY/WAIT' AND U98-Q2
+
+-DMA AEN = +DMA WAIT' NAND AEN BRD
+
+-RESET DRV = NOT RESET
+RESET DRV = NOT -RESET DRV
+NMI = ALLOW NMI AND 3NOR(N.P. NPI NAND N.P. INSTL SW, -PCK, U52+8)
+U52+8 = (NOT -ENABLE I/O CK) NAND I/O CH CK
+I/O CH CK = (-IO CH CK (pulled up)) NAND U52+8
+-CLK = NOT CLK 88
+U98+Q3 = -S0 AND -S1 AND -S2 AND -LOCK AND +HRQ DMA
++HRQ DMA = NOT -HRQ DMA
++RUN = NOT -RESET DRV
+
+
+Sheet 3: Address decoders
+
+TD1:
+  IN        = RAS
+  OUT 25ns  = TD1+25
+  OUT 75ns  = ADDR SEL
+  OUT 125ns = TD1+125
+
+U46:
+  Inputs:
+    A    = A13
+    B    = A14
+    C    = A15
+    -G2B = -ROM ADDR SEL
+    -G2A = -XMEMR
+    G1   = -RESET DRV
+  Outputs:
+    -Y0  = -CS0 (addresses f0000-f1fff, not used)
+    -Y1  = -CS1 (addresses f2000-f3fff, not used)
+    -Y2  = -CS2 (addresses f4000-f5fff)
+    -Y3  = -CS3 (addresses f6000-f7fff)
+    -Y4  = -CS4 (addresses f8000-f9fff)
+    -Y5  = -CS5 (addresses fa000-fbfff)
+    -Y6  = -CS6 (addresses fc000-fdfff)
+    -Y7  = -CS7 (addresses fe000-fffff)
+
+U47:
+  Inputs:
+    A    = A16
+    B    = A17
+    C    = 0
+    -G2B = -CAS
+    -G2A = -RAM ADDR SEL
+    G1   = -DACK O BRD
+  Outputs:
+    -Y0  = -CAS0 (addresses 00000-0ffff)
+    -Y1  = -CAS1 (addresses 10000-1ffff)
+    -Y2  = -CAS2 (addresses 20000-2ffff)
+    -Y3  = -CAS3 (addresses 30000-3ffff)
+    -Y4  = n/c
+    -Y5  = n/c
+    -Y6  = n/c
+    -Y7  = n/c
+
+U48:
+  Inputs:
+    A    = 0
+    B    = 0
+    C    = A18
+    -G2B = A19
+    -G2A = 0
+    G1   = -DACK O BRD
+  Outputs:
+    -Y0  = -RAM ADDR SEL (addresses 00000-3ffff)
+    -Y1  = n/c
+    -Y2  = n/c
+    -Y3  = n/c
+    -Y4  = n/c (addresses 40000-7ffff)
+    -Y5  = n/c
+    -Y6  = n/c
+    -Y7  = n/c
+
+U65:
+  Inputs:
+    A    = A16
+    B    = A17
+    C    = 1
+    G1   = RAS
+    -G2A = DACK 0
+    -G2B = -RAM ADDR SEL
+  Outputs:
+    Y0   = n/c
+    Y1   = n/c
+    Y2   = n/c
+    Y3   = n/c
+    Y4   = U65-Y4
+    Y5   = U65-Y5
+    Y6   = U65-Y6
+    Y7   = U65-Y7
+
+U66: Peripheral address decoder
+  Inputs:
+    A    = XA5
+    B    = XA6
+    C    = XA7
+    -G2B = XA8
+    -G2A = XA9
+    G1   = -AEN
+  Outputs:
+    -Y0  = -DMA CS (addresses 00-1f)
+    -Y1  = -INTR CS (addresses 20-3f)
+    -Y2  = -T/C CS (addresses 40-5f)
+    -Y3  = -PPI CS (addresses 60-7f)
+    -Y4  = -DMA PG CS (addresses 80-9f)
+    -Y5  = -NMI REG CS (addresses a0-bf)
+    -Y6  = n/c (addresses c0-df)
+    -Y7  = n/c (addresses e0-ff)
+
+-WRT NMI REG = -NMI REG CS OR -XIOW
+-WRT DMA PG REG = -DMA PG REG OR -XIOW
+-ROM ADDR SEL = 4NAND(A16, A17, A18, A19)
+RAS = -XMEMW NAND -XMEMR
+-CAS = TD1+25 NAND TD1+125
+RAS0 = -REFRESH GATE AND U65-Y4
+RAS1 = -REFRESH GATE AND U65-Y5
+RAS2 = -REFRESH GATE AND U65-Y6
+RAS3 = -REFRESH GATE AND U65-Y7
+-REFRESH GATE = RAS NAND DACK 0
+
+
+Sheet 4: 8237 Memory controller
+
+U17: Address 0-7 DMA latch
+  A = XA0 Y = A0
+  A = XA1 Y = A1
+  A = XA2 Y = A2
+  A = XA3 Y = A3
+  A = XA4 Y = A4
+  A = XA5 Y = A5
+  A = XA6 Y = A6
+  A = XA7 Y = A7
+  -G2 = n/c
+  -G1 = -DMA AEN
+
+U18: Address 8-15 DMA latch
+  D = XD0 Q = A8
+  D = XD1 Q = A9
+  D = XD2 Q = A10
+  D = XD3 Q = A11
+  D = XD4 Q = A12
+  D = XD5 Q = A13
+  D = XD6 Q = A14
+  D = XD7 Q = A15
+  G = 8237+ADSTB
+  -OE = -DMA AEN
+
+U19: Address 16-19 DMA latch
+  D1 = XD0 Q1 = A16
+  D2 = XD1 Q2 = A17
+  D3 = XD2 Q3 = A18
+  D4 = XD3 Q4 = A19
+  RA = -DACK 3
+  RB = -DACK 2
+  -READ = -DMA AEN
+  WA = XA0
+  WB = XA1
+  -WRITE = -WRT DMA PG REG
+
+U35: 8237 Memory controller
+  Inputs:
+    CLK   = DCLK
+    -CS   = -DMA CS
+    RESET = RESET
+    HLDA  = HOLDA
+    DREQ0 = DRQ0
+    DREQ1 = DRQ1
+    DREQ2 = DRQ2
+    DREQ3 = DRQ3
+    PIN5  = 1
+  Outputs:
+    A4    = XA4
+    A5    = XA5
+    A6    = XA6
+    A7    = XA7
+    HRQ   = HRQ DMA
+    DACK0 = -DACK0 BRD
+    DACK1 = -DACK1
+    DACK2 = -DACK2
+    DACK3 = -DACK3
+    AEN   = n/c
+    ADSTB = 8237+ADSTB
+    -MEMR = -XMEMR
+    -MEMW = -XMEMW
+  I/O:
+    DB0   = XD0
+    DB1   = XD1
+    DB2   = XD2
+    DB3   = XD3
+    DB4   = XD4
+    DB5   = XD5
+    DB6   = XD6
+    DB7   = XD7
+    -IOR  = -XIOR
+    -IOW  = -XIOW
+    -EOP  = -TERMINAL COUNT
+    A0    = XA0
+    A1    = XA1
+    A2    = XA2
+    A3    = XA3
+
+-HRQ DMA = NOT HRQ DMA
+T/C = NOT -TERMINAL COUNT
+DACK 0 = NOT -DACK 0 BRD
+
+
+Sheet 5: ROM
+
+U13: Data latch
+  A = D0 B = XD0
+  A = D1 B = XD1
+  A = D2 B = XD2
+  A = D3 B = XD3
+  A = D4 B = XD4
+  A = D5 B = XD5
+  A = D6 B = XD6
+  A = D7 B = XD7
+  -G = AEN BRD
+  -DIR = (XA9 NOR -XIOR) NOR (-ROM ADDR SEL NOR -XMEMW)
+
+U14: Flags latch
+  A = -IOR  B = -XIOR (pulled up)
+  A = -IOW  B = -XIOW (pulled up)
+  A = -MEMR B = -XMEMR (pulled up)
+  A = -MEMW B = -XMEMW (pulled up)
+  -G = 00
+  DIR = -DMA AEN
+
+U15: Address 8-12 buffer
+  A = A8         Y = XA0
+  A = A9         Y = XA1
+  A = A10        Y = XA2
+  A = A11        Y = XA3
+  A = A12        Y = XA4
+  A = CLK88      Y = XA5
+  A = AEN BRD    Y = XA6
+  A = -DACK0 BRD Y = XA7
+  -G1 = 0
+  -G2 = 0
+
+U16: Address 0-7 buffer
+  A = A0 Y = XA0
+  A = A1 Y = XA1
+  A = A2 Y = XA2
+  A = A3 Y = XA3
+  A = A4 Y = XA4
+  A = A5 Y = XA5
+  A = A6 Y = XA6
+  A = A7 Y = XA7
+  -G1 = AEN BRD
+  -G2 = AEN BRD
+
+XU28-XU33: ROM
+  Inputs:
+    A0       = XA0
+    A1       = XA1
+    A2       = XA2
+    A3       = XA3
+    A4       = XA4
+    A5       = XA5
+    A6       = XA6
+    A7       = XA7
+    A8       = XA8
+    A9       = XA9
+    A10      = XA10
+    A11      = XA11
+    A12      = XA12
+    XU28 -CS = -CS2
+    XU29 -CS = -CS3
+    XU30 -CS = -CS4
+    XU31 -CS = -CS5
+    XU32 -CS = -CS6
+    XU33 -CS = -CS7
+  Outputs:
+    D0       = XD0
+    D1       = XD1
+    D2       = XD2
+    D3       = XD3
+    D4       = XD4
+    D5       = XD5
+    D6       = XD6
+    D7       = XD7
+
+
+Sheet 6: RAM banks 0 and 1
+
+U12: Data latch
+  A = D0 B = MD0
+  A = D1 B = MD1
+  A = D2 B = MD2
+  A = D3 B = MD3
+  A = D4 B = MD4
+  A = D5 B = MD5
+  A = D6 B = MD6
+  A = D7 B = MD7
+  DIR = -XMEMR
+  -G = -RAM ADDR SEL
+
+U387-U45: Memory bank 0
+  Inputs:
+    -RAS = -RAS0
+    -CAS = -CAS0
+    -WE  = -WE
+    A0   = MA0
+    A1   = MA1
+    A2   = MA2
+    A3   = MA3
+    A4   = MA4
+    A5   = MA5
+    A6   = MA6
+    A7   = MA7
+  I/O:
+    U37-DIN/DOUT = MDP
+    U38-DIN/DOUT = MD0
+    U39-DIN/DOUT = MD1
+    U40-DIN/DOUT = MD2
+    U41-DIN/DOUT = MD3
+    U42-DIN/DOUT = MD4
+    U43-DIN/DOUT = MD5
+    U44-DIN/DOUT = MD6
+    U45-DIN/DOUT = MD7
+
+XU53-XU61: Memory bank 1
+  Inputs:
+    -RAS = -RAS1
+    -CAS = -CAS1
+    -WE  = -WE
+    A0   = MA0
+    A1   = MA1
+    A2   = MA2
+    A3   = MA3
+    A4   = MA4
+    A5   = MA5
+    A6   = MA6
+    A7   = MA7
+  I/O:
+    U37-DIN/DOUT = MDP
+    U38-DIN/DOUT = MD0
+    U39-DIN/DOUT = MD1
+    U40-DIN/DOUT = MD2
+    U41-DIN/DOUT = MD3
+    U42-DIN/DOUT = MD4
+    U43-DIN/DOUT = MD5
+    U44-DIN/DOUT = MD6
+    U45-DIN/DOUT = MD7
+
+U62: Low nybble multiplexer
+  Inputs:
+    1A = A0
+    1B = A8
+    2A = A1
+    2B = A9
+    3A = A2
+    3B = A10
+    4A = A3
+    4B = A11
+    S  = ADDR SEL
+    -G = 0
+  Outputs:
+    Y1 = MA0 (via 30R resistor)
+    Y2 = MA1 (via 30R resistor)
+    Y3 = MA2 (via 30R resistor)
+    Y4 = MA3 (via 30R resistor)
+
+U79: High nybble multiplexer
+  Inputs:
+    1A = A4
+    1B = A12
+    2A = A5
+    2B = A13
+    3A = A6
+    3B = A14
+    4A = A7
+    4B = A15
+    S  = ADDR SEL
+    -G = 0
+  Outputs:
+    Y1 = MA4 (via 30R resistor)
+    Y2 = MA5 (via 30R resistor)
+    Y3 = MA6 (via 30R resistor)
+    Y4 = MA7 (via 30R resistor)
+
+U93: Parity summer
+  Inputs:
+    A = MD0
+    B = MD1
+    C = MD2
+    D = MD3
+    E = MD4
+    F = MD5
+    G = MD6
+    H = MD7
+    I = (NOT -XMEMR) AND MDP
+  Outputs:
+    S ODD = U93+SODD
+    S EVEN = U93+SEVEN
+
+U96:
+  Inputs:
+    D    = -RAM ADDR SEL NOR U94+SODD
+    CLK^ = -XMEMR
+    -CLR = NOT -ENV RAM PCK
+    -PR  = -PCK
+  Outputs:
+    Q    = PCK
+    -Q   = -PCK
+
+MDP = U93+SEVEN or high impedance when NOT -WE
+-WE = NOT NOT -XMEMW via 30R resistor
+
+
+Sheet 7: RAM banks 2 and 3
+
+XU69-XU77: Memory bank 2
+  Inputs:
+    -RAS = -RAS2
+    -CAS = -CAS2
+    -WE  = -WE
+    A0   = MA0
+    A1   = MA1
+    A2   = MA2
+    A3   = MA3
+    A4   = MA4
+    A5   = MA5
+    A6   = MA6
+    A7   = MA7
+  I/O:
+    U37-DIN/DOUT = MDP
+    U38-DIN/DOUT = MD0
+    U39-DIN/DOUT = MD1
+    U40-DIN/DOUT = MD2
+    U41-DIN/DOUT = MD3
+    U42-DIN/DOUT = MD4
+    U43-DIN/DOUT = MD5
+    U44-DIN/DOUT = MD6
+    U45-DIN/DOUT = MD7
+
+XU85-XU93: Memory bank 3
+  Inputs:
+    -RAS = -RAS3
+    -CAS = -CAS3
+    -WE  = -WE
+    A0   = MA0
+    A1   = MA1
+    A2   = MA2
+    A3   = MA3
+    A4   = MA4
+    A5   = MA5
+    A6   = MA6
+    A7   = MA7
+  I/O:
+    U37-DIN/DOUT = MDP
+    U38-DIN/DOUT = MD0
+    U39-DIN/DOUT = MD1
+    U40-DIN/DOUT = MD2
+    U41-DIN/DOUT = MD3
+    U42-DIN/DOUT = MD4
+    U43-DIN/DOUT = MD5
+    U44-DIN/DOUT = MD6
+    U45-DIN/DOUT = MD7
+
+
+Sheet 8: 8253 PIT
+
+U34: 8253 PIT
+  Inputs:
+    GATE 0 = 1
+    CLK 0  = PIT CLK
+    GATE 1 = 1
+    CLK 1  = PIT CLK
+    GATE 2 = TIM 2 GATE SPK
+    CLK 2  = PIT CLK
+    -RD    = -XIOR
+    -WR    = -XIOW
+    -CS    = -T/C CS
+    A0     = XA0
+    A1     = XA1
+  Outputs:
+    OUT 0  = IRQ 0
+    OUT 1  = 8253+OUT1
+    OUT 2  = T/C2OUT
+  I/O:
+    D0     = XD0
+    D1     = XD1
+    D2     = XD2
+    D3     = XD3
+    D4     = XD4
+    D5     = XD5
+    D6     = XD6
+    D7     = XD7
+
+U67: DRAM refresh flip-flop
+  Inputs:
+    D    = 1
+    ^CLK = 8253+OUT1
+    -PR  = 1
+    -CLR = -DACK0 BRD
+  Outputs:
+    Q    = DRQ0
+    -Q   = n/c
+
+U95:
+  Inputs:
+    2A   = SPKR DATA NAND 8253+OUT2
+    1A   = NOT MOTOR OFF
+    S    = 1
+    C    = 1
+  Outputs:
+    2Y   = SPEAKER
+    1Y   = K1+COIL
+
+K1: Relay
+  Inputs:
+    K1 = K1+COIL
+    K2 = 1
+    NO2 = CASSETTE+DATA IN
+    NC2 = AUX
+    COM1 = CASSETTE+MOTOR CNTRL 1
+  Outputs:
+    COM2 = CASS DATA IN (via amplifier)
+    NO1  = CASSETTE+MOTOR CNTRL 3
+
+AUX = NOT T/C2OUT
+CASSETTE+DATA OUT = AUX
+
+
+Sheet 9: 8255 PPI, keyboard and DIP switches
+
+U23:
+  A = SW8 NUMBER OF 5-1/4 DRIVES HIGH Y = 8255+PA7
+  A = SW7 NUMBER OF 5-1/4 DRIVES LOW  Y = 8255+PA6
+  A = SW6 DISPLAY TYPE HIGH           Y = 8255+PA5
+  A = SW5 DISPLAY TYPE LOW            Y = 8255+PA4
+  A = SW4 PLANAR RAM SIZE HIGH        Y = 8255+PA3
+  A = SW3 PLANAR RAM SIZE LOW         Y = 8255+PA2
+  A = N.P. INSTL SW                   Y = 8255+PA1
+  A = SW1 5-1/4 DRV. IN.              Y = 8255+PA0
+  -G1 = -GATE SENSE SW
+  -G2 = -GATE SENSE SW
+
+U24:
+  Inputs:
+    -OE   = -ENABLE KBD DATA
+    DI    = KBD DATA
+    DD    = 1
+    -CLR  = +ENABLE KBD DATA
+    CLOCK = U26-Q1
+    -SE   = 1
+    DS    = 1
+    S/-P  = 1
+    -G    = IRQ1
+  Outputs:
+    QH    = 8255+PA0
+    QG    = 8255+PA1
+    QF    = 8255+PA2
+    QE    = 8255+PA3
+    QD    = 8255+PA4
+    QC    = 8255+PA5
+    QB    = 8255+PA6
+    QA    = 8255+PA7
+    QH'   = U24+QH'
+
+U26:
+  Inputs:
+    D1   = KBD CLK
+    ^CLK = PCLK
+    -CLR = -RESET DRV
+    D2   = U26+Q1
+  Outputs:
+    Q1   = U26+Q1
+    -Q1  = n/c
+    Q2   = n/c
+    -Q2  = U26-Q2
+
+U36: 8255 PPI
+  Inputs:
+    -RD   = -XIOR
+    -WR   = -XIOW
+    -CS   = -PPICS
+    A0    = XA0
+    A1    = XA1
+    RESET = RESET
+    D0    = XD0
+    D1    = XD1
+    D2    = XD2
+    D3    = XD3
+    D4    = XD4
+    D5    = XD5
+    D6    = XD6
+    D7    = XD7
+  I/O:
+    PA0   = 8255+PA0  (input)
+    PA1   = 8255+PA1  (input)
+    PA2   = 8255+PA2  (input)
+    PA3   = 8255+PA3  (input)
+    PA4   = 8255+PA4  (input)
+    PA5   = 8255+PA5  (input)
+    PA6   = 8255+PA6  (input)
+    PA7   = 8255+PA7  (input)
+    PB0   = TIM 2 GATE SPK                      (output)
+    PB1   = SPKR DATA                           (output)
+    PB2   = +[READ SW 1 - SW 4] OR -[READ SW 5] (output)
+    PB3   = MOTOR OFF                           (output)
+    PB4   = -ENB RAM PCK                        (output)
+    PB5   = -ENABLE IO CK                       (output)
+    PB6   = -HOLD KEYBD CLK LOW                 (output)
+    PB7   = +[CLEAR KBD IRQ & DATA/GATE SENSE SW & DISABLE KBD PATH] OR -[DISABLE SENSE SWS/ENABLE KBD DATA/ALLOW KBD IRQ] (output)
+    PC0   = 8255+PC0     (input)
+    PC1   = 8255+PC1     (input)
+    PC2   = 8255+PC2     (input)
+    PC3   = 8255+PC3     (input)
+    PC4   = CASS DATA IN (input)
+    PC5   = T/C2OUT      (input)
+    PC6   = I/O CH CK    (input)
+    PC7   = PCK          (input)
+
+U82:
+  Inputs:
+    D    = U24+QH'
+    ^CLK = U26-Q2
+    -PR  = U82-Q
+    -CLR = +ENABLE KBD DATA
+  Outputs:
+    Q    = IRQ1
+    -Q   = U82-Q
+
+KBD CLK driven low when -HOLD KEYBD CLK LOW is low
+KBD DATA driven low when U82-Q is low
+-KBD RESET = -RESET DRV
+8255+PC0 = SW21 L = SW25 L
+8255+PC1 = SW22 L
+8255+PC2 = SW23 L
+8255+PC3 = SW24 L
+SW21 R = SW22 R = SW23 R = SW24 R = -READ SW 1 - SW 4
+SW25 R = driven low when -READ SW 5 low
+
+
+Sheet 10: ISA slots
+
+P5: ISA bus:
+  Outputs:
+    A31       = A0
+    A30       = A1
+    A29       = A2
+    A28       = A3
+    A27       = A4
+    A26       = A5
+    A25       = A6
+    A24       = A7
+    A23       = A8
+    A22       = A9
+    A21       = A10
+    A20       = A11
+    A19       = A12
+    A18       = A13
+    A17       = A14
+    A16       = A15
+    A15       = A16
+    A14       = A17
+    A13       = A18
+    A12       = A19
+    B14       = -IOR
+    B13       = -IOW
+    B11       = -MEMW
+    B12       = -MEMR
+    B20       = CLK
+    B30       = OSC
+    B27       = T/C
+    A11       = AEN
+    B02       = RESET DRV
+    B19       = -DACK0
+    B17       = -DACK1
+    B26       = -DACK2
+    B15       = -DACK3
+    B28       = ALE
+  I/O:
+    A09       = D0
+    A08       = D1
+    A07       = D2
+    A06       = D3
+    A05       = D4
+    A04       = D5
+    A03       = D6
+    A02       = D7
+    A01       = -I/O CH CK
+    A10       = I/O CH RDY
+    B08       = RESERVED
+    B04       = IRQ2
+    B25       = IRQ3
+    B24       = IRQ4
+    B23       = IRQ5
+    B22       = IRQ6
+    B21       = IRQ7
+    B18       = DRQ1
+    B06       = DRQ2
+    B16       = DRQ3

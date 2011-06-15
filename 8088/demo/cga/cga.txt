@@ -579,12 +579,12 @@ done:
 ; Vertical line
 vLine0:
   xor [bx], ah         ; 2 2 16 21
-  add bh,020           ; 3 0 12  4
+  add bx,si            ; 2 0  8  3
   loop vLine1          ; 2 3 20 17
   jmp done
 vLine1:
   xor [bx], ah         ; 2 2 16 21
-  sub bx,01fb0         ; 4 0 16  4
+  add bx,di            ; 2 0  8  3
   loop vLine0          ; 2 3 20 17
 done:
 
@@ -592,8 +592,18 @@ done:
 vLine:
   xor [bx], ah         ; 2 2 16 21
   xor [bx+02000], ah   ; 4 2 24 25
-  add bx,050           ; 3 0 12  4
+  add bx,di            ; 2 0  8  3
   loop vLine           ; 2 3 20 17
+
+
+; Wait for horizontal retrace
+loop:
+  in al,dx             ; 1 1  8  8
+  test al,8            ; 1 1  8  4
+  jz loop              ; 2 0  8 16
+  in al,dx             ; 1 1  8  8
+  test al,8            ; 1 1  8  4
+  jz loop              ; 2 0  8  4
 
 
 

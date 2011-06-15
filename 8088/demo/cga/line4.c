@@ -157,51 +157,40 @@ void line(UInt16 x0, UInt16 y0, UInt16 x1, UInt16 y1, UInt8 c)
 
 // Non-unrolled
 lineLoop:
-  xor [bx], ah         ; 2 2 16 21
-  add bh,020           ; 3 0 12  4
-  cmp bh,040           ; 3 0 12  4
-  jl oddLine           ; 2 0  8  4/16
-  sub bx,03fb0         ; 4 0 16  4
-oddLine:
+  xor [di],dl          ; 2 2 16 21
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
   add si,bp            ; 2 0  8  3
   jle noAdjust         ; 2 0  8  4/16
-  shr ah,1             ; 2 0  8  2
-  shr ah,1             ; 2 0  8  2
-  jnc noNewByte        ; 2 0  8  4/16
-  mov ah,0c0           ; 2 0  8  4
-  inc bx               ; 1 0  4  2
-noNewByte:
-  sub si,di            ; 2 0  8  3
+  ror dl,1             ; 2 0  8  2
+  ror dl,1             ; 2 0  8  2
+  adc di,0             ; 3 0 12  4
+  sub si,bx            ; 2 0  8  3
 noAdjust:
   loop lineLoop        ; 2 0  8  5/17
 
 // Unrolled
 lineLoop0:
-  xor [bx], ah         ; 2 2 16 21
+  xor [di],dl          ; 2 2 16 21
+  add di,ax            ; 2 0  8  3
   add si,bp            ; 2 0  8  3
   jle noAdjust0        ; 2 0  8  4/16
-  shr ah,1             ; 2 0  8  2
-  shr ah,1             ; 2 0  8  2
-  jnc noNewByte0       ; 2 0  8  4/16
-  mov ah,0c0           ; 2 0  8  4
-  inc bx               ; 1 0  4  2
-noNewByte0:
-  sub si,di            ; 2 0  8  3
+  ror dl,1             ; 2 0  8  2
+  ror dl,1             ; 2 0  8  2
+  adc di,0             ; 3 0 12  4
+  sub si,bx            ; 2 0  8  3
 noAdjust0:
   loop lineLoop1       ; 2 0  8  5/17
   jmp done
 lineLoop1:
-  xor [bx+02000], ah   ; 4 2 24 25
-  add bx,050           ; 3 0 12  4
+  xor [di],dl          ; 2 2 16 21
+  add di,sp            ; 2 0  8  3
   add si,bp            ; 2 0  8  3
   jle noAdjust1        ; 2 0  8  4/16
-  shr ah,1             ; 2 0  8  2
-  shr ah,1             ; 2 0  8  2
-  jnc noNewByte1       ; 2 0  8  4/16
-  mov ah,0c0           ; 2 0  8  4
-  inc bx               ; 1 0  4  2
-noNewByte1:
-  sub si,di            ; 2 0  8  3
+  ror dl,1             ; 2 0  8  2
+  ror dl,1             ; 2 0  8  2
+  adc di,0             ; 3 0 12  4
+  sub si,bx            ; 2 0  8  3
 noAdjust1:
   loop lineLoop0       ; 2 0  8  5/17
 done:
@@ -210,74 +199,56 @@ done:
 
 // Non-unrolled
 lineLoop:
-  xor [bx], ah         ; 2 2 16 21
-  shr ah,1             ; 2 0  8  2
-  shr ah,1             ; 2 0  8  2
-  jnc noNewByte        ; 2 0  8  4/16
-  mov ah,0c0           ; 2 0  8  4
-  inc bx               ; 1 0  4  2
-noNewByte:
+  xor [di],dl          ; 2 2 16 21
+  ror dl,1             ; 2 0  8  2
+  ror dl,1             ; 2 0  8  2
+  adc di,0             ; 3 0  8  3
   add si,bp            ; 2 0  8  3
   jle noAdjust         ; 2 0  8  4/16
-  add bh,020           ; 3 0 12  4
-  cmp bh,040           ; 3 0 12  4
-  jl oddLine           ; 2 0  8  4/16
-  sub bx,03fb0         ; 4 0 16  4
-oddLine:
-  sub si,di            ; 2 0  8  3
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
+  sub si,bx            ; 2 0  8  3
 noAdjust:
   loop lineLoop        ; 2 0  8  5/17
 
-// Unrolled: AX = 030c0, DX = 030c
+// Unrolled:
 lineLoop0:
-  xor [bx], al         ; 2 2 16 21
+  xor [di],0c0         ; 3 2 20 22
   add si,bp            ; 2 0  8  3
   jle noAdjust0        ; 2 0  8  4/16
-  add bh,020           ; 3 0 12  4
-  cmp bh,040           ; 3 0 12  4
-  jl oddLine0          ; 2 0  8  4/16
-  sub bx,03fb0         ; 4 0 16  4
-oddLine0:
-  sub si,sp            ; 2 0  8  3
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
+  sub si,bx            ; 2 0  8  3
 noAdjust0:
   loop lineLoop1       ; 2 0  8  5/17
   jmp done
 lineLoop1:
-  xor [bx], ah         ; 2 2 16 21
+  xor [di],030         ; 3 2 20 22
   add si,bp            ; 2 0  8  3
   jle noAdjust1        ; 2 0  8  4/16
-  add bh,020           ; 3 0 12  4
-  cmp bh,040           ; 3 0 12  4
-  jl oddLine1          ; 2 0  8  4/16
-  sub bx,03fb0         ; 4 0 16  4
-oddLine1:
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
   sub si,di            ; 2 0  8  3
 noAdjust1:
   loop lineLoop2       ; 2 0  8  5/17
   jmp done
 lineLoop2:
-  xor [bx], dl         ; 2 2 16 21
+  xor [di],0c          ; 3 2 20 22
   add si,bp            ; 2 0  8  3
   jle noAdjust2        ; 2 0  8  4/16
-  add bh,020           ; 3 0 12  4
-  cmp bh,040           ; 3 0 12  4
-  jl oddLine2          ; 2 0  8  4/16
-  sub bx,03fb0         ; 4 0 16  4
-oddLine2:
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
   sub si,di            ; 2 0  8  3
 noAdjust2:
   loop lineLoop3       ; 2 0  8  5/17
   jmp done
 lineLoop3:
-  xor [bx], dh         ; 2 2 16 21
-  inc bx               ; 1 0  4  2
+  xor [di],03          ; 3 2 20 22
+  inc di               ; 1 0  4  2
   add si,bp            ; 2 0  8  3
   jle noAdjust3        ; 2 0  8  4/16
-  add bh,020           ; 3 0 12  4
-  cmp bh,040           ; 3 0 12  4
-  jl oddLine3          ; 2 0  8  4/16
-  sub bx,03fb0         ; 4 0 16  4
-oddLine3:
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
   sub si,di            ; 2 0  8  3
 noAdjust3:
   loop lineLoop0       ; 2 0  8  5/17
