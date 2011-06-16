@@ -1,8 +1,18 @@
 Each of the 128 rows must be refreshed every 2ms by changing the VRAM addresses and taking -RAS low. (2ms = ~31 scanlines)
-  They can't use the CRTC as a memory refresher because it goes 62 scanlines without generating any addresses.
-    Also, they want video RAM to be kept intact even when the screen is off.
-  So, there must be some other refresh mechanism.
-    Don't see one in the CGA circuitry. Does it get refreshed by the main memory refresh circuitry?
+  The DMA page is set to 0 so the CGA RAM won't be refreshed the same way as system RAM (luckily, because that would slow down some of the refresh cycles)
+  The CRTC must be continuing to generate addresses even when the display is disabled.
+  It must be programmed to access every combination of the low 7 bits of CRTC address in 31 scanlines
+    This is normally the case, but reprogramming can cause this to fail to happen.
+      Can we take advantage of this?
+      Is this a pitfall of some of the modes?
+      Can we use this an an effect? Probably not reliable enough.
+  In -HRES mode, the spans covered are:
+    0-56
+    40-96
+    80-127 and 0-8
+  In +HRES mode:
+    0-113
+    80-193
 
 
 Memory layouts:

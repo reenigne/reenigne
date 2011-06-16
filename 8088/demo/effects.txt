@@ -53,4 +53,6 @@ Sound:
   Digger-style music
   PWM audio
   4-channel player
+    1/2-channel player
   Effects
+    Liquid

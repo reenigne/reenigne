@@ -1,0 +1,101 @@
+Timer 1 output is 8253+OUT1
+  This is connected to a flip-flop: DRQ0 goes high when 8253+OUT1 goes high and low when -DACK0BRD goes low.
+
+DRQ0 goes to the 8237
+  8237 starts in SI
+  8237 signals CPU that it needs to start a refresh, goes into S0
+  8237 received HLDA from the CPU
+  8237 goes into S1
+  8237 goes into S2
+  8237 goes into S3
+  8237 goes into S4
+
+8237 is clocked by DCLK which is CLK88 with a width of 7ns.
+
+
+
+1 DMA refresh every 15.086 us
+Strobe through 128 rows in 1.931ms, 256 rows in 3.862ms
+Strobe through all 64Kb in just under 1 second.
+
+1 cycle of 4.77MHz is ~210ns.
+
+DMA initialization:
+Channel 0 word count (0x01) = 0xff
+Channel 0 word count (0x01) = 0xff
+Mode (0x0b) = 0x58                 Mode for channel 0 = read transfer, autoinitialization enable, address increment select, single mode select
+Command (0x08) = 0                 Command = memory-to-memory disable, channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+Mask (0x0a) = 0                    Mask for channel 0 = 0 - enabled
+Mode (0x0b) = 0x41                 Mode for channel 1 = verify transfer, autoinitialzation disable, address increment select, single mode select
+Mode (0x0b) = 0x42                 Mode for channel 2 = verify transfer, autoinitialzation disable, address increment select, single mode select
+Mode (0x0b) = 0x43                 Mode for channel 3 = verify transfer, autoinitialzation disable, address increment select, single mode select
+
+Port 083 is High order 4 bits of DMA channel 1,0 address  <- set to 0 on bootup. So this won't refresh the CGA RAM.
+
+
+008: Command register
+  0: 0 = Memory-to-memory disable
+     1 = Memory-to-memory enable
+  1: 0 = Channel 0 address hold disable
+     1 = Channel 0 address hold enable
+     X = If bit 0 = 0
+  2: 0 = Controller enable
+     1 = Controller disable
+  3: 0 = Normal timing
+     1 = Compressed timing
+     X = If bit 0 = 1
+  4: 0 = Fixed priority
+     1 = Rotating priority
+  5: 0 = Late write selection
+     1 = Extended write selection
+     X = If bit = 1
+  6: 0 = DREQ sense active high
+     1 = DREQ sense active low
+  7: 0 = DACK sense active low
+     1 = DACK sense active high
+
+00b: Mode register
+  0-1: 00 = Channel 0 select
+       01 = Channel 1 select
+       10 = Channel 2 select
+       11 = Channel 3 select
+  2-3: 00 = Verify transfer
+       01 = Write transfer
+       10 = Read transfer
+       11 = Illegal
+       XX = If bits 6 and 7 = 11
+  4:   0 = Autoinitialization disable
+       1 = Autoinitialization enable
+  5:   0 = Address increment select
+       1 = Address decrement select
+  6-7: 00 = Demand mode select
+       01 = Single mode select
+       10 = Block mode select
+       11 = Cascade mode select
+
+009: Request register
+  0-1: 00 = Channel 0 select
+       01 = Channel 1 select
+       10 = Channel 2 select
+       11 = Channel 3 select
+  2:   0 = Reset request bit
+       1 = Set request bit
+
+00a: Mask register
+  0-1: 00 = Channel 0 select
+       01 = Channel 1 select
+       10 = Channel 2 select
+       11 = Channel 3 select
+  2:   0 = Clear mask bit
+       1 = Set mask bit
+
+00f: Mask write register
+  0:   0 = Clear channel 0 mask bit
+       1 = Set channel 0 mask bit
+  1:   0 = Clear channel 1 mask bit
+       1 = Set channel 1 mask bit
+  2:   0 = Clear channel 2 mask bit
+       1 = Set channel 2 mask bit
+  3:   0 = Clear channel 3 mask bit
+       1 = Set channel 3 mask bit
+

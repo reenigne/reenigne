@@ -75,7 +75,7 @@ U3: 8088 CPU
 
 XU4: 8087 FPU
   Inputs:
-    READY         = +READY
+    READY         = READY
     RESET         = RESET
     CLK           = CLK88
     QS0           = QS0
@@ -123,12 +123,12 @@ U6: 8288 Bus Controller
   Outputs:
     DT/-R     = 8288+DT/-R
     ALE       = ALE (via 27R resistor)
-    -MRDC     = -MEMW (via 27R resistor, pulled to 8259-SP/-EN)
-    -AMWC     = -MEMR (via 27R resistor, pulled to 8259-SP/-EN)
+    -MRDC     = -MEMW (via 27R resistor, pulled to 8259-SP/-EN) [sic]
+    -AMWC     = -MEMR (via 27R resistor, pulled to 8259-SP/-EN) [sic]
     -MWTC     = n/c
     -IOWC     = n/c
-    -AIOWC    = -IOR (via 27R resistor, pulled to 8259-SP/-EN)
-    -IORC     = -IOW (via 27R resistor, pulled to 8259-SP/-EN)
+    -AIOWC    = -IOR (via 27R resistor, pulled to 8259-SP/-EN) [sic]
+    -IORC     = -IOW (via 27R resistor, pulled to 8259-SP/-EN) [sic]
     -INTA     = 8259-INTA
     DEN       = 8288+DEN
     MCE/-PDEN = n/c
@@ -146,14 +146,14 @@ U7: Address 0-7 latch
   -OE = AEN BRD
 
 U8: Data latch
-  A   = AD0 B = A0
-  A   = AD1 B = A1
-  A   = AD2 B = A2
-  A   = AD3 B = A3
-  A   = AD4 B = A4
-  A   = AD5 B = A5
-  A   = AD6 B = A6
-  A   = AD7 B = A7
+  A   = AD0 B = D0
+  A   = AD1 B = D1
+  A   = AD2 B = D2
+  A   = AD3 B = D3
+  A   = AD4 B = D4
+  A   = AD5 B = D5
+  A   = AD6 B = D6
+  A   = AD7 B = D7
   DIR = 8288+DT/R
   -G  = 8288+DEN NAND 8259-SP/-EN
 
@@ -217,7 +217,7 @@ U67:
 U82:
   Inputs:
     D    = 1
-    ^CLK = U82^CLK
+    ^CLK = (NOT -XIOR) OR (NOT -XIOW) OR (-DACK O BRD AND AEN BRD AND NOT -XMEMR)
     -PR  = I/O CH RDY (pulled up)
     -CLR = U82-CLR
   Outputs:
@@ -238,8 +238,8 @@ U98:
   Inputs:
     D0   = HOLDA
     D1   = AEN BRD
-    D2   = U82+Q
-    D3   = U98+D3
+    D2   = -RDY/WAIT
+    D3   = -S0 AND -S1 AND -S2 AND -LOCK AND +HRQ DMA
     ^CLK = CLK
     -CLR = -RESET DRV
   Outputs:
@@ -258,14 +258,13 @@ RDY TO DMA = RDY/WAIT' AND U98-Q2
 
 -RESET DRV = NOT RESET
 RESET DRV = NOT -RESET DRV
-NMI = ALLOW NMI AND 3NOR(N.P. NPI NAND N.P. INSTL SW, -PCK, U52+8)
+NMI = ALLOW NMI AND ((N.P.NPI AND N.P.INSTL SW) OR (NOT -PCK) OR U52+8)
 U52+8 = (NOT -ENABLE I/O CK) NAND I/O CH CK
 I/O CH CK = (-IO CH CK (pulled up)) NAND U52+8
 -CLK = NOT CLK 88
-U98+Q3 = -S0 AND -S1 AND -S2 AND -LOCK AND +HRQ DMA
 +HRQ DMA = NOT -HRQ DMA
 +RUN = NOT -RESET DRV
-
+DCLK = TD2-OUT NAND -CLK
 
 Sheet 3: Address decoders
 
@@ -366,7 +365,7 @@ U66: Peripheral address decoder
     -Y7  = n/c (addresses e0-ff)
 
 -WRT NMI REG = -NMI REG CS OR -XIOW
--WRT DMA PG REG = -DMA PG REG OR -XIOW
+-WRT DMA PG REG = -DMA PG CS OR -XIOW
 -ROM ADDR SEL = 4NAND(A16, A17, A18, A19)
 RAS = -XMEMW NAND -XMEMR
 -CAS = TD1+25 NAND TD1+125
@@ -485,14 +484,14 @@ U14: Flags latch
   DIR = -DMA AEN
 
 U15: Address 8-12 buffer
-  A = A8         Y = XA0
-  A = A9         Y = XA1
-  A = A10        Y = XA2
-  A = A11        Y = XA3
-  A = A12        Y = XA4
-  A = CLK88      Y = XA5
-  A = AEN BRD    Y = XA6
-  A = -DACK0 BRD Y = XA7
+  A = A8         Y = XA8
+  A = A9         Y = XA9
+  A = A10        Y = XA10
+  A = A11        Y = XA11
+  A = A12        Y = XA12
+  A = CLK88      Y = CLK
+  A = AEN BRD    Y = AEN
+  A = -DACK0 BRD Y = -DACK0
   -G1 = 0
   -G2 = 0
 
@@ -554,7 +553,7 @@ U12: Data latch
   DIR = -XMEMR
   -G = -RAM ADDR SEL
 
-U387-U45: Memory bank 0
+U37-U45: Memory bank 0
   Inputs:
     -RAS = -RAS0
     -CAS = -CAS0
@@ -592,15 +591,15 @@ XU53-XU61: Memory bank 1
     A6   = MA6
     A7   = MA7
   I/O:
-    U37-DIN/DOUT = MDP
-    U38-DIN/DOUT = MD0
-    U39-DIN/DOUT = MD1
-    U40-DIN/DOUT = MD2
-    U41-DIN/DOUT = MD3
-    U42-DIN/DOUT = MD4
-    U43-DIN/DOUT = MD5
-    U44-DIN/DOUT = MD6
-    U45-DIN/DOUT = MD7
+    U53-DIN/DOUT = MDP
+    U54-DIN/DOUT = MD0
+    U55-DIN/DOUT = MD1
+    U56-DIN/DOUT = MD2
+    U57-DIN/DOUT = MD3
+    U58-DIN/DOUT = MD4
+    U59-DIN/DOUT = MD5
+    U60-DIN/DOUT = MD6
+    U61-DIN/DOUT = MD7
 
 U62: Low nybble multiplexer
   Inputs:
@@ -719,6 +718,15 @@ XU85-XU93: Memory bank 3
 
 
 Sheet 8: 8253 PIT
+
+U26:
+  Inputs:
+    D = U26-Q
+    ^CLK = PCLK
+    -CLR = -RESET DRV
+  Outputs:
+    Q = PIT CLK
+    -Q = U26-Q
 
 U34: 8253 PIT
   Inputs:
