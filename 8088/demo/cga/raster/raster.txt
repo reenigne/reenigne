@@ -1,0 +1,32 @@
+Colour schemes:
+  * 4 bars, colours 1, 2, 4 and 8 - ORed together where they pass through each other
+  * Opaque Z-buffered circular cylinders
+    * Solid colours
+    * Colour schemes like 4, 6, 14, 15, 11, 9, 1 - scaled pointwise
+    * Phong-shaded dithered circles
+      * Hue, light angle and size can be changed arbitrarily
+    * Shadows?
+
+Motion patterns:
+  * N bars moving in a circle
+    * Only taking up part of the circle
+      * Moving the center of that circle in a circle
+  * Braids
+    * Plait^N
+      * Fractal?
+    * Sine waves
+  * Size inversely proportional to distance
+  * Bars at lattice points, rotate around lattice (like 2D NaCl).
+
+
+a   bbbbb   ccccc   aaaaa
+aa bbbbbbb ccccccc aaaaaa
+aaabbbbbbbbccccccccaaaaaa
+ aaa     bbb     ccc
+bbaaa   ccbbb   aaccc   b
+bb aaa ccc bbb aaa ccc bb
+b   aaccc   bbaaa   ccbbb
+     ccc     aaa     bbb
+cccccccaaaaaaaabbbbbbbbcc
+cccccc aaaaaaa bbbbbbb cc
+ccccc   aaaaa   bbbbb   c

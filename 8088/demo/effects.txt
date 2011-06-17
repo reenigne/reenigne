@@ -45,6 +45,7 @@ Video:
       Munching squares
       Smoking clover
   oldskool.org list: http://www.oldskool.org/demos/explained/demo_graphics.html
+  Pouet list: http://www.pouet.net/topic.php?which=7523
 
 
 Sound:
@@ -56,3 +57,5 @@ Sound:
     1/2-channel player
   Effects
     Liquid
+
+

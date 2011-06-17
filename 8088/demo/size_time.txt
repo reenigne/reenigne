@@ -1,0 +1,17 @@
+Need to fit all effects in <720Kb - 2x360Kb floppy
+  Expect to use compression, but can't spend too long on decompression.
+  Can we use trackmo techniques to load data for next effect while one is playing?
+    Interrupts would break lockstep - can we just start it and then expect it to finish within a certain time?
+
+Should we make it a booter or a DOS executable?
+  Booter is a bit more work but gives us more memory space and disk space
+  Save 6Kb per disk on boot/FAT/root
+
+Any given effect needs to fit in 640Kb
+  How much RAM for DOS/BIOS? Seems to be 0xc200 bytes with DOS 3.2
+
+
+2,000,000,000 cycles == 419 seconds = 6 minutes, 59 seconds
+ = 1760 bytes per second
+
+maybe 21 effects at 20 seconds per effect, 35Kb compressed per effect?
