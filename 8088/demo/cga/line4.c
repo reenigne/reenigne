@@ -195,6 +195,29 @@ noAdjust1:
   loop lineLoop0       ; 2 0  8  5/17
 done:
 
+// Unrolled all the way (100 iterations needed @ 34 bytes per = 3400 bytes):
+// 19 IOs per pixel
+lineLoop0:
+  xor [di],dl          ; 2 2 16 21
+  add di,ax            ; 2 0  8  3
+  add si,bp            ; 2 0  8  3
+  jle noAdjust0        ; 2 0  8  4/16
+  ror dl,1             ; 2 0  8  2
+  ror dl,1             ; 2 0  8  2
+  adc di,0             ; 3 0 12  4
+  sub si,bx            ; 2 0  8  3
+noAdjust0:
+  xor [di],dl          ; 2 2 16 21
+  add di,sp            ; 2 0  8  3
+  add si,bp            ; 2 0  8  3
+  jle noAdjust1        ; 2 0  8  4/16
+  ror dl,1             ; 2 0  8  2
+  ror dl,1             ; 2 0  8  2
+  adc di,0             ; 3 0 12  4
+  sub si,bx            ; 2 0  8  3
+noAdjust1:
+
+
 // Right major, down minor
 
 // Non-unrolled
@@ -253,6 +276,45 @@ lineLoop3:
 noAdjust3:
   loop lineLoop0       ; 2 0  8  5/17
 done:
+
+// Unrolled all the way (80 iterations needed @ 45 bytes per = 3600 bytes):
+// 13 IOs per pixel
+lineLoop0:
+  xor [di],dl          ; 2 2 16 21
+  add si,bp            ; 2 0  8  3
+  jle noAdjust0        ; 2 0  8  4/16
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
+  sub si,bx            ; 2 0  8  3
+noAdjust0:
+  xor [di],dh          ; 2 2 16 21
+  add si,bp            ; 2 0  8  3
+  jle noAdjust1        ; 2 0  8  4/16
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
+  sub si,di            ; 2 0  8  3
+noAdjust1:
+  xor [di],cl          ; 2 2 16 21
+  add si,bp            ; 2 0  8  3
+  jle noAdjust2        ; 2 0  8  4/16
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
+  sub si,di            ; 2 0  8  3
+noAdjust2:
+  xor [di],ch          ; 2 2 16 21
+  inc di               ; 1 0  4  2
+  add si,bp            ; 2 0  8  3
+  jle noAdjust3        ; 2 0  8  4/16
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
+  sub si,di            ; 2 0  8  3
+noAdjust3:
+
+
+// Averaging 16 IOs per pixel gives us 1244 pixels per frame excluding setup time.
+//   Also need to erase, so halve that.
+
+
 
 // Draw (horizontal major) lines bottom to top to eliminate "cmp bh,040"
 

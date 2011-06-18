@@ -30,3 +30,14 @@ b   aaccc   bbaaa   ccbbb
 cccccccaaaaaaaabbbbbbbbcc
 cccccc aaaaaaa bbbbbbb cc
 ccccc   aaaaa   bbbbb   c
+
+1D Bayer matrix:
+
+1
+
+1 2
+
+1 4 2 3
+
+1 5 4 8 2 6 3 7
+
