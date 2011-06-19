@@ -1,0 +1,65 @@
+00 blank
+01 blank
+02 blank
+03 blank
+04 blank
+05 blank
+06 blank
+07 blank
+08 40-column text, bright background, color on composite
+09 80-column text, bright background, color on composite
+0a 320-pixel 2bpp graphics, normal palettes
+0b (improper) 640-pixel 2bpp graphics, normal palettes
+0c 40-column text, bright background, black and white on composite
+0d 80-column text, bright background, black and white on composite
+0e 320-column 2bpp graphics, red/cyan palette, black and white on composite
+0f (improper) 640-pixel 2bpp, red/cyan palette, black and white on composite
+10 blank
+11 blank
+12 blank
+13 blank
+14 blank
+15 blank
+16 blank
+17 blank
+18 (improper) 40-column text with 640-pixel 1bpp graphics overlaid, bright background, color on composite
+19 (improper) 80-column text with 1280-pixel 1bpp graphics overlaid, bright background, color on composite
+1a 640-pixel 1bpp graphics, color on composite
+1b (improper) 1280-pixel 1bpp graphics, color on composite
+1c (improper) 40-column text with 640-pixel 1bpp graphics overlaid, bright background, black and white on composite
+1d (improper) 80-column text with 1280-pixel 1bpp graphics overlaid, bright background, black and white on composite
+1e 640-pixel 1bpp graphics, black and white on composite
+1f (improper) 1280-pixel 1bpp graphics, black and white on composite
+20 blank
+21 blank
+22 blank
+23 blank
+24 blank
+25 blank
+26 blank
+27 blank
+28 40-column text, flashing, color on composite
+29 80-column text, flashing, color on composite
+2a (duplicate) 320-pixel 2bpp graphics, normal palettes
+2b (improper) 640-pixel 2bpp graphics, normal palettes
+2c 40-column text, flashing, black and white on composite
+2d 80-column text, flashing, black and white on composite
+2e (duplicate) 320-column 2bpp graphics, red/cyan palette, black and white on composite
+2f (improper) 640-pixel 2bpp, red/cyan palette, black and white on composite
+30 blank
+31 blank
+32 blank
+33 blank
+34 blank
+35 blank
+36 blank
+37 blank
+38 (improper) 40-column text with 640-pixel 1bpp graphics overlaid, flashing, color on composite
+39 (improper) 80-column text with 1280-pixel 1bpp graphics overlaid, flashing, color on composite
+3a (duplicate) 640-pixel 1bpp graphics, color on composite
+3b (improper) 1280-pixel 1bpp graphics, color on composite
+3c (improper) 40-column text with 640-pixel 1bpp graphics overlaid, flashing, black and white on composite
+3d (improper) 80-column text with 1280-pixel 1bpp graphics overlaid, flashing, black and white on composite
+3e (duplicate) 640-pixel 1bpp graphics, black and white on composite
+3f (improper) 1280-pixel 1bpp graphics, black and white on composite
+

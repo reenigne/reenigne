@@ -1,0 +1,118 @@
+With this effect, each piece of code executed is specific to a particular moment of the effect.
+  Though, if there is time to spare we can compress code a bit by making a subroutine.
+  Essentially we start with the output we want and search for code that generates that.
+  Audio code is interleaved with video code
+    Audio sample rate can change throughout the effect - we can also easily switch between PWM, Digger-style and square waves
+  Only works with lockstep
+
+This effect burns through a lot of memory per second but allows for very high fidelity audio and video output
+We're essentially compressing audio/video to 3 streams:
+  CS:IP - instructions
+  DS:SI - e.g. "movsb", "rep movsw" data (no point putting lodsb/lodsw data there since "mov r,im" is the same length).
+  SS:SP - register data:
+    Only useful for segment registers since others can be loaded with "mov r,im" for the same cost, modulo segment changes
+    Though can put other data there to reduce
+
+Useful instruction sequences:
+
+; Move to next code segment
+  pop cs
+
+; Move to next data segment
+  pop ds
+
+; Move to next stack segment
+  pop ss
+
+; Load 16-bit count for loop
+  mov cx,im
+
+; Load 8-bit count for loop
+  mov cl,im
+
+; Set range of video memory to constant words
+  mov cx,im
+  mov ax,im
+  rep stosw
+
+; Copy from system memory to video memory
+  mov cx,im
+  rep movsw
+
+; Change destination for stos/movs
+  mov di,im
+OR
+  add di,bx
+
+; Copy one byte (if we don't need the AL value again immediately)
+  movsb
+
+; Copy one word (if we don't need the AX value again immediately)
+  movsw
+
+; Copy one byte (if we will re-use AL at another destination)
+  stosb
+
+; Copy one word (if we will re-use AX at another destination)
+  stosw
+
+; Output sound byte (e.g. PWM - do this twice for square wave)
+  mov al,im
+  out 042,al
+
+; Output CGA/audio register change
+  mov al,im
+  out dx,al
+
+; Set register to change
+  mov dx,03d9
+  mov dl,0d4
+  inc dx
+  dec dx
+
+; Delay
+  here: loop here
+
+; Load CRTC registers
+  mov dx,03d6
+  mov al,im
+  out dx,al
+  inc dx
+  mov al,im
+  out dx,al
+  dec dx
+
+; Load all CRTC registers
+  mov dx,03d6
+loadLoop:
+  lodsb
+  out dx,al
+  inc dx
+  lodsb
+  out dx,al
+  dec dx
+  loop loadLoop
+
+; Various transformations we can use to save a byte when loading a register value:
+  xlatb
+  add di,bp
+  shl ax,1
+
+
+; Register meanings:
+;   AX = port value to output
+;        value to stos
+;   BX = destination delta
+;        map pointer
+;   CX = count for loops
+;   DX = port
+;   DI = video memory output address
+
+; IOs per frame = 19912 (18805 after refresh) - 1193182 per second (1126894 after refresh)
+; 640Kb = enough for 34 frames (0.58s)
+; However, many of these IOs will be outputs to the CGA and 8253 (or idle loops) and won't contribute to memory usage
+; If we're mostly doing "rep movsw" we'll do much better - 160Kb per second = 4 seconds
+; Suppose we want 9.322KHz audio - 640Kb is 70.3s. Every 128th IO is to the 8253.
+;   If we have to load each sample individually we get 17-23s.
+; This is not likely to be a very good strategy, at least for the megademo
+;   The data is not likely to be highly compressible (especially since it's mixed audio/video)

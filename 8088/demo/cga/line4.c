@@ -195,8 +195,8 @@ noAdjust1:
   loop lineLoop0       ; 2 0  8  5/17
 done:
 
-// Unrolled all the way (100 iterations needed @ 34 bytes per = 3400 bytes):
-// 19 IOs per pixel
+// Unrolled all the way (100 iterations needed @ 32 bytes per = 3200 bytes):
+// 18 IOs per pixel
 lineLoop0:
   xor [di],dl          ; 2 2 16 21
   add di,ax            ; 2 0  8  3
@@ -204,7 +204,7 @@ lineLoop0:
   jle noAdjust0        ; 2 0  8  4/16
   ror dl,1             ; 2 0  8  2
   ror dl,1             ; 2 0  8  2
-  adc di,0             ; 3 0 12  4
+  adc di,cx            ; 2 0  8  3
   sub si,bx            ; 2 0  8  3
 noAdjust0:
   xor [di],dl          ; 2 2 16 21
@@ -213,9 +213,28 @@ noAdjust0:
   jle noAdjust1        ; 2 0  8  4/16
   ror dl,1             ; 2 0  8  2
   ror dl,1             ; 2 0  8  2
-  adc di,0             ; 3 0 12  4
+  adc di,cx            ; 2 0 12  4
   sub si,bx            ; 2 0  8  3
 noAdjust1:
+
+// Erase: 14 IOs per pixel. 100 iterations needed @ 26 bytes per = 2600 bytes:
+  stosb                ; 1 1  8 11
+  add di,dx            ; 2 0  8  3
+  add si,bp            ; 2 0  8  3
+  jle noAdjust0        ; 2 0  8  4/16
+  add cl,ch            ; 2 0  8  3
+  adc di,ax            ; 2 0  8  3
+  sub si,bx            ; 2 0  8  3
+noAdjust0:
+  stosb                ; 1 1  8 11
+  add di,sp            ; 2 0  8  3
+  add si,bp            ; 2 0  8  3
+  jle noAdjust1        ; 2 0  8  4/16
+  add cl,ch            ; 2 0  8  3
+  adc di,ax            ; 2 0  8  3
+  sub si,bx            ; 2 0  8  3
+noAdjust1:
+
 
 
 // Right major, down minor
@@ -310,10 +329,21 @@ noAdjust2:
   sub si,di            ; 2 0  8  3
 noAdjust3:
 
+// Erase: 12 IOs for 4 pixels (80 iterations needed @ 11 bytes per = 880 bytes):
+lineLoop0:
+  stosb                ; 1 1  8 11
+  add si,bp            ; 2 0  8  3
+  jle noAdjust0        ; 2 0  8  4/16
+  add di,cx            ; 2 0  8  3
+  xchg sp,cx           ; 2 0  8  3
+  sub si,bx            ; 2 0  8  3
+noAdjust0:
+
 
 // Averaging 16 IOs per pixel gives us 1244 pixels per frame excluding setup time.
 //   Also need to erase, so halve that.
-
+//     Can we make faster line-erase routines?
+//       Use same increments
 
 
 // Draw (horizontal major) lines bottom to top to eliminate "cmp bh,040"
