@@ -408,3 +408,421 @@ Implementation 6:
 
 
 4mat-menu11.mod
+
+
+
+
+
+
+
+
+22KHz is ~217 CPU cycles per sample or ~54 cycles per voice sample or about 14 IOs (~13 with DRAM refresh)
+
+With volume-dependent samples, 12 IOs:
+  add bl,bh
+  adc si,bp
+  lodsb
+  es: add [di], al
+  inc di
+
+With frequency-dependent samples, 10 IOs:
+  lodsb
+  xlatb
+  es: add [di], al
+  inc di
+
+For first voice, 7 IOs (3 :
+  add bl,bh
+  adc si,bp
+  movsb
+
+Total, 43 IOs out of 54 - 80%
+
+Optimizations needed:
+  Pre-adjusting samples for volume
+  Computing in advance how many iterations needed, taking into account:
+    buffer length
+    sample length
+    length to change of frequency/volume
+  Unrolling loop bodies to maximum length, and starting loop by jumping into appropriate location.
+  Using separate loop body for first voice
+
+
+
+With original samples and volume tables in DS, 14 IOs:
+  add cl,ch
+  adc si,bp
+  lodsb
+  xlatb
+  es: add [di], al
+  inc di
+
+For first voice, 10 IOs:
+  add cl,ch
+  adc si,bp
+  lodsb
+  xlatb
+  stosb
+
+Total 52 IOs, 55.06 with refresh = 21.7KHz @100%
+
+
+
+
+PC speaker versions:
+
+1: 66 cycles = 17.1KHz
+  mov bh,99       2 0
+  add w[si],9999  4 2
+  inc si          1 0
+  lodsb           1 1
+  xlatb           1 1
+  out dx,al       1 1
+  mov bh,99       2 0
+  add w[si],9999  4 2
+  inc si          1 0
+  lodsb           1 1
+  xlatb           1 1
+  out dx,al       1 1
+  mov bh,99       2 0
+  add w[si],9999  4 2
+  inc si          1 0
+  lodsb           1 1
+  xlatb           1 1
+  out dx,al       1 1
+  mov bh,99       2 0
+  add w[si],9999  4 2
+  inc si          1 0
+  lodsb           1 1
+  xlatb           1 1
+  out dx,al       1 1
+  xor si,si       2 0
+  loop loopTop    2 2
+
+2: 72 cycles
+  lodsw           1 1
+  add ax,9999     4 0
+  stosw           1 1
+  mov bl,ah       2 0
+  mov bh,99       2 0
+  xlatb           1 1
+  out dx,al       1 1
+  lodsw           1 1
+  add ax,9999     4 0
+  stosw           1 1
+  mov bl,ah       2 0
+  mov bh,99       2 0
+  xlatb           1 1
+  out dx,al       1 1
+  lodsw           1 1
+  add ax,9999     4 0
+  stosw           1 1
+  mov bl,ah       2 0
+  mov bh,99       2 0
+  xlatb           1 1
+  out dx,al       1 1
+  lodsw           1 1
+  add ax,9999     4 0
+  stosw           1 1
+  mov bl,ah       2 0
+  mov bh,99       2 0
+  xlatb           1 1
+  out dx,al       1 1
+  xor si,si       2 0
+  xor di,di       2 0
+  loop looptop    2 2
+
+3: 59 cycles
+  add cx,9999     4 0
+  mov al,ch       2 0
+  mov bh,99       2 0
+  xlatb           1 1
+  out dx,al       1 1
+  add si,9999     4 0
+  mov ax,si       2 0
+  mov al,ah       2 0
+  mov bh,99       2 0
+  xlatb           1 1
+  out dx,al       1 1
+  add di,9999     4 0
+  mov ax,di       2 0
+  mov al,ah       2 0
+  mov bh,99       2 0
+  xlatb           1 1
+  out dx,al       1 1
+  add sp,9999     4 0
+  mov ax,sp       2 0
+  mov al,ah       2 0
+  mov bh,99       2 0
+  xlatb           1 1
+  out dx,al       1 1
+  dec bp          1 0
+  jnz looptop     2 2
+
+4: 61 cycles = 18.5KHz (might need to permute this a bit)
+  add ah,99       3 0
+  adc [di],99     3 2
+  mov al,[9988]   3 1
+  add bl,99       3 0
+  adc [di+11],99  4 2
+  add al,[9988]   4 1
+  add bh,99       3 0
+  adc [di+22],99  4 2
+  add al,[9988]   4 1
+  add dl,99       3 0
+  adc [di+33],99  4 2
+  add al,[9988]   4 1
+  out 042,al      2 1
+  loop loopTop    2 2
+
+5: 57 cycles
+  add cx,9999     4 0
+  mov bl,ch       2 0
+  mov bh,99       2 0
+  mov al,[bx]     2 1
+  add si,9999     4 0
+  mov bx,si       2 0
+  xchg bl,bh      2 0
+  mov bh,99       2 0
+  add al,[bx]     2 1
+  add di,9999     4 0
+  mov bx,di       2 0
+  xchg bl,bh      2 0
+  mov bh,99       2 0
+  add al,[bx]     2 1
+  add sp,9999     4 0
+  mov bx,sp       2 0
+  xchg bl,bh      2 0
+  mov bh,99       2 0
+  add al,[bx]     2 1
+  out dx,al       1 1
+  dec bp          1 0
+  jnz looptop     2 2
+
+6: 53 cycles = 21.3KHz
+  add cx,9999     4 0
+  mov bh,ch       2 0
+  mov al,[bx+49]  3 1
+  add si,9999     4 0
+  mov dx,si       2 0
+  mov bh,dh       2 0
+  add al,[bx+49]  3 1
+  add di,9999     4 0
+  mov dx,di       2 0
+  mov bh,dh       2 0
+  add al,[bx+49]  3 1
+  add sp,9999     4 0
+  mov dx,sp       2 0
+  mov bh,dh       2 0
+  add al,[bx+49]  3 1
+  out dx,al       1 1
+  dec bp          1 0
+  jnz looptop     2 2
+
+7: 50 cycles = 22.5KHz
+  add cx,9999     4 0
+  mov bh,ch       2 0
+  mov al,[bx+49]  3 1
+  add si,9999     4 0
+  mov bx,si       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  add di,9999     4 0
+  mov bx,di       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  add sp,9999     4 0
+  mov bx,sp       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  out dx,al       1 1
+  dec bp          1 0
+  jnz looptop     2 2
+
+7a: 50 cycles = 22.5KHz
+  add bp,9999     4 0
+  mov bx,bp       2 0
+  mov bl,99       2 0
+  mov al,[bx]     2 1
+  add si,9999     4 0
+  mov bx,si       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  add di,9999     4 0
+  mov bx,di       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  add sp,9999     4 0
+  mov bx,sp       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  out dx,al       1 1
+  loop looptop    2 2
+
+8: 48 cycles = 23.5KHz - unrolled, 35 bytes = 1872 iterations = 12.5Hz minimum update speed - can't easily update waveforms though
+  add cx,[bp]     2 2
+  mov bh,ch       2 0
+  mov al,[bx+49]  3 1
+  add si,[bp+2]   3 2
+  mov bx,si       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  add di,[bp+4]   3 2
+  mov bx,di       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  add sp,[bp+6]   3 2
+  mov bx,sp       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  out dx,al       1 1
+
+9: 52 cycles = 21.6KHz - unrolled, 38 bytes = 1724 iterations = 12.6Hz minimum update speed
+  add cx,[bp]     2 2
+  mov bx,cx       2 0
+  mov bl,[bp+8]   3 1
+  mov al,[bx]     2 1
+  add si,[bp+2]   3 2
+  mov bx,si       2 0
+  mov bl,dl       2 0
+  add al,[bx]     2 1
+  add di,[bp+4]   3 2
+  mov bx,di       2 0
+  mov bl,dh       2 0
+  add al,[bx]     2 1
+  add sp,[bp+6]   3 2
+  mov bx,sp       2 0
+  mov bl,ah       2 0
+  add al,[bx]     2 1
+  out 042,al      2 1
+
+
+X: volume table version of 7a: 70 cycles = 16.1KHz
+  add bp,9999     4 0
+  mov bx,bp       2 0
+  mov bl,99       2 0
+  mov bh,[bx]     2 1
+  mov bl,98       2 0
+  mov al,[bx]     2 1
+  add si,9999     4 0
+  mov bx,si       2 0
+  mov bl,99       2 0
+  mov bh,[bx]     2 1
+  mov bl,98       2 0
+  add al,[bx]     2 1
+  add di,9999     4 0
+  mov bx,di       2 0
+  mov bl,99       2 0
+  mov bh,[bx]     2 1
+  mov bl,98       2 0
+  add al,[bx]     2 1
+  add sp,9999     4 0
+  mov bx,sp       2 0
+  mov bl,99       2 0
+  mov bh,[bx]     2 1
+  mov bl,98       2 0
+  add al,[bx]     2 1
+  out dx,al       1 1
+  loop looptop    2 2
+
+Y: 66 cycles = 17.1KHz
+  add bp,9999     4 0
+  mov bx,bp       2 0
+  mov bl,0        2 0
+  mov bh,[bx+49]  3 1
+  mov al,[bx]     2 1
+  add si,9999     4 0
+  mov bx,si       2 0
+  mov bl,0        2 0
+  mov bh,[bx+49]  3 1
+  add al,[bx]     2 1
+  add di,9999     4 0
+  mov bx,di       2 0
+  mov bl,0        2 0
+  mov bh,[bx+49]  3 1
+  add al,[bx]     2 1
+  add sp,9999     4 0
+  mov bx,sp       2 0
+  mov bl,0        2 0
+  mov bh,[bx+49]  3 1
+  add al,[bx]     2 1
+  out dx,al       1 1
+  loop looptop    2 2
+
+
+
+
+
+; MOD player:
+; DS = sample pointer
+; BP = 0
+; SI = temp position
+; DI = channel 0 position bits 8..15
+; BX = temp sample (BH = 0)
+; AL = sample accumulator
+; AH = channel 3 position bits 0..7
+; CX = channel 1 position bits 8..15
+; DX = channel 2 position bits 8..15
+; SP = data pointer
+; SS = data pointer:
+;   0 = channel 0 position bits 0..7
+;   1 = channel 1 position bits 0..7
+;   2 = channel 2 position bits 0..7
+;
+;   4 = channel 0 sample
+;   6 = channel 1 sample
+;   8 = channel 2 sample
+;  10 = channel 3 sample
+;  12 = channel 3 position bits 8..15
+;  12 = count
+
+loopTop:
+  add b[bp],99     3 2
+  adc di,9999      4 0
+  jnc noOverflow   2 3
+  mov di,9999
+noOverflow0:
+  pop ds           1 2
+  mov bl,[di]      2 1
+  mov al,[bp+9999] 4 1        25
+
+  add b[bp+1],99   4 2
+  adc cx,9999      4 0
+  jnc noOverflow   2 3
+  mov cx,9999
+noOverflow1:
+  mov si,cx        2 0
+  pop ds           1 2
+  mov bl,[si]      2 1
+  add al,[bp+9999] 4 1        28
+
+  add b[bp+2],99   4 2
+  adc dx,9999      4 0
+  jnc noOverflow   2 3
+  mov dx,9999
+noOverflow2:
+  mov si,dx        2 0
+  pop ds           1 2
+  mov bl,[si]      2 1
+  add al,[bp+9999] 4 1        28
+
+  add ah,99        3 0
+  pop ds           1 2
+  pop si           1 2
+  adc si,9999      4 0
+  jnc noOverflow   2 3
+  mov si,9999
+noOverflow3:
+  push si          1 2
+  mov bl,[si]      2 1
+  add al,[bp+9999] 4 1        29
+
+  sub sp,8         3 0
+
+  out 042,al       2 1
+  dec b[bp+12]     3 2
+  jnz loopTop      2 3        16
+
+
+; total = 126 cycles = 8.9KHz
+
