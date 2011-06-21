@@ -725,27 +725,27 @@ X: volume table version of 7a: 70 cycles = 16.1KHz
   out dx,al       1 1
   loop looptop    2 2
 
-Y: 66 cycles = 17.1KHz
+Y: 70 cycles
   add bp,9999     4 0
   mov bx,bp       2 0
   mov bl,0        2 0
   mov bh,[bx+49]  3 1
-  mov al,[bx]     2 1
+  mov al,[bx+48]  3 1
   add si,9999     4 0
   mov bx,si       2 0
   mov bl,0        2 0
   mov bh,[bx+49]  3 1
-  add al,[bx]     2 1
+  add al,[bx+48]  3 1
   add di,9999     4 0
   mov bx,di       2 0
   mov bl,0        2 0
   mov bh,[bx+49]  3 1
-  add al,[bx]     2 1
+  add al,[bx+48]  4 1
   add sp,9999     4 0
   mov bx,sp       2 0
   mov bl,0        2 0
   mov bh,[bx+49]  3 1
-  add al,[bx]     2 1
+  add al,[bx+48]  3 1
   out dx,al       1 1
   loop looptop    2 2
 
@@ -770,11 +770,15 @@ Y: 66 cycles = 17.1KHz
 ;   2 = channel 2 position bits 0..7
 ;
 ;   4 = channel 0 sample
-;   6 = channel 1 sample
-;   8 = channel 2 sample
-;  10 = channel 3 sample
-;  12 = channel 3 position bits 8..15
-;  12 = count
+;   6 = channel 0 volume
+;   8 = channel 1 sample
+;  10 = channel 1 volume
+;  12 = channel 2 sample
+;  14 = channel 2 volume
+;  16 = channel 3 position bits 8..15
+;  18 = channel 3 sample
+;  20 = channel 3 volume
+;  22 = count
 
 loopTop:
   add b[bp],99     3 2
@@ -784,7 +788,8 @@ loopTop:
 noOverflow0:
   pop ds           1 2
   mov bl,[di]      2 1
-  mov al,[bp+9999] 4 1        25
+  pop ds           1 2
+  mov al,[bx]      2 1        26
 
   add b[bp+1],99   4 2
   adc cx,9999      4 0
@@ -794,7 +799,8 @@ noOverflow1:
   mov si,cx        2 0
   pop ds           1 2
   mov bl,[si]      2 1
-  add al,[bp+9999] 4 1        28
+  pop ds           1 2
+  add al,[bx]      2 1        29
 
   add b[bp+2],99   4 2
   adc dx,9999      4 0
@@ -804,7 +810,60 @@ noOverflow2:
   mov si,dx        2 0
   pop ds           1 2
   mov bl,[si]      2 1
-  add al,[bp+9999] 4 1        28
+  pop ds           1 2
+  add al,[bx]      2 1        29
+
+  add ah,99        3 0
+  pop si           1 2
+  adc si,9999      4 0
+  jnc noOverflow   2 3
+  mov si,9999
+noOverflow3:
+  mov [bp+16],si   3 2
+  pop ds           1 2
+  mov bl,[si]      2 1
+  pop ds           1 2
+  add al,[bx]      2 1        32
+
+  sub sp,18        3 0
+
+  out 042,al       2 1
+  dec b[bp+22]     3 2
+  jnz loopTop      2 3        16
+
+
+; total = 132 cycles = 8.5KHz
+
+
+
+; Without volume tables:
+
+loopTop:
+  add b[bp],99     3 2
+  adc di,9999      4 0
+  jnc noOverflow   2 3
+  mov di,9999
+noOverflow0:
+  pop ds           1 2
+  mov al,[di]      2 1        20
+
+  add b[bp+1],99   4 2
+  adc cx,9999      4 0
+  jnc noOverflow   2 3
+  mov cx,9999
+noOverflow1:
+  mov si,cx        2 0
+  pop ds           1 2
+  add al,[si]      2 1        23
+
+  add b[bp+2],99   4 2
+  adc dx,9999      4 0
+  jnc noOverflow   2 3
+  mov dx,9999
+noOverflow2:
+  mov si,dx        2 0
+  pop ds           1 2
+  add al,[si]      2 1        23
 
   add ah,99        3 0
   pop ds           1 2
@@ -814,8 +873,7 @@ noOverflow2:
   mov si,9999
 noOverflow3:
   push si          1 2
-  mov bl,[si]      2 1
-  add al,[bp+9999] 4 1        29
+  add al,[si]      2 1        24
 
   sub sp,8         3 0
 
@@ -823,6 +881,95 @@ noOverflow3:
   dec b[bp+12]     3 2
   jnz loopTop      2 3        16
 
+; total = 106 cycles = 10.6KHz
 
-; total = 126 cycles = 8.9KHz
 
+
+
+
+loopTop:
+  process ax       0 3 2 1
+  xchg ax,tempA
+  process ax       1 0 3 2
+  xchg ax,tempB
+  process ax       2 1 0 3
+  xchg ax,tempC
+  process ax       3 2 1 0
+  loop loopTop
+
+
+; CL = position bits 0..7
+; CH = velocity bits 0..7
+; SI = position bits 8..15
+; DI = velocity bits 8..15
+; AL = sample accumulator
+; DX = sample segment
+; SP = sample start (-length)
+; BX = volume table pointer
+; BP = temporaries pointer
+
+loopTop:
+  add cl,ch         2 0
+  adc si,di         2 0
+  jnc noOverflow0   2 2
+  mov si,sp
+noOverflow0:
+  mov ds,dx         2 0
+  lodsb             1 1
+  ss: xlatb         2 1      15
+
+  xchg cx,[bp]      2 4
+  xchg si,[bp+2]    3 4
+  xchg di,[bp+4]    3 4
+  xchg dx,[bp+6]    3 4
+  xchg sp,[bp+8]    3 4
+  xchg bx,[bp+10]   3 4      41
+
+loopTop:
+  add cl,ch         2 0
+  adc si,di         2 0
+  jnc noOverflow0   2 2
+  mov si,sp
+noOverflow0:
+  mov ds,dx         2 0
+  lodsb             1 1
+  ss: xlatb         2 1      15
+
+  xchg cx,[bp+12]   3 4
+  xchg si,[bp+14]   3 4
+  xchg di,[bp+16]   3 4
+  xchg dx,[bp+18]   3 4
+  xchg sp,[bp+20]   3 4
+  xchg bx,[bp+22]   3 4      42
+
+loopTop:
+  add cl,ch         2 0
+  adc si,di         2 0
+  jnc noOverflow0   2 2
+  mov si,sp
+noOverflow0:
+  mov ds,dx         2 0
+  lodsb             1 1
+  ss: xlatb         2 1      15
+
+  xchg cx,[bp+24]   3 4
+  xchg si,[bp+26]   3 4
+  xchg di,[bp+28]   3 4
+  xchg dx,[bp+30]   3 4
+  xchg sp,[bp+32]   3 4
+  xchg bx,[bp+34]   3 4      42
+
+loopTop:
+  add cl,ch         2 0
+  adc si,di         2 0
+  jnc noOverflow0   2 2
+  mov si,sp
+noOverflow0:
+  mov ds,dx         2 0
+  lodsb             1 1
+  ss: xlatb         2 1      15
+
+  dec b[bp+36]      3 2
+  jnz loopTop       2 2       9
+
+; total = 194 cycles

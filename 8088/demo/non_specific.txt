@@ -116,3 +116,15 @@ loadLoop:
 ;   If we have to load each sample individually we get 17-23s.
 ; This is not likely to be a very good strategy, at least for the megademo
 ;   The data is not likely to be highly compressible (especially since it's mixed audio/video)
+; Maximum audio sample rate = 376KHz (0.17s per 64Kb, 1.7s per 640Kb) (3-4 audio levels)
+
+; 4-bit compression, 80.5KHz (1.6s per 64Kb, 14.7s for 576Kb)
+loopTop:
+  lodsb     ; 1 1
+  mov ah,al ; 2 0
+  and al,cl ; 2 0
+  out dx,al ; 1 1
+  mov al,ah ; 2 0
+  xlatb     ; 1 1
+  out dx,al ; 1 1
+  loop loopTop  ; 2 1 12 17
