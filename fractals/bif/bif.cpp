@@ -114,7 +114,7 @@ INT APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, INT nCmdShow)
 //        window.show(nCmdShow);
 //        return pumpMessages();
     } END_CHECKED(Exception& e) {
-        e.display(); 
+        e.write(Handle::consoleOutput());
     }
     return 0;
 }
