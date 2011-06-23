@@ -750,6 +750,36 @@ Y: 70 cycles
   loop looptop    2 2
 
 
+Unrollable with volume tables: 77 cycles (theoretical maximum 14.1KHz)
+  add cx,[bp]     2 2  ; velocity
+  mov bx,cx       2 0
+  mov bl,[bp+8]   3 1  ; waveform
+  mov bh,[bx]     2 1
+  mov bl,[bp+9]   3 1  ; volume
+  mov al,[bx]     2 1
+
+  add si,[bp+2]   3 2
+  mov bx,si       2 0
+  mov bl,dl       2 0
+  mov bh,[bx]     2 1
+  mov bl,[bp+10]  3 1
+  add al,[bx]     2 1
+
+  add di,[bp+4]   3 2
+  mov bx,di       2 0
+  mov bl,dh       2 0
+  mov bh,[bx]     2 1
+  mov bl,[bp+11]  3 1
+  add al,[bx]     2 1
+
+  add sp,[bp+6]   3 2
+  mov bx,sp       2 0
+  mov bl,ah       2 0
+  mov bx,[bx]     2 1
+  mov bl,[bp+12]  3 1
+  add al,[bx]     2 1
+
+
 
 
 
@@ -973,3 +1003,231 @@ noOverflow0:
   jnz loopTop       2 2       9
 
 ; total = 194 cycles
+
+
+
+7a with song data: 12.7KHz
+looptop:
+  db 39 dup 0x90
+realLooptop:
+  add bp,9999     4 0
+  mov bx,bp       2 0
+  mov bl,99       2 0
+  mov al,[bx]     2 1
+  add si,9999     4 0
+  mov bx,si       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  add di,9999     4 0
+  mov bx,di       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  add sp,9999     4 0
+  mov bx,sp       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1
+  out dx,al       1 1
+  loop looptop    2 1
+
+songPointer:
+  mov bx,9999                 3 0
+  add bx,4                    3 0
+  cs: mov [songPointer+1],bx  5 2
+
+  ss: mov ax,[bx]             3 2
+  ss: mov bx,[bx+2]           4 2
+  cs: mov [bx],ax             3 2
+  es: mov [bx],ax             3 2
+  mov cx,9999                 3 0
+  jmp realLooptop             2 0
+
+; Can we fill up a buffer and empty it while we're updating to avoid slack time?
+;   Only with loop unrolling
+;   Let's say 5 sample lookups per output
+
+
+
+
+CX = voice 0 position
+SI = voice 1 position
+DI = voice 2 position
+SP = voice 3 position
+BX = temporary sample pointer
+AL = buffered sample
+AH = sample accumulator
+DL = voice 1 waveform
+DH = voice 2 waveform
+SS:BP = data:
+  0 = voice 0 velocity
+  2 = voice 1 velocity
+  4 = voice 2 velocity
+  6 = voice 3 velocity
+  8 = voice 0 waveform
+  9 = voice 1 waveform
+  10 = 0b800
+  12 = song segment
+  14 = waveform segment
+CS = code segment
+DS = waveforms segment
+ES = song segment
+
+fakeLooptop:
+  ~11 nops
+
+  mov bx,[bp-xx]     3 2 <- arrange for bp-xx to point at doUpdate+5
+  mov ds,[bp+12]     3 2
+  mov dx,[bx]        2 2
+  mov bx,[bx+2]      3 2
+  mov ds,[bp+10]     3 2
+  mov [bx],dx        2 2
+  mov ds,[bp+14]     3 2
+  mov dx,[bp-xx]     3 2 <- arrange for bp-xx to point at waveforms12+1
+
+loopTop:                 -3
+  out 042,al      2 1     0
+  add cx,[bp]     2 2     4
+  mov bx,cx       2 0     6
+  mov bl,[bp+8]   3 1    10
+  mov al,[bx]     2 1    14
+  add si,[bp+2]   3 2    19
+  mov bx,si       2 0    21
+  mov bl,dl       2 0    23
+  add al,[bx]     2 1    26
+  add di,[bp+4]   3 2    31
+  mov bx,di       2 0    33
+  mov bl,dh       2 0    35
+  add al,[bx]     2 1    38
+  add sp,[bp+6]   3 2    43
+  mov bx,sp       2 0    45
+  mov bl,[bp+9]   3 1    49
+  add al,[bx]     2 1    52
+
+  add cx,[bp]     2 2    56
+  mov bx,cx       2 0    58
+  mov bl,[bp+8]   3 1    62
+  mov ah,[bx]     2 1    65
+  out 042,al      2 1    68
+  add si,[bp+2]   3 2    73
+  mov bx,si       2 0    75
+  mov bl,dl       2 0    77
+  add ah,[bx]     2 1    80
+  add di,[bp+4]   3 2    85
+  mov bx,di       2 0    87
+  mov bl,dh       2 0    89
+  add ah,[bx]     2 1    92
+  add sp,[bp+6]   3 2    97
+  mov bx,sp       2 0    99
+  mov bl,[bp+9]   3 1   103
+  add ah,[bx]     2 1   106
+  mov al,ah       2 0   108
+
+  add cx,[bp]     2 2   112
+  mov bx,cx       2 0   114
+  mov bl,[bp+8]   3 1   118
+  mov ah,[bx]     2 1   121
+  add si,[bp+2]   3 2   126
+  mov bx,si       2 0   128
+  mov bl,dl       2 0   130
+  add ah,[bx]     2 1   133
+  out 042,al      2 1   136
+  add di,[bp+4]   3 2   141
+  mov bx,di       2 0   143
+  mov bl,dh       2 0   145
+  add ah,[bx]     2 1   148
+  add sp,[bp+6]   3 2   153
+  mov bx,sp       2 0   155
+  mov bl,[bp+9]   3 1   159
+  add ah,[bx]     2 1   162
+  mov al,ah       2 0   164
+
+  add cx,[bp]     2 2   168
+  mov bx,cx       2 0   170
+  mov bl,[bp+8]   3 1   174
+  mov ah,[bx]     2 1   177
+  add si,[bp+2]   3 2   182
+  mov bx,si       2 0   184
+  mov bl,dl       2 0   186
+  add ah,[bx]     2 1   189
+  add di,[bp+4]   3 2   194
+  mov bx,di       2 0   196
+  mov bl,dh       2 0   198
+  add ah,[bx]     2 1   201
+  out 042,al      2 1   204
+  add sp,[bp+6]   3 2   209
+  mov bx,sp       2 0   211
+  mov bl,[bp+9]   3 1   215
+  add ah,[bx]     2 1   218
+  mov al,ah       2 0   220
+
+  add cx,[bp]     2 2   224
+  mov bx,cx       2 0   226
+  mov bl,[bp+8]   3 1   230
+  mov ah,[bx]     2 1   233
+  add si,[bp+2]   3 2   238
+  mov bx,si       2 0   240
+  mov bl,dl       2 0   242
+  add ah,[bx]     2 1   245
+  add di,[bp+4]   3 2   250
+  mov bx,di       2 0   252
+  mov bl,dh       2 0   254
+  add ah,[bx]     2 1   257
+  add sp,[bp+6]   3 2   262
+  mov bx,sp       2 0   264
+  mov bl,[bp+9]   3 1   268
+  add ah,[bx]     2 1   271
+  out 042,al      2 1   274 (2 too late)
+  mov al,ah       2 0   276
+
+counter:
+  mov bx,0099        3 0
+  dec bx             1 0
+  jnc doUpdate       2 1
+  mov [bp-xx],bl           3 1 <- arrange for bp-xx to point at counter+1
+  jmp fakeLooptop          2 1
+doUpdate:
+  mov [bp-xx],99     4 1 <- arrange for bp-xx to point at counter+1 - 99 = new counter value
+  mov bx,9999        3 2
+  add bx,4           3 0
+  mov [bp-xx],bx     3 2 <- arrange for bp-xx to point at doUpdate+5
+  mov es,[bp+12]     3 2
+  es: mov dx,[bx]    3 2
+  es: mov bx,[bx+2]  4 2
+  ss: mov [bx],dx    3 2
+waveforms12:
+  mov dx,9999        3 0
+  ~12 nops
+  jmp loopTop        2 1
+
+; Locate SS:BP data here.
+
+
+
+We output to 8253 every 68 cycles = 16.6KHz
+The outer loop takes 68*5 = 340 cycles (360 with refresh) giving a tempo resolution of 3.3KHz (300us)
+Each time through the outer loop we burn 4 bytes of song
+640Kb lasts between 49.4s and 3.5 hours
+If we want to update all velocities and waveforms (6 words) 50 times per second (count = 66/6 = 11) that gives us 9 minutes of music
+  If the waveform/velocity changes being staggered are annoying, we can unroll:
+
+  mov bx,[bp-xx]     3 2 <- arrange for bp-xx to point at doUpdate+5
+  mov ds,[bp+12]     3 2
+  mov dx,[bx]        2 2
+  mov [bp],dx        2 2
+  mov dx,[bp+2]      3 2
+  mov [bp+2],dx      3 2
+  mov dx,[bx+4]      3 2
+  mov [bp+4],dx      3 2
+  mov dx,[bx+6]      3 2
+  mov [bp+6],dx      3 2
+  mov dx,[bx+8]      3 2
+  mov [bp-xx],dx     3 2 <- arrange for bp-xx to point at waveforms12+1
+  mov ds,[bp+14]     3 2
+
+and update [bp+8] (or others) in the normal way. We can also change the tempo before and after every change, but that's more wasteful of song space.
+
+Unrolled:
+  count = 33 (50.2 changes per second)  14 bytes per change = 932 seconds = 15.5 minutes (12.4 with 2x64Kb for OS/player/samples)
+
+With tempo changes: extra 8 bytes after every 24 = 6.8 minutes (5.4 in 512Kb)
+
+
