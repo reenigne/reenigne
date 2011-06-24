@@ -1231,3 +1231,125 @@ Unrolled:
 With tempo changes: extra 8 bytes after every 24 = 6.8 minutes (5.4 in 512Kb)
 
 
+
+  lodsw            ; 1 2  ax = position
+  xchg ax,bx       ; 1 0  bx = position
+  lodsw            ; 1 2  ax = velocity
+  add ax,bx        ; 2 0  ax = position + velocity
+  mov [si-4],ax    ; 3 2  position += velocity
+  lodsb            ; 1 1  ax = (position & 0xff00) | waveform
+  xchg bx,ax       ; 1 0  bx = (position & 0xff00) | waveform
+  es: mov ah,[bx]  ; 3 1  ah = sample
+  lodsb            ; 1 1  ax = (sample << 8) | volume
+  xchg bx,ax       ; 1 0  si = (sample << 8) | volume; ax = dataPointer
+  es: mov cl,[bx]  ; 3 1  si = volumeTable[sample];
+; 28 cycles
+
+  pop bx           ; 1 2  bx = position
+  pop ax           ; 1 2  ax = velocity
+  add ax,bx        ; 2 0  ax = position + velocity
+  mov [bp-4],ax    ; 2 2  position += velocity
+  lodsb            ; 1 1  ax = (position & 0xff00) | waveform
+
+
+
+50Hz = 22538 cycles
+
+Theoretical maximum of current routine with 55 cycles is 20.1KHz
+
+
+
+; Pre-compute offsets for ~20 samples per channel
+; Use 8.8 addressing and a 64Kb sideways sample table
+; Store these offsets at SS:SP
+; Samples in ES:
+; Low 8 bits of SI = waveform number
+; High 8 bits of SI = sample within waveform
+; High 8 bits of BP = offset sample within waveform
+; Low 8 bits of BP = 0
+; High 8 bits of BX = volume
+; Low 8 bits of BX = volume from sample
+; Volume table in DS (not sideways)
+; With volume table: 10 cycles (theoretical maximum 28.2KHz)
+
+  pop bp              1 2
+  es: mov bl,[si+bp]  3 1
+  mov al,[bx]         2 1
+
+; Without volume table: 7 cycles (theoretical maximum 40.2KHz)
+
+  pop bp              1 2
+  es: mov al,[si+bp]  3 1
+
+
+; Do the samples in time-major order or voice-major order?
+;   Time-major order means we have to keep switching SI
+;   Voice-major order means we have to mix into a buffer
+
+; Voice-major, no volume table: 42 cycles excluding output
+  pop bp              1 2
+  es: mov al,[si+bp]  3 1
+  pop bp              1 2
+  es: mov ah,[si+bp]  3 1
+  add [di+2],ax       3 4
+
+
+; Time-major, no volume table: 36 cycles excluding output
+  mov si,bp           2 0
+  pop bx              1 2
+  mov al,[si+bx]      2 1
+  mov si,cx           2 0
+  pop bx              1 2
+  add al,[si+bx]      2 1
+  mov si,dx           2 0
+  pop bp              1 2
+  add al,[si+bx]      2 1
+  mov si,di           2 0
+  pop bp              1 2
+  add al,[si+bx]      2 1  36 x 20 = 720 cycles
+
+  pop bp              1 2
+  pop si              1 2
+  add [bp],si         2 4
+  pop si              1 2
+  adc bx,si           2 0
+  pop si              1 2
+  add [bp+2],si       3 4
+  pop si              1 2
+  adc cx,si           2 0
+  pop si              1 2
+  add [bp+4],si       3 4
+  pop si              1 2
+  adc dx,si           2 0
+  pop si              1 2
+  add [bp+6],si       3 4
+  pop si              1 2
+  adc di,si           2 0
+  sub sp,178          4 0    66 cycles
+
+
+  add bx,si       ; 2 0
+  mov [bp+9],bh   ; 3 1  6 x 20 = 120 cycles    x 4 = 480 cycles
+
+
+(22538 cycles - 480)/786 = 28 iterations = 560 samples in 20ms = 28KHz
+
+Output: 5 cycles per sample = 2800 cycles
+
+(22538 cycles - 480 - 2800)/786 = 24 iterations = 480 samples in 20ms = 24KHz
+
+
+
+Need to run some experiments generating code for various run lengths and sample rates
+
+50 times a second, change:
+  Voice 0 velocity        2
+  Voice 0 waveform        1
+  Voice 1 velocity        2
+  Voice 1 waveform        1
+  Voice 2 velocity        2
+  Voice 2 waveform        1
+  Voice 3 velocity        2
+  Voice 3 waveform        1
+  Screen update position  2
+  Screen update value     1  total 15  750 bytes/sec  11.6 minutes in 512Kb.

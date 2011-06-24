@@ -1,0 +1,71 @@
+; Pre-compute offsets for ~20 samples per channel
+; Use 8.8 addressing and a 64Kb sideways sample table
+; Store these offsets at SS:SP
+; Samples in DS:
+; Data in SS:
+; Low 8 bits of SI (BP/CX/DX/DI) = waveform number
+; High 8 bits of SI (BP/CX/DX/DI) = sample within waveform (high 8 bits of count)
+; High 8 bits of BX = offset sample within waveform
+; Low 8 bits of BX = 0
+; Each frame, get 16 bytes of tune/screen data from ES: and increment ES
+
+; Time-major, no volume table: 36 cycles excluding output
+  mov si,bp           2 0
+  pop bx              1 2
+  mov al,[si+bx]      2 1
+  mov si,cx           2 0
+  pop bx              1 2
+  add al,[si+bx]      2 1
+  mov si,dx           2 0
+  pop bp              1 2
+  add al,[si+bx]      2 1
+  mov si,di           2 0
+  pop bp              1 2
+  add al,[si+bx]      2 1  32 x 20 = 640 cycles
+
+  mov bx,bp           2 0
+  pop bp              1 2
+  pop si              1 2
+  add [bp],si         2 4
+  pop si              1 2
+  adc bx,si           2 0
+  pop si              1 2
+  add [bp+2],si       3 4
+  pop si              1 2
+  adc cx,si           2 0
+  pop si              1 2
+  add [bp+4],si       3 4
+  pop si              1 2
+  adc dx,si           2 0
+  pop si              1 2
+  add [bp+6],si       3 4
+  pop si              1 2
+  adc di,si           2 0
+  sub sp,178          4 0
+  mov bp,bx           2 0    70 cycles
+
+
+  add bx,si       ; 2 0
+  mov [bp+9],bh   ; 3 1  6 x 20 = 120 cycles    x 4 = 480 cycles  TODO: center BP on the table so we can reach all values with 8-bit offsets
+
+
+(22538 cycles - 480)/786 = 28 iterations = 560 samples in 20ms = 28KHz
+
+Output: 5 cycles per sample = 2800 cycles
+
+(22538 cycles - 480 - 2800)/786 = 24 iterations = 480 samples in 20ms = 24KHz
+
+
+Samples per frame = s*b
+Samples per block = s
+Blocks per frame = b
+
+Cycles:
+  Mixing: 32*s*b
+  Output: 5*s*b to 14*s*b depending on queue length
+  Per block update: 70*b
+  Recomputing table: 24*s
+
+mov [0000],ah  4 2
+mov al,[0000]  3 2
+out 042,al     2 1

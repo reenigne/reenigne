@@ -15,3 +15,7 @@ Any given effect needs to fit in 640Kb
  = 1760 bytes per second
 
 maybe 21 effects at 20 seconds per effect, 35Kb compressed per effect?
+
+Use a general compressor - DEFLATE?
+  Lots of implementations listed at http://en.wikipedia.org/wiki/DEFLATE
+    Compare zlib deflate and puff
