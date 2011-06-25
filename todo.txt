@@ -1,0 +1,7 @@
+Saw:
+  Expected 0x80..0xBF, found 0x00 at 00000006 in
+
+doing:
+  Q:\>crc32 c:\
+
+on prospero

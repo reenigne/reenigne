@@ -19,3 +19,4 @@ maybe 21 effects at 20 seconds per effect, 35Kb compressed per effect?
 Use a general compressor - DEFLATE?
   Lots of implementations listed at http://en.wikipedia.org/wiki/DEFLATE
     Compare zlib deflate and puff
+  Or use arithmetic coding like kkrunchy? Better compression but might be slower.

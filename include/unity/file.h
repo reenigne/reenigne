@@ -188,6 +188,8 @@ private:
 
         String name;
         do {
+            if (c == -1)
+                break;
             int p;
             while (c != '/' && c != '\\') {
                 if (c < 32 || c == '?' || c == '*' || c == ':' || c == '"' || c == '<' || c == '>')
@@ -318,7 +320,7 @@ public:
         _handle(INVALID_HANDLE_VALUE)
     {
         _path = directory.child(wildcard).windowsPath();
-        NullTerminatedWideString(_path);
+        NullTerminatedWideString data(_path);
         _handle = FindFirstFile(data, &_data);
         if (_handle == INVALID_HANDLE_VALUE) {
             if (GetLastError() == ERROR_FILE_NOT_FOUND)
@@ -845,6 +847,24 @@ public:
         open(path(), O_WRONLY | O_CREAT | O_TRUNC);
 #endif
     }
+    bool tryOpenRead()
+    {
+#ifdef _WIN32
+        return tryOpen(path(), GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING,
+            FILE_FLAG_SEQUENTIAL_SCAN);
+#else
+        return tryOpen(path(), O_RDONLY);
+#endif
+    }
+    bool tryOpenWrite()
+    {
+#ifdef _WIN32
+        return tryOpen(path(), GENERIC_WRITE, 0, CREATE_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL);
+#else
+        return tryOpen(path(), O_WRONLY | O_CREAT | O_TRUNC);
+#endif
+    }
 //    String openWriteTemporary()
 //    {
 //        int i = 0;
@@ -914,6 +934,18 @@ private:
         DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes,
         bool throwIfExists = true)
     {
+        if (!tryOpen(path, dwDesiredAccess, dwShareMode, dwCreationDisposition,
+            dwFlagsAndAttributes)) {
+            if (!throwIfExists && GetLastError() == ERROR_FILE_EXISTS)
+                return false;
+            static String openingFile("Opening file ");
+            throw Exception::systemError(openingFile + path);
+        }
+        return true;
+    }
+    bool tryOpen(String path, DWORD dwDesiredAccess, DWORD dwShareMode,
+        DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes)
+    {
         NullTerminatedWideString data(path);
         HANDLE handle = CreateFile(
             data,   // lpFileName
@@ -923,26 +955,28 @@ private:
             dwCreationDisposition,
             dwFlagsAndAttributes,
             NULL);  // hTemplateFile
-        if (handle == INVALID_HANDLE_VALUE) {
-            if (!throwIfExists && GetLastError() == ERROR_FILE_EXISTS)
-                return false;
-            static String openingFile("Opening file ");
-            throw Exception::systemError(openingFile + path);
-        }
+        if (handle == INVALID_HANDLE_VALUE)
+            return false;
         set(handle, path);
         return true;
     }
 #else
     bool open(String path, int flags, bool throwIfExists = true)
     {
-        NullTerminatedString data(path);
-        int fileDescriptor = open(data, flags);
-        if (fileDescriptor == -1) {
+        if (!tryOpen(path, flags)) {
             if (!throwIfExists && errno == EEXIST)
                 return false;
             static String openingFile("Opening file ");
             throw Exception::systemError(openingFile + path);
         }
+        return true;
+    }
+    bool tryOpen(String path, int flags)
+    {
+        NullTerminatedString data(path);
+        int fileDescriptor = open(data, flags);
+        if (fileDescriptor == -1)
+            return false;
         set(fileDescriptor, path);
         return true;
     }

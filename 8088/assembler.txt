@@ -1,6 +1,0 @@
-Need an assembler that can piece together the 24KHz player:
-  Define outline structure of loop
-  Define number of cycles the code must take to execute
-  Intersperse other code so it executes at regular intervals
-  Define variables by name and let the assembler choose where to put them
-

@@ -1,4 +1,5 @@
 #include "unity/file.h"
+#include "unity/minimum_maximum.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -54,28 +55,31 @@ public:
     void operator()(const File& file)
     {
         Array<UInt8> data;
-        String filePath = file.path();
+        String filePath = file.messagePath();
         filePath.copyTo(&data);
         const char* path = reinterpret_cast<char*>(&data[0]);
 
-        FILE* fp = fopen(path, "rb");
-        if (fp == 0) {
+        FileHandle handle(file);
+        if (!handle.tryOpenRead()) {
             printf("<in use> %s\n", path);
             return;
         }
-        fseek(fp, 0, SEEK_END);
-        long l = ftell(fp);
-        fseek(fp, 0, SEEK_SET);
+
+        UInt64 size = handle.size();
         DWORD crc = 0xffffffff;
-        for (long i = 0; i < l; ++i) {
-            int c = getc(fp);
-            crc = (crc_32_tab[((crc)^((BYTE)c))&0xff]^((crc)>>8));
+        Array<UInt8> buffer;
+        static const int bufferSize = 0x10000;
+        buffer.allocate(bufferSize);
+        while (size > 0) {
+            int s =
+                static_cast<int>(min(static_cast<UInt64>(bufferSize), size));
+            handle.read(&buffer[0], s);
+            for (int i = 0; i < s; ++i) {
+                int c = buffer[i];
+                crc = (crc_32_tab[((crc)^((BYTE)c))&0xff]^((crc)>>8));
+            }
+            size -= s;
         }
-        if (ferror(fp)) {
-            printf("Error reading file %s: %s\n", path, sys_errlist[errno]);
-            exit(1);
-        }
-        fclose(fp);
         printf("%08x %s\n", ~crc, path);
     }
     void operator()(const Directory& directory) { }

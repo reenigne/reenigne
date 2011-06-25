@@ -26,4 +26,7 @@ it wouldn't burn out any flyback transformers,
 we had to make our own emulator.
 No other emulator was accurate enough.
 
+This is not code for the timid!
 
+Once you have tried every trick in the book,
+you have to start writing your own book.

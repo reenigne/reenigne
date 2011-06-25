@@ -1286,12 +1286,41 @@ Theoretical maximum of current routine with 55 cycles is 20.1KHz
 ;   Time-major order means we have to keep switching SI
 ;   Voice-major order means we have to mix into a buffer
 
-; Voice-major, no volume table: 42 cycles excluding output
+; Voice-major, no volume table: 41 cycles excluding output
+  pop bp              1 2
+  es: mov al,[si+bp]  3 1
+  pop bp              1 2
+  es: mov ah,[si+bp]  3 1
+  mov [di+2],ax       3 2
+
   pop bp              1 2
   es: mov al,[si+bp]  3 1
   pop bp              1 2
   es: mov ah,[si+bp]  3 1
   add [di+2],ax       3 4
+
+  pop bp              1 2
+  es: mov al,[si+bp]  3 1
+  pop bp              1 2
+  es: mov ah,[si+bp]  3 1
+  add [di+2],ax       3 4
+
+  pop bp              1 2
+  es: mov al,[si+bp]  3 1
+  pop bp              1 2
+  es: mov ah,[si+bp]  3 1
+  add [di+2],ax       3 4
+
+; With buffer in ES and samples in DS: 39 cycles
+
+  pop bx              1 2
+  mov al,[si+bx]      2 1
+  pop bx              1 2
+  mov ah,[si+bx]      2 1
+  es: mov [di+2],ax   4 2
+
+; With
+
 
 
 ; Time-major, no volume table: 36 cycles excluding output
