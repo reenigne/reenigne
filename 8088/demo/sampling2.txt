@@ -231,12 +231,15 @@ b = (t - 24*s - 194)/(44*s + 58)
 
 s   b   r
 23  20  23.0KHz
-22  21  23.1KHz  44*22*21+58*21+24*22+194 = 22268 = 50.6Hz  c'=52  total = 22689  spare = 421 cycles  c = 49.1      49.67Hz      buffer needed = 24-25 samples
-21  22  23.1KHz  44*21*22+58*22+25*21+194 = 22323 = 50.5Hz  c'=52  total = 22689  spare = 366 cycles  c = 49.1      49.67Hz      buffer needed = 22-23 samples
+22  21  23.1KHz  44*22*21+58*21+24*22+194 = 22268 = 50.6Hz  c'=52  total = 22689  spare = 421 cycles  c = 49.1      49.67Hz      buffer needed = 24-25 samples   22.9KHz
+21  22  23.1KHz  44*21*22+58*22+25*21+194 = 22323 = 50.5Hz  c'=52  total = 22689  spare = 366 cycles  c = 49.1      49.67Hz      buffer needed = 22-23 samples   22.9KHz
 20  23  23.0KHz
 19  24  22.8KHz
 
 54 cycles per sample (51 with refresh) is 22.096KHz
+
+
+c
 
 
 
@@ -269,7 +272,7 @@ Need an assembler that can piece all this together:
 
 Optimization: Save DX during frame update (10 cycles), set DX to 042 (3 cycles) and use "out dx,al" instead of "out 042,al" during frame update (~-23 cycles)
 Optimization: Instead of having 300-400 NOPs, compute a few more samples
-  Need to find the unmultiplied velocity from the old ES
+  Need to find the unmultiplied velocity from the old ES (or save it)
 Optimization: Skip the buffer if we have few enough samples pending
 Optimization: If the "jmp" turns out to stall the CPU for a non-integer number of PIT cycles (3.75?) then use CGA wait states re-align CPU and PIT? Or multiple JMPs?
   Check we're not stalling the BIU elsewhere too
