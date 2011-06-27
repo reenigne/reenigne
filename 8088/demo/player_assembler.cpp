@@ -26,6 +26,25 @@ private:
     int _cycle;
 };
 
+Symbol parseLValue(CharacterSource* source)
+{
+    Symbol l = parseRegister(source);
+    if (l.valid())
+        return l;
+    l = parseMemory(source);
+    if (l.valid())
+        return l;
+    throw Exception();
+}
+
+Symbol parseExpression(CharacterSource* source)
+{
+    Symbol e = parseInteger(source);
+    if (e.valid())
+        return e;
+    return parseLValue(source);
+}
+
 class Instruction
 {
 public:
