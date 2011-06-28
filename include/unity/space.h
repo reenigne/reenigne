@@ -1,3 +1,6 @@
+#ifndef INCLUDED_SPACE_H
+#define INCLUDED_SPACE_H
+
 class Space
 {
 public:
@@ -115,3 +118,5 @@ private:
         return false;
     }
 };
+
+#endif // INCLUDED_SPACE_H

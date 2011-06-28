@@ -26,6 +26,32 @@ private:
     int _cycle;
 };
 
+Symbol parseRegister(CharacterSource* source)
+{
+    static String ax("ax");
+    static String bx("bx");
+    static String cx("cx");
+    static String dx("dx");
+    static String si("si");
+    static String di("di");
+    static String sp("sp");
+    static String bp("bp");
+    static String al("al");
+    static String bl("bl");
+    static String cl("cl");
+    static String dl("dl");
+    static String ah("ah");
+    static String bh("bh");
+    static String ch("ch");
+    static String dh("dh");
+    static String cs("cs");
+    static String ss("ss");
+    static String es("es");
+    static String ds("ds");
+    Span span;
+    if (Space::parseKeyword(source, ax, &span))
+        return Symbol(
+
 Symbol parseLValue(CharacterSource* source)
 {
     Symbol l = parseRegister(source);

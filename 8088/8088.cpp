@@ -4,7 +4,7 @@
 #include "unity/stack.h"
 #include "unity/hash_table.h"
 #include "unity/character_source.h"
-#include "unity/command_line.h"
+#include "unity/main.h"
 
 #include <stdlib.h>
 
@@ -32,7 +32,7 @@ public:
             return String("PUSH ") + segreg(_opcode >> 3);
         if ((_opcode & 0xe7) == 7)
             return String("POP ") + segreg(_opcode >> 3);
-        if ((_opcode & 0xe7) == 0x26) 
+        if ((_opcode & 0xe7) == 0x26)
             return segreg((_opcode >> 3) & 3) + ": " + disassemble(address + 1);
         if ((_opcode & 0xf8) == 0x40)
             return String("INC ") + wordRegs(_opcode & 7);
@@ -87,7 +87,7 @@ public:
         if ((_opcode & 0xf6) == 0xe6)
             return String("OUT ") + ((_opcode & 8) == 0 ? ib() : wordRegs(2)) + String(", ") + accum();
 
-                                                                                         
+
         switch (_opcode) {
             case 0x27: return String("DAA");
             case 0x2f: return String("DAS");
@@ -191,8 +191,8 @@ public:
             case 0xfb: return String("STI");
             case 0xfc: return String("CLD");
             case 0xfd: return String("STD");
-            case 0xfe: 
-            case 0xff: 
+            case 0xfe:
+            case 0xff:
                 _modRM = getByte();
                 switch (reg()) {
                     case 0: return String("INC ") + ea();
@@ -268,7 +268,7 @@ private:
     String iw() { return String::hexadecimal(getWord(), 5); }
     String ib() { return String::hexadecimal(getByte(), 3); }
     String sb()
-    { 
+    {
         UInt8 byte = getByte();
         if ((byte & 0x80) == 0)
             return String("+") + String::hexadecimal(byte, 3);
@@ -469,8 +469,8 @@ public:
                             stateInvalid,      stateInvalid,      stateRet,          stateRet,          stateInt,          stateInt,          stateIntO,         stateIRet,
                             stateShift,        stateShift,        stateShift,        stateShift,        stateAAM,          stateAAD,          stateSALC,         stateXlatB,
                             stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,
-                            stateLoop,         stateLoop,         stateLoop,         stateLoop,         stateInOut,        stateInOut,        stateInOut,        stateInOut,        
-                            stateCallCW,       stateJmpCW,        stateJmpCP,        stateJmpCB,        stateInOut,        stateInOut,        stateInOut,        stateInOut,        
+                            stateLoop,         stateLoop,         stateLoop,         stateLoop,         stateInOut,        stateInOut,        stateInOut,        stateInOut,
+                            stateCallCW,       stateJmpCW,        stateJmpCP,        stateJmpCB,        stateInOut,        stateInOut,        stateInOut,        stateInOut,
                             stateLock,         stateInvalid,      stateRep,          stateRep,          stateHlt,          stateCmC,          stateMath,         stateMath,
                             stateLoadC,        stateLoadC,        stateLoadI,        stateLoadI,        stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         _state = stateForOpcode[_opcode];
@@ -805,8 +805,8 @@ public:
                     break;
                 case stateCallCP3:
                     _savedCS = _data;
-                    _wait = 2; 
-                    push(cs(), stateCallCP4); 
+                    _wait = 2;
+                    push(cs(), stateCallCP4);
                     break;
                 case stateCallCP4: push(_ip, stateJmpCP4); break;
                 case stateWait: end(4); break;
@@ -866,12 +866,12 @@ public:
                     break;
                 case stateTestAccumImm2:
                     test(getAccum(), _data);
-                    end(4); 
+                    end(4);
                     break;
 
                 case stateStoS:
                     _wait = (_rep != 0 ? 6 : 7);
-                    _data = getAccum(); 
+                    _data = getAccum();
                     _afterRep = stateStoS;
                     stoS(stateRepAction);
                     break;
@@ -974,7 +974,7 @@ public:
                     cs() = _data;
                     setIP(_savedIP);
                     _wait = 13;
-                    break;  
+                    break;
                 case stateIntO:
                     if (of()) {
                         interrupt(4);
@@ -989,7 +989,7 @@ public:
                 case stateIRet4:
                     _flags = _data | 2;
                     cs() = _savedCS;
-                    setIP(_savedIP); 
+                    setIP(_savedIP);
                     _wait = 20;
                     break;
 
@@ -1237,7 +1237,7 @@ public:
                                         ah() += _destination;
                                     if ((_destination & 0x80) != 0)
                                         ah() += _source;
-                                    setCF(ah() == 
+                                    setCF(ah() ==
                                         ((al() & 0x80) == 0 ? 0 : 0xff));
                                     _wait = 80;
                                 }
@@ -1332,7 +1332,7 @@ public:
                 case stateMisc2:
                     _savedIP = _data;
                     switch (modRMReg()) {
-                        case 0: 
+                        case 0:
                         case 1:
                             _destination = _data;
                             _source = 1;
@@ -1526,7 +1526,7 @@ private:
         _address = si();
         si() += stringIncrement();
         _segment = 3;
-        initIO(state, ioRead, _wordSize); 
+        initIO(state, ioRead, _wordSize);
     }
     void lodDIS(State state)
     {
@@ -1651,8 +1651,8 @@ private:
     void setAF(bool af) { _flags = (_flags & ~0x10) | (af ? 0x10 : 0); }
     bool zf() { return (_flags & 0x40) != 0; }
     void setZF()
-    { 
-        _flags = (_flags & ~0x40) | 
+    {
+        _flags = (_flags & ~0x40) |
             ((_data & (!_wordSize ? 0xff : 0xffff)) != 0 ? 0x40 : 0);
     }
     bool sf() { return (_flags & 0x80) != 0; }
@@ -1676,7 +1676,7 @@ private:
     UInt16 getAccum() { return !_wordSize ? al() : ax(); }
     void setAccum() { if (!_wordSize) al() = _data; else ax() = _data; }
     void setReg(UInt16 value)
-    { 
+    {
         if (!_wordSize)
             modRMRB() = value;
         else
@@ -1698,10 +1698,10 @@ private:
     }
     UInt16 getIP() { return _ip; }
     void setIP(UInt16 value)
-    { 
-        _ip = value; 
-        _abandonFetch = true; 
-        _prefetched = 0; 
+    {
+        _ip = value;
+        _abandonFetch = true;
+        _prefetched = 0;
     }
     UInt8& mem(int segment, UInt16 address)
     {
@@ -1797,23 +1797,15 @@ private:
     bool _useIO;
 };
 
-
-#ifdef _WIN32
-int main()
-#else
-int main(int argc, char* argv[])
-#endif
+class Program : public ProgramBase
 {
-    BEGIN_CHECKED {
-#ifdef _WIN32
-        CommandLine commandLine;
-#else
-        CommandLine commandLine(argc, argv);
-#endif
-        if (commandLine.arguments() < 2) {
+protected:
+    void run()
+    {
+        if (_arguments.count() < 2) {
             static String syntax1("Syntax: ");
             static String syntax2(" <input file name>\n");
-            (syntax1 + commandLine.argument(0) + syntax2).write(Handle::consoleOutput());
+            (syntax1 + _arguments[0] + syntax2).write(Handle::consoleOutput());
             exit(1);
         }
         File file(commandLine.argument(1));
@@ -1824,9 +1816,6 @@ int main(int argc, char* argv[])
         Simulator simulator;
         sourceProgram.assemble(&simulator);
         intel8088.simulate();
-    }
-    END_CHECKED(Exception& e) {
-        e.write(Handle::consoleOutput());
     }
 }
 
