@@ -1,3 +1,25 @@
+enum Atom
+{
+    atomRegister,
+    atomSum,
+    atomDereference,
+
+    atomByte,
+    atomWord,
+
+    atomMov,
+    atomPop,
+    atomALU,
+    atomOut,
+    atomXchg,
+    atomSegmentOverride,
+    atomInc,
+    atomJCond,
+    atomJmp
+};
+
+#include "unity/symbol.h"
+
 static const int c = 52;
 static const int s = 22;
 static const int b = 21;
@@ -50,7 +72,50 @@ Symbol parseRegister(CharacterSource* source)
     static String ds("ds");
     Span span;
     if (Space::parseKeyword(source, ax, &span))
-        return Symbol(
+        return Symbol(atomRegister, Symbol(atomWord), 0);
+    if (Space::parseKeyword(source, cx, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 1);
+    if (Space::parseKeyword(source, dx, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 2);
+    if (Space::parseKeyword(source, bx, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 3);
+    if (Space::parseKeyword(source, sp, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 4);
+    if (Space::parseKeyword(source, bp, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 5);
+    if (Space::parseKeyword(source, si, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 6);
+    if (Space::parseKeyword(source, di, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 7);
+
+    if (Space::parseKeyword(source, al, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 0);
+    if (Space::parseKeyword(source, cl, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 1);
+    if (Space::parseKeyword(source, dl, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 2);
+    if (Space::parseKeyword(source, bl, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 3);
+    if (Space::parseKeyword(source, ah, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 4);
+    if (Space::parseKeyword(source, ch, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 5);
+    if (Space::parseKeyword(source, dh, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 6);
+    if (Space::parseKeyword(source, bh, &span))
+        return Symbol(atomRegister, Symbol(atomWord), 7);
+
+    if (Space::parseKeyword(source, es, &span))
+        return Symbol(atomRegister, Symbol(atomSegmentOverride), 0);
+    if (Space::parseKeyword(source, cs, &span))
+        return Symbol(atomRegister, Symbol(atomSegmentOverride), 1);
+    if (Space::parseKeyword(source, ss, &span))
+        return Symbol(atomRegister, Symbol(atomSegmentOverride), 2);
+    if (Space::parseKeyword(source, ds, &span))
+        return Symbol(atomRegister, Symbol(atomSegmentOverride), 3);
+    return Symbol();
+}
+
 
 Symbol parseLValue(CharacterSource* source)
 {
