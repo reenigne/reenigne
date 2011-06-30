@@ -1,0 +1,15 @@
+Tool for musicians to use to write music for the demo.
+Needs to be able to create song sections for:
+  Simple t2 beeps & arpeggios
+  Digger-style music
+  4-channel player
+    1/2-channel player
+Song editing
+Waveform import and editing
+  Extract repeating section?
+  Automatic creation of needed volume-adjusted samples
+  Automatically using
+Set parameters for a song section:
+  Tempo
+  Sample rate
+

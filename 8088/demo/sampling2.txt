@@ -88,6 +88,13 @@
   mov [0000],ah       4 1  37 cycles
 
 
+; To make one of the channels single-frequency, long samples:
+  mov si,bp       2 0
+  es: mov ah,[si] 3 1
+  inc bp          1 0
+; (also need to fix up ES in the per-frame code)
+
+
 ; Per sample output
   mov al,[0000]       3 1
   out 042,al          2 1  7 cycles
@@ -236,10 +243,24 @@ s   b   r
 20  23  23.0KHz
 19  24  22.8KHz
 
+43                   (~41)                27.748KHz
+44                   (~42)                27.118KHz
+45                   (42.5)               26.515KHz
+46                   (~43)                25.939KHz
+47                   (~44)                25.387KHz
+48                   (~45)                24.858KHz
+49                   (~46)                24.351KHz
+50                   (~47)                23.864KHz
+51                   (~48)                23.396KHz
+52                   (~49)                22.949KHz
+53                   (~50)                22.513KHz
 54 cycles per sample (51 with refresh) is 22.096KHz
-
-
-c
+55                   (~52)                21.694KHz
+56                   (~53)                21.307KHz
+57                   (~54)                20.933KHz
+58                   (~55)                20.572KHz
+59                   (~56)                20.223KHz
+60                   (~57)                19.886KHz
 
 
 
