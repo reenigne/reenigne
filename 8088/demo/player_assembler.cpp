@@ -116,6 +116,60 @@ Symbol parseRegister(CharacterSource* source)
     return Symbol();
 }
 
+Symbol parseMemory(CharacterSource* source)
+{
+
+}
+
+int parseHexadecimalCharacter(CharacterSource* source, Span* span)
+{
+    CharacterSource s = *source;
+    int c = s.get(span);
+    if (c >= '0' && c <= '9') {
+        *source = s;
+        return c - '0';
+    }
+    if (c >= 'A' && c <= 'F') {
+        *source = s;
+        return c + 10 - 'A';
+    }
+    if (c >= 'a' && c <= 'f') {
+        *source = s;
+        return c + 10 - 'a';
+    }
+    return -1;
+}
+
+Symbol parseInteger(CharacterSource* source)
+{
+    CharacterSource s = *source;
+    int n = 0;
+    Span span;
+    int c = s.get(&span);
+    if (c < '0' || c > '9')
+        return Symbol();
+    if (c == '0') {
+        do {
+            Span span2;
+            int d = parseHexadecimalCharacter(source, &span2);
+            if (d == -1)
+                break;
+            n = n*16 + d;
+            span += span2;
+        } while (true);
+    }
+    do {
+        n = n*10 + c - '0';
+        *source = s;
+        Span span2;
+        c = s.get(&span2);
+        if (c < '0' || c > '9')
+            break;
+        span += span2;
+    } while (true);
+    Space::parse(source);
+    return Symbol(atomIntegerConstant, n);
+}
 
 Symbol parseLValue(CharacterSource* source)
 {
