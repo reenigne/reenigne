@@ -116,9 +116,40 @@ Symbol parseRegister(CharacterSource* source)
     return Symbol();
 }
 
-Symbol parseMemory(CharacterSource* source)
+Symbol parseMemory(CharacterSource* source, Span* span)
 {
-
+    CharacterSource s = *source;
+    Span span;
+    Span span2;
+    int c = s.get(span);
+    int size = 0;
+    if (c == 'b' || c == 'B') {
+        Space::parse(&s);
+        size = 1;
+        c = s.get(span2);
+        span += span2;
+    }
+    else
+        if (c == 'w' || c == 'W') {
+            Space::parse(&s);
+            size = 2;
+            c = s.get(span2);
+            span += span2;
+        }
+    if (c != '[')
+        return Symbol();
+    Space::parse(&s);
+    Symbol expression = parseExpression(&s, &span2);
+    if (!expression.valid())
+        throw Exception();
+    span += span2;
+    c = s.get(span);
+    if (c != ']')
+        throw Exception();
+    Space::parse(&s);
+    span += span2;
+    *source = s;
+    return Symbol(atomDereference, size, expression);
 }
 
 int parseHexadecimalCharacter(CharacterSource* source, Span* span)
