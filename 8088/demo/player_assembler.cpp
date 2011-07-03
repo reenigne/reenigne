@@ -1,7 +1,8 @@
 enum Atom
 {
     atomRegister,
-    atomSum,
+    atomAdd,
+    atomSubtract,
     atomDereference,
 
     atomByte,
@@ -116,45 +117,43 @@ Symbol parseRegister(CharacterSource* source)
     return Symbol();
 }
 
-Symbol parseMemory(CharacterSource* source, Span* span)
+Symbol parseExpression(CharacterSource* source);
+
+Symbol parseMemory(CharacterSource* source)
 {
     CharacterSource s = *source;
     Span span;
-    Span span2;
     int c = s.get(span);
     int size = 0;
     if (c == 'b' || c == 'B') {
         Space::parse(&s);
         size = 1;
-        c = s.get(span2);
-        span += span2;
+        c = s.get(span);
     }
     else
         if (c == 'w' || c == 'W') {
             Space::parse(&s);
             size = 2;
-            c = s.get(span2);
-            span += span2;
+            c = s.get(span);
         }
     if (c != '[')
         return Symbol();
     Space::parse(&s);
-    Symbol expression = parseExpression(&s, &span2);
+    Symbol expression = parseExpression(&s);
     if (!expression.valid())
         throw Exception();
-    span += span2;
     c = s.get(span);
     if (c != ']')
         throw Exception();
     Space::parse(&s);
-    span += span2;
     *source = s;
     return Symbol(atomDereference, size, expression);
 }
 
-int parseHexadecimalCharacter(CharacterSource* source, Span* span)
+int parseHexadecimalCharacter(CharacterSource* source)
 {
     CharacterSource s = *source;
+    Span span;
     int c = s.get(span);
     if (c >= '0' && c <= '9') {
         *source = s;
@@ -181,22 +180,18 @@ Symbol parseInteger(CharacterSource* source)
         return Symbol();
     if (c == '0') {
         do {
-            Span span2;
-            int d = parseHexadecimalCharacter(source, &span2);
+            int d = parseHexadecimalCharacter(source, &span);
             if (d == -1)
                 break;
             n = n*16 + d;
-            span += span2;
         } while (true);
     }
     do {
         n = n*10 + c - '0';
         *source = s;
-        Span span2;
-        c = s.get(&span2);
+        c = s.get(&span);
         if (c < '0' || c > '9')
             break;
-        span += span2;
     } while (true);
     Space::parse(source);
     return Symbol(atomIntegerConstant, n);
@@ -213,12 +208,37 @@ Symbol parseLValue(CharacterSource* source)
     throw Exception();
 }
 
-Symbol parseExpression(CharacterSource* source)
+Symbol parseExpressionElement(CharacterSource* source)
 {
     Symbol e = parseInteger(source);
     if (e.valid())
         return e;
     return parseLValue(source);
+}
+
+Symbol parseExpression(CharacterSource* source)
+{
+    Symbol e = parseExpressionElement(source);
+    if (!e.valid())
+        return Symbol();
+    do {
+        Span span;
+        if (Space::parseCharacter(source, '+', &span)) {
+            Symbol e2 = parseExpressionElement(source);
+            if (!e2.valid())
+                throw Exception();
+            e = Symbol(atomAdd, e, e2);
+            continue;
+        }
+        if (Space::parseCharacter(source, '-', &span)) {
+            Symbol e2 = parseExpressionElement(source);
+            if (!e2.valid())
+                throw Exception();
+            e = Symbol(atomSubtract, e, e2);
+            continue;
+        }
+        return e;
+    } while (true);
 }
 
 class Instruction
@@ -235,6 +255,7 @@ public:
             if (!Space::parseCharacter(&source, ',', &span))
                 throw Exception();
             Symbol right = parseExpression(&source);
+
 
 /*
    88 /r          MOV rmb,rb             2  5+EA+4
