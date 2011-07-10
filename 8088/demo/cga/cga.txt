@@ -595,6 +595,30 @@ vLine:
   add bx,di            ; 2 0  8  3
   loop vLine           ; 2 3 20 17
 
+; Vertical line (unrolled) - 6 IOs per pixel
+vLine:
+  xor [bx], ah         ; 2 2 16 21
+  xor [bx+0x2000], ah  ; 4 2 24 25
+  xor [bx+0x50], ah    ; 4 2 24 25
+  xor [bx+0x2050], ah  ; 4 2 24 25
+  xor [bx+0xa0], ah    ; 4 2 24 25
+  xor [bx+0x20a0], ah  ; 4 2 24 25
+  ...
+
+; Vertical line MOV (unrolled) - 10 IOs per pixel
+  and [bx], al         ; 2 2 16 21
+  or [bx], ah          ; 2 2 16 21
+  add bx, cx           ; 2 0  8  3
+  and [si], al         ; 2 2 16 21
+  or [si], ah          ; 2 2 16 21
+  add si, cx           ; 2 0  8  3
+; 12 IOs per pixel but 2 fewer wait states
+  mov al,[bx]          ; 2 1 12 13
+  or al,dl             ; 2 0  8  3
+  and al,dh            ; 2 0  8  3
+  mov [bx],al          ; 2 1 12
+  add bx,cx            ; 2 0  8  3
+
 
 ; Wait for horizontal retrace
 loop:

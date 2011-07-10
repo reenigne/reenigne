@@ -1,0 +1,149 @@
+mode    palette  width  height  pixels  stride  colours  textChar  bpp  scanlines  iosPerPixel  writeIOs  snow  ratio          pages     waste  notes
+
+40x25 full-width:
+001000  ..xxxx   40     200     8000     80     16       219       16    1          2.35        2         no    20:3  =  0.15    1       75%    row counter is only 7 bits - need a restart
+001000  ..xxxx   40     100     4000     80     16       219       16    2          4.70        2         no    10:3  =  0.3     2       75%
+001000  ..xxxx   40      66     2640     80     16       219       16    3          7.12        2         no    20:9  =  0.45    3       75%
+001000  ..xxxx   40      50     2000     80     16       219       16    4          9.40        2         no     5:3  =  0.6     4       75%
+001000  ..xxxx   40      33     1320     80     16       219       16    6         14.25        2         no    10:9  =  0.9     6       75%
+001000  ..xxxx   40      28     1120     80     16       219       16    7         16.79        2         no    20:21 =  1.05    7       75%
+001000  ..xxxx   40      25     1000     80     16       219       16    8         18.81        2         no     5:6  =  1.2     8       75%    standard
+001000  ..xxxx   40      12      480     80     16       219       16   16         39.18        2         no     5:12 =  2.4    17       75%    refresh problems?
+001000  ..xxxx   40       6      240     80     16       219       16   32         78.36        2         no     5:24 =  4.8    34       75%    refresh problems?
+
+40x25 half-width:
+001000  ..xxxx   80     200    16000     80     16       221        8    1          1.18        2         no    10:3  =  0.3     1       50%    row counter is only 7 bits - need a restart
+001000  ..xxxx   80     100     8000     80     16       221        8    2          2.35        2         no     5:3  =  0.6     2       50%
+001000  ..xxxx   80      66     5280     80     16       221        8    3          3.56        2         no    10:9  =  0.9     3       50%
+001000  ..xxxx   80      50     4000     80     16       221        8    4          4.70        2         no     5:6  =  1.2     4       50%
+001000  ..xxxx   80      33     2640     80     16       221        8    6          7.12        2         no     5:9  =  1.8     6       50%
+001000  ..xxxx   80      28     2240     80     16       221        8    7          8.40        2         no    10:21 =  2.1     7       50%
+001000  ..xxxx   80      25     2000     80     16       221        8    8          9.40        2         no     5:12 =  2.4     8       50%    standard
+001000  ..xxxx   80      12      960     80     16       221        8   16         19.59        2         no     5:24 =  4.8    17       50%    refresh problems?
+001000  ..xxxx   80       6      480     80     16       221        8   32         39.18        2         no     5:48 =  9.6    34       50%    refresh problems?
+
+80x25 full-width:
+001001  ..xxxx   80     200    16000    160     16       219       16    1          1.18        2         yes   10:3  =  0.3     0.5     75%    row counter is only 7 bits - need a restart - can't use full frame
+001001  ..xxxx   80     100     8000    160     16       219       16    2          2.35        2         yes    5:3  =  0.6     1       75%
+001001  ..xxxx   80      66     5280    160     16       219       16    3          3.56        2         yes   10:9  =  0.9     1       75%
+001001  ..xxxx   80      50     4000    160     16       219       16    4          4.70        2         yes    5:6  =  1.2     2       75%
+001001  ..xxxx   80      33     2640    160     16       219       16    6          7.12        2         yes    5:9  =  1.8     3       75%
+001001  ..xxxx   80      28     2240    160     16       219       16    7          8.40        2         yes   10:21 =  2.1     3       75%
+001001  ..xxxx   80      25     2000    160     16       219       16    8          9.40        2         yes    5:12 =  2.4     4       75%    standard
+001001  ..xxxx   80      12      960    160     16       219       16   16         19.59        2         yes    5:24 =  4.8     8       75%
+001001  ..xxxx   80       6      480    160     16       219       16   32         39.18        2         yes    5:48 =  9.6    17       75%    refresh problems?
+
+80x25 half-width:
+001001  ..xxxx  160     200    32000    160     16       221        8    1          0.59        2         yes    5:3  =  0.6     0.5     50%    row counter is only 7 bits - need a restart - can't use full frame
+001001  ..xxxx  160     100    16000    160     16       221        8    2          1.18        2         yes    5:6  =  1.2     1       50%    semi-standard
+001001  ..xxxx  160      66    10560    160     16       221        8    3          1.78        2         yes    5:9  =  1.8     1       50%
+001001  ..xxxx  160      50     8000    160     16       221        8    4          2.35        2         yes    5:12 =  2.4     2       50%
+001001  ..xxxx  160      33     5280    160     16       221        8    6          3.56        2         yes    5:18 =  3.6     3       50%
+001001  ..xxxx  160      28     4480    160     16       221        8    7          4.20        2         yes    5:21 =  4.2     3       50%
+001001  ..xxxx  160      25     4000    160     16       221        8    8          4.70        2         yes    5:24 =  4.8     4       50%    standard
+001001  ..xxxx  160      12     1920    160     16       221        8   16          9.79        2         yes    5:48 =  9.6     8       50%
+001001  ..xxxx  160       6      960    160     16       221        8   32         19.59        2         yes    5:96 = 19.2    17       50%    refresh problems?
+
+320x200:
+001x10  xxxxxx  320     200    64000     80      4                  2    1          0.29        0.25      no     5:6  =  1.2     0.5      0%    row counter is only 7 bits - need a restart - can't use full frame
+001x10  xxxxxx  320     200    64000     80      4                  2    2          0.29        0.25      no     5:6  =  1.2     1        0%    standard interlaced
+001x10  xxxxxx  320     100    32000     80      4                  2    4          0.59        0.25      no     5:12 =  2.4     2        0%    interlaced ABAB
+001x10  xxxxxx  320      33    21120     80      4                  2    6          0.89        0.25      no     5:18 =  3.6     3        0%    interlaced ABABAB
+001x10  xxxxxx  320      50    16000     80      4                  2    8          1.18        0.25      no     5:24 =  4.8     4        0%    interlaced ABABABAB
+001x10  xxxxxx  320      25     8000     80      4                  2   16          2.35        0.25      no     5:48 =  9.6     8        0%    interlaced ABABABABABABABAB                  - refresh problems?
+001x10  xxxxxx  320      12     3840     80      4                  2   32          4.90        0.25      no     5:96 = 19.2    17        0%    interlaced ABABABABABABABABABABABABABABABAB  - refresh problems?
+
+640x200:
+011x10  ..xxxx  640     200   128000     80      4                  1    1          0.15        0.125     no     5:12 =  2.4     0.5      0%    row counter is only 7 bits - need a restart - can't use full frame
+011x10  ..xxxx  640     200   128000     80      4                  1    2          0.15        0.125     no     5:12 =  2.4     1        0%    standard interlaced
+011x10  ..xxxx  640     100    64000     80      4                  1    4          0.29        0.125     no     5:24 =  4.8     2        0%    interlaced ABAB
+011x10  ..xxxx  640      33    42240     80      4                  1    6          0.45        0.125     no     5:36 =  7.2     3        0%    interlaced ABABAB
+011x10  ..xxxx  640      50    32000     80      4                  1    8          0.59        0.125     no     5:48 =  9.6     4        0%    interlaced ABABABAB
+011x10  ..xxxx  640      25    16000     80      4                  1   16          1.18        0.125     no     5:96 = 19.2     8        0%    interlaced ABABABABABABABAB                  - refresh problems?
+011x10  ..xxxx  640      12     7680     80      4                  1   32          2.45        0.125     no     5:192= 38.4    17        0%    interlaced ABABABABABABABABABABABABABABABAB  - refresh problems?
+
+Modifiers:
+  * Other character heights
+    * When using odd heights with +GRPH, even lines are repeated more than odd ones.
+  * Non-full-frame. Interesting screen sizes:
+    80*100  8Kb     8:3   half-size, full-width
+    40*200  8Kb     2:3   half-size, full-height
+    64*200 12.5Kb  16:15  power-of-two width
+    60*200 11.7Kb   1:1   square screen
+    56*140  7.7Kb   4:3   half-size, same aspect ratio
+    57*143  8.0Kb 190:143 half-size, same aspect ratio (inexact)
+    80*150 11.7Kb  16:9   widescreen
+    40*100  4Kb     4:3   quarter-size
+    20*50   1Kb     4:3   1/16 size
+    10*25  250b     4:3   1/64 size
+  * Changing CRTC parameters partway through frame
+    * Repeated scanlines
+      * Data active during sync and burst - may cause problems
+    * New start address on each line (restart required)
+      * Careful of DRAM refresh
+    * More than 128 rows - required for character height 1 modes
+    * Changing horizontal position per-scanline
+    * PLL wobble effect - sub-pixel changes
+  * Changing palette registers partway through frame
+    * California-games style effects
+  * Changing mode registers partway through frame
+    * Split-screen
+  * Changing horizontal and vertical position of entire visible area
+  * Composite output
+    * Colour affected by 3.57MHz signal
+    * +B/W bit
+    * Need coloured overscan with +HRES for burst
+  * PLL mode - skips sync pulses so only alternate lines are plotted
+    * Can we skip more than 1?
+
+
+
+
+
+Interesting top rows:
+11111111 0x00
+00001111 0xdd
+11011101 0xb0
+10101010 0xb1
+00100100 0xb2
+11100111 0xb3
+11001001 0xba
+10011001 0x13
+00110011 0x55
+11111100 0x54
+11001111 0x41
+11000011 0x43
+11000000 0x0d
+11110011 0x6a
+10000001 0x01
+11111001 0xed
+10011111 0xf2
+11101111 0x04
+01111111 0x10
+11111101 0x11
+00000001 0x46
+
+00000000 11111111 ' '
+00000011 11111100  T
+00001100 11110011  j
+00001111 11110000 0xdd
+00110000 11001111  A
+00110011 11001100  U
+00111100 11000011  C
+00111111 11000000 0x0d
+
+01111110 10000001 0x01
+10011111 01100000 0xf2
+11100111 00011000 0xb3
+11111001 00000110 0xed
+
+11011000 00100111
+11011011 00100100
+11000110 00111001
+
+
+
+
+
+
+5:6

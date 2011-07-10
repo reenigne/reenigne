@@ -1,0 +1,38 @@
+Divide memory into chunks, all of which are the same length.
+When deallocating a chunk, move the highest chunk into the gap so memory is always contiguous.
+Arrays larger than a chunk must be implemented as trees.
+  This means that a chunk must be large enough to hold at least two pointers.
+Moving a chunk requires fixing up all pointers to that chunk.
+So, given a chunk, we need to be able to find all pointers pointing to it.
+So each chunk needs a pointer to a linked list of all pointers to that chunk.
+Also, given a chunk we need to be able to remove it from all linked lists that it is part of.
+  So the lists must be doubly-linked.
+    However, we can tell by alignment whether a pointer points to the chunk itself or a sub-pointer of the chunk, so at one end we only need a single link.
+The linked list pointers also need to be fixed up - however, there will only be two of them for each pointer.
+Given a chunk pointer, we need to able to figure out which of its elements are pointers
+  This implies that each chunk pointer needs to have some kind of vtable pointer in a predictable location.
+To avoid splitting a raviolo across cache lines, the ravioli need to be a power of two.
+
+Raviolo (32-bit):     32 bytes
+  vtable pointer       4 bytes  (30 bits)
+  list pointer         4 bytes  (28 bits)
+  A pointer            4 bytes  (27 bits)
+  A pointer previous   4 bytes  (29 bits)
+  A pointer next       4 bytes  (28 bits)
+  B pointer            4 bytes  (27 bits)
+  B pointer previous   4 bytes  (29 bits)
+  B pointer next       4 bytes  (28 bits)
+30 bits spare
+
+Raviolo (64-bit):     64 bytes
+  vtable pointer       8 bytes  (61 bits)
+  list pointer         8 bytes  (59 bits)
+  A pointer            8 bytes  (58 bits)
+  A pointer previous   8 bytes  (60 bits)
+  A pointer next       8 bytes  (59 bits)
+  B pointer            8 bytes  (58 bits)
+  B pointer previous   8 bytes  (60 bits)
+  B pointer next       8 bytes  (59 bits)
+38 bits spare
+
+
