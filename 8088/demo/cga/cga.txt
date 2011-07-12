@@ -1,59 +1,17 @@
 ; x,y pixel coordinates to screen memory location
-; BX = x
+; DI = x
 ; SI = y
 
-  mov ah,[mTable + bx]  ; 4 1 20 17
+  mov ah,[mTable + di]  ; 4 1 20 17
   shl si,1              ; 2 0  8  2
-  shl bx,1              ; 2 0  8  2
-  mov di,[xTable + bx]  ; 4 2 24 21
+  shr di,1              ; 2 0  8  2
+  shr di,1              ; 2 0  8  2
   add di,[yTable + si]  ; 4 2 24 22
 
 ; DI = location
 ; AH = mask
 
 ; TODO: generate these programmatically - it'll be smaller
-
-xTable:
-  dw 000, 000, 000, 000, 001, 001, 001, 001
-  dw 002, 002, 002, 002, 003, 003, 003, 003
-  dw 004, 004, 004, 004, 005, 005, 005, 005
-  dw 006, 006, 006, 006, 007, 007, 007, 007
-  dw 008, 008, 008, 008, 009, 009, 009, 009
-  dw 00a, 00a, 00a, 00a, 00b, 00b, 00b, 00b
-  dw 00c, 00c, 00c, 00c, 00d, 00d, 00d, 00d
-  dw 00e, 00e, 00e, 00e, 00f, 00f, 00f, 00f
-  dw 010, 010, 010, 010, 011, 011, 011, 011
-  dw 012, 012, 012, 012, 013, 013, 013, 013
-  dw 014, 014, 014, 014, 015, 015, 015, 015
-  dw 016, 016, 016, 016, 017, 017, 017, 017
-  dw 018, 018, 018, 018, 019, 019, 019, 019
-  dw 01a, 01a, 01a, 01a, 01b, 01b, 01b, 01b
-  dw 01c, 01c, 01c, 01c, 01d, 01d, 01d, 01d
-  dw 01e, 01e, 01e, 01e, 01f, 01f, 01f, 01f
-  dw 020, 020, 020, 020, 021, 021, 021, 021
-  dw 022, 022, 022, 022, 023, 023, 023, 023
-  dw 024, 024, 024, 024, 025, 025, 025, 025
-  dw 026, 026, 026, 026, 027, 027, 027, 027
-  dw 028, 028, 028, 028, 029, 029, 029, 029
-  dw 02a, 02a, 02a, 02a, 02b, 02b, 02b, 02b
-  dw 02c, 02c, 02c, 02c, 02d, 02d, 02d, 02d
-  dw 02e, 02e, 02e, 02e, 02f, 02f, 02f, 02f
-  dw 030, 030, 030, 030, 031, 031, 031, 031
-  dw 032, 032, 032, 032, 033, 033, 033, 033
-  dw 034, 034, 034, 034, 035, 035, 035, 035
-  dw 036, 036, 036, 036, 037, 037, 037, 037
-  dw 038, 038, 038, 038, 039, 039, 039, 039
-  dw 03a, 03a, 03a, 03a, 03b, 03b, 03b, 03b
-  dw 03c, 03c, 03c, 03c, 03d, 03d, 03d, 03d
-  dw 03e, 03e, 03e, 03e, 03f, 03f, 03f, 03f
-  dw 040, 040, 040, 040, 041, 041, 041, 041
-  dw 042, 042, 042, 042, 043, 043, 043, 043
-  dw 044, 044, 044, 044, 045, 045, 045, 045
-  dw 046, 046, 046, 046, 047, 047, 047, 047
-  dw 048, 048, 048, 048, 049, 049, 049, 049
-  dw 04a, 04a, 04a, 04a, 04b, 04b, 04b, 04b
-  dw 04c, 04c, 04c, 04c, 04d, 04d, 04d, 04d
-  dw 04e, 04e, 04e, 04e, 04f, 04f, 04f, 04f
 
 yTable:
   dw 00000, 02000, 00050, 02050, 000a0, 020a0, 000f0, 020f0
@@ -167,14 +125,14 @@ rTable:
   db 03f, 0cf, 0f3, 0fc, 03f, 0cf, 0f3, 0fc
 
 ; Plot pixel at x,y, colour c
-; BX = x
+; DI = x
 ; SI = y
 ; CL = c
 ; ES = 0b800
-  mov ah,[rTable + bx]  ; 4 1 20 17
+  mov ah,[rTable + di]  ; 4 1 20 17
   shl si,1              ; 2 0  8  2
-  shl bx,1              ; 2 0  8  2
-  mov di,[xTable + bx]  ; 4 2 24 21
+  shr di,1              ; 2 0  8  2
+  shr di,1              ; 2 0  8  2
   add di,[yTable + si]  ; 4 2 24 22
   es: mov al,[di]       ; 3 1 16 15
   and al,ah             ; 2 0  8  3
@@ -189,10 +147,10 @@ rTable:
 ; SI = y
 ; CL = c
 ; ES = 0b800
-  mov al,[cTable + bx]  ; 4 1 20 17
+  mov ah,[rTable + di]  ; 4 1 20 17
   shl si,1              ; 2 0  8  2
-  shl bx,1              ; 2 0  8  2
-  mov di,[xTable + bx]  ; 4 2 24 21
+  shr di,1              ; 2 0  8  2
+  shr di,1              ; 2 0  8  2
   add di,[yTable + si]  ; 4 2 24 22
   and al,cl             ; 2 0  8  3
   es: xor [di], al      ; 3 2 20 23
@@ -202,10 +160,10 @@ rTable:
 ; BX = x
 ; SI = y
 ; ES = 0b800
-  mov al,[rTable + bx]  ; 4 1 20 17
+  mov al,[rTable + di]  ; 4 1 20 17
   shl si,1              ; 2 0  8  2
-  shl bx,1              ; 2 0  8  2
-  mov di,[xTable + bx]  ; 4 2 24 21
+  shr di,1              ; 2 0  8  2
+  shr di,1              ; 2 0  8  2
   add di,[yTable + si]  ; 4 2 24 22
   es: and [di], al      ; 3 2 20 23
 
@@ -218,17 +176,17 @@ rTable:
 ; ES = 0b800
 
   shl si,1                ; 2 0  8  2
-  mov si,[yTable + si]    ; 4 2 24 21
+  mov cx,[yTable + si]    ; 4 2 24 21
 
   mov dl,[leftData + di]  ; 4 1 20 17
-  shl di,1                ; 2 0  8  2
-  mov di,[xTable + di]    ; 4 2 24 21
-  add di,si               ; 2 0  8  3
+  shr di,1                ; 2 0  8  2
+  shr di,1                ; 2 0  8  2
+  add di,cx               ; 2 0  8  3
 
   mov dh,[rightData + bx] ; 4 1 20 17
-  shl bx,1                ; 2 0  8  2
-  mov cx,[xTable + bx]    ; 4 2 24 21
-  add cx,si               ; 2 0  8  3
+  shr bx,1                ; 2 0  8  2
+  shr bx,1                ; 2 0  8  2
+  add cx,bx               ; 2 0  8  3
 
   es: mov al,[di]         ; 3 1 16 15
   cmp di,cx               ; 2 0  8  3
@@ -372,17 +330,17 @@ noByte:
 ; ES = 0b800
 
   shl si,1                ; 2 0  8  2
-  mov si,[yTable + si]    ; 4 2 24 21
+  mov cx,[yTable + si]    ; 4 2 24 21
 
   mov dl,[leftData + di]  ; 4 1 20 17
-  shl di,1                ; 2 0  8  2
-  mov di,[xTable + di]    ; 4 2 24 21
-  add di,si               ; 2 0  8  3
+  shr di,1                ; 2 0  8  2
+  shr di,1                ; 2 0  8  2
+  add di,cx               ; 2 0  8  3
 
   mov dh,[rightData + bx] ; 4 1 20 17
-  shl bx,1                ; 2 0  8  2
-  mov cx,[xTable + bx]    ; 4 2 24 21
-  add cx,si               ; 2 0  8  3
+  shr bx,1                ; 2 0  8  2
+  shr bx,1                ; 2 0  8  2
+  add cx,bx               ; 2 0  8  3
 
   mov ax,es               ; 2 0  8  2
   mov ds,ax               ; 2 0  8  2

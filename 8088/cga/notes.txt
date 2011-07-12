@@ -73,7 +73,7 @@ Blinking and cursor:
   Cursor: 8 frames on, 8 frames off
   Assuming a frame rate of 60Hz (+VSYNC DLY):
     Cursor: 3.75Hz
-    Blinkink: 1.875Hz
+    Blinking: 1.875Hz
 
 
  1 hdot                640  912  width of a pixel in 80x25 text mode and 640x200 graphics mode.                         (70ns)
