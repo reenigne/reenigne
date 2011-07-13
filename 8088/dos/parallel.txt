@@ -6,6 +6,8 @@ Use standard cable:
 5 <=> 10
 6 <=> 11
 
+
+
 PLIP uses Ack (pin 10) to indicate nybble
 However, we can get better performance by using Error (pin 15) to indicate nybble.
 

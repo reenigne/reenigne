@@ -1,0 +1,39 @@
+Parallel:
+
+ 2 15   Data0          Error
+ 3 13   Data1          Select
+ 4 12   Data2          Paper-Out
+ 5 10   Data3          Ack
+ 6 11   Data4          Busy
+10  5   Ack            Data3
+11  6   Busy           Data4
+12  4   Paper-Out      Data2
+13  3   Select         Data1
+15  2   Error          Data0
+17 19   Select-Printer Ground
+18 18   Ground         Ground
+19 17   Ground         Select-Printer
+21 21   Ground         Ground
+22 22   Ground         Ground
+23 23   Ground         Ground
+25 25   Ground         Ground
+
+Single ground line => 11 wires
+
+
+
+Serial:
+
+ 2 2    TxD Transmitted Data     RxD Received Data
+ 3 3    RxD Received Data        TxD Transmitted Data
+ 4 8    RTS Request To Send      CTS Clear To Send
+ 5 7    CTS Clear To Send        RTS Request To Send
+ 7 5    SG  Signal Ground        SG  Signal Ground
+ 6 4    DSR Data Set Ready       DTR Data Terminal Ready
+ 8 4    DCD Data Carrier Detect  DTR Data Terminal Ready
+20 1    DTR Data Terminal Ready  DCD Data Carrier Detect
+20 6    DTR Data Terminal Ready  DSR Data Set Ready
+
+7 wires
+
+5.5 feet if we make both cables the same length

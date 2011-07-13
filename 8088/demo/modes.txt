@@ -98,18 +98,38 @@ Modifiers:
 
 
 With -HRES:
-  IOsPerByte     linesPerFrame
-      1               235
-      1.5             156.7
-      2               117.5
-      2.5              94.0
-      3                78.4
-      3.5              67.2
-      4                58.8
-      4.5              52.2
-      5                47.0
+  IOsPerByte     linesPerFrame    framesPerSecond                                                 KB/s
+      1               235.1             70.43         REP STOS                                    1100
+      1.5             156.7             46.95         STOSW                                        734
+      2               117.5             35.22         REP MOVS                                     550
+      2.5              94.0             28.17         LODSB/STOSW or MOV AX,BX/STOSW               440
+      3                78.4             23.48         LODSW/STOSW                                  367
+      3.5              67.2             20.12         LODSW/INCDEC SI/STOSW                        314
+      4                58.8             17.61         Texture word                                 275
+      4.5              52.2             15.65                                                      245
+      5                47.0             14.09         Moire 2bpp                                   220
+      6                39.2             11.74         Texture byte                                 183
+      7                33.6             10.06         Texture attribute       REP MOVSW measured   157
+      8                29.4              8.80         Moire half-width                             138
+     12                19.6              5.87         Rotozoomer                                    92
 
 
+
+lodsw    1 2
+stosw    1 2
+
+mov ax,[si]    2 2
+inc si         1 0
+stosw          1 2
+
+Five cycle A:
+  mov ax,bx      2 0
+  stosw          1 2
+
+Five cycle B:            Colour-cycled Mandelbrot effect? 30Hz, nearly full screen -HRES. Don't need to update all locations. ~39Kb per picture. Slideshow with transitions
+  mov [bx+12],ax 3 2
+  mov [bx+14],cx
+  mov [bx+16],dx
 
 
 Interesting top rows:

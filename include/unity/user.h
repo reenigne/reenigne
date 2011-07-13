@@ -7,11 +7,17 @@
 #include "unity/vectors.h"
 #include <windows.h>
 
-class Windows : Uncopyable
+template<class T> class WindowTemplate;
+typedef WindowTemplate<void> Window;
+
+template<class T> class WindowsTemplate;
+typedef WindowsTemplate<void> Windows;
+
+template<class T> class WindowsTemplate : Uncopyable
 {
-    friend class Window;
+    friend class WindowTemplate<T>;
 public:
-    Windows(HINSTANCE hInst) : _hInst(hInst)
+    WindowsTemplate(HINSTANCE hInst) : _hInst(hInst)
     {
         WNDCLASS wc;
         wc.style = CS_OWNDC;
@@ -35,7 +41,7 @@ public:
 
     HINSTANCE instance() const { return _hInst; }
 
-    ~Windows() { UnregisterClass(className(), _hInst); }
+    ~WindowsTemplate() { UnregisterClass(className(), _hInst); }
 
     static void check()
     {
@@ -104,13 +110,13 @@ bool Windows::_failed = false;
 Exception Windows::_exception;
 
 
-class Window
+template<class T> class WindowTemplate
 {
-    friend class Windows;
+    friend class WindowsTemplate<T>;
 public:
     class Params
     {
-        friend class Window;
+        friend class WindowTemplate<T>;
     public:
         Params(Windows* windows, LPCWSTR pszName)
           : _windows(windows),
@@ -131,7 +137,7 @@ public:
         //Menu* _menu;
     };
 
-    Window(Params p)
+    WindowTemplate(Params p)
     {
         HMENU hMenu = NULL;
         //if (p._menu != 0)
@@ -154,7 +160,7 @@ public:
 
     operator HDC() const { return _hdc; }
 
-    ~Window()
+    ~WindowTemplate()
     {
         ReleaseDC(_hWnd, _hdc);
         DestroyWindow(_hWnd);
@@ -212,6 +218,148 @@ protected:
     HWND _hWnd;
 private:
     HDC _hdc;
+};
+
+
+template<class Base> class RootWindow : public Base
+{
+public:
+    class Params
+    {
+        friend class RootWindow;
+    public:
+        Params(typename Base::Params bp) : _bp(bp) { }
+    private:
+        typename Base::Params _bp;
+    };
+
+    RootWindow(Params p) : Base(p._bp) { }
+
+protected:
+    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+    {
+        switch (uMsg) {
+            case WM_KEYDOWN:
+                if (wParam == VK_ESCAPE)
+                    destroy();
+        }
+
+        return Base::handleMessage(uMsg, wParam, lParam);
+    }
+
+    void destroy()
+    {
+        // Death of the root window ends the thread
+        PostQuitMessage(0);
+    }
+};
+
+
+class DeviceContext
+{
+public:
+    void NoFailSelectObject(HGDIOBJ hObject) { ::SelectObject(_hdc, hObject); }
+    void SelectObject(HGDIOBJ hObject)
+    {
+        IF_NULL_THROW(::SelectObject(_hdc, hObject));
+    }
+    void SetROP2(int fnDrawMode)
+    {
+        IF_ZERO_THROW(::SetROP2(_hdc, fnDrawMode));
+    }
+    void Polyline(CONST POINT* lppt, int cPoints)
+    {
+        IF_ZERO_THROW(::Polyline(_hdc, lppt, cPoints));
+    }
+    operator HDC() const { return _hdc; }
+protected:
+    HDC _hdc;
+};
+
+
+class PaintHandle : public DeviceContext
+{
+public:
+    PaintHandle(const Window& window) : _window(window)
+    {
+        IF_NULL_THROW(BeginPaint(_window, &_ps));
+        _hdc = _ps.hdc;
+    }
+    ~PaintHandle()
+    {
+        EndPaint(_window, &_ps);
+    }
+    operator HDC() const { return _ps.hdc; }
+    Vector topLeft() const { return Vector(_ps.rcPaint.left, _ps.rcPaint.top); }
+    Vector bottomRight() const { return Vector(_ps.rcPaint.right, _ps.rcPaint.bottom); }
+    bool zeroArea() const { return (topLeft()-bottomRight()).zeroArea(); }
+private:
+    const Window& _window;
+    PAINTSTRUCT _ps;
+};
+
+
+template<class Base, class ImageType> class ImageWindow : public Base
+{
+public:
+    class Params
+    {
+        friend class ImageWindow;
+    public:
+        Params(typename Base::Params bp, ImageType* image)
+          : _bp(bp),
+            _image(image) { }
+    private:
+        typename Base::Params _bp;
+        ImageType* _image;
+    };
+
+    ImageWindow(Params p) : Base(p._bp), _image(p._image), _resizing(false) { }
+
+    void invalidate() { IF_ZERO_THROW(InvalidateRect(_hWnd, NULL, FALSE)); }
+
+    // doPaint is called only when the area is non-zero. Subclasses can get
+    // zero-area WM_PAINT notifications by handling WM_PAINT in their
+    // handleMessage() overrides.
+    virtual void doPaint(PaintHandle* paint)
+    {
+        _image->paint(*paint);
+    }
+    virtual void destroy() { _image->destroy(); Base::destroy(); }
+
+protected:
+    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+    {
+        switch (uMsg) {
+            case WM_PAINT:
+                {
+                    PaintHandle paint(*this);
+                    if (!paint.zeroArea())
+                        doPaint(&paint);
+                }
+                return 0;
+            case WM_SIZE:
+                {
+                    Vector size = VectorFromLParam(lParam);
+                    if (!size.zeroArea()) {
+                        _image->resize(size);
+                        invalidate();
+                        _resizing = true;
+                    }
+                }
+                break;
+            case WM_EXITSIZEMOVE:
+                if (_resizing)
+                    _image->doneResize();
+                _resizing = false;
+                break;
+        }
+        return Base::handleMessage(uMsg, wParam, lParam);
+    }
+
+    ImageType* _image;
+private:
+    bool _resizing;
 };
 
 
