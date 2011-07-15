@@ -24,14 +24,16 @@ class ProgramBase
 public:
 #ifdef _WIN32
 #ifdef _WINDOWS
-    void initialize(HINSTANCE hInst)
+    int initialize(HINSTANCE hInst, INT nCmdShow)
     {
         BEGIN_CHECKED {
             _windows.initialize(hInst);
-            initializeWindowsCommandLine();
+            _nCmdShow = nCmdShow;
+            return initializeWindowsCommandLine();
         }
         END_CHECKED(Exception& e) {
             e.write(Handle::consoleOutput());
+            return 0;
         }
     }
 #else
@@ -63,12 +65,22 @@ protected:
 #ifdef _WIN32
 #ifdef _WINDOWS
     Windows _windows;
+    INT _nCmdShow;
+    virtual int run() = 0;
+#else
+    virtual void run() = 0;
 #endif
+#else
+    virtual void run() = 0;
 #endif
     Array<String> _arguments;
 private:
 #ifdef _WIN32
+#ifdef _WINDOWS
+    int initializeWindowsCommandLine()
+#else
     void initializeWindowsCommandLine()
+#endif
     {
         class WindowsCommandLine
         {
@@ -95,6 +107,7 @@ private:
         int nArgs = windowsCommandLine.nArgs();
         const LPWSTR* szArglist = windowsCommandLine.arguments();
         _arguments.allocate(nArgs);
+        _arguments.constructElements();
         int nBytes = 0;
         for (int i = 0; i < nArgs; ++i)
             nBytes += String::countBytes(szArglist[i]);
@@ -110,32 +123,57 @@ private:
             _arguments[i] = String(buffer, s, n);
             s += n;
         }
+#ifdef _WINDOWS
+        return run();
+#else
         run();
+#endif
     }
 #endif
 };
 
 #ifdef _WIN32
 #ifdef _WINDOWS
-INT APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, INT nCmdShow)
+template<class T> INT APIENTRY WinMainTemplate(HINSTANCE hInst, INT nCmdShow)
 #else
-int main()
+template<class T> int mainTemplate()
 #endif
 #else
-int main(int argc, char* argv[])
+template<class T> int mainTemplate(int argc, char* argv[])
 #endif
 {
     Program program;
 #ifdef _WIN32
 #ifdef _WINDOWS
-    program.initialize(hInst);
+    return program.initialize(hInst, nCmdShow);
 #else
     program.initialize();
+    return 0;
 #endif
 #else
     program.initialize(argc, argv);
-#endif
     return 0;
+#endif
 }
+
+#ifdef _WIN32
+#ifdef _WINDOWS
+INT APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, INT nCmdShow)
+{
+    return WinMainTemplate<void>(hInst, nCmdShow);
+}
+#else
+int main()
+{
+    return mainTemplate<void>();
+}
+#endif
+#else
+int main(int argc, char* argv[])
+{
+    return mainTemplate<void>(argc, argc);
+}
+#endif
+
 
 #endif // INCLUDED_MAIN_H

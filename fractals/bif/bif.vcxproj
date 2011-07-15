@@ -79,7 +79,14 @@
     <ClCompile Include="bif.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\unity\array.h" />
+    <ClInclude Include="..\..\include\unity\complex.h" />
+    <ClInclude Include="..\..\include\unity\fix.h" />
+    <ClInclude Include="..\..\include\unity\fractal.h" />
+    <ClInclude Include="..\..\include\unity\integer_types.h" />
+    <ClInclude Include="..\..\include\unity\main.h" />
     <ClInclude Include="..\..\include\unity\string.h" />
+    <ClInclude Include="..\..\include\unity\thread.h" />
     <ClInclude Include="..\..\include\unity\user.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

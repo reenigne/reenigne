@@ -1,7 +1,6 @@
-//#include "def.h"
 #include "unity/user.h"
-//#include <math.h>
 #include "unity/fractal.h"
+#include "unity/main.h"
 #include <vector>
 
 class Pixel
@@ -31,7 +30,8 @@ public:
 
         int n = 0;
         float exposure = 0;
-        for (std::vector<Pixel>::const_iterator pp = pixels.begin(); pp != pixels.end(); ++pp) {
+        for (std::vector<Pixel>::const_iterator pp = pixels.begin();
+            pp != pixels.end(); ++pp) {
             int hits = pp->getHits();
             if (hits > 0) {
                 ++n;
@@ -61,7 +61,7 @@ private:
         offset += e;
         if (offset >= 1.0)
             offset -= 1.0;
-        float y = 0.6;
+        float y = 0.6f;
         for (int xs = _region.getSize().x - 1; xs >= 0; --xs) {
             float x = static_cast<float>(_region.cxFromSx(xs + offset));
             for (int i = 0; i < 100; ++i) 
@@ -72,18 +72,19 @@ private:
                 if (ys >= 0 && ys < _region.getSize().y)
                     pixels[ys*_region.getSize().x + xs].increment();
             }
-            if (y > 10 || y < -10 || (y>-1e-20 && y<1e-20))
-                y = 0.6;
+            if (y > 10 || y < -10 || (y > -1e-20 && y < 1e-20))
+                y = 0.6f;
         }
     }
 
     void restart()
     {
         pixels.resize(_region.pixels());
-        for (std::vector<Pixel>::iterator pp = pixels.begin(); pp != pixels.end(); ++pp)
+        for (std::vector<Pixel>::iterator pp = pixels.begin();
+            pp != pixels.end(); ++pp)
             pp->reset();
         offset = 0;
-        e = exp(1.0f)-2; // Any old irrational number will do here
+        e = exp(1.0f) - 2; // Any old irrational number will do here
     }
 
     std::vector<Pixel> pixels;
@@ -91,30 +92,29 @@ private:
     float e;
 };
 
-INT APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, INT nCmdShow)
+class Program : public ProgramBase
 {
-    BEGIN_CHECKED {
-//        ComInitializer ci;
-        Windows windows(hInst);
-//        Region region(Vector2<double>(3.5f, 0.0f), Vector2<double>(4.0f, 1.0f), Vector2<int>(2, 2));
+protected:
+    int run()
+    {
+        Region region(Vector2<double>(3.5f, 0.0f), Vector2<double>(4.0f, 1.0f),
+            Vector2<int>(2, 2));
         typedef FractalImage<BifCalcThread> Image;
-//        Image image(region);
+        Image image(region);
 
-        Window::Params wp(&windows, L"Bifurcation Fractal");
+        Window::Params wp(&_windows, L"Bifurcation Fractal");
         typedef RootWindow<Window> RootWindow;
         RootWindow::Params rwp(wp);
         typedef ImageWindow<RootWindow, Image> ImageWindow;
-//        ImageWindow::Params iwp(rwp, &image);
-//        typedef AnimatedWindow<ImageWindow> AnimatedWindow;
-//        AnimatedWindow::Params awp(iwp);
-//        typedef ZoomableWindow<AnimatedWindow> ZoomableWindow;
-//        ZoomableWindow::Params zwp(awp);
-//        ZoomableWindow window(zwp);
-//
-//        window.show(nCmdShow);
-//        return pumpMessages();
-    } END_CHECKED(Exception& e) {
-        e.write(Handle::consoleOutput());
+        ImageWindow::Params iwp(rwp, &image);
+        typedef AnimatedWindow<ImageWindow> AnimatedWindow;
+        AnimatedWindow::Params awp(iwp);
+        typedef ZoomableWindow<AnimatedWindow> ZoomableWindow;
+        ZoomableWindow::Params zwp(awp);
+        ZoomableWindow window(zwp);
+
+        window.show(_nCmdShow);
+        return pumpMessages();
     }
-    return 0;
-}
+};
+
