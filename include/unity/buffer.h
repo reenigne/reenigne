@@ -45,8 +45,23 @@ public:
     bool valid() const { return _implementation.valid(); }
     void copyTo(UInt8* destination, int start, int length) const { _implementation->copyTo(destination, start, length); }
     const UInt8& operator[](int i) const { return data()[i]; }
-private:
+protected:
     Reference<BufferImplementation> _implementation;
+};
+
+class OwningBuffer : public Buffer
+{
+public:
+    OwningBuffer(int size) : Buffer(new OwningBufferImplementation)
+    { 
+        implementation()->allocate(size);
+    }
+    UInt8& operator[](int i) { return implementation()->data()[i]; }
+private:
+    OwningBufferImplementation* implementation()
+    {
+        return Reference<OwningBufferImplementation>(_implementation);
+    }
 };
 
 #endif // INCLUDED_BUFFER_H

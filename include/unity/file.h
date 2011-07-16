@@ -773,53 +773,54 @@ public:
         }
         Reference<OwningBufferImplementation> bufferImplementation =
             new OwningBufferImplementation();
-        bufferImplementation->allocate(size);
-        handle.read(static_cast<void*>(bufferImplementation->data()), size);
-        return String(Buffer(bufferImplementation), 0, size);
+        int intSize = static_cast<int>(size);
+        bufferImplementation->allocate(intSize);
+        handle.read(static_cast<void*>(bufferImplementation->data()), intSize);
+        return String(Buffer(bufferImplementation), 0, intSize);
     }
-//    void save(const String& contents)
-//    {
-//        FileHandle handle(*this);
-//        handle.openWrite();
-//        contents.write(handle);
-//    }
-//    void secureSave(const String& contents)
-//    {
-//        // TODO: Backup file?
-//        String tempPath;
-//        {
-//            FileHandle handle(*this);
-//            tempPath = handle.openWriteTemporary();
-//            contents.write(handle);
-//#ifndef _WIN32
-//            handle.sync();
-//#endif
-//        }
-//#ifdef _WIN32
-//        NullTerminatedWideString data(messagePath());
-//        NullTerminatedWideString tempData(tempPath);
-//        if (ReplaceFile(data, tempData, NULL, REPLACEFILE_WRITE_THROUGH |
-//            REPLACEFILE_IGNORE_MERGE_ERRORS) == 0) {
-//            // TODO: Delete temporary file?
-//            static String replacingFile("Replacing file ");
-//            throw Exception::systemError(replacingFile + messagePath());
-//        }
-//#else
-//        NullTerminatedString data(messagePath());
-//        NullTerminatedString tempData(tempPath);
-//        if (rename(tempData, data) != 0) {
-//            // TODO: Delete temporary file?
-//            static String replacingFile("Replacing file ");
-//            throw Exception::systemError(replacingFile + messagePath());
-//        }
-//#endif
-//    }
-//    void append(const String& contents)
-//    {
-//        FileHandle handle(*this);
-//        handle.openAppend();
-//        contents.write(handle);
-//    }
+    void save(const String& contents)
+    {
+        FileHandle handle(*this);
+        handle.openWrite();
+        contents.write(handle);
+    }
+    void secureSave(const String& contents)
+    {
+        // TODO: Backup file?
+        String tempPath;
+        {
+            FileHandle handle(*this);
+            tempPath = handle.openWriteTemporary();
+            contents.write(handle);
+#ifndef _WIN32
+            handle.sync();
+#endif
+        }
+#ifdef _WIN32
+        NullTerminatedWideString data(messagePath());
+        NullTerminatedWideString tempData(tempPath);
+        if (ReplaceFile(data, tempData, NULL, REPLACEFILE_WRITE_THROUGH |
+            REPLACEFILE_IGNORE_MERGE_ERRORS) == 0) {
+            // TODO: Delete temporary file?
+            static String replacingFile("Replacing file ");
+            throw Exception::systemError(replacingFile + messagePath());
+        }
+#else
+        NullTerminatedString data(messagePath());
+        NullTerminatedString tempData(tempPath);
+        if (rename(tempData, data) != 0) {
+            // TODO: Delete temporary file?
+            static String replacingFile("Replacing file ");
+            throw Exception::systemError(replacingFile + messagePath());
+        }
+#endif
+    }
+    void append(const String& contents)
+    {
+        FileHandle handle(*this);
+        handle.openAppend();
+        contents.write(handle);
+    }
 private:
     FileTemplate(FileSystemObject object) : FileSystemObject(object) { }
 
@@ -865,32 +866,32 @@ public:
         return tryOpen(path(), O_WRONLY | O_CREAT | O_TRUNC);
 #endif
     }
-//    String openWriteTemporary()
-//    {
-//        int i = 0;
-//        do {
-//            String tempPath = path() + String::hexadecimal(i, 8);
-//            bool success;
-//#ifdef _WIN32
-//            success = open(tempPath, GENERIC_WRITE, 0, CREATE_NEW,
-//                FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, false);
-//#else
-//            success = open(tempPath, O_WRONLY | O_CREAT | O_EXCL, false);
-//#endif
-//            if (success)
-//                return tempPath;
-//            ++i;
-//        } while (true);
-//    }
-//#ifndef _WIN32
-//    void sync()
-//    {
-//        if (fsync(operator int()) != 0) {
-//            static String synchronizingFile("Synchronizing file ");
-//            throw Exception::systemError(synchronizingFile + path());
-//        }
-//    }
-//#endif
+    String openWriteTemporary()
+    {
+        int i = 0;
+        do {
+            String tempPath = path() + String::hexadecimal(i, 8);
+            bool success;
+#ifdef _WIN32
+            success = open(tempPath, GENERIC_WRITE, 0, CREATE_NEW,
+                FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, false);
+#else
+            success = open(tempPath, O_WRONLY | O_CREAT | O_EXCL, false);
+#endif
+            if (success)
+                return tempPath;
+            ++i;
+        } while (true);
+    }
+#ifndef _WIN32
+    void sync()
+    {
+        if (fsync(operator int()) != 0) {
+            static String synchronizingFile("Synchronizing file ");
+            throw Exception::systemError(synchronizingFile + path());
+        }
+    }
+#endif
     UInt64 size()
     {
 #ifdef _WIN32
@@ -907,14 +908,14 @@ public:
         return n;
 #endif
     }
-//    void openAppend()
-//    {
-//#ifdef _WIN32
-//        open(path(), GENERIC_WRITE, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL);
-//#else
-//        open(path(), O_WRONLY | O_APPEND);
-//#endif
-//    }
+    void openAppend()
+    {
+#ifdef _WIN32
+        open(path(), GENERIC_WRITE, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL);
+#else
+        open(path(), O_WRONLY | O_APPEND);
+#endif
+    }
     void seek(UInt64 position)
     {
 #ifdef _WIN32

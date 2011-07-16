@@ -18,12 +18,12 @@ public:
         _c = cos(a);
         _s = sin(a);
     }
-    // Construct a vector that rotates a onto b
+    // Construct a rotor that rotates a onto b
     Rotor2(Vector2<T>& a, Vector2<T>& b)
     {
         T m = sqrt(a.modulus2()*b.modulus2());
-        _c = (b.x*a.x +b.y*a.y)/m;
-        _s = (b.x*a.y -b.y*a.x)/m;
+        _c = (b.x*a.x + b.y*a.y)/m;
+        _s = (b.x*a.y - b.y*a.x)/m;
     }
     Rotor2(const Rotor2& other) : _c(other._c), _s(other._s) { }
     template<class T2> Rotor2(const Rotor2<T2>& other) : _c(other._c), _s(other._s) { }
@@ -47,6 +47,21 @@ template<class T> class Rotor2_static_cast : public Rotor2<T>
 {
 public:
     template<class T2> Rotor2_static_cast(const Rotor2<T2>& other) : Rotor2(static_cast<T>(other._c), static_cast<T>(other._s)) { }
+};
+
+template<class T> class Vector3;
+template<class T> class Rotor3_static_cast;
+
+template<class T> class Rotor3
+{
+public:
+    Rotor3() { }
+    // TODO: Implement using a 4-component representation (scalar + bivector = exponential of a bivector)
+
+private:
+
+    template<class T2> friend class Vector3;
+    template<class T2> friend class Rotor3_static_cast;
 };
 
 #endif // INCLUDED_ROTORS_H

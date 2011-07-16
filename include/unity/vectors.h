@@ -85,4 +85,73 @@ public:
 
 typedef Vector2<int> Vector;
 
+template<class T> class Vector3
+{
+public:
+    Vector3() { }
+    Vector3(T xx, T yy, T zz) : x(xx), y(yy), z(zz) { }
+    Vector3(const Vector3& other) : x(other.x), y(other.y), z(other.z) { }
+    template<class T2> Vector3(const Vector3<T2>& o) : x(o.x), y(o.y), z(o.z) { }
+    const Vector3& operator=(const Vector3& o) { x = o.x; y = o.y; z = o.z; return *this; }
+    bool operator==(const Vector3& o) const { return x == o.x && y == o.y && z == o.z; }
+    bool operator!=(const Vector3& o) const { return x != o.x || y != o.y && z == o.z; }
+    const Vector2& operator+=(const T& n) { x += n; y += n; z += n; return *this; }
+    const Vector2& operator-=(const T& n) { x -= n; y -= n; z += n; return *this; }
+    const Vector2& operator*=(const T& n) { x *= n; y *= n; z += n; return *this; }
+    const Vector2& operator/=(const T& n) { x /= n; y /= n; z += n; return *this; }
+    const Vector2& operator%=(const T& n) { x %= n; y %= n; z += n; return *this; }
+    const Vector2& operator&=(const T& n) { x &= n; y &= n; z += n; return *this; }
+    const Vector2& operator|=(const T& n) { x |= n; y |= n; z += n; return *this; }
+    const Vector3& operator+=(const Vector3& o) { x += o.x; y += o.y; z += o.z; return *this; }
+    const Vector3& operator-=(const Vector3& o) { x -= o.x; y -= o.y; z -= o.z; return *this; }
+    const Vector2& operator*=(const Vector3& o) { x *= o.x; y *= o.y; z *= o.z; return *this; }
+    const Vector2& operator/=(const Vector3& o) { x /= o.x; y /= o.y; z /= o.z; return *this; }
+    const Vector2& operator%=(const Vector3& o) { x %= o.x; y %= o.y; z %= o.z; return *this; }
+    const Vector2& operator&=(const Vector3& o) { x &= o.x; y &= o.y; z &= o.z; return *this; }
+    const Vector2& operator|=(const Vector3& o) { x |= o.x; y |= o.y; z |= o.z; return *this; }
+    const Vector2& operator>>=(int n) { x >>= n; y >>= n; z >>= n; return *this; }
+    const Vector2& operator<<=(int n) { x <<= n; y <<= n; z <<= n; return *this; }
+    Vector3 operator+(const T& n) const { Vector3 t = *this; return t += n; }
+    Vector3 operator-(const T& n) const { Vector3 t = *this; return t -= n; }
+    Vector3 operator*(const T& n) const { Vector3 t = *this; return t *= n; }
+    Vector3 operator/(const T& n) const { Vector3 t = *this; return t /= n; }
+    Vector3 operator%(const T& n) const { Vector3 t = *this; return t %= n; }
+    Vector3 operator&(const T& n) const { Vector3 t = *this; return t &= n; }
+    Vector3 operator|(const T& n) const { Vector3 t = *this; return t |= n; }
+    Vector3 operator+(const Vector3& o) const { Vector3 t = *this; return t += o; }
+    Vector3 operator-(const Vector3& o) const { Vector3 t = *this; return t -= o; }
+    Vector3 operator*(const Vector3& o) const { Vector3 t = *this; return t *= o; }
+    Vector3 operator/(const Vector3& o) const { Vector3 t = *this; return t /= o; }
+    Vector3 operator%(const Vector3& o) const { Vector3 t = *this; return t %= o; }
+    Vector3 operator&(const Vector3& o) const { Vector3 t = *this; return t &= o; }
+    Vector3 operator|(const Vector3& o) const { Vector3 t = *this; return t |= o; }
+    Vector3 operator>>(int n) const { Vector3 t = *this; return t >>= n; }
+    Vector3 operator<<(int n) const { Vector3 t = *this; return t <<= n; }
+//    template<class T2> Vector2 operator*(const Rotor3<T2>& r) const
+//    {
+//        return Vector2<T>(x*r._c + y*r._s, y*r._c - x*r._s);
+//    }
+//    template<class T2> Vector2 operator/(const Rotor3<T2>& r) const
+//    {
+//        return (*this) * r.conjugate();
+//    }
+    Vector3 operator-() const { return Vector3<T>(-x, -y, -z); }
+    bool zeroVolume() const { return x == 0 || y == 0 || z == 0; }
+    T modulus2() const { return x*x + y*y + z*z; }
+    bool inside(const Vector3& volume) const
+    {
+        return x >= 0 && y >= 0 && z >= 0 && x < volume.x && y < volume.y && z < volume.z;
+    }
+
+    Vector3 operator*(const T& n) const { Vector3 t = *this; return t *= n; }
+    Vector3 operator/(const T& n) const { Vector3 t = *this; return t /= n; }
+    Vector3 operator+(const Vector3& o) const { Vector3 t = *this; return t += o; }
+    Vector3 operator-(const Vector3& o) const { Vector3 t = *this; return t -= o; }
+    Vector3 operator-() const { return Vector3<T>(-x, -y, -z); }
+
+    T x;
+    T y;
+    T z;
+};
+
 #endif // INCLUDED_VECTORS_H
