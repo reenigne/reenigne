@@ -82,6 +82,7 @@
     <ClInclude Include="..\..\..\..\include\unity\buffer.h" />
     <ClInclude Include="..\..\..\..\include\unity\file.h" />
     <ClInclude Include="..\..\..\..\include\unity\main.h" />
+    <ClInclude Include="..\..\..\..\include\unity\perceptual.h" />
     <ClInclude Include="..\..\..\..\include\unity\string.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

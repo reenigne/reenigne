@@ -36,7 +36,8 @@ Vector3<double> labFromXyz(const Vector3<double>& xyz)
 }
 
 
-// CIELUV L*u*v* conversions from http://en.wikipedia.org/wiki/CIELUV_color_space
+// CIELUV L*u*v* conversions from
+// http://en.wikipedia.org/wiki/CIELUV_color_space
 
 Vector3<double> luvFromXyz(const Vector3<double>& xyz)
 {
@@ -107,8 +108,9 @@ Vector3<double> rgbFromXyz(const Vector3<double>& xyz)
 
 double srgbFromRgbHelper(double t)
 {
-    return clamp(0, 256.0*
-        (t <= 0.0031308 ? 12.92*t : (1 + 0.055)*pow(t, 1.0/2.4) - 0.055), 255);
+    return clamp(0.0,
+        256.0*(t <= 0.0031308 ? 12.92*t : (1 + 0.055)*pow(t, 1.0/2.4) - 0.055),
+        256.0);
 }
 
 Vector3<double> srgbFromRgb(const Vector3<double>& rgb)
@@ -156,7 +158,8 @@ Vector3<double> srgbFromLab(const Vector3<double>& lab)
     return srgbFromRgb(rgbFromXyz(xyzFromLab(lab)));
 }
 
-double colourDistance2(const Vector3<double>& a, const Vector3<double>& b, bool luv = true)
+double colourDistance2(const Vector3<double>& a, const Vector3<double>& b,
+    bool luv = true)
 {
     Vector3<double> aP;
     Vector3<double> bP;

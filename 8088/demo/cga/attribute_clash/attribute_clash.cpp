@@ -1,15 +1,25 @@
 #include "unity/main.h"
 #include "unity/file.h"
 #include "unity/perceptual.h"
+#include <stdio.h>
 
-class Colour : public Vector3
+typedef Vector3<double> Colour;
+
+class PerceptualModel
 {
 public:
-    Colour() { }
-    Colour(int r, int g, int b)
+    static PerceptualModel luv() { return PerceptualModel(true); }
+    static PerceptualModel lab() { return PerceptualModel(false); }
+    Colour perceptualFromSrgb(const Vector3<UInt8>& srgb)
     {
-
+        if (_luv)
+            return luvFromSrgb(srgb);
+        else
+            return labFromSrgb(srgb);
     }
+private:
+    PerceptualModel(bool luv) : _luv(luv) { }
+    bool _luv;
 };
 
 class Program : public ProgramBase
@@ -17,7 +27,6 @@ class Program : public ProgramBase
 public:
     void run()
     {
-#if 0
         File file(String(
             "/t/projects/emulation/mamemess/mess_run/roms/pc/5788005.u33"));
         String data = file.contents();
@@ -43,6 +52,7 @@ public:
         // Set 2: CGA narrow characters
         // Set 3: CGA normal characters
 #endif
+#if 0
         // Dump the top rows to a text file
         int fileSize = 13*256;
         OwningBuffer buffer(fileSize);
@@ -60,18 +70,10 @@ public:
             }
         }
 #endif
-        File file(String("/t/rose.raw"));
-        String data = file.contents();
+        PerceptualModel model = PerceptualModel::luv();
 
-        // TODO:
-        // For each group of 8 pixels:
-        //   Try all possible character/attribute combinations
-        //   Use error diffusion within the group
-        //   Minimize total error (squared?)
-        //   Carry the error over into the start of the next group
-
-        // To do the error diffusion: should we fold the error into the first pixel or distribute it across the whole group?
-        //   First pixel I think
+        File pictureFile(String("/t/rose.raw"));
+        String picture = pictureFile.contents();
 
         int height = 200;
         int width = 320;
@@ -106,22 +108,64 @@ public:
 
         for (int y = 0; y < height; ++y) {
             Colour error;
-            for (int x = 0; x < width; x += 4) {
-                Colour c[4];
-                for (int xx = 0; xx < 4; ++xx) {
+            for (int x = 0; x < width; x += 8) {
+                Colour c[8];
+                for (int xx = 0; xx < 8; ++xx) {
                     int p = (y*width + x + xx)*3;
-                    c[xx] = Vector3<UInt8>(data[p], data[p + 1], data[p + 2]);
+                    c[xx] = Vector3<UInt8>(picture[p], picture[p + 1],
+                        picture[p + 2]);
                 }
-                int bestW;
-                int score;
-                for (int w = 0; w < 0x10000; ++w) {
+                int bestCh;
+                int bestAt;
+                double score;
+                double bestScore = 1e99;
+                for (int ch = 0; ch < 0x100; ++ch) {
+                    if (ch != 0 && ch != 84 && ch != 106 && ch != 0xdd &&
+                        ch != 65 && ch != 85 && ch != 67 && ch != 0x0d)
+                        continue;
+                    int bits = data[(3*256 + ch)*8];
+                    for (int at = 0; at < 0x100; ++at) {
+                        score = 0;
+                        Colour error2 = error;
+                        for (int xx = 0; xx < 8; ++xx) {
+                            int col = ((bits & (128 >> xx)) != 0) ?
+                                (at & 0x0f) : (at >> 4);
+                            Colour target = c[xx] + error2;
+                            error2 = target - colours[col];
+                            score += error2.modulus2();
+                        }
+                        if (score < bestScore) {
+                            bestScore = score;
+                            bestCh = ch;
+                            bestAt = at;
+                        }
+                    }
                 }
+                int bits = data[(3*256 + bestCh)*8];
+                for (int xx = 0; xx < 8; ++xx) {
+                    int col = ((bits & (128 >> xx)) != 0) ?
+                        (bestAt & 0x0f) : (bestAt >> 4);
+                    int p = (y*width + x + xx)*3;
+                    Vector3<UInt8> rgb = palette[col];
+                    buffer[p] = rgb.x;
+                    buffer[p + 1] = rgb.y;
+                    buffer[p + 2] = rgb.z;
+                    Colour target = c[xx] + error;
+                    error = target - colours[col];
+                }
+                int p = y*width/4 + x/4;
+                screen[p] = bestCh;
+                screen[p + 1] = bestAt;
+                printf(".");
 
             }
         }
 
         File outputFile(String("attribute_clash.raw"));
         outputFile.save(String(buffer, 0, fileSize));
+
+        File screenFile(String("picture.dat"));
+        screenFile.save(String(screen, 0, width*height/4));
     }
 private:
     int hexDigit(int n) { return n < 10 ? n + '0' : n + 'a' - 10; }
