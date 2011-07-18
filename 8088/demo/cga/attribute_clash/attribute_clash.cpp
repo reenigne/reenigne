@@ -72,13 +72,28 @@ public:
 #endif
         PerceptualModel model = PerceptualModel::luv();
 
+#if 0
+        File pictureFile(String("/t/castle.raw"));
+        String picture = pictureFile.contents();
+        int height = 100;
+        int width = 640;
+#else
         File pictureFile(String("/t/rose.raw"));
         String picture = pictureFile.contents();
-
         int height = 200;
         int width = 320;
+#endif
 
-        int fileSize = 320*200*3;
+        Array<Colour> image;
+        image.allocate(width*height);
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x) {
+                int p = (y*width + x)*3;
+                image[y*width + x] = Vector3<UInt8>(picture[p], picture[p + 1],
+                    picture[p + 2]);
+            }
+
+        int fileSize = width*height*3;
         OwningBuffer buffer(fileSize);
 
         Vector3<UInt8> palette[0x10];
@@ -107,22 +122,16 @@ public:
         OwningBuffer screen(width*height/4);
 
         for (int y = 0; y < height; ++y) {
-            Colour error;
+            Colour error(0, 0, 0);
             for (int x = 0; x < width; x += 8) {
-                Colour c[8];
-                for (int xx = 0; xx < 8; ++xx) {
-                    int p = (y*width + x + xx)*3;
-                    c[xx] = Vector3<UInt8>(picture[p], picture[p + 1],
-                        picture[p + 2]);
-                }
                 int bestCh;
                 int bestAt;
                 double score;
                 double bestScore = 1e99;
                 for (int ch = 0; ch < 0x100; ++ch) {
-                    if (ch != 0 && ch != 84 && ch != 106 && ch != 0xdd &&
-                        ch != 65 && ch != 85 && ch != 67 && ch != 0x0d)
-                        continue;
+                    //if (ch != 0 && ch != 84 && ch != 106 && ch != 0xdd &&
+                    //    ch != 65 && ch != 85 && ch != 67 && ch != 0x0d)
+                    //    continue;
                     int bits = data[(3*256 + ch)*8];
                     for (int at = 0; at < 0x100; ++at) {
                         score = 0;
@@ -130,9 +139,10 @@ public:
                         for (int xx = 0; xx < 8; ++xx) {
                             int col = ((bits & (128 >> xx)) != 0) ?
                                 (at & 0x0f) : (at >> 4);
-                            Colour target = c[xx] + error2;
+                            Colour target = image[y*width + x + xx] + error2;
                             error2 = target - colours[col];
                             score += error2.modulus2();
+                            error2 /= 2;
                         }
                         if (score < bestScore) {
                             bestScore = score;
@@ -150,8 +160,11 @@ public:
                     buffer[p] = rgb.x;
                     buffer[p + 1] = rgb.y;
                     buffer[p + 2] = rgb.z;
-                    Colour target = c[xx] + error;
+                    Colour target = image[y*width + x + xx] + error;
                     error = target - colours[col];
+                    error /= 2;
+                    if (y < height - 1)
+                        image[(y + 1)*width + x + xx] += error;
                 }
                 int p = y*width/4 + x/4;
                 screen[p] = bestCh;
