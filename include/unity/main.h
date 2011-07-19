@@ -3,6 +3,7 @@
 
 #include "unity/string.h"
 #include "unity/array.h"
+#include "unity/user.h"
 
 #ifdef _WIN32
 #include <windows.h>

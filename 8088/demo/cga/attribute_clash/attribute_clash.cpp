@@ -2,12 +2,14 @@
 #include "unity/file.h"
 #include "unity/perceptual.h"
 #include <stdio.h>
+#include "unity/user.h"
 
 typedef Vector3<double> Colour;
 
 class PerceptualModel
 {
 public:
+    PerceptualModel() { }
     static PerceptualModel luv() { return PerceptualModel(true); }
     static PerceptualModel lab() { return PerceptualModel(false); }
     Colour perceptualFromSrgb(const Vector3<UInt8>& srgb)
@@ -22,15 +24,16 @@ private:
     bool _luv;
 };
 
-class Program : public ProgramBase
+class AttributeClashImage : public Image
 {
 public:
-    void run()
+    AttributeClashImage()
     {
-        File file(String(
-            "/t/projects/emulation/mamemess/mess_run/roms/pc/5788005.u33"));
-        String data = file.contents();
-
+        {
+            File file(String(
+                "/t/projects/emulation/mamemess/mess_run/roms/pc/5788005.u33"));
+            _cgaROM = file.contents();
+        }
 #if 0
         // Dump entire ROM so we can see how it's laid out.
         int fileSize = 8*16 * 4*16*8;
@@ -72,18 +75,19 @@ public:
 #endif
         PerceptualModel model = PerceptualModel::luv();
 
-#if 0
+#if 1
         File pictureFile(String("/t/castle.raw"));
-        String picture = pictureFile.contents();
-        int height = 100;
-        int width = 640;
+        _srgbPicture = pictureFile.contents();
+        _height = 100;
+        _width = 640;
 #else
         File pictureFile(String("/t/rose.raw"));
-        String picture = pictureFile.contents();
-        int height = 200;
-        int width = 320;
+        _srgbPicture = pictureFile.contents();
+        _height = 200;
+        _width = 320;
 #endif
 
+#if 0
         Array<Colour> image;
         image.allocate(width*height);
         for (int y = 0; y < height; ++y)
@@ -142,7 +146,7 @@ public:
                             Colour target = image[y*width + x + xx] + error2;
                             error2 = target - colours[col];
                             score += error2.modulus2();
-                            error2 /= 2;
+                            error2 *= 0.5;
                         }
                         if (score < bestScore) {
                             bestScore = score;
@@ -162,7 +166,7 @@ public:
                     buffer[p + 2] = rgb.z;
                     Colour target = image[y*width + x + xx] + error;
                     error = target - colours[col];
-                    error /= 2;
+                    error *= 0.5;
                     if (y < height - 1)
                         image[(y + 1)*width + x + xx] += error;
                 }
@@ -174,11 +178,55 @@ public:
             }
         }
 
+#endif
+    }
+    void paint(const PaintHandle& paint)
+    {
+        Byte* l = getBits();
+        for (int y = 0; y < _size.y; ++y) {
+            DWord* p = reinterpret_cast<DWord*>(l);
+            for (int x = 0; x < _size.x; ++x)
+                *(p++) = x + (y << 8);
+            l += _byteWidth;
+        }
+        Image::paint(paint);
+    }
+
+    void destroy()
+    { 
         File outputFile(String("attribute_clash.raw"));
         outputFile.save(String(buffer, 0, fileSize));
 
         File screenFile(String("picture.dat"));
         screenFile.save(String(screen, 0, width*height/4));
+    }
+private:
+    String _cgaROM;
+    String _srgbPicture;
+    Array<Colour> _perceptualPicture;
+    int _width;
+    int _height;
+    PerceptualModel _model;
+};
+
+class Program : public ProgramBase
+{
+public:
+    int run()
+    {
+        AttributeClashImage image;
+
+        Window::Params wp(&_windows, L"Composite output");
+        typedef RootWindow<Window> RootWindow;
+        RootWindow::Params rwp(wp);
+        typedef ImageWindow<RootWindow, AttributeClashImage> ImageWindow;
+        ImageWindow::Params iwp(rwp, &image);
+        typedef AnimatedWindow<ImageWindow> AnimatedWindow;
+        AnimatedWindow::Params awp(iwp);
+        AnimatedWindow window(awp);
+
+        window.show(_nCmdShow);
+        return pumpMessages();
     }
 private:
     int hexDigit(int n) { return n < 10 ? n + '0' : n + 'a' - 10; }
