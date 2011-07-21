@@ -181,10 +181,30 @@ public:
         _thread.end();
 
         File outputFile(String("attribute_clash.raw"));
-        outputFile.save(String(Buffer(_srgbOutput), 0, _pictureSize.x*_pictureSize.y*3));
+        outputFile.save(String(
+            Buffer(&_srgbOutput[0]), 0, _pictureSize.x*_pictureSize.y*3));
 
         File dataFile(String("picture.dat"));
-        dataFile.save(String(Buffer(_dataOutput), 0, _pictureSize.x*_pictureSize.y/4));
+        dataFile.save(String(
+            Buffer(&_dataOutput[0]), 0, _pictureSize.x*_pictureSize.y/4));
+    }
+
+    Colour targetColour(int x, int y)
+    {
+        int p = y*_pictureSize.x + x;
+        Colour errorFromLeft(0, 0, 0);
+        if (x > 0)
+            errorFromLeft = _perceptualError[p - 1] / 2;
+        Colour errorFromAbove(0, 0, 0);
+        if (y > 0)
+            errorFromAbove = _perceptualError[p - _pictureSize.x] / 2;
+        return _perceptualInput[p] + errorFromLeft + errorFromAbove;
+    }
+
+    int getSample(int x)
+    {
+        if ((x & (~7)) == _position.x)
+
     }
 
     void computeSrgbPixels(UInt8 bits, UInt8 fg, UInt8 bg)
@@ -201,11 +221,14 @@ public:
             {3,2,0,1}, /* Yellow-burst */
             {3,3,3,3}};/* White */
 
-        // The values in the colorBurst array index into phaseLevels which 
+        // The values in the colorBurst array index into phaseLevels which
         // gives us the amount of time that the +CHROMA bit spends high during
-        // that pixel. Changing "phase" corresponds to tuning the "colour
-        // adjust" trimmer on the PC motherboard.
-        // TODO: In -HRES modes the color burst phase is always colour 6, but 
+        // that pixel. Changing "phase" corresponds to tuning the "color
+        // adjust" trimmer on the PC motherboard. This trimmer adjusts the
+        // hues of green and magenta and artifact colours, not
+        // blue/cyan/red/yellow-burst chroma colours.
+
+        // TODO: In -HRES modes the color burst phase is always colour 6, but
         // in +HRES modes the color burst is the border colour due to a bug in
         // the design of the CGA. Try all 6 possible border colours (7 if you
         // count black as well, which is different from setting +BW) to see
@@ -214,7 +237,7 @@ public:
         static const int phaseLevels[4] = {0, phase, 256, 256-phase};
 
         // The following levels are computed as follows:
-        // Using Falstad's circuit simulator applet 
+        // Using Falstad's circuit simulator applet
         // (http://www.falstad.com/circuit/) with the CGA composite output
         // stage and a 75 ohm load gives the following voltages:
         //   +CHROMA = 0,  +I = 0  0.416V  (colour 0)
@@ -233,14 +256,39 @@ public:
         //   sample = 1.4*IRE + 60
         static const int sampleLevels[4] = {71, 107, 163, 200};
 
+        // The sample grid should be aligned such that 00330033 is green/magenta[/orange/aqua], not blue/cyan/red/yellow-burst
+        //   The former aligns the samples with the pixels with the composite samples
+        // 0  0000  black
+        // 1  0001  dark cyan
+        // 2  0010  dark blue
+        // 3  0011  aqua
+        // 4  0100  dark red
+        // 5  0101  grey
+        // 6  0110  magenta
+        // 7  0111  light blue
+        // 8  1000  dark yellow-burst
+        // 9  1001  green
+        // A  1010  grey
+        // B  1011  light cyan
+        // C  1100  orange
+        // D  1101  light yellow-burst
+        // E  1110  light red
+        // F  1111  white
+
+        // So the order of bits is yellow-burst/red/blue/cyan
+
         for (int i = 0; i < 8; ++i) {
-
-
+            int colour = ((bits & (128 >> x)) != 0 ? fg : bg);
+            int chroma = phaseLevels[colorBurst[colour & 7][i & 3]];
+            int intensity = (colour & 8) >> 3;
+            int sampleLow = sampleLevels[intensity];
+            int sampleHigh = sampleLevels[intensity + 2];
+            int sample = (((sampleHigh - sampleLow)*chroma) >> 8) + sampleLow;
+            _compositePixels[i] = sample;
         }
 
 
 
-        // TODO: update _compositePixels
         // TODO: update _srgbPixels using _compositePixels and _compositeData
         // ppppppppPPPPPPPPpppppppp
         //         12345677654321
@@ -287,14 +335,15 @@ public:
             _dataOutput[p] = character;
             _dataOutput[p + 1] = bestAt;
 
-            computeSrgbPixels(_patterns[bestPattern], bestAt & 0x0f, bestAt >> 4);
+            computeSrgbPixels(_patterns[bestPattern], bestAt & 0x0f,
+                bestAt >> 4);
+            int pp = _position.y*(_pictureSize.x + 6) + _position.x + 3;
             for (int i = 0; i < 8; ++i)
-                _compositeData[
+                _compositeData[p + i] = _compositePixels[i];
             // TODO: Copy _srgbPixels to _srgbOutput
-            // TODO: Copy _compositePixels to _compositeData
             // TODO: Compute the perceptual colour for all affected pixels
             // TODO: Copy _perceptualPixels to _perceptualOutput
-            // TODO: Diffuse the error
+            // TODO: Update _perceptualError
 
 //            for (int xx = 0; xx < 8; ++xx) {
 //                int col = ((bits & (128 >> xx)) != 0) ?
@@ -428,5 +477,3 @@ public:
 //    Not taking into account next character when computing current one will lead to poorer images than ideal
 //    Genetic algorithm?
 
-// The sample grid should be aligned such that 00330033 is green/magenta[/orange/aqua], not blue/cyan/red/yellow-burst
-//   The former aligns the samples with the pixels with the composite samples
