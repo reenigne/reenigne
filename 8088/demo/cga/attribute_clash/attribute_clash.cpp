@@ -6,6 +6,7 @@
 #include "unity/thread.h"
 
 typedef Vector3<double> Colour;
+typedef Vector3<int> YIQ;
 
 // TODO: Move this to perceptual.h and refactor?
 class PerceptualModel
@@ -146,11 +147,56 @@ public:
         _position = Vector(0, 0);
         _changed = false;
 
-        _compositeData.allocate((_pictureSize.x+6)*_pictureSize.y);
+        _compositeData.allocate((_pictureSize.x + 6)*_pictureSize.y);
 
         _srgbPixels.allocate(14);
         _perceptualPixels.allocate(14);
         _compositePixels.allocate(8);
+
+        // TODO: Make these user-settable
+        static const float brightness = 0.06f;
+        static const float contrast = 3.0f;
+        static const float saturation = 0.7f;
+        static const float tint = 18.0f;  // TODO: Where does this come from?
+
+        _yContrast = static_cast<int>(contrast*1463.0f);
+        static const float radians = static_cast<float>(M_PI)/180.0f;
+        float tintI = -cos((103.0f + tint)*radians);  // TODO: Why is this 103+18 instead of 90+33?
+        float tintQ = sin((103.0f + tint)*radians);
+
+        // Determine the color burst.
+        float colorBurst[4];
+        // First set _iqMultipliers to 0. The result of setCompositeData will
+        // have valid Y data but not valid I and Q data yet. Fortunately we
+        // only need the Y data to find the color burst.
+        for (int i = 0; i < 4; ++i)
+            _iqMultipliers[i] = 0;
+        for (int i = 0; i < 4; ++i) {
+            setCompositeData(i, 0, 6);
+            colorBurst[i] = _compositeData[i].x;
+        }
+        float burstI = colorBurst[2] - colorBurst[0];      
+        float burstQ = colorBurst[3] - colorBurst[1];
+        float colorBurstGain = 32.0f/sqrt((burstI*burstI + burstQ*burstQ)/2);
+        float s = saturation*contrast*colorBurstGain*0.352f;
+        _iqMultipliers[0] = static_cast<int>((burstI*tintI - burstQ*tintQ)*s);
+        _iqMultipliers[1] = static_cast<int>((burstQ*tintI + burstI*tintQ)*s);
+        _iqMultipliers[2] = -_iqMultipliers[0];
+        _iqMultipliers[3] = -_iqMultipliers[1];
+
+        _gamma.allocate(256);
+         for (int i = 0; i < 256; ++i)
+            _gamma[i] = static_cast<int>(
+                pow(static_cast<float>(i)/255.0f, 1.9f)*255.0f);
+
+        _brightness =
+            static_cast<int>(brightness*100.0 - 7.5f*256.0f*contrast)<<8;
+
+        // Now that _iqMultipliers has been initialized correctly, we can set
+        // initialize _compositeData. Let's start it off 
+        for (int y = 0; y < _pictureSize.y; ++y)
+            for (int x = -6; x < _pictureSize.x; ++x)
+                setCompositeData(x, y, 6);
 
         _thread.initialize(this);
         _thread.start();
@@ -201,25 +247,19 @@ public:
         return _perceptualInput[p] + errorFromLeft + errorFromAbove;
     }
 
-    int getSample(int x)
-    {
-        if ((x & (~7)) == _position.x)
-
-    }
-
-    void computeSrgbPixels(UInt8 bits, UInt8 fg, UInt8 bg)
+    void setCompositeData(int x, int y, int c)
     {
         // These give the colour burst patterns for the 8 colours ignoring
         // the intensity bit.
         static const int colorBurst[8][4] = {
-            {0,0,0,0}, /* Black */
-            {0,1,3,2}, /* Blue */
-            {3,0,0,3}, /* Green */
-            {2,0,1,3}, /* Cyan */
-            {1,3,2,0}, /* Red */
-            {0,3,3,0}, /* Magenta */
-            {3,2,0,1}, /* Yellow-burst */
-            {3,3,3,3}};/* White */
+            {0, 0, 0, 0}, /* Black */
+            {0, 1, 3, 2}, /* Blue */
+            {3, 0, 0, 3}, /* Green */
+            {2, 0, 1, 3}, /* Cyan */
+            {1, 3, 2, 0}, /* Red */
+            {0, 3, 3, 0}, /* Magenta */
+            {3, 2, 0, 1}, /* Yellow-burst */
+            {3, 3, 3, 3}};/* White */
 
         // The values in the colorBurst array index into phaseLevels which
         // gives us the amount of time that the +CHROMA bit spends high during
@@ -277,19 +317,58 @@ public:
 
         // So the order of bits is yellow-burst/red/blue/cyan
 
+        int chroma = phaseLevels[colorBurst[c & 7][x & 3]];
+        int intensity = (c & 8) >> 3;
+        int sampleLow = sampleLevels[intensity];
+        int sampleHigh = sampleLevels[intensity + 2];
+        int sample = (((sampleHigh - sampleLow)*chroma) >> 8) + sampleLow - 60;
+        _compositeData[y*(_pictureSize.x + 6) + x + 6] = YIQ(sample,
+            sample*_iqMultipliers[x & 3], 
+            sample*_iqMultipliers[(x + 3)&3]);
+    }
+
+    void computeSrgbPixels(UInt8 bits, UInt8 fg, UInt8 bg)
+    {
         for (int i = 0; i < 8; ++i) {
             int colour = ((bits & (128 >> x)) != 0 ? fg : bg);
-            int chroma = phaseLevels[colorBurst[colour & 7][i & 3]];
-            int intensity = (colour & 8) >> 3;
-            int sampleLow = sampleLevels[intensity];
-            int sampleHigh = sampleLevels[intensity + 2];
-            int sample = (((sampleHigh - sampleLow)*chroma) >> 8) + sampleLow;
-            _compositePixels[i] = sample;
+            setCompositeData(_position.x + i, _position.y, colour);
         }
 
+        YIQ* d = &_compositeData[_position.y*(_pictureSize.x + 6) + _position.x + 6];
+        for (int x = 0; x < 14; ++x) {
+        //for (int x = start; x < end; ++x, --p) {
+            // We use a low-pass Finite Impulse Response filter to
+            // remove high frequencies (including the color carrier
+            // frequency) from the signal. We could just keep a
+            // 4-sample running average but that leads to sharp edges
+            // in the resulting image.
+            // The kernel of this FIR is [1, 4, 7, 8, 7, 4, 1]
+            YIQ yiq = 
+                    d[x - 6] + d[x - 0]
+                + ((d[x - 5] + d[x - 1])<<2) 
+                +  (d[x - 4] + d[x - 2])*7 
+                +  (d[x - 3]<<3);
 
+            int y = yiq.x*_yContrast + _brightness;
+            int i = yiq.y;
+            int q = yiq.z;
 
-        // TODO: update _srgbPixels using _compositePixels and _compositeData
+            _srgbPixels[x*3]     = 
+                _gamma[clamp(0, (y + 243*i + 160*q)>>16, 255)];  // red
+            _srgbPixels[x*3 + 1] = 
+                _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)];  // green
+            _srgbPixels[x*3 + 2] = 
+                _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)];  // blue
+        }
+
+        // TODO: Initialize everything to overscan colour
+        // TODO: Make "Vector _compositeSize" and "Vector _compositeOffset"
+        // TODO: Put trial composite data in _compositeData instead of _compositePixels
+        // TODO: Save and restore composite data to _compositePixels before/after trials
+        // TODO: Same with _srgbOutput/_srgbPixels?
+        // TODO: Same with _perceptualPixels/_perceptualOutput?
+        // TODO: Try all 6 overscan hues
+                            
         // ppppppppPPPPPPPPpppppppp
         //         12345677654321
         //         0123456789ABCD
@@ -398,7 +477,7 @@ private:
             _ending = true;
         }
 
-    private:
+    private:                                        
         void doRestart()
         {
             _restartRequested = false;
@@ -427,11 +506,11 @@ private:
     Array<Colour> _perceptualError;
     Array<UInt8> _srgbOutput;
     Array<UInt8> _dataOutput;
-    Array<int> _compositeData;
+    Array<YIQ> _compositeData;
 
     Array<UInt8> _srgbPixels;
     Array<Colour> _perceptualPixels;
-    Array<int> _compositePixels;
+    Array<YIQ> _compositePixels;
 
     Vector _pictureSize;
     PerceptualModel _model;
@@ -444,6 +523,13 @@ private:
     Array<UInt8> _patterns;
     Array<UInt8> _characters;
     int _patternCount;
+
+    Array<int> _gamma;
+
+    int _iqMultipliers[4];
+
+    int _yContrast;
+    int _brightness;
 };
 
 class Program : public ProgramBase
