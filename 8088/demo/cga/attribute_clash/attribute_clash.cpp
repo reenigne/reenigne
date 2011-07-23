@@ -5,27 +5,7 @@
 #include "unity/user.h"
 #include "unity/thread.h"
 
-typedef Vector3<double> Colour;
 typedef Vector3<int> YIQ;
-
-// TODO: Move this to perceptual.h and refactor?
-class PerceptualModel
-{
-public:
-    PerceptualModel() { }
-    static PerceptualModel luv() { return PerceptualModel(true); }
-    static PerceptualModel lab() { return PerceptualModel(false); }
-    Colour perceptualFromSrgb(const Vector3<UInt8>& srgb)
-    {
-        if (_luv)
-            return luvFromSrgb(srgb);
-        else
-            return labFromSrgb(srgb);
-    }
-private:
-    PerceptualModel(bool luv) : _luv(luv) { }
-    bool _luv;
-};
 
 class AttributeClashImage : public Image
 {
@@ -97,8 +77,8 @@ public:
 #endif
         _model = PerceptualModel::luv();
 
+        String srgbInput;
         {
-            String srgbInput;
 #if 1
             File inputFile(String("/t/castle.raw"));
             srgbInput = inputFile.contents();
@@ -108,60 +88,54 @@ public:
             srgbInput = inputFile.contents();
             _pictureSize = Vector(320, 200);
 #endif
-            _perceptualInput.allocate(_pictureSize.x*_pictureSize.y);
-            int p = 0;
-            int q = 0;
-            for (int y = 0; y < _pictureSize.y; ++y)
-                for (int x = 0; x < _pictureSize.x; ++x) {
-                    _perceptualInput[q++] = _model.perceptualFromSrgb(Colour(
-                        srgbInput[p], srgbInput[p + 1], srgbInput[p + 2]));
-                    p += 3;
-                }
         }
 
-        _srgbOutput.allocate(_size.x*_size.y*3);
+        //_srgbPalette[0x00] = SRGB(0x00, 0x00, 0x00);
+        //_srgbPalette[0x01] = SRGB(0x00, 0x00, 0xaa);
+        //_srgbPalette[0x02] = SRGB(0x00, 0xaa, 0x00);
+        //_srgbPalette[0x03] = SRGB(0x00, 0xaa, 0xaa);
+        //_srgbPalette[0x04] = SRGB(0xaa, 0x00, 0x00);
+        //_srgbPalette[0x05] = SRGB(0xaa, 0x00, 0xaa);
+        //_srgbPalette[0x06] = SRGB(0xaa, 0x55, 0x00);
+        //_srgbPalette[0x07] = SRGB(0xaa, 0xaa, 0xaa);
+        //_srgbPalette[0x08] = SRGB(0x55, 0x55, 0x55);
+        //_srgbPalette[0x09] = SRGB(0x55, 0x55, 0xff);
+        //_srgbPalette[0x0a] = SRGB(0x55, 0xff, 0x55);
+        //_srgbPalette[0x0b] = SRGB(0x55, 0xff, 0xff);
+        //_srgbPalette[0x0c] = SRGB(0xff, 0x55, 0x55);
+        //_srgbPalette[0x0d] = SRGB(0xff, 0x55, 0xff);
+        //_srgbPalette[0x0e] = SRGB(0xff, 0xff, 0x55);
+        //_srgbPalette[0x0f] = SRGB(0xff, 0xff, 0xff);
 
-        _srgbPalette[0x00] = Vector3<UInt8>(0x00, 0x00, 0x00);
-        _srgbPalette[0x01] = Vector3<UInt8>(0x00, 0x00, 0xaa);
-        _srgbPalette[0x02] = Vector3<UInt8>(0x00, 0xaa, 0x00);
-        _srgbPalette[0x03] = Vector3<UInt8>(0x00, 0xaa, 0xaa);
-        _srgbPalette[0x04] = Vector3<UInt8>(0xaa, 0x00, 0x00);
-        _srgbPalette[0x05] = Vector3<UInt8>(0xaa, 0x00, 0xaa);
-        _srgbPalette[0x06] = Vector3<UInt8>(0xaa, 0x55, 0x00);
-        _srgbPalette[0x07] = Vector3<UInt8>(0xaa, 0xaa, 0xaa);
-        _srgbPalette[0x08] = Vector3<UInt8>(0x55, 0x55, 0x55);
-        _srgbPalette[0x09] = Vector3<UInt8>(0x55, 0x55, 0xff);
-        _srgbPalette[0x0a] = Vector3<UInt8>(0x55, 0xff, 0x55);
-        _srgbPalette[0x0b] = Vector3<UInt8>(0x55, 0xff, 0xff);
-        _srgbPalette[0x0c] = Vector3<UInt8>(0xff, 0x55, 0x55);
-        _srgbPalette[0x0d] = Vector3<UInt8>(0xff, 0x55, 0xff);
-        _srgbPalette[0x0e] = Vector3<UInt8>(0xff, 0xff, 0x55);
-        _srgbPalette[0x0f] = Vector3<UInt8>(0xff, 0xff, 0xff);
-
-        for (int i = 0; i < 0x10; ++i)
-            _perceptualPalette[i] =
-                _model.perceptualFromSrgb(Colour(_srgbPalette[i]));
+        //for (int i = 0; i < 0x10; ++i)
+        //    _perceptualPalette[i] =
+        //        _model.perceptualFromSrgb(_srgbPalette[i]);
 
         _dataOutput.allocate(_pictureSize.x*_pictureSize.y/4);
 
         _position = Vector(0, 0);
         _changed = false;
 
-        _compositeData.allocate((_pictureSize.x + 6)*_pictureSize.y);
+        _compositeOffset = Vector(8, 4);
+        _compositeSize = _pictureSize + _compositeOffset*2;
+        _compositeData.allocate(_compositeSize.x*_compositeSize.y);
+        _outputSize = _compositeSize - Vector(6, 0);
 
-        _srgbPixels.allocate(14);
-        _perceptualPixels.allocate(14);
-        _compositePixels.allocate(8);
+        _srgbOutput.allocate(_outputSize.x*_outputSize.y);
+        _perceptualOutput.allocate(_outputSize.x*_outputSize.y);
+        _perceptualError.allocate(_outputSize.x*_outputSize.y);
+        _perceptualInput.allocate(_outputSize.x*_outputSize.y);
 
-        // TODO: Make these user-settable
+        static const int overscanColour = 6;
+
         static const float brightness = 0.06f;
         static const float contrast = 3.0f;
         static const float saturation = 0.7f;
-        static const float tint = 18.0f;  // TODO: Where does this come from?
+        static const float tint = 18.0f;
 
         _yContrast = static_cast<int>(contrast*1463.0f);
         static const float radians = static_cast<float>(M_PI)/180.0f;
-        float tintI = -cos((103.0f + tint)*radians);  // TODO: Why is this 103+18 instead of 90+33?
+        float tintI = -cos((103.0f + tint)*radians);
         float tintQ = sin((103.0f + tint)*radians);
 
         // Determine the color burst.
@@ -172,8 +146,8 @@ public:
         for (int i = 0; i < 4; ++i)
             _iqMultipliers[i] = 0;
         for (int i = 0; i < 4; ++i) {
-            setCompositeData(i, 0, 6);
-            colorBurst[i] = _compositeData[i].x;
+            setCompositeData(Vector(i, 0) - _compositeOffset, overscanColour);
+            colorBurst[i] = static_cast<float>(_compositeData[i].x);
         }
         float burstI = colorBurst[2] - colorBurst[0];      
         float burstQ = colorBurst[3] - colorBurst[1];
@@ -194,9 +168,34 @@ public:
 
         // Now that _iqMultipliers has been initialized correctly, we can set
         // initialize _compositeData. Let's start it off 
-        for (int y = 0; y < _pictureSize.y; ++y)
-            for (int x = -6; x < _pictureSize.x; ++x)
-                setCompositeData(x, y, 6);
+        for (int y = 0; y < _compositeSize.y; ++y)
+            for (int x = 0; x < _compositeSize.x; ++x)
+                setCompositeData(Vector(x, y) - _compositeOffset,
+                    overscanColour);
+
+        errorFor(0, 0, overscanColour);
+
+        int p = 0;
+        int q = 0;
+        Colour border = _perceptualOutput[6];
+        for (int y = 0; y < _outputSize.y; ++y)
+            for (int x = 0; x < _outputSize.x; ++x) {
+                int p = y*_outputSize.x + x;
+                _srgbOutput[p] = _srgbOutput[6];
+                _perceptualOutput[p] =
+                    _model.perceptualFromSrgb(_srgbOutput[p]);
+                Colour c;
+                if ((Vector(x, y) - _compositeOffset).inside(_pictureSize)) {
+                    c = _model.perceptualFromSrgb(SRGB(
+                        srgbInput[p], srgbInput[p + 1], srgbInput[p + 2]));
+                    p += 3;
+                }
+                else
+                    c = border;
+                _perceptualInput[q++] = c;
+                _perceptualError[p] =
+                    _perceptualOutput[p] - _perceptualInput[p];
+            }
 
         _thread.initialize(this);
         _thread.start();
@@ -204,16 +203,14 @@ public:
 
     void paint(const PaintHandle& paint)
     {
-        // TODO: scaling?
         Byte* l = getBits();
         for (int y = 0; y < _size.y; ++y) {
             DWord* p = reinterpret_cast<DWord*>(l);
             for (int x = 0; x < _size.x; ++x) {
                 DWord srgb = 0;
-                if (Vector(x, y).inside(_pictureSize)) {
-                    int o = (y*_pictureSize.x + x)*3;
-                    srgb = (_srgbOutput[o]<<16) + (_srgbOutput[o + 1]<<8) +
-                        _srgbOutput[o + 2];
+                if (Vector(x, y).inside(_outputSize)) {
+                    SRGB s = _srgbOutput[y*_outputSize.x + x];
+                    srgb = (s.x<<16) + (s.y<<8) + s.z;
                 }
                 *(p++) = srgb;
             }
@@ -228,26 +225,14 @@ public:
 
         File outputFile(String("attribute_clash.raw"));
         outputFile.save(String(
-            Buffer(&_srgbOutput[0]), 0, _pictureSize.x*_pictureSize.y*3));
+            Buffer(&_srgbOutput[0].x), 0, _pictureSize.x*_pictureSize.y*3));
 
         File dataFile(String("picture.dat"));
         dataFile.save(String(
             Buffer(&_dataOutput[0]), 0, _pictureSize.x*_pictureSize.y/4));
     }
 
-    Colour targetColour(int x, int y)
-    {
-        int p = y*_pictureSize.x + x;
-        Colour errorFromLeft(0, 0, 0);
-        if (x > 0)
-            errorFromLeft = _perceptualError[p - 1] / 2;
-        Colour errorFromAbove(0, 0, 0);
-        if (y > 0)
-            errorFromAbove = _perceptualError[p - _pictureSize.x] / 2;
-        return _perceptualInput[p] + errorFromLeft + errorFromAbove;
-    }
-
-    void setCompositeData(int x, int y, int c)
+    void setCompositeData(Vector p, int c)
     {
         // These give the colour burst patterns for the 8 colours ignoring
         // the intensity bit.
@@ -268,11 +253,6 @@ public:
         // hues of green and magenta and artifact colours, not
         // blue/cyan/red/yellow-burst chroma colours.
 
-        // TODO: In -HRES modes the color burst phase is always colour 6, but
-        // in +HRES modes the color burst is the border colour due to a bug in
-        // the design of the CGA. Try all 6 possible border colours (7 if you
-        // count black as well, which is different from setting +BW) to see
-        // which gives the best image.
         static const int phase = 128;
         static const int phaseLevels[4] = {0, phase, 256, 256-phase};
 
@@ -317,26 +297,42 @@ public:
 
         // So the order of bits is yellow-burst/red/blue/cyan
 
-        int chroma = phaseLevels[colorBurst[c & 7][x & 3]];
+        int chroma = phaseLevels[colorBurst[c & 7][p.x & 3]];
         int intensity = (c & 8) >> 3;
         int sampleLow = sampleLevels[intensity];
         int sampleHigh = sampleLevels[intensity + 2];
         int sample = (((sampleHigh - sampleLow)*chroma) >> 8) + sampleLow - 60;
-        _compositeData[y*(_pictureSize.x + 6) + x + 6] = YIQ(sample,
-            sample*_iqMultipliers[x & 3], 
-            sample*_iqMultipliers[(x + 3)&3]);
+        Vector q = p + _compositeOffset;
+        _compositeData[q.y*_compositeSize.x + q.x] = YIQ(sample,
+            sample*_iqMultipliers[p.x & 3], 
+            sample*_iqMultipliers[(p.x + 3)&3]);
     }
 
-    void computeSrgbPixels(UInt8 bits, UInt8 fg, UInt8 bg)
+    Colour target(Vector p)
+    {
+        Colour c = _perceptualInput[p.y*_outputSize.x + p.x];
+        //if (p.y > 0)
+        //    c += _perceptualError[(p.y - 1)*_outputSize.x + p.x]/2;
+        //if (p.x > 0)
+        //    c += _perceptualError[p.y*_outputSize.x + p.x - 1]/2;
+        return c;
+    }
+
+    double errorFor(UInt8 bits, UInt8 fg, UInt8 bg)
     {
         for (int i = 0; i < 8; ++i) {
-            int colour = ((bits & (128 >> x)) != 0 ? fg : bg);
-            setCompositeData(_position.x + i, _position.y, colour);
+            int colour = ((bits & (128 >> i)) != 0 ? fg : bg);
+            setCompositeData(_position + Vector(i, 0), colour);
         }
 
-        YIQ* d = &_compositeData[_position.y*(_pictureSize.x + 6) + _position.x + 6];
+        Vector pos = _position;
+        YIQ* d = &_compositeData[pos.y*_compositeSize.x + pos.x + 6];
+
+        int p = pos.y*_outputSize.x + pos.x;
+
+        double error = 0;
+
         for (int x = 0; x < 14; ++x) {
-        //for (int x = start; x < end; ++x, --p) {
             // We use a low-pass Finite Impulse Response filter to
             // remove high frequencies (including the color carrier
             // frequency) from the signal. We could just keep a
@@ -349,29 +345,26 @@ public:
                 +  (d[x - 4] + d[x - 2])*7 
                 +  (d[x - 3]<<3);
 
+            // Contrast for I and Q is handled by _iqMultipliers, along with
+            // saturation. Brightness only affects Y.
             int y = yiq.x*_yContrast + _brightness;
             int i = yiq.y;
             int q = yiq.z;
 
-            _srgbPixels[x*3]     = 
-                _gamma[clamp(0, (y + 243*i + 160*q)>>16, 255)];  // red
-            _srgbPixels[x*3 + 1] = 
-                _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)];  // green
-            _srgbPixels[x*3 + 2] = 
-                _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)];  // blue
-        }
+            _srgbOutput[p] = SRGB(
+                _gamma[clamp(0, (y + 243*i + 160*q)>>16, 255)],
+                _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)],
+                _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)]);
 
-        // TODO: Initialize everything to overscan colour
-        // TODO: Make "Vector _compositeSize" and "Vector _compositeOffset"
-        // TODO: Put trial composite data in _compositeData instead of _compositePixels
-        // TODO: Save and restore composite data to _compositePixels before/after trials
-        // TODO: Same with _srgbOutput/_srgbPixels?
-        // TODO: Same with _perceptualPixels/_perceptualOutput?
-        // TODO: Try all 6 overscan hues
-                            
-        // ppppppppPPPPPPPPpppppppp
-        //         12345677654321
-        //         0123456789ABCD
+            _perceptualOutput[p] =
+                _model.perceptualFromSrgb(_srgbOutput[p]);
+            _perceptualError[p] =
+                _perceptualOutput[p] - target(pos);
+            error += _perceptualError[p].modulus2();
+            ++p;
+            ++pos.x;
+        }
+        return error;
     }
 
     void calculate()
@@ -379,6 +372,7 @@ public:
         int bestPattern;
         int bestAt;
         double bestScore = 1e99;
+//        _patternCount = 1;
         for (int pattern = 0; pattern < _patternCount; ++pattern) {
             UInt8 bits = _patterns[pattern];
             for (int at = 0; at < 0x100; ++at) {
@@ -386,20 +380,7 @@ public:
                 int bg = at >> 4;
                 if ((bits == 0 || bits == 0xff) != (fg == bg))
                     continue;
-                double score = 0;
-                computeSrgbPixels(bits, fg, bg);
-                // TODO: Compute the perceptual colour for all affected pixels
-                // TODO: Compute the error for all affected pixels
-                // TODO: Compute the total error
-
-//                Colour error2 = error;
-//                for (int xx = 0; xx < 8; ++xx) {
-//                    int col = ((bits & (128 >> xx)) != 0) ? fg : bg;
-//                    Colour target = _perceptualImage[_position.y*width + _position.x + xx] + error2;
-//                    error2 = target - colours[col];
-//                    score += error2.modulus2();
-//                    error2 *= 0.5;
-//                }
+                double score = errorFor(bits, fg, bg);
                 if (score < bestScore) {
                     bestScore = score;
                     bestPattern = pattern;
@@ -413,39 +394,14 @@ public:
             _changed = true;
             _dataOutput[p] = character;
             _dataOutput[p + 1] = bestAt;
-
-            computeSrgbPixels(_patterns[bestPattern], bestAt & 0x0f,
-                bestAt >> 4);
-            int pp = _position.y*(_pictureSize.x + 6) + _position.x + 3;
-            for (int i = 0; i < 8; ++i)
-                _compositeData[p + i] = _compositePixels[i];
-            // TODO: Copy _srgbPixels to _srgbOutput
-            // TODO: Compute the perceptual colour for all affected pixels
-            // TODO: Copy _perceptualPixels to _perceptualOutput
-            // TODO: Update _perceptualError
-
-//            for (int xx = 0; xx < 8; ++xx) {
-//                int col = ((bits & (128 >> xx)) != 0) ?
-//                    (bestAt & 0x0f) : (bestAt >> 4);
-//                int p = (y*width + x + xx)*3;
-//                Vector3<UInt8> rgb = palette[col];
-//                buffer[p] = rgb.x;
-//                buffer[p + 1] = rgb.y;
-//                buffer[p + 2] = rgb.z;
-//                Colour target = image[y*width + x + xx] + error;
-//                error = target - colours[col];
-//                error *= 0.5;
-//                if (y < height - 1)
-//                    image[(y + 1)*width + x + xx] += error;
-//            }
         }
-
+        errorFor(_patterns[bestPattern], bestAt & 0x0f, bestAt >> 4);
 
         _position.x += 8;
-        if (_position.x >= _size.x) {
+        if (_position.x >= _pictureSize.x) {
             ++_position.y;
             _position.x = 0;
-            if (_position.y == _size.y) {
+            if (_position.y == _pictureSize.y) {
                 if (!_changed)
                     _thread.finished();
                 _position.y = 0;
@@ -453,8 +409,6 @@ public:
         }
     }
 private:
-    // TODO: Refactor this with CalcThread in fractal.h as EndableThread?
-    // TODO: Make a BackgroundCalculationImage base class?
     class CalcThread : public Thread
     {
     public:
@@ -504,19 +458,18 @@ private:
 
     Array<Colour> _perceptualOutput;
     Array<Colour> _perceptualError;
-    Array<UInt8> _srgbOutput;
+    Array<SRGB> _srgbOutput;
     Array<UInt8> _dataOutput;
     Array<YIQ> _compositeData;
 
-    Array<UInt8> _srgbPixels;
-    Array<Colour> _perceptualPixels;
-    Array<YIQ> _compositePixels;
-
     Vector _pictureSize;
+    Vector _compositeSize;
+    Vector _compositeOffset;
+    Vector _outputSize;
     PerceptualModel _model;
     CalcThread _thread;
-    Vector3<UInt8> _srgbPalette[0x10];
-    Colour _perceptualPalette[0x10];
+    //SRGB _srgbPalette[0x10];
+//    Colour _perceptualPalette[0x10];
     Vector _position;
     bool _changed;
 
@@ -552,14 +505,3 @@ public:
         return pumpMessages();
     }
 };
-
-
-//  Use 640/912 pixels per scanline, so we can re-use crtsim code
-//    Problem: For some colours we need 1280 pixels per scanline
-//      Just use linear interpolation for the half-pixels - that way the hue can be adjusted. Frequency response works out the same once high frequencies filtered out
-//  Don't forget: colour 6 required in the borders!
-//  To compute each output pixel, need to look at 7 input pixels
-//    Trying all 36*256 possibilities for 2 characters would take ~10 hours!
-//    Not taking into account next character when computing current one will lead to poorer images than ideal
-//    Genetic algorithm?
-

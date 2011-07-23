@@ -88,6 +88,10 @@
     <ClInclude Include="..\..\..\..\include\unity\main.h" />
     <ClInclude Include="..\..\..\..\include\unity\perceptual.h" />
     <ClInclude Include="..\..\..\..\include\unity\string.h" />
+    <ClInclude Include="..\..\..\..\include\unity\vectors.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="todo.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -136,6 +136,39 @@ public:
     T y;
 };
 
+template<class T> Vector2<T> operator+(const T& n, const Vector2<T>& v)
+{
+    return v + n; 
+}
+template<class T> Vector2<T> operator-(const T& n, const Vector2<T>& v)
+{
+    return (-v) + n; 
+}
+template<class T> Vector2<T> operator*(const T& n, const Vector2<T>& v)
+{
+    return v * n; 
+}
+template<class T> Vector2<T> operator/(const T& n, const Vector2<T>& v)
+{
+    return Vector2<T>(n/v.x, n/v.y);
+}
+template<class T> Vector2<T> operator%(const T& n, const Vector2<T>& v)
+{
+    return Vector2<T>(n%v.x, n%v.y);
+}
+template<class T> Vector2<T> operator&(const T& n, const Vector2<T>& v)
+{
+    return v & n;
+}
+template<class T> Vector2<T> operator|(const T& n, const Vector2<T>& v)
+{
+    return v | n;
+}
+template<class T> Vector2<T> operator^(const T& n, const Vector2<T>& v)
+{
+    return v ^ n;
+}
+
 template<class T> Vector2<T> floor(const Vector2<T>& vector)
 {
     return Vector2<T>(floor(vector.x), floor(vector.y));
@@ -352,6 +385,39 @@ public:
     T y;
     T z;
 };
+
+template<class T> Vector3<T> operator+(const T& n, const Vector3<T>& v)
+{
+    return v + n; 
+}
+template<class T> Vector3<T> operator-(const T& n, const Vector3<T>& v)
+{
+    return (-v) + n; 
+}
+template<class T> Vector3<T> operator*(const T& n, const Vector3<T>& v)
+{
+    return v * n; 
+}
+template<class T> Vector3<T> operator/(const T& n, const Vector3<T>& v)
+{
+    return Vector2<T>(n/v.x, n/v.y, n/v.z);
+}
+template<class T> Vector3<T> operator%(const T& n, const Vector3<T>& v)
+{
+    return Vector2<T>(n%v.x, n%v.y, n%v.z);
+}
+template<class T> Vector3<T> operator&(const T& n, const Vector3<T>& v)
+{
+    return v & n;
+}
+template<class T> Vector3<T> operator|(const T& n, const Vector3<T>& v)
+{
+    return v | n;
+}
+template<class T> Vector3<T> operator^(const T& n, const Vector3<T>& v)
+{
+    return v ^ n;
+}
 
 template<class T> Vector3<T> floor(const Vector3<T>& vector)
 {

@@ -1,0 +1,14 @@
+Pixels are all black
+Some colours are wrong
+Error not being diffused
+
+Try all 6 possibilites for overscanColour in AttributeClashImage constructor.
+  Try black as well for monochrome images
+    Also for monochrome try +BW, which is not the same
+Try 90+33 for tint instead of 103+18
+Make brightness, contrast, saturation and tint user-settable
+Refactor CalcThread with CalcThread in fractal.h as EndableThread?
+  Make a BackgroundCalculationImage base class?
+Output image scaling
+Handle both +HRES and -HRES
+  -HRES doesn't need coloured border
