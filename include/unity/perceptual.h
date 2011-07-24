@@ -115,8 +115,9 @@ public:
     static PerceptualModel lab() { return PerceptualModel(&_lab); }
     Colour perceptualFromSrgb(const SRGB& srgb)
     {
-        return
-            _implementation->perceptualFromXyz(xyzFromRgb(rgbFromSrgb(srgb)));
+        //return
+        //    _implementation->perceptualFromXyz(xyzFromRgb(rgbFromSrgb(srgb)));
+        return srgb;
     }
     Vector3<UInt8> srgbFromPerceptual(const Colour& perceptual)
     {
