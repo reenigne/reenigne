@@ -1,0 +1,12 @@
+Debug stuck lights:
+  1) Determine if the 4 affected switches are reading closed even after startup
+    debug dump switchBuffer (800-900) and switchesTouched (r13)
+      recompile debugger.cpp to dump this region, use it
+
+If switches are reading closed, try slowing right down and see if it still happens
+  Stop completely and check DC voltages
+
+If switches work properly when slowed down, try tinkering with capacitances?
+
+If switches are reading open, does it work properly after fixing up the memory?
+  Look into startup sequence to determine how it got in that stage

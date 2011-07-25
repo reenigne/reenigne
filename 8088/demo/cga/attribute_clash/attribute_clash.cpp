@@ -81,12 +81,15 @@ public:
         String srgbInput;
         {
 #if 1
-            File inputFile(String("/t/rose_composite_h.raw"));
-            srgbInput = inputFile.contents();
-            _pictureSize = Vector(640, 200);
-            //File inputFile(String("/t/castle.raw"));
+            ////File inputFile(String("/t/rose_composite_h.raw"));
+            //File inputFile(String("/t/clown.raw"));
             //srgbInput = inputFile.contents();
-            //_pictureSize = Vector(640, 100);
+            //_pictureSize = Vector(640, 200);
+
+            //File inputFile(String("/t/castle.raw"));
+            File inputFile(String("/t/clown2.raw"));
+            srgbInput = inputFile.contents();
+            _pictureSize = Vector(640, 100);
 #else
             File inputFile(String("/t/rose.raw"));
             srgbInput = inputFile.contents();
@@ -203,11 +206,30 @@ public:
 
         for (int y = 0; y < _pictureSize.y; ++y)
             for (int x = 0; x < _pictureSize.x; ++x) {
+                int col = (y/8)*40 + (x/16);
+                int ch;
+                int at;
+                if (col < 16) {
+                    ch = 0;
+                    at = col*0x11;
+                }
+                else {
+                    col -= 16;
+                    int pattern = col / 240;
+                    static int chars[4] = {0xb0, 0xb1, 0x13, 0x48};
+                    ch = chars[pattern];
+                    at = col % 240;
+                    int fg = at%15;
+                    int bg = at/15;
+                    if (fg >= bg)
+                        ++fg;
+                    at = fg + (bg << 4);
+                }
                 int o = (y*_pictureSize.x + x)/8;
-                _dataOutput[o*2] = 0;
-                _dataOutput[o*2 + 1] = (x / 40)*0x11;
+                _dataOutput[o*2] = ch;
+                _dataOutput[o*2 + 1] = at;
                 _position = Vector((x/8)*8, y);
-                errorFor(0, x/40, x/40); 
+                errorFor(_patterns[ch], at & 15, at >> 4); 
             }
         _position = Vector(0, 0);
 
@@ -238,7 +260,7 @@ public:
                     else {
                         v -= Vector(0, 204);
                         if (v.inside(_outputSize)) {
-                            int c = _compositeData[v.y*_compositeSize.x + v.x].x;
+                            int c = _compositeData[v.y*_compositeSize.x + v.x].x + 60;
                             srgb = SRGB(c, c, c);
                         }
                     }
@@ -341,7 +363,6 @@ public:
 
     Colour target(Vector p)
     {
-        //p += _compositeOffset;
         Colour c = _perceptualInput[p.y*_outputSize.x + p.x];
         if (p.y > 0)
             c += _perceptualError[(p.y - 1)*_outputSize.x + p.x]/2;
@@ -364,6 +385,8 @@ public:
 
         double error = 0;
 
+        static int weights[14] =
+            {1, 5, 12, 20, 27, 31, 32, 32, 31, 27, 20, 12, 5, 1};
         for (int x = 0; x < 14; ++x) {
             // We use a low-pass Finite Impulse Response filter to
             // remove high frequencies (including the color carrier
@@ -388,11 +411,9 @@ public:
                 _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)],
                 _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)]);
 
-            _perceptualOutput[p] =
-                _model.perceptualFromSrgb(_srgbOutput[p]);
-            _perceptualError[p] =
-                _perceptualOutput[p] - target(pos);
-            error += _perceptualError[p].modulus2();
+            _perceptualOutput[p] = _model.perceptualFromSrgb(_srgbOutput[p]);
+            _perceptualError[p] = target(pos) - _perceptualOutput[p];
+            error += _perceptualError[p].modulus2()*weights[x];
             ++p;
             ++pos.x;
         }
@@ -401,8 +422,8 @@ public:
 
     void calculate()
     {
-        int bestPattern;
-        int bestAt;
+        int bestPattern = 0;
+        int bestAt = 0;
         double bestScore = 1e99;
         //_patternCount = 1;
         for (int pattern = 0; pattern < _patternCount; ++pattern) {
@@ -487,7 +508,6 @@ private:
     };
 
     Array<Colour> _perceptualInput;
-
     Array<Colour> _perceptualOutput;
     Array<Colour> _perceptualError;
     Array<SRGB> _srgbOutput;

@@ -1,0 +1,7 @@
+     L dump screen state
+   nnP press key nn
+   nnR release key nn
+  nnn? peek address nnn
+nnn=vv poke address nnn with value vv
+
+debugger.cpp: Currently set to dump light buffers - make it dump switch buffers instead
