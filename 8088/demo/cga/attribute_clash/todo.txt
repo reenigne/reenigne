@@ -1,5 +1,5 @@
-Try rose -HRES
-  -HRES doesn't need coloured border
+Fix up coloured border
+  Always make output 640x200 centered
 
 Try all 6 possibilites for overscanColour in AttributeClashImage constructor.
   Try black as well for monochrome images
@@ -8,4 +8,24 @@ Make brightness, contrast, saturation and tint user-settable
 Refactor CalcThread with CalcThread in fractal.h as EndableThread?
   Make a BackgroundCalculationImage base class?
 Output image scaling
-
+Need an input config file system
+  name = value;
+  Names:
+    inputPicture
+    outputNTSC
+    outputComposite
+    outputRGB
+    outputData
+    method
+    mode
+    hdots
+    scanlines
+    overscanColour
+    outputCompositeSize.x
+    outputCompositeSize.y
+    iterations
+Link in libpng
+  Put it in \projects\code? Static or dynamic? Just link against dll?
+Test for repeated iterations
+Fix PerceptualModel and make an srgb model
+Fix RGB output for -HRES

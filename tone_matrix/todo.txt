@@ -1,9 +1,9 @@
 Debug stuck lights:
-  1) Determine if the 4 affected switches are reading closed even after startup
-    debug dump switchBuffer (800-900) and switchesTouched (r13)
-      recompile debugger.cpp to dump this region, use it
+  Doing "029?" reveals that we're getting 1s from D7 (right switches) and both 0s and 1s from D4 (left switches)
+    1 means untouched, 0 means touched
+      Check for shorts on pin 6 and the Darlington Pair output - test these with audio probe
 
-If switches are reading closed, try slowing right down and see if it still happens
+Try slowing right down and see if it still happens
   Stop completely and check DC voltages
 
 If switches work properly when slowed down, try tinkering with capacitances?

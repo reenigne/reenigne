@@ -80,20 +80,23 @@ public:
 
         String srgbInput;
         {
-#if 1
-            ////File inputFile(String("/t/rose_composite_h.raw"));
+#if 0
+            //File inputFile(String("/t/rose_composite_h.raw"));
             //File inputFile(String("/t/clown.raw"));
-            //srgbInput = inputFile.contents();
-            //_pictureSize = Vector(640, 200);
+            File inputFile(String("/t/parrot.raw"));
+            srgbInput = inputFile.contents();
+            _pictureSize = Vector(640, 200);
+            _hres = true;
 
             //File inputFile(String("/t/castle.raw"));
-            File inputFile(String("/t/clown2.raw"));
-            srgbInput = inputFile.contents();
-            _pictureSize = Vector(640, 100);
+            //File inputFile(String("/t/clown2.raw"));
+            //srgbInput = inputFile.contents();
+            //_pictureSize = Vector(640, 100);
 #else
             File inputFile(String("/t/rose.raw"));
             srgbInput = inputFile.contents();
-            _pictureSize = Vector(320, 200);
+            _pictureSize = Vector(640, 200);
+            _hres = false;
 #endif
         }
 
@@ -351,6 +354,7 @@ public:
         // So the order of bits is yellow-burst/red/blue/cyan
 
         int chroma = phaseLevels[colorBurst[c & 7][p.x & 3]];
+        chroma = static_cast<int>(static_cast<float>(chroma - 128) * 4 / (M_PI * sqrt(2.0f))) + 128;
         int intensity = (c & 8) >> 3;
         int sampleLow = sampleLevels[intensity];
         int sampleHigh = sampleLevels[intensity + 2];
@@ -420,12 +424,61 @@ public:
         return error;
     }
 
+    double errorForLow(UInt8 bits, UInt8 fg, UInt8 bg)
+    {
+        for (int i = 0; i < 16; ++i) {
+            int colour = ((bits & (128 >> (i >> 1))) != 0 ? fg : bg);
+            setCompositeData(_position + Vector(i, 0), colour);
+        }
+
+        Vector pos = _position + _compositeOffset;
+        YIQ* d = &_compositeData[pos.y*_compositeSize.x + pos.x];
+
+        int p = pos.y*_outputSize.x + pos.x;
+
+        double error = 0;
+
+        static int weights[22] =
+            {1, 5, 12, 20, 27, 31, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 31,
+            27, 20, 12, 5, 1};
+        for (int x = 0; x < 22; ++x) {
+            // We use a low-pass Finite Impulse Response filter to
+            // remove high frequencies (including the color carrier
+            // frequency) from the signal. We could just keep a
+            // 4-sample running average but that leads to sharp edges
+            // in the resulting image.
+            // The kernel of this FIR is [1, 4, 7, 8, 7, 4, 1]
+            YIQ yiq = 
+                    d[x - 6] + d[x - 0]
+                + ((d[x - 5] + d[x - 1])<<2) 
+                +  (d[x - 4] + d[x - 2])*7 
+                +  (d[x - 3]<<3);
+
+            // Contrast for I and Q is handled by _iqMultipliers, along with
+            // saturation. Brightness only affects Y.
+            int y = yiq.x*_yContrast + _brightness;
+            int i = yiq.y;
+            int q = yiq.z;
+
+            _srgbOutput[p] = SRGB(
+                _gamma[clamp(0, (y + 243*i + 160*q)>>16, 255)],
+                _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)],
+                _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)]);
+
+            _perceptualOutput[p] = _model.perceptualFromSrgb(_srgbOutput[p]);
+            _perceptualError[p] = target(pos) - _perceptualOutput[p];
+            error += _perceptualError[p].modulus2()*weights[x];
+            ++p;
+            ++pos.x;
+        }
+        return error;
+    }
+
     void calculate()
     {
         int bestPattern = 0;
         int bestAt = 0;
         double bestScore = 1e99;
-        //_patternCount = 1;
         for (int pattern = 0; pattern < _patternCount; ++pattern) {
             UInt8 bits = _patterns[_characters[pattern]];
             for (int at = 0; at < 0x100; ++at) {
@@ -433,7 +486,11 @@ public:
                 int bg = at >> 4;
                 if ((bits == 0 || bits == 0xff) != (fg == bg))
                     continue;
-                double score = errorFor(bits, fg, bg);
+                double score ;
+                if (_hres)
+                    score = errorFor(bits, fg, bg);
+                else
+                    score = errorForLow(bits, fg, bg);
                 if (score < bestScore) {
                     bestScore = score;
                     bestPattern = pattern;
@@ -442,15 +499,18 @@ public:
             }
         }
         int character = _characters[bestPattern];
-        int p = (_position.y*_pictureSize.x + _position.x)/4;
+        int p = (_position.y*_pictureSize.x + _position.x)/(_hres ? 4 : 8);
         if (character != _dataOutput[p] || bestAt != _dataOutput[p + 1]) {
             _changed = true;
             _dataOutput[p] = character;
             _dataOutput[p + 1] = bestAt;
         }
-        errorFor(_patterns[character], bestAt & 0x0f, bestAt >> 4);
+        if (_hres)
+            errorFor(_patterns[character], bestAt & 0x0f, bestAt >> 4);
+        else
+            errorForLow(_patterns[character], bestAt & 0x0f, bestAt >> 4);
 
-        _position.x += 8;
+        _position.x += (_hres ? 8 : 16);
         if (_position.x >= _pictureSize.x) {
             ++_position.y;
             _position.x = 0;
@@ -535,6 +595,8 @@ private:
 
     int _yContrast;
     int _brightness;
+
+    bool _hres;
 };
 
 class Program : public ProgramBase
