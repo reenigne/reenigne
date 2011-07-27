@@ -1,0 +1,32 @@
+257 LEDs @ $0.055        $14.14
+box                      $13.21
+atmega328                 $5.00
+80 resistors @ $0.05      $4.00
+wire                      $3.00
+2 potentiometers @ $1.40  $2.80
+6"x6" PCB                 $2.50
+speaker                   $2.45
+3 3.5mm sockets @ $0.72   $2.16
+4 74595s @ $0.35          $1.40
+16 MPSA64 @ $0.085        $1.36
+2 744051s @ $0.47         $0.94
+2 knobs @ $0.46           $0.92
+2 ULN2803s @ $0.45        $0.90
+AA battery holder         $0.80
+acrylic sheet             $0.79
+20MHz crystal             $0.34
+4 BC548s @ $0.05          $0.20
+2 22pF capacitors @ $0.06 $0.12
+Green LED                 $0.26
+Blue LED                  $0.22
+audio amplifier?
+
+                         $56.97
+
+Resistors:
+  19 x 100
+  34 x 10K
+  1 x 10
+  1 x 100K
+  16 x 1K
+

@@ -1,6 +1,6 @@
 #include "unity/main.h"
 #include "unity/file.h"
-#include "unity/perceptual.h"
+#include "unity/colour_space.h"
 #include <stdio.h>
 #include "unity/user.h"
 #include "unity/thread.h"
@@ -10,8 +10,9 @@ typedef Vector3<int> YIQ;
 class AttributeClashImage : public Image
 {
 public:
-    AttributeClashImage()
+    AttributeClashImage(ConfigFile* config)
     {
+        _config = config;
         // Determine the set of unique patterns that appear in the top lines
         // of CGA text characters.
         {
@@ -76,29 +77,23 @@ public:
             }
         }
 #endif
-        _model = PerceptualModel::luv();
+        String colourSpace = config->getEnumeration("colourSpace");
+        if (colourSpace == String("srgb"))
+            _colourSpace = ColourSpace::srgb();
+        else if (colourSpace == String("rgb"))
+            _colourSpace = ColourSpace::rgb();
+        else if (colourSpace == String("xyz"))
+            _colourSpace = ColourSpace::xyz();
+        else if (colourSpace == String("luv"))
+            _colourSpace = ColourSpace::luv();
+        else if (colourSpace == String("lab"))
+            _colourSpace = ColourSpace::lab();
 
-        String srgbInput;
-        {
-#if 0
-            //File inputFile(String("/t/rose_composite_h.raw"));
-            //File inputFile(String("/t/clown.raw"));
-            File inputFile(String("/t/parrot.raw"));
-            srgbInput = inputFile.contents();
-            _pictureSize = Vector(640, 200);
-            _hres = true;
-
-            //File inputFile(String("/t/castle.raw"));
-            //File inputFile(String("/t/clown2.raw"));
-            //srgbInput = inputFile.contents();
-            //_pictureSize = Vector(640, 100);
-#else
-            File inputFile(String("/t/rose.raw"));
-            srgbInput = inputFile.contents();
-            _pictureSize = Vector(640, 200);
-            _hres = false;
-#endif
-        }
+        String srgbInput = File(config->getString("inputFile")).contents();
+        Structure inputSize = config->getStructure("inputSize");
+        _pictureSize.x = inputSize.getMemberValue("x");
+        _pictureSize.y = inputSize.getMemberValue("y");
+        _hres = config->getBoolean("hres");
 
         _srgbPalette[0x00] = SRGB(0x00, 0x00, 0x00);
         _srgbPalette[0x01] = SRGB(0x00, 0x00, 0xaa);
@@ -118,8 +113,7 @@ public:
         _srgbPalette[0x0f] = SRGB(0xff, 0xff, 0xff);
 
         //for (int i = 0; i < 0x10; ++i)
-        //    _perceptualPalette[i] =
-        //        _model.perceptualFromSrgb(_srgbPalette[i]);
+        //    _perceptualPalette[i] = _colourSpace.fromSrgb(_srgbPalette[i]);
 
         _dataOutput.allocate(_pictureSize.x*_pictureSize.y/4);
 
@@ -192,11 +186,10 @@ public:
             for (int x = 0; x < _outputSize.x; ++x) {
                 int p = y*_outputSize.x + x;
                 _srgbOutput[p] = _srgbOutput[6];
-                _perceptualOutput[p] =
-                    _model.perceptualFromSrgb(_srgbOutput[p]);
+                _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
                 Colour c;
                 if ((Vector(x, y) - _compositeOffset).inside(_pictureSize)) {
-                    c = _model.perceptualFromSrgb(SRGB(
+                    c = _colourSpace.fromSrgb(SRGB(
                         srgbInput[ip], srgbInput[ip + 1], srgbInput[ip + 2]));
                     ip += 3;
                 }
@@ -415,7 +408,7 @@ public:
                 _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)],
                 _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)]);
 
-            _perceptualOutput[p] = _model.perceptualFromSrgb(_srgbOutput[p]);
+            _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
             _perceptualError[p] = target(pos) - _perceptualOutput[p];
             error += _perceptualError[p].modulus2()*weights[x];
             ++p;
@@ -465,7 +458,7 @@ public:
                 _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)],
                 _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)]);
 
-            _perceptualOutput[p] = _model.perceptualFromSrgb(_srgbOutput[p]);
+            _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
             _perceptualError[p] = target(pos) - _perceptualOutput[p];
             error += _perceptualError[p].modulus2()*weights[x];
             ++p;
@@ -567,6 +560,8 @@ private:
         AttributeClashImage* _image;
     };
 
+    ConfigFile* _config;
+
     Array<Colour> _perceptualInput;
     Array<Colour> _perceptualOutput;
     Array<Colour> _perceptualError;
@@ -578,7 +573,7 @@ private:
     Vector _compositeSize;
     Vector _compositeOffset;
     Vector _outputSize;
-    PerceptualModel _model;
+    ColourSpace _colourSpace;
     CalcThread _thread;
     SRGB _srgbPalette[0x10];
 //    Colour _perceptualPalette[0x10];
@@ -604,7 +599,32 @@ class Program : public ProgramBase
 public:
     int run()
     {
-        AttributeClashImage image;
+        ConfigFile config;
+        Type vector = Type::structure(
+            Type::structureEntry(Type::integer(), "x"),
+            Type::structureEntry(Type::integer(), "y"));
+        Type colourSpace = Type::enumeration(
+            Type::enumeratedValue("srgb"),
+            Type::enumeratedValue("rgb"),
+            Type::enumeratedValue("xyz"),
+            Type::enumeratedValue("luv"),
+            Type::enumeratedValue("lab"));
+        config.addOption("cgaRomFile", Type::string());
+        config.addOption("inputPicture", Type::string());
+        config.addOption("outputNTSC", Type::string());
+        config.addOption("outputComposite", Type::string());
+        config.addOption("outputRGB", Type::string());
+        config.addOption("outputData", Type::string());
+        config.addOption("compositeTarget", Type::boolean());
+        config.addOption("hres", Type::boolean());
+        config.addOption("inputSize", vector);
+        config.addOption("overscanColour", Type::integer());
+        config.addOption("outputCompositeSize", vector);
+        config.addOption("iterations", Type::integer());
+        config.addOption("colourSpace", colourSpace);
+        config.load(_arguments[1]);
+
+        AttributeClashImage image(&config);
 
         Window::Params wp(&_windows, L"Composite output");
         typedef RootWindow<Window> RootWindow;
