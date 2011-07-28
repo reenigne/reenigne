@@ -1,6 +1,11 @@
-Write ConfigFile
-  (name "=" value ";")*
-  
+HashTable:
+  Allow mutation of Value
+  Some way to iterate through keys
+ConfigFile
+  load():
+    Parse multiple assignments
+  parseLValue()
+  parseExpression()
 
 Fix up coloured border
   Always make output 640x200 centered
@@ -14,7 +19,6 @@ Try all 6 possibilites for overscanColour in AttributeClashImage constructor.
 Make brightness, contrast, saturation and tint user-settable
   Knobs?
 Have multiple windows: RGB output, NTSC output
-  MDI?
 Refactor CalcThread with CalcThread in fractal.h as EndableThread?
   Make a BackgroundCalculationImage base class?
 Output image scaling

@@ -5,6 +5,43 @@
 #include "unity/user.h"
 #include "unity/thread.h"
 
+enum Atom
+{
+    atomBoolean,
+    atomFunction,
+    atomInt,
+    atomString,
+    atomEnumeration,
+    atomEnumeratedValue,
+    atomStructure,
+    atomStructureEntry,
+
+    atomStringConstant,
+    atomIdentifier,
+    atomIntegerConstant,
+    atomTrue,
+    atomFalse,
+    atomNull,
+
+    atomAdd,
+    atomSubtract,
+    atomMultiply,
+    atomDivide,
+
+    atomSrgb,
+    atomRgb,
+    atomXyz,
+    atomLuv,
+    atomLab,
+
+    atomOption,
+
+    atomLast
+};
+
+#include "unity/symbol.h"
+#include "unity/config_file.h"
+
 typedef Vector3<int> YIQ;
 
 class AttributeClashImage : public Image
@@ -16,8 +53,7 @@ public:
         // Determine the set of unique patterns that appear in the top lines
         // of CGA text characters.
         {
-            File file(String("/t/projects/emulation/mamemess/mess_run/roms/"
-                "pc/5788005.u33"));
+            File file(config->getString("cgaRomFile"));
             String cgaROM = file.contents();
             _patterns.allocate(0x100);
             _characters.allocate(0x100);
@@ -77,22 +113,22 @@ public:
             }
         }
 #endif
-        String colourSpace = config->getEnumeration("colourSpace");
-        if (colourSpace == String("srgb"))
+        Atom colourSpace = config->getAtom("colourSpace");
+        if (colourSpace == atomSrgb)
             _colourSpace = ColourSpace::srgb();
-        else if (colourSpace == String("rgb"))
+        else if (colourSpace == atomRgb)
             _colourSpace = ColourSpace::rgb();
-        else if (colourSpace == String("xyz"))
+        else if (colourSpace == atomXyz)
             _colourSpace = ColourSpace::xyz();
-        else if (colourSpace == String("luv"))
+        else if (colourSpace == atomLuv)
             _colourSpace = ColourSpace::luv();
-        else if (colourSpace == String("lab"))
+        else if (colourSpace == atomLab)
             _colourSpace = ColourSpace::lab();
 
         String srgbInput = File(config->getString("inputFile")).contents();
-        Structure inputSize = config->getStructure("inputSize");
-        _pictureSize.x = inputSize.getMemberValue("x");
-        _pictureSize.y = inputSize.getMemberValue("y");
+        Symbol inputSize = config->getSymbol("inputSize");
+        _pictureSize.x = inputSize[1].integer();
+        _pictureSize.y = inputSize[2].integer();
         _hres = config->getBoolean("hres");
 
         _srgbPalette[0x00] = SRGB(0x00, 0x00, 0x00);
@@ -600,28 +636,28 @@ public:
     int run()
     {
         ConfigFile config;
-        Type vector = Type::structure(
-            Type::structureEntry(Type::integer(), "x"),
-            Type::structureEntry(Type::integer(), "y"));
-        Type colourSpace = Type::enumeration(
-            Type::enumeratedValue("srgb"),
-            Type::enumeratedValue("rgb"),
-            Type::enumeratedValue("xyz"),
-            Type::enumeratedValue("luv"),
-            Type::enumeratedValue("lab"));
-        config.addOption("cgaRomFile", Type::string());
-        config.addOption("inputPicture", Type::string());
-        config.addOption("outputNTSC", Type::string());
-        config.addOption("outputComposite", Type::string());
-        config.addOption("outputRGB", Type::string());
-        config.addOption("outputData", Type::string());
-        config.addOption("compositeTarget", Type::boolean());
-        config.addOption("hres", Type::boolean());
-        config.addOption("inputSize", vector);
-        config.addOption("overscanColour", Type::integer());
-        config.addOption("outputCompositeSize", vector);
-        config.addOption("iterations", Type::integer());
-        config.addOption("colourSpace", colourSpace);
+        Symbol vectorType = Symbol(atomStructure, String("Vector"),
+            Symbol(atomStructureEntry, Symbol(atomInt), String("x")),
+            Symbol(atomStructureEntry, Symbol(atomInt), String("y")));
+        Symbol colourSpaceType = Symbol(atomEnumeration,
+            Symbol(atomEnumeratedValue, Symbol(atomSrgb), String("srgb")),
+            Symbol(atomEnumeratedValue, Symbol(atomRgb), String("rgb")),
+            Symbol(atomEnumeratedValue, Symbol(atomXyz), String("xyz")),
+            Symbol(atomEnumeratedValue, Symbol(atomLuv), String("luv")),
+            Symbol(atomEnumeratedValue, Symbol(atomLab), String("lab")));
+        config.addOption("cgaRomFile", Symbol(atomString));
+        config.addOption("inputPicture", Symbol(atomString));
+        config.addOption("outputNTSC", Symbol(atomString));
+        config.addOption("outputComposite", Symbol(atomString));
+        config.addOption("outputRGB", Symbol(atomString));
+        config.addOption("outputData", Symbol(atomString));
+        config.addOption("compositeTarget", Symbol(atomBoolean));
+        config.addOption("hres", Symbol(atomBoolean));
+        config.addOption("inputSize", vectorType);
+        config.addOption("overscanColour", Symbol(atomInt));
+        config.addOption("outputCompositeSize", vectorType);
+        config.addOption("iterations", Symbol(atomInt));
+        config.addOption("colourSpace", colourSpaceType);
         config.load(_arguments[1]);
 
         AttributeClashImage image(&config);
