@@ -86,10 +86,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\include\unity\buffer.h" />
+    <ClInclude Include="..\..\..\..\include\unity\character_source.h" />
+    <ClInclude Include="..\..\..\..\include\unity\colour_space.h" />
+    <ClInclude Include="..\..\..\..\include\unity\config_file.h" />
     <ClInclude Include="..\..\..\..\include\unity\file.h" />
+    <ClInclude Include="..\..\..\..\include\unity\hash_table.h" />
     <ClInclude Include="..\..\..\..\include\unity\main.h" />
-    <ClInclude Include="..\..\..\..\include\unity\perceptual.h" />
+    <ClInclude Include="..\..\..\..\include\unity\space.h" />
     <ClInclude Include="..\..\..\..\include\unity\string.h" />
+    <ClInclude Include="..\..\..\..\include\unity\symbol.h" />
+    <ClInclude Include="..\..\..\..\include\unity\user.h" />
     <ClInclude Include="..\..\..\..\include\unity\vectors.h" />
   </ItemGroup>
   <ItemGroup>

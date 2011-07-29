@@ -12,20 +12,69 @@ public:
     {
         _options.add(name, Symbol(atomOption, type, defaultValue));
     }
-    Symbol parseLValue(CharacterSource* source)
+    Symbol parseIdentifier(CharacterSource* source)
     {
-        // TODO: parse
+        CharacterSource s = *source;
+        Location startLocation = s.location();
+        int startOffset;
+        Span startSpan;
+        Span endSpan;
+        int c = s.get(&startSpan);
+        if (c < 'a' || c > 'z')
+            return Symbol();
+        CharacterSource s2;
+        do {
+            s2 = s;
+            c = s.get(&endSpan);
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9') || c == '_')
+                continue;
+            break;
+        } while (true);
+        int endOffset = s2.offset();
+        Location endLocation = s2.location();
+        Space::parse(&s2);
+        String name = s2.subString(startOffset, endOffset);
+        *source = s2;
+        return Symbol(atomIdentifier, name, newSpan(startSpan + endSpan));
+    }
+    Symbol parseTypeIdentifier(CharacterSource* source)
+    {
+        CharacterSource s = *source;
+        Location startLocation = s.location();
+        int startOffset;
+        Span startSpan;
+        Span endSpan;
+        int c = s.get(&startSpan);
+        if (c < 'A' || c > 'Z')
+            return Symbol();
+        CharacterSource s2;
+        do {
+            s2 = s;
+            c = s.get(&endSpan);
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9') || c == '_')
+                continue;
+            break;
+        } while (true);
+        int endOffset = s2.offset();
+        Location endLocation = s2.location();
+        Space::parse(&s2);
+        String name = s2.subString(startOffset, endOffset);
+        *source = s2;
+        return Symbol(atomIdentifier, name, newSpan(startSpan + endSpan));
     }
     Symbol parseExpression(CharacterSource* source, Symbol type)
     {
-        // TODO: parse, type check and evaluate
+        // TODO: parse, type check and evaluate.
+        // TODO: 
     }
     void parseAssignment(CharacterSource* source)
     {
-        Symbol identifier = parseLValue(source, &span);
+        Symbol identifier = parseIdentifier(source);
         Span span;
         String name = identifier[1].string();
-        if (_options.hasKey(name))
+        if (!_options.hasKey(name))
             span.throwError("Unknown identifier " + name);
         Space::assertCharacter(source, '=' &span);
         Symbol e = parseExpression(source, _options[name][1].symbol());
@@ -37,13 +86,18 @@ public:
         String contents = file.contents();
         CharacterSource source(contents, file.path());
         Space::parse(&source);
-        parseAssignment(&source);
-
-        // TODO: Go through all options in _options and check that we have a 
-        // value.
-        if (!s.valid())
-            throw Exception(file.messagePath() + colonSpace + name +
-                String(" not defined and no default is available."));
+        do {
+            CharacterSource s = source;
+            if (s.get() == -1)
+                break;
+            parseAssignment(&source);
+        } while (true);
+        for (HashTable<String, Symbol>::Iterator i = _options.begin();
+            i != _options.end(); ++i) {
+            if (!i.value()[2].valid())
+                throw Exception(file.messagePath() + colonSpace + i.key() +
+                    String(" not defined and no default is available."));
+        }
     }
     Atom getAtom(String name)
     {

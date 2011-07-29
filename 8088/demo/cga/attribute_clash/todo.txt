@@ -1,9 +1,4 @@
-HashTable:
-  Allow mutation of Value
-  Some way to iterate through keys
 ConfigFile
-  load():
-    Parse multiple assignments
   parseLValue()
   parseExpression()
 
@@ -12,6 +7,12 @@ Fix up coloured border
 
 Get RGB version working again, and see what the output looks like on composite
   Try with both sRGB and perceptual
+
+Use linear space for error diffusion but perceptual space for choosing the
+  smallest error.
+
+Write image scaling code (use linear space)
+  From x0,y0 to x1,y1 is x0*x1*y0 + x1*y0*y1 operations
 
 Try all 6 possibilites for overscanColour in AttributeClashImage constructor.
   Try black as well for monochrome images

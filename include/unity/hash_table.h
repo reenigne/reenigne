@@ -13,7 +13,11 @@ public:
     {
         return _table[row(key)].hasKey(key);
     }
-    Value operator[](const Key& key) const
+    Value& operator[](const Key& key)
+    {
+        return _table[row(key)].value(key);
+    }
+    const Value& operator[](const Key& key) const
     {
         return _table[row(key)].value(key);
     }
@@ -32,6 +36,51 @@ public:
         ++_n;
     }
     int count() const { return _n; }
+    class Iterator
+    {
+    public:
+        const Key& key() { return _entry->_key; }
+        const Value& value() { return _entry->_value; }
+        bool operator==(const Iterator& other) const
+        {
+            return _entry == other._entry;
+        }
+        bool operator!=(const Iterator& other) const
+        {
+            return !operator==(other);
+        }
+        void operator++()
+        {
+            _entry = _entry->_next;
+            while (_entry == 0) {
+                ++_row;
+                if (_row == _table->_n)
+                    break;
+                _entry = _table->_table[_row];
+            }
+        }
+    private:
+        Iterator(int row, const TableEntry* entry, const HashTable* table)
+          : _row(row), _entry(entry), _table(table) { }
+        int _row;
+        const TableEntry* _entry;
+        const HashTable* _table;
+
+        friend class HashTableBase;
+    };
+    Iterator begin() const
+    {
+        int row = 0;
+        const TableEntry* entry = &_table[0];
+        while (entry == 0) {
+            ++row;
+            if (row == _n)
+                break;
+            _entry = _table[row];
+        }
+        Iterator t(row, entry, this);
+    }
+    Iterator end() const { return Iterator(_n, 0); }
 private:
     int row(const Key& key) const { return hash(key) & (_table.count() - 1); }
 
@@ -48,45 +97,24 @@ private:
                 _next = t;
             }
         }
-        bool hasKey(const Key& key)
-        {
-            if (_next == 0)
-                return false;
-            TableEntry* t = this;
-            do {
-                if (t->_key == key)
-                    return true;
-                t = t->_next;
-            } while (t != this);
-            return false;
+        bool hasKey(const Key& key) const { return findEntry(key) != 0; }
+        Value& value(const Key& key)
+        { 
+            const TableEntry* t = findEntry(key);
+            if (t == 0)
+                return doAdd(key)->_value;
+            return t->_value;
         }
-        Value value(const Key& key) const
+        const Value& value(const Key& key) const
         {
-            if (_next == 0)
+            const TableEntry* t = findEntry(key);
+            if (t == 0)
                 return Value();
-            const TableEntry* t = this;
-            do {
-                if (t->_key == key)
-                    return t->_value;
-                t = t->_next;
-            } while (t != this);
-            return Value();
+            return t->_value;
         }
         void add(const Key& key, const Value& value)
         {
-            if (_next == 0) {
-                _key = key;
-                _value = value;
-                _next = this;
-                return;
-            }
-            TableEntry* t = this;
-            while (t->_next != this)
-                t = t->_next;
-            t->_next = new TableEntry();
-            t->_next->_key = key;
-            t->_next->_value = value;
-            t->_next->_next = this;
+            doAdd(key)->_value = value;
         }
         void addAllTo(HashTableBase* table)
         {
@@ -99,6 +127,34 @@ private:
             } while (t != this);
         }
     private:
+        const TableEntry* findEntry(const Key& key) const
+        {
+            if (_next == 0)
+                return 0;
+            const TableEntry* t = this;
+            do {
+                if (t->_key == key)
+                    return t;
+                t = t->_next;
+            } while (t != this);
+            return 0;
+        }
+        const TableEntry* doAdd(const Key& key)
+        {
+            if (_next == 0) {
+                _key = key;
+                _next = this;
+                return this;
+            }
+            TableEntry* t = this;
+            while (t->_next != this)
+                t = t->_next;
+            t->_next = new TableEntry();
+            t = t->_next;
+            t->_key = key;
+            t->_next = this;
+            return t;
+        }
         Key _key;
         Value _value;
         TableEntry* _next;
