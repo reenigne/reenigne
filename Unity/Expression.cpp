@@ -304,7 +304,7 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
                 part = parseIdentifier(source);
                 if (!part.valid()) {
                     if (Space::parseCharacter(source, '(', &span)) {
-                        part = parseExpression(source);
+                        part = parseExpressionOrFail(source);
                         source->assert(')', &span);
                     }
                     else {
