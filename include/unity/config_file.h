@@ -36,7 +36,7 @@ public:
         Space::parse(&s2);
         String name = s2.subString(startOffset, endOffset);
         *source = s2;
-        return Symbol(atomIdentifier, name, newSpan(startSpan + endSpan));
+        return Symbol(atomIdentifier, name);
     }
     Symbol parseTypeIdentifier(CharacterSource* source)
     {
@@ -62,7 +62,7 @@ public:
         Space::parse(&s2);
         String name = s2.subString(startOffset, endOffset);
         *source = s2;
-        return Symbol(atomIdentifier, name, newSpan(startSpan + endSpan));
+        return Symbol(atomIdentifier, name);
     }
     
     void throwError(CharacterSource* source)
@@ -274,13 +274,6 @@ public:
         return Symbol();
     }
     
-    Symbol binaryOperation(Atom atom, Span span, Symbol left, Symbol right)
-    {
-        return Symbol(atomFunctionCall, Symbol(atom, newSpan(span)),
-            SymbolArray(left, right),
-            new ExpressionCache(spanOf(left) + spanOf(right)));
-    }
-    
     Symbol parseUnaryExpression(CharacterSource* source)
     {
         Span span;
@@ -311,17 +304,17 @@ public:
                         if (e2.atom() == atomStringConstant)
                             e = Symbol(atomIntegerConstant, e[1].integer() * e2[1].string());
                         else
-                            throw Exception(String("Don't know how to multiply these types"));
+                            throw Exception(String("Don't know how to multiply these types")); // TODO: Location
                 }
                 else
                     if (e.atom() == atomStringConstant) {
                         if (e2.atom() == atomIntegerConstant)
                             e = Symbol(atomIntegerConstant, e[1].string() * e2[1].integer());
                         else
-                            throw Exception(String("Don't know how to multiply these types"));
+                            throw Exception(String("Don't know how to multiply these types")); // TODO: Location
                     }
                     else
-                        throw Exception(String("Don't know how to multiply these types"));
+                        throw Exception(String("Don't know how to multiply these types")); // TODO: Location
                 continue;
             }
             if (Space::parseCharacter(source, '/', &span)) {
@@ -331,7 +324,7 @@ public:
                 if (e.atom() == atomIntegerConstant && e2.atom() == atomIntegerConstant)
                     e = Symbol(atomIntegerConstant, e[1].integer() / e2[1].integer());
                 else
-                    throw Exception(String("Don't know how to divide these types"));
+                    throw Exception(String("Don't know how to divide these types")); // TODO: Location
                 continue;
             }
             return e;
@@ -352,7 +345,7 @@ public:
                 if (e.atom() == atomIntegerConstant && e2.atom() == atomIntegerConstant)
                     e = Symbol(atomIntegerConstant, e[1].integer() + e2[1].integer());
                 else
-                    throw Exception(String("Don't know how to add these types"));
+                    throw Exception(String("Don't know how to add these types")); // TODO: Location
                 continue;
             }
             if (Space::parseCharacter(source, '-', &span)) {
@@ -362,7 +355,7 @@ public:
                 if (e.atom() == atomIntegerConstant && e2.atom() == atomIntegerConstant)
                     e = Symbol(atomIntegerConstant, e[1].integer() - e2[1].integer());
                 else
-                    throw Exception(String("Don't know how to subtract these types"));
+                    throw Exception(String("Don't know how to subtract these types")); // TODO: Location
                 continue;
             }
             return e;
@@ -376,7 +369,11 @@ public:
         if (!_options.hasKey(name))
             span.throwError("Unknown identifier " + name);
         Space::assertCharacter(source, '=' &span);
-        Symbol e = parseExpression(source, _options[name][1].symbol());
+        Symbol e = parseExpression(source);
+        Symbol expectedType = _options[name][1].symbol();
+        Symbol observedType = e[2].symbol();
+        if (observedType != expectedType)
+            throw Exception(String("Expected an expression of type ") + typeToString(expectedType) + String(" but found one of type ") + typeToString(observedType)); // TODO: Location
         Space::assertCharacter(source, ';', &span);
         _options[name][2] = e;
     }

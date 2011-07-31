@@ -2,9 +2,12 @@ ConfigFile
   The values returned by the expression parsing functions should have the type
    in slot 2, not passed into parseExpression()
      And a Span for error messages?
+  Implement typeToString
   Check for enum constants
   Look up value in _options table
   Check for structure constructor calls
+  Operators are unwieldy - keep a list of allowed overloads?
+  Fix locations in error messages
 
 Fix up coloured border
   Always make output 640x200 centered
