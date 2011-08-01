@@ -299,17 +299,17 @@ public:
                     throwError(source);
                 if (e.atom() == atomIntegerConstant) {
                     if (e2.atom() == atomIntegerConstant)
-                        e = Symbol(atomIntegerConstant, e[1].integer() * e2[1].integer());
+                        e = Symbol(atomIntegerConstant, e[1].integer() * e2[1].integer(), Symbol(atomIntegerConstant));
                     else
                         if (e2.atom() == atomStringConstant)
-                            e = Symbol(atomIntegerConstant, e[1].integer() * e2[1].string());
+                            e = Symbol(atomIntegerConstant, e[1].integer() * e2[1].string(), Symbol(atomStringConstant));
                         else
                             throw Exception(String("Don't know how to multiply these types")); // TODO: Location
                 }
                 else
                     if (e.atom() == atomStringConstant) {
                         if (e2.atom() == atomIntegerConstant)
-                            e = Symbol(atomIntegerConstant, e[1].string() * e2[1].integer());
+                            e = Symbol(atomIntegerConstant, e[1].string() * e2[1].integer(), Symbol(atomStringConstant));
                         else
                             throw Exception(String("Don't know how to multiply these types")); // TODO: Location
                     }
@@ -322,7 +322,7 @@ public:
                 if (!e2.valid())
                     throwError(source);
                 if (e.atom() == atomIntegerConstant && e2.atom() == atomIntegerConstant)
-                    e = Symbol(atomIntegerConstant, e[1].integer() / e2[1].integer());
+                    e = Symbol(atomIntegerConstant, e[1].integer() / e2[1].integer(), Symbol(atomIntegerConstant));
                 else
                     throw Exception(String("Don't know how to divide these types")); // TODO: Location
                 continue;
@@ -343,9 +343,12 @@ public:
                 if (!e2.valid())
                     throwError(source);
                 if (e.atom() == atomIntegerConstant && e2.atom() == atomIntegerConstant)
-                    e = Symbol(atomIntegerConstant, e[1].integer() + e2[1].integer());
+                    e = Symbol(atomIntegerConstant, e[1].integer() + e2[1].integer(), Symbol(atomIntegerConstant));
                 else
-                    throw Exception(String("Don't know how to add these types")); // TODO: Location
+                    if (e.atom() == atomStringConstant && e2.atom() == atomStringConstant)
+                        e = Symbol(atomStringConstant, e[1].string() + e2[1].string(), Symbol(atomStringConstant));
+                    else
+                        throw Exception(String("Don't know how to add these types")); // TODO: Location
                 continue;
             }
             if (Space::parseCharacter(source, '-', &span)) {
@@ -353,13 +356,17 @@ public:
                 if (!e2.valid())
                     throwError(source);
                 if (e.atom() == atomIntegerConstant && e2.atom() == atomIntegerConstant)
-                    e = Symbol(atomIntegerConstant, e[1].integer() - e2[1].integer());
+                    e = Symbol(atomIntegerConstant, e[1].integer() - e2[1].integer(), Symbol(atomIntegerConstant));
                 else
                     throw Exception(String("Don't know how to subtract these types")); // TODO: Location
                 continue;
             }
             return e;
         } while (true);
+    }
+    String typeToString(Symbol type)
+    {
+
     }
     void parseAssignment(CharacterSource* source)
     {

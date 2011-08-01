@@ -17,6 +17,7 @@ Get RGB version working again, and see what the output looks like on composite
 
 Use linear space for error diffusion but perceptual space for choosing the
   smallest error.
+    Diffuse error across entire next block?
 
 Write image scaling code (use linear space)
   From x0,y0 to x1,y1 is x0*x1*y0 + x1*y0*y1 operations

@@ -8,7 +8,6 @@
 enum Atom
 {
     atomBoolean,
-    atomFunction,
     atomInt,
     atomString,
     atomEnumeration,
@@ -21,7 +20,6 @@ enum Atom
     atomIntegerConstant,
     atomTrue,
     atomFalse,
-    atomNull,
 
     atomAdd,
     atomSubtract,
@@ -38,6 +36,33 @@ enum Atom
 
     atomLast
 };
+
+String atomToString(Atom atom)
+{
+    class LookupTable
+    {
+    public:
+        LookupTable()
+        {
+            _table[atomBoolean] = String("Boolean");
+            _table[atomInt] = String("Int");
+            _table[atomString] = String("String");
+
+            _table[atomStringConstant] = String("string");                           
+            _table[atomIdentifier] = String("identifier");                           
+            _table[atomIntegerConstant] = String("integer");                         
+            _table[atomTrue] = String("true");
+            _table[atomFalse] = String("false");
+        }
+        String lookUp(Atom atom) { return _table[atom]; }
+    private:
+        String _table[atomLast];
+    };
+    static LookupTable lookupTable;
+    return lookupTable.lookUp(atom);
+}
+
+
 
 #include "unity/symbol.h"
 #include "unity/config_file.h"
