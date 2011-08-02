@@ -5,6 +5,26 @@
 #include "unity/hash_table.h"
 #include "unity/space.h"
 
+class SpanCache : public SymbolCache
+{
+public:
+    SpanCache(Span span) : _span(span) { }
+    Span span() const { return _span; }
+private:
+    Span _span;
+};
+
+Span spanOf(Symbol symbol) { return symbol.cache<SpanCache>()->span(); }
+
+SpanCache* newSpan(Span span) { return new SpanCache(span); }
+
+SpanCache* newSpan(Location start, Location end)
+{
+    return newSpan(Span(start, end));
+}
+
+SpanCache* newSpan(Symbol symbol) { return newSpan(spanOf(symbol)); }
+
 class ConfigFile
 {
 public:
@@ -36,7 +56,16 @@ public:
         Space::parse(&s2);
         String name = s2.subString(startOffset, endOffset);
         *source = s2;
-        return Symbol(atomIdentifier, name);
+        return Symbol(atomIdentifier, name, newSpan(startSpan + endSpan));
+    }
+    Symbol valueFromIdentifier(Symbol identifier)
+    {
+        String name = identifier[1].string();
+        if (!_options.hasKey(name))
+            spanOf(identifier).throwError(String("Unknown identifier ") + name);
+        Symbol option = _options[name];
+        return Symbol(atomValue, option[2].symbol(), option[1].symbol(),
+            newSpan(identifier));
     }
     Symbol parseTypeIdentifier(CharacterSource* source)
     {
@@ -74,7 +103,8 @@ public:
     Symbol combine(Symbol left, Symbol right)
     {
         if (left.valid())
-            return Symbol(atomStringConstant, left[1].string() + right[1].string());
+            return Symbol(atomValue, left[1].string() + right[1].string(),
+                Symbol(atomString), newSpan(spanOf(left) + spanOf(right)));
         return right;
     }
     
@@ -126,15 +156,16 @@ public:
             if (c < 0x20 && c != 10) {
                 if (c == -1)
                     source->location().throwError(endOfFile);
-                source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+                source->throwUnexpected(printableCharacter,
+                    String::hexadecimal(c, 2));
             }
             *source = s;
             switch (c) {
                 case '"':
                     string += s.subString(startOffset, endOffset);
                     Space::parse(source);
-                    return combine(expression,
-                        Symbol(atomStringConstant, string));
+                    return combine(expression, Symbol(atomValue, string,
+                        newSpan(stringStartSpan + span)));
                 case '\\':
                     string += s.subString(startOffset, endOffset);
                     c = s.get(&stringEndSpan);
@@ -143,7 +174,8 @@ public:
                             source->location().throwError(endOfLine);
                         if (c == -1)
                             source->location().throwError(endOfFile);
-                        source->throwUnexpected(escapedCharacter, String::hexadecimal(c, 2));
+                        source->throwUnexpected(escapedCharacter,
+                            String::hexadecimal(c, 2));
                     }
                     *source = s;
                     switch (c) {
@@ -169,24 +201,29 @@ public:
                             source->assert('+', &stringEndSpan);
                             n = 0;
                             for (int i = 0; i < 4; ++i) {
-                                nn = parseHexadecimalCharacter(source, &stringEndSpan);
+                                nn = parseHexadecimalCharacter(source,
+                                    &stringEndSpan);
                                 if (nn == -1) {
                                     s = *source;
-                                    source->throwUnexpected(hexadecimalDigit, String::codePoint(s.get()));
+                                    source->throwUnexpected(hexadecimalDigit,
+                                        String::codePoint(s.get()));
                                 }
                                 n = (n << 4) | nn;
                             }
-                            nn = parseHexadecimalCharacter(source, &stringEndSpan);
+                            nn = parseHexadecimalCharacter(source,
+                                &stringEndSpan);
                             if (nn != -1) {
                                 n = (n << 4) | nn;
-                                nn = parseHexadecimalCharacter(source, &stringEndSpan);
+                                nn = parseHexadecimalCharacter(source,
+                                    &stringEndSpan);
                                 if (nn != -1)
                                     n = (n << 4) | nn;
                             }
                             insert = String::codePoint(n);
                             break;
                         default:
-                            source->throwUnexpected(escapedCharacter, String::codePoint(c));
+                            source->throwUnexpected(escapedCharacter,
+                                String::codePoint(c));
                     }
                     string += insert;
                     startOffset = source->offset();
@@ -198,20 +235,26 @@ public:
                             part = parseExpression(source);
                             source->assert(')', &span);
                         }
-                        else {
-                            static String error("Expected identifier or parenthesized expression");
-                            source->location().throwError(error);
-                        }
+                        else
+                            source->location().throwError(String(
+                                "Expected identifier or parenthesized "
+                                    "expression"));
                     }
-                    if (part.atom() == atomIntegerConstant)
-                        part = Symbol(atomStringConstant, String::decimal(part[1].integer()));
+                    if (part[2].atom() == atomInteger)
+                        part = Symbol(atomValue,
+                            String::decimal(part[1].integer()),
+                            Symbol(atomString), newSpan(part));
                     else
-                        if (part.atom() != atomStringConstant)
-                            source->location().throwError(String("Don't know how to convert this to a string"));
+                        if (part[2].atom() != atomString)
+                            source->location().throwError(
+                                String("Don't know how to convert type ") +
+                                typeToString(part[2].symbol()) +
+                                String(" to a string"));
                     string += s.subString(startOffset, endOffset);
                     startOffset = source->offset();
                     expression = combine(expression,
-                        Symbol(atomStringConstant, string));
+                        Symbol(atomValue, string, Symbol(atomString),
+                        newSpan(stringStartSpan + stringEndSpan)));
                     string = empty;
                     expression = combine(expression, part);
                     break;
@@ -236,7 +279,8 @@ public:
             c = s.get(&span2);
             if (c < '0' || c > '9') {
                 Space::parse(source);
-                return Symbol(atomIntegerConstant, n);
+                return Symbol(atomValue, n, Symbol(atomInteger),
+                    newSpan(span));
             }
             span += span2;
         } while (true);
@@ -256,13 +300,14 @@ public:
             String s = e[1].string();
             static String trueKeyword("true");
             if (s == trueKeyword)
-                return Symbol(atomTrue);
+                return Symbol(atomValue, Symbol(atomTrue), Symbol(atomBoolean),
+                    newSpan(e));
             static String falseKeyword("false");
             if (s == falseKeyword)
-                return Symbol(atomFalse);
+                return Symbol(atomValue, Symbol(atomFalse),
+                    Symbol(atomBoolean), newSpan(e));
             // TODO: Check for enum constants
-            // TODO: Look up value in _options table
-            return e;
+            return valueFromIdentifier(e);
         }
         // TODO: Check for structure constructor calls
         Span span;
@@ -279,9 +324,9 @@ public:
         Span span;
         if (Space::parseCharacter(source, '-', &span)) {
             Symbol e = parseUnaryExpression(source);
-            if (e.atom() != atomIntegerConstant)
+            if (e.atom() != atomInteger)
                 throw Exception(String("Only numbers can be negated"));
-            return Symbol(atomIntegerConstant, -e[1].integer());
+            return Symbol(atomInteger, -e[1].integer());
         }
         return parseExpressionElement(source);
     }
@@ -297,34 +342,56 @@ public:
                 Symbol e2 = parseUnaryExpression(source);
                 if (!e2.valid())
                     throwError(source);
-                if (e.atom() == atomIntegerConstant) {
-                    if (e2.atom() == atomIntegerConstant)
-                        e = Symbol(atomIntegerConstant, e[1].integer() * e2[1].integer(), Symbol(atomIntegerConstant));
-                    else
-                        if (e2.atom() == atomStringConstant)
-                            e = Symbol(atomIntegerConstant, e[1].integer() * e2[1].string(), Symbol(atomStringConstant));
-                        else
-                            throw Exception(String("Don't know how to multiply these types")); // TODO: Location
-                }
-                else
-                    if (e.atom() == atomStringConstant) {
-                        if (e2.atom() == atomIntegerConstant)
-                            e = Symbol(atomIntegerConstant, e[1].string() * e2[1].integer(), Symbol(atomStringConstant));
-                        else
-                            throw Exception(String("Don't know how to multiply these types")); // TODO: Location
+                bool okay = false;
+                if (e[2].atom() == atomInteger) {
+                    if (e2[2].atom() == atomInteger) {
+                        e = Symbol(atomValue, e[1].integer() * e2[1].integer(),
+                            Symbol(atomInteger),
+                            newSpan(spanOf(e) + spanOf(e2)));
+                        okay = true;
                     }
                     else
-                        throw Exception(String("Don't know how to multiply these types")); // TODO: Location
+                        if (e2[2].atom() == atomString) {
+                            e = Symbol(atomValue,
+                                e2[1].string() * e[1].integer(),
+                                Symbol(atomString),
+                                newSpan(spanOf(e) + spanOf(e2)));
+                            okay = true;
+                        }
+                }
+                else
+                    if (e[2].atom() == atomString) {
+                        if (e2[2].atom() == atomInteger) {
+                            e = Symbol(atomValue,
+                                e[1].string() * e2[1].integer(),
+                                Symbol(atomString),
+                                newSpan(spanOf(e) + spanOf(e2)));
+                            okay = true;
+                        }
+                    }
+                if (!okay) 
+                    span.throwError(
+                        String("Don't know how to multiply type ") +
+                        typeToString(e[2].symbol()) +
+                        String(" and type ") +
+                        typeToString(e2[2].symbol()) +
+                        String::codePoint('.'));
                 continue;
             }
             if (Space::parseCharacter(source, '/', &span)) {
                 Symbol e2 = parseUnaryExpression(source);
                 if (!e2.valid())
                     throwError(source);
-                if (e.atom() == atomIntegerConstant && e2.atom() == atomIntegerConstant)
-                    e = Symbol(atomIntegerConstant, e[1].integer() / e2[1].integer(), Symbol(atomIntegerConstant));
+                if (e[2].atom() == atomInteger && e2[2].atom() == atomInteger)
+                    e = Symbol(atomValue, e[1].integer() / e2[1].integer(),
+                        Symbol(atomInteger), newSpan(spanOf(e) + spanOf(e2)));
                 else
-                    throw Exception(String("Don't know how to divide these types")); // TODO: Location
+                    span.throwError(
+                        String("Don't know how to divide type ") +
+                        typeToString(e[2].symbol()) +
+                        String(" by type ") +
+                        typeToString(e2[2].symbol()) +
+                        String::codePoint('.'));
                 continue;
             }
             return e;
@@ -342,23 +409,36 @@ public:
                 Symbol e2 = parseMultiplicativeExpression(source);
                 if (!e2.valid())
                     throwError(source);
-                if (e.atom() == atomIntegerConstant && e2.atom() == atomIntegerConstant)
-                    e = Symbol(atomIntegerConstant, e[1].integer() + e2[1].integer(), Symbol(atomIntegerConstant));
+                if (e[2].symbol().atom() == atomInteger &&
+                    e2[2].symbol().atom() == atomInteger)
+                    e = Symbol(atomValue, e[1].integer() + e2[1].integer(),
+                        Symbol(atomInteger), newSpan(spanOf(e) + spanOf(e2)));
                 else
-                    if (e.atom() == atomStringConstant && e2.atom() == atomStringConstant)
-                        e = Symbol(atomStringConstant, e[1].string() + e2[1].string(), Symbol(atomStringConstant));
+                    if (e[2].atom() == atomString &&
+                        e2[2].atom() == atomString)
+                        e = Symbol(atomValue, e[1].string() + e2[1].string(),
+                            Symbol(atomString),
+                            newSpan(spanOf(e) + spanOf(e2)));
                     else
-                        throw Exception(String("Don't know how to add these types")); // TODO: Location
+                        span.throwError(String("Don't know how to add type ") +
+                            typeToString(e2[2].symbol()) +
+                            String(" to type ") + typeToString(e[2].symbol()) +
+                            String::codePoint('.'));
                 continue;
             }
             if (Space::parseCharacter(source, '-', &span)) {
                 Symbol e2 = parseMultiplicativeExpression(source);
                 if (!e2.valid())
                     throwError(source);
-                if (e.atom() == atomIntegerConstant && e2.atom() == atomIntegerConstant)
-                    e = Symbol(atomIntegerConstant, e[1].integer() - e2[1].integer(), Symbol(atomIntegerConstant));
+                if (e[2].atom() == atomInteger && e2[2].atom() == atomInteger)
+                    e = Symbol(atomValue,
+                        e[1].integer() - e2[1].integer(), Symbol(atomInteger),
+                        newSpan(spanOf(e) + spanOf(e2)));
                 else
-                    throw Exception(String("Don't know how to subtract these types")); // TODO: Location
+                    span.throwError(
+                        String("Don't know how to subtract type ") +
+                        typeToString(e2[2].symbol()) + String(" from type ") +
+                        typeToString(e[2].symbol()) + String::codePoint('.'));
                 continue;
             }
             return e;
@@ -366,7 +446,7 @@ public:
     }
     String typeToString(Symbol type)
     {
-
+        return atomToString(type.atom());
     }
     void parseAssignment(CharacterSource* source)
     {
@@ -374,13 +454,16 @@ public:
         Span span;
         String name = identifier[1].string();
         if (!_options.hasKey(name))
-            span.throwError("Unknown identifier " + name);
-        Space::assertCharacter(source, '=' &span);
+            span.throwError(String("Unknown identifier ") + name);
+        Space::assertCharacter(source, '=', &span);
         Symbol e = parseExpression(source);
         Symbol expectedType = _options[name][1].symbol();
         Symbol observedType = e[2].symbol();
         if (observedType != expectedType)
-            throw Exception(String("Expected an expression of type ") + typeToString(expectedType) + String(" but found one of type ") + typeToString(observedType)); // TODO: Location
+            spanOf(e).throwError(String("Expected an expression of type ") +
+                typeToString(expectedType) +
+                String(" but found one of type ") +
+                typeToString(observedType));
         Space::assertCharacter(source, ';', &span);
         _options[name][2] = e;
     }
@@ -412,7 +495,7 @@ public:
     }
     Symbol getSymbol(String name)
     {
-        return _options[name][2];
+        return _options[name][2].symbol();
     }
     bool getBoolean(String name)
     {

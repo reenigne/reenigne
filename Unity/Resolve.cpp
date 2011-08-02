@@ -9,14 +9,14 @@ private:
 
 Span spanOf(Symbol symbol) { return symbol.cache<SpanCache>()->span(); }
 
+SpanCache* newSpan(Span span) { return new SpanCache(span); }
+
 SpanCache* newSpan(Location start, Location end)
 {
-    return new SpanCache(Span(start, end));
+    return newSpan(Span(start, end));
 }
 
-SpanCache* newSpan(Symbol symbol) { return new SpanCache(spanOf(symbol)); }
-
-SpanCache* newSpan(Span span) { return new SpanCache(span); }
+SpanCache* newSpan(Symbol symbol) { return newSpan(spanOf(symbol)); }
 
 class ExpressionCache : public SpanCache
 {

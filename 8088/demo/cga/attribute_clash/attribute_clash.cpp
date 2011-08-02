@@ -8,23 +8,17 @@
 enum Atom
 {
     atomBoolean,
-    atomInt,
+    atomInteger,
     atomString,
     atomEnumeration,
     atomEnumeratedValue,
     atomStructure,
     atomStructureEntry,
 
-    atomStringConstant,
+    atomValue,
     atomIdentifier,
-    atomIntegerConstant,
     atomTrue,
     atomFalse,
-
-    atomAdd,
-    atomSubtract,
-    atomMultiply,
-    atomDivide,
 
     atomSrgb,
     atomRgb,
@@ -664,12 +658,14 @@ public:
         Symbol vectorType = Symbol(atomStructure, String("Vector"),
             Symbol(atomStructureEntry, Symbol(atomInt), String("x")),
             Symbol(atomStructureEntry, Symbol(atomInt), String("y")));
+        config.addType(vectorType);
         Symbol colourSpaceType = Symbol(atomEnumeration,
             Symbol(atomEnumeratedValue, Symbol(atomSrgb), String("srgb")),
             Symbol(atomEnumeratedValue, Symbol(atomRgb), String("rgb")),
             Symbol(atomEnumeratedValue, Symbol(atomXyz), String("xyz")),
             Symbol(atomEnumeratedValue, Symbol(atomLuv), String("luv")),
             Symbol(atomEnumeratedValue, Symbol(atomLab), String("lab")));
+        config.addType(colourSpaceType);
         config.addOption("cgaRomFile", Symbol(atomString));
         config.addOption("inputPicture", Symbol(atomString));
         config.addOption("outputNTSC", Symbol(atomString));

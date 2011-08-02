@@ -1,13 +1,10 @@
 ConfigFile
-  The values returned by the expression parsing functions should have the type
-   in slot 2, not passed into parseExpression()
-     And a Span for error messages?
-  Implement typeToString
-  Check for enum constants
-  Look up value in _options table
-  Check for structure constructor calls
+  Implement addType()
+     Check for enum constants
+     Check for structure constructor calls
   Operators are unwieldy - keep a list of allowed overloads?
-  Fix locations in error messages
+    Add toString methods
+    Allow function calls?
 
 Fix up coloured border
   Always make output 640x200 centered
@@ -18,6 +15,10 @@ Get RGB version working again, and see what the output looks like on composite
 Use linear space for error diffusion but perceptual space for choosing the
   smallest error.
     Diffuse error across entire next block?
+
+Write libpng interface code
+  Write a Bitmap class? (bitmap.h)
+    templated on colour type
 
 Write image scaling code (use linear space)
   From x0,y0 to x1,y1 is x0*x1*y0 + x1*y0*y1 operations
