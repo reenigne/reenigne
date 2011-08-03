@@ -655,17 +655,31 @@ public:
     int run()
     {
         ConfigFile config;
-        Symbol vectorType = Symbol(atomStructure, String("Vector"),
-            Symbol(atomStructureEntry, Symbol(atomInt), String("x")),
-            Symbol(atomStructureEntry, Symbol(atomInt), String("y")));
+
+        SymbolList vectorComponents;
+        vectorComponents.add(
+            Symbol(atomStructureEntry, Symbol(atomInteger), String("x")));
+        vectorComponents.add(
+            Symbol(atomStructureEntry, Symbol(atomInteger), String("y")));
+        Symbol vectorType(atomStructure, String("Vector"),
+            SymbolArray(vectorComponents));
         config.addType(vectorType);
-        Symbol colourSpaceType = Symbol(atomEnumeration,
-            Symbol(atomEnumeratedValue, Symbol(atomSrgb), String("srgb")),
-            Symbol(atomEnumeratedValue, Symbol(atomRgb), String("rgb")),
-            Symbol(atomEnumeratedValue, Symbol(atomXyz), String("xyz")),
-            Symbol(atomEnumeratedValue, Symbol(atomLuv), String("luv")),
+
+        SymbolList colourSpaceComponents;
+        colourSpaceComponents.add(
+            Symbol(atomEnumeratedValue, Symbol(atomSrgb), String("srgb")));
+        colourSpaceComponents.add(
+            Symbol(atomEnumeratedValue, Symbol(atomRgb), String("rgb")));
+        colourSpaceComponents.add(
+            Symbol(atomEnumeratedValue, Symbol(atomXyz), String("xyz")));
+        colourSpaceComponents.add(
+            Symbol(atomEnumeratedValue, Symbol(atomLuv), String("luv")));
+        colourSpaceComponents.add(
             Symbol(atomEnumeratedValue, Symbol(atomLab), String("lab")));
+        Symbol colourSpaceType(atomEnumeration, String("ColourSpace"),
+            SymbolArray(colourSpaceComponents));
         config.addType(colourSpaceType);
+
         config.addOption("cgaRomFile", Symbol(atomString));
         config.addOption("inputPicture", Symbol(atomString));
         config.addOption("outputNTSC", Symbol(atomString));
@@ -675,9 +689,9 @@ public:
         config.addOption("compositeTarget", Symbol(atomBoolean));
         config.addOption("hres", Symbol(atomBoolean));
         config.addOption("inputSize", vectorType);
-        config.addOption("overscanColour", Symbol(atomInt));
+        config.addOption("overscanColour", Symbol(atomInteger));
         config.addOption("outputCompositeSize", vectorType);
-        config.addOption("iterations", Symbol(atomInt));
+        config.addOption("iterations", Symbol(atomInteger));
         config.addOption("colourSpace", colourSpaceType);
         config.load(_arguments[1]);
 
