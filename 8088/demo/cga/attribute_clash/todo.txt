@@ -1,7 +1,6 @@
 ConfigFile
-  Implement addType()
-     Check for enum constants
-     Check for structure constructor calls
+  Check for structure constructor calls
+  Make boolean a built-in enumeration
   Operators are unwieldy - keep a list of allowed overloads?
     Add toString methods
     Allow function calls?

@@ -28,6 +28,20 @@ SpanCache* newSpan(Symbol symbol) { return newSpan(spanOf(symbol)); }
 class ConfigFile
 {
 public:
+    void addType(Symbol type)
+    {
+        String name = type[1].string();
+        _types.add(name, type);
+        if (type.atom() == atomEnumeration) {
+            SymbolArray values = type[2].array();
+            for (int i = 0; i < values.count(); ++i) {
+                Symbol value = values[i];
+                _enumeratedValues.add(value[2].string(),
+                    Symbol(atomEnumeratedValueRecord, value[1].symbol(),
+                    type));
+            }
+        }
+    }
     void addOption(String name, Symbol type, Symbol defaultValue = Symbol())
     {
         _options.add(name, Symbol(atomOption, type, defaultValue));
@@ -306,7 +320,11 @@ public:
             if (s == falseKeyword)
                 return Symbol(atomValue, Symbol(atomFalse),
                     Symbol(atomBoolean), newSpan(e));
-            // TODO: Check for enum constants
+            if (_enumeratedValues.hasKey(s)) {
+                Symbol valueRecord = _enumeratedValues[s];
+                return Symbol(atomValue, valueRecord[1].symbol(),
+                    valueRecord[2].symbol(), newSpan(e));
+            }
             return valueFromIdentifier(e);
         }
         // TODO: Check for structure constructor calls
@@ -507,6 +525,8 @@ public:
     }
 private:
     HashTable<String, Symbol> _options;
+    HashTable<String, Symbol> _enumeratedValues;
+    HashTable<String, Symbol> _types;
 };
 
 #endif // INCLUDED_CONFIG_FILE_H

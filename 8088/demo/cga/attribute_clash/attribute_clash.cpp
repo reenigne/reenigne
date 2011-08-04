@@ -12,6 +12,7 @@ enum Atom
     atomString,
     atomEnumeration,
     atomEnumeratedValue,
+    atomEnumeratedValueRecord,
     atomStructure,
     atomStructureEntry,
 
