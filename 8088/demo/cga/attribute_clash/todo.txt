@@ -1,5 +1,5 @@
 ConfigFile
-  Check for structure constructor calls
+  Allow elements of structured values as values
   Make boolean a built-in enumeration
   Operators are unwieldy - keep a list of allowed overloads?
     Add toString methods
@@ -16,6 +16,7 @@ Use linear space for error diffusion but perceptual space for choosing the
     Diffuse error across entire next block?
 
 Write libpng interface code
+  http://www.libpng.org/pub/png/libpng-1.4.0-manual.pdf
   Write a Bitmap class? (bitmap.h)
     templated on colour type
   setjmp before every libpng call that can fail

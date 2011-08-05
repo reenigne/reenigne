@@ -991,6 +991,7 @@ String singleQuote = String::codePoint('\'');
 String backQuote = String::codePoint('`');
 String lessThan = String::codePoint('<');
 String greaterThan = String::codePoint('>');
+String dot = String::codePoint('.');
 
 #include "unity/character_source.h"
 

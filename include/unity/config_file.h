@@ -327,7 +327,38 @@ public:
             }
             return valueFromIdentifier(e);
         }
-        // TODO: Check for structure constructor calls
+        e = parseTypeIdentifier(source);
+        if (e.valid()) {
+            String s = e[1].string();
+            if (!_types.hasKey(s))
+                spanOf(e).throwError(String("Unknown type ") + s);
+            Symbol type = _types[s];
+            if (type.atom() != atomStructure)
+                spanOf(e).throwError(
+                    String("Only structure types can be constructed"));
+            SymbolArray elements = type[2].array();
+            SymbolList values;
+            Span span;
+            Space::assertCharacter(source, '(', &span);
+            for (int i = 0; i < elements.count(); ++i) {
+                Symbol component = elements[i];
+                if (i > 0)
+                    Space::assertCharacter(source, ',', &span);
+                Symbol value = parseExpressionElement(source);
+                Symbol expectedType = component[1].symbol();
+                Symbol observedType = value[2].symbol();
+                if (observedType != expectedType)
+                    spanOf(value).throwError(String("Type mismatch: ") + s + 
+                        dot + component[2].string() + String(" has type ") + 
+                        typeToString(expectedType) + 
+                        String(" but value has type ") + 
+                        typeToString(observedType));
+                values.add(value);
+            }
+            Space::assertCharacter(source, ')', &span);
+            return Symbol(atomValue, SymbolArray(values), type,
+                newSpan(spanOf(e) + span));
+        }
         Span span;
         if (Space::parseCharacter(source, '(', &span)) {
             e = parseExpression(source);
