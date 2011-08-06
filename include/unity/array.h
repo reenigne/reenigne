@@ -7,6 +7,7 @@ template<class T> class Array : Uncopyable
 {
 public:
     Array() : _data(0) { }
+    explicit Array(int n) : _data(0) { allocate(n); }
     void allocate(int n)
     {
         release();

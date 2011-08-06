@@ -1,3 +1,5 @@
+See if we can get rid of some Array::allocate() calls with the new constructor
+
 ConfigFile
   Allow elements of structured values as values
   Make boolean a built-in enumeration
