@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "unity/user.h"
 #include "unity/thread.h"
+#include "unity/bitmap.h"
 
 enum Atom
 {

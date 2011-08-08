@@ -19,8 +19,7 @@ Use linear space for error diffusion but perceptual space for choosing the
 
 Write libpng interface code
   http://www.libpng.org/pub/png/libpng-1.4.0-manual.pdf
-  Write a Bitmap class? (bitmap.h)
-    templated on colour type
+  Write Bitmap - refactor with Image?
   setjmp before every libpng call that can fail
 
 Write image scaling code (use linear space)
