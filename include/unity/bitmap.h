@@ -18,6 +18,16 @@ public:
     {
         FileHandle handle(file);
         handle.openRead();
+        Array<Byte> header(8);
+        handle.read(&header[0], 8);
+        if (png_sig_cmp(&header[0], 0, 8))
+            throw Exception(file.messagePath() +
+                String(" is not a .png file"));
+
+        png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
+            static_cast<png_voidp>(&handle), userErrorFunction,
+            userWarningFunction);
+
         png_set_read_fn(read_ptr, static_cast<voidp>(&handle), userReadData);
 
         // TODO
@@ -48,12 +58,12 @@ private:
     static void userErrorFunction(png_structp png_ptr,
         png_const_charp error_msg)
     {
-
+        throw Exception(String(error_msg));  // TODO: can we include the filename?
     }
     static void userWarningFunction(png_structp png_ptr,
         png_const_charp error_msg)
     {
-
+        throw Exception(String(error_msg));  // TODO: can we include the filename?
     }
 
     Vector _size;
