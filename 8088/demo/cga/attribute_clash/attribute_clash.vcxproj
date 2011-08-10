@@ -85,6 +85,7 @@
     <ClCompile Include="attribute_clash.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\..\include\unity\bitmap.h" />
     <ClInclude Include="..\..\..\..\include\unity\buffer.h" />
     <ClInclude Include="..\..\..\..\include\unity\character_source.h" />
     <ClInclude Include="..\..\..\..\include\unity\colour_space.h" />

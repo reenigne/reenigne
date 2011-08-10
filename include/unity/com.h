@@ -4,6 +4,7 @@
 #include "unity/string.h"
 #include <ObjBase.h>
 #include <OleAuto.h>
+#include "unity/assert.h"
 
 
 #define IF_ERROR_THROW(expr) CODE_MACRO( \

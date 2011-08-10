@@ -23,12 +23,8 @@ public:
         if (png_sig_cmp(&header[0], 0, 8))
             throw Exception(file.messagePath() +
                 String(" is not a .png file"));
-
-        png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
-            static_cast<png_voidp>(&handle), userErrorFunction,
-            userWarningFunction);
-
-        png_set_read_fn(read_ptr, static_cast<voidp>(&handle), userReadData);
+        PNGRead read(&handle);
+        read.init();
 
         // TODO
     }
@@ -58,13 +54,48 @@ private:
     static void userErrorFunction(png_structp png_ptr,
         png_const_charp error_msg)
     {
-        throw Exception(String(error_msg));  // TODO: can we include the filename?
+        FileHandle* handle = png_get_error_ptr(png_ptr);
+        throw Exception(String("Error reading: ") + handle->name() +
+            colonSpace + String(error_msg));
     }
     static void userWarningFunction(png_structp png_ptr,
         png_const_charp error_msg)
     {
-        throw Exception(String(error_msg));  // TODO: can we include the filename?
+        FileHandle* handle = png_get_error_ptr(png_ptr);
+        throw Exception(String("Error reading: ") + handle->name() +
+            colonSpace + String(error_msg));
     }
+
+    class PNGRead
+    {
+    public:
+        PNGRead(FileHandle* handle)
+        {
+            _png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
+                static_cast<png_voidp>(handle), userErrorFunction,
+                userWarningFunction);
+            if (png_ptr == 0)
+                throw Exception(String("Error creating PNG read structure"));
+        }
+        void init()
+        {
+            _info_ptr = png_create_info_struct(_png_ptr);
+            if (_info_ptr == 0)
+                throw Exception(String("Error creating PNG info structure"));
+            png_set_read_fn(_png_ptr, static_cast<voidp>(handle),
+                userReadData);
+            png_set_sig_bytes(_png_ptr, 8);
+
+
+        }
+        ~PNGRead()
+        {
+            png_destroy_read_struct(&_png_ptr, &_info_ptr, &_end_info);
+        }
+    private:
+        png_structp _png_ptr;
+        png_infop _info_ptr;
+    };
 
     Vector _size;
     int _stride;

@@ -6,6 +6,7 @@
 // TODO: Use console instead of MessageBox() for console applications?
 
 #include "unity/string.h"
+#include <CRTDBG.h>
 
 void alert(String message, HWND hWnd = NULL)
 {

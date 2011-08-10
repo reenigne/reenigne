@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ShellAPI.h>
+#include "unity/main.h"
 
 class Collection
 {
@@ -19,15 +20,18 @@ public:
             throw Exception(String("No files to choose from"));
         unsigned int r;
         if (rand_s(&r) != 0)
-            Exception::throwSystemError(String("Random number generation failed"));
+            throw Exception::systemError(
+                String("Random number generation failed"));
         r %= n;
         File f = _array[r];
         String p = f.path();
         Array<WCHAR> path;
         p.copyToUTF16(&path);
-        HINSTANCE h = ShellExecute(NULL, NULL, &path[0], NULL, NULL, SW_SHOWMAXIMIZED);
+        HINSTANCE h =
+            ShellExecute(NULL, NULL, &path[0], NULL, NULL, SW_SHOWMAXIMIZED);
         if (reinterpret_cast<unsigned int>(h) <= 32)
-            Exception::throwSystemError(String("Execution of ") + p + (" failed"));
+            throw Exception::systemError(String("Execution of ") + p +
+                String(" failed"));
     }
 private:
     AppendableArray<File> _array;
@@ -46,22 +50,20 @@ private:
     Collection* _collection;
 };
 
-int wmain(int argc, wchar_t** argv)
+class Program : public ProgramBase
 {
-    BEGIN_CHECKED {
+public:
+    void run()
+    {
         COMInitializer com(COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
         Collection collection;
-        if (argc == 1) {
-            printf("Usage: run_random <path>\n");
-            exit(1);
+        if (_arguments.count() == 1) {
+            String("Usage: run_random <path>\n").
+                write(Handle::consoleOutput());
+            return;
         }
-        argv++;
-        for (;*argv; ++argv)
-            applyToWildcard(Collect(&collection), String(*argv));
+        for (int i = 1; i < _arguments.count(); ++i)
+            applyToWildcard(Collect(&collection), _arguments[i]);
         collection.runRandom();
     }
-    END_CHECKED(Exception& e) {
-        e.write(Handle::consoleOutput());
-    }
-    return 0;
-}
+};
