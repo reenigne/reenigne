@@ -18,9 +18,10 @@ Use linear space for error diffusion but perceptual space for choosing the
     Diffuse error across entire next block?
 
 Write libpng interface code
-  http://www.libpng.org/pub/png/libpng-1.4.0-manual.pdf
-  Write Bitmap - refactor with Image?
-  setjmp before every libpng call that can fail
+  Handle PNG formats other than 24-bit sRGB:
+    1, 2, 4, 16 bits per channel?
+    Monochrome
+    Gamma
 
 Write image scaling code (use linear space)
   From x0,y0 to x1,y1 is x0*x1*y0 + x1*y0*y1 operations
