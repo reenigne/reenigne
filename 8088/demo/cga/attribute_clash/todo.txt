@@ -1,3 +1,6 @@
+Write image scaling code (use linear space)
+  From x0,y0 to x1,y1 is x0*x1*y0 + x1*y0*y1 operations
+
 See if we can get rid of some Array::allocate() calls with the new constructor
 
 ConfigFile
@@ -17,14 +20,10 @@ Use linear space for error diffusion but perceptual space for choosing the
   smallest error.
     Diffuse error across entire next block?
 
-Write libpng interface code
-  Handle PNG formats other than 24-bit sRGB:
-    1, 2, 4, 16 bits per channel?
-    Monochrome
-    Gamma
-
-Write image scaling code (use linear space)
-  From x0,y0 to x1,y1 is x0*x1*y0 + x1*y0*y1 operations
+Handle PNG formats other than 24-bit sRGB:
+  1, 2, 4, 16 bits per channel?
+  Monochrome
+  Gamma
 
 Try all 6 possibilites for overscanColour in AttributeClashImage constructor.
   Try black as well for monochrome images

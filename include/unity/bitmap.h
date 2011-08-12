@@ -11,7 +11,27 @@ public:
     Bitmap(Vector size) { setSize(size); }
     void resample(Bitmap* target)
     {
-        // TODO
+        Vector targetSize = target->size();
+        Array<Pixel> intermediate(targetSize.x * _size.y);
+        Byte* row = data();
+        Byte* targetRow = target->data();
+        for (int y = 0; y < _size.y; ++y) {
+            Pixel* p = reinterpret_cast<Pixel*>(row);
+            Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
+            // TODO: Resample this line from row to targetRow
+            for (int xTarget = 0; xTarget < targetSize.x; ++xTarget) {
+                Pixel p;
+                for (int x = 0; x < _sizex; ++x) {
+                    double 
+                }
+                *targetP = p;
+                ++targetP;
+            }
+            row += stride();
+            targetRow += target->stride();
+        }
+
+        // TODO: Resample to targetSize.x * targetSize.y
     }
 
     // This will put 8-bit sRGB data in the bitmap.

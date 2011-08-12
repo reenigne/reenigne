@@ -1,7 +1,8 @@
-#include "unity/file.h"
-#include "unity/minimum_maximum.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "unity/main.h"
+#include "unity/file.h"
+#include "unity/minimum_maximum.h"
 
 static UInt32 crc_32_tab[]={ /* CRC polynomial 0xedb88320 */
 0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
@@ -85,20 +86,17 @@ public:
     void operator()(const Directory& directory) { }
 };
 
-int wmain(int argc, wchar_t** argv)
+class Program : public ProgramBase
 {
-    BEGIN_CHECKED {
+public:
+    void run()
+    {
         Crc32 crc32;
-        if (argc == 1) {
+        if (_arguments.count() == 1) {
             printf("Usage: crc32 <path>\n");
-            exit(1);
+            return;
         }
-        argv++;
-        for (;*argv; ++argv)
-            applyToWildcard(crc32, String(*argv));
+        for (int i = 1; i < _arguments.count(); ++i)
+            applyToWildcard(crc32, _arguments[i]);
     }
-    END_CHECKED(Exception& e) {
-        e.write(Handle::consoleOutput());
-    }
-    return 0;
-}
+};
