@@ -41,14 +41,28 @@ String atomToString(Atom atom)
         LookupTable()
         {
             _table[atomBoolean] = String("Boolean");
-            _table[atomInt] = String("Int");
+            _table[atomInteger] = String("Int");
             _table[atomString] = String("String");
+            _table[atomEnumeration] = String("Enumeration");
+            _table[atomEnumeratedValue] = String("EnumeratedValue");
+            _table[atomEnumeratedValueRecord] =
+                String("EnumeratedValueRecord");
+            _table[atomStructure] = String("Structure");
+            _table[atomStructureEntry] = String("StructureEntry");
 
-            _table[atomStringConstant] = String("string");                           
+            _table[atomValue] = String("value");
             _table[atomIdentifier] = String("identifier");                           
-            _table[atomIntegerConstant] = String("integer");                         
             _table[atomTrue] = String("true");
             _table[atomFalse] = String("false");
+
+            _table[atomSrgb] = String("srgb");
+            _table[atomRgb] = String("rgb");
+            _table[atomXyz] = String("xyz");
+            _table[atomLuv] = String("luv");
+            _table[atomLab] = String("lab");
+
+            _table[atomOption] = String("option");
+
         }
         String lookUp(Atom atom) { return _table[atom]; }
     private:

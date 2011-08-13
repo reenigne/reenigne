@@ -9,29 +9,138 @@ template<class Pixel> class Bitmap
 public:
     Bitmap() : _size(0, 0) { }
     Bitmap(Vector size) { setSize(size); }
+
+    // Copy this bitmap to target with resampling.
     void resample(Bitmap* target)
     {
         Vector targetSize = target->size();
-        Array<Pixel> intermediate(targetSize.x * _size.y);
+        Byte* row = data();
+        float scaleTarget;
+        float scale;
+
+        // Resample horizontally
+        int intermediateStride = targetSize.x * sizeof(Pixel);
+        Array<Byte> intermediate(intermediateStride * _size.y);
+        Byte* targetRow = &intermediate[0];
+        if (targetSize.x > _size.x) {
+            // Upsampling. The band-limit resolution is the same as the source
+            // resolution. z = x - (xTarget * _size.x)/targetSize.x 
+            scaleTarget =
+                static_cast<float>(_size.x)/static_cast<float>(targetSize.x);
+            scale = 1.0f;
+        }
+        else {
+            // Downsampling. The band-limit resolution is the same as the
+            // target resolution. z = (x * targetSize.x)/_size.x - xTarget
+            scaleTarget = 1.0f;
+            scale =
+                static_cast<float>(targetSize.x)/static_cast<float>(_size.x);
+        }
+        for (int y = 0; y < _size.y; ++y) {
+            Pixel* p = reinterpret_cast<Pixel*>(row);
+            Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
+            for (int xTarget = 0; xTarget < targetSize.x; ++xTarget) {
+                Pixel c;
+                Pixel t;
+                float z0 = xTarget*scaleTarget;
+                for (int x = 0; x < _size.x; ++x) {
+                    float z = x*scale - z0;
+                    float s = sin(z)/z;
+                    t += s;
+                    c += p[x]*s;
+                }
+                *targetP = c/t;
+                ++targetP;
+            }
+            row += stride();
+            targetRow += intermediateStride;
+        }
+
+        resampleVertically(&intermediate[0], target);
+    }
+
+    // Copy this bitmap to target with subpixel resampling.
+    void subPixelResample(Bitmap* target, bool tripleResolution)
+    {
+        Vector targetSize = target->size();
+        Byte* row = data();
+        float scaleTarget;
+        float scale;
+
+        // Resample horizontally
+        int intermediateStride = targetSize.x * sizeof(Pixel);
+        Array<Byte> intermediate(intermediateStride * _size.y);
+        Byte* targetRow = &intermediate[0];
+        int targetWidth = targetSize.x;
+        if (tripleResolution)
+            targetWidth *= 3;
+        if (targetWidth > _size.x) {
+            // Upsampling. The band-limit resolution is the same as the source
+            // resolution. z = x - (xTarget * _size.x)/targetWidth
+            scaleTarget =
+                static_cast<float>(_size.x)/static_cast<float>(targetWidth);
+            scale = 1.0f;
+        }
+        else {
+            // Downsampling. The band-limit resolution is the same as the
+            // target resolution. z = (x * targetWidth)/_size.x - xTarget
+            scaleTarget = 1.0f;
+            scale =
+                static_cast<float>(targetWidth)/static_cast<float>(_size.x);
+        }
+        for (int y = 0; y < _size.y; ++y) {
+            Pixel* p = reinterpret_cast<Pixel*>(row);
+            Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
+            for (int xTarget = 0; xTarget < targetSize.x; ++xTarget) {
+                Pixel c;
+                Pixel t;
+                float z0 = xTarget*scaleTarget;
+                float subPixel = scaleTarget/3.0f;
+                for (int x = 0; x < _size.x; ++x) {
+                    float xs = x*scale;
+                    float z = xs - z0;
+                    float s = sin(z)/z;
+                    t.x += s;
+                    c.x += p[x].x*s;
+
+                    z -= subPixel;
+                    s = sin(z)/z;
+                    t.y += s;
+                    c.y += p[x].y*s;
+
+                    z -= subPixel;
+                    s = sin(z)/z;
+                    t.z += s;
+                    c.z += p[x].z*s;
+                }
+                *targetP = c/t;
+                ++targetP;
+            }
+            row += stride();
+            targetRow += intermediateStride;
+        }
+
+        resampleVertically(&intermediate[0], target);
+    }
+
+    // Convert from one pixel format to another.
+    template<class TargetPixel, class Converter> void convert(
+        Bitmap<TargetPixel>* target, Converter converter)
+    {
+        target->setSize(_size);
         Byte* row = data();
         Byte* targetRow = target->data();
         for (int y = 0; y < _size.y; ++y) {
             Pixel* p = reinterpret_cast<Pixel*>(row);
-            Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
-            // TODO: Resample this line from row to targetRow
-            for (int xTarget = 0; xTarget < targetSize.x; ++xTarget) {
-                Pixel p;
-                for (int x = 0; x < _sizex; ++x) {
-                    double 
-                }
-                *targetP = p;
-                ++targetP;
+            TargetPixel* tp = reinterpret_cast<TargetPixel*>(targetRow);
+            for (int x = 0; x < _size.x; ++x) {
+                *tp = converter.convert(*p);
+                ++p;
+                ++tp;
             }
             row += stride();
             targetRow += target->stride();
         }
-
-        // TODO: Resample to targetSize.x * targetSize.y
     }
 
     // This will put 8-bit sRGB data in the bitmap.
@@ -56,13 +165,13 @@ public:
         PNGWrite write(&handle);
         write.write(this);
     }
-    Byte* data() const { return &_data[0]; }
+    Byte* data() { return &_data[0]; }
     int stride() const { return _stride; }
     Vector size() const { return _size; }
     void setSize(Vector size)
     {
         _size = size;
-        _stride = size.x*sizeof(Pxiel);
+        _stride = size.x*sizeof(Pixel);
         _data.allocate(size.y*_stride);
     }
 private:
@@ -82,14 +191,16 @@ private:
     static void userErrorFunction(png_structp png_ptr,
         png_const_charp error_msg)
     {
-        FileHandle* handle = png_get_error_ptr(png_ptr);
+        FileHandle* handle =
+            static_cast<FileHandle*>(png_get_error_ptr(png_ptr));
         throw Exception(String("Error reading: ") + handle->name() +
             colonSpace + String(error_msg));
     }
     static void userWarningFunction(png_structp png_ptr,
         png_const_charp error_msg)
     {
-        FileHandle* handle = png_get_error_ptr(png_ptr);
+        FileHandle* handle =
+            static_cast<FileHandle*>(png_get_error_ptr(png_ptr));
         throw Exception(String("Error reading: ") + handle->name() +
             colonSpace + String(error_msg));
     }
@@ -102,7 +213,7 @@ private:
             _png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
                 static_cast<png_voidp>(handle), userErrorFunction,
                 userWarningFunction);
-            if (png_ptr == 0)
+            if (_png_ptr == 0)
                 throw Exception(String("Error creating PNG read structure"));
         }
         void read(Bitmap* bitmap)
@@ -110,11 +221,11 @@ private:
             _info_ptr = png_create_info_struct(_png_ptr);
             if (_info_ptr == 0)
                 throw Exception(String("Error creating PNG info structure"));
-            png_set_read_fn(_png_ptr, static_cast<voidp>(_handle),
+            png_set_read_fn(_png_ptr, static_cast<png_voidp>(_handle),
                 userReadData);
             png_set_sig_bytes(_png_ptr, 8);
             png_read_png(_png_ptr, _info_ptr, PNG_TRANSFORM_IDENTITY, 0);
-            _row_pointers = png_get_rows(png_ptr, info_ptr);
+            _row_pointers = png_get_rows(_png_ptr, _info_ptr);
             Vector size(png_get_image_width(_png_ptr, _info_ptr),
                 png_get_image_height(_png_ptr, _info_ptr));
             bitmap->setSize(size);
@@ -149,7 +260,7 @@ private:
             _png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
                 static_cast<png_voidp>(handle), userErrorFunction,
                 userWarningFunction);
-            if (png_ptr == 0)
+            if (_png_ptr == 0)
                 throw Exception(String("Error creating PNG write structure"));
         }
         void write(Bitmap* bitmap)
@@ -157,10 +268,10 @@ private:
             _info_ptr = png_create_info_struct(_png_ptr);
             if (_info_ptr == 0)
                 throw Exception(String("Error creating PNG info structure"));
-            png_set_write_fn(_png_ptr, static_cast<voidp>(_handle),
+            png_set_write_fn(_png_ptr, static_cast<png_voidp>(_handle),
                 userWriteData, userFlushData);
             Vector size = bitmap->size();
-            png_set_IHDR(png_ptr, info_ptr, size.x, size.y, 8,
+            png_set_IHDR(_png_ptr, _info_ptr, size.x, size.y, 8,
                 PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
             Array<Byte*> rows(size.y);
@@ -183,6 +294,68 @@ private:
         png_bytep* _row_pointers;
         FileHandle* _handle;
     };
+
+    void resampleVertically(Byte* intermediate, Bitmap* target)
+    {
+        Vector targetSize = target->size();
+        int intermediateStride = targetSize.x * sizeof(Pixel);
+        Array<Byte> cRowArray(intermediateStride);
+        Array<Byte> tRowArray(intermediateStride);
+        Pixel* cRow = reinterpret_cast<Pixel*>(&cRowArray[0]);
+        Pixel* tRow = reinterpret_cast<Pixel*>(&tRowArray[0]);
+        float scaleTarget;
+        float scale;
+        if (targetSize.y > _size.y) {
+            // Upsampling
+            scaleTarget =
+                static_cast<float>(_size.y)/static_cast<float>(targetSize.y);
+            scale = 1.0f;
+        }
+        else {
+            // Downsampling
+            scaleTarget = 1.0f;
+            scale =
+                static_cast<float>(targetSize.y)/static_cast<float>(_size.y);
+        }
+        Byte* targetRow = target->data();
+        for (int yTarget = 0; yTarget < targetSize.y; ++yTarget) {
+            Pixel* c = cRow;
+            Pixel* t = tRow;
+            for (int x = 0; x < targetSize.x; ++x) {
+                *c = Pixel();
+                ++c;
+                *t = Pixel();
+                ++t;
+            }
+            Byte* row = intermediate;
+            float z0 = yTarget*scaleTarget;
+            for (int y = 0; y < _size.y; ++y) {
+                c = cRow;
+                t = tRow;
+                float z = y*scale - z0;
+                float s = sin(z)/z;
+                Pixel* p = reinterpret_cast<Pixel*>(row);
+                for (int x = 0; x < targetSize.x; ++x) {
+                    *t += s;
+                    *c += s*(*p);
+                    ++t;
+                    ++c;
+                    ++p;
+                }
+                row += intermediateStride;
+            }
+            Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
+            c = cRow;
+            t = tRow;
+            for (int x = 0; x < targetSize.x; ++x) {
+                *targetP = (*c)/(*t);
+                ++c;
+                ++t;
+                ++targetP;
+            }
+            targetRow += target->stride();
+        }
+    }
 
     Vector _size;
     int _stride;

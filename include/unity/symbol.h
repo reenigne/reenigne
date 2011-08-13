@@ -85,7 +85,7 @@ public:
     SymbolArrayTemplate<T> array() { return SymbolArrayTemplate<T>(_implementation); }
     SymbolTemplate<T> symbol() { return SymbolTemplate<T>(dynamic_cast<Symbol::Implementation*>(implementation())); }
     SymbolLabelTemplate<T> label() { return SymbolLabelTemplate<T>(dynamic_cast<Symbol::Implementation*>(implementation())); }
-    Atom atom() const { return symbol().atom(); }
+    Atom atom() { return symbol().atom(); }
     bool valid() const { return _implementation.valid(); }
     int length(int max) const { return implementation()->length(max); }
     String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const { return _implementation->toString(width, spacesPerIndex, indent, x, more); }
@@ -170,6 +170,7 @@ public:
     SymbolEntry head() const { return _head; }
     SymbolEntry& head() { return _head; }
     const SymbolTail* tail() const { return _tail; }
+    SymbolTail* tail() { return _tail; }
     bool equals(const SymbolTail* other) const
     {
         if (this == other)
@@ -236,7 +237,7 @@ public:
         SymbolTail* t = tail();
         while (n > 1) {
             if (t == 0)
-                return Symbol();
+                throw Exception(String("Out of bounds access in to Symbol"));
             --n;
             t = t->tail();
         }
@@ -244,6 +245,7 @@ public:
     }
 
     const SymbolTail* tail() const { return implementation()->tail(); }
+    SymbolTail* tail() { return implementation()->tail(); }
 
     template<class U> U* cache()
     {
@@ -255,7 +257,7 @@ private:
     class Implementation : public SymbolEntry::Implementation
     {
     public:
-        Implementation(Atom atom, SymbolCache* cache, const SymbolTail* tail)
+        Implementation(Atom atom, SymbolCache* cache, SymbolTail* tail)
           : _atom(atom), _cache(cache), _tail(tail), _labelReferences(0),
           _labelNumber(-1)
         { }
@@ -318,6 +320,7 @@ private:
 
         SymbolCache* cache() { return _cache; }
         const SymbolTail* tail() const { return _tail; }
+        SymbolTail* tail() { return _tail; }
 
         void setCache(Reference<ReferenceCounted> cache) { _cache = cache; }
 
@@ -346,7 +349,7 @@ private:
         int removeLabel() { --_labelReferences; }
     private:
         Atom _atom;
-        ConstReference<SymbolTail> _tail;
+        Reference<SymbolTail> _tail;
         Reference<SymbolCache> _cache;
         mutable int _labelNumber;
         int _labelReferences;
@@ -400,6 +403,7 @@ private:
     void copyTo(Array<Symbol>* symbols)
     {
         symbols->allocate(_count);
+        symbols->constructElements();
         Reference<Implementation> implementation = _first;
         for (int i = _count - 1; i >= 0; --i) {
             (*symbols)[i] = implementation->symbol();

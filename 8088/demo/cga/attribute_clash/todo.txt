@@ -1,5 +1,5 @@
-Write image scaling code (use linear space)
-  From x0,y0 to x1,y1 is x0*x1*y0 + x1*y0*y1 operations
+Array::allocate() doesn't construct which is error prone. Figure out a better
+  interface. Why doesn't it construct?
 
 See if we can get rid of some Array::allocate() calls with the new constructor
 

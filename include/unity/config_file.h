@@ -50,7 +50,7 @@ public:
     {
         CharacterSource s = *source;
         Location startLocation = s.location();
-        int startOffset;
+        int startOffset = s.offset();
         Span startSpan;
         Span endSpan;
         int c = s.get(&startSpan);
@@ -85,7 +85,7 @@ public:
     {
         CharacterSource s = *source;
         Location startLocation = s.location();
-        int startOffset;
+        int startOffset = s.offset();
         Span startSpan;
         Span endSpan;
         int c = s.get(&startSpan);
