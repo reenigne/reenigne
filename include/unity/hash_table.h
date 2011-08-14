@@ -48,6 +48,22 @@ private:
                 t = t->_next;
             } while (t != this);
         }
+        //void dump()
+        //{
+        //    if (_next == 0) {
+        //        String("(none)").write(Handle::consoleOutput());
+        //        return;
+        //    }
+        //    TableEntry* t = this;
+        //    do {
+        //        String("  ").write(Handle::consoleOutput());
+        //        t->_key.write(Handle::consoleOutput());
+        //        String("=>").write(Handle::consoleOutput());
+        //        t->_value.toString().write(Handle::consoleOutput());
+        //        String("\n").write(Handle::consoleOutput());
+        //        t = t->_next;
+        //    } while (t != this);
+        //}
     private:
         const TableEntry* findEntry(const Key& key) const
         {
@@ -143,13 +159,19 @@ public:
         }
         void operator++()
         {
-            _entry = _entry->_next;
-            while (_entry == 0) {
-                ++_row;
-                if (_row == _table->_n)
-                    break;
-                _entry = &_table->_table[_row];
+            const TableEntry* e = _entry->_next;
+            if (e != &_table->_table[_row]) {
+                _entry = e;
+                return;
             }
+            do {
+                ++_row;
+                if (_row == _table->_n) {
+                    _entry = 0;
+                    break;
+                }
+                _entry = &_table->_table[_row];
+            } while (_entry->_next == 0);
         }
     private:
         Iterator(int row, const TableEntry* entry, const HashTableBase* table)
@@ -173,6 +195,14 @@ public:
         return Iterator(row, entry, this);
     }
     Iterator end() const { return Iterator(_n, 0, this); }
+    //void dump()
+    //{
+    //    for (int i = 0; i < _n; ++i) {
+    //        String("%i:\n").write(Handle::consoleOutput());
+    //        _table[i].dump();
+    //    }
+    //}
+private:
     Array<TableEntry> _table;
     int _n;
 };

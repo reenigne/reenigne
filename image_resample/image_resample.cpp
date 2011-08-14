@@ -65,6 +65,11 @@ class Program : public ProgramBase
 public:
     void run()
     {
+        if (_arguments.count() == 1) {
+            printf("Usage: image_resample <config file path>\n");
+            return;
+        }
+
         ConfigFile config;
 
         SymbolList vectorComponents;
@@ -84,12 +89,13 @@ public:
         config.load(_arguments[1]);
 
         Bitmap<SRGB> input;
-        input.load(File(config.getString("inputPicture")));
+        input.load(
+            File(config.getString("inputPicture"), CurrentDirectory(), true));
         Bitmap<Vector3<float> > linearInput;
         input.convert(&linearInput, ConvertSRGBToLinear());
         Symbol sizeSymbol = config.getSymbol("outputSize");
-        Vector size(sizeSymbol[1].array()[0].integer(),
-            sizeSymbol[1].array()[1].integer());
+        Vector size(sizeSymbol[1].array()[0][1].integer(),
+            sizeSymbol[1].array()[1][1].integer());
         Bitmap<Vector3<float> > linearOutput(size);
         if (config.getBoolean("subpixels"))
             linearInput.resample(&linearOutput);

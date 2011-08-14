@@ -70,8 +70,10 @@ template<class T> class SymbolEntryTemplate
 {
 public:
     SymbolEntryTemplate() { }
-    SymbolEntryTemplate(int value) : _implementation(new IntegerImplementation(value)) { }
-    SymbolEntryTemplate(String value) : _implementation(new StringImplementation(value)) { }
+    SymbolEntryTemplate(int value)
+      : _implementation(new IntegerImplementation(value)) { }
+    SymbolEntryTemplate(String value)
+      : _implementation(new StringImplementation(value)) { }
     bool operator==(const SymbolEntry& other) const
     {
         return _implementation->equals(other._implementation);
@@ -80,15 +82,45 @@ public:
     {
         return !_implementation->equals(other._implementation);
     }
-    int integer() const { return dynamic_cast<const IntegerImplementation*>(implementation())->value(); }
-    String string() const { return dynamic_cast<const StringImplementation*>(implementation())->value(); }
-    SymbolArrayTemplate<T> array() { return SymbolArrayTemplate<T>(_implementation); }
-    SymbolTemplate<T> symbol() { return SymbolTemplate<T>(dynamic_cast<Symbol::Implementation*>(implementation())); }
-    SymbolLabelTemplate<T> label() { return SymbolLabelTemplate<T>(dynamic_cast<Symbol::Implementation*>(implementation())); }
+    int integer() const
+    {
+        return dynamic_cast<const IntegerImplementation*>(implementation())
+            ->value(); 
+    }
+    String string() const
+    {
+        return dynamic_cast<const StringImplementation*>(implementation())
+            ->value(); 
+    }
+    SymbolArrayTemplate<T> array()
+    {
+        return SymbolArrayTemplate<T>(_implementation);
+    }
+    SymbolTemplate<T> symbol()
+    {
+        return SymbolTemplate<T>(
+            dynamic_cast<Symbol::Implementation*>(implementation())); 
+    }
+    SymbolLabelTemplate<T> label()
+    {
+        return SymbolLabelTemplate<T>(
+            dynamic_cast<Symbol::Implementation*>(implementation())); 
+    }
     Atom atom() { return symbol().atom(); }
     bool valid() const { return _implementation.valid(); }
     int length(int max) const { return implementation()->length(max); }
-    String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const { return _implementation->toString(width, spacesPerIndex, indent, x, more); }
+    String toString(int width, int spacesPerIndent, int indent, int& x,
+        bool& more) const
+    {
+        return
+            _implementation->toString(width, spacesPerIndent, indent, x, more); 
+    }
+    String toString() const
+    {
+        int x;
+        bool more;
+        return toString(80, 2, 0, x, more);
+    }
     int hash() const { return implementation()->hash(); }
     bool isSymbol() const { return _implementation->isSymbol(); }
     bool isArray() const { return _implementation->isArray(); }
@@ -98,7 +130,8 @@ protected:
     public:
         virtual bool equals(const Implementation* other) const = 0;
         virtual int length(int max) const = 0;
-        virtual String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const = 0;
+        virtual String toString(int width, int spacesPerIndent, int indent,
+            int& x, bool& more) const = 0;
         virtual int hash() const = 0;
         virtual bool isSymbol() const = 0;
         virtual bool isArray() const = 0;
@@ -109,12 +142,14 @@ protected:
         IntegerImplementation(int value) : _value(value) { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
-            const IntegerImplementation* o = dynamic_cast<const IntegerImplementation*>(other);
+            const IntegerImplementation* o =
+                dynamic_cast<const IntegerImplementation*>(other);
             if (o == 0)
                 return false;
             return _value == o->_value;
         }
-        String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const
+        String toString(int width, int spacesPerIndent, int indent, int& x,
+            bool& more) const
         {
             x += decimalLength(_value);
             more = true;
@@ -134,12 +169,14 @@ protected:
         StringImplementation(String value) : _value(value) { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
-            const StringImplementation* o = dynamic_cast<const StringImplementation*>(other);
+            const StringImplementation* o =
+                dynamic_cast<const StringImplementation*>(other);
             if (o == 0)
                 return false;
             return _value == o->_value;
         }
-        String toString(int width, int spacesPerIndex, int indent, int& x, bool& more) const
+        String toString(int width, int spacesPerIndent, int indent, int& x,
+            bool& more) const
         {
             x += quotedLength(_value);
             more = true;
@@ -153,7 +190,8 @@ protected:
     private:
         String _value;
     };
-    SymbolEntryTemplate(Implementation* implementation) : _implementation(implementation) { }
+    SymbolEntryTemplate(Implementation* implementation)
+      : _implementation(implementation) { }
     const Implementation* implementation() const { return _implementation; }
     Implementation* implementation() { return _implementation; }
 private:
@@ -166,7 +204,8 @@ class SymbolTail : public ReferenceCounted
 {
 public:
     SymbolTail(SymbolEntry head) : _head(head) { }
-    SymbolTail(SymbolEntry head, SymbolTail* tail) : _head(head), _tail(tail) { }
+    SymbolTail(SymbolEntry head, SymbolTail* tail) : _head(head), _tail(tail) 
+    { }
     SymbolEntry head() const { return _head; }
     SymbolEntry& head() { return _head; }
     const SymbolTail* tail() const { return _tail; }
@@ -206,15 +245,27 @@ public:
     SymbolTemplate(Atom atom, SymbolCache* cache = 0)
       : SymbolEntry(new Implementation(atom, cache, 0)) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolCache* cache = 0)
-      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1, 0))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolCache* cache = 0)
-      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1, new SymbolTail(symbol2, 0)))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolCache* cache = 0)
-      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, 0))))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolCache* cache = 0)
-      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, new SymbolTail(symbol4, 0)))))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2, SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5, SymbolCache* cache = 0)
-      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1, new SymbolTail(symbol2, new SymbolTail(symbol3, new SymbolTail(symbol4, new SymbolTail(symbol5, 0))))))) { }
+      : SymbolEntry(
+        new Implementation(atom, cache, new SymbolTail(symbol1, 0))) { }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
+        SymbolCache* cache = 0)
+      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1,
+          new SymbolTail(symbol2, 0)))) { }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
+        SymbolEntry symbol3, SymbolCache* cache = 0)
+      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1,
+          new SymbolTail(symbol2, new SymbolTail(symbol3, 0))))) { }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
+        SymbolEntry symbol3, SymbolEntry symbol4, SymbolCache* cache = 0)
+      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1,
+          new SymbolTail(symbol2, new SymbolTail(symbol3,
+          new SymbolTail(symbol4, 0)))))) { }
+    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
+        SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5,
+        SymbolCache* cache = 0)
+      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1,
+          new SymbolTail(symbol2, new SymbolTail(symbol3,
+          new SymbolTail(symbol4, new SymbolTail(symbol5, 0))))))) { }
 
     SymbolTemplate(Atom atom, const SymbolTail* tail, SymbolCache* cache)
       : SymbolEntry(new Implementation(atom, cache, tail)) { }
@@ -252,7 +303,8 @@ public:
         return implementation()->cache()->cast<U>();
     }
 private:
-    SymbolTemplate(Implementation* implementation) : SymbolEntry(implementation) { }
+    SymbolTemplate(Implementation* implementation)
+      : SymbolEntry(implementation) { }
 
     class Implementation : public SymbolEntry::Implementation
     {
@@ -263,7 +315,8 @@ private:
         { }
         bool equals(const SymbolEntry::Implementation* other) const
         {
-            const Implementation* o = dynamic_cast<const Implementation*>(other);
+            const Implementation* o =
+                dynamic_cast<const Implementation*>(other);
             if (o == 0)
                 return false;
             return _atom == o->_atom && _tail->equals(o->_tail);
@@ -280,7 +333,8 @@ private:
             return r;
         }
 
-        String toString(int width, int spacesPerIndent, int indent, int& x, bool& more) const
+        String toString(int width, int spacesPerIndent, int indent, int& x,
+            bool& more) const
         {
             ++x;
             more = true;
@@ -298,7 +352,8 @@ private:
             const SymbolTail* tail = _tail;
             while (tail != 0) {
                 SymbolEntry entry = tail->head();
-                if (canInlineNext && x + 1 + entry.length(width - x) <= width - 1) {
+                if (canInlineNext && x + 1 + entry.length(width - x) <=
+                    width - 1) {
                     // Fits on the line - inline it
                     s += space;
                     ++x;
@@ -309,7 +364,8 @@ private:
                     x = indent + 2;
                     more = false;
                 }
-                s += entry.toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
+                s += entry.toString(width, spacesPerIndent, indent + 2, x,
+                    canInlineNext);
                 tail = tail->tail();
             }
             ++x;
@@ -357,8 +413,16 @@ private:
         static int _labels;
     };
 
-    const Implementation* implementation() const { return dynamic_cast<const Implementation*>(SymbolEntryTemplate::implementation()); }
-    Implementation* implementation() { return dynamic_cast<Implementation*>(SymbolEntryTemplate::implementation()); }
+    const Implementation* implementation() const
+    { 
+        return dynamic_cast<const Implementation*>(
+            SymbolEntryTemplate::implementation()); 
+    }
+    Implementation* implementation()
+    {
+        return dynamic_cast<Implementation*>(
+            SymbolEntryTemplate::implementation()); 
+    }
 
     template<class T> friend class SymbolEntryTemplate;
     template<class T> friend class SymbolTemplate;
@@ -419,12 +483,21 @@ template<class T> class SymbolArrayTemplate : public SymbolEntry
 public:
     SymbolArrayTemplate() : SymbolEntry(_empty) { }
     SymbolArrayTemplate(Symbol s1) : SymbolEntry(new Implementation(s1)) { }
-    SymbolArrayTemplate(Symbol s1, Symbol s2) : SymbolEntry(new Implementation(s1, s2)) { }
-    SymbolArrayTemplate(SymbolList list) : SymbolEntry(new Implementation(list)) { }
-    int count() const { return dynamic_cast<const Implementation*>(implementation())->count(); }
-    Symbol operator[](int i) { return (*dynamic_cast<const Implementation*>(implementation()))[i]; }
+    SymbolArrayTemplate(Symbol s1, Symbol s2)
+      : SymbolEntry(new Implementation(s1, s2)) { }
+    SymbolArrayTemplate(SymbolList list)
+      : SymbolEntry(new Implementation(list)) { }
+    int count() const
+    {
+        return dynamic_cast<const Implementation*>(implementation())->count(); 
+    }
+    Symbol operator[](int i)
+    {
+        return (*dynamic_cast<const Implementation*>(implementation()))[i];
+    }
 private:
-    SymbolArrayTemplate(Implementation* implementation) : SymbolEntry(implementation) { }
+    SymbolArrayTemplate(Implementation* implementation)
+      : SymbolEntry(implementation) { }
 
     class Implementation : public SymbolEntry::Implementation
     {
@@ -447,7 +520,8 @@ private:
         }
         bool equals(const SymbolEntry::Implementation* other) const
         {
-            const Implementation* o = dynamic_cast<const Implementation*>(other);
+            const Implementation* o =
+                dynamic_cast<const Implementation*>(other);
             if (o == 0)
                 return false;
             int n = _symbols.count();
@@ -480,7 +554,8 @@ private:
         int count() const { return _symbols.count(); }
         Symbol operator[](int i) const { return _symbols[i]; }
         Symbol& operator[](int i) { return _symbols[i]; }
-        String toString(int width, int spacesPerIndent, int indent, int& x, bool& more) const
+        String toString(int width, int spacesPerIndent, int indent, int& x,
+            bool& more) const
         {
             ++x;
             int n = _symbols.count();
@@ -492,11 +567,13 @@ private:
             }
 
             bool canInlineNext;
-            String s = openBracket + _symbols[0].toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
+            String s = openBracket + _symbols[0].toString(width,
+                spacesPerIndent, indent + 2, x, canInlineNext);
 
             for (int i = 1; i < n; ++i) {
                 Symbol symbol = _symbols[i];
-                if (canInlineNext && x + 1 + symbol.length(width - x) <= width - 1) {
+                if (canInlineNext && x + 1 + symbol.length(width - x) <=
+                    width - 1) {
                     // Fits on the line - inline it
                     s += space;
                     ++x;
@@ -507,7 +584,8 @@ private:
                     x = indent + 2;
                     more = false;
                 }
-                s += symbol.toString(width, spacesPerIndent, indent + 2, x, canInlineNext);
+                s += symbol.toString(width, spacesPerIndent, indent + 2, x,
+                    canInlineNext);
             }
             ++x;
             return s + closeBracket;
@@ -564,7 +642,7 @@ private:
         {
             return 2 + decimalLength(_target->label());
         }
-        String toString(int width, int spacesPerIndex, int indent, int& x,
+        String toString(int width, int spacesPerIndent, int indent, int& x,
             bool& more) const
         {
             x += length();

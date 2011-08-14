@@ -105,7 +105,7 @@ public:
         Space::parse(&s2);
         String name = s2.subString(startOffset, endOffset);
         *source = s2;
-        return Symbol(atomIdentifier, name);
+        return Symbol(atomIdentifier, name, newSpan(startSpan + endSpan));
     }
     
     void throwError(CharacterSource* source)
@@ -179,7 +179,7 @@ public:
                     string += s.subString(startOffset, endOffset);
                     Space::parse(source);
                     return combine(expression, Symbol(atomValue, string,
-                        newSpan(stringStartSpan + span)));
+                        Symbol(atomString), newSpan(stringStartSpan + span)));
                 case '\\':
                     string += s.subString(startOffset, endOffset);
                     c = s.get(&stringEndSpan);
