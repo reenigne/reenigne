@@ -98,13 +98,14 @@ public:
             sizeSymbol[1].array()[1][1].integer());
         Bitmap<Vector3<float> > linearOutput(size);
         if (config.getBoolean("subpixels"))
-            linearInput.resample(&linearOutput);
-        else
             linearInput.subPixelResample(&linearOutput,
                 config.getBoolean("tripleResolution"));
+        else
+            linearInput.resample(&linearOutput);
         Bitmap<SRGB> output;
         linearOutput.convert(&output, ConvertLinearToSRGB());
-        output.save(File(config.getString("outputPicture")));
+        output.save(File(
+            config.getString("outputPicture"), CurrentDirectory(), true));
     }
 private:
     class ConvertSRGBToLinear

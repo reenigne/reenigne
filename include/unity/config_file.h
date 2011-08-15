@@ -536,7 +536,7 @@ public:
     }
     Atom getAtom(String name)
     {
-        return getSymbol(name).atom();
+        return getSymbol(name)[1].atom();
     }
     String getString(String name)
     {
