@@ -1,3 +1,7 @@
+Allow array types in config files
+  Allow "size={200,150};" syntax for structures and arrays
+
+
 Array::allocate() doesn't construct which is error prone. Figure out a better
   interface. Why doesn't it construct?
 

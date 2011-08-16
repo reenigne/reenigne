@@ -1,0 +1,92 @@
+  ; BIOS mode                       0    1    2    3    4    5    6    7
+
+  ; Mode                         0x2c 0x28 0x2d 0x29 0x0a 0x0e 0x1a
+  ;      1 +HRES                    0    0    1    1    0    0    0
+  ;      2 +GRPH                    0    0    0    0    2    2    2
+  ;      4 +BW                      4    0    4    0    0    4    0
+  ;      8 +VIDEO ENABLE            8    8    8    8    8    8    8
+  ;   0x10 +1BPP                    0    0    0    0    0    0 0x10
+  ;   0x20 +ENABLE BLINK         0x20 0x20 0x20 0x20    0    0    0
+  mov dx,03d8
+  mov al,??
+  out dx,al
+
+  ; Palette
+  ;      1 +OVERSCAN B
+  ;      2 +OVERSCAN G
+  ;      4 +OVERSCAN R
+  ;      8 +OVERSCAN I
+  ;   0x10 +BACKGROUND I
+  ;   0x20 +COLOR SEL
+  mov dx,03d9
+  mov al,??
+  out dx,al
+
+  mov dx,03d4
+
+  ;   0xff Horizontal Total      0x38 0x38 0x71 0x71 0x38 0x38 0x38 0x61
+  mov ax,03800
+  out dx,ax
+
+  ;   0xff Horizontal Displayed  0x28 0x28 0x50 0x50 0x28 0x28 0x28 0x50
+  mov ax,0??01
+  out dx,ax
+
+  ;   0xff H. Sync Position      0x2d 0x2d 0x5a 0x5a 0x2d 0x2d 0x2d 0x52
+  mov ax,0??02
+  out dx,ax
+
+  ;   0x0f H. Sync Width         0x0a 0x0a 0x0a 0x0a 0x0a 0x0a 0x0a 0x0f
+  mov ax,0??03
+  out dx,ax
+
+  ;   0x7f Vertical Total        0x1f 0x1f 0x1f 0x1f 0x7f 0x7f 0x7f 0x19
+  mov ax,0??04
+  out dx,ax
+
+  ;   0x1f V. Total Adjust          6    6    6    6    6    6    6    6
+  mov ax,0??05
+  out dx,ax
+
+  ;   0x7f Vertical Displayed    0x19 0x19 0x19 0x19 0x64 0x64 0x64 0x19
+  mov ax,0??06
+  out dx,ax
+
+  ;   0x7f V. Sync Position      0x1c 0x1c 0x1c 0x1c 0x70 0x70 0x70 0x19
+  mov ax,0??07
+  out dx,ax
+
+  ;   0x03 Interlace Mode           2    2    2    2    2    2    2    2
+  mov ax,0??08
+  out dx,ax
+
+  ;   0x1f Max Scan Line Address    7    7    7    7    1    1    1 0x0d
+  mov ax,0??09
+  out dx,ax
+
+  ; Cursor Start                    6    6    6    6    6    6    6 0x0b
+  ;   0x1f Cursor Start             6    6    6    6    6    6    6 0x0b
+  ;   0x60 Cursor Mode              0    0    0    0    0    0    0    0
+  mov ax,0??0a
+  out dx,ax
+
+  ;   0x1f Cursor End               7    7    7    7    7    7    7 0x0c
+  mov ax,0??0b
+  out dx,ax
+
+  ;   0x3f Start Address (H)        0    0    0    0    0    0    0    0
+  mov ax,0??0c
+  out dx,ax
+
+  ;   0xff Start Address (L)        0    0    0    0    0    0    0    0
+  mov ax,0??0d
+  out dx,ax
+
+  ;   0x3f Cursor (H)               0    0    0    0    0    0    0    0
+  mov ax,0??0e
+  out dx,ax
+
+  ;   0xff Cursor (L)               0    0    0    0    0    0    0    0
+  mov ax,0??0f
+  out dx,ax
+
