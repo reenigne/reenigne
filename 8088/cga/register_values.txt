@@ -1,12 +1,12 @@
   ; BIOS mode                       0    1    2    3    4    5    6    7
 
-  ; Mode                         0x2c 0x28 0x2d 0x29 0x0a 0x0e 0x1a
-  ;      1 +HRES                    0    0    1    1    0    0    0
-  ;      2 +GRPH                    0    0    0    0    2    2    2
-  ;      4 +BW                      4    0    4    0    0    4    0
-  ;      8 +VIDEO ENABLE            8    8    8    8    8    8    8
-  ;   0x10 +1BPP                    0    0    0    0    0    0 0x10
-  ;   0x20 +ENABLE BLINK         0x20 0x20 0x20 0x20    0    0    0
+  ; Mode                         0x2c 0x28 0x2d 0x29 0x2a 0x2e 0x1a 0x29
+  ;      1 +HRES                    0    0    1    1    0    0    0    1
+  ;      2 +GRPH                    0    0    0    0    2    2    2    0
+  ;      4 +BW                      4    0    4    0    0    4    0    0
+  ;      8 +VIDEO ENABLE            8    8    8    8    8    8    8    8
+  ;   0x10 +1BPP                    0    0    0    0    0    0 0x10    0
+  ;   0x20 +ENABLE BLINK         0x20 0x20 0x20 0x20 0x20 0x20    0 0x20
   mov dx,03d8
   mov al,??
   out dx,al
