@@ -1,14 +1,25 @@
-  ; BIOS mode                       0    1    2    3    4    5    6    7
+;CGA
 
-  ; Mode                         0x2c 0x28 0x2d 0x29 0x2a 0x2e 0x1a 0x29
-  ;      1 +HRES                    0    0    1    1    0    0    0    1
-  ;      2 +GRPH                    0    0    0    0    2    2    2    0
-  ;      4 +BW                      4    0    4    0    0    4    0    0
-  ;      8 +VIDEO ENABLE            8    8    8    8    8    8    8    8
-  ;   0x10 +1BPP                    0    0    0    0    0    0 0x10    0
-  ;   0x20 +ENABLE BLINK         0x20 0x20 0x20 0x20 0x20 0x20    0 0x20
+  ; BIOS mode                                            0  1  2  3  4  5  6  7
+
+  ; Horizontal total                                    57 57114114 57 57 57 98
+  ; Horizontal displayed                                40 40 80 80 40 40 40 80
+  ; Horizontal sync position                            45 45 90 90 45 45 45 82
+  ; Horizontal sync width                               10 10 10 10 10 10 10 15
+  ; Vertical total scanlines                           262262262262262262262370
+  ; Vertical displayed scanlines                       200200200200200200200350
+  ; Vertical sync scanline                             224224224224224224224350
+  ; Scanlines per row                                    8  8  8  8  2  2  2 14
+
+  ; Mode                                                2c 28 2d 29 2a 2e 1a 29
+  ;      1 +HRES                                         0  0  1  1  0  0  0  1
+  ;      2 +GRPH                                         0  0  0  0  2  2  2  0
+  ;      4 +BW                                           4  0  4  0  0  4  0  0
+  ;      8 +VIDEO ENABLE                                 8  8  8  8  8  8  8  8
+  ;   0x10 +1BPP                                         0  0  0  0  0  0 10  0
+  ;   0x20 +ENABLE BLINK                                20 20 20 20 20 20  0 20
   mov dx,03d8
-  mov al,??
+  mov al,0??
   out dx,al
 
   ; Palette
@@ -19,74 +30,160 @@
   ;   0x10 +BACKGROUND I
   ;   0x20 +COLOR SEL
   mov dx,03d9
-  mov al,??
+  mov al,0??
   out dx,al
 
   mov dx,03d4
 
-  ;   0xff Horizontal Total      0x38 0x38 0x71 0x71 0x38 0x38 0x38 0x61
-  mov ax,03800
+  ;   0xff Horizontal Total                             38 38 71 71 38 38 38 61
+  mov ax,0??00
   out dx,ax
 
-  ;   0xff Horizontal Displayed  0x28 0x28 0x50 0x50 0x28 0x28 0x28 0x50
+  ;   0xff Horizontal Displayed                         28 28 50 50 28 28 28 50
   mov ax,0??01
   out dx,ax
 
-  ;   0xff H. Sync Position      0x2d 0x2d 0x5a 0x5a 0x2d 0x2d 0x2d 0x52
+  ;   0xff Horizontal Sync Position                     2d 2d 5a 5a 2d 2d 2d 52
   mov ax,0??02
   out dx,ax
 
-  ;   0x0f H. Sync Width         0x0a 0x0a 0x0a 0x0a 0x0a 0x0a 0x0a 0x0f
+  ;   0x0f Horizontal Sync Width                        0a 0a 0a 0a 0a 0a 0a 0f
   mov ax,0??03
   out dx,ax
 
-  ;   0x7f Vertical Total        0x1f 0x1f 0x1f 0x1f 0x7f 0x7f 0x7f 0x19
+  ;   0x7f Vertical Total                               1f 1f 1f 1f 7f 7f 7f 19
   mov ax,0??04
   out dx,ax
 
-  ;   0x1f V. Total Adjust          6    6    6    6    6    6    6    6
+  ;   0x1f Vertical Total Adjust                         6  6  6  6  6  6  6  6
   mov ax,0??05
   out dx,ax
 
-  ;   0x7f Vertical Displayed    0x19 0x19 0x19 0x19 0x64 0x64 0x64 0x19
+  ;   0x7f Vertical Displayed                           19 19 19 19 64 64 64 19
   mov ax,0??06
   out dx,ax
 
-  ;   0x7f V. Sync Position      0x1c 0x1c 0x1c 0x1c 0x70 0x70 0x70 0x19
+  ;   0x7f Vertical Sync Position                       1c 1c 1c 1c 70 70 70 19
   mov ax,0??07
   out dx,ax
 
-  ;   0x03 Interlace Mode           2    2    2    2    2    2    2    2
+  ;   0x03 Interlace Mode                                2  2  2  2  2  2  2  2
   mov ax,0??08
   out dx,ax
 
-  ;   0x1f Max Scan Line Address    7    7    7    7    1    1    1 0x0d
+  ;   0x1f Max Scan Line Address                         7  7  7  7  1  1  1 0d
   mov ax,0??09
   out dx,ax
 
-  ; Cursor Start                    6    6    6    6    6    6    6 0x0b
-  ;   0x1f Cursor Start             6    6    6    6    6    6    6 0x0b
-  ;   0x60 Cursor Mode              0    0    0    0    0    0    0    0
+  ; Cursor Start                                         6  6  6  6  6  6  6 0b
+  ;   0x1f Cursor Start                                  6  6  6  6  6  6  6 0b
+  ;   0x60 Cursor Mode                                   0  0  0  0  0  0  0  0
   mov ax,0??0a
   out dx,ax
 
-  ;   0x1f Cursor End               7    7    7    7    7    7    7 0x0c
+  ;   0x1f Cursor End                                    7  7  7  7  7  7  7 0c
   mov ax,0??0b
   out dx,ax
 
-  ;   0x3f Start Address (H)        0    0    0    0    0    0    0    0
+  ;   0x3f Start Address (H)                             0  0  0  0  0  0  0  0
   mov ax,0??0c
   out dx,ax
 
-  ;   0xff Start Address (L)        0    0    0    0    0    0    0    0
+  ;   0xff Start Address (L)                             0  0  0  0  0  0  0  0
   mov ax,0??0d
   out dx,ax
 
-  ;   0x3f Cursor (H)               0    0    0    0    0    0    0    0
+  ;   0x3f Cursor (H)                                    0  0  0  0  0  0  0  0
   mov ax,0??0e
   out dx,ax
 
-  ;   0xff Cursor (L)               0    0    0    0    0    0    0    0
+  ;   0xff Cursor (L)                                    0  0  0  0  0  0  0  0
   mov ax,0??0f
   out dx,ax
+
+
+;EGA
+
+  ; BIOS mode                                           00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 0f 10 00 01 02 03
+
+  mov dx,03c4
+  ; Reset Register  0x01
+  ;      1 Fast Reset Command                                                                                                 0 = reset.  1 = no reset.
+  ;      2 Safe Reset Command                                                                                                 0 = reset.  2 = no reset.
+  mov ax,0100
+  out dx,ax   ; Reset sequencer
+
+  ; Clocking Mode Register                              0b 0b 01 01 0b 0b 01 00 00 00 00 01 00 0b 01 05 05 01 01 0b 0b 01 01
+  ;      1 Character Dot Clock Select                    1  1  1  1  1  1  1  0  0  0  0  1  0  1  1  1  1  1  1  1  1  1  1  0 = 9 pixels per character.  1 = 8 pixels per character.
+  ;      2 CRTC clock cycle usage                        2  2  0  0  2  2  0  0  0  0  0  0  0  2  0  0  0  0  0  2  2  0  0  0 = CRTC uses 4/5 of the clock cycles.  1 = CRTC uses 2/5 of the clock cycles.
+  ;      4 Shift Load Two Control                        0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  4  4  0  0  0  0  0  0  0 = Reload the video shift registers on each character clock.  1 = Reload the video shift registers on every second character clock permitting use of slow image memory chips.
+  ;      8 Dot Clock Divide by Two Enable                8  8  0  0  8  8  0  0  0  0  0  0  0  8  0  0  0  0  0  8  8  0  0  0 = Normal pixel width.  1 = Double pixel width.
+  ;   0x10 Shift Load Four Control                       0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 = Reload the video shift registers as per bit 1.  1 = Reload the video shift registers on every fourth character clock permitting use of slow image memory chips.
+  ;   0x20 Screen Inhibit                                0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 = Normal.  1 = Blank screen for faster memory access.
+  mov ax,0??01
+  out dx,ax
+
+  ;   0x0f Map Mask Register                            03 03 03 03 03 03 01 03 00 00 00 04 04 0f 0f 0f 0f 0f 0f 03 03 03 03  Map Plane 0-3 Write Enable Control
+  mov ax,0??02
+  out dx,ax
+
+  ; Character Map Select Register  0x00
+  ;      3 Character Map Select B                                                                                             Select Character Map Memory offset * 16K
+  ;   0x0c Character Map Select A                                                                                             Select Character Map Memory offset * 16K
+  mov ax,3
+  out dx,ax
+
+  ; Sequencer Memory Mode Register                      03 03 03 03 02 02 06 03 03 03 03 07 07 06 06 00 00 06 06 03 03 03 03
+  ;      1 Alphanumeric Mode                             1  1  1  1  0  0  0  1  1  1  1  1  1  0  0  0  0  0  0  1  1  1  1  0 = Graphics modes.  1 = Alphanumeric modes.
+  ;      2 Memory Size Specification                     2  2  2  2  2  2  2  2  2  2  2  2  2  2  2  0  0  2  2  2  2  2  2  0 = 64K image memory available.  1 = More than 64K memory available.
+  ;      4 Processor Image Memory Access Mode Select     0  0  0  0  0  0  4  0  0  0  0  4  4  4  4  0  0  4  4  0  0  0  0  0 = Odd/even memory access mode.  1 = Normal memory access mode.
+  ;      8 Processor Image Memory Access Mapping Select  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 = Memory planes accessed determined by Map Mask Register.  1 = Memory plane accessed determined using low 2 bits of address.
+  mov ax,0??04
+  out dx,ax
+
+  ; Miscellaneous Output Register                       23 23 23 23 23 23 23 a6 23 23 23 23 a6 23 23 a2 a7 a2 a7 a7 a7 a7 a7
+  ;      1 Input Output Address Select                   1  1  1  1  1  1  1  0  1  1  1  1  0  1  1  0  1  0  1  1  1  1  1  0 = Use ports 3bx.  1 = Use ports 3dx.
+  ;      2 Display Memory Access Enable                  2  2  2  2  2  2  2  2  2  2  2  2  2  2  2  2  2  2  2  2  2  2  2  0 = Disable processor access to display image memory.  1 = Enable processor access to display image memory.
+  ;   0x0c Dot Clock Frequency Select                    0  0  0  0  0  0  0  4  0  0  0  0  4  0  0  0  4  0  4  4  4  4  4  0 = 25.175 MHz clock for 640 total Horizontal Pixels.  1 = 28.322 MHz clock for 720 total Horizontal Pixels.  2/3 = External clock up to a maximum of 65.000 MHz.
+  ;   0x10 Disable internal video drivers                0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 = Normal.  1 = Disable internal video drivers.
+  ;   0x20 Address Extension Bit                        20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20  0 = Select the low 64K page.  1 = Select the high 64K page for the Text Memory Access Mode.
+  ;   0xc0 Synchronisation Signal Polarity               0  0  0  0  0  0  0 80  0  0  0  0 80  0  0 80 80 80 80 80 80 80 80  0 = 200 lines.  2 = 350 lines.
+  mov dl,0c2
+  mov al,0??
+  out dx,al
+  mov dl,0c4
+  mov ax,0300
+  out dx,ax   ; Unreset sequencer
+  mov dl,0??  ; CRTC port address low byte              d4 d4 d4 d4 d4 d4 d4 b4 d4 d4 d4 d4 b4 d4 d4 b4 d4 b4 d4 d4 d4 d4 d4  Corresponds to Input Output Address Select
+
+  ;   0xff Horizontal Total Register                    37 37 70 70 37 37 70 60 37 37 37 70 60 37 70 60 5b 60 5b 2d 2d 5b 5b  Horizontal Total - 2
+  mov ax,0??00
+  out dx,ax
+
+  ;   0xff Horizontal Display Enable End Register       27 27 4f 4f 27 27 4f 4f 27 27 27 4f 4f 27 4f 4f 4f 4f 4f 27 27 4f 4f  Horizontal Display End - 1
+  mov ax,0??01
+  out dx,ax
+
+  ;   0xff Start Horizontal Blanking Register           2d 2d 5c 5c 2d 2d 59 56 2d 2d 2d 5c 56 2d 59 56 53 56 53 2b 2b 53 53  Start Horizontal Blanking
+  mov ax,0??02
+  out dx,ax
+
+  ; End Horizontal Blanking Register                    37 37 2f 2f 37 37 2d 3a 37 37 37 2f 3a 37 2d 1a 17 3a 37 2d 2d 37 37
+  ;   0x1f End Horizontal Blanking                      17 17 1f 1f 17 17 0d 1a 17 17 17 0f 1a 17 0d 1a 17 1a 17 0d 0d 17 17  End Horizontal Blanking bits 4..0
+  ;   0x60 Display Enable Skew                          20 20 20 20 20 20 20 20 20 20 20 20 20 20 20  0  0 20 20 20 20 20 20  character clock delay
+  mov ax,0??03
+  out dx,ax
+
+  ;   0xff Start Horizontal Retrace Register            31 31 5f 5f 30 30 5e 51 31 31 31 5f 51 30 5e 50 50 50 52 28 28 51 51  Start Horizontal Retrace Pulse
+  mov ax,0??04
+  out dx,ax
+
+  ; End Horizontal Retrace Register                     15 15 07 07 14 14 06 60 15 15 15 07 60 14 06 e0 ba 60 00 6d 6d 5b 5b
+  ;   0x1f End Horizontal Retrace                       15 15  7  7 15 15  6  0 15 15 15  7  0 14  6  0 1a  0  0 0d 0d 1b 1b  End Horizontal Retrace
+  ;   0x60 Horizontal Retrace Skew                       0  0  0  0  0  0  0 60  0  0  0  0 60  0  0 60 20 60  0 60 60 40 40  Horizontal Retrace Skew
+  ;   0x80 Smooth scrolling for odd/even mode            0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 80 80  0  0  0  0  0  0  0 = display starts from even byte.  1 = display starts from odd byte.
+  mov ax,0??05
+  out dx,ax
+
+  ;
 
