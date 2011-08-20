@@ -1,4 +1,9 @@
-;CGA
+;CGA/MDA
+              CGA          MDA
+; Pixel clock 14.318 MHz   16.257 MHz
+; Horizontal  15.700 KHz   18.432 KHz
+; Vertical    59.923 Hz    49.816 Hz
+; Usage       53.69%       77.22%
 
   ; BIOS mode                                           00  01  02  03  04  05  06  07
 
@@ -112,10 +117,9 @@
   ; Horizontal displayed                                40  40  80  80  40  40  40  40  40  80  80
   ; Horizontal sync position                            44  44  90  90  43  43  43  43  43  86  86
   ; Horizontal sync width                                6   6  12  12   6   6   6   6   6  12  12
-  ; Vertical total scanlines                           262 --- --- --- --- --- --- --- --- --- -->
-  ; Vertical displayed scanlines                       200 --- --- --- --- --- --- --- --- --- -->
-  ; Vertical sync scanline                             224 --- --- --- --- --- --- --- --- --- -->
-  ; Scanlines per row                                    8   8   8   8   2   2   2   2   2   4   4
+  ; Vertical displayed scanlines                       200 200 200 200 200 200 200 200 200 200 200
+  ; Vertical sync scanline                             224 224 224 224 224 224 224 224 224 224 224
+  ; Vertical total scanlines                           262 262 262 262 262 262 262 262 262 262 262
 
   mov dx,03da
   mov al,4   ; Reset register
@@ -222,6 +226,11 @@
 
 
 ;EGA
+                Mono        010/text14-80  text14-40
+; Pixel clock   16.257 MHz  16.257 MHz     16.257 MHz
+; Horizontal    18.432 KHz  21.851 KHz     21.618 KHz
+; Vertical      49.816 Hz   59.702 Hz      59.067 Hz
+; Usage         77.22%      82.26%         81.39%
 
   ; BIOS mode                                           00  01  02  03  04  05  06  07  08  09  0a  0b  0c  0d  0e  0f  10  0f  10  00  01  02  03
 
@@ -236,7 +245,7 @@
   ; Vertical start blank                               224 224 224 224 224 224 223 350 224 224 224 224 350 224 223 350 351 350 351 350 350 350 350
   ; Vertical start retrace                             225 225 225 225 225 225 224 350 225 225 225 225 350 225 224 350 350 350 350 350 350 350 350
   ; Vertical end retrace                               228 228 228 228 228 228 227 366 228 228 228 228 355 228 227 366 363 366 363 363 363 363 363
-  ; vertical end blank                                 240 240 240 240 240 240 239 366 240 240 240 240 366 240 239 366 362 366 362 362 362 362 362
+  ; Vertical end blank                                 240 240 240 240 240 240 239 366 240 240 240 240 366 240 239 366 362 366 362 362 362 362 362
   ; Vertical total                                     262 262 262 262 262 262 262 370 262 262 262 262 370 262 262 370 366 370 366 366 366 366 366
 
   ; Bytes per CRTC character                             2   2   2   2   2   2   1   2                       1   1   1   1   1   1   2   2   2   2
@@ -280,7 +289,7 @@
   ; Miscellaneous Output Register                       23  23  23  23  23  23  23  a6  23  23  23  23  a6  23  23  a2  a7  a2  a7  a7  a7  a7  a7
   ;      1 Input Output Address Select                   1   1   1   1   1   1   1   0   1   1   1   1   0   1   1   0   1   0   1   1   1   1   1  0 = Use ports 3bx.  1 = Use ports 3dx.
   ;      2 Display Memory Access Enable                  2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2  0 = Disable processor access to display image memory.  1 = Enable processor access to display image memory.
-  ;   0x0c Dot Clock Frequency Select                    0   0   0   0   0   0   0   4   0   0   0   0   4   0   0   0   4   0   4   4   4   4   4  0 = 25.175 MHz clock for 640 total Horizontal Pixels.  1 = 28.322 MHz clock for 720 total Horizontal Pixels.  2/3 = External clock up to a maximum of 65.000 MHz.
+  ;   0x0c Dot Clock Frequency Select                    0   0   0   0   0   0   0   4   0   0   0   0   4   0   0   0   4   0   4   4   4   4   4  0 = 14.318 MHz.  1 = 16.257 MHz.
   ;   0x10 Disable internal video drivers                0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal.  1 = Disable internal video drivers.
   ;   0x20 Address Extension Bit                        20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  0 = Select the low 64K page.  1 = Select the high 64K page for the Text Memory Access Mode.
   ;   0xc0 Synchronisation Signal Polarity               0   0   0   0   0   0   0  80   0   0   0   0  80   0   0  80  80  80  80  80  80  80  80  0 = 200 lines.  2 = 350 lines.
@@ -579,116 +588,152 @@
 
 
 ;VGA
+                04      07      0a      0f/64K  10/64K  480
+; Pixel clock   25.175  28.322  25.175  25.175  28.322  25.175
+; Horizontal    31.469  31.469  46.620  31.787  36.878  31.469
+; Vertical      70.086  70.087 177.940  85.910 100.758  59.940
+; Usage         71.27%  71.27%  50.89%  76.44%  79.69%  73.14%
 
-  ; BIOS mode                                           00  01  02  03  04  05  06  07  08  09  0a  0b  0c  0d  0e  0f  10  0f  10  00  01  02  03
+  ; BIOS mode                                           00  01  02  03  04  05  06  07  08  09  0a  0b  0c  0d  0e  0f  10  0f  10  00  01  02  03 0/1 2/3  07  11  12  13
+
+  ; Horizontal displayed                                40  40  80  80  40  40  80  80  40      40  80  80  40  80  80  80  80  80  40  40  80  80  40  80  80  80  80  80
+  ; Horizontal start blank                              40  40  80  80  40  40  80  80  80      45  80  80  40  80  86  83  80  80  40  40  80  80  40  80  80  80  80  80
+  ; Horizontal start retrace                            43  43  85  85  43  43  84  85  85      49  85  85  43  84  80  80  84  84  43  43  85  85  43  85  85  84  84  84
+  ; Horizontal end retrace                              48  48  97  97  48  48  96  97  97      53  97  97  48  96  96  90  96  96  48  48  97  97  48  97  97  96  96  96
+  ; Horizontal end blank                                48  48  98  98  48  48  98  98  98      55  98  98  48  98  90  87  98  98  48  48  98  98  48  98  98  98  98  98
+  ; Horizontal total                                    50  50 100 100  50  50 100 100 100      60 100 100  50 100  99  96 100 100  50  50 100 100  50 100 100 100 100 100
+
+  ; Vertical displayed                                 400 400 400 400 400 400 400 350 400     200 400 400 400 400 350 350 350 350 350 350 350 350 400 400 400 480 480 400
+  ; Vertical start blank                               441 441 441 441 441 441 441 442 441     240 441 441 441 441 366 266 442 442 442 442 442 442 441 441 441 516 516 441
+  ; Vertical start retrace                             412 412 412 412 412 412 412 387 412     241 412 412 412 412 350 350 387 387 387 387 387 387 412 412 412 490 490 412
+  ; Vertical end retrace                               414 414 414 414 414 414 414 389 414     244 414 414 414 414 350 363 389 389 389 389 389 389 414 414 414 492 492 414
+  ; Vertical end blank                                 441 441 441 441 441 441 441 442 441     240 441 441 441 441 366 266 442 442 442 442 442 442 441 441 441 516 516 441
+  ; Vertical total                                     449 449 449 449 449 449 449 449 449     262 449 449 449 449 370 366 449 449 449 449 449 449 449 449 449 525 525 449
+
+  ; Horizontal dots                                    320 320 640 640 320 320 640 720                     320 640 640 640 640 640 320 320 640 640 360 720 720 640 640 320
+  ;      8 Dot Clock Divide by Two Enable                8   8   0   0   8   8   0   0   0   0   0   8   8   8   0   0   0   0   0   8   8   0   0   8   0   0   0   0   0  0 = Normal pixel width.  1 = Double pixel width.
+
+  ; Bytes per CRTC character                             2   2   2   2   2   2   1   2                       1   1   1   1   1   1   2   2   2   2   2   2   2   1   1   4
+  ; Colours on screen                                   10  10  10  10   4   4   2   4                      10  10   2   4   2  10  10  10  10  10  10  10   4   2  10 100
 
   mov dx,03c4
   ; Reset Register  0x01
-  ;      1 Fast Reset Command                                                                                                                       0 = reset.  1 = no reset.
-  ;      2 Safe Reset Command                                                                                                                       0 = reset.  2 = no reset.
+  ;      1 Fast Reset Command                                                                                                                                               0 = reset.  1 = no reset.
+  ;      2 Safe Reset Command                                                                                                                                               0 = reset.  2 = no reset.
   mov ax,0100
   out dx,ax   ; Reset sequencer
 
-  ; Clocking Mode Register                              0b  0b  01  01  0b  0b  01  00  00  00  00  01  00  0b  01  05  05  01  01  0b  0b  01  01
-  ;      1 Character Dot Clock Select                    1   1   1   1   1   1   1   0   0   0   0   1   0   1   1   1   1   1   1   1   1   1   1  0 = 9 pixels per character.  1 = 8 pixels per character.
-  ;      2 CRTC clock cycle usage                        2   2   0   0   2   2   0   0   0   0   0   0   0   2   0   0   0   0   0   2   2   0   0  0 = CRTC uses 4/5 of the clock cycles.  1 = CRTC uses 2/5 of the clock cycles.
-  ;      4 Shift Load Two Control                        0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   4   4   0   0   0   0   0   0  0 = Reload the video shift registers on each character clock.  1 = Reload the video shift registers on every second character clock permitting use of slow image memory chips.
-  ;      8 Dot Clock Divide by Two Enable                8   8   0   0   8   8   0   0   0   0   0   0   0   8   0   0   0   0   0   8   8   0   0  0 = Normal pixel width.  1 = Double pixel width.
-  ;   0x10 Shift Load Four Control                       0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Reload the video shift registers as per bit 1.  1 = Reload the video shift registers on every fourth character clock permitting use of slow image memory chips.
-  ;   0x20 Screen Inhibit                                0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal.  1 = Blank screen for faster memory access.
+  ; Clocking Mode Register                              09  09  01  01  09  09  01  00  21  00  00  29  29  09  01  05  05  01  01  09  09  01  01  08  00  00  01  01  01
+  ;      1 Character Dot Clock Select                    1   1   1   1   1   1   1   0   1   0   0   1   1   1   1   1   1   1   1   1   1   1   1   0   0   0   1   1   1  0 = 9 pixels per character.  1 = 8 pixels per character.
+  ;      4 Shift Load Two Control                        0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   4   4   0   0   0   0   0   0   0   0   0   0   0   0  0 = Reload the video shift registers on each character clock.  1 = Reload the video shift registers on every second character clock permitting use of slow image memory chips.
+  ;      8 Dot Clock Divide by Two Enable                8   8   0   0   8   8   0   0   0   0   0   8   8   8   0   0   0   0   0   8   8   0   0   8   0   0   0   0   0  0 = Normal pixel width.  1 = Double pixel width.
+  ;   0x10 Shift Load Four Control                       0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Reload the video shift registers as per bit 1.  1 = Reload the video shift registers on every fourth character clock permitting use of slow image memory chips.
+  ;   0x20 Screen Inhibit                                0   0   0   0   0   0   0   0  20   0   0  20  20   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal.  1 = Blank screen for faster memory access.
   mov ax,0??01
   out dx,ax
 
-  ;   0x0f Map Mask Register                            03  03  03  03  03  03  01  03  00  00  00  04  04  0f  0f  0f  0f  0f  0f  03  03  03  03  Map Plane 0-3 Write Enable Control
+  ;   0x0f Map Mask Register                            03  03  03  03  03  03  01  03  0f  00  00  0f  0f  0f  0f  0f  0f  0f  0f  03  03  03  03  03  03  03  0f  0f  0f  Map Plane 0-3 Write Enable Control
   mov ax,0??02
   out dx,ax
 
   ; Character Map Select Register  0x00
-  ;      3 Character Map Select B                                                                                                                   Select Character Map Memory offset * 16K
-  ;   0x0c Character Map Select A                                                                                                                   Select Character Map Memory offset * 16K
+  ;      3 Character Map Select B                                                                                                                                           Select Character Map Memory offset * 16K
+  ;   0x0c Character Map Select A                                                                                                                                           Select Character Map Memory offset * 16K
+  ;   0x10 Character Map Select B 8K
+  ;   0x20 Character Map Select A 8K
   mov ax,3
   out dx,ax
 
-  ; Sequencer Memory Mode Register                      03  03  03  03  02  02  06  03  03  03  03  07  07  06  06  00  00  06  06  03  03  03  03
-  ;      1 Alphanumeric Mode                             1   1   1   1   0   0   0   1   1   1   1   1   1   0   0   0   0   0   0   1   1   1   1  0 = Graphics modes.  1 = Alphanumeric modes.
-  ;      2 Memory Size Specification                     2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   0   0   2   2   2   2   2   2  0 = 64K image memory available.  1 = More than 64K memory available.
-  ;      4 Processor Image Memory Access Mode Select     0   0   0   0   0   0   4   0   0   0   0   4   4   4   4   0   0   4   4   0   0   0   0  0 = Odd/even memory access mode.  1 = Normal memory access mode.
-  ;      8 Processor Image Memory Access Mapping Select  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Memory planes accessed determined by Map Mask Register.  1 = Memory plane accessed determined using low 2 bits of address.
+  ; Sequencer Memory Mode Register                      02  02  02  02  02  02  06  03  06  00  03  06  06  06  06  00  00  06  06  02  02  02  02  02  02  02  06  06  0e
+  ;      2 Memory Size Specification                     2   2   2   2   2   2   2   2   2   0   2   2   2   2   2   0   0   2   2   2   2   2   2   2   2   2   2   2   2  0 = 64K image memory available.  1 = More than 64K memory available.
+  ;      4 Processor Image Memory Access Mode Select     0   0   0   0   0   0   4   0   4   0   0   4   4   4   4   0   0   4   4   0   0   0   0   0   0   0   4   4   4  0 = Odd/even memory access mode.  1 = Normal memory access mode.
+  ;      8 Processor Image Memory Access Mapping Select  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Memory planes accessed determined by Map Mask Register.  1 = Memory plane accessed determined using low 2 bits of address.
   mov ax,0??04
   out dx,ax
 
-  ; Miscellaneous Output Register                       23  23  23  23  23  23  23  a6  23  23  23  23  a6  23  23  a2  a7  a2  a7  a7  a7  a7  a7
-  ;      1 Input Output Address Select                   1   1   1   1   1   1   1   0   1   1   1   1   0   1   1   0   1   0   1   1   1   1   1  0 = Use ports 3bx.  1 = Use ports 3dx.
-  ;      2 Display Memory Access Enable                  2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2  0 = Disable processor access to display image memory.  1 = Enable processor access to display image memory.
-  ;   0x0c Dot Clock Frequency Select                    0   0   0   0   0   0   0   4   0   0   0   0   4   0   0   0   4   0   4   4   4   4   4  0 = 25.175 MHz clock for 640 total Horizontal Pixels.  1 = 28.322 MHz clock for 720 total Horizontal Pixels.  2/3 = External clock up to a maximum of 65.000 MHz.
-  ;   0x10 Disable internal video drivers                0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal.  1 = Disable internal video drivers.
-  ;   0x20 Address Extension Bit                        20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  0 = Select the low 64K page.  1 = Select the high 64K page for the Text Memory Access Mode.
-  ;   0xc0 Synchronisation Signal Polarity               0   0   0   0   0   0   0  80   0   0   0   0  80   0   0  80  80  80  80  80  80  80  80  0 = 200 lines.  2 = 350 lines.
+  ; Miscellaneous Output Register                       63  63  63  63  63  63  63  a6  63  00  23  62  63  63  63  a2  a7  a2  a3  a3  a3  a3  a3  67  67  66  e3  e3  63
+  ;      1 Input Output Address Select                   1   1   1   1   1   1   1   0   1   0   1   0   1   1   1   0   1   0   1   1   1   1   1   1   1   0   1   1   1  0 = Use ports 3bx.  1 = Use ports 3dx.
+  ;      2 Display Memory Access Enable                  2   2   2   2   2   2   2   2   2   0   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2  0 = Disable processor access to display image memory.  1 = Enable processor access to display image memory.
+  ;   0x0c Dot Clock Frequency Select                    0   0   0   0   0   0   0   4   0   0   0   0   0   0   0   0   4   0   0   0   0   0   0   4   4   4   0   0   0  0 = 25.175 MHz clock for 640 total Horizontal Pixels.  1 = 28.322 MHz clock for 720 total Horizontal Pixels.  2/3 = External clock up to a maximum of 65.000 MHz.
+  ;   0x20 Address Extension Bit                        20  20  20  20  20  20  20  20  20   0  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  0 = Select the low 64K page.  1 = Select the high 64K page for the Text Memory Access Mode.
+  ;   0xc0 Synchronisation Signal Polarity              40  40  40  40  40  40  40  80  40   0   0  40  40  40  40  80  80  80  80  80  80  80  80  40  40  40  c0  c0  c0  0 = 200 lines.  1 = 400 lines.  2 = 350 lines.  3 = 480 lines.
   mov dl,0c2
   mov al,0??
   out dx,al
   mov dl,0c4
   mov ax,0300
   out dx,ax   ; Unreset sequencer
-  mov dl,0??  ; CRTC port address low byte              d4  d4  d4  d4  d4  d4  d4  b4  d4  d4  d4  d4  b4  d4  d4  b4  d4  b4  d4  d4  d4  d4  d4  Corresponds to Input Output Address Select
+  mov dl,0??  ; CRTC port address low byte              d4  d4  d4  d4  d4  d4  d4  b4  d4  b4  d4  b4  d4  d4  d4  b4  d4  b4  d4  d4  d4  d4  d4  d4  d4  b4  d4  d4  d4  Corresponds to Input Output Address Select
 
-  ;   0xff Horizontal Total Register                    37  37  70  70  37  37  70  60  37  37  37  70  60  37  70  60  5b  60  5b  2d  2d  5b  5b  Horizontal Total - 2
+  ;   0xff Horizontal Total Register                    2d  2d  5f  5f  2d  2d  5f  5f  5f  00  37  5f  5f  2d  5f  60  5b  5f  5f  2d  2d  5f  5f  2d  5f  5f  5f  5f  5f  Horizontal Total - 2
   mov ax,0??00
   out dx,ax
 
-  ;   0xff Horizontal Display Enable End Register       27  27  4f  4f  27  27  4f  4f  27  27  27  4f  4f  27  4f  4f  4f  4f  4f  27  27  4f  4f  Horizontal Display End - 1
+  ;   0xff Horizontal Display Enable End Register       27  27  4f  4f  27  27  4f  4f  4f  00  27  4f  4f  27  4f  4f  4f  4f  4f  27  27  4f  4f  27  4f  4f  4f  4f  4f  Horizontal Display End - 1
   mov ax,0??01
   out dx,ax
 
-  ;   0xff Start Horizontal Blanking Register           2d  2d  5c  5c  2d  2d  59  56  2d  2d  2d  5c  56  2d  59  56  53  56  53  2b  2b  53  53  Start Horizontal Blanking
+  ;   0xff Start Horizontal Blanking Register           28  28  50  50  28  28  50  50  50  00  2d  50  50  28  50  56  53  50  50  28  28  50  50  28  50  50  50  50  50  Start Horizontal Blanking
   mov ax,0??02
   out dx,ax
 
-  ; End Horizontal Blanking Register                    37  37  2f  2f  37  37  2d  3a  37  37  37  2f  3a  37  2d  1a  17  3a  37  2d  2d  37  37
-  ;   0x1f End Horizontal Blanking                      17  17  1f  1f  17  17  0d  1a  17  17  17  0f  1a  17  0d  1a  17  1a  17  0d  0d  17  17  End Horizontal Blanking bits 4..0
-  ;   0x60 Display Enable Skew                          20  20  20  20  20  20  20  20  20  20  20  20  20  20  20   0   0  20  20  20  20  20  20  character clock delay
+  ; End Horizontal Blanking Register                    90  90  82  82  90  90  82  82  82  00  37  82  82  90  82  1a  17  82  82  90  90  82  82  90  82  82  82  82  82
+  ;   0x1f End Horizontal Blanking                      10  10   2   2  10  10   2   2   2   0  17   2   2  10   2  1a  17   2   2  10  10   2   2  10   2   2   2   2   2  End Horizontal Blanking bits 4..0
+  ;   0x60 Display Enable Skew                           0   0   0   0   0   0   0   0   0   0  20   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  character clock delay
+  ;   0x80 Light Pen Register Enable                    80  80  80  80  80  80  80  80  80   0   0  80  80  80  80   0   0  80  80  80  80  80  80  80  80  80  80  80  80  0 = Enable Lightpen Registers.  1 = Normal Operation.
   mov ax,0??03
   out dx,ax
 
-  ;   0xff Start Horizontal Retrace Register            31  31  5f  5f  30  30  5e  51  31  31  31  5f  51  30  5e  50  50  50  52  28  28  51  51  Start Horizontal Retrace Pulse
+  ;   0xff Start Horizontal Retrace Register            2b  2b  55  55  2b  2b  54  55  55  00  31  55  55  2b  54  50  50  54  54  2b  2b  55  55  2b  55  55  54  54  54  Start Horizontal Retrace Pulse
   mov ax,0??04
   out dx,ax
 
-  ; End Horizontal Retrace Register                     15  15  07  07  14  14  06  60  15  15  15  07  60  14  06  e0  ba  60  00  6d  6d  5b  5b
-  ;   0x1f End Horizontal Retrace                       15  15   7   7  15  15   6   0  15  15  15   7   0  14   6   0  1a   0   0  0d  0d  1b  1b  End Horizontal Retrace
-  ;   0x60 Horizontal Retrace Skew                       0   0   0   0   0   0   0  60   0   0   0   0  60   0   0  60  20  60   0  60  60  40  40  Horizontal Retrace Skew
-  ;   0x80 Smooth scrolling for odd/even mode            0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  80  80   0   0   0   0   0   0  0 = display starts from even byte.  1 = display starts from odd byte.
+  ; End Horizontal Retrace Register                     a0  a0  81  81  80  80  80  81  81  00  15  81  81  80  80  e0  ba  80  80  a0  a0  81  81  a0  81  81  80  80  80
+  ;   0x1f End Horizontal Retrace                        0   0   1   1   0   0   0   1   1   0  15   1   1   0   0   0  1a   0   0   0   0   1   1   0   1   1   0   0   0  End Horizontal Retrace  (only bottom 4 bits used?)
+  ;   0x60 Horizontal Retrace Skew                      20  20   0   0   0   0   0   0   0   0   0   0   0   0   0  60  20   0   0  20  20   0   0  20   0   0   0   0   0  Horizontal Retrace Skew
+  ;   0x80 End Horizontal Blanking Register bit 5       80  80  80  80  80  80  80  80  80   0   0  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  End Horizontal Blanking bit 5
   mov ax,0??05
   out dx,ax
 
-  ;   0xff Vertical Total Register                      04  04  04  04  04  04  04  70  04  04  04  04  70  04  04  70  6c  70  6c  6c  6c  6c  6c  Vertical Total bits 7..0
+  ;   0xff Vertical Total Register                      bf  bf  bf  bf  bf  bf  bf  bf  bf  00  04  bf  bf  bf  bf  70  6c  bf  bf  bf  bf  bf  bf  bf  bf  bf  0b  0b  bf  Vertical Total bits 7..0
   mov ax,0??06
   out dx,ax
 
-  ; CRTC Overflow Register                              11  11  11  11  11  11  11  1f  11  11  11  11  1f  11  11  1f  1f  1f  1f  1f  1f  1f  1f
-  ;      1 Vertical Total bit 8                          1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1  Vertical Total bit 8
-  ;      2 Vertical Display End bit 8                    0   0   0   0   0   0   0   2   0   0   0   0   2   0   0   2   2   2   2   2   2   2   2  Vertical Display End bit 8
-  ;      4 Vertical Retrace Start bit 8                  0   0   0   0   0   0   0   4   0   0   0   0   4   0   0   4   4   4   4   4   4   4   4  Vertical Retrace Start bit 8
-  ;      8 Start Vertical Blanking bit 8                 0   0   0   0   0   0   0   8   0   0   0   0   8   0   0   8   8   8   8   8   8   8   8  Start Vertical Blanking bit 8
-  ;   0x10 Line Compare bit 8                           10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  Line Compare bit 8
+  ; CRTC Overflow Register                              1f  1f  1f  1f  1f  1f  1f  1f  1f  00  11  1f  1f  1f  1f  1f  1f  1f  1f  1f  1f  1f  1f  1f  1f  1f  3e  3e  1f
+  ;      1 Vertical Total bit 8                          1   1   1   1   1   1   1   1   1   0   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   0   0   1  Vertical Total bit 8
+  ;      2 Vertical Display End bit 8                    2   2   2   2   2   2   2   2   2   0   0   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2  Vertical Display End bit 8
+  ;      4 Vertical Retrace Start bit 8                  4   4   4   4   4   4   4   4   4   0   0   4   4   4   4   4   4   4   4   4   4   4   4   4   4   4   4   4   4  Vertical Retrace Start bit 8
+  ;      8 Start Vertical Blanking bit 8                 8   8   8   8   8   8   8   8   8   0   0   8   8   8   8   8   8   8   8   8   8   8   8   8   8   8   8   8   8  Start Vertical Blanking bit 8
+  ;   0x10 Line Compare bit 8                           10  10  10  10  10  10  10  10  10   0  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  10  Line Compare bit 8
+  ;   0x20 Vertical Total bit 9                          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  20  20   0  Vertical Total bit 9
+  ;   0x40 Vertical Display End bit 9                    0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  Vertical Display End bit 9
+  ;   0x80 Vertical Retrace Start bit 9                  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  Vertical Retrace Start bit 9
   mov ax,0??07
   out dx,ax
 
-  ;   0x1f Preset Row Scan Register  0x00                                                                                                           Pixel position of the first line of text on the screen.
+  ; Preset Row Scan Register  0x00
+  ;   0x1f Preset Row Scan  0                                                                                                                                               Pixel position of the first line of text on the screen.
+  ;   0x60 Byte Panning Control  0                                                                                                                                          Text mode byte panning.
   mov ax,8
   out dx,ax
 
-  ;   0x1f Maximum Scan Line Register                   07  07  07  07  01  01  01  0d  07  07  07  07  0d  00  00  00  00  00  00  0d  0d  0d  0d  Maximum Scan Lines. Height of a text mode character.
+  ; Maximum Scan Line Register                          c7  c7  c7  c7  c1  c1  c1  4d  40  00  47  40  40  c0  c0  00  00  40  40  4d  4d  4d  4d  4f  4f  4f  40  40  41
+  ;   0x1f Maximum Scan Lines                            7   7   7   7   1   1   1  0d   0   0   7   0   0   0   0   0   0   0   0  0d  0d  0d  0d  0f  0f  0f   0   0   1  Height of a text mode character.
+  ;   0x20 Start Vertical Blanking bit 9                 0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  Start Vertical Blanking bit 9
+  ;   0x40 Line Compare Register bit 9                  40  40  40  40  40  40  40  40  40   0  40  40  40  40  40   0   0  40  40  40  40  40  40  40  40  40  40  40  40  Line Compare bit 9
+  ;   0x80 Double Scan Line Display                     80  80  80  80  80  80  80   0   0   0   0   0   0  80  80   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal pixel height.  1 = Double pixel height.
   mov ax,0??09
   out dx,ax
 
-  ;   0x1f Cursor Start Register                        06  06  06  06  00  00  00  0b  06  06  06  06  0b  00  00  00  00  00  00  06  06  06  06  Cursor Row Scan Start. Cursor top scan line within character cell.
+  ; Cursor Start Register                               06  06  06  06  00  00  00  0b  00  00  06  00  00  00  00  00  00  00  00  0b  0b  0b  0b  0d  0d  0d   0   0   0
+  ;   0x1f Cursor Row Scan Start                         6   6   6   6   0   0   0  0b   0   0   6   0   0   0   0   0   0   0   0  0b  0b  0b  0b  0d  0d  0d   0   0   0  Cursor top scan line within character cell.
+  ;   0x20 Cursor Enable                                 0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Cursor on.  1 = Cursor off.
   mov ax,0??0a
   out dx,ax
 
-  ; Cursor End Register                                 07  07  07  07  00  00  00  0c  07  07  07  07  0c  00  00  00  00  00  00  07  07  07  07
-  ;   0x1f Cursor Row Scan End                           7   7   7   7   0   0   0  0c   7   7   7   7  0c   0   0   0   0   0   0   7   7   7   7
-  ;   0x60 Cursor Skew Control                           0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  The amount of right skew applied to the cursor.
+  ; Cursor End Register                                 07  07  07  07  00  00  00  0c  00  00  07  00  00  00  00  00  00  00  00  0c  0c  0c  0c  0e  0e  0e   0   0   0
+  ;   0x1f Cursor Row Scan End                           7   7   7   7   0   0   0  0c   0   0   7   0   0   0   0   0   0   0   0  0c  0c  0c  0c  0e  0e  0e   0   0   0  Cursor Bottom scan line within character cell.
+  ;   0x60 Cursor Skew Control                           0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  The amount of right skew applied to the cursor.
   mov ax,0??0b
   out dx,ax
 
@@ -708,245 +753,216 @@
   mov ax,0f
   out dx,ax
 
-  ;   0xff Vertical Retrace Start Register              e1  e1  e1  e1  e1  e1  e0  5e  e1  e1  e1  e1  5e  e1  e0  5e  5e  5e  5e  5e  5e  5e  5e  Vertical Retrace Start bits 7..0
+  ;   0xff Vertical Retrace Start Register              9c  9c  9c  9c  9c  9c  9c  83  9c  00  e1  9c  9c  9c  9c  5e  5e  83  83  83  83  83  83  9c  9c  9c  ea  ea  9c  Vertical Retrace Start bits 7..0
   mov ax,0??10
   out dx,ax
 
-  ; Vertical Retrace End Register                       24  24  24  24  24  24  23  2e  24  24  24  24  23  24  23  2e  2b  2e  2b  2b  2b  2b  2b
-  ;   0x0f Vertical Retrace End                          4   4   4   4   4   4   3  0e   4   4   4   4   3   4   3  0e  0b  0e  0b  0b  0b  0b  0b  Vertical Retrace End
-  ;   0x10 Clear Vertical Interrupt                      0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Clear the vertical interrupt state.  1 = Normal vertical interrupt state operation.
-  ;   0x20 Enable Vertical Interrupt                    20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  20  0 = Enable the vertical interrupt.  1 = Disable the vertical interrupt.
+  ; Vertical Retrace End Register                       8e  8e  8e  8e  8e  8e  8e  85  8e  00  24  8e  8e  8e  8e  2e  2b  85  85  85  85  85  85  8e  8e  8e  8c  8c  8e
+  ;   0x0f Vertical Retrace End                         0e  0e  0e  0e  0e  0e  0e   5  0e   0   4  0e  0e  0e  0e  0e  0b   5   5   5   5   5   5  0e  0e  0e  0c  0c  0e  Vertical Retrace End
+  ;   0x10 Clear Vertical Interrupt                      0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Clear the vertical interrupt state.  1 = Normal vertical interrupt state operation.
+  ;   0x20 Enable Vertical Interrupt                     0   0   0   0   0   0   0   0   0   0  20   0   0   0   0  20  20   0   0   0   0   0   0   0   0   0   0   0   0  0 = Enable the vertical interrupt.  1 = Disable the vertical interrupt.
+  ;   0x40 Refresh Bandwidth Select                      0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Generate 3 image memory refresh cycles per horizontal scan line.  1 = Generate 5.
+  ;   0x80 CRTC Register Protect                        80  80  80  80  80  80  80  80  80   0   0  80  80  80  80   0   0  80  80  80  80  80  80  80  80  80  80  80  80  0 = Enable writes to CRTC Regs at indexes 0..7.  1 = Disable writes to CRTC Regs at indexes 0..7.
   mov ax,0??11
   out dx,ax
 
-  ;   0xff Vertical Display Enable End Register         c7  c7  c7  c7  c7  c7  c7  5d  c7  c7  c7  c7  5d  c7  c7  5d  5d  5d  5d  5d  5d  5d  5d  Vertical Display Enable End bits 7..0
+  ;   0xff Vertical Display Enable End Register         8f  8f  8f  8f  8f  8f  8f  5d  8f  00  c7  8f  8f  8f  8f  5d  5d  5d  5d  5d  5d  5d  5d  8f  8f  8f  df  df  8f  Vertical Display Enable End bits 7..0
   mov ax,0??12
   out dx,ax
 
-  ;   0xff Offset Register                              14  14  28  28  14  14  28  28  14  14  14  28  28  14  28  14  14  28  28  14  14  28  28  Bytes per scanline /K (K=2 for byte mode, 4 for word mode, 8 for doubleword mode).
+  ;   0xff Offset Register                              14  14  28  28  14  14  28  28  28  00  14  28  28  14  28  14  14  28  28  14  14  28  28  14  28  28  28  28  28  Display Image Offset. Image data width.
   mov ax,0??13
   out dx,ax
 
-  ;   0x1f Underline Location Register                  08  08  08  08  00  00  00  0d  08  08  08  08  0d  00  00  0d  0f  0d  0f  0f  0f  0f  0f  Underline scan line for monochrome attribute mode.
+  ; Underline Location Register                         1f  1f  1f  1f  00  00  00  0d  1f  00  08  1f  1f  00  00  00  0f  0f  0f  1f  1f  1f  1f  1f  1f  0f  00  00  40
+  ;   0x1f Underline Location                           1f  1f  1f  1f   0   0   0  0d  1f   0   8  1f  1f   0   0   0  0f  0f  0f  1f  1f  1f  1f  1f  1f  0f   0   0   0  Underline scan line for monochrome attribute mode.
+  ;   0x20 Display Address Dwell Count 4                 0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+  ;   0x40 Display Memory Address Unit 4                 0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  40
   mov ax,0??14
   out dx,ax
 
-  ;   0xff Start Vertical Blanking Register             e0  e0  e0  e0  e0  e0  df  5e  e0  e0  e0  e0  5e  e0  df  5e  5f  5e  5f  5e  5e  5e  5e  Start Vertical Blanking bits 7..0
+  ;   0xff Start Vertical Blanking Register             96  96  96  96  96  96  96  63  96  00  e0  96  96  96  96  5e  5f  63  63  63  63  63  63  96  96  96  e7  e7  96  Start Vertical Blanking bits 7..0
   mov ax,0??15
   out dx,ax
 
-  ;   0x1f End Vertical Blanking Register               f0  f0  f0  f0  f0  f0  ef  6e  f0  f0  f0  f0  6e  f0  ef  6e  0a  6e  0a  0a  0a  0a  0a  End Vertical Blanking
+  ;   0xff End Vertical Blanking Register               b9  b9  b9  b9  b9  b9  b9  ba  b9  00  f0  b9  b9  b9  b9  6e  0a  ba  ba  ba  ba  ba  ba  b9  b9  b9  04  04  b9  End Vertical Blanking
   mov ax,0??16
   out dx,ax
 
-  ; CRTC Mode Control Register                          a3  a3  a3  a3  a2  a2  c2  a3  a3  a3  a3  a3  a3  e3  e3  8b  8b  e3  e3  a3  a3  a3  a3
-  ;      1 Display Address 13 Remap Row 0                1   1   1   1   0   0   0   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1  0 = Emulate CGA interlacing.  1 = No interlacing.
-  ;      2 Display Address 14 Remap Row 1                2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2  0 = Emulate Hercules interlacing.  1 = No interlacing.
-  ;      4 Horizontal Retrace Divisor                    0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal operation.  1 = Double number of scan lines.
-  ;      8 Address increment rate                        0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   8   8   0   0   0   0   0   0  0 = Increase memory address counter every character.  1 = Increase memory address counter every other character.
-  ;   0x10 Output driver disable                         0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal output.  1 = Disable the output drivers.
-  ;   0x20 Rotate bit 15                                20  20  20  20  20  20   0  20  20  20  20  20  20  20  20   0   0  20  20  20  20  20  20  0 = When in word mode, bit 13 is rotated into bit 0.  1 = When in word mode, bit 15 is rotated to bit 0.
-  ;   0x40 Not word mode                                 0   0   0   0   0   0  40   0   0   0   0   0   0  40  40   0   0  40  40   0   0   0   0  0 = Word mode. Addresses are rotated 1 position up bringing either bit 13 or 15 into bit 0.  1 = Normal.
-  ;   0x80 Horizontal/Vertical Retrace Reset            80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  0 = Reset the horizontal and vertical retrace signals.  1 = Generate horizontal and vertical retrace signals.
+  ; CRTC Mode Control Register                          a3  a3  a3  a3  a2  a2  c2  a3  e3  00  a3  e3  e3  e3  e3  8b  8b  e3  e3  a3  a3  a3  a3  a3  a3  a3  c3  e3  a3
+  ;      1 Display Address 13 Remap Row 0                1   1   1   1   0   0   0   1   1   0   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1   1  0 = Emulate CGA interlacing.  1 = No interlacing.
+  ;      2 Display Address 14 Remap Row 1                2   2   2   2   2   2   2   2   2   0   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2   2  0 = Emulate Hercules interlacing.  1 = No interlacing.
+  ;      4 Horizontal Retrace Divisor                    0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal operation.  1 = Double number of scan lines.
+  ;      8 Display Address Dwell Count 2                 0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   8   8   0   0   0   0   0   0   0   0   0   0   0   0
+  ;   0x20 Display Address Unit 2 Remap                 20  20  20  20  20  20   0  20  20   0  20  20  20  20  20   0   0  20  20  20  20  20  20  20  20  20   0  20  20
+  ;   0x40 Display Memory Address Unit 2                 0   0   0   0   0   0  40   0  40   0   0  40  40  40  40   0   0  40  40   0   0   0   0   0   0   0  40  40  40
+  ;   0x80 Horizontal/Vertical Retrace Reset            80  80  80  80  80  80  80  80  80   0  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  80  0 = Reset the horizontal and vertical retrace signals.  1 = Generate horizontal and vertical retrace signals.
   mov ax,0??17
   out dx,ax
 
-  ;   0xff Line Compare Register  0xff                                                                                                              Line Compare bits 7..0
+  ;   0xff Line Compare Register  0xff                                                                                                                                      Line Compare bits 7..0
   mov ax,0ff18
   out dx,ax
 
   mov dl,0c0
-  ;   0x3f Internal palette register 0                  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  Palette register data rgbRGB
+  ;   0x3f Internal palette register 0                  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  Palette register data
   mov al,0
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 1                  01  01  01  01  13  13  17  08  01  01  01  00  00  01  01  08  01  08  01  01  01  01  01  Palette register data rgbRGB
+  ;   0x3f Internal palette register 1                  01  01  01  01  13  13  17  08  01  00  01  00  00  01  01  08  01  08  01  01  01  01  01  01  01  08  3f  01  01  Palette register data
   mov al,1
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 2                  02  02  02  02  15  15  17  08  02  02  02  00  00  02  02  00  00  00  02  02  02  02  02  Palette register data rgbRGB
+  ;   0x3f Internal palette register 2                  02  02  02  02  15  15  17  08  02  00  02  00  00  02  02  00  00  00  02  02  02  02  02  02  02  08  3f  02  02  Palette register data
   mov al,2
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 3                  03  03  03  03  17  17  17  08  03  03  03  00  00  03  03  00  00  00  03  03  03  03  03  Palette register data rgbRGB
+  ;   0x3f Internal palette register 3                  03  03  03  03  17  17  17  08  03  00  03  00  00  03  03  00  00  00  03  03  03  03  03  03  03  08  3f  03  03  Palette register data
   mov al,3
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 4                  04  04  04  04  02  02  17  08  04  04  04  00  00  04  04  18  04  18  04  04  04  04  04  Palette register data rgbRGB
+  ;   0x3f Internal palette register 4                  04  04  04  04  02  02  17  08  04  00  04  00  00  04  04  18  04  18  04  04  04  04  04  04  04  08  3f  04  04  Palette register data
   mov al,4
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 5                  05  05  05  05  04  04  17  08  05  05  05  00  00  05  05  18  07  18  05  05  05  05  05  Palette register data rgbRGB
+  ;   0x3f Internal palette register 5                  05  05  05  05  04  04  17  08  05  00  05  00  00  05  05  18  07  18  05  05  05  05  05  05  05  08  3f  05  05  Palette register data
   mov al,5
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 6                  06  06  06  06  06  06  17  08  06  06  06  00  00  06  06  00  00  00  14  14  14  14  14  Palette register data rgbRGB
+  ;   0x3f Internal palette register 6                  06  06  06  06  06  06  17  08  14  00  06  00  00  06  06  00  00  00  14  14  14  14  14  14  14  08  3f  14  06  Palette register data
   mov al,6
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 7                  07  07  07  07  07  07  17  08  07  07  07  00  00  07  07  00  00  00  07  07  07  07  07  Palette register data rgbRGB
+  ;   0x3f Internal palette register 7                  07  07  07  07  07  07  17  08  07  00  07  00  00  07  07  00  00  00  07  07  07  07  07  07  07  08  3f  07  07  Palette register data
   mov al,7
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 8                  10  10  10  10  10  10  17  10  10  10  10  00  00  10  10  00  00  00  38  38  38  38  38  Palette register data rgbRGB
+  ;   0x3f Internal palette register 8                  10  10  10  10  10  10  17  10  38  00  10  00  00  10  10  00  00  00  38  38  38  38  38  38  38  10  3f  38  08  Palette register data
   mov al,8
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 9                  11  11  11  11  11  11  17  18  11  11  11  00  00  11  11  08  01  08  39  39  39  39  39  Palette register data rgbRGB
+  ;   0x3f Internal palette register 9                  11  11  11  11  11  11  17  18  39  00  11  00  00  11  11  08  01  08  39  39  39  39  39  39  39  18  3f  39  09  Palette register data
   mov al,9
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 0x0a               12  12  12  12  12  12  17  18  12  12  12  00  00  12  12  00  00  00  3a  3a  3a  3a  3a  Palette register data rgbRGB
+  ;   0x3f Internal palette register 0x0a               12  12  12  12  12  12  17  18  3a  00  12  00  00  12  12  00  00  00  3a  3a  3a  3a  3a  3a  3a  18  3f  3a  0a  Palette register data
   mov al,0a
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 0x0b               13  13  13  13  13  13  17  18  13  13  13  00  00  13  13  00  00  00  3b  3b  3b  3b  3b  Palette register data rgbRGB
+  ;   0x3f Internal palette register 0x0b               13  13  13  13  13  13  17  18  3b  00  13  00  00  13  13  00  00  00  3b  3b  3b  3b  3b  3b  3b  18  3f  3b  0b  Palette register data
   mov al,0b
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 0x0c               14  14  14  14  14  14  17  18  14  14  14  00  00  14  14  00  04  00  3c  3c  3c  3c  3c  Palette register data rgbRGB
+  ;   0x3f Internal palette register 0x0c               14  14  14  14  14  14  17  18  3c  00  14  00  00  14  14  00  04  00  3c  3c  3c  3c  3c  3c  3c  18  3f  3c  0c  Palette register data
   mov al,0c
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 0x0d               15  15  15  15  15  15  17  18  15  15  15  00  00  15  15  18  07  18  3d  3d  3d  3d  3d  Palette register data rgbRGB
+  ;   0x3f Internal palette register 0x0d               15  15  15  15  15  15  17  18  3d  00  15  00  00  15  15  18  07  18  3d  3d  3d  3d  3d  3d  3d  18  3f  3d  0d  Palette register data
   mov al,0d
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 0x0e               16  16  16  16  16  16  17  18  16  16  16  00  00  16  16  00  00  00  3e  3e  3e  3e  3e  Palette register data rgbRGB
+  ;   0x3f Internal palette register 0x0e               16  16  16  16  16  16  17  18  3e  00  16  00  00  16  16  00  00  00  3e  3e  3e  3e  3e  3e  3e  18  3f  3e  0e  Palette register data
   mov al,0e
   out dx,al
   mov al,0??
   out dx,al
-  ;   0x3f Internal palette register 0x0f               17  17  17  17  17  17  17  18  17  17  17  00  00  17  17  00  00  00  3f  3f  3f  3f  3f  Palette register data rgbRGB
+  ;   0x3f Internal palette register 0x0f               17  17  17  17  17  17  17  18  3f  00  17  3f  3f  17  17  00  00  00  3f  3f  3f  3f  3f  3f  3f  18  3f  3f  0f  Palette register data
   mov al,0f
   out dx,al
   mov al,0??
   out dx,al
 
-  ; Attribute Mode Control Register                     08  08  08  08  01  01  01  0e  08  08  08  00  0e  01  01  0b  01  0b  01  08  08  08  08
-  ;      1 Display Generation Mode                       0   0   0   0   1   1   1   0   0   0   0   0   0   1   1   1   1   1   1   0   0   0   0  0 = Text mode.  1 = Graphics mode.
-  ;      2 Attribute mode                                0   0   0   0   0   0   0   2   0   0   0   0   2   0   0   2   0   2   0   0   0   0   0  0 = Colour attributes.  1 = Monochrome attributes.
-  ;      4 Line Graphics Character Code Control          0   0   0   0   0   0   0   4   0   0   0   0   4   0   0   0   0   0   0   0   0   0   0  0 = Pixel 9 always background.  1 = Pixel 9 same as pixel 8 for characters 0c0-0df.
-  ;      8 Text Mode Attribute Select                    8   8   8   8   0   0   0   8   8   8   8   0   8   0   0   8   0   8   0   8   8   8   8  0 = Attribute bit 7 specifies background intensity.  1 = Attribute bit 7 specifies blink bit.
-  ;   0x20 Split screen panning control                  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Scroll both screens horizontally.  1 = Scroll only upper screen.
-  ;   0x40 Shift register 256 colour assembly latch      0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Use internal colour palette.  1 = Double shift latch for 256 colour packed pixel mode.
-  ;   0x80 External colour palette input select          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = 6 bits from internal colour palette, 2 bits from Colour Select register.  1 = 4 bits from internal colour palette, 4 bits from Colour Select register.
+  ; Attribute Mode Control Register                     08  08  08  08  01  01  01  0e  01  00  08  01  01  01  01  0b  01  0b  01  08  08  08  08  0c  0c  0e  01  01  41
+  ;      1 Display Generation Mode                       0   0   0   0   1   1   1   0   1   0   0   1   1   1   1   1   1   1   1   0   0   0   0   0   0   0   1   1   1  0 = Text mode.  1 = Graphics mode.
+  ;      2 Attribute mode                                0   0   0   0   0   0   0   2   0   0   0   0   0   0   0   2   0   2   0   0   0   0   0   0   0   2   0   0   0  0 = Colour attributes.  1 = Monochrome attributes.
+  ;      4 Line Graphics Character Code Control          0   0   0   0   0   0   0   4   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   4   4   4   0   0   0  0 = Pixel 9 always background.  1 = Pixel 9 same as pixel 8 for characters 0c0-0df.
+  ;      8 Text Mode Attribute Select                    8   8   8   8   0   0   0   8   0   0   8   0   0   0   0   8   0   8   0   8   8   8   8   8   8   8   0   0   0  0 = Attribute bit 7 specifies background intensity.  1 = Attribute bit 7 specifies blink bit.
+  ;   0x20 Split screen panning control                  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Scroll both screens horizontally.  1 = Scroll only upper screen.
+  ;   0x40 Shift register 256 colour assembly latch      0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  40  0 = Use internal colour palette.  1 = Double shift latch for 256 colour packed pixel mode.
+  ;   0x80 External colour palette input select          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = 6 bits from internal colour palette, 2 bits from Colour Select register.  1 = 4 bits from internal colour palette, 4 bits from Colour Select register.
   mov al,010
   out dx,al
   mov al,0??
   out dx,al
 
-  ;   0x3f Overscan Colour Register  0x00                                                                                                           Overscan colour rgbRGB
+  ;   0x3f Overscan Colour Register  0x00                                                                                                                                   Overscan colour
   mov al,011
   out dx,al
   mov al,0
   out dx,al
 
-  ; Colour Plane Enable Register                        0f  0f  0f  0f  03  03  01  0f  0f  0f  0f  0f  0f  0f  0f  05  05  05  0f  0f  0f  0f  0f
-  ;   0x0f Colour Plane Enable data                     0f  0f  0f  0f   3   3   1  0f  0f  0f  0f  0f  0f  0f  0f   5   5   5  0f  0f  0f  0f  0f  Masked with shift register output.
-  ;   0x30 Display Status Select                         0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  Selects bits to send to Video Sampling State.  0 = c2/c0.  1 = c5/c4.  2 = c3/c1.  3 = c7/c6.
+  ; Colour Plane Enable Register                        0f  0f  0f  0f  03  03  01  0f  0f  00  0f  0f  0f  0f  0f  05  05  05  0f  0f  0f  0f  0f  0f  0f  0f  0f  0f  0f
+  ;   0x0f Colour Plane Enable data                     0f  0f  0f  0f   3   3   1  0f  0f   0  0f  0f  0f  0f  0f   5   5   5  0f  0f  0f  0f  0f  0f  0f  0f  0f  0f  0f  Masked with shift register output.
+  ;   0x30 Display Status Select                         0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  Selects bits to send to Video Sampling State.  0 = c2/c0.  1 = c5/c4.  2 = c3/c1.  3 = c7/c6.
   mov al,012
   out dx,al
   mov al,0??
   out dx,al
 
-  ;   0x0f Horizontal PEL Panning Register              00  00  00  00  00  00  00  08  00  00  00  00  08  00  00  00  00  00  00  00  00  00  00  Horizontal PEL Panning
+  ;   0x0f Horizontal PEL Panning Register              00  00  00  00  00  00  00  08  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  08  08  08  00  00  00  Horizontal PEL Panning
   mov al,013
   out dx,al
   mov al,0??
   out dx,al
 
   mov dl,0ce
-  ;   0x0f Set/Reset Register  0x00                                                                                                                 Set/Reset Data
+  ;   0x0f Set/Reset Register  0x00                                                                                                                                         Set/Reset Data
   mov ax,0
   out dx,al
 
-  ;   0x0f Enable Set/Reset Register  0x00                                                                                                          Set/Reset Enable Data
+  ;   0x0f Enable Set/Reset Register  0x00                                                                                                                                  Set/Reset Enable Data
   mov ax,1
   out dx,al
 
-  ;   0x0f Colour Compare Register  0x00                                                                                                            Colour Compare Data
+  ;   0x0f Colour Compare Register                      00  00  00  00  00  00  00  00  00  00  00  0f  0f  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  00  Colour Compare Data
   mov ax,2
   out dx,al
 
   ; Data Rotate Register  0x00
-  ;      7 Data Rotate  0                                                                                                                           Number of bits to rotate data right in write mode 0.
-  ;   0x18 Logic Unit Function Code  0                                                                                                              0 = No-op  1 = AND  2 = OR  3 = XOR
+  ;      7 Data Rotate  0                                                                                                                                                   Number of bits to rotate data right in write mode 0.
+  ;   0x18 Logic Unit Function Code  0                                                                                                                                      0 = No-op  1 = AND  2 = OR  3 = XOR
   mov ax,3
   out dx,al
 
-  ;      3 Read Map Select  0x00                                                                                                                    The plane that is read from in read mode 0.
+  ;      3 Read Map Select  0x00                                                                                                                                            The plane that is read from in read mode 0.
   mov ax,4
   out dx,al
 
-  ; Graphics Mode Register                              10  10  10  10  30  30  00  10  10  10  10  00  00  00  00  10  10  00  00  10  10  10  10
-  ;      3 Processor Write Mode                          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Write mode 0.  1 = Write mode 1.  2 = Write mode 2.
-  ;      4 Outputs high impedance                        0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal.  1 = Outputs forced to high impedance state.
-  ;      8 Processor Read Mode                           0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Read mode 0.  1 = Read mode 1.
-  ;   0x10 Memory Access Mode                           10  10  10  10  10  10   0  10  10  10  10   0   0   0   0  10  10   0   0  10  10  10  10  0 = Graphics Memory Access Mode.  1 = Text Memory Access Mode.
-  ;   0x20 Graphics Shift Register Mode                  0   0   0   0  20  20   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal Shift Register Operation.  1 = Shift Regs for 4 colour packed pixel mode.
+  ; Graphics Mode Register                              10  10  10  10  30  30  00  10  00  00  10  08  08  00  00  10  10  00  00  10  10  10  10  10  10  10  00  00  40
+  ;      3 Processor Write Mode                          0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Write mode 0.  1 = Write mode 1.  2 = Write mode 2.  3 = Write mode 3.
+  ;      8 Processor Read Mode                           0   0   0   0   0   0   0   0   0   0   0   8   8   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Read mode 0.  1 = Read mode 1.
+  ;   0x10 Memory Access Mode                           10  10  10  10  10  10   0  10   0   0  10   0   0   0   0  10  10   0   0  10  10  10  10  10  10  10   0   0   0  0 = Graphics Memory Access Mode.  1 = Text Memory Access Mode.
+  ;   0x20 Graphics Shift Register Mode                  0   0   0   0  20  20   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Normal Shift Register Operation.  1 = Shift Regs for 4 colour packed pixel mode.
+  ;   0x40 Graphics 256 Colour Control                   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  40  0 = Graphics shift as bit 5.  1 = Graphics shift for 256 colour packed pixel mode.
   mov ax,0??05
   out dx,al
 
-  ; Miscellaneous Register                              0e  0e  0e  0e  0f  0f  0d  0a  0e  0e  0e  04  04  05  05  07  07  05  05  0e  0e  0e  0e
-  ;      1 Display Generation Mode                       0   0   0   0   1   1   1   0   0   0   0   0   0   1   1   1   1   1   1   0   0   0   0  0 = Text mode.  1 = Graphics mode.
-  ;      2 Memory Plane Pairing Control                  2   2   2   2   2   2   0   2   2   2   2   0   0   0   0   2   2   0   0   2   2   2   2  0 = No plane pairing.  1 = Memory planes paried (odd/even access).
-  ;   0x0c Memory Map Mode                              0c  0c  0c  0c  0c  0c  0c   8  0c  0c  0c   4   4   4   4   4   4   4   4  0c  0c  0c  0c  Address range  0 = a0000-bffff  1 = a0000-affff  2 = b0000-b7fff  3 = b8000-bffff
+  ; Miscellaneous Register                              0e  0e  0e  0e  0f  0f  0d  0a  05  00  0e  05  05  05  05  07  07  05  05  0e  0e  0e  0e  0e  0e  0a  05  05  05
+  ;      1 Display Generation Mode                       0   0   0   0   1   1   1   0   1   0   0   1   1   1   1   1   1   1   1   0   0   0   0   0   0   0   1   1   1  0 = Text mode.  1 = Graphics mode.
+  ;      2 Memory Plane Pairing Control                  2   2   2   2   2   2   0   2   0   0   2   0   0   0   0   2   2   0   0   2   2   2   2   2   2   2   0   0   0  0 = No plane pairing.  1 = Memory planes paried (odd/even access).
+  ;   0x0c Memory Map Mode                              0c  0c  0c  0c  0c  0c  0c   8   4   0  0c   4   4   4   4   4   4   4   4  0c  0c  0c  0c  0c  0c   8   4   4   4  Address range  0 = a0000-bffff  1 = a0000-affff  2 = b0000-b7fff  3 = b8000-bffff
   mov ax,0??06
   out dx,al
 
-  ;   0x0f Colour Don't Care Register                   00  00  00  00  00  00  00  00  00  00  00  00  00  0f  0f  0f  0f  0f  0f  00  00  00  00  Colour Don't Care Data for read mode 1.
+  ;   0x0f Colour Don't Care Register                   00  00  00  00  00  00  00  00  0f  00  00  0f  0f  0f  0f  0f  0f  05  0f  00  00  00  00  00  00  00  01  0f  0f  Colour Don't Care Data for read mode 1.
   mov ax,0??07
   out dx,al
 
-  ;   0xff Bit Mask Register  0xff                                                                                                                  Update value source data for write modes 0 and 2.
+  ;   0xff Bit Mask Register                            ff  ff  ff  ff  ff  ff  ff  ff  ff  00  ff  ff  ff  ff  ff  ff  ff  ff  ff  ff  ff  ff  ff  ff  ff  ff  ff  ff  ff  Update value source data for write modes 0 and 2.
   mov ax,0ff08
   out dx,al
-
-
-;VGA
-
-28 18 08 00 08  09 03 00 02  63  2D 27 28 90 2B A0 BF 1F 00 C7 06 07 00 00 00 00 9C 8E 8F 14 1F 96 B9 A3 FF  00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17 08 00 0F 00  00 00 00 00 00 10 0E 00 FF   00 40x25x8 B/W text          320 400 text b8 d      ttttt
-28 18 08 00 08  09 03 00 02  63  2D 27 28 90 2B A0 BF 1F 00 C7 06 07 00 00 00 00 9C 8E 8F 14 1F 96 B9 A3 FF  00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17 08 00 0F 00  00 00 00 00 00 10 0E 00 FF   01 40x25x8 color text        320 400 text b8 d      ttttt
-50 18 08 00 10  01 03 00 02  63  5F 4F 50 82 55 81 BF 1F 00 C7 06 07 00 00 00 00 9C 8E 8F 28 1F 96 B9 A3 FF  00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17 08 00 0F 00  00 00 00 00 00 10 0E 00 FF   02 80x25x8 B/W text          640 400 text b8 d      ttttt
-50 18 08 00 10  01 03 00 02  63  5F 4F 50 82 55 81 BF 1F 00 C7 06 07 00 00 00 00 9C 8E 8F 28 1F 96 B9 A3 FF  00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17 08 00 0F 00  00 00 00 00 00 10 0E 00 FF   03 80x25x8 color text        640 400 text b8 d      ttttt
-28 18 08 00 40  09 03 00 02  63  2D 27 28 90 2B 80 BF 1F 00 C1 00 00 00 00 00 00 9C 8E 8F 14 00 96 B9 A2 FF  00 13 15 17 02 04 06 07 10 11 12 13 14 15 16 17 01 00 03 00  00 00 00 00 00 30 0F 00 FF   04 320x200x4 color graphics  320 400 2bpp b8 d      tgtgt c
-28 18 08 00 40  09 03 00 02  63  2D 27 28 90 2B 80 BF 1F 00 C1 00 00 00 00 00 00 9C 8E 8F 14 00 96 B9 A2 FF  00 13 15 17 02 04 06 07 10 11 12 13 14 15 16 17 01 00 03 00  00 00 00 00 00 30 0F 00 FF   05 320x200x4 B/W graphics    320 400 2bpp b8 d      tgtgt c
-50 18 08 00 40  01 01 00 06  63  5F 4F 50 82 54 80 BF 1F 00 C1 00 00 00 00 00 00 9C 8E 8F 28 00 96 B9 C2 FF  00 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 01 00 01 00  00 00 00 00 00 00 0D 00 FF   06 640x200x2 graphics        640 400 1bpp b8 d      ggggg c
-50 18 0E 00 10  00 03 00 03  A6  5F 4F 50 82 55 81 BF 1F 00 4D 0B 0C 00 00 00 00 83 85 5D 28 0D 63 BA A3 FF  00 08 08 08 08 08 08 08 10 18 18 18 18 18 18 18 0E 00 0F 08  00 00 00 00 00 10 0A 00 FF   07 80x25x14 MDA text         720 350 text b0 b mono ttttt  H
-50 18 10 00 7D  21 0F 00 06  63  5F 4F 50 82 55 81 BF 1F 00 40 00 00 00 00 00 00 9C 8E 8F 28 1F 96 B9 E3 FF  00 01 02 03 04 05 14 07 38 39 3A 3B 3C 3D 3E 3F 01 00 0F 00  00 00 00 00 00 00 05 0F FF   08                           640 400      a0 d      ggggg
-00 00 00 00 00  00 00 00 00  00  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 00   09
-28 18 08 00 40  00 00 00 03  23  37 27 2D 37 31 15 04 11 00 47 06 07 00 00 00 00 E1 24 C7 14 08 E0 F0 A3 FF  00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17 08 00 0F 00  00 00 00 00 00 10 0E 00 FF   0a                           720 200      b8 d      ttttt
-50 00 00 00 00  29 0F 00 06  62  5F 4F 50 82 55 81 BF 1F 00 40 00 00 00 00 00 00 9C 8E 8F 28 1F 96 B9 E3 FF  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3F 01 00 0F 00  00 00 0F 00 00 08 05 0F FF   0b                           320 400      a0 b      ggggg
-50 00 00 00 00  29 0F 00 06  63  5F 4F 50 82 55 81 BF 1F 00 40 00 00 00 00 00 00 9C 8E 8F 28 1F 96 B9 E3 FF  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3F 01 00 0F 00  00 00 0F 00 00 08 05 0F FF   0c                           320 400      a0 d      ggggg
-28 18 08 00 20  09 0F 00 06  63  2D 27 28 90 2B 80 BF 1F 00 C0 00 00 00 00 00 00 9C 8E 8F 14 00 96 B9 E3 FF  00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17 01 00 0F 00  00 00 00 00 00 00 05 0F FF   0d 320x200x16                320 400 4bpp a0 d      ggggg
-50 18 08 00 40  01 0F 00 06  63  5F 4F 50 82 54 80 BF 1F 00 C0 00 00 00 00 00 00 9C 8E 8F 28 00 96 B9 E3 FF  00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17 01 00 0F 00  00 00 00 00 00 00 05 0F FF   0e 640x200x16                640 400 4bpp a0 d      ggggg
-50 18 0E 00 80  05 0F 00 00  A2  60 4F 56 1A 50 E0 70 1F 00 00 00 00 00 00 00 00 5E 2E 5D 14 00 5E 6E 8B FF  00 08 00 00 18 18 00 00 00 08 00 00 00 18 00 00 0B 00 05 00  00 00 00 00 00 10 07 0F FF   0f 640x350x2 (64K)           640 350 1bpp a0 b mono tgtgt
-50 18 0E 00 80  05 0F 00 00  A7  5B 4F 53 17 50 BA 6C 1F 00 00 00 00 00 00 00 00 5E 2B 5D 14 0F 5F 0A 8B FF  00 01 00 00 04 07 00 00 00 01 00 00 04 07 00 00 01 00 05 00  00 00 00 00 00 10 07 0F FF   10 640x350x4 (64K)           640 350 2bpp a0 d      tgtgt  H
-50 18 0E 00 80  01 0F 00 06  A2  5F 4F 50 82 54 80 BF 1F 00 40 00 00 00 00 00 00 83 85 5D 28 0F 63 BA E3 FF  00 08 00 00 18 18 00 00 00 08 00 00 00 18 00 00 0B 00 05 00  00 00 00 00 00 00 05 05 FF   0f 640x350x2 (128K)          640 350 1bpp a0 b mono ggggg
-50 18 0E 00 80  01 0F 00 06  A3  5F 4F 50 82 54 80 BF 1F 00 40 00 00 00 00 00 00 83 85 5D 28 0F 63 BA E3 FF  00 01 02 03 04 05 14 07 38 39 3A 3B 3C 3D 3E 3F 01 00 0F 00  00 00 00 00 00 00 05 0F FF   10 640x350x16 (128K)         640 350 4bpp a0 d      ggggg
-28 18 0E 00 08  09 03 00 02  A3  2D 27 28 90 2B A0 BF 1F 00 4D 0B 0C 00 00 00 00 83 85 5D 14 1F 63 BA A3 FF  00 01 02 03 04 05 14 07 38 39 3A 3B 3C 3D 3E 3F 08 00 0F 00  00 00 00 00 00 10 0E 00 FF   00 40x25x14 B/W text         320 350 text b8 d      ttttt
-28 18 0E 00 08  09 03 00 02  A3  2D 27 28 90 2B A0 BF 1F 00 4D 0B 0C 00 00 00 00 83 85 5D 14 1F 63 BA A3 FF  00 01 02 03 04 05 14 07 38 39 3A 3B 3C 3D 3E 3F 08 00 0F 00  00 00 00 00 00 10 0E 00 FF   01 40x25x14 color text       320 350 text b8 d      ttttt
-50 18 0E 00 10  01 03 00 02  A3  5F 4F 50 82 55 81 BF 1F 00 4D 0B 0C 00 00 00 00 83 85 5D 28 1F 63 BA A3 FF  00 01 02 03 04 05 14 07 38 39 3A 3B 3C 3D 3E 3F 08 00 0F 00  00 00 00 00 00 10 0E 00 FF   02 80x25x14 B/W text         640 350 text b8 d      ttttt
-50 18 0E 00 10  01 03 00 02  A3  5F 4F 50 82 55 81 BF 1F 00 4D 0B 0C 00 00 00 00 83 85 5D 28 1F 63 BA A3 FF  00 01 02 03 04 05 14 07 38 39 3A 3B 3C 3D 3E 3F 08 00 0F 00  00 00 00 00 00 10 0E 00 FF   03 80x25x14 color text       640 350 text b8 d      ttttt
-28 18 10 00 08  08 03 00 02  67  2D 27 28 90 2B A0 BF 1F 00 4F 0D 0E 00 00 00 00 9C 8E 8F 14 1F 96 B9 A3 FF  00 01 02 03 04 05 14 07 38 39 3A 3B 3C 3D 3E 3F 0C 00 0F 08  00 00 00 00 00 10 0E 00 FF   00/01 40x25x16 text          360 400 text b8 d      ttttt  H
-50 18 10 00 10  00 03 00 02  67  5F 4F 50 82 55 81 BF 1F 00 4F 0D 0E 00 00 00 00 9C 8E 8F 28 1F 96 B9 A3 FF  00 01 02 03 04 05 14 07 38 39 3A 3B 3C 3D 3E 3F 0C 00 0F 08  00 00 00 00 00 10 0E 00 FF   02/03 80x25x16 text          720 400 text b8 d      ttttt  H
-50 18 10 00 10  00 03 00 02  66  5F 4F 50 82 55 81 BF 1F 00 4F 0D 0E 00 00 00 00 9C 8E 8F 28 0F 96 B9 A3 FF  00 08 08 08 08 08 08 08 10 18 18 18 18 18 18 18 0E 00 0F 08  00 00 00 00 00 10 0A 00 FF   07 80x25x16 MDA text         720 400 text b0 b mono ttttt  H
-50 1D 10 00 A0  01 0F 00 06  E3  5F 4F 50 82 54 80 0B 3E 00 40 00 00 00 00 00 00 EA 8C DF 28 00 E7 04 C3 FF  00 3F 3F 3F 3F 3F 3F 3F 3F 3F 3F 3F 3F 3F 3F 3F 01 00 0F 00  00 00 00 00 00 00 05 01 FF   11 640x480 B/W graphics      640 480 1bpp a0 d      ggggg
-50 1D 10 00 A0  01 0F 00 06  E3  5F 4F 50 82 54 80 0B 3E 00 40 00 00 00 00 00 00 EA 8C DF 28 00 E7 04 E3 FF  00 01 02 03 04 05 14 07 38 39 3A 3B 3C 3D 3E 3F 01 00 0F 00  00 00 00 00 00 00 05 0F FF   12 640x480x16 graphics       640 480 4bpp a0 d      ggggg
-28 18 08 00 20  01 0F 00 0E  63  5F 4F 50 82 54 80 BF 1F 00 41 00 00 00 00 00 00 9C 8E 8F 28 40 96 B9 A3 FF  00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 41 00 0F 00  00 00 00 00 00 40 05 0F FF   13 320x200x256               640 400 8bpp a0 d      ggggg
 
