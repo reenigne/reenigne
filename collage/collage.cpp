@@ -14,6 +14,7 @@ enum Atom
     atomEnumeratedValueRecord,
     atomStructure,
     atomStructureEntry,
+    atomTuple,
 
     atomValue,
     atomIdentifier,
@@ -41,6 +42,7 @@ String atomToString(Atom atom)
                 String("EnumeratedValueRecord");
             _table[atomStructure] = String("Structure");
             _table[atomStructureEntry] = String("StructureEntry");
+            _table[atomTuple] = String("Tuple");
 
             _table[atomValue] = String("value");
             _table[atomIdentifier] = String("identifier");                           

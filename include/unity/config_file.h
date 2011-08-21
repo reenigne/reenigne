@@ -344,7 +344,7 @@ public:
                 Symbol component = elements[i];
                 if (i > 0)
                     Space::assertCharacter(source, ',', &span);
-                Symbol value = parseExpressionElement(source);
+                Symbol value = parseExpression(source);
                 Symbol expectedType = component[1].symbol();
                 Symbol observedType = value[2].symbol();
                 if (observedType != expectedType)
@@ -360,6 +360,19 @@ public:
                 newSpan(spanOf(e) + span));
         }
         Span span;
+        if (Space::parseCharacter(source, '{', &span)) {
+            SymbolList values;
+            Span span2;
+            SymbolList types;
+            do {
+                Symbol e = parseExpression(source);
+                values.add(e);
+                types.add(e[2].symbol());
+            } while (Space::parseCharacter(source, ',', &span2));
+            Space::assertCharacter(source, '}', &span2);
+            return Symbol(atomValue, SymbolArray(values),
+                Symbol(atomTuple, SymbolArray(types)), newSpan(span + span2));
+        }
         if (Space::parseCharacter(source, '(', &span)) {
             e = parseExpression(source);
             Space::assertCharacter(source, ')', &span);
