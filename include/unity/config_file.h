@@ -28,9 +28,16 @@ SpanCache* newSpan(Symbol symbol) { return newSpan(spanOf(symbol)); }
 class ConfigFile
 {
 public:
-    void addType(Symbol type)
+    class Type
     {
-        String name = type[1].string();
+    public:
+        String name() const { return _name; }
+    private:
+        String _name;
+    };
+    void addType(Type type)
+    {
+        String name = type.name();
         _types.add(name, type);
         if (type.atom() == atomEnumeration) {
             SymbolArray values = type[2].array();
@@ -568,6 +575,19 @@ public:
         return getSymbol(name)[1].integer();
     }
 private:
+    class Option
+    {
+    public:
+        Option(Type type, Value defaultValue)
+          : _type(type), _value(defaultValue) { }
+        Type type() const return { _type; }
+        Value value() const return { _value; }
+        void setValue(Value value) { _value = value; }
+    private:
+        Type _type;
+        Value _value;
+    };
+
     HashTable<String, Symbol> _options;
     HashTable<String, Symbol> _enumeratedValues;
     HashTable<String, Symbol> _types;
