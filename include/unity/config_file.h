@@ -51,51 +51,73 @@ public:
 template<class T> class List
 {
 public:
-    List() : _count(0), _first(0), _last(0) { }
-    ~List()
+    List() { }
+    void add(const T& t)
     {
-        Implementation* i = _first;
-        while (i != 0) {
-            Implementation* next = i->next();
-            delete i;
-            i = next;
-        }
-    }
-    void add(T t)
-    {
-        _first = new Implementation(t, _first);
-        if (_count == 0)
-            _last = _first;
-        ++_count;
+        if (!_implementation.valid())
+            _implementation = new Implementation(t);
+        else
+            _implementation->add(t);
     }
 private:
     class Implementation
     {
     public:
-        Implementation(T value, Implementation* next)
-          : _value(value), _next(next) { }
-        T value() const { return _value; }
-        Implementation* next() const { return _next; }
+
     private:
-        T _value;
-        Implementation* _next;
+        class Node
+        {
+        };
+        Node* _first;
+        Node* _last;
+        int _count;
     };
-    Implementation* _first;
-    Implementation* _last;
-    int _count;
-
-    void copyTo(Array<T>* array)
-    {
-        array->allocate(_count);
-        array->constructElements();
-        Implementation* implementation = _first;
-        for (int i = _count - 1; i >= 0; --i) {
-            (*array)[i] = implementation->value();
-            implementation = implementation->next();
-        }
-    }
-
-    template<class T> friend class Array;
+//    List() : _count(0), _first(0), _last(0) { }
+//    ~List()
+//    {
+//        Implementation* i = _first;
+//        while (i != 0) {
+//            Implementation* next = i->next();
+//            delete i;
+//            i = next;
+//        }
+//    }
+//    void add(T t)
+//    {
+//        _first = new Implementation(t, _first);
+//        if (_count == 0)
+//            _last = _first;
+//        ++_count;
+//    }
+//private:
+//    class Implementation
+//    {
+//    public:
+//        Implementation(T value, Implementation* next)
+//          : _value(value), _next(next) { }
+//        T value() const { return _value; }
+//        Implementation* next() const { return _next; }
+//    private:
+//        T _value;
+//        Implementation* _next;
+//    };
+//    Implementation* _first;
+//    Implementation* _last;
+//    int _count;
+//
+//    void copyTo(Array<T>* array)
+//    {
+//        array->allocate(_count);
+//        array->constructElements();
+//        Implementation* implementation = _first;
+//        for (int i = _count - 1; i >= 0; --i) {
+//            (*array)[i] = implementation->value();
+//            implementation = implementation->next();
+//        }
+//    }
+//
+//    template<class T> friend class Array;
+    Reference<Implementation> _implementation;
 };
 
 class EnumerationType : public Type
@@ -109,10 +131,12 @@ public:
 private:
     class Implementation
     {
+    public:
+        Implementation(List<EnumeratedValue> values) : _values(values) { }
+    private:
+        List<EnumeratedValue> _values;
     };
 };
-
-class 
 
 class ConfigFile
 {
