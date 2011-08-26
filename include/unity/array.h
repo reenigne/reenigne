@@ -3,10 +3,83 @@
 
 #include <new>
 
+template<class T> class List
+{
+public:
+    List() { }
+    void add(const T& t)
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation(t);
+        else
+            _implementation->add(t);
+    }
+    void copyTo(Array<T>* array) const
+    {
+        if (!_implementation.valid())
+            array->allocate(0);
+        else
+            _implementation->copyTo(array);
+    }
+private:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        Implementation(const T& t) : _first(t), _last(&_first), _count(1) { }
+        ~Implementation()
+        {
+            Node* n = _first.next();
+            while (n != 0) {
+                Node* nn = n.next();
+                delete n;
+                n = nn;
+            }
+        }
+        void add(const T& t)
+        {
+            _last->setNext(new Node(t));
+            _last = _last->next();
+            ++_count;
+        }
+        void copyTo(Array<T>* array) const
+        {
+            array->allocate(_count);
+            array->constructElements();
+            Node* n = &_first;
+            int i = 0;
+            while (n != 0) {
+                (*array)[i] = n->value();
+                n = n->next();
+            }
+        }
+    private:
+        class Node
+        {
+        public:
+            Node(const T& t) : _value(t), _next(0) { }
+            Node* next() const { return _next; }
+            void setNext(Node* next) { _next = next; }
+            T value() const { return _value; }
+        private:
+            T _value;
+            Node* _next;
+        };
+        Node _first;
+        Node* _last;
+        int _count;
+    };
+    template<class T> friend class Array;
+    Reference<Implementation> _implementation;
+};
+
 template<class T> class Array : Uncopyable
 {
 public:
     Array() : _data(0) { }
+    Array(const List<T>& list) : _data(0)
+    {
+        list.copyTo(&this);
+    }
     explicit Array(int n) : _data(0) { allocate(n); }
     void allocate(int n)
     {
