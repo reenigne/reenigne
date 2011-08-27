@@ -46,7 +46,8 @@ private:
 class EnumeratedValue
 {
 public:
-
+    EnumeratedValue(String name) : _name(name) { }
+    String name() const { return _name; }
 private:
     String _name;
 };
@@ -65,9 +66,42 @@ private:
     public:
         Implementation(List<EnumeratedValue> values) : _values(values) { }
     private:
-        List<EnumeratedValue> _values;
+        Array<EnumeratedValue> _values;
     };
 };
+
+class StructureMember
+{
+public:
+    StructureMember(String name, Type type) : _name(name), _type(type) { }
+private:
+    String _name;
+    Type _type;
+};
+
+class StructuredType : public Type
+{
+public:
+    StructuredType(String name, List<StructureMember> members)
+      : Type(name)
+    {
+        setImplementation(new Implementation(members));
+    }
+private:
+    class Implementation : public Type::Implementation
+    {
+    public:
+        Implementation(List<StructureMember> members) : _members(members) { }
+    private:
+        Array<StructureMember> _members;
+    };
+};
+
+//class IntegerType : public Type
+//{
+//public:
+//    IntegerType()
+//};
 
 class ConfigFile
 {

@@ -76,10 +76,7 @@ template<class T> class Array : Uncopyable
 {
 public:
     Array() : _data(0) { }
-    Array(const List<T>& list) : _data(0)
-    {
-        list.copyTo(&this);
-    }
+    Array(const List<T>& list) : _data(0) { list.copyTo(&this); }
     explicit Array(int n) : _data(0) { allocate(n); }
     void allocate(int n)
     {
