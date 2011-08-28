@@ -29,9 +29,12 @@ class Type
 {
 public:
     String name() const { return _name; }
+    bool isEnumeration() const { return _implementation->isEnumeration(); }
 protected:
     class Implementation : public ReferenceCounted
     {
+    public:
+        virtual bool isEnumeration() const { return false; }
     };
     Type(String name) : _name(name) { }
     void setImplementation(Implementation* implementation)
@@ -60,11 +63,16 @@ public:
     {
         setImplementation(new Implementation(values));
     }
+    Array<EnumeratedValue>* values()
+    {
+        return dynamic_cast<Implementation*>(_implementation)->
+    }
 private:
     class Implementation : public Type::Implementation
     {
     public:
         Implementation(List<EnumeratedValue> values) : _values(values) { }
+        virtual bool isEnumeration() const { return true; }
     private:
         Array<EnumeratedValue> _values;
     };
@@ -97,11 +105,40 @@ private:
     };
 };
 
-//class IntegerType : public Type
-//{
-//public:
-//    IntegerType()
-//};
+class IntegerType : public Type
+{
+public:
+    IntegerType() : Type("Integer") { setImplementation(implementation()); }
+    class Implementation : public Type::Implementation
+    {
+    };
+private:
+    static Reference<Implementation> _implementation;
+    static Reference<Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation();
+        return _implementation;
+    }
+};
+
+class StringType : public Type
+{
+public:
+    StringType() : Type("String") { setImplementation(implementation()); }
+    class Implementation : public Type::Implementation
+    {
+    };
+private:
+    static Reference<Implementation> _implementation;
+    static Reference<Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation();
+        return _implementation;
+    }
+};
+
 
 class ConfigFile
 {
@@ -110,8 +147,8 @@ public:
     {
         String name = type.name();
         _types.add(name, type);
-        if (type.atom() == atomEnumeration) {
-            SymbolArray values = type[2].array();
+        if (type.isEnumeration()) {
+            Array<EnumeratedValue>* values = (EnumerationType)(type).values();
             for (int i = 0; i < values.count(); ++i) {
                 Symbol value = values[i];
                 _enumeratedValues.add(value[2].string(),
@@ -661,7 +698,7 @@ private:
 
     HashTable<String, Symbol> _options;
     HashTable<String, Symbol> _enumeratedValues;
-    HashTable<String, Symbol> _types;
+    HashTable<String, Type> _types;
 };
 
 #endif // INCLUDED_CONFIG_FILE_H
