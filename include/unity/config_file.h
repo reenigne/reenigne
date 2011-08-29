@@ -41,7 +41,7 @@ protected:
     {
         _implementation = implementation;
     }
-private:
+protected:
     String _name;
     Reference<Implementation> _implementation;
 };
@@ -65,7 +65,7 @@ public:
     }
     Array<EnumeratedValue>* values()
     {
-        return dynamic_cast<Implementation*>(_implementation)->
+        return Reference<Implementation>(_implementation)->values();
     }
 private:
     class Implementation : public Type::Implementation
@@ -73,6 +73,7 @@ private:
     public:
         Implementation(List<EnumeratedValue> values) : _values(values) { }
         virtual bool isEnumeration() const { return true; }
+        Array<EnumeratedValue>* values() { return &_values; }
     private:
         Array<EnumeratedValue> _values;
     };
