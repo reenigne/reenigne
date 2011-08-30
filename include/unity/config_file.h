@@ -150,11 +150,9 @@ public:
         _types.add(name, type);
         if (type.isEnumeration()) {
             Array<EnumeratedValue>* values = (EnumerationType)(type).values();
-            for (int i = 0; i < values.count(); ++i) {
-                Symbol value = values[i];
-                _enumeratedValues.add(value[2].string(),
-                    Symbol(atomEnumeratedValueRecord, value[1].symbol(),
-                    type));
+            for (int i = 0; i < values->count(); ++i) {
+                EnumeratedValue value = (*values)[i];
+                _enumeratedValues.add(value.name(), EnumeratedValueRecord(value.value(), type));
             }
         }
     }
