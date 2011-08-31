@@ -46,19 +46,41 @@ protected:
     Reference<Implementation> _implementation;
 };
 
-class EnumeratedValue
+class EnumeratedValueBase
 {
 public:
-    EnumeratedValue(String name) : _name(name) { }
-    String name() const { return _name; }
+    String name() const { return _implementation->name(); }
+protected:
+    EnumeratedValueBase(Implementation* implementation)
+      : _implementation(implementation) { }
 private:
-    String _name;
+    class Implementation
+    {
+    public:
+    private:
+        String _name;
+    };
+    Reference<Implementation> _implementation;
+};
+
+template<class T> class EnumeratedValue : public EnumeratedValueBase
+{
+public:
+    EnumeratedValue(String name, T value) : EnumeratedValueBase(name), 
+private:
+    class Implementation
+    {
+    public:
+    private:
+        String _name;
+    };
+
 };
 
 class EnumerationType : public Type
 {
 public:
-    EnumerationType(String name, List<EnumeratedValue> values)
+    EnumerationType(String name, List<EnumeratedValueBase> values)
       : Type(name)
     {
         setImplementation(new Implementation(values));
