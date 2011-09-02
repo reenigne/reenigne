@@ -50,29 +50,34 @@ class EnumeratedValueBase
 {
 public:
     String name() const { return _implementation->name(); }
-protected:
-    EnumeratedValueBase(Implementation* implementation)
-      : _implementation(implementation) { }
 private:
     class Implementation
     {
     public:
+        String name() const { return _name; }
     private:
         String _name;
     };
+protected:
+    EnumeratedValueBase(Implementation* implementation)
+      : _implementation(implementation) { }
+private:
     Reference<Implementation> _implementation;
 };
 
 template<class T> class EnumeratedValue : public EnumeratedValueBase
 {
 public:
-    EnumeratedValue(String name, T value) : EnumeratedValueBase(name), 
+    EnumeratedValue(String name, T value)
+      : EnumeratedValueBase(new Implementation(name, value)) { }
 private:
-    class Implementation
+    class Implementation : public EnumeratedValueBase::Implementation
     {
     public:
+        Implementation(String name, T value)
+          : EnumeratedValueBase::Implementation(name), _value(value) { }
     private:
-        String _name;
+        T _value;
     };
 
 };
@@ -80,12 +85,13 @@ private:
 class EnumerationType : public Type
 {
 public:
+    EnumerationType(Type type) : Type(type) { }
     EnumerationType(String name, List<EnumeratedValueBase> values)
       : Type(name)
     {
         setImplementation(new Implementation(values));
     }
-    Array<EnumeratedValue>* values()
+    Array<EnumeratedValueBase>* values()
     {
         return Reference<Implementation>(_implementation)->values();
     }
@@ -93,11 +99,11 @@ private:
     class Implementation : public Type::Implementation
     {
     public:
-        Implementation(List<EnumeratedValue> values) : _values(values) { }
-        virtual bool isEnumeration() const { return true; }
-        Array<EnumeratedValue>* values() { return &_values; }
+        Implementation(List<EnumeratedValueBase> values) : _values(values) { }
+        bool isEnumeration() const { return true; }
+        Array<EnumeratedValueBase>* values() { return &_values; }
     private:
-        Array<EnumeratedValue> _values;
+        Array<EnumeratedValueBase> _values;
     };
 };
 
@@ -162,6 +168,16 @@ private:
     }
 };
 
+class EnumeratedValueRecord
+{
+public:
+    EnumeratedValueRecord(EnumeratedValueBase value, Type type)
+      : _value(value), _type(type) { }
+private:
+    EnumeratedValueBase _value;
+    Type _type;
+};
+
 
 class ConfigFile
 {
@@ -171,10 +187,11 @@ public:
         String name = type.name();
         _types.add(name, type);
         if (type.isEnumeration()) {
-            Array<EnumeratedValue>* values = (EnumerationType)(type).values();
+            Array<EnumeratedValueBase>* values =
+                EnumerationType(type).values();
             for (int i = 0; i < values->count(); ++i) {
-                EnumeratedValue value = (*values)[i];
-                _enumeratedValues.add(value.name(), EnumeratedValueRecord(value.value(), type));
+                EnumeratedValueBase value = (*values)[i];
+                _enumeratedValues.add(value.name(), EnumeratedValueRecord(value, type));
             }
         }
     }
@@ -718,7 +735,7 @@ private:
     };
 
     HashTable<String, Symbol> _options;
-    HashTable<String, Symbol> _enumeratedValues;
+    HashTable<String, EnumeratedValueRecord> _enumeratedValues;
     HashTable<String, Type> _types;
 };
 
