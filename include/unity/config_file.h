@@ -191,11 +191,12 @@ public:
                 EnumerationType(type).values();
             for (int i = 0; i < values->count(); ++i) {
                 EnumeratedValueBase value = (*values)[i];
-                _enumeratedValues.add(value.name(), EnumeratedValueRecord(value, type));
+                _enumeratedValues.add(value.name(),
+                    EnumeratedValueRecord(value, type));
             }
         }
     }
-    void addOption(String name, Symbol type, Symbol defaultValue = Symbol())
+    template<class T> void addOption(String name, Type type, Symbol defaultValue = Symbol())
     {
         _options.add(name, Symbol(atomOption, type, defaultValue));
     }
