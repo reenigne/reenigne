@@ -4,6 +4,7 @@
 #include "unity/string.h"
 #include "unity/hash_table.h"
 #include "unity/space.h"
+#include "unity/any.h"
 
 class SpanCache : public SymbolCache
 {
@@ -46,52 +47,29 @@ protected:
     Reference<Implementation> _implementation;
 };
 
-class EnumeratedValueBase
+class EnumeratedValue
 {
 public:
-    String name() const { return _implementation->name(); }
+    template<class T> EnumeratedValue(String name, const T& value)
+        : _name(name), _value(value)
+    { }
+    String name() const { return _name; }
+    template<class T> T value() const { return _value.value<T>(); }
 private:
-    class Implementation
-    {
-    public:
-        String name() const { return _name; }
-    private:
-        String _name;
-    };
-protected:
-    EnumeratedValueBase(Implementation* implementation)
-      : _implementation(implementation) { }
-private:
-    Reference<Implementation> _implementation;
-};
-
-template<class T> class EnumeratedValue : public EnumeratedValueBase
-{
-public:
-    EnumeratedValue(String name, T value)
-      : EnumeratedValueBase(new Implementation(name, value)) { }
-private:
-    class Implementation : public EnumeratedValueBase::Implementation
-    {
-    public:
-        Implementation(String name, T value)
-          : EnumeratedValueBase::Implementation(name), _value(value) { }
-    private:
-        T _value;
-    };
-
+    String _name;
+    Any _value;
 };
 
 class EnumerationType : public Type
 {
 public:
     EnumerationType(Type type) : Type(type) { }
-    EnumerationType(String name, List<EnumeratedValueBase> values)
+    EnumerationType(String name, List<EnumeratedValue> values)
       : Type(name)
     {
         setImplementation(new Implementation(values));
     }
-    Array<EnumeratedValueBase>* values()
+    Array<EnumeratedValue>* values()
     {
         return Reference<Implementation>(_implementation)->values();
     }
@@ -99,11 +77,11 @@ private:
     class Implementation : public Type::Implementation
     {
     public:
-        Implementation(List<EnumeratedValueBase> values) : _values(values) { }
+        Implementation(List<EnumeratedValue> values) : _values(values) { }
         bool isEnumeration() const { return true; }
-        Array<EnumeratedValueBase>* values() { return &_values; }
+        Array<EnumeratedValue>* values() { return &_values; }
     private:
-        Array<EnumeratedValueBase> _values;
+        Array<EnumeratedValue> _values;
     };
 };
 
@@ -171,10 +149,10 @@ private:
 class EnumeratedValueRecord
 {
 public:
-    EnumeratedValueRecord(EnumeratedValueBase value, Type type)
+    EnumeratedValueRecord(EnumeratedValue value, Type type)
       : _value(value), _type(type) { }
 private:
-    EnumeratedValueBase _value;
+    EnumeratedValue _value;
     Type _type;
 };
 
@@ -187,10 +165,10 @@ public:
         String name = type.name();
         _types.add(name, type);
         if (type.isEnumeration()) {
-            Array<EnumeratedValueBase>* values =
+            Array<EnumeratedValue>* values =
                 EnumerationType(type).values();
             for (int i = 0; i < values->count(); ++i) {
-                EnumeratedValueBase value = (*values)[i];
+                EnumeratedValue value = (*values)[i];
                 _enumeratedValues.add(value.name(),
                     EnumeratedValueRecord(value, type));
             }
