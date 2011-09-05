@@ -6,15 +6,17 @@
 class Any
 {
 public:
+    Any() { }
     template<class T> Any(const T& t)
       : _implementation(new Implementation<T>(t)) { }
     template<class T> T value() const
     {
         return Reference<Implementation<T> >(_implementation)->value();
     }
+    bool valid() const { return _implementation.valid(); }
 private:
     class ImplementationBase
-    {
+    {                                                  
     };
     template<class T> class Implementation : public ImplementationBase
     {

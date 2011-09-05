@@ -174,9 +174,10 @@ public:
             }
         }
     }
-    template<class T> void addOption(String name, Type type, Symbol defaultValue = Symbol())
+    template<class T> void addOption(String name, Type type,
+        Any defaultValue = Any())                                        
     {
-        _options.add(name, Symbol(atomOption, type, defaultValue));
+        _options.add(name, Option(type, defaultValue));
     }
     Symbol parseIdentifier(CharacterSource* source)
     {
@@ -703,17 +704,17 @@ private:
     class Option
     {
     public:
-        Option(Type type, Value defaultValue)
+        Option(Type type, Any defaultValue)
           : _type(type), _value(defaultValue) { }
         Type type() const return { _type; }
-        Value value() const return { _value; }
-        void setValue(Value value) { _value = value; }
+        Any value() const return { _value; }
+        void setValue(Any value) { _value = value; }
     private:
         Type _type;
-        Value _value;
+        Any _value;
     };
 
-    HashTable<String, Symbol> _options;
+    HashTable<String, Option> _options;
     HashTable<String, EnumeratedValueRecord> _enumeratedValues;
     HashTable<String, Type> _types;
 };
