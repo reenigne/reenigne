@@ -79,6 +79,7 @@
     <ClCompile Include="collage.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\unity\any.h" />
     <ClInclude Include="..\include\unity\array.h" />
     <ClInclude Include="..\include\unity\bitmap.h" />
     <ClInclude Include="..\include\unity\buffer.h" />

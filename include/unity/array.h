@@ -3,6 +3,8 @@
 
 #include <new>
 
+template<class T> class Array;
+
 template<class T> class List
 {
 public:

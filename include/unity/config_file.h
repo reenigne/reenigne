@@ -174,12 +174,65 @@ public:
             }
         }
     }
-    template<class T> void addOption(String name, Type type,
-        Any defaultValue = Any())                                        
+    void addOption(String name, Type type)
     {
-        _options.add(name, Option(type, defaultValue));
+        _options.add(name, TypedValue(type));
     }
-    Symbol parseIdentifier(CharacterSource* source)
+    template<class T> void addOption(String name, Type type, T defaultValue)
+    {
+        _options.add(name, TypedValue(type, Any(defaultValue)));
+    }
+    
+    void load(File file)
+    {
+        String contents = file.contents();
+        CharacterSource source(contents, file.path());
+        Space::parse(&source);
+        do {
+            CharacterSource s = source;
+            if (s.get() == -1)
+                break;
+            parseAssignment(&source);
+        } while (true);
+        for (HashTable<String, Symbol>::Iterator i = _options.begin();
+            i != _options.end(); ++i) {
+            if (!i.value()[2].valid())
+                throw Exception(file.messagePath() + colonSpace + i.key() +
+                    String(" not defined and no default is available."));
+        }
+    }
+    template<class T> T getValue(String name)
+    {
+        return _options[name].value().value<T>();
+    }
+private:
+    class TypedValue
+    {
+    public:
+        TypedValue(Type type, Any defaultValue = Any(), Span span = Span())
+          : _type(type), _value(defaultValue), _span(span) { }
+        Type type() const { return _type; }
+        Any value() const { return _value; }
+        void setValue(Any value) { _value = value; }
+    private:
+        Type _type;
+        Any _value;
+        Span _span;
+    };
+    class Identifier
+    {
+    public:
+        Identifier() { }
+        Identifier(String name, Span span) : _name(name), _span(span) { }
+        String name() const { return _name; }
+        Span span() const { return _span; }
+        bool valid() const { return !_name.empty(); }
+    private:
+        String _name;
+        Span _span;
+    };
+
+    Identifier parseIdentifier(CharacterSource* source)
     {
         CharacterSource s = *source;
         Location startLocation = s.location();
@@ -188,7 +241,7 @@ public:
         Span endSpan;
         int c = s.get(&startSpan);
         if (c < 'a' || c > 'z')
-            return Symbol();
+            return Identifier();
         CharacterSource s2;
         do {
             s2 = s;
@@ -203,18 +256,18 @@ public:
         Space::parse(&s2);
         String name = s2.subString(startOffset, endOffset);
         *source = s2;
-        return Symbol(atomIdentifier, name, newSpan(startSpan + endSpan));
+        return Identifier(name, startSpan + endSpan);
     }
-    Symbol valueFromIdentifier(Symbol identifier)
+    TypedValue valueFromIdentifier(Identifier identifier)
     {
-        String name = identifier[1].string();
+        String name = identifier.name();
         if (!_options.hasKey(name))
-            spanOf(identifier).throwError(String("Unknown identifier ") + name);
-        Symbol option = _options[name];
-        return Symbol(atomValue, option[2].symbol(), option[1].symbol(),
-            newSpan(identifier));
+            identifier.span().throwError(String("Unknown identifier ") + name);
+        TypedValue option = _options[name];
+        return TypedValue(option.type(), option.value(), identifier.span()); 
     }
-    Symbol parseTypeIdentifier(CharacterSource* source)
+    // TODO: refactor with parseIdentifier
+    Identifier parseTypeIdentifier(CharacterSource* source)
     {
         CharacterSource s = *source;
         Location startLocation = s.location();
@@ -223,7 +276,7 @@ public:
         Span endSpan;
         int c = s.get(&startSpan);
         if (c < 'A' || c > 'Z')
-            return Symbol();
+            return Identifier();
         CharacterSource s2;
         do {
             s2 = s;
@@ -238,9 +291,8 @@ public:
         Space::parse(&s2);
         String name = s2.subString(startOffset, endOffset);
         *source = s2;
-        return Symbol(atomIdentifier, name, newSpan(startSpan + endSpan));
+        return Identifier(name, startSpan + endSpan);
     }
-    
     void throwError(CharacterSource* source)
     {
         static String expected("Expected expression");
@@ -645,76 +697,24 @@ public:
     }
     void parseAssignment(CharacterSource* source)
     {
-        Symbol identifier = parseIdentifier(source);
+        Identifier identifier = parseIdentifier(source);
         Span span;
-        String name = identifier[1].string();
+        String name = identifier.name();
         if (!_options.hasKey(name))
-            span.throwError(String("Unknown identifier ") + name);
+            identifier.span().throwError(String("Unknown identifier ") + name);
         Space::assertCharacter(source, '=', &span);
-        Symbol e = parseExpression(source);
-        Symbol expectedType = _options[name][1].symbol();
-        Symbol observedType = e[2].symbol();
+        TypedValue e = parseExpression(source);
+        Type expectedType = _options[name].type();
+        Type observedType = e.type();
         if (observedType != expectedType)
-            spanOf(e).throwError(String("Expected an expression of type ") +
-                typeToString(expectedType) +
-                String(" but found one of type ") +
-                typeToString(observedType));
+            e.span().throwError(String("Expected an expression of type ") +
+                expectedType.toString() + String(" but found one of type ") +
+                observedType.toString());
         Space::assertCharacter(source, ';', &span);
-        _options[name][2] = e;
+        _options[name].setValue(e.value());
     }
-    void load(File file)
-    {
-        String contents = file.contents();
-        CharacterSource source(contents, file.path());
-        Space::parse(&source);
-        do {
-            CharacterSource s = source;
-            if (s.get() == -1)
-                break;
-            parseAssignment(&source);
-        } while (true);
-        for (HashTable<String, Symbol>::Iterator i = _options.begin();
-            i != _options.end(); ++i) {
-            if (!i.value()[2].valid())
-                throw Exception(file.messagePath() + colonSpace + i.key() +
-                    String(" not defined and no default is available."));
-        }
-    }
-    Atom getAtom(String name)
-    {
-        return getSymbol(name)[1].atom();
-    }
-    String getString(String name)
-    {
-        return getSymbol(name)[1].string();
-    }
-    Symbol getSymbol(String name)
-    {
-        return _options[name][2].symbol();
-    }
-    bool getBoolean(String name)
-    {
-        return getAtom(name) != atomFalse;
-    }
-    int getInteger(String name)
-    {
-        return getSymbol(name)[1].integer();
-    }
-private:
-    class Option
-    {
-    public:
-        Option(Type type, Any defaultValue)
-          : _type(type), _value(defaultValue) { }
-        Type type() const return { _type; }
-        Any value() const return { _value; }
-        void setValue(Any value) { _value = value; }
-    private:
-        Type _type;
-        Any _value;
-    };
 
-    HashTable<String, Option> _options;
+    HashTable<String, TypedValue> _options;
     HashTable<String, EnumeratedValueRecord> _enumeratedValues;
     HashTable<String, Type> _types;
 };
