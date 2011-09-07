@@ -5,172 +5,22 @@
 #include "unity/hash_table.h"
 #include "unity/space.h"
 #include "unity/any.h"
-
-class SpanCache : public SymbolCache
-{
-public:
-    SpanCache(Span span) : _span(span) { }
-    Span span() const { return _span; }
-private:
-    Span _span;
-};
-
-Span spanOf(Symbol symbol) { return symbol.cache<SpanCache>()->span(); }
-
-SpanCache* newSpan(Span span) { return new SpanCache(span); }
-
-SpanCache* newSpan(Location start, Location end)
-{
-    return newSpan(Span(start, end));
-}
-
-SpanCache* newSpan(Symbol symbol) { return newSpan(spanOf(symbol)); }
-
-class Type
-{
-public:
-    String name() const { return _name; }
-    bool isEnumeration() const { return _implementation->isEnumeration(); }
-protected:
-    class Implementation : public ReferenceCounted
-    {
-    public:
-        virtual bool isEnumeration() const { return false; }
-    };
-    Type(String name) : _name(name) { }
-    void setImplementation(Implementation* implementation)
-    {
-        _implementation = implementation;
-    }
-protected:
-    String _name;
-    Reference<Implementation> _implementation;
-};
-
-class EnumeratedValue
-{
-public:
-    template<class T> EnumeratedValue(String name, const T& value)
-        : _name(name), _value(value)
-    { }
-    String name() const { return _name; }
-    template<class T> T value() const { return _value.value<T>(); }
-private:
-    String _name;
-    Any _value;
-};
-
-class EnumerationType : public Type
-{
-public:
-    EnumerationType(Type type) : Type(type) { }
-    EnumerationType(String name, List<EnumeratedValue> values)
-      : Type(name)
-    {
-        setImplementation(new Implementation(values));
-    }
-    Array<EnumeratedValue>* values()
-    {
-        return Reference<Implementation>(_implementation)->values();
-    }
-private:
-    class Implementation : public Type::Implementation
-    {
-    public:
-        Implementation(List<EnumeratedValue> values) : _values(values) { }
-        bool isEnumeration() const { return true; }
-        Array<EnumeratedValue>* values() { return &_values; }
-    private:
-        Array<EnumeratedValue> _values;
-    };
-};
-
-class StructureMember
-{
-public:
-    StructureMember(String name, Type type) : _name(name), _type(type) { }
-private:
-    String _name;
-    Type _type;
-};
-
-class StructuredType : public Type
-{
-public:
-    StructuredType(String name, List<StructureMember> members)
-      : Type(name)
-    {
-        setImplementation(new Implementation(members));
-    }
-private:
-    class Implementation : public Type::Implementation
-    {
-    public:
-        Implementation(List<StructureMember> members) : _members(members) { }
-    private:
-        Array<StructureMember> _members;
-    };
-};
-
-class IntegerType : public Type
-{
-public:
-    IntegerType() : Type("Integer") { setImplementation(implementation()); }
-    class Implementation : public Type::Implementation
-    {
-    };
-private:
-    static Reference<Implementation> _implementation;
-    static Reference<Implementation> implementation()
-    {
-        if (!_implementation.valid())
-            _implementation = new Implementation();
-        return _implementation;
-    }
-};
-
-class StringType : public Type
-{
-public:
-    StringType() : Type("String") { setImplementation(implementation()); }
-    class Implementation : public Type::Implementation
-    {
-    };
-private:
-    static Reference<Implementation> _implementation;
-    static Reference<Implementation> implementation()
-    {
-        if (!_implementation.valid())
-            _implementation = new Implementation();
-        return _implementation;
-    }
-};
-
-class EnumeratedValueRecord
-{
-public:
-    EnumeratedValueRecord(EnumeratedValue value, Type type)
-      : _value(value), _type(type) { }
-private:
-    EnumeratedValue _value;
-    Type _type;
-};
-
+#include "unity/type.h"
 
 class ConfigFile
 {
 public:
     void addType(Type type)
     {
-        String name = type.name();
+        String name = type.toString();
         _types.add(name, type);
-        if (type.isEnumeration()) {
-            Array<EnumeratedValue>* values =
-                EnumerationType(type).values();
+        EnumerationType t(type);
+        if (t.valid()) {
+            const Array<EnumerationType::Value>* values = t.values();
             for (int i = 0; i < values->count(); ++i) {
-                EnumeratedValue value = (*values)[i];
+                EnumerationType::Value value = (*values)[i];
                 _enumeratedValues.add(value.name(),
-                    EnumeratedValueRecord(value, type));
+                    TypedValue(type, value.value()));
             }
         }
     }
@@ -192,11 +42,28 @@ public:
             CharacterSource s = source;
             if (s.get() == -1)
                 break;
-            parseAssignment(&source);
+            Identifier identifier = parseIdentifier(&source);
+            String name = identifier.name();
+            if (!_options.hasKey(name))
+                identifier.span().throwError(
+                    String("Unknown identifier ") + name);
+            Span span;
+            Space::assertCharacter(&source, '=', &span);
+            TypedValue e = parseExpression(&source);
+            Type expectedType = _options[name].type();
+            Type observedType = e.type();
+            if (observedType != expectedType)  // TODO: check for conversions
+                e.span().throwError(
+                    String("Expected an expression of type ") +
+                    expectedType.toString() +
+                    String(" but found one of type ") +
+                    observedType.toString());
+            Space::assertCharacter(&source, ';', &span);
+            _options[name].setValue(e.value());
         } while (true);
-        for (HashTable<String, Symbol>::Iterator i = _options.begin();
+        for (HashTable<String, TypedValue>::Iterator i = _options.begin();
             i != _options.end(); ++i) {
-            if (!i.value()[2].valid())
+            if (!i.value().valid())
                 throw Exception(file.messagePath() + colonSpace + i.key() +
                     String(" not defined and no default is available."));
         }
@@ -209,11 +76,14 @@ private:
     class TypedValue
     {
     public:
+        TypedValue() { }
         TypedValue(Type type, Any defaultValue = Any(), Span span = Span())
           : _type(type), _value(defaultValue), _span(span) { }
         Type type() const { return _type; }
         Any value() const { return _value; }
         void setValue(Any value) { _value = value; }
+        Span span() const { return _span; }
+        bool valid() const { return _type.valid(); }
     private:
         Type _type;
         Any _value;
@@ -240,42 +110,7 @@ private:
         Span startSpan;
         Span endSpan;
         int c = s.get(&startSpan);
-        if (c < 'a' || c > 'z')
-            return Identifier();
-        CharacterSource s2;
-        do {
-            s2 = s;
-            c = s.get(&endSpan);
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                (c >= '0' && c <= '9') || c == '_')
-                continue;
-            break;
-        } while (true);
-        int endOffset = s2.offset();
-        Location endLocation = s2.location();
-        Space::parse(&s2);
-        String name = s2.subString(startOffset, endOffset);
-        *source = s2;
-        return Identifier(name, startSpan + endSpan);
-    }
-    TypedValue valueFromIdentifier(Identifier identifier)
-    {
-        String name = identifier.name();
-        if (!_options.hasKey(name))
-            identifier.span().throwError(String("Unknown identifier ") + name);
-        TypedValue option = _options[name];
-        return TypedValue(option.type(), option.value(), identifier.span()); 
-    }
-    // TODO: refactor with parseIdentifier
-    Identifier parseTypeIdentifier(CharacterSource* source)
-    {
-        CharacterSource s = *source;
-        Location startLocation = s.location();
-        int startOffset = s.offset();
-        Span startSpan;
-        Span endSpan;
-        int c = s.get(&startSpan);
-        if (c < 'A' || c > 'Z')
+        if (!(c < 'A' || c > 'Z') && !(c < 'a' || c > 'z'))
             return Identifier();
         CharacterSource s2;
         do {
@@ -299,11 +134,12 @@ private:
         source->location().throwError(expected);
     }
     
-    Symbol combine(Symbol left, Symbol right)
+    TypedValue combine(TypedValue left, TypedValue right)
     {
         if (left.valid())
-            return Symbol(atomValue, left[1].string() + right[1].string(),
-                Symbol(atomString), newSpan(spanOf(left) + spanOf(right)));
+            return TypedValue(StringType(),
+                left.value().value<String>() + right.value().value<String>(),
+                left.span() + right.span());
         return right;
     }
     
@@ -326,7 +162,7 @@ private:
         return -1;
     }
     
-    Symbol parseDoubleQuotedString(CharacterSource* source)
+    TypedValue parseDoubleQuotedString(CharacterSource* source)
     {
         static String endOfFile("End of file in string");
         static String endOfLine("End of line in string");
@@ -337,7 +173,7 @@ private:
         Span span;
         Span startSpan;
         if (!source->parse('"', &startSpan))
-            return Symbol();
+            return TypedValue(StringType(), String());
         Span stringStartSpan = startSpan;
         Span stringEndSpan = startSpan;
         int startOffset = source->offset();
@@ -346,8 +182,8 @@ private:
         int n;
         int nn;
         String string(empty);
-        Symbol expression;
-        Symbol part;
+        TypedValue expression;
+        TypedValue part;
         do {
             CharacterSource s = *source;
             endOffset = s.offset();
@@ -363,8 +199,8 @@ private:
                 case '"':
                     string += s.subString(startOffset, endOffset);
                     Space::parse(source);
-                    return combine(expression, Symbol(atomValue, string,
-                        Symbol(atomString), newSpan(stringStartSpan + span)));
+                    return combine(expression, TypedValue(StringType(), string,
+                        stringStartSpan + span));
                 case '\\':
                     string += s.subString(startOffset, endOffset);
                     c = s.get(&stringEndSpan);
@@ -428,32 +264,40 @@ private:
                     startOffset = source->offset();
                     break;
                 case '$':
-                    part = parseIdentifier(source);
-                    if (!part.valid()) {
-                        if (Space::parseCharacter(source, '(', &span)) {
-                            part = parseExpression(source);
-                            source->assert(')', &span);
+                    {
+                        Identifier i = parseIdentifier(source);
+                        if (!i.valid()) {
+                            if (Space::parseCharacter(source, '(', &span)) {
+                                part = parseExpression(source);
+                                source->assert(')', &span);
+                            }
+                            else
+                                source->location().throwError(String(
+                                    "Expected identifier or parenthesized "
+                                        "expression"));
                         }
+                        String s = i.name();
+                        if (s[0] >= 'a' && s[0] <= 'z')
+                            part = valueOfIdentifier(i);
                         else
-                            source->location().throwError(String(
-                                "Expected identifier or parenthesized "
-                                    "expression"));
+                            i.span().throwError(
+                                String("Expected identifier or parenthesized "
+                                        "expression"));
                     }
-                    if (part[2].atom() == atomInteger)
-                        part = Symbol(atomValue,
-                            String::decimal(part[1].integer()),
-                            Symbol(atomString), newSpan(part));
+                    if (part.type() == IntegerType())
+                        part = TypedValue(StringType(), 
+                            String::decimal(part.value().value<int>()),
+                            part.span());
                     else
-                        if (part[2].atom() != atomString)
+                        if (part.type() != StringType())
                             source->location().throwError(
                                 String("Don't know how to convert type ") +
-                                typeToString(part[2].symbol()) +
+                                part.type().toString() +
                                 String(" to a string"));
                     string += s.subString(startOffset, endOffset);
                     startOffset = source->offset();
-                    expression = combine(expression,
-                        Symbol(atomValue, string, Symbol(atomString),
-                        newSpan(stringStartSpan + stringEndSpan)));
+                    expression = combine(expression, TypedValue(StringType(),
+                        string, stringStartSpan + stringEndSpan));
                     string = empty;
                     expression = combine(expression, part);
                     break;
@@ -463,14 +307,14 @@ private:
         } while (true);
     }
     
-    Symbol parseInteger(CharacterSource* source)
+    TypedValue parseInteger(CharacterSource* source)
     {
         CharacterSource s = *source;
         int n = 0;
         Span span;
         int c = s.get(&span);
         if (c < '0' || c > '9')
-            return Symbol();
+            return TypedValue();
         do {
             n = n*10 + c - '0';
             *source = s;
@@ -478,186 +322,183 @@ private:
             c = s.get(&span2);
             if (c < '0' || c > '9') {
                 Space::parse(source);
-                return Symbol(atomValue, n, Symbol(atomInteger),
-                    newSpan(span));
+                return TypedValue(IntegerType(), n, span);
             }
             span += span2;
         } while (true);
     }
-    
-    Symbol parseExpressionElement(CharacterSource* source)
+    TypedValue valueOfIdentifier(const Identifier& i)
+    {
+        String s = i.name();
+        static String trueKeyword("true");
+        if (s == trueKeyword)
+            return TypedValue(BooleanType(), true, i.span());
+        static String falseKeyword("false");
+        if (s == falseKeyword)
+            return TypedValue(BooleanType(), false, i.span());
+        if (_enumeratedValues.hasKey(s)) {
+            TypedValue value = _enumeratedValues[s];
+            return TypedValue(value.type(), value.value(), i.span());
+        }
+        if (!_options.hasKey(s))
+            i.span().throwError(String("Unknown identifier ") + s);
+        TypedValue option = _options[s];
+        return TypedValue(option.type(), option.value(), i.span()); 
+    }
+    TypedValue parseExpressionElement(CharacterSource* source)
     {
         Location location = source->location();
-        Symbol e = parseDoubleQuotedString(source);
+        TypedValue e = parseDoubleQuotedString(source);
         if (e.valid())
             return e;
         e = parseInteger(source);
         if (e.valid())
             return e;
-        e = parseIdentifier(source);
-        if (e.valid()) {
-            String s = e[1].string();
-            static String trueKeyword("true");
-            if (s == trueKeyword)
-                return Symbol(atomValue, Symbol(atomTrue), Symbol(atomBoolean),
-                    newSpan(e));
-            static String falseKeyword("false");
-            if (s == falseKeyword)
-                return Symbol(atomValue, Symbol(atomFalse),
-                    Symbol(atomBoolean), newSpan(e));
-            if (_enumeratedValues.hasKey(s)) {
-                Symbol valueRecord = _enumeratedValues[s];
-                return Symbol(atomValue, valueRecord[1].symbol(),
-                    valueRecord[2].symbol(), newSpan(e));
-            }
-            return valueFromIdentifier(e);
-        }
-        e = parseTypeIdentifier(source);
-        if (e.valid()) {
-            String s = e[1].string();
+        Identifier i = parseIdentifier(source);
+        if (i.valid()) {
+            String s = i.name();
+            if (s[0] >= 'a' && s[0] <= 'z')
+                return valueOfIdentifier(i);
+            // i is a type identifier
             if (!_types.hasKey(s))
-                spanOf(e).throwError(String("Unknown type ") + s);
-            Symbol type = _types[s];
-            if (type.atom() != atomStructure)
-                spanOf(e).throwError(
+                i.span().throwError(String("Unknown type ") + s);
+            StructuredType type = _types[s];
+            if (!type.valid())
+                i.span().throwError(
                     String("Only structure types can be constructed"));
-            SymbolArray elements = type[2].array();
-            SymbolList values;
+            const Array<StructuredType::Member>* elements = type.members();
+            List<TypedValue> values;
             Span span;
             Space::assertCharacter(source, '(', &span);
-            for (int i = 0; i < elements.count(); ++i) {
-                Symbol component = elements[i];
+            for (int i = 0; i < elements->count(); ++i) {
+                StructuredType::Member member = (*elements)[i];
                 if (i > 0)
                     Space::assertCharacter(source, ',', &span);
-                Symbol value = parseExpression(source);
-                Symbol expectedType = component[1].symbol();
-                Symbol observedType = value[2].symbol();
+                TypedValue value = parseExpression(source);
+                Type expectedType = member.type();
+                Type observedType = value.type();
+                // TODO: Check for conversions
                 if (observedType != expectedType)
-                    spanOf(value).throwError(String("Type mismatch: ") + s + 
-                        dot + component[2].string() + String(" has type ") + 
-                        typeToString(expectedType) + 
-                        String(" but value has type ") + 
-                        typeToString(observedType));
+                    value.span().throwError(String("Type mismatch: ") + s + 
+                        dot + member.name() + String(" has type ") + 
+                        expectedType.toString() +
+                        String(" but value has type ") +
+                        observedType.toString());
                 values.add(value);
             }
             Space::assertCharacter(source, ')', &span);
-            return Symbol(atomValue, SymbolArray(values), type,
-                newSpan(spanOf(e) + span));
+            return TypedValue(type, values, e.span() + span);
         }
         Span span;
         if (Space::parseCharacter(source, '{', &span)) {
-            SymbolList values;
+            List<TypedValue> values;
             Span span2;
-            SymbolList types;
+            List<Type> types;
             do {
-                Symbol e = parseExpression(source);
+                TypedValue e = parseExpression(source);
                 values.add(e);
-                types.add(e[2].symbol());
+                types.add(e.type());
             } while (Space::parseCharacter(source, ',', &span2));
             Space::assertCharacter(source, '}', &span2);
-            return Symbol(atomValue, SymbolArray(values),
-                Symbol(atomTuple, SymbolArray(types)), newSpan(span + span2));
+            return TypedValue(TupleType(types), values, span + span2);
         }
         if (Space::parseCharacter(source, '(', &span)) {
             e = parseExpression(source);
             Space::assertCharacter(source, ')', &span);
             return e;
         }
-        return Symbol();
+        return TypedValue();
     }
     
-    Symbol parseUnaryExpression(CharacterSource* source)
+    TypedValue parseUnaryExpression(CharacterSource* source)
     {
         Span span;
         if (Space::parseCharacter(source, '-', &span)) {
-            Symbol e = parseUnaryExpression(source);
-            if (e.atom() != atomInteger)
+            TypedValue e = parseUnaryExpression(source);
+            if (e.type() != IntegerType())
                 throw Exception(String("Only numbers can be negated"));
-            return Symbol(atomInteger, -e[1].integer());
+            return TypedValue(IntegerType(), -e.value().value<int>(),
+                span + e.span());
         }
         return parseExpressionElement(source);
     }
     
-    Symbol parseMultiplicativeExpression(CharacterSource* source)
+    TypedValue parseMultiplicativeExpression(CharacterSource* source)
     {
-        Symbol e = parseUnaryExpression(source);
+        TypedValue e = parseUnaryExpression(source);
         if (!e.valid())
-            return Symbol();
+            return e;
         do {
             Span span;
             if (Space::parseCharacter(source, '*', &span)) {
-                Symbol e2 = parseUnaryExpression(source);
+                TypedValue e2 = parseUnaryExpression(source);
                 if (!e2.valid())
                     throwError(source);
                 bool okay = false;
-                if (e[2].atom() == atomInteger) {
-                    if (e2[2].atom() == atomInteger) {
-                        e = Symbol(atomValue, e[1].integer() * e2[1].integer(),
-                            Symbol(atomInteger),
-                            newSpan(spanOf(e) + spanOf(e2)));
+                if (e.type() == IntegerType()) {
+                    if (e2.type() == IntegerType()) {
+                        e = TypedValue(IntegerType(),
+                            e.value().value<int>() * e2.value().value<int>(),
+                            e.span() + e2.span());
                         okay = true;
                     }
                     else
-                        if (e2[2].atom() == atomString) {
-                            e = Symbol(atomValue,
-                                e2[1].string() * e[1].integer(),
-                                Symbol(atomString),
-                                newSpan(spanOf(e) + spanOf(e2)));
+                        if (e2.type() == StringType()) {
+                            e = TypedValue(StringType(),
+                                e2.value().value<String>() *
+                                    e.value().value<int>(),
+                                e.span() + e2.span());
                             okay = true;
                         }
                 }
                 else
-                    if (e[2].atom() == atomString) {
-                        if (e2[2].atom() == atomInteger) {
-                            e = Symbol(atomValue,
-                                e[1].string() * e2[1].integer(),
-                                Symbol(atomString),
-                                newSpan(spanOf(e) + spanOf(e2)));
+                    if (e.type() == StringType()) {
+                        if (e2.type() == IntegerType()) {
+                            e = TypedValue(StringType(),
+                                e.value().value<String>() *
+                                    e2.value().value<int>(),
+                                e.span() + e2.span());
                             okay = true;
                         }
                     }
                 if (!okay) 
                     span.throwError(
                         String("Don't know how to multiply type ") +
-                        typeToString(e[2].symbol()) +
-                        String(" and type ") +
-                        typeToString(e2[2].symbol()) +
-                        String::codePoint('.'));
+                        e.type().toString() + String(" and type ") +
+                        e2.type().toString() + String::codePoint('.'));
                 continue;
             }
             if (Space::parseCharacter(source, '/', &span)) {
-                Symbol e2 = parseUnaryExpression(source);
+                TypedValue e2 = parseUnaryExpression(source);
                 if (!e2.valid())
                     throwError(source);
-                if (e[2].atom() == atomInteger && e2[2].atom() == atomInteger)
-                    e = Symbol(atomValue, e[1].integer() / e2[1].integer(),
-                        Symbol(atomInteger), newSpan(spanOf(e) + spanOf(e2)));
+                if (e.type() == IntegerType() && e2.type() == IntegerType())
+                    e = TypedValue(IntegerType(),
+                            e.value().value<int>() / e2.value().value<int>(),
+                            e.span() + e2.span());
                 else
                     span.throwError(
                         String("Don't know how to divide type ") +
-                        typeToString(e[2].symbol()) +
-                        String(" by type ") +
-                        typeToString(e2[2].symbol()) +
-                        String::codePoint('.'));
+                        e.type().toString() + String(" by type ") +
+                        e2.type().toString() + String::codePoint('.'));
                 continue;
             }
             return e;
         } while (true);
     }
     
-    Symbol parseExpression(CharacterSource* source)
+    TypedValue parseExpression(CharacterSource* source)
     {
-        Symbol e = parseMultiplicativeExpression(source);
+        TypedValue e = parseMultiplicativeExpression(source);
         if (!e.valid())
             throwError(source);
         do {
             Span span;
             if (Space::parseCharacter(source, '+', &span)) {
-                Symbol e2 = parseMultiplicativeExpression(source);
+                TypedValue e2 = parseMultiplicativeExpression(source);
                 if (!e2.valid())
                     throwError(source);
-                if (e[2].symbol().atom() == atomInteger &&
-                    e2[2].symbol().atom() == atomInteger)
+                if (e.type() == IntegerType() && e2.type() == IntegerType())
                     e = Symbol(atomValue, e[1].integer() + e2[1].integer(),
                         Symbol(atomInteger), newSpan(spanOf(e) + spanOf(e2)));
                 else
@@ -691,31 +532,9 @@ private:
             return e;
         } while (true);
     }
-    String typeToString(Symbol type)
-    {
-        return atomToString(type.atom());
-    }
-    void parseAssignment(CharacterSource* source)
-    {
-        Identifier identifier = parseIdentifier(source);
-        Span span;
-        String name = identifier.name();
-        if (!_options.hasKey(name))
-            identifier.span().throwError(String("Unknown identifier ") + name);
-        Space::assertCharacter(source, '=', &span);
-        TypedValue e = parseExpression(source);
-        Type expectedType = _options[name].type();
-        Type observedType = e.type();
-        if (observedType != expectedType)
-            e.span().throwError(String("Expected an expression of type ") +
-                expectedType.toString() + String(" but found one of type ") +
-                observedType.toString());
-        Space::assertCharacter(source, ';', &span);
-        _options[name].setValue(e.value());
-    }
 
     HashTable<String, TypedValue> _options;
-    HashTable<String, EnumeratedValueRecord> _enumeratedValues;
+    HashTable<String, TypedValue> _enumeratedValues;
     HashTable<String, Type> _types;
 };
 

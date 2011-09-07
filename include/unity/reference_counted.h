@@ -32,11 +32,10 @@ template<class T> class Reference
 {
 public:
     Reference() : _t(0) { }
-    Reference(const Reference& other) { set(other._t); }
-    template<class U> Reference(const Reference<U>& other) { set(dynamic_cast<T*>(other._t)); }
-    Reference(T* t) { set(t); }
     ~Reference() { reset(); }
-    const Reference& operator=(const Reference& other)
+    template<class U> Reference(const Reference<U>& other) { set(other._t); }
+    template<class U> Reference(U* t) { set(t); }
+    template<class U> const Reference& operator=(const Reference<U>& other)
     {
         if (this != &other) {
             reset();
@@ -44,13 +43,12 @@ public:
         }
         return *this;
     }
-    template<class U> Reference& operator=(const Reference<U>& other)
+    template<class U> const Reference& operator=(U* t)
     {
         reset();
-        set(dynamic_cast<T*>(other._t));
+        set(t);
         return *this;
     }
-    const Reference& operator=(T* t) { reset(); set(t); return *this; }
 
     T** operator&() { return &_t; }
     T* operator->() const { return _t; }
@@ -60,7 +58,8 @@ public:
     bool operator==(const Reference& other) const { return _t == other._t; }
 private:
     void reset() { if (valid()) _t->release(); }
-    void set(T* t)
+    template<class U> void set(U* t) { set(dynamic_cast<T*>(t)); }
+    template<> void set(T* t) 
     {
         _t = t;
         if (valid())
@@ -75,11 +74,18 @@ template<class T> class ConstReference
 {
 public:
     ConstReference() : _t(0) { }
-    ConstReference(const ConstReference& other) { set(other._t); }
-    template<class U> ConstReference(const ConstReference<U>& other) { set(dynamic_cast<T*>(other._t)); }
-    ConstReference(const T* t) { set(t); }
     ~ConstReference() { reset(); }
-    const ConstReference& operator=(const ConstReference& other)
+    template<class U> ConstReference(const ConstReference<U>& other)
+    {
+        set(other._t);
+    }
+    template<class U> ConstReference(const Reference<U>& other)
+    {
+        set(other._t);
+    }
+    template<class U> ConstReference(const U* t) { set(t); }
+    template<class U> const ConstReference& operator=(
+        const ConstReference<U>& other)
     {
         if (this != &other) {
             reset();
@@ -87,22 +93,31 @@ public:
         }
         return *this;
     }
-    template<class U> ConstReference& operator=(const ConstReference<U>& other)
+    template<class U> const ConstReference& operator=(
+        const Reference<U>& other)
     {
         reset();
-        set(dynamic_cast<T*>(other._t));
+        set(other._t);
         return *this;
     }
-    const ConstReference& operator=(const T* t) { reset(); set(t); return *this; }
+    template<class U> const ConstReference& operator=(const U* t)
+    {
+        reset();
+        set(t);
+        return *this;
+    }
 
     const T* operator->() const { return _t; }
     operator const T*() const { return _t; }
     bool valid() const { return _t != 0; }
-    bool operator==(const ConstReference& other) const { return _t == other._t; }
-
+    bool operator==(const ConstReference& other) const
+    {
+        return _t == other._t;
+    }
 private:
     void reset() { if (valid()) _t->release(); }
-    void set(const T* t)
+    template<class U> void set(const U* t) { set(dynamic_cast<const T*>(t)); }
+    template<> void set(const T* t)
     {
         _t = t;
         if (valid())
@@ -110,7 +125,7 @@ private:
     }
     const T* _t;
 
-    template<class U> friend class Reference;
+    template<class U> friend class ConstReference;
 };
 
 #endif // INCLUDED_REFERENCE_COUNTED_H

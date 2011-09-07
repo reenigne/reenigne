@@ -50,10 +50,12 @@ template<class T> class PaddingStringImplementationTemplate;
 typedef PaddingStringImplementationTemplate<void> PaddingStringImplementation;
 
 template<class T> class ConcatenatedStringImplementationTemplate;
-typedef ConcatenatedStringImplementationTemplate<void> ConcatenatedStringImplementation;
+typedef ConcatenatedStringImplementationTemplate<void>
+    ConcatenatedStringImplementation;
 
 template<class T> class RepeatedStringImplementationTemplate;
-typedef RepeatedStringImplementationTemplate<void> RepeatedStringImplementation;
+typedef RepeatedStringImplementationTemplate<void>
+    RepeatedStringImplementation;
 
 class HexadecimalStringImplementation;
 class DecimalStringImplementation;
@@ -95,8 +97,13 @@ template<class T> class StringTemplate
 {
 public:
     StringTemplate() : _implementation(_emptyImplementation) { }
-    StringTemplate(const char* data) : _implementation(new SimpleStringImplementation(reinterpret_cast<const UInt8*>(data), 0, strlen(data))) { }
-    StringTemplate(const Buffer& buffer, int start, int n) : _implementation(new SimpleStringImplementation(buffer, start, n)) { }
+    StringTemplate(const char* data)
+        : _implementation(
+            new SimpleStringImplementation(
+                reinterpret_cast<const UInt8*>(data), 0, strlen(data)))
+    { }
+    StringTemplate(const Buffer& buffer, int start, int n)
+        : _implementation(new SimpleStringImplementation(buffer, start, n)) { }
 #ifdef _WIN32
     static int countBytes(const WCHAR* utf16)
     {
@@ -105,16 +112,15 @@ public:
             int c = *(utf16++);
             if (c == 0)
                 break;
-            if (c >= 0xdc00 && c < 0xe000) {
-                static String expected("Expected 0x0000..0xD800 or 0xE000..0xFFFF, found 0x");
-                throw Exception(expected + String::hexadecimal(c, 4));
-            }
+            if (c >= 0xdc00 && c < 0xe000)
+                throw Exception(String("Expected 0x0000..0xD800 or "
+                    "0xE000..0xFFFF, found 0x") + String::hexadecimal(c, 4));
             if (c >= 0xd800 && c < 0xdc00) {
                 int c2 = *(utf16);
-                if (c2 < 0xdc00 || c2 >= 0xe000) {
-                    static String expected("Expected 0xDC00..0xDFFF, found 0x");
-                    throw Exception(expected + String::hexadecimal(c2, 4));
-                }
+                if (c2 < 0xdc00 || c2 >= 0xe000)
+                    throw Exception(
+                        String("Expected 0xDC00..0xDFFF, found 0x") +
+                        String::hexadecimal(c2, 4));
                 ++n;
                 continue;
             }
@@ -140,7 +146,8 @@ public:
                     *(p++) = 0xc0 | (codePoint >> 6);
                 else {
                     if (codePoint >= 0xd800 && codePoint < 0xdc00) {
-                        codePoint = (((codePoint & 0x3ff)<<10) | ((*(utf16++)) & 0x3ff)) + 0x10000;
+                        codePoint = (((codePoint & 0x3ff)<<10) |
+                            ((*(utf16++)) & 0x3ff)) + 0x10000;
                         *(p++) = 0xf0 | (codePoint >> 18);
                         *(p++) = 0x80 | ((codePoint >> 12) & 0x3f);
                     }
@@ -156,11 +163,13 @@ public:
 
     StringTemplate(const WCHAR* utf16)
     {
-        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation();
+        Reference<OwningBufferImplementation> bufferImplementation =
+            new OwningBufferImplementation();
         int n = countBytes(utf16);
         bufferImplementation->allocate(n);
         addToBuffer(utf16, bufferImplementation->data());
-        _implementation = new SimpleStringImplementation(Buffer(bufferImplementation), 0, n);
+        _implementation =
+            new SimpleStringImplementation(Buffer(bufferImplementation), 0, n);
     }
 #endif
     static String hexadecimal(UInt32 value, int length)
@@ -190,10 +199,17 @@ public:
         if (other.length() == 0)
             return *this;
         {
-            const SimpleStringImplementation* l = dynamic_cast<const SimpleStringImplementation*>(static_cast<const StringImplementation*>(_implementation));
-            const SimpleStringImplementation* r = dynamic_cast<const SimpleStringImplementation*>(static_cast<const StringImplementation*>(other._implementation));
-            if (l != 0 && r != 0 && l->buffer() == r->buffer() && l->offset() + l->length() == r->offset()) {
-                _implementation = new SimpleStringImplementation(l->buffer(), l->offset(), l->length() + r->length());
+            const SimpleStringImplementation* l =
+                dynamic_cast<const SimpleStringImplementation*>(
+                    static_cast<const StringImplementation*>(_implementation));
+            const SimpleStringImplementation* r =
+                dynamic_cast<const SimpleStringImplementation*>(
+                    static_cast<const StringImplementation*>(
+                        other._implementation));
+            if (l != 0 && r != 0 && l->buffer() == r->buffer() &&
+                l->offset() + l->length() == r->offset()) {
+                _implementation = new SimpleStringImplementation(l->buffer(),
+                    l->offset(), l->length() + r->length());
                 return *this;
             }
         }
@@ -202,22 +218,31 @@ public:
             return *this;
         }
         {
-            const RepeatedStringImplementation* l = dynamic_cast<const RepeatedStringImplementation*>(static_cast<const StringImplementation*>(_implementation));
-            const RepeatedStringImplementation* r = dynamic_cast<const RepeatedStringImplementation*>(static_cast<const StringImplementation*>(other._implementation));
+            const RepeatedStringImplementation* l =
+                dynamic_cast<const RepeatedStringImplementation*>(
+                    static_cast<const StringImplementation*>(_implementation));
+            const RepeatedStringImplementation* r =
+                dynamic_cast<const RepeatedStringImplementation*>(
+                    static_cast<const StringImplementation*>(
+                        other._implementation));
             if (l != 0 && r != 0 && l->_string == r->_string) {
-                _implementation = new RepeatedStringImplementation(l->_string, l->_count + r->_count);
+                _implementation = new RepeatedStringImplementation(l->_string,
+                    l->_count + r->_count);
                 return *this;
             }
             if (l == 0 && r != 0 && *this == r->_string) {
-                _implementation = new RepeatedStringImplementation(r->_string, 1 + r->_count);
+                _implementation = new RepeatedStringImplementation(r->_string,
+                    1 + r->_count);
                 return *this;
             }
             if (r == 0 && l != 0 && other == l->_string) {
-                _implementation = new RepeatedStringImplementation(l->_string, 1 + l->_count);
+                _implementation = new RepeatedStringImplementation(l->_string,
+                    1 + l->_count);
                 return *this;
             }
         }
-        _implementation = new ConcatenatedStringImplementation(_implementation, other._implementation);
+        _implementation = new ConcatenatedStringImplementation(_implementation,
+            other._implementation);
         return *this;
     }
     const String& operator*=(int n)
@@ -228,9 +253,12 @@ public:
         }
         if (n == 1)
             return *this;
-        const RepeatedStringImplementation* r = dynamic_cast<const RepeatedStringImplementation*>(static_cast<const StringImplementation*>(_implementation));
+        const RepeatedStringImplementation* r =
+            dynamic_cast<const RepeatedStringImplementation*>(
+                static_cast<const StringImplementation*>(_implementation));
         if (r != 0) {
-            _implementation = new RepeatedStringImplementation(r->_string, n*r->_count);
+            _implementation =
+                new RepeatedStringImplementation(r->_string, n*r->_count);
             return *this;
         }
         _implementation = new RepeatedStringImplementation(*this, n);
@@ -306,7 +334,8 @@ public:
     {
         int l = length();
         int otherLength = other.length();
-        int c = _implementation->compare(0, other._implementation, 0, min(l, otherLength));
+        int c = _implementation->compare(0, other._implementation, 0,
+            min(l, otherLength));
         if (c != 0)
             return c < 0;
         return l < otherLength;
@@ -314,26 +343,34 @@ public:
     bool operator>(const String& other) const { return other < *this; }
     bool operator<=(const String& other) const { return !operator>(other); }
     bool operator>=(const String& other) const { return !operator<(other); }
-    UInt8 operator[](int offset) const { return _implementation->byteAt(offset); }
+    UInt8 operator[](int offset) const
+    {
+        return _implementation->byteAt(offset);
+    }
     int length() const { return _implementation->length(); }
     bool empty() const { return length() == 0; }
     void write(const Handle& handle) const { _implementation->write(handle); }
 
-    void initSimpleData(int offset, Buffer* buffer, int* start, int* length) const
+    void initSimpleData(int offset, Buffer* buffer, int* start, int* length)
+        const
     {
         _implementation->initSimpleData(offset, buffer, start, length);
     }
 
-    StringTemplate(const Reference<StringImplementation>& implementation) : _implementation(implementation) { }
-    Reference<StringImplementation> implementation() { return _implementation; }
+    StringTemplate(const ConstReference<StringImplementation>& implementation)
+      : _implementation(implementation) { }
+    ConstReference<StringImplementation> implementation()
+    {
+        return _implementation; 
+    }
 private:
 
-    Reference<StringImplementation> _implementation;
+    ConstReference<StringImplementation> _implementation;
 
     template<class T> friend class CharacterSourceTemplate;
     template<class T> friend class RepeatedStringImplementationTemplate;
 
-    static Reference<StringImplementation> _emptyImplementation;
+    static ConstReference<StringImplementation> _emptyImplementation;
 };
 
 class NullTerminatedString
@@ -376,12 +413,21 @@ public:
     virtual StringImplementation* subString(int start, int length) const = 0;
     virtual void copyTo(UInt8* buffer) const = 0;
     virtual int hash(int h) const = 0;
-    virtual int compare(int start, const StringImplementation* other, int otherStart, int l) const = 0;  // works like memcmp(this+start, other+otherStart, l) - returns 1 if this is greater.
-    virtual int compare(int start, const UInt8* data, int l) const = 0;  // works like memcmp(this+start, data, l) - returns 1 if this is greater.
+
+    // works like memcmp(this+start, other+otherStart, l) - returns 1 if "this"
+    // is greater than "other".
+    virtual int compare(int start, const StringImplementation* other,
+        int otherStart, int l) const = 0;
+
+    // works like memcmp(this+start, data, l) - returns 1 if "this" is greater
+    // than "other".
+    virtual int compare(int start, const UInt8* data, int l) const = 0;  
+
     virtual UInt8 byteAt(int offset) const = 0;
     virtual Buffer buffer() const = 0;
     virtual int offset() const = 0;
-    virtual void initSimpleData(int offset, Buffer* buffer, int* start, int* length) const = 0;
+    virtual void initSimpleData(int offset, Buffer* buffer, int* start,
+        int* length) const = 0;
     virtual void write(const Handle& handle) const = 0;
 protected:
     void setLength(int length) { _length = length; }
@@ -389,22 +435,21 @@ private:
     int _length;
 };
 
-template<class T> class SimpleStringImplementationTemplate : public StringImplementation
+template<class T> class SimpleStringImplementationTemplate
+  : public StringImplementation
 {
 public:
     StringImplementation* subString(int start, int length) const
     {
         return new SimpleStringImplementation(_buffer, _start + start, length);
     }
-    SimpleStringImplementationTemplate(const UInt8* data, int start, int length)
-      : _buffer(data),
-        _start(start)
+    SimpleStringImplementationTemplate(const UInt8* data, int start,
+        int length) : _buffer(data), _start(start)
     {
         setLength(length);
     }
-    SimpleStringImplementationTemplate(const Buffer& buffer, int start, int length)
-      : _buffer(buffer),
-        _start(start)
+    SimpleStringImplementationTemplate(const Buffer& buffer, int start,
+        int length) : _buffer(buffer), _start(start)
     {
         setLength(length);
     }
@@ -418,7 +463,8 @@ public:
             h = h * 67 + _buffer.data()[_start + i] - 113;
         return h;
     }
-    int compare(int start, const StringImplementation* other, int otherStart, int l) const
+    int compare(int start, const StringImplementation* other, int otherStart,
+        int l) const
     {
         return -other->compare(otherStart, _buffer.data() + _start + start, l);
     }
@@ -439,16 +485,19 @@ public:
     {
         if (length() == 0)
             return;
-        handle.write(static_cast<const void*>(_buffer.data() + _start), length());
+        handle.write(static_cast<const void*>(_buffer.data() + _start),
+            length());
     }
 protected:
     Buffer _buffer;
     int _start;
 };
 
-Reference<StringImplementation> String::_emptyImplementation = new SimpleStringImplementation(Buffer(), 0, 0);
+ConstReference<StringImplementation> String::_emptyImplementation =
+    new SimpleStringImplementation(Buffer(), 0, 0);
 
-template<class T> class RepeatedStringImplementationTemplate : public StringImplementation
+template<class T> class RepeatedStringImplementationTemplate
+  : public StringImplementation
 {
 public:
     RepeatedStringImplementationTemplate(String string, int count)
@@ -485,7 +534,8 @@ public:
             h = _string._implementation->hash(h);
         return h;
     }
-    int compare(int start, const StringImplementation* other, int otherStart, int l) const
+    int compare(int start, const StringImplementation* other, int otherStart,
+        int l) const
     {
         int sl = _string.length();
         int s = start % sl;
@@ -555,10 +605,13 @@ private:
     friend class StringTemplate<T>;
 };
 
-template<class T> class ConcatenatedStringImplementationTemplate : public StringImplementation
+template<class T> class ConcatenatedStringImplementationTemplate
+  : public StringImplementation
 {
 public:
-    ConcatenatedStringImplementationTemplate(const Reference<StringImplementation>& left, const Reference<StringImplementation>& right)
+    ConcatenatedStringImplementationTemplate(
+        const Reference<StringImplementation>& left,
+        const Reference<StringImplementation>& right)
       : _left(left), _right(right)
     {
         setLength(_left->length() + _right->length());
@@ -584,7 +637,8 @@ public:
         h = _left->hash(h);
         return _right->hash(h);
     }
-    int compare(int start, const StringImplementation* other, int otherStart, int l) const
+    int compare(int start, const StringImplementation* other, int otherStart,
+        int l) const
     {
         int leftLength = _left->length();
         if (start < leftLength) {
@@ -621,12 +675,14 @@ public:
     }
     Buffer buffer() const { return _left->buffer(); }
     int offset() const { return _left->offset(); }
-    void initSimpleData(int offset, Buffer* buffer, int* start, int* length) const
+    void initSimpleData(int offset, Buffer* buffer, int* start, int* length)
+        const
     {
         int leftLength = _left->length();
         if (offset < leftLength)
             return _left->initSimpleData(offset, buffer, start, length);
-        return _right->initSimpleData(offset - leftLength, buffer, start, length);
+        return _right->initSimpleData(offset - leftLength, buffer, start,
+            length);
     }
     void write(const Handle& handle) const
     {
@@ -638,7 +694,8 @@ private:
     Reference<StringImplementation> _right;
 };
 
-template<int N> class FixedStringImplementation : public SimpleStringImplementation
+template<int N> class FixedStringImplementation
+  : public SimpleStringImplementation
 {
 public:
     FixedStringImplementation(int start, int length)

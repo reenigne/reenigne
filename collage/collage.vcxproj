@@ -93,6 +93,7 @@
     <ClInclude Include="..\include\unity\space.h" />
     <ClInclude Include="..\include\unity\string.h" />
     <ClInclude Include="..\include\unity\symbol.h" />
+    <ClInclude Include="..\include\unity\type.h" />
     <ClInclude Include="..\include\unity\vectors.h" />
   </ItemGroup>
   <ItemGroup>
