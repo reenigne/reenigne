@@ -74,40 +74,34 @@ public:
 
         ConfigFile config;
 
-        SymbolList vectorComponents;
-        vectorComponents.add(
-            Symbol(atomStructureEntry, Symbol(atomInteger), String("x")));
-        vectorComponents.add(
-            Symbol(atomStructureEntry, Symbol(atomInteger), String("y")));
-        Symbol vectorType(atomStructure, String("Vector"),
-            SymbolArray(vectorComponents));
+        List<StructuredType::Member> vectorMembers;
+        vectorMembers.add(StructuredType::Member(String("x"), IntegerType()));
+        vectorMembers.add(StructuredType::Member(String("y"), IntegerType()));
+        StructuredType vectorType(String("Vector"), vectorMembers);
         config.addType(vectorType);
 
-        config.addOption("inputPicture", Symbol(atomString));
+        config.addOption("inputPicture", StringType());
         config.addOption("outputSize", vectorType);
-        config.addOption("subpixels", Symbol(atomBoolean));
-        config.addOption("tripleResolution", Symbol(atomBoolean));
-        config.addOption("outputPicture", Symbol(atomString));
+        config.addOption("subpixels", BooleanType());
+        config.addOption("tripleResolution", BooleanType());
+        config.addOption("outputPicture", StringType());
         config.load(_arguments[1]);
 
         Bitmap<SRGB> input;
-        input.load(
-            File(config.getString("inputPicture"), CurrentDirectory(), true));
+        input.load(File(config.getValue<String>("inputPicture")));
         Bitmap<Vector3<float> > linearInput;
         input.convert(&linearInput, ConvertSRGBToLinear());
-        Symbol sizeSymbol = config.getSymbol("outputSize");
-        Vector size(sizeSymbol[1].array()[0][1].integer(),
-            sizeSymbol[1].array()[1][1].integer());
+        Array<Any> sizeArray = config.getValue<List<Any> >("outputSize");
+        Vector size(sizeArray[0].value<int>(), sizeArray[1].value<int>());
         Bitmap<Vector3<float> > linearOutput(size);
-        if (config.getBoolean("subpixels"))
+        if (config.getValue<bool>("subpixels"))
             linearInput.subPixelResample(&linearOutput,
-                config.getBoolean("tripleResolution"));
+                config.getValue<bool>("tripleResolution"));
         else
             linearInput.resample(&linearOutput);
         Bitmap<SRGB> output;
         linearOutput.convert(&output, ConvertLinearToSRGB());
-        output.save(File(
-            config.getString("outputPicture"), CurrentDirectory(), true));
+        output.save(File(config.getValue<String>("outputPicture")));
     }
 private:
     class ConvertSRGBToLinear

@@ -1,3 +1,5 @@
+Do something with List so that we can iterate through it without allocations
+
 Allow array types in config files
   Allow "size={200,150};" syntax for structures and arrays
     Type of {x,y} is Tuple<X,Y>.

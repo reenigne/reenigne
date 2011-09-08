@@ -70,7 +70,7 @@ public:
     }
     template<class T> T getValue(String name)
     {
-        return _options[name].value().value<T>();
+        return _options[name].value<T>();
     }
 private:
     class TypedValue
@@ -81,6 +81,7 @@ private:
           : _type(type), _value(defaultValue), _span(span) { }
         Type type() const { return _type; }
         Any value() const { return _value; }
+        template<class T> T value() const { return _value.value<T>(); }
         void setValue(Any value) { _value = value; }
         Span span() const { return _span; }
         bool valid() const { return _type.valid(); }
@@ -138,7 +139,7 @@ private:
     {
         if (left.valid())
             return TypedValue(StringType(),
-                left.value().value<String>() + right.value().value<String>(),
+                left.value<String>() + right.value<String>(),
                 left.span() + right.span());
         return right;
     }
@@ -285,9 +286,8 @@ private:
                                         "expression"));
                     }
                     if (part.type() == IntegerType())
-                        part = TypedValue(StringType(), 
-                            String::decimal(part.value().value<int>()),
-                            part.span());
+                        part = TypedValue(StringType(),
+                            String::decimal(part.value<int>()), part.span());
                     else
                         if (part.type() != StringType())
                             source->location().throwError(
@@ -417,7 +417,7 @@ private:
             TypedValue e = parseUnaryExpression(source);
             if (e.type() != IntegerType())
                 throw Exception(String("Only numbers can be negated"));
-            return TypedValue(IntegerType(), -e.value().value<int>(),
+            return TypedValue(IntegerType(), -e.value<int>(),
                 span + e.span());
         }
         return parseExpressionElement(source);
@@ -438,15 +438,14 @@ private:
                 if (e.type() == IntegerType()) {
                     if (e2.type() == IntegerType()) {
                         e = TypedValue(IntegerType(),
-                            e.value().value<int>() * e2.value().value<int>(),
+                            e.value<int>() * e2.value<int>(),
                             e.span() + e2.span());
                         okay = true;
                     }
                     else
                         if (e2.type() == StringType()) {
                             e = TypedValue(StringType(),
-                                e2.value().value<String>() *
-                                    e.value().value<int>(),
+                                e2.value<String>() * e.value<int>(),
                                 e.span() + e2.span());
                             okay = true;
                         }
@@ -455,8 +454,7 @@ private:
                     if (e.type() == StringType()) {
                         if (e2.type() == IntegerType()) {
                             e = TypedValue(StringType(),
-                                e.value().value<String>() *
-                                    e2.value().value<int>(),
+                                e.value<String>() * e2.value<int>(),
                                 e.span() + e2.span());
                             okay = true;
                         }
@@ -474,8 +472,8 @@ private:
                     throwError(source);
                 if (e.type() == IntegerType() && e2.type() == IntegerType())
                     e = TypedValue(IntegerType(),
-                            e.value().value<int>() / e2.value().value<int>(),
-                            e.span() + e2.span());
+                        e.value<int>() / e2.value<int>(),
+                        e.span() + e2.span());
                 else
                     span.throwError(
                         String("Don't know how to divide type ") +
@@ -499,34 +497,33 @@ private:
                 if (!e2.valid())
                     throwError(source);
                 if (e.type() == IntegerType() && e2.type() == IntegerType())
-                    e = Symbol(atomValue, e[1].integer() + e2[1].integer(),
-                        Symbol(atomInteger), newSpan(spanOf(e) + spanOf(e2)));
+                    e = TypedValue(IntegerType(),
+                        e.value<int>() + e2.value<int>(),
+                        e.span() + e2.span());
                 else
-                    if (e[2].atom() == atomString &&
-                        e2[2].atom() == atomString)
-                        e = Symbol(atomValue, e[1].string() + e2[1].string(),
-                            Symbol(atomString),
-                            newSpan(spanOf(e) + spanOf(e2)));
+                    if (e.type() == StringType() && e2.type() == StringType())
+                        e = TypedValue(StringType(),
+                            e.value<String>() + e2.value<String>(),
+                            e.span() + e2.span());
                     else
                         span.throwError(String("Don't know how to add type ") +
-                            typeToString(e2[2].symbol()) +
-                            String(" to type ") + typeToString(e[2].symbol()) +
-                            String::codePoint('.'));
+                            e2.type().toString() + String(" to type ") +
+                            e.type().toString() + String::codePoint('.'));
                 continue;
             }
             if (Space::parseCharacter(source, '-', &span)) {
-                Symbol e2 = parseMultiplicativeExpression(source);
+                TypedValue e2 = parseMultiplicativeExpression(source);
                 if (!e2.valid())
                     throwError(source);
-                if (e[2].atom() == atomInteger && e2[2].atom() == atomInteger)
-                    e = Symbol(atomValue,
-                        e[1].integer() - e2[1].integer(), Symbol(atomInteger),
-                        newSpan(spanOf(e) + spanOf(e2)));
+                if (e.type() == IntegerType() && e2.type() == IntegerType())
+                    e = TypedValue(IntegerType(), 
+                        e.value<int>() - e2.value<int>(),
+                        e.span() + e2.span());
                 else
                     span.throwError(
                         String("Don't know how to subtract type ") +
-                        typeToString(e2[2].symbol()) + String(" from type ") +
-                        typeToString(e[2].symbol()) + String::codePoint('.'));
+                        e2.type().toString() + String(" from type ") +
+                        e.type().toString() + String::codePoint('.'));
                 continue;
             }
             return e;
