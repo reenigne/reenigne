@@ -28,6 +28,8 @@
 
     B<@A<@>*>
 
+    The "@" here makes it known that this is a parameter, not an argument (sort of like "typename" in C++).
+
 Need a Kind system
   A Kind is either:
     Type
@@ -35,6 +37,12 @@ Need a Kind system
   Need a function to parse a type list
   KindSpecifier := "<" ([TypeConstructorIdentifier] [KindSpecifier]) \ ",") ">"
 
+Examples:
+  (nothing)  = Type
+  <>         = TemplateType taking a Type and returning a Type
+  <<>>       = TemplateType taking a <> and returning a Type
+  <,<>>      = TemplateType taking a Type and a <>
+  etc.
 
 Suppose we have A<@B><@C> = Class { ... }
 Then the TypeConstructorDefinitionStatement
@@ -52,7 +60,7 @@ E<A><Int> f;
 E<D> g;
 E<E> h;  // Not valid - expands to E.B but E is a template and therefore has no members
 
-  
+
 A<@B> = C<D<B>>
 
   Get nomenclature correct
@@ -72,6 +80,7 @@ A<@B> = C<D<B>>
     * Specialization: Obtaining a TypeConstructor of lower order from a TypeConstructor of higher order
     * Full specialization: Obtaining a Type from a TypeConstructor
     * TypeIdentifier: Something that identifies a type (such as A<B>).
+    * TypeConstructorIdentifier: A sequence of letters, numbers and underscores starting with an upper case letter.
 
 
 Have A<@B><@C> be alternate syntax for A<@B,@C> (i.e. currying)?

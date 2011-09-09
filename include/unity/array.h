@@ -32,7 +32,7 @@ private:
         {
             Node* n = _first.next();
             while (n != 0) {
-                Node* nn = n.next();
+                Node* nn = n->next();
                 delete n;
                 n = nn;
             }
@@ -46,12 +46,12 @@ private:
         void copyTo(Array<T>* array) const
         {
             array->allocate(_count);
-            array->constructElements();
-            Node* n = &_first;
+            const Node* n = &_first;
             int i = 0;
             while (n != 0) {
-                (*array)[i] = n->value();
+                array->constructElement(i, n->value());
                 n = n->next();
+                ++i;
             }
         }
     private:
@@ -78,7 +78,7 @@ template<class T> class Array : Uncopyable
 {
 public:
     Array() : _data(0) { }
-    Array(const List<T>& list) : _data(0) { list.copyTo(&this); }
+    Array(const List<T>& list) : _data(0) { list.copyTo(this); }
     explicit Array(int n) : _data(0) { allocate(n); }
     void allocate(int n)
     {
@@ -90,7 +90,11 @@ public:
     void constructElements(const T& initializer = T())
     {
         for (int i = 0; i < _n; ++i)
-            new(static_cast<void*>(&(*this)[i])) T(initializer);
+            constructElement(i, initializer);
+    }
+    void constructElement(int i, const T& initializer = T())
+    {
+        new(static_cast<void*>(&(*this)[i])) T(initializer);
     }
     void destructElements()
     {

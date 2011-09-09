@@ -15,7 +15,7 @@ public:
     }
     bool valid() const { return _implementation.valid(); }
 private:
-    class ImplementationBase
+    class ImplementationBase : public ReferenceCounted
     {                                                  
     };
     template<class T> class Implementation : public ImplementationBase

@@ -7,6 +7,22 @@
 class Type
 {
 public:
+    template<class T> class AtomicTypeTemplate : public Type
+    {
+    public:
+        AtomicTypeTemplate(String name) : Type(new Implementation(name)) { }
+    private:
+        class Implementation : public Type::Implementation
+        { 
+        public:
+            Implementation(String name) : _name(name) { }
+            String toString() const { return _name; }
+        private:
+            String _name;
+        };
+    };
+    typedef AtomicTypeTemplate<void> AtomicType;
+
     Type() { }
     String toString() const { return _implementation->toString(); }
     bool valid() const { return _implementation.valid(); }
@@ -17,6 +33,11 @@ public:
         return _implementation->equals(other._implementation);
     }
     bool operator!=(const Type& other) const { return !operator==(other); }
+
+    static AtomicType integer;
+    static AtomicType string;
+    static AtomicType boolean;
+    static AtomicType object;
 protected:
     class Implementation : public ReferenceCounted
     {
@@ -27,15 +48,19 @@ protected:
             return false;
         }
     };
-    Type(Implementation* implementation) : _implementation(implementation) { }
-private:
-    Type(ConstReference<Implementation> implementation)
+    Type(const Implementation* implementation)
       : _implementation(implementation) { }
+private:
     ConstReference<Implementation> _implementation;
 
     friend class EnumerationType;
     friend class StructuredType;
 };
+
+Type::AtomicType Type::integer("Integer");
+Type::AtomicType Type::string("String");
+Type::AtomicType Type::boolean("Boolean");
+Type::AtomicType Type::object("Object");
 
 class PointerType : public Type
 {
@@ -179,46 +204,6 @@ private:
     };
 };
 
-template<class T> class AtomicType : public Type
-{
-protected:
-    AtomicType(String name) : Type(implementation(name)) { }
-private:
-    static Reference<Implementation> _implementation;
-    class Implementation : public Type::Implementation
-    { 
-    public:
-        Implementation(String name) : _name(name) { }
-        String toString() const { return _name; }
-    private:
-        String _name;
-    };
-    static Reference<Implementation> implementation(const String& name)
-    {
-        if (!_implementation.valid())
-            _implementation = new Implementation(name);
-        return _implementation;
-    }
-};
-
-class IntegerType : public AtomicType<IntegerType>
-{
-public:
-    IntegerType() : AtomicType("Integer") { }
-};
-
-class BooleanType : public AtomicType<BooleanType>
-{
-public:
-    BooleanType() : AtomicType("Boolean") { }
-};
-
-class StringType : public AtomicType<StringType>
-{
-public:
-    StringType() : AtomicType("String") { }
-};
-
 class TupleType : public Type
 {
 public:
@@ -233,11 +218,42 @@ private:
         String toString() const
         {
             String s("Tuple<");
-
+            for (int i = 0; i < _parameterTypes.count(); ++i) {
+                if (i > 0)
+                    s += commaSpace;
+                s += _parameterTypes[i].toString();
+            }
+            return s + greaterThan;
+        }
+        bool equals(const Type::Implementation* other) const
+        {
+            const Implementation* o =
+                dynamic_cast<const Implementation*>(other);
+            if (o == 0)
+                return false;
+            int c = _parameterTypes.count();
+            if (c != o->_parameterTypes.count())
+                return false;
+            for (int i = 0; i < c; ++i)
+                if (_parameterTypes[i] != o->_parameterTypes[i])
+                    return false;
+            return true;
         }
     private:
-        List<Type> _parameterTypes;
+        Array<Type> _parameterTypes;
     };
+};
+
+class TypeConstructor
+{
+public:
+    static TypeConstructor array;
+    TypeConstructor(const String& name, const Kind& kind)
+    {
+        // TODO
+    }
+    v
+private:
 };
 
 #endif // INCLUDED_TYPE_H

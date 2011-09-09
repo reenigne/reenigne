@@ -410,7 +410,8 @@ class StringImplementation : public ReferenceCounted
 public:
     StringImplementation() : _length(0) { }
     int length() const { return _length; }
-    virtual StringImplementation* subString(int start, int length) const = 0;
+    virtual const StringImplementation* subString(int start, int length) const
+        = 0;
     virtual void copyTo(UInt8* buffer) const = 0;
     virtual int hash(int h) const = 0;
 
@@ -505,7 +506,7 @@ public:
     {
         setLength(count*string.length());
     }
-    StringImplementation* subString(int start, int l) const
+    const StringImplementation* subString(int start, int l) const
     {
         int sl = _string.length();
         int s = start % sl;
@@ -610,13 +611,13 @@ template<class T> class ConcatenatedStringImplementationTemplate
 {
 public:
     ConcatenatedStringImplementationTemplate(
-        const Reference<StringImplementation>& left,
-        const Reference<StringImplementation>& right)
+        const ConstReference<StringImplementation>& left,
+        const ConstReference<StringImplementation>& right)
       : _left(left), _right(right)
     {
         setLength(_left->length() + _right->length());
     }
-    StringImplementation* subString(int start, int length) const
+    const StringImplementation* subString(int start, int length) const
     {
         int leftLength = _left->length();
         if (start >= leftLength)
@@ -690,8 +691,8 @@ public:
         _right->write(handle);
     }
 private:
-    Reference<StringImplementation> _left;
-    Reference<StringImplementation> _right;
+    ConstReference<StringImplementation> _left;
+    ConstReference<StringImplementation> _right;
 };
 
 template<int N> class FixedStringImplementation
