@@ -1,11 +1,10 @@
+Add TypeConstructor::array
+
+Make TemplateKind::Implementation a linked list so we can peel off first and
+  rest for instantiation
+
 Change CurrentDirectory, RootDirectory and DriveRootDirectories to be Directory
  members as well?
-
-Make a TemplateTypeConstructor class
-Type and TemplateTypeConstructor both inherit from TypeConstructor
-TypeConstructors are the things passed as arguments to TemplateTypeConstructors
-  to obtain types.
-Make a TypeConstructor class with a TypeConstructor::array()
 
 Allow array types in config files
   Allow "size={200,150};" syntax for structures and arrays

@@ -138,7 +138,7 @@ private:
     TypedValue combine(TypedValue left, TypedValue right)
     {
         if (left.valid())
-            return TypedValue(StringType(),
+            return TypedValue(Type::string,
                 left.value<String>() + right.value<String>(),
                 left.span() + right.span());
         return right;
@@ -174,7 +174,7 @@ private:
         Span span;
         Span startSpan;
         if (!source->parse('"', &startSpan))
-            return TypedValue(StringType(), String());
+            return TypedValue(Type::string, String());
         Span stringStartSpan = startSpan;
         Span stringEndSpan = startSpan;
         int startOffset = source->offset();
@@ -200,7 +200,7 @@ private:
                 case '"':
                     string += s.subString(startOffset, endOffset);
                     Space::parse(source);
-                    return combine(expression, TypedValue(StringType(), string,
+                    return combine(expression, TypedValue(Type::string, string,
                         stringStartSpan + span));
                 case '\\':
                     string += s.subString(startOffset, endOffset);
@@ -285,18 +285,18 @@ private:
                                 String("Expected identifier or parenthesized "
                                         "expression"));
                     }
-                    if (part.type() == IntegerType())
-                        part = TypedValue(StringType(),
+                    if (part.type() == Type::integer)
+                        part = TypedValue(Type::string,
                             String::decimal(part.value<int>()), part.span());
                     else
-                        if (part.type() != StringType())
+                        if (part.type() != Type::string)
                             source->location().throwError(
                                 String("Don't know how to convert type ") +
                                 part.type().toString() +
                                 String(" to a string"));
                     string += s.subString(startOffset, endOffset);
                     startOffset = source->offset();
-                    expression = combine(expression, TypedValue(StringType(),
+                    expression = combine(expression, TypedValue(Type::string,
                         string, stringStartSpan + stringEndSpan));
                     string = empty;
                     expression = combine(expression, part);
@@ -322,7 +322,7 @@ private:
             c = s.get(&span2);
             if (c < '0' || c > '9') {
                 Space::parse(source);
-                return TypedValue(IntegerType(), n, span);
+                return TypedValue(Type::integer, n, span);
             }
             span += span2;
         } while (true);
@@ -332,10 +332,10 @@ private:
         String s = i.name();
         static String trueKeyword("true");
         if (s == trueKeyword)
-            return TypedValue(BooleanType(), true, i.span());
+            return TypedValue(Type::boolean, true, i.span());
         static String falseKeyword("false");
         if (s == falseKeyword)
-            return TypedValue(BooleanType(), false, i.span());
+            return TypedValue(Type::boolean, false, i.span());
         if (_enumeratedValues.hasKey(s)) {
             TypedValue value = _enumeratedValues[s];
             return TypedValue(value.type(), value.value(), i.span());
@@ -415,9 +415,9 @@ private:
         Span span;
         if (Space::parseCharacter(source, '-', &span)) {
             TypedValue e = parseUnaryExpression(source);
-            if (e.type() != IntegerType())
+            if (e.type() != Type::integer)
                 throw Exception(String("Only numbers can be negated"));
-            return TypedValue(IntegerType(), -e.value<int>(),
+            return TypedValue(Type::integer, -e.value<int>(),
                 span + e.span());
         }
         return parseExpressionElement(source);
@@ -435,25 +435,25 @@ private:
                 if (!e2.valid())
                     throwError(source);
                 bool okay = false;
-                if (e.type() == IntegerType()) {
-                    if (e2.type() == IntegerType()) {
-                        e = TypedValue(IntegerType(),
+                if (e.type() == Type::integer) {
+                    if (e2.type() == Type::integer) {
+                        e = TypedValue(Type::integer,
                             e.value<int>() * e2.value<int>(),
                             e.span() + e2.span());
                         okay = true;
                     }
                     else
-                        if (e2.type() == StringType()) {
-                            e = TypedValue(StringType(),
+                        if (e2.type() == Type::string) {
+                            e = TypedValue(Type::string,
                                 e2.value<String>() * e.value<int>(),
                                 e.span() + e2.span());
                             okay = true;
                         }
                 }
                 else
-                    if (e.type() == StringType()) {
-                        if (e2.type() == IntegerType()) {
-                            e = TypedValue(StringType(),
+                    if (e.type() == Type::string) {
+                        if (e2.type() == Type::integer) {
+                            e = TypedValue(Type::string,
                                 e.value<String>() * e2.value<int>(),
                                 e.span() + e2.span());
                             okay = true;
@@ -470,8 +470,8 @@ private:
                 TypedValue e2 = parseUnaryExpression(source);
                 if (!e2.valid())
                     throwError(source);
-                if (e.type() == IntegerType() && e2.type() == IntegerType())
-                    e = TypedValue(IntegerType(),
+                if (e.type() == Type::integer && e2.type() == Type::integer)
+                    e = TypedValue(Type::integer,
                         e.value<int>() / e2.value<int>(),
                         e.span() + e2.span());
                 else
@@ -496,13 +496,13 @@ private:
                 TypedValue e2 = parseMultiplicativeExpression(source);
                 if (!e2.valid())
                     throwError(source);
-                if (e.type() == IntegerType() && e2.type() == IntegerType())
-                    e = TypedValue(IntegerType(),
+                if (e.type() == Type::integer && e2.type() == Type::integer)
+                    e = TypedValue(Type::integer,
                         e.value<int>() + e2.value<int>(),
                         e.span() + e2.span());
                 else
-                    if (e.type() == StringType() && e2.type() == StringType())
-                        e = TypedValue(StringType(),
+                    if (e.type() == Type::string && e2.type() == Type::string)
+                        e = TypedValue(Type::string,
                             e.value<String>() + e2.value<String>(),
                             e.span() + e2.span());
                     else
@@ -515,8 +515,8 @@ private:
                 TypedValue e2 = parseMultiplicativeExpression(source);
                 if (!e2.valid())
                     throwError(source);
-                if (e.type() == IntegerType() && e2.type() == IntegerType())
-                    e = TypedValue(IntegerType(), 
+                if (e.type() == Type::integer && e2.type() == Type::integer)
+                    e = TypedValue(Type::integer, 
                         e.value<int>() - e2.value<int>(),
                         e.span() + e2.span());
                 else

@@ -87,6 +87,7 @@
     <ClInclude Include="..\include\unity\colour_space.h" />
     <ClInclude Include="..\include\unity\config_file.h" />
     <ClInclude Include="..\include\unity\file.h" />
+    <ClInclude Include="..\include\unity\hash_table.h" />
     <ClInclude Include="..\include\unity\integer_types.h" />
     <ClInclude Include="..\include\unity\main.h" />
     <ClInclude Include="..\include\unity\reference_counted.h" />

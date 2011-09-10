@@ -75,16 +75,16 @@ public:
         ConfigFile config;
 
         List<StructuredType::Member> vectorMembers;
-        vectorMembers.add(StructuredType::Member(String("x"), IntegerType()));
-        vectorMembers.add(StructuredType::Member(String("y"), IntegerType()));
+        vectorMembers.add(StructuredType::Member(String("x"), Type::integer));
+        vectorMembers.add(StructuredType::Member(String("y"), Type::integer));
         StructuredType vectorType(String("Vector"), vectorMembers);
         config.addType(vectorType);
 
-        config.addOption("inputPicture", StringType());
+        config.addOption("inputPicture", Type::string);
         config.addOption("outputSize", vectorType);
-        config.addOption("subpixels", BooleanType());
-        config.addOption("tripleResolution", BooleanType());
-        config.addOption("outputPicture", StringType());
+        config.addOption("subpixels", Type::boolean);
+        config.addOption("tripleResolution", Type::boolean);
+        config.addOption("outputPicture", Type::string);
         config.load(_arguments[1]);
 
         Bitmap<SRGB> input;
