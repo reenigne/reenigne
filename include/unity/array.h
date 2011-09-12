@@ -3,8 +3,6 @@
 
 #include <new>
 
-template<class T> class Array;
-
 template<class T> class List
 {
 public:
@@ -16,12 +14,11 @@ public:
         else
             _implementation->add(t);
     }
-    void copyTo(Array<T>* array) const
+    int count() const
     {
-        if (!_implementation.valid())
-            array->allocate(0);
-        else
-            _implementation->copyTo(array);
+        if (_implementation.valid())
+            return _implementation->count();
+        return 0;
     }
 private:
     class Implementation : public ReferenceCounted
@@ -43,17 +40,6 @@ private:
             _last = _last->next();
             ++_count;
         }
-        void copyTo(Array<T>* array) const
-        {
-            array->allocate(_count);
-            const Node* n = &_first;
-            int i = 0;
-            while (n != 0) {
-                array->constructElement(i, n->value());
-                n = n->next();
-                ++i;
-            }
-        }
     private:
         class Node
         {
@@ -61,7 +47,7 @@ private:
             Node(const T& t) : _value(t), _next(0) { }
             Node* next() const { return _next; }
             void setNext(Node* next) { _next = next; }
-            T value() const { return _value; }
+            const T& value() const { return _value; }
         private:
             T _value;
             Node* _next;
@@ -69,8 +55,28 @@ private:
         Node _first;
         Node* _last;
         int _count;
+
+        friend class Iterator;
     };
-    template<class T> friend class Array;
+public:
+    class Iterator
+    {
+    public:
+        const T& operator*() const { return _node->value(); }
+        const Iterator& operator++() { _node = _node->next(); }
+    private:
+        const typename Implementation::Node* _node;
+
+        Iterator(typename Implementation::Node* node) : _node(node) { }
+    };
+    Iterator start() const
+    { 
+        if (_implementation.valid())
+            return _implementation->start();
+        return end();
+    }
+    Iterator end() const { return Iterator(0); }
+
     Reference<Implementation> _implementation;
 };
 
@@ -78,7 +84,15 @@ template<class T> class Array : Uncopyable
 {
 public:
     Array() : _data(0) { }
-    Array(const List<T>& list) : _data(0) { list.copyTo(this); }
+    Array(const List<T>& list) : _data(0)
+    {
+        allocate(list.count());
+        int i = 0;
+        for (List::Iterator p = list.start(); p != list.end(); ++p) {
+            constructElement(i, *p);
+            ++i;
+        }
+    }
     explicit Array(int n) : _data(0) { allocate(n); }
     void allocate(int n)
     {
