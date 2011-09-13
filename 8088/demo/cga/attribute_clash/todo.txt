@@ -1,14 +1,3 @@
-Fix up PartiallyInstantiatedImplementation and InstantiatedTypeImplementation
-  Shorter names?
-  Refactor out HashTable code
-  TemplateTypeConstructor::instantiate()
-    List::Iterator
-      Use this in other places where we don't need to keep the Array?
-
-Add TypeConstructor::array
-
-Need an InstantiatedType deriving from Type
-
 Change CurrentDirectory, RootDirectory and DriveRootDirectories to be Directory
  members as well?
 

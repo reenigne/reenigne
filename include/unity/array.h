@@ -23,6 +23,17 @@ public:
 private:
     class Implementation : public ReferenceCounted
     {
+        class Node
+        {
+        public:
+            Node(const T& t) : _value(t), _next(0) { }
+            Node* next() const { return _next; }
+            void setNext(Node* next) { _next = next; }
+            const T& value() const { return _value; }
+        private:
+            T _value;
+            Node* _next;
+        };
     public:
         Implementation(const T& t) : _first(t), _last(&_first), _count(1) { }
         ~Implementation()
@@ -40,18 +51,9 @@ private:
             _last = _last->next();
             ++_count;
         }
+        int count() const { return _count; }
+        const Node* start() const { return &_first; }
     private:
-        class Node
-        {
-        public:
-            Node(const T& t) : _value(t), _next(0) { }
-            Node* next() const { return _next; }
-            void setNext(Node* next) { _next = next; }
-            const T& value() const { return _value; }
-        private:
-            T _value;
-            Node* _next;
-        };
         Node _first;
         Node* _last;
         int _count;
@@ -63,16 +65,20 @@ public:
     {
     public:
         const T& operator*() const { return _node->value(); }
-        const Iterator& operator++() { _node = _node->next(); }
+        const Iterator& operator++() { _node = _node->next(); return *this; }
+        bool operator==(const Iterator& other) { return _node == other._node; }
+        bool operator!=(const Iterator& other) { return !operator==(other); }
     private:
         const typename Implementation::Node* _node;
 
-        Iterator(typename Implementation::Node* node) : _node(node) { }
+        Iterator(const typename Implementation::Node* node) : _node(node) { }
+
+        friend class List;
     };
     Iterator start() const
     { 
         if (_implementation.valid())
-            return _implementation->start();
+            return Iterator(_implementation->start());
         return end();
     }
     Iterator end() const { return Iterator(0); }
@@ -88,7 +94,7 @@ public:
     {
         allocate(list.count());
         int i = 0;
-        for (List::Iterator p = list.start(); p != list.end(); ++p) {
+        for (List<T>::Iterator p = list.start(); p != list.end(); ++p) {
             constructElement(i, *p);
             ++i;
         }

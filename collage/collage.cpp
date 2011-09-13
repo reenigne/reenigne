@@ -3,63 +3,6 @@
 #include "unity/colour_space.h"
 #include <stdio.h>
 #include "unity/bitmap.h"
-
-enum Atom
-{
-    atomBoolean,
-    atomInteger,
-    atomString,
-    atomEnumeration,
-    atomEnumeratedValue,
-    atomEnumeratedValueRecord,
-    atomStructure,
-    atomStructureEntry,
-    atomTuple,
-
-    atomValue,
-    atomIdentifier,
-    atomTrue,
-    atomFalse,
-
-    atomOption,
-
-    atomLast
-};
-
-String atomToString(Atom atom)
-{
-    class LookupTable
-    {
-    public:
-        LookupTable()
-        {
-            _table[atomBoolean] = String("Boolean");
-            _table[atomInteger] = String("Integer");
-            _table[atomString] = String("String");
-            _table[atomEnumeration] = String("Enumeration");
-            _table[atomEnumeratedValue] = String("EnumeratedValue");
-            _table[atomEnumeratedValueRecord] =
-                String("EnumeratedValueRecord");
-            _table[atomStructure] = String("Structure");
-            _table[atomStructureEntry] = String("StructureEntry");
-            _table[atomTuple] = String("Tuple");
-
-            _table[atomValue] = String("value");
-            _table[atomIdentifier] = String("identifier");                           
-            _table[atomTrue] = String("true");
-            _table[atomFalse] = String("false");
-
-            _table[atomOption] = String("option");
-        }
-        String lookUp(Atom atom) { return _table[atom]; }
-    private:
-        String _table[atomLast];
-    };
-    static LookupTable lookupTable;
-    return lookupTable.lookUp(atom);
-}
-
-#include "unity/symbol.h"
 #include "unity/config_file.h"
 
 class Program : public ProgramBase

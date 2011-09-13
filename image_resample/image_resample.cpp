@@ -3,61 +3,6 @@
 #include "unity/colour_space.h"
 #include <stdio.h>
 #include "unity/bitmap.h"
-
-enum Atom
-{
-    atomBoolean,
-    atomInteger,
-    atomString,
-    atomEnumeration,
-    atomEnumeratedValue,
-    atomEnumeratedValueRecord,
-    atomStructure,
-    atomStructureEntry,
-
-    atomValue,
-    atomIdentifier,
-    atomTrue,
-    atomFalse,
-
-    atomOption,
-
-    atomLast
-};
-
-String atomToString(Atom atom)
-{
-    class LookupTable
-    {
-    public:
-        LookupTable()
-        {
-            _table[atomBoolean] = String("Boolean");
-            _table[atomInteger] = String("Integer");
-            _table[atomString] = String("String");
-            _table[atomEnumeration] = String("Enumeration");
-            _table[atomEnumeratedValue] = String("EnumeratedValue");
-            _table[atomEnumeratedValueRecord] =
-                String("EnumeratedValueRecord");
-            _table[atomStructure] = String("Structure");
-            _table[atomStructureEntry] = String("StructureEntry");
-
-            _table[atomValue] = String("value");
-            _table[atomIdentifier] = String("identifier");                           
-            _table[atomTrue] = String("true");
-            _table[atomFalse] = String("false");
-
-            _table[atomOption] = String("option");
-        }
-        String lookUp(Atom atom) { return _table[atom]; }
-    private:
-        String _table[atomLast];
-    };
-    static LookupTable lookupTable;
-    return lookupTable.lookUp(atom);
-}
-
-#include "unity/symbol.h"
 #include "unity/config_file.h"
 
 class Program : public ProgramBase
@@ -72,40 +17,34 @@ public:
 
         ConfigFile config;
 
-        SymbolList vectorComponents;
-        vectorComponents.add(
-            Symbol(atomStructureEntry, Symbol(atomInteger), String("x")));
-        vectorComponents.add(
-            Symbol(atomStructureEntry, Symbol(atomInteger), String("y")));
-        Symbol vectorType(atomStructure, String("Vector"),
-            SymbolArray(vectorComponents));
+        List<StructuredType::Member> vectorMembers;
+        vectorMembers.add(StructuredType::Member(String("x"), Type::integer));
+        vectorMembers.add(StructuredType::Member(String("y"), Type::integer));
+        StructuredType vectorType(String("Vector"), vectorMembers);
         config.addType(vectorType);
 
-        config.addOption("inputPicture", Symbol(atomString));
+        config.addOption("inputPicture", Type::string);
         config.addOption("outputSize", vectorType);
-        config.addOption("subpixels", Symbol(atomBoolean));
-        config.addOption("tripleResolution", Symbol(atomBoolean));
-        config.addOption("outputPicture", Symbol(atomString));
+        config.addOption("subpixels", Type::boolean);
+        config.addOption("tripleResolution", Type::boolean);
+        config.addOption("outputPicture", Type::string);
         config.load(_arguments[1]);
 
         Bitmap<SRGB> input;
-        input.load(
-            File(config.getString("inputPicture"), CurrentDirectory(), true));
+        input.load(File(config.getValue<String>("inputPicture")));
         Bitmap<Vector3<float> > linearInput;
         input.convert(&linearInput, ConvertSRGBToLinear());
-        Symbol sizeSymbol = config.getSymbol("outputSize");
-        Vector size(sizeSymbol[1].array()[0][1].integer(),
-            sizeSymbol[1].array()[1][1].integer());
+        Array<Any> sizeArray = config.getValue<List<Any> >("outputSize");
+        Vector size(sizeArray[0].value<int>(), sizeArray[1].value<int>());
         Bitmap<Vector3<float> > linearOutput(size);
-        if (config.getBoolean("subpixels"))
+        if (config.getValue<bool>("subpixels"))
             linearInput.subPixelResample(&linearOutput,
-                config.getBoolean("tripleResolution"));
+                config.getValue<bool>("tripleResolution"));
         else
             linearInput.resample(&linearOutput);
         Bitmap<SRGB> output;
         linearOutput.convert(&output, ConvertLinearToSRGB());
-        output.save(File(
-            config.getString("outputPicture"), CurrentDirectory(), true));
+        output.save(File(config.getValue<String>("outputPicture")));
     }
 private:
     class ConvertSRGBToLinear

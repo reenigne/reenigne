@@ -128,14 +128,16 @@ protected:
     TypeConstructor(const Implementation* implementation)
       : _implementation(implementation) { }
     ConstReference<Implementation> _implementation;
+
+    friend class TemplateTypeConstructor;
+    friend class EnumerationType;
+    friend class StructuredType;
 };
 
-template<class T> class TypeTemplate;
-typedef TypeTemplate<void> Type;
-template<class T> class TypeTemplate : public TypeConstructor
+class Type : public TypeConstructor
 {
 public:
-    TypeTemplate() { }
+    Type() { }
 
     static Type integer;
     static Type string;
@@ -147,36 +149,162 @@ protected:
     public:
         Kind kind() const { return Kind::type; }
     };
-    TypeTemplate(const Implementation* implementation)
+    Type(const Implementation* implementation)
       : TypeConstructor(implementation) { }
 private:
-    template<class T> class AtomicTypeTemplate : public TypeTemplate<T>
-    {
-    public:
-        AtomicTypeTemplate(String name) : Type(new Implementation(name)) { }
-    private:
-        class Implementation : public TypeTemplate::Implementation
-        { 
-        public:
-            Implementation(String name) : _name(name) { }
-            String toString() const { return _name; }
-        private:
-            String _name;
-        };
-    };
-    typedef AtomicTypeTemplate<void> AtomicType;
+    class AtomicType;
 
-    friend class EnumerationType;
-    friend class StructuredType;
     friend class TemplateTypeConstructor;
-    friend class TemplateTypeConstructor::Implementation;
-    friend class TemplateTypeConstructor::PartiallyInstantiatedImplementation;
 };
+
+class Type::AtomicType : public Type
+{
+public:
+    AtomicType(String name) : Type(new Implementation(name)) { }
+private:
+    class Implementation : public Type::Implementation
+    { 
+    public:
+        Implementation(String name) : _name(name) { }
+        String toString() const { return _name; }
+    private:
+        String _name;
+    };
+};
+
 
 Type Type::integer = Type::AtomicType("Integer");
 Type Type::string = Type::AtomicType("String");
 Type Type::boolean = Type::AtomicType("Boolean");
 Type Type::object = Type::AtomicType("Object");
+
+class TemplateTypeConstructor : public TypeConstructor
+{
+public:
+    TemplateTypeConstructor(const String& name, const Kind& kind)
+      : TypeConstructor(new UninstantiatedImplementation(name, kind)) { }
+    TypeConstructor instantiate(const List<TypeConstructor>& arguments) const
+    {
+        TypeConstructor t = *this;
+        for (List<TypeConstructor>::Iterator i = arguments.start();
+            i != arguments.end(); ++i) {
+            ConstReference<Implementation> ti(t._implementation);
+            if (!ti.valid())
+                throw Exception(String("Can't instantiate ") + t.toString());
+            t = ti->instantiate(*i);
+        }
+        return t;
+    }
+
+    static TemplateTypeConstructor array;
+private:
+    class Implementation : public TypeConstructor::Implementation
+    {
+    public:
+        virtual TypeConstructor instantiate(
+            const TypeConstructor& typeConstructor) const = 0;
+        TypeConstructor instantiate(const TemplateKind& kind,
+            const TypeConstructor& typeConstructor) const
+        {
+            if (_instantiations.hasKey(typeConstructor))
+                return _instantiations[typeConstructor];
+            if (kind.first() != typeConstructor.kind())
+                throw Exception(String("Can't instantiate ") + toString() +
+                    String(" (argument kind ") + kind.first().toString() +
+                    String(") with ") + typeConstructor.toString() +
+                    String(" (kind ") + typeConstructor.kind().toString());
+            Kind rest = kind.rest();
+            TypeConstructor instantiation;
+            if (rest == Kind::type)
+                instantiation = Type(
+                    new InstantiatedImplementation(this, typeConstructor));
+            else
+                instantiation = TypeConstructor(
+                    new PartiallyInstantiatedImplementation(this,
+                        typeConstructor));
+            _instantiations.add(typeConstructor, instantiation);
+            return instantiation;
+        }
+        virtual String toString2(bool* needComma) const = 0;
+    private:
+        mutable HashTable<TypeConstructor, TypeConstructor> _instantiations;
+    };
+    class UninstantiatedImplementation : public Implementation
+    {
+    public:
+        UninstantiatedImplementation(const String& name, const Kind& kind)
+          : _name(name), _kind(kind) { }
+        Kind kind() const { return _kind; }
+        String toString() const { return _name; }
+        TypeConstructor instantiate(const TypeConstructor& typeConstructor)
+            const
+        {
+            return Implementation::instantiate(_kind, typeConstructor);
+        }
+    protected:
+        String toString2(bool* needComma) const
+        {
+            *needComma = false;
+            return _name + lessThan;
+        }
+    private:
+        String _name;
+        Kind _kind;
+    };
+    class PartiallyInstantiatedImplementation : public Implementation
+    {
+    public:
+        PartiallyInstantiatedImplementation(const Implementation* parent,
+            TypeConstructor argument)
+          : _parent(parent), _argument(argument) { }
+        Kind kind() const { return TemplateKind(_parent->kind()).rest(); }
+        String toString() const
+        {
+            bool needComma;
+            return toString2(&needComma) + greaterThan;
+        }
+        String toString2(bool* needComma) const
+        {
+            String s = _parent->toString2(needComma);
+            if (*needComma)
+                s += commaSpace;
+            s += _argument.toString();
+            *needComma = true;
+            return s;
+        }
+        TypeConstructor instantiate(const TypeConstructor& typeConstructor)
+            const
+        {
+            return Implementation::instantiate(kind(), typeConstructor);
+        }
+    private:
+        const Implementation* _parent;
+        TypeConstructor _argument;
+        mutable HashTable<TypeConstructor, TypeConstructor> _instantiations;
+    };
+    class InstantiatedImplementation : public Type::Implementation
+    {
+    public:
+        InstantiatedImplementation(
+            const TemplateTypeConstructor::Implementation* parent,
+            TypeConstructor argument)
+          : _parent(parent), _argument(argument) { }
+        String toString() const
+        {
+            bool needComma;
+            String s = _parent->toString2(&needComma);
+            if (needComma)
+                s += commaSpace;
+            return s + _argument.toString() + greaterThan;
+        }
+    private:
+        const TemplateTypeConstructor::Implementation* _parent;
+        TypeConstructor _argument;
+    };
+};
+
+TemplateTypeConstructor TemplateTypeConstructor::array("Array",
+    TemplateKind(Kind::type, Kind::type));
 
 class PointerType : public Type
 {
@@ -372,104 +500,6 @@ private:
         }
     private:
         Array<Type> _parameterTypes;
-    };
-};
-
-class TemplateTypeConstructor : public TypeConstructor
-{
-public:
-    TemplateTypeConstructor(const String& name, const Kind& kind)
-      : TypeConstructor(new UninstantiatedImplementation(name, kind)) { }
-    TypeConstructor instantiate(const List<TypeConstructor>& arguments)
-    {
-    }
-private:
-    class Implementation : public TypeConstructor::Implementation
-    {
-    protected:
-        TypeConstructor instantiate(const TemplateKind& kind,
-            const TypeConstructor& typeConstructor) const
-        {
-            if (_instantiations.hasKey(typeConstructor))
-                return _instantiations[typeConstructor];
-            if (kind.first() != typeConstructor.kind())
-                throw Exception(String("Can't instantiate ") + toString() +
-                    String(" (argument kind ") + kind.first().toString() +
-                    String(") with ") + typeConstructor.toString() +
-                    String(" (kind ") + typeConstructor.kind().toString());
-            Kind rest = kind.rest();
-            TypeConstructor instantiation;
-            if (rest == Kind::type)
-                instantiation = Type(
-                    new InstantiatedImplementation(this, typeConstructor));
-            else
-                instantiation = TypeConstructor(
-                    new PartiallyInstantiatedImplementation(this,
-                        typeConstructor));
-            _instantiations.add(typeConstructor, instantiation);
-            return instantiation;
-        }
-    private:
-        mutable HashTable<TypeConstructor, TypeConstructor> _instantiations;
-    };
-    class UninstantiatedImplementation : public Implementation
-    {
-    public:
-        UninstantiatedImplementation(const String& name, const Kind& kind)
-          : _name(name), _kind(kind) { }
-        Kind kind() const { return _kind; }
-        String toString() const { return _name; }
-        TypeConstructor instantiate(const TypeConstructor& typeConstructor)
-        {
-            return instantiate(_kind, typeConstructor);
-        }
-    private:
-        String _name;
-        Kind _kind;
-    };
-    class PartiallyInstantiatedImplementation : public Implementation
-    {
-    public:
-        PartiallyInstantiatedImplementation(const Implementation* parent,
-            TypeConstructor argument)
-          : _parent(parent), _argument(argument) { }
-        Kind kind() const { return TemplateKind(_parent->kind()).rest(); }
-        String toString() const
-        {
-            //if (_arguments.count() == 0)
-            //    return _name;
-            //String s = _name + lessThan;
-            //for (int i = 0; i < _arguments.count(); ++i) {
-            //    if (i > 0)
-            //        s += commaSpace;
-            //    s += _arguments[i].toString();
-            //}
-            //return s + greaterThan;
-        }
-        TypeConstructor instantiate(const TypeConstructor& typeConstructor)
-            const
-        {
-            return instantiate(kind(), typeConstructor);
-        }
-    private:
-        const Implementation* _parent;
-        TypeConstructor _argument;
-        mutable HashTable<TypeConstructor, TypeConstructor> _instantiations;
-    };
-    class InstantiatedImplementation : public Type::Implementation
-    {
-    public:
-        InstantiatedTypeImplementation(
-            const TemplateTypeConstructor::Implementation* implementation,
-            TypeConstructor argument)
-          : _implementation(implementation), _argument(argument) { }
-        String toString() const
-        {
-            // TODO
-        }
-    private:
-        const Implementation* _implementation;
-        TypeConstructor _argument;
     };
 };
 
