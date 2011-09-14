@@ -1,5 +1,25 @@
-Change CurrentDirectory, RootDirectory and DriveRootDirectories to be Directory
- members as well?
+TypeConverter
+  An oracle object for determining which types can be implicitly converted into
+   which other types.
+  We can pass it a Conversion: "To convert from type a to type b, use function
+   c".
+  There is a special Conversion meaning "no conversion possible".
+  We can pass it a ConversionSource for templates. The TypeConverter passes
+   instantiation information (List<TypeConstructor>) to the ConversionSource
+   and receives back a Conversion. The ConversionSource may call back into the
+   TypeConverter (e.g. to retrieve Conversions for argument Types).
+  We can ask it for the Conversion that takes a value from type a to a value of
+   type b.
+  We want the TypeConverter to be able to create its own Conversions by
+   combining the Conversions passed to it. This way, programmers don't have to
+   write a Conversion for every possible pair of types that we might want to
+   convert between. We can do this with dynamic programming.
+  Creating a new type might change the Conversion for a pair of types - that's
+   ok. Allowing the instantiation of a template to do the same seems
+   potentially error prone (but might be more logical).
+  We need to be careful not to try unbounded conversion paths.
+   e.g. if we can convert F<T> to F<F<T>>.
+ 
 
 Allow array types in config files
   Allow "size={200,150};" syntax for structures and arrays

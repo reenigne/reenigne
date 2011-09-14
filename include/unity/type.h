@@ -503,4 +503,29 @@ private:
     };
 };
 
+class TypeConverter
+{
+public:
+    template<class T> void addConversion(Type from, Type to, T converter)
+    {
+        _conversions.add(TypePair(from, to), converter);
+    }
+    bool canConvert(
+private:
+    class TypePair
+    {
+    public:
+        TypePair(const Type& from, const Type& to) : _from(from), _to(to) { }
+        bool operator==(const TypePair& other) const
+        {
+            return _from == other._from && _to == other._to; 
+        }
+        int hash() const { return _from.hash() * 67 + _to.hash(); }
+    private:
+        Type _from;
+        Type _to;
+    };
+    HashTable<TypePair, Any> _conversions;
+};
+
 #endif // INCLUDED_TYPE_H
