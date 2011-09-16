@@ -686,11 +686,15 @@ int main()
         if (!getClock()) {
             // Perform a reset
             sendByte(0xaa);  // 0x65
-            // TODO: Wait for the PC to lower data?
+            wait2us();
             while (!getData());
             wait250ms();
         }
-        if (uartByteAvailable()
+        if (uartByteAvailable())
             sendByte(getByteFromUART());
+        // TODO: have some way to upload manufacturing code/data
+        // TODO: convert ASCII to scancodes
+        // TODO: delay loops
+        // TODO: have some way to transmit data back by sampling the clock bit
     } while (true);
 }
