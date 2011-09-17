@@ -33,8 +33,17 @@ template<class T> class Reference
 public:
     Reference() : _t(0) { }
     ~Reference() { reset(); }
+    Reference(const Reference& other) { set(other._t); }
     template<class U> Reference(const Reference<U>& other) { set(other._t); }
     template<class U> Reference(U* t) { set(t); }
+    const Reference& operator=(const Reference& other)
+    {
+        if (this != &other) {
+            reset();
+            set(other._t);
+        }
+        return *this;
+    }
     template<class U> const Reference& operator=(const Reference<U>& other)
     {
         if (this != &other) {
@@ -75,6 +84,7 @@ template<class T> class ConstReference
 public:
     ConstReference() : _t(0) { }
     ~ConstReference() { reset(); }
+    ConstReference(const ConstReference& other) { set(other._t); }
     template<class U> ConstReference(const ConstReference<U>& other)
     {
         set(other._t);
@@ -84,6 +94,14 @@ public:
         set(other._t);
     }
     template<class U> ConstReference(const U* t) { set(t); }
+    const ConstReference& operator=(const ConstReference& other)
+    {
+        if (this != &other) {
+            reset();
+            set(other._t);
+        }
+        return *this;
+    }
     template<class U> const ConstReference& operator=(
         const ConstReference<U>& other)
     {

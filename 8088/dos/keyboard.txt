@@ -1,0 +1,130 @@
+  mov dx,061
+  in al,dx
+  mov bh,al
+  rcl bh,1
+  rcl bh,1
+
+  lodsw             ; 1 2
+  mov bl,al         ; 2 0
+  rcr bl,1          ; 2 0
+  mov al,bh         ; 2 0
+  rcr al,1          ; 2 0
+  rcr al,1          ; 2 0
+  out dx,al         ; 1 1
+
+  rcr bl,1          ; 2 0
+  mov al,bh         ; 2 0
+  rcr al,1          ; 2 0
+  rcr al,1          ; 2 0
+  out dx,al         ; 1 1
+
+  rcr bl,1
+  mov al,bh
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr bl,1
+  mov al,bh
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr bl,1
+  mov al,bh
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr bl,1
+  mov al,bh
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr bl,1
+  mov al,bh
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr bl,1
+  mov al,bh
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr ah,1
+  mov al,ah
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr ah,1
+  mov al,ah
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr ah,1
+  mov al,ah
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr ah,1
+  mov al,ah
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr ah,1
+  mov al,ah
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr ah,1
+  mov al,ah
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr ah,1
+  mov al,ah
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+  rcr ah,1
+  mov al,ah
+  rcr al,1
+  rcr al,1
+  out dx,al
+
+40 CPU cycles per bit = 320 CPU cycles per byte = 112689 bits per second = 14086 bytes per second
+
+
+  lodsb      ; 1 1
+  mov bl,al  ; 2 0
+  shl bx,1   ; 2 0
+  xchg ax,bp ; 1 0
+  jmp [bx]   ; 2 2 1
+
+
+  xchg ax,di  ; 1 0
+  out dx,al   ; 1 1
+
+12 CPU cycles per bit = 108 CPU cycles per byte = 41736 bytes per second
+
+
+
+transmitParallel:
+  lodsb                          ; 1 1 8 12
+  out dx,al                      ; 1 1 8  8
+  shr al,1                       ; 2 0 8  2
+  shr al,1                       ; 2 0 8  2
+  shr al,1                       ; 2 0 8  2
+  shr al,1                       ; 2 0 8  2
+  out dx,al                      ; 1 1 8  8
+

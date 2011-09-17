@@ -703,8 +703,8 @@ public:
       : SimpleStringImplementation(Buffer(), start, length),
         _bufferImplementation(_data)
     {
-        _buffer = Buffer(&_bufferImplementation);
         _bufferImplementation.addReference();
+        _buffer = Buffer(&_bufferImplementation);
     }
 protected:
     NonOwningBufferImplementation _bufferImplementation;

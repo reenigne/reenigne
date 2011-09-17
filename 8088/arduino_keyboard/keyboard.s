@@ -53,27 +53,6 @@
 ;  pop r30                                ; 2
 ;  pop r31                                ; 2
 ;  reti                                   ; 4
-;
-;
-;.global raiseVDD
-;raiseVDD:
-;  sbi 0x05, 3
-;  ret
-;
-;.global lowerVDD
-;lowerVDD:
-;  cbi 0x05, 3
-;  ret
-;
-;.global raiseVPP
-;raiseVPP:
-;  cbi 0x05, 2
-;  ret
-;
-;.global lowerVPP
-;lowerVPP:
-;  sbi 0x05, 2
-;  ret
 
 .global raiseClock
 raiseClock:
@@ -95,17 +74,17 @@ lowerData:
   cbi 0x05, 0
   ret
 
-.global getData
-getData:
-  eor r24, r24
-  sbic 0x03, 0
-  inc r24
-  ret
-
 .global getClock
 getData:
   eor r24, r24
   sbic 0x03, 1
+  inc r24
+  ret
+
+.global getData
+getData:
+  eor r24, r24
+  sbic 0x03, 0
   inc r24
   ret
 
@@ -129,63 +108,51 @@ setDataOutput:
   sbi 0x04, 0
   ret
 
-;.global wait100ns
-;wait100ns:  ; 2 cycles        ; 4
-;  ret                         ; 4
-;
-;.global wait1us
-;wait1us:    ; 16 cycles           ; 4
-;;  ldi r31, 5         ; 1
-;;wait1usLoop:
-;;  dec r31            ; 5*1
-;;  brne wait1usLoop   ; 4*2 + 1
-;  call wait100ns                  ; 8
-;  ret                ; 2          ; 4
-;
-;.global wait5us
-;wait5us:    ; 80 cycles           ;  4
-;  ldi r30, 3                      ;  1
-;wait5usLoop:
-;  call wait1us                    ; 48 (3*16)
-;  dec r30                         ;  3 (3*1)
-;  brne wait5usLoop                ;  5 (2*2 + 1)
-;  rcall wait100ns                 ;  7
-;  call wait100ns                  ;  8
-;  ret                             ;  4
-;
-;.global wait100us
-;wait100us:  ; 1600 cycles         ;    4
-;  ldi r27, 19                     ;    1
-;wait100usLoop:
-;  call wait5us                    ; 1520 (19*80)
-;  dec r27                         ;   19 (19*1)
-;  brne wait100usLoop              ;   37 (18*2 + 1)
-;  rcall wait100ns                 ;    7
-;  call wait100ns                  ;    8
-;  ret                             ;    4
-;
-;.global wait2ms
-;wait2ms:    ; 32000 cycles        ;     4
-;  ldi r26, 19                     ;     1
-;wait2msLoop:
-;  call wait100us                  ; 30400 (19*1600)
-;  call wait5us                    ;  1520 (19*80)
-;  dec r26                         ;    10 (19*1)
-;  brne wait2msLoop                ;    37 (18*2 + 1)
-;  call wait100ns                  ;     8
-;  call wait100ns                  ;     8
-;  call wait100ns                  ;     8
-;  ret                             ;     4
-;
-;.global wait10ms
-;wait10ms:   ; 160000 cycles
-;  ldi r25, 5
-;wait10msLoop:
-;  rcall wait2ms
-;  dec r25
-;  brne wait10msLoop
-;  ret
-;
+.global wait2us       ; 32 cycles
+wait2us:              ; 4
+  ldi r31,8           ; 1          ; (cycles to delay - 8)/3
+wait2usLoop:
+  dec r31             ; n*1
+  brne wait2usLoop    ; n*2 - 1
+  ret                 ; 4
+
+.global wait50us      ; 800 cycles
+wait50us:             ; 4
+  ldi r31,200         ; 1          ; (cycles to delay - 8)/4
+wait50usLoop:
+  nop                 ; n*1
+  dec r31             ; n*1
+  brne wait2usLoop    ; n*2 - 1
+  ret                 ; 4
+
+.global wait250ms     ; 4000000 cycles
+wait250ms:            ; 4
+  ldi r31,250         ; 1          ; (cycles to delay - 8)/16003
+wait250msLoop:
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  call wait50us       ; n*800
+  dec r31             ; n*1
+  brne wait2usLoop    ; n*2 - 1
+  ret                 ; 4
+
 ;.global startTimer
 ;startTimer:
 ;  ldi r31, 0x21

@@ -15,10 +15,6 @@ typedef uint8_t bool;
 //register uint8_t picTickLow __asm__ ("r5");
 //register uint8_t picTickHigh __asm__ ("r6");
 //
-//void raiseVDD();
-//void lowerVDD();
-//void raiseVPP();
-//void lowerVPP();
 void raiseClock();
 void lowerClock();
 void raiseData();
@@ -27,14 +23,8 @@ void setDataInput();
 void setDataOutput();
 void setClockInput();
 void setClockOutput();
-//void wait100ns();
-//void wait1us();
-//void wait5us();
-//void wait100us();
-//void wait2ms();
-//void wait10ms();
-//void startTimer();
-//void stopTimer();
+void wait2us();
+void wait50us();
 bool getData();
 bool getClock();
 
@@ -77,21 +67,6 @@ void sendByte(uint8_t data)
 //
 //uint16_t data[0x206];
 //uint16_t dataIndex = 0;
-//
-//void doRead(bool all)
-//{
-//    enterProgrammingMode();
-//    if (all)
-//        data[0x205] = readData();
-//    for (int16_t pc = 0; pc < 0x205; ++pc) {
-//        incrementAddress();
-//        if (all || pc >= 0x1ff)
-//            data[pc] = readData();
-//    }
-//    if (!all)
-//        data[0x1ff] = data[0x204];
-//    leaveProgrammingMode();
-//}
 //
 //uint8_t spaceAvailable = true;
 //volatile uint8_t sendState = 0;
@@ -684,6 +659,20 @@ int main()
 
     do {
         if (!getClock()) {
+            // TODO: determine if this is a reset (>20ms) or the machine sending us data
+            // Turn off interrupts
+            // Read clock in a tight counted loop
+            // Break and read data if it goes high
+            // Reset if we reach the end of the loop
+            // Protocol for sending a byte: low, high, 8 data bits (same as other direction)
+            // If buffer filled, need to send a special keystroke meaning "stop sending"
+            // When buffer space available, need to send a special keystroke meaning "can send again"
+            // If PC and Arduino both want to send at the same time, how do we decide which wins?
+            //   Have a special keystroke meaning "ack" - if PC gets a different keystroke back, try again
+            //   That limits send rate to 1000 bytes/second. Arduino serial is 1200.
+            //     Shorten delay to send keystrokes faster? 74LS322 is supposed to be good to 25MHz, but U21 limits us to maybe 1 or 0.5.
+            //     500Kbps is 50,000 bytes/second.
+            //     Most programs won't be able to accept keystrokes that fast, but the Arduino needs to wait for ACK anyway so it's synchronous.
             // Perform a reset
             sendByte(0xaa);  // 0x65
             wait2us();

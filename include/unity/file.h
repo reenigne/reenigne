@@ -1045,7 +1045,7 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
 
     int subDirectoryStart = s.offset();
     int c = s.get();
-    int p;
+    int p = s.offset();
 #ifdef _WIN32
     while (c != '/' && c != '\\' && c != -1) {
         if (c < 32 || c == ':' || c == '"' || c == '<' || c == '>')
@@ -1092,6 +1092,13 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
         if (l == '.' || l == ' ')
             throw Exception(invalidPath);
     }
+    else
+        if (recurseIntoDirectories)
+            name = String("*");
+        else {
+            functor(directory);
+            return;
+        }
 #else
     while (c != '/' && c != -1) {
         p = s.offset();

@@ -38,12 +38,20 @@ class Buffer
 {
 public:
     Buffer() { }
-    Buffer(const UInt8* data) : _implementation(new NonOwningBufferImplementation(data)) { }
-    Buffer(Reference<BufferImplementation> implementation) : _implementation(implementation) { }
-    bool operator==(const Buffer& other) const { return _implementation == other._implementation; }
+    Buffer(const UInt8* data)
+      : _implementation(new NonOwningBufferImplementation(data)) { }
+    Buffer(const Reference<BufferImplementation>& implementation)
+      : _implementation(implementation) { }
+    bool operator==(const Buffer& other) const
+    {
+        return _implementation == other._implementation; 
+    }
     const UInt8* data() const { return _implementation->data(); }
     bool valid() const { return _implementation.valid(); }
-    void copyTo(UInt8* destination, int start, int length) const { _implementation->copyTo(destination, start, length); }
+    void copyTo(UInt8* destination, int start, int length) const
+    {
+        _implementation->copyTo(destination, start, length);
+    }
     const UInt8& operator[](int i) const { return data()[i]; }
 protected:
     Reference<BufferImplementation> _implementation;
