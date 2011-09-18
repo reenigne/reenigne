@@ -1,0 +1,53 @@
+            // TODO: determine if this is a reset (>20ms) or the machine sending us data
+            // Turn off interrupts
+            // Read clock in a tight counted loop
+            // Break and read data if it goes high
+            // Reset if we reach the end of the loop
+            // Protocol for sending a byte: low, high, 8 data bits (same as other direction)
+            // If buffer filled, need to send a special keystroke meaning "stop sending"
+            // When buffer space available, need to send a special keystroke meaning "can send again"
+            // If PC and Arduino both want to send at the same time, how do we decide which wins?
+            //   Have a special keystroke meaning "ack" - if PC gets a different keystroke back, try again
+            //   That limits send rate to 1000 bytes/second. Arduino serial is 1200.
+            //     Shorten delay to send keystrokes faster? 74LS322 is supposed to be good to 25MHz, but U21 limits us to maybe 1 or 0.5.
+            //     500Kbps is 50,000 bytes/second.
+            //     Most programs won't be able to accept keystrokes that fast, but the Arduino needs to wait for ACK anyway so it's synchronous.
+            // Perform a reset
+
+
+        // TODO: have some way to upload manufacturing code/data
+        // TODO: convert ASCII to scancodes
+        // TODO: delay loops
+        // TODO: have some way to transmit data back by sampling the clock bit
+
+
+Aims:
+
+1) Allow us to use the Arduino plus another machine and its keyboard instead of an XT keyboard.
+2) Allow us to use the BIOS manufacturing test protocol to run code at BIOS startup time.
+3) Allow us to bootstrap our OS via:
+   a) The BIOS startup time mechanism.
+   b) Running a BASIC program.
+   c) Loading DEBUG and entering the program that way.
+4) When our OS is running, act as a general IO port to run programs on the XT and get the results back.
+
+
+
+Protocol for XT to send data:
+  Lower clock line for a length of time longer than a keystroke and shorter than a reset
+  Throw away the next keystroke received - assume it's bad
+  Continue receiving keystrokes until we get "clear to send"
+  Send our keystroke
+    Protocol for sending a byte: low, high, 8 data bits (same as other direction)
+    Alternate protocol: Arduino sends number of bytes available in buffer after "clear to send", then XT sends number of bytes followed by bytes
+      Need to leave time for the Arduino to send data over serial - resync after each byte
+
+Protocol for Arduino to receive data:
+  Check for clock low immediately after sending a keystroke
+    If it's low, then set "send requested" flag.
+    Resend currently pending character
+  When we have no keystrokes left to send, send "clear to send" then:
+    Turn off interrupts
+    Read clock in a tight counted loop
+    Break and read data if it goes high
+

@@ -33,6 +33,8 @@ template<class T> class Reference
 public:
     Reference() : _t(0) { }
     ~Reference() { reset(); }
+    // We need a copy constructor and assignment operator here because
+    // otherwise the compiler-generated ones would override the templated ones.
     Reference(const Reference& other) { set(other._t); }
     template<class U> Reference(const Reference<U>& other) { set(other._t); }
     template<class U> Reference(U* t) { set(t); }
@@ -84,6 +86,8 @@ template<class T> class ConstReference
 public:
     ConstReference() : _t(0) { }
     ~ConstReference() { reset(); }
+    // We need a copy constructor and assignment operator here because
+    // otherwise the compiler-generated ones would override the templated ones.
     ConstReference(const ConstReference& other) { set(other._t); }
     template<class U> ConstReference(const ConstReference<U>& other)
     {

@@ -1,0 +1,125 @@
+Esc                     01
+1!                      02
+2@                      03
+3#                      04
+4$                      05
+5%                      06
+6^                      07
+7&                      08
+8*                      09
+9(                      0A
+0)                      0B
+-_                      0C
+=+                      0D
+Backspace               0E
+Tab                     0F
+qQ                      10
+wW                      11
+eE                      12
+rR                      13
+tT                      14
+yY                      15
+uU                      16
+iI                      17
+oO                      18
+pP                      19
+[{                      1A
+]}                      1B
+Enter                   1C
+Left Ctrl               1D
+aA                      1E
+sS                      1F
+dD                      20
+fF                      21
+gG                      22
+hH                      23
+jJ                      24
+kK                      25
+lL                      26
+;:                      27
+'"                      28
+`~                      29
+Left Shift              2A
+\|                      2B
+zZ                      2C
+xX                      2D
+cC                      2E
+vV                      2F
+bB                      30
+nN                      31
+mM                      32
+,<                      33
+.>                      34
+/?                      35
+Right Shift             36
+Keypad *  (PrtSc)       37
+Left Alt                38
+Space                   39
+Caps Lock               3A
+F1                      3B
+F2                      3C
+F3                      3D
+F4                      3E
+F5                      3F
+F6                      40
+F7                      41
+F8                      42
+F9                      43
+F10                     44
+Num Lock                45
+Scroll Lock             46
+Keypad 7  (Home)        47
+Keypad 8  (Up arrow)    48
+Keypad 9  (PgUp)        49
+Keypad -                4A
+Keypad 4  (Left arrow)  4B
+Keypad 5                4C
+Keypad 6  (Right arrow) 4D
+Keypad +                4E
+Keypad 1  (End)         4F
+Keypad 2  (Down arrow)  50
+Keypad 3  (PgDn)        51
+Keypad 0  (Ins)         52
+Keypad .  (Del)         53
+
+Command                            ASCII mode  Scancode mode
+  Set mode to ASCII                00          00
+  Set mode to scancodes            7F          7F
+  Set reset to keyboard (0xaa)     01          71
+  Set reset to tester (0x65)       02          72
+  Override tester program          03          73   (followed by 2 bytes for length and then the program bytes - same format as passed to the XT)
+  Clear overridden tester program  04          74   (revert to the one in flash)
+  Clear to send                                75
+  Home                             05          47 c7
+  Up                               06          48 c8
+  PgUp                             07          49 c9
+  Backspace                        08          0e 8e
+  Tab                              09          0f 8f
+  Enter                            0a          1c 9c
+  Ins                              0b          52 d2
+  Del                              0c          53 d3
+  Enter                            0d          1c 9c
+  Left                             0e          4b cb
+  Keypad 5                         0f          4c cc
+  Right                            10          4d cd
+  F1                               11          3b bb
+  F2                               12          3c bc
+  F3                               13          3d bd
+  F4                               14          3e be
+  F5                               15          3f bf
+  F6                               16          40 c0
+  F7                               17          41 c1
+  F8                               18          42 c2
+  F9                               19          43 c3
+  F10                              1a          44 c4
+  Escape                           1b          01 81
+  End                              1c          4f cf
+  Down                             1d          50 d0
+  PgDn                             1e          51 d1
+  PrtSc                            1f          2a 37 b7 aa
+  Ctrl press                       80          1d
+  Ctrl release                     81          9d
+  Alt press                        82          38
+  Alt release                      83          b8
+
+
