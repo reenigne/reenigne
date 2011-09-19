@@ -66,10 +66,13 @@ bool ctrl = false;
 bool alt = false;
 bool asciiMode = true;
 bool testerMode = false;
+bool escape = false;
+bool sendBlocked = false;
+bool receiveBlocked = false;
 
 void sendNextByte()
 {
-    if (!spaceAvailable)
+    if (!spaceAvailable || sendBlkocked)
         return;
     if (serialBufferCharacters > 0) {
         UDR0 = serialBuffer[serialBufferPointer];
@@ -87,6 +90,17 @@ void sendSerialByte(uint8_t byte)
 
 void processCharacter(uint8_t received)
 {
+    if (received == 0 && !escape) {
+        escape = true;
+        return;
+    }
+    if ((received == 17 || received == 19) && !escape) {
+        sendBlocked = (received == 19);
+        escape = false;
+        return;
+    }
+    escape = false;
+
     // TODO
 }
 

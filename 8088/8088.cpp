@@ -557,6 +557,7 @@ public:
 
                 case statePush:
                     sp() -= 2;
+                case statePush2:
                     _address = sp();
                     _segment = 2;
                     initIO(_afterIO, ioWrite, true);
@@ -696,7 +697,13 @@ public:
                     rw() = _data;
                     end(2);
                     break;
-                case statePushRW: push(rw()); _wait += 1; break;
+                case statePushRW:
+                    sp() -= 2;
+                    _data = rw();
+                    _afterIO = stateEndInstruction;
+                    _state = statePush2;
+                    _wait += 7;
+                    break;
                 case statePopRW: pop(statePopRW2); break;
                 case statePopRW2: rw() = _data; end(4); break;
 

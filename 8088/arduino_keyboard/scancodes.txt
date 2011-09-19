@@ -89,7 +89,6 @@ Command                            ASCII mode  Scancode mode
   Set reset to tester (0x65)       02          72
   Override tester program          03          73   (followed by 2 bytes for length and then the program bytes - same format as passed to the XT)
   Clear overridden tester program  04          74   (revert to the one in flash)
-  Clear to send                                75
   Home                             05          47 c7
   Up                               06          48 c8
   PgUp                             07          49 c9
@@ -122,4 +121,190 @@ Command                            ASCII mode  Scancode mode
   Alt press                        82          38
   Alt release                      83          b8
 
+Protocol between Arduino and XT:
+  Clear to send                                75
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+0100 Alt+Esc
+
+0300 Ctrl+2
+
+
+
+
+
+
+
+
+
+
+0E00 Alt+Backspace
+0F00 Shift+Tab
+1000 Alt+Q
+1100 Alt+W
+1200 Alt+E
+1300 Alt+R
+1400 Alt+T
+1500 Alt+Y
+1600 Alt+U
+1700 Alt+I
+1800 Alt+O
+1900 Alt+P
+1A00 Alt+[
+1B00 Alt+]
+
+
+1E00 Alt+A
+1F00 Alt+S
+2000 Alt+D
+2100 Alt+F
+2200 Alt+G
+2300 Alt+H
+2400 Alt+J
+2500 Alt+K
+2600 Alt+L and Alt+\
+2700 Alt+;
+
+
+
+
+2C00 Alt+Z
+2D00 Alt+X
+2E00 Alt+C
+2F00 Alt+V
+3000 Alt+B
+3100 Alt+N
+3200 Alt+M
+
+
+
+
+3700 Alt+Keypad *
+
+
+
+3B00 F1
+3C00 F2
+3D00 F3
+3E00 F4
+3F00 F5
+4000 F6
+4100 F7
+4200 F8
+4300 F9
+4400 F10
+
+
+4700 Home
+4800 Up
+4900 PgUp
+4A00 Alt+Keypad -
+4B00 Left
+
+4D00 Right
+4E00 Alt+Keypad +
+4F00 End
+5000 Down
+5100 PgDn
+5200 Ins
+5300 Del
+5400 Shift+F1
+5500 Shift+F2
+5600 Shift+F3
+5700 Shift+F4
+5800 Shift+F5
+5900 Shift+F6
+5A00 Shift+F7
+5B00 Shift+F8
+5C00 Shift+F9
+5D00 Shift+F10
+5E00 Ctrl+F1
+5F00 Ctrl+F2
+6000 Ctrl+F3
+6100 Ctrl+F4
+6200 Ctrl+F5
+6300 Ctrl+F6
+6400 Ctrl+F7
+6500 Ctrl+F8
+6600 Ctrl+F9
+6700 Ctrl+F10
+6800 Alt+F1
+6900 Alt+F2
+6A00 Alt+F3
+6B00 Alt+F4
+6C00 Alt+F5
+6D00 Alt+F6
+6E00 Alt+F7
+6F00 Alt+F8
+7000 Alt+F9
+7100 Alt+F10
+7200 Ctrl+PrtSc
+7300 Ctrl+Left
+7400 Ctrl+Right
+7500 Ctrl+End
+7600 Ctrl+PgDn
+7700 Ctrl+Home
+7800 Alt+1
+7900 Alt+2
+7A00 Alt+3
+7B00 Alt+4
+7C00 Alt+5
+7D00 Alt+6
+7E00 Alt+7
+7F00 Alt+8
+8000 Alt+9
+8100 Alt+0
+8200 Alt+-
+8300 Alt+=
+8400 Ctrl+PgUp
+8500 F11
+8600 F12
+8700 Shift+F11
+8800 Shift+F12
+8900 Ctrl+F11
+8A00 Ctrl+F12
+8B00 Alt+F11
+8C00 Alt+F12
+8D00 Ctrl+Up
+8E00 Ctrl+Keypad -
+8F00 Ctrl+Keypad 5
+
+9100 Ctrl+Down
+9200 Ctrl+Ins
+9300 Ctrl+Del
+9400 Ctrl+Tab
+9500 Ctrl+Keypad /
+9600 Ctrl+Keypad *
+9700 Alt+Home
+9800 Alt+Up
+9900 Alt+PgUp
+
+9B00 Alt+Left
+
+9D00 Alt+Right
+
+9F00 Alt+End
+A000 Alt+Down
+A100 Alt+PgDn
+A200 Alt+Ins
+A300 Alt+Del
+A400 Alt+Keypad /
+A500 Alt+Tab
+A600 Alt+Enter
 

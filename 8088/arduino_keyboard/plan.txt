@@ -37,15 +37,18 @@ Protocol for XT to send data:
   Lower clock line for a length of time longer than a keystroke and shorter than a reset
   Throw away the next keystroke received - assume it's bad
   Continue receiving keystrokes until we get "clear to send"
-  Send our keystroke
-    Protocol for sending a byte: low, high, 8 data bits (same as other direction)
-    Alternate protocol: Arduino sends number of bytes available in buffer after "clear to send", then XT sends number of bytes followed by bytes
-      Need to leave time for the Arduino to send data over serial - resync after each byte
+  Receive a keystroke - this is the number of bytes we can send.
+  Send number of bytes we're going to send
+  Send the bytes
+    Need to leave time for the Arduino to send data over serial - resync after each byte
 
 Protocol for Arduino to receive data:
   Check for clock low immediately after sending a keystroke
     If it's low, then set "send requested" flag.
-    Resend currently pending character
+    Put currently pending character back in buffer.
+    Send "clear to send" and number of bytes available in buffer (0-255)
+
+
   When we have no keystrokes left to send, send "clear to send" then:
     Turn off interrupts
     Read clock in a tight counted loop
