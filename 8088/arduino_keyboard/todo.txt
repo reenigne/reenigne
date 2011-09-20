@@ -1,0 +1,17 @@
+Write XT code for sending data
+  Lower clock line for a length of time longer than a keystroke and shorter than a reset
+  Throw away the next keystroke received (it comes from clearInterrupted)
+  Receive "clear to send" - if we didn't, try again (should never happen?)
+  Receive a keystroke - this is the number of bytes we can send.
+  Send number of bytes we're going to send
+  Send the bytes
+  Figure out timing of receiveKeyboardByte()
+Write XT kernel code
+Write BASIC and DEBUG bootstrapping code
+Write host programs
+  Virtual keyboard
+  Kernel interface - command line
+    Send a program, execute it, wait for it to finish, get data back
+Shorten delay to send keystrokes faster? 74LS322 is supposed to be good to 25MHz, but U21 limits us to maybe 1 or 0.5.
+
+
