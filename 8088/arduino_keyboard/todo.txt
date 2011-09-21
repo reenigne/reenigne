@@ -1,9 +1,12 @@
-Write XT code for sending data
+Write XT code for sending data - interrupt routine so the calling code can find it easily
   Lower clock line for a length of time longer than a keystroke and shorter than a reset
   Throw away the next keystroke received (it comes from clearInterrupted)
   Receive "clear to send" - if we didn't, try again (should never happen?)
   Receive a keystroke - this is the number of bytes we can send.
   Send number of bytes we're going to send
+    Lower clock line
+    Raise clock line - timing starts from the moment it's raised
+    Send bits
   Send the bytes
   Figure out timing of receiveKeyboardByte()
 Write XT kernel code

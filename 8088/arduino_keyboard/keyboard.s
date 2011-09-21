@@ -19,7 +19,7 @@ lowerData:
   ret
 
 .global getClock
-getData:
+getClock:
   eor r24, r24
   sbic 0x03, 1
   inc r24
@@ -66,20 +66,20 @@ wait50us:             ; 4
 wait50usLoop:
   nop                 ; n*1
   dec r31             ; n*1
-  brne wait2usLoop    ; n*2 - 1
+  brne wait50usLoop   ; n*2 - 1
   ret                 ; 4
 
 .global wait1ms       ; 16000 cycles
 wait1ms:              ; 4
   ldi r30,19          ; 1          ; (cycles to delay - 8)/803
-wait50usLoop:
+wait1msLoop1:
   call wait50us       ; n*800
   dec r30             ; n*1
-  brne wait2usLoop    ; n*2 - 1
+  brne wait1msLoop1   ; n*2 - 1
   ldi r30,245         ; 1          ; (cycles to delay)/3
-wait50usLoop:
+wait1msLoop2:
   dec r30             ; n*1
-  brne wait2usLoop    ; n*2 - 1
+  brne wait1msLoop2   ; n*2 - 1
   ret                 ; 4
 
 .global wait250ms     ; 4000000 cycles
@@ -88,7 +88,7 @@ wait250ms:            ; 4
 wait250msLoop:
   call wait1ms        ; n*16000
   dec r27             ; n*1
-  brne wait2usLoop    ; n*2 - 1
+  brne wait250msLoop  ; n*2 - 1
   ret                 ; 4
 
 ; The data line isn't controllable from software (except for setting it high

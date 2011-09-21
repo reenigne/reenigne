@@ -26,6 +26,7 @@ bool getClock();
 uint8_t receiveKeyboardByte();
 
 extern uint8_t PROGMEM asciiToScancodes[0x5f];
+extern uint8_t PROGMEM defaultProgram[2];
 
 uint8_t serialBuffer[0x100];
 uint8_t keyboardBuffer[0x100];
@@ -56,30 +57,6 @@ bool ramProgram = false;
 bool expectingRawCount = false;
 bool sentEscape = false;
 
-void sendKeyboardBit(uint8_t bit)
-{
-    if (bit != 0)
-        raiseData();
-    else
-        lowerData();
-    wait50us();
-    lowerClock();
-    wait50us();
-    raiseClock();
-}
-
-void enqueueKeyboardByte(uint8_t byte)
-{
-    keyboardBuffer[(keyboardBufferPointer + keyboardBufferCharacters) & 0xff]
-        = byte;
-    ++keyboardBufferCharacters;
-    // If our buffer is getting too full, tell the host to stop sending.
-    if (keyboardBufferCharacters >= 0xf0 && !sendXOff) {
-        needXOff = true;
-        sendSerialByte();
-    }
-}
-
 void sendSerialByte()
 {
     if (!spaceAvailable)
@@ -105,7 +82,7 @@ void sendSerialByte()
                 return;
             }
             c = serialBuffer[serialBufferPointer];
-            if (c == 0 || c == 17 || c == 19)
+            if (c == 0 || c == 17 || c == 19) {
                 if (!sentEscape) {
                     c = 0;
                     sentEscape = true;
@@ -122,6 +99,18 @@ void sendSerialByte()
     // Actually send the byte
     UDR0 = c;
     spaceAvailable = false;
+}
+
+void enqueueKeyboardByte(uint8_t byte)
+{
+    keyboardBuffer[(keyboardBufferPointer + keyboardBufferCharacters) & 0xff]
+        = byte;
+    ++keyboardBufferCharacters;
+    // If our buffer is getting too full, tell the host to stop sending.
+    if (keyboardBufferCharacters >= 0xf0 && !sentXOff) {
+        needXOff = true;
+        sendSerialByte();
+    }
 }
 
 void enqueueSerialByte(uint8_t byte)
@@ -250,15 +239,15 @@ void processCharacter(uint8_t received)
                         // TODO: Add codes for cursor movement, function keys
                         // etc.
                 }
-                bool shifted = (scancode & 0x80) != 0;
+                bool shifted = (scanCode & 0x80) != 0;
                 if (shifted != shift) {
                     // We always use the left shift key for typing shifted
                     // characters.
                     enqueueKeyboardByte(0x2a | (shifted ? 0 : 0x80));
                     shift = shifted;
                 }
-                enqueueKeyboardByte(scancode);
-                enqueueKeyboardByte(scancode | 0x80);
+                enqueueKeyboardByte(scanCode);
+                enqueueKeyboardByte(scanCode | 0x80);
             }
             break;
     }
@@ -287,9 +276,22 @@ void clearInterruptedKeystroke()
     setClockInput();
 }
 
+void sendKeyboardBit(uint8_t bit)
+{
+    if (bit != 0)
+        raiseData();
+    else
+        lowerData();
+    wait50us();
+    lowerClock();
+    wait50us();
+    raiseClock();
+}
 
 bool sendKeyboardByte(uint8_t data)
 {
+//    enqueueSerialByte('R');  // *** DEBUG
+
     // We read the clock as high immediately before entering this routine.
     // The XT keyboard hardware holds the data line low to signal that the
     // previous byte has not yet been acknowledged by software.
@@ -302,10 +304,10 @@ bool sendKeyboardByte(uint8_t data)
     }
     setClockOutput();
     setDataOutput();
-    sendBit(0);
-    sendBit(1);
+    sendKeyboardBit(0);
+    sendKeyboardBit(1);
     for (uint8_t i = 0; i < 8; ++i) {
-        sendBit(data & 1);
+        sendKeyboardBit(data & 1);
         data >>= 1;
     }
     raiseData();
@@ -428,6 +430,10 @@ int main()
                     }
                 }
                 else {
+                    while(!getClock());
+                    enqueueSerialByte('R');  // *** DEBUG
+                    enqueueSerialByte(13);   // *** DEBUG
+
                     sendKeyboardByte(0xaa);
                     wait2us();
                     while (!getData());
@@ -441,7 +447,7 @@ int main()
                 // A short clock-low pulse. This is the XT trying to send us
                 // some data.
                 while (!getClock());  // Wait for the clock to go high again.
-                clearInterrupted();  // Clear out any partial keystrokes
+                clearInterruptedKeystroke();
                 sendKeyboardByte(0x00);  // Clear to send
                 // Send the number of bytes that the XT can safely send us.
                 sendKeyboardByte(serialBufferCharacters == 0 ? 255 :
@@ -449,6 +455,7 @@ int main()
                 uint8_t count = receiveKeyboardByte();
                 for (uint8_t i = 0; i < count; ++i)
                     enqueueSerialByte(receiveKeyboardByte());
+                clearInterruptedKeystroke();
             }
         }
         else {
