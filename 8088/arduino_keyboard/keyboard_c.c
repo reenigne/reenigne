@@ -43,7 +43,7 @@ bool shift = false;
 bool ctrl = false;
 bool alt = false;
 bool asciiMode = true;
-bool testerMode = false;
+bool testerMode = true;
 bool receivedEscape = false;
 bool receivedXOff = false;
 bool sentXOff = false;
@@ -93,7 +93,10 @@ void sendSerialByte()
                     --serialBufferCharacters;
                 }
             }
-
+            else {
+                ++serialBufferPointer;
+                --serialBufferCharacters;
+            }
         }
     }
     // Actually send the byte
@@ -288,14 +291,20 @@ void sendKeyboardBit(uint8_t bit)
     raiseClock();
 }
 
+uint8_t hexNybble(uint8_t value)
+{
+    return (value < 10) ? value + '0' : value + 'A' - 10;
+}
+
 bool sendKeyboardByte(uint8_t data)
 {
-//    enqueueSerialByte('R');  // *** DEBUG
+    enqueueSerialByte(hexNybble(data >> 4));  // *** DEBUG
+    enqueueSerialByte(hexNybble(data & 0x0f));  // *** DEBUG
 
     // We read the clock as high immediately before entering this routine.
     // The XT keyboard hardware holds the data line low to signal that the
     // previous byte has not yet been acknowledged by software.
-    while (!getData());
+    while (!getData()) { }
     if (!getClock()) {
         // Uh oh - the clock went low - the XT wants something (send byte or
         // reset). This should never happen during a reset, so we can just
@@ -398,7 +407,7 @@ int main()
             if (!getClock()) {
                 // If the clock line is held low for this long it means the XT
                 // is resetting the keyboard.
-                while (!getClock());  // Wait for clock to go high again.
+                while (!getClock()) { }  // Wait for clock to go high again.
                 // There are 4 different things the BIOS recognizes here:
                 // 0xaa - a keyboard
                 // 0x65 - tester doodad: download the code from it and run it.
@@ -424,29 +433,31 @@ int main()
                         programBytes |=
                             (uint16_t)(pgm_read_byte(&defaultProgram[1]))
                             << 8;
+                        sendKeyboardByte(programBytes & 0xff);
+                        sendKeyboardByte(programBytes >> 8);
                         for (uint16_t i = 0; i < programBytes; ++i)
                             sendKeyboardByte(
                                 pgm_read_byte(&defaultProgram[i+2]));
                     }
                 }
                 else {
-                    while(!getClock());
                     enqueueSerialByte('R');  // *** DEBUG
+                    enqueueSerialByte('T');  // *** DEBUG
+                    enqueueSerialByte(10);   // *** DEBUG
                     enqueueSerialByte(13);   // *** DEBUG
 
                     sendKeyboardByte(0xaa);
                     wait2us();
-                    while (!getData());
+                    while (!getData()) { }
                     // If we send anything in the first 250ms after a reset,
                     // the BIOS will assume it's a stuck key.
-                    wait250ms();
+//                    wait250ms();
                 }
                 // End of reset code
             }
             else {
                 // A short clock-low pulse. This is the XT trying to send us
                 // some data.
-                while (!getClock());  // Wait for the clock to go high again.
                 clearInterruptedKeystroke();
                 sendKeyboardByte(0x00);  // Clear to send
                 // Send the number of bytes that the XT can safely send us.

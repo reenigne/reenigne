@@ -1,3 +1,5 @@
+Write a serial send program so we don't have to reprogram Arduino every time we want to change tester program
+Avoid sending any keystrokes for 1/4 second after reset - do the wait on an async timer to avoid blocking
 Write XT code for sending data - interrupt routine so the calling code can find it easily
   Lower clock line for a length of time longer than a keystroke and shorter than a reset
   Throw away the next keystroke received (it comes from clearInterrupted)
