@@ -1,22 +1,17 @@
-Write a serial send program so we don't have to reprogram Arduino every time we want to change tester program
-Avoid sending any keystrokes for 1/4 second after reset - do the wait on an async timer to avoid blocking
-Write XT code for sending data - interrupt routine so the calling code can find it easily
-  Lower clock line for a length of time longer than a keystroke and shorter than a reset
-  Throw away the next keystroke received (it comes from clearInterrupted)
-  Receive "clear to send" - if we didn't, try again (should never happen?)
-  Receive a keystroke - this is the number of bytes we can send.
-  Send number of bytes we're going to send
-    Lower clock line
-    Raise clock line - timing starts from the moment it's raised
-    Send bits
-  Send the bytes
-  Figure out timing of receiveKeyboardByte()
-Write XT kernel code
+Build kernel.asm
+Test kernel.asm with some simple programs
+Implement relocation
+Check timings of "here: loop here" delay loops - check that 281 gives 1ms
+Add per-bit delays in receiveKeyboardByte() - check that the tolerance is good enough
+Add per-byte delay in sendByte for serial
 Write BASIC and DEBUG bootstrapping code
 Write host programs
   Virtual keyboard
-  Kernel interface - command line
-    Send a program, execute it, wait for it to finish, get data back
+  run
+    Kernel interface - command line
+    Send a program, execute it, wait for it to finish, get data back, end with ^Z
 Shorten delay to send keystrokes faster? 74LS322 is supposed to be good to 25MHz, but U21 limits us to maybe 1 or 0.5.
-
-
+  Can increase baud rate as well if we're waiting around too much
+Avoid sending any keystrokes for 1/4 second after reset - do the wait on an async timer to avoid blocking
+Once we have a CGA card, get past the POST and see if we can access the hard drive
+  might need to either add some keys to ASCII mode or implement virtual keyboard

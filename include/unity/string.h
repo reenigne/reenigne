@@ -825,6 +825,12 @@ public:
     }
 #endif
     String name() const { return _name; }
+    // Be careful using the template read() and write() functions with types
+    // other than single bytes and arrays thereof - they are not endian-safe.
+    template<class U> void write(const U& value)
+    {
+        write(static_cast<const void*>(&value), sizeof(U));
+    }
     void write(const void* buffer, int bytes) const
     {
         if (bytes == 0)
@@ -840,6 +846,11 @@ public:
         if (writeResult < length())
             throw Exception::systemError(writingFile + _name);
 #endif
+    }
+    template<class U> U read()
+    {
+        U value;
+        read(static_cast<void*>(&value), sizeof(U));
     }
     void read(void* buffer, int bytes) const
     {

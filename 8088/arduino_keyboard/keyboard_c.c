@@ -459,7 +459,6 @@ int main()
                 // A short clock-low pulse. This is the XT trying to send us
                 // some data.
                 clearInterruptedKeystroke();
-                sendKeyboardByte(0x00);  // Clear to send
                 // Send the number of bytes that the XT can safely send us.
                 sendKeyboardByte(serialBufferCharacters == 0 ? 255 :
                     256-serialBufferCharacters);
