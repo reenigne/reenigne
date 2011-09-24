@@ -28,7 +28,7 @@
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0a  0a  0a  0a  0a  0a  0a  0f
-  mov ax,00a03
+  mov ax,03a03
   out dx,ax
 
   ;   0x7f Vertical Total                               1f  1f  1f  1f  7f  7f  7f  19

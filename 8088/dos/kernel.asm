@@ -1,4 +1,3 @@
-; This code is meant to be loaded to 0500:0000 (make this 0600:0000 as FreeDOS does?)
 org 0
 
   cli
@@ -19,11 +18,46 @@ foundRAM:
   mov ss,ax
   xor sp,sp
 
-  ; TODO: relocate the kernel if it was not loaded in the right place
-  ; 1) If we're in the final location, continue
-  ; 2) If we overlap the final location, relocate to after the final location and jump to this location
-  ; 3) Relocate to the final location and jump there.
+  mov si,050 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
+  call main
+main:
+  pop ax
+  sub ax,offset main
+  jnz checkDestinationClear
+  mov bx,cs
+  cmp bx,si
+  jz noRelocationNeeded
+checkDestinationClear:
+  ; Check that (start of our code) >= (end of destination code)
+  ; compute start of our code as a physical address
+  mov cl,4
+  shr ax,cl
+  add ax,bx  ; Our segment in normalized xxxx:000x form
+  ; compute end of destination as a physical address
+  mov dx,si
+  add dx,(offset kernelEnd) >> 4  ; end of destination segment
 
+  cmp a
+
+
+
+
+
+relocationNeeded:
+  ; AX = code offset within segment
+  ; BX = segment
+  ; SI = desired segment
+  mov dx,ax
+  shr dx,cl
+  add dx,bx
+  cmp
+
+
+  ; TODO: relocate the kernel if it was not loaded in the right place
+  ; 3) If we overlap the final location, relocate to after the final location and jump to this location
+  ; 4) Relocate to the final location and jump there.
+
+noRelocationNeeded:
   ; Set up some interrupts
   ; int 060 == output AX as a 4-digit hex number
   ; int 061 == output CX bytes from DS:SI
@@ -41,8 +75,8 @@ foundRAM:
   mov [019a], cs
 
   ; Push the cleanup address for the program to retf back to.
-  mov bp,0500
-  push bp
+  mov bx,cs
+  push bx
   mov ax,offset complete
   push ax
 
@@ -51,7 +85,7 @@ foundRAM:
   mov ax,15 + offset kernelEnd
   mov cl,4
   shr ax,cl
-  add ax,bp
+  add ax,bx
   mov ds,ax
 
   ; Push the address
@@ -352,5 +386,7 @@ complete:
   int 062  ; Write a ^Z character to tell the "run" program to finish
   jmp 0  ; Restart the kernel
 
+
+even 16
 
 kernelEnd:
