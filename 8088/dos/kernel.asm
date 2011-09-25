@@ -4,25 +4,25 @@ org 0
 
   ; Find end of memory. Memory is always added in 16Kb units. We can't use
   ; the BIOS measurement since it won't have been initialized.
-  mov ax,09c00
+  mov ax,0x9c00
 findRAM:
   mov ds,ax
   mov [0],ax
   cmp [0],ax
   je foundRAM
-  sub ax,0400
+  sub ax,0x400
   jmp findRAM
 foundRAM:
-  sub ax,0c00
+  sub ax,0xc00
   ; Move the stack right at the end of main RAM.
   mov ss,ax
   xor sp,sp
 
-  mov si,050 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
+  mov si,0x50 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
   call main
 main:
   pop ax
-  sub ax,offset main
+  sub ax,main
   jnz checkDestinationClear
   mov bx,cs
   cmp bx,si
@@ -35,9 +35,9 @@ checkDestinationClear:
   add ax,bx  ; Our segment in normalized xxxx:000x form
   ; compute end of destination as a physical address
   mov dx,si
-  add dx,(offset kernelEnd) >> 4  ; end of destination segment
+  add dx,(kernelEnd + 15) >> 4  ; end of destination segment
 
-  cmp a
+;  cmp a
 
 
 
@@ -50,7 +50,7 @@ relocationNeeded:
   mov dx,ax
   shr dx,cl
   add dx,bx
-  cmp
+;  cmp
 
 
   ; TODO: relocate the kernel if it was not loaded in the right place
@@ -59,32 +59,30 @@ relocationNeeded:
 
 noRelocationNeeded:
   ; Set up some interrupts
-  ; int 060 == output AX as a 4-digit hex number
-  ; int 061 == output CX bytes from DS:SI
-  ; int 062 == output AL as a character
-  ; int 066 == beep (for debugging)
+  ; int 0x60 == output AX as a 4-digit hex number
+  ; int 0x61 == output CX bytes from DS:SI
+  ; int 0x62 == output AL as a character
+  ; int 0x66 == beep (for debugging)
   xor ax,ax
   mov ds,ax
-  mov [0180], writeHex
-  mov [0182], cs
-  mov [0184], writeString
-  mov [0186], cs
-  mov [0188], writeCharacter
-  mov [018a], cs
-  mov [0198], beep
-  mov [019a], cs
+  mov word [0x180], writeHex
+  mov [0x182], cs
+  mov word [0x184], writeString
+  mov [0x186], cs
+  mov word [0x188], writeCharacter
+  mov [0x18a], cs
+  mov word [0x198], beep
+  mov [0x19a], cs
 
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
   push bx
-  mov ax,offset complete
+  mov ax,complete
   push ax
 
   ; Find the next segment after the end of the kernel. This is where we'll
   ; load our program.
-  mov ax,15 + offset kernelEnd
-  mov cl,4
-  shr ax,cl
+  mov ax,(kernelEnd + 15) >> 4
   add ax,bx
   mov ds,ax
 
@@ -93,16 +91,16 @@ noRelocationNeeded:
   push di
 
   ; Set up the 8259 PIC to read the IRR lines
-  mov al,0fd
-  out 021,al  ; OCW1 - enable keyboard interrupt
-  mov al,0a   ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 020,al  ;  read Interrupt Request Register
+  mov al,0xfd
+  out 0x21,al  ; OCW1 - enable keyboard interrupt
+  mov al,0xa   ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
+  out 0x20,al  ;  read Interrupt Request Register
 
   ; Read the non-keyboard bits of port 061
-  mov dx,061
+  mov dx,0x61
   in al,dx
-  and al,07f
-  or al,040
+  and al,0x7f
+  or al,0x40
   mov ah,al
 
   ; Reads a 3-byte count and then a number of bytes into memory, starting at DS:DI, then runs the loaded code
@@ -133,17 +131,17 @@ loadProgramDone:
 ; Reads the next keyboard scancode into BL
 keyboardRead:
   ; Loop until the IRR bit 1 (IRQ 1) is high
-  in al,020
+  in al,0x20
   and al,2
   jz keyboardRead
   ; Read the keyboard byte and store it
-  in al,060
+  in al,0x60
   mov bl,al
   ; Acknowledge the keyboard scancode byte
   mov al,ah
-  or al,080
+  or al,0x80
   out dx,al
-  and al,07f
+  and al,0x7f
   out dx,al
   ret
 
@@ -155,7 +153,7 @@ loadBytes:
   add di,1
   jnc noOverflow
   mov bx,ds
-  add bh,010
+  add bh,0x10
   mov ds,bx
 noOverflow:
   loop loadBytes
@@ -169,10 +167,10 @@ writeBuffer:
 convertNybble:
   cmp al,10
   jge alphabetic
-  add al,48
+  add al,'0'
   jmp gotCharacter
 alphabetic:
-  add al,55
+  add al,'A' - 10
 gotCharacter:
   stosb
   ret
@@ -188,22 +186,22 @@ writeHex:
   mov bx,cs
   mov ds,bx
   mov es,bx
-  mov di,offset writeBuffer
+  mov di,writeBuffer
   mov bx,ax
   mov al,bh
   mov cx,4
   shr al,cl
   call convertNybble
   mov al,bh
-  and al,0f
+  and al,0xf
   call convertNybble
   mov al,bl
   shr al,cl
   call convertNybble
   mov al,bl
-  and al,0f
+  and al,0xf
   call convertNybble
-  mov si,offset writeBuffer
+  mov si,writeBuffer
   call sendLoop
   pop cx
   pop bx
@@ -225,8 +223,8 @@ writeCharacter:
   push bx
   push cx
   mov bx,cs
-  mov ds.bx
-  mov si,offset writeBuffer
+  mov ds,bx
+  mov si,writeBuffer
   mov [si],al
   mov cx,1
   call sendLoop
@@ -241,17 +239,17 @@ writeCharacter:
 sendLoop:
   mov di,cx
   ; Lower clock line to tell the Arduino we want to send data
-  mov dx,061
+  mov dx,0x61
   in al,dx
-  and al,0bf
+  and al,0xbf
   out dx,al
   ; Wait for 1ms
   mov bx,cx
-  mov cx,281   ; 4.77 cycles/us * 1000us / 17 cycles/loop
+  mov cx,52500000/(11*17*1000)
 waitLoop:
   loop waitLoop
   ; Raise clock line again
-  or al,040
+  or al,0x40
   out dx,al
 
   ; Throw away the keystroke that comes from clearInterruptedKeystroke()
@@ -356,23 +354,23 @@ sendByte:
 beep:
   push ax
   push cx
-  in al,061
+  in al,0x61
   mov ah,al
   or al,3
-  out 061,al
-  mov al,0b6
-  out 043,al
+  out 0x61,al
+  mov al,0xb6
+  out 0x43,al
   mov cx,1193182 / 440
   mov al,cl
-  out 042,al
+  out 0x42,al
   mov al,ch
-  out 042,al
+  out 0x42,al
   xor cx,cx
 beepLoop:
   loop beepLoop
   mov al,ah
-  and al,0fc
-  out 061,al
+  and al,0xfc
+  out 0x61,al
   xor cx,cx
 quietLoop:
   loop quietLoop
@@ -383,10 +381,8 @@ quietLoop:
 
 complete:
   mov al,26
-  int 062  ; Write a ^Z character to tell the "run" program to finish
+  int 0x62  ; Write a ^Z character to tell the "run" program to finish
   jmp 0  ; Restart the kernel
 
-
-even 16
 
 kernelEnd:
