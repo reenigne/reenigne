@@ -1,14 +1,14 @@
-  in al,061
+  in al,0x61
   or al,3
-  out 061,al
-  mov al,0b6
-  out 043,al
-  mov cx,0ffff
+  out 0x61,al
+  mov al,0xb6
+  out 0x43,al
+  mov cx,0xffff
 loopTop:
   mov al,cl
-  out 042,al
+  out 0x42,al
   mov al,ch
-  out 042,al
+  out 0x42,al
   loop loopTop
   hlt
 
