@@ -18,24 +18,27 @@ foundRAM:
   mov ss,ax
   xor sp,sp
 
-  mov si,0x50 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
+  mov di,0x50 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
   call main
 main:
-  pop ax
-  sub ax,main
+  pop si
+  sub si,main ; Offset of our start within CS
   jnz checkDestinationClear
   mov bx,cs
-  cmp bx,si
+  cmp bx,di
   jz noRelocationNeeded
 checkDestinationClear:
   ; Check that (start of our code) >= (end of destination code)
-  ; compute start of our code as a physical address
+  ; Normalize our address
   mov cl,4
+  mov ax,si
   shr ax,cl
-  add ax,bx  ; Our segment in normalized xxxx:000x form
+  add ax,bx
+  and si,0x0f ; Our start address in normalized xxxx:000x form is now in AX:SI
   ; compute end of destination as a physical address
-  mov dx,si
+  mov dx,di
   add dx,(kernelEnd + 15) >> 4  ; end of destination segment
+  cmp
 
 ;  cmp a
 

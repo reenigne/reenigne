@@ -158,6 +158,7 @@
   mov al,0??
   out dx,al
 
+  mov dx,03d4
   ;   0xff Horizontal Total                             38  38  71  71  38  38  38  38  38  71  71
   mov ax,0??00
   out dx,ax
