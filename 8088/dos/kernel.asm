@@ -38,22 +38,26 @@ checkDestinationClear:
   ; compute end of destination as a physical address
   mov dx,di
   add dx,(kernelEnd + 15) >> 4  ; end of destination segment
-  cmp
+  cmp ax,dx
+  jge doMove
+  ; We can't relocate to the final destination directly, since our code
+  ; overlaps that space. We need to move to a point that is higher than both
+  ; the end of our code and the end of the destination code.
+  push ax
+  add ax,(kernelEnd + 15) >> 4  ; end of current code
+  cmp ax,dx
+  jge
 
-;  cmp a
-
-
-
-
-
-relocationNeeded:
-  ; AX = code offset within segment
-  ; BX = segment
-  ; SI = desired segment
-  mov dx,ax
-  shr dx,cl
-  add dx,bx
-;  cmp
+doMove:
+  push di  ; Push return segment
+  ; Move kernelEnd bytes from AX:SI to DI:0
+  mov cx,kernelEnd
+  mov ds,ax
+  mov es,di
+  xor di,di
+  push di  ; Push return offset
+  rep movsb
+  retf
 
 
   ; TODO: relocate the kernel if it was not loaded in the right place
