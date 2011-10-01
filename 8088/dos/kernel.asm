@@ -43,9 +43,9 @@ checkDestinationClear:
   ; We can't relocate to the final destination directly, since our code
   ; overlaps that space. We need to move to a point that is higher than both
   ; the end of our code and the end of the destination code.
-  push ax
-  add ax,(kernelEnd + 15) >> 4  ; end of current code
-  cmp ax,dx
+  mov di,ax
+  add di,(kernelEnd + 15) >> 4  ; end of current code
+  cmp di,dx
   jge
 
 doMove:
@@ -56,6 +56,7 @@ doMove:
   mov es,di
   xor di,di
   push di  ; Push return offset
+  cld
   rep movsb
   retf
 
