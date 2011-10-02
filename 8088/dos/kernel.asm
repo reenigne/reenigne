@@ -42,12 +42,14 @@ checkDestinationClear:
   jge doMove
   ; We can't relocate to the final destination directly, since our code
   ; overlaps that space. We need to move to a point that is higher than both
-  ; the end of our code and the end of the destination code.
+  ; the end of our code and the end of the final destination.
   mov di,ax
   add di,(kernelEnd + 15) >> 4  ; end of current code
   cmp di,dx
-  jge
-
+  jge doMove
+  ; We are overlapping the start of the final destination - relocate to after
+  ; the end of the final destination.
+  mov di,dx
 doMove:
   push di  ; Push return segment
   ; Move kernelEnd bytes from AX:SI to DI:0
@@ -59,11 +61,6 @@ doMove:
   cld
   rep movsb
   retf
-
-
-  ; TODO: relocate the kernel if it was not loaded in the right place
-  ; 3) If we overlap the final location, relocate to after the final location and jump to this location
-  ; 4) Relocate to the final location and jump there.
 
 noRelocationNeeded:
   ; Set up some interrupts

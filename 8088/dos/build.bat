@@ -1,2 +1,2 @@
 @echo off
-yasm kernel.asm
+yasm kernel.asm -o kernel.bin
