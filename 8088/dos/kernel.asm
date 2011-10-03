@@ -2,6 +2,98 @@ org 0
 
   cli
 
+  ; Mode                                                2c
+  ;      1 +HRES                                         0
+  ;      2 +GRPH                                         0
+  ;      4 +BW                                           4
+  ;      8 +VIDEO ENABLE                                 8
+  ;   0x10 +1BPP                                         0
+  ;   0x20 +ENABLE BLINK                                20
+  mov dx,0x3d8
+  mov al,0x2c
+  out dx,al
+
+  ; Palette                                             00
+  ;      1 +OVERSCAN B                                   0
+  ;      2 +OVERSCAN G                                   0
+  ;      4 +OVERSCAN R                                   0
+  ;      8 +OVERSCAN I                                   0
+  ;   0x10 +BACKGROUND I                                 0
+  ;   0x20 +COLOR SEL                                    0
+  mov dx,0x3d9
+  mov al,0
+  out dx,al
+
+  mov dx,0x3d4
+
+  ;   0xff Horizontal Total                             38
+  mov ax,0x3800
+  out dx,ax
+
+  ;   0xff Horizontal Displayed                         28
+  mov ax,0x2801
+  out dx,ax
+
+  ;   0xff Horizontal Sync Position                     2d
+  mov ax,0x2d02
+  out dx,ax
+
+  ;   0x0f Horizontal Sync Width                        0a
+  mov ax,0x0a03
+  out dx,ax
+
+  ;   0x7f Vertical Total                               1f
+  mov ax,0x1f04
+  out dx,ax
+
+  ;   0x1f Vertical Total Adjust                        06
+  mov ax,0x0605
+  out dx,ax
+
+  ;   0x7f Vertical Displayed                           19
+  mov ax,0x1906
+  out dx,ax
+
+  ;   0x7f Vertical Sync Position                       1c
+  mov ax,0x1c07
+  out dx,ax
+
+  ;   0x03 Interlace Mode                               02
+  mov ax,0x0208
+  out dx,ax
+
+  ;   0x1f Max Scan Line Address                        07
+  mov ax,0x0709
+  out dx,ax
+
+  ; Cursor Start                                        06
+  ;   0x1f Cursor Start                                  6
+  ;   0x60 Cursor Mode                                   0
+  mov ax,0x060a
+  out dx,ax
+
+  ;   0x1f Cursor End                                   07
+  mov ax,0x070b
+  out dx,ax
+
+  ;   0x3f Start Address (H)                            00
+  mov ax,0x000c
+  out dx,ax
+
+  ;   0xff Start Address (L)                            00
+  mov ax,0x000d
+  out dx,ax
+
+  ;   0x3f Cursor (H)                                   00
+  mov ax,0x000e
+  out dx,ax
+
+  ;   0xff Cursor (L)                                   00
+  mov ax,0x000f
+  out dx,ax
+
+
+
   ; Find end of memory. Memory is always added in 16Kb units. We can't use
   ; the BIOS measurement since it won't have been initialized.
   mov ax,0x9c00
