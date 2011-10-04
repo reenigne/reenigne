@@ -49,9 +49,10 @@ Make sure that "ES: POP [BX]" doesn't ???
 
 Check that LDS and LES take the same time (HELPPC says LDS is 16+EA which can't be right. Zen says 24+EA which seems right.)
 
+Implement LOCK (make instruction atomic with respect to bus state)
+
 Determine semantics of:
   WAIT (HELPPC says 4 cycles, Zen says 3).
-  LOCK
   HLT
   escape
   Invalid opcodes 6x
@@ -83,7 +84,7 @@ Check that the semantics of x86 remainder is (destination - product)*(negative ?
 
 Check that AAA/AAS is 4 cycles (as Zen says) instead of 8 (as HELPPC says)
 
-Check that "INC/DEC rw" is 2 cycles (as Zen says) instead of 3 (as HELPPC says) and that it is 3 cycles when using opcode FF. 
+Check that "INC/DEC rw" is 2 cycles (as Zen says) instead of 3 (as HELPPC says) and that it is 3 cycles when using opcode FF.
 Check the timings for "DEC mw" - HELPPC says 15+EA but I think 23+EA (same as "INC mw") is more likely - so does Zen.
 
 Check timings of "POP rmw" (opcode 8F)
@@ -112,3 +113,9 @@ Check timings of "REP STOSB" - HELPPC says 11 per, Zen says 10 per
 Check timings of "REP STOSW" - HELPPC says 15 per, Zen says 14 per
 Check timings of "REP LODSB" - HELPPC says 12 per, Zen says 13 per
 Check timings of "REP LODSW" - HELPPC says 16 per, Zen says 17 per
+
+Check behavior of REP* with override prefix (hardware bugs)
+
+Investigate trap flag
+
+Run Zeus testsuite

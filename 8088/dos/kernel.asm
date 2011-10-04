@@ -1,6 +1,9 @@
 org 0
 
+  ; Turn interrupts off - the keyboard send routine is cycle-counted.
   cli
+
+  ; Set up the screen so we can debug the keyboard send routine
 
   ; Mode                                                2c
   ;      1 +HRES                                         0
@@ -84,15 +87,47 @@ org 0
   mov ax,0x000d
   out dx,ax
 
-  ;   0x3f Cursor (H)                                   00
-  mov ax,0x000e
+  ;   0x3f Cursor (H)                                   03  0x3c0 == 40*24 == start of last line
+  mov ax,0x030e
   out dx,ax
 
-  ;   0xff Cursor (L)                                   00
-  mov ax,0x000f
+  ;   0xff Cursor (L)                                   c0
+  mov ax,0xc00f
   out dx,ax
 
+  ; Clear the video memory
+  mov ax,0xb800
+  mov es,ax
+  mov cx,40*25
+  mov ax,0x0700
+  xor di,di
+  cld
+  rep stosw
 
+  ; Set up some interrupts
+  ; int 0x60 == output AX as a 4-digit hex number
+  ; int 0x61 == output CX bytes from DS:SI
+  ; int 0x62 == output AL as a character
+  ; int 0x63 == print AX as a 4-digit hex number
+  ; int 0x64 == print CX bytes from DS:SI
+  ; int 0x65 == print AL as a character
+  ; int 0x66 == beep (for debugging)
+  xor ax,ax
+  mov ds,ax
+  mov word [0x180], writeHex
+  mov [0x182], cs
+  mov word [0x184], writeString
+  mov [0x186], cs
+  mov word [0x188], writeCharacter
+  mov [0x18a], cs
+  mov word [0x18c], printHex
+  mov [0x18e], cs
+  mov word [0x190], printString
+  mov [0x192], cs
+  mov word [0x194], printCharacter
+  mov [0x196], cs
+  mov word [0x198], beep
+  mov [0x19a], cs
 
   ; Find end of memory. Memory is always added in 16Kb units. We can't use
   ; the BIOS measurement since it won't have been initialized.
@@ -109,6 +144,15 @@ foundRAM:
   ; Move the stack right at the end of main RAM.
   mov ss,ax
   xor sp,sp
+
+  ; Beep
+  int 0x66
+  ; Print a message
+  mov ax,cs
+  mov ds,ax
+  mov si,bootMessage
+  mov cx,bootMessageEnd - bootMessage
+  int 0x64
 
   mov di,0x50 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
   call main
@@ -150,27 +194,10 @@ doMove:
   mov es,di
   xor di,di
   push di  ; Push return offset
-  cld
   rep movsb
   retf
 
 noRelocationNeeded:
-  ; Set up some interrupts
-  ; int 0x60 == output AX as a 4-digit hex number
-  ; int 0x61 == output CX bytes from DS:SI
-  ; int 0x62 == output AL as a character
-  ; int 0x66 == beep (for debugging)
-  xor ax,ax
-  mov ds,ax
-  mov word [0x180], writeHex
-  mov [0x182], cs
-  mov word [0x184], writeString
-  mov [0x186], cs
-  mov word [0x188], writeCharacter
-  mov [0x18a], cs
-  mov word [0x198], beep
-  mov [0x19a], cs
-
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
   push bx
@@ -310,7 +337,13 @@ writeHex:
 
 
 writeString:
+  push di
+  push bx
+  push dx
   call sendLoop
+  pop dx
+  pop bx
+  pop di
   iret
 
 
@@ -383,6 +416,7 @@ doneSend:
 
 
 sendByte:
+  push ax              ; for debugging purposes
   mov bl,al
 
   clc
@@ -397,54 +431,56 @@ sendByte:
   rcr al,1
   out dx,al
 
-  rcr bl,1
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
+  rcr bl,1             ; 2 0 8  Each bit takes 40 CPU cycles = 8.38us
+  mov al,bh            ; 2 0 8  = 8.87us with DRAM refresh
+  rcr al,1             ; 2 0 8  = 142 cycles on the Arduino
+  rcr al,1             ; 2 0 8
+  out dx,al            ; 1 1 8
 
-  rcr bl,1
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
+  rcr bl,1             ; 2 0 8
+  mov al,bh            ; 2 0 8
+  rcr al,1             ; 2 0 8
+  rcr al,1             ; 2 0 8
+  out dx,al            ; 1 1 8
 
-  rcr bl,1
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
+  rcr bl,1             ; 2 0 8
+  mov al,bh            ; 2 0 8
+  rcr al,1             ; 2 0 8
+  rcr al,1             ; 2 0 8
+  out dx,al            ; 1 1 8
 
-  rcr bl,1
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
+  rcr bl,1             ; 2 0 8
+  mov al,bh            ; 2 0 8
+  rcr al,1             ; 2 0 8
+  rcr al,1             ; 2 0 8
+  out dx,al            ; 1 1 8
 
-  rcr bl,1
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
+  rcr bl,1             ; 2 0 8
+  mov al,bh            ; 2 0 8
+  rcr al,1             ; 2 0 8
+  rcr al,1             ; 2 0 8
+  out dx,al            ; 1 1 8
 
-  rcr bl,1
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
+  rcr bl,1             ; 2 0 8
+  mov al,bh            ; 2 0 8
+  rcr al,1             ; 2 0 8
+  rcr al,1             ; 2 0 8
+  out dx,al            ; 1 1 8
 
-  rcr bl,1
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
+  rcr bl,1             ; 2 0 8
+  mov al,bh            ; 2 0 8
+  rcr al,1             ; 2 0 8
+  rcr al,1             ; 2 0 8
+  out dx,al            ; 1 1 8
 
-  rcr bl,1
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
-  ; TODO: Delay long enough for the Arduino to send the byte over serial.
+  rcr bl,1             ; 2 0 8
+  mov al,bh            ; 2 0 8
+  rcr al,1             ; 2 0 8
+  rcr al,1             ; 2 0 8
+  out dx,al            ; 1 1 8
+
+  pop ax               ; for debugging purposes
+  call printChar       ; for debugging purposes
   ret
 
 
@@ -481,5 +517,97 @@ complete:
   int 0x62  ; Write a ^Z character to tell the "run" program to finish
   jmp 0  ; Restart the kernel
 
+
+printNybble:
+  cmp al,10
+  jge printAlphabetic
+  add al,'0'
+  jmp printGotCharacter
+printAlphabetic:
+  add al,'A' - 10
+printGotCharacter:
+  call printChar
+  ret
+
+
+printHex:
+  push bx
+  push cx
+  mov bx,ax
+  mov al,bh
+  mov cx,4
+  shr al,cl
+  call printNybble
+  mov al,bh
+  and al,0xf
+  call printNybble
+  mov al,bl
+  shr al,cl
+  call printNybble
+  mov al,bl
+  and al,0xf
+  call printNybble
+  pop cx
+  pop bx
+  iret
+
+
+printString:
+  lodsb
+  call printChar
+  loop printString
+  iret
+
+
+printCharacter:
+  call printChar
+  iret
+
+
+printChar:
+  push bx
+  push cx
+  cmp al,10
+  je printNewLine
+  mov cx,[cs:startAddress]
+  push si
+  mov si,cx
+  add si,cx
+  mov bl,[cs:column]
+  xor bh,bh
+  mov [bx+si+24*40*2],al
+  pop si
+  inc bx
+  inc bx
+  cmp bx,160
+  jne donePrint
+printNewLine:
+  add cx,80
+  and cx,0x1fff
+  mov [cs:startAddress],cx
+  push dx
+  mov dx,0x3d4
+  mov ah,ch
+  mov al,0x0c
+  out dx,ax
+  mov ah,cl
+  inc ax
+  out dx,ax
+  pop dx
+  xor bx,bx
+donePrint:
+  mov [cs:column],bl
+  pop cx
+  pop bx
+  ret
+
+
+column:
+  db 0
+startAddress:
+  dw 0
+bootMessage:
+  db 'XT OS Kernel',10
+bootMessageEnd:
 
 kernelEnd:

@@ -56,6 +56,7 @@ volatile uint16_t programBytesRemaining = 0;
 volatile bool ramProgram = false;
 volatile bool expectingRawCount = false;
 volatile bool sentEscape = false;
+volatile bool testOnce = true;
 
 void sendSerialByte()
 {
@@ -134,6 +135,33 @@ void enqueueKeyboardByte(uint8_t byte)
     }
 }
 
+bool processCommand(uint8_t command)
+{
+    switch (command) {
+        case 1:
+            testerMode = false;
+            return true;
+        case 2:
+            testerMode = true;
+            return true;
+        case 3:
+            ramProgram = true;
+            programBytesRemaining = 0xffff;
+            return true;
+        case 4:
+            ramProgram = false;
+            return true;
+        case 5:
+            expectingRawCount = true;
+            return true;
+        case 6:
+            testerMode = true;
+            testOnce = true;
+            return true;
+    }
+    return false;
+}
+
 void processCharacter(uint8_t received)
 {
     enqueueSerialByte('R');                         // *** DEBUG
@@ -187,92 +215,54 @@ void processCharacter(uint8_t received)
         return;
     }
     if (!asciiMode) {
-        switch (received) {
-            case 0x71:
-                testerMode = false;
-                break;
-            case 0x72:
-                testerMode = true;
-                break;
-            case 0x73:
-                ramProgram = true;
-                programBytesRemaining = 0xffff;
-                break;
-            case 0x74:
-                ramProgram = false;
-                break;
-            case 0x75:
-                expectingRawCount = true;
-                break;
-            default:
-                enqueueSerialByte('s');  // *** DEBUG
-                enqueueKeyboardByte(received);
-                break;
+        if (!processCommand(received - 0x70)) {
+            enqueueSerialByte('s');  // *** DEBUG
+            enqueueKeyboardByte(received);
         }
         return;
     }
-    switch (received) {
-        case 1:
-            testerMode = false;
-            break;
-        case 2:
-            testerMode = true;
-            break;
-        case 3:
-            ramProgram = true;
-            programBytesRemaining = 0xffff;
-            break;
-        case 4:
-            ramProgram = false;
-            break;
-        case 5:
-            expectingRawCount = true;
-            break;
-        default:
-            {
-                uint8_t scanCode;
-                switch (received) {
-                    case 8:
-                        scanCode = 0x0e;
-                        break;
-                    case 9:
-                        scanCode = 0x0f;
-                        break;
-                    case 10:
-                        // We handle LF and CRLF line endings by treating LF
-                        // as a press of Enter and ignoring CR. Revisit if
-                        // this causes problems.
-                        scanCode = 0x1c;
-                        break;
-                    case 27:
-                        scanCode = 0x01;
-                        break;
-                    default:
-                        if (received >= 0x20 && received <= 0x7e) {
-                            scanCode = pgm_read_byte(
-                                &asciiToScancodes[received - 0x20]);
-                        }
-                        else {
-                            // Handle invalid ASCII codes by ignoring them.
-                            return;
-                        }
-                        // TODO: Add codes for cursor movement, function keys
-                        // etc.
+    if (!processCommand(received)) {
+        uint8_t scanCode;
+        switch (received) {
+            case 8:
+                scanCode = 0x0e;
+                break;
+            case 9:
+                scanCode = 0x0f;
+                break;
+            case 10:
+                // We handle LF and CRLF line endings by treating LF
+                // as a press of Enter and ignoring CR. Revisit if
+                // this causes problems.
+                scanCode = 0x1c;
+                break;
+            case 27:
+                scanCode = 0x01;
+                break;
+            default:
+                if (received >= 0x20 && received <= 0x7e) {
+                    scanCode = pgm_read_byte(
+                        &asciiToScancodes[received - 0x20]);
                 }
-                bool shifted = (scanCode & 0x80) != 0;
-                if (shifted != shift) {
-                    // We always use the left shift key for typing shifted
-                    // characters.
-                    enqueueSerialByte('^');  // *** DEBUG
-                    enqueueKeyboardByte(0x2a | (shifted ? 0 : 0x80));
-                    shift = shifted;
+                else {
+                    // Handle invalid ASCII codes by ignoring them.
+                    return;
                 }
-                enqueueSerialByte('d');  // *** DEBUG
-                enqueueKeyboardByte(scanCode);
-                enqueueSerialByte('u');  // *** DEBUG
-                enqueueKeyboardByte(scanCode | 0x80);
-            }
-            break;
+                // TODO: Add codes for cursor movement, function keys
+                // etc.
+        }
+        bool shifted = (scanCode & 0x80) != 0;
+        if (shifted != shift) {
+            // We always use the left shift key for typing shifted
+            // characters.
+            enqueueSerialByte('^');  // *** DEBUG
+            enqueueKeyboardByte(0x2a | (shifted ? 0 : 0x80));
+            shift = shifted;
+        }
+        enqueueSerialByte('d');  // *** DEBUG
+        enqueueKeyboardByte(scanCode);
+        enqueueSerialByte('u');  // *** DEBUG
+        enqueueKeyboardByte(scanCode | 0x80);
     }
 }
 
@@ -355,6 +345,11 @@ bool sendKeyboardByte(uint8_t data)
     return true;
 }
 
+SIGNAL(TIMER0_OVF_vect)
+{
+    enqueueSerialByte('.');
+}
+
 int main()
 {
     // Initialize hardware ports
@@ -382,6 +377,37 @@ int main()
     PORTB = 3;
 
     DDRD |= 0x60;
+
+    // TCCR0A value: 0x03  (Timer/Counter 0 Control Register A)
+    //   WGM00          1  } Waveform Generation Mode = 7 (Fast PWM, TOP=OCRA)
+    //   WGM01          2  }
+    //
+    //
+    //   COM0B0         0  } Compare Output Mode for Channel B: normal operation
+    //   COM0B1         0  }
+    //   COM0A0         0  } Compare Output Mode for Channel A: normal operation
+    //   COM0A1         0  }
+    TCCR0A = 0x03;
+
+    // TCCR0B value: 0x04  (Timer/Counter 0 Control Register B)
+    //   CS00           0  } Clock select: clkIO/256
+    //   CS01           0  }
+    //   CS02           4  }
+    //   WGM02          0  Waveform Generation Mode = 3 (Fast PWM, TOP=0xff)
+    //
+    //
+    //   FOC0B          0  Force Output Compare B
+    //   FOC0A          0  Force Output Compare A
+    TCCR0B = 0x04;
+
+    // OCR0A value: 16MHz / (125*256) = 500Hz
+    OCR0A = 125;
+
+    // TIMSK0 value: 0x01  (Timer/Counter 0 Interrupt Mask Register)
+    //   TOIE0          1  Timer 0 overflow:  no interrupt
+    //   OCIE0A         0  Timer 0 compare A: no interrupt
+    //   OCIE0B         0  Timer 0 compare B: no interrupt
+    TIMSK0 = 0x01;
 
     // UCSR0A value: 0x00  (USART Control and Status Register 0 A)
     //   MPCM0          0  Multi-processor Communcation Mode: disabled
@@ -464,6 +490,11 @@ int main()
                         for (uint16_t i = 0; i < programBytes; ++i)
                             sendKeyboardByte(
                                 pgm_read_byte(&defaultProgram[i+2]));
+                    }
+
+                    if (testOnce) {
+                        testerMode = false;
+                        testOnce = false;
                     }
                 }
                 else {

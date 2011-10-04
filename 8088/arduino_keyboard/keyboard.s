@@ -60,6 +60,14 @@ wait2usLoop:
   brne wait2usLoop    ; n*2 - 1
   ret                 ; 4
 
+wait142cycles:        ; 4
+  ldi r31,44          ; 1          ; (cycles to delay - 10)/3
+wait142cyclesLoop:
+  dec r31             ; n*1
+  brne wait142cyclesLoop  ; n*2 - 1
+  rjmp .+1            ; 2
+  ret                 ; 4
+
 .global wait50us      ; 800 cycles
 wait50us:             ; 4
   ldi r31,200         ; 1          ; (cycles to delay - 8)/4
@@ -101,44 +109,50 @@ receiveKeyboardByte:
   cli
   ; Wait for clock line to go low
 clockWaitLoop1:
-  sbic 0x03, 1
-  rjmp clockWaitLoop1
+  sbic 0x03, 1                      ; 2 1
+  rjmp clockWaitLoop1               ; 0 2
   ; Wait for clock line to go high
 clockWaitLoop2:
-  sbic 0x03, 1
-  rjmp clockWaitLoop2
-  ; TODO: delay
+  sbic 0x03, 1                      ; 2 1
+  rjmp clockWaitLoop2               ; 0 2
+
+  ldi r31,23                        ; 1          ; (cycles to delay)/3
+wait69cyclesLoop:
+  dec r31                           ; n*1
+  brne wait69cyclesLoop             ; n*2 - 1
+
+  call wait142cycles
   ; Read bit 0
-  sbic 0x03, 1
-  ori r24, 1
-  ; TODO: delay
+  sbic 0x03, 1                      ; 2 1
+  ori r24, 1                        ; 0 1
+  call wait142cycles
   ; Read bit 1
-  sbic 0x03, 1
-  ori r24, 2
-  ; TODO: delay
+  sbic 0x03, 1                      ; 2 1
+  ori r24, 2                        ; 0 1
+  call wait142cycles
   ; Read bit 2
-  sbic 0x03, 1
-  ori r24, 4
-  ; TODO: delay
+  sbic 0x03, 1                      ; 2 1
+  ori r24, 4                        ; 0 1
+  call wait142cycles
   ; Read bit 3
-  sbic 0x03, 1
-  ori r24, 8
-  ; TODO: delay
+  sbic 0x03, 1                      ; 2 1
+  ori r24, 8                        ; 0 1
+  call wait142cycles
   ; Read bit 4
-  sbic 0x03, 1
-  ori r24, 0x10
-  ; TODO: delay
+  sbic 0x03, 1                      ; 2 1
+  ori r24, 0x10                     ; 0 1
+  call wait142cycles
   ; Read bit 5
-  sbic 0x03, 1
-  ori r24, 0x20
-  ; TODO: delay
+  sbic 0x03, 1                      ; 2 1
+  ori r24, 0x20                     ; 0 1
+  call wait142cycles
   ; Read bit 6
-  sbic 0x03, 1
-  ori r24, 0x40
-  ; TODO: delay
+  sbic 0x03, 1                      ; 2 1
+  ori r24, 0x40                     ; 0 1
+  call wait142cycles
   ; Read bit 7
-  sbic 0x03, 1
-  ori r24, 0x80
+  sbic 0x03, 1                      ; 2 1
+  ori r24, 0x80                     ; 0 1
   sei
   ret
 
