@@ -5,6 +5,7 @@
 #include "unity/hash_table.h"
 #include "unity/character_source.h"
 #include "unity/main.h"
+#include "unity/space.h"
 
 #include <stdlib.h>
 
@@ -1710,11 +1711,6 @@ private:
         _abandonFetch = true;
         _prefetched = 0;
     }
-    UInt8& mem(int segment, UInt16 address)
-    {
-        return _memory[
-            ((_segmentRegisters[segment] << 4) + address) & 0xfffff];
-    }
     UInt8& physicalAddress(UInt16 address)
     {
         int segment = _segment;
@@ -1815,14 +1811,14 @@ protected:
             (syntax1 + _arguments[0] + syntax2).write(Handle::consoleOutput());
             exit(1);
         }
-        File file(commandLine.argument(1));
+        File file(_arguments[1]);
         String contents = file.contents();
         CharacterSource source(contents, file.path());
         Space::parse(&source);
         SourceProgram sourceProgram = parseSourceProgram(&source);
         Simulator simulator;
         sourceProgram.assemble(&simulator);
-        intel8088.simulate();
+        simulator.simulate();
     }
 }
 

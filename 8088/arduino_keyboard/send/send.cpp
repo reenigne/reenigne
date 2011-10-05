@@ -65,6 +65,7 @@ public:
         Sleep(2000);
 
         sendByte(0x7f);      // Put Arduino in raw mode
+        sendByte(0x72);      // "Set tester mode" command
         sendByte(0x73);      // "Set RAM program" command
         sendByte(l & 0xff);  // Send low byte of length
         sendByte(l >> 8);    // Send high byte of length

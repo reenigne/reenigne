@@ -65,12 +65,13 @@ wait142cycles:        ; 4
 wait142cyclesLoop:
   dec r31             ; n*1
   brne wait142cyclesLoop  ; n*2 - 1
-  rjmp .+1            ; 2
+  rjmp wait142cyclesNop   ; 2
+wait142cyclesNop:
   ret                 ; 4
 
 .global wait50us      ; 800 cycles
 wait50us:             ; 4
-  ldi r31,200         ; 1          ; (cycles to delay - 8)/4
+  ldi r31,198         ; 1          ; (cycles to delay - 8)/4
 wait50usLoop:
   nop                 ; n*1
   dec r31             ; n*1
