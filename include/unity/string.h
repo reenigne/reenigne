@@ -851,6 +851,24 @@ public:
     {
         U value;
         read(static_cast<void*>(&value), sizeof(U));
+        return value;
+    }
+    int tryReadByte()
+    {
+#if _WIN32
+        Byte value;
+        DWORD bytesRead;
+        if (ReadFile(_handle, static_cast<void*>(&value), 1, &bytesRead, NULL)
+            == 0) {
+            DWORD error = GetLastError();
+            if (error == ERROR_HANDLE_EOF)
+                return -1;
+            throw Exception::systemError(readingFile + _name);
+        }
+        return value;
+#else
+        // TODO
+#endif
     }
     void read(void* buffer, int bytes) const
     {

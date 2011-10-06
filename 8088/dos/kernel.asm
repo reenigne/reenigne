@@ -3,6 +3,9 @@ org 0
   ; Turn interrupts off - the keyboard send routine is cycle-counted.
   cli
 
+;initLoop:
+;  jmp initLoop
+
   ; Set up the screen so we can debug the keyboard send routine
 
   ; Mode                                                2c
@@ -104,31 +107,14 @@ org 0
   cld
   rep stosw
 
-  ; Set up some interrupts
-  ; int 0x60 == output AX as a 4-digit hex number
-  ; int 0x61 == output CX bytes from DS:SI
-  ; int 0x62 == output AL as a character
-  ; int 0x63 == print AX as a 4-digit hex number
-  ; int 0x64 == print CX bytes from DS:SI
-  ; int 0x65 == print AL as a character
-  ; int 0x66 == beep (for debugging)
+  ; Reset video variables
   xor ax,ax
-  mov ds,ax
-  mov word [0x180], writeHex
-  mov [0x182], cs
-  mov word [0x184], writeString
-  mov [0x186], cs
-  mov word [0x188], writeCharacter
-  mov [0x18a], cs
-  mov word [0x18c], printHex
-  mov [0x18e], cs
-  mov word [0x190], printString
-  mov [0x192], cs
-  mov word [0x194], printCharacter
-  mov [0x196], cs
-  mov word [0x198], beep
-  mov [0x19a], cs
+  mov [cs:column],al
+  mov [cs:startAddress],ax
 
+  ; Disable NMI
+  xor al,al
+  out 0xa0,al
   ; Find end of memory. Memory is always added in 16Kb units. We can't use
   ; the BIOS measurement since it won't have been initialized.
   mov ax,0x9c00
@@ -145,22 +131,22 @@ foundRAM:
   mov ss,ax
   xor sp,sp
 
-  ; Beep
-  int 0x66
-  ; Print a message
-  mov ax,cs
-  mov ds,ax
-  mov si,bootMessage
-  mov cx,bootMessageEnd - bootMessage
-  int 0x64
+  ; Re-enable NMI
+  in al,0x61
+  or al,0x30
+  out 0x61,al
+  and al,0xcf
+  out 0x61,al
+  mov al,0x80
+  out 0xa0,al
 
   mov di,0x50 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
+  mov bx,cs
   call main
 main:
   pop si
   sub si,main ; Offset of our start within CS
   jnz checkDestinationClear
-  mov bx,cs
   cmp bx,di
   jz noRelocationNeeded
 checkDestinationClear:
@@ -198,6 +184,40 @@ doMove:
   retf
 
 noRelocationNeeded:
+  ; Set up some interrupts
+  ; int 0x60 == output AX as a 4-digit hex number
+  ; int 0x61 == output CX bytes from DS:SI
+  ; int 0x62 == output AL as a character
+  ; int 0x63 == print AX as a 4-digit hex number
+  ; int 0x64 == print CX bytes from DS:SI
+  ; int 0x65 == print AL as a character
+  ; int 0x66 == beep (for debugging)
+  xor ax,ax
+  mov ds,ax
+  mov word [0x180], writeHex
+  mov [0x182], cs
+  mov word [0x184], writeString
+  mov [0x186], cs
+  mov word [0x188], writeCharacter
+  mov [0x18a], cs
+  mov word [0x18c], printHex
+  mov [0x18e], cs
+  mov word [0x190], printString
+  mov [0x192], cs
+  mov word [0x194], printCharacter
+  mov [0x196], cs
+  mov word [0x198], beep
+  mov [0x19a], cs
+
+  ; Beep
+  int 0x66
+  ; Print a message
+  mov ax,cs
+  mov ds,ax
+  mov si,bootMessage
+  mov cx,bootMessageEnd - bootMessage
+  int 0x64
+
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
   push bx
@@ -212,28 +232,39 @@ noRelocationNeeded:
 
   ; Push the address
   push ds
+  xor di,di
   push di
 
   ; Set up the 8259 PIC to read the IRR lines
   mov al,0xfd
   out 0x21,al  ; OCW1 - enable keyboard interrupt
-  mov al,0xa   ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
+  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
   out 0x20,al  ;  read Interrupt Request Register
 
-  ; Read the non-keyboard bits of port 061
-  mov dx,0x61
-  in al,dx
+  ; The BIOS leaves the keyboard with an unacknowledged byte - acknowledge it
+  in al,0x61
+  or al,0x80
+  out 0x61,al
   and al,0x7f
-  or al,0x40
-  mov ah,al
+  out 0x61,al
 
-  ; Reads a 3-byte count and then a number of bytes into memory, starting at DS:DI, then runs the loaded code
+  ; Read a 3-byte count and then a number of bytes into memory, starting at
+  ; DS:DI
   call keyboardRead
   mov cl,bl
   call keyboardRead
   mov ch,bl
   call keyboardRead
   mov bh,0
+
+  ; Debug: print number of bytes to load
+  mov ax,bx
+  int 0x63
+  mov ax,cx
+  int 0x63
+  mov al,10
+  int 0x65
+
   mov si,bx
   push cx
 pagesLoop:
@@ -241,6 +272,8 @@ pagesLoop:
   je noFullPages
   xor cx,cx
   call loadBytes
+  mov al,'X'
+  int 0x65
   dec si
   jmp pagesLoop
 noFullPages:
@@ -248,7 +281,11 @@ noFullPages:
   test cx,cx
   jz loadProgramDone
   call loadBytes
+  mov al,'Y'
+  int 0x65
 loadProgramDone:
+  mov al,'Z'
+  int 0x65
   retf
 
 
@@ -262,17 +299,26 @@ keyboardRead:
   in al,0x60
   mov bl,al
   ; Acknowledge the keyboard scancode byte
-  mov al,ah
+  in al,0x61
   or al,0x80
-  out dx,al
+  out 0x61,al
   and al,0x7f
-  out dx,al
+  out 0x61,al
   ret
 
 
 ; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
 loadBytes:
   call keyboardRead
+  mov byte[es:178],bl
+
+  ; Debug: print load address
+  mov byte[cs:column],0
+  mov ax,ds
+  int 0x63
+  mov ax,di
+  int 0x63
+
   mov [di],bl
   add di,1
   jnc noOverflow
@@ -375,7 +421,7 @@ sendLoop:
   out dx,al
   ; Wait for 1ms
   mov bx,cx
-  mov cx,52500000/(11*17*1000)
+  mov cx,52500000*18/(11*17*4*2*1000)
 waitLoop:
   loop waitLoop
   ; Raise clock line again
@@ -567,36 +613,64 @@ printCharacter:
 printChar:
   push bx
   push cx
+  push dx
+  push es
+  push di
+  mov dx,0xb800
+  mov es,dx
+  mov dx,0x3d4
+  mov cx,[cs:startAddress]
   cmp al,10
   je printNewLine
-  mov cx,[cs:startAddress]
-  push si
-  mov si,cx
-  add si,cx
+  mov di,cx
+  add di,cx
   mov bl,[cs:column]
   xor bh,bh
-  mov [bx+si+24*40*2],al
-  pop si
+  mov [es:bx+di+24*40*2],al
   inc bx
   inc bx
-  cmp bx,160
+  cmp bx,80
   jne donePrint
 printNewLine:
-  add cx,80
+  add cx,40
   and cx,0x1fff
   mov [cs:startAddress],cx
-  push dx
-  mov dx,0x3d4
+
+  ; Scroll screen
   mov ah,ch
   mov al,0x0c
   out dx,ax
   mov ah,cl
   inc ax
   out dx,ax
-  pop dx
+  ; Clear the newly scrolled area
+  mov di,cx
+  add di,cx
+  add di,24*40*2
+  mov cx,40
+  mov ax,0x0700
+  rep stosw
+  mov cx,[cs:startAddress]
+
   xor bx,bx
 donePrint:
   mov [cs:column],bl
+
+  ; Move cursor
+  shr bx,1
+  add bx,cx
+  add bx,24*40
+  and bx,0x1fff
+  mov ah,bh
+  mov al,0x0e
+  out dx,ax
+  mov ah,bl
+  inc ax
+  out dx,ax
+
+  pop di
+  pop es
+  pop dx
   pop cx
   pop bx
   ret

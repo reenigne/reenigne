@@ -59,18 +59,25 @@ public:
         deviceControlBlock.XonChar = 17;
         deviceControlBlock.XoffChar = 19;
 
-
         IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
+        _console = Handle::consoleOutput();
 
-        Sleep(2000);
+//        Sleep(2000);
 
         sendByte(0x7f);      // Put Arduino in raw mode
+        sendByte(0x76);      // Clear keyboard buffer
         sendByte(0x72);      // "Set tester mode" command
         sendByte(0x73);      // "Set RAM program" command
         sendByte(l & 0xff);  // Send low byte of length
         sendByte(l >> 8);    // Send high byte of length
         for (int i = 0; i < l; ++i)
             sendByte(data[i]);  // Send program byte
+        String("Send complete.\n").write(_console);
+        while (true) {
+            Byte r = _com.tryReadByte();
+            if (r != -1)
+                _console.write(r);
+        }
     }
 private:
     void sendByte(Byte value)
@@ -79,7 +86,11 @@ private:
         if (value == 0 || value == 17 || value == 19)
             _com.write<Byte>(0);
         _com.write<Byte>(value);
+        Byte r = _com.tryReadByte();
+        if (r != -1)
+            _console.write(r);
     }
 
+    Handle _console;
     AutoHandle _com;
 };

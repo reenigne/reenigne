@@ -1538,16 +1538,16 @@ main:
   ldi r31, 0x00
   sts 0xc0, r31
 
-  ; UCSR0B value: 0xb8  (USART Control and Status Register 0 B)
+  ; UCSR0B value: 0xd8  (USART Control and Status Register 0 B)
   ;   TXB80          0  Transmit Data Bit 8 0
   ;
   ;   UCSZ02         0  Character Size 0: 8 bit
   ;   TXEN0          8  Transmitter Enable 0: enabled
   ;   RXEN0       0x10  Receiver Enable 0: enabled
-  ;   UDRIE0      0x20  USART Data Register Empty Interrupt Enable 0: disabled
-  ;   TXCIE0         0  TX Complete Interrupt Enable 0: disabled
-  ;   RXCIE0      0x80  RX Complete Interrupt Enable 0: disabled
-  ldi r31, 0xb8
+  ;   UDRIE0         0  USART Data Register Empty Interrupt Enable 0: disabled
+  ;   TXCIE0      0x40  TX Complete Interrupt Enable 0: enabled
+  ;   RXCIE0      0x80  RX Complete Interrupt Enable 0: enabled
+  ldi r31, 0xd8
   sts 0xc1, r31
 
   ; UCSR0C value: 0x06  (USART Control and Status Register 0 C)

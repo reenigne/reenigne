@@ -1,11 +1,11 @@
 pin Arduino Port PCINT
- 1  RESET    C6    14  ~RESET            debugging
- 2    0      D0    16         RXD        debugging
- 3    1      D1    17         TXD        debugging
+ 1  RESET    C6    14  ~RESET            debugging                  Debug header 4
+ 2    0      D0    16         RXD        debugging                  Debug header 2
+ 3    1      D1    17         TXD        debugging                  Debug header 3
  4    2      D2    18   INT0             Sync out
  5    3      D3    19   INT1  OC2B PWM   Audio output
  6    4      D4    20   T0    XCK        Switch input 0
- 7  VCC     VCC                          VCC
+ 7  VCC     VCC                          VCC                        Debug header 5 (bottom)
  8  GND     GND                          GND
  9  XTAL1    B6     6   TOSC1 XTAL1      XTAL1
 10  XTAL2    B7     7   TOSC2 XTAL2      XTAL2
@@ -20,7 +20,7 @@ pin Arduino Port PCINT
 19   13      B5     5   SCK              Shift register clock
 20  AVCC    AVCC                         AVCC
 21  AREF    AREF                         AREF
-22  AGND    GND                          AGND
+22  AGND    GND                          AGND                       Debug header 1 (top)
 23   A0      C0     8   ADC0             Switch selector A
 24   A1      C1     9   ADC1             Switch selector B
 25   A2      C2    10   ADC2             Switch selector C

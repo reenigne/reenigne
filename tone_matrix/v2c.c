@@ -278,7 +278,7 @@ SIGNAL(USART_RX_vect)
     }
 }
 
-SIGNAL(USART_UDRE_vect)
+SIGNAL(USART_TX_vect)
 {
     spaceAvailable = true;
     sendNextByte();

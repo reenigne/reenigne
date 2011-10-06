@@ -13,17 +13,13 @@ public:
         }
         int fileNameArgument = 1;
         bool comFile = false;
-        if (_arguments[1] == String("-c"))
+        if (_arguments[1] == String("-c")) {
             comFile = true;
+            fileNameArgument = 2;
+        }
         String fileName = _arguments[fileNameArgument];
         String data = File(fileName).contents();
         int l = data.length();
-        if (l > 0x400) {
-            (String("Error: ") + fileName + String(" is ") + String::decimal(l)
-                + String(" bytes (must be less than 1024).\n")).
-                    write(Handle::consoleOutput());
-            return;
-        }
 
         _com.set(CreateFile(
             L"COM3",
@@ -65,39 +61,54 @@ public:
 
         IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
 
+        Handle console = Handle::consoleOutput();
+
         sendByte(0x7f);      // Put Arduino in raw mode
+        sendByte(0x76);      // Clear keyboard buffer
+        sendByte(0x72);      // Put Arduino in tester mode
 
         // The buffer in the Arduino only holds 255 bytes, so we have to send
         // it in chunks. We do this by buffering the data on the host PC side,
         // and sending the buffer when it's full or when we're done.
         _bufferCount = 0;
         // When running a .com file, we need the instruction pointer to start
-        // at 0x100. We do this by prepending 0x100 bytes at the beginning. In
-        // DOS this area would contain the Program Segment Prefix structure.
-        if (comFile)
-            l += 0x100;
-        addByte(l & 0xff);          // Send length low byte
-        addByte((l >> 8) & 0xff);   // Send length middle byte
-        addByte((l >> 16) & 0xff);  // Send length high byte
+        // at 0x100. We do this by prepending 0x100 NOP bytes at the beginning.
+        // In DOS this area would contain the Program Segment Prefix structure.
+        (String::hexadecimal(l, 8) + String("\n")).write(console);
+        Byte checkSum = 0;
         if (comFile) {
-            for (int i = 0; i < l; ++i)
-                addByte(0);
-            l -= 0x100;
+            addLength(l + 0x100);
+            for (int i = 0; i < 100; ++i) {
+                addByte(0x90);
+                checkSum += 0x90;
+            }
         }
-        for (int i = 0; i < l; ++i)
+        else
+            addLength(l);
+        for (int i = 0; i < l; ++i) {
             addByte(data[i]);       // Send data byte
+            checkSum += data[i];
+            if ((i & 0xff) == 0)
+                String(".").write(console);
+        }
         flush();
 
         // Dump bytes from COM port to stdout until we receive ^Z
-        Handle console = Handle::consoleOutput();
+        String("Upload complete.\n").write(console);
         do {
-            Byte c = _com.read<Byte>();
+            int c = _com.tryReadByte();
             if (c == 26)
                 break;
             console.write<Byte>(c);
         } while (true);
     }
 private:
+    void addLength(int l)
+    {
+        addByte(l & 0xff);          // Send length low byte
+        addByte((l >> 8) & 0xff);   // Send length middle byte
+        addByte((l >> 16) & 0xff);  // Send length high byte
+    }
     void addByte(Byte value)
     {
         if (_bufferCount == 0xff)
@@ -109,10 +120,10 @@ private:
     {
         if (_bufferCount == 0)
             return;
-        sendByte(0x75);           // "Set RAM program" command
+        sendByte(0x75);           // "Send raw data" command
         sendByte(_bufferCount);   // Send length
         for (int i = 0; i < _bufferCount; ++i)
-            sendByte(_buffer[i];  // Send data byte
+            sendByte(_buffer[i]);  // Send data byte
         _bufferCount = 0;
     }
 
