@@ -200,7 +200,7 @@ public:
             Wave shifted;
             for (int i = 0; i < 0x100; ++i)
                 shifted[i] = t[(i-phase)&0xff];
-            
+
             SInt64 best = 0x7fffffffffffffffLL;
             int bestIndex = -1;
             for (int i = 0; i < _waves.count(); ++i) {
@@ -293,7 +293,7 @@ public:
     void consume(int n) { produce(n); }
     void produce(int n)
     {
-        // We process a frame at once - 
+        // We process a frame at once -
         // (1/50)s or 19656 SID cycles (SID clock rate is 985248Hz)
         Accessor<Byte> reader = _sink.reader(1000);
         Accessor<Sample> writer = _source.writer(19656);
@@ -629,38 +629,36 @@ public:
     WaveBank _bank;
 };
 
-#ifdef _WIN32
-int main()
-#else
-int main(int argc, char* argv[])
-#endif
+class Program : public ProgramBase
 {
-    //for (int i = 0; i < 0x100; ++i) {
-    //    int s = static_cast<int>(0x8000*sin(i*2*M_PI/0x100));
-    //    printf("%c0x%04x,",s<0 ? '-' : ' ',abs(s));
-    //    if (i % 8 == 7)
-    //        printf("\n");
-    //}
+public:
+    void run()
+    {
+        //for (int i = 0; i < 0x100; ++i) {
+        //    int s = static_cast<int>(0x8000*sin(i*2*M_PI/0x100));
+        //    printf("%c0x%04x,",s<0 ? '-' : ' ',abs(s));
+        //    if (i % 8 == 7)
+        //        printf("\n");
+        //}
 
-    //UInt32 lfsr = 0x7ffff8;
-    //for (int i = 0; i < 16384; ++i)
-    //    lfsr = ((lfsr << 1) & 0x7fffff) |
-    //        (((lfsr>>22) ^ (lfsr>>17)) & 1);
-    //for (int i = 0; i < 256; ++i) {
-    //    lfsr = ((lfsr << 1) & 0x7fffff) |
-    //        (((lfsr>>22) ^ (lfsr>>17)) & 1);
-    //    int s = 
-    //        ((lfsr >> 11) & 0x800) |
-    //        ((lfsr >> 10) & 0x400) |
-    //        ((lfsr >>  7) & 0x200) |
-    //        ((lfsr >>  5) & 0x100) |
-    //        ((lfsr >>  4) & 0x080) |
-    //        ((lfsr >>  1) & 0x040) |
-    //        ((lfsr <<  1) & 0x020) |
-    //        ((lfsr <<  2) & 0x010);
-    //    printf("0x%03x, ", s);
-    //}
-    BEGIN_CHECKED {
+        //UInt32 lfsr = 0x7ffff8;
+        //for (int i = 0; i < 16384; ++i)
+        //    lfsr = ((lfsr << 1) & 0x7fffff) |
+        //        (((lfsr>>22) ^ (lfsr>>17)) & 1);
+        //for (int i = 0; i < 256; ++i) {
+        //    lfsr = ((lfsr << 1) & 0x7fffff) |
+        //        (((lfsr>>22) ^ (lfsr>>17)) & 1);
+        //    int s =
+        //        ((lfsr >> 11) & 0x800) |
+        //        ((lfsr >> 10) & 0x400) |
+        //        ((lfsr >>  7) & 0x200) |
+        //        ((lfsr >>  5) & 0x100) |
+        //        ((lfsr >>  4) & 0x080) |
+        //        ((lfsr >>  1) & 0x040) |
+        //        ((lfsr <<  1) & 0x020) |
+        //        ((lfsr <<  2) & 0x010);
+        //    printf("0x%03x, ", s);
+        //}
         COMInitializer com;
         File file(String("sid.dat"));
         FileSource<Byte> source(file);
@@ -676,8 +674,5 @@ int main(int argc, char* argv[])
         interpolator.source()->connect(&sink);
         sink.play();
         //sink.wait();
-    }
-    END_CHECKED(Exception& e) {
-        e.write(Handle::consoleOutput());
     }
 }

@@ -80,6 +80,7 @@
     <ClInclude Include="..\..\..\include\unity\file.h" />
     <ClInclude Include="..\..\..\include\unity\main.h" />
     <ClInclude Include="..\..\..\include\unity\string.h" />
+    <ClInclude Include="..\..\..\include\unity\thread.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

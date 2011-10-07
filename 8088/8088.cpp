@@ -1808,8 +1808,8 @@ protected:
         if (_arguments.count() < 2) {
             static String syntax1("Syntax: ");
             static String syntax2(" <input file name>\n");
-            (syntax1 + _arguments[0] + syntax2).write(Handle::consoleOutput());
-            exit(1);
+            _console.write(syntax1 + _arguments[0] + syntax2);
+            return;
         }
         File file(_arguments[1]);
         String contents = file.contents();

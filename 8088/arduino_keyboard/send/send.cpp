@@ -1,5 +1,6 @@
 #include "unity/main.h"
 #include "unity/file.h"
+#include "unity/thread.h"
 
 class Program : public ProgramBase
 {
@@ -7,17 +8,16 @@ public:
     void run()
     {
         if (_arguments.count() == 1) {
-            String("Usage: send <name of file to send>\n").
-                write(Handle::consoleOutput());
+            _console.write(String("Usage: send <name of file to send>\n"));
             return;
         }
         String fileName = _arguments[1];
         String data = File(fileName).contents();
         int l = data.length();
         if (l > 0x400) {
-            (String("Error: ") + fileName + String(" is ") + String::decimal(l)
-                + String(" bytes (must be less than 1024).\n")).
-                    write(Handle::consoleOutput());
+            _console.write(String("Error: ") + fileName + String(" is ") +
+                String::decimal(l) +
+                String(" bytes (must be less than 1024).\n"));
             return;
         }
 
@@ -60,7 +60,8 @@ public:
         deviceControlBlock.XoffChar = 19;
 
         IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
-        _console = Handle::consoleOutput();
+        ReaderThread thread(this);
+        thread.start();
 
 //        Sleep(2000);
 
@@ -73,24 +74,38 @@ public:
         for (int i = 0; i < l; ++i)
             sendByte(data[i]);  // Send program byte
         String("Send complete.\n").write(_console);
-        while (true) {
-            Byte r = _com.tryReadByte();
-            if (r != -1)
-                _console.write(r);
-        }
+        thread.join();
     }
 private:
+    class ReaderThread : public Thread
+    {
+    public:
+        ReaderThread(Program* program) : _program(program) { }
+        void threadProc()
+        {
+            do {
+                DWORD eventMask;
+                if (WaitCommEvent(_program->_com, &eventMask, NULL) == 0)
+                    throw Exception::systemError(String("Reading COM port"));
+                if ((eventMask & EV_RXCHAR) != 0) {
+                    int c = _program->_com.read<Byte>();
+                    if (c == 26)
+                        break;
+                    _program->_console.write<Byte>(c);
+                }
+            } while (true);
+        }
+    private:
+        Program* _program;
+    };
+
     void sendByte(Byte value)
     {
         // Escape for XON/XOFF
         if (value == 0 || value == 17 || value == 19)
             _com.write<Byte>(0);
         _com.write<Byte>(value);
-        Byte r = _com.tryReadByte();
-        if (r != -1)
-            _console.write(r);
     }
 
-    Handle _console;
     AutoHandle _com;
 };

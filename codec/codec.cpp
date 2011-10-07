@@ -155,20 +155,18 @@ void crossover(Chromosome* chromosome1, Chromosome* chromosome2)
 
 Array<Chromosome> chromosomes;
 
-#ifdef _WIN32
-int main()
-#else
-int main(int argc, char* argv[])
-#endif
+class Program : public ProgramBase
 {
-    BEGIN_CHECKED {
+public:
+    void run()
+    {
         {
             Array<Sample> waves;
             Array<double> wave;
             wave.allocate(samplesPerWaveform);
             waves.allocate(samplesPerWaveform * totalWaveforms);
             for (int sample = 0; sample < samplesPerWaveform; ++sample)
-                waves[sample] = clamp(-32768.0, 
+                waves[sample] = clamp(-32768.0,
                     0x8000*sin(sample*2*M_PI/samplesPerWaveform), 32767.0);
             File file(String("waves.raw"));
             FileHandle handle(file);
@@ -269,7 +267,7 @@ int main(int argc, char* argv[])
             }
             int parent1 = chromosome;
             chosen[parent1] = true;
-            
+
             r = random64(totalQuiet - quietness[parent1]);
             for (chromosome = 0; chromosome < population; ++chromosome) {
                 if (chosen[chromosome])
@@ -280,7 +278,7 @@ int main(int argc, char* argv[])
             }
             int parent2 = chromosome;
             //printf("%i+%i->%i+%i\n",parent1,parent2,dies1,dies2);
-            
+
             chosen[dies1] = false;
             chosen[dies2] = false;
             chosen[parent1] = false;
@@ -335,8 +333,5 @@ int main(int argc, char* argv[])
             }
 
         } while (true);
-    }
-    END_CHECKED(Exception& e) {
-        e.write(Handle::consoleOutput());
     }
 }

@@ -52,6 +52,13 @@ setDataOutput:
   sbi 0x04, 0
   ret
 
+.global reset
+reset:
+  sbi 0x04, 2
+  call wait250ms
+  cbi 0x04, 2
+  ret
+
 .global wait2us       ; 32 cycles
 wait2us:              ; 4
   ldi r31,8           ; 1          ; (cycles to delay - 8)/3

@@ -113,8 +113,8 @@ org 0
   mov [cs:startAddress],ax
 
   ; Disable NMI
-  xor al,al
-  out 0xa0,al
+;  xor al,al
+;  out 0xa0,al
   ; Find end of memory. Memory is always added in 16Kb units. We can't use
   ; the BIOS measurement since it won't have been initialized.
   mov ax,0x9c00
@@ -132,13 +132,13 @@ foundRAM:
   xor sp,sp
 
   ; Re-enable NMI
-  in al,0x61
-  or al,0x30
-  out 0x61,al
-  and al,0xcf
-  out 0x61,al
-  mov al,0x80
-  out 0xa0,al
+;  in al,0x61
+;  or al,0x30
+;  out 0x61,al
+;  and al,0xcf
+;  out 0x61,al
+;  mov al,0x80
+;  out 0xa0,al
 
   mov di,0x50 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
   mov bx,cs
@@ -248,6 +248,7 @@ noRelocationNeeded:
   and al,0x7f
   out 0x61,al
 
+tryLoad:
   ; Read a 3-byte count and then a number of bytes into memory, starting at
   ; DS:DI
   call keyboardRead
@@ -258,22 +259,21 @@ noRelocationNeeded:
   mov bh,0
 
   ; Debug: print number of bytes to load
-  mov ax,bx
-  int 0x63
-  mov ax,cx
-  int 0x63
-  mov al,10
-  int 0x65
+;  mov ax,bx
+;  int 0x63
+;  mov ax,cx
+;  int 0x63
+;  mov al,10
+;  int 0x65
 
   mov si,bx
   push cx
+  xor dl,dl
 pagesLoop:
   cmp si,0
   je noFullPages
   xor cx,cx
   call loadBytes
-  mov al,'X'
-  int 0x65
   dec si
   jmp pagesLoop
 noFullPages:
@@ -281,11 +281,21 @@ noFullPages:
   test cx,cx
   jz loadProgramDone
   call loadBytes
-  mov al,'Y'
-  int 0x65
 loadProgramDone:
-  mov al,'Z'
-  int 0x65
+  ; Check that the checksum matches
+  call keyboardRead
+  cmp dl,bl
+  mov ax,cs
+  mov ds,ax
+  je checksumOk
+  mov si,failMessage
+  mov cx,failMessageEnd - failMessage
+  int 0x64
+  jmp tryLoad
+checksumOk:
+  mov si,okMessage
+  mov cx,okMessageEnd - okMessage
+  int 0x64
   retf
 
 
@@ -304,21 +314,28 @@ keyboardRead:
   out 0x61,al
   and al,0x7f
   out 0x61,al
+
+  push bx
+  push cx
+  mov cl,4
+  mov al,bl
+  shr al,cl
+  call printNybble
+  mov al,bl
+  and al,0xf
+  call printNybble
+  mov al,' '
+  call printChar
+  pop cx
+  pop bx
+
   ret
 
 
 ; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
 loadBytes:
   call keyboardRead
-  mov byte[es:178],bl
-
-  ; Debug: print load address
-  mov byte[cs:column],0
-  mov ax,ds
-  int 0x63
-  mov ax,di
-  int 0x63
-
+  add dl,bl
   mov [di],bl
   add di,1
   jnc noOverflow
@@ -326,6 +343,17 @@ loadBytes:
   add bh,0x10
   mov ds,bx
 noOverflow:
+  test di,0x000f
+  jnz noPrint
+
+  ; Debug: print load address
+;  mov byte[cs:column],0
+;  mov ax,ds
+;  int 0x63
+;  mov ax,di
+;  int 0x63
+
+noPrint:
   loop loadBytes
   ret
 
@@ -415,18 +443,18 @@ writeCharacter:
 sendLoop:
   mov di,cx
   ; Lower clock line to tell the Arduino we want to send data
-  mov dx,0x61
-  in al,dx
+  in al,0x61
   and al,0xbf
-  out dx,al
+  out 0x61,al
   ; Wait for 1ms
   mov bx,cx
   mov cx,52500000*18/(11*17*4*2*1000)
 waitLoop:
   loop waitLoop
   ; Raise clock line again
+  in al,0x61
   or al,0x40
-  out dx,al
+  out 0x61,al
 
   ; Throw away the keystroke that comes from clearInterruptedKeystroke()
   call keyboardRead
@@ -441,6 +469,7 @@ gotCount:
   sub di,cx
 
   ; Set up the bh register for sendByte
+  mov dx,0x61
   in al,dx
   mov bh,al
   rcl bh,1
@@ -525,6 +554,12 @@ sendByte:
   rcr al,1             ; 2 0 8
   out dx,al            ; 1 1 8
 
+  stc
+  mov al,bh
+  rcr al,1
+  rcr al,1
+  out dx,al
+
   pop ax               ; for debugging purposes
   call printChar       ; for debugging purposes
   ret
@@ -560,7 +595,7 @@ quietLoop:
 
 complete:
   mov al,26
-  int 0x62  ; Write a ^Z character to tell the "run" program to finish
+;  int 0x62  ; Write a ^Z character to tell the "run" program to finish
   jmp 0  ; Restart the kernel
 
 
@@ -572,8 +607,7 @@ printNybble:
 printAlphabetic:
   add al,'A' - 10
 printGotCharacter:
-  call printChar
-  ret
+  jmp printChar
 
 
 printHex:
@@ -581,7 +615,7 @@ printHex:
   push cx
   mov bx,ax
   mov al,bh
-  mov cx,4
+  mov cl,4
   shr al,cl
   call printNybble
   mov al,bh
@@ -683,5 +717,12 @@ startAddress:
 bootMessage:
   db 'XT OS Kernel',10
 bootMessageEnd:
+okMessage:
+  db 'OK',10
+okMessageEnd:
+failMessage:
+  db 'Checksum failure',10
+failMessageEnd:
+
 
 kernelEnd:

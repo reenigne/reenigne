@@ -10,17 +10,7 @@
 #include "shellapi.h"
 #endif
 
-void displayError(const Exception& e)
-{
-#if defined(_WIN32) && defined(_WINDOWS)
-    NullTerminatedWideString s(e.message());
-    MessageBox(NULL, s, L"Error", MB_OK | MB_ICONERROR);
-#else
-    e.write(Handle::consoleOutput());
-#endif
-}
-
-class ProgramBase
+class ProgramBase : public Uncopyable
 {
 public:
 #ifdef _WIN32
@@ -28,23 +18,41 @@ public:
     int initialize(HINSTANCE hInst, INT nCmdShow)
     {
         BEGIN_CHECKED {
-            _windows.initialize(hInst);
-            _nCmdShow = nCmdShow;
-            return initializeWindowsCommandLine();
+            BEGIN_CHECKED {
+                _windows.initialize(hInst);
+                _nCmdShow = nCmdShow;
+                return initializeWindowsCommandLine();
+            }
+            END_CHECKED(Exception& e) {
+                NullTerminatedWideString s(e.message());
+                MessageBox(NULL, s, L"Error", MB_OK | MB_ICONERROR);
+            }
         }
-        END_CHECKED(Exception& e) {
-            e.write(Handle::consoleOutput());
-            return 0;
+        END_CHECKED(Exception&) {
+            // Can't even display an error
         }
+        return 0;
     }
 #else
     void initialize()
     {
         BEGIN_CHECKED {
-            initializeWindowsCommandLine();
+            HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (h == INVALID_HANDLE_VALUE || h == NULL) {
+                static String openingConsole("Getting console handle");
+                throw Exception::systemError(openingConsole);
+            }
+            static String console("console");
+            _console.set(h, console);
+            BEGIN_CHECKED {
+                initializeWindowsCommandLine();
+            }
+            END_CHECKED(Exception& e) {
+                _console.write(e);
+            }
         }
-        END_CHECKED(Exception& e) {
-            e.write(Handle::consoleOutput());
+        END_CHECKED(Exception&) {
+            // Can't even display an error
         }
     }
 #endif
@@ -52,27 +60,31 @@ public:
     void initialize(int argc, char* argv[])
     {
         BEGIN_CHECKED {
-            _arguments.allocate(argc);
-            for (int i = 0; i < argc; ++i) {
-                _arguments[i] = String(argv[i]);
-            run();
+            static String console("console");
+            _console.set(STDOUT_FILENO, console);
+            BEGIN_CHECKED {
+                _arguments.allocate(argc);
+                for (int i = 0; i < argc; ++i) {
+                    _arguments[i] = String(argv[i]);
+                run();
+            }
+            END_CHECKED(Exception& e) {
+                _console.write(e);
+            }
         }
-        END_CHECKED(Exception& e) {
-            e.write(Handle::consoleOutput());
+        END_CHECKED(Exception&) {
+            // Can't even display an error
         }
     }
 #endif
 protected:
-#ifdef _WIN32
-#ifdef _WINDOWS
+#if defined(_WIN32) && defined(_WINDOWS)
     Windows _windows;
     INT _nCmdShow;
     virtual int run() = 0;
 #else
     virtual void run() = 0;
-#endif
-#else
-    virtual void run() = 0;
+    Handle _console;
 #endif
     Array<String> _arguments;
 private:

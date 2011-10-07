@@ -23,6 +23,7 @@ void wait1ms();
 void wait250ms();
 bool getData();
 bool getClock();
+void reset();
 uint8_t receiveKeyboardByte();
 
 extern uint8_t PROGMEM asciiToScancodes[0x5f];
@@ -56,6 +57,10 @@ volatile uint16_t programBytesRemaining = 0;
 volatile bool ramProgram = false;
 volatile bool expectingRawCount = false;
 volatile bool sentEscape = false;
+volatile bool checkSum = 0;
+volatile bool expectingCheckSum = false;
+
+void enqueueSerialByte(uint8_t byte);
 
 void sendSerialByte()
 {
@@ -66,12 +71,14 @@ void sendSerialByte()
         return;
     uint8_t c;
     if (needXOff) {
+        enqueueSerialByte('f');
         c = 19;
         sentXOff = true;
         needXOff = false;
     }
     else {
         if (needXOn) {
+            enqueueSerialByte('n');
             c = 17;
             sentXOff = false;
             needXOn = false;
@@ -112,18 +119,18 @@ void enqueueSerialByte(uint8_t byte)
     sendSerialByte();
 }
 
-uint8_t hexNybble(uint8_t value)
-{
-    return (value < 10) ? value + '0' : value + 'A' - 10;
-}
-
-void enqueueSerialHex(uint8_t data)
-{
-    enqueueSerialByte('=');
-    enqueueSerialByte(hexNybble(data >> 4));
-    enqueueSerialByte(hexNybble(data & 0xf));
-    enqueueSerialByte(' ');
-}
+//uint8_t hexNybble(uint8_t value)
+//{
+//    return (value < 10) ? value + '0' : value + 'A' - 10;
+//}
+//
+//void enqueueSerialHex(uint8_t data)
+//{
+//    enqueueSerialByte('=');
+//    enqueueSerialByte(hexNybble(data >> 4));
+//    enqueueSerialByte(hexNybble(data & 0xf));
+//    enqueueSerialByte(' ');
+//}
 
 void enqueueKeyboardByte(uint8_t byte)
 {
@@ -144,11 +151,11 @@ bool processCommand(uint8_t command)
 {
     switch (command) {
         case 1:
-            enqueueSerialByte('k');
+//            enqueueSerialByte('k');
             testerMode = false;
             return true;
         case 2:
-            enqueueSerialByte('t');
+//            enqueueSerialByte('t');
             testerMode = true;
             return true;
         case 3:
@@ -159,11 +166,17 @@ bool processCommand(uint8_t command)
             ramProgram = false;
             return true;
         case 5:
+//            enqueueSerialByte('c');
             expectingRawCount = true;
             return true;
         case 6:
+//            enqueueSerialByte('r');
             keyboardBufferCharacters = 0;
             return true;
+        case 7:
+            reset();
+            return true;
+
     }
     return false;
 }
@@ -179,6 +192,7 @@ void processCharacter(uint8_t received)
     }
     if ((received == 17 || received == 19) && !receivedEscape) {
         receivedXOff = (received == 19);
+        enqueueSerialByte(receivedXOff ? 'F' : 'N');
         receivedEscape = false;
         return;
     }
@@ -186,12 +200,21 @@ void processCharacter(uint8_t received)
 
     if (expectingRawCount) {
         rawBytesRemaining = received;
+        checkSum = received;
         expectingRawCount = false;
         return;
     }
     if (rawBytesRemaining > 0) {
         enqueueKeyboardByte(received);
+        checkSum += received;
         --rawBytesRemaining;
+        if (rawBytesRemaining == 0)
+            expectingCheckSum = true;
+        return;
+    }
+    if (expectingCheckSum) {
+        enqueueSerialByte(received == checkSum ? 'K' : 'F');
+        expectingCheckSum = false;
         return;
     }
     if (programBytesRemaining == 0xffff) {
@@ -302,10 +325,14 @@ void sendKeyboardBit(uint8_t bit)
     raiseClock();
 }
 
+//bool sendingTesterProgram = false;
+
 bool sendKeyboardByte(uint8_t data)
 {
-//    enqueueSerialByte('S');
-//    enqueueSerialHex(data);
+//    if (!sendingTesterProgram) {
+//        enqueueSerialByte('S');
+//        enqueueSerialHex(data);
+//    }
 
     // We read the clock as high immediately before entering this routine.
     // The XT keyboard hardware holds the data line low to signal that the
@@ -352,7 +379,7 @@ int main()
     // DDRB value:   0x00  (Port B Data Direction Register)
     //   DDB0           0  Data                        - input
     //   DDB1           0  Clock                       - input
-    //   DDB2           0
+    //   DDB2           0  Reset                       - input
     //   DDB3           0
     //   DDB4           0
     //   DDB5           0
@@ -363,7 +390,7 @@ int main()
     // PORTB value:  0x03  (Port B Data Register)
     //   PORTB0         1  Data                        - high
     //   PORTB1         2  Clock                       - high
-    //   PORTB2         0
+    //   PORTB2         0  Reset                       - low
     //   PORTB3         0
     //   PORTB4         0
     //   PORTB5         0
@@ -465,8 +492,9 @@ int main()
                     // clock line low during a reset. If it does the data will
                     // be corrupted as we don't attempt to remember where we
                     // got to and retry from there.
-                    enqueueSerialByte('t');
+//                    enqueueSerialByte('T');
                     sendKeyboardByte(0x65);
+//                    sendingTesterProgram = true;
                     if (ramProgram) {
                         sendKeyboardByte(programBytes & 0xff);
                         sendKeyboardByte(programBytes >> 8);
@@ -485,9 +513,10 @@ int main()
                             sendKeyboardByte(
                                 pgm_read_byte(&defaultProgram[i+2]));
                     }
+  //                  sendingTesterProgram = false;
                 }
                 else {
-                    enqueueSerialByte('k');
+  //                  enqueueSerialByte('K');
                     sendKeyboardByte(0xaa);
                     wait2us();
                     while (!getData()) { }

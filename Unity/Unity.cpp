@@ -206,23 +206,23 @@ String atomToString(Atom atom)
             _table[atomFunctionDefinitionStatement] = String("functionDefinition");  // returnType     name            parameters     statement     basicBlock
             _table[atomFromStatement] = String("from");                              // dllExpression
             _table[atomVariableDefinitionStatement] = String("variableDefinition");  // typeSpecifier  identifier      initializer
-            _table[atomAssignment] = String("=");     
-            _table[atomAddAssignment] = String("+=");  
-            _table[atomSubtractAssignment] = String("-=");   
-            _table[atomMultiplyAssignment] = String("*=");   
-            _table[atomDivideAssignment] = String("/=");     
-            _table[atomModuloAssignment] = String("%=");     
-            _table[atomShiftLeftAssignment] = String("<<="); 
+            _table[atomAssignment] = String("=");
+            _table[atomAddAssignment] = String("+=");
+            _table[atomSubtractAssignment] = String("-=");
+            _table[atomMultiplyAssignment] = String("*=");
+            _table[atomDivideAssignment] = String("/=");
+            _table[atomModuloAssignment] = String("%=");
+            _table[atomShiftLeftAssignment] = String("<<=");
             _table[atomShiftRightAssignment] = String(">>=");
-            _table[atomBitwiseAndAssignment] = String("&=");        
-            _table[atomBitwiseOrAssignment] = String("|=");         
-            _table[atomBitwiseXorAssignment] = String("~=");        
-            _table[atomPowerAssignment] = String("^=");      
+            _table[atomBitwiseAndAssignment] = String("&=");
+            _table[atomBitwiseOrAssignment] = String("|=");
+            _table[atomBitwiseXorAssignment] = String("~=");
+            _table[atomPowerAssignment] = String("^=");
             _table[atomCompoundStatement] = String("compound");                      // statements
             _table[atomTypeAliasStatement] = String("type");                         // typeIdentifier typeSpecifier
             _table[atomNothingStatement] = String("nothing");
-            _table[atomIncrement] = String("++");    
-            _table[atomDecrement] = String("--");    
+            _table[atomIncrement] = String("++");
+            _table[atomDecrement] = String("--");
             _table[atomIfStatement] = String("if");                                  // condition      trueStatement   falseStatement
             _table[atomSwitchStatement] = String("switch");                          // expression     defaultCase     cases
             _table[atomReturnStatement] = String("return");                          // expression
@@ -294,8 +294,8 @@ protected:
         if (_arguments.count() < 2) {
             static String syntax1("Syntax: ");
             static String syntax2(" <input file name>\n");
-            (syntax1 + _arguments[0] + syntax2).write(Handle::consoleOutput());
-            exit(1);
+            _console.write(syntax1 + _arguments[0] + syntax2);
+            return;
         }
         File file(_arguments[1]);
         String contents = file.contents();

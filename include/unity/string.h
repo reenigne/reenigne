@@ -791,16 +791,6 @@ public:
     { }
     operator HANDLE() const { return _handle; }
     bool valid() const { return _handle != INVALID_HANDLE_VALUE; }
-    static Handle consoleOutput()
-    {
-        HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-        if (h == INVALID_HANDLE_VALUE || h == NULL) {
-            static String openingConsole("Getting console handle");
-            throw Exception::systemError(openingConsole);
-        }
-        static String console("console");
-        return Handle(h, console);
-    }
     void set(HANDLE handle, const String& name = empty)
     {
         _handle = handle;
@@ -813,11 +803,6 @@ public:
     { }
     operator int() const { return _fileDescriptor; }
     bool valid() const { return _fileDescriptor != -1; }
-    static Handle consoleOutput()
-    {
-        static String console("console");
-        return Handle(STDOUT_FILENO, console);
-    }
     void set(int fileDescriptor, const String& name = empty)
     {
         _fileDescriptor = fileDescriptor;
@@ -827,10 +812,12 @@ public:
     String name() const { return _name; }
     // Be careful using the template read() and write() functions with types
     // other than single bytes and arrays thereof - they are not endian-safe.
-    template<class U> void write(const U& value)
+    template<class U> void write(const U& value) const
     {
         write(static_cast<const void*>(&value), sizeof(U));
     }
+    void write(const String& s) const { s.write(*this); }
+    void write(const Exception& e) const { e.write(*this); }
     void write(const void* buffer, int bytes) const
     {
         if (bytes == 0)
@@ -855,20 +842,27 @@ public:
     }
     int tryReadByte()
     {
-#if _WIN32
-        Byte value;
+        Byte b;
+        static String readingFile("Reading file ");
+#ifdef _WIN32
         DWORD bytesRead;
-        if (ReadFile(_handle, static_cast<void*>(&value), 1, &bytesRead, NULL)
+        if (ReadFile(_handle, static_cast<void*>(&b), 1, &bytesRead, NULL)
             == 0) {
-            DWORD error = GetLastError();
-            if (error == ERROR_HANDLE_EOF)
+            if (GetLastError() == ERROR_HANDLE_EOF)
                 return -1;
             throw Exception::systemError(readingFile + _name);
         }
-        return value;
+        if (bytesRead != 1)
+            return -1;
 #else
-        // TODO
+        ssize_t readResult = read(_fileDescriptor, static_cast<void*>(&b), 1);
+        if (readResult < 1) {
+            if (_eof(_fileDescriptor))
+                return -1;
+            throw Exception::systemError(readingFile + _name);
+        }
 #endif
+        return b;
     }
     void read(void* buffer, int bytes) const
     {
@@ -918,7 +912,6 @@ public:
     { }
     void write(const Handle& handle) const
     {
-        static String newLine("\n");
         (_message + newLine).write(handle);
     }
     static Exception systemError(const String& message = "")
