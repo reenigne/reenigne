@@ -107,11 +107,6 @@ org 0
   cld
   rep stosw
 
-  ; Reset video variables
-  xor ax,ax
-  mov [cs:column],al
-  mov [cs:startAddress],ax
-
   ; Disable NMI
 ;  xor al,al
 ;  out 0xa0,al
@@ -209,6 +204,11 @@ noRelocationNeeded:
   mov word [0x198], beep
   mov [0x19a], cs
 
+  ; Reset video variables
+  xor ax,ax
+  mov [cs:column],al
+  mov [cs:startAddress],ax
+
   ; Beep
   int 0x66
   ; Print a message
@@ -241,13 +241,6 @@ noRelocationNeeded:
   mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
   out 0x20,al  ;  read Interrupt Request Register
 
-  ; The BIOS leaves the keyboard with an unacknowledged byte - acknowledge it
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-
 tryLoad:
   ; Read a 3-byte count and then a number of bytes into memory, starting at
   ; DS:DI
@@ -259,12 +252,12 @@ tryLoad:
   mov bh,0
 
   ; Debug: print number of bytes to load
-;  mov ax,bx
-;  int 0x63
-;  mov ax,cx
-;  int 0x63
-;  mov al,10
-;  int 0x65
+  mov ax,bx
+  int 0x63
+  mov ax,cx
+  int 0x63
+  mov al,10
+  int 0x65
 
   mov si,bx
   push cx
@@ -301,33 +294,37 @@ checksumOk:
 
 ; Reads the next keyboard scancode into BL
 keyboardRead:
+  ; Acknowledge the previous byte
+;  in al,0x61
+;  or al,0x80
+  mov al,0xcc
+  out 0x61,al
+;  and al,0x7f
+  mov al,0x4c
+  out 0x61,al
+
   ; Loop until the IRR bit 1 (IRQ 1) is high
+waitForKeyboardByte:
   in al,0x20
   and al,2
-  jz keyboardRead
+  jz waitForKeyboardByte
   ; Read the keyboard byte and store it
   in al,0x60
   mov bl,al
-  ; Acknowledge the keyboard scancode byte
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
 
-  push bx
-  push cx
-  mov cl,4
-  mov al,bl
-  shr al,cl
-  call printNybble
-  mov al,bl
-  and al,0xf
-  call printNybble
-  mov al,' '
-  call printChar
-  pop cx
-  pop bx
+;  push bx
+;  push cx
+;  mov cl,4
+;  mov al,bl
+;  shr al,cl
+;  call printNybble
+;  mov al,bl
+;  and al,0xf
+;  call printNybble
+;  mov al,' '
+;  call printChar
+;  pop cx
+;  pop bx
 
   ret
 
@@ -347,11 +344,11 @@ noOverflow:
   jnz noPrint
 
   ; Debug: print load address
-;  mov byte[cs:column],0
-;  mov ax,ds
-;  int 0x63
-;  mov ax,di
-;  int 0x63
+  mov byte[cs:column],0
+  mov ax,ds
+  int 0x63
+  mov ax,di
+  int 0x63
 
 noPrint:
   loop loadBytes

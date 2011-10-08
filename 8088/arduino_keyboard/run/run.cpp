@@ -68,7 +68,8 @@ public:
         //DWORD error;
         //IF_ZERO_THROW(ClearCommError(_com, &error, NULL));
 
-        _com.set(CreateFile(L"run.output", GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL));
+        _com.set(CreateFile(L"run.output", GENERIC_WRITE, 0, NULL,
+            CREATE_ALWAYS, 0, NULL));
 
         ReaderThread thread(this);
         //thread.start();
@@ -76,6 +77,7 @@ public:
         sendByte(0x7f);      // Put Arduino in raw mode
         sendByte(0x76);      // Clear keyboard buffer
         sendByte(0x72);      // Put Arduino in tester mode
+        sendByte(0x78);      // Put Arduino in tester raw mode
 
         // The buffer in the Arduino only holds 255 bytes, so we have to send
         // it in chunks. We do this by buffering the data on the host PC side,
@@ -87,8 +89,17 @@ public:
         _console.write(String::hexadecimal(l, 8) + String("\n"));
         Byte checkSum = 0;
         if (comFile) {
-            addLength(l + 0x100);
-            for (int i = 0; i < 0x100; ++i) {
+            l += 0x100;
+            addByte(l & 0xff);
+            addByte((l >> 8) & 0xff);
+            l -= 0x100;
+            //addLength(l + 0x100);
+            addByte(0xea);
+            addByte(0x00);
+            addByte(0x01);
+            addByte(0x41);
+            addByte(0x00);
+            for (int i = 0; i < 0x100 - 5; ++i) {
                 addByte(0x90);
                 checkSum += 0x90;
             }
@@ -101,7 +112,7 @@ public:
             if ((i & 0xff) == 0)
                 _console.write(dot);
         }
-        addByte(checkSum);
+//        addByte(checkSum);
         flush();
 
         _console.write(String("Upload complete.\n"));

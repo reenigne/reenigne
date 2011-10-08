@@ -59,6 +59,7 @@ volatile bool expectingRawCount = false;
 volatile bool sentEscape = false;
 volatile bool checkSum = 0;
 volatile bool expectingCheckSum = false;
+volatile bool testerRaw = false;
 
 void enqueueSerialByte(uint8_t byte);
 
@@ -71,14 +72,14 @@ void sendSerialByte()
         return;
     uint8_t c;
     if (needXOff) {
-        enqueueSerialByte('f');
+//        enqueueSerialByte('f');
         c = 19;
         sentXOff = true;
         needXOff = false;
     }
     else {
         if (needXOn) {
-            enqueueSerialByte('n');
+//            enqueueSerialByte('n');
             c = 17;
             sentXOff = false;
             needXOn = false;
@@ -176,6 +177,12 @@ bool processCommand(uint8_t command)
         case 7:
             reset();
             return true;
+        case 8:
+            testerRaw = true;
+            return true;
+        case 9:
+            testerRaw = false;
+            return false;
 
     }
     return false;
@@ -213,7 +220,7 @@ void processCharacter(uint8_t received)
         return;
     }
     if (expectingCheckSum) {
-        enqueueSerialByte(received == checkSum ? 'K' : 'F');
+        enqueueSerialByte(received == checkSum ? 'K' : '~');
         expectingCheckSum = false;
         return;
     }
@@ -494,26 +501,26 @@ int main()
                     // got to and retry from there.
 //                    enqueueSerialByte('T');
                     sendKeyboardByte(0x65);
-//                    sendingTesterProgram = true;
-                    if (ramProgram) {
-                        sendKeyboardByte(programBytes & 0xff);
-                        sendKeyboardByte(programBytes >> 8);
-                        for (uint16_t i = 0; i < programBytes; ++i)
-                            sendKeyboardByte(programBuffer[i]);
+                    if (!testerRaw) {
+                        if (ramProgram) {
+                            sendKeyboardByte(programBytes & 0xff);
+                            sendKeyboardByte(programBytes >> 8);
+                            for (uint16_t i = 0; i < programBytes; ++i)
+                                sendKeyboardByte(programBuffer[i]);
+                        }
+                        else {
+                            uint16_t programBytes =
+                                pgm_read_byte(&defaultProgram[0]);
+                            programBytes |=
+                                (uint16_t)(pgm_read_byte(&defaultProgram[1]))
+                                << 8;
+                            sendKeyboardByte(programBytes & 0xff);
+                            sendKeyboardByte(programBytes >> 8);
+                            for (uint16_t i = 0; i < programBytes; ++i)
+                                sendKeyboardByte(
+                                    pgm_read_byte(&defaultProgram[i+2]));
+                        }
                     }
-                    else {
-                        uint16_t programBytes =
-                            pgm_read_byte(&defaultProgram[0]);
-                        programBytes |=
-                            (uint16_t)(pgm_read_byte(&defaultProgram[1]))
-                            << 8;
-                        sendKeyboardByte(programBytes & 0xff);
-                        sendKeyboardByte(programBytes >> 8);
-                        for (uint16_t i = 0; i < programBytes; ++i)
-                            sendKeyboardByte(
-                                pgm_read_byte(&defaultProgram[i+2]));
-                    }
-  //                  sendingTesterProgram = false;
                 }
                 else {
   //                  enqueueSerialByte('K');
@@ -531,6 +538,7 @@ int main()
                 // End of reset code
             }
             else {
+                enqueueSerialByte('#');
                 while (!getClock()) { }  // Wait for clock to go high again.
                 // A short clock-low pulse. This is the XT trying to send us
                 // some data.
@@ -538,9 +546,9 @@ int main()
                 // Send the number of bytes that the XT can safely send us.
                 sendKeyboardByte(serialBufferCharacters == 0 ? 255 :
                     256-serialBufferCharacters);
-                uint8_t count = receiveKeyboardByte();
-                for (uint8_t i = 0; i < count; ++i)
-                    enqueueSerialByte(receiveKeyboardByte());
+//                uint8_t count = receiveKeyboardByte();
+//                for (uint8_t i = 0; i < count; ++i)
+//                    enqueueSerialByte(receiveKeyboardByte());
             }
         }
         else {
