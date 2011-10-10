@@ -72,14 +72,12 @@ void sendSerialByte()
         return;
     uint8_t c;
     if (needXOff) {
-//        enqueueSerialByte('f');
         c = 19;
         sentXOff = true;
         needXOff = false;
     }
     else {
         if (needXOn) {
-//            enqueueSerialByte('n');
             c = 17;
             sentXOff = false;
             needXOn = false;
@@ -120,24 +118,8 @@ void enqueueSerialByte(uint8_t byte)
     sendSerialByte();
 }
 
-//uint8_t hexNybble(uint8_t value)
-//{
-//    return (value < 10) ? value + '0' : value + 'A' - 10;
-//}
-//
-//void enqueueSerialHex(uint8_t data)
-//{
-//    enqueueSerialByte('=');
-//    enqueueSerialByte(hexNybble(data >> 4));
-//    enqueueSerialByte(hexNybble(data & 0xf));
-//    enqueueSerialByte(' ');
-//}
-
 void enqueueKeyboardByte(uint8_t byte)
 {
-//    enqueueSerialByte('Q');
-//    enqueueSerialHex(byte);
-
     keyboardBuffer[(keyboardBufferPointer + keyboardBufferCharacters) & 0xff]
         = byte;
     ++keyboardBufferCharacters;
@@ -152,11 +134,9 @@ bool processCommand(uint8_t command)
 {
     switch (command) {
         case 1:
-//            enqueueSerialByte('k');
             testerMode = false;
             return true;
         case 2:
-//            enqueueSerialByte('t');
             testerMode = true;
             return true;
         case 3:
@@ -167,11 +147,9 @@ bool processCommand(uint8_t command)
             ramProgram = false;
             return true;
         case 5:
-//            enqueueSerialByte('c');
             expectingRawCount = true;
             return true;
         case 6:
-//            enqueueSerialByte('r');
             keyboardBufferCharacters = 0;
             return true;
         case 7:
@@ -190,9 +168,6 @@ bool processCommand(uint8_t command)
 
 void processCharacter(uint8_t received)
 {
-//    enqueueSerialByte('R');
-//    enqueueSerialHex(received);
-
     if (received == 0 && !receivedEscape) {
         receivedEscape = true;
         return;
@@ -332,15 +307,8 @@ void sendKeyboardBit(uint8_t bit)
     raiseClock();
 }
 
-//bool sendingTesterProgram = false;
-
 bool sendKeyboardByte(uint8_t data)
 {
-//    if (!sendingTesterProgram) {
-//        enqueueSerialByte('S');
-//        enqueueSerialHex(data);
-//    }
-
     // We read the clock as high immediately before entering this routine.
     // The XT keyboard hardware holds the data line low to signal that the
     // previous byte has not yet been acknowledged by software.
@@ -438,15 +406,15 @@ int main()
     //   OCIE0B         0  Timer 0 compare B: no interrupt
     TIMSK0 = 0x01;
 
-    // UCSR0A value: 0x00  (USART Control and Status Register 0 A)
+    // UCSR0A value: 0x02  (USART Control and Status Register 0 A)
     //   MPCM0          0  Multi-processor Communcation Mode: disabled
-    //   U2X0           0  Double the USART Transmission Speed: disabled
+    //   U2X0           2  Double the USART Transmission Speed: enabled
     //
     //
     //
     //
     //   TXC0           0  USART Transmit Complete: not cleared
-    UCSR0A = 0x00;
+    UCSR0A = 0x02;
 
     // UCSR0B value: 0xd8  (USART Control and Status Register 0 B)
     //   TXB80          0  Transmit Data Bit 8 0
@@ -471,8 +439,8 @@ int main()
     //   UMSEL01        0  USART Mode Select: asynchronous
     UCSR0C = 0x06;
 
-    // UBRR0L value: 0x67  (USART Baud Rate Register Low) - 9600bps
-    UBRR0L = 0x67;
+    // UBRR0L value: 0x10  (USART Baud Rate Register Low) - 115,200bps
+    UBRR0L = 0x10;
 
     // UBRR0H value: 0x00  (USART Baud Rate Register High)
     UBRR0H = 0x00;
@@ -499,7 +467,6 @@ int main()
                     // clock line low during a reset. If it does the data will
                     // be corrupted as we don't attempt to remember where we
                     // got to and retry from there.
-//                    enqueueSerialByte('T');
                     sendKeyboardByte(0x65);
                     if (!testerRaw) {
                         if (ramProgram) {
@@ -523,7 +490,6 @@ int main()
                     }
                 }
                 else {
-  //                  enqueueSerialByte('K');
                     sendKeyboardByte(0xaa);
                     wait2us();
                     while (!getData()) { }
@@ -544,11 +510,16 @@ int main()
                 // some data.
                 clearInterruptedKeystroke();
                 // Send the number of bytes that the XT can safely send us.
+                cli();
                 sendKeyboardByte(serialBufferCharacters == 0 ? 255 :
                     256-serialBufferCharacters);
-//                uint8_t count = receiveKeyboardByte();
-//                for (uint8_t i = 0; i < count; ++i)
-//                    enqueueSerialByte(receiveKeyboardByte());
+                sei();
+                uint8_t count = receiveKeyboardByte();
+                for (uint8_t i = 0; i < count; ++i) {
+                    cli();
+                    enqueueSerialByte(receiveKeyboardByte());
+                    sei();
+                }
             }
         }
         else {
@@ -556,9 +527,14 @@ int main()
             if (countdown == 0 && keyboardBufferCharacters != 0) {
                 if (sendKeyboardByte(keyboardBuffer[keyboardBufferPointer])) {
                     // Successfully sent - remove this character from the
-                    // buffer.
+                    // buffer. This needs to be done with interrupts off in
+                    // case a character is received (and added to the buffer)
+                    // while these instruction are being processed (even a
+                    // an 8-bit memory increment is not atomic on 8-bit AVR).
+                    cli();
                     ++keyboardBufferPointer;
                     --keyboardBufferCharacters;
+                    sei();
                     // If we've made enough space in the buffer, allow
                     //  receiving again.
                     if (keyboardBufferCharacters < 0xf0 && sentXOff) {

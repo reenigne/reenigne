@@ -78,11 +78,16 @@ wait142cyclesNop:
 
 .global wait50us      ; 800 cycles
 wait50us:             ; 4
-  ldi r31,198         ; 1          ; (cycles to delay - 8)/4
+;  ldi r31,198         ; 1          ; (cycles to delay - 8)/4
+;wait50usLoop:
+;  nop                 ; n*1
+;  dec r31             ; n*1
+;  brne wait50usLoop   ; n*2 - 1
+;  ret                 ; 4
+  ldi r31,104         ; 1          ; (cycles to delay - 8)/3           - this is actually now 20us!
 wait50usLoop:
-  nop                 ; n*1
   dec r31             ; n*1
-  brne wait50usLoop   ; n*2 - 1
+  brne wait50usLoop    ; n*2 - 1
   ret                 ; 4
 
 .global wait1ms       ; 16000 cycles

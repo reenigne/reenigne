@@ -107,6 +107,31 @@ org 0
   cld
   rep stosw
 
+  ; Set up the timer interrupt
+  mov al,0x36  ; Timer 0, write both bytes, mode 3 (square wave), binary mode
+  out 0x43,al
+  mov al,0     ; rate = 13125000/11/2^16 != 18.2Hz
+  out 0x40,al
+  out 0x40,al
+
+  ; Set up interrupt masks.
+  mov al,0xbc  ; Enable IRQs 0 (timer), 1 (keyboard) and 6 (floppy disk).
+  out 0x21,al  ; Leave disabled 2 (EGA/VGA/slave 8259) 3 (COM2/COM4), 4 (COM1/COM3), 5 (hard drive, LPT2) and 7 (LPT1)
+
+  ; Set up interrupt table
+  xor ax,ax
+  mov es,ax
+  mov ax,0xf000
+  mov ds,ax
+  mov cx,8
+  mov si,0xfef3
+  mov di,0x20
+interruptSetupLoop:
+  movsw
+  inc di
+  inc di
+  loop interruptSetupLoop
+
   ; Disable NMI
 ;  xor al,al
 ;  out 0xa0,al
@@ -126,14 +151,14 @@ foundRAM:
   mov ss,ax
   xor sp,sp
 
-  ; Re-enable NMI
-;  in al,0x61
-;  or al,0x30
-;  out 0x61,al
-;  and al,0xcf
-;  out 0x61,al
-;  mov al,0x80
-;  out 0xa0,al
+  ; Enable NMI
+  in al,0x61
+  or al,0x30
+  out 0x61,al
+  and al,0xcf
+  out 0x61,al
+  mov al,0x80
+  out 0xa0,al
 
   mov di,0x50 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
   mov bx,cs
@@ -241,6 +266,13 @@ noRelocationNeeded:
   mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
   out 0x20,al  ;  read Interrupt Request Register
 
+  ; The BIOS leaves the keyboard with an unacknowledged byte - acknowledge it
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
+
 tryLoad:
   ; Read a 3-byte count and then a number of bytes into memory, starting at
   ; DS:DI
@@ -294,23 +326,19 @@ checksumOk:
 
 ; Reads the next keyboard scancode into BL
 keyboardRead:
-  ; Acknowledge the previous byte
-;  in al,0x61
-;  or al,0x80
-  mov al,0xcc
-  out 0x61,al
-;  and al,0x7f
-  mov al,0x4c
-  out 0x61,al
-
   ; Loop until the IRR bit 1 (IRQ 1) is high
-waitForKeyboardByte:
   in al,0x20
   and al,2
-  jz waitForKeyboardByte
+  jz keyboardRead
   ; Read the keyboard byte and store it
   in al,0x60
   mov bl,al
+  ; Acknowledge the previous byte
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
 
 ;  push bx
 ;  push cx
