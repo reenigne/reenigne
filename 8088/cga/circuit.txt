@@ -216,6 +216,15 @@ U33: MK36000 character ROM
      A9 = CC6
     A10 = CC7
     -CE = +RESET6 XOR (-LCLK XOR +Q4)
+  Outputs:
+    Q1
+    Q2
+    Q3
+    Q4
+    Q5
+    Q6
+    Q7
+    Q8
 
 U34: character latch
   Inputs:

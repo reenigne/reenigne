@@ -21,7 +21,7 @@ public:
         IF_ZERO_THROW(GetCommState(_com, &deviceControlBlock));
 
         deviceControlBlock.DCBlength = sizeof(DCB);
-        deviceControlBlock.BaudRate = CBR_9600;
+        deviceControlBlock.BaudRate = 19200;
         //deviceControlBlock.fBinary = TRUE;
         //deviceControlBlock.fParity = FALSE;
         deviceControlBlock.fOutxCtsFlow = FALSE;

@@ -414,7 +414,8 @@ int main()
     //
     //
     //   TXC0           0  USART Transmit Complete: not cleared
-    UCSR0A = 0x02;
+ //   UCSR0A = 0x02;
+    UCSR0A = 0x00;
 
     // UCSR0B value: 0xd8  (USART Control and Status Register 0 B)
     //   TXB80          0  Transmit Data Bit 8 0
@@ -440,7 +441,8 @@ int main()
     UCSR0C = 0x06;
 
     // UBRR0L value: 0x10  (USART Baud Rate Register Low) - 115,200bps
-    UBRR0L = 0x10;
+//    UBRR0L = 0x10;
+    UBRR0L = 0x33;
 
     // UBRR0H value: 0x00  (USART Baud Rate Register High)
     UBRR0H = 0x00;

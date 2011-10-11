@@ -261,8 +261,6 @@ noRelocationNeeded:
   push di
 
   ; Set up the 8259 PIC to read the IRR lines
-  mov al,0xfd
-  out 0x21,al  ; OCW1 - enable keyboard interrupt
   mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
   out 0x20,al  ;  read Interrupt Request Register
 
