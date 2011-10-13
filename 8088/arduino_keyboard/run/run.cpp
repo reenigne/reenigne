@@ -21,55 +21,57 @@ public:
         String data = File(fileName).contents();
         int l = data.length();
 
-        //_com.set(CreateFile(
-        //    L"COM3",
-        //    GENERIC_READ | GENERIC_WRITE,
-        //    0,              // must be opened with exclusive-access
-        //    NULL,           // default security attributes
-        //    OPEN_EXISTING,  // must use OPEN_EXISTING
-        //    0,              // not overlapped I/O
-        //    NULL),          // hTemplate must be NULL for comm devices
-        //    String("COM port"));
+        _com.set(CreateFile(
+            L"COM3",
+            GENERIC_READ | GENERIC_WRITE,
+            0,              // must be opened with exclusive-access
+            NULL,           // default security attributes
+            OPEN_EXISTING,  // must use OPEN_EXISTING
+            0,              // not overlapped I/O
+            NULL),          // hTemplate must be NULL for comm devices
+            String("COM port"));
 
-        //DCB deviceControlBlock;
-        //SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
+        DCB deviceControlBlock;
+        SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
 
-        //IF_ZERO_THROW(GetCommState(_com, &deviceControlBlock));
+        IF_ZERO_THROW(GetCommState(_com, &deviceControlBlock));
 
-        //deviceControlBlock.DCBlength = sizeof(DCB);
-        //deviceControlBlock.BaudRate = CBR_9600;
-        ////deviceControlBlock.fBinary = TRUE;
-        ////deviceControlBlock.fParity = FALSE;
-        //deviceControlBlock.fOutxCtsFlow = FALSE;
-        //deviceControlBlock.fOutxDsrFlow = FALSE;
-        //// DTR_CONTROL_ENABLE causes Arduino to reset on connect
-        ////deviceControlBlock.fDtrControl = DTR_CONTROL_ENABLE;
-        //deviceControlBlock.fDtrControl = DTR_CONTROL_DISABLE;
-        ////deviceControlBlock.fDsrSensitivity = FALSE;
-        ////deviceControlBlock.fTXContinueOnXoff = TRUE;
-        //deviceControlBlock.fOutX = TRUE;
-        //deviceControlBlock.fInX = TRUE;
-        ////deviceControlBlock.fErrorChar = FALSE;
-        //deviceControlBlock.fNull = FALSE;
-        ////deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
-        //deviceControlBlock.fAbortOnError = TRUE;
-        ////deviceControlBlock.wReserved = 0;
-        //deviceControlBlock.ByteSize = 8;
-        //deviceControlBlock.Parity = NOPARITY;
-        //deviceControlBlock.StopBits = ONESTOPBIT;
+        deviceControlBlock.DCBlength = sizeof(DCB);
+        deviceControlBlock.BaudRate = 19200;
+        //deviceControlBlock.fBinary = TRUE;
+        //deviceControlBlock.fParity = FALSE;
+        deviceControlBlock.fOutxCtsFlow = FALSE;
+        deviceControlBlock.fOutxDsrFlow = FALSE;
+        // DTR_CONTROL_ENABLE causes Arduino to reset on connect
+        //deviceControlBlock.fDtrControl = DTR_CONTROL_ENABLE;
+        deviceControlBlock.fDtrControl = DTR_CONTROL_DISABLE;
+        //deviceControlBlock.fDsrSensitivity = FALSE;
+        //deviceControlBlock.fTXContinueOnXoff = TRUE;
+        deviceControlBlock.fOutX = FALSE;  // TRUE
+        deviceControlBlock.fInX = FALSE;   // TRUE
+        //deviceControlBlock.fErrorChar = FALSE;
+        deviceControlBlock.fNull = FALSE;
+        //deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
+        deviceControlBlock.fAbortOnError = TRUE;
+        //deviceControlBlock.wReserved = 0;
+        deviceControlBlock.ByteSize = 8;
+        deviceControlBlock.Parity = NOPARITY;
+        deviceControlBlock.StopBits = ONESTOPBIT;
         //deviceControlBlock.XonChar = 17;
         //deviceControlBlock.XoffChar = 19;
 
-        //IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
-        //IF_ZERO_THROW(SetCommMask(_com, EV_RXCHAR));
+        IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
+        IF_ZERO_THROW(SetCommMask(_com, EV_RXCHAR));
         //IF_ZERO_THROW(ClearCommBreak(_com));
         //IF_ZERO_THROW(PurgeComm(_com, PURGE_RXCLEAR | PURGE_TXCLEAR));
         //IF_ZERO_THROW(FlushFileBuffers(_com));
         //DWORD error;
         //IF_ZERO_THROW(ClearCommError(_com, &error, NULL));
 
-        _com.set(CreateFile(L"run.output", GENERIC_WRITE, 0, NULL,
-            CREATE_ALWAYS, 0, NULL));
+        //_com.set(CreateFile(L"run.output", GENERIC_WRITE, 0, NULL,
+        //    CREATE_ALWAYS, 0, NULL));
+
+        Sleep(2000);
 
         ReaderThread thread(this);
         //thread.start();
@@ -77,7 +79,7 @@ public:
         sendByte(0x7f);      // Put Arduino in raw mode
         sendByte(0x76);      // Clear keyboard buffer
         sendByte(0x72);      // Put Arduino in tester mode
-        sendByte(0x78);      // Put Arduino in tester raw mode
+        //sendByte(0x78);      // Put Arduino in tester raw mode
 
         // The buffer in the Arduino only holds 255 bytes, so we have to send
         // it in chunks. We do this by buffering the data on the host PC side,
@@ -89,17 +91,8 @@ public:
         _console.write(String::hexadecimal(l, 8) + String("\n"));
         Byte checkSum = 0;
         if (comFile) {
-            l += 0x100;
-            addByte(l & 0xff);
-            addByte((l >> 8) & 0xff);
-            l -= 0x100;
-            //addLength(l + 0x100);
-            addByte(0xea);
-            addByte(0x00);
-            addByte(0x01);
-            addByte(0x41);
-            addByte(0x00);
-            for (int i = 0; i < 0x100 - 5; ++i) {
+            addLength(l + 0x100);
+            for (int i = 0; i < 0x100; ++i) {
                 addByte(0x90);
                 checkSum += 0x90;
             }
@@ -112,8 +105,9 @@ public:
             if ((i & 0xff) == 0)
                 _console.write(dot);
         }
-//        addByte(checkSum);
+        addByte(checkSum);
         flush();
+        IF_ZERO_THROW(FlushFileBuffers(_com));
 
         _console.write(String("Upload complete.\n"));
         // Dump bytes from COM port to stdout until we receive ^Z
