@@ -58,22 +58,19 @@ org 0
 
   ; Wait for a data byte to be available
   inc dx      ; 5
-waitForData:
+waitForSpace:
   in al,dx
-  test al,1
-  jz waitForData
+  test al,0x20
+  jz waitForSpace
 
-  ; Read the data byte
+  ; Write the data byte
   sub dx,5
-  in al,dx
+  mov al,bl
+  out dx,al
+  inc bl
   add dx,5
 
-  ; See if we've reached the end of the stream
-  cmp al,0x1a
-  je finished
-
-  ; Print the character and continue
   int 0x65
-  jmp waitForData
-finished:
+  jmp waitForSpace
+
   retf

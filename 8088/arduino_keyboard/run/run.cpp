@@ -31,36 +31,43 @@ public:
             NULL),          // hTemplate must be NULL for comm devices
             String("COM port"));
 
+        //IF_ZERO_THROW(SetupComm(_com, 1024, 1024));
+
         DCB deviceControlBlock;
         SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
-
         IF_ZERO_THROW(GetCommState(_com, &deviceControlBlock));
-
         deviceControlBlock.DCBlength = sizeof(DCB);
         deviceControlBlock.BaudRate = 19200;
-        //deviceControlBlock.fBinary = TRUE;
-        //deviceControlBlock.fParity = FALSE;
+        deviceControlBlock.fBinary = TRUE;
+        deviceControlBlock.fParity = FALSE;
         deviceControlBlock.fOutxCtsFlow = FALSE;
         deviceControlBlock.fOutxDsrFlow = FALSE;
         // DTR_CONTROL_ENABLE causes Arduino to reset on connect
         //deviceControlBlock.fDtrControl = DTR_CONTROL_ENABLE;
         deviceControlBlock.fDtrControl = DTR_CONTROL_DISABLE;
-        //deviceControlBlock.fDsrSensitivity = FALSE;
-        //deviceControlBlock.fTXContinueOnXoff = TRUE;
-        deviceControlBlock.fOutX = FALSE;  // TRUE
-        deviceControlBlock.fInX = FALSE;   // TRUE
-        //deviceControlBlock.fErrorChar = FALSE;
+        deviceControlBlock.fDsrSensitivity = FALSE;
+        deviceControlBlock.fTXContinueOnXoff = TRUE;
+        deviceControlBlock.fOutX = TRUE;
+        deviceControlBlock.fInX = TRUE;
+        deviceControlBlock.fErrorChar = FALSE;
         deviceControlBlock.fNull = FALSE;
-        //deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
+        deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
         deviceControlBlock.fAbortOnError = TRUE;
-        //deviceControlBlock.wReserved = 0;
+        deviceControlBlock.wReserved = 0;
         deviceControlBlock.ByteSize = 8;
         deviceControlBlock.Parity = NOPARITY;
         deviceControlBlock.StopBits = ONESTOPBIT;
-        //deviceControlBlock.XonChar = 17;
-        //deviceControlBlock.XoffChar = 19;
-
+        deviceControlBlock.XonChar = 17;
+        deviceControlBlock.XoffChar = 19;
         IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
+
+        //COMMTIMEOUTS timeOuts;
+        //SecureZeroMemory(&timeOuts, sizeof(COMMTIMEOUTS));
+        //timeOuts.ReadIntervalTimeout = 0;
+        //timeOuts.ReadTotalTimeoutMultiplier = 0;
+        //timeOuts.ReadTotalTimeoutConstant = 0;
+        //IF_ZERO_THROW(SetCommTimeouts(_com, &timeOuts));
+
         IF_ZERO_THROW(SetCommMask(_com, EV_RXCHAR));
         //IF_ZERO_THROW(ClearCommBreak(_com));
         //IF_ZERO_THROW(PurgeComm(_com, PURGE_RXCLEAR | PURGE_TXCLEAR));

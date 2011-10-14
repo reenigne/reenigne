@@ -2,117 +2,116 @@
   mov ds,ax
   mov es,ax
 
-  mov al,034
-  out 043,al
+  mov al,0x34
+  out 0x43,al
   xor al,al
-  out 040,al
-  out 040,al
+  out 0x40,al
+  out 0x40,al
 
-  mov dx,offset experiment1Name
-  mov cx,offset experiment1Init
-  mov bx,offset experiment1CodeStart
-  mov bp,offset experiment1CodeEnd
+  mov dx,experiment1Name
+  mov cx,experiment1Init
+  mov bx,experiment1CodeStart
+  mov bp,experiment1CodeEnd
   call doExperiments
 
-  mov dx,offset experiment2Name
-  mov cx,offset experiment2Init
-  mov bx,offset experiment2CodeStart
-  mov bp,offset experiment2CodeEnd
+  mov dx,experiment2Name
+  mov cx,experiment2Init
+  mov bx,experiment2CodeStart
+  mov bp,experiment2CodeEnd
   call doExperiments
 
-  mov dx,offset experiment3Name
-  mov cx,offset experiment3Init
-  mov bx,offset experiment3CodeStart
-  mov bp,offset experiment3CodeEnd
+  mov dx,experiment3Name
+  mov cx,experiment3Init
+  mov bx,experiment3CodeStart
+  mov bp,experiment3CodeEnd
   call doExperiments
 
-  mov dx,offset experiment4Name
-  mov cx,offset experiment4Init
-  mov bx,offset experiment4CodeStart
-  mov bp,offset experiment4CodeEnd
+  mov dx,experiment4Name
+  mov cx,experiment4Init
+  mov bx,experiment4CodeStart
+  mov bp,experiment4CodeEnd
   call doExperiments
 
-  mov dx,offset experiment5Name
-  mov cx,offset experiment5Init
-  mov bx,offset experiment5CodeStart
-  mov bp,offset experiment5CodeEnd
+  mov dx,experiment5Name
+  mov cx,experiment5Init
+  mov bx,experiment5CodeStart
+  mov bp,experiment5CodeEnd
   call doExperiments
 
-  mov dx,offset experiment6Name
-  mov cx,offset experiment6Init
-  mov bx,offset experiment6CodeStart
-  mov bp,offset experiment6CodeEnd
+  mov dx,experiment6Name
+  mov cx,experiment6Init
+  mov bx,experiment6CodeStart
+  mov bp,experiment6CodeEnd
   call doExperiments
 
-  mov dx,offset experiment7Name
-  mov cx,offset experiment7Init
-  mov bx,offset experiment7CodeStart
-  mov bp,offset experiment7CodeEnd
+  mov dx,experiment7Name
+  mov cx,experiment7Init
+  mov bx,experiment7CodeStart
+  mov bp,experiment7CodeEnd
   call doExperiments
 
-  mov dx,offset experiment8Name
-  mov cx,offset experiment8Init
-  mov bx,offset experiment8CodeStart
-  mov bp,offset experiment8CodeEnd
+  mov dx,experiment8Name
+  mov cx,experiment8Init
+  mov bx,experiment8CodeStart
+  mov bp,experiment8CodeEnd
   call doExperiments
 
-  mov dx,offset experiment9Name
-  mov cx,offset experiment9Init
-  mov bx,offset experiment9CodeStart
-  mov bp,offset experiment9CodeEnd
+  mov dx,experiment9Name
+  mov cx,experiment9Init
+  mov bx,experiment9CodeStart
+  mov bp,experiment9CodeEnd
   call doExperiments
 
-  mov dx,offset experimentAName
-  mov cx,offset experimentAInit
-  mov bx,offset experimentACodeStart
-  mov bp,offset experimentACodeEnd
+  mov dx,experimentAName
+  mov cx,experimentAInit
+  mov bx,experimentACodeStart
+  mov bp,experimentACodeEnd
   call doExperiments
 
-  mov dx,offset experimentBName
-  mov cx,offset experimentBInit
-  mov bx,offset experimentBCodeStart
-  mov bp,offset experimentBCodeEnd
+  mov dx,experimentBName
+  mov cx,experimentBInit
+  mov bx,experimentBCodeStart
+  mov bp,experimentBCodeEnd
   call doExperiments
 
-  mov dx,offset experimentCName
-  mov cx,offset experimentCInit
-  mov bx,offset experimentCCodeStart
-  mov bp,offset experimentCCodeEnd
+  mov dx,experimentCName
+  mov cx,experimentCInit
+  mov bx,experimentCCodeStart
+  mov bp,experimentCCodeEnd
   call doExperiments
 
-  mov dx,offset experimentDName
-  mov cx,offset experimentDInit
-  mov bx,offset experimentDCodeStart
-  mov bp,offset experimentDCodeEnd
+  mov dx,experimentDName
+  mov cx,experimentDInit
+  mov bx,experimentDCodeStart
+  mov bp,experimentDCodeEnd
   call doExperiments
 
-  mov dx,offset experimentEName
-  mov cx,offset experimentEInit
-  mov bx,offset experimentECodeStart
-  mov bp,offset experimentECodeEnd
+  mov dx,experimentEName
+  mov cx,experimentEInit
+  mov bx,experimentECodeStart
+  mov bp,experimentECodeEnd
   call doExperiments
 
-  mov dx,offset experimentFName
-  mov cx,offset experimentFInit
-  mov bx,offset experimentFCodeStart
-  mov bp,offset experimentFCodeEnd
+  mov dx,experimentFName
+  mov cx,experimentFInit
+  mov bx,experimentFCodeStart
+  mov bp,experimentFCodeEnd
   call doExperiments
 
-  mov dx,offset experimentGName
-  mov cx,offset experimentGInit
-  mov bx,offset experimentGCodeStart
-  mov bp,offset experimentGCodeEnd
+  mov dx,experimentGName
+  mov cx,experimentGInit
+  mov bx,experimentGCodeStart
+  mov bp,experimentGCodeEnd
   call doExperiments
 
-  mov dx,offset experimentHName
-  mov cx,offset experimentHInit
-  mov bx,offset experimentHCodeStart
-  mov bp,offset experimentHCodeEnd
+  mov dx,experimentHName
+  mov cx,experimentHInit
+  mov bx,experimentHCodeStart
+  mov bp,experimentHCodeEnd
   call doExperiments
 
 exit:
-  mov ah,04c
-  int 021
+  int 0x67
 
 
 experiment1Name:
@@ -136,7 +135,7 @@ experiment2CodeEnd:
 experiment3Name:
   db "00*c0  $"
 experiment3Init:
-  mov bl,0c0
+  mov bl,0xc0
   mov al,0
 experiment3CodeStart:
   mul bl
@@ -154,7 +153,7 @@ experiment4CodeEnd:
 experiment5Name:
   db "00*f0  $"
 experiment5Init:
-  mov bl,0f0
+  mov bl,0xf0
   mov al,0
 experiment5CodeStart:
   mul bl
@@ -163,7 +162,7 @@ experiment5CodeEnd:
 experiment6Name:
   db "00*1f  $"
 experiment6Init:
-  mov bl,01f
+  mov bl,0x1f
   mov al,0
 experiment6CodeStart:
   mul bl
@@ -172,7 +171,7 @@ experiment6CodeEnd:
 experiment7Name:
   db "00*fc  $"
 experiment7Init:
-  mov bl,0fc
+  mov bl,0xfc
   mov al,0
 experiment7CodeStart:
   mul bl
@@ -181,7 +180,7 @@ experiment7CodeEnd:
 experiment8Name:
   db "00*7f  $"
 experiment8Init:
-  mov bl,07f
+  mov bl,0x7f
   mov al,0
 experiment8CodeStart:
   mul bl
@@ -190,7 +189,7 @@ experiment8CodeEnd:
 experiment9Name:
   db "00*ff  $"
 experiment9Init:
-  mov bl,0ff
+  mov bl,0xff
   mov al,0
 experiment9CodeStart:
   mul bl
@@ -209,7 +208,7 @@ experimentBName:
   db "c0*01  $"
 experimentBInit:
   mov bl,1
-  mov al,0c0
+  mov al,0xc0
 experimentBCodeStart:
   mul bl
 experimentBCodeEnd:
@@ -227,7 +226,7 @@ experimentDName:
   db "f0*01  $"
 experimentDInit:
   mov bl,1
-  mov al,0f0
+  mov al,0xf0
 experimentDCodeStart:
   mul bl
 experimentDCodeEnd:
@@ -236,7 +235,7 @@ experimentEName:
   db "1f*01  $"
 experimentEInit:
   mov bl,1
-  mov al,01f
+  mov al,0x1f
 experimentECodeStart:
   mul bl
 experimentECodeEnd:
@@ -245,7 +244,7 @@ experimentFName:
   db "fc*01  $"
 experimentFInit:
   mov bl,1
-  mov al,0fc
+  mov al,0xfc
 experimentFCodeStart:
   mul bl
 experimentFCodeEnd:
@@ -254,7 +253,7 @@ experimentGName:
   db "7f*01  $"
 experimentGInit:
   mov bl,1
-  mov al,07f
+  mov al,0x7f
 experimentGCodeStart:
   mul bl
 experimentGCodeEnd:
@@ -263,7 +262,7 @@ experimentHName:
   db "ff*01  $"
 experimentHInit:
   mov bl,1
-  mov al,0ff
+  mov al,0xff
 experimentHCodeStart:
   mul bl
 experimentHCodeEnd:

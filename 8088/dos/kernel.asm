@@ -212,6 +212,7 @@ noRelocationNeeded:
   ; int 0x64 == print CX bytes from DS:SI
   ; int 0x65 == print AL as a character
   ; int 0x66 == beep (for debugging)
+  ; int 0x67 == finish
   xor ax,ax
   mov ds,ax
   mov word [0x180], writeHex
@@ -228,6 +229,8 @@ noRelocationNeeded:
   mov [0x196], cs
   mov word [0x198], beep
   mov [0x19a], cs
+  mov word [0x19c], complete
+  mov [0x19e], cs
 
   ; Reset video variables
   xor ax,ax

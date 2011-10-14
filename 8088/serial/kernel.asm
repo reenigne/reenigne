@@ -21,8 +21,8 @@ org 0
   out dx,al   ; Set baud rate divisor high = 0x00
 
   dec dx      ; 0
-  mov al,0x01
-  out dx,al   ; Set baud rate divisor low  = 0x01 = 115200 baud
+  mov al,0x0c
+  out dx,al   ; Set baud rate divisor low  = 0x0c = 9600 baud
 
   add dx,3    ; 3
   ; Line Control Register LCR                                03
@@ -56,8 +56,34 @@ org 0
   ;   0x10 Loop back test                                     0
   out dx,al
 
-  ; Wait for a data byte to be available
+
+; Receive a byte over serial. DX == port base address + 5
+%macro receiveByte
+    ; Wait until a byte is available
+  %%waitForData:
+    in al,dx
+    test al,1
+    jz %%waitForData
+    ; Read the data byte
+    sub dx,5
+    in al,dx
+    add dx,5
+%endmacro
+
+; Receive a packet
+  mov al,1
+  out dx,al   ; Activate DTR
   inc dx      ; 5
+  receiveByte
+  mov cl,al
+  mov ch,0
+
+
+
+
+
+
+
 waitForData:
   in al,dx
   test al,1
@@ -76,4 +102,25 @@ waitForData:
   int 0x65
   jmp waitForData
 finished:
+  retf
+
+
+
+
+
+waitForSpace:
+  in al,dx
+  test al,0x20
+  jz waitForSpace
+
+  ; Write the data byte
+  sub dx,5
+  mov al,bl
+  out dx,al
+  inc bl
+  add dx,5
+
+  int 0x65
+  jmp waitForSpace
+
   retf
