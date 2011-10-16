@@ -3,9 +3,6 @@ org 0
   ; Turn interrupts off - the keyboard send routine is cycle-counted.
   cli
 
-;initLoop:
-;  jmp initLoop
-
   ; Set up the screen so we can debug the keyboard send routine
 
   ; Mode                                                2c
@@ -110,7 +107,7 @@ org 0
   ; Set up the timer interrupt
   mov al,0x36  ; Timer 0, write both bytes, mode 3 (square wave), binary mode
   out 0x43,al
-  mov al,0     ; rate = 13125000/11/2^16 != 18.2Hz
+  mov al,0     ; rate = 13125000/11/2^16 ~= 18.2Hz
   out 0x40,al
   out 0x40,al
 
@@ -133,32 +130,33 @@ interruptSetupLoop:
   loop interruptSetupLoop
 
   ; Disable NMI
-;  xor al,al
-;  out 0xa0,al
+  xor al,al
+  out 0xa0,al
   ; Find end of memory. Memory is always added in 16Kb units. We can't use
   ; the BIOS measurement since it won't have been initialized.
-  mov ax,0x9c00
-findRAM:
-  mov ds,ax
-  mov [0],ax
-  cmp [0],ax
-  je foundRAM
-  sub ax,0x400
-  jmp findRAM
-foundRAM:
-  sub ax,0xc00
+;  mov ax,0x9c00
+;findRAM:
+;  mov ds,ax
+;  mov [0],ax
+;  cmp [0],ax
+;  je foundRAM
+;  sub ax,0x400
+;  jmp findRAM
+;foundRAM:
+;  sub ax,0xc00
+  mov ax,0x8000
   ; Move the stack right at the end of main RAM.
   mov ss,ax
   xor sp,sp
 
   ; Enable NMI
-  in al,0x61
-  or al,0x30
-  out 0x61,al
-  and al,0xcf
-  out 0x61,al
-  mov al,0x80
-  out 0xa0,al
+;  in al,0x61
+;  or al,0x30
+;  out 0x61,al
+;  and al,0xcf
+;  out 0x61,al
+;  mov al,0x80
+;  out 0xa0,al
 
   mov di,0x50 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
   mov bx,cs
@@ -211,7 +209,6 @@ noRelocationNeeded:
   ; int 0x63 == print AX as a 4-digit hex number
   ; int 0x64 == print CX bytes from DS:SI
   ; int 0x65 == print AL as a character
-  ; int 0x66 == beep (for debugging)
   ; int 0x67 == finish
   xor ax,ax
   mov ds,ax
@@ -227,8 +224,6 @@ noRelocationNeeded:
   mov [0x192], cs
   mov word [0x194], printCharacter
   mov [0x196], cs
-  mov word [0x198], beep
-  mov [0x19a], cs
   mov word [0x19c], complete
   mov [0x19e], cs
 
@@ -237,9 +232,99 @@ noRelocationNeeded:
   mov [cs:column],al
   mov [cs:startAddress],ax
 
-  ; Beep
-  int 0x66
-  ; Print a message
+
+; Receive a byte over serial and put it in AL. DX == port base address + 5
+%macro receiveByte 0
+    ; Wait until a byte is available
+  %%waitForData:
+    in al,dx
+    test al,1
+    jz %%waitForData
+    ; Read the data byte
+    sub dx,5
+    in al,dx
+    add dx,5
+%endmacro
+
+
+; Send byte in AL over serial. DX == port base address + 5
+%macro sendByte 0
+    mov ah,al
+  %%waitForSpace:
+    in al,dx
+    test al,0x20
+    jz %%waitForSpace
+    inc dx
+  %%waitForDSR:
+    in al,dx
+    test al,0x20
+    jz %%waitForDSR
+    ; Write the data byte
+    sub dx,6
+    mov al,ah
+    out dx,al
+    add dx,5
+%endmacro
+
+
+  mov dx,0x3f8  ; COM1 (0x3f8 == COM1, 0x2f8 == COM2, 0x3e8 == COM3, 0x2e8 == COM4)
+
+  ; dx + 0 == Transmit/Receive Buffer   (bit 7 of LCR == 0)  Baud Rate Divisor LSB (bit 7 of LCR == 1)
+  ; dx + 1 == Interrupt Enable Register (bit 7 of LCR == 0)  Baud Rate Divisor MSB (bit 7 of LCR == 1)
+  ; dx + 2 == Interrupt Identification Register IIR (read)   16550 FIFO Control Register (write)
+  ; dx + 3 == Line Control Register LCR
+  ; dx + 4 == Modem Control Register MCR
+  ; dx + 5 == Line Status Register LSR
+  ; dx + 6 == Modem Status Register MSR
+  ; dx + 7 == Scratch Pad Register
+
+  add dx,3    ; 3
+  mov al,0x80
+  out dx,al   ; Set LCR bit 7 to 1 to allow us to set baud rate
+
+  dec dx      ; 2
+  dec dx      ; 1
+  mov al,0x00
+  out dx,al   ; Set baud rate divisor high = 0x00
+
+  dec dx      ; 0
+  mov al,0x01
+  out dx,al   ; Set baud rate divisor low  = 0x01 = 115200 baud
+
+  add dx,3    ; 3
+  ; Line Control Register LCR                                03
+  ;      1 Word length -5 low bit                             1
+  ;      2 Word length -5 high bit                            2
+  ;      4 1.5/2 stop bits                                    0
+  ;      8 parity                                             0
+  ;   0x10 even parity                                        0
+  ;   0x20 parity enabled                                     0
+  ;   0x40 force spacing break state                          0
+  ;   0x80 allow changing baud rate                           0
+  mov al,0x03
+  out dx,al
+
+  dec dx      ; 2
+  dec dx      ; 1
+  ; Interrupt Enable Register                                00
+  ;      1 Enable data available interrupt and 16550 timeout  0
+  ;      2 Enable THRE interrupt                              0
+  ;      4 Enable lines status interrupt                      0
+  ;      8 Enable modem status change interrupt               0
+  mov al,0x00
+  out dx,al
+
+  add dx,3    ; 4
+  ; Modem Control Register                                   00
+  ;      1 Activate DTR                                       0
+  ;      2 Activate RTS                                       0
+  ;      4 OUT1                                               0
+  ;      8 OUT2                                               0
+  ;   0x10 Loop back test                                     0
+  out dx,al
+
+
+  ; Print the boot message
   mov ax,cs
   mov ds,ax
   mov si,bootMessage
@@ -263,38 +348,24 @@ noRelocationNeeded:
   xor di,di
   push di
 
-  ; Set up the 8259 PIC to read the IRR lines
-  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 0x20,al  ;  read Interrupt Request Register
-
-  ; The BIOS leaves the keyboard with an unacknowledged byte - acknowledge it
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
 
 tryLoad:
+  mov al,1
+  out dx,al   ; Activate DTR
+  inc dx      ; 5
   ; Read a 3-byte count and then a number of bytes into memory, starting at
   ; DS:DI
-  call keyboardRead
-  mov cl,bl
-  call keyboardRead
-  mov ch,bl
-  call keyboardRead
+  receiveByte
+  mov cl,al
+  receiveByte
+  mov ch,al
+  receiveByte
+  mov bl,al
   mov bh,0
-
-  ; Debug: print number of bytes to load
-  mov ax,bx
-  int 0x63
-  mov ax,cx
-  int 0x63
-  mov al,10
-  int 0x65
 
   mov si,bx
   push cx
-  xor dl,dl
+  xor ah,ah
 pagesLoop:
   cmp si,0
   je noFullPages
@@ -309,10 +380,17 @@ noFullPages:
   call loadBytes
 loadProgramDone:
   ; Check that the checksum matches
-  call keyboardRead
-  cmp dl,bl
+  receiveByte
+  mov bx,ax
+
+  dec dx      ; 4
+  mov al,0
+  out dx,al   ; Deactivate DTR
+
   mov ax,cs
   mov ds,ax
+
+  cmp bh,bl
   je checksumOk
   mov si,failMessage
   mov cx,failMessageEnd - failMessage
@@ -324,71 +402,22 @@ checksumOk:
   int 0x64
   retf
 
-
-; Reads the next keyboard scancode into BL
-keyboardRead:
-  ; Loop until the IRR bit 1 (IRQ 1) is high
-  in al,0x20
-  and al,2
-  jz keyboardRead
-  ; Read the keyboard byte and store it
-  in al,0x60
-  mov bl,al
-  ; Acknowledge the previous byte
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-
-;  push bx
-;  push cx
-;  mov cl,4
-;  mov al,bl
-;  shr al,cl
-;  call printNybble
-;  mov al,bl
-;  and al,0xf
-;  call printNybble
-;  mov al,' '
-;  call printChar
-;  pop cx
-;  pop bx
-
-  ret
-
-
 ; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
 loadBytes:
-  call keyboardRead
-  add dl,bl
-  mov [di],bl
+  receiveByte
+  add ah,al
+  mov [di],al
   add di,1
   jnc noOverflow
   mov bx,ds
   add bh,0x10
   mov ds,bx
 noOverflow:
-  test di,0x000f
-  jnz noPrint
-
-  ; Debug: print load address
-  mov byte[cs:column],0
-  mov ax,ds
-  int 0x63
-  mov ax,di
-  int 0x63
-
-noPrint:
   loop loadBytes
   ret
 
 
-writeBuffer:
-  db 0, 0, 0, 0
-
-
-convertNybble:
+writeNybble:
   cmp al,10
   jge alphabetic
   add al,'0'
@@ -396,233 +425,61 @@ convertNybble:
 alphabetic:
   add al,'A' - 10
 gotCharacter:
-  stosb
+  sendByte
   ret
 
 
 writeHex:
-  push ds
-  push es
-  push di
-  push si
   push bx
   push cx
-  mov bx,cs
-  mov ds,bx
-  mov es,bx
-  mov di,writeBuffer
+  push dx
+  mov dx,0x3f8 + 5
+  mov cl,4
   mov bx,ax
   mov al,bh
-  mov cx,4
   shr al,cl
-  call convertNybble
+  call writeNybble
   mov al,bh
   and al,0xf
-  call convertNybble
+  call writeNybble
   mov al,bl
   shr al,cl
-  call convertNybble
+  call writeNybble
   mov al,bl
   and al,0xf
-  call convertNybble
-  mov si,writeBuffer
-  call sendLoop
+  call writeNybble
+  pop dx
   pop cx
   pop bx
-  pop si
-  pop di
-  pop es
-  pop ds
   iret
 
 
 writeString:
-  push di
-  push bx
+  push ax
   push dx
-  call sendLoop
+  mov dx,0x3f8 + 5
+writeStringLoop:
+  lodsb
+  sendByte
+  loop writeStringLoop
   pop dx
-  pop bx
-  pop di
+  pop ax
   iret
 
 
 writeCharacter:
-  push ds
-  push si
-  push bx
-  push cx
-  mov bx,cs
-  mov ds,bx
-  mov si,writeBuffer
-  mov [si],al
-  mov cx,1
-  call sendLoop
-  pop cx
-  pop bx
-  pop si
-  pop ds
-  iret
-
-
-; Send CX bytes pointed to by DS:SI
-sendLoop:
-  mov di,cx
-  ; Lower clock line to tell the Arduino we want to send data
-  in al,0x61
-  and al,0xbf
-  out 0x61,al
-  ; Wait for 1ms
-  mov bx,cx
-  mov cx,52500000*18/(11*17*4*2*1000)
-waitLoop:
-  loop waitLoop
-  ; Raise clock line again
-  in al,0x61
-  or al,0x40
-  out 0x61,al
-
-  ; Throw away the keystroke that comes from clearInterruptedKeystroke()
-  call keyboardRead
-
-  ; Read the number of bytes that we can send
-  call keyboardRead
-  xor bh,bh
-  cmp bx,cx
-  jae gotCount
-  mov cx,bx      ; Write as many bytes as we can
-gotCount:
-  sub di,cx
-
-  ; Set up the bh register for sendByte
-  mov dx,0x61
-  in al,dx
-  mov bh,al
-  rcl bh,1
-  rcl bh,1
-
-  mov al,cl
-  call sendByte  ; Send the number of bytes we'll be sending
-sendByteLoop:
-  cmp cx,0
-  je doneSend
-  lodsb
-  call sendByte
-  dec cx
-  jmp sendByteLoop
-doneSend:
-  cmp di,0
-  jne sendLoop
-  ret
-
-
-sendByte:
-  push ax              ; for debugging purposes
-  mov bl,al
-
-  clc
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
-
-  stc
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
-
-  rcr bl,1             ; 2 0 8  Each bit takes 40 CPU cycles = 8.38us
-  mov al,bh            ; 2 0 8  = 8.87us with DRAM refresh
-  rcr al,1             ; 2 0 8  = 142 cycles on the Arduino
-  rcr al,1             ; 2 0 8
-  out dx,al            ; 1 1 8
-
-  rcr bl,1             ; 2 0 8
-  mov al,bh            ; 2 0 8
-  rcr al,1             ; 2 0 8
-  rcr al,1             ; 2 0 8
-  out dx,al            ; 1 1 8
-
-  rcr bl,1             ; 2 0 8
-  mov al,bh            ; 2 0 8
-  rcr al,1             ; 2 0 8
-  rcr al,1             ; 2 0 8
-  out dx,al            ; 1 1 8
-
-  rcr bl,1             ; 2 0 8
-  mov al,bh            ; 2 0 8
-  rcr al,1             ; 2 0 8
-  rcr al,1             ; 2 0 8
-  out dx,al            ; 1 1 8
-
-  rcr bl,1             ; 2 0 8
-  mov al,bh            ; 2 0 8
-  rcr al,1             ; 2 0 8
-  rcr al,1             ; 2 0 8
-  out dx,al            ; 1 1 8
-
-  rcr bl,1             ; 2 0 8
-  mov al,bh            ; 2 0 8
-  rcr al,1             ; 2 0 8
-  rcr al,1             ; 2 0 8
-  out dx,al            ; 1 1 8
-
-  rcr bl,1             ; 2 0 8
-  mov al,bh            ; 2 0 8
-  rcr al,1             ; 2 0 8
-  rcr al,1             ; 2 0 8
-  out dx,al            ; 1 1 8
-
-  rcr bl,1             ; 2 0 8
-  mov al,bh            ; 2 0 8
-  rcr al,1             ; 2 0 8
-  rcr al,1             ; 2 0 8
-  out dx,al            ; 1 1 8
-
-  stc
-  mov al,bh
-  rcr al,1
-  rcr al,1
-  out dx,al
-
-  pop ax               ; for debugging purposes
-  call printChar       ; for debugging purposes
-  ret
-
-
-beep:
-  push ax
-  push cx
-  in al,0x61
-  mov ah,al
-  or al,3
-  out 0x61,al
-  mov al,0xb6
-  out 0x43,al
-  mov cx,1193182 / 440
-  mov al,cl
-  out 0x42,al
-  mov al,ch
-  out 0x42,al
-  xor cx,cx
-beepLoop:
-  loop beepLoop
-  mov al,ah
-  and al,0xfc
-  out 0x61,al
-  xor cx,cx
-quietLoop:
-  loop quietLoop
-  pop cx
-  pop ax
+  push dx
+  mov dx,0x3f8 + 5
+  sendByte
+  pop dx
   iret
 
 
 complete:
   mov al,26
-;  int 0x62  ; Write a ^Z character to tell the "run" program to finish
+  int 0x62  ; Write a ^Z character to tell the "run" program to finish
   jmp 0  ; Restart the kernel
+
 
 
 printNybble:
@@ -741,7 +598,7 @@ column:
 startAddress:
   dw 0
 bootMessage:
-  db 'XT OS Kernel',10
+  db 'XT Serial Kernel',10
 bootMessageEnd:
 okMessage:
   db 'OK',10
