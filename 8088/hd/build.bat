@@ -1,2 +1,2 @@
 @echo off
-yasm hd.asm -o hd.bin
+yasm hd.asm -o hd.bin -l hd.lst

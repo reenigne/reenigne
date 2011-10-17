@@ -1,3 +1,6 @@
+org 0
+cpu 8086
+
   mov ax,cs
   mov ds,ax
   mov es,ax
@@ -269,18 +272,16 @@ experimentHCodeEnd:
 
 
 print:
-  push bx
-  push cx
   push si
-  push di
-  push bp
-  mov ah,9
-  int 021
-  pop bp
-  pop di
+  mov si,dx
+printLoop:
+  lodsb
+  cmp al,'$'
+  je donePrint
+  int 0x62
+  jmp printLoop
+donePrint:
   pop si
-  pop cx
-  pop bx
   ret
 
 printNumber:
@@ -289,7 +290,7 @@ printNumber:
   push cx
   push si
   push di
-  mov si,offset output + 4
+  mov si,output + 4
   mov bx,10
   mov cx,5
 itoaloop:
@@ -299,7 +300,7 @@ itoaloop:
   mov [si],dl
   dec si
   loop itoaloop
-  mov dx,offset output
+  mov dx,output
   call print
   pop di
   pop si
@@ -315,14 +316,14 @@ output:
 codeCopy:
   cmp si,dx
   je codeCopyDone
-  cmp di,0ffff
+  cmp di,0xffff
   je codeCopyOutOfSpace
   movsb
   jmp codeCopy
 codeCopyDone:
   ret
 codeCopyOutOfSpace:
-  mov dx,offset outOfSpaceMessage
+  mov dx,outOfSpaceMessage
   call print
   jmp exit
 
@@ -337,11 +338,11 @@ codeEnd: dw 0
 doExperiment:
   mov ax,cx
   call printNumber
-  mov dx,offset colonSpace
+  mov dx,colonSpace
   call print
-  mov di,offset codeSpace
-  mov si,offset timerStartStart
-  mov dx,offset timerEndStart
+  mov di,codeSpace
+  mov si,timerStartStart
+  mov dx,timerEndStart
   call codeCopy
   mov si,[init]
   mov dx,[codeStart]
@@ -351,12 +352,12 @@ doExperimentCopyLoop:
   mov dx,[codeEnd]
   call codeCopy
   loop doExperimentCopyLoop
-  mov si,offset timerEndStart
-  mov dx,offset timerEndEnd
+  mov si,timerEndStart
+  mov dx,timerEndEnd
   call codeCopy
   call codeSpace
   call printNumber
-  mov dx,offset newLine
+  mov dx,newLine
   jmp print
 
 colonSpace:
@@ -364,7 +365,7 @@ colonSpace:
 newLine:
   db "  $" ; db 0d,0a,"$"
 newLine2:
-  db 0d,0a,"$"
+  db 10,'$'
 
 
 doExperiments:
@@ -384,7 +385,7 @@ doExperimentsLoop:
   add cx,1000
   jmp doExperimentsLoop
 doneExperiments:
-  mov dx,offset newLine2
+  mov dx,newLine2
   jmp print
 
 
@@ -394,16 +395,16 @@ startTime: dw 0
   ; The following code isn't executed directly, it's copied elsewhere first
 timerStartStart:
   cli
-  in al,040
+  in al,0x40
   mov ah,al
-  in al,040
+  in al,0x40
   xchg ah,al
   mov [startTime],ax
   ; Code to be timed will be copied here
 timerEndStart:
-  in al,040
+  in al,0x40
   mov ah,al
-  in al,040
+  in al,0x40
   xchg ah,al
   mov dx,[startTime]
   sub dx,ax

@@ -77,10 +77,6 @@ public:
         //_com.set(CreateFile(L"run.output", GENERIC_WRITE, 0, NULL,
         //    CREATE_ALWAYS, 0, NULL));
 
-//        Sleep(2000);
-
-        ReaderThread thread(this);
-
         // When running a .com file, we need the instruction pointer to start
         // at 0x100. We do this by prepending 0x100 NOP bytes at the beginning.
         // In DOS this area would contain the Program Segment Prefix structure.
@@ -114,29 +110,6 @@ public:
         } while (true);
     }
 private:
-    class ReaderThread : public Thread
-    {
-    public:
-        ReaderThread(Program* program) : _program(program) { }
-        void threadProc()
-        {
-            int c = 0;
-            do {
-                DWORD eventMask = 0;
-                if (WaitCommEvent(_program->_com, &eventMask, NULL) == 0)
-                    throw Exception::systemError(String("Reading COM port"));
-                do {
-                    c = _program->_com.tryReadByte();
-                    if (c == 26 || c == -1)
-                        break;
-                    _program->_console.write<Byte>(c);
-                } while (true);
-            } while (c != 26);
-        }
-    private:
-        Program* _program;
-    };
-
     void sendLength(int l)
     {
         sendByte(l & 0xff);          // Send length low byte
