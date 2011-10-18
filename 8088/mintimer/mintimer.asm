@@ -121,8 +121,8 @@ experiment1Name:
   db "00*00  $"
 experiment1Init:
   mov bl,0
-  mov al,0
 experiment1CodeStart:
+  mov al,0
   mul bl
 experiment1CodeEnd:
 
@@ -130,8 +130,8 @@ experiment2Name:
   db "00*01  $"
 experiment2Init:
   mov bl,1
-  mov al,0
 experiment2CodeStart:
+  mov al,0
   mul bl
 experiment2CodeEnd:
 
@@ -139,8 +139,8 @@ experiment3Name:
   db "00*c0  $"
 experiment3Init:
   mov bl,0xc0
-  mov al,0
 experiment3CodeStart:
+  mov al,0
   mul bl
 experiment3CodeEnd:
 
@@ -148,8 +148,8 @@ experiment4Name:
   db "00*07  $"
 experiment4Init:
   mov bl,7
-  mov al,0
 experiment4CodeStart:
+  mov al,0
   mul bl
 experiment4CodeEnd:
 
@@ -157,8 +157,8 @@ experiment5Name:
   db "00*f0  $"
 experiment5Init:
   mov bl,0xf0
-  mov al,0
 experiment5CodeStart:
+  mov al,0
   mul bl
 experiment5CodeEnd:
 
@@ -166,8 +166,8 @@ experiment6Name:
   db "00*1f  $"
 experiment6Init:
   mov bl,0x1f
-  mov al,0
 experiment6CodeStart:
+  mov al,0
   mul bl
 experiment6CodeEnd:
 
@@ -175,8 +175,8 @@ experiment7Name:
   db "00*fc  $"
 experiment7Init:
   mov bl,0xfc
-  mov al,0
 experiment7CodeStart:
+  mov al,0
   mul bl
 experiment7CodeEnd:
 
@@ -184,8 +184,8 @@ experiment8Name:
   db "00*7f  $"
 experiment8Init:
   mov bl,0x7f
-  mov al,0
 experiment8CodeStart:
+  mov al,0
   mul bl
 experiment8CodeEnd:
 
@@ -193,80 +193,80 @@ experiment9Name:
   db "00*ff  $"
 experiment9Init:
   mov bl,0xff
-  mov al,0
 experiment9CodeStart:
+  mov al,0
   mul bl
 experiment9CodeEnd:
 
 experimentAName:
   db "01*01  $"
 experimentAInit:
-  mov bl,1
-  mov al,1
+  mov bl,0x01
 experimentACodeStart:
+  mov al,1
   mul bl
 experimentACodeEnd:
 
 experimentBName:
   db "c0*01  $"
 experimentBInit:
-  mov bl,1
-  mov al,0xc0
+  mov bl,0x01
 experimentBCodeStart:
+  mov al,0xc0
   mul bl
 experimentBCodeEnd:
 
 experimentCName:
   db "07*01  $"
 experimentCInit:
-  mov bl,1
-  mov al,7
+  mov bl,0x01
 experimentCCodeStart:
+  mov al,7
   mul bl
 experimentCCodeEnd:
 
 experimentDName:
   db "f0*01  $"
 experimentDInit:
-  mov bl,1
-  mov al,0xf0
+  mov bl,0x01
 experimentDCodeStart:
+  mov al,0xf0
   mul bl
 experimentDCodeEnd:
 
 experimentEName:
   db "1f*01  $"
 experimentEInit:
-  mov bl,1
-  mov al,0x1f
+  mov bl,0x01
 experimentECodeStart:
+  mov al,0x1f
   mul bl
 experimentECodeEnd:
 
 experimentFName:
   db "fc*01  $"
 experimentFInit:
-  mov bl,1
-  mov al,0xfc
+  mov bl,0x01
 experimentFCodeStart:
+  mov al,0xfc
   mul bl
 experimentFCodeEnd:
 
 experimentGName:
   db "7f*01  $"
 experimentGInit:
-  mov bl,1
-  mov al,0x7f
+  mov bl,0x01
 experimentGCodeStart:
+  mov al,0x7f
   mul bl
 experimentGCodeEnd:
 
 experimentHName:
   db "ff*01  $"
 experimentHInit:
-  mov bl,1
-  mov al,0xff
+  mov bl,0x01
 experimentHCodeStart:
+  mov al,0xff
   mul bl
 experimentHCodeEnd:
 
@@ -395,6 +395,14 @@ startTime: dw 0
   ; The following code isn't executed directly, it's copied elsewhere first
 timerStartStart:
   cli
+  mov al,0x70  ; Timer 1, write LSB+MSB, mode 0, binary
+  out 0x43,al
+  mov al,0
+  out 0x41,al
+  out 0x41,al
+
+  times 18 nop  ; Wait for any pending refresh to occur
+
   in al,0x40
   mov ah,al
   in al,0x40
@@ -408,6 +416,12 @@ timerEndStart:
   xchg ah,al
   mov dx,[startTime]
   sub dx,ax
+
+  mov al,0x54  ; Timer 1, write LSB, mode 2, binary
+  out 0x43,al
+  mov al,18
+  out 0x41,al  ; Timer 1 rate
+
   sti
   mov ax,dx
   ret
