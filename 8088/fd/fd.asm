@@ -1,38 +1,44 @@
 cpu 8086
 org 0
 
+%macro debug 1
+  push ax
+  pushf
+  mov al,%1
+  int 0x62
+  popf
+  pop ax
+%endmacro
+
 
   xor ax,ax
-  mov es,ax
-  mov word[es:0x18],disk_int
-  mov [es:0x1a],cs
+  mov ds,ax
+  mov word[0x38],disk_int
+  mov [0x3a],cs
+
+  mov ax,0x40
+  mov ds,ax
 
   in al,0x21
   and al,0xbf
   out 0x21,al
-  int 0x62
   sti
 
-  mov al,'1'
-  int 0x62
-
+  debug '1'
 
   mov ah,0
   mov dl,ah
   int 0x13
+  ;call diskette_io
   test ah,0xff
   jz test2
 
-  push ax
-  mov al,'F'
-  int 0x62
-  pop ax
+  debug 'F'
   int 0x60
   retf
 
 test2:
-  mov al,'2'
-  int 0x62
+  debug '2'
 
   mov dx,0x3f2
   mov al,0x1c
@@ -45,36 +51,31 @@ motorWait2:
   xor dx,dx
   mov es,dx
   mov ch,1
-  mov byte[es:0x3e],dl
+  mov byte[0x3e],dl
   call seek
   jnc test3
 
-  mov al,'*'
-  int 0x62
+  debug '*'
   retf
 
 test3:
-  mov al,'3'
-  int 0x62
+  debug '3'
 
   mov ch,0x34
   call seek
   jnc test4
 
-  mov al,'#'
-  int 0x62
+  debug '#'
   retf
 
 test4:
-  mov al,'4'
-  int 0x62
+  debug '4'
 
   mov al,0x0c
   mov dx,0x3f2
   out dx,al
 
-  mov al,'^'
-  int 0x62
+  debug '^'
   retf
 
 
@@ -89,8 +90,7 @@ j23:
   jz j25
   loop j23
 j24:
-  mov al,'T'
-  int 0x62
+  debug 'T'
   int 0x67
 j25:
   xor cx,cx
@@ -100,8 +100,7 @@ j26:
   jnz j27
   loop j26
 
-  mov al,'t'
-  int 0x62
+  debug 't'
   int 0x67
 j27:
   mov al,ah
@@ -116,7 +115,7 @@ get_parm:
   push ds
   xor ax,ax
   mov ds,ax
-  lds si,[es:0x78]
+  lds si,[0x78]
   shr bx,1
   mov ah,[si+bx]
   pop ds
@@ -130,41 +129,26 @@ seek:
   mov cl,dl
   rol al,cl
   pop cx
-  test al,byte[es:0x3e]
+  test al,byte[0x3e]
   jnz j28
-  or byte[es:0x3e],al
+  or byte[0x3e],al
   mov ah,0x07
-
-  mov al,'a'
-  int 0x62
-
-  call nec_output
+  debug 'a'
+  call nec_output  ; Recalibrate
   mov ah,dl
-
-  mov al,'b'
-  int 0x62
-
-  call nec_output
+  debug 'b'
+  call nec_output  ; Drive 0
   call chk_stat_2
   jc j32
 j28:
   mov ah,0x0f
-
-  mov al,'c'
-  int 0x62
-
+  debug 'c'
   call nec_output
   mov ah,dl
-
-  mov al,'d'
-  int 0x62
-
+  debug 'd'
   call nec_output
   mov ah,ch
-
-  mov al,'e'
-  int 0x62
-
+  debug 'e'
   call nec_output
   call chk_stat_2
 
@@ -188,22 +172,32 @@ j32:
 
 
 chk_stat_2:
+  debug 'C'
   call wait_int
   jc j34
+  debug 'C'
   mov ah,8
-  call nec_output
+  call nec_output  ; Sense interrupt status
   call results
   jc j34
-  mov al,[es:0x42]
+  mov al,[0x42]
+
+  push ax
+  pushf
+  debug ' '
+  int 0x60
+  popf
+  pop ax
+
   and al,0x60
   cmp al,0x60
   jz j35
   clc
 j34:
+  debug 'D'
   ret
 j35:
-  mov al,'S'
-  int 0x62
+  debug 'S'
   stc
   ret
 
@@ -215,17 +209,16 @@ wait_int:
   mov bl,2
   xor cx,cx
 j36:
-  test byte[es:0x3e],0x80
+  test byte[0x3e],0x80
   jnz j37
   loop j36
   dec bl
   jnz j36
-  mov al,'7'
-  int 0x62
+  debug '7'
   stc
 j37:
   pushf
-  and byte[es:0x3e],0x7f
+  and byte[0x3e],0x7f
   popf
   pop cx
   pop bx
@@ -247,8 +240,7 @@ j39:
   test al,0x80
   jnz j40a
   loop j39
-  mov al,'8'
-  int 0x62
+  debug '8'
 j40:
   stc
   pop bx
@@ -260,13 +252,20 @@ j40a:
   test al,0x40
   jnz j42
 j41:
-  mov al,'N'
-  int 0x62
+  debug 'N'
   jmp j40
 j42:
   inc dx
   in al,dx
-  mov [es:di],al
+  mov [di],al
+
+  debug '-'
+  pushf
+  push ax
+  int 0x60
+  pop ax
+  popf
+
   inc di
   mov cx,10
 j43:
@@ -277,8 +276,7 @@ j43:
   jz j44
   dec bl
   jnz j38
-  mov al,'9'
-  int 0x62
+  debug '9'
   jmp j40
 j44:
   pop bx
@@ -291,9 +289,8 @@ disk_int:
   sti
   push ds
   push ax
-  mov al,'+'
-  int 0x62
-  xor ax,ax
+  debug '+'
+  mov ax,0x40
   mov ds,ax
   or byte[0x3e],0x80
   mov al,0x20
@@ -302,3 +299,135 @@ disk_int:
   pop ds
   iret
 
+
+;diskette_io:
+;  sti
+;  push bx
+;  push cx
+;  push ds
+;  push si
+;  push di
+;  push bp
+;  push dx
+;  mov bp,sp
+;
+;  mov ax,0x40
+;  mov ds,ax
+;  call j1
+;  mov bx,4
+;  call get_parm
+;  mov [0x40],ah
+;  mov ah,[0x41]
+;  cmp ah,1
+;  cmc
+;
+;  pop dx
+;  pop bp
+;  pop di
+;  pop si
+;  pop ds
+;  pop cx
+;  pop bx
+;  ret
+;
+;DISKETTE_IO     PROC    FAR
+;        STI                     ;INTERRUPTS BACK ON
+;        PUSH    BX              ;SAVE ADDRESS
+;        PUSH    CX
+;        PUSH    DS              ;SAVE SEGMENT REGISTER VALUE
+;        PUSH    SI              ;SAVE ALL REGISTERS DURING OPERATION
+;        PUSH    DI
+;        PUSH    BP
+;        PUSH    DX
+;        MOV     BP,SP           ;SET UP POINTER TO HEAD PARM
+;        CALL    DDS
+;        CALL    J1              ;CALL THE REST TO ENSURE DS RESTORED
+;        MOV     BX,4            ;GET THE MOTOR WAIT PARAMETER
+;        CALL    GET_PARM
+;        MOV     MOTOR_COUNT,AH  ;SET THE TIMER COUNT FOR THE MOTOR
+;        MOV     AH,DISKETTE_STATUS ;GET STATUS OF OPERATION
+;        CMP     AH,1            ;SET THE CARRY FLAG TO INDICATE
+;        CMC                     ; SUCCESS OR FAILURE
+;        POP     DX              ;RESTORE ALL REGISTERS
+;        POP     BP
+;        POP     DI
+;        POP     SI
+;        POP     DS
+;        POP     CX
+;        POP     BX              ;RECOVER ADDRESS
+;        RET     2               ;THROW AWAY SAVED FLAGS
+;DISKETTE_IO     ENDP
+;
+;J1      PROC    NEAR
+;        MOV     DH,AL           ;SAVE # SECTORS IN DH
+;        AND     MOTOR_STATUS,07FH ;INDICATE A READ OPERATION
+;        OR      AH,AH           ;AH=0
+;        JZ      DISK_RESET
+;        DEC     AH              ;AH=1
+;        JZ      DISK_STATUS
+;        MOV     DISKETTE_STATUS,0 ;RESET THE STATUS INDICATOR
+;        CMP     DL,4            ;TEST FOR DRIVE IN 0-3 RANGE
+;        JAE     J3              ;ERROR IF ABOVE
+;        DEC     AH              ;AH=2
+;        JZ      DISK_READ
+;        DEC     AH              ;AH=3
+;        JNZ     J2              ;TEST_DISK_VERF
+;        JMP     DISK_WRITE
+;J2:                             ;TEST_DISK_VERF
+;        DEC     AH              ;AH=4
+;        JZ      DISK_VERF
+;        DEC     AH              ;AH=5
+;        JZ      DISK_FORMAT
+;J3:                             ;BAD_COMMAND
+;        MOV     DISKETTE_STATUS,BAD_CMD ;ERROR CODE, NO SECTORS TRANSFERRED
+;        RET                     ;UNDEFINED OPERATION
+;J1      ENDP
+;
+;;-------------- RESET THE DISKETTE SYSTEM
+;
+;DISK_RESET      PROC    NEAR
+;        MOV     DX,03F2H        ;ADAPTER CONTROL PORT
+;        CLI                     ;NO INTERRUPTS
+;        MOV     AL,MOTOR_STATUS ;WHICH MOTOR IS ON
+;        MOV     CL,4            ;SHIFT COUNT
+;        SAL     AL,CL           ;MOVE MOTOR VALUE TO HIGH NYBBLE
+;        TEST    AL,20H          ;SELECT CORRESPONDING DRIVE
+;        JNZ     J5              ;JUMP IF MOTOR ONE IS ON
+;        TEST    AL,40H
+;        JNZ     J4              ;JUMP IF MOTOR TWO IS ON
+;        TEST    AL,80H
+;        JZ      J6              ;JUMP IF MOTOR ZERO IS ON
+;        INC     AL
+;J4:
+;        INC     AL
+;J5:
+;        INC     AL
+;J6:
+;        OR      AL,8            ;TURN ON INTERRUPT ENABLE
+;        OUT     DX,AL           ;RESET THE ADAPTER
+;        MOV     SEEK_STATUS,0   ;SET RECAL REQUIRED ON ALL DRIVES
+;        MOV     DISKETTE_STATUS,0 ;SET OK STATUS FOR DISKETTE
+;        OR      AL,4            ;TURN OFF RESET
+;        OUT     DX,AL           ;TURN OFF THE RESET
+;        STI                     ;REENABLE THE INTERRUPTS
+;        CALL    CHK_STAT_2      ;DO SENSE INTERRUPT STATUS
+;                                ; FOLLOWING RESET
+;        MOV     AL,NEC_STATUS   ;IGNORE ERROR RETURN AND DO OWN TEST
+;        CMP     AL,0C0H         ;TEST FOR DRIVE READY TRANSITION
+;        JZ      J7              ;EVERYTHING OK
+;        OR      DISKETTE_STATUS,BAD_NEC ;SET ERROR CODE
+;        RET
+;
+;;-------------- SEND SPECIFY COMMAND TO NEC
+;
+;J7:                             ;DRIVE_READY
+;        MOV     AH,03H          ;SPECIFY COMMAND
+;        CALL    NEC_OUTPUT      ;OUTPUT THE COMMAND
+;        MOV     BX,1            ;FIRST BYTE PARM IN BLOCK
+;        CALL    GET_PARM        ; TO THE NEC CONTROLLER
+;        MOV     BX,3            ;SECOND BYTE PARM IN BLOCK
+;        CALL    GET_PARM        ; TO THE NEC CONTROLLER
+;                                ;RESET_RET
+;        RET                     ;RETURN TO CALLER
+;DISK_RESET      ENDP
+;
