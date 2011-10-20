@@ -68,7 +68,7 @@ public:
                     String(" not defined and no default is available."));
         }
     }
-    template<class T> T getValue(String name)
+    template<class T> T get(String name)
     {
         return _options[name].value<T>();
     }
@@ -84,7 +84,7 @@ private:
         template<class T> T value() const { return _value.value<T>(); }
         void setValue(Any value) { _value = value; }
         Span span() const { return _span; }
-        bool valid() const { return _type.valid(); }
+        bool valid() const { return _value.valid(); }
     private:
         Type _type;
         Any _value;
@@ -174,7 +174,7 @@ private:
         Span span;
         Span startSpan;
         if (!source->parse('"', &startSpan))
-            return TypedValue(Type::string, String());
+            return TypedValue();
         Span stringStartSpan = startSpan;
         Span stringEndSpan = startSpan;
         int startOffset = source->offset();
@@ -367,7 +367,7 @@ private:
                 i.span().throwError(
                     String("Only structure types can be constructed"));
             const Array<StructuredType::Member>* elements = type.members();
-            List<TypedValue> values;
+            List<Any> values;
             Span span;
             Space::assertCharacter(source, '(', &span);
             for (int i = 0; i < elements->count(); ++i) {
@@ -384,7 +384,7 @@ private:
                         expectedType.toString() +
                         String(" but value has type ") +
                         observedType.toString());
-                values.add(value);
+                values.add(value.value());
             }
             Space::assertCharacter(source, ')', &span);
             return TypedValue(type, values, e.span() + span);
@@ -415,10 +415,10 @@ private:
         Span span;
         if (Space::parseCharacter(source, '-', &span)) {
             TypedValue e = parseUnaryExpression(source);
+            span = span + e.span();
             if (e.type() != Type::integer)
-                throw Exception(String("Only numbers can be negated"));
-            return TypedValue(Type::integer, -e.value<int>(),
-                span + e.span());
+                span.throwError("Only numbers can be negated");
+            return TypedValue(Type::integer, -e.value<int>(), span);
         }
         return parseExpressionElement(source);
     }

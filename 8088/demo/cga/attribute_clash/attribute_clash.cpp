@@ -5,76 +5,6 @@
 #include "unity/user.h"
 #include "unity/thread.h"
 #include "unity/bitmap.h"
-
-enum Atom
-{
-    atomBoolean,
-    atomInteger,
-    atomString,
-    atomEnumeration,
-    atomEnumeratedValue,
-    atomEnumeratedValueRecord,
-    atomStructure,
-    atomStructureEntry,
-
-    atomValue,
-    atomIdentifier,
-    atomTrue,
-    atomFalse,
-
-    atomSrgb,
-    atomRgb,
-    atomXyz,
-    atomLuv,
-    atomLab,
-
-    atomOption,
-
-    atomLast
-};
-
-String atomToString(Atom atom)
-{
-    class LookupTable
-    {
-    public:
-        LookupTable()
-        {
-            _table[atomBoolean] = String("Boolean");
-            _table[atomInteger] = String("Int");
-            _table[atomString] = String("String");
-            _table[atomEnumeration] = String("Enumeration");
-            _table[atomEnumeratedValue] = String("EnumeratedValue");
-            _table[atomEnumeratedValueRecord] =
-                String("EnumeratedValueRecord");
-            _table[atomStructure] = String("Structure");
-            _table[atomStructureEntry] = String("StructureEntry");
-
-            _table[atomValue] = String("value");
-            _table[atomIdentifier] = String("identifier");                           
-            _table[atomTrue] = String("true");
-            _table[atomFalse] = String("false");
-
-            _table[atomSrgb] = String("srgb");
-            _table[atomRgb] = String("rgb");
-            _table[atomXyz] = String("xyz");
-            _table[atomLuv] = String("luv");
-            _table[atomLab] = String("lab");
-
-            _table[atomOption] = String("option");
-
-        }
-        String lookUp(Atom atom) { return _table[atom]; }
-    private:
-        String _table[atomLast];
-    };
-    static LookupTable lookupTable;
-    return lookupTable.lookUp(atom);
-}
-
-
-
-#include "unity/symbol.h"
 #include "unity/config_file.h"
 
 typedef Vector3<int> YIQ;
@@ -88,7 +18,7 @@ public:
         // Determine the set of unique patterns that appear in the top lines
         // of CGA text characters.
         {
-            File file(config->getString("cgaRomFile"));
+            File file(config->get<String>("cgaRomFile"));
             String cgaROM = file.contents();
             _patterns.allocate(0x100);
             _characters.allocate(0x100);
@@ -148,23 +78,47 @@ public:
             }
         }
 #endif
-        Atom colourSpace = config->getAtom("colourSpace");
-        if (colourSpace == atomSrgb)
-            _colourSpace = ColourSpace::srgb();
-        else if (colourSpace == atomRgb)
-            _colourSpace = ColourSpace::rgb();
-        else if (colourSpace == atomXyz)
-            _colourSpace = ColourSpace::xyz();
-        else if (colourSpace == atomLuv)
-            _colourSpace = ColourSpace::luv();
-        else if (colourSpace == atomLab)
-            _colourSpace = ColourSpace::lab();
 
-        String srgbInput = File(config->getString("inputFile")).contents();
-        Symbol inputSize = config->getSymbol("inputSize");
-        _pictureSize.x = inputSize[1].integer();
-        _pictureSize.y = inputSize[2].integer();
-        _hres = config->getBoolean("hres");
+        _iterations = config->get<int>("iterations");
+        _iteration = 0;
+            
+        _colourSpace = config->get<ColourSpace>("colourSpace");
+
+        class ConvertSRGBToLinear
+        {
+        public:
+            ConvertSRGBToLinear() : _c(ColourSpace::rgb()) { }
+            Vector3<float> convert(SRGB c)
+            {
+                return Vector3Cast<float>(_c.fromSrgb(c));
+            }
+        private:
+            ColourSpace _c;
+        };
+        class ConvertLinearToSRGB
+        {
+        public:
+            ConvertLinearToSRGB() : _c(ColourSpace::rgb()) { }
+            SRGB convert(Vector3<float> c)
+            {
+                return _c.toSrgb24(c);
+            }
+        private:
+            ColourSpace _c;
+        };
+        Bitmap<SRGB> srgbInputOriginal;
+        srgbInputOriginal.load(File(config->get<String>("inputPicture")));
+        Bitmap<Vector3<float> > linearInput;
+        srgbInputOriginal.convert(&linearInput, ConvertSRGBToLinear());
+        Array<Any> inputSizeArray = config->get<List<Any> >("inputSize");
+        _pictureSize = Vector(inputSizeArray[0].value<int>(),
+            inputSizeArray[1].value<int>());
+        Bitmap<Vector3<float> > linearScaled(_pictureSize);
+        linearInput.resample(&linearScaled);
+        Bitmap<SRGB> srgbInput;
+        linearScaled.convert(&srgbInput, ConvertLinearToSRGB());
+
+        _hres = config->get<bool>("hres");
 
         _srgbPalette[0x00] = SRGB(0x00, 0x00, 0x00);
         _srgbPalette[0x01] = SRGB(0x00, 0x00, 0xaa);
@@ -250,10 +204,13 @@ public:
 
         errorFor(0, 0, overscanColour);
 
-        int ip = 0;
         int q = 0;
         Colour border = _perceptualOutput[6];
-        for (int y = 0; y < _outputSize.y; ++y)
+        Byte* srgbData = srgbInput.data();
+        for (int y = 0; y < _outputSize.y; ++y) {
+            Byte* srgbRow =
+                srgbData + (y - _compositeOffset.y)*srgbInput.stride();
+            int ip = 0;
             for (int x = 0; x < _outputSize.x; ++x) {
                 int p = y*_outputSize.x + x;
                 _srgbOutput[p] = _srgbOutput[6];
@@ -261,7 +218,7 @@ public:
                 Colour c;
                 if ((Vector(x, y) - _compositeOffset).inside(_pictureSize)) {
                     c = _colourSpace.fromSrgb(SRGB(
-                        srgbInput[ip], srgbInput[ip + 1], srgbInput[ip + 2]));
+                        srgbRow[ip], srgbRow[ip + 1], srgbRow[ip + 2]));
                     ip += 3;
                 }
                 else
@@ -270,6 +227,7 @@ public:
                 _perceptualError[p] =
                     _perceptualOutput[p] - _perceptualInput[p];
             }
+        }
 
         for (int y = 0; y < _pictureSize.y; ++y)
             for (int x = 0; x < _pictureSize.x; ++x) {
@@ -579,7 +537,8 @@ public:
             ++_position.y;
             _position.x = 0;
             if (_position.y == _pictureSize.y) {
-                if (!_changed)
+                ++_iteration;
+                if (!_changed || _iteration == _iterations)
                     _thread.finished();
                 _position.y = 0;
             }
@@ -662,6 +621,9 @@ private:
     int _yContrast;
     int _brightness;
 
+    int _iterations;
+    int _iteration;
+
     bool _hres;
 };
 
@@ -670,44 +632,48 @@ class Program : public ProgramBase
 public:
     int run()
     {
+        if (_arguments.count() == 1) {
+            NullTerminatedWideString s
+                ("Usage: attribute_clash <config file path>\n");
+            MessageBox(NULL, s, L"Error", MB_OK | MB_ICONERROR);
+            return 0;
+        }
+
         ConfigFile config;
 
-        SymbolList vectorComponents;
-        vectorComponents.add(
-            Symbol(atomStructureEntry, Symbol(atomInteger), String("x")));
-        vectorComponents.add(
-            Symbol(atomStructureEntry, Symbol(atomInteger), String("y")));
-        Symbol vectorType(atomStructure, String("Vector"),
-            SymbolArray(vectorComponents));
+        List<StructuredType::Member> vectorMembers;
+        vectorMembers.add(StructuredType::Member("x", Type::integer));
+        vectorMembers.add(StructuredType::Member("y", Type::integer));
+        StructuredType vectorType("Vector", vectorMembers);
         config.addType(vectorType);
 
-        SymbolList colourSpaceComponents;
-        colourSpaceComponents.add(
-            Symbol(atomEnumeratedValue, Symbol(atomSrgb), String("srgb")));
-        colourSpaceComponents.add(
-            Symbol(atomEnumeratedValue, Symbol(atomRgb), String("rgb")));
-        colourSpaceComponents.add(
-            Symbol(atomEnumeratedValue, Symbol(atomXyz), String("xyz")));
-        colourSpaceComponents.add(
-            Symbol(atomEnumeratedValue, Symbol(atomLuv), String("luv")));
-        colourSpaceComponents.add(
-            Symbol(atomEnumeratedValue, Symbol(atomLab), String("lab")));
-        Symbol colourSpaceType(atomEnumeration, String("ColourSpace"),
-            SymbolArray(colourSpaceComponents));
+        List<EnumerationType::Value> colourSpaceMembers;
+        colourSpaceMembers.add(
+            EnumerationType::Value("srgb", ColourSpace::srgb()));
+        colourSpaceMembers.add(
+            EnumerationType::Value("rgb", ColourSpace::rgb()));
+        colourSpaceMembers.add(
+            EnumerationType::Value("xyz", ColourSpace::xyz()));
+        colourSpaceMembers.add(
+            EnumerationType::Value("luv", ColourSpace::luv()));
+        colourSpaceMembers.add(
+            EnumerationType::Value("lab", ColourSpace::lab()));
+        EnumerationType colourSpaceType("colourSpace", colourSpaceMembers);
         config.addType(colourSpaceType);
 
-        config.addOption("cgaRomFile", Symbol(atomString));
-        config.addOption("inputPicture", Symbol(atomString));
-        config.addOption("outputNTSC", Symbol(atomString));
-        config.addOption("outputComposite", Symbol(atomString));
-        config.addOption("outputRGB", Symbol(atomString));
-        config.addOption("outputData", Symbol(atomString));
-        config.addOption("compositeTarget", Symbol(atomBoolean));
-        config.addOption("hres", Symbol(atomBoolean));
+        config.addOption("cgaRomFile", Type::string);
+        config.addOption("inputPicture", Type::string);
+        config.addOption("outputNTSC", Type::string);
+        config.addOption("outputComposite", Type::string);
+        config.addOption("outputRGB", Type::string);
+        config.addOption("outputData", Type::string);
+        config.addOption("compositeTarget", Type::boolean);
+        config.addOption("hres", Type::boolean);
         config.addOption("inputSize", vectorType);
-        config.addOption("overscanColour", Symbol(atomInteger));
+        config.addOption("inputOffset", vectorType);
+        config.addOption("overscanColour", Type::integer);
         config.addOption("outputCompositeSize", vectorType);
-        config.addOption("iterations", Symbol(atomInteger));
+        config.addOption("iterations", Type::integer);
         config.addOption("colourSpace", colourSpaceType);
         config.load(_arguments[1]);
 

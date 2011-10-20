@@ -110,6 +110,7 @@ private:
         TableEntry* _next;
         
         friend class Iterator;
+        friend class HashTableBase;
     };
 public:
     HashTableBase() : _n(0)
@@ -186,7 +187,7 @@ public:
     {
         int row = 0;
         TableEntry* entry = &_table[0];
-        while (entry == 0) {
+        while (entry->_next == 0) {
             ++row;
             if (row == _n)
                 break;

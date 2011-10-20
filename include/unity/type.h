@@ -510,7 +510,10 @@ public:
     {
         _conversions.add(TypePair(from, to), converter);
     }
-    bool canConvert(
+    bool canConvert(Type from, Type to)
+    {
+        return false;
+    }
 private:
     class TypePair
     {
