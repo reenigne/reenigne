@@ -80,6 +80,20 @@ Check timings for MUL
     Similarly with word multiplication
   Timings for IMUL: Penalties for negative inputs? Negative output?
 
+8-bit MUL:
+    00 01 C0 07 F0 1F FC 7F FF
+
+00  74 75 76 77 78 79 80 81 82
+01  74 75 76 77 78 79 80 81 82
+C0  74 75 75 76 77 78 79 80 81
+07  74 75 75 77 77 79 79 80 81
+F0  74 75 75 76 77 78 79 80 81
+1F  74 75 75 77 77 78 79 80 81
+FC  74 75 75 76 77 78 79 80 81
+7F  74 75 75 76 77 78 79 80 81
+FF  74 75 75 76 77 78 79 80 81
+
+
 Check that the semantics of x86 remainder is (destination - product)*(negative ? -1 : 1) always
 
 Check that AAA/AAS is 4 cycles (as Zen says) instead of 8 (as HELPPC says)
@@ -107,8 +121,8 @@ Check timings of "MUL rmw" - HELPPC says 118-113 (sic) (124-139)+EA, Zen says 11
 Check timings of "IMUL rmw" - HELPPC says 128-154 (134-160)+EA, Zen says 128-154 (138-164)+EA
 Check timings of "DIV rmw" - HELPPC says 144-162 (150-168)+EA, Zen says 144-162 (154-172)+EA
 
-Check timings of "REP MOVSB" - HELPPC says 18 per, Zen says 17 per
-Check timings of "REP MOVSW" - HELPPC says 26 per, Zen says 25 per
+Check timings of "REP MOVSB" - HELPPC says 18 per, Zen says 17 per - Zen is right
+Check timings of "REP MOVSW" - HELPPC says 26 per, Zen says 25 per - Zen is right
 Check timings of "REP STOSB" - HELPPC says 11 per, Zen says 10 per
 Check timings of "REP STOSW" - HELPPC says 15 per, Zen says 14 per
 Check timings of "REP LODSB" - HELPPC says 12 per, Zen says 13 per

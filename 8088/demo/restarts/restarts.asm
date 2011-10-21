@@ -1,6 +1,46 @@
 org 0x100
 cpu 8086
 
+%macro waitForDisplayEnable 0
+  %%waitForDisplayEnable
+    in al,dx                       ; 1 1 2
+    test al,1                      ; 2 0 2
+    jnz %%waitForDisplayEnable     ; 2 0 2
+%endmacro
+
+%macro waitForDisplayDisable 0
+  %%waitForDisplayDisable
+    in al,dx                       ; 1 1 2
+    test al,1                      ; 2 0 2
+    jz %%waitForDisplayDisable     ; 2 0 2
+%endmacro
+
+%macro waitForVerticalSync 0
+  %%waitForVerticalSync
+    in al,dx
+    test al,8
+    jz %%waitForVerticalSync
+%endmacro
+
+%macro waitForNoVerticalSync 0
+  %%waitForNoVerticalSync
+    in al,dx
+    test al,8
+    jnz %%waitForNoVerticalSync
+%endmacro
+
+%macro setNextStartAddress 0
+    mov bl,ch                      ; 2 0 2
+    mov bh,lineTable >> 8          ; 2 0 2
+    mov ah,[bx]                    ; 2 1 3
+    mov al,0x0d                    ; 2 0 2
+    out dx,ax                      ; 1 2 3
+    mov ah,[bx+0x100]              ; 4 1 5
+    dec ax                         ; 1 0 1
+    out dx,ax                      ; 1 2 3
+    add cx,si                      ; 2 0 2
+%endMacro
+
   ; The timing in the inner loop is critical - an interrupt could cause a very
   ; visible glitch.
   cli
@@ -15,8 +55,6 @@ cpu 8086
   mov si,imageData
   cld
   rep movsw
-
-  ; Set up the screen so we can debug the keyboard send routine
 
   ; Mode                                                08
   ;      1 +HRES                                         0
@@ -66,12 +104,12 @@ cpu 8086
   mov ax,0x0005
   out dx,ax
 
-  ;   0x7f Vertical Displayed                           01
-  mov ax,0x0106
+  ;   0x7f Vertical Displayed                           02
+  mov ax,0x0206
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       19
-  mov ax,0x1907
+  mov ax,0x1a07
   out dx,ax
 
   ;   0x03 Interlace Mode                               02
@@ -109,83 +147,58 @@ cpu 8086
   out dx,ax
 
 
-%macro waitForDisplayEnable 0
-  %%waitForDisplayEnable
-    in al,dx                       ; 1 1 2
-    test al,1                      ; 2 0 2
-    jnz %%waitForDisplayEnable     ; 2 0 2
-%endmacro
-
-%macro waitForDisplayDisable 0
-    mov dl,0xda                    ; 2 0 2
-  %%waitForDisplayDisable
-    in al,dx                       ; 1 1 2
-    test al,1                      ; 2 0 2
-    jz %%waitForDisplayDisable     ; 2 0 2
-%endmacro
-
-%macro waitForVerticalSync 0
-  %%waitForVerticalSync
-    in al,dx
-    test al,8
-    jz %%waitForVerticalSync
-%endmacro
-
-%macro waitForNoVerticalSync 0
-  %%waitForNoVerticalSync
-    in al,dx
-    test al,8
-    jnz %%waitForNoVerticalSync
-%endmacro
-
-%macro setNextStartAddress 0
-    mov dl,0xd4                    ; 2 0 2
-;    mov bl,ch                      ; 2 0 2
-;    mov bh,lineTable >> 8          ; 2 0 2
-;    mov ah,[bx]                    ; 2 1 3
-;    mov al,0x0d                    ; 2 0 2
-;    out dx,ax                      ; 1 2 3
-;    mov ah,[bx+0x100]              ; 4 1 5
-;    dec ax                         ; 1 0 1
-;    out dx,ax                      ; 1 2 3
-;    add cx,si                      ; 2 0 2
-%endMacro
-
-; Lines 0..198 = 1-line screens
-; Line 199 = line  0 of 63-row screen (visible)
-;      200         1                   start of overscan
-;      224        25                   start of vertical sync
-;      240        41                   end of vertical sync
-;      261        62                   last line of frame
+; Lines 0..197 = 99x 2-row screens
+; Line 198 = line  0 of 63-row screen (visible)
+; Line 199 = line  1 of 63-row screen (visible)
+;      200         2                   start of overscan
+;      224        26                   start of vertical sync
+;      240        42                   end of vertical sync
+;      261        63                   last line of frame
 
   mov dl,0xda
-  mov si,0x100  ; Increase per line in lines/256
+  mov si,0x200  ; Increase per 2 lines in lines/256
 
 frameLoop:
   ; We now have over 62 rows (3.9ms) to do per-frame changes.
   waitForVerticalSync
   waitForNoVerticalSync
 
-  ; During line 0 we set up the start address for line 1 and change the vertical total to 0x00
+  ; During line 0-1 we set up the start address for line 2 and change the vertical total to 0x01
   waitForDisplayEnable
-  setNextStartAddress
-  mov ax,0x0004 ; 4: Vertical total: 1 row/frame
+  mov dl,0xd4
+  mov ax,0x0104 ; 4: Vertical total: 2 rows/frame
   out dx,ax
+  mov dl,0xda                    ; 2 0 2
+  waitForDisplayDisable
+  waitForDisplayEnable
+  mov dl,0xd4
+  setNextStartAddress
+  mov dl,0xda                    ; 2 0 2
   waitForDisplayDisable
 
-  ; During lines 1..198 we set up the start address for the next line
-%rep 198
+  ; During lines 2..197 we set up the start address for the next line
+%rep 98
     waitForDisplayEnable
+    waitForDisplayDisable
+    waitForDisplayEnable
+    mov dl,0xd4
     setNextStartAddress
+    mov dl,0xda                    ; 2 0 2
     waitForDisplayDisable
 %endrep
 
-  ; During line 199 we set up the start address for line 0 and change the vertical total to 0x3e
+  ; During line 198 we set up the start address for line 0 and change the vertical total to 0x3e
   waitForDisplayEnable
+  mov dl,0xd4
   mov cx,0      ; Initial offset in lines/256
-  setNextStartAddress
   mov ax,0x3e04 ; 4: Vertical total: 63 rows/frame
   out dx,ax
+  mov dl,0xda
+  waitForDisplayDisable
+  waitForDisplayEnable
+  mov dl,0xd4
+  setNextStartAddress
+  mov dl,0xda
   waitForDisplayDisable
 
   jmp frameLoop

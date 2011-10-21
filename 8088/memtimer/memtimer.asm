@@ -6,10 +6,14 @@ org 0
   out 0x40,al
   out 0x40,al
 
+  cli
+
   mov ax,cs
   mov ds,ax
+  mov ss,ax
   mov ax,0xb800
   mov es,ax
+  mov sp,endCode + 8192
 
 mainLoop:
   mov si,endCode
@@ -27,7 +31,11 @@ mainLoop:
   in al,0x40
   xchg ax,dx
 
-  rep movsw
+;  rep movsw
+%rep 2048
+  lodsw
+  push ax
+%endrep
 
   in al,0x40
   mov ah,al
@@ -44,9 +52,9 @@ mainLoop:
   xchg dh,dl
   sub ax,dx
   neg ax
-  int 0x63
+  int 0x60
   mov al,10
-  int 0x65
+  int 0x62
 
   jmp mainLoop
 
