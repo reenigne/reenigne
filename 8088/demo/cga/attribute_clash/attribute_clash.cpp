@@ -14,11 +14,28 @@ class AttributeClashImage : public Image
 public:
     AttributeClashImage(ConfigFile* config)
     {
-        _config = config;
+        String cgaRomFileName = config->get<String>("cgaRomFile");
+        _iterations = config->get<int>("iterations");
+        _colourSpace = config->get<ColourSpace>("colourSpace");
+        Array<Any> inputSizeArray = config->get<List<Any> >("inputSize");
+        _inputSize = Vector(inputSizeArray[0].value<int>(),
+            inputSizeArray[1].value<int>());
+        Array<Any> outputSizeArray = config->get<List<Any> >("outputSize");
+        _outputSize = Vector(outputSizeArray[0].value<int>(),
+            outputSizeArray[1].value<int>());
+        Array<Any> offsetArray = config->get<List<Any> >("offset");
+        _offset = Vector(offsetArray[0].value<int>(),
+            offsetArray[1].value<int>());
+        static const int overscanColour = config->get<int>("overscanColour");
+        String inputPictureFileName = config->get<String>("inputPicture");
+        _hres = config->get<bool>("hres");
+        _composite = config->get<bool>("compositeTarget");
+       
+
         // Determine the set of unique patterns that appear in the top lines
         // of CGA text characters.
         {
-            File file(config->get<String>("cgaRomFile"));
+            File file(cgaRomFileName);
             String cgaROM = file.contents();
             _patterns.allocate(0x100);
             _characters.allocate(0x100);
@@ -79,10 +96,7 @@ public:
         }
 #endif
 
-        _iterations = config->get<int>("iterations");
         _iteration = 0;
-            
-        _colourSpace = config->get<ColourSpace>("colourSpace");
 
         class ConvertSRGBToLinear
         {
@@ -107,18 +121,13 @@ public:
             ColourSpace _c;
         };
         Bitmap<SRGB> srgbInputOriginal;
-        srgbInputOriginal.load(File(config->get<String>("inputPicture")));
+        srgbInputOriginal.load(File(inputPictureFileName));
         Bitmap<Vector3<float> > linearInput;
         srgbInputOriginal.convert(&linearInput, ConvertSRGBToLinear());
-        Array<Any> inputSizeArray = config->get<List<Any> >("inputSize");
-        _pictureSize = Vector(inputSizeArray[0].value<int>(),
-            inputSizeArray[1].value<int>());
-        Bitmap<Vector3<float> > linearScaled(_pictureSize);
+        Bitmap<Vector3<float> > linearScaled(_inputSize);
         linearInput.resample(&linearScaled);
         Bitmap<SRGB> srgbInput;
         linearScaled.convert(&srgbInput, ConvertLinearToSRGB());
-
-        _hres = config->get<bool>("hres");
 
         _srgbPalette[0x00] = SRGB(0x00, 0x00, 0x00);
         _srgbPalette[0x01] = SRGB(0x00, 0x00, 0xaa);
@@ -142,120 +151,117 @@ public:
 
         _dataOutput.allocate(_pictureSize.x*_pictureSize.y/4);
 
-        _position = Vector(0, 0);
-        _changed = false;
-
-        _compositeOffset = Vector(8, 4);
-        _compositeSize = _pictureSize + _compositeOffset*2;
-        _compositeData.allocate(_compositeSize.x*_compositeSize.y);
-        _outputSize = _compositeSize - Vector(6, 0);
-
-        _srgbOutput.allocate(_outputSize.x*_outputSize.y);
-        _perceptualOutput.allocate(_outputSize.x*_outputSize.y);
-        _perceptualError.allocate(_outputSize.x*_outputSize.y);
-        _perceptualInput.allocate(_outputSize.x*_outputSize.y);
-
-        static const int overscanColour = 6;
-
-        static const float brightness = 0.06f;
-        static const float contrast = 3.0f;
-        static const float saturation = 0.7f;
-        static const float tint = 270.0f + 33.0f;
-
-        _yContrast = static_cast<int>(contrast*1463.0f);
-        static const float radians = static_cast<float>(M_PI)/180.0f;
-        float tintI = -cos(tint*radians);
-        float tintQ = sin(tint*radians);
-
-        // Determine the color burst.
-        float colorBurst[4];
-        // First set _iqMultipliers to 0. The result of setCompositeData will
-        // have valid Y data but not valid I and Q data yet. Fortunately we
-        // only need the Y data to find the color burst.
-        for (int i = 0; i < 4; ++i)
-            _iqMultipliers[i] = 0;
-        for (int i = 0; i < 4; ++i) {
-            setCompositeData(Vector(i, 0) - _compositeOffset, overscanColour);
-            colorBurst[i] = static_cast<float>(_compositeData[i].x);
-        }
-        float burstI = colorBurst[2] - colorBurst[0];      
-        float burstQ = colorBurst[3] - colorBurst[1];
-        float colorBurstGain = 32.0f/sqrt((burstI*burstI + burstQ*burstQ)/2);
-        float s = saturation*contrast*colorBurstGain*0.352f;
-        _iqMultipliers[0] = static_cast<int>((burstI*tintI - burstQ*tintQ)*s);
-        _iqMultipliers[1] = static_cast<int>((burstQ*tintI + burstI*tintQ)*s);
-        _iqMultipliers[2] = -_iqMultipliers[0];
-        _iqMultipliers[3] = -_iqMultipliers[1];
-
-        _gamma.allocate(256);
-         for (int i = 0; i < 256; ++i)
-            _gamma[i] = static_cast<int>(
-                pow(static_cast<float>(i)/255.0f, 1.9f)*255.0f);
-
-        _brightness =
-            static_cast<int>(brightness*100.0 - 7.5f*256.0f*contrast)<<8;
-
-        // Now that _iqMultipliers has been initialized correctly, we can set
-        // initialize _compositeData. Let's start it off 
-        for (int y = 0; y < _compositeSize.y; ++y)
-            for (int x = 0; x < _compositeSize.x; ++x)
-                setCompositeData(Vector(x, y) - _compositeOffset,
-                    overscanColour);
-
-        errorFor(0, 0, overscanColour);
-
-        int q = 0;
-        Colour border = _perceptualOutput[6];
-        Byte* srgbData = srgbInput.data();
-        for (int y = 0; y < _outputSize.y; ++y) {
-            Byte* srgbRow =
-                srgbData + (y - _compositeOffset.y)*srgbInput.stride();
-            int ip = 0;
-            for (int x = 0; x < _outputSize.x; ++x) {
-                int p = y*_outputSize.x + x;
-                _srgbOutput[p] = _srgbOutput[6];
-                _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
-                Colour c;
-                if ((Vector(x, y) - _compositeOffset).inside(_pictureSize)) {
-                    c = _colourSpace.fromSrgb(SRGB(
-                        srgbRow[ip], srgbRow[ip + 1], srgbRow[ip + 2]));
-                    ip += 3;
-                }
-                else
-                    c = border;
-                _perceptualInput[q++] = c;
-                _perceptualError[p] =
-                    _perceptualOutput[p] - _perceptualInput[p];
-            }
-        }
-
-        for (int y = 0; y < _pictureSize.y; ++y)
-            for (int x = 0; x < _pictureSize.x; ++x) {
-                int col = (y/8)*40 + (x/16);
-                int ch;
-                int at;
-                if (col < 16) {
-                    ch = 0;
-                    at = col*0x11;
-                }
-                else {
-                    col -= 16;
-                    int pattern = col / 240;
-                    static int chars[4] = {0xb0, 0xb1, 0x13, 0x48};
-                    ch = chars[pattern];
-                    at = col % 240;
-                    int fg = at%15;
-                    int bg = at/15;
-                    if (fg >= bg)
-                        ++fg;
-                    at = fg + (bg << 4);
-                }
-                int o = (y*_pictureSize.x + x)/8;
-                _dataOutput[o*2] = ch;
-                _dataOutput[o*2 + 1] = at;
-                _position = Vector((x/8)*8, y);
-                errorFor(_patterns[ch], at & 15, at >> 4); 
-            }
+//        _position = Vector(0, 0);
+//        _changed = false;
+//
+//        _compositeSize = _pictureSize + _compositeOffset*2;
+//        _compositeData.allocate(_compositeSize.x*_compositeSize.y);
+//        _outputSize = _compositeSize - Vector(6, 0);
+//
+//        _srgbOutput.allocate(_outputSize.x*_outputSize.y);
+//        _perceptualOutput.allocate(_outputSize.x*_outputSize.y);
+//        _perceptualError.allocate(_outputSize.x*_outputSize.y);
+//        _perceptualInput.allocate(_outputSize.x*_outputSize.y);
+//
+//        static const float brightness = 0.06f;
+//        static const float contrast = 3.0f;
+//        static const float saturation = 0.7f;
+//        static const float tint = 270.0f + 33.0f;
+//
+//        _yContrast = static_cast<int>(contrast*1463.0f);
+//        static const float radians = static_cast<float>(M_PI)/180.0f;
+//        float tintI = -cos(tint*radians);
+//        float tintQ = sin(tint*radians);
+//
+//        // Determine the color burst.
+//        float colorBurst[4];
+//        // First set _iqMultipliers to 0. The result of setCompositeData will
+//        // have valid Y data but not valid I and Q data yet. Fortunately we
+//        // only need the Y data to find the color burst.
+//        for (int i = 0; i < 4; ++i)
+//            _iqMultipliers[i] = 0;
+//        for (int i = 0; i < 4; ++i) {
+//            setCompositeData(Vector(i, 0) - _compositeOffset, overscanColour);
+//            colorBurst[i] = static_cast<float>(_compositeData[i].x);
+//        }
+//        float burstI = colorBurst[2] - colorBurst[0];      
+//        float burstQ = colorBurst[3] - colorBurst[1];
+//        float colorBurstGain = 32.0f/sqrt((burstI*burstI + burstQ*burstQ)/2);
+//        float s = saturation*contrast*colorBurstGain*0.352f;
+//        _iqMultipliers[0] = static_cast<int>((burstI*tintI - burstQ*tintQ)*s);
+//        _iqMultipliers[1] = static_cast<int>((burstQ*tintI + burstI*tintQ)*s);
+//        _iqMultipliers[2] = -_iqMultipliers[0];
+//        _iqMultipliers[3] = -_iqMultipliers[1];
+//
+//        _gamma.allocate(256);
+//         for (int i = 0; i < 256; ++i)
+//            _gamma[i] = static_cast<int>(
+//                pow(static_cast<float>(i)/255.0f, 1.9f)*255.0f);
+//
+//        _brightness =
+//            static_cast<int>(brightness*100.0 - 7.5f*256.0f*contrast)<<8;
+//
+//        // Now that _iqMultipliers has been initialized correctly, we can set
+//        // initialize _compositeData. Let's start it off 
+//        for (int y = 0; y < _compositeSize.y; ++y)
+//            for (int x = 0; x < _compositeSize.x; ++x)
+//                setCompositeData(Vector(x, y) - _compositeOffset,
+//                    overscanColour);
+//
+//        errorFor(0, 0, overscanColour);
+//
+//        int q = 0;
+//        Colour border = _perceptualOutput[6];
+//        Byte* srgbData = srgbInput.data();
+//        for (int y = 0; y < _outputSize.y; ++y) {
+//            Byte* srgbRow =
+//                srgbData + (y - _compositeOffset.y)*srgbInput.stride();
+//            int ip = 0;
+//            for (int x = 0; x < _outputSize.x; ++x) {
+//                int p = y*_outputSize.x + x;
+//                _srgbOutput[p] = _srgbOutput[6];
+//                _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
+//                Colour c;
+//                if ((Vector(x, y) - _compositeOffset).inside(_pictureSize)) {
+//                    c = _colourSpace.fromSrgb(SRGB(
+//                        srgbRow[ip], srgbRow[ip + 1], srgbRow[ip + 2]));
+//                    ip += 3;
+//                }
+//                else
+//                    c = border;
+//                _perceptualInput[q++] = c;
+//                _perceptualError[p] =
+//                    _perceptualOutput[p] - _perceptualInput[p];
+//            }
+//        }
+//
+//        for (int y = 0; y < _pictureSize.y; ++y)
+//            for (int x = 0; x < _pictureSize.x; ++x) {
+//                int col = (y/8)*40 + (x/16);
+//                int ch;
+//                int at;
+//                if (col < 16) {
+//                    ch = 0;
+//                    at = col*0x11;
+//                }
+//                else {
+//                    col -= 16;
+//                    int pattern = col / 240;
+//                    static int chars[4] = {0xb0, 0xb1, 0x13, 0x48};
+//                    ch = chars[pattern];
+//                    at = col % 240;
+//                    int fg = at%15;
+//                    int bg = at/15;
+//                    if (fg >= bg)
+//                        ++fg;
+//                    at = fg + (bg << 4);
+//                }
+//                int o = (y*_pictureSize.x + x)/8;
+//                _dataOutput[o*2] = ch;
+//                _dataOutput[o*2 + 1] = at;
+//                _position = Vector((x/8)*8, y);
+//                errorFor(_patterns[ch], at & 15, at >> 4); 
+//            }
         _position = Vector(0, 0);
 
         _thread.initialize(this);
@@ -264,36 +270,37 @@ public:
 
     void paint(const PaintHandle& paint)
     {
-        Byte* l = getBits();
-        for (int y = 0; y < _size.y; ++y) {
-            DWord* p = reinterpret_cast<DWord*>(l);
-            for (int x = 0; x < _size.x; ++x) {
-                SRGB srgb(0, 0, 0);
-                Vector v(x, y);
-                if (v.inside(_outputSize))
-                    srgb = _srgbOutput[y*_outputSize.x + x];
-                else {
-                    v -= Vector(660, 4);
-                    if (v.inside(_pictureSize)) {
-                        int p = (v.y*_pictureSize.x + v.x)/8;
-                        int bits = _patterns[_dataOutput[p*2]];
-                        int at = _dataOutput[p*2 + 1];
-                        int colour = ((bits & (128 >> (v.x & 7))) != 0 ?
-                            (at & 15) : (at >> 4));
-                        srgb = _srgbPalette[colour];
-                    }
-                    else {
-                        v -= Vector(0, 204);
-                        if (v.inside(_outputSize)) {
-                            int c = _compositeData[v.y*_compositeSize.x + v.x].x + 60;
-                            srgb = SRGB(c, c, c);
-                        }
-                    }
-                }
-                *(p++) = (srgb.x<<16) + (srgb.y<<8) + srgb.z;
-            }
-            l += _byteWidth;
-        }
+//        Byte* l = getBits();
+//        for (int y = 0; y < _size.y; ++y) {
+//            DWord* p = reinterpret_cast<DWord*>(l);
+//            for (int x = 0; x < _size.x; ++x) {
+//                SRGB srgb(0, 0, 0);
+//                Vector v(x, y);
+//                if (v.inside(_outputSize))
+//                    srgb = _srgbOutput[y*_outputSize.x + x];
+//                else {
+//                    v -= Vector(660, 4);
+//                    if (v.inside(_pictureSize)) {
+//                        int p = (v.y*_pictureSize.x + v.x)/8;
+//                        int bits = _patterns[_dataOutput[p*2]];
+//                        int at = _dataOutput[p*2 + 1];
+//                        int colour = ((bits & (128 >> (v.x & 7))) != 0 ?
+//                            (at & 15) : (at >> 4));
+//                        srgb = _srgbPalette[colour];
+//                    }
+//                    else {
+//                        v -= Vector(0, 204);
+//                        if (v.inside(_outputSize)) {
+//                            int c = 60 +
+//                                _compositeData[v.y*_compositeSize.x + v.x].x;
+//                            srgb = SRGB(c, c, c);
+//                        }
+//                    }
+//                }
+//                *(p++) = (srgb.x<<16) + (srgb.y<<8) + srgb.z;
+//            }
+//            l += _byteWidth;
+//        }
         Image::paint(paint);
     }
 
@@ -301,248 +308,300 @@ public:
     {
         _thread.end();
 
-        File outputFile(String("attribute_clash.raw"));
-        outputFile.save(String(
-            Buffer(&_srgbOutput[0].x), 0, _pictureSize.x*_pictureSize.y*3));
-
-        File dataFile(String("picture.dat"));
-        dataFile.save(String(
-            Buffer(&_dataOutput[0]), 0, _pictureSize.x*_pictureSize.y/4));
+//        File outputFile(String("attribute_clash.raw"));
+//        outputFile.save(String(
+//            Buffer(&_srgbOutput[0].x), 0, _pictureSize.x*_pictureSize.y*3));
+//
+//        File dataFile(String("picture.dat"));
+//        dataFile.save(String(
+//            Buffer(&_dataOutput[0]), 0, _pictureSize.x*_pictureSize.y/4));
     }
 
-    void setCompositeData(Vector p, int c)
-    {
-        // These give the colour burst patterns for the 8 colours ignoring
-        // the intensity bit.
-        static const int colorBurst[8][4] = {
-            {0, 0, 0, 0}, /* Black */
-            {2, 3, 4, 5}, /* Blue */
-            {1, 0, 0, 1}, /* Green */
-            {5, 2, 3, 4}, /* Cyan */
-            {3, 4, 5, 2}, /* Red */
-            {0, 1, 1, 0}, /* Magenta */
-            {4, 5, 2, 3}, /* Yellow-burst */
-            {1, 1, 1, 1}};/* White */
-
-        // The values in the colorBurst array index into phaseLevels which
-        // gives us the amount of time that the +CHROMA bit spends high during
-        // that pixel. Changing "phase" corresponds to tuning the "color
-        // adjust" trimmer on the PC motherboard. This trimmer adjusts the
-        // hues of green and magenta and artifact colours, not
-        // blue/cyan/red/yellow-burst chroma colours.
-
-        static const int phase = 128;  // TODO: use phase to compute phaseLevels entries 2 to 5
-        static const int phaseLevels[6] = {0, 256, -53, 128, 309, 128};
-
-        // The following levels are computed as follows:
-        // Using Falstad's circuit simulator applet
-        // (http://www.falstad.com/circuit/) with the CGA composite output
-        // stage and a 75 ohm load gives the following voltages:
-        //   +CHROMA = 0,  +I = 0  0.416V  (colour 0)
-        //   +CHROMA = 0,  +I = 1  0.709V  (colour 8)
-        //   +CHROMA = 1,  +I = 0  1.160V  (colour 7)
-        //   +CHROMA = 1,  +I = 1  1.460V  (colour 15)
-        // Scaling these and adding an offset (equivalent to adjusting the
-        // contrast and brightness respectively) such that colour 0 is at the
-        // standard black level of IRE 7.5 and that colour 15 is at the
-        // standard white level of IRE 100 gives:
-        //   +CHROMA = 0,  +I = 0  IRE   7.5
-        //   +CHROMA = 0,  +I = 1  IRE  33.5
-        //   +CHROMA = 1,  +I = 0  IRE  73.4
-        //   +CHROMA = 1,  +I = 1  IRE 100.0
-        // Then we convert to sample levels using the standard formula:
-        //   sample = 1.4*IRE + 60
-        static const int sampleLevels[4] = {71, 107, 163, 200};
-
-        // The sample grid should be aligned such that 00330033 is green/magenta[/orange/aqua], not blue/cyan/red/yellow-burst
-        //   The former aligns the samples with the pixels with the composite samples
-        // 0  0000  black
-        // 1  0001  dark cyan
-        // 2  0010  dark blue
-        // 3  0011  aqua
-        // 4  0100  dark red
-        // 5  0101  grey
-        // 6  0110  magenta
-        // 7  0111  light blue
-        // 8  1000  dark yellow-burst
-        // 9  1001  green
-        // A  1010  grey
-        // B  1011  light cyan
-        // C  1100  orange
-        // D  1101  light yellow-burst
-        // E  1110  light red
-        // F  1111  white
-
-        // So the order of bits is yellow-burst/red/blue/cyan
-
-        int chroma = phaseLevels[colorBurst[c & 7][p.x & 3]];
-        chroma = static_cast<int>(static_cast<float>(chroma - 128) * 4 / (M_PI * sqrt(2.0f))) + 128;
-        int intensity = (c & 8) >> 3;
-        int sampleLow = sampleLevels[intensity];
-        int sampleHigh = sampleLevels[intensity + 2];
-        int sample = (((sampleHigh - sampleLow)*chroma) >> 8) + sampleLow - 60;
-        Vector q = p + _compositeOffset;
-        _compositeData[q.y*_compositeSize.x + q.x] = YIQ(sample,
-            sample*_iqMultipliers[p.x & 3], 
-            sample*_iqMultipliers[(p.x + 3)&3]);
-    }
-
-    Colour target(Vector p)
-    {
-        Colour c = _perceptualInput[p.y*_outputSize.x + p.x];
-        if (p.y > 0)
-            c += _perceptualError[(p.y - 1)*_outputSize.x + p.x]/2;
-        if (p.x > 0)
-            c += _perceptualError[p.y*_outputSize.x + p.x - 1]/2;
-        return c;
-    }
-
-    double errorFor(UInt8 bits, UInt8 fg, UInt8 bg)
-    {
-        for (int i = 0; i < 8; ++i) {
-            int colour = ((bits & (128 >> i)) != 0 ? fg : bg);
-            setCompositeData(_position + Vector(i, 0), colour);
-        }
-
-        Vector pos = _position + _compositeOffset;
-        YIQ* d = &_compositeData[pos.y*_compositeSize.x + pos.x];
-
-        int p = pos.y*_outputSize.x + pos.x;
-
-        double error = 0;
-
-        static int weights[14] =
-            {1, 5, 12, 20, 27, 31, 32, 32, 31, 27, 20, 12, 5, 1};
-        for (int x = 0; x < 14; ++x) {
-            // We use a low-pass Finite Impulse Response filter to
-            // remove high frequencies (including the color carrier
-            // frequency) from the signal. We could just keep a
-            // 4-sample running average but that leads to sharp edges
-            // in the resulting image.
-            // The kernel of this FIR is [1, 4, 7, 8, 7, 4, 1]
-            YIQ yiq = 
-                    d[x - 6] + d[x - 0]
-                + ((d[x - 5] + d[x - 1])<<2) 
-                +  (d[x - 4] + d[x - 2])*7 
-                +  (d[x - 3]<<3);
-
-            // Contrast for I and Q is handled by _iqMultipliers, along with
-            // saturation. Brightness only affects Y.
-            int y = yiq.x*_yContrast + _brightness;
-            int i = yiq.y;
-            int q = yiq.z;
-
-            _srgbOutput[p] = SRGB(
-                _gamma[clamp(0, (y + 243*i + 160*q)>>16, 255)],
-                _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)],
-                _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)]);
-
-            _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
-            _perceptualError[p] = target(pos) - _perceptualOutput[p];
-            error += _perceptualError[p].modulus2()*weights[x];
-            ++p;
-            ++pos.x;
-        }
-        return error;
-    }
-
-    double errorForLow(UInt8 bits, UInt8 fg, UInt8 bg)
-    {
-        for (int i = 0; i < 16; ++i) {
-            int colour = ((bits & (128 >> (i >> 1))) != 0 ? fg : bg);
-            setCompositeData(_position + Vector(i, 0), colour);
-        }
-
-        Vector pos = _position + _compositeOffset;
-        YIQ* d = &_compositeData[pos.y*_compositeSize.x + pos.x];
-
-        int p = pos.y*_outputSize.x + pos.x;
-
-        double error = 0;
-
-        static int weights[22] =
-            {1, 5, 12, 20, 27, 31, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 31,
-            27, 20, 12, 5, 1};
-        for (int x = 0; x < 22; ++x) {
-            // We use a low-pass Finite Impulse Response filter to
-            // remove high frequencies (including the color carrier
-            // frequency) from the signal. We could just keep a
-            // 4-sample running average but that leads to sharp edges
-            // in the resulting image.
-            // The kernel of this FIR is [1, 4, 7, 8, 7, 4, 1]
-            YIQ yiq = 
-                    d[x - 6] + d[x - 0]
-                + ((d[x - 5] + d[x - 1])<<2) 
-                +  (d[x - 4] + d[x - 2])*7 
-                +  (d[x - 3]<<3);
-
-            // Contrast for I and Q is handled by _iqMultipliers, along with
-            // saturation. Brightness only affects Y.
-            int y = yiq.x*_yContrast + _brightness;
-            int i = yiq.y;
-            int q = yiq.z;
-
-            _srgbOutput[p] = SRGB(
-                _gamma[clamp(0, (y + 243*i + 160*q)>>16, 255)],
-                _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)],
-                _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)]);
-
-            _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
-            _perceptualError[p] = target(pos) - _perceptualOutput[p];
-            error += _perceptualError[p].modulus2()*weights[x];
-            ++p;
-            ++pos.x;
-        }
-        return error;
-    }
+//    void setCompositeData(Vector p, int c)
+//    {
+//        // These give the colour burst patterns for the 8 colours ignoring
+//        // the intensity bit.
+//        static const int colorBurst[8][4] = {
+//            {0, 0, 0, 0}, /* Black */
+//            {2, 3, 4, 5}, /* Blue */
+//            {1, 0, 0, 1}, /* Green */
+//            {5, 2, 3, 4}, /* Cyan */
+//            {3, 4, 5, 2}, /* Red */
+//            {0, 1, 1, 0}, /* Magenta */
+//            {4, 5, 2, 3}, /* Yellow-burst */
+//            {1, 1, 1, 1}};/* White */
+//
+//        // The values in the colorBurst array index into phaseLevels which
+//        // gives us the amount of time that the +CHROMA bit spends high during
+//        // that pixel. Changing "phase" corresponds to tuning the "color
+//        // adjust" trimmer on the PC motherboard. This trimmer adjusts the
+//        // hues of green and magenta and artifact colours, not
+//        // blue/cyan/red/yellow-burst chroma colours.
+//
+//        // TODO: use phase to compute phaseLevels entries 2 to 5
+//        static const int phase = 128;  
+//        static const int phaseLevels[6] = {0, 256, -53, 128, 309, 128};
+//
+//        // The following levels are computed as follows:
+//        // Using Falstad's circuit simulator applet
+//        // (http://www.falstad.com/circuit/) with the CGA composite output
+//        // stage and a 75 ohm load gives the following voltages:
+//        //   +CHROMA = 0,  +I = 0  0.416V  (colour 0)
+//        //   +CHROMA = 0,  +I = 1  0.709V  (colour 8)
+//        //   +CHROMA = 1,  +I = 0  1.160V  (colour 7)
+//        //   +CHROMA = 1,  +I = 1  1.460V  (colour 15)
+//        // Scaling these and adding an offset (equivalent to adjusting the
+//        // contrast and brightness respectively) such that colour 0 is at the
+//        // standard black level of IRE 7.5 and that colour 15 is at the
+//        // standard white level of IRE 100 gives:
+//        //   +CHROMA = 0,  +I = 0  IRE   7.5
+//        //   +CHROMA = 0,  +I = 1  IRE  33.5
+//        //   +CHROMA = 1,  +I = 0  IRE  73.4
+//        //   +CHROMA = 1,  +I = 1  IRE 100.0
+//        // Then we convert to sample levels using the standard formula:
+//        //   sample = 1.4*IRE + 60
+//        static const int sampleLevels[4] = {71, 107, 163, 200};
+//
+//        // The sample grid should be aligned such that 00330033 is 
+//        // green/magenta[/orange/aqua], not blue/cyan/red/yellow-burst. The
+//        // former aligns the samples with the pixels with the composite
+//        // samples
+//        // 0  0000  black
+//        // 1  0001  dark cyan
+//        // 2  0010  dark blue
+//        // 3  0011  aqua
+//        // 4  0100  dark red
+//        // 5  0101  grey
+//        // 6  0110  magenta
+//        // 7  0111  light blue
+//        // 8  1000  dark yellow-burst
+//        // 9  1001  green
+//        // A  1010  grey
+//        // B  1011  light cyan
+//        // C  1100  orange
+//        // D  1101  light yellow-burst
+//        // E  1110  light red
+//        // F  1111  white
+//
+//        // So the order of bits is yellow-burst/red/blue/cyan
+//
+//        int chroma = phaseLevels[colorBurst[c & 7][p.x & 3]];
+//        chroma = static_cast<int>(
+//            static_cast<float>(chroma - 128) * 4 / (M_PI * sqrt(2.0f))) + 128;
+//        int intensity = (c & 8) >> 3;
+//        int sampleLow = sampleLevels[intensity];
+//        int sampleHigh = sampleLevels[intensity + 2];
+//        int sample = (((sampleHigh - sampleLow)*chroma) >> 8) + sampleLow - 60;
+//        Vector q = p + _compositeOffset;
+//        _compositeData[q.y*_compositeSize.x + q.x] = YIQ(sample,
+//            sample*_iqMultipliers[p.x & 3], 
+//            sample*_iqMultipliers[(p.x + 3)&3]);
+//    }
+//
+//    Colour target(Vector p)
+//    {
+//        Colour c = _perceptualInput[p.y*_outputSize.x + p.x];
+//        if (p.y > 0)
+//            c += _perceptualError[(p.y - 1)*_outputSize.x + p.x]/2;
+//        if (p.x > 0)
+//            c += _perceptualError[p.y*_outputSize.x + p.x - 1]/2;
+//        return c;
+//    }
+//
+//    double errorFor(UInt8 bits, UInt8 fg, UInt8 bg)
+//    {
+//        for (int i = 0; i < 8; ++i) {
+//            int colour = ((bits & (128 >> i)) != 0 ? fg : bg);
+//            setCompositeData(_position + Vector(i, 0), colour);
+//        }
+//
+//        Vector pos = _position + _compositeOffset;
+//        YIQ* d = &_compositeData[pos.y*_compositeSize.x + pos.x];
+//
+//        int p = pos.y*_outputSize.x + pos.x;
+//
+//        double error = 0;
+//
+//        static int weights[14] =
+//            {1, 5, 12, 20, 27, 31, 32, 32, 31, 27, 20, 12, 5, 1};
+//        for (int x = 0; x < 14; ++x) {
+//            // We use a low-pass Finite Impulse Response filter to
+//            // remove high frequencies (including the color carrier
+//            // frequency) from the signal. We could just keep a
+//            // 4-sample running average but that leads to sharp edges
+//            // in the resulting image.
+//            // The kernel of this FIR is [1, 4, 7, 8, 7, 4, 1]
+//            YIQ yiq = 
+//                    d[x - 6] + d[x - 0]
+//                + ((d[x - 5] + d[x - 1])<<2) 
+//                +  (d[x - 4] + d[x - 2])*7 
+//                +  (d[x - 3]<<3);
+//
+//            // Contrast for I and Q is handled by _iqMultipliers, along with
+//            // saturation. Brightness only affects Y.
+//            int y = yiq.x*_yContrast + _brightness;
+//            int i = yiq.y;
+//            int q = yiq.z;
+//
+//            _srgbOutput[p] = SRGB(
+//                _gamma[clamp(0, (y + 243*i + 160*q)>>16, 255)],
+//                _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)],
+//                _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)]);
+//
+//            _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
+//            _perceptualError[p] = target(pos) - _perceptualOutput[p];
+//            error += _perceptualError[p].modulus2()*weights[x];
+//            ++p;
+//            ++pos.x;
+//        }
+//        return error;
+//    }
+//
+//    double errorForLow(UInt8 bits, UInt8 fg, UInt8 bg)
+//    {
+//        for (int i = 0; i < 16; ++i) {
+//            int colour = ((bits & (128 >> (i >> 1))) != 0 ? fg : bg);
+//            setCompositeData(_position + Vector(i, 0), colour);
+//        }
+//
+//        Vector pos = _position + _compositeOffset;
+//        YIQ* d = &_compositeData[pos.y*_compositeSize.x + pos.x];
+//
+//        int p = pos.y*_outputSize.x + pos.x;
+//
+//        double error = 0;
+//
+//        static int weights[22] =
+//            {1, 5, 12, 20, 27, 31, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 31,
+//            27, 20, 12, 5, 1};
+//        for (int x = 0; x < 22; ++x) {
+//            // We use a low-pass Finite Impulse Response filter to
+//            // remove high frequencies (including the color carrier
+//            // frequency) from the signal. We could just keep a
+//            // 4-sample running average but that leads to sharp edges
+//            // in the resulting image.
+//            // The kernel of this FIR is [1, 4, 7, 8, 7, 4, 1]
+//            YIQ yiq = 
+//                    d[x - 6] + d[x - 0]
+//                + ((d[x - 5] + d[x - 1])<<2) 
+//                +  (d[x - 4] + d[x - 2])*7 
+//                +  (d[x - 3]<<3);
+//
+//            // Contrast for I and Q is handled by _iqMultipliers, along with
+//            // saturation. Brightness only affects Y.
+//            int y = yiq.x*_yContrast + _brightness;
+//            int i = yiq.y;
+//            int q = yiq.z;
+//
+//            _srgbOutput[p] = SRGB(
+//                _gamma[clamp(0, (y + 243*i + 160*q)>>16, 255)],
+//                _gamma[clamp(0, (y -  71*i - 164*q)>>16, 255)],
+//                _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)]);
+//
+//            _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
+//            _perceptualError[p] = target(pos) - _perceptualOutput[p];
+//            error += _perceptualError[p].modulus2()*weights[x];
+//            ++p;
+//            ++pos.x;
+//        }
+//        return error;
+//    }
+//
+//    double errorForDigital(UInt8 bits, UInt8 fg, UInt8 bg)
+//    {
+//        Vector pos = _position;
+//        int p = pos.y*_outputSize.y + pos.x;
+//        double error = 0;
+//        for (int x = 0; x < 8; ++x) {
+//            int colour = ((bits & (128 >> x)) != 0 ? fg : bg);
+//            _srgbOutput[p] = _srgbPalette[colour];
+//            _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
+//            _perceptualError[p] = target(pos) - _perceptualOutput[p];
+//            error += _perceptualError[p].modulus2();
+//            ++p;
+//            ++pos.x;
+//        }
+//        return error;
+//    }
+//
+//    double errorForDigitalLow(UInt8 bits, UInt8 fg, UInt8 bg)
+//    {
+//        Vector pos = _position;
+//        int p = pos.y*_outputSize.y + pos.x;
+//        double error = 0;
+//        for (int i = 0; i < 16; ++i) {
+//            int colour = ((bits & (128 >> (i >> 1))) != 0 ? fg : bg);
+//            _srgbOutput[p] = _srgbPalette[colour];
+//            _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
+//            _perceptualError[p] = target(pos) - _perceptualOutput[p];
+//            error += _perceptualError[p].modulus2();
+//            ++p;
+//            ++pos.x;
+//        }
+//        return error;
+//    }
 
     void calculate()
     {
-        int bestPattern = 0;
-        int bestAt = 0;
-        double bestScore = 1e99;
-        for (int pattern = 0; pattern < _patternCount; ++pattern) {
-            UInt8 bits = _patterns[_characters[pattern]];
-            for (int at = 0; at < 0x100; ++at) {
-                int fg = at & 0x0f;
-                int bg = at >> 4;
-                if ((bits == 0 || bits == 0xff) != (fg == bg))
-                    continue;
-                double score ;
-                if (_hres)
-                    score = errorFor(bits, fg, bg);
-                else
-                    score = errorForLow(bits, fg, bg);
-                if (score < bestScore) {
-                    bestScore = score;
-                    bestPattern = pattern;
-                    bestAt = at;
-                }
-            }
-        }
-        int character = _characters[bestPattern];
-        int p = (_position.y*_pictureSize.x + _position.x)/(_hres ? 4 : 8);
-        if (character != _dataOutput[p] || bestAt != _dataOutput[p + 1]) {
-            _changed = true;
-            _dataOutput[p] = character;
-            _dataOutput[p + 1] = bestAt;
-        }
-        if (_hres)
-            errorFor(_patterns[character], bestAt & 0x0f, bestAt >> 4);
-        else
-            errorForLow(_patterns[character], bestAt & 0x0f, bestAt >> 4);
-
-        _position.x += (_hres ? 8 : 16);
-        if (_position.x >= _pictureSize.x) {
-            ++_position.y;
-            _position.x = 0;
-            if (_position.y == _pictureSize.y) {
-                ++_iteration;
-                if (!_changed || _iteration == _iterations)
-                    _thread.finished();
-                _position.y = 0;
-            }
-        }
+//        int bestPattern = 0;
+//        int bestAt = 0;
+//        double bestScore = 1e99;
+//        for (int pattern = 0; pattern < _patternCount; ++pattern) {
+//            UInt8 bits = _patterns[_characters[pattern]];
+//            for (int at = 0; at < 0x100; ++at) {
+//                int fg = at & 0x0f;
+//                int bg = at >> 4;
+//                if ((bits == 0 || bits == 0xff) != (fg == bg))
+//                    continue;
+//                double score;
+//                if (_composite)
+//                    if (_hres)
+//                        score = errorFor(bits, fg, bg);
+//                    else
+//                        score = errorForLow(bits, fg, bg);
+//                else
+//                    if (_hres)
+//                        score = errorForDigital(bits, fg, bg);
+//                    else
+//                        score = errorForDigitalLow(bits, fg, bg);
+//                if (score < bestScore) {
+//                    bestScore = score;
+//                    bestPattern = pattern;
+//                    bestAt = at;
+//                }
+//            }
+//        }
+//        int character = _characters[bestPattern];
+//        int p = (_position.y*_pictureSize.x + _position.x)/(_hres ? 4 : 8);
+//        if (character != _dataOutput[p] || bestAt != _dataOutput[p + 1]) {
+//            _changed = true;
+//            _dataOutput[p] = character;
+//            _dataOutput[p + 1] = bestAt;
+//        }
+//        if (_composite)
+//            if (_hres)
+//                errorFor(_patterns[character], bestAt & 0x0f, bestAt >> 4);
+//            else
+//                errorForLow(_patterns[character], bestAt & 0x0f, bestAt >> 4);
+//        else
+//            if (_hres)
+//                errorForDigital(_patterns[character], bestAt & 0x0f,
+//                    bestAt >> 4);
+//            else
+//                errorForDigitalLow(_patterns[character], bestAt & 0x0f,
+//                    bestAt >> 4);
+//
+//        _position.x += (_hres ? 8 : 16);
+//        if (_position.x >= _pictureSize.x) {
+//            ++_position.y;
+//            _position.x = 0;
+//            if (_position.y == _pictureSize.y) {
+//                ++_iteration;
+//                if (!_changed || _iteration == _iterations)
+//                    _thread.finished();
+//                _position.y = 0;
+//            }
+//        }
     }
 private:
     class CalcThread : public Thread
@@ -590,41 +649,44 @@ private:
         AttributeClashImage* _image;
     };
 
-    ConfigFile* _config;
-
-    Array<Colour> _perceptualInput;
-    Array<Colour> _perceptualOutput;
-    Array<Colour> _perceptualError;
-    Array<SRGB> _srgbOutput;
-    Array<UInt8> _dataOutput;
-    Array<YIQ> _compositeData;
-
-    Vector _pictureSize;
-    Vector _compositeSize;
-    Vector _compositeOffset;
+    int _iterations;
+    bool _hres;
+    bool _composite;
+    Vector _inputSize;
     Vector _outputSize;
+    Vector _offset;
     ColourSpace _colourSpace;
+
+//    Array<Colour> _perceptualInput;
+//    Array<Colour> _perceptualOutput;
+//    Array<Colour> _perceptualError;
+//    Array<SRGB> _srgbOutput;
+//    Array<UInt8> _dataOutput;
+//    Array<YIQ> _compositeData;
+//
+//    Vector _pictureSize;
+//    Vector _compositeSize;
+//    Vector _compositeOffset;
+//    Vector _outputSize;
     CalcThread _thread;
     SRGB _srgbPalette[0x10];
-//    Colour _perceptualPalette[0x10];
-    Vector _position;
-    bool _changed;
+////    Colour _perceptualPalette[0x10];
+//    Vector _position;
+//    bool _changed;
 
     Array<UInt8> _patterns;
     Array<UInt8> _characters;
     int _patternCount;
 
-    Array<int> _gamma;
-
+//    Array<int> _gamma;
+//
     int _iqMultipliers[4];
 
-    int _yContrast;
-    int _brightness;
+//    int _yContrast;
+//    int _brightness;
 
-    int _iterations;
     int _iteration;
 
-    bool _hres;
 };
 
 class Program : public ProgramBase

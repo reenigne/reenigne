@@ -5,21 +5,22 @@ cpu 8086
   mov ds,ax
   mov es,ax
 
-
   mov cx,256
 majorLoop:
   mov bx,256
   sub bx,cx
-;  mov al,[tests+bx]
-  mov [experimentInit + 1],bl
+  add bx,bx
+  mov ax,[tests+bx]
+  mov [experimentInit + 1],ax
 
   push cx
   mov cx,256
 minorLoop:
   mov bx,256
   sub bx,cx
-;  mov al,[tests+bx]
-  mov [experimentCodeStart + 1],bl
+  add bx,bx
+  mov ax,[tests+bx]
+  mov [experimentCodeStart + 1],ax
 
   push cx
   call doExperiments
@@ -27,8 +28,8 @@ minorLoop:
 
   loop minorLoop
 
-  mov al,10
-  int 0x62
+;  mov al,10
+;  int 0x62
 
   pop cx
   loop majorLoop
@@ -38,14 +39,14 @@ exit:
 
 
 experimentInit:
-  mov bl,0
+  mov bx,0
 experimentCodeStart:
-  mov al,0
-  mul bl
+  mov ax,0
+  mul bx
 experimentCodeEnd:
 
 tests:
-  db 0x00, 0x01, 0xc0, 0x07, 0xf0, 0x1f, 0xfc, 0x7f, 0xff
+  db 0x0000, 0x0001, 0xc000, 0x0007, 0xf000, 0x001f, 0xfc00, 0x007f, 0xff00, 0x01ff, 0xffc0, 0x07ff, 0xfff0, 0x1fff, 0xfffc, 0x7fff, 0xffff
 
 
 print:
@@ -64,6 +65,34 @@ donePrint:
 
 output:
   db "000.000 $"
+
+printNumber:
+  mov cx,10
+  div cx
+  add dl,'0'
+  mov [output+6],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+5],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+4],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+2],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+1],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output],dl
+  mov dx,output
+  jmp print
 
 
 codeCopy:
@@ -108,7 +137,7 @@ doExperiments:
   sub ax,dx
   xor dx,dx
 
-  ; Multiply by 4 to get CPU cycles
+  ; Multiply by 4 to get CPU cycles *1000
   shl ax,1
   rcl dx,1
   shl ax,1
@@ -118,37 +147,15 @@ doExperiments:
   add ax,500
   adc dx,0
 
-  ; Convert to 000.000 format decimal
-  mov cx,10
+  ; Divide by 1000 to get CPU cycles
+  mov cx,1000
   div cx
-  add dl,'0'
-  mov [output+6],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+5],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+4],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+2],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+1],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output],dl
 
-  mov byte[output+3],' '
-  mov byte[output+4],'$'
+  add al,'A'-74
+  int 0x62
+  ret
 
-  mov dx,output+1
-  jmp print
+  ret
 
 
 startTime: dw 0

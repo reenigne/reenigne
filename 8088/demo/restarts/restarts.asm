@@ -156,7 +156,8 @@ cpu 8086
 ;      261        63                   last line of frame
 
   mov dl,0xda
-  mov si,0x200  ; Increase per 2 lines in lines/256
+  mov si,0  ; Increase per 2 lines in lines/256
+  mov di,0  ; Frame number
 
 frameLoop:
   ; We now have over 62 rows (3.9ms) to do per-frame changes.
@@ -190,7 +191,7 @@ frameLoop:
   ; During line 198 we set up the start address for line 0 and change the vertical total to 0x3e
   waitForDisplayEnable
   mov dl,0xd4
-  mov cx,0      ; Initial offset in lines/256
+  mov cx,bp     ; Initial offset in lines/256
   mov ax,0x3e04 ; 4: Vertical total: 63 rows/frame
   out dx,ax
   mov dl,0xda
@@ -201,8 +202,45 @@ frameLoop:
   mov dl,0xda
   waitForDisplayDisable
 
+  inc si
+  mov ax,si
+  shr ax,1
+  shr ax,1
+  shr ax,1
+  shr ax,1
+  shr ax,1
+  shr ax,1
+  shr ax,1
+  add si,ax
+  mov ax,si
+  mov di,50
+  mul di
+  neg ax
+  mov bp,ax
+  mov dx,0x3da
+  add bp,0x6400
   jmp frameLoop
 
+
+;  cmp di,0x200
+;  jg otherStyle
+;  mov dx,4
+;  mov ax,0
+;  div di
+;  mov si,ax
+;  mov dx,0x3da
+;  inc di
+;
+;  jmp frameLoop
+;otherStyle:
+;  mov si,0x400
+;  sub si,di
+;  inc di
+;  cmp di,0x400
+;  jne noReset
+;  mov di,1
+;noReset:
+;  jmp frameLoop
 
 
 align 0x100
