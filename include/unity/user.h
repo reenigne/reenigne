@@ -129,6 +129,12 @@ public:
             _nSize(CW_USEDEFAULT, CW_USEDEFAULT)
             //,_menu(0)
         { }
+        Params(Windows* windows, LPCWSTR pszName, Vector nSize)
+          : _windows(windows),
+            _pszName(pszName),
+            _nSize(nSize)
+            //,_menu(0)
+        { }
         //Params(Windows* windows, LPCWSTR pszName, Vector nSize,
         //    Menu* menu = 0)
         //  : _windows(windows),

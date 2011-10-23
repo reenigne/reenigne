@@ -30,7 +30,21 @@ public:
         String inputPictureFileName = config->get<String>("inputPicture");
         _hres = config->get<bool>("hres");
         _composite = config->get<bool>("compositeTarget");
-       
+
+
+        config.addOption("outputNTSC", Type::string);
+        config.addOption("outputComposite", Type::string);
+        config.addOption("outputRGB", Type::string);
+        config.addOption("outputData", Type::string);
+        config.addOption("compositeTarget", Type::boolean);
+        config.addOption("hres", Type::boolean);
+        config.addOption("inputSize", vectorType);
+        config.addOption("inputOffset", vectorType);
+        config.addOption("overscanColour", Type::integer);
+        config.addOption("outputCompositeSize", vectorType);
+        config.addOption("iterations", Type::integer);
+        config.addOption("colourSpace", colourSpaceType);
+
 
         // Determine the set of unique patterns that appear in the top lines
         // of CGA text characters.
@@ -149,65 +163,62 @@ public:
         //for (int i = 0; i < 0x10; ++i)
         //    _perceptualPalette[i] = _colourSpace.fromSrgb(_srgbPalette[i]);
 
-        _dataOutput.allocate(_pictureSize.x*_pictureSize.y/4);
+        _position = Vector(0, 0);
+        _changed = false;
 
-//        _position = Vector(0, 0);
-//        _changed = false;
-//
-//        _compositeSize = _pictureSize + _compositeOffset*2;
-//        _compositeData.allocate(_compositeSize.x*_compositeSize.y);
-//        _outputSize = _compositeSize - Vector(6, 0);
-//
-//        _srgbOutput.allocate(_outputSize.x*_outputSize.y);
-//        _perceptualOutput.allocate(_outputSize.x*_outputSize.y);
-//        _perceptualError.allocate(_outputSize.x*_outputSize.y);
-//        _perceptualInput.allocate(_outputSize.x*_outputSize.y);
-//
-//        static const float brightness = 0.06f;
-//        static const float contrast = 3.0f;
-//        static const float saturation = 0.7f;
-//        static const float tint = 270.0f + 33.0f;
-//
-//        _yContrast = static_cast<int>(contrast*1463.0f);
-//        static const float radians = static_cast<float>(M_PI)/180.0f;
-//        float tintI = -cos(tint*radians);
-//        float tintQ = sin(tint*radians);
-//
-//        // Determine the color burst.
-//        float colorBurst[4];
-//        // First set _iqMultipliers to 0. The result of setCompositeData will
-//        // have valid Y data but not valid I and Q data yet. Fortunately we
-//        // only need the Y data to find the color burst.
-//        for (int i = 0; i < 4; ++i)
-//            _iqMultipliers[i] = 0;
-//        for (int i = 0; i < 4; ++i) {
+        _dataOutput.allocate(_inputSize.x*_inputSize.y/(_hres ? 4 : 8));
+        _compositeData.allocate(_outputSize.x*_outputSize.y);
+        _digitalOutput.allocate(_outputSize.x*_outputSize.y);
+        _compositeOutput.allocate(_outputSize.x*_outputSize.y);
+        _perceptualOutput.allocate(_outputSize.x*_outputSize.y);
+        _perceptualError.allocate(_outputSize.x*_outputSize.y);
+        _perceptualInput.allocate(_outputSize.x*_outputSize.y);
+
+        static const float brightness = 0.06f;
+        static const float contrast = 3.0f;
+        static const float saturation = 0.7f;
+        static const float tint = 270.0f + 33.0f;
+
+        _yContrast = static_cast<int>(contrast*1463.0f);
+        static const float radians = static_cast<float>(M_PI)/180.0f;
+        float tintI = -cos(tint*radians);
+        float tintQ = sin(tint*radians);
+
+        // Determine the color burst.
+        float colorBurst[4];
+        // First set _iqMultipliers to 0. The result of setCompositeData will
+        // have valid Y data but not valid I and Q data yet. Fortunately we
+        // only need the Y data to find the color burst.
+        for (int i = 0; i < 4; ++i)
+            _iqMultipliers[i] = 0;
+        for (int i = 0; i < 4; ++i) {
 //            setCompositeData(Vector(i, 0) - _compositeOffset, overscanColour);
-//            colorBurst[i] = static_cast<float>(_compositeData[i].x);
-//        }
-//        float burstI = colorBurst[2] - colorBurst[0];      
-//        float burstQ = colorBurst[3] - colorBurst[1];
-//        float colorBurstGain = 32.0f/sqrt((burstI*burstI + burstQ*burstQ)/2);
-//        float s = saturation*contrast*colorBurstGain*0.352f;
-//        _iqMultipliers[0] = static_cast<int>((burstI*tintI - burstQ*tintQ)*s);
-//        _iqMultipliers[1] = static_cast<int>((burstQ*tintI + burstI*tintQ)*s);
-//        _iqMultipliers[2] = -_iqMultipliers[0];
-//        _iqMultipliers[3] = -_iqMultipliers[1];
-//
-//        _gamma.allocate(256);
-//         for (int i = 0; i < 256; ++i)
-//            _gamma[i] = static_cast<int>(
-//                pow(static_cast<float>(i)/255.0f, 1.9f)*255.0f);
-//
-//        _brightness =
-//            static_cast<int>(brightness*100.0 - 7.5f*256.0f*contrast)<<8;
-//
-//        // Now that _iqMultipliers has been initialized correctly, we can set
-//        // initialize _compositeData. Let's start it off 
-//        for (int y = 0; y < _compositeSize.y; ++y)
-//            for (int x = 0; x < _compositeSize.x; ++x)
-//                setCompositeData(Vector(x, y) - _compositeOffset,
-//                    overscanColour);
-//
+            colorBurst[i] = static_cast<float>(_compositeData[i].x);
+        }
+        float burstI = colorBurst[2] - colorBurst[0];      
+        float burstQ = colorBurst[3] - colorBurst[1];
+        float colorBurstGain = 32.0f/sqrt((burstI*burstI + burstQ*burstQ)/2);
+        float s = saturation*contrast*colorBurstGain*0.352f;
+        _iqMultipliers[0] = static_cast<int>((burstI*tintI - burstQ*tintQ)*s);
+        _iqMultipliers[1] = static_cast<int>((burstQ*tintI + burstI*tintQ)*s);
+        _iqMultipliers[2] = -_iqMultipliers[0];
+        _iqMultipliers[3] = -_iqMultipliers[1];
+
+        _gamma.allocate(256);
+         for (int i = 0; i < 256; ++i)
+            _gamma[i] = static_cast<int>(
+                pow(static_cast<float>(i)/255.0f, 1.9f)*255.0f);
+
+        _brightness =
+            static_cast<int>(brightness*100.0 - 7.5f*256.0f*contrast)<<8;
+
+        // Now that _iqMultipliers has been initialized correctly, we can set
+        // initialize _compositeData. Let's start it off 
+        //for (int y = 0; y < _outputSize.y; ++y)
+        //    for (int x = 0; x < _outputSize.x; ++x)
+        //        setCompositeData(Vector(x, y) - _compositeOffset,
+        //            overscanColour);
+
 //        errorFor(0, 0, overscanColour);
 //
 //        int q = 0;
@@ -268,39 +279,44 @@ public:
         _thread.start();
     }
 
+    Vector size() const { return Vector(_outputSize.x, _outputSize.y*3); }
+
     void paint(const PaintHandle& paint)
     {
-//        Byte* l = getBits();
-//        for (int y = 0; y < _size.y; ++y) {
-//            DWord* p = reinterpret_cast<DWord*>(l);
-//            for (int x = 0; x < _size.x; ++x) {
-//                SRGB srgb(0, 0, 0);
-//                Vector v(x, y);
-//                if (v.inside(_outputSize))
-//                    srgb = _srgbOutput[y*_outputSize.x + x];
-//                else {
-//                    v -= Vector(660, 4);
-//                    if (v.inside(_pictureSize)) {
-//                        int p = (v.y*_pictureSize.x + v.x)/8;
-//                        int bits = _patterns[_dataOutput[p*2]];
-//                        int at = _dataOutput[p*2 + 1];
-//                        int colour = ((bits & (128 >> (v.x & 7))) != 0 ?
-//                            (at & 15) : (at >> 4));
-//                        srgb = _srgbPalette[colour];
-//                    }
-//                    else {
-//                        v -= Vector(0, 204);
-//                        if (v.inside(_outputSize)) {
-//                            int c = 60 +
-//                                _compositeData[v.y*_compositeSize.x + v.x].x;
-//                            srgb = SRGB(c, c, c);
-//                        }
-//                    }
-//                }
-//                *(p++) = (srgb.x<<16) + (srgb.y<<8) + srgb.z;
-//            }
-//            l += _byteWidth;
-//        }
+        Byte* l = getBits();
+        int xMax = min(_size.x, _outputSize.x);
+        int ySize = _size.y;
+        int yMax = min(ySize, _outputSize.y);
+        for (int y = 0; y < yMax; ++y) {
+            DWord* p = reinterpret_cast<DWord*>(l);
+            for (int x = 0; x < _size.x; ++x) {
+                SRGB srgb = _digitalOutput[y*_outputSize.x + x];
+                *(p++) = (srgb.x<<16) + (srgb.y<<8) + srgb.z;
+            }
+            l += _byteWidth;
+        }
+        ySize -= _outputSize.y;
+        if (ySize < 0)
+            return;
+        yMax = min(ySize, _outputSize.y);
+        for (int y = 0; y < yMax; ++y) {
+            DWord* p = reinterpret_cast<DWord*>(l);
+            for (int x = 0; x < _size.x; ++x) {
+                SRGB srgb = _compositeOutput[y*_outputSize.x + x];
+                *(p++) = (srgb.x<<16) + (srgb.y<<8) + srgb.z;
+            }
+            l += _byteWidth;
+        }
+        ySize -= _outputSize.y;
+        if (ySize < 0)
+            return;
+        yMax = min(ySize, _outputSize.y);
+        for (int y = 0; y < yMax; ++y) {
+            DWord* p = reinterpret_cast<DWord*>(l);
+            for (int x = 0; x < _size.x; ++x)
+                *(p++) = (60 + _compositeData[y*_outputSize.x + x].x)*0x10101;
+            l += _byteWidth;
+        }
         Image::paint(paint);
     }
 
@@ -590,18 +606,18 @@ public:
 //            else
 //                errorForDigitalLow(_patterns[character], bestAt & 0x0f,
 //                    bestAt >> 4);
-//
-//        _position.x += (_hres ? 8 : 16);
-//        if (_position.x >= _pictureSize.x) {
-//            ++_position.y;
-//            _position.x = 0;
-//            if (_position.y == _pictureSize.y) {
-//                ++_iteration;
-//                if (!_changed || _iteration == _iterations)
-//                    _thread.finished();
-//                _position.y = 0;
-//            }
-//        }
+
+        _position.x += (_hres ? 8 : 16);
+        if (_position.x >= _pictureSize.x) {
+            ++_position.y;
+            _position.x = 0;
+            if (_position.y == _pictureSize.y) {
+                ++_iteration;
+                if (!_changed || _iteration == _iterations)
+                    _thread.finished();
+                _position.y = 0;
+            }
+        }
     }
 private:
     class CalcThread : public Thread
@@ -657,33 +673,30 @@ private:
     Vector _offset;
     ColourSpace _colourSpace;
 
-//    Array<Colour> _perceptualInput;
-//    Array<Colour> _perceptualOutput;
-//    Array<Colour> _perceptualError;
-//    Array<SRGB> _srgbOutput;
-//    Array<UInt8> _dataOutput;
-//    Array<YIQ> _compositeData;
-//
-//    Vector _pictureSize;
-//    Vector _compositeSize;
-//    Vector _compositeOffset;
-//    Vector _outputSize;
+    Array<Colour> _perceptualInput;
+    Array<Colour> _perceptualOutput;
+    Array<Colour> _perceptualError;
+    Array<SRGB> _digitalOutput;
+    Array<SRGB> _compositeOutput;
+    Array<UInt8> _dataOutput;
+    Array<YIQ> _compositeData;
+
     CalcThread _thread;
     SRGB _srgbPalette[0x10];
-////    Colour _perceptualPalette[0x10];
-//    Vector _position;
-//    bool _changed;
+//    Colour _perceptualPalette[0x10];
+    Vector _position;
+    bool _changed;
 
     Array<UInt8> _patterns;
     Array<UInt8> _characters;
     int _patternCount;
 
-//    Array<int> _gamma;
-//
+    Array<int> _gamma;
+
     int _iqMultipliers[4];
 
-//    int _yContrast;
-//    int _brightness;
+    int _yContrast;
+    int _brightness;
 
     int _iteration;
 
