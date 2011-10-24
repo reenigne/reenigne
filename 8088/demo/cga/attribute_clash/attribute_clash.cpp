@@ -31,20 +31,10 @@ public:
         _hres = config->get<bool>("hres");
         _composite = config->get<bool>("compositeTarget");
 
-
-        config.addOption("outputNTSC", Type::string);
-        config.addOption("outputComposite", Type::string);
-        config.addOption("outputRGB", Type::string);
-        config.addOption("outputData", Type::string);
-        config.addOption("compositeTarget", Type::boolean);
-        config.addOption("hres", Type::boolean);
-        config.addOption("inputSize", vectorType);
-        config.addOption("inputOffset", vectorType);
-        config.addOption("overscanColour", Type::integer);
-        config.addOption("outputCompositeSize", vectorType);
-        config.addOption("iterations", Type::integer);
-        config.addOption("colourSpace", colourSpaceType);
-
+        _outputNTSCFile = config->get<String>("outputNTSC");
+        _outputCompositeFile = config->get<String>("outputComposite");
+        _outputDigitalFile = config->get<String>("outputDigital");
+        _outputDataFile = config->get<String>("outputData");
 
         // Determine the set of unique patterns that appear in the top lines
         // of CGA text characters.
@@ -166,8 +156,9 @@ public:
         _position = Vector(0, 0);
         _changed = false;
 
-        _dataOutput.allocate(_inputSize.x*_inputSize.y/(_hres ? 4 : 8));
-        _compositeData.allocate(_outputSize.x*_outputSize.y);
+        _dataOutput = Bitmap<UInt16>(
+            Vector(_inputSize.x/(_hres ? 4 : 8), _inputSize.y));
+        _compositeData = Bitmap<.allocate(_outputSize.x*_outputSize.y);
         _digitalOutput.allocate(_outputSize.x*_outputSize.y);
         _compositeOutput.allocate(_outputSize.x*_outputSize.y);
         _perceptualOutput.allocate(_outputSize.x*_outputSize.y);
@@ -324,13 +315,10 @@ public:
     {
         _thread.end();
 
-//        File outputFile(String("attribute_clash.raw"));
-//        outputFile.save(String(
-//            Buffer(&_srgbOutput[0].x), 0, _pictureSize.x*_pictureSize.y*3));
-//
-//        File dataFile(String("picture.dat"));
-//        dataFile.save(String(
-//            Buffer(&_dataOutput[0]), 0, _pictureSize.x*_pictureSize.y/4));
+        // _digitalOutput.save(_outputDigitalFile);
+        // _compositeOutput.save(_outputCompositeFile);
+        // _dataOutput.save(_outputDataFile);
+        // _compositeData.save(_outputCompositeFile);  // TODO: Add sync/burst/blank
     }
 
 //    void setCompositeData(Vector p, int c)
@@ -673,13 +661,13 @@ private:
     Vector _offset;
     ColourSpace _colourSpace;
 
-    Array<Colour> _perceptualInput;
-    Array<Colour> _perceptualOutput;
-    Array<Colour> _perceptualError;
-    Array<SRGB> _digitalOutput;
-    Array<SRGB> _compositeOutput;
-    Array<UInt8> _dataOutput;
-    Array<YIQ> _compositeData;
+    Bitmap<Colour> _perceptualInput;
+    Bitmap<Colour> _perceptualOutput;
+    Bitmap<Colour> _perceptualError;
+    Bitmap<SRGB> _digitalOutput;
+    Bitmap<SRGB> _compositeOutput;
+    Bitmap<UInt16> _dataOutput;
+    Bitmap<YIQ> _compositeData;
 
     CalcThread _thread;
     SRGB _srgbPalette[0x10];
@@ -700,6 +688,10 @@ private:
 
     int _iteration;
 
+    File _outputNTSCFile;
+    File _outputCompositeFile;
+    File _outputDigitalFile;
+    File _outputDataFile;
 };
 
 class Program : public ProgramBase
@@ -745,9 +737,9 @@ public:
         config.addOption("compositeTarget", Type::boolean);
         config.addOption("hres", Type::boolean);
         config.addOption("inputSize", vectorType);
-        config.addOption("inputOffset", vectorType);
+        config.addOption("outputSize", vectorType);
+        config.addOption("offset", vectorType);
         config.addOption("overscanColour", Type::integer);
-        config.addOption("outputCompositeSize", vectorType);
         config.addOption("iterations", Type::integer);
         config.addOption("colourSpace", colourSpaceType);
         config.load(_arguments[1]);

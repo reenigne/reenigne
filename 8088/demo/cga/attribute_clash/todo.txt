@@ -1,3 +1,8 @@
+Convert _perceptualInput, _perceptualOutput, _perceptualError, _digitalOutput,
+and _compositeOutput to Bitmaps. (Also _dataOutput and _compositeData?)
+
+Want to be able to write "offset = (outputSize - inputSize)/2;" in config files
+
 TypeConverter
   An oracle object for determining which types can be implicitly converted into
    which other types.

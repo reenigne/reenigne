@@ -367,7 +367,6 @@ private:
         return sin(z)/z;
     }
 
-
     Vector _size;
     int _stride;
     Array<Byte> _data;
