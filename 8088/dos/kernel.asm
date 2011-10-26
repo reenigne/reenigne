@@ -1,19 +1,11 @@
 org 0
 
-  ; Turn interrupts off - the keyboard send routine is cycle-counted.
+  ; Don't want any stray interrupts interfering with the serial port accesses.
   cli
 
-  ; Set up the screen so we can debug the keyboard send routine
-
-  ; Mode                                                2c
-  ;      1 +HRES                                         0
-  ;      2 +GRPH                                         0
-  ;      4 +BW                                           4
-  ;      8 +VIDEO ENABLE                                 8
-  ;   0x10 +1BPP                                         0
-  ;   0x20 +ENABLE BLINK                                20
-  mov dx,0x3d8
-  mov al,0x2c
+  ; Blank the screen
+  mov dx,0x3da
+  mov al,0
   out dx,al
 
   ; Palette                                             00
@@ -72,11 +64,11 @@ org 0
   ; Cursor Start                                        06
   ;   0x1f Cursor Start                                  6
   ;   0x60 Cursor Mode                                   0
-  mov ax,0x060a
+  mov ax,0x1f0a
   out dx,ax
 
   ;   0x1f Cursor End                                   07
-  mov ax,0x070b
+  mov ax,0x1f0b
   out dx,ax
 
   ;   0x3f Start Address (H)                            00
@@ -144,7 +136,7 @@ interruptSetupLoop:
 ;  jmp findRAM
 ;foundRAM:
 ;  sub ax,0xc00
-  mov ax,0x8000
+  mov ax,0x9000
   ; Move the stack right at the end of main RAM.
   mov ss,ax
   xor sp,sp
@@ -218,19 +210,19 @@ noRelocationNeeded:
   mov [0x186], cs
   mov word [0x188], writeCharacter
   mov [0x18a], cs
-  mov word [0x18c], printHex
-  mov [0x18e], cs
-  mov word [0x190], printString
-  mov [0x192], cs
-  mov word [0x194], printCharacter
-  mov [0x196], cs
+;  mov word [0x18c], printHex
+;  mov [0x18e], cs
+;  mov word [0x190], printString
+;  mov [0x192], cs
+;  mov word [0x194], printCharacter
+;  mov [0x196], cs
   mov word [0x19c], complete
   mov [0x19e], cs
 
-  ; Reset video variables
-  xor ax,ax
-  mov [cs:column],al
-  mov [cs:startAddress],ax
+;  ; Reset video variables
+;  xor ax,ax
+;  mov [cs:column],al
+;  mov [cs:startAddress],ax
 
 
 ; Receive a byte over serial and put it in AL. DX == port base address + 5
@@ -324,12 +316,12 @@ noRelocationNeeded:
   out dx,al
 
 
-  ; Print the boot message
-  mov ax,cs
-  mov ds,ax
-  mov si,bootMessage
-  mov cx,bootMessageEnd - bootMessage
-  int 0x64
+;  ; Print the boot message
+;  mov ax,cs
+;  mov ds,ax
+;  mov si,bootMessage
+;  mov cx,bootMessageEnd - bootMessage
+;  int 0x64
 
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
@@ -392,14 +384,14 @@ loadProgramDone:
 
   cmp bh,bl
   je checksumOk
-  mov si,failMessage
-  mov cx,failMessageEnd - failMessage
-  int 0x64
+;  mov si,failMessage
+;  mov cx,failMessageEnd - failMessage
+;  int 0x64
   jmp tryLoad
 checksumOk:
-  mov si,okMessage
-  mov cx,okMessageEnd - okMessage
-  int 0x64
+;  mov si,okMessage
+;  mov cx,okMessageEnd - okMessage
+;  int 0x64
   retf
 
 ; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
@@ -482,130 +474,130 @@ complete:
 
 
 
-printNybble:
-  cmp al,10
-  jge printAlphabetic
-  add al,'0'
-  jmp printGotCharacter
-printAlphabetic:
-  add al,'A' - 10
-printGotCharacter:
-  jmp printChar
-
-
-printHex:
-  push bx
-  push cx
-  mov bx,ax
-  mov al,bh
-  mov cl,4
-  shr al,cl
-  call printNybble
-  mov al,bh
-  and al,0xf
-  call printNybble
-  mov al,bl
-  shr al,cl
-  call printNybble
-  mov al,bl
-  and al,0xf
-  call printNybble
-  pop cx
-  pop bx
-  iret
-
-
-printString:
-  lodsb
-  call printChar
-  loop printString
-  iret
-
-
-printCharacter:
-  call printChar
-  iret
-
-
-printChar:
-  push bx
-  push cx
-  push dx
-  push es
-  push di
-  mov dx,0xb800
-  mov es,dx
-  mov dx,0x3d4
-  mov cx,[cs:startAddress]
-  cmp al,10
-  je printNewLine
-  mov di,cx
-  add di,cx
-  mov bl,[cs:column]
-  xor bh,bh
-  mov [es:bx+di+24*40*2],al
-  inc bx
-  inc bx
-  cmp bx,80
-  jne donePrint
-printNewLine:
-  add cx,40
-  and cx,0x1fff
-  mov [cs:startAddress],cx
-
-  ; Scroll screen
-  mov ah,ch
-  mov al,0x0c
-  out dx,ax
-  mov ah,cl
-  inc ax
-  out dx,ax
-  ; Clear the newly scrolled area
-  mov di,cx
-  add di,cx
-  add di,24*40*2
-  mov cx,40
-  mov ax,0x0700
-  rep stosw
-  mov cx,[cs:startAddress]
-
-  xor bx,bx
-donePrint:
-  mov [cs:column],bl
-
-  ; Move cursor
-  shr bx,1
-  add bx,cx
-  add bx,24*40
-  and bx,0x1fff
-  mov ah,bh
-  mov al,0x0e
-  out dx,ax
-  mov ah,bl
-  inc ax
-  out dx,ax
-
-  pop di
-  pop es
-  pop dx
-  pop cx
-  pop bx
-  ret
-
-
-column:
-  db 0
-startAddress:
-  dw 0
-bootMessage:
-  db 'XT Serial Kernel',10
-bootMessageEnd:
-okMessage:
-  db 'OK',10
-okMessageEnd:
-failMessage:
-  db 'Checksum failure',10
-failMessageEnd:
+;printNybble:
+;  cmp al,10
+;  jge printAlphabetic
+;  add al,'0'
+;  jmp printGotCharacter
+;printAlphabetic:
+;  add al,'A' - 10
+;printGotCharacter:
+;  jmp printChar
+;
+;
+;printHex:
+;  push bx
+;  push cx
+;  mov bx,ax
+;  mov al,bh
+;  mov cl,4
+;  shr al,cl
+;  call printNybble
+;  mov al,bh
+;  and al,0xf
+;  call printNybble
+;  mov al,bl
+;  shr al,cl
+;  call printNybble
+;  mov al,bl
+;  and al,0xf
+;  call printNybble
+;  pop cx
+;  pop bx
+;  iret
+;
+;
+;printString:
+;  lodsb
+;  call printChar
+;  loop printString
+;  iret
+;
+;
+;printCharacter:
+;  call printChar
+;  iret
+;
+;
+;printChar:
+;  push bx
+;  push cx
+;  push dx
+;  push es
+;  push di
+;  mov dx,0xb800
+;  mov es,dx
+;  mov dx,0x3d4
+;  mov cx,[cs:startAddress]
+;  cmp al,10
+;  je printNewLine
+;  mov di,cx
+;  add di,cx
+;  mov bl,[cs:column]
+;  xor bh,bh
+;  mov [es:bx+di+24*40*2],al
+;  inc bx
+;  inc bx
+;  cmp bx,80
+;  jne donePrint
+;printNewLine:
+;  add cx,40
+;  and cx,0x1fff
+;  mov [cs:startAddress],cx
+;
+;  ; Scroll screen
+;  mov ah,ch
+;  mov al,0x0c
+;  out dx,ax
+;  mov ah,cl
+;  inc ax
+;  out dx,ax
+;  ; Clear the newly scrolled area
+;  mov di,cx
+;  add di,cx
+;  add di,24*40*2
+;  mov cx,40
+;  mov ax,0x0700
+;  rep stosw
+;  mov cx,[cs:startAddress]
+;
+;  xor bx,bx
+;donePrint:
+;  mov [cs:column],bl
+;
+;  ; Move cursor
+;  shr bx,1
+;  add bx,cx
+;  add bx,24*40
+;  and bx,0x1fff
+;  mov ah,bh
+;  mov al,0x0e
+;  out dx,ax
+;  mov ah,bl
+;  inc ax
+;  out dx,ax
+;
+;  pop di
+;  pop es
+;  pop dx
+;  pop cx
+;  pop bx
+;  ret
+;
+;
+;column:
+;  db 0
+;startAddress:
+;  dw 0
+;bootMessage:
+;  db 'XT Serial Kernel',10
+;bootMessageEnd:
+;okMessage:
+;  db 'OK',10
+;okMessageEnd:
+;failMessage:
+;  db 'Checksum failure',10
+;failMessageEnd:
 
 
 kernelEnd:

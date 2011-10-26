@@ -5,18 +5,18 @@ cpu 8086
   mov ds,ax
   mov es,ax
 
-  mov cx,256
+  mov cx,17
 majorLoop:
-  mov bx,256
+  mov bx,17
   sub bx,cx
   add bx,bx
   mov ax,[tests+bx]
   mov [experimentInit + 1],ax
 
   push cx
-  mov cx,256
+  mov cx,17
 minorLoop:
-  mov bx,256
+  mov bx,17
   sub bx,cx
   add bx,bx
   mov ax,[tests+bx]
@@ -28,8 +28,8 @@ minorLoop:
 
   loop minorLoop
 
-;  mov al,10
-;  int 0x62
+  mov al,10
+  int 0x62
 
   pop cx
   loop majorLoop
@@ -46,7 +46,7 @@ experimentCodeStart:
 experimentCodeEnd:
 
 tests:
-  db 0x0000, 0x0001, 0xc000, 0x0007, 0xf000, 0x001f, 0xfc00, 0x007f, 0xff00, 0x01ff, 0xffc0, 0x07ff, 0xfff0, 0x1fff, 0xfffc, 0x7fff, 0xffff
+  dw 0x0000, 0x0001, 0xc000, 0x0007, 0xf000, 0x001f, 0xfc00, 0x007f, 0xff00, 0x01ff, 0xffc0, 0x07ff, 0xfff0, 0x1fff, 0xfffc, 0x7fff, 0xffff
 
 
 print:
@@ -143,19 +143,19 @@ doExperiments:
   shl ax,1
   rcl dx,1
 
-  ; Add 500 for rounding
-  add ax,500
-  adc dx,0
+;  ; Add 500 for rounding
+;  add ax,500
+;  adc dx,0
 
-  ; Divide by 1000 to get CPU cycles
-  mov cx,1000
-  div cx
+;  ; Divide by 1000 to get CPU cycles
+;  mov cx,1000
+;  div cx
 
-  add al,'A'-74
-  int 0x62
-  ret
+;  add al,'A'-74
+;  int 0x62
+;  ret
 
-  ret
+  jmp printNumber
 
 
 startTime: dw 0

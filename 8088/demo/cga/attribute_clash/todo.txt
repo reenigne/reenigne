@@ -1,3 +1,20 @@
+Make String a pointer/length combination?
+  Or at least avoid having so many indirections - instead of a separate buffer
+  class have two versions of SimpleStringImplementation - one that owns its 
+  buffer and one that doesn't. The non-owning will also need a String member to
+  the owning to increase the reference count.
+  Instead of a Buffer class, have some way to access the raw data in the owning
+  StringImplementation
+  The parsing, CharacterSource stuff should probably be totally separate from
+  String. When we create a CharacterSource we can give a String for data and an
+  optional File.
+  String works on bytes, CharacterSource works on Unicode characters.
+
+Bitmap:
+  A Bitmap may own its own bits or just be a pointer into some other Bitmap's
+  bits.
+  Preserve that information with a flag or with 
+
 Convert _perceptualInput, _perceptualOutput, _perceptualError, _digitalOutput,
 and _compositeOutput to Bitmaps. (Also _dataOutput and _compositeData?)
 

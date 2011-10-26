@@ -17,7 +17,8 @@ org 0
 
 mainLoop:
   mov si,endCode
-  mov di,0 ;endCode + 8192
+  mov di,0
+;  mov di,endCode + 8192
   mov cx,2048
 
   mov al,0x70  ; Timer 1, write LSB+MSB, mode 0, binary
@@ -26,16 +27,36 @@ mainLoop:
   out 0x41,al
   out 0x41,al
 
+  ; Wait for any pending refresh to occur (unnecessary?)
+  times 18 nop
+
+  ; Reset timer 0 so that the CPU is in lockstep with timer 0
+  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
+  out 0x43,al
+  xor al,al
+  out 0x40,al
+  out 0x40,al
+
   in al,0x40
   mov ah,al
   in al,0x40
   xchg ax,dx
 
 ;  rep movsw
+
 %rep 2048
-  lodsw
-  push ax
+;  lodsw
+;  push ax
+  stosw
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
 %endrep
+
+;  rep stosb
 
   in al,0x40
   mov ah,al

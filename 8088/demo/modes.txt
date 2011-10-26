@@ -354,3 +354,23 @@ lchars:  *       #       *       #       *       #       *       #       *      
 
 Can also round up when wait state ends on cycle boundary
 
+
+
+After a CGA IO, we'll be in one of 3 states:
+  1) The cycle 2 hdots after an lchar
+  2) The cycle 1 hdot after an lchar
+  3) The cycle coinciding with an lchar
+How can we determine (and/or control) which of these occurs?
+
+If we know where we are in the cycle, and we know all the rules, we can predict where we'll be in the cycle after some set of instructions
+
+If we know where we are in thc cycle, we can wait a number of CPU cycles (with a MUL if necessary) to fix our position
+
+Executing code from video memory is one tool we have, but won't really help with this particular part of the problem I think
+
+Observing snow is useful, especially if we can reliably make routines with 912 hdots.
+
+Need to find some constructs that take different lengths depending on the starting point
+  Try some "MUL; STOSB" combinations
+
+
