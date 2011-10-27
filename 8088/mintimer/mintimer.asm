@@ -5,21 +5,24 @@ cpu 8086
   mov ds,ax
   mov es,ax
 
-  mov cx,17
+  mov cx,256
 majorLoop:
-  mov bx,17
+  mov bx,256
   sub bx,cx
-  add bx,bx
-  mov ax,[tests+bx]
-  mov [experimentInit + 1],ax
+;  add bx,bx
+;  mov ax,[tests+bx]
+  mov [experimentInit + 1],bl
+  mov dl,bl
 
   push cx
-  mov cx,17
+  mov cx,256
 minorLoop:
-  mov bx,17
+  mov bx,256
   sub bx,cx
-  add bx,bx
-  mov ax,[tests+bx]
+;  add bx,bx
+;  mov ax,[tests+bx]
+  mov al,bl
+  mul byte[experimentInit + 1]
   mov [experimentCodeStart + 1],ax
 
   push cx
@@ -42,7 +45,7 @@ experimentInit:
   mov bx,0
 experimentCodeStart:
   mov ax,0
-  mul bx
+  div bl
 experimentCodeEnd:
 
 tests:
@@ -143,17 +146,18 @@ doExperiments:
   shl ax,1
   rcl dx,1
 
-;  ; Add 500 for rounding
-;  add ax,500
-;  adc dx,0
+  ; Add 500 for rounding
+  add ax,500
+  adc dx,0
 
-;  ; Divide by 1000 to get CPU cycles
-;  mov cx,1000
-;  div cx
+  ; Divide by 1000 to get CPU cycles
+  mov cx,1000
+  div cx
 
 ;  add al,'A'-74
-;  int 0x62
-;  ret
+  sub al,4
+  int 0x62
+  ret
 
   jmp printNumber
 

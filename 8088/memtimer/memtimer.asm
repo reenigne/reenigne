@@ -8,18 +8,26 @@ org 0
 
   cli
 
+  mov ax,0
+  mov ds,ax
+  mov word[0x20],interrupt8
+  mov [0x22],cs
+
   mov ax,cs
   mov ds,ax
   mov ss,ax
   mov ax,0xb800
-  mov es,ax
+;  mov es,ax
   mov sp,endCode + 8192
 
 mainLoop:
-  mov si,endCode
+  mov si,0
   mov di,0
 ;  mov di,endCode + 8192
-  mov cx,2048
+;  mov cx,2048
+  mov bx,0
+  mov bp,0
+  mov cl,0
 
   mov al,0x70  ; Timer 1, write LSB+MSB, mode 0, binary
   out 0x43,al
@@ -30,57 +38,79 @@ mainLoop:
   ; Wait for any pending refresh to occur (unnecessary?)
   times 18 nop
 
-  ; Reset timer 0 so that the CPU is in lockstep with timer 0
+  mov al,0xfe  ; Enable IRQ 0 (timer), disable others
+  out 0x21,al
+
+  mov al,0x24  ; Timer 0, write LSB, mode 2, binary
+  out 0x43,al
+  mov al,0x04
+  out 0x40,al
+  sti
+  hlt
+
+interrupt8:
   mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
   out 0x43,al
-  xor al,al
+  mov al,0x00
   out 0x40,al
   out 0x40,al
 
-  in al,0x40
-  mov ah,al
-  in al,0x40
-  xchg ax,dx
+;  in al,0x40
+;  mov ah,al
+;  in al,0x40
+;  xchg ax,dx
 
 ;  rep movsw
 
 %rep 2048
 ;  lodsw
 ;  push ax
-  stosw
-  nop
-  nop
-  nop
-  nop
-  nop
-  nop
+
+;  stosw
+;  nop
+;  nop
+;  nop
+;  nop
+;  nop
+;  nop
+
+  mul cl
+  mov ah,[di+endCode]
 %endrep
 
 ;  rep stosb
 
   in al,0x40
-  mov ah,al
-  in al,0x40
   mov bl,al
+  in al,0x40
+  mov bh,al
 
   mov al,0x54  ; Timer 1, write LSB, mode 2, binary
   out 0x43,al
   mov al,18
   out 0x41,al  ; Timer 1 rate
 
-  mov al,bl
-  xchg ah,al
-  xchg dh,dl
-  sub ax,dx
-  neg ax
+  mov al,0x20
+  out 0x20,al
+  add sp,6
+
+  xor ax,ax
+  sub ax,bx
+;  mov al,bl
+;  xchg ah,al
+;  xchg dh,dl
+;  sub ax,dx
+;  neg ax
   int 0x60
   mov al,10
   int 0x62
 
   jmp mainLoop
 
+
 align 16
 endCode:
+  dw 0,0
 
 ; Want 16384 IOs
 ; => 8192 bytes moved
