@@ -1,4 +1,6 @@
 org 0
+cpu 8086
+
 
   mov al,0x34
   out 0x43,al
@@ -10,24 +12,137 @@ org 0
 
   mov ax,0
   mov ds,ax
-  mov word[0x20],interrupt8
-  mov [0x22],cs
-
   mov ax,cs
-  mov ds,ax
-  mov ss,ax
-  mov ax,0xb800
-;  mov es,ax
-  mov sp,endCode + 8192
+  mov word[0x20],interrupt8
+  mov [0x22],ax
 
-mainLoop:
-  mov si,0
-  mov di,0
-;  mov di,endCode + 8192
-;  mov cx,2048
-  mov bx,0
-  mov bp,0
-  mov cl,0
+  mov ds,ax
+  mov es,ax
+  mov ss,ax
+  mov sp,0
+
+  mov si,experimentData
+  xor bx,bx
+nextExperiment:
+
+  ; Print name of experiment
+printLoop:
+  lodsb
+  cmp al,'$'
+  je donePrint
+  int 0x62
+  inc bx
+  jmp printLoop
+donePrint:
+  cmp bx,0
+  jne printSpaces
+
+  ; Finish
+  int 0x67
+
+  ; Print spaces for alignment
+printSpaces:
+  mov cx,20
+  sub cl,bl
+spaceLoop:
+  mov al,' '
+  int 0x62
+  loop spaceLoop
+
+  mov cx,5    ; Number of repeats
+repeatLoop:
+  push cx
+
+  mov cx,480+48  ; Number of iterations in primary measurement
+  call doMeasurement
+  push ax
+  mov cx,48      ; Number of iterations in secondary measurement
+  call doMeasurement
+  pop dx
+  sub dx,ax
+  xchg ax,dx
+
+  sub ax,8400  ; Correct for the 70 cycle multiply: 8400 = 480*70/4
+
+  xor dx,dx
+  mov cx,120
+  div cx       ; Divide by 120 to get number of cycles (quotient) and number of extra tcycles (remainder)
+
+  push dx      ; Store remainder
+
+  ; Output quotient
+  xor dx,dx
+  mov cx,10
+  div cx
+  add dl,'0'
+  mov [output+2],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+1],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+0],dl
+
+  ; Output remainder
+  pop ax
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+7],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+6],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+5],dl
+
+  mov si,output
+  mov cx,10
+  int 0x61
+
+  pop cx
+  loop repeatLoop
+  lodsw
+  add si,ax
+  lodsw
+  add si,ax
+  jmp nextExperiment
+
+output:
+  db "000 +000  "
+
+
+doMeasurement:
+  push si
+  push cx  ; Save number of iterations
+
+  ; Copy init
+  lodsw    ; Number of init bytes
+  mov cx,ax
+  mov di,timerStartEnd
+  rep movsb
+
+  ; Copy code
+  lodsw    ; Number of code bytes
+  pop cx
+iterationLoop:
+  push cx
+  push si
+  mov cx,ax
+  rep movsb
+  pop si
+  pop cx
+  loop iterationLoop
+
+  ; Copy timer end
+  mov si,timerEndStart
+  mov cx,timerEndEnd-timerEndStart
+  rep movsb
+
 
   mov al,0x70  ; Timer 1, write LSB+MSB, mode 0, binary
   out 0x43,al
@@ -48,38 +163,36 @@ mainLoop:
   sti
   hlt
 
-interrupt8:
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
+  ; The actual measurement happens in the the IRQ0 handler which runs here.
 
-;  in al,0x40
-;  mov ah,al
-;  in al,0x40
-;  xchg ax,dx
+  pop si
+  ret
 
-;  rep movsw
 
-%rep 2048
-;  lodsw
-;  push ax
 
-;  stosw
-;  nop
-;  nop
-;  nop
-;  nop
-;  nop
-;  nop
 
+experimentData:
+
+experiment1:
+  db "add [0],ah$"
+  dw .endInit - .startInit
+.startInit:
+  mov cl,0
+.endInit:
+  dw .endCode - .startCode
+.startCode
   mul cl
-  mov ah,[di+endCode]
-%endrep
+  add [0],al
+.endCode
 
-;  rep stosb
+  ; TODO: Add more experiments here
 
+lastExperiment:
+  db '$'
+
+
+
+timerEndStart:
   in al,0x40
   mov bl,al
   in al,0x40
@@ -92,63 +205,47 @@ interrupt8:
 
   mov al,0x20
   out 0x20,al
+  iret
+timerEndEnd:
+
+
+interrupt8:
+  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
+  out 0x43,al
+  mov al,0x00
+  out 0x40,al
+  out 0x40,al
+timerStartEnd:
+
+  ;
+
+
+;%rep 480
+;;  lodsw
+;;  push ax
+;
+;;  stosw
+;;  nop
+;;  nop
+;;  nop
+;;  nop
+;;  nop
+;;  nop
+;
+;  mul cl
+;  add [endCode],al
+;%endrep
+;
+;  rep stosb
+
   add sp,6
 
   xor ax,ax
   sub ax,bx
-;  mov al,bl
-;  xchg ah,al
-;  xchg dh,dl
-;  sub ax,dx
-;  neg ax
-  int 0x60
-  mov al,10
-  int 0x62
 
-  jmp mainLoop
 
 
 align 16
 endCode:
   dw 0,0
-
-; Want 16384 IOs
-; => 8192 bytes moved
-
-
-
-;%	000-00F  8237 DMA controller
-;	000 Channel 0 address register
-;	001 Channel 0 word count
-;	002 Channel 1 address register
-;	003 Channel 1 word count
-;	004 Channel 2 address register
-;	005 Channel 2 word count
-;	006 Channel 3 address register
-;	007 Channel 3 word count
-;	008 Status/command register
-;	009 Request register
-;	00A Mask register
-;	00B Mode register
-;	00C Clear MSB/LSB flip flop
-;	00D Master clear temp register
-;	00E Clear mask register
-;	00F Multiple mask register
-;
-;
-;        MOV     AL,0FFH                 ; SET CNT OF 64K FOR REFRESH
-;        OUT     DMA+1,AL
-;        OUT     DMA+1,AL
-;
-;        MOV     AL,058H                 ; SET DMA MODE,CH 0,RD.,AUTOINT
-;        OUT     DMA+0BH,AL              ; WRITE DMA MODE REG
-;
-;        MOV     AL,0                    ; ENABLE DMA CONTROLLER
-;        MOV     CH,AL                   ; SET COUNT HIGH=00
-;        OUT     DMA+8,AL                ;SETUP DMA COMMAND REG
-;        OUT     DMA+10,AL               ; ENABLE DMA CH 0
-;
-;        MOV     AL,18                   ; START TIMER 1
-;        OUT     TIMER+1,AL
-
 

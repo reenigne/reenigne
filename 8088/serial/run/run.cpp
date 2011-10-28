@@ -21,6 +21,57 @@ public:
         String data = File(fileName).contents();
         int l = data.length();
 
+        //// Reset the machine
+        //{
+        //    AutoHandle arduinoCom;
+        //    arduinoCom.set(CreateFile(
+        //        L"COM3",
+        //        GENERIC_READ | GENERIC_WRITE,
+        //        0,              // must be opened with exclusive-access
+        //        NULL,           // default security attributes
+        //        OPEN_EXISTING,  // must use OPEN_EXISTING
+        //        0,              // not overlapped I/O
+        //        NULL),          // hTemplate must be NULL for comm devices
+        //        String("Arduino COM port"));
+
+        //    DCB deviceControlBlock;
+        //    SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
+        //    IF_ZERO_THROW(GetCommState(arduinoCom, &deviceControlBlock));
+        //    deviceControlBlock.DCBlength = sizeof(DCB);
+        //    deviceControlBlock.BaudRate = 19200;
+        //    deviceControlBlock.fBinary = TRUE;
+        //    deviceControlBlock.fParity = FALSE;
+        //    deviceControlBlock.fOutxCtsFlow = FALSE;
+        //    deviceControlBlock.fOutxDsrFlow = FALSE;
+        //    deviceControlBlock.fDtrControl = DTR_CONTROL_DISABLE;
+        //    deviceControlBlock.fDsrSensitivity = FALSE;
+        //    deviceControlBlock.fTXContinueOnXoff = TRUE;
+        //    deviceControlBlock.fOutX = TRUE;
+        //    deviceControlBlock.fInX = TRUE;
+        //    deviceControlBlock.fErrorChar = FALSE;
+        //    deviceControlBlock.fNull = FALSE;
+        //    deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
+        //    deviceControlBlock.fAbortOnError = TRUE;
+        //    deviceControlBlock.wReserved = 0;
+        //    deviceControlBlock.ByteSize = 8;
+        //    deviceControlBlock.Parity = NOPARITY;
+        //    deviceControlBlock.StopBits = ONESTOPBIT;
+        //    deviceControlBlock.XonChar = 17;
+        //    deviceControlBlock.XoffChar = 19;
+        //    IF_ZERO_THROW(SetCommState(arduinoCom, &deviceControlBlock));
+
+        //    IF_ZERO_THROW(SetCommMask(arduinoCom, EV_RXCHAR));
+
+        //    Sleep(2000);
+
+        //    arduinoCom.write<Byte>(0x72);
+        //    arduinoCom.write<Byte>(0x7f);
+        //    IF_ZERO_THROW(FlushFileBuffers(arduinoCom));
+
+        //}
+
+        //Sleep(3000);
+
         _com.set(CreateFile(
             L"COM1",
             GENERIC_READ | GENERIC_WRITE,
