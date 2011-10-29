@@ -124,31 +124,11 @@ interruptSetupLoop:
   ; Disable NMI
   xor al,al
   out 0xa0,al
-  ; Find end of memory. Memory is always added in 16Kb units. We can't use
-  ; the BIOS measurement since it won't have been initialized.
-;  mov ax,0x9c00
-;findRAM:
-;  mov ds,ax
-;  mov [0],ax
-;  cmp [0],ax
-;  je foundRAM
-;  sub ax,0x400
-;  jmp findRAM
-;foundRAM:
-;  sub ax,0xc00
-  mov ax,0x9000
+
   ; Move the stack right at the end of main RAM.
+  mov ax,0x9000
   mov ss,ax
   xor sp,sp
-
-  ; Enable NMI
-;  in al,0x61
-;  or al,0x30
-;  out 0x61,al
-;  and al,0xcf
-;  out 0x61,al
-;  mov al,0x80
-;  out 0xa0,al
 
   mov di,0x50 ;Target segment (TODO: make this 0060:0000 as FreeDOS does?)
   mov bx,cs
@@ -198,9 +178,6 @@ noRelocationNeeded:
   ; int 0x60 == output AX as a 4-digit hex number
   ; int 0x61 == output CX bytes from DS:SI
   ; int 0x62 == output AL as a character
-  ; int 0x63 == print AX as a 4-digit hex number
-  ; int 0x64 == print CX bytes from DS:SI
-  ; int 0x65 == print AL as a character
   ; int 0x67 == finish
   xor ax,ax
   mov ds,ax
@@ -210,20 +187,8 @@ noRelocationNeeded:
   mov [0x186], cs
   mov word [0x188], writeCharacter
   mov [0x18a], cs
-;  mov word [0x18c], printHex
-;  mov [0x18e], cs
-;  mov word [0x190], printString
-;  mov [0x192], cs
-;  mov word [0x194], printCharacter
-;  mov [0x196], cs
   mov word [0x19c], complete
   mov [0x19e], cs
-
-;  ; Reset video variables
-;  xor ax,ax
-;  mov [cs:column],al
-;  mov [cs:startAddress],ax
-
 
 ; Receive a byte over serial and put it in AL. DX == port base address + 5
 %macro receiveByte 0
@@ -316,13 +281,6 @@ noRelocationNeeded:
   out dx,al
 
 
-;  ; Print the boot message
-;  mov ax,cs
-;  mov ds,ax
-;  mov si,bootMessage
-;  mov cx,bootMessageEnd - bootMessage
-;  int 0x64
-
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
   push bx
@@ -384,14 +342,8 @@ loadProgramDone:
 
   cmp bh,bl
   je checksumOk
-;  mov si,failMessage
-;  mov cx,failMessageEnd - failMessage
-;  int 0x64
   jmp tryLoad
 checksumOk:
-;  mov si,okMessage
-;  mov cx,okMessageEnd - okMessage
-;  int 0x64
   retf
 
 ; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
@@ -471,133 +423,6 @@ complete:
   mov al,26
   int 0x62  ; Write a ^Z character to tell the "run" program to finish
   jmp 0  ; Restart the kernel
-
-
-
-;printNybble:
-;  cmp al,10
-;  jge printAlphabetic
-;  add al,'0'
-;  jmp printGotCharacter
-;printAlphabetic:
-;  add al,'A' - 10
-;printGotCharacter:
-;  jmp printChar
-;
-;
-;printHex:
-;  push bx
-;  push cx
-;  mov bx,ax
-;  mov al,bh
-;  mov cl,4
-;  shr al,cl
-;  call printNybble
-;  mov al,bh
-;  and al,0xf
-;  call printNybble
-;  mov al,bl
-;  shr al,cl
-;  call printNybble
-;  mov al,bl
-;  and al,0xf
-;  call printNybble
-;  pop cx
-;  pop bx
-;  iret
-;
-;
-;printString:
-;  lodsb
-;  call printChar
-;  loop printString
-;  iret
-;
-;
-;printCharacter:
-;  call printChar
-;  iret
-;
-;
-;printChar:
-;  push bx
-;  push cx
-;  push dx
-;  push es
-;  push di
-;  mov dx,0xb800
-;  mov es,dx
-;  mov dx,0x3d4
-;  mov cx,[cs:startAddress]
-;  cmp al,10
-;  je printNewLine
-;  mov di,cx
-;  add di,cx
-;  mov bl,[cs:column]
-;  xor bh,bh
-;  mov [es:bx+di+24*40*2],al
-;  inc bx
-;  inc bx
-;  cmp bx,80
-;  jne donePrint
-;printNewLine:
-;  add cx,40
-;  and cx,0x1fff
-;  mov [cs:startAddress],cx
-;
-;  ; Scroll screen
-;  mov ah,ch
-;  mov al,0x0c
-;  out dx,ax
-;  mov ah,cl
-;  inc ax
-;  out dx,ax
-;  ; Clear the newly scrolled area
-;  mov di,cx
-;  add di,cx
-;  add di,24*40*2
-;  mov cx,40
-;  mov ax,0x0700
-;  rep stosw
-;  mov cx,[cs:startAddress]
-;
-;  xor bx,bx
-;donePrint:
-;  mov [cs:column],bl
-;
-;  ; Move cursor
-;  shr bx,1
-;  add bx,cx
-;  add bx,24*40
-;  and bx,0x1fff
-;  mov ah,bh
-;  mov al,0x0e
-;  out dx,ax
-;  mov ah,bl
-;  inc ax
-;  out dx,ax
-;
-;  pop di
-;  pop es
-;  pop dx
-;  pop cx
-;  pop bx
-;  ret
-;
-;
-;column:
-;  db 0
-;startAddress:
-;  dw 0
-;bootMessage:
-;  db 'XT Serial Kernel',10
-;bootMessageEnd:
-;okMessage:
-;  db 'OK',10
-;okMessageEnd:
-;failMessage:
-;  db 'Checksum failure',10
-;failMessageEnd:
 
 
 kernelEnd:
