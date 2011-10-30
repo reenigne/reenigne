@@ -1,6 +1,35 @@
 org 0
 cpu 8086
 
+%macro waitForDisplayEnable 0
+  %%waitForDisplayEnable
+    in al,dx                       ; 1 1 2
+    test al,1                      ; 2 0 2
+    jnz %%waitForDisplayEnable     ; 2 0 2
+%endmacro
+
+%macro waitForDisplayDisable 0
+  %%waitForDisplayDisable
+    in al,dx                       ; 1 1 2
+    test al,1                      ; 2 0 2
+    jz %%waitForDisplayDisable     ; 2 0 2
+%endmacro
+
+%macro waitForVerticalSync 0
+  %%waitForVerticalSync
+    in al,dx
+    test al,8
+    jz %%waitForVerticalSync
+%endmacro
+
+%macro waitForNoVerticalSync 0
+  %%waitForNoVerticalSync
+    in al,dx
+    test al,8
+    jnz %%waitForNoVerticalSync
+%endmacro
+
+
   mov ax,6
   int 0x10
 
@@ -8,8 +37,7 @@ cpu 8086
   mov dx,0x3d8
   out dx,al
 
-;  mov al,0x0f
-  mov al,1
+  mov al,0x0f
   mov dx,0x3d9
   out dx,al
 
@@ -23,11 +51,58 @@ screenLoop:
 
 rowLoop:
 
-  mov cx,6
+  mov cx,200
 lineLoop:
+
   push cx
-  mov cx,80
+  mov al,0
+  mov cx,16
+barLoop:
+  push cx
+  mov cx,5
   rep stosb
+  pop cx
+  add al,0x11
+  loop barLoop
+
+  add di,0x1fb0
+  cmp di,0x4000
+  jl oddLine
+  sub di,0x3fb0
+oddLine:
+
+  pop cx
+  loop lineLoop
+
+  mov dx,0x3da
+frameLoop:
+  waitForVerticalSync
+  waitforNoVerticalSync
+
+  mov cx,16
+  mov bl,0
+rowLoop2:
+  push cx
+
+  mov cx,12
+lineLoop2:
+  waitForDisplayEnable
+  waitForDisplayDisable
+  loop lineLoop2
+  inc bl
+  mov al,bl
+  dec dx
+  out dx,al
+  inc dx
+  pop cx
+  loop rowLoop2
+  jmp frameLoop
+
+
+
+
+
+
   add di,0x2000-80
   mov cx,80
   rep stosb
