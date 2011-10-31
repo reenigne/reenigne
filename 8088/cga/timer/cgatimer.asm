@@ -20,153 +20,112 @@ cpu 8086
   mov ss,ax
   mov sp,0
 
-  mov si,experimentData
-nextExperiment:
-  xor bx,bx
+  mov byte[repeat],0
 
-  ; Print name of experiment
-printLoop:
-  lodsb
-  cmp al,'$'
-  je donePrint
-  int 0x62
-  inc bx
-  jmp printLoop
-donePrint:
-  cmp bx,0
-  jne printSpaces
+  mov cx,9
+loop3:
+  push cx
+  mov bx,9
+  sub bx,cx
+  mov al,[byteChoices + bx]
+  mov [byte3],al
 
-  ; Finish
-  int 0x67
+  mov cx,9
+loop2:
+  push cx
+  mov bx,9
+  sub bx,cx
+  mov al,[byteChoices + bx]
+  mov [byte2],al
 
-  ; Print spaces for alignment
-printSpaces:
-  mov cx,21  ; Width of column
-  sub cx,bx
-  jg spaceLoop
-  mov cx,1
-spaceLoop:
+  mov cx,9
+loop1:
+  push cx
+  mov bx,9
+  sub bx,cx
+  mov al,[byteChoices + bx]
+  mov [byte1],al
+
+  push ax
+  mov cl,4
+  shr al,cl
+  call printNybble
+  pop ax
+  and al,0x0f
+  call printNybble
   mov al,' '
   int 0x62
-  loop spaceLoop
 
-  mov cx,10    ; Number of repeats
-repeatLoop:
-  mov [repeat],cx
-  push cx
-
-  mov cx,480     ; Number of iterations
-  call doMeasurement
-  mov ax,bx
-  neg ax         ; Negate to get the positive number of cycles.
-
- ; sub ax,8880  ; Correct for the 74 cycle multiply: 8880 = 480*74/4
-
-  xor dx,dx
-  mov cx,40
-  div cx       ; Divide by 40 to get number of hdots (quotient) and number of extra tcycles (remainder)
-
-  push dx      ; Store remainder
-
-  ; Output quotient
-  xor dx,dx
-  mov cx,10
-  div cx
-  add dl,'0'
-  mov [output+2],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+1],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+0],dl
-
-  ; Output remainder
+  mov al,[byte2]
+  push ax
+  mov cl,4
+  shr al,cl
+  call printNybble
   pop ax
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+7],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+6],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+5],dl
+  and al,0x0f
+  call printNybble
+  mov al,' '
+  int 0x62
 
-  ; Emit the final result text
-  push si
-  mov [lastQuotient],ax
+  mov al,[byte3]
+  push ax
+  mov cl,4
+  shr al,cl
+  call printNybble
+  pop ax
+  and al,0x0f
+  call printNybble
+  mov al,' '
+  int 0x62
+
+  mov word[loadSeg],0x9000
+  mov word[baseline],0
+  call doExperiment
+  mov word[baseline],ax
+
+  mov word[loadSeg],0xb800
   mov cx,10
-  mov si,output
-doPrint:
-  int 0x61
-  pop si
+repeatLoop:
+  push cx
+  call doExperiment
   pop cx
-  loop repeatLoop1
 
-  ; Advance to the next experiment
-  lodsw
-  add si,ax
-  lodsw
-  add si,ax
+  loop repeatLoop
 
   ; Print a newline
   mov al,10
   int 0x62
 
-  jmp nextExperiment
-
-repeatLoop1:
-  jmp repeatLoop
-
-quotient: dw 0
-lastQuotient: dw 0
-
-output:
-  db "0000 +00  "
-
-repeat: dw 0
-
-doMeasurement:
-  push si
-  push cx  ; Save number of iterations
-
-  ; Copy init
-  lodsw    ; Number of init bytes
-  mov cx,ax
-  mov di,timerStartEnd
-  call codeCopy
-
-  ; Copy code
-  lodsw    ; Number of code bytes
   pop cx
-iterationLoop:
-  push cx
-
-  push si
-  mov si,codePreambleStart
-  mov cx,codePreambleEnd-codePreambleStart
-  call codeCopy
-  pop si
-
-  push si
-  mov cx,ax
-  call codeCopy
-  pop si
+  loop loop1
 
   pop cx
-  loop iterationLoop
+  loop loop2a
 
-  ; Copy timer end
-  mov si,timerEndStart
-  mov cx,timerEndEnd-timerEndStart
-  call codeCopy
+  pop cx
+  loop loop3a
 
+  int 0x67
+
+loop3a: jmp loop3
+loop2a: jmp loop2
+
+baseline: dw 0
+
+
+printNybble:
+  cmp al,9
+  jle .numeric
+  add al,'A'-10
+  int 0x62
+  ret
+.numeric:
+  add al,'0'
+  int 0x62
+  ret
+
+
+doExperiment:
   ; Turn off refresh
   mov al,0x60  ; Timer 1, write LSB, mode 0, binary
   out 0x43,al
@@ -191,283 +150,61 @@ iterationLoop:
   ; Pop the flags pushed when the interrupt occurred
   pop ax
 
-  pop si
-  ret
+  mov ax,bx
+  neg ax         ; Negate to get the positive number of cycles.
+  sub ax,[baseline]
+  push ax
 
-codeCopy:
-  cmp cx,0
-  je codeCopyDone
-codeCopyLoop:
-  cmp di,0
-  je codeCopyOutOfSpace
-  movsb
-  loop codeCopyLoop
-codeCopyDone:
-  ret
-codeCopyOutOfSpace:
-  mov si,outOfSpaceMessage
-  mov cx,outOfSpaceMessageEnd-outOfSpaceMessage
+ ; sub ax,8880  ; Correct for the 74 cycle multiply: 8880 = 480*74/4
+
+  xor dx,dx
+  mov cx,80    ; 960/80 = 12, and there are 12 hdots per tcycle.
+  div cx       ; Divide by 80 to get number of hdots (quotient) and number of extra tcycles (remainder)
+
+  push dx      ; Store remainder
+
+  ; Output quotient
+  xor dx,dx
+  mov cx,10
+  div cx
+  add dl,'0'
+  mov [output+3],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+2],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+1],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+0],dl
+
+  ; Output remainder
+  pop ax
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+7],dl
+  xor dx,dx
+  div cx
+  add dl,'0'
+  mov [output+6],dl
+
+  ; Emit the final result text
+  mov si,output
+  mov cx,10
   int 0x61
-  int 0x67
 
-outOfSpaceMessage:
-  db "Copy out of space - use fewer iterations"
-outOfSpaceMessageEnd:
-
-
-codePreambleStart:
-  mul cl
-codePreambleEnd:
-
-experimentData:
-
-experiment1:
-  db "mul 0x00; lodsb; mul 0x00; lodsb$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ds,ax
-  mov cx,480
-.loopTop
-  mov al,0x00
-  stosb
-  mov al,0x00
-  stosb
-  loop .loopTop
-  mov si,0
-  mov cl,1
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-.endInit:
-  dw .endCode - ($+2)
-  lodsb
-  mul cl
-  lodsb
-.endCode
-
-experiment2:
-  db "mul 0x01; lodsb; mul 0x00; lodsb$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ds,ax
-  mov cx,480
-.loopTop
-  mov al,0x00
-  stosb
-  mov al,0x01
-  stosb
-  loop .loopTop
-  mov si,0
-  mov cl,1
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-.endInit:
-  dw .endCode - ($+2)
-  lodsb
-  mul cl
-  lodsb
-.endCode
-
-experiment3:
-  db "mul 0x03; lodsb; mul 0x00; lodsb$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ds,ax
-  mov cx,480
-.loopTop
-  mov al,0x00
-  stosb
-  mov al,0x03
-  stosb
-  loop .loopTop
-  mov si,0
-  mov cl,1
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-.endInit:
-  dw .endCode - ($+2)
-  lodsb
-  mul cl
-  lodsb
-.endCode
-
-experiment4:
-  db "mul 0x07; lodsb; mul 0x00; lodsb$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ds,ax
-  mov cx,480
-.loopTop
-  mov al,0x00
-  stosb
-  mov al,0x07
-  stosb
-  loop .loopTop
-  mov si,0
-  mov cl,1
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-.endInit:
-  dw .endCode - ($+2)
-  lodsb
-  mul cl
-  lodsb
-.endCode
-
-experiment5:
-  db "mul 0x0f; lodsb; mul 0x00; lodsb$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ds,ax
-  mov cx,480
-.loopTop
-  mov al,0x00
-  stosb
-  mov al,0x0f
-  stosb
-  loop .loopTop
-  mov si,0
-  mov cl,1
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-.endInit:
-  dw .endCode - ($+2)
-  lodsb
-  mul cl
-  lodsb
-.endCode
-
-experiment6:
-  db "mul 0x1f; lodsb; mul 0x00; lodsb$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ds,ax
-  mov cx,480
-.loopTop
-  mov al,0x00
-  stosb
-  mov al,0x1f
-  stosb
-  loop .loopTop
-  mov si,0
-  mov cl,1
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-.endInit:
-  dw .endCode - ($+2)
-  lodsb
-  mul cl
-  lodsb
-.endCode
-
-experiment7:
-  db "mul 0x3f; lodsb; mul 0x00; lodsb$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ds,ax
-  mov cx,480
-.loopTop
-  mov al,0x00
-  stosb
-  mov al,0x3f
-  stosb
-  loop .loopTop
-  mov si,0
-  mov cl,1
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-.endInit:
-  dw .endCode - ($+2)
-  lodsb
-  mul cl
-  lodsb
-.endCode
-
-experiment8:
-  db "mul 0x7f; lodsb; mul 0x00; lodsb$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ds,ax
-  mov cx,480
-.loopTop
-  mov al,0x00
-  stosb
-  mov al,0x7f
-  stosb
-  loop .loopTop
-  mov si,0
-  mov cl,1
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-.endInit:
-  dw .endCode - ($+2)
-  lodsb
-  mul cl
-  lodsb
-.endCode
-
-experiment9:
-  db "mul 0xff; lodsb; mul 0x00; lodsb$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ds,ax
-  mov cx,480
-.loopTop
-  mov al,0x00
-  stosb
-  mov al,0xff
-  stosb
-  loop .loopTop
-  mov si,0
-  mov cl,1
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-.endInit:
-  dw .endCode - ($+2)
-  lodsb
-  mul cl
-  lodsb
-.endCode
+  pop ax
+  inc byte[repeat]
+  ret
 
 
-
-lastExperiment:
-  db '$'
+output:
+  db "0000 +00  "
 
 
 randomTable:
@@ -508,7 +245,59 @@ randomTable:
 savedSS: dw 0
 savedSP: dw 0
 
-timerEndStart:
+loadSeg: dw 0x9000
+byte1: db 0
+byte2: db 0
+byte3: db 0
+repeat: dw 0
+
+byteChoices: db 0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff
+
+
+
+interrupt8:
+  mov ax,[loadSeg]
+  mov es,ax
+  mov cx,960
+  mov di,0
+.loopTop
+  mov al,[byte1]
+  stosb
+  mov al,[byte2]
+  stosb
+  mov al,[byte3]
+  stosb
+  loop .loopTop
+  mov si,0
+
+  ; Wait a random number of cycles to eliminate aliasing effects
+  mov bl,[repeat]
+  mov bh,0
+  mov al,[bx+randomTable]
+  mov bl,al
+  mov cl,1
+  mul cl
+
+  mov ax,[loadSeg]
+  mov ds,ax
+
+  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
+  out 0x43,al
+  mov al,0x00
+  out 0x40,al
+  out 0x40,al
+
+  mov al,bl
+
+%rep 960
+  mul cl
+  lodsb
+  mul cl
+  lodsb
+  mul cl
+  lodsb
+%endrep
+
   in al,0x40
   mov bl,al
   in al,0x40
@@ -525,49 +314,8 @@ timerEndStart:
   mov ax,cs
   mov ds,ax
   mov es,ax
-  mov ss,[savedSS]
-  mov sp,[savedSP]
 
   ; Don't use IRET here - it'll turn interrupts back on and IRQ0 will be
   ; triggered a second time.
-  popf
   retf
-timerEndEnd:
-
-
-  ; This must come last in the program so that the experiment code can be
-  ; copied after it.
-
-interrupt8:
-  pushf
-  mov ax,cs
-  mov ds,ax
-  mov es,ax
-  mov [savedSS],ss
-  mov [savedSP],sp
-  mov ss,ax
-  mov dx,0;xffff
-  mov cx,0
-  mov bx,0
-  mov ax,0
-  mov si,0
-  mov di,0
-  mov bp,0
-;  mov sp,0
-
-times 528 push cs
-
-  ; Wait a random number of cycles to eliminate aliasing effects
-  mov bx,[repeat]
-  mov al,[bx+randomTable]
-  mov cl,1
-  mul cl
-
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-timerStartEnd:
-
 
