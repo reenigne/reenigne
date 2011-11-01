@@ -4,7 +4,7 @@ org 0
   cli
 
   ; Blank the screen
-  mov dx,0x3da
+  mov dx,0x3d8
   mov al,0
   out dx,al
 
