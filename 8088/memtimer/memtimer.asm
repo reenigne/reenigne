@@ -55,70 +55,74 @@ spaceLoop:
 repeatLoop:
   push cx
 
-  mov cx,480+48  ; Number of iterations in primary measurement
+  mov cx,1 ;480+48  ; Number of iterations in primary measurement
   call doMeasurement
   push bx
-  mov cx,48      ; Number of iterations in secondary measurement
-  call doMeasurement
+;  mov cx,1 ;48      ; Number of iterations in secondary measurement
+;  call doMeasurement
   pop ax         ; The primary measurement will have the lower value, since the counter counts down
-  sub ax,bx      ; Subtract the secondary value, which will be higher, now AX is negative
+;  sub ax,bx      ; Subtract the secondary value, which will be higher, now AX is negative
   neg ax         ; Negate to get the positive difference.
 
-  sub ax,8880  ; Correct for the 74 cycle multiply: 8880 = 480*74/4
+  int 0x60
+  mov al,' '
+  int 0x62
 
-  xor dx,dx
-  mov cx,120
-  div cx       ; Divide by 120 to get number of cycles (quotient) and number of extra tcycles (remainder)
-
-  push dx      ; Store remainder
-
-  ; Output quotient
-  xor dx,dx
-  mov [quotient],ax
-  mov cx,10
-  div cx
-  add dl,'0'
-  mov [output+2],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+1],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+0],dl
-
-  ; Output remainder
-  pop ax
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+7],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+6],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+5],dl
-
-  ; Emit the final result text
-  push si
-  mov ax,[quotient]
-  cmp ax,[lastQuotient]
-  jne fullPrint
-
-  mov cx,6
-  mov si,output+4
-  jmp doPrint
-fullPrint:
-  mov [lastQuotient],ax
-  mov cx,10
-  mov si,output
-doPrint:
-  int 0x61
-  pop si
+;  sub ax,8880  ; Correct for the 74 cycle multiply: 8880 = 480*74/4
+;
+;  xor dx,dx
+;  mov cx,120
+;  div cx       ; Divide by 120 to get number of cycles (quotient) and number of extra tcycles (remainder)
+;
+;  push dx      ; Store remainder
+;
+;  ; Output quotient
+;  xor dx,dx
+;  mov [quotient],ax
+;  mov cx,10
+;  div cx
+;  add dl,'0'
+;  mov [output+2],dl
+;  xor dx,dx
+;  div cx
+;  add dl,'0'
+;  mov [output+1],dl
+;  xor dx,dx
+;  div cx
+;  add dl,'0'
+;  mov [output+0],dl
+;
+;  ; Output remainder
+;  pop ax
+;  xor dx,dx
+;  div cx
+;  add dl,'0'
+;  mov [output+7],dl
+;  xor dx,dx
+;  div cx
+;  add dl,'0'
+;  mov [output+6],dl
+;  xor dx,dx
+;  div cx
+;  add dl,'0'
+;  mov [output+5],dl
+;
+;  ; Emit the final result text
+;  push si
+;  mov ax,[quotient]
+;  cmp ax,[lastQuotient]
+;  jne fullPrint
+;
+;  mov cx,6
+;  mov si,output+4
+;  jmp doPrint
+;fullPrint:
+;  mov [lastQuotient],ax
+;  mov cx,10
+;  mov si,output
+;doPrint:
+;  int 0x61
+ ; pop si
   pop cx
   loop repeatLoop1
 
@@ -228,27 +232,361 @@ outOfSpaceMessageEnd:
 
 
 codePreambleStart:
-  mov al,0
-  mul cl
+;  mov al,0
+;  mul cl
 codePreambleEnd:
 
 experimentData:
 
-%macro exp 1
-%%experiment:
-  db "aad ",'0'+(%1)/100,'0'+((%1)/10) % 10,'0'+(%1) % 10,"$"
-  dw %%.endInit - ($+2)
-%%.endInit:
-  dw %%.endCode - ($+2)
-  db 0xd5,%1
-%%.endCode
-%endmacro
+experiment1:
+  db "rep lodsb$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep lodsb
+.endCode
 
-%assign i 0
-%rep 256
-  exp i
-%assign i i+1
-%endrep
+experiment2:
+  db "rep lodsw$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep lodsw
+.endCode
+
+experiment3:
+  db "rep stosb$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep stosb
+.endCode
+
+experiment4:
+  db "rep stosw$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep stosw
+.endCode
+
+experiment5:
+  db "rep movsb$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep movsb
+.endCode
+
+experiment6:
+  db "rep movsw$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep movsw
+.endCode
+
+experiment7:
+  db "rep cmpsb$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep cmpsb
+.endCode
+
+experiment8:
+  db "rep cmpsw$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep cmpsw
+.endCode
+
+experiment9:
+  db "rep scasb$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+  mov ax,0x7f7f
+.endInit:
+  dw .endCode - ($+2)
+  rep scasb
+.endCode
+
+experiment10:
+  db "rep scasw$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+  mov ax,0x7f7f
+.endInit:
+  dw .endCode - ($+2)
+  rep scasw
+.endCode
+
+experiment11:
+  db "rep lodsb CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep lodsb
+.endCode
+
+experiment12:
+  db "rep lodsw CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep lodsw
+.endCode
+
+experiment13:
+  db "rep stosb CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep stosb
+.endCode
+
+experiment14:
+  db "rep stosw CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep stosw
+.endCode
+
+experiment15:
+  db "rep movsb CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep movsb
+.endCode
+
+experiment16:
+  db "rep movsw CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep movsw
+.endCode
+
+experiment17:
+  db "rep cmpsb CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep cmpsb
+.endCode
+
+experiment18:
+  db "rep cmpsw CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep cmpsw
+.endCode
+
+experiment19:
+  db "rep scasb CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+  mov ax,0x7f7f
+.endInit:
+  dw .endCode - ($+2)
+  rep scasb
+.endCode
+
+experiment20:
+  db "rep scasw CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+  mov ax,0x7f7f
+.endInit:
+  dw .endCode - ($+2)
+  rep scasw
+.endCode
+
+experiment21:
+  db "rep movsb RAM->CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep movsb
+.endCode
+
+experiment22:
+  db "rep movsw RAM->CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep movsw
+.endCode
+
+experiment23:
+  db "rep movsb CGA->RAM$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ax,0xb800
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep movsb
+.endCode
+
+experiment24:
+  db "rep movsw CGA->RAM$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ax,0xb800
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep movsw
+.endCode
+
+experiment25:
+  db "rep cmpsb RAM->CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep cmpsb
+.endCode
+
+experiment26:
+  db "rep cmpsw RAM->CGA$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep cmpsw
+.endCode
+
+experiment27:
+  db "rep cmpsb CGA->RAM$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ax,0xb800
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep cmpsb
+.endCode
+
+experiment28:
+  db "rep cmpsw CGA->RAM$"
+  dw .endInit - ($+2)
+  mov cx,2048
+  mov ax,0x8000
+  mov es,ax
+  mov ax,0xb800
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  rep cmpsw
+.endCode
+
+
 
 
 lastExperiment:

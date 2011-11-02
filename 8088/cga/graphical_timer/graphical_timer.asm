@@ -109,6 +109,11 @@ sixLinesLoop:
   ; Set up second argument to MUL
   mov cl,1
 
+  ; Set "stosb" destination to non-video memory for first 16 lines
+  mov di,0x3fff
+  mov ax,0x8000
+  mov es,ax
+
   ; We want to start the timer interrupt towards the left of the screen
   waitForDisplayEnable
 
@@ -118,12 +123,7 @@ sixLinesLoop:
   nop
   nop
   nop
-  nop
-  nop
-  nop
-  nop
-  nop
-  nop
+
   nop
   nop
   nop
@@ -141,10 +141,25 @@ sixLinesLoop:
   nop
   nop
 
+  times 76 nop
+
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
+
+
   ; Use IRQ0 to go into lockstep with timer 0
   mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
   out 0x43,al
-  mov al,76    ; 76 tcycles == 1 scanline
+;  mov al,76    ; 76 tcycles == 1 scanline
+  mov al,76*2
   out 0x40,al
   mov al,0
   out 0x40,al
@@ -152,9 +167,6 @@ sixLinesLoop:
 
   ; Put palette register address in DX
   mov dx,0x03d9
-
-  ; Set "stosb" destination to non-visible memory
-  mov di,0x3fff
 
   hlt
 
@@ -165,249 +177,362 @@ sixLinesLoop:
     pop bx
     mov word[0x20],%%nextInterrupt8
     popf
-;    inc si
-;    mov ax,si
-;    out dx,al
     hlt
   %%nextInterrupt8:
 %endmacro
 
+%macro testCode 0
+    mov al,0
+    out dx,al
+    jmp $+2
+    stosb
+    mov al,0x01
+    mul cl
+    stosb
+    mov al,0x7f
+    mul cl
+    stosb
+    mov al,0x0f
+    out dx,al
+    mov di,0x3fff
+%endmacro
+
+; Reduces number of possibilities to 2
+;    jmp $+2
+;    stosb
+;    mov al,0x01  ; Or 0x3f
+;    mul cl
+;    stosb
+
+
 interrupt8_1:
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x00
   mul cl
-  mov al,0x0f
-  out dx,al
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x01
   mul cl
-  mov al,0x0f
-  out dx,al
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x03
   mul cl
-  mov al,0x0f
-  out dx,al
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x07
   mul cl
-  mov al,0x0f
-  out dx,al
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x0f
   mul cl
-  mov al,0x0f
-  out dx,al
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x1f
   mul cl
-  mov al,0x0f
-  out dx,al
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x3f
   mul cl
-  mov al,0x0f
-  out dx,al
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x7f
   mul cl
-  mov al,0x0f
-  out dx,al
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0xff
   mul cl
-  mov al,0x0f
-  out dx,al
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
+  mov al,0x7f
+  mul cl
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0xff
+  mul cl
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0x1f
+  mul cl
+  nop
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0x3f
+  mul cl
+  nop
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0x1f
+  mul cl
+  nop
+  nop
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0x3f
+  mul cl
+  nop
+  nop
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0x07
+  mul cl
+  nop
+  nop
+  nop
+  nop
+  testCode
+  mov ax,0xb800
+  mov es,ax
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+
   mov al,0x00
   mul cl
-  stosb
-  mov al,0x0f
-  out dx,al
-  mov di,0x3fff
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x01
   mul cl
-  stosb
-  mov al,0x0f
-  out dx,al
-  mov di,0x3fff
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x03
   mul cl
-  stosb
-  mov al,0x0f
-  out dx,al
-  mov di,0x3fff
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x07
   mul cl
-  stosb
-  mov al,0x0f
-  out dx,al
-  mov di,0x3fff
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x0f
   mul cl
-  stosb
-  mov al,0x0f
-  out dx,al
-  mov di,0x3fff
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x1f
   mul cl
-  stosb
-  mov al,0x0f
-  out dx,al
-  mov di,0x3fff
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x3f
   mul cl
-  stosb
-  mov al,0x0f
-  out dx,al
-  mov di,0x3fff
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0x7f
   mul cl
-  stosb
-  mov al,0x0f
-  out dx,al
-  mov di,0x3fff
+  testCode
   interrupt8
 
   interrupt8
 
   interrupt8
 
-  mov al,0
-  out dx,al
   mov al,0xff
   mul cl
-  stosb
-  mov al,0x0f
-  out dx,al
-  mov di,0x3fff
+  testCode
   interrupt8
 
   interrupt8
 
-%rep 262-(3*2*9+1)
+  interrupt8
+
+  mov al,0x7f
+  mul cl
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0xff
+  mul cl
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0x1f
+  mul cl
+  nop
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0x3f
+  mul cl
+  nop
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0x1f
+  mul cl
+  nop
+  nop
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0x3f
+  mul cl
+  nop
+  nop
+  nop
+  testCode
+  interrupt8
+
+  interrupt8
+
+  interrupt8
+
+  mov al,0x07
+  mul cl
+  nop
+  nop
+  nop
+  nop
+  testCode
+  mov ax,0x8000
+  mov es,ax
+  interrupt8
+
+  interrupt8
+
+;%rep 262-(3*2*16+1)
+%rep 131-(3*2*16+1)
   interrupt8
 %endrep
 
