@@ -1,10 +1,7 @@
 Startup:
-  1) Wait until we're sure that no keys are being pressed.
-  2) Disable interrupts
-  3) Disable video output, +HRES
-  4) Program the CRTC for 1 char x 1 scanline x 1 row, no sync pulses
-  5) Put the CPU in lockstep with the DRAM refresh using MULs
-  6) Wait for a DRAM refresh
-  7) Access CGA RAM to put us in lockstep with the CGA character clock
-  8) Reset DRAM refresh. Lockstep is now acheived as long as we don't wait for any external interrupts (keyboard, disk).
-  9) Reprogram CRTC.
+  1) Set CRTC to use +HRES
+  2) Set CRTC R0=0, R4=1, R5=0, R9=0
+  3) Disable interrupts and turn off DRAM refresh
+  4) Use "stosb" to CGA memory and MULs to go into lockstep with the CGA. Lockstep is now acheived as long as we don't wait for any external interrupts (keyboard, disk).
+  5) Wait until we're sure CRTC has started new frame
+  6) Reprogram CRTC.

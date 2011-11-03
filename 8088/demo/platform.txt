@@ -1,9 +1,9 @@
 IBM 5150 PC                             -5
   CGA                                   +1
     NTSC monitor - find an old CRT TV
-    IBM 5153 RGB montior
-  MDA                                   +1
-    IBM 5151 Mono monitor
+    IBM 5153 RGB montior                    - not used for demos?
+  MDA                                   +1  - not used for demos
+    IBM 5151 Mono monitor                   - not used for demos
   640Kb (needs non-IBM parts)           +1? (Is it possible to get a RAM + RS232 card?)
   Intel 8088 @ 4.77MHz
   Floppy drive adapter                  +1
