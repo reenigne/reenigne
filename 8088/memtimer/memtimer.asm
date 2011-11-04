@@ -250,60 +250,113 @@ experimentData:
     sahf                    ;           4
 %endmacro
 
-experiment0:
-  db "partial$"
+experimentA:
+  db "frozen$"
   dw .endInit - ($+2)
-  mov dx,0x03d9
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
 .endInit:
   dw .endCode - ($+2)
-  %rep 16
-    inc ax
-    out dx,al
-  %endrep
-  times 2 sahf
-  mov al,3
-  mov cl,0
-  mul cl
-  times 2 sahf
-  mov al,3
-  mov cl,0
-  mul cl
-  db 0xe9, 0x00, 0x00       ;              24
+  mov si,0x4000-80*25*2
+  mov di,si
+  mov cx,4
+  rep movsw
+  times 14 nop
+;  cwd
+  db 0xeb, 0x00
 .endCode
 
-experiment1:
-  db "scanLineSegment$"
+experimentB:
+  db "frozenLine$"
   dw .endInit - ($+2)
-  mov dx,0x03d9
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+  mov cx,0
+  mov si,0
+  mov di,0
 .endInit:
   dw .endCode - ($+2)
-  scanLineSegment
+  mov cl,6
+  rep movsw
 .endCode
 
-experiment2:
-  db "scanLine$"
+experimentC:
+  db "frozenEnd$"
   dw .endInit - ($+2)
-  mov dx,0x03d9
+  mov ax,0xb800
+  mov es,ax
+  mov ds,ax
+  mov cx,0
+  mov si,0
+  mov di,0
 .endInit:
   dw .endCode - ($+2)
-  scanLine
+  mov cl,5
+  rep movsw
+  mov si,0x4000-80*25*2  ; 3 0    12      10
+  mov di,si              ; 2 0     8       3
+  nop
+  db 0xe9, 0x00, 0x00
+
 .endCode
 
-experiment3:
-  db "oddScanLine$"
-  dw .endInit - ($+2)
-  mov dx,0x03d9
-.endInit:
-  dw .endCode - ($+2)
-%rep 12
-  scanLineSegment           ; 12*15 =     180
-%endrep
-  times 4 sahf
-  mov al,3
-  mov cl,0
-  mul cl
-  db 0xe9, 0x00, 0x00       ;              24
-.endCode
+
+;experiment0:
+;  db "partial$"
+;  dw .endInit - ($+2)
+;  mov dx,0x03d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  %rep 16
+;    inc ax
+;    out dx,al
+;  %endrep
+;  times 2 sahf
+;  mov al,3
+;  mov cl,0
+;  mul cl
+;  times 2 sahf
+;  mov al,3
+;  mov cl,0
+;  mul cl
+;  db 0xe9, 0x00, 0x00       ;              24
+;.endCode
+;
+;experiment1:
+;  db "scanLineSegment$"
+;  dw .endInit - ($+2)
+;  mov dx,0x03d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  scanLineSegment
+;.endCode
+;
+;experiment2:
+;  db "scanLine$"
+;  dw .endInit - ($+2)
+;  mov dx,0x03d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  scanLine
+;.endCode
+;
+;experiment3:
+;  db "oddScanLine$"
+;  dw .endInit - ($+2)
+;  mov dx,0x03d9
+;.endInit:
+;  dw .endCode - ($+2)
+;%rep 12
+;  scanLineSegment           ; 12*15 =     180
+;%endrep
+;  times 4 sahf
+;  mov al,3
+;  mov cl,0
+;  mul cl
+;  db 0xeb, 0x00       ;              24
+;.endCode
 
 
 ;experiment1:
