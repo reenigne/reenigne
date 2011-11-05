@@ -180,18 +180,18 @@ charLoop:
   mov ax,0x0709
   out dx,ax
 
-  ; Cursor Start                                        1f
-  ;   0x1f Cursor Start                                 1f
-  ;   0x60 Cursor Mode                                   0
-  mov ax,0x1f0a
+  ; Cursor Start                                        20
+  ;   0x1f Cursor Start                                 00
+  ;   0x60 Cursor Mode                                  20
+  mov ax,0x200a
   out dx,ax
 
-  ;   0x1f Cursor End                                   1f
-  inc ax
+  ;   0x1f Cursor End                                   00
+  mov ax,0x000b
   out dx,ax
 
   ;   0x3f Start Address (H)                            00
-  mov ax,0x000c
+  inc ax
   out dx,ax
 
   ;   0xff Start Address (L)                            00
