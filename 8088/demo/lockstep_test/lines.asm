@@ -11,7 +11,6 @@ cpu 8086
   ; Set "stosb" destination to be CGA memory
   mov ax,0xb800
   mov es,ax
-  mov ds,ax
   xor di,di
 
   ; Set argument for MUL
@@ -30,6 +29,14 @@ cpu 8086
   mul cl
   stosb        ; Down to 1 possible CGA/CPU relative phase: lockstep achieved.
 
+  ; Fill video memory with 0s
+  mov cx,0x2000
+  mov ax,0x0000
+  xor di,di
+  rep stosw
+
+  ; Set mode register to 2bpp graphics mode so that the palette register
+  ; affects the entire screen.
   mov dx,0x03d8
   mov al,0x0a
   out dx,al
@@ -86,15 +93,16 @@ cpu 8086
   jmp $+2
 shortPath:
 
-  ; Mode                                                09
-  ;      1 +HRES                                         1
-  ;      2 +GRPH                                         0
+
+  ; Mode                                                0a
+  ;      1 +HRES                                         0
+  ;      2 +GRPH                                         2
   ;      4 +BW                                           0
   ;      8 +VIDEO ENABLE                                 8
   ;   0x10 +1BPP                                         0
   ;   0x20 +ENABLE BLINK                                 0
   mov dl,0xd8
-  mov al,0x09
+  mov al,0x0a
   out dx,al
 
   ; Palette                                             00
@@ -110,58 +118,58 @@ shortPath:
 
   mov dl,0xd4
 
-  ;   0xff Horizontal Total                             71
-  mov ax,0x7100
+  ;   0xff Horizontal Total                             38
+  mov ax,0x3800
   out dx,ax
 
-  ;   0xff Horizontal Displayed                         50
-  mov ax,0x5001
+  ;   0xff Horizontal Displayed                         28
+  mov ax,0x2801
   out dx,ax
 
-  ;   0xff Horizontal Sync Position                     5a
-  mov ax,0x5a02
+  ;   0xff Horizontal Sync Position                     2d
+  mov ax,0x2d02
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0a
   mov ax,0x0a03
   out dx,ax
 
-  ;   0x7f Vertical Total                               1f
-  mov ax,0x1f04
+  ;   0x7f Vertical Total                               7f
+  mov ax,0x7f04
   out dx,ax
 
   ;   0x1f Vertical Total Adjust                        06
   mov ax,0x0605
   out dx,ax
 
-  ;   0x7f Vertical Displayed                           19
-  mov ax,0x1906
+  ;   0x7f Vertical Displayed                           64
+  mov ax,0x6406
   out dx,ax
 
-  ;   0x7f Vertical Sync Position                       1c
-  mov ax,0x1c07
+  ;   0x7f Vertical Sync Position                       70
+  mov ax,0x7007
   out dx,ax
 
   ;   0x03 Interlace Mode                               02
   mov ax,0x0208
   out dx,ax
 
-  ;   0x1f Max Scan Line Address                        07
-  mov ax,0x0709
+  ;   0x1f Max Scan Line Address                        01
+  mov ax,0x0109
   out dx,ax
 
-  ; Cursor Start                                        20
-  ;   0x1f Cursor Start                                 00
-  ;   0x60 Cursor Mode                                  20
-  mov ax,0x200a
+  ; Cursor Start                                        1f
+  ;   0x1f Cursor Start                                 1f
+  ;   0x60 Cursor Mode                                   0
+  mov ax,0x1f0a
   out dx,ax
 
-  ;   0x1f Cursor End                                   00
-  mov ax,0x000b
+  ;   0x1f Cursor End                                   1f
+  inc ax
   out dx,ax
 
   ;   0x3f Start Address (H)                            00
-  inc ax
+  mov ax,0x000c
   out dx,ax
 
   ;   0xff Start Address (L)                            00
@@ -176,30 +184,54 @@ shortPath:
   inc ax
   out dx,ax
 
-  mov ax,cs
-  mov ds,ax
+  ; Set DX to palette register port address
+  mov dl,0xd9
 
-  push es
+  ; Fill prefetch queue
+  mov al,0
+  mov cl,0
+  mul cl
 
-  ; Fill visible video memory with spaces
-  mov cx,80*25
-  mov ax,0x0720
-  xor di,di
-  rep stosw
+  ; Do pattern
 
-  push di
-
-  mov si,snowRoutine
-  mov cx,snowRoutineEnd - snowRoutine
-  rep movsb
+;%macro scanLineSegment 0  ; 15 (measured)
+;    inc ax
+;    out dx,al
+;%endmacro
+;
+;%macro scanLine 0           ;         304
+;  %rep 20
+;    scanLineSegment         ; 20*15 = 300
+;  %endrep
+;    sahf                    ;           4
+;%endmacro
+;
+;pattern:                    ;           79648
+;%rep 261
+;  scanLine                  ; 261*304 = 79344
+;%endrep
+;%rep 12
+;  scanLineSegment           ; 12*15 =     180
+;%endrep
+;  times 4 sahf
+;  mov al,3
+;  mov cl,0
+;  mul cl
+;  jmp pattern               ;              24
 
   mov cl,1
-  mov al,0x3f
 
-  retf
-
-snowRoutine:
-  times 7456 nop
+pattern:
+  %rep 261
+    inc ax
+    out dx,al
+    mov bl,al
+    mov al,0x01
+    mul cl
+    mov al,bl
+    times 50 nop
+  %endrep
+  mov al,0x03
   mul cl
-  jmp snowRoutine
-snowRoutineEnd:
+  times 52 nop
+  jmp pattern

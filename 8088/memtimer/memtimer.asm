@@ -238,71 +238,705 @@ codePreambleEnd:
 
 experimentData:
 
-%macro scanLineSegment 0  ; 15 (measured)
-    inc ax
-    out dx,al
+%macro delay 1
+  %if %1 == 78
+    mov al,0x00
+    mul cl
+  %endif
+  %if %1 == 79
+    mov al,0x01
+    mul cl
+  %endif
+  %if %1 == 80
+    mov al,0x03
+    mul cl
+  %endif
+  %if %1 == 81
+    mov al,0x07
+    mul cl
+  %endif
+  %if %1 == 82
+    mov al,0x0f
+    mul cl
+  %endif
+  %if %1 == 83
+    mov al,0x1f
+    mul cl
+  %endif
+  %if %1 == 84
+    mov al,0x3f
+    mul cl
+  %endif
+  %if %1 == 85
+    mov al,0x7f
+    mul cl
+  %endif
+  %if %1 == 86
+    mov al,0xff
+    mul cl
+  %endif
+  %if %1 == 87
+    mov al,0x7f
+    mul cl
+    nop
+  %endif
+  %if %1 == 88
+    mov al,0xff
+    mul cl
+    nop
+  %endif
+  %if %1 == 89
+    mov al,0x1f
+    mul cl
+    nop
+    nop
+  %endif
+  %if %1 == 90
+    mov al,0x3f
+    mul cl
+    nop
+    nop
+  %endif
+  %if %1 == 91
+    mov al,0x1f
+    mul cl
+    nop
+    nop
+    nop
+  %endif
+  %if %1 == 92
+    mov al,0x3f
+    mul cl
+    nop
+    nop
+    nop
+  %endif
+  %if %1 == 93
+    mov al,0x07
+    mul cl
+    nop
+    nop
+    nop
+    nop
+  %endif
 %endmacro
 
-%macro scanLine 0           ;         304
-  %rep 20
-    scanLineSegment         ; 20*15 = 300
-  %endrep
-    sahf                    ;           4
+%macro black 0
+    mov al,0      ;  8
+    out dx,al     ;  8
 %endmacro
 
-experimentA:
-  db "frozen$"
+%macro white 0
+    mov al,0x0f   ;  8
+    out dx,al     ;  8
+%endmacro
+
+%macro testCode 1
+    black
+    white
+    delay %1
+    black
+    stosb
+    jmp $+2
+    white
+%endmacro
+
+experiment0:
+  db "experiment0$"
   dw .endInit - ($+2)
-  mov ax,0xb800
+  mov dx,0x03d9
+  mov ax,0x8000
   mov es,ax
-  mov ds,ax
+  mov di,0
 .endInit:
   dw .endCode - ($+2)
-  mov si,0x4000-80*25*2
-  mov di,si
-  mov cx,4
-  rep movsw
-  times 14 nop
-;  cwd
-  db 0xeb, 0x00
+  testCode 78
+  delay 78
+  times 13 nop
+.endCode
+
+experiment1:
+  db "experiment1$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 79
+  delay 81
+  times 12 nop
+.endCode
+
+experiment2:
+  db "experiment2$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 80
+  delay 80
+  times 12 nop
+.endCode
+
+experiment3:
+  db "experiment3$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 81
+  delay 79
+  times 12 nop
+.endCode
+
+experiment4:
+  db "experiment4$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 82
+  delay 78
+  times 12 nop
+.endCode
+
+experiment5:
+  db "experiment5$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 83
+  delay 81
+  times 11 nop
+.endCode
+
+experiment6:
+  db "experiment6$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 84
+  delay 80
+  times 11 nop
+.endCode
+
+experiment7:
+  db "experiment7$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 85
+  delay 79
+  times 11 nop
+.endCode
+
+experiment8:
+  db "experiment8$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 86
+  delay 78
+  times 11 nop
+.endCode
+
+experiment9:
+  db "experiment9$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 87
+  delay 81
+  times 10 nop
+.endCode
+
+experimentA:
+  db "experimentA$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 88
+  delay 80
+  times 10 nop
 .endCode
 
 experimentB:
-  db "frozenLine$"
+  db "experimentB$"
   dw .endInit - ($+2)
-  mov ax,0xb800
+  mov dx,0x03d9
+  mov ax,0x8000
   mov es,ax
-  mov ds,ax
-  mov cx,0
-  mov si,0
   mov di,0
 .endInit:
   dw .endCode - ($+2)
-  mov cl,6
-  rep movsw
+  testCode 89
+  delay 79
+  times 10 nop
 .endCode
 
 experimentC:
-  db "frozenEnd$"
+  db "experimentC$"
   dw .endInit - ($+2)
-  mov ax,0xb800
+  mov dx,0x03d9
+  mov ax,0x8000
   mov es,ax
-  mov ds,ax
-  mov cx,0
-  mov si,0
   mov di,0
 .endInit:
   dw .endCode - ($+2)
-  mov cl,5
-  rep movsw
-  mov si,0x4000-80*25*2  ; 3 0    12      10
-  mov di,si              ; 2 0     8       3
-  nop
-  db 0xe9, 0x00, 0x00
+  testCode 90
+  delay 78
+  times 10 nop
+.endCode
 
+experimentD:
+  db "experimentD$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 91
+  delay 81
+  times 9 nop
+.endCode
+
+experimentE:
+  db "experimentE$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 92
+  delay 80
+  times 9 nop
+.endCode
+
+experimentF:
+  db "experimentF$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 93
+  delay 79
+  times 9 nop
 .endCode
 
 
+experiment10:
+  db "experiment10$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 78
+  delay 83
+  times 10 nop
+.endCode
+
+experiment11:
+  db "experiment11$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 79
+  delay 83
+  times 10 nop
+.endCode
+
+experiment12:
+  db "experiment12$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 80
+  delay 83
+  times 10 nop
+.endCode
+
+experiment13:
+  db "experiment13$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 81
+  delay 83
+  times 10 nop
+.endCode
+
+experiment14:
+  db "experiment14$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 82
+  delay 83
+  times 10 nop
+.endCode
+
+experiment15:
+  db "experiment15$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 83
+  delay 81
+  times 9 nop
+.endCode
+
+experiment16:
+  db "experiment16$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 84
+  delay 81
+  times 9 nop
+.endCode
+
+experiment17:
+  db "experiment17$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 85
+  delay 81
+  times 9 nop
+.endCode
+
+experiment18:
+  db "experiment18$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 86
+  delay 81
+  times 9 nop
+.endCode
+
+experiment19:
+  db "experiment19$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 87
+  delay 81
+  times 9 nop
+.endCode
+
+experiment1A:
+  db "experiment1A$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 88
+  delay 80
+  times 8 nop
+.endCode
+
+experiment1B:
+  db "experiment1B$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 89
+  delay 80
+  times 8 nop
+.endCode
+
+experiment1C:
+  db "experiment1C$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 90
+  delay 80
+  times 8 nop
+.endCode
+
+experiment1D:
+  db "experiment1D$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 91
+  delay 80
+  times 8 nop
+.endCode
+
+experiment1E:
+  db "experiment1E$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 92
+  delay 80
+  times 8 nop
+.endCode
+
+experiment1F:
+  db "experiment1F$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 93
+  delay 79
+  times 7 nop
+.endCode
+
+experiment20:
+  db "experiment20$"
+  dw .endInit - ($+2)
+  mov dx,0x03d9
+  mov ax,0x8000
+  mov es,ax
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  testCode 85
+  delay 79
+  times 10 nop
+.endCode
+
+
+
+;experimentW:
+;  db "testNoJump$"
+;  dw .endInit - ($+2)
+;  mov al,1
+;.endInit:
+;  dw .endCode - ($+2)
+;  jmp $+2
+;  test al,1
+;  jz .l
+;  times 2 nop
+;  jmp $+2
+;.l:
+;.endCode
+;
+;experimentV:
+;  db "testJump$"
+;  dw .endInit - ($+2)
+;  mov al,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  jmp $+2
+;  test al,1
+;  jz .l
+;  times 2 nop
+;  jmp $+2
+;.l:
+;.endCode
+;
+;
+;experimentZ:
+;  db "changeLine$"
+;  dw .endInit - ($+2)
+;  mov dx,0x03d9
+;  mov cl,1
+;.endInit:
+;  dw .endCode - ($+2)
+;  inc ax
+;  out dx,al
+;  mov ah,al
+;  mov al,0x01
+;  mul cl
+;  mov ah,al
+;  times 50 nop
+;.endCode
+;
+;experimentY:
+;  db "nullLine$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  times 76 nop
+;.endCode
+;
+;experimentX:
+;  db "endLine$"
+;  dw .endInit - ($+2)
+;  mov cl,1
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov al,0x03
+;  mul cl
+;  times 52 nop
+;  db 0xe9, 0x00, 0x00
+;.endCode
+;
+;
+;%macro scanLineSegment 0  ; 15 (measured)
+;    inc ax
+;    out dx,al
+;%endmacro
+;
+;%macro scanLine 0           ;         304
+;  %rep 20
+;    scanLineSegment         ; 20*15 = 300
+;  %endrep
+;    sahf                    ;           4
+;%endmacro
+;
+;experimentA:
+;  db "frozen$"
+;  dw .endInit - ($+2)
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov si,0x4000-80*25*2
+;  mov di,si
+;  mov cx,4
+;  rep movsw
+;  times 14 nop
+;;  cwd
+;  db 0xeb, 0x00
+;.endCode
+;
+;experimentB:
+;  db "frozenLine$"
+;  dw .endInit - ($+2)
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;  mov cx,0
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov cl,6
+;  rep movsw
+;.endCode
+;
+;experimentC:
+;  db "frozenEnd$"
+;  dw .endInit - ($+2)
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;  mov cx,0
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov cl,5
+;  rep movsw
+;  mov si,0x4000-80*25*2  ; 3 0    12      10
+;  mov di,si              ; 2 0     8       3
+;  nop
+;  db 0xe9, 0x00, 0x00
+;
+;.endCode
+;
+;
 ;experiment0:
 ;  db "partial$"
 ;  dw .endInit - ($+2)

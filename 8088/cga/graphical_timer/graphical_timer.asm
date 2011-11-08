@@ -45,46 +45,37 @@ sixLinesLoop:
   loop sixLinesLoop
 
 
-  ; Initialize interrupt vector
-  mov ax,0
-  mov ds,ax
-  mov word[0x20],interrupt8
-  mov [0x22],cs
-
-  ; Enable IRQ0
-  mov al,0xfe  ; Enable IRQ 0 (timer), disable others
-  out 0x21,al
-
-
-
-  ; Set CRTC to use +HRES
-  mov dx,0x3d8
-  mov al,1
-  out dx,al
-
-  ; Set up CRTC for 1 character by 2 scanline "frame". This gives us 1 lchar
-  ; per frame, which means that going into lchar lockstep (i.e. any CGA memory
-  ; access) also puts us into frame lockstep.
-  mov dl,0xd4
-  ;   0xff Horizontal Total       00
-  mov ax,0x0000
-  out dx,ax
-  ;   0x7f Vertical Total         01
-  mov ax,0x0104
-  out dx,ax
-  ;   0x1f Vertical Total Adjust  00
-  mov ax,0x0005
-  out dx,ax
-  ;   0x1f Max Scan Line Address  00
-  mov ax,0x0009
-  out dx,ax
-
+;  ; Wait ~55ms
+;  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
+;  out 0x43,al
+;  mov al,0
+;  out 0x40,al
+;  out 0x40,al
 ;
-;  mov dl,0xda
-;  in al,dx
-
-
+;  ; Initialize from IRQ0 so that's in a known state
+;
+;  mov ax,0
+;  mov ds,ax
+;  mov word[0x20],initialize
+;  mov [0x22],cs
+;
+;  ; Enable IRQ0
+;  mov al,0xfe  ; Enable IRQ 0 (timer), disable others
+;  out 0x21,al
+;
+;  sti
 ;  hlt
+;
+;initialize:
+;  ; Acknowledge IRQ0
+;  mov al,0x20
+;  out 0x20,al
+;
+;  ; Initialize interrupt vector
+;  mov ax,0
+;  mov ds,ax
+;  mov word[0x20],interrupt8
+;  mov [0x22],cs
 
 
   ;Turn off refresh
@@ -114,7 +105,61 @@ sixLinesLoop:
   mul cl
   stosb        ; Down to 1 possible CGA/CPU relative phase: lockstep achieved.
 
+  mov dx,0x03d8
+  mov al,0x0a
+  out dx,al
+
+  ; Set up CRTC for 1 character by 2 scanline "frame". This gives us 2 lchars
+  ; per frame.
+  mov dl,0xd4
+  ;   0xff Horizontal Total
+  mov ax,0x0000
+  out dx,ax
+  ;   0xff Horizontal Displayed                         28
+  mov ax,0x0101
+  out dx,ax
+  ;   0xff Horizontal Sync Position                     2d
+  mov ax,0x2d02
+  out dx,ax
+  ;   0x0f Horizontal Sync Width                        0a
+  mov ax,0x0a03
+  out dx,ax
+  ;   0x7f Vertical Total                               7f
+  mov ax,0x0104
+  out dx,ax
+  ;   0x1f Vertical Total Adjust                        06
+  mov ax,0x0005
+  out dx,ax
+  ;   0x7f Vertical Displayed                           64
+  mov ax,0x0106
+  out dx,ax
+  ;   0x7f Vertical Sync Position                       70
+  mov ax,0x0007
+  out dx,ax
+  ;   0x03 Interlace Mode                               02
+  mov ax,0x0208
+  out dx,ax
+  ;   0x1f Max Scan Line Address                        01
+  mov ax,0x0009
+  out dx,ax
+
   times 512 nop
+  nop
+
+  ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
+  ; which of the two possible CRTC states we're in and switch states if we're
+  ; in the wrong one by waiting for an odd number of lchars more in one code
+  ; path than in the other. To keep CGA and CPU in lockstep, we also need both
+  ; code paths to take the same time mod 3 lchars, so we wait 3 lchars more on
+  ; one code path than on the other.
+  mov dl,0xda
+  in al,dx
+  jmp $+2
+  test al,1
+  jz shortPath
+  times 2 nop
+  jmp $+2
+shortPath:
 
 
   ; CRTC should be in lockstep too by now. Set it up for normal video
@@ -127,22 +172,11 @@ sixLinesLoop:
   ;   0x10 +1BPP                                        10
   ;   0x20 +ENABLE BLINK                                 0
   mov dl,0xd8
-  mov al,0x1a; e
+  mov al,0x1e
   out dx,al
 
   inc dx
   mov al,0x0f
-  out dx,al
-
-  ; Palette                                             00
-  ;      1 +OVERSCAN B                                   0
-  ;      2 +OVERSCAN G                                   0
-  ;      4 +OVERSCAN R                                   0
-  ;      8 +OVERSCAN I                                   0
-  ;   0x10 +BACKGROUND I                                 0
-  ;   0x20 +COLOR SEL                                    0
-  inc dx
-  mov al,0
   out dx,al
 
   mov dl,0xd4
@@ -214,25 +248,15 @@ sixLinesLoop:
   out dx,ax
 
 
-  mov dl,0xd9
-  mov al,1
-  out dx,al
-
-
-  times 23 nop
-
-
-  ; Use IRQ0 to go into lockstep with timer 0
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
-  out 0x43,al
-  mov al,(76*262) & 0xff
-  out 0x40,al
-  mov al,(76*262) >> 8
-  out 0x40,al
-  sti
-
-  mov al,2
-  out dx,al
+;  ; Use IRQ0 to go into lockstep with timer 0
+;  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
+;  out 0x43,al
+;  mov al,(76*262) & 0xff
+;  out 0x40,al
+;  mov al,(76*262) >> 8
+;  out 0x40,al
+;
+;  sti
 
 
   ; Set up second argument to MUL
@@ -250,10 +274,7 @@ sixLinesLoop:
   waitOneScanLine
 %endrep
 
-  mov al,3
-  out dx,al
-
-  hlt
+;  hlt
 
 
 %macro delay 1
@@ -361,11 +382,36 @@ sixLinesLoop:
     white
 %endmacro
 
+  delay 85
+  delay 85
+  delay 85
+;  delay 85
+;  delay 85
+  times 15 nop
+  waitOneScanline
 
-interrupt8:
+;interrupt8:
+frameLoop:
 
-  mov al,4
-  out dx,al
+  mov ax,0xb800
+  mov es,ax
+  mov di,80*100
+
+  ; Set argument for MUL
+  mov cl,1
+
+  ; Ensure "stosb" won't take us out of video memory
+  cld
+
+  ; Go into CGA lockstep. The delays were determined by trial and error.
+  jmp $+2      ; Clear prefetch queue
+  stosb        ; From 16 down to 3 possible CGA/CPU relative phases.
+  mov al,0x01
+  mul cl
+  stosb        ; Down to 2 possible CGA/CPU relative phases.
+  mov al,0x7f
+  mul cl
+  stosb        ; Down to 1 possible CGA/CPU relative phase: lockstep achieved.
 
   mov ax,0x8000
   mov es,ax
@@ -373,75 +419,71 @@ interrupt8:
 
   delay 78
   delay 78
-
-  waitOneScanLine
-  nop
-  nop
-  nop
+  times 12 nop
 
   testCode 78
   delay 78
-  times 16 nop
+  times 13 nop
 
   testCode 79
-  delay 78
-  delay 78
+  delay 81
+  times 12 nop
 
   testCode 80
-  delay 78
-  delay 78
+  delay 80
+  times 12 nop
 
   testCode 81
-  delay 78
-  delay 78
+  delay 79
+  times 12 nop
 
   testCode 82
   delay 78
-  delay 78
+  times 12 nop
 
   testCode 83
-  delay 78
-  delay 78
+  delay 81
+  times 11 nop
 
   testCode 84
-  delay 78
-  delay 78
+  delay 80
+  times 11 nop
 
   testCode 85
-  delay 78
-  delay 78
+  delay 79
+  times 11 nop
 
   testCode 86
   delay 78
-  delay 78
+  times 11 nop
 
   testCode 87
-  delay 78
-  delay 78
+  delay 81
+  times 10 nop
 
   testCode 88
-  delay 78
-  delay 78
+  delay 80
+  times 10 nop
 
   testCode 89
-  delay 78
-  delay 78
+  delay 79
+  times 10 nop
 
   testCode 90
   delay 78
-  delay 78
+  times 10 nop
 
   testCode 91
-  delay 78
-  delay 78
+  delay 81
+  times 9 nop
 
   testCode 92
-  delay 78
-  delay 78
+  delay 80
+  times 9 nop
 
   testCode 93
-  delay 78
-  delay 78
+  delay 79
+  times 9 nop
 
   waitOneScanLine
   waitOneScanLine
@@ -451,90 +493,103 @@ interrupt8:
   mov es,ax
   mov di,100*80
 
+  delay 82
   delay 78
   delay 78
-  delay 78
+  times 12 nop
 
   testCode 78
-  delay 78
-  delay 78
+  delay 83
+  times 10 nop
 
   testCode 79
-  delay 78
-  delay 78
+  delay 83
+  times 10 nop
 
   testCode 80
-  delay 78
-  delay 78
+  delay 83
+  times 10 nop
 
   testCode 81
-  delay 78
-  delay 78
+  delay 83
+  times 10 nop
 
   testCode 82
-  delay 78
-  delay 78
+  delay 83
+  times 10 nop
 
   testCode 83
-  delay 78
-  delay 78
+  delay 81
+  times 9 nop
 
   testCode 84
-  delay 78
-  delay 78
+  delay 81
+  times 9 nop
 
   testCode 85
-  delay 78
-  delay 78
+  delay 81
+  times 9 nop
 
   testCode 86
-  delay 78
-  delay 78
+  delay 81
+  times 9 nop
 
   testCode 87
-  delay 78
-  delay 78
+  delay 81
+  times 9 nop
 
   testCode 88
-  delay 78
-  delay 78
+  delay 80
+  times 8 nop
 
   testCode 89
-  delay 78
-  delay 78
+  delay 80
+  times 8 nop
 
   testCode 90
-  delay 78
-  delay 78
+  delay 80
+  times 8 nop
 
   testCode 91
-  delay 78
-  delay 78
+  delay 80
+  times 8 nop
 
   testCode 92
-  delay 78
-  delay 78
+  delay 80
+  times 8 nop
 
   testCode 93
-  delay 78
-  delay 78
+  delay 79
+  times 7 nop
 
-  waitOneScanLine
-  waitOneScanLine
+  testCode 85
+  delay 79
+  times 10 nop
 
+%rep 7
+  waitOneScanLine
+%endrep
 
   black
-  %rep 155
+  %rep 150
     waitOneScanLine
   %endrep
   white
 
-  mov al,0x20
-  out 0x20,al
-  pop bx
-  pop bx
-  popf
-  hlt
+  delay 85
+  delay 85
+  delay 85
+  delay 85
+  times 8 nop
+
+jmp frameLoop
+
+;  mov al,0x20
+;  out 0x20,al
+;  pop bx
+;  pop bx
+;  popf
+;  hlt
 
 
 
