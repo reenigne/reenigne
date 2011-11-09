@@ -195,11 +195,27 @@ shortPath:
 
   mov cl,1
   mov al,0x3f
+  mov dx,0x03d
 
   retf
 
 snowRoutine:
-  times 7456 nop
+  %rep 261
+    times 23 nop
+    mul cl
+  %endrep
+
+
+;  28.5 per line
+
+;  17.5 on last line
+
+
+  mov al,0x3f
+  times 6 nop
+;  times 7456 nop
   mul cl
+  times 7 nop
+  mov al,0x07
   jmp snowRoutine
 snowRoutineEnd:
