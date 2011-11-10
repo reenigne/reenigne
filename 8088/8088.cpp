@@ -6,12 +6,13 @@
 #include "unity/character_source.h"
 #include "unity/main.h"
 #include "unity/space.h"
+#include "unity/config_file.h"
 
 #include <stdlib.h>
 
-class SourceProgram
-{
-};
+//class SourceProgram
+//{
+//};
 
 class Simulator;
 
@@ -34,7 +35,8 @@ public:
         if ((_opcode & 0xe7) == 7)
             return String("POP ") + segreg(_opcode >> 3);
         if ((_opcode & 0xe7) == 0x26)
-            return segreg((_opcode >> 3) & 3) + ": " + disassemble(address + 1);
+            return segreg((_opcode >> 3) & 3) + ": " +
+                disassemble(address + 1);
         if ((_opcode & 0xf8) == 0x40)
             return String("INC ") + wordRegs(_opcode & 7);
         if ((_opcode & 0xf8) == 0x48)
@@ -76,19 +78,21 @@ public:
                 case 6: s = "SHL "; break;
                 case 7: s = "SAR "; break;
             }
-            return s + ea() + String(", ") + ((_opcode & 2) == 0 ? String("1") : byteRegs(1));
+            return s + ea() + String(", ") +
+                ((_opcode & 2) == 0 ? String("1") : byteRegs(1));
         }
         if ((_opcode & 0xf8) == 0xd8) {
             _modRM = getByte();
             _wordSize = true;
-            return String("ESC ") + String::decimal(_opcode & 7) + String(", ") + r() + String(", ") + ea();
+            return String("ESC ") + String::decimal(_opcode & 7) +
+                String(", ") + r() + String(", ") + ea();
         }
         if ((_opcode & 0xf6) == 0xe4)
-            return String("IN ") + accum() + String(", ") + ((_opcode & 8) == 0 ? ib() : wordRegs(2));
+            return String("IN ") + accum() + String(", ") +
+                ((_opcode & 8) == 0 ? ib() : wordRegs(2));
         if ((_opcode & 0xf6) == 0xe6)
-            return String("OUT ") + ((_opcode & 8) == 0 ? ib() : wordRegs(2)) + String(", ") + accum();
-
-
+            return String("OUT ") + ((_opcode & 8) == 0 ? ib() : wordRegs(2)) +
+                String(", ") + accum();
         switch (_opcode) {
             case 0x27: return String("DAA");
             case 0x2f: return String("DAS");
@@ -114,13 +118,22 @@ public:
             case 0x85: return String("TEST ") + regMemPair();
             case 0x86:
             case 0x87: return String("XCHG" ) + regMemPair();
-            case 0x8c: _modRM = getByte(); _wordSize = true; return String("MOV ") + ea() + ", " + segreg(reg());
-            case 0x8d: _modRM = getByte(); _doubleWord = true; _wordSize = false; return String("LEA ") + rw() + ", " + ea();
-            case 0x8e: _modRM = getByte(); _wordSize = true; return String("MOV ") + segreg(reg()) + ", " + ea();
+            case 0x8c:
+                _modRM = getByte();
+                _wordSize = true;
+                return String("MOV ") + ea() + ", " + segreg(reg());
+            case 0x8d:
+                _modRM = getByte();
+                _doubleWord = true;
+                _wordSize = false;
+                return String("LEA ") + rw() + ", " + ea();
+            case 0x8e:
+                _modRM = getByte();
+                _wordSize = true;
+                return String("MOV ") + segreg(reg()) + ", " + ea();
             case 0x8f: _modRM = getByte(); return String("POP ") + ea();
             case 0x98: return String("CBW");
             case 0x99: return String("CWD");
-//            case 0x9a: _modRM = getByte(); _doubleWord = true; _wordSize = true; return String("CALL ") + ea();
             case 0x9a: return String("CALL ") + cp();
             case 0x9b: return String("WAIT");
             case 0x9c: return String("PUSHF");
@@ -128,15 +141,18 @@ public:
             case 0x9e: return String("SAHF");
             case 0x9f: return String("LAHF");
             case 0xa0:
-            case 0xa1: return String("MOV ") + accum() + String(", ") + size() + String("[") + iw() + String("]");
+            case 0xa1: return String("MOV ") + accum() + String(", ") +
+                           size() + String("[") + iw() + String("]");
             case 0xa2:
-            case 0xa3: return String("MOV ") + size() + String("[") + iw() + String("]") + String(", ") + accum();
+            case 0xa3: return String("MOV ") + size() + String("[") + iw() +
+                           String("]") + String(", ") + accum();
             case 0xa4:
             case 0xa5: return String("MOVS") + size();
             case 0xa6:
             case 0xa7: return String("CMPS") + size();
             case 0xa8:
-            case 0xa9: return String("TEST ") + accum() + String(", ") + (!_wordSize ? ib() : iw());
+            case 0xa9: return String("TEST ") + accum() + String(", ") +
+                           (!_wordSize ? ib() : iw());
             case 0xaa:
             case 0xab: return String("STOS") + size();
             case 0xac:
@@ -145,10 +161,20 @@ public:
             case 0xaf: return String("SCAS") + size();
             case 0xc2: return String("RET ") + iw();
             case 0xc3: return String("RET");
-            case 0xc4: _modRM = getByte(); _doubleWord = true; return String("LDS ") + rw() + ", " + ea();
-            case 0xc5: _modRM = getByte(); _doubleWord = true; _wordSize = false; return String("LES ") + rw() + ", " + ea();
+            case 0xc4:
+                _modRM = getByte();
+                _doubleWord = true;
+                return String("LDS ") + rw() + ", " + ea();
+            case 0xc5:
+                _modRM = getByte();
+                _doubleWord = true;
+                _wordSize = false;
+                return String("LES ") + rw() + ", " + ea();
             case 0xc6:
-            case 0xc7: _modRM = getByte(); return String("MOV ") + ea() + String(", ") + (!_wordSize ? ib() : iw());
+            case 0xc7:
+                _modRM = getByte();
+                return String("MOV ") + ea() + String(", ") +
+                    (!_wordSize ? ib() : iw());
             case 0xca: return String("RETF ") + iw();
             case 0xcb: return String("RETF");
             case 0xcc: return String("INT 3");
@@ -178,7 +204,8 @@ public:
                 _modRM = getByte();
                 switch (reg()) {
                     case 0:
-                    case 1: return String("TEST ") + ea() + String(", ") + (!_wordSize ? ib() : iw());
+                    case 1: return String("TEST ") + ea() + String(", ") +
+                                (!_wordSize ? ib() : iw());
                     case 2: return String("NOT ") + ea();
                     case 3: return String("NEG ") + ea();
                     case 4: return String("NUL ") + ea();
@@ -287,11 +314,12 @@ private:
         SInt8 byte = static_cast<SInt8>(getByte());
         return String::hexadecimal(_address + byte, 5);
     }
-    String cw() { return String::hexadecimal(_address + getWord(), 5); }
+    String cw() { return String::hexadecimal(_address + getWord(), 4); }
     String cp()
     {
         UInt16 offset = getWord();
-        return String::hexadecimal(getWord(), 5) + String(":") + String::hexadecimal(offset);
+        return String::hexadecimal(getWord(), 4) + String(":") +
+            String::hexadecimal(offset, 4);
     }
 
     Simulator* _simulator;
@@ -305,7 +333,7 @@ private:
 class Simulator
 {
 public:
-    Simulator()
+    Simulator(Handle* console)
       : _flags(0x0002),  // ?
         _state(stateFetch),
         _ip(0xfff0),
@@ -317,7 +345,9 @@ public:
         _ioInProgress(ioInstructionFetch),
         _busState(t1),
         _abandonFetch(false),
-        _useIO(false)
+        _useIO(false),
+        _halted(false),
+        _console(console)
     {
         for (int i = 0; i < 8; ++i)
             _registers[i] = 0;  // ?
@@ -332,6 +362,29 @@ public:
     {
         return _memory[
             ((_segmentRegisters[segment] << 4) + address) & 0xfffff];
+    }
+    void simulate()
+    {
+        Disassembler disassembler;
+        disassembler.setSimulator(this);
+        int cycle = 0;
+
+        do {
+            String line = String::decimal(cycle) + space;
+            switch (_busState) {
+                case t1: line += "T1 "; break;
+                case t2: line += "T2 "; break;
+                case t3: line += "T3 "; break;
+                case t4: line += "T4 "; break;
+            }
+            if (_state == stateFetch)
+                line += disassembler.disassemble(_ip);
+            else
+                line += space*20;
+            _console->write(line + newLine);
+            ++cycle;
+            simulateCycle();
+        } while (!_halted);
     }
     void simulateCycle()
     {
@@ -442,38 +495,70 @@ public:
                         _wordSize = ((_opcode & 1) != 0);
                         _sourceIsRM = ((_opcode & 2) != 0);
                         static State stateForOpcode[0x100] = {
-                            stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
-                            stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
-                            stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
-                            stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
-                            stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateDAA,
-                            stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateDAS,
-                            stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateAAA,
-                            stateALU,          stateALU,          stateALU,          stateALU,          stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateAAS,
-                            stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,
-                            stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,
-                            statePushRW,       statePushRW,       statePushRW,       statePushRW,       statePushRW,       statePushRW,       statePushRW,       statePushRW,
-                            statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,        statePopRW,
-                            stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
-                            stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
-                            stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,
-                            stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,        stateJCond,
-                            stateALURMImm,     stateALURMImm,     stateALURMImm,     stateALURMImm,     stateTestRMReg,    stateTestRMReg,    stateXchgRMReg,    stateXchgRMReg,
-                            stateMovRMReg,     stateMovRMReg,     stateMovRegRM,     stateMovRegRM,     stateMovRMWSegReg, stateLEA,          stateMovSegRegRMW, statePopMW,
-                            stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,
-                            stateCBW,          stateCWD,          stateCallCP,       stateWait,         statePushF,        statePopF,         stateSAHF,         stateLAHF,
-                            stateMovAccumInd,  stateMovAccumInd,  stateMovIndAccum,  stateMovIndAccum,  stateMovS,         stateMovS,         stateCmpS,         stateCmpS,
-                            stateTestAccumImm, stateTestAccumImm, stateStoS,         stateStoS,         stateLodS,         stateLodS,         stateScaS,         stateScaS,
-                            stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
-                            stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
-                            stateInvalid,      stateInvalid,      stateRet,          stateRet,          stateLoadFar,      stateLoadFar,      stateMovRMImm,     stateMovRMImm,
-                            stateInvalid,      stateInvalid,      stateRet,          stateRet,          stateInt,          stateInt,          stateIntO,         stateIRet,
-                            stateShift,        stateShift,        stateShift,        stateShift,        stateAAM,          stateAAD,          stateSALC,         stateXlatB,
-                            stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,       stateEscape,
-                            stateLoop,         stateLoop,         stateLoop,         stateLoop,         stateInOut,        stateInOut,        stateInOut,        stateInOut,
-                            stateCallCW,       stateJmpCW,        stateJmpCP,        stateJmpCB,        stateInOut,        stateInOut,        stateInOut,        stateInOut,
-                            stateLock,         stateInvalid,      stateRep,          stateRep,          stateHlt,          stateCmC,          stateMath,         stateMath,
-                            stateLoadC,        stateLoadC,        stateLoadI,        stateLoadI,        stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
+stateALU,          stateALU,          stateALU,          stateALU,          
+stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
+stateALU,          stateALU,          stateALU,          stateALU,          
+stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
+stateALU,          stateALU,          stateALU,          stateALU,          
+stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
+stateALU,          stateALU,          stateALU,          stateALU,          
+stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
+stateALU,          stateALU,          stateALU,          stateALU,          
+stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateDAA,
+stateALU,          stateALU,          stateALU,          stateALU,          
+stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateDAS,
+stateALU,          stateALU,          stateALU,          stateALU,          
+stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateAAA,
+stateALU,          stateALU,          stateALU,          stateALU,          
+stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateAAS,
+stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     
+stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,
+stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     
+stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,
+statePushRW,       statePushRW,       statePushRW,       statePushRW,       
+statePushRW,       statePushRW,       statePushRW,       statePushRW,
+statePopRW,        statePopRW,        statePopRW,        statePopRW,        
+statePopRW,        statePopRW,        statePopRW,        statePopRW,
+stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      
+stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
+stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      
+stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
+stateJCond,        stateJCond,        stateJCond,        stateJCond,        
+stateJCond,        stateJCond,        stateJCond,        stateJCond,
+stateJCond,        stateJCond,        stateJCond,        stateJCond,        
+stateJCond,        stateJCond,        stateJCond,        stateJCond,
+stateALURMImm,     stateALURMImm,     stateALURMImm,     stateALURMImm,     
+stateTestRMReg,    stateTestRMReg,    stateXchgRMReg,    stateXchgRMReg,
+stateMovRMReg,     stateMovRMReg,     stateMovRegRM,     stateMovRegRM,     
+stateMovRMWSegReg, stateLEA,          stateMovSegRegRMW, statePopMW,
+stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     
+stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,
+stateCBW,          stateCWD,          stateCallCP,       stateWait,         
+statePushF,        statePopF,         stateSAHF,         stateLAHF,
+stateMovAccumInd,  stateMovAccumInd,  stateMovIndAccum,  stateMovIndAccum,  
+stateMovS,         stateMovS,         stateCmpS,         stateCmpS,
+stateTestAccumImm, stateTestAccumImm, stateStoS,         stateStoS,         
+stateLodS,         stateLodS,         stateScaS,         stateScaS,
+stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    
+stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
+stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    
+stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
+stateInvalid,      stateInvalid,      stateRet,          stateRet,          
+stateLoadFar,      stateLoadFar,      stateMovRMImm,     stateMovRMImm,
+stateInvalid,      stateInvalid,      stateRet,          stateRet,          
+stateInt,          stateInt,          stateIntO,         stateIRet,
+stateShift,        stateShift,        stateShift,        stateShift,        
+stateAAM,          stateAAD,          stateSALC,         stateXlatB,
+stateEscape,       stateEscape,       stateEscape,       stateEscape,       
+stateEscape,       stateEscape,       stateEscape,       stateEscape,
+stateLoop,         stateLoop,         stateLoop,         stateLoop,         
+stateInOut,        stateInOut,        stateInOut,        stateInOut,
+stateCallCW,       stateJmpCW,        stateJmpCP,        stateJmpCB,        
+stateInOut,        stateInOut,        stateInOut,        stateInOut,
+stateLock,         stateInvalid,      stateRep,          stateRep,          
+stateHlt,          stateCmC,          stateMath,         stateMath,
+stateLoadC,        stateLoadC,        stateLoadI,        stateLoadI,        
+stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         _state = stateForOpcode[_opcode];
                     }
                     break;
@@ -601,7 +686,9 @@ public:
                         _state = stateEndInstruction;
                     break;
 
-                case stateALUAccumImm: fetch(stateALUAccumImm2, _wordSize); break;
+                case stateALUAccumImm:
+                    fetch(stateALUAccumImm2, _wordSize);
+                    break;
                 case stateALUAccumImm2:
                     _destination = getAccum();
                     _source = _data;
@@ -612,12 +699,21 @@ public:
                     end(4);
                     break;
 
-                case statePushSegReg: push(_segmentRegisters[_opcode >> 3]); break;
+                case statePushSegReg:
+                    push(_segmentRegisters[_opcode >> 3]);
+                    break;
 
                 case statePopSegReg: pop(statePopSegReg2); break;
-                case statePopSegReg2: _segmentRegisters[_opcode >> 3] = _data; end(4); break;
+                case statePopSegReg2:
+                    _segmentRegisters[_opcode >> 3] = _data;
+                    end(4);
+                    break;
 
-                case stateSegOverride: _segmentOverride = (_opcode >> 3) & 3; _state = stateFetch; _wait = 2; break;
+                case stateSegOverride:
+                    _segmentOverride = (_opcode >> 3) & 3;
+                    _state = stateFetch;
+                    _wait = 2;
+                    break;
 
                 case stateDAA:
                     if (af() || (al() & 0x0f) > 9) {
@@ -733,7 +829,10 @@ public:
                     break;
 
                 case stateALURMImm: readEA(stateALURMImm2); break;
-                case stateALURMImm2: _destination = _data; fetch(stateALURMImm3, _opcode == 0x81); break;
+                case stateALURMImm2:
+                    _destination = _data;
+                    fetch(stateALURMImm3, _opcode == 0x81);
+                    break;
                 case stateALURMImm3:
                     if (_opcode != 0x83)
                         _source = _data;
@@ -1198,7 +1297,7 @@ public:
                     _wait = 9;
                     _state = stateFetch;
                     break;
-                case stateHlt: end(2); break;
+                case stateHlt: _halted = true; end(2); break;
                 case stateCmC: _flags ^= 1; end(2); break;
 
                 case stateMath: readEA(stateMath2); break;
@@ -1414,7 +1513,7 @@ private:
         stateEAWord,
         stateEASetSegment,
         stateIO,
-        statePush,
+        statePush, statePush2,
         statePop,
 
         stateALU, stateALU2, stateALU3,
@@ -1798,6 +1897,8 @@ private:
     UInt16 _savedIP;
     int _rep;
     bool _useIO;
+    bool _halted;
+    FileHandle* _console;
 };
 
 class Program : public ProgramBase
@@ -1807,17 +1908,38 @@ protected:
     {
         if (_arguments.count() < 2) {
             static String syntax1("Syntax: ");
-            static String syntax2(" <input file name>\n");
+            static String syntax2(" <config file name>\n");
             _console.write(syntax1 + _arguments[0] + syntax2);
             return;
         }
-        File file(_arguments[1]);
-        String contents = file.contents();
-        CharacterSource source(contents, file.path());
-        Space::parse(&source);
-        SourceProgram sourceProgram = parseSourceProgram(&source);
-        Simulator simulator;
-        sourceProgram.assemble(&simulator);
+
+        ConfigFile config;
+
+        List<StructuredType::Member> vectorMembers;
+        vectorMembers.add(StructuredType::Member("segment", Type::integer));
+        vectorMembers.add(StructuredType::Member("fileName", Type::string));
+        StructuredType romImageType("ROMImage", vectorMembers);
+        config.addType(romImageType);
+
+        Type::array romImageArrayType(romImageType);
+        config.addType(romImageArrayType);
+
+        config.load(_arguments[1]);
+
+        Simulator simulator(&_console);
+
+
+        String romData = File(config.get<String>("romFile")).contents();
+        int segment = config.get<int>("romSegment");
+        for (int i = 0; i < romData.length(); ++i)
+            simulator.mem(segment, i) = romData[i];
+
+        //File file(_arguments[1]);
+        //String contents = file.contents();
+        //CharacterSource source(contents, file.path());
+        //Space::parse(&source);
+        //SourceProgram sourceProgram = parseSourceProgram(&source);
+        //sourceProgram.assemble(&simulator);
         simulator.simulate();
     }
 }

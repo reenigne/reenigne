@@ -201,7 +201,7 @@ shortPath:
 
 snowRoutine:
   %rep 261
-    times 23 nop
+    times 24 nop
     mul cl
   %endrep
 
@@ -211,11 +211,12 @@ snowRoutine:
 ;  17.5 on last line
 
 
-  mov al,0x3f
+  mov al,0x07
   times 6 nop
 ;  times 7456 nop
   mul cl
-  times 7 nop
-  mov al,0x07
+  times 9
+  nop
+  mov
   jmp snowRoutine
 snowRoutineEnd:
