@@ -138,11 +138,21 @@ class Type : public TypeConstructor
 {
 public:
     Type() { }
+    Type(const TypeConstructor& typeConstructor)
+      : TypeConstructor(typeConstructor)
+    { }
 
     static Type integer;
     static Type string;
     static Type boolean;
     static Type object;
+
+    static Type array(const Type &type)
+    {
+        List<TypeConstructor> arguments;
+        arguments.add(type);
+        return TemplateTypeConstructor::array.instantiate(arguments);
+    }
 protected:
     class Implementation : public TypeConstructor::Implementation
     {

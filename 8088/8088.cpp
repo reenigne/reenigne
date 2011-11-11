@@ -1915,24 +1915,29 @@ protected:
 
         ConfigFile config;
 
-        List<StructuredType::Member> vectorMembers;
-        vectorMembers.add(StructuredType::Member("segment", Type::integer));
-        vectorMembers.add(StructuredType::Member("fileName", Type::string));
-        StructuredType romImageType("ROMImage", vectorMembers);
+        List<StructuredType::Member> romImageTypeMembers;
+        romImageTypeMembers.add(
+            StructuredType::Member("address",  Type::integer));
+        romImageTypeMembers.add(
+            StructuredType::Member("fileName", Type::string));
+        romImageTypeMembers.add(
+            StructuredType::Member("length",   Type::integer));
+        romImageTypeMembers.add(
+            StructuredType::Member("offset",   Type::string));
+        StructuredType romImageType("ROMImage", romImageTypeMembers);
         config.addType(romImageType);
 
-        Type::array romImageArrayType(romImageType);
-        config.addType(romImageArrayType);
+        config.addType(Type::array(romImageType));
 
         config.load(_arguments[1]);
 
         Simulator simulator(&_console);
 
 
-        String romData = File(config.get<String>("romFile")).contents();
-        int segment = config.get<int>("romSegment");
-        for (int i = 0; i < romData.length(); ++i)
-            simulator.mem(segment, i) = romData[i];
+        //String romData = File(config.get<String>("romFile")).contents();
+        //int segment = config.get<int>("romSegment");
+        //for (int i = 0; i < romData.length(); ++i)
+        //    simulator.mem(segment, i) = romData[i];
 
         //File file(_arguments[1]);
         //String contents = file.contents();
