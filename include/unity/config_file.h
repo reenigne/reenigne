@@ -7,6 +7,24 @@
 #include "unity/any.h"
 #include "unity/type.h"
 
+class TypedValue
+{
+public:
+    TypedValue() { }
+    TypedValue(Type type, Any defaultValue = Any(), Span span = Span())
+        : _type(type), _value(defaultValue), _span(span) { }
+    Type type() const { return _type; }
+    Any value() const { return _value; }
+    template<class T> T value() const { return _value.value<T>(); }
+    void setValue(Any value) { _value = value; }
+    Span span() const { return _span; }
+    bool valid() const { return _value.valid(); }
+private:
+    Type _type;
+    Any _value;
+    Span _span;
+};
+
 class ConfigFile
 {
 public:
@@ -73,23 +91,6 @@ public:
         return _options[name].value<T>();
     }
 private:
-    class TypedValue
-    {
-    public:
-        TypedValue() { }
-        TypedValue(Type type, Any defaultValue = Any(), Span span = Span())
-          : _type(type), _value(defaultValue), _span(span) { }
-        Type type() const { return _type; }
-        Any value() const { return _value; }
-        template<class T> T value() const { return _value.value<T>(); }
-        void setValue(Any value) { _value = value; }
-        Span span() const { return _span; }
-        bool valid() const { return _value.valid(); }
-    private:
-        Type _type;
-        Any _value;
-        Span _span;
-    };
     class Identifier
     {
     public:
@@ -111,7 +112,7 @@ private:
         Span startSpan;
         Span endSpan;
         int c = s.get(&startSpan);
-        if (!(c < 'A' || c > 'Z') && !(c < 'a' || c > 'z'))
+        if (!(c >= 'A'&& c <= 'Z') && !(c >= 'a' || c <= 'z'))
             return Identifier();
         CharacterSource s2;
         do {

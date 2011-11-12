@@ -95,6 +95,14 @@ private:
     }
 };
 
+template<class T> class TemplateTypeConstructorTemplate;
+
+typedef TemplateTypeConstructorTemplate<void> TemplateTypeConstructor;
+
+template<class T> class TypeTemplate;
+
+typedef TypeTemplate<void> Type;
+
 class TypeConstructor
 {
 public:
@@ -129,16 +137,16 @@ protected:
       : _implementation(implementation) { }
     ConstReference<Implementation> _implementation;
 
-    friend class TemplateTypeConstructor;
+    friend class TemplateTypeConstructorTemplate<void>;
     friend class EnumerationType;
     friend class StructuredType;
 };
 
-class Type : public TypeConstructor
+template<class T> class TypeTemplate : public TypeConstructor
 {
 public:
-    Type() { }
-    Type(const TypeConstructor& typeConstructor)
+    TypeTemplate() { }
+    TypeTemplate(const TypeConstructor& typeConstructor)
       : TypeConstructor(typeConstructor)
     { }
 
@@ -159,39 +167,37 @@ protected:
     public:
         Kind kind() const { return Kind::type; }
     };
-    Type(const Implementation* implementation)
+    TypeTemplate(const Implementation* implementation)
       : TypeConstructor(implementation) { }
 private:
-    class AtomicType;
-
-    friend class TemplateTypeConstructor;
-};
-
-class Type::AtomicType : public Type
-{
-public:
-    AtomicType(String name) : Type(new Implementation(name)) { }
-private:
-    class Implementation : public Type::Implementation
-    { 
+    class AtomicType : public TypeTemplate
+    {
     public:
-        Implementation(String name) : _name(name) { }
-        String toString() const { return _name; }
+        AtomicType(String name) : TypeTemplate(new Implementation(name)) { }
     private:
-        String _name;
+        class Implementation : public TypeTemplate::Implementation
+        { 
+        public:
+            Implementation(String name) : _name(name) { }
+            String toString() const { return _name; }
+        private:
+            String _name;
+        };
     };
-};
 
+    friend class TemplateTypeConstructorTemplate<void>;
+};
 
 Type Type::integer = Type::AtomicType("Integer");
 Type Type::string = Type::AtomicType("String");
 Type Type::boolean = Type::AtomicType("Boolean");
 Type Type::object = Type::AtomicType("Object");
 
-class TemplateTypeConstructor : public TypeConstructor
+template<class T> class TemplateTypeConstructorTemplate
+  : public TypeConstructor
 {
 public:
-    TemplateTypeConstructor(const String& name, const Kind& kind)
+    TemplateTypeConstructorTemplate(const String& name, const Kind& kind)
       : TypeConstructor(new UninstantiatedImplementation(name, kind)) { }
     TypeConstructor instantiate(const List<TypeConstructor>& arguments) const
     {

@@ -80,7 +80,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\unity\array.h" />
+    <ClInclude Include="..\include\unity\config_file.h" />
     <ClInclude Include="..\include\unity\integer_types.h" />
+    <ClInclude Include="..\include\unity\string.h" />
+    <ClInclude Include="..\include\unity\type.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="todo.txt" />

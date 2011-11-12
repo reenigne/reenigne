@@ -1,3 +1,10 @@
+How do we deal with the problem that {} can delimit either a compound statement
+ or a compound expression?
+  If we just try both then we have O(2^N) behavior in the case of N nested {}s.
+  Have a "CompoundStatementOrExpression" that can be converted to either 
+   CompoundStatement or CompoundExpression depending on how it turns out, so
+   its contents don't need to be re-parsed when it is converted.
+
 Make String a pointer/length combination?
   Or at least avoid having so many indirections - instead of a separate buffer
   class have two versions of SimpleStringImplementation - one that owns its 

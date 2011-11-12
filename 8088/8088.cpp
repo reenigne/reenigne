@@ -14,9 +14,11 @@
 //{
 //};
 
-class Simulator;
+template<class T> class SimulatorTemplate;
 
-class Disassembler
+typedef SimulatorTemplate<void> Simulator;
+
+template<class T> class DisassemblerTemplate
 {
 public:
     void setSimulator(Simulator* simulator) { _simulator = simulator; }
@@ -330,10 +332,12 @@ private:
     bool _doubleWord;
 };
 
-class Simulator
+typedef DisassemblerTemplate<void> Disassembler;
+
+template<class T> class SimulatorTemplate
 {
 public:
-    Simulator(Handle* console)
+    SimulatorTemplate(Handle* console)
       : _flags(0x0002),  // ?
         _state(stateFetch),
         _ip(0xfff0),
@@ -357,6 +361,10 @@ public:
         _segmentRegisters[2] = 0x0000;  // ?
         _segmentRegisters[3] = 0x0000;  // ?
         _memory.allocate(0x100000);
+    }
+    UInt8& physicalMemory(UInt32 physicalAddress)
+    {
+        return _memory[physicalAddress];
     }
     UInt8& mem(int segment, UInt16 address)
     {
@@ -1593,11 +1601,13 @@ private:
         bool negative = false;
         if (modRMReg() == 7) {
             if ((_destination & 0x80000000) != 0) {
-                _destination = -_destination;
+                _destination =
+                    static_cast<UInt32>(-static_cast<SInt32>(_destination));
                 negative = !negative;
             }
             if ((_source & 0x8000) != 0) {
-                _source = (-_source) & 0xffff;
+                _source = (static_cast<UInt32>(-static_cast<SInt32>(_source)))
+                    & 0xffff;
                 negative = !negative;
             }
         }
@@ -1611,8 +1621,8 @@ private:
         }
         _remainder = _destination - product;
         if (negative) {
-            _data = -_data;
-            _remainder = -_remainder;
+            _data = static_cast<UInt32>(-static_cast<SInt32>(_data));
+            _remainder = static_cast<UInt32>(-static_cast<SInt32>(_remainder));
         }
     }
     void jumpShort() { setIP(_ip + signExtend(_data)); }
@@ -1785,7 +1795,7 @@ private:
     void setReg(UInt16 value)
     {
         if (!_wordSize)
-            modRMRB() = value;
+            modRMRB() = static_cast<UInt8>(value);
         else
             modRMRW() = value;
     }
@@ -1868,7 +1878,6 @@ private:
     UInt8 _prefetched;
     int _segment;
     int _segmentOverride;
-    UInt16 _data;
     Array<UInt8> _memory;
     UInt16 _prefetchAddress;
     IOType _ioType;
@@ -1898,7 +1907,7 @@ private:
     int _rep;
     bool _useIO;
     bool _halted;
-    FileHandle* _console;
+    Handle* _console;
 };
 
 class Program : public ProgramBase
@@ -1927,19 +1936,29 @@ protected:
         StructuredType romImageType("ROMImage", romImageTypeMembers);
         config.addType(romImageType);
 
-        config.addType(Type::array(romImageType));
+        Type romImageArrayType = Type::array(romImageType);
+        config.addType(romImageArrayType);
+        config.addOption("roms", romImageArrayType);
 
         config.load(_arguments[1]);
 
         Simulator simulator(&_console);
 
+        List<TypedValue> roms = config.get<List<TypedValue> >("roms");
+        for (List<TypedValue>::Iterator i = roms.start(); i != roms.end();
+            ++i) {
+            List<TypedValue> romMembers = (*i).value<List<TypedValue>>();
+            List<TypedValue>::Iterator m = romMembers.start();
+            int address = (*m).value<int>();
+            File romFile = (*m).value<String>();
+            int length = (*m).value<int>();
+            int offset = (*m).value<int>();
+            String romData = romFile.contents();
+            for (int i = 0; i < length; ++i)
+                simulator.physicalMemory(i + address) = romData[i + offset];
+        }
 
-        //String romData = File(config.get<String>("romFile")).contents();
-        //int segment = config.get<int>("romSegment");
-        //for (int i = 0; i < romData.length(); ++i)
-        //    simulator.mem(segment, i) = romData[i];
-
-        //File file(_arguments[1]);
+        //File file(config.get<String>("sourceFile"));
         //String contents = file.contents();
         //CharacterSource source(contents, file.path());
         //Space::parse(&source);
@@ -1947,7 +1966,7 @@ protected:
         //sourceProgram.assemble(&simulator);
         simulator.simulate();
     }
-}
+};
 
 /* TODO:
 
