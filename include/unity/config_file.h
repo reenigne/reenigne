@@ -7,24 +7,6 @@
 #include "unity/any.h"
 #include "unity/type.h"
 
-class TypedValue
-{
-public:
-    TypedValue() { }
-    TypedValue(Type type, Any defaultValue = Any(), Span span = Span())
-        : _type(type), _value(defaultValue), _span(span) { }
-    Type type() const { return _type; }
-    Any value() const { return _value; }
-    template<class T> T value() const { return _value.value<T>(); }
-    void setValue(Any value) { _value = value; }
-    Span span() const { return _span; }
-    bool valid() const { return _value.valid(); }
-private:
-    Type _type;
-    Any _value;
-    Span _span;
-};
-
 class ConfigFile
 {
 public:
@@ -50,6 +32,11 @@ public:
     {
         _options.add(name, TypedValue(type, Any(defaultValue)));
     }
+    void addConversion(const Type& from, const Type& to,
+        const Conversion* conversion)
+    {
+        _typeConverter.addConversion(from, to, conversion);
+    }
     
     void load(File file)
     {
@@ -70,12 +57,16 @@ public:
             TypedValue e = parseExpression(&source);
             Type expectedType = _options[name].type();
             Type observedType = e.type();
-            if (observedType != expectedType)  // TODO: check for conversions
-                e.span().throwError(
-                    String("Expected an expression of type ") +
-                    expectedType.toString() +
-                    String(" but found one of type ") +
-                    observedType.toString());
+            if (observedType != expectedType) {
+                if (!_typeConverter.canConvert(observedType, expectedType))
+                    e.span().throwError(
+                        String("No conversion from type ") +
+                        observedType.toString() +
+                        String(" to type ") +
+                        expectedType.toString() +
+                        String(" is available"));
+                e = _typeConverter.convert(observedType, expectedType, e);
+            }
             Space::assertCharacter(&source, ';', &span);
             _options[name].setValue(e.value());
         } while (true);
@@ -112,7 +103,7 @@ private:
         Span startSpan;
         Span endSpan;
         int c = s.get(&startSpan);
-        if (!(c >= 'A'&& c <= 'Z') && !(c >= 'a' || c <= 'z'))
+        if (!(c >= 'A'&& c <= 'Z') && !(c >= 'a' && c <= 'z'))
             return Identifier();
         CharacterSource s2;
         do {
@@ -316,6 +307,36 @@ private:
         int c = s.get(&span);
         if (c < '0' || c > '9')
             return TypedValue();
+        if (c == '0') {
+            CharacterSource s2 = s;
+            Span span2;
+            int c = s2.get(&span2);
+            if (c == 'x') {
+                bool okay = false;
+                int n = 0;
+                do {
+                    c = s2.get(&span2);
+                    if (c >= '0' && c <= '9')
+                        n = n*0x10 + c - '0';
+                    else
+                        if (c >= 'A' && c <= 'F')
+                            n = n*0x10 + c + 10 - 'A';
+                        else
+                            if (c >= 'a' && c <= 'f')
+                                n = n*0x10 + c + 10 - 'a';
+                            else
+                                if (okay) {
+                                    Space::parse(source);
+                                    return TypedValue(Type::integer, n, span);
+                                }
+                                else
+                                    return TypedValue();
+                    okay = true;
+                    *source = s2;
+                    span += span2;
+                } while (true);
+            }
+        }
         do {
             n = n*10 + c - '0';
             *source = s;
@@ -534,6 +555,7 @@ private:
     HashTable<String, TypedValue> _options;
     HashTable<String, TypedValue> _enumeratedValues;
     HashTable<String, Type> _types;
+    TypeConverter _typeConverter;
 };
 
 #endif // INCLUDED_CONFIG_FILE_H

@@ -1910,6 +1910,46 @@ private:
     Handle* _console;
 };
 
+class RomImage
+{
+public:
+    RomImage(int address, File file, int length, int offset)
+        : _address(address), _file(file), _length(length), _offset(offset) { }
+    void load(Simulator* simulator)
+    {
+        String romData = _file.contents();
+        for (int i = 0; i < _length; ++i)
+            simulator->physicalMemory(i + _address) = romData[i + _offset];
+    }
+private:
+    int _address;
+    File _file;
+    int _length;
+    int _offset;
+};
+
+class RomImageConversion : public Conversion
+{
+public:
+    RomImageConversion(const Type& type) : _type(type) { }
+    TypedValue operator()(const TypedValue& value) const
+    {
+        List<TypedValue> romMembers = value.value<List<TypedValue>>();
+        List<TypedValue>::Iterator m = romMembers.start();
+        int address = (*m).value<int>();
+        ++m;
+        File file = (*m).value<String>();
+        ++m;
+        int length = (*m).value<int>();
+        ++m;
+        int offset = (*m).value<int>();
+        return TypedValue(_type, Any(RomImage(address, file, length, offset)),
+            value.span());
+    }
+private:
+    Type _type;
+};
+
 class Program : public ProgramBase
 {
 protected:
@@ -1936,6 +1976,17 @@ protected:
         StructuredType romImageType("ROMImage", romImageTypeMembers);
         config.addType(romImageType);
 
+        RomImageConversion conversion(romImageType);
+
+        List<Type> tupleArguments;
+        tupleArguments.add(Type::integer);
+        tupleArguments.add(Type::string);
+        tupleArguments.add(Type::integer);
+        tupleArguments.add(Type::integer);
+
+        config.addConversion(TupleType(tupleArguments), romImageType,
+            &conversion);
+
         Type romImageArrayType = Type::array(romImageType);
         config.addType(romImageArrayType);
         config.addOption("roms", romImageArrayType);
@@ -1947,15 +1998,8 @@ protected:
         List<TypedValue> roms = config.get<List<TypedValue> >("roms");
         for (List<TypedValue>::Iterator i = roms.start(); i != roms.end();
             ++i) {
-            List<TypedValue> romMembers = (*i).value<List<TypedValue>>();
-            List<TypedValue>::Iterator m = romMembers.start();
-            int address = (*m).value<int>();
-            File romFile = (*m).value<String>();
-            int length = (*m).value<int>();
-            int offset = (*m).value<int>();
-            String romData = romFile.contents();
-            for (int i = 0; i < length; ++i)
-                simulator.physicalMemory(i + address) = romData[i + offset];
+            RomImage romImage = (*i).value<RomImage>();
+            romImage.load(&simulator);
         }
 
         //File file(config.get<String>("sourceFile"));

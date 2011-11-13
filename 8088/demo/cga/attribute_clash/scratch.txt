@@ -27,18 +27,10 @@ and _compositeOutput to Bitmaps. (Also _dataOutput and _compositeData?)
 
 Want to be able to write "offset = (outputSize - inputSize)/2;" in config files
 
-TypeConverter
-  An oracle object for determining which types can be implicitly converted into
-   which other types.
-  We can pass it a Conversion: "To convert from type a to type b, use function
-   c".
-  There is a special Conversion meaning "no conversion possible".
   We can pass it a ConversionSource for templates. The TypeConverter passes
    instantiation information (List<TypeConstructor>) to the ConversionSource
    and receives back a Conversion. The ConversionSource may call back into the
    TypeConverter (e.g. to retrieve Conversions for argument Types).
-  We can ask it for the Conversion that takes a value from type a to a value of
-   type b.
   We want the TypeConverter to be able to create its own Conversions by
    combining the Conversions passed to it. This way, programmers don't have to
    write a Conversion for every possible pair of types that we might want to

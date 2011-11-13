@@ -519,21 +519,67 @@ private:
     };
 };
 
+class TypedValue
+{
+public:
+    TypedValue() { }
+    TypedValue(Type type, Any defaultValue = Any(), Span span = Span())
+        : _type(type), _value(defaultValue), _span(span) { }
+    Type type() const { return _type; }
+    Any value() const { return _value; }
+    template<class T> T value() const { return _value.value<T>(); }
+    void setValue(Any value) { _value = value; }
+    Span span() const { return _span; }
+    bool valid() const { return _value.valid(); }
+private:
+    Type _type;
+    Any _value;
+    Span _span;
+};
+
+class Conversion
+{
+public:
+    virtual TypedValue operator()(const TypedValue& value) const = 0;
+};
+
+class TypeConverter;
+
+class ConversionSource
+{
+public:
+    virtual void addConversions(TypeConverter* typeConverter,
+        const List<TypeConstructor>& arguments) const = 0;
+};
+
 class TypeConverter
 {
 public:
-    template<class T> void addConversion(Type from, Type to, T converter)
+    void addConversionSource(
+        const TemplateTypeConstructor& templateTypeConstructor,
+        const ConversionSource* conversionSource)
     {
-        _conversions.add(TypePair(from, to), converter);
+        _conversionSources.add(templateTypeConstructor, conversionSource);
     }
-    bool canConvert(Type from, Type to)
+    void addConversion(const Type& from, const Type& to,
+        const Conversion* conversion)
     {
-        return false;
+        _conversions.add(TypePair(from, to), conversion);
+    }
+    bool canConvert(const Type& from, const Type& to)
+    {
+        return _conversions.hasKey(TypePair(from, to));
+    }
+    TypedValue convert(const Type& from, const Type& to,
+        const TypedValue& value)
+    {
+        return _conversions[TypePair(from, to)]->operator()(value);
     }
 private:
     class TypePair
     {
     public:
+        TypePair() { }
         TypePair(const Type& from, const Type& to) : _from(from), _to(to) { }
         bool operator==(const TypePair& other) const
         {
@@ -544,7 +590,9 @@ private:
         Type _from;
         Type _to;
     };
-    HashTable<TypePair, Any> _conversions;
+    HashTable<TypePair, const Conversion*> _conversions;
+    HashTable<TemplateTypeConstructor, const ConversionSource*>
+        _conversionSources;
 };
 
 #endif // INCLUDED_TYPE_H

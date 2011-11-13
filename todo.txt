@@ -1,1 +1,0 @@
-Check that "crc32 /" works on Linux (as well as other testcases)

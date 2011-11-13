@@ -133,3 +133,32 @@ Check behavior of REP* with override prefix (hardware bugs)
 Investigate trap flag
 
 Run Zeus testsuite
+
+Test programs:
+  Audio:
+    Digger
+    Digger Remastered
+    Styx
+    Pianola
+    Cool Dude
+    PCSS view
+    Telltime
+    Fire
+    Magic mushroom demo?
+    Music Construction Set, programmed by Will Harvey, came out for the PC in 1984 from Electronic Arts
+    Turbo Outrun
+    Titus Crazy Cars
+    Titus Offshore Warrior
+    Loriciels Mach 3
+    Loriciels Space Racer
+    Dinamic Aspar GP Master
+    Access Mean Streets
+    Access Crime Wave
+    Access Countdown
+    Access Links
+    Exxos Purple Saturn Day
+    Spellcasting 101
+    Mindscape Wizball
+  Video:
+    Digger palette effect
+    California Games palette effect
