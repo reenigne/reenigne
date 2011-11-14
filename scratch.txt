@@ -1,0 +1,41 @@
+How do we deal with the problem that {} can delimit either a compound statement
+ or a compound expression?
+  If we just try both then we have O(2^N) behavior in the case of N nested {}s.
+  Have a "CompoundStatementOrExpression" that can be converted to either
+   CompoundStatement or CompoundExpression depending on how it turns out, so
+   its contents don't need to be re-parsed when it is converted.
+
+Make String a pointer/length combination?
+  Or at least avoid having so many indirections - instead of a separate buffer
+  class have two versions of SimpleStringImplementation - one that owns its
+  buffer and one that doesn't. The non-owning will also need a String member to
+  the owning to increase the reference count.
+  Instead of a Buffer class, have some way to access the raw data in the owning
+  StringImplementation
+  The parsing, CharacterSource stuff should probably be totally separate from
+  String. When we create a CharacterSource we can give a String for data and an
+  optional File.
+  String works on bytes, CharacterSource works on Unicode characters.
+
+Bitmap:
+  A Bitmap may own its own bits or just be a pointer into some other Bitmap's
+  bits.
+  Preserve that information with a flag or with
+
+Want to be able to write "offset = (outputSize - inputSize)/2;" in config files
+
+We want the TypeConverter to be able to create its own Conversions by
+ combining the Conversions passed to it. This way, programmers don't have to
+ write a Conversion for every possible pair of types that we might want to
+ convert between. We can do this with dynamic programming.
+
+Creating a new type might change the Conversion for a pair of types - that's
+ ok. Allowing the instantiation of a template to do the same seems
+ potentially error prone (but might be more logical).
+
+We need to be careful not to try unbounded conversion paths.
+ e.g. if we can convert F<T> to F<F<T>>.
+
+Array::allocate() doesn't construct which is error prone. Figure out a better
+  interface. Why doesn't it construct?
+

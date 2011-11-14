@@ -36,45 +36,36 @@ Parallel transfer?
       Downside is that bootstrapping is more difficult
       Is there a standard protocol? Probably should just make up our own, since we'll be making up a high-level protocol anyway
 
-TODO:
-  Write a skeleton kernel dispatch
-    Data structures to keep track of outstanding tasks
-    Multiple stacks
-      Memory is at a premium - keep track of how much stack space we really need for everything
-        Need to write a compiler?
-  Write a serial transfer routine
-  Write a full duplex parallel transfer routine
-    Write packet coordination routines so we can tell the host we want to transmit a file even whilst we're already sending one
-  Write floppy routines
-    Write FAT
-  Write keyboard routine
-  Write screen routines
-    Graphics mode for smaller fonts and smooth scrolling (can scroll by 1 pixel with CRTC manipulation if we have priority, otherwise 2 pixels)
-    6x6 font:
-      108x34 would take too much memory
-      106x34 is doable (640x204, 16320 bytes - 4 pixels spare)
-      109x33 is doable (656x198, 16236 bytes - 2 pixels spare)
-    Double width in 2bpp mode
-    Text mode for speed and colour
-  Write DOS compatibility interrupts and data structures
-    Which ones are really needed for the software we want to run?
-  Write shell
-    DOS prompt
-      Long filenames (on host)
-      tab completion
-      Decent line editing
-      History
-    Clock/calendar/alarm
-    Ability to use command line as a calculator
-    Task display
-    Hotkeys to switch these displays on and off
-
 Two types of process
   Native processes - bounded memory, unloadable
     Can be internal
   Legacy processes
 
+Data structures to keep track of outstanding tasks
+Multiple stacks
+  Memory is at a premium - keep track of how much stack space we really need for everything
+    Need to write a compiler?
 
+Graphics mode for smaller fonts and smooth scrolling (can scroll by 1 pixel with CRTC manipulation if we have priority, otherwise 2 pixels)
+6x6 font:
+  108x34 would take too much memory
+  106x34 is doable (640x204, 16320 bytes - 4 pixels spare)
+  109x33 is doable (656x198, 16236 bytes - 2 pixels spare)
+Double width in 2bpp mode
+Text mode for speed and colour
+
+Which DOS compatibility interrupts are really needed for the software we want to run?
+
+Shell:
+  DOS prompt
+    Long filenames (on host)
+    tab completion
+    Decent line editing
+    History
+  Clock/calendar/alarm
+  Ability to use command line as a calculator
+  Task display
+  Hotkeys to switch these displays on and off
 
 Memory management
   Keep only most critical code and data in low memory

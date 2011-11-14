@@ -1,20 +1,20 @@
+Conversion of Tuple<Tuple<Integer,String,Integer,Integer>,Tuple<Integer,String,Integer,Integer>> to Array<RomImage>:
+  ConfigFile asks TypeConverter if it can convert Tuple<Tuple<Integer,String,Integer,Integer>,Tuple<Integer,String,Integer,Integer>> to Array<RomImage>
+    TypeConverter searches for type pair, doesn't find it.
+    TypeConverter asks Tuple<Tuple<Integer,String,Integer,Integer>,Tuple<Integer,String,Integer,Integer>> if it is a template instantiation. It says yes and returns parent Tuple<Tuple<Integer,String,Integer,Integer>>
+    TypeConverter looks up Tuple<Tuple<Integer,String,Integer,Integer>> in its ConversionSource table, doesn't find it.
+    TypeConverter asks Tuple<Tuple<Integer,String,Integer,Integer>> if it is a template instantiation. It says yes and returns parent Tuple.
+    TypeConverter looks up Tuple in its ConversionSource table, doesn't find it.
+    TypeConverter asks Tuple if it is a template instantiation. It says no.
+    TypeConverter asks Array<RomImage> if it is a template. It says yes and returns Array.
+
+
+
 String::subString() takes start and length, CodePointSource::subString() takes start and end.
 
-Some kind of class to hold all the static Strings and avoid duplication between their different instances?
+See http://docs.racket-lang.org/reference/windowspaths.html for details on paths starting with \\?\
 
-What characters are actually legal in server names?
-
-What characters are actually legal in share names?
-
-In paths starting \\?\, only \ and \\ are allowed separators, and ?*:"<> are allowed.
-see http://docs.racket-lang.org/reference/windowspaths.html for more details
-
-Use \\?\ to avoid MAX_PATH limit?
-If we do this we need to know the current drive - this is the first character of CurrentDirectory().windowsPath() .
-
-Improve the path parsing error messages
-
-On Windows, use GetCommandLineW() to retrieve command line
+If use \\?\ to avoid MAX_PATH limit, we need to know the current drive - this is the first character of CurrentDirectory().windowsPath() .
 
 When parsing paths, should we use:
   getCodePoint() so that Unix paths can contain 0x0a and 0x0d bytes? or
@@ -26,9 +26,3 @@ CharacterSource currently only returns sensible _line/_column if it is started a
 
 We should be using substitution into templates instead of concatenation for globalization purposes.
 
-String::codePoint()
-  10 -> "new line"
-  32 -> "space"
-?
-
-Performance: Use dynamic programming for Unix FindHandle::matches().

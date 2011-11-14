@@ -1,12 +1,7 @@
 With 270 waveforms, sounds pretty bad...
   Try using the GA encoder instead, if we can get it to work
 
-Try band-limited interpolation from the 1MHz SID output and see how that sounds
-  If it sounds odd, try resampling some known-good 1MHz data (from a simple upsampling?)
-
-See what resampling from 1-bit PWM 1.193MHz sounds like to get an idea of whine in demo
-
-Get DirectSoundSink and WaveOutSink working
+If band-limited interpolation from the 1MHz SID output sounds odd, try resampling some known-good 1MHz data (from a simple upsampling?)
 
 Use different sets of waveforms for different sections?
   Multiple waveform segments implies multiple code and data segments

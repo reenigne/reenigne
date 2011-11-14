@@ -121,6 +121,15 @@ public:
     }
     int hash() const { return _implementation->hash(); }
     Kind kind() const { return _implementation->kind(); }
+    bool isInstantiation() const { return _implementation->isInstantiation(); }
+    TypeConstructor generatingTemplate() const
+    {
+        return _implementation->generatingTemplate();
+    }
+    TypeConstructor templateArgument() const
+    {
+        return _implementation->templateArgument();
+    }
 protected:
     class Implementation : public ReferenceCounted
     {
@@ -132,6 +141,9 @@ protected:
         }
         virtual Kind kind() const = 0;
         virtual int hash() const { return reinterpret_cast<int>(this); }
+        virtual bool isInstantiation() const { return false; }
+        virtual TypeConstructor generatingTemplate() const { return Type(); }
+        virtual TypeConstructor templateArgument() const { return Type(); }
     };
     TypeConstructor(const Implementation* implementation)
       : _implementation(implementation) { }
@@ -568,7 +580,10 @@ public:
     }
     bool canConvert(const Type& from, const Type& to)
     {
-        return _conversions.hasKey(TypePair(from, to));
+        if (_conversions.hasKey(TypePair(from, to)))
+            return true;
+
+        return false;
     }
     TypedValue convert(const Type& from, const Type& to,
         const TypedValue& value)

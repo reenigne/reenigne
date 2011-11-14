@@ -1,12 +1,11 @@
-Display a waveform expanded to a window
+Display algorithm:
   Pick a random position in the waveform (which may be between samples)
     For initial version, don't use interpolation
   Evaluate the waveform at that position
     Adjust minimum/maximum as necessary
   Increase exposure of nearest pixel to waveform
 
-Add zoom and pan controls
-  Multiple scrollbars
-  Smooth zooming
+Use multiple scrollbars for panning
 
-Add spectral display
+Smooth zooming
+
