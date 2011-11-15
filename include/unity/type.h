@@ -142,8 +142,11 @@ protected:
         virtual Kind kind() const = 0;
         virtual int hash() const { return reinterpret_cast<int>(this); }
         virtual bool isInstantiation() const { return false; }
-        virtual TypeConstructor generatingTemplate() const { return Type(); }
-        virtual TypeConstructor templateArgument() const { return Type(); }
+        virtual TypeConstructor generatingTemplate() const
+        {
+            throw Exception();
+        }
+        virtual TypeConstructor templateArgument() const { throw Exception(); }
     };
     TypeConstructor(const Implementation* implementation)
       : _implementation(implementation) { }
@@ -305,6 +308,12 @@ private:
         {
             return Implementation::instantiate(kind(), typeConstructor);
         }
+        virtual bool isInstantiation() const { return true; }
+        virtual TypeConstructor generatingTemplate() const
+        {
+            return TypeConstructor(_parent);
+        }
+        virtual TypeConstructor templateArgument() const { return _argument; }
     private:
         const Implementation* _parent;
         TypeConstructor _argument;
@@ -325,6 +334,13 @@ private:
                 s += commaSpace;
             return s + _argument.toString() + greaterThan;
         }
+
+        virtual bool isInstantiation() const { return true; }
+        virtual TypeConstructor generatingTemplate() const
+        {
+            return TypeConstructor(_parent);
+        }
+        virtual TypeConstructor templateArgument() const { return _argument; }
     private:
         const TemplateTypeConstructor::Implementation* _parent;
         TypeConstructor _argument;
@@ -526,6 +542,21 @@ private:
                 h = h*67 + _parameterTypes[i].hash();
             return h;
         }
+        virtual bool isInstantiation() const
+        {
+            return _parameterTypes.count() > 0;
+        }
+        virtual TypeConstructor generatingTemplate() const
+        {
+            List<Type> argumentTypes;
+            for (int i = _parameterTypes.count() - 2; i >= 0; --i)
+                argumentTypes.add(_parameterTypes[i]);
+            return TupleType(argumentTypes);
+        }
+        virtual TypeConstructor templateArgument() const
+        {
+            return _parameterTypes[_parameterTypes.count() - 1];
+        }
     private:
         Array<Type> _parameterTypes;
     };
@@ -560,8 +591,8 @@ class TypeConverter;
 class ConversionSource
 {
 public:
-    virtual void addConversions(TypeConverter* typeConverter,
-        const List<TypeConstructor>& arguments) const = 0;
+    virtual const Conversion* conversion(const Type& from, const Type& to,
+        TypeConverter* typeConverter) const = 0;
 };
 
 class TypeConverter
@@ -580,9 +611,29 @@ public:
     }
     bool canConvert(const Type& from, const Type& to)
     {
-        if (_conversions.hasKey(TypePair(from, to)))
+        TypePair pair(from, to);
+        if (_conversions.hasKey(pair))
             return true;
-
+        TypeConstructor typeConstructor = from;
+        bool doneBoth = false;
+        do {
+            while (typeConstructor.isInstantiation()) {
+                typeConstructor = typeConstructor.generatingTemplate();
+                if (_conversionSources.hasKey(typeConstructor)) {
+                    const Conversion* conversion =
+                        _conversionSources[typeConstructor]->
+                        conversion(from, to, this);
+                    if (conversion != 0) {
+                        _conversions.add(pair, conversion);
+                        return true;
+                    }
+                }
+            }
+            if (doneBoth)
+                break;
+            typeConstructor = to;
+            doneBoth = true;
+        } while (true);
         return false;
     }
     TypedValue convert(const Type& from, const Type& to,
@@ -606,8 +657,34 @@ private:
         Type _to;
     };
     HashTable<TypePair, const Conversion*> _conversions;
-    HashTable<TemplateTypeConstructor, const ConversionSource*>
-        _conversionSources;
+    HashTable<TypeConstructor, const ConversionSource*> _conversionSources;
+};
+
+class ArrayConversionSource
+{
+public:
+    virtual const Conversion* conversion(const Type& from, const Type& to,
+        TypeConverter* typeConverter) const
+    {
+        TypeConstructor fromGenerator = from;
+        TypeConstructor toGenerator = to;
+        while (from.isInstantiation())
+            from = from.generatingTemplate();
+        while (to.isInstantiation())
+            to = to.generatingTemplate();
+        if (from == TemplateTypeConstructor::array && to == TupleType())
+
+        //if (!from.isInstantiation() || !to.isInstantiation())
+        //    return 0;
+        //TypeConstructor fromGenerator = from.generatingTemplate();
+        //TypeConstructor toGenerator = to.generatingTemplate();
+
+        //    
+    }
+private:
+    class ArrayConversion
+    {
+    };
 };
 
 #endif // INCLUDED_TYPE_H

@@ -86,7 +86,7 @@
     <ClInclude Include="..\include\unity\type.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="todo.txt" />
+    <None Include="scratch.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

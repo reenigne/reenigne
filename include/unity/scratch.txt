@@ -1,15 +1,3 @@
-Conversion of Tuple<Tuple<Integer,String,Integer,Integer>,Tuple<Integer,String,Integer,Integer>> to Array<RomImage>:
-  ConfigFile asks TypeConverter if it can convert Tuple<Tuple<Integer,String,Integer,Integer>,Tuple<Integer,String,Integer,Integer>> to Array<RomImage>
-    TypeConverter searches for type pair, doesn't find it.
-    TypeConverter asks Tuple<Tuple<Integer,String,Integer,Integer>,Tuple<Integer,String,Integer,Integer>> if it is a template instantiation. It says yes and returns parent Tuple<Tuple<Integer,String,Integer,Integer>>
-    TypeConverter looks up Tuple<Tuple<Integer,String,Integer,Integer>> in its ConversionSource table, doesn't find it.
-    TypeConverter asks Tuple<Tuple<Integer,String,Integer,Integer>> if it is a template instantiation. It says yes and returns parent Tuple.
-    TypeConverter looks up Tuple in its ConversionSource table, doesn't find it.
-    TypeConverter asks Tuple if it is a template instantiation. It says no.
-    TypeConverter asks Array<RomImage> if it is a template. It says yes and returns Array.
-
-
-
 String::subString() takes start and length, CodePointSource::subString() takes start and end.
 
 See http://docs.racket-lang.org/reference/windowspaths.html for details on paths starting with \\?\

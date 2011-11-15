@@ -124,7 +124,8 @@ private:
         int nBytes = 0;
         for (int i = 0; i < nArgs; ++i)
             nBytes += String::countBytes(szArglist[i]);
-        Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation;
+        Reference<OwningBufferImplementation> bufferImplementation =
+            new OwningBufferImplementation;
         bufferImplementation->allocate(nBytes);
         Buffer buffer(bufferImplementation);
         UInt8* p = bufferImplementation->data();
