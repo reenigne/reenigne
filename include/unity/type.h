@@ -9,6 +9,7 @@ class Kind
 {
 public:
     static Kind type;
+    static Kind variadic;
     String toString() const { return _implementation->toString(); }
     bool operator==(const Kind& other) const
     { 
@@ -30,18 +31,23 @@ protected:
     Kind(const Implementation* implementation)
       : _implementation(implementation) { }
 private:
-    Kind() : _implementation(new TypeImplementation) { }
     class TypeImplementation : public Implementation
     {
     public:
         String toString() const { return String(); }
+    };
+    class VariadicImplementation : public Implementation
+    {
+    public:
+        String toString() const { return String("..."); }
     };
     ConstReference<Implementation> _implementation;
 
     friend class TemplateKind;
 };
 
-Kind Kind::type;
+Kind Kind::type = Kind(new Kind::TypeImplementation);
+Kind Kind::variadic = Kind(new Kind::VariadicImplementation);
 
 class TemplateKind : public Kind
 {
@@ -170,11 +176,15 @@ public:
     static Type boolean;
     static Type object;
 
-    static Type array(const Type &type)
+    static Type array(const Type& type)
     {
         List<TypeConstructor> arguments;
         arguments.add(type);
         return TemplateTypeConstructor::array.instantiate(arguments);
+    }
+    static Type tuple(const List<Type>& arguments)
+    {
+        return TemplateTypeConstructor::tuple.instantiate(arguments);
     }
 protected:
     class Implementation : public TypeConstructor::Implementation
@@ -228,6 +238,7 @@ public:
     }
 
     static TemplateTypeConstructor array;
+    static TemplateTypeConstructor tuple;
 private:
     class Implementation : public TypeConstructor::Implementation
     {
@@ -349,6 +360,8 @@ private:
 
 TemplateTypeConstructor TemplateTypeConstructor::array("Array",
     TemplateKind(Kind::type, Kind::type));
+TemplateTypeConstructor TemplateTypeConstructor::tuple("Tuple",
+    TemplateKind(Kind::variadic, Kind::type));
 
 class PointerType : public Type
 {
@@ -500,68 +513,6 @@ private:
     };
 };
 
-class TupleType : public Type
-{
-public:
-    TupleType(const List<Type>& parameterTypes)
-      : Type(new Implementation(parameterTypes)) { }
-private:
-    class Implementation : public Type::Implementation
-    {
-    public:
-        Implementation(const List<Type>& parameterTypes)
-          : _parameterTypes(parameterTypes) { }
-        String toString() const
-        {
-            String s("Tuple<");
-            for (int i = 0; i < _parameterTypes.count(); ++i) {
-                if (i > 0)
-                    s += commaSpace;
-                s += _parameterTypes[i].toString();
-            }
-            return s + greaterThan;
-        }
-        bool equals(const Type::Implementation* other) const
-        {
-            const Implementation* o =
-                dynamic_cast<const Implementation*>(other);
-            if (o == 0)
-                return false;
-            int c = _parameterTypes.count();
-            if (c != o->_parameterTypes.count())
-                return false;
-            for (int i = 0; i < c; ++i)
-                if (_parameterTypes[i] != o->_parameterTypes[i])
-                    return false;
-            return true;
-        }
-        int hash() const
-        {
-            int h = 3;
-            for (int i = 0; i < _parameterTypes.count(); ++i)
-                h = h*67 + _parameterTypes[i].hash();
-            return h;
-        }
-        virtual bool isInstantiation() const
-        {
-            return _parameterTypes.count() > 0;
-        }
-        virtual TypeConstructor generatingTemplate() const
-        {
-            List<Type> argumentTypes;
-            for (int i = _parameterTypes.count() - 2; i >= 0; --i)
-                argumentTypes.add(_parameterTypes[i]);
-            return TupleType(argumentTypes);
-        }
-        virtual TypeConstructor templateArgument() const
-        {
-            return _parameterTypes[_parameterTypes.count() - 1];
-        }
-    private:
-        Array<Type> _parameterTypes;
-    };
-};
-
 class TypedValue
 {
 public:
@@ -672,14 +623,14 @@ public:
             from = from.generatingTemplate();
         while (to.isInstantiation())
             to = to.generatingTemplate();
-        if (from == TemplateTypeConstructor::array && to == TupleType())
-
-        //if (!from.isInstantiation() || !to.isInstantiation())
-        //    return 0;
-        //TypeConstructor fromGenerator = from.generatingTemplate();
-        //TypeConstructor toGenerator = to.generatingTemplate();
-
-        //    
+        if (from == TemplateTypeConstructor::array &&
+            to == TemplateTypeConstructor::tuple) {
+            
+        }
+        if (to == TemplateTypeConstructor::array &&
+            from == TemplateTypeConstructor::tuple) {
+            
+        }
     }
 private:
     class ArrayConversion
