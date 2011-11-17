@@ -1984,7 +1984,7 @@ protected:
         tupleArguments.add(Type::integer);
         tupleArguments.add(Type::integer);
 
-        config.addConversion(TupleType(tupleArguments), romImageType,
+        config.addConversion(Type::tuple(tupleArguments), romImageType,
             &conversion);
 
         Type romImageArrayType = Type::array(romImageType);

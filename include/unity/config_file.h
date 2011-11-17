@@ -10,6 +10,11 @@
 class ConfigFile
 {
 public:
+    ConfigFile()
+    {
+        _typeConverter.addConversionSource(Template::array,
+            &_arrayConversionSource);
+    }
     void addType(Type type)
     {
         String name = type.toString();
@@ -422,7 +427,7 @@ private:
                 types.add(e.type());
             } while (Space::parseCharacter(source, ',', &span2));
             Space::assertCharacter(source, '}', &span2);
-            return TypedValue(TupleType(types), values, span + span2);
+            return TypedValue(Type::tuple(types), values, span + span2);
         }
         if (Space::parseCharacter(source, '(', &span)) {
             e = parseExpression(source);
@@ -556,6 +561,7 @@ private:
     HashTable<String, TypedValue> _enumeratedValues;
     HashTable<String, Type> _types;
     TypeConverter _typeConverter;
+    ArrayConversionSource _arrayConversionSource;
 };
 
 #endif // INCLUDED_CONFIG_FILE_H

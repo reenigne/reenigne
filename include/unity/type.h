@@ -101,9 +101,9 @@ private:
     }
 };
 
-template<class T> class TemplateTypeConstructorTemplate;
+template<class T> class TemplateTemplate;
 
-typedef TemplateTypeConstructorTemplate<void> TemplateTypeConstructor;
+typedef TemplateTemplate<void> Template;
 
 template<class T> class TypeTemplate;
 
@@ -158,7 +158,7 @@ protected:
       : _implementation(implementation) { }
     ConstReference<Implementation> _implementation;
 
-    friend class TemplateTypeConstructorTemplate<void>;
+    friend class TemplateTemplate<void>;
     friend class EnumerationType;
     friend class StructuredType;
 };
@@ -180,11 +180,16 @@ public:
     {
         List<TypeConstructor> arguments;
         arguments.add(type);
-        return TemplateTypeConstructor::array.instantiate(arguments);
+        return Template::array.instantiate(arguments);
     }
     static Type tuple(const List<Type>& arguments)
     {
-        return TemplateTypeConstructor::tuple.instantiate(arguments);
+        List<TypeConstructor> a;
+        for (List<Type>::Iterator i = arguments.start(); i != arguments.end();
+            ++i) {
+            a.add(*i);
+        }
+        return Template::tuple.instantiate(a);
     }
 protected:
     class Implementation : public TypeConstructor::Implementation
@@ -210,7 +215,7 @@ private:
         };
     };
 
-    friend class TemplateTypeConstructorTemplate<void>;
+    friend class TemplateTemplate<void>;
 };
 
 Type Type::integer = Type::AtomicType("Integer");
@@ -218,11 +223,10 @@ Type Type::string = Type::AtomicType("String");
 Type Type::boolean = Type::AtomicType("Boolean");
 Type Type::object = Type::AtomicType("Object");
 
-template<class T> class TemplateTypeConstructorTemplate
-  : public TypeConstructor
+template<class T> class TemplateTemplate : public TypeConstructor
 {
 public:
-    TemplateTypeConstructorTemplate(const String& name, const Kind& kind)
+    TemplateTemplate(const String& name, const Kind& kind)
       : TypeConstructor(new UninstantiatedImplementation(name, kind)) { }
     TypeConstructor instantiate(const List<TypeConstructor>& arguments) const
     {
@@ -237,8 +241,8 @@ public:
         return t;
     }
 
-    static TemplateTypeConstructor array;
-    static TemplateTypeConstructor tuple;
+    static Template array;
+    static Template tuple;
 private:
     class Implementation : public TypeConstructor::Implementation
     {
@@ -250,20 +254,27 @@ private:
         {
             if (_instantiations.hasKey(typeConstructor))
                 return _instantiations[typeConstructor];
-            if (kind.first() != typeConstructor.kind())
-                throw Exception(String("Can't instantiate ") + toString() +
-                    String(" (argument kind ") + kind.first().toString() +
-                    String(") with ") + typeConstructor.toString() +
-                    String(" (kind ") + typeConstructor.kind().toString());
-            Kind rest = kind.rest();
-            TypeConstructor instantiation;
-            if (rest == Kind::type)
-                instantiation = Type(
-                    new InstantiatedImplementation(this, typeConstructor));
-            else
-                instantiation = TypeConstructor(
-                    new PartiallyInstantiatedImplementation(this,
-                        typeConstructor));
+            if (kind.first() != Kind::variadic) {
+                if (kind.first() != typeConstructor.kind())
+                    throw Exception(String("Can't instantiate ") + toString() +
+                        String(" (argument kind ") + kind.first().toString() +
+                        String(") with ") + typeConstructor.toString() +
+                        String(" (kind ") + typeConstructor.kind().toString());
+                Kind rest = kind.rest();
+                TypeConstructor instantiation;
+                if (rest == Kind::type)
+                    instantiation = Type(
+                        new InstantiatedImplementation(this, typeConstructor));
+                else
+                    instantiation = TypeConstructor(
+                        new PartiallyInstantiatedImplementation(this,
+                            typeConstructor));
+                _instantiations.add(typeConstructor, instantiation);
+                return instantiation;
+            }
+            TypeConstructor instantiation(
+                new PartiallyInstantiatedImplementation(this,
+                    typeConstructor));
             _instantiations.add(typeConstructor, instantiation);
             return instantiation;
         }
@@ -333,8 +344,7 @@ private:
     class InstantiatedImplementation : public Type::Implementation
     {
     public:
-        InstantiatedImplementation(
-            const TemplateTypeConstructor::Implementation* parent,
+        InstantiatedImplementation(const Template::Implementation* parent,
             TypeConstructor argument)
           : _parent(parent), _argument(argument) { }
         String toString() const
@@ -353,15 +363,13 @@ private:
         }
         virtual TypeConstructor templateArgument() const { return _argument; }
     private:
-        const TemplateTypeConstructor::Implementation* _parent;
+        const Template::Implementation* _parent;
         TypeConstructor _argument;
     };
 };
 
-TemplateTypeConstructor TemplateTypeConstructor::array("Array",
-    TemplateKind(Kind::type, Kind::type));
-TemplateTypeConstructor TemplateTypeConstructor::tuple("Tuple",
-    TemplateKind(Kind::variadic, Kind::type));
+Template Template::array("Array", TemplateKind(Kind::type, Kind::type));
+Template Template::tuple("Tuple", TemplateKind(Kind::variadic, Kind::type));
 
 class PointerType : public Type
 {
@@ -549,8 +557,7 @@ public:
 class TypeConverter
 {
 public:
-    void addConversionSource(
-        const TemplateTypeConstructor& templateTypeConstructor,
+    void addConversionSource(const Template& templateTypeConstructor,
         const ConversionSource* conversionSource)
     {
         _conversionSources.add(templateTypeConstructor, conversionSource);
@@ -588,7 +595,7 @@ public:
         return false;
     }
     TypedValue convert(const Type& from, const Type& to,
-        const TypedValue& value)
+        const TypedValue& value) const
     {
         return _conversions[TypePair(from, to)]->operator()(value);
     }
@@ -611,30 +618,56 @@ private:
     HashTable<TypeConstructor, const ConversionSource*> _conversionSources;
 };
 
-class ArrayConversionSource
+class ArrayConversionSource : public ConversionSource
 {
 public:
     virtual const Conversion* conversion(const Type& from, const Type& to,
         TypeConverter* typeConverter) const
     {
-        TypeConstructor fromGenerator = from;
         TypeConstructor toGenerator = to;
-        while (from.isInstantiation())
-            from = from.generatingTemplate();
-        while (to.isInstantiation())
-            to = to.generatingTemplate();
-        if (from == TemplateTypeConstructor::array &&
-            to == TemplateTypeConstructor::tuple) {
-            
+        if (toGenerator.isInstantiation())
+            toGenerator = toGenerator.generatingTemplate();
+        if (toGenerator != Template::array)
+            return 0;
+        Type contained = to.templateArgument();
+
+        TypeConstructor fromGenerator = from;
+        List<Type> arguments;
+        while (fromGenerator.isInstantiation()) {
+            Type argument = fromGenerator.templateArgument();
+            if (!typeConverter->canConvert(argument, contained))
+                return 0;
+            arguments.add(argument);
+            fromGenerator = fromGenerator.generatingTemplate();
         }
-        if (to == TemplateTypeConstructor::array &&
-            from == TemplateTypeConstructor::tuple) {
-            
-        }
+        if (fromGenerator != Template::tuple)
+            return 0;
+        return new ArrayConversion(arguments, typeConverter, contained);
     }
 private:
-    class ArrayConversion
+    class ArrayConversion : public Conversion
     {
+    public:
+        ArrayConversion(const List<Type>& arguments,
+            const TypeConverter* typeConverter, const Type& contained)
+          : _arguments(arguments), _typeConverter(typeConverter),
+            _contained(contained) { }
+        TypedValue operator()(const TypedValue& value) const
+        {
+            List<TypedValue> list = value.value<List<TypedValue> >();
+            List<TypedValue> results;
+            int p = 0;
+            for (List<TypedValue>::Iterator i = list.start(); i != list.end();
+                ++i) {
+                results.add(
+                    _typeConverter->convert(_arguments[p], _contained, *i));
+            }
+            return TypedValue(Type::array(_contained), results, value.span());
+        }
+    private:
+        Array<Type> _arguments;
+        const TypeConverter* _typeConverter;
+        Type _contained;
     };
 };
 
