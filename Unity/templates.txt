@@ -65,12 +65,12 @@ A<@B> = C<D<B>>
 
   Get nomenclature correct
     * TypeConstructor: A in A or A<@B> or A<@B<>> etc.
-    * TemplateTypeConstructor: A TypeConstructor that is not a Type
-    * TemplateType: A Type constructed from a TemplateTypeConstructor
+    * Template: A TypeConstructor that can be instantiated
+    * TemplateType: A Type constructed from a Template
     * TypeSpecifier: A piece of program code that represents a Type
     * TemplateTypeSpecifier: A piece of program code that represents a TemplateType
     * TypeConstructorSignifier: That which goes on the left of a TypeConstructorDefinitionStatement
-    * TemplateTypeConstructorSignifier: The TypeConstructorSignifier of a TypeConstructorDefinitionStatement which defines a TemplateTypeConstructor
+    * TemplateSignifier: The TypeConstructorSignifier of a TypeConstructorDefinitionStatement which defines a Template
     * TypeConstructorDefinitionStatement: A statement that defines a TypeConstructor
     * Kind: The property of a TypeConstuctor which determines what you have to give it to get a Type
     * KindSpecifier: The string which represents a Kind in a template parameter

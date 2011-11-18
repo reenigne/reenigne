@@ -24,6 +24,13 @@ public:
     void setSimulator(Simulator* simulator) { _simulator = simulator; }
     String disassemble(UInt16 address)
     {
+        _bytes = empty;
+        String i = disassembleInstruction(address);
+        return _bytes.alignLeft(10) + space + i;
+    }
+private:
+    String disassembleInstruction(UInt16 address)
+    {
         _address = address;
         _opcode = getByte();
         _wordSize = (_opcode & 1) != 0;
@@ -56,7 +63,7 @@ public:
         }
         if ((_opcode & 0xfc) == 0x88)
             return String("MOV ") + regMemPair();
-        if ((_opcode & 0xf0) == 0x90)
+        if ((_opcode & 0xf8) == 0x90)
             if (_opcode == 0x90)
                 return String("NOP");
             else
@@ -193,8 +200,8 @@ public:
             case 0xe3: return String("JCXZ ") + cb();
             case 0xe8: return String("CALL ") + cw();
             case 0xe9: return String("JMP ") + cw();
-            case 0xea: return String("JMP ") + cw();
-            case 0xeb: return String("JMP ") + cp();
+            case 0xea: return String("JMP ") + cp();
+            case 0xeb: return String("JMP ") + cb();
             case 0xf0: return String("LOCK");
             case 0xf1: return String("???");
             case 0xf2: return String("REPNE ") + disassemble(address + 1);
@@ -237,8 +244,13 @@ public:
         }
         return String("");
     }
-private:
-    UInt8 getByte() { return _simulator->mem(1, _address); ++_address; }
+    UInt8 getByte()
+    {
+        UInt8 v = _simulator->mem(1, _address);
+        ++_address;
+        _bytes += String::hexadecimal(v, 2);
+        return v;
+    }
     UInt16 getWord() { UInt8 low = getByte(); return low + (getByte() << 8); }
     String regMemPair()
     {
@@ -295,14 +307,14 @@ private:
     int mod() { return _modRM >> 6; }
     int reg() { return (_modRM >> 3) & 7; }
     int rm() { return _modRM & 7; }
-    String iw() { return String::hexadecimal(getWord(), 5); }
-    String ib() { return String::hexadecimal(getByte(), 3); }
+    String iw() { return String::hexadecimal(getWord(), 4); }
+    String ib() { return String::hexadecimal(getByte(), 2); }
     String sb()
     {
         UInt8 byte = getByte();
         if ((byte & 0x80) == 0)
-            return String("+") + String::hexadecimal(byte, 3);
-        return String("-") + String::hexadecimal((-byte) & 0x7f, 3);
+            return String("+") + String::hexadecimal(byte, 2);
+        return String("-") + String::hexadecimal((-byte) & 0x7f, 2);
     }
     String imm() { return !_wordSize ? ib() : iw(); }
     String accum() { return !_wordSize ? String("AL") : String("AX"); }
@@ -314,7 +326,7 @@ private:
     String cb()
     {
         SInt8 byte = static_cast<SInt8>(getByte());
-        return String::hexadecimal(_address + byte, 5);
+        return String::hexadecimal(_address + byte, 4);
     }
     String cw() { return String::hexadecimal(_address + getWord(), 4); }
     String cp()
@@ -330,6 +342,7 @@ private:
     UInt8 _modRM;
     bool _wordSize;
     bool _doubleWord;
+    String _bytes;
 };
 
 typedef DisassemblerTemplate<void> Disassembler;
@@ -351,7 +364,10 @@ public:
         _abandonFetch(false),
         _useIO(false),
         _halted(false),
-        _console(console)
+        _console(console),
+        _wait(0),
+        _newInstruction(true),
+        _newIP(0xfff0)
     {
         for (int i = 0; i < 8; ++i)
             _registers[i] = 0;  // ?
@@ -378,17 +394,21 @@ public:
         int cycle = 0;
 
         do {
-            String line = String::decimal(cycle) + space;
+            String line = String::decimal(cycle).alignRight(5) + space;
             switch (_busState) {
                 case t1: line += "T1 "; break;
                 case t2: line += "T2 "; break;
                 case t3: line += "T3 "; break;
                 case t4: line += "T4 "; break;
             }
-            if (_state == stateFetch)
-                line += disassembler.disassemble(_ip);
+            if (_newInstruction) {
+                line += String::hexadecimal(cs(), 4) + colon +
+                    String::hexadecimal(_newIP, 4) + space +
+                    disassembler.disassemble(_newIP);
+            }
             else
                 line += space*20;
+            _newInstruction = false;
             _console->write(line + newLine);
             ++cycle;
             simulateCycle();
@@ -460,6 +480,7 @@ public:
                             }
                             break;
                         case ioInstructionFetch:
+                            _ioInProgress = ioNone;
                             if (!_abandonFetch) {
                                 _prefetchQueue[
                                     (_prefetchOffset + _prefetched) & 3] =
@@ -484,7 +505,7 @@ public:
                         _busState = t1;
                     }
                     busDone = true;
-                    return;
+                    break;
             }
         } while (!busDone);
         do {
@@ -575,6 +596,8 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _state = stateFetch;
                     _rep = 0;
                     _useIO = false;
+                    _newInstruction = true;
+                    _newIP = _ip;
                     break;
 
                 case stateModRM: fetch(stateModRM2, false); break;
@@ -820,13 +843,13 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         bool jump;
                         switch (_opcode & 0x0e) {
                             case 0x00: jump =  of(); break;
-                            case 0x72: jump =  cf(); break;
-                            case 0x74: jump =  zf(); break;
-                            case 0x76: jump =  cf() || zf(); break;
-                            case 0x78: jump =  sf(); break;
-                            case 0x7a: jump =  pf(); break;
-                            case 0x7c: jump = (sf() != of()); break;
-                            case 0x7e: jump = (sf() != of()) || zf(); break;
+                            case 0x02: jump =  cf(); break;
+                            case 0x04: jump =  zf(); break;
+                            case 0x06: jump =  cf() || zf(); break;
+                            case 0x08: jump =  sf(); break;
+                            case 0x0a: jump =  pf(); break;
+                            case 0x0c: jump = (sf() != of()); break;
+                            case 0x0e: jump = (sf() != of()) || zf(); break;
                         }
                         if ((_opcode & 1) != 0)
                             jump = !jump;
@@ -1819,6 +1842,7 @@ private:
         _ip = value;
         _abandonFetch = true;
         _prefetched = 0;
+        _prefetchAddress = _ip;
     }
     UInt8& physicalAddress(UInt16 address)
     {
@@ -1908,6 +1932,8 @@ private:
     bool _useIO;
     bool _halted;
     Handle* _console;
+    bool _newInstruction;
+    UInt16 _newIP;
 };
 
 class RomImage

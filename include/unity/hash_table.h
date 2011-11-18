@@ -27,7 +27,7 @@ private:
                 return doAdd(key)->_value;
             return t->_value;
         }
-        const Value& value(const Key& key) const
+        Value value(const Key& key) const
         {
             const TableEntry* t = findEntry(key);
             if (t == 0)
@@ -126,7 +126,7 @@ public:
     {
         return _table[row(key)].value(key);
     }
-    const Value& operator[](const Key& key) const
+    Value operator[](const Key& key) const
     {
         return _table[row(key)].value(key);
     }

@@ -363,6 +363,22 @@ public:
     {
         return _implementation; 
     }
+
+    String alignRight(int n)
+    {
+        int spaces = n - length();
+        if (spaces > 0)
+            return space*spaces + (*this);
+        return *this;
+    }
+    String alignLeft(int n)
+    {
+        int spaces = n - length();
+        if (spaces > 0)
+            return (*this) + space*spaces;
+        return *this;
+    }
+
 private:
 
     ConstReference<StringImplementation> _implementation;

@@ -10,6 +10,7 @@ class Kind
 public:
     static Kind type;
     static Kind variadic;
+    static Kind variadicTemplate;
     String toString() const { return _implementation->toString(); }
     bool operator==(const Kind& other) const
     { 
@@ -100,6 +101,8 @@ private:
         return ConstReference<Implementation>(_implementation);
     }
 };
+
+Kind Kind::variadicTemplate = TemplateKind(Kind::variadic, Kind::type);
 
 template<class T> class TemplateTemplate;
 
@@ -273,8 +276,7 @@ private:
                 return instantiation;
             }
             TypeConstructor instantiation(
-                new PartiallyInstantiatedImplementation(this,
-                    typeConstructor));
+                new VariadicImplementation(this, typeConstructor));
             _instantiations.add(typeConstructor, instantiation);
             return instantiation;
         }
@@ -341,6 +343,14 @@ private:
         TypeConstructor _argument;
         mutable HashTable<TypeConstructor, TypeConstructor> _instantiations;
     };
+    class VariadicImplementation : public PartiallyInstantiatedImplementation
+    {
+    public:
+        VariadicImplementation(const Implementation* parent,
+            const TypeConstructor& argument)
+          : PartiallyInstantiatedImplementation(parent, argument) { }
+        Kind kind() const { return Kind::variadicTemplate; }
+    };
     class InstantiatedImplementation : public Type::Implementation
     {
     public:
@@ -369,7 +379,7 @@ private:
 };
 
 Template Template::array("Array", TemplateKind(Kind::type, Kind::type));
-Template Template::tuple("Tuple", TemplateKind(Kind::variadic, Kind::type));
+Template Template::tuple("Tuple", Kind::variadicTemplate);
 
 class PointerType : public Type
 {
