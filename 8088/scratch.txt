@@ -1,3 +1,24 @@
+IsaBus8Bit
+  UInt32 _address;
+  UInt8 _data;
+  bool _aen;
+  bool _memw;
+  bool _memr;
+  bool _iow;
+  bool _ior;
+  bool _dack[4];
+  bool _drq[4];
+  bool _tc;
+  bool _irq[8];
+  bool _ale;
+
+Read:
+  T1: Address put on bus
+  T4: Data read from bus
+Write:
+  T1: Address put on bus
+  T2: Data put on bus
+
 How are bytes removed from the prefetch queue?
   Model 1: Bytes are removed as they are decoded
     Cycle 1: Opcode byte removed from prefetch queue

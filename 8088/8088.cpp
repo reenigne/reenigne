@@ -279,7 +279,7 @@ private:
             case 0: s = disp(); break;
             case 1: s = disp() + sb(); break;
             case 2: s = disp() + iw(); break;
-            case 3: return !_wordSize ? rb() : rw();
+            case 3: return !_wordSize ? byteRegs(rm()) : wordRegs(rm());
         }
         return size() + String("[") + s + String("]");
     }
@@ -351,7 +351,7 @@ template<class T> class SimulatorTemplate
 {
 public:
     SimulatorTemplate(Handle* console)
-      : _flags(0x0002),  // ?
+      : _flagsData(0x0002),  // ?
         _state(stateFetch),
         _ip(0xfff0),
         _prefetchOffset(0),
@@ -369,13 +369,22 @@ public:
         _newInstruction(true),
         _newIP(0xfff0)
     {
-        for (int i = 0; i < 8; ++i)
-            _registers[i] = 0;  // ?
-
-        _segmentRegisters[0] = 0x0000;  // ?
-        _segmentRegisters[1] = 0xf000;
-        _segmentRegisters[2] = 0x0000;  // ?
-        _segmentRegisters[3] = 0x0000;  // ?
+        static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
+        static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
+        static String s[8] = {"ES", "CS", "SS", "DS", "??", "??", "??", "??"};
+        for (int i = 0; i < 8; ++i) {
+            _registerData[i] = 0;  // ?
+            _wordRegisters[i].init(w[i], &_registerData[i]);
+            _byteRegisters[i].init(b[i], reinterpret_cast<UInt8*>(
+                &_registerData[i & 3]) + (i >= 4 ? 1 : 0));
+            _segmentRegisters[i].init(s[i], &_segmentRegisterData[i]);
+        }
+        _flags.init("F", &_flagsData);
+        _segmentRegisterData[0] = 0x0000;  // ?
+        _segmentRegisterData[1] = 0xf000;
+        _segmentRegisterData[2] = 0x0000;  // ?
+        _segmentRegisterData[3] = 0x0000;  // ?
+        _segmentRegisterData[7] = 0x0000;  // For IO accesses
         _memory.allocate(0x100000);
     }
     UInt8& physicalMemory(UInt32 physicalAddress)
@@ -385,7 +394,7 @@ public:
     UInt8& mem(int segment, UInt16 address)
     {
         return _memory[
-            ((_segmentRegisters[segment] << 4) + address) & 0xfffff];
+            ((_segmentRegisterData[segment] << 4) + address) & 0xfffff];
     }
     void simulate()
     {
@@ -399,15 +408,22 @@ public:
                 case t1: line += "T1 "; break;
                 case t2: line += "T2 "; break;
                 case t3: line += "T3 "; break;
+                case tWait: line += "Tw "; break;
                 case t4: line += "T4 "; break;
+                case tIdle: line += "   "; break;
             }
             if (_newInstruction) {
-                line += String::hexadecimal(cs(), 4) + colon +
+                line += String::hexadecimal(csQuiet(), 4) + colon +
                     String::hexadecimal(_newIP, 4) + space +
                     disassembler.disassemble(_newIP);
             }
-            else
-                line += space*20;
+            line = line.alignLeft(41);
+            for (int i = 0; i < 8; ++i) {
+                line += _byteRegisters[i].text();
+                line += _wordRegisters[i].text();
+                line += _segmentRegisters[i].text();
+            }
+            line += _flags.text();
             _newInstruction = false;
             _console->write(line + newLine);
             ++cycle;
@@ -600,9 +616,19 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _newIP = _ip;
                     break;
 
-                case stateModRM: fetch(stateModRM2, false); break;
+                case stateModRM:
+                    _afterModRM = _afterIO;
+                    fetch(stateModRM2, false);
+                    break;
                 case stateModRM2:
+                    _afterIO = _afterModRM;
                     _modRM = _data;
+                    if ((_modRM & 0xc0) == 0xc0) {
+                        _useMemory = false;
+                        _address = _modRM & 7;
+                        _state = _afterEA;
+                        break;
+                    }
                     _useMemory = true;
                     switch (_modRM & 7) {
                         case 0: _wait = 7; _address = bx() + si(); break;
@@ -623,11 +649,6 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                             break;
                         case 0x40: fetch(stateEAByte, false); break;
                         case 0x80: fetch(stateEAWord, true); break;
-                        case 0xc0:
-                            _useMemory = false;
-                            _address = _modRM & 7;
-                            _state = _afterEA;
-                            break;
                     }
                     break;
                 case stateEAOffset:
@@ -660,14 +681,14 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     else {
                         if (!_wordSize)
                             if (_ioType == ioRead)
-                                _data = byteRegister(_address);
+                                _data = _byteRegisters[_address];
                             else
-                                byteRegister(_address) = _data;
+                                _byteRegisters[_address] = _data;
                         else
                             if (_ioType == ioRead)
-                                _data = _registers[_address];
+                                _data = _wordRegisters[_address];
                             else
-                                _registers[_address] = _data;
+                                _wordRegisters[_address] = _data;
                         _state = _afterIO;
                     }
                     break;
@@ -1035,7 +1056,13 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _wordSize = ((_opcode & 8) != 0);
                     fetch(stateMovRegImm2, _wordSize);
                     break;
-                case stateMovRegImm2: setAccum(); end(4); break;
+                case stateMovRegImm2:
+                    if (_wordSize)
+                        rw() = _data;
+                    else
+                        rb() = _data;
+                    end(4); 
+                    break;
 
                 case stateRet: pop(stateRet2); break;
                 case stateRet2:
@@ -1283,6 +1310,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                 case stateInOut2:
                     _useIO = true;
                     _ioType = ((_opcode & 2) == 0 ? ioRead : ioWrite);
+                    _segment = 7;
                     initIO(stateInOut3, _ioType, _wordSize);
                     break;
                 case stateInOut3:
@@ -1749,20 +1777,129 @@ private:
         }
     }
     UInt16 signExtend(UInt8 data) { return data + (data < 0x80 ? 0 : 0xff00); }
-    UInt16& rw() { return _registers[_opcode & 7]; }
-    UInt16& ax() { return _registers[0]; }
-    UInt16& cx() { return _registers[1]; }
-    UInt16& dx() { return _registers[2]; }
-    UInt16& bx() { return _registers[3]; }
-    UInt16& sp() { return _registers[4]; }
-    UInt16& bp() { return _registers[5]; }
-    UInt16& si() { return _registers[6]; }
-    UInt16& di() { return _registers[7]; }
-    UInt8& rb() { return byteRegister(_opcode & 7); }
-    UInt8& al() { return byteRegister(0); }
-    UInt8& cl() { return byteRegister(1); }
-    UInt8& ah() { return byteRegister(4); }
-    UInt16& cs() { return _segmentRegisters[1]; }
+    template<class T> class Register
+    {
+    public:
+        void init(String name, T* data)
+        {
+            _name = name;
+            _data = data;
+            _read = false;
+            _written = false;
+        }
+        const T& operator=(T value)
+        {
+            *_data = value;
+            _writtenValue = value;
+            _written = true;
+            return *_data;
+        }
+        operator T()
+        {
+            if (!_read && !_written) {
+                _read = true;
+                _readValue = *_data;
+            }
+            return *_data;
+        }
+        const T& operator+=(T value)
+        {
+            return operator=(operator T() + value);
+        }
+        const T& operator-=(T value)
+        {
+            return operator=(operator T() - value);
+        }
+        const T& operator%=(T value)
+        {
+            return operator=(operator T() % value);
+        }
+        const T& operator&=(T value)
+        {
+            return operator=(operator T() & value);
+        }
+        const T& operator^=(T value)
+        {
+            return operator=(operator T() ^ value);
+        }
+        T operator-() const { return -operator T(); }
+        void operator++() { operator=(operator T() + 1); }
+        void operator--() { operator=(operator T() - 1); }
+        String text()
+        {
+            String text;
+            if (_read) {
+                text = String::hexadecimal(_readValue, sizeof(T)==1 ? 2 : 4) +
+                    String("<-") + _name + space*2;
+                _read = false;
+            }
+            if (_written) {
+                text += _name + String("<-") +
+                    String::hexadecimal(_writtenValue, sizeof(T)==1 ? 2 : 4) +
+                    space*2;
+                _written = false;
+            }
+            return text;
+        }
+    protected:
+        String _name;
+        T* _data;
+        bool _read;
+        bool _written;
+        T _readValue;
+        T _writtenValue;
+    };
+    class FlagsRegister : public Register<UInt16>
+    {
+    public:
+        UInt32 operator=(UInt32 value)
+        {
+            Register<UInt16>::operator=(value);
+            return operator UInt16();
+        }
+        String text()
+        {
+            String text;
+            if (_read) {
+                text = flags(_readValue) + String("<-") + _name + space*2;
+                _read = false;
+            }
+            if (_written) {
+                text += _name + String("<-") + flags(_writtenValue) + space*2;
+                _written = false;
+            }
+            return text;
+        }
+    private:
+        String flags(UInt16 value) const
+        {
+            return String(value & 0x800 ? "O" : "p") +
+                String(value & 0x400 ? "D" : "d") +
+                String(value & 0x200 ? "I" : "i") +
+                String(value & 0x100 ? "T" : "t") +
+                String(value & 0x80 ? "S" : "s") +
+                String(value & 0x40 ? "Z" : "z") +
+                String(value & 0x10 ? "A" : "a") +
+                String(value & 4 ? "P" : "p") +
+                String(value & 1 ? "C" : "c");
+        }
+    };
+
+    Register<UInt16>& rw() { return _wordRegisters[_opcode & 7]; }
+    Register<UInt16>& ax() { return _wordRegisters[0]; }
+    Register<UInt16>& cx() { return _wordRegisters[1]; }
+    Register<UInt16>& dx() { return _wordRegisters[2]; }
+    Register<UInt16>& bx() { return _wordRegisters[3]; }
+    Register<UInt16>& sp() { return _wordRegisters[4]; }
+    Register<UInt16>& bp() { return _wordRegisters[5]; }
+    Register<UInt16>& si() { return _wordRegisters[6]; }
+    Register<UInt16>& di() { return _wordRegisters[7]; }
+    Register<UInt8>& rb() { return _byteRegisters[_opcode & 7]; }
+    Register<UInt8>& al() { return _byteRegisters[0]; }
+    Register<UInt8>& cl() { return _byteRegisters[1]; }
+    Register<UInt8>& ah() { return _byteRegisters[4]; }
+    Register<UInt16>& cs() { return _segmentRegisters[1]; }
+    UInt16& csQuiet() { return _segmentRegisterData[1]; }
     bool cf() { return (_flags & 1) != 0; }
     void setCF(bool cf) { _flags = (_flags & ~1) | (cf ? 1 : 0); }
     bool pf() { return (_flags & 4) != 0; }
@@ -1793,7 +1930,7 @@ private:
     void setZF()
     {
         _flags = (_flags & ~0x40) |
-            ((_data & (!_wordSize ? 0xff : 0xffff)) != 0 ? 0x40 : 0);
+            ((_data & (!_wordSize ? 0xff : 0xffff)) == 0 ? 0x40 : 0);
     }
     bool sf() { return (_flags & 0x80) != 0; }
     void setSF()
@@ -1810,10 +1947,20 @@ private:
     bool of() { return (_flags & 0x800) != 0; }
     void setOF(bool of) { _flags = (_flags & ~0x800) | (of ? 0x800 : 0); }
     int modRMReg() { return (_modRM >> 3) & 7; }
-    UInt16& modRMRW() { return _registers[modRMReg()]; }
-    UInt8& modRMRB() { return byteRegister(modRMReg()); }
-    UInt16 getReg() { return !_wordSize ? modRMRB() : modRMRW(); }
-    UInt16 getAccum() { return !_wordSize ? al() : ax(); }
+    Register<UInt16>& modRMRW() { return _wordRegisters[modRMReg()]; }
+    Register<UInt8>& modRMRB() { return _byteRegisters[modRMReg()]; }
+    UInt16 getReg()
+    {
+        if (!_wordSize)
+            return static_cast<UInt8>(modRMRB());
+        return modRMRW(); 
+    }
+    UInt16 getAccum()
+    {
+        if (!_wordSize)
+            return static_cast<UInt8>(al());
+        return ax(); 
+    }
     void setAccum() { if (!_wordSize) al() = _data; else ax() = _data; }
     void setReg(UInt16 value)
     {
@@ -1821,11 +1968,6 @@ private:
             modRMRB() = static_cast<UInt8>(value);
         else
             modRMRW() = value;
-    }
-    UInt8& byteRegister(int n) /* AL CL DL BL AH CH DH BH */
-    {
-        return *(reinterpret_cast<UInt8*>(
-            &_registers[n & 3]) + (n >= 4 ? 1 : 0));
     }
     void initIO(State nextState, IOType ioType, bool wordSize)
     {
@@ -1881,8 +2023,12 @@ private:
         }
     }
 
-    UInt16 _registers[8];      /* AX CX DX BX SP BP SI DI */
-    UInt16 _flags;
+    Register<UInt16> _wordRegisters[8];
+    Register<UInt8> _byteRegisters[8];
+    Register<UInt16> _segmentRegisters[8];
+    UInt16 _registerData[8];      /* AX CX DX BX SP BP SI DI */
+    UInt16 _segmentRegisterData[8];
+    UInt16 _flagsData;
         //   0: CF = unsigned overflow?
         //   1:  1
         //   2: PF = parity: even number of 1 bits in result?
@@ -1895,7 +2041,7 @@ private:
         //   9: IF = interrupts enabled?
         //  10: DF = SI/DI decrement in string operations
         //  11: OF = signed overflow?
-    UInt16 _segmentRegisters[4];  /* ES CS SS DS */
+    FlagsRegister _flags;
     UInt16 _ip;
     UInt8 _prefetchQueue[4];
     UInt8 _prefetchOffset;
@@ -1924,6 +2070,7 @@ private:
     int _aluOperation;
     State _afterEA;
     State _afterIO;
+    State _afterModRM;
     State _afterRep;
     bool _sourceIsRM;
     UInt16 _savedCS;
