@@ -246,7 +246,7 @@ private:
     }
     UInt8 getByte()
     {
-        UInt8 v = _simulator->mem(1, _address);
+        UInt8 v = _simulator->memory(1, _address);
         ++_address;
         _bytes += String::hexadecimal(v, 2);
         return v;
@@ -387,14 +387,13 @@ public:
         _segmentRegisterData[7] = 0x0000;  // For IO accesses
         _memory.allocate(0x100000);
     }
-    UInt8& physicalMemory(UInt32 physicalAddress)
+    UInt8& memory(UInt32 physicalAddress)
     {
         return _memory[physicalAddress];
     }
-    UInt8& mem(int segment, UInt16 address)
+    UInt8& memory(int segment, UInt16 offset)
     {
-        return _memory[
-            ((_segmentRegisterData[segment] << 4) + address) & 0xfffff];
+        return memory(physicalAddress(_segmentRegisterData[segment], offset));
     }
     void simulate()
     {
@@ -405,19 +404,58 @@ public:
         do {
             String line = String::decimal(cycle).alignRight(5) + space;
             switch (_busState) {
-                case t1: line += "T1 "; break;
-                case t2: line += "T2 "; break;
-                case t3: line += "T3 "; break;
-                case tWait: line += "Tw "; break;
-                case t4: line += "T4 "; break;
-                case tIdle: line += "   "; break;
+                case t1:
+                    {
+                        UInt32 a;
+                        if (_ioInProgress != ioInstructionFetch) {
+                            int segment = _segment;
+                            if (_segmentOverride != -1)
+                                segment = _segmentOverride;
+                            a = physicalAddress(_segmentRegisterData[segment],
+                                _address);
+                        }
+                        else
+                            a = physicalAddress(csQuiet(), _prefetchAddress);
+                        line += String("T1 ") + String::hexadecimal(a, 5) +
+                            space;
+                    }
+                    break;
+                case t2:
+                    line += "T2 ";
+                    if (_ioInProgress == ioWrite)
+                        line += String("M<-") + String::hexadecimal(_data, 2) +
+                            space;
+                    else
+                        line += space*6;
+                    break;
+                case t3: line += "T3       "; break;
+                case tWait: line += "Tw       "; break;
+                case t4:
+                    {
+                        UInt8 d;
+                        if (_ioInProgress != ioInstructionFetch)
+                            d = _data;
+                        else
+                            d = memory(1, _prefetchAddress - 1);
+                        line += "T4 ";
+                        if (_ioInProgress == ioWrite)
+                            line += space*6;
+                        else
+                            if (_abandonFetch)
+                                line += "----- ";
+                            else
+                                line += String("M->") +
+                                    String::hexadecimal(d, 2) + space;
+                    }
+                    break;
+                case tIdle: line += "         "; break;
             }
             if (_newInstruction) {
                 line += String::hexadecimal(csQuiet(), 4) + colon +
                     String::hexadecimal(_newIP, 4) + space +
                     disassembler.disassemble(_newIP);
             }
-            line = line.alignLeft(41);
+            line = line.alignLeft(50);
             for (int i = 0; i < 8; ++i) {
                 line += _byteRegisters[i].text();
                 line += _wordRegisters[i].text();
@@ -443,74 +481,76 @@ public:
                     _busState = t3;
                     break;
                 case t3:
-                    _busState = t4;  // or tWait
+                    _busState = tWait;
+                    busDone = false;
                     return;
                 case tWait:
-                    _busState = t4;
-                    return;
-                case t4:
                     switch (_ioInProgress) {
                         case ioRead:
                             {
-                                _ioInProgress = ioNone;
                                 _ioRequested = ioNone;
                                 switch (_byte) {
                                     case ioSingleByte:
-                                        _data = physicalAddress(_address);
+                                        _data = memory();
                                         _state = _afterIO;
                                         break;
                                     case ioWordFirst:
-                                        _data = physicalAddress(_address);
+                                        _data = memory();
                                         _ioInProgress = ioRead;
                                         _byte = ioWordSecond;
+                                        ++_address;
                                         break;
                                     case ioWordSecond:
                                         _data |= static_cast<UInt16>(
-                                            physicalAddress(_address + 1))
-                                                << 8;
+                                            memory()) << 8;
                                         _state = _afterIO;
+                                        _byte = ioSingleByte;
                                         break;
                                 }
                             }
                             break;
                         case ioWrite:
                             {
-                                _ioInProgress = ioNone;
                                 _ioRequested = ioNone;
                                 switch (_byte) {
                                     case ioSingleByte:
-                                        physicalAddress(_address) = _data;
+                                        memory() = _data;
                                         _state = _afterIO;
                                         break;
                                     case ioWordFirst:
-                                        physicalAddress(_address) = _data;
+                                        memory() = _data;
                                         _ioInProgress = ioWrite;
                                         _byte = ioWordSecond;
+                                        ++_address;
                                         break;
                                     case ioWordSecond:
-                                        physicalAddress(_address + 1) =
-                                            _data >> 8;
+                                        memory() = _data >> 8;
                                         _state = _afterIO;
+                                        _byte = ioSingleByte;
                                         break;
                                 }
                             }
                             break;
                         case ioInstructionFetch:
-                            _ioInProgress = ioNone;
                             if (!_abandonFetch) {
                                 _prefetchQueue[
                                     (_prefetchOffset + _prefetched) & 3] =
-                                    mem(1, _prefetchAddress);
+                                    memory(1, _prefetchAddress);
                                 ++_prefetched;
                                 ++_prefetchAddress;
                             }
                             completeInstructionFetch();
                             break;
                     }
+                    _busState = t4;
+                    return;
+                case t4:
                     _busState = tIdle;
                     busDone = false;
                     break;
                 case tIdle:
+                    if (_byte != ioWordSecond)
+                        _ioInProgress = ioNone;
                     _abandonFetch = false;
                     if (_ioInProgress == ioNone && _ioRequested != ioNone) {
                         _ioInProgress = _ioRequested;
@@ -1986,12 +2026,16 @@ private:
         _prefetched = 0;
         _prefetchAddress = _ip;
     }
-    UInt8& physicalAddress(UInt16 address)
+    UInt32 physicalAddress(UInt16 segment, UInt16 offset)
+    {
+        return ((segment << 4) + offset) & 0xfffff;
+    }
+    UInt8& memory()
     {
         int segment = _segment;
         if (_segmentOverride != -1)
             segment = _segmentOverride;
-        return mem(segment, address);
+        return memory(segment, _address);
     }
     UInt8 getInstructionByte()
     {
@@ -2092,7 +2136,7 @@ public:
     {
         String romData = _file.contents();
         for (int i = 0; i < _length; ++i)
-            simulator->physicalMemory(i + _address) = romData[i + _offset];
+            simulator->memory(i + _address) = romData[i + _offset];
     }
 private:
     int _address;
