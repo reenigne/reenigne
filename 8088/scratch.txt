@@ -1,23 +1,16 @@
-IsaBus8Bit
-  UInt32 _address;
-  UInt8 _data;
-  bool _aen;
-  bool _memw;
-  bool _memr;
-  bool _iow;
-  bool _ior;
-  bool _dack[4];
-  bool _drq[4];
-  bool _tc;
-  bool _irq[8];
-  bool _ale;
+HashTable is Uncopyable - need to adapt so we can put a HashTable in a TypedValue
+  Make HashTable a ReferenceCounted? But then it has to carry a count around.
+  Have a generic ValueAdapater with a forwarding operator->?
 
-Read:
-  T1: Address put on bus
-  T4: Data read from bus
-Write:
-  T1: Address put on bus
-  T2: Data put on bus
+Iterate through the components in the simulator, look up their value names and
+ then look up the value by name in the TypedValue.
+
+What is the type of {ax=0x1234, bx=0x5678}?
+  It's Class{Integer ax; Integer bx;} (a type without a name)
+  (not Tuple<Integer, Integer> because that would not be convertable to CPU)
+  CPU has an implicit constructor from Class{Integer ax; Integer bx;}, if you
+    like. (Could be explicit, except then we'd have to specify the type in the
+    constructor definition).
 
 How are bytes removed from the prefetch queue?
   Model 1: Bytes are removed as they are decoded

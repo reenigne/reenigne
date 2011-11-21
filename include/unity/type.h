@@ -203,28 +203,28 @@ protected:
     TypeTemplate(const Implementation* implementation)
       : TypeConstructor(implementation) { }
 private:
-    class AtomicType : public TypeTemplate
-    {
-    public:
-        AtomicType(String name) : TypeTemplate(new Implementation(name)) { }
-    private:
-        class Implementation : public TypeTemplate::Implementation
-        { 
-        public:
-            Implementation(String name) : _name(name) { }
-            String toString() const { return _name; }
-        private:
-            String _name;
-        };
-    };
-
     friend class TemplateTemplate<void>;
 };
 
-Type Type::integer = Type::AtomicType("Integer");
-Type Type::string = Type::AtomicType("String");
-Type Type::boolean = Type::AtomicType("Boolean");
-Type Type::object = Type::AtomicType("Object");
+class AtomicType : public Type
+{
+public:
+    AtomicType(String name) : Type(new Implementation(name)) { }
+private:
+    class Implementation : public Type::Implementation
+    { 
+    public:
+        Implementation(String name) : _name(name) { }
+        String toString() const { return _name; }
+    private:
+        String _name;
+    };
+};
+
+Type Type::integer = AtomicType("Integer");
+Type Type::string = AtomicType("String");
+Type Type::boolean = AtomicType("Boolean");
+Type Type::object = AtomicType("Object");
 
 template<class T> class TemplateTemplate : public TypeConstructor
 {

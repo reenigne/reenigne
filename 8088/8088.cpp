@@ -14,14 +14,191 @@
 //{
 //};
 
-template<class T> class SimulatorTemplate;
+template<class T> class Intel8088Template;
 
-typedef SimulatorTemplate<void> Simulator;
+typedef Intel8088Template<void> Intel8088;
+
+class Component
+{
+public:
+    virtual void simulateCycle() = 0;
+    virtual String save() = 0;
+    virtual Type type() = 0;
+    virtual String name() = 0;
+    virtual void load(const TypedValue& value) = 0;
+};
+
+class Simulator
+{
+public:
+    void simulateCycle()
+    {
+        for (List<Component*>::Iterator i = _components.start();
+            i != _components.end(); ++i) {
+            (*i)->simulateCycle();
+        }
+    }
+    void addComponent(Component* component) { _components.add(component); }
+    String save() const
+    {
+        String s("simulator = {");
+        for (List<Component*>::Iterator i = _components.start();
+            i != _components.end(); ++i) {
+            s = (*i)->save();
+        }
+        s += "}";
+    }
+    Type type()
+    {
+        List<StructuredType::Member> members;
+        for (List<Component*>::Iterator i = _components.start();
+            i != _components.end(); ++i) {
+            Type type = (*i)->type();
+            if (type.valid())
+                members.add(
+                    StructuredType::Member((*i)->name(), (*i)->type()));
+        }
+        return StructuredType("Simulator", members);
+    }
+    void load(const TypedValue& value)
+    {
+
+    }
+private:
+    List<Component*> _components;
+};
+
+class ISA8BitComponent : public Component
+{
+public:
+    void simulateCycle() { }
+
+    // Address bit 31 = write
+    // Address bit 30 = IO
+    virtual void setAddress(UInt32 address) = 0;
+    virtual UInt8 read() = 0;
+    virtual void write(UInt8 data) = 0;
+    void setBus(ISA8BitBus* bus) { _bus = bus; }
+protected:
+    ISA8BitBus* _bus;
+    bool _active;
+};
+
+class ISA8BitBus : public Component
+{
+public:
+    void simulateCycle() { }
+    void addComponent(ISA8BitComponent* component)
+    {
+        _components.add(component);
+        component->setBus(this);
+    }
+private:
+    List<ISA8BitComponent*> _components;
+};
+
+class Motorola6845CRTC : public Component
+{
+public:
+    void simulateCycle()
+    {
+    }
+};
+
+class IBMCGA : public ISA8BitComponent
+{
+public:
+    void setAddress(UInt32 address)
+    {
+        _memoryActive = ((address & 0x400f8000) == 0xb8000);
+        _memoryAddress = address & 0x00003fff;
+        _portActive = ((address & 0x400003f0) == 0x400003d0);
+        _active = (_memoryActive || _portActive);
+    }
+    UInt8 read()
+    { 
+        if (_memoryActive)
+            return _data[_memoryAddress];
+        return 0;
+    }
+    void write(UInt8 data)
+    {
+        if (_memoryActive)
+            _data[_memoryAddress] = data;
+    }
+private:
+    int _memoryAddress;
+    bool _memoryActive;
+    int _portAddress;
+    bool _portActive;
+    Array<UInt8> _data;
+};
+
+class RAM640Kb : public ISA8BitComponent
+{
+public:
+    RAM640Kb() : _data(0xa0000) { }
+    void setAddress(UInt32 address)
+    {
+        _address = address & 0x400fffff;
+        _active = (_address < 0xa0000);
+    }
+    UInt8 read() { return _data[_address]; }
+    void write(UInt8 data) { _data[_address] = data; }
+private:
+    int _address;
+    Array<UInt8> _data;
+};
+
+class Intel8253PIT : public ISA8BitComponent
+{
+};
+
+class Intel8237DMA : public ISA8BitComponent
+{
+};
+
+class Intel8255PPI : public ISA8BitComponent
+{
+};
+
+class Intel8259PIC : public ISA8BitComponent
+{
+};
+
+class ROM : public ISA8BitComponent
+{
+public:
+    void initialize(int mask, int start, File file, int offset)
+    {
+        _mask = mask | 0xc0000000;
+        _start = start;
+        String romData = file.contents();
+        int length = ((start | ~mask) & 0xfffff) + 1 - start;
+        _data.allocate(length);
+        for (int i = 0; i < length; ++i)
+            _data[i] = romData[i + offset];
+    }
+    void setAddress(UInt32 address)
+    {
+        _address = address;
+        _active = ((_address & _mask) == _start);
+    }
+    UInt8 read() { return _data[_address & ~_mask]; }
+    void write(UInt8 data) { }
+private:
+    int _mask;
+    int _start;
+    int _address;
+    Array<UInt8> _data;
+    bool _selected;
+};
+
 
 template<class T> class DisassemblerTemplate
 {
 public:
-    void setSimulator(Simulator* simulator) { _simulator = simulator; }
+    void setIntel8088(Intel8088* intel8088) { _intel8088 = intel8088; }
     String disassemble(UInt16 address)
     {
         _bytes = empty;
@@ -246,7 +423,7 @@ private:
     }
     UInt8 getByte()
     {
-        UInt8 v = _simulator->memory(1, _address);
+        UInt8 v = _intel8088->memory(1, _address);
         ++_address;
         _bytes += String::hexadecimal(v, 2);
         return v;
@@ -336,7 +513,7 @@ private:
             String::hexadecimal(offset, 4);
     }
 
-    Simulator* _simulator;
+    Intel8088* _intel8088;
     UInt16 _address;
     UInt8 _opcode;
     UInt8 _modRM;
@@ -347,10 +524,10 @@ private:
 
 typedef DisassemblerTemplate<void> Disassembler;
 
-template<class T> class SimulatorTemplate
+template<class T> class Intel8088Template
 {
 public:
-    SimulatorTemplate(Handle* console)
+    Intel8088Template(Handle* console)
       : _flagsData(0x0002),  // ?
         _state(stateFetch),
         _ip(0xfff0),
@@ -387,6 +564,7 @@ public:
         _segmentRegisterData[7] = 0x0000;  // For IO accesses
         _memory.allocate(0x100000);
     }
+    void setBus(ISA8BitBus* bus) { _bus = bus; }
     UInt8& memory(UInt32 physicalAddress)
     {
         return _memory[physicalAddress];
@@ -398,7 +576,7 @@ public:
     void simulate()
     {
         Disassembler disassembler;
-        disassembler.setSimulator(this);
+        disassembler.setIntel8088(this);
         int cycle = 0;
 
         do {
@@ -2125,42 +2303,41 @@ private:
     Handle* _console;
     bool _newInstruction;
     UInt16 _newIP;
+    ISA8BitBus* _bus;
 };
 
-class RomImage
+class ROMData
 {
 public:
-    RomImage(int address, File file, int length, int offset)
-        : _address(address), _file(file), _length(length), _offset(offset) { }
-    void load(Simulator* simulator)
-    {
-        String romData = _file.contents();
-        for (int i = 0; i < _length; ++i)
-            simulator->memory(i + _address) = romData[i + _offset];
-    }
+    ROMData(int mask, int address, File file, int offset)
+      : _mask(mask), _address(address), _file(file), _offset(offset) { }
+    int mask() const { return _mask; }
+    int address() const { return _address; }
+    File file() const { return _file; }
+    int offset() const { return _offset; }
 private:
+    int _mask;
     int _address;
     File _file;
-    int _length;
     int _offset;
 };
 
-class RomImageConversion : public Conversion
+class ROMConversion : public Conversion
 {
 public:
-    RomImageConversion(const Type& type) : _type(type) { }
+    ROMConversion(const Type& type) : _type(type) { }
     TypedValue operator()(const TypedValue& value) const
     {
         List<TypedValue> romMembers = value.value<List<TypedValue>>();
         List<TypedValue>::Iterator m = romMembers.start();
         int address = (*m).value<int>();
         ++m;
+        int mask = (*m).value<int>();
+        ++m;
         File file = (*m).value<String>();
         ++m;
-        int length = (*m).value<int>();
-        ++m;
         int offset = (*m).value<int>();
-        return TypedValue(_type, Any(RomImage(address, file, length, offset)),
+        return TypedValue(_type, Any(ROMData(mask, address, file, offset)),
             value.span());
     }
 private:
@@ -2181,19 +2358,10 @@ protected:
 
         ConfigFile config;
 
-        List<StructuredType::Member> romImageTypeMembers;
-        romImageTypeMembers.add(
-            StructuredType::Member("address",  Type::integer));
-        romImageTypeMembers.add(
-            StructuredType::Member("fileName", Type::string));
-        romImageTypeMembers.add(
-            StructuredType::Member("length",   Type::integer));
-        romImageTypeMembers.add(
-            StructuredType::Member("offset",   Type::string));
-        StructuredType romImageType("ROMImage", romImageTypeMembers);
-        config.addType(romImageType);
+        AtomicType romDataType("ROM");
+        config.addType(romDataType);
 
-        RomImageConversion conversion(romImageType);
+        ROMConversion conversion(romDataType);
 
         List<Type> tupleArguments;
         tupleArguments.add(Type::integer);
@@ -2201,23 +2369,46 @@ protected:
         tupleArguments.add(Type::integer);
         tupleArguments.add(Type::integer);
 
-        config.addConversion(Type::tuple(tupleArguments), romImageType,
+        config.addConversion(Type::tuple(tupleArguments), romDataType,
             &conversion);
 
-        Type romImageArrayType = Type::array(romImageType);
+        Type romImageArrayType = Type::array(romDataType);
         config.addType(romImageArrayType);
         config.addOption("roms", romImageArrayType);
 
         config.load(_arguments[1]);
 
-        Simulator simulator(&_console);
+        ISA8BitBus bus;
+        IBMCGA cga;
+        Intel8253PIT pit;
+        Intel8237DMA dma;
+        Intel8255PPI ppi;
+        Intel8259PIC pic;
+        RAM640Kb ram;
+        bus.addComponent(&ram);
+        bus.addComponent(&cga);
+        bus.addComponent(&pit);
+        bus.addComponent(&dma);
+        bus.addComponent(&ppi);
+        bus.addComponent(&pic);
 
-        List<TypedValue> roms = config.get<List<TypedValue> >("roms");
-        for (List<TypedValue>::Iterator i = roms.start(); i != roms.end();
-            ++i) {
-            RomImage romImage = (*i).value<RomImage>();
-            romImage.load(&simulator);
+        List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
+        Array<ROM> roms(romDatas.count());
+        int r = 0;
+        for (List<TypedValue>::Iterator i = romDatas.start();
+            i != romDatas.end(); ++i) {
+            ROMData romData = (*i).value<ROMData>();
+            ROM* rom = &roms[r];
+            rom->initialize(romData);
+            bus.addComponent(rom);
         }
+            bus.addComponent(&rom);
+
+        Simulator simulator;
+        Intel8088 cpu(&_console);
+        cpu.setBus(&bus);
+        simulator.addComponent(&bus);
+        simulator.addComponent(&cpu);
 
         //File file(config.get<String>("sourceFile"));
         //String contents = file.contents();
@@ -2228,17 +2419,3 @@ protected:
         simulator.simulate();
     }
 };
-
-/* TODO:
-
-Read input assembly source
-Compile to binary
-Simulate run
-Output one line per cycle
-  CPU state
-  Bus address/data
-  Instruction being executed
-    From source if available, otherwise disassemble
-
-
-*/
