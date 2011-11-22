@@ -21,11 +21,11 @@ typedef Intel8088Template<void> Intel8088;
 class Component
 {
 public:
-    virtual void simulateCycle() = 0;
-    virtual String save() = 0;
-    virtual Type type() = 0;
-    virtual String name() = 0;
-    virtual void load(const TypedValue& value) = 0;
+    virtual void simulateCycle() { }
+    virtual String save() { return String(); }
+    virtual Type type() { return Type(); }
+    virtual String name() { return String(); }
+    virtual void load(const TypedValue& value) { }
 };
 
 class Simulator
@@ -42,8 +42,12 @@ public:
     String save() const
     {
         String s("simulator = {");
+        bool needComma = false;
         for (List<Component*>::Iterator i = _components.start();
             i != _components.end(); ++i) {
+            if (needComma)
+                s += ", ";
+            needComma = true;
             s = (*i)->save();
         }
         s += "}";
@@ -54,15 +58,20 @@ public:
         for (List<Component*>::Iterator i = _components.start();
             i != _components.end(); ++i) {
             Type type = (*i)->type();
-            if (type.valid())
-                members.add(
-                    StructuredType::Member((*i)->name(), (*i)->type()));
+            if (!type.valid())
+                continue;
+            members.add(StructuredType::Member((*i)->name(), (*i)->type()));
         }
         return StructuredType("Simulator", members);
     }
     void load(const TypedValue& value)
     {
-
+        Value<HashTable<String, TypedValue> > object =
+            value.value<Value<HashTable<String, TypedValue> > >();
+        for (List<Component*>::Iterator i = _components.start();
+            i != _components.end(); ++i) {
+            (*i)->load(object->operator[]((*i)->name()));
+        }
     }
 private:
     List<Component*> _components;
@@ -71,14 +80,14 @@ private:
 class ISA8BitComponent : public Component
 {
 public:
-    void simulateCycle() { }
-
     // Address bit 31 = write
     // Address bit 30 = IO
     virtual void setAddress(UInt32 address) = 0;
     virtual UInt8 read() = 0;
     virtual void write(UInt8 data) = 0;
+    virtual bool wait() { return false; }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
+    UInt8 memory(UInt32 address) { return 0xff; }
 protected:
     ISA8BitBus* _bus;
     bool _active;
@@ -93,46 +102,96 @@ public:
         _components.add(component);
         component->setBus(this);
     }
+    UInt8 memory(UInt32 address)
+    {
+        UInt8 data = 0xff;
+        for (List<ISA8BitComponent*>::Iterator i = _components.start();
+            i != _components.end(); ++i) {
+            data &= (*i)->memory(address);
+        }
+        return data;
+    }
+    String save() const
+    {
+        String s("bus: {");
+        bool needComma = false;
+        for (List<ISA8BitComponent*>::Iterator i = _components.start();
+            i != _components.end(); ++i) {
+            if (needComma)
+                s += ", ";
+            needComma = true;
+            s = (*i)->save();
+        }
+        s += "}";
+    }
+    Type type()
+    {
+        List<StructuredType::Member> members;
+        for (List<ISA8BitComponent*>::Iterator i = _components.start();
+            i != _components.end(); ++i) {
+            Type type = (*i)->type();
+            if (!type.valid())
+                continue;
+            members.add(StructuredType::Member((*i)->name(), (*i)->type()));
+        }
+        return StructuredType("Bus", members);
+    }
+    void load(const TypedValue& value)
+    {
+        Value<HashTable<String, TypedValue> > object =
+            value.value<Value<HashTable<String, TypedValue> > >();
+        for (List<ISA8BitComponent*>::Iterator i = _components.start();
+            i != _components.end(); ++i) {
+            (*i)->load(value);
+        }
+    }
+    String name() const { return "bus"; }
 private:
     List<ISA8BitComponent*> _components;
 };
 
-class Motorola6845CRTC : public Component
-{
-public:
-    void simulateCycle()
-    {
-    }
-};
-
-class IBMCGA : public ISA8BitComponent
-{
-public:
-    void setAddress(UInt32 address)
-    {
-        _memoryActive = ((address & 0x400f8000) == 0xb8000);
-        _memoryAddress = address & 0x00003fff;
-        _portActive = ((address & 0x400003f0) == 0x400003d0);
-        _active = (_memoryActive || _portActive);
-    }
-    UInt8 read()
-    { 
-        if (_memoryActive)
-            return _data[_memoryAddress];
-        return 0;
-    }
-    void write(UInt8 data)
-    {
-        if (_memoryActive)
-            _data[_memoryAddress] = data;
-    }
-private:
-    int _memoryAddress;
-    bool _memoryActive;
-    int _portAddress;
-    bool _portActive;
-    Array<UInt8> _data;
-};
+//class Motorola6845CRTC : public Component
+//{
+//public:
+//    void simulateCycle()
+//    {
+//    }
+//};
+//
+//class IBMCGA : public ISA8BitComponent
+//{
+//public:
+//    void setAddress(UInt32 address)
+//    {
+//        _memoryActive = ((address & 0x400f8000) == 0xb8000);
+//        _memoryAddress = address & 0x00003fff;
+//        _portActive = ((address & 0x400003f0) == 0x400003d0);
+//        _active = (_memoryActive || _portActive);
+//    }
+//    UInt8 read()
+//    { 
+//        if (_memoryActive)
+//            return _data[_memoryAddress];
+//        return 0;
+//    }
+//    void write(UInt8 data)
+//    {
+//        if (_memoryActive)
+//            _data[_memoryAddress] = data;
+//    }
+    //UInt8 memory(UInt32 address)
+    //{
+    //    if ((address & 0xf8000) == 0xb8000)
+    //        return _data[address & 0x3fff];
+    //    return 0xff;
+    //}
+//private:
+//    int _memoryAddress;
+//    bool _memoryActive;
+//    int _portAddress;
+//    bool _portActive;
+//    Array<UInt8> _data;
+//};
 
 class RAM640Kb : public ISA8BitComponent
 {
@@ -145,47 +204,99 @@ public:
     }
     UInt8 read() { return _data[_address]; }
     void write(UInt8 data) { _data[_address] = data; }
+    UInt8 memory(UInt32 address)
+    {
+        if (address < 0xa0000)
+            return _data[address];
+        return 0xff;
+    }
+    String save() const
+    {
+        String s("ram: ###\n");
+        for (int y = 0; y < 0xa0000; y += 0x20) {
+            String line;
+            for (int x = 0; x < 0x20; x += 4) {
+                int p = y + x;
+                UInt32 v = (_data[p]<<24) + (_data[p+1]<<16) +
+                    (_data[p+2]<<8) + _data[p+3];
+                line += String::hexadecimal(v, 8) + space;
+            }
+            line += String("//") + String::hexadecimal(y, 5) + "\n";
+            s += line;
+        }
+        return s + "###\n";
+    }
+    Type type() { return Type::string; }
+    void load(const TypedValue& value)
+    {
+        String s = value.value<String>();
+
+    }
+    String name() const { return "ram"; }
 private:
     int _address;
     Array<UInt8> _data;
 };
 
-class Intel8253PIT : public ISA8BitComponent
-{
-};
+//class Intel8253PIT : public ISA8BitComponent
+//{
+//};
+//
+//class Intel8237DMA : public ISA8BitComponent
+//{
+//};
+//
+//class Intel8255PPI : public ISA8BitComponent
+//{
+//};
+//
+//class Intel8259PIC : public ISA8BitComponent
+//{
+//};
 
-class Intel8237DMA : public ISA8BitComponent
+class ROMData
 {
-};
-
-class Intel8255PPI : public ISA8BitComponent
-{
-};
-
-class Intel8259PIC : public ISA8BitComponent
-{
+public:
+    ROMData(int mask, int start, File file, int offset)
+      : _mask(mask), _start(start), _file(file), _offset(offset) { }
+    int mask() const { return _mask; }
+    int start() const { return _start; }
+    File file() const { return _file; }
+    int offset() const { return _offset; }
+private:
+    int _mask;
+    int _start;
+    File _file;
+    int _offset;
 };
 
 class ROM : public ISA8BitComponent
 {
 public:
-    void initialize(int mask, int start, File file, int offset)
+    void initialize(const ROMData& romData)
     {
-        _mask = mask | 0xc0000000;
-        _start = start;
-        String romData = file.contents();
-        int length = ((start | ~mask) & 0xfffff) + 1 - start;
+        _mask = romData.mask() | 0xc0000000;
+        _start = romData.start();
+        String data = romData.file().contents();
+        int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
         _data.allocate(length);
+        int offset = romData.offset();
         for (int i = 0; i < length; ++i)
-            _data[i] = romData[i + offset];
+            _data[i] = data[i + offset];
     }
     void setAddress(UInt32 address)
     {
-        _address = address;
-        _active = ((_address & _mask) == _start);
+        _address = address & 0xfffff & ~_mask;
+        _active = ((address & _mask) == _start);
     }
-    UInt8 read() { return _data[_address & ~_mask]; }
+    UInt8 read() const { return _data[_address & ~_mask]; }
     void write(UInt8 data) { }
+    UInt8 memory(UInt32 address)
+    {
+        if ((address & _mask) == _start)
+            return _data[address & ~_mask];
+        return 0xff;
+    }
 private:
     int _mask;
     int _start;
@@ -198,7 +309,8 @@ private:
 template<class T> class DisassemblerTemplate
 {
 public:
-    void setIntel8088(Intel8088* intel8088) { _intel8088 = intel8088; }
+    void setBus(ISA8BitBus* bus) { _bus = bus; }
+    void setCPU(Intel8088* cpu) { _cpu = cpu; }
     String disassemble(UInt16 address)
     {
         _bytes = empty;
@@ -423,7 +535,7 @@ private:
     }
     UInt8 getByte()
     {
-        UInt8 v = _intel8088->memory(1, _address);
+        UInt8 v = _bus->memory(_cpu->codeAddress(_address));
         ++_address;
         _bytes += String::hexadecimal(v, 2);
         return v;
@@ -513,7 +625,8 @@ private:
             String::hexadecimal(offset, 4);
     }
 
-    Intel8088* _intel8088;
+    ISA8BitBus* _bus;
+    Intel8088* _cpu;
     UInt16 _address;
     UInt8 _opcode;
     UInt8 _modRM;
@@ -565,6 +678,10 @@ public:
         _memory.allocate(0x100000);
     }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
+    UInt32 codeAddress(UInt16 offset)
+    {
+        return physicalAddress(_segmentRegisterData[1], offset);
+    }
     UInt8& memory(UInt32 physicalAddress)
     {
         return _memory[physicalAddress];
@@ -576,7 +693,8 @@ public:
     void simulate()
     {
         Disassembler disassembler;
-        disassembler.setIntel8088(this);
+        disassembler.setBus(_bus);
+        disassembler.setCPU(this);
         int cycle = 0;
 
         do {
@@ -2306,22 +2424,6 @@ private:
     ISA8BitBus* _bus;
 };
 
-class ROMData
-{
-public:
-    ROMData(int mask, int address, File file, int offset)
-      : _mask(mask), _address(address), _file(file), _offset(offset) { }
-    int mask() const { return _mask; }
-    int address() const { return _address; }
-    File file() const { return _file; }
-    int offset() const { return _offset; }
-private:
-    int _mask;
-    int _address;
-    File _file;
-    int _offset;
-};
-
 class ROMConversion : public Conversion
 {
 public:
@@ -2379,18 +2481,19 @@ protected:
         config.load(_arguments[1]);
 
         ISA8BitBus bus;
-        IBMCGA cga;
-        Intel8253PIT pit;
-        Intel8237DMA dma;
-        Intel8255PPI ppi;
-        Intel8259PIC pic;
         RAM640Kb ram;
         bus.addComponent(&ram);
-        bus.addComponent(&cga);
-        bus.addComponent(&pit);
-        bus.addComponent(&dma);
-        bus.addComponent(&ppi);
-        bus.addComponent(&pic);
+
+        //IBMCGA cga;
+        //bus.addComponent(&cga);
+        //Intel8253PIT pit;
+        //bus.addComponent(&pit);
+        //Intel8237DMA dma;
+        //bus.addComponent(&dma);
+        //Intel8255PPI ppi;
+        //bus.addComponent(&ppi);
+        //Intel8259PIC pic;
+        //bus.addComponent(&pic);
 
         List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
         Array<ROM> roms(romDatas.count());

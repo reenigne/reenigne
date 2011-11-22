@@ -1,7 +1,3 @@
-HashTable is Uncopyable - need to adapt so we can put a HashTable in a TypedValue
-  Make HashTable a ReferenceCounted? But then it has to carry a count around.
-  Have a generic ValueAdapater with a forwarding operator->?
-
 Iterate through the components in the simulator, look up their value names and
  then look up the value by name in the TypedValue.
 

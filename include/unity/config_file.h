@@ -6,6 +6,7 @@
 #include "unity/space.h"
 #include "unity/any.h"
 #include "unity/type.h"
+#include "unity/value.h"
 
 class ConfigFile
 {
