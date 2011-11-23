@@ -169,7 +169,7 @@ private:
 //        _active = (_memoryActive || _portActive);
 //    }
 //    UInt8 read()
-//    { 
+//    {
 //        if (_memoryActive)
 //            return _data[_memoryAddress];
 //        return 0;
@@ -196,7 +196,11 @@ private:
 class RAM640Kb : public ISA8BitComponent
 {
 public:
-    RAM640Kb() : _data(0xa0000) { }
+    RAM640Kb() : _data(0xa0000)
+    {
+        for (int a = 0; a < 0xa0000; ++a)
+            _data[a] = 0;
+    }
     void setAddress(UInt32 address)
     {
         _address = address & 0x400fffff;
@@ -230,7 +234,23 @@ public:
     void load(const TypedValue& value)
     {
         String s = value.value<String>();
-
+        CharacterSource source(s, empty);
+        int a = 0;
+        Space::parse(&source);
+        do {
+            Span span;
+            int t = parseHexadecimalCharacter(&source, &span);
+            if (t < 0)
+                span.throwError("Expected hexadecimal character");
+            int t2 = parseHexadecimalCharacter(&source, &span);
+            if (t < 0)
+                span.throwError("Expected hexadecimal character");
+            _data[a++] = (t << 4) + t2;
+            Space::parse(&source);
+            CharacterSource s2(source);
+            if (s2.get() == -1)
+                break;
+        } while (true);
     }
     String name() const { return "ram"; }
 private:
@@ -676,6 +696,30 @@ public:
         _segmentRegisterData[3] = 0x0000;  // ?
         _segmentRegisterData[7] = 0x0000;  // For IO accesses
         _memory.allocate(0x100000);
+
+        List<EnumerationType::Value> stateValues;
+        for (int i = stateWaitingForBIU; i <= stateMisc2; ++i)
+            stateValues.add(EnumerationType::Value(stringFromState(i),
+                static_cast<State>(i));
+        _stateType = EnumerationType("State", stateValues);
+
+        List<EnumerationType::Value> ioTypeValues;
+        for (int i = ioNone; i <= ioInstructionFetch; ++i)
+            stateValues.add(EnumerationType::Value(stringFromIOType(i),
+                static_cast<IOType>(i));
+        _ioTypeType = EnumerationType("IOType", ioTypeValues);
+
+        List<EnumerationType::Value> ioByteValues;
+        for (int i = ioSingleByte; i <= ioWordSecond; ++i)
+            stateValues.add(EnumerationType::Value(stringFromIOByte(i),
+                static_cast<IOByte>(i));
+        _ioByteType = EnumerationType("IOByte", ioByteValues);
+
+        List<EnumerationType::Value> busStateValues;
+        for (int i = t1; i <= tIdle; ++i)
+            stateValues.add(EnumerationType::Value(stringFromBusState(i),
+                static_cast<BusState>(i));
+        _busStateType = EnumerationType("BusState", busStateValues);
     }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
     UInt32 codeAddress(UInt16 offset)
@@ -876,69 +920,69 @@ public:
                         _wordSize = ((_opcode & 1) != 0);
                         _sourceIsRM = ((_opcode & 2) != 0);
                         static State stateForOpcode[0x100] = {
-stateALU,          stateALU,          stateALU,          stateALU,          
+stateALU,          stateALU,          stateALU,          stateALU,
 stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
-stateALU,          stateALU,          stateALU,          stateALU,          
+stateALU,          stateALU,          stateALU,          stateALU,
 stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
-stateALU,          stateALU,          stateALU,          stateALU,          
+stateALU,          stateALU,          stateALU,          stateALU,
 stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
-stateALU,          stateALU,          stateALU,          stateALU,          
+stateALU,          stateALU,          stateALU,          stateALU,
 stateALUAccumImm,  stateALUAccumImm,  statePushSegReg,   statePopSegReg,
-stateALU,          stateALU,          stateALU,          stateALU,          
+stateALU,          stateALU,          stateALU,          stateALU,
 stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateDAA,
-stateALU,          stateALU,          stateALU,          stateALU,          
+stateALU,          stateALU,          stateALU,          stateALU,
 stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateDAS,
-stateALU,          stateALU,          stateALU,          stateALU,          
+stateALU,          stateALU,          stateALU,          stateALU,
 stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateAAA,
-stateALU,          stateALU,          stateALU,          stateALU,          
+stateALU,          stateALU,          stateALU,          stateALU,
 stateALUAccumImm,  stateALUAccumImm,  stateSegOverride,  stateAAS,
-stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     
 stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,
-stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     
 stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,
-statePushRW,       statePushRW,       statePushRW,       statePushRW,       
+stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,
+stateIncDecRW,     stateIncDecRW,     stateIncDecRW,     stateIncDecRW,
 statePushRW,       statePushRW,       statePushRW,       statePushRW,
-statePopRW,        statePopRW,        statePopRW,        statePopRW,        
+statePushRW,       statePushRW,       statePushRW,       statePushRW,
 statePopRW,        statePopRW,        statePopRW,        statePopRW,
-stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      
+statePopRW,        statePopRW,        statePopRW,        statePopRW,
 stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
-stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,      
 stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
-stateJCond,        stateJCond,        stateJCond,        stateJCond,        
+stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
+stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
 stateJCond,        stateJCond,        stateJCond,        stateJCond,
-stateJCond,        stateJCond,        stateJCond,        stateJCond,        
 stateJCond,        stateJCond,        stateJCond,        stateJCond,
-stateALURMImm,     stateALURMImm,     stateALURMImm,     stateALURMImm,     
+stateJCond,        stateJCond,        stateJCond,        stateJCond,
+stateJCond,        stateJCond,        stateJCond,        stateJCond,
+stateALURMImm,     stateALURMImm,     stateALURMImm,     stateALURMImm,
 stateTestRMReg,    stateTestRMReg,    stateXchgRMReg,    stateXchgRMReg,
-stateMovRMReg,     stateMovRMReg,     stateMovRegRM,     stateMovRegRM,     
+stateMovRMReg,     stateMovRMReg,     stateMovRegRM,     stateMovRegRM,
 stateMovRMWSegReg, stateLEA,          stateMovSegRegRMW, statePopMW,
-stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     
 stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,
-stateCBW,          stateCWD,          stateCallCP,       stateWait,         
+stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,     stateXchgAxRW,
+stateCBW,          stateCWD,          stateCallCP,       stateWait,
 statePushF,        statePopF,         stateSAHF,         stateLAHF,
-stateMovAccumInd,  stateMovAccumInd,  stateMovIndAccum,  stateMovIndAccum,  
+stateMovAccumInd,  stateMovAccumInd,  stateMovIndAccum,  stateMovIndAccum,
 stateMovS,         stateMovS,         stateCmpS,         stateCmpS,
-stateTestAccumImm, stateTestAccumImm, stateStoS,         stateStoS,         
+stateTestAccumImm, stateTestAccumImm, stateStoS,         stateStoS,
 stateLodS,         stateLodS,         stateScaS,         stateScaS,
-stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    
 stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
-stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    
 stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
-stateInvalid,      stateInvalid,      stateRet,          stateRet,          
+stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
+stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
+stateInvalid,      stateInvalid,      stateRet,          stateRet,
 stateLoadFar,      stateLoadFar,      stateMovRMImm,     stateMovRMImm,
-stateInvalid,      stateInvalid,      stateRet,          stateRet,          
+stateInvalid,      stateInvalid,      stateRet,          stateRet,
 stateInt,          stateInt,          stateIntO,         stateIRet,
-stateShift,        stateShift,        stateShift,        stateShift,        
+stateShift,        stateShift,        stateShift,        stateShift,
 stateAAM,          stateAAD,          stateSALC,         stateXlatB,
-stateEscape,       stateEscape,       stateEscape,       stateEscape,       
 stateEscape,       stateEscape,       stateEscape,       stateEscape,
-stateLoop,         stateLoop,         stateLoop,         stateLoop,         
+stateEscape,       stateEscape,       stateEscape,       stateEscape,
+stateLoop,         stateLoop,         stateLoop,         stateLoop,
 stateInOut,        stateInOut,        stateInOut,        stateInOut,
-stateCallCW,       stateJmpCW,        stateJmpCP,        stateJmpCB,        
+stateCallCW,       stateJmpCW,        stateJmpCP,        stateJmpCB,
 stateInOut,        stateInOut,        stateInOut,        stateInOut,
-stateLock,         stateInvalid,      stateRep,          stateRep,          
+stateLock,         stateInvalid,      stateRep,          stateRep,
 stateHlt,          stateCmC,          stateMath,         stateMath,
-stateLoadC,        stateLoadC,        stateLoadI,        stateLoadI,        
+stateLoadC,        stateLoadC,        stateLoadI,        stateLoadI,
 stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         _state = stateForOpcode[_opcode];
                     }
@@ -1397,7 +1441,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         rw() = _data;
                     else
                         rb() = _data;
-                    end(4); 
+                    end(4);
                     break;
 
                 case stateRet: pop(stateRet2); break;
@@ -1888,7 +1932,370 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             }
         } while (true);
     }
+
+    String save() const
+    {
+        String s("cpu: {\n");
+        s += String("  ip: 0x") + String::hexadecimal(_ip, 4) + String(",\n");
+        s += String("  ax: 0x") + String::hexadecimal(_registerData[0], 4) +
+            String(",\n");
+        s += String("  cx: 0x") + String::hexadecimal(_registerData[1], 4) +
+            String(",\n");
+        s += String("  dx: 0x") + String::hexadecimal(_registerData[2], 4) +
+            String(",\n");
+        s += String("  bx: 0x") + String::hexadecimal(_registerData[3], 4) +
+            String(",\n");
+        s += String("  sp: 0x") + String::hexadecimal(_registerData[4], 4) +
+            String(",\n");
+        s += String("  bp: 0x") + String::hexadecimal(_registerData[5], 4) +
+            String(",\n");
+        s += String("  si: 0x") + String::hexadecimal(_registerData[6], 4) +
+            String(",\n");
+        s += String("  di: 0x") + String::hexadecimal(_registerData[7], 4) +
+            String(",\n");
+        s += String("  es: 0x") +
+            String::hexadecimal(_segmentRegisterData[0], 4) + String(",\n");
+        s += String("  cs: 0x") +
+            String::hexadecimal(_segmentRegisterData[1], 4) + String(",\n");
+        s += String("  ss: 0x") +
+            String::hexadecimal(_segmentRegisterData[2], 4) + String(",\n");
+        s += String("  ds: 0x") +
+            String::hexadecimal(_segmentRegisterData[3], 4) + String(",\n");
+        s += String("  flags: 0x") +
+            String::hexadecimal(_flagsData, 4) + String(",\n");
+        s += String("  prefetch: {");
+        bool needComma = false;
+        for (int i = 0; i < _prefetched; ++i) {
+            if (needComma)
+                s += ", ";
+            needComma = true;
+            s += "0x" + String::hexadecimal(
+                _prefetchQueue[(i + _prefetchOffset) & 3], 2);
+        }
+        s += "},\n";
+        s += String("  segment: ") + String::decimal(_segment) + String(",\n");
+        s += String("  segmentOverride: ") + String::decimal(_segment) +
+            String(",\n");
+        s += String("  prefetchAddress: ") + String::decimal(_prefetchAddress)
+            + String(",\n");
+        s += String("  ioType: ") + stringForIOType(_ioType) + String(",\n");
+        s += String("  ioRequested: ") + stringForIOType(_ioRequested) +
+            String(",\n");
+        s += String("  ioInProgress: ") + stringForIOType(_ioInProgress) +
+            String(",\n");
+        s += String("  busState: ") + stringForBusState(_busState) +
+            String(",\n");
+        s += String("  byte: ") + stringForIOByte(_byte) + String(",\n");
+        s += String("  abandonFetch: ") + (_abandonFetch ? "true" : "false") +
+            String(",\n");
+        s += String("  wait: ") + String::decimal(_wait) + String(",\n");
+        s += String("  state: ") + stringForState(_state) + String(",\n");
+        s += String("  opcode: 0x") + String::hexadecimal(_opcode, 2) +
+            String(",\n");
+        s += String("  modRM: 0x") + String::hexadecimal(_modRM, 2) +
+            String(",\n");
+        s += String("  data: 0x") + String::hexadecimal(_data, 8) +
+            String(",\n");
+        s += String("  source: 0x") + String::hexadecimal(_source, 8) +
+            String(",\n");
+        s += String("  destination: 0x") +
+            String::hexadecimal(_destination, 8) + String(",\n");
+        s += String("  remainder: 0x") + String::hexadecimal(_remainder, 8) +
+            String(",\n");
+        s += String("  address: 0x") + String::hexadecimal(_address, 4) +
+            String(",\n");
+        s += String("  useMemory: ") + (_useMemory ? "true" : "false") +
+            String(",\n");
+        s += String("  wordSize: ") + (_wordSize ? "true" : "false") +
+            String(",\n");
+        s += String("  aluOperation: ") + String::decimal(_aluOperation) +
+            String(",\n");
+        s += String("  afterEA: ") + stringForState(_afterEA) + String(",\n");
+        s += String("  afterIO: ") + stringForState(_afterIO) + String(",\n");
+        s += String("  afterModRM: ") + stringForState(_afterModRM) +
+            String(",\n");
+        s += String("  afterRep: ") + stringForState(_afterRep) +
+            String(",\n");
+        s += String("  sourceIsRM: ") + (_sourceIsRM ? "true" : "false") +
+            String(",\n");
+        s += String("  savedCS: ") + String::hexadecimal(_savedCS, 4) +
+            String(",\n");
+        s += String("  savedIP: ") + String::hexadecimal(_savedIP, 4) +
+            String(",\n");
+        s += String("  rep: ") + String::decimal(_rep) + String(",\n");
+        s += String("  useIO: ") + (_useIO ? "true" : "false") + String(",\n");
+        s += String("  halted: ") + (_halted ? "true" : "false") +
+            String(",\n");
+        s += String("  newInstruction: ") +
+            (_newInstruction ? "true" : "false") + String(",\n");
+        s += String("  newIP: ") + String::hexadecimal(_newIP, 4) +
+            String(",\n");
+        return s + "}\n";
+    }
+    Type type()
+    {
+        List<Structured::Member> members;
+        members.add("ip", Type::integer);
+        members.add("ax", Type::integer);
+        members.add("cx", Type::integer);
+        members.add("dx", Type::integer);
+        members.add("bx", Type::integer);
+        members.add("sp", Type::integer);
+        members.add("bp", Type::integer);
+        members.add("si", Type::integer);
+        members.add("di", Type::integer);
+        members.add("es", Type::integer);
+        members.add("cs", Type::integer);
+        members.add("ss", Type::integer);
+        members.add("ds", Type::integer);
+        members.add("flags", Type::integer);
+        members.add("prefetch", Type::array(Type::integer));
+        members.add("segment", Type::integer);
+        members.add("segmentOverride", Type::integer);
+        members.add("ioType", _ioTypeType);
+        members.add("ioRequested", _ioTypeType);
+        members.add("ioInProgress", _ioTypeType);
+        members.add("busState", _busStateType);
+        members.add("byte", _ioByteType);
+        members.add("abandonFetch", Type::boolean);
+        members.add("wait", Type::integer);
+        members.add("state", _stateType);
+        members.add("opcode", Type::integer);
+        members.add("modRM", Type::integer);
+        members.add("data", Type::integer);
+        members.add("source", Type::integer);
+        members.add("destination", Type::integer);
+        members.add("remainder", Type::integer);
+        members.add("address", Type::integer);
+        members.add("useMemory", Type::boolean);
+        members.add("wordSize", Type::boolean);
+        members.add("aluOperation", Type::integer);
+        members.add("afterEA", _stateType);
+        members.add("afterIO", _stateType);
+        members.add("afterModRM", _stateType);
+        members.add("sourceIsRM", Type::boolean);
+        members.add("savedCS", Type::integer);
+        members.add("savedIP", Type::integer);
+        members.add("rep", Type::integer);
+        members.add("useIO", Type::boolean);
+        members.add("halted", Type::boolean);
+        members.add("newInstruction", Type::boolean);
+        members.add("newIP", Type::integer);
+        return StructuredType("CPU", members);
+    }
+    void load(const TypedValue& value)
+    {
+        Value<HashTable<String, TypedValue> > members =
+            value.value<Value<HashTable<String, TypedValue> > >();
+        _ip = members["ip"].value<int>();
+        _registerData[0] = members["ax"].value<int>();
+        _registerData[1] = members["cx"].value<int>();
+        _registerData[2] = members["dx"].value<int>();
+        _registerData[3] = members["bx"].value<int>();
+        _registerData[4] = members["sp"].value<int>();
+        _registerData[5] = members["bp"].value<int>();
+        _registerData[6] = members["si"].value<int>();
+        _registerData[7] = members["di"].value<int>();
+        _flagsData = members["flags"].value<int>();
+        
+    }
+    String name() const { return "cpu"; }
+
 private:
+    String stringForState(State state)
+    {
+        switch (state) {
+            case stateWaitingForBIU:  return "waitingForBIU";
+            case stateFetch:          return "stateFetch";
+            case stateFetch2:         return "stateFetch2";
+            case stateEndInstruction: return "stateEndInstruction";
+            case stateModRM:          return "stateModRM";
+            case stateModRM2:         return "stateModRM2";
+            case stateEAOffset:       return "stateEAOffset";
+            case stateEARegisters:    return "stateEARegisters";
+            case stateEAByte:         return "stateEAByte";
+            case stateEAWord:         return "stateEAWord";
+            case stateEASetSegment:   return "stateEASetSegment";
+            case stateIO:             return "stateIO";
+            case statePush:           return "statePush";
+            case statePush2:          return "statePush2";
+            case statePop:            return "statePop";
+            case stateALU:            return "stateALU";
+            case stateALU2:           return "stateALU2";
+            case stateALU3:           return "stateALU3";
+            case stateALUAccumImm:    return "stateALUAccumImm";
+            case stateALUAccumImm2:   return "stateALUAccumImm2";
+            case statePushSegReg:     return "statePushSegReg";
+            case statePopSegReg:      return "statePopSegReg";
+            case statePopSegReg2:     return "statePopSegReg2";
+            case stateSegOverride:    return "stateSegOverride";
+            case stateDAA:            return "stateDAA";
+            case stateDAS:            return "stateDAS";
+            case stateDA:             return "stateDA";
+            case stateAAA:            return "stateAAA";
+            case stateAAS:            return "stateAAS";
+            case stateAA:             return "stateAA";
+            case stateIncDecRW:       return "stateIncDecRW";
+            case statePushRW:         return "statePushRW";
+            case statePopRW:          return "statePopRW";
+            case statePopRW2:         return "statePopRW2";
+            case stateInvalid:        return "stateInvalid";
+            case stateJCond:          return "stateJCond";
+            case stateJCond2:         return "stateJCond2";
+            case stateALURMImm:       return "stateALURMImm";
+            case stateALURMImm2:      return "stateALURMImm2";
+            case stateALURMImm3:      return "stateALURMImm3";
+            case stateTestRMReg:      return "stateTestRMReg";
+            case stateTestRMReg2:     return "stateTestRMReg2";
+            case stateXchgRMReg:      return "stateXchgRMReg";
+            case stateXchgRMReg2:     return "stateXchgRMReg2";
+            case stateMovRMReg:       return "stateMovRMReg";
+            case stateMovRMReg2:      return "stateMovRMReg2";
+            case stateMovRegRM:       return "stateMovRegRM";
+            case stateMovRegRM2:      return "stateMovRegRM2";
+            case stateMovRMWSegReg:   return "stateMovRMWSegReg";
+            case stateMovRMWSegReg2:  return "stateMovRMWSegReg2";
+            case stateLEA:            return "stateLEA";
+            case stateLEA2:           return "stateLEA2";
+            case stateMovSegRegRMW:   return "stateMovSegRegRMW";
+            case stateMovSegRegRMW2:  return "stateMovSegRegRMW2";
+            case statePopMW:          return "statePopMW";
+            case statePopMW2:         return "statePopMW2";
+            case stateXchgAxRW:       return "stateXchgAxRW";
+            case stateCBW:            return "stateCBW";
+            case stateCWD:            return "stateCWD";
+            case stateCallCP:         return "stateCallCP";
+            case stateCallCP2:        return "stateCallCP2";
+            case stateCallCP3:        return "stateCallCP3";
+            case stateCallCP4:        return "stateCallCP4";
+            case stateCallCP5:        return "stateCallCP5";
+            case stateWait:           return "stateWait";
+            case statePushF:          return "statePushF";
+            case statePopF:           return "statePopF";
+            case statePopF2:          return "statePopF2";
+            case stateSAHF:           return "stateSAHF";
+            case stateLAHF:           return "stateLAHF";
+            case stateMovAccumInd:    return "stateMovAccumInd";
+            case stateMovAccumInd2:   return "stateMovAccumInd2";
+            case stateMovAccumInd3:   return "stateMovAccumInd3";
+            case stateMovIndAccum:    return "stateMovIndAccum";
+            case stateMovIndAccum2:   return "stateMovIndAccum2";
+            case stateMovS:           return "stateMovS";
+            case stateMovS2:          return "stateMovS2";
+            case stateRepAction:      return "stateRepAction";
+            case stateCmpS:           return "stateCmpS";
+            case stateCmpS2:          return "stateCmpS2";
+            case stateCmpS3:          return "stateCmpS3";
+            case stateTestAccumImm:   return "stateTestAccumImm";
+            case stateTestAccumImm2:  return "stateTestAccumImm2";
+            case stateStoS:           return "stateStoS";
+            case stateLodS:           return "stateLodS";
+            case stateLodS2:          return "stateLodS2";
+            case stateScaS:           return "stateScaS";
+            case stateScaS2:          return "stateScaS2";
+            case stateMovRegImm:      return "stateMovRegImm";
+            case stateMovRegImm2:     return "stateMovRegImm2";
+            case stateRet:            return "stateRet";
+            case stateRet2:           return "stateRet2";
+            case stateRet3:           return "stateRet3";
+            case stateRet4:           return "stateRet4";
+            case stateRet5:           return "stateRet5";
+            case stateRet6:           return "stateRet6";
+            case stateLoadFar:        return "stateLoadFar";
+            case stateLoadFar2:       return "stateLoadFar2";
+            case stateLoadFar3:       return "stateLoadFar3";
+            case stateMovRMImm:       return "stateMovRMImm";
+            case stateMovRMImm2:      return "stateMovRMImm2";
+            case stateMovRMImm3:      return "stateMovRMImm3";
+            case stateInt:            return "stateInt";
+            case stateInt3:           return "stateInt3";
+            case stateIntAction:      return "stateIntAction";
+            case stateIntAction2:     return "stateIntAction2";
+            case stateIntAction3:     return "stateIntAction3";
+            case stateIntAction4:     return "stateIntAction4";
+            case stateIntAction5:     return "stateIntAction5";
+            case stateIntAction6:     return "stateIntAction6";
+            case stateIntO:           return "stateIntO";
+            case stateIRet:           return "stateIRet";
+            case stateIRet2:          return "stateIRet2";
+            case stateIRet3:          return "stateIRet3";
+            case stateIRet4:          return "stateIRet4";
+            case stateShift:          return "stateShift";
+            case stateShift2:         return "stateShift2";
+            case stateShift3:         return "stateShift3";
+            case stateAAM:            return "stateAAM";
+            case stateAAM2:           return "stateAAM2";
+            case stateAAD:            return "stateAAD";
+            case stateAAD2:           return "stateAAD2";
+            case stateSALC:           return "stateSALC";
+            case stateXlatB:          return "stateXlatB";
+            case stateXlatB2:         return "stateXlatB2";
+            case stateEscape:         return "stateEscape";
+            case stateEscape2:        return "stateEscape2";
+            case stateLoop:           return "stateLoop";
+            case stateLoop2:          return "stateLoop2";
+            case stateInOut:          return "stateInOut";
+            case stateInOut2:         return "stateInOut2";
+            case stateInOut3:         return "stateInOut3";
+            case stateCallCW:         return "stateCallCW";
+            case stateCallCW2:        return "stateCallCW2";
+            case stateCallCW3:        return "stateCallCW3";
+            case stateCallCW4:        return "stateCallCW4";
+            case stateJmpCW:          return "stateJmpCW";
+            case stateJmpCW2:         return "stateJmpCW2";
+            case stateJmpCW3:         return "stateJmpCW3";
+            case stateJmpCP:          return "stateJmpCP";
+            case stateJmpCP2:         return "stateJmpCP2";
+            case stateJmpCP3:         return "stateJmpCP3";
+            case stateJmpCP4:         return "stateJmpCP4";
+            case stateJmpCB:          return "stateJmpCB";
+            case stateJmpCB2:         return "stateJmpCB2";
+            case stateLock:           return "stateLock";
+            case stateRep:            return "stateRep";
+            case stateHlt:            return "stateHlt";
+            case stateCmC:            return "stateCmC";
+            case stateMath:           return "stateMath";
+            case stateMath2:          return "stateMath2";
+            case stateMath3:          return "stateMath3";
+            case stateLoadC:          return "stateLoadC";
+            case stateLoadI:          return "stateLoadI";
+            case stateLoadD:          return "stateLoadD";
+            case stateMisc:           return "stateMisc";
+            case stateMisc2:          return "stateMisc2";
+        }
+        return empty;
+    }
+    String stringForIOType(IOType type)
+    {
+        switch (type) {
+            case ioNone:             return "ioNone";
+            case ioRead:             return "ioRead";
+            case ioWrite:            return "ioWrite";
+            case ioInstructionFetch: return "ioInstructionFetch";
+        }
+        return empty;
+    }
+    String stringForBusState(BusState state)
+    {
+        switch (state) {
+            case t1:    return "t1";
+            case t2:    return "t2";
+            case t3:    return "t3";
+            case tWait: return "tWait";
+            case t4:    return "t4";
+            case tIdle: return "tIdle";
+        }
+        return empty;
+    }
+    String stringForIOByte(IOByte byte)
+    {
+        switch (byte) {
+            case ioSingleByte: return "ioSingleByte";
+            case ioWordFirst:  return "ioWordFirst";
+            case ioWordSecond: return "ioWordSecond";
+        }
+        return empty;
+    }
     enum IOType
     {
         ioNone,
@@ -2289,13 +2696,13 @@ private:
     {
         if (!_wordSize)
             return static_cast<UInt8>(modRMRB());
-        return modRMRW(); 
+        return modRMRW();
     }
     UInt16 getAccum()
     {
         if (!_wordSize)
             return static_cast<UInt8>(al());
-        return ax(); 
+        return ax();
     }
     void setAccum() { if (!_wordSize) al() = _data; else ax() = _data; }
     void setReg(UInt16 value)
@@ -2388,7 +2795,6 @@ private:
     UInt8 _prefetched;
     int _segment;
     int _segmentOverride;
-    Array<UInt8> _memory;
     UInt16 _prefetchAddress;
     IOType _ioType;
     IOType _ioRequested;
@@ -2422,6 +2828,11 @@ private:
     bool _newInstruction;
     UInt16 _newIP;
     ISA8BitBus* _bus;
+
+    Type _stateType;
+    Type _ioTypeType;
+    Type _ioByteType;
+    Type _busStateType;
 };
 
 class ROMConversion : public Conversion

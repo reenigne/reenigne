@@ -42,7 +42,8 @@ public:
         _endLine(end.line()),
         _endColumn(end.column())
     { }
-    Span(String fileName, int startLine, int startColumn, int endLine, int endColumn)
+    Span(String fileName, int startLine, int startColumn, int endLine,
+        int endColumn)
       : _fileName(fileName),
         _startLine(startLine),
         _startColumn(startColumn),
@@ -122,7 +123,10 @@ public:
         return byte;
     }
     int offset() const { return _offset; }
-    String subString(int start, int end) { return _string.subString(start, end - start); }
+    String subString(int start, int end)
+    {
+        return _string.subString(start, end - start);
+    }
 private:
     void initSimpleData()
     {
@@ -163,7 +167,8 @@ public:
 
         int b2 = getNextByte();
         if (b0 >= 0xe0 && b0 < 0xf0) {
-            int codePoint = ((b0 & 0x0f) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
+            int codePoint = ((b0 & 0x0f) << 12) | ((b1 & 0x3f) << 6) |
+                (b2 & 0x3f);
             if (codePoint < 0x800)
                 throwUTF8Exception(overlongEncoding, offset);
             if (codePoint >= 0xd800 && codePoint < 0xe000)
@@ -172,7 +177,8 @@ public:
         }
 
         int b3 = getNextByte();
-        int codePoint = ((b0 & 0x07) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+        int codePoint = ((b0 & 0x07) << 18) | ((b1 & 0x3f) << 12) |
+            ((b2 & 0x3f) << 6) | (b3 & 0x3f);
         if (codePoint < 0x10000)
             throwUTF8Exception(overlongEncoding, offset);
         if (codePoint >= 0x110000)
@@ -180,11 +186,15 @@ public:
         return codePoint;
     }
     int offset() const { return _byteSource.offset(); }
-    String subString(int start, int end) { return _byteSource.subString(start, end); }
+    String subString(int start, int end)
+    {
+        return _byteSource.subString(start, end);
+    }
 private:
     void throwUTF8Exception(bool first, int b, int offset)
     {
-        static String expectedFirst("Expected 0x00..0x7F or 0xC0..0xF7, found 0x");
+        static String expectedFirst(
+            "Expected 0x00..0x7F or 0xC0..0xF7, found 0x");
         static String expectedNext("Expected 0x80..0xBF, found 0x");
         String expected = first ? expectedFirst : expectedNext;
         static String endOfString("end of string");

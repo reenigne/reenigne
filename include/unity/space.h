@@ -18,14 +18,16 @@ public:
             return;
         } while (true);
     }
-    static bool parseCharacter(CharacterSource* source, int character, Span* span)
+    static bool parseCharacter(CharacterSource* source, int character,
+        Span* span)
     {
         if (!source->parse(character, span))
             return false;
         parse(source);
         return true;
     }
-    static void assertCharacter(CharacterSource* source, int character, Span* span)
+    static void assertCharacter(CharacterSource* source, int character,
+        Span* span)
     {
         source->assert(character, span);
         parse(source);
@@ -50,7 +52,8 @@ public:
         parse(source);
         return true;
     }
-    static bool parseKeyword(CharacterSource* source, String keyword, Span* span)
+    static bool parseKeyword(CharacterSource* source, String keyword,
+        Span* span)
     {
         CharacterSource s = *source;
         CharacterSource o(keyword, empty);
@@ -66,7 +69,8 @@ public:
         } while (true);
         CharacterSource s2 = s;
         int c = s2.get(&sp2);
-        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') || c == '_')
             return false;
         *source = s;
         if (span != 0)
@@ -91,7 +95,8 @@ private:
                 if (c == 10 || c == -1)
                     break;
                 if (c < 0x20)
-                    source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+                    source->throwUnexpected(printableCharacter,
+                        String::hexadecimal(c, 2));
             } while (true);
             *source = s;
             return true;
@@ -112,7 +117,8 @@ private:
                 if (c == -1)
                     source->location().throwError(endOfFile);
                 if (c < 0x20 && c != 10)
-                    source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+                    source->throwUnexpected(printableCharacter,
+                        String::hexadecimal(c, 2));
             } while (true);
         }
         return false;

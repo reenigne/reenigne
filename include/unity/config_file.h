@@ -8,6 +8,25 @@
 #include "unity/type.h"
 #include "unity/value.h"
 
+int parseHexadecimalCharacter(CharacterSource* source, Span* span)
+{
+    CharacterSource s = *source;
+    int c = s.get(span);
+    if (c >= '0' && c <= '9') {
+        *source = s;
+        return c - '0';
+    }
+    if (c >= 'A' && c <= 'F') {
+        *source = s;
+        return c + 10 - 'A';
+    }
+    if (c >= 'a' && c <= 'f') {
+        *source = s;
+        return c + 10 - 'a';
+    }
+    return -1;
+}
+
 class ConfigFile
 {
 public:
@@ -140,25 +159,6 @@ private:
                 left.value<String>() + right.value<String>(),
                 left.span() + right.span());
         return right;
-    }
-    
-    int parseHexadecimalCharacter(CharacterSource* source, Span* span)
-    {
-        CharacterSource s = *source;
-        int c = s.get(span);
-        if (c >= '0' && c <= '9') {
-            *source = s;
-            return c - '0';
-        }
-        if (c >= 'A' && c <= 'F') {
-            *source = s;
-            return c + 10 - 'A';
-        }
-        if (c >= 'a' && c <= 'f') {
-            *source = s;
-            return c + 10 - 'a';
-        }
-        return -1;
     }
     
     TypedValue parseDoubleQuotedString(CharacterSource* source)
@@ -305,6 +305,86 @@ private:
         } while (true);
     }
     
+    TypedValue parseEmbeddedLiteral(CharacterSource* source)
+    {
+        Span startSpan;
+        Span endSpan;
+        static String empty;
+        static String endOfFile("End of file in string");
+        if (!source->parse('#', &startSpan))
+            return TypedValue();
+        if (!source->parse('#', &endSpan))
+            return TypedValue();
+        if (!source->parse('#', &endSpan))
+            return TypedValue();
+        int startOffset = source->offset();
+        Location location = source->location();
+        CharacterSource s = *source;
+        do {
+            int c = s.get();
+            if (c == -1)
+                source->location().throwError(endOfFile);
+            if (c == 10)
+                break;
+            *source = s;
+        } while (true);
+        int endOffset = source->offset();
+        String terminator = source->subString(startOffset, endOffset);
+        startOffset = s.offset();
+        CharacterSource terminatorSource(terminator, empty);
+        int cc = terminatorSource.get();
+        String string;
+        do {
+            *source = s;
+            int c = s.get();
+            if (c == -1)
+                source->location().throwError(endOfFile);
+            if (cc == -1) {
+                if (c != '#')
+                    continue;
+                CharacterSource s2 = s;
+                if (s2.get() != '#')
+                    continue;
+                if (s2.get(&endSpan) != '#')
+                    continue;
+                string += s.subString(startOffset, source->offset());
+                *source = s2;
+                Space::parse(source);
+                return TypedValue(Type::string, string, startSpan + endSpan);
+            }
+            else
+                if (c == cc) {
+                    CharacterSource s2 = s;
+                    CharacterSource st = terminatorSource;
+                    do {
+                        int ct = st.get();
+                        if (ct == -1) {
+                            if (s2.get() != '#')
+                                break;
+                            if (s2.get() != '#')
+                                break;
+                            if (s2.get(&endSpan) != '#')
+                                break;
+                            string +=
+                                s.subString(startOffset, source->offset());
+                            *source = s2;
+                            Space::parse(source);
+                            return TypedValue(Type::stirng, string,
+                                startSpan + endSpan);
+                        }
+                        int cs = s2.get();
+                        if (ct != cs)
+                            break;
+                    } while (true);
+                }
+            if (c == 10) {
+                string += s.subString(startOffset, source->offset()) +
+                    String::codePoint(10);
+                startOffset = s.offset();
+            }
+        } while (true);
+    }
+
     TypedValue parseInteger(CharacterSource* source)
     {
         CharacterSource s = *source;
@@ -377,6 +457,9 @@ private:
     {
         Location location = source->location();
         TypedValue e = parseDoubleQuotedString(source);
+        if (e.valid())
+            return e;
+        TypedValue e = parseEmbeddedLiteral(source);
         if (e.valid())
             return e;
         e = parseInteger(source);
