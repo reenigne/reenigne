@@ -2097,7 +2097,44 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _registerData[6] = members["si"].value<int>();
         _registerData[7] = members["di"].value<int>();
         _flagsData = members["flags"].value<int>();
-        
+        List<TypedValue> prefetch = config.get<List<TypedValue> >("prefetch");
+        _prefetched = 0;
+        _prefetchOffset = 0;
+        for (List<TypedValue>::Iterator i = prefetch.start();
+            i != prefetch.end(); ++i) {
+            _prefetchQueue[_prefetched] = (*i).value<int>();
+            ++_prefetched;
+        }
+        _segment = members["segment"].value<int>();
+        _segmentOverride = members["segmentOverride"].value<int>();
+        _ioType = members["ioType"].value<IOType>();
+        _ioRequested = members["ioRequested"].value<IOType>();
+        _ioInProgress = members["ioInProgress"].value<IOType>();
+        _busState = members["busState"].value<BusState>();
+        _byte = members["byte"].value<IOByte>();
+        _abandonFetch = members["abanonFetch"].value<bool>();
+        _wait = members["wait"].value<int>();
+        _state = members["state"].value<State>();
+        _opcode = members["opcode"].value<int>();
+        _modRM = members["modRM"].value<int>();
+        _data = members["data"].value<int>();
+        _source = members["source"].value<int>();
+        _destination = members["destination"].value<int>();
+        _remainder = members["remainder"].value<int>();
+        _address = members["address"].value<int>();
+        _useMemory = members["useMemory"].value<bool>();
+        _wordSize = members["wordSize"].value<bool>();
+        _aluOperation = members["aluOperation"].value<int>();
+        _afterEA = membres["afterEA"].value<State>();
+        _afterIO = members["afterIO"].value<State>();
+        _afterModRM = members["afterModRM"].value<State>();
+        _savedCS = members["savedCS"].value<int>();
+        _savedIP = members["savedIP"].value<int>();
+        _rep = members["rep"].value<int>();
+        _useIO = members["useIO"].value<bool>();
+        _halted = members["halted"].value<bool>();
+        _newInstruction = members["newInstruction"].value<bool>();
+        _newIP = members["newIP"].value<int>();
     }
     String name() const { return "cpu"; }
 
@@ -2915,8 +2952,8 @@ protected:
             ROM* rom = &roms[r];
             rom->initialize(romData);
             bus.addComponent(rom);
+            ++r;
         }
-            bus.addComponent(&rom);
 
         Simulator simulator;
         Intel8088 cpu(&_console);

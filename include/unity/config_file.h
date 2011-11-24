@@ -453,6 +453,11 @@ private:
         TypedValue option = _options[s];
         return TypedValue(option.type(), option.value(), i.span()); 
     }
+    TypedValue parseStructuredExpression(CharacterSource* source,
+        List<TypedValue> values, List<Type> types)
+    {
+        return TypedValue();
+    }
     TypedValue parseExpressionElement(CharacterSource* source)
     {
         Location location = source->location();
@@ -465,11 +470,19 @@ private:
         e = parseInteger(source);
         if (e.valid())
             return e;
+        CharacterSource s = *source;
         Identifier i = parseIdentifier(source);
         if (i.valid()) {
-            String s = i.name();
-            if (s[0] >= 'a' && s[0] <= 'z')
+            String name = i.name();
+            if (name[0] >= 'a' && name[0] <= 'z') {
+                Span span;
+                if (Space::parseCharacter(source, ':', &span)) {
+                    // Avoid interpreting labels as values
+                    *source = s;
+                    return TypedValue(Type::label, name, i.span() + span);
+                }
                 return valueOfIdentifier(i);
+            }
             // i is a type identifier
             if (!_types.hasKey(s))
                 i.span().throwError(String("Unknown type ") + s);
@@ -505,8 +518,12 @@ private:
             List<TypedValue> values;
             Span span2;
             List<Type> types;
+            CharacterSource s;
             do {
+                s = *source;
                 TypedValue e = parseExpression(source);
+                if (e.type() == Type::label)
+                    return parseStructuredExpression(&s, values, types);
                 values.add(e);
                 types.add(e.type());
             } while (Space::parseCharacter(source, ',', &span2));

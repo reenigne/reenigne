@@ -80,8 +80,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\unity\array.h" />
+    <ClInclude Include="..\include\unity\character_source.h" />
     <ClInclude Include="..\include\unity\config_file.h" />
+    <ClInclude Include="..\include\unity\hash_table.h" />
     <ClInclude Include="..\include\unity\integer_types.h" />
+    <ClInclude Include="..\include\unity\reference_counted.h" />
+    <ClInclude Include="..\include\unity\space.h" />
     <ClInclude Include="..\include\unity\string.h" />
     <ClInclude Include="..\include\unity\type.h" />
   </ItemGroup>
