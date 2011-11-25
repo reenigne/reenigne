@@ -7,9 +7,9 @@ template<class T> class Value
 {
 public:
     Value() : _implementation(new Implementation) { }
-    T* operator->() const { return _implmentation->_t; }
+    T* operator->() const { return &_implementation->_t; }
 private:
-    template<class T> class Implementation : public ReferenceCounted
+    class Implementation : public ReferenceCounted
     {
     public:
         T _t;

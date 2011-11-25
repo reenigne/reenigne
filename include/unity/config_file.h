@@ -369,7 +369,7 @@ private:
                                 s.subString(startOffset, source->offset());
                             *source = s2;
                             Space::parse(source);
-                            return TypedValue(Type::stirng, string,
+                            return TypedValue(Type::string, string,
                                 startSpan + endSpan);
                         }
                         int cs = s2.get();
@@ -454,9 +454,37 @@ private:
         return TypedValue(option.type(), option.value(), i.span()); 
     }
     TypedValue parseStructuredExpression(CharacterSource* source,
-        List<TypedValue> values, List<Type> types)
+        List<TypedValue> values, TypedValue label, Span span)
     {
-        return TypedValue();
+        Value<HashTable<String, TypedValue> > table;
+        List<StructuredType::Member> members;
+        int n = 0;
+        for (List<TypedValue>::Iterator i = values.start(); i != values.end();
+            ++i) {
+            String name = String::decimal(n);
+            table->add(name, *i);
+            members.add(StructuredType::Member(name, (*i).type()));
+            ++n;
+        }
+        TypedValue v = parseExpression(source);
+        if (!v.valid())
+            source->location().throwError("Expected expression");
+        String name = label.value<String>();
+        table->add(name, v);
+        members.add(StructuredType::Member(name, v.type()));
+        Span span2;
+        while (Space::parseCharacter(source, ',', &span2)) {
+            Identifier identifier = parseIdentifier(source);
+            if (!identifier.valid())
+                source->location().throwError("Expected label");
+            Space::assertCharacter(source, ':', &span2);
+            TypedValue value = parseExpression(source);
+            String name = identifier.name();
+            table->add(name, value);
+            members.add(StructuredType::Member(name, value.type()));
+        }
+        Space::assertCharacter(source, '}', &span2);
+        return TypedValue(StructuredType(empty, members), table, span + span2);
     }
     TypedValue parseExpressionElement(CharacterSource* source)
     {
@@ -464,13 +492,12 @@ private:
         TypedValue e = parseDoubleQuotedString(source);
         if (e.valid())
             return e;
-        TypedValue e = parseEmbeddedLiteral(source);
+        e = parseEmbeddedLiteral(source);
         if (e.valid())
             return e;
         e = parseInteger(source);
         if (e.valid())
             return e;
-        CharacterSource s = *source;
         Identifier i = parseIdentifier(source);
         if (i.valid()) {
             String name = i.name();
@@ -478,15 +505,14 @@ private:
                 Span span;
                 if (Space::parseCharacter(source, ':', &span)) {
                     // Avoid interpreting labels as values
-                    *source = s;
                     return TypedValue(Type::label, name, i.span() + span);
                 }
                 return valueOfIdentifier(i);
             }
             // i is a type identifier
-            if (!_types.hasKey(s))
-                i.span().throwError(String("Unknown type ") + s);
-            StructuredType type = _types[s];
+            if (!_types.hasKey(name))
+                i.span().throwError(String("Unknown type ") + name);
+            StructuredType type = _types[name];
             if (!type.valid())
                 i.span().throwError(
                     String("Only structure types can be constructed"));
@@ -501,13 +527,17 @@ private:
                 TypedValue value = parseExpression(source);
                 Type expectedType = member.type();
                 Type observedType = value.type();
-                // TODO: Check for conversions
-                if (observedType != expectedType)
-                    value.span().throwError(String("Type mismatch: ") + s + 
-                        dot + member.name() + String(" has type ") + 
-                        expectedType.toString() +
-                        String(" but value has type ") +
-                        observedType.toString());
+                if (observedType != expectedType) {
+                    if (!_typeConverter.canConvert(observedType, expectedType))
+                        value.span().throwError(
+                            String("No conversion from type ") +
+                            observedType.toString() +
+                            String(" to type ") +
+                            expectedType.toString() +
+                            String(" is available"));
+                    value = _typeConverter.convert(observedType, expectedType,
+                        value);
+                }
                 values.add(value.value());
             }
             Space::assertCharacter(source, ')', &span);
@@ -518,12 +548,10 @@ private:
             List<TypedValue> values;
             Span span2;
             List<Type> types;
-            CharacterSource s;
             do {
-                s = *source;
                 TypedValue e = parseExpression(source);
                 if (e.type() == Type::label)
-                    return parseStructuredExpression(&s, values, types);
+                    return parseStructuredExpression(source, values, e, span);
                 values.add(e);
                 types.add(e.type());
             } while (Space::parseCharacter(source, ',', &span2));

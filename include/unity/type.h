@@ -195,11 +195,16 @@ public:
         }
         return Template::tuple.instantiate(a);
     }
+    bool isStructured() const
+    {
+        return ConstReference<Implementation>(_implementation)->isStructured();
+    }
 protected:
     class Implementation : public TypeConstructor::Implementation
     {
     public:
         Kind kind() const { return Kind::type; }
+        virtual bool isStructured() const { return false; }
     };
     TypeTemplate(const Implementation* implementation)
       : TypeConstructor(implementation) { }
@@ -506,6 +511,14 @@ public:
         Member(String name, Type type) : _name(name), _type(type) { }
         String name() const { return _name; }
         Type type() const { return _type; }
+        bool operator==(const Member& other) const
+        {
+            return _name == other._name && _type == other._type;
+        }
+        bool operator!=(const Member& other) const
+        {
+            return !operator==(other);
+        }
     private:
         String _name;
         Type _type;
@@ -527,6 +540,7 @@ private:
           : _name(name), _members(members) { }
         String toString() const { return _name; }
         const Array<Member>* members() const { return &_members; }
+        bool isStructured() const { return true; }
     private:
         String _name;
         Array<Member> _members;
@@ -604,6 +618,20 @@ public:
             typeConstructor = to;
             doneBoth = true;
         } while (true);
+        if (from.isStructured() && to.isStructured() &&
+            from.toString().empty()) {
+            const Array<StructuredType::Member>* fromMembers =
+                StructuredType(from).members();
+            const Array<StructuredType::Member>* toMembers =
+                StructuredType(to).members();
+            int n = fromMembers->count();
+            if (n != toMembers->count())
+                return false;
+            for (int i = 0; i < n; ++i)
+                if ((*fromMembers)[i] != (*toMembers)[i])
+                    return false;
+            _conversions.add(TypePair(from, to), &_trivialConversion);
+        }
         return false;
     }
     TypedValue convert(const Type& from, const Type& to,
@@ -612,6 +640,11 @@ public:
         return _conversions[TypePair(from, to)]->operator()(value);
     }
 private:
+    class TrivialConversion : public Conversion
+    {
+    public:
+        TypedValue operator()(const TypedValue& value) const { return value; }
+    };
     class TypePair
     {
     public:
@@ -628,7 +661,10 @@ private:
     };
     HashTable<TypePair, const Conversion*> _conversions;
     HashTable<TypeConstructor, const ConversionSource*> _conversionSources;
+    static TrivialConversion _trivialConversion;
 };
+
+TypeConverter::TrivialConversion TypeConverter::_trivialConversion;
 
 class ArrayConversionSource : public ConversionSource
 {

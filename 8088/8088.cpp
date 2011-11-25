@@ -31,12 +31,15 @@ public:
 class Simulator
 {
 public:
-    void simulateCycle()
+    Simulator() : _halted(false) { }
+    void simulate()
     {
-        for (List<Component*>::Iterator i = _components.start();
-            i != _components.end(); ++i) {
-            (*i)->simulateCycle();
-        }
+        do {
+            for (List<Component*>::Iterator i = _components.start();
+                i != _components.end(); ++i) {
+                (*i)->simulateCycle();
+            }
+        } while (!_halted);
     }
     void addComponent(Component* component) { _components.add(component); }
     String save() const
@@ -73,9 +76,13 @@ public:
             (*i)->load(object->operator[]((*i)->name()));
         }
     }
+    void halt() { _halted = true; }
 private:
     List<Component*> _components;
+    bool _halted;
 };
+
+class ISA8BitBus;
 
 class ISA8BitComponent : public Component
 {
@@ -88,6 +95,7 @@ public:
     virtual bool wait() { return false; }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
     UInt8 memory(UInt32 address) { return 0xff; }
+    bool active() const { return _active; }
 protected:
     ISA8BitBus* _bus;
     bool _active;
@@ -101,6 +109,26 @@ public:
     {
         _components.add(component);
         component->setBus(this);
+    }
+    void setAddress(UInt32 address)
+    {
+        for (List<ISA8BitComponent*>::Iterator i = _components.start();
+            i != _components.end(); ++i)
+            (*i)->setAddress(address);
+    }
+    void write(UInt8 data)
+    {
+        for (List<ISA8BitComponent*>::Iterator i = _components.start();
+            i != _components.end(); ++i)
+            if ((*i)->active())
+                (*i)->write(data);
+    }
+    UInt8 read()
+    {
+        for (List<ISA8BitComponent*>::Iterator i = _components.start();
+            i != _components.end(); ++i)
+            if ((*i)->active())
+                return (*i)->read();
     }
     UInt8 memory(UInt32 address)
     {
@@ -657,10 +685,10 @@ private:
 
 typedef DisassemblerTemplate<void> Disassembler;
 
-template<class T> class Intel8088Template
+template<class T> class Intel8088Template : public Component
 {
 public:
-    Intel8088Template(Handle* console)
+    Intel8088Template(Simulator* simulator, Handle* console)
       : _flagsData(0x0002),  // ?
         _state(stateFetch),
         _ip(0xfff0),
@@ -677,7 +705,9 @@ public:
         _console(console),
         _wait(0),
         _newInstruction(true),
-        _newIP(0xfff0)
+        _newIP(0),
+        _cycle(0),
+        _simulator(simulator)
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -691,199 +721,185 @@ public:
         }
         _flags.init("F", &_flagsData);
         _segmentRegisterData[0] = 0x0000;  // ?
-        _segmentRegisterData[1] = 0xf000;
+        _segmentRegisterData[1] = 0xffff;
         _segmentRegisterData[2] = 0x0000;  // ?
         _segmentRegisterData[3] = 0x0000;  // ?
         _segmentRegisterData[7] = 0x0000;  // For IO accesses
-        _memory.allocate(0x100000);
 
         List<EnumerationType::Value> stateValues;
-        for (int i = stateWaitingForBIU; i <= stateMisc2; ++i)
-            stateValues.add(EnumerationType::Value(stringFromState(i),
-                static_cast<State>(i));
+        for (int i = stateWaitingForBIU; i <= stateMisc2; ++i) {
+            State s = static_cast<State>(i);
+            stateValues.add(EnumerationType::Value(stringForState(s), s));
+        }
         _stateType = EnumerationType("State", stateValues);
 
         List<EnumerationType::Value> ioTypeValues;
-        for (int i = ioNone; i <= ioInstructionFetch; ++i)
-            stateValues.add(EnumerationType::Value(stringFromIOType(i),
-                static_cast<IOType>(i));
+        for (int i = ioNone; i <= ioInstructionFetch; ++i) {
+            IOType t = static_cast<IOType>(i);
+            stateValues.add(EnumerationType::Value(stringForIOType(t), t));
+        }
         _ioTypeType = EnumerationType("IOType", ioTypeValues);
 
         List<EnumerationType::Value> ioByteValues;
-        for (int i = ioSingleByte; i <= ioWordSecond; ++i)
-            stateValues.add(EnumerationType::Value(stringFromIOByte(i),
-                static_cast<IOByte>(i));
+        for (int i = ioSingleByte; i <= ioWordSecond; ++i) {
+            IOByte b = static_cast<IOByte>(i);
+            stateValues.add(EnumerationType::Value(stringForIOByte(b), b));
+        }
         _ioByteType = EnumerationType("IOByte", ioByteValues);
 
         List<EnumerationType::Value> busStateValues;
-        for (int i = t1; i <= tIdle; ++i)
-            stateValues.add(EnumerationType::Value(stringFromBusState(i),
-                static_cast<BusState>(i));
+        for (int i = t1; i <= tIdle; ++i) {
+            BusState s = static_cast<BusState>(i);
+            stateValues.add(EnumerationType::Value(stringForBusState(s), s));
+        }
         _busStateType = EnumerationType("BusState", busStateValues);
+
+        _disassembler.setCPU(this);
     }
-    void setBus(ISA8BitBus* bus) { _bus = bus; }
+    void setBus(ISA8BitBus* bus)
+    {
+        _bus = bus;
+        _disassembler.setBus(_bus);
+    }
     UInt32 codeAddress(UInt16 offset)
     {
         return physicalAddress(_segmentRegisterData[1], offset);
     }
-    UInt8& memory(UInt32 physicalAddress)
-    {
-        return _memory[physicalAddress];
-    }
-    UInt8& memory(int segment, UInt16 offset)
-    {
-        return memory(physicalAddress(_segmentRegisterData[segment], offset));
-    }
-    void simulate()
-    {
-        Disassembler disassembler;
-        disassembler.setBus(_bus);
-        disassembler.setCPU(this);
-        int cycle = 0;
-
-        do {
-            String line = String::decimal(cycle).alignRight(5) + space;
-            switch (_busState) {
-                case t1:
-                    {
-                        UInt32 a;
-                        if (_ioInProgress != ioInstructionFetch) {
-                            int segment = _segment;
-                            if (_segmentOverride != -1)
-                                segment = _segmentOverride;
-                            a = physicalAddress(_segmentRegisterData[segment],
-                                _address);
-                        }
-                        else
-                            a = physicalAddress(csQuiet(), _prefetchAddress);
-                        line += String("T1 ") + String::hexadecimal(a, 5) +
-                            space;
-                    }
-                    break;
-                case t2:
-                    line += "T2 ";
-                    if (_ioInProgress == ioWrite)
-                        line += String("M<-") + String::hexadecimal(_data, 2) +
-                            space;
-                    else
-                        line += space*6;
-                    break;
-                case t3: line += "T3       "; break;
-                case tWait: line += "Tw       "; break;
-                case t4:
-                    {
-                        UInt8 d;
-                        if (_ioInProgress != ioInstructionFetch)
-                            d = _data;
-                        else
-                            d = memory(1, _prefetchAddress - 1);
-                        line += "T4 ";
-                        if (_ioInProgress == ioWrite)
-                            line += space*6;
-                        else
-                            if (_abandonFetch)
-                                line += "----- ";
-                            else
-                                line += String("M->") +
-                                    String::hexadecimal(d, 2) + space;
-                    }
-                    break;
-                case tIdle: line += "         "; break;
-            }
-            if (_newInstruction) {
-                line += String::hexadecimal(csQuiet(), 4) + colon +
-                    String::hexadecimal(_newIP, 4) + space +
-                    disassembler.disassemble(_newIP);
-            }
-            line = line.alignLeft(50);
-            for (int i = 0; i < 8; ++i) {
-                line += _byteRegisters[i].text();
-                line += _wordRegisters[i].text();
-                line += _segmentRegisters[i].text();
-            }
-            line += _flags.text();
-            _newInstruction = false;
-            _console->write(line + newLine);
-            ++cycle;
-            simulateCycle();
-        } while (!_halted);
-    }
+    //UInt8& memory(UInt32 physicalAddress)
+    //{
+    //    return _memory[physicalAddress];
+    //}
+    //UInt8& memory(int segment, UInt16 offset)
+    //{
+    //    return memory(physicalAddress(_segmentRegisterData[segment], offset));
+    //}
     void simulateCycle()
+    {
+        simulateCycleAction();
+        String line = String::decimal(_cycle).alignRight(5) + space;
+        switch (_busState) {
+            case t1:
+                line += String("T1 ") + String::hexadecimal(_busAddress, 5) +
+                    space;
+                break;
+            case t2:
+                line += "T2 ";
+                if (_ioInProgress == ioWrite)
+                    line += String("M<-") + String::hexadecimal(_busData, 2) +
+                        space;
+                else
+                    line += space*6;
+                break;
+            case t3: line += "T3       "; break;
+            case tWait: line += "Tw       "; break;
+            case t4:
+                line += "T4 ";
+                if (_ioInProgress == ioWrite)
+                    line += space*6;
+                else
+                    if (_abandonFetch)
+                        line += "----- ";
+                    else
+                        line += String("M->") +
+                            String::hexadecimal(_busData, 2) + space;
+                break;
+            case tIdle: line += "         "; break;
+        }
+        if (_newInstruction) {
+            line += String::hexadecimal(csQuiet(), 4) + colon +
+                String::hexadecimal(_newIP, 4) + space +
+                _disassembler.disassemble(_newIP);
+        }
+        line = line.alignLeft(50);
+        for (int i = 0; i < 8; ++i) {
+            line += _byteRegisters[i].text();
+            line += _wordRegisters[i].text();
+            line += _segmentRegisters[i].text();
+        }
+        line += _flags.text();
+        _newInstruction = false;
+        _console->write(line + newLine);
+        ++_cycle;
+        if (_halted)
+            _simulator->halt();
+    }
+    void simulateCycleAction()
     {
         bool busDone;
         do {
             busDone = true;
             switch (_busState) {
                 case t1:
+                    if (_ioInProgress == ioInstructionFetch)
+                        _busAddress = physicalAddress(_segmentRegisters[1],
+                            _prefetchAddress);
+                    else
+                        _busAddress = physicalAddress();
+                    _bus->setAddress(_busAddress);
                     _busState = t2;
                     break;
                 case t2:
+                    if (_ioInProgess == ioWrite) {
+                        _ioRequested = ioNone;
+                        switch (_byte) {
+                            case ioSingleByte:
+                                _busData = _data;
+                                _state = _afterIO;
+                                break;
+                            case ioWordFirst:
+                                _busData = _data;
+                                _ioInProgress = ioWrite;
+                                _byte = ioWordSecond;
+                                ++_address;
+                                break;
+                            case ioWordSecond:
+                                _busData = _data >> 8;
+                                _state = _afterIO;
+                                _byte = ioSingleByte;
+                                break;
+                        }
+                        _bus->write(_busData);
+                    }
                     _busState = t3;
                     break;
                 case t3:
                     _busState = tWait;
                     busDone = false;
-                    return;
+                    break;
                 case tWait:
-                    switch (_ioInProgress) {
-                        case ioRead:
-                            {
-                                _ioRequested = ioNone;
-                                switch (_byte) {
-                                    case ioSingleByte:
-                                        _data = memory();
-                                        _state = _afterIO;
-                                        break;
-                                    case ioWordFirst:
-                                        _data = memory();
-                                        _ioInProgress = ioRead;
-                                        _byte = ioWordSecond;
-                                        ++_address;
-                                        break;
-                                    case ioWordSecond:
-                                        _data |= static_cast<UInt16>(
-                                            memory()) << 8;
-                                        _state = _afterIO;
-                                        _byte = ioSingleByte;
-                                        break;
-                                }
-                            }
-                            break;
-                        case ioWrite:
-                            {
-                                _ioRequested = ioNone;
-                                switch (_byte) {
-                                    case ioSingleByte:
-                                        memory() = _data;
-                                        _state = _afterIO;
-                                        break;
-                                    case ioWordFirst:
-                                        memory() = _data;
-                                        _ioInProgress = ioWrite;
-                                        _byte = ioWordSecond;
-                                        ++_address;
-                                        break;
-                                    case ioWordSecond:
-                                        memory() = _data >> 8;
-                                        _state = _afterIO;
-                                        _byte = ioSingleByte;
-                                        break;
-                                }
-                            }
-                            break;
-                        case ioInstructionFetch:
-                            if (!_abandonFetch) {
-                                _prefetchQueue[
-                                    (_prefetchOffset + _prefetched) & 3] =
-                                    memory(1, _prefetchAddress);
-                                ++_prefetched;
-                                ++_prefetchAddress;
-                            }
-                            completeInstructionFetch();
-                            break;
-                    }
                     _busState = t4;
-                    return;
+                    if (_ioInProgress == ioWrite)
+                        break;
+                    _busData = _bus->read();
+                    if (_ioInProgress == ioRead) {
+                        _ioRequested = ioNone;
+                        switch (_byte) {
+                            case ioSingleByte:
+                                _data = _busData;
+                                _state = _afterIO;
+                                break;
+                            case ioWordFirst:
+                                _data = _busData;
+                                _ioInProgress = ioRead;
+                                _byte = ioWordSecond;
+                                ++_address;
+                                break;
+                            case ioWordSecond:
+                                _data |= static_cast<UInt16>(_busData) << 8;
+                                _state = _afterIO;
+                                _byte = ioSingleByte;
+                                break;
+                        }
+                        break;
+                    }
+                    if (_abandonFetch)
+                        break;
+                    _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
+                        _busData;
+                    ++_prefetched;
+                    ++_prefetchAddress;
+                    completeInstructionFetch();
+                    break;
                 case t4:
                     _busState = tIdle;
                     busDone = false;
@@ -2030,57 +2046,60 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             (_newInstruction ? "true" : "false") + String(",\n");
         s += String("  newIP: ") + String::hexadecimal(_newIP, 4) +
             String(",\n");
+        s += String("  cycle: ") + String::decimal(_cycle);
         return s + "}\n";
     }
     Type type()
     {
-        List<Structured::Member> members;
-        members.add("ip", Type::integer);
-        members.add("ax", Type::integer);
-        members.add("cx", Type::integer);
-        members.add("dx", Type::integer);
-        members.add("bx", Type::integer);
-        members.add("sp", Type::integer);
-        members.add("bp", Type::integer);
-        members.add("si", Type::integer);
-        members.add("di", Type::integer);
-        members.add("es", Type::integer);
-        members.add("cs", Type::integer);
-        members.add("ss", Type::integer);
-        members.add("ds", Type::integer);
-        members.add("flags", Type::integer);
-        members.add("prefetch", Type::array(Type::integer));
-        members.add("segment", Type::integer);
-        members.add("segmentOverride", Type::integer);
-        members.add("ioType", _ioTypeType);
-        members.add("ioRequested", _ioTypeType);
-        members.add("ioInProgress", _ioTypeType);
-        members.add("busState", _busStateType);
-        members.add("byte", _ioByteType);
-        members.add("abandonFetch", Type::boolean);
-        members.add("wait", Type::integer);
-        members.add("state", _stateType);
-        members.add("opcode", Type::integer);
-        members.add("modRM", Type::integer);
-        members.add("data", Type::integer);
-        members.add("source", Type::integer);
-        members.add("destination", Type::integer);
-        members.add("remainder", Type::integer);
-        members.add("address", Type::integer);
-        members.add("useMemory", Type::boolean);
-        members.add("wordSize", Type::boolean);
-        members.add("aluOperation", Type::integer);
-        members.add("afterEA", _stateType);
-        members.add("afterIO", _stateType);
-        members.add("afterModRM", _stateType);
-        members.add("sourceIsRM", Type::boolean);
-        members.add("savedCS", Type::integer);
-        members.add("savedIP", Type::integer);
-        members.add("rep", Type::integer);
-        members.add("useIO", Type::boolean);
-        members.add("halted", Type::boolean);
-        members.add("newInstruction", Type::boolean);
-        members.add("newIP", Type::integer);
+        typedef StructuredType::Member M;
+        List<M> members;
+        members.add(M("ip", Type::integer));
+        members.add(M("ax", Type::integer));
+        members.add(M("cx", Type::integer));
+        members.add(M("dx", Type::integer));
+        members.add(M("bx", Type::integer));
+        members.add(M("sp", Type::integer));
+        members.add(M("bp", Type::integer));
+        members.add(M("si", Type::integer));
+        members.add(M("di", Type::integer));
+        members.add(M("es", Type::integer));
+        members.add(M("cs", Type::integer));
+        members.add(M("ss", Type::integer));
+        members.add(M("ds", Type::integer));
+        members.add(M("flags", Type::integer));
+        members.add(M("prefetch", Type::array(Type::integer)));
+        members.add(M("segment", Type::integer));
+        members.add(M("segmentOverride", Type::integer));
+        members.add(M("ioType", _ioTypeType));
+        members.add(M("ioRequested", _ioTypeType));
+        members.add(M("ioInProgress", _ioTypeType));
+        members.add(M("busState", _busStateType));
+        members.add(M("byte", _ioByteType));
+        members.add(M("abandonFetch", Type::boolean));
+        members.add(M("wait", Type::integer));
+        members.add(M("state", _stateType));
+        members.add(M("opcode", Type::integer));
+        members.add(M("modRM", Type::integer));
+        members.add(M("data", Type::integer));
+        members.add(M("source", Type::integer));
+        members.add(M("destination", Type::integer));
+        members.add(M("remainder", Type::integer));
+        members.add(M("address", Type::integer));
+        members.add(M("useMemory", Type::boolean));
+        members.add(M("wordSize", Type::boolean));
+        members.add(M("aluOperation", Type::integer));
+        members.add(M("afterEA", _stateType));
+        members.add(M("afterIO", _stateType));
+        members.add(M("afterModRM", _stateType));
+        members.add(M("sourceIsRM", Type::boolean));
+        members.add(M("savedCS", Type::integer));
+        members.add(M("savedIP", Type::integer));
+        members.add(M("rep", Type::integer));
+        members.add(M("useIO", Type::boolean));
+        members.add(M("halted", Type::boolean));
+        members.add(M("newInstruction", Type::boolean));
+        members.add(M("newIP", Type::integer));
+        members.add(M("cycle", Type::integer));
         return StructuredType("CPU", members);
     }
     void load(const TypedValue& value)
@@ -2135,10 +2154,105 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _halted = members["halted"].value<bool>();
         _newInstruction = members["newInstruction"].value<bool>();
         _newIP = members["newIP"].value<int>();
+        _cycle = members["cycle"].value<int>();
     }
     String name() const { return "cpu"; }
 
 private:
+    enum IOType
+    {
+        ioNone,
+        ioRead,
+        ioWrite,
+        ioInstructionFetch
+    };
+    enum State
+    {
+        stateWaitingForBIU,
+        stateFetch, stateFetch2,
+        stateEndInstruction,
+        stateModRM, stateModRM2,
+        stateEAOffset,
+        stateEARegisters,
+        stateEAByte,
+        stateEAWord,
+        stateEASetSegment,
+        stateIO,
+        statePush, statePush2,
+        statePop,
+
+        stateALU, stateALU2, stateALU3,
+        stateALUAccumImm, stateALUAccumImm2,
+        statePushSegReg,
+        statePopSegReg, statePopSegReg2,
+        stateSegOverride,
+        stateDAA, stateDAS, stateDA, stateAAA, stateAAS, stateAA,
+        stateIncDecRW, statePushRW, statePopRW, statePopRW2,
+        stateInvalid,
+        stateJCond, stateJCond2,
+        stateALURMImm, stateALURMImm2, stateALURMImm3,
+        stateTestRMReg, stateTestRMReg2,
+        stateXchgRMReg, stateXchgRMReg2,
+        stateMovRMReg, stateMovRMReg2,
+        stateMovRegRM, stateMovRegRM2,
+        stateMovRMWSegReg, stateMovRMWSegReg2,
+        stateLEA, stateLEA2,
+        stateMovSegRegRMW, stateMovSegRegRMW2,
+        statePopMW, statePopMW2,
+        stateXchgAxRW,
+        stateCBW, stateCWD,
+        stateCallCP, stateCallCP2, stateCallCP3, stateCallCP4, stateCallCP5,
+        stateWait,
+        statePushF, statePopF, statePopF2,
+        stateSAHF, stateLAHF,
+        stateMovAccumInd, stateMovAccumInd2, stateMovAccumInd3,
+        stateMovIndAccum, stateMovIndAccum2,
+        stateMovS, stateMovS2, stateRepAction,
+        stateCmpS, stateCmpS2, stateCmpS3,
+        stateTestAccumImm, stateTestAccumImm2,
+        stateStoS,
+        stateLodS, stateLodS2,
+        stateScaS, stateScaS2,
+        stateMovRegImm, stateMovRegImm2,
+        stateRet, stateRet2, stateRet3, stateRet4, stateRet5, stateRet6,
+        stateLoadFar, stateLoadFar2, stateLoadFar3,
+        stateMovRMImm, stateMovRMImm2, stateMovRMImm3,
+        stateInt, stateInt3, stateIntAction, stateIntAction2, stateIntAction3,
+        stateIntAction4, stateIntAction5, stateIntAction6,
+        stateIntO,
+        stateIRet, stateIRet2, stateIRet3, stateIRet4,
+        stateShift, stateShift2, stateShift3,
+        stateAAM, stateAAM2,
+        stateAAD, stateAAD2,
+        stateSALC,
+        stateXlatB, stateXlatB2,
+        stateEscape, stateEscape2,
+        stateLoop, stateLoop2,
+        stateInOut, stateInOut2, stateInOut3,
+        stateCallCW, stateCallCW2, stateCallCW3, stateCallCW4,
+        stateJmpCW, stateJmpCW2, stateJmpCW3,
+        stateJmpCP, stateJmpCP2, stateJmpCP3, stateJmpCP4,
+        stateJmpCB, stateJmpCB2,
+        stateLock, stateRep, stateHlt, stateCmC,
+        stateMath, stateMath2, stateMath3,
+        stateLoadC, stateLoadI, stateLoadD,
+        stateMisc, stateMisc2
+    };
+    enum BusState
+    {
+        t1,
+        t2,
+        t3,
+        tWait,
+        t4,
+        tIdle
+    };
+    enum IOByte
+    {
+        ioSingleByte,
+        ioWordFirst,
+        ioWordSecond
+    };
     String stringForState(State state)
     {
         switch (state) {
@@ -2333,100 +2447,6 @@ private:
         }
         return empty;
     }
-    enum IOType
-    {
-        ioNone,
-        ioRead,
-        ioWrite,
-        ioInstructionFetch
-    };
-    enum State
-    {
-        stateWaitingForBIU,
-        stateFetch, stateFetch2,
-        stateEndInstruction,
-        stateModRM, stateModRM2,
-        stateEAOffset,
-        stateEARegisters,
-        stateEAByte,
-        stateEAWord,
-        stateEASetSegment,
-        stateIO,
-        statePush, statePush2,
-        statePop,
-
-        stateALU, stateALU2, stateALU3,
-        stateALUAccumImm, stateALUAccumImm2,
-        statePushSegReg,
-        statePopSegReg, statePopSegReg2,
-        stateSegOverride,
-        stateDAA, stateDAS, stateDA, stateAAA, stateAAS, stateAA,
-        stateIncDecRW, statePushRW, statePopRW, statePopRW2,
-        stateInvalid,
-        stateJCond, stateJCond2,
-        stateALURMImm, stateALURMImm2, stateALURMImm3,
-        stateTestRMReg, stateTestRMReg2,
-        stateXchgRMReg, stateXchgRMReg2,
-        stateMovRMReg, stateMovRMReg2,
-        stateMovRegRM, stateMovRegRM2,
-        stateMovRMWSegReg, stateMovRMWSegReg2,
-        stateLEA, stateLEA2,
-        stateMovSegRegRMW, stateMovSegRegRMW2,
-        statePopMW, statePopMW2,
-        stateXchgAxRW,
-        stateCBW, stateCWD,
-        stateCallCP, stateCallCP2, stateCallCP3, stateCallCP4, stateCallCP5,
-        stateWait,
-        statePushF, statePopF, statePopF2,
-        stateSAHF, stateLAHF,
-        stateMovAccumInd, stateMovAccumInd2, stateMovAccumInd3,
-        stateMovIndAccum, stateMovIndAccum2,
-        stateMovS, stateMovS2, stateRepAction,
-        stateCmpS, stateCmpS2, stateCmpS3,
-        stateTestAccumImm, stateTestAccumImm2,
-        stateStoS,
-        stateLodS, stateLodS2,
-        stateScaS, stateScaS2,
-        stateMovRegImm, stateMovRegImm2,
-        stateRet, stateRet2, stateRet3, stateRet4, stateRet5, stateRet6,
-        stateLoadFar, stateLoadFar2, stateLoadFar3,
-        stateMovRMImm, stateMovRMImm2, stateMovRMImm3,
-        stateInt, stateInt3, stateIntAction, stateIntAction2, stateIntAction3,
-        stateIntAction4, stateIntAction5, stateIntAction6,
-        stateIntO,
-        stateIRet, stateIRet2, stateIRet3, stateIRet4,
-        stateShift, stateShift2, stateShift3,
-        stateAAM, stateAAM2,
-        stateAAD, stateAAD2,
-        stateSALC,
-        stateXlatB, stateXlatB2,
-        stateEscape, stateEscape2,
-        stateLoop, stateLoop2,
-        stateInOut, stateInOut2, stateInOut3,
-        stateCallCW, stateCallCW2, stateCallCW3, stateCallCW4,
-        stateJmpCW, stateJmpCW2, stateJmpCW3,
-        stateJmpCP, stateJmpCP2, stateJmpCP3, stateJmpCP4,
-        stateJmpCB, stateJmpCB2,
-        stateLock, stateRep, stateHlt, stateCmC,
-        stateMath, stateMath2, stateMath3,
-        stateLoadC, stateLoadI, stateLoadD,
-        stateMisc, stateMisc2
-    };
-    enum BusState
-    {
-        t1,
-        t2,
-        t3,
-        tWait,
-        t4,
-        tIdle
-    };
-    enum IOByte
-    {
-        ioSingleByte,
-        ioWordFirst,
-        ioWordSecond
-    };
     void div()
     {
         bool negative = false;
@@ -2770,13 +2790,20 @@ private:
     {
         return ((segment << 4) + offset) & 0xfffff;
     }
-    UInt8& memory()
+    UInt32 physicalAddress()
     {
         int segment = _segment;
         if (_segmentOverride != -1)
             segment = _segmentOverride;
-        return memory(segment, _address);
+        return physicalAddress(segment, _address);
     }
+    //UInt8& memory()
+    //{
+    //    int segment = _segment;
+    //    if (_segmentOverride != -1)
+    //        segment = _segmentOverride;
+    //    return memory(segment, _address);
+    //}
     UInt8 getInstructionByte()
     {
         UInt8 byte = _prefetchQueue[_prefetchOffset & 3];
@@ -2865,11 +2892,17 @@ private:
     bool _newInstruction;
     UInt16 _newIP;
     ISA8BitBus* _bus;
+    int _cycle;
+    UInt32 _busAddress;
+    UInt8 _busData;
 
     Type _stateType;
     Type _ioTypeType;
     Type _ioByteType;
     Type _busStateType;
+
+    Simulator* _simulator;
+    Disassembler _disassembler;
 };
 
 class ROMConversion : public Conversion
@@ -2956,7 +2989,7 @@ protected:
         }
 
         Simulator simulator;
-        Intel8088 cpu(&_console);
+        Intel8088 cpu(&simulator, &_console);
         cpu.setBus(&bus);
         simulator.addComponent(&bus);
         simulator.addComponent(&cpu);
