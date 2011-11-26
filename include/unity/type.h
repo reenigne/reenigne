@@ -195,16 +195,11 @@ public:
         }
         return Template::tuple.instantiate(a);
     }
-    bool isStructured() const
-    {
-        return ConstReference<Implementation>(_implementation)->isStructured();
-    }
 protected:
     class Implementation : public TypeConstructor::Implementation
     {
     public:
         Kind kind() const { return Kind::type; }
-        virtual bool isStructured() const { return false; }
     };
     TypeTemplate(const Implementation* implementation)
       : TypeConstructor(implementation) { }
@@ -540,7 +535,6 @@ private:
           : _name(name), _members(members) { }
         String toString() const { return _name; }
         const Array<Member>* members() const { return &_members; }
-        bool isStructured() const { return true; }
     private:
         String _name;
         Array<Member> _members;
@@ -618,8 +612,10 @@ public:
             typeConstructor = to;
             doneBoth = true;
         } while (true);
-        if (from.isStructured() && to.isStructured() &&
-            from.toString().empty()) {
+        StructuredType fromStructure(from);
+        StructuredType toStructure(to);
+        if (fromStructure.valid() && toStructure.valid() &&
+            fromStructure.toString().empty()) {
             const Array<StructuredType::Member>* fromMembers =
                 StructuredType(from).members();
             const Array<StructuredType::Member>* toMembers =

@@ -107,14 +107,23 @@ public:
             _data = static_cast<T*>(operator new (n * sizeof(T)));
         _n = n;
     }
-    void constructElements(const T& initializer = T())
+    void constructElements(const T& initializer)
     {
         for (int i = 0; i < _n; ++i)
             constructElement(i, initializer);
     }
-    void constructElement(int i, const T& initializer = T())
+    void constructElements()
+    {
+        for (int i = 0; i < _n; ++i)
+            constructElement(i);
+    }
+    void constructElement(int i, const T& initializer)
     {
         new(static_cast<void*>(&(*this)[i])) T(initializer);
+    }
+    void constructElement(int i)
+    {
+        new(static_cast<void*>(&(*this)[i])) T();
     }
     void destructElements()
     {

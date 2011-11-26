@@ -10,6 +10,8 @@
 #include "shellapi.h"
 #endif
 
+Handle* debug;
+
 class ProgramBase : public Uncopyable
 {
 public:
@@ -44,6 +46,7 @@ public:
             }
             static String console("console");
             _console.set(h, console);
+            debug = &_console;
             BEGIN_CHECKED {
                 initializeWindowsCommandLine();
             }
@@ -62,6 +65,7 @@ public:
         BEGIN_CHECKED {
             static String console("console");
             _console.set(STDOUT_FILENO, console);
+            debug = &_console;
             BEGIN_CHECKED {
                 _arguments.allocate(argc);
                 for (int i = 0; i < argc; ++i) {

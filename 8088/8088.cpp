@@ -53,7 +53,7 @@ public:
             needComma = true;
             s = (*i)->save();
         }
-        s += "}";
+        return s + "}";
     }
     Type type()
     {
@@ -94,7 +94,7 @@ public:
     virtual void write(UInt8 data) = 0;
     virtual bool wait() { return false; }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
-    UInt8 memory(UInt32 address) { return 0xff; }
+    virtual UInt8 memory(UInt32 address) { return 0xff; }
     bool active() const { return _active; }
 protected:
     ISA8BitBus* _bus;
@@ -129,6 +129,7 @@ public:
             i != _components.end(); ++i)
             if ((*i)->active())
                 return (*i)->read();
+        return 0xff;
     }
     UInt8 memory(UInt32 address)
     {
@@ -337,7 +338,7 @@ public:
         _address = address & 0xfffff & ~_mask;
         _active = ((address & _mask) == _start);
     }
-    UInt8 read() const { return _data[_address & ~_mask]; }
+    UInt8 read() { return _data[_address & ~_mask]; }
     void write(UInt8 data) { }
     UInt8 memory(UInt32 address)
     {
@@ -688,10 +689,10 @@ typedef DisassemblerTemplate<void> Disassembler;
 template<class T> class Intel8088Template : public Component
 {
 public:
-    Intel8088Template(Simulator* simulator, Handle* console)
+    Intel8088Template(Simulator* simulator, Handle* console, int stopAtCycle)
       : _flagsData(0x0002),  // ?
         _state(stateFetch),
-        _ip(0xfff0),
+        _ip(0),
         _prefetchOffset(0),
         _prefetched(0),
         _segmentOverride(-1),
@@ -707,7 +708,8 @@ public:
         _newInstruction(true),
         _newIP(0),
         _cycle(0),
-        _simulator(simulator)
+        _simulator(simulator),
+        _stopAtCycle(stopAtCycle)
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -765,14 +767,6 @@ public:
     {
         return physicalAddress(_segmentRegisterData[1], offset);
     }
-    //UInt8& memory(UInt32 physicalAddress)
-    //{
-    //    return _memory[physicalAddress];
-    //}
-    //UInt8& memory(int segment, UInt16 offset)
-    //{
-    //    return memory(physicalAddress(_segmentRegisterData[segment], offset));
-    //}
     void simulateCycle()
     {
         simulateCycleAction();
@@ -820,7 +814,7 @@ public:
         _newInstruction = false;
         _console->write(line + newLine);
         ++_cycle;
-        if (_halted)
+        if (_halted || _cycle == _stopAtCycle)
             _simulator->halt();
     }
     void simulateCycleAction()
@@ -831,7 +825,7 @@ public:
             switch (_busState) {
                 case t1:
                     if (_ioInProgress == ioInstructionFetch)
-                        _busAddress = physicalAddress(_segmentRegisters[1],
+                        _busAddress = physicalAddress(_segmentRegisterData[1],
                             _prefetchAddress);
                     else
                         _busAddress = physicalAddress();
@@ -839,7 +833,7 @@ public:
                     _busState = t2;
                     break;
                 case t2:
-                    if (_ioInProgess == ioWrite) {
+                    if (_ioInProgress == ioWrite) {
                         _ioRequested = ioNone;
                         switch (_byte) {
                             case ioSingleByte:
@@ -2106,17 +2100,17 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     {
         Value<HashTable<String, TypedValue> > members =
             value.value<Value<HashTable<String, TypedValue> > >();
-        _ip = members["ip"].value<int>();
-        _registerData[0] = members["ax"].value<int>();
-        _registerData[1] = members["cx"].value<int>();
-        _registerData[2] = members["dx"].value<int>();
-        _registerData[3] = members["bx"].value<int>();
-        _registerData[4] = members["sp"].value<int>();
-        _registerData[5] = members["bp"].value<int>();
-        _registerData[6] = members["si"].value<int>();
-        _registerData[7] = members["di"].value<int>();
-        _flagsData = members["flags"].value<int>();
-        List<TypedValue> prefetch = config.get<List<TypedValue> >("prefetch");
+        _ip = (*members)["ip"].value<int>();
+        _registerData[0] = (*members)["ax"].value<int>();
+        _registerData[1] = (*members)["cx"].value<int>();
+        _registerData[2] = (*members)["dx"].value<int>();
+        _registerData[3] = (*members)["bx"].value<int>();
+        _registerData[4] = (*members)["sp"].value<int>();
+        _registerData[5] = (*members)["bp"].value<int>();
+        _registerData[6] = (*members)["si"].value<int>();
+        _registerData[7] = (*members)["di"].value<int>();
+        _flagsData = (*members)["flags"].value<int>();
+        List<TypedValue> prefetch = (*members)["prefetch"].value<List<TypedValue> >();
         _prefetched = 0;
         _prefetchOffset = 0;
         for (List<TypedValue>::Iterator i = prefetch.start();
@@ -2124,37 +2118,37 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             _prefetchQueue[_prefetched] = (*i).value<int>();
             ++_prefetched;
         }
-        _segment = members["segment"].value<int>();
-        _segmentOverride = members["segmentOverride"].value<int>();
-        _ioType = members["ioType"].value<IOType>();
-        _ioRequested = members["ioRequested"].value<IOType>();
-        _ioInProgress = members["ioInProgress"].value<IOType>();
-        _busState = members["busState"].value<BusState>();
-        _byte = members["byte"].value<IOByte>();
-        _abandonFetch = members["abanonFetch"].value<bool>();
-        _wait = members["wait"].value<int>();
-        _state = members["state"].value<State>();
-        _opcode = members["opcode"].value<int>();
-        _modRM = members["modRM"].value<int>();
-        _data = members["data"].value<int>();
-        _source = members["source"].value<int>();
-        _destination = members["destination"].value<int>();
-        _remainder = members["remainder"].value<int>();
-        _address = members["address"].value<int>();
-        _useMemory = members["useMemory"].value<bool>();
-        _wordSize = members["wordSize"].value<bool>();
-        _aluOperation = members["aluOperation"].value<int>();
-        _afterEA = membres["afterEA"].value<State>();
-        _afterIO = members["afterIO"].value<State>();
-        _afterModRM = members["afterModRM"].value<State>();
-        _savedCS = members["savedCS"].value<int>();
-        _savedIP = members["savedIP"].value<int>();
-        _rep = members["rep"].value<int>();
-        _useIO = members["useIO"].value<bool>();
-        _halted = members["halted"].value<bool>();
-        _newInstruction = members["newInstruction"].value<bool>();
-        _newIP = members["newIP"].value<int>();
-        _cycle = members["cycle"].value<int>();
+        _segment = (*members)["segment"].value<int>();
+        _segmentOverride = (*members)["segmentOverride"].value<int>();
+        _ioType = (*members)["ioType"].value<IOType>();
+        _ioRequested = (*members)["ioRequested"].value<IOType>();
+        _ioInProgress = (*members)["ioInProgress"].value<IOType>();
+        _busState = (*members)["busState"].value<BusState>();
+        _byte = (*members)["byte"].value<IOByte>();
+        _abandonFetch = (*members)["abanonFetch"].value<bool>();
+        _wait = (*members)["wait"].value<int>();
+        _state = (*members)["state"].value<State>();
+        _opcode = (*members)["opcode"].value<int>();
+        _modRM = (*members)["modRM"].value<int>();
+        _data = (*members)["data"].value<int>();
+        _source = (*members)["source"].value<int>();
+        _destination = (*members)["destination"].value<int>();
+        _remainder = (*members)["remainder"].value<int>();
+        _address = (*members)["address"].value<int>();
+        _useMemory = (*members)["useMemory"].value<bool>();
+        _wordSize = (*members)["wordSize"].value<bool>();
+        _aluOperation = (*members)["aluOperation"].value<int>();
+        _afterEA = (*members)["afterEA"].value<State>();
+        _afterIO = (*members)["afterIO"].value<State>();
+        _afterModRM = (*members)["afterModRM"].value<State>();
+        _savedCS = (*members)["savedCS"].value<int>();
+        _savedIP = (*members)["savedIP"].value<int>();
+        _rep = (*members)["rep"].value<int>();
+        _useIO = (*members)["useIO"].value<bool>();
+        _halted = (*members)["halted"].value<bool>();
+        _newInstruction = (*members)["newInstruction"].value<bool>();
+        _newIP = (*members)["newIP"].value<int>();
+        _cycle = (*members)["cycle"].value<int>();
     }
     String name() const { return "cpu"; }
 
@@ -2797,13 +2791,6 @@ private:
             segment = _segmentOverride;
         return physicalAddress(segment, _address);
     }
-    //UInt8& memory()
-    //{
-    //    int segment = _segment;
-    //    if (_segmentOverride != -1)
-    //        segment = _segmentOverride;
-    //    return memory(segment, _address);
-    //}
     UInt8 getInstructionByte()
     {
         UInt8 byte = _prefetchQueue[_prefetchOffset & 3];
@@ -2893,6 +2880,7 @@ private:
     UInt16 _newIP;
     ISA8BitBus* _bus;
     int _cycle;
+    int _stopAtCycle;
     UInt32 _busAddress;
     UInt8 _busData;
 
@@ -2948,8 +2936,8 @@ protected:
 
         List<Type> tupleArguments;
         tupleArguments.add(Type::integer);
-        tupleArguments.add(Type::string);
         tupleArguments.add(Type::integer);
+        tupleArguments.add(Type::string);
         tupleArguments.add(Type::integer);
 
         config.addConversion(Type::tuple(tupleArguments), romDataType,
@@ -2958,6 +2946,8 @@ protected:
         Type romImageArrayType = Type::array(romDataType);
         config.addType(romImageArrayType);
         config.addOption("roms", romImageArrayType);
+        config.addOption("stopAtCycle", Type::integer, -1);
+        config.addOption("stopSaveState", Type::string, empty);
 
         config.load(_arguments[1]);
 
@@ -2978,6 +2968,7 @@ protected:
 
         List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
         Array<ROM> roms(romDatas.count());
+        roms.constructElements();
         int r = 0;
         for (List<TypedValue>::Iterator i = romDatas.start();
             i != romDatas.end(); ++i) {
@@ -2987,9 +2978,11 @@ protected:
             bus.addComponent(rom);
             ++r;
         }
+        int stopAtCycle = config.get<int>("stopAtCycle");
+        String stopSaveState = config.get<String>("stopSaveState");
 
         Simulator simulator;
-        Intel8088 cpu(&simulator, &_console);
+        Intel8088 cpu(&simulator, &_console, stopAtCycle);
         cpu.setBus(&bus);
         simulator.addComponent(&bus);
         simulator.addComponent(&cpu);
@@ -3000,6 +2993,26 @@ protected:
         //Space::parse(&source);
         //SourceProgram sourceProgram = parseSourceProgram(&source);
         //sourceProgram.assemble(&simulator);
+        class Saver
+        {
+        public:
+            Saver(Simulator* simulator, String stopSaveState)
+              : _simulator(simulator), _stopSaveState(stopSaveState) { }
+            ~Saver()
+            {
+                try {
+                    String save = _simulator->save();
+                    if (!_stopSaveState.empty())
+                        File(_stopSaveState).save(save);
+                }
+                catch (...) {
+                }
+            }
+        private:
+            Simulator* _simulator;
+            String _stopSaveState;
+        };
+        Saver saver(&simulator, stopSaveState);
         simulator.simulate();
     }
 };
