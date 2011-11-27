@@ -34,6 +34,28 @@ private:
     Array<UInt8> _data;
 };
 
+class GrowingBufferImplementation : public BufferImplementation
+{
+public:
+    void allocate(int bytes)
+    {
+        if (bytes > _data.count()) {
+            int newBytes = _data.count();
+            while (newBytes < bytes)
+                newBytes *= 2;
+            Array<UInt8> data(newBytes);
+            memcpy(&data[0], &_data[0], _n);
+            _n = bytes;
+            _data.swap(data);
+        }
+
+    }
+    UInt8* data() { return &_data[0]; }
+private:
+    Array<UInt8> _data;
+    int _n;
+};
+
 class Buffer
 {
 public:

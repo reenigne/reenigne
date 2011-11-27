@@ -80,6 +80,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\unity\array.h" />
+    <ClInclude Include="..\include\unity\buffer.h" />
     <ClInclude Include="..\include\unity\character_source.h" />
     <ClInclude Include="..\include\unity\config_file.h" />
     <ClInclude Include="..\include\unity\hash_table.h" />

@@ -389,6 +389,66 @@ private:
     static ConstReference<StringImplementation> _emptyImplementation;
 };
 
+ //A StringBuilder is a String based on an expandable buffer, which stores a
+ //flattened copy of all the Strings appended to it.
+class StringBuilder : public String
+{
+public:
+    StringBuilder() : String(new Implementation) { }
+private:
+    class Implementation : public StringImplementation
+    {
+    public:
+        Implementation() : _buffer(new GrowingBufferImplementation) { }
+        StringImplementation* subString(int start, int length) const
+        {
+            return new SimpleStringImplementation(_buffer, _start + start, length);
+        }
+        SimpleStringImplementationTemplate(const Buffer& buffer, int start,
+            int length) : _buffer(buffer), _start(start)
+        {
+            setLength(length);
+        }
+        void copyTo(UInt8* buffer) const
+        {
+            _buffer.copyTo(buffer, _start, length());
+        }
+        int hash(int h) const
+        {
+            for (int i = 0; i < length(); ++i)
+                h = h * 67 + _buffer.data()[_start + i] - 113;
+            return h;
+        }
+        int compare(int start, const StringImplementation* other, int otherStart,
+            int l) const
+        {
+            return -other->compare(otherStart, _buffer.data() + _start + start, l);
+        }
+        int compare(int start, const UInt8* data, int l) const
+        {
+            return memcmp(_buffer.data() + _start + start, data, l);
+        }
+        UInt8 byteAt(int offset) const { return _buffer.data()[_start + offset]; }
+        Buffer buffer() const { return _buffer; }
+        int offset() const { return _start; }
+        void initSimpleData(int offset, Buffer* buffer, int* start, int* l) const
+        {
+            *buffer = _buffer;
+            *start = _start + offset;
+            *l = length() - offset;
+        }
+        void write(const Handle& handle) const
+        {
+            if (length() == 0)
+                return;
+            handle.write(static_cast<const void*>(_buffer.data() + _start),
+                length());
+        }
+    protected:
+        Buffer _buffer;
+    };
+};
+
 class NullTerminatedString
 {
 public:

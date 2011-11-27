@@ -51,9 +51,9 @@ public:
             if (needComma)
                 s += ", ";
             needComma = true;
-            s = (*i)->save();
+            s += (*i)->save();
         }
-        return s + "}";
+        return s + "};";
     }
     Type type()
     {
@@ -140,7 +140,7 @@ public:
         }
         return data;
     }
-    String save() const
+    String save()
     {
         String s("bus: {");
         bool needComma = false;
@@ -149,9 +149,9 @@ public:
             if (needComma)
                 s += ", ";
             needComma = true;
-            s = (*i)->save();
+            s += (*i)->save();
         }
-        s += "}";
+        return s + "}";
     }
     Type type()
     {
@@ -243,7 +243,7 @@ public:
             return _data[address];
         return 0xff;
     }
-    String save() const
+    String save()
     {
         String s("ram: ###\n");
         for (int y = 0; y < 0xa0000; y += 0x20) {
