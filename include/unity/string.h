@@ -41,8 +41,6 @@
 template<class T> class StringTemplate;
 typedef StringTemplate<void> String;
 
-class StringImplementation;
-
 template<class T> class SimpleStringImplementationTemplate;
 typedef SimpleStringImplementationTemplate<void> SimpleStringImplementation;
 
@@ -96,6 +94,37 @@ typedef LocalStringTemplate<void> LocalString;
 template<class T> class StringTemplate
 {
 public:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        Implementation() : _length(0) { }
+        int length() const { return _length; }
+        virtual const Implementation* subString(int start, int length) const
+            = 0;
+        virtual void copyTo(UInt8* buffer) const = 0;
+        virtual int hash(int h) const = 0;
+
+        // works like memcmp(this+start, other+otherStart, l) - returns 1 if
+        // "this" is greater than "other".
+        virtual int compare(int start, const Implementation* other,
+            int otherStart, int l) const = 0;
+
+        // works like memcmp(this+start, data, l) - returns 1 if "this" is
+        // greater than "other".
+        virtual int compare(int start, const UInt8* data, int l) const = 0;
+
+        virtual UInt8 byteAt(int offset) const = 0;
+        virtual Buffer buffer() const = 0;
+        virtual int offset() const = 0;
+        virtual void initSimpleData(int offset, Buffer* buffer, int* start,
+            int* length) const = 0;
+        virtual void write(const Handle& handle) const = 0;
+    protected:
+        void setLength(int length) { _length = length; }
+    private:
+        int _length;
+    };
+
     StringTemplate() : _implementation(_emptyImplementation) { }
     StringTemplate(const char* data)
         : _implementation(
@@ -163,13 +192,10 @@ public:
 
     StringTemplate(const WCHAR* utf16)
     {
-        Reference<OwningBufferImplementation> bufferImplementation =
-            new OwningBufferImplementation();
         int n = countBytes(utf16);
-        bufferImplementation->allocate(n);
-        addToBuffer(utf16, bufferImplementation->data());
-        _implementation =
-            new SimpleStringImplementation(Buffer(bufferImplementation), 0, n);
+        OwningBuffer buffer(n);
+        addToBuffer(utf16, buffer.data());
+        _implementation = new SimpleStringImplementation(buffer, 0, n);
     }
 #endif
     static String hexadecimal(UInt32 value, int length)
@@ -201,11 +227,10 @@ public:
         {
             const SimpleStringImplementation* l =
                 dynamic_cast<const SimpleStringImplementation*>(
-                    static_cast<const StringImplementation*>(_implementation));
+                    static_cast<const Implementation*>(_implementation));
             const SimpleStringImplementation* r =
                 dynamic_cast<const SimpleStringImplementation*>(
-                    static_cast<const StringImplementation*>(
-                        other._implementation));
+                    static_cast<const Implementation*>(other._implementation));
             if (l != 0 && r != 0 && l->buffer() == r->buffer() &&
                 l->offset() + l->length() == r->offset()) {
                 _implementation = new SimpleStringImplementation(l->buffer(),
@@ -220,11 +245,10 @@ public:
         {
             const RepeatedStringImplementation* l =
                 dynamic_cast<const RepeatedStringImplementation*>(
-                    static_cast<const StringImplementation*>(_implementation));
+                    static_cast<const Implementation*>(_implementation));
             const RepeatedStringImplementation* r =
                 dynamic_cast<const RepeatedStringImplementation*>(
-                    static_cast<const StringImplementation*>(
-                        other._implementation));
+                    static_cast<const Implementation*>(other._implementation));
             if (l != 0 && r != 0 && l->_string == r->_string) {
                 _implementation = new RepeatedStringImplementation(l->_string,
                     l->_count + r->_count);
@@ -255,7 +279,7 @@ public:
             return *this;
         const RepeatedStringImplementation* r =
             dynamic_cast<const RepeatedStringImplementation*>(
-                static_cast<const StringImplementation*>(_implementation));
+                static_cast<const Implementation*>(_implementation));
         if (r != 0) {
             _implementation =
                 new RepeatedStringImplementation(r->_string, n*r->_count);
@@ -357,12 +381,8 @@ public:
         _implementation->initSimpleData(offset, buffer, start, length);
     }
 
-    StringTemplate(const ConstReference<StringImplementation>& implementation)
+    StringTemplate(const Reference<Implementation>& implementation)
       : _implementation(implementation) { }
-    ConstReference<StringImplementation> implementation()
-    {
-        return _implementation; 
-    }
 
     String alignRight(int n)
     {
@@ -378,75 +398,22 @@ public:
             return (*this) + space*spaces;
         return *this;
     }
+    Reference<Implementation> implementation()
+    {
+        return _implementation;
+    }
+    ConstReference<Implementation> implementation() const
+    {
+        return _implementation;
+    }
 
 private:
-
-    ConstReference<StringImplementation> _implementation;
+    Reference<Implementation> _implementation;
 
     template<class T> friend class CharacterSourceTemplate;
     template<class T> friend class RepeatedStringImplementationTemplate;
 
-    static ConstReference<StringImplementation> _emptyImplementation;
-};
-
- //A StringBuilder is a String based on an expandable buffer, which stores a
- //flattened copy of all the Strings appended to it.
-class StringBuilder : public String
-{
-public:
-    StringBuilder() : String(new Implementation) { }
-private:
-    class Implementation : public StringImplementation
-    {
-    public:
-        Implementation() : _buffer(new GrowingBufferImplementation) { }
-        StringImplementation* subString(int start, int length) const
-        {
-            return new SimpleStringImplementation(_buffer, _start + start, length);
-        }
-        SimpleStringImplementationTemplate(const Buffer& buffer, int start,
-            int length) : _buffer(buffer), _start(start)
-        {
-            setLength(length);
-        }
-        void copyTo(UInt8* buffer) const
-        {
-            _buffer.copyTo(buffer, _start, length());
-        }
-        int hash(int h) const
-        {
-            for (int i = 0; i < length(); ++i)
-                h = h * 67 + _buffer.data()[_start + i] - 113;
-            return h;
-        }
-        int compare(int start, const StringImplementation* other, int otherStart,
-            int l) const
-        {
-            return -other->compare(otherStart, _buffer.data() + _start + start, l);
-        }
-        int compare(int start, const UInt8* data, int l) const
-        {
-            return memcmp(_buffer.data() + _start + start, data, l);
-        }
-        UInt8 byteAt(int offset) const { return _buffer.data()[_start + offset]; }
-        Buffer buffer() const { return _buffer; }
-        int offset() const { return _start; }
-        void initSimpleData(int offset, Buffer* buffer, int* start, int* l) const
-        {
-            *buffer = _buffer;
-            *start = _start + offset;
-            *l = length() - offset;
-        }
-        void write(const Handle& handle) const
-        {
-            if (length() == 0)
-                return;
-            handle.write(static_cast<const void*>(_buffer.data() + _start),
-                length());
-        }
-    protected:
-        Buffer _buffer;
-    };
+    static Reference<Implementation> _emptyImplementation;
 };
 
 class NullTerminatedString
@@ -481,42 +448,11 @@ private:
 };
 #endif
 
-class StringImplementation : public ReferenceCounted
-{
-public:
-    StringImplementation() : _length(0) { }
-    int length() const { return _length; }
-    virtual const StringImplementation* subString(int start, int length) const
-        = 0;
-    virtual void copyTo(UInt8* buffer) const = 0;
-    virtual int hash(int h) const = 0;
-
-    // works like memcmp(this+start, other+otherStart, l) - returns 1 if "this"
-    // is greater than "other".
-    virtual int compare(int start, const StringImplementation* other,
-        int otherStart, int l) const = 0;
-
-    // works like memcmp(this+start, data, l) - returns 1 if "this" is greater
-    // than "other".
-    virtual int compare(int start, const UInt8* data, int l) const = 0;  
-
-    virtual UInt8 byteAt(int offset) const = 0;
-    virtual Buffer buffer() const = 0;
-    virtual int offset() const = 0;
-    virtual void initSimpleData(int offset, Buffer* buffer, int* start,
-        int* length) const = 0;
-    virtual void write(const Handle& handle) const = 0;
-protected:
-    void setLength(int length) { _length = length; }
-private:
-    int _length;
-};
-
 template<class T> class SimpleStringImplementationTemplate
-  : public StringImplementation
+  : public String::Implementation
 {
 public:
-    StringImplementation* subString(int start, int length) const
+    String::Implementation* subString(int start, int length) const
     {
         return new SimpleStringImplementation(_buffer, _start + start, length);
     }
@@ -540,7 +476,7 @@ public:
             h = h * 67 + _buffer.data()[_start + i] - 113;
         return h;
     }
-    int compare(int start, const StringImplementation* other, int otherStart,
+    int compare(int start, const String::Implementation* other, int otherStart,
         int l) const
     {
         return -other->compare(otherStart, _buffer.data() + _start + start, l);
@@ -570,11 +506,11 @@ protected:
     int _start;
 };
 
-ConstReference<StringImplementation> String::_emptyImplementation =
+Reference<String::Implementation> String::_emptyImplementation =
     new SimpleStringImplementation(Buffer(), 0, 0);
 
 template<class T> class RepeatedStringImplementationTemplate
-  : public StringImplementation
+  : public String::Implementation
 {
 public:
     RepeatedStringImplementationTemplate(String string, int count)
@@ -582,7 +518,7 @@ public:
     {
         setLength(count*string.length());
     }
-    const StringImplementation* subString(int start, int l) const
+    const String::Implementation* subString(int start, int l) const
     {
         int sl = _string.length();
         int s = start % sl;
@@ -611,7 +547,7 @@ public:
             h = _string._implementation->hash(h);
         return h;
     }
-    int compare(int start, const StringImplementation* other, int otherStart,
+    int compare(int start, const String::Implementation* other, int otherStart,
         int l) const
     {
         int sl = _string.length();
@@ -683,17 +619,17 @@ private:
 };
 
 template<class T> class ConcatenatedStringImplementationTemplate
-  : public StringImplementation
+  : public String::Implementation
 {
 public:
     ConcatenatedStringImplementationTemplate(
-        const ConstReference<StringImplementation>& left,
-        const ConstReference<StringImplementation>& right)
+        const ConstReference<String::Implementation>& left,
+        const ConstReference<String::Implementation>& right)
       : _left(left), _right(right)
     {
         setLength(_left->length() + _right->length());
     }
-    const StringImplementation* subString(int start, int length) const
+    const String::Implementation* subString(int start, int length) const
     {
         int leftLength = _left->length();
         if (start >= leftLength)
@@ -714,7 +650,7 @@ public:
         h = _left->hash(h);
         return _right->hash(h);
     }
-    int compare(int start, const StringImplementation* other, int otherStart,
+    int compare(int start, const String::Implementation* other, int otherStart,
         int l) const
     {
         int leftLength = _left->length();
@@ -767,8 +703,8 @@ public:
         _right->write(handle);
     }
 private:
-    ConstReference<StringImplementation> _left;
-    ConstReference<StringImplementation> _right;
+    ConstReference<String::Implementation> _left;
+    ConstReference<String::Implementation> _right;
 };
 
 template<int N> class FixedStringImplementation
@@ -783,7 +719,7 @@ public:
         _buffer = Buffer(&_bufferImplementation);
     }
 protected:
-    NonOwningBufferImplementation _bufferImplementation;
+    Buffer::NonOwningImplementation _bufferImplementation;
     UInt8 _data[N];
 };
 
@@ -856,6 +792,95 @@ public:
 };
 
 String empty("");
+
+// A StringBuilder is a String based on an expandable buffer, which stores a
+// flattened copy of all the Strings appended to it.
+template<class T> class StringBuilderTemplate : public String
+{
+public:
+    StringBuilderTemplate() : String(new Implementation) { }
+    const StringBuilderTemplate& operator+=(const String& other)
+    {
+        Implementation* i = implementation();
+        i->allocate(length() + other.length());
+        other.implementation()->copyTo(i->data() + length());
+        return *this;
+    }
+    const StringBuilderTemplate& operator=(const String& other)
+    {
+        Implementation* i = implementation();
+        i->allocate(other.length());
+        other.implementation()->copyTo(i->data());
+        return *this;
+    }
+    const StringBuilderTemplate& operator*=(int n)
+    {
+        Implementation* i = implementation();
+        int l = length();
+        i->allocate(l*n);
+        UInt8* p = i->data() + l;
+        for (int j = 1; j < n; ++j) {
+            i->copyTo(p);
+            p += l;
+        }
+        return *this;
+    }
+
+private:
+    class Implementation : public String::Implementation
+    {
+    public:
+        String::Implementation* subString(int start, int length) const
+        {
+            return new SimpleStringImplementation(_buffer, start, length);
+        }
+        void copyTo(UInt8* buffer) const
+        {
+            _buffer.copyTo(buffer, 0, length());
+        }
+        int hash(int h) const
+        {
+            for (int i = 0; i < length(); ++i)
+                h = h * 67 + _buffer.data()[i] - 113;
+            return h;
+        }
+        int compare(int start, const String::Implementation* other,
+            int otherStart, int l) const
+        {
+            return -other->compare(otherStart, _buffer.data() + start, l);
+        }
+        int compare(int start, const UInt8* data, int l) const
+        {
+            return memcmp(_buffer.data() + start, data, l);
+        }
+        UInt8 byteAt(int offset) const { return _buffer.data()[offset]; }
+        Buffer buffer() const { return _buffer; }
+        int offset() const { return 0; }
+        void initSimpleData(int offset, Buffer* buffer, int* start, int* l)
+            const
+        {
+            *buffer = _buffer;
+            *start = offset;
+            *l = length() - offset;
+        }
+        void write(const Handle& handle) const
+        {
+            if (length() == 0)
+                return;
+            handle.write(static_cast<const void*>(_buffer.data()), length());
+        }
+        UInt8* data() { return _buffer.data(); }
+        void allocate(int bytes) { _buffer.allocate(bytes); }
+    protected:
+        GrowingBuffer _buffer;
+    };
+    Implementation* implementation()
+    {
+        return Reference<Implementation>(String::implementation());
+    }
+};
+
+typedef StringBuilderTemplate<void> StringBuilder;
 
 template<class T> class HandleTemplate : Uncopyable
 {

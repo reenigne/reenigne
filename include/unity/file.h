@@ -683,12 +683,10 @@ private:
         String windowsPath() const
         {
             // TODO: Use \\?\ to avoid MAX_PATH limit?
-            Reference<OwningBufferImplementation> bufferImplementation = new OwningBufferImplementation();
-            bufferImplementation->allocate(2);
-            UInt8* p = bufferImplementation->data();
-            p[0] = _drive + 'A';
-            p[1] = ':';
-            return String(Buffer(bufferImplementation), 0, 2);
+            OwningBuffer buffer(2);
+            buffer[0] = _drive + 'A';
+            buffer[1] = ':';
+            return String(buffer, 0, 2);
         }
         String path() const
         {
@@ -771,12 +769,10 @@ public:
             static String tooLargeFile("2Gb or more in file ");
             throw Exception(tooLargeFile + messagePath());
         }
-        Reference<OwningBufferImplementation> bufferImplementation =
-            new OwningBufferImplementation();
         int intSize = static_cast<int>(size);
-        bufferImplementation->allocate(intSize);
-        handle.read(static_cast<void*>(bufferImplementation->data()), intSize);
-        return String(Buffer(bufferImplementation), 0, intSize);
+        OwningBuffer buffer(intSize);
+        handle.read(static_cast<void*>(buffer.data()), intSize);
+        return String(buffer, 0, intSize);
     }
     void save(const String& contents)
     {

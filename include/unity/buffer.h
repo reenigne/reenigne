@@ -5,64 +5,35 @@
 #include "unity/reference_counted.h"
 #include "unity/array.h"
 
-class BufferImplementation : public ReferenceCounted
-{
-public:
-    void copyTo(UInt8* destination, int start, int length)
-    {
-        memcpy(destination, _data + start, length);
-    }
-    const UInt8* data() const { return &_data[0]; }
-protected:
-    void setData(const UInt8* data) { _data = data; }
-private:
-    const UInt8* _data;
-};
-
-class NonOwningBufferImplementation : public BufferImplementation
-{
-public:
-    NonOwningBufferImplementation(const UInt8* data) { setData(data); }
-};
-
-class OwningBufferImplementation : public BufferImplementation
-{
-public:
-    void allocate(int bytes) { _data.allocate(bytes); setData(&_data[0]); }
-    UInt8* data() { return &_data[0]; }
-private:
-    Array<UInt8> _data;
-};
-
-class GrowingBufferImplementation : public BufferImplementation
-{
-public:
-    void allocate(int bytes)
-    {
-        if (bytes > _data.count()) {
-            int newBytes = _data.count();
-            while (newBytes < bytes)
-                newBytes *= 2;
-            Array<UInt8> data(newBytes);
-            memcpy(&data[0], &_data[0], _n);
-            _n = bytes;
-            _data.swap(data);
-        }
-
-    }
-    UInt8* data() { return &_data[0]; }
-private:
-    Array<UInt8> _data;
-    int _n;
-};
-
 class Buffer
 {
+protected:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        void copyTo(UInt8* destination, int start, int length)
+        {
+            memcpy(destination, _data + start, length);
+        }
+        const UInt8* data() const { return &_data[0]; }
+    protected:
+        void setData(const UInt8* data) { _data = data; }
+    private:
+        const UInt8* _data;
+    };
+
+    Reference<Implementation> _implementation;
 public:
+    class NonOwningImplementation : public Implementation
+    {
+    public:
+        NonOwningImplementation(const UInt8* data) { setData(data); }
+    };
+
     Buffer() { }
     Buffer(const UInt8* data)
-      : _implementation(new NonOwningBufferImplementation(data)) { }
-    Buffer(const Reference<BufferImplementation>& implementation)
+      : _implementation(new NonOwningImplementation(data)) { }
+    Buffer(const Reference<Implementation>& implementation)
       : _implementation(implementation) { }
     bool operator==(const Buffer& other) const
     {
@@ -75,23 +46,74 @@ public:
         _implementation->copyTo(destination, start, length);
     }
     const UInt8& operator[](int i) const { return data()[i]; }
-protected:
-    Reference<BufferImplementation> _implementation;
 };
 
 class OwningBuffer : public Buffer
 {
 public:
-    OwningBuffer(int size) : Buffer(new OwningBufferImplementation)
+    OwningBuffer(int size) : Buffer(new Implementation)
     { 
         implementation()->allocate(size);
     }
-    UInt8& operator[](int i) { return implementation()->data()[i]; }
+    UInt8& operator[](int i) { return data()[i]; }
+    UInt8* data() { return implementation()->data(); }
 private:
-    OwningBufferImplementation* implementation()
+    class Implementation : public Buffer::Implementation
     {
-        return Reference<OwningBufferImplementation>(_implementation);
+    public:
+        void allocate(int bytes) { _data.allocate(bytes); setData(&_data[0]); }
+        UInt8* data() { return &_data[0]; }
+    private:
+        Array<UInt8> _data;
+    };
+
+    Implementation* implementation()
+    {
+        return Reference<Implementation>(_implementation);
     }
+};
+
+class GrowingBuffer : public Buffer
+{
+private:
+    class Implementation : public Buffer::Implementation
+    {
+    public:
+        void allocate(int bytes)
+        {
+            if (bytes > _data.count()) {
+                int newBytes = _data.count();
+                while (newBytes < bytes)
+                    newBytes *= 2;
+                Array<UInt8> data(newBytes);
+                memcpy(&data[0], &_data[0], _n);
+                _n = bytes;
+                _data.swap(data);
+            }
+            else
+                if (bytes <= _data.count() / 2) {
+                    int newBytes = 1;
+                    while (newBytes < bytes)
+                        newBytes *= 2;
+                    Array<UInt8> data(newBytes);
+                    // Don't need to preserve data when shrinking.
+                    _n = bytes;
+                    _data.swap(data);
+                }
+        }
+        UInt8* data() { return &_data[0]; }
+    private:
+        Array<UInt8> _data;
+        int _n;
+    };
+    Implementation* implementation()
+    {
+        return Reference<Implementation>(_implementation);
+    }
+public:
+    const UInt8* data() const { return _implementation->data(); }
+    UInt8* data() { return implementation()->data(); }
+    void allocate(int bytes) { implementation()->allocate(bytes); }
 };
 
 #endif // INCLUDED_BUFFER_H
