@@ -79,6 +79,7 @@ private:
     T* _t;
 
     template<class U> friend class Reference;
+    template<class U> friend class ConstReference;
 };
 
 template<class T> class ConstReference

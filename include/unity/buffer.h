@@ -79,10 +79,13 @@ private:
     class Implementation : public Buffer::Implementation
     {
     public:
+        Implementation() : _n(0) { }
         void allocate(int bytes)
         {
             if (bytes > _data.count()) {
                 int newBytes = _data.count();
+                if (newBytes == 0)
+                    newBytes = 1;
                 while (newBytes < bytes)
                     newBytes *= 2;
                 Array<UInt8> data(newBytes);
@@ -102,6 +105,7 @@ private:
                 }
         }
         UInt8* data() { return &_data[0]; }
+        int count() { return _n; }
     private:
         Array<UInt8> _data;
         int _n;
@@ -111,9 +115,17 @@ private:
         return Reference<Implementation>(_implementation);
     }
 public:
+    GrowingBuffer() : Buffer(new Implementation) { }
+    GrowingBuffer(const char* p) : Buffer(new Implementation)
+    {
+        int n = strlen(p);
+        allocate(n);
+        memcpy(data(), p, n);
+    }
     const UInt8* data() const { return _implementation->data(); }
     UInt8* data() { return implementation()->data(); }
     void allocate(int bytes) { implementation()->allocate(bytes); }
+    int count() { return implementation()->count(); }
 };
 
 #endif // INCLUDED_BUFFER_H

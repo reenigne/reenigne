@@ -89,7 +89,7 @@ public:
 template<class T> class Array : Uncopyable
 {
 public:
-    Array() : _data(0) { }
+    Array() : _data(0), _n(0) { }
     Array(const List<T>& list) : _data(0)
     {
         allocate(list.count());

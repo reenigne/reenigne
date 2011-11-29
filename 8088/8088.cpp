@@ -44,7 +44,7 @@ public:
     void addComponent(Component* component) { _components.add(component); }
     String save() const
     {
-        String s("simulator = {");
+        StringBuilder s("simulator = {");
         bool needComma = false;
         for (List<Component*>::Iterator i = _components.start();
             i != _components.end(); ++i) {
@@ -53,7 +53,8 @@ public:
             needComma = true;
             s += (*i)->save();
         }
-        return s + "};";
+        s += "};";
+        return s;
     }
     Type type()
     {
@@ -142,7 +143,7 @@ public:
     }
     String save()
     {
-        String s("bus: {");
+        StringBuilder s("bus: {");
         bool needComma = false;
         for (List<ISA8BitComponent*>::Iterator i = _components.start();
             i != _components.end(); ++i) {
@@ -151,7 +152,8 @@ public:
             needComma = true;
             s += (*i)->save();
         }
-        return s + "}";
+        s += "}";
+        return s;
     }
     Type type()
     {
@@ -245,7 +247,7 @@ public:
     }
     String save()
     {
-        String s("ram: ###\n");
+        StringBuilder s("ram: ###\n");
         for (int y = 0; y < 0xa0000; y += 0x20) {
             String line;
             for (int x = 0; x < 0x20; x += 4) {
@@ -257,7 +259,8 @@ public:
             line += String("//") + String::hexadecimal(y, 5) + "\n";
             s += line;
         }
-        return s + "###\n";
+        s += "###\n";
+        return s;
     }
     Type type() { return Type::string; }
     void load(const TypedValue& value)

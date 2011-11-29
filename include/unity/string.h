@@ -99,8 +99,7 @@ public:
     public:
         Implementation() : _length(0) { }
         int length() const { return _length; }
-        virtual const Implementation* subString(int start, int length) const
-            = 0;
+        virtual Implementation* subString(int start, int length) = 0;
         virtual void copyTo(UInt8* buffer) const = 0;
         virtual int hash(int h) const = 0;
 
@@ -210,7 +209,7 @@ public:
     {
         return String(new CodePointStringImplementation(codePoint));
     }
-    String subString(int start, int length) const
+    String subString(int start, int length)
     {
         if (length == 0)
             return String();
@@ -381,7 +380,7 @@ public:
         _implementation->initSimpleData(offset, buffer, start, length);
     }
 
-    StringTemplate(const Reference<Implementation>& implementation)
+    StringTemplate(Reference<Implementation> implementation)
       : _implementation(implementation) { }
 
     String alignRight(int n)
@@ -452,7 +451,7 @@ template<class T> class SimpleStringImplementationTemplate
   : public String::Implementation
 {
 public:
-    String::Implementation* subString(int start, int length) const
+    String::Implementation* subString(int start, int length)
     {
         return new SimpleStringImplementation(_buffer, _start + start, length);
     }
@@ -518,7 +517,7 @@ public:
     {
         setLength(count*string.length());
     }
-    const String::Implementation* subString(int start, int l) const
+    String::Implementation* subString(int start, int l)
     {
         int sl = _string.length();
         int s = start % sl;
@@ -623,13 +622,13 @@ template<class T> class ConcatenatedStringImplementationTemplate
 {
 public:
     ConcatenatedStringImplementationTemplate(
-        const ConstReference<String::Implementation>& left,
-        const ConstReference<String::Implementation>& right)
+        const Reference<String::Implementation>& left,
+        const Reference<String::Implementation>& right)
       : _left(left), _right(right)
     {
         setLength(_left->length() + _right->length());
     }
-    const String::Implementation* subString(int start, int length) const
+    String::Implementation* subString(int start, int length)
     {
         int leftLength = _left->length();
         if (start >= leftLength)
@@ -703,8 +702,8 @@ public:
         _right->write(handle);
     }
 private:
-    ConstReference<String::Implementation> _left;
-    ConstReference<String::Implementation> _right;
+    Reference<String::Implementation> _left;
+    Reference<String::Implementation> _right;
 };
 
 template<int N> class FixedStringImplementation
@@ -799,6 +798,8 @@ template<class T> class StringBuilderTemplate : public String
 {
 public:
     StringBuilderTemplate() : String(new Implementation) { }
+    StringBuilderTemplate(const char* data)
+      : String(new Implementation(data)) { }
     const StringBuilderTemplate& operator+=(const String& other)
     {
         Implementation* i = implementation();
@@ -830,7 +831,11 @@ private:
     class Implementation : public String::Implementation
     {
     public:
-        String::Implementation* subString(int start, int length) const
+        Implementation(const char* data) : _buffer(data)
+        {
+            setLength(_buffer.count()); 
+        }
+        String::Implementation* subString(int start, int length)
         {
             return new SimpleStringImplementation(_buffer, start, length);
         }
