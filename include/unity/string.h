@@ -467,7 +467,8 @@ public:
     }
     void copyTo(UInt8* buffer) const
     {
-        _buffer.copyTo(buffer, _start, length());
+        if (length() > 0)
+            _buffer.copyTo(buffer, _start, length());
     }
     int hash(int h) const
     {
@@ -535,7 +536,7 @@ public:
     }
     void copyTo(UInt8* buffer) const
     {
-        for (int i = 0; i < length(); ++i) {
+        for (int i = 0; i < _count; ++i) {
             _string._implementation->copyTo(buffer);
             buffer += _string.length();
         }
@@ -803,8 +804,9 @@ public:
     const StringBuilderTemplate& operator+=(const String& other)
     {
         Implementation* i = implementation();
-        i->allocate(length() + other.length());
-        other.implementation()->copyTo(i->data() + length());
+        int l = length();
+        i->allocate(l + other.length());
+        other.implementation()->copyTo(i->data() + l);
         return *this;
     }
     const StringBuilderTemplate& operator=(const String& other)
@@ -875,7 +877,7 @@ private:
             handle.write(static_cast<const void*>(_buffer.data()), length());
         }
         UInt8* data() { return _buffer.data(); }
-        void allocate(int bytes) { _buffer.allocate(bytes); }
+        void allocate(int bytes) { _buffer.allocate(bytes); setLength(bytes); }
     protected:
         GrowingBuffer _buffer;
     };

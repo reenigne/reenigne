@@ -90,8 +90,8 @@ private:
                     newBytes *= 2;
                 Array<UInt8> data(newBytes);
                 memcpy(&data[0], &_data[0], _n);
-                _n = bytes;
                 _data.swap(data);
+                setData(&_data[0]);
             }
             else
                 if (bytes <= _data.count() / 2) {
@@ -100,9 +100,10 @@ private:
                         newBytes *= 2;
                     Array<UInt8> data(newBytes);
                     // Don't need to preserve data when shrinking.
-                    _n = bytes;
                     _data.swap(data);
+                    setData(&_data[0]);
                 }
+            _n = bytes;
         }
         UInt8* data() { return &_data[0]; }
         int count() { return _n; }

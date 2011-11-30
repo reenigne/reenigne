@@ -42,12 +42,14 @@ public:
         } while (!_halted);
     }
     void addComponent(Component* component) { _components.add(component); }
-    String save() const
+    String save()
     {
         StringBuilder s("simulator = {");
         bool needComma = false;
         for (List<Component*>::Iterator i = _components.start();
             i != _components.end(); ++i) {
+            if ((*i)->name().empty())
+                continue;
             if (needComma)
                 s += ", ";
             needComma = true;
@@ -147,6 +149,8 @@ public:
         bool needComma = false;
         for (List<ISA8BitComponent*>::Iterator i = _components.start();
             i != _components.end(); ++i) {
+            if ((*i)->name().empty())
+                continue;
             if (needComma)
                 s += ", ";
             needComma = true;
@@ -176,7 +180,7 @@ public:
             (*i)->load(value);
         }
     }
-    String name() const { return "bus"; }
+    String name() { return "bus"; }
 private:
     List<ISA8BitComponent*> _components;
 };
@@ -249,7 +253,7 @@ public:
     {
         StringBuilder s("ram: ###\n");
         for (int y = 0; y < 0xa0000; y += 0x20) {
-            String line;
+            String line; // = empty;
             for (int x = 0; x < 0x20; x += 4) {
                 int p = y + x;
                 UInt32 v = (_data[p]<<24) + (_data[p+1]<<16) +
@@ -284,7 +288,7 @@ public:
                 break;
         } while (true);
     }
-    String name() const { return "ram"; }
+    String name() { return "ram"; }
 private:
     int _address;
     Array<UInt8> _data;
@@ -698,8 +702,10 @@ public:
         _ip(0),
         _prefetchOffset(0),
         _prefetched(0),
+        _segment(0),
         _segmentOverride(-1),
         _prefetchAddress(_ip),
+        _ioType(ioNone),
         _ioRequested(ioNone),
         _ioInProgress(ioInstructionFetch),
         _busState(t1),
@@ -712,7 +718,21 @@ public:
         _newIP(0),
         _cycle(0),
         _simulator(simulator),
-        _stopAtCycle(stopAtCycle)
+        _stopAtCycle(stopAtCycle),
+        _opcode(0),
+        _modRM(0),
+        _data(0),
+        _source(0),
+        _destination(0),
+        _remainder(0),
+        _address(0),
+        _aluOperation(0),
+        _afterEA(stateWaitingForBIU),
+        _afterModRM(stateWaitingForBIU),
+        _afterRep(stateWaitingForBIU),
+        _savedCS(0),
+        _savedIP(0),
+        _rep(0)
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -1946,7 +1966,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         } while (true);
     }
 
-    String save() const
+    String save()
     {
         String s("cpu: {\n");
         s += String("  ip: 0x") + String::hexadecimal(_ip, 4) + String(",\n");
@@ -1982,13 +2002,13 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             if (needComma)
                 s += ", ";
             needComma = true;
-            s += "0x" + String::hexadecimal(
+            s += String("0x") + String::hexadecimal(
                 _prefetchQueue[(i + _prefetchOffset) & 3], 2);
         }
         s += "},\n";
         s += String("  segment: ") + String::decimal(_segment) + String(",\n");
-        s += String("  segmentOverride: ") + String::decimal(_segment) +
-            String(",\n");
+        s += String("  segmentOverride: ") +
+            String::decimal(_segmentOverride) + String(",\n");
         s += String("  prefetchAddress: ") + String::decimal(_prefetchAddress)
             + String(",\n");
         s += String("  ioType: ") + stringForIOType(_ioType) + String(",\n");
@@ -2031,9 +2051,9 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             String(",\n");
         s += String("  sourceIsRM: ") + (_sourceIsRM ? "true" : "false") +
             String(",\n");
-        s += String("  savedCS: ") + String::hexadecimal(_savedCS, 4) +
+        s += String("  savedCS: 0x") + String::hexadecimal(_savedCS, 4) +
             String(",\n");
-        s += String("  savedIP: ") + String::hexadecimal(_savedIP, 4) +
+        s += String("  savedIP: 0x") + String::hexadecimal(_savedIP, 4) +
             String(",\n");
         s += String("  rep: ") + String::decimal(_rep) + String(",\n");
         s += String("  useIO: ") + (_useIO ? "true" : "false") + String(",\n");
@@ -2041,7 +2061,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             String(",\n");
         s += String("  newInstruction: ") +
             (_newInstruction ? "true" : "false") + String(",\n");
-        s += String("  newIP: ") + String::hexadecimal(_newIP, 4) +
+        s += String("  newIP: 0x") + String::hexadecimal(_newIP, 4) +
             String(",\n");
         s += String("  cycle: ") + String::decimal(_cycle);
         return s + "}\n";
@@ -2153,7 +2173,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _newIP = (*members)["newIP"].value<int>();
         _cycle = (*members)["cycle"].value<int>();
     }
-    String name() const { return "cpu"; }
+    String name() { return "cpu"; }
 
 private:
     enum IOType
