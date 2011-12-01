@@ -62,6 +62,21 @@ public:
     {
         _typeConverter.addConversion(from, to, conversion);
     }
+    TypedValue convert(TypedValue e, Type expectedType)
+    {
+        Type observedType = e.type();
+        if (observedType != expectedType) {
+            if (!_typeConverter.canConvert(observedType, expectedType))
+                e.span().throwError(
+                    String("No conversion from type ") +
+                    observedType.toString() +
+                    String(" to type ") +
+                    expectedType.toString() +
+                    String(" is available"));
+            e = _typeConverter.convert(observedType, expectedType, e);
+        }
+        return e;
+    }
     
     void load(File file)
     {
@@ -74,24 +89,18 @@ public:
                 break;
             Identifier identifier = parseIdentifier(&source);
             String name = identifier.name();
+            Span span;
+            if (name == "include") {
+                TypedValue e = convert(parseExpression(&source), Type::string);
+                Space::assertCharacter(&source, ';', &span);
+                load(e.value<String>());
+            }
             if (!_options.hasKey(name))
                 identifier.span().throwError(
                     String("Unknown identifier ") + name);
-            Span span;
             Space::assertCharacter(&source, '=', &span);
-            TypedValue e = parseExpression(&source);
-            Type expectedType = _options[name].type();
-            Type observedType = e.type();
-            if (observedType != expectedType) {
-                if (!_typeConverter.canConvert(observedType, expectedType))
-                    e.span().throwError(
-                        String("No conversion from type ") +
-                        observedType.toString() +
-                        String(" to type ") +
-                        expectedType.toString() +
-                        String(" is available"));
-                e = _typeConverter.convert(observedType, expectedType, e);
-            }
+            TypedValue e = convert(parseExpression(&source),
+                _options[name].type());
             Space::assertCharacter(&source, ';', &span);
             _options[name].setValue(e.value());
         } while (true);
@@ -524,20 +533,8 @@ private:
                 StructuredType::Member member = (*elements)[i];
                 if (i > 0)
                     Space::assertCharacter(source, ',', &span);
-                TypedValue value = parseExpression(source);
-                Type expectedType = member.type();
-                Type observedType = value.type();
-                if (observedType != expectedType) {
-                    if (!_typeConverter.canConvert(observedType, expectedType))
-                        value.span().throwError(
-                            String("No conversion from type ") +
-                            observedType.toString() +
-                            String(" to type ") +
-                            expectedType.toString() +
-                            String(" is available"));
-                    value = _typeConverter.convert(observedType, expectedType,
-                        value);
-                }
+                TypedValue value = convert(parseExpression(source),
+                    member.type());
                 values.add(value.value());
             }
             Space::assertCharacter(source, ')', &span);

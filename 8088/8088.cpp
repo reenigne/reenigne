@@ -2009,8 +2009,8 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  segment: ") + String::decimal(_segment) + String(",\n");
         s += String("  segmentOverride: ") +
             String::decimal(_segmentOverride) + String(",\n");
-        s += String("  prefetchAddress: ") + String::decimal(_prefetchAddress)
-            + String(",\n");
+        s += String("  prefetchAddress: 0x") +
+            String::hexadecimal(_prefetchAddress, 4) + String(",\n");
         s += String("  ioType: ") + stringForIOType(_ioType) + String(",\n");
         s += String("  ioRequested: ") + stringForIOType(_ioRequested) +
             String(",\n");
