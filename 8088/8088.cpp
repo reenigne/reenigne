@@ -26,6 +26,7 @@ public:
     virtual Type type() { return Type(); }
     virtual String name() { return String(); }
     virtual void load(const TypedValue& value) { }
+    virtual TypedValue initial() { return TypedValue(); }
 };
 
 class Simulator
@@ -78,6 +79,16 @@ public:
             i != _components.end(); ++i) {
             (*i)->load(object->operator[]((*i)->name()));
         }
+    }
+    TypedValue initial()
+    {
+        Value<HashTable<String, TypedValue> > object;
+        for (List<Component*>::Iterator i = _components.start();
+            i != _components.end(); ++i) {
+            if ((*i)->type().valid())
+                object->operator[]((*i)->name()) = (*i)->initial();
+        }
+        return TypedValue(type(), object);
     }
     void halt() { _halted = true; }
 private:
@@ -181,6 +192,16 @@ public:
         }
     }
     String name() { return "bus"; }
+    TypedValue initia()
+    {
+        Value<HashTable<String, TypedValue> > object;
+        for (List<ISA8BitComponent*>::Iterator i = _components.start();
+            i != _components.end(); ++i) {
+            if ((*i)->type().valid())
+                object->operator[]((*i)->name()) = (*i)->initial();
+        }
+        return TypedValue(type(), object);
+    }
 private:
     List<ISA8BitComponent*> _components;
 };
@@ -289,6 +310,7 @@ public:
         } while (true);
     }
     String name() { return "ram"; }
+    TypedValue initia() { return TypedValue(Type::string, String("00")); }
 private:
     int _address;
     Array<UInt8> _data;
@@ -732,7 +754,10 @@ public:
         _afterRep(stateWaitingForBIU),
         _savedCS(0),
         _savedIP(0),
-        _rep(0)
+        _rep(0),
+        _byte(ioSingleByte),
+        _useMemory(false),
+        _wordSize(false)
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -2132,6 +2157,10 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _registerData[5] = (*members)["bp"].value<int>();
         _registerData[6] = (*members)["si"].value<int>();
         _registerData[7] = (*members)["di"].value<int>();
+        _segmentRegisterData[0] = (*members)["es"].value<int>();
+        _segmentRegisterData[1] = (*members)["cs"].value<int>();
+        _segmentRegisterData[2] = (*members)["ss"].value<int>();
+        _segmentRegisterData[3] = (*members)["ds"].value<int>();
         _flagsData = (*members)["flags"].value<int>();
         List<TypedValue> prefetch = (*members)["prefetch"].value<List<TypedValue> >();
         _prefetched = 0;
@@ -2148,7 +2177,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _ioInProgress = (*members)["ioInProgress"].value<IOType>();
         _busState = (*members)["busState"].value<BusState>();
         _byte = (*members)["byte"].value<IOByte>();
-        _abandonFetch = (*members)["abanonFetch"].value<bool>();
+        _abandonFetch = (*members)["abandonFetch"].value<bool>();
         _wait = (*members)["wait"].value<int>();
         _state = (*members)["state"].value<State>();
         _opcode = (*members)["opcode"].value<int>();
@@ -2174,6 +2203,145 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _cycle = (*members)["cycle"].value<int>();
     }
     String name() { return "cpu"; }
+    TypedValue initial()
+    {
+    //  : _flagsData(0x0002),  // ?
+    //    _state(stateFetch),
+    //    _ip(0),
+    //    _prefetchOffset(0),
+    //    _prefetched(0),
+    //    _segment(0),
+    //    _segmentOverride(-1),
+    //    _prefetchAddress(_ip),
+    //    _ioType(ioNone),
+    //    _ioRequested(ioNone),
+    //    _ioInProgress(ioInstructionFetch),
+    //    _busState(t1),
+    //    _abandonFetch(false),
+    //    _useIO(false),
+    //    _halted(false),
+    //    _console(console),
+    //    _wait(0),
+    //    _newInstruction(true),
+    //    _newIP(0),
+    //    _cycle(0),
+    //    _simulator(simulator),
+    //    _stopAtCycle(stopAtCycle),
+    //    _opcode(0),
+    //    _modRM(0),
+    //    _data(0),
+    //    _source(0),
+    //    _destination(0),
+    //    _remainder(0),
+    //    _address(0),
+    //    _aluOperation(0),
+    //    _afterEA(stateWaitingForBIU),
+    //    _afterModRM(stateWaitingForBIU),
+    //    _afterRep(stateWaitingForBIU),
+    //    _savedCS(0),
+    //    _savedIP(0),
+    //    _rep(0),
+        
+    //{
+    //    static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
+    //    static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
+    //    static String s[8] = {"ES", "CS", "SS", "DS", "??", "??", "??", "??"};
+    //    for (int i = 0; i < 8; ++i) {
+    //        _registerData[i] = 0;  // ?
+    //        _wordRegisters[i].init(w[i], &_registerData[i]);
+    //        _byteRegisters[i].init(b[i], reinterpret_cast<UInt8*>(
+    //            &_registerData[i & 3]) + (i >= 4 ? 1 : 0));
+    //        _segmentRegisters[i].init(s[i], &_segmentRegisterData[i]);
+    //    }
+    //    _flags.init("F", &_flagsData);
+    //    _segmentRegisterData[0] = 0x0000;  // ?
+    //    _segmentRegisterData[1] = 0xffff;
+    //    _segmentRegisterData[2] = 0x0000;  // ?
+    //    _segmentRegisterData[3] = 0x0000;  // ?
+    //    _segmentRegisterData[7] = 0x0000;  // For IO accesses
+
+    //    List<EnumerationType::Value> stateValues;
+    //    for (int i = stateWaitingForBIU; i <= stateMisc2; ++i) {
+    //        State s = static_cast<State>(i);
+    //        stateValues.add(EnumerationType::Value(stringForState(s), s));
+    //    }
+    //    _stateType = EnumerationType("State", stateValues);
+
+    //    List<EnumerationType::Value> ioTypeValues;
+    //    for (int i = ioNone; i <= ioInstructionFetch; ++i) {
+    //        IOType t = static_cast<IOType>(i);
+    //        stateValues.add(EnumerationType::Value(stringForIOType(t), t));
+    //    }
+    //    _ioTypeType = EnumerationType("IOType", ioTypeValues);
+
+    //    List<EnumerationType::Value> ioByteValues;
+    //    for (int i = ioSingleByte; i <= ioWordSecond; ++i) {
+    //        IOByte b = static_cast<IOByte>(i);
+    //        stateValues.add(EnumerationType::Value(stringForIOByte(b), b));
+    //    }
+    //    _ioByteType = EnumerationType("IOByte", ioByteValues);
+
+    //    List<EnumerationType::Value> busStateValues;
+    //    for (int i = t1; i <= tIdle; ++i) {
+    //        BusState s = static_cast<BusState>(i);
+    //        stateValues.add(EnumerationType::Value(stringForBusState(s), s));
+    //    }
+    //    _busStateType = EnumerationType("BusState", busStateValues);
+
+    //    _disassembler.setCPU(this);
+
+
+        Value<HashTable<String, TypedValue> > members;
+        (*members)["ip"] = TypedValue(Type::integer, 0);
+        (*members)["ax"] = TypedValue(Type::integer, 0);
+        (*members)["cx"] = TypedValue(Type::integer, 0);
+        (*members)["dx"] = TypedValue(Type::integer, 0);
+        (*members)["bx"] = TypedValue(Type::integer, 0);
+        (*members)["sp"] = TypedValue(Type::integer, 0);
+        (*members)["bp"] = TypedValue(Type::integer, 0);
+        (*members)["si"] = TypedValue(Type::integer, 0);
+        (*members)["di"] = TypedValue(Type::integer, 0);
+        (*members)["es"] = TypedValue(Type::integer, 0);
+        (*members)["cs"] = TypedValue(Type::integer, 0xffff);
+        (*members)["ss"] = TypedValue(Type::integer, 0);
+        (*members)["ds"] = TypedValue(Type::integer, 0);
+        (*members)["flags"] = TypedValue(Type::integer, 2);
+        (*members)["prefetch"] =
+            TypedValue(Type::array(Type::integer), List<TypedValue>());
+        (*members)["segment"] = TypedValue(Type::integer, 0);
+        (*members)["segmentOverride"] = TypedValue(Type::integer, -1);
+        (*members)["ioType"] = TypedValue(_ioTypeType, ioNone);
+        (*members)["ioRequested"] = TypedValue(_ioTypeType, ioNone);
+        (*members)["ioInProgress"] =
+            TypedValue(_ioTypeType, ioInstructionFetch);
+        (*members)["busState"] = TypedValue(_busStateType, t1);
+        (*members)["byte"] = TypedValue(_ioByteType, ioSingleByte);
+        (*members)["abandonFetch"] = TypedValue(Type::boolean, false);
+        (*members)["wait"] = TypedValue(Type::integer, 0);
+        (*members)["state"] = TypedValue(_stateType, stateFetch);
+        (*members)["opcode"] = TypedValue(Type::integer, 0);
+        (*members)["modRM"] = TypedValue(Type::integer, 0);
+        (*members)["data"] = TypedValue(Type::integer, 0);
+        (*members)["source"] = TypedValue(Type::integer, 0);
+        (*members)["destination"] = TypedValue(Type::integer, 0);
+        (*members)["remainder"] = TypedValue(Type::integer, 0);
+        (*members)["address"] = TypedValue(Type::integer, 0);
+        (*members)["useMemory"] = TypedValue(Type::boolean, false);
+        (*members)["wordSize"] = TypedValue(Type::boolean, false);
+        (*members)["aluOperation"] = TypedValue(Type::integer, 0);
+        (*members)["afterEA"] = TypedValue(_stateType, stateWaitingForBIU);
+        (*members)["afterIO"] = TypedValue(_stateType, stateWaitingForBIU);
+        (*members)["afterModRM"] = TypedValue(_stateType, stateWaitingForBIU);
+        (*members)["savedCS"] = TypedValue(Type::integer, 0);
+        (*members)["savedIP"] = TypedValue(Type::integer, 0);
+        (*members)["rep"] = TypedValue(Type::integer, 0);
+        (*members)["useIO"] = TypedValue(Type::boolean, false);
+        (*members)["halted"] = TypedValue(Type::boolean, false);
+        (*members)["newInstruction"] = TypedValue(Type::boolean, true);
+        (*members)["newIP"] = TypedValue(Type::integer, 0);
+        (*members)["cycle"] = TypedValue(Type::integer, 0);
+        return TypedValue(type(), members);
+    }
 
 private:
     enum IOType
@@ -2971,6 +3139,7 @@ protected:
         config.addOption("roms", romImageArrayType);
         config.addOption("stopAtCycle", Type::integer, -1);
         config.addOption("stopSaveState", Type::string, empty);
+        config.addOption("initialState", Type::string, empty);
 
         config.load(_arguments[1]);
 
@@ -3009,6 +3178,13 @@ protected:
         cpu.setBus(&bus);
         simulator.addComponent(&bus);
         simulator.addComponent(&cpu);
+
+        ConfigFile initialState;
+        initialState.addOption("simulator", simulator.type(),
+            simulator.initial());
+        initialState.load(config.get<String>("initialState"));
+        TypedValue stateValue = initialState.get("simulator");
+        simulator.load(stateValue);
 
         //File file(config.get<String>("sourceFile"));
         //String contents = file.contents();

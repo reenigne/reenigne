@@ -111,10 +111,8 @@ public:
                     String(" not defined and no default is available."));
         }
     }
-    template<class T> T get(String name)
-    {
-        return _options[name].value<T>();
-    }
+    template<class T> T get(String name) { return get(name).value<T>(); }
+    TypedValue get(String name) { return _options[name]; }
 private:
     class Identifier
     {
