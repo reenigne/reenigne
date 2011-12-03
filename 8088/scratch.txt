@@ -1,13 +1,3 @@
-Iterate through the components in the simulator, look up their value names and
- then look up the value by name in the TypedValue.
-
-What is the type of {ax=0x1234, bx=0x5678}?
-  It's Class{Integer ax; Integer bx;} (a type without a name)
-  (not Tuple<Integer, Integer> because that would not be convertable to CPU)
-  CPU has an implicit constructor from Class{Integer ax; Integer bx;}, if you
-    like. (Could be explicit, except then we'd have to specify the type in the
-    constructor definition).
-
 How are bytes removed from the prefetch queue?
   Model 1: Bytes are removed as they are decoded
     Cycle 1: Opcode byte removed from prefetch queue

@@ -786,21 +786,21 @@ public:
         List<EnumerationType::Value> ioTypeValues;
         for (int i = ioNone; i <= ioInstructionFetch; ++i) {
             IOType t = static_cast<IOType>(i);
-            stateValues.add(EnumerationType::Value(stringForIOType(t), t));
+            ioTypeValues.add(EnumerationType::Value(stringForIOType(t), t));
         }
         _ioTypeType = EnumerationType("IOType", ioTypeValues);
 
         List<EnumerationType::Value> ioByteValues;
         for (int i = ioSingleByte; i <= ioWordSecond; ++i) {
             IOByte b = static_cast<IOByte>(i);
-            stateValues.add(EnumerationType::Value(stringForIOByte(b), b));
+            ioByteValues.add(EnumerationType::Value(stringForIOByte(b), b));
         }
         _ioByteType = EnumerationType("IOByte", ioByteValues);
 
         List<EnumerationType::Value> busStateValues;
         for (int i = t1; i <= tIdle; ++i) {
             BusState s = static_cast<BusState>(i);
-            stateValues.add(EnumerationType::Value(stringForBusState(s), s));
+            busStateValues.add(EnumerationType::Value(stringForBusState(s), s));
         }
         _busStateType = EnumerationType("BusState", busStateValues);
 
@@ -2112,6 +2112,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("prefetch", Type::array(Type::integer)));
         members.add(M("segment", Type::integer));
         members.add(M("segmentOverride", Type::integer));
+        members.add(M("prefetchAddress", Type::integer));
         members.add(M("ioType", _ioTypeType));
         members.add(M("ioRequested", _ioTypeType));
         members.add(M("ioInProgress", _ioTypeType));
@@ -2133,6 +2134,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("afterEA", _stateType));
         members.add(M("afterIO", _stateType));
         members.add(M("afterModRM", _stateType));
+        members.add(M("afterRep", _stateType));
         members.add(M("sourceIsRM", Type::boolean));
         members.add(M("savedCS", Type::integer));
         members.add(M("savedIP", Type::integer));
@@ -3180,7 +3182,9 @@ protected:
         simulator.addComponent(&cpu);
 
         ConfigFile initialState;
-        initialState.addOption("simulator", simulator.type(),
+        Type simulatorType = simulator.type();
+        initialState.addType(simulatorType);
+        initialState.addOption("simulator", simulatorType,
             simulator.initial());
         initialState.load(config.get<String>("initialState"));
         TypedValue stateValue = initialState.get("simulator");

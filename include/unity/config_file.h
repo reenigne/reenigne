@@ -7,6 +7,7 @@
 #include "unity/any.h"
 #include "unity/type.h"
 #include "unity/value.h"
+#include "unity/set.h"
 
 int parseHexadecimalCharacter(CharacterSource* source, Span* span)
 {
@@ -37,6 +38,9 @@ public:
     }
     void addType(Type type)
     {
+        if (_typeSet.has(type))
+            return;
+        _typeSet.add(type);
         String name = type.toString();
         _types.add(name, type);
         EnumerationType t(type);
@@ -47,6 +51,13 @@ public:
                 _enumeratedValues.add(value.name(),
                     TypedValue(type, value.value()));
             }
+            return;
+        }
+        StructuredType s(type);
+        if (s.valid()) {
+            const Array<StructuredType::Member>* members = s.members();
+            for (int i = 0; i < members->count(); ++i)
+                addType((*members)[i].type());
         }
     }
     void addOption(String name, Type type)
@@ -684,6 +695,7 @@ private:
     HashTable<String, TypedValue> _options;
     HashTable<String, TypedValue> _enumeratedValues;
     HashTable<String, Type> _types;
+    Set<Type> _typeSet;
     TypeConverter _typeConverter;
     ArrayConversionSource _arrayConversionSource;
 };
