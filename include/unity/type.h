@@ -587,11 +587,13 @@ public:
     {
         _conversions.add(TypePair(from, to), conversion);
     }
-    bool canConvert(const Type& from, const Type& to)
+    const Conversion* conversion(const Type& from, const Type& to)
     {
+        if (from == to)
+            return _trivialConversion;
         TypePair pair(from, to);
         if (_conversions.hasKey(pair))
-            return true;
+            return _conversions[pair];
         TypeConstructor typeConstructor = from;
         bool doneBoth = false;
         do {
@@ -623,9 +625,18 @@ public:
             int n = fromMembers->count();
             if (n != toMembers->count())
                 return false;
-            for (int i = 0; i < n; ++i)
-                if ((*fromMembers)[i] != (*toMembers)[i])
+            for (int i = 0; i < n; ++i) {
+                StructuredType::Member fromMember = (*fromMembers)[i];
+                StructuredType::Member toMember = (*toMembers)[i];
+                if (fromMember.name() != toMember.name())
                     return false;
+                Type fromType = fromMember.type();
+                Type toType = toMember.type();
+                if (fromType ) {
+                    if (canConvert(
+                    return false;
+                }
+            }
             _conversions.add(TypePair(from, to), &_trivialConversion);
         }
         return false;
@@ -679,8 +690,8 @@ public:
         List<Type> arguments;
         while (fromGenerator.isInstantiation()) {
             Type argument = fromGenerator.templateArgument();
-            if (!typeConverter->canConvert(argument, contained))
-                return 0;
+            if (typeConverter->conversion(argument, contained) == nullptr)
+                return nullptr;
             arguments.add(argument);
             fromGenerator = fromGenerator.generatingTemplate();
         }
