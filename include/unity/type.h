@@ -562,7 +562,21 @@ private:
 class Conversion
 {
 public:
-    virtual TypedValue operator()(const TypedValue& value) const = 0;
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        virtual TypedValue convert(const TypedValue& value) const = 0;
+    };
+    Conversion() { }
+    Conversion(Implementation* implementation)
+      : _implementation(implementation) { }
+    bool valid() { return _implementation.valid(); }
+    TypedValue operator()(const TypedValue& value)
+    {
+        return _implementation->convert(value);
+    }
+private:
+    ConstReference<Implementation> _implementation;
 };
 
 class TypeConverter;
@@ -570,24 +584,39 @@ class TypeConverter;
 class ConversionSource
 {
 public:
-    virtual const Conversion* conversion(const Type& from, const Type& to,
-        TypeConverter* typeConverter) const = 0;
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        virtual Conversion conversion(const Type& from, const Type& to,
+            TypeConverter* typeConverter) const = 0;
+    };
+    ConversionSource() { }
+    ConversionSource(Implementation* implementation)
+      : _implementation(implementation) { }
+    bool valid() { return _implementation.valid(); }
+    Conversion conversion(const Type& from, const Type& to,
+        TypeConverter* typeConverter) const
+    {
+        return _implementation->conversion(from, to, typeConverter);
+    }
+private:
+    ConstReference<Implementation> _implementation;
 };
 
 class TypeConverter
 {
 public:
     void addConversionSource(const Template& templateTypeConstructor,
-        const ConversionSource* conversionSource)
+        const ConversionSource& conversionSource)
     {
         _conversionSources.add(templateTypeConstructor, conversionSource);
     }
     void addConversion(const Type& from, const Type& to,
-        const Conversion* conversion)
+        const Conversion& conversion)
     {
         _conversions.add(TypePair(from, to), conversion);
     }
-    const Conversion* conversion(const Type& from, const Type& to)
+    Conversion conversion(const Type& from, const Type& to)
     {
         if (from == to)
             return _trivialConversion;
@@ -600,12 +629,12 @@ public:
             while (typeConstructor.isInstantiation()) {
                 typeConstructor = typeConstructor.generatingTemplate();
                 if (_conversionSources.hasKey(typeConstructor)) {
-                    const Conversion* conversion =
-                        _conversionSources[typeConstructor]->
-                        conversion(from, to, this);
-                    if (conversion != 0) {
+                    Conversion conversion =
+                        _conversionSources[typeConstructor].conversion(from,
+                            to, this);
+                    if (conversion.valid()) {
                         _conversions.add(pair, conversion);
-                        return true;
+                        return conversion;
                     }
                 }
             }
@@ -618,6 +647,7 @@ public:
         StructuredType toStructure(to);
         if (fromStructure.valid() && toStructure.valid() &&
             fromStructure.toString().empty()) {
+            List<Conversion> conversions;
             const Array<StructuredType::Member>* fromMembers =
                 StructuredType(from).members();
             const Array<StructuredType::Member>* toMembers =
@@ -629,28 +659,38 @@ public:
                 StructuredType::Member fromMember = (*fromMembers)[i];
                 StructuredType::Member toMember = (*toMembers)[i];
                 if (fromMember.name() != toMember.name())
-                    return false;
+                    return Conversion();
                 Type fromType = fromMember.type();
                 Type toType = toMember.type();
-                if (fromType ) {
-                    if (canConvert(
-                    return false;
-                }
+                Conversion c = conversion(fromType, toType);
+                if (!c.valid())
+                    return Conversion();
+                conversions.add(c);
             }
-            _conversions.add(TypePair(from, to), &_trivialConversion);
+            _conversions.add(TypePair(from, to), _trivialConversion);
         }
         return false;
     }
-    TypedValue convert(const Type& from, const Type& to,
-        const TypedValue& value) const
-    {
-        return _conversions[TypePair(from, to)]->operator()(value);
-    }
 private:
-    class TrivialConversion : public Conversion
+    class TrivialConversionImplementation : public Conversion::Implementation
     {
     public:
-        TypedValue operator()(const TypedValue& value) const { return value; }
+        TypedValue convert(const TypedValue& value) const { return value; }
+    };
+    class StructuredConversionImplementation
+      : public Conversion::Implementation
+    {
+    public:
+        StructuredConversionImplementation(const List<Conversion>& conversions)
+          : _conversions(conversions) { }
+        TypedValue convert(const TypedValue& value) const
+        {
+            Value<HashTable<String, TypedValue>> object =
+                value.value<Value<HashTable<String, TypedValue>>>();
+
+        }
+    private:
+        Array<Conversion> _conversions;
     };
     class TypePair
     {
@@ -666,12 +706,13 @@ private:
         Type _from;
         Type _to;
     };
-    HashTable<TypePair, const Conversion*> _conversions;
-    HashTable<TypeConstructor, const ConversionSource*> _conversionSources;
-    static TrivialConversion _trivialConversion;
+    HashTable<TypePair, Conversion> _conversions;
+    HashTable<TypeConstructor, ConversionSource> _conversionSources;
+    static Conversion _trivialConversion;
 };
 
-TypeConverter::TrivialConversion TypeConverter::_trivialConversion;
+Conversion TypeConverter::_trivialConversion(
+    new TypeConverter::TrivialConversionImplementation);
 
 class ArrayConversionSource : public ConversionSource
 {
@@ -720,6 +761,7 @@ private:
             return TypedValue(Type::array(_contained), results, value.span());
         }
     private:
+        Array<Conversion> _conversions;
         Array<Type> _arguments;
         const TypeConverter* _typeConverter;
         Type _contained;
