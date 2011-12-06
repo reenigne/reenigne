@@ -3086,11 +3086,11 @@ private:
     Disassembler _disassembler;
 };
 
-class ROMConversion : public Conversion
+class ROMConversionImplementation : public Conversion::Implementation
 {
 public:
-    ROMConversion(const Type& type) : _type(type) { }
-    TypedValue operator()(const TypedValue& value) const
+    ROMConversionImplementation(const Type& type) : _type(type) { }
+    TypedValue convert(const TypedValue& value) const
     {
         List<TypedValue> romMembers = value.value<List<TypedValue>>();
         List<TypedValue>::Iterator m = romMembers.start();
@@ -3125,7 +3125,7 @@ protected:
         AtomicType romDataType("ROM");
         config.addType(romDataType);
 
-        ROMConversion conversion(romDataType);
+        Conversion conversion(new ROMConversionImplementation(romDataType));
 
         List<Type> tupleArguments;
         tupleArguments.add(Type::integer);
@@ -3134,7 +3134,7 @@ protected:
         tupleArguments.add(Type::integer);
 
         config.addConversion(Type::tuple(tupleArguments), romDataType,
-            &conversion);
+            conversion);
 
         Type romImageArrayType = Type::array(romDataType);
         config.addType(romImageArrayType);

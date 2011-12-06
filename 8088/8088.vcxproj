@@ -90,6 +90,7 @@
     <ClInclude Include="..\include\unity\space.h" />
     <ClInclude Include="..\include\unity\string.h" />
     <ClInclude Include="..\include\unity\type.h" />
+    <ClInclude Include="..\include\unity\value.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="scratch.txt" />

@@ -32,9 +32,10 @@ class ConfigFile
 {
 public:
     ConfigFile()
+      : _arrayConversionSource(new ArrayConversionSourceImplementation)
     {
         _typeConverter.addConversionSource(Template::array,
-            &_arrayConversionSource);
+            _arrayConversionSource);
     }
     void addType(Type type)
     {
@@ -69,24 +70,20 @@ public:
         _options.add(name, TypedValue(type, Any(defaultValue)));
     }
     void addConversion(const Type& from, const Type& to,
-        const Conversion* conversion)
+        const Conversion& conversion)
     {
         _typeConverter.addConversion(from, to, conversion);
     }
     TypedValue convert(TypedValue e, Type expectedType)
     {
         Type observedType = e.type();
-        if (observedType != expectedType) {
-            if (!_typeConverter.canConvert(observedType, expectedType))
-                e.span().throwError(
-                    String("No conversion from type ") +
-                    observedType.toString() +
-                    String(" to type ") +
-                    expectedType.toString() +
-                    String(" is available"));
-            e = _typeConverter.convert(observedType, expectedType, e);
-        }
-        return e;
+        Conversion conversion =
+            _typeConverter.conversion(observedType, expectedType);
+        if (!conversion.valid())
+            e.span().throwError(String("No conversion from type ") +
+                observedType.toString() + String(" to type ") +
+                expectedType.toString() + String(" is available."));
+        return conversion(e);
     }
     
     void load(File file)
@@ -697,7 +694,7 @@ private:
     HashTable<String, Type> _types;
     Set<Type> _typeSet;
     TypeConverter _typeConverter;
-    ArrayConversionSource _arrayConversionSource;
+    ConversionSource _arrayConversionSource;
 };
 
 #endif // INCLUDED_CONFIG_FILE_H

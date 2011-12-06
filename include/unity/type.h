@@ -4,6 +4,7 @@
 #include "unity/string.h"
 #include "unity/any.h"
 #include "unity/hash_table.h"
+#include "unity/value.h"
 
 class Kind
 {
@@ -570,8 +571,8 @@ public:
     Conversion() { }
     Conversion(Implementation* implementation)
       : _implementation(implementation) { }
-    bool valid() { return _implementation.valid(); }
-    TypedValue operator()(const TypedValue& value)
+    bool valid() const { return _implementation.valid(); }
+    TypedValue operator()(const TypedValue& value) const
     {
         return _implementation->convert(value);
     }
@@ -593,7 +594,7 @@ public:
     ConversionSource() { }
     ConversionSource(Implementation* implementation)
       : _implementation(implementation) { }
-    bool valid() { return _implementation.valid(); }
+    bool valid() const { return _implementation.valid(); }
     Conversion conversion(const Type& from, const Type& to,
         TypeConverter* typeConverter) const
     {
@@ -647,6 +648,8 @@ public:
         StructuredType toStructure(to);
         if (fromStructure.valid() && toStructure.valid() &&
             fromStructure.toString().empty()) {
+            Reference<StructuredConversionImplementation>
+                implementation(new StructuredConversionImplementation(to));
             List<Conversion> conversions;
             const Array<StructuredType::Member>* fromMembers =
                 StructuredType(from).members();
@@ -658,16 +661,17 @@ public:
             for (int i = 0; i < n; ++i) {
                 StructuredType::Member fromMember = (*fromMembers)[i];
                 StructuredType::Member toMember = (*toMembers)[i];
-                if (fromMember.name() != toMember.name())
+                String name = fromMember.name();
+                if (name != toMember.name())
                     return Conversion();
                 Type fromType = fromMember.type();
                 Type toType = toMember.type();
                 Conversion c = conversion(fromType, toType);
                 if (!c.valid())
                     return Conversion();
-                conversions.add(c);
+                implementation->add(name, c);
             }
-            _conversions.add(TypePair(from, to), _trivialConversion);
+            _conversions.add(TypePair(from, to), Conversion(implementation));
         }
         return false;
     }
@@ -681,16 +685,26 @@ private:
       : public Conversion::Implementation
     {
     public:
-        StructuredConversionImplementation(const List<Conversion>& conversions)
-          : _conversions(conversions) { }
+        StructuredConversionImplementation(const Type& type) : _type(type) { }
+        void add(const String& name, const Conversion& conversion)
+        {
+            _conversions[name] = conversion;
+        }
         TypedValue convert(const TypedValue& value) const
         {
-            Value<HashTable<String, TypedValue>> object =
+            Value<HashTable<String, TypedValue>> input =
                 value.value<Value<HashTable<String, TypedValue>>>();
-
+            Value<HashTable<String, TypedValue>> output;
+            for (HashTable<String, TypedValue>::Iterator i = input->begin();
+                i != input->end(); ++i) {
+                String name = i.key();
+                (*output)[name] = _conversions[name]((*input)[name]);
+            }
+            return TypedValue(_type, output, value.span());
         }
     private:
-        Array<Conversion> _conversions;
+        Type _type;
+        HashTable<String, Conversion> _conversions;
     };
     class TypePair
     {
@@ -714,10 +728,11 @@ private:
 Conversion TypeConverter::_trivialConversion(
     new TypeConverter::TrivialConversionImplementation);
 
-class ArrayConversionSource : public ConversionSource
+class ArrayConversionSourceImplementation
+  : public ConversionSource::Implementation
 {
 public:
-    virtual const Conversion* conversion(const Type& from, const Type& to,
+    virtual Conversion conversion(const Type& from, const Type& to,
         TypeConverter* typeConverter) const
     {
         TypeConstructor toGenerator = to;
@@ -728,43 +743,43 @@ public:
         Type contained = to.templateArgument();
 
         TypeConstructor fromGenerator = from;
-        List<Type> arguments;
+        List<Conversion> conversions;
         while (fromGenerator.isInstantiation()) {
             Type argument = fromGenerator.templateArgument();
-            if (typeConverter->conversion(argument, contained) == nullptr)
-                return nullptr;
-            arguments.add(argument);
+            Conversion conversion =
+                typeConverter->conversion(argument, contained);
+            if (!conversion.valid())
+                return Conversion();
+            conversions.add(conversion);
             fromGenerator = fromGenerator.generatingTemplate();
         }
         if (fromGenerator != Template::tuple)
             return 0;
-        return new ArrayConversion(arguments, typeConverter, contained);
+        return Conversion(new ArrayConversionImplementation(
+            Type::array(contained), conversions));
     }
 private:
-    class ArrayConversion : public Conversion
+    class ArrayConversionImplementation : public Conversion::Implementation
     {
     public:
-        ArrayConversion(const List<Type>& arguments,
-            const TypeConverter* typeConverter, const Type& contained)
-          : _arguments(arguments), _typeConverter(typeConverter),
-            _contained(contained) { }
-        TypedValue operator()(const TypedValue& value) const
+        ArrayConversionImplementation(const Type& type,
+            const List<Conversion>& conversions)
+          : _type(type), _conversions(conversions) { }
+        TypedValue convert(const TypedValue& value) const
         {
             List<TypedValue> list = value.value<List<TypedValue> >();
             List<TypedValue> results;
             int p = 0;
             for (List<TypedValue>::Iterator i = list.start(); i != list.end();
                 ++i) {
-                results.add(
-                    _typeConverter->convert(_arguments[p], _contained, *i));
+                results.add(_conversions[p](*i));
+                ++p;
             }
-            return TypedValue(Type::array(_contained), results, value.span());
+            return TypedValue(_type, results, value.span());
         }
     private:
+        Type _type;
         Array<Conversion> _conversions;
-        Array<Type> _arguments;
-        const TypeConverter* _typeConverter;
-        Type _contained;
     };
 };
 
