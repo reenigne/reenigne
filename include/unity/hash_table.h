@@ -183,7 +183,7 @@ public:
 
         friend class HashTableBase;
     };
-    Iterator begin()
+    Iterator begin() const
     {
         int row = 0;
         TableEntry* entry = &_table[0];

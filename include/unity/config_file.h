@@ -56,9 +56,9 @@ public:
         }
         StructuredType s(type);
         if (s.valid()) {
-            const Array<StructuredType::Member>* members = s.members();
-            for (int i = 0; i < members->count(); ++i)
-                addType((*members)[i].type());
+            const HashTable<String, Type>* members = s.members();
+            for (auto i = members->begin(); i != members->end(); ++i)
+                addType(i.value());
         }
     }
     void addOption(String name, Type type)
@@ -76,14 +76,7 @@ public:
     }
     TypedValue convert(TypedValue e, Type expectedType)
     {
-        Type observedType = e.type();
-        Conversion conversion =
-            _typeConverter.conversion(observedType, expectedType);
-        if (!conversion.valid())
-            e.span().throwError(String("No conversion from type ") +
-                observedType.toString() + String(" to type ") +
-                expectedType.toString() + String(" is available."));
-        return conversion(e);
+        return _typeConverter.conversion(e.type(), expectedType)(e);
     }
     
     void load(File file)
@@ -474,8 +467,7 @@ private:
         Value<HashTable<String, TypedValue> > table;
         List<StructuredType::Member> members;
         int n = 0;
-        for (List<TypedValue>::Iterator i = values.start(); i != values.end();
-            ++i) {
+        for (auto i = values.begin(); i != values.end(); ++i) {
             String name = String::decimal(n);
             table->add(name, *i);
             members.add(StructuredType::Member(name, (*i).type()));
@@ -495,6 +487,8 @@ private:
             Space::assertCharacter(source, ':', &span2);
             TypedValue value = parseExpression(source);
             String name = identifier.name();
+            if (table->hasKey(name))
+                identifier.span().throwError(name + " already defined.");
             table->add(name, value);
             members.add(StructuredType::Member(name, value.type()));
         }
@@ -531,16 +525,17 @@ private:
             if (!type.valid())
                 i.span().throwError(
                     String("Only structure types can be constructed"));
-            const Array<StructuredType::Member>* elements = type.members();
+            const HashTable<String, Type>* members = type.members();
+            const Array<String>* names = type.names();
             List<Any> values;
             Span span;
             Space::assertCharacter(source, '(', &span);
-            for (int i = 0; i < elements->count(); ++i) {
-                StructuredType::Member member = (*elements)[i];
+            for (int i = 0; i < names->count(); ++i) {
+                String name = (*names)[i];
+                Type type = (*members)[name];
                 if (i > 0)
                     Space::assertCharacter(source, ',', &span);
-                TypedValue value = convert(parseExpression(source),
-                    member.type());
+                TypedValue value = convert(parseExpression(source), type);
                 values.add(value.value());
             }
             Space::assertCharacter(source, ')', &span);

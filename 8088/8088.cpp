@@ -36,10 +36,8 @@ public:
     void simulate()
     {
         do {
-            for (List<Component*>::Iterator i = _components.start();
-                i != _components.end(); ++i) {
+            for (auto i = _components.begin(); i != _components.end(); ++i)
                 (*i)->simulateCycle();
-            }
         } while (!_halted);
     }
     void addComponent(Component* component) { _components.add(component); }
@@ -47,8 +45,7 @@ public:
     {
         StringBuilder s("simulator = {");
         bool needComma = false;
-        for (List<Component*>::Iterator i = _components.start();
-            i != _components.end(); ++i) {
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
             if ((*i)->name().empty())
                 continue;
             if (needComma)
@@ -62,8 +59,7 @@ public:
     Type type()
     {
         List<StructuredType::Member> members;
-        for (List<Component*>::Iterator i = _components.start();
-            i != _components.end(); ++i) {
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
             Type type = (*i)->type();
             if (!type.valid())
                 continue;
@@ -75,19 +71,15 @@ public:
     {
         Value<HashTable<String, TypedValue> > object =
             value.value<Value<HashTable<String, TypedValue> > >();
-        for (List<Component*>::Iterator i = _components.start();
-            i != _components.end(); ++i) {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
             (*i)->load(object->operator[]((*i)->name()));
-        }
     }
     TypedValue initial()
     {
         Value<HashTable<String, TypedValue> > object;
-        for (List<Component*>::Iterator i = _components.start();
-            i != _components.end(); ++i) {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
             if ((*i)->type().valid())
                 object->operator[]((*i)->name()) = (*i)->initial();
-        }
         return TypedValue(type(), object);
     }
     void halt() { _halted = true; }
@@ -126,21 +118,18 @@ public:
     }
     void setAddress(UInt32 address)
     {
-        for (List<ISA8BitComponent*>::Iterator i = _components.start();
-            i != _components.end(); ++i)
+        for (auto i = _components.begin(); i != _components.end(); ++i)
             (*i)->setAddress(address);
     }
     void write(UInt8 data)
     {
-        for (List<ISA8BitComponent*>::Iterator i = _components.start();
-            i != _components.end(); ++i)
+        for (auto i = _components.begin(); i != _components.end(); ++i)
             if ((*i)->active())
                 (*i)->write(data);
     }
     UInt8 read()
     {
-        for (List<ISA8BitComponent*>::Iterator i = _components.start();
-            i != _components.end(); ++i)
+        for (auto i = _components.begin(); i != _components.end(); ++i)
             if ((*i)->active())
                 return (*i)->read();
         return 0xff;
@@ -148,18 +137,15 @@ public:
     UInt8 memory(UInt32 address)
     {
         UInt8 data = 0xff;
-        for (List<ISA8BitComponent*>::Iterator i = _components.start();
-            i != _components.end(); ++i) {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
             data &= (*i)->memory(address);
-        }
         return data;
     }
     String save()
     {
         StringBuilder s("bus: {");
         bool needComma = false;
-        for (List<ISA8BitComponent*>::Iterator i = _components.start();
-            i != _components.end(); ++i) {
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
             if ((*i)->name().empty())
                 continue;
             if (needComma)
@@ -173,8 +159,7 @@ public:
     Type type()
     {
         List<StructuredType::Member> members;
-        for (List<ISA8BitComponent*>::Iterator i = _components.start();
-            i != _components.end(); ++i) {
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
             Type type = (*i)->type();
             if (!type.valid())
                 continue;
@@ -186,20 +171,16 @@ public:
     {
         Value<HashTable<String, TypedValue> > object =
             value.value<Value<HashTable<String, TypedValue> > >();
-        for (List<ISA8BitComponent*>::Iterator i = _components.start();
-            i != _components.end(); ++i) {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
             (*i)->load(value);
-        }
     }
     String name() { return "bus"; }
     TypedValue initia()
     {
         Value<HashTable<String, TypedValue> > object;
-        for (List<ISA8BitComponent*>::Iterator i = _components.start();
-            i != _components.end(); ++i) {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
             if ((*i)->type().valid())
                 object->operator[]((*i)->name()) = (*i)->initial();
-        }
         return TypedValue(type(), object);
     }
 private:
@@ -2167,8 +2148,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         List<TypedValue> prefetch = (*members)["prefetch"].value<List<TypedValue> >();
         _prefetched = 0;
         _prefetchOffset = 0;
-        for (List<TypedValue>::Iterator i = prefetch.start();
-            i != prefetch.end(); ++i) {
+        for (auto i = prefetch.begin(); i != prefetch.end(); ++i) {
             _prefetchQueue[_prefetched] = (*i).value<int>();
             ++_prefetched;
         }
@@ -3093,7 +3073,7 @@ public:
     TypedValue convert(const TypedValue& value) const
     {
         List<TypedValue> romMembers = value.value<List<TypedValue>>();
-        List<TypedValue>::Iterator m = romMembers.start();
+        List<TypedValue>::Iterator m = romMembers.begin();
         int address = (*m).value<int>();
         ++m;
         int mask = (*m).value<int>();
@@ -3164,8 +3144,7 @@ protected:
         Array<ROM> roms(romDatas.count());
         roms.constructElements();
         int r = 0;
-        for (List<TypedValue>::Iterator i = romDatas.start();
-            i != romDatas.end(); ++i) {
+        for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
             ROMData romData = (*i).value<ROMData>();
             ROM* rom = &roms[r];
             rom->initialize(romData);

@@ -65,6 +65,7 @@ public:
     {
     public:
         const T& operator*() const { return _node->value(); }
+        const T* operator->() const { return &_node->value(); }
         const Iterator& operator++() { _node = _node->next(); return *this; }
         bool operator==(const Iterator& other) { return _node == other._node; }
         bool operator!=(const Iterator& other) { return !operator==(other); }
@@ -75,7 +76,7 @@ public:
 
         friend class List;
     };
-    Iterator start() const
+    Iterator begin() const
     { 
         if (_implementation.valid())
             return Iterator(_implementation->start());
@@ -94,7 +95,7 @@ public:
     {
         allocate(list.count());
         int i = 0;
-        for (List<T>::Iterator p = list.start(); p != list.end(); ++p) {
+        for (auto p = list.begin(); p != list.end(); ++p) {
             constructElement(i, *p);
             ++i;
         }

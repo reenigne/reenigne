@@ -190,10 +190,8 @@ public:
     static Type tuple(const List<Type>& arguments)
     {
         List<TypeConstructor> a;
-        for (List<Type>::Iterator i = arguments.start(); i != arguments.end();
-            ++i) {
+        for (auto i = arguments.begin(); i != arguments.end(); ++i)
             a.add(*i);
-        }
         return Template::tuple.instantiate(a);
     }
 protected:
@@ -237,8 +235,7 @@ public:
     TypeConstructor instantiate(const List<TypeConstructor>& arguments) const
     {
         TypeConstructor t = *this;
-        for (List<TypeConstructor>::Iterator i = arguments.start();
-            i != arguments.end(); ++i) {
+        for (auto i = arguments.begin(); i != arguments.end(); ++i) {
             ConstReference<Implementation> ti(t._implementation);
             if (!ti.valid())
                 throw Exception(String("Can't instantiate ") + t.toString());
@@ -524,21 +521,36 @@ public:
       : Type(ConstReference<Implementation>(other._implementation)) { }
     StructuredType(String name, List<Member> members)
       : Type(new Implementation(name, members)) { }
-    const Array<Member>* members() const
+    const HashTable<String, Type>* members() const
     {
         return ConstReference<Implementation>(_implementation)->members(); 
+    }
+    const Array<String>* names() const
+    {
+        return ConstReference<Implementation>(_implementation)->names(); 
     }
 private:
     class Implementation : public Type::Implementation
     {
     public:
         Implementation(String name, List<Member> members)
-          : _name(name), _members(members) { }
+          : _name(name)
+        {
+            _names.allocate(members.count());
+            int n = 0;
+            for (auto i = members.begin(); i != members.end(); ++i) {
+                _members.add(i->name(), i->type());
+                _names.constructElement(n, i->name());
+                ++n;
+            }
+        }
         String toString() const { return _name; }
-        const Array<Member>* members() const { return &_members; }
+        const HashTable<String, Type>* members() const { return &_members; }
+        const Array<String>* names() const { return &_names; }
     private:
         String _name;
-        Array<Member> _members;
+        HashTable<String, Type> _members;
+        Array<String> _names;
     };
 };
 
@@ -567,11 +579,15 @@ public:
     {
     public:
         virtual TypedValue convert(const TypedValue& value) const = 0;
+        virtual bool valid() const { return true; }
     };
     Conversion() { }
     Conversion(Implementation* implementation)
       : _implementation(implementation) { }
-    bool valid() const { return _implementation.valid(); }
+    bool valid() const
+    {
+        return _implementation.valid() && _implementation->valid();
+    }
     TypedValue operator()(const TypedValue& value) const
     {
         return _implementation->convert(value);
@@ -651,10 +667,17 @@ public:
             Reference<StructuredConversionImplementation>
                 implementation(new StructuredConversionImplementation(to));
             List<Conversion> conversions;
-            const Array<StructuredType::Member>* fromMembers =
-                StructuredType(from).members();
-            const Array<StructuredType::Member>* toMembers =
-                StructuredType(to).members();
+            const HashTable<String, Type>* fromMembers =
+                fromStructure.members();
+            const Array<String>* fromNames = fromStructure.names();
+            const HashTable<String, Type>* toMembers = toStructure.members();
+            const Array<String>* toNames = toStructure.names();
+            int n = toNames->count();
+            for (int i = 0; i < n; ++i) {
+                String name = (*fromNames)[i];
+                
+            }
+
             int n = fromMembers->count();
             if (n != toMembers->count())
                 return false;
@@ -706,6 +729,22 @@ private:
         Type _type;
         HashTable<String, Conversion> _conversions;
     };
+    class ConversionFailureImplementation
+    {
+    public:
+        ConversionFailureImplementation(const Type& from, const Type& to)
+          : _from(from), _to(to) { }
+        TypedValue convert(const TypedValue& value) const
+        {
+            value.span().throwError(String("No conversion from type ") +
+                _from.toString() + String(" to type ") + _to.toString() +
+                String(" is available."));
+        }
+    private:
+        Type _from;
+        Type _to;
+    };
+
     class TypePair
     {
     public:
@@ -770,8 +809,7 @@ private:
             List<TypedValue> list = value.value<List<TypedValue> >();
             List<TypedValue> results;
             int p = 0;
-            for (List<TypedValue>::Iterator i = list.start(); i != list.end();
-                ++i) {
+            for (auto i = list.begin(); i != list.end(); ++i) {
                 results.add(_conversions[p](*i));
                 ++p;
             }
