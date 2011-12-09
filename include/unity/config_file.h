@@ -56,9 +56,9 @@ public:
         }
         StructuredType s(type);
         if (s.valid()) {
-            const HashTable<String, Type>* members = s.members();
-            for (auto i = members->begin(); i != members->end(); ++i)
-                addType(i.value());
+            const Array<StructuredType::Member>* members = s.members();
+            for (int i = 0; i < members->count(); ++i)
+                addType((*members)[i].type());
         }
     }
     void addOption(String name, Type type)
@@ -470,7 +470,7 @@ private:
         for (auto i = values.begin(); i != values.end(); ++i) {
             String name = String::decimal(n);
             table->add(name, *i);
-            members.add(StructuredType::Member(name, (*i).type()));
+            members.add(StructuredType::Member(empty, (*i).type()));
             ++n;
         }
         TypedValue v = parseExpression(source);
@@ -525,17 +525,15 @@ private:
             if (!type.valid())
                 i.span().throwError(
                     String("Only structure types can be constructed"));
-            const HashTable<String, Type>* members = type.members();
-            const Array<String>* names = type.names();
+            const Array<StructuredType::Member>* members = type.members();
             List<Any> values;
             Span span;
             Space::assertCharacter(source, '(', &span);
-            for (int i = 0; i < names->count(); ++i) {
-                String name = (*names)[i];
-                Type type = (*members)[name];
+            for (int i = 0; i < members->count(); ++i) {
                 if (i > 0)
                     Space::assertCharacter(source, ',', &span);
-                TypedValue value = convert(parseExpression(source), type);
+                TypedValue value = convert(parseExpression(source),
+                    (*members)[i].type());
                 values.add(value.value());
             }
             Space::assertCharacter(source, ')', &span);

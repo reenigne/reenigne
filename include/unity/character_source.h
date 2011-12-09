@@ -11,7 +11,7 @@ public:
     Location(String fileName, int line, int column)
       : _fileName(fileName), _line(line), _column(column)
     { }
-    String asString() const
+    String toString() const
     {
         return _fileName + openParenthesis + String::decimal(_line) + comma +
             String::decimal(_column) + closeParenthesis;
@@ -21,7 +21,7 @@ public:
     void advanceLine() { _column = 1; ++_line; }
     void throwError(const String& message) const
     {
-        throw Exception(asString() + colonSpace + message);
+        throw Exception(toString() + colonSpace + message);
     }
     int line() const { return _line; }
     int column() const { return _column; }
@@ -55,7 +55,7 @@ public:
     int startColumn() const { return _startColumn; }
     int endLine() const { return _endLine; }
     int endColumn() const { return _endColumn; }
-    String asString() const
+    String toString() const
     {
         static String s(")-(");
         return _fileName + openParenthesis + String::decimal(_startLine) +
@@ -65,7 +65,7 @@ public:
     }
     void throwError(const String& message) const
     {
-        throw Exception(asString() + colonSpace + message);
+        throw Exception(toString() + colonSpace + message);
     }
     Location start() const
     {

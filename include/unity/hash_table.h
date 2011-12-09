@@ -118,7 +118,7 @@ public:
         _table.allocate(1);
         _table.constructElements();
     }
-    bool hasKey(const Key& key)
+    bool hasKey(const Key& key) const
     {
         return _table[row(key)].hasKey(key);
     }
@@ -186,7 +186,7 @@ public:
     Iterator begin() const
     {
         int row = 0;
-        TableEntry* entry = &_table[0];
+        const TableEntry* entry = &_table[0];
         while (entry->_next == 0) {
             ++row;
             if (row == _n)
