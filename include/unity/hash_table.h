@@ -51,16 +51,16 @@ private:
         //void dump()
         //{
         //    if (_next == 0) {
-        //        String("(none)").write(Handle::consoleOutput());
+        //        debug->write(String("(none)"));
         //        return;
         //    }
         //    TableEntry* t = this;
         //    do {
-        //        String("  ").write(Handle::consoleOutput());
-        //        t->_key.write(Handle::consoleOutput());
-        //        String("=>").write(Handle::consoleOutput());
-        //        t->_value.toString().write(Handle::consoleOutput());
-        //        String("\n").write(Handle::consoleOutput());
+        //        debug->write(String("  "));
+        //        debug->write(t->_key);
+        //        debug->write(String("=>"));
+        //        debug->write(t->_value.type().toString());
+        //        debug->write(newLine);
         //        t = t->_next;
         //    } while (t != this);
         //}
@@ -167,7 +167,7 @@ public:
             }
             do {
                 ++_row;
-                if (_row == _table->_n) {
+                if (_row == _table->_table.count()) {
                     _entry = 0;
                     break;
                 }
@@ -198,8 +198,8 @@ public:
     Iterator end() const { return Iterator(_n, 0, this); }
     //void dump()
     //{
-    //    for (int i = 0; i < _n; ++i) {
-    //        String("%i:\n").write(Handle::consoleOutput());
+    //    for (int i = 0; i < _table.count(); ++i) {
+    //        debug->write(String::decimal(i) + ":" + newLine);
     //        _table[i].dump();
     //    }
     //}

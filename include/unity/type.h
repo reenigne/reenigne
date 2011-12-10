@@ -580,7 +580,7 @@ public:
         virtual bool valid() const { return true; }
     };
     Conversion() { }
-    Conversion(Implementation* implementation)
+    explicit Conversion(Implementation* implementation)
       : _implementation(implementation) { }
     bool valid() const
     {
@@ -697,9 +697,11 @@ public:
                         new MemberConversionFailure(from, to, name, c));
                 implementation->add(name, c);
             }
-            _conversions.add(TypePair(from, to), Conversion(implementation));
+            Conversion conversion(implementation);
+            _conversions.add(TypePair(from, to), conversion);
+            return conversion;
         }
-        return false;
+        return Conversion(new ConversionFailureImplementation(from, to));
     }
     class ConversionFailureImplementation : public Conversion::Implementation
     {
@@ -851,7 +853,7 @@ public:
         if (toGenerator.isInstantiation())
             toGenerator = toGenerator.generatingTemplate();
         if (toGenerator != Template::array)
-            return 0;
+            return Conversion(new NotArrayConversionFailure(from, to));
         Type contained = to.templateArgument();
 
         TypeConstructor fromGenerator = from;
@@ -868,7 +870,7 @@ public:
             fromGenerator = fromGenerator.generatingTemplate();
         }
         if (fromGenerator != Template::tuple)
-            return 0;
+            return Conversion(new NotTupleConversionFailure(from, to));
         return Conversion(new ArrayConversionImplementation(
             Type::array(contained), conversions));
     }
@@ -893,6 +895,28 @@ private:
     private:
         Type _type;
         Array<Conversion> _conversions;
+    };
+    class NotArrayConversionFailure :
+        public TypeConverter::ConversionFailureImplementation
+    {
+    public:
+        NotArrayConversionFailure(const Type& from, const Type& to)
+          : ConversionFailureImplementation(from, to) { }
+        String sub(const TypedValue& value) const
+        {
+            return String("Not a conversion to an Array."); 
+        }
+    };
+    class NotTupleConversionFailure :
+        public TypeConverter::ConversionFailureImplementation
+    {
+    public:
+        NotTupleConversionFailure(const Type& from, const Type& to)
+          : ConversionFailureImplementation(from, to) { }
+        String sub(const TypedValue& value) const
+        {
+            return String("Not a conversion from a Tuple."); 
+        }
     };
     class ElementConversionFailure :
         public TypeConverter::ConversionFailureImplementation

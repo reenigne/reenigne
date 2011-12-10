@@ -397,10 +397,7 @@ public:
             return (*this) + space*spaces;
         return *this;
     }
-    Reference<Implementation> implementation()
-    {
-        return _implementation;
-    }
+    Reference<Implementation> implementation() { return _implementation; }
     ConstReference<Implementation> implementation() const
     {
         return _implementation;

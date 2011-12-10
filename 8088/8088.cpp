@@ -172,7 +172,7 @@ public:
         Value<HashTable<String, TypedValue> > object =
             value.value<Value<HashTable<String, TypedValue> > >();
         for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load(value);
+            (*i)->load((*object)[(*i)->name()]);
     }
     String name() { return "bus"; }
     TypedValue initia()
@@ -291,7 +291,7 @@ public:
         } while (true);
     }
     String name() { return "ram"; }
-    TypedValue initia() { return TypedValue(Type::string, String("00")); }
+    TypedValue initial() { return TypedValue(Type::string, String("00")); }
 private:
     int _address;
     Array<UInt8> _data;
@@ -792,10 +792,7 @@ public:
         _bus = bus;
         _disassembler.setBus(_bus);
     }
-    UInt32 codeAddress(UInt16 offset)
-    {
-        return physicalAddress(_segmentRegisterData[1], offset);
-    }
+    UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
     void simulateCycle()
     {
         simulateCycleAction();
@@ -854,10 +851,13 @@ public:
             switch (_busState) {
                 case t1:
                     if (_ioInProgress == ioInstructionFetch)
-                        _busAddress = physicalAddress(_segmentRegisterData[1],
-                            _prefetchAddress);
-                    else
-                        _busAddress = physicalAddress();
+                        _busAddress = physicalAddress(1, _prefetchAddress);
+                    else {
+                        int segment = _segment;
+                        if (_segmentOverride != -1)
+                            segment = _segmentOverride;
+                        _busAddress = physicalAddress(segment, _address);
+                    }
                     _bus->setAddress(_busAddress);
                     _busState = t2;
                     break;
@@ -928,7 +928,9 @@ public:
                     busDone = false;
                     break;
                 case tIdle:
-                    if (_byte != ioWordSecond)
+                    if (_byte == ioWordSecond)
+                        _busState = t1;
+                    else
                         _ioInProgress = ioNone;
                     _abandonFetch = false;
                     if (_ioInProgress == ioNone && _ioRequested != ioNone) {
@@ -2129,8 +2131,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     }
     void load(const TypedValue& value)
     {
-        Value<HashTable<String, TypedValue> > members =
-            value.value<Value<HashTable<String, TypedValue> > >();
+        auto members = value.value<Value<HashTable<String, TypedValue>>>();
         _ip = (*members)["ip"].value<int>();
         _registerData[0] = (*members)["ax"].value<int>();
         _registerData[1] = (*members)["cx"].value<int>();
@@ -2145,7 +2146,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _segmentRegisterData[2] = (*members)["ss"].value<int>();
         _segmentRegisterData[3] = (*members)["ds"].value<int>();
         _flagsData = (*members)["flags"].value<int>();
-        List<TypedValue> prefetch = (*members)["prefetch"].value<List<TypedValue> >();
+        auto prefetch = (*members)["prefetch"].value<List<TypedValue>>();
         _prefetched = 0;
         _prefetchOffset = 0;
         for (auto i = prefetch.begin(); i != prefetch.end(); ++i) {
@@ -2154,6 +2155,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         }
         _segment = (*members)["segment"].value<int>();
         _segmentOverride = (*members)["segmentOverride"].value<int>();
+        _prefetchAddress = (*members)["prefetchAddress"].value<int>();
         _ioType = (*members)["ioType"].value<IOType>();
         _ioRequested = (*members)["ioRequested"].value<IOType>();
         _ioInProgress = (*members)["ioInProgress"].value<IOType>();
@@ -2175,6 +2177,8 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _afterEA = (*members)["afterEA"].value<State>();
         _afterIO = (*members)["afterIO"].value<State>();
         _afterModRM = (*members)["afterModRM"].value<State>();
+        _afterRep = (*members)["afterRep"].value<State>();
+        _sourceIsRM = (*members)["sourceIsRM"].value<bool>();
         _savedCS = (*members)["savedCS"].value<int>();
         _savedIP = (*members)["savedIP"].value<int>();
         _rep = (*members)["rep"].value<int>();
@@ -2187,92 +2191,6 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     String name() { return "cpu"; }
     TypedValue initial()
     {
-    //  : _flagsData(0x0002),  // ?
-    //    _state(stateFetch),
-    //    _ip(0),
-    //    _prefetchOffset(0),
-    //    _prefetched(0),
-    //    _segment(0),
-    //    _segmentOverride(-1),
-    //    _prefetchAddress(_ip),
-    //    _ioType(ioNone),
-    //    _ioRequested(ioNone),
-    //    _ioInProgress(ioInstructionFetch),
-    //    _busState(t1),
-    //    _abandonFetch(false),
-    //    _useIO(false),
-    //    _halted(false),
-    //    _console(console),
-    //    _wait(0),
-    //    _newInstruction(true),
-    //    _newIP(0),
-    //    _cycle(0),
-    //    _simulator(simulator),
-    //    _stopAtCycle(stopAtCycle),
-    //    _opcode(0),
-    //    _modRM(0),
-    //    _data(0),
-    //    _source(0),
-    //    _destination(0),
-    //    _remainder(0),
-    //    _address(0),
-    //    _aluOperation(0),
-    //    _afterEA(stateWaitingForBIU),
-    //    _afterModRM(stateWaitingForBIU),
-    //    _afterRep(stateWaitingForBIU),
-    //    _savedCS(0),
-    //    _savedIP(0),
-    //    _rep(0),
-        
-    //{
-    //    static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
-    //    static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
-    //    static String s[8] = {"ES", "CS", "SS", "DS", "??", "??", "??", "??"};
-    //    for (int i = 0; i < 8; ++i) {
-    //        _registerData[i] = 0;  // ?
-    //        _wordRegisters[i].init(w[i], &_registerData[i]);
-    //        _byteRegisters[i].init(b[i], reinterpret_cast<UInt8*>(
-    //            &_registerData[i & 3]) + (i >= 4 ? 1 : 0));
-    //        _segmentRegisters[i].init(s[i], &_segmentRegisterData[i]);
-    //    }
-    //    _flags.init("F", &_flagsData);
-    //    _segmentRegisterData[0] = 0x0000;  // ?
-    //    _segmentRegisterData[1] = 0xffff;
-    //    _segmentRegisterData[2] = 0x0000;  // ?
-    //    _segmentRegisterData[3] = 0x0000;  // ?
-    //    _segmentRegisterData[7] = 0x0000;  // For IO accesses
-
-    //    List<EnumerationType::Value> stateValues;
-    //    for (int i = stateWaitingForBIU; i <= stateMisc2; ++i) {
-    //        State s = static_cast<State>(i);
-    //        stateValues.add(EnumerationType::Value(stringForState(s), s));
-    //    }
-    //    _stateType = EnumerationType("State", stateValues);
-
-    //    List<EnumerationType::Value> ioTypeValues;
-    //    for (int i = ioNone; i <= ioInstructionFetch; ++i) {
-    //        IOType t = static_cast<IOType>(i);
-    //        stateValues.add(EnumerationType::Value(stringForIOType(t), t));
-    //    }
-    //    _ioTypeType = EnumerationType("IOType", ioTypeValues);
-
-    //    List<EnumerationType::Value> ioByteValues;
-    //    for (int i = ioSingleByte; i <= ioWordSecond; ++i) {
-    //        IOByte b = static_cast<IOByte>(i);
-    //        stateValues.add(EnumerationType::Value(stringForIOByte(b), b));
-    //    }
-    //    _ioByteType = EnumerationType("IOByte", ioByteValues);
-
-    //    List<EnumerationType::Value> busStateValues;
-    //    for (int i = t1; i <= tIdle; ++i) {
-    //        BusState s = static_cast<BusState>(i);
-    //        stateValues.add(EnumerationType::Value(stringForBusState(s), s));
-    //    }
-    //    _busStateType = EnumerationType("BusState", busStateValues);
-
-    //    _disassembler.setCPU(this);
-
-
         Value<HashTable<String, TypedValue> > members;
         (*members)["ip"] = TypedValue(Type::integer, 0);
         (*members)["ax"] = TypedValue(Type::integer, 0);
@@ -2955,14 +2873,7 @@ private:
     }
     UInt32 physicalAddress(UInt16 segment, UInt16 offset)
     {
-        return ((segment << 4) + offset) & 0xfffff;
-    }
-    UInt32 physicalAddress()
-    {
-        int segment = _segment;
-        if (_segmentOverride != -1)
-            segment = _segmentOverride;
-        return physicalAddress(segment, _address);
+        return ((_segmentRegisterData[segment] << 4) + offset) & 0xfffff;
     }
     UInt8 getInstructionByte()
     {
