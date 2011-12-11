@@ -297,6 +297,76 @@ private:
     Array<UInt8> _data;
 };
 
+class NMISwitch : public ISA8BitComponent
+{
+public:
+    NMISwitch() : _nmiOn(false) { }
+    void setAddress(UInt32 address)
+    {
+        _active = (address & 0xc00003e0) == 0xc00000a0;
+    }
+    UInt8 read() { return 0xff; }
+    void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }
+    String save()
+    {
+        return String("nmiSwitch: ") + (_nmiOn ? "true" : "false") + newLine;
+    }
+    Type type() { return Type::boolean; }
+    void load(const TypedValue& value) { _nmiOn = value.value<boolean>(); }
+    String name() { return "nmiSwitch"; }
+    TypedValue initial() { return TypedValue(Type::boolean, false); }
+private:
+    bool _nmiOn;
+};
+
+class DMAPageRegisters : public ISA8BitComponent
+{
+public:
+    DMAPageRegisters() { for (int i = 0; i < 4; ++i) _dmaPages[i] = 0; }
+    void setAddress(UInt32 address)
+    {
+        _address = address & 3;
+        _active = (address & 0xc00003e0) == 0xc0000080;
+    }
+    UInt8 read() { return 0xff; }
+    void write(UInt8 data) { _dmaPages[_address] = data & 0x0f; }
+    String save()
+    {
+        String s = "dmaPages: {";
+        bool needComma = false;
+        for (int i = 0; i < 4; ++i) {
+            if (needComma)
+                s += ", ";
+            needComma = true;
+            s += String("0x") + String::hexadecimal(_dmaPages[i], 1);
+        }
+        return s + String("}");
+    }
+    Type type() { return Type::array(Type::integer); }
+    void load(const TypedValue& value)
+    { 
+        auto dmaPages = value.value<List<TypedValue>>();
+        int j = 0;
+        for (auto i = dmaPages.begin(); i != dmaPages.end(); ++i) {
+            _dmaPages[j] = (*i).value<int>();
+            ++j;
+            if (j == 4)
+                break;
+        }        
+    }
+    String name() { return "dmaPages"; }
+    TypedValue initial()
+    {
+        List<TypedValue> dmaPages;
+        for (int i = 0; i < 4; ++i)
+            dmaPages.add(TypedValue(Type::integer, 0));
+        return TypedValue(Type::array(Type::integer), dmaPages);
+    }
+private:
+    int _address;
+    int _dmaPages[4];
+};
+
 //class Intel8253PIT : public ISA8BitComponent
 //{
 //};
@@ -361,7 +431,6 @@ private:
     int _start;
     int _address;
     Array<UInt8> _data;
-    bool _selected;
 };
 
 
@@ -3039,6 +3108,10 @@ protected:
         ISA8BitBus bus;
         RAM640Kb ram;
         bus.addComponent(&ram);
+        NMISwitch nmiSwitch;
+        bus.addComponent(&nmiSwitch);
+        DMAPageRegisters dmaPageRegisters;
+        bus.addComponent(&dmaPageRegisters);
 
         //IBMCGA cga;
         //bus.addComponent(&cga);
