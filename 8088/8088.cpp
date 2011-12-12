@@ -110,7 +110,11 @@ protected:
 class ISA8BitBus : public Component
 {
 public:
-    void simulateCycle() { }
+    void simulateCycle()
+    {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            (*i)->simulateCycle();
+    }
     void addComponent(ISA8BitComponent* component)
     {
         _components.add(component);
@@ -367,10 +371,79 @@ private:
     int _dmaPages[4];
 };
 
-//class Intel8253PIT : public ISA8BitComponent
-//{
-//};
-//
+class Intel8253PIT : public ISA8BitComponent
+{
+public:
+    void simulateCycle()
+    {
+        for (int i = 0; i < 3; ++i)
+            _timers[i].simulateCycle();
+    }
+    void setAddress(UInt32 address)
+    {
+        _address = address & 3;
+        _active = (address & 0xc00003e0) == 0xc0000040;
+    }
+    UInt8 read()
+    {
+        if (_address < 3)
+            return _timers[_address].read();
+        return 0;
+    }
+    void write(UInt8 data)
+    {
+        if (_address < 3)
+            _timers[_address].write(data);
+        else {
+            int timer = (data >> 6) & 3;
+            if (timer < 3)
+                _timers[_address].control(data & 0x3f);
+        }
+    }
+    String save()
+    {
+        return String("nmiSwitch: ") + (_nmiOn ? "true" : "false") + newLine;
+    }
+    Type type() { return Type::boolean; }
+    void load(const TypedValue& value) { _nmiOn = value.value<boolean>(); }
+    String name() { return "nmiSwitch"; }
+    TypedValue initial() { return TypedValue(Type::boolean, false); }
+private:
+    class Timer
+    {
+    public:
+        void simulateCycle()
+        {
+        }
+        UInt8 read()
+        {
+        }
+        void write(UInt8 data)
+        {
+            switch (_command) {
+                case 0:
+                    break;
+                case 1:
+
+
+            }
+        }
+        void control(UInt8 mode)
+        {
+            _bcd = ((mode & 1) != 0);
+            _mode = (mode >> 1) & 7;
+            _command = (mode >> 4) & 3;
+        }
+    private:
+        UInt16 _value;
+        int _mode;
+        bool _bcd;
+        int _command;
+    };
+    Timer _timers[3];
+    int _address;
+};
+
 //class Intel8237DMA : public ISA8BitComponent
 //{
 //};
