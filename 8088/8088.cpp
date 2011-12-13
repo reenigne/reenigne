@@ -424,8 +424,21 @@ private:
                 case 0:
                     break;
                 case 1:
-
-
+                    loadCount(data);
+                    break;
+                case 2:
+                    loadCount(data << 8);
+                    break;
+                case 3:
+                    if (_firstByte) {
+                        _lowCount = data;
+                        _firstByte = false;
+                    }
+                    else {
+                        loadCount(_lowCount | (data << 8));
+                        _firstByte = true;
+                    }
+                    break;
             }
         }
         void control(UInt8 mode)
@@ -435,10 +448,16 @@ private:
             _command = (mode >> 4) & 3;
         }
     private:
+        void loadCount(UInt16 value)
+        {
+        }
+
         UInt16 _value;
         int _mode;
         bool _bcd;
         int _command;
+        UInt8 _lowCount;
+        bool _firstByte;
     };
     Timer _timers[3];
     int _address;

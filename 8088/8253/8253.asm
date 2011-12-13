@@ -1,0 +1,7 @@
+cpu 8086
+org 0
+
+  in al,0x43
+  int 0x60
+  int 0x67
+
