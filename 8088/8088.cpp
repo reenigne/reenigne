@@ -96,13 +96,14 @@ public:
     // Address bit 31 = write
     // Address bit 30 = IO
     virtual void setAddress(UInt32 address) = 0;
-    virtual UInt8 read() = 0;
     virtual void write(UInt8 data) = 0;
     virtual bool wait() { return false; }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
     virtual UInt8 memory(UInt32 address) { return 0xff; }
     bool active() const { return _active; }
+    virtual void read() { }
 protected:
+    void set(UInt8 data) { _bus->_data = data; }
     ISA8BitBus* _bus;
     bool _active;
 };
@@ -131,12 +132,12 @@ public:
             if ((*i)->active())
                 (*i)->write(data);
     }
-    UInt8 read()
+    UInt8 read() const
     {
         for (auto i = _components.begin(); i != _components.end(); ++i)
             if ((*i)->active())
-                return (*i)->read();
-        return 0xff;
+                (*i)->read();
+        return _data;
     }
     UInt8 memory(UInt32 address)
     {
@@ -189,6 +190,9 @@ public:
     }
 private:
     List<ISA8BitComponent*> _components;
+    UInt8 _data;
+
+    friend class ISA8BitComponent;
 };
 
 //class Motorola6845CRTC : public Component
@@ -247,7 +251,7 @@ public:
         _address = address & 0x400fffff;
         _active = (_address < 0xa0000);
     }
-    UInt8 read() { return _data[_address]; }
+    void read() { return set(_data[_address]); }
     void write(UInt8 data) { _data[_address] = data; }
     UInt8 memory(UInt32 address)
     {
@@ -309,7 +313,6 @@ public:
     {
         _active = (address & 0xc00003e0) == 0xc00000a0;
     }
-    UInt8 read() { return 0xff; }
     void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }
     String save()
     {
@@ -332,7 +335,6 @@ public:
         _address = address & 3;
         _active = (address & 0xc00003e0) == 0xc0000080;
     }
-    UInt8 read() { return 0xff; }
     void write(UInt8 data) { _dmaPages[_address] = data & 0x0f; }
     String save()
     {
@@ -374,21 +376,30 @@ private:
 class Intel8253PIT : public ISA8BitComponent
 {
 public:
-    void simulateCycle()
+    Intel8253PIT() : _cycle(0)
     {
         for (int i = 0; i < 3; ++i)
-            _timers[i].simulateCycle();
+            _timers[i].setGate(true);
+    }
+    void simulateCycle()
+    {
+        // The PIT input clock is 1/4 the frequency of the CPU clock.
+        ++_cycle;
+        if (_cycle == 4) {
+            _cycle = 0;
+            for (int i = 0; i < 3; ++i)
+                _timers[i].simulateCycle();
+        }
     }
     void setAddress(UInt32 address)
     {
         _address = address & 3;
         _active = (address & 0xc00003e0) == 0xc0000040;
     }
-    UInt8 read()
+    void read()
     {
         if (_address < 3)
-            return _timers[_address].read();
-        return 0;
+            set(_timers[_address].read());
     }
     void write(UInt8 data)
     {
@@ -400,14 +411,14 @@ public:
                 _timers[_address].control(data & 0x3f);
         }
     }
+    void setT2Gate(bool gate) { _timers[2].setGate(gate); }
     String save()
     {
-        return String("nmiSwitch: ") + (_nmiOn ? "true" : "false") + newLine;
     }
-    Type type() { return Type::boolean; }
-    void load(const TypedValue& value) { _nmiOn = value.value<boolean>(); }
-    String name() { return "nmiSwitch"; }
-    TypedValue initial() { return TypedValue(Type::boolean, false); }
+    Type type() { }
+    void load(const TypedValue& value) { }
+    String name() { return "timer"; }
+    TypedValue initial() { }
 private:
     class Timer
     {
@@ -447,9 +458,30 @@ private:
             _mode = (mode >> 1) & 7;
             _command = (mode >> 4) & 3;
         }
+        void setGate(bool gate) { _gate = gate; }
     private:
         void loadCount(UInt16 value)
         {
+        }
+        void countDown()
+        {
+            if (!_bcd) {
+                --_value;
+                return;
+            }
+            if ((_value & 0xf) != 0) {
+                --_value;
+                return;
+            }
+            if ((_value & 0xf0) != 0) {
+                _value -= (0x10 - 0x09);
+                return;
+            }
+            if ((_value & 0xf00) != 0) {
+                _value -= (0x100 - 0x099);
+                return;
+            }
+            _value -= (0x1000 - 0x0999);
         }
 
         UInt16 _value;
@@ -458,9 +490,12 @@ private:
         int _command;
         UInt8 _lowCount;
         bool _firstByte;
+        bool _gate;
+        bool _output;
     };
     Timer _timers[3];
     int _address;
+    int _cycle;
 };
 
 //class Intel8237DMA : public ISA8BitComponent
@@ -510,7 +545,7 @@ public:
         _address = address & 0xfffff & ~_mask;
         _active = ((address & _mask) == _start);
     }
-    UInt8 read() { return _data[_address & ~_mask]; }
+    void read() { set(_data[_address & ~_mask]); }
     void write(UInt8 data) { }
     UInt8 memory(UInt32 address)
     {
