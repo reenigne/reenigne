@@ -428,6 +428,7 @@ private:
         }
         UInt8 read()
         {
+
         }
         void write(UInt8 data)
         {
@@ -454,9 +455,15 @@ private:
         }
         void control(UInt8 mode)
         {
+            int command = (mode >> 4) & 3;
+            if (command == 0) {
+                _latch = _value;
+                _latched = true;
+                return;
+            }
             _bcd = ((mode & 1) != 0);
             _mode = (mode >> 1) & 7;
-            _command = (mode >> 4) & 3;
+            _command = command;
         }
         void setGate(bool gate) { _gate = gate; }
     private:
@@ -492,6 +499,8 @@ private:
         bool _firstByte;
         bool _gate;
         bool _output;
+        bool _latched;
+        UInt16 _latch;
     };
     Timer _timers[3];
     int _address;
