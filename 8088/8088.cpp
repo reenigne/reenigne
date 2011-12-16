@@ -425,6 +425,26 @@ private:
     public:
         void simulateCycle()
         {
+            switch (_mode) {
+                case 0:
+                    switch (_state) {
+                        case stateStopped:
+                            break;
+                        case stateCounting:
+                            if (!_gate)
+                                break;
+                            countDown();
+                            if (_value == 0)
+                                _output = true;
+                            break;
+                    }
+                    break;
+                case 1:
+
+
+
+
+            }
         }
         UInt8 read()
         {
@@ -432,7 +452,7 @@ private:
         }
         void write(UInt8 data)
         {
-            switch (_command) {
+            switch (_bytes) {
                 case 0:
                     break;
                 case 1:
@@ -445,6 +465,11 @@ private:
                     if (_firstByte) {
                         _lowCount = data;
                         _firstByte = false;
+                        switch (_mode) {
+                            case 0:
+                                _state = stateStopped;
+                                break;
+                        }
                     }
                     else {
                         loadCount(_lowCount | (data << 8));
@@ -453,22 +478,45 @@ private:
                     break;
             }
         }
-        void control(UInt8 mode)
+        void control(UInt8 data)
         {
-            int command = (mode >> 4) & 3;
+            int command = (data >> 4) & 3;
             if (command == 0) {
                 _latch = _value;
                 _latched = true;
                 return;
             }
-            _bcd = ((mode & 1) != 0);
-            _mode = (mode >> 1) & 7;
-            _command = command;
+            _bcd = ((data & 1) != 0);
+            _mode = (data >> 1) & 7;
+            _bytes = command;
+            switch (_mode) {
+                case 0:
+                    _state = stateStopped;
+                    _output = false;
+                    break;
+            }
         }
-        void setGate(bool gate) { _gate = gate; }
+        void setGate(bool gate)
+        {
+            _gate = gate;
+            switch (_mode) {
+            }
+        }
     private:
+        enum State
+        {
+            stateStopped,
+            stateCounting
+        };
+
         void loadCount(UInt16 value)
         {
+            _count = value;
+            switch (_mode) {
+                case 0:
+                    _state = stateCounting;
+                    break;
+            }
         }
         void countDown()
         {
@@ -492,15 +540,17 @@ private:
         }
 
         UInt16 _value;
+        UInt16 _latch;
+        UInt16 _count;
         int _mode;
         bool _bcd;
-        int _command;
+        int _bytes;
         UInt8 _lowCount;
         bool _firstByte;
         bool _gate;
         bool _output;
         bool _latched;
-        UInt16 _latch;
+        State _state;
     };
     Timer _timers[3];
     int _address;
