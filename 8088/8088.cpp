@@ -440,15 +440,48 @@ private:
                     }
                     break;
                 case 1:
-
-
-
-
+                    switch (_state) {
+                        case stateStopped:
+                            break;
+                        case stateStart:
+                            _value = _count;
+                            _state = stateCounting;
+                            break;
+                        case stateCounting:
+                            if (!_gate)
+                                break;
+                            countDown();
+                            if (_value == 0)
+                                _output = false;
+                            break;
+                    }
+                    break;
             }
         }
         UInt8 read()
         {
-
+            switch (_bytes) {
+                case 0:
+                    break;
+                case 1:
+                    if (_latched)
+                        return _latch;
+                    return _value;
+                case 2:
+                    if (_latched)
+                        return _latch >> 8;
+                    return _value >> 8;
+                case 3:
+                    if (_latched) {
+                        if (_firstByte)
+                            return _latch;
+                        return _latch >> 8;
+                    }
+                    if (_firstByte)
+                        return _value;
+                    return _value >> 8;
+            }
+            return 0;
         }
         void write(UInt8 data)
         {
@@ -494,19 +527,30 @@ private:
                     _state = stateStopped;
                     _output = false;
                     break;
+                case 1:
+                    _state = stateStopp;ed
+                    _output = true;
+                    break;
             }
         }
         void setGate(bool gate)
         {
             _gate = gate;
             switch (_mode) {
+                case 0:
+                    break;
+                case 1:
+                    if (_gate)
+                        _state = stateStart;
+                    break;
             }
         }
     private:
         enum State
         {
             stateStopped,
-            stateCounting
+            stateCounting,
+            stateStart
         };
 
         void loadCount(UInt16 value)
