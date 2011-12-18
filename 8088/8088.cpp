@@ -425,36 +425,28 @@ private:
     public:
         void simulateCycle()
         {
-            switch (_mode) {
-                case 0:
-                    switch (_state) {
-                        case stateStopped:
-                            break;
-                        case stateCounting:
-                            if (!_gate)
-                                break;
-                            countDown();
-                            if (_value == 0)
-                                _output = true;
-                            break;
-                    }
+            switch (_state) {
+                case stateStopped0:
                     break;
-                case 1:
-                    switch (_state) {
-                        case stateStopped:
-                            break;
-                        case stateStart:
-                            _value = _count;
-                            _state = stateCounting;
-                            break;
-                        case stateCounting:
-                            if (!_gate)
-                                break;
-                            countDown();
-                            if (_value == 0)
-                                _output = false;
-                            break;
-                    }
+                case stateCounting0:
+                    if (!_gate)
+                        break;
+                    countDown();
+                    if (_value == 0)
+                        _output = true;
+                    break;
+                case stateStopped1:
+                    break;
+                case stateStart1:
+                    _value = _count;
+                    _state = stateCounting;
+                    break;
+                case stateCounting1:
+                    if (!_gate)
+                        break;
+                    countDown();
+                    if (_value == 0)
+                        _output = false;
                     break;
             }
         }
@@ -520,45 +512,54 @@ private:
                 return;
             }
             _bcd = ((data & 1) != 0);
-            _mode = (data >> 1) & 7;
             _bytes = command;
-            switch (_mode) {
+            switch ((data >> 1) & 7) {
                 case 0:
-                    _state = stateStopped;
+                    _state = stateStopped0;
                     _output = false;
                     break;
                 case 1:
-                    _state = stateStopp;ed
+                    _state = stateStopped1;
                     _output = true;
                     break;
             }
         }
         void setGate(bool gate)
         {
-            _gate = gate;
-            switch (_mode) {
-                case 0:
+            switch (_state) {
+                case stateStopped0:
+                case stateCounting0:
                     break;
-                case 1:
-                    if (_gate)
-                        _state = stateStart;
+                case stateStopped1:
+                case stateStart1:
+                case stateCounting1:
+                    if (_gate && !gate)
+                        _state = stateStart1;
                     break;
             }
+            _gate = gate;
         }
     private:
         enum State
         {
-            stateStopped,
-            stateCounting,
-            stateStart
+            stateStopped0,
+            stateCounting0,
+            stateStopped1,
+            stateStart1,
+            stateCounting1
         };
 
         void loadCount(UInt16 value)
         {
             _count = value;
-            switch (_mode) {
-                case 0:
-                    _state = stateCounting;
+            switch (_state) {
+                case stateStopped0:
+                case stateCounting0:
+                    _state = stateCounting0;
+                    break;
+                case stateStopped1:
+                case stateStart1:
+                case stateCounting1:
                     break;
             }
         }
@@ -586,7 +587,6 @@ private:
         UInt16 _value;
         UInt16 _latch;
         UInt16 _count;
-        int _mode;
         bool _bcd;
         int _bytes;
         UInt8 _lowCount;
