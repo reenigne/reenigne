@@ -9,7 +9,151 @@ org 0
   mov al,10
   int 0x62  ; New line
 
+; Receive a byte over serial and put it in AL. DX == port base address + 5
+%macro receiveByte 0
+    ; Wait until a byte is available
+  %%waitForData:
+    in al,dx
+    test al,1
+    jz %%waitForData
+    ; Read the data byte
+    sub dx,5
+    in al,dx
+    add dx,5
+%endmacro
 
+
+  mov dx,0x3f8  ; COM1 (0x3f8 == COM1, 0x2f8 == COM2, 0x3e8 == COM3, 0x2e8 == COM4)
+
+  ; dx + 0 == Transmit/Receive Buffer   (bit 7 of LCR == 0)  Baud Rate Divisor LSB (bit 7 of LCR == 1)
+  ; dx + 1 == Interrupt Enable Register (bit 7 of LCR == 0)  Baud Rate Divisor MSB (bit 7 of LCR == 1)
+  ; dx + 2 == Interrupt Identification Register IIR (read)   16550 FIFO Control Register (write)
+  ; dx + 3 == Line Control Register LCR
+  ; dx + 4 == Modem Control Register MCR
+  ; dx + 5 == Line Status Register LSR
+  ; dx + 6 == Modem Status Register MSR
+  ; dx + 7 == Scratch Pad Register
+
+  add dx,3    ; 3
+  mov al,0x80
+  out dx,al   ; Set LCR bit 7 to 1 to allow us to set baud rate
+
+  dec dx      ; 2
+  dec dx      ; 1
+  mov al,0x00
+  out dx,al   ; Set baud rate divisor high = 0x00
+
+  dec dx      ; 0
+  mov al,0x01
+  out dx,al   ; Set baud rate divisor low  = 0x01 = 115200 baud
+
+  add dx,3    ; 3
+  ; Line Control Register LCR                                03
+  ;      1 Word length -5 low bit                             1
+  ;      2 Word length -5 high bit                            2
+  ;      4 1.5/2 stop bits                                    0
+  ;      8 parity                                             0
+  ;   0x10 even parity                                        0
+  ;   0x20 parity enabled                                     0
+  ;   0x40 force spacing break state                          0
+  ;   0x80 allow changing baud rate                           0
+  mov al,0x03
+  out dx,al
+
+  dec dx      ; 2
+  dec dx      ; 1
+  ; Interrupt Enable Register                                00
+  ;      1 Enable data available interrupt and 16550 timeout  0
+  ;      2 Enable THRE interrupt                              0
+  ;      4 Enable lines status interrupt                      0
+  ;      8 Enable modem status change interrupt               0
+  mov al,0x00
+  out dx,al
+
+  add dx,3    ; 4
+  ; Modem Control Register                                   00
+  ;      1 Activate DTR                                       0
+  ;      2 Activate RTS                                       0
+  ;      4 OUT1                                               0
+  ;      8 OUT2                                               0
+  ;   0x10 Loop back test                                     0
+  out dx,al
+
+
+  ; Find the next segment after the end of the kernel. This is where we'll
+  ; load our program.
+  mov ax,(programEnd + 15) >> 4
+  add ax,bx
+  mov ds,ax
+
+  ; Push the address
+  push ds
+  xor di,di
+  push di
+
+
+tryLoad:
+  mov al,1
+  out dx,al   ; Activate DTR
+  inc dx      ; 5
+  ; Read a 3-byte count and then a number of bytes into memory, starting at
+  ; DS:DI
+  receiveByte
+  mov cl,al
+  receiveByte
+  mov ch,al
+  receiveByte
+  mov bl,al
+  mov bh,0
+
+  mov si,bx
+  push cx
+  xor ah,ah
+pagesLoop:
+  cmp si,0
+  je noFullPages
+  xor cx,cx
+  call loadBytes
+  dec si
+  jmp pagesLoop
+noFullPages:
+  pop cx
+  test cx,cx
+  jz loadProgramDone
+  call loadBytes
+loadProgramDone:
+  ; Check that the checksum matches
+  receiveByte
+  mov bx,ax
+
+  dec dx      ; 4
+  mov al,0
+  out dx,al   ; Deactivate DTR
+
+  mov ax,cs
+  mov ds,ax
+
+  cmp bh,bl
+  je checksumOk
+  jmp tryLoad
+checksumOk:
+
+  ; Now write
+
+
+  ; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
+loadBytes:
+  receiveByte
+  add ah,al
+  mov [di],al
+  add di,1
+  jnc noOverflow
+  mov bx,ds
+  add bh,0x10
+  mov ds,bx
+noOverflow:
+  loop loadBytes
+  ret
 
 
 

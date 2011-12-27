@@ -84,8 +84,8 @@ cpu 8086
   mov ax,0x3800
   out dx,ax
 
-  ;   0xff Horizontal Displayed                         14
-  mov ax,0x1401
+  ;   0xff Horizontal Displayed                         28
+  mov ax,0x2801
   out dx,ax
 
   ;   0xff Horizontal Sync Position                     2d
@@ -147,99 +147,61 @@ cpu 8086
   out dx,ax
 
 
-; Scanlines 0..198 = 199x 1-scanline (2-row) screens
-; Scanline     199 = lines 0-1 of 63-scanline screen (visible)
-;              200         2                   start of overscan
-;              224        26                   start of vertical sync
-;              240        42                   end of vertical sync
-;              261        63                   last line of frame
+; Lines 0..197 = 99x 2-row screens
+; Line 198 = line  0 of 63-row screen (visible)
+; Line 199 = line  1 of 63-row screen (visible)
+;      200         2                   start of overscan
+;      224        26                   start of vertical sync
+;      240        42                   end of vertical sync
+;      261        63                   last line of frame
 
   mov dl,0xda
   mov si,0  ; Increase per 2 lines in lines/256
   mov di,0  ; Frame number
 
 frameLoop:
+    ; Uncomment for animation
+    mov si,0x200
+    mov cx,0
+
   ; We now have over 62 rows (3.9ms) to do per-frame changes.
   waitForVerticalSync
   waitForNoVerticalSync
 
-  ; During scanline 0 we set up the start address for line 1 and change the vertical total to 2 lines
+  ; During line 0-1 we set up the start address for line 2 and change the vertical total to 0x01
   waitForDisplayEnable
   mov dl,0xd4
   mov ax,0x0104 ; 4: Vertical total: 2 rows/frame
   out dx,ax
-
-  mov ax,0x1300 ; 0: Horizontal total: 20 characters
-  out dx,ax
-  ; Wait until we're sure we're in the second half of the scanline
-  nop
-  nop
-  nop
-  nop
-  mov ah,0x24   ; 0: Horizontal total: 37 characters
-  out dx,ax
-  mov ax,0x1902 ; 2: Horizontal sync position: 25
-  out dx,ax
-
+  mov dl,0xda                    ; 2 0 2
+  waitForDisplayDisable
+  waitForDisplayEnable
+  mov dl,0xd4
   setNextStartAddress
   mov dl,0xda                    ; 2 0 2
   waitForDisplayDisable
 
-  ; During scanlines 1..198 we set up the start address for the next line
-%rep 198
+  ; During lines 2..197 we set up the start address for the next line
+%rep 98
+    waitForDisplayEnable
+    waitForDisplayDisable
     waitForDisplayEnable
     mov dl,0xd4
-
-    mov ax,0x1300 ; 0: Horizontal total: 20 characters
-    out dx,ax
-    ; Wait until we're sure we're in the second half of the scanline
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    mov ah,0x24   ; 0: Horizontal total: 37 characters
-    out dx,ax
-
     setNextStartAddress
     mov dl,0xda                    ; 2 0 2
     waitForDisplayDisable
 %endrep
 
-  ; During scanline 199 we set up the start address for line 0 and change the vertical total to 64 lines
+  ; During line 198 we set up the start address for line 0 and change the vertical total to 0x3e
   waitForDisplayEnable
   mov dl,0xd4
   mov cx,bp     ; Initial offset in lines/256
-  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame
+  mov ax,0x3e04 ; 4: Vertical total: 63 rows/frame
   out dx,ax
-
-  mov ax,0x1300 ; 0: Horizontal total: 20 characters
-  out dx,ax
-  ; Wait until we're sure we're in the second half of the scanline
-  nop
-  nop
-  nop
-  nop
-  mov ah,0x24   ; 0: Horizontal total: 37 characters
-  out dx,ax
-
-  setNextStartAddress
   mov dl,0xda
   waitForDisplayDisable
-
-  ; During scanline 200 we put the horizontal total back to 57 characters so we don't have to keep changing it in the non-visible area
   waitForDisplayEnable
   mov dl,0xd4
-
-  mov ax,0x3800 ; 0: Horizontal total: 57 characters
-  out dx,ax
-  mov ax,0x2d02 ; 2: Horizontal sync position: 45
-  out dx,ax
-
   setNextStartAddress
   mov dl,0xda
   waitForDisplayDisable

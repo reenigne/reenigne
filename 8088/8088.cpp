@@ -439,7 +439,7 @@ private:
                     break;
                 case stateStart1:
                     _value = _count;
-                    _state = stateCounting;
+                    _state = stateCounting1;
                     break;
                 case stateCounting1:
                     if (!_gate)
@@ -490,9 +490,9 @@ private:
                     if (_firstByte) {
                         _lowCount = data;
                         _firstByte = false;
-                        switch (_mode) {
-                            case 0:
-                                _state = stateStopped;
+                        switch (_state) {
+                            case stateCounting0:
+                                _state = stateStopped0;
                                 break;
                         }
                     }
@@ -546,7 +546,8 @@ private:
             stateCounting0,
             stateStopped1,
             stateStart1,
-            stateCounting1
+            stateCounting1,
+
         };
 
         void loadCount(UInt16 value)

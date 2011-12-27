@@ -77,7 +77,7 @@ org 0
   in al,0x42                                       ;   ff   reset MSB
   xchg ah,al
 
-; Experiment 6: One write before, one write between  0xffff   (ff8a when latched and read first)                              ff7f              ff7f
+; Experiment 6: One write before, one write between  0xffff   (ff8a when latched and read first)                              ff7f              ff7f             ff8a
   call init
   out 0x42,al
   mov al,0
