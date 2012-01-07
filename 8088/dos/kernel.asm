@@ -293,13 +293,13 @@ noRelocationNeeded:
   add ax,bx
   mov ds,ax
 
-  ; Push the address
-  push ds
   xor di,di
-  push di
-
 
 tryLoad:
+  ; Push the address
+  push ds
+  push di
+
   mov al,1
   out dx,al   ; Activate DTR
   inc dx      ; 5
@@ -342,6 +342,8 @@ loadProgramDone:
 
   cmp bh,bl
   je checksumOk
+  pop di
+  pop ds
   jmp tryLoad
 checksumOk:
   retf

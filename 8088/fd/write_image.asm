@@ -1,25 +1,142 @@
 cpu 8086
 org 0
 
+  ; Set up the screen so we can debug the keyboard send routine
+
+  ; Mode                                                2c
+  ;      1 +HRES                                         0
+  ;      2 +GRPH                                         0
+  ;      4 +BW                                           4
+  ;      8 +VIDEO ENABLE                                 8
+  ;   0x10 +1BPP                                         0
+  ;   0x20 +ENABLE BLINK                                20
+  mov dx,0x3d8
+  mov al,0x2c
+  out dx,al
+
+  ; Palette                                             00
+  ;      1 +OVERSCAN B                                   0
+  ;      2 +OVERSCAN G                                   0
+  ;      4 +OVERSCAN R                                   0
+  ;      8 +OVERSCAN I                                   0
+  ;   0x10 +BACKGROUND I                                 0
+  ;   0x20 +COLOR SEL                                    0
+  mov dx,0x3d9
+  mov al,0
+  out dx,al
+
+  mov dx,0x3d4
+
+  ;   0xff Horizontal Total                             38
+  mov ax,0x3800
+  out dx,ax
+
+  ;   0xff Horizontal Displayed                         28
+  mov ax,0x2801
+  out dx,ax
+
+  ;   0xff Horizontal Sync Position                     2d
+  mov ax,0x2d02
+  out dx,ax
+
+  ;   0x0f Horizontal Sync Width                        0a
+  mov ax,0x0a03
+  out dx,ax
+
+  ;   0x7f Vertical Total                               1f
+  mov ax,0x1f04
+  out dx,ax
+
+  ;   0x1f Vertical Total Adjust                        06
+  mov ax,0x0605
+  out dx,ax
+
+  ;   0x7f Vertical Displayed                           19
+  mov ax,0x1906
+  out dx,ax
+
+  ;   0x7f Vertical Sync Position                       1c
+  mov ax,0x1c07
+  out dx,ax
+
+  ;   0x03 Interlace Mode                               02
+  mov ax,0x0208
+  out dx,ax
+
+  ;   0x1f Max Scan Line Address                        07
+  mov ax,0x0709
+  out dx,ax
+
+  ; Cursor Start                                        06
+  ;   0x1f Cursor Start                                  6
+  ;   0x60 Cursor Mode                                   0
+  mov ax,0x060a
+  out dx,ax
+
+  ;   0x1f Cursor End                                   07
+  mov ax,0x070b
+  out dx,ax
+
+  ;   0x3f Start Address (H)                            00
+  mov ax,0x000c
+  out dx,ax
+
+  ;   0xff Start Address (L)                            00
+  mov ax,0x000d
+  out dx,ax
+
+  ;   0x3f Cursor (H)                                   03  0x3c0 == 40*24 == start of last line
+  mov ax,0x030e
+  out dx,ax
+
+  ;   0xff Cursor (L)                                   c0
+  mov ax,0xc00f
+  out dx,ax
+
+  ; Set up some interrupts
+  ; int 0x63 == print AX as a 4-digit hex number
+  ; int 0x64 == print CX bytes from DS:SI
+  ; int 0x65 == print AL as a character
+  xor ax,ax
+  mov ds,ax
+  mov word [0x18c], printHex
+  mov [0x18e], cs
+  mov word [0x190], printString
+  mov [0x192], cs
+  mov word [0x194], printCharacter
+  mov [0x196], cs
+  mov word [0x78], driveParameters
+  mov [0x7a], cs
+
+  ; Reset video variables
+  xor ax,ax
+  mov [cs:column],al
+  mov [cs:startAddress],ax
+
 
   mov ah,0  ; Subfunction 0 = Reset Disk System
   mov dl,0  ; Drive 0 (A:)
   int 0x13
+  push ax
   int 0x60  ; Output AX
   mov al,10
   int 0x62  ; New line
+  pop ax
+  int 0x63
+  mov al,10
+  int 0x65
 
 ; Receive a byte over serial and put it in AL. DX == port base address + 5
-%macro receiveByte 0
+%macro receiveByte 0                            ; 14
     ; Wait until a byte is available
   %%waitForData:
-    in al,dx
-    test al,1
-    jz %%waitForData
+    in al,dx                              ; 1 1
+    test al,1                             ; 2 0
+    jz %%waitForData                      ; 2 0
     ; Read the data byte
-    sub dx,5
-    in al,dx
-    add dx,5
+    sub dl,5                              ; 3 0
+    in al,dx                              ; 1 1
+    add dl,5                              ; 3 0
 %endmacro
 
 
@@ -44,7 +161,7 @@ org 0
   out dx,al   ; Set baud rate divisor high = 0x00
 
   dec dx      ; 0
-  mov al,0x01
+  mov al,0x03
   out dx,al   ; Set baud rate divisor low  = 0x01 = 115200 baud
 
   add dx,3    ; 3
@@ -80,42 +197,59 @@ org 0
   out dx,al
 
 
-  ; Find the next segment after the end of the kernel. This is where we'll
-  ; load our program.
-  mov ax,(programEnd + 15) >> 4
-  add ax,bx
+tryLoad:
+  ; Find the next segment after the end of this program. This is where we'll
+  ; load our disk image.
+  mov ax,0x1000
+;  mov ax,cs
+;  add ax,(programEnd + 15) >> 4
+  mov es,ax
+
+  xor di,di
+
+  mov ax,0xb800
   mov ds,ax
 
   ; Push the address
-  push ds
-  xor di,di
+  push es
   push di
 
-
-tryLoad:
   mov al,1
   out dx,al   ; Activate DTR
   inc dx      ; 5
   ; Read a 3-byte count and then a number of bytes into memory, starting at
   ; DS:DI
-  receiveByte
-  mov cl,al
-  receiveByte
-  mov ch,al
-  receiveByte
-  mov bl,al
-  mov bh,0
+  receiveByte                                       ; 14
+  mov cl,al                                         ;  2
+  receiveByte                                       ; 14
+  mov ch,al                                         ;  2
+  receiveByte                                       ; 14
+  mov bl,al                                         ;  2
+  mov bh,0                                          ;  2
 
-  mov si,bx
-  push cx
-  xor ah,ah
+  ; Debug: print number of bytes to load
+;  mov ax,bx
+;  int 0x63
+;  mov ax,cx
+;  int 0x63
+;  mov al,10
+;  int 0x65
+
+  mov si,bx                                         ;  2
+  push cx                                           ;  3
+  xor ah,ah                                         ;  2
 pagesLoop:
-  cmp si,0
-  je noFullPages
-  xor cx,cx
-  call loadBytes
-  dec si
-  jmp pagesLoop
+  cmp si,0                                          ;  2
+  je noFullPages                                    ;  2
+  xor cx,cx                                         ;  2
+  call loadBytes                                    ; 37
+
+  mov bx,es                                         ;  2
+  add bh,0x10                                       ;  2
+  mov es,bx                                         ;  2
+
+  dec si                                            ;  1
+  jmp pagesLoop                                     ;  2
 noFullPages:
   pop cx
   test cx,cx
@@ -135,156 +269,279 @@ loadProgramDone:
 
   cmp bh,bl
   je checksumOk
+  mov si,failMessage
+  mov cx,failMessageEnd - failMessage
+  int 0x64
+  pop di
+  pop es
   jmp tryLoad
-checksumOk:
-
-  ; Now write
 
 
   ; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
 loadBytes:
-  receiveByte
-  add ah,al
-  mov [di],al
-  add di,1
-  jnc noOverflow
-  mov bx,ds
-  add bh,0x10
-  mov ds,bx
-noOverflow:
-  loop loadBytes
-  ret
+  receiveByte                                       ; 14
+  add ah,al                                         ;  2
+  stosb                                             ;  2
+  mov bx,di
+  mov [800],bl
+
+;  test di,0x00ff
+;  jnz noPrint
+
+;  dec dx      ; 4
+;  mov al,0
+;  out dx,al   ; Deactivate DTR
+
+;  ; Debug: print load address
+;  mov byte[cs:column],0
+;  mov ax,ds
+;  int 0x63
+;  mov ax,di
+;  int 0x63
+
+;  mov al,1
+;  out dx,al   ; Activate DTR
+;  inc dx      ; 5
+
+;noPrint:
+  loop loadBytes                                    ;  2
+  ret                                               ;  3
 
 
+checksumOk:
+  mov si,okMessage
+  mov cx,okMessageEnd - okMessage
+  int 0x64
 
 
-  mov ax,cs
-  mov es,ax
-  mov ds,ax
-
-
-  ; Get drive parameters
-  mov ah,8
-  mov dl,0x80
-  int 0x13
-  pushf
-  int 0x60      ; AX = 0000  no error
-  mov ax,bx
-  int 0x60      ; BX = 0000
-  mov ax,cx
-  int 0x60      ; CX = 3051  17 sectors per track (1..17), 305 cylinders (0..304)
-  mov ax,dx
-  int 0x60      ; DX = 0301  4 heads (0..3), 1 drive. Total = 17*305*4*512 = 10618880 bytes = 10370Kb = 10.12Mb (?)
-  pop ax
-  int 0x60      ; Flags = F246  CF=0 PF=1 AF=0 ZF=1 SF=0 TF=0 IF=1 DF=0 OF=0   Success
-  mov al,10
-  int 0x62
-
-  mov al,cl
-  and al,0x3f
-  mov byte[sectors],al
-
-  inc dh
-  mov byte[heads],dh
-
-  mov al,ch
-  mov ah,cl
-  mov cl,6
-  shr ah,cl
-  inc ax
-  mov word[cylinders],ax
-  int 0x60
-
-
-  mov word[cylinder],0
+  mov byte[cs:cylinder],0
 cylinderLoop:
 
-  mov byte[head],0
+  mov byte[cs:head],0
 headLoop:
 
-  mov byte[sector],1
-sectorLoop:
+  ; TODO: Format track
+  ;mov ah,5
 
-  mov bx,buffer
-
-  mov cx,10
-retryLoop:
-  push cx
-
-  mov dh,byte[head]
-  mov ax,word[cylinder]
-  mov ch,al
-  mov cl,6
-  shl ah,cl
-  mov cl,ah
-  or cl,byte[sector]
-
-  mov ax,word[cylinder]
-  int 0x60
-  mov al,byte[sector]
-  mov ah,dh
-  int 0x60
-  mov al,10
-  int 0x62
-
-  mov al,1  ; Number of sectors to read
-  mov dl,0x80  ; Drive number
-  mov ah,2
-  int 0x13
-  pushf
-  int 0x60      ; AX = 1000
-  pop ax
+  ; Copy a track's worth of data to a buffer at a known location
+  pop si
+  pop ds
+  xor di,di
+  mov ax,0x8000  ; We know this won't cross a 64K boundary
+  mov es,ax
+  mov cx,(512*9)>>1   ; Copy 9*512 byte sectors of data
+  rep movsw
+  mov ax,ds
+  add ax,(512*9)>>4   ; Advance the pointer by increasing the segment
   push ax
-  int 0x60      ; Flags = F217  CF=1 PF=1 AF=1 ZF=0 SF=0 TF=0 IF=1 DF=0 OF=0   Failure
+  xor si,si
+  push si
+
+  ; Write the track
+  mov byte[cs:retry],0
+retryLoop:
+
+  mov ax,0x8000
+  mov es,ax             ; Track buffer segment
+  mov bx,0              ; Track buffer offset
+  mov ah,3              ; 3 = write disk sectors
+  mov al,9              ; write 9 sectors (1 track)
+  mov ch,[cs:cylinder]  ; cylinder number
+  mov cl,1              ; initial sector number
+  mov dh,[cs:head]      ; head number
+  mov dl,0              ; drive A:
+  int 0x13
+  jnc writeOk
+
+  push ax
+  mov al,'W'
+  int 0x65
+  pop ax
+  int 0x63
   mov al,10
-  int 0x62
-  popf
-  jnc output
+  int 0x65
 
-  pop cx
-  loop retryLoop
-  jmp nextSector
+  mov ah,0  ; Subfunction 0 = Reset Disk System
+  mov dl,0  ; Drive 0 (A:)
+  int 0x13
 
-output:
-  pop cx
-  mov si,buffer
-  mov cx,0x200
-outputLoop:
-  lodsb
-  int 0x62
-  loop outputLoop
+  inc byte[cs:retry]
+  cmp byte[cs:retry],10
+  jl retryLoop
 
-nextSector:
-  inc byte[sector]
-  mov al,byte[sector]
-  cmp al,byte[sectors]
-  jle sectorLoop
+  mov si,diskFailMessage
+  mov cx,diskFailMessageEnd - diskFailMessage
+  int 0x64
 
-  inc byte[head]
-  mov al,byte[head]
-  cmp al,byte[heads]
+  jmp tryLoad
+
+writeOk:
+  mov al,'.'
+  int 0x65
+
+
+  inc byte[cs:head]
+  mov al,[cs:head]
+  cmp al,2
   jl headLoop
 
-  inc word[cylinder]
-  mov ax,word[cylinder]
-  mov ax,word[cylinder]
-  cmp ax,word[cylinders]
+  inc byte[cs:cylinder]
+  mov al,[cs:cylinder]
+  cmp al,40
   jge finished
   jmp cylinderLoop
 finished:
-  retf
 
-cylinders:
-  dw 0
-sectors:
-  db 0
-heads:
-  db 0
+  ; Jump back into BIOS to boot from the newly written disk
+  mov ax,0x40
+  push ax
+  jmp 0xf000:0xe518
+
+
 cylinder:
-  dw 0
-sector:
   db 0
 head:
   db 0
 
-buffer:
+printNybble:
+  cmp al,10
+  jge printAlphabetic
+  add al,'0'
+  jmp printGotCharacter
+printAlphabetic:
+  add al,'A' - 10
+printGotCharacter:
+  jmp printChar
+
+
+printHex:
+  push bx
+  push cx
+  mov bx,ax
+  mov al,bh
+  mov cl,4
+  shr al,cl
+  call printNybble
+  mov al,bh
+  and al,0xf
+  call printNybble
+  mov al,bl
+  shr al,cl
+  call printNybble
+  mov al,bl
+  and al,0xf
+  call printNybble
+  pop cx
+  pop bx
+  iret
+
+
+printString:
+  lodsb
+  call printChar
+  loop printString
+  iret
+
+
+printCharacter:
+  call printChar
+  iret
+
+
+printChar:
+  push bx
+  push cx
+  push dx
+  push es
+  push di
+  mov dx,0xb800
+  mov es,dx
+  mov dx,0x3d4
+  mov cx,[cs:startAddress]
+  cmp al,10
+  je printNewLine
+  mov di,cx
+  add di,cx
+  mov bl,[cs:column]
+  xor bh,bh
+  mov [es:bx+di+24*40*2],al
+  inc bx
+  inc bx
+  cmp bx,80
+  jne donePrint
+printNewLine:
+  add cx,40
+  and cx,0x1fff
+  mov [cs:startAddress],cx
+
+  ; Scroll screen
+  mov ah,ch
+  mov al,0x0c
+  out dx,ax
+  mov ah,cl
+  inc ax
+  out dx,ax
+  ; Clear the newly scrolled area
+  mov di,cx
+  add di,cx
+  add di,24*40*2
+  mov cx,40
+  mov ax,0x0700
+  rep stosw
+  mov cx,[cs:startAddress]
+
+  xor bx,bx
+donePrint:
+  mov [cs:column],bl
+
+  ; Move cursor
+  shr bx,1
+  add bx,cx
+  add bx,24*40
+  and bx,0x1fff
+  mov ah,bh
+  mov al,0x0e
+  out dx,ax
+  mov ah,bl
+  inc ax
+  out dx,ax
+
+  pop di
+  pop es
+  pop dx
+  pop cx
+  pop bx
+  ret
+
+
+column:
+  db 0
+startAddress:
+  dw 0
+retry:
+  db 0
+okMessage:
+  db 'OK',10
+okMessageEnd:
+failMessage:
+  db 'Checksum failure',10
+failMessageEnd:
+diskFailMessage:
+  db 'Disk failure',10
+diskFailMessageEnd:
+
+driveParameters:
+  db 0xcf
+  db 2
+  db 37
+  db 2
+  db 9
+  db 0x2a
+  db 0xff
+  db 0x50
+  db 0xf6
+  db 25
+  db 4
+
+
+programEnd:

@@ -88,7 +88,7 @@ public:
         SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
         IF_ZERO_THROW(GetCommState(_com, &deviceControlBlock));
         deviceControlBlock.DCBlength = sizeof(DCB);
-        deviceControlBlock.BaudRate = 115200;
+        deviceControlBlock.BaudRate = 38400; //115200;
         deviceControlBlock.fBinary = TRUE;
         deviceControlBlock.fParity = FALSE;
         deviceControlBlock.fOutxCtsFlow = FALSE;
@@ -145,8 +145,8 @@ public:
         for (int i = 0; i < l; ++i) {
             sendByte(data[i]);       // Send data byte
             checkSum += data[i];
-            //if ((i & 0xff) == 0)
-            //    _console.write(dot);
+            if ((i & 0xff) == 0)
+                _console.write(dot);
         }
         sendByte(checkSum);
         //IF_ZERO_THROW(FlushFileBuffers(_com));
