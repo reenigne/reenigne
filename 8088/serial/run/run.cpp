@@ -88,7 +88,7 @@ public:
         SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
         IF_ZERO_THROW(GetCommState(_com, &deviceControlBlock));
         deviceControlBlock.DCBlength = sizeof(DCB);
-        deviceControlBlock.BaudRate = 38400; //115200;
+        deviceControlBlock.BaudRate = 115200; //38400;
         deviceControlBlock.fBinary = TRUE;
         deviceControlBlock.fParity = FALSE;
         deviceControlBlock.fOutxCtsFlow = FALSE;

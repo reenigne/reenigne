@@ -239,7 +239,7 @@ U88:
     D0   = HOLDA
     D1   = AENBRD
     D2   = -RDY'/WAIT
-    D3   = -S0 AND -S1 AND -LOCK AND HRQDMA
+    D3   = -S0 AND -S1 AND -LOCK AND HRQDMA              On revised board, D3 = ((-S0 AND -S1 AND -LOCK AND HRQDMA) OR (NOT (-DMACS' OR -XIOW')))
     ^CLK = CLK
     -CLR = -RESETDRV'
   Outputs:
