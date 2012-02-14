@@ -2,6 +2,7 @@
 #define INCLUDED_ARRAY_H
 
 #include <new>
+#include "unity/swap.h"
 
 template<class T> class List
 {
@@ -77,7 +78,7 @@ public:
         friend class List;
     };
     Iterator begin() const
-    { 
+    {
         if (_implementation.valid())
             return Iterator(_implementation->start());
         return end();
@@ -91,58 +92,48 @@ template<class T> class Array : Uncopyable
 {
 public:
     Array() : _data(0), _n(0) { }
-    Array(const List<T>& list) : _data(0)
+    Array(const List<T>& list) : _data(0), _n(0)
     {
-        allocate(list.count());
+        _n = list.count();
+        _data = static_cast<T*>(operator new (_n * sizeof(T)));
         int i = 0;
-        for (auto p = list.begin(); p != list.end(); ++p) {
-            constructElement(i, *p);
-            ++i;
+        try {
+            for (auto p = list.begin(); p != list.end(); ++p) {
+                constructElement(i, *p);
+                ++i;
+            }
+        }
+        catch (...) {
+            while (i > 0) {
+                --i;
+                destructElement(i);
+            }
+            throw;
         }
     }
-    explicit Array(int n) : _data(0) { allocate(n); }
+    explicit Array(int n)
+    {
+        _n = n;
+        _data = static_cast<T*>(operator new (_n * sizeof(T)));
+        int i = 0;
+        try {
+            for (i = 0; i < n; ++i) {
+                constructElement(i);
+                ++i;
+            }
+        }
+        catch (...) {
+            while (i > 0) {
+                --i;
+                destructElement(i);
+            }
+            throw;
+        }
+    }
     void allocate(int n)
     {
-        release();
-        if (n != 0)
-            _data = static_cast<T*>(operator new (n * sizeof(T)));
-        _n = n;
-    }
-    void constructElements(const T& initializer)
-    {
-        for (int i = 0; i < _n; ++i)
-            constructElement(i, initializer);
-    }
-    void constructElements()
-    {
-        for (int i = 0; i < _n; ++i)
-            constructElement(i);
-    }
-    void constructElement(int i, const T& initializer)
-    {
-        new(static_cast<void*>(&(*this)[i])) T(initializer);
-    }
-    void constructElement(int i)
-    {
-        new(static_cast<void*>(&(*this)[i])) T();
-    }
-    void destructElements()
-    {
-        for (int i = 0; i < _n; ++i)
-            (&(*this)[i])->~T();
-    }
-    ~Array() { release(); }
-    T& operator[](int i) { return _data[i]; }
-    const T& operator[](int i) const { return _data[i]; }
-    int count() const { return _n; }
-    void swap(Array<T>& other)
-    {
-        T* d = other._data;
-        other._data = _data;
-        _data = d;
-        int n = other._n;
-        other._n = _n;
-        _n = n;
+        Array<T> other(n);
+        swap(other);
     }
     bool operator==(const Array& other) const
     {
@@ -157,104 +148,84 @@ public:
     {
         return !operator==(other);
     }
+    void swap(Array& other)
+    {
+        swap(_data, other._data);
+        swap(_n, other._n);
+    }
+    ~Array() { release(); }
+    T& operator[](int i) { return _data[i]; }
+    const T& operator[](int i) const { return _data[i]; }
+    int count() const { return _n; }
+protected:
+    Array(const Array& other, int allocated)
+    {
+        _data = static_cast<T*>(operator new(allocated * sizeof(T));
+        int i;
+        try {
+            for (int i = 0; i < other._n; ++i)
+                constructElement(i, other[i]);
+        }
+        catch (...) {
+            while (i > 0) {
+                --i;
+                destructElement(i);
+            }
+            throw;
+        }
+    }
+    void constructElement(int i, const T& initializer)
+    {
+        new(static_cast<void*>(&(*this)[i])) T(initializer);
+    }
+
+    int _n;
 private:
-    void release() { if (_data != 0) operator delete(_data); _data = 0; }
+    void release()
+    {
+        if (_data != 0) {
+            for (int i = _n - 1; i >= 0; --i)
+                destructElement(i);
+            operator delete(_data);
+        }
+        _data = 0;
+    }
+    void constructElement(int i)
+    {
+        new(static_cast<void*>(&(*this)[i])) T();
+    }
+    void destructElement(int i)
+    {
+        (&(*this)[i])->~T();
+    }
 
     T* _data;
-    int _n;
 };
 
-template<class T> class AppendableArray : Uncopyable
+template<class T> class AppendableArray : public Array
 {
 public:
-    AppendableArray() : _n(0)
+    AppendableArray(), _allocated(0) { }
+    AppendableArray(const List<T>& list)
+      : Array(list), _allocated(list.count()) { }
+    explicit AppendableArray(int n) : Array(n), _allocated(n) { }
+    void swap(AppendableArray& other)
     {
-        _array.allocate(1);
-    }
-    ~AppendableArray()
-    {
-        for (int i = 0; i < _n; ++i)
-            (&(*this)[i])->~T();
-    }
-    T& operator[](int i) { return _array[i]; }
-    const T& operator[](int i) const { return _array[i]; }
-    int count() const { return _n; }
-    bool operator==(const AppendableArray& other) const
-    {
-        if (_n != other._n)
-            return false;
-        for (int i = 0; i < _n; ++i)
-            if ((*this)[i] != other[i])
-                return false;
-        return true;
-    }
-    bool operator!=(const AppendableArray& other) const
-    {
-        return !operator==(other);
+        Array::swap(other);
+        swap(_allocated, other._allocated);
     }
     void append(const T& value)
     {
-        if (_n == _array.count()) {
-            Array<T> n;
-            n.allocate(_n*2);
-            n.swap(_array);
-            for (int i = 0; i < _n; ++i)
-                new(static_cast<void*>(&(*this)[i])) T(n[i]);
+        if (_allocated == _n) {
+            Array<T> n(*this, _allocated*2);
+            Array::swap(n);
+            _allocated *= 2;
         }
-        new(static_cast<void*>(&(*this)[_n])) T(value);
+        constructElement(_n, value);
         ++_n;
     }
 private:
-    Array<T> _array;
-    int _n;
-};
-
-template<class T> class PrependableArray : Uncopyable
-{
-public:
-    PrependableArray() : _n(0)
-    {
-        _array.allocate(1);
-    }
-    ~PrependableArray()
-    {
-        for (int i = 0; i < _n; ++i)
-            (&(*this)[i])->~T();
-    }
-    T& operator[](int i) { return _array[i + offset()]; }
-    const T& operator[](int i) const { return _array[i + offset()]; }
-    int count() const { return _n; }
-    bool operator==(const PrependableArray& other) const
-    {
-        if (_n != other._n)
-            return false;
-        for (int i = 0; i < _n; ++i)
-            if ((*this)[i] != other[i])
-                return false;
-        return true;
-    }
-    bool operator!=(const PrependableArray& other) const
-    {
-        return !operator==(other);
-    }
-    void prepend(const T& value)
-    {
-        if (_n == _array.count()) {
-            Array<T> n;
-            n.allocate(_n*2);
-            n.swap(_array);
-            for (int i = 0; i < _n; ++i)
-                new(static_cast<void*>(&(*this)[i])) T(n[i]);
-        }
-        ++_n;
-        new (static_cast<void*>(&(*this)[0])) T(value);
-    }
-private:
-    int offset() const { return _array.count() - _n; }
-    Array<T> _array;
-    int _n;
-
-    friend class Array<T>;
+    int _allocated;
 };
 
 #endif // INCLUDED_ARRAY_H

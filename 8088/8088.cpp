@@ -3129,7 +3129,6 @@ protected:
 
         List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
         Array<ROM> roms(romDatas.count());
-        roms.constructElements();
         int r = 0;
         for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
             ROMData romData = (*i).value<ROMData>();

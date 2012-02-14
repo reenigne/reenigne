@@ -85,12 +85,12 @@ public:
     int integer() const
     {
         return dynamic_cast<const IntegerImplementation*>(implementation())
-            ->value(); 
+            ->value();
     }
     String string() const
     {
         return dynamic_cast<const StringImplementation*>(implementation())
-            ->value(); 
+            ->value();
     }
     SymbolArrayTemplate<T> array()
     {
@@ -99,12 +99,12 @@ public:
     SymbolTemplate<T> symbol()
     {
         return SymbolTemplate<T>(
-            dynamic_cast<Symbol::Implementation*>(implementation())); 
+            dynamic_cast<Symbol::Implementation*>(implementation()));
     }
     SymbolLabelTemplate<T> label()
     {
         return SymbolLabelTemplate<T>(
-            dynamic_cast<Symbol::Implementation*>(implementation())); 
+            dynamic_cast<Symbol::Implementation*>(implementation()));
     }
     Atom atom() { return symbol().atom(); }
     bool valid() const { return _implementation.valid(); }
@@ -113,7 +113,7 @@ public:
         bool& more) const
     {
         return
-            _implementation->toString(width, spacesPerIndent, indent, x, more); 
+            _implementation->toString(width, spacesPerIndent, indent, x, more);
     }
     String toString() const
     {
@@ -204,7 +204,7 @@ class SymbolTail : public ReferenceCounted
 {
 public:
     SymbolTail(SymbolEntry head) : _head(head) { }
-    SymbolTail(SymbolEntry head, SymbolTail* tail) : _head(head), _tail(tail) 
+    SymbolTail(SymbolEntry head, SymbolTail* tail) : _head(head), _tail(tail)
     { }
     SymbolEntry head() const { return _head; }
     SymbolEntry& head() { return _head; }
@@ -414,14 +414,14 @@ private:
     };
 
     const Implementation* implementation() const
-    { 
+    {
         return dynamic_cast<const Implementation*>(
-            SymbolEntryTemplate::implementation()); 
+            SymbolEntryTemplate::implementation());
     }
     Implementation* implementation()
     {
         return dynamic_cast<Implementation*>(
-            SymbolEntryTemplate::implementation()); 
+            SymbolEntryTemplate::implementation());
     }
 
     template<class T> friend class SymbolEntryTemplate;
@@ -467,7 +467,6 @@ private:
     void copyTo(Array<Symbol>* symbols)
     {
         symbols->allocate(_count);
-        symbols->constructElements();
         Reference<Implementation> implementation = _first;
         for (int i = _count - 1; i >= 0; --i) {
             (*symbols)[i] = implementation->symbol();
@@ -489,7 +488,7 @@ public:
       : SymbolEntry(new Implementation(list)) { }
     int count() const
     {
-        return dynamic_cast<const Implementation*>(implementation())->count(); 
+        return dynamic_cast<const Implementation*>(implementation())->count();
     }
     Symbol operator[](int i)
     {

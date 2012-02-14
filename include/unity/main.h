@@ -124,7 +124,6 @@ private:
         int nArgs = windowsCommandLine.nArgs();
         const LPWSTR* szArglist = windowsCommandLine.arguments();
         _arguments.allocate(nArgs);
-        _arguments.constructElements();
         int nBytes = 0;
         for (int i = 0; i < nArgs; ++i)
             nBytes += String::countBytes(szArglist[i]);

@@ -21,7 +21,7 @@ private:
         }
         bool hasKey(const Key& key) const { return findEntry(key) != 0; }
         Value& value(const Key& key)
-        { 
+        {
             TableEntry* t = findEntry(key);
             if (t == 0)
                 return doAdd(key)->_value;
@@ -108,7 +108,7 @@ private:
         Key _key;
         Value _value;
         TableEntry* _next;
-        
+
         friend class Iterator;
         friend class HashTableBase;
     };
@@ -116,7 +116,6 @@ public:
     HashTableBase() : _n(0)
     {
         _table.allocate(1);
-        _table.constructElements();
     }
     bool hasKey(const Key& key) const
     {
@@ -135,7 +134,6 @@ public:
         if (_n == _table.count()) {
             Array<TableEntry> table;
             table.allocate(_table.count() * 2);
-            table.constructElements();
             table.swap(_table);
             _n = 0;
             for (int i = 0; i < table.count(); ++i)

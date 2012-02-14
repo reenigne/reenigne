@@ -9,7 +9,6 @@ public:
     SetBase() : _n(0)
     {
         _table.allocate(1);
-        _table.constructElements();
     }
     bool has(const Key& key)
     {
@@ -20,7 +19,6 @@ public:
         if (_n == _table.count()) {
             Array<TableEntry> table;
             table.allocate(_table.count() * 2);
-            table.constructElements();
             table.swap(_table);
             _n = 0;
             for (int i = 0; i < table.count(); ++i)
