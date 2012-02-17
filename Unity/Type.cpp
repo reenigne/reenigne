@@ -20,25 +20,24 @@ Symbol parseTypeConstructorIdentifier(CharacterSource* source)
     Space::parse(&s2);
     String name = s2.subString(start, end);
     static String keywords[] = {
-        String("Class"),
-        String("Complex"),
-        String("DInt"),
-        String("DUInt"),
-        String("DWord"),
-        String("Fixed"),
-        String("Float"),
-        String("HInt"),
-        String("HUInt"),
-        String("HWord"),
-        String("Integer"),
-        String("QInt"),
-        String("QUInt"),
-        String("QWord"),
-        String("Rational"),
-        String("TypeOf"),
-        String("Unsigned"),
-        String("WordString")
-    };
+        "Class",
+        "Complex",
+        "DInt",
+        "DUInt",
+        "DWord",
+        "Fixed",
+        "Float",
+        "HInt",
+        "HUInt",
+        "HWord",
+        "Integer",
+        "QInt",
+        "QUInt",
+        "QWord",
+        "Rational",
+        "TypeOf",
+        "Unsigned",
+        "WordString"};
     for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); ++i)
         if (name == keywords[i])
             return Symbol();
@@ -157,10 +156,8 @@ SymbolArray parseTypeConstructorSpecifierList(CharacterSource* source)
     Span span;
     while (Space::parseCharacter(source, ',', &span)) {
         typeSpecifier = parseTypeConstructorSpecifier(source);
-        if (!typeSpecifier.valid()) {
-            static String error("Type specifier expected");
-            source->location().throwError(error);
-        }
+        if (!typeSpecifier.valid())
+            source->location().throwError("Type specifier expected");
         list.add(typeSpecifier);
     }
     return list;
@@ -223,7 +220,7 @@ Symbol parseKindSpecifier(CharacterSource* source)
         // purposes only - it isn't used for anything, so we immediately throw
         // it away. It doesn't even need to be resolved.
         do {
-            parseTypeConstructorIdentifier(source);  
+            parseTypeConstructorIdentifier(source);
             kindSpecifierList.add(parseKindSpecifier(source));
         } while (Space::parseCharacter(source, ',', &span2));
         Space::assertCharacter(source, '>', &span2);
@@ -243,15 +240,12 @@ Symbol parseFundamentalSpecializedTypeConstructorSpecifier(CharacterSource* sour
     if (specializedTypeConstructorSpecifier.valid())
         return specializedTypeConstructorSpecifier;
     Span span;
-    if (!Space::parseCharacter(source, '@', &span)) {
-        static String error("Expected @ or type constructor specifier");
-        source->location().throwError(error);
-    }
+    if (!Space::parseCharacter(source, '@', &span))
+        source->location().throwError(
+            "Expected @ or type constructor specifier");
     Symbol typeConstructorIdentifier = parseTypeConstructorIdentifier(source);
-    if (!typeConstructorIdentifier.valid()) {
-        static String error("Expected type constructor identifier");
-        source->location().throwError(error);
-    }
+    if (!typeConstructorIdentifier.valid())
+        source->location().throwError("Expected type constructor identifier");
     return Symbol(atomTemplateParameter, typeConstructorIdentifier,
         newSpan(span + spanOf(typeConstructorIdentifier)));
 }
@@ -268,10 +262,9 @@ SymbolArray parseSpecializedTypeConstructorSpecifierList(CharacterSource* source
     Span span;
     while (Space::parseCharacter(source, ',', &span)) {
         typeSpecifier = parseSpecializedTypeConstructorSpecifier(source);
-        if (!typeSpecifier.valid()) {
-            static String error("(Specialized) type specifier expected");
-            source->location().throwError(error);
-        }
+        if (!typeSpecifier.valid())
+            source->location().throwError(
+                "(Specialized) type specifier expected");
         list.add(typeSpecifier);
     }
     return list;
@@ -301,7 +294,7 @@ Symbol parseSpecializedTypeConstructorSpecifier(CharacterSource* source)
     return typeSpecifier;
 }
 
-//TemplateParameter := 
+//TemplateParameter :=
 //    "@" TypeConstructorIdentifier KindSpecifier
 //  | SpecializedTypeConstructorSpecifier
 Symbol parseTemplateParameter(CharacterSource* source)
@@ -309,10 +302,9 @@ Symbol parseTemplateParameter(CharacterSource* source)
     Span span;
     if (Space::parseCharacter(source, '@', &span)) {
         Symbol typeConstructorIdentifier = parseTypeConstructorIdentifier(source);
-        if (!typeConstructorIdentifier.valid()) {
-            static String error("Expected type constructor identifier");
-            source->location().throwError(error);
-        }
+        if (!typeConstructorIdentifier.valid())
+            source->location().throwError(
+                "Expected type constructor identifier");
         Symbol kindSpecifier = parseKindSpecifier(source);
         return Symbol(atomTemplateParameter, typeConstructorIdentifier,
             kindSpecifier, newSpan(span + spanOf(kindSpecifier)));
@@ -320,8 +312,8 @@ Symbol parseTemplateParameter(CharacterSource* source)
     return parseSpecializedTypeConstructorSpecifier(source);
 }
 
-//TypeConstructorSignifier := 
-//    TypeConstructorIdentifier ("<" TemplateParameter \ "*" ">")*     
+//TypeConstructorSignifier :=
+//    TypeConstructorIdentifier ("<" TemplateParameter \ "*" ">")*
 Symbol parseTypeConstructorSignifier(CharacterSource* source)
 {
     CharacterSource s2 = *source;
@@ -350,19 +342,19 @@ String typeToString(Symbol type)
     switch (type.atom()) {
         case atomFunction:
             {
-                String s = typeToString(type[1].symbol()) + openParenthesis;
+                String s = typeToString(type[1].symbol()) + "(";
                 SymbolArray array = type[2].array();
                 bool hasArguments = false;
                 for (int i = 0; i < array.count(); ++i) {
                     if (hasArguments)
-                        s += commaSpace;
+                        s += ", ";
                     s += typeToString(array[i]);
                     hasArguments = true;
                 }
-                return s + closeParenthesis;
+                return s + ")";
             }
         case atomPointer:
-            return typeToString(type[1].symbol()) + asterisk;
+            return typeToString(type[1].symbol()) + "*";
         default:
             return atomToString(type.atom());
     }
@@ -370,11 +362,11 @@ String typeToString(Symbol type)
 
 String typesToString(SymbolArray array)
 {
-    String s = openParenthesis;
+    String s("(");
     for (int i = 0; i < array.count(); ++i) {
         if (i != 0)
-            s += commaSpace;
+            s += ", ";
         s += typeToString(array[i]);
     }
-    return s + closeParenthesis;
+    return s + ")";
 }

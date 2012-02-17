@@ -449,10 +449,8 @@ public:
         FileHandle handle(file);
         handle.openRead();
         UInt64 size = handle.size();
-        if (size >= 0x80000000) {
-            static String tooLargeFile("2Gb or more in file ");
-            throw Exception(tooLargeFile + file.messagePath());
-        }
+        if (size >= 0x80000000)
+            throw Exception("2Gb or more in file " + file.messagePath());
         _buffer.resize(size / sizeof(T));
         handle.read(&_buffer[0], size);
     }

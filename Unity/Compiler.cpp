@@ -12,11 +12,14 @@ public:
     Compiler(Program* program) : _program(program) { }
     void compileFunction(Symbol functionDefinitionStatement)
     {
-        if (functionDefinitionStatement.cache<FunctionDefinitionCache>()->getCompilingFlag()) {
-            static String error("Function called during its own compilation");  // TODO: Give more details about what's being evaluated and how that came to call this
-            spanOf(functionDefinitionStatement).end().throwError(error);
+        if (functionDefinitionStatement.cache<FunctionDefinitionCache>()->
+            getCompilingFlag()) {
+            // TODO: Give more details about what's being evaluated and how that came to call this
+            spanOf(functionDefinitionStatement).end().throwError(
+                "Function called during its own compilation");
         }
-        functionDefinitionStatement.cache<FunctionDefinitionCache>()->setCompilingFlag(true);
+        functionDefinitionStatement.cache<FunctionDefinitionCache>()->
+            setCompilingFlag(true);
         _epilogueStack.push(SymbolLabel());
         //Symbol type = typeOf(functionDefinitionStatement);
         //Symbol returnType = type[1].symbol();
@@ -34,8 +37,9 @@ public:
         for (int i = 0; i < parameterTypes.count(); ++i)
             parametersSize += (sizeOf(parameterTypes[i]) + 3) & -4;
         if (_reachable && returnType.atom() != atomVoid) {
-            static String error("Control reaches end of non-Void function");  // TODO: Give more details about how it got there
-            spanOf(functionDefinitionStatement).end().throwError(error);
+            // TODO: Give more details about how it got there
+            spanOf(functionDefinitionStatement).end().throwError(
+                "Control reaches end of non-Void function");
         }
         addLabel(_epilogueStack.pop());
         addLoadWordFromStackRelativeAddress(returnTypeSize + stackAdjust);
@@ -69,7 +73,7 @@ private:
                     compileExpression(expression);
                     addAdjustStackPointer((sizeOf(typeOf(expression)) + 3) & -4);
                 }
-                break;            
+                break;
             case atomFunctionDefinitionStatement:
                 {
                     Compiler compiler(_program);
@@ -455,11 +459,9 @@ private:
     {
         if (_blockStackOffsets.hasKey(label)) {
             int stackOffset = _blockStackOffsets[label];
-            if (stackOffset != _stackOffset) {
-                static String error("Stack offset mismatch. Expected ");
-                static String error2(" found ");
-                throw Exception(error + String::decimal(stackOffset) + error2 + String::decimal(_stackOffset));
-            }
+            if (stackOffset != _stackOffset)
+                throw Exception(String("Stack offset mismatch. Expected ") +
+                    stackOffset + " found " + _stackOffset);
         }
         else
             _blockStackOffsets.add(label, _stackOffset);
@@ -476,7 +478,7 @@ private:
     HashTable<SymbolLabel, int> _blockStackOffsets;
 //    Stack<Symbol> _returnTypeStack;
     Stack<SymbolLabel> _epilogueStack;
-    
+
     class BreakContinueStackEntry
     {
     public:

@@ -23,7 +23,8 @@ template<class T> class RootDirectoryTemplate;
 typedef RootDirectoryTemplate<void> RootDirectory;
 
 template<class T> class NamedFileSystemObjectImplementationTemplate;
-typedef NamedFileSystemObjectImplementationTemplate<void> NamedFileSystemObjectImplementation;
+typedef NamedFileSystemObjectImplementationTemplate<void>
+    NamedFileSystemObjectImplementation;
 
 #ifdef _WIN32
 template<class T> class DriveRootDirectoryTemplate;
@@ -37,7 +38,6 @@ typedef DriveCurrentDirectoryTemplate<void> DriveCurrentDirectory;
 #endif
 
 #include "unity/string.h"
-#include "unity/character_source.h"
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -51,7 +51,9 @@ typedef DriveCurrentDirectoryTemplate<void> DriveCurrentDirectory;
 template<class T> class FileSystemObjectTemplate
 {
 public:
-    FileSystemObjectTemplate(const String& path, const Directory& relativeTo = CurrentDirectory(), bool windowsParsing = false)
+    FileSystemObjectTemplate(const String& path,
+        const Directory& relativeTo = CurrentDirectory(),
+        bool windowsParsing = false)
     {
         *this = FileSystemObject::parse(path, relativeTo, windowsParsing);
     }
@@ -65,7 +67,10 @@ public:
     {
         return _implementation->compare(other._implementation) == 0;
     }
-    bool operator!=(const FileSystemObject& other) const { return !operator==(other); }
+    bool operator!=(const FileSystemObject& other) const
+    {
+        return !operator==(other);
+    }
     int hash() const { return _implementation->hash(0); }
 #ifdef _WIN32
     String windowsPath() const { return _implementation->windowsPath(); }
@@ -88,17 +93,17 @@ public:
     };
 
 protected:
-    FileSystemObjectTemplate(Reference<Implementation> implementation) : _implementation(implementation) { }
+    FileSystemObjectTemplate(Reference<Implementation> implementation)
+      : _implementation(implementation) { }
 
     Reference<Implementation> _implementation;
 private:
 
-    static FileSystemObject parse(const String& path, const Directory& relativeTo, bool windowsParsing)
+    static FileSystemObject parse(const String& path,
+        const Directory& relativeTo, bool windowsParsing)
     {
-        if (path.empty()) {
-            static String invalidPath("Invalid path");
-            throw Exception(invalidPath);
-        }
+        if (path.empty())
+            throw Exception("Invalid path");
 
 #ifdef _WIN32
         if (windowsParsing)
@@ -108,11 +113,10 @@ private:
     }
 
 #ifdef _WIN32
-    static DirectoryTemplate<T> windowsParseRoot(const String& path, const Directory& relativeTo, CodePointSource& s)
+    static DirectoryTemplate<T> windowsParseRoot(const String& path,
+        const Directory& relativeTo, CharacterSource& s)
     {
-        static String invalidPath("Invalid path");
-
-        CodePointSource s2 = s;
+        CharacterSource s2 = s;
         int c = s2.get();
         Directory dir = relativeTo;
 
@@ -130,8 +134,9 @@ private:
                     p = s2.offset();
                     c = s2.get();
                     if (c == -1)
-                        throw Exception(invalidPath);
-                    // TODO: What characters are actually legal in server names?
+                        throw Exception("Invalid path");
+                    // TODO: What characters are actually legal in server
+                    // names?
                 } while (c != '\\' && c != '/');
                 String server = s2.subString(serverStart, p);
                 int shareStart;
@@ -151,8 +156,10 @@ private:
                     c = s2.get();
                 } while (c == '/' || c == '\\');
             }
-            // TODO: In paths starting \\?\, only \ and \\ are allowed separators, and ?*:"<> are allowed.
-            // see http://docs.racket-lang.org/reference/windowspaths.html for more details
+            // TODO: In paths starting \\?\, only \ and \\ are allowed
+            // separators, and ?*:"<> are allowed. See
+            // http://docs.racket-lang.org/reference/windowspaths.html for more
+            // details.
             return dir;
         }
         int drive = (c >= 'a' ? (c - 'a') : (c - 'A'));
@@ -174,14 +181,10 @@ private:
         return DriveCurrentDirectory(drive);
     }
 
-    static FileSystemObject windowsParse(const String& path, const Directory& relativeTo)
+    static FileSystemObject windowsParse(const String& path,
+        const Directory& relativeTo)
     {
-        static String invalidPath("Invalid path");
-        static String currentDirectory(".");
-        static String parentDirectory("..");
-        static String empty;
-
-        CodePointSource s(path);
+        CharacterSource s(path);
         Directory dir = windowsParseRoot(path, relativeTo, s);
         int subDirectoryStart = s.offset();
         int c = s.get();
@@ -192,24 +195,25 @@ private:
                 break;
             int p;
             while (c != '/' && c != '\\') {
-                if (c < 32 || c == '?' || c == '*' || c == ':' || c == '"' || c == '<' || c == '>')
-                    throw Exception(invalidPath);
+                if (c < 32 || c == '?' || c == '*' || c == ':' || c == '"' ||
+                    c == '<' || c == '>')
+                    throw Exception("Invalid path");
                 p = s.offset();
                 c = s.get();
                 if (c == -1)
                     break;
             }
             name = s.subString(subDirectoryStart, p);
-            if (name == currentDirectory)
-                name = empty;
-            if (name == parentDirectory) {
+            if (name == ".")
+                name = "";
+            if (name == "..") {
                 dir = dir.parent();
-                name = empty;
+                name = "";
             }
-            if (name != empty) {
+            if (name != "") {
                 int l = name[name.length() - 1];
                 if (l == '.' || l == ' ')
-                    throw Exception(invalidPath);
+                    throw Exception("Invalid path");
             }
             if (c == -1)
                 break;
@@ -221,10 +225,10 @@ private:
             }
             if (c == -1)
                 break;
-            if (name != empty)
+            if (name != "")
                 dir = dir.subDirectory(name);
         } while (true);
-        if (name == empty) {
+        if (name == "") {
             if (dir.isRoot())
                 return dir;
             return FileSystemObject(dir.parent(), dir.name());
@@ -233,9 +237,10 @@ private:
     }
 #endif
 
-    static DirectoryTemplate<T> parseRoot(const String& path, const Directory& relativeTo, CodePointSource& s)
+    static DirectoryTemplate<T> parseRoot(const String& path,
+        const Directory& relativeTo, CharacterSource& s)
     {
-        CodePointSource s2 = s;
+        CharacterSource s2 = s;
         int c = s2.get();
         Directory dir = relativeTo;
 
@@ -250,13 +255,10 @@ private:
         return dir;
     }
 
-    static FileSystemObject parse(const String& path, const Directory& relativeTo)
+    static FileSystemObject parse(const String& path,
+        const Directory& relativeTo)
     {
-        static String currentDirectory(".");
-        static String parentDirectory("..");
-        static String empty;
-
-        CodePointSource s(path);
+        CharacterSource s(path);
         Directory dir = parseRoot(path, relativeTo, s);
         int subDirectoryStart = s.offset();
         int c = s.get();
@@ -265,21 +267,19 @@ private:
         do {
             int p;
             while (c != '/') {
-                if (c == 0) {
-                    static String invalidPath("Invalid path");
-                    throw Exception(invalidPath);
-                }
+                if (c == 0)
+                    throw Exception("Invalid path");
                 p = s.offset();
                 c = s.get();
                 if (c == -1)
                     break;
             }
             name = s.subString(subDirectoryStart, p);
-            if (name == currentDirectory)
-                name = empty;
-            if (name == parentDirectory) {
+            if (name == String("."))
+                name = String();
+            if (name == String("..")) {
                 dir = dir.parent();
-                name = empty;
+                name = String();
             }
             if (c == -1)
                 break;
@@ -291,10 +291,10 @@ private:
             }
             if (c == -1)
                 break;
-            if (name != empty)
+            if (name != "")
                 dir = dir.subDirectory(name);
         } while (true);
-        if (name == empty) {
+        if (name == "") {
             if (dir.isRoot())
                 return dir;
             return FileSystemObject(dir.parent(), dir.name());
@@ -302,13 +302,17 @@ private:
         return FileSystemObject(dir, name);
     }
 
-    FileSystemObjectTemplate(const Directory& parent, const String& name) : _implementation(new NamedFileSystemObjectImplementation(parent, name)) { }
+    FileSystemObjectTemplate(const Directory& parent, const String& name)
+      : _implementation(new NamedFileSystemObjectImplementation(parent, name))
+    { }
 
     template<class T> friend class NamedFileSystemObjectImplementationTemplate;
     template<class T> friend class CurrentDirectoryTemplate;
     template<class T> friend class DirectoryTemplate;
 
-    template<class T> friend void applyToWildcard(T functor, const String& wildcard, int recurseIntoDirectories, const Directory& relativeTo);
+    template<class T> friend void applyToWildcard(T functor,
+        const String& wildcard, int recurseIntoDirectories,
+        const Directory& relativeTo);
 };
 
 #ifdef _WIN32
@@ -329,9 +333,7 @@ public:
                 throwError();
         }
         String n = name();
-        static String currentDirectory(".");
-        static String parentDirectory("..");
-        if (n == currentDirectory || n == parentDirectory)
+        if (n == "." || n == "..")
             next();
     }
     void next()
@@ -345,9 +347,7 @@ public:
                 else
                     throwError();
             String n = name();
-            static String currentDirectory(".");
-            static String parentDirectory("..");
-            if (n == currentDirectory || n == parentDirectory)
+            if (n == "." || n == "..")
                 continue;
             break;
         } while (true);
@@ -381,8 +381,7 @@ public:
 private:
     void throwError()
     {
-        static String findingFiles("Finding files ");
-        throw Exception::systemError(findingFiles + _path);
+        throw Exception::systemError("Finding files " + _path);
     }
 
     HANDLE _handle;
@@ -402,10 +401,8 @@ public:
     {
         NullTerminatedString data(directory.path());
         _dir = opendir(data);
-        if (_dir == NULL) {
-            static String openingFile("Opening directory ");
-            throw Exception::systemError(openingDirectory + _path);
-        }
+        if (_dir == NULL)
+            throw Exception::systemError("Opening directory " + _path);
         next();
     }
     void next()
@@ -416,14 +413,10 @@ public:
             if (_data == NULL)
                 if (errno == 0)
                     _complete = true;
-                else {
-                    static String openingFile("Reading directory ");
-                    throw Exception::systemError(openingDirectory + _path);
-                }
+                else
+                    throw Exception::systemError("Reading directory " + _path);
             String n = name();
-            static String currentDirectory(".");
-            static String parentDirectory("..");
-            if (n == currentDirectory || n == parentDirectory)
+            if (n == "." || n == "..")
                 continue;
             if (!matches(n, wildcard))
                 continue;
@@ -459,8 +452,8 @@ public:
 private:
     static bool matches(String name, String wildcard)
     {
-        CodePointSource sw(wildcard);
-        CodePointSource sn(name);
+        CharacterSource sw(wildcard);
+        CharacterSource sn(name);
         do {
             int cs = sw.get();
             int cn = sn.get();
@@ -470,11 +463,14 @@ private:
                         return false;
                     continue;
                 case '*':
-                    // TODO: this code is O(n^p) where p is number of stars, we can do better using dynamic programming.
+                    // TODO: this code is O(n^p) where p is number of stars, we
+                    // can do better using dynamic programming.
                     if (cn == -1)
                         continue;
                     do {
-                        if (matches(name.subString(sn.offset(), name.length() - sn.offset()), sw.offset(), wildcard.length() - sw.offset()))
+                        if (matches(name.subString(sn.offset(),
+                            name.length() - sn.offset()), sw.offset(),
+                            wildcard.length() - sw.offset()))
                             return true;
                         cn = sn.get();
                     } while (cn != -1);
@@ -497,7 +493,10 @@ private:
 template<class T> class DirectoryTemplate : public FileSystemObject
 {
 public:
-    DirectoryTemplate(const String& path, const Directory& relativeTo = CurrentDirectory(), bool windowsParsing = false) : FileSystemObject(path, relativeTo, windowsParsing) { }
+    DirectoryTemplate(const String& path,
+        const Directory& relativeTo = CurrentDirectory(),
+        bool windowsParsing = false)
+      : FileSystemObject(path, relativeTo, windowsParsing) { }
     FileSystemObject child(const String& name) const
     {
         return FileSystemObject(*this, name);
@@ -510,7 +509,8 @@ public:
     {
         return File(child(fileName));
     }
-    template<class F> void applyToContents(F functor, bool recursive, const String& wildcard = String("*")) const
+    template<class F> void applyToContents(F functor, bool recursive,
+        const String& wildcard = "*") const
     {
         FindHandle handle(*this, wildcard);
         while (!handle.complete()) {
@@ -528,7 +528,9 @@ public:
     }
 protected:
     DirectoryTemplate(FileSystemObject object) : FileSystemObject(object) { }
-    DirectoryTemplate(Reference<FileSystemObject::Implementation> implementation) : FileSystemObject(implementation) { }
+    DirectoryTemplate(
+        Reference<FileSystemObject::Implementation> implementation)
+      : FileSystemObject(implementation) { }
 };
 
 template<class T> class CurrentDirectoryTemplate : public Directory
@@ -547,27 +549,28 @@ private:
 
     static Reference<FileSystemObject::Implementation> currentDirectory()
     {
-        static String obtainingCurrentDirectory("Obtaining current directory");
 #ifdef _WIN32
         int n = GetCurrentDirectory(0, NULL);
         if (n == 0)
-            throw Exception::systemError(obtainingCurrentDirectory);
+            throw Exception::systemError("Obtaining current directory");
         Array<WCHAR> buf;
         buf.allocate(n);
         if (GetCurrentDirectory(n, &buf[0]) == 0)
-            throw Exception::systemError(obtainingCurrentDirectory);
+            throw Exception::systemError("Obtaining current directory");
         String path(&buf[0]);
-        return FileSystemObject::parse(path, RootDirectory(), true)._implementation;
+        return FileSystemObject::parse(path, RootDirectory(), true).
+            _implementation;
 #else
         size_t size = 100;
         do {
             Array<char> buf(size);
             if (getcwd(&buf[0], size) != 0) {
                 String path(&buf[0]);
-                return FileSystemObject::parse(path, RootDirectory(), false)._implementation;
+                return FileSystemObject::parse(path, RootDirectory(), false).
+                    _implementation;
             }
             if (errno != ERANGE)
-                throw Exception::systemError(obtainingCurrentDirectory);
+                throw Exception::systemError("Obtaining current directory");
             size *= 2;
         } while (true);
 #endif
@@ -578,21 +581,21 @@ private:
 #endif
 };
 
-template<class T> Reference<FileSystemObject::Implementation> CurrentDirectoryTemplate<T>::_implementation;
+template<class T> Reference<FileSystemObject::Implementation>
+    CurrentDirectoryTemplate<T>::_implementation;
 
 #ifdef _WIN32
 template<class T> class DriveCurrentDirectoryTemplate : public Directory
 {
 public:
-    DriveCurrentDirectoryTemplate(int drive) : Directory(implementation(drive)) { }
+    DriveCurrentDirectoryTemplate(int drive)
+      : Directory(implementation(drive)) { }
 private:
     static Reference<FileSystemObject::Implementation> _implementations[26];
-    static Reference<FileSystemObject::Implementation> implementation(int drive)
+    static Reference<FileSystemObject::Implementation> implementation(
+        int drive)
     {
         if (!_implementations[drive].valid()) {
-            static String settingCurrentDirectory("Setting current directory");
-            static String obtainingCurrentDirectory("Obtaining current directory");  // TODO: can this be shared with the copy in CurrentDirectoryImplementation?
-
             // Make sure the current directory has been retrieved
             CurrentDirectory();
 
@@ -602,7 +605,7 @@ private:
             buf[1] = ':';
             buf[2] = 0;
             if (SetCurrentDirectory(&buf[0]) == 0)
-                throw Exception::systemError(settingCurrentDirectory);
+                throw Exception::systemError("Setting current directory");
 
             // Retrieve current directory
             _implementations[drive] = CurrentDirectory::currentDirectory();
@@ -611,7 +614,8 @@ private:
     }
 };
 
-template<class T> Reference<FileSystemObject::Implementation> DriveCurrentDirectoryTemplate<T>::_implementations[26];
+template<class T> Reference<FileSystemObject::Implementation>
+    DriveCurrentDirectoryTemplate<T>::_implementations[26];
 
 #endif
 
@@ -626,23 +630,25 @@ public:
         Implementation() { }
 
         Directory parent() const { return RootDirectory(); }
-        String name() const { return empty; }
+        String name() const { return String(); }
 #ifdef _WIN32
         String windowsPath() const
         {
             // TODO: Use \\?\ to avoid MAX_PATH limit?
-            // If we do this we need to know the current drive - this is the first character of CurrentDirectory().windowsPath() .
-            return empty;
+            // If we do this we need to know the current drive - this is the
+            // first character of CurrentDirectory().windowsPath() .
+            return String();
         }
 #endif
-        String path() const { return empty; }
+        String path() const { return String(); }
         bool isRoot() const { return true; }
 
         int hash(int h) const { return 0; }
 
         int compare(const FileSystemObject::Implementation* other) const
         {
-            const Implementation* root = dynamic_cast<const Implementation*>(other);
+            const Implementation* root =
+                dynamic_cast<const Implementation*>(other);
             if (root == 0)
                 return 1;
             return 0;
@@ -659,16 +665,19 @@ private:
 };
 
 
-template<class T> Reference<RootDirectory::Implementation> RootDirectoryTemplate<T>::_implementation;
+template<class T> Reference<RootDirectory::Implementation>
+    RootDirectoryTemplate<T>::_implementation;
 
 #ifdef _WIN32
 template<class T> class DriveRootDirectoryTemplate : public Directory
 {
 public:
-    DriveRootDirectoryTemplate(int drive) : Directory(implementation(drive)) { }
+    DriveRootDirectoryTemplate(int drive)
+      : Directory(implementation(drive)) { }
 private:
     static Reference<FileSystemObject::Implementation> _implementations[26];
-    static Reference<FileSystemObject::Implementation> implementation(int drive)
+    static Reference<FileSystemObject::Implementation> implementation(
+        int drive)
     {
         if (!_implementations[drive].valid())
             _implementations[drive] = new Implementation(drive);
@@ -683,22 +692,16 @@ private:
         String windowsPath() const
         {
             // TODO: Use \\?\ to avoid MAX_PATH limit?
-            OwningBuffer buffer(2);
-            buffer[0] = _drive + 'A';
-            buffer[1] = ':';
-            return String(buffer, 0, 2);
+            return path();
         }
-        String path() const
-        {
-            static String colon(":");
-            return String::codePoint('A' + _drive) + colon;
-        }
+        String path() const { return codePoint('A' + _drive) + ":"; }
 
         int hash(int h) const { return _drive; }
 
         int compare(const FileSystemObject::Implementation* other) const
         {
-            const Implementation* root = dynamic_cast<const Implementation*>(other);
+            const Implementation* root =
+                dynamic_cast<const Implementation*>(other);
             if (root == 0)
                 return 1;
             if (_drive != root->_drive)
@@ -710,31 +713,36 @@ private:
     };
 };
 
-template<class T> Reference<FileSystemObject::Implementation> DriveRootDirectoryTemplate<T>::_implementations[26];
+template<class T> Reference<FileSystemObject::Implementation>
+    DriveRootDirectoryTemplate<T>::_implementations[26];
 
 template<class T> class UNCRootDirectoryTemplate : public Directory
 {
 public:
-    UNCRootDirectoryTemplate(const String& server, const String& share) : Directory(new Implementation(server, share)) { }
+    UNCRootDirectoryTemplate(const String& server, const String& share)
+      : Directory(new Implementation(server, share)) { }
 private:
     class Implementation : public RootDirectory::Implementation
     {
     public:
-        Implementation(const String& server, const String& share) : _server(server), _share(share) { }
+        Implementation(const String& server, const String& share)
+          : _server(server), _share(share) { }
 
         Directory parent() const { return UNCRootDirectory(_server, _share); }
         String windowsPath() const
         {
-            static String backslashBackslash("\\\\");
-            static String backslash("\\");
-            return backslashBackslash + _server + backslash + _share;
+            return "\\\\" + _server + "\\" + _share;
         }
 
-        int hash(int h) const { return (h*67 + _server.hash())*67 + _share.hash(); }
+        int hash(int h) const
+        {
+            return (h*67 + _server.hash())*67 + _share.hash();
+        }
 
         int compare(const FileSystemObject::Implementation* other) const
         {
-            const Implementation* root = dynamic_cast<const Implementation*>(other);
+            const Implementation* root =
+                dynamic_cast<const Implementation*>(other);
             if (root == 0)
                 return 1;
             if (_server != root->_server)
@@ -755,6 +763,7 @@ class FileHandle;
 template<class T> class FileTemplate : public FileSystemObject
 {
 public:
+    FileTemplate() { }
     FileTemplate(const String& path,
         const Directory& relativeTo = CurrentDirectory(),
         bool windowsParsing = false)
@@ -765,20 +774,24 @@ public:
         FileHandle handle(*this);
         handle.openRead();
         UInt64 size = handle.size();
-        if (size >= 0x80000000) {
-            static String tooLargeFile("2Gb or more in file ");
-            throw Exception(tooLargeFile + messagePath());
-        }
+        if (size >= 0x80000000)
+            throw Exception("2Gb or more in file " + messagePath());
         int intSize = static_cast<int>(size);
-        OwningBuffer buffer(intSize);
+        String buffer(intSize);
         handle.read(static_cast<void*>(buffer.data()), intSize);
-        return String(buffer, 0, intSize);
+        return buffer;
+    }
+    void save(const Array<Byte>& contents)
+    {
+        FileHandle handle(*this);
+        handle.openWrite();
+        handle.write(contents);
     }
     void save(const String& contents)
     {
         FileHandle handle(*this);
         handle.openWrite();
-        contents.write(handle);
+        handle.write(contents);
     }
     void secureSave(const String& contents)
     {
@@ -798,16 +811,14 @@ public:
         if (ReplaceFile(data, tempData, NULL, REPLACEFILE_WRITE_THROUGH |
             REPLACEFILE_IGNORE_MERGE_ERRORS) == 0) {
             // TODO: Delete temporary file?
-            static String replacingFile("Replacing file ");
-            throw Exception::systemError(replacingFile + messagePath());
+            throw Exception::systemError("Replacing file " + messagePath());
         }
 #else
         NullTerminatedString data(messagePath());
         NullTerminatedString tempData(tempPath);
         if (rename(tempData, data) != 0) {
             // TODO: Delete temporary file?
-            static String replacingFile("Replacing file ");
-            throw Exception::systemError(replacingFile + messagePath());
+            throw Exception::systemError("Replacing file " + messagePath());
         }
 #endif
     }
@@ -866,7 +877,7 @@ public:
     {
         int i = 0;
         do {
-            String tempPath = path() + String::hexadecimal(i, 8);
+            String tempPath = path() + hex(i, 8, false);
             bool success;
 #ifdef _WIN32
             success = open(tempPath, GENERIC_WRITE, 0, CREATE_NEW,
@@ -882,20 +893,17 @@ public:
 #ifndef _WIN32
     void sync()
     {
-        if (fsync(operator int()) != 0) {
-            static String synchronizingFile("Synchronizing file ");
-            throw Exception::systemError(synchronizingFile + path());
-        }
+        if (fsync(operator int()) != 0)
+            throw Exception::systemError("Synchronizing file " + path());
     }
 #endif
     UInt64 size()
     {
 #ifdef _WIN32
         LARGE_INTEGER size;
-        if (GetFileSizeEx(operator HANDLE(), &size) == 0) {
-            static String obtainingLengthOfFile("Obtaining length of file ");
-            throw Exception::systemError(obtainingLengthOfFile + name());
-        }
+        if (GetFileSizeEx(operator HANDLE(), &size) == 0)
+            throw Exception::systemError("Obtaining length of file " +
+                name());
         return size.QuadPart;
 #else
         off_t o = seek(0, SEEK_CUR);
@@ -917,10 +925,8 @@ public:
 #ifdef _WIN32
         LARGE_INTEGER p;
         p.QuadPart = position;
-        if (SetFilePointerEx(operator HANDLE(), p, NULL, FILE_BEGIN) == 0) {
-            static String seekingFile("Seeking file ");
-            throw Exception::systemError(seekingFile + name());
-        }
+        if (SetFilePointerEx(operator HANDLE(), p, NULL, FILE_BEGIN) == 0)
+            throw Exception::systemError("Seeking file " + name());
 #else
         seek(position, SEEK_SET);
 #endif
@@ -935,8 +941,7 @@ private:
             dwFlagsAndAttributes)) {
             if (!throwIfExists && GetLastError() == ERROR_FILE_EXISTS)
                 return false;
-            static String openingFile("Opening file ");
-            throw Exception::systemError(openingFile + path);
+            throw Exception::systemError("Opening file " + path);
         }
         return true;
     }
@@ -963,8 +968,7 @@ private:
         if (!tryOpen(path, flags)) {
             if (!throwIfExists && errno == EEXIST)
                 return false;
-            static String openingFile("Opening file ");
-            throw Exception::systemError(openingFile + path);
+            throw Exception::systemError("Opening file " + path);
         }
         return true;
     }
@@ -980,10 +984,8 @@ private:
     off_t seek(off_t offset, int whence)
     {
         off_t n = lseek(operator int(), offset, whence);
-        if (n == (off_t)(-1)) {
-            static String seekingFile("Seeking file ");
-            throw Exception::systemError(seekingFile + name());
-        }
+        if (n == (off_t)(-1))
+            throw Exception::systemError("Seeking file " + name());
         return n;
     }
 #endif
@@ -991,21 +993,21 @@ private:
     File _file;
 };
 
-template<class T> class NamedFileSystemObjectImplementationTemplate : public FileSystemObject::Implementation
+template<class T> class NamedFileSystemObjectImplementationTemplate
+  : public FileSystemObject::Implementation
 {
 public:
-    NamedFileSystemObjectImplementationTemplate(const Directory& parent, const String& name) : _parent(parent), _name(name) { }
+    NamedFileSystemObjectImplementationTemplate(const Directory& parent,
+        const String& name) : _parent(parent), _name(name) { }
 #ifdef _WIN32
     String windowsPath() const
     {
-        static String windowsPathSeparator("\\");
-        return _parent.windowsPath() + windowsPathSeparator + _name;
+        return _parent.windowsPath() + "\\" + _name;
     }
 #endif
     String path() const
     {
-        static String pathSeparator("/");
-        return _parent.path() + pathSeparator + _name;
+        return _parent.path() + "/" + _name;
     }
 
     Directory parent() const { return _parent; }
@@ -1018,7 +1020,8 @@ public:
 
     int compare(const FileSystemObject::Implementation* other) const
     {
-        const NamedFileSystemObjectImplementation* named = dynamic_cast<const NamedFileSystemObjectImplementation*>(other);
+        const NamedFileSystemObjectImplementation* named =
+            dynamic_cast<const NamedFileSystemObjectImplementation*>(other);
         if (named == 0)
             return 1;
         if (_parent != named->_parent)
@@ -1032,30 +1035,26 @@ private:
     String _name;
 };
 
-template<class T> void applyToWildcard(T functor, CodePointSource s, int recurseIntoDirectories, Directory directory)
+template<class T> void applyToWildcard(T functor, CharacterSource s,
+    int recurseIntoDirectories, Directory directory)
 {
-    static String invalidPath("Invalid path");
-    static String currentDirectory(".");
-    static String parentDirectory("..");
-    static String empty;
-
     int subDirectoryStart = s.offset();
     int c = s.get();
     int p = s.offset();
 #ifdef _WIN32
     while (c != '/' && c != '\\' && c != -1) {
         if (c < 32 || c == ':' || c == '"' || c == '<' || c == '>')
-            throw Exception(invalidPath);
+            throw Exception("Invalid path");
         p = s.offset();
         c = s.get();
     }
     String name = s.subString(subDirectoryStart, p);
-    CodePointSource s2 = s;
+    CharacterSource s2 = s;
     while (c == '/' || c == '\\') {
         s = s2;
         c = s2.get();
     }
-    if (name == currentDirectory) {
+    if (name == ".") {
         if (c == -1)
             if (recurseIntoDirectories)
                 name = String("*");
@@ -1068,7 +1067,7 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
             return;
         }
     }
-    if (name == parentDirectory) {
+    if (name == "..") {
         if (c == -1)
             if (recurseIntoDirectories) {
                 name = String("*");
@@ -1079,14 +1078,15 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
                 return;
             }
         else {
-            applyToWildcard(functor, s, recurseIntoDirectories, directory.parent());
+            applyToWildcard(functor, s, recurseIntoDirectories,
+                directory.parent());
             return;
         }
     }
     if (name != empty) {
         int l = name[name.length() - 1];
         if (l == '.' || l == ' ')
-            throw Exception(invalidPath);
+            throw Exception("Invalid path");
     }
     else
         if (recurseIntoDirectories)
@@ -1103,11 +1103,11 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
     String name = s.subString(subDirectoryStart, p);
     while (c == '/')
         c = s.get();
-    if (name == currentDirectory) {
+    if (name == ".") {
         applyToWildcard(functor, s, recurseIntoDirectories, directory);
         return;
     }
-    if (name == parentDirectory) {
+    if (name == "..") {
         applyToWildcard(functor, s, recurseIntoDirectories, directory.parent());
         return;
     }
@@ -1131,11 +1131,14 @@ template<class T> void applyToWildcard(T functor, CodePointSource s, int recurse
     }
 }
 
-template<class T> void applyToWildcard(T functor, const String& wildcard, int recurseIntoDirectories = true, const Directory& relativeTo = CurrentDirectory())
+template<class T> void applyToWildcard(T functor, const String& wildcard,
+    int recurseIntoDirectories = true,
+    const Directory& relativeTo = CurrentDirectory())
 {
-    CodePointSource s(wildcard);
+    CharacterSource s(wildcard);
 #ifdef _WIN32
-    Directory dir = FileSystemObject::windowsParseRoot(wildcard, relativeTo, s);
+    Directory dir =
+        FileSystemObject::windowsParseRoot(wildcard, relativeTo, s);
 #else
     Directory dir = FileSystemObject::parse(wildcard, relativeTo, s);
 #endif

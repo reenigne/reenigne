@@ -60,7 +60,7 @@ private:
         //        debug->write(t->_key);
         //        debug->write(String("=>"));
         //        debug->write(t->_value.type().toString());
-        //        debug->write(newLine);
+        //        debug->write("\n");
         //        t = t->_next;
         //    } while (t != this);
         //}
@@ -197,7 +197,7 @@ public:
     //void dump()
     //{
     //    for (int i = 0; i < _table.count(); ++i) {
-    //        debug->write(String::decimal(i) + ":" + newLine);
+    //        debug->write(decimal(i) + ":\n");
     //        _table[i].dump();
     //    }
     //}

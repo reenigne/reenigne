@@ -11,10 +11,8 @@ Symbol parseExpressionStatement(CharacterSource* source)
     if (!Space::parseCharacter(&s, ';', &span))
         return Symbol();
     *source = s;
-    if (expression.atom() != atomFunctionCall) {
-        static String error("Statement has no effect");
-        source->location().throwError(error);
-    }
+    if (expression.atom() != atomFunctionCall)
+        source->location().throwError("Statement has no effect");
     return Symbol(atomExpressionStatement, expression,
         newSpan(spanOf(expression) + span));
 }
@@ -25,10 +23,8 @@ Symbol parseParameter(CharacterSource* source)
     if (!typeSpecifier.valid())
         return Symbol();
     Symbol name = parseIdentifier(source);
-    if (!name.valid()) {
-        static String error("Expected identifier");
-        source->location().throwError(error);
-    }
+    if (!name.valid())
+        source->location().throwError("Expected identifier");
     return Symbol(atomParameter, typeSpecifier, name,
         new IdentifierCache(spanOf(typeSpecifier) + spanOf(name),
             SymbolLabel()));
@@ -44,10 +40,8 @@ SymbolArray parseParameterList(CharacterSource* source)
     Span span;
     while (Space::parseCharacter(source, ',', &span)) {
         Symbol parameter = parseParameter(source);
-        if (!parameter.valid()) {
-            static String error("Expected parameter");
-            source->location().throwError(error);
-        }
+        if (!parameter.valid())
+            source->location().throwError("Expected parameter");
         list.add(parameter);
     }
     return list;
@@ -297,10 +291,8 @@ Symbol parseCase(CharacterSource* source)
     }
     else {
         defaultType = true;
-        if (!Space::parseKeyword(source, defaultKeyword, &span)) {
-            static String error("Expected case or default");
-            source->location().throwError(error);
-        }
+        if (!Space::parseKeyword(source, defaultKeyword, &span))
+            source->location().throwError("Expected case or default");
     }
 
     Space::assertCharacter(source, ':', &span2);
@@ -331,10 +323,9 @@ Symbol parseSwitchStatement(CharacterSource* source)
         if (!c.valid())
             break;
         if (c.atom() == atomDefaultCase) {
-            if (defaultCase.valid()) {
-                static String error("This switch statement already has a default case");
-                s.location().throwError(error);
-            }
+            if (defaultCase.valid())
+                s.location().throwError(
+                    "This switch statement already has a default case");
             defaultCase = c;
         }
         else
@@ -445,10 +436,8 @@ Symbol parseWhileStatement(CharacterSource* source)
                 start = span.start();
         }
     if (!foundWhile && !foundUntil) {
-        if (foundDo) {
-            static String error("Expected while or until");
-            source->location().throwError(error);
-        }
+        if (foundDo)
+            source->location().throwError("Expected while or until");
         return Symbol();
     }
     Span span2;
@@ -599,9 +588,7 @@ Symbol parseStatement(CharacterSource* source)
 Symbol parseStatementOrFail(CharacterSource* source)
 {
     Symbol statement = parseStatement(source);
-    if (!statement.valid()) {
-        static String error("Expected statement");
-        source->location().throwError(error);
-    }
+    if (!statement.valid())
+        source->location().throwError("Expected statement");
     return statement;
 }

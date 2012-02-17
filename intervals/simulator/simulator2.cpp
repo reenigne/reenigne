@@ -3,20 +3,20 @@
 #include <vector>
 #include <stdio.h>
 #include <stdlib.h>
+#include "unity/main.h"
 
-class Program
+class SimulatedProgram
 {
 public:
-    Program(String fileName)
+    SimulatedProgram(String fileName)
     {
-		File file(fileName);
-		String contents = file.contents();
-        _source = contents.start();
+        File file(fileName);
+        String contents = file.contents();
+        _source = CharacterSource(contents, fileName);
     }
 
     void load()
     {
-        String empty("");
         for (int i = 0; i < 0x400; ++i)
             _data[i] = 0;
         _done = false;
@@ -27,11 +27,11 @@ public:
     {
         _source.assert(':');
         _checkSum = 0;
-        CharacterSource byteCountLocation = _source;
+        Location byteCountLocation = _source.location();
         int byteCount = readByte();
         int address = readByte() << 8;
         address |= readByte();
-        CharacterSource recordTypeLocation = _source;
+        Location recordTypeLocation = _source.location();
         int recordType = readByte();
         for (int i = 0; i < byteCount; ++i) {
             int b = readByte();
@@ -42,27 +42,26 @@ public:
             case 0:  // data record - handled above
                 break;
             case 1:  // end of file record
-                if (byteCount != 0) {
-                    static String error("End of file marker incorrect. Expected no data, found ");
-                    static String bytes(" bytes.");
-                    byteCountLocation.throwError(error + String::decimal(byteCount) + bytes);
-                }
+                if (byteCount != 0)
+                    byteCountLocation.throwError(String("End of file marker "
+                        "incorrect. Expected no data, found ") + byteCount +
+                        " bytes.");
                 _done = true;
                 break;
             case 4:  // extended linear address record
                 break;
             default:
-                {
-                    static String error("Don't know what to do with record type ");
-                    recordTypeLocation.throwError(error + String::decimal(recordType));
-                }
+                recordTypeLocation.throwError(
+                    String("Don't know what to do with record type ") +
+                    recordType);
         }
-        CharacterSource checkSumLocation = _source;
+        Location checkSumLocation = _source.location();
         int checkSum = readByte();
         if ((_checkSum & 0xff) != 0) {
-            static String error("Checksum incorrect. Expected ");
             static String found(", found ");
-            checkSumLocation.throwError(error + String::hexadecimal((checkSum - _checkSum) & 0xff, 2) + found + String::hexadecimal(checkSum, 2));
+            checkSumLocation.throwError("Checksum incorrect. Expected " +
+                hex((checkSum - _checkSum) & 0xff, 2) + ", found " +
+                hex(checkSum, 2));
         }
         _source.assert(10);
     }
@@ -83,8 +82,7 @@ public:
             return n + 10 - 'a';
         if (n >= 'A' && n <= 'F')
             return n + 10 - 'A';
-        static String expected("0-9 or A-F");
-        start.throwUnexpected(expected, String::codePoint(n));
+        start.throwUnexpected("0-9 or A-F");
     }
     int op(int address) const
     {
@@ -103,15 +101,18 @@ class Simulation;
 template<class Simulation> class BarTemplate : public ReferenceCounted
 {
 public:
-    BarTemplate(Simulation* simulation, const Program* program, int number, bool debug)
-      : _simulation(simulation), _program(program), _t(0), _debug(debug), _skipping(false), _number(number), _indent(0)
+    BarTemplate(Simulation* simulation, const SimulatedProgram* program,
+        int number, bool debug)
+      : _simulation(simulation), _program(program), _t(0), _debug(debug),
+        _skipping(false), _number(number), _indent(0)
     {
         reset();
     }
     void simulateTo(int t)
     {
         if (_debug)
-            printf("%*sSimulating bar %i to %lf\n", _indent*8, "", _number, t/(400.0*256.0));
+            printf("%*sSimulating bar %i to %lf\n", _indent*8, "", _number,
+                t/(400.0*256.0));
         do {
             if (_tNextStop >= t)
                 break;
@@ -395,7 +396,8 @@ public:
             UInt8 h = _memory[6] | _memory[0x20];
             _io = h;
             if (_debug) {
-                printf("%*sWrote 0x%02x (0x%02x | 0x%02x)\n", _indent*8, "", h, _memory[6], _memory[0x20]);
+                printf("%*sWrote 0x%02x (0x%02x | 0x%02x)\n", _indent*8, "", h,
+                    _memory[6], _memory[0x20]);
                 if (_f == 6 && _data != 0)
                     printf("%*sGPIO=0x%02x\n", _indent*8, "", _data);
             }
@@ -462,8 +464,7 @@ private:
     }
     void unrecognizedOpcode(int op)
     {
-        static String unrecognized("Unrecognized opcode 0x");
-        throw Exception(unrecognized + String::hexadecimal(op, 3));
+        throw Exception("Unrecognized opcode " + hex(op, 3));
     }
     void store(UInt16 r, bool d)
     {
@@ -482,7 +483,10 @@ private:
         else
             _memory[3] &= 0xfb;
     }
-    void setCarry(bool carry) { _memory[3] = (_memory[3] & 0xfe) | (carry ? 1 : 0); }
+    void setCarry(bool carry)
+    {
+        _memory[3] = (_memory[3] & 0xfe) | (carry ? 1 : 0);
+    }
     void incrementPC()
     {
         ++_memory[2];
@@ -509,7 +513,7 @@ private:
     }
 
     Simulation* _simulation;
-    const Program* _program;
+    const SimulatedProgram* _program;
     UInt8 _memory[0x21];
     UInt8 _option;
     int _stack[2];
@@ -538,7 +542,7 @@ public:
     Simulation() { }
     void simulate()
     {
-        Program waveformProgram(String("../programmer/waveform.HEX"));
+        SimulatedProgram waveformProgram("../programmer/waveform.HEX");
         waveformProgram.load();
 
         _bar = new Bar(this, &waveformProgram, 0, true);
@@ -551,14 +555,13 @@ private:
     Reference<Bar> _bar;
 };
 
-int main()
+class Program : public ProgramBase
 {
-	BEGIN_CHECKED {
+public:
+    void run()
+    {
         setbuf(stdout, NULL);
         Simulation simulation;
         simulation.simulate();
-	}
-	END_CHECKED(Exception& e) {
-		e.write(Handle::consoleOutput());
-	}
-}
+    }
+};

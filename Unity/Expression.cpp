@@ -2,14 +2,14 @@ Symbol parseExpression(CharacterSource* source);
 
 void throwError(CharacterSource* source)
 {
-    static String expected("Expected expression");
-    source->location().throwError(expected);
+    source->location().throwError("Expected expression");
 }
 
 Symbol combine(Symbol left, Symbol right, SymbolCache* cache)
 {
     if (left.valid())
-        return Symbol(atomFunctionCall, Symbol(atomAdd), SymbolArray(left, right), cache);
+        return Symbol(atomFunctionCall, Symbol(atomAdd),
+            SymbolArray(left, right), cache);
     return right;
 }
 
@@ -78,35 +78,34 @@ Symbol parseIdentifier(CharacterSource* source)
     Space::parse(&s2);
     String name = s2.subString(startOffset, endOffset);
     static String keywords[] = {
-        String("assembly"),
-        String("break"),
-        String("case"),
-        String("catch"),
-        String("continue"),
-        String("default"),
-        String("delete"),
-        String("do"),
-        String("done"),
-        String("else"),
-        String("elseIf"),
-        String("elseUnless"),
-        String("finally"),
-        String("from"),
-        String("for"),
-        String("forever"),
-        String("if"),
-        String("in"),
-        String("new"),
-        String("nothing"),
-        String("return"),
-        String("switch"),
-        String("this"),
-        String("throw"),
-        String("try"),
-        String("unless"),
-        String("until"),
-        String("while")
-    };
+        "assembly",
+        "break",
+        "case",
+        "catch",
+        "continue",
+        "default",
+        "delete",
+        "do",
+        "done",
+        "else",
+        "elseIf",
+        "elseUnless",
+        "finally",
+        "from",
+        "for",
+        "forever",
+        "if",
+        "in",
+        "new",
+        "nothing",
+        "return",
+        "switch",
+        "this",
+        "throw",
+        "try",
+        "unless",
+        "until",
+        "while"};
     for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); ++i)
         if (name == keywords[i])
             return Symbol();
@@ -121,18 +120,14 @@ Symbol parseIdentifier(CharacterSource* source)
     if (Space::parseCharacter(&s2, '(', &endSpan)) {
         if (Space::parseCharacter(&s2, ')', &endSpan))
             atom = atomFunctionCall;
-        else {
-            static String expected("Expected )");
-            s2.location().throwError(expected);
-        }
+        else
+            s2.location().throwError("Expected )");
     }
     else if (Space::parseCharacter(&s2, '[', &endSpan)) {
         if (Space::parseCharacter(&s2, ']', &endSpan))
             atom = atomFunctionCall;
-        else {
-            static String expected("Expected ]");
-            s2.location().throwError(expected);
-        }
+        else
+            s2.location().throwError("Expected ]");
     }
     else if (Space::parseOperator(&s2, equalTo, &endSpan))
         atom = atomEqualTo;
@@ -177,7 +172,7 @@ Symbol parseIdentifier(CharacterSource* source)
         // Only if we know it's not operator<<T>() can we try operator<<()
         CharacterSource s4 = s3;
         SymbolArray templateArgumentList = parseTemplateArgumentList(&s4);
-        if (templateArgumentList.count() == 0 && 
+        if (templateArgumentList.count() == 0 &&
             Space::parseOperator(&s2, shiftLeft, &endSpan))
             atom = atomShiftLeft;
         else
@@ -197,21 +192,13 @@ Symbol parseIdentifier(CharacterSource* source)
         atom = atomMultiply;
     else if (Space::parseCharacter(&s2, '%', &endSpan))
         atom = atomModulo;
-    else {
-        static String expected("Expected an operator");
-        s2.location().throwError(expected);
-    }
+    else
+        s2.location().throwError("Expected an operator");
     return Symbol(atomIdentifier, Symbol(atom), newSpan(startSpan + endSpan));
 }
 
 Symbol parseDoubleQuotedString(CharacterSource* source)
 {
-    static String endOfFile("End of file in string");
-    static String endOfLine("End of line in string");
-    static String printableCharacter("printable character");
-    static String escapedCharacter("escaped character");
-    static String hexadecimalDigit("hexadecimal digit");
-    static String toString("toString");
     Span span;
     Span startSpan;
     if (!source->parse('"', &startSpan))
@@ -220,10 +207,10 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
     Span stringEndSpan = startSpan;
     int startOffset = source->offset();
     int endOffset;
-    String insert(empty);
+    String insert;
     int n;
     int nn;
-    String string(empty);
+    String string;
     Symbol expression;
     Symbol part;
     do {
@@ -232,8 +219,8 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
         int c = s.get(&span);
         if (c < 0x20 && c != 10) {
             if (c == -1)
-                source->location().throwError(endOfFile);
-            source->throwUnexpected(printableCharacter, String::hexadecimal(c, 2));
+                source->location().throwError("End of file in string");
+            source->throwUnexpected("printable character");
         }
         *source = s;
         switch (c) {
@@ -249,53 +236,55 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
                 c = s.get(&stringEndSpan);
                 if (c < 0x20) {
                     if (c == 10)
-                        source->location().throwError(endOfLine);
+                        source->location().throwError("End of line in string");
                     if (c == -1)
-                        source->location().throwError(endOfFile);
-                    source->throwUnexpected(escapedCharacter, String::hexadecimal(c, 2));
+                        source->location().throwError("End of file in string");
+                    source->throwUnexpected("escaped character");
                 }
                 *source = s;
                 switch (c) {
                     case 'n':
-                        insert = newLine;
+                        insert = "\n";
                         break;
                     case 't':
-                        insert = tab;
+                        insert = codePoint(9);
                         break;
                     case '$':
-                        insert = dollar;
+                        insert = "$";
                         break;
                     case '"':
-                        insert = doubleQuote;
+                        insert = "\"";
                         break;
                     case '\'':
-                        insert = singleQuote;
+                        insert = "'";
                         break;
                     case '`':
-                        insert = backQuote;
+                        insert = "`";
                         break;
                     case 'U':
                         source->assert('+', &stringEndSpan);
                         n = 0;
                         for (int i = 0; i < 4; ++i) {
-                            nn = parseHexadecimalCharacter(source, &stringEndSpan);
+                            nn = parseHexadecimalCharacter(source,
+                                &stringEndSpan);
                             if (nn == -1) {
                                 s = *source;
-                                source->throwUnexpected(hexadecimalDigit, String::codePoint(s.get()));
+                                source->throwUnexpected("hexadecimal digit");
                             }
                             n = (n << 4) | nn;
                         }
                         nn = parseHexadecimalCharacter(source, &stringEndSpan);
                         if (nn != -1) {
                             n = (n << 4) | nn;
-                            nn = parseHexadecimalCharacter(source, &stringEndSpan);
+                            nn = parseHexadecimalCharacter(source,
+                                &stringEndSpan);
                             if (nn != -1)
                                 n = (n << 4) | nn;
                         }
-                        insert = String::codePoint(n);
+                        insert = codePoint(n);
                         break;
                     default:
-                        source->throwUnexpected(escapedCharacter, String::codePoint(c));
+                        source->throwUnexpected("escaped character");
                 }
                 string += insert;
                 startOffset = source->offset();
@@ -307,13 +296,13 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
                         part = parseExpressionOrFail(source);
                         source->assert(')', &span);
                     }
-                    else {
-                        static String error("Expected identifier or parenthesized expression");
-                        source->location().throwError(error);
-                    }
+                    else
+                        source->location().throwError("Expected identifier or "
+                            "parenthesized expression");
                 }
                 part = Symbol(atomFunctionCall,
-                    Symbol(atomDot, part, Symbol(atomIdentifier, toString),
+                    Symbol(atomDot, part,
+                        Symbol(atomIdentifier, String("toString")),
                         part.cache<ExpressionCache>()),
                     SymbolArray(), part.cache<ExpressionCache>());
                 string += s.subString(startOffset, endOffset);
@@ -321,9 +310,10 @@ Symbol parseDoubleQuotedString(CharacterSource* source)
                 if (part.valid()) {
                     expression = combine(expression,
                         Symbol(atomStringConstant, string,
-                            new ExpressionCache(stringStartSpan + stringEndSpan)),
+                            new ExpressionCache(stringStartSpan +
+                                stringEndSpan)),
                         new ExpressionCache(startSpan + stringEndSpan));
-                    string = empty;
+                    string = "";
                     expression = combine(expression, part,
                         new ExpressionCache(startSpan + span));
                 }
@@ -338,8 +328,6 @@ Symbol parseEmbeddedLiteral(CharacterSource* source)
 {
     Span startSpan;
     Span endSpan;
-    static String empty;
-    static String endOfFile("End of file in string");
     if (!source->parse('#', &startSpan))
         return Symbol();
     if (!source->parse('#', &endSpan))
@@ -352,7 +340,7 @@ Symbol parseEmbeddedLiteral(CharacterSource* source)
     do {
         int c = s.get();
         if (c == -1)
-            source->location().throwError(endOfFile);
+            source->location().throwError("End of file in string");
         if (c == 10)
             break;
         *source = s;
@@ -360,14 +348,14 @@ Symbol parseEmbeddedLiteral(CharacterSource* source)
     int endOffset = source->offset();
     String terminator = source->subString(startOffset, endOffset);
     startOffset = s.offset();
-    CharacterSource terminatorSource(terminator, empty);
+    CharacterSource terminatorSource(terminator, "");
     int cc = terminatorSource.get();
     String string;
     do {
         *source = s;
         int c = s.get();
         if (c == -1)
-            source->location().throwError(endOfFile);
+            source->location().throwError("End of file in string");
         if (cc == -1) {
             if (c != '#')
                 continue;
@@ -407,7 +395,8 @@ Symbol parseEmbeddedLiteral(CharacterSource* source)
                 } while (true);
             }
         if (c == 10) {
-            string += s.subString(startOffset, source->offset()) + String::codePoint(10);
+            string += s.subString(startOffset, source->offset()) +
+                codePoint(10);
             startOffset = s.offset();
         }
     } while (true);
@@ -528,12 +517,11 @@ Symbol parseEmitExpression(CharacterSource* source)
     String emitKeyword("_emit");
     if (Space::parseKeyword(source, emitKeyword, &span)) {
         SymbolArray argumentList = parseTemplateArgumentList(source);
-        if (!argumentList.valid() || argumentList.count() != 1) {
-            static String error("Expected type list with single type");
-            source->location().throwError(error);
-        }
+        if (!argumentList.valid() || argumentList.count() != 1)
+            source->location().throwError(
+                "Expected type list with single type");
         Symbol e = parseEmitExpression(source);
-        return Symbol(atomEmit, argumentList, e, 
+        return Symbol(atomEmit, argumentList, e,
             new ExpressionCache(span + spanOf(e)));
     }
     return parseFunctionCallExpression(source);
@@ -570,7 +558,7 @@ Symbol unaryOperation(Atom atom, Span span, Symbol e)
 Symbol parseUnaryExpression(CharacterSource* source)
 {
     Span span;
-    if (Space::parseCharacter(source, '~', &span) || 
+    if (Space::parseCharacter(source, '~', &span) ||
         Space::parseCharacter(source, '!', &span)) {
         Symbol e = parseUnaryExpression(source);
         return unaryOperation(atomNot, span, e);

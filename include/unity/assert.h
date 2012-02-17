@@ -10,17 +10,16 @@
 
 void alert(String message, HWND hWnd = NULL)
 {
-    Array<WCHAR> data;
-    message.copyToUTF16(&data);
-    MessageBox(hWnd, &data[0], L"Error", MB_OK | MB_ICONERROR);
+    MessageBox(hWnd, NullTerminatedWideString(message), L"Error",
+        MB_OK | MB_ICONERROR);
 }
 
 void assert(bool success, String message = "", HWND hWnd = NULL)
 {
     if (!success) {
         String output("Assertion failed");
-        if (message.length() > 0)
-            output += String(": ") + message;
+        if (!message.empty())
+            output += ": " + message;
         alert(output, hWnd);
         _CrtDbgBreak();
     }

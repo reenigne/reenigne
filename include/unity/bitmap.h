@@ -197,16 +197,14 @@ private:
     {
         FileHandle* handle =
             static_cast<FileHandle*>(png_get_error_ptr(png_ptr));
-        throw Exception(String("Error reading: ") + handle->name() +
-            colonSpace + String(error_msg));
+        throw Exception("Error reading: " + handle->name() + ": " + error_msg);
     }
     static void userWarningFunction(png_structp png_ptr,
         png_const_charp error_msg)
     {
         FileHandle* handle =
             static_cast<FileHandle*>(png_get_error_ptr(png_ptr));
-        throw Exception(String("Error reading: ") + handle->name() +
-            colonSpace + String(error_msg));
+        throw Exception("Error reading: " + handle->name() + ": " + error_msg);
     }
 
     class PNGRead
@@ -218,13 +216,13 @@ private:
                 static_cast<png_voidp>(handle), userErrorFunction,
                 userWarningFunction);
             if (_png_ptr == 0)
-                throw Exception(String("Error creating PNG read structure"));
+                throw Exception("Error creating PNG read structure");
         }
         void read(Bitmap* bitmap)
         {
             _info_ptr = png_create_info_struct(_png_ptr);
             if (_info_ptr == 0)
-                throw Exception(String("Error creating PNG info structure"));
+                throw Exception("Error creating PNG info structure");
             png_set_read_fn(_png_ptr, static_cast<png_voidp>(_handle),
                 userReadData);
             png_set_sig_bytes(_png_ptr, 8);

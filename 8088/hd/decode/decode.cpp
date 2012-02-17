@@ -30,7 +30,7 @@ public:
                         outputData.write<Byte>('*');
                     for (int j = 0; j < 8; ++j)
                         outputStatus.write<Byte>(inputData[j + i]);
-                    outputStatus.write(String(" gave up\n"));
+                    outputStatus.write(" gave up\n");
                     fails = 0;
                 }
                 i += 18;
@@ -40,7 +40,8 @@ public:
                     outputData.write<Byte>(inputData[j + i + 18]);
                 for (int j = 0; j < 8; ++j)
                     outputStatus.write<Byte>(inputData[j + i]);
-                outputStatus.write(String(" read after ") + String::decimal(fails) + String(" failures\n"));
+                outputStatus.write(String(" read after ") + fails +
+                    " failures\n");
                 fails = 0;
                 i += 18 + 0x200;
             }

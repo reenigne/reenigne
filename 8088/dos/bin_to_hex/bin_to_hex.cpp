@@ -7,7 +7,7 @@ public:
     void run()
     {
         if (_arguments.count() == 1) {
-            _consoel.write(String("Usage: bin_to_hex <name of file>\n"));
+            _console.write("Usage: bin_to_hex <name of file>\n");
             return;
         }
         String fileName = _arguments[1];
@@ -15,21 +15,18 @@ public:
         int l = data.length();
 
         // Write length bytes
-        _console.write(String("  .byte "));
-        _console.write(String("0x") + String::hexadecimal(l & 0xff, 2));
-        _console.write(commaSpace);
-        _console.write(String("0x") + String::hexadecimal(l >> 8, 2));
-        _console.write(newLine);
+        _console.write("  .byte " + hex(l & 0xff, 2) + ", " + hex(l >> 8, 2) +
+            "\n");
 
         for (int i = 0; i < l; ++i) {
             int c = i & 7;
             if (c == 0)
-                _console.write(String("  .byte "));
-            _console.write(String("0x") + String::hexadecimal(data[i], 2));
+                _console.write("  .byte ");
+            _console.write(hex(data[i], 2));
             if (c < 7 && i < l - 1)
-                _console.write(commaSpace);
+                _console.write(", ");
             else
-                _console.write(newLine);
+                _console.write("\n");
         }
     }
 };

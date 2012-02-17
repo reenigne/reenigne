@@ -35,7 +35,7 @@ public:
     static bool parseOperator(CharacterSource* source, String op, Span* span)
     {
         CharacterSource s = *source;
-        CharacterSource o(op, empty);
+        CharacterSource o(op, "");
         Span sp;
         do {
             Span sp2;
@@ -56,7 +56,7 @@ public:
         Span* span)
     {
         CharacterSource s = *source;
-        CharacterSource o(keyword, empty);
+        CharacterSource o(keyword, "");
         Span sp;
         Span sp2;
         do {
@@ -81,8 +81,6 @@ public:
 private:
     static bool parseComment(CharacterSource* source)
     {
-        static String endOfFile("End of file in comment");
-        static String printableCharacter("printable character");
         CharacterSource s = *source;
         int c = s.get();
         if (c != '/')
@@ -95,8 +93,7 @@ private:
                 if (c == 10 || c == -1)
                     break;
                 if (c < 0x20)
-                    source->throwUnexpected(printableCharacter,
-                        String::hexadecimal(c, 2));
+                    source->throwUnexpected("printable character", hex(c, 2));
             } while (true);
             *source = s;
             return true;
@@ -115,10 +112,9 @@ private:
                     }
                 }
                 if (c == -1)
-                    source->location().throwError(endOfFile);
+                    source->location().throwError("End of file in comment");
                 if (c < 0x20 && c != 10)
-                    source->throwUnexpected(printableCharacter,
-                        String::hexadecimal(c, 2));
+                    source->throwUnexpected("printable character", hex(c, 2));
             } while (true);
         }
         return false;

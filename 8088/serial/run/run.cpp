@@ -8,7 +8,7 @@ public:
     void run()
     {
         if (_arguments.count() == 1) {
-            _console.write(String("Usage: run [-c] <name of file to send>\n"));
+            _console.write("Usage: run [-c] <name of file to send>\n");
             return;
         }
         int fileNameArgument = 1;
@@ -131,7 +131,7 @@ public:
         // When running a .com file, we need the instruction pointer to start
         // at 0x100. We do this by prepending 0x100 NOP bytes at the beginning.
         // In DOS this area would contain the Program Segment Prefix structure.
-        //_console.write(String::hexadecimal(l, 8) + String("\n"));
+        //_console.write(hex(l, 8) + "\n");
         Byte checkSum = 0;
         if (comFile) {
             sendLength(l + 0x100);
@@ -146,12 +146,12 @@ public:
             sendByte(data[i]);       // Send data byte
             checkSum += data[i];
             if ((i & 0xff) == 0)
-                _console.write(dot);
+                _console.write(".");
         }
         sendByte(checkSum);
         //IF_ZERO_THROW(FlushFileBuffers(_com));
 
-        //_console.write(String("Upload complete.\n"));
+        //_console.write("Upload complete.\n");
         // Dump bytes from COM port to stdout until we receive ^Z
         do {
             int c = _com.read<Byte>();

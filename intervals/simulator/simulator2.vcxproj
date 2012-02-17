@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{4F6BDFD0-6248-4831-9637-4D6DF6A3C4B8}</ProjectGuid>
+    <ProjectGuid>{0D61EFC8-4450-4CEE-A566-3942219A775E}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>simulator2</RootNamespace>
   </PropertyGroup>

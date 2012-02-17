@@ -4,6 +4,7 @@
 #include <stdio.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include "unity/main.h"
 
 static const int samplesPerSecond = 44100;
 static const int changesPerSecond = 50;
@@ -334,4 +335,4 @@ public:
 
         } while (true);
     }
-}
+};

@@ -28,6 +28,6 @@ class Program : public ProgramBase
                     }
             }
         }
-        File("orchard.raw").save(String(Buffer(&d[0]), 0, i.x*i.y));
+        File("orchard.raw").save(d);
     }
 };

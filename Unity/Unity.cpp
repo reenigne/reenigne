@@ -3,7 +3,6 @@
 #include "unity/file.h"
 #include "unity/stack.h"
 #include "unity/hash_table.h"
-#include "unity/character_source.h"
 #include "unity/main.h"
 #include "unity/space.h"
 #include <stdlib.h>
@@ -292,9 +291,8 @@ protected:
     void run()
     {
         if (_arguments.count() < 2) {
-            static String syntax1("Syntax: ");
-            static String syntax2(" <input file name>\n");
-            _console.write(syntax1 + _arguments[0] + syntax2);
+            _console.write("Syntax: " + _arguments[0] +
+                " <input file name>\n");
             return;
         }
         File file(_arguments[1]);
@@ -312,10 +310,8 @@ protected:
         Space::parse(&source);
         SymbolArray mainCode = parseStatementSequence(&source);
         CharacterSource s = source;
-        if (s.get() != -1) {
-            static String error("Expected end of file");
-            source.location().throwError(error);
-        }
+        if (s.get() != -1)
+            source.location().throwError("Expected end of file");
         Symbol main(atomFunctionDefinitionStatement, voidType, String(), SymbolArray(), Symbol(atomCompoundStatement, mainCode), new FunctionDefinitionCache(Span()));
         int mainLabel = labelOf(main);
         setScopes(main, scope);

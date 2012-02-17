@@ -3,6 +3,7 @@
 
 // TODO: Xlib port
 
+#include "unity/swap.h"
 #include "unity/string.h"
 #include "unity/vectors.h"
 #include <windows.h>
@@ -316,8 +317,14 @@ public:
         EndPaint(_window, &_ps);
     }
     operator HDC() const { return _ps.hdc; }
-    Vector topLeft() const { return Vector(_ps.rcPaint.left, _ps.rcPaint.top); }
-    Vector bottomRight() const { return Vector(_ps.rcPaint.right, _ps.rcPaint.bottom); }
+    Vector topLeft() const
+    {
+        return Vector(_ps.rcPaint.left, _ps.rcPaint.top);
+    }
+    Vector bottomRight() const
+    {
+        return Vector(_ps.rcPaint.right, _ps.rcPaint.bottom);
+    }
     bool zeroArea() const { return (topLeft()-bottomRight()).zeroArea(); }
 private:
     const Window& _window;
@@ -457,9 +464,9 @@ private:
 
     void swap(Image& other)
     {
-        Vector size = _size; _size = other._size; other._size = size;
-        int byteWidth = _byteWidth; _byteWidth = other._byteWidth; other._byteWidth = byteWidth;
-        BITMAPINFO bmi = _bmi; _bmi = other._bmi; other._bmi = bmi;
+        ::swap(_size, other._size);
+        ::swap(_byteWidth, other._byteWidth);
+        ::swap(_bmi, other._bmi);
         _bits.swap(other._bits);
     }
 

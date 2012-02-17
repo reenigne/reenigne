@@ -40,12 +40,9 @@ public:
     {
         BEGIN_CHECKED {
             HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-            if (h == INVALID_HANDLE_VALUE || h == NULL) {
-                static String openingConsole("Getting console handle");
-                throw Exception::systemError(openingConsole);
-            }
-            static String console("console");
-            _console.set(h, console);
+            if (h == INVALID_HANDLE_VALUE || h == NULL)
+                throw Exception::systemError("Getting console handle");
+            _console.set(h, "console");
             debug = &_console;
             BEGIN_CHECKED {
                 initializeWindowsCommandLine();
@@ -63,8 +60,7 @@ public:
     void initialize(int argc, char* argv[])
     {
         BEGIN_CHECKED {
-            static String console("console");
-            _console.set(STDOUT_FILENO, console);
+            _console.set(STDOUT_FILENO, "console");
             debug = &_console;
             BEGIN_CHECKED {
                 _arguments.allocate(argc);
@@ -105,10 +101,8 @@ private:
             WindowsCommandLine()
             {
                 _szArglist = CommandLineToArgvW(GetCommandLineW(), &_nArgs);
-                if (_szArglist == NULL) {
-                    static String parsingCommandLine("Parsing command line");
-                    throw Exception::systemError(parsingCommandLine);
-                }
+                if (_szArglist == NULL)
+                    throw Exception::systemError("Parsing command line");
             }
             ~WindowsCommandLine()
             {
@@ -126,15 +120,13 @@ private:
         _arguments.allocate(nArgs);
         int nBytes = 0;
         for (int i = 0; i < nArgs; ++i)
-            nBytes += String::countBytes(szArglist[i]);
-        OwningBuffer buffer(nBytes);
-        UInt8* p = buffer.data();
+            nBytes += String::bytes(szArglist[i]);
+        String buffer(nBytes);
         int s = 0;
         for (int i = 0; i < nArgs; ++i) {
-            UInt8* p2 = String::addToBuffer(szArglist[i], p);
-            int n = p2 - p;
-            p = p2;
-            _arguments[i] = String(buffer, s, n);
+            buffer += szArglist[i];
+            int n = buffer.length() - s;
+            _arguments[i] = buffer.subString(s, n);
             s += n;
         }
 #ifdef _WINDOWS

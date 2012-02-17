@@ -168,10 +168,9 @@ class FunctionName : public SymbolName
 public:
     SymbolLabel resolveIdentifier(Span span)
     {
-        if (_overloads.count() > 1) {
-            static String error(" is an overloaded function - I don't know which overload you mean.");
-            span.throwError(_name + error);
-        }
+        if (_overloads.count() > 1)
+            span.throwError(_name + " is an overloaded function - I don't "
+                "know which overload you mean.");
         return _label;
     }
     void addOverload(SymbolLabel label)
@@ -179,10 +178,9 @@ public:
         Symbol functionDefinition = label.target();
         Symbol type = typeOf(functionDefinition);
         SymbolArray types = type[2].array();
-        if (_overloads.hasKey(types)) {
-            static String error("This overload has already been defined.");
-            spanOf(functionDefinition).throwError(error);
-        }
+        if (_overloads.hasKey(types))
+            spanOf(functionDefinition).throwError("This overload has already "
+                "been defined.");
         _overloads.add(types, label);
         if (_overloads.count() == 1)
             _argumentTypes = types;
@@ -207,8 +205,7 @@ String identifierToString(SymbolEntry identifier)
 {
     if (!identifier.isSymbol())
         return identifier.string();
-    static String op("operator");
-    return op + atomToString(identifier.symbol().atom());
+    return "operator" + atomToString(identifier.symbol().atom());
 }
 
 String typesToString(SymbolArray array);
@@ -228,10 +225,9 @@ public:
     Scope* functionScope() const { return _functionScope; }
     void addVariable(SymbolEntry identifier, SymbolLabel label, Span span)
     {
-        if (_symbolTable.hasKey(identifier)) {
-            static String error(" is already defined");
-            span.throwError(identifierToString(identifier) + error);
-        }
+        if (_symbolTable.hasKey(identifier))
+            span.throwError(identifierToString(identifier) +
+                " is already defined");
         _symbolTable.add(identifier, new VariableName(label));
     }
     SymbolLabel resolveIdentifier(SymbolEntry identifier, Span span)
@@ -239,8 +235,8 @@ public:
         if (!_symbolTable.hasKey(identifier)) {
             if (_outer != 0)
                 return _outer->resolveIdentifier(identifier, span);
-            static String error("Undefined symbol ");
-            span.throwError(error + identifierToString(identifier));
+            span.throwError("Undefined symbol " +
+                identifierToString(identifier));
         }
         return _symbolTable[identifier]->resolveIdentifier(span);
     }
@@ -249,11 +245,11 @@ public:
         FunctionName* functionName;
         if (_symbolTable.hasKey(identifier)) {
             Reference<SymbolName> symbol = _symbolTable[identifier];
-            functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
-            if (functionName == 0) {
-                static String error(" is already defined as a variable");
-                span.throwError(identifierToString(identifier) + error);
-            }
+            functionName = dynamic_cast<FunctionName*>(
+                static_cast<SymbolName*>(symbol));
+            if (functionName == 0)
+                span.throwError(identifierToString(identifier) +
+                    " is already defined as a variable");
         }
         else {
             functionName = new FunctionName;
@@ -263,40 +259,38 @@ public:
     }
     void addType(SymbolEntry identifier, SymbolLabel label, Span span)
     {
-        if (_typeTable.hasKey(identifier)) {
-            static String error(" has already been defined.");
-            span.throwError(identifierToString(identifier) + error);
-        }
+        if (_typeTable.hasKey(identifier))
+            span.throwError(identifierToString(identifier) +
+                " has already been defined.");
         _typeTable.add(identifier, label);
     }
-    SymbolLabel resolveFunction(SymbolEntry identifier, SymbolArray argumentTypes, Span span)
+    SymbolLabel resolveFunction(SymbolEntry identifier,
+        SymbolArray argumentTypes, Span span)
     {
         if (!_symbolTable.hasKey(identifier)) {
-            if (_outer == 0) {
-                static String error("Undefined function ");
-                span.throwError(error + identifierToString(identifier));
-            }
+            if (_outer == 0)
+                span.throwError("Undefined function " +
+                    identifierToString(identifier));
             return _outer->resolveFunction(identifier, argumentTypes, span);
         }
         Reference<SymbolName> symbol = _symbolTable[identifier];
-        FunctionName* functionName = dynamic_cast<FunctionName*>(static_cast<SymbolName*>(symbol));
-        if (functionName == 0) {
-            static String error(" is not a function");
-            span.throwError(identifierToString(identifier) + error);
-        }
-        if (!functionName->hasOverload(argumentTypes)) {
-            static String error(" has no overload with argument types ");
-            span.throwError(identifierToString(identifier) + error + typesToString(argumentTypes));
-        }
+        FunctionName* functionName = dynamic_cast<FunctionName*>(
+            static_cast<SymbolName*>(symbol));
+        if (functionName == 0)
+            span.throwError(identifierToString(identifier) +
+                " is not a function");
+        if (!functionName->hasOverload(argumentTypes))
+            span.throwError(identifierToString(identifier) +
+                " has no overload with argument types " +
+                typesToString(argumentTypes));
         return functionName->lookUpOverload(argumentTypes);
     }
     SymbolLabel resolveType(SymbolEntry identifier, Span span)
     {
         if (!_typeTable.hasKey(identifier)) {
-            if (_outer == 0) {
-                static String error("Undefined type ");
-                span.throwError(error + identifierToString(identifier));
-            }
+            if (_outer == 0)
+                span.throwError("Undefined type " +
+                    identifierToString(identifier));
             return _outer->resolveType(identifier, span);
         }
         return _typeTable[identifier];
@@ -608,8 +602,10 @@ void resolveTypeOf(Symbol symbol)
 {
     Symbol type = typeOf(symbol);
     if (type.valid()) {
-        if (type.atom() == atomAuto)
-            spanOf(symbol).throwError(String("Cycle in type resolution")); // TODO - improve error message to explain cycle
+        if (type.atom() == atomAuto) {
+            // TODO - improve error message to explain cycle
+            spanOf(symbol).throwError("Cycle in type resolution");
+        }
         return;
     }
     setType(symbol, Symbol(atomAuto));
@@ -635,10 +631,9 @@ void resolveTypeOf(Symbol symbol)
             type = symbol[1].symbol();
             if (type.atom() == atomAuto) {
                 Symbol initializer = symbol[3].symbol();
-                if (!initializer.valid()) {
-                    static String error("Auto variable declarations must be initialized");
-                    spanOf(symbol).throwError(error);
-                }
+                if (!initializer.valid())
+                    spanOf(symbol).throwError(
+                        "Auto variable declarations must be initialized");
                 type = typeOf(initializer);
             }
             else {

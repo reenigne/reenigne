@@ -78,7 +78,7 @@ public:
     {
         return _typeConverter.conversion(e.type(), expectedType)(e);
     }
-    
+
     void load(File file)
     {
         String contents = file.contents();
@@ -97,8 +97,7 @@ public:
                 load(e.value<String>());
             }
             if (!_options.hasKey(name))
-                identifier.span().throwError(
-                    String("Unknown identifier ") + name);
+                identifier.span().throwError("Unknown identifier " + name);
             Space::assertCharacter(&source, '=', &span);
             TypedValue e = convert(parseExpression(&source),
                 _options[name].type());
@@ -108,8 +107,8 @@ public:
         for (HashTable<String, TypedValue>::Iterator i = _options.begin();
             i != _options.end(); ++i) {
             if (!i.value().valid())
-                throw Exception(file.messagePath() + colonSpace + i.key() +
-                    String(" not defined and no default is available."));
+                throw Exception(file.messagePath() + ": " + i.key() +
+                    " not defined and no default is available.");
         }
     }
     template<class T> T get(String name) { return get(name).value<T>(); }
@@ -156,10 +155,9 @@ private:
     }
     void throwError(CharacterSource* source)
     {
-        static String expected("Expected expression");
-        source->location().throwError(expected);
+        source->location().throwError("Expected expression");
     }
-    
+
     TypedValue combine(TypedValue left, TypedValue right)
     {
         if (left.valid())
@@ -168,15 +166,9 @@ private:
                 left.span() + right.span());
         return right;
     }
-    
+
     TypedValue parseDoubleQuotedString(CharacterSource* source)
     {
-        static String endOfFile("End of file in string");
-        static String endOfLine("End of line in string");
-        static String printableCharacter("printable character");
-        static String escapedCharacter("escaped character");
-        static String hexadecimalDigit("hexadecimal digit");
-        static String toString("toString");
         Span span;
         Span startSpan;
         if (!source->parse('"', &startSpan))
@@ -185,10 +177,10 @@ private:
         Span stringEndSpan = startSpan;
         int startOffset = source->offset();
         int endOffset;
-        String insert(empty);
+        String insert;
         int n;
         int nn;
-        String string(empty);
+        String string;
         TypedValue expression;
         TypedValue part;
         do {
@@ -197,9 +189,8 @@ private:
             int c = s.get(&span);
             if (c < 0x20 && c != 10) {
                 if (c == -1)
-                    source->location().throwError(endOfFile);
-                source->throwUnexpected(printableCharacter,
-                    String::hexadecimal(c, 2));
+                    source->location().throwError("End of file in string");
+                source->throwUnexpected("printable character");
             }
             *source = s;
             switch (c) {
@@ -213,31 +204,32 @@ private:
                     c = s.get(&stringEndSpan);
                     if (c < 0x20) {
                         if (c == 10)
-                            source->location().throwError(endOfLine);
+                            source->location().throwError(
+                                "End of line in string");
                         if (c == -1)
-                            source->location().throwError(endOfFile);
-                        source->throwUnexpected(escapedCharacter,
-                            String::hexadecimal(c, 2));
+                            source->location().throwError(
+                                "End of file in string");
+                        source->throwUnexpected("escaped character");
                     }
                     *source = s;
                     switch (c) {
                         case 'n':
-                            insert = newLine;
+                            insert = "\n";
                             break;
                         case 't':
-                            insert = tab;
+                            insert = codePoint(9);
                             break;
                         case '$':
-                            insert = dollar;
+                            insert = "$";
                             break;
                         case '"':
-                            insert = doubleQuote;
+                            insert = "\"";
                             break;
                         case '\'':
-                            insert = singleQuote;
+                            insert = "'";
                             break;
                         case '`':
-                            insert = backQuote;
+                            insert = "`";
                             break;
                         case 'U':
                             source->assert('+', &stringEndSpan);
@@ -245,11 +237,9 @@ private:
                             for (int i = 0; i < 4; ++i) {
                                 nn = parseHexadecimalCharacter(source,
                                     &stringEndSpan);
-                                if (nn == -1) {
-                                    s = *source;
-                                    source->throwUnexpected(hexadecimalDigit,
-                                        String::codePoint(s.get()));
-                                }
+                                if (nn == -1)
+                                    source->
+                                        throwUnexpected("hexadecimal digit");
                                 n = (n << 4) | nn;
                             }
                             nn = parseHexadecimalCharacter(source,
@@ -261,11 +251,10 @@ private:
                                 if (nn != -1)
                                     n = (n << 4) | nn;
                             }
-                            insert = String::codePoint(n);
+                            insert = codePoint(n);
                             break;
                         default:
-                            source->throwUnexpected(escapedCharacter,
-                                String::codePoint(c));
+                            source->throwUnexpected("escaped character");
                     }
                     string += insert;
                     startOffset = source->offset();
@@ -279,32 +268,30 @@ private:
                                 source->assert(')', &span);
                             }
                             else
-                                source->location().throwError(String(
-                                    "Expected identifier or parenthesized "
-                                        "expression"));
+                                source->location().throwError("Expected "
+                                    "identifier or parenthesized expression");
                         }
                         String s = i.name();
                         if (s[0] >= 'a' && s[0] <= 'z')
                             part = valueOfIdentifier(i);
                         else
-                            i.span().throwError(
-                                String("Expected identifier or parenthesized "
-                                        "expression"));
+                            i.span().throwError("Expected identifier or "
+                            "parenthesized expression");
                     }
                     if (part.type() == Type::integer)
                         part = TypedValue(Type::string,
-                            String::decimal(part.value<int>()), part.span());
+                            decimal(part.value<int>()), part.span());
                     else
                         if (part.type() != Type::string)
                             source->location().throwError(
-                                String("Don't know how to convert type ") +
+                                "Don't know how to convert type " +
                                 part.type().toString() +
-                                String(" to a string"));
+                                " to a string");
                     string += s.subString(startOffset, endOffset);
                     startOffset = source->offset();
                     expression = combine(expression, TypedValue(Type::string,
                         string, stringStartSpan + stringEndSpan));
-                    string = empty;
+                    string = "";
                     expression = combine(expression, part);
                     break;
                 default:
@@ -312,13 +299,11 @@ private:
             }
         } while (true);
     }
-    
+
     TypedValue parseEmbeddedLiteral(CharacterSource* source)
     {
         Span startSpan;
         Span endSpan;
-        static String empty;
-        static String endOfFile("End of file in string");
         if (!source->parse('#', &startSpan))
             return TypedValue();
         if (!source->parse('#', &endSpan))
@@ -331,7 +316,7 @@ private:
         do {
             int c = s.get();
             if (c == -1)
-                source->location().throwError(endOfFile);
+                source->location().throwError("End of file in string");
             if (c == 10)
                 break;
             *source = s;
@@ -339,14 +324,14 @@ private:
         int endOffset = source->offset();
         String terminator = source->subString(startOffset, endOffset);
         startOffset = s.offset();
-        CharacterSource terminatorSource(terminator, empty);
+        CharacterSource terminatorSource(terminator, "");
         int cc = terminatorSource.get();
         String string;
         do {
             *source = s;
             int c = s.get();
             if (c == -1)
-                source->location().throwError(endOfFile);
+                source->location().throwError("End of file in string");
             if (cc == -1) {
                 if (c != '#')
                     continue;
@@ -387,7 +372,7 @@ private:
                 }
             if (c == 10) {
                 string += s.subString(startOffset, source->offset()) +
-                    String::codePoint(10);
+                    codePoint(10);
                 startOffset = s.offset();
             }
         } while (true);
@@ -459,7 +444,7 @@ private:
         if (!_options.hasKey(s))
             i.span().throwError(String("Unknown identifier ") + s);
         TypedValue option = _options[s];
-        return TypedValue(option.type(), option.value(), i.span()); 
+        return TypedValue(option.type(), option.value(), i.span());
     }
     TypedValue parseStructuredExpression(CharacterSource* source,
         List<TypedValue> values, TypedValue label, Span span)
@@ -468,9 +453,9 @@ private:
         List<StructuredType::Member> members;
         int n = 0;
         for (auto i = values.begin(); i != values.end(); ++i) {
-            String name = String::decimal(n);
+            String name(decimal(n));
             table->add(name, *i);
-            members.add(StructuredType::Member(empty, (*i).type()));
+            members.add(StructuredType::Member("", (*i).type()));
             ++n;
         }
         TypedValue v = parseExpression(source);
@@ -493,7 +478,7 @@ private:
             members.add(StructuredType::Member(name, value.type()));
         }
         Space::assertCharacter(source, '}', &span2);
-        return TypedValue(StructuredType(empty, members), table, span + span2);
+        return TypedValue(StructuredType("", members), table, span + span2);
     }
     TypedValue parseExpressionElement(CharacterSource* source)
     {
@@ -561,7 +546,7 @@ private:
         }
         return TypedValue();
     }
-    
+
     TypedValue parseUnaryExpression(CharacterSource* source)
     {
         Span span;
@@ -574,7 +559,7 @@ private:
         }
         return parseExpressionElement(source);
     }
-    
+
     TypedValue parseMultiplicativeExpression(CharacterSource* source)
     {
         TypedValue e = parseUnaryExpression(source);
@@ -611,11 +596,10 @@ private:
                             okay = true;
                         }
                     }
-                if (!okay) 
-                    span.throwError(
-                        String("Don't know how to multiply type ") +
-                        e.type().toString() + String(" and type ") +
-                        e2.type().toString() + String::codePoint('.'));
+                if (!okay)
+                    span.throwError("Don't know how to multiply type " +
+                        e.type().toString() + " and type " +
+                        e2.type().toString() + codePoint('.'));
                 continue;
             }
             if (Space::parseCharacter(source, '/', &span)) {
@@ -627,16 +611,15 @@ private:
                         e.value<int>() / e2.value<int>(),
                         e.span() + e2.span());
                 else
-                    span.throwError(
-                        String("Don't know how to divide type ") +
-                        e.type().toString() + String(" by type ") +
-                        e2.type().toString() + String::codePoint('.'));
+                    span.throwError("Don't know how to divide type " +
+                        e.type().toString() + " by type " +
+                        e2.type().toString() + codePoint('.'));
                 continue;
             }
             return e;
         } while (true);
     }
-    
+
     TypedValue parseExpression(CharacterSource* source)
     {
         TypedValue e = parseMultiplicativeExpression(source);
@@ -658,9 +641,9 @@ private:
                             e.value<String>() + e2.value<String>(),
                             e.span() + e2.span());
                     else
-                        span.throwError(String("Don't know how to add type ") +
-                            e2.type().toString() + String(" to type ") +
-                            e.type().toString() + String::codePoint('.'));
+                        span.throwError("Don't know how to add type " +
+                            e2.type().toString() + " to type " +
+                            e.type().toString() + codePoint('.'));
                 continue;
             }
             if (Space::parseCharacter(source, '-', &span)) {
@@ -668,14 +651,13 @@ private:
                 if (!e2.valid())
                     throwError(source);
                 if (e.type() == Type::integer && e2.type() == Type::integer)
-                    e = TypedValue(Type::integer, 
+                    e = TypedValue(Type::integer,
                         e.value<int>() - e2.value<int>(),
                         e.span() + e2.span());
                 else
-                    span.throwError(
-                        String("Don't know how to subtract type ") +
-                        e2.type().toString() + String(" from type ") +
-                        e.type().toString() + String::codePoint('.'));
+                    span.throwError("Don't know how to subtract type " +
+                        e2.type().toString() + " from type " +
+                        e.type().toString() + codePoint('.'));
                 continue;
             }
             return e;

@@ -92,41 +92,33 @@ template<class T> class Array : Uncopyable
 {
 public:
     Array() : _data(0), _n(0) { }
-    Array(const List<T>& list) : _data(0), _n(0)
+    Array(const List<T>& list)
     {
-        _n = list.count();
-        _data = static_cast<T*>(operator new (_n * sizeof(T)));
-        int i = 0;
+        int n = list.count();
+        _data = static_cast<T*>(operator new(n * sizeof(T)));
+        _n = 0;
         try {
             for (auto p = list.begin(); p != list.end(); ++p) {
-                constructElement(i, *p);
-                ++i;
+                constructElement(_n, *p);
+                ++_n;
             }
         }
         catch (...) {
-            while (i > 0) {
-                --i;
-                destructElement(i);
-            }
+            destructElements();
             throw;
         }
     }
     explicit Array(int n)
     {
-        _n = n;
-        _data = static_cast<T*>(operator new (_n * sizeof(T)));
-        int i = 0;
+        _data = static_cast<T*>(operator new(_n * sizeof(T)));
         try {
-            for (i = 0; i < n; ++i) {
-                constructElement(i);
-                ++i;
+            for (_n = 0; _n < n; ++_n) {
+                constructElement(_n);
+                ++_n;
             }
         }
         catch (...) {
-            while (i > 0) {
-                --i;
-                destructElement(i);
-            }
+            destructElements();
             throw;
         }
     }
@@ -150,27 +142,23 @@ public:
     }
     void swap(Array& other)
     {
-        swap(_data, other._data);
-        swap(_n, other._n);
+        ::swap(_data, other._data);
+        ::swap(_n, other._n);
     }
     ~Array() { release(); }
     T& operator[](int i) { return _data[i]; }
     const T& operator[](int i) const { return _data[i]; }
     int count() const { return _n; }
-protected:
+private:
     Array(const Array& other, int allocated)
     {
-        _data = static_cast<T*>(operator new(allocated * sizeof(T));
-        int i;
+        _data = static_cast<T*>(operator new(allocated * sizeof(T)));
         try {
-            for (int i = 0; i < other._n; ++i)
-                constructElement(i, other[i]);
+            for (_n = 0; _n < other._n; ++_n)
+                constructElement(_n, other[_n]);
         }
         catch (...) {
-            while (i > 0) {
-                --i;
-                destructElement(i);
-            }
+            destructElements();
             throw;
         }
     }
@@ -178,9 +166,16 @@ protected:
     {
         new(static_cast<void*>(&(*this)[i])) T(initializer);
     }
+    void destructElement(int i)
+    {
+        (&(*this)[i])->~T();
+    }
+    void constructElement(int i)
+    {
+        new(static_cast<void*>(&(*this)[i])) T();
+    }
 
     int _n;
-private:
     void release()
     {
         if (_data != 0) {
@@ -190,22 +185,23 @@ private:
         }
         _data = 0;
     }
-    void constructElement(int i)
+    void destructElements()
     {
-        new(static_cast<void*>(&(*this)[i])) T();
-    }
-    void destructElement(int i)
-    {
-        (&(*this)[i])->~T();
+        while (_n > 0) {
+            --_n;
+            destructElement(_n);
+        }
     }
 
     T* _data;
+
+    template<class T> friend class AppendableArray;
 };
 
-template<class T> class AppendableArray : public Array
+template<class T> class AppendableArray : public Array<T>
 {
 public:
-    AppendableArray(), _allocated(0) { }
+    AppendableArray() : _allocated(0) { }
     AppendableArray(const List<T>& list)
       : Array(list), _allocated(list.count()) { }
     explicit AppendableArray(int n) : Array(n), _allocated(n) { }
@@ -217,14 +213,88 @@ public:
     void append(const T& value)
     {
         if (_allocated == _n) {
-            Array<T> n(*this, _allocated*2);
+            int allocate = _allocated *2;
+            if (allocate == 0)
+                allocate = 1;
+            Array<T> n(*this, allocate);
             Array::swap(n);
-            _allocated *= 2;
+            _allocated = allocate;
         }
         constructElement(_n, value);
         ++_n;
     }
+    void trim()
+    {
+        if (_allocated != _n) {
+            Array<T> n(*this, _n);
+            Array::swap(n);
+            _allocated = _n;
+        }
+    }
+    void reserve(int size)
+    {
+        int allocate = _allocated;
+        while (allocate < size)
+            allocate *= 2;
+        if (_allocated < allocate) {
+            Array<T> n(*this, allocate);
+            Array::swap(n);
+            _allocated = allocate;
+        }
+    }
+    void append(const Array& other)
+    {
+        reserve(_n + other._n);
+        int i;
+        try {
+            for (i = 0; i < other._n; ++i)
+                constructElement(_n + i, other[i]);
+        }
+        catch (...) {
+            destructElements(i);
+            throw;
+        }
+        _n += other._n;
+    }
+    void append(const T* data, int length)
+    {
+        reserve(_n + length);
+        int i;
+        try {
+            for (i = 0; i < length; ++i) {
+                constructElement(_n + i, *data);
+                ++data;
+            }
+        }
+        catch (...) {
+            destructElements(i);
+            throw;
+        }
+        _n += length;
+    }
+    void expand(int length)
+    {
+        reserve(_n + length);
+        int i;
+        try {
+            for (i = 0; i < length; ++i)
+                constructElement(_n + i);
+        }
+        catch (...) {
+            destructElements(i);
+            throw;
+        }
+        _n += length;
+    }
 private:
+    void destructElements(int n)
+    {
+        while (n > 0) {
+            --n;
+            destructElement(_n + n);
+        }
+    }
+
     int _allocated;
 };
 

@@ -70,17 +70,17 @@ private:
             _restParameterKind(restParameterKind) { }
         String toString() const
         {
-            String s = lessThan;
+            String s("<");
             TemplateKind k(this);
             bool needComma = false;
             do {
                 if (needComma)
-                    s += commaSpace;
+                    s += ", ";
                 s += k.first().toString();
                 k = k.rest();
                 needComma = true;
             } while (k != Kind::type);
-            return s + greaterThan;
+            return s + ">";
         }
         bool equals(const Kind::Implementation* other) const
         {
@@ -300,7 +300,7 @@ private:
         String toString2(bool* needComma) const
         {
             *needComma = false;
-            return _name + lessThan;
+            return _name + "<";
         }
     private:
         String _name;
@@ -316,13 +316,13 @@ private:
         String toString() const
         {
             bool needComma;
-            return toString2(&needComma) + greaterThan;
+            return toString2(&needComma) + ">";
         }
         String toString2(bool* needComma) const
         {
             String s = _parent->toString2(needComma);
             if (*needComma)
-                s += commaSpace;
+                s += ", ";
             s += _argument.toString();
             *needComma = true;
             return s;
@@ -362,8 +362,8 @@ private:
             bool needComma;
             String s = _parent->toString2(&needComma);
             if (needComma)
-                s += commaSpace;
-            return s + _argument.toString() + greaterThan;
+                s += ", ";
+            return s + _argument.toString() + ">";
         }
 
         virtual bool isInstantiation() const { return true; }
@@ -390,7 +390,7 @@ private:
     {
     public:
         Implementation(const Type &referent) : _referent(referent) { }
-        String toString() const { return _referent.toString() + asterisk; }
+        String toString() const { return _referent.toString() + "*"; }
         bool equals(const Type::Implementation* other) const
         {
             const Implementation* o =
@@ -419,13 +419,13 @@ private:
           : _returnType(returnType), _parameterTypes(parameterTypes) { }
         String toString() const
         { 
-            String s = _returnType.toString() + openParenthesis;
+            String s = _returnType.toString() + "(";
             for (int i = 0; i < _parameterTypes.count(); ++i) {
                 if (i > 0)
-                    s += commaSpace;
+                    s += ", ";
                 s += _parameterTypes[i].toString();
             }
-            return s + closeParenthesis;
+            return s + ")";
         }
         bool equals(const Type::Implementation* other) const
         {
@@ -675,7 +675,7 @@ public:
                 StructuredType::Member member = (*toMembers)[i];
                 String name = member.name();
                 Type toType = member.type();
-                String number = String::decimal(i);
+                String number(decimal(i));
                 int fromIndex;
                 if (fromNames->hasKey(name)) {
                     fromIndex = (*fromNames)[name];
@@ -713,23 +713,19 @@ public:
             value.span().throwError(toString(value));
             return TypedValue();
         }
-        virtual String sub(const TypedValue& value) const
-        {
-            return empty;
-        }
+        virtual String sub(const TypedValue& value) const { return ""; }
         String toString(const TypedValue& value) const
         {
-            String r = String("No conversion");
+            String r("No conversion");
             String f = _from.toString();
-            if (f != empty)
-                r += String(" from type ") + f;
-            r += String(" to type ") + _to.toString() +
-                String(" is available");
+            if (f != "")
+                r += " from type " + f;
+            r += " to type " + _to.toString() + " is available";
             String s = sub(value);
-            if (s == empty)
+            if (s == "")
                 r += ".";
             else
-                r += String(": ") + s;
+                r += ": " + s;
             return r;
         }
         bool valid() const { return false; }
@@ -776,10 +772,9 @@ private:
         String sub(const TypedValue& value) const
         {
             auto input = value.value<Value<HashTable<String, TypedValue>>>();
-            return String("Member ") + _name + " defined at " +
-                (*input)[_name].span().toString() +
-                " is already defined at " +
-                (*input)[String::decimal(_i)].span().toString() + ".";
+            return "Member " + _name + " defined at " +
+                (*input)[_name].span().toString() + " is already defined at " +
+                (*input)[decimal(_i)].span().toString() + ".";
         }
     private:
         int _i;
@@ -793,7 +788,7 @@ private:
           : ConversionFailureImplementation(from, to), _name(name) { }
         String sub(const TypedValue& value) const
         {
-            return String("Member ") + _name + " is not defined.";
+            return "Member " + _name + " is not defined.";
         }
     private:
         String _name;
@@ -810,9 +805,9 @@ private:
             auto input = value.value<Value<HashTable<String, TypedValue>>>();
             ConstReference<ConversionFailureImplementation> i =
                 _conversion._implementation;
-            String r = String("For child member ") + _name;
+            String r = "For child member " + _name;
             if (i != 0)
-                r += String(": ") + i->toString((*input)[_name]); 
+                r += ": " + i->toString((*input)[_name]); 
             return r + ".";
         }
     private:
@@ -904,7 +899,7 @@ private:
           : ConversionFailureImplementation(from, to) { }
         String sub(const TypedValue& value) const
         {
-            return String("Not a conversion to an Array."); 
+            return "Not a conversion to an Array.";
         }
     };
     class NotTupleConversionFailure :
@@ -915,7 +910,7 @@ private:
           : ConversionFailureImplementation(from, to) { }
         String sub(const TypedValue& value) const
         {
-            return String("Not a conversion from a Tuple."); 
+            return "Not a conversion from a Tuple."; 
         }
     };
     class ElementConversionFailure :
@@ -934,8 +929,7 @@ private:
                 ++iterator;
             ConstReference<ConversionFailureImplementation> i =
                 _conversion._implementation;
-            return String("For element ") + String::decimal(_i) + ": " +
-                i->toString(*iterator); 
+            return String("For element ") + _i + ": " + i->toString(*iterator); 
         }
     private:
         int _i;

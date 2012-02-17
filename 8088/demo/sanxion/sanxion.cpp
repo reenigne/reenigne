@@ -8,6 +8,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 //#include "unity\convolution_pipe.h"
+#include "unity\main.h"
 
 typedef signed short Sample;
 
@@ -675,4 +676,4 @@ public:
         sink.play();
         //sink.wait();
     }
-}
+};

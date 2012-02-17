@@ -2,10 +2,10 @@
 
 int main()
 {
-    File inFile(String("/t/projects/emulation/pc/ibm5150.net/f/fire/fire.ech"));
+    File inFile("/t/projects/emulation/pc/ibm5150.net/f/fire/fire.ech");
     FileHandle in(inFile);
     in.openRead();
-    File outFile(String("fire.raw"));
+    File outFile("fire.raw");
     FileHandle out(outFile);
     out.openWrite();
     Array<Byte> four;

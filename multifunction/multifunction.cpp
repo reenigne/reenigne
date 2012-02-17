@@ -55,13 +55,13 @@ public:
                     ++count;
                 }
             }
-            String s = String::hexadecimal(gate, 2) + ": ";
+            String s = hex(gate, 2) + ": ";
             for (int i = 0; i < 8; ++i)
                 if (((gate >> i) & 1) != 0)
                     s += "*";
                 else
                     s += ".";
-            s += String(" : ") + String::decimal(count).alignRight(2) + space;
+            s += " : " + String(decimal(count)).alignRight(2) + " ";
             for (int i = 0; i < 0x10; ++i)
                 if (found[i])
                     s += "*";
@@ -71,15 +71,15 @@ public:
             for (int i = 0; i < 0x10; ++i) {
                 if (found[i]) {
                     int circuit = circuits[i];
-                    s += String::codePoint("01DEY"[circuit / 25]);
-                    s += String::codePoint("01DEY"[(circuit / 5) % 5]);
-                    s += String::codePoint("01DEY"[circuit % 5]);
+                    s += codePoint("01DEY"[circuit / 25]);
+                    s += codePoint("01DEY"[(circuit / 5) % 5]);
+                    s += codePoint("01DEY"[circuit % 5]);
                 }
                 else
                     s += "---";
-                s += space;
+                s += " ";
             }
-            _console.write(s + newLine);
+            _console.write(s + "\n");
         }
     }
 };

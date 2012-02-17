@@ -31,20 +31,20 @@ public:
         config.load(_arguments[1]);
 
         Bitmap<SRGB> input;
-        input.load(File(config.getValue<String>("inputPicture")));
+        input.load(File(config.get<String>("inputPicture")));
         Bitmap<Vector3<float> > linearInput;
         input.convert(&linearInput, ConvertSRGBToLinear());
-        Array<Any> sizeArray = config.getValue<List<Any> >("outputSize");
+        Array<Any> sizeArray = config.get<List<Any> >("outputSize");
         Vector size(sizeArray[0].value<int>(), sizeArray[1].value<int>());
         Bitmap<Vector3<float> > linearOutput(size);
-        if (config.getValue<bool>("subpixels"))
+        if (config.get<bool>("subpixels"))
             linearInput.subPixelResample(&linearOutput,
-                config.getValue<bool>("tripleResolution"));
+                config.get<bool>("tripleResolution"));
         else
             linearInput.resample(&linearOutput);
         Bitmap<SRGB> output;
         linearOutput.convert(&output, ConvertLinearToSRGB());
-        output.save(File(config.getValue<String>("outputPicture")));
+        output.save(File(config.get<String>("outputPicture")));
     }
 private:
     class ConvertSRGBToLinear

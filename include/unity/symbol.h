@@ -6,8 +6,8 @@
 
 String quote(String string)
 {
-    CodePointSource s(string);
-    String r = doubleQuote;
+    CharacterSource s(string);
+    String r("\"");
     int start = 0;
     int end;
     do {
@@ -15,20 +15,19 @@ String quote(String string)
         if (c == -1) {
             end = s.offset();
             r += s.subString(start, end);
-            return r + doubleQuote;
+            return r + "\"";
         }
         if (c == '"' || c == '\\') {
             end = s.offset();
-            r += s.subString(start, end);
+            r += s.subString(start, end) + "\\";
             start = end;
-            r += backslash;
         }
     } while (true);
 }
 
 int quotedLength(String string)
 {
-    CodePointSource s(string);
+    CharacterSource s(string);
     int r = 2;
     do {
         int c = s.get();
@@ -153,7 +152,7 @@ protected:
         {
             x += decimalLength(_value);
             more = true;
-            return String::decimal(_value);
+            return decimal(_value);
         }
         int length(int max) const { return decimalLength(_value); }
         int value() const { return _value; }
@@ -338,9 +337,9 @@ private:
         {
             ++x;
             more = true;
-            String s = openParenthesis;
+            String s("(");
             if (_labelReferences > 0) {
-                s = String::decimal(label()) + colon + s;
+                s = decimal(label()) + ":" + s;
                 x += 1 + decimalLength(label());
             }
             String a = atomToString(_atom);
@@ -355,12 +354,12 @@ private:
                 if (canInlineNext && x + 1 + entry.length(width - x) <=
                     width - 1) {
                     // Fits on the line - inline it
-                    s += space;
+                    s += " ";
                     ++x;
                 }
                 else {
                     // Doesn't fit on the line - put it on its own line.
-                    s += newLine + space*(indent + 2);
+                    s += "\n" + String(" ")*(indent + 2);
                     x = indent + 2;
                     more = false;
                 }
@@ -369,7 +368,7 @@ private:
                 tail = tail->tail();
             }
             ++x;
-            return s + closeParenthesis;
+            return s + ")";
         }
 
         Atom atom() const { return _atom; }
@@ -561,12 +560,11 @@ private:
             more = true;
             if (n == 0) {
                 ++x;
-                static String s("[]");
-                return s;
+                return "[]";
             }
 
             bool canInlineNext;
-            String s = openBracket + _symbols[0].toString(width,
+            String s = "[" + _symbols[0].toString(width,
                 spacesPerIndent, indent + 2, x, canInlineNext);
 
             for (int i = 1; i < n; ++i) {
@@ -574,12 +572,12 @@ private:
                 if (canInlineNext && x + 1 + symbol.length(width - x) <=
                     width - 1) {
                     // Fits on the line - inline it
-                    s += space;
+                    s += " ";
                     ++x;
                 }
                 else {
                     // Doesn't fit on the line - put it on its own line.
-                    s += newLine + space*(indent + 2);
+                    s += "\n" + String(" ")*(indent + 2);
                     x = indent + 2;
                     more = false;
                 }
@@ -587,7 +585,7 @@ private:
                     canInlineNext);
             }
             ++x;
-            return s + closeBracket;
+            return s + "]";
         }
         bool isSymbol() const { return false; }
         bool isArray() const { return true; }
@@ -646,7 +644,7 @@ private:
         {
             x += length();
             more = true;
-            return lessThan + String::decimal(_target->label()) + greaterThan;
+            return "<" + decimal(_target->label()) + ">";
         }
         int hash() const { return reinterpret_cast<int>(_target); }
         bool isSymbol() const { return false; }

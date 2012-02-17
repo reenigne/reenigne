@@ -8,16 +8,15 @@ public:
     void run()
     {
         if (_arguments.count() == 1) {
-            _console.write(String("Usage: send <name of file to send>\n"));
+            _console.write("Usage: send <name of file to send>\n");
             return;
         }
         String fileName = _arguments[1];
         String data = File(fileName).contents();
         int l = data.length();
         if (l > 0x400) {
-            _console.write(String("Error: ") + fileName + String(" is ") +
-                String::decimal(l) +
-                String(" bytes (must be less than 1024).\n"));
+            _console.write("Error: " + fileName + " is " + l +
+                " bytes (must be less than 1024).\n");
             return;
         }
 
@@ -73,7 +72,7 @@ public:
         sendByte(l >> 8);    // Send high byte of length
         for (int i = 0; i < l; ++i)
             sendByte(data[i]);  // Send program byte
-        String("Send complete.\n").write(_console);
+        _console.write("Send complete.\n");
         thread.join();
     }
 private:

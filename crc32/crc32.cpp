@@ -55,10 +55,7 @@ class Crc32
 public:
     void operator()(const File& file)
     {
-        Array<UInt8> data;
-        String filePath = file.messagePath();
-        filePath.copyTo(&data);
-        const char* path = reinterpret_cast<char*>(&data[0]);
+        NullTerminatedString path(file.messagePath());
 
         FileHandle handle(file);
         if (!handle.tryOpenRead()) {

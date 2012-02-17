@@ -158,7 +158,7 @@ public:
 
         _dataOutput = Bitmap<UInt16>(
             Vector(_inputSize.x/(_hres ? 4 : 8), _inputSize.y));
-        _compositeData = Bitmap<.allocate(_outputSize.x*_outputSize.y);
+        _compositeData/* = Bitmap<*/.allocate(_outputSize.x*_outputSize.y);
         _digitalOutput.allocate(_outputSize.x*_outputSize.y);
         _compositeOutput.allocate(_outputSize.x*_outputSize.y);
         _perceptualOutput.allocate(_outputSize.x*_outputSize.y);

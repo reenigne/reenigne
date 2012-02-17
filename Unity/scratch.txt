@@ -151,9 +151,6 @@ Add operator  5 .*                LtR
 Add operator  5 ->*               LtR
 Add operator 16 ?:                RtL
 Need a better error message when statement isn't recognized as such
-For String::throwUnexpected(), print name (or hex) of found character to avoid putting unprintable characters in error messages.
-  Need a way to convert any codepoint into an ASCII printable string
-    Use U+xxxx
 Make sure we have a sensible error message when no memory can be allocated at all
 Add 1-bit, 2-bit, 4-bit, 128-bit, 256-bit and 512-bit types
 Add "fastest at least n bit" integral and floating-point types
@@ -213,7 +210,7 @@ Have a Symbol-like type built in - the atoms are Type objects (or pointers to th
   All objects with a vtable pointer derive from some base type (Dynamic?)
   All objects derive from Object
 
-Need to thing about what Type::toString() returns for class types
+Need to think about what Type::toString() returns for class types
   keep track of first name assigned to type if it's defined with an alias
 
 Optimization: If g is only ever called by f, we can do the stack correction for g at the same time we do the stack correction for f.
@@ -225,7 +222,7 @@ Value range propagation
 The operator*() function call returns a pointer, so we need to actually dereference it to get an LValue or RValue.
 
 adapters.txt: Allow different types for the two operands (particularly the relational ones)?
-                                  
+
 Build the static String table and String data table
   Want to make it as small as possible
     If a is a substring of b, only need to put b in the table.

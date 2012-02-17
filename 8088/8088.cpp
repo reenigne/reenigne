@@ -3,7 +3,6 @@
 #include "unity/file.h"
 #include "unity/stack.h"
 #include "unity/hash_table.h"
-#include "unity/character_source.h"
 #include "unity/main.h"
 #include "unity/space.h"
 #include "unity/config_file.h"
@@ -43,7 +42,7 @@ public:
     void addComponent(Component* component) { _components.add(component); }
     String save()
     {
-        StringBuilder s("simulator = {");
+        String s("simulator = {");
         bool needComma = false;
         for (auto i = _components.begin(); i != _components.end(); ++i) {
             if ((*i)->name().empty())
@@ -90,7 +89,7 @@ private:
 
 class ISA8BitBus;
 
-class ISA8BitComponent : public Component
+template<class T> class ISA8BitComponentTemplate : public Component
 {
 public:
     // Address bit 31 = write
@@ -107,6 +106,8 @@ protected:
     ISA8BitBus* _bus;
     bool _active;
 };
+
+typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
 
 class ISA8BitBus : public Component
 {
@@ -148,7 +149,7 @@ public:
     }
     String save()
     {
-        StringBuilder s("bus: {");
+        String s("bus: {");
         bool needComma = false;
         for (auto i = _components.begin(); i != _components.end(); ++i) {
             if ((*i)->name().empty())
@@ -158,8 +159,7 @@ public:
             needComma = true;
             s += (*i)->save();
         }
-        s += "}";
-        return s;
+        return s + "}";
     }
     Type type()
     {
@@ -192,7 +192,7 @@ private:
     List<ISA8BitComponent*> _components;
     UInt8 _data;
 
-    friend class ISA8BitComponent;
+    template<class T> friend class ISA8BitComponentTemplate;
 };
 
 //class Motorola6845CRTC : public Component
@@ -261,16 +261,16 @@ public:
     }
     String save()
     {
-        StringBuilder s("ram: ###\n");
+        String s("ram: ###\n");
         for (int y = 0; y < 0xa0000; y += 0x20) {
-            String line; // = empty;
+            String line;
             for (int x = 0; x < 0x20; x += 4) {
                 int p = y + x;
                 UInt32 v = (_data[p]<<24) + (_data[p+1]<<16) +
                     (_data[p+2]<<8) + _data[p+3];
-                line += String::hexadecimal(v, 8) + space;
+                line += hex(v, 8, false) + " ";
             }
-            line += String("//") + String::hexadecimal(y, 5) + "\n";
+            line += String("//") + hex(y, 5, false) + "\n";
             s += line;
         }
         s += "###\n";
@@ -280,7 +280,7 @@ public:
     void load(const TypedValue& value)
     {
         String s = value.value<String>();
-        CharacterSource source(s, empty);
+        CharacterSource source(s, "");
         int a = 0;
         Space::parse(&source);
         do {
@@ -316,10 +316,10 @@ public:
     void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }
     String save()
     {
-        return String("nmiSwitch: ") + (_nmiOn ? "true" : "false") + newLine;
+        return String("nmiSwitch: ") + (_nmiOn ? "true" : "false") + "\n";
     }
     Type type() { return Type::boolean; }
-    void load(const TypedValue& value) { _nmiOn = value.value<boolean>(); }
+    void load(const TypedValue& value) { _nmiOn = value.value<bool>(); }
     String name() { return "nmiSwitch"; }
     TypedValue initial() { return TypedValue(Type::boolean, false); }
 private:
@@ -344,7 +344,7 @@ public:
             if (needComma)
                 s += ", ";
             needComma = true;
-            s += String("0x") + String::hexadecimal(_dmaPages[i], 1);
+            s += hex(_dmaPages[i], 1);
         }
         return s + String("}");
     }
@@ -444,9 +444,9 @@ public:
     void setCPU(Intel8088* cpu) { _cpu = cpu; }
     String disassemble(UInt16 address)
     {
-        _bytes = empty;
+        _bytes = "";
         String i = disassembleInstruction(address);
-        return _bytes.alignLeft(10) + space + i;
+        return _bytes.alignLeft(10) + " " + i;
     }
 private:
     String disassembleInstruction(UInt16 address)
@@ -507,14 +507,13 @@ private:
                 case 6: s = "SHL "; break;
                 case 7: s = "SAR "; break;
             }
-            return s + ea() + String(", ") +
+            return s + ea() + ", " +
                 ((_opcode & 2) == 0 ? String("1") : byteRegs(1));
         }
         if ((_opcode & 0xf8) == 0xd8) {
             _modRM = getByte();
             _wordSize = true;
-            return String("ESC ") + String::decimal(_opcode & 7) +
-                String(", ") + r() + String(", ") + ea();
+            return String("ESC ") + (_opcode & 7) + ", " + r() + ", " + ea();
         }
         if ((_opcode & 0xf6) == 0xe4)
             return String("IN ") + accum() + String(", ") +
@@ -668,7 +667,7 @@ private:
     {
         UInt8 v = _bus->memory(_cpu->codeAddress(_address));
         ++_address;
-        _bytes += String::hexadecimal(v, 2);
+        _bytes += hex(v, 2, false);
         return v;
     }
     UInt16 getWord() { UInt8 low = getByte(); return low + (getByte() << 8); }
@@ -727,17 +726,17 @@ private:
     int mod() { return _modRM >> 6; }
     int reg() { return (_modRM >> 3) & 7; }
     int rm() { return _modRM & 7; }
-    String iw() { return String::hexadecimal(getWord(), 4); }
-    String ib() { return String::hexadecimal(getByte(), 2); }
+    String iw() { return hex(getWord(), 4, false); }
+    String ib() { return hex(getByte(), 2, false); }
     String sb()
     {
         UInt8 byte = getByte();
         if ((byte & 0x80) == 0)
-            return String("+") + String::hexadecimal(byte, 2);
-        return String("-") + String::hexadecimal((-byte) & 0x7f, 2);
+            return String("+") + hex(byte, 2, false);
+        return String("-") + hex((-byte) & 0x7f, 2, false);
     }
     String imm() { return !_wordSize ? ib() : iw(); }
-    String accum() { return !_wordSize ? String("AL") : String("AX"); }
+    String accum() { return !_wordSize ? "AL" : "AX"; }
     String segreg(int r)
     {
         static String sr[8] = {"ES", "CS", "SS", "DS", "??", "??", "??", "??"};
@@ -746,14 +745,13 @@ private:
     String cb()
     {
         SInt8 byte = static_cast<SInt8>(getByte());
-        return String::hexadecimal(_address + byte, 4);
+        return hex(_address + byte, 4, false);
     }
-    String cw() { return String::hexadecimal(_address + getWord(), 4); }
+    String cw() { return hex(_address + getWord(), 4, false); }
     String cp()
     {
         UInt16 offset = getWord();
-        return String::hexadecimal(getWord(), 4) + String(":") +
-            String::hexadecimal(offset, 4);
+        return hex(getWord(), 4, false) + ":" + hex(offset, 4, false);
     }
 
     ISA8BitBus* _bus;
@@ -868,39 +866,35 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        String line = String::decimal(_cycle).alignRight(5) + space;
+        String line = String(decimal(_cycle)).alignRight(5) + " ";
         switch (_busState) {
             case t1:
-                line += String("T1 ") + String::hexadecimal(_busAddress, 5) +
-                    space;
+                line += "T1 " + hex(_busAddress, 5, false) + " ";
                 break;
             case t2:
                 line += "T2 ";
                 if (_ioInProgress == ioWrite)
-                    line += String("M<-") + String::hexadecimal(_busData, 2) +
-                        space;
+                    line += "M<-" + hex(_busData, 2, false) + " ";
                 else
-                    line += space*6;
+                    line += "      ";
                 break;
             case t3: line += "T3       "; break;
             case tWait: line += "Tw       "; break;
             case t4:
                 line += "T4 ";
                 if (_ioInProgress == ioWrite)
-                    line += space*6;
+                    line += "      ";
                 else
                     if (_abandonFetch)
                         line += "----- ";
                     else
-                        line += String("M->") +
-                            String::hexadecimal(_busData, 2) + space;
+                        line += "M->" + hex(_busData, 2, false) + " ";
                 break;
             case tIdle: line += "         "; break;
         }
         if (_newInstruction) {
-            line += String::hexadecimal(csQuiet(), 4) + colon +
-                String::hexadecimal(_newIP, 4) + space +
-                _disassembler.disassemble(_newIP);
+            line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false) +
+                " " + _disassembler.disassemble(_newIP);
         }
         line = line.alignLeft(50);
         for (int i = 0; i < 8; ++i) {
@@ -910,7 +904,7 @@ public:
         }
         line += _flags.text();
         _newInstruction = false;
-        _console->write(line + newLine);
+        _console->write(line + "\n");
         ++_cycle;
         if (_halted || _cycle == _stopAtCycle)
             _simulator->halt();
@@ -2049,101 +2043,69 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     String save()
     {
         String s("cpu: {\n");
-        s += String("  ip: 0x") + String::hexadecimal(_ip, 4) + String(",\n");
-        s += String("  ax: 0x") + String::hexadecimal(_registerData[0], 4) +
-            String(",\n");
-        s += String("  cx: 0x") + String::hexadecimal(_registerData[1], 4) +
-            String(",\n");
-        s += String("  dx: 0x") + String::hexadecimal(_registerData[2], 4) +
-            String(",\n");
-        s += String("  bx: 0x") + String::hexadecimal(_registerData[3], 4) +
-            String(",\n");
-        s += String("  sp: 0x") + String::hexadecimal(_registerData[4], 4) +
-            String(",\n");
-        s += String("  bp: 0x") + String::hexadecimal(_registerData[5], 4) +
-            String(",\n");
-        s += String("  si: 0x") + String::hexadecimal(_registerData[6], 4) +
-            String(",\n");
-        s += String("  di: 0x") + String::hexadecimal(_registerData[7], 4) +
-            String(",\n");
-        s += String("  es: 0x") +
-            String::hexadecimal(_segmentRegisterData[0], 4) + String(",\n");
-        s += String("  cs: 0x") +
-            String::hexadecimal(_segmentRegisterData[1], 4) + String(",\n");
-        s += String("  ss: 0x") +
-            String::hexadecimal(_segmentRegisterData[2], 4) + String(",\n");
-        s += String("  ds: 0x") +
-            String::hexadecimal(_segmentRegisterData[3], 4) + String(",\n");
-        s += String("  flags: 0x") +
-            String::hexadecimal(_flagsData, 4) + String(",\n");
+        s += String("  ip: ") + hex(_ip, 4) + ",\n";
+        s += String("  ax: ") + hex(_registerData[0], 4) + ",\n";
+        s += String("  cx: ") + hex(_registerData[1], 4) + ",\n";
+        s += String("  dx: ") + hex(_registerData[2], 4) + ",\n";
+        s += String("  bx: ") + hex(_registerData[3], 4) + ",\n";
+        s += String("  sp: ") + hex(_registerData[4], 4) + ",\n";
+        s += String("  bp: ") + hex(_registerData[5], 4) + ",\n";
+        s += String("  si: ") + hex(_registerData[6], 4) + ",\n";
+        s += String("  di: ") + hex(_registerData[7], 4) + ",\n";
+        s += String("  es: ") + hex(_segmentRegisterData[0], 4) + ",\n";
+        s += String("  cs: ") + hex(_segmentRegisterData[1], 4) + ",\n";
+        s += String("  ss: ") + hex(_segmentRegisterData[2], 4) + ",\n";
+        s += String("  ds: ") + hex(_segmentRegisterData[3], 4) + ",\n";
+        s += String("  flags: 0x") + hex(_flagsData, 4) + ",\n";
         s += String("  prefetch: {");
         bool needComma = false;
         for (int i = 0; i < _prefetched; ++i) {
             if (needComma)
                 s += ", ";
             needComma = true;
-            s += String("0x") + String::hexadecimal(
-                _prefetchQueue[(i + _prefetchOffset) & 3], 2);
+            s += hex(_prefetchQueue[(i + _prefetchOffset) & 3], 2);
         }
         s += "},\n";
-        s += String("  segment: ") + String::decimal(_segment) + String(",\n");
-        s += String("  segmentOverride: ") +
-            String::decimal(_segmentOverride) + String(",\n");
-        s += String("  prefetchAddress: 0x") +
-            String::hexadecimal(_prefetchAddress, 4) + String(",\n");
-        s += String("  ioType: ") + stringForIOType(_ioType) + String(",\n");
+        s += String("  segment: ") + _segment + ",\n";
+        s += String("  segmentOverride: ") + _segmentOverride + ",\n";
+        s += String("  prefetchAddress: ") + hex(_prefetchAddress, 4) + ",\n";
+        s += String("  ioType: ") + stringForIOType(_ioType) + ",\n";
         s += String("  ioRequested: ") + stringForIOType(_ioRequested) +
-            String(",\n");
+            ",\n";
         s += String("  ioInProgress: ") + stringForIOType(_ioInProgress) +
-            String(",\n");
-        s += String("  busState: ") + stringForBusState(_busState) +
-            String(",\n");
-        s += String("  byte: ") + stringForIOByte(_byte) + String(",\n");
+            ",\n";
+        s += String("  busState: ") + stringForBusState(_busState) + ",\n";
+        s += String("  byte: ") + stringForIOByte(_byte) + ",\n";
         s += String("  abandonFetch: ") + (_abandonFetch ? "true" : "false") +
-            String(",\n");
-        s += String("  wait: ") + String::decimal(_wait) + String(",\n");
-        s += String("  state: ") + stringForState(_state) + String(",\n");
-        s += String("  opcode: 0x") + String::hexadecimal(_opcode, 2) +
-            String(",\n");
-        s += String("  modRM: 0x") + String::hexadecimal(_modRM, 2) +
-            String(",\n");
-        s += String("  data: 0x") + String::hexadecimal(_data, 8) +
-            String(",\n");
-        s += String("  source: 0x") + String::hexadecimal(_source, 8) +
-            String(",\n");
-        s += String("  destination: 0x") +
-            String::hexadecimal(_destination, 8) + String(",\n");
-        s += String("  remainder: 0x") + String::hexadecimal(_remainder, 8) +
-            String(",\n");
-        s += String("  address: 0x") + String::hexadecimal(_address, 4) +
-            String(",\n");
+            ",\n";
+        s += String("  wait: ") + _wait + ",\n";
+        s += String("  state: ") + stringForState(_state) + ",\n";
+        s += String("  opcode: ") + hex(_opcode, 2) + ",\n";
+        s += String("  modRM: ") + hex(_modRM, 2) + ",\n";
+        s += String("  data: ") + hex(_data, 8) + ",\n";
+        s += String("  source: ") + hex(_source, 8) + ",\n";
+        s += String("  destination: ") + hex(_destination, 8) + ",\n";
+        s += String("  remainder: ") + hex(_remainder, 8) + ",\n";
+        s += String("  address: 0x") + hex(_address, 4) + ",\n";
         s += String("  useMemory: ") + (_useMemory ? "true" : "false") +
-            String(",\n");
-        s += String("  wordSize: ") + (_wordSize ? "true" : "false") +
-            String(",\n");
-        s += String("  aluOperation: ") + String::decimal(_aluOperation) +
-            String(",\n");
-        s += String("  afterEA: ") + stringForState(_afterEA) + String(",\n");
-        s += String("  afterIO: ") + stringForState(_afterIO) + String(",\n");
-        s += String("  afterModRM: ") + stringForState(_afterModRM) +
-            String(",\n");
-        s += String("  afterRep: ") + stringForState(_afterRep) +
-            String(",\n");
+            ",\n";
+        s += String("  wordSize: ") + (_wordSize ? "true" : "false") + ",\n";
+        s += String("  aluOperation: ") + _aluOperation + ",\n";
+        s += String("  afterEA: ") + stringForState(_afterEA) + ",\n";
+        s += String("  afterIO: ") + stringForState(_afterIO) + ",\n";
+        s += String("  afterModRM: ") + stringForState(_afterModRM) + ",\n";
+        s += String("  afterRep: ") + stringForState(_afterRep) + ",\n";
         s += String("  sourceIsRM: ") + (_sourceIsRM ? "true" : "false") +
-            String(",\n");
-        s += String("  savedCS: 0x") + String::hexadecimal(_savedCS, 4) +
-            String(",\n");
-        s += String("  savedIP: 0x") + String::hexadecimal(_savedIP, 4) +
-            String(",\n");
-        s += String("  rep: ") + String::decimal(_rep) + String(",\n");
-        s += String("  useIO: ") + (_useIO ? "true" : "false") + String(",\n");
-        s += String("  halted: ") + (_halted ? "true" : "false") +
-            String(",\n");
+            ",\n";
+        s += String("  savedCS: ") + hex(_savedCS, 4) + ",\n";
+        s += String("  savedIP: ") + hex(_savedIP, 4) + ",\n";
+        s += String("  rep: ") + _rep + ",\n";
+        s += String("  useIO: ") + (_useIO ? "true" : "false") + ",\n";
+        s += String("  halted: ") + (_halted ? "true" : "false") + ",\n";
         s += String("  newInstruction: ") +
-            (_newInstruction ? "true" : "false") + String(",\n");
-        s += String("  newIP: 0x") + String::hexadecimal(_newIP, 4) +
-            String(",\n");
-        s += String("  cycle: ") + String::decimal(_cycle);
+            (_newInstruction ? "true" : "false") + ",\n";
+        s += String("  newIP: ") + hex(_newIP, 4) + ",\n";
+        s += String("  cycle: ") + _cycle;
         return s + "}\n";
     }
     Type type()
@@ -2571,7 +2533,7 @@ private:
             case stateMisc:           return "stateMisc";
             case stateMisc2:          return "stateMisc2";
         }
-        return empty;
+        return "";
     }
     String stringForIOType(IOType type)
     {
@@ -2581,7 +2543,7 @@ private:
             case ioWrite:            return "ioWrite";
             case ioInstructionFetch: return "ioInstructionFetch";
         }
-        return empty;
+        return "";
     }
     String stringForBusState(BusState state)
     {
@@ -2593,7 +2555,7 @@ private:
             case t4:    return "t4";
             case tIdle: return "tIdle";
         }
-        return empty;
+        return "";
     }
     String stringForIOByte(IOByte byte)
     {
@@ -2602,7 +2564,7 @@ private:
             case ioWordFirst:  return "ioWordFirst";
             case ioWordSecond: return "ioWordSecond";
         }
-        return empty;
+        return "";
     }
     void div()
     {
@@ -2786,14 +2748,13 @@ private:
         {
             String text;
             if (_read) {
-                text = String::hexadecimal(_readValue, sizeof(T)==1 ? 2 : 4) +
-                    String("<-") + _name + space*2;
+                text = hex(_readValue, sizeof(T)==1 ? 2 : 4, false) + "<-" +
+                    _name + "  ";
                 _read = false;
             }
             if (_written) {
-                text += _name + String("<-") +
-                    String::hexadecimal(_writtenValue, sizeof(T)==1 ? 2 : 4) +
-                    space*2;
+                text += _name + "<-" +
+                    hex(_writtenValue, sizeof(T)==1 ? 2 : 4, false) + "  ";
                 _written = false;
             }
             return text;
@@ -2818,11 +2779,11 @@ private:
         {
             String text;
             if (_read) {
-                text = flags(_readValue) + String("<-") + _name + space*2;
+                text = flags(_readValue) + String("<-") + _name + "  ";
                 _read = false;
             }
             if (_written) {
-                text += _name + String("<-") + flags(_writtenValue) + space*2;
+                text += _name + String("<-") + flags(_writtenValue) + "  ";
                 _written = false;
             }
             return text;
@@ -3077,9 +3038,8 @@ protected:
     void run()
     {
         if (_arguments.count() < 2) {
-            static String syntax1("Syntax: ");
-            static String syntax2(" <config file name>\n");
-            _console.write(syntax1 + _arguments[0] + syntax2);
+            _console.write("Syntax: " + _arguments[0] +
+                " <config file name>\n");
             return;
         }
 
@@ -3103,8 +3063,8 @@ protected:
         config.addType(romImageArrayType);
         config.addOption("roms", romImageArrayType);
         config.addOption("stopAtCycle", Type::integer, -1);
-        config.addOption("stopSaveState", Type::string, empty);
-        config.addOption("initialState", Type::string, empty);
+        config.addOption("stopSaveState", Type::string, "");
+        config.addOption("initialState", Type::string, "");
 
         config.load(_arguments[1]);
 

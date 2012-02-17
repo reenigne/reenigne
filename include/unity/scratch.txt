@@ -1,4 +1,4 @@
-String::subString() takes start and length, CodePointSource::subString() takes start and end.
+String::subString() takes start and length, CharacterSource::subString() takes start and end.
 
 See http://docs.racket-lang.org/reference/windowspaths.html for details on paths starting with \\?\
 
