@@ -110,12 +110,10 @@ public:
     }
     explicit Array(int n)
     {
-        _data = static_cast<T*>(operator new(_n * sizeof(T)));
+        _data = static_cast<T*>(operator new(n * sizeof(T)));
         try {
-            for (_n = 0; _n < n; ++_n) {
+            for (_n = 0; _n < n; ++_n)
                 constructElement(_n);
-                ++_n;
-            }
         }
         catch (...) {
             destructElements();
@@ -175,7 +173,6 @@ private:
         new(static_cast<void*>(&(*this)[i])) T();
     }
 
-    int _n;
     void release()
     {
         if (_data != 0) {
@@ -194,6 +191,7 @@ private:
     }
 
     T* _data;
+    int _n;
 
     template<class T> friend class AppendableArray;
 };
@@ -234,6 +232,8 @@ public:
     void reserve(int size)
     {
         int allocate = _allocated;
+        if (allocate == 0 && size > 0)
+            allocate = 1;
         while (allocate < size)
             allocate *= 2;
         if (_allocated < allocate) {
@@ -272,6 +272,8 @@ public:
         }
         _n += length;
     }
+    // Like append(const Array& other) but with default construction instead of
+    // copying.
     void expand(int length)
     {
         reserve(_n + length);

@@ -59,16 +59,16 @@ protected:
             sizeof(H))[i];
     }
 
-    const int _size;
+    int _size;
 private:
-    void release() const
+    void release()
     {
         --_count;
         if (_count == 0) {
             for (int i = _size - 1; i >= 0; --i)
                 (&(*this)[i])->~T();
-            static_cast<const H*>(this)->~H();
-            operator delete(static_cast<const void*>(this));
+            static_cast<H*>(this)->~H();
+            operator delete(static_cast<void*>(this));
         }
     }
 

@@ -126,12 +126,12 @@ public:
         };
         Bitmap<SRGB> srgbInputOriginal;
         srgbInputOriginal.load(File(inputPictureFileName));
-        Bitmap<Vector3<float> > linearInput;
-        srgbInputOriginal.convert(&linearInput, ConvertSRGBToLinear());
+        Bitmap<Vector3<float> > linearInput(srgbInputOriginal.size());
+        srgbInputOriginal.convert(linearInput, ConvertSRGBToLinear());
         Bitmap<Vector3<float> > linearScaled(_inputSize);
-        linearInput.resample(&linearScaled);
-        Bitmap<SRGB> srgbInput;
-        linearScaled.convert(&srgbInput, ConvertLinearToSRGB());
+        linearInput.resample(linearScaled);
+        Bitmap<SRGB> srgbInput(_inputSize);
+        linearScaled.convert(srgbInput, ConvertLinearToSRGB());
 
         _srgbPalette[0x00] = SRGB(0x00, 0x00, 0x00);
         _srgbPalette[0x01] = SRGB(0x00, 0x00, 0xaa);
@@ -158,12 +158,12 @@ public:
 
         _dataOutput = Bitmap<UInt16>(
             Vector(_inputSize.x/(_hres ? 4 : 8), _inputSize.y));
-        _compositeData/* = Bitmap<*/.allocate(_outputSize.x*_outputSize.y);
-        _digitalOutput.allocate(_outputSize.x*_outputSize.y);
-        _compositeOutput.allocate(_outputSize.x*_outputSize.y);
-        _perceptualOutput.allocate(_outputSize.x*_outputSize.y);
-        _perceptualError.allocate(_outputSize.x*_outputSize.y);
-        _perceptualInput.allocate(_outputSize.x*_outputSize.y);
+        _compositeData = Bitmap<YIQ>(_outputSize);
+        _digitalOutput = Bitmap<SRGB>(_outputSize);
+        _compositeOutput = Bitmap<SRGB>(_outputSize);
+        _perceptualOutput = Bitmap<Colour>(_outputSize);
+        _perceptualError = Bitmap<Colour>(_outputSize);
+        _perceptualInput = Bitmap<Colour>(_outputSize);
 
         static const float brightness = 0.06f;
         static const float contrast = 3.0f;
@@ -182,9 +182,10 @@ public:
         // only need the Y data to find the color burst.
         for (int i = 0; i < 4; ++i)
             _iqMultipliers[i] = 0;
+        YIQ* p = _compositeData.row(0);
         for (int i = 0; i < 4; ++i) {
 //            setCompositeData(Vector(i, 0) - _compositeOffset, overscanColour);
-            colorBurst[i] = static_cast<float>(_compositeData[i].x);
+            colorBurst[i] = static_cast<float>(p[i].x);
         }
         float burstI = colorBurst[2] - colorBurst[0];      
         float burstQ = colorBurst[3] - colorBurst[1];
@@ -274,40 +275,42 @@ public:
 
     void paint(const PaintHandle& paint)
     {
-        Byte* l = getBits();
-        int xMax = min(_size.x, _outputSize.x);
-        int ySize = _size.y;
-        int yMax = min(ySize, _outputSize.y);
-        for (int y = 0; y < yMax; ++y) {
-            DWord* p = reinterpret_cast<DWord*>(l);
-            for (int x = 0; x < _size.x; ++x) {
-                SRGB srgb = _digitalOutput[y*_outputSize.x + x];
-                *(p++) = (srgb.x<<16) + (srgb.y<<8) + srgb.z;
+        class ConvertSRGBToDWord
+        {
+        public:
+            DWord convert(SRGB srgb)
+            {
+                return (srgb.x<<16) + (srgb.y<<8) + srgb.z;
             }
-            l += _byteWidth;
-        }
+        };
+
+        class ConvertYToDWord
+        {
+        public:
+            DWord convert(YIQ yiq) { return (60 + yiq.x)*0x10101; }
+        };
+
+        Vector s = size();
+        int xMax = min(s.x, _outputSize.x);
+        int ySize = s.y;
+        Vector pos(0, 0);
+        Vector cs(s.x, min(ySize, _outputSize.y));
+        _digitalOutput.convert(subBitmap(pos, cs), ConvertSRGBToDWord());
+
+        pos.y += cs.y;
         ySize -= _outputSize.y;
         if (ySize < 0)
             return;
-        yMax = min(ySize, _outputSize.y);
-        for (int y = 0; y < yMax; ++y) {
-            DWord* p = reinterpret_cast<DWord*>(l);
-            for (int x = 0; x < _size.x; ++x) {
-                SRGB srgb = _compositeOutput[y*_outputSize.x + x];
-                *(p++) = (srgb.x<<16) + (srgb.y<<8) + srgb.z;
-            }
-            l += _byteWidth;
-        }
+        cs.y = min(ySize, _outputSize.y);
+        _compositeOutput.convert(subBitmap(pos, cs), ConvertSRGBToDWord());
+
+        pos.y += cs.y;
         ySize -= _outputSize.y;
         if (ySize < 0)
             return;
-        yMax = min(ySize, _outputSize.y);
-        for (int y = 0; y < yMax; ++y) {
-            DWord* p = reinterpret_cast<DWord*>(l);
-            for (int x = 0; x < _size.x; ++x)
-                *(p++) = (60 + _compositeData[y*_outputSize.x + x].x)*0x10101;
-            l += _byteWidth;
-        }
+        cs.y = min(ySize, _outputSize.y);
+        _compositeData.convert(subBitmap(pos, cs), ConvertYToDWord());
+
         Image::paint(paint);
     }
 
@@ -596,10 +599,10 @@ public:
 //                    bestAt >> 4);
 
         _position.x += (_hres ? 8 : 16);
-        if (_position.x >= _pictureSize.x) {
+        if (_position.x >= _outputSize.x) {
             ++_position.y;
             _position.x = 0;
-            if (_position.y == _pictureSize.y) {
+            if (_position.y == _outputSize.y) {
                 ++_iteration;
                 if (!_changed || _iteration == _iterations)
                     _thread.finished();

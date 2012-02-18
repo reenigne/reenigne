@@ -2,26 +2,46 @@
 #define INCLUDED_BITMAP_H
 
 #include "unity/vectors.h"
+#include "unity/reference_counted_array.h"
+#include "unity/file.h"
 #include <png.h>
 
+// A Bitmap is a value class encapsulating a 2D image. Its width, height,
+// stride and pixel format are immutable but the pixels themselves are not.
 template<class Pixel> class Bitmap
 {
+    class Data : public ReferenceCountedArray<Data, Byte>
+    {
+    public:
+        Byte& operator[] (int i)
+        {
+            return ReferenceCountedArray<Data, Byte>::operator[](i);
+        }
+        Byte operator[] (int i) const
+        {
+            return ReferenceCountedArray<Data, Byte>::operator[](i);
+        }
+
+        int _stride;
+    };
 public:
     Bitmap() : _size(0, 0) { }
-    Bitmap(Vector size) { setSize(size); }
+    Bitmap(Vector size) { create(size, size.x*sizeof(Pixel)); }
+
+    bool valid() const { return _data.valid(); }
 
     // Copy this bitmap to target with resampling.
-    void resample(Bitmap* target)
+    template<class OtherPixel> void resample(Bitmap<OtherPixel>& target) const
     {
-        Vector targetSize = target->size();
-        Byte* row = data();
+        Vector targetSize = target.size();
+        const Byte* row = data();
         float scaleTarget;
         float scale;
 
         // Resample horizontally
         int intermediateStride = targetSize.x * sizeof(Pixel);
         Array<Byte> intermediate(intermediateStride * _size.y);
-        Byte* targetRow = &intermediate[0];        
+        Byte* targetRow = &intermediate[0];
         if (targetSize.x > _size.x) {
             // Upsampling. The band-limit resolution is the same as the source
             // resolution.
@@ -37,8 +57,9 @@ public:
             scale = 1.0f;
         }
 
+        int s = stride();
         for (int y = 0; y < _size.y; ++y) {
-            Pixel* p = reinterpret_cast<Pixel*>(row);
+            const Pixel* p = reinterpret_cast<const Pixel*>(row);
             Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
             for (int xTarget = 0; xTarget < targetSize.x; ++xTarget) {
                 Pixel c(0, 0, 0);
@@ -52,7 +73,7 @@ public:
                 *targetP = c/t;
                 ++targetP;
             }
-            row += stride();
+            row += s;
             targetRow += intermediateStride;
         }
 
@@ -60,9 +81,10 @@ public:
     }
 
     // Copy this bitmap to target with subpixel resampling.
-    void subPixelResample(Bitmap* target, bool tripleResolution)
+    template<class OtherPixel> void subPixelResample(
+        Bitmap<OtherPixel>& target, bool tripleResolution) const
     {
-        Vector targetSize = target->size();
+        Vector targetSize = target.size();
         Byte* row = data();
         float scaleTarget;
         float scale;
@@ -93,6 +115,7 @@ public:
             scaleTarget *= 3.0f;
             scale *= 3.0f;
         }
+        int s = stride();
         for (int y = 0; y < _size.y; ++y) {
             Pixel* p = reinterpret_cast<Pixel*>(row);
             Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
@@ -120,7 +143,7 @@ public:
                 *targetP = c/t;
                 ++targetP;
             }
-            row += stride();
+            row += s;
             targetRow += intermediateStride;
         }
 
@@ -129,11 +152,12 @@ public:
 
     // Convert from one pixel format to another.
     template<class TargetPixel, class Converter> void convert(
-        Bitmap<TargetPixel>* target, Converter converter)
+        Bitmap<TargetPixel>& target, Converter converter)
     {
-        target->setSize(_size);
         Byte* row = data();
-        Byte* targetRow = target->data();
+        Byte* targetRow = target.data();
+        int s = stride();
+        int targetStride = target.stride();
         for (int y = 0; y < _size.y; ++y) {
             Pixel* p = reinterpret_cast<Pixel*>(row);
             TargetPixel* tp = reinterpret_cast<TargetPixel*>(targetRow);
@@ -142,8 +166,8 @@ public:
                 ++p;
                 ++tp;
             }
-            row += stride();
-            targetRow += target->stride();
+            row += s;
+            targetRow += targetStride;
         }
     }
 
@@ -155,8 +179,7 @@ public:
         Array<Byte> header(8);
         handle.read(&header[0], 8);
         if (png_sig_cmp(&header[0], 0, 8))
-            throw Exception(file.messagePath() +
-                String(" is not a .png file"));
+            throw Exception(file.messagePath() + " is not a .png file");
         PNGRead read(&handle);
         read.read(this);
     }
@@ -169,16 +192,84 @@ public:
         PNGWrite write(&handle);
         write.write(this);
     }
-    Byte* data() { return &_data[0]; }
-    int stride() const { return _stride; }
+    Byte* data() { return _topLeft; }
+    const Byte* data() const { return _topLeft; }
+    int stride() const { return _data->_stride; }
     Vector size() const { return _size; }
-    void setSize(Vector size)
+    Pixel* row(int y)
     {
-        _size = size;
-        _stride = size.x*sizeof(Pixel);
-        _data.allocate(size.y*_stride);
+        return reinterpret_cast<Pixel*>(_topLeft + y*stride());
     }
+    Pixel& pixel(Vector position) { return row(position.y)[position.x]; }
+
+    // A sub-bitmap of a bitmap is a pointer into the same set of data, so
+    // drawing on a subBitmap will also draw on the parent bitmap, and any
+    // other overlapping sub-bitmaps. This can be used in conjunction with
+    // fill() to draw rectangles. To avoid this behavior, use
+    // subBitmap().clone().
+    Bitmap subBitmap(Vector topLeft, Vector size)
+    {
+        return Bitmap(_data,
+            _topLeft + topLeft.x*sizeof(Pixel) + topLeft.y*stride(), size);
+    }
+
+    Bitmap clone() const
+    {
+        Bitmap c(_size);
+        copyTo(c);
+        return c;
+    }
+    
+    void fill(const Pixel& pixel)
+    {
+        Byte* row = data();
+        int s = stride();
+        for (int y = 0; y < size.y; ++y) {
+            Pixel* p = reinterpret_cast<Pixel*>(row);
+            for (int x = 0; x < size.x; ++x) {
+                *p = pixel;
+                ++p;
+            }
+            row += s;
+        }
+    }
+
+    // Copy with pixel format conversion but no resizing. Bitmaps must be the
+    // same dimensions.
+    template<class OtherPixel> void copyFrom(const Bitmap<OtherPixel>& other)
+    {
+        Byte* row = data();
+        int s = stride();
+        const Byte* otherRow = other.data();
+        int os = other.stride();
+        for (int y = 0; y < size.y; ++y) {
+            Pixel* p = reinterpret_cast<Pixel*>(row);
+            OtherPixel* op = reinterpret_cast<OtherPixel*>(otherRow);
+            for (int x = 0; x < size.x; ++x) {
+                *p = *op;
+                ++p;
+                ++op;
+            }
+            row += s;
+            otherRow += os;
+        }
+    }
+    template<class OtherPixel> void copyTo(Bitmap<OtherPixel>& other) const
+    {
+        other.copyFrom(*this);
+    }
+
 private:
+    Bitmap(const Reference<Data>& data, Byte* topLeft, Vector size)
+      : _data(data), _topLeft(topLeft), _size(size) { }
+
+    void create(Vector size, int stride)
+    {
+        _data = ReferenceCountedArray<Data, Byte>::create(stride * size.y);
+        _data->_stride = stride;
+        _topLeft = &(*_data)[0];
+    }
+
     static void userReadData(png_structp png_ptr, png_bytep data,
         png_size_t length)
     {
@@ -230,8 +321,9 @@ private:
             _row_pointers = png_get_rows(_png_ptr, _info_ptr);
             Vector size(png_get_image_width(_png_ptr, _info_ptr),
                 png_get_image_height(_png_ptr, _info_ptr));
-            bitmap->setSize(size);
+            *bitmap = Bitmap(size);
             Byte* data = bitmap->data();
+            int stride = bitmap->stride();
             for (int y = 0; y < size.y; ++y) {
                 Pixel* line = reinterpret_cast<Pixel*>(data);
                 png_bytep row = _row_pointers[y];
@@ -240,7 +332,7 @@ private:
                     *line = Pixel(p[0], p[1], p[2]);
                     ++line;
                 }
-                data += bitmap->stride();
+                data += stride;
             }
         }
         ~PNGRead()
@@ -297,9 +389,10 @@ private:
         FileHandle* _handle;
     };
 
-    void resampleVertically(Byte* intermediate, Bitmap* target)
+    template<class OtherPixel> void resampleVertically(Byte* intermediate,
+        Bitmap<OtherPixel>& target) const
     {
-        Vector targetSize = target->size();
+        Vector targetSize = target.size();
         int intermediateStride = targetSize.x * sizeof(Pixel);
         Array<Byte> cRowArray(intermediateStride);
         Array<float> tRowArray(targetSize.x);
@@ -319,7 +412,8 @@ private:
                 static_cast<float>(_size.y)/static_cast<float>(targetSize.y);
             scale = 1.0f;
         }
-        Byte* targetRow = target->data();
+        Byte* targetRow = target.data();
+        int targetStride = target.stride();
         for (int yTarget = 0; yTarget < targetSize.y; ++yTarget) {
             Pixel* c = cRow;
             float* t = tRow;
@@ -345,7 +439,7 @@ private:
                 }
                 row += intermediateStride;
             }
-            Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
+            OtherPixel* targetP = reinterpret_cast<OtherPixel*>(targetRow);
             c = cRow;
             t = tRow;
             for (int x = 0; x < targetSize.x; ++x) {
@@ -354,7 +448,7 @@ private:
                 ++t;
                 ++targetP;
             }
-            targetRow += target->stride();
+            targetRow += targetStride;
         }
     }
 
@@ -366,8 +460,8 @@ private:
     }
 
     Vector _size;
-    int _stride;
-    Array<Byte> _data;
+    Reference<Data> _data;
+    Byte* _topLeft;
 };
 
 #endif // INCLUDED_BITMAP_H

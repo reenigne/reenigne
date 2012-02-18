@@ -6,6 +6,7 @@
 #include "unity/swap.h"
 #include "unity/string.h"
 #include "unity/vectors.h"
+#include "unity/bitmap.h"
 #include <windows.h>
 #include <WindowsX.h>
 #include <vector>
@@ -396,22 +397,19 @@ private:
 };
 
 
-class Image
+class Image : public Bitmap<DWord>
 {
 public:
-    Image() : _bits(NULL) { }
-    Image(Vector size)
-      : _size(size),
-        _byteWidth(_size.x*4),
-        _bits(_byteWidth*_size.y)
+    Image() { }
+    Image(Vector size) : Bitmap(size)
     {
-        if (_size.x == 0 || _size.y == 0)
+        if (size.x == 0 || size.y == 0)
             return;
 
         ZeroMemory(&_bmi, sizeof(BITMAPINFO));
         _bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-        _bmi.bmiHeader.biWidth = _size.x;
-        _bmi.bmiHeader.biHeight = -_size.y;
+        _bmi.bmiHeader.biWidth = size.x;
+        _bmi.bmiHeader.biHeight = -size.y;
         _bmi.bmiHeader.biPlanes = 1;
         _bmi.bmiHeader.biBitCount = 32;
         _bmi.bmiHeader.biCompression = BI_RGB;
@@ -424,11 +422,11 @@ public:
         draw();
     }
 
-    void resize(Vector size)
+    void resize(Vector newSize)
     {
-        if (size != _size) {
-            Image image(size);
-            swap(image);
+        if (newSize != size()) {
+            Image image(newSize);
+            swap(image, *this);
             doResize();
             draw();
         }
@@ -436,22 +434,23 @@ public:
 
     void paint(const PaintHandle& paint)
     {
-        if (_bits.size() == 0)
+        if (!valid())
             return;
         Vector topLeft = paint.topLeft();
         Vector bottomRight = paint.bottomRight();
-        Vector size = bottomRight - topLeft;
+        Vector paintSize = bottomRight - topLeft;
+        Vector s = size();
         IF_ZERO_THROW(SetDIBitsToDevice(
             paint,
             topLeft.x,
             topLeft.y,
-            size.x,
-            size.y,
+            paintSize.x,
+            paintSize.y,
             topLeft.x,
-            (_size-bottomRight).y,
+            (s - bottomRight).y,
             0,
-            _size.y,
-            getBits(),
+            s.y,
+            data(),
             &_bmi,
             DIB_RGB_COLORS));
     }
@@ -462,23 +461,8 @@ public:
 private:
     BITMAPINFO _bmi;
 
-    void swap(Image& other)
-    {
-        ::swap(_size, other._size);
-        ::swap(_byteWidth, other._byteWidth);
-        ::swap(_bmi, other._bmi);
-        _bits.swap(other._bits);
-    }
-
 protected:
     virtual void doResize() { }
-
-    Byte* getBits() { return &_bits[0]; }
-
-    Vector _size;
-    int _byteWidth;
-private:
-    std::vector<Byte> _bits;
 };
 
 

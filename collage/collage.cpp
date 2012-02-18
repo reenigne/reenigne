@@ -32,8 +32,8 @@ public:
 
         Bitmap<SRGB> input;
         input.load(File(config.get<String>("inputPicture")));
-        Bitmap<Vector3<float> > linearInput;
-        input.convert(&linearInput, ConvertSRGBToLinear());
+        Bitmap<Vector3<float> > linearInput(input.size());
+        input.convert(linearInput, ConvertSRGBToLinear());
         Array<Any> sizeArray = config.get<List<Any> >("outputSize");
         Vector size(sizeArray[0].value<int>(), sizeArray[1].value<int>());
         Bitmap<Vector3<float> > linearOutput(size);
@@ -42,8 +42,8 @@ public:
                 config.get<bool>("tripleResolution"));
         else
             linearInput.resample(&linearOutput);
-        Bitmap<SRGB> output;
-        linearOutput.convert(&output, ConvertLinearToSRGB());
+        Bitmap<SRGB> output(linearOutput.size());
+        linearOutput.convert(output, ConvertLinearToSRGB());
         output.save(File(config.get<String>("outputPicture")));
     }
 private:

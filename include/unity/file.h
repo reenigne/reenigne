@@ -51,6 +51,7 @@ typedef DriveCurrentDirectoryTemplate<void> DriveCurrentDirectory;
 template<class T> class FileSystemObjectTemplate
 {
 public:
+    FileSystemObjectTemplate() { }
     FileSystemObjectTemplate(const String& path,
         const Directory& relativeTo = CurrentDirectory(),
         bool windowsParsing = false)
@@ -1083,7 +1084,7 @@ template<class T> void applyToWildcard(T functor, CharacterSource s,
             return;
         }
     }
-    if (name != empty) {
+    if (name != "") {
         int l = name[name.length() - 1];
         if (l == '.' || l == ' ')
             throw Exception("Invalid path");

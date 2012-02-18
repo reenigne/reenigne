@@ -78,7 +78,7 @@ public:
             }
             size -= s;
         }
-        printf("%08x %s\n", ~crc, path);
+        printf("%08x %s\n", ~crc, (const char*)path);
     }
     void operator()(const Directory& directory) { }
 };

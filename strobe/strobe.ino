@@ -34,14 +34,24 @@ void setup()
   //   FOC1B          0  Force Output Compare for Channel B
   //   FOC1A          0  Force Output Compare for Channel A
   TCCR1C = 0x00; 
+  
+  TIMSK1 = 1;
+}
+
+uint16_t totalDuration;
+uint16_t onDuration;
+
+SIGNAL(TIMER1_OVF_vect)
+{
+    ICR1 = totalDuration;
+    OCR1A = onDuration;
 }
 
 void loop()
 {
-  int freqMajor = analogRead(A0);
-  int freqMinor = analogRead(A1);
-  int duty = analogRead(A2);
-  int cycles = ((freqMajor << 6) & 0xfc00) | freqMinor;
-  ICR1 = cycles;
-  OCR1A = (cycles * duty) >> 10;
+  uint16_t freqMajor = analogRead(A0);
+  uint16_t freqMinor = analogRead(A1);
+  uint16_t duty = analogRead(A2);
+  totalDuration = ((freqMajor << 6) & 0xfc00) | freqMinor;
+  onDuration = (((uint32_t)totalDuration) * ((uint32_t)duty)) >> 10;
 }
