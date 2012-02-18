@@ -1,10 +1,10 @@
-#include "unity/string.h"
-#include "unity/array.h"
-#include "unity/file.h"
-#include "unity/stack.h"
-#include "unity/hash_table.h"
-#include "unity/main.h"
-#include "unity/space.h"
+#include "alfe/string.h"
+#include "alfe/array.h"
+#include "alfe/file.h"
+#include "alfe/stack.h"
+#include "alfe/hash_table.h"
+#include "alfe/main.h"
+#include "alfe/space.h"
 #include <stdlib.h>
 
 enum Atom
@@ -274,7 +274,7 @@ String atomToString(Atom atom)
     return lookupTable.lookUp(atom);
 }
 
-#include "unity/symbol.h"
+#include "alfe/symbol.h"
 #include "Resolve.cpp"
 
 #include "Type.cpp"

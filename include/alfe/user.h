@@ -36,7 +36,7 @@ public:
         wc.hCursor = LoadCursor(NULL, IDC_ARROW);
         wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
         wc.lpszMenuName = NULL;
-        wc.lpszClassName = L"Unity Window";
+        wc.lpszClassName = L"ALFE Window";
         _classAtom = RegisterClass(&wc);
         IF_ZERO_THROW(_classAtom);
     }

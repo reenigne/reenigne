@@ -41,56 +41,56 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="test.unity">
+    <None Include="test.alfe">
       <Filter>Source Files</Filter>
     </None>
     <None Include="todo.txt" />
     <None Include="adapters.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\include\unity\array.h">
+    <ClInclude Include="..\include\alfe\array.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\string.h">
+    <ClInclude Include="..\include\alfe\string.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\reference_counted.h">
+    <ClInclude Include="..\include\alfe\reference_counted.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\integer_types.h">
+    <ClInclude Include="..\include\alfe\integer_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\hash_table.h">
+    <ClInclude Include="..\include\alfe\hash_table.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\file.h">
+    <ClInclude Include="..\include\alfe\file.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\uncopyable.h">
+    <ClInclude Include="..\include\alfe\uncopyable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\buffer.h">
+    <ClInclude Include="..\include\alfe\buffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\character_source.h">
+    <ClInclude Include="..\include\alfe\character_source.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\command_line.h">
+    <ClInclude Include="..\include\alfe\command_line.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\stack.h">
+    <ClInclude Include="..\include\alfe\stack.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\linked_list.h">
+    <ClInclude Include="..\include\alfe\linked_list.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\space.h">
+    <ClInclude Include="..\include\alfe\space.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\symbol.h">
+    <ClInclude Include="..\include\alfe\symbol.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\unity\main.h">
+    <ClInclude Include="..\include\alfe\main.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
