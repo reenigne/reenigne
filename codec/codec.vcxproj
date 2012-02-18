@@ -79,12 +79,12 @@
     <ClCompile Include="codec.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\include\unity\array.h" />
-    <ClInclude Include="..\include\unity\command_line.h" />
-    <ClInclude Include="..\include\unity\file.h" />
-    <ClInclude Include="..\include\unity\integer_types.h" />
-    <ClInclude Include="..\include\unity\random.h" />
-    <ClInclude Include="..\include\unity\string.h" />
+    <ClInclude Include="..\include\alfe\array.h" />
+    <ClInclude Include="..\include\alfe\command_line.h" />
+    <ClInclude Include="..\include\alfe\file.h" />
+    <ClInclude Include="..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\include\alfe\random.h" />
+    <ClInclude Include="..\include\alfe\string.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

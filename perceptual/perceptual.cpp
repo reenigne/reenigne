@@ -4,10 +4,10 @@
 #include <vector>
 #include <time.h>
 #include <float.h>
-#include "unity/user.h"
-#include "unity/main.h"
-#include "unity/minimum_maximum.h"
-#include "unity/colour_space.h"
+#include "alfe/user.h"
+#include "alfe/main.h"
+#include "alfe/minimum_maximum.h"
+#include "alfe/colour_space.h"
 
 double random(double maximum)
 {
@@ -144,7 +144,7 @@ public:
     }
     Simulation(int n) : _n(n), _particles(n), _iters(0) { }
     double bestDistance()
-    { 
+    {
         return _bestDistance;
     }
     void print()
@@ -342,7 +342,7 @@ public:
     }
 
     void paint(const PaintHandle& paint)
-    {    
+    {
         _simulation.simulateFrame();
         _simulation.draw(_size, getBits(), _byteWidth, _matrix);
 

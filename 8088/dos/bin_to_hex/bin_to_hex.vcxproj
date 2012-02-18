@@ -77,7 +77,7 @@
     <ClCompile Include="bin_to_hex.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\include\unity\string.h" />
+    <ClInclude Include="..\..\..\include\alfe\string.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

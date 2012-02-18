@@ -1,9 +1,9 @@
-#include "unity/main.h"
-#include "unity/file.h"
-#include "unity/colour_space.h"
+#include "alfe/main.h"
+#include "alfe/file.h"
+#include "alfe/colour_space.h"
 #include <stdio.h>
-#include "unity/bitmap.h"
-#include "unity/config_file.h"
+#include "alfe/bitmap.h"
+#include "alfe/config_file.h"
 
 class Program : public ProgramBase
 {

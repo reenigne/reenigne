@@ -6,7 +6,7 @@
 #pragma intrinsic(__emulu)
 #pragma intrinsic(__ll_lshift)
 
-#include "unity/integer_types.h"
+#include "alfe/integer_types.h"
 
 template<int N, class T, class M> class Fixed;
 
@@ -53,7 +53,7 @@ template<int N> class ArithmeticHelper<N, Int16>
 template<int N> class ArithmeticHelper<N, Byte>
   : DoublePrecisionArithmeticHelper<N, Byte, Word>
 {
-    friend class Fixed<N, Byte, ArithmeticHelper<N, Byte> >; 
+    friend class Fixed<N, Byte, ArithmeticHelper<N, Byte> >;
 };
 
 template<int N> class ArithmeticHelper<N, Word>
@@ -70,7 +70,7 @@ private:
     friend class Fixed<N, Int32, ArithmeticHelper<N, Int32> >;
 
     // VC's inline asm doesn't allow "shl eax, N" directly, but this works...
-    static const int nn[N];  
+    static const int nn[N];
 
     static Int32 MultiplyShiftRight(Int32 x, Int32 y)
     {
@@ -107,7 +107,7 @@ private:
     friend class Fixed<N, DWord, ArithmeticHelper<N, DWord> >;
 
     // VC's inline asm doesn't allow "shl eax, N" directly, but this works...
-    static const int nn[N];  
+    static const int nn[N];
 
     static DWord MultiplyShiftRight(DWord x, DWord y)
     {
@@ -225,7 +225,7 @@ template<int N, class T, class TT> Fixed<N, T, TT>
 template<int N, class T, class TT> Fixed<N, T, TT>
     operator-(const T& x, const Fixed<N, T, TT>& y)
 {
-    return static_cast<Fixed<N, T, TT> >(x) - y; 
+    return static_cast<Fixed<N, T, TT> >(x) - y;
 }
 
 template<int N, class T, class TT> Fixed<N, T, TT>

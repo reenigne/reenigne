@@ -80,10 +80,10 @@
     <ClCompile Include="crc32.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\include\unity\character_source.h" />
-    <ClInclude Include="..\include\unity\file.h" />
-    <ClInclude Include="..\include\unity\integer_types.h" />
-    <ClInclude Include="..\include\unity\string.h" />
+    <ClInclude Include="..\include\alfe\character_source.h" />
+    <ClInclude Include="..\include\alfe\file.h" />
+    <ClInclude Include="..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\include\alfe\string.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

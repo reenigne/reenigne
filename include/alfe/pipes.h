@@ -70,10 +70,10 @@
 #ifndef INCLUDED_PIPES_H
 #define INCLUDED_PIPES_H
 
-#include "unity/minimum_maximum.h"
-#include "unity/uncopyable.h"
-#include "unity/thread.h"
-#include "unity/file.h"
+#include "alfe/minimum_maximum.h"
+#include "alfe/uncopyable.h"
+#include "alfe/thread.h"
+#include "alfe/file.h"
 #include <vector>
 #include <string.h>
 

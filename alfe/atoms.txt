@@ -10,7 +10,7 @@ What is the relationship between types and atoms?
    equality.
 
 Symbol is a completely dynamic type (with no vtable) in the C++ implementation
- due to the limitations of C++. In Unity, each Symbol atom should correspond to
+ due to the limitations of C++. In ALFE, each Symbol atom should correspond to
  a real type, and we should still be able to do all the pattern-matching stuff
  we need to.
 

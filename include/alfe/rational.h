@@ -1,7 +1,7 @@
 #ifndef INCLUDED_RATIONAL_H
 #define INCLUDED_RATIONAL_H
 
-#include "unity/string.h"
+#include "alfe/string.h"
 
 class ZeroDivideException : public Exception
 {

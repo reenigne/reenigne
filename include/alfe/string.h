@@ -16,10 +16,10 @@
 #include <exception>
 #include <limits>
 #include <string.h>
-#include "unity/integer_types.h"
-#include "unity/reference_counted.h"
-#include "unity/array.h"
-#include "unity/minimum_maximum.h"
+#include "alfe/integer_types.h"
+#include "alfe/reference_counted.h"
+#include "alfe/array.h"
+#include "alfe/minimum_maximum.h"
 
 template<class T> class ExceptionTemplate;
 typedef ExceptionTemplate<void> Exception;
@@ -604,7 +604,7 @@ private:
 typedef NullTerminatedWideStringTemplate<void> NullTerminatedWideString;
 #endif
 
-#include "unity/exception.h"
+#include "alfe/exception.h"
 
 class NullTerminatedString
 {
@@ -632,7 +632,7 @@ private:
 };
 #endif
 
-#include "unity/handle.h"
-#include "unity/character_source.h"
+#include "alfe/handle.h"
+#include "alfe/character_source.h"
 
 #endif // INCLUDED_STRING_H

@@ -1,7 +1,7 @@
 #ifndef INCLUDED_COLOUR_SPACE_H
 #define INCLUDED_COLOUR_SPACE_H
 
-#include "unity/vectors.h"
+#include "alfe/vectors.h"
 
 typedef Vector3<double> Colour;
 typedef Vector3<UInt8> SRGB;
@@ -122,7 +122,7 @@ public:
     virtual Colour fromSrgb(const Colour& srgb) { return srgb; }
     virtual Colour toSrgb(const Colour& colour)
     {
-        return Vector3Cast<UInt8>(colour); 
+        return Vector3Cast<UInt8>(colour);
     }
 private:
     SRGBColourSpaceImplementation() { }

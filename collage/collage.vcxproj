@@ -79,23 +79,23 @@
     <ClCompile Include="collage.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\include\unity\any.h" />
-    <ClInclude Include="..\include\unity\array.h" />
-    <ClInclude Include="..\include\unity\bitmap.h" />
-    <ClInclude Include="..\include\unity\buffer.h" />
-    <ClInclude Include="..\include\unity\character_source.h" />
-    <ClInclude Include="..\include\unity\colour_space.h" />
-    <ClInclude Include="..\include\unity\config_file.h" />
-    <ClInclude Include="..\include\unity\file.h" />
-    <ClInclude Include="..\include\unity\hash_table.h" />
-    <ClInclude Include="..\include\unity\integer_types.h" />
-    <ClInclude Include="..\include\unity\main.h" />
-    <ClInclude Include="..\include\unity\reference_counted.h" />
-    <ClInclude Include="..\include\unity\space.h" />
-    <ClInclude Include="..\include\unity\string.h" />
-    <ClInclude Include="..\include\unity\symbol.h" />
-    <ClInclude Include="..\include\unity\type.h" />
-    <ClInclude Include="..\include\unity\vectors.h" />
+    <ClInclude Include="..\include\alfe\any.h" />
+    <ClInclude Include="..\include\alfe\array.h" />
+    <ClInclude Include="..\include\alfe\bitmap.h" />
+    <ClInclude Include="..\include\alfe\buffer.h" />
+    <ClInclude Include="..\include\alfe\character_source.h" />
+    <ClInclude Include="..\include\alfe\colour_space.h" />
+    <ClInclude Include="..\include\alfe\config_file.h" />
+    <ClInclude Include="..\include\alfe\file.h" />
+    <ClInclude Include="..\include\alfe\hash_table.h" />
+    <ClInclude Include="..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\include\alfe\main.h" />
+    <ClInclude Include="..\include\alfe\reference_counted.h" />
+    <ClInclude Include="..\include\alfe\space.h" />
+    <ClInclude Include="..\include\alfe\string.h" />
+    <ClInclude Include="..\include\alfe\symbol.h" />
+    <ClInclude Include="..\include\alfe\type.h" />
+    <ClInclude Include="..\include\alfe\vectors.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Projects\Code\libpng\projects\vstudio\libpng\libpng.vcxproj">

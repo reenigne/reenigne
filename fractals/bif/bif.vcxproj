@@ -81,15 +81,15 @@
     <ClCompile Include="bif.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\unity\array.h" />
-    <ClInclude Include="..\..\include\unity\complex.h" />
-    <ClInclude Include="..\..\include\unity\fix.h" />
-    <ClInclude Include="..\..\include\unity\fractal.h" />
-    <ClInclude Include="..\..\include\unity\integer_types.h" />
-    <ClInclude Include="..\..\include\unity\main.h" />
-    <ClInclude Include="..\..\include\unity\string.h" />
-    <ClInclude Include="..\..\include\unity\thread.h" />
-    <ClInclude Include="..\..\include\unity\user.h" />
+    <ClInclude Include="..\..\include\alfe\array.h" />
+    <ClInclude Include="..\..\include\alfe\complex.h" />
+    <ClInclude Include="..\..\include\alfe\fix.h" />
+    <ClInclude Include="..\..\include\alfe\fractal.h" />
+    <ClInclude Include="..\..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\..\include\alfe\main.h" />
+    <ClInclude Include="..\..\include\alfe\string.h" />
+    <ClInclude Include="..\..\include\alfe\thread.h" />
+    <ClInclude Include="..\..\include\alfe\user.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

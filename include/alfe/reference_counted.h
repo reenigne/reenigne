@@ -1,7 +1,7 @@
 #ifndef INCLUDED_REFERENCE_COUNTED_H
 #define INCLUDED_REFERENCE_COUNTED_H
 
-#include "unity/uncopyable.h"
+#include "alfe/uncopyable.h"
 
 class ReferenceCounted : Uncopyable
 {
@@ -70,7 +70,7 @@ public:
 private:
     void reset() { if (valid()) _t->release(); }
     template<class U> void set(U* t) { set(dynamic_cast<T*>(t)); }
-    template<> void set(T* t) 
+    template<> void set(T* t)
     {
         _t = t;
         if (valid())

@@ -1,10 +1,10 @@
 #ifndef INCLUDED_TYPE_H
 #define INCLUDED_TYPE_H
 
-#include "unity/string.h"
-#include "unity/any.h"
-#include "unity/hash_table.h"
-#include "unity/value.h"
+#include "alfe/string.h"
+#include "alfe/any.h"
+#include "alfe/hash_table.h"
+#include "alfe/value.h"
 
 class Kind
 {
@@ -14,7 +14,7 @@ public:
     static Kind variadicTemplate;
     String toString() const { return _implementation->toString(); }
     bool operator==(const Kind& other) const
-    { 
+    {
         if (_implementation == other._implementation)
             return true;
         return _implementation->equals(other._implementation);
@@ -120,7 +120,7 @@ public:
     String toString() const { return _implementation->toString(); }
     bool valid() const { return _implementation.valid(); }
     bool operator==(const TypeConstructor& other) const
-    { 
+    {
         if (_implementation == other._implementation)
             return true;
         return _implementation->equals(other._implementation);
@@ -212,7 +212,7 @@ public:
     AtomicType(String name) : Type(new Implementation(name)) { }
 private:
     class Implementation : public Type::Implementation
-    { 
+    {
     public:
         Implementation(String name) : _name(name) { }
         String toString() const { return _name; }
@@ -418,7 +418,7 @@ private:
             const List<Type>& parameterTypes)
           : _returnType(returnType), _parameterTypes(parameterTypes) { }
         String toString() const
-        { 
+        {
             String s = _returnType.toString() + "(";
             for (int i = 0; i < _parameterTypes.count(); ++i) {
                 if (i > 0)
@@ -523,11 +523,11 @@ public:
       : Type(new Implementation(name, members)) { }
     const HashTable<String, int>* names() const
     {
-        return ConstReference<Implementation>(_implementation)->names(); 
+        return ConstReference<Implementation>(_implementation)->names();
     }
     const Array<Member>* members() const
     {
-        return ConstReference<Implementation>(_implementation)->members(); 
+        return ConstReference<Implementation>(_implementation)->members();
     }
 private:
     class Implementation : public Type::Implementation
@@ -807,7 +807,7 @@ private:
                 _conversion._implementation;
             String r = "For child member " + _name;
             if (i != 0)
-                r += ": " + i->toString((*input)[_name]); 
+                r += ": " + i->toString((*input)[_name]);
             return r + ".";
         }
     private:
@@ -822,7 +822,7 @@ private:
         TypePair(const Type& from, const Type& to) : _from(from), _to(to) { }
         bool operator==(const TypePair& other) const
         {
-            return _from == other._from && _to == other._to; 
+            return _from == other._from && _to == other._to;
         }
         int hash() const { return _from.hash() * 67 + _to.hash(); }
     private:
@@ -910,7 +910,7 @@ private:
           : ConversionFailureImplementation(from, to) { }
         String sub(const TypedValue& value) const
         {
-            return "Not a conversion from a Tuple."; 
+            return "Not a conversion from a Tuple.";
         }
     };
     class ElementConversionFailure :
@@ -929,7 +929,7 @@ private:
                 ++iterator;
             ConstReference<ConversionFailureImplementation> i =
                 _conversion._implementation;
-            return String("For element ") + _i + ": " + i->toString(*iterator); 
+            return String("For element ") + _i + ": " + i->toString(*iterator);
         }
     private:
         int _i;

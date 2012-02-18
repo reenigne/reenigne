@@ -92,10 +92,10 @@
     <ClCompile Include="perceptual.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\include\unity\colour_space.h" />
-    <ClInclude Include="..\include\unity\main.h" />
-    <ClInclude Include="..\include\unity\minimum_maximum.h" />
-    <ClInclude Include="..\include\unity\user.h" />
+    <ClInclude Include="..\include\alfe\colour_space.h" />
+    <ClInclude Include="..\include\alfe\main.h" />
+    <ClInclude Include="..\include\alfe\minimum_maximum.h" />
+    <ClInclude Include="..\include\alfe\user.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

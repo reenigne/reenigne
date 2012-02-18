@@ -1,7 +1,7 @@
 #ifndef INCLUDED_LOCK_H
 #define INCLUDED_LOCK_H
 
-#include "unity/string.h"
+#include "alfe/string.h"
 
 // TODO: Posix version
 

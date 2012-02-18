@@ -77,10 +77,10 @@
     <ClCompile Include="run.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\include\unity\file.h" />
-    <ClInclude Include="..\..\..\include\unity\main.h" />
-    <ClInclude Include="..\..\..\include\unity\string.h" />
-    <ClInclude Include="..\..\..\include\unity\thread.h" />
+    <ClInclude Include="..\..\..\include\alfe\file.h" />
+    <ClInclude Include="..\..\..\include\alfe\main.h" />
+    <ClInclude Include="..\..\..\include\alfe\string.h" />
+    <ClInclude Include="..\..\..\include\alfe\thread.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

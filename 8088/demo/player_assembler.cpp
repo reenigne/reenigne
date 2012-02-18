@@ -19,7 +19,7 @@ enum Atom
     atomJmp
 };
 
-#include "unity/symbol.h"
+#include "alfe/symbol.h"
 
 static const int c = 52;
 static const int s = 22;

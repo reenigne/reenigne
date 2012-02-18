@@ -14,7 +14,7 @@ Uses of text input/output:
 All Symbols must be owned by some root or they will be reference counted
   They might be owned by a HashTable in a Cache belonging to a TypeConstructorDefinitionStatement
   We need to enumerate them all when dumping
-    For Unity, we need to have some kind of reflection so that this logic doesn't need to be in all of the Symbol classes
+    For ALFE, we need to have some kind of reflection so that this logic doesn't need to be in all of the Symbol classes
       Classes need to opt in to run-time reflection (this makes no code differences, it just makes the debug information available at run-time)
 
   SymbolLabel is mutable (so we can refer to it in other symbols and then fill in the target detail later)

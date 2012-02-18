@@ -79,18 +79,18 @@
     <ClCompile Include="8088.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\include\unity\array.h" />
-    <ClInclude Include="..\include\unity\buffer.h" />
-    <ClInclude Include="..\include\unity\character_source.h" />
-    <ClInclude Include="..\include\unity\config_file.h" />
-    <ClInclude Include="..\include\unity\hash_table.h" />
-    <ClInclude Include="..\include\unity\integer_types.h" />
-    <ClInclude Include="..\include\unity\main.h" />
-    <ClInclude Include="..\include\unity\reference_counted.h" />
-    <ClInclude Include="..\include\unity\space.h" />
-    <ClInclude Include="..\include\unity\string.h" />
-    <ClInclude Include="..\include\unity\type.h" />
-    <ClInclude Include="..\include\unity\value.h" />
+    <ClInclude Include="..\include\alfe\array.h" />
+    <ClInclude Include="..\include\alfe\buffer.h" />
+    <ClInclude Include="..\include\alfe\character_source.h" />
+    <ClInclude Include="..\include\alfe\config_file.h" />
+    <ClInclude Include="..\include\alfe\hash_table.h" />
+    <ClInclude Include="..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\include\alfe\main.h" />
+    <ClInclude Include="..\include\alfe\reference_counted.h" />
+    <ClInclude Include="..\include\alfe\space.h" />
+    <ClInclude Include="..\include\alfe\string.h" />
+    <ClInclude Include="..\include\alfe\type.h" />
+    <ClInclude Include="..\include\alfe\value.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="scratch.txt" />

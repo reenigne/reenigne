@@ -79,9 +79,9 @@
     <ClCompile Include="keyboard.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\include\unity\file.h" />
-    <ClInclude Include="..\..\..\include\unity\main.h" />
-    <ClInclude Include="..\..\..\include\unity\user.h" />
+    <ClInclude Include="..\..\..\include\alfe\file.h" />
+    <ClInclude Include="..\..\..\include\alfe\main.h" />
+    <ClInclude Include="..\..\..\include\alfe\user.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

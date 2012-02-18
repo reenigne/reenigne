@@ -1,8 +1,8 @@
 #ifndef INCLUDED_REFERENCE_COUNTED_ARRAY_H
 #define INCLUDED_REFERENCE_COUNTED_ARRAY_H
 
-#include "unity/reference_counted.h"
-#include "unity/integer_types.h"
+#include "alfe/reference_counted.h"
+#include "alfe/integer_types.h"
 
 // This class combines an H and an array of Ts in a single memory block. H
 // must inherit from ReferenceCountedArray<H, T> (curiously recurring template

@@ -83,24 +83,24 @@
     <ClCompile Include="sanxion.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\include\unity\array.h" />
-    <ClInclude Include="..\..\..\include\unity\audio.h" />
-    <ClInclude Include="..\..\..\include\unity\buffer.h" />
-    <ClInclude Include="..\..\..\include\unity\com.h" />
-    <ClInclude Include="..\..\..\include\unity\command_line.h" />
-    <ClInclude Include="..\..\..\include\unity\convolution_pipe.h" />
-    <ClInclude Include="..\..\..\include\unity\file.h" />
-    <ClInclude Include="..\..\..\include\unity\gcd.h" />
-    <ClInclude Include="..\..\..\include\unity\hash_table.h" />
-    <ClInclude Include="..\..\..\include\unity\integer_types.h" />
-    <ClInclude Include="..\..\..\include\unity\minimum_maximum.h" />
-    <ClInclude Include="..\..\..\include\unity\owning_array.h" />
-    <ClInclude Include="..\..\..\include\unity\pipes.h" />
-    <ClInclude Include="..\..\..\include\unity\reference_counted.h" />
-    <ClInclude Include="..\..\..\include\unity\set.h" />
-    <ClInclude Include="..\..\..\include\unity\string.h" />
-    <ClInclude Include="..\..\..\include\unity\thread.h" />
-    <ClInclude Include="..\..\..\include\unity\uncopyable.h" />
+    <ClInclude Include="..\..\..\include\alfe\array.h" />
+    <ClInclude Include="..\..\..\include\alfe\audio.h" />
+    <ClInclude Include="..\..\..\include\alfe\buffer.h" />
+    <ClInclude Include="..\..\..\include\alfe\com.h" />
+    <ClInclude Include="..\..\..\include\alfe\command_line.h" />
+    <ClInclude Include="..\..\..\include\alfe\convolution_pipe.h" />
+    <ClInclude Include="..\..\..\include\alfe\file.h" />
+    <ClInclude Include="..\..\..\include\alfe\gcd.h" />
+    <ClInclude Include="..\..\..\include\alfe\hash_table.h" />
+    <ClInclude Include="..\..\..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\..\..\include\alfe\minimum_maximum.h" />
+    <ClInclude Include="..\..\..\include\alfe\owning_array.h" />
+    <ClInclude Include="..\..\..\include\alfe\pipes.h" />
+    <ClInclude Include="..\..\..\include\alfe\reference_counted.h" />
+    <ClInclude Include="..\..\..\include\alfe\set.h" />
+    <ClInclude Include="..\..\..\include\alfe\string.h" />
+    <ClInclude Include="..\..\..\include\alfe\thread.h" />
+    <ClInclude Include="..\..\..\include\alfe\uncopyable.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

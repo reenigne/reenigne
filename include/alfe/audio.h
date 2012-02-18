@@ -3,11 +3,11 @@
 
 // TODO: Posix port
 
-#include "unity/thread.h"
+#include "alfe/thread.h"
 #include <mmreg.h>
 #include <dsound.h>
 #include <xaudio2.h>
-#include "unity/com.h"
+#include "alfe/com.h"
 
 template<class Sample> class AudioSink : public Sink<Sample>
 {

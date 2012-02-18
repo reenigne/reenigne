@@ -1,4 +1,4 @@
-#include "unity/main.h"
+#include "alfe/main.h"
 
 int inputValues(int inputs, int connection)
 {
@@ -37,7 +37,7 @@ public:
                     bool y0 = (((gate >> inputs0) & 1) != 0);
                     bool y1 = (((gate >> inputs1) & 1) != 0);
                     int y = (y0 ? 1 : 0) | (y1 ? 2 : 0);
-                    // Cases: 
+                    // Cases:
                     //   y = 0: Output converges to 0
                     //   y = 1: Output oscillates
                     //   y = 2: Output is bistable

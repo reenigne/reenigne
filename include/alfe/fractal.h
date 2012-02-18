@@ -1,10 +1,10 @@
 #ifndef INCLUDED_FRACTAL_H
 #define INCLUDED_FRACTAL_H
 
-#include "unity/complex.h"
-#include "unity/user.h"
-#include "unity/fix.h"
-#include "unity/thread.h"
+#include "alfe/complex.h"
+#include "alfe/user.h"
+#include "alfe/fix.h"
+#include "alfe/thread.h"
 
 typedef Fixed<16, Int32, Int64> Fix16p16;
 

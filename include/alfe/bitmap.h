@@ -1,9 +1,9 @@
 #ifndef INCLUDED_BITMAP_H
 #define INCLUDED_BITMAP_H
 
-#include "unity/vectors.h"
-#include "unity/reference_counted_array.h"
-#include "unity/file.h"
+#include "alfe/vectors.h"
+#include "alfe/reference_counted_array.h"
+#include "alfe/file.h"
 #include <png.h>
 
 // A Bitmap is a value class encapsulating a 2D image. Its width, height,
@@ -219,7 +219,7 @@ public:
         copyTo(c);
         return c;
     }
-    
+
     void fill(const Pixel& pixel)
     {
         Byte* row = data();

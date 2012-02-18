@@ -1,10 +1,10 @@
-#include "unity/integer_types.h"
-#include "unity/file.h"
-#include "unity/random.h"
+#include "alfe/integer_types.h"
+#include "alfe/file.h"
+#include "alfe/random.h"
 #include <stdio.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
-#include "unity/main.h"
+#include "alfe/main.h"
 
 static const int samplesPerSecond = 44100;
 static const int changesPerSecond = 50;

@@ -1,7 +1,7 @@
 #ifndef INCLUDED_VECTORS_H
 #define INCLUDED_VECTORS_H
 
-#include "unity/rotors.h"
+#include "alfe/rotors.h"
 
 template<class Real> class Complex;
 
@@ -138,15 +138,15 @@ public:
 
 template<class T> Vector2<T> operator+(const T& n, const Vector2<T>& v)
 {
-    return v + n; 
+    return v + n;
 }
 template<class T> Vector2<T> operator-(const T& n, const Vector2<T>& v)
 {
-    return (-v) + n; 
+    return (-v) + n;
 }
 template<class T> Vector2<T> operator*(const T& n, const Vector2<T>& v)
 {
-    return v * n; 
+    return v * n;
 }
 template<class T> Vector2<T> operator/(const T& n, const Vector2<T>& v)
 {
@@ -388,15 +388,15 @@ public:
 
 template<class T> Vector3<T> operator+(const T& n, const Vector3<T>& v)
 {
-    return v + n; 
+    return v + n;
 }
 template<class T> Vector3<T> operator-(const T& n, const Vector3<T>& v)
 {
-    return (-v) + n; 
+    return (-v) + n;
 }
 template<class T> Vector3<T> operator*(const T& n, const Vector3<T>& v)
 {
-    return v * n; 
+    return v * n;
 }
 template<class T> Vector3<T> operator/(const T& n, const Vector3<T>& v)
 {

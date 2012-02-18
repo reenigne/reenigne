@@ -1,7 +1,7 @@
 #ifndef INCLUDED_STACK_H
 #define INCLUDED_STACK_H
 
-#include "unity/array.h"
+#include "alfe/array.h"
 
 template<class T> class Stack
 {

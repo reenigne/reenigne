@@ -1,11 +1,11 @@
-#include "unity/main.h"
-#include "unity/file.h"
-#include "unity/colour_space.h"
+#include "alfe/main.h"
+#include "alfe/file.h"
+#include "alfe/colour_space.h"
 #include <stdio.h>
-#include "unity/user.h"
-#include "unity/thread.h"
-#include "unity/bitmap.h"
-#include "unity/config_file.h"
+#include "alfe/user.h"
+#include "alfe/thread.h"
+#include "alfe/bitmap.h"
+#include "alfe/config_file.h"
 
 typedef Vector3<int> YIQ;
 
@@ -49,7 +49,7 @@ public:
                 _patterns[i] = bits;
                 int j;
                 for (j = 0; j < _patternCount; ++j)
-                    if (_patterns[_characters[j]] == bits || 
+                    if (_patterns[_characters[j]] == bits ||
                         _patterns[_characters[j]] == ~bits)
                         break;
                 if (j == _patternCount) {
@@ -187,7 +187,7 @@ public:
 //            setCompositeData(Vector(i, 0) - _compositeOffset, overscanColour);
             colorBurst[i] = static_cast<float>(p[i].x);
         }
-        float burstI = colorBurst[2] - colorBurst[0];      
+        float burstI = colorBurst[2] - colorBurst[0];
         float burstQ = colorBurst[3] - colorBurst[1];
         float colorBurstGain = 32.0f/sqrt((burstI*burstI + burstQ*burstQ)/2);
         float s = saturation*contrast*colorBurstGain*0.352f;
@@ -205,7 +205,7 @@ public:
             static_cast<int>(brightness*100.0 - 7.5f*256.0f*contrast)<<8;
 
         // Now that _iqMultipliers has been initialized correctly, we can set
-        // initialize _compositeData. Let's start it off 
+        // initialize _compositeData. Let's start it off
         //for (int y = 0; y < _outputSize.y; ++y)
         //    for (int x = 0; x < _outputSize.x; ++x)
         //        setCompositeData(Vector(x, y) - _compositeOffset,
@@ -263,7 +263,7 @@ public:
 //                _dataOutput[o*2] = ch;
 //                _dataOutput[o*2 + 1] = at;
 //                _position = Vector((x/8)*8, y);
-//                errorFor(_patterns[ch], at & 15, at >> 4); 
+//                errorFor(_patterns[ch], at & 15, at >> 4);
 //            }
         _position = Vector(0, 0);
 
@@ -346,7 +346,7 @@ public:
 //        // blue/cyan/red/yellow-burst chroma colours.
 //
 //        // TODO: use phase to compute phaseLevels entries 2 to 5
-//        static const int phase = 128;  
+//        static const int phase = 128;
 //        static const int phaseLevels[6] = {0, 256, -53, 128, 309, 128};
 //
 //        // The following levels are computed as follows:
@@ -369,7 +369,7 @@ public:
 //        //   sample = 1.4*IRE + 60
 //        static const int sampleLevels[4] = {71, 107, 163, 200};
 //
-//        // The sample grid should be aligned such that 00330033 is 
+//        // The sample grid should be aligned such that 00330033 is
 //        // green/magenta[/orange/aqua], not blue/cyan/red/yellow-burst. The
 //        // former aligns the samples with the pixels with the composite
 //        // samples
@@ -401,7 +401,7 @@ public:
 //        int sample = (((sampleHigh - sampleLow)*chroma) >> 8) + sampleLow - 60;
 //        Vector q = p + _compositeOffset;
 //        _compositeData[q.y*_compositeSize.x + q.x] = YIQ(sample,
-//            sample*_iqMultipliers[p.x & 3], 
+//            sample*_iqMultipliers[p.x & 3],
 //            sample*_iqMultipliers[(p.x + 3)&3]);
 //    }
 //
@@ -438,10 +438,10 @@ public:
 //            // 4-sample running average but that leads to sharp edges
 //            // in the resulting image.
 //            // The kernel of this FIR is [1, 4, 7, 8, 7, 4, 1]
-//            YIQ yiq = 
+//            YIQ yiq =
 //                    d[x - 6] + d[x - 0]
-//                + ((d[x - 5] + d[x - 1])<<2) 
-//                +  (d[x - 4] + d[x - 2])*7 
+//                + ((d[x - 5] + d[x - 1])<<2)
+//                +  (d[x - 4] + d[x - 2])*7
 //                +  (d[x - 3]<<3);
 //
 //            // Contrast for I and Q is handled by _iqMultipliers, along with
@@ -488,10 +488,10 @@ public:
 //            // 4-sample running average but that leads to sharp edges
 //            // in the resulting image.
 //            // The kernel of this FIR is [1, 4, 7, 8, 7, 4, 1]
-//            YIQ yiq = 
+//            YIQ yiq =
 //                    d[x - 6] + d[x - 0]
-//                + ((d[x - 5] + d[x - 1])<<2) 
-//                +  (d[x - 4] + d[x - 2])*7 
+//                + ((d[x - 5] + d[x - 1])<<2)
+//                +  (d[x - 4] + d[x - 2])*7
 //                +  (d[x - 3]<<3);
 //
 //            // Contrast for I and Q is handled by _iqMultipliers, along with
@@ -633,7 +633,7 @@ private:
             _ending = true;
         }
 
-    private:                                        
+    private:
         void doRestart()
         {
             _restartRequested = false;

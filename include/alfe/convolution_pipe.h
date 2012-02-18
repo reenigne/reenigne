@@ -4,9 +4,9 @@
 #ifndef INCLUDED_CONVOLUTION_PIPE_H
 #define INCLUDED_CONVOLUTION_PIPE_H
 
-#include "unity/pipes.h"
-#include "unity/gcd.h"
-#include "unity/reference_counted.h"
+#include "alfe/pipes.h"
+#include "alfe/gcd.h"
+#include "alfe/reference_counted.h"
 #include "float.h"
 
 class ProductKernel;

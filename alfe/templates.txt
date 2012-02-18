@@ -6,7 +6,7 @@
     template<class A> class B { }  // template
     template<> class B<Int> { }    // specialization
     template<template<class A> class B> class C { }  // template template
-  In Unity:
+  In ALFE:
 
     A f<@A>() { }
     Int f<Int>() { }

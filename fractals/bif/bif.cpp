@@ -1,6 +1,6 @@
-#include "unity/user.h"
-#include "unity/fractal.h"
-#include "unity/main.h"
+#include "alfe/user.h"
+#include "alfe/fractal.h"
+#include "alfe/main.h"
 #include <vector>
 
 class Pixel
@@ -8,7 +8,7 @@ class Pixel
 public:
     Pixel() { reset(); }
     void reset() { hits = 0; }
-    int colour(float exposure) const 
+    int colour(float exposure) const
     {
         return 255 - static_cast<int>(255.0f*exp(hits/exposure));
     }
@@ -64,7 +64,7 @@ private:
         float y = 0.6f;
         for (int xs = _region.getSize().x - 1; xs >= 0; --xs) {
             float x = static_cast<float>(_region.cxFromSx(xs + offset));
-            for (int i = 0; i < 100; ++i) 
+            for (int i = 0; i < 100; ++i)
                 y = x*y*(1.0f - y);
             for (int i = 0; i < 1000; ++i) {
                 y = x*y*(1.0f - y);
