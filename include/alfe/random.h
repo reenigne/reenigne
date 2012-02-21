@@ -1,7 +1,7 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_RANDOM_H
 #define INCLUDED_RANDOM_H
-
-#include "alfe/integer_types.h"
 
 UInt32 random32()
 {

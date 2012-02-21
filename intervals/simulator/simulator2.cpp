@@ -529,7 +529,6 @@ private:
     UInt8 _io;
     int _f;
     UInt8 _data;
-    Handle _console;
     int _state;
     int _cyclesSinceLastSync;
 };

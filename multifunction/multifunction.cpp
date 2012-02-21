@@ -79,7 +79,7 @@ public:
                     s += "---";
                 s += " ";
             }
-            _console.write(s + "\n");
+            console.write(s + "\n");
         }
     }
 };

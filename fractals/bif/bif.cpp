@@ -95,7 +95,7 @@ private:
 class Program : public ProgramBase
 {
 protected:
-    int run()
+    void run()
     {
         Region region(Vector2<double>(3.5f, 0.0f), Vector2<double>(4.0f, 1.0f),
             Vector2<int>(2, 2));
@@ -114,7 +114,7 @@ protected:
         ZoomableWindow window(zwp);
 
         window.show(_nCmdShow);
-        return pumpMessages();
+        pumpMessages();
     }
 };
 

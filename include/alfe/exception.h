@@ -1,4 +1,4 @@
-#include "alfe/string.h"
+#include "alfe/main.h"
 
 #ifndef INCLUDED_EXCEPTION_H
 #define INCLUDED_EXCEPTION_H
@@ -147,6 +147,9 @@ private:
             error = E_FAIL;
         }
         LocalString strMessage;
+        // The reinterpret_cast<> here is necessary because of the
+        // FORMAT_MESSAGE_ALLOCATE_BUFFER flag, which causes Windows to put a
+        // LPWSTR value in a *LPWSTR variable.
         DWORD formatted = FormatMessage(
             FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
                 FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -157,13 +160,39 @@ private:
             0,
             NULL);
         if (formatted == 0)
-            return String("FormatMessage failed: 0x") +
-                hex(GetLastError(), 8);
+            return String("FormatMessage failed: ") + hex(GetLastError(), 8);
         return strMessage.string();
     }
 #endif
     String _message;
     Reference<Implementation> _implementation;
+};
+
+class PreserveSystemError
+{
+public:
+    PreserveSystemError()
+    {
+#ifdef _WIN32
+        _lastError = GetLastError();
+#else
+        _errno = errno;
+#endif
+    }
+    ~PreserveSystemError()
+    {
+#ifdef _WIN32
+        SetLastError(_lastError);
+#else
+        errno = _errno;
+#endif
+    }
+private:
+#ifdef _WIN32
+    DWORD _lastError;
+#else
+    int _errno;
+#endif
 };
 
 #endif // INCLUDED_EXCEPTION_H

@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_SYMBOL_H
 #define INCLUDED_SYMBOL_H
 

@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_UNCOPYABLE_H
 #define INCLUDED_UNCOPYABLE_H
 

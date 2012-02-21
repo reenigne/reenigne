@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_FILE_H
 #define INCLUDED_FILE_H
 
@@ -37,16 +39,7 @@ template<class T> class DriveCurrentDirectoryTemplate;
 typedef DriveCurrentDirectoryTemplate<void> DriveCurrentDirectory;
 #endif
 
-#include "alfe/string.h"
-
-#ifdef _WIN32
-#define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
-#include <unistd.h>
-#include <dirent.h>
-#endif
+class CharacterSource;
 
 template<class T> class FileSystemObjectTemplate
 {
@@ -72,33 +65,23 @@ public:
     {
         return !operator==(other);
     }
-    int hash() const { return _implementation->hash(0); }
-#ifdef _WIN32
-    String windowsPath() const { return _implementation->windowsPath(); }
-    String messagePath() const { return windowsPath(); }
-#else
-    String messagePath() const { return path(); }
-#endif
+    int hash() const { return _implementation->hash(); }
     class Implementation : public ReferenceCounted
     {
     public:
         virtual Directory parent() const = 0;
         virtual String name() const = 0;
-    #ifdef _WIN32
-        virtual String windowsPath() const = 0;
-    #endif
         virtual String path() const = 0;
         virtual bool isRoot() const = 0;
-        virtual int hash(int h) const = 0;
+        virtual int hash() const = 0;
         virtual int compare(const Implementation* other) const = 0;
     };
 
 protected:
-    FileSystemObjectTemplate(Reference<Implementation> implementation)
-      : _implementation(implementation) { }
-
     Reference<Implementation> _implementation;
 private:
+    FileSystemObjectTemplate(Reference<Implementation> implementation)
+      : _implementation(implementation) { }
 
     static FileSystemObject parse(const String& path,
         const Directory& relativeTo, bool windowsParsing)
@@ -310,186 +293,12 @@ private:
     template<class T> friend class NamedFileSystemObjectImplementationTemplate;
     template<class T> friend class CurrentDirectoryTemplate;
     template<class T> friend class DirectoryTemplate;
+    friend class Console;
 
     template<class T> friend void applyToWildcard(T functor,
         const String& wildcard, int recurseIntoDirectories,
         const Directory& relativeTo);
 };
-
-#ifdef _WIN32
-template<class T> class FindHandleTemplate
-{
-public:
-    FindHandleTemplate(const Directory& directory, const String& wildcard)
-      : _directory(directory), _wildcard(wildcard), _complete(false),
-        _handle(INVALID_HANDLE_VALUE)
-    {
-        _path = directory.child(wildcard).windowsPath();
-        NullTerminatedWideString data(_path);
-        _handle = FindFirstFile(data, &_data);
-        if (_handle == INVALID_HANDLE_VALUE) {
-            if (GetLastError() == ERROR_FILE_NOT_FOUND)
-                _complete = true;
-            else
-                throwError();
-        }
-        String n = name();
-        if (n == "." || n == "..")
-            next();
-    }
-    void next()
-    {
-        do {
-            if (FindNextFile(_handle, &_data) == 0)
-                if (GetLastError() == ERROR_NO_MORE_FILES) {
-                    _complete = true;
-                    return;
-                }
-                else
-                    throwError();
-            String n = name();
-            if (n == "." || n == "..")
-                continue;
-            break;
-        } while (true);
-    }
-    ~FindHandleTemplate()
-    {
-        if (_handle != INVALID_HANDLE_VALUE)
-            FindClose(_handle);
-    }
-    bool isDirectory() const
-    {
-        return (_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-    }
-    String name() const
-    {
-        return _data.cFileName;
-    }
-    FileSystemObject object() const
-    {
-        return _directory.child(name());
-    }
-    DirectoryTemplate<T> directory() const
-    {
-        return _directory.subDirectory(name());
-    }
-    FileTemplate<T> file() const
-    {
-        return _directory.file(name());
-    }
-    bool complete() { return _complete; }
-private:
-    void throwError()
-    {
-        throw Exception::systemError("Finding files " + _path);
-    }
-
-    HANDLE _handle;
-    WIN32_FIND_DATA _data;
-    Directory _directory;
-    String _wildcard;
-    String _path;
-    bool _complete;
-};
-#else
-template<class T> class FindHandleTemplate
-{
-public:
-    FindHandleTemplate(const Directory& directory, const String& wildcard)
-      : _directory(directory), _wildcard(wildcard), _complete(false),
-        _dir(NULL)
-    {
-        NullTerminatedString data(directory.path());
-        _dir = opendir(data);
-        if (_dir == NULL)
-            throw Exception::systemError("Opening directory " + _path);
-        next();
-    }
-    void next()
-    {
-        do {
-            errno = 0;
-            _data = readdir(_dir);
-            if (_data == NULL)
-                if (errno == 0)
-                    _complete = true;
-                else
-                    throw Exception::systemError("Reading directory " + _path);
-            String n = name();
-            if (n == "." || n == "..")
-                continue;
-            if (!matches(n, wildcard))
-                continue;
-            break;
-        } while (true);
-    }
-    ~FindHandle()
-    {
-        if (_handle != NULL)
-            closedir(_dir);
-    }
-    bool isDirectory() const
-    {
-        return _dirent->d_type == DT_DIR;
-    }
-    String name() const
-    {
-        return _data.d_name;
-    }
-    FileSystemObject object() const
-    {
-        return _directory.child(name());
-    }
-    Directory directory() const
-    {
-        return _directory.subDirectory(name());
-    }
-    File file() const
-    {
-        return _directory.file(name());
-    }
-    bool complete() { return _complete; }
-private:
-    static bool matches(String name, String wildcard)
-    {
-        CharacterSource sw(wildcard);
-        CharacterSource sn(name);
-        do {
-            int cs = sw.get();
-            int cn = sn.get();
-            switch (cs) {
-                case '?':
-                    if (cn == -1)
-                        return false;
-                    continue;
-                case '*':
-                    // TODO: this code is O(n^p) where p is number of stars, we
-                    // can do better using dynamic programming.
-                    if (cn == -1)
-                        continue;
-                    do {
-                        if (matches(name.subString(sn.offset(),
-                            name.length() - sn.offset()), sw.offset(),
-                            wildcard.length() - sw.offset()))
-                            return true;
-                        cn = sn.get();
-                    } while (cn != -1);
-                    return false;
-                case -1:
-                    return (cn == -1);
-                default:
-                    return (cn == cs);
-            }
-        } while (true);
-    }
-
-    struct dirent* _data;
-    DIR* _dir;
-    String _path;
-    bool _complete;
-};
-#endif
 
 template<class T> class DirectoryTemplate : public FileSystemObject
 {
@@ -554,8 +363,7 @@ private:
         int n = GetCurrentDirectory(0, NULL);
         if (n == 0)
             throw Exception::systemError("Obtaining current directory");
-        Array<WCHAR> buf;
-        buf.allocate(n);
+        Array<WCHAR> buf(n);
         if (GetCurrentDirectory(n, &buf[0]) == 0)
             throw Exception::systemError("Obtaining current directory");
         String path(&buf[0]);
@@ -632,19 +440,18 @@ public:
 
         Directory parent() const { return RootDirectory(); }
         String name() const { return String(); }
-#ifdef _WIN32
-        String windowsPath() const
+        String path() const
         {
+#ifdef _WIN32
             // TODO: Use \\?\ to avoid MAX_PATH limit?
-            // If we do this we need to know the current drive - this is the
-            // first character of CurrentDirectory().windowsPath() .
+            // If we do this we need to know the current drive, which can be
+            // found from CurrentDirectory().
+#endif
             return String();
         }
-#endif
-        String path() const { return String(); }
         bool isRoot() const { return true; }
 
-        int hash(int h) const { return 0; }
+        int hash() const { return 0; }
 
         int compare(const FileSystemObject::Implementation* other) const
         {
@@ -690,14 +497,13 @@ private:
         Implementation(int drive) : _drive(drive) { }
 
         Directory parent() const { return DriveRootDirectory(_drive); }
-        String windowsPath() const
+        String path() const
         {
             // TODO: Use \\?\ to avoid MAX_PATH limit?
-            return path();
+            return codePoint('A' + _drive) + ":";
         }
-        String path() const { return codePoint('A' + _drive) + ":"; }
 
-        int hash(int h) const { return _drive; }
+        int hash() const { return _drive + 1; }
 
         int compare(const FileSystemObject::Implementation* other) const
         {
@@ -730,15 +536,9 @@ private:
           : _server(server), _share(share) { }
 
         Directory parent() const { return UNCRootDirectory(_server, _share); }
-        String windowsPath() const
-        {
-            return "\\\\" + _server + "\\" + _share;
-        }
+        String path() const { return "\\\\" + _server + "\\" + _share; }
 
-        int hash(int h) const
-        {
-            return (h*67 + _server.hash())*67 + _share.hash();
-        }
+        int hash() const { return _server.hash()*67 + _share.hash(); }
 
         int compare(const FileSystemObject::Implementation* other) const
         {
@@ -759,7 +559,8 @@ private:
 };
 #endif
 
-class FileHandle;
+template<class T> class FileHandleTemplate;
+typedef FileHandleTemplate<void> FileHandle;
 
 template<class T> class FileTemplate : public FileSystemObject
 {
@@ -772,226 +573,164 @@ public:
 
     String contents() const
     {
-        FileHandle handle(*this);
-        handle.openRead();
-        UInt64 size = handle.size();
+        FileHandle f = openRead();
+        UInt64 size = f.size();
         if (size >= 0x80000000)
-            throw Exception("2Gb or more in file " + messagePath());
+            throw Exception("2Gb or more in file " + path());
         int intSize = static_cast<int>(size);
         String buffer(intSize);
-        handle.read(static_cast<void*>(buffer.data()), intSize);
+        f.read(static_cast<void*>(buffer.data()), intSize);
+        buffer._length = intSize;
         return buffer;
     }
-    void save(const Array<Byte>& contents)
+    template<class U> void save(const U& contents) const
     {
-        FileHandle handle(*this);
-        handle.openWrite();
-        handle.write(contents);
+        openWrite().write(contents);
     }
-    void save(const String& contents)
-    {
-        FileHandle handle(*this);
-        handle.openWrite();
-        handle.write(contents);
-    }
-    void secureSave(const String& contents)
+    template<class U> void secureSave(const U& contents) const
     {
         // TODO: Backup file?
-        String tempPath;
+        File temp;
         {
-            FileHandle handle(*this);
-            tempPath = handle.openWriteTemporary();
-            contents.write(handle);
+            f = openWriteTemporary();
+            f.write(contents);
 #ifndef _WIN32
-            handle.sync();
+            f.sync();
 #endif
+            temp = f.file();
         }
 #ifdef _WIN32
-        NullTerminatedWideString data(messagePath());
-        NullTerminatedWideString tempData(tempPath);
+        NullTerminatedWideString data(path());
+        NullTerminatedWideString tempData(temp.path());
         if (ReplaceFile(data, tempData, NULL, REPLACEFILE_WRITE_THROUGH |
             REPLACEFILE_IGNORE_MERGE_ERRORS) == 0) {
-            // TODO: Delete temporary file?
-            throw Exception::systemError("Replacing file " + messagePath());
+            {
+                PreserveSystemError p;
+                DeleteFile(tempData);  // Ignore any errors
+            }
+            throw Exception::systemError("Replacing file " + path());
         }
 #else
-        NullTerminatedString data(messagePath());
-        NullTerminatedString tempData(tempPath);
+        NullTerminatedString data(path());
+        NullTerminatedString tempData(temp.path());
         if (rename(tempData, data) != 0) {
-            // TODO: Delete temporary file?
-            throw Exception::systemError("Replacing file " + messagePath());
+            {
+                PreserveSystemError p;
+                unlink(tempData);  // Ignore any errors
+            }
+            throw Exception::systemError("Replacing file " + path());
         }
 #endif
     }
-    void append(const String& contents)
+    template<class U> void append(const U& contents) const
     {
-        FileHandle handle(*this);
-        handle.openAppend();
-        contents.write(handle);
+        openAppend().write(contents);
     }
-private:
-    FileTemplate(FileSystemObject object) : FileSystemObject(object) { }
-
-    friend class DirectoryTemplate<T>;
-};
-
-class FileHandle : public AutoHandle
-{
-public:
-    FileHandle(const File& file) : _file(file) { }
-    void openRead()
+    FileHandleTemplate<T> openRead() const
     {
 #ifdef _WIN32
-        open(path(), GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING,
+        return open(GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING,
             FILE_FLAG_SEQUENTIAL_SCAN);
 #else
-        open(path(), O_RDONLY);
+        return open(O_RDONLY);
 #endif
     }
-    void openWrite()
+    FileHandleTemplate<T> openWrite() const
     {
 #ifdef _WIN32
-        open(path(), GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
+        return open(GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
 #else
-        open(path(), O_WRONLY | O_CREAT | O_TRUNC);
+        return open(O_WRONLY | O_CREAT | O_TRUNC);
 #endif
     }
-    bool tryOpenRead()
+    FileHandleTemplate<T> tryOpenRead() const
     {
 #ifdef _WIN32
-        return tryOpen(path(), GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING,
+        return tryOpen(GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING,
             FILE_FLAG_SEQUENTIAL_SCAN);
 #else
-        return tryOpen(path(), O_RDONLY);
+        return tryOpen(O_RDONLY);
 #endif
     }
-    bool tryOpenWrite()
+    FileHandleTemplate<T> tryOpenWrite() const
     {
 #ifdef _WIN32
-        return tryOpen(path(), GENERIC_WRITE, 0, CREATE_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL);
+        return tryOpen(GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
 #else
-        return tryOpen(path(), O_WRONLY | O_CREAT | O_TRUNC);
+        return tryOpen(O_WRONLY | O_CREAT | O_TRUNC);
 #endif
     }
-    String openWriteTemporary()
+    FileHandleTemplate<T> openWriteTemporary() const
     {
         int i = 0;
         do {
-            String tempPath = path() + hex(i, 8, false);
-            bool success;
+            File temp = parent().file(name() + hex(i, 8, false));
 #ifdef _WIN32
-            success = open(tempPath, GENERIC_WRITE, 0, CREATE_NEW,
+            FileHandle f = open(tempPath, GENERIC_WRITE, 0, CREATE_NEW,
                 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, false);
 #else
-            success = open(tempPath, O_WRONLY | O_CREAT | O_EXCL, false);
+            FileHandle f = open(tempPath, O_WRONLY | O_CREAT | O_EXCL, false);
 #endif
-            if (success)
-                return tempPath;
+            if (f.valid())
+                return f;
             ++i;
         } while (true);
     }
-#ifndef _WIN32
-    void sync()
-    {
-        if (fsync(operator int()) != 0)
-            throw Exception::systemError("Synchronizing file " + path());
-    }
-#endif
-    UInt64 size()
+    FileHandleTemplate<T> openAppend() const
     {
 #ifdef _WIN32
-        LARGE_INTEGER size;
-        if (GetFileSizeEx(operator HANDLE(), &size) == 0)
-            throw Exception::systemError("Obtaining length of file " +
-                name());
-        return size.QuadPart;
+        return open(name(), GENERIC_WRITE, 0, OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL);
 #else
-        off_t o = seek(0, SEEK_CUR);
-        off_t n = seek(0, SEEK_END);
-        seek(o, SEEK_SET);
-        return n;
-#endif
-    }
-    void openAppend()
-    {
-#ifdef _WIN32
-        open(path(), GENERIC_WRITE, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL);
-#else
-        open(path(), O_WRONLY | O_APPEND);
-#endif
-    }
-    void seek(UInt64 position)
-    {
-#ifdef _WIN32
-        LARGE_INTEGER p;
-        p.QuadPart = position;
-        if (SetFilePointerEx(operator HANDLE(), p, NULL, FILE_BEGIN) == 0)
-            throw Exception::systemError("Seeking file " + name());
-#else
-        seek(position, SEEK_SET);
+        return open(name(), O_WRONLY | O_APPEND);
 #endif
     }
 private:
 #ifdef _WIN32
-    bool open(String path, DWORD dwDesiredAccess, DWORD dwShareMode,
+    FileHandleTemplate<T> open(DWORD dwDesiredAccess, DWORD dwShareMode,
         DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes,
-        bool throwIfExists = true)
+        bool throwIfExists = true) const
     {
-        if (!tryOpen(path, dwDesiredAccess, dwShareMode, dwCreationDisposition,
-            dwFlagsAndAttributes)) {
-            if (!throwIfExists && GetLastError() == ERROR_FILE_EXISTS)
-                return false;
-            throw Exception::systemError("Opening file " + path);
-        }
-        return true;
+        FileHandle f = tryOpen(dwDesiredAccess, dwShareMode,
+            dwCreationDisposition, dwFlagsAndAttributes);
+        if (!f.valid() &&
+            (throwIfExists || GetLastError() == ERROR_FILE_EXISTS))
+            throw Exception::systemError("Opening file " + path());
+        return f;
     }
-    bool tryOpen(String path, DWORD dwDesiredAccess, DWORD dwShareMode,
-        DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes)
+    FileHandleTemplate<T> tryOpen(DWORD dwDesiredAccess, DWORD dwShareMode,
+        DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes) const
     {
-        NullTerminatedWideString data(path);
-        HANDLE handle = CreateFile(
+        NullTerminatedWideString data(path());
+        return FileHandle(CreateFile(
             data,   // lpFileName
             dwDesiredAccess,
             dwShareMode,
             NULL,   // lpSecurityAttributes
             dwCreationDisposition,
             dwFlagsAndAttributes,
-            NULL);  // hTemplateFile
-        if (handle == INVALID_HANDLE_VALUE)
-            return false;
-        set(handle, path);
-        return true;
+            NULL),  // hTemplateFile
+            *this);
     }
 #else
-    bool open(String path, int flags, bool throwIfExists = true)
+    FileHandle open(int flags, bool throwIfExists = true) const
     {
-        if (!tryOpen(path, flags)) {
-            if (!throwIfExists && errno == EEXIST)
-                return false;
-            throw Exception::systemError("Opening file " + path);
-        }
-        return true;
+        FileHandle f = tryOpen(flags);
+        if (!f.valid() && (throwIfExists || errno != EEXIST))
+            throw Exception::systemError("Opening file " + path());
+        return f;
     }
-    bool tryOpen(String path, int flags)
+    FileHandle tryOpen(int flags) const
     {
-        NullTerminatedString data(path);
-        int fileDescriptor = open(data, flags);
-        if (fileDescriptor == -1)
-            return false;
-        set(fileDescriptor, path);
-        return true;
-    }
-    off_t seek(off_t offset, int whence)
-    {
-        off_t n = lseek(operator int(), offset, whence);
-        if (n == (off_t)(-1))
-            throw Exception::systemError("Seeking file " + name());
-        return n;
+        NullTerminatedString data(path());
+        return FileHandle(open(data, flags), *this);
     }
 #endif
-    String path() { return _file.messagePath(); }
-    File _file;
+
+    FileTemplate(FileSystemObject object) : FileSystemObject(object) { }
+
+    friend class DirectoryTemplate<T>;
+    friend class Console;
 };
 
 template<class T> class NamedFileSystemObjectImplementationTemplate
@@ -1001,15 +740,16 @@ public:
     NamedFileSystemObjectImplementationTemplate(const Directory& parent,
         const String& name) : _parent(parent), _name(name) { }
 #ifdef _WIN32
-    String windowsPath() const
+    String path() const
     {
-        return _parent.windowsPath() + "\\" + _name;
+        return _parent.path() + "\\" + _name;
     }
-#endif
+#else
     String path() const
     {
         return _parent.path() + "/" + _name;
     }
+#endif
 
     Directory parent() const { return _parent; }
 
@@ -1017,7 +757,7 @@ public:
 
     bool isRoot() const { return false; }
 
-    int hash(int h) const { return (h*67 + _parent.hash())*67 + _name.hash(); }
+    int hash() const { return _parent.hash()*67 + _name.hash(); }
 
     int compare(const FileSystemObject::Implementation* other) const
     {
@@ -1145,5 +885,29 @@ template<class T> void applyToWildcard(T functor, const String& wildcard,
 #endif
     applyToWildcard(functor, s, recurseIntoDirectories, dir);
 }
+
+class Console : public File
+{
+public:
+    Console() : File(FileSystemObject(new Implementation)) { }
+private:
+    class Implementation : public FileSystemObject::Implementation
+    {
+    public:
+        String path() const { return "(console)"; }
+        Directory parent() const { return RootDirectory(); }
+        String name() const { return path(); }
+        bool isRoot() const { return false; }
+        int hash() const { return 27; }
+        int compare(const FileSystemObject::Implementation* other) const
+        {
+            const Implementation* c =
+                dynamic_cast<const Implementation*>(other);
+            if (c == 0)
+                return 1;
+            return 0;
+        }
+    };
+};
 
 #endif // INCLUDED_FILE_H

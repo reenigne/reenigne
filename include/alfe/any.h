@@ -1,7 +1,7 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_ANY_H
 #define INCLUDED_ANY_H
-
-#include "alfe/reference_counted.h"
 
 class Any
 {

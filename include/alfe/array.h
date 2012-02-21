@@ -1,8 +1,7 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_ARRAY_H
 #define INCLUDED_ARRAY_H
-
-#include <new>
-#include "alfe/swap.h"
 
 template<class T> class List
 {

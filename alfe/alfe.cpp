@@ -291,8 +291,7 @@ protected:
     void run()
     {
         if (_arguments.count() < 2) {
-            _console.write("Syntax: " + _arguments[0] +
-                " <input file name>\n");
+            console.write("Syntax: " + _arguments[0] + " <input file name>\n");
             return;
         }
         File file(_arguments[1]);
@@ -302,7 +301,8 @@ protected:
         int printLabel = Symbol::newLabel();
         Symbol voidType(atomVoid);
         IdentifierCache* printCache = new IdentifierCache(Span(), printLabel);
-        Symbol print(atomPrintFunction, voidType, String("print"), SymbolArray(Symbol(atomString)), printCache);
+        Symbol print(atomPrintFunction, voidType, String("print"),
+            SymbolArray(Symbol(atomString)), printCache);
         print.setLabel(printLabel);
         scope->addFunction(String("print"), printLabel, Span());
 
@@ -312,7 +312,9 @@ protected:
         CharacterSource s = source;
         if (s.get() != -1)
             source.location().throwError("Expected end of file");
-        Symbol main(atomFunctionDefinitionStatement, voidType, String(), SymbolArray(), Symbol(atomCompoundStatement, mainCode), new FunctionDefinitionCache(Span()));
+        Symbol main(atomFunctionDefinitionStatement, voidType, String(),
+            SymbolArray(), Symbol(atomCompoundStatement, mainCode),
+            new FunctionDefinitionCache(Span()));
         int mainLabel = labelOf(main);
         setScopes(main, scope);
         resolveIdentifiersAndTypes(main);

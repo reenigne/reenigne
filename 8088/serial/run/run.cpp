@@ -8,23 +8,21 @@ public:
     void run()
     {
         if (_arguments.count() == 1) {
-            _console.write("Usage: run [-c] <name of file to send>\n");
+            console.write("Usage: run [-c] <name of file to send>\n");
             return;
         }
         int fileNameArgument = 1;
         bool comFile = false;
-        if (_arguments[1] == String("-c")) {
+        if (_arguments[1] == "-c") {
             comFile = true;
             fileNameArgument = 2;
         }
-        String fileName = _arguments[fileNameArgument];
-        String data = File(fileName).contents();
+        String data = File(_arguments[fileNameArgument]).contents();
         int l = data.length();
 
         //// Reset the machine
         //{
-        //    AutoHandle arduinoCom;
-        //    arduinoCom.set(CreateFile(
+        //    Handle arduinoCom = Handle::Auto(CreateFile(
         //        L"COM3",
         //        GENERIC_READ | GENERIC_WRITE,
         //        0,              // must be opened with exclusive-access
@@ -72,7 +70,7 @@ public:
 
         //Sleep(3000);
 
-        _com.set(CreateFile(
+        _com = Handle::Auto(CreateFile(
             L"COM1",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -131,7 +129,7 @@ public:
         // When running a .com file, we need the instruction pointer to start
         // at 0x100. We do this by prepending 0x100 NOP bytes at the beginning.
         // In DOS this area would contain the Program Segment Prefix structure.
-        //_console.write(hex(l, 8) + "\n");
+        //console.write(hex(l, 8) + "\n");
         Byte checkSum = 0;
         if (comFile) {
             sendLength(l + 0x100);
@@ -146,18 +144,18 @@ public:
             sendByte(data[i]);       // Send data byte
             checkSum += data[i];
             if ((i & 0xff) == 0)
-                _console.write(".");
+                console.write(".");
         }
         sendByte(checkSum);
         //IF_ZERO_THROW(FlushFileBuffers(_com));
 
-        //_console.write("Upload complete.\n");
+        //console.write("Upload complete.\n");
         // Dump bytes from COM port to stdout until we receive ^Z
         do {
             int c = _com.read<Byte>();
             if (c == 26)
                 break;
-            _console.write<Byte>(c);
+            console.write<Byte>(c);
         } while (true);
     }
 private:
@@ -172,7 +170,7 @@ private:
         _com.write<Byte>(value);
     }
 
-    AutoHandle _com;
+    Handle _com;
 
     friend class ReaderThread;
 };

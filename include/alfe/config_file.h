@@ -1,7 +1,8 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_CONFIG_FILE_H
 #define INCLUDED_CONFIG_FILE_H
 
-#include "alfe/string.h"
 #include "alfe/hash_table.h"
 #include "alfe/space.h"
 #include "alfe/any.h"
@@ -107,7 +108,7 @@ public:
         for (HashTable<String, TypedValue>::Iterator i = _options.begin();
             i != _options.end(); ++i) {
             if (!i.value().valid())
-                throw Exception(file.messagePath() + ": " + i.key() +
+                throw Exception(file.path() + ": " + i.key() +
                     " not defined and no default is available.");
         }
     }
@@ -285,8 +286,7 @@ private:
                         if (part.type() != Type::string)
                             source->location().throwError(
                                 "Don't know how to convert type " +
-                                part.type().toString() +
-                                " to a string");
+                                part.type().toString() + " to a string");
                     string += s.subString(startOffset, endOffset);
                     startOffset = source->offset();
                     expression = combine(expression, TypedValue(Type::string,
@@ -324,7 +324,7 @@ private:
         int endOffset = source->offset();
         String terminator = source->subString(startOffset, endOffset);
         startOffset = s.offset();
-        CharacterSource terminatorSource(terminator, "");
+        CharacterSource terminatorSource(terminator);
         int cc = terminatorSource.get();
         String string;
         do {
@@ -442,7 +442,7 @@ private:
             return TypedValue(value.type(), value.value(), i.span());
         }
         if (!_options.hasKey(s))
-            i.span().throwError(String("Unknown identifier ") + s);
+            i.span().throwError("Unknown identifier " + s);
         TypedValue option = _options[s];
         return TypedValue(option.type(), option.value(), i.span());
     }
@@ -505,11 +505,10 @@ private:
             }
             // i is a type identifier
             if (!_types.hasKey(name))
-                i.span().throwError(String("Unknown type ") + name);
+                i.span().throwError("Unknown type " + name);
             StructuredType type = _types[name];
             if (!type.valid())
-                i.span().throwError(
-                    String("Only structure types can be constructed"));
+                i.span().throwError("Only structure types can be constructed");
             const Array<StructuredType::Member>* members = type.members();
             List<Any> values;
             Span span;
@@ -599,7 +598,7 @@ private:
                 if (!okay)
                     span.throwError("Don't know how to multiply type " +
                         e.type().toString() + " and type " +
-                        e2.type().toString() + codePoint('.'));
+                        e2.type().toString() + ".");
                 continue;
             }
             if (Space::parseCharacter(source, '/', &span)) {
@@ -613,7 +612,7 @@ private:
                 else
                     span.throwError("Don't know how to divide type " +
                         e.type().toString() + " by type " +
-                        e2.type().toString() + codePoint('.'));
+                        e2.type().toString() + ".");
                 continue;
             }
             return e;
@@ -643,7 +642,7 @@ private:
                     else
                         span.throwError("Don't know how to add type " +
                             e2.type().toString() + " to type " +
-                            e.type().toString() + codePoint('.'));
+                            e.type().toString() + ".");
                 continue;
             }
             if (Space::parseCharacter(source, '-', &span)) {
@@ -657,7 +656,7 @@ private:
                 else
                     span.throwError("Don't know how to subtract type " +
                         e2.type().toString() + " from type " +
-                        e.type().toString() + codePoint('.'));
+                        e.type().toString() + ".");
                 continue;
             }
             return e;

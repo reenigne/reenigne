@@ -4,9 +4,9 @@
 class Program : public ProgramBase
 {
 public:
-    int run()
+    void run()
     {
-        _com.set(CreateFile(
+        _com = Handle::Auto(CreateFile(
             L"COM3",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -56,7 +56,7 @@ public:
         KeyboardWindow window(kwp);
 
         window.show(_nCmdShow);
-        return pumpMessages();
+        pumpMessages();
     }
 private:
     template<class Base> class KeyboardWindow : public Base
@@ -219,5 +219,5 @@ private:
         _com.write<Byte>(value);
     }
 
-    AutoHandle _com;
+    Handle _com;
 };

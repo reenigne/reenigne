@@ -1,7 +1,7 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_REFERENCE_COUNTED_H
 #define INCLUDED_REFERENCE_COUNTED_H
-
-#include "alfe/uncopyable.h"
 
 class ReferenceCounted : Uncopyable
 {

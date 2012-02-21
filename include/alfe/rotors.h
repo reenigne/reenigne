@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_ROTORS_H
 #define INCLUDED_ROTORS_H
 

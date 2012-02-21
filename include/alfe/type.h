@@ -1,7 +1,8 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_TYPE_H
 #define INCLUDED_TYPE_H
 
-#include "alfe/string.h"
 #include "alfe/any.h"
 #include "alfe/hash_table.h"
 #include "alfe/value.h"

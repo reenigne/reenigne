@@ -1,20 +1,51 @@
 #ifndef INCLUDED_MAIN_H
 #define INCLUDED_MAIN_H
 
-#include "alfe/string.h"
-#include "alfe/array.h"
-#include "alfe/user.h"
+#include <new>
+#include <exception>
+#include <limits>
+#include <string.h>
 
 #ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#ifdef _WINDOWS
+#define UTF16_MESSAGES
+#endif
 #include "shellapi.h"
+#else
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <dirent.h>
 #endif
 
-Handle* debug;
+#include "alfe/integer_types.h"
+#include "alfe/uncopyable.h"
+#include "alfe/reference_counted.h"
+#include "alfe/swap.h"
+#include "alfe/array.h"
+#include "alfe/minimum_maximum.h"
+#include "alfe/string.h"
+#include "alfe/exception.h"
+#include "alfe/file.h"
+#include "alfe/find_handle.h"
+#include "alfe/handle.h"
+#include "alfe/file_handle.h"
+#include "alfe/character_source.h"
+#if defined(_WIN32) && defined(_WINDOWS)
+#include "alfe/vectors.h"
+#include "alfe/bitmap.h"
+#include "alfe/user.h"
+#endif
+
+Handle console;
 
 class ProgramBase : public Uncopyable
 {
 public:
+    ProgramBase() : _returnValue(0) { }
 #ifdef _WIN32
 #ifdef _WINDOWS
     int initialize(HINSTANCE hInst, INT nCmdShow)
@@ -23,7 +54,7 @@ public:
             BEGIN_CHECKED {
                 _windows.initialize(hInst);
                 _nCmdShow = nCmdShow;
-                return initializeWindowsCommandLine();
+                initializeWindowsCommandLine();
             }
             END_CHECKED(Exception& e) {
                 NullTerminatedWideString s(e.message());
@@ -33,35 +64,33 @@ public:
         END_CHECKED(Exception&) {
             // Can't even display an error
         }
-        return 0;
+        return _returnValue;
     }
 #else
-    void initialize()
+    int initialize()
     {
         BEGIN_CHECKED {
-            HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-            if (h == INVALID_HANDLE_VALUE || h == NULL)
+            console = Handle(GetStdHandle(STD_OUTPUT_HANDLE), Console());
+            if (!console.valid())
                 throw Exception::systemError("Getting console handle");
-            _console.set(h, "console");
-            debug = &_console;
             BEGIN_CHECKED {
                 initializeWindowsCommandLine();
             }
             END_CHECKED(Exception& e) {
-                _console.write(e);
+                console.write(e);
             }
         }
         END_CHECKED(Exception&) {
             // Can't even display an error
         }
+        return _returnValue;
     }
 #endif
 #else
-    void initialize(int argc, char* argv[])
+    int initialize(int argc, char* argv[])
     {
         BEGIN_CHECKED {
-            _console.set(STDOUT_FILENO, "console");
-            debug = &_console;
+            console = Handle(STDOUT_FILENO, Console());
             BEGIN_CHECKED {
                 _arguments.allocate(argc);
                 for (int i = 0; i < argc; ++i) {
@@ -69,31 +98,42 @@ public:
                 run();
             }
             END_CHECKED(Exception& e) {
-                _console.write(e);
+                console.write(e);
             }
         }
         END_CHECKED(Exception&) {
             // Can't even display an error
         }
+        return _returnValue;
     }
 #endif
 protected:
 #if defined(_WIN32) && defined(_WINDOWS)
     Windows _windows;
     INT _nCmdShow;
-    virtual int run() = 0;
-#else
-    virtual void run() = 0;
-    Handle _console;
+
+    void pumpMessages()
+    {
+        BOOL bRet;
+        do {
+            MSG msg;
+            bRet = GetMessage(&msg, NULL, 0, 0);
+            IF_MINUS_ONE_THROW(bRet);
+            if (bRet != 0) {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+            else
+                _returnValue = static_cast<int>(msg.wParam);
+        } while (bRet != 0);
+    }
 #endif
+    virtual void run() = 0;
     Array<String> _arguments;
+    int _returnValue;
 private:
 #ifdef _WIN32
-#ifdef _WINDOWS
-    int initializeWindowsCommandLine()
-#else
     void initializeWindowsCommandLine()
-#endif
     {
         class WindowsCommandLine
         {
@@ -129,15 +169,12 @@ private:
             _arguments[i] = buffer.subString(s, n);
             s += n;
         }
-#ifdef _WINDOWS
-        return run();
-#else
         run();
-#endif
     }
 #endif
 };
 
+// Put Program in a template because it's not declared yet.
 #ifdef _WIN32
 #ifdef _WINDOWS
 template<class T> INT APIENTRY WinMainTemplate(HINSTANCE hInst, INT nCmdShow)
@@ -153,12 +190,10 @@ template<class T> int mainTemplate(int argc, char* argv[])
 #ifdef _WINDOWS
     return program.initialize(hInst, nCmdShow);
 #else
-    program.initialize();
-    return 0;
+    return program.initialize();
 #endif
 #else
-    program.initialize(argc, argv);
-    return 0;
+    return program.initialize(argc, argv);
 #endif
 }
 

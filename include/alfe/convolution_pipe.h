@@ -1,12 +1,13 @@
 // Pipes that convolve with a kernel function to act as a finite impulse
 // response filter, and classes to define such kernel functions.
 
+#include "alfe/main.h"
+
 #ifndef INCLUDED_CONVOLUTION_PIPE_H
 #define INCLUDED_CONVOLUTION_PIPE_H
 
 #include "alfe/pipes.h"
 #include "alfe/gcd.h"
-#include "alfe/reference_counted.h"
 #include "float.h"
 
 class ProductKernel;

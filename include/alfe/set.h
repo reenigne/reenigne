@@ -1,7 +1,7 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_SET_H
 #define INCLUDED_SET_H
-
-#include "alfe/array.h"
 
 template<class Key, class Base> class SetBase : public Base
 {
@@ -17,8 +17,7 @@ public:
     void add(const Key& key)
     {
         if (_n == _table.count()) {
-            Array<TableEntry> table;
-            table.allocate(_table.count() * 2);
+            Array<TableEntry> table(_table.count() * 2);
             table.swap(_table);
             _n = 0;
             for (int i = 0; i < table.count(); ++i)

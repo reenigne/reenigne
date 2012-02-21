@@ -1,37 +1,30 @@
-#include "alfe/string.h"
+#include "alfe/main.h"
 
 #ifndef INCLUDED_HANDLE_H
 #define INCLUDED_HANDLE_H
 
-class Handle : Uncopyable
+class Handle
 {
 public:
 #ifdef _WIN32
-    Handle() : _handle(INVALID_HANDLE_VALUE), _name("") { }
-    Handle(HANDLE handle, const String& name = "")
-      : _handle(handle), _name(name)
+    Handle() : _handle(INVALID_HANDLE_VALUE) { }
+    Handle(HANDLE handle, const File& file = File())
+      : _handle(handle), _file(file)
     { }
     operator HANDLE() const { return _handle; }
-    bool valid() const { return _handle != INVALID_HANDLE_VALUE; }
-    void set(HANDLE handle, const String& name = "")
+    bool valid() const
     {
-        _handle = handle;
-        _name = name;
+        return _handle != INVALID_HANDLE_VALUE && _handle != NULL;
     }
 #else
     Handle() : _fileDescriptor(-1) { }
-    Handle(int fileDescriptor, const String& name = "")
-      : _fileDescriptor(fileDescriptor), _name(name)
+    Handle(int fileDescriptor, const File& file = File())
+      : _fileDescriptor(fileDescriptor), _file(file)
     { }
     operator int() const { return _fileDescriptor; }
     bool valid() const { return _fileDescriptor != -1; }
-    void set(int fileDescriptor, const String& name = "")
-    {
-        _fileDescriptor = fileDescriptor;
-        _name = name;
-    }
 #endif
-    String name() const { return _name; }
+    File file() const { return _file; }
     // Be careful using the template read() and write() functions with types
     // other than single bytes and arrays thereof - they are not endian-safe.
     void write(const char* string) const
@@ -56,11 +49,11 @@ public:
         DWORD bytesWritten;
         if (WriteFile(_handle, buffer, bytes, &bytesWritten, NULL) == 0 ||
             bytesWritten != bytes)
-            throw Exception::systemError(String("Writing file ") + _name);
+            throw Exception::systemError("Writing file " + _file.path());
 #else
         ssize_t writeResult = write(_fileDescriptor, buffer, bytes);
         if (writeResult < length())
-            throw Exception::systemError(String("Writing file ") + _name);
+            throw Exception::systemError("Writing file " + _file.path());
 #endif
     }
     template<class U> U read()
@@ -78,7 +71,7 @@ public:
             == 0) {
             if (GetLastError() == ERROR_HANDLE_EOF)
                 return -1;
-            throw Exception::systemError(String("Reading file ") + _name);
+            throw Exception::systemError("Reading file " + _file.path());
         }
         if (bytesRead != 1)
             return -1;
@@ -87,7 +80,7 @@ public:
         if (readResult < 1) {
             if (_eof(_fileDescriptor))
                 return -1;
-            throw Exception::systemError(String("Reading file ") + _name);
+            throw Exception::systemError("Reading file " + _file.path());
         }
 #endif
         return b;
@@ -99,39 +92,73 @@ public:
 #ifdef _WIN32
         DWORD bytesRead;
         if (ReadFile(_handle, buffer, bytes, &bytesRead, NULL) == 0)
-            throw Exception::systemError(String("Reading file ") + _name);
+            throw Exception::systemError("Reading file " + _file.path());
         if (bytesRead != bytes)
-            throw Exception(String("End of file reading file ") + _name);
+            throw Exception("End of file reading file " + _file.path());
 #else
         ssize_t readResult = read(_fileDescriptor, buffer, bytes);
         if (readResult < bytes)
-            throw Exception::systemError(String("Reading file ") + _name);
+            throw Exception::systemError("Reading file " + _file.path());
 #endif
     }
 private:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+#ifdef _WIN32
+        Implementation(HANDLE handle) : _handle(handle) { }
+        ~Implementation()
+        {
+            if (_handle != INVALID_HANDLE_VALUE)
+                CloseHandle(_handle);
+        }
+        HANDLE _handle;
+#else
+        Implementation(int fileDescriptor)
+          : _fileDescriptor(fileDescriptor) { }
+        ~Implementation()
+        {
+            if (_fileDescriptor != -1)
+                close(_fileDescriptor);
+        }
+        int _fileDescriptor;
+#endif
+    };
+
+#ifdef _WIN32
+    Handle(HANDLE handle, const File& file, Implementation* implementation)
+      : _handle(handle), _file(file), _implementation(implementation) { }
+#else
+    Handle(int fileDescriptor, const File& file,
+        Implementation* implementation)
+      : _fileDescriptor(fileDescriptor), _file(file),
+        _implementation(implementation)
+    { }
+#endif
+
 #ifdef _WIN32
     HANDLE _handle;
 #else
     int _fileDescriptor;
 #endif
-    String _name;
+    File _file;
+    Reference<Implementation> _implementation;
+
+    friend class Implementation;
+    friend class AutoHandle;
 };
 
 class AutoHandle : public Handle
 {
 public:
-    AutoHandle() { }
 #ifdef _WIN32
-    AutoHandle(HANDLE handle, const String& name = "")
-      : Handle(handle, name)
-    { }
-    ~AutoHandle() { if (valid()) CloseHandle(operator HANDLE()); }
+    AutoHandle(HANDLE handle, const File& file = File())
+        : Handle(handle, file, new Implementation(handle)) { }
 #else
-    AutoHandle(int fileDescriptor, const String& name = "")
-      : Handle(fileDescriptor, name)
-    { }
-    ~AutoHandle() { if (valid()) close(operator int()); }
+    AutoHandle(int fileDescriptor, const File& file = File())
+        : Handle(handle, file, new Implementation(fileDescriptor)) { }
 #endif
 };
+
 
 #endif // INCLUDED_HANDLE_H

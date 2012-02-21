@@ -1,18 +1,18 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_LOCK_H
 #define INCLUDED_LOCK_H
 
-#include "alfe/string.h"
-
 // TODO: Posix version
 
-class Event : public AutoHandle
+class Event : public Handle
 {
 public:
-    Event() : AutoHandle()
+    Event()
     {
         HANDLE handle = CreateEvent(NULL, FALSE, FALSE, NULL);
         IF_NULL_THROW(handle);
-        set(handle);
+        Handle::operator=(AutoHandle(handle));
     }
     void signal() { IF_ZERO_THROW(SetEvent(operator HANDLE())); }
     void wait()
@@ -21,17 +21,15 @@ public:
     }
 };
 
-class Thread : public AutoHandle
+class Thread : public Handle
 {
 public:
-    Thread()
-      : _started(false),
-        _error(false)
+    Thread() : _started(false), _error(false)
     {
         HANDLE handle = CreateThread(
             NULL, 0, threadStaticProc, this, CREATE_SUSPENDED, NULL);
         IF_NULL_THROW(handle);
-        set(handle);
+        Handle::operator=(AutoHandle(handle));
     }
     void setPriority(int nPriority)
     {

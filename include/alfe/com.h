@@ -1,7 +1,8 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_COM_H
 #define INCLUDED_COM_H
 
-#include "alfe/string.h"
 #include <ObjBase.h>
 #include <OleAuto.h>
 #include "alfe/assert.h"

@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_HASH_TABLE_H
 #define INCLUDED_HASH_TABLE_H
 
@@ -132,8 +134,7 @@ public:
     void add(const Key& key, const Value& value)
     {
         if (_n == _table.count()) {
-            Array<TableEntry> table;
-            table.allocate(_table.count() * 2);
+            Array<TableEntry> table(_table.count() * 2);
             table.swap(_table);
             _n = 0;
             for (int i = 0; i < table.count(); ++i)

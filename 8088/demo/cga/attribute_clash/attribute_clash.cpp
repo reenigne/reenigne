@@ -6,6 +6,7 @@
 #include "alfe/thread.h"
 #include "alfe/bitmap.h"
 #include "alfe/config_file.h"
+#include "alfe/bitmap_png.h"
 
 typedef Vector3<int> YIQ;
 
@@ -124,8 +125,8 @@ public:
         private:
             ColourSpace _c;
         };
-        Bitmap<SRGB> srgbInputOriginal;
-        srgbInputOriginal.load(File(inputPictureFileName));
+        Bitmap<SRGB> srgbInputOriginal =
+            PNGFileFormat().load(inputPictureFileName);
         Bitmap<Vector3<float> > linearInput(srgbInputOriginal.size());
         srgbInputOriginal.convert(linearInput, ConvertSRGBToLinear());
         Bitmap<Vector3<float> > linearScaled(_inputSize);
@@ -225,7 +226,7 @@ public:
 //                _srgbOutput[p] = _srgbOutput[6];
 //                _perceptualOutput[p] = _colourSpace.fromSrgb(_srgbOutput[p]);
 //                Colour c;
-//                if ((Vector(x, y) - _compositeOffset).inside(_pictureSize)) {
+//                if ((Vector(x, y) - _compositeOffset).inside(_outputSize)) {
 //                    c = _colourSpace.fromSrgb(SRGB(
 //                        srgbRow[ip], srgbRow[ip + 1], srgbRow[ip + 2]));
 //                    ip += 3;
@@ -238,8 +239,8 @@ public:
 //            }
 //        }
 //
-//        for (int y = 0; y < _pictureSize.y; ++y)
-//            for (int x = 0; x < _pictureSize.x; ++x) {
+//        for (int y = 0; y < _outputSize.y; ++y)
+//            for (int x = 0; x < _outputSize.x; ++x) {
 //                int col = (y/8)*40 + (x/16);
 //                int ch;
 //                int at;
@@ -259,7 +260,7 @@ public:
 //                        ++fg;
 //                    at = fg + (bg << 4);
 //                }
-//                int o = (y*_pictureSize.x + x)/8;
+//                int o = (y*_outputSize.x + x)/8;
 //                _dataOutput[o*2] = ch;
 //                _dataOutput[o*2 + 1] = at;
 //                _position = Vector((x/8)*8, y);
@@ -579,7 +580,7 @@ public:
 //            }
 //        }
 //        int character = _characters[bestPattern];
-//        int p = (_position.y*_pictureSize.x + _position.x)/(_hres ? 4 : 8);
+//        int p = (_position.y*_outputSize.x + _position.x)/(_hres ? 4 : 8);
 //        if (character != _dataOutput[p] || bestAt != _dataOutput[p + 1]) {
 //            _changed = true;
 //            _dataOutput[p] = character;
@@ -700,13 +701,13 @@ private:
 class Program : public ProgramBase
 {
 public:
-    int run()
+    void run()
     {
         if (_arguments.count() == 1) {
             NullTerminatedWideString s
                 ("Usage: attribute_clash <config file path>\n");
             MessageBox(NULL, s, L"Error", MB_OK | MB_ICONERROR);
-            return 0;
+            return;
         }
 
         ConfigFile config;
@@ -735,7 +736,7 @@ public:
         config.addOption("inputPicture", Type::string);
         config.addOption("outputNTSC", Type::string);
         config.addOption("outputComposite", Type::string);
-        config.addOption("outputRGB", Type::string);
+        config.addOption("outputDigital", Type::string);
         config.addOption("outputData", Type::string);
         config.addOption("compositeTarget", Type::boolean);
         config.addOption("hres", Type::boolean);
@@ -759,6 +760,6 @@ public:
         AnimatedWindow window(awp);
 
         window.show(_nCmdShow);
-        return pumpMessages();
+        pumpMessages();
     }
 };

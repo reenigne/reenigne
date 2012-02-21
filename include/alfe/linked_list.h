@@ -1,7 +1,7 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_LINKED_LIST_H
 #define INCLUDED_LINKED_LIST_H
-
-#include "alfe/uncopyable.h"
 
 template<class T> class LinkedListMember;
 

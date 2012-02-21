@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_OWNING_ARRAY_H
 #define INCLUDED_OWNING_ARRAY_H
 

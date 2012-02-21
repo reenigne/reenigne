@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_GCD_H
 #define INCLUDED_GCD_H
 

@@ -1,8 +1,7 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_REFERENCE_COUNTED_ARRAY_H
 #define INCLUDED_REFERENCE_COUNTED_ARRAY_H
-
-#include "alfe/reference_counted.h"
-#include "alfe/integer_types.h"
 
 // This class combines an H and an array of Ts in a single memory block. H
 // must inherit from ReferenceCountedArray<H, T> (curiously recurring template
@@ -12,12 +11,13 @@
 template<class H, class T> class ReferenceCountedArray
 {
 public:
-    static ReferenceCountedArray* create(int size)
+    static H* create(int size)
     {
         void* buffer =
             static_cast<void*>(operator new(sizeof(H) + size*sizeof(T)));
+        H* h;
         try {
-            H* h = new(buffer) H();
+            h = new(buffer) H();
             h->_size = size;
             int i = 0;
             try {
@@ -37,6 +37,7 @@ public:
             operator delete(buffer);
             throw;
         }
+        return h;
     }
 
     void addReference() const { ++_count; }

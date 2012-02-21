@@ -11,7 +11,7 @@ public:
             String b("b");
             String c = a+b;
             String d = c + "\n";
-            _console.write(d);  // Should print "ab"
+            console.write(d);  // Should print "ab"
         }
 
         {
@@ -23,7 +23,7 @@ public:
             s.get();
             s.get();
             int b = s.offset();
-            _console.write(s.subString(a, b));  // Should print "oob"
+            console.write(s.subString(a, b));  // Should print "oob"
         }
     }
 };

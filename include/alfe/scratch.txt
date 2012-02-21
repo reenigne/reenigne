@@ -4,13 +4,7 @@ See http://docs.racket-lang.org/reference/windowspaths.html for details on paths
 
 If use \\?\ to avoid MAX_PATH limit, we need to know the current drive - this is the first character of CurrentDirectory().windowsPath() .
 
-When parsing paths, should we use:
-  getCodePoint() so that Unix paths can contain 0x0a and 0x0d bytes? or
-  get() so that error messages contain the correct line and column number?
-    Or make getCodePoint() increase _line/_column appropriately?
-
-CharacterSource currently only returns sensible _line/_column if it is started at the start of file contents
-  Really want to get good locations even for substrings - should SimpleString have a _line/_column?
+When parsing paths, use getCodePoint() instead of get() so that Unix paths can contain 0x0a and 0x0d bytes.
 
 We should be using substitution into templates instead of concatenation for globalization purposes.
 

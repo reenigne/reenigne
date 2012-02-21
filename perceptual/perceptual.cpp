@@ -419,7 +419,7 @@ private:
 class Program : public ProgramBase
 {
 public:
-    int run()
+    void run()
     {
         srand(time(0));
         PerceptualImage image;
@@ -437,6 +437,6 @@ public:
         ThreeDWindow window(awp);
 
         window.show(_nCmdShow);
-        return pumpMessages();
+        pumpMessages();
     }
 };

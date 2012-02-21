@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_COLOUR_SPACE_H
 #define INCLUDED_COLOUR_SPACE_H
 

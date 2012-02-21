@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_AUDIO_H
 #define INCLUDED_AUDIO_H
 
@@ -424,11 +426,10 @@ public:
         int samplesPerBufferChannel = 1024)
       : AudioSink(samplesPerSecond, channels),
         _samplesPerBuffer(samplesPerBufferChannel * channels),
-        _handle(file),
         _bytes(0)
     {
         // TODO: make endian-neutral. Posix port.
-        _handle.openWrite();
+        _handle = file.openWrite();
         _handle.write("RIFF", 4);
         DWORD t = 36;
         _handle.write(&t, 4);

@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_ASSERT_H
 #define INCLUDED_ASSERT_H
 
@@ -5,7 +7,6 @@
 // TODO: _CrtDbgBreak() is a VC-ism: port to other Windows compilers
 // TODO: Use console instead of MessageBox() for console applications?
 
-#include "alfe/string.h"
 #include <CRTDBG.h>
 
 void alert(String message, HWND hWnd = NULL)

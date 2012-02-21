@@ -1,25 +1,7 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_STRING_H
 #define INCLUDED_STRING_H
-
-#ifdef _WIN32
-#define NOMINMAX
-#include <windows.h>
-#ifdef _WINDOWS
-#define UTF16_MESSAGES
-#endif
-#else
-#include <errno.h>
-#include <fcntl.h>
-#include <unistd.h>
-#endif
-
-#include <exception>
-#include <limits>
-#include <string.h>
-#include "alfe/integer_types.h"
-#include "alfe/reference_counted.h"
-#include "alfe/array.h"
-#include "alfe/minimum_maximum.h"
 
 template<class T> class ExceptionTemplate;
 typedef ExceptionTemplate<void> Exception;
@@ -402,8 +384,18 @@ private:
             _implementation->expand(data, length);
         }
         void expand(int length) { _implementation->expand(length); }
-        const Byte* data() const { return _implementation->constData(); }
-        Byte* data() { return _implementation->data(); }
+        const Byte* data() const
+        {
+            if (!_implementation.valid())
+                return 0;
+            return _implementation->constData();
+        }
+        Byte* data()
+        {
+            if (!_implementation.valid())
+                return 0;
+            return _implementation->data();
+        }
     private:
         class Implementation : public ReferenceCounted
         {
@@ -486,7 +478,7 @@ private:
             if (c == 0)
                 break;
             if (c >= 0xdc00 && c < 0xe000)
-                throw Exception(String("String offset ") + hex(offset) +
+                throw Exception("String offset " + hex(offset) +
                     ": expected 0x0000..0xD800 or 0xE000..0xFFFF, found " +
                     hex(c, 4));
             ++offset;
@@ -494,7 +486,7 @@ private:
                 int c2 = *utf16;
                 ++utf16;
                 if (c2 < 0xdc00 || c2 >= 0xe000)
-                    throw Exception(String("String offset ") + hex(offset) +
+                    throw Exception("String offset " + hex(offset) +
                         ": expected 0xDC00..0xDFFF, found " + hex(c2, 4));
                 ++offset;
                 c = (((c & 0x3ff) << 10) | (c2 & 0x3ff)) + 0x10000;
@@ -561,7 +553,7 @@ template<class T> class NullTerminatedWideStringTemplate
 public:
     NullTerminatedWideStringTemplate(String s)
     {
-        CharacterSource start(s, "");
+        CharacterSource start(s);
         CharacterSource cs = start;
         int l = 1;
         do {
@@ -604,8 +596,6 @@ private:
 typedef NullTerminatedWideStringTemplate<void> NullTerminatedWideString;
 #endif
 
-#include "alfe/exception.h"
-
 class NullTerminatedString
 {
 public:
@@ -631,8 +621,5 @@ private:
     LPWSTR _str;
 };
 #endif
-
-#include "alfe/handle.h"
-#include "alfe/character_source.h"
 
 #endif // INCLUDED_STRING_H

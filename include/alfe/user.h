@@ -1,12 +1,10 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_USER_H
 #define INCLUDED_USER_H
 
 // TODO: Xlib port
 
-#include "alfe/swap.h"
-#include "alfe/string.h"
-#include "alfe/vectors.h"
-#include "alfe/bitmap.h"
 #include <windows.h>
 #include <WindowsX.h>
 #include <vector>
@@ -115,7 +113,6 @@ private:
 
 bool Windows::_failed = false;
 Exception Windows::_exception;
-
 
 template<class T> class WindowTemplate
 {
@@ -268,7 +265,7 @@ protected:
 };
 
 
-class DeviceContext
+class DeviceContext : Uncopyable
 {
 public:
     void NoFailSelectObject(HGDIOBJ hObject) { ::SelectObject(_hdc, hObject); }
@@ -548,24 +545,6 @@ private:
     float _delta;
     DWORD _lastTickCount;
 };
-
-
-int pumpMessages()
-{
-    BOOL bRet;
-    do {
-        MSG msg;
-        bRet = GetMessage(&msg, NULL, 0, 0);
-        IF_MINUS_ONE_THROW(bRet);
-        if (bRet != 0) {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-        else
-            return static_cast<int>(msg.wParam);
-    } while (bRet != 0);
-    return 0;
-}
 
 
 class Pen

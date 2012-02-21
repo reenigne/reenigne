@@ -769,7 +769,7 @@ typedef DisassemblerTemplate<void> Disassembler;
 template<class T> class Intel8088Template : public Component
 {
 public:
-    Intel8088Template(Simulator* simulator, Handle* console, int stopAtCycle)
+    Intel8088Template(Simulator* simulator, int stopAtCycle)
       : _flagsData(0x0002),  // ?
         _state(stateFetch),
         _ip(0),
@@ -785,7 +785,6 @@ public:
         _abandonFetch(false),
         _useIO(false),
         _halted(false),
-        _console(console),
         _wait(0),
         _newInstruction(true),
         _newIP(0),
@@ -904,7 +903,7 @@ public:
         }
         line += _flags.text();
         _newInstruction = false;
-        _console->write(line + "\n");
+        console.write(line + "\n");
         ++_cycle;
         if (_halted || _cycle == _stopAtCycle)
             _simulator->halt();
@@ -2992,7 +2991,6 @@ private:
     int _rep;
     bool _useIO;
     bool _halted;
-    Handle* _console;
     bool _newInstruction;
     UInt16 _newIP;
     ISA8BitBus* _bus;
@@ -3038,7 +3036,7 @@ protected:
     void run()
     {
         if (_arguments.count() < 2) {
-            _console.write("Syntax: " + _arguments[0] +
+            console.write("Syntax: " + _arguments[0] +
                 " <config file name>\n");
             return;
         }
@@ -3101,7 +3099,7 @@ protected:
         String stopSaveState = config.get<String>("stopSaveState");
 
         Simulator simulator;
-        Intel8088 cpu(&simulator, &_console, stopAtCycle);
+        Intel8088 cpu(&simulator, stopAtCycle);
         cpu.setBus(&bus);
         simulator.addComponent(&bus);
         simulator.addComponent(&cpu);

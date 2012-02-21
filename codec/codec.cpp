@@ -77,9 +77,7 @@ public:
             }
         }
         if (total == 0) {
-            File file(String("hbfs.dat"));
-            FileHandle handle(file);
-            handle.openWrite();
+            FileHandle handle = File("hbfs.dat").openWrite();
             handle.write(_data, sizeof(_data));
             printf("Lossless solution found!\n");
             exit(0);
@@ -162,16 +160,12 @@ public:
     void run()
     {
         {
-            Array<Sample> waves;
-            Array<double> wave;
-            wave.allocate(samplesPerWaveform);
-            waves.allocate(samplesPerWaveform * totalWaveforms);
+            Array<Sample> waves(samplesPerWaveform * totalWaveforms);
+            Array<double> wave(samplesPerWaveform);
             for (int sample = 0; sample < samplesPerWaveform; ++sample)
                 waves[sample] = clamp(-32768.0,
                     0x8000*sin(sample*2*M_PI/samplesPerWaveform), 32767.0);
-            File file(String("waves.raw"));
-            FileHandle handle(file);
-            handle.openWrite();
+            FileHandle handle = File("waves.raw").openWrite();
             for (int i = 0; i < 50; ++i)
                 handle.write(&waves[0], samplesPerWaveform * sizeof(Sample));
             for (int waveform = 1; waveform < totalWaveforms; ++waveform) {
@@ -201,9 +195,7 @@ public:
 
         Array<Sample> hbfs;
         {
-            File file(String("hbfs.wav"));
-            FileHandle handle(file);
-            handle.openRead();
+            FileHandle handle = File("hbfs.wav").openRead();
             handle.seek(44);
             hbfs.allocate(totalSamples);
             original = &hbfs[0];

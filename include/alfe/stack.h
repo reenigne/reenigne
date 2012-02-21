@@ -1,7 +1,7 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_STACK_H
 #define INCLUDED_STACK_H
-
-#include "alfe/array.h"
 
 template<class T> class Stack
 {

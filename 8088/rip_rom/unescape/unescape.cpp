@@ -6,10 +6,8 @@ class Program : public ProgramBase
 protected:
     void run()
     {
-        File input("f000.dat");
-        String inputData = input.contents();
-        FileHandle outputData(File("1501512.u18"));
-        outputData.openWrite();
+        String inputData = File("f000.dat").contents();
+        FileHandle outputData = File("1501512.u18").openWrite();
         int j = 0;
         for (int i = 0; i < 0x10000; ++i) {
             if (inputData[j] == 0) {

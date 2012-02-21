@@ -8,19 +8,19 @@ public:
     void run()
     {
         if (_arguments.count() == 1) {
-            _console.write("Usage: send <name of file to send>\n");
-            return;
+            console.write("Usage: send <name of file to send>\n");
+            return 0;
         }
         String fileName = _arguments[1];
         String data = File(fileName).contents();
         int l = data.length();
         if (l > 0x400) {
-            _console.write("Error: " + fileName + " is " + l +
+            console.write("Error: " + fileName + " is " + l +
                 " bytes (must be less than 1024).\n");
-            return;
+            return 0;
         }
 
-        _com.set(CreateFile(
+        _com = Handle::Auto(CreateFile(
             L"COM3",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -72,8 +72,9 @@ public:
         sendByte(l >> 8);    // Send high byte of length
         for (int i = 0; i < l; ++i)
             sendByte(data[i]);  // Send program byte
-        _console.write("Send complete.\n");
+        console.write("Send complete.\n");
         thread.join();
+        return 0;
     }
 private:
     class ReaderThread : public Thread
@@ -90,7 +91,7 @@ private:
                     int c = _program->_com.read<Byte>();
                     if (c == 26)
                         break;
-                    _program->_console.write<Byte>(c);
+                    console.write<Byte>(c);
                 }
             } while (true);
         }
@@ -106,5 +107,5 @@ private:
         _com.write<Byte>(value);
     }
 
-    AutoHandle _com;
+    Handle _com;
 };

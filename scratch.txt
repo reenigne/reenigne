@@ -5,11 +5,6 @@ How do we deal with the problem that {} can delimit either a compound statement
    CompoundStatement or CompoundExpression depending on how it turns out, so
    its contents don't need to be re-parsed when it is converted.
 
-Bitmap:
-  A Bitmap may own its own bits or just be a pointer into some other Bitmap's
-  bits.
-  Preserve that information with a flag or with
-
 Want to be able to write "offset = (outputSize - inputSize)/2;" in config files
 
 We want the TypeConverter to be able to create its own Conversions by

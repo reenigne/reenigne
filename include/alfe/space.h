@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_SPACE_H
 #define INCLUDED_SPACE_H
 
@@ -35,7 +37,7 @@ public:
     static bool parseOperator(CharacterSource* source, String op, Span* span)
     {
         CharacterSource s = *source;
-        CharacterSource o(op, "");
+        CharacterSource o(op);
         Span sp;
         do {
             Span sp2;
@@ -56,7 +58,7 @@ public:
         Span* span)
     {
         CharacterSource s = *source;
-        CharacterSource o(keyword, "");
+        CharacterSource o(keyword);
         Span sp;
         Span sp2;
         do {

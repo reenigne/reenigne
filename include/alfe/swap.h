@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_SWAP_H
 #define INCLUDED_SWAP_H
 

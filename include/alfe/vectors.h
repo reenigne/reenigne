@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_VECTORS_H
 #define INCLUDED_VECTORS_H
 

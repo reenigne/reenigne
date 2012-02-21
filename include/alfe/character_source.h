@@ -1,4 +1,4 @@
-#include "alfe/string.h"
+#include "alfe/main.h"
 
 #ifndef INCLUDED_CHARACTER_SOURCE_H
 #define INCLUDED_CHARACTER_SOURCE_H
@@ -7,17 +7,16 @@ class Location
 {
 public:
     Location() : _line(0), _column(0), _offset(0) { }
-    Location(String fileName)
-      : _fileName(fileName), _line(1), _column(1), _offset(0)
+    Location(const File& file) : _file(file), _line(1), _column(1), _offset(0)
     { }
-    Location(String fileName, int line, int column)
-      : _fileName(fileName), _line(line), _column(column), _offset(0)
+    Location(const File& file, int line, int column)
+      : _file(file), _line(line), _column(column), _offset(0)
     { }
     String toString() const
     {
-        return _fileName + "(" + _line + "," + _column + ")";
+        return _file.path() + "(" + _line + "," + _column + ")";
     }
-    String fileName() const { return _fileName; }
+    File file() const { return _file; }
     void operator++() { ++_offset; }
     void advanceColumn() { ++_column; }
     void advanceLine() { _column = 1; ++_line; }
@@ -34,7 +33,7 @@ public:
     int line() const { return _line; }
     int column() const { return _column; }
 private:
-    String _fileName;
+    File _file;
     int _line;
     int _column;
     int _offset;
@@ -45,28 +44,28 @@ class Span
 public:
     Span() : _startLine(-1) { }
     Span(Location start, Location end)
-      : _fileName(start.fileName()),
+      : _file(start.file()),
         _startLine(start.line()),
         _startColumn(start.column()),
         _endLine(end.line()),
         _endColumn(end.column())
     { }
-    Span(String fileName, int startLine, int startColumn, int endLine,
+    Span(const File& file, int startLine, int startColumn, int endLine,
         int endColumn)
-      : _fileName(fileName),
+      : _file(file),
         _startLine(startLine),
         _startColumn(startColumn),
         _endLine(endLine),
         _endColumn(endColumn)
     { }
-    String fileName() const { return _fileName; }
+    File file() const { return _file; }
     int startLine() const { return _startLine; }
     int startColumn() const { return _startColumn; }
     int endLine() const { return _endLine; }
     int endColumn() const { return _endColumn; }
     String toString() const
     {
-        return _fileName + "(" + _startLine + "," + _startColumn + ")-(" +
+        return _file.path() + "(" + _startLine + "," + _startColumn + ")-(" +
             _endLine + "," + _endColumn + ")";
     }
     void throwError(const String& message) const
@@ -75,12 +74,9 @@ public:
     }
     Location start() const
     {
-        return Location(_fileName, _startLine, _startColumn);
+        return Location(_file, _startLine, _startColumn);
     }
-    Location end() const
-    {
-        return Location(_fileName, _endLine, _endColumn);
-    }
+    Location end() const { return Location(_file, _endLine, _endColumn); }
     Span operator+(const Span& other) const
     {
         if (_startLine == -1)
@@ -93,7 +89,7 @@ public:
         return *this;
     }
 private:
-    String _fileName;
+    File _file;
     int _startLine;
     int _startColumn;
     int _endLine;
@@ -105,8 +101,8 @@ class CharacterSource
 public:
     CharacterSource() { }
     CharacterSource(const String& string) : _string(string) { }
-    CharacterSource(const String& string, const String& fileName)
-      : _string(string), _location(fileName) { }
+    CharacterSource(const String& string, const File& file)
+      : _string(string), _location(file) { }
     int get(Span* span = 0)
     {
         Location start = _location;

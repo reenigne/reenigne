@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_MININUM_MAXIMUM_H
 #define INCLUDED_MININUM_MAXIMUM_H
 

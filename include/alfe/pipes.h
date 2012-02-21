@@ -67,13 +67,12 @@
 //
 // See also: http://dancinghacker.com/code/dataflow/ which is similar.
 
+#include "alfe/main.h"
+
 #ifndef INCLUDED_PIPES_H
 #define INCLUDED_PIPES_H
 
-#include "alfe/minimum_maximum.h"
-#include "alfe/uncopyable.h"
 #include "alfe/thread.h"
-#include "alfe/file.h"
 #include <vector>
 #include <string.h>
 
@@ -198,28 +197,28 @@ public:
 };
 
 
-// Functor to read samples from a FileHandle.
+// Functor to read samples from a Handle.
 template<class T> class ReadFrom
 {
 public:
-    ReadFrom(FileHandle* handle) : _handle(handle) { }
+    ReadFrom(Handle handle) : _handle(handle) { }
     void operator()(T* destination, int n)
     {
-        _handle->read(destination, n*sizeof(T));
+        _handle.read(destination, n*sizeof(T));
     }
 private:
-    FileHandle* _handle;
+    Handle _handle;
 };
 
 
-// Functor to write samples to a FileHandle.
+// Functor to write samples to a Handle.
 template<class T> class WriteTo
 {
 public:
-    WriteTo(FileHandle* handle) : _handle(handle) { }
-    void operator()(T* source, int n) { _handle->write(source, n*sizeof(T)); }
+    WriteTo(Handle handle) : _handle(handle) { }
+    void operator()(T* source, int n) { _handle.write(source, n*sizeof(T)); }
 private:
-    FileHandle* _handle;
+    Handle _handle;
 };
 
 
@@ -446,11 +445,10 @@ public:
     PeriodicSourceData(int size) : _buffer(size) { }
     PeriodicSourceData(File file)
     {
-        FileHandle handle(file);
-        handle.openRead();
+        FileHandle handle = file.openRead();
         UInt64 size = handle.size();
         if (size >= 0x80000000)
-            throw Exception("2Gb or more in file " + file.messagePath());
+            throw Exception("2Gb or more in file " + file.path());
         _buffer.resize(size / sizeof(T));
         handle.read(&_buffer[0], size);
     }
@@ -500,9 +498,9 @@ private:
 template<class T> class FileSource : public Source<T>
 {
 public:
-    FileSource(File file) : _handle(file)
+    FileSource(File file)
     {
-        _handle.openRead();
+        _handle = file.openRead();
         _size = _handle.size() / sizeof(T);
     }
     void produce(int n)
@@ -513,7 +511,7 @@ public:
             nRead = static_cast<int>(_size);
         Accessor<T> w = writer(n);
         if (nRead > 0) {
-            w.items(ReadFrom<T>(&_handle), nRead);
+            w.items(ReadFrom<T>(_handle), nRead);
             nRemaining -= nRead;
         }
         if (nRemaining > 0)

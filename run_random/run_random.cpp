@@ -54,7 +54,7 @@ public:
         COMInitializer com(COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
         Collection collection;
         if (_arguments.count() == 1) {
-            _console.write("Usage: run_random <path>\n");
+            console.write("Usage: run_random <path>\n");
             return;
         }
         for (int i = 1; i < _arguments.count(); ++i)

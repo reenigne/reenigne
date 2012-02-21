@@ -95,7 +95,7 @@ void run(SymbolArray program)
             case atomExit:
                 return;
             case atomPrintFunction:
-                stack.pop<String>().write(Handle::consoleOutput());
+                console.write(stack.pop<String>());
                 break;
             case atomIntegerConstant:
                 stack.push(instruction[1].integer());
@@ -256,7 +256,7 @@ void run(SymbolArray program)
                 stack.setPointer(stack.pop<UInt32*>());
                 break;
             case atomDereference:
-                stack.push(*stack.pop<int*>());        
+                stack.push(*stack.pop<int*>());
                 break;
             case atomDuplicate:
                 {

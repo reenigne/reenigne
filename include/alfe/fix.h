@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_FIX_H
 #define INCLUDED_FIX_H
 
@@ -5,8 +7,6 @@
 #pragma intrinsic(__emul)
 #pragma intrinsic(__emulu)
 #pragma intrinsic(__ll_lshift)
-
-#include "alfe/integer_types.h"
 
 template<int N, class T, class M> class Fixed;
 

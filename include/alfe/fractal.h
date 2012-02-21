@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_FRACTAL_H
 #define INCLUDED_FRACTAL_H
 

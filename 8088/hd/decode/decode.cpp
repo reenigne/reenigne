@@ -4,14 +4,11 @@
 class Program : public ProgramBase
 {
 public:
-    void run()
+    int run()
     {
-        File input("capture.txt");
-        String inputData = input.contents();
-        FileHandle outputStatus(File("status.txt"));
-        outputStatus.openWrite();
-        FileHandle outputData(File("hd.dat"));
-        outputData.openWrite();
+        String inputData = File("capture.txt").contents();
+        FileHandle outputStatus = File("status.txt").openWrite();
+        FileHandle outputData = File("hd.dat").openWrite();
         int i = 7*64 + 24;
         int fails = 0;
         do {

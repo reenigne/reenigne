@@ -1,3 +1,5 @@
+#include "alfe/main.h"
+
 #ifndef INCLUDED_INTEGER_TYPES_H
 #define INCLUDED_INTEGER_TYPES_H
 

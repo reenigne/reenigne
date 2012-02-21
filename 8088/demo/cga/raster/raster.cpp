@@ -7,7 +7,7 @@ int barColours[barWidth] = {4, 6, 14, 15, 11, 9, 1};
 class Program : public ProgramBase
 {
 public:
-    int run()
+    void run()
     {
         int barY[nBars];
         FILE* out = fopen("raster.raw", "wb");
@@ -20,6 +20,5 @@ public:
             }
         }
         fclose(out);
-        return 0;
     }
 };

@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "alfe/main.h"
-#include "alfe/file.h"
-#include "alfe/minimum_maximum.h"
 
 static UInt32 crc_32_tab[]={ /* CRC polynomial 0xedb88320 */
 0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
@@ -55,19 +53,18 @@ class Crc32
 public:
     void operator()(const File& file)
     {
-        NullTerminatedString path(file.messagePath());
+        NullTerminatedString path(file.path());
 
-        FileHandle handle(file);
-        if (!handle.tryOpenRead()) {
-            printf("<in use> %s\n", path);
+        FileHandle handle = file.tryOpenRead();
+        if (!handle.valid()) {
+            printf("<in use> %s\n", (const char*)path);
             return;
         }
 
         UInt64 size = handle.size();
         DWORD crc = 0xffffffff;
-        Array<UInt8> buffer;
         static const int bufferSize = 0x10000;
-        buffer.allocate(bufferSize);
+        Array<UInt8> buffer(bufferSize);
         while (size > 0) {
             int s =
                 static_cast<int>(min(static_cast<UInt64>(bufferSize), size));
@@ -90,7 +87,7 @@ public:
     {
         Crc32 crc32;
         if (_arguments.count() == 1) {
-            printf("Usage: crc32 <path>\n");
+            console.write("Usage: crc32 <path>\n");
             return;
         }
         for (int i = 1; i < _arguments.count(); ++i)
