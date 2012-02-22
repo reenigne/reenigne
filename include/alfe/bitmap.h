@@ -1,4 +1,4 @@
-#include "alfe/main.h"    
+#include "alfe/main.h"
 
 #ifndef INCLUDED_BITMAP_H
 #define INCLUDED_BITMAP_H
@@ -45,17 +45,14 @@ template<class Pixel> class Bitmap
         {
             return ReferenceCountedArray<Data, Byte>::operator[](i);
         }
-
-        int _stride;
     };
 public:
     Bitmap() : _size(0, 0) { }
     Bitmap(Vector size)
     {
-        int stride = size.x*sizeof(Pixel);
+        _stride = size.x*sizeof(Pixel);
         _size = size;
-        _data = ReferenceCountedArray<Data, Byte>::create(stride * size.y);
-        _data->_stride = stride;
+        _data = ReferenceCountedArray<Data, Byte>::create(_stride * size.y);
         _topLeft = &(*_data)[0];
     }
 
@@ -88,7 +85,6 @@ public:
             scale = 1.0f;
         }
 
-        int s = stride();
         for (int y = 0; y < _size.y; ++y) {
             const Pixel* p = reinterpret_cast<const Pixel*>(row);
             Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
@@ -104,7 +100,7 @@ public:
                 *targetP = c/t;
                 ++targetP;
             }
-            row += s;
+            row += _stride;
             targetRow += intermediateStride;
         }
 
@@ -146,7 +142,6 @@ public:
             scaleTarget *= 3.0f;
             scale *= 3.0f;
         }
-        int s = stride();
         for (int y = 0; y < _size.y; ++y) {
             Pixel* p = reinterpret_cast<Pixel*>(row);
             Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
@@ -174,7 +169,7 @@ public:
                 *targetP = c/t;
                 ++targetP;
             }
-            row += s;
+            row += _stride;
             targetRow += intermediateStride;
         }
 
@@ -187,8 +182,6 @@ public:
     {
         Byte* row = data();
         Byte* targetRow = target.data();
-        int s = stride();
-        int targetStride = target.stride();
         for (int y = 0; y < _size.y; ++y) {
             Pixel* p = reinterpret_cast<Pixel*>(row);
             TargetPixel* tp = reinterpret_cast<TargetPixel*>(targetRow);
@@ -197,8 +190,8 @@ public:
                 ++p;
                 ++tp;
             }
-            row += s;
-            targetRow += targetStride;
+            row += _stride;
+            targetRow += target.stride();
         }
     }
 
@@ -213,13 +206,13 @@ public:
     }
     Byte* data() { return _topLeft; }
     const Byte* data() const { return _topLeft; }
-    int stride() const { return _data->_stride; }
+    int stride() const { return _stride; }
     Vector size() const { return _size; }
     Pixel* row(int y)
     {
-        return reinterpret_cast<Pixel*>(_topLeft + y*stride());
+        return reinterpret_cast<Pixel*>(_topLeft + y*_stride);
     }
-    Pixel& pixel(Vector position) { return row(position.y)[position.x]; }
+    Pixel& operator[](Vector position) { return row(position.y)[position.x]; }
 
     // A sub-bitmap of a bitmap is a pointer into the same set of data, so
     // drawing on a subBitmap will also draw on the parent bitmap, and any
@@ -229,7 +222,8 @@ public:
     Bitmap subBitmap(Vector topLeft, Vector size)
     {
         return Bitmap(_data,
-            _topLeft + topLeft.x*sizeof(Pixel) + topLeft.y*stride(), size);
+            _topLeft + topLeft.x*sizeof(Pixel) + topLeft.y*_stride, size,
+            _stride);
     }
 
     Bitmap clone() const
@@ -242,14 +236,13 @@ public:
     void fill(const Pixel& pixel)
     {
         Byte* row = data();
-        int s = stride();
-        for (int y = 0; y < size.y; ++y) {
+        for (int y = 0; y < _size.y; ++y) {
             Pixel* p = reinterpret_cast<Pixel*>(row);
-            for (int x = 0; x < size.x; ++x) {
+            for (int x = 0; x < _size.x; ++x) {
                 *p = pixel;
                 ++p;
             }
-            row += s;
+            row += _stride;
         }
     }
 
@@ -258,9 +251,7 @@ public:
     template<class OtherPixel> void copyFrom(const Bitmap<OtherPixel>& other)
     {
         Byte* row = data();
-        int s = stride();
         const Byte* otherRow = other.data();
-        int os = other.stride();
         for (int y = 0; y < size.y; ++y) {
             Pixel* p = reinterpret_cast<Pixel*>(row);
             OtherPixel* op = reinterpret_cast<OtherPixel*>(otherRow);
@@ -269,8 +260,8 @@ public:
                 ++p;
                 ++op;
             }
-            row += s;
-            otherRow += os;
+            row += _stride;
+            otherRow += other._stride;
         }
     }
     template<class OtherPixel> void copyTo(Bitmap<OtherPixel>& other) const
@@ -279,8 +270,8 @@ public:
     }
 
 private:
-    Bitmap(const Reference<Data>& data, Byte* topLeft, Vector size)
-      : _data(data), _topLeft(topLeft), _size(size) { }
+    Bitmap(const Reference<Data>& data, Byte* topLeft, Vector size, int stride)
+      : _data(data), _topLeft(topLeft), _size(size), _stride(stride) { }
 
     template<class OtherPixel> void resampleVertically(Byte* intermediate,
         Bitmap<OtherPixel>& target) const
@@ -306,7 +297,6 @@ private:
             scale = 1.0f;
         }
         Byte* targetRow = target.data();
-        int targetStride = target.stride();
         for (int yTarget = 0; yTarget < targetSize.y; ++yTarget) {
             Pixel* c = cRow;
             float* t = tRow;
@@ -341,7 +331,7 @@ private:
                 ++t;
                 ++targetP;
             }
-            targetRow += targetStride;
+            targetRow += target.stride();
         }
     }
 
@@ -355,6 +345,7 @@ private:
     Vector _size;
     Reference<Data> _data;
     Byte* _topLeft;
+    int _stride;
 };
 
 #endif // INCLUDED_BITMAP_H

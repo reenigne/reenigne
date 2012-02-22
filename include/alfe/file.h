@@ -587,6 +587,10 @@ public:
     {
         openWrite().write(contents);
     }
+    void save(const Byte* data, int length) const
+    {
+        openWrite().write(data, length);
+    }
     template<class U> void secureSave(const U& contents) const
     {
         // TODO: Backup file?

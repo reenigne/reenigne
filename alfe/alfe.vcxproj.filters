@@ -15,28 +15,28 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Unity.cpp">
+    <ClCompile Include="alfe.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Type.cpp">
+    <ClCompile Include="type.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Statement.cpp">
+    <ClCompile Include="statement.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Expression.cpp">
+    <ClCompile Include="expression.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Run.cpp">
+    <ClCompile Include="run.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Resolve.cpp">
+    <ClCompile Include="resolve.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TypeCheck.cpp">
+    <ClCompile Include="type_check.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Compiler.cpp">
+    <ClCompile Include="compiler.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
