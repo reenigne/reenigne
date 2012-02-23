@@ -22,7 +22,7 @@ public:
 
         //// Reset the machine
         //{
-        //    Handle arduinoCom = Handle::Auto(CreateFile(
+        //    Handle arduinoCom = AutoHandle(CreateFile(
         //        L"COM3",
         //        GENERIC_READ | GENERIC_WRITE,
         //        0,              // must be opened with exclusive-access
@@ -70,7 +70,7 @@ public:
 
         //Sleep(3000);
 
-        _com = Handle::Auto(CreateFile(
+        _com = AutoHandle(CreateFile(
             L"COM1",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access

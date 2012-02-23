@@ -1,0 +1,162 @@
+Control codes:
+
+0x00 Escape
+0x00 ASCII mode on (sent as 0x00 0x00)
+0x11 XON     (literal 0x11 sent as 0x00 0x11)
+0x13 XOFF    (literal 0x13 sent as 0x00 0x13)
+0x7F ASCII mode off
+
+
+Commands: (sent as 0x70 + command in scancode mode or command in ASCII mode)
+
+0x01 Tester mode off
+0x02 Tester mode on
+0x03 RAM program mode on (followed by low byte of program bytes count, followed by high byte of program bytes count, followed by program bytes)
+0x04 RAM program mode off
+0x05 RAW mode (followed by number of raw bytes, followed by raw bytes)
+0x06 clear keyboard buffer
+0x07 reset XT (250ms low pulse on pin B2, Arduino pin 10, Atmega pin 16)
+0x08 tester raw mode on (identify as tester box to XT but don't send a program)
+0x09 tester raw mode off
+0x0a remote mode on, ASCII mode off
+0x0b remote mode off
+
+
+Make  Break     Key                         Remote key               Remote code          ASCII key
+
+01    81        Esc                         Exit                     0x906F
+02    82        1 !                         1                        0x6897
+03    83        2 @                         2                        0x58A7
+04    84        3 #                         3                        0x7887
+05    85        4 $                         4                        0xD827
+06    86        5 %                         5                        0xE817
+07    87        6 ^                         6                        0xC837
+08    88        7 &                         7                        0xD02F
+09    89        8 *                         8                        0xE01F
+0A    8A        9 (                         9                        0xC03F
+0B    8B        0 )                         0                        0x22DD
+0C    8C        - _                         -                        0x2AD5
+0D    8D        = +                         +                        0x1AE5
+0E    8E        Backspace
+0F    8F        Tab
+10    90        Q
+11    91        W
+12    92        E
+13    93        R
+14    94        T                           TV/Radio                 0xF00F
+15    95        Y
+16    96        U                           GuideUp                  0x28D7
+17    97        I                           Info                     0xA857
+18    98        O                           OK                       0x40BF
+19    99        P                           Power                    0x00FF
+1A    9A        [ {                         Vol+                     0x609F
+1B    9B        ] }                         Vol-                     0x807F
+1C    9C        Enter
+1D    9D        Left Ctrl
+1E    9E        A                           Audio                    0x48B7
+1F    9F        S                           Search                   0x10EF
+20    A0        D                           GuideDown                0x18E7                       Space
+21    A1        F                           FavoriteOnOff            0x08F7               shifted 1 !
+22    A2        G                           Guide                    0x38C7               shifted ' "
+23    A3        H                                                                         shifted 3 #
+24    A4        J                                                                         shifted 4 $
+25    A5        K                                                                         shifted 5 %
+26    A6        L                           Lang                     0x20DF               shifted 7 &
+27    A7        ; :                                                                               ' "
+28    A8        ' "                                                                       shifted 9 (
+29    A9        ` ~                                                                       shifted 0 )
+2A    AA        Left Shift                                                                shifted 8 *
+2B    AB        \ |                                                                       shifted = +
+2C    AC        Z                                                                                 , <
+2D    AD        X                                                                                 - _
+2E    AE        C                                                                                 . >
+2F    AF        V                                                                                 / ?
+30    B0        B                                                                                 0 )
+31    B1        N                                                                                 1 !
+32    B2        M                           Mute                     0x708F                       2 @
+33    B3        , <                                                                               3 #
+34    B4        . >                                                                               4 $
+35    B5        / ?                                                                               5 %
+36    B6        Right Shift                                                                       6 ^
+37    B7        Keypad *  (PrtSc)                                                                 7 &
+38    B8        Left Alt                                                                          8 *
+39    B9        Space                                                                             9 (
+3A    BA        Caps Lock                                                                 shifted ; :
+3B    BB        F1                          Memory                   0x30CF                       ; :
+3C    BC        F2                          PRList                   0xB847               shifted , <
+3D    BD        F3                          P/N                      0x12ED                       = +
+3E    BE        F4                          Pause                    0xF807               shifted . >
+3F    BF        F5                          TV/AV                    0x0AF5               shifted / ?
+40    C0        F6                          Sleep                    0x02FD               shifted 2 @
+41    C1        F7                          Mode                     0x3AC5               shifted A
+42    C2        F8                          Menu                     0x8877               shifted B
+43    C3        F9                          Spiral                   0x32CD               shifted C
+44    C4        F10                         Teletext                 0x9867               shifted D
+45    C5        Num Lock                                                                  shifted E
+46    C6        Scroll Lock                                                               shifted F
+47    C7        Keypad 7  (Home)                                                          shifted G
+48    C8        Keypad 8  (Up arrow)        ChannelUp                0xA05F               shifted H
+49    C9        Keypad 9  (PgUp)                                                          shifted I
+4A    CA        Keypad -                                                                  shifted J
+4B    CB        Keypad 4  (Left arrow)                                                    shifted K
+4C    CC        Keypad 5                                                                  shifted L
+4D    CD        Keypad 6  (Right arrow)                                                   shifted M
+4E    CE        Keypad +                                                                  shifted N
+4F    CF        Keypad 1  (End)                                                           shifted O
+50    D0        Keypad 2  (Down arrow)      ChannelDown              0x50AF               shifted P
+51    D1        Keypad 3  (PgDn)                                                          shifted Q
+52    D2        Keypad 0  (Ins)                                                           shifted R
+53    D3        Keypad .  (Del)                                                           shifted S
+54                                                                                        shifted T
+55                                                                                        shifted U
+56                                                                                        shifted V
+57                                                                                        shifted W
+58                                                                                        shifted X
+59                                                                                        shifted Y
+5A                                                                                        shifted Z
+5B                                                                                                [ {
+5C                                                                                                \ |
+5D                                                                                                ] }
+5E                                                                                        shifted 6 ^
+5F                                                                                        shifted - _
+60                                                                                                ` ~
+61                                                                                                A
+62                                                                                                B
+63                                                                                                C
+64                                                                                                D
+65                                                                                                E
+66                                                                                                F
+67                                                                                                G
+68                                                                                                H
+69                                                                                                I
+6A                                                                                                J
+6B                                                                                                K
+6C                                                                                                L
+6D                                                                                                M
+6E                                                                                                N
+6F                                                                                                O
+70                                                                                                P
+71                                                                                                Q
+72                                                                                                R
+73                                                                                                S
+74                                                                                                T
+75                                                                                                U
+76                                                                                                V
+77                                                                                                W
+78                                                                                                X
+79                                                                                                Y
+7A                                                                                                Z
+7B                                                                                        shifted [ {
+7C                                                                                        shifted \ |
+7D                                                                                        shifted ] }
+7E                                                                                        shifted ` ~
+
+
+
+Pins:
+pin Arduino Port PCINT
+14    8      B0     0   ICP1  CLKO                  data  (yellow = keyboard connector pin 2 = center
+15    9      B1     1         OC1A PWM              clock (white  = keyboard connector pin 1 = outside)
+16   10      B2     2   ~SS   OC1B PWM              reset
+17   11      B3     3   MOSI  OC2A PWM              remote LED
+                                                          (black  = keyboard connector pin 4 = middle = ground)
