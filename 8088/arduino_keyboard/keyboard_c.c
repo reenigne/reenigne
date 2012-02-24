@@ -174,8 +174,8 @@ bool processCommand(uint8_t command)
     return false;
 }
 
-uint16_t pulseSpaceDuration = 0xffff;
-uint8_t pulseSpace = 0;
+volatile uint16_t pulseSpaceDuration = 0xffff;
+volatile uint8_t pulseSpace = 0;
 volatile uint8_t waiting = 0;
 
 SIGNAL(TIMER1_OVF_vect)
@@ -222,6 +222,8 @@ void sendRemoteCode(uint16_t code)
     sendPulse(555);
     sendSpace(1000);
 }
+
+volatile uint16_t remoteCode = 0;
 
 void processCharacter(uint8_t received)
 {
@@ -286,7 +288,7 @@ void processCharacter(uint8_t received)
         if (!processCommand(received - 0x70)) {
             if (remoteMode) {
                 if (received < 0x51)
-                    sendRemoteCode(pgm_read_word(&remoteCodes[received]));
+                    remoteCode = pgm_read_word(&remoteCodes[received]);
             }
             else
                 enqueueKeyboardByte(received);
@@ -649,6 +651,10 @@ int main()
                         sendSerialByte();
                     }
                 }
+            }
+            if (remoteCode != 0) {
+                sendRemoteCode(remoteCode);
+                remoteCode = 0;
             }
         }
     } while (true);

@@ -146,6 +146,26 @@ public:
     T& operator[](int i) { return _data[i]; }
     const T& operator[](int i) const { return _data[i]; }
     int count() const { return _n; }
+
+    class Iterator
+    {
+    public:
+        const T& operator*() const { return *_p; }
+        const T* operator->() const { return _p; }
+        const Iterator& operator++() { ++_p; return *this; }
+        bool operator==(const Iterator& other) { return _p == other._p; }
+        bool operator!=(const Iterator& other) { return !operator==(other); }
+    private:
+        const T* _p;
+
+        Iterator(const T* p) : _p(p) { }
+
+        friend class Array;
+    };
+
+    Iterator begin() const { return Iterator(_data); }
+    Iterator end() const { return Iteraotr(_data + _n); }
+
 private:
     Array(const Array& other, int allocated)
     {
@@ -287,6 +307,8 @@ public:
         }
         _n += length;
     }
+
+    Iterator end() const { return Iteraotr(_data + _allocated); }
 private:
     void destructElements(int n)
     {
