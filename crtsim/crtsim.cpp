@@ -38,19 +38,21 @@ typedef unsigned char Sample;  // Sync = 4, Blank = 60, Black = 70, White = 200
 template<class Data> class NTSCSource : public PeriodicSource<Sample>
 {
 public:
-    NTSCSource(Data* data, int n = defaultFilterCount)
+    NTSCSource(Data* data, int n = defaultSampleCount)
       : PeriodicSource(data, fastRandom()%data->length(), n)
     { }
 };
 
 
-class NoisePipe : public Pipe<Sample, Sample>
+class NoisePipe : public Pipe<Sample, Sample, NoisePipe>
 {
 public:
-    NoisePipe(int level, int n = defaultFilterCount, Producer<Sample>* producer = 0)
-      : Pipe((n + 63)&~63, producer)  // Process 64 samples at once
+    NoisePipe(int level, int n = defaultSampleCount)
+      : Pipe(this, (n + 63)&~63)  // Process 64 samples at once
     {
-        int s = static_cast<int>(sqrt(static_cast<float>(level)*static_cast<float>(level) + static_cast<float>(65536 - level)*static_cast<float>(65536 - level)));
+        float l = static_cast<float>(level);
+        float m = static_cast<float>(65536 - level);
+        int s = static_cast<int>(sqrt(l*l + m*m));
         _noiseLevel = 256*level/s;
         _signalLevel = 32768*(65536 - level)/s;
         // We wish to avoid calling the random number generator each
@@ -63,22 +65,23 @@ public:
             _last = current;
         }
     }
-    void process()
+    void produce(int n)
     {
-        Buffer<Sample> reader = _consumer.reader(_n);
-        int n = _consumer.count()&~63;
-        Buffer<Sample> writer = _producer.writer(n);
+        n = (n + 63)&~63;
+        Accessor<Sample> reader = _sink.reader(n);
+        Accessor<Sample> writer = _source.writer(n);
         for (int i = 0; i < (n>>6); ++i) {
             int p = fastRandom()&1023;
             for (int j = 0; j < 64; ++j) {
                 int noise = _noise0[p];
                 p = (p + 1)&1023;
                 int signal = static_cast<int>(reader.item()) - 60;
-                writer.item() = clamp(1, ((noise + signal*_signalLevel)>>15) + 60, 254);
+                writer.item() = 
+                    clamp(1, ((noise + signal*_signalLevel)>>15) + 60, 254);
             }
         }
-        _producer.written(n);
-        _consumer.read(n);
+        _source.written(n);
+        _sink.read(n);
     }
 private:
     int _last;
@@ -90,21 +93,21 @@ private:
 
 
 // A filter which adds RF cable ghosting to a signal.
-class GhostingPipe : public Pipe<Sample, Sample>
+class GhostingPipe : public Pipe<Sample, Sample, GhostingPipe>
 {
 public:
-    GhostingPipe(int n = defaultFilterCount, Producer<Sample>* producer = 0)
-      : Pipe((n + 3)&~3, producer)  // The inner loop always processes 4 samples at once, so round up.
+    // The inner loop always processes 4 samples at once, so round up.
+    GhostingPipe(int n = defaultSampleCount)
+      : Pipe(this, (n + 3)&~3)  
     {
         for (int i = 0; i < 4; ++i)
             _d[i] = 0;
     }
-
-    void process()
+    void produce(int n)
     {
-        Buffer<Sample> reader = _consumer.reader(_n);
-        int n = _consumer.count()&~3;
-        Buffer<Sample> writer = _producer.writer(n);
+        n = (n + 3)&~3;
+        Accessor<Sample> reader = _sink.reader(n);
+        Accessor<Sample> writer = _source.writer(n);
         for (int i = 0; i < (n>>2); ++i) {
             int s0 = static_cast<int>(reader.item()) - 60;
             int s1 = static_cast<int>(reader.item()) - 60;
@@ -121,8 +124,8 @@ public:
             writer.item() = clamp(1, ((s2*278 + g)>>8) + 60, 254);
             writer.item() = clamp(1, ((s3*278 + g)>>8) + 60, 254);
         }
-        _consumer.read(n);
-        _producer.written(n);
+        _sink.read(n);
+        _source.written(n);
     }
 private:
     int _d[4];
@@ -130,21 +133,22 @@ private:
 
 
 // A filter which occasionally drops the signal on the floor.
-template<class T> class DropOutPipe : public Pipe<T, T>
+template<class T> class DropOutPipe : public Pipe<T, T, DropOutPipe<T> >
 {
 public:
-    DropOutPipe(T dropOutValue, unsigned int outFrequency, unsigned int inFrequency, int n = defaultFilterCount, Producer<T>* producer = 0)
-      : Pipe((n + 63)&~63, producer),  // Process 64 samples at once
+    DropOutPipe(T dropOutValue, unsigned int outFrequency,
+        unsigned int inFrequency, int n = defaultSampleCount)
+      : Pipe(this, (n + 63)&~63),  // Process 64 samples at once
         _dropOutValue(dropOutValue),
         _outFrequency(outFrequency),
         _inFrequency(inFrequency),
         _out(false)
     { }
-    void process()
+    void produce(int n)
     {
-        Buffer<Sample> reader = _consumer.reader(_n);
-        int n = _consumer.count()&~63;
-        Buffer<Sample> writer = _producer.writer(n);
+        n = (n + 63)&~63;
+        Accessor<Sample> reader = _sink.reader(n);
+        Accessor<Sample> writer = _source.writer(n);
         for (int i = 0; i < (n>>6); ++i) {
             if (fastRandom() < _outFrequency)
                 _out = true;
@@ -157,8 +161,8 @@ public:
                 writer.items(CopyFrom<Buffer<Sample> >(reader), 64);
             reader.advance(64);
         }
-        _consumer.read(n);
-        _producer.written(n);
+        _sink.read(n);
+        _source.written(n);
     }
 private:
     unsigned int _outFrequency;
@@ -171,7 +175,7 @@ private:
 class ShadowMask
 {
 public:
-    void create(IDirect3DDevice9* device)
+    void create(Device* device)
     {
         _device = device;
         // Ideally we'd like the vertical size of our mask texture to be
@@ -192,7 +196,8 @@ public:
             for (int x = 0; x < _size.x; ++x) {
 #if 0  // Shadow mask
                 float h = sqrt(3.0f)/2.0f;
-                Vector2<float> z(static_cast<float>(x)*3.0f/_size.x, static_cast<float>(y)*sqrt(3.0f)/_size.y);
+                Vector2<float> z(static_cast<float>(x)*3.0f/_size.x,
+                    static_cast<float>(y)*sqrt(3.0f)/_size.y);
                 if (z.y > h)
                     z.y = h + h - z.y;
                 float ba2 = (z - Vector2<float>(-0.5f, h)).modulus2();
@@ -219,9 +224,12 @@ public:
                 float g2 = min(ga2, gb2);
                 float b2 = min(ba2, bb2);
 #endif
-                int r = clamp(0, static_cast<int>(255.0f*exp(-2.2f*r2/d2)), 255);
-                int g = clamp(0, static_cast<int>(255.0f*exp(-2.2f*g2/d2)), 255);
-                int b = clamp(0, static_cast<int>(255.0f*exp(-2.2f*b2/d2)), 255);
+                int r =
+                    clamp(0, static_cast<int>(255.0f*exp(-2.2f*r2/d2)), 255);
+                int g =
+                    clamp(0, static_cast<int>(255.0f*exp(-2.2f*g2/d2)), 255);
+                int b =
+                    clamp(0, static_cast<int>(255.0f*exp(-2.2f*b2/d2)), 255);
                 *(p++) = 0xff000000 | (r<<16) | (g<<8) | b;
             }
             data += pitch;
@@ -265,7 +273,7 @@ private:
     Vector _size;
     float _d;
     std::vector<DWord> _image;
-    IDirect3DDevice9* _device;
+    Device* _device;
     GPUTexture _texture;
     Geometry _geometry;
 };
@@ -352,7 +360,7 @@ public:
 
     void resize(Vector windowSize) { _windowSize = windowSize; }
 private:
-    IDirect3DDevice9* _device;
+    Device* _device;
     Direct3DTexture _texture;
     Direct3DVertices _geometry;
     int _height;
@@ -363,11 +371,11 @@ private:
 };
 
 
-class CompositeMonitor : public SingleSink<Sample>
+class CompositeMonitor : public Sink<Sample>
 {
 public:
-    CompositeMonitor(Producer<Sample>* producer)
-      : SingleSink(1, producer),
+    CompositeMonitor()
+      : Sink(1),
         _frames(0),
         _phase(0),
         _foundVerticalSync(false),
@@ -459,9 +467,9 @@ public:
     }
 
     // We always process a single scanline here.
-    void process()
+    void consume(int n)
     {
-        Buffer<Sample> reader = _consumer.reader(_n);
+        Accessor<Sample> reader = Sink::reader(n);
 
         // Find the horizontal sync position.
         int offset = 0;
@@ -601,7 +609,7 @@ public:
         }
         offset += _minSamplesPerLine;
         _phase = (_phase + offset)&3;
-        _consumer.read(offset);
+        read(offset);
 
         ++_line;
         if (_foundVerticalSync && _line == _minLinesPerField)
@@ -678,7 +686,7 @@ public:
     void paint()
     {
         do {
-            process();
+            consume(_n);
         } while (_line != 0 || _foundVerticalSync);
     }
 
@@ -766,11 +774,11 @@ private:
 };
 
 
-class RGBMonitor : public SingleSink<DWord>
+class RGBMonitor : public Sink<DWord>
 {
 public:
-    RGBMonitor(Producer<DWord>* producer)
-      : SingleSink(1, producer),
+    RGBMonitor()
+      : Sink(1),
         _frames(0),
         _foundVerticalSync(false),
         _line(0),
@@ -843,9 +851,9 @@ public:
     }
 
     // We always process a single scanline here.
-    void process()
+    void consume(int n)
     {
-        Buffer<DWord> reader = _consumer.reader(_n);
+        Accessor<DWord> reader = Sink::reader(n);
 
         // Find the horizontal sync position.
         int offset = 0;
@@ -919,7 +927,7 @@ public:
             }
         }
         offset += _minSamplesPerLine;
-        _consumer.read(offset);
+        read(offset);
 
         ++_line;
         if (_foundVerticalSync && _line == _minLinesPerField)
@@ -996,7 +1004,7 @@ public:
     void paint()
     {
         do {
-            process();
+            consume(_n);
         } while (_line != 0 || _foundVerticalSync);
     }
 
@@ -1083,24 +1091,29 @@ public:
     }
 };
 
-
-INT APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, INT nCmdShow)
+class Program : public ProgramBase
 {
-    BEGIN_CHECKED {
+public:
+    void run()
+    {
         fastRandomInit();
-        ComInitializer ci;
-        Windows windows(hInst);
+        COMInitializer ci;
         Direct3D direct3D;
 
         typedef FileImage Data;
         Data data;
         NTSCSource<Data> source(&data);
-        NoisePipe noise(10000, defaultFilterCount, source.producer());
-        GhostingPipe ghost(defaultFilterCount, noise.producer());
-        DropOutPipe<Sample> dropOut(60, 6000, 2000000, defaultFilterCount, ghost.producer());
-        CompositeMonitor monitor(dropOut.producer());
+        NoisePipe noise(10000);
+        GhostingPipe ghost;
+        DropOutPipe<Sample> dropOut(60, 6000, 2000000);
+        CompositeMonitor monitor;
 
-        Window::Params wp(&windows, L"CRT Simulator");
+        source.connect(noise.sink());
+        noise.source()->connect(ghost.sink());
+        ghost.source()->connect(dropOut.sink());
+        dropOut.source()->connect(&monitor);
+
+        Window::Params wp(&_windows, L"CRT Simulator");
         typedef RootWindow<Window> RootWindow;
         RootWindow::Params rwp(wp);
         typedef Direct3DWindow<RootWindow, CompositeMonitor> ImageWindow;
@@ -1111,13 +1124,10 @@ INT APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, INT nCmdShow)
         FixedAspectRatioWindow::Params fwp(awp, Vector(4, 3));
         FixedAspectRatioWindow window(fwp);
 
-        window.show(nCmdShow);
+        window.show(_nCmdShow);
         window.setWidth(window.getSize().x);
-        return pumpMessages();
-    } END_CHECKED(Exception& e) {
-        e.display();
+        pumpMessages();
     }
-    return 0;
 }
 
 

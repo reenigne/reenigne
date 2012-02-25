@@ -73,8 +73,6 @@
 #define INCLUDED_PIPES_H
 
 #include "alfe/thread.h"
-#include <vector>
-#include <string.h>
 
 // Infrastructure
 
@@ -283,10 +281,11 @@ public:
             return _remaining;
     }
     bool finite() { return _finite; }
+protected:
+    int _n;
 private:
     void remaining(int n) { _remaining = n; _finite = true; }
     Source<T>* _source;
-    int _n;
     bool _finite;
     int _remaining;
 
@@ -458,9 +457,9 @@ public:
     T* buffer() { return &_buffer[0]; }
 
     // For use by PeriodicSource.
-    int length() const { return _buffer.size(); }
+    int length() const { return _buffer.count(); }
 private:
-    std::vector<T> _buffer;
+    Array<T> _buffer;
 };
 
 
@@ -617,7 +616,8 @@ template<class T, class Rate = int> class NearestNeighborInterpolator
   : public Pipe<T, T, NearestNeighborInterpolator<T, Rate> >
 {
 public:
-    // For every "consumerRate" samples consumed we will produce "producerRate" samples.
+    // For every "consumerRate" samples consumed we will produce "producerRate"
+    // samples.
     NearestNeighborInterpolator(Rate producerRate, Rate consumerRate,
         Rate offset = 0, int n = defaultSampleCount)
       : Pipe(this, n),
@@ -658,13 +658,16 @@ private:
 };
 
 
-// A pipe that interpolates using the linear interpolation. TODO: modify this so it downsamples as well.
+// A pipe that interpolates using the linear interpolation. TODO: modify this
+// so it downsamples as well.
 template<class T, class Rate = int> class LinearInterpolator
   : public Pipe<T, T, LinearInterpolator<T, Rate> >
 {
 public:
-    // For every "consumerRate" samples consumed we will produce "producerRate" samples.
-    LinearInterpolator(Rate producerRate, Rate consumerRate, Rate offset = 0, T previous = 0, int n = defaultSampleCount)
+    // For every "consumerRate" samples consumed we will produce "producerRate"
+    // samples.
+    LinearInterpolator(Rate producerRate, Rate consumerRate, Rate offset = 0,
+        T previous = 0, int n = defaultSampleCount)
       : Pipe(this, n),
         _producerRate(producerRate),
         _consumerRate(consumerRate),
@@ -679,7 +682,9 @@ public:
         for (int i = 0; i < n; ++i) {
             T sample = reader.item();
             while (_offset >= 0) {
-                writer.item() = sample + static_cast<T>((static_cast<Rate>(_previous - sample)*_offset)/_consumerRate);
+                writer.item() = sample + static_cast<T>(
+                    (static_cast<Rate>(_previous - sample)*_offset)/
+                    _consumerRate);
                 ++written;
                 _offset -= _producerRate;
             }
@@ -809,7 +814,8 @@ public:
 private:
     void updateRate()
     {
-        // TODO: Adjust slightly so that we speed up if we have a large number of samples
+        // TODO: Adjust slightly so that we speed up if we have a large number
+        // of samples
         _rate = _produced/_consumed;
         _interpolator->setRate(_rate);
     }

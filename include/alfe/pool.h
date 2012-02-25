@@ -23,7 +23,7 @@ private:
         // Constructor, creates a new MemoryBlock
         MemoryBlock(int size) : _data(size), _nextBlock(0) { }
 
-        std::vector<T> _data;        // The actual T data
+        Array<T> _data;        // The actual T data
         MemoryBlock<T>* _nextBlock;  // Pointer to the next MemoryBlock in the list
     };
 
@@ -69,12 +69,17 @@ public:
     {
     public:
         Iterator() { }
-        Iterator(typename std::vector<T>::iterator object, MemoryBlock<T>* block)
+        Iterator(typename Array<T>::Iterator object, MemoryBlock<T>* block)
           : _object(object),
             _block(block)
         { }
-        typename std::vector<T>::iterator _object; // Pointer to object within MemoryBlock
-        MemoryBlock<T>* _block;           // Pointer to MemoryBlock
+
+        // Pointer to object within MemoryBlock
+        typename Array<T>::Iterator _object;
+
+        // Pointer to MemoryBlock
+        MemoryBlock<T>* _block;
+
         Iterator& operator++() // preincrement
         {
             ++_object;

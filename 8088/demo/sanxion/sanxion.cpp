@@ -291,7 +291,6 @@ public:
         }
     }
 #pragma warning ( pop )
-    void consume(int n) { produce(n); }
     void produce(int n)
     {
         // We process a frame at once -
