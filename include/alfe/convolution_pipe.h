@@ -12,7 +12,8 @@
 
 class ProductKernel;
 
-// A convolution kernel is indexed in such a way that the input samples correspond to integer input values.
+// A convolution kernel is indexed in such a way that the input samples
+// correspond to integer input values.
 class ConvolutionKernel
 {
 public:
@@ -24,17 +25,39 @@ public:
         virtual double rightExtent() const { return DBL_MAX; }
     };
 
-    ConvolutionKernel(Implementation* implementation) : _implementation(implementation) { }
+    ConvolutionKernel(Implementation* implementation)
+      : _implementation(implementation) { }
     double operator()(double x) const { return (*_implementation)(x); }
     double leftExtent() const { return _implementation->leftExtent(); }
     double rightExtent() const { return _implementation->rightExtent(); }
-    ConvolutionKernel& operator*=(const ConvolutionKernel& right) { _implementation = new ProductKernel(*this, right); }
-    ConvolutionKernel& operator+=(const ConvolutionKernel& right) { _implementation = new SumKernel(*this, right); }
-    ConvolutionKernel& operator-=(const ConvolutionKernel& right) { _implementation = new SumKernel(*this, -right); }
-    ConvolutionKernel operator-() const { return new NegatedKernel(*this); }
-    ConvolutionKernel operator*(const ConvolutionKernel& right) { ConvolutionKernel k = *this; k *= right; return k; }
-    ConvolutionKernel operator+(const ConvolutionKernel& right) { ConvolutionKernel k = *this; k += right; return k; }
-    ConvolutionKernel operator-(const ConvolutionKernel& right) { ConvolutionKernel k = *this; k -= right; return k; }
+    ConvolutionKernel& operator*=(const ConvolutionKernel& right)
+    {
+        _implementation = new ProductKernel(*this, right);
+    }
+    ConvolutionKernel& operator+=(const ConvolutionKernel& right)
+    {
+        _implementation = new SumKernel(*this, right);
+    }
+    ConvolutionKernel& operator-=(const ConvolutionKernel& right)
+    {
+        _implementation = new SumKernel(*this, -right);
+    }
+    ConvolutionKernel operator-() const
+    {
+        return ProductKernel(*this, ConstantKernel());
+    }
+    ConvolutionKernel operator*(const ConvolutionKernel& right)
+    {
+        ConvolutionKernel k = *this; k *= right; return k;
+    }
+    ConvolutionKernel operator+(const ConvolutionKernel& right)
+    {
+        ConvolutionKernel k = *this; k += right; return k;
+    }
+    ConvolutionKernel operator-(const ConvolutionKernel& right)
+    {
+        ConvolutionKernel k = *this; k -= right; return k;
+    }
 private:
     Reference<Implementation> _implementation;
 };
@@ -57,7 +80,8 @@ public:
 class RectangleWindow : public ConvolutionKernel
 {
 public:
-    RectangleWindow(double semiWidth) : ConvolutionKernel(new Implementation(semiWidth)) { }
+    RectangleWindow(double semiWidth)
+      : ConvolutionKernel(new Implementation(semiWidth)) { }
     class Implementation : public ConvolutionKernel::Implementation
     {
     public:
@@ -73,14 +97,25 @@ public:
 class ScaledFilter : public ConvolutionKernel
 {
 public:
-    ScaledFilter(ConvolutionKernel kernel, double scale) : ConvolutionKernel(new Implementation(kernel, scale)) { }
+    ScaledFilter(ConvolutionKernel kernel, double scale)
+      : ConvolutionKernel(new Implementation(kernel, scale)) { }
     class Implementation : public ConvolutionKernel::Implementation
     {
     public:
-        Implementation(ConvolutionKernel kernel, double scale) : _kernel(kernel), _scale(scale) { }
-        virtual double operator()(double x) const { return _kernel(x / _scale); }
-        virtual double leftExtent() const { return _kernel.leftExtent() * _scale; }
-        virtual double rightExtent() const { return _kernel.rightExtent() * _scale; }
+        Implementation(ConvolutionKernel kernel, double scale)
+          : _kernel(kernel), _scale(scale) { }
+        virtual double operator()(double x) const
+        {
+            return _kernel(x / _scale);
+        }
+        virtual double leftExtent() const
+        {
+            return _kernel.leftExtent() * _scale;
+        }
+        virtual double rightExtent() const
+        {
+            return _kernel.rightExtent() * _scale;
+        }
     private:
         ConvolutionKernel _kernel;
         double _scale;
@@ -90,14 +125,22 @@ public:
 class ProductKernel : public ConvolutionKernel
 {
 public:
-    ProductKernel(ConvolutionKernel a, ConvolutionKernel b) : ConvolutionKernel(new Implementation(a, b)) { }
+    ProductKernel(ConvolutionKernel a, ConvolutionKernel b)
+      : ConvolutionKernel(new Implementation(a, b)) { }
     class Implementation : public ConvolutionKernel::Implementation
     {
     public:
-        Implementation(ConvolutionKernel a, ConvolutionKernel b) : _a(a), _b(b) { }
+        Implementation(ConvolutionKernel a, ConvolutionKernel b)
+          : _a(a), _b(b) { }
         virtual double operator()(double x) const { return _a(x)*_b(x); }
-        virtual double leftExtent() const { return max(_a.leftExtent(), _b.leftExtent()); }
-        virtual double rightExtent() const { return min(_a.rightExtent(), _b.rightExtent()); }
+        virtual double leftExtent() const
+        {
+            return max(_a.leftExtent(), _b.leftExtent());
+        }
+        virtual double rightExtent() const
+        {
+            return min(_a.rightExtent(), _b.rightExtent());
+        }
     private:
         ConvolutionKernel _a;
         ConvolutionKernel _b;
@@ -107,33 +150,39 @@ public:
 class SumKernel : public ConvolutionKernel
 {
 public:
-    SumKernel(ConvolutionKernel a, ConvolutionKernel b) : ConvolutionKernel(new Implementation(a, b)) { }
+    SumKernel(ConvolutionKernel a, ConvolutionKernel b)
+      : ConvolutionKernel(new Implementation(a, b)) { }
     class Implementation : public ConvolutionKernel::Implementation
     {
     public:
-        Implementation(ConvolutionKernel a, ConvolutionKernel b) : _a(a), _b(b) { }
+        Implementation(ConvolutionKernel a, ConvolutionKernel b)
+          : _a(a), _b(b) { }
         virtual double operator()(double x) const { return _a(x)+_b(x); }
-        virtual double leftExtent() const { return min(_a.leftExtent(), _b.leftExtent()); }
-        virtual double rightExtent() const { return max(_a.rightExtent(), _b.rightExtent()); }
+        virtual double leftExtent() const
+        {
+            return min(_a.leftExtent(), _b.leftExtent());
+        }
+        virtual double rightExtent() const
+        {
+            return max(_a.rightExtent(), _b.rightExtent());
+        }
     private:
         ConvolutionKernel _a;
         ConvolutionKernel _b;
     };
 };
 
-class NegatedKernel : public ConvolutionKernel
+class ConstantKernel : public ConvolutionKernel
 {
 public:
-    NegatedKernel(ConvolutionKernel a) : ConvolutionKernel(new Implementation(a, b)) { }
+    ConstantKernel(double c) : ConvolutionKernel(new Implementation(c)) { }
     class Implementation : public ConvolutionKernel::Implementation
     {
     public:
-        Implementation(ConvolutionKernel a) : _a(a) { }
-        virtual double operator()(double x) const { return -_a(x); }
-        virtual double leftExtent() const { return _a.leftExtent(); }
-        virtual double rightExtent() const { return _a.rightExtent(); }
+        Implementation(double c) : _c(c) { }
+        virtual double operator()(double) const { return c; }
     private:
-        ConvolutionKernel _a;
+        double _c;
     };
 };
 
@@ -141,11 +190,13 @@ public:
 // which is likely to be very slow. The kernel is measured in output samples
 // which is the appropriate default for downsampling. For upsampling, scale
 // the
-template<class T, class Rate = int> class SmallConvolutionPipe : public Pipe<T, T>
+template<class T, class Rate = int> class SmallConvolutionPipe
+  : public Pipe<T, T, SmallConvolutionPipe<T, Rate> >
 {
 public:
-    SmallConvolutionPipe(Rate producerRate, Rate consumerRate, ConvolutionKernel kernel, int n = defaultFilterCount, Producer<T>* producer = 0)
-      : Pipe(n, producer),
+    SmallConvolutionPipe(Rate producerRate, Rate consumerRate,
+        ConvolutionKernel kernel, int n = defaultSampleCount)
+      : Pipe(this, n),
         _kernel(kernel),
         _t(0),
         _r(static_cast<double>(producerRate)/consumerRate),
@@ -153,12 +204,12 @@ public:
         _re(kernel.rightExtent()),
         _maxRead((n + (_re - _le))/_r)
     { }
-    void process()
+    void produce(int n)
     {
-        Buffer<T> reader = _consumer.reader(_maxRead);
-        Buffer<T> writer = _producer.writer(_n);
+        Accessor<T> reader = _sink.reader(_maxRead);
+        Accessor<T> writer = _source.writer(n);
         int read = 0;
-        for (int i = 0; i < _n; ++i) {
+        for (int i = 0; i < n; ++i) {
             T sample = 0;
             int j = read;
             for (double k = _t + _le; k < _re; k += _r) {
@@ -171,8 +222,8 @@ public:
             _t += r*_r;
             read += r;
         }
-        _consumer.read(read);
-        _producer.written(_n);
+        _sink.read(read);
+        _source.written(n);
     }
 private:
     ConvolutionKernel _kernel;
@@ -187,12 +238,15 @@ private:
 // may use a lot of memory if the producing and consuming rates have a high
 // lowest common multiple, and it can't be used if the resampling factor
 // changes.
-template<class T, class Rate = int> class LCMConvolutionPipe : public Pipe<T, T>
+template<class T, class Rate = int> class LCMConvolutionPipe
+  : public Pipe<T, T, LCMConvolutionPipe<T, Rate> >
 {
 public:
-    // For every "consumerRate" samples consumed we will produce "producerRate" samples.
-    LCMConvolutionPipe(Rate producerRate, Rate consumerRate, ConvolutionKernel kernel, int n = defaultFilterCount, Producer<T>* producer = 0)
-      : Pipe(n, producer),
+    // For every "consumerRate" samples consumed we will produce "producerRate"
+    // samples.
+    LCMConvolutionPipe(Rate producerRate, Rate consumerRate,
+        ConvolutionKernel kernel, int n = defaultSampleCount)
+      : Pipe(this, n),
         _t(0)
     {
         Rate l = lcm(producerRate, consumerRate);  // 275625000
@@ -203,17 +257,18 @@ public:
         double extent = re-le;  // 10
         _maxRead = (n + extent)/_r;
         _kernelSize = extent*c;
-        // TODO: rearrange kernel coefficients so that they are adjacent in memory for better cache performance
+        // TODO: rearrange kernel coefficients so that they are adjacent in
+        // memory for better cache performance
         _kernel.allocate(_kernelSize);
         for (int i = 0; i < _kernelSize; ++i)
             _kernel[i] = kernel(static_cast<double>(i)/c + le);
     }
-    void process()
+    void produce(int n)
     {
-        Buffer<T> reader = _consumer.reader(_maxRead);
-        Buffer<T> writer = _producer.writer(_n);
+        Accessor<T> reader = _sink.reader(_maxRead);
+        Accessor<T> writer = _source.writer(n);
         int read = 0;
-        for (int i = 0; i < _n; ++i) {
+        for (int i = 0; i < n; ++i) {
             T sample = 0;
             int j = read;
             for (int k = _t; k < _kernelSize; k += _delta) {
@@ -225,11 +280,13 @@ public:
             _t += r*_delta;
             read += r;
         }
-        _consumer.read(read);
-        _producer.written(_n);
+        _sink.read(read);
+        _source.written(n);
     }
 private:
-    Array<T> _kernel;  // indexed in units of 1/c of an output sample and offset by le output samples
+    // _kernel is indexed in units of 1/c of an output sample and offset by le
+    // output samples
+    Array<T> _kernel;  
     int _kernelSize;
     int _t;
     int _delta;
@@ -238,14 +295,16 @@ private:
 
 // A convolution pipe that computes a fixed number of kernel coefficients, and
 // uses the closest one to the one required.
-template<class T, class Rate = int> class NearestNeighborConvolutionPipe : public Pipe<T, T>
+template<class T, class Rate = int> class NearestNeighborConvolutionPipe
+  : public Pipe<T, T, NearestNeighborConvolutionPipe<T, Rate> >
 {
     // TODO
 };
 
 // A convolution pipe that computes a fixed number of kernel coefficients, and
 // uses linear interpolation to find the others.
-template<class T, class Rate = int> class LinearConvolutionPipe : public Pipe<T, T>
+template<class T, class Rate = int> class LinearConvolutionPipe
+  : public Pipe<T, T, LinearConvolutionPipe<T, Rate> >
 {
 };
 

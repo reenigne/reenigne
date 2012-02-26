@@ -853,7 +853,8 @@ template<class T> void applyToWildcard(T functor, CharacterSource s,
         return;
     }
     if (name == "..") {
-        applyToWildcard(functor, s, recurseIntoDirectories, directory.parent());
+        applyToWildcard(functor, s, recurseIntoDirectories,
+            directory.parent());
         return;
     }
 #endif

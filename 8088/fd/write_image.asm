@@ -161,7 +161,7 @@ org 0
   out dx,al   ; Set baud rate divisor high = 0x00
 
   dec dx      ; 0
-  mov al,0x03
+  mov al,0x01
   out dx,al   ; Set baud rate divisor low  = 0x01 = 115200 baud
 
   add dx,3    ; 3
@@ -228,12 +228,12 @@ tryLoad:
   mov bh,0                                          ;  2
 
   ; Debug: print number of bytes to load
-;  mov ax,bx
-;  int 0x63
-;  mov ax,cx
-;  int 0x63
-;  mov al,10
-;  int 0x65
+  mov ax,bx
+  int 0x63
+  mov ax,cx
+  int 0x63
+  mov al,10
+  int 0x65
 
   mov si,bx                                         ;  2
   push cx                                           ;  3
