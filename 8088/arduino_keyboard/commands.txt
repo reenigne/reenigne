@@ -160,3 +160,7 @@ pin Arduino Port PCINT
 16   10      B2     2   ~SS   OC1B PWM              reset
 17   11      B3     3   MOSI  OC2A PWM              remote LED
                                                           (black  = keyboard connector pin 4 = middle = ground)
+
+
+
+

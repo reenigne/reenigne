@@ -1,5 +1,4 @@
 #include "alfe/main.h"
-#include "alfe/file.h"
 #include "alfe/thread.h"
 
 class Program : public ProgramBase
@@ -137,16 +136,20 @@ public:
                 sendByte(0x90);
                 checkSum += 0x90;
             }
+            flush();
         }
         else
             sendLength(l);
         for (int i = 0; i < l; ++i) {
             sendByte(data[i]);       // Send data byte
             checkSum += data[i];
-            if ((i & 0xff) == 0)
+            if ((i & 0xff) == 0) {
+                flush();
                 console.write(".");
+            }
         }
         sendByte(checkSum);
+        flush();
         //IF_ZERO_THROW(FlushFileBuffers(_com));
 
         //console.write("Upload complete.\n");
@@ -167,10 +170,17 @@ private:
     }
     void sendByte(Byte value)
     {
-        _com.write<Byte>(value);
+        //_com.write<Byte>(value);
+        _buffer.append(value);
+    }
+    void flush()
+    {
+        _com.write(&_buffer[0], _buffer.count());
+        _buffer.clear();
     }
 
     Handle _com;
+    AppendableArray<Byte> _buffer;
 
     friend class ReaderThread;
 };

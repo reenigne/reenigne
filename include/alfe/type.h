@@ -181,6 +181,7 @@ public:
     static Type boolean;
     static Type object;
     static Type label;
+    static Type voidType;
 
     static Type array(const Type& type)
     {
@@ -227,6 +228,7 @@ Type Type::string = AtomicType("String");
 Type Type::boolean = AtomicType("Boolean");
 Type Type::object = AtomicType("Object");
 Type Type::label = AtomicType("Label");
+Type Type::voidType = AtomicType("Void");
 
 template<class T> class TemplateTemplate : public TypeConstructor
 {

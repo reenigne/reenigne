@@ -172,7 +172,7 @@ private:
 };
 
 
-class ShadowMask
+class ShadowMask : public Image
 {
 public:
     void create(Device* device)
@@ -279,7 +279,7 @@ private:
 };
 
 
-class ScanLines
+class ScanLines : public Image
 {
 public:
     void create(IDirect3DDevice9* device, float lineTop, float linesVisible)

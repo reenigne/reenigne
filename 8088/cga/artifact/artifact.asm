@@ -30,6 +30,7 @@ cpu 8086
 %endmacro
 
 
+  ; Set graphics mode
   mov ax,6
   int 0x10
 
@@ -41,8 +42,8 @@ cpu 8086
   mov dx,0x3d9
   out dx,al
 
-  mov al,0
 
+  ; Draw pattern in graphics memory
   mov ax,0xb800
   mov es,ax
 screenLoop:
@@ -74,10 +75,84 @@ oddLine:
   pop cx
   loop lineLoop
 
+
+;  ; Set up CRTC registers
+;  mov dx,0x3d4
+;  mov ax,0x1401 ; 1: horizontal displayed = 20
+;  out dx,ax
+;  mov ax,0x0005 ; 5: Vertical total adjust = 8
+;  out dx,ax
+
+
   mov dx,0x3da
 frameLoop:
+;  mov dl,0xd9
+;  mov al,0xf
+;  out dx,al
+;  mov dl,0xd4
+;  mov ax,0x2d02
+;  out dx,ax
+;  mov dl,0xda
   waitForVerticalSync
   waitforNoVerticalSync
+
+
+;  waitForDisplayEnable
+;  waitForDisplayDisable
+;  waitForDisplayEnable
+;  mov dl,0xd4                                         ; 2 0 2  2
+;  mov ax,0x0009 ; 9: lines per row = 1                ; 3 0 3  5
+;  out dx,ax
+;  mov dl,0xda
+;  waitForDisplayDisable
+;
+;  waitForDisplayEnable
+;  mov dl,0xd4                                         ; 2 0 2  2
+;  mov ax,0x1300 ; 0: horizontal total = 20            ; 3 0 3  5
+;  out dx,ax                                           ; 1 2 3  8
+;  mov ax,0x1902 ; 2: horizontal sync position = 25    ; 3 0 3 11
+;  out dx,ax                                           ; 1 2 3 14
+;  times 13 nop                                        ; 1 0 1 27
+;  mov ax,0x2400 ; 0: horizontal total = 37            ; 3 0 3 30
+;  out dx,ax                                           ; 1 2 3 33
+;  mov dl,0xda
+;  waitForDisplayDisable
+;
+;  waitForDisplayEnable
+;  mov dl,0xd4                                         ; 2 0 2  2
+;  mov ax,0x3800 ; 0: horizontal total = 57            ; 3 0 3  5
+;  out dx,ax                                           ; 1 2 3  8
+;  mov ax,0x2d02 ; 2: horizontal sync position = 45    ; 3 0 3 11
+;  out dx,ax                                           ; 1 2 3 14
+;  mov dl,0xda
+;  waitForDisplayDisable
+;
+;  waitForDisplayEnable
+;  mov dl,0xd4                                         ; 2 0 2  2
+;  mov ax,0x0109 ; 9: lines per row = 2                ; 3 0 3  5
+;  out dx,ax
+;  mov dl,0xda
+;  waitForDisplayDisable
+
+
+
+;  mov dl,0xd4
+;  mov ax,0x3700
+;  out dx,ax
+;  mov ax,0x2e02
+;  out dx,ax
+;  mov dl,0xda
+;  waitForDisplayDisable
+;  waitForDisplayEnable
+;  mov dl,0xd4
+;  mov ax,0x3800
+;  out dx,ax
+;  mov dl,0xda
+;  waitForDisplayDisable
+;  waitForDisplayEnable
+;  waitForDisplayDisable
+
+
 
   mov cx,16
   mov bl,0
@@ -97,33 +172,6 @@ lineLoop2:
   pop cx
   loop rowLoop2
   jmp frameLoop
-
-
-
-
-
-
-  add di,0x2000-80
-  mov cx,80
-  rep stosb
-  sub di,0x2000
-  pop cx
-  loop lineLoop
-
-  add al,0x11
-  test al,0xf
-  jnz rowLoop
-
-colourLoop:
-  push ax
-  mov ah,0
-  int 0x16
-  pop ax
-
-  inc al
-  mov dx,0x3d9
-  out dx,al
-  loop colourLoop
 
 
 ;  ; Set up the 8259 PIC to read the IRR lines

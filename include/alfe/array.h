@@ -307,8 +307,14 @@ public:
         }
         _n += length;
     }
+    void clear()
+    {
+        int n = _n;
+        _n = 0;
+        destructElements(n);
+    }
 
-    Iterator end() const { return Iteraotr(_data + _allocated); }
+    Iterator end() const { return Iterator(_data + _allocated); }
 private:
     void destructElements(int n)
     {

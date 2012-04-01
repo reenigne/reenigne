@@ -35,6 +35,7 @@ public:
         _outputNTSCFile = config->get<String>("outputNTSC");
         _outputCompositeFile = config->get<String>("outputComposite");
         _outputDigitalFile = config->get<String>("outputDigital");
+        _outputDigitalRawFile = config->get<String>("outputDigitalRaw");
         _outputDataFile = config->get<String>("outputData");
 
         // Determine the set of unique patterns that appear in the top lines
@@ -168,6 +169,7 @@ public:
             Vector(_inputSize.x/(_hres ? 8 : 16), _inputSize.y));
         _compositeData = Bitmap<YIQ>(_outputSize + Vector(8, 0));
         _digitalOutput = Bitmap<SRGB>(_outputSize);
+        _digitalOutputRaw = Bitmap<UInt8>(_inputSize);
         _compositeOutput = Bitmap<SRGB>(_outputSize + Vector(22, 0));
         _perceptualInput = Bitmap<Colour>(_outputSize);
         _linearInput = Bitmap<Colour>(_outputSize);
@@ -331,6 +333,12 @@ public:
                 compositeData[y*_outputSize.x + x] =
                     _compositeData.row(y)[x + 8].x;
         _outputNTSCFile.save(compositeData); // TODO: Add sync/burst/blank
+
+        Array<Byte> rgbiData(_inputSize.x*_inputSize.y);
+        for (int y = 0; y < _inputSize.y; ++y)
+            for (int x = 0; x < _inputSize.x; ++x)
+                rgbiData[y*_inputSize.x + x] = _digitalOutputRaw[Vector(x, y)];
+        _outputDigitalRawFile.save(rgbiData);
     }
 
     double updatePixel(Vector p, SRGB srgb)
@@ -374,6 +382,8 @@ public:
             int colour = ((bits & (128 >> i)) != 0 ? fg : bg);
             SRGB srgb = _srgbPalette[colour];
             if (p.x >= 0) {
+                if (inputPosition.inside(_inputSize))
+                    _digitalOutputRaw[inputPosition + Vector(x, 0)] = colour;
                 _digitalOutput[p] = srgb;
                 if (!_composite) {
                     //Colour rgb = _linearPalette[colour];
@@ -626,6 +636,7 @@ private:
     Bitmap<Colour> _linearOutput;
     Bitmap<Colour> _linearError;
     Bitmap<SRGB> _digitalOutput;
+    Bitmap<UInt8> _digitalOutputRaw;
     Bitmap<SRGB> _compositeOutput;
     Bitmap<UInt16> _dataOutput;
     Bitmap<YIQ> _compositeData;
@@ -654,6 +665,7 @@ private:
     File _outputCompositeFile;
     File _outputDigitalFile;
     File _outputDataFile;
+    File _outputDigitalRawFile;
 };
 
 class Program : public ProgramBase
@@ -695,6 +707,7 @@ public:
         config.addOption("outputNTSC", Type::string);
         config.addOption("outputComposite", Type::string);
         config.addOption("outputDigital", Type::string);
+        config.addOption<String>("outputDigitalRaw", Type::string, "");
         config.addOption("outputData", Type::string);
         config.addOption("compositeTarget", Type::boolean);
         config.addOption("hres", Type::boolean);
