@@ -1,4 +1,24 @@
-class TypeConstructorIdentifier
+class TypeConstructorSpecifier
+{
+public:
+    bool valid() const { return _implementation.valid(); }
+    Span span() const { return _implementation->span(); }
+protected:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        Implementation(const Span& span) : _span(span) { }
+        Span span() const { return _span; }
+    private:
+        Span _span;
+    };
+    TypeConstructorSpecifier(const Implementation* implementation)
+      : _implementation(implementation) { }
+private:
+    ConstReference<Implementation> _implementation;
+};
+
+class TypeConstructorIdentifier : public TypeConstructorSpecifier
 {
 public:
     static TypeConstructorIdentifier parse(CharacterSource* source)
@@ -48,9 +68,17 @@ public:
         return TypeConstructorIdentifier(name, Span(location, endLocation));
     }
     bool valid() const { return !_name.empty(); }
-    String name() const { return _name; }
     Span span() const { return _span; }
 private:
+    class Implementation : public TypeConstructorSpecifier::Implementation
+    {
+    public:
+        Implementation(const String& name, const Span& span)
+          : TypeConstructorSpecifier::Implementation(span), _name(name) { }
+        String name() const { return _name; }
+    private:
+        String _name;
+    };
     TypeConstructorIdentifier() { }
     TypeConstructorIdentifier(const String& name, const Span& span)
       : _name(name), _span(span) { }
@@ -96,59 +124,11 @@ public:
         if (typeSpecifier.valid()) {
             String s = typeSpecifier.name();
             Span span = typeSpecifier.span();
-            if (s == "Auto") {
-                *source = s2;
-                return Symbol(atomAuto, newSpan(span));
-            }
-            static String bitKeyword("Bit");
-            if (s == bitKeyword) {
-                *source = s2;
-                return Symbol(atomBit, new TypeCache(span, 1, 1));
-            }
-            static String booleanKeyword("Boolean");
-            if (s == booleanKeyword) {
-                *source = s2;
-                return Symbol(atomBoolean, new TypeCache(span, 1, 1));
-            }
-            static String byteKeyword("Byte");
-            if (s == byteKeyword) {
-                *source = s2;
-                return Symbol(atomByte, new TypeCache(span, 1, 1));
-            }
-            static String characterKeyword("Character");
-            if (s == characterKeyword) {
-                *source = s2;
-                return Symbol(atomCharacter, new TypeCache(span, 4, 4));
-            }
-            static String intKeyword("Int");
-            if (s == intKeyword) {
-                *source = s2;
-                return Symbol(atomInt, new TypeCache(span, 4, 4));
-            }
-            static String stringKeyword("String");
-            if (s == stringKeyword) {
-                *source = s2;
-                return Symbol(atomString, new TypeCache(span, 4, 4));
-            }
-            static String uIntKeyword("UInt");
-            if (s == uIntKeyword) {
-                *source = s2;
-                return Symbol(atomUInt, new TypeCache(span, 4, 4));
-            }
-            static String voidKeyword("Void");
-            if (s == voidKeyword) {
-                *source = s2;
-                return Symbol(atomVoid, new TypeCache(span, 0, 0));
-            }
-            static String wordKeyword("Word");
-            if (s == wordKeyword) {
-                *source = s2;
-                return Symbol(atomVoid, new TypeCache(span, 4, 4));
-            }
-            SymbolList templateArguments;
+            List<TypeConstructorSpecifier> templateArguments;
             while (Space::parseCharacter(&s2, '<', &span)) {
                 do {
-                    Symbol templateArgument = parseTypeConstructorSpecifier(&s2);
+                    TypeConstructorSpecifier templateArgument =
+                        TypeConstructorSpecifier::parse(&s2);
                     if (!templateArgument.valid())
                         return Symbol();
                     templateArguments.add(templateArgument);

@@ -64,23 +64,28 @@ E<E> h;  // Not valid - expands to E.B but E is a template and therefore has no 
 A<@B> = C<D<B>>
 
   Get nomenclature correct
-    * TypeConstructor: A in A or A<@B> or A<@B<>> etc.
-    * Template: A TypeConstructor that can be instantiated
-    * TemplateType: A Type constructed from a Template
-    * TypeSpecifier: A piece of program code that represents a Type
-    * TemplateTypeSpecifier: A piece of program code that represents a TemplateType
-    * TypeConstructorSignifier: That which goes on the left of a TypeConstructorDefinitionStatement
+    * Type: A set of values.
+    * TypeConstructor: A generalization of a Type. Something that can (given sufficiently many TypeConstructors of the appropriate Kinds) yield a Type.
+    * Template: A non-nullary TypeConstructor - a TypeConstructor that can be instantiated with a TypeConstructor to yield another TypeConstructor.
+    * TemplateType: A Type constructed from a Template.
+
+    * Kind: The property of a TypeConstuctor which determines what you have to give it to get a Type.
+    * KindSpecifier: The string which represents a Kind in a template parameter.
+
+    * TypeSpecifier: A piece of program code that represents a Type.
+    * TypeConstructorSpecifier: A piece of program code that represents a TypeConstructor.
+    * TemplateTypeSpecifier: A piece of program code that represents a TemplateType.
+    * TypeConstructorIdentifier: The A in A, A<B> or A<@B<C>> - a TypeConstructorSpecifier consisting of a single captialized identifier with no operators like *, () or <>.
+    * FundamentalTypeConstructorSpecifier: A sequence of letters, numbers and underscores starting with an upper case letter. A TypeConstructorSpecifier consisting of a TypeConstructorIdentifier followed by zero or more template arguments.
+
+    * TypeConstructorSignifier: That which goes on the left of a TypeConstructorDefinitionStatement - like a TypeConstructorSpecifier but with template parameters instead of template arguments.
     * TemplateSignifier: The TypeConstructorSignifier of a TypeConstructorDefinitionStatement which defines a Template
     * TypeConstructorDefinitionStatement: A statement that defines a TypeConstructor
-    * Kind: The property of a TypeConstuctor which determines what you have to give it to get a Type
-    * KindSpecifier: The string which represents a Kind in a template parameter
 
     * Template parameter: The @C bit in the TemplateTypeSignifier B<@C>
     * Template argument: The C bit in B<C>
     * Specialization: Obtaining a TypeConstructor of lower order from a TypeConstructor of higher order
     * Full specialization: Obtaining a Type from a TypeConstructor
-    * TypeIdentifier: Something that identifies a type (such as A<B>).
-    * TypeConstructorIdentifier: A sequence of letters, numbers and underscores starting with an upper case letter.
 
 
 Have A<@B><@C> be alternate syntax for A<@B,@C> (i.e. currying)?
