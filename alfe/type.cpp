@@ -1,6 +1,40 @@
-class TypeConstructorSpecifier
+template<class T> class TypeConstructorSpecifierTemplate;
+typedef TypeConstructorSpecifierTemplate<void> TypeConstructorSpecifier;
+
+//TypeConstructorSpecifier :=
+//    TypeConstructorIdentifier ("<" TypeConstructorSpecifier \ "," ">")*
+//  | TypeConstructorSpecifier "*"
+//  | TypeConstructorSpecifier "(" [(TypeConstructorSpecifier [Identifier] \ ","] ")"
+//  | "Class" "{" ClassDefinition "}"
+//  | "TypeOf" "(" Expression ")"
+template<class T> class TypeConstructorSpecifierTemplate
 {
 public:
+    static TypeConstructorSpecifier parse(CharacterSource* source)
+    {
+        TypeConstructorSpecifier typeSpecifier =
+            parseFundamentalTypeConstructorSpecifier(source);
+        if (!typeSpecifier.valid())
+            return TypeConstructorSpecifier();
+        do {
+            Span span;
+            if (Space::parseCharacter(source, '*', &span)) {
+                typeSpecifier = TypeConstructorSpecifier(
+                    new PointerImplementation(typeSpecifier,
+                        typeSpecifier.span() + span));
+                continue;
+            }
+            if (Space::parseCharacter(source, '(', &span)) {
+                SymbolArray typeListSpecifier = parseTypeConstructorSpecifierList(source);
+                Space::assertCharacter(source, ')', &span);
+                typeSpecifier = Symbol(atomFunction, typeSpecifier,
+                    typeListSpecifier, new TypeCache(spanOf(typeSpecifier) + span, 0, 0));
+                continue;
+            }
+        } while (true);
+        return typeSpecifier;
+    }
+
     bool valid() const { return _implementation.valid(); }
     Span span() const { return _implementation->span(); }
 protected:
@@ -12,9 +46,31 @@ protected:
     private:
         Span _span;
     };
+    class PointerImplementation : public Implementation
+    {
+    public:
+        PointerImplementation(const TypeConstructorSpecifier& referent,
+            const Span& span)
+          : Implementation(span), _referent(referent) { }
+    private:
+        TypeConstructorSpecifier _referent;
+    };
+    class FunctionImplementation : public Implementation
+    {
+    public:
+        FunctionImplementation(
+            const TypeConstructorSpecifier& returnTypeSpecifier,
+            const List<TypeConstructorSpecifier>& argumentTypeSpecifiers,
+            const Span& span)
+          : Implementation(span), _
+    private:
+        TypeConstructorSpecifier _referent;
+
+    };
+    TypeConstructorSpecifier() { }
     TypeConstructorSpecifier(const Implementation* implementation)
       : _implementation(implementation) { }
-private:
+
     ConstReference<Implementation> _implementation;
 };
 
@@ -67,8 +123,7 @@ public:
         *source = s2;
         return TypeConstructorIdentifier(name, Span(location, endLocation));
     }
-    bool valid() const { return !_name.empty(); }
-    Span span() const { return _span; }
+    String name() const { return implementation()->name(); }
 private:
     class Implementation : public TypeConstructorSpecifier::Implementation
     {
@@ -81,13 +136,15 @@ private:
     };
     TypeConstructorIdentifier() { }
     TypeConstructorIdentifier(const String& name, const Span& span)
-      : _name(name), _span(span) { }
+      : TypeConstructorSpecifier(new Implementation(name, span)) { }
 
-    String _name;
-    Span _span;
+    const Implementation* implementation() const
+    {
+        return ConstReference<Implementation>(_implementation);
+    }
 };
 
-class ClassTypeSpecifier
+class ClassTypeSpecifier : public TypeConstructorSpecifier
 {
 public:
     static ClassTypeSpecifier parse(CharacterSource* source)
@@ -103,17 +160,22 @@ public:
         return ClassTypeSpecifier(span + span2);
     }
 private:
+    class Implementation : public TypeConstructorSpecifier::Implementation
+    {
+    public:
+        Implementation(const Span& span)
+          : TypeConstructorSpecifier::Implementation(span) { }
+    };
     ClassTypeSpecifier() { } 
-    ClassTypeSpecifier(const Span& span) : _span(span) { }
-
-    Span _span;
+    ClassTypeSpecifier(const Span& span)
+      : TypeConstructorSpecifier(new Implementation(span)) { }
 };
 
 //Symbol parseTypeOfTypeSpecifier(CharacterSource* source);
 //
 //Symbol parseTypeConstructorSpecifier(CharacterSource* source);
 
-class FundamentalTypeConstructorSpecifier
+class FundamentalTypeConstructorSpecifier : public TypeConstructorSpecifier
 {
 public:
     static FundamentalTypeConstructorSpecifier parse(CharacterSource* source)
@@ -167,35 +229,6 @@ SymbolArray parseTypeConstructorSpecifierList(CharacterSource* source)
         list.add(typeSpecifier);
     }
     return list;
-}
-
-//TypeConstructorSpecifier :=
-//    TypeConstructorIdentifier ("<" TypeConstructorSpecifier \ "," ">")*
-//  | TypeConstructorSpecifier "*"
-//  | TypeConstructorSpecifier "(" [(TypeConstructorSpecifier [Identifier] \ ","] ")"
-//  | "Class" "{" ClassDefinition "}"
-//  | "TypeOf" "(" Expression ")"
-Symbol parseTypeConstructorSpecifier(CharacterSource* source)
-{
-    Symbol typeSpecifier = parseFundamentalTypeConstructorSpecifier(source);
-    if (!typeSpecifier.valid())
-        return Symbol();
-    do {
-        Span span;
-        if (Space::parseCharacter(source, '*', &span)) {
-            typeSpecifier = Symbol(atomPointer, typeSpecifier,
-                new TypeCache(spanOf(typeSpecifier) + span, 4, 4));
-            continue;
-        }
-        if (Space::parseCharacter(source, '(', &span)) {
-            SymbolArray typeListSpecifier = parseTypeConstructorSpecifierList(source);
-            Space::assertCharacter(source, ')', &span);
-            typeSpecifier = Symbol(atomFunction, typeSpecifier,
-                typeListSpecifier, new TypeCache(spanOf(typeSpecifier) + span, 0, 0));
-            continue;
-        }
-    } while (true);
-    return typeSpecifier;
 }
 
 Symbol parseExpressionOrFail(CharacterSource* source);
