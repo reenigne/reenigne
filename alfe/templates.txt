@@ -75,7 +75,7 @@ A<@B> = C<D<B>>
     * TypeSpecifier: A piece of program code that represents a Type.
     * TypeConstructorSpecifier: A piece of program code that represents a TypeConstructor.
     * TemplateTypeSpecifier: A piece of program code that represents a TemplateType.
-    * TypeConstructorIdentifier: The A in A, A<B> or A<@B<C>> - a TypeConstructorSpecifier consisting of a single captialized identifier with no operators like *, () or <>.
+    * TypeConstructorIdentifier or TypeIdentifier: The A in A, A<B> or A<@B<C>> - a TypeConstructorSpecifier consisting of a single captialized identifier with no operators like *, () or <>.
     * FundamentalTypeConstructorSpecifier: A sequence of letters, numbers and underscores starting with an upper case letter. A TypeConstructorSpecifier consisting of a TypeConstructorIdentifier followed by zero or more template arguments.
 
     * TypeConstructorSignifier: That which goes on the left of a TypeConstructorDefinitionStatement - like a TypeConstructorSpecifier but with template parameters instead of template arguments.
