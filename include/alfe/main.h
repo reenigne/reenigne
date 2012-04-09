@@ -36,6 +36,8 @@
 #include "alfe/character_source.h"
 #if defined(_WIN32) && defined(_WINDOWS)
 #include "alfe/vectors.h"
+#include "alfe/colour_space.h"
+#include "alfe/reference_counted_array.h"
 #include "alfe/bitmap.h"
 #include "alfe/user.h"
 #endif

@@ -4,6 +4,7 @@
 #define INCLUDED_BITMAP_PNG_H
 
 #include <png.h>
+#include "alfe/bitmap.h"
 
 class PNGFileFormat : public BitmapFileFormat<SRGB>
 {

@@ -3,6 +3,7 @@
 #ifndef INCLUDED_BITMAP_H
 #define INCLUDED_BITMAP_H
 
+#include "alfe/colour_space.h"
 #include "alfe/vectors.h"
 #include "alfe/reference_counted_array.h"
 
@@ -14,6 +15,10 @@ public:
     Bitmap<Pixel> load(const File& file)
     {
         return _implementation->load(file);
+    }
+    void save(Bitmap<Pixel>& bitmap, const File& file)
+    {
+        return _implementation->save(file);
     }
 protected:
     class Implementation : public ReferenceCounted
@@ -28,6 +33,45 @@ private:
     Reference<Implementation> _implementation;
 
     friend class Bitmap<Pixel>;
+};
+
+class RawFileFormat : public BitmapFileFormat<SRGB>
+{
+public:
+    RawFileFormat(Vector size) : BitmapFileFormat(new Implementation(size)) { }
+private:
+    class Implementation : public BitmapFileFormat::Implementation
+    {
+    public:
+        Implementation(Vector size) : _size(size) { }
+        // The bitmap needs to be 8-bit sRGB data for this to work.
+        virtual void save(Bitmap<SRGB>& bitmap, const File& file)
+        {
+            FileHandle handle = file.openWrite();
+            Byte* data = bitmap.data();
+            int stride = bitmap.stride();
+            Vector size = bitmap.size();
+            for (int y = 0; y < size.y; ++y) {
+                handle.write(static_cast<void*>(data), size.x*sizeof(SRGB));
+                data += stride;
+            }
+        }
+        // This will put 8-bit sRGB data in the bitmap.
+        virtual Bitmap<SRGB> load(const File& file)
+        {
+            FileHandle handle = file.openRead();
+            Bitmap<SRGB> bitmap(_size);
+            Byte* data = bitmap.data();
+            int stride = bitmap.stride();
+            for (int y = 0; y < _size.y; ++y) {
+                handle.read(static_cast<void*>(data), _size.x*sizeof(SRGB));
+                data += stride;
+            }
+            return bitmap;
+        }
+    private:
+        Vector _size;
+    };
 };
 
 // A Bitmap is a value class encapsulating a 2D image. Its width, height,

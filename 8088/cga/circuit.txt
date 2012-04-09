@@ -558,7 +558,7 @@ U64:
     QB = U64-QB
     QF = U64-QF
 
-COMP VID = f(CHROMA @ 2.2K [R8], +I @ 5.6K [R7], -BLANK @ 13K [R6], -SYNC @ 3.3K [R5])          1501981 has 680R, 1K, 680R, and 1K? 3K?
+COMP VID = f(CHROMA @ 2.2K [R8], +I @ 5.6K [R7], -BLANK @ 13K [R6], -SYNC @ 3.3K [R5])          1501981 has f(CHROMA @ 750R [R8], +I @ 680R [R7], +G @ 1K [R6], -SYNC @ 680R [R5])
 R OUT = +R
 G OUT = +G
 B OUT = +B
