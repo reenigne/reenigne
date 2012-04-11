@@ -212,6 +212,19 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
+experimeentJJ:
+  db "pearce_jj$"
+  dw .endCode - ($+2)
+  mov dx,0x3d8
+  mov ax,0x9000
+  mov es,ax
+  mov di,0
+.l:
+  in ax,dx
+  stosw
+  loop .l
+.endCode
+
 experiment1:
   db "samples 1$"
   dw .endCode - ($+2)

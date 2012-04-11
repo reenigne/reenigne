@@ -35,6 +35,7 @@ protected:
         Vector screenSize(640+2*8, 400+2*8);
         Vector size = screenSize*Vector(5, 8);
         Bitmap<SRGB> output(size);
+        output.fill(SRGB(0, 0, 0));
         for (int y = 0; y < size.y; ++y) {
             int yMaj = y/screenSize.y;
             int yMin = y%screenSize.y;
@@ -63,6 +64,23 @@ protected:
                 pal[2] += 8;
                 pal[3] += 8;
             }
+            char topLine[40];
+            memcpy(topLine, " 0 1  2 3  4 5  6 7  8 9  A B  C D  E F ", 40);
+            topLine[0] = nybble(portValues >> 12);
+            topLine[1] = nybble(portValues >> 8);
+            topLine[2] = nybble(portValues >> 4);
+            topLine[3] = nybble(portValues);
+            for (int x = 0; x < screenSize.x; ++x) {
+                if (yMin < 8) {
+                    char ch = topLine[x/16];
+                    // TODO
+                    continue;
+                }
+                int pattern = (x - 8)/40;
+                if (x < 8 || x >= 640 + 8)
+                    pattern = 0;
+                
+            }
 
 
         }
@@ -70,6 +88,8 @@ protected:
         RawFileFormat raw(size);
         raw.save(output, File("chart.raw"));
     }
+private:
+    char nybble(int v) { return "0123456789ABCDEF"[v & 0x0f]; }
 
     void runOriginal()
     {

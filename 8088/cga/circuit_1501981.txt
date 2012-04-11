@@ -494,8 +494,8 @@ U21:
 U43: Yellow/blue generator
   Inputs:
     D1   = U64-QH
-    CLK1 = LCLK (shown as connected to +VSYNC DLY, incorrectly)
-    CLR1 = +HSYNC DLY (shown as disconnected, incorrectly)
+    CLK1 = LCLK
+    CLR1 = +HSYNC DLY
     PR1  = -BW2
     D2   = +3.58 MHZ
     CLK2 = +14 MHZ
@@ -512,13 +512,13 @@ U44: Red/cyan/magenta/green generator
     CLK1 = +14 MHZ
     CLR1 = -BW1
     PR1  = -BW1
-    D2   = CYAN [sic, should be RED]
+    D2   = RED
     CLK2 = -14 MHZ
     CLR2 = -BW1
     PR2  = -BW1
   Outputs:
-    Q1   = CYAN [sic, should be RED]
-    -Q1  = RED [sic, should be CYAN]
+    Q1   = RED
+    -Q1  = CYAN
     Q2   = MAGENTA
     -Q2  = GREEN
 
@@ -530,8 +530,8 @@ U45: Chroma multiplexer
     D0 = 0
     D1 = BLUE
     D2 = GREEN
-    D3 = RED [sic, should be CYAN]
-    D4 = CYAN [sic, should be RED]
+    D3 = CYAN
+    D4 = RED
     D5 = MAGENTA
     D6 = YELLOW BURST
     D7 = 1
@@ -548,24 +548,23 @@ U63:
 
 U64:
   Inputs:
-    CLK = +LCLK (shown as connected to +HSYNC DLY, incorrectly)
-    CLR = +HSYNC DLY (shown as disconnected, incorrectly)
-    A = 1
+    CLK = +LCLK
+    CLR = +HSYNC DLY
+    A = U64-QD XOR (NOT U64-QH)
     B = 1
   Outputs:
     QH = U64-QH
     QG = U64-QG
-    QB = U64-QB
-    QF = U64-QF
+    QB = HSYNC OUT
+    QD = U64-QD
 
-COMP VID = f(CHROMA @ 2.2K [R8], +I @ 5.6K [R7], -BLANK @ 13K [R6], -SYNC @ 3.3K [R5])
+COMP VID = f(CHROMA @ 750R [R8], +I @ 680R [R7], +G @ 1K [R6], -SYNC @ 680R [R5], +R @ 2K [R18], +B @ 3K [R19])
 R OUT = +R
 G OUT = +G
 B OUT = +B
 I OUT = +I
 -SYNC = NOT (VSYNC OUT XOR HSYNC OUT)
 VSYNC OUT = U63+Q1 AND U63-Q4
-HSYNC OUT = U64-QB XOR U64-QF
 +HBURST = (NOT +VSYNC DLY) AND (NOT -BURST)
 -BURST = U43-Q1 OR NOT U64-QG
 

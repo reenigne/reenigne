@@ -237,6 +237,21 @@ codePreambleEnd:
 
 experimentData:
 
+experimentJJ:
+  db "pearce_jj$"
+  dw .endInit - ($+2)
+  mov ax,0x9000
+  mov ds,ax
+  mov es,ax
+  mov dx,0x3d8
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  in ax,dx
+  stosw
+.endCode:
+
 experimentJK:
   db "Jordan Knight$"
   dw .endInit - ($+2)

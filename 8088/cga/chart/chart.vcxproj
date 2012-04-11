@@ -76,6 +76,24 @@
   <ItemGroup>
     <ClCompile Include="chart.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\include\alfe\array.h" />
+    <ClInclude Include="..\..\..\include\alfe\bitmap.h" />
+    <ClInclude Include="..\..\..\include\alfe\character_source.h" />
+    <ClInclude Include="..\..\..\include\alfe\exception.h" />
+    <ClInclude Include="..\..\..\include\alfe\file.h" />
+    <ClInclude Include="..\..\..\include\alfe\file_handle.h" />
+    <ClInclude Include="..\..\..\include\alfe\find_handle.h" />
+    <ClInclude Include="..\..\..\include\alfe\handle.h" />
+    <ClInclude Include="..\..\..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\..\..\include\alfe\main.h" />
+    <ClInclude Include="..\..\..\include\alfe\minimum_maximum.h" />
+    <ClInclude Include="..\..\..\include\alfe\reference_counted.h" />
+    <ClInclude Include="..\..\..\include\alfe\reference_counted_array.h" />
+    <ClInclude Include="..\..\..\include\alfe\string.h" />
+    <ClInclude Include="..\..\..\include\alfe\swap.h" />
+    <ClInclude Include="..\..\..\include\alfe\vectors.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
