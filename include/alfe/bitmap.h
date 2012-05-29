@@ -35,36 +35,40 @@ private:
     friend class Bitmap<Pixel>;
 };
 
-class RawFileFormat : public BitmapFileFormat<SRGB>
+template<class T> class RawFileFormatTemplate;
+typedef RawFileFormatTemplate<SRGB> RawFileFormat;
+
+template<class T> class RawFileFormatTemplate : public BitmapFileFormat<T>
 {
 public:
-    RawFileFormat(Vector size) : BitmapFileFormat(new Implementation(size)) { }
+    RawFileFormatTemplate(Vector size)
+      : BitmapFileFormat(new Implementation(size)) { }
 private:
     class Implementation : public BitmapFileFormat::Implementation
     {
     public:
         Implementation(Vector size) : _size(size) { }
         // The bitmap needs to be 8-bit sRGB data for this to work.
-        virtual void save(Bitmap<SRGB>& bitmap, const File& file)
+        virtual void save(Bitmap<T>& bitmap, const File& file)
         {
             FileHandle handle = file.openWrite();
             Byte* data = bitmap.data();
             int stride = bitmap.stride();
             Vector size = bitmap.size();
             for (int y = 0; y < size.y; ++y) {
-                handle.write(static_cast<void*>(data), size.x*sizeof(SRGB));
+                handle.write(static_cast<void*>(data), size.x*sizeof(T));
                 data += stride;
             }
         }
         // This will put 8-bit sRGB data in the bitmap.
-        virtual Bitmap<SRGB> load(const File& file)
+        virtual Bitmap<T> load(const File& file)
         {
             FileHandle handle = file.openRead();
             Bitmap<SRGB> bitmap(_size);
             Byte* data = bitmap.data();
             int stride = bitmap.stride();
             for (int y = 0; y < _size.y; ++y) {
-                handle.read(static_cast<void*>(data), _size.x*sizeof(SRGB));
+                handle.read(static_cast<void*>(data), _size.x*sizeof(T));
                 data += stride;
             }
             return bitmap;
@@ -117,16 +121,16 @@ public:
         if (targetSize.x > _size.x) {
             // Upsampling. The band-limit resolution is the same as the source
             // resolution.
-            scaleTarget = 1.0f;
-            scale =
-                static_cast<float>(targetSize.x)/static_cast<float>(_size.x);
+            scaleTarget =
+                static_cast<float>(_size.x)/static_cast<float>(targetSize.x);
+            scale = 1.0f;
         }
         else {
             // Downsampling. The band-limit resolution is the same as the
             // target resolution.
-            scaleTarget =
-                static_cast<float>(_size.x)/static_cast<float>(targetSize.x);
-            scale = 1.0f;
+            scaleTarget = 1.0f;
+            scale =
+                static_cast<float>(targetSize.x)/static_cast<float>(_size.x);
         }
 
         for (int y = 0; y < _size.y; ++y) {
@@ -156,7 +160,7 @@ public:
         Bitmap<OtherPixel>& target, bool tripleResolution) const
     {
         Vector targetSize = target.size();
-        Byte* row = data();
+        const Byte* row = data();
         float scaleTarget;
         float scale;
 
@@ -170,16 +174,16 @@ public:
         if (targetWidth > _size.x) {
             // Upsampling. The band-limit resolution is the same as the source
             // resolution.
-            scaleTarget = 1.0f;
-            scale =
-                static_cast<float>(targetSize.x)/static_cast<float>(_size.x);
+            scaleTarget =
+                static_cast<float>(_size.x)/static_cast<float>(targetSize.x);
+            scale = 1.0f;
         }
         else {
             // Downsampling. The band-limit resolution is the same as the
             // target resolution.
-            scaleTarget =
-                static_cast<float>(_size.x)/static_cast<float>(targetSize.x);
-            scale = 1.0f;
+            scaleTarget = 1.0f;
+            scale =
+                static_cast<float>(targetSize.x)/static_cast<float>(_size.x);
         }
         float subPixel = scaleTarget/3.0f;
         if (tripleResolution) {
@@ -187,7 +191,7 @@ public:
             scale *= 3.0f;
         }
         for (int y = 0; y < _size.y; ++y) {
-            Pixel* p = reinterpret_cast<Pixel*>(row);
+            const Pixel* p = reinterpret_cast<const Pixel*>(row);
             Pixel* targetP = reinterpret_cast<Pixel*>(targetRow);
             for (int xTarget = 0; xTarget < targetSize.x; ++xTarget) {
                 Pixel c(0, 0, 0);
@@ -330,15 +334,15 @@ private:
         float scale;
         if (targetSize.y > _size.y) {
             // Upsampling
-            scaleTarget = 1.0f;
-            scale =
-                static_cast<float>(targetSize.y)/static_cast<float>(_size.y);
-        }
-        else {
-            // Downsampling
             scaleTarget =
                 static_cast<float>(_size.y)/static_cast<float>(targetSize.y);
             scale = 1.0f;
+        }
+        else {
+            // Downsampling
+            scaleTarget = 1.0f;
+            scale =
+                static_cast<float>(targetSize.y)/static_cast<float>(_size.y);
         }
         Byte* targetRow = target.data();
         for (int yTarget = 0; yTarget < targetSize.y; ++yTarget) {
@@ -383,6 +387,7 @@ private:
     {
         if (z == 0.0f)
             return 1.0f;
+        z *= M_PI;
         return sin(z)/z;
     }
 

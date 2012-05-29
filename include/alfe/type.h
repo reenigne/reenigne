@@ -55,6 +55,8 @@ Kind Kind::variadic = Kind(new Kind::VariadicImplementation);
 class TemplateKind : public Kind
 {
 public:
+    // Pass in firstParameterKind and the Kind of the result is
+    // restParameterKind. 
     TemplateKind(const Kind& firstParameterKind, const Kind& restParameterKind)
       : Kind(new Implementation(firstParameterKind, restParameterKind)) { }
     TemplateKind(const Kind& kind)

@@ -3,7 +3,9 @@
 #include "alfe/colour_space.h"
 #include <stdio.h>
 #include "alfe/bitmap.h"
+#include "alfe/bitmap_png.h"
 #include "alfe/config_file.h"
+#include "alfe/minimum_maximum.h"
 
 class Program : public ProgramBase
 {
@@ -30,21 +32,25 @@ public:
         config.addOption("outputPicture", Type::string);
         config.load(_arguments[1]);
 
-        Bitmap<SRGB> input;
-        input.load(File(config.get<String>("inputPicture")));
+        PNGFileFormat png;
+        Bitmap<SRGB> input =
+            png.load(File(config.get<String>("inputPicture")));
+
+        //input.save(RawFileFormat(Vector(0, 0)), File("../../input.raw"));
+
         Bitmap<Vector3<float> > linearInput(input.size());
         input.convert(linearInput, ConvertSRGBToLinear());
         Array<Any> sizeArray = config.get<List<Any> >("outputSize");
         Vector size(sizeArray[0].value<int>(), sizeArray[1].value<int>());
         Bitmap<Vector3<float> > linearOutput(size);
         if (config.get<bool>("subpixels"))
-            linearInput.subPixelResample(&linearOutput,
+            linearInput.subPixelResample(linearOutput,
                 config.get<bool>("tripleResolution"));
         else
-            linearInput.resample(&linearOutput);
+            linearInput.resample(linearOutput);
         Bitmap<SRGB> output(linearOutput.size());
         linearOutput.convert(output, ConvertLinearToSRGB());
-        output.save(File(config.get<String>("outputPicture")));
+        output.save(png, File(config.get<String>("outputPicture")));
     }
 private:
     class ConvertSRGBToLinear
@@ -53,6 +59,7 @@ private:
         ConvertSRGBToLinear() : _c(ColourSpace::rgb()) { }
         Vector3<float> convert(SRGB c)
         {
+            //return Vector3<float>(pow(c.x/255.0, 1/2.2), pow(c.y/255.0, 1/2.2), pow(c.z/255.0, 1/2.2));
             return Vector3Cast<float>(_c.fromSrgb(c));
         }
     private:
@@ -65,6 +72,10 @@ private:
         SRGB convert(Vector3<float> c)
         {
             return _c.toSrgb24(c);
+            //return SRGB(
+            //    static_cast<Byte>(clamp(0, static_cast<int>(pow(static_cast<double>(c.x), 2.2)*255.0), 255)),
+            //    static_cast<Byte>(clamp(0, static_cast<int>(pow(static_cast<double>(c.y), 2.2)*255.0), 255)),
+            //    static_cast<Byte>(clamp(0, static_cast<int>(pow(static_cast<double>(c.z), 2.2)*255.0), 255)));
         }
     private:
         ColourSpace _c;

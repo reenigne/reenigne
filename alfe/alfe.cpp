@@ -276,6 +276,7 @@
 #include "resolve.cpp"
 
 #include "type.cpp"
+#include "identifier.cpp"
 #include "expression.cpp"
 #include "statement.cpp"
 

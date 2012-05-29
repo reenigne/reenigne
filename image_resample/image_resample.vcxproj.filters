@@ -56,5 +56,8 @@
     <ClInclude Include="..\include\alfe\colour_space.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\alfe\bitmap_png.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

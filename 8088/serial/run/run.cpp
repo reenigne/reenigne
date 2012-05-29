@@ -85,7 +85,7 @@ public:
         SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
         IF_ZERO_THROW(GetCommState(_com, &deviceControlBlock));
         deviceControlBlock.DCBlength = sizeof(DCB);
-        deviceControlBlock.BaudRate = 115200; //38400;
+        deviceControlBlock.BaudRate = 57600; //115200; //38400; //
         deviceControlBlock.fBinary = TRUE;
         deviceControlBlock.fParity = FALSE;
         deviceControlBlock.fOutxCtsFlow = FALSE;
@@ -112,7 +112,7 @@ public:
         SecureZeroMemory(&timeOuts, sizeof(COMMTIMEOUTS));
         timeOuts.ReadIntervalTimeout = MAXDWORD;
         timeOuts.ReadTotalTimeoutMultiplier = 0;
-        timeOuts.ReadTotalTimeoutConstant = MAXDWORD;
+        timeOuts.ReadTotalTimeoutConstant = 100; //MAXDWORD;
         IF_ZERO_THROW(SetCommTimeouts(_com, &timeOuts));
 
         IF_ZERO_THROW(SetCommMask(_com, EV_RXCHAR));
@@ -129,31 +129,53 @@ public:
         // at 0x100. We do this by prepending 0x100 NOP bytes at the beginning.
         // In DOS this area would contain the Program Segment Prefix structure.
         //console.write(hex(l, 8) + "\n");
-        Byte checkSum = 0;
+
+        _packet.allocate(0x101);
+
+        Byte checksum;
         if (comFile) {
-            sendLength(l + 0x100);
-            for (int i = 0; i < 0x100; ++i) {
-                sendByte(0x90);
-                checkSum += 0x90;
+            // Send 0x100 NOPs to pad out the file so that execution starts at
+            // the expected IP.
+            int bytes = 0xff;
+            _packet[0] = bytes;
+            checksum = 0;
+            for (int i = 0; i < bytes; ++i) {
+                Byte d = 0x90;
+                _packet[i + 1] = d;
+                checksum += d;
             }
-            flush();
+            _packet[bytes + 1] = checksum;
+            sendPacket();
+            _packet[0] = 1;
+            _packet[2] = 0x90;
+            sendPacket();
         }
-        else
-            sendLength(l);
-        for (int i = 0; i < l; ++i) {
-            sendByte(data[i]);       // Send data byte
-            checkSum += data[i];
-            if ((i & 0xff) == 0) {
-                flush();
-                console.write(".");
+
+        int p = 0;
+        int bytes;
+        do {
+            bytes = min(l, 0xff);
+            _packet[0] = bytes;
+            checksum = 0;
+            for (int i = 0; i < bytes; ++i) {
+                Byte d = data[p];
+                ++p;
+                _packet[i + 1] = d;
+                checksum += d;
             }
-        }
-        sendByte(checkSum);
-        flush();
+            _packet[bytes + 1] = checksum;
+            sendPacket();
+            l -= bytes;
+        } while (bytes != 0);
+
         //IF_ZERO_THROW(FlushFileBuffers(_com));
 
-        //console.write("Upload complete.\n");
+        console.write("\nUpload complete.\n");
         // Dump bytes from COM port to stdout until we receive ^Z
+
+        timeOuts.ReadTotalTimeoutConstant = MAXDWORD;
+        IF_ZERO_THROW(SetCommTimeouts(_com, &timeOuts));
+
         do {
             int c = _com.read<Byte>();
             if (c == 26)
@@ -162,25 +184,43 @@ public:
         } while (true);
     }
 private:
-    void sendLength(int l)
+    void sendPacket()
     {
-        sendByte(l & 0xff);          // Send length low byte
-        sendByte((l >> 8) & 0xff);   // Send length middle byte
-        sendByte((l >> 16) & 0xff);  // Send length high byte
-    }
-    void sendByte(Byte value)
-    {
-        //_com.write<Byte>(value);
-        _buffer.append(value);
-    }
-    void flush()
-    {
-        _com.write(&_buffer[0], _buffer.count());
-        _buffer.clear();
+        bool ok;
+        do {
+            ok = true;
+            _com.write(&_packet[0], 2 + _packet[0]);
+            IF_ZERO_THROW(FlushFileBuffers(_com));
+            int c;
+            do {
+                c = _com.tryReadByte();
+                switch (c) {
+                    case 'K':
+                        if (!ok)
+                            console.write("\nXT returned OK but lost data\n");
+                        else
+                            console.write("K");
+                        break;
+                    case 'F':
+                        console.write("F");
+                        ok = false;
+                        break;
+                    case -1:
+                        console.write(".");
+                        ok = false;
+                        _com.write<Byte>(0xa5);
+                        break;
+                    default:
+                        console.write("\nUnrecognized byte " + hex(c, 2) +
+                            " from XT\n");
+                        break;
+                }
+            } while (c == -1);
+        } while (!ok);
     }
 
     Handle _com;
-    AppendableArray<Byte> _buffer;
+    Array<Byte> _packet;
 
     friend class ReaderThread;
 };

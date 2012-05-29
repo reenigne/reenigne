@@ -138,12 +138,14 @@ lineLoop2t:
 rowLoop2:
   push cx
 
-  mov cx,12
+  mov cx,11
+  inc bl
 lineLoop2:
   waitForDisplayEnable
   waitForDisplayDisable
   loop lineLoop2
-  inc bl
+  waitForDisplayEnable
+  waitForDisplayDisable
   mov al,bl
   dec dx
   out dx,al

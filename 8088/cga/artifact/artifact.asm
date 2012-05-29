@@ -34,7 +34,7 @@ cpu 8086
   mov ax,6
   int 0x10
 
-  mov al,0x1e
+  mov al,0x1a
   mov dx,0x3d8
   out dx,al
 

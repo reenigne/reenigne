@@ -155,12 +155,101 @@ Make  Break     Key                         Remote key               Remote code
 
 Pins:
 pin Arduino Port PCINT
+ 1  RESET    C6    14  ~RESET
+ 2    0      D0    16         RXD
+ 3    1      D1    17         TXD
+ 4    2      D2    18   INT0
+ 5    3      D3    19   INT1  OC2B PWM
+ 6    4      D4    20   T0    XCK
+ 7  VCC     VCC
+ 8  GND     GND                                           (black  = keyboard connector pin 4 = middle = ground)
+ 9  XTAL1    B6     6   TOSC1 XTAL1
+10  XTAL2    B7     7   TOSC2 XTAL2
+11    5      D5    21   T1    OC0B PWM
+12    6      D6    22   AIN0  OC0A PWM
+13    7      D7    23   AIN1
 14    8      B0     0   ICP1  CLKO                  data  (yellow = keyboard connector pin 2 = center
 15    9      B1     1         OC1A PWM              clock (white  = keyboard connector pin 1 = outside)
 16   10      B2     2   ~SS   OC1B PWM              reset
 17   11      B3     3   MOSI  OC2A PWM              remote LED
-                                                          (black  = keyboard connector pin 4 = middle = ground)
+18   12      B4     4   MISO
+19   13      B5     5   SCK
+20  AVCC    AVCC
+21  AREF    AREF
+22  AGND    GND
+23   A0      C0     8   ADC0
+24   A1      C1     9   ADC1
+25   A2      C2    10   ADC2
+26   A3      C3    11   ADC3
+27   A4      C4    12   ADC4  SDA
+28   A5      C5    13   ADC5  SCL
 
 
+ 1 GND
+ 2 A14         O
+ 3 A13         O
+ 4 A12         O
+ 5 A11         O
+ 6 A10         O
+ 7 A9          O
+ 8 A8          O
+ 9 AD7        IO
+10 AD6        IO
+11 AD5        IO
+12 AD4        IO
+13 AD3        IO
+14 AD2        IO
+15 AD1        IO
+16 AD0        IO
+17 NMI        I
+18 INTR       I  Interrupt request
+19 CLK        I
+20 GND
+21 RESET      I
+22 READY      I
+23 -TEST      I
+24 QS1         O
+25 QS0         O
+26 -S0         O
+27 -S1         O  DT/-R
+28 -S2         O  M/-IO
+29 -LOCK       O
+30 -RQ/-GT1   IO Request/Grant low priority
+31 -RQ/-GT0   IO Request/Grant high priority
+32 -RD         O
+33 MN/-MX     I  (zero for maximum mode on PC/XT)
+34 -SS0        O Always high in maximum mode
+35 A19/S6      O
+36 A18/S5      O
+37 A17/S4      O
+38 A16/S3      O
+39 A15         O
+40 VCC
+
+
+S6 0
+S5 interrupt enable flag bit
+
+S4 S3
+ 0  0  Alternate Data
+ 0  1  Stack
+ 1  0  Code or none
+ 1  1  Data
+
+-S2 -S1 -S0
+ 0   0   0   Interrupt Acknowledge
+ 0   0   1   Read I/O port
+ 0   1   0   Write I/O Port
+ 0   1   1   Halt
+ 1   0   0   Code access
+ 1   0   1   Read memory
+ 1   1   0   Write memory
+ 1   1   1   Passive
+
+QS1 QS0
+ 0   0   No Operation
+ 0   1   First Byte of Opcode from Queue
+ 1   0   Empty the Queue
+ 1   1   Subsequent Byte from Queue
 
 

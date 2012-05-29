@@ -444,3 +444,34 @@ stosb      ; 1 1 8 11
 TODO:
   Check actual wait states for various intervals between CGA accesses
   Check for snow on read (should be there)
+
+
+
+
+
+
+NTSC standard:
+  Blanking:  9.75 lclks
+  Sync:      4.21 lclks
+  Burst:     2.24 lclks
+CGA:
+  Blanking: 10 lclks
+  Sync:      4 lclks
+  Burst:     2 lclks
+
+
+NTSC:
+  Sync: -40        -0.286V
+  Blank:  0         0V
+  Black:  7.5       0.054V
+  White: 100        0.714V
+  Max:   131        0.935V
+CGA:
+  Sync:   0        -0.292V                 0       -0.379     -0.286
+  Blank:  0.292     0                      0.379    0          0
+  Black:  0.416     0.124V  0.121V         0.416    0.037      0.028
+  D.Grey: 0.709     0.417V  0.408V         0.709    0.33       0.249
+  Grey:   1.16      0.868V  0.850V         1.16     0.781      0.589
+  White:  1.46      1.17V   1.15V          1.46     1.081      0.816
+
+

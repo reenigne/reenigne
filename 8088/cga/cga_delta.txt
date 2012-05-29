@@ -1,0 +1,46 @@
+Connections needed from CGA:
+  Ground
+  +5V
+  +LCLK (U64-CLK)
+  +HSYNC DLY (U64-CLR)
+  CHROMA
+  +I
+  +G
+  +R
+  +B
+  VSYNC OUT
+
+Schematic:
+  74LS164:
+    Inputs:
+      CLK = +LCLK
+      CLR = +HSYNC DLY
+      A = U64-QD XOR (NOT U64-QH)
+      B = 1
+    Outputs:
+      QH = U64-QH
+      QB = HSYNC OUT
+      QD = U64-QD
+
+  COMP VID = f(CHROMA @ 750R, +I @ 680R, +G @ 1K, -SYNC @ 680R, +R @ 2K, +B @ 3K)
+  -SYNC = NOT (VSYNC OUT XOR HSYNC OUT)
+
+
+Components needed:
+  74LS164  shift register
+  74LS86   quad XOR
+  74LS244  octal driver
+  Transistor 3904
+  680R
+  360R
+  1K
+  680R
+  750R
+  20R
+  75R
+  2K
+  130R
+  3K
+  2x 10uF capacitors for decoupling
+  composite connector
+

@@ -54,148 +54,29 @@ String powerAssignment("^=");
 String increment("++");
 String decrement("--");
 
-Symbol parseIdentifier(CharacterSource* source)
+class Expression
 {
-    CharacterSource s = *source;
-    Location startLocation = s.location();
-    int startOffset;
-    Span startSpan;
-    Span endSpan;
-    int c = s.get(&startSpan);
-    if (c < 'a' || c > 'z')
-        return Symbol();
-    CharacterSource s2;
-    do {
-        s2 = s;
-        c = s.get(&endSpan);
-        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-            (c >= '0' && c <= '9') || c == '_')
-            continue;
-        break;
-    } while (true);
-    int endOffset = s2.offset();
-    Location endLocation = s2.location();
-    Space::parse(&s2);
-    String name = s2.subString(startOffset, endOffset);
-    static String keywords[] = {
-        "assembly",
-        "break",
-        "case",
-        "catch",
-        "continue",
-        "default",
-        "delete",
-        "do",
-        "done",
-        "else",
-        "elseIf",
-        "elseUnless",
-        "finally",
-        "from",
-        "for",
-        "forever",
-        "if",
-        "in",
-        "new",
-        "nothing",
-        "return",
-        "switch",
-        "this",
-        "throw",
-        "try",
-        "unless",
-        "until",
-        "while"};
-    for (int i = 0; i < sizeof(keywords)/sizeof(keywords[0]); ++i)
-        if (name == keywords[i])
-            return Symbol();
-    String op("operator");
-    if (name != op) {
-        *source = s2;
-        return Symbol(atomIdentifier, name, newSpan(startSpan + endSpan));
+public:
+    static Expression parse(CharacterSource* source)
+    {
+        // TODO
     }
-    Span span3;
-    Atom atom = atomLast;
-    CharacterSource s3 = s2;
-    if (Space::parseCharacter(&s2, '(', &endSpan)) {
-        if (Space::parseCharacter(&s2, ')', &endSpan))
-            atom = atomFunctionCall;
-        else
-            s2.location().throwError("Expected )");
-    }
-    else if (Space::parseCharacter(&s2, '[', &endSpan)) {
-        if (Space::parseCharacter(&s2, ']', &endSpan))
-            atom = atomFunctionCall;
-        else
-            s2.location().throwError("Expected ]");
-    }
-    else if (Space::parseOperator(&s2, equalTo, &endSpan))
-        atom = atomEqualTo;
-    else if (Space::parseCharacter(&s2, '=', &endSpan))
-        atom = atomAssignment;
-    else if (Space::parseOperator(&s2, addAssignment, &endSpan))
-        atom = atomAddAssignment;
-    else if (Space::parseOperator(&s2, subtractAssignment, &endSpan))
-        atom = atomSubtractAssignment;
-    else if (Space::parseOperator(&s2, multiplyAssignment, &endSpan))
-        atom = atomMultiplyAssignment;
-    else if (Space::parseOperator(&s2, divideAssignment, &endSpan))
-        atom = atomDivideAssignment;
-    else if (Space::parseOperator(&s2, moduloAssignment, &endSpan))
-        atom = atomModuloAssignment;
-    else if (Space::parseOperator(&s2, shiftLeftAssignment, &endSpan))
-        atom = atomShiftLeftAssignment;
-    else if (Space::parseOperator(&s2, shiftRightAssignment, &endSpan))
-        atom = atomShiftRightAssignment;
-    else if (Space::parseOperator(&s2, bitwiseAndAssignment, &endSpan))
-        atom = atomBitwiseAndAssignment;
-    else if (Space::parseOperator(&s2, bitwiseOrAssignment, &endSpan))
-        atom = atomBitwiseOrAssignment;
-    else if (Space::parseOperator(&s2, bitwiseXorAssignment, &endSpan))
-        atom = atomBitwiseXorAssignment;
-    else if (Space::parseOperator(&s2, powerAssignment, &endSpan))
-        atom = atomPowerAssignment;
-    else if (Space::parseCharacter(&s2, '|', &endSpan))
-        atom = atomBitwiseOr;
-    else if (Space::parseCharacter(&s2, '~', &endSpan))
-        atom = atomBitwiseXor;
-    else if (Space::parseCharacter(&s2, '&', &endSpan))
-        atom = atomBitwiseAnd;
-    else if (Space::parseOperator(&s2, notEqualTo, &endSpan))
-        atom = atomNotEqualTo;
-    else if (Space::parseOperator(&s2, lessThanOrEqualTo, &endSpan))
-        atom = atomLessThanOrEqualTo;
-    else if (Space::parseOperator(&s2, shiftRight, &endSpan))
-        atom = atomShiftRight;
-    else if (Space::parseCharacter(&s3, '<', &endSpan)) {
-        atom = atomLessThan;
-        // Only if we know it's not operator<<T>() can we try operator<<()
-        CharacterSource s4 = s3;
-        SymbolArray templateArgumentList = parseTemplateArgumentList(&s4);
-        if (templateArgumentList.count() == 0 &&
-            Space::parseOperator(&s2, shiftLeft, &endSpan))
-            atom = atomShiftLeft;
-        else
-            s2 = s3;
-    }
-    else if (Space::parseOperator(&s2, greaterThanOrEqualTo, &endSpan))
-        atom = atomGreaterThanOrEqualTo;
-    else if (Space::parseCharacter(&s2, '>', &endSpan))
-        atom = atomGreaterThan;
-    else if (Space::parseCharacter(&s2, '+', &endSpan))
-        atom = atomAdd;
-    else if (Space::parseCharacter(&s2, '-', &endSpan))
-        atom = atomSubtract;
-    else if (Space::parseCharacter(&s2, '/', &endSpan))
-        atom = atomDivide;
-    else if (Space::parseCharacter(&s2, '*', &endSpan))
-        atom = atomMultiply;
-    else if (Space::parseCharacter(&s2, '%', &endSpan))
-        atom = atomModulo;
-    else
-        s2.location().throwError("Expected an operator");
-    return Symbol(atomIdentifier, Symbol(atom), newSpan(startSpan + endSpan));
-}
+protected:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        Implementation(const Span& span) : _span(span) { }
+        Span span() const { return _span; }
+    private:
+        Span _span;
+    };
+
+    Expression() { }
+    Expression(const Implementation* implementation)
+      : _implementation(implementation) { }
+
+    ConstReference<Implementation> _implementation;
+};
 
 Symbol parseDoubleQuotedString(CharacterSource* source)
 {

@@ -85,6 +85,7 @@
     <ClInclude Include="..\..\..\include\alfe\find_handle.h" />
     <ClInclude Include="..\..\..\include\alfe\handle.h" />
     <ClInclude Include="..\..\..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\..\..\include\alfe\main.h" />
     <ClInclude Include="..\..\..\include\alfe\minimum_maximum.h" />
     <ClInclude Include="..\..\..\include\alfe\reference_counted.h" />
     <ClInclude Include="..\..\..\include\alfe\string.h" />

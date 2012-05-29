@@ -1,0 +1,116 @@
+100 (spare 16-pin)
+ 50 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
+ 51 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
+ 52 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
+ 53 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
+ 54 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
+ 55 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
+ 56 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
+ 57 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
+ 38 6845 CRTC                                                                                  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16    18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33     36 37 38 39 40
+ 15 74LS00 quad 2-input NAND gate                                                              1 2 3         8 9 10 11 12 13
+ 25 74LS00 quad 2-input NAND gate                                                              1 2 3         8 9 10 11 12 13
+ 46 74LS00 quad 2-input NAND gate                                                              1 2 3 4 5 6   8 9 10 11 12 13
+ 49 74LS02 quad 2-input NOR gate                                                               1 2 3 4 5 6   8 9 10 11 12 13
+ 65 74LS02 quad 2-input NOR gate                                                               1 2 3 4 5 6   8 9 10
+ 26 74S04 hex inverter                                                                         1 2 3 4 5 6   8 9 10 11 12 13
+ 29 74S04 hex inverter                                                                         1 2 3 4 5 6   8 9 10 11 12 13
+  6 74LS04 hex inverter                                                                        1 2 3 4 5 6   8 9 10 11 12 13
+ 16 74LS04 hex inverter                                                                        1 2 3 4 5 6   8 9 10 11 12 13
+ 20 74LS04 hex inverter                                                                        1 2 3 4 5 6   8 9 10 11 12 13
+ 31 74S08 quad 2-input AND gate                                                                1 2 3         8 9 10
+ 13 74LS08 quad 2-input AND gate                                                               1 2 3         8 9 10 11 12 13
+ 41 74LS08 quad 2-input AND gate                                                               1 2 3 4 5 6   8 9 10 11 12 13
+ 28 74LS10 triple 3-input NAND gate                                                            1 2 3 4 5 6     9 10 11 12 13
+ 14 74LS32 quad 2-input OR gate                                                                1 2 3 4 5 6   8 9 10 11 12 13
+ 23 74LS32 quad 2-input OR gate                                                                1 2 3 4 5 6   8 9 10 11 12 13
+ 30 74LS32 quad 2-input OR gate                                                                1 2 3 4 5 6   8 9 10 11 12 13
+ 22 74LS51 dual 2-wide 2-input AND-OR-invert gate                                              1 2 3 4 5 6   8 9 10 11 12 13
+ 27 74LS51 dual 2-wide 2-input AND-OR-invert gate                                              1 2 3 4 5 6   8 9 10 11 12 13
+ 47 74LS51 dual 2-wide 2-input AND-OR-invert gate                                              1 2 3 4 5 6   8 9 10 11 12 13
+ 48 74LS51 dual 2-wide 2-input AND-OR-invert gate                                              1 2 3 4 5 6   8 9 10 11 12 13
+ 43 74S74 dual D positive edge triggered flip-flop with preset and clear                       1 2 3 4 5     8 9 10 11 12 13
+  2 74LS74 dual D positive edge triggered flip-flop with preset and clear                      1 2 3 4 5 6   8 9 10 11 12 13
+ 11 74LS74 dual D positive edge triggered flip-flop with preset and clear                      1 2 3 4 5       9 10 11 12 13
+ 44 74LS74 dual D positive edge triggered flip-flop with preset and clear                      1 2 3 4 5 6   8 9 10 11 12 13
+  3 74S86 quad 2-input XOR gate                                                                1 2 3 4 5 6   8 9 10 11 12 13
+ 42 74LS86 quad 2-input XOR gate                                                               1 2 3 4 5 6   8 9 10 11 12 13
+ 68 74LS86 quad 2-input XOR gate                                                               1 2 3 4 5 6   8 9 10 11 12 13
+  1 74S112 dual J-K negative-edge-triggered flip-flop with clear and preset                    1 2 3 4 5 6     9 10 11 12 13 14 15
+ 62 74LS125 quad bus buffer with three-state outputs, negative enable                          1 2 3 4 5 6   8 9 10 11 12 13
+ 17 74LS138 3 to 8-line decoder/demultiplexer                                                  1 2 3 4 5 6          11 12 13 14 15
+ 18 74LS138 3 to 8-line decoder/demultiplexer                                                  1 2 3 4 5 6 7
+ 19 74LS138 3 to 8-line decoder/demultiplexer                                                  1 2 3 4 5 6 7
+ 45 74LS151 8-line to 1-line data selector/multiplexer                                         1 2 3 4 5   7   9 10 11 12 13 14 15
+  9 74153 dual 4-line to 1-line data selector/multiplexer                                      1 2 3 4 5 6 7   9 10 11 12 13 14 15
+ 10 74153 dual 4-line to 1-line data selector/multiplexer                                      1 2 3 4 5 6 7   9 10 11 12 13 14 15
+ 64 74LS164 8-bit parallel-out serial shift register with asynchronous clear                   1 2   4       8 9    11 12 13
+  7 74LS166 parallel-Load 8-bit shift register                                                 1 2 3 4 5 6 7   9 10 11 12 13 14 15
+  8 74LS166 parallel-Load 8-bit shift register                                                 1 2 3 4 5 6 7   9 10 11 12 13 14 15
+ 32 74LS166 parallel-Load 8-bit shift register                                                 1 2 3 4 5 6 7   9 10 11 12 13 14 15
+ 21 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15
+ 39 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15
+ 40 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15
+101 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15
+  4 74S174 hex d flip-flop with common clear                                                   1 2 3 4 5 6 7   9 10 11 12 13 14 15
+  5 74S174 hex d flip-flop with common clear                                                   1 2 3 4 5 6 7   9 10 11 12 13 14 15
+ 63 74LS175 quad d edge-triggered flip-flop with complementary outputs and asynchronous clear  1 2   4 5   7   9 10    12 13 14
+ 24 74LS244 octal buffer with noninverted three-state outputs                                    2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
+ 36 74LS244 octal buffer with noninverted three-state outputs                                  1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
+ 67 74LS244 octal buffer with noninverted three-state outputs                                  1 2 3 4   6 7 8 9    11 12 13 14    16 17 18 19
+ 66 74LS245 octal bus transceiver with noninverted three-state outputs                         1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
+ 34 74LS273 8-bit register with reset                                                          1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
+ 35 74LS273 8-bit register with reset                                                          1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
+ 37 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
+ 58 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15
+ 59 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17
+ 60 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17
+ 61 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17
+ 12 74LS393 dual 4-bit binary counter                                                          1 2       6          11 12 13
+ 33 MK36000 ROM                                                                                1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+
+Not used:
+  CRTC MA13, RA3 and RA4
+  NAND U15-456  (used in 1501981)
+  NAND U25-456
+  NOR U65-111213
+  AND U13-456  (used in 1501981 instead of U67-3/17/19 which is used for composite +R)
+  AND U31-456
+  AND U31-111213
+
+Aims:
+  Change background colour in 640x200 mode (4 register bits)
+  12 palette bits instead of 2 in 320x200 mode
+  160x200 16-colour RGB mode
+  160x200 16-colour RGB mode with palette (64 register bits)
+  Software controllable alternate font (with attribute clash data)
+
+
+74LS00  3 $0.20 $0.60
+74LS02  2 $0.20 $0.40
+74S04   2 $0.43 $0.86
+74LS04  3 $0.21 $0.63
+74S08   1 $0.53 $0.53
+74LS08  2 $0.20 $0.40
+74LS10  1 $0.24 $0.24
+74LS32  3 $0.19 $0.57
+74LS51  4 $0.46 $1.84
+74S74   1 $0.63 $0.63
+74LS74  3 $0.19 $0.57
+74S86   1 $1.15 $1.15
+74LS86  2 $0.19 $0.38
+74S112  1 $0.85 $0.85
+74LS125 1 $0.25 $0.25
+74LS138 3 $0.25 $0.75
+74LS151 1 $0.31 $0.31
+74LS153 2 $0.31 $0.62
+74LS164 1 $0.24 $0.24
+74LS166 3 $0.37 $1.11
+74LS174 4 $0.32 $1.28
+74S174  2 $1.78 $3.56
+74LS175 1 $0.29 $0.29
+74LS244 3 $0.31 $0.93
+74LS245 1 $0.30 $0.30
+74LS273 2 $0.30 $0.60
+74LS374 5 $0.29 $1.45
+74LS393 1 $0.42 $0.42

@@ -1,97 +1,7 @@
-cpu 8086
-org 0
+%include "../defaults.asm"
 
-  ; Set up the screen so we can debug the keyboard send routine
-
-  ; Mode                                                2c
-  ;      1 +HRES                                         0
-  ;      2 +GRPH                                         0
-  ;      4 +BW                                           4
-  ;      8 +VIDEO ENABLE                                 8
-  ;   0x10 +1BPP                                         0
-  ;   0x20 +ENABLE BLINK                                20
-  mov dx,0x3d8
-  mov al,0x2c
-  out dx,al
-
-  ; Palette                                             00
-  ;      1 +OVERSCAN B                                   0
-  ;      2 +OVERSCAN G                                   0
-  ;      4 +OVERSCAN R                                   0
-  ;      8 +OVERSCAN I                                   0
-  ;   0x10 +BACKGROUND I                                 0
-  ;   0x20 +COLOR SEL                                    0
-  mov dx,0x3d9
-  mov al,0
-  out dx,al
-
-  mov dx,0x3d4
-
-  ;   0xff Horizontal Total                             38
-  mov ax,0x3800
-  out dx,ax
-
-  ;   0xff Horizontal Displayed                         28
-  mov ax,0x2801
-  out dx,ax
-
-  ;   0xff Horizontal Sync Position                     2d
-  mov ax,0x2d02
-  out dx,ax
-
-  ;   0x0f Horizontal Sync Width                        0a
-  mov ax,0x0a03
-  out dx,ax
-
-  ;   0x7f Vertical Total                               1f
-  mov ax,0x1f04
-  out dx,ax
-
-  ;   0x1f Vertical Total Adjust                        06
-  mov ax,0x0605
-  out dx,ax
-
-  ;   0x7f Vertical Displayed                           19
-  mov ax,0x1906
-  out dx,ax
-
-  ;   0x7f Vertical Sync Position                       1c
-  mov ax,0x1c07
-  out dx,ax
-
-  ;   0x03 Interlace Mode                               02
-  mov ax,0x0208
-  out dx,ax
-
-  ;   0x1f Max Scan Line Address                        07
-  mov ax,0x0709
-  out dx,ax
-
-  ; Cursor Start                                        06
-  ;   0x1f Cursor Start                                  6
-  ;   0x60 Cursor Mode                                   0
-  mov ax,0x060a
-  out dx,ax
-
-  ;   0x1f Cursor End                                   07
-  mov ax,0x070b
-  out dx,ax
-
-  ;   0x3f Start Address (H)                            00
-  mov ax,0x000c
-  out dx,ax
-
-  ;   0xff Start Address (L)                            00
-  mov ax,0x000d
-  out dx,ax
-
-  ;   0x3f Cursor (H)                                   03  0x3c0 == 40*24 == start of last line
-  mov ax,0x030e
-  out dx,ax
-
-  ;   0xff Cursor (L)                                   c0
-  mov ax,0xc00f
-  out dx,ax
+  ; Set 40-column text mode
+  initCGA 8
 
   ; Set up some interrupts
   ; int 0x63 == print AX as a 4-digit hex number
@@ -99,14 +9,10 @@ org 0
   ; int 0x65 == print AL as a character
   xor ax,ax
   mov ds,ax
-  mov word [0x18c], printHex
-  mov [0x18e], cs
-  mov word [0x190], printString
-  mov [0x192], cs
-  mov word [0x194], printCharacter
-  mov [0x196], cs
-  mov word [0x78], driveParameters
-  mov [0x7a], cs
+  setInterrupt 0x63, printHex
+  setInterrupt 0x64, printString
+  setInterrupt 0x65, printCharacter
+  setInterrupt 0x1e, driveParameters
 
   ; Reset video variables
   xor ax,ax
@@ -118,200 +24,104 @@ org 0
   mov dl,0  ; Drive 0 (A:)
   int 0x13
   push ax
-  int 0x60  ; Output AX
-  mov al,10
-  int 0x62  ; New line
+  writeHex
+  writeNewLine
   pop ax
   int 0x63
   mov al,10
   int 0x65
 
-; Receive a byte over serial and put it in AL. DX == port base address + 5
-%macro receiveByte 0                            ; 14
-    ; Wait until a byte is available
-  %%waitForData:
-    in al,dx                              ; 1 1
-    test al,1                             ; 2 0
-    jz %%waitForData                      ; 2 0
-    ; Read the data byte
-    sub dl,5                              ; 3 0
-    in al,dx                              ; 1 1
-    add dl,5                              ; 3 0
-%endmacro
 
-
-  mov dx,0x3f8  ; COM1 (0x3f8 == COM1, 0x2f8 == COM2, 0x3e8 == COM3, 0x2e8 == COM4)
-
-  ; dx + 0 == Transmit/Receive Buffer   (bit 7 of LCR == 0)  Baud Rate Divisor LSB (bit 7 of LCR == 1)
-  ; dx + 1 == Interrupt Enable Register (bit 7 of LCR == 0)  Baud Rate Divisor MSB (bit 7 of LCR == 1)
-  ; dx + 2 == Interrupt Identification Register IIR (read)   16550 FIFO Control Register (write)
-  ; dx + 3 == Line Control Register LCR
-  ; dx + 4 == Modem Control Register MCR
-  ; dx + 5 == Line Status Register LSR
-  ; dx + 6 == Modem Status Register MSR
-  ; dx + 7 == Scratch Pad Register
-
-  add dx,3    ; 3
-  mov al,0x80
-  out dx,al   ; Set LCR bit 7 to 1 to allow us to set baud rate
-
-  dec dx      ; 2
-  dec dx      ; 1
-  mov al,0x00
-  out dx,al   ; Set baud rate divisor high = 0x00
-
-  dec dx      ; 0
-  mov al,0x01
-  out dx,al   ; Set baud rate divisor low  = 0x01 = 115200 baud
-
-  add dx,3    ; 3
-  ; Line Control Register LCR                                03
-  ;      1 Word length -5 low bit                             1
-  ;      2 Word length -5 high bit                            2
-  ;      4 1.5/2 stop bits                                    0
-  ;      8 parity                                             0
-  ;   0x10 even parity                                        0
-  ;   0x20 parity enabled                                     0
-  ;   0x40 force spacing break state                          0
-  ;   0x80 allow changing baud rate                           0
-  mov al,0x03
-  out dx,al
-
-  dec dx      ; 2
-  dec dx      ; 1
-  ; Interrupt Enable Register                                00
-  ;      1 Enable data available interrupt and 16550 timeout  0
-  ;      2 Enable THRE interrupt                              0
-  ;      4 Enable lines status interrupt                      0
-  ;      8 Enable modem status change interrupt               0
-  mov al,0x00
-  out dx,al
-
-  add dx,3    ; 4
-  ; Modem Control Register                                   00
-  ;      1 Activate DTR                                       0
-  ;      2 Activate RTS                                       0
-  ;      4 OUT1                                               0
-  ;      8 OUT2                                               0
-  ;   0x10 Loop back test                                     0
-  out dx,al
-
+  initSerial
 
 tryLoad:
-  ; Find the next segment after the end of this program. This is where we'll
-  ; load our disk image.
+  ; Set load location
   mov ax,0x1000
-;  mov ax,cs
-;  add ax,(programEnd + 15) >> 4
   mov es,ax
-
   xor di,di
 
-  mov ax,0xb800
-  mov ds,ax
-
-  ; Push the address
+  ; Push a copy to use when we write the image to disk
   push es
   push di
 
+packetLoop:
+  ; Activate DTR
   mov al,1
-  out dx,al   ; Activate DTR
+  out dx,al
   inc dx      ; 5
-  ; Read a 3-byte count and then a number of bytes into memory, starting at
-  ; DS:DI
-  receiveByte                                       ; 14
-  mov cl,al                                         ;  2
-  receiveByte                                       ; 14
-  mov ch,al                                         ;  2
-  receiveByte                                       ; 14
-  mov bl,al                                         ;  2
-  mov bh,0                                          ;  2
 
-  ; Debug: print number of bytes to load
-  mov ax,bx
-  int 0x63
-  mov ax,cx
-  int 0x63
-  mov al,10
-  int 0x65
-
-  mov si,bx                                         ;  2
-  push cx                                           ;  3
-  xor ah,ah                                         ;  2
-pagesLoop:
-  cmp si,0                                          ;  2
-  je noFullPages                                    ;  2
-  xor cx,cx                                         ;  2
-  call loadBytes                                    ; 37
-
-  mov bx,es                                         ;  2
-  add bh,0x10                                       ;  2
-  mov es,bx                                         ;  2
-
-  dec si                                            ;  1
-  jmp pagesLoop                                     ;  2
-noFullPages:
-  pop cx
-  test cx,cx
-  jz loadProgramDone
-  call loadBytes
-loadProgramDone:
-  ; Check that the checksum matches
+  ; Receive packet size in bytes
   receiveByte
-  mov bx,ax
+  mov cl,al
+  mov ch,0
 
+  ; Push a copy to check when we're done and adjust DI for retries
+  push cx
+
+  ; Init checksum
+  mov ah,0
+
+  ; Receive CX bytes and store them at ES:DI
+  jcxz noBytes
+byteLoop:
+  receiveByte
+  add ah,al
+  stosb
+  loop byteLoop
+noBytes:
+
+  ; Receive checksum
+  receiveByte
+  sub ah,al
+
+  ; Deactivate DTR
   dec dx      ; 4
   mov al,0
-  out dx,al   ; Deactivate DTR
+  out dx,al
 
-  mov ax,cs
-  mov ds,ax
+  cmp ah,0
+  jne checkSumFailed
 
-  cmp bh,bl
-  je checksumOk
-  mov si,failMessage
-  mov cx,failMessageEnd - failMessage
-  int 0x64
-  pop di
-  pop es
-  jmp tryLoad
-
-
-  ; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
-loadBytes:
-  receiveByte                                       ; 14
-  add ah,al                                         ;  2
-  stosb                                             ;  2
-  mov bx,di
-  mov [800],bl
-
-;  test di,0x00ff
-;  jnz noPrint
-
-;  dec dx      ; 4
-;  mov al,0
-;  out dx,al   ; Deactivate DTR
-
-;  ; Debug: print load address
-;  mov byte[cs:column],0
-;  mov ax,ds
-;  int 0x63
-;  mov ax,di
-;  int 0x63
-
-;  mov al,1
-;  out dx,al   ; Activate DTR
-;  inc dx      ; 5
-
-;noPrint:
-  loop loadBytes                                    ;  2
-  ret                                               ;  3
+  ; Send success byte
+  inc dx      ; 5
+  mov al,'K'
+  sendByte
+  dec dx      ; 4
+  mov al,'K'
+  int 0x65
 
 
-checksumOk:
-  mov si,okMessage
-  mov cx,okMessageEnd - okMessage
-  int 0x64
+  ; Normalize ES:DI
+  mov ax,di
+  mov cl,4
+  shr ax,cl
+  mov bx,es
+  add bx,ax
+  mov es,bx
+  and di,0xf
+
+  pop cx
+  jcxz transferComplete
+  jmp packetLoop
+
+checkSumFailed:
+  ; Send fail byte
+  inc dx      ; 5
+  mov al,'F'
+  sendByte
+  dec dx      ; 4
+  mov al,'F'
+  int 0x65
+
+  pop cx
+  sub di,cx
+  jmp packetLoop
+
+
+transferComplete:
+  mov al,'D'
+;  int 0x65
+  writeCharacter
 
 
   mov byte[cs:cylinder],0
@@ -355,11 +165,14 @@ retryLoop:
 
   push ax
   mov al,'W'
-  int 0x65
+;  int 0x65
+  writeCharacter
   pop ax
-  int 0x63
-  mov al,10
-  int 0x65
+;  int 0x63
+  writeHex
+;  mov al,10
+;  int 0x65
+  writeNewLine
 
   mov ah,0  ; Subfunction 0 = Reset Disk System
   mov dl,0  ; Drive 0 (A:)
@@ -371,13 +184,19 @@ retryLoop:
 
   mov si,diskFailMessage
   mov cx,diskFailMessageEnd - diskFailMessage
-  int 0x64
+;  int 0x64
+  mov ax,cs
+  mov ds,ax
+  writeString
 
+  pop di
+  pop es
   jmp tryLoad
 
 writeOk:
   mov al,'.'
-  int 0x65
+;  int 0x65
+  writeCharacter
 
 
   inc byte[cs:head]
@@ -391,6 +210,9 @@ writeOk:
   jge finished
   jmp cylinderLoop
 finished:
+
+  mov al,'B'
+  writeCharacter
 
   ; Jump back into BIOS to boot from the newly written disk
   mov ax,0x40
