@@ -408,7 +408,6 @@ private:
         protected:
             const Byte* _data;
         };
-
         class OwningImplementation : public Implementation
         {
         public:
@@ -459,7 +458,6 @@ private:
             void expand(const Byte* data, int length) { throw Exception(); }
             void expand(int length) { throw Exception(); }
         };
-
         Reference<Implementation> _implementation;
     };
 

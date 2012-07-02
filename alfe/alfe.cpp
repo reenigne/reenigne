@@ -275,6 +275,7 @@
 //#include "alfe/symbol.h"
 #include "resolve.cpp"
 
+#include "parse_tree_object.cpp"
 #include "type.cpp"
 #include "identifier.cpp"
 #include "expression.cpp"

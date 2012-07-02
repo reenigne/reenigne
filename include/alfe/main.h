@@ -23,7 +23,7 @@
 
 #include "alfe/integer_types.h"
 #include "alfe/uncopyable.h"
-#include "alfe/reference_counted.h"
+#include "alfe/reference.h"
 #include "alfe/swap.h"
 #include "alfe/array.h"
 #include "alfe/minimum_maximum.h"

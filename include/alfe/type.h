@@ -45,7 +45,6 @@ private:
         String toString() const { return String("..."); }
     };
     ConstReference<Implementation> _implementation;
-
     friend class TemplateKind;
 };
 
@@ -59,8 +58,7 @@ public:
     // restParameterKind. 
     TemplateKind(const Kind& firstParameterKind, const Kind& restParameterKind)
       : Kind(new Implementation(firstParameterKind, restParameterKind)) { }
-    TemplateKind(const Kind& kind)
-      : Kind(ConstReference<Implementation>(kind._implementation)) { }
+    TemplateKind(const Kind& kind) : Kind(kind) { }
     Kind first() const { return implementation()->first(); }
     Kind rest() const { return implementation()->rest(); }
 private:
@@ -102,7 +100,7 @@ private:
     };
     const Implementation* implementation() const
     {
-        return ConstReference<Implementation>(_implementation);
+        return _implementation.referent<Implementation>();
     }
 };
 
@@ -478,13 +476,12 @@ public:
         Any _value;
     };
 
-    EnumerationType(const Type& other)
-      : Type(ConstReference<Implementation>(other._implementation)) { }
+    EnumerationType(const Type& other) : Type(other) { }
     EnumerationType(String name, List<Value> values)
       : Type(new Implementation(name, values)) { }
     const Array<Value>* values() const
     {
-        return ConstReference<Implementation>(_implementation)->values();
+        return _implementation.referent<Implementation>()->values();
     }
 private:
     class Implementation : public Type::Implementation
@@ -522,17 +519,16 @@ public:
         Type _type;
     };
 
-    StructuredType(const Type& other)
-      : Type(ConstReference<Implementation>(other._implementation)) { }
+    StructuredType(const Type& other) : Type(other) { }
     StructuredType(String name, List<Member> members)
       : Type(new Implementation(name, members)) { }
     const HashTable<String, int>* names() const
     {
-        return ConstReference<Implementation>(_implementation)->names();
+        return implementation()->names();
     }
     const Array<Member>* members() const
     {
-        return ConstReference<Implementation>(_implementation)->members();
+        return implementation()->members();
     }
 private:
     class Implementation : public Type::Implementation
@@ -555,6 +551,10 @@ private:
         HashTable<String, int> _names;
         Array<Member> _members;
     };
+    const Implementation* implementation() const
+    {
+        return _implementation.referent<Implementation>();
+    }
 };
 
 class TypedValue

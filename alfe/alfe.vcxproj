@@ -84,6 +84,14 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="identifier.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="parse_tree_object.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="resolve.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
@@ -112,16 +120,18 @@
     <None Include="todo.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\alfe\any.h" />
     <ClInclude Include="..\include\alfe\array.h" />
     <ClInclude Include="..\include\alfe\buffer.h" />
     <ClInclude Include="..\include\alfe\character_source.h" />
     <ClInclude Include="..\include\alfe\command_line.h" />
+    <ClInclude Include="..\include\alfe\exception.h" />
     <ClInclude Include="..\include\alfe\file.h" />
     <ClInclude Include="..\include\alfe\hash_table.h" />
     <ClInclude Include="..\include\alfe\integer_types.h" />
     <ClInclude Include="..\include\alfe\linked_list.h" />
     <ClInclude Include="..\include\alfe\main.h" />
-    <ClInclude Include="..\include\alfe\reference_counted.h" />
+    <ClInclude Include="..\include\alfe\reference.h" />
     <ClInclude Include="..\include\alfe\space.h" />
     <ClInclude Include="..\include\alfe\stack.h" />
     <ClInclude Include="..\include\alfe\string.h" />

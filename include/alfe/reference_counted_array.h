@@ -7,8 +7,9 @@
 // must inherit from ReferenceCountedArray<H, T> (curiously recurring template
 // pattern). H must have alignment equal to or greater than T. This can be
 // achieved generically by making H have a member of type T. The resulting
-// object can be used with the Reference and ConstReference classes.
+// object can be used as a base class for a Reference Implementation.
 template<class H, class T> class ReferenceCountedArray
+  : public ReferenceCounted
 {
 public:
     static H* create(int size)
@@ -39,44 +40,30 @@ public:
         }
         return h;
     }
-
-    void addReference() const { ++_count; }
-
-    template<class U> U* cast() { return dynamic_cast<U*>(this); }
 protected:
-    virtual ~ReferenceCountedArray() { };
-
-    ReferenceCountedArray() : _count(0) { }
-
-    T& operator[] (int i)
+    T* pointer()
     {
-        return static_cast<T*>(
-            static_cast<Byte*>(static_cast<void*>(this)) + sizeof(H))[i];
+        return static_cast<T*>(static_cast<Byte*>(static_cast<void*>(this)) +
+            sizeof(H));
     }
-    const T& operator[] (int i) const
+    const T* pointer() const
     {
         return static_cast<const T*>(
             static_cast<const Byte*>(static_cast<const void*>(this)) +
-            sizeof(H))[i];
+            sizeof(H));
     }
+    T& operator[](int i) { return pointer()[i]; }
+    const T& operator[](int i) const { return pointer()[i]; }
 
     int _size;
-private:
-    void release()
+
+    void destroy()
     {
-        --_count;
-        if (_count == 0) {
-            for (int i = _size - 1; i >= 0; --i)
-                (&(*this)[i])->~T();
-            static_cast<H*>(this)->~H();
-            operator delete(static_cast<void*>(this));
-        }
+        for (int i = _size - 1; i >= 0; --i)
+            (&(*this)[i])->~T();
+        static_cast<H*>(this)->~H();
+        operator delete(static_cast<void*>(this));
     }
-
-    mutable int _count;
-
-    template<class T> friend class Reference;
-    template<class T> friend class ConstReference;
 };
 
 #endif // INCLUDED_REFERENCE_COUNTED_ARRAY_H

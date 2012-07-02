@@ -8,25 +8,26 @@ class Any
 public:
     Any() { }
     template<class T> Any(const T& t)
-      : _implementation(new Implementation<T>(t)) { }
+      : _implementation(new SpecificImplementation<T>(t)) { }
     template<class T> T value() const
     {
-        return Reference<Implementation<T> >(_implementation)->value();
+        return _implementation.referent<SpecificImplementation<T> >()
+            ->value();
     }
     bool valid() const { return _implementation.valid(); }
 private:
-    class ImplementationBase : public ReferenceCounted
+    class Implementation : public ReferenceCounted
     {
     };
-    template<class T> class Implementation : public ImplementationBase
+    template<class T> class SpecificImplementation : public Implementation
     {
     public:
-        Implementation(const T& t) : _t(t) { }
+        SpecificImplementation(const T& t) : _t(t) { }
         T value() const { return _t; }
     private:
         T _t;
     };
-    Reference<ImplementationBase> _implementation;
+    Reference<Implementation> _implementation;
 };
 
 #endif // INCLUDED_ANY_H

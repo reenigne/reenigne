@@ -24,10 +24,6 @@ typedef RootDirectoryImplementationTemplate<void> RootDirectoryImplementation;
 template<class T> class RootDirectoryTemplate;
 typedef RootDirectoryTemplate<void> RootDirectory;
 
-template<class T> class NamedFileSystemObjectImplementationTemplate;
-typedef NamedFileSystemObjectImplementationTemplate<void>
-    NamedFileSystemObjectImplementation;
-
 #ifdef _WIN32
 template<class T> class DriveRootDirectoryTemplate;
 typedef DriveRootDirectoryTemplate<void> DriveRootDirectory;
@@ -76,11 +72,46 @@ public:
         virtual int hash() const = 0;
         virtual int compare(const Implementation* other) const = 0;
     };
-
 protected:
     Reference<Implementation> _implementation;
+    class NamedImplementation : public Implementation
+    {
+    public:
+        NamedImplementation(const Directory& parent,
+            const String& name) : _parent(parent), _name(name) { }
+#ifdef _WIN32
+        String path() const
+        {
+            return _parent.path() + "\\" + _name;
+        }
+#else
+        String path() const
+        {
+            return _parent.path() + "/" + _name;
+        }
+#endif
+        DirectoryTemplate<T> parent() const { return _parent; }
+        String name() const { return _name; }
+        bool isRoot() const { return false; }
+        int hash() const { return _parent.hash()*67 + _name.hash(); }
+        int compare(const Implementation* other) const
+        {
+            const NamedImplementation* o = other->cast<NamedImplementation>();
+            if (o == 0)
+                return 1;
+            if (_parent != o->_parent)
+                return 1;
+            if (_name != o->_name)
+                return 1;
+            return 0;
+        }
+    private:
+        Directory _parent;
+        String _name;
+    };
+
 private:
-    FileSystemObjectTemplate(Reference<Implementation> implementation)
+    FileSystemObjectTemplate(Implementation* implementation)
       : _implementation(implementation) { }
 
     static FileSystemObject parse(const String& path,
@@ -287,10 +318,9 @@ private:
     }
 
     FileSystemObjectTemplate(const Directory& parent, const String& name)
-      : _implementation(new NamedFileSystemObjectImplementation(parent, name))
-    { }
+      : _implementation(new NamedImplementation(parent, name)) { }
 
-    template<class T> friend class NamedFileSystemObjectImplementationTemplate;
+    friend class NamedImplementation;
     template<class T> friend class CurrentDirectoryTemplate;
     template<class T> friend class DirectoryTemplate;
     friend class Console;
@@ -338,8 +368,7 @@ public:
     }
 protected:
     DirectoryTemplate(FileSystemObject object) : FileSystemObject(object) { }
-    DirectoryTemplate(
-        Reference<FileSystemObject::Implementation> implementation)
+    DirectoryTemplate(FileSystemObject::Implementation* implementation)
       : FileSystemObject(implementation) { }
 };
 
@@ -349,15 +378,15 @@ public:
     CurrentDirectoryTemplate() : Directory(implementation()) { }
 
 private:
-    static Reference<FileSystemObject::Implementation> _implementation;
-    static Reference<FileSystemObject::Implementation> implementation()
+    static CurrentDirectory _directory;
+    static CurrentDirectory directory()
     {
-        if (!_implementation.valid())
-            _implementation = currentDirectory();
-        return _implementation;
+        if (!_directory.valid())
+            _directory = currentDirectory();
+        return _directory;
     }
 
-    static Reference<FileSystemObject::Implementation> currentDirectory()
+    static CurrentDirectory currentDirectory()
     {
 #ifdef _WIN32
         int n = GetCurrentDirectory(0, NULL);
@@ -367,16 +396,14 @@ private:
         if (GetCurrentDirectory(n, &buf[0]) == 0)
             throw Exception::systemError("Obtaining current directory");
         String path(&buf[0]);
-        return FileSystemObject::parse(path, RootDirectory(), true).
-            _implementation;
+        return FileSystemObject::parse(path, RootDirectory(), true);
 #else
         size_t size = 100;
         do {
             Array<char> buf(size);
             if (getcwd(&buf[0], size) != 0) {
                 String path(&buf[0]);
-                return FileSystemObject::parse(path, RootDirectory(), false).
-                    _implementation;
+                return FileSystemObject::parse(path, RootDirectory(), false);
             }
             if (errno != ERANGE)
                 throw Exception::systemError("Obtaining current directory");
@@ -390,21 +417,20 @@ private:
 #endif
 };
 
-template<class T> Reference<FileSystemObject::Implementation>
-    CurrentDirectoryTemplate<T>::_implementation;
+CurrentDirectory CurrentDirectory::_directory;
 
 #ifdef _WIN32
 template<class T> class DriveCurrentDirectoryTemplate : public Directory
 {
 public:
+    DriveCurrentDirectoryTemplate() { }
     DriveCurrentDirectoryTemplate(int drive)
       : Directory(implementation(drive)) { }
 private:
-    static Reference<FileSystemObject::Implementation> _implementations[26];
-    static Reference<FileSystemObject::Implementation> implementation(
-        int drive)
+    static DriveCurrentDirectory _directories[26];
+    static DriveCurrentDirectory directory(int drive)
     {
-        if (!_implementations[drive].valid()) {
+        if (!_directories[drive].valid()) {
             // Make sure the current directory has been retrieved
             CurrentDirectory();
 
@@ -423,8 +449,7 @@ private:
     }
 };
 
-template<class T> Reference<FileSystemObject::Implementation>
-    DriveCurrentDirectoryTemplate<T>::_implementations[26];
+DriveCurrentDirectory DriveCurrentDirectory::_directories[26];
 
 #endif
 
@@ -463,33 +488,32 @@ public:
         }
     };
 private:
-    static Reference<Implementation> _implementation;
-    static Reference<Implementation> implementation()
+    static RootDirectory _directory;
+    static RootDirectory directory()
     {
-        if (!_implementation.valid())
-            _implementation = new Implementation();
-        return _implementation;
+        if (!_directory.valid())
+            _directory = new Implementation();
+        return _directory;
     }
 };
 
 
-template<class T> Reference<RootDirectory::Implementation>
-    RootDirectoryTemplate<T>::_implementation;
+RootDirectory RootDirectory::_directory;
 
 #ifdef _WIN32
 template<class T> class DriveRootDirectoryTemplate : public Directory
 {
 public:
+    DriveRootDirectoryTemplate() { }
     DriveRootDirectoryTemplate(int drive)
       : Directory(implementation(drive)) { }
 private:
-    static Reference<FileSystemObject::Implementation> _implementations[26];
-    static Reference<FileSystemObject::Implementation> implementation(
-        int drive)
+    static DriveRootDirectory _directories[26];
+    static DriveRootDirectory directory(int drive)
     {
-        if (!_implementations[drive].valid())
-            _implementations[drive] = new Implementation(drive);
-        return _implementations[drive];
+        if (!_directories[drive].valid())
+            _directories[drive] = new Implementation(drive);
+        return _directories[drive];
     }
     class Implementation : public RootDirectory::Implementation
     {
@@ -507,8 +531,7 @@ private:
 
         int compare(const FileSystemObject::Implementation* other) const
         {
-            const Implementation* root =
-                dynamic_cast<const Implementation*>(other);
+            const Implementation* root = other->cast<Implementation>();
             if (root == 0)
                 return 1;
             if (_drive != root->_drive)
@@ -520,8 +543,7 @@ private:
     };
 };
 
-template<class T> Reference<FileSystemObject::Implementation>
-    DriveRootDirectoryTemplate<T>::_implementations[26];
+DriveRootDirectory DriveRootDirectory::_directories[26];
 
 template<class T> class UNCRootDirectoryTemplate : public Directory
 {
@@ -735,49 +757,6 @@ private:
 
     friend class DirectoryTemplate<T>;
     friend class Console;
-};
-
-template<class T> class NamedFileSystemObjectImplementationTemplate
-  : public FileSystemObject::Implementation
-{
-public:
-    NamedFileSystemObjectImplementationTemplate(const Directory& parent,
-        const String& name) : _parent(parent), _name(name) { }
-#ifdef _WIN32
-    String path() const
-    {
-        return _parent.path() + "\\" + _name;
-    }
-#else
-    String path() const
-    {
-        return _parent.path() + "/" + _name;
-    }
-#endif
-
-    Directory parent() const { return _parent; }
-
-    String name() const { return _name; }
-
-    bool isRoot() const { return false; }
-
-    int hash() const { return _parent.hash()*67 + _name.hash(); }
-
-    int compare(const FileSystemObject::Implementation* other) const
-    {
-        const NamedFileSystemObjectImplementation* named =
-            dynamic_cast<const NamedFileSystemObjectImplementation*>(other);
-        if (named == 0)
-            return 1;
-        if (_parent != named->_parent)
-            return 1;
-        if (_name != named->_name)
-            return 1;
-        return 0;
-    }
-private:
-    Directory _parent;
-    String _name;
 };
 
 template<class T> void applyToWildcard(T functor, CharacterSource s,

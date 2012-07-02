@@ -1,65 +1,95 @@
-  1 ::                LtR
-  2 ++(postfix)       LtR  remove
-  2 --(postfix)       LtR  remove
-  2 ()(function call) LtR  done
-  2 []                LtR  todo
-  2 .                 LtR  todo
-  2 ->                LtR  todo
-  2 typeid            LtR
-  2 const_cast        LtR
-  2 dynamic_cast      LtR
-  2 reinterpret_cast  LtR
-  2 static_cast       LtR
-  3                   RtL  reserved for _emit
-  4                   RtL  reserved for power: ^
-  5 ++(prefix)        RtL  statement
-  5 --(prefix)        RtL  statement
-  5 +(unary)          RtL  todo
-  5 -(unary)          RtL  todo
-  5 !                 RtL  todo
-  5 ~                 RtL  todo
-  5 ()(type cast)     RtL
-  5 *(indirection)    RtL  todo
-  5 &(address of)     RtL  todo
-  5 sizeof            RtL  todo
-  5 new               RtL
-  5 new[]             RtL
-  5 delete            RtL
-  5 delete[]          RtL
-  6 .*                LtR
-  6 ->*               LtR
-  7 *                 LtR  todo
-  7 /                 LtR  todo
-  7 %                 LtR  todo
-  8 +                 LtR  done
-  8 -                 LtR  done
-  9 <<                LtR  todo
-  9 >>                LtR  todo
- 10 <                 LtR  todo
- 10 <=                LtR  todo
- 10 >                 LtR  todo
- 10 >=                LtR  todo
- 11 ==                LtR  todo
- 11 !=                LtR  todo
- 12 &                 LtR  todo
- 13 ^                 LtR  todo (rename to ~)
- 14 |                 LtR  todo
- 15 &&                LtR  todo
- 16 ||                LtR  todo
- 17 ?:                RtL
- 18 =                 RtL  statement
- 18 +=                RtL  statement
- 18 -=                RtL  statement
- 18 *=                RtL  statement
- 18 /=                RtL  statement
- 18 %=                RtL  statement
- 18 <<=               RtL  statement
- 18 >>=               RtL  statement
- 18 &=                RtL  statement
- 18 ^=                RtL  statement
- 18 |=                RtL  statement
- 19 throw             RtL  statement
- 20 ,                 LtR
+""  Double-quoted string
+### Embedded literal
+0   Integer
+abc Identifer
+      true
+      false
+      null
+()  Parentheses
+{}  Array Literal
+
+
+    ::                LtR
+
+    ++(postfix)       LtR  remove
+    --(postfix)       LtR  remove
+    ()(function call) LtR  done                    n/a
+    []                LtR  todo
+    .                 LtR  todo
+    ->                LtR  todo
+    typeid            LtR
+    const_cast        LtR
+    dynamic_cast      LtR
+    reinterpret_cast  LtR
+    static_cast       LtR
+
+                      RtL  reserved for _emit
+
+                      RtL  reserved for power: ^   overloadable
+
+    ++(prefix)        RtL  statement
+    --(prefix)        RtL  statement
+    +(unary)          RtL  todo                    overloadable
+    -(unary)          RtL  todo                    overloadable
+    !                 RtL  todo                    overloadable
+    ~                 RtL  todo                    overloadable
+    ()(type cast)     RtL
+    *(indirection)    RtL  todo                    overloadable
+    &(address of)     RtL  todo                    overloadable
+    sizeof            RtL  todo
+    new               RtL
+    new[]             RtL
+    delete            RtL
+    delete[]          RtL
+
+    .*                LtR
+    ->*               LtR
+
+    *                 LtR  todo                    overloadable
+    /                 LtR  todo                    overloadable
+    %                 LtR  todo                    overloadable
+
+    +                 LtR  done                    overloadable
+    -                 LtR  done                    overloadable
+
+    <<                LtR  todo                    overloadable
+    >>                LtR  todo                    overloadable
+
+    <                 LtR  todo                    overloadable
+    <=                LtR  todo                    overloadable
+    >                 LtR  todo                    overloadable
+    >=                LtR  todo                    overloadable
+
+    ==                LtR  todo                    overloadable
+    !=                LtR  todo                    overloadable
+
+    &                 LtR  todo                    overloadable
+
+    ^                 LtR  todo (rename to ~)      overloadable
+
+    |                 LtR  todo                    overloadable
+
+    &&                LtR  todo                    not overloadable
+
+    ||                LtR  todo                    not overloadable
+
+    ?:                RtL
+
+    =                 RtL  statement
+    +=                RtL  statement
+    -=                RtL  statement
+    *=                RtL  statement
+    /=                RtL  statement
+    %=                RtL  statement
+    <<=               RtL  statement
+    >>=               RtL  statement
+    &=                RtL  statement
+    ^=                RtL  statement
+    |=                RtL  statement
+
+    throw             RtL  statement
+
+    ,                 LtR
 
 -y^2 should be -(y^2), not (-y)^2, so ^ needs to bind more tightly than unary-
 x^y^z should be x^(y^z) not (x^y)^z == x^(y*z) so ^ needs to associate right-to-left
@@ -80,3 +110,24 @@ a ? b : c ? d : e means a ? b : (c ? d : e) not (a ? b : c) ? d : e
 //  \ "||" ["?" Expression ":" Expression];
 
 
+
+
+
+Should we get rid of _emit?
+  Arguments for yes:
+    Exposing an intermediate representation in the source code seems wrong - code should be expressed as high-level code
+    It means we need Compiler as well
+  Arguments for no:
+    It makes the front end more regular
+
+Ultimately the compiler does need to have some built-in functionality, be it operator+(Int,Int) or Compiler.Add<Int>
+  Perhaps those are expressed as function calls that aren't defined like normal functions, but are called in the instruction semantics blocks (just the same way that they are called anywhere else)
+  So they're defined by pattern matching
+  Then there is no need for _emit, for irreducible adapter functions for these operators, or for Compiler.*, and the front end is regular - everything
+
+How do we define + in the interpreter?
+  Make a way of defining functions in the interpreter
+
+
+&& and || can't be defined as function calls because function calls are always evaluated strictly and && and || are lazy
+  Same with ?: if I implement it

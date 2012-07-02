@@ -60,6 +60,7 @@ private:
 
         friend class Iterator;
     };
+    Reference<Implementation> _implementation;
 public:
     class Iterator
     {
@@ -83,8 +84,6 @@ public:
         return end();
     }
     Iterator end() const { return Iterator(0); }
-
-    Reference<Implementation> _implementation;
 };
 
 template<class T> class Array : Uncopyable

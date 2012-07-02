@@ -27,7 +27,7 @@ public:
 
     ConvolutionKernel(Implementation* implementation)
       : _implementation(implementation) { }
-    double operator()(double x) const { return (*_implementation)(x); }
+    double operator()(double x) const { return (implementation->operator())(x); }
     double leftExtent() const { return _implementation->leftExtent(); }
     double rightExtent() const { return _implementation->rightExtent(); }
     ConvolutionKernel& operator*=(const ConvolutionKernel& right)
@@ -286,7 +286,7 @@ public:
 private:
     // _kernel is indexed in units of 1/c of an output sample and offset by le
     // output samples
-    Array<T> _kernel;  
+    Array<T> _kernel;
     int _kernelSize;
     int _t;
     int _delta;

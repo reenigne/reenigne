@@ -31,7 +31,6 @@ protected:
       : _implementation(implementation) { }
 private:
     Reference<Implementation> _implementation;
-
     friend class Bitmap<Pixel>;
 };
 
@@ -82,17 +81,11 @@ private:
 // stride and pixel format are immutable but the pixels themselves are not.
 template<class Pixel> class Bitmap
 {
-    class Data : public ReferenceCountedArray<Data, Byte>
+    class Implementation : public ReferenceCountedArray<Implementation, Byte>
     {
     public:
-        Byte& operator[] (int i)
-        {
-            return ReferenceCountedArray<Data, Byte>::operator[](i);
-        }
-        Byte operator[] (int i) const
-        {
-            return ReferenceCountedArray<Data, Byte>::operator[](i);
-        }
+        Implementation() { }
+        Implementation(int bytes) : _implementation(create(bytes)) { }
     };
 public:
     Bitmap() : _size(0, 0) { }
@@ -100,11 +93,11 @@ public:
     {
         _stride = size.x*sizeof(Pixel);
         _size = size;
-        _data = ReferenceCountedArray<Data, Byte>::create(_stride * size.y);
-        _topLeft = &(*_data)[0];
+        _implementation = Implementation(_stride * size.y);
+        _topLeft = _data.pointer();
     }
 
-    bool valid() const { return _data.valid(); }
+    bool valid() const { return _implementation.valid(); }
 
     // Copy this bitmap to target with resampling.
     template<class OtherPixel> void resample(Bitmap<OtherPixel>& target) const
@@ -245,12 +238,12 @@ public:
 
     void load(const BitmapFileFormat<Pixel>& format, const File& file)
     {
-        *this = format._implementation->load(file);
+        *this = format.load(file);
     }
 
     void save(const BitmapFileFormat<Pixel>& format, const File& file)
     {
-        format._implementation->save(*this, file);
+        format.save(*this, file);
     }
     Byte* data() { return _topLeft; }
     const Byte* data() const { return _topLeft; }
@@ -269,7 +262,7 @@ public:
     // subBitmap().clone().
     Bitmap subBitmap(Vector topLeft, Vector size)
     {
-        return Bitmap(_data,
+        return Bitmap(_implementation,
             _topLeft + topLeft.x*sizeof(Pixel) + topLeft.y*_stride, size,
             _stride);
     }
@@ -318,8 +311,11 @@ public:
     }
 
 private:
-    Bitmap(const Reference<Data>& data, Byte* topLeft, Vector size, int stride)
-      : _data(data), _topLeft(topLeft), _size(size), _stride(stride) { }
+    Bitmap(const Reference<Implementation>& data, Byte* topLeft, Vector size,
+        int stride)
+      : _implementation(implementation), _topLeft(topLeft), _size(size),
+        _stride(stride)
+    { }
 
     template<class OtherPixel> void resampleVertically(Byte* intermediate,
         Bitmap<OtherPixel>& target) const
@@ -392,7 +388,7 @@ private:
     }
 
     Vector _size;
-    Reference<Data> _data;
+    Reference<Implementation> _implementation;
     Byte* _topLeft;
     int _stride;
 };

@@ -1,3 +1,6 @@
+template<class T> class ExpressionTemplate;
+typedef ExpressionTemplate<void> Expression;
+
 template<class T> class TypeConstructorSpecifierTemplate;
 typedef TypeConstructorSpecifierTemplate<void> TypeConstructorSpecifier;
 
@@ -72,8 +75,10 @@ protected:
     TypeConstructorSpecifierTemplate() { }
     TypeConstructorSpecifierTemplate(const Implementation* implementation)
       : _implementation(implementation) { }
-
-    ConstReference<Implementation> _implementation;
+    template<class T> const T* implementation()
+    {
+        return _implementation.referent<T>();
+    }
 private:
     TypeConstructorSpecifier parseFundamental(CharacterSource* source)
     {
@@ -121,6 +126,7 @@ private:
         }
         return list;
     }
+    ConstReference<Implementation> _implementation;
 };
 
 template<class T> class TypeSpecifierTemplate : public TypeConstructorSpecifier
@@ -205,7 +211,7 @@ public:
         *source = s2;
         return TypeIdentifier(name, Span(location, endLocation));
     }
-    String name() const { return implementation()->name(); }
+    String name() const { return implementation<Implementation  >()->name(); }
 private:
     class Implementation : public TypeConstructorSpecifier::Implementation
     {
@@ -219,11 +225,6 @@ private:
     TypeIdentifierTemplate() { }
     TypeIdentifierTemplate(const String& name, const Span& span)
       : TypeConstructorSpecifier(new Implementation(name, span)) { }
-
-    const Implementation* implementation() const
-    {
-        return ConstReference<Implementation>(_implementation);
-    }
 };
 
 class ClassTypeSpecifier : public TypeConstructorSpecifier
@@ -256,8 +257,6 @@ private:
 //Symbol parseTypeOfTypeSpecifier(CharacterSource* source);
 //
 //Symbol parseTypeConstructorSpecifier(CharacterSource* source);
-
-class Expression;
 
 Expression parseExpressionOrFail(CharacterSource* source);
 

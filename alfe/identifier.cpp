@@ -1,204 +1,296 @@
 class Operator
 {
 public:
-    template<class T> class Base : public Operator
-    {
-    public:
-        Base() : Operator(implementation()) { }
-    private:
-        class Implementation : public Operator::Implementation
-        {
-        public:
-            String name() const { return T::name(); }
-        };
-        static ConstReference<Implementation> _implementation;
-        static ConstReference<Implementation> implementation()
-        {
-            if (!_implementation.valid())
-                _implementation = new Implementation();
-            return _implementation;
-        }
-    };
+    String name() const { return _implementation->name(); }
 protected:
     class Implementation : public ReferenceCounted
     {
     public:
         virtual String name() const = 0;
     };
-    Operator(const Implementation* implementation)
-      : _implementation(implementation) { }
 private:
     ConstReference<Implementation> _implementation;
 };
 
-class OperatorEqualTo : public Operator::Base<OperatorEqualTo>
+template<class T> class OperatorBase : public Operator
+{
+public:
+    OperatorBase() : Operator(op()) { }
+private:
+    class Implementation : public Operator::Implementation
+    {
+    public:
+        String name() const { return T::name(); }
+    };
+    static Operator _operator;
+    static Operator op()
+    {
+        if (!_operator.valid())
+            _operator = new Implementation();
+        return _operator;
+    }
+};
+
+class OperatorEqualTo : public OperatorBase<OperatorEqualTo>
 {
 public:
     static String name() { return "=="; }
 };
 
-ConstReference<Operator::Base<OperatorEqualTo>::Implementation>
-    Operator::Base<OperatorEqualTo>::_implementation;
+Operator OperatorBase<OperatorEqualTo>::_operator;
 
-class OperatorAssignment : public Operator::Base<OperatorAssignment>
+class OperatorAssignment : public OperatorBase<OperatorAssignment>
 {
 public:
     static String name() { return "="; }
 };
 
-ConstReference<Operator::Base<OperatorAssignment>::Implementation>
-    Operator::Base<OperatorAssignment>::_implementation;
+Operator OperatorBase<OperatorAssignment>::_operator;
 
-class OperatorAddAssignment : public Operator::Base<OperatorAddAssignment>
+class OperatorAddAssignment : public OperatorBase<OperatorAddAssignment>
 {
 public:
     static String name() { return "+="; }
 };
 
-ConstReference<Operator::Base<OperatorAddAssignment>::Implementation>
-    Operator::Base<OperatorAddAssignment>::_implementation;
+Operator OperatorBase<OperatorAddAssignment>::_operator;
 
 class OperatorSubtractAssignment
-  : public Operator::Base<OperatorSubtractAssignment>
+  : public OperatorBase<OperatorSubtractAssignment>
 {
 public:
     static String name() { return "-="; }
 };
 
-ConstReference<Operator::Base<OperatorSubtractAssignment>::Implementation>
-    Operator::Base<OperatorSubtractAssignment>::_implementation;
+Operator OperatorBase<OperatorSubtractAssignment>::_operator;
 
 class OperatorMultiplyAssignment
-  : public Operator::Base<OperatorMultiplyAssignment>
+  : public OperatorBase<OperatorMultiplyAssignment>
 {
 public:
     static String name() { return "*="; }
 };
 
-ConstReference<Operator::Base<OperatorMultiplyAssignment>::Implementation>
-    Operator::Base<OperatorMultiplyAssignment>::_implementation;
+Operator OperatorBase<OperatorMultiplyAssignment>::_operator;
 
-class OperatorDivideAssignment
-  : public Operator::Base<OperatorDivideAssignment>
+class OperatorDivideAssignment : public OperatorBase<OperatorDivideAssignment>
 {
 public:
     static String name() { return "/="; }
 };
 
-ConstReference<Operator::Base<OperatorDivideAssignment>::Implementation>
-    Operator::Base<OperatorDivideAssignment>::_implementation;
+Operator OperatorBase<OperatorDivideAssignment>::_operator;
 
-class OperatorModuloAssignment
-  : public Operator::Base<OperatorModuloAssignment>
+class OperatorModuloAssignment : public OperatorBase<OperatorModuloAssignment>
 {
 public:
     static String name() { return "%="; }
 };
 
-ConstReference<Operator::Base<OperatorModuloAssignment>::Implementation>
-    Operator::Base<OperatorModuloAssignment>::_implementation;
+Operator OperatorBase<OperatorModuloAssignment>::_operator;
 
 class OperatorShiftLeftAssignment
-  : public Operator::Base<OperatorShiftLeftAssignment>
+  : public OperatorBase<OperatorShiftLeftAssignment>
 {
 public:
     static String name() { return "<<="; }
 };
 
-ConstReference<Operator::Base<OperatorShiftLeftAssignment>::Implementation>
-    Operator::Base<OperatorShiftLeftAssignment>::_implementation;
+Operator OperatorBase<OperatorShiftLeftAssignment>::_operator;
 
 class OperatorShiftRightAssignment
-  : public Operator::Base<OperatorShiftRightAssignment>
+  : public OperatorBase<OperatorShiftRightAssignment>
 {
 public:
     static String name() { return ">>="; }
 };
 
-ConstReference<Operator::Base<OperatorShiftRightAssignment>::Implementation>
-    Operator::Base<OperatorShiftRightAssignment>::_implementation;
+Operator OperatorBase<OperatorShiftRightAssignment>::_operator;
 
 class OperatorBitwiseAndAssignment
-  : public Operator::Base<OperatorBitwiseAndAssignment>
+  : public OperatorBase<OperatorBitwiseAndAssignment>
 {
 public:
     static String name() { return "&="; }
 };
 
-ConstReference<Operator::Base<OperatorBitwiseAndAssignment>::Implementation>
-    Operator::Base<OperatorBitwiseAndAssignment>::_implementation;
+Operator OperatorBase<OperatorBitwiseAndAssignment>::_operator;
 
 class OperatorBitwiseOrAssignment
-  : public Operator::Base<OperatorBitwiseOrAssignment>
+  : public OperatorBase<OperatorBitwiseOrAssignment>
 {
 public:
     static String name() { return "|="; }
 };
 
-ConstReference<Operator::Base<OperatorBitwiseOrAssignment>::Implementation>
-    Operator::Base<OperatorBitwiseOrAssignment>::_implementation;
+Operator OperatorBase<OperatorBitwiseOrAssignment>::_operator;
 
 class OperatorBitwiseXorAssignment
-  : public Operator::Base<OperatorBitwiseXorAssignment>
+  : public OperatorBase<OperatorBitwiseXorAssignment>
 {
 public:
     static String name() { return "~="; }
 };
 
-ConstReference<Operator::Base<OperatorBitwiseXorAssignment>::Implementation>
-    Operator::Base<OperatorBitwiseXorAssignment>::_implementation;
+Operator OperatorBase<OperatorBitwiseXorAssignment>::_operator;
 
-class OperatorPowerAssignment : public Operator::Base<OperatorPowerAssignment>
+class OperatorPowerAssignment : public OperatorBase<OperatorPowerAssignment>
 {
 public:
     static String name() { return "^="; }
 };
 
-ConstReference<Operator::Base<OperatorPowerAssignment>::Implementation>
-    Operator::Base<OperatorPowerAssignment>::_implementation;
+Operator OperatorBase<OperatorPowerAssignment>::_operator;
 
-class OperatorBitwiseAnd : public Operator::Base<OperatorBitwiseAnd>
+class OperatorBitwiseAnd : public OperatorBase<OperatorBitwiseAnd>
 {
 public:
     static String name() { return "&"; }
 };
 
-ConstReference<Operator::Base<OperatorBitwiseAnd>::Implementation>
-    Operator::Base<OperatorBitwiseAnd>::_implementation;
+Operator OperatorBase<OperatorBitwiseAnd>::_operator;
 
-class OperatorBitwiseOr : public Operator::Base<OperatorBitwiseOr>
+class OperatorBitwiseOr : public OperatorBase<OperatorBitwiseOr>
 {
 public:
     static String name() { return "|"; }
 };
 
-ConstReference<Operator::Base<OperatorBitwiseOr>::Implementation>
-    Operator::Base<OperatorBitwiseOr>::_implementation;
+Operator OperatorBase<OperatorBitwiseOr>::_operator;
 
-class OperatorBitwiseXor : public Operator::Base<OperatorBitwiseXor>
+class OperatorBitwiseXor : public OperatorBase<OperatorBitwiseXor>
 {
 public:
     static String name() { return "~"; }
 };
 
-ConstReference<Operator::Base<OperatorBitwiseXor>::Implementation>
-    Operator::Base<OperatorBitwiseXor>::_implementation;
+Operator OperatorBase<OperatorBitwiseXor>::_operator;
 
-class OperatorNotEqualTo : public Operator::Base<OperatorNotEqualTo>
+class OperatorNotEqualTo : public OperatorBase<OperatorNotEqualTo>
 {
 public:
     static String name() { return "!="; }
 };
 
-ConstReference<Operator::Base<OperatorNotEqualTo>::Implementation>
-    Operator::Base<OperatorNotEqualTo>::_implementation;
+Operator OperatorBase<OperatorNotEqualTo>::_operator;
 
+class OperatorLessThan : public OperatorBase<OperatorLessThan>
+{
+public:
+    static String name() { return "<"; }
+};
 
+Operator OperatorBase<OperatorLessThan>::_operator;
 
+class OperatorGreaterThan : public OperatorBase<OperatorGreaterThan>
+{
+public:
+    static String name() { return ">"; }
+};
 
+Operator OperatorBase<OperatorGreaterThan>::_operator;
 
+class OperatorLessThanOrEqualTo : public OperatorBase<OperatorLessThanOrEqualTo>
+{
+public:
+    static String name() { return "<="; }
+};
 
-class Identifier : public Expression
+Operator OperatorBase<OperatorLessThanOrEqualTo>::_operator;
+
+class OperatorGreaterThanOrEqualTo
+    : public OperatorBase<OperatorGreaterThanOrEqualTo>
+{
+public:
+    static String name() { return ">="; }
+};
+
+Operator OperatorBase<OperatorGreaterThanOrEqualTo>::_operator;
+
+class OperatorShiftLeft : public OperatorBase<OperatorShiftLeft>
+{
+public:
+    static String name() { return "<<"; }
+};
+
+Operator OperatorBase<OperatorShiftLeft>::_operator;
+
+class OperatorShiftRight : public OperatorBase<OperatorShiftRight>
+{
+public:
+    static String name() { return ">>"; }
+};
+
+Operator OperatorBase<OperatorShiftRight>::_operator;
+
+class OperatorAdd : public OperatorBase<OperatorAdd>
+{
+public:
+    static String name() { return "+"; }
+};
+
+Operator OperatorBase<OperatorAdd>::_operator;
+
+class OperatorSubtract : public OperatorBase<OperatorSubtract>
+{
+public:
+    static String name() { return "-"; }
+};
+
+Operator OperatorBase<OperatorSubtract>::_operator;
+
+class OperatorMultiply : public OperatorBase<OperatorMultiply>
+{
+public:
+    static String name() { return "*"; }
+};
+
+Operator OperatorBase<OperatorMultiply>::_operator;
+
+class OperatorDivide : public OperatorBase<OperatorDivide>
+{
+public:
+    static String name() { return "/"; }
+};
+
+Operator OperatorBase<OperatorDivide>::_operator;
+
+class OperatorModulo : public OperatorBase<OperatorModulo>
+{
+public:
+    static String name() { return "%"; }
+};
+
+Operator OperatorBase<OperatorModulo>::_operator;
+
+class OperatorPower : public OperatorBase<OperatorPower>
+{
+public:
+    static String name() { return "^"; }
+};
+
+Operator OperatorBase<OperatorPower>::_operator;
+
+class OperatorFunctionCall : public OperatorBase<OperatorFunctionCall>
+{
+public:
+    static String name() { return "()"; }
+};
+
+Operator OperatorBase<OperatorFunctionCall>::_operator;
+
+class OperatorIndex : public OperatorBase<OperatorIndex>
+{
+public:
+    static String name() { return "[]"; }
+};
+
+Operator OperatorBase<OperatorIndex>::_operator;
+
+template<class T> class IdentifierTemplate;
+typedef IdentifierTemplate<void> Identifier;
+
+template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
 {
 public:
     static Identifier parse(CharacterSource* source)
@@ -255,111 +347,129 @@ public:
             if (name == keywords[i])
                 return Identifier();
         String op("operator");
+        Span span(location, endLocation);
         if (name != op) {
             *source = s2;
-            return Identifier(name, Span(location, endLocation));
+            return Identifier(new NameImplementation(name, span));
         }
+        Span endSpan;
         Span span3;
-        Atom atom = atomLast;
+        Operator o;
         CharacterSource s3 = s2;
         if (Space::parseCharacter(&s2, '(', &endSpan)) {
             if (Space::parseCharacter(&s2, ')', &endSpan))
-                atom = atomFunctionCall;
+                o = OperatorFunctionCall();
             else
                 s2.location().throwError("Expected )");
         }
         else if (Space::parseCharacter(&s2, '[', &endSpan)) {
             if (Space::parseCharacter(&s2, ']', &endSpan))
-                atom = atomFunctionCall;
+                o = OperatorIndex();
             else
                 s2.location().throwError("Expected ]");
         }
         else if (Space::parseOperator(&s2, equalTo, &endSpan))
-            atom = atomEqualTo;
+            o = OperatorEqualTo();
         else if (Space::parseCharacter(&s2, '=', &endSpan))
-            atom = atomAssignment;
+            o = OperatorAssignment();
         else if (Space::parseOperator(&s2, addAssignment, &endSpan))
-            atom = atomAddAssignment;
+            o = OperatorAddAssignment();
         else if (Space::parseOperator(&s2, subtractAssignment, &endSpan))
-            atom = atomSubtractAssignment;
+            o = OperatorSubtractAssignment();
         else if (Space::parseOperator(&s2, multiplyAssignment, &endSpan))
-            atom = atomMultiplyAssignment;
+            o = OperatorMultiplyAssignment();
         else if (Space::parseOperator(&s2, divideAssignment, &endSpan))
-            atom = atomDivideAssignment;
+            o = OperatorDivideAssignment();
         else if (Space::parseOperator(&s2, moduloAssignment, &endSpan))
-            atom = atomModuloAssignment;
+            o = OperatorModuloAssignment();
         else if (Space::parseOperator(&s2, shiftLeftAssignment, &endSpan))
-            atom = atomShiftLeftAssignment;
+            o = OperatorShiftLeftAssignment();
         else if (Space::parseOperator(&s2, shiftRightAssignment, &endSpan))
-            atom = atomShiftRightAssignment;
+            o = OperatorShiftRightAssignment();
         else if (Space::parseOperator(&s2, bitwiseAndAssignment, &endSpan))
-            atom = atomBitwiseAndAssignment;
+            o = OperatorBitwiseAndAssignment();
         else if (Space::parseOperator(&s2, bitwiseOrAssignment, &endSpan))
-            atom = atomBitwiseOrAssignment;
+            o = OperatorBitwiseOrAssignment();
         else if (Space::parseOperator(&s2, bitwiseXorAssignment, &endSpan))
-            atom = atomBitwiseXorAssignment;
+            o = OperatorBitwiseXorAssignment();
         else if (Space::parseOperator(&s2, powerAssignment, &endSpan))
-            atom = atomPowerAssignment;
+            o = OperatorPowerAssignment();
         else if (Space::parseCharacter(&s2, '|', &endSpan))
-            atom = atomBitwiseOr;
+            o = OperatorBitwiseOr();
         else if (Space::parseCharacter(&s2, '~', &endSpan))
-            atom = atomBitwiseXor;
+            o = OperatorBitwiseXor();
         else if (Space::parseCharacter(&s2, '&', &endSpan))
-            atom = atomBitwiseAnd;
+            o = OperatorBitwiseAnd();
         else if (Space::parseOperator(&s2, notEqualTo, &endSpan))
-            atom = atomNotEqualTo;
+            o = OperatorNotEqualTo();
         else if (Space::parseOperator(&s2, lessThanOrEqualTo, &endSpan))
-            atom = atomLessThanOrEqualTo;
+            o = OperatorLessThanOrEqualTo();
         else if (Space::parseOperator(&s2, shiftRight, &endSpan))
-            atom = atomShiftRight;
+            o = OperatorShiftRight();
         else if (Space::parseCharacter(&s3, '<', &endSpan)) {
-            atom = atomLessThan;
+            o = OperatorLessThan();
             // Only if we know it's not operator<<T>() can we try operator<<()
             CharacterSource s4 = s3;
-            SymbolArray templateArgumentList = parseTemplateArgumentList(&s4);
+            TemplateArgumentList templateArgumentList =
+                TemplateArgumentList::parse(&s4);
             if (templateArgumentList.count() == 0 &&
                 Space::parseOperator(&s2, shiftLeft, &endSpan))
-                atom = atomShiftLeft;
+                o = OperatorShiftLeft();
             else
                 s2 = s3;
         }
         else if (Space::parseOperator(&s2, greaterThanOrEqualTo, &endSpan))
-            atom = atomGreaterThanOrEqualTo;
+            o = OperatorGreaterThanOrEqualTo();
         else if (Space::parseCharacter(&s2, '>', &endSpan))
-            atom = atomGreaterThan;
+            o = OperatorGreaterThan();
         else if (Space::parseCharacter(&s2, '+', &endSpan))
-            atom = atomAdd;
+            o = OperatorAdd();
         else if (Space::parseCharacter(&s2, '-', &endSpan))
-            atom = atomSubtract;
+            o = OperatorSubtract();
         else if (Space::parseCharacter(&s2, '/', &endSpan))
-            atom = atomDivide;
+            o = OperatorDivide();
         else if (Space::parseCharacter(&s2, '*', &endSpan))
-            atom = atomMultiply;
+            o = OperatorMultiply();
         else if (Space::parseCharacter(&s2, '%', &endSpan))
-            atom = atomModulo;
+            o = OperatorModulo();
+        else if (Space::parseCharacter(&s2, '^', &endSpan))
+            o = OperatorPower();
         else
             s2.location().throwError("Expected an operator");
-        return Symbol(atomIdentifier, Symbol(atom), newSpan(startSpan + endSpan));
-
+        return Identifier(o, span + endSpan);
     }
-    String name() const { return implementation()->name(); }
+
+    IdentifierTemplate(const Operator& op, const Span& span)
+      : Expression(new OperatorImplementation(op, span)) { }
+
+    String name() const { return implementation<Identifier>()->name(); }
 private:
-    class Implementation : public Expression::Implementation
+    class Implementation : public ExpressionTemplate<T>::Implementation
     {
     public:
-        Implementation(const String& name, const Span& span)
-          : Expression::Implementation(span), _name(name) { }
+        Implementation(const Span& span) : Expression::Implementation(span) { }
+        virtual String name() const = 0;
+    };
+    class NameImplementation : public Implementation
+    {
+    public:
+        NameImplementation(const String& name, const Span& span)
+          : Implementation(span), _name(name) { }
         String name() const { return _name; }
     private:
         String _name;
     };
-    Identifier() { }
-    Identifier(const String& name, const Span& span)
-      : Expression(new Implementation(name, span)) { }
-
-    const Implementation* implementation() const
+    class OperatorImplementation : public Implementation
     {
-        return ConstReference<Implementation>(_implementation);
-    }
+    public:
+        OperatorImplementation(const Operator& name, const Span& span)
+          : Implementation(span), _name(name) { }
+        String name() const { return "operator" + _c.name(); }
+    private:
+        Operator _o;
+    };
+    IdentifierTemplate() { }
+    IdentifierTemplate(Implementation* implementation)
+      : Expression(implementation) { }
 };
 

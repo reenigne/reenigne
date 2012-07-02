@@ -1,0 +1,12 @@
+ReferenceBase            ReferenceBase::Implementation
+  FileSystemObject         FileSystemObject::Implementation
+    Directory
+      CurrentDirectory
+      DriveCurrentDirectory
+      RootDirectory          RootDirectory::Implementation
+      DriveRootDirectory       DriveRootDirectory::Implementation
+      UNCRootDirectory         UNCRootDirectory::Implementation
+    File
+                             NamedFileSystemObjectImplementation
+
+There are also instances of FileSystemObject where we don't know whether they are a File or Directory
