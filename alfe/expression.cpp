@@ -227,14 +227,14 @@ public:
                 continue;
             }
             if (Space::parseCharacter(source, '/', &span)) {
-                Expression e2 = parseUnaryExpression(source);
+                Expression e2 = parseUnary(source);
                 if (!e2.valid())
                     throwError(source);
                 e = binary(OperatorDivide(), span, e, e2);
                 continue;
             }
             if (Space::parseCharacter(source, '%', &span)) {
-                Expression e2 = parseUnaryExpression(source);
+                Expression e2 = parseUnary(source);
                 if (!e2.valid())
                     throwError(source);
                 e = binary(OperatorModulo(), span, e, e2);

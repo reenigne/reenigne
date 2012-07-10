@@ -29,3 +29,16 @@ Class is the equivalent of a Java or C# class
 
 Also have Immutable which inherits from ConstReference?
 
+
+
+
+
+
+
+Foo<@T> = Class { ... };
+
+Foo<@T> where T : Bar = Class { ... };
+
+Foo<@T, @U> where T : U = Class { ... };
+
+

@@ -1,3 +1,4 @@
 memtimer/memtimer is probably the one you want - it outputs "number of CPU cycles" +"number of extra timer ticks over 480 iterations"
 memtimer/onetimer is if you want to time a piece of code that only runs once (i.e. a loop)
 mintimer is used for the multiplication timings - same experiment with lots of different parameters patched in
+memtimer/mtd is a DOS port of memtimer/memtimer

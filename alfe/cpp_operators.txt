@@ -131,3 +131,6 @@ How do we define + in the interpreter?
 
 && and || can't be defined as function calls because function calls are always evaluated strictly and && and || are lazy
   Same with ?: if I implement it
+
+~ is overrideable and is a generic (bitwise) NOT. It is defined for
+~ is not overrideable and

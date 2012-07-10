@@ -1,4 +1,3 @@
-org 0
 cpu 8086
 
 %macro disconnect 0

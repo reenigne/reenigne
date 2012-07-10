@@ -1,0 +1,16 @@
+Foo = Class : access<X> {
+
+access<Foo> { ... }   // equivalent to private: only Foo can access
+access<Self> { ... }  // equivalent to private: only Foo can access  (Self is short for the innermost class we're defining)
+
+access<@T> { ... }    // equivalent to public: - any class's methods can access
+
+access<@T> where T : Foo { ... }  // equivalent to protected: only classes derived from Foo can access
+
+access<Bar> { ... }   // similar to "friend class Bar" - Bar can access this section (but not necessarily other sections)
+
+access<@T> where T : Foo,
+access<@U> where U : Bar { ... }  // similar to "friend class Bar" - classes derived from Foo or Bar can access this section (but not necessarily other sections)
+
+
+};
