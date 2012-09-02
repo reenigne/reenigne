@@ -12,7 +12,7 @@ Uses of text input/output:
     Both: unparsed and parsed source code with any combination of "include"s, "emit"s, "from"s and constants evaluated and substituted
     Both: stack-based code
 All Symbols must be owned by some root or they will be reference counted
-  They might be owned by a HashTable in a Cache belonging to a TypeConstructorDefinitionStatement
+  They might be owned by a HashTable in a Cache belonging to a TycoDefinitionStatement
   We need to enumerate them all when dumping
     For ALFE, we need to have some kind of reflection so that this logic doesn't need to be in all of the Symbol classes
       Classes need to opt in to run-time reflection (this makes no code differences, it just makes the debug information available at run-time)

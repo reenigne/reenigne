@@ -1,0 +1,265 @@
+Special syntax for types. Given types Foo, Bar:
+  "Foo*" means "Pointer<Foo>"
+    Also some const syntax?
+    Suppose we spell C++'s "const int" as "Const Int"
+    In C++:
+      "Foo* p" means that both p and *p can be changed - in ALFE: "Pointer<Foo> p" or "Foo* p".
+      "const Foo* p" and "Foo const* p" mean that p can be changed but not *p - in ALFE: "Pointer<Const Foo> p"? "ConstPointer<Foo> p"? "Foo^ p"? "(Const Foo)* p"?
+      "Foo* const p" means that *p can be changed but not p - in ALFE: "(Const Pointer)<Foo> p"? "Const Foo* p"? "Const (Foo*) p"? "Const Pointer<Foo> p"?
+      "Foo const* const p" means that neither p nor *p can be changed - in ALFE: "(Const Pointer)<Const Foo> p"? "ConstPointer<Const Foo> p?" "Const Foo^ p"?
+    Then, does "Const" bind more or less tightly than * in "Const Int*"? Visually, less tightly looks appropriate.
+    ^ has the connotation of GCed or reference counted pointer in C++/CLI - maybe we should avoid making it mean "pointer to const" here for that reason.
+    "Int" and "Const Int" are really different types.
+    What about other C++ modifiers like mutable and volatile?
+
+  "Foo | Bar" means "Either<Foo, Bar>" and is a reference type
+    Similarly "Foo | Bar | Baz" means "Either<Foo, Bar, Baz>" etc.
+    "Either<Foo>" has no special syntax and is not particularly useful - it's just an alias for "Foo".
+    "Either<>" has no special syntax and is just an alias for "Bottom".
+    If you store a non-reference type in an either, it'll be boxed
+  "Foo?" means "Maybe<Foo>" and is only applicable to reference types
+    It's also equivalent to "Foo | ()"
+  "(Foo, Bar)" means "Tuple<Foo, Bar>"
+    "(Foo)" means "Tuple<Foo>" which is exactly equivalent to "Foo" (so we can parenthesize
+  "()" means "Tuple<>" aka "Void", the unit type
+    Or should "()" mean the value of type Void? Can we make it mean both without confusing the parsing too much?
+      That would mean that "()(())" and similar would be valid types
+
+  "Foo[]" means "Array<Foo>" - is this a type?
+    If so, is it more like C++ std::vector<Foo> (value type) or more like C Foo[] (confusion with pointer)?
+    I suspect we don't actually need this - we can pass Foo* instead, and we can't create values of type Foo[]
+      We can write "Int[] x = {1,2,3};" but this is really just an Int[3] - the length is elided.
+
+  What does "Foo[2]" mean? Is this a type? Is Array a special template that can accept integers as well as types?
+    (Or does "Foo[2]" mean "Array<Foo, Struct { value = 2; }>"?
+    Array is a special template (equivalent, a series of templates)
+    "Foo[2]" is a value type, and when copied it copies the entire array rather than decaying to a pointer like in C.
+
+
+Special syntax for Tuples:
+
+  (Foo, Bar) func(Baz);
+  Baz baz;
+  (Foo, Bar) fb = func(baz);
+  Foo f;
+  Bar b;
+  (f, b) = fb;
+  fb = (Foo(), Bar());
+  fb = (Foo, Bar);  // same
+  (f, b) = func(baz);
+  (a, b) = (b, a);  // swap
+
+"Foo?" is not the same as "Foo | Null" since "Foo??" is not the same as "Foo | Null | Null" which would be the same as "Foo | Null"
+  Hence the operand of "?" has to be wrapped in some way to distinguish between operand Null and "?" Null.
+  Foo?? has two possible non-Foo values as well as the Foo values:
+    Foo?? f;
+    f = Null;
+    f = Just(Null);
+    f = Just(Just(Foo));
+    ...
+    if (f is Null)
+      ...
+    else {
+      Foo? g = (Foo?)f;
+      if (g is Null)
+        ...
+      else {
+        Foo h = (Foo)g;
+        ...
+      }
+    }
+    The conversion from Foo? to Foo will throw if the Foo? is a Null
+      If the compiler can prove it's not (e.g. because we're in an else clause of a Null check) then the check is suppressed and we can guarantee nothrow without a catch.
+    To represent Maybe, the compiler will have to wrap possibly-Null values somehow - either converting nulls to other representations (pointers <64K should all be bad on a machine with >=32 bits)
+     or boxing.
+
+Currying:
+  Suppose we have:
+    Foo f(Bar a, Baz b) { ... }
+    Bar a;
+    Baz->Foo g = f(a);
+    Baz->Foo* p = &g;
+  What should the representation of g be?
+    If we need to pass around the function pointer, we can create a trampoline or even a partial compilation of f.
+    That object will need to be reference counted so that it can be cleared up when all the strong references to it disappear
+      So, we need to be careful with raw pointers to functions (unlike with C/C++) just as we need to be careful with raw pointers to anything else.
+  How do we distinguish partial evaluation from overloaded functions?
+    Foo f(Bar a, Baz b) { ... }
+    Foo f(Bar a) { ... }
+    Bar a;
+    Auto g = f(a);
+  I think that will have to mean the call is to "Foo f(Bar a)". So we need another syntax for partial evaluation
+    Auto g = f(a, ??????);
+  Perhaps we should not have anything special for supporting currying at all, instead we can make a trampoline by hand with a closure:
+    Foo f(Bar a, Baz b) { ... }
+    Bar a;
+    Foo g(Baz b) { return f(a, b); }
+    Baz->Foo* p = &g;
+  What if the function is declared as:
+    Foo f(Baz b)(Bar a) { ... }
+      Then it's not ambiguous and we can partially evaluate. This also serves as a hint about functions that are designed for partial evaluation.
+    So "Foo f(Bar a, Baz b)" is not quite the same as "Foo f(Baz b)(Bar a)" -
+
+
+Is "((A,B),C)" the same as "(A,B,C)"?
+  If so we could pass a 3-element tuple to a generic function expecting a 2-element tuple
+    Are there any more serious errors, such as passing a tuple in one place causing the wrong element to be tupled?
+      No, if we have a tuple structure we can always follow it despite what types we put in it
+    Actually I think this is okay. Is there another reason we would not want to make Tuple binary?
+      It feels like an implementation detail leaking into the language
+    What are the reasons for making Tuple binary?
+      It might make it easier to do variadic things - peeling off an argument at a time.
+  I think from a principle of least surprise point of view, ((A,B),C) and (A,B,C) should be different. If we find a really good reason to change that, we can.
+    Not making them the same also makes sense from the point of view of the Tuple<A,B,C> representation.
+
+Should we have the ability to pattern match the tuple structure when finding templates?
+  We get that automatically because of Tuple<> representation
+  So do we then need the <> representation at all? Why not make all templates have a single (possibly Tuple) argument?
+    "Foo<@A,@B> = Class { A a; B b; ... };" is semantically equivalent to:
+    "Foo<(@A,@B)> = Class { A a; B b; ... };"
+  However, the second implies that we'd want to instantiate with a single Tuple class that comes from somewhere else, the first implies that the two arguments are otherwise unrelated.
+
+(Int,Int) is not the same as Int[2] because the latter can be indexed by a number and the former can't.
+  Should we make it possible to index into tuples with the [] operator?
+    That would yield a difference between 1-tuples and n-tuples where n>1.
+      In the presence of conversion operators from non-tuples to tuples, that already exists.
+        Let's wait and see if it would come in handy.
+
+
+
+Top is the universal supertype, but it isn't very useful on its own - you can't create variables of type Top since we wouldn't know what size to make it.
+  However, it is useful as an argument to type constructor. "Top*" can accept a pointer to any type - it's roughly the same as void* in C or C++.
+
+Object is the supertype of all reference types.
+
+Bottom is the universal subtype. It's the return type of functions that can't return (e.g. "exit()" and "throw()").
+
+
+Advanced types
+  null: "Null" - only one value: "null"
+  sequence: "[T]" or "Reference<ISequence<T>>" or "Empty | (T, [T])"
+  tuple: "(U, V)" or "Tuple<U, V>"
+  union: "U | V" or "Reference<Union<U, V>>" - get U out with "w.U" or "w as U" or "cast<U>(w)", find out if it is U with "w is U"
+  option: "Maybe<T>" or "T?" or "T | Null"
+  function: "U -> V"
+Given the type operators:
+  *           n/a
+  ?           n/a
+  ->          RtL
+  |           LtR (doesn't matter)
+  <T>         n/a
+  [n]         n/a
+  [T]         n/a
+  (,)         n/a
+  (T)         n/a
+Need to figure out precedence and associativity
+  A->B means the same as B(A)
+  A->B->C means the same as C(B)(A) which means the same as C(B,A)
+
+  A->B->C means A->(B->C) not (A->B)->C    -> is right-associative
+  A->B* means A->(B*) not (A->B)*          * is higher than ->
+  A->B? means A->(B?) not (A->B)?          ? is higher than ->
+  A->B|C means A->(B|C) not (A->B)|C       | is higher than ->
+  A|B->C means (A|B)->C not A|(B->C)
+  A->B<C> means A->(B<C>) not (A->B)<C>    <> is higher than ->
+  A->B[2] means A->(B[2]) not (A->B)[2]    [n] is higher than ->
+  A->B(C) means A->(B(C)) not (A->B)(C)    (T) is higher than ->
+
+  A|B<C> means A|(B<C>) not (A|B)<C>       <> is higher than |
+  A|B? means A|(B?) not (A|B)?             ? is higher than |
+  A|B* means A|(B*) not (A|B)*             * is higher than |
+  A|B[2] means A|(B[2]) not (A|B)[2]       [n] is higher than |
+  A|B(C) means A|(B(C)) not (A|B)(C)       (T) is higher than |
+  A|B|C means both (A|B)|C and A|(B|C)     | is agnostic-associative
+
+  [T] and (,)
+  *, ?, <T>, [n] and (T)
+  |
+  ->
+
+
+In the presence of the "|" type operator, what is the state of multiple inheritance?
+  A is Liskov-substitutable for both A|B and A|C.
+  However, A does not inherit any members or methods from either.
+  So as well as what it directly inherits from, a class implicitly inherits from any Either<> that has it as an argument
+  Any Either<> type inherits from any Either<> type with a superset of the arguments
+  Given "Foo = Class : FooBase { ... }; Bar = Class : BarBase { ... };" does "Foo | Bar" inherit from "FooBase | BarBase"?
+    Yes via Liskov-substitution
+  Given "Foo = Class : Base { ... }; Bar = Class : Base { ... };" does "Foo | Bar" inherit from Base?
+    Yes via Liskov-substitution
+      So some Either<> types do have members - they have the members of the
+
+
+Possible Unit types:
+  Type     value
+  --------------
+  Unit     unit
+  Null     null
+  Void     void
+  ()       ()
+  [Bottom] []
+I think we can make these all aliases for each other (i.e. equivalent to C null pointer)
+
+A unit type is any type that doesn't have any data members - i.e. doesn't carry any information other than its own type
+  There may be many different unit types
+
+Allow a type as an expression? (The value is the result of default constructing the type)
+  Then () is just a default constructed ().
+  To avoid ambiguity, such values aren't allowed everywhere that a name is.
+
+  If we do that, then does Foo.x mean default construct Foo and then dereference, or does it mean
+
+
+
+Have a run-time type operator typeOf()?
+  And "Type" - the type of the value that it returns
+  The Type object of type T is T::type.
+    Or T.type? We might want to use "." everywhere that C++ uses "::", since I think we can
+  print("Compile-time type is ${TypeOf(x)::type}, run-time type is ${typeOf(x)}\n");
+    Type has a toString() method, but the strings are not linked in unless used.
+
+Sequence type "[Foo]" needs to:
+  act as an immutable value (therefore reference counted)
+  allow getting the head value and tail sequence
+Possible implementations:
+  Pointer to:
+    Reference count
+    Head value
+    Tail implementation
+  Offset into array and pointer to:
+    Reference count
+    Lengths
+    Array of elements
+  Whatever else makes sense for the code in question.
+
+
+
+ ~`!@#$%^&*()_-+={[}]|\:;"'<,>.?/
+
+
+
+Should we have Tyco, Type and Template classes? They would probably make the type checking stuff less wordy.
+  Type and Template are both special cases of Tyco
+  A Type can come from a TycoDefinitionStatement (which is a ParseTreeObject) or an instantiation of a template (which isn't)
+    We could make instantiating a template create a TycoDefinitionStatement (which just happens not to have a valid Span)
+
+
+A TycoDefinitionStatement associates a TycoSignifier (i.e. a TycoIdentifier and optional TemplateParameters) with a TycoSpecifier (i.e. a string representing a Tyco)
+  So we probably should have a Tyco class distinct from TycoDefinitionStatement
+    Tyco is either a StatementTyco (which has a reference to TycoDefinitionStatement) or InstantiatedTyco (which doesn't)
+    Tyco is responsible for all the instantiation, type checking and conversion stuff which isn't related to the parsing
+    Tyco has a toString() method.
+      The string printed may be different for different types, depending on context
+        If we're printing an error message about a type, we want to use the name the user referred to the type by:
+          Foo = FooTemplate<A>;
+          Bar = BarTemplate<B>;
+          Int f(Foo x) { ... };
+          Bar y;
+          f(y);  // should print something like "Expected Foo, found Bar" rather than "Expected FooTemplate<A>, found BarTemplate<B>".
+        So for each expression we need to keep track of its actual type and an appropriate TycoSpecifier
+
+
+  A single TycoDefinitionStatement may ultimately define many Tycos (via instantiation) or even none
+  Similarly, a single FunctionDefinitionStatement may ultimately definite many Functions or none
+
+

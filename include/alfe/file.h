@@ -52,6 +52,7 @@ public:
     String name() const { return _implementation->name(); }
     bool isRoot() const { return _implementation->isRoot(); }
     String path() const { return _implementation->path(); }
+    bool valid() const { return _implementation.valid(); }
 
     bool operator==(const FileSystemObject& other) const
     {
@@ -73,7 +74,10 @@ public:
         virtual int compare(const Implementation* other) const = 0;
     };
 protected:
-    Reference<Implementation> _implementation;
+    FileSystemObjectTemplate(const Implementation* implementation)
+      : _implementation(implementation) { }
+
+    ConstReference<Implementation> _implementation;
     class NamedImplementation : public Implementation
     {
     public:
@@ -96,7 +100,8 @@ protected:
         int hash() const { return _parent.hash()*67 + _name.hash(); }
         int compare(const Implementation* other) const
         {
-            const NamedImplementation* o = other->cast<NamedImplementation>();
+            const NamedImplementation* o =
+                other->constCast<NamedImplementation>();
             if (o == 0)
                 return 1;
             if (_parent != o->_parent)
@@ -111,9 +116,6 @@ protected:
     };
 
 private:
-    FileSystemObjectTemplate(Implementation* implementation)
-      : _implementation(implementation) { }
-
     static FileSystemObject parse(const String& path,
         const Directory& relativeTo, bool windowsParsing)
     {
@@ -333,6 +335,7 @@ private:
 template<class T> class DirectoryTemplate : public FileSystemObject
 {
 public:
+    DirectoryTemplate() { }
     DirectoryTemplate(const String& path,
         const Directory& relativeTo = CurrentDirectory(),
         bool windowsParsing = false)
@@ -368,16 +371,19 @@ public:
     }
 protected:
     DirectoryTemplate(FileSystemObject object) : FileSystemObject(object) { }
-    DirectoryTemplate(FileSystemObject::Implementation* implementation)
+    DirectoryTemplate(const Implementation* implementation)
       : FileSystemObject(implementation) { }
 };
 
 template<class T> class CurrentDirectoryTemplate : public Directory
 {
 public:
-    CurrentDirectoryTemplate() : Directory(implementation()) { }
+    CurrentDirectoryTemplate() : Directory(directory()) { }
 
 private:
+    CurrentDirectoryTemplate(const Implementation* implementation)
+      : Directory(implementation) { }
+
     static CurrentDirectory _directory;
     static CurrentDirectory directory()
     {
@@ -396,7 +402,9 @@ private:
         if (GetCurrentDirectory(n, &buf[0]) == 0)
             throw Exception::systemError("Obtaining current directory");
         String path(&buf[0]);
-        return FileSystemObject::parse(path, RootDirectory(), true);
+        return CurrentDirectory(
+            FileSystemObject::parse(path, RootDirectory(), true).
+            _implementation);
 #else
         size_t size = 100;
         do {
@@ -424,11 +432,10 @@ template<class T> class DriveCurrentDirectoryTemplate : public Directory
 {
 public:
     DriveCurrentDirectoryTemplate() { }
-    DriveCurrentDirectoryTemplate(int drive)
-      : Directory(implementation(drive)) { }
+    DriveCurrentDirectoryTemplate(int drive) : Directory(directory(drive)) { }
 private:
-    static DriveCurrentDirectory _directories[26];
-    static DriveCurrentDirectory directory(int drive)
+    static Directory _directories[26];
+    static Directory directory(int drive)
     {
         if (!_directories[drive].valid()) {
             // Make sure the current directory has been retrieved
@@ -443,20 +450,20 @@ private:
                 throw Exception::systemError("Setting current directory");
 
             // Retrieve current directory
-            _implementations[drive] = CurrentDirectory::currentDirectory();
+            _directories[drive] = CurrentDirectory::currentDirectory();
         }
-        return _implementations[drive];
+        return _directories[drive];
     }
 };
 
-DriveCurrentDirectory DriveCurrentDirectory::_directories[26];
+Directory DriveCurrentDirectory::_directories[26];
 
 #endif
 
 template<class T> class RootDirectoryTemplate : public Directory
 {
 public:
-    RootDirectoryTemplate() : Directory(implementation()) { }
+    RootDirectoryTemplate() : Directory(directory()) { }
 
     class Implementation : public FileSystemObject::Implementation
     {
@@ -488,6 +495,9 @@ public:
         }
     };
 private:
+    RootDirectoryTemplate(const Implementation* implementation)
+      : Directory(implementation) { }
+
     static RootDirectory _directory;
     static RootDirectory directory()
     {
@@ -505,9 +515,11 @@ template<class T> class DriveRootDirectoryTemplate : public Directory
 {
 public:
     DriveRootDirectoryTemplate() { }
-    DriveRootDirectoryTemplate(int drive)
-      : Directory(implementation(drive)) { }
+    DriveRootDirectoryTemplate(int drive) : Directory(directory(drive)) { }
 private:
+    DriveRootDirectoryTemplate(const Implementation* implementation)
+      : Directory(implementation) { }
+
     static DriveRootDirectory _directories[26];
     static DriveRootDirectory directory(int drive)
     {
@@ -531,7 +543,7 @@ private:
 
         int compare(const FileSystemObject::Implementation* other) const
         {
-            const Implementation* root = other->cast<Implementation>();
+            const Implementation* root = other->constCast<Implementation>();
             if (root == 0)
                 return 1;
             if (_drive != root->_drive)

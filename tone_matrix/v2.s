@@ -1279,23 +1279,23 @@ main:
   out 0x05, r31
 
   ; DDRC value:   0x07  (Port C Data Direction Register)
-  ;   DDC0           1  Volume potentiometer (ADC0) - input
-  ;   DDC1           2  Tempo potentiometer (ADC1)  - input
-  ;   DDC2           4  Tuning potentiometer (ADC2) - input
-  ;   DDC3           0  Switch selector A           - output
-  ;   DDC4           0  Switch selector B           - output
-  ;   DDC5           0  Switch selector C           - output
+  ;   DDC0           1  Switch selector A           - output
+  ;   DDC1           2  Switch selector B           - output
+  ;   DDC2           4  Switch selector C           - output
+  ;   DDC3           0  Decay potentiometer (ADC3)  - input
+  ;   DDC4           0  Tempo potentiometer (ADC4)  - input
+  ;   DDC5           0  Tuning potentiometer (ADC5) - input
   ;   DDC6           0  ~RESET
   ldi r31, 0x07
   out 0x07, r31
 
   ; PORTC value:  0x00  (Port C Data Register)
-  ;   PORTC0         0  Volume potentiometer (ADC0)
-  ;   PORTC1         0  Tempo potentiometer (ADC1)
-  ;   PORTC2         0  Tuning potentiometer (ADC2)
-  ;   PORTC3         0  Switch selector A           - low
-  ;   PORTC4         0  Switch selector B           - low
-  ;   PORTC5         0  Switch selector C           - low
+  ;   PORTC0         0  Switch selector A           - low
+  ;   PORTC1         0  Switch selector B           - low
+  ;   PORTC2         0  Switch selector C           - low
+  ;   PORTC3         0  Volume potentiometer (ADC3)
+  ;   PORTC4         0  Tempo potentiometer (ADC4)
+  ;   PORTC5         0  Tuning potentiometer (ADC5)
   ;   PORTC6         0  ~RESET
   ldi r31, 0x00
   out 0x08, r31

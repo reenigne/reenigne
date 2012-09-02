@@ -23,8 +23,6 @@ abc Identifer
     reinterpret_cast  LtR
     static_cast       LtR
 
-                      RtL  reserved for _emit
-
                       RtL  reserved for power: ^   overloadable
 
     ++(prefix)        RtL  statement
@@ -113,17 +111,10 @@ a ? b : c ? d : e means a ? b : (c ? d : e) not (a ? b : c) ? d : e
 
 
 
-Should we get rid of _emit?
-  Arguments for yes:
-    Exposing an intermediate representation in the source code seems wrong - code should be expressed as high-level code
-    It means we need Compiler as well
-  Arguments for no:
-    It makes the front end more regular
-
-Ultimately the compiler does need to have some built-in functionality, be it operator+(Int,Int) or Compiler.Add<Int>
-  Perhaps those are expressed as function calls that aren't defined like normal functions, but are called in the instruction semantics blocks (just the same way that they are called anywhere else)
+Ultimately the compiler does need to have some built-in functionality such as operator+(Int,Int)
+  Those are expressed as function calls that aren't defined like normal functions, but are called in the instruction semantics blocks (just the same way that they are called anywhere else)
   So they're defined by pattern matching
-  Then there is no need for _emit, for irreducible adapter functions for these operators, or for Compiler.*, and the front end is regular - everything
+  Then there is no need for _emit, for irreducible adapter functions for these operators, or for Compiler.*, and the front end is regular
 
 How do we define + in the interpreter?
   Make a way of defining functions in the interpreter
@@ -132,5 +123,6 @@ How do we define + in the interpreter?
 && and || can't be defined as function calls because function calls are always evaluated strictly and && and || are lazy
   Same with ?: if I implement it
 
-~ is overrideable and is a generic (bitwise) NOT. It is defined for
-~ is not overrideable and
+~ is overrideable and is a generic (bitwise) NOT. It is defined for Boolean and integer types.
+! is not overrideable and is only defined for Boolean.
+  However, it is still treated as a

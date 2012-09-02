@@ -13,5 +13,96 @@ An ABI is a property of a function, not an architecture. It encompasses:
     Flags that must be preserved?
     Other global state (e.g. FPU state)
     CPU features that can be assumed?
+  How values are represented in memory
+    The layout of structures
+    The alignments of things
+    How ALFE types correspond to actual binary data
+
+Mostly when writing ALFE code, no ABI is specified. This allows the compiler to choose the best layout.
+Occasions when we will want to specify an ABI:
+  When we're communicating with non-ALFE functions in the same process (e.g. functions imported from a DLL)
+  When we're preparing binary data which must be in some specific format
+    For wire transmission
+    For disk storage
+    For inter-process communication
+
+Example syntax for a structure with ABI specifiers for deterministic memory layout:
+
+Foo = [align: 4] Structure {
+  [offset: 0] Int32 x;
+  [offset: 4] Int32 y;
+  [offset: 8] Int32 z;
+};
+
+
+Problem:
+  Suppose we're developing code in ALFE and C++
+  Suppose we have a large structure defined on the C++ side, which changes regularly as the program is being written
+  Recomputing all the offsets whenever a member is added could be annoying
+  There's a tension here between the stability and documentation provided by the annotated structure, and the flexibility of wanted to add/remove members easily
+
+Possible solutions:
+  Some C++ code compiled against the C++ headers containing the structure layouts, which outputs the structure members and their offsets (or even ALFE code directly!)
+  A DSL which can parse the C++ header to create the structure layout
+  A tree-like layout of the structure in ALFE, which makes additions and removals O(log n) instead of O(n):
+    Foo = Structure {
+      [offset: 0] {
+        [offset: 0] Int32 x;
+        [offset: 4] Int32 y;
+      };
+      [offset: 8] {
+        [offset: 0] Int32 z;
+        [offset: 4] Int32 w;
+      };
+    };
+  A file which is processed by ALFE to get the ALFE definition, and a program which processes it to output a C header <- this is probably the best in general
+  I expect this to be a relatively unusual situation - there shouldn't be a need to write new code in C++ - it's mostly for interfacing with legacy code.
+    Write everything in ALFE instead
+
+
+Problem:
+  Suppose we're writing a client and a server program in ALFE, and there will be a wire protocol in between them.
+  Should we specify the wire format explicitly?
+    Probably in most cases - that way it will be stable across ALFE versions and compiles.
+    Again we could define an ABI with a DSL parsing a structure definition if we wanted
+
+  What about if we don't care?
+    Then we'll need some way of compiling both client and server at the same time, so that ALFE doesn't optimize the structure layout differently for the different executables
+      When the top-level of a file fed to ALFE is just code, it is interpreted
+      At top level, we can have:
+        Foo = Structure { ... };
+        compile("server.exe", {
+          ...
+        });
+        compile("client.exe", {
+          ...
+        });
+      We might want to compile the same piece of code several times, for different targets and/or different compilation options
+        Can call compile() several times, passing the same Void(Void) function each time
+          compile() will compile the function it needs and anything else required to make a self-contained binary.
+      What if we want to have a structure whose layout is different for different instantiations of the compiler?
+        Put everything inside the scope of the Void(Void) function.
+      What about if we want some compilations to share the structure and some to not -
+       e.g. client and server for any given architecture share layout, but different architectures have different layouts?
+        foreach (Auto architecture in {x86, arm, powerpc, mips}) {
+          Foo = Structure { ... };
+          compile("server.exe", a, {
+            ...
+          });
+          compile("client.exe", a, {
+            ...
+          });
+        }
+        Here, Foo is shared by two compile()s, so will be laid out for one architecture at a time
+        If we move the declaration of Foo outside the loop, it will be shared by all the compile()s, so will be laid out for all architectures at once.
+          This seems to contradict the normal way that interpretation works - when it hits a compile(), the interpreter will have to look ahead and see what other architectures the
+           structures currently in scope will be compiled for.
+            Either that, or compile() doesn't actually compile - it just records some information and then the real work happens when the interpreter finishes
+              Then compile() isn't so much a function as a syntactical construct.
+    I don't think reusing interpreter lexical scope is a good idea. At the process we should require an explicit ABI.
+      That allows us to make the standard wire and persistence APIs only accept types with explicit ABIs.
+      Explicit ABIs don't need to be painful - we don't necessarily need to give an explicit offset for each member
+        Simple LE binary ABI: arrange the elements in declaration order, aligned according to size.
+        Text ABIs: XML, JSON, RFC822 etc.
 
 

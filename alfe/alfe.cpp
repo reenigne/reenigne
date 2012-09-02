@@ -17,16 +17,16 @@
 //    atomInt,
 //    atomPointer,
 //    atomString,
-//    atomTypeConstructorIdentifier,
+//    atomTycoIdentifier,
 //    atomTypeOf,
 //    atomUInt,
 //    atomVoid,
 //    atomWord,
 //    atomLabel,
-//    atomTemplateTypeConstructorSpecifier,
-//    atomTypeConstructorSignifier,
+//    atomTemplateTycoSpecifier,
+//    atomTycoSignifier,
 //    atomTemplateParameter,
-//    atomTypeConstructorDefinitionStatement,
+//    atomTycoDefinitionStatement,
 //
 //    atomLogicalOr,
 //    atomLogicalAnd,
@@ -152,13 +152,13 @@
 //            _table[atomInt] = String("Int");
 //            _table[atomPointer] = String("Pointer");                                 // referentType
 //            _table[atomString] = String("String");
-//            _table[atomTypeConstructorIdentifier] = String("TypeConstructorIdentifier"); // name
+//            _table[atomTycoIdentifier] = String("TycoIdentifier"); // name
 //            _table[atomTypeOf] = String("TypeOf");                                   // expression
 //            _table[atomUInt] = String("UInt");
 //            _table[atomVoid] = String("Void");
 //            _table[atomWord] = String("Word");
 //            _table[atomLabel] = String("Label");
-//            _table[atomTemplateTypeConstructorSpecifier] = String("TemplateTypeConstructorSpecifier");   // name argumentTypeSpecifiers
+//            _table[atomTemplateTycoSpecifier] = String("TemplateTycoSpecifier");   // name argumentTypeSpecifiers
 //
 //            _table[atomLogicalOr] = String("||");                                    // leftExpression rightExpression
 //            _table[atomLogicalAnd] = String("&&");                                   // leftExpression rightExpression
@@ -216,7 +216,7 @@
 //            _table[atomBitwiseXorAssignment] = String("~=");
 //            _table[atomPowerAssignment] = String("^=");
 //            _table[atomCompoundStatement] = String("compound");                      // statements
-//            _table[atomTypeAliasStatement] = String("type");                         // typeIdentifier typeSpecifier
+//            _table[atomTypeAliasStatement] = String("type");                         // tycoIdentifier typeSpecifier
 //            _table[atomNothingStatement] = String("nothing");
 //            _table[atomIncrement] = String("++");
 //            _table[atomDecrement] = String("--");
@@ -230,7 +230,6 @@
 //            _table[atomWhileStatement] = String("while");                            // doStatement    condition       statement      doneStatement
 //            _table[atomUntilStatement] = String("until");                            // doStatement    condition       statement      doneStatement
 //            _table[atomForStatement] = String("for");                                // preStatement   expression      postStatement  statement     doneStatement
-//            _table[atomEmit] = String("_emit");                                      // expression
 //            _table[atomLabelStatement] = String("label");                            // identifier
 //            _table[atomGotoStatement] = String("goto");                              // identifier
 //
@@ -275,9 +274,11 @@
 //#include "alfe/symbol.h"
 #include "resolve.cpp"
 
+#include "scope.cpp"
+
 #include "parse_tree_object.cpp"
 #include "type.cpp"
-#include "identifier.cpp"
+#include "operator.cpp"
 #include "expression.cpp"
 #include "statement.cpp"
 
@@ -285,9 +286,10 @@
 #include "compiler.cpp"
 #include "run.cpp"
 
-class PrintFunction : public FunctionDefinitionStatement
+void print(RunTimeStack* stack)
 {
-};
+    console.write(stack->pop<String>());
+}
 
 class Program : public ProgramBase
 {
@@ -300,40 +302,48 @@ protected:
         }
         File file(_arguments[1]);
         String contents = file.contents();
-//        Reference<Scope> scope = new Scope(0, true);
-
-        //int printLabel = Symbol::newLabel();
-        //Symbol voidType(atomVoid);
-        //IdentifierCache* printCache = new IdentifierCache(Span(), printLabel);
-        //Symbol print(atomPrintFunction, voidType, String("print"),
-        //    SymbolArray(Symbol(atomString)), printCache);
-        //print.setLabel(printLabel);
-        //scope->addFunction(String("print"), printLabel, Span());
 
         Scope scope;
-        PrintFunction printFunction;
-        scope.addFunction("print", &printFunction);
+
+        TycoIdentifier voidIdentifier("Void");
+        TycoDefinitionStatement voidDefinition(voidIdentifier,
+            BuiltInTycoSpecifier(Kind::type));
+        scope.add(voidDefinition);
+
+        TycoIdentifier stringIdentifier("String");
+        TycoDefinitionStatement stringDefinition(stringIdentifier,
+            BuiltInTycoSpecifier(Kind::type));
+        scope.add(stringDefinition);
+
+        typedef FunctionDefinitionStatement::Parameter Parameter;
+        List<Parameter> printParameters;
+        printParameters.add(Parameter(stringIdentifier, Identifier("string")));
+
+        FunctionDefinitionStatement printFunction(voidIdentifier,
+            Identifier("print"), printParameters, BuiltInStatement(print));
+        scope.add(printFunction);
 
         CharacterSource source(contents, file.path());
         Space::parse(&source);
-        StatementSequence mainCode = StatementSequence::parse(&source);
-        //SymbolArray mainCode = parseStatementSequence(&source);
+        StatementSequence code = StatementSequence::parse(&source);
         CharacterSource s = source;
         if (s.get() != -1)
             source.location().throwError("Expected end of file");
 
-        FunctionDefinitionStatement main(Type::voidType, "",
-            CompoundStatement(mainCode), scope);
-        //Symbol main(atomFunctionDefinitionStatement, voidType, String(),
-        //    SymbolArray(), Symbol(atomCompoundStatement, mainCode),
-        //    new FunctionDefinitionCache(Span()));
-        //int mainLabel = labelOf(main);
-        //setScopes(main, scope);
-        resolveIdentifiersAndTypes(main);
-        //checkTypes(main, Symbol(atomVoid));
-        checkTypes(main, Type::voidType);
-        Program program;
-        //evaluate(&program, Symbol(atomFunctionCall, Symbol(atomIdentifier, new IdentifierCache(Span(), mainLabel))));
-        evaluate(&program, FunctionalCall(&main));
+        code.setScope(scope);
+
+        //FunctionDefinitionStatement main(Type::voidType, "",
+        //    CompoundStatement(mainCode), scope);
+        ////Symbol main(atomFunctionDefinitionStatement, voidType, String(),
+        ////    SymbolArray(), Symbol(atomCompoundStatement, mainCode),
+        ////    new FunctionDefinitionCache(Span()));
+        ////int mainLabel = labelOf(main);
+        ////setScopes(main, scope);
+        //resolveIdentifiersAndTypes(main);
+        ////checkTypes(main, Symbol(atomVoid));
+        //checkTypes(main, Type::voidType);
+        //Program program;
+        ////evaluate(&program, Symbol(atomFunctionCall, Symbol(atomIdentifier, new IdentifierCache(Span(), mainLabel))));
+        //evaluate(&program, FunctionalCall(&main));
     }
 };

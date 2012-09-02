@@ -372,7 +372,7 @@
 //            }
 //            return scope;
 //        case atomIdentifier:
-//        case atomTypeConstructorIdentifier:
+//        case atomTycoIdentifier:
 //            symbol.cache<IdentifierCache>()->setScope(scope);
 //            break;
 //        case atomLabelStatement:
@@ -483,7 +483,7 @@
 //    Symbol symbol = entry.symbol();
 //    switch (symbol.atom()) {
 //        case atomIdentifier:
-//        case atomTypeConstructorIdentifier:
+//        case atomTycoIdentifier:
 //            resolveIdentifier(symbol);
 //            resolveTypeOf(symbol);
 //            return;
@@ -573,7 +573,7 @@
 //                setLabel(symbol, label);
 //            }
 //            return;
-//        case atomTypeConstructorIdentifier:
+//        case atomTycoIdentifier:
 //            {
 //                Scope* scope = scopeOf(symbol);
 //                label = scope->resolveType(symbol[1], spanOf(symbol));
@@ -611,7 +611,7 @@
 //    setType(symbol, Symbol(atomAuto));
 //    switch (symbol.atom()) {
 //        case atomIdentifier:
-//        case atomTypeConstructorIdentifier:
+//        case atomTycoIdentifier:
 //            {
 //                resolveIdentifier(symbol);
 //                SymbolLabel label = labelOf(symbol);

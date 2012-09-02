@@ -36,8 +36,6 @@ Space = {(' ' | NewLine | Comment)+};
 _ = {!AlphanumericCharacter [Space]};
 
 
-TypeIdentifier = UpperCaseLetter AlphanumericCharacter* {[Space]};
-
 Identifier = LowerCaseLetter AlphanumericCharacter* {[Space]};
 
 DecimalNumber = DecimalDigit+ {[Space]};
@@ -46,29 +44,74 @@ DoubleQuotedString = '"' ('$' (Identifier | '(' [Expression] ')') | !(NonStringC
 
 EmbeddedLiteral = `###` end=(NonNewLineCharacter*) NewLine (!end Character)* end `###` {[Space]};
 
+Expression =
+    ("+" | "-" | "~" | "!" | "*" | "&")* (
+      ( DecimalNumber
+      | DoubleQuotedString
+      | EmbeddedLiteral
+      | Identifier
+      | `true`
+      | `false`
+      | `null`
+      | "(" Expression ")"
+      | "{" [Expression / ","] "}"
+      )
+      ("(" [Expression / ","] ")")*
+    )
+  / "^"
+  \ ("*" | "/" | "%")
+  \ ("+" | "-")
+  \ ("<<" | ">>")
+  \ ("<" | ">" | "<=" | ">=")
+  \ ("==" | "!=")
+  \ "&"
+  \ "~"
+  \ "|"
+  \ "&&"
+  \ "||";
 
-TypeSpecifier =
-    TypeIdentifier
-  | TypeSpecifier "*"
-  | TypeSpecifier "(" TypeSpecifier \ "," ")"
+
+TycoIdentifier = UpperCaseLetter AlphanumericCharacter* {[Space]};
+
+TycoSpecifier =
+    TypeIdentifier ("<" TycoSpecifier / "," ">")*
+  | TycoSpecifier "*"
+  | TycoSpecifier "(" [(TycoSpecifier [Identifier]) / ","] ")"
+  | "Class" "{" ClassDefinition "}"
+  | "TypeOf" "(" Expression ")"
+  | TycoSpecifier "." TycoIdentifier
   ;
 
-Expression =
-    ( DecimalNumber
-    | DoubleQuotedString
-    | EmbeddedLiteral
-    | '(' Expression ')'
-    )
-  \ ("+" | "-");
+TemplateParameter =
+    TycoSpecifier
+  | "@" TycoIdentifier TemplateParameters
+  | TemplateParameter "*"
+  | TemplateParameter "(" TemplateParameter \ "," ")"
+  ;
+
+TemplateParameters = ("<" TemplateParameter \ "," ">")*;
+
+TycoSignifier = TycoIdentifier TemplateParameters;
+
+ConditionedStatement = "(" Expression ")" Statement;
 
 Statement =
-    `nothing` ";"
-  | Identifier "=" Expression ";"
-  | Type Identifier "=" Expression ";"
-  | Type Identifier "(" (Type ValueIdentifier) \ "," ")" (Statement | `from` Expression ";")
-  | TypeIdentifier = TypeSpecifier ";"
-  | `include` Expression ";"
+    Expression ";"
+  | TycoSpecifier Identifier "(" [(TycoSpecifier Identifier) / ","] ")" (Statement | `from` Expression ";")
+  | TycoSpecifier Identifier "=" Expression ";"
   | "{" Statement* "}"
+  | TycoSignifier = TycoSpecifier ";"
+  | `nothing` ";"
+  | ("++" | "--") Expression ";"
+  | (`if` | `unless`) ConditionedStatement ((`elseIf` | `elseUnless`) ConditionedStatement)* [`else` Statement]
+  | `switch` "(" Expression ")" "{" ((`case` Expression \ "," | `default`) ":" Statement)* "}"
+  | `return` Expression ";"
+  | `include` Expression ";"
+  | `break`* (`break` | `continue`) ";"
+  | `forever` Statement ";"
+  | [`do` Statement] (`while" | `until`) ConditionedStatement [`done` Statement]
+  | `for` "(" [Statement] ";" [Expression] ";" [Statement] ")" Statement [`done` Statement]
+  | [Expression ("=" | "*=" | "/=" | "%=" | "+=" | "-=" | ">>=" | "<<=" | "&=" | "|=" | "~=" | "^=")] Expression ";"
   ;
 
 = Statement*;

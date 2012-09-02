@@ -7,23 +7,24 @@ class ReferenceCounted : Uncopyable
 {
 public:
     ReferenceCounted() : _count(0) { }
-protected:
-    virtual ~ReferenceCounted() { };
+
     template<class T> T* cast() const { return dynamic_cast<T*>(this); }
     template<class T> const T* constCast() const
     {
         return dynamic_cast<const T*>(this);
     }
-    virtual void destroy() { delete this; }
+protected:
+    virtual ~ReferenceCounted() { };
+    virtual void destroy() const { delete this; }
 private:
-    void release()
+    void release() const
     {
         --_count;
         if (_count == 0)
             destroy();
     }
-    void addReference() { ++_count; }
-    int _count;
+    void addReference() const { ++_count; }
+    mutable int _count;
     template<class T> friend class Reference;
     template<class T> friend class ConstReference;
 };
@@ -61,6 +62,7 @@ public:
     operator T*() { return _referent; }
     operator const T*() const { return _referent; }
     bool valid() const { return _referent != 0; }
+    template<class U> bool is() const { return referent<U>() != 0; }
 private:
     void reset() { if (valid()) _referent->release(); }
     void set(T* referent)
@@ -114,6 +116,7 @@ public:
     const T* operator->() const { return _referent; }
     operator const T*() const { return _referent; }
     bool valid() const { return _referent != 0; }
+    template<class U> bool is() const { return referent<U>() != 0; }
 private:
     void reset() { if (valid()) _referent->release(); }
     void set(const T* referent)
@@ -130,6 +133,8 @@ private:
         set(referent);
     }
     const T* _referent;
+
+    template<class U> friend class ConstReference;
 };
 
 #endif // INCLUDED_REFERENCE_H

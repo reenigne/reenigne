@@ -27,7 +27,7 @@ private:
     private:
         T _t;
     };
-    Reference<Implementation> _implementation;
+    ConstReference<Implementation> _implementation;
 };
 
 #endif // INCLUDED_ANY_H

@@ -21,7 +21,7 @@ public:
         } while (true);
     }
     static bool parseCharacter(CharacterSource* source, int character,
-        Span* span)
+        Span* span = 0)
     {
         if (!source->parse(character, span))
             return false;
@@ -29,12 +29,13 @@ public:
         return true;
     }
     static void assertCharacter(CharacterSource* source, int character,
-        Span* span)
+        Span* span = 0)
     {
         source->assert(character, span);
         parse(source);
     }
-    static bool parseOperator(CharacterSource* source, String op, Span* span)
+    static bool parseOperator(CharacterSource* source, String op,
+        Span* span = 0)
     {
         CharacterSource s = *source;
         CharacterSource o(op);
@@ -50,12 +51,12 @@ public:
         } while (true);
         *source = s;
         if (span != 0)
-            *span = sp;
+            *span += sp;
         parse(source);
         return true;
     }
     static bool parseKeyword(CharacterSource* source, String keyword,
-        Span* span)
+        Span* span = 0)
     {
         CharacterSource s = *source;
         CharacterSource o(keyword);
@@ -76,7 +77,7 @@ public:
             return false;
         *source = s;
         if (span != 0)
-            *span = sp;
+            *span += sp;
         parse(source);
         return true;
     }

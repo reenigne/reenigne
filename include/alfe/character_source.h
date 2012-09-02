@@ -81,6 +81,8 @@ public:
     {
         if (_startLine == -1)
             return other;
+        if (other._startLine == -1)
+            return *this;
         return Span(start(), other.end());
     }
     const Span& operator+=(const Span& other)
@@ -108,14 +110,16 @@ public:
         Location start = _location;
         int c = getCharacter();
         if (span != 0)
-            *span = Span(start, location());
+            *span += Span(start, location());
         return c;
     }
     bool parse(int character, Span* span = 0)
     {
         CharacterSource s = *this;
-        if (s.get(span) == character) {
+        Span span2;
+        if (s.get(&span2) == character) {
             *this = s;
+            *span += span2;
             return true;
         }
         return false;

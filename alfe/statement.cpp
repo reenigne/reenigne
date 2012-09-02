@@ -1,594 +1,970 @@
-Symbol parseStatement(CharacterSource* source);
-Symbol parseStatementOrFail(CharacterSource* source);
+template<class T> class StatementTemplate;
+typedef StatementTemplate<void> Statement;
 
-Symbol parseExpressionStatement(CharacterSource* source)
+template<class T> class StatementTemplate : public ParseTreeObject
 {
-    CharacterSource s = *source;
-    Symbol expression = parseExpression(&s);
-    if (!expression.valid())
-        return Symbol();
-    Span span;
-    if (!Space::parseCharacter(&s, ';', &span))
-        return Symbol();
-    *source = s;
-    if (expression.atom() != atomFunctionCall)
-        source->location().throwError("Statement has no effect");
-    return Symbol(atomExpressionStatement, expression,
-        newSpan(spanOf(expression) + span));
-}
-
-Symbol parseParameter(CharacterSource* source)
-{
-    Symbol typeSpecifier = parseTypeConstructorSpecifier(source);
-    if (!typeSpecifier.valid())
-        return Symbol();
-    Symbol name = parseIdentifier(source);
-    if (!name.valid())
-        source->location().throwError("Expected identifier");
-    return Symbol(atomParameter, typeSpecifier, name,
-        new IdentifierCache(spanOf(typeSpecifier) + spanOf(name),
-            SymbolLabel()));
-}
-
-SymbolArray parseParameterList(CharacterSource* source)
-{
-    SymbolList list;
-    Symbol parameter = parseParameter(source);
-    if (!parameter.valid())
-        return list;
-    list.add(parameter);
-    Span span;
-    while (Space::parseCharacter(source, ',', &span)) {
-        Symbol parameter = parseParameter(source);
-        if (!parameter.valid())
-            source->location().throwError("Expected parameter");
-        list.add(parameter);
+public:
+    static Statement parse(CharacterSource* source)
+    {
+        Statement statement = ExpressionStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = FunctionDefinitionStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = VariableDefinitionStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = ExpressionStatement::parseAssignment(source);
+        if (statement.valid())
+            return statement;
+        statement = CompoundStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = TycoDefinitionStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = NothingStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = IncrementDecrementStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = ConditionalStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = SwitchStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = ReturnStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = IncludeStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = BreakOrContinueStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = ForeverStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = WhileStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = ForStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        statement = LabelStatement::parse(source);
+        if (statement.valid())
+            return statement;
+        return GotoStatement::parse(source);
     }
-    return list;
-}
+    static Statement parseOrFail(CharacterSource* source)
+    {
+        Statement statement = parse(source);
+        if (!statement.valid())
+            source->location().throwError("Expected statement");
+        return statement;
+    }
+    StatementTemplate() { }
+protected:
+    StatementTemplate(const Implementation* implementation)
+      : ParseTreeObject(implementation) { }
 
-Symbol parseFunctionDefinitionStatement(CharacterSource* source)
+    class Implementation : public ParseTreeObject::Implementation
+    {
+    public:
+        Implementation(const Span& span)
+          : ParseTreeObject::Implementation(span) { }
+    };
+};
+
+class ExpressionStatement : public Statement
 {
-    CharacterSource s = *source;
-    Symbol returnTypeSpecifier = parseTypeConstructorSpecifier(&s);
-    if (!returnTypeSpecifier.valid())
-        return Symbol();
-    Symbol name = parseIdentifier(&s);
-    if (!name.valid())
-        return Symbol();
-    Span span;
-    if (!Space::parseCharacter(&s, '(', &span))
-        return Symbol();
-    *source = s;
-    SymbolArray parameterList = parseParameterList(source);
-    Space::assertCharacter(source, ')', &span);
+public:
+    static ExpressionStatement parse(CharacterSource* source)
+    {
+        CharacterSource s = *source;
+        Expression expression = Expression::parse(&s);
+        if (!expression.valid())
+            return ExpressionStatement();
+        Span span;
+        if (!Space::parseCharacter(&s, ';', &span))
+            return ExpressionStatement();
+        *source = s;
+        if (!expression.is<FunctionCallExpression>())
+            source->location().throwError("Statement has no effect");
+        return ExpressionStatement(expression, expression.span() + span);
+    }
 
-    static String from("from");
-    if (Space::parseKeyword(source, from, &span)) {
-        Symbol dll = parseExpressionOrFail(source);
+    static ExpressionStatement parseAssignment(CharacterSource* source)
+    {
+        CharacterSource s = *source;
+        Expression left = Expression::parse(&s);
+        Location operatorLocation = s.location();
+        if (!left.valid())
+            return ExpressionStatement();
+        Span span;
+
+        static const Operator ops[] = {
+            OperatorAssignment(), OperatorAddAssignment(),
+            OperatorSubtractAssignment(), OperatorMultiplyAssignment(),
+            OperatorDivideAssignment(), OperatorModuloAssignment(),
+            OperatorShiftLeftAssignment(), OperatorShiftRightAssignment(),
+            OperatorBitwiseAndAssignment(), OperatorBitwiseOrAssignment(),
+            OperatorBitwiseXorAssignment(), OperatorPowerAssignment(),
+            Operator()};
+
+        const Operator* op;
+        for (op = ops; op->valid(); ++op)
+            if (Space::parseOperator(&s, op->name(), &span))
+                break;
+        if (!op->valid())
+            return ExpressionStatement();
+
+        *source = s;
+        Expression right = Expression::parseOrFail(source);
+        Space::assertCharacter(source, ';', &span);
+
+        return ExpressionStatement(FunctionCallExpression::binary(*op, span,
+            FunctionCallExpression::unary(OperatorAmpersand(), Span(), left),
+            right), left.span() + span);
+    }
+    ExpressionStatement(const Expression& expression, const Span& span)
+      : Statement(new Implementation(expression, span)) { }
+private:
+    ExpressionStatement() { }
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Expression& expression, const Span& span)
+          : Statement::Implementation(span), _expression(expression) { }
+    private:
+        Expression _expression;
+    };
+};
+
+class FromStatement : public Statement
+{
+public:
+    static FromStatement parse(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "from", &span))
+            return FromStatement();
+        Expression dll = Expression::parseOrFail(source);
+        Space::assertCharacter(source, ';', &span);
+        return new Implementation(dll, span);
+    }
+private:
+    FromStatement() { }
+    FromStatement(const Implementation* implementation)
+      : Statement(implementation) { }
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Expression& expression, const Span& span)
+          : Statement::Implementation(span), _expression(expression) { }
+    private:
+        Expression _expression;
+    };
+};
+
+class FunctionDefinitionStatement : public Statement
+{
+public:
+    class Parameter : public ParseTreeObject
+    {
+    public:
+        Parameter(const TycoSpecifier& typeSpecifier, const Identifier& name)
+          : ParseTreeObject(new Implementation(typeSpecifier, name)) { }
+
+        static Parameter parse(CharacterSource* source)
+        {
+            TycoSpecifier typeSpecifier = TycoSpecifier::parse(source);
+            if (!typeSpecifier.valid())
+                return Parameter();
+            Identifier name = Identifier::parse(source);
+            if (!name.valid())
+                source->location().throwError("Expected identifier");
+            return Parameter(typeSpecifier, name);
+        }
+    private:
+        Parameter() { }
+        class Implementation : public ParseTreeObject::Implementation
+        {
+        public:
+            Implementation(const TycoSpecifier& typeSpecifier,
+                const Identifier& name)
+              : ParseTreeObject::Implementation(
+                    typeSpecifier.span() + name.span()),
+                _typeSpecifier(typeSpecifier), _name(name) { }
+        private:
+            TycoSpecifier _typeSpecifier;
+            Identifier _name;
+        };
+    };
+
+    FunctionDefinitionStatement(const TycoSpecifier& returnTypeSpecifier,
+        const Identifier& name, const List<Parameter>& parameterList,
+        const Statement& body)
+      : Statement(
+        new Implementation(returnTypeSpecifier, name, parameterList, body)) { }
+
+    static FunctionDefinitionStatement parse(CharacterSource* source)
+    {
+        CharacterSource s = *source;
+        TycoSpecifier returnTypeSpecifier = TycoSpecifier::parse(&s);
+        if (!returnTypeSpecifier.valid())
+            return FunctionDefinitionStatement();
+        Identifier name = Identifier::parse(&s);
+        if (!name.valid())
+            return FunctionDefinitionStatement();
+        Span span;
+        if (!Space::parseCharacter(&s, '('))
+            return FunctionDefinitionStatement();
+        *source = s;
+        List<Parameter> parameterList = parseParameterList(source);
+        Space::assertCharacter(source, ')');
+        Statement body = FromStatement::parse(source);
+        if (!body.valid())
+            body = Statement::parseOrFail(source);
+        return FunctionDefinitionStatement(returnTypeSpecifier, name,
+            parameterList, body);
+    }
+private:
+    static List<Parameter> parseParameterList(CharacterSource* source)
+    {
+        List<Parameter> list;
+        Parameter parameter = Parameter::parse(source);
+        if (!parameter.valid())
+            return list;
+        list.add(parameter);
+        Span span;
+        while (Space::parseCharacter(source, ',', &span)) {
+            Parameter parameter = Parameter::parse(source);
+            if (!parameter.valid())
+                source->location().throwError("Expected parameter");
+            list.add(parameter);
+        }
+        return list;
+    }
+
+    FunctionDefinitionStatement() { }
+    FunctionDefinitionStatement(const Implementation* implementation)
+      : Statement(implementation) { }
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const TycoSpecifier& returnTypeSpecifier,
+            const Identifier& name, const List<Parameter>& parameterList,
+            const Statement& body)
+          : Statement::Implementation(
+            returnTypeSpecifier.span() + body.span()),
+            _returnTypeSpecifier(returnTypeSpecifier), _name(name),
+            _parameterList(parameterList), _body(body) { }
+    private:
+        TycoSpecifier _returnTypeSpecifier;
+        Identifier _name;
+        List<Parameter> _parameterList;
+        Statement _body;
+    };
+};
+
+class VariableDefinitionStatement : public Statement
+{
+public:
+    static VariableDefinitionStatement parse(CharacterSource* source)
+    {
+        CharacterSource s = *source;
+        TycoSpecifier typeSpecifier = TycoSpecifier::parse(&s);
+        if (!typeSpecifier.valid())
+            return VariableDefinitionStatement();
+        Identifier identifier = Identifier::parse(&s);
+        if (!identifier.valid())
+            return VariableDefinitionStatement();
+        *source = s;
+        Expression initializer;
+        if (Space::parseCharacter(source, '='))
+            initializer = Expression::parseOrFail(source);
+        Span span;
+        Space::assertCharacter(source, ';', &span);
+        return VariableDefinitionStatement(typeSpecifier, identifier,
+            initializer, typeSpecifier.span() + span);
+    }
+private:
+    VariableDefinitionStatement() { }
+    VariableDefinitionStatement(const TycoSpecifier& typeSpecifier,
+        const Identifier& identifier, const Expression& initializer,
+        const Span& span)
+      : Statement(new Implementation(typeSpecifier, identifier, initializer,
+        span)) { }
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const TycoSpecifier& typeSpecifier,
+            const Identifier& identifier, const Expression& initializer,
+            const Span& span)
+          : Statement::Implementation(span), _typeSpecifier(typeSpecifier),
+            _identifier(identifier), _initializer(initializer) { }
+    private:
+        TycoSpecifier _typeSpecifier;
+        Identifier _identifier;
+        Expression _initializer;
+    };
+};
+
+class StatementSequence : public ParseTreeObject
+{
+public:
+    static StatementSequence parse(CharacterSource* source)
+    {
+        Span span;
+        List<Statement> sequence;
+        do {
+            Statement statement = Statement::parse(source);
+            if (!statement.valid())
+                break;
+            span += statement.span();
+            sequence.add(statement);
+        } while (true);
+        return new Implementation(sequence, span);
+    }
+private:
+    StatementSequence(const Implementation* implementation)
+      : ParseTreeObject(implementation) { }
+
+    class Implementation : public ParseTreeObject::Implementation
+    {
+    public:
+        Implementation(const List<Statement>& sequence, const Span& span)
+          : ParseTreeObject::Implementation(span), _sequence(sequence) { }
+    private:
+        List<Statement> _sequence;
+    };
+};
+
+class CompoundStatement : public Statement
+{
+public:
+    static CompoundStatement parse(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseCharacter(source, '{', &span))
+            return CompoundStatement();
+        StatementSequence sequence = StatementSequence::parse(source);
+        Space::assertCharacter(source, '}', &span);
+        return new Implementation(sequence, span);
+    }
+private:
+    CompoundStatement() { }
+    CompoundStatement(const Implementation* implementation)
+      : Statement(implementation) { } 
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const StatementSequence& sequence, const Span& span)
+          : Statement::Implementation(span), _sequence(sequence) { }
+    private:
+        StatementSequence _sequence;
+    };
+};
+
+// TycoDefinitionStatement := TycoSignifier "=" TycoSpecifier ";"
+class TycoDefinitionStatement : public Statement
+{
+public:
+    static TycoDefinitionStatement parse(CharacterSource* source)
+    {
+        CharacterSource s = *source;
+        CharacterSource s2 = s;
+        TycoSignifier tycoSignifier = TycoSignifier::parse(&s);
+        if (!tycoSignifier.valid())
+            return TycoDefinitionStatement();
+        if (!Space::parseCharacter(&s, '='))
+            return TycoDefinitionStatement();
+        *source = s;
+        TycoSpecifier tycoSpecifier = TycoSpecifier::parse(source);
+        Span span;
+        Space::assertCharacter(source, ';', &span);
+        return new Implementation(tycoSignifier, tycoSpecifier,
+            tycoSignifier.span() + span);
+    }
+    TycoDefinitionStatement(const TycoSignifier& tycoSignifier,
+        const TycoSpecifier& tycoSpecifier)
+      : Statement(new Implementation(tycoSignifier, tycoSpecifier, Span())) { }
+private:
+    TycoDefinitionStatement() { }
+    TycoDefinitionStatement(const Implementation* implementation)
+      : Statement(implementation) { }
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const TycoSignifier& tycoSignifier,
+            const TycoSpecifier& tycoSpecifier, const Span& span)
+          : Statement::Implementation(span), _tycoSignifier(tycoSignifier),
+            _tycoSpecifier(tycoSpecifier) { }
+
+    private:
+        TycoSignifier _tycoSignifier;
+        TycoSpecifier _tycoSpecifier;
+    };
+};
+
+class NothingStatement : public Statement
+{
+public:
+    static NothingStatement parse(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "nothing", &span))
+            return NothingStatement();
+        Space::assertCharacter(source, ';', &span);
+        return NothingStatement(span);
+    }
+private:
+    NothingStatement() { }
+    NothingStatement(const Span& span)
+      : Statement(new Implementation(span)) { }
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Span& span) : Statement::Implementation(span) { }
+    };
+};
+
+class IncrementDecrementStatement : public Statement
+{
+public:
+    static Statement parse(CharacterSource* source)
+    {
+        Span span;
+        Operator o = OperatorIncrement().parse(source, &span);
+        if (!o.valid())
+            o = OperatorDecrement().parse(source, &span);
+        if (!o.valid())
+            return Statement();
+        Expression lValue = Expression::parse(source);
         Span span2;
         Space::assertCharacter(source, ';', &span2);
-        return Symbol(
-            atomFunctionDefinitionStatement,
-            returnTypeSpecifier,
-            name,
-            parameterList,
-            Symbol(atomFromStatement, dll,
-                new ExpressionCache(span + span2)),
-            new FunctionDefinitionCache(spanOf(returnTypeSpecifier) + span2));
+        return ExpressionStatement(FunctionCallExpression::unary(o, span,
+            FunctionCallExpression::unary(
+                OperatorAmpersand(), Span(), lValue)),
+            span + span2);
     }
-    Symbol statement = parseStatementOrFail(source);
-    statement = Symbol(
-        atomFunctionDefinitionStatement,
-        returnTypeSpecifier,
-        name,
-        parameterList,
-        statement,
-        SymbolLabel(),
-        new FunctionDefinitionCache(
-            spanOf(returnTypeSpecifier) + spanOf(statement)));
-    return statement;
-}
+};
 
-Symbol parseVariableDefinitionStatement(CharacterSource* source)
+// ConditionalStatement = (`if` | `unless`) ConditionedStatement
+//   ((`elseIf` | `elseUnless`) ConditionedStatement)* [`else` Statement];
+// ConditionedStatement = "(" Expression ")" Statement;
+class ConditionalStatement : public Statement
 {
-    CharacterSource s = *source;
-    Symbol typeSpecifier = parseTypeConstructorSpecifier(&s);
-    if (!typeSpecifier.valid())
-        return Symbol();
-    Symbol identifier = parseIdentifier(&s);
-    if (!identifier.valid())
-        return Symbol();
-    *source = s;
-    Symbol initializer;
-    Span span;
-    if (Space::parseCharacter(source, '=', &span))
-        initializer = parseExpressionOrFail(source);
-    Space::assertCharacter(source, ';', &span);
-    Symbol statement = Symbol(atomVariableDefinitionStatement,
-        typeSpecifier,
-        identifier,
-        initializer,
-        new IdentifierCache(spanOf(typeSpecifier) + span, SymbolLabel()));
-    return statement;
-}
-
-Symbol parseAssignmentStatement(CharacterSource* source)
-{
-    CharacterSource s = *source;
-    Symbol lValue = parseExpression(&s);
-    Location operatorLocation = s.location();
-    if (!lValue.valid())
-        return Symbol();
-    Symbol function;
-    Span span;
-    if (Space::parseCharacter(&s, '=', &span))
-        function = Symbol(atomAssignment);
-    else if (Space::parseOperator(&s, addAssignment, &span))
-        function = Symbol(atomAddAssignment);
-    else if (Space::parseOperator(&s, subtractAssignment, &span))
-        function = Symbol(atomSubtractAssignment);
-    else if (Space::parseOperator(&s, multiplyAssignment, &span))
-        function = Symbol(atomMultiplyAssignment);
-    else if (Space::parseOperator(&s, divideAssignment, &span))
-        function = Symbol(atomDivideAssignment);
-    else if (Space::parseOperator(&s, moduloAssignment, &span))
-        function = Symbol(atomModuloAssignment);
-    else if (Space::parseOperator(&s, shiftLeftAssignment, &span))
-        function = Symbol(atomShiftLeftAssignment);
-    else if (Space::parseOperator(&s, shiftRightAssignment, &span))
-        function = Symbol(atomShiftRightAssignment);
-    else if (Space::parseOperator(&s, bitwiseAndAssignment, &span))
-        function = Symbol(atomBitwiseAndAssignment);
-    else if (Space::parseOperator(&s, bitwiseOrAssignment, &span))
-        function = Symbol(atomBitwiseOrAssignment);
-    else if (Space::parseOperator(&s, bitwiseXorAssignment, &span))
-        function = Symbol(atomBitwiseXorAssignment);
-    else if (Space::parseOperator(&s, powerAssignment, &span))
-        function = Symbol(atomPowerAssignment);
-    if (!function.valid())
-        return Symbol();
-
-    *source = s;
-    Symbol e = parseExpressionOrFail(source);
-    Space::assertCharacter(source, ';', &span);
-
-    return Symbol(atomFunctionCall, function, SymbolArray(Symbol(atomAddressOf, lValue), e),
-        new ExpressionCache(spanOf(lValue) + span));
-}
-
-SymbolArray parseStatementSequence(CharacterSource* source)
-{
-    SymbolList list;
-    do {
-        Symbol statement = parseStatement(source);
-        if (!statement.valid())
-            return list;
-        list.add(statement);
-    } while (true);
-}
-
-Symbol parseCompoundStatement(CharacterSource* source)
-{
-    Span span;
-    if (!Space::parseCharacter(source, '{', &span))
-        return Symbol();
-    SymbolArray sequence = parseStatementSequence(source);
-    Span span2;
-    Space::assertCharacter(source, '}', &span2);
-    return Symbol(atomCompoundStatement, sequence, newSpan(span + span2));
-}
-
-//TypeConstructorDefinitionStatement := TypeConstructorSignifier "=" TypeConstructorSpecifier
-Symbol parseTypeConstructorDefinitionStatement(CharacterSource* source)
-{
-    CharacterSource s = *source;
-    CharacterSource s2 = s;
-    Symbol typeConstructorSignifier = parseTypeConstructorSignifier(&s);
-    if (!typeConstructorSignifier.valid())
-        return Symbol();
-    Span span;
-    if (!Space::parseCharacter(&s, '=', &span))
-        return Symbol();
-    *source = s;
-    Symbol typeConstructorSpecifier = parseTypeConstructorSpecifier(source);
-    Space::assertCharacter(source, ';', &span);
-    Symbol statement = Symbol(atomTypeConstructorDefinitionStatement,
-        typeConstructorSignifier, typeConstructorSpecifier,
-        new IdentifierCache(spanOf(typeConstructorSignifier) + span,
-            SymbolLabel()));
-    return statement;
-}
-
-Symbol parseNothingStatement(CharacterSource* source)
-{
-    static String nothing("nothing");
-    Span span;
-    if (!Space::parseKeyword(source, nothing, &span))
-        return Symbol();
-    Span span2;
-    Space::assertCharacter(source, ';', &span2);
-    return Symbol(atomNothingStatement, newSpan(span + span2));
-}
-
-Symbol parseIncrementDecrementStatement(CharacterSource* source)
-{
-    Span span;
-    Symbol function;
-    if (Space::parseOperator(source, increment, &span))
-        function = Symbol(atomIncrement);
-    else if (Space::parseOperator(source, decrement, &span))
-        function = Symbol(atomDecrement);
-    else
-        return Symbol();
-    CharacterSource s = *source;
-    Symbol lValue = parseExpression(&s);
-    *source = s;
-    Span span2;
-    Space::assertCharacter(source, ';', &span2);
-    return Symbol(atomFunctionCall, function, SymbolArray(lValue),
-        newSpan(span + span2));
-}
-
-Symbol parseConditionalStatement2(CharacterSource* source, Span startSpan,
-    bool unlessStatement)
-{
-    static String elseKeyword("else");
-    static String elseIfKeyword("elseIf");
-    static String elseUnlessKeyword("elseUnless");
-    Span span;
-    Space::assertCharacter(source, '(', &span);
-    Symbol condition = parseExpressionOrFail(source);
-    Space::assertCharacter(source, ')', &span);
-    Symbol conditionedStatement = parseStatementOrFail(source);
-    Symbol elseStatement;
-    if (Space::parseKeyword(source, elseKeyword, &span))
-        elseStatement = parseStatementOrFail(source);
-    else
-        if (Space::parseKeyword(source, elseIfKeyword, &span))
-            elseStatement =
-                parseConditionalStatement2(source, span, false);
+public:
+    static ConditionalStatement parse(CharacterSource* source)
+    {
+        Span span;
+        if (Space::parseKeyword(source, "if", &span))
+            return parse2(source, span, false);
+        if (Space::parseKeyword(source, "unless", &span))
+            return parse2(source, span, true);
+        return ConditionalStatement();
+    }
+private:
+    static ConditionalStatement parse2(CharacterSource* source, Span span,
+        bool unlessStatement)
+    {
+        Space::assertCharacter(source, '(');
+        Expression condition = Expression::parseOrFail(source);
+        Space::assertCharacter(source, ')');
+        Statement statement = Statement::parseOrFail(source);
+        span += statement.span();
+        Statement elseStatement;
+        if (Space::parseKeyword(source, "else")) {
+            elseStatement = Statement::parseOrFail(source);
+            span += elseStatement.span();
+        }
         else
-            if (Space::parseKeyword(source, elseUnlessKeyword, &span))
-                elseStatement =
-                    parseConditionalStatement2(source, span, true);
-    SpanCache* cache = newSpan(startSpan + spanOf(elseStatement));
-    if (unlessStatement)
-        return Symbol(atomIfStatement, condition, elseStatement,
-            conditionedStatement, cache);
-    return Symbol(atomIfStatement, condition, conditionedStatement,
-        elseStatement, cache);
-}
+            if (Space::parseKeyword(source, "elseIf")) {
+                elseStatement = parse2(source, span, false);
+                span += elseStatement.span();
+            }
+            else
+                if (Space::parseKeyword(source, "elseUnless")) {
+                    elseStatement = parse2(source, span, true);
+                    span += elseStatement.span();
+                }
+        if (unlessStatement)
+            condition = !condition;
+        return new Implementation(condition, statement, elseStatement, span);
+    }
 
-Symbol parseConditionalStatement(CharacterSource* source)
-{
-    static String ifKeyword("if");
-    static String unlessKeyword("unless");
-    Span span;
-    if (Space::parseKeyword(source, ifKeyword, &span))
-        return parseConditionalStatement2(source, span, false);
-    if (Space::parseKeyword(source, unlessKeyword, &span))
-        return parseConditionalStatement2(source, span, true);
-    return Symbol();
-}
+    ConditionalStatement() { }
+    ConditionalStatement(const Implementation* implementation)
+      : Statement(implementation) { }
 
-Symbol parseCase(CharacterSource* source)
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Expression& condition,
+            const Statement& trueStatement, const Statement& falseStatement,
+            const Span& span)
+          : Statement::Implementation(span), _condition(condition),
+            _trueStatement(trueStatement), _falseStatement(falseStatement) { }
+    private:
+        Expression _condition;
+        Statement _trueStatement;
+        Statement _falseStatement;
+    };
+};
+
+class SwitchStatement : public Statement
 {
-    static String caseKeyword("case");
-    static String defaultKeyword("default");
-    SymbolList expressions;
-    bool defaultType;
-    Span span;
-    Span span2;
-    if (Space::parseKeyword(source, caseKeyword, &span)) {
-        defaultType = false;
+public:
+    static SwitchStatement parse(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "switch", &span))
+            return SwitchStatement();
+        Space::assertCharacter(source, '(');
+        Expression expression = Expression::parseOrFail(source);
+        Space::assertCharacter(source, ')');
+        Space::assertCharacter(source, '{');
+        Case defaultCase;
+
+        CharacterSource s = *source;
+        List<Case> cases;
         do {
-            Symbol expression = parseExpressionOrFail(source);
-            expressions.add(expression);
-            if (!Space::parseCharacter(source, ',', &span2))
+            Case c = Case::parse(source);
+            if (!c.valid())
                 break;
+            if (c.isDefault()) {
+                if (defaultCase.valid())
+                    s.location().throwError(
+                        "This switch statement already has a default case");
+                defaultCase = c;
+            }
+            else
+                cases.add(c);
         } while (true);
+        Space::assertCharacter(source, '}', &span);
+        return new Implementation(expression, defaultCase, cases, span);
     }
-    else {
-        defaultType = true;
-        if (!Space::parseKeyword(source, defaultKeyword, &span))
-            source->location().throwError("Expected case or default");
-    }
+private:
+    SwitchStatement() { }
+    SwitchStatement(const Implementation* implementation)
+      : Statement(implementation) { }
 
-    Space::assertCharacter(source, ':', &span2);
-    Symbol statement = parseStatementOrFail(source);
-    SpanCache* cache = newSpan(span + spanOf(statement));
-    if (defaultType)
-        return Symbol(atomDefaultCase, statement, cache);
-    return Symbol(atomCase, SymbolArray(expressions), statement, cache);
-}
-
-Symbol parseSwitchStatement(CharacterSource* source)
-{
-    Span startSpan;
-    static String switchKeyword("switch");
-    if (!Space::parseKeyword(source, switchKeyword, &startSpan))
-        return Symbol();
-    Span span;
-    Space::assertCharacter(source, '(', &span);
-    Symbol expression = parseExpressionOrFail(source);
-    Space::assertCharacter(source, ')', &span);
-    Space::assertCharacter(source, '{', &span);
-    Symbol defaultCase;
-
-    CharacterSource s = *source;
-    SymbolList cases;
-    do {
-        Symbol c = parseCase(source);
-        if (!c.valid())
-            break;
-        if (c.atom() == atomDefaultCase) {
-            if (defaultCase.valid())
-                s.location().throwError(
-                    "This switch statement already has a default case");
-            defaultCase = c;
+    class Case : public ParseTreeObject
+    {
+    public:
+        static Case parse(CharacterSource* source)
+        {
+            List<Expression> expressions;
+            bool defaultType;
+            Span span;
+            if (Space::parseKeyword(source, "case", &span)) {
+                defaultType = false;
+                do {
+                    Expression expression = Expression::parseOrFail(source);
+                    expressions.add(expression);
+                    if (!Space::parseCharacter(source, ','))
+                        break;
+                } while (true);
+            }
+            else {
+                defaultType = true;
+                if (!Space::parseKeyword(source, "default", &span))
+                    source->location().throwError("Expected case or default");
+            }
+            Space::assertCharacter(source, ':');
+            Statement statement = Statement::parseOrFail(source);
+            span += statement.span();
+            if (defaultType)
+                return new DefaultImplementation(statement, span);
+            return new ValueImplementation(expressions, statement, span);
         }
+        bool isDefault() const { return as<Case>()->isDefault(); }
+
+        Case() { }
+        Case(const Implementation* implementation)
+          : ParseTreeObject(implementation) { }
+
+        class Implementation : public ParseTreeObject::Implementation
+        {
+        public:
+            Implementation(const Statement& statement, const Span& span)
+              : ParseTreeObject::Implementation(span), _statement(statement)
+            { }
+            virtual bool isDefault() const = 0;
+        private:
+            Statement _statement;
+        };
+    private:
+        class DefaultImplementation : public Implementation
+        {
+        public:
+            DefaultImplementation(const Statement& statement, const Span& span)
+              : Implementation(statement, span) { }
+            bool isDefault() const { return true; }
+        };
+        class ValueImplementation : public Implementation
+        {
+        public:
+            ValueImplementation(const List<Expression>& expressions,
+                const Statement& statement, const Span& span)
+              : Implementation(statement, span), _expressions(expressions) { }
+            bool isDefault() const { return false; }
+        private:
+            List<Expression> _expressions;
+        };
+    };
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Expression& expression, const Case& defaultCase,
+            const List<Case>& cases, const Span& span)
+          : Statement::Implementation(span), _expression(expression),
+            _defaultCase(defaultCase), _cases(cases) { }
+    private:
+        Expression _expression;
+        Case _defaultCase;
+        List<Case> _cases;
+    };
+};
+
+class ReturnStatement : public Statement
+{
+public:
+    static ReturnStatement parse(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "return", &span))
+            return ReturnStatement();
+        Expression expression = Expression::parseOrFail(source);
+        Space::assertCharacter(source, ';', &span);
+        return new Implementation(expression, span);
+    }
+private:
+    ReturnStatement() { }
+    ReturnStatement(const Implementation* implementation)
+      : Statement(implementation) { }
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Expression& expression, const Span& span)
+          : Statement::Implementation(span), _expression(expression) { }
+    private:
+        Expression _expression;
+    };
+};
+
+class IncludeStatement : public Statement
+{
+public:
+    static IncludeStatement parse(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "include", &span))
+            return IncludeStatement();
+        Expression expression = Expression::parseOrFail(source);
+        Space::assertCharacter(source, ';', &span);
+        return new Implementation(expression, span);
+    }
+private:
+    IncludeStatement() { }
+    IncludeStatement(const Implementation* implementation)
+      : Statement(implementation) { }
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Expression& expression, const Span& span)
+          : Statement::Implementation(span), _expression(expression) { }
+    private:
+        Expression _expression;
+    };
+};
+
+template<class T> class BreakOrContinueStatementTemplate;
+typedef BreakOrContinueStatementTemplate<void> BreakOrContinueStatement;
+
+template<class T> class BreakOrContinueStatementTemplate : public Statement
+{
+public:
+    static BreakOrContinueStatement parse(CharacterSource* source)
+    {
+        BreakOrContinueStatement breakStatement = parseBreak(source);
+        if (breakStatement.valid())
+            return breakStatement;
+        return parseContinue(source);
+    }
+private:
+    BreakOrContinueStatementTemplate() { }
+    BreakOrContinueStatementTemplate(const Implementation* implementation)
+      : Statement(implementation) { }
+
+    static BreakOrContinueStatement parseBreak(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "break", &span))
+            return BreakOrContinueStatement();
+        BreakOrContinueStatement statement = parse(source);
+        if (!statement.valid())
+            Space::assertCharacter(source, ';', &span);
         else
-            cases.add(c);
-    } while (true);
-    Space::assertCharacter(source, '}', &span);
-    return Symbol(atomSwitchStatement, expression, defaultCase,
-        SymbolArray(cases), newSpan(startSpan + span));
-}
-
-Symbol parseReturnStatement(CharacterSource* source)
-{
-    static String keyword("return");
-    Span span;
-    if (!Space::parseKeyword(source, keyword, &span))
-        return Symbol();
-    Symbol expression = parseExpression(source);
-    Span span2;
-    Space::assertCharacter(source, ';', &span2);
-    return Symbol(atomReturnStatement, expression, newSpan(span + span2));
-}
-
-Symbol parseIncludeStatement(CharacterSource* source)
-{
-    static String include("include");
-    Span span;
-    if (!Space::parseKeyword(source, include, &span))
-        return Symbol();
-    Symbol expression = parseExpressionOrFail(source);
-    Span span2;
-    Space::assertCharacter(source, ';', &span2);
-    return Symbol(atomIncludeStatement, expression, newSpan(span + span2));
-}
-
-Symbol parseBreakStatement(CharacterSource* source);
-Symbol parseContinueStatement(CharacterSource* source);
-
-Symbol parseBreakOrContinueStatement(CharacterSource* source)
-{
-    Symbol breakStatement = parseBreakStatement(source);
-    if (breakStatement.valid())
-        return breakStatement;
-    return parseContinueStatement(source);
-}
-
-Symbol parseBreakStatement(CharacterSource* source)
-{
-    static String keyword("break");
-    Span span;
-    if (!Space::parseKeyword(source, keyword, &span))
-        return Symbol();
-    Symbol statement = parseBreakOrContinueStatement(source);
-    Span span2;
-    if (!statement.valid())
-        Space::assertCharacter(source, ';', &span2);
-    else
-        span2 = spanOf(statement);
-    return Symbol(atomBreakStatement, statement, newSpan(span + span2));
-}
-
-Symbol parseContinueStatement(CharacterSource* source)
-{
-    static String keyword("continue");
-    Span span;
-    if (!Space::parseKeyword(source, keyword, &span))
-        return Symbol();
-    Span span2;
-    Space::assertCharacter(source, ';', &span2);
-    return Symbol(atomContinueStatement, newSpan(span + span2));
-}
-
-Symbol parseForeverStatement(CharacterSource* source)
-{
-    static String forever("forever");
-    Span span;
-    if (!Space::parseKeyword(source, forever, &span))
-        return Symbol();
-    Symbol statement = parseStatementOrFail(source);
-    return Symbol(atomForeverStatement, statement, newSpan(span + spanOf(statement)));
-}
-
-Symbol parseWhileStatement(CharacterSource* source)
-{
-    static String doKeyword("do");
-    static String whileKeyword("while");
-    static String untilKeyword("until");
-    static String doneKeyword("done");
-    Span span;
-    Symbol doStatement;
-    Location start;
-    bool foundDo = false;
-    if (Space::parseKeyword(source, doKeyword, &span)) {
-        foundDo = true;
-        doStatement = parseStatementOrFail(source);
-        start = span.start();
+            span += statement.span();
+        return new BreakImplementation(statement, span);
     }
-    bool foundWhile = false;
-    bool foundUntil = false;
-    if (Space::parseKeyword(source, whileKeyword, &span)) {
-        foundWhile = true;
-        if (!doStatement.valid())
-            start = span.start();
+    
+    static BreakOrContinueStatement parseContinue(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "continue", &span))
+            return BreakOrContinueStatement();
+        Space::assertCharacter(source, ';', &span);
+        return new ContinueImplementation(span);
     }
-    else
-        if (Space::parseKeyword(source, untilKeyword, &span)) {
-            foundUntil = true;
-            if (!doStatement.valid())
-                start = span.start();
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Span& span) : Statement::Implementation(span) { }
+    };
+
+    class BreakImplementation : public Implementation
+    {
+    public:
+        BreakImplementation(const BreakOrContinueStatement& statement,
+            const Span& span)
+          : Implementation(span), _statement(statement) { }
+    private:
+        BreakOrContinueStatement _statement;
+    };
+
+    class ContinueImplementation : public Implementation
+    {
+    public:
+        ContinueImplementation(const Span& span) : Implementation(span) { }
+    };
+};
+
+class ForeverStatement : public Statement
+{
+public:
+    static ForeverStatement parse(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "forever", &span))
+            return ForeverStatement();
+        Statement statement = Statement::parseOrFail(source);
+        return new Implementation(statement, span + statement.span());
+    }
+private:
+    ForeverStatement() { }
+    ForeverStatement(const Implementation* implementation)
+      : Statement(implementation) { }
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Statement& statement, const Span& span)
+          : Statement::Implementation(span), _statement(statement) { }
+    private:
+        Statement _statement;
+    };
+};
+
+class WhileStatement : public Statement
+{
+public:
+    static WhileStatement parse(CharacterSource* source)
+    {
+        Span span;
+        Statement doStatement;
+        bool foundDo = false;
+        if (Space::parseKeyword(source, "do", &span)) {
+            foundDo = true;
+            doStatement = Statement::parseOrFail(source);
         }
-    if (!foundWhile && !foundUntil) {
-        if (foundDo)
-            source->location().throwError("Expected while or until");
-        return Symbol();
+        bool foundWhile = false;
+        bool foundUntil = false;
+        if (Space::parseKeyword(source, "while", &span))
+            foundWhile = true;
+        else
+            if (Space::parseKeyword(source, "until", &span))
+                foundUntil = true;
+        if (!foundWhile && !foundUntil) {
+            if (foundDo)
+                source->location().throwError("Expected while or until");
+            return WhileStatement();
+        }
+        Space::assertCharacter(source, '(');
+        Expression condition = Expression::parse(source);
+        Space::assertCharacter(source, ')');
+        Statement statement = Statement::parseOrFail(source);
+        span += statement.span();
+        Statement doneStatement;
+        if (Space::parseKeyword(source, "done")) {
+            doneStatement = Statement::parseOrFail(source);
+            span += doneStatement.span();
+        }
+        if (foundUntil)
+            condition = !condition;
+        return new Implementation(doStatement, condition, statement,
+            doneStatement, span);
     }
-    Span span2;
-    Space::assertCharacter(source, '(', &span2);
-    Symbol condition = parseExpression(source);
-    Space::assertCharacter(source, ')', &span2);
-    Symbol statement = parseStatementOrFail(source);
-    Symbol doneStatement;
-    span2 = spanOf(statement);
-    if (Space::parseKeyword(source, doneKeyword, &span2)) {
-        doneStatement = parseStatementOrFail(source);
-        span2 = spanOf(doneStatement);
+private:
+    WhileStatement() { }
+    WhileStatement(const Implementation* implementation)
+      : Statement(implementation) { }
+
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Statement& doStatement,
+            const Expression& condition, const Statement& statement,
+            const Statement& doneStatement, const Span& span)
+          : Statement::Implementation(span), _doStatement(doStatement),
+            _condition(condition), _statement(statement),
+            _doneStatement(doneStatement) { }
+    private:
+        Statement _doStatement;
+        Expression _condition;
+        Statement _statement;
+        Statement _doneStatement;
+    };
+};
+
+class ForStatement : public Statement
+{
+public:
+    static ForStatement parse(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "for", &span))
+            return ForStatement();
+        Space::assertCharacter(source, '(');
+        Statement preStatement = Statement::parse(source);
+        if (!preStatement.valid())
+            Space::assertCharacter(source, ';');
+        Expression expression = Expression::parse(source);
+        Space::assertCharacter(source, ';');
+        Statement postStatement = Statement::parse(source);
+        Space::parseCharacter(source, ')');
+        Statement statement = Statement::parseOrFail(source);
+        span += statement.span();
+        Statement doneStatement;
+        if (Space::parseKeyword(source, "done")) {
+            doneStatement = Statement::parseOrFail(source);
+            span += doneStatement.span();
+        }
+        return new Implementation(preStatement, expression, postStatement,
+            statement, doneStatement, span);
     }
-    SpanCache* cache = newSpan(span + span2);
-    if (foundWhile)
-        return Symbol(atomWhileStatement, doStatement, condition, statement,
-            doneStatement, cache);
-    return Symbol(atomUntilStatement, doStatement, condition, statement,
-        doneStatement, cache);
-}
+private:
+    ForStatement() { }
+    ForStatement(const Implementation* implementation)
+      : Statement(implementation) { }
 
-Symbol parseForStatement(CharacterSource* source)
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Statement& preStatement,
+            const Expression& condition, const Statement& postStatement,
+            const Statement& statement, const Statement& doneStatement,
+            const Span& span)
+          : Statement::Implementation(span), _preStatement(preStatement),
+            _condition(condition), _postStatement(postStatement),
+            _statement(statement), _doneStatement(doneStatement) { }
+    private:
+        Statement _preStatement;
+        Expression _condition;
+        Statement _postStatement;
+        Statement _statement;
+        Statement _doneStatement;
+    };
+};
+
+class LabelStatement : public Statement
 {
-    static String forKeyword("for");
-    static String doneKeyword("done");
-    Span span;
-    if (!Space::parseKeyword(source, forKeyword, &span))
-        return Symbol();
-    Span span2;
-    Space::assertCharacter(source, '(', &span2);
-    Symbol preStatement = parseStatement(source);
-    if (!preStatement.valid())
-        Space::assertCharacter(source, ';', &span2);
-    Symbol expression = parseExpression(source);
-    Space::assertCharacter(source, ';', &span2);
-    Symbol postStatement = parseStatement(source);
-    Space::parseCharacter(source, ')', &span2);
-    Symbol statement = parseStatementOrFail(source);
-    Symbol doneStatement;
-    span2 = spanOf(statement);
-    if (Space::parseKeyword(source, doneKeyword, &span2)) {
-        doneStatement = parseStatementOrFail(source);
-        span2 = spanOf(doneStatement);
+public:
+    static LabelStatement parse(CharacterSource* source)
+    {
+        CharacterSource s2 = *source;
+        Identifier identifier = Identifier::parse(&s2);
+        if (!identifier.valid())
+            return LabelStatement();
+        Span span;
+        if (!Space::parseCharacter(&s2, ':', &span))
+            return LabelStatement();
+        return new Implementation(identifier, identifier.span() + span);
     }
-    return Symbol(atomForStatement, preStatement, expression, postStatement,
-        statement, doneStatement, newSpan(span + span2));
-}
+private:
+    LabelStatement() { }
+    LabelStatement(const Implementation* implementation)
+      : Statement(implementation) { }
 
-Symbol parseEmitStatement(CharacterSource* source)
-{
-    static String emitKeyword("_emit");
-    Span span;
-    if (!Space::parseKeyword(source, emitKeyword, &span))
-        return Symbol();
-    Symbol expression = parseExpressionOrFail(source);
-    Span span2;
-    Space::assertCharacter(source, ';', &span2);
-    return Symbol(atomEmit, expression, newSpan(span + span2));
-}
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Identifier& identifier, const Span& span)
+          : Statement::Implementation(span), _identifier(identifier) { }
+    private:
+        Identifier _identifier;
+    };
+};
 
-Symbol parseLabelStatement(CharacterSource* source)
+class GotoStatement : public Statement
 {
-    CharacterSource s2 = *source;
-    Symbol identifier = parseIdentifier(&s2);
-    if (!identifier.valid())
-        return Symbol();
-    Span span;
-    if (!Space::parseCharacter(&s2, ':', &span))
-        return Symbol();
-    return Symbol(atomLabelStatement, identifier,
-        new FunctionDefinitionCache(spanOf(identifier) + span));
-}
+public:
+    static GotoStatement parse(CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "goto", &span))
+            return GotoStatement();
+        Expression expression = Expression::parseOrFail(source);
+        Span span2;
+        Space::parseCharacter(source, ';', &span);
+        return new Implementation(expression, span);
+    }
+private:
+    GotoStatement() { }
+    GotoStatement(const Implementation* implementation)
+      : Statement(implementation) { }
 
-Symbol parseGotoStatement(CharacterSource* source)
-{
-    static String gotoKeyword("goto");
-    Span span;
-    if (!Space::parseKeyword(source, gotoKeyword, &span))
-        return Symbol();
-    Symbol expression = parseExpressionOrFail(source);
-    Span span2;
-    Space::parseCharacter(source, ';', &span2);
-    return Symbol(atomLabelStatement, expression, newSpan(span + span2));
-}
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(const Expression& expression, const Span& span)
+          : Statement::Implementation(span), _expression(expression) { }
+    private:
+        Expression _expression;
+    };
+};
 
-Symbol parseStatement(CharacterSource* source)
-{
-    Symbol s = parseExpressionStatement(source);
-    if (s.valid())
-        return s;
-    s = parseFunctionDefinitionStatement(source);
-    if (s.valid())
-        return s;
-    s = parseVariableDefinitionStatement(source);
-    if (s.valid())
-        return s;
-    s = parseAssignmentStatement(source);
-    if (s.valid())
-        return s;
-    s = parseCompoundStatement(source);
-    if (s.valid())
-        return s;
-    s = parseTypeConstructorDefinitionStatement(source);
-    if (s.valid())
-        return s;
-    s = parseNothingStatement(source);
-    if (s.valid())
-        return s;
-    s = parseIncrementDecrementStatement(source);
-    if (s.valid())
-        return s;
-    s = parseConditionalStatement(source);
-    if (s.valid())
-        return s;
-    s = parseSwitchStatement(source);
-    if (s.valid())
-        return s;
-    s = parseReturnStatement(source);
-    if (s.valid())
-        return s;
-    s = parseIncludeStatement(source);
-    if (s.valid())
-        return s;
-    s = parseBreakOrContinueStatement(source);
-    if (s.valid())
-        return s;
-    s = parseForeverStatement(source);
-    if (s.valid())
-        return s;
-    s = parseWhileStatement(source);
-    if (s.valid())
-        return s;
-    s = parseForStatement(source);
-    if (s.valid())
-        return s;
-    s = parseEmitStatement(source);
-    if (s.valid())
-        return s;
-    s = parseLabelStatement(source);
-    if (s.valid())
-        return s;
-    s = parseGotoStatement(source);
-    if (s.valid())
-        return s;
-    return Symbol();
-}
+class RunTimeStack;
 
-Symbol parseStatementOrFail(CharacterSource* source)
+class BuiltInStatement : public Statement
 {
-    Symbol statement = parseStatement(source);
-    if (!statement.valid())
-        source->location().throwError("Expected statement");
-    return statement;
-}
+public:
+    BuiltInStatement(void (*execute)(RunTimeStack* stack))
+      : Statement(new Implementation(execute)) { }
+protected:
+    class Implementation : public Statement::Implementation
+    {
+    public:
+        Implementation(void (*execute)(RunTimeStack* stack))
+          : Statement::Implementation(Span()), _execute(execute) { }
+    private:
+        void (*_execute)(RunTimeStack* stack);
+    };
+};

@@ -12,27 +12,27 @@ Allow SymbolLabel on runtime stack
 
 Implement generic types:
   Figure out exactly which atoms we want to have. Currently:
-    atomTypeConstructorIdentifier
-    atomTemplateTypeConstructorSpecifier
-    atomTypeConstructorSignifier
+    atomTycoIdentifier
+    atomTemplateTycoSpecifier
+    atomTycoSignifier
     atomTemplateParameter
     atomTypeKind
     atomTemplateKind
-    atomTypeConstructorDefinitionStatement
+    atomTycoDefinitionStatement
 
-  Resolve TypeConstructorIdentifiers to TypeConstructorDefinitionStatements instead of resolving TypeIdentifiers to TypeAliasStatements
+  Resolve TycoIdentifiers to TycoDefinitionStatements instead of resolving TypeIdentifiers to TypeAliasStatements
   Resolve template TypeSpecifiers to instantiated Type
-  For each template TypeConstructorDefinitionStatement that is a Class, need to keep a table of instantiations:
-    * Function that, when given a TypeConstructorDefinitionStatement and a list of argument TypeConstructorDefinitionStatements, returns the resulting Type from the table
+  For each template TycoDefinitionStatement that is a Class, need to keep a table of instantiations:
+    * Function that, when given a TycoDefinitionStatement and a list of argument TycoDefinitionStatements, returns the resulting Type from the table
       Need to check to see if it matches a specialization
         Pick the most specific specialization that matches.
           How to rank specializations?
             Need to determine if one specialization is a sub-specialization of another
-  Need a function to determine the Kind of a TypeConstructorDefinitionStatement
-    * Given a TypeConstructorDefinitionStatement, returns an atomTypeKind or atomTemplateKind Symbol.
-  When using a TypeConstructor, need to check it's Kind to make sure it's what we expect
+  Need a function to determine the Kind of a TycoDefinitionStatement
+    * Given a TycoDefinitionStatement, returns an atomTypeKind or atomTemplateKind Symbol.
+  When using a Tyco, need to check it's Kind to make sure it's what we expect
     * Only a Type can be used in a parameter/variable declaration, as the referent of a pointer Type or an argument or return value of a function Type.
-      * This is because Generic TypeConstructors have no values associated with them.
+      * This is because Generic Tycos have no values associated with them.
 
 Implement evaluate()
   Force compilation of any functions called
@@ -40,12 +40,6 @@ Implement evaluate()
     Combine these into VirtualMachine?
   Limit number of steps per evaluate() call when compiling (don't bother when interpreting)
 
-In type-checking, need to make sure that argument to emit has type Sequence<Compiler.Instruction>
-
-Implement atomEmit expression and statement in compiler
-  Need to force evaluation of the argument expression, which involves compiling
-   any functions it needs.
-    If those functions call the one being compiled, need to detect this loop and error out.
 Make include statement work
   compileStatement: atomIncludeStatement
   Problem: the include statement could change the meaning of the expression in its argument, if (for example) it redefined a function that was called to construct the argument.
@@ -58,14 +52,12 @@ Make include statement work
     => idempotency needs to be per-scope
       But if the file has been included in an outer scope, re-including it in an inner scope should be a no-op (for performance if nothing else)
 
-How to do compile-time expression evaluation for emit and include
+How to do compile-time expression evaluation for include
   These expressions (and the functions they call) can't depend on any outside state
     But they will in general need to (e.g.) allocate memory, which will involve setting up heap state
       Will need a mechanism to allow programs to set up state for compile-time evaluated expressions
         Set this up on first call to evaluate()
       Is it always the same? Might we need faciliites other than memory? Shouldn't do I think...
-
-How do we define the inner types of Compiler?
 
 Implement construction expressions
 
@@ -189,20 +181,6 @@ Add operator ".." which creates a Range value from two integers
 Allow "a < b < c" (same as "a < b && b < c" but b is only evaluated once) and similar expressions
 
 Measure stack size and allocate frames for unbounded recursive functions on heap
-
-Advanced types
-  null: "Null" - only one value: "null"
-  sequence: "[T]" or "Reference<ISequence<T>>" or "Empty | (T, [T])"
-  tuple: "(U, V)" or "Tuple<U, V>"
-  union: "U | V" or "Reference<Union<U, V>>" - get U out with "w.U" or "w as U" or "cast<U>(w)", find out if it is U with "w is U"
-  option: "Maybe<T>" or "T?" or "T | Null"
-  function: "U -> V"
-
-Have a run-time type operator typeOf()?
-  And "Type" - the type of the value that it returns
-  The Type object of type T is T::type.
-  print("Compile-time type is ${TypeOf(x)::type}, run-time type is ${typeOf(x)}\n");
-    Type has a toString() method, but the strings are not linked in unless used.
 
 Allow parameters to have type Auto which creates a template function?
 

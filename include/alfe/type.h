@@ -114,30 +114,27 @@ template<class T> class TypeTemplate;
 
 typedef TypeTemplate<void> Type;
 
-class TypeConstructor
+class Tyco
 {
 public:
-    TypeConstructor() { }
+    Tyco() { }
     String toString() const { return _implementation->toString(); }
     bool valid() const { return _implementation.valid(); }
-    bool operator==(const TypeConstructor& other) const
+    bool operator==(const Tyco& other) const
     {
         if (_implementation == other._implementation)
             return true;
         return _implementation->equals(other._implementation);
     }
-    bool operator!=(const TypeConstructor& other) const
-    {
-        return !operator==(other);
-    }
+    bool operator!=(const Tyco& other) const { return !operator==(other); }
     int hash() const { return _implementation->hash(); }
     Kind kind() const { return _implementation->kind(); }
     bool isInstantiation() const { return _implementation->isInstantiation(); }
-    TypeConstructor generatingTemplate() const
+    Tyco generatingTemplate() const
     {
         return _implementation->generatingTemplate();
     }
-    TypeConstructor templateArgument() const
+    Tyco templateArgument() const
     {
         return _implementation->templateArgument();
     }
@@ -153,13 +150,10 @@ protected:
         virtual Kind kind() const = 0;
         virtual int hash() const { return reinterpret_cast<int>(this); }
         virtual bool isInstantiation() const { return false; }
-        virtual TypeConstructor generatingTemplate() const
-        {
-            throw Exception();
-        }
-        virtual TypeConstructor templateArgument() const { throw Exception(); }
+        virtual Tyco generatingTemplate() const { throw Exception(); }
+        virtual Tyco templateArgument() const { throw Exception(); }
     };
-    TypeConstructor(const Implementation* implementation)
+    Tyco(const Implementation* implementation)
       : _implementation(implementation) { }
     ConstReference<Implementation> _implementation;
 
@@ -168,13 +162,11 @@ protected:
     friend class StructuredType;
 };
 
-template<class T> class TypeTemplate : public TypeConstructor
+template<class T> class TypeTemplate : public Tyco
 {
 public:
     TypeTemplate() { }
-    TypeTemplate(const TypeConstructor& typeConstructor)
-      : TypeConstructor(typeConstructor)
-    { }
+    TypeTemplate(const Tyco& tyco) : Tyco(tyco) { }
 
     static Type integer;
     static Type string;
@@ -185,25 +177,25 @@ public:
 
     static Type array(const Type& type)
     {
-        List<TypeConstructor> arguments;
+        List<Tyco> arguments;
         arguments.add(type);
         return Template::array.instantiate(arguments);
     }
     static Type tuple(const List<Type>& arguments)
     {
-        List<TypeConstructor> a;
+        List<Tyco> a;
         for (auto i = arguments.begin(); i != arguments.end(); ++i)
             a.add(*i);
         return Template::tuple.instantiate(a);
     }
 protected:
-    class Implementation : public TypeConstructor::Implementation
+    class Implementation : public Tyco::Implementation
     {
     public:
         Kind kind() const { return Kind::type; }
     };
     TypeTemplate(const Implementation* implementation)
-      : TypeConstructor(implementation) { }
+      : Tyco(implementation) { }
 private:
     friend class TemplateTemplate<void>;
 };
@@ -230,16 +222,17 @@ Type Type::object = AtomicType("Object");
 Type Type::label = AtomicType("Label");
 Type Type::voidType = AtomicType("Void");
 
-template<class T> class TemplateTemplate : public TypeConstructor
+template<class T> class TemplateTemplate : public Tyco
 {
 public:
     TemplateTemplate(const String& name, const Kind& kind)
-      : TypeConstructor(new UninstantiatedImplementation(name, kind)) { }
-    TypeConstructor instantiate(const List<TypeConstructor>& arguments) const
+      : Tyco(new UninstantiatedImplementation(name, kind)) { }
+    Tyco instantiate(const List<Tyco>& arguments) const
     {
-        TypeConstructor t = *this;
+        Tyco t = *this;
         for (auto i = arguments.begin(); i != arguments.end(); ++i) {
-            ConstReference<Implementation> ti(t._implementation);
+            ConstReference<Implementation> ti =
+                t._implementation.referent<Implementation>();
             if (!ti.valid())
                 throw Exception(String("Can't instantiate ") + t.toString());
             t = ti->instantiate(*i);
@@ -250,42 +243,38 @@ public:
     static Template array;
     static Template tuple;
 private:
-    class Implementation : public TypeConstructor::Implementation
+    class Implementation : public Tyco::Implementation
     {
     public:
-        virtual TypeConstructor instantiate(
-            const TypeConstructor& typeConstructor) const = 0;
-        TypeConstructor instantiate(const TemplateKind& kind,
-            const TypeConstructor& typeConstructor) const
+        virtual Tyco instantiate(const Tyco& tyco) const = 0;
+        Tyco instantiate(const TemplateKind& kind, const Tyco& tyco) const
         {
-            if (_instantiations.hasKey(typeConstructor))
-                return _instantiations[typeConstructor];
+            if (_instantiations.hasKey(tyco))
+                return _instantiations[tyco];
             if (kind.first() != Kind::variadic) {
-                if (kind.first() != typeConstructor.kind())
+                if (kind.first() != tyco.kind())
                     throw Exception(String("Can't instantiate ") + toString() +
                         String(" (argument kind ") + kind.first().toString() +
-                        String(") with ") + typeConstructor.toString() +
-                        String(" (kind ") + typeConstructor.kind().toString());
+                        String(") with ") + tyco.toString() +
+                        String(" (kind ") + tyco.kind().toString());
                 Kind rest = kind.rest();
-                TypeConstructor instantiation;
+                Tyco instantiation;
                 if (rest == Kind::type)
-                    instantiation = Type(
-                        new InstantiatedImplementation(this, typeConstructor));
+                    instantiation =
+                        Type(new InstantiatedImplementation(this, tyco));
                 else
-                    instantiation = TypeConstructor(
-                        new PartiallyInstantiatedImplementation(this,
-                            typeConstructor));
-                _instantiations.add(typeConstructor, instantiation);
+                    instantiation = Tyco(
+                        new PartiallyInstantiatedImplementation(this, tyco));
+                _instantiations.add(tyco, instantiation);
                 return instantiation;
             }
-            TypeConstructor instantiation(
-                new VariadicImplementation(this, typeConstructor));
-            _instantiations.add(typeConstructor, instantiation);
+            Tyco instantiation(new VariadicImplementation(this, tyco));
+            _instantiations.add(tyco, instantiation);
             return instantiation;
         }
         virtual String toString2(bool* needComma) const = 0;
     private:
-        mutable HashTable<TypeConstructor, TypeConstructor> _instantiations;
+        mutable HashTable<Tyco, Tyco> _instantiations;
     };
     class UninstantiatedImplementation : public Implementation
     {
@@ -294,10 +283,9 @@ private:
           : _name(name), _kind(kind) { }
         Kind kind() const { return _kind; }
         String toString() const { return _name; }
-        TypeConstructor instantiate(const TypeConstructor& typeConstructor)
-            const
+        Tyco instantiate(const Tyco& tyco) const
         {
-            return Implementation::instantiate(_kind, typeConstructor);
+            return Implementation::instantiate(_kind, tyco);
         }
     protected:
         String toString2(bool* needComma) const
@@ -313,7 +301,7 @@ private:
     {
     public:
         PartiallyInstantiatedImplementation(const Implementation* parent,
-            TypeConstructor argument)
+            Tyco argument)
           : _parent(parent), _argument(argument) { }
         Kind kind() const { return TemplateKind(_parent->kind()).rest(); }
         String toString() const
@@ -330,27 +318,23 @@ private:
             *needComma = true;
             return s;
         }
-        TypeConstructor instantiate(const TypeConstructor& typeConstructor)
-            const
+        Tyco instantiate(const Tyco& tyco) const
         {
-            return Implementation::instantiate(kind(), typeConstructor);
+            return Implementation::instantiate(kind(), tyco);
         }
         virtual bool isInstantiation() const { return true; }
-        virtual TypeConstructor generatingTemplate() const
-        {
-            return TypeConstructor(_parent);
-        }
-        virtual TypeConstructor templateArgument() const { return _argument; }
+        virtual Tyco generatingTemplate() const { return Tyco(_parent); }
+        virtual Tyco templateArgument() const { return _argument; }
     private:
         const Implementation* _parent;
-        TypeConstructor _argument;
-        mutable HashTable<TypeConstructor, TypeConstructor> _instantiations;
+        Tyco _argument;
+        mutable HashTable<Tyco, Tyco> _instantiations;
     };
     class VariadicImplementation : public PartiallyInstantiatedImplementation
     {
     public:
         VariadicImplementation(const Implementation* parent,
-            const TypeConstructor& argument)
+            const Tyco& argument)
           : PartiallyInstantiatedImplementation(parent, argument) { }
         Kind kind() const { return Kind::variadicTemplate; }
     };
@@ -358,7 +342,7 @@ private:
     {
     public:
         InstantiatedImplementation(const Template::Implementation* parent,
-            TypeConstructor argument)
+            Tyco argument)
           : _parent(parent), _argument(argument) { }
         String toString() const
         {
@@ -370,14 +354,11 @@ private:
         }
 
         virtual bool isInstantiation() const { return true; }
-        virtual TypeConstructor generatingTemplate() const
-        {
-            return TypeConstructor(_parent);
-        }
-        virtual TypeConstructor templateArgument() const { return _argument; }
+        virtual Tyco generatingTemplate() const { return Tyco(_parent); }
+        virtual Tyco templateArgument() const { return _argument; }
     private:
         const Template::Implementation* _parent;
-        TypeConstructor _argument;
+        Tyco _argument;
     };
 };
 
@@ -625,10 +606,10 @@ private:
 class TypeConverter
 {
 public:
-    void addConversionSource(const Template& templateTypeConstructor,
+    void addConversionSource(const Template& templateTyco,
         const ConversionSource& conversionSource)
     {
-        _conversionSources.add(templateTypeConstructor, conversionSource);
+        _conversionSources.add(templateTyco, conversionSource);
     }
     void addConversion(const Type& from, const Type& to,
         const Conversion& conversion)
@@ -642,15 +623,14 @@ public:
         TypePair pair(from, to);
         if (_conversions.hasKey(pair))
             return _conversions[pair];
-        TypeConstructor typeConstructor = from;
+        Tyco tyco = from;
         bool doneBoth = false;
         do {
-            while (typeConstructor.isInstantiation()) {
-                typeConstructor = typeConstructor.generatingTemplate();
-                if (_conversionSources.hasKey(typeConstructor)) {
+            while (tyco.isInstantiation()) {
+                tyco = tyco.generatingTemplate();
+                if (_conversionSources.hasKey(tyco)) {
                     Conversion conversion =
-                        _conversionSources[typeConstructor].conversion(from,
-                            to, this);
+                        _conversionSources[tyco].conversion(from, to, this);
                     if (conversion.valid()) {
                         _conversions.add(pair, conversion);
                         return conversion;
@@ -659,7 +639,7 @@ public:
             }
             if (doneBoth)
                 break;
-            typeConstructor = to;
+            tyco = to;
             doneBoth = true;
         } while (true);
         StructuredType fromStructure(from);
@@ -808,8 +788,8 @@ private:
         String sub(const TypedValue& value) const
         {
             auto input = value.value<Value<HashTable<String, TypedValue>>>();
-            ConstReference<ConversionFailureImplementation> i =
-                _conversion._implementation;
+            ConstReference<ConversionFailureImplementation> i = _conversion.
+                _implementation.referent<ConversionFailureImplementation>();
             String r = "For child member " + _name;
             if (i != 0)
                 r += ": " + i->toString((*input)[_name]);
@@ -835,7 +815,7 @@ private:
         Type _to;
     };
     HashTable<TypePair, Conversion> _conversions;
-    HashTable<TypeConstructor, ConversionSource> _conversionSources;
+    HashTable<Tyco, ConversionSource> _conversionSources;
     static Conversion _trivialConversion;
 };
 
@@ -849,14 +829,14 @@ public:
     virtual Conversion conversion(const Type& from, const Type& to,
         TypeConverter* typeConverter) const
     {
-        TypeConstructor toGenerator = to;
+        Tyco toGenerator = to;
         if (toGenerator.isInstantiation())
             toGenerator = toGenerator.generatingTemplate();
         if (toGenerator != Template::array)
             return Conversion(new NotArrayConversionFailure(from, to));
         Type contained = to.templateArgument();
 
-        TypeConstructor fromGenerator = from;
+        Tyco fromGenerator = from;
         List<Conversion> conversions;
         int i = 0;
         while (fromGenerator.isInstantiation()) {
@@ -932,8 +912,8 @@ private:
             auto iterator = input.begin();
             for (int j = 0; j < _i; ++j)
                 ++iterator;
-            ConstReference<ConversionFailureImplementation> i =
-                _conversion._implementation;
+            ConstReference<ConversionFailureImplementation> i = _conversion.
+                _implementation.referent<ConversionFailureImplementation>();
             return String("For element ") + _i + ": " + i->toString(*iterator);
         }
     private:

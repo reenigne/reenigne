@@ -16,15 +16,16 @@
 
     B<@A> = Class { }
     B<Int> = Class { }
-    C<@B<A>> = Class { }    // The "A" here is ignored - it's allowed for documentation purposes
-    C<@B<>> = Class { }  // same as above
-    C<Foo<@A>> = Class { }   // not valid
-    C<Foo<Int>> = Class { }  // not valid
-    C<@B<Int>> = Class { }   // not valid
+    C<@B<A>> = Class { }
+    C<@B<>> = Class { }
+    C<Foo<@A>> = Class { }
+    C<Foo<Int>> = Class { }
+    C<@B<Int>> = Class { }
     C<B> = Class { }   // specialization of a template template
 
     How to do partial specialization for pointers?
       B<@A*> = Class { }  - so the @ prefix binds more tightly than *
+      B<@A where A : Pointer> = Class { }
 
     B<@A<@>*>
 
@@ -35,7 +36,7 @@ Need a Kind system
     Type
     A list of Kinds
   Need a function to parse a type list
-  KindSpecifier := ("<" ([TypeConstructorIdentifier] [KindSpecifier]) \ ",") ">")*
+  KindSpecifier := ("<" ([TycoIdentifier] [KindSpecifier]) \ ",") ">")*
 
 Examples:
   (nothing)           = Type
@@ -45,7 +46,7 @@ Examples:
   etc.
 
 Suppose we have A<@B><@C> = Class { ... }
-Then the TypeConstructorDefinitionStatement
+Then the TycoDefinitionStatement
   D = A<E>
 is equivalent to
   D<@C> = A<E><C>
@@ -54,7 +55,7 @@ It's easier to understand what's going on there, but does require introducing
 
 A = Class { B<@C> = Class { ... } }
 D = Class { B = Class { ... } }
-E<@F> = F.B   // A TypeConstructorDefinitionStatement of unknown Kind
+E<@F> = F.B   // A TycoDefinitionStatement of unknown Kind
 
 E<A><Int> f;
 E<D> g;
@@ -65,27 +66,27 @@ A<@B> = C<D<B>>
 
   Get nomenclature correct
     * Type: A set of values.
-    * TypeConstructor: A generalization of a Type. Something that can (given sufficiently many TypeConstructors of the appropriate Kinds) yield a Type.
-    * Template: A non-nullary TypeConstructor - a TypeConstructor that can be instantiated with a TypeConstructor to yield another TypeConstructor.
+    * Tyco (TypeConstructor): A generalization of a Type. Something that can (given sufficiently many Tycos of the appropriate Kinds) yield a Type.
+    * Template: A non-nullary Tyco - a Tyco that can be instantiated with a Tyco to yield another Tyco.
     * TemplateType: A Type constructed from a Template.
 
-    * Kind: The property of a TypeConstuctor which determines what you have to give it to get a Type.
+    * Kind: The property of a Tyco which determines what you have to give it to get a Type.
     * KindSpecifier: The string which represents a Kind in a template parameter.
 
     * TypeSpecifier: A piece of program code that represents a Type.
-    * TypeConstructorSpecifier: A piece of program code that represents a TypeConstructor.
+    * TycoSpecifier: A piece of program code that represents a Tyco.
     * TemplateTypeSpecifier: A piece of program code that represents a TemplateType.
-    * TypeConstructorIdentifier or TypeIdentifier: The A in A, A<B> or A<@B<C>> - a TypeConstructorSpecifier consisting of a single captialized identifier with no operators like *, () or <>.
-    * FundamentalTypeConstructorSpecifier: A sequence of letters, numbers and underscores starting with an upper case letter. A TypeConstructorSpecifier consisting of a TypeConstructorIdentifier followed by zero or more template arguments.
+    * TycoIdentifier: The A in A, A<B> or A<@B<C>> - a TycoSpecifier consisting of a single captialized identifier with no operators like *, () or <>.
+    * FundamentalTycoSpecifier: A sequence of letters, numbers and underscores starting with an upper case letter. A TycoSpecifier consisting of a TycoIdentifier followed by zero or more template arguments.
 
-    * TypeConstructorSignifier: That which goes on the left of a TypeConstructorDefinitionStatement - like a TypeConstructorSpecifier but with template parameters instead of template arguments.
-    * TemplateSignifier: The TypeConstructorSignifier of a TypeConstructorDefinitionStatement which defines a Template
-    * TypeConstructorDefinitionStatement: A statement that defines a TypeConstructor
+    * TycoSignifier: That which goes on the left of a TycoDefinitionStatement - like a TycoSpecifier but with template parameters instead of template arguments.
+    * TemplateSignifier: The TycoSignifier of a TycoDefinitionStatement which defines a Template
+    * TycoDefinitionStatement: A statement that defines a Tyco
 
     * Template parameter: The @C bit in the TemplateTypeSignifier B<@C>
     * Template argument: The C bit in B<C>
-    * Specialization: Obtaining a TypeConstructor of lower order from a TypeConstructor of higher order
-    * Full specialization: Obtaining a Type from a TypeConstructor
+    * Specialization: Obtaining a Tyco of lower order from a Tyco of higher order
+    * Full specialization: Obtaining a Type from a Tyco
 
 
 Have A<@B><@C> be alternate syntax for A<@B,@C> (i.e. currying)?
@@ -115,3 +116,98 @@ or
 D<@A<,>> = Class { ... }
 
 
+
+
+
+The type of f in
+
+Foo f(Bar x) { ... }
+
+is Foo(Bar)
+
+which is short for Function<Foo,Bar>  (Function is a variadic template) which inherits from Function
+
+The type of p in
+
+Foo* p;
+
+is Foo*
+
+which is short for Pointer<Foo>
+
+
+
+
+When defining a class or a function, we can have a set of template parameters:
+
+Foo f<@A>(A x) { ... }
+C<@A> = Class { ... }
+
+
+@T is TypeParameter (no KindSpecifier, no restrictions)
+@T<> is a TycoParameter that must be a Template of Kind <> (i.e. T<Int> is a type)
+@T* is a TycoParameter that must be a pointer Type
+Foo<@T> is a TycoParameter that must be a instance of Foo<>
+Foo<@T,T> is a TycoParameter that must be an instance of Foo<> with two identical parameter types
+Foo<@T,Bar<T>>
+Foo<Bar<@T>,T>
+@T<@U> doesn't make any sense (have @T<> and @U be separate type parameters and then instantiate T<U> directly instead - then it isn't abiguous what T means)
+@T<>* doesn't make any sense
+@T*<> doesn't make any sense
+@T(Foo) is a TycoParameter that must be a function Type for a function taking a single Foo type parameter
+Bar(@T) is a TycoParameter that must be a function Type for a function returning a value of type Bar
+@T(@U) is a TycoParameter that must be a function Type for a single parameter function
+
+So the number of template parameters can be more or less than the number of bound variables
+
+
+
+In C++ we would have
+
+template<class T> class Foo { ... };
+template<class T> class Foo<T*> { ... };  // partial specialization for pointers
+
+In ALFE we would have
+
+Foo<@T> = Class { ... };
+Foo<@T*> = Class { ... };
+Foo<@T(@U)> = Class { ... };  // instantiate with Foo<A(B)>
+Foo<@T<@U>> = Class { ... };  // instantiate with Foo<A<B>>
+
+
+
+When specifying a template parameter, one must specify its kind
+
+
+
+
+TODO: It's kind of weird that Foo<@T<@U>> and Foo<@T<U>> needs to be invoked with a Type but Foo<@T<>> needs to be invoked with a Tyco of Kind <>.
+  We could instantiate as Foo<Array<>> instead of Foo<Array>
+    A bit verbose and ugly, but enforces that we only ever write down types, not arbitrary type constructors
+      Then we can't have our "D = A<E>;" above - we'd have to write "D<@C> = A<E><C>;"
+  We could remove kind checking so that you can write Foo<@T> and then instiantiate with Foo<Array>
+    We could statically assert the kind of T somehow:
+      Foo<@T> = Class { Bar = Class { T<Int> t; }; }
+    Instantiating types with templates is pretty rare - between rarity, documentation and static asserts, lack of kind checking should not be a big problem.
+    What about making templates overloadable on kind? Make kind errors non-fatal and continue lookup? Or compute the Kind of each TycoDefinitionStatement directly?
+      Foo<@T> = Class { T x; };
+      Foo<@T> = Class { T<Int> x; };
+    Or:
+      Foo<@T> = Class { X = (isType<T>() ? T : T<Int>); X x; }
+      We only need one built-in kind-variadic function isType<@T>() (plus conditional tyco expressions) to make all other kind-variadic things
+    This also has the advantage that we don't need KindSpecifiers in the code at all
+  We could separate the parameter identifiers from the template parameters the way that C++ does
+  We could leave it like this - imagine that the KindSpecifier is there on the instantiation but is just suppressed
+
+
+                      Foo<Array<>>  Foo<Array>
+KindSpecifiers        yes           no
+
+Kind of TDS known     yes           no
+Kind-generics         no            yes
+
+Overloadable on kind  yes           no
+
+Variadic templates can't be Kind-checked anyway, so fit better with the Foo<Array> style.
+
+The Foo<Array> style is still statically kind-checked,
