@@ -59,40 +59,15 @@ public:
 #ifdef _WINDOWS
     int initialize(HINSTANCE hInst, INT nCmdShow)
     {
-        BEGIN_CHECKED {
-            BEGIN_CHECKED {
-                _windows.initialize(hInst);
-                _nCmdShow = nCmdShow;
-                initializeWindowsCommandLine();
-                _windows.check();
-            }
-            END_CHECKED(Exception& e) {
-                NullTerminatedWideString s(e.message());
-                MessageBox(NULL, s, L"Error", MB_OK | MB_ICONERROR);
-            }
-        }
-        END_CHECKED(Exception&) {
-            // Can't even display an error
-        }
+        _hInst = hInst;
+        _nCmdShow = nCmdShow;
+        initializeMain();
         return _returnValue;
     }
 #else
     int initialize()
     {
-        BEGIN_CHECKED {
-            console = Handle(GetStdHandle(STD_OUTPUT_HANDLE), Console());
-            if (!console.valid())
-                throw Exception::systemError("Getting console handle");
-            BEGIN_CHECKED {
-                initializeWindowsCommandLine();
-            }
-            END_CHECKED(Exception& e) {
-                console.write(e);
-            }
-        }
-        END_CHECKED(Exception&) {
-            // Can't even display an error
-        }
+        initializeMain();
         return _returnValue;
     }
 #endif
@@ -165,6 +140,45 @@ protected:
     int _returnValue;
 private:
 #ifdef _WIN32
+#ifdef _WINDOWS
+    HINSTANCE _hInst;
+
+    void initializeWindows()
+    {
+        BEGIN_CHECKED {
+            _windows.initialize(_hInst);
+            initializeWindowsCommandLine();
+            _windows.check();
+        }
+        END_CHECKED(Exception& e) {
+            NullTerminatedWideString s(e.message());
+            MessageBox(NULL, s, L"Error", MB_OK | MB_ICONERROR);
+        }
+    }
+
+#endif
+    void initializeMain()
+    {
+        BEGIN_CHECKED {
+            console = Handle(GetStdHandle(STD_OUTPUT_HANDLE), Console());
+            if (!console.valid())
+                throw Exception::systemError("Getting console handle");
+            BEGIN_CHECKED {
+#ifdef _WINDOWS
+                initializeWindows();
+#else
+                initializeWindowsCommandLine();
+#endif
+            }
+            END_CHECKED(Exception& e) {
+                console.write(e);
+            }
+        }
+        END_CHECKED(Exception&) {
+            // Can't even display an error
+        }
+    }
+
     void initializeWindowsCommandLine()
     {
         class WindowsCommandLine

@@ -1141,19 +1141,14 @@ public:
         _screen = processor->screen();
         _matrix = processor->matrix();
         _queue = processor->queue();
-        //_ready.reset();
-        //_finished.reset();
     }
 
     // Signals the thread to come to an end.
     void end() { _ending = true; _ready.signal(); }
 
-    // Wait for a thread to finish if it hasn't already and rethrow the
-    // exception on the main thread if it failed.
+    // Rethrow the exception on the main thread if it failed.
     void check()
     {
-        _finished.wait();
-        //_finished.reset();
         if (_failed)
             throw _exception;
     }
@@ -1161,7 +1156,6 @@ public:
     // Start the thread.
     void go()
     {
-        //_finished.reset();
         _ready.signal();
     }
 
@@ -1277,7 +1271,6 @@ private:
             do {
                 _pointValid = false;
                 _ready.wait();
-                //_ready.reset();
                 do {
                     {
                         Lock lock(_processor);
