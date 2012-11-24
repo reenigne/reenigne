@@ -1,0 +1,11 @@
+      * fractint16  13
+      * float32     22
+      * int32       22 (25 if bailout radius is 2)
+      * fractint32  29
+      * float64     51
+      * int64       54
+      * float80     63
+      * int96       86
+      * int128     118
+      * int32768 32658
+

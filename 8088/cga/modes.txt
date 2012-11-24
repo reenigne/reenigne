@@ -1,0 +1,13 @@
+08 40x25 text, colour, bright background
+09 80x25 text, colour, bright background
+0a 320x200 graphics, colour
+0c 40x25 text, B/W, bright background
+0d 80x25 text, B/W, bright background
+0e 320x200 graphics, B/W
+1a 640x200 graphics, colour
+1e 640x200 graphics, B/W
+28 40x25 text, colour, blinking
+29 80x25 text, colour, blinking
+2c 40x25 text, B/W, blinking
+2d 80x25 text, B/W, blinking
+

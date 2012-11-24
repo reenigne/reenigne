@@ -1,0 +1,469 @@
+Cleanup/refactoring
+-------------------
+* Use gotos in the Matrix operations for readability.
+
+* Make FractalProcessor the Image for the Window and the TexelSource for the
+  TowerGrid to avoid forwarder methods.
+
+* Use split/merge instead of splitLeaf/consolidateLeaf for leaves and slice/unite instead of split/consolidate for grids.
+
+* Get CRTsim running with the new directx.h.
+  * Add managed texture? Or dynamic texture?
+  * Add Direct3DWindow back - just call beginScene/endScene around things.
+
+* Get rid of main() and delete "print" commented out code
+
+* Check correctness of expandMatrix() parameter in update().
+
+
+Performance
+-----------
+* Write hand-optimized assembly (YASM) iteration functions for various CPU
+  micro-architectures.
+  * 96-bit specialization using square function.
+
+* Fractal calculations on the GPU?
+
+* Avoid creating Tower in split() if it won't be needed?
+
+* With SSE we should be able to iterate two double-precision leaves at once.
+  * Or 4 single-precision leaves
+
+* The second grow() is leaving the matrix under-consolidated.
+
+* Still not quite smooth at full screen due to TileGrid::split().
+
+* On a 64-bit machine, is fixed point faster than floating point? If so, we
+  can abandon floating point altogether on these machines.
+
+
+Client/server architecture
+--------------------------
+* Server
+  * Need to associate listening port with IO completion port?
+  * Probably some more error handling needed
+  * Break up overly-large incoming boxes into smaller ones?
+  * Linux/MacOS/Unix versions (epoll, kqueue/kevent, /dev/poll)
+  * Server needs to be robust in face of hostile client.
+    * A box should take no more than a couple of seconds maximum
+    * Since the nature of the task is such that a small packet can generate
+      a lot of CPU work, we can't really protect against a client that
+      attempts to DoS a server with a lot of long-running requests and then
+      throwing away the results.
+      * We should at least be able to recover a few seconds after a rogue
+        client stops responding - tune maximumIterations so that no box takes
+        more than a couple of seconds - this should be possible even with
+        maximum precision.
+    * How to mitigate against client that tries to take more than its fair
+      share by opening multiple connections
+      * Limit number of connections from any given IP address?
+  * Forwarding server: Accepts boxes and then farms them out to other
+    servers, then passes the results back.
+    * Such servers have a latency (iterate locally) vs throughput (farm out)
+      tradeoff. Allow front-end to specify whether it is more interested in
+      latency or throughput?
+  * Handle process getting shut down
+    * Message loop?
+    * Service?
+
+* Client
+  * Config file/UI listing servers to try.
+  * Figure out how to decide how many boxes each server can have out at once
+    * Too few and there's room for more throughput
+    * Too many and we'll get latency, we'll also lose more if the server
+      flakes out on us.
+  * Move server into client process
+    * Share server instantiation between client instantiations on the same
+      machine.
+      * If server process goes away (user might even log off) need to choose
+        a new server process and migrate to it.
+      * Local server should also coordinate memory usage so that we never
+        use more than 80% of physical memory even with multiple
+        instantiations.
+      * In-process box transfer uses memcpy, not sockets
+  * Client needs to be robust in face of hostile server.
+    * Client must trust server to send correct results (and in particular,
+      results that will not cause the client to display an unwanted image).
+      * Could do random spot checks of returned data to check for
+        untrustworthy servers.
+    * Client must trust server not to take data and forget about it - clients
+      can mitigate this by sending boxes to multiple servers and avoiding
+      sending to servers that don't respond in a timely manner.
+      * Measure latency of box sent->box returned, average over last 60 boxes
+        (or boxes sent if less than that). Avoid servers with excessive
+        latency.
+      * Keep server stats on throughput too.
+      * This is tricky because there's no way for a client to distinguish
+        between a server that is hoarding boxes and one that has a very large
+        number of very slow threads. In the latter case we do want to make
+        use of those threads, but we want to keep the faster threads busy
+        too.
+  * Once this is in place, can make the front end completely synchronous,
+    which might simplify it a bit.
+    * Boxing/unboxing should be relatively short operations.
+    * Priority 1: Avoid jerkiness (keep event loop unblocked, especially
+      update and paint).
+    * Priority 2: Keep worker threads supplied with boxes.
+    * Priority 3: consolidateSmallLeaves, finalDelete,
+      consolidateOffScreenLeaves,
+  * Point generations:
+    * Array of structures
+    * Generation is (structure index + offset) mod 2^32
+    * Offset/generation increases when we growMatrix() or shrinkMatrix()
+    * Structure contains:
+      * Transformation between this generation and current generation
+      * Validity square
+      * Number of points of this generation outstanding
+    * If a structure has no validity, remove it.
+
+
+Symmetry
+--------
+* Get DirectX to do the rotation/reflection
+  * Make sure mirrored geometry is plotted.
+  * Figure out how to handle 5-fold symmetry and greater.
+  * Set a suitable visible area (not rectangular in general - may be the
+    intersection of multiple quadrilaterals).
+  * Should be able to handle all symmetries involving rotation, reflection and
+    translation.
+  * Make unit 0 always on a tile corner?
+
+
+Periodicity analysis (aka finite attractor detection)
+--------------------
+* Should implement SOI first, as that is likely to have a larger effect and is
+  useful for outside points as well as inside points.
+
+It would be a huge win to be able to prove that some points are inside the set
+without resorting to periodicity (similar to the existing inSet() method but
+more general).
+  * Determine the period, N.
+  * Determine a point in the fixed cycle by solving f^N(z_f(c)) = z_f(c).
+    * There will be 2^N solutions - we are only interested in the solutions
+      that don't correspond to smaller fixed cycles.
+      * period 1 has 2 solutions
+      * period 2 has 2 solutions (total 4)
+      * period 3 has 6 solutions (total 8)
+      * period 4 has 12 solutions (total 16)
+      * period 5 has 30 solutions (total 32)
+      * period 6 has 54 solutions (total 64)
+      * period 7 has 126 solutions (total 128)
+      * period 8 has 240 solutions (total 256)
+      * period 9 has 504 solutions (total 512)
+      * OEIS: A027375
+    * Multiple solutions correspond to multiple regions with that period?
+    * Use Newton's method or similar to find a solution.
+  * Differentiate f^N and evaluate at the fixed point. If the modulus of the
+    result is less than or equal to 1, the point is in the set.
+    * Can probably use numerical differentiation here - i.e. evaluate two
+      points close together near the fixed point and see if they stay close.
+Tools:
+  * Given a point that has become periodic, find the period.
+  * Store period and fixed-point information in leaf.
+  * Given N, z, c and tolerance find a fixed point zf.
+  * Given N, zf, c and tolerance, determine if the point is in the set.
+    * Can these things be done incrementally?
+
+Algorithm:
+  * Need a third type of leaf to use for periodic points. This leaf contains a
+    period (integer) and fixed point (complex number) as well as a colour.
+  * When a point is determined to be in the set via means other than inSet(),
+    save the fixed point and the period.
+  * When we start iterating a point, check for periodic neighbours. If we find
+    one, find the equivalent fixed point for our point (using a Newton's method
+    derivative) and then do the in-set check. Don't forget to store periodicity
+    and fixed point information about this point too.
+  * When we find a periodic point, do the check for nearby points.
+
+* Storing the period means we have the ability to say a block has detail if its
+  period differs from that of the down or right blocks. Adding this detail will
+  further improve cusps.
+
+* When we find a periodic point, should check neighbouring points for
+  periodicity at that point to avoid excessively iterating other points in the
+  atom?
+  * However, we don't want the operation to take too long or it could cause
+    jerkiness in the animation.
+    * The period-finding step, the fixed-point-finding step and the
+      derivative-checking step all take potentially unbounded time for large
+      periods. This means we need the ability to stop the calculation for
+      screen update and pick it up again afterwards.
+      * May or may not want to always pick up the same calculation.
+        * Picking up the same calculation is more efficient but may mean that
+          we get "stuck" for a long time on a high-period calculation.
+
+* Need a way to remember which periods and fixed-points we've tried.
+  Another 4 bits in each IncompleteLeaf for "tried left", "tried right",
+  "tried up" and "tried down" with splits fixing up these bits appropriately.
+
+* Figure out how periodicity analysis interacts with SOI. What are the possible
+  leaf types and transitions?
+  * Incomplete (SOI incomplete, normal)
+  * Incomplete (SOI complete, normal)
+  * Incomplete (SOI incomplete, finding fixed point)
+  * Incomplete (SOI complete, finding fixed point)
+  * Incomplete (SOI incomplete, checking derivative)
+  * Incomplete (SOI complete, checking derivative)
+  * Incomplete - Floyd determined to be periodic but period not found.
+  * Complete (escaped or inSet)
+  * Complete - periodic and period found.
+
+* As period gets large, do the solutions get very dense causing us to usually
+  find the wrong one? Also long periods make the calculations take longer. Need
+  a cutoff period after which we no longer look for attractors? How to figure
+  out what this cutoff should be? Should it depend on the zoom level?
+
+
+Other formulae/formula compiler
+-------------------------------
+* Generalize to other formulae, including discontinuous ones (will need to
+  subdivide blocks that have the same colour on each side)
+
+Formula compiler
+1) Formula only (e.g. z*z+c) using external compiler (msvc or gcc) dynamically
+   loading dll
+2) Real compiler using JIT class.
+3) Sequences, conditionals, branch cuts, loops, etc.
+
+Some other advantages:
+  Can recompile when changing precision.
+  Can figure out derivatives for SOI purposes automatically.
+  Can optimize for the machine's CPU.
+  Special-purpose compiler could potentially get better performance than a
+  general-purpose one.
+
+
+Colour
+------
+Make a ColourScheme class off FractalWindow.
+
+Colour manipulation functions:
+1) Modify iteration scale factor period - useful for looking at low Hausdorff
+   dimension images
+2) Colour cycle - useful for finding nice transitions
+3) Shift RGB phases - make some nice colours
+4) List of RGB triplets and associated palette index numbers - interpolate
+   between them
+5) Temperature scale
+
+Implement alternate colour scheme RGB 3 cosines coinciding at white at last
+iteration
+
+With the current logarithmic palette, the entire range of iteration numbers
+corresponds to <4 cycles
+
+         1 green
+         6 blue
+        40 red
+       256 green
+      1625 blue
+     10321 red
+     65536 green
+    416128 blue
+   2642246 red
+  16777216 green
+ 106528681 blue
+ 676414963 red
+4294967296 green
+
+A palette editor in log-iteration space should be quite doable. Set colours
+where you like and interpolate the others using splines in perceptual colour
+space (CIE L*a*b*? Assume monitor uses sRGB).
+  UltraFractal's RGB spline palette editor is quite nice too.
+
+To implement real-time colour changes, probably need to send iteration numbers
+and a colour mapping shader to the GPU and do the colour mapping there.
+  * Would need to have separate textures for iteration numbers and RGB.
+  * Send iterations or log(iterations) to GPU?
+    * log is in ps_1_1 - probably faster and more flexible to have the GPU do
+      it.
+  * Probably need to have the iterations texture be A8R8G8B8 for ColorFill to
+    work. We should be able to convert back to 32-bit integer in a shader using
+    shifts, then convert to float, then log, then scale, then do lookup.
+    * 1024 scale gives 4096 (64*64 texture) palette entries
+    * 4096 scale gives 16384 (128*128 texture) palette entries.
+  * Use sampler 0 for the iteration data texture, sampler 1 for the palette
+    texture.
+
+
+Statistics window
+-----------------
+Press Alt to get a menu bar
+  Menu template in resource file
+  LoadMenu/DestroyMenu
+  Pass HMENU to CreateWindow
+
+* Total number of blocks
+  * Number of grid blocks
+  * Number of incomplete points
+  * Number of complete points
+* Maximum iterations
+* Total number of iterations performed
+  * Number of SOI iterations
+  * Number of iterations inside set
+  * Number of iterations outside set
+  * Number of iterations undecided
+* SOI speedup factor
+* Total calculation time
+  * Wall clock time
+  * Core time
+  * Thread usage factor
+* The complex number under the mouse pointer
+* The last used zoom point complex number
+  * Distance between these points
+* Iterations per second
+  * Fading behavior of IPS display is annoying. Keep a queue of last 60 (say)
+    time and iteration values. Keep running total of iteration values. Divide
+    running total by time difference between first and last values.
+* For each block size:
+  Number of complete blocks
+  Number of incomplete blocks
+  Number of grid blocks
+
+http://msdn.microsoft.com/en-us/library/aa511279.aspx
+http://msdn.microsoft.com/en-us/library/bb761230(VS.85).aspx
+
+* Non-modal dialog
+  * http://msdn.microsoft.com/en-us/library/bb775697(VS.85).aspx
+  * http://msdn.microsoft.com/en-us/library/ms645434(VS.85).aspx
+    Use existing Dialog class and implement a non-modal show(). See
+    \prog\proj\Sound\streamdata\streamdata.cpp for an example of Dialog
+    use.
+  * http://msdn.microsoft.com/en-us/library/ms644996(VS.85).aspx
+  * The code in Dialog is very similar to that in Windows - should
+    refactor.
+* Keep a workqueue around for a point size if there are complete leaves of
+  that size, even if there are no incomplete leaves.
+* Keep track of the grid sizes separately in the processor - these don't
+  change with the level.
+
+
+Render mode
+-----------
+Would like to be able to render high-quality fractals of arbitrary resolution
+for printing and making videos.
+
+* To avoid potentially unbounded render time, allow the user to set a maximum
+  number of iterations.
+* Continue to use same guessing method and interior optimizations.
+* Output texels, not pixels (anti-alias with an external graphics program for
+  improved quality). Use c transformations for rotation.
+  * Or use IDirect3DDevice9::GetRenderTargetData()?
+* Need to keep incomplete leaves around for multi-threading purposes, however
+  once a point is started we can always iterate it to completion.
+* Batch mode - once image is completed, load next set of coordinates and
+  continue.
+  * Need a way to specify coordinates - could just have a textual list but
+    would ideally like a language in which a path can be described.
+
+
+Sound
+-----
+Geiger-counter-like - flip a bit whenever we complete a block and sample this
+bit. This will give a click whenever we complete a block, and white noise at
+various frequencies depending on our block throughput.
+  * Can't reliably determine the time to 1-sample accuracy. Can we fake it
+    using the average number of blocks completed over the last tick, and
+    generate a poisson distribution?
+
+
+Orbit window
+------------
+Take the pixel under the mouse pointer to be the center of a 2D gaussian.
+Sample randomly from this and use the samples as C values. Use a slider for
+the gaussian radius. Iterate until periodic, escaped or maximum iterations
+reached. Use a slider for maxiter. Clear window when zooming or moving pointer
+in source window.
+
+
+Multiple windows
+----------------
+Split FractalProcessor up into per-window and per-process sets of classes.
+
+Use same Direct3D device and create a swap chain for each window.
+
+What happens when a window is moved to a different monitor connected to a
+different adapter?
+  * Duplicate all the tiles between the different devices?
+
+We need a window to create a device. What happens if the original window goes
+away but additional windows are still around?
+
+
+Other
+-----
+Features (current):
+  3-phase sine wave palette
+  Logarithmic palette
+  True-colour
+  Anti-aliasing
+  R2a and R2.1/2a elimination
+  Periodicity detection
+  Progressive resolution limit
+  Progressive dwell limit
+  Real-time zooming
+  Direct3D acceleration
+  Multi-core processing
+  Real-time rotation
+  Correct gamma scaling
+  Arbitrary precision
+
+Features (future):
+  Statistics window
+  Render mode
+  Fixed point detection
+  Orbit exploration window
+  Julia set window (forward and reverse)
+  Synchronous orbit iteration
+  Formula compiler
+  Symmetry
+  Colour-cycling/Colour manipulation
+  Use of 64-bit machines
+    64-bit addressing
+    64-bit integer math
+  Use of SSE
+  Use of CUDA
+  IFS, Bifurcation and LSystem fractals?
+    Probably need to restart the entire image when we zoom in past a level.
+  Distance estimator?
+  OpenGL support
+  Nice icon
+    * http://msdn.microsoft.com/en-us/library/aa511280.aspx
+    * http://egressive.com/creating-a-multi-resolution-favicon-microsoft-windows-icon-file-including-transparency-with-the-gimp
+
+
+  Menu bar:
+    Implement exit and restart
+    Suspend/resume
+    priority?
+    New window
+      Change formula
+    Julia set window
+    Orbits window
+    Colour editor
+    Statistics window
+    Render wizard
+    Animation wizard
+    Sound toggle
+  How to deal with multi-window priorities?
+    Have a separate queue set for each priority, and if a leaf is in the wrong queue, move it when we find it
+  Need some way to save current zoom level/coordinates/angle and restore.
+
+Need to limit panning to avoid losing the fractal
+
+
+Fractals involving division
+---------------------------
+Avoid getting overly large numbers by keeping separate numerator and
+denominator values (both fixed or floating point) and dividing both by the same
+number when one gets too large.
+  * What if the denominator gets too small?
+
+z*z + 0.0625i/z + c -> z
+
+x*x - y*y + (x - y)/(x*x + y*y)
+
+How do we know when we've escaped? If infinity is not an attractor then all
+attractors are finite and we need to determine what they are.
+
+What should the initial z be? 0 is not necessarily valid

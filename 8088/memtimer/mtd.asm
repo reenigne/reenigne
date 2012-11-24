@@ -1,5 +1,4 @@
-%include "../macros.asm"
-org 0x100
+%include "../defaults_com.asm"
 
   mov ax,3
   int 0x10

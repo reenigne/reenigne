@@ -1,0 +1,57 @@
+http://zenhabits.net/simple-work/
+
+Main area of todo list is
+
+Views:
+  TODO - full
+  TODO - week
+  TODO - today
+  Regular tasks
+  Calendar
+  Done
+
+
+Filters:
+  Work/Projects/Other
+    Generalize?
+  Blocked/unblocked
+
+TODO item
+  Text
+  Items blocked by this item
+  Items that are blocking this item
+  Parent item
+  Unblocked time/date
+  Completed time/date
+  Deadline time/date
+
+Regular item
+  Text
+  daily/weekly/monthly
+  Daily: recur every N days
+  Weekly: recur every N weeks on which days of the week
+  Monthly: recur on which month
+    on which days OR
+    on first/second/third/fourth/last <days of week>
+  Next trigger
+  Schedule only in previous task not done
+
+If item is (contains) a URL, double-clicking on it should open that link.
+
+Commands:
+  Ctrl-D: done
+  Ctrl-F: find
+  Ctrl-L: edit deadline
+  Ctrl-Up/Down: select
+  Alt-Up/Down: move
+  Ctrl-W: Add to weekly list
+  Ctrl-T: Add to daily list
+
+Serialization:
+  ALFE-esque (like 8088)
+
+
+1 - read a bunch of objects from a file, parse
+2 - create a window and display items
+3 - add a cursor and move it around
+4 - modification of text

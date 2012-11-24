@@ -1,4 +1,4 @@
-%include "../macros.asm"
+%include "../defaults_bin.asm"
 
   mov al,0x34
   out 0x43,al

@@ -34,6 +34,7 @@ a*b = (a+b)^2/4 - (a-b)^2/4
 3*3 = 6^2/4 -  0^2/4 = 9 - 0 = 9
 
 
+16-bit:
 
   ; inputs in bx and cx
   mov si,offset table  ; 3 0 12  4
@@ -54,6 +55,16 @@ a*b = (a+b)^2/4 - (a-b)^2/4
   sub ax,[si+bx]       ; 2 2 16 20
   sub si,cx            ; 2 0  8  3
 
+  ; inputs in si and bx, table at 0 - 56 cycles
+  shl bx,1             ; 2 0  8  2
+  shl si,1             ; 2 0  8  2
+  mov ax,[si+bx]       ; 2 2 16 19
+  neg bx               ; 2 0  8  3
+  sub ax,[si+bx]       ; 2 2 16 20
+
+
+8-bit:
+
   ; Inputs in bx and cx
   add bx,cx            ; 2 0  8  3
   mov al,[si+bx]       ; 2 2 12 15
@@ -67,4 +78,15 @@ a*b = (a+b)^2/4 - (a-b)^2/4
   neg bx               ; 2 0  8  3
   sub al,[si+bx]       ; 2 2 12 16
   sub si,cx            ; 2 0  8  3
+
+  ; Inputs in si and bx, table at 0 - 34 cycles
+  mov al,[si+bx]       ; 2 2 12 15
+  neg bx               ; 2 0  8  3
+  sub al,[si+bx]       ; 2 2 12 16
+
+  ; Inputs in si and bl, full table at 0 - 20 cycles
+  xchg bh,bl           ; 2 0  8
+  mov al,[si+bx]       ; 2 2 12 15
+
+
 

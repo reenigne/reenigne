@@ -1,0 +1,285 @@
+1) SOI data won't really fit in 32-bit address space - target a 64-bit machine
+   with 8Gb of memory.
+2) We don't really know if the benefits of SOI will be significant. Try it and
+   see. Is it easier to do this by rewriting Matrix with 2x2 grids or by using
+   the current Matrix?
+   * Current Matrix should be reasonably well suited to SOI, probably easier to
+     keep it.
+   * We're keeping the defragmentation code anyway which is the slipperiest
+     part.
+3) If SOI works, long term:
+   Move to 64-bit only (integer only?)
+   Deoptimize
+   * Keep 32-bit code around for as long as it makes sense to.
+
+
+
+
+With SOI, CompleteLeaf is much larger and many of the Matrix optimizations are
+no longer so important
+  sizeof(CompleteLeaf) == 44 bytes at precision 0 (+ 24 bytes per precision)
+  Store precision and BlockType with each leaf
+    9% per additional dword (one if we use a single BlockType+precision word,
+      two if we use a vtable pointer and a precision dword)
+    1.3Gb 1.4Gb 1.5Gb
+  Make all grids 2x2 - each now takes 16 bytes
+    For each leaf we need 4 + 1 + 1/4 + 1/16 + 1/64 + ... = 5.33333 = 16/3 
+
+At 1600*1200*4*4:
+  4-byte CompleteLeaf: 117Mb
+  +SOI: 1172Mb
+  +1 precision: 703Mb
+  20-byte grid: 195Mb
+
+64-bit:
+  2x2 grid is 40 bytes
+  CompleteLeaf (64-bit precision) is 88 bytes
+  IncompleteLeaf (64-bit precision) is 128 bytes
+
+32-bit:
+  2x2 grid is 20 bytes
+  CompleteLeaf (64-bit precision) is 68 bytes
+  IncompleteLeaf (64-bit precision) is 104 bytes
+
+
+
+
+Deoptimization 1:
+  Make all grids 2x2 and move the block type to the leaves
+  
+Deoptimization 2:
+  Give Grid, Leaf, IncompleteLeaf and CompleteLeaf a vtable
+
+                                             deoptimization
+                                               0    1    2
+Complete image 32-bit no SOI                 117  430  547
+Incomplete image 32-bit, precision 1 no SOI 
+
+3200*2400*(
+  5*4 + 5*20 + 3*
+  
+
+Grid 20 bytes
+CompleteLeaf 12 bytes
+1600*1200*16*(12 + 20/3) = 
+
+
+
+Incomplete image 32-bit, precision 2 no SOI 
+Incomplete image 32-bit, precision 3 no SOI 
+Incomplete image 32-bit, precision 4 no SOI 
+Complete image 32-bit, precision 1 SOI 
+Complete image 32-bit, precision 2 SOI 
+Complete image 32-bit, precision 3 SOI 
+Complete image 32-bit, precision 4 SOI 
+Incomplete image 32-bit, precision 1 SOI              2119
+Incomplete image 32-bit, precision 2 SOI 
+Incomplete image 32-bit, precision 3 SOI 
+Incomplete image 32-bit, precision 4 SOI              5742 
+
+Complete image 64-bit, precision 1 no SOI 
+Complete image 64-bit, precision 2 no SOI 
+Incomplete image 64-bit, precision 1 no SOI 
+Incomplete image 64-bit, precision 2 no SOI 
+Incomplete image 64-bit, precision 1 SOI 
+Incomplete image 64-bit, precision 2 SOI    6738      6328
+Complete image 64-bit, precision 1 SOI 
+Complete image 64-bit, precision 2 SOI 
+
+
+With all deoptimizations:
+  Grid is 48 bytes
+  CompleteLeaf is 8+ 8+8 + 8 + 8 + 4 + 4 + 8 + 6*16 = 152 bytes
+  IncompleteLeaf is 8+ 8+8 + 8 + 8 + 4 + 4 + 8 + 6*16 + 4*16  = 216 bytes
+
+3200*2400*(48 + 152 + 3*216 + 48/3) = 6328Mb
+
+
+With no deoptimizations:
+  Grid is 4+4+4+4 = 16 bytes
+  CompleteLeaf is 4 + 4+4 + 4 + 4 + 4 + 6*16 = 120 bytes
+  IncompleteLeaf is 4 + 4+4 + 4 + 4 + 4 + 6*16 + 4 + 4*16 = 188 bytes
+  
+(5*4 + 5*16 + 3*188 + 1*120)*3200*2400 = 5742 - won't fit in 32-bit!
+
+
+At 64-bit:
+  Grid is 8+8+8 = 24 bytes
+  CompleteLeaf is 8 + 8+8 + 4 + 4 + 8 + 6*16 = 136 bytes
+  IncompleteLeaf is 8 + 8+8 + 4 + 4 + 8 + 6*16 + 8 + 4*16 = 208 bytes
+  
+(5*8 + 5*24 + 3*208 + 1*136)*3200*2400 = 6738Mb - larger than with deoptimizations!
+(due to redundant grid headers)
+
+
+
+At 32-bit with precision 1, all deoptimizations:
+  Grid is 4+4+4+4 = 16 bytes
+  CompleteLeaf is 4 + 4 + 4+4 + 4 + 4 + 4 + 6*4 = 52 bytes
+  IncompleteLeaf is 4 + 4 + 4+4 + 4 + 4 + 4 + 6*4 + 4 + 4*4 = 72 bytes
+  
+3200*2400*(16 + 52 + 3*72 + 16/3) = 2119Mb - won't fit in 32-bit!
+
+
+  
+
+
+Rough memory usage computations
+-------------------------------
+Block header                     8 bytes
+Grid header                     12 bytes
+CompleteLeaf or GridBlock block  4 bytes
+IncompleteLeaf header           20 bytes
+IncompleteLeaf per precision    16 bytes
+
+
+Assume a maximum screen resolution of 1600*1200, and a maximum number of texels
+per pixel of 16. Then the number of blocks is 6400*4800. IncompletePoint is the
+largest point, so assume all points are incomplete.
+
+Using doubles and no SOI (56-byte IncompletePoint), maximum memory usage is
+~1523Mb.
+
+The number of grids is at most 1/3 the number of points, so the grid overhead
+is at most ~156Mb (12 bytes per grid, plus 4 bytes for its pointer in another
+grid).
+
+Adding 4 bytes to Grid adds about 40Mb total
+Adding 4 bytes to IncompletePoint adds about 117Mb total
+
+For SOI we'll need to add at least 4 complex numbers to IncompletePoint, or
+64 bytes, or 1875Mb for a total of 3398Mb.
+
+For 64-bit, add 4 bytes to Grid and 12 bytes to IncompletePoint.
+
+Maximum memory usage would be if we have a 3200*2400 full-detail complete image
+and then we split all points.
+3200*2400 superblocks. At each of these,
+  5*GridBlock         = 5*4  =  20
+  5*Grid              = 5*12 =  60
+  3*IncompletePoint   = 3*52 = 156 (+/- 48 bytes per precision level)
+  1*CompletePoint     = 1*4  =   4
+  5*Block headers     = 5*8  =  40
+  total 280 bytes (+ 5 malloc overheads)
+    ~= 2051Mb at precision 1 (+/- 352Mb per precision level)
+
+
+SOI additionally:
+  4*64 = 256
+
+Limit grid size additionally costs:
+1/4 + 1/16 + 1/64 + ... = 1/3 of a grid = 16/3  = ~40Mb or about 2%
+
+
+Because of the way we create incomplete leaves, we should very rarely have
+incomplete grids more than 2 or 3 in size.
+
+size                                              Complete/Grid
+           raw        Grid       Block       Chunk number  slack
+0         0x04        0x10        0x18
+1         0x10        0x1c        0x24
+2         0x40        0x4c        0x54
+3        0x100       0x10c       0x114
+4        0x400       0x40c       0x414
+5       0x1000      0x100c      0x1014
+6       0x4000      0x400c      0x4014
+7      0x10000     0x1000c     0x10014
+8      0x40000     0x4000c     0x40014
+9     0x100000    0x10000c    0x100014
+a     0x400000    0x40000c    0x400014
+b    0x1000000   0x100000c   0x1000014
+c    0x4000000   0x400000c   0x4000014
+d   0x10000000  0x1000000c  0x10000014
+e   0x40000000  0x4000000c  0x40000014
+f  0x100000000 0x10000000c 0x100000014
+
+size                                                 Incomplete precision 0
+           raw        Grid       Block       Chunk number  slack
+0         0x24        0x30        0x38
+1         0x90        0x9c        0xa4
+2        0x240       0x24c       0x254
+3        0x900       0x90c       0x914
+4       0x2400      0x240c      0x2414
+5       0x9000      0x900c      0x9014
+6      0x24000     0x2400c     0x24014
+7      0x90000     0x9000c     0x90014
+8     0x240000    0x24000c    0x240014
+9     0x900000    0x90000c    0x900014
+a    0x2400000   0x240000c   0x2400014
+b    0x9000000   0x900000c   0x9000014
+c   0x24000000  0x2400000c  0x24000014
+d   0x90000000  0x9000000c  0x90000014
+e  0x240000000 0x24000000c 0x240000014
+f  0x900000000 0x90000000c 0x900000014
+
+size                                                 Incomplete precision 1
+           raw        Grid       Block       Chunk number  slack
+0         0x34        0x40        0x48
+1         0xd0        0xdc        0xe4
+2        0x340       0x34c       0x354
+3        0xd00       0xd0c       0xd14
+4       0x3400      0x340c      0x3414
+5       0xd000      0xd00c      0xd014
+6      0x34000     0x3400c     0x34014
+7      0xd0000     0xd000c     0xd0014
+8     0x340000    0x34000c    0x340014
+9     0xd00000    0xd0000c    0xd00014
+a    0x3400000   0x340000c   0x3400014
+b    0xd000000   0xd00000c   0xd000014
+c   0x34000000  0x3400000c  0x34000014
+d   0xd0000000  0xd000000c  0xd0000014
+e  0x340000000 0x34000000c 0x340000014
+f  0xd00000000 0xd0000000c 0xd00000014
+
+size                                                 Incomplete precision 2
+           raw        Grid       Block       Chunk number  slack
+0         0x44        0x50        0x58
+1        0x110       0x11c       0x124
+2        0x440       0x44c       0x454
+3       0x1100      0x110c      0x1114
+4       0x4400      0x440c      0x4414
+5      0x11000     0x1100c     0x11014
+6      0x44000     0x4400c     0x44014
+7     0x110000    0x11000c    0x110014
+8     0x440000    0x44000c    0x440014
+9    0x1100000   0x110000c   0x1100014
+a    0x4400000   0x440000c   0x4400014
+b   0x11000000  0x1100000c  0x11000014
+c   0x44000000  0x4400000c  0x44000014
+d  0x110000000 0x11000000c 0x110000014
+e  0x440000000 0x44000000c 0x440000014
+f 0x11000000000x110000000c0x1100000014
+
+size                                                 Incomplete precision 3
+           raw        Grid       Block       Chunk number  slack
+0         0x54        0x60        0x68
+1        0x150       0x15c       0x164
+2        0x540       0x54c       0x554
+3       0x1500      0x150c      0x1514
+4       0x5400      0x540c      0x4514
+5      0x15000     0x1500c     0x15014
+6      0x54000     0x5400c     0x54014
+7     0x150000    0x15000c    0x150014
+8     0x540000    0x54000c    0x540014
+9    0x1500000   0x150000c   0x1500014
+a    0x5400000   0x540000c   0x5400014
+b   0x15000000  0x1500000c  0x15000014
+c   0x54000000  0x5400000c  0x54000014
+d  0x150000000 0x15000000c 0x150000014
+e  0x540000000 0x54000000c 0x540000014
+f 0x15000000000x150000000c0x1500000014
+
+
+
+consolidateLeaf() currently requires that it is impossible for a 2x2 and a 1x1
+grid to be the same size.
+
+
+CompleteLeaf 4 bytes
+IncompleteLeaf: 20 bytes + (precision + 1)*16 bytes
+  precision size
+  0         0x24
+  1         0x34
+  2         0x44
+  3         0x54
+  4         0x64

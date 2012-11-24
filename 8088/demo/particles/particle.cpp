@@ -26,13 +26,107 @@ static const Bool true = 1;
 static const Bool false = 0;
 
 static const UInt8 particleCode[] = {
-    0xbf, 0x00, 0x00,        // mov di,0000
-    0xaa,                    // stosb
-    0xd1, 0xe7,              // shl di,1
-    0x8b, 0x3d,              // mov di,[di]
-    0x26, 0x88, 0x25,        // es: mov [di],ah
-    0x89, 0x3e, 0x00, 0x00,  // mov [0000],di
+    0xbf, 0x00, 0x00,        // mov di,0000          3 0 12
+    0xaa,                    // stosb                1 1  8 +~6
+    0xd1, 0xe7,              // shl di,1             2 0  8
+    0x8b, 0x3d,              // mov di,[di]          2 2 16
+    0x26, 0x88, 0x25,        // es: mov [di],ah      3 1 16 +~6
+    0x89, 0x3e, 0x00, 0x00,  // mov [0000],di        4 2 24           ~96
 };
+
+// mov di,0000        ; old particle position                      3 0 12
+// stosb                                                           1 1  8 +6
+// mov di,[0000]      ; particle data pointer                      4 2 24
+// cs: inc b[0000]    ; address of offset in previous instruction  4 4 32
+// es: mov [di],ah                                                 3 1 16 +6
+// mov [0000],di      ; address of offset in first instruction     4 2 24      ~128
+
+
+
+// mov di,0000        ; old particle position                   3 0 12
+// stosb                                                        1 1  8 +6
+// mov di,[si+0000]   ; table offset                            4 2 24
+// es: mov [di],ah                                              3 1 16 +6
+// mov [0000],di      ; address of offset in first instruction  4 2 24          ~96
+//
+// 1024 particles, 64 frames per track, 32768 positions, 2 particles per track
+
+
+
+// mov di,[bp+0]      3 2 20
+// lodsw              1 2 12
+// es: and [di],al    3 2 20 +12
+// mov di,[bp+4]      3 2 20
+// es: or [di],ah     3 2 20 +12        ~124
+//
+// One BP value covers 256 bytes or 128 positions or 4 particles
+//  add bp,cx          2 0  8           ~126
+
+// lodsw              1 2 12
+// mov di,ax          2 0  8
+// lodsw              1 2 12
+// es: and [di],al    3 2 20 +12
+// mov di,[si]        2 2 16
+// es: or [di],ah     3 2 20 +12
+// add si,0000        4 0 16
+
+// 2 bytes: Position
+// 1 byte: Erase mask for previous position
+// 1 byte: Draw bits for next position
+
+
+// Put draw/erase bits in DS, positions in SS
+//  pop di            1 2 12
+//  lodsw             1 2 12
+//  es: and [di],al   3 2 20 +12
+//  pop di            1 2 12
+//  es: or [di],ah    3 2 20 +12
+
+// Everything in CS:
+//  and b[0000],00    5 2 28 +12
+//  or b[0000],00     5 2 28 +12     ~80 cycles
+// 10 bytes per position = 320K for 32768 positions
+// 10K per frame, repeats 2x per second!
+
+// To avoid a short repeat, we need to distribute the stars randomly throughout the positions array
+//  Need a random position in the code for each particle
+//  Add this to BP which increases each frame
+//  Then use the result to lookup
+
+// lea si,[bp+0000]   4 0 16       ; particle offset
+// lodsw              1 2 12
+// mov di,[si]        2 2 16
+// es: and [di],al    3 2 20 +12
+// mov di,[si+2]      3 2 20
+// es: or [di],ah     3 2 20 +12    ~128 <== 622 particles
+
+// lea sp,[bp+0000]   4 0 16       ; particle offset
+// pop ax             1 2 12
+// pop di             1 2 12
+// and [di],al        2 2 16 +12
+// pop di             1 2 12
+// or [di],ah         2 2 16 +12    ~108 <== 737 particles
+
+// At the end of the frame we could also do a reverse lookup and update the positions for some particles which have just left the screen?
+
+// Without proper draw/erase:
+
+// lea sp,[bp+0000]   4 0 16       ; particle offset
+// pop di             1 2 12
+// stosb              1 1  8 +6
+// pop di             1 2 12
+// mov [di],ah        2 1 12 +6     ~72 <==  1106 particles
+
+
+
+// In current implementation, coordinate is multiplied by 17/16 each frame, which gives about 46 frames maximum (usually much less, since most particles don't appear at the center)
+// On average, particle lifetime is 16384/948 = 17 frames!
+
+
+
+
+
+// Should we
 
 static const UInt8 headerCode[] = {
 //    0xcc,                    // int 3
@@ -45,14 +139,14 @@ static const UInt8 headerCode[] = {
     0x8e, 0xc0,              // mov es,ax
     0x0e,                    // push cs
     0x1f,                    // pop ds
-    0xb8, 0x00, 0xff,        // mov ax,0ff00
-    0xb9, 0x55, 0xaa,        // mov cx,0aa55
-    0xba, 0x11, 0x22,        // mov dx,02211
-    0xbb, 0xdd, 0xee         // mov bx,0eedd
-//   0xb8, 0x00, 0xc0,
-//   0xb9, 0x20, 0x0c,
-//   0xba, 0x02, 0x01,
-//   0xbb, 0x04, 0x10
+//    0xb8, 0x00, 0xff,        // mov ax,0ff00
+//    0xb9, 0x55, 0xaa,        // mov cx,0aa55
+//    0xba, 0x11, 0x22,        // mov dx,02211
+//    0xbb, 0xdd, 0xee         // mov bx,0eedd
+   0xb8, 0x00, 0xc0,
+   0xb9, 0x30, 0x0c,
+   0xba, 0x10, 0x04,
+   0xbb, 0x01, 0x02
 };
 
 static const UInt8 footerCode[] = {

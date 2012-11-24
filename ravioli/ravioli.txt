@@ -36,3 +36,100 @@ Raviolo (64-bit):     64 bytes
 38 bits spare
 
 
+Storing N bytes of data requires 32N/24 ravioli for the data itself
+Plus the same again for the array tree
+Overhead = 40/24 = 167%
+
+
+
+Suppose that instead of pointers forming linked lists, we enforce that no more than two pointers can point to any given raviolo.
+Then we can make ravioli just four pointers each instead of 8:
+
+So, a normal (forward) 2-pointer raviolo contains:
+  vtable pointer
+  child A pointer
+  child B pointer
+  pointer to pointer
+
+And a reference (backward) raviolo contains:
+  vtable pointer
+  reference A pointer
+  reference B pointer
+  pointer to pointee
+
+Suppose we have a pointer to a raviolo and we wish to get some information from that raviolo.
+The algorithm is:
+  Dereference the pointer to get to either the raviolo we're looking for, or a reference raviolo
+  Use the vtable pointer to determine how many levels we need to dereference
+  Walk down the tree the right number of times.
+
+To store a pointer to a ravioli, we need to get the location of that pointer into the reference tree.
+If "pointer to pointer" is null, store it there
+Otherwise, dereference pointer to pointer to get the first reference raviolo
+  If we reach a non-reference raviolo, create a reference raviolo, and fill it in
+  Otherwise, walk the tree to find the best place to put the pointer, keeping the tree as balanced as possible.
+
+Similarly when removing a pointer
+
+
+What's the maximum number of dereferences we'd have to do to get to a raviolo?
+  Suppose we have a 64-bit machine with 2^64 bytes of memory and we fill up that memory with pointers to a single raviolo
+    Each raviolo is 32 bytes
+    There will be (slightly less than) 2^(64-5) ravioli in total
+    Half of those are taken up by reference ravioli and our target, so we have 2^58 references
+
+  1 pointer = 0 extra dereferences
+  2 pointers = 1 extra dereferences
+  2^n pointers = n extra references
+
+  58 extra references.
+
+On a 32-bit machine, 27 extra references.
+
+
+So, given any object we can find all objects which refer to it
+Which means that we have not just built-in reference counting, but built-in reference enumeration
+
+
+Suppose we have a raviolo R and an array A of 16 pointers to R. The ravioli we have are:
+  name                  vTable   a                    b                    pp
+
+  R                                                                        R.references
+  A[0..1]               normal2  R.references[0..1]   R.references[0..1]   &A[0..3].a
+  A[2..3]               normal2  R.references[2..3]   R.references[2..3]   &A[0..3].b
+  A[4..5]               normal2  R.references[4..5]   R.references[4..5]   &A[4..7].a
+  A[6..7]               normal2  R.references[6..7]   R.references[6..7]   &A[4..7].b
+  A[8..9]               normal2  R.references[8..9]   R.references[8..9]   &A[8..11].a
+  A[10..11]             normal2  R.references[10..11] R.references[10..11] &A[8..11].b
+  A[12..13]             normal2  R.references[12..13] R.references[12..13] &A[12..15].a
+  A[14..15]             normal2  R.references[14..15] R.references[14..15] &A[12..15].b
+  A[0..3]               normal2  A[0..1]              A[2..3]              &A[0..7].a
+  A[4..7]               normal2  A[4..5]              A[6..7]              &A[0..7].b
+  A[8..11]              normal2  A[8..9]              A[10..11]            &A[8..15].a
+  A[12..15]             normal2  A[12..13]            A[14..15]            &A[8..15].b
+  A[0..7]               normal2  A[0..3]              A[4..7]              &A.a
+  A[8..15]              normal2  A[8..11]             A[12..15]            &A.b
+  A                     normal2  A[0..7]              A[8..15]
+  R.references[0..1]    refs4    &A[0..1].a           &A[0..1].b           &R.references[0..3].a
+  R.references[2..3]    refs4    &A[2..3].a           &A[2..3].b           &R.references[0..3].b
+  R.references[4..5]    refs4    &A[4..5].a           &A[4..5].b           &R.references[4..7].a
+  R.references[6..7]    refs4    &A[6..7].a           &A[6..7].b           &R.references[4..7].b
+  R.references[8..9]    refs4    &A[8..9].a           &A[8..9].b           &R.references[8..11.a
+  R.references[10..11]  refs4    &A[10..11].a         &A[10..11].b         &R.references[8..11].b
+  R.references[12..13]  refs4    &A[12..13].a         &A[12..13].b         &R.references[12..15].a
+  R.references[14..15]  refs4    &A[14..15].a         &A[14..15].b         &R.references[12..15].b
+  R.references[0..3]    refs3    R.references[0..1]   R.references[2..3]   &R.references[0..7].a
+  R.references[4..7]    refs3    R.references[4..5]   R.references[6..7]   &R.references[0..7].b
+  R.references[8..11]   refs3    R.references[8..9]   R.references[10..11] &R.references[8..15].a
+  R.references[12..15]  refs3    R.references[12..13] R.references[14..15] &R.references[8..15].b
+  R.references[0..7]    refs2    R.references[0..3]   R.references[4..7]   &R.references.a
+  R.references[8..15]   refs2    R.references[8..11]  R.references[12..15] &R.references.b
+  R.references          refs1    R.references[0..7]   R.references[8..15]  R
+
+Suppose we want to move R
+  Then we only have to update R.references (R.pp.pp)
+Suppose we want to move A[4..7]
+  Then we have to update A[4..5] (A[4..7].a.pp), A[6..7] (A[4..7].b.pp) and A[0..7] (A[4..7].pp.b)
+
+Suppose we want to store a pointer to A[4..7] somewhere
+

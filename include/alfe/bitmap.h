@@ -16,9 +16,9 @@ public:
     {
         return _implementation->load(file);
     }
-    void save(Bitmap<Pixel>& bitmap, const File& file)
+    void save(Bitmap<Pixel>& bitmap, const File& file) const
     {
-        return _implementation->save(file);
+        return _implementation->save(bitmap, file);
     }
 protected:
     class Implementation : public ReferenceCounted
@@ -85,7 +85,7 @@ template<class Pixel> class Bitmap
     {
     public:
         Implementation() { }
-        Implementation(int bytes) : _implementation(create(bytes)) { }
+        Byte* topLeft() { return pointer(); }
     };
 public:
     Bitmap() : _size(0, 0) { }
@@ -93,8 +93,8 @@ public:
     {
         _stride = size.x*sizeof(Pixel);
         _size = size;
-        _implementation = Implementation(_stride * size.y);
-        _topLeft = _data.pointer();
+        _implementation = Implementation::create(_stride * size.y);
+        _topLeft = _implementation->topLeft();
     }
 
     bool valid() const { return _implementation.valid(); }
@@ -311,8 +311,8 @@ public:
     }
 
 private:
-    Bitmap(const Reference<Implementation>& data, Byte* topLeft, Vector size,
-        int stride)
+    Bitmap(const Reference<Implementation>& implementation, Byte* topLeft,
+        Vector size, int stride)
       : _implementation(implementation), _topLeft(topLeft), _size(size),
         _stride(stride)
     { }

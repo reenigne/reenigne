@@ -73,7 +73,7 @@ private:
     }
     void modify(T* referent)
     {
-        if (referent != _referent)
+        if (referent == _referent)
             return;
         reset();
         set(referent);
@@ -127,7 +127,7 @@ private:
     }
     void modify(const T* referent)
     {
-        if (referent != _referent)
+        if (referent == _referent)
             return;
         reset();
         set(referent);

@@ -176,6 +176,23 @@ private:
                 case VK_F8:       scanCode = 0x42; break;
                 case VK_F9:       scanCode = 0x43; break;
                 case VK_F10:      scanCode = 0x44; break;
+                case VK_F11:      // Ctrl+Alt+Del
+                    if (up) {
+                        _program->sendByte(0x1d);
+                        _program->sendByte(0x38);
+                        _program->sendByte(0x53);
+                    }
+                    else {
+                        _program->sendByte(0x9d);
+                        _program->sendByte(0xb8);
+                        _program->sendByte(0xd3);
+                    }
+                    return;
+                case VK_F12:      // Power cycle
+                    if (up)
+                        return;
+                    scanCode = 0x77;
+                    break;
                 case VK_NUMLOCK:  scanCode = 0x45; break;
                 case VK_SCROLL:   scanCode = 0x46; break;
                 case VK_SHIFT:
@@ -196,7 +213,7 @@ private:
                 case VK_OEM_PLUS: scanCode = 0x0d; break;
                 case VK_OEM_COMMA: scanCode = 0x33; break;
                 case VK_OEM_MINUS: scanCode = 0x0c; break;
-                case VK_OEM_PERIOD: scanCode = 0x34; break;
+                case VK_OEM_PERIOD: scanCode = 0x34; break;     
                 case VK_OEM_2:    scanCode = 0x35; break;
                 case VK_OEM_3:    scanCode = 0x29; break;
                 case VK_OEM_4:    scanCode = 0x1a; break;

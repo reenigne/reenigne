@@ -456,11 +456,13 @@ public:
 
     ~CPUTextureLock() { _texture->_texture->UnlockRect(0); }
 
+    int stride() const { return _lockData.Pitch; }
+    Byte* data() const { return reinterpret_cast<Byte*>(_lockData.pBits); }
+
     void plotBlock(Vector texel, int size, DWORD colour)
     {
-        int pitch = _lockData.Pitch;
-        Byte* p = reinterpret_cast<Byte*>(_lockData.pBits) + texel.y*pitch +
-            texel.x*4;
+        int pitch = stride();
+        Byte* p = data() + texel.y*pitch + texel.x*4;
         for (int y = 0; y < size; ++y) {
             DWord* l = reinterpret_cast<DWord*>(p);
             for (int x = 0; x < size; ++x)

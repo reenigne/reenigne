@@ -1,0 +1,18 @@
+We have a set of objects created during parsing (ParseTreeObjects), which have span()s.
+Some objects (e.g. types and functions) aren't created during parsing, so have no span()s.
+To avoid carrying a lot of excess empty Span variables around, we should have objects without spans, and have the ParseTreeObjects point to them (own them).
+Some of these objects will have (weak) back pointers to the ParseTreeObjects.
+
+What should symbol tables contain?
+  Key is an Identifier (or TycoIdentifier)
+  Value is an object without span
+
+
+OR:
+Forget about having a separate Type class, and put everything in the ParseTreeObject
+
+
+The advantage of having Tyco separate from TycoDefinitionStatement is not (just) avoid having excess Spans floating around. It is that:
+  1) there are Tyco objects which have no associated TycoDefinitionStatement
+  2) there are TycoDefinitionStatements which have no associated Tyco
+  3) the two classes are used in different ways and have different connotations

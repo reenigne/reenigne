@@ -1,4 +1,4 @@
-%include "../macros.asm"
+%include "../defaults_bin.asm"
 
   mov al,0x34
   out 0x43,al
@@ -237,287 +237,355 @@ codePreambleEnd:
 
 experimentData:
 
-experimentJJ:
-  db "pearce_jj$"
+experimentMOVSBstring:
+  db "MOVSB string$"
   dw .endInit - ($+2)
   mov ax,0x9000
   mov ds,ax
+  mov ax,0xb800
   mov es,ax
-  mov dx,0x3d8
   mov si,0
   mov di,0
 .endInit:
   dw .endCode - ($+2)
-  in ax,dx
-  stosw
+  movsb
 .endCode:
 
-experimentJK:
-  db "Jordan Knight$"
+experimentMOVSWstring:
+  db "MOVSW string$"
   dw .endInit - ($+2)
   mov ax,0x9000
   mov ds,ax
+  mov ax,0xb800
   mov es,ax
   mov si,0
   mov di,0
 .endInit:
   dw .endCode - ($+2)
-  lodsw
-  mov bx,ax
-  mov ax,[es:di]
-  and al,bh
-  or al,bl
-  stosw
+  movsw
 .endCode:
 
-experimentJL:
-  db "Jim Leonard$"
+experimentLODSBSTOSBstring:
+  db "LODSB STOSB string$"
   dw .endInit - ($+2)
   mov ax,0x9000
   mov ds,ax
+  mov ax,0xb800
   mov es,ax
   mov si,0
   mov di,0
 .endInit:
   dw .endCode - ($+2)
-  mov dx,[bx+3]
-  lodsw
-  and al,ah
-  or al,dl
-  stosw
-.endCode:
-
-experimentAJ:
-  db "Andrew Jenner$"
-  dw .endInit - ($+2)
-  mov ax,0x9000
-  mov ds,ax
-  mov es,ax
-  mov si,0
-  mov di,0
-.endInit:
-  dw .endCode - ($+2)
-  mov ax,[bx+3]
-  and al,[di]
-  or al,ah
+  lodsb
   stosb
-  inc di
 .endCode:
 
-
-experiment1:
-  db "retrace loop$"
+experimentLODSWSTOSWstring:
+  db "LODSW STOSW string$"
   dw .endInit - ($+2)
-  mov dx,0x3d9
+  mov ax,0x9000
+  mov ds,ax
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
 .endInit:
   dw .endCode - ($+2)
-  in al,dx
-  test al,1
-  jz .endCode
-.endCode
+  lodsw
+  stosw
+.endCode:
 
-experiment2:
-  db "retrace found$"
-  dw .endInit - ($+2)
-  mov dx,0x3d9
-.endInit:
-  dw .endCode - ($+2)
-  in al,dx
-  test al,1
-  jnz .endCode
-.endCode
-
-%macro setNextStartAddress 0       ;    23
-    mov bl,ch                      ; 2 0 2
-    mov bh,0x34                    ; 2 0 2
-    mov ah,[bx]                    ; 2 1 3
-    mov al,0x0d                    ; 2 0 2
-    out dx,ax                      ; 1 2 3
-    mov ah,[bx+0x100]              ; 4 1 5
-    dec ax                         ; 1 0 1
-    out dx,ax                      ; 1 2 3
-    add cx,si                      ; 2 0 2
-%endMacro
-
-experiment3:
-  db "scanline 0$"
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-
-  mov dl,0xd4                                           ; 2 0 2   2
-  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
-  out dx,ax                                             ; 1 2 3   8
-  mov ax,0x1902 ; 2: Horizontal sync position: 25       ; 3 0 3  11
-  out dx,ax                                             ; 1 2 3  14
-  mov ax,0x0104 ; 4: Vertical total: 2 rows/frame       ; 3 0 3  17
-  out dx,ax                                             ; 1 2 3  20
-  times 7 nop                                           ; 1 0 1  27
-
-  ; Set length of second part of scanline
-  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
-  out dx,ax                                             ; 1 2 3  33
-
-  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
-
-  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
-  mov dl,0xda                                           ; 2 0 2  58
-.endCode
-
-experiment3a:
-  db "scanline 0a$"
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-
-  mov dl,0xd4                                           ; 2 0 2   2
-  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
-  out dx,ax                                             ; 1 2 3   8
-  mov ax,0x1902 ; 2: Horizontal sync position: 25       ; 3 0 3  11
-  out dx,ax                                             ; 1 2 3  14
-  mov ax,0x0104 ; 4: Vertical total: 2 rows/frame       ; 3 0 3  17
-  out dx,ax                                             ; 1 2 3  20
-  times 7 nop                                           ; 1 0 1  27
-.endCode
-
-experiment4:
-  db "scanlines 1-198$"
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-
-  mov dl,0xd4                                           ; 2 0 2   2
-  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
-  out dx,ax                                             ; 1 2 3   8
-  times 19 nop                                          ; 1 0 1  27
-
-  ; Set length of second part of scanline
-  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
-  out dx,ax                                             ; 1 2 3  33
-
-  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
-
-  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
-  mov dl,0xda                                           ; 2 0 2  58
-.endCode
-
-experiment4a:
-  db "scanlines 1-198a$"
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-
-  mov dl,0xd4                                           ; 2 0 2   2
-  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
-  out dx,ax                                             ; 1 2 3   8
-  times 19 nop                                          ; 1 0 1  27
-.endCode
-
-experiment5:
-  db "scanline 199$"
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-  mov dl,0xd4                                           ; 2 0 2   2
-  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
-  out dx,ax                                             ; 1 2 3   8
-  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
-  out dx,ax                                             ; 1 2 3  14
-  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
-  times 11 nop                                          ; 1 0 1  27
-
-  ; Set length of second part of scanline
-  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
-  out dx,ax                                             ; 1 2 3  33
-
-  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
-
-  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
-  mov dl,0xda                                           ; 2 0 2  58
-.endCode
-
-experiment5a:
-  db "scanline 199a$"
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-  mov dl,0xd4                                           ; 2 0 2   2
-  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
-  out dx,ax                                             ; 1 2 3   8
-  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
-  out dx,ax                                             ; 1 2 3  14
-  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
-  times 11 nop                                          ; 1 0 1  27
-.endCode
-
-experiment6:
-  db "scanline 199-200$"
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-  mov dl,0xd4                                           ; 2 0 2   2
-  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
-  out dx,ax                                             ; 1 2 3   8
-  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
-  out dx,ax                                             ; 1 2 3  14
-  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
-  times 11 nop                                          ; 1 0 1  27
-
-  ; Set length of second part of scanline
-  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
-  out dx,ax                                             ; 1 2 3  33
-
-  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
-
-  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
-  mov dl,0xda                                           ; 2 0 2  58
-  ; waitForDisplayDisable
-
-
-  ; During line 200 we:
-  ;   change the horizontal total to 0x38
-  ;   change the horizontal sync position to 0x2d
-  ; Can't use waitForDisplayEnable here because it won't activate again until line 0
-  times 18 nop
-  mov dl,0xd4
-  mov ax,0x3800 ; 0: Horizontal total: 57 characters
-  out dx,ax
-  mov ax,0x2d02 ; 2: Horizontal sync position: 45
-  out dx,ax
-
-.endCode
-
-experiment6a:
-  db "scanline 199-200$"
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-  mov dl,0xd4                                           ; 2 0 2   2
-  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
-  out dx,ax                                             ; 1 2 3   8
-  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
-  out dx,ax                                             ; 1 2 3  14
-  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
-  times 11 nop                                          ; 1 0 1  27
-
-  ; Set length of second part of scanline
-  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
-  out dx,ax                                             ; 1 2 3  33
-
-  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
-
-  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
-  mov dl,0xda                                           ; 2 0 2  58
-  ; waitForDisplayDisable
-
-
-  ; During line 200 we:
-  ;   change the horizontal total to 0x38
-  ;   change the horizontal sync position to 0x2d
-  ; Can't use waitForDisplayEnable here because it won't activate again until line 0
-  times 18 nop
-
-.endCode
+;experimentPaletteRegister:
+;  db "palette change$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov al,99
+;  out dx,al
+;.endCode:
+;
+;experimentJJ:
+;  db "pearce_jj$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov es,ax
+;  mov dx,0x3d8
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  in ax,dx
+;  stosw
+;.endCode:
+;
+;experimentJK:
+;  db "Jordan Knight$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov es,ax
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  lodsw
+;  mov bx,ax
+;  mov ax,[es:di]
+;  and al,bh
+;  or al,bl
+;  stosw
+;.endCode:
+;
+;experimentJL:
+;  db "Jim Leonard$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov es,ax
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov dx,[bx+3]
+;  lodsw
+;  and al,ah
+;  or al,dl
+;  stosw
+;.endCode:
+;
+;experimentAJ:
+;  db "Andrew Jenner$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov es,ax
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov ax,[bx+3]
+;  and al,[di]
+;  or al,ah
+;  stosb
+;  inc di
+;.endCode:
+;
+;
+;experiment1:
+;  db "retrace loop$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  in al,dx
+;  test al,1
+;  jz .endCode
+;.endCode
+;
+;experiment2:
+;  db "retrace found$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  in al,dx
+;  test al,1
+;  jnz .endCode
+;.endCode
+;
+;%macro setNextStartAddress 0       ;    23
+;    mov bl,ch                      ; 2 0 2
+;    mov bh,0x34                    ; 2 0 2
+;    mov ah,[bx]                    ; 2 1 3
+;    mov al,0x0d                    ; 2 0 2
+;    out dx,ax                      ; 1 2 3
+;    mov ah,[bx+0x100]              ; 4 1 5
+;    dec ax                         ; 1 0 1
+;    out dx,ax                      ; 1 2 3
+;    add cx,si                      ; 2 0 2
+;%endMacro
+;
+;experiment3:
+;  db "scanline 0$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x1902 ; 2: Horizontal sync position: 25       ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov ax,0x0104 ; 4: Vertical total: 2 rows/frame       ; 3 0 3  17
+;  out dx,ax                                             ; 1 2 3  20
+;  times 7 nop                                           ; 1 0 1  27
+;
+;  ; Set length of second part of scanline
+;  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
+;  out dx,ax                                             ; 1 2 3  33
+;
+;  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
+;
+;  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
+;  mov dl,0xda                                           ; 2 0 2  58
+;.endCode
+;
+;experiment3a:
+;  db "scanline 0a$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x1902 ; 2: Horizontal sync position: 25       ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov ax,0x0104 ; 4: Vertical total: 2 rows/frame       ; 3 0 3  17
+;  out dx,ax                                             ; 1 2 3  20
+;  times 7 nop                                           ; 1 0 1  27
+;.endCode
+;
+;experiment4:
+;  db "scanlines 1-198$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  times 19 nop                                          ; 1 0 1  27
+;
+;  ; Set length of second part of scanline
+;  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
+;  out dx,ax                                             ; 1 2 3  33
+;
+;  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
+;
+;  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
+;  mov dl,0xda                                           ; 2 0 2  58
+;.endCode
+;
+;experiment4a:
+;  db "scanlines 1-198a$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  times 19 nop                                          ; 1 0 1  27
+;.endCode
+;
+;experiment5:
+;  db "scanline 199$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
+;  times 11 nop                                          ; 1 0 1  27
+;
+;  ; Set length of second part of scanline
+;  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
+;  out dx,ax                                             ; 1 2 3  33
+;
+;  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
+;
+;  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
+;  mov dl,0xda                                           ; 2 0 2  58
+;.endCode
+;
+;experiment5a:
+;  db "scanline 199a$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
+;  times 11 nop                                          ; 1 0 1  27
+;.endCode
+;
+;experiment6:
+;  db "scanline 199-200$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
+;  times 11 nop                                          ; 1 0 1  27
+;
+;  ; Set length of second part of scanline
+;  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
+;  out dx,ax                                             ; 1 2 3  33
+;
+;  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
+;
+;  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
+;  mov dl,0xda                                           ; 2 0 2  58
+;  ; waitForDisplayDisable
+;
+;
+;  ; During line 200 we:
+;  ;   change the horizontal total to 0x38
+;  ;   change the horizontal sync position to 0x2d
+;  ; Can't use waitForDisplayEnable here because it won't activate again until line 0
+;  times 18 nop
+;  mov dl,0xd4
+;  mov ax,0x3800 ; 0: Horizontal total: 57 characters
+;  out dx,ax
+;  mov ax,0x2d02 ; 2: Horizontal sync position: 45
+;  out dx,ax
+;
+;.endCode
+;
+;experiment6a:
+;  db "scanline 199-200$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
+;  times 11 nop                                          ; 1 0 1  27
+;
+;  ; Set length of second part of scanline
+;  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
+;  out dx,ax                                             ; 1 2 3  33
+;
+;  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
+;
+;  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
+;  mov dl,0xda                                           ; 2 0 2  58
+;  ; waitForDisplayDisable
+;
+;
+;  ; During line 200 we:
+;  ;   change the horizontal total to 0x38
+;  ;   change the horizontal sync position to 0x2d
+;  ; Can't use waitForDisplayEnable here because it won't activate again until line 0
+;  times 18 nop
+;
+;.endCode
 
 
 

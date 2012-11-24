@@ -120,6 +120,18 @@ void enqueueSerialByte(uint8_t byte)
     sendSerialByte();
 }
 
+void print(const char* s)
+{
+    do {
+        char c = pgm_read_byte(s++);
+        if (c == 0)
+            break;
+        if (c == '\n')
+            enqueueSerialByte('\r');
+        enqueueSerialByte(c);
+    } while (true);
+}
+
 void enqueueKeyboardByte(uint8_t byte)
 {
     keyboardBuffer[(keyboardBufferPointer + keyboardBufferCharacters) & 0xff]
@@ -155,6 +167,7 @@ bool processCommand(uint8_t command)
             keyboardBufferCharacters = 0;
             return true;
         case 7:
+            print(PSTR("Resetting\n"));
             reset();
             return true;
         case 8:
@@ -515,14 +528,13 @@ int main()
 
     // UCSR0A value: 0x02  (USART Control and Status Register 0 A)
     //   MPCM0          0  Multi-processor Communcation Mode: disabled
-    //   U2X0           2  Double the USART Transmission Speed: enabled
+    //   U2X0           2  Double the USART Transmission Speed: disabled
     //
     //
     //
     //
     //   TXC0           0  USART Transmit Complete: not cleared
- //   UCSR0A = 0x02;
-    UCSR0A = 0x00;
+    UCSR0A = 0x02;
 
     // UCSR0B value: 0xd8  (USART Control and Status Register 0 B)
     //   TXB80          0  Transmit Data Bit 8 0
@@ -547,14 +559,20 @@ int main()
     //   UMSEL01        0  USART Mode Select: asynchronous
     UCSR0C = 0x06;
 
-    // UBRR0L value: 0x10  (USART Baud Rate Register Low) - 115,200bps
-//    UBRR0L = 0x10;
-    UBRR0L = 0x33;
+    // UBRR0L value:       (USART Baud Rate Register Low)
+//    UBRR0L = 0x10;  // 115200
+//    UBRR0L = 0x33;  // 38400
+    UBRR0L = 0x67;  // 19200
 
     // UBRR0H value: 0x00  (USART Baud Rate Register High)
     UBRR0H = 0x00;
 
     sei();
+
+    print(PSTR("Arduino keyboard 20121103\n"));
+    print(PSTR("Kernel version "));
+    print((const char*)defaultProgram + 4);
+    print(PSTR("\n"));
 
     // All the keyboard interface stuff is done on the main thread.
     do {

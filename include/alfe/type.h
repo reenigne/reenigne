@@ -457,7 +457,8 @@ public:
         Any _value;
     };
 
-    EnumerationType(const Type& other) : Type(other) { }
+    EnumerationType(const Type& other)
+      : Type(other._implementation.referent<Implementation>()) { }
     EnumerationType(String name, List<Value> values)
       : Type(new Implementation(name, values)) { }
     const Array<Value>* values() const
@@ -500,7 +501,8 @@ public:
         Type _type;
     };
 
-    StructuredType(const Type& other) : Type(other) { }
+    StructuredType(const Type& other)
+      : Type(other._implementation.referent<Implementation>()) { }
     StructuredType(String name, List<Member> members)
       : Type(new Implementation(name, members)) { }
     const HashTable<String, int>* names() const

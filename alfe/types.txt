@@ -34,6 +34,10 @@ Special syntax for types. Given types Foo, Bar:
     (Or does "Foo[2]" mean "Array<Foo, Struct { value = 2; }>"?
     Array is a special template (equivalent, a series of templates)
     "Foo[2]" is a value type, and when copied it copies the entire array rather than decaying to a pointer like in C.
+    Can we slice arrays?
+      Foo[10] b = ...;
+      Foo[2] a = b[3..4];  // Or 3..5? Or 3:5 like Python?
+    Is there an implicit conversion from Foo[n+1] to Foo[n]?
 
 
 Special syntax for Tuples:
@@ -51,6 +55,7 @@ Special syntax for Tuples:
 
 "Foo?" is not the same as "Foo | Null" since "Foo??" is not the same as "Foo | Null | Null" which would be the same as "Foo | Null"
   Hence the operand of "?" has to be wrapped in some way to distinguish between operand Null and "?" Null.
+    So Foo? is more like "Just<Foo> | Null"
   Foo?? has two possible non-Foo values as well as the Foo values:
     Foo?? f;
     f = Null;
@@ -187,7 +192,7 @@ In the presence of the "|" type operator, what is the state of multiple inherita
     Yes via Liskov-substitution
   Given "Foo = Class : Base { ... }; Bar = Class : Base { ... };" does "Foo | Bar" inherit from Base?
     Yes via Liskov-substitution
-      So some Either<> types do have members - they have the members of the
+      So some Either<> types do have members - they have the members of any common base classes
 
 
 Possible Unit types:
@@ -207,7 +212,10 @@ Allow a type as an expression? (The value is the result of default constructing 
   Then () is just a default constructed ().
   To avoid ambiguity, such values aren't allowed everywhere that a name is.
 
-  If we do that, then does Foo.x mean default construct Foo and then dereference, or does it mean
+  If we do that, then does Foo.x mean default construct Foo and then dereference, or does it mean a static member x of Foo?
+    Maybe could mean either, depending on whether x is a static member of Foo or not.
+  Also, does "A|B" mean "default construct (A|B)" or does it mean "(default construct A) | (default construct B)"?
+    I would expect the former, since the type operator | is stronger than implicit default construction
 
 
 

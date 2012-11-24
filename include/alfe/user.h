@@ -114,6 +114,25 @@ private:
 bool Windows::_failed = false;
 Exception Windows::_exception;
 
+
+class Menu
+{
+public:
+    Menu(WORD resourceId)
+    {
+
+        HMODULE moduleHandle = GetModuleHandle(NULL);
+        IF_NULL_THROW(moduleHandle);
+        _menu = LoadMenu(moduleHandle, MAKEINTRESOURCE(resourceId));
+        IF_NULL_THROW(_menu);
+    }
+    ~Menu() { DestroyMenu(_menu); }
+    operator HMENU() { return _menu; }
+private:
+    HMENU _menu;
+};
+
+
 template<class T> class WindowTemplate
 {
     friend class WindowsTemplate<T>;
@@ -125,33 +144,33 @@ public:
         Params(Windows* windows, LPCWSTR pszName)
           : _windows(windows),
             _pszName(pszName),
-            _nSize(CW_USEDEFAULT, CW_USEDEFAULT)
-            //,_menu(0)
+            _nSize(CW_USEDEFAULT, CW_USEDEFAULT),
+            _menu(0)
         { }
         Params(Windows* windows, LPCWSTR pszName, Vector nSize)
           : _windows(windows),
             _pszName(pszName),
-            _nSize(nSize)
-            //,_menu(0)
+            _nSize(nSize),
+            _menu(0)
         { }
-        //Params(Windows* windows, LPCWSTR pszName, Vector nSize,
-        //    Menu* menu = 0)
-        //  : _windows(windows),
-        //    _pszName(pszName),
-        //    _nSize(nSize),
-        //    _menu(menu) { }
+        Params(Windows* windows, LPCWSTR pszName, Vector nSize,
+            Menu* menu = 0)
+          : _windows(windows),
+            _pszName(pszName),
+            _nSize(nSize),
+            _menu(menu) { }
     private:
         Windows* _windows;
         LPCWSTR _pszName;
         Vector _nSize;
-        //Menu* _menu;
+        Menu* _menu;
     };
 
     WindowTemplate(Params p)
     {
         HMENU hMenu = NULL;
-        //if (p._menu != 0)
-        //    hMenu = *p._menu;
+        if (p._menu != 0)
+            hMenu = *p._menu;
         IF_NULL_THROW(CreateWindowEx(
             0,                        // dwExStyle
             p._windows->className(),  // lpClassName

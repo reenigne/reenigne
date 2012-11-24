@@ -1,0 +1,297 @@
+user.h:
+
+COMInitializer
+  RAII class for COM initialization
+  Instantied in main
+
+Windows
+  RAII class for window class registration
+  Instantied in main
+
+Menu
+  encapsulates a menu resource
+
+Window
+  base class for all windows
+
+Window::Params
+  parameters class for Window
+  just encapsulates caption string, size vector and menu
+  virtual methods:
+    void invalidate();
+    void destroy(); // private
+    LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+RootWindow (typedef for RootWindow<Window>)
+  window destroyed when escape pressed
+  when window destroyed, quit message posted to thread
+  virtual methods:
+    void destroy();
+    LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+RootWindow::Params
+  parameters class for RootWindow
+  just encapsulates Window::Params
+
+ImageWindow (typedef for ImageWindow<RootWindow, TowerGrid>)
+  window that handles WM_PAINT and WM_SIZE
+  virtual methods:
+    void destroy();
+    LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
+    void doPaint(PaintHandle* paint);
+  Has a pointer to the ImageType (TowerGrid)
+  doPaint() implementation calls _image->paint()
+
+ImageWindow::Params
+  parameters class for ImageWindow
+  just encapsulates Window::Params and image pointer
+
+AnimatedWindow (typedef for AnimatedWindow<ImageWindow>)
+  window that handles WM_TIMER and does regular invalidations
+
+AnimatedWindow::Params
+  parameters class for AnimatedWindow
+  just encapsulates ImageWindow::Params and refresh rate
+
+
+
+directx.h:
+
+Direct3D
+  Holder for IDirect3D9
+  encapsulates the Direct3D subsystem
+  Instantied in main
+
+Device
+  Holder for IDirect3DDevice9 (encapsulates rendering states)
+  encapsulates a Direct3D device
+  Instantied in main
+
+GridRenderer<TexelSource>
+  Uncopyable
+  Has a Pool of Towers
+  Has a vector of TowerGrids (in order to be able to share Towers? I think we only ever have one TowerGrid at the moment)
+  Implements preReset()/postReset()
+  Has a Quad
+  Has a CPUTexture
+  Instantied in main
+
+TowerGrid (typedef for TowerGrid<Screen>)
+  Uncopyable
+  Has a vector of Tower
+  Has a paint() method - it's the image that's actually painted
+
+Tower<TexelSource>
+  Has an array of 4 subtowers
+
+
+
+mandel_quadtree.cpp:
+
+FractalProcessor
+  Is a Mutex for some reason
+  Encapsulates
+    WorkQueueList
+    Screen
+    TowerGrid
+    MemoryTracker
+    Matrix
+    Dispatcher
+  Also has a pointer to the GridRenderer
+  Instantied in main
+
+Screen (typedef for Screen<FractalProcessor>)
+  Uncopyable
+  Handles coordinate systems and transformations between them
+  Many invariants
+  Most logic in update()
+  Is also the TexelSource for GridRenderer
+
+WorkQueueList
+  Encapsulates a vector of WorkQueue, one for each size of leaf
+  Has a method to retrieve the next point to work on
+
+WorkQueueList::WorkQueue
+  Encapsulates a LinkedList of IncompleteLeaf
+  Has a method to retrieve the next point to work on of a particular size
+
+MemoryTracker
+  Encapsulates an Allocator
+  Keeps track of how much memory we're using so we don't use too much
+  Has an array of Allocator::Heap* (one for each combination of size and block type)
+
+Dispatcher
+  Is an IdleProcessor
+  Uncopyable
+  Encapsulates a vector of Thread*
+  Thread is FractalThread
+
+FractalThread
+  derives from Thread
+  An element of Dispather's thread pool
+  Encapsulates an Evaluator, which is MandelbrotEvaluator
+
+MandelbrotEvaluator
+  Derives from Evaluator
+  Various algorithms for evaluating points
+
+Evaluator
+  Uncopyable
+  base class for different fractal types (though currently there's only one)
+
+ZoomingRotatingWindow (typedef for ZoomingRotatingWindow<AnimatedWindow, FractalProcessor>)
+
+ZoomingRotatingWindow::Params
+  parameters class for ZoomingRotatingWindow
+  just encapsulates AnimatedWindow::Params and default zoomlevel
+  ability to zoom and rotate
+
+
+pool.h:
+
+Pool
+  Uncopyable
+  Avoids creating/destroying objects too often
+
+
+allocator.h:
+
+Allocator
+  Encapsulates a map of Allocator::Heap
+
+Allocator::Heap
+  Can allocate objects of a particular size
+  Allocates in >=1Mb chunks
+  When an object is deallocated, the highest object is moved into the free space
+
+
+matrix.h:
+
+Matrix
+  Holds the root grid pointer
+  Encapsulates global matrix operations
+  Derives from Manipulator
+
+Manipulator
+  Encapsulates local transformations on the matrix and other operations requiring the FractalProcessor
+  Derives from Site
+
+Site
+  Encapsulates a BlockGroup and a BlockLocation
+  Derives from BlockGroup
+
+BlockGroup
+  Encapsulates a square group of blocks
+  Derives from BlockPointer
+
+BlockPointer
+  Encapsulates a block within a grid
+
+BlockLocation
+  Encapsulates a point location and size
+
+Grid
+  Uses "struct hack"
+  A square array of blocks whose width is a power of 2
+
+GridType
+  Information about a grid.
+  Encapsulates logBlocks, blockType, precision and logPointsPerBlockOffset in a bitfield
+
+IncompleteLeaf
+  A leaf for which the decision about whether or not it is in the set has not been made.
+  Derives from Leaf
+  Derives from LinkedListMember
+
+Leaf
+  a particular complex number - an input to the fractal algorithm which produces a colour as an output.
+  Derives from Block
+
+Block
+  Base class for all grid blocks
+  Empty
+
+GridBlock
+  A block that is a grid
+
+BlockType
+  enum disciminating the three block types: grid, inompleteLeaf and completeLeaf
+
+
+
+
+
+
+WM_PAINT
+  ImageWindow::handleMessage
+    ZoomingRotatingWindow::doPaint
+      TowerGrid::setInterrupt
+      TowerGrid::clearInterrupt
+      TowerGrid::beginScene
+        GridRenderer::beginScene
+          IDirect3DDevice9::BeginScene
+      ZoomingRotatingWindow::recalculateZoomRotate
+      AnimatedWindow::doPaint
+        ImageWindow::doPaint
+          TowerGrid::paint
+            Tower::paint
+              GridRenderer::quarter
+                GeometryLock::GeometryLock
+                GeometryLock::setUV
+                GeometryLock::setXY
+              GPUTexture::destination
+                IDirect3DDevice9::SetRenderTarget
+              GridRenderer::clean
+                Device::setFilter
+                Device::setGammaCorrection
+                Quad::draw
+                  IDirect3DDevice9::SetStreamSource
+                  IDirect3DDevice9::DrawPrimitive
+              GridRenderer::cpuTexture
+              CPUTextureLock::CPUTextureLock
+                IDirect3DTexture9::LockRect
+              Screen::plotTile
+                Matrix::plot
+              CPUTexture::update
+                IDirect3DDevice9::UpdateTexture
+              GPUTexture::source
+                IDirect3DDevice9::SetTexture
+              GeometryLock::GeometryLock
+                IDirect3DVertexBuffer9::Lock
+              GeometryLock::setUV
+              GeometryLock::setXY
+              GridRenderer::paint
+                Device::destination
+                Device::setFilter
+                Device::setGammaCorrection
+                Quad::draw
+      TowerGrid::endScene
+        GridRenderer::endScene
+          IDirect3DDevice9::EndScene
+          IDirect3DDevice9::Present
+          GridRenderer::preReset
+            Quad::preReset
+            TowerGrid::preReset
+          Device::reset
+            Device::initBackBuffer
+              IDirect3D9::GetAdapterDisplayMode
+              Device::growBackBuffer
+            IDirect3DDevice9::Reset
+            Device::postreset
+              IDirect3DDevice9::GetRenderTarget
+              IDirect3DDevice9::SetFVF
+              IDirect3DDevice9::SetRenderState
+              Device::setTextureAddressingMode
+                IDirect3DDevice9::SetSamplerState
+          GridRenderer::postReset
+            Quad::postReset
+              IDirect3DDevice9::CreateVertexBuffer
+            TowerGrid::update
+      TowerGrid::resume
+
+
+Separate GridRenderer into Renderer and TowerGrids
+
+Device::preset
+  IDirect3DDevice9::Present
+  Device::reset

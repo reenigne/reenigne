@@ -1,23 +1,9 @@
-%include "../defaults.asm"
+%include "../defaults_bin.asm"
 
-  ; Set 40-column text mode
-  initCGA 8
-
-  ; Set up some interrupts
-  ; int 0x63 == print AX as a 4-digit hex number
-  ; int 0x64 == print CX bytes from DS:SI
-  ; int 0x65 == print AL as a character
+  ; Set up drive parameters
   xor ax,ax
   mov ds,ax
-  setInterrupt 0x63, printHex
-  setInterrupt 0x64, printString
-  setInterrupt 0x65, printCharacter
   setInterrupt 0x1e, driveParameters
-
-  ; Reset video variables
-  xor ax,ax
-  mov [cs:column],al
-  mov [cs:startAddress],ax
 
 
   mov ah,0  ; Subfunction 0 = Reset Disk System
@@ -27,12 +13,9 @@
   writeHex
   writeNewLine
   pop ax
-  int 0x63
-  mov al,10
-  int 0x65
+  printHex
+  printNewLine
 
-
-  initSerial
 
 tryLoad:
   ; Set load location
@@ -44,81 +27,9 @@ tryLoad:
   push es
   push di
 
-packetLoop:
-  ; Activate DTR
-  mov al,1
-  out dx,al
-  inc dx      ; 5
+  ; Load the data
+  loadSerialData
 
-  ; Receive packet size in bytes
-  receiveByte
-  mov cl,al
-  mov ch,0
-
-  ; Push a copy to check when we're done and adjust DI for retries
-  push cx
-
-  ; Init checksum
-  mov ah,0
-
-  ; Receive CX bytes and store them at ES:DI
-  jcxz noBytes
-byteLoop:
-  receiveByte
-  add ah,al
-  stosb
-  loop byteLoop
-noBytes:
-
-  ; Receive checksum
-  receiveByte
-  sub ah,al
-
-  ; Deactivate DTR
-  dec dx      ; 4
-  mov al,0
-  out dx,al
-
-  cmp ah,0
-  jne checkSumFailed
-
-  ; Send success byte
-  inc dx      ; 5
-  mov al,'K'
-  sendByte
-  dec dx      ; 4
-  mov al,'K'
-  int 0x65
-
-
-  ; Normalize ES:DI
-  mov ax,di
-  mov cl,4
-  shr ax,cl
-  mov bx,es
-  add bx,ax
-  mov es,bx
-  and di,0xf
-
-  pop cx
-  jcxz transferComplete
-  jmp packetLoop
-
-checkSumFailed:
-  ; Send fail byte
-  inc dx      ; 5
-  mov al,'F'
-  sendByte
-  dec dx      ; 4
-  mov al,'F'
-  int 0x65
-
-  pop cx
-  sub di,cx
-  jmp packetLoop
-
-
-transferComplete:
   mov al,'D'
 ;  int 0x65
   writeCharacter
@@ -225,129 +136,8 @@ cylinder:
 head:
   db 0
 
-printNybble:
-  cmp al,10
-  jge printAlphabetic
-  add al,'0'
-  jmp printGotCharacter
-printAlphabetic:
-  add al,'A' - 10
-printGotCharacter:
-  jmp printChar
-
-
-printHex:
-  push bx
-  push cx
-  mov bx,ax
-  mov al,bh
-  mov cl,4
-  shr al,cl
-  call printNybble
-  mov al,bh
-  and al,0xf
-  call printNybble
-  mov al,bl
-  shr al,cl
-  call printNybble
-  mov al,bl
-  and al,0xf
-  call printNybble
-  pop cx
-  pop bx
-  iret
-
-
-printString:
-  lodsb
-  call printChar
-  loop printString
-  iret
-
-
-printCharacter:
-  call printChar
-  iret
-
-
-printChar:
-  push bx
-  push cx
-  push dx
-  push es
-  push di
-  mov dx,0xb800
-  mov es,dx
-  mov dx,0x3d4
-  mov cx,[cs:startAddress]
-  cmp al,10
-  je printNewLine
-  mov di,cx
-  add di,cx
-  mov bl,[cs:column]
-  xor bh,bh
-  mov [es:bx+di+24*40*2],al
-  inc bx
-  inc bx
-  cmp bx,80
-  jne donePrint
-printNewLine:
-  add cx,40
-  and cx,0x1fff
-  mov [cs:startAddress],cx
-
-  ; Scroll screen
-  mov ah,ch
-  mov al,0x0c
-  out dx,ax
-  mov ah,cl
-  inc ax
-  out dx,ax
-  ; Clear the newly scrolled area
-  mov di,cx
-  add di,cx
-  add di,24*40*2
-  mov cx,40
-  mov ax,0x0700
-  rep stosw
-  mov cx,[cs:startAddress]
-
-  xor bx,bx
-donePrint:
-  mov [cs:column],bl
-
-  ; Move cursor
-  shr bx,1
-  add bx,cx
-  add bx,24*40
-  and bx,0x1fff
-  mov ah,bh
-  mov al,0x0e
-  out dx,ax
-  mov ah,bl
-  inc ax
-  out dx,ax
-
-  pop di
-  pop es
-  pop dx
-  pop cx
-  pop bx
-  ret
-
-
-column:
-  db 0
-startAddress:
-  dw 0
 retry:
   db 0
-okMessage:
-  db 'OK',10
-okMessageEnd:
-failMessage:
-  db 'Checksum failure',10
-failMessageEnd:
 diskFailMessage:
   db 'Disk failure',10
 diskFailMessageEnd:

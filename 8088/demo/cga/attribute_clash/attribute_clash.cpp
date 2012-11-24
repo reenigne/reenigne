@@ -60,47 +60,7 @@ public:
                 }
             }
         }
-#if 0
-        // Dump entire ROM so we can see how it's laid out.
-        int fileSize = 8*16 * 4*16*8;
-        Array<Byte> buffer(fileSize);
-
-        for (int set = 0; set < 4; ++set) {
-            for (int ch = 0; ch < 256; ++ch) {
-                for (int y = 0; y < 8; ++y) {
-                    int bits = data[(set*256 + ch)*8 + y];
-                    for (int x = 0; x < 8; ++x)
-                        buffer[
-                            ((set*16 + (ch >> 4))*8 + y)*8*16 + (ch & 15)*8 + x
-                            ] = ((bits & (128 >> x)) != 0 ? 255 : 0);
-                }
-            }
-        }
-        // Set 0: MDA characters rows 0-7
-        // Set 1: MDA characters rows 8-13
-        // Set 2: CGA narrow characters
-        // Set 3: CGA normal characters
-#endif
-#if 0
-        // Dump the top rows to a text file
-        int fileSize = 13*256;
-        Array<Byte> buffer(fileSize);
-
-        int hexDigit(int n) { return n < 10 ? n + '0' : n + 'a' - 10; }
-
-        for (int ch = 0; ch < 256; ++ch) {
-            int bits = data[(3*256 + ch)*8];
-            for (int x = 0; x < 8; ++x) {
-                int p = ch*13;
-                buffer[p + x] = ((bits & (128 >> x)) != 0 ? '*' : ' ');
-                buffer[p + 8] = ' ';
-                buffer[p + 9] = hexDigit(ch >> 4);
-                buffer[p + 10] = hexDigit(ch & 15);
-                buffer[p + 11] = 13;
-                buffer[p + 12] = 10;
-            }
-        }
-#endif
+        _gamma.allocate(256);
         _gamma.allocate(256);
          for (int i = 0; i < 256; ++i)
             _gamma[i] = static_cast<int>(
@@ -517,7 +477,7 @@ public:
                 _gamma[clamp(0, (y - 283*i + 443*q)>>16, 255)]);
             //SRGB srgb = ColourSpace::rgb().toSrgb(rgb);
             _compositeOutput[p] = srgb;
-            
+
             if (_composite && p.x < _outputSize.x) {
                 //_linearOutput[p] = rgb;
                 //Colour target = _linearInput[p];

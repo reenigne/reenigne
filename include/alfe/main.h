@@ -40,6 +40,13 @@
 #include "alfe/reference_counted_array.h"
 #include "alfe/bitmap.h"
 #include "alfe/user.h"
+
+class IdleProcessor
+{
+public:
+    virtual void idle() = 0;
+};
+
 #endif
 
 Handle console;
@@ -57,6 +64,7 @@ public:
                 _windows.initialize(hInst);
                 _nCmdShow = nCmdShow;
                 initializeWindowsCommandLine();
+                _windows.check();
             }
             END_CHECKED(Exception& e) {
                 NullTerminatedWideString s(e.message());
@@ -129,6 +137,28 @@ protected:
                 _returnValue = static_cast<int>(msg.wParam);
         } while (bRet != 0);
     }
+
+    void pumpMessages(IdleProcessor* idle)
+    {
+        BOOL fMessage;
+        MSG msg;
+        do {
+            do {
+                fMessage = PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE);
+                if (fMessage == 0)
+                    break;
+                if (msg.message == WM_QUIT)
+                    break;
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            } while (true);
+            if (msg.message == WM_QUIT)
+                break;
+            idle->idle();
+        } while (true);
+        _returnValue = static_cast<int>(msg.wParam);
+    }
+
 #endif
     virtual void run() = 0;
     Array<String> _arguments;
@@ -205,6 +235,14 @@ INT APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, INT nCmdShow)
 {
     return WinMainTemplate<void>(hInst, nCmdShow);
 }
+
+// Define main() as well in case we want to make a Windows program linked as
+// a Console subsystem program (for debugging purposes).
+int __cdecl main()
+{
+    return WinMainTemplate<void>(GetModuleHandle(NULL), SW_SHOWNORMAL);
+}
+
 #else
 int main()
 {

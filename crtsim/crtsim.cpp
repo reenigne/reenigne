@@ -187,57 +187,58 @@ public:
         float scale = 1.0f;
 
         _texture.create(device, _size);
-        _texture.lock();
-        Byte* data = _texture.data();
-        int pitch = _texture.pitch();
-        float d2 = _d*_d*2.0f;
-        for (int y = 0; y < _size.y; ++y) {
-            DWord* p = reinterpret_cast<DWord*>(data);
-            for (int x = 0; x < _size.x; ++x) {
-#if 0  // Shadow mask
-                float h = sqrt(3.0f)/2.0f;
-                Vector2<float> z(static_cast<float>(x)*3.0f/_size.x,
-                    static_cast<float>(y)*sqrt(3.0f)/_size.y);
-                if (z.y > h)
-                    z.y = h + h - z.y;
-                float ba2 = (z - Vector2<float>(-0.5f, h)).modulus2();
-                float ga2 = (z - Vector2<float>(0, 0)).modulus2();
-                float ra2 = (z - Vector2<float>(0.5f, h)).modulus2();
-                float bb2 = (z - Vector2<float>(1.0f, 0)).modulus2();
-                float gb2 = (z - Vector2<float>(1.5f, h)).modulus2();
-                float rb2 = (z - Vector2<float>(2.0f, 0)).modulus2();
-                float bc2 = (z - Vector2<float>(2.5f, h)).modulus2();
-                float gc2 = (z - Vector2<float>(3.0f, 0)).modulus2();
-                float rc2 = (z - Vector2<float>(3.5f, h)).modulus2();
-                float r2 = min(ra2, rb2, rc2);
-                float g2 = min(ga2, gb2, gc2);
-                float b2 = min(ba2, bb2, bc2);
-#else
-                float z = static_cast<float>(x)*3.0f/_size.x;
-                float rb2 = (z + 1.0f)*(z + 1.0f);
-                float ga2 = z*z;
-                float ba2 = (z - 1.0f)*(z - 1.0f);
-                float ra2 = (z - 2.0f)*(z - 2.0f);
-                float gb2 = (z - 3.0f)*(z - 3.0f);
-                float bb2 = (z - 4.0f)*(z - 4.0f);
-                float r2 = min(ra2, rb2);
-                float g2 = min(ga2, gb2);
-                float b2 = min(ba2, bb2);
-#endif
-                int r =
-                    clamp(0, static_cast<int>(255.0f*exp(-2.2f*r2/d2)), 255);
-                int g =
-                    clamp(0, static_cast<int>(255.0f*exp(-2.2f*g2/d2)), 255);
-                int b =
-                    clamp(0, static_cast<int>(255.0f*exp(-2.2f*b2/d2)), 255);
-                *(p++) = 0xff000000 | (r<<16) | (g<<8) | b;
+        _cpuTexture.create(device, _size);
+        {
+            CPUTextureLock lock(&_cpuTexture);
+            Byte* data = lock.data();
+            int pitch = lock.stride();
+            float d2 = _d*_d*2.0f;
+            for (int y = 0; y < _size.y; ++y) {
+                DWord* p = reinterpret_cast<DWord*>(data);
+                for (int x = 0; x < _size.x; ++x) {
+    #if 0  // Shadow mask
+                    float h = sqrt(3.0f)/2.0f;
+                    Vector2<float> z(static_cast<float>(x)*3.0f/_size.x,
+                        static_cast<float>(y)*sqrt(3.0f)/_size.y);
+                    if (z.y > h)
+                        z.y = h + h - z.y;
+                    float ba2 = (z - Vector2<float>(-0.5f, h)).modulus2();
+                    float ga2 = (z - Vector2<float>(0, 0)).modulus2();
+                    float ra2 = (z - Vector2<float>(0.5f, h)).modulus2();
+                    float bb2 = (z - Vector2<float>(1.0f, 0)).modulus2();
+                    float gb2 = (z - Vector2<float>(1.5f, h)).modulus2();
+                    float rb2 = (z - Vector2<float>(2.0f, 0)).modulus2();
+                    float bc2 = (z - Vector2<float>(2.5f, h)).modulus2();
+                    float gc2 = (z - Vector2<float>(3.0f, 0)).modulus2();
+                    float rc2 = (z - Vector2<float>(3.5f, h)).modulus2();
+                    float r2 = min(ra2, rb2, rc2);
+                    float g2 = min(ga2, gb2, gc2);
+                    float b2 = min(ba2, bb2, bc2);
+    #else
+                    float z = static_cast<float>(x)*3.0f/_size.x;
+                    float rb2 = (z + 1.0f)*(z + 1.0f);
+                    float ga2 = z*z;
+                    float ba2 = (z - 1.0f)*(z - 1.0f);
+                    float ra2 = (z - 2.0f)*(z - 2.0f);
+                    float gb2 = (z - 3.0f)*(z - 3.0f);
+                    float bb2 = (z - 4.0f)*(z - 4.0f);
+                    float r2 = min(ra2, rb2);
+                    float g2 = min(ga2, gb2);
+                    float b2 = min(ba2, bb2);
+    #endif
+                    int r = clamp(0,
+                        static_cast<int>(255.0f*exp(-2.2f*r2/d2)), 255);
+                    int g = clamp(0,
+                        static_cast<int>(255.0f*exp(-2.2f*g2/d2)), 255);
+                    int b = clamp(0,
+                        static_cast<int>(255.0f*exp(-2.2f*b2/d2)), 255);
+                    *(p++) = 0xff000000 | (r<<16) | (g<<8) | b;
+                }
+                data += pitch;
             }
-            data += pitch;
         }
 
-        _texture.unlock();
-
-        _geometry.create(device);
+        _geometry.create(device, 4, D3DPT_TRIANGLEFAN);
         _geometry.setVertexUV(0, Vector2<float>(0.0f, 0.0f));
         _geometry.setVertexUV(1, Vector2<float>(308.0f/scale, 0.0f));
         _geometry.setVertexUV(2, Vector2<float>(308.0f/scale, 400.0f/scale));
@@ -275,6 +276,7 @@ private:
     std::vector<DWord> _image;
     Device* _device;
     GPUTexture _texture;
+    CPUTexture _cpuTexture;
     Geometry _geometry;
 };
 
@@ -282,10 +284,11 @@ private:
 class ScanLines : public Image
 {
 public:
-    void create(IDirect3DDevice9* device, float lineTop, float linesVisible)
+    void create(Device* device, float lineTop, float linesVisible)
     {
-        _geometry.create(device);
+        _geometry.create(device, 4, D3DPT_TRIANGLEFAN);
         _texture.create(device, Vector(1, 1));
+        _cpuTexture.create(device, Vector(1, 1));
         _height = 1;
         _device = device;
         _lineTop = lineTop;
@@ -350,8 +353,9 @@ public:
         IF_ERROR_THROW_DX(_device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA));
 #endif
 
-        _geometry.setStreamSource();
         _texture.setTexture();
+        _geometry.setStreamSource();
+
         IF_ERROR_THROW_DX(_device->DrawPrimitive(
             D3DPT_TRIANGLEFAN,  // PrimitiveType
             0,                  // StartVertex
@@ -361,8 +365,9 @@ public:
     void resize(Vector windowSize) { _windowSize = windowSize; }
 private:
     Device* _device;
-    Direct3DTexture _texture;
-    Direct3DVertices _geometry;
+    CPUTexture _cpuTexture;
+    GPUTexture _texture;
+    Geometry _geometry;
     int _height;
     Vector _windowSize;
     float _scanLineHeight;

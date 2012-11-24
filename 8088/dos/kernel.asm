@@ -1,13 +1,15 @@
-%include "../defaults.asm"
-  %undef writeHex
-  %undef writeString
-  %undef writeCharacter
+%include "../defaults_bin.asm"
 
+  jmp codeStart
+
+  db '20121103-com1-115200',0
+
+codeStart:
   ; Don't want any stray interrupts interfering with the serial port accesses.
   cli
 
-  ; Blank the screen to avoid burn-in
-  initCGA 0
+  ; Set 40-column text mode
+  initCGA 8
 
   ; Clear the video memory
   mov ax,0xb800
@@ -100,98 +102,59 @@ noRelocationNeeded:
   ; int 0x60 == output AX as a 4-digit hex number
   ; int 0x61 == output CX bytes from DS:SI
   ; int 0x62 == output AL as a character
+  ; int 0x63 == print AX as a 4-digit hex number
+  ; int 0x64 == print CX bytes from DS:SI
+  ; int 0x65 == print AL as a character
   ; int 0x67 == finish
+  ; int 0x68 == load data from serial port at ES:DI. On completion, ES:DI points to end of loaded data.
   xor ax,ax
   mov ds,ax
-  setInterrupt 0x60, writeHex
-  setInterrupt 0x61, writeString
-  setInterrupt 0x62, writeCharacter
-  setInterrupt 0x67, complete
+  setInterrupt 0x60, writeHexRoutine
+  setInterrupt 0x61, writeStringRoutine
+  setInterrupt 0x62, writeCharacterRoutine
+  setInterrupt 0x63, printHexRoutine
+  setInterrupt 0x64, printStringRoutine
+  setInterrupt 0x65, printCharacterRoutine
+  setInterrupt 0x67, completeRoutine
+  setInterrupt 0x68, loadSerialDataRoutine
 
+  ; Reset video variables
+  mov ax,cs
+  mov ds,ax
+  xor ax,ax
+  mov [column],al
+  mov [startAddress],ax
 
-  initSerial
-
+  ; Print the boot message
+  mov si,bootMessage
+  mov cx,bootMessageEnd - bootMessage
+  printString
 
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
   push bx
-  mov ax,complete
+  mov ax,completeRoutine
   push ax
 
   ; Find the next segment after the end of the kernel. This is where we'll
   ; load our program.
   mov ax,(kernelEnd + 15) >> 4
   add ax,bx
-  mov ds,ax
-
+  mov es,ax
   xor di,di
 
-tryLoad:
-  ; Push the address
-  push ds
+  ; Push the address so we can just retf to it after the load
+  push es
   push di
 
-  mov al,1
-  out dx,al   ; Activate DTR
-  inc dx      ; 5
-  ; Read a 3-byte count and then a number of bytes into memory, starting at
-  ; DS:DI
-  receiveByte
-  mov cl,al
-  receiveByte
-  mov ch,al
-  receiveByte
-  mov bl,al
-  mov bh,0
+  loadSerialData
 
-  mov si,bx
-  push cx
-  xor ah,ah
-pagesLoop:
-  cmp si,0
-  je noFullPages
-  xor cx,cx
-  call loadBytes
-  dec si
-  jmp pagesLoop
-noFullPages:
-  pop cx
-  test cx,cx
-  jz loadProgramDone
-  call loadBytes
-loadProgramDone:
-  ; Check that the checksum matches
-  receiveByte
-  mov bx,ax
+  ; Print the OK message
+  mov si,okMessage
+  mov cx,okMessageEnd - okMessage
+  printString
 
-  dec dx      ; 4
-  mov al,0
-  out dx,al   ; Deactivate DTR
-
-  mov ax,cs
-  mov ds,ax
-
-  cmp bh,bl
-  je checksumOk
-  pop di
-  pop ds
-  jmp tryLoad
-checksumOk:
   retf
-
-; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
-loadBytes:
-  receiveByte
-  add ah,al
-  mov [di],al
-  add di,1
-  jnc noOverflow
-  mov bx,ds
-  add bh,0x10
-  mov ds,bx
-noOverflow:
-  loop loadBytes
-  ret
 
 
 writeNybble:
@@ -206,7 +169,7 @@ gotCharacter:
   ret
 
 
-writeHex:
+writeHexRoutine:
   push bx
   push cx
   push dx
@@ -231,7 +194,7 @@ writeHex:
   iret
 
 
-writeString:
+writeStringRoutine:
   push ax
   push dx
   mov dx,0x3f8 + 5
@@ -244,7 +207,7 @@ writeStringLoop:
   iret
 
 
-writeCharacter:
+writeCharacterRoutine:
   push dx
   mov dx,0x3f8 + 5
   sendByte
@@ -252,10 +215,213 @@ writeCharacter:
   iret
 
 
-complete:
+loadSerialDataRoutine:
+  initSerial
+
+packetLoop:
+  ; Activate DTR
+  mov al,1
+  out dx,al
+  inc dx      ; 5
+
+  ; Receive packet size in bytes
+  receiveByte
+  mov cl,al
+  mov ch,0
+
+  ; Push a copy to check when we're done and adjust DI for retries
+  push cx
+
+  ; Init checksum
+  mov ah,0
+
+  ; Receive CX bytes and store them at ES:DI
+  jcxz noBytes
+byteLoop:
+  receiveByte
+  add ah,al
+  stosb
+  loop byteLoop
+noBytes:
+
+  ; Receive checksum
+  receiveByte
+  sub ah,al
+
+  ; Deactivate DTR
+  dec dx      ; 4
+  mov al,0
+  out dx,al
+
+  cmp ah,0
+  jne checkSumFailed
+
+  ; Send success byte
+  inc dx      ; 5
+  mov al,'K'
+  sendByte
+  dec dx      ; 4
+;  mov al,'K'
+;  int 0x65
+
+
+  ; Normalize ES:DI
+  mov ax,di
+  mov cl,4
+  shr ax,cl
+  mov bx,es
+  add bx,ax
+  mov es,bx
+  and di,0xf
+
+  pop cx
+  jcxz transferComplete
+  jmp packetLoop
+
+checkSumFailed:
+  ; Send fail byte
+  inc dx      ; 5
+  mov al,'F'
+  sendByte
+  dec dx      ; 4
+;  mov al,'F'
+;  int 0x65
+
+  pop cx
+  sub di,cx
+  jmp packetLoop
+
+transferComplete:
+  iret
+
+
+completeRoutine:
   mov al,26
   int 0x62  ; Write a ^Z character to tell the "run" program to finish
   jmp 0  ; Restart the kernel
+
+
+printNybble:
+  cmp al,10
+  jge printAlphabetic
+  add al,'0'
+  jmp printGotCharacter
+printAlphabetic:
+  add al,'A' - 10
+printGotCharacter:
+  jmp printChar
+
+
+printHexRoutine:
+  push bx
+  push cx
+  mov bx,ax
+  mov al,bh
+  mov cl,4
+  shr al,cl
+  call printNybble
+  mov al,bh
+  and al,0xf
+  call printNybble
+  mov al,bl
+  shr al,cl
+  call printNybble
+  mov al,bl
+  and al,0xf
+  call printNybble
+  pop cx
+  pop bx
+  iret
+
+
+printStringRoutine:
+  lodsb
+  call printChar
+  loop printStringRoutine
+  iret
+
+
+printCharacterRoutine:
+  call printChar
+  iret
+
+
+printChar:
+  push bx
+  push cx
+  push dx
+  push es
+  push di
+  mov dx,0xb800
+  mov es,dx
+  mov dx,0x3d4
+  mov cx,[cs:startAddress]
+  cmp al,10
+  je doPrintNewLine
+  mov di,cx
+  add di,cx
+  mov bl,[cs:column]
+  xor bh,bh
+  mov [es:bx+di+24*40*2],al
+  inc bx
+  inc bx
+  cmp bx,80
+  jne donePrint
+doPrintNewLine:
+  add cx,40
+  and cx,0x1fff
+  mov [cs:startAddress],cx
+
+  ; Scroll screen
+  mov ah,ch
+  mov al,0x0c
+  out dx,ax
+  mov ah,cl
+  inc ax
+  out dx,ax
+  ; Clear the newly scrolled area
+  mov di,cx
+  add di,cx
+  add di,24*40*2
+  mov cx,40
+  mov ax,0x0700
+  rep stosw
+  mov cx,[cs:startAddress]
+
+  xor bx,bx
+donePrint:
+  mov [cs:column],bl
+
+  ; Move cursor
+  shr bx,1
+  add bx,cx
+  add bx,24*40
+  and bx,0x1fff
+  mov ah,bh
+  mov al,0x0e
+  out dx,ax
+  mov ah,bl
+  inc ax
+  out dx,ax
+
+  pop di
+  pop es
+  pop dx
+  pop cx
+  pop bx
+  ret
+
+
+column:
+  db 0
+startAddress:
+  dw 0
+bootMessage:
+  db 'XT Serial Kernel',10
+bootMessageEnd:
+okMessage:
+  db 'OK',10
+okMessageEnd:
 
 
 kernelEnd:
