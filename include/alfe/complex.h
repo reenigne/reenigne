@@ -3,8 +3,6 @@
 #ifndef INCLUDED_COMPLEX_H
 #define INCLUDED_COMPLEX_H
 
-#define _USE_MATH_DEFINES
-#include <math.h>
 #include "alfe/vectors.h"
 
 template<class Real> class Complex

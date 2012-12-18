@@ -58,6 +58,10 @@ private:
     static LRESULT CALLBACK wndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
         LPARAM lParam)
     {
+        // Avoid reentering and causing a cascade of alerts if a assert fails.
+        if (alerting)
+            return DefWindowProc(hWnd, uMsg, wParam, lParam);
+
         BEGIN_CHECKED {
             Window* window = 0;
             switch (uMsg) {
@@ -166,8 +170,13 @@ public:
         Menu* _menu;
     };
 
-    WindowTemplate(Params p)
+    WindowTemplate() : _hdc(NULL), _hWnd(NULL) { }
+
+    operator HDC() const { return _hdc; }
+
+    void create(Params p)
     {
+        reset();
         HMENU hMenu = NULL;
         if (p._menu != 0)
             hMenu = *p._menu;
@@ -185,15 +194,10 @@ public:
             p._windows->instance(),   // hInstance
             this));                   // lpParam
         _hdc = GetDC(_hWnd);
+        IF_NULL_THROW(_hdc);
     }
 
-    operator HDC() const { return _hdc; }
-
-    ~WindowTemplate()
-    {
-        ReleaseDC(_hWnd, _hdc);
-        DestroyWindow(_hWnd);
-    }
+    ~WindowTemplate() { reset(); }
 
     void show(int nShowCmd) { ShowWindow(_hWnd, nShowCmd); }
 
@@ -223,6 +227,18 @@ public:
 
     virtual void invalidate() { }
 private:
+    void reset()
+    {
+        if (_hdc != NULL) {
+            ReleaseDC(_hWnd, _hdc);
+            _hdc = NULL;
+        }
+        if (_hWnd != NULL) {
+            DestroyWindow(_hWnd);
+            _hWnd = NULL;
+        }
+    }
+
     void setHwnd(HWND hWnd) { _hWnd = hWnd; }
 
     virtual void destroy() { }
@@ -262,7 +278,7 @@ public:
         typename Base::Params _bp;
     };
 
-    RootWindow(Params p) : Base(p._bp) { }
+    void create(Params p) { Base::create(p._bp); }
 
 protected:
     virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -364,7 +380,13 @@ public:
         ImageType* _image;
     };
 
-    ImageWindow(Params p) : Base(p._bp), _image(p._image), _resizing(false) { }
+    ImageWindow() : _resizing(false) { }
+
+    void create(Params p)
+    {
+        Base::create(p._bp);
+        _image = p._image;
+    }
 
     void invalidate() { IF_ZERO_THROW(InvalidateRect(_hWnd, NULL, FALSE)); }
 
@@ -498,13 +520,13 @@ public:
         float _rate;
     };
 
-    AnimatedWindow(Params p)
-      : Base(p._bp),
-        _period(1000.0f/p._rate),
-        _timerExpired(true),
-        _delta(0),
-        _lastTickCount(0)
-    { }
+    AnimatedWindow() : _timerExpired(true), _delta(0), _lastTickCount(0) { }
+
+    void create(Params p)
+    {
+        _period = 1000.0f/p._rate;
+        Base::create(p._bp);
+    }
 
 protected:
     virtual void doPaint(PaintHandle* paint)

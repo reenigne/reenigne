@@ -1,6 +1,19 @@
 cpu 8086
 
-
+; initCGA m
+; m = mode register value:
+; 0x08 = 40x25 text, colour, bright background
+; 0x09 = 80x25 text, colour, bright background
+; 0x0a = 320x200 graphics, colour
+; 0x0c = 40x25 text, B/W, bright background
+; 0x0d = 80x25 text, B/W, bright background
+; 0x0e = 320x200 graphics, B/W
+; 0x1a = 640x200 graphics, colour
+; 0x1e = 640x200 graphics, B/W
+; 0x28 = 40x25 text, colour, blinking
+; 0x29 = 80x25 text, colour, blinking
+; 0x2c = 40x25 text, B/W, blinking
+; 0x2d = 80x25 text, B/W, blinking
 %macro initCGA 1
   %if (%1 & 0x10) != 0
     initCGA %1, 0x0f
@@ -9,8 +22,23 @@ cpu 8086
   %endif
 %endmacro
 
-
+; initCGA m. p
+; p = palette register value:
+; 0x00..0x0f = background/green/red/brown
+; 0x10..0x1f = background/light green/light red/yellow
+; 0x20..0x2f = background/cyan/magenta/light grey
+; 0x30..0x3f = background/light cyan/light magenta/white
 %macro initCGA 2
+  %if (%1 & 2) != 0
+    initCGA %1, 0x0f, 2
+  %else
+    initCGA %1, 0, 8
+  %endif
+%endmacro
+
+; initCGA m, p, l
+; l = scanlines per character
+%macro initCGA 3
   ; Mode
   ;      1 +HRES
   ;      2 +GRPH
@@ -64,30 +92,34 @@ cpu 8086
   out dx,ax
 
   ;   0x7f Vertical Total                                        1f 7f
-  %if (%1 & 2) != 0
+  %if %3 == 2
     mov ax,0x7f04
   %else
-    mov ax,0x1f04
+    mov ax,4 | (((262 / %3) - 1) << 8)
   %endif
   out dx,ax
 
   ;   0x1f Vertical Total Adjust                              06
-  mov ax,0x0605
+  %if %3 == 2
+    mov ax,0x0605
+  %else
+    mov ax,5 | ((262 % %3) << 8)
+  %endif
   out dx,ax
 
   ;   0x7f Vertical Displayed                                    19 64
-  %if (%1 & 2) != 0
+  %if %3 == 2
     mov ax,0x6406
   %else
-    mov ax,0x1906
+    mov ax,6 | ((200 / %3) << 8)
   %endif
   out dx,ax
 
   ;   0x7f Vertical Sync Position                                1c 70
-  %if (%1 & 2) != 0
+  %if %3 == 2
     mov ax,0x7007
   %else
-    mov ax,0x1c07
+    mov ax,7 | ((224 / %3) << 8)
   %endif
   out dx,ax
 
@@ -96,11 +128,7 @@ cpu 8086
   out dx,ax
 
   ;   0x1f Max Scan Line Address                                 07 01
-  %if (%1 & 2) != 0
-    mov ax,0x0109
-  %else
-    mov ax,0x0709
-  %endif
+  mov ax,9 | ((%3 - 1) << 8)
   out dx,ax
 
   ; Cursor Start                                              06
@@ -135,6 +163,22 @@ cpu 8086
 %macro setInterrupt 2
   mov word [%1*4], %2
   mov [%1*4 + 2], cs
+%endmacro
+
+; Assumes DS == 0
+%macro getInterrupt 2
+  mov ax, word [%1*4]
+  mov [cs:%2], ax
+  mov ax, word [%1*4 + 2]
+  mov [cs:%2 + 2], ax
+%endmacro
+
+; Assumes DS == 0
+%macro restoreInterrupt 2
+  mov ax, [cs:%2]
+  mov word [%1*4], ax
+  mov ax, [cs:%2 + 2]
+  mov word [%1*4 + 2], ax
 %endmacro
 
 
@@ -323,5 +367,65 @@ cpu 8086
 
 %endmacro
 
+
+%macro waitForDisplayEnable 0
+  %%waitForDisplayEnable
+    in al,dx                       ; 1 1 2
+    test al,1                      ; 2 0 2
+    jnz %%waitForDisplayEnable     ; 2 0 2
+%endmacro
+
+%macro waitForDisplayDisable 0
+  %%waitForDisplayDisable
+    in al,dx                       ; 1 1 2
+    test al,1                      ; 2 0 2
+    jz %%waitForDisplayDisable     ; 2 0 2
+%endmacro
+
+%macro waitForVerticalSync 0
+  %%waitForVerticalSync
+    in al,dx
+    test al,8
+    jz %%waitForVerticalSync
+%endmacro
+
+%macro waitForNoVerticalSync 0
+  %%waitForNoVerticalSync
+    in al,dx
+    test al,8
+    jnz %%waitForNoVerticalSync
+%endmacro
+
+
+; writePIT16 <timer> <mode> <value>
+; timer 0 = IRQ0, BIOS time-of-day (default value 0, default mode ?)
+; timer 1 = DRAM refresh DMA (default value 18, default mode ?)
+; timer 2 = PC speaker/cassette
+; mode 0 = interrupt on terminal count
+; mode 1 = programmable one-shot
+; mode 2 = rate generator
+; mode 3 = square wave rate generator
+; mode 4 = software triggered strobe
+; mode 5 = hardware triggered strobe
+; value = 13125000Hz/(11*frequency), or 0 for 18.2Hz
+%macro writePIT16 3
+  mov al,(%1 << 6) | 0x30 | (%2 << 1)  ; Don't use BCD mode
+  out 0x43,al
+  mov al,%3 & 0xff
+  out 0x40 + %1,al
+  mov al,%3 >> 8
+  out 0x40 + %1,al
+%endmacro
+
+; readPIT16 <timer>
+; Value returned in AX
+%macro readPIT16 1
+  mov al,%1 << 6
+  out 0x43,al
+  in al,0x40 + %1
+  mov ah,al
+  in al,0x40 + %1
+  xchg ah,al
+%endmacro
 
 

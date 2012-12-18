@@ -224,70 +224,67 @@ BlockType
 
 WM_PAINT
   ImageWindow::handleMessage
-    ZoomingRotatingWindow::doPaint
-      TowerGrid::setInterrupt
-      TowerGrid::clearInterrupt
-      TowerGrid::beginScene
-        GridRenderer::beginScene
-          IDirect3DDevice9::BeginScene
-      ZoomingRotatingWindow::recalculateZoomRotate
-      AnimatedWindow::doPaint
-        ImageWindow::doPaint
-          TowerGrid::paint
-            Tower::paint
-              GridRenderer::quarter
-                GeometryLock::GeometryLock
-                GeometryLock::setUV
-                GeometryLock::setXY
-              GPUTexture::destination
-                IDirect3DDevice9::SetRenderTarget
-              GridRenderer::clean
-                Device::setFilter
-                Device::setGammaCorrection
-                Quad::draw
-                  IDirect3DDevice9::SetStreamSource
-                  IDirect3DDevice9::DrawPrimitive
-              GridRenderer::cpuTexture
-              CPUTextureLock::CPUTextureLock
-                IDirect3DTexture9::LockRect
-              Screen::plotTile
-                Matrix::plot
-              CPUTexture::update
-                IDirect3DDevice9::UpdateTexture
-              GPUTexture::source
-                IDirect3DDevice9::SetTexture
+    AnimatedWindow::doPaint
+      ImageWindow::doPaint
+        TowerGrid::paint
+          Matrix::setInterrupt
+          Matrix::clearInterrupt
+          GridRenderer::beginScene
+            IDirect3DDevice9::BeginScene
+          ZoomingRotatingWindow::recalculateZoomRotate
+          Tower::paint
+            GridRenderer::quarter
               GeometryLock::GeometryLock
-                IDirect3DVertexBuffer9::Lock
               GeometryLock::setUV
               GeometryLock::setXY
-              GridRenderer::paint
-                Device::destination
-                Device::setFilter
-                Device::setGammaCorrection
-                Quad::draw
-      TowerGrid::endScene
-        GridRenderer::endScene
-          IDirect3DDevice9::EndScene
-          IDirect3DDevice9::Present
-          GridRenderer::preReset
-            Quad::preReset
-            TowerGrid::preReset
-          Device::reset
-            Device::initBackBuffer
-              IDirect3D9::GetAdapterDisplayMode
-              Device::growBackBuffer
-            IDirect3DDevice9::Reset
-            Device::postreset
-              IDirect3DDevice9::GetRenderTarget
-              IDirect3DDevice9::SetFVF
-              IDirect3DDevice9::SetRenderState
-              Device::setTextureAddressingMode
-                IDirect3DDevice9::SetSamplerState
-          GridRenderer::postReset
-            Quad::postReset
-              IDirect3DDevice9::CreateVertexBuffer
-            TowerGrid::update
-      TowerGrid::resume
+            GPUTexture::destination
+              IDirect3DDevice9::SetRenderTarget
+            GridRenderer::clean
+              Device::setFilter
+              Device::setGammaCorrection
+              Quad::draw
+                IDirect3DDevice9::SetStreamSource
+                IDirect3DDevice9::DrawPrimitive
+            GridRenderer::cpuTexture
+            CPUTextureLock::CPUTextureLock
+              IDirect3DTexture9::LockRect
+            Screen::plotTile
+              Matrix::plot
+            CPUTexture::update
+              IDirect3DDevice9::UpdateTexture
+            GPUTexture::source
+              IDirect3DDevice9::SetTexture
+            GeometryLock::GeometryLock
+              IDirect3DVertexBuffer9::Lock
+            GeometryLock::setUV
+            GeometryLock::setXY
+            GridRenderer::paint
+              Device::destination
+              Device::setFilter
+              Device::setGammaCorrection
+              Quad::draw
+          GridRenderer::endScene
+            IDirect3DDevice9::EndScene
+            IDirect3DDevice9::Present
+            GridRenderer::preReset
+              Quad::preReset
+              TowerGrid::preReset
+            Device::reset
+              Device::initBackBuffer
+                IDirect3D9::GetAdapterDisplayMode
+                Device::growBackBuffer
+              IDirect3DDevice9::Reset
+              Device::postreset
+                IDirect3DDevice9::GetRenderTarget
+                IDirect3DDevice9::SetFVF
+                IDirect3DDevice9::SetRenderState
+                Device::setTextureAddressingMode
+                  IDirect3DDevice9::SetSamplerState
+            GridRenderer::postReset
+              Quad::postReset
+                IDirect3DDevice9::CreateVertexBuffer
+              TowerGrid::update
+          FractalProcessor::resume
 
 
 Separate GridRenderer into Renderer and TowerGrids
@@ -295,3 +292,27 @@ Separate GridRenderer into Renderer and TowerGrids
 Device::preset
   IDirect3DDevice9::Present
   Device::reset
+
+
+Plotting a single coloured block when a leaf is completed:
+
+FractalThread::postEvaluationProcessing()
+  Manipulator::complete(unsigned int newColour)
+    Manipulator::plot(unsigned int newColour)
+      Screen::checkedPlot(BlockLocation, unsigned int)
+        TowerGrid::plot(Vector texel, int size, DWORD colour)
+          Tower::plot(Vector texel, int size, DWORD colour)
+            GPUTexture::plotBlock(Vector texel, int , DWORD)
+              IDirect3DDevice9::ColorFill(IDirect3DSurface9*, RECT, DWORD)
+
+
+Plotting a entire tile after a reset:
+
+Tower::paint(Vector position)
+  Screen::plotTile(Vector tilePosition)
+    Matrix::plot(BlockLocation location)
+      Manipulator::plot(BlockLocation location)
+        Screen::plotBlock(BlockLocation, unsigned int)
+          TowerGrid::tilePlot(Vector texel, int size, DWORD colour)
+            Tower::tilePlot(Vector texel, int size, DWORD colour)
+              CPUTextureLock::plotBlock(Vector texel, int size, DWORD colour)

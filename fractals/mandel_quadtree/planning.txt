@@ -1,5 +1,37 @@
+Correctness
+-----------
+* Fix resize problem (shrink window to tiny, then expand it).
+  * Problem also occurs when zooming out and then in again.
+  * Need to figure out what's different in two situations:
+    1) We leave it at default
+    2) We zoom in, leave to completion and then zoom out
+  * It's something in the TowerGrid, because it goes away when we reset.
+    * I think the correspondence between the smallest matrix blocks and tower texels is broken
+      * Specifically, I think the correspondence between measurement texels and tower texels is broken - NO
+      * The Matrix has much smaller details than the TowerGrid - possibly consolidateSmallBlocks isn't keeping up because we're zooming out so quickly
+        * consolidateSmallBlocks more aggressively?
+          * Can't - it's already top priority after painting and moving
+        * Make sure that if we need a further consolidation while one is still in progress that we restart consolidation
+          * Already done - scheduling a consolidation resets the consolidation location
+        * Keep track of how much detail is in each tile - if there's more detail in the matrix than in a tile, reset that tile
+          * Also requires keeping track of the number of leaves of each size in the matrix
+            * Can do this fairly easily in MemoryTracker
+
+        * Actually this might not be true - consolidateSmallBlocks seems to be finishing and we get corruption even when zooming in on an undetailed area
+          * I think we actually just need to offset by 0.5 pixels when shrinking
+            * Didn't make any difference - maybe consolidateSmallBlocks is not actually working correctly.
+
+* Figure out why we're getting logPoints disagreements
+
+* Why is _mask 0x7f in Tower for _logTilesPerTower = 0?
+
+* Check correctness of expandMatrix() parameter in update().
+
+
 Cleanup/refactoring
 -------------------
+* Sort out the meanings of paint/draw/render/plot/update
+
 * Use gotos in the Matrix operations for readability.
 
 * Make FractalProcessor the Image for the Window and the TexelSource for the
@@ -11,13 +43,13 @@ Cleanup/refactoring
   * Add managed texture? Or dynamic texture?
   * Add Direct3DWindow back - just call beginScene/endScene around things.
 
-* Get rid of main() and delete "print" commented out code
-
-* Check correctness of expandMatrix() parameter in update().
+* Delete "print" commented out code
 
 
 Performance
 -----------
+* Try to get large back buffer working again with pixel-exact plotting - perhaps the backbuffer-to-viewport transformation is using a -0.5?
+
 * Write hand-optimized assembly (YASM) iteration functions for various CPU
   micro-architectures.
   * 96-bit specialization using square function.

@@ -16,7 +16,7 @@ public:
             comFile = true;
             fileNameArgument = 2;
         }
-        String data = File(_arguments[fileNameArgument]).contents();
+        String data = File(_arguments[fileNameArgument], true).contents();
         int l = data.length();
 
         //// Reset the machine

@@ -21,6 +21,11 @@
 #include <dirent.h>
 #endif
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
+bool alerting = false;
+
 #include "alfe/integer_types.h"
 #include "alfe/uncopyable.h"
 #include "alfe/reference.h"
@@ -159,6 +164,29 @@ private:
 #endif
     void initializeMain()
     {
+        // Disable exception swallowing on 64-bit Windows.
+        typedef BOOL (WINAPI* getType)(LPDWORD lpFlags);
+        typedef BOOL (WINAPI* setType)(DWORD dwFlags);
+#ifndef PROCESS_CALLBACK_FILTER_ENABLED
+#define PROCESS_CALLBACK_FILTER_ENABLED 1
+#endif
+        HMODULE kernel32 = LoadLibraryA("kernel32.dll");
+        if (kernel32 != NULL) {
+            getType getProcessUserModeExceptionPolicy =
+                reinterpret_cast<getType>(GetProcAddress(kernel32,
+                    "GetProcessUserModeExceptionPolicy"));
+            setType setProcessUserModeExceptionPolicy =
+                reinterpret_cast<setType>(GetProcAddress(kernel32,
+                    "SetProcessUserModeExceptionPolicy"));
+            if (getProcessUserModeExceptionPolicy != 0 &&
+                setProcessUserModeExceptionPolicy != 0) {
+                DWORD dwFlags;
+                if (getProcessUserModeExceptionPolicy(&dwFlags))
+                    setProcessUserModeExceptionPolicy(dwFlags &
+                        ~PROCESS_CALLBACK_FILTER_ENABLED);
+            }
+        }
+
         BEGIN_CHECKED {
             console = Handle(GetStdHandle(STD_OUTPUT_HANDLE), Console());
             if (!console.valid())

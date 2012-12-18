@@ -701,6 +701,9 @@ template<class FractalProcessor> class Manipulator
 public:
     void plot(unsigned int newColour)
     {
+        //if ((logPointsPerGroup()&0x3f) != _grid->logPointsPerBlock(_processor->matrix()))
+        //    printf("logPoints disagreement!\n");
+
         if (newColour == colour())
             return;
         colour() = newColour;
@@ -766,8 +769,12 @@ public:
             // We're plotting a single block or part of one.
             if (blockType() == gridBlockType)
                 child().plot(location);
-            else
+            else {
+                //if ((logPointsPerGroup()&0x3f) != _grid->logPointsPerBlock(_processor->matrix()))
+                //    printf("logPoints disagreement!\n");
+
                 _processor->screen()->plotBlock(location, colour());
+            }
             return;
         }
         // We're plotting multiple subblocks.
@@ -1120,6 +1127,7 @@ protected:
                 WorkQueueList<FractalProcessor>* queue = _processor->queue();
                 queue->remove(leaf, logPointsPerGroup());
                 queue->add(leaf, logPointsPerGroup() + 1);
+                _processor->tracker()->incrementLogPoints(newGrid);
                 ++newGrid->_gridType._logPointsPerBlockOffset;
             }
         }
@@ -1339,6 +1347,7 @@ public:
     void grow(Vector quadrant)
     {
         --_logPointsPerBlockBase;
+        _processor->tracker()->grow();
         reset();
         _root = parent().createGrid(1, gridBlockType, 0);
         _grid->reparent(BlockPointer(_root, quadrant));
@@ -1573,6 +1582,7 @@ public:
                 BlockLocation(Vector(0, 0), 29);
 
         ++_logPointsPerBlockBase;
+        _processor->tracker()->shrink();
     }
 
     void reseatGrid(Grid* oldGrid, Grid* newGrid)
@@ -1712,6 +1722,7 @@ private:
         reset();
         moveTo(_consolidateSmallLeavesLocation);
         int logPointsPerTexel = _processor->screen()->logPointsPerTexel();
+        //printf("Starting consolidateSmallLeaves - texel size = 2^%i points - unit size = 2^%i points.\n",logPointsPerTexel, logPointsPerTexel - _processor->screen()->logUnitsPerTexel());
 start:
         if (_interrupt) {
             _consolidateSmallLeavesPending = true;
@@ -1780,6 +1791,7 @@ ascend:
             moveTo(BlockLocation(Vector(0, 0), 29));
             goto start;
         }
+        //printf("consolidateSmallLeaves complete\n");
     }
 
     void consolidateOffScreenLeaves()

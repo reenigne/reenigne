@@ -1,0 +1,92 @@
+* A "host" program that runs on the modern PC, communicates over serial (or whatever) and provides:
+  * BIOS calls
+  * (later) DOS calls
+  * (for emulators only) hardware modifications
+  * This needs to have a GUI for changing disk images
+    * Menu
+      * Reset
+      * Drive A ->
+        * Load...
+        * New...
+        * (list of recently used images)
+      * Drive B ->
+        ...
+      * Exit
+
+* An interrupt for accessing host services
+  * Takes a string and sends it over serial (or whatever)
+    * Waits for response and sends additional data as required
+  * For emulators or with additional hardware, this might be implemented with an IO port or undefined CPU instruction
+  * INT 0x45?
+    * According to RBIL, only currently used by viruses and for Acorns
+      * Do we need an interrupt at all? Instead have different versions (of, e.g. IMGMOUNT) for emulators than for real hardware/serial?
+        * The advantage of the interrupt is that we don't need to have different versions of programs - we can just use the same ones with different host interrupt implementations
+  * INT 0x13,AH=0xfd?
+
+* Where is the host interrupt set up?
+  * Emulator with custom BIOS - in the BIOS
+  * Emulator or PC/XT with IBM BIOS and custom DOS - in the DOS
+  * Emulator or PC/XT with IBM BIOS and DOS - in a TSR
+    * hostemu.com (emulator) or hostser.com (serial)
+  * PC/XT with standard DOS loaded over keyboard port - in the bootloader
+
+* A DOS program for sending arbitrary strings to the host from the command line (or a batch file)
+  * host.com?
+
+* If we are booting from a remote floppy on real hardware, where should the host interrupt reside?
+  * Can't reside in ROM like a real INT 0x13 overlay would
+  * There's nowhere in RAM which is safe from DOS and applications
+  * DOS loads at a fixed location - can't take up RAM below it
+  * Therefore, load at end of RAM and then move it into a TSR in autoexec.bat
+    * For booters, just have to hope that not all RAM is used
+    * That means we can't just add an INT 0x13 layer, since we need to overwrite it in the TSR, and we have no way of following the chain
+  * Can it fit into the area 0x534-0x5FF? 204 bytes?
+
+* A .bin program which
+  * Implements host
+  * Implements INT 0x13
+    0 = Reset Disk System
+    1 = Disk Status
+    2 = Read Disk Sectors
+    3 = Write Disk Sectors
+    4 = Verify Disk Sectors
+    5 = Format Disk Track
+    6 = Format Track and Set Bad Sector Flags (XT & portable)
+    7 = Format Drive Starting at Specified Track (XT & portable)
+    8 = Get Current Drive Parameters (XT & newer)
+    9 = Initialize Fixed Disk Table (XT & newer)
+    A = Read Long Sector (XT & newer)
+    B = Write Long Sectors (XT & newer)
+    C = Seek to Cylinder (XT & newer)
+    D = Alternate Disk Reset  (XT & newer)
+    E = Read Sector Buffer (XT & portable only)
+    F = Write Sector Buffer (XT & portable only)
+   10 = Test for Drive Ready (XT  & newer)
+   11 = Recalibrate Drive (XT & newer)
+   12 = Controller RAM Diagnostic (XT & portable only)
+   13 = Drive Diagnostic (XT & portable only)
+   14 = Controller Internal Diagnostic (XT & newer)
+   15 = Read DASD Type (XT BIOS from 1/10/86 & newer)
+   16 = Change of Disk Status (XT BIOS from 1/10/86 & newer)
+   17 = Set DASD Type for Format (XT BIOS from 1/10/86 & newer)
+   18 = Set Media Type for Format (BIOS date specific)
+   19 = Park Fixed Disk Heads (AT & newer)
+   1A = Format Unit (PS/2 model 50+)
+  * Reboots to a remote image
+  * For testing strange formats, implement a low-level disk format
+
+* (Eventually) a .bin/DOS program which:
+  * Implements host
+  * Implements INT 0x20-0x2F
+    * Long file names: Keep a mapping on the host side
+  * Implements a command line interpreter
+
+* (very long term)
+  * A DOS which works as normal with the cable disconnected but can also access remote drives with the cable connected
+
+* A bootstrapper which can create the DOS program given, say, "CTTY COM1" and DEBUG
+
+
+* First version:
+  * rbios.bin
+  *

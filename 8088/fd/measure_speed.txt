@@ -1,0 +1,5 @@
+Format a track to 8K
+  After writing the marker, switch to the other drive
+Write a special track which has the start of sector marker towards the end so that we get start and end markers on the disk
+Read the track
+See where the end of track marker ended up

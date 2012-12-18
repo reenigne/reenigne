@@ -30,4 +30,13 @@ org 0
 %endmacro
 
 
+%macro print 1+
+    jmp %%overMessage
+  %%message:
+    db %1
+  %%overMessage:
+    mov si,%%message
+    mov cx,%%overMessage - %%message
+    printString
+%endmacro
 

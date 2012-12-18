@@ -53,7 +53,8 @@ public:
         RootWindow::Params rwp(wp);
         typedef KeyboardWindow<RootWindow> KeyboardWindow;
         KeyboardWindow::Params kwp(rwp, this);
-        KeyboardWindow window(kwp);
+        KeyboardWindow window;
+        window.create(kwp);
 
         window.show(_nCmdShow);
         pumpMessages();
@@ -73,8 +74,13 @@ private:
             Program* _program;
         };
 
-        KeyboardWindow(Params p) : Base(p._bp), _program(p._program),
-            _lShift(false), _rShift(false) { }
+        void create(Params p)
+        {
+            Base::create(p._bp);
+            _program = p._program;
+            _lShift = false;
+            _rShift = false;
+        }
     protected:
         virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         {

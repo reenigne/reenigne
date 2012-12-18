@@ -11,8 +11,10 @@
 
 void alert(String message, HWND hWnd = NULL)
 {
+    alerting = true;
     MessageBox(hWnd, NullTerminatedWideString(message), L"Error",
-        MB_OK | MB_ICONERROR);
+        MB_OK | MB_ICONERROR | MB_TASKMODAL);
+    alerting = false;
 }
 
 void assert(bool success, String message = "", HWND hWnd = NULL)

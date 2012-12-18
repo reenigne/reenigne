@@ -1,0 +1,96 @@
+For BIOS 1501512 11/08/82 (\projects\emulation\pc\pc-xt.pdf and \projects\code\rombios.txt)
+
+FFFF:0000  power on reset location - JMP RESET
+F000:E05B  RESET  - CPU test
+     E0AE  disable NMI, video, set up 8255
+     E0C5  Checkpoint 01
+     E0C7  BIOS ROM checksum
+     E0DB  Checkpoint 02
+     E0DD  Disable DMA
+     E0E1  Timer test
+     E10E  DRAM refresh initialization
+     E165  Base 16K RAM test
+     E192  RAM size determination
+     E1CE  Set up PIC, dummy interrupt vectors 0x00-0x1F, interrupt vectors 0x10-0x1F
+     E202  Read switches
+     E222  Reset keyboard and check for manufacturing test mode
+       E242  CRTC test
+       E329  PIC test
+       E350  PIT test
+       E3A2  keyboard test
+       E3DE  Set up interrupt vectors 0x08-0x0F, 0x02, 0x05, 0x18
+       E418  Expansion box test
+       E45A  RAM test
+     E518  ROM initialization - This is the point called by bios.asm
+     E551  Floppy disk test
+     E597  Set up serial/parallel
+     E5C7  If error, display message and wait for F1 keypress
+     E65F  Enable NMI and do an INT 0x19 to boot
+
+     E66F  RAM test subroutine
+     E6CB  ROM error message
+     E6F2  INT 0x19 vector - boot loader. Try reading first sector from floppy, if failed INT 0x18 for BASIC
+     E729  INT 0x14 vector - serial IO
+     E82E  INT 0x16 vector - keyboard
+     EC59  INT 0x13 vector - disk IO
+     EFC7  Disk parameter table
+     EFD2  INT 0x17 vector - parallel IO
+     F045  INT 0x10 vector - video
+     F841  INT 0x12 vector - memory size determination
+     F84D  INT 0x11 vector - equipment determination
+     F859  INT 0x15 vector - cassette IO (dummy)
+     F85F  NMI routine
+     F8F2  ROM checksum
+     F93C  LED blink routine for manufacturing test
+     F953  ROM check and init
+     F98B  Convert and print ASCII code
+     F9A9  Print a message
+     F9D8  Error beep
+     FA2A  Keyboard reset
+     FA6E  Character set for CGA graphics modes
+     FE6E  INT 0x1A vector - time of day
+     FEA5  Timer interrupt
+     FEF3  Interrupt vector table (0x08-0x1F)
+     FF23  Temporary interrupt service routine
+     FF53  Dummy return for address compatibility
+     FF54  INT 0x05 vector - Print screen
+     FFDA  Print segment
+     FFEF  Empty byte
+
+Therefore, when skipping RAM test, also need to set up interrupt vectors 0x08-0x0F:
+
+
+Interrupts
+ 0x00 D11
+ 0x01 D11
+ 0x02 NMI_INT
+ 0x03 D11
+ 0x04 D11
+ 0x05 PRINT_SCREEN
+ 0x06 D11
+ 0x07 D11
+ 0x08 TIMER_INT
+ 0x09 KB_INT
+ 0x0A D11
+ 0x0B D11
+ 0x0C D11
+ 0x0D D11
+ 0x0E DISK_INT
+ 0x0F D11
+ 0x10 VIDEO_IO
+ 0x11 EQUIPMENT
+ 0x12 MEMORY_SIZE_DET
+ 0x13 DISKETTE_IO
+ 0x14 RS232_IO
+ 0x15 CASSETTE_IO
+ 0x16 KEYBOARD_IO
+ 0x17 PRINTER_IO
+ 0x18 F600:0000     - ROM BASIC address
+ 0x19 BOOT_STRAP
+ 0x1A TIME_OF_DAY
+ 0x1B DUMMY_RETURN  - KEYBOARD BREAK ADDR
+ 0x1C DUMMY_RETURN  - TIMER BREAK ADDR
+ 0x1D VIDEO_PARAMS
+ 0x1E DISK_BASE
+ 0x1F 0             - POINTER TO VIDEO EXT
+

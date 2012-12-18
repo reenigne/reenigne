@@ -21,6 +21,9 @@ template<class FractalProcessor> class Matrix;
 template<class FractalProcessor> class WorkQueueList;
 template<class FractalProcessor> class Screen;
 template<class FractalProcessor> class Evaluator;
+template<class FractalProcessor> class TowerGrid;
+template<class FractalProcessor> class GridRenderer;
+template<class FractalProcessor> class BlockCounter;
 
 class MColour : public FColour
 {
@@ -82,6 +85,7 @@ public:
 template<class FractalProcessor> class Screen : Uncopyable
 {
     typedef Matrix<FractalProcessor> Matrix;
+    typedef TowerGrid<FractalProcessor> TowerGrid;
 public:
     // Initialization
     Screen()
@@ -158,10 +162,6 @@ public:
         _logScreensPerUnit = logScreensPerUnit;
         update(false);
     }
-
-    void setInterrupt() { _matrix->setInterrupt(); }
-    void clearInterrupt() { _matrix->clearInterrupt(); }
-    void resume() { _processor->resume(); }
 
     // Determines if any part of a particular block is on screen.
     bool blockVisible(BlockLocation location) const
@@ -294,6 +294,10 @@ public:
         return ((intBits - logUnitsPerLeaf) + bitsPerDigit - 1) >>
             logBitsPerDigit;
     }
+
+    Vector zoomTexel() const { return texelFromPixel(_zoomPixel); }
+
+    int logUnitsPerTexel() const { return _logUnitsPerTexel; }
 
 private:
     // Sometimes we'll try to plot a block that is smaller than a texel. This
@@ -432,6 +436,7 @@ private:
         // Do zoom-ins. These do not affect the texel origin but do change the
         // scale factors.
         while (_texelsPerPixel < (1<<_logTilesPerTower)) {
+            printf("Zooming in to %i\n", _logUnitsPerTexel-1);
             --_logPointsPerTexel;
             _matrix->splitMultiTileLeaves();
             _towerGrid->split();
@@ -443,6 +448,7 @@ private:
             --_logUnitsPerTexel;
             ensureLengths();
             _texelsPerPixel *= 2.0;
+            _processor->tracker()->printLeafCounts();
         }
 
         int texelsPerTower = 1 << _logTexelsPerTower;
@@ -454,6 +460,7 @@ private:
         while (_texelsPerPixel >= (1<<(_logTilesPerTower + 1))) {
             // Amount by which we shift in order to keep the matrix origin at
             // a tower corner.
+            printf("Zooming out to %i\n", _logUnitsPerTexel+1);
             Vector offset = (_matrixOrigin >> _logTexelsPerTower)&1;
             _towerGrid->combine(offset);
             ++_logPointsPerTexel;
@@ -473,10 +480,12 @@ private:
             sub(_originUnitY, _originUnitY, _temp, _precision);
             _originPixel -= Vector2Cast<float>(offset)/_texelsPerPixel/_rotor;
             ++_logUnitsPerTexel;
+            printf("ConsolidateSmallLeaves scheduled - texel size = 2^%i points - unit size = 2^%i points.\n",_logPointsPerTexel, _logPointsPerTexel - _logUnitsPerTexel);
             ensureLengths();
             _texelsPerPixel /= 2.0;
             if (_texelsPerPixel >= (1<<(_logTilesPerTower + 1)))
                 expandMatrix(_towerGrid->size()<<_logTexelsPerTower);  // TODO: Is this correct?
+            _processor->tracker()->printLeafCounts();
         }
 
         // Extend the grid boundaries to tower corners.
@@ -576,7 +585,7 @@ private:
     }
 
     FractalProcessor* _processor;
-    TowerGrid<Screen>* _towerGrid;
+    TowerGrid* _towerGrid;
     Matrix* _matrix;
 
     int _logTexelsPerTile;
@@ -626,7 +635,7 @@ private:
 // Window mixin that gives a window the capability to zoom in and out and pan
 // using the mouse and rotate using the Z and X keys.
 template<class Base, class FractalProcessor> class ZoomingRotatingWindow
-  : public Base, Uncopyable
+  : public Base
 {
 public:
     class Params
@@ -640,144 +649,38 @@ public:
         double _minLogScreensPerUnit;
     };
 
-    ZoomingRotatingWindow(Params p, FractalProcessor* processor)
-      : Base(p._bp),
-        _zoomPosition(0,0),
+    ZoomingRotatingWindow()
+      : _zoomPosition(0,0),
         _lButton(false),
         _rButton(false),
         _mButton(false),
         _zButton(false),
         _xButton(false),
-        _logScreensPerUnit(processor->logScreensPerUnit()),
-        _minLogScreensPerUnit(p._minLogScreensPerUnit),
         _zoomVelocity(0),
         _maxZoomVelocity(1024/65536.0),
         _zoomAcceleration(64/65536.0),
         _angle(0),
         _angularVelocity(0),
         _maxAngularVelocity(256/65536.0),
-        _angularAcceleration(16/65536.0),
-        _processor(processor)
+        _angularAcceleration(16/65536.0)
     { }
 
-protected:
-    virtual void doPaint(PaintHandle* paint)
+    void create(Params p)
     {
-        _image->setInterrupt();
-        Lock lock(_processor);
-        _image->clearInterrupt();
-        _image->beginScene();
-        // Update the coordinates for the next frame.
-        recalculateZoomRotate();
-        Base::doPaint(paint);
-        _image->endScene();
-        _image->resume();
+        _minLogScreensPerUnit = Fix16p16(p._minLogScreensPerUnit);
+        Base::create(p._bp);
     }
 
-    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+    void setProcessor(FractalProcessor* processor)
     {
-        LRESULT result;
-        switch (uMsg) {
-            case WM_LBUTTONDOWN:
-                {
-                    _image->setInterrupt();
-                    Lock lock(_processor);
-                    _image->clearInterrupt();
-                    buttonDown(&_lButton, lParam);
-                    _image->resume();
-                }
-                break;
-            case WM_LBUTTONUP:
-                buttonUp(&_lButton);
-                break;
-            case WM_RBUTTONDOWN:
-                {
-                    _image->setInterrupt();
-                    Lock lock(_processor);
-                    _image->clearInterrupt();
-                    buttonDown(&_rButton, lParam);
-                    _image->resume();
-                }
-                break;
-            case WM_RBUTTONUP:
-                buttonUp(&_rButton);
-                break;
-            case WM_MBUTTONDOWN:
-                {
-                    _image->setInterrupt();
-                    Lock lock(_processor);
-                    _image->clearInterrupt();
-                    recalculateRegion(); // Get a fresh _zoomUnit.
-                    buttonDown(&_mButton, lParam);
-                    _image->resume();
-                }
-                break;
-            case WM_MBUTTONUP:
-                buttonUp(&_mButton);
-                break;
-            case WM_MOUSEMOVE:
-                {
-                    _image->setInterrupt();
-                    Lock lock(_processor);
-                    _image->clearInterrupt();
-                    zoomPos(VectorFromLParam(lParam));
-                    _image->resume();
-                }
-                break;
-            case WM_KILLFOCUS:
-                _lButton = _rButton = _mButton = _zButton = _xButton = false;
-                ReleaseCapture();
-                break;
-            case WM_KEYUP:
-                if (wParam == 'Z')
-                    _zButton = false;
-                if (wParam == 'X')
-                    _xButton = false;
-                break;
-            case WM_KEYDOWN:
-                if (wParam == 'Z')
-                    _zButton = true;
-                if (wParam == 'X')
-                    _xButton = true;
-                break;
-            case WM_SIZE:
-                {
-                    _image->setInterrupt();
-                    Lock lock(_processor);
-                    _image->clearInterrupt();
-                    _image->beginScene();
-                    result = Base::handleMessage(uMsg, wParam, lParam);
-                    _image->endScene();
-                    _image->resume();
-                }
-                return result;
-        }
-
-        return Base::handleMessage(uMsg, wParam, lParam);
+        _processor = processor;
+        _logScreensPerUnit = Fix16p16(processor->logScreensPerUnit());
+        _matrix = processor->matrix();
+        _renderer = processor->renderer();
+        _screen = processor->screen();
     }
 
-private:
-    void buttonDown(bool* button, LPARAM lParam)
-    {
-        if (_lButton || _rButton || _mButton)
-            zoomPos(VectorFromLParam(lParam));
-        *button = true;
-        if (_lButton || _rButton || _mButton)
-            SetCapture(_hWnd);
-    }
-    void buttonUp(bool* button)
-    {
-        *button = false;
-        if (!_lButton && !_rButton && !_mButton)
-            ReleaseCapture();
-    }
-
-    // Recalculate the region - called whenever we zoom or pan.
-    void recalculateRegion()
-    {
-        _image->
-            zoomRotate(_logScreensPerUnit, _angle, _zoomPosition, _mButton);
-    }
+    // Called by TowerGrid
 
     // Recalculate the zoom level and (if necessary) the region
     void recalculateZoomRotate()
@@ -857,6 +760,102 @@ private:
             recalculateRegion();
     }
 
+protected:
+    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+    {
+        switch (uMsg) {
+            case WM_LBUTTONDOWN:
+                {
+                    _matrix->setInterrupt();
+                    Lock lock(_processor);
+                    _matrix->clearInterrupt();
+                    buttonDown(&_lButton, lParam);
+                    _processor->resume();
+                }
+                break;
+            case WM_LBUTTONUP:
+                buttonUp(&_lButton);
+                break;
+            case WM_RBUTTONDOWN:
+                {
+                    _matrix->setInterrupt();
+                    Lock lock(_processor);
+                    _matrix->clearInterrupt();
+                    buttonDown(&_rButton, lParam);
+                    _processor->resume();
+                }
+                break;
+            case WM_RBUTTONUP:
+                buttonUp(&_rButton);
+                break;
+            case WM_MBUTTONDOWN:
+                {
+                    _matrix->setInterrupt();
+                    Lock lock(_processor);
+                    _matrix->clearInterrupt();
+                    recalculateRegion(); // Get a fresh _zoomUnit.
+                    buttonDown(&_mButton, lParam);
+                    _processor->resume();
+                }
+                break;
+            case WM_MBUTTONUP:
+                buttonUp(&_mButton);
+                break;
+            case WM_MOUSEMOVE:
+                {
+                    _matrix->setInterrupt();
+                    Lock lock(_processor);
+                    _matrix->clearInterrupt();
+                    zoomPos(VectorFromLParam(lParam));
+                    _processor->resume();
+                }
+                break;
+            case WM_KILLFOCUS:
+                _lButton = _rButton = _mButton = _zButton = _xButton = false;
+                ReleaseCapture();
+                break;
+            case WM_KEYUP:
+                if (wParam == 'Z')
+                    _zButton = false;
+                if (wParam == 'X')
+                    _xButton = false;
+                break;
+            case WM_KEYDOWN:
+                if (wParam == 'Z')
+                    _zButton = true;
+                if (wParam == 'X')
+                    _xButton = true;
+                if (wParam == 'R')
+                    _renderer->reset();
+                break;
+        }
+
+        return Base::handleMessage(uMsg, wParam, lParam);
+    }
+
+private:
+    void buttonDown(bool* button, LPARAM lParam)
+    {
+        if (_lButton || _rButton || _mButton)
+            zoomPos(VectorFromLParam(lParam));
+        *button = true;
+        if (_lButton || _rButton || _mButton)
+            SetCapture(_hWnd);
+    }
+    void buttonUp(bool* button)
+    {
+        *button = false;
+        if (!_lButton && !_rButton && !_mButton)
+            ReleaseCapture();
+    }
+
+    // Recalculate the region - called whenever we zoom or pan.
+    void recalculateRegion()
+    {
+        _screen->zoomRotate(_logScreensPerUnit, _angle, _zoomPosition,
+            _mButton, false);
+    }
+
     // Change the zoom position. Called whenever the mouse is moved.
     void zoomPos(Vector s)
     {
@@ -882,6 +881,684 @@ private:
     Fix16p16 _maxAngularVelocity;
     Fix16p16 _angularAcceleration;
     FractalProcessor* _processor;
+    Matrix<FractalProcessor>* _matrix;
+    GridRenderer<FractalProcessor>* _renderer;
+    Screen<FractalProcessor>* _screen;
+};
+
+
+template<class FractalProcessor> class Tower
+  : public LinkedListMember<Tower<FractalProcessor> >
+{
+    typedef GridRenderer<FractalProcessor> GridRenderer;
+    typedef TowerGrid<FractalProcessor> TowerGrid;
+public:
+    Tower(GridRenderer* renderer)
+      : _renderer(renderer),
+        _dirty(false),
+        _logTexelsPerTile(_renderer->logTexelsPerTile())
+    {
+        int s = 1 << _logTexelsPerTile;
+        _texture.create(_renderer->device(), Vector(s, s));
+        for (int i = 0; i < 4; ++i)
+            _subTowers[i] = 0;
+    }
+
+    void initialize(int logTilesPerTower, TowerGrid* towerGrid)
+    {
+        _dirty = true;
+        _towerGrid = towerGrid;
+        _logTilesPerTower = logTilesPerTower;
+        _shift = logTilesPerTower + _renderer->logTexelsPerTile() - 1;
+        _mask = (1 << _shift) - 1;
+    }
+
+    void disassemble()
+    {
+        if (_logTilesPerTower != 0)
+            disassembleSubTowers();
+        _renderer->release(this);
+    }
+
+    void paint(Vector position)
+    {
+        if (_dirty) {
+            if (_logTilesPerTower > 0)
+                for (int i = 0; i < 4; ++i) {
+                    Tower* tower = _subTowers[i];
+                    if (tower == 0) {
+                        tower = _renderer->aquire();
+                        _subTowers[i] = tower;
+                        tower->initialize(_logTilesPerTower - 1, _towerGrid);
+                    }
+                    Vector quadrant = quadrantFromIndex(i);
+                    tower->paint((position << 1) | quadrant);
+                    _renderer->quarter(quadrant);
+                    _texture.destination();
+                    _renderer->clean();
+                }
+            else {
+                CPUTexture* cpuTexture = _renderer->cpuTexture();
+                {
+                    CPUTextureLock lock(cpuTexture);
+                    _lock = &lock;
+                    _towerGrid->_screen->plotTile(position);
+                    //int pitch = lock.stride();
+                    //Byte* p = lock.data();
+                    //for (int y = 0; y < 256; ++y) {
+                    //    DWord* l = reinterpret_cast<DWord*>(p);
+                    //    for (int x = 0; x < 256; ++x)
+                    //        *l++ = (((x+y)&1) != 0 ? 0xff000000 : 0xffffffff);
+                    //    p += pitch;
+                    //}
+                }
+                cpuTexture->update(&_texture);
+            }
+            _dirty = false;
+        }
+        _texture.source();
+        if (_logTilesPerTower == _renderer->logTilesPerTower()) {
+            {
+                GeometryLock lock(_renderer->quad());
+                for (int i = 0; i < 4; ++i) {
+                    Vector xy = quadrantFromIndex(i);
+                    lock.setUV(i, Vector2Cast<float>(xy));
+                    lock.setXY(i, _towerGrid->pixelForTower(position + xy)*
+                        _renderer->device()->transform());
+                }
+            }
+            _renderer->paint();
+        }
+    }
+
+    void debugPaint(int position, Vector texel)
+    {
+        _texture.source();
+        {
+            GeometryLock lock(_renderer->quad());
+            for (int i = 0; i < 4; ++i) {
+                Vector xy = quadrantFromIndex(i);
+                lock.setUV(i, Vector2Cast<float>(xy));
+                lock.setXY(i, (Vector2Cast<float>(xy + Vector(position, 0))*
+                    256.0f)*
+                    _renderer->device()->transform() + Vector2<float>(0.5f, 0.5f));
+            }
+        }
+        _renderer->paint();
+        Vector t = texel >> _logTexelsPerTile;
+        Tower* subTower = _subTowers[(t.y << 1) | t.x];
+        if (subTower != 0)
+            subTower->debugPaint(position+1, Vector(0, 0)); // TODO: fix
+    }
+
+    void plot(Vector texel, int size, DWORD colour)
+    {
+        if (_logTilesPerTower == 0) {
+            _texture.plotBlock(texel, size, colour);
+            return;
+        }
+        _dirty = true;
+        Vector quadrant = texel >> _shift;
+        Tower* tower = _subTowers[(quadrant.y << 1) | quadrant.x];
+        if (tower != 0)
+            tower->plot(texel & _mask, size, colour);
+    }
+
+    void tilePlot(Vector texel, int size, DWORD colour)
+    {
+        if (_logTilesPerTower == 0) {
+            _lock->plotBlock(texel, size, colour);
+            return;
+        }
+        Vector quadrant = texel >> _shift;
+        _subTowers[(quadrant.y << 1) | quadrant.x]->
+            tilePlot(texel & _mask, size, colour);
+    }
+
+    void augment()
+    {
+        ++_logTilesPerTower;
+        ++_shift;
+        _mask = (1 << _shift) - 1;
+        if (_logTilesPerTower > 1) {
+            for (int i = 0; i < 4; ++i)
+                _subTowers[i]->augment();
+            return;
+        }
+        _texture.source();
+        for (int i = 0; i < 4; ++i) {
+            Tower* tower = _renderer->aquire();
+            tower->initialize(0, _towerGrid);
+            _subTowers[i] = tower;
+            tower->destination();
+            _renderer->expandQuarter(quadrantFromIndex(i));
+            tower->_dirty = false;
+        }
+    }
+
+    void diminish()
+    {
+        if (_logTilesPerTower > 1) {
+            for (int i = 0; i < 4; ++i)
+                _subTowers[i]->diminish();
+            return;
+        }
+        --_logTilesPerTower;
+        --_shift;
+        _mask = (1 << _shift) - 1;
+        _texture.destination();
+        for (int i = 0; i < 4; ++i) {
+            Tower* tower = _subTowers[i];
+            if (tower != 0) {
+                tower->source();
+                _renderer->quarter(quadrantFromIndex(i));
+                _renderer->scale();
+            }
+        }
+        disassembleSubTowers();
+    }
+
+    Tower* split(int i)
+    {
+        Tower* tower = _subTowers[i];
+        _subTowers[i] = 0;
+        if (tower != 0)
+            tower->augment();
+        return tower;
+    }
+
+    void combine(int i, Tower* tower)
+    {
+        tower->diminish();
+        _subTowers[i] = tower;
+    }
+
+private:
+    void disassembleSubTowers()
+    {
+        for (int i = 0; i < 4; ++i) {
+            Tower* tower = _subTowers[i];
+            if (tower != 0) {
+                tower->disassemble();
+                _subTowers[i] = 0;
+            }
+        }
+    }
+
+    void source() { _texture.source(); }
+    void destination() { _texture.destination(); }
+
+    static Vector quadrantFromIndex(int i) { return Vector(i&1, i>>1); }
+
+    GridRenderer* _renderer;
+    bool _dirty;
+    GPUTexture _texture;
+    int _logTilesPerTower;
+    int _logTexelsPerTile;
+    int _shift;
+    int _mask;
+    Tower* _subTowers[4];
+    TowerGrid* _towerGrid;
+    CPUTextureLock* _lock;
+};
+
+
+template<class FractalProcessor> class TowerGrid : Uncopyable
+{
+    typedef Tower<FractalProcessor> Tower;
+    typedef GridRenderer<FractalProcessor> GridRenderer;
+    typedef Screen<FractalProcessor> Screen;
+public:
+    TowerGrid() : _bufferSize(1, 1), _size(1, 1), _towers(1, 0) { }
+    ~TowerGrid() { _renderer->removeGrid(this); }
+
+    void setProcessor(FractalProcessor* processor)
+    {
+        _processor = processor;
+        _renderer = processor->renderer();
+        _screen = processor->screen();
+        _window = processor->window();
+        _matrix = processor->matrix();
+        _logTexelsPerTile = _renderer->logTexelsPerTile();
+        _logTilesPerTower = _renderer->logTilesPerTower();
+        _logTexelsPerTower = _logTexelsPerTile + _logTilesPerTower;
+        _texelsPerTower = 1 << _logTexelsPerTower;
+        _texelMask = _texelsPerTower - 1;
+        _renderer->addGrid(this);
+    }
+        
+    // Methods used by Screen
+
+    void split()
+    {
+        enlargeBuffer(_size << 1);
+        for (int y = _size.y - 1; y >= 0; --y)
+            for (int x = _size.x - 1; x >= 0; --x) {
+                Vector xy(x, y);
+                Vector xy2 = xy << 1;
+                Tower* tower = towerAt(xy);
+                for (int i = 0; i < 4; ++i) {
+                    Vector position = xy2 + quadrantFromIndex(i);
+                    if (tower != 0)
+                        setTower(position, tower->split(i));
+                    else
+                        setTower(position, 0);
+                }
+                if (tower != 0)
+                    _renderer->release(tower);
+            }
+        _size <<= 1;
+    }
+
+    void combine(Vector offset)
+    {
+        for (int y = -offset.y; y < _size.y; y += 2)
+            for (int x = -offset.x; x < _size.x; x += 2) {
+                Vector xy2(x, y);
+                Vector xy = (xy2 + offset) >> 1;
+                for (int i = 0; i < 4; ++i) {
+                    Vector position = xy2 + quadrantFromIndex(i);
+                    if (position.inside(_size)) {
+                        Tower* tower = towerAt(position);
+                        if (tower != 0)
+                            _renderer->combine(tower, i, this);
+                        setTower(position, 0);
+                    }
+                }
+                Tower* tower = _renderer->combined();
+                setTower(xy, tower);
+            }
+        _size = (_size + offset + 1) >> 1;
+    }
+
+    void move(Vector topLeftTower, Vector bottomRightTower)
+    {
+        Vector newSize = bottomRightTower - topLeftTower;
+        enlargeBuffer(newSize);
+
+        // Release towers that we no longer need
+        for (int y = 0; y < _size.y; ++y) {
+            for (int x = 0; x < topLeftTower.x; ++x)
+                release(Vector(x, y));
+            for (int x = bottomRightTower.x; x < _size.x; ++x)
+                release(Vector(x, y));
+        }
+        for (int x = 0; x < _size.x; ++x) {
+            for (int y = 0; y < topLeftTower.y; ++y)
+                release(Vector(x, y));
+            for (int y = bottomRightTower.y; y < _size.y; ++y)
+                release(Vector(x, y));
+        }
+
+        // Move tiles
+        Vector start(0, 0);
+        Vector end = newSize;
+        Vector delta(1, 1);
+        if (topLeftTower.x < 0) {
+            start.x = newSize.x - 1;
+            end.x = -1;
+            delta.x = -1;
+        }
+        if (topLeftTower.y < 0) {
+            start.y = newSize.y - 1;
+            end.y = -1;
+            delta.y = -1;
+        }
+        for (int y = start.y; y != end.y; y += delta.y)
+            for (int x = start.x; x != end.x; x += delta.x) {
+                Vector xy(x, y);
+                Vector xy2 = xy + topLeftTower;
+                if (xy2.inside(_size))
+                    setTower(xy, towerAt(xy2));
+                else
+                    setTower(xy, 0);
+            }
+        _size = newSize;
+    }
+
+    void plot(Vector texel, int size, DWORD colour)
+    {
+        Tower* tower = towerAt(texel >> _logTexelsPerTower);
+        if (tower != 0)
+            tower->plot(texel & _texelMask, size, colour);
+    }
+
+    void update()
+    {
+        for (int y = 0; y < _size.y; ++y)
+            for (int x = 0; x < _size.x; ++x) {
+                Vector xy(x, y);
+                Tower* tower = towerAt(xy);
+                if (_screen->texelAreaVisible(xy << _logTexelsPerTower,
+                    _texelsPerTower)) {
+                    if (tower == 0) {
+                        tower = _renderer->aquire();
+                        tower->initialize(_logTilesPerTower, this);
+                        setTower(xy, tower);
+                    }
+                }
+                else
+                    if (tower != 0) {
+                        tower->disassemble();
+                        setTower(xy, 0);
+                    }
+            }
+    }
+
+    void tilePlot(Vector texel, int size, DWORD colour)
+    {
+//        printf("Plotting tile at %08x,%08x size %i colour %i\n",texel.x,texel.y,size,colour);
+        towerAt(texel >> _logTexelsPerTower)->
+            tilePlot(texel & _texelMask, size, colour);
+    }
+
+    Vector size() const { return _size; }
+    int logTexelsPerTile() { return _logTexelsPerTile; }
+    int logTilesPerTower() { return _logTilesPerTower; }
+
+    // Methods called by ImageWindow
+
+    void paint(const PaintHandle& paint)
+    {
+        _matrix->setInterrupt();
+        Lock lock(_processor);
+        _matrix->clearInterrupt();
+        _renderer->beginScene();
+        // Update the coordinates for the next frame.
+        _window->recalculateZoomRotate();
+        for (int y = 0; y < _size.y; ++y)
+            for (int x = 0; x < _size.x; ++x) {
+                Vector position(x, y);
+                Tower* tower = towerAt(position);
+                if (tower != 0)
+                    tower->paint(position);
+            }
+
+        Vector zoomTexel = _screen->zoomTexel();
+        Vector zoomTower = zoomTexel >> _logTexelsPerTower;
+        Tower* tower = towerAt(zoomTower);
+        if (tower != 0)
+            tower->debugPaint(0, zoomTexel & _texelMask);
+
+        _renderer->endScene();
+        _processor->resume();
+    }
+
+    void resize(Vector newSize)
+    {
+        _matrix->setInterrupt();
+        Lock lock(_processor);
+        _matrix->clearInterrupt();
+        _screen->resize(newSize);
+        _renderer->resize(newSize);
+        _processor->resume();
+    }
+
+    void doneResize() { _renderer->deleteReserve(); }
+
+
+    // Methods called by GridRenderer
+
+    void preReset()
+    {
+        for (int y = 0; y < _size.y; ++y)
+            for (int x = 0; x < _size.x; ++x) {
+                Vector xy(x, y);
+                Tower* tower = towerAt(xy);
+                if (tower != 0) {
+                    tower->disassemble();
+                    setTower(xy, 0);
+                }
+            }
+    }
+
+
+    // Methods called by Tower
+
+    Vector2<float> pixelForTower(Vector towerPosition)
+    {
+        return _screen->pixelFromTexel(towerPosition << _logTexelsPerTower);
+    }
+
+    void destroy() { }
+
+private:
+    Tower* towerAt(Vector towerPosition)
+    {
+        if (!towerPosition.inside(_size))
+            return 0;
+        return _towers[towerPosition.y*_bufferSize.x + towerPosition.x];
+    }
+
+    void setTower(Vector towerPosition, Tower* tower)
+    {
+        _towers[towerPosition.y*_bufferSize.x + towerPosition.x] = tower;
+    }
+
+    void enlargeBuffer(Vector newSize)
+    {
+        newSize = Vector(max(newSize.x, _bufferSize.x),
+            max(newSize.y, _bufferSize.y));
+        if (_bufferSize == newSize)
+            return;
+        _towers.resize(newSize.x * newSize.y, 0);
+        for (int y = newSize.y - 1; y >= 0; --y)
+            for (int x = newSize.x - 1; x >= 0; --x)
+                _towers[y*newSize.x + x] = towerAt(Vector(x, y));
+        _bufferSize = newSize;
+    }
+
+    void release(Vector towerPosition)
+    {
+        Tower* tower = towerAt(towerPosition);
+        if (tower != 0)
+            tower->disassemble();
+        if (towerPosition.inside(_size))  // TODO: Needed?
+            setTower(towerPosition, 0);
+    }
+
+    static Vector quadrantFromIndex(int i) { return Vector(i&1, i>>1); }
+
+    Vector _size;
+    Vector _bufferSize;
+    int _logTexelsPerTile;
+    int _logTilesPerTower;
+    int _logTexelsPerTower;
+    int _texelsPerTower;
+    int _texelMask;
+    std::vector<Tower*> _towers;
+    FractalProcessor* _processor;
+    Screen* _screen;
+    GridRenderer* _renderer;
+    Matrix<FractalProcessor>* _matrix;
+    typename FractalProcessor::ZoomingRotatingWindow* _window;
+
+    friend class Tower;
+};
+
+
+template<class FractalProcessor> class GridRenderer : Uncopyable
+{
+    typedef Tower<FractalProcessor> Tower;
+    typedef TowerGrid<FractalProcessor> TowerGrid;
+public:
+    GridRenderer(int logTilesPerTower, int logTexelsPerTile)
+      : _logTilesPerTower(logTilesPerTower),
+        _logTexelsPerTile(logTexelsPerTile),
+        _combined(0),
+        _reset(false)
+    {
+        _pool.create(this);
+    }
+
+    void reset() { _reset = true; }
+
+    void setProcessor(FractalProcessor* processor) { }
+
+    void setDevice(Device* device)
+    {
+        _device = device;
+        _geometry.create(device);
+        int s = 1 << _logTexelsPerTile;
+        _cpuTexture.create(device, Vector(s, s));
+    }
+
+    Tower* create() { return new Tower(this); }
+    Tower* aquire() { return _pool.aquire(); }
+    void release(Tower* tower) { _pool.release(tower); }
+    CPUTexture* cpuTexture() { return &_cpuTexture; }
+    void uploadTexture(GPUTexture* texture) { _cpuTexture.update(texture); }
+
+    void beginScene() { _device->_device->BeginScene(); }
+
+    void endScene()
+    {
+        _device->_device->EndScene();
+        HRESULT hr = _device->_device->Present(
+            NULL,    // pSourceRect
+            NULL,    // pDestRect
+            NULL,    // hDestWindowOverride
+            NULL);   // pDirtyRegion
+        if (hr == D3DERR_DEVICELOST || _reset) {
+            _reset = false;
+            preReset();
+            _device->reset();
+            postReset();
+        }
+        else
+            IF_ERROR_THROW_DX(hr);
+    }
+
+    void resize(Vector size)
+    {
+        //bool reset = false;
+        //if (_device->resetNeeded(size))  {
+            preReset();
+            //reset = true;
+        //}
+        _device->setSize(size);
+        //if (reset)
+            postReset();
+    }
+
+    void deleteReserve() { _pool.deleteReserve(); }
+
+    void preReset()
+    {
+        _geometry.preReset();
+        for (std::vector<TowerGrid*>::size_type i = 0; i < _grids.size(); ++i)
+            _grids[i]->preReset();
+        deleteReserve();
+    }
+
+    void postReset()
+    {
+        _geometry.postReset();
+        for (std::vector<TowerGrid*>::size_type i = 0; i < _grids.size(); ++i)
+            _grids[i]->update();
+    }
+
+    int logTilesPerTower() const { return _logTilesPerTower; }
+    int logTexelsPerTile() const { return _logTexelsPerTile; }
+
+    Geometry* quad() { return &_geometry; }
+
+    void paint()
+    {
+        _device->destination();
+        _device->setFilter(D3DTEXF_LINEAR);
+        _device->setGammaCorrection(true);
+        _geometry.draw();
+    }
+
+    void quarter(Vector quadrant)
+    {
+        GeometryLock lock(&_geometry);
+        for (int i = 0; i < 4; ++i) {
+            Vector xy = quadrantFromIndex(i);
+            lock.setUV(i, Vector2Cast<float>(xy));
+            lock.setXY(i, Vector2Cast<float>(
+                (xy + quadrant) << (_logTexelsPerTile - 1)) -
+                    Vector2<float>(0.5f, 0.5f));
+        }
+    }
+
+    void clean()
+    {
+        _device->setFilter(D3DTEXF_LINEAR);
+        _device->setGammaCorrection(false);
+        _geometry.draw();
+    }
+
+    void combine(Tower* subTower, int i, TowerGrid* towerGrid)
+    {
+        if (_combined == 0) {
+            _combined = aquire();
+            _combined->initialize(_logTilesPerTower, towerGrid);
+        }
+        _combined->combine(i, subTower);
+    }
+
+    Tower* combined()
+    {
+        Tower* tower = _combined;
+        if (tower == 0)
+            return 0;
+        _combined = 0;
+        return tower;
+    }
+
+    void expandQuarter(Vector quarter)
+    {
+        {
+            GeometryLock lock(&_geometry);
+            for (int i = 0; i < 4; ++i) {
+                Vector xy = quadrantFromIndex(i);
+                lock.setUV(i, Vector2Cast<float>(xy + quarter)*0.5f);
+                lock.setXY(i, Vector2Cast<float>(xy << _logTexelsPerTile));
+            }
+        }
+        scale();
+    }
+
+    void scale()
+    {
+        _device->setFilter(D3DTEXF_POINT);
+        _device->setGammaCorrection(false);
+        _geometry.draw();
+    }
+
+    Device* device() { return _device; }
+
+    void addGrid(TowerGrid* grid)
+    {
+        _grids.push_back(grid);
+    }
+
+    void removeGrid(TowerGrid* grid)
+    {
+        bool found = false;
+        for (std::vector<TowerGrid*>::size_type i = 0; i < _grids.size() - 1;
+            ++i) {
+            if (_grids[i] == grid)
+                found = true;
+            if (found)
+                _grids[i] = _grids[i + 1];
+        }
+        _grids.pop_back();
+    }
+private:
+    static Vector quadrantFromIndex(int i) { return Vector(i&1, i>>1); }
+
+    int _logTilesPerTower;
+    int _logTexelsPerTile;
+    CPUTexture _cpuTexture;
+    Device* _device;
+    Pool<Tower, GridRenderer> _pool;
+    std::vector<TowerGrid*> _grids;
+    Quad _geometry;
+    Tower* _combined;
+    bool _reset;
 };
 
 
@@ -1154,10 +1831,7 @@ public:
     }
 
     // Start the thread.
-    void go()
-    {
-        _ready.signal();
-    }
+    void go() { _ready.signal(); }
 
     HANDLE finishedHandle() { return _finished; }
 
@@ -1577,7 +2251,11 @@ public:
         else
             _memoryLimit = static_cast<size_t>((ms.ullTotalPhys / 5) * 4);
         _memoryUsed = 0;
+        for (int i = 0; i < 32; ++i)
+            _leafCounts[i] = 0;
+        _counterOffset = 0;
     }
+    ~MemoryTracker() { printLeafCounts(); }
 
     void setProcessor(FractalProcessor* processor)
     {
@@ -1602,9 +2280,14 @@ public:
         return _allocator.heapForSize(gridType.bytes());
     }
 
-
     Grid* allocateGrid(GridType gridType)
     {
+        if (gridType._blockType != gridBlockType) {
+            int logPoints = (gridType._logPointsPerBlockOffset +
+                _processor->matrix()->logPointsPerBlockBase())&0x3f;
+            addBlocks(logPoints, gridType._logBlocks);
+        }
+
         Grid* grid = heapForType(gridType)->allocate<Grid>();
         if (grid == 0)
             throw std::bad_alloc();
@@ -1613,7 +2296,41 @@ public:
 
     void deallocateGrid(Grid* grid)
     {
+        if (grid->_gridType._blockType != gridBlockType) {
+            int logPoints = grid->logPointsPerBlock(_processor->matrix());
+            removeBlocks(logPoints, grid->_gridType._logBlocks);
+        }
         heapForType(grid->_gridType)->deallocate(grid);
+    }
+
+    void incrementLogPoints(Grid* grid)
+    {
+        if (grid->_gridType._blockType != gridBlockType) {
+            int logPoints = grid->logPointsPerBlock(_processor->matrix());
+            int logBlocks = grid->_gridType._logBlocks;
+            removeBlocks(logPoints, logBlocks);
+            addBlocks(logPoints + 1, logBlocks);
+        }
+    }
+
+    void decrementLogPoints(Grid* grid)
+    {
+        if (grid->_gridType._blockType != gridBlockType) {
+            int logPoints = grid->logPointsPerBlock(_processor->matrix());
+            int logBlocks = grid->_gridType._logBlocks;
+            removeBlocks(logPoints, logBlocks);
+            addBlocks(logPoints - 1, logBlocks);
+        }
+    }
+
+    void grow() { ++_counterOffset; }
+    void shrink() { --_counterOffset; }
+
+    void printLeafCounts()
+    {
+        for (int i = 0; i < 32; ++i)
+            printf("%i ",_leafCounts[i]);
+        printf("\n");
     }
 
     void reseatLeaf(IncompleteLeaf* oldLeaf, IncompleteLeaf* newLeaf,
@@ -1623,11 +2340,26 @@ public:
     }
 
 private:
+    void addBlocks(int logPoints, int logBlocks)
+    {
+        _leafCounts[(logPoints + _counterOffset) & 0x1f] +=
+            1 << (logBlocks << 1);
+    }
+
+    void removeBlocks(int logPoints, int logBlocks)
+    {
+        _leafCounts[(logPoints + _counterOffset) & 0x1f] -=
+            1 << (logBlocks << 1);
+    }
+
     FractalProcessor* _processor;
     Allocator _allocator;
     typename Allocator::Heap* _heap[lastBlockType][16][3];
     size_t _memoryLimit;
     size_t _memoryUsed;
+
+    int _leafCounts[32];
+    int _counterOffset;
 };
 
 
@@ -1641,13 +2373,20 @@ class FractalProcessor : public Mutex
     typedef WorkQueueList<FractalProcessor> WorkQueueList;
     typedef Dispatcher<FractalProcessor, FractalThread> Dispatcher;
     typedef MemoryTracker<FractalProcessor> MemoryTracker;
-    typedef TowerGrid<Screen> TowerGrid;
-    typedef GridRenderer<Screen> GridRenderer;
+    typedef TowerGrid<FractalProcessor> TowerGrid;
+    typedef GridRenderer<FractalProcessor> GridRenderer;
+
+    typedef RootWindow<Window> RootWindow;
+    typedef ImageWindow<RootWindow, TowerGrid> ImageWindow;
+    typedef AnimatedWindow<ImageWindow> AnimatedWindow;
+
 public:
+    typedef ZoomingRotatingWindow<AnimatedWindow, FractalProcessor>
+        ZoomingRotatingWindow;
+
     FractalProcessor(Complex<double> centre, float logScreensPerUnit,
-        GridRenderer* renderer)
-      : _towerGrid(renderer, &_screen),
-        _renderer(renderer),
+        GridRenderer* renderer, Windows* windows)
+      : _renderer(renderer),
         _logScreensPerUnit(logScreensPerUnit),
         _iterations(0),
         _iterationsPerSecond(0.0f),
@@ -1655,13 +2394,30 @@ public:
         _leavesInQueue(false),
         _interrupted(false)
     {
+        Menu menu(IDR_MENU1);
+
+        Window::Params wp(windows,
+            L"Mandelbrot Set with grid tree - click to zoom",
+            Vector(320, 240), &menu);
+        RootWindow::Params rwp(wp);
+        ImageWindow::Params iwp(rwp, &_towerGrid);
+        AnimatedWindow::Params awp(iwp, 60);
+        ZoomingRotatingWindow::Params zwp(awp, -2.3);
+        _window.create(zwp);
+
         // Link up objects
+        _queue.setProcessor(this);
+        _dispatcher.setProcessor(this);
+        _renderer->setProcessor(this);
+        _towerGrid.setProcessor(this);
+        _window.setProcessor(this);
         _screen.setProcessor(this);
         _tracker.setProcessor(this);
         _matrix.setProcessor(this);
-        _queue.setProcessor(this);
-        _dispatcher.setProcessor(this);
         _screen.setInitial(centre, logScreensPerUnit);
+
+        _device.create(&_direct3D, &_window);
+        renderer->setDevice(&_device);
     }
 
     // Resume all the threads if there might be anything for them to do.
@@ -1717,6 +2473,8 @@ public:
     WorkQueueList* queue() { return &_queue; }
     MemoryTracker* tracker() { return &_tracker; }
     Dispatcher* dispatcher() { return &_dispatcher; }
+    GridRenderer* renderer() { return _renderer; }
+    ZoomingRotatingWindow* window() { return &_window; }
     float logScreensPerUnit() const { return _logScreensPerUnit; }
     void addIterations(int iterations) { _iterations += iterations; }
 
@@ -1736,6 +2494,7 @@ public:
     }
 
 private:
+    Direct3D _direct3D;
     float _logScreensPerUnit;
     WorkQueueList _queue;
     Screen _screen;
@@ -1744,11 +2503,13 @@ private:
     int _derivatives;
     MemoryTracker _tracker;
     Matrix _matrix;
+    Device _device;
     Dispatcher _dispatcher;
     bool _leavesInQueue;
     bool _splitNeeded;
     bool _interrupted;
     GridRenderer* _renderer;
+    ZoomingRotatingWindow _window;
 
     // Statistics
     int _iterations;
@@ -1762,45 +2523,14 @@ public:
     void run()
     {
         COMInitializer ci;
-        Direct3D direct3D;
 
-        Device device;
-
-        typedef Screen<FractalProcessor> Screen;
-        GridRenderer<Screen> renderer(
+        GridRenderer<FractalProcessor> renderer(
             1,  // log(tiles per tower)
             8   // 256x256 is the optimal texture size
         );
-        FractalProcessor processor(-0.5, -2.3, &renderer);
+        FractalProcessor processor(-0.5, -2.3, &renderer, &_windows);
 
-        Menu menu(IDR_MENU1);
-
-        Window::Params wp(&_windows,
-            L"Mandelbrot Set with grid tree - click to zoom",
-            Vector(320, 240), &menu);
-        typedef RootWindow<Window> RootWindow;
-        RootWindow::Params rwp(wp);
-        typedef TowerGrid<Screen> TowerGrid;
-        typedef ImageWindow<RootWindow, TowerGrid> ImageWindow;
-        ImageWindow::Params iwp(rwp, processor.towerGrid());
-        typedef AnimatedWindow<ImageWindow> AnimatedWindow;
-        AnimatedWindow::Params awp(iwp, 60);
-        typedef ZoomingRotatingWindow<AnimatedWindow, FractalProcessor>
-            ZoomingRotatingWindow;
-        ZoomingRotatingWindow::Params zwp(awp, -2.3);
-        ZoomingRotatingWindow window(zwp, &processor);
-
-        device.create(&direct3D, &window);
-        renderer.setDevice(&device);
-
-        window.show(_nCmdShow);
+        processor.window()->show(_nCmdShow);
         pumpMessages(processor.dispatcher());
     }
 };
-
-
-//int __cdecl main()
-//{
-//    setvbuf(stdout, 0, _IONBF, 0);
-//    return WinMain(GetModuleHandle(NULL), NULL, "", SW_SHOWNORMAL);
-//}

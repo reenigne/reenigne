@@ -605,6 +605,9 @@ public:
         bool windowsParsing = false)
       : FileSystemObject(path, relativeTo, windowsParsing) { }
 
+    FileTemplate(const String& path, bool windowsParsing)
+      : FileSystemObject(path, CurrentDirectory(), windowsParsing) { }
+
     String contents() const
     {
         FileHandle f = openRead();
