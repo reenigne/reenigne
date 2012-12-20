@@ -15,13 +15,12 @@ offsetLoop:
   cmp al,ah
   jz okHigh
 
-  int 0x60
+  printHex
   mov ax,es
-  int 0x60
+  printHex
   mov ax,si
-  int 0x60
-  mov al,10
-  int 0x62
+  printHex
+  printNewLine
 
 okHigh:
   mov ah,0
@@ -30,22 +29,20 @@ okHigh:
   cmp al,ah
   jz okLow
 
-  int 0x60
+  printHex
   mov ax,es
-  int 0x60
+  printHex
   mov ax,si
-  int 0x60
-  mov al,10
-  int 0x62
+  printHex
+  printNewLine
 
 okLow:
   add si,1
   jnc offsetLoop
 
   mov ax,bx
-  int 0x60
-  mov al,10
-  int 0x62
+  printHex
+  printNewLine
 
   add bx,0x1000
   cmp bx,0xa000

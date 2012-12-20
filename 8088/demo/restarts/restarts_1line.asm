@@ -275,9 +275,8 @@ frameLoop:
   mov bl,al
   in al,0x40
   mov bh,al
-  int 0x60
-  mov al,10
-  int 0x62
+  printHex
+  printNewLine
 
   jmp frameLoop
 

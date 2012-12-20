@@ -10,17 +10,16 @@ loopTop:
   lodsb
   cmp al,0
   jne notZero
-  int 0x62
+  printCharacter
   mov al,0
   jmp notEOF
 notZero:
   cmp al,26
   jne notEOF
-  mov al,0
-  int 0x62
+  printCharacter 0
   mov al,1
 notEOF:
-  int 0x62
+  printCharacter
   loop loopTop
 
   retf

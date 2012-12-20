@@ -29,7 +29,7 @@ printLoop:
   lodsb
   cmp al,'$'
   je donePrint
-  int 0x62
+  printCharacter
   inc bx
   jmp printLoop
 donePrint:
@@ -37,7 +37,7 @@ donePrint:
   jne printSpaces
 
   ; Finish
-  int 0x67
+  complete
 
   ; Print spaces for alignment
 printSpaces:
@@ -46,8 +46,7 @@ printSpaces:
   jg spaceLoop
   mov cx,1
 spaceLoop:
-  mov al,' '
-  int 0x62
+  printCharacter ' '
   loop spaceLoop
 
   mov cx,5    ; Number of repeats
@@ -62,12 +61,6 @@ repeatLoop:
   pop ax         ; The primary measurement will have the lower value, since the counter counts down
   sub ax,bx      ; Subtract the secondary value, which will be higher, now AX is negative
   neg ax         ; Negate to get the positive difference.
-
-;  int 0x60
-;  mov al,' '
-;  int 0x62
-
-;  sub ax,8880  ; Correct for the 74 cycle multiply: 8880 = 480*74/4
 
   xor dx,dx
   mov cx,120
@@ -120,7 +113,7 @@ fullPrint:
   mov cx,10
   mov si,output
 doPrint:
-  int 0x61
+  printString
   pop si
   pop cx
   loop repeatLoop1
@@ -131,9 +124,7 @@ doPrint:
   lodsw
   add si,ax
 
-  ; Print a newline
-  mov al,10
-  int 0x62
+  printNewLine
 
   jmp nextExperiment
 
@@ -222,8 +213,8 @@ codeCopyDone:
 codeCopyOutOfSpace:
   mov si,outOfSpaceMessage
   mov cx,outOfSpaceMessageEnd-outOfSpaceMessage
-  int 0x61
-  int 0x67
+  printString
+  complete
 
 outOfSpaceMessage:
   db "Copy out of space - use fewer iterations"

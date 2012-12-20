@@ -6,7 +6,7 @@ org 0
   mov dx,0xc800
 romScanLoop:
   mov ax,dx
-  int 0x60
+  printHex
 
   mov ds,dx
   cmp word[0],0xaa55
@@ -15,15 +15,13 @@ romScanLoop:
   mov ax,0x40
   mov es,ax
   sub ah,ah
-  mov al,[2]
-  int 0x62
+  printCharacter [2]
 
   mov cl,5
   shl ax,cl
   add dx,ax
 
-  mov al,'*'
-  int 0x62
+  printCharacter '*'
 
   push dx
   mov word[es:0x67],3
@@ -35,8 +33,7 @@ romScanLoop:
 nextRom:
   add dx,0x80
 areWeDone:
-  mov al,10
-  int 0x62
+  printNewLine
 
   cmp dx,0xf600
   jl romScanLoop
@@ -52,17 +49,16 @@ areWeDone:
   mov dl,0x80
   int 0x13
   pushf
-  int 0x60      ; AX = 0000  no error
+  printHex      ; AX = 0000  no error
   mov ax,bx
-  int 0x60      ; BX = 0000
+  printHex      ; BX = 0000
   mov ax,cx
-  int 0x60      ; CX = 3051  17 sectors per track (1..17), 305 cylinders (0..304)
+  printHex      ; CX = 3051  17 sectors per track (1..17), 305 cylinders (0..304)
   mov ax,dx
-  int 0x60      ; DX = 0301  4 heads (0..3), 1 drive. Total = 17*305*4*512 = 10618880 bytes = 10370Kb = 10.12Mb (?)
+  printHex      ; DX = 0301  4 heads (0..3), 1 drive. Total = 17*305*4*512 = 10618880 bytes = 10370Kb = 10.12Mb (?)
   pop ax
-  int 0x60      ; Flags = F246  CF=0 PF=1 AF=0 ZF=1 SF=0 TF=0 IF=1 DF=0 OF=0   Success
-  mov al,10
-  int 0x62
+  printHex      ; Flags = F246  CF=0 PF=1 AF=0 ZF=1 SF=0 TF=0 IF=1 DF=0 OF=0   Success
+  printNewLine
 
   mov al,cl
   and al,0x3f
@@ -77,7 +73,7 @@ areWeDone:
   shr ah,cl
   inc ax
   mov word[cylinders],ax
-  int 0x60
+  printHex
 
 
   mov word[cylinder],0
@@ -104,24 +100,22 @@ retryLoop:
   or cl,byte[sector]
 
   mov ax,word[cylinder]
-  int 0x60
+  printHex
   mov al,byte[sector]
   mov ah,dh
-  int 0x60
-  mov al,10
-  int 0x62
+  printHex
+  printNewLine
 
   mov al,1  ; Number of sectors to read
   mov dl,0x80  ; Drive number
   mov ah,2
   int 0x13
   pushf
-  int 0x60      ; AX = 1000
+  printHex      ; AX = 1000
   pop ax
   push ax
-  int 0x60      ; Flags = F217  CF=1 PF=1 AF=1 ZF=0 SF=0 TF=0 IF=1 DF=0 OF=0   Failure
-  mov al,10
-  int 0x62
+  printHex      ; Flags = F217  CF=1 PF=1 AF=1 ZF=0 SF=0 TF=0 IF=1 DF=0 OF=0   Failure
+  printNewLine
   popf
   jnc output
 
@@ -131,12 +125,7 @@ retryLoop:
 
 output:
   pop cx
-  mov si,buffer
-  mov cx,0x200
-outputLoop:
-  lodsb
-  int 0x62
-  loop outputLoop
+  printString
 
 nextSector:
   inc byte[sector]

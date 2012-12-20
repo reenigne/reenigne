@@ -176,12 +176,23 @@ public:
         timeOuts.ReadTotalTimeoutConstant = MAXDWORD;
         IF_ZERO_THROW(SetCommTimeouts(_com, &timeOuts));
 
+        AppendableArray<Byte> file;
         do {
             int c = _com.read<Byte>();
             if (c == 26)
                 break;
+            if (c == 0) {
+                DWord l = _com.read<Byte>();
+                DWord m = _com.read<Byte>();
+                DWord h = _com.read<Byte>();
+                int n = l | (m << 8) | (n << 16);
+                for (int i = 0; i < n; ++i)
+                    file.append(_com.read<Byte>());
+            }
             console.write<Byte>(c);
         } while (true);
+        if (file.count() > 0)
+            File("retrieved.dat").save(file);
     }
 private:
     void sendPacket()

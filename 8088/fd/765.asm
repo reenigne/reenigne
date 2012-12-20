@@ -1,4 +1,4 @@
-  print "Floppy disk control program",10
+  %include "../defaults_bin.asm"
 
 ; Setup interrupts
   cli
@@ -12,13 +12,16 @@
   mov ax,cs
   mov ds,ax
 
+  print "Floppy disk control program",10
+
   writePIT16 0, 2, 0
 
 ; Reset the 765.
+  print "Resetting 765",10
   mov dx,0x03f2
-  mov al,0x08  ; All motors off, DMA/INT enabled, FDC reset, drive=A
+  mov al,0x18  ; Motor A on, DMA/INT enabled, FDC reset, drive=A
   out dx,al
-  mov al,0x0c  ; All motors off, DMA/INT enabled, FDC not reset, drive=A
+  mov al,0x1c  ; Motor A on, DMA/INT enabled, FDC not reset, drive=A
   out dx,al
 
   ; According to the NEC uPD765A datasheet: "If the RDY input is held high
@@ -26,15 +29,68 @@
   ; clear this interrupt, use the Sense Interrupt Status command."
   ; The IBM controller has RDY tied to +5V, so we should expect this
   ; interrupt.
-  mov word[operationCallback], noCallback
+  mov word[operationCallback], seekCallback
+  mov byte[interrupted], 0
+  mov word[completionCallback], synchronousCallback
   call waitInterrupt
 
-  call senseInterruptStatus
+  call commandVersion
 
   call commandSpecify
 
-  ;TODO: Turn on motor and recalibrate
+  call motorWait
 
+  mov ax,commandRecalibrate
+  call synchronousDisk
+
+  call settleWait
+
+  mov word[dma_length],0x2000
+  call setupDMA
+
+  mov byte[dma_mode],0x46
+  call startDMA
+
+  mov byte[command_r],1
+  mov byte[command_n],2  ; 512 bytes/sector  (6 = 8192)
+  mov ax,commandReadTrack
+  call synchronousDisk
+
+  mov cx,[dma_length]
+  printCharacter 0
+  printCharacter cl
+  printCharacter ch
+  printCharacter 0
+  mov si,[dma_pointer]
+  mov ds,[dma_pointer+2]
+  printString
+  complete
+
+
+  ; Wait for 1 second for the motor to spin up
+motorWait:
+  print "Waiting for spinup",10
+  mov bx,[time]
+.loop:
+  mov cx,[time]
+  sub cx,bx
+  cmp cx,19
+  jb .loop
+  ret
+
+
+  ; Wait for 25ms for head to settle
+settleWait:
+  print "Waiting for head to settle",10
+  readPIT16 0
+  mov bx,ax
+.loop:
+  readPIT16 0
+  sub ax,bx
+  neg ax
+  cmp ax,29830
+  jb .loop
+  ret
 
 
 ; To do a synchronous disk operation, put the address of the operation in ax
@@ -44,17 +100,18 @@ synchronousDisk:
   mov word[completionCallback], synchronousCallback
   call ax
 waitInterrupt:
+  print "Waiting",10
   mov bx,[time]
   sti
-waitInterruptLoop:
+.loop:
   cmp byte[interrupted],0
   jnz synchronousComplete
   mov cx,[time]
   sub cx,bx
   cmp cx,37  ; 2 seconds timeout
-  jb waitInterruptLoop
+  jb .loop
   ; We timed out
-  print "Timeout waiting for 765 interrupt - hardware fault?",10
+  print "Timeout waiting for 765 interrupt",10
   complete
 
 synchronousComplete:
@@ -65,14 +122,10 @@ synchronousCallback:
   iret
 
 
-
-  ret
-
-
 ; Interrupt 8 handler
 interrupt8:
   inc word[cs:time]
-  jmp dword[cs:oldInterrupt8]
+  jmp far [cs:oldInterrupt8]
   ; push ax; mov al,0x20; out 0x20,al; pop ax; iret
 
 oldInterrupt8:
@@ -84,9 +137,14 @@ time:
 ; Interrupt E hanadler
 interruptE:
   push ax
+  push si
+  push cx
+  print "Interrupt received",10
   mov al,0x20
   out 0x20,al
   call word[cs:operationCallback]
+  pop cx
+  pop si
   pop ax
   jmp word[cs:completionCallback]
 noCompletionCallback:
@@ -102,14 +160,14 @@ oldInterruptE:
 ; machines.
 delay12us:
   push ax
-  readPIT16
+  readPIT16 0
   mov bx,ax
-delayLoop:
-  readPIT16
-  mov cx,bx
-  sub bx,ax
-  cmp bx,15
-  jb delayLoop
+.loop:
+  readPIT16 0
+  sub ax,bx
+  neg ax
+  cmp ax,15
+  jb .loop
   pop ax
   ret
 
@@ -129,11 +187,13 @@ printByte:
   mov bx,ax
   mov al,' '
   printCharacter
+printByte2:
   mov al,bl
   mov cl,4
   shr al,cl
   call printNybble
   mov al,bl
+  and al,0x0f
   call printNybble
   mov al,bl
   ret
@@ -146,44 +206,178 @@ write765:
   call delay12us
   mov ah,al
   mov bx,[time]
-write765wait:
+.wait:
   in al,dx
   and al,0xc0
   cmp al,0x80
+  je .do
   mov cx,[time]
   sub cx,bx
   cmp cx,2
-  jae timeout765
-  jne write765wait
+  jb .wait
+
+  print "Timeout writing byte to 765"
+
+  in al,dx
+  mov [main_status],al
+  call printMainStatus
+  printNewLine
+
+  complete
+.do:
   mov al,ah
   inc dx
   out dx,al
   dec dx
   ret
 
+
 ; Read a byte from the 765. The byte read is returned in AL.
 ; Assume DX=0x3f4.
 read765:
   call delay12us
   mov bx,[time]
-write765wait:
+.wait:
   in al,dx
   and al,0xc0
   cmp al,0xc0
+  je .do
   mov cx,[time]
   sub cx,bx
   cmp cx,2
-  jae timeout765
-  jne write765wait
+  jb .wait
+  print "Timeout reading byte from 765",10
+  complete
+.do:
   inc dx
   in al,dx
   dec dx
   call printByte
   ret
 
-timeout765:
-  print "Timeout writing byte to 765 - is controller connected?",10
+
+; Set up DMA addresses
+setupDMA:
+  print "Setting up DMA.",10
+
+  mov word [dma_low],programEnd
+  mov [dma_low+2],cs
+
+  mov ax,[dma_low]
+  mov dx,[dma_low+2]
+  mov [dma_pointer],ax
+  mov [dma_pointer+2],dx
+  mov bl,dh
+  mov cl,4
+  shr bl,cl
+  shl dx,cl
+  add ax,dx
+  adc bl,0
+  mov [dma_page],bl
+  mov [dma_offset],ax
+
+  ; First attempt at DMA buffer in BL AX. Check that it does not overlap a page boundary.
+
+  mov dx,[dma_length]
+  cmp dx,0
+  je .fullPage
+  add ax,dx
+  jc .overflow
+  adc bl,0
+  jmp .checkHigh
+
+.overflow:
+  print "Trying next page.",10
+  mov cl,4
+
+  ; The region immediately after the program overlapped the page boundary.
+  ; Try the start of the next page.
+  xor ax,ax
+  mov [dma_low],ax
+  mov [dma_pointer],ax
+  mov bl,[dma_page]
+  inc bl
+  mov [dma_page],bl
+  mov bh,bl
+  shl bh,cl
+  mov [dma_pointer + 2],al
+  mov [dma_pointer + 3],bh
+
+  cmp dx,0
+  je .nextPage
+  add ax,dx
+  adc bl,0
+  jmp .checkHigh
+
+.fullPage:
+  cmp ax,0
+  jne .overflow
+.nextPage:
+  inc bl
+
+.checkHigh:
+  ; Now the first 20-bit address after the DMA buffer is in BL AX - we need to
+  ; check that it does not exceed dma_high.
+  push ax
+  print "Checking for DMA high.",10
+  mov cl,4
+  pop ax
+
+  push ax
+  push bx
+
+  mov dx,[dma_high+2]
+  mov bh,dh
+  shr bh,cl
+  shl dx,cl
+  add dx,[dma_high]
+  adc bh,0
+
+  ; Now the 20-bit version of dma_high is in BH DX
+  sub dx,ax
+  sbb bh,bl
+  jc .tooHigh
+
+  print "DMA buffer at "
+  mov al,[dma_page]
+  call printNybble
+  mov ax,[dma_offset]
+  printHex
+  printCharacter '-'
+  pop ax
+  call printNybble
+  pop ax
+  printHex
+  printNewLine
+
+  ret
+
+.tooHigh:
+  pop ax
+  pop ax
+  print "Insufficient space for DMA buffer",10
   complete
+
+
+startDMA:
+  mov al,0
+  out 0x0c,al  ; Clear first/last flip-flop
+  mov al,[dma_mode]  ; Channel 2, autoinit disabled, upwards, single
+  out 0x0b,al  ; Set DMA mode
+  mov ax,[dma_offset]
+  out 0x04,al  ; Output DMA offset low
+  mov al,ah
+  out 0x04,al  ; Output DMA offset high
+  mov al,[dma_page]
+  out 0x81,al  ; Output DMA page
+  mov ax,[dma_length]
+  dec ax
+  out 0x05,al  ; Output DMA length low
+  mov al,ah
+  out 0x05,al  ; Output DMA length high
+  mov al,2
+  out 0x0a,al  ; Clear DMA mask bit for channel 2
+  ret
 
 
 command_code:       db 0x40  ; +0x80 for MT, +0x40 for MF, +0x20 for SK
@@ -209,9 +403,17 @@ result_pcn:         db 0     ; present cylinder number
 command_ncn:        db 0     ; new cylinder number
 command_sc:         db 0     ; sectors per track (format command only)
 command_d:          db 0xf6  ; fill byte (format command only)
-operationCallback:  dw noCallback  ; operation-specific callback
+operationCallback:  dw seekCallback  ; operation-specific callback
 completionCallback: dw noCompletionCallback  ; post-operation callback (for calling code)
 interrupted:        db 0
+dma_page:           db 0
+dma_offset:         dw 0
+dma_length:         dw 0     ; 1 = 1 byte, ..., 0xffff = 65535 bytes, 0 = 65536 bytes
+dma_low:            dw 0,0   ; Lowest address we can start looking for a suitable DMA buffer
+dma_high:           dw 0,0x8000  ; Ensure our DMA buffer can't overlap the stack at 0x90000-0x9FFFF
+dma_pointer:        dw 0,0   ; Far pointer to address we ended up DMAing to
+dma_mode:           db 0x46  ; DMA write (to RAM) mode (0x46) or read (from RAM) mode (0x4a)
+main_status:        db 0
 
 standardCommand:
   mov dx,0x03f4
@@ -234,13 +436,13 @@ standardCommand2:
   mov al,[command_gpl]
   call write765
   mov al,[command_dtl]
-  jmp write765
+  call write765
+  print ".",10
+  ret
 
 standardCallback:
   push bx
-  push cx
   push dx
-  push si
   mov dx,0x03f4
   print "Read"
   call read765
@@ -257,12 +459,36 @@ standardCallback:
   mov [result_r],al
   call read765
   mov [result_n],al
-  call printErrors
-  pop si
+  print ".",10,"Result: "
+  call printST0
+  call printST1
+  call printST2
+  print ", C="
+  mov bl,[result_c]
+  call printByte2
+  print ", H="
+  mov bl,[result_h]
+  call printByte2
+  print ", R="
+  mov bl,[result_r]
+  call printByte2
+  print ", N="
+  mov bl,[result_n]
+  call printByte2
+  printNewLine
   pop dx
-  pop cx
   pop bx
-noCallback:
+  ret
+
+; "A Sense Interrupt Status command must be sent after a seem or recalibrate
+; command, otherwise the FDC will consider the next command to be an Invalid
+; command."
+seekCallback:
+  push bx
+  push dx
+  call commandSenseInterruptStatus
+  pop dx
+  pop bx
   ret
 
 
@@ -305,7 +531,9 @@ commandReadID:
   or al,0x0a
   call write765
   mov al,[command_unit]
-  jmp write765
+  call write765
+  print ".",10
+  ret
 
 commandFormatTrack:
   print "Command Format Track: Writing"
@@ -323,7 +551,9 @@ commandFormatTrack:
   mov al,[command_gpl]
   call write765
   mov al,[command_d]
-  jmp write765
+  call write765
+  print ".",10
+  ret
 
 commandScanEqual:
   print "Command Scan Equal: Writing"
@@ -342,24 +572,31 @@ commandScanHighOrEqual:
 
 commandRecalibrate:
   print "Command Recalibrate: Writing"
-  mov word[operationCallback],noCallback
+  mov word[operationCallback],seekCallback
   mov dx,0x03f4
   mov al,0x07
   call write765
   mov al,[command_unit]
   and al,0x03
-  jmp write765
+  call write765
+  print ".",10
+  ret
 
 commandSenseInterruptStatus:
   print "Command Sense Interrupt Status: Writing"
   mov dx,0x03f4
   mov al,0x08
   call write765
-  print 10,"Read"
+  print ". Read"
   call read765
   mov [result_st0],al
   call read765
   mov [result_pcn],al
+  print ".",10,"Result: "
+  call printST0
+  print ", PCN="
+  mov bl,[result_pcn]
+  call printByte2
   print ".",10
   ret
 
@@ -371,39 +608,264 @@ commandSpecify:
   mov al,[specify_1]
   call write765
   mov al,[specify_2]
-  jmp write765
+  call write765
+  print ".",10
+  ret
 
 commandSenseDriveStatus:
   print "Command Sense Drive Status: Writing"
   mov dx,0x03f4
   mov al,0x04
   call write765
-  print 10,"Read"
+  print ". Read"
   call read765
   mov [result_st3],al
-  print 10
+  print ".",10
+  call printST3
+  printNewLine
   ret
 
 commandSeek:
   print "Command Seek: Writing"
-  mov word[operationCallback],noCallback
+  mov word[operationCallback],seekCallback
   mov dx,0x03f4
   mov al,0x0f
   call write765
   mov al,[command_unit]
   call write765
   mov al,[command_ncn]
-  jmp write765
+  call write765
+  print ".",10
+  ret
 
 commandVersion:
   print "Command Version: Writing"
   mov dx,0x03f4
   mov al,0x10
   call write765
-  print 10,"Read"
+  print ". Read"
   call read765
   mov [result_st0],al  ; 0x80 for 765A/A-2, 0x90 for 765B.
-  print 10
+  print ".",10,"Result: "
+  cmp byte[result_st0],0x80
+  jne .v765b
+  print "765A/A-2",10
+  ret
+.v765b:
+  print "765B",10
   ret
 
 
+printST0:
+  print "Unit="
+  mov bl,[result_st0]
+  mov al,bl
+  and al,3
+  add al,'0'
+  printCharacter
+
+  print ", Head="
+  test bl,4
+  jnz .head1
+  printCharacter '0'
+  jmp .headDone
+.head1
+  printCharacter '1'
+.headDone:
+
+  test bl,8
+  jz .no_nr
+  print ", Not Ready"
+.no_nr:
+
+  test bl,0x10
+  jz .no_ec
+  print ", Equipment Check"
+.no_ec:
+
+  test bl,0x20
+  jz .no_se
+  print ", Seek End"
+.no_se:
+
+  test bl,0x40
+  jnz .bitsx1
+  test bl,0x80
+  jnz .bits10
+  print ", Normal Termination"
+  ret
+.bits10:
+  print ", Invalid Command"
+  ret
+.bitsx1:
+  test bl,0x80
+  jnz .bits11
+  print ", Abnormal Termination"
+  ret
+.bits11:
+  print ", Ready Changed"
+  ret
+
+
+printST1:
+  mov bl,[result_st1]
+  test bl,1
+  jnz .no_ma
+  print ", Missing Address Mark"
+.no_ma:
+
+  test bl,2
+  jnz .no_nw
+  print ", Not Writable"
+.no_nw:
+
+  test bl,4
+  jnz .no_nd
+  print ", No Data"
+.no_nd:
+
+  test bl,0x10
+  jnz .no_or
+  print ", Overrun"
+.no_or:
+
+  test bl,0x20
+  jnz .no_de
+  print ", Data Error"
+.no_de:
+
+  test bl,0x80
+  jnz .no_en
+  print ", End of Cylinder"
+.no_en:
+  ret
+
+
+printST2:
+  mov bl,[result_st2]
+  test bl,1
+  jnz .no_md
+  print ", Missing Address Mark in Data Field"
+.no_md:
+
+  test bl,2
+  jnz .no_bc
+  print ", Bad Cylinder"
+.no_bc:
+
+  test bl,4
+  jnz .no_sn
+  print ", Scan Not Satisfied"
+.no_sn:
+
+  test bl,8
+  jnz .no_sh
+  print ", Scan Equal Hit"
+.no_sh:
+
+  test bl,0x10
+  jnz .no_wc
+  print ", Wrong Cylinder"
+.no_wc:
+
+  test bl,0x20
+  jnz .no_dd
+  print ", Data Error in Data Field"
+.no_dd:
+
+  test bl,0x40
+  jnz .no_cm
+  print ", Control Mark"
+.no_cm:
+  ret
+
+
+printST3:
+  print "Unit="
+  mov bl,[result_st3]
+  mov al,bl
+  and al,3
+  add al,'0'
+  printCharacter
+
+  print ", Head="
+  test bl,4
+  jnz .head1
+  printCharacter '0'
+  jmp .headDone
+.head1
+  printCharacter '1'
+.headDone:
+
+  test bl,8
+  jz .no_ts
+  print ", Two-Side"
+.no_ts:
+
+  test bl,0x10
+  jz .no_t0
+  print ", Track 0"
+.no_t0:
+
+  test bl,0x20
+  jz .no_ry
+  print ", Ready"
+.no_ry:
+
+  test bl,0x40
+  jz .no_wp
+  print ", Write Protected"
+.no_wp
+
+  test bl,0x80
+  jz .no_ft
+  print ", Fault"
+.no_ft:
+  ret
+
+
+printMainStatus:
+  mov bl,[main_status]
+
+  test bl,1
+  jz .no_d0b
+  print ", FDD 0 Busy"
+.no_d0b:
+
+  test bl,2
+  jz .no_d1b
+  print ", FDD 1 Busy"
+.no_d1b:
+
+  test bl,4
+  jz .no_d2b
+  print ", FDD 2 Busy"
+.no_d2b:
+
+  test bl,8
+  jz .no_d3b
+  print ", FDD 3 Busy"
+.no_d3b:
+
+  test bl,0x10
+  jz .no_cb
+  print ", FDC Busy"
+.no_cb:
+
+  test bl,0x20
+  jz .no_exm
+  print ", Execution Mode"
+.no_exm:
+
+  test bl,0x40
+  jz .no_dio
+  print ", Data Input/Output"
+.no_dio:
+
+  test bl,0x80
+  jz .no_rqm
+  print ", Request for Master"
+.no_rqm:
+  ret
+
+programEnd:

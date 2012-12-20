@@ -9,10 +9,6 @@
   mov ah,0  ; Subfunction 0 = Reset Disk System
   mov dl,0  ; Drive 0 (A:)
   int 0x13
-  push ax
-  writeHex
-  writeNewLine
-  pop ax
   printHex
   printNewLine
 
@@ -30,9 +26,7 @@ tryLoad:
   ; Load the data
   loadSerialData
 
-  mov al,'D'
-;  int 0x65
-  writeCharacter
+  printCharacter 'D'
 
 
   mov byte[cs:cylinder],0
@@ -75,15 +69,10 @@ retryLoop:
   jnc writeOk
 
   push ax
-  mov al,'W'
-;  int 0x65
-  writeCharacter
+  printCharacter 'W'
   pop ax
-;  int 0x63
-  writeHex
-;  mov al,10
-;  int 0x65
-  writeNewLine
+  printHex
+  printNewLine
 
   mov ah,0  ; Subfunction 0 = Reset Disk System
   mov dl,0  ; Drive 0 (A:)
@@ -95,19 +84,16 @@ retryLoop:
 
   mov si,diskFailMessage
   mov cx,diskFailMessageEnd - diskFailMessage
-;  int 0x64
   mov ax,cs
   mov ds,ax
-  writeString
+  printString
 
   pop di
   pop es
   jmp tryLoad
 
 writeOk:
-  mov al,'.'
-;  int 0x65
-  writeCharacter
+  printCharacter '.'
 
 
   inc byte[cs:head]
@@ -122,8 +108,7 @@ writeOk:
   jmp cylinderLoop
 finished:
 
-  mov al,'B'
-  writeCharacter
+  printCharacter 'B'
 
   ; Jump back into BIOS to boot from the newly written disk
   mov ax,0x40

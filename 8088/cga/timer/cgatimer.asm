@@ -53,8 +53,7 @@ loop1:
   pop ax
   and al,0x0f
   call printNybble
-  mov al,' '
-  int 0x62
+  printCharacter ' '
 
   mov al,[byte2]
   push ax
@@ -64,8 +63,7 @@ loop1:
   pop ax
   and al,0x0f
   call printNybble
-  mov al,' '
-  int 0x62
+  printCharacter ' '
 
   mov al,[byte3]
   push ax
@@ -75,8 +73,7 @@ loop1:
   pop ax
   and al,0x0f
   call printNybble
-  mov al,' '
-  int 0x62
+  printCharacter ' '
 
   mov word[loadSeg],0x9000
   mov word[baseline],0
@@ -92,9 +89,7 @@ repeatLoop:
 
   loop repeatLoop
 
-  ; Print a newline
-  mov al,10
-  int 0x62
+  printNewLine
 
   pop cx
   loop loop1
@@ -105,7 +100,7 @@ repeatLoop:
   pop cx
   loop loop3a
 
-  int 0x67
+  complete
 
 loop3a: jmp loop3
 loop2a: jmp loop2
@@ -117,11 +112,11 @@ printNybble:
   cmp al,9
   jle .numeric
   add al,'A'-10
-  int 0x62
+  printCharacter
   ret
 .numeric:
   add al,'0'
-  int 0x62
+  printCharacter
   ret
 
 
@@ -196,7 +191,7 @@ doExperiment:
   ; Emit the final result text
   mov si,output
   mov cx,10
-  int 0x61
+  printString
 
   pop ax
   inc byte[repeat]

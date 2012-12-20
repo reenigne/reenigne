@@ -1,11 +1,9 @@
-cpu 8086
-org 0
+%include "../defaults_bin.asm"
 
 %macro debug 1
   push ax
   pushf
-  mov al,%1
-  int 0x62
+  printCharacter %1
   popf
   pop ax
 %endmacro
@@ -13,8 +11,7 @@ org 0
 
   xor ax,ax
   mov ds,ax
-  mov word[0x38],disk_int
-  mov [0x3a],cs
+  setInterrupt 0x0e, disk_int
 
   mov ax,0x40
   mov ds,ax
@@ -34,7 +31,7 @@ org 0
   jz test2
 
   debug 'F'
-  int 0x60
+  printHex
   retf
 
 test2:
@@ -91,7 +88,7 @@ j23:
   loop j23
 j24:
   debug 'T'
-  int 0x67
+  complete
 j25:
   xor cx,cx
 j26:
@@ -101,7 +98,7 @@ j26:
   loop j26
 
   debug 't'
-  int 0x67
+  complete
 j27:
   mov al,ah
   mov dl,0xf5
@@ -185,7 +182,7 @@ chk_stat_2:
   push ax
   pushf
   debug ' '
-  int 0x60
+  printHex
   popf
   pop ax
 
@@ -262,7 +259,7 @@ j42:
   debug '-'
   pushf
   push ax
-  int 0x60
+  printHex
   pop ax
   popf
 

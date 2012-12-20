@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20121103-com1-115200',0
+  db '20121219b-com1-115200',0
 
 codeStart:
   ; Don't want any stray interrupts interfering with the serial port accesses.
@@ -99,9 +99,6 @@ doMove:
 
 noRelocationNeeded:
   ; Set up some interrupts
-  ; int 0x60 == output AX as a 4-digit hex number
-  ; int 0x61 == output CX bytes from DS:SI
-  ; int 0x62 == output AL as a character
   ; int 0x63 == print AX as a 4-digit hex number
   ; int 0x64 == print CX bytes from DS:SI
   ; int 0x65 == print AL as a character
@@ -109,9 +106,6 @@ noRelocationNeeded:
   ; int 0x68 == load data from serial port at ES:DI. On completion, ES:DI points to end of loaded data.
   xor ax,ax
   mov ds,ax
-  setInterrupt 0x60, writeHexRoutine
-  setInterrupt 0x61, writeStringRoutine
-  setInterrupt 0x62, writeCharacterRoutine
   setInterrupt 0x63, printHexRoutine
   setInterrupt 0x64, printStringRoutine
   setInterrupt 0x65, printCharacterRoutine
@@ -126,9 +120,9 @@ noRelocationNeeded:
   mov [startAddress],ax
 
   ; Print the boot message
-  mov si,bootMessage
-  mov cx,bootMessageEnd - bootMessage
-  printString
+;  mov si,bootMessage
+;  mov cx,bootMessageEnd - bootMessage
+;  printString
 
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
@@ -155,64 +149,6 @@ noRelocationNeeded:
   printString
 
   retf
-
-
-writeNybble:
-  cmp al,10
-  jge alphabetic
-  add al,'0'
-  jmp gotCharacter
-alphabetic:
-  add al,'A' - 10
-gotCharacter:
-  sendByte
-  ret
-
-
-writeHexRoutine:
-  push bx
-  push cx
-  push dx
-  mov dx,0x3f8 + 5
-  mov cl,4
-  mov bx,ax
-  mov al,bh
-  shr al,cl
-  call writeNybble
-  mov al,bh
-  and al,0xf
-  call writeNybble
-  mov al,bl
-  shr al,cl
-  call writeNybble
-  mov al,bl
-  and al,0xf
-  call writeNybble
-  pop dx
-  pop cx
-  pop bx
-  iret
-
-
-writeStringRoutine:
-  push ax
-  push dx
-  mov dx,0x3f8 + 5
-writeStringLoop:
-  lodsb
-  sendByte
-  loop writeStringLoop
-  pop dx
-  pop ax
-  iret
-
-
-writeCharacterRoutine:
-  push dx
-  mov dx,0x3f8 + 5
-  sendByte
-  pop dx
-  iret
 
 
 loadSerialDataRoutine:
@@ -261,8 +197,6 @@ noBytes:
   mov al,'K'
   sendByte
   dec dx      ; 4
-;  mov al,'K'
-;  int 0x65
 
 
   ; Normalize ES:DI
@@ -284,8 +218,6 @@ checkSumFailed:
   mov al,'F'
   sendByte
   dec dx      ; 4
-;  mov al,'F'
-;  int 0x65
 
   pop cx
   sub di,cx
@@ -296,8 +228,7 @@ transferComplete:
 
 
 completeRoutine:
-  mov al,26
-  int 0x62  ; Write a ^Z character to tell the "run" program to finish
+  disconnect
   jmp 0  ; Restart the kernel
 
 
@@ -352,6 +283,11 @@ printChar:
   push dx
   push es
   push di
+
+  ; Output the character over serial as well
+  mov dx,0x3f8 + 5
+  sendByte
+
   mov dx,0xb800
   mov es,dx
   mov dx,0x3d4
@@ -416,9 +352,9 @@ column:
   db 0
 startAddress:
   dw 0
-bootMessage:
-  db 'XT Serial Kernel',10
-bootMessageEnd:
+;bootMessage:
+;  db 'XT Serial Kernel',10
+;bootMessageEnd:
 okMessage:
   db 'OK',10
 okMessageEnd:

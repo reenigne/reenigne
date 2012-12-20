@@ -31,14 +31,13 @@ minorLoop:
 
   loop minorLoop
 
-  mov al,10
-  int 0x62
+  printNewLine
 
   pop cx
   loop majorLoop
 
 exit:
-  int 0x67
+  complete
 
 
 experimentInit:
@@ -59,7 +58,7 @@ printLoop:
   lodsb
   cmp al,'$'
   je donePrint
-  int 0x62
+  printCharacter
   jmp printLoop
 donePrint:
   pop si
@@ -156,7 +155,7 @@ doExperiments:
 
 ;  add al,'A'-74
   sub al,4
-  int 0x62
+  printCharacter
   ret
 
   jmp printNumber

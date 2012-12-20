@@ -24,7 +24,7 @@ public:
             return s;
         }
     private:
-        int bytes() const { return _digits + _ox ? 2 : 0; }
+        int bytes() const { return _digits + (_ox ? 2 : 0); }
         void write(Byte* destination) const
         {
             if (_ox) {

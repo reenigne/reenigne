@@ -295,9 +295,9 @@ public:
             logBitsPerDigit;
     }
 
-    Vector zoomTexel() const { return texelFromPixel(_zoomPixel); }
+        Vector zoomTexel() const { return texelFromPixel(_zoomPixel); }
 
-    int logUnitsPerTexel() const { return _logUnitsPerTexel; }
+        int logUnitsPerTexel() const { return _logUnitsPerTexel; }
 
 private:
     // Sometimes we'll try to plot a block that is smaller than a texel. This

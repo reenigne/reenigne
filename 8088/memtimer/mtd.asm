@@ -80,12 +80,6 @@ repeatLoop:
   sub ax,bx      ; Subtract the secondary value, which will be higher, now AX is negative
   neg ax         ; Negate to get the positive difference.
 
-;  int 0x60
-;  mov al,' '
-;  int 0x62
-
-;  sub ax,8880  ; Correct for the 74 cycle multiply: 8880 = 480*74/4
-
   xor dx,dx
   mov cx,120
   div cx       ; Divide by 120 to get number of cycles (quotient) and number of extra tcycles (remainder)

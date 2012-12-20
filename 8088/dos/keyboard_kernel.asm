@@ -214,20 +214,13 @@ noRelocationNeeded:
   ; int 0x66 == beep (for debugging)
   xor ax,ax
   mov ds,ax
-  mov word [0x180], writeHex
-  mov [0x182], cs
-  mov word [0x184], writeString
-  mov [0x186], cs
-  mov word [0x188], writeCharacter
-  mov [0x18a], cs
-  mov word [0x18c], printHex
-  mov [0x18e], cs
-  mov word [0x190], printString
-  mov [0x192], cs
-  mov word [0x194], printCharacter
-  mov [0x196], cs
-  mov word [0x198], beep
-  mov [0x19a], cs
+  setInterrupt 0x60, writeHex
+  setInterrupt 0x61, writeString
+  setInterrupt 0x62, writeCharacter
+  setInterrupt 0x63, printHex
+  setInterrupt 0x64, printString
+  setInterrupt 0x65, printCharacter
+  setInterrupt 0x66, beep
 
   ; Reset video variables
   xor ax,ax

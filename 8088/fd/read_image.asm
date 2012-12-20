@@ -1,5 +1,4 @@
-cpu 8086
-org 0
+%include "../defaults_bin.asm"
 
   mov ax,cs
   mov es,ax
@@ -49,24 +48,23 @@ retryLoop:
   or cl,byte[sector]
 
   mov ax,word[cylinder]
-  int 0x60
+  printHex
   mov al,byte[sector]
   mov ah,dh
-  int 0x60
-  mov al,10
-  int 0x62
+  printHex
+  printNewLine
 
   mov al,1  ; Number of sectors to read
   mov dl,0  ; Drive number
   mov ah,2
   int 0x13
   pushf
-  int 0x60      ; AX = 1000
+
+  printHex      ; AX = 1000
   pop ax
   push ax
-  int 0x60      ; Flags = F217  CF=1 PF=1 AF=1 ZF=0 SF=0 TF=0 IF=1 DF=0 OF=0   Failure
-  mov al,10
-  int 0x62
+  printHex      ; Flags = F217  CF=1 PF=1 AF=1 ZF=0 SF=0 TF=0 IF=1 DF=0 OF=0   Failure
+  printNewLine
   popf
   jnc output
 
@@ -80,7 +78,7 @@ output:
   mov cx,0x200
 outputLoop:
   lodsb
-  int 0x62
+  printCharacter
   loop outputLoop
 
 nextSector:

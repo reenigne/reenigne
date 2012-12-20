@@ -90,20 +90,18 @@ org 0
 
 ; Done
   call init
-  int 0x67
+  complete
 
 
 init:
   push ax
   mov ax,bx
-  int 0x60
-  mov al,'-'
-  int 0x62
+  printHex
+  printCharacter '-'
 
   pop ax
-  int 0x60
-  mov al,0x20
-  int 0x62
+  printHex
+  printCharacter ' '
 
   mov al,TIMER2 | BOTH | MODE0
   out 0x43,al
