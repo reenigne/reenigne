@@ -186,11 +186,17 @@ public:
                 DWord m = _com.read<Byte>();
                 DWord h = _com.read<Byte>();
                 int n = l | (m << 8) | (n << 16);
-                for (int i = 0; i < n; ++i)
+                console.write("Transferring " + decimal(n) + " bytes.\n");
+                for (int i = 0; i < n; ++i) {
                     file.append(_com.read<Byte>());
+                    if ((i & 0xff) == 0xff)
+                        console.write(".");
+                }
+                console.write("Transfer complete.\n");
             }
             console.write<Byte>(c);
         } while (true);
+        console.write("Saving " + decimal(file.count()) + " bytes.\n");
         if (file.count() > 0)
             File("retrieved.dat").save(file);
     }
@@ -232,6 +238,4 @@ private:
 
     Handle _com;
     Array<Byte> _packet;
-
-    friend class ReaderThread;
 };

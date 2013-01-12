@@ -25,7 +25,7 @@ public:
         }
     private:
         int bytes() const { return _digits + (_ox ? 2 : 0); }
-        void write(Byte* destination) const
+        void write(::Byte* destination) const
         {
             if (_ox) {
                 *destination = '0';
@@ -68,7 +68,7 @@ public:
                 return 3;
             return 4;
         }
-        void write(Byte* destination) const
+        void write(::Byte* destination) const
         {
             if (_c < 0x80) {
                 *destination = _c;
@@ -98,10 +98,30 @@ public:
         friend class StringTemplate;
     };
 
+    class Byte
+    {
+    public:
+        Byte(int b) : _b(b) { }
+        String operator+(const char* a)
+        {
+            String s(1 + strlen(a));
+            s += *this;
+            s += a;
+            return s;
+        }
+    private:
+        void write(::Byte* destination) const
+        {
+            *destination = static_cast<::Byte>(_b);
+        }
+        int _b;
+        friend class StringTemplate;
+    };
+
     class Decimal
     {
     public:
-        Decimal(int n) : _n(n) { }
+        Decimal(int n, int digits = 0) : _n(n), _digits(digits) { }
     private:
         int bytes() const
         {
@@ -118,9 +138,11 @@ public:
                 ++l;
                 n /= 10;
             }
+            if (l < _digits)
+                return _digits;
             return l;
         }
-        void write(Byte* destination) const
+        void write(::Byte* destination) const
         {
             int n = _n;
             int l = bytes();
@@ -139,23 +161,24 @@ public:
             int d = n % 10;
             if (intMin)
                 ++d;
-            --l;
-            destination[l] = d + '0';
-            n /= 10;
-            while (n > 0) {
+            do {
                 --l;
-                destination[l] = (n % 10) + '0';
+                destination[l] = d + '0';
                 n /= 10;
-            }
+                d = n % 10;
+            } while (l > 0);
         }
 
         int _n;
+        int _digits;
         friend class StringTemplate;
     };
 
     StringTemplate() : _start(0), _length(0) { }
     StringTemplate(const char* data)
       : _buffer(data), _start(0), _length(strlen(data)) { }
+    StringTemplate(const char* data, int length)
+      : _buffer(data), _start(0), _length(length) { }
     explicit StringTemplate(int length)
       : _buffer(length), _start(0), _length(0) { }
 #ifdef _WIN32
@@ -174,19 +197,25 @@ public:
         hex.write(data());
         _length = l;
     }
-    StringTemplate(const CodePoint& c)
+    StringTemplate(const CodePoint& c) : _start(0)
     {
         int l = c.bytes();
         _buffer = Buffer(l);
         c.write(data());
         _length = l;
     }
-    StringTemplate(const Decimal d)
+    StringTemplate(const Decimal d) : _start(0)
     {
         int l = d.bytes();
         _buffer = Buffer(l);
         d.write(data());
         _length = l;
+    }
+    StringTemplate(const Byte b): _start(0)
+    {
+        _buffer = Buffer(1);
+        b.write(data());
+        _length = 1;
     }
     const String& operator+=(const String& other)
     {
@@ -262,13 +291,27 @@ public:
         s += c;
         return s;
     }
+    const String& operator+=(const Byte& b)
+    {
+        expand(1);
+        _buffer.expand(1);
+        b.write(data() + _length);
+        ++_length;
+        return *this;
+    }
+    String operator+(const Byte& b) const
+    {
+        String s(*this);
+        s += b;
+        return s;
+    }
     const String& operator*=(int n)
     {
         int l = _length*n;
         expand(l);
         _buffer.expand(l);
-        Byte* source = data();
-        Byte* destination = source + _length;
+        ::Byte* source = data();
+        ::Byte* destination = source + _length;
         for (int i = 1; i < n; ++i) {
             memcpy(destination, source, _length);
             destination += _length;
@@ -280,7 +323,7 @@ public:
 
     bool empty() const { return _length == 0; }
     int length() const { return _length; }
-    const Byte* data() const { return _buffer.data() + _start; }
+    const ::Byte* data() const { return _buffer.data() + _start; }
     String subString(int start, int length) const
     {
         if (length == 0)
@@ -288,12 +331,12 @@ public:
         return String(_buffer, _start + start, length);
     }
     void operator++() { ++_start; --_length; }
-    Byte operator*() const { return *data(); }
-    Byte operator[](int offset) const { return *(data() + offset); }
+    ::Byte operator*() const { return *data(); }
+    ::Byte operator[](int offset) const { return *(data() + offset); }
     int hash() const
     {
         int h = 0;
-        const Byte* p = data();
+        const ::Byte* p = data();
         for (int i = 0; i < _length; ++i) {
             h = h * 67 + *p - 113;
             ++p;
@@ -305,8 +348,8 @@ public:
         if (_length != other._length)
             return false;
         if (_length != 0) {
-            const Byte* a = data();
-            const Byte* b = other.data();
+            const ::Byte* a = data();
+            const ::Byte* b = other.data();
             for (int i = 0; i < _length; ++i) {
                 if (*a != *b)
                     return false;
@@ -319,7 +362,7 @@ public:
     bool operator==(const char* b) const
     {
         if (_length != 0) {
-            const Byte* a = data();
+            const ::Byte* a = data();
             for (int i = 0; i < _length; ++i) {
                 if (*b == 0)
                     return false;
@@ -334,8 +377,8 @@ public:
     bool operator!=(const String& other) const { return !operator==(other); }
     bool operator<(const String& other) const
     {
-        const Byte* a = data();
-        const Byte* b = other.data();
+        const ::Byte* a = data();
+        const ::Byte* b = other.data();
         for (int i = 0; i < min(_length, other._length); ++i) {
             if (*a < *b)
                 return true;
@@ -379,18 +422,18 @@ private:
                 return -1;
             return _implementation->end();
         }
-        void expand(const Byte* data, int length)
+        void expand(const ::Byte* data, int length)
         {
             _implementation->expand(data, length);
         }
         void expand(int length) { _implementation->expand(length); }
-        const Byte* data() const
+        const ::Byte* data() const
         {
             if (!_implementation.valid())
                 return 0;
             return _implementation->constData();
         }
-        Byte* data()
+        ::Byte* data()
         {
             if (!_implementation.valid())
                 return 0;
@@ -401,12 +444,12 @@ private:
         {
         public:
             virtual int end() const = 0;
-            virtual void expand(const Byte* data, int length) = 0;
+            virtual void expand(const ::Byte* data, int length) = 0;
             virtual void expand(int length) = 0;
-            const Byte* constData() const { return _data; }
-            Byte* data() { return const_cast<Byte*>(_data); }
+            const ::Byte* constData() const { return _data; }
+            ::Byte* data() { return const_cast<::Byte*>(_data); }
         protected:
-            const Byte* _data;
+            const ::Byte* _data;
         };
         class OwningImplementation : public Implementation
         {
@@ -415,14 +458,14 @@ private:
             {
                 _allocated = n;
                 _used = 0;
-                _data = static_cast<Byte*>(operator new(n));
+                _data = static_cast<::Byte*>(operator new(n));
             }
             ~OwningImplementation()
             {
                 operator delete(data());
             }
             int end() const { return _used; }
-            void expand(const Byte* source, int length)
+            void expand(const ::Byte* source, int length)
             {
                 expand(length);
                 memcpy(data() + _used - length, source, length);
@@ -433,11 +476,11 @@ private:
                 while (allocate < _used + length)
                     allocate *= 2;
                 if (_allocated < allocate) {
-                    const Byte* newData =
-                        static_cast<const Byte*>(operator new(allocate));
+                    const ::Byte* newData =
+                        static_cast<const ::Byte*>(operator new(allocate));
                     swap(_data, newData);
                     memcpy(data(), newData, _used);
-                    operator delete(const_cast<Byte*>(newData));
+                    operator delete(const_cast<::Byte*>(newData));
                     _allocated = allocate;
                 }
                 _used += length;
@@ -452,10 +495,10 @@ private:
         public:
             LiteralImplementation(const char* data)
             {
-                _data = reinterpret_cast<const Byte*>(data);
+                _data = reinterpret_cast<const ::Byte*>(data);
             }
             int end() const { return -1; }
-            void expand(const Byte* data, int length) { throw Exception(); }
+            void expand(const ::Byte* data, int length) { throw Exception(); }
             void expand(int length) { throw Exception(); }
         };
         Reference<Implementation> _implementation;
@@ -464,7 +507,7 @@ private:
     StringTemplate(const Buffer& buffer, int start, int length)
       : _buffer(buffer), _start(start), _length(length) { }
     bool expandable() const { return _buffer.end() == _length; }
-    Byte* data() { return _buffer.data() + _start; }
+    ::Byte* data() { return _buffer.data() + _start; }
 #ifdef _WIN32
     static int bytes(const WCHAR* utf16)
     {
@@ -493,7 +536,7 @@ private:
         }
         return n;
     }
-    static void write(Byte* destination, const WCHAR* utf16)
+    static void write(::Byte* destination, const WCHAR* utf16)
     {
         int i = 0;
         while (true) {

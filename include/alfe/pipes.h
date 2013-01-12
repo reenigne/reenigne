@@ -331,7 +331,7 @@ public:
             int start = offset(-_count);
             int n1 = min(_count, _size - start);
             memcpy(newBuffer, _buffer + start, n1*sizeof(T));
-            memcpy(newBuffer + n1, _buffer, (_size - n1)*sizeof(T));
+            memcpy(newBuffer + n1, _buffer, (_count - n1)*sizeof(T));
             delete[] _buffer;
             _position = _count;
             _size = newSize;

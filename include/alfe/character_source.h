@@ -119,7 +119,8 @@ public:
         Span span2;
         if (s.get(&span2) == character) {
             *this = s;
-            *span += span2;
+            if (span != 0)
+                *span += span2;
             return true;
         }
         return false;
@@ -133,6 +134,69 @@ public:
             return;
         }
         throwUnexpected(printable(character), printable(found));
+    }
+    bool parseString(const String& string, Span* span = 0)
+    {
+        CharacterSource s = *this;
+        CharacterSource ss(string);
+        Span span2;
+        do {
+            int character = ss.getCharacter();
+            if (character == -1)
+                break;
+            if (!s.parse(character, &span2))
+                return false;
+            if (span != 0)
+                *span += span2;
+        } while (true);
+        *this = s;
+        return true;
+    }
+    void assertString(const String& string, Span* span = 0)
+    {
+        CharacterSource s = *this;
+        CharacterSource ss(string);
+        Span span2;
+        do {
+            int character = ss.getCharacter();
+            if (character == -1)
+                break;
+            s.assert(character, &span2);
+            if (span != 0)
+                *span += span2;
+        } while (true);
+        *this = s;
+    }
+    String delimitString(const String& delimiter, bool* eof, Span* span = 0)
+    {
+        CharacterSource s = *this;
+        int startOffset = s.offset();
+        CharacterSource ss(delimiter);
+        int first = ss.getCharacter();
+        *eof = false;
+        do {
+            int endOffset = s.offset();
+            Span span2;
+            int character = s.get(&span2);
+            if (character == -1) {
+                *eof = true;
+                return String();
+            }
+            if (character == first) {
+                CharacterSource s2 = s;
+                CharacterSource ss2 = ss;
+                int delimiterCharacter;
+                do {
+                    delimiterCharacter = ss2.getCharacter();
+                    if (delimiterCharacter == -1) {
+                        *this = s2;
+                        return subString(startOffset, endOffset);
+                    }
+                } while (s2.getCharacter() == delimiterCharacter);
+            }
+            if (span != 0)
+                *span += span2;
+        } while (true);
     }
     Location location() const { return _location; }
     void throwUnexpected(const String& expected, String observed = "")
@@ -148,6 +212,15 @@ public:
     String subString(int start, int end) const
     {
         return _string.subString(start, end - start);
+    }
+    int getByte()
+    {
+        int l = _location.offset();
+        if (l == _string.length())
+            return -1;
+        int b = _string[l];
+        ++_location;
+        return b;
     }
 private:
     static String printable(int character)
@@ -225,15 +298,6 @@ private:
             _location.throwErrorWithOffset("Code point too high");
         _location.advanceColumn();
         return codePoint;
-    }
-    int getByte()
-    {
-        int l = _location.offset();
-        if (l == _string.length())
-            return -1;
-        int b = _string[l];
-        ++_location;
-        return b;
     }
     String printableByte(int b)
     {

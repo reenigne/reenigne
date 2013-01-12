@@ -1,4 +1,4 @@
-%include "../defaults_com.asm"
+  %include "../defaults_com.asm"
 
   mov ax,3
   int 0x10

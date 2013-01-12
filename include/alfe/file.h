@@ -51,7 +51,12 @@ public:
     DirectoryTemplate<T> parent() const { return _implementation->parent(); }
     String name() const { return _implementation->name(); }
     bool isRoot() const { return _implementation->isRoot(); }
-    String path() const { return _implementation->path(); }
+    String path() const
+    {
+        if (!valid())
+            return "(unknown path)";
+        return _implementation->path();
+    }
     bool valid() const { return _implementation.valid(); }
 
     bool operator==(const FileSystemObject& other) const
@@ -596,6 +601,9 @@ private:
 template<class T> class FileHandleTemplate;
 typedef FileHandleTemplate<void> FileHandle;
 
+template<class T> class AutoHandleTemplate;
+typedef AutoHandleTemplate<void> AutoHandle;
+
 template<class T> class FileTemplate : public FileSystemObject
 {
 public:
@@ -753,6 +761,32 @@ private:
             NULL),  // hTemplateFile
             *this);
     }
+public:
+    AutoHandleTemplate<T> openPipe()
+    {
+        AutoHandle f = tryOpen(GENERIC_READ | GENERIC_WRITE, 0, OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL);
+        if (!f.valid())
+            throw Exception::systemError("Opening pipe " + path());
+        return f;
+    }
+    AutoHandleTemplate<T> createPipe()
+    {
+        NullTerminatedWideString data(path());
+        AutoHandle f(CreateNamedPipe(
+            data,                // lpName
+            PIPE_ACCESS_DUPLEX,  // dwOpenMode
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,  // dwPipeMode
+            PIPE_UNLIMITED_INSTANCES,  // nMaxInstances
+            512,  // nOutBufferSize
+            512,  // nInBufferSize
+            0,    // nDefaultTimeOut
+            NULL));  // lpSecurityAttributes
+        if (!f.valid())
+            throw Exception::systemError("Creating pipe " + path());
+        return f;
+    }
+private:
 #else
     FileHandle open(int flags, bool throwIfExists = true) const
     {

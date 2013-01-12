@@ -1,4 +1,4 @@
-%include "../defaults_bin.asm"
+  %include "../defaults_bin.asm"
 
   mov ax,cs
   mov es,ax

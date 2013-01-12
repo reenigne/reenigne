@@ -1,5 +1,4 @@
-  cpu 8086
-  org 0
+  %include "../defaults_bin.asm"
 
   ; Mode                                                 8
   ;      1 +HRES                                         0

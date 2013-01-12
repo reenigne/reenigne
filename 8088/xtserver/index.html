@@ -1,0 +1,184 @@
+<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.0 Strict//EN' 'http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd'>
+<html xmlns='http://www.w3.org/1999/xhtml' dir='ltr' lang='en-US'>
+  <head>
+    <meta http-equiv='Content-Type' content='text/html; charset=UTF-8' />
+    <meta name='description' content='Run code on a real IBM 5160 XT' />
+    <link rel='stylesheet' type='text/css' href='stylesheet.css' />
+    <title>XT Server</title>
+  </head>
+  <body style="width:600px">
+    <h1>What is this?</h1>
+    <p>I have a genuine IBM 5160 XT, manufacturing date November 1984. It's
+    equivalent in almost all aspects to the IBM 5150 PC, which is the direct
+    ancestor of the machine I'm writing this on (and, almost certainly, the
+    machine you're reading this on). I've decided to allow anybody who wants
+    to (and who can access this web page) to run programs on this XT.</p>
+
+    <h1>How can I write a program that will run on the XT?</h1>
+    <p>I suggest writing assembly code and assembling it with
+    <a href="http://yasm.tortall.net/">yasm</a> (though it other compilers or
+    assemblers capable of targetting 8088/8086 should also work). Use "org 0"
+    and "cpu 8086" at the beginning of your program. The CPU in the XT is an
+    8088, which uses the same instruction set as the 8086. The bootloader
+    program that loads your code onto the XT loads it as low in memory as
+    possible (right after the bootloader) and starts it with IP=0. The program
+    may be more than 64K, though if it is too long it will stamp on the stack
+    (which is just under the 640K boundary) and crash.</p>
+
+    <h1>What software is installed?</h1>
+    <p>None, except for the standard IBM BIOS and my bootloader. There is no
+    DOS on the machine, so DOS calls cannot be used unless you include a DOS
+    as part of your program.</p>
+
+    <h1>How do I obtain output from my program?</h1>
+    <p>Any data that you send over COM1 (115200 baud, 8 data bits, 1 stop bit,
+    no parity) will be returned over the web interface to you. I have provided
+    some interrupts to make this easier:
+    <ul><li><code>int 0x63</code> - send the value in AX as a 4-digit
+    hexadecimal number (the value in AX is destroyed, other registers are
+    preserved).</li>
+    <li><code>int 0x64</code> - send CX bytes pointed to by DS:SI (AX, CX and
+    SI are destroyed, other registers are preserved).</li>
+    <li><code>int 0x65</code> - send the character in AL (AX is destroyed,
+    other registers are preserved).</li>
+    <li><code>int 0x67</code> - terminates the program. The program can also
+    be terminated by sending character 26. If the program does not complete
+    after 5 minutes, it will be terminated automatically to avoid tying up the
+    machine. I might change the timeout in the future, depending on usage and
+    demand.</li></ul>
+    These interrupts will write data to the screen as well as the serial
+    port.</p>
+
+    <h1>What hardware does the XT have installed?</h1>
+    <ul><li>Intel D8088 L4411839 '79 '83</li>
+    <li>No numeric coprocessor.</li>
+    <li>IBM BIOS 1501512 (11/08/82).</li>
+    <li>256K RAM (36x 4164) on the system board.</li>
+    <li>IBM Asynchronous adapter (1501465) configured as COM1.</li>
+    <li>Tecmar Captain 200044 card with 384Kb RAM (54x 4164, bringing total to
+    640Kb) and RTC. The card has serial and parallel ports, but they are not
+    connected and disabled by jumper settings. Feel free to change the time
+    and date if you like.</li>
+    <li>Diamond Flower DIO-500 configured as LPT1, game port, COM2 (Microsoft
+    serial mouse connected, not that that's particularly useful remotely) and
+    COM3 (not connected).</li>
+    <li>Genuine IBM CGA card (old-style composite output, part number
+    1501486).</li>
+    <li>IBM floppy controller 1503969, with one floppy drive attached (will be
+    two eventually). There is a floppy disk in the drive that you can write
+    data to if you want.</li>
+    <li>No hard drive (I have one but track 0 is bad so it can't be used for
+    DOS. It's also very loud, so I don't leave it connected).</li>
+    <li>No monitors (it's dangerous to keep these connected when running
+    untrusted code, since reprogramming the CRTC registers to invalid values
+    could damage the monitor's flyback transformer.)</li>
+    <li>An Arduino connected to the keyboard port for bootstrapping.</li></ul>
+    If you have any other pieces of compatible (and not too noisy) hardware
+    that you'd to send me for connection to the machine, they would be very
+    welcome. In return, your requests would get priority processing.</p>
+
+    <h1>Can I have an example "Hello World" program to get started?</h1>
+    <p>Sure:
+    <pre><code>
+org 0
+cpu 8086
+
+  mov ax,cs
+  mov ds,ax
+  mov si,message
+  mov cx,messageEnd-message
+  int 0x64
+  int 0x67
+
+message:
+  db "Hello, World!",10
+messageEnd:
+</code></pre></p>
+
+    <h1>How does the remote access software work?</h1>
+    <p>The power good line has a pulldown line spliced in and connected to an
+    Arduino, enabling the machine to be remotely power cycled. After a power
+    cycle, the Arduino pretends to be the IBM manufacturing test device
+    connected to the keyboard port. This loads my bootloader code into the XT
+    early in the BIOS boot sequence, allowing the RAM test (which takes ages)
+    to be skipped. Once the bootloader is in place it watches for data from
+    COM1 (i.e. your program), copies it into RAM and executes it.</p>
+    <p>All the code for this is available on
+    <a href="https://github.com/reenigne/reenigne/tree/master/8088">my
+    github</a>, along with many other example programs.</p>
+
+    <h1>Where can I find information about 8088 assembler programming and
+    PC/XT BIOS calls and hardware?</h1>
+    <p><a href="http://www.skynet.ie/~darkstar/assembler/">This tutorial</a>
+    seems to be a good start.</p>
+    <p><a href="http://stanislavs.org/helppc/">HELPPC</a> is an excellent
+    reference, and was the main resource I used when I started learning 8086
+    assembler, along with the <a href="http://www.eji.com/a86/">A86</a>
+    manual.</p>
+    <p><a href="http://www.minuszerodegrees.net/">minuszerodegrees.net</a> has
+    a wealth of excellend technical information and manuals, including the
+    IBM Technical Reference manual which is an excellent hardware reference
+    (including BIOS listings and schematics.</p>
+    <p>If you have other suggestions for links to add here, let me know and
+    I'll add them.</p>
+
+    <h1>How can I see what's on the screen?</h1>
+    <p>There is a TV capture card connected to the CGA's composite output. I'm
+    working on a way to send captured images back over the web. Stay tuned,
+    this feature will be coming soon.</p>
+
+    <h1>How can I hear what's coming out of the PC speaker?</h1>
+    <p>The PC speaker is currently disconnected so that you can't drive me
+    crazy by making annoying noises with it. However, I'm working on a way to
+    capture the audio and return it over the web. Stay tuned, this feature
+    will be coming soon.</p>
+
+    <h1>Can you run the assembler on the server so that I can just upload an
+    assembler program?</h1>
+    <p>I don't know of an assembler that is designed to be safe to use with
+    untrusted input. So this will have to wait until I write my own assembler
+    (which may take a while).</p>
+
+    <h1>My program doesn't work - will you help me debug it?</h1>
+    <p>Maybe, if it's an interesting program, or if it seems be a problem with
+    the server software. I won't do your homework for you, though.</p>
+
+    <h1>Aren't you worried about
+    <a href="http://en.wikipedia.org/wiki/Killer_poke">killer pokes</a>?</h1>
+    <p>No - see
+<a href="http://www.vintage-computer.com/vcforum/showthread.php?34981-PC-XT-killer-pokes">this
+    thread on VCF</a> for details.</p>
+
+    <h1>Will you claim any kind of ownership of programs I upload here?</h1>
+    <p>No, you keep the copyright on your programs. I will not redistribute
+    them, but I will keep logs and copies of any programs sent so that I can
+    debug if someone manages to send a program that breaks the server. Please
+    don't do anything illegal with this system.</p>
+
+    <h1>Why do you want my email address?</h1>
+    <p>If the web browser becomes disconnected before your program completes,
+    providing your email address will allow you to get the results anyway,
+    without having to re-run the program. I may also want to send you an email
+    if you run a program that breaks something, if I have a question about
+    your program or if it's just a really awesome program and I want to
+    congratulate you on it. I won't send your email to anyone else without
+    explicitly asking permission first.</p>
+
+    <h1>How can I contact you?</h1>
+    <p>Send email to me,
+    <a href="mailto:andrew@reenigne.org">andrew@reenigne.org</a>.</p>
+
+    <h1>How do I run my program?</h1>
+    <p>Upload it into this form:</p>
+
+    </p>
+    <form action="http://reenigne.dyndns.org/cgi-bin/xtserver.exe" method="post"
+    enctype="multipart/form-data">
+      <p><label for='email'>Your email address (optional):
+      <input type="text" name="email" maxlength='40' size='10' /></label></p>
+      <p><label for='binary'>File to run:
+      <input type="file" name="binary" size="40" /></label></p>
+      <button type="submit">Submit</button>
+    </form>
+  </body>
+</html>

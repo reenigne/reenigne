@@ -1,0 +1,32 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xtserver", "xtserver.vcxproj", "{0E8EE656-5BDD-4F3B-977F-B8D442820313}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xtqueue", "..\xtqueue\xtqueue.vcxproj", "{5CC7AC51-B418-47A9-8F83-775E573C2841}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cgitest", "..\cgitest\cgitest.vcxproj", "{07AAEBDF-263B-49D4-800B-8E1A6BAEAFB0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0E8EE656-5BDD-4F3B-977F-B8D442820313}.Debug|Win32.ActiveCfg = Debug|Win32
+		{0E8EE656-5BDD-4F3B-977F-B8D442820313}.Debug|Win32.Build.0 = Debug|Win32
+		{0E8EE656-5BDD-4F3B-977F-B8D442820313}.Release|Win32.ActiveCfg = Release|Win32
+		{0E8EE656-5BDD-4F3B-977F-B8D442820313}.Release|Win32.Build.0 = Release|Win32
+		{5CC7AC51-B418-47A9-8F83-775E573C2841}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5CC7AC51-B418-47A9-8F83-775E573C2841}.Debug|Win32.Build.0 = Debug|Win32
+		{5CC7AC51-B418-47A9-8F83-775E573C2841}.Release|Win32.ActiveCfg = Release|Win32
+		{5CC7AC51-B418-47A9-8F83-775E573C2841}.Release|Win32.Build.0 = Release|Win32
+		{07AAEBDF-263B-49D4-800B-8E1A6BAEAFB0}.Debug|Win32.ActiveCfg = Debug|Win32
+		{07AAEBDF-263B-49D4-800B-8E1A6BAEAFB0}.Debug|Win32.Build.0 = Debug|Win32
+		{07AAEBDF-263B-49D4-800B-8E1A6BAEAFB0}.Release|Win32.ActiveCfg = Release|Win32
+		{07AAEBDF-263B-49D4-800B-8E1A6BAEAFB0}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

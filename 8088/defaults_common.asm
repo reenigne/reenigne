@@ -1,5 +1,22 @@
 cpu 8086
 
+%macro printCharacter 1
+  mov al,%1
+  printCharacter
+%endmacro
+
+%define printNewLine printCharacter 10
+
+%macro print 1+
+    jmp %%overMessage
+  %%message:
+    db %1
+  %%overMessage:
+    mov si,%%message
+    mov cx,%%overMessage - %%message
+    printString
+%endmacro
+
 ; initCGA m
 ; m = mode register value:
 ; 0x08 = 40x25 text, colour, bright background
@@ -57,11 +74,11 @@ cpu 8086
   ;      8 +OVERSCAN I
   ;   0x10 +BACKGROUND I
   ;   0x20 +COLOR SEL
-  mov dx,0x3d9
+  inc dx
   mov al,%2
   out dx,al
 
-  mov dx,0x3d4
+  mov dl,0xd4
 
   ;   0xff Horizontal Total                             38 71
   %if (%1 & 1) != 0
@@ -146,7 +163,7 @@ cpu 8086
   out dx,ax
 
   ;   0xff Start Address (L)                                  00
-  mov ax,0x000d
+  inc ax
   out dx,ax
 
   ;   0x3f Cursor (H)                                         03  0x3c0 == 40*24 == start of last line

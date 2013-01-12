@@ -18,21 +18,7 @@
 
 ; Reset the 765.
   print "Resetting 765",10
-  mov dx,0x03f2
-  mov al,0x18  ; Motor A on, DMA/INT enabled, FDC reset, drive=A
-  out dx,al
-  mov al,0x1c  ; Motor A on, DMA/INT enabled, FDC not reset, drive=A
-  out dx,al
-
-  ; According to the NEC uPD765A datasheet: "If the RDY input is held high
-  ; during reset, the FDC will generate an interrupt within 1.024ms. To
-  ; clear this interrupt, use the Sense Interrupt Status command."
-  ; The IBM controller has RDY tied to +5V, so we should expect this
-  ; interrupt.
-  mov word[operationCallback], seekCallback
-  mov byte[interrupted], 0
-  mov word[completionCallback], synchronousCallback
-  call waitInterrupt
+  call resetFDC
 
   call commandVersion
 
@@ -45,16 +31,46 @@
 
   call settleWait
 
-  mov word[dma_length],0x2000
+  mov word[dma_length], 0x2000
   call setupDMA
+
+  call breakFormat
+
+
+  print "Writing data",10
+
+  mov byte[dma_mode],0x4a
+  call startDMA
+
+  mov al,0
+  mov es,[dma_pointer+2]
+  mov di,[dma_pointer]
+  mov cx,8192
+loop1:
+  stosb
+  inc al
+  loop loop1
+
+  mov byte[command_r],1
+  call commandWriteData
+
+  cli
+  mov di,6095+80+55 +80+80
+  call dmaWait
+  call resetFDC
+;  mov ax,commandWriteData
+;  call synchronousDisk
+
+
+  print "Reading data",10
 
   mov byte[dma_mode],0x46
   call startDMA
-
-  mov byte[command_r],1
-  mov byte[command_n],2  ; 512 bytes/sector  (6 = 8192)
-  mov ax,commandReadTrack
+  mov ax,commandReadData
   call synchronousDisk
+
+
+  print "Sending data",10
 
   mov cx,[dma_length]
   printCharacter 0
@@ -64,7 +80,82 @@
   mov si,[dma_pointer]
   mov ds,[dma_pointer+2]
   printString
+
+  print "Data sent",10
+
+  mov dx,0x03f2
+  mov al,0x0c  ; Motor A off, DMA/INT enabled, FDC not reset, drive=A
+  out dx,al
+
   complete
+
+
+; Format a track with a single 8192-byte sector.
+; Interrupt the format before it is complete so that the track and sector
+; headers are not overwritten by data.
+breakFormat:
+  print "Performing break-format",10
+  mov byte[dma_mode],0x4a
+  call startDMA
+
+  mov es,[dma_pointer+2]
+  mov di,[dma_pointer]
+  mov ax,0x0000  ; H C
+  stosw
+  mov ax,0x0601  ; N R
+  stosw
+
+  ; Start the format
+  mov byte[command_n],6
+  mov byte[command_sc],1
+  call commandFormatTrack
+
+  ; Wait until the FDC retreives the format data
+  mov di,4
+  call dmaWait
+
+  ; Wait a bit longer so we're sure that we've finished the sector header but
+  ; but that we haven't spun all the way around and overwritten the track
+  ; header.
+  mov bx,[time]
+waitLoop:
+  mov cx,[time]
+  sub cx,bx
+  cmp cx,2   ; 54-108ms = 27%-54% of a revolution
+  jb waitLoop
+
+  call resetFDC
+  ret
+
+
+resetFDC:
+  mov dx,0x03f2
+  mov al,0x18  ; Motor A on, DMA/INT enabled, FDC reset, drive=A
+  out dx,al
+  mov al,0x1c  ; Motor A on, DMA/INT enabled, FDC not reset, drive=A
+  out dx,al
+  ; According to the NEC uPD765A datasheet: "If the RDY input is held high
+  ; during reset, the FDC will generate an interrupt within 1.024ms. To
+  ; clear this interrupt, use the Sense Interrupt Status command."
+  ; The IBM controller has RDY tied to +5V, so we should expect this
+  ; interrupt.
+  mov word[operationCallback], seekCallback
+  mov byte[interrupted], 0
+  mov word[completionCallback], synchronousCallback
+  jmp waitInterrupt
+
+
+  ; Wait until offset DI in the DMA buffer is reached.
+dmaWait:
+  add di,[dma_offset]
+.loop:
+  in al,0x04
+  mov ah,al
+  in al,0x04
+  xchg al,ah
+  cmp ax,di
+  jb .loop
+  ret
 
 
   ; Wait for 1 second for the motor to spin up
@@ -216,7 +307,7 @@ write765:
   cmp cx,2
   jb .wait
 
-  print "Timeout writing byte to 765"
+  print 10,"Timeout writing byte to 765"
 
   in al,dx
   mov [main_status],al
@@ -229,30 +320,6 @@ write765:
   inc dx
   out dx,al
   dec dx
-  ret
-
-
-; Read a byte from the 765. The byte read is returned in AL.
-; Assume DX=0x3f4.
-read765:
-  call delay12us
-  mov bx,[time]
-.wait:
-  in al,dx
-  and al,0xc0
-  cmp al,0xc0
-  je .do
-  mov cx,[time]
-  sub cx,bx
-  cmp cx,2
-  jb .wait
-  print "Timeout reading byte from 765",10
-  complete
-.do:
-  inc dx
-  in al,dx
-  dec dx
-  call printByte
   ret
 
 
@@ -386,11 +453,14 @@ command_c:          db 0     ; cylinder
 command_h:          db 0     ; head
 command_r:          db 0     ; sector number
 command_n:          db 0     ; sector size = 128 bytes * 2^N, or DTL when N==0
-command_eot:        db 0     ; end of track (last sector number)
-command_gpl:        db 0     ; gap length
+command_eot:        db 8     ; end of track (last sector number)
+command_gpl:        db 0x5d  ; gap length
 command_dtl:        db 0     ; data length in bytes for N==0
-result_st0:         db 0     ;  IC1  IC0   SE   EC   NR   HD  US1  US0
-result_st1:         db 0     ;   EN    0   DE   OR    0   ND   NW   MA
+results:                     ; We should get no more than 7 bytes of results back from the 765.
+result_st0:                  ;  IC1  IC0   SE   EC   NR   HD  US1  US0
+result_st3:         db 0     ;   FT   WP   RY   T0   TS   HD  US1  US0
+result_st1:                  ;   EN    0   DE   OR    0   ND   NW   MA
+result_pcn:         db 0     ; present cylinder number
 result_st2:         db 0     ;    0   CM   DD   WC   SH   SN   BC   MD
 result_c:           db 0     ; cylinder
 result_h:           db 0     ; head
@@ -398,8 +468,6 @@ result_r:           db 0     ; sector number
 result_n:           db 0     ; sector size = 128 bytes * 2^N
 specify_1:          db 0xcf  ; SRT3 SRT2 SRT1 SRT0 HUT3 HUT2 HUT1 HUT0
 specify_2:          db 0x02  ; HLT6 HLT5 HLT4 HLT3 HLT2 HLT1 HLT0   ND
-result_st3:         db 0     ;   FT   WP   RY   T0   TS   HD  US1  US0
-result_pcn:         db 0     ; present cylinder number
 command_ncn:        db 0     ; new cylinder number
 command_sc:         db 0     ; sectors per track (format command only)
 command_d:          db 0xf6  ; fill byte (format command only)
@@ -416,9 +484,9 @@ dma_mode:           db 0x46  ; DMA write (to RAM) mode (0x46) or read (from RAM)
 main_status:        db 0
 
 standardCommand:
-  mov dx,0x03f4
   or al,[command_code]
 standardCommand2:
+  mov dx,0x03f4
   mov word[operationCallback],standardCallback
   call write765
   mov al,[command_unit]
@@ -440,26 +508,49 @@ standardCommand2:
   print ".",10
   ret
 
+
+getResults:
+  mov ax,cs
+  mov es,ax
+  mov dx,0x03f4
+  print "Read"
+  mov di,results
+  mov cx,7
+.getResult:
+  call delay12us
+  mov bx,[time]
+.wait:
+  in al,dx
+  and al,0xc0
+  cmp al,0xc0
+  je .do
+  cmp al,0x80   ; The IBM BIOS checks bit 4 here instead to see if the read is complete. Not sure if this matters.
+  je .done
+  mov ax,[time]
+  sub ax,bx
+  cmp ax,2
+  jb .wait
+  print "Timeout reading byte from 765",10
+  complete
+.do:
+  inc dx
+  in al,dx
+  dec dx
+  stosb
+  push cx
+  call printByte
+  pop cx
+  loop .getResult
+.done:
+  print ".",10
+  ret
+
+
 standardCallback:
   push bx
   push dx
-  mov dx,0x03f4
-  print "Read"
-  call read765
-  mov [result_st0],al
-  call read765
-  mov [result_st1],al
-  call read765
-  mov [result_st2],al
-  call read765
-  mov [result_c],al
-  call read765
-  mov [result_h],al
-  call read765
-  mov [result_r],al
-  call read765
-  mov [result_n],al
-  print ".",10,"Result: "
+  call getResults
+  print "Result: "
   call printST0
   call printST1
   call printST2
@@ -475,7 +566,7 @@ standardCallback:
   print ", N="
   mov bl,[result_n]
   call printByte2
-  printNewLine
+  print ".",10
   pop dx
   pop bx
   ret
@@ -540,7 +631,7 @@ commandFormatTrack:
   mov dx,0x03f4
   mov al,[command_code]
   and al,0x40
-  or al,0x0a
+  or al,0x0d
   call write765
   mov al,[command_unit]
   call write765
@@ -587,12 +678,9 @@ commandSenseInterruptStatus:
   mov dx,0x03f4
   mov al,0x08
   call write765
-  print ". Read"
-  call read765
-  mov [result_st0],al
-  call read765
-  mov [result_pcn],al
-  print ".",10,"Result: "
+  print ". "
+  call getResults
+  print "Result: "
   call printST0
   print ", PCN="
   mov bl,[result_pcn]
@@ -617,10 +705,9 @@ commandSenseDriveStatus:
   mov dx,0x03f4
   mov al,0x04
   call write765
-  print ". Read"
-  call read765
-  mov [result_st3],al
-  print ".",10
+  print ". "
+  call getResults
+  print "Result: "
   call printST3
   printNewLine
   ret
@@ -643,10 +730,9 @@ commandVersion:
   mov dx,0x03f4
   mov al,0x10
   call write765
-  print ". Read"
-  call read765
-  mov [result_st0],al  ; 0x80 for 765A/A-2, 0x90 for 765B.
-  print ".",10,"Result: "
+  print ". "
+  call getResults
+  print "Result: "
   cmp byte[result_st0],0x80
   jne .v765b
   print "765A/A-2",10
@@ -710,32 +796,32 @@ printST0:
 printST1:
   mov bl,[result_st1]
   test bl,1
-  jnz .no_ma
+  jz .no_ma
   print ", Missing Address Mark"
 .no_ma:
 
   test bl,2
-  jnz .no_nw
+  jz .no_nw
   print ", Not Writable"
 .no_nw:
 
   test bl,4
-  jnz .no_nd
+  jz .no_nd
   print ", No Data"
 .no_nd:
 
   test bl,0x10
-  jnz .no_or
+  jz .no_or
   print ", Overrun"
 .no_or:
 
   test bl,0x20
-  jnz .no_de
+  jz .no_de
   print ", Data Error"
 .no_de:
 
   test bl,0x80
-  jnz .no_en
+  jz .no_en
   print ", End of Cylinder"
 .no_en:
   ret
@@ -744,37 +830,37 @@ printST1:
 printST2:
   mov bl,[result_st2]
   test bl,1
-  jnz .no_md
+  jz .no_md
   print ", Missing Address Mark in Data Field"
 .no_md:
 
   test bl,2
-  jnz .no_bc
+  jz .no_bc
   print ", Bad Cylinder"
 .no_bc:
 
   test bl,4
-  jnz .no_sn
+  jz .no_sn
   print ", Scan Not Satisfied"
 .no_sn:
 
   test bl,8
-  jnz .no_sh
+  jz .no_sh
   print ", Scan Equal Hit"
 .no_sh:
 
   test bl,0x10
-  jnz .no_wc
+  jz .no_wc
   print ", Wrong Cylinder"
 .no_wc:
 
   test bl,0x20
-  jnz .no_dd
+  jz .no_dd
   print ", Data Error in Data Field"
 .no_dd:
 
   test bl,0x40
-  jnz .no_cm
+  jz .no_cm
   print ", Control Mark"
 .no_cm:
   ret
@@ -859,12 +945,15 @@ printMainStatus:
 
   test bl,0x40
   jz .no_dio
-  print ", Data Input/Output"
+  print ", Read"
+  jmp .done_dio
 .no_dio:
+  print ", Write"
+.done_dio:
 
   test bl,0x80
   jz .no_rqm
-  print ", Request for Master"
+  print " Request for Master"
 .no_rqm:
   ret
 

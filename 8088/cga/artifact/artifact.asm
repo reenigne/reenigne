@@ -1,34 +1,4 @@
-org 0
-cpu 8086
-
-%macro waitForDisplayEnable 0
-  %%waitForDisplayEnable
-    in al,dx                       ; 1 1 2
-    test al,1                      ; 2 0 2
-    jnz %%waitForDisplayEnable     ; 2 0 2
-%endmacro
-
-%macro waitForDisplayDisable 0
-  %%waitForDisplayDisable
-    in al,dx                       ; 1 1 2
-    test al,1                      ; 2 0 2
-    jz %%waitForDisplayDisable     ; 2 0 2
-%endmacro
-
-%macro waitForVerticalSync 0
-  %%waitForVerticalSync
-    in al,dx
-    test al,8
-    jz %%waitForVerticalSync
-%endmacro
-
-%macro waitForNoVerticalSync 0
-  %%waitForNoVerticalSync
-    in al,dx
-    test al,8
-    jnz %%waitForNoVerticalSync
-%endmacro
-
+  %include "../defaults_bin.asm"
 
   ; Set graphics mode
   mov ax,6

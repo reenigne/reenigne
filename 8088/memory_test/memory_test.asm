@@ -1,4 +1,4 @@
-org 0
+  %include "../defaults_bin.asm"
 
   ; Disable NMI
   xor al,al

@@ -1,0 +1,70 @@
+Two programs:
+
+xtserver.exe - CGI program
+  Saves the sent program to disk (maximum 640K)
+  Passes the name to xtqueue.exe - IPC? Named pipe?
+  Waits for responses from xtqueue and passes them back to
+
+xtqueue.exe -
+
+
+Future features:
+  Screenshots
+  Audio
+  Assembler
+  Multi-part files so all state including floppies can be set
+
+
+http://en.wikipedia.org/wiki/Inter-process_communication
+http://en.wikipedia.org/wiki/Named_pipe
+http://msdn.microsoft.com/en-us/library/windows/desktop/aa365590(v=vs.85).aspx
+http://msdn.microsoft.com/en-us/library/windows/desktop/aa365150(v=vs.85).aspx
+http://msdn.microsoft.com/en-us/library/windows/desktop/aa365598(v=vs.85).aspx
+
+http://msdn.microsoft.com/en-us/library/windows/desktop/aa365588(v=vs.85).aspx
+
+http://www.w3.org/TR/html401/interact/forms.html#h-17.13.4.2
+
+
+
+For peeking ahead in streams, should we (1) make Handle have its own circular buffer or (2) use Pipes?
+
+(1) is preferred because:
+  * We would like to have a Handle::read<String>() that is usable without creating a FileSource and a LineizerPipe and hooking them up
+    * How should this function indicate end-of-file?
+
+(2) is preferred because:
+  * Pipes are my preferred circular buffer implementation
+    * It would be nice to have a self-contained CircularBuffer object for situations like this, where there is no dynamic connectivity
+      * CircularBuffer is pretty easy to write
+      * Source currently owns the buffer
+        * However, the Source and Sink implementations of CircularBuffer are special - they deliberately duplicate information to avoid virtual calls
+    * Finite Pipes are not currently set up for unknown lengths
+      * So, let's only add finite pipes when we have a use for them
+        * The remaining() system could probably do with an overhaul - it's only used by sanxion.cpp and audio.h and those just compare to 0
+          * Pipes don't have to have a consistent produce/consume ratio, so remaining is only an estimate in general
+            * So, let's replace remaining() with complete()
+              * Suppose we have a pipe that always transforms N elements (unrolled loop) - we don't want to have to check complete() on each iteration
+                * But it would be fine to say at the end, "Oh by the way, only the first m elements are valid"
+                  * So remaining() is not so useful for predicting how many elements are left, but how many elements of the output are valid.
+
+
+
+http://www.w3.org/TR/html401/interact/forms.html#h-17.13.4.2
+http://www.ietf.org/rfc/rfc2388.txt
+http://www.ietf.org/rfc/rfc1867.txt
+http://www.ietf.org/rfc/rfc2046.txt
+
+
+http://msdn.microsoft.com/en-us/library/windows/desktop/aa365747(v=vs.85).aspx
+
+If an anonymous pipe is being used and the read handle has been closed, when WriteFile attempts to write using the pipe's corresponding write handle, the function returns FALSE and GetLastError returns ERROR_BROKEN_PIPE.
+
+
+http://msdn.microsoft.com/en-us/library/ms686331(v=vs.85).aspx
+http://msdn.microsoft.com/en-us/library/windows/desktop/ms682075(v=vs.85).aspx
+http://msdn.microsoft.com/en-us/library/windows/desktop/ms682425(v=vs.85).aspx
+
+http://msdn.microsoft.com/en-us/library/ms682499%28v=vs.85%29.aspx
+
+http://www.velikan.net/sendmail-for-windows-iis/

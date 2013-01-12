@@ -2174,10 +2174,8 @@ public:
         // any exceptions here.
         for (int i = 0; i < _nThreads; ++i) {
             Thread* thread = _threads[i];
-            if (thread != 0) {
-                thread->join();
+            if (thread != 0)
                 delete thread;
-            }
         }
     }
 

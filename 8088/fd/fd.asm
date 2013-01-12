@@ -1,4 +1,4 @@
-%include "../defaults_bin.asm"
+  %include "../defaults_bin.asm"
 
 %macro debug 1
   push ax

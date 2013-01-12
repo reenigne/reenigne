@@ -19,9 +19,13 @@ public:
     {
         IF_FALSE_THROW(WaitForSingleObject(operator HANDLE(), INFINITE) == 0);
     }
+    void reset()
+    {
+        IF_ZERO_THROW(ResetEvent(operator HANDLE()));
+    }
 };
 
-class Thread : public Handle
+class Thread : public AutoHandle
 {
 public:
     Thread() : _started(false), _error(false)
@@ -31,14 +35,23 @@ public:
         IF_NULL_THROW(handle);
         Handle::operator=(AutoHandle(handle));
     }
+    ~Thread() { noFailJoin(); }
     void setPriority(int nPriority)
     {
         IF_ZERO_THROW(SetThreadPriority(operator HANDLE(), nPriority));
+    }
+    void noFailJoin()
+    {
+        if (!_started)
+            return;
+        _started = false;
+        WaitForSingleObject(operator HANDLE(), INFINITE);
     }
     void join()
     {
         if (!_started)
             return;
+        _started = false;
         IF_FALSE_THROW(
             WaitForSingleObject(operator HANDLE(), INFINITE) == WAIT_OBJECT_0);
         if (_error)

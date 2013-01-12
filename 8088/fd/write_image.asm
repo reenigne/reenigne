@@ -1,4 +1,4 @@
-%include "../defaults_bin.asm"
+  %include "../defaults_bin.asm"
 
   ; Set up drive parameters
   xor ax,ax

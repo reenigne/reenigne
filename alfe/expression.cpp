@@ -31,7 +31,7 @@ public:
     Expression operator-(const Expression& other) const
     {
         Expression e = *this;
-        e -= other;      
+        e -= other;
         return e;
     }
     const Expression& operator+=(const Expression& other)
@@ -272,78 +272,22 @@ private:
     static Expression parseEmbeddedLiteral(CharacterSource* source)
     {
         Span startSpan;
-        Span endSpan;
-        if (!source->parse('#', &startSpan))
-            return Expression();
-        if (!source->parse('#'))
-            return Expression();
-        if (!source->parse('#', &endSpan))
+        if (!source->parseString("###", &startSpan))
             return Expression();
         int startOffset = source->offset();
         Location location = source->location();
         CharacterSource s = *source;
-        do {
-            int c = s.get();
-            if (c == -1)
-                source->location().throwError("End of file in string");
-            if (c == 10)
-                break;
-            *source = s;
-        } while (true);
-        int endOffset = source->offset();
-        String terminator = source->subString(startOffset, endOffset);
-        startOffset = s.offset();
-        CharacterSource terminatorSource(terminator);
-        int cc = terminatorSource.get();
-        String string;
-        do {
-            *source = s;
-            int c = s.get();
-            if (c == -1)
-                source->location().throwError("End of file in string");
-            if (cc == -1) {
-                if (c != '#')
-                    continue;
-                CharacterSource s2 = s;
-                if (s2.get() != '#')
-                    continue;
-                if (s2.get(&endSpan) != '#')
-                    continue;
-                string += s.subString(startOffset, source->offset());
-                *source = s2;
-                Space::parse(source);
-                return Expression(string, startSpan + endSpan);
-            }
-            else
-                if (c == cc) {
-                    CharacterSource s2 = s;
-                    CharacterSource st = terminatorSource;
-                    do {
-                        int ct = st.get();
-                        if (ct == -1) {
-                            if (s2.get() != '#')
-                                break;
-                            if (s2.get() != '#')
-                                break;
-                            if (s2.get(&endSpan) != '#')
-                                break;
-                            string +=
-                                s.subString(startOffset, source->offset());
-                            *source = s2;
-                            Space::parse(source);
-                            return Expression(string, startSpan + endSpan);
-                        }
-                        int cs = s2.get();
-                        if (ct != cs)
-                            break;
-                    } while (true);
-                }
-            if (c == 10) {
-                string += s.subString(startOffset, source->offset()) +
-                    codePoint(10);
-                startOffset = s.offset();
-            }
-        } while (true);
+
+        bool eof;
+        String terminator = s.delimitString(String(String::CodePoint(10)), &eof);
+        if (eof)
+            source->location().throwError("End of file in string");
+
+        String string = s.delimitString(terminator + "###", &eof);
+        if (eof)
+            s.location().throwError("End of file in string");
+
+        return Expression(string, Span(startSpan.start(), s.location()));
     }
 
     static Expression parseInteger(CharacterSource* source)

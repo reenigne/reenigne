@@ -1,5 +1,4 @@
-org 0
-cpu 8086
+  %include "../defaults_bin.asm"
 
   cli
   ; Mode                                                2c  28  2d  29  2a  2e  1a  29

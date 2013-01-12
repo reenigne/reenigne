@@ -36,6 +36,7 @@ bool alerting = false;
 #include "alfe/exception.h"
 #include "alfe/file.h"
 #include "alfe/find_handle.h"
+#include "alfe/circular_buffer.h"
 #include "alfe/handle.h"
 #include "alfe/file_handle.h"
 #include "alfe/character_source.h"

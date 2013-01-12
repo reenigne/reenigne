@@ -1,5 +1,4 @@
-cpu 8086
-org 0
+  %include "../defaults_bin.asm"
 
   mov ax,0x40
   push ax

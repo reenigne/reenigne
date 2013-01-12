@@ -1,5 +1,4 @@
-org 0
-cpu 8086
+  %include "../defaults_bin.asm"
 
   cli
 

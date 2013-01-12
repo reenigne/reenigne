@@ -1,4 +1,4 @@
-org 0
+  %include "../defaults_bin.asm"
 
   ; Mode                                                28
   ;      1 +HRES                                         0

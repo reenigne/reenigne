@@ -51,8 +51,8 @@ public:
             top = top->_next;
         return top->_t;
     }
-private:
     bool empty() const { return _top == 0; }
+private:
 
     class Entry
     {

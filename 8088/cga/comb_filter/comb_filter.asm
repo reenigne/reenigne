@@ -1,5 +1,4 @@
-org 0x100
-cpu 8086
+  %include "../defaults_com.asm"
 
   ; Set graphics mode
   mov ax,6
