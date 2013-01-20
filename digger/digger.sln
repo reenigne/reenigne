@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "digger", "digger.vcxproj", "{70B89051-43F5-4ECB-A645-B168D767EAF5}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mkg", "mkg\mkg.vcxproj", "{C5D1ACE6-5152-4481-8DFC-2C69EC96AD6F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{70B89051-43F5-4ECB-A645-B168D767EAF5}.Debug|Win32.ActiveCfg = Debug|Win32
+		{70B89051-43F5-4ECB-A645-B168D767EAF5}.Debug|Win32.Build.0 = Debug|Win32
+		{70B89051-43F5-4ECB-A645-B168D767EAF5}.Release|Win32.ActiveCfg = Release|Win32
+		{70B89051-43F5-4ECB-A645-B168D767EAF5}.Release|Win32.Build.0 = Release|Win32
+		{C5D1ACE6-5152-4481-8DFC-2C69EC96AD6F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{C5D1ACE6-5152-4481-8DFC-2C69EC96AD6F}.Debug|Win32.Build.0 = Debug|Win32
+		{C5D1ACE6-5152-4481-8DFC-2C69EC96AD6F}.Release|Win32.ActiveCfg = Release|Win32
+		{C5D1ACE6-5152-4481-8DFC-2C69EC96AD6F}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

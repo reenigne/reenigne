@@ -1,0 +1,1334 @@
+Terminology:
+
+bag: a bag of gold. It can be static (as they usually are), wobbling left or
+     right (as they do initially when you dig underneath them) or falling (as
+     they do when they've finished wobbling). When a bag hits the ground it
+     becomes gold.
+gold: a bag of gold which has broken open. Sometimes synonymous with "bag".
+monster: a nobbin or a hobbin
+nobbin: a monster in the nobbin state
+hobbin: a monster in the hobbin state
+digger: the character himself
+fireball: the fireball the character shoots.
+
+cell: the screen is divided into a grid of 150 cells (15 horizontally, 10
+      vertically). The levels are designed on this grid.
+level: when Digger gets all the emeralds on one level, the next one appears.
+       It is also considered to be the "start of a level" after Digger dies.
+screen: each level is associated with one of 8 screens.
+
+pixel: a CGA screen coordinate. There are 64000 pixels on screen,
+       320 horizontally, 200 vertically. In VGA mode one pixel is actually 2,
+       the drawing routines compenasate for this to simplify the rest of the
+       program. The granularity is not generally noticable. There is a larger
+       granularity, that of "bytes". A byte is 4 pixels (8 VGA screen pixels),
+       conveniently accurate for both.
+
+x: horizontal position in pixels
+y: vertical position in pixels
+h: horizontal position in cells (also short for "hobbin")
+v: vertical position in cells
+xr: horizontal position in pixels within the cell
+yr: vertical position in pixels within the cell
+dir: direction. Must be DIR_NONE, DIR_LEFT, DIR_RIGHT, DIR_UP or DIR_DOWN
+k: key, keyboard
+j: joystick
+t: time
+f: frame
+cl: collision
+
+x,y,h,v,xr,yr are related by x=h*20+(xr+12)%20, y=v*18+yr+18
+
+
+Temporal or time coordinates are measured in:
+ Frames - one frame corresponds to one iteration of the main loop,
+          a multiple of the screen refresh rate in the ARM version.
+ Ticks - there are 1,193,181 ticks per second in the PC version.
+ Refresh - the standard VGA screen is refreshed 69.8 times per second. This
+           is not used in the PC version.
+ Sound unit - The sound routines use units of 16,384 ticks, about 1/72.8
+              seconds. In the ARM version the sound unit is the same as the
+              screen refresh rate.
+ Sample - In SoundBlaster sound, the length of time taken for one sample to
+          output. For 22,050Hz sound, this is 1/22,050 seconds.
+
+The speed setting, "s" relates the frames and ticks as follows:
+Number of ticks per frame = 2000*s
+
+
+Collisions use a linked list structure. The array "first" (global) or "clfirst"
+(local) contains 5 elements:
+ 0 = The first bonus collided with
+ 1 = The first bag collided with
+ 2 = The first monster collided with
+ 3 = The first fireball collided with
+ 4 = The first digger collided with
+(They are in this order because this is the drawing order).
+The array "coll" (global) or "clcoll" (local) contains the rest of the list:
+first[x], coll[first[x]], coll[coll[first[x]]] etc, terminating with -1.
+
+
+The int length standard goes as follows:
+ S means signed, U unsigned
+ then comes "int"
+ then a number, the log of the number of bits in the int.
+ 
+ There is also "bool" which stands for "boolean" which can only be set to
+ TRUE, FALSE, equal to another bool or equal to ! (logical not) another bool.
+ a==b, a<b etc. return type "bool". bool can only be tested by "if (x)" or
+ "if (!x)", they mustn't be tested by "if (x==TRUE)" or "if (x==FALSE)", e.g.
+ i.e. the identities TRUE==-1 and FALSE==0 must not be assumed (although the
+ C standard defines FALSE==0 and TRUE!=0).
+
+Sprites are named as follows:
+ 1, 2, 3 is the frame number. For Digger, Hobbins and Nobbins, 3 is the sprite
+with the most open mouth.
+ the "blob" sprites work as follows:
+  right: the part of tunnel which gets drawn when you're digging rightwards
+  left: the part of tunnel which gets drawn when you're digging leftwards
+  top: the part of tunnel which gets drawn when you're digging upwards
+  bottom: the part of tunnel which gets drawn when you're digging downwards
+  furryblob: a miscellaneous part of tunnel
+  square blob: a part of tunnel needed when you need the top of the tunnel
+   squared off.
+
+
+
+
+MAIN.C: Main program routines
+
+struct game {  Structure to hold data about player in old 2 player mode.
+  Sint4 level  - Level player is on
+  bool levdone - Whether level is complete or not
+} gamedat[2] - player data
+
+char pldispbuf[14] - Buffer for "PLAYER 1" or "PLAYER 2".
+
+Sint4 curplayer - Current player in old two player mode
+Sint4 nplayers  - Number of players in old two player mode
+Sint4 penalty   - Some bizarre relative timing variable.
+Sint4 diggers   - Number of diggers on screen. 2 for 2 player simultaneous mode
+
+bool levnotdrawn - Level not drawn let
+bool alldead     - All diggers have died
+
+char levfname[132] - Level file name
+bool levfflag      - TRUE if level file was specified and is present & correct
+bool biosflag      - TRUE if /B option was specified.
+Sint5 delaytime    -
+int gtime          - Gauntlet time
+bool gauntlet      - TRUE if Gauntlet mode activated
+bool timeout       - TRUE if Gauntlet mode timed out
+bool synchvid      - TRUE if user wants ARM style timing. Not available.
+
+Sint3 leveldat[8][10][15] - Level data: 8 15x10 levels:
+ S = circular blob (Sphere)
+ B = Bag
+ H = Horizontal tunnel
+ V = Vertical tunnel
+ C = emerald (Crystal)
+ anything else (space) = earth
+
+ININAME - Name of initialisation file.
+
+Sint4 getlevch(Sint4 x,Sint4 y,Sint4 l)
+ return level cell character, adjust for 2 player simultaneous mode.
+
+void game(void)
+ Play a game of Digger from beginning to end. Contains two main nested loops,
+ the outer one per player (terminating, in old 2 player mode, when one player
+ dies) and a more intuitive per-level loop. Inside these are more loops, the
+ main one being the per-frame loop. There is a second per-frame loop for after
+ Digger has disappeared but while there is still action going on.
+
+int main(int argc,char *argv[])
+ Do the title screen, basically.
+
+void finish(void)
+ Clear up at end-of-program. Restore sound, keyboard, graphics etc.
+
+void shownplayers(void)
+ Show "ONE PLAYER", "TWO PLAYER", "TWO PLAYER SIMULTANEOUS", "GAUNTLET MODE" or
+      "TWO PLAYER GAUNTLET" on title screen.
+
+int getalllives(void)
+ return total number of digger lives left.
+
+void switchnplayers(void)
+ Switch number of players. Done when ESC is pressed at the title screen.
+
+void initlevel(void)
+ Initialise level before it has been played at all.
+
+void drawscreen(void)
+ Redraw screen for other player
+
+void initchars(void)
+ Init monster, bag and digger characters since this was not already done by
+ drawscreen.
+
+void checklevdone(void)
+ Check if level is done and set gamedat[curplayer].levdone flag
+
+void incpenalty(void)
+ Something to do with relative timing. Not really sure.
+
+void cleartopline(void)
+ Clear the status line at the top of the screen.
+
+Sint4 levplan(void)
+ Return the screen number of the current level. The plan is:
+  12345678, 678, (5678) 247 times, 5 forever
+
+Sint4 levof10(void)
+ Returns the level number. If it's more than 10 returns 10. This is used for
+ difficulty parameters outlined in the documenation.
+
+Sint4 levno(void)
+ Returns the level number up to 1000, where it gets stuck.
+
+void setdead(bool df)
+ Sets alldead variable to df
+
+void testpause(void)
+ Pauses game if used requested it.
+
+void calibrate(void)
+ Calibrates for sound volume, bizarrely. A remnant of a previous version which
+ was never replaced with anything better. It's only used with PC speaker
+ routines.
+
+void parsecmd(int argc,char *argv[])
+ Parse command line. Playbacks are run from here.
+
+Sint5 randv - The last pseudo-random number generated, with all its bits
+              intact.
+
+Sint4 randno(Sint4 n)
+ Return a pseudo-random number generated in a deterministic way. It must be
+ deterministic (for a given seed) so that playback works properly.
+
+char *ckeynames[17] - The capital versions of the key names for ini file
+                      reading
+
+void inir(void) - Read and process ini file
+
+char *keynames[17] - The standard versions of the key names for ini file
+                     writing
+
+void redefkeyb(bool allf)
+ The keyboard redefinition procedure (called from parsecmd). If allf then all
+ keys are redefined.
+
+
+DIGGER.C: Routines for handling diggers and fireballs
+
+struct digger {   - contains all the information for one digger/fireball pair.
+  Sint4 x,y,h,v,rx,ry - see terminology
+  Sint4 mdir - moving direction
+  Sint4 dir - next direction
+  Sint4 bagtime - digger moves slower when pushing bags. This is used to
+                  calculate when to move.
+  Sint4 rechargetime - time until can fire again
+  Sint4 fx,fy,fdir - position/direction of fireball
+  Sint4 expsn - explosion frame number
+  Sint4 deathstage - Point reached in the death sequence
+  Sint4 deathbag - bag number Digger died on
+  Sint4 deathani - Point reached in the death animation
+  Sint4 deathtime -
+  Sint4 emmocttime - Time until emerald octave count restarts
+  Sint4 emn - Emerald number (index into sound pitch table)
+  Sint4 msc - Monster score (1 for first, 2 for second, 4 for third...)
+  Sint4 lives - Number of lives Digger has
+  Sint4 ivt - Invincibility time left
+  bool notfiring - TRUE if not firing.
+  bool alive - TRUE if Digger healthy
+  bool firepressed - TRUE if fire was pressed
+  bool dead - TRUE if Digger has died.
+  bool levdone - TRUE if level completed
+  bool invin - TRUE if Digger just reappeared and is invincible.
+} digdat[DIGGERS] - all this repeated for each player.
+
+Sint4 startbonustimeleft - time until screen stops flashing
+Sint4 bonustimeleft - time until bonus mode ends.
+Sint4 emmask=0      - 1 for first player, 2 for second player in old 2p mode.
+Sint3 emfield[150]
+bool bonusvisible - TRUE if bonus is visible
+bool bonusmode - TRUE if bonus activated
+bool digvisible - TRUE if there are any diggers on screen.
+
+void initdigger(void)
+ Init all the diggers, fireballs and bonuses in the game.
+
+Uint5 curtime - Current time in ticks
+Uint4 ftime - Number of ticks per frame
+
+void newframe(void)
+ Waits for new frame and does slack time stuff: filling the sound buffer and
+ checking the keyboard.
+
+Uint5 cgtime - Gauntlet time left in ticks
+
+void drawdig(int n,int d,int x,int y,bool f)
+ Draw digger at x,y, animation frame n, pointing in direction d, f TRUE if
+ can fire.
+
+void dodigger(void)
+ Update Digger once per frame.
+
+void updatefire(int n)
+ Update fireball once per frame.
+
+void erasediggers(void)
+ Remove all diggers from screen
+
+void drawexplosion(int n)
+ Draw the explosion
+
+void killfire(int n)
+ Remove the fireball
+
+void updatedigger(int n)
+ Move digger, dig tunnels, push bags, eat monsters etc.
+
+void sceatm(int n)
+ Score for eating a monster
+
+Sint4 deatharc[] - Describes the parabola that digger moves in upon death.
+
+void diggerdie(int n)
+ Update dying digger.
+
+void createbonus(void)
+ Put bonus on screen.
+
+void initbonusmode(void)
+ Digger got bonus
+
+void endbonusmode(void)
+ Bonus mode ended.
+
+void erasebonus(void)
+ Erase bonus from screen.
+
+Sint4 reversedir(Sint4 dir)
+ Returns the opposite direction to "dir". Something pushed back.
+
+bool checkdiggerunderbag(Sint4 h,Sint4 v)
+ Bag won't fall if digger is moving vertically underneath it, this checks for
+ this situation. Returns FALSE if bag can move. A design kludge but it works.
+
+void killdigger(int n,Sint4 stage,Sint4 bag)
+ Kill digger
+
+void makeemfield(void)
+ Fill "emfield" with 1 bits for each emerald, depending on emmask.
+
+void drawemeralds(void)
+ Draw the emeralds.
+
+Sint4 embox[8] - compressed data describing the shape of an emerald, how close
+                 Digger/Hobbin can get before it disappears.
+
+bool hitemerald(Sint4 x,Sint4 y,Sint4 rx,Sint4 ry,Sint4 dir)
+ Check to see if emerald was hit by something. Since the emeralds are not
+ sprites like the bags, gold, bonuses, monsters, diggers and fireballs, this
+ works differently.
+
+Sint4 countem(void)
+ Count how many emeralds are left on screen.
+
+void killemerald(Sint4 x,Sint4 y)
+ Remove emerald from screen and field
+
+bool getfirepflag(int n)
+ Find out if player "n" pressed fire.
+
+int diggerx(int n)
+int diggery(int n)
+ return position of digger "n".
+
+bool digalive(int n)
+ is digger "n" alive?
+
+void digresettime(int n)
+ reset bagtime to 0
+
+bool isalive(void)
+ Are there any diggers left alive?
+
+int getlives(int pl)
+ return the number of lives player "pl" has left.
+
+void addlife(int pl)
+ Increment player "pl"'s lives and make a sound.
+
+void initlives(void)
+ Setup 3 lives per digger
+
+void declife(int pl)
+ Decrement player "pl"'s lives.
+
+
+
+MONSTER.C: Routines for handling monsters
+
+struct monster {     - Data repeated for each monster
+  Sint4 x,y,h,v,xr,yr,dir - see terminology
+  Sint4 hdir - Horizontal direction, hobbin direction
+  Sint4 t
+  Sint4 hnt  - Hobbin/Nobbin time/total. Incremented when nobbins cross,
+               decremented for hobbins.
+  Sint4 death
+  Sint4 bag  - Bag monster died on
+  Sint4 dtime
+  Sint4 stime
+  Sint4 chase - Digger monster is chasing
+  bool flag - exists?
+  bool nob - is a nobbin?
+  bool alive - is alive?
+}
+
+Sint4 nextmonster   - Number of next monster to appear
+Sint4 totalmonsters - Total number of monsters to appear
+Sint4 maxmononscr   - Max number of monsters on screen
+Sint4 nextmontime   - Time until next monster appears
+Sint4 mongaptime    - Time between monsters appearing
+Sint4 chase         - Digger next monster chases
+bool unbonusflag
+
+void initmonsters(void)
+ Initialises all monsters
+
+void erasemonsters(void)
+ Erases all monsters
+
+void domonsters(void)
+ Per-frame monster handler. Calls monai() mainly
+
+void createmonster(void)
+ Create a new monster
+
+bool mongotgold
+
+void mongold(void)
+
+void monai(Sint4 mon)
+ Artificial intelligence routine for monsters. Documented in program.
+
+void mondie(Sint4 mon)
+ Monster death routine
+
+bool fieldclear(Sint4 dir,Sint4 x,Sint4 y)
+ Check field to see if Nobbin can move there
+
+void checkmonscared(Sint4 h)
+ Monster moving in same column as falling bag changes direction
+
+void killmon(Sint4 mon)
+ Kill monster "mon"
+
+void squashmonsters(Sint4 bag,int *clfirst,int *clcoll)
+ Kill monsters bag is colliding with
+
+Sint4 killmonsters(int *clfirst,int *clcoll)
+ Kill monsters colliding referenced by collision list
+
+void squashmonster(Sint4 mon,Sint4 death,Sint4 bag)
+ Kill monster
+
+Sint4 monleft(void)
+ Find out how many monsters are left to appear
+
+Sint4 nmononscr(void)
+ Count monsters on screen
+
+void incmont(Sint4 n)
+
+Sint4 getfield(Sint4 x,Sint4 y)
+
+
+BAGS.C: Routines for handling bags/gold
+
+struct bag {   Structure to hold data about bags/gold
+  Sint4 x,y,h,v,xr,yr,dir - see terminology
+  Sint4 wt      - "wobble time" - time left before bags starts to fall
+  Sint4 gt      - "gold time" - time left before gold disappears
+  Sint4 fallh   - "fall height" - used to determine if bag breaks
+  bool wobbling - TRUE if bag wobbling
+  bool unfallen - TRUE if bag hasn't fallen
+  bool exist    - TRUE if bag is visible
+} bagdat1[BAGS] - bag data for first player
+  bagdat2[BAGS] - bag data for second player
+  bagdat[BAGS]  - bag data for current player
+
+Sint4 pushcount
+
+Sint4 goldtime  - amount of time gold stays on screen for
+
+void initbags(void)
+ Uses getlevch() to set up bagdat and either bagdat1 or bagdat2. All bags are
+ static after this is called, at the beginning of a level.
+
+void drawbags(void)
+ Draws all the bags on screen at the beginning of a level.
+
+void cleanupbags(void)
+ Removes wobbling/falling/moving/broken bags after Digger dies.
+
+void dobags(void)
+ Called once per frame to update bags.
+
+Sint4 wblanim[4] - array for wobbling animation (right, static, left, static)
+
+void updatebag(Sint4 bag)
+ Called once per frame for each moving bag. Updates a single bag.
+
+void baghitground(Sint4 bag)
+ Called when a bag hits the ground to remove any bags it hits, split it open
+ if necessary.
+
+bool pushbag(Sint4 bag,Sint4 dir)
+ Try to push bag "bag" in direction "dir".
+
+bool pushbags(Sint4 dir,int *clfirst,int *clcoll)
+ Try to push bags in collision list.
+
+bool pushudbags(int *clfirst,int *clcoll)
+ Try to push bags in collision list vertically. You might think this is
+ pointless, but it isn't if the bag is broken.
+
+void removebag(Sint4 bag)
+ Remove and erase a bag. It's been eaten or its gold time is up.
+
+bool bagexist(int bag)
+ Returns the existance status of a bag.
+
+Sint4 bagy(Sint4 bag)
+ Returns the vertical coordinate of a bag.
+
+Sint4 getbagdir(Sint4 bag)
+ Returns the direction a bag is moving in, if it exists, DIR_NONE otherwise.
+
+void removebags(int *clfirst,int *clcoll)
+ Removes bags in collision list.
+
+Sint4 getnmovingbags(void)
+ Return number of bags still in motion to determine whether action is finished
+ and the next level can be started.
+
+void getgold(Sint4 bag)
+ Handles collisions between diggers and gold.
+
+
+
+SCORES.C: Handles all scoring and high score stuff
+
+struct scdat {    - structure to hold score information for a player
+  Sint5 score     - the player's score
+  Sint5 nextbs    - the next score at which the player gets an extra life.
+} scdat[]         - array to hold players' scoring information.
+
+char highbuf[]    -
+
+Sint5 scorehigh[12] - array to hold high score table
+
+char scoreinit[11][4] - array to hold high scorers' initials.
+
+Sint5 scoret      - final score
+
+char hsbuf[]      -
+
+char scorebuf[512] - disk save buffer for high scores.
+
+Uint4 bonusscore  - score at which players get an extra life.
+
+bool gotinitflag  - TRUE if the player has entered initials.
+
+SFNAME - the name of the file where the scores are saved.
+
+void readscores(void)
+ Read the scores from disk.
+
+void writescores(void)
+ Write the scores to disk.
+
+void initscores(void)
+
+void loadscores(void)
+ Load the scores from disk: calls readscores() and processes "scorebuf"
+
+void zeroscores(void)
+ Sets the scores to 0 at the beginning of the game.
+
+void writecurscore(void)
+ Writes the current player's current score on the screen.
+
+void drawscores(void)
+ Redraws all the scores on the screen.
+
+void addscore(int n,Sint4 score)
+ Gives "score" points to player n, and an extra life if necessary.
+
+void endofgame(void)
+ Handles end of game stuff: "TIME UP", "GAME OVER", "ENTER YOUR INITIALS".
+
+void showtable(void)
+ Draws the high score table on the title screen.
+
+void savescores(void)
+ Sets up "scorebuf" and calls writescores().
+
+void getinitials(void)
+ Reads the player's initials from the keyboard.
+
+void flashywait(Sint4 n)
+ Flashes the screen for a while.
+
+Sint4 getinitial(Sint4 x,Sint4 y)
+ Wait for an initial while flashing the screen.
+
+void shufflehigh(void)
+ If the player got a high score, move the lesser scores down the table.
+
+void scorekill(int n)
+ Player "n" scores 250 for killing a monster.
+
+void scorekill2(void)
+ Each player in 2 player simultaneous mode scores 125 points for killing a
+ monster with a bag.
+
+void scoreemerald(int n)
+ Player "n" scores 25 points for eating an emerald.
+
+void scoreoctave(int n)
+ Player "n" scores 250 points for eating 8 emeralds in a row.
+
+void scoregold(int n)
+ Player "n" scores 500 points for eating gold.
+
+void scorebonus(int n)
+ Player "n" scores 1000 points for eating the bonus.
+
+void scoreeatm(int n,int msc)
+ Player "n" scores 200*msc points for eating a monster in bonus mode.
+
+void writenum(Sint5 n,Sint4 x,Sint4 y,Sint4 w,Sint4 c)
+ Draw a number on the screen.
+
+void numtostring(char *p,Sint5 n)
+ Convert a number to a string.
+
+
+RECORD.C: Recording/playback routines
+
+char *recb
+char *plb
+char *plp
+bool playing
+bool savedrf
+bool gotname
+bool gotgame
+bool drfvalid
+bool kludge
+char rname[128]
+int reccc
+int recrl
+int recp
+int rlleft
+char recd
+char rld
+
+void openplay(char *name)
+ Opens DRF "name", interprets, reads into memory, plays back using game().
+
+void recstart(void)
+ Initialise memory for recording
+
+void mprintf(char *f,...)
+ Printf to memory (recording buffer)
+
+void makedir(Sint4 *dir,bool *fire,char d)
+ Turn recording character (sruldSRULD) into direction and fire flag
+
+void playgetdir(Sint4 *dir,bool *fire)
+ Get direction and fire flag from DRF. Run-length decodes
+
+char maked(Sint4 dir,bool fire)
+ Encode direction key pressed and fire pressed flag as a single character for
+ DRF output
+
+void putrun(void)
+ Output a run of direction characters to the DRF
+
+void recputdir(Sint4 dir,bool fire)
+ Output a direction to the DRF
+
+void recinit(void)
+ Initialise recording and output DRF header
+
+void recputrand(Uint5 randv)
+ Output random number seed to DRF
+
+void recsavedrf(void)
+ Save completed game to disk, figuring out name if necessary.
+
+void playskipeol(void)
+ Ignore the End of Level token in the DRF file
+
+Uint5 playgetrand(void)
+ Read random seed from DRF
+
+void recputinit(void)
+ Output player's initials to DRF
+
+void recputeol(void)
+ Put End of Level token in DRF
+
+void recputeog(void)
+ Put End of Game token in DRF
+
+void recname(char *name)
+ Set recording file name to "name"
+
+
+
+SOUND.C: Highest level sound routines
+
+Sint4 wavetype   - =0 for no action in int8
+                   =1 for toggle in int8
+                   =2 for pulse in int8
+Sint4 musvol     - Pulse width for int8
+Sint4 spkrmode   - same as wavetype
+Sint4 timerrate  - int8 rate
+Uint4 timercount - timerrate added to this at each int8
+Uint4 t2val      - Timer 2 rate
+Uint4 t0val      - Timer 0 rate
+Sint4 pulsewidth - Pulse width for int8
+Sint4 volume     - Pulse width for int8
+Sint3 timerclock - Incremented at each sound interval
+bool soundflag   - toggled by F9
+bool musicflag   - toggled by F7
+
+void (*setupsound)(void)     } Pointers to lower level sound routines
+void (*killsound)(void)      } to make support for multiple sound devices
+void (*fillbuffer)(void)     } possible.
+void (*initint8)(void)       }
+void (*restoreint8)(void)    } These can be set to s0...
+void (*soundoff)(void)       } for PC speaker mode
+void (*setspkrt2)(void)      } or s1...
+void (*settimer0)(Sint4 t0v) } for SoundBlaster mode.
+void (*timer0)(Sint4 t0v)    }
+void (*settimer2)(Sint4 t2v) } Other devices may be supported in future
+void (*timer2)(Sint4 t2v)    } vesions.
+void (*soundkillglob)(void)  }
+
+bool sndflag         - similar to soundflag
+bool soundpausedflag - TRUE if game paused
+
+Sint5 randvs         - Last pseudo-random number for sound
+
+Sint4 randnos(Sint4 n)
+ Random number generator for sound routines. This works in exactly the same way
+ as the main random number generator, but needs to be separate or the game
+ becomes non-deterministic (you get a different pseudo-random number stream
+ depending on whether the sound is on or off).
+
+void sett2val(Sint4 t2v)
+ Set timer 2 value
+
+void soundint(void)
+ Called either by the sound interrupt (PC speaker) or by the fillbuffer function
+ (wave devices).
+
+void soundstop(void)
+ Turns off all playing sounds
+
+Most of the rest of the functions in this file follow the same pattern. There
+are 3 functions:
+1) init the sound, called by the game,
+2) end the sound, either called by the game or by the update routine
+3) update the sound, called by soundint
+
+There is also a flag for each sound. There may be some other variables as well.
+Notes on each sound are given:
+
+levdone - the level completion fanfare. Unique in that "soundlevdone" plays the
+whole sound and doesn't terminate until the sound has finished. Therefore it
+calls the "slack routines" fillbuffer and checkkeyb. Both timers are used for
+this sound so it is both sound and music. There is an array, "newlevjingle"
+containing the data for the jingle.
+
+fall - the sound made when a bag is falling. Doesn't automatically terminate.
+
+break - the short sound made when a bag hits the ground and breaks open.
+
+wobble - the sound made when a bag is wobbling. Doesn't terminate.
+
+fire - the sound made when a digger is firing. One for each fireball. Doesn't
+       terminate.
+
+explode - the sound made when a fireball collides with something. One for each
+          fireball.
+
+bonus - the sound made when a bonus is collected. Doesn't terminate.
+
+em - part of the sound made when an emerald is collected. The "chink".
+
+emerald - part of the sound made when an emerald is collected. The "ching". One
+          of 8 possible sounds. The frequencies are stored in the "emfreqs"
+          array.
+
+gold - the sound made when gold is collected.
+
+eatm - the sound made when a monster is eaten in bonus mode.
+
+ddie - the sound made when digger dies.
+
+1up - the sound made when an extra life appears.
+
+These all set t2val.
+
+
+The music works similarly. There are three tunes:
+0 = bonus background music (Rossini's "William Tell Overture")
+1 = normal background music (Hot Butter's "Popcorn")
+2 = death music (Chopin's "Funeral March")
+
+musicupdate handles envelopes. The characteristics of the envelope are set when
+the tune is set by the "music" function.
+
+
+soundpause() and soundpauseoff() pause the sound when the player pauses the
+game.
+
+void sett0(void)
+ calls some lower level functions if sndflag is set to TRUE.
+
+bool soundt0flag
+
+void setsoundt2(void)
+ connects the speaker to timer 2 and int8 to do nothing.
+
+void setsoundmode(void)
+ sets the spkrmode
+
+bool int8flag - TRUE if interrupt 8 has been reprogrammed. Interrupt 8 happens
+                at regular intervals determined by the rate of timer 0. It is
+                used for timing, and (if the PC speaker is being used) for
+                the music.
+
+void startint8(void) - set up interrupt 8
+
+void stopint8(void) - restore interrupt 8
+
+void initsound(void) - setup all sound
+
+void s0killsound(void) - PC speaker: kill sound
+
+void s0setupsound(void) - PC speaker: setup sound
+
+void s0fillbuffer(void) - PC speaker: do nothing. There is no buffer for
+                          the PC speaker. It's all done in real time and by
+                          the timers.
+
+
+NEWSND.C: Mid-level sound routines for SoundBlaster sound (these are low-level
+          for PC speaker and are written in Assembler, but there is a lower
+          level than this (in assembler) for SoundBlaster. Most of this is the
+          PC speaker emulator.
+
+samp *buffer     - Sample buffer (circular)
+Uint4 firsts     - Next sample to play in buffer
+Uint4 last       - Last sample in buffer +1
+Uint4 size       - Size of buffer in samples
+
+int rate         - Sample rate (ticks per sample)
+Uint4 t0rate     - rate for timer 0
+Uint4 t2rate     - rate for timer 2
+Uint4 t2new      - next rate timer 2 will be loaded with
+Uint4 t0v        - current timer 0 value
+Uint4 t2v        - current timer 2 value
+Sint4 i8pulse    - int8 pulse length to go
+bool t2f         -
+bool i8flag      -
+bool t2sw        - is speaker connected to timer 2?
+samp lut[257]    - sample look up table (if speaker was on for "t" ticks of the
+                   "rate" possible ticks, the sample to output is lut[t]).
+Uint4 pwlut[51]  - pulse width look up table.
+
+Uint4 i8cnt=0    -
+
+void soundinitglob(int port,int irq,int dma,Uint4 bufsize,Uint4 samprate)
+ Init SoundBlaster parameters (done once per program)
+
+void s1setupsound(void)
+ Start circular buffer loop playing
+
+void s1killsound(void)
+ Stop circular buffer loop playing
+
+void s1fillbuffer(void)
+ Slack routine to fill sample buffer with samples.
+
+void s1settimer2(Uint4 t2)
+void s1soundoff(void)
+void s1setspkrt2(void)
+void s1settimer0(Uint4 t0)
+void s1timer0(Uint4 t0)
+void t1timer2(Uint4 t2)
+ PC speaker emulated routines
+
+bool addcarry(Uint4 *dest,Uint4 add)
+ Add "add" to "*dest" and return TRUE if result overflowed.
+
+bool subcarry(Uint4 *dest,Uint4 sub)
+ Subtract "sub" from "*dest" and return TRUE if result overflowed.
+ This and addcarry are used to emulate the PC's 16 bit counters.
+
+samp getsample(void)
+ Get the next sample. This function is called samplerate times per second if
+ everything is working properly. The output is the sample data.
+
+
+DRAWING.C: Routines for drawing things
+
+Sint4 field1[150] - For player 1 }
+Sint4 field2[150] - For player 2 } In old 2 player mode
+Sint4 field[150]  - Data indicating which paths have been dug
+
+Uint3 monbufs[MONSTERS][480]   - Buffer data (geti, puti) for monsters
+Uint3 bagbufs[BAGS][480]       - Buffer data for bags
+Uint3 bonusbufs[BONUSES][480]  - Buffer data for bonuses
+Uint3 diggerbufs[DIGGERS][480] - Buffer data for diggers
+Uint3 firebufs[FIREBALLS][128] - Buffer data for fireballs
+Uint4 bitmasks[12]             - Bit masks for field calculations
+Sint4 monspr[MONSTERS]         - Sprite number for monsters
+Sint4 monspd[MONSTERS]         - Monster animation direction (1,2,3 or 3,2,1)
+Sint4 digspr[DIGGERS]          - Sprite number for diggers
+Sint4 digspd[DIGGERS]          - Digger animation direction
+Sint4 firespr[FIREBALLS];      - Fireball sprite number
+
+void outtext(char *p,Sint4 x,Sint4 y,Sint4 c)
+ Outputs text on the screen in the Digger font
+
+void makefield(void)
+ Calculates the "field" array from the level plan
+
+void drawstatics(void)
+ Draws the background and tunnels
+
+void savefield(void)
+ Stores the "field" array in "field1" or "field2"
+
+void drawfield(void0
+ Draws the tunnels
+
+void eatfield(Sint4 x,Sint4 y,Sint4 dir)
+ Digs part of a tunnel
+
+void creatembspr(void)
+ Creates sprites for bags and monsters
+
+void initmbspr(void)
+ Initialises sprites for bags and monsters
+
+void drawmon(Sint4 n,bool nobf,Sint4 dir,Sint4 x,Sint4 y)
+ Draws monster "n"
+
+void drawmondie(Sint4 n,bool nobf,Sint4 dir,Sint4 x,Sint4 y)
+ Draws monster "n" dying
+
+void drawgold(Sint4 n,Sint4 t,Sint4 x,Sint4 y)
+ Draws bag/gold "n"
+
+void drawlife(Sint4 t,Sint4 x,Sint4 y)
+ Draws digger life display character
+
+void drawemerald(Sint4 x,Sint4 y)
+ Draws an emerald
+
+void eraseemerald(Sint4 x,Sint4 y)
+ Erases an emerald
+
+void createdbfspr(void)
+ Creates sprites for diggers and fireballs
+
+void initdbfspr(void)
+ Initialises sprites for diggers and fireballs
+
+void draw...blob(Sint4 x,Sint4 y)
+ Draw a piece of tunnel, see the terminology section
+
+void drawbackg(Sint4 l)
+ Draw the background for level "l".
+
+void drawfire(int n,Sint4 x,Sint4 y,Sint4 t)
+ Draws the fireball/explosion "n"
+
+void drawbonus(Sint4 x,Sint4 y)
+ Draws the bonus
+
+void drawdigger(int n,Sint4 t,Sint4 x,Sint4 y,bool f)
+ Draws Digger "n".
+
+void drawlives(void)
+ Draws the Diggers' life display
+
+
+SPRITE.C: Sprite handling library
+
+bool retrflag      - Wait for vertical retrace on palette change flag
+
+bool sprrdrwf[]    - Redraw sprite?
+bool sprrecf[]     - Sprite recursion flag
+bool sprenf[]      - Sprite enabled?
+Sint4 sprch[]      - Sprite character number
+Uint3 *sprmov[]    - Sprite buffer pointer (for geti and puti)
+Sint4 sprx[]
+Sint4 spry[]       - Sprite position
+Sint4 sprwid[]
+Sint4 sprhei[]     - Sprite size
+Sint4 sprbwid[]
+Sint4 sprbhei[]    - Sprite border size (only 0 is ever used in Digger)
+Sint4 sprnch[]     - New sprite character
+Sint4 sprnwid[]
+Sint4 sprnhei[]    - New sprite size
+Sint4 sprnbwid[]
+Sint4 sprnbhei[]   - New sprite border size.
+
+void (*ginit)(void)
+void (*gclear)(void)
+void (*gpal)(Sint4 pal)
+void (*ginten)(Sint4 inten)
+void (*gputi)(Sint4 x,Sint4 y,Uint3 *p,Sint4 w,Sint4 h)
+void (*ggeti)(Sint4 x,Sint4 y,Uint3 *p,Sint4 w,Sint4 h)
+void (*gputim)(Sint4 x,Sint4 y,Sint4 ch,Sint4 w,Sint4 h)
+Sint4 (*ggetpix)(Sint4 x,Sint4 y)
+void (*gtitle)(void)
+void (*gwrite)(Sint4 x,Sint4 y,Sint4 ch,Sint4 c)
+ - These are pointers to the low level graphics functions, and can be swapped
+   for CGA or VGA graphics.
+
+void setretr(bool f)
+ Set retrace flag to "f".
+
+void createspr(Sint4 n,Sint4 ch,Uint3 *mov,Sint4 wid,Sint4 hei,Sint4 bwid,
+               Sint4 bhei)
+ Create sprite n.
+
+void movedrawspr(Sint4 n,Sint4 x,Sint4 y)
+ Move and redraw sprite n
+
+void erasespr(Sint4 n)
+ Erase sprite n.
+
+void drawspr(Sint4 n,Sint4 x,Sint4 y)
+ Draw sprite n. Redraw any sprites which need redrawing. Set collision table.
+
+void initspr(Sint4 n,Sint4 ch,Sint4 wid,Sint4 hei,Sint4 bwid,Sint4 bhei)
+ Set up sprite
+
+void initmiscspr(Sint4 x,Sint4 y,Sint4 wid,Sint4 hei)
+ Set up miscellaneous sprite (static objects).
+
+void getis(void)
+ Get all the background images for all the sprites being redrawn.
+
+void drawmiscspr(Sint4 x,Sint4 y,Sint4 ch,Sint4 wid,Sint4 hei)
+ Draw static object
+
+void clearrdrwf(void)
+ Clear redraw flags
+
+void clearrecf(void)
+ Clear recursion flags
+
+bool collide(Sint4 bx,Sint4 si)
+ Check for collision between 2 sprites. Used for redraw detection.
+
+bool bcollide(Sint4 bx,Sint4 si)
+ Check for collision between 2 sprites, taking into account their borders.
+ Used for collision detection.
+
+void putims(void)
+ Draw actual sprites
+
+void putis(void)
+ Redraw background images
+
+int first[5],coll[] - Collision linked lists
+
+void bcollides(int spr)
+ Set up collision linked lists
+
+
+
+INPUT.C: High level routines for keyboard/joystick input
+
+bool escape      - True if F10 pressed
+bool firepflag   - True if fire pressed for player 1
+bool a...?pressed - (... = up, left, down, right, f1) True if player 1 (or 2 if
+                    ? = 2) key pressed and detected via ASCII code
+bool start       - True if start game key pressed at title screen
+
+Sint4 akeypressed - last key pressed and detected via ASCII code
+
+Sint4 dynamicdir,dynamicdir2 - Dynamic direction for player 1/2
+Sint4 staticdir,staticdir2  - Static direction for player 1/2
+Sint4 joyx,joyy   - joystick position coordinates
+
+bool joybut1,joybut2 - joystick button flags
+
+Sint4 keydir=0,keydir2=0 - Direction to return for player 1/2
+Sint4 j...thresh - joystick thresholds (... = up, down, left, right)
+Sint4 joyanax=0,joyanay=0 - Analogue joystick values
+
+bool joyflag=FALSE - Joystick mode flag
+bool pausef=FALSE  - Pause key pressed flag
+
+bool krdf[12]      - Key redefined flags
+
+bool ...?pressed - (... = up, left, down, right, f1) True if player 1 (or 2 if
+                   ? = 2) key pressed and detected via scan code. On ARM
+                   defined by macros which make system calls. Only checked
+                   once.
+
+int keycodes[17][5] - Key codes. For the first 10 keys, the format is:
+                      Make code, Break code, ASCII code, ASCII code, ASCII code
+                      (3 ASCII codes are needed for normal, shift, ctrl).
+                      For the others all 5 are ASCII.
+                      Unused is given value -2.
+
+ASCIIF8 - The ASCII code for the function key F8.
+
+Uint4 scancode - last scancode detected (PC only)
+
+int pki - Used in processkey (PC only)
+
+bool *flagp[10] - pointers to ...?pressed flags (PC only). Used by processkey.
+
+void processkey(Uint4 key) (PC only)
+ Keyboard routine called by interrupt handler. Looks at keycodes and
+ Sets/resets flags pointed to by flagp.
+
+void findkey(int kn)
+ Waits for a key and fills keycodes[kn] with the right numbers. Used by
+ keyboard redefinition.
+
+void checkkeyb(void)
+ "Slack time" keyboard checker. Handles ASCII keys and registers scan code keys
+ (if this isn't done often enough and no ASCII code is generated, the keypress
+ may be missed).
+
+void readjoy(void)
+ Read joystick. Not yet implemented.
+
+void detectjoy(void)
+ Detect joystick. Not yet implemented.
+
+void flushkeybuf(void)
+ Flush keyboard buffer.
+
+void clearfire(int n)
+ Clear fire pressed flag "n"
+
+bool o.?pressed (. = u,d,l,r) direction flags used by readdir
+
+void readdir(int n)
+ Work out the direction for player "n". Some surprisingly complicated code is
+ needed here to make sure everything works out right.
+
+bool teststart(void)
+ Slack function for title screen. Joystick calibration can be done here. Mainly
+ checks for start key pressed.
+
+Sint4 getdir(int n)
+ Get direction for player "n" (from keyboard or joystick). Strangely, both
+ readir and getdir need to be called. This may be simplified in a future
+ version.
+
+
+TITLE.C: Title screen data
+
+Uint3 ?gatitledat[] - (? = c for CGA or v for VGA) Run Length Encoded title
+                      screen data.
+
+
+ARMSUP.C: Supplementary C routines for ARM version. In an ideal world these
+          would be in the assembly routine or in libraries. They're not.
+
+int convertfunction(int in)
+ converts PC style timing values (1193181/frequency) into ARM style sound
+ values. 0x4000 = 440 Hz, 0x1000 = one octave. This is the only routine in the
+ program to use floating point. Annoyingly there is probably a similar routine
+ in the OS or hardware to convert it back.
+
+void vgaputim(Sint4 x,Sint4 y,Sint4 ch,Sint4 w,Sint4 h)
+void cgaputim(Sint4 x,Sint4 y,Sint4 ch,Sint4 w,Sint4 h)
+ Interface for assembler versions of vgaputim (vgaputim2) and cgaputim
+ (cgaputim2) so that Julian didn't have to write an assembler routine which
+ accepted more than 4 arguments (although I think he later figured out how to
+ do this). Doncha jus' love RISC machines?
+
+int lastk=0 - Last key pressed
+
+bool kbhit(void) - Is there a key in the buffer?
+int getkey(void) - Return it if there is one, wait if there isn't.
+
+void strupr(char *in) - This is in Borland's library - convert a string to
+                        upper case.
+
+
+
+DOSPC.ASM/ARMASM.ASM - Hardware I/O routines (not all implemented in ARMASM)
+
+void olddelay(Sint4 t)
+ Wait for t*volume arbitrary units. A bit useless really.
+
+Sint5 getkips(void)
+ Get the computer's speed in thousands of instructions per second.
+
+void inittimer(void)
+ Initialise high resolution timer
+
+Uint5 gethrt(void)
+ Get current high resolution timer value. Int8 must be running for this to work
+ properly.
+
+Sint5 getlrt(void)
+ Get low resolution timer for random seed.
+
+void s0initint8(void)
+ Start int8 running
+
+void s0restoreint8(void)
+ Restore int8 to OS default handler
+
+void s0soundoff(void)
+ Switch off speaker
+
+void s0setspkrt2(void)
+ Connect speaker to timer 2 output
+
+void s0settimer0(Sint4 t0v)
+ Reset timer 0 and set rate to t0v
+
+void s0timer0(Sint4 t0v)
+ Set next timer0 rate to t0v
+
+void s0settimer2(Sint4 t2v)
+ Reset timer 2 and set rate to t2v
+
+void s0timer2(Sint4 t2v)
+ Set next timer2 rate to t2v
+
+void s0soundinitglob(void)
+void s0soundkillglob(void)
+ Do nothing.
+
+void s1initint8(void)
+void s1restoreint8(void)
+ Similar to s0 functions but the int8 doesn't do so much, just keeps the high
+ resolution timer accurate.
+
+void initkeyb(void)
+ Initialise keyboard interrupt
+
+void restorekeyb(void)
+ Restore keyboard interrupt to OS
+
+Sint4 getkey(void)
+ Wait for a key to be pressed, or get next one from buffer
+
+bool kbhit(void)
+ Is there a key in the buffer?
+
+void graphicsoff(void)
+ Restore original graphics mode
+
+void gretrace(void)
+ Wait for vertical retrace
+
+The following functions have two flavours, cga and vga:
+
+void ?gainit(void)
+ Init graphics
+
+void ?gaclear(void)
+ Clear screen to black
+
+void ?gapal(Sint4 pal)
+ Set palette (Green/Red/Brown or Cyan/Magenta/White)
+
+void ?gainten(Sint4 inten)
+ Set intensity (normal or bright (bonus))
+
+void ?gaputi(Sint4 x,Sint4 y,Uint3 *p,Sint4 w,Sint4 h)
+ Restore a grabbed area of screen
+
+void ?gageti(Sint4 x,Sint4 y,Uint3 *p,Sint4 w,Sint4 h)
+ Grab an area of screen
+
+void ?gaputim(Sint4 x,Sint4 y,Sint4 ch,Sint4 w,Sint4 h)
+ Draw tranparenent sprite "ch", using the tables in ?GAGRAFX.C
+
+Sint4 ?gagetpix(Sint4 x,Sint4 y)
+ Get a byte of pixels for fireball collision detection.
+
+void ?gawrite(Sint4 x,Sint4 y,Sint4 ch,Sint4 c)
+ Draw text on screen
+
+void ?gatitle(void)
+ Draw title screen
+
+bool setsounddevice(int base,int irq,int dma,Uint4 samprate,Uint4 bufsize)
+ Set up SoundBlaster, return TRUE if successful.
+
+bool initsounddevice(void)
+ Start SoundBlaster continuous wave playing
+
+void killsoudndevice(void)
+ Stop SoundBlaster playing
+
+
+
+MKG.C: Separate program to make alpha.c, vgagrafx.c or cgagrafx.c
+
+FILE *in  - Input file stream (i.e. a .SPR file)
+FILE *out - Output file stream (i.e. a .C file)
+unsigned char buf[1024] - Input buffer for current sprite
+
+nspr - The number of characters there are, currently 107.
+
+void run(char *data,int l,bool ef)
+ output a line of C code.
+
+char *gnames[] - The names (minus the "c" or "v" prefix) of the characters.
+int heights[] - The heights in pixels of the characters.
+int widths[] - The widths in bytes of the characters.
+
+void mkgv(void)
+ Makes the vgagrafx.c file. This is complicated by the fact that some of the
+ sprites are larger in 1 dimension than 32x32. When this happens, they wrap to
+ the other half of the sprite.
+
+int ccol[16] - The CGA colour conversion table.
+
+void mkgc(void)
+ Makes the cgagrafx.c file, a simpler job than making vgagrafx.c
+
+char clist[] - The list of alphanumeric characters in the order they appear
+               in cgatext.spr and vgatext.spr.
+
+char *symbols[] - The names of the alphanumeric characters. All of them. Even
+                  the ones which aren't used.
+
+void mkga(void)
+ Makes the alpha.c file.
+
+void main(int argc,char *argv[])
+ Main function. Reads command line, sets up output file and calls a mkg
+ function.
+
+

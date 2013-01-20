@@ -1,0 +1,17 @@
+ 0 Digger
+ 1 Bag 1
+ 2 Bag 2
+ 3 Bag 3
+ 4 Bag 4
+ 5 Bag 5
+ 6 Bag 6
+ 7 Bag 7
+ 8 Monster 1
+ 9 Monster 2
+10 Monster 3
+11 Monster 4
+12 Monster 5
+13 Monster 6
+14 Bonus
+15 Fireball
+16 Miscellaneous statics

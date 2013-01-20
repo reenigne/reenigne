@@ -1,0 +1,23 @@
+/m /v /c /P +
+alpha.obj +
+title.obj +
+cgagrafx.obj +
+vgagrafx.obj +
+\prog\lib\c0s.obj +
+main.obj +
+digger.obj +
+monster.obj +
+bags.obj +
+sound.obj +
+newsnd.obj +
+newsnd2.obj +
+record.obj +
+drawing.obj +
+scores.obj +
+input.obj +
+sprite.obj +
+ini.obj +
+dospc.obj
+digger.exe
+digger.map
+\prog\lib\cs.lib

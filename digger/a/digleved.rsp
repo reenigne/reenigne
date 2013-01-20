@@ -1,0 +1,10 @@
+/m /v /c /P +
+alpha.obj +
+cgagrafx.obj +
+vgagrafx.obj +
+\prog\lib\c0s.obj +
+digleved.obj +
+eddospc.obj
+digleved.exe
+digleved.map
+\prog\lib\cs.lib

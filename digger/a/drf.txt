@@ -1,0 +1,60 @@
+The new DRF format is considerably more useful than the old one. It has the
+following advantages:
+  Version number
+  Small size
+  Records sound as well as graphics
+  Text rather than binary format
+Rather than encoding each graphics operation (the output data) it encodes the
+input data (keystrokes, level data, random seeds)
+
+The file is layed out as follows. No quote (") characters appear in a DRF file,
+they serve to indicate data in the file. No line of a DRF file should ever be
+more than 79 characters.
+
+First comes the header:
+
+The first line is "DRF" - indicates this is a DRF file
+The second line is the version of Digger it was created with, e.g.
+ "AJ DOS 19981013"
+ This has several parts:
+  Initials of person who compiled this version.
+  (space - separator)
+  Platform (only DOS exists at the moment).
+  (space - separator)
+  Compilation date in yyyymmdd format (Y2K compatible, easy to compare).
+The third line is the mode. Currently supported modes are:
+ "1" - One player
+ "2" - Two players
+ "M2" - Two player simultaneous
+ "Gx" - Gauntlet mode for x seconds
+ "M2Gx" - Two player simultaneous gauntlet
+ There may also be a "U" (for Unlimited lives) and an "Ix" (start on level x).
+The fourth line is the bonus score in decimal.
+The next 80 lines (5-84 inclusive) are the level data (15 characters per line,
+15 horizontal cells per screen, 8 screens of 10 vertical cells).
+
+The next lines describe the actual game. They are in blocks. A block contains
+1 round (a round finishes when you complete a level, die or exit). Each block
+is in 3 parts:
+ First line: random number seed: 8 digit hex number
+ Following lines: RLE encoded game data. Letters (udlr) denote directions, s
+  is stopped. Capital letter is used if Digger is firing. A number n following
+  indicates this is state is repeated n times. One letter is used per frame of
+  action, and the default speed is roughly 15 frames per second.
+ Last line: "EOL" - This is required to tell the playing subroutine if the
+  game finished prematurely (by pressing F10) otherwise it would just go on
+  looking for keystrokes.
+
+The game knows how many blocks there should be. It depends on the mode and the
+player's score (since there is an extra block for each extra life).
+
+After the blocks comes the line "EOG". This signals that this is the end of
+the game, and is needed if the player pressed F10 during the death march.
+
+Finally, if the player got a high score, his/her initials form the last line
+of the file. This is not currently used in playback, but helps to automate the
+addition of DRFs to the high score table on the website.
+
+The new DRF format does not record multiple games, the title screen or the
+"Enter Your Initials" screen - this would be difficult and fairly pointless.
+Also (as with the original), pauses are not recorded.

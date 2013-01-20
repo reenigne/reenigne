@@ -307,7 +307,7 @@ public:
     }
     const String& operator*=(int n)
     {
-        int l = _length*n;
+        int l = _length*(n - 1);
         expand(l);
         _buffer.expand(l);
         ::Byte* source = data();

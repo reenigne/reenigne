@@ -100,8 +100,9 @@ public:
             if (!_options.hasKey(name))
                 identifier.span().throwError("Unknown identifier " + name);
             Space::assertCharacter(&source, '=', &span);
-            TypedValue e = convert(parseExpression(&source),
-                _options[name].type());
+            TypedValue loadedExpression = parseExpression(&source);
+            //console.write(loadedExpression.type().toString() + "\n");
+            TypedValue e = convert(loadedExpression, _options[name].type());
             Space::assertCharacter(&source, ';', &span);
             _options[name].setValue(e.value());
         } while (true);

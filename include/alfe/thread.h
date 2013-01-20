@@ -3,8 +3,6 @@
 #ifndef INCLUDED_LOCK_H
 #define INCLUDED_LOCK_H
 
-// TODO: Posix version
-
 class Event : public Handle
 {
 public:

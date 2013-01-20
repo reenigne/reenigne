@@ -1,0 +1,49 @@
+struct monster mondat[6]
+  0 flag       p3b1c      bool   This monster is in use
+  2 x          p3b1e      Sint4  Horizontal screen co-ordinate
+  4 y          p3b2o      Sint4  Vertical screen co-ordinate
+  6 h          p3b22      Sint4  Horizontal field co-ordinate
+  8 v          p3b24      Sint4  Vertical field co-ordinate
+ 0a xr         p3b26      Sint4  Horizontal co-ordinate within cell
+ 0c yr         p3b28      Sint4  Vertical co-ordinate within cell
+ 0e dir        p3b2a      Sint4  Direction of motion
+010 hdir       p3b2c      Sint4  Horizontal direction for hobbin
+012 t          p3b2e      Sint4  Time until next motion
+014 alive      p3b3o      bool   Not been killed
+016 nob        p3b32      bool   This monster is a nobbin
+018 hnt        p3b34      Sint4  Time until nobbin / Crossings until hobbin
+01a death      p3b36      Sint4  Stage of death
+01c bag        p3b38      Sint4  Bag no. which is killing it
+01e dtime      p3b3a      Sint4  Death time
+020 stime      p3b3c      Sint4  Start time
+022
+024
+026
+
+struct bag bagdat1[8] bagdat2[8] bagdat[8]
+  0 x      p3c1a      p3d5a      p3e9a      Sint4  Horizontal screen co-ord
+  2 y                            p3e9c      Sint4  Vertical screen co-ord
+  4 h                            p3e9e      Sint4  Horizontal field co-ord
+  6 v                            p3eao      Sint4  Vertical field co-ord
+  8 xr                           p3ea2      Sint4  Horiz co-ord within cell
+ 0a yr                           p3ea4      Sint4  Vert co-ord within cell
+ 0c dir                          p3ea6      Sint4  Movement direction
+ 0e wobbling                     p3ea8      bool   Bag is wobbling
+010 wt                           p3eaa      Sint4  Wobble time left
+012 unfallen                     p3eac      bool   Bag not yet fallen for blob
+014 exist                        p3eae      bool   Bag is in use
+016 gt                           p3ebo      Sint4  Gold time
+018 fallh                        p3eb2      bool   Height fallen for breakage
+01a
+01c
+01e
+020
+022
+024
+026
+
+struct game gamedat[2]
+  0 dead    p4fde         bool   Digger died
+  2 lives   p4feo p4fe8   Sint4  No. of lives left
+  4 level   p4fe2 p4fea   Sint4  Current level
+  6 levdone p4fe4         bool   Level completed

@@ -38,7 +38,7 @@ printLoop:
   lodsb
   cmp al,'$'
   je donePrint
-  call printCharacter
+  printCharacter
   inc bx
   jmp printLoop
 donePrint:
@@ -64,7 +64,7 @@ printSpaces:
   mov cx,1
 spaceLoop:
   mov al,' '
-  call printCharacter
+  printCharacter
   loop spaceLoop
 
   mov cx,5    ; Number of repeats
@@ -144,7 +144,7 @@ doPrint:
 
   ; Print a newline
   mov al,10
-  call printCharacter
+  printCharacter
 
   jmp nextExperiment
 
@@ -240,28 +240,8 @@ printMessage:
   push ax
 printMessageLoop:
   lodsb
-  call printCharacter
+  printCharacter
   loop printMessageLoop
-  pop ax
-  ret
-
-printCharacter:
-  push ax
-  push bx
-  push cx
-  push dx
-  push si
-  push di
-  push bp
-  mov dl,al
-  mov ah,2
-  int 0x21
-  pop bp
-  pop di
-  pop si
-  pop dx
-  pop cx
-  pop bx
   pop ax
   ret
 

@@ -1,0 +1,316 @@
+; Digger Remastered
+; Copyright (c) Andrew Jenner 1998-2004 */
+
+PUBLIC N_LDIV@,F_LDIV@,LDIV@,N_LUDIV@,LUDIV@,F_LUDIV@,N_LMOD@,LMOD@,F_LMOD@
+PUBLIC N_LUMOD@,LUMOD@,F_LUMOD@,N_LXLSH@,F_LXLSH@,LXLSH@,N_LXMUL@,N_PADA@
+PUBLIC F_PADA@,PADA@,N_PSBA@,F_PSBA@,PSBA@,N_PADD@,F_PADD@,PADD@,N_PSUB@
+PUBLIC F_PSUB@,PSUB@,N_SCOPY@
+
+_TEXT SEGMENT WORD PUBLIC 'CODE'
+
+N_LDIV@:
+  POP CX
+  PUSH CS
+  PUSH CX
+F_LDIV@:
+LDIV@:
+  XOR CX,CX
+  JMP o2d1f
+N_LUDIV@:
+  POP CX
+  PUSH CS
+  PUSH CX
+LUDIV@:
+F_LUDIV@:
+  MOV CX,1
+  JMP o2d1f
+N_LMOD@:
+  POP CX
+  PUSH CS
+  PUSH CX
+LMOD@:
+F_LMOD@:
+  MOV CX,2
+  JMP o2d1f
+N_LUMOD@:
+  POP CX
+  PUSH CS
+  PUSH CX
+LUMOD@:
+F_LUMOD@:
+  MOV CX,3
+o2d1f:
+  PUSH BP
+  PUSH SI
+  PUSH DI
+  MOV BP,SP
+  MOV DI,CX
+  MOV AX,W[BP+0a]
+  MOV DX,W[BP+0c]
+  MOV BX,W[BP+0e]
+  MOV CX,W[BP+010]
+  OR  CX,CX
+  JNZ o2d3e
+  OR DX,DX
+  JZ o2da3
+  OR BX,BX
+  JZ o2da3
+o2d3e:
+  TEST DI,1
+  JNZ o2d6o
+  OR DX,DX
+  JNS o2d52
+  NEG DX
+  NEG AX
+  SBB DX,0
+  OR DI,0c
+o2d52:
+  OR CX,CX
+  JNS o2d6o
+  NEG CX
+  NEG BX
+  SBB CX,0
+  XOR DI,4
+o2d6o:
+  MOV BP,CX
+  MOV CX,020
+  PUSH DI
+  XOR DI,DI
+  XOR SI,SI
+o2d6a:
+  SHL AX,1
+  RCL DX,1
+  RCL SI,1
+  RCL DI,1
+  CMP DI,BP
+  JB o2d81
+  JA o2d7c
+  CMP SI,BX
+  JB o2d81
+o2d7c:
+  SUB SI,BX
+  SBB DI,BP
+  INC AX
+o2d81:
+  LOOP o2d6a
+  POP BX
+  TEST BX,2
+  JZ o2d9o
+  MOV AX,SI
+  MOV DX,DI
+  SHR BX,1
+o2d9o:
+  TEST BX,4
+  JZ o2d9d
+  NEG DX
+  NEG AX
+  SBB DX,0
+o2d9d:
+  POP DI
+  POP SI
+  POP BP
+  RETF 8
+o2da3:
+  DIV BX
+  TEST DI,2
+  JZ o2dac
+  XCHG DX,AX
+o2dac:
+  XOR DX,DX
+  JMP o2d9d
+
+N_LXLSH@:
+  POP BX
+  PUSH CS
+  PUSH BX
+F_LXLSH@:
+LXLSH@:
+  CMP CL,010
+  JNB o2dc8
+  MOV BX,AX
+  SHL AX,CL
+  SHL DX,CL
+  NEG CL
+  ADD CL,010
+  SHR BX,CL
+  OR DX,BX
+  RETF
+o2dc8:
+  SUB CL,010
+  XCHG DX,AX
+  XOR AX,AX
+  SHL DX,CL
+  RETF
+
+N_LXMUL@:
+  PUSH SI
+  XCHG SI,AX
+  XCHG DX,AX
+  TEST AX,AX
+  JZ o2dda
+  MUL BX
+o2dda:
+  JCXZ o2de1
+  XCHG CX,AX
+  MUL SI
+  ADD AX,CX
+o2de1:
+  XCHG SI,AX
+  MUL BX
+  ADD DX,SI
+  POP SI
+  RET
+
+N_PADA@:
+  POP ES
+  PUSH CS
+  PUSH ES
+F_PADA@:
+PADA@:
+  MOV ES,DX
+  XCHG BX,AX
+  ES: MOV DX,W[BX+2]
+  PUSH BX
+  ES: MOV BX,W[BX]
+  OR CX,CX
+  JGE o1b3e
+  NOT AX
+  NOT CX
+  ADD AX,1
+  ADC CX,0
+  JMP o1b82
+o1b3e:
+  ADD BX,AX
+  JNB o1b46
+  ADD DX,01000
+o1b46:
+  MOV AH,CL
+  MOV CL,4
+  SHL AH,CL
+  XOR AL,AL
+  ADD DX,AX
+  MOV CH,BL
+  SHR BX,CL
+  ADD DX,BX
+  MOV AL,CH
+  AND AX,0f
+  POP BX
+  ES: MOV W[BX],AX
+  ES: MOV W[BX+2],DX
+  RETF
+
+N_PSBA@:
+  POP ES
+  PUSH CS
+  PUSH ES
+F_PSBA@:
+PSBA@:
+  MOV ES,DX
+  XCHG BX,AX
+  ES: MOV DX,W[BX+2]
+  PUSH BX
+  ES: MOV BX,W[BX]
+  OR CX,CX
+  JGE o1b82
+  NOT AX
+  NOT CX
+  ADD AX,1
+  ADC CX,0
+  JMP o1b3e
+o1b82:
+  SUB BX,AX
+  JNB o1b8a
+  SUB DX,01000
+o1b8a:
+  MOV AH,CL
+  MOV CL,4
+  SHL AH,CL
+  XOR AL,AL
+  SUB DX,AX
+  MOV CH,BL
+  SHR BX,CL
+  ADD DX,BX
+  MOV AL,CH
+  AND AX,0f
+  POP BX
+  ES: MOV W[BX],AX
+  ES: MOV W[BX+2],DX
+  RETF
+
+N_PADD@:
+  POP ES
+  PUSH CS
+  PUSH ES
+F_PADD@:
+PADD@:
+  OR CX,CX
+  JGE o1bbb
+  NOT BX
+  NOT CX
+  ADD BX,1
+  ADC CX,0
+  JMP o1bea
+o1bbb:
+  ADD AX,BX
+  JNB o1bc3
+  ADD DX,01000
+o1bc3:
+  MOV CH,CL
+  MOV CL,4
+  SHL CH,CL
+  ADD DH,CH
+  MOV CH,AL
+  SHR AX,CL
+  ADD DX,AX
+  MOV AL,CH
+  AND AX,0f
+  RETF
+
+N_PSUB@:
+  POP ES
+  PUSH CS
+  PUSH ES
+F_PSUB@:
+PSUB@:
+  OR CX,CX
+  JGE o1bea
+  NOT BX
+  NOT CX
+  ADD BX,1
+  ADC CX,0
+  JMP o1bbb
+o1bea:
+  SUB AX,BX
+  JNB o1bf2
+  SUB DX,01000
+o1bf2:
+  MOV BH,CL
+  MOV CL,4
+  SHL BH,CL
+  XOR BL,BL
+  SUB DX,BX
+  MOV CH,AL
+  SHR AX,CL
+  ADD DX,AX
+  MOV AL,CH
+  AND AX,0f
+  RETF
+
+N_SCOPY@:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+  PUSH DS
+  LDS SI,W[BP+4]
+  LES DI,W[BP+8]
+  CLD
+  SHR CX,1
+  REPZ MOVSW
+  ADC CX,CX
+  REPZ MOVSB
+  POP DS
+  POP DI
+  POP SI
+  POP BP
+  RET 8

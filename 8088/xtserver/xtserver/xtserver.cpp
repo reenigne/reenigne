@@ -27,7 +27,7 @@ public:
     }
     void errorPage()
     {
-        response("400 Bad Request", "- error");
+        response("400 Bad Request", "error");
         console.write("Uh oh - the XT server could not understand your "
             "request. The administrator has been notified, and will fix it "
             "soon if it is our fault.\n");
@@ -66,6 +66,19 @@ public:
                     _logName = base + String::Decimal(i);
                     ++i;
                 } while (true);
+
+                WCHAR* environment = GetEnvironmentStringsW();
+                String env;
+                if (environment != NULL) {
+                    do {
+                        env += String(environment);
+                        env += "\n";
+                        while (*environment != 0)
+                            ++environment;
+                        ++environment;
+                    } while (*environment != 0);
+                }
+                log.write(env);
 
                 // Find the boundary delimiter line. It starts with "--".
                 String boundary;
@@ -151,7 +164,9 @@ public:
                                     return;
                                 }
                                 if (contentType !=
-                                    "Content-Type: application/octet-stream") {
+                                    "Content-Type: application/octet-stream" &&
+                                    contentType !=
+                                    "Content-Type: application/macbinary") {
                                     errorPage();
                                     return;
                                 }
@@ -189,7 +204,7 @@ public:
                                     }
                                     if (data.count() == 640*1024) {
                                         response("400 Bad Request",
-                                            "- file too long");
+                                            "file too long");
                                         console.write("The file you sent was "
                                             "too long. 640KB should be enough "
                                             "for anybody.\n");
@@ -232,6 +247,30 @@ public:
                     return;
                 }
 
+                bool terminate = false;
+                if (_arguments.count() > 0) {
+                    if (_arguments[0] == "-e") {
+                        // xtserver -e <logFile
+                        // re-runs a submitted file with the email stripped
+                        // off - handy for debugging.
+                        email = "";
+                    }
+                    if (_arguments[0] == "-s") {
+                        // xtserver -e <logFile
+                        // Saves the submitted program to disk instead of
+                        // running it - handy for debugging.
+                        File("saved.bin").save(data);
+                        return;
+                    }
+                    if (_arguments[0] == "-t") {
+                        // xtserver -t <logFile
+                        // Re-runs the submitted program with no server
+                        // connection - useful for sending a results email to
+                        // someone if their job was dropped.
+                        terminate = true;
+                    }
+                }
+
                 AutoHandle h = File("\\\\.\\pipe\\xtserver", true).openPipe();
                 h.write<int>(email.length());
                 h.write(email);
@@ -239,11 +278,14 @@ public:
                 h.write(fileName);
                 h.write<int>(data.count());
                 h.write(data);
+                h.write<DWORD>(GetCurrentProcessId());
+                h.write<int>(0);
+                if (terminate)
+                    return;
 
-                response("200 OK", "- result");
+                response("200 OK", "result");
                 sentHeader = true;
-                console.write("<pre>The XT Server has received your file.\n");
-                sentPre = true;
+                console.write("<p>The XT Server has received your file.</p>\n");
                 do {
                     int b = h.tryReadByte();
                     if (b == -1)
@@ -251,14 +293,11 @@ public:
                     console.write<Byte>(b);
                 } while (true);
                 console.write(
-                    "This concludes your XT server session.</pre>\n");
+                    "<p>This concludes your XT server session.</p>\n");
                 footer();
             } catch (Exception& e) {
                 if (!sentHeader)
-                    response("500 Internal Server Error", " - error");
-                else
-                    if (sentPre)
-                        console.write("</pre>");
+                    response("500 Internal Server Error", "error");
                 console.write("<p>Uh oh - something went wrong with the XT "
                     "server. The administrator has been notified, and will "
                     "fix it soon.</p>\n");

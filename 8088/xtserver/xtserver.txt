@@ -68,3 +68,39 @@ http://msdn.microsoft.com/en-us/library/windows/desktop/ms682425(v=vs.85).aspx
 http://msdn.microsoft.com/en-us/library/ms682499%28v=vs.85%29.aspx
 
 http://www.velikan.net/sendmail-for-windows-iis/
+
+
+
+
+
+http://msdn.microsoft.com/en-us/library/ms683180(VS.85).aspx
+http://msdn.microsoft.com/en-us/library/ms684320(v=vs.85).aspx
+
+
+
+https://www.google.com/search?q=%22microphone+in%22+impedence#q=%22microphone+in%22+impedance&hl=en&safe=off&tbo=d&ei=Jjf8UKHJIdSY1AWpv4CQDQ&start=10&sa=N&bav=on.2,or.r_gc.r_pw.r_cp.r_qf.&bvm=bv.41248874,d.d2k&fp=c13a537f28efa0a7&biw=931&bih=630
+http://www.qsl.net/om3cph/sb/dcwithsb.htm
+http://www.tomshardware.co.uk/forum/40768-32-microphone-voltage
+http://www.google.com/search?q=pc+%22microphone+in%22+pinout#hl=en&tbo=d&sclient=psy-ab&q=microphone+in+voltage&oq=microphone+in+voltage&gs_l=serp.3..0l4.4937.6578.3.6937.8.3.0.0.0.0.1750.1750.8-1.1.0.les%3B..0.0...1c.1.c12o64-3OrU&pbx=1&bav=on.2,or.r_gc.r_pw.r_qf.&bvm=bv.41248874,d.d2k&fp=58d9588d13a0521a&biw=792&bih=495
+http://www.oldskool.org/guides/speakerrecording
+https://www.google.com/search?q=sound+card+microphone+input+impedence
+http://www.hobby-hour.com/electronics/computer_microphone.php
+http://www.vintage-computer.com/vcforum/showthread.php?34981-PC-XT-killer-pokes/page5
+
+
+tip = input
+ring = +5V bias
+sleeve = ground reference
+
+
+Port 0x61:
+  Bit 0 = timer 2 gate
+  Bit 1 = speaker enable
+
+Speaker 75477 input = (timer 2 output) AND (speaker enable)
+
+Low bits of port 0x61:
+  0 = Speaker disabled
+  1 = Speaker disabled
+  2 = Speaker enabled,
+  3 = Speaker enabled and connected to timer 2

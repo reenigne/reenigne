@@ -1,0 +1,23 @@
+Background music (Popcorn)                 music
+Bonus music (William Tell Overture)        music
+Death music                                music
+End of level jingle (polyphonic, no music) levdone
+End of level jingle (music)                levdone
+Firing (falling tone)                      fire
+Explosion                                  explode
+Emerald 1                                  em, emerald
+Emerald 2                                  em, emerald
+Emerald 3                                  em, emerald
+Emerald 4                                  em, emerald
+Emerald 5                                  em, emerald
+Emerald 6                                  em, emerald
+Emerald 7                                  em, emerald
+Emerald 8                                  em, emerald
+Bag wobbling (continuous)                  wobble
+Bag falling (falling tone)                 fall
+Bag breaking                               break
+Gold                                       gold
+Start/end bonus (continuous)               bonus
+Eating monster                             eatm
+Extra life                                 1up
+Digger dying                               ddie

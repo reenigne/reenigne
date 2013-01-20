@@ -1,0 +1,65 @@
+65536 bytes of audio samples
+  Minus a few words for scratch data
+
+Playback frequency = 157500000/11/912 = 15.7KHz
+
+4.17s of audio data
+
+Dynamic range = 76 levels (slightly over 6 bits)
+
+Playback:
+  lodsb        ; 1 1  (or maybe "pop ax" (1 2) if we need DS and SI for something else)
+  out 0x42,al  ; 2 1
+
+Each frame, load a new SI value:
+  mov si,[0]   ; 4 2
+  inc si       ; 1 0
+  inc si       ; 1 0
+  mov [0],si   ; 4 2
+  mov ds,[2]   ; 4 2
+  mov si,[si]  ; 2 2
+  mov ds,[0]   ; 4 2   total 30
+
+  xor bx,bx     ; 2 0
+  mov ds,[bx]   ; 2 2
+  mov si,[bx]   ; 2 2
+  lodsw         ; 1 2
+  mov [bx],si   ; 2 2
+  mov si,ax     ; 2 0
+  mov ds,[bx+2] ; 3 2  total 24
+
+  xor bx,bx      ; 2 0
+  lds si,[bx]    ; 2 4
+  lodsw          ; 1 2
+  mov ds,[bx]    ; 2 2
+  mov [bx],si    ; 2 2
+  mov si,ax      ; 2 0  total 21
+
+Frames per second = 157500000/11/912/262 = 59.92
+
+Over 2^31 cycles, need 2^31*3/912/262 = 26962 words = 53924 bytes
+
+65536/262 = 250 independent frames, with 36 bytes left over for scratch data
+
+Use note frequencies which are multiples of frame size to avoid glitches
+
+  1/4 1048       14.98                     1048
+  1/3  786       19.97                      786
+  1/2  524       29.96                      524
+  2/3  393       39.95
+  1    262       59.92                      262
+  2/1  131      119.85                      262
+  4/1   65.5    239.69                      262
+  8/1   32.75   479.38 (between A# and B)   262
+ 16/1           958.76                      262
+ 32/1          1917.53                      262
+ 64/1          3835.06                      262
+128/1          7670.11                      262
+256/1         15340.22                      262
+
+1 instrument octave = 12 samples = 3144 bytes
+We have 20 instrument octaves
+
+Suppose we linearly increase the log-frequency over the entire space
+Suppose we have 88 semitones
+Then we get 2.84 samples per semitone, and the note varies 35.2 cents over its duration

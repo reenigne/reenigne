@@ -180,7 +180,7 @@ public:
             (*i)->load((*object)[(*i)->name()]);
     }
     String name() { return "bus"; }
-    TypedValue initia()
+    TypedValue initial()
     {
         Value<HashTable<String, TypedValue> > object;
         for (auto i = _components.begin(); i != _components.end(); ++i)
@@ -280,7 +280,7 @@ public:
     void load(const TypedValue& value)
     {
         String s = value.value<String>();
-        CharacterSource source(s, "");
+        CharacterSource source(s, File(""));
         int a = 0;
         Space::parse(&source);
         do {
@@ -1050,10 +1050,10 @@ statePushRW,       statePushRW,       statePushRW,       statePushRW,
 statePushRW,       statePushRW,       statePushRW,       statePushRW,
 statePopRW,        statePopRW,        statePopRW,        statePopRW,
 statePopRW,        statePopRW,        statePopRW,        statePopRW,
-stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
-stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
-stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
-stateInvalid,      stateInvalid,      stateInvalid,      stateInvalid,
+stateJCond,        stateJCond,        stateJCond,        stateJCond,
+stateJCond,        stateJCond,        stateJCond,        stateJCond,
+stateJCond,        stateJCond,        stateJCond,        stateJCond,
+stateJCond,        stateJCond,        stateJCond,        stateJCond,
 stateJCond,        stateJCond,        stateJCond,        stateJCond,
 stateJCond,        stateJCond,        stateJCond,        stateJCond,
 stateJCond,        stateJCond,        stateJCond,        stateJCond,
@@ -1455,7 +1455,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateCallCP4: push(_ip, stateJmpCP4); break;
                 case stateWait: end(4); break;
-                case statePushF: push(_flags & 0x0fd7); break;
+                case statePushF: push((_flags & 0x0fd7) | 0xf000); break;
                 case statePopF: pop(statePopF2); break;
                 case statePopF2: _flags = _data | 2; end(4); break;
                 case stateSAHF:
@@ -3104,14 +3104,14 @@ protected:
         simulator.addComponent(&bus);
         simulator.addComponent(&cpu);
 
-        ConfigFile initialState;
-        Type simulatorType = simulator.type();
-        initialState.addType(simulatorType);
-        initialState.addOption("simulator", simulatorType,
-            simulator.initial());
-        initialState.load(config.get<String>("initialState"));
-        TypedValue stateValue = initialState.get("simulator");
-        simulator.load(stateValue);
+        //ConfigFile initialState;
+        //Type simulatorType = simulator.type();
+        //initialState.addType(simulatorType);
+        //initialState.addOption("simulator", simulatorType,
+        //    simulator.initial());
+        //initialState.load(config.get<String>("initialState"));
+        //TypedValue stateValue = initialState.get("simulator");
+        //simulator.load(stateValue);
 
         //File file(config.get<String>("sourceFile"));
         //String contents = file.contents();

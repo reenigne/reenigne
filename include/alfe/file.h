@@ -624,7 +624,7 @@ public:
             throw Exception("2Gb or more in file " + path());
         int intSize = static_cast<int>(size);
         String buffer(intSize);
-        f.read(static_cast<void*>(buffer.data()), intSize);
+        f.read(buffer.data(), intSize);
         buffer._length = intSize;
         return buffer;
     }

@@ -1,0 +1,286 @@
+This is the text file about the source code for Digger Remastered and how to
+build the game. For infomation about running and playing the game, see the
+DIGGER.TXT file included with the main distribution, DIGGER.ZIP.
+
+
+Introduction
+------------
+
+If you've just downloaded this file for the first time, I'd appreciate it if
+you emailed me at andrew@digger.org to tell me that you've downloaded it and
+what you intend to use it for, whether it be porting it to another platform or
+just to see how it's done. Also please let me know if you do something
+interesting with this.
+
+If you're having trouble understanding the code, tell me what is you don't
+understand and I'll try to help you out.
+
+Note that this does not include the source for the protected mode version yet,
+as it has not been almalgamated with the main source.
+
+Note that Windmill Software owns copyright on this source code, so it is
+subject to some licensing restrictions. You cannot make any money from any
+versions of Digger you create using this code unless you have permission to
+do so from Windmill Software. All rights to any software created with this
+code must be relinquished to Windmill Software upon request.
+
+The source code is updated quite regularly as new features are added and bugs
+are fixed. To get the latest version, either visit the Digger website at
+http://www.digger.org, email andrew@digger.org or send a 3.5" floppy disk and
+suitable SAE to:
+ Andrew Jenner
+ 4850 156th Ave NE #230
+ Redmond
+ WA
+ 98052
+ USA
+This is particularly important if you're starting a new version, such as a port
+to another platform.
+
+
+Copyright
+---------
+
+Windmill Software holds the copyright to the original Digger source code and
+binaries, and have exclusive rights to sell, license and produce the game in
+its original form.
+
+Rob Sleath has the right to use the Digger source code for development of
+other projects. Digger Remastered is such a project. It was produced without
+reference to the original Digger source by Windmill software, and without help
+from the original developers of Digger in any capacity other than historical
+advice. With the permission of Rob Sleath, Digger Remastered is Copyright (c)
+Andrew Jenner 1998-2004.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+
+
+Building
+--------
+
+This section assumes you understand the C language and how to use your compiler
+and associated tools.
+
+The DOS version uses the "small" memory model, giving 64K code and 64K data.
+However, since Digger is bigger than 128K, I've moved the alphanumeric
+character data and title screen bitmaps to their own segments. As long as these
+are linked at the beginning of the executable so that they don't interfere with
+the data segment/heap/stack they should pose no problem. However, this means
+that you can't build it in the Turbo C 2.01 Integrated Devlopment Environment
+(TC.EXE): you have to use the command line tools. The IDE forces the compiler
+and linker to use the same memory model. You can debug it to a certain extent
+in this IDE, but it will probably crash your computer after a few lines because
+of conflicts with the keyboard interrupt. To fix this, comment out the line
+"initkeyb()" at the beginning of the main() function and the line
+"restorekeyb()" in the finish() function (both in MAIN.C) - this modification
+has no effect other than to make Digger move more slowly and jerkily, but other
+game functions work the same. Borland's Turbo Debugger 4.6 doesn't need this
+modification, but you cannot use this with TLINK 2.0.
+
+To build the executable, you'll need an ANSI-compliant C compiler and library,
+an assembler for the DOS version (for the very low-level routines) and a
+linker. I used Borland C++ 4.52, the shareware assembler A86 and Borland's
+TLINK 7.00. The makefile is set up for these, so some minor modifications may
+be needed if you have different tools. Unfortunately the startup code and run
+time library supplied with Borland C++ 4.52 was too bulky for use with Digger
+(don't you think a 40K executable for "Hello, World!" is a bit excessive?), so
+I used the startup code and library and from Turbo C 2.01, with some minor
+modifications: I had to rewrite some of the in-line functions. These are in the
+file BC02.ASM, which you can assemble to an .OBJ file and add to your TC2.01
+run time library if you want to. However, you can also use Turbo C 2.01 and
+TLINK 2.0 with only some minor modifications to MAKEFILE.MAK and RESPONSE.RSP.
+
+Having said all that, if you build Digger in a flat, 32 bit, memory model
+(rewriting DOSPC.ASM where necessary) the previous two paragraphs can be
+ignored, just be sure to "#define FLATFILE".
+
+Please don't ask me if/how you can build the real mode executable with a
+particular set of tools: I don't have any experience with other tools. As long
+as your library isn't too bulky, it should just be a question of making sure
+MAKEFILE.MAK and RESPONSE.RSP are set up to use the right tools, options and
+libraries. If you get error messages involving the _TEXT segment overflowing,
+you need to use an older, smaller library.
+
+IDE files for Borland C++ 4.52 are included for both the DOS and Windows
+versions.
+
+Under Borland C++ 4.52 the Windows version compiles fine if you use C++ rather
+than C compilation (due to non-standard C code in the DirectX header files).
+You might need some header files from the DirectX SDK (you definately do if
+you #define DIRECTX), but it will run without the actual libraries. I made the
+ALPHA.C, VGAGRAFX.C and CGAGRAFX.C files using DOS for convenience (remembering
+to "#define _WINDOWS") but it shouldn't be too difficult to make them with any
+OS - MKG.C is pretty standard C (correct me if I'm wrong). Anyway, if you want
+to make the Windows version you'll need the DirectX SDK and a compiler that you
+know works with it.
+
+
+Compilation option #defines are:
+ARM - compile the ARM RiscOS version
+_WINDOWS - compile the Windows version
+WIN32 - compile for 32-bit Windows rather than 16-bit Windows (16-bit isn't
+        finished yet so ensure you define this if you define _WINDOWS)
+DIRECTX - if defined the resulting executable will make use of DirectX if it
+          is available.
+RUNTIMEDYNAMICLINK - if defined the DirectX .LIB files don't need to be linked.
+                     Not sure why you might want to undefine this because the
+                     run-time dynamic linking seems to work fine.
+FLATFILE - compile using a flat 32-bit memory model (i.e. not real mode DOS).
+_MSVC - compiling using Microsoft Visual C++ (which seems to do one or two
+        things slightly differently to Borland C++).
+INTDRF - if defined the resulting executable will save some timing information
+         to the DRFINFO.TXT file in the current directory when playing back a
+         DRF. This information is used to find the speed at which a DRF was
+         recorded and to ensure the DRF was legitimately generated. You don't
+         need to bother defining this.
+LEVED - this is defined when building the level editor and prevents
+        unneccessary routines and graphics being linked in and bloating the
+        executable.
+
+
+Details of the distributed files follow
+---------------------------------------
+
+DIGSRC.TXT   - This file
+SOUNDS.TXT   - List of sound effects
+SPRITES.TXT  - List of which sprites correspond to which characters
+FNS.TXT      - Map showing which C routines correspond to which assembler
+               routines in the original source (for debugging purposes). A bit
+               out of date, since many of the routines no longer have direct
+               equivalents in the original.
+STRUCTS.TXT  - List of struct fields and corresponding addresses in the
+               assembler source (for debugging purposes). Also out of date.
+DRF.TXT      - Explanation of the DRF format.
+ROUTINES.TXT - Detailed (although not always entirely reliable and slightly out
+               of date) explanation of every function and global variable in
+               the program (apart from some of the newer ones), plus a lot of
+               the terminology.
+
+DIGGER.PRJ   - IDE project file
+RESPONSE.RSP - Linker response flie
+MAKEFILE.MAK - Makefile
+DIGGER.IDE   - 4.52 IDE file for DOS version
+WINDIG.IDE   - Ditto for Windows version
+
+VTITLE.BMP   - RLE encoded bitmap of the VGA title screen for linking into the
+               Windows version
+DIGGER.ICO   - Windows icon
+WINDIG.MAK   - Makefile for Windows version (Microsoft Developer Studio)
+WINDIG.MDP   - Another Developer Studio file, not sure what it does.
+WINDIG.RC    - Windows resource compiler file
+WINDIG.RES   - Windows resource file (containing the icon)
+
+DEF.H        - Contains definitions for boolean type and integer sizes as
+               well as some other bits and pieces used throughout the program.
+
+MAIN.H       -
+MAIN.C       - The program shell
+
+DIGGER.H
+DIGGER.C     - Routines for Diggers and fireballs
+
+BAGS.H
+BAGS.C       - Routines for Gold and bags
+
+MONSTER.H
+MONSTER.C    - Routines for Nobbins and Hobbins
+
+INPUT.H
+INPUT.C      - Keyboard and Joystick (not implemented) interface routines
+
+SCORES.H
+SCORES.C     - Routines for scoring and high scores
+
+DRAWING.H
+DRAWING.C    - High level drawing routines
+
+SPRITE.H
+SPRITE.C     - Mid level drawing routines: sprite handling and collisions
+
+SOUND.H
+SOUND.C      - Sound routines
+
+HARDWARE.H   - Hareware interface routines:
+DOSPC.ASM    - Low level interface routines for DOS PCs:
+                Timing and calibration routines
+                Original style sound routines
+                Keyboard interrupt routines
+                Miscellaneous graphics routines
+                CGA low level graphics routines
+                VGA low level graphics routines
+                Joystick routines (when implemented)
+ARM.ASM      - Same thing, but for Acorn machines
+ARMSUP.C     - Other support routines for Acorn machines
+
+RECORD.H
+RECORD.C     - Recording/playback routines
+
+INI.H
+INI.C        - INI file I/O routines (even the Windows version uses these).
+
+TITLE.C      - Title bitmap data
+
+CGA.SPR      - CGA sprite data } These are all in CHARDES format. CHARDES is
+CGATEXT.SPR  - CGA font data   } available from my personal website [*]. The
+VGA.SPR      - VGA sprite data } format is just 1 byte per pixel, 32x32 format
+VGATEXT.SPR  - VGA font data   } data (no headers).
+The colours of the text sprites are wrong in these - they aren't plotted by a
+naive blitter in the game.
+
+MKG.C        - Program to convert *.SPR into CGAGRAFX.C, VGAGRAFX.C and
+               ALPHA.C, which are compiled into the program. If your graphics
+               hardware has a different graphics memory layout, you may want to
+               change this to make your sprite output routines as simple as
+               possible.
+
+DEVICE.H     -
+NEWSND.C     - Emulator for PC speaker hardware.
+
+BC02.ASM     - Extra in-line functions needed by Borland C++ 4.52 if you're
+               using the library from Turbo C 2.01. Add this to your CS.LIB if
+               you need to.
+
+WIN_DIG.H
+WIN_VID.H
+WIN_SND.H
+WIN_SYS.C
+WIN_VID.C
+WIN_SND.C    - Windows specific routines, generally by Tim Draper.
+
+[*] http://www.reenigne.org
+
+To do:
+ Try a different way of rendering the sound which might sound better (create
+  two separate waveforms for the sound and background music and add them
+  together in some way rather than simulating the way the original did it).
+ Implement joystick.
+ Do something with that horrible flickering "Enter Your Initials" screen. I
+  want to make it true to the original but I'm not sure how yet. Currently it
+  looks worse the faster the computer. I may very well use either a fixed
+  palette (possibly the effect that the original author wanted - different
+  lines displayed with different colours) or time the palette changes with
+  the high resolution timer. The "Game over" screen also isn't quite how it
+  was in the original on some machines, but I need to know what the author
+  intended before I do anything about this.
+ Add a user friendly interface to complement (or maybe even replace) the
+ command-line options.
+ Add optional MOD background music / Wave sound effects / better graphics still
+ Port to other platforms
+ Add more players.
+ Add Serial/Modem/Network/Internet multiplayer/messaging
+ Make certian timing elements more true to the original game (i.e. the original
+  used to slow down (or speed up on some machines) when more monsters were on
+  the screen.
+ Digger 3D

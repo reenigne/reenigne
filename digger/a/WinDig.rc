@@ -1,0 +1,349 @@
+/* Digger Remastered
+   Copyright (c) Andrew Jenner 1998-2004 */
+
+//Microsoft Developer Studio generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#define _MSVC 1
+
+#ifdef _MSVC
+ #ifdef WIN32
+  #include <winres.h>
+ #else
+  #define DS_NOFAILCREATE 0
+  #define DS_CENTER 0
+  #define DS_3DLOOK 0
+  #include <afxres.h>
+ #endif
+#else
+ #define WINVER 0x0400
+ #include "winresrc.h"
+#endif
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (Canada) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENC)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_CAN
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_ICON1               ICON    DISCARDABLE     "Digger.ico"
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE DISCARDABLE
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE DISCARDABLE
+BEGIN
+    "#define _MSVC 1\r\n"
+    "\r\n"
+    "#ifdef _MSVC\r\n"
+    " #ifdef WIN32\r\n"
+    "  #include <winres.h>\r\n"
+    " #else\r\n"
+    "  #define DS_NOFAILCREATE 0\r\n"
+    "  #define DS_CENTER 0\r\n"
+    "  #include <afxres.h>\r\n"
+    " #endif\r\n"
+    "#else\r\n"
+    " #define WINVER 0x0400\r\n"
+    " #include ""winresrc.h""\r\n"
+    "#endif\0"
+END
+
+3 TEXTINCLUDE DISCARDABLE
+BEGIN
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDB_TITLEBITMAP         BITMAP  DISCARDABLE     "Vtitle.bmp"
+IDB_CGATITLEBITMAP      BITMAP  DISCARDABLE     "Ctitle.bmp"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDR_MAINMENU MENU DISCARDABLE
+BEGIN
+    POPUP "&Game"
+    BEGIN
+        MENUITEM "&Start",                      ID_GAME_START
+        MENUITEM "&Abort",                      ID_GAME_ABORT, GRAYED
+        MENUITEM SEPARATOR
+        MENUITEM "Pa&use\t",                    ID_GAME_PAUSE, GRAYED
+        MENUITEM SEPARATOR
+        POPUP "&Mode"
+        BEGIN
+            MENUITEM "Normal",                      ID_GAME_MODE_NORMAL
+            MENUITEM "&Gauntlet...",                ID_GAME_MODE_GAUNTLET
+        END
+        POPUP "&Players"
+        BEGIN
+            MENUITEM "&One",                        ID_GAME_PLAYERS_ONE
+            MENUITEM "&Two",                        ID_GAME_PLAYERS_TWO
+            MENUITEM "Two (Simultaneous)",          ID_GAME_PLAYERS_TWOSIMULTANEOUS
+
+        END
+        MENUITEM "&Level...",                   ID_GAME_LEVEL
+        MENUITEM SEPARATOR
+        POPUP "&Recording"
+        BEGIN
+            MENUITEM "&Instant Replay...\t(save and view last game)",
+                                                    ID_RECORDING_INSTANTREPLAY
+
+            MENUITEM "&Save...\t(save last game)",  ID_RECORDING_SAVE
+            MENUITEM SEPARATOR
+            MENUITEM "&Playback...\t (view a saved game)", ID_RECORDING_PLAY
+        END
+        MENUITEM SEPARATOR
+        MENUITEM "E&xit",                       ID_GAME_EXIT
+    END
+    POPUP "&Configuration"
+    BEGIN
+        POPUP "&Sound"
+        BEGIN
+            MENUITEM "&Play Sounds",                ID_SOUND_SOUNDS_PLAY
+            , CHECKED
+            MENUITEM "&Play Music",                 ID_SOUND_MUSIC_PLAY
+            , CHECKED
+            MENUITEM SEPARATOR
+            MENUITEM "Se&ttings...",                ID_SOUND_SETTINGS
+        END
+        POPUP "S&peed"
+        BEGIN
+            MENUITEM "&Default",                    ID_CONFIGURATION_SPEED_DEFAULT
+
+            MENUITEM SEPARATOR
+            MENUITEM "&Faster",                     ID_SPEED_FASTER
+            MENUITEM "&Slower",                     ID_SPEED_SLOWER
+        END
+        POPUP "&Graphics"
+        BEGIN
+            MENUITEM "&Full Screen\tAlt+Enter",     ID_VIEW_FULLSCREEN
+            MENUITEM "&Asynchronous",               ID_CONFIGURATION_GRAPHICS_ASYNCHRONOUS
+            , CHECKED
+            MENUITEM SEPARATOR
+            MENUITEM "&VGA Graphics",               ID_VIEW_VGAGRAPHICS
+            , CHECKED
+            MENUITEM "CGA Graphics",                ID_VIEW_CGAGRAPHICS
+            , GRAYED
+        END
+        POPUP "&Controls"
+        BEGIN
+            POPUP "&Keyboard", GRAYED
+            BEGIN
+                MENUITEM "&Redefine Keys...",           ID_CONFIGURATION_CONTROLS_KEYBOARD_REDEFINEKEYS
+
+                MENUITEM "Redefine &All Keys...",       ID_CONFIGURATION_CONTROLS_KEYBOARD_REDEFINEALLKEYS
+
+            END
+            POPUP "&Joystick", GRAYED
+            BEGIN
+                MENUITEM "&Enable",                     ID_CONFIGURATION_CONTROLS_JOYSTICK_ENABLE
+
+                MENUITEM SEPARATOR
+                MENUITEM "&Configure...",               ID_CONFIGURATION_CONTROLS_JOYSTICK_CONFIGURE
+
+            END
+        END
+    END
+    POPUP "&Help", HELP
+    BEGIN
+        MENUITEM "&About Digger",               ID_HELP_ABOUTDIGGER
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_DIALOG_GAUNTLET_SETTINGS DIALOG DISCARDABLE  0, 0, 150, 95
+STYLE DS_MODALFRAME | DS_3DLOOK | DS_NOFAILCREATE | DS_CENTER | WS_POPUP |
+    WS_CAPTION | WS_SYSMENU
+CAPTION "Gauntlet Mode Settings"
+FONT 8, "MS Sans Serif"
+BEGIN
+    LTEXT           "Gauntlet Time: (seconds)",IDC_STATIC,7,28,80,8
+    EDITTEXT        IDC_EDIT_TIME,95,26,40,14,ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "OK",IDOK,93,57,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,93,73,50,14
+END
+
+IDD_DIALOG_SOUND_SETTINGS DIALOG DISCARDABLE  0, 0, 212, 122
+STYLE DS_MODALFRAME | DS_3DLOOK | DS_NOFAILCREATE | DS_CENTER | WS_POPUP |
+    WS_CAPTION | WS_SYSMENU
+CAPTION "Sound Settings"
+FONT 8, "MS Sans Serif"
+BEGIN
+    GROUPBOX        "Volume",IDC_STATIC,5,5,35,115,WS_GROUP
+    SCROLLBAR       IDC_SCROLLBAR_SOUND_VOLUME,15,20,15,90,SBS_VERT |
+                    WS_TABSTOP
+    CONTROL         "Play &Sound",IDC_CHECK_PLAY_SOUNDS,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,50,80,50,10
+    CONTROL         "Play &Music",IDC_CHECK_PLAY_MUSIC,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,50,95,50,10
+    LTEXT           "Buffer Size:",IDC_STATIC,70,18,37,8
+    EDITTEXT        IDC_EDIT_BUFFER_SIZE,122,15,58,14,ES_AUTOHSCROLL
+    LTEXT           "Sample Rate:",IDC_STATIC,70,34,44,8
+    EDITTEXT        IDC_EDIT_SAMPLE_RATE,122,31,58,14,ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "OK",IDOK,155,85,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,155,100,50,14
+    GROUPBOX        "Settings",IDC_STATIC,50,5,150,65
+    LTEXT           "(Requires restart for changes to take effect)",
+                    IDC_STATIC,55,55,138,8
+END
+
+IDD_DIALOG_ABOUT DIALOG DISCARDABLE  0, 0, 217, 196
+STYLE DS_MODALFRAME | DS_3DLOOK | DS_NOFAILCREATE | DS_CENTER | WS_POPUP |
+    WS_CAPTION | WS_SYSMENU
+CAPTION "About Digger"
+FONT 8, "MS Sans Serif"
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,155,175,50,14
+    LTEXT           "DIGGER - Copyright (c)  1983  Windmill software",
+                    IDC_STATIC,15,15,153,8
+    LTEXT           "Restored 1998 by AJ Software",IDC_STATIC,15,25,97,8
+    LTEXT           "http://www.digger.org/",IDC_STATIC,15,44,105,8
+    LTEXT           "Windows port by Tim Draper",IDC_STATIC,15,34,100,8
+    LTEXT           "Version: ",IDC_STATIC,15,80,28,8
+    LTEXT           "?",IDC_STATIC_VERSION,65,80,130,25
+    LTEXT           "?",IDC_GRAPHICS_INFO,65,105,135,40
+    GROUPBOX        "Information",IDC_STATIC,10,65,195,100
+    LTEXT           "Graphics:",IDC_STATIC,15,105,28,8
+    LTEXT           "Sound:",IDC_STATIC,15,145,28,8
+    LTEXT           "?",IDC_SOUND_INFO,65,145,135,15
+END
+
+IDD_DIALOG_KEYBOARD_SETTINGS DIALOG DISCARDABLE  0, 0, 247, 175
+STYLE DS_SYSMODAL | DS_MODALFRAME | DS_3DLOOK | DS_NOFAILCREATE | DS_CENTER |
+    WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Keyboard Settings"
+FONT 8, "MS Sans Serif"
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,190,140,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,190,156,50,14
+    LTEXT           "Right",IDC_STATIC,20,20,18,8
+    GROUPBOX        "Player 1",IDC_STATIC,5,5,110,90
+    LTEXT           "Up",IDC_STATIC,20,35,10,8
+    LTEXT           "Left",IDC_STATIC,20,50,13,8
+    LTEXT           "Down",IDC_STATIC,20,65,20,8
+    LTEXT           "Fire",IDC_STATIC,20,80,12,8
+    LTEXT           "?",IDC_KEY_P1_RIGHT,55,20,35,8
+    LTEXT           "?",IDC_KEY_P1_LEFT,55,50,35,8
+    LTEXT           "?",IDC_KEY_P1_Up,55,35,35,8
+    LTEXT           "?",IDC_KEY_P1_DOWN,55,65,35,8
+    LTEXT           "?",IDC_KEY_P1_FIRE,55,80,35,8
+END
+
+IDD_DIALOG_LEVELS DIALOG DISCARDABLE  0, 0, 228, 142
+STYLE DS_MODALFRAME | DS_3DLOOK | DS_NOFAILCREATE | DS_CENTER | WS_POPUP |
+    WS_CAPTION | WS_SYSMENU
+CAPTION "Levels"
+FONT 8, "MS Sans Serif"
+BEGIN
+    LTEXT           "Starting Level:",IDC_STATIC,13,10,55,8
+    COMBOBOX        IDC_START_LEVEL,86,8,34,121,CBS_DROPDOWN | WS_VSCROLL |
+                    WS_TABSTOP
+    GROUPBOX        "Levels",IDC_STATIC,11,28,208,67,WS_GROUP
+    CONTROL         "Use the original (built-in) levels",
+                    IDC_RADIO_USE_BUILT_IN,"Button",BS_AUTORADIOBUTTON |
+                    WS_GROUP | WS_TABSTOP,28,40,111,10
+    CONTROL         "Use an extra level set ( .DLF files)",
+                    IDC_RADIO_USE_EXTERNAL,"Button",BS_AUTORADIOBUTTON |
+                    WS_TABSTOP,28,57,121,10
+    EDITTEXT        IDC_EDIT_FILENAME,46,70,110,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "&Browse...",IDC_BROWSE_FILENAME,161,70,35,14
+    DEFPUSHBUTTON   "OK",IDOK,169,103,50,14,WS_GROUP
+    PUSHBUTTON      "Cancel",IDCANCEL,170,120,50,14,WS_GROUP
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO DISCARDABLE
+BEGIN
+    IDD_DIALOG_GAUNTLET_SETTINGS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 143
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 88
+    END
+
+    IDD_DIALOG_SOUND_SETTINGS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 205
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 115
+    END
+
+    IDD_DIALOG_ABOUT, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 210
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 189
+    END
+
+    IDD_DIALOG_KEYBOARD_SETTINGS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 240
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 168
+    END
+
+    IDD_DIALOG_LEVELS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 221
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 135
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // English (Canada) resources
+/////////////////////////////////////////////////////////////////////////////
+
+

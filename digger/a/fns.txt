@@ -1,0 +1,374 @@
+o28f   void readscores(void);
+o2b8   void writescores(void);
+o482   void dispdisable(void);
+o498   void dispenable(void);
+o52o   void setbackgcol(Sint4 c);
+o54o   void setretr(bool f);
+
+o754   void createspr(Sint4 n,Uint3 *or,Uint3 *and,Uint3 *mov,Sint4 wid,
+                      Sint4 hei,Sint4 bwid,Sint4 bhei);
+o7b1   Sint4 movedrawspr(Sint4 n,Sint4 x,Sint4 y);
+o7d3   void erasespr(Sint4 n);
+o7e4   Sint4 drawspr(Sint4 n,Sint4 x,Sint4 y);
+o8o4   void initspr(Sint4 n,Uint3 *or,Uint3 *and,Sint4 wid,Sint4 hei,
+                    Sint4 bwid,Sint4 bhei);
+o83c   void setsprorder(Sint4 *newsprorder);
+o84f   void initmiscspr(Sint4 x,Sint4 y,Sint4 wid,Sint4 hei);
+o876   void getis(void);
+o8ad   void drawmiscspr(Sint4 x,Sint4 y,Uint3 *or,Uint3 *and,Sint4 wid,
+                        Sint4 hei);
+
+oa65   void clearrdrwf(void);
+oa7c   void clearrecf(void);
+oa9o   void setrdrwflgs(Sint4 n);
+obo5   bool collide(Sint4 bx,Sint4 si);
+ob6e   bool bcollide(Sint4 bx,Sint4 si);
+od13   void putims(void);
+od3o   void putis(void);
+od48   Sint4 bcollides(Sint4 bx);
+o11a4  void outtext(Sint3 *p,Sint4 x,Sint4 y,Sint4 c);
+o1617  void writenum(Sint5 bpc,Sint4 bp1o,Sint4 bp12,Sint4 bp14,Sint4 bp16);
+o177f  Sint4 randno(Sint4 max);
+
+oe74   void processkey(Uint4 key);
+oe8a   void Key_leftpressed(void);
+oeab   void Key_leftreleased(void);
+oed7   void Key_rightpressed(void);
+oef8   void Key_rightreleased(void);
+of24   void Key_uppressed(void);
+of36   void Key_upreleased(void);
+of46   void Key_downpressed(void);
+of58   void Key_downreleased(void);
+offo   void Key_f1pressed(void);
+offd   void Key_f1released(void);
+o1oo4  void Key_ctrlpressed(void);
+o1ooa  void Key_ctrlreleased(void);
+o1o1o  void Key_altpressed(void);
+o1o16  void Key_altreleased(void);
+o1o1c  void Key_delpressed(void);
+       void Key_f10pressed(void);
+o1o24  void Key_delreleased(void);
+o1o2a  void Key_f7pressed(void);
+o1o3c  void Key_f7released(void);
+o1o42  void Key_f9pressed(void);
+o1o54  void Key_f9released(void);
+o1o5a  void Key_escpressed(void);
+o1o61  void setdirec(void);
+
+o1826  void creatembspr(void);
+o1ao3  void initmbspr(void);
+o1b84  Sint4 drawmon(Sint4 n,bool nobf,Sint4 dir,Sint4 x,Sint4 y);
+o1ddb  Sint4 drawmondie(Sint4 n,bool nobf,Sint4 dir,Sint4 x,Sint4 y);
+o1e9d  Sint4 drawgold(Sint4 n,Sint4 t,Sint4 x,Sint4 y);
+o2o1a  void drawlife(Sint4 t,Sint4 x,Sint4 y);
+o2o8a  void drawemerald(Sint4 x,Sint4 y);
+o2oco  void eraseemerald(Sint4 x,Sint4 y);
+o2of6  void createdbfspr(void);
+o2167  void initdbfspr(void);
+o21cc  void drawrightblob(Sint4 x,Sint4 y);
+o2214  void drawleftblob(Sint4 x,Sint4 y);
+o225c  void drawtopblob(Sint4 x,Sint4 y);
+o22a2  void drawbottomblob(Sint4 x,Sint4 y);
+o22e8  void drawfurryblob(Sint4 x,Sint4 y);
+o2334  void drawsquareblob(Sint4 x,Sint4 y);
+o237a  void drawbackg(Sint4 l);
+o24c6  Sint4 drawfire(Sint4 x,Sint4 y,Sint4 t);
+o26oe  void drawbonus(Sint4 x,Sint4 y);
+o263f  Sint4 drawdigger(Sint4 t,Sint4 x,Sint4 y,bool f);
+o2bc1  void initmonsters(void);
+o2c58  void erasemonsters(void);
+o2c9o  void domonsters(void);
+o2dd3  void createmonster(void);
+o2e75  void monai(Sint4 bp24);
+o3682  void mondie(Sint4 bp1o);
+o3767  void incpenalties(Sint4 bpa);
+o3795  void checkcoincide(Sint4 bp1o,Sint4 bp12);
+o3815  bool fieldclear(Sint4 dir,Sint4 x,Sint4 y);
+o3962  void checkmonscared(Sint4 bpa);
+o39a9  void killmon(Sint4 mon);
+o39e7  void squashmonsters(Sint4 bpc,Sint4 bpe);
+o3a4o  Sint4 killmonsters(Sint4 bpc);
+o3a7c  void squashmonster(Sint4 bp8,Sint4 bpa,Sint4 bpc);
+o3aa5  Sint4 monleft(void);
+o3abb  Sint4 nmononscr(void);
+o3aef  void incmont(Sint4 bp8);
+o3b26  void mongold(void);
+o3b31  void initbags(void);
+o3c93  void drawbags(void);
+o3d2f  void cleanupbags(void);
+o3e2d  void dobags(void);
+o3fed  void updatebag(Sint4 bp16);
+o4296  void baghitground(Sint4 bp12);
+o433b  bool pushbag(Sint4 bp26,Sint4 bp28);
+o466c  bool pushbags(Sint4 bpc,Sint4 bpe);
+o46b2  bool pushudbags(Sint4 bpc);
+o47o3  void removebag(Sint4 bn);
+o473o  Sint4 bagy(Sint4 bn);
+o4749  Sint4 getbagdir(Sint4 bp8);
+o4774  Sint4 bagbits(void);
+o47b5  void removebags(Sint4 bbits);
+o47f8  Sint4 getnmovingbags(void);
+o4853  void getgold(Sint4 bpe);
+o48ao  void initdigger(void);
+o4926  void erasedigger(void);
+o4939  void dodigger(void);
+o4a3e  void updatefire(void);
+o4e66  void drawexplosion(void);
+o4ee3  void killfire(void);
+o4fo7  void updatedigger(void);
+o5218  void diggerdie(void);
+o551o  void createbonus(void);
+o5528  void initbonusmode(void);
+o5562  void endbonusmode(void);
+o5575  void erasebonus(void);
+o5598  void scoreeatm(void);
+o55bd  Sint4 reversedir(Sint4 d);
+o56o2  bool checkdigunderbag(Sint4 h,Sint4 v);
+
+o5668  void killdigger(Sint4 bp6,Sint4 bp8);
+o56e8  void makeemfield(void);
+o5777  void drawemeralds(void);
+o57f1  bool hitemerald(Sint4 x,Sint4 y,Sint4 rx,Sint4 ry,Sint4 dir);
+o5a94  Sint4 countem(void);
+o5aeo  void killemerald(Sint4 bpa,Sint4 bpc);
+o5bb9  void readdir(void);
+o5c5e  bool teststart(void);
+o5d71  Sint4 getdir(void);
+o5dd8  bool getfirepflag(void);
+o5deo  void initscores(void);
+o5ded  void loadscores(void);
+o5eea  void zeroscores(void);
+o5f2e  void writecurscore(Sint4 bp6);
+
+o5fa1  void addscore(Sint4 score);
+o61ob  void endofgame(void);
+o62do  void drawscores(void);
+o6345  void drawlives(void);
+o64o7  void shownplayers(void);
+o646e  void showtable(void);
+o6521  void savescores(void);
+o65b5  void getinitials(void);
+o66e1  void flashywait(Sint4 bpd);
+o674d  Sint4 getinitial(Sint4 bpa,Sint4 bpc);
+o68o7  void shufflehigh(void);
+o689f  void scorekill(void);
+o68ad  void scoreemerald(void);
+o68bb  void scoreoctave(void);
+o68c9  void scoregold(void);
+o68d7  void scorebonus(void);
+
+o68e5  void numtostring(Sint3 *bp2o,Sint5 bp22,Sint4 bp26);
+
+o6a48  void makefield(void);
+o6b31  void drawstatics(void);
+o6bca  void savefield(void);
+o6c3e  void drawfield(void);
+o6dfe  void eatfield(Sint4 bp14,Sint4 bp16,Sint4 bp18);
+o72o7  Sint4 getfield(Sint4 bp8,Sint4 bpa);
+o7227  void soundint(void);
+o72d7  void soundstop(void);
+o73o3  void soundlevdoneoff(void);
+o731o  void soundlevdone(void);
+o7351  void soundlevdoneupdate(void);
+o743o  void soundfall(void);
+o7441  void soundfalloff(void);
+o744e  void soundfallupdate(void);
+o7497  void soundbreak(void);
+o74bc  void soundbreakoff(void);
+o74c7  void soundbreakupdate(void);
+o74ec  void soundwobbleupdate(void);
+o7559  void soundwobble(void);
+o7564  void soundwobbleoff(void);
+o7571  void soundfire(void);
+o7582  void soundfireoff(void);
+o758f  void soundfireupdate(void);
+o75e6  void soundexplode(void);
+o76oo  void soundexplodeoff(void);
+o76ob  void soundexplodeupdate(void);
+o7646  void soundbonus(void);
+o7651  void soundbonusoff(void);
+o765e  void soundbonusupdate(void);
+o76c1  void soundemoff(void);
+o76cc  void soundem(void);
+o76d7  void soundemupdate(void);
+o76ec  void soundemeraldoff(void);
+o76f7  void soundemerald(Sint4 emocttime);
+o779b  void soundemeraldupdate(void);
+o77fc  void soundgoldoff(void);
+o78o7  void soundgold(void);
+o782a  void soundgoldupdate(void);
+o7886  void soundeatmoff(void);
+o7891  void soundeatm(void);
+o78ae  void soundeatmupdate(void);
+o7928  void soundddieoff(void);
+o7933  void soundddie(void);
+o794a  void soundddieupdate(void);
+o7aoo  void sound1upoff(void);
+o7aob  void sound1up(void);
+o7a1c  void sound1upupdate(void);
+o7a63  void musicoff(void);
+o7a7o  void music(Sint4 tune);
+o7bo2  void musicupdate(void);
+o7cb3  void soundpause(void);
+o7cbe  void soundpauseoff(void);
+o7d1o  void initsound(void);
+o7dd9  void sett0(void);
+o7e7c  void setsoundt2(void);
+o7eb8  void setsoundmode(void);
+o7eff  void startint8(void);
+o7f36  void sett2val(Sint4 t2v);
+o7fa2  void stopint8(void);
+
+o8oo1  Sint4 getlevch(Sint4 bp6,Sint4 bp8,Sint4 bpa);
+o8155  Sint4 getasciikey(Sint4 bp4);
+o82a6  void main(Sint4 argc,Sint3 *argv[]);
+o86f1  void play(void);
+o8984  void switchnplayers(void);
+o89a4  void initlevel(void);
+o89cd  void drawscreen(void);
+o89e4  void initchars(void);
+o89f2  void checklevdone(void);
+o8a32  void incpenalty(void);
+o8a3b  void cleartopline(void);
+o8a65  Sint4 levplan(void);
+o8a8d  Sint4 levof10(void);
+o8abd  Sint4 levno(void);
+o8afo  Sint4 getlives(Sint4 pl);
+o8boc  void addlife(Sint4 pl);
+o8b2a  void setdead(bool bp6);
+o8b45  Sint4 getcplayer(void);
+
+o8b55  void testpause(void);
+
+o23f   void olddelay(Sint4 t);
+
+       void calibrate(void);
+       void delaysub(void);
+       Sint5 getkips(void);
+
+o5ob   void gretrace(void);
+
+       void vgainit(void);
+       void vgaclear(void);
+       void vgapal(Sint4 pal);
+       void vgainten(Sint4 inten);
+       void vgaputi(Sint4 bx);
+       void vgageti(Sint4 bx);
+       void vgaputim(Sint4 bx);
+       Sint4 vgagetpix(Sint4 x,Sint4 y);
+       void vgatitle(void);
+       void vgawrite(Sint4 x,Sint4 y,Sint4 ch,Sint4 c);
+       void cgainit(void);
+       void cgaclear(void);
+       void cgapal(Sint4 pal);
+       void cgainten(Sint4 inten);
+       void cgaputi(Sint4 bx);
+       void cgageti(Sint4 bx);
+       void cgaputim(Sint4 bx);
+       Sint4 cgagetpix(Sint4 x,Sint4 y);
+       void cgatitle(void);
+       void cgawrite(Sint4 x,Sint4 y,Sint4 ch,Sint4 c);
+
+odbb   void readjoy(void);
+
+       void soundoff(void);
+       void eoi(void);
+       void graphicsoff(void);
+
+o17c1  Sint4 getlowtime(void);
+o5b3f  void detectjoy(void);
+o339   void initint8(void);
+o374   void restoreint8(void);
+oeo6   void initint9(void);
+
+       void restoreint9(void);
+
+o7fd5  void settimer2(Sint4 t2v);
+
+       void setspkrt2(void);
+       void settimer0(Sint4 t0v);
+       void timer0(Sint4 t0v);
+       void timer2(Sint4 t2v);
+       void finish(void);
+       void quiet(void);
+       void nomusic(void);
+       void parsecmd(int argc,char *argv[]);
+       void patchcga(void);
+       void recsaveinit(void);
+       void recsaveclear(void);
+       void recsavetitle(void);
+       void recsaveretrace(void);
+       void recsavepal(Sint4 pal);
+       void recsaveinten(Sint4 inten);
+       void recsavewrite(Sint4 x,Sint4 y,Sint4 p,Sint4 c);
+       void recsaveputi(Sint4 bx);
+       void recsavegeti(Sint4 bx);
+       void recsaveputim(Sint4 bx);
+       void recsavedelay(void);
+       void recsaveexit(void);
+       void recsave(Sint4 l);
+       void openplay(Sint3 *name);
+       int adjfireheight(int h);
+       void openrec(Sint3 *name);
+
+o3f4   void (*ginit)(void)=vgainit;
+
+o4ae   void (*gclear)(void)=vgaclear;
+o4e7   void (*gpal)(Sint4 pal)=vgapal;
+o54b   void (*ginten)(Sint4 inten)=vgainten;
+obff   void (*gputi)(Sint4 bx)=vgaputi;
+ocd2   void (*ggeti)(Sint4 bx)=vgageti;
+ocf3   void (*gputim)(Sint4 bx)=vgaputim;
+o56a6  Sint4 (*ggetpix)(Sint4 x,Sint4 y)=vgagetpix;
+o17eb  void (*gtitle)(void)=vgatitle;
+       void (*gwrite)(Sint4 x,Sint4 y,Sint4 ch,Sint4 c)=vgawrite;
+
+
+o26c   (check copy protection)
+o3fc
+o418
+o429
+o456
+o4ao
+o48a
+o4b9
+o4f2
+o52b
+o556
+o5cf
+o8e5
+o935
+o984
+o997
+oa32
+oc1e
+oc62
+oc6d
+oc8a
+ocba
+o1128  (centering)
+o117b
+o118f
+o55b5
+o565o
+o5658
+o566o
+o569b
+o5eb1
+o69c3  (itoa)
+o8of5  (numeral)
+
+o227   abs
+o8b4d  
+o8beo  docrash
+o8bee  crash
+o8bfc  @LMUL
+o8c6d  exit
+o8c7d  @LDIV
+o8d2d  strcpy
+o8d4c  itoa
+o8ddd
+o8de8
+o8df4  strcat
+o8e23  @LCMP
+

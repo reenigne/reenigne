@@ -5,6 +5,7 @@
     <meta name='description' content='Run code on a real IBM 5160 XT' />
     <link rel='stylesheet' type='text/css' href='stylesheet.css' />
     <title>XT Server</title>
+    <script type="text/javascript" src="http://reenigne.dyndns.org/cgi-big/xtstatus.exe"></script>
   </head>
   <body style="width:600px">
     <h1>What is this?</h1>
@@ -64,9 +65,10 @@
     COM3 (not connected).</li>
     <li>Genuine IBM CGA card (old-style composite output, part number
     1501486).</li>
-    <li>IBM floppy controller 1503969, with one floppy drive attached (will be
+    <li>IBM floppy controller 1503969<del>, with one floppy drive attached (will be
     two eventually). There is a floppy disk in the drive that you can write
-    data to if you want.</li>
+    data to if you want.</del> with no floppy drives attached, since they can
+    be damaged by malicious code.</li>
     <li>No hard drive (I have one but track 0 is bad so it can't be used for
     DOS. It's also very loud, so I don't leave it connected).</li>
     <li>No monitors (it's dangerous to keep these connected when running
@@ -149,6 +151,12 @@ messageEnd:
 <a href="http://www.vintage-computer.com/vcforum/showthread.php?34981-PC-XT-killer-pokes">this
     thread on VCF</a> for details.</p>
 
+
+    <h1>I'd like to be able to run XT programs from the command line.</h1>
+    <p>Here is a <a href="submit.txt">perl script</a> (thanks to Egan Ford)
+    which you can use to automate calls to the API. It may need to be renamed
+    to submit.pl before use.</p>
+
     <h1>Will you claim any kind of ownership of programs I upload here?</h1>
     <p>No, you keep the copyright on your programs. I will not redistribute
     them, but I will keep logs and copies of any programs sent so that I can
@@ -167,6 +175,20 @@ messageEnd:
     <h1>How can I contact you?</h1>
     <p>Send email to me,
     <a href="mailto:andrew@reenigne.org">andrew@reenigne.org</a>.</p>
+
+    <h1>What is the current status of the XT server?</h1>
+    <script type="text/javascript">
+        function updateStatus(status) {
+            document.getElementById("status").innerHTML = status;
+        }
+        setTimeout(function()
+        {
+            if (document.getElementById("status").innerHTML === "in an unknown state")
+                updateStatus("offline");
+        },5000);
+    </script>
+    <p>The XT server is currently
+    <span id='status'>in an unknown state</span>.</p>
 
     <h1>How do I run my program?</h1>
     <p>Upload it into this form:</p>

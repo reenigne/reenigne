@@ -228,6 +228,28 @@ codePreambleEnd:
 
 experimentData:
 
+experimentBlock:
+  db "Block$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+.endInit:
+  dw .endCode - ($+2)
+  mov al,8
+  out dx,al
+  mov al,ah
+  out dx,al
+.endCode:
+
+experimentBlock2:
+  db "Block2$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+.endInit:
+  dw .endCode - ($+2)
+  inc ax
+  out dx,al
+.endCode:
+
 experimentMOVSBstring:
   db "MOVSB string$"
   dw .endInit - ($+2)
