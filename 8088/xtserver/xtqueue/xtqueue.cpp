@@ -3,6 +3,9 @@
 #include "alfe/stack.h"
 #include "alfe/linked_list.h"
 #include "alfe/email.h"
+#include "alfe/com.h"
+#include <MMReg.h>
+#include <dsound.h>
 
 #include <WinCrypt.h>
 
@@ -87,21 +90,22 @@ public:
         try {
             try {
                 if (_command == 0)
-                    write("</pre>\n");
+                    writeNoEmail("</pre>\n");
 
                 FlushFileBuffers(_pipe); 
                 DisconnectNamedPipe(_pipe);
 
-                if (!_broken || !_emailValid)
+                if (!_emailValid)
                     return;
 
                 if (WaitForSingleObject(_serverProcess, 0) == WAIT_TIMEOUT) {
                     // Server process is still running - we don't need to send
                     // email.
+                    console.write("Server still running.\n");
                     return;
                 }
 
-                console.write("Sending email");
+                console.write("Sending email\n");
 
                 sendMail("XT Server <xtserver@reenigne.org>", 
                     String(reinterpret_cast<const char*>(&_email[0]),
@@ -109,9 +113,9 @@ public:
                     "Your XT Server results",
                     "A program was sent to the XT Server at\n"
                     "http://www.reenigne.org/xtserver but the browser was\n"
-                    "disconnected before the program completed. The results of this\n"
-                    "program are below. If you did not request this information,\n"
-                    "please ignore it.\n\n"
+                    "disconnected before the program completed. The results of"
+                    " this\nprogram are below. If you did not request this "
+                    "information,\nplease ignore it.\n\n"
                     "Program name: " + fileName() + "\n\n" + _log);
             }
             catch (Exception& e)
@@ -138,6 +142,10 @@ public:
     void write(const String& s)
     { 
         _log += s;
+        write(s.data(), s.length());
+    }
+    void writeNoEmail(const String& s)
+    { 
         write(s.data(), s.length());
     }
     void write(const void* buffer, int bytes)
@@ -207,9 +215,6 @@ public:
     void setFinishTime(DWORD finishTime) { _finishTime = finishTime; }
     DWORD getFinishTime() { return _finishTime; }
 
-    bool serverRunning()
-    {
-    }
 private:
     AutoHandle _pipe;
 
@@ -251,34 +256,55 @@ private:
 class EmailThread : public Thread
 {
 public:
+    EmailThread() : _ending(false) { }
+    ~EmailThread() { _ending = true; _ready.signal(); }
     void add(QueueItem* item)
     {
+        console.write("Adding item to email thread.\n");
         item->setFinishTime(GetTickCount());
         Lock lock(&_mutex);
         _queue.add(item);
         _ready.signal();
+        console.write("Item added to email thread.\n");
     }
     void threadProc()
     {
         do {
-            QueueItem* item;
+            try {
+                QueueItem* item;
+                {
+                    Lock lock(&_mutex);
+                    item = _queue.getNext();
+                    if (item != 0)
+                        item->remove();
+                }
+                if (item == 0) {
+                    console.write("Email thread entering waiting state.\n");
+                    // We have nothing to do - stop the the thread until we do.
+                    _ready.wait();
+                    console.write("Email thread unblocked.\n");
+                    if (_ending)
+                        break;
+                    continue;
+                }
+                DWORD sleepTime = 5000 -
+                    (GetTickCount() - item->getFinishTime());
+                console.write("Email thread sleeping for " +
+                    String::Decimal(sleepTime) + "ms.\n");
+                if (sleepTime <= 5000)
+                    Sleep(sleepTime);
+                console.write("Email thread deleting item.\n");
+                delete item;
+            }
+            catch (Exception& e)
             {
-                Lock lock(&_mutex);
-                item = _queue.getNext();
-                if (item != 0)
-                    item->remove();
+                console.write("Exception in email thread: " + e.message() +
+                    "\n");
             }
-            if (item == 0) {
-                // We have nothing to do - stop the the thread until we do.
-                _ready.wait();
-                if (_ending)
-                    break;
-                continue;
+            catch (...)
+            { 
+                console.write("Unknown exception in email thread.\n");
             }
-            DWORD sleepTime = 5000 - (GetTickCount() - item->getFinishTime());
-            if (sleepTime <= 5000)
-                Sleep(sleepTime);
-            delete item;
         } while (true);
     }
 private:
@@ -286,6 +312,180 @@ private:
     Mutex _mutex;
     Event _ready;
     bool _ending;
+};
+
+void sendKey(int vk, bool down)
+{
+    INPUT input;
+    input.type = INPUT_KEYBOARD;
+    input.ki.dwFlags = (down ? 0 : KEYEVENTF_KEYUP);
+    input.ki.time = 0;
+    input.ki.wVk = vk;
+    IF_ZERO_THROW(SendInput(1, &input, sizeof(INPUT)));
+}
+
+// This is not a complete implementation of SendKeys - it only covers the keys
+// we actually need to send to WinTV to make screenshots. However, the format
+// is the same so it could be expanded into SendKeys.
+void sendKeys(String keys)
+{
+    bool shift = false;
+    bool alt = false;
+    CharacterSource s(keys);
+    do {
+        bool shiftNeeded = false;
+        int c = s.get();
+        if (c == -1)
+            break;
+        int vk = 0;
+        if (c >= 'a' && c <= 'z') {
+            shiftNeeded = false;
+            vk = (c - 'a') + 0x41;
+        }
+        if (c >= 'A' && c <= 'Z') {
+            shiftNeeded = true;
+            vk = c;
+        }
+        if (c >= '0' && c <= '9') {
+            shiftNeeded = false;
+            vk = c;
+        }
+        if (c == '-') {
+            shiftNeeded = false;
+            vk = VK_OEM_MINUS;
+        }
+        if (c == '_') {
+            shiftNeeded = true;
+            vk = VK_OEM_MINUS;
+        }
+        if (c == '.') {
+            shiftNeeded = false;
+            vk = VK_OEM_PERIOD;
+        }
+        if (c == ' ') {
+            shiftNeeded = false;
+            vk = VK_SPACE;
+        }
+        if (c == '%') {
+            shiftNeeded = false;
+            vk = VK_MENU;  // alt
+        }
+        if (c == '~') {
+            shiftNeeded = false;
+            vk = VK_RETURN;
+        }
+        if (c == '\\') {
+            shiftNeeded = false;
+            vk = VK_OEM_5;
+        }
+        if (c == ':') {
+            shiftNeeded = true;
+            vk = VK_OEM_1;
+        }
+        if (c == '{') {
+            bool eof;
+            String k = s.delimitString("}", &eof);
+            shiftNeeded = false;
+            if (k == "TAB")
+                vk = VK_TAB;
+            if (k == "DOWN")
+                vk = VK_DOWN;
+            if (k == "F4")
+                vk = VK_F4;
+        }
+        if (shift && !shiftNeeded) {
+            sendKey(VK_SHIFT, false);
+            shift = false;
+        }
+        else
+            if (!shift && shiftNeeded) {
+                sendKey(VK_SHIFT, true);
+                shift = true;
+            }
+        sendKey(vk, true);
+        sendKey(vk, false);
+    } while (true);
+    if (shift)
+        sendKey(VK_SHIFT, false);
+}
+
+class AudioCapture : public ReferenceCounted
+{
+public:
+    AudioCapture()
+    {
+        IF_ERROR_THROW(DirectSoundCaptureCreate8(NULL, &_capture, NULL));
+        WAVEFORMATEX format;
+        ZeroMemory(&format, sizeof(WAVEFORMATEX));
+        format.wFormatTag = WAVE_FORMAT_PCM;
+        format.nChannels = 2;
+        format.nSamplesPerSec = 44100;
+        format.nAvgBytesPerSec = 44100*2*2;
+        format.nBlockAlign = 2*2;
+        format.wBitsPerSample = 16;
+        format.cbSize = 0;
+        DSCBUFFERDESC desc;
+        ZeroMemory(&desc, sizeof(DSCBUFFERDESC));
+        desc.dwSize = sizeof(DSCBUFFERDESC);
+        desc.dwBufferBytes = 6*60*44100*2*2;
+        desc.lpwfxFormat = &format;
+        COMPointer<IDirectSoundCaptureBuffer> buffer;
+        IF_ERROR_THROW(_capture->CreateCaptureBuffer(&desc, &buffer, NULL));
+        _buffer = COMPointer<IDirectSoundCaptureBuffer8>(buffer,
+            &IID_IDirectSoundCaptureBuffer8);
+        IF_ERROR_THROW(_buffer->Start(0));
+    }
+    void finish(File file)
+    {
+        IF_ERROR_THROW(_buffer->Stop());
+        DWORD readPosition;
+        IF_ERROR_THROW(_buffer->GetCurrentPosition(NULL, &readPosition));
+        Lock lock(_buffer, 0, readPosition);
+        lock.write(file);
+    }
+private:
+    class Lock
+    {
+    public:
+        Lock(IDirectSoundCaptureBuffer8* buffer, DWORD offset, DWORD bytes)
+          : _buffer(buffer), _bytes(bytes)
+        {
+            IF_ERROR_THROW(_buffer->Lock(offset, _bytes, &_audioPointer1,
+                &_audioBytes1, &_audioPointer2, &_audioBytes2, 0));
+        }
+        ~Lock()
+        {
+            _buffer->Unlock(_audioPointer1, _bytesRead1, _audioPointer2,
+                _bytesRead2);
+        }
+        void write(File file)
+        {
+            AutoHandle handle = file.openWrite();
+            if (_bytes < _audioBytes1) {
+                handle.write(_audioPointer1, _bytes);
+                _bytesRead1 = _bytes;
+                _bytesRead2 = 0;
+            }
+            else {
+                handle.write(_audioPointer1, _audioBytes1);
+                _bytesRead1 = _audioBytes1;
+                handle.write(_audioPointer2, _bytes - _audioBytes1);
+                _bytesRead2 = _bytes - _audioBytes1;
+            }
+        }
+    private:
+        DWORD _bytes;
+        LPVOID _audioPointer1;
+        DWORD _audioBytes1;
+        LPVOID _audioPointer2;
+        DWORD _audioBytes2;
+        DWORD _bytesRead1;
+        DWORD _bytesRead2;
+        IDirectSoundCaptureBuffer8* _buffer;
+    };
+
+    COMPointer<IDirectSoundCapture8> _capture;
+    COMPointer<IDirectSoundCaptureBuffer8> _buffer;
 };
 
 class XTThread : public Thread
@@ -398,11 +598,14 @@ public:
                     // Run a program
                     Lock lock(&_mutex);
                     _queue.add(item);
-                    item->write("<form action='http://reenigne.dyndns.org/cgi-bin/xtcancel.exe' method='post'>\n"
-                        "<input type='hidden'>" + item->secret() + "</input>\n"
+                    item->writeNoEmail("<form action='http://reenigne.dyndns.o"
+                        "rg/cgi-bin/xtcancel.exe' method='post'>\n"
+                        "<input type='hidden' name='secret' value='" +
+                        item->secret() + "'/>\n"
                         "<button type='submit'>Cancel</button>\n"
                         "</form>\n<pre>");
-                    item->notifyQueuePosition(_queuedItems + (_processing ? 1 : 0));
+                    item->notifyQueuePosition(_queuedItems +
+                        (_processing ? 1 : 0));
                     ++_queuedItems;
 
                     _ready.signal();
@@ -443,7 +646,7 @@ public:
             case 2:
                 {
                     // Return status
-                    item->write(String("Online, with ") +
+                    item->write(String("online, with ") +
                         (_queuedItems + (_processing ? 1 : 0)) +
                         " items in the queue");
                     delete item;
@@ -453,8 +656,11 @@ public:
                 {
                     // Cancel a job
                     Lock lock(&_mutex);
-                    if (item->secret() == _item->secret())
+                    String newSecret = item->fileName().subString(7, 16);
+                    if (_item != 0 && newSecret == _item->secret()) {
                         _cancelled = true;
+                        item->cancel();
+                    }
                     else {
                         QueueItem* i = _queue.getNext();
                         while (i != 0) {
@@ -477,6 +683,16 @@ public:
     void reboot()
     {
         console.write("Resetting\n");
+
+        // Reset the Arduino
+        EscapeCommFunction(_arduinoCom, CLRDTR);
+        EscapeCommFunction(_arduinoCom, CLRRTS);
+        Sleep(250);
+        EscapeCommFunction(_arduinoCom, SETDTR);
+        EscapeCommFunction(_arduinoCom, SETRTS);
+        //Sleep(50);
+        Sleep(2000);  // 1 second isn't enough time for the Arduino bootloader
+
         // Reset the machine
         _arduinoCom.write<Byte>(0x7f);
         _arduinoCom.write<Byte>(0x77);
@@ -597,6 +813,18 @@ public:
 
                 DWORD startTime = GetTickCount();
                 bool timedOut = false;
+                bool escape = false;
+                bool audio = false;
+                int fileState = 0;
+                int fileSize = 0;
+                String fileName;
+                bool complete = false;
+                int filePointer;
+                Array<Byte> file;
+                int fileCount = 0;
+                int imageCount = 0;
+                int audioCount = 0;
+                Reference<AudioCapture> audioCapture;
                 do {
                     DWORD elapsed = GetTickCount() - startTime;
                     DWORD timeout = 5*60*1000 - elapsed;
@@ -604,26 +832,170 @@ public:
                         timedOut = true;
                         break;
                     }
+                    if (_killed || _cancelled)
+                        break;
 
                     int c = _com.tryReadByte();
                     if (c == -1)
                         continue;
-                    if (c == 26)
-                        break;
-                    if (c == '<')
-                        _item->write("&lt;");
-                    else
-                        if (c == '&')
-                            _item->write("&amp;");
-                        else
-                            _item->write(c);
-                    if ((c < 32 || c > 126) && (c != 9 && c != 10 && c != 13))
-                        console.write<Byte>('.');
-                    else
-                        console.write<Byte>(c);
+                    if (!escape) {
+                        bool processed = false;
+                        switch (c) {
+                            case 0x00:
+                                // Transfer following byte directly, don't
+                                // interpret it as an action.
+                                escape = true;
+                                processed = true;
+                                break;
+                            case 0x01:
+                                // Take screenshot
+                                {
+                                    processed = true;
+                                    String fileName = _item->secret() +
+                                        imageCount + ".png";
+                                    HWND hWinTV = FindWindow(L"WinTV_32",
+                                        L"WinTV32");
+                                    IF_NULL_THROW(hWinTV);
+                                    IF_NULL_THROW(SetForegroundWindow(hWinTV));
+                                    sendKeys("%fa");
+                                    sendKeys("C:\\Program Files\\Apache Softwa"
+                                        "re Foundation\\Apache2.2\\htdocs\\" +
+                                        fileName + "{TAB}p{DOWN}{DOWN}{DOWN}"
+                                        "{TAB}~");
+
+                                    Sleep(1500);
+                                    _item->write("\n<img src=\"../" +
+                                        fileName + "\"/>\n");
+                                }
+                                break;
+                            case 0x02:
+                                // Start recording audio
+                                {
+                                    audioCapture = new AudioCapture;
+                                    processed = true;
+                                    audio = true;
+                                }
+                                break;
+                            case 0x03:
+                                // Stop recording audio
+                                {
+                                    processed = true;
+                                    if (!audio)
+                                        break;
+                                    String rawName = _item->secret() +
+                                        audioCount;
+                                    String baseName = "C:\\Program Files\\Apac"
+                                        "he Software Foundation\\Apache2.2\\ht"
+                                        "docs\\" + rawName;
+                                    String waveName = baseName + ".pcm";
+                                    File wave(waveName, true);
+                                    audioCapture->finish(wave);
+                                    audioCapture = 0;
+                                    String fileName = baseName + ".mp3";
+                                    String commandLine = "\"C:\\Program Files"
+                                        "\\LAME\\lame.exe\" \"" + waveName +
+                                        "\" \"" + fileName +
+                                        "\" -r -s 44100 -m l";
+                                    NullTerminatedWideString data(commandLine);
+
+                                    PROCESS_INFORMATION pi;
+                                    ZeroMemory(&pi,
+                                        sizeof(PROCESS_INFORMATION));
+
+                                    STARTUPINFO si;
+                                    ZeroMemory(&si, sizeof(STARTUPINFO));
+                                    si.cb = sizeof(STARTUPINFO);
+
+                                    IF_FALSE_THROW(CreateProcess(NULL, data,
+                                        NULL, NULL, FALSE, 0, NULL, NULL, &si,
+                                        &pi) != 0);
+                                    CloseHandle(pi.hThread);
+                                    AutoHandle hLame = pi.hProcess;
+                                    IF_FALSE_THROW(
+                                        WaitForSingleObject(hLame, 3*60*1000)
+                                        == WAIT_OBJECT_0);
+
+                                    wave.remove();
+
+                                    _item->write("\n<embed height=\"50\" "
+                                        "width=\"100\" src=\"../" + rawName +
+                                        ".mp3\"><a href=\"../" + rawName +
+                                        ".mp3\">Recorded audio</a></embed>\n");
+                                    ++audioCount;
+                                }
+                                break;
+                            case 0x04:
+                                // Transfer file
+                                fileState = 1;
+                                processed = true;
+                                break;
+                            case 0x05:
+                                // Host interrupt
+                                break;
+                            case 0x1a:
+                                complete = true;
+                                processed = true;
+                                break;
+                        }
+                        if (c != 0)
+                            escape = false;
+                        if (complete)
+                            break;
+                        if (processed)
+                            continue;
+                    }
+                    escape = false;
+                    switch (fileState) {
+                        case 0:
+                            // No file operation in progress - output to HTTP
+                            if (c == '<')
+                                _item->write("&lt;");
+                            else
+                                if (c == '&')
+                                    _item->write("&amp;");
+                                else
+                                    _item->write(c);
+                            if ((c < 32 || c > 126) &&
+                                (c != 9 && c != 10 && c != 13))
+                                console.write<Byte>('.');
+                            else
+                                console.write<Byte>(c);
+                            break;
+                        case 1:
+                            // Get first byte of size
+                            fileSize = c;
+                            fileState = 2;
+                            break;
+                        case 2:
+                            // Get second byte of size
+                            fileSize |= (c << 8);
+                            fileState = 3;
+                            break;
+                        case 3:
+                            // Get third byte of size
+                            fileSize |= (c << 16);
+                            fileState = 4;
+                            filePointer = 0;
+                            file.allocate(fileSize);
+                            break;
+                        case 4:
+                            // Get file data
+                            file[filePointer++] = c;
+                            if (filePointer == fileSize) {
+                                fileState = 0;
+                                String fileName = _item->secret() + fileCount +
+                                    ".dat";
+                                File("C:\\Program Files\\Apache Software Found"
+                                    "ation\\Apache2.2\\htdocs\\" + fileName,
+                                    true).save(file);
+                                _item->write("\n<a href=\"../" + fileName +
+                                    "\">Captured file</a>\n");
+                                ++fileCount;
+                            }
+                            break;
+                    }
+
                     if (_item->aborted())
-                        break;
-                    if (_killed || _cancelled)
                         break;
                 } while (true);
                 console.write("\n");
@@ -643,19 +1015,31 @@ public:
                 }
 
                 if (timedOut) {
-                    _item->write("The program did not complete within 5 minutes and has been\n"
-                        "terminated. If you really need to run a program for longer,\n"
+                    _item->write("The program did not complete within 5 "
+                        "minutes and has been\nterminated. If you really need "
+                        "to run a program for longer,\n"
                         "please send email to andrew@reenigne.org.");
+                    console.write("Timed out.\n");
                 }
                 else
                     _item->write("Program ended normally.");
 
-                if (_item->needSleep())
+                if (_item->needSleep()) {
                     _emailThread.add(_item);
+                    _item = 0;
+                }
             }
             catch (const Exception& e)
             {
-                console.write(e);
+                try {
+                    _item->write(
+                        "Sorry, something went wrong with your program.\n");
+                }
+                catch (...) { }
+                try {
+                    console.write(e);
+                }
+                catch (...) { }
             }
             catch (...)
             {
@@ -672,7 +1056,7 @@ private:
     int _queuedItems;
 
     volatile bool _processing;
-    volatile bool _ending;  // TODO: check that volatile is appropriate here
+    volatile bool _ending;
     Mutex _mutex;
     Event _ready;
     AutoHandle _arduinoCom;
@@ -689,6 +1073,7 @@ class Program : public ProgramBase
 public:
     void run()
     {
+        COMInitializer com;
         XTThread xtThread;
         xtThread.start();
         while (true)

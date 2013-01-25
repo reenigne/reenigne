@@ -5,7 +5,6 @@
     <meta name='description' content='Run code on a real IBM 5160 XT' />
     <link rel='stylesheet' type='text/css' href='stylesheet.css' />
     <title>XT Server</title>
-    <script type="text/javascript" src="http://reenigne.dyndns.org/cgi-big/xtstatus.exe"></script>
   </head>
   <body style="width:600px">
     <h1>What is this?</h1>
@@ -35,20 +34,51 @@
     <p>Any data that you send over COM1 (115200 baud, 8 data bits, 1 stop bit,
     no parity) will be returned over the web interface to you. I have provided
     some interrupts to make this easier:
-    <ul><li><code>int 0x63</code> - send the value in AX as a 4-digit
+    <ul><li><code>int 0x60</code> - sends the byte <code>0x01</code>, which
+    will cause the web server to capture an image of the composite CGA screen
+    and insert it into the output.</li>
+    <li><code>int 0x61</code> - send the byte <code>0x02</code>, which will
+    cause the web server to start recording audio from the XT's internal
+    speaker.</li>
+    <li><code>int 0x62</code> - send the byte <code>0x03</code>, which will
+    cause the web server to stop recording audio, convert the recoding to an
+    MP3 and insert it into the output.</li>
+    <li><code>int 0x63</code> - send the value in AX as a 4-digit
     hexadecimal number (the value in AX is destroyed, other registers are
     preserved).</li>
     <li><code>int 0x64</code> - send CX bytes pointed to by DS:SI (AX, CX and
-    SI are destroyed, other registers are preserved).</li>
+    SI are destroyed, other registers are preserved). The bytes are escaped so
+    this will cause no audio, screen capture or file capture events.</li>
     <li><code>int 0x65</code> - send the character in AL (AX is destroyed,
-    other registers are preserved).</li>
-    <li><code>int 0x67</code> - terminates the program. The program can also
-    be terminated by sending character 26. If the program does not complete
-    after 5 minutes, it will be terminated automatically to avoid tying up the
-    machine. I might change the timeout in the future, depending on usage and
-    demand.</li></ul>
-    These interrupts will write data to the screen as well as the serial
-    port.</p>
+    other registers are preserved). Some characters have special meanings:
+    <ul><li><code>0x00</code> - escape: send the next byte literally over the
+    HTTP connection - don't interpret it as an action.</li>
+    <li><code>0x01</code> - capture a screen image.</li>
+    <li><code>0x02</code> - start recording audio.</li>
+    <li><code>0x03</code> - stop recording audio.</li>
+    <li><code>0x04</code> - send a file (used by <code>int 0x66</code>, below).
+    The 0x04 byte must be followed by three bytes of (escaped) length (least
+    significant byte first) and then the escaped data.</li>
+    <li><code>0x05</code> - reserved for future expansion.</li>
+    <li><code>0x1a</code> - terminate the connection.</li>
+    </ul></li>
+    <li><code>int 0x66</code> - send a file DL:CX bytes long, starting at
+    DS:SI. The resulting file will saved on the server and embedded into the
+    HTTP output as a link.</code>
+    <li><code>int 0x67</code> - send the byte <code>0x1a</code> twice, which
+    terminates the connection (even if a <code>0x00</code> escape byte was
+    accidentally sent first) and causes the machine to be hard reset soon
+    afterwards. If the connection is not terminated this way after 5 minutes,
+    it will be terminated automatically to avoid tying up the machine. I might
+    change the timeout in the future, depending on usage and demand.</li>
+    <li><code>int 0x69</code> - increase an internal counter and stop writing
+    to the screen.</li>
+    <li><code>int 0x6a</code> - decrease the internal counter and if it is zero,
+    start writing to the screen again.</li>
+    </ul>
+    Interrupts <code>0x63</code>, <code>0x64</code> and <code>0x65</code> will
+    write data to the screen as well as the serial port unless <code>int
+    0x69</code> is executed first.</p>
 
     <h1>What hardware does the XT have installed?</h1>
     <ul><li>Intel D8088 L4411839 '79 '83</li>
@@ -64,7 +94,8 @@
     serial mouse connected, not that that's particularly useful remotely) and
     COM3 (not connected).</li>
     <li>Genuine IBM CGA card (old-style composite output, part number
-    1501486).</li>
+    1501486) with the composite output connected to a Hauppage ImpactVCB 00166
+    capture card on the web server machine.</li>
     <li>IBM floppy controller 1503969<del>, with one floppy drive attached (will be
     two eventually). There is a floppy disk in the drive that you can write
     data to if you want.</del> with no floppy drives attached, since they can
@@ -74,7 +105,10 @@
     <li>No monitors (it's dangerous to keep these connected when running
     untrusted code, since reprogramming the CRTC registers to invalid values
     could damage the monitor's flyback transformer.)</li>
-    <li>An Arduino connected to the keyboard port for bootstrapping.</li></ul>
+    <li>An Arduino connected to the keyboard port for bootstrapping.</li>
+    <li>The PC speaker has been replaced with a pair of 15 ohm 7 watt resistors
+    in parallel, and the side that isn't connected to +5V is connected to the
+    line input of a Creative SB0092 in the web server.</li></ul>
     If you have any other pieces of compatible (and not too noisy) hardware
     that you'd to send me for connection to the machine, they would be very
     welcome. In return, your requests would get priority processing.</p>
@@ -120,26 +154,32 @@ messageEnd:
     <p><a href="http://www.minuszerodegrees.net/">minuszerodegrees.net</a> has
     a wealth of excellend technical information and manuals, including the
     IBM Technical Reference manual which is an excellent hardware reference
-    (including BIOS listings and schematics.</p>
+    (including BIOS listings and schematics).</p>
     <p>If you have other suggestions for links to add here, let me know and
     I'll add them.</p>
 
     <h1>How can I see what's on the screen?</h1>
-    <p>There is a TV capture card connected to the CGA's composite output. I'm
-    working on a way to send captured images back over the web. Stay tuned,
-    this feature will be coming soon.</p>
+    <p>There is a TV capture card connected to the CGA's composite output.
+    Sending byte <code>0x01</code> over the serial link or executing <code>int
+    0x60</code> will cause the current screen image to be captured, saved as a
+    .png file and embedded into the HTTP output.</p>
 
     <h1>How can I hear what's coming out of the PC speaker?</h1>
     <p>The PC speaker is currently disconnected so that you can't drive me
-    crazy by making annoying noises with it. However, I'm working on a way to
-    capture the audio and return it over the web. Stay tuned, this feature
-    will be coming soon.</p>
+    crazy by making annoying noises with it. However, it is connected to a
+    sound card. Executing <code>int 0x61</code> and <code>int 0x62</code> will
+    start and stop audio recording respectively, and the latter will cause the
+    audio to be embedded into the HTTP output.</p>
 
     <h1>Can you run the assembler on the server so that I can just upload an
     assembler program?</h1>
     <p>I don't know of an assembler that is designed to be safe to use with
     untrusted input. So this will have to wait until I write my own assembler
     (which may take a while).</p>
+
+    <h1>I would like to run proper .COM and .EXE files. Also boot from disk
+    images.</h1>
+    <p>Stay tuned, this feature is coming soon.</p>
 
     <h1>My program doesn't work - will you help me debug it?</h1>
     <p>Maybe, if it's an interesting program, or if it seems be a problem with
@@ -150,7 +190,6 @@ messageEnd:
     <p>No - see
 <a href="http://www.vintage-computer.com/vcforum/showthread.php?34981-PC-XT-killer-pokes">this
     thread on VCF</a> for details.</p>
-
 
     <h1>I'd like to be able to run XT programs from the command line.</h1>
     <p>Here is a <a href="submit.txt">perl script</a> (thanks to Egan Ford)
@@ -169,8 +208,8 @@ messageEnd:
     without having to re-run the program. I may also want to send you an email
     if you run a program that breaks something, if I have a question about
     your program or if it's just a really awesome program and I want to
-    congratulate you on it. I won't send your email to anyone else without
-    explicitly asking permission first.</p>
+    congratulate you on it. I won't send your email address to anyone else
+    without explicitly asking permission first.</p>
 
     <h1>How can I contact you?</h1>
     <p>Send email to me,
@@ -202,5 +241,6 @@ messageEnd:
       <input type="file" name="binary" size="40" /></label></p>
       <button type="submit">Submit</button>
     </form>
+    <script type="text/javascript" src="http://reenigne.dyndns.org/cgi-bin/xtstatus.exe"></script>
   </body>
 </html>

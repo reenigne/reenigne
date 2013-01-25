@@ -1,0 +1,12 @@
+copy /y q:\reenigne\8088\xtserver\xtstatus.cpp "j:\t\reenigne\8088\xtserver"
+copy /y q:\reenigne\8088\xtserver\xtcancel\xtcancel.cpp "j:\t\reenigne\8088\xtserver\xtcancel"
+copy /y q:\reenigne\8088\xtserver\xtkill\xtkill.cpp "j:\t\reenigne\8088\xtserver\xtkill"
+copy /y q:\reenigne\8088\xtserver\xtqueue\xtqueue.cpp "j:\t\reenigne\8088\xtserver\xtqueue"
+copy /y q:\reenigne\8088\xtserver\xtserver\xtserver.cpp "j:\t\reenigne\8088\xtserver\xtserver"
+copy /y q:\reenigne\8088\xtserver\index.html "j:\program files\apache software foundation\apache2.2\htdocs"
+copy /y q:\reenigne\8088\xtserver\stylesheet.css "j:\program files\apache software foundation\apache2.2\htdocs"
+copy /y q:\reenigne\8088\xtserver\index.html "q:\work\website\andrew\xtserver"
+copy /y q:\reenigne\8088\xtserver\stylesheet.css "q:\work\website\andrew\xtserver"
+copy /y q:\reenigne\8088\xtserver\index.html "j:\t\reenigne\8088\xtserver"
+copy /y q:\reenigne\8088\xtserver\stylesheet.css "j:\t\reenigne\8088\xtserver"
+

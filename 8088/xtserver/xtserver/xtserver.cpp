@@ -272,14 +272,16 @@ public:
                 }
 
                 AutoHandle h = File("\\\\.\\pipe\\xtserver", true).openPipe();
-                h.write<int>(email.length());
-                h.write(email);
-                h.write<int>(fileName.length());
-                h.write(fileName);
-                h.write<int>(data.count());
-                h.write(data);
-                h.write<DWORD>(GetCurrentProcessId());
-                h.write<int>(0);
+                h.write<int>(email.length());           // emailLength
+                h.write(email);                         // email
+                h.write<int>(fileName.length());        // fileNameLength
+                h.write(fileName);                      // fileName
+                h.write<int>(data.count());             // dataLength
+                h.write(data);                          // data
+                h.write<DWORD>(GetCurrentProcessId());  // serverPId
+                h.write<int>(_logName.length());        // logFileLength
+                h.write(_logName);                      // logFile
+                h.write<int>(0);                        // command
                 if (terminate)
                     return;
 

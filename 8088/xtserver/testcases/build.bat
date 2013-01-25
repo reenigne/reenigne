@@ -7,3 +7,7 @@ yasm sweep.asm -o sweep.bin
 yasm sweep2.asm -o sweep2.bin
 yasm sweep2r.asm -o sweep2r.bin
 yasm clicks.asm -o clicks.bin
+yasm sweep3.asm -o sweep3.bin
+yasm image.asm -o image.bin
+yasm bios.asm -o bios.bin
+yasm retr.asm -o retr.bin

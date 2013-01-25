@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20121219b-com1-115200',0
+  db '20130123-com1-115200',0
 
 codeStart:
   ; Don't want any stray interrupts interfering with the serial port accesses.
@@ -44,6 +44,9 @@ interruptSetupLoop:
   inc di
   inc di
   loop interruptSetupLoop
+  mov word[0x02*4], 0xf85f       ; nmi_int
+  mov word[0x05*4], 0xff54       ; print_screen
+  mov word[0x18*4 + 2], 0xf600   ; segment for BASIC
 
   ; Disable NMI
   xor al,al
@@ -99,18 +102,30 @@ doMove:
 
 noRelocationNeeded:
   ; Set up some interrupts
+  ; int 0x60 == capture screen
+  ; int 0x61 == start audio recording
+  ; int 0x62 == stop audio recording
   ; int 0x63 == print AX as a 4-digit hex number
   ; int 0x64 == print CX bytes from DS:SI
   ; int 0x65 == print AL as a character
+  ; int 0x66 == send file
   ; int 0x67 == finish
   ; int 0x68 == load data from serial port at ES:DI. On completion, ES:DI points to end of loaded data.
+  ; int 0x69 == stop screen output
+  ; int 0x6a == start screen output
   xor ax,ax
   mov ds,ax
+  setInterrupt 0x60, captureScreenRoutine
+  setInterrupt 0x61, startAudioRoutine
+  setInterrupt 0x62, stopAudioRoutine
   setInterrupt 0x63, printHexRoutine
   setInterrupt 0x64, printStringRoutine
   setInterrupt 0x65, printCharacterRoutine
+  setInterrupt 0x66, sendFileRoutine
   setInterrupt 0x67, completeRoutine
   setInterrupt 0x68, loadSerialDataRoutine
+  setInterrupt 0x69, stopScreenRoutine
+  setInterrupt 0x6a, resumeScreenRoutine
 
   ; Reset video variables
   mov ax,cs
@@ -277,23 +292,35 @@ printCharacterRoutine:
   iret
 
 
-printChar:
-  push bx
-  push cx
+printCharNoScreen:
   push dx
-  push es
-  push di
+  mov dx,0x3f8 + 5
+  sendByte
+  pop dx
+  ret
+
+
+printChar:
+  push dx
 
   ; Output the character over serial as well
   mov dx,0x3f8 + 5
   sendByte
+
+  cmp word[cs:screenCounter],0
+  jne .complete
+
+  push bx
+  push cx
+  push es
+  push di
 
   mov dx,0xb800
   mov es,dx
   mov dx,0x3d4
   mov cx,[cs:startAddress]
   cmp al,10
-  je doPrintNewLine
+  je .newLine
   mov di,cx
   add di,cx
   mov bl,[cs:column]
@@ -302,8 +329,8 @@ printChar:
   inc bx
   inc bx
   cmp bx,80
-  jne donePrint
-doPrintNewLine:
+  jne .done
+.newLine:
   add cx,40
   and cx,0x1fff
   mov [cs:startAddress],cx
@@ -325,7 +352,7 @@ doPrintNewLine:
   mov cx,[cs:startAddress]
 
   xor bx,bx
-donePrint:
+.done:
   mov [cs:column],bl
 
   ; Move cursor
@@ -342,10 +369,92 @@ donePrint:
 
   pop di
   pop es
-  pop dx
   pop cx
   pop bx
+.complete:
+  pop dx
   ret
+
+captureScreenRoutine:
+  push ax
+  mov al,1
+  call printCharNoScreen
+  pop ax
+  iret
+
+startAudioRoutine:
+  push ax
+  mov al,2
+  call printCharNoScreen
+  pop ax
+  iret
+
+stopAudioRoutine:
+  push ax
+  mov al,3
+  call printCharNoScreen
+  pop ax
+  iret
+
+printCharEscaped:
+  cmp al,0x5
+  ja .checkForComplete
+.escapeNeeded:
+  push ax
+  mov al,0
+  call printCharNoScreen
+  pop ax
+.noEscapeNeeded:
+  call printCharNoScreen
+  ret
+.checkForComplete:
+  cmp al,0x1a
+  je .escapeNeeded
+  jmp .noEscapeNeeded
+
+
+sendFileRoutine:
+  cld
+  mov al,4
+  call printCharNoScreen
+  mov al,cl
+  call printCharEscaped
+  mov al,ch
+  call printCharEscaped
+  mov al,dl
+  call printCharEscaped
+.loopTop:
+  cmp cx,0
+  jne .doByte
+  cmp dl,0
+  je .done
+.doByte:
+  cmp si,0xffff
+  jne .normalized
+  mov si,0x000f
+  mov ax,ds
+  add ax,0xfff
+  mov ds,ax
+.normalized:
+  lodsb
+  call printCharEscaped
+  dec cx
+  cmp cx,0xffff
+  jne .loopTop
+  dec dl
+  jmp .loopTop
+.done:
+  iret
+
+
+stopScreenRoutine:
+  inc word[cs:screenCounter]
+  iret
+
+
+resumeScreenRoutine:
+  dec word[cs:screenCounter]
+  iret
 
 
 column:
@@ -358,6 +467,8 @@ startAddress:
 okMessage:
   db 'OK',10
 okMessageEnd:
+screenCounter:
+  dw 0
 
 
 kernelEnd:

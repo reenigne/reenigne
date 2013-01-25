@@ -12,11 +12,12 @@ public:
         console.write("updateStatus('");
         try {
             AutoHandle h = File("\\\\.\\pipe\\xtserver", true).openPipe();
-            h.write<int>(0);
-            h.write<int>(0);
-            h.write<int>(0);
-            h.write<DWORD>(0);
-            h.write<int>(2);
+            h.write<int>(0);    // emailLength
+            h.write<int>(0);    // fileNameLength 
+            h.write<int>(0);    // dataLength
+            h.write<DWORD>(0);  // serverPId
+            h.write<int>(0);    // logFileLength
+            h.write<int>(2);    // command
 
             do {
                 int b = h.tryReadByte();

@@ -104,3 +104,36 @@ Low bits of port 0x61:
   1 = Speaker disabled
   2 = Speaker enabled,
   3 = Speaker enabled and connected to timer 2
+
+
+
+<embed height="50" width="100" src="horse.mp3">
+<p>If you cannot hear the sound, your computer or browser doesn't support the sound format.</p>
+<p>Or, you have your speakers turned off.</p>
+
+
+
+"WinTV32" WinTV_32
+"WinTV SaveAs" #32770 (Dialog)
+http://msdn.microsoft.com/en-us/library/windows/desktop/ms633499(v=vs.85).aspx
+
+    <li><code>0x05</code> - request data from server. Used for floppy disk
+    images.</li>
+
+
+
+
+
+Image writing:
+
+Need an int 13h which gets data from the server
+Can we put it at top of RAM and then hide this memory from DOS?
+  word[40:13]--
+
+Figure out host string format for int 0x13
+  0x05 = IO interrupt
+  0x13 = interrupt to execute
+
+
+TODO: add interactivity features
+  AJAX request for "send these keystrokes"

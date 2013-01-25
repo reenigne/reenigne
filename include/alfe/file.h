@@ -734,6 +734,16 @@ public:
         return open(name(), O_WRONLY | O_APPEND);
 #endif
     }
+    void remove()
+    {
+#ifdef _WIN32
+        NullTerminatedWideString data(path());
+        IF_ZERO_THROW(DeleteFile(data));
+#else
+        NullTerminatedString data(path());
+        IF_MINUS_ONE_THROW(unlink(data));
+#endif
+    }
 private:
 #ifdef _WIN32
     FileHandleTemplate<T> open(DWORD dwDesiredAccess, DWORD dwShareMode,

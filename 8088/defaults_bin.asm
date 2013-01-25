@@ -12,6 +12,8 @@ org 0
 %endmacro
 
 ; Write a ^Z character to tell the "run" program to finish
-%define disconnect   printCharacter 26
-
+%macro disconnect 0
+  printCharacter 26
+  printCharacter 26
+%endmacro
 

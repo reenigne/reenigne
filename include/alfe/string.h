@@ -626,7 +626,7 @@ public:
         } while (true);
         *d = 0;
     }
-    operator const WCHAR*()
+    operator WCHAR*()
     {
         return &_buffer[0];
     }
