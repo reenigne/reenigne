@@ -228,6 +228,70 @@ codePreambleEnd:
 
 experimentData:
 
+experimentCRTC:
+  db "CRTC$"
+  dw .endInit - ($+2)
+  mov dx,0x3d4
+.endInit:
+  dw .endCode - ($+2)
+  mov ax,((114 - 1) << 8) | 0x00       ;Horizontal total
+  out dx,ax
+  mov ax,(23 << 8) | 0x01              ;Horizontal displayed
+  out dx,ax
+  mov ax,(90 << 8) | 0x02              ;Horizontal sync position
+  out dx,ax
+.endCode:
+
+experimentLine:
+  db "Line$"
+  dw .endInit - ($+2)
+  mov dx,0x3d4
+.endInit:
+  dw .endCode - ($+2)
+  mov ax,((114 - 1) << 8) | 0x00       ;Horizontal total
+  out dx,ax
+  mov ax,(23 << 8) | 0x01              ;Horizontal displayed
+  out dx,ax
+  mov ax,(90 << 8) | 0x02              ;Horizontal sync position
+  out dx,ax
+
+  times 17 nop
+
+  mov ax,((114 - 1) << 8) | 0x00       ;Horizontal total
+  out dx,ax
+  mov ax,(23 << 8) | 0x01              ;Horizontal displayed
+  out dx,ax
+  mov ax,(90 << 8) | 0x02              ;Horizontal sync position
+  out dx,ax
+
+  times 17 nop
+.endCode:
+
+experimentLine2:
+  db "Line2$"
+  dw .endInit - ($+2)
+  mov dx,0x3d4
+.endInit:
+  dw .endCode - ($+2)
+
+  mov dl,0xd9
+  mov al,9
+  out dx,al
+  mov al,6
+  out dx,al
+
+  times 26 nop
+
+  mov al,0x0a
+  out dx,al
+  mov al,6
+  out dx,al
+  mov dl,0xd4
+
+  times 27 nop
+.endCode:
+
+
 experimentBlock:
   db "Block$"
   dw .endInit - ($+2)

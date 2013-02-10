@@ -15,16 +15,13 @@ public:
     QueueItem(AutoHandle pipe) : _pipe(pipe),
         _broken(false), _aborted(false), _lastNotifiedPosition(-1)
     {
-        _emailLength = pipe.read<int>();
-        Array<Byte> email(_emailLength);
-        pipe.read(&email[0], _emailLength);
-        email.swap(_email);
+        _email = pipe.readLengthString();
         _emailValid = true;
-        if (_emailLength < 4)
+        if (_email.length() < 4)
             _emailValid = false;
         else {
             int i;
-            for (i = 0; i < _emailLength; ++i) {
+            for (i = 0; i < _email.length(); ++i) {
                 int c = _email[i];
                 if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
                     (c >= '0' && c <= '9') || c == '@' || c == '!' || 
@@ -36,26 +33,14 @@ public:
                     continue;
                 break;
             }
-            if (i != _emailLength)
+            if (i != _email.length())
                 _emailValid = false;
         }
 
-        _fileNameLength = pipe.read<int>();
-        Array<Byte> fileName(_fileNameLength);
-        pipe.read(&fileName[0], _fileNameLength);
-        fileName.swap(_fileName);
-
-        _dataLength = pipe.read<int>();
-        Array<Byte> data(_dataLength);
-        pipe.read(&data[0], _dataLength);
-        data.swap(_data);
-
+        _fileName = pipe.readLengthString();
+        _data = pipe.readLengthString();
         _serverPId = pipe.read<DWORD>();
-
-        _logFileLength = pipe.read<int>();
-        Array<Byte> logFile(_logFileLength);
-        pipe.read(&logFile[0], _logFileLength);
-        logFile.swap(_logFile);
+        _logFile = pipe.readString();
 
         _command = pipe.read<int>();
         if (_command == 0)
@@ -75,14 +60,13 @@ public:
         if (!gotSecret) {
             // Less secure as CryptGenRandom, but better than nothing.
             for (int i = 0; i < 16; ++i)
-                _secret[i] = logFile[(_logFileLength - 1) - i];
+                _secret[i] = _logFile[(_logFile.length() - 1) - i];
         }
     }
     void printInfo()
     {
-        console.write(&_fileName[0], _fileNameLength);
-        console.write(" for ");
-        console.write(&_email[0], _emailLength);
+        console.write("Starting work item" + _logFile + ": " + _fileName +
+            "for" + _email + "\n");
     }
 
     ~QueueItem()
@@ -107,9 +91,7 @@ public:
 
                 console.write("Sending email\n");
 
-                sendMail("XT Server <xtserver@reenigne.org>", 
-                    String(reinterpret_cast<const char*>(&_email[0]),
-                        _emailLength),
+                sendMail("XT Server <xtserver@reenigne.org>", _email,
                     "Your XT Server results",
                     "A program was sent to the XT Server at\n"
                     "http://www.reenigne.org/xtserver but the browser was\n"
@@ -182,7 +164,7 @@ public:
 
     bool aborted() { return _aborted; }
 
-    int length() { return _dataLength; }
+    String data() { return _data; }
 
     int command() { return _command; }
 
@@ -193,12 +175,7 @@ public:
         return String(reinterpret_cast<const char*>(&_secret[0]), 16);
     }
 
-    String fileName()
-    {
-        return String(
-            reinterpret_cast<const char*>(&_fileName[0]),
-            _fileNameLength);
-    }
+    String fileName() { return _fileName; }
 
     void kill()
     {
@@ -209,6 +186,7 @@ public:
     void cancel()
     {
         write("Your program was cancelled.\n");
+        _emailValid = false;
         delete this;
     }
 
@@ -218,14 +196,10 @@ public:
 private:
     AutoHandle _pipe;
 
-    int _emailLength;
-    Array<Byte> _email;
-    int _fileNameLength;
-    Array<Byte> _fileName;
-    int _dataLength;
-    Array<Byte> _data;
-    int _logFileLength;
-    Array<Byte> _logFile;
+    String _email;
+    String _fileName;
+    String _data;
+    String _logFile;
 
     String _log;
     bool _broken;
@@ -491,7 +465,8 @@ private:
 class XTThread : public Thread
 {
 public:
-    XTThread() : _queuedItems(0), _ending(false), _processing(false)
+    XTThread() : _queuedItems(0), _ending(false), _processing(false),
+        _needArduinoReset(false), _needReboot(false), _diskBytes(0x10000)
     {
         // Open handle to Arduino for rebooting machine
 #if 1
@@ -582,6 +557,8 @@ public:
         timeOuts.WriteTotalTimeoutMultiplier = 0;
         IF_ZERO_THROW(SetCommTimeouts(_com, &timeOuts));
 #endif 
+
+        _imager = File("C:\\imager.bin", true).contents();
 
         _packet.allocate(0x101);
 
@@ -682,21 +659,89 @@ public:
     }
     void reboot()
     {
-        console.write("Resetting\n");
+        if (!_needReboot)
+            false;
+        bothWrite("Resetting\n");
 
-        // Reset the Arduino
-        EscapeCommFunction(_arduinoCom, CLRDTR);
-        EscapeCommFunction(_arduinoCom, CLRRTS);
-        Sleep(250);
-        EscapeCommFunction(_arduinoCom, SETDTR);
-        EscapeCommFunction(_arduinoCom, SETRTS);
-        //Sleep(50);
-        Sleep(2000);  // 1 second isn't enough time for the Arduino bootloader
+        if (_needArduinoReset) {
+            // Reset the Arduino
+            EscapeCommFunction(_arduinoCom, CLRDTR);
+            EscapeCommFunction(_arduinoCom, CLRRTS);
+            Sleep(250);
+            EscapeCommFunction(_arduinoCom, SETDTR);
+            EscapeCommFunction(_arduinoCom, SETRTS);
+            // The Arduino bootloader waits a bit to see if it needs to
+            // download a new program.
+            Sleep(2000);
+            _needArduinoReset = false;
+        }
 
         // Reset the machine
         _arduinoCom.write<Byte>(0x7f);
         _arduinoCom.write<Byte>(0x77);
         IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+        _needReboot = false;
+    }
+    bool bothWrite(String s)
+    {
+        console.write(s);
+        _item->write(s);
+    }
+    bool upload(String program)
+    {
+        int retry = 1;
+        bool error;
+        do {
+            IF_ZERO_THROW(PurgeComm(_com, PURGE_RXCLEAR | PURGE_TXCLEAR));
+
+            error = false;
+            reboot();
+
+            bothWrite("Transferring attempt " + String::Decimal(retry) + "\n");
+
+            int l = program.length();
+
+            Byte checksum;
+
+            int p = 0;
+            int bytes;
+            do {
+                bytes = min(l, 0xff);
+                _packet[0] = bytes;
+                checksum = 0;
+                for (int i = 0; i < bytes; ++i) {
+                    Byte d = program[p];
+                    ++p;
+                    _packet[i + 1] = d;
+                    checksum += d;
+                }
+                _packet[bytes + 1] = checksum;
+                _com.write(&_packet[0], 2 + _packet[0]);
+                IF_ZERO_THROW(FlushFileBuffers(_com));
+                if (_com.tryReadByte() != 'K')
+                    error = true;
+                l -= bytes;
+                if (_killed || _cancelled) {
+                    _needReboot = true;
+                    break;
+                }
+            } while (bytes != 0);
+
+            if (error) {
+                ++retry;
+                _needReboot = true;
+                if (retry >= 3)
+                    _needArduinoReset = true;
+            }
+            else
+                break;
+        } while (retry < 10);
+        return error;
+    }
+    String htDocsPath(String name)
+    {
+        return "C:\\Program Files\\Apache Software Foundation\\Apache2.2\\"
+            "htdocs\\" + name;
     }
     void threadProc()
     {
@@ -745,69 +790,52 @@ public:
                 }
                 if (_item == 0)
                     continue;
-                console.write("Starting work item ");
                 _item->printInfo();
-                console.write("\n");
                 _processing = true;
 
-                int retry = 1;
-                bool error;
-                do {
-                    IF_ZERO_THROW(PurgeComm(_com,
-                        PURGE_RXCLEAR | PURGE_TXCLEAR));
-
-                    error = false;
-                    reboot();
-
-                    console.write("Transferring attempt " +
-                        String::Decimal(retry) + "\n");
-
-                    int l = _item->length();
-
-                    Byte checksum;
-
-                    int p = 0;
-                    int bytes;
-                    do {
-                        bytes = min(l, 0xff);
-                        _packet[0] = bytes;
-                        checksum = 0;
-                        for (int i = 0; i < bytes; ++i) {
-                            Byte d = _item->data(p);
-                            ++p;
-                            _packet[i + 1] = d;
-                            checksum += d;
-                        }
-                        _packet[bytes + 1] = checksum;
-                        _com.write(&_packet[0], 2 + _packet[0]);
-                        IF_ZERO_THROW(FlushFileBuffers(_com));
-                        if (_com.tryReadByte() != 'K')
-                            error = true;
-                        l -= bytes;
-                        if (_killed || _cancelled)
+                String fileName = _item->fileName();
+                int fileNameLength = fileName.length();
+                String extension;
+                if (fileNameLength >= 4)
+                    extension = fileName.subString(fileNameLength - 4, 4);
+                String program;
+                int sectorsPerTrack = 9;
+                int heads = 2;
+                int bytesPerSector = 512;
+                if (extension.equalsIgnoreCase(".img")) {
+                    program = _imager;
+                    switch (program.length()) {
+                        case 320*1024:
+                            sectorsPerTrack = 8;
                             break;
-                    } while (bytes != 0);
-
-                    if (error)
-                        ++retry;
-                    else
-                        break;
-                } while (retry < 10);
+                        case 160*1024:
+                            sectorsPerTrack = 8;
+                            heads = 1;
+                            break;
+                        case 180*1024:
+                            heads = 1;
+                            break;
+                    }
+                }
+                else
+                    program = _item->data();
+                bool error = upload(program);
                 if (error) {
                     console.write("Failed to upload!\n");
                     _item->write("Could not transfer the program to the XT. "
                         "The machine may be offline for maintainance - please "
                         "try again later.\n");
+                    _needReboot = true;
                     delete _item;
                     continue;
                 }
 
-                _item->write("Upload complete.\n");
+                bothWrite("Upload complete.\n");
                 if (_item->aborted()) {
+                    _needReboot = true;
                     delete _item;
                     continue;
                 }
-                console.write("\nUpload complete.\n");
                 // Dump bytes from COM port to pipe until we receive ^Z or we
                 // time out.
 
@@ -824,7 +852,11 @@ public:
                 int fileCount = 0;
                 int imageCount = 0;
                 int audioCount = 0;
+                int hostBytesRemaining = 0;
+                int diskByteCount = 0;
+                int diskDataPointer;
                 Reference<AudioCapture> audioCapture;
+                Byte hostBytes[18];
                 do {
                     DWORD elapsed = GetTickCount() - startTime;
                     DWORD timeout = 5*60*1000 - elapsed;
@@ -838,7 +870,7 @@ public:
                     int c = _com.tryReadByte();
                     if (c == -1)
                         continue;
-                    if (!escape) {
+                    if (!escape && fileState != 5) {
                         bool processed = false;
                         switch (c) {
                             case 0x00:
@@ -857,15 +889,12 @@ public:
                                         L"WinTV32");
                                     IF_NULL_THROW(hWinTV);
                                     IF_NULL_THROW(SetForegroundWindow(hWinTV));
-                                    sendKeys("%fa");
-                                    sendKeys("C:\\Program Files\\Apache Softwa"
-                                        "re Foundation\\Apache2.2\\htdocs\\" +
-                                        fileName + "{TAB}p{DOWN}{DOWN}{DOWN}"
-                                        "{TAB}~");
-
+                                    sendKeys("%fa" + htDocsPath(fileName) +
+                                        "{TAB}p{DOWN}{DOWN}{DOWN}{TAB}~");
                                     Sleep(1500);
                                     _item->write("\n<img src=\"../" +
                                         fileName + "\"/>\n");
+                                    ++imageCount;
                                 }
                                 break;
                             case 0x02:
@@ -884,18 +913,15 @@ public:
                                         break;
                                     String rawName = _item->secret() +
                                         audioCount;
-                                    String baseName = "C:\\Program Files\\Apac"
-                                        "he Software Foundation\\Apache2.2\\ht"
-                                        "docs\\" + rawName;
+                                    String baseName = htDocsPath(rawName);
                                     String waveName = baseName + ".pcm";
                                     File wave(waveName, true);
                                     audioCapture->finish(wave);
                                     audioCapture = 0;
-                                    String fileName = baseName + ".mp3";
                                     String commandLine = "\"C:\\Program Files"
                                         "\\LAME\\lame.exe\" \"" + waveName +
-                                        "\" \"" + fileName +
-                                        "\" -r -s 44100 -m l";
+                                        "\" \"" + fileName + ".mp3\" -r -s "
+                                        "44100 -m l";
                                     NullTerminatedWideString data(commandLine);
 
                                     PROCESS_INFORMATION pi;
@@ -931,6 +957,9 @@ public:
                                 break;
                             case 0x05:
                                 // Host interrupt
+                                fileState = 5;
+                                hostBytesRemaining = 18;
+                                processed = true;
                                 break;
                             case 0x1a:
                                 complete = true;
@@ -985,44 +1014,132 @@ public:
                                 fileState = 0;
                                 String fileName = _item->secret() + fileCount +
                                     ".dat";
-                                File("C:\\Program Files\\Apache Software Found"
-                                    "ation\\Apache2.2\\htdocs\\" + fileName,
-                                    true).save(file);
+                                File(htDocsPath(fileName), true).save(file);
                                 _item->write("\n<a href=\"../" + fileName +
                                     "\">Captured file</a>\n");
                                 ++fileCount;
                             }
                             break;
-                    }
+                        case 5:
+                            // Get host interrupt data
+                            hostBytes[17 - hostBytesRemaining] = c;
+                            --hostBytesRemaining;
+                            if (hostBytesRemaining != 0)
+                                break;
+                            fileState = 0;
+                            if (hostBytes[0] != 0x13) {
+                                bothWrite("Unknown host interrupt " +
+                                    String::Hex(hostBytes[0], 2, true));
+                                break;
+                            }
+                            // The host bytes are as follows:
+                            Byte sectorCount = hostBytes[1];
+                            Byte operation = hostBytes[2];
+                            Byte sector = hostBytes[3] & 0x3f;
+                            int error = 0;
+                            if (sector >= 9)
+                                error = 4;
+                            Word track = hostBytes[4] |
+                                ((hostBytes[3] & 0xc0) << 2);
+                            if (track >= 40)
+                                error = 4;
+                            Byte drive = hostBytes[5];
+                            if (drive != 0)
+                                error = 4;
+                            Byte head = hostBytes[6];
+                            if (head >= 2)
+                                error = 4;
+                            //  7 == step rate time / head unload time
+                            //  8 == head load time / DMA mode
+                            //  9 == motor shutoff time
+                            int sectorSize = 128 << hostBytes[10];
+                            if (sectorSize != bytesPerSector)
+                                error = 4;
+                            Byte sectorsPerTrack = hostBytes[11];
+                            // 12 == gap length for read/write/verify
+                            // 13 == data length
+                            // 14 == gap length for format
+                            // 15 == fill byte for format
+                            // 16 == head settle time
+                            // 17 == motor startup time
 
+                            int start = ((track*heads + head)*sectorsPerTrack + 
+                                sector)*bytesPerSector;
+                            int length = sectorCount*bytesPerSector;
+                            String image = _item->data();
+                            if (operation != 5 &&
+                                start + length > image.length())
+                                error = 4;
+                            Byte status[3];
+                            status[0] = (error != 0 ? sectorCount : 0);
+                            status[1] = error;
+                            status[2] = (error != 0 ? 3 : 2);
+                            switch (operation) {
+                                case 2:
+                                    // Read disk sectors
+                                    if (error != 0)
+                                        upload("");
+                                    else
+                                        upload(image.
+                                            subString(start, length));
+                                    break;
+                                case 3:
+                                    // Write disk sectors
+                                case 4:
+                                    // Verify disk sectors
+                                    diskByteCount = length;
+                                    diskDataPointer = 0;
+                                    fileState = 6;
+                                    break;
+                                case 5:
+                                    // Format disk sectors
+                                    diskByteCount = 
+                                    break;
+                            }
+                            upload(String(reinterpret_cast<const char*>
+                                (&status[0]), 3));
+                            break;
+                        case 6:
+                            // Get disk data
+                            _diskBytes[diskDataPointer] = c;
+                            ++diskDataPointer;
+                            if (diskDataPointer != diskByteCount)
+                                break;
+                            fileState = 0;
+
+                            
+                    }
                     if (_item->aborted())
                         break;
                 } while (true);
                 console.write("\n");
                 _item->write("\n");
                 if (_item->aborted()) {
+                    _needReboot = true;
                     delete _item;
                     continue;
                 }
 
                 if (_killed) {
                     _item->kill();
+                    _needReboot = true;
                     continue;
                 }
                 if (_cancelled) {
                     _item->cancel();
+                    _needReboot = true;
                     continue;
                 }
 
                 if (timedOut) {
-                    _item->write("The program did not complete within 5 "
+                    bothWrite("The program did not complete within 5 "
                         "minutes and has been\nterminated. If you really need "
                         "to run a program for longer,\n"
                         "please send email to andrew@reenigne.org.");
-                    console.write("Timed out.\n");
+                    _needReboot = true;
                 }
                 else
-                    _item->write("Program ended normally.");
+                    bothWrite("Program ended normally.");
 
                 if (_item->needSleep()) {
                     _emailThread.add(_item);
@@ -1066,6 +1183,11 @@ private:
     EmailThread _emailThread;
     bool _killed;
     bool _cancelled;
+    bool _needArduinoReset;
+    bool _needReboot;
+    Array<Byte> _diskBytes;
+
+    String _imager;
 };
 
 class Program : public ProgramBase

@@ -225,6 +225,42 @@ messageEnd:
             if (document.getElementById("status").innerHTML === "in an unknown state")
                 updateStatus("offline");
         },5000);
+
+        function getXmlHttp()
+        {
+            try {
+                // Firefox, Opera 8.0+, Safari
+                return new XMLHttpRequest();
+            }
+            catch (e) {
+                // Internet Explorer
+                try {
+                    return new ActiveXObject("Msxml2.XMLHTTP");
+                }
+                catch (e) {
+                    try {
+                        return new ActiveXObject("Microsoft.XMLHTTP");
+                    }
+                    catch (e) {
+                        return null;
+                    }
+                }
+            }
+        }
+
+        function HttpRequest(url, parameters)
+        {
+            var xmlHttp = getXmlHttp();
+            if (xmlHttp == null)
+                return;
+
+            parameters = "pseudo=" + pseudo + "&" + parameters;
+            xmlHttp.open("POST", url, true);
+            xmlHttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+            xmlHttp.setRequestHeader("Content-length", parameters.length);
+            xmlHttp.setRequestHeader("Connection", "close");
+            xmlHttp.send(parameters);
+        }
     </script>
     <p>The XT server is currently
     <span id='status'>in an unknown state</span>.</p>

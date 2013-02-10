@@ -1,0 +1,46 @@
+http://www.mediatel.lu/workshop/audio/fileformat/h_mod.html
+
+ticks/minute = 3000 (fixed)
+divisions/beat = 4 (fixed)
+
+beats/minute = ticks/minute / ticks/division / divisions/beat = 750 / ticks/division
+
+
+z  ticks/division  beats/minute
+
+0  0               infinity
+1  1               750
+2  2               375
+3  3               250
+4  4               187.5
+5  5               150
+6  6               125
+7  7               107.1
+8  8                93.75
+9  9                83.3
+10 10               75
+11 11               68.2
+12 12               62.5
+13 13               57.7
+14 14               53.6
+15 15               50
+16 16               46.875
+17 17               44.1
+18 18               41.7
+19 19               39.5
+20 20               37.5
+21 21               35.7
+22 22               34.1
+23 23               32.6
+24 24               31.25
+25 25               30
+26 26               28.8
+27 27               27.8
+28 28               26.8
+29 29               25.9
+30 30               25
+31 31               24.2
+32 32               23.4375
+33 22.7             33
+34 22.1             34
+255 2.9             255

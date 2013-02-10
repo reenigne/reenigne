@@ -428,9 +428,9 @@ cpu 8086
 %macro writePIT16 3
   mov al,(%1 << 6) | 0x30 | (%2 << 1)  ; Don't use BCD mode
   out 0x43,al
-  mov al,%3 & 0xff
+  mov al,(%3) & 0xff
   out 0x40 + %1,al
-  mov al,%3 >> 8
+  mov al,(%3) >> 8
   out 0x40 + %1,al
 %endmacro
 

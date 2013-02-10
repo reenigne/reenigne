@@ -134,6 +134,14 @@ Figure out host string format for int 0x13
   0x05 = IO interrupt
   0x13 = interrupt to execute
 
+Host commands:
+  * Interrupt
+  * (For emulator) hardware modification
 
 TODO: add interactivity features
   AJAX request for "send these keystrokes"
+
+Telnet server?
+
+
+

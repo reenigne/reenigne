@@ -248,21 +248,21 @@ public:
                 }
 
                 bool terminate = false;
-                if (_arguments.count() > 0) {
-                    if (_arguments[0] == "-e") {
+                if (_arguments.count() > 1) {
+                    if (_arguments[1] == "-e") {
                         // xtserver -e <logFile
                         // re-runs a submitted file with the email stripped
                         // off - handy for debugging.
                         email = "";
                     }
-                    if (_arguments[0] == "-s") {
-                        // xtserver -e <logFile
+                    if (_arguments[1] == "-s") {
+                        // xtserver -s <logFile
                         // Saves the submitted program to disk instead of
                         // running it - handy for debugging.
                         File("saved.bin").save(data);
                         return;
                     }
-                    if (_arguments[0] == "-t") {
+                    if (_arguments[1] == "-t") {
                         // xtserver -t <logFile
                         // Re-runs the submitted program with no server
                         // connection - useful for sending a results email to

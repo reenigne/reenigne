@@ -74,6 +74,13 @@ public:
         read(reinterpret_cast<Byte*>(&value), sizeof(U));
         return value;
     }
+    String readLengthString()
+    {
+        int length = read<int>();
+        String data(length);
+        read(data.writableData(), length);
+        return data;
+    }
     // Read a string from the file. The end of the line (any line ending) or
     // the end of the file delimits the string. EOL characters are not
     // returned.

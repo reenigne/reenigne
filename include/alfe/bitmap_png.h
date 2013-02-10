@@ -37,7 +37,7 @@ private:
         {
             FileHandle* handle =
                 static_cast<FileHandle*>(png_get_io_ptr(png_ptr));
-            handle->read(static_cast<void*>(data), length);
+            handle->read(static_cast<Byte*>(data), length);
         }
         static void userWriteData(png_structp png_ptr, png_bytep data,
             png_size_t length)

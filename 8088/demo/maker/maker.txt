@@ -1,0 +1,58 @@
+Asset:
+  Chunk of code or data
+  Has a size
+  May come from a file
+  May be build-time only or run-time final
+
+Transformation (: Asset)
+  Transforms a set of assets into another set of assets
+  May run at build time or run time
+  Compressors
+  Decompressors
+  Generators
+  Distributors
+  Some can be reversed?
+A run-time transformation is also a (code) asset
+
+Instantiation:
+  A particular run of a code asset with some set of assets as parameters
+  Start cycle (min/max)
+  Number of cycles (min/max)
+
+Code asset:
+  In lockstep?
+  % of time used
+  Final binary form?
+
+Code assets can be combined?
+  Which means there is such thing as a partial code asset
+    Manual combiner for very fine grained interleaving?
+    Automatic interleaving of various sorts
+    Our own compiler to transform high level transformation code into binary code?
+
+Has ability to create final disk images/writers
+  As .exe files for distribution
+  As .bin files for XT
+  As .rdif for emulator
+
+Has ability to create a slice to test a particular effect
+  Again as .EXE/.COM/.BIN
+
+Figures out asset lifespans
+Figures out asset addresses
+Adds asset copies as necessary
+Decides whether or not to compress assets based on:
+  Compressability - if it's not compressable, don't try
+  Can we find suitable time to run decompressor?
+
+Compression by:
+  LZ4_8088
+  Reversing a generator
+
+Timeline:
+  We decide when to run each effect
+  And/or how long for (min/max)
+  Decompression steps can be squeezed in between if necessary
+  Can specify time labels, and specify other times as computations (and inequalities?) of other labels
+
+Can produce various sorts of time/memory chart

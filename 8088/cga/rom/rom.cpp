@@ -30,7 +30,7 @@ public:
         // Set 2: CGA narrow characters
         // Set 3: CGA normal characters
 #endif
-#if 1
+#if 0
         // Dump the top rows to a text file
         int fileSize = 13*256;
         Array<Byte> buffer(fileSize);
@@ -68,6 +68,26 @@ public:
             printf("\n\n");
         }
         File("top_rows.txt").save(buffer);
+#endif
+#if 1
+        // Dump all the rows to a text file
+        File file("/t/projects/emulation/pc/roms/5788005.u33");
+        String cgaROM = file.contents();
+
+        for (int ch = 0; ch < 256 /*512*/; ++ch) {
+            for (int y = 0; y < 8; ++y) {
+                int bits = cgaROM[(3*256 + (ch & 0xff))*8 + y];
+                if ((ch & 0x100) != 0)
+                    bits = ~bits;
+                //if ((bits & 0x0f) != ((bits >> 4) & 0x0f))
+                //    continue;
+
+                printf("%02x %i %i: ",ch&0xff,y,(ch >> 8));
+                for (int x = 0; x < 8; ++x)
+                    printf("%c", (bits & (128 >> x)) != 0 ? '*' : '.');
+                printf("\n");
+            }
+        }
 #endif
 
 #if 0

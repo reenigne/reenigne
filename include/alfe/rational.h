@@ -3,6 +3,8 @@
 #ifndef INCLUDED_RATIONAL_H
 #define INCLUDED_RATIONAL_H
 
+#include "alfe/gcd.h"
+
 class ZeroDivideException : public Exception
 {
     ZeroDivideException : Exception(String("Division by zero")) { }
@@ -17,7 +19,8 @@ public:
     }
     Rational(const T& n) : numerator(n), denominator(1) { }
     Rational() { }
-    Rational& operator=(const Rational& n) { numerator = n; denominator = 1; }
+    Rational& operator=(const Rational& r) { numerator = r.numerator; denominator = r.denominator; }
+    Rational& operator=(const T& n) { numerator = n; denominator = 1; }
     Rational operator*(const Rational& other) const
     {
         Rational r = *this;

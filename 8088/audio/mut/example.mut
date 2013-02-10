@@ -1,0 +1,12 @@
+include "standard.mut";
+
+. = sine;
+
+output = output
+  | .@C2
+  | .@E2
+  | .@G2
+  | .@C3
+  |
+  | .*0;
+

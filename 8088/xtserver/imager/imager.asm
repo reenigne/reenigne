@@ -365,24 +365,24 @@ int13routine:
 sendParameters:
   push ax        ; Save sector count and command
   mov al,0x05
-  printCharacter
+  printCharacter   ; Host command
   mov al,0x13
-  printCharacter
+  printCharacter   ; Interrupt number
   pop ax
   push ax        ; Save sector count and command
-  printCharacter
+  printCharacter   ; Number of sectors
   pop ax
   push ax        ; Save sector count
   mov al,ah
-  printCharacter
+  printCharacter   ; Command
   mov al,cl
-  printCharacter
+  printCharacter   ; Sector number
   mov al,ch
-  printCharacter
+  printCharacter   ; Track number
   mov al,dl
-  printCharacter
+  printCharacter   ; Drive number
   mov al,dh
-  printCharacter
+  printCharacter   ; Head number
 
   ; Send the contents of the disk parameter table
   xor ax,ax

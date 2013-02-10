@@ -1,4 +1,4 @@
-  %include "../defaults_com.asm"
+  %include "../../defaults_bin.asm"
 
   ; Set graphics mode
   mov ax,6
@@ -40,11 +40,41 @@ oddLine:
   pop cx
   loop lineLoop
 
-  mov ah,0
-  int 0x16
-  mov ax,3
-  int 0x10
-  ret
+;  mov ah,0
+;  int 0x16
+;  mov ax,3
+;  int 0x10
+;  ret
+
+  int 0x60
+
+  mov cx,5*60
+
+waitLoopTop:
+  mov dx,0x3da
+  waitForVerticalSync
+  waitForNoVerticalSync
+
+;  push cx
+;  mov cx,100
+;yLoop:
+;  waitForDisplayEnable
+;  mov dl,0xd4
+;  mov ax,0x7f01
+;  out dx,ax
+;  mov dl,0xda
+;  times 20 nop
+;  mov dl,0xd4
+;  mov ax,0x5001
+;  out dx,ax
+;  mov dl,0xda
+;  waitForDisplayDisable
+;
+;  loop yLoop
+;  pop cx
+  loop waitLoopTop
+
+  int 0x67
 
 data:
 

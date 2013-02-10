@@ -181,6 +181,8 @@ public:
       : _buffer(data), _start(0), _length(length) { }
     explicit StringTemplate(int length)
       : _buffer(length), _start(0), _length(0) { }
+    StringTemplate(const Array<Byte>& array)
+      : _buffer(&array[0]), _start(0), _length(array.count()) { }
 #ifdef _WIN32
     StringTemplate(const WCHAR* utf16) : _start(0)
     {
@@ -342,6 +344,37 @@ public:
             ++p;
         }
         return h;
+    }
+    bool equalsIgnoreCase(const String& other) const
+    {
+        if (_length != other._length)
+            return false;
+        if (_length != 0) {
+            const ::Byte* a = data();
+            const ::Byte* b = other.data();
+            for (int i = 0; i < _length; ++i) {
+                if (tolower(*a) != tolower(*b))
+                    return false;
+                ++a;
+                ++b;
+            }
+        }
+        return true;
+    }
+    bool equalsIgnoreCase(const char* b) const
+    {
+        if (_length != 0) {
+            const ::Byte* a = data();
+            for (int i = 0; i < _length; ++i) {
+                if (*b == 0)
+                    return false;
+                if (tolower(*a) != tolower(*b))
+                    return false;
+                ++a;
+                ++b;
+            }
+        }
+        return *b == 0;    
     }
     bool operator==(const String& other) const
     {
@@ -564,6 +597,8 @@ private:
         }
     }
 
+    ::Byte* writableData() { return _buffer.data() + _start; }
+
     Buffer _buffer;
     int _start;
     int _length;
@@ -571,6 +606,7 @@ private:
     friend class NullTerminatedString;
     friend class ProgramBase;
     template<class T> friend class FileTemplate;
+    friend class Handle;
 };
 
 String operator+(const char* a, const String& b)
