@@ -190,8 +190,10 @@ private:
 
         BEGIN_CHECKED {
             console = Handle(GetStdHandle(STD_OUTPUT_HANDLE), Console());
-            if (!console.valid())
-                throw Exception::systemError("Getting console handle");
+            // We can't validate console here because we might be in a GUI
+            // program where there is no console.
+            //if (!console.valid())
+            //    throw Exception::systemError("Getting console handle");
             BEGIN_CHECKED {
 #ifdef _WINDOWS
                 initializeWindows();
@@ -200,10 +202,11 @@ private:
 #endif
             }
             END_CHECKED(Exception& e) {
-                console.write(e);
+                if (console.valid())
+                    console.write(e);
             }
         }
-        END_CHECKED(Exception&) {
+        END_CHECKED(...) {
             // Can't even display an error
         }
     }

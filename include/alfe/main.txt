@@ -1,0 +1,30 @@
+Windows GUI
+  WinMain
+    WinMainTemplate
+      Program::initialize()
+        Program::initializeMain()       <- We get console here but fail
+          Program::initializeWindows()
+            Program::initializeWindowsCommandLine()
+              Program::run()
+
+Windows Console
+  main
+    mainTemplate
+      Program::initialize()
+        Program::initializeMain()
+          Program::initializeWindowsCommandLine()
+            Program::run()
+
+Windows Console with GUI
+  main
+    WinMainTemplate
+      Program::initialize()
+        Program::initializeMain()
+          Program::initializeWindows()
+            Program::initializeWindowsCommandLine()
+              Program::run()
+Unix
+  main
+    mainTemplate
+      Program::initialize()
+        Program::run()

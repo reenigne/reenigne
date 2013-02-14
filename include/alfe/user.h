@@ -151,12 +151,6 @@ public:
             _nSize(CW_USEDEFAULT, CW_USEDEFAULT),
             _menu(0)
         { }
-        Params(Windows* windows, LPCWSTR pszName, Vector nSize)
-          : _windows(windows),
-            _pszName(pszName),
-            _nSize(nSize),
-            _menu(0)
-        { }
         Params(Windows* windows, LPCWSTR pszName, Vector nSize,
             Menu* menu = 0)
           : _windows(windows),
@@ -435,7 +429,7 @@ private:
 };
 
 
-class Image : public Bitmap<DWord>
+class Image : public Bitmap<DWORD>
 {
 public:
     Image() { }
@@ -496,6 +490,8 @@ public:
     virtual void draw() { }
 
     virtual void doneResize() { }
+
+    virtual void destroy() { }
 private:
     BITMAPINFO _bmi;
 

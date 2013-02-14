@@ -1,0 +1,41 @@
+Re-ed chromas (u45 data zero delay)
+
+3  t 9451, 31213       2732
+                            4151
+2  f 136, 13630        6883
+                            3745
+6  f 3738, 17518      10628
+                            9839
+4  f 14163, 26771     20467
+                            4973
+5  f 18964, 31916     25440
+                            3567
+1  t 662, 22152       29007
+                            8925
+
+=> 6 matches at sat 0.28, hue = -14 degrees
+
+
+Computed chroma (u45 data zero delay)
+
+3  t 9367, 26967        567
+                            5408
+2  t 14775, 32375      5975
+6  f 567, 18167        9367
+4  f 9367, 26967      18167
+5  f 14775, 32375     23575
+1  t 567, 18167       26967
+
+
+Capture->SRGB->YIQ->chroma
+
+chroma*
+
+
+
+Why is there a -14 degree hue correction? Just a weird default in WinTV?
+  Why is the correction different for the I=0 transition and the I=1 transition?
+    Either WinTV is applying a non-linear correction or there are additional voltage-dependent delays in the DAC
+  Probably the best way to find out is by implementing the raw frame grabber
+
+

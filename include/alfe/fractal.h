@@ -199,12 +199,12 @@ protected:
     }
 
 private:
-    static Vector2<int> vectorFromLParam(LPARAM lParam)
+    static Vector vectorFromLParam(LPARAM lParam)
     {
-        return Vector2<int>(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        return Vector(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
     }
 
-    void onResize(Vector2<int> s)
+    void onResize(Vector s)
     {
         if (s.zeroArea())
             return;
@@ -213,17 +213,17 @@ private:
         IF_ZERO_THROW(InvalidateRect(_hWnd, NULL, FALSE));
     }
 
-    void doZoom(Vector2<int> topLeft, Vector2<int> bottomRight, bool in)
+    void doZoom(Vector topLeft, Vector bottomRight, bool in)
     {
         if (bottomRight.x<topLeft.x) {
             int z = topLeft.x;
-            topLeft = Vector2<int>(bottomRight.x, topLeft.y);
-            bottomRight = Vector2<int>(z, bottomRight.y);
+            topLeft = Vector(bottomRight.x, topLeft.y);
+            bottomRight = Vector(z, bottomRight.y);
         }
         if (bottomRight.y<topLeft.y) {
             int z = topLeft.y;
-            topLeft = Vector2<int>(topLeft.x, bottomRight.y);
-            bottomRight = Vector2<int>(bottomRight.x, z);
+            topLeft = Vector(topLeft.x, bottomRight.y);
+            bottomRight = Vector(bottomRight.x, z);
         }
         _region.zoom(topLeft, bottomRight, in);
         _image->changeCoords(_region);
@@ -278,7 +278,7 @@ private:
         drawBand(&dc);
     }
 
-    void drawBand(Vector2<int> position)
+    void drawBand(Vector position)
     {
         eraseBand();
         _bandPosition = position;

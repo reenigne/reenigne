@@ -293,10 +293,11 @@ public:
     {
         Byte* row = data();
         const Byte* otherRow = other.data();
-        for (int y = 0; y < size.y; ++y) {
+        for (int y = 0; y < _size.y; ++y) {
             Pixel* p = reinterpret_cast<Pixel*>(row);
-            OtherPixel* op = reinterpret_cast<OtherPixel*>(otherRow);
-            for (int x = 0; x < size.x; ++x) {
+            const OtherPixel* op =
+                reinterpret_cast<const OtherPixel*>(otherRow);
+            for (int x = 0; x < _size.x; ++x) {
                 *p = *op;
                 ++p;
                 ++op;
