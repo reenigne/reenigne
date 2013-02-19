@@ -46,6 +46,8 @@ oddLine:
 ;  int 0x10
 ;  ret
 
+  hlt
+
   int 0x60
 
   mov cx,5*60
