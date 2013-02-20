@@ -262,7 +262,8 @@ drawComplete:
   sti
 waitLoop:
   hlt
-  loop waitLoop
+;  loop waitLoop
+  jmp waitLoop
 
   int 0x67
 
