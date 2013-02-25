@@ -47,9 +47,9 @@ cpu 8086
 ; 0x30..0x3f = background/light cyan/light magenta/white
 %macro initCGA 2
   %if (%1 & 2) != 0
-    initCGA %1, 0x0f, 2
+    initCGA %1, %2, 2
   %else
-    initCGA %1, 0, 8
+    initCGA %1, %2, 8
   %endif
 %endmacro
 

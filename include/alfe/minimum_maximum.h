@@ -12,6 +12,11 @@ template<class T> T clamp(T low, T value, T high)
     return min(max(low, value), high);
 }
 
+template<class T> Byte byteClamp(T value)
+{
+    return clamp(0, static_cast<int>(value), 0xff);
+}
+
 template<class T> T max(const T& a, const T& b, const T& c)
 {
     return max(a, max(b, c));

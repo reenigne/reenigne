@@ -1,19 +1,5 @@
 #include "alfe/main.h"
-
-bool isSync(Byte* p) { return (*p) == 0; }
-
-// This needs to be less sensitive for non-CGA images
-int findHSync(Byte* p)
-{
-    for (int i = 0; i < 6; ++i) {
-        if (isSync(p - 3))
-            return i - 3;
-        ++p;
-    }
-    return 3;
-}
-
-bool foundHSync(int h) { return h >= -2 && h <= 2; }
+#include "alfe/complex.h"
 
 float sinc(float z)
 {
@@ -30,184 +16,205 @@ float lanczos(float z)
     return sinc(z)*sinc(z/3);
 }
 
+template<class T> Byte checkClamp(T x)
+{
+    int y = static_cast<int>(x);
+    //static bool clamped = false;
+    //if (!clamped) {
+    //    if (y < 0 || y > 0xff) {
+    //        clamped = true;
+    //        printf("Clamped!\n");
+    //    }
+    //}
+    return clamp(0, y, 255);
+}
+
+Complex<float> rotor(float phase)
+{
+    static const float tau = 2*M_PI;
+    float angle = phase*tau;
+    return Complex<float>(cos(angle), sin(angle)); 
+    // return exp(Complex<float>(0, phase*tau));
+}
+
+class NTSCDecoder
+{
+public:
+    NTSCDecoder() { }
+
+    void decode()
+    {
+
+    }
+private:
+    Byte* _input;
+    Byte* _output;
+};
+
 class Program : public ProgramBase
 {
 public:
     void run()
     {
-        static const int inputSamples = 1024*450;
-        static const int nominalSamplesPerLine = 1824;
-        static const int outputSamplesPerLine = nominalSamplesPerLine*5/12;
+        // Settings
+
+        static const int samples = 450*1024;
+        static const int sampleSpaceBefore = 256;
+        static const int sampleSpaceAfter = 256;
         static const int lines = 240;
-        double contrast = 240.0/(159 - 37);
-        double brightness = -(37 * contrast);
+        static const int nominalSamplesPerLine = 1820;
+        static const int firstSyncSample = -130;  // Assumed position of previous hsync before our samples started
+        static const int pixelsPerLine = 760;
+        static const float kernelSize = 3;  // Lanczos parameter
+        static const int nominalSamplesPerCycle = 8;
+        static const int driftSamples = 40;
+        static const float contrast = 240.0/(159 - 37);
+        static const float brightness = -(37 * contrast);
+        static const float saturation = 0.25;
+        static const float hue = 0;
+        static const int burstSamples = 40;
+        static const int firstBurstSample = 192;
+        static const float tau = 2*M_PI;
+        static const int burstCenter = firstBurstSample + burstSamples/2;
 
-        // Pass 0 - read the samples from the capture card
+        // Pass 0 - read data
 
-        AutoHandle h = File("\\\\.\\pipe\\vbicap", true).openPipe();
-        h.write<int>(1);
+        //String name = "q:\\input.raw";
+        String name = "q:\\colour_bars.raw";
+        AutoHandle h = File(name, true).openPipe();
+//        AutoHandle h = File("\\\\.\\pipe\\vbicap", true).openPipe();
+//        h.write<int>(1);
 
-
-        Array<Byte> buffer(inputSamples + 512);
-        Byte* b = &buffer[0] + 256;
-        for (int i = 0; i < 256; ++i) {
-            *(b - 256 + i) = 0;
-            *(b + inputSamples + i) = 0;
-        }
+        Array<Byte> buffer(sampleSpaceBefore + samples + sampleSpaceAfter);
+        Byte* b = &buffer[0] + sampleSpaceBefore;
+        for (int i = 0; i < sampleSpaceBefore; ++i)
+            b[i - sampleSpaceBefore] = 0;
+        for (int i = 0; i < sampleSpaceAfter; ++i)
+            b[i + samples] = 0;
         for (int i = 0; i < 450; ++i)
-            h.read(&buffer[i*1024], 1024);
+            h.read(&b[i*1024], 1024);
 
 
-        // Pass 1 - find the hsync pulses and determine the approximate line
-        // rate.
+        // Pass 1 - find sync and burst pulses, compute wobble amplitude and phase
 
-        int p;
-        for (p = 0; p < inputSamples; ++p)
-            if (!isSync(b + p))
-                break;
-        if (p == inputSamples)
-            throw Exception("No data\n");
-        // p points to the first non-sync sample
-        for (; p < inputSamples; ++p)
-            if (isSync(b + p))
-                break;
-        if (p == inputSamples)
-            throw Exception("No sync\n");
-        // p points to the first sync sample on the first line
-        int firstHSync = p;
+        float deltaSamplesPerCycle = 0;
 
-        int total = 0;
-        int linesFound = 0;
-        int lastHSync = p;
-        do {
-            if (lastHSync + nominalSamplesPerLine + 2 >= inputSamples)
-                break;
-            // Find the sync pulse on the next line
-            int h = findHSync(b + lastHSync + nominalSamplesPerLine);
-            if (!foundHSync(h)) {
-                int i = 1;
-                do {
-                    if (linesFound == 0)
-                        p = lastHSync + i*nominalSamplesPerLine;
-                    else
-                        p = lastHSync + (i*total)/linesFound;
-                    if (p >= inputSamples)
-                        break;
-                    h = findHSync(b + p);
-                    if (foundHSync(h)) {
-                        lastHSync = p + h;
-                        break;
-                    }
-                    ++i;
-                } while (true);
-                if (p >= inputSamples)
+        int syncPositions[lines + 1];
+        int oldP = firstSyncSample - driftSamples;
+        int p = oldP + nominalSamplesPerLine;
+        float samplesPerLine = nominalSamplesPerLine;
+        Complex<float> bursts[lines + 1];
+        float burstDCs[lines + 1];
+        for (int line = 0; line < lines + 1; ++line) {
+            Complex<float> burst = 0;
+            float burstDC = 0;
+            for (int i = firstBurstSample; i < firstBurstSample + burstSamples; ++i) {
+                int sample = b[oldP + i];
+                float phase = ((oldP + i)&7)/8.0 + (33.0 + hue)/360;
+                burst += rotor(phase)*sample;
+                burstDC += sample;
+            }
+            bursts[line] = burst/burstSamples;
+            burstDCs[line] = burstDC/burstSamples;
+
+            syncPositions[line] = p;
+            oldP = p;
+            for (int i = 0; i < driftSamples*2; ++i) {
+                if (b[p] == 0)
                     break;
+                ++p;
             }
-            else {
-                ++linesFound;
-                total += nominalSamplesPerLine + h;
-                lastHSync += nominalSamplesPerLine + h;
-            }
-        } while (true);
+            p += nominalSamplesPerLine - driftSamples;
 
-        int i = 0;
-
-        float inputSamplesPerLine = static_cast<float>(total)/linesFound;
-        // int lines = (inputSamples - firstHSync)/inputSamplesPerLine;
-        int outputSize = lines*outputSamplesPerLine;
-        Array<Byte> outputBuffer(outputSize*3);
-        float inputSize = lines*inputSamplesPerLine;
-        float filterSize = lines*nominalSamplesPerLine/8;
-        float inputSamplesPerOutputSample =
-            inputSamplesPerLine/outputSamplesPerLine;
-        float filterSamplesPerInputSample =
-            nominalSamplesPerLine/(8*inputSamplesPerLine);
-        float filterSamplesPerOutputSample =
-            nominalSamplesPerLine/(8*outputSamplesPerLine);
-        b += firstHSync;
-        int z0 = 0;
-        int kb = 256;  // inputSamplesPerLine/(nominalSamplesPerLine/8)
-        float ct[8];
-        float st[8];
-        for (int i = 0; i < 8; ++i) {
-            ct[i] = cos(i*M_PI*2/8);
-            st[i] = sin(i*M_PI*2/8);
+            samplesPerLine = (2*samplesPerLine + p - oldP)/3;
         }
 
-
-        // Pass 2 - synchronize with the color burst to find the phase offset,
-        // exact sample rate and wobble parameters.
+        float deltaSamplesPerLine = samplesPerLine - nominalSamplesPerLine;
 
 
+        // Pass 2 - render
 
-        // Pass 3 - NTSC decode and rescale
+        int pixels = lines*pixelsPerLine;
+        Array<Byte> outputBuffer(pixels*3);
+        Byte* output = &outputBuffer[0];
 
-        int o = 0;
+        float q = syncPositions[1] - samplesPerLine;
+        Complex<float> burst = bursts[0];
         for (int line = 0; line < lines; ++line) {
-            float i0 = 0;
-            float q0 = 0;
-            float dc = 0;
-            for (int x = 140; x < 140 + 32; ++x) {
-                int k = o*inputSize/outputSize + x;
-                float z = (*(b + k))*contrast;
-                double angle = (k - o*inputSize/outputSize + 2)/8;
-                angle = (fmod(angle, 1.0) - 33.0/360)*M_PI*2;
-                i0 += cos(angle)*z;
-                q0 += sin(angle)*z;
-                dc += z;
-            }
+            // Determine the phase, amplitude and DC offset of the color signal
+            // from the color burst, which starts shortly after the horizontal
+            // sync pulse ends. The color burst is 9 cycles long, and we look
+            // at the middle 5 cycles.
 
-            dc = (dc - 3989)/32;
-            //float sat = 1.0/sqrt(i0*i0 + q0*q0);
-            float sat = 0.00072;
-            //printf("%f %f %f %f\n",i0,q0, atan2(q0,i0),sqrt(q0*q0+i0*i0));
-            double contrast2 = (contrast/sqrt(i0*i0 + q0*q0))/.00072;
+            float contrast1 = contrast;
+            int samplesPerLineInt = samplesPerLine;
+            float phase = samplesPerLine - (samplesPerLineInt & ~7);
+            Complex<float> expectedBurst = burst*rotor(phase/nominalSamplesPerCycle);
+            Complex<float> actualBurst = bursts[line];
+            burst = (expectedBurst*2 + actualBurst)/3;
 
-            for (int x = 0; x < outputSamplesPerLine; ++x) {
+            float phaseDifference = (actualBurst*(expectedBurst.conjugate())).argument()/tau;
+            float adjust = -phaseDifference/pixelsPerLine;
+
+            Complex<float> chromaAdjust = burst.conjugate()*contrast1*saturation;
+            float brightness1 = brightness;
+
+            // Resample the image data
+
+            float samplesPerLine = nominalSamplesPerLine + deltaSamplesPerLine;
+            for (int x = 0; x < pixelsPerLine; ++x) {
                 float y = 0;
-                float i = 0;
-                float q = 0;
+                Complex<float> c = 0;
                 float t = 0;
-                int k = o*inputSize/outputSize;
-                for (int j = -kb; j < kb; ++j) {
-                    float s = lanczos(j*filterSamplesPerInputSample + z0);
-                    float z = s*(*(b + j + k))*contrast;
-                    //int octant = (j + k)&7;
-                    double angle = static_cast<double>(j + k)*nominalSamplesPerLine/(inputSamplesPerLine*8);
-                    angle = fmod(angle, 1.0)*M_PI*2;
 
+                float kFrac0 = x*samplesPerLine/pixelsPerLine;
+                float kFrac = q + kFrac0;
+                int k = kFrac;
+                kFrac -= k;
+                float samplesPerCycle = nominalSamplesPerCycle + deltaSamplesPerCycle;
+                float z0 = -kFrac/samplesPerCycle;
+                int firstInput = -kernelSize*samplesPerCycle + kFrac;
+                int lastInput = kernelSize*samplesPerCycle + kFrac;
+
+                for (int j = firstInput; j <= lastInput; ++j) {
+                    // The input sample corresponding to the output pixel is k+kFrac
+                    // The sample we're looking at in this iteration is j+k
+                    // The difference is j-kFrac
+                    // So the value we pass to lanczos() is (j-kFrac)/samplesPerCycle
+                    // So z0 = -kFrac/samplesPerCycle;
+
+                    float s = lanczos(j/samplesPerCycle + z0);
+                    int i = j + k;
+                    float z = s*b[i];
                     y += z;
-                    i += cos(angle)*z;  //ct[octant]*z;
-                    q += sin(angle)*z;  //st[octant]*z;
+                    c += rotor((i&7)/8.0)*z*saturation;
                     t += s;
                 }
-                y /= t;
-                i /= t;
-                q /= t;
 
-                float ic = (i*i0 + q*q0)*sat;
-                float qc = (q*i0 - i*q0)*sat;
+                float wobble = 1;
 
-                y += brightness - dc;
-                Byte r = clamp(0, static_cast<int>(y + 0.9563*ic + 0.6210*qc), 255);
-                Byte g = clamp(0, static_cast<int>(y - 0.2721*ic - 0.6474*qc), 255);
-                Byte b = clamp(0, static_cast<int>(y - 1.1069*ic + 1.7046*qc), 255);
+                y = y*contrast1*wobble/t + brightness1;
+                c = c*chromaAdjust*rotor((x - burstCenter*pixelsPerLine/samplesPerLine)*adjust)*wobble/t;
 
-                outputBuffer[o*3] = r;
-                outputBuffer[o*3 + 1] = g;
-                outputBuffer[o*3 + 2] = b;
-
-                int k1 = (o + 1)*inputSize/outputSize;
-                z0 += (k1 - k)*filterSamplesPerInputSample -
-                    filterSamplesPerOutputSample;
-                ++o;
+                output[0] = checkClamp(y + 0.9563*c.x + 0.6210*c.y);
+                output[1] = checkClamp(y - 0.2721*c.x - 0.6474*c.y);
+                output[2] = checkClamp(y - 1.1069*c.x + 1.7046*c.y);
+                output += 3;
             }
+
+            int p = syncPositions[line + 1];
+            int actualSamplesPerLine = p - syncPositions[line];
+            samplesPerLine = (2*samplesPerLine + actualSamplesPerLine)/3;
+            q += samplesPerLine;
+            q = (10*q + p)/11;
+
+//            printf("Line %i: q=%f, p=%i, samplesPerLine=%f, adjust = %f, cyclesPerLine = %f\n",line, q, p, samplesPerLine, adjust*pixelsPerLine, cyclesPerLine);
         }
 
 
-        // Pass 4 - save to disk
+        // Pass 3 - write data
 
-        AutoHandle out = File("output.raw").openWrite();
-        out.write(&outputBuffer[0], outputSize*3);
+        AutoHandle out = File("q:\\output.raw", true).openWrite();
+        out.write(&outputBuffer[0], pixels*3);
     }
 };

@@ -277,9 +277,7 @@ public:
     SRGB toSrgb24(const Colour& colour)
     {
         Colour c = _implementation->toSrgb(colour);
-        return SRGB(clamp(0, static_cast<int>(c.x), 255),
-            clamp(0, static_cast<int>(c.y), 255),
-            clamp(0, static_cast<int>(c.z), 255));
+        return SRGB(byteClamp(c.x), byteClamp(c.y), byteClamp(c.z));
     }
 private:
     ColourSpaceTemplate(ColourSpaceImplementation* implementation)
