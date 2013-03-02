@@ -23,6 +23,7 @@ Windows Console with GUI
           Program::initializeWindows()
             Program::initializeWindowsCommandLine()
               Program::run()
+
 Unix
   main
     mainTemplate

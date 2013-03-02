@@ -288,101 +288,6 @@ private:
     bool _ending;
 };
 
-void sendKey(int vk, bool down)
-{
-    INPUT input;
-    input.type = INPUT_KEYBOARD;
-    input.ki.dwFlags = (down ? 0 : KEYEVENTF_KEYUP);
-    input.ki.time = 0;
-    input.ki.wVk = vk;
-    IF_ZERO_THROW(SendInput(1, &input, sizeof(INPUT)));
-}
-
-// This is not a complete implementation of SendKeys - it only covers the keys
-// we actually need to send to WinTV to make screenshots. However, the format
-// is the same so it could be expanded into SendKeys.
-void sendKeys(String keys)
-{
-    bool shift = false;
-    bool alt = false;
-    CharacterSource s(keys);
-    do {
-        bool shiftNeeded = false;
-        int c = s.get();
-        if (c == -1)
-            break;
-        int vk = 0;
-        if (c >= 'a' && c <= 'z') {
-            shiftNeeded = false;
-            vk = (c - 'a') + 0x41;
-        }
-        if (c >= 'A' && c <= 'Z') {
-            shiftNeeded = true;
-            vk = c;
-        }
-        if (c >= '0' && c <= '9') {
-            shiftNeeded = false;
-            vk = c;
-        }
-        if (c == '-') {
-            shiftNeeded = false;
-            vk = VK_OEM_MINUS;
-        }
-        if (c == '_') {
-            shiftNeeded = true;
-            vk = VK_OEM_MINUS;
-        }
-        if (c == '.') {
-            shiftNeeded = false;
-            vk = VK_OEM_PERIOD;
-        }
-        if (c == ' ') {
-            shiftNeeded = false;
-            vk = VK_SPACE;
-        }
-        if (c == '%') {
-            shiftNeeded = false;
-            vk = VK_MENU;  // alt
-        }
-        if (c == '~') {
-            shiftNeeded = false;
-            vk = VK_RETURN;
-        }
-        if (c == '\\') {
-            shiftNeeded = false;
-            vk = VK_OEM_5;
-        }
-        if (c == ':') {
-            shiftNeeded = true;
-            vk = VK_OEM_1;
-        }
-        if (c == '{') {
-            bool eof;
-            String k = s.delimitString("}", &eof);
-            shiftNeeded = false;
-            if (k == "TAB")
-                vk = VK_TAB;
-            if (k == "DOWN")
-                vk = VK_DOWN;
-            if (k == "F4")
-                vk = VK_F4;
-        }
-        if (shift && !shiftNeeded) {
-            sendKey(VK_SHIFT, false);
-            shift = false;
-        }
-        else
-            if (!shift && shiftNeeded) {
-                sendKey(VK_SHIFT, true);
-                shift = true;
-            }
-        sendKey(vk, true);
-        sendKey(vk, false);
-    } while (true);
-    if (shift)
-        sendKey(VK_SHIFT, false);
-}
-
 class AudioCapture : public ReferenceCounted
 {
 public:
@@ -885,13 +790,31 @@ public:
                                     processed = true;
                                     String fileName = _item->secret() +
                                         imageCount + ".png";
-                                    HWND hWinTV = FindWindow(L"WinTV_32",
-                                        L"WinTV32");
-                                    IF_NULL_THROW(hWinTV);
-                                    IF_NULL_THROW(SetForegroundWindow(hWinTV));
-                                    sendKeys("%fa" + htDocsPath(fileName) +
-                                        "{TAB}p{DOWN}{DOWN}{DOWN}{TAB}~");
-                                    Sleep(1500);
+                                    String path = "C:\\Program Files\\Apache S"
+                                        "oftware Foundation\\Apache2.2\\htdocs"
+                                        "\\" + fileName;
+
+                                    String commandLine = "\"C:\\capture_field."
+                                        "exe\" \"" + path + "\"";
+                                    NullTerminatedWideString data(commandLine);
+
+                                    PROCESS_INFORMATION pi;
+                                    ZeroMemory(&pi,
+                                        sizeof(PROCESS_INFORMATION));
+
+                                    STARTUPINFO si;
+                                    ZeroMemory(&si, sizeof(STARTUPINFO));
+                                    si.cb = sizeof(STARTUPINFO);
+
+                                    IF_FALSE_THROW(CreateProcess(NULL, data,
+                                        NULL, NULL, FALSE, 0, NULL, NULL, &si,
+                                        &pi) != 0);
+                                    CloseHandle(pi.hThread);
+                                    AutoHandle hLame = pi.hProcess;
+                                    IF_FALSE_THROW(
+                                        WaitForSingleObject(hLame, 3*60*1000)
+                                        == WAIT_OBJECT_0);
+
                                     _item->write("\n<img src=\"../" +
                                         fileName + "\"/>\n");
                                     ++imageCount;

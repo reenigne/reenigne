@@ -1,7 +1,65 @@
 #include "alfe/main.h"
-#include "alfe/complex.h"
-#include "alfe/terminal6.h"
 #include "alfe/bitmap_png.h"
+#include "alfe/terminal6.h"
+#include "alfe/complex.h"
+
+class CalibrateImage;
+
+typedef RootWindow<Window> RootWindow2;
+typedef ImageWindow<RootWindow2, CalibrateImage> ImageWindow2;
+
+class Slider
+{
+public:
+    Slider() { }
+    Slider(double low, double high, double initial, String caption, double* p, int max = 512)
+      : _low(low), _high(high), _caption(caption), _p(p), _max(max)
+    {
+        *p = initial;
+        _dragStartX = (initial - low)*max/(high - low);
+    }
+    void setBitmap(Bitmap<SRGB> bitmap) { _bitmap = bitmap; }
+    void slideTo(int x)
+    {
+        if (x < 0)
+            x = 0;
+        if (x >= _max)
+            x = _max - 1;
+        _dragStartX = x;
+        *_p = (_high - _low)*x/_max + _low;
+        draw();
+    }
+    void draw()
+    {
+        char buffer[0x20];
+        for (int i = 0; i < 0x20; ++i)
+            buffer[i] = 0;
+        sprintf(buffer, ": %lf", *_p);
+        int x = 0;
+        for (; x < _caption.length(); ++x)
+            drawCharacter(x, _caption[x]);
+        for (int x2 = 0; x2 < 0x20; ++x2)
+            drawCharacter(x + x2, buffer[x2]);
+    }
+
+    void drawCharacter(int x, char c)
+    {
+        for (int y = 0; y < 8; ++y)
+            for (int xx = 0; xx < 6; ++xx)
+                _bitmap[Vector(x*6 + xx, y)] = (((glyphs[c*8 + y] << xx) & 0x80) != 0 ? SRGB(255, 255, 255) : SRGB(0, 0, 0));
+    }
+
+    int currentX() { return _dragStartX; }
+private:
+    double _low;
+    double _high;
+    String _caption;
+    double* _p;
+    int _dragStartX;
+    int _max;
+
+    Bitmap<SRGB> _bitmap;
+};
 
 float sinc(float z)
 {
@@ -37,14 +95,12 @@ class NTSCDecoder
 public:
     NTSCDecoder()
     {
-        contrast = 1.41;
-        brightness = -11.0;
-        saturation = 0.303;
+        contrast = 1.97;
+        brightness = -72.8;
+        saturation = 0.25;
         hue = 0;
-        wobbleAmplitude = 0.0042;
-        wobblePhase = 0.94;
-        //wobbleAmplitude = 0;
-        //wobblePhase = 180;
+        wobbleAmplitude = 0;
+        wobblePhase = 180;
     }
     void setBuffers(Byte* input, Byte* output) { _input = input; _output = output; }
 
@@ -80,7 +136,6 @@ public:
         Complex<float> wobbleRotor = 0;
         Complex<float> hueRotor = rotor((33 + hue)/360);
         float totalBurstAmplitude = 0;
-        float burstDCAverage = 0;
         for (int line = 0; line < lines + 1; ++line) {
             Complex<float> burst = 0;
             float burstDC = 0;
@@ -95,20 +150,18 @@ public:
             totalBurstAmplitude += burstAmplitude;
             wobbleRotor += burstAmplitude*rotor(burst.argument() * 8 / tau);
             bursts[line] = burst*hueRotor/burstSamples;
-            burstDC /= burstSamples;
-            burstDCs[line] = burstDC;
+            burstDCs[line] = burstDC/burstSamples;
 
             syncPositions[line] = p;
             oldP = p;
             for (int i = 0; i < driftSamples*2; ++i) {
-                if (b[p] < 9)
+                if (b[p] == 0)
                     break;
                 ++p;
             }
             p += nominalSamplesPerLine - driftSamples;
 
             samplesPerLine = (2*samplesPerLine + p - oldP)/3;
-            burstDCAverage = (2*burstDCAverage + burstDC)/3;
         }
         float averageBurstAmplitude = totalBurstAmplitude / (lines + 1);
         //wobbleAmplitude = 0.0042; //wobbleRotor.modulus() / (lines + 1);
@@ -119,7 +172,10 @@ public:
 
         // Pass 2 - render
 
+        int pixels = lines*pixelsPerLine;
         Byte* output = _output;
+
+        
 
         float q = syncPositions[1] - samplesPerLine;
         Complex<float> burst = bursts[0];
@@ -143,13 +199,12 @@ public:
             float adjust = -phaseDifference/pixelsPerLine;
 
             Complex<float> chromaAdjust = burst.conjugate()*contrast1*saturation;
-            burstDCAverage = (2*burstDCAverage + burstDCs[line])/3;
-            float brightness1 = brightness + 65 - burstDCAverage;
+            float brightness1 = brightness;
 
             // Resample the image data
 
-            //float samplesPerLine = nominalSamplesPerLine + deltaSamplesPerLine;
-            for (int x = 101; x < 101 + 640; ++x) {
+            float samplesPerLine = nominalSamplesPerLine + deltaSamplesPerLine;
+            for (int x = 0; x < pixelsPerLine; ++x) {
                 float y = 0;
                 Complex<float> c = 0;
                 float t = 0;
@@ -197,9 +252,7 @@ public:
             samplesPerLine = (2*samplesPerLine + actualSamplesPerLine)/3;
             q += samplesPerLine;
             q = (10*q + p)/11;
-
 //            console.write(".");
-            printf("Line %i: actual=%i, samplesPerLine=%f, adjust=%f, phaseDifference=%f, expected=%f, actual=%f, phase=%f\n",line,actualSamplesPerLine,samplesPerLine,adjust,phaseDifference,expectedBurst.argument(),actualBurst.argument(),phase);
         }
     }
     float contrast;
@@ -212,86 +265,71 @@ public:
     Byte* _output;
 };
 
-class Slider
-{
-public:
-    Slider() { }
-    Slider(double low, double high, double initial, String caption, float* p, int max = 512)
-      : _low(low), _high(high), _caption(caption), _p(p), _max(max)
-    {
-        *p = initial;
-        _dragStartX = (initial - low)*max/(high - low);
-    }
-    void setBitmap(Bitmap<SRGB> bitmap) { _bitmap = bitmap; }
-    void slideTo(int x)
-    {
-        if (x < 0)
-            x = 0;
-        if (x >= _max)
-            x = _max - 1;
-        _dragStartX = x;
-        *_p = (_high - _low)*x/_max + _low;
-        draw();
-    }
-    void draw()
-    {
-        char buffer[0x20];
-        for (int i = 0; i < 0x20; ++i)
-            buffer[i] = 0;
-        sprintf(buffer, ": %lf", *_p);
-        int x = 0;
-        for (; x < _caption.length(); ++x)
-            drawCharacter(x, _caption[x]);
-        for (int x2 = 0; x2 < 0x20; ++x2) 
-            drawCharacter(x + x2, buffer[x2]);
-    }
-
-    void drawCharacter(int x, char c)
-    {
-        for (int y = 0; y < 8; ++y)
-            for (int xx = 0; xx < 6; ++xx)
-                _bitmap[Vector(x*6 + xx, y)] = (((glyphs[c*8 + y] << xx) & 0x80) != 0 ? SRGB(0xff, 0xff, 0x00) : SRGB(0, 0, 0xff));
-    }
-
-    int currentX() { return _dragStartX; }
-private:
-    double _low;
-    double _high;
-    String _caption;
-    float* _p;
-    int _dragStartX;
-    int _max;
-
-    Bitmap<SRGB> _bitmap;
-};
-
-class CalibrateImage;
-typedef RootWindow<Window> RootWindow2;
-typedef ImageWindow<RootWindow2, CalibrateImage> ImageWindow2;
-
 class CalibrateImage : public Image
 {
 public:
-    void setWindow(ImageWindow2* window, NTSCDecoder* decoder)
+    void setWindow(ImageWindow2* window)
     {
-        _output = Bitmap<SRGB>(Vector(1536, 1024));
-
         _window = window;
-        _decoder = decoder;
 
-        _sliderCount = 6;
-        //_sliders[0] = Slider(0, 1, 0.25, "saturation", &decoder->saturation);
-        //_sliders[1] = Slider(-180, 180, 0, "hue", &decoder->hue);
-        //_sliders[2] = Slider(-25500, 255, -72.8, "brightness", &decoder->brightness);
-        //_sliders[3] = Slider(0, 100, 1.97, "contrast", &decoder->contrast);
-        //_sliders[4] = Slider(0, 0.01, 0, "wobbleAmplitude", &decoder->wobbleAmplitude);
-        //_sliders[5] = Slider(0, 1, 0.5, "wobblePhase", &decoder->wobblePhase);
-        _sliders[0] = Slider(0, 1, 0.303, "saturation", &decoder->saturation);
-        _sliders[1] = Slider(-180, 180, 0, "hue", &decoder->hue);
-        _sliders[2] = Slider(-255, 255, -11.0 /* -72.8*/, "brightness", &decoder->brightness);
-        _sliders[3] = Slider(0, 4, 1.41, "contrast", &decoder->contrast);
-        _sliders[4] = Slider(0, 0.01, 0.0042, "wobbleAmplitude", &decoder->wobbleAmplitude);
-        _sliders[5] = Slider(0, 1, 0.94, "wobblePhase", &decoder->wobblePhase);
+        double brightness = -0.124;
+        double contrast = 1.052;
+
+        BitmapFileFormat<SRGB> png = PNGFileFormat();
+        _top1 = png.load(File("../../../../../top1.png"));
+        _top2 = png.load(File("../../../../../top2.png"));
+        _bottom1 = png.load(File("../../../../../bottom1.png"));
+        _bottom2 = png.load(File("../../../../../bottom2.png"));
+        _output = Bitmap<SRGB>(Vector(1536, 1024));
+        _rgb = ColourSpace::rgb();
+
+        AutoHandle ht = File("q:\\top.raw", true).openRead();
+        AutoHandle hb = File("q:\\bottom.raw", true).openRead();
+
+        static const int samples = 450*1024;
+        static const int sampleSpaceBefore = 256;
+        static const int sampleSpaceAfter = 256;
+        _topNTSC.allocate(sampleSpaceBefore + samples + sampleSpaceAfter);
+        _bottomNTSC.allocate(sampleSpaceBefore + samples + sampleSpaceAfter);
+        Byte* bt = &_topNTSC[0] + sampleSpaceBefore;
+        Byte* bb = &_bottomNTSC[0] + sampleSpaceBefore;
+        for (int i = 0; i < sampleSpaceBefore; ++i) {
+            bt[i - sampleSpaceBefore] = 0;
+            bb[i - sampleSpaceBefore] = 0;
+        }
+        for (int i = 0; i < sampleSpaceAfter; ++i) {
+            bt[i + samples] = 0;
+            bb[i + samples] = 0;
+        }
+        for (int i = 0; i < 450; ++i) {
+            ht.read(&bt[i*1024], 1024);
+            hb.read(&bb[i*1024], 1024);
+        }
+        _topDecoded = Bitmap<SRGB>(Vector(760, 240));
+        _bottomDecoded = Bitmap<SRGB>(Vector(760, 240));
+
+        _captures = Bitmap<Colour>(Vector(256, 16));
+
+        for (int fg = 0; fg < 16; ++fg)
+            for (int bg = 0; bg < 16; ++bg)
+                for (int bits = 0; bits < 16; ++bits) {
+                    int x = (fg << 3) | ((bits & 3) << 1);
+                    int y = (bg << 3) | ((bits & 0xc) >> 1);
+                    Colour rgb = getPixel4(fg, bg, bits);
+                    _captures[Vector(bg*16 + fg, bits)] = rgb;
+                    SRGB c = _rgb.toSrgb24(rgb);
+                    for (int xx = 0; xx < 16; ++xx)
+                        for (int yy = 0; yy < 8; ++yy) {
+                            Vector p = (Vector(x, y)<<3) + Vector(xx, yy);
+                            _output[p] = c;
+                        }
+                }
+
+        _sliderCount = 4;
+        _sliders[0] = Slider(0, 1, 0.238, "saturation", &_saturation);
+        _sliders[1] = Slider(-180, 180, 0, "hue", &_hue);
+        _sliders[2] = Slider(-255, 255, -103.6, "brightness", &_brightness);
+        _sliders[3] = Slider(0, 4, 1.969, "contrast", &_contrast);
 
         for (int i = 0; i < _sliderCount; ++i) {
             _sliders[i].setBitmap(_output.subBitmap(Vector(1024, i*8), Vector(512, 8)));
@@ -302,29 +340,36 @@ public:
 
     virtual void draw()
     {
-        _decoder->decode();
+        NTSCDecoder decoder;
+        decoder.brightness = _brightness;
+        decoder.contrast = _contrast;
+        decoder.hue = _hue;
+        decoder.saturation = _saturation;
+        decoder.setBuffers(&_topNTSC[0], _topDecoded.data());
+        decoder.decode();
+        decoder.setBuffers(&_bottomNTSC[0], _bottomDecoded.data());
+        decoder.decode();
 
-        {
-            Byte* row = _output.data();
-            const Byte* otherRow = _decoder->_output;
-            for (int y = 0; y < 240; ++y) {
-                SRGB* p = reinterpret_cast<SRGB*>(row);
-                const SRGB* op = reinterpret_cast<const SRGB*>(otherRow);
-                for (int x = 0; x < 640; ++x) {
-                    *p = *op;
-                    ++p;
-                    ++op;
+        for (int fg = 0; fg < 16; ++fg)
+            for (int bg = 0; bg < 16; ++bg)
+                for (int bits = 0; bits < 16; ++bits) {
+                    int x = (fg << 3) | ((bits & 3) << 1);
+                    int y = (bg << 3) | ((bits & 0xc) >> 1);
+                    SRGB g = decode(fg, bg, bits);
+                    for (int xx = 0; xx < 16; ++xx)
+                        for (int yy = 0; yy < 8; ++yy) {
+                            Vector p = (Vector(x, y)<<3) + Vector(xx, yy);
+                            _output[p + Vector(0, 8)] = g;
+                        }
                 }
-                row += _output.stride();
-                otherRow += 640*3;
-            }
-        }
 
+        Vector zero(0, 0);
         Vector sz = size();
         if (sz.x > 1536)
             sz.x = 1536;
         if (sz.y > 1024)
             sz.y = 1024;
+        //subBitmap(zero, s).copyFrom(_output.subBitmap(zero, s));
 
         Byte* row = data();
         const Byte* otherRow = _output.data();
@@ -369,10 +414,126 @@ public:
             _window->invalidate();
         }
     }
+
+private:
+    SRGB decode(int foreground, int background, int bits)
+    {
+        return _rgb.toSrgb24(getPixel4(foreground, background, bits, true));
+    }
+
+    SRGB getPixel0(int bitmap, Vector p)
+    {
+        Bitmap<SRGB> b;
+        switch (bitmap) {
+            case 0: b = _top1; break;
+            case 1: b = _top2; break;
+            case 2: b = _bottom1; break;
+            case 3: b = _bottom2; break;
+        }
+        return b[p];
+    }
+    SRGB getDecodedPixel0(int bitmap, Vector p)
+    {
+        Bitmap<SRGB> b;
+        switch (bitmap) {
+            case 0: b = _topDecoded; break;
+            case 1: b = _bottomDecoded; break;
+        }
+        return b[p];
+    }
+    Colour getPixel1(int bitmap, Vector p)
+    {
+        Colour p0 = _rgb.fromSrgb(getPixel0(bitmap << 1, p));
+        Colour p1 = _rgb.fromSrgb(getPixel0((bitmap << 1) | 1, p));
+        return (p0 + p1)/2;
+    }
+    Colour getDecodedPixel1(int bitmap, Vector p)
+    {
+        return _rgb.fromSrgb(getDecodedPixel0(bitmap, p));
+    }
+    Colour getPixel2(Vector p, bool decoded)
+    {
+        int bitmap = 0;
+        if (p.y >= 100) {
+            bitmap = 1;
+            p.y -= 100;
+        }
+        if (decoded) {
+            Vector p2(p.x*40/3 + 158, p.y*2 + 17);
+            Colour c(0, 0, 0);
+            c += getDecodedPixel1(bitmap, p2);
+            c += getDecodedPixel1(bitmap, p2 + Vector(0, 1));
+            return c/2;
+        }
+
+        Vector p2(p.x*14 + 31, p.y*4 + 14);
+        Colour c(0, 0, 0);
+        c += getPixel1(bitmap, p2);
+        c += getPixel1(bitmap, p2 + Vector(0, 1));
+        c += getPixel1(bitmap, p2 + Vector(1, 0));
+        c += getPixel1(bitmap, p2 + Vector(1, 1));
+        c += getPixel1(bitmap, p2 + Vector(-1, 0));
+        c += getPixel1(bitmap, p2 + Vector(-1, 1));
+        c += getPixel1(bitmap, p2 + Vector(-2, 0));
+        c += getPixel1(bitmap, p2 + Vector(-2, 1));
+        return c/8;
+    }
+    Colour getPixel3(int patch, int line, int set, bool decoded)
+    {
+        int y = (set/3)*2;
+        bool firstHalf = (patch < 3);
+        patch += line*10;
+        switch (set % 3) {
+            case 0: return getPixel2(Vector(patch, y), decoded);
+            case 1:
+                if (firstHalf)
+                    return getPixel2(Vector(patch + 6, y), decoded);
+                return getPixel2(Vector(patch - 3, y + 1), decoded);
+            case 2: return getPixel2(Vector(patch + 3, y + 1), decoded);
+        }
+        return Colour(0, 0, 0);
+    }
+    Colour getPixel4(int fg, int bg, int bits, bool decoded = false)
+    {
+        int patch = 0;
+        int row = 0;
+        Colour c(0, 0, 0);
+        switch (bits) {
+            case 0x00: return getPixel3(2, 0, (bg << 4) | bg, decoded);
+            case 0x01: return getPixel3(0, 1, (fg << 4) | bg, decoded);
+            case 0x02: return getPixel3(1, 0, (bg << 4) | fg, decoded);
+            case 0x03: return getPixel3(2, 0, (fg << 4) | bg, decoded);
+            case 0x04: return getPixel3(5, 3, (fg << 4) | bg, decoded);
+            case 0x05: return getPixel3(3, 0, (bg << 4) | fg, decoded);
+            case 0x06: return getPixel3(4, 0, (bg << 4) | fg, decoded);
+            case 0x07: return getPixel3(1, 1, (fg << 4) | bg, decoded);
+            case 0x08: return getPixel3(1, 1, (bg << 4) | fg, decoded);
+            case 0x09: return getPixel3(4, 0, (fg << 4) | bg, decoded);
+            case 0x0a: return getPixel3(3, 0, (fg << 4) | bg, decoded);
+            case 0x0b: return getPixel3(5, 3, (bg << 4) | fg, decoded);
+            case 0x0c: return getPixel3(2, 0, (bg << 4) | fg, decoded);
+            case 0x0d: return getPixel3(1, 0, (fg << 4) | bg, decoded);
+            case 0x0e: return getPixel3(0, 1, (bg << 4) | fg, decoded);
+            case 0x0f: return getPixel3(2, 0, (fg << 4) | fg, decoded);
+        }
+        return c;
+    }
+
+    Bitmap<SRGB> _top1;
+    Bitmap<SRGB> _top2;
+    Bitmap<SRGB> _bottom1;
+    Bitmap<SRGB> _bottom2;
     Bitmap<SRGB> _output;
+    Array<Byte> _topNTSC;
+    Array<Byte> _bottomNTSC;
+    Bitmap<SRGB> _topDecoded;
+    Bitmap<SRGB> _bottomDecoded;
+    ColourSpace _rgb;
+
+    double _ab;
+    Complex<double> _qamAdjust;
 
     ImageWindow2* _window;
-    NTSCDecoder* _decoder;
 
     Slider _sliders[19];
     int _slider;
@@ -380,6 +541,13 @@ public:
 
     Vector _dragStart;
     int _dragStartX;
+
+    double _saturation;
+    double _hue;
+    double _brightness;
+    double _contrast;
+
+    Bitmap<Colour> _captures;
 };
 
 template<class Base> class CalibrateWindow : public Base
@@ -398,10 +566,10 @@ public:
 
     CalibrateWindow() { }
 
-    void create(Params p, NTSCDecoder* decoder)
+    void create(Params p)
     {
         Base::create(p._bp);
-        _image->setWindow(this, decoder);
+        _image->setWindow(this);
     }
 
     virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -431,92 +599,11 @@ private:
     }
 };
 
-
 class Program : public ProgramBase
 {
 public:
     void run()
     {
-        //String name = "q:\\input.raw";
-        //String name = "q:\\bottom.raw";
-        String inName = "q:\\world.raw";
-        AutoHandle h = File(inName, true).openRead();
-        //AutoHandle h = File("\\\\.\\pipe\\vbicap", true).openPipe();
-        //h.write<int>(1);
-
-        static const int samples = 450*1024;
-        static const int sampleSpaceBefore = 256;
-        static const int sampleSpaceAfter = 256;
-        Array<Byte> buffer(sampleSpaceBefore + samples + sampleSpaceAfter);
-        Byte* b = &buffer[0] + sampleSpaceBefore;
-        for (int i = 0; i < sampleSpaceBefore; ++i)
-            b[i - sampleSpaceBefore] = 0;
-        for (int i = 0; i < sampleSpaceAfter; ++i)
-            b[i + samples] = 0;
-        for (int i = 0; i < 450; ++i)
-            h.read(&b[i*1024], 1024);
-
-        Bitmap<SRGB> decoded(Vector(640, 240));
-
-        NTSCDecoder decoder;
-        decoder.setBuffers(b, decoded.data());
-
-#if 1
-        decoder.decode();
-        PNGFileFormat png;
-        Bitmap<SRGB> output(Vector(640, 480));
-
-        //float z0 = 0;
-        //for (int o = 0; o < 480; ++o) {
-        //    //float a = 0;
-        //    float t = 0;
-        //    float fk = o*240.0/480.0;
-        //    int k = fk;
-        //    fk -= k;
-        //    int firstInput = fk - 3;
-        //    int lastInput = fk + 3;
-        //    Vector3<float> a[640];
-        //    for (int x = 0; x < 640; ++x)
-        //        a[x] = Vector3<float>(0, 0, 0);
-        //    for (int j = firstInput; j <= lastInput; ++j) {
-        //        float s = lanczos(j + z0);
-        //        int y = j+k;
-        //        if (y >= 0 && y < 240) {
-        //            for (int x = 0; x < 640; ++x) {
-        //                SRGB srgb = decoded[Vector(x, y)];
-        //                a[x] += Vector3Cast<float>(srgb)*s;
-        //            }
-        //            t += s;
-        //        }
-        //    }
-        //    for (int x = 0; x < 640; ++x) {
-        //        Vector3<float> c = a[x]/t;
-        //        output[Vector(x, o)] = SRGB(byteClamp(c.x), byteClamp(c.y), byteClamp(c.z));
-        //    }
-        //    int k1 = (o + 1)*240.0/480.0;
-        //    z0 += (k1 - k) - 240.0/480.0;
-        //}
-        for (int o = 0; o < 478; o += 2) {
-            for (int x = 0; x < 640; ++x) {
-                output[Vector(x, o)] = decoded[Vector(x, o/2)];
-                Vector3<int> a = Vector3Cast<int>(decoded[Vector(x, o/2)]) + Vector3Cast<int>(decoded[Vector(x, o/2 + 1)]);
-                output[Vector(x, o+1)] = Vector3Cast<Byte>(a/2);
-                //output[Vector(x, o+1)] = decoded[Vector(x, o/2)];
-            }
-        }
-        for (int x = 0; x < 640; ++x) {
-            output[Vector(x, 478)] = decoded[Vector(x, 239)];
-            output[Vector(x, 479)] = decoded[Vector(x, 239)];
-        }
-
-        String name = "captured.png";
-        if (_arguments.count() >= 2)
-            name = _arguments[1];
-        png.save(output, File(name, true));
-
-        AutoHandle out = File(name + ".raw", true).openWrite();
-        out.write(b, 450*1024);
-#else
         CalibrateImage image;
 
         Window::Params wp(&_windows, L"CGA Calibration", Vector(1536, 1024));
@@ -525,10 +612,9 @@ public:
         typedef CalibrateWindow<ImageWindow2> CalibrateWindow;
         CalibrateWindow::Params cwp(iwp);
         CalibrateWindow window;
-        window.create(cwp, &decoder);
+        window.create(cwp);
 
         window.show(_nCmdShow);
         pumpMessages();
-#endif
     }
 };

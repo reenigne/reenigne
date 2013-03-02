@@ -286,9 +286,13 @@ interrupt8:
 
   mov ax,((20 - 1) << 8) | 0x00        ;Horizontal total
   out dx,ax
-  mov ax,0x150c
+;  mov ax,0x150c
+;  out dx,ax
+;  mov ax,0x180d
+;  out dx,ax
+  mov ax,0x070c
   out dx,ax
-  mov ax,0x180d
+  mov ax,0x080d
   out dx,ax
   mov ax,((100 - 1) << 8) | 0x04       ;Vertical total
   out dx,ax
@@ -326,9 +330,13 @@ interrupt8:
 
   mov ax,((20 - 1) << 8) | 0x00        ;Horizontal total
   out dx,ax
-  mov ax,0x0e0c
+;  mov ax,0x0e0c
+;  out dx,ax
+;  mov ax,0x100d
+;  out dx,ax
+  mov ax,0x000c
   out dx,ax
-  mov ax,0x100d
+  mov ax,0x000d
   out dx,ax
   mov ax,((114 - 1) << 8) | 0x04       ;Vertical total
   out dx,ax
