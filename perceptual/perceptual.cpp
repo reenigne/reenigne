@@ -382,7 +382,7 @@ public:
         for (int i = 0; i < 9; ++i)
             _matrix[i] = (i%4 == 0 ? 1 : 0);
         for (int i = 0; i < 3; ++i) {
-            double a = static_cast<double>(axes[i] & 0x7f)*2*M_PI/128.0;
+            double a = static_cast<double>(axes[i] & 0x7f)*tau/128.0;
             double c = cos(a);
             double s = sin(a);
             double m[9];

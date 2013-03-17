@@ -71,14 +71,14 @@ public:
         *p = c;
         ++p;
     }
-    
+
     void run()
     {
         Array<DWord> hues(0x200);
         for (int c = 0; c < 0x200; ++c) {
-            int r = clamp(0, static_cast<int>(sin(           c*M_PI*2/0x200)*128.0+128.0), 255);
-            int g = clamp(0, static_cast<int>(sin(2*M_PI/3 + c*M_PI*2/0x200)*128.0+128.0), 255);
-            int b = clamp(0, static_cast<int>(sin(4*M_PI/3 + c*M_PI*2/0x200)*128.0+128.0), 255);
+            int r = byteClamp(sin(          c*tau/0x200)*128.0+128.0);
+            int g = byteClamp(sin(  tau/3 + c*tau/0x200)*128.0+128.0);
+            int b = byteClamp(sin(2*tau/3 + c*tau/0x200)*128.0+128.0);
             hues[c] = (r << 16) + (g << 8) + b;
         }
 

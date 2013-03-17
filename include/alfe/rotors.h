@@ -16,7 +16,7 @@ public:
     Rotor2() : _c(1), _s(0) { }
     Rotor2(T angle)
     {
-        T a = static_cast<T>(angle*2*M_PI);
+        T a = static_cast<T>(angle*tau);
         _c = cos(a);
         _s = sin(a);
     }

@@ -79,7 +79,7 @@ protected:
                 int pattern = (x - 8)/40;
                 if (x < 8 || x >= 640 + 8)
                     pattern = 0;
-                
+
             }
 
 
@@ -95,7 +95,7 @@ private:
     {
         double Ys[1280],Is[1280],Qs[1280];
         int Rs[1280],Gs[1280],Bs[1280];
-        double hue_adjust = -(45+33)*M_PI/180.0;
+        double hue_adjust = -(45+33)*tau/360;
 
         int gamma[256];
         for (int i = 0; i < 256; ++i)
@@ -196,8 +196,8 @@ private:
                     ((rgbi & 2) != 0 ? 0.22 : 0) + ((rgbi & 4) != 0 ? 0.1 : 0);
 #endif
 
-                double s = sin(hue_adjust + (x&7)*M_PI/4.0);
-                double c = cos(hue_adjust + (x&7)*M_PI/4.0);
+                double s = sin(hue_adjust + (x&7)*tau/8);
+                double c = cos(hue_adjust + (x&7)*tau/8);
                 Ys[x]=composite;
                 if (bw)
                     Is[x]=Qs[x]=0;

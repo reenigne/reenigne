@@ -143,10 +143,7 @@ template<class T> class SRGBColourSpaceImplementationTemplate
 {
 public:
     Colour fromSrgb(const Colour& srgb) { return srgb; }
-    Colour toSrgb(const Colour& srgb)
-    {
-        return Vector3Cast<UInt8>(srgb);
-    }
+    Colour toSrgb(const Colour& srgb) { return srgb; }
     Colour fromRgb(const Colour& rgb)
     {
         return ColourSpace::rgb().toSrgb(rgb);

@@ -27,9 +27,8 @@ template<class T> Byte checkClamp(T x)
 
 Complex<float> rotor(float phase)
 {
-    static const float tau = 2*M_PI;
     float angle = phase*tau;
-    return Complex<float>(cos(angle), sin(angle)); 
+    return Complex<float>(cos(angle), sin(angle));
 }
 
 class NTSCDecoder
@@ -61,7 +60,6 @@ public:
         static const int driftSamples = 40;
         static const int burstSamples = 40;
         static const int firstBurstSample = 192;
-        static const float tau = 2*M_PI;
         static const int burstCenter = firstBurstSample + burstSamples/2;
 
         Byte* b = _input;
@@ -91,6 +89,7 @@ public:
                 burst += rotor(phase)*sample;
                 burstDC += sample;
             }
+
             float burstAmplitude = burst.modulus()/burstSamples;
             totalBurstAmplitude += burstAmplitude;
             wobbleRotor += burstAmplitude*rotor(burst.argument() * 8 / tau);
@@ -126,6 +125,8 @@ public:
         float rotorTable[8];
         for (int i = 0; i < 8; ++i)
             rotorTable[i] = rotor(i/8.0).x*saturation;
+        Complex<float> expectedBurst = burst;
+        int oldActualSamplesPerLine = nominalSamplesPerLine;
         for (int line = 0; line < lines; ++line) {
             // Determine the phase, amplitude and DC offset of the color signal
             // from the color burst, which starts shortly after the horizontal
@@ -134,8 +135,6 @@ public:
 
             float contrast1 = contrast;
             int samplesPerLineInt = samplesPerLine;
-            float phase = samplesPerLine - (samplesPerLineInt & ~7);
-            Complex<float> expectedBurst = burst*rotor(phase/nominalSamplesPerCycle);
             Complex<float> actualBurst = bursts[line];
             burst = (expectedBurst*2 + actualBurst)/3;
 
@@ -198,8 +197,8 @@ public:
             q += samplesPerLine;
             q = (10*q + p)/11;
 
-//            console.write(".");
-            printf("Line %i: actual=%i, samplesPerLine=%f, adjust=%f, phaseDifference=%f, expected=%f, actual=%f, phase=%f\n",line,actualSamplesPerLine,samplesPerLine,adjust,phaseDifference,expectedBurst.argument(),actualBurst.argument(),phase);
+            expectedBurst = actualBurst;
+            //printf("line %i: actual=%f, used=%f. difference=%f\n",line,actualBurst.argument()*360/tau, burst.argument()*360/tau, actualBurst.argument()*360/tau - burst.argument()*360/tau);
         }
     }
     float contrast;
@@ -242,7 +241,7 @@ public:
         int x = 0;
         for (; x < _caption.length(); ++x)
             drawCharacter(x, _caption[x]);
-        for (int x2 = 0; x2 < 0x20; ++x2) 
+        for (int x2 = 0; x2 < 0x20; ++x2)
             drawCharacter(x + x2, buffer[x2]);
     }
 
@@ -437,8 +436,8 @@ class Program : public ProgramBase
 public:
     void run()
     {
-        //String name = "q:\\input.raw";
-        //String name = "q:\\bottom.raw";
+        //String inName = "q:\\input.raw";
+        //String inName = "q:\\bottom.raw";
         String inName = "q:\\world.raw";
         AutoHandle h = File(inName, true).openRead();
         //AutoHandle h = File("\\\\.\\pipe\\vbicap", true).openPipe();

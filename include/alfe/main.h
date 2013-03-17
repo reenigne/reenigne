@@ -23,6 +23,8 @@
 
 #define _USE_MATH_DEFINES
 #include <math.h>
+static const double tau = 2*M_PI;
+
 
 bool alerting = false;
 

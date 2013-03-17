@@ -164,7 +164,7 @@ public:
             Array<double> wave(samplesPerWaveform);
             for (int sample = 0; sample < samplesPerWaveform; ++sample)
                 waves[sample] = clamp(-32768.0,
-                    0x8000*sin(sample*2*M_PI/samplesPerWaveform), 32767.0);
+                    0x8000*sin(sample*tau/samplesPerWaveform), 32767.0);
             FileHandle handle = File("waves.raw").openWrite();
             for (int i = 0; i < 50; ++i)
                 handle.write(&waves[0], samplesPerWaveform * sizeof(Sample));
@@ -175,7 +175,7 @@ public:
                 for (int harmonic = 1; harmonic < samplesPerWaveform; ++harmonic) {
                     double amplitude = pow(harmonic, power)*(random(0x100) + 1);
                     for (int sample = 0; sample < samplesPerWaveform; ++sample)
-                        wave[sample] += sin(sample*2*M_PI*harmonic/samplesPerWaveform)*amplitude;
+                        wave[sample] += sin(sample*tau*harmonic/samplesPerWaveform)*amplitude;
                     if (amplitude < 1/32768.0)
                         break;
                 }

@@ -26,7 +26,7 @@ void fastRandomInit()
 {
     srand(static_cast<unsigned int>(time(0)));
     for (int i = 0; i < 55; ++i)
-        fastRandomData[i] = (rand() & 0xff) | ((rand() & 0xff)<<8) | 
+        fastRandomData[i] = (rand() & 0xff) | ((rand() & 0xff)<<8) |
             ((rand() & 0xff)<<16) | ((rand() & 0xff)<<24);
     fastRandom1 = rand() % 55;
     fastRandom2 = (fastRandom1 + 24) % 55;
@@ -76,7 +76,7 @@ public:
                 int noise = _noise0[p];
                 p = (p + 1)&1023;
                 int signal = static_cast<int>(reader.item()) - 60;
-                writer.item() = 
+                writer.item() =
                     clamp(1, ((noise + signal*_signalLevel)>>15) + 60, 254);
             }
         }
@@ -98,7 +98,7 @@ class GhostingPipe : public Pipe<Sample, Sample, GhostingPipe>
 public:
     // The inner loop always processes 4 samples at once, so round up.
     GhostingPipe(int n = defaultSampleCount)
-      : Pipe(this, (n + 3)&~3)  
+      : Pipe(this, (n + 3)&~3)
     {
         for (int i = 0; i < 4; ++i)
             _d[i] = 0;
@@ -569,7 +569,7 @@ public:
 
             if (_colorMode) {
                 int yContrast = static_cast<int>(_contrast*1463.0f);
-                float radians = static_cast<float>(M_PI)/180.0f;
+                float radians = static_cast<float>(tau)/360;
                 float tintI = -cos((103.0f + _tint)*radians);
                 float tintQ = sin((103.0f + _tint)*radians);
                 int iqMultipliers[4];

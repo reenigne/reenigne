@@ -146,7 +146,7 @@ public:
         static const float tint = 270.0f + 33.0f;
 
         _yContrast = static_cast<int>(contrast*1463.0f);
-        static const float radians = static_cast<float>(M_PI)/180.0f;
+        static const float radians = static_cast<float>(tau)/360;
         float tintI = -cos(tint*radians);
         float tintQ = sin(tint*radians);
 

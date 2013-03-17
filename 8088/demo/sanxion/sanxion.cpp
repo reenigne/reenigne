@@ -635,7 +635,7 @@ public:
     void run()
     {
         //for (int i = 0; i < 0x100; ++i) {
-        //    int s = static_cast<int>(0x8000*sin(i*2*M_PI/0x100));
+        //    int s = static_cast<int>(0x8000*sin(i*tau/0x100));
         //    printf("%c0x%04x,",s<0 ? '-' : ' ',abs(s));
         //    if (i % 8 == 7)
         //        printf("\n");

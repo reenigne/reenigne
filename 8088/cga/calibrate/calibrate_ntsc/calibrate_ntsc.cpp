@@ -85,9 +85,8 @@ template<class T> Byte checkClamp(T x)
 
 Complex<float> rotor(float phase)
 {
-    static const float tau = 2*M_PI;
     float angle = phase*tau;
-    return Complex<float>(cos(angle), sin(angle)); 
+    return Complex<float>(cos(angle), sin(angle));
 }
 
 class NTSCDecoder
@@ -95,9 +94,9 @@ class NTSCDecoder
 public:
     NTSCDecoder()
     {
-        contrast = 1.97;
-        brightness = -72.8;
-        saturation = 0.25;
+        contrast = 1.41; //1.97;
+        brightness = -11.0; //-72.8;
+        saturation = 0.303; //0.25;
         hue = 0;
         wobbleAmplitude = 0;
         wobblePhase = 180;
@@ -117,7 +116,6 @@ public:
         static const int driftSamples = 40;
         static const int burstSamples = 40;
         static const int firstBurstSample = 192;
-        static const float tau = 2*M_PI;
         static const int burstCenter = firstBurstSample + burstSamples/2;
 
         Byte* b = _input;
@@ -136,6 +134,7 @@ public:
         Complex<float> wobbleRotor = 0;
         Complex<float> hueRotor = rotor((33 + hue)/360);
         float totalBurstAmplitude = 0;
+        float burstDCAverage = 0;
         for (int line = 0; line < lines + 1; ++line) {
             Complex<float> burst = 0;
             float burstDC = 0;
@@ -146,22 +145,25 @@ public:
                 burst += rotor(phase)*sample;
                 burstDC += sample;
             }
+
             float burstAmplitude = burst.modulus()/burstSamples;
             totalBurstAmplitude += burstAmplitude;
             wobbleRotor += burstAmplitude*rotor(burst.argument() * 8 / tau);
             bursts[line] = burst*hueRotor/burstSamples;
-            burstDCs[line] = burstDC/burstSamples;
+            burstDC /= burstSamples;
+            burstDCs[line] = burstDC;
 
             syncPositions[line] = p;
             oldP = p;
             for (int i = 0; i < driftSamples*2; ++i) {
-                if (b[p] == 0)
+                if (b[p] < 9)
                     break;
                 ++p;
             }
             p += nominalSamplesPerLine - driftSamples;
 
             samplesPerLine = (2*samplesPerLine + p - oldP)/3;
+            burstDCAverage = (2*burstDCAverage + burstDC)/3;
         }
         float averageBurstAmplitude = totalBurstAmplitude / (lines + 1);
         //wobbleAmplitude = 0.0042; //wobbleRotor.modulus() / (lines + 1);
@@ -172,16 +174,15 @@ public:
 
         // Pass 2 - render
 
-        int pixels = lines*pixelsPerLine;
         Byte* output = _output;
-
-        
 
         float q = syncPositions[1] - samplesPerLine;
         Complex<float> burst = bursts[0];
         float rotorTable[8];
         for (int i = 0; i < 8; ++i)
             rotorTable[i] = rotor(i/8.0).x*saturation;
+        Complex<float> expectedBurst = burst;
+        int oldActualSamplesPerLine = nominalSamplesPerLine;
         for (int line = 0; line < lines; ++line) {
             // Determine the phase, amplitude and DC offset of the color signal
             // from the color burst, which starts shortly after the horizontal
@@ -190,8 +191,6 @@ public:
 
             float contrast1 = contrast;
             int samplesPerLineInt = samplesPerLine;
-            float phase = samplesPerLine - (samplesPerLineInt & ~7);
-            Complex<float> expectedBurst = burst*rotor(phase/nominalSamplesPerCycle);
             Complex<float> actualBurst = bursts[line];
             burst = (expectedBurst*2 + actualBurst)/3;
 
@@ -199,12 +198,13 @@ public:
             float adjust = -phaseDifference/pixelsPerLine;
 
             Complex<float> chromaAdjust = burst.conjugate()*contrast1*saturation;
-            float brightness1 = brightness;
+            burstDCAverage = (2*burstDCAverage + burstDCs[line])/3;
+            float brightness1 = brightness + 65 - burstDCAverage;
 
             // Resample the image data
 
-            float samplesPerLine = nominalSamplesPerLine + deltaSamplesPerLine;
-            for (int x = 0; x < pixelsPerLine; ++x) {
+            //float samplesPerLine = nominalSamplesPerLine + deltaSamplesPerLine;
+            for (int x = 0 /*101*/; x < 760 /*101 + 640*/; ++x) {
                 float y = 0;
                 Complex<float> c = 0;
                 float t = 0;
@@ -252,7 +252,9 @@ public:
             samplesPerLine = (2*samplesPerLine + actualSamplesPerLine)/3;
             q += samplesPerLine;
             q = (10*q + p)/11;
-//            console.write(".");
+
+            expectedBurst = actualBurst;
+            //printf("line %i: actual=%f, used=%f. difference=%f\n",line,actualBurst.argument()*360/tau, burst.argument()*360/tau, actualBurst.argument()*360/tau - burst.argument()*360/tau);
         }
     }
     float contrast;
@@ -271,9 +273,6 @@ public:
     void setWindow(ImageWindow2* window)
     {
         _window = window;
-
-        double brightness = -0.124;
-        double contrast = 1.052;
 
         BitmapFileFormat<SRGB> png = PNGFileFormat();
         _top1 = png.load(File("../../../../../top1.png"));
@@ -326,10 +325,10 @@ public:
                 }
 
         _sliderCount = 4;
-        _sliders[0] = Slider(0, 1, 0.238, "saturation", &_saturation);
+        _sliders[0] = Slider(0, 1, 0.303 /*0.238*/, "saturation", &_saturation);
         _sliders[1] = Slider(-180, 180, 0, "hue", &_hue);
-        _sliders[2] = Slider(-255, 255, -103.6, "brightness", &_brightness);
-        _sliders[3] = Slider(0, 4, 1.969, "contrast", &_contrast);
+        _sliders[2] = Slider(-255, 255, -11 /*-103.6*/, "brightness", &_brightness);
+        _sliders[3] = Slider(0, 4, 1.41 /*1.969*/, "contrast", &_contrast);
 
         for (int i = 0; i < _sliderCount; ++i) {
             _sliders[i].setBitmap(_output.subBitmap(Vector(1024, i*8), Vector(512, 8)));
@@ -345,10 +344,13 @@ public:
         decoder.contrast = _contrast;
         decoder.hue = _hue;
         decoder.saturation = _saturation;
-        decoder.setBuffers(&_topNTSC[0], _topDecoded.data());
+        decoder.setBuffers(&_topNTSC[0] + 256, _topDecoded.data());
         decoder.decode();
-        decoder.setBuffers(&_bottomNTSC[0], _bottomDecoded.data());
+        decoder.setBuffers(&_bottomNTSC[0] + 256, _bottomDecoded.data());
         decoder.decode();
+
+        //File("q:\\top_decoded.raw",true).save(_topDecoded.data(), 760*240*3);
+        //File("q:\\bottom_decoded.raw",true).save(_bottomDecoded.data(), 760*240*3);
 
         for (int fg = 0; fg < 16; ++fg)
             for (int bg = 0; bg < 16; ++bg)
@@ -370,6 +372,7 @@ public:
         if (sz.y > 1024)
             sz.y = 1024;
         //subBitmap(zero, s).copyFrom(_output.subBitmap(zero, s));
+        //_output.subBitmap(zero, Vector(760, 240)).copyFrom(_topDecoded);
 
         Byte* row = data();
         const Byte* otherRow = _output.data();

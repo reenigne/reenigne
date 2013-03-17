@@ -1,5 +1,5 @@
 #include "alfe/main.h"
-#include <stdio.h>                  
+#include <stdio.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
 
@@ -14,18 +14,18 @@
 // c = 2*integral(0, 1, f(x)*cos(x*tau)*dx) = 2*integral(0, duty, cos(x*tau)*dx) = 2*sin(duty*tau)/tau
 // d = 2*integral(0, 1, f(x)*sin(x*2*tau)*dx) = 2*integral(0, duty, sin(x*4*pi)*dx) = 2*(1-cos(2*tau*duty))/(2*tau)
 //
-// 
+//
 
 // We want to band-limit this function so that it contains no frequencies
 // higher than 2, then sample it at 4 points.
-// fl[k] = 
+// fl[k] =
 
 class Program : public ProgramBase
 {
 protected:
     // sinc(z) = sin(z)/z
     // Si(x) = integral(0, x, dz * sinc(z))
-    // 
+    //
     // sincp(1) = sin(pi)/pi = 0
     // sincp(y) = sinc(pi*y)
     // z = pi*y
@@ -53,10 +53,9 @@ protected:
     //{
     //    return M_PI*Si(M_PI*x);
     //}
-   
+
     void run()
     {
-        double tau = 2*M_PI;
         double duty = 0.5;
         double a = duty;
         double b = 2.0*(1.0-cos(duty*tau))/tau;

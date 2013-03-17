@@ -28,7 +28,7 @@
 int main()
 {
     for (int i = 0; i < 1024; ++i) {
-        printf("%3i, ", static_cast<int>(40*sin(i*M_PI*2/1024) + 39.5));
+        printf("%3i, ", static_cast<int>(40*sin(i*tau/1024) + 39.5));
         //if (i % 16 == 15)
         //    printf("\n");
     }
