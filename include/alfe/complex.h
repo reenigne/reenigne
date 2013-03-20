@@ -66,6 +66,13 @@ template<class Real> Complex<Real> exp(const Complex<Real>& z)
     return Complex<Real>(magnitude*cos(z.y), magnitude*sin(z.y));
 }
 
+// unit(t) = e^(2*pi*i*t)
+template<class Real> Complex<Real> unit(const Real& t)
+{
+    Real a = static_cast<Real>(tau)*t;
+    return Complex<Real>(cos(a), sin(a));
+}
+
 template<class Real> Complex<Real> log(const Complex<Real>& z)
 {
     return Complex<Real>(log(z.modulus()), z.argument());

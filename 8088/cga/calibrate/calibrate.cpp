@@ -36,7 +36,7 @@ public:
       : _low(low), _high(high), _caption(caption), _p(p), _max(512), _use(use)
     {
         *p = initial;
-        _dragStartX = static_cast<int>((initial - low)*_max/(high - low));
+        //_dragStartX = static_cast<int>((initial - low)*_max/(high - low));
     }
     void setBitmap(Bitmap<SRGB> bitmap) { _bitmap = bitmap; }
     void slideTo(int x)
@@ -45,11 +45,11 @@ public:
             x = 0;
         if (x >= _max)
             x = _max - 1;
-        _dragStartX = x;
+//        _dragStartX = x;
         *_p = (_high - _low)*x/_max + _low;
     }
     void draw() const { write(_bitmap, _caption, *_p); }
-    int currentX() const { return _dragStartX; }
+    int currentX() const { return static_cast<int>((*_p - _low)*_max/(_high - _low)); /*_dragStartX;*/ }
     bool use() const { return _use; }
     double value() const { return *_p; }
     double low() const { return _low; }
@@ -60,7 +60,7 @@ private:
     double _high;
     String _caption;
     double* _p;
-    int _dragStartX;
+//    int _dragStartX;
     int _max;
     bool _use;
 
@@ -155,7 +155,7 @@ public:
         _bottomPhase = 0;
         _bottomPhase = drawSamples2(Vector(-1, 100), false).argument()*8/tau;
 
-        _sliderCount = 23;
+        _sliderCount = 25;
         _sliders[0] = Slider(0, 1, 0.5655, "saturation", &_saturation);
         _sliders[1] = Slider(-180, 180, 0, "hue", &_hue, false);
         _sliders[2] = Slider(-1, 1, 0, "brightness", &_brightness, false);
@@ -179,6 +179,8 @@ public:
         _sliders[20] = Slider(0, 70, 7.069, "U44B rise", &_u44b.x);
         _sliders[21] = Slider(0, 70, 4.172, "U44B fall", &_u44b.y);
         _sliders[22] = Slider(0, 70, 0, "Decay time", &_decayTime);
+        _sliders[23] = Slider(0, 70, 0, "U45 output rise", &_u45Output.x);
+        _sliders[24] = Slider(0, 70, 0, "U45 output fall", &_u45Output.y);
 
         for (int i = 0; i < _sliderCount; ++i) {
             _sliders[i].setBitmap(_output.subBitmap(Vector(1032, i*8), Vector(512, 8)));
@@ -201,7 +203,7 @@ public:
             _output[_waveformTL + Vector(-1, x)] = white;
             _output[_waveformTL + Vector(256, x)] = white;
             _output[_waveformTL + Vector(x, -1)] = white;
-            _output[_waveformTL + Vector(x, 256)] = white;
+            //_output[_waveformTL + Vector(x, 256)] = white;
         }
 
         _paused = false;
@@ -243,8 +245,8 @@ public:
 
         // Draw waveform for the clicked block
         Signal chroma, intensity;
-        if (_clicked.index() != 0)
-            printf("Non-zero\n");
+        //if (_clicked.index() != 0)
+        //    printf("Non-zero\n");
         generate(_clicked, &chroma, &intensity, true);
         double y;
         Complex<double> iq;
@@ -356,6 +358,23 @@ public:
             _slider = p.y/8;
             for (int i = 0; i < _sliderCount; ++i)
                 _output[Vector(1028, i*8 + 4)] = (i == _slider ? SRGB(255, 255, 255) : SRGB(0, 0, 0));
+
+            int bestI = 0;
+            double bestFitness = 1000000;
+            Slider* slider = &_sliders[_slider];
+            double current = slider->value();
+            for (int i = -10; i < 10; ++i) {
+                double trial = clamp(slider->low(), current + i*(slider->high() - slider->low())/1000, slider->high());
+                slider->setValue(trial);
+                computeFitness();
+                if (_fitness < bestFitness) {
+                    bestFitness = _fitness;
+                    bestI = i;
+                }
+            }
+            slider->setValue(clamp(slider->low(), current + bestI*(slider->high() - slider->low())/1000, slider->high()));
+            computeFitness();
+
             _dragStartX = _sliders[_slider].currentX();
             mouseMove(position);
             return true;
@@ -397,7 +416,7 @@ public:
         for (int i = 0; i < 4096; ++i) {
             Block b(i);
             int bits = b.bits();
-            _optimizing[i] = (bits != 4 && bits != 0x0b);
+            _optimizing[i] = true; //(bits != 4 && bits != 0x0b);
         }
     }
 
@@ -463,6 +482,8 @@ private:
         dFlipFlop(_chromas[4], _n14MHz, &_chromas[5], _u44b);   
         _chromas[2] = _chromas[5].invert();
         Signal burst = _chromas[6].delay(_u45Data);
+        for (int i = 1; i < 7; ++i)
+            _chromas[i] = _chromas[i].delay(_u45Data).delay(_u45Output);
         Complex<double> qamBurst;
         //burst.integrate(&_ab, &qamBurst);
         integrate(burst, _chromas[0], &qamBurst);
@@ -476,18 +497,18 @@ private:
             Block b(i);
             Signal chroma, intensity;
             generate(b, &chroma, &intensity);
-            if (i == _clicked.index())
-                printf("Clicked\n");
-            SRGB g = Vector3Cast<UInt8>(integrate(chroma, intensity));
+            //if (i == _clicked.index())
+            //    printf("Clicked\n");
+            Colour c = integrate(chroma, intensity);
 
-            _computes[i] = g;
+            _computes[i] = c;
 
             // I think these colours are not captured quite so
             // accurately as the others since we only managed an
             // 11-hdot wide swath instead of a full 16 hdots like the
             // others.
             if (_optimizing[i]) {
-                _fitness += (Colour(g) - _rgb.toSrgb(_captures[i])).modulus2();
+                _fitness += (c - _rgb.toSrgb(_captures[i])).modulus2();
                 ++fitCount;
             }
         }
@@ -651,9 +672,12 @@ private:
 
         *output = o.delay(riseFall);
     }
-    Signal multiplex(const Signal& a, const Signal& b, const Signal& c,
-        const Signal* d, bool drawTransitions)
+    Signal multiplex(Signal a, Signal b, Signal c, const Signal* d, bool drawTransitions)
     {
+        a = a.delay(_u45Select);
+        b = b.delay(_u45Select);
+        c = c.delay(_u45Select);
+
         int ia = 0, ib = 0, ic = 0, id = 0;
         Signal s;
         int n = 0;
@@ -714,14 +738,14 @@ private:
                 ++id;
                 h = !h;
                 oh = h;
-                s._t[n] = t + static_cast<int>(h ? _u45Data.x : _u45Data.y)*Signal::ns();
+                s._t[n] = t;
                 ++n;
             }
             if (x != ox) {
                 h = d[x].high(t);
                 id = d[x].iFromT(t);
                 if (h != oh) {
-                    s._t[n] = t + static_cast<int>(h ? _u45Select.x : _u45Select.y)*Signal::ns();
+                    s._t[n] = t;
                     ++n;
                 }
             }
@@ -729,6 +753,7 @@ private:
             //    throw Exception("Select and data changed at same time.");
         } while (true);
         s._n = n;
+        s = s.delay(_u45Output);
         if (drawTransitions) {
             int counts[256];
             for (int i = 0; i < 256; ++i)
@@ -859,6 +884,28 @@ private:
         dFlipFlop(bIn, _n14MHz, &b, _ic74s174);  // U101
         Signal rx = r.delay(_u68b);
         Signal gx = g.delay(_u68a);
+        if (drawTransitions)
+            for (int x = 0; x < 256; ++x) {
+                int t = x*Signal::cycle()/256;
+                if (rx.delay(_u45Select).high(t))
+                    _output[_waveformTL + Vector(x, 255)] += SRGB(255, 0, 0);
+                if (gx.delay(_u45Select).high(t))
+                    _output[_waveformTL + Vector(x, 255)] += SRGB(0, 255, 0);
+                if (b.delay(_u45Select).high(t))
+                    _output[_waveformTL + Vector(x, 255)] += SRGB(0, 0, 255);
+                if (_chromas[1].high(t))
+                    _output[_waveformTL + Vector(x, 248)] = _srgb.toSrgb24(_computes[Block(1, 1, 0).index()]);
+                if (_chromas[3].high(t))
+                    _output[_waveformTL + Vector(x, 249)] = _srgb.toSrgb24(_computes[Block(3, 3, 0).index()]);
+                if (_chromas[2].high(t))
+                    _output[_waveformTL + Vector(x, 250)] = _srgb.toSrgb24(_computes[Block(2, 2, 0).index()]);
+                if (_chromas[6].high(t))
+                    _output[_waveformTL + Vector(x, 251)] = _srgb.toSrgb24(_computes[Block(6, 6, 0).index()]);
+                if (_chromas[4].high(t))
+                    _output[_waveformTL + Vector(x, 252)] = _srgb.toSrgb24(_computes[Block(4, 4, 0).index()]);
+                if (_chromas[5].high(t))
+                    _output[_waveformTL + Vector(x, 253)] = _srgb.toSrgb24(_computes[Block(5, 5, 0).index()]);
+            }
         *chroma = multiplex(b, gx, rx, _chromas, drawTransitions);  // U45
     }
 
@@ -1028,7 +1075,7 @@ private:
 
     ImageWindow2* _window;
 
-    Slider _sliders[23];
+    Slider _sliders[25];
     int _slider;
     int _sliderCount;
 
@@ -1042,6 +1089,7 @@ private:
     Vector2<double> _u6f;
     Vector2<double> _u45Data;
     Vector2<double> _u45Select;
+    Vector2<double> _u45Output;
     Vector2<double> _u68b;
     Vector2<double> _u68a;
     Vector2<double> _ic74s174;
