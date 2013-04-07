@@ -34,8 +34,10 @@ public:
 
     void run()
     {
-        //_saturation = 0.8755;
+        _saturation = 0.8755;
         //_saturation = 1;
+        //_saturation = 0.658;
+        //_saturation = 0.561;
         _hue = 0;
 
         _contrast = 0.95841076343534182;
@@ -52,8 +54,9 @@ public:
         double dc;
         Complex<double> iq;
         integrate(6, 6, 6, 6, &dc, &iq);
-        //_saturation = 0.658;
-        _saturation = 0.561;
+
+        printf("iq = %lf, %lf, modulus = %lf, argument = %lf\n", iq.x, iq.y, iq.modulus(), iq.argument());
+
         _iqAdjust = -iq.conjugate()*unit((33 + 90 + _hue)/360.0)*_saturation*_contrast/iq.modulus();
 
         Colour black = generate(0, 0, 0, 0);

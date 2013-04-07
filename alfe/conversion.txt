@@ -1,0 +1,399 @@
+Previously I had considered allowing the compiler to try to convert from type
+A to type B with as many intermediate conversions as necessary, so that types
+don't have to implement conversion to/from all the types that they can be
+converted from/to. The compiler would be able to compute a cost for each
+conversion path and pick the cheapest one.
+
+However, this is difficult for the compiler (requires dynamic programming)
+and therefore unpredictable for the programmer.
+
+The main reason to have it was so that one could write, e.g.
+  Int b = 255;
+The type of 255 would be "UInt8" and the conversion chain would be
+  UInt8->Int16->Int32
+However, that would not let us do things like:
+  UInt8 = 511 - 256;
+Since the types of 511 and 256 would be Int16 and therefore the type of
+511 - 256 would be Int16.
+
+So instead we want to make the types of integer constants all Integer and
+allow implicit conversion from Integer to (e.g.) UInt8 provided the compiler
+can prove that the value is within range.
+
+So rather than converting from a Type to a Type, we convert from an Expression
+to a Type. An Expression can carry around more compile-time information than
+just a Type.
+
+Then for converting from type A to type B, we only need to look at those two
+types, and we don't need to hoist around a TypeConverter object.
+
+
+Rejected:
+
+class Conversion
+{
+public:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        virtual TypedValue convert(const TypedValue& value) const = 0;
+        virtual bool valid() const { return true; }
+    };
+    Conversion() { }
+    explicit Conversion(Implementation* implementation)
+      : _implementation(implementation) { }
+    bool valid() const
+    {
+        return _implementation.valid() && _implementation->valid();
+    }
+    TypedValue operator()(const TypedValue& value) const
+    {
+        return _implementation->convert(value);
+    }
+    ConstReference<Implementation> _implementation;
+};
+
+class TypeConverter;
+
+class ConversionSource
+{
+public:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        virtual Conversion conversion(const Type& from, const Type& to,
+            TypeConverter* typeConverter) const = 0;
+    };
+    ConversionSource() { }
+    ConversionSource(Implementation* implementation)
+      : _implementation(implementation) { }
+    bool valid() const { return _implementation.valid(); }
+    Conversion conversion(const Type& from, const Type& to,
+        TypeConverter* typeConverter) const
+    {
+        return _implementation->conversion(from, to, typeConverter);
+    }
+private:
+    ConstReference<Implementation> _implementation;
+};
+
+class TypeConverter
+{
+public:
+    void addConversionSource(const Template& templateTyco,
+        const ConversionSource& conversionSource)
+    {
+        _conversionSources.add(templateTyco, conversionSource);
+    }
+    void addConversion(const Type& from, const Type& to,
+        const Conversion& conversion)
+    {
+        _conversions.add(TypePair(from, to), conversion);
+    }
+    Conversion conversion(const Type& from, const Type& to)
+    {
+        if (from == to)
+            return _trivialConversion;
+        TypePair pair(from, to);
+        if (_conversions.hasKey(pair))
+            return _conversions[pair];
+        Tyco tyco = from;
+        bool doneBoth = false;
+        do {
+            while (tyco.isInstantiation()) {
+                tyco = tyco.generatingTemplate();
+                if (_conversionSources.hasKey(tyco)) {
+                    Conversion conversion =
+                        _conversionSources[tyco].conversion(from, to, this);
+                    if (conversion.valid()) {
+                        _conversions.add(pair, conversion);
+                        return conversion;
+                    }
+                }
+            }
+            if (doneBoth)
+                break;
+            tyco = to;
+            doneBoth = true;
+        } while (true);
+        StructuredType fromStructure(from);
+        StructuredType toStructure(to);
+        if (fromStructure.valid() && toStructure.valid() &&
+            fromStructure.toString().empty()) {
+            Reference<StructuredConversionImplementation>
+                implementation(new StructuredConversionImplementation(to));
+            const Array<StructuredType::Member>* fromMembers =
+                fromStructure.members();
+            const HashTable<String, int>* fromNames = fromStructure.names();
+            const Array<StructuredType::Member>* toMembers =
+                toStructure.members();
+            const HashTable<String, int>* toNames = toStructure.names();
+
+            int n = toNames->count();
+            for (int i = 0; i < n; ++i) {
+                StructuredType::Member member = (*toMembers)[i];
+                String name = member.name();
+                Type toType = member.type();
+                String number(decimal(i));
+                int fromIndex;
+                if (fromNames->hasKey(name)) {
+                    fromIndex = (*fromNames)[name];
+                    if (fromNames->hasKey(number))
+                        return Conversion(
+                            new MultipleDefinitionFailure(from, to, i, name));
+                }
+                else
+                    if (fromNames->hasKey(number))
+                        fromIndex = (*fromNames)[number];
+                    else {
+                        return Conversion(
+                            new MissingDefinitionFailure(from, to, name));
+                    }
+                Type fromType = (*fromMembers)[fromIndex].type();
+                Conversion c = conversion(fromType, toType);
+                if (!c.valid())
+                    return Conversion(
+                        new MemberConversionFailure(from, to, name, c));
+                implementation->add(name, c);
+            }
+            Conversion conversion(implementation);
+            _conversions.add(TypePair(from, to), conversion);
+            return conversion;
+        }
+        return Conversion(new ConversionFailureImplementation(from, to));
+    }
+    class ConversionFailureImplementation : public Conversion::Implementation
+    {
+    public:
+        ConversionFailureImplementation(const Type& from, const Type& to)
+          : _from(from), _to(to) { }
+        TypedValue convert(const TypedValue& value) const
+        {
+            value.span().throwError(toString(value));
+            return TypedValue();
+        }
+        virtual String sub(const TypedValue& value) const { return ""; }
+        String toString(const TypedValue& value) const
+        {
+            String r("No conversion");
+            String f = _from.toString();
+            if (f != "")
+                r += " from type " + f;
+            r += " to type " + _to.toString() + " is available";
+            String s = sub(value);
+            if (s == "")
+                r += ".";
+            else
+                r += ": " + s;
+            return r;
+        }
+        bool valid() const { return false; }
+    private:
+        Type _from;
+        Type _to;
+    };
+private:
+    class TrivialConversionImplementation : public Conversion::Implementation
+    {
+    public:
+        TypedValue convert(const TypedValue& value) const { return value; }
+    };
+    class StructuredConversionImplementation
+      : public Conversion::Implementation
+    {
+    public:
+        StructuredConversionImplementation(const Type& type) : _type(type) { }
+        void add(const String& name, const Conversion& conversion)
+        {
+            _conversions[name] = conversion;
+        }
+        TypedValue convert(const TypedValue& value) const
+        {
+            auto input = value.value<Value<HashTable<String, TypedValue>>>();
+            Value<HashTable<String, TypedValue>> output;
+            for (HashTable<String, TypedValue>::Iterator i = input->begin();
+                i != input->end(); ++i) {
+                String name = i.key();
+                (*output)[name] = _conversions[name]((*input)[name]);
+            }
+            return TypedValue(_type, output, value.span());
+        }
+    private:
+        Type _type;
+        HashTable<String, Conversion> _conversions;
+    };
+    class MultipleDefinitionFailure : public ConversionFailureImplementation
+    {
+    public:
+        MultipleDefinitionFailure(const Type& from, const Type& to, int i,
+            const String& name)
+          : ConversionFailureImplementation(from, to), _i(i), _name(name) { }
+        String sub(const TypedValue& value) const
+        {
+            auto input = value.value<Value<HashTable<String, TypedValue>>>();
+            return "Member " + _name + " defined at " +
+                (*input)[_name].span().toString() + " is already defined at " +
+                (*input)[decimal(_i)].span().toString() + ".";
+        }
+    private:
+        int _i;
+        String _name;
+    };
+    class MissingDefinitionFailure : public ConversionFailureImplementation
+    {
+    public:
+        MissingDefinitionFailure(const Type& from, const Type& to,
+            const String& name)
+          : ConversionFailureImplementation(from, to), _name(name) { }
+        String sub(const TypedValue& value) const
+        {
+            return "Member " + _name + " is not defined.";
+        }
+    private:
+        String _name;
+    };
+    class MemberConversionFailure : public ConversionFailureImplementation
+    {
+    public:
+        MemberConversionFailure(const Type& from, const Type& to,
+            const String& name, const Conversion& conversion)
+          : ConversionFailureImplementation(from, to), _name(name),
+            _conversion(conversion) { }
+        String sub(const TypedValue& value) const
+        {
+            auto input = value.value<Value<HashTable<String, TypedValue>>>();
+            ConstReference<ConversionFailureImplementation> i = _conversion.
+                _implementation.referent<ConversionFailureImplementation>();
+            String r = "For child member " + _name;
+            if (i != 0)
+                r += ": " + i->toString((*input)[_name]);
+            return r + ".";
+        }
+    private:
+        String _name;
+        Conversion _conversion;
+    };
+
+    class TypePair
+    {
+    public:
+        TypePair() { }
+        TypePair(const Type& from, const Type& to) : _from(from), _to(to) { }
+        bool operator==(const TypePair& other) const
+        {
+            return _from == other._from && _to == other._to;
+        }
+        int hash() const { return _from.hash() * 67 + _to.hash(); }
+    private:
+        Type _from;
+        Type _to;
+    };
+    HashTable<TypePair, Conversion> _conversions;
+    HashTable<Tyco, ConversionSource> _conversionSources;
+    static Conversion _trivialConversion;
+};
+
+Conversion TypeConverter::_trivialConversion(
+    new TypeConverter::TrivialConversionImplementation);
+
+class ArrayConversionSourceImplementation
+  : public ConversionSource::Implementation
+{
+public:
+    virtual Conversion conversion(const Type& from, const Type& to,
+        TypeConverter* typeConverter) const
+    {
+        Tyco toGenerator = to;
+        if (toGenerator.isInstantiation())
+            toGenerator = toGenerator.generatingTemplate();
+        if (toGenerator != Template::array)
+            return Conversion(new NotArrayConversionFailure(from, to));
+        Type contained = to.templateArgument();
+
+        Tyco fromGenerator = from;
+        List<Conversion> conversions;
+        int i = 0;
+        while (fromGenerator.isInstantiation()) {
+            Type argument = fromGenerator.templateArgument();
+            Conversion conversion =
+                typeConverter->conversion(argument, contained);
+            if (!conversion.valid())
+                return Conversion(
+                    new ElementConversionFailure(from, to, i, conversion));
+            conversions.add(conversion);
+            fromGenerator = fromGenerator.generatingTemplate();
+        }
+        if (fromGenerator != Template::tuple)
+            return Conversion(new NotTupleConversionFailure(from, to));
+        return Conversion(new ArrayConversionImplementation(
+            Type::array(contained), conversions));
+    }
+private:
+    class ArrayConversionImplementation : public Conversion::Implementation
+    {
+    public:
+        ArrayConversionImplementation(const Type& type,
+            const List<Conversion>& conversions)
+          : _type(type), _conversions(conversions) { }
+        TypedValue convert(const TypedValue& value) const
+        {
+            List<TypedValue> list = value.value<List<TypedValue>>();
+            List<TypedValue> results;
+            int p = 0;
+            for (auto i = list.begin(); i != list.end(); ++i) {
+                results.add(_conversions[p](*i));
+                ++p;
+            }
+            return TypedValue(_type, results, value.span());
+        }
+    private:
+        Type _type;
+        Array<Conversion> _conversions;
+    };
+    class NotArrayConversionFailure :
+        public TypeConverter::ConversionFailureImplementation
+    {
+    public:
+        NotArrayConversionFailure(const Type& from, const Type& to)
+          : ConversionFailureImplementation(from, to) { }
+        String sub(const TypedValue& value) const
+        {
+            return "Not a conversion to an Array.";
+        }
+    };
+    class NotTupleConversionFailure :
+        public TypeConverter::ConversionFailureImplementation
+    {
+    public:
+        NotTupleConversionFailure(const Type& from, const Type& to)
+          : ConversionFailureImplementation(from, to) { }
+        String sub(const TypedValue& value) const
+        {
+            return "Not a conversion from a Tuple.";
+        }
+    };
+    class ElementConversionFailure :
+        public TypeConverter::ConversionFailureImplementation
+    {
+    public:
+        ElementConversionFailure(const Type& from, const Type& to,
+            int i, const Conversion& conversion)
+          : ConversionFailureImplementation(from, to), _i(i),
+            _conversion(conversion) { }
+        String sub(const TypedValue& value) const
+        {
+            auto input = value.value<List<TypedValue>>();
+            auto iterator = input.begin();
+            for (int j = 0; j < _i; ++j)
+                ++iterator;
+            ConstReference<ConversionFailureImplementation> i = _conversion.
+                _implementation.referent<ConversionFailureImplementation>();
+            return String("For element ") + _i + ": " + i->toString(*iterator);
+        }
+    private:
+        int _i;
+        Conversion _conversion;
+    };
+};
+
+

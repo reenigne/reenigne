@@ -47,6 +47,7 @@ bool alerting = false;
 #include "alfe/colour_space.h"
 #include "alfe/reference_counted_array.h"
 #include "alfe/bitmap.h"
+#include "alfe/linked_list.h"
 #include "alfe/user.h"
 
 class IdleProcessor
@@ -104,6 +105,18 @@ protected:
 #if defined(_WIN32) && defined(_WINDOWS)
     Windows _windows;
     INT _nCmdShow;
+
+    void add(Window* window)
+    {
+        _rootWindow.add(window);
+    }
+
+    void create()
+    {
+        _rootWindow.setParent(0);
+        _rootWindow.setWindows(&_windows);
+        _rootWindow.outerCreate();
+    }
 
     void pumpMessages()
     {
@@ -163,6 +176,21 @@ private:
             MessageBox(NULL, s, L"Error", MB_OK | MB_ICONERROR);
         }
     }
+
+    class RootWindow : public Window
+    {
+    public:
+        void removed()
+        {
+            if (_container.empty()) {
+                // Once there are no more child windows left, the thread must
+                // end.
+                PostQuitMessage(0);
+            }
+        }
+    };
+
+    RootWindow _rootWindow;
 
 #endif
     void initializeMain()
@@ -252,6 +280,19 @@ private:
         run();
     }
 #endif
+};
+
+template<class WindowClass> class WindowProgram : public ProgramBase
+{
+public:
+    void run()
+    {
+        WindowClass* window = new WindowClass;
+        add(window);
+        create();
+        window->show(_nCmdShow);
+        pumpMessages();
+    }
 };
 
 // Put Program in a template because it's not declared yet.

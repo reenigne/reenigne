@@ -66,8 +66,8 @@ cpu 8086
   mov ax,0x5a02
   out dx,ax
 
-  ;   0x0f Horizontal Sync Width                        00
-  mov ax,0x0003
+  ;   0x0f Horizontal Sync Width                        0d
+  mov ax,0x0d03
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
