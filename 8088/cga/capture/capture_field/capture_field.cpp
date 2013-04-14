@@ -28,7 +28,7 @@ template<class T> Byte checkClamp(T x)
 
 Complex<float> rotor(float phase)
 {
-    float angle = phase*tau;
+    float angle = static_cast<float>(phase*tau);
     return Complex<float>(cos(angle), sin(angle));
 }
 
@@ -86,7 +86,7 @@ public:
             for (int i = firstBurstSample; i < firstBurstSample + burstSamples; ++i) {
                 int j = oldP + i;
                 int sample = b[j];
-                float phase = (j&7)/8.0;
+                float phase = (j&7)/8.0f;
                 burst += rotor(phase)*sample;
                 burstDC += sample;
             }
@@ -139,7 +139,7 @@ public:
             // at the middle 5 cycles.
 
             float contrast1 = contrast;
-            int samplesPerLineInt = samplesPerLine;
+            int samplesPerLineInt = static_cast<int>(samplesPerLine);
             Complex<float> actualBurst = bursts[line];
             burst = (expectedBurst*2 + actualBurst)/3;
 
@@ -160,7 +160,7 @@ public:
 
                 float kFrac0 = x*samplesPerLine/pixelsPerLine;
                 float kFrac = q + kFrac0;
-                int k = kFrac;
+                int k = static_cast<int>(kFrac);
                 kFrac -= k;
                 float samplesPerCycle = nominalSamplesPerCycle + deltaSamplesPerCycle;
                 float z0 = -kFrac/samplesPerCycle;

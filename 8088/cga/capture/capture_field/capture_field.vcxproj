@@ -87,7 +87,16 @@
     <ClCompile Include="capture_field.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\..\include\alfe\any.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\array.h" />
     <ClInclude Include="..\..\..\..\include\alfe\complex.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\evaluate.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\expression.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\main.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\parse_tree_object.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\type.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\user.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\value.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\..\Projects\Code\libpng\projects\vstudio\libpng\libpng.vcxproj">

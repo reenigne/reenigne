@@ -32,3 +32,7 @@ Use a general compressor - DEFLATE?
 32 effects at 14 seconds per effect, 32KB compressed data per effect?
 
 Or 21 effects at 48KB compressed data per effect (4 tracks)?
+
+
+
+To keep things interesting, effects should change after a few seconds. So data we load should be useful for lots of variants.

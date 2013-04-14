@@ -725,3 +725,100 @@ loopTop:
   xlatb        ; 1 1  8 11
   stosb        ; 1 1  8 11
 
+
+
+; hline speedcode
+
+ends:
+
+stosw x N
+
+stosw x N
+and al,0xc0
+mov ah,[es:di]
+and ah,0x3f
+or al,ah
+stosb
+
+stosw x N
+and al,0xf0
+mov ah,[es:di]
+and ah,0x0f
+or al,ah
+stosb
+
+stosw x N
+and al,0xfc
+mov ah,[es:di]
+and ah,0x03
+or al,ah
+stosb
+
+
+starts:
+
+jmp [end]
+
+mov dl,al
+and al,0x03
+mov ah,[es:di]
+and ah,0xfc
+or al,ah
+stosb
+xchg ax,dx
+jmp [end]
+
+mov dl,al
+and al,0x0f
+mov ah,[es:di]
+and ah,0xf0
+or al,ah
+stosb
+xchg ax,dx
+jmp [end]
+
+mov dl,al
+and al,0x0f
+mov ah,[es:di]
+and ah,0xf0
+or al,ah
+stosb
+xchg ax,dx
+jmp [end]
+
+stosb
+jmp [end]
+
+mov dl,al
+and al,0x03
+mov ah,[es:di]
+and ah,0xfc
+or al,ah
+stosb
+xchg ax,dx
+stosb
+jmp [end]
+
+mov dl,al
+and al,0x0f
+mov ah,[es:di]
+and ah,0xf0
+or al,ah
+stosb
+xchg ax,dx
+stosb
+jmp [end]
+
+mov dl,al
+and al,0x0f
+mov ah,[es:di]
+and ah,0xf0
+or al,ah
+stosb
+xchg ax,dx
+stosb
+jmp [end]
+
+
+
+

@@ -27,6 +27,11 @@ private:
     private:
         T _t;
     };
+    template<> class SpecificImplementation<void> : public Implementation
+    {
+    public:
+        void value() const { }
+    };
     ConstReference<Implementation> _implementation;
 };
 

@@ -1,3 +1,8 @@
+#include "alfe/main.h"
+
+#ifndef INCLUDED_PARSE_TREE_OBJECT_H
+#define INCLUDED_PARSE_TREE_OBJECT_H
+
 class ParseTreeObject
 {
 public:
@@ -8,7 +13,7 @@ public:
         return _implementation.is<T::Implementation>();
     }
     template<class T> const typename T::Implementation* as() const
-    { 
+    {
         return _implementation.referent<T::Implementation>();
     }
 
@@ -39,3 +44,5 @@ protected:
 
     ConstReference<Implementation> _implementation;
 };
+
+#endif // INCLUDED_PARSE_TREE_OBJECT_H

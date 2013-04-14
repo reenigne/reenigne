@@ -128,7 +128,7 @@ void line(UInt16 x0, UInt16 y0, UInt16 x1, UInt16 y1, UInt8 c)
 // Another:
 //   routine - 1 byte
 //   major & number of pixels - 2 bytes
-//   minor & initia error - 2 bytes
+//   minor & initial error - 2 bytes
 //   initial location - 2 bytes
 //   total = 7 bytes
 
@@ -234,6 +234,27 @@ noAdjust0:
   adc di,ax            ; 2 0  8  3
   sub si,bx            ; 2 0  8  3
 noAdjust1:
+
+// If we have a 64-byte wide screen:
+lineLoop0:
+  xor [bx],al          ; 2 2 16 21
+  add bx,di            ; 2 0  8  3
+  add dx,bp            ; 2 0  8  3
+  jle noAdjust0        ; 2 0  8  4/16
+  pop ax               ; 1 2
+  add bl,ah            ; 2 0
+  sub dx,sp            ; 2 0  8  3
+noAdjust0:
+  xor [bx],al          ; 2 2 16 21
+  add bx,cx            ; 2 0  8  3
+  add dx,bp            ; 2 0  8  3
+  jle noAdjust1        ; 2 0  8  4/16
+  pop ax               ; 1 2
+  add bl,ah            ; 2 0
+  sub dx,sp            ; 2 0  8  3
+noAdjust1:
+
+
 
 
 

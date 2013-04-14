@@ -1,3 +1,19 @@
+#include "alfe/main.h"
+
+#ifndef INCLUDED_EXPRESSION_H
+#define INCLUDED_EXPRESSION_H
+
+#include "alfe/parse_tree_object.h"
+#include "alfe/operator.h"
+#include "alfe/space.h"
+#include "alfe/type.h"
+
+template<class T> class ExpressionTemplate;
+typedef ExpressionTemplate<void> Expression;
+
+template<class T> class IdentifierTemplate;
+typedef IdentifierTemplate<void> Identifier;
+
 template<class T> class ExpressionTemplate : public ParseTreeObject
 {
 public:
@@ -8,8 +24,6 @@ public:
 
     ExpressionTemplate(const String& string, const Span& span)
       : ParseTreeObject(new StringLiteralImplementation(string, span)) { }
-    ExpressionTemplate(int n, const Span& span)
-      : ParseTreeObject(new IntegerLiteralImplementation(n, span)) { }
 
     static Expression parse(CharacterSource* source)
     {
@@ -68,6 +82,7 @@ public:
                 Expression(this).dot(Identifier("toString")),
                 List<Expression>(), span());
         }
+        //virtual TypedValue evaluate() const = 0;
     };
 protected:
     static Expression parseElement(CharacterSource* source)
@@ -305,7 +320,7 @@ private:
             c = s.get(&span2);
             if (c < '0' || c > '9') {
                 Space::parse(source);
-                return Expression(n, span);
+                return IntegerLiteral(n, span);
             }
             span += span2;
         } while (true);
@@ -316,18 +331,27 @@ private:
     public:
         TrueImplementation(const Span& span) : Implementation(span) { }
         Expression toString() const { return Expression("true", span()); }
+        //TypedValue evaluate() const
+        //{ 
+        //    return TypedValue(Type::boolean, Any<bool>(true));
+        //}
     };
     class FalseImplementation : public Implementation
     {
     public:
         FalseImplementation(const Span& span) : Implementation(span) { }
         Expression toString() const { return Expression("false", span()); }
+        //TypedValue evaluate() const
+        //{ 
+        //    return TypedValue(Type::boolean, Any<bool>(false));
+        //}
     };
     class NullImplementation : public Implementation
     {
     public:
         NullImplementation(const Span& span) : Implementation(span) { }
         Expression toString() const { return Expression("null", span()); }
+        //TypedValue evaluate() const { return TypedValue(Type::nullValue); }
     };
     class StringLiteralImplementation : public Implementation
     {
@@ -335,19 +359,12 @@ private:
         StringLiteralImplementation(const String& string, const Span& span)
             : Implementation(span), _string(string) { }
         Expression toString() const { return Expression(this); }
+        //TypedValue evaluate() const
+        //{ 
+        //    return TypedValue(Type::string, Any<String>(_string));
+        //}
     private:
         String _string;
-        Span _span;
-    };
-    class IntegerLiteralImplementation : public Implementation
-    {
-    public:
-        IntegerLiteralImplementation(int n, const Span& span)
-            : Implementation(span), _n(n) { }
-        Expression toString() const { return Expression(this); }
-    private:
-        int _n;
-        Span _span;
     };
     class ArrayLiteralImplementation : public Implementation
     {
@@ -355,6 +372,7 @@ private:
         ArrayLiteralImplementation(const List<Expression>& expressions,
             const Span& span)
           : Implementation(span), _expressions(expressions) { }
+        //TypedValue evaluate() const { return 
     private:
         List<Expression> _expressions;
     };
@@ -367,6 +385,24 @@ private:
     private:
         Expression _left;
         Identifier _right;
+    };
+};
+
+class IntegerLiteral : public Expression
+{
+public:
+    IntegerLiteral(int n, Span span = Span())
+      : Expression(new Implementation(n, span)) { }
+    IntegerLiteral(const Expression& e) : Expression(e) { }
+    int value() const { return as<IntegerLiteral>()->_n; }
+private:
+    class Implementation : public Expression::Implementation
+    {
+    public:
+        Implementation(int n, const Span& span)
+          : Expression::Implementation(span), _n(n) { }
+        Expression toString() const { return Expression(this); }
+        int _n;
     };
 };
 
@@ -784,3 +820,5 @@ public:
         } while (true);
     }
 };
+
+#endif // INCLUDED_EXPRESSION_H
