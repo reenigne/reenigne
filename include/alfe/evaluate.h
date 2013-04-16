@@ -6,21 +6,31 @@
 #include "alfe/expression.h"
 #include "alfe/type.h"
 
-TypedValue evaluate(Expression e)
+template<class T> T evaluate(CharacterSource s)
 {
-    if (e.is<IntegerLiteral>())
-        return TypedValue(Type::integer, Any(IntegerLiteral(e).value()));
     throw Exception("Don't know how to evaluate this expression");
+}
+
+template<> int evaluate<int>(CharacterSource s)
+{
+    int c = s.get();
+    if (c < '0' || c > '9')
+        return 0;
+    int n = 0;
+    do {
+        n = n*10 + c - '0';
+        c = s.get();
+        if (c < '0' || c > '9') {
+            Space::parse(&s);
+            return n;
+        }
+    } while (true);
 }
 
 template<class T> T evaluate(String s)
 {
     CharacterSource source(s);
-    Expression e = Expression::parse(source);
-    TypedValue v = evaluate<int>(Expression e);
-    Type t = Type::fromCompileTimeType<T>();
-    TypedValue v2 = Expression::convert(v, t);
-    return v2.value<T>();
+    return evaluate(source);
 }
 
 #endif // INCLUDED_EVALUATE_H

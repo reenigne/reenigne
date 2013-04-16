@@ -151,8 +151,8 @@ cpu 8086
 
 
   mov cx,1200      ; Frame counter
-  mov dl,0xda
 frameLoop:
+  mov dl,0xda
   waitForVerticalSync
   waitForNoVerticalSync
 

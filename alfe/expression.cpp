@@ -1,13 +1,3 @@
-#include "alfe/main.h"
-
-#ifndef INCLUDED_EXPRESSION_H
-#define INCLUDED_EXPRESSION_H
-
-#include "alfe/parse_tree_object.h"
-#include "alfe/operator.h"
-#include "alfe/space.h"
-#include "alfe/type.h"
-
 template<class T> class ExpressionTemplate;
 typedef ExpressionTemplate<void> Expression;
 
@@ -332,7 +322,7 @@ private:
         TrueImplementation(const Span& span) : Implementation(span) { }
         Expression toString() const { return Expression("true", span()); }
         //TypedValue evaluate() const
-        //{ 
+        //{
         //    return TypedValue(Type::boolean, Any<bool>(true));
         //}
     };
@@ -342,7 +332,7 @@ private:
         FalseImplementation(const Span& span) : Implementation(span) { }
         Expression toString() const { return Expression("false", span()); }
         //TypedValue evaluate() const
-        //{ 
+        //{
         //    return TypedValue(Type::boolean, Any<bool>(false));
         //}
     };
@@ -360,7 +350,7 @@ private:
             : Implementation(span), _string(string) { }
         Expression toString() const { return Expression(this); }
         //TypedValue evaluate() const
-        //{ 
+        //{
         //    return TypedValue(Type::string, Any<String>(_string));
         //}
     private:
@@ -372,7 +362,7 @@ private:
         ArrayLiteralImplementation(const List<Expression>& expressions,
             const Span& span)
           : Implementation(span), _expressions(expressions) { }
-        //TypedValue evaluate() const { return 
+        //TypedValue evaluate() const { return
     private:
         List<Expression> _expressions;
     };
@@ -820,5 +810,3 @@ public:
         } while (true);
     }
 };
-
-#endif // INCLUDED_EXPRESSION_H

@@ -1,10 +1,3 @@
-#include "alfe/main.h"
-
-#ifndef INCLUDED_OPERATOR_H
-#define INCLUDED_OPERATOR_H
-
-#include "alfe/space.h"
-
 class Operator
 {
 public:
@@ -330,5 +323,3 @@ public:
 };
 
 Operator OperatorBase<OperatorDecrement>::_operator;
-
-#endif // INCLUDED_OPERATOR_H
