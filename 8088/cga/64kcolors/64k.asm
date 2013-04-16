@@ -78,8 +78,8 @@ cpu 8086
   mov ax,0x0605
   out dx,ax
 
-  ;   0x7f Vertical Displayed                           28
-  mov ax,0x2806
+  ;   0x7f Vertical Displayed                           32
+  mov ax,0x3206
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       38
