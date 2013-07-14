@@ -1,4 +1,4 @@
-include "standard.mut"
+include "standard.mut";
 
 // Set up the PC Speaker extension
 pcSpeaker = true;

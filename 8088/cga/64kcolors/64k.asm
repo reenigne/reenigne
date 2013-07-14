@@ -1,4 +1,4 @@
-org 0x100   ; 0 for XT Server, 0x100 for .com
+org 0  ; 0 for XT Server, 0x100 for .com
 cpu 8086
 
   cli
@@ -49,7 +49,7 @@ cpu 8086
   ;   0x10 +BACKGROUND I                                 0
   ;   0x20 +COLOR SEL                                    0
   inc dx
-  mov al,6
+  mov al,0
   out dx,al
 
   mov dl,0xd4
@@ -185,7 +185,7 @@ frameLoop:
   int 0x10
 
   ; Relinquish control
-  ret
+  retf
 
 data:
 

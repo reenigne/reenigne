@@ -3,8 +3,7 @@
 #ifndef INCLUDED_EVALUATE_H
 #define INCLUDED_EVALUATE_H
 
-#include "alfe/expression.h"
-#include "alfe/type.h"
+#include "alfe/space.h"
 
 template<class T> T evaluate(CharacterSource s)
 {

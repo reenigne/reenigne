@@ -475,3 +475,13 @@ CGA:
   White:  1.46      1.17V   1.15V          1.46     1.081      0.816
 
 
+
+Burst high: 109
+Burst low:   24
+7:          124
+0:           39
+15:         161
+8:           72
+
+Burst range:  85
+Chroma range: 85

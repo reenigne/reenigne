@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "make_table", "make_table.vcxproj", "{A31C76E6-3F7C-41E9-9E46-43F734765D40}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A31C76E6-3F7C-41E9-9E46-43F734765D40}.Debug|Win32.ActiveCfg = Debug|Win32
+		{A31C76E6-3F7C-41E9-9E46-43F734765D40}.Debug|Win32.Build.0 = Debug|Win32
+		{A31C76E6-3F7C-41E9-9E46-43F734765D40}.Release|Win32.ActiveCfg = Release|Win32
+		{A31C76E6-3F7C-41E9-9E46-43F734765D40}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

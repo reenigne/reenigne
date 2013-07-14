@@ -455,16 +455,16 @@ public:
         AutoHandle h = File("\\\\.\\pipe\\vbicap", true).openPipe();
         h.write<int>(1);
 
-        static const int samples = 450*1024;
-        static const int sampleSpaceBefore = 256;
-        static const int sampleSpaceAfter = 256;
+        int samples = 450*1024*frames;
+        int sampleSpaceBefore = 256;
+        int sampleSpaceAfter = 256;
         Array<Byte> buffer(sampleSpaceBefore + samples + sampleSpaceAfter);
         Byte* b = &buffer[0] + sampleSpaceBefore;
         for (int i = 0; i < sampleSpaceBefore; ++i)
             b[i - sampleSpaceBefore] = 0;
         for (int i = 0; i < sampleSpaceAfter; ++i)
             b[i + samples] = 0;
-        for (int i = 0; i < 450; ++i)
+        for (int i = 0; i < 450*frames; ++i)
             h.read(&b[i*1024], 1024);
 
         Bitmap<SRGB> decoded(Vector(640, 240));

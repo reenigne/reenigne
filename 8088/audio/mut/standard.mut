@@ -22,7 +22,7 @@ minorSecond = 2^(1/12);
 majorSeventh = 2^(11/12);
 tritone = 2^(6/12);
 
-C2 = 110/s/majorSixth;
+C2 = 110*Hz/majorSixth;
 G2 = fifth*C2;
 D2 = majorSecond*C2;
 A2 = majorSixth*C2;
