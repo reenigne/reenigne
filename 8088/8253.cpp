@@ -64,13 +64,40 @@ private:
                     break;
                 case stateStart1:
                     _value = _count;
+                    _output = false;
                     _state = stateCounting1;
                     break;
                 case stateCounting1:
-                    if (!_gate)
-                        break;
+                    if (_gate)
+                        _value = _count;
                     countDown();
                     if (_value == 0)
+                        _output = true;
+                    break;
+                case stateStopped2:
+                    break;
+                case stateGateLow2:
+                    if(_gate)
+                    {
+                        _state = stateCounting2;
+                        _value = _count;
+                    }
+                    break;
+                case stateCounting2:
+                    if (!_gate)
+                    {
+                        _output = true;
+                        _state = stateGateLow2;
+                        break;
+                    }
+                    if(_value == 1)
+                    {
+                        _output = true;
+                        _value = _count;
+                        break;
+                    }
+                    countDown();
+                    if (_value == 1)
                         _output = false;
                     break;
             }
@@ -119,6 +146,12 @@ private:
                             case stateCounting0:
                                 _state = stateStopped0;
                                 break;
+                            case stateCounting1:
+                                _state = stateStopped1;
+                                break;
+                            case stateCounting2:
+                                _state = stateStopped2;
+                                break;
                         }
                     }
                     else {
@@ -147,6 +180,10 @@ private:
                     _state = stateStopped1;
                     _output = true;
                     break;
+                case 2:
+                    _state = stateStopped2;
+                    _output = true;
+                    break;
             }
         }
         void setGate(bool gate)
@@ -172,7 +209,9 @@ private:
             stateStopped1,
             stateStart1,
             stateCounting1,
-
+            stateStopped2,
+            stateGateLow2,
+            stateCounting2,
         };
 
         void loadCount(UInt16 value)
@@ -186,6 +225,10 @@ private:
                 case stateStopped1:
                 case stateStart1:
                 case stateCounting1:
+                    break;
+                case stateStopped2:
+                case stateCounting2:
+                    _state = stateCounting2;
                     break;
             }
         }
