@@ -7,15 +7,4 @@ How do we deal with the problem that {} can delimit either a compound statement
 
 Want to be able to write "offset = (outputSize - inputSize)/2;" in config files
 
-We want the TypeConverter to be able to create its own Conversions by
- combining the Conversions passed to it. This way, programmers don't have to
- write a Conversion for every possible pair of types that we might want to
- convert between. We can do this with dynamic programming.
-
-Creating a new type might change the Conversion for a pair of types - that's
- ok. Allowing the instantiation of a template to do the same seems
- potentially error prone (but might be more logical).
-
-We need to be careful not to try unbounded conversion paths.
- e.g. if we can convert F<T> to F<F<T>>.
 

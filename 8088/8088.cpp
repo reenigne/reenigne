@@ -3008,26 +3008,57 @@ private:
     Disassembler _disassembler;
 };
 
-class ROMConversionImplementation : public Conversion::Implementation
+class ROMDataType : public AtomicType
 {
 public:
-    ROMConversionImplementation(const Type& type) : _type(type) { }
-    TypedValue convert(const TypedValue& value) const
-    {
-        List<TypedValue> romMembers = value.value<List<TypedValue>>();
-        List<TypedValue>::Iterator m = romMembers.begin();
-        int address = (*m).value<int>();
-        ++m;
-        int mask = (*m).value<int>();
-        ++m;
-        File file = (*m).value<String>();
-        ++m;
-        int offset = (*m).value<int>();
-        return TypedValue(_type, Any(ROMData(mask, address, file, offset)),
-            value.span());
-    }
+    ROMDataType() : AtomicType(implementation()) { }
 private:
-    Type _type;
+    class Implementation : public AtomicType::Implementation
+    {
+    public:
+        Implementation() : AtomicType::Implementation("ROM")
+        {
+            List<StructuredType::Member> members;
+            members.add(StructuredType::Member("mask", Type::integer));
+            members.add(StructuredType::Member("address", Type::integer));
+            members.add(StructuredType::Member("fileName", Type::string));
+            members.add(StructuredType::Member("fileOffset", Type::integer));
+            _structuredType = StructuredType(toString(),members);
+        }
+        TypedValue convertFrom(const TypedValue& value) const
+        {
+            TypedValue stv = _structuredType.convertFrom(value);
+            List<TypedValue> romMembers = stv.value<List<TypedValue>>();
+            List<TypedValue>::Iterator m = romMembers.begin();
+            int address = (*m).value<int>();
+            ++m;
+            int mask = (*m).value<int>();
+            ++m;
+            File file = (*m).value<String>();
+            ++m;
+            int offset = (*m).value<int>();
+            return TypedValue(ROMDataType(),
+                Any(ROMData(mask, address, file, offset)), value.span());
+        }
+        bool canConvertFrom(const Type& type) const
+        {
+            return _structuredType.canConvertFrom(type);
+        }
+        TypedValue convertTo(const TypedValue& value, const Type& other)
+        {
+            throw Exception("Invalid conversion");
+        }
+        bool canConvertto(const Type& type) const { return false; }
+    private:
+        static StructuredType _structuredType;
+    };
+    static Reference<Implementation> _implementation;
+    static Reference<Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation();
+        return _implementation;
+    }
 };
 
 class Program : public ProgramBase
@@ -3043,28 +3074,14 @@ protected:
 
         ConfigFile config;
 
-        AtomicType romDataType("ROM");
-        config.addType(romDataType);
-
-        Conversion conversion(new ROMConversionImplementation(romDataType));
-
-        List<Type> tupleArguments;
-        tupleArguments.add(Type::integer);
-        tupleArguments.add(Type::integer);
-        tupleArguments.add(Type::string);
-        tupleArguments.add(Type::integer);
-
-        config.addConversion(Type::tuple(tupleArguments), romDataType,
-            conversion);
-
+        ROMDataType romDataType;
         Type romImageArrayType = Type::array(romDataType);
-        config.addType(romImageArrayType);
         config.addOption("roms", romImageArrayType);
         config.addOption("stopAtCycle", Type::integer, -1);
         config.addOption("stopSaveState", Type::string, "");
         config.addOption("initialState", Type::string, "");
 
-        config.load(_arguments[1]);
+        config.load(File(_arguments[1], CurrentDirectory(), true));
 
         ISA8BitBus bus;
         RAM640Kb ram;

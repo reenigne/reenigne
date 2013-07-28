@@ -32,12 +32,6 @@ int parseHexadecimalCharacter(CharacterSource* source, Span* span)
 class ConfigFile
 {
 public:
-    ConfigFile()
-      : _arrayConversionSource(new ArrayConversionSourceImplementation)
-    {
-        _typeConverter.addConversionSource(Template::array,
-            _arrayConversionSource);
-    }
     void addType(Type type)
     {
         if (_typeSet.has(type))
@@ -70,15 +64,6 @@ public:
     {
         _options.add(name, TypedValue(type, Any(defaultValue)));
     }
-    void addConversion(const Type& from, const Type& to,
-        const Conversion& conversion)
-    {
-        _typeConverter.addConversion(from, to, conversion);
-    }
-    TypedValue convert(TypedValue e, Type expectedType)
-    {
-        return _typeConverter.conversion(e.type(), expectedType)(e);
-    }
 
     void load(File file)
     {
@@ -93,7 +78,8 @@ public:
             String name = identifier.name();
             Span span;
             if (name == "include") {
-                TypedValue e = convert(parseExpression(&source), Type::string);
+                TypedValue e = parseExpression(&source).
+                    convertTo(Type::string);
                 Space::assertCharacter(&source, ';', &span);
                 load(e.value<String>());
             }
@@ -101,8 +87,7 @@ public:
                 identifier.span().throwError("Unknown identifier " + name);
             Space::assertCharacter(&source, '=', &span);
             TypedValue loadedExpression = parseExpression(&source);
-            //console.write(loadedExpression.type().toString() + "\n");
-            TypedValue e = convert(loadedExpression, _options[name].type());
+            TypedValue e = loadedExpression.convertTo(_options[name].type());
             Space::assertCharacter(&source, ';', &span);
             _options[name].setValue(e.value());
         } while (true);
@@ -668,8 +653,8 @@ private:
     HashTable<String, TypedValue> _enumeratedValues;
     HashTable<String, Type> _types;
     Set<Type> _typeSet;
-    TypeConverter _typeConverter;
-    ConversionSource _arrayConversionSource;
+    //TypeConverter _typeConverter;
+    //ConversionSource _arrayConversionSource;
 };
 
 #endif // INCLUDED_CONFIG_FILE_H

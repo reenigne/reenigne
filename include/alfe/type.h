@@ -557,6 +557,25 @@ public:
     void setValue(Any value) { _value = value; }
     Span span() const { return _span; }
     bool valid() const { return _value.valid(); }
+    TypedValue convertTo(const Type& to)
+    {
+        if (_type.canConvertTo(to))
+            return _type.convertTo(to, *this);
+        if (to.canConvertFrom(_type))
+            return to.convertFrom(*this);
+        String r = String("No conversion");
+        String f = _type.toString();
+        if (f != "")
+            r += String(" from type ") + f;
+        r += String(" to type ") + to.toString() + String(" is available");
+            String s = sub(value);
+            if (s == "")
+                r += ".";
+            else
+                r += String(": ") + s;
+            return r;
+    }
+
 private:
     Type _type;
     Any _value;

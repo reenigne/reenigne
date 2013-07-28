@@ -18,22 +18,4 @@ Tyco                        Tyco::Implementation
                                 Template::InstantiatedImplementation
 TypedValue
 
-Conversion                  Conversion::Implementation
-                              TypeConverter::ConversionFailureImplementation
-                                TypeConverter::MultipleDefinitionFailure
-                                TypeConverter::MissingDefinitionFailure
-                                TypeConverter::MemberConversionFailure
-                                ArrayConversionSourceImplementation::NotArrayConversionFailure
-                                ArrayConversionSourceImplementation::NotTupleConversionFailure
-                                ArrayConversionSourceImplementation::ElementConversionFailure
-                              TypeConverter::TrivialConversionImplementation
-                              TypeConverter::StructuredConversionImplementation
-                              ArrayConversionSourceImplementation::ArrayConversionImplementation
-
-TypeConverter::TypePair
-
-ConversionSource            ConversionSource::Implementation
-                              ArrayConversionSourceImplementation
-
-TypeConverter
 

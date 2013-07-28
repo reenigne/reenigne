@@ -362,7 +362,7 @@ public:
     {
     }
 private:
-        
+
 };
 
 class AssignmentStatement : public Statement
@@ -418,7 +418,7 @@ public:
             return new FunctionDefinition(left.name(), left.parameters(), right);
         }
 
-        switch (operatorNumber) { 
+        switch (operatorNumber) {
             case 0:
                 return AssignmentStatement(left, right, span);
             case 1:
@@ -543,26 +543,6 @@ private:
     Reference<Implementation> _implementation;
 };
 
-template<class From, class To> class CastConversion : public Conversion
-{
-public:
-    CastConversion(Type from, Type to) : Conversion(new Implementation(from, to)) { }
-private:
-    class Implementation : public Conversion::Implementation
-    {
-    public:
-        CastConversion(Type from, Type to) : _from(from), _to(to) { }
-        virtual TypedValue convert(const TypedValue& value) const
-        {
-            return TypedValue<To>(to, static_cast<To>(value.value<From>()));
-        }
-        virtual bool valid() const { return true; }
-    private:
-        Type _from;
-        Type _to;
-    };
-};
-
 class Program : public ProgramBase
 {
 public:
@@ -596,11 +576,6 @@ public:
         Type sampleType = AtomicType("Sample");
         Type scalarType = AtomicType("Scalar");
         Type tableType = AtomicType("Table");
-
-        TypeConverter converter;
-        converter.addConversion(sampleType, soundObjectType, CastConversion<Sample, SoundObject>(sampleType, soundObjectType));
-        converter.addConversion(scalarType, soundObjectType, CastConversion<Scalar, SoundObject>(scalarType, soundObjectType));
-        converter.addConversion(tableType, soundObjectType, CastConversion<Scalar, SoundObject>(tableType, soundObjectType));
 
         String outputWave = symbols.lookup<String>("outputWave", Type::string);
         int outputWaveRate = symbols.lookupReal<int>("outputWaveRate", -1);

@@ -27,6 +27,25 @@ just a Type.
 Then for converting from type A to type B, we only need to look at those two
 types, and we don't need to hoist around a TypeConverter object.
 
+The type of { foo: x, bar: y, baz: { 1, 2 } } is StructuredType{"foo":TypeOf(x),"bar":TypeOf(y),"baz":StructuredType{InitializerList{"0":Int,"1":Int}}
+  No, ALFE Class types don't directly participate in the type.h StructuredType system - they're atomic as far as it is concerned.
+  The argument types in StructuredType are not normal template arguments
+    StructuredType uses names() and members() methods.
+    Tyco uses isInstantiation(), generatingTemplate() and templateArgument() methods.
+
+
+Conversion from one structured type to another:
+  Works like named arguments in a function call
+  First take all named members in the RHS and assign them to the corresponding named members in the LHS. If a member doesn't exist, fail conversion.
+  Then take all unnamed arguments in the RHS and in LTR order and assign them to unassigned members in the LHS, again in LTR order.
+  If there are too many or too few members, fail.
+
+Have helper methods in StructuredType to make this easier:
+  StructuredType canConvertFrom(StructedType other)
+  TypedValue convertFrom(StructuredType other, TypedValue value)
+
+
+
 
 Rejected:
 
@@ -396,4 +415,36 @@ private:
     };
 };
 
+
+We want the TypeConverter to be able to create its own Conversions by
+ combining the Conversions passed to it. This way, programmers don't have to
+ write a Conversion for every possible pair of types that we might want to
+ convert between. We can do this with dynamic programming.
+
+Creating a new type might change the Conversion for a pair of types - that's
+ ok. Allowing the instantiation of a template to do the same seems
+ potentially error prone (but might be more logical).
+
+We need to be careful not to try unbounded conversion paths.
+ e.g. if we can convert F<T> to F<F<T>>.
+
+
+Conversion                  Conversion::Implementation
+                              TypeConverter::ConversionFailureImplementation
+                                TypeConverter::MultipleDefinitionFailure
+                                TypeConverter::MissingDefinitionFailure
+                                TypeConverter::MemberConversionFailure
+                                ArrayConversionSourceImplementation::NotArrayConversionFailure
+                                ArrayConversionSourceImplementation::NotTupleConversionFailure
+                                ArrayConversionSourceImplementation::ElementConversionFailure
+                              TypeConverter::TrivialConversionImplementation
+                              TypeConverter::StructuredConversionImplementation
+                              ArrayConversionSourceImplementation::ArrayConversionImplementation
+
+TypeConverter::TypePair
+
+ConversionSource            ConversionSource::Implementation
+                              ArrayConversionSourceImplementation
+
+TypeConverter
 
