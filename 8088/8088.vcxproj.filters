@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\alfe">
+      <UniqueIdentifier>{0c044dd4-0b12-4101-a7bb-09d9d9d7a4c8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="8088.cpp">
@@ -30,9 +33,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\alfe\string.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\alfe\type.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\alfe\hash_table.h">
@@ -54,6 +54,138 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\alfe\value.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\allocator.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\any.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\assert.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\audio.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\bitmap.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\bitmap_png.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\circular_buffer.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\colour_space.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\com.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\complex.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\convolution_pipe.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\directx.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\email.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\evaluate.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\exception.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\fcolour.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\file.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\file_handle.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\find_handle.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\fix.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\fractal.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\gcd.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\handle.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\linked_list.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\minimum_maximum.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\owning_array.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\pipes.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\pool.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\random.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\rational.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\reference.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\reference_counted_array.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\rotors.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\set.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\stack.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\swap.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\symbol.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\terminal6.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\thread.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\uncopyable.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\user.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\vectors.h">
+      <Filter>Header Files\alfe</Filter>
+    </ClInclude>
+    <ClInclude Include="common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="8253.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

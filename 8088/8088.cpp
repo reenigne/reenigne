@@ -5,7 +5,8 @@
 #include "alfe/hash_table.h"
 #include "alfe/main.h"
 #include "alfe/space.h"
-#include "alfe/config_file.h"
+//#include "alfe/config_file.h"
+#include "alfe/type.h"
 
 #include <stdlib.h>
 
@@ -13,187 +14,7 @@
 //{
 //};
 
-template<class T> class Intel8088Template;
-
-typedef Intel8088Template<void> Intel8088;
-
-class Component
-{
-public:
-    virtual void simulateCycle() { }
-    virtual String save() { return String(); }
-    virtual Type type() { return Type(); }
-    virtual String name() { return String(); }
-    virtual void load(const TypedValue& value) { }
-    virtual TypedValue initial() { return TypedValue(); }
-};
-
-class Simulator
-{
-public:
-    Simulator() : _halted(false) { }
-    void simulate()
-    {
-        do {
-            for (auto i = _components.begin(); i != _components.end(); ++i)
-                (*i)->simulateCycle();
-        } while (!_halted);
-    }
-    void addComponent(Component* component) { _components.add(component); }
-    String save()
-    {
-        String s("simulator = {");
-        bool needComma = false;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            if ((*i)->name().empty())
-                continue;
-            if (needComma)
-                s += ", ";
-            needComma = true;
-            s += (*i)->save();
-        }
-        s += "};";
-        return s;
-    }
-    Type type()
-    {
-        List<StructuredType::Member> members;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Type type = (*i)->type();
-            if (!type.valid())
-                continue;
-            members.add(StructuredType::Member((*i)->name(), (*i)->type()));
-        }
-        return StructuredType("Simulator", members);
-    }
-    void load(const TypedValue& value)
-    {
-        Value<HashTable<String, TypedValue> > object =
-            value.value<Value<HashTable<String, TypedValue> > >();
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load(object->operator[]((*i)->name()));
-    }
-    TypedValue initial()
-    {
-        Value<HashTable<String, TypedValue> > object;
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            if ((*i)->type().valid())
-                object->operator[]((*i)->name()) = (*i)->initial();
-        return TypedValue(type(), object);
-    }
-    void halt() { _halted = true; }
-private:
-    List<Component*> _components;
-    bool _halted;
-};
-
-class ISA8BitBus;
-
-template<class T> class ISA8BitComponentTemplate : public Component
-{
-public:
-    // Address bit 31 = write
-    // Address bit 30 = IO
-    virtual void setAddress(UInt32 address) = 0;
-    virtual void write(UInt8 data) = 0;
-    virtual bool wait() { return false; }
-    void setBus(ISA8BitBus* bus) { _bus = bus; }
-    virtual UInt8 memory(UInt32 address) { return 0xff; }
-    bool active() const { return _active; }
-    virtual void read() { }
-protected:
-    void set(UInt8 data) { _bus->_data = data; }
-    ISA8BitBus* _bus;
-    bool _active;
-};
-
-typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
-
-class ISA8BitBus : public Component
-{
-public:
-    void simulateCycle()
-    {
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->simulateCycle();
-    }
-    void addComponent(ISA8BitComponent* component)
-    {
-        _components.add(component);
-        component->setBus(this);
-    }
-    void setAddress(UInt32 address)
-    {
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->setAddress(address);
-    }
-    void write(UInt8 data)
-    {
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            if ((*i)->active())
-                (*i)->write(data);
-    }
-    UInt8 read() const
-    {
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            if ((*i)->active())
-                (*i)->read();
-        return _data;
-    }
-    UInt8 memory(UInt32 address)
-    {
-        UInt8 data = 0xff;
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            data &= (*i)->memory(address);
-        return data;
-    }
-    String save()
-    {
-        String s("bus: {");
-        bool needComma = false;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            if ((*i)->name().empty())
-                continue;
-            if (needComma)
-                s += ", ";
-            needComma = true;
-            s += (*i)->save();
-        }
-        return s + "}";
-    }
-    Type type()
-    {
-        List<StructuredType::Member> members;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Type type = (*i)->type();
-            if (!type.valid())
-                continue;
-            members.add(StructuredType::Member((*i)->name(), (*i)->type()));
-        }
-        return StructuredType("Bus", members);
-    }
-    void load(const TypedValue& value)
-    {
-        Value<HashTable<String, TypedValue> > object =
-            value.value<Value<HashTable<String, TypedValue> > >();
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load((*object)[(*i)->name()]);
-    }
-    String name() { return "bus"; }
-    TypedValue initial()
-    {
-        Value<HashTable<String, TypedValue> > object;
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            if ((*i)->type().valid())
-                object->operator[]((*i)->name()) = (*i)->initial();
-        return TypedValue(type(), object);
-    }
-private:
-    List<ISA8BitComponent*> _components;
-    UInt8 _data;
-
-    template<class T> friend class ISA8BitComponentTemplate;
-};
+#include "8253.h"
 
 //class Motorola6845CRTC : public Component
 //{
@@ -902,8 +723,8 @@ public:
             line += _segmentRegisters[i].text();
         }
         line += _flags.text();
+		if(_newInstruction) console.write(line + "\n");
         _newInstruction = false;
-        console.write(line + "\n");
         ++_cycle;
         if (_halted || _cycle == _stopAtCycle)
             _simulator->halt();
@@ -923,6 +744,12 @@ public:
                             segment = _segmentOverride;
                         _busAddress = physicalAddress(segment, _address);
                     }
+					if(_useIO)
+					{
+						if(_ioType == ioWrite ) _busAddress |= 0xC0000000;
+						else if(_ioType == ioRead) _busAddress |= 0x40000000;
+						_useIO = false;
+					}
                     _bus->setAddress(_busAddress);
                     _busState = t2;
                     break;
@@ -3008,7 +2835,7 @@ private:
     Disassembler _disassembler;
 };
 
-class ROMDataType : public AtomicType
+/*class ROMDataType : public AtomicType
 {
 public:
     ROMDataType() : AtomicType(implementation()) { }
@@ -3059,20 +2886,20 @@ private:
             _implementation = new Implementation();
         return _implementation;
     }
-};
+};*/
 
 class Program : public ProgramBase
 {
 protected:
     void run()
     {
-        if (_arguments.count() < 2) {
+        /*if (_arguments.count() < 2) {
             console.write("Syntax: " + _arguments[0] +
                 " <config file name>\n");
             return;
-        }
+        }*/
 
-        ConfigFile config;
+        /*ConfigFile config;
 
         ROMDataType romDataType;
         Type romImageArrayType = Type::array(romDataType);
@@ -3081,7 +2908,7 @@ protected:
         config.addOption("stopSaveState", Type::string, "");
         config.addOption("initialState", Type::string, "");
 
-        config.load(File(_arguments[1], CurrentDirectory(), true));
+        config.load(File(_arguments[1], CurrentDirectory(), true));*/
 
         ISA8BitBus bus;
         RAM640Kb ram;
@@ -3093,8 +2920,8 @@ protected:
 
         //IBMCGA cga;
         //bus.addComponent(&cga);
-        //Intel8253PIT pit;
-        //bus.addComponent(&pit);
+        Intel8253PIT pit;
+        bus.addComponent(&pit);
         //Intel8237DMA dma;
         //bus.addComponent(&dma);
         //Intel8255PPI ppi;
@@ -3102,7 +2929,7 @@ protected:
         //Intel8259PIC pic;
         //bus.addComponent(&pic);
 
-        List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
+        /*List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
         Array<ROM> roms(romDatas.count());
         int r = 0;
         for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
@@ -3112,11 +2939,18 @@ protected:
             bus.addComponent(rom);
             ++r;
         }
-        int stopAtCycle = config.get<int>("stopAtCycle");
-        String stopSaveState = config.get<String>("stopSaveState");
+        int stopAtCycle = config.get<int>("stopAtCycle");*
+        String stopSaveState = config.get<String>("stopSaveState");*/
+
+		File biosfile("u33.bin",true);
+
+		ROMData romdata(0xFE000,0xFE000,biosfile,0);
+		ROM* rom = new ROM();
+		rom->initialize(romdata);
+		bus.addComponent(rom);
 
         Simulator simulator;
-        Intel8088 cpu(&simulator, stopAtCycle);
+        Intel8088 cpu(&simulator, 500000);
         cpu.setBus(&bus);
         simulator.addComponent(&bus);
         simulator.addComponent(&cpu);
@@ -3155,7 +2989,7 @@ protected:
             Simulator* _simulator;
             String _stopSaveState;
         };
-        Saver saver(&simulator, stopSaveState);
+        //Saver saver(&simulator, stopSaveState);
         simulator.simulate();
     }
 };
