@@ -2924,8 +2924,8 @@ protected:
         //bus.addComponent(&cga);
         Intel8253PIT pit;
         bus.addComponent(&pit);
-        //Intel8237DMA dma;
-        //bus.addComponent(&dma);
+        Intel8237DMA dma;
+        bus.addComponent(&dma);
         //Intel8255PPI ppi;
         //bus.addComponent(&ppi);
         //Intel8259PIC pic;
