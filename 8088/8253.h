@@ -109,9 +109,7 @@ private:
         {
             switch (_bytes) {
                 case 0:
-					if (_firstByte)
-                        return _latch;
-                    return _latch >> 8;
+                    return _latch;
                     break;
                 case 1:
                     if (_latched)

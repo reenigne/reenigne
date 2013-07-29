@@ -746,15 +746,15 @@ public:
                     }
 					if(_useIO)
 					{
-						if(_ioType == ioWrite ) _busAddress |= 0xC0000000;
-						else if(_ioType == ioRead) _busAddress |= 0x40000000;
-						_useIO = false;
+						_busAddress = _data;
+						if(_ioInProgress == ioWrite ) _busAddress |= 0xC0000000;
+						else if(_ioInProgress == ioRead) _busAddress |= 0x40000000;
 					}
                     _bus->setAddress(_busAddress);
                     _busState = t2;
                     break;
                 case t2:
-                    if (_ioInProgress == ioWrite) {
+                    if (_ioInProgress == ioWrite && !_useIO) {
                         _ioRequested = ioNone;
                         switch (_byte) {
                             case ioSingleByte:
@@ -775,6 +775,30 @@ public:
                         }
                         _bus->write(_busData);
                     }
+					else if(_ioInProgress == ioWrite && _useIO)
+					{
+						_ioRequested = ioNone;
+                        switch (_byte) {
+                            case ioSingleByte:
+								_busData = al();
+                                _state = _afterIO;
+								_useIO = false;
+                                break;
+                            case ioWordFirst:
+                                _busData = al();
+                                _ioInProgress = ioWrite;
+                                _byte = ioWordSecond;
+                                ++_address;
+                                break;
+                            case ioWordSecond:
+                                _busData = ah();
+                                _state = _afterIO;
+                                _byte = ioSingleByte;
+								_useIO = false;
+                                break;
+                        }
+                        _bus->write(_busData);
+					}
                     _busState = t3;
                     break;
                 case t3:
@@ -786,7 +810,7 @@ public:
                     if (_ioInProgress == ioWrite)
                         break;
                     _busData = _bus->read();
-                    if (_ioInProgress == ioRead) {
+                    if (_ioInProgress == ioRead && !_useIO) {
                         _ioRequested = ioNone;
                         switch (_byte) {
                             case ioSingleByte:
@@ -807,6 +831,30 @@ public:
                         }
                         break;
                     }
+					else if(_ioInProgress == ioRead && _useIO)
+					{
+						_ioRequested = ioNone;
+                        switch (_byte) {
+                            case ioSingleByte:
+                                _data = _busData;
+                                _state = _afterIO;
+								_useIO = false;
+                                break;
+                            case ioWordFirst:
+                                _data = _busData;
+                                _ioInProgress = ioRead;
+                                _byte = ioWordSecond;
+                                ++_address;
+                                break;
+                            case ioWordSecond:
+                                _data |= static_cast<UInt16>(_busData);
+                                _state = _afterIO;
+                                _byte = ioSingleByte;
+								_useIO = false;
+                                break;
+                        }
+                        break;
+					}
                     if (_abandonFetch)
                         break;
                     _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
