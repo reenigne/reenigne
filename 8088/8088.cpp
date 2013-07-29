@@ -1623,6 +1623,8 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _ioType = ((_opcode & 2) == 0 ? ioRead : ioWrite);
                     _segment = 7;
                     _address = _data;
+                    if (_ioType == ioWrite)
+                        _data = getAccum();
                     initIO(stateInOut3, _ioType, _wordSize);
                     break;
                 case stateInOut3:
