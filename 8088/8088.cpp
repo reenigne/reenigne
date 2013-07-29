@@ -1622,6 +1622,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _useIO = true;
                     _ioType = ((_opcode & 2) == 0 ? ioRead : ioWrite);
                     _segment = 7;
+                    _address = _data;
                     initIO(stateInOut3, _ioType, _wordSize);
                     break;
                 case stateInOut3:
