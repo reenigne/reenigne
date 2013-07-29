@@ -1,3 +1,6 @@
+#ifndef COMMON_H
+#define COMMON_H
+
 #include "alfe/string.h"
 #include "alfe/array.h"
 #include "alfe/file.h"
@@ -210,3 +213,5 @@ private:
 
     template<class T> friend class ISA8BitComponentTemplate;
 };
+
+#endif

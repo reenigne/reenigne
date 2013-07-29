@@ -194,6 +194,7 @@ private:
     int _dmaPages[4];
 };
 
+#include "8237.h"
 
 //class Intel8237DMA : public ISA8BitComponent
 //{

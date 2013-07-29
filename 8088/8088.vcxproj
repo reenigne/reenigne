@@ -79,6 +79,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="8088.cpp" />
+    <ClInclude Include="8237.h" />
     <ClInclude Include="8253.h">
       <FileType>CppHeader</FileType>
     </ClInclude>
