@@ -19,7 +19,7 @@ public:
     void setAddress(UInt32 address)
     {
         _address = address & 3;
-        _active = (address & 0xc00003e0) == 0xc0000040;
+        _active = (address & 0x400003e0) == 0x40000040;
     }
     void read()
     {

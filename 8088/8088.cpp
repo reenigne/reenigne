@@ -723,7 +723,7 @@ public:
             line += _segmentRegisters[i].text();
         }
         line += _flags.text();
-		if(_newInstruction) console.write(line + "\n");
+        if(_newInstruction) console.write(line + "\n");
         _newInstruction = false;
         ++_cycle;
         if (_halted || _cycle == _stopAtCycle)
@@ -743,13 +743,11 @@ public:
                         if (_segmentOverride != -1)
                             segment = _segmentOverride;
                         _busAddress = physicalAddress(segment, _address);
+                        if (_useIO)
+                            _busAddress |= 0x40000000;
+                        if (_ioInProgress == ioWrite)
+                            _busAddress |= 0x80000000;
                     }
-					if(_useIO)
-					{
-						if(_ioType == ioWrite ) _busAddress |= 0xC0000000;
-						else if(_ioType == ioRead) _busAddress |= 0x40000000;
-						_useIO = false;
-					}
                     _bus->setAddress(_busAddress);
                     _busState = t2;
                     break;
@@ -2942,12 +2940,12 @@ protected:
         int stopAtCycle = config.get<int>("stopAtCycle");*
         String stopSaveState = config.get<String>("stopSaveState");*/
 
-		File biosfile("u33.bin",true);
+        File biosfile("u33.bin",true);
 
-		ROMData romdata(0xFE000,0xFE000,biosfile,0);
-		ROM* rom = new ROM();
-		rom->initialize(romdata);
-		bus.addComponent(rom);
+        ROMData romdata(0xFE000,0xFE000,biosfile,0);
+        ROM* rom = new ROM();
+        rom->initialize(romdata);
+        bus.addComponent(rom);
 
         Simulator simulator;
         Intel8088 cpu(&simulator, 500000);
