@@ -1320,7 +1320,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                             _state = stateEndInstruction;
 						else _state = _afterRep;
                     }
-					_state = stateEndInstruction;
+					else _state = stateEndInstruction;
                     break;
                 case stateCmpS: _wait = 14; lodS(stateCmpS2); break;
                 case stateCmpS2:
@@ -2957,7 +2957,7 @@ protected:
         bus.addComponent(rom);
 
         Simulator simulator;
-        Intel8088 cpu(&simulator, 4000000);
+        Intel8088 cpu(&simulator, 6000000);
         cpu.setBus(&bus);
         simulator.addComponent(&bus);
         simulator.addComponent(&cpu);
