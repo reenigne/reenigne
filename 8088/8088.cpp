@@ -1417,7 +1417,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
 
                 case stateMovRMImm: loadEA(stateMovRMImm2); break;
-                case stateMovRMImm2: fetch(stateMovRMImm2, _wordSize); break;
+                case stateMovRMImm2: fetch(stateMovRMImm3, _wordSize); break;
                 case stateMovRMImm3: writeEA(_data, _useMemory ? 6 : 4); break;
 
                 case stateInt: interrupt(3); _wait = 1; break;
@@ -2949,7 +2949,7 @@ protected:
         bus.addComponent(rom);
 
         Simulator simulator;
-        Intel8088 cpu(&simulator, 500000);
+        Intel8088 cpu(&simulator, 4000000);
         cpu.setBus(&bus);
         simulator.addComponent(&bus);
         simulator.addComponent(&cpu);
