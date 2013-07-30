@@ -7,6 +7,7 @@ public:
     {
         for (int i = 0; i < 3; ++i)
             _timers[i].setGate(true);
+		if(_timers[0]._output == true) requestInterrupt(0);
     }
     void simulateCycle()
     {
@@ -18,6 +19,9 @@ public:
                 _timers[i].simulateCycle();
         }
     }
+	void handleInterrupt()
+	{
+	}
     void setAddress(UInt32 address)
     {
         _address = address & 3;
@@ -205,6 +209,7 @@ private:
             }
             _gate = gate;
         }
+		bool _output;
     private:
         enum State
         {
@@ -265,7 +270,6 @@ private:
         UInt8 _lowCount;
         bool _firstByte;
         bool _gate;
-        bool _output;
         bool _latched;
         State _state;
     };

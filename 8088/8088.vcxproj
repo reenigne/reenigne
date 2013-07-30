@@ -138,6 +138,8 @@
     <ClInclude Include="..\include\alfe\user.h" />
     <ClInclude Include="..\include\alfe\value.h" />
     <ClInclude Include="..\include\alfe\vectors.h" />
+    <ClInclude Include="8255.h" />
+    <ClInclude Include="8259.h" />
     <ClInclude Include="common.h" />
   </ItemGroup>
   <ItemGroup>

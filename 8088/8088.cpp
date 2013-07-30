@@ -67,6 +67,9 @@ public:
         for (int a = 0; a < 0xa0000; ++a)
             _data[a] = 0;
     }
+	void handleInterrupt()
+	{
+	}
     void setAddress(UInt32 address)
     {
         _address = address & 0x400fffff;
@@ -130,6 +133,9 @@ class NMISwitch : public ISA8BitComponent
 {
 public:
     NMISwitch() : _nmiOn(false) { }
+	void handleInterrupt()
+	{
+	}
     void setAddress(UInt32 address)
     {
         _active = (address & 0xc00003e0) == 0xc00000a0;
@@ -151,6 +157,9 @@ class DMAPageRegisters : public ISA8BitComponent
 {
 public:
     DMAPageRegisters() { for (int i = 0; i < 4; ++i) _dmaPages[i] = 0; }
+	void handleInterrupt()
+	{
+	}
     void setAddress(UInt32 address)
     {
         _address = address & 3;
@@ -196,17 +205,9 @@ private:
 
 #include "8237.h"
 
-//class Intel8237DMA : public ISA8BitComponent
-//{
-//};
-//
-//class Intel8255PPI : public ISA8BitComponent
-//{
-//};
-//
-//class Intel8259PIC : public ISA8BitComponent
-//{
-//};
+#include "8255.h"
+
+#include "8259.h"
 
 class ROMData
 {
@@ -251,6 +252,9 @@ public:
             return _data[address & ~_mask];
         return 0xff;
     }
+	void handleInterrupt()
+	{
+	}
 private:
     int _mask;
     int _start;
@@ -921,7 +925,8 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateEndInstruction:
                     _segmentOverride = -1;
-                    _state = stateBegin;
+                    if(!_bus->_interruptrdy) _state = stateBegin;
+					else _state = stateHWInt;
                     _rep = 0;
                     _usePortSpace = false;
                     _newInstruction = true;
@@ -1309,12 +1314,13 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     stoS(stateRepAction);
                     break;
                 case stateRepAction:
-                    _state = stateEndInstruction;
                     if (_rep != 0) {
                         --cx();
                         if (cx() == 0 || (zf() == (_rep == 1)))
-                            _state = _afterRep;
+                            _state = stateEndInstruction;
+						else _state = _afterRep;
                     }
+					_state = stateEndInstruction;
                     break;
                 case stateCmpS: _wait = 14; lodS(stateCmpS2); break;
                 case stateCmpS2:
@@ -1420,6 +1426,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                 case stateMovRMImm2: fetch(stateMovRMImm3, _wordSize); break;
                 case stateMovRMImm3: writeEA(_data, _useMemory ? 6 : 4); break;
 
+				case stateHWInt: interrupt(_bus->_interruptnum); _wait = 1; break;
                 case stateInt: interrupt(3); _wait = 1; break;
                 case stateInt3: fetch(stateIntAction, false); break;
                 case stateIntAction:
@@ -2113,6 +2120,7 @@ private:
     enum State
     {
         stateWaitingForBIU,
+		stateHWInt,
         stateBegin, stateDecodeOpcode,
         stateEndInstruction,
         stateBeginModRM, stateDecodeModRM,
@@ -2923,8 +2931,8 @@ protected:
         bus.addComponent(&pit);
         Intel8237DMA dma;
         bus.addComponent(&dma);
-        //Intel8255PPI ppi;
-        //bus.addComponent(&ppi);
+        Intel8255PPI ppi;
+        bus.addComponent(&ppi);
         //Intel8259PIC pic;
         //bus.addComponent(&pic);
 

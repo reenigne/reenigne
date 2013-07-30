@@ -32,6 +32,9 @@ public:
             _channels[_address >> 1].write(_address & 1,data);
         }
     }
+	void handleInterrupt()
+	{
+	}
 private:
     class Channel
     {

@@ -120,6 +120,12 @@ public:
     virtual UInt8 memory(UInt32 address) { return 0xff; }
     bool active() const { return _active; }
     virtual void read() { }
+	void requestInterrupt(UInt8 data)
+	{
+		_bus->_interruptnum = data & 7;
+		_bus->_interrupt = true;
+	}
+	virtual void handleInterrupt() = 0;
 protected:
     void set(UInt8 data) { _bus->_data = data; }
     ISA8BitBus* _bus;
@@ -131,10 +137,19 @@ typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
 class ISA8BitBus : public Component
 {
 public:
+	ISA8BitBus() : _interrupt(false), _interruptrdy(false)
+	{
+	}
     void simulateCycle()
     {
         for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->simulateCycle();
+        {
+			(*i)->simulateCycle();
+			if(_interrupt)
+			{
+				(*i)->handleInterrupt();
+			}
+		}
     }
     void addComponent(ISA8BitComponent* component)
     {
@@ -207,6 +222,11 @@ public:
                 object->operator[]((*i)->name()) = (*i)->initial();
         return TypedValue(type(), object);
     }
+
+	UInt8 _interruptnum;
+	bool _interrupt;
+	bool _interruptrdy;
+
 private:
     List<ISA8BitComponent*> _components;
     UInt8 _data;

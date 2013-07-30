@@ -191,6 +191,12 @@
     <ClInclude Include="8237.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="8255.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="8259.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="scratch.txt" />
