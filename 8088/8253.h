@@ -41,7 +41,7 @@ public:
     void setT2Gate(bool gate) { _timers[2].setGate(gate); }
     String save()
     {
-		return "";
+        return "";
     }
     Type type() {return Type(); }
     void load(const TypedValue& value) { }

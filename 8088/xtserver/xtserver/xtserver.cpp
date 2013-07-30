@@ -166,7 +166,9 @@ public:
                                 if (contentType !=
                                     "Content-Type: application/octet-stream" &&
                                     contentType !=
-                                    "Content-Type: application/macbinary") {
+                                    "Content-Type: application/macbinary" &&
+                                    contentType !=
+                                    "Content-Type: application/x-macbinary") {
                                     errorPage();
                                     return;
                                 }

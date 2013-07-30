@@ -593,7 +593,7 @@ template<class T> class Intel8088Template : public Component
 public:
     Intel8088Template(Simulator* simulator, int stopAtCycle)
       : _flagsData(0x0002),  // ?
-        _state(stateFetch),
+        _state(stateBegin),
         _ip(0),
         _prefetchOffset(0),
         _prefetched(0),
@@ -605,7 +605,7 @@ public:
         _ioInProgress(ioInstructionFetch),
         _busState(t1),
         _abandonFetch(false),
-        _useIO(false),
+        _usePortSpace(false),
         _halted(false),
         _wait(0),
         _newInstruction(true),
@@ -622,7 +622,7 @@ public:
         _address(0),
         _aluOperation(0),
         _afterEA(stateWaitingForBIU),
-        _afterModRM(stateWaitingForBIU),
+        _afterEAIO(stateWaitingForBIU),
         _afterRep(stateWaitingForBIU),
         _savedCS(0),
         _savedIP(0),
@@ -744,7 +744,7 @@ public:
                         if (_segmentOverride != -1)
                             segment = _segmentOverride;
                         _busAddress = physicalAddress(segment, _address);
-                        if (_useIO)
+                        if (_usePortSpace)
                             _busAddress |= 0x40000000;
                         if (_ioInProgress == ioWrite)
                             _busAddress |= 0x80000000;
@@ -845,8 +845,8 @@ public:
                 case stateWaitingForBIU:
                     return;
 
-                case stateFetch: fetch(stateFetch2, false); break;
-                case stateFetch2:
+                case stateBegin: fetch(stateDecodeOpcode, false); break;
+                case stateDecodeOpcode:
                     {
                         _opcode = _data;
                         _wordSize = ((_opcode & 1) != 0);
@@ -921,19 +921,15 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateEndInstruction:
                     _segmentOverride = -1;
-                    _state = stateFetch;
+                    _state = stateBegin;
                     _rep = 0;
-                    _useIO = false;
+                    _usePortSpace = false;
                     _newInstruction = true;
                     _newIP = _ip;
                     break;
 
-                case stateModRM:
-                    _afterModRM = _afterIO;
-                    fetch(stateModRM2, false);
-                    break;
-                case stateModRM2:
-                    _afterIO = _afterModRM;
+                case stateBeginModRM: fetch(stateDecodeModRM, false); break;
+                case stateDecodeModRM:
                     _modRM = _data;
                     if ((_modRM & 0xc0) == 0xc0) {
                         _useMemory = false;
@@ -987,9 +983,9 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _state = _afterEA;
                     break;
 
-                case stateIO:
+                case stateEAIO:
                     if (_useMemory)
-                        initIO(_afterIO, _ioType, _wordSize);
+                        initIO(_afterEAIO, _ioType, _wordSize);
                     else {
                         if (!_wordSize)
                             if (_ioType == ioRead)
@@ -1001,7 +997,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                                 _data = _wordRegisters[_address];
                             else
                                 _wordRegisters[_address] = _data;
-                        _state = _afterIO;
+                        _state = _afterEAIO;
                     }
                     break;
 
@@ -1075,7 +1071,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
 
                 case stateSegOverride:
                     _segmentOverride = (_opcode >> 3) & 3;
-                    _state = stateFetch;
+                    _state = stateBegin;
                     _wait = 2;
                     break;
 
@@ -1620,7 +1616,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     }
                     break;
                 case stateInOut2:
-                    _useIO = true;
+                    _usePortSpace = true;
                     _ioType = ((_opcode & 2) == 0 ? ioRead : ioWrite);
                     _segment = 7;
                     _address = _data;
@@ -1669,7 +1665,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                 case stateRep:
                     _rep = (_opcode == 0xf2 ? 1 : 2);
                     _wait = 9;
-                    _state = stateFetch;
+                    _state = stateBegin;
                     break;
                 case stateHlt: _halted = true; end(2); break;
                 case stateCmC: _flags ^= 1; end(2); break;
@@ -1740,7 +1736,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                                         ((ax() & 0x8000) == 0 ? 0 : 0xffff));
                                     _wait = 128;
                                 }
-                            setZF();
+                            setZF();                                              
                             setOF(cf());
                             if (_useMemory)
                                 _wait += 2;
@@ -1921,14 +1917,15 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  aluOperation: ") + _aluOperation + ",\n";
         s += String("  afterEA: ") + stringForState(_afterEA) + ",\n";
         s += String("  afterIO: ") + stringForState(_afterIO) + ",\n";
-        s += String("  afterModRM: ") + stringForState(_afterModRM) + ",\n";
+        s += String("  afterEAIO: ") + stringForState(_afterEAIO) + ",\n";
         s += String("  afterRep: ") + stringForState(_afterRep) + ",\n";
         s += String("  sourceIsRM: ") + (_sourceIsRM ? "true" : "false") +
             ",\n";
         s += String("  savedCS: ") + hex(_savedCS, 4) + ",\n";
         s += String("  savedIP: ") + hex(_savedIP, 4) + ",\n";
         s += String("  rep: ") + _rep + ",\n";
-        s += String("  useIO: ") + (_useIO ? "true" : "false") + ",\n";
+        s += String("  usePortSpace: ") + (_usePortSpace ? "true" : "false") +
+            ",\n";
         s += String("  halted: ") + (_halted ? "true" : "false") + ",\n";
         s += String("  newInstruction: ") +
             (_newInstruction ? "true" : "false") + ",\n";
@@ -1984,7 +1981,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("savedCS", Type::integer));
         members.add(M("savedIP", Type::integer));
         members.add(M("rep", Type::integer));
-        members.add(M("useIO", Type::boolean));
+        members.add(M("usePortSpace", Type::boolean));
         members.add(M("halted", Type::boolean));
         members.add(M("newInstruction", Type::boolean));
         members.add(M("newIP", Type::integer));
@@ -2038,13 +2035,13 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _aluOperation = (*members)["aluOperation"].value<int>();
         _afterEA = (*members)["afterEA"].value<State>();
         _afterIO = (*members)["afterIO"].value<State>();
-        _afterModRM = (*members)["afterModRM"].value<State>();
+        _afterEAIO = (*members)["afterEAIO"].value<State>();
         _afterRep = (*members)["afterRep"].value<State>();
         _sourceIsRM = (*members)["sourceIsRM"].value<bool>();
         _savedCS = (*members)["savedCS"].value<int>();
         _savedIP = (*members)["savedIP"].value<int>();
         _rep = (*members)["rep"].value<int>();
-        _useIO = (*members)["useIO"].value<bool>();
+        _usePortSpace = (*members)["usePortSpace"].value<bool>();
         _halted = (*members)["halted"].value<bool>();
         _newInstruction = (*members)["newInstruction"].value<bool>();
         _newIP = (*members)["newIP"].value<int>();
@@ -2080,7 +2077,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         (*members)["byte"] = TypedValue(_ioByteType, ioSingleByte);
         (*members)["abandonFetch"] = TypedValue(Type::boolean, false);
         (*members)["wait"] = TypedValue(Type::integer, 0);
-        (*members)["state"] = TypedValue(_stateType, stateFetch);
+        (*members)["state"] = TypedValue(_stateType, stateBegin);
         (*members)["opcode"] = TypedValue(Type::integer, 0);
         (*members)["modRM"] = TypedValue(Type::integer, 0);
         (*members)["data"] = TypedValue(Type::integer, 0);
@@ -2097,7 +2094,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         (*members)["savedCS"] = TypedValue(Type::integer, 0);
         (*members)["savedIP"] = TypedValue(Type::integer, 0);
         (*members)["rep"] = TypedValue(Type::integer, 0);
-        (*members)["useIO"] = TypedValue(Type::boolean, false);
+        (*members)["usePortSpace"] = TypedValue(Type::boolean, false);
         (*members)["halted"] = TypedValue(Type::boolean, false);
         (*members)["newInstruction"] = TypedValue(Type::boolean, true);
         (*members)["newIP"] = TypedValue(Type::integer, 0);
@@ -2116,15 +2113,15 @@ private:
     enum State
     {
         stateWaitingForBIU,
-        stateFetch, stateFetch2,
+        stateBegin, stateDecodeOpcode,
         stateEndInstruction,
-        stateModRM, stateModRM2,
+        stateBeginModRM, stateDecodeModRM,
         stateEAOffset,
         stateEARegisters,
         stateEAByte,
         stateEAWord,
         stateEASetSegment,
-        stateIO,
+        stateEAIO,
         statePush, statePush2,
         statePop,
 
@@ -2204,17 +2201,17 @@ private:
     {
         switch (state) {
             case stateWaitingForBIU:  return "waitingForBIU";
-            case stateFetch:          return "stateFetch";
-            case stateFetch2:         return "stateFetch2";
+            case stateBegin:          return "stateBegin";
+            case stateDecodeOpcode:   return "stateDecodeOpcode";
             case stateEndInstruction: return "stateEndInstruction";
-            case stateModRM:          return "stateModRM";
-            case stateModRM2:         return "stateModRM2";
+            case stateBeginModRM:     return "stateBeginModRM";
+            case stateDecodeModRM:    return "stateDecodeModRM";
             case stateEAOffset:       return "stateEAOffset";
             case stateEARegisters:    return "stateEARegisters";
             case stateEAByte:         return "stateEAByte";
             case stateEAWord:         return "stateEAWord";
             case stateEASetSegment:   return "stateEASetSegment";
-            case stateIO:             return "stateIO";
+            case stateEAIO:           return "stateEAIO";
             case statePush:           return "statePush";
             case statePush2:          return "statePush2";
             case statePop:            return "statePop";
@@ -2466,12 +2463,12 @@ private:
         _wait += 6;
     }
     void pop(State state) { _afterIO = state; _state = statePop; }
-    void loadEA(State state) { _afterEA = state; _state = stateModRM; }
+    void loadEA(State state) { _afterEA = state; _state = stateBeginModRM; }
     void readEA(State state)
     {
-        _afterIO = state;
+        _afterEAIO = state;
         _ioType = ioRead;
-        loadEA(stateIO);
+        loadEA(stateEAIO);
     }
     void fetch(State state, bool wordSize)
     {
@@ -2481,9 +2478,9 @@ private:
     {
         _data = data;
         _wait = wait;
-        _afterIO = stateEndInstruction;
+        _afterEAIO = stateEndInstruction;
         _ioType = ioWrite;
-        _state = stateIO;
+        _state = stateEAIO;
     }
     void setCA() { setCF(true); setAF(true); }
     void clearCA() { setCF(false); setAF(false); }
@@ -2812,13 +2809,13 @@ private:
     int _aluOperation;
     State _afterEA;
     State _afterIO;
-    State _afterModRM;
+    State _afterEAIO;
     State _afterRep;
     bool _sourceIsRM;
     UInt16 _savedCS;
     UInt16 _savedIP;
     int _rep;
-    bool _useIO;
+    bool _usePortSpace;
     bool _halted;
     bool _newInstruction;
     UInt16 _newIP;
