@@ -3,15 +3,15 @@
 #ifndef INCLUDED_HANDLE_H
 #define INCLUDED_HANDLE_H
 
-class Handle
+template<class T> class HandleTemplate
 {
 public:
 #ifdef _WIN32
-    Handle()
+    HandleTemplate()
       : _handle(INVALID_HANDLE_VALUE),
         _implementation(new NonOwningImplementation)
     { }
-    Handle(HANDLE handle, const File& file = File())
+    HandleTemplate(HANDLE handle, const File& file = File())
       : _handle(handle), _file(file),
         _implementation(new NonOwningImplementation)
     { }
@@ -21,11 +21,11 @@ public:
         return _handle != INVALID_HANDLE_VALUE && _handle != NULL;
     }
 #else
-    Handle()
+    HandleTemplate()
       : _fileDescriptor(-1),
         _implementation(new NonOwningImplementation)
     { }
-    Handle(int fileDescriptor, const File& file = File())
+    HandleTemplate(int fileDescriptor, const File& file = File())
       : _fileDescriptor(fileDescriptor), _file(file),
         _implementation(new NonOwningImplementation)
     { }
@@ -240,10 +240,11 @@ private:
     };
 
 #ifdef _WIN32
-    Handle(HANDLE handle, const File& file, Implementation* implementation)
+    HandleTemplate(HANDLE handle, const File& file,
+        Implementation* implementation)
       : _handle(handle), _file(file), _implementation(implementation) { }
 #else
-    Handle(int fileDescriptor, const File& file,
+    HandleTemplate(int fileDescriptor, const File& file,
         Implementation* implementation)
       : _fileDescriptor(fileDescriptor), _file(file),
         _implementation(implementation)

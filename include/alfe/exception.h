@@ -58,7 +58,7 @@ public:
       : _message(message),
         _implementation(new OwningImplementation(message))
     { }
-    void write(const Handle& handle) const
+    void write(const HandleTemplate<T>& handle) const
     {
         handle.write(_message + codePoint(10));
     }

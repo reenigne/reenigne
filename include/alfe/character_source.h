@@ -98,12 +98,12 @@ private:
     int _endColumn;
 };
 
-class CharacterSource
+template<class T> class CharacterSourceTemplate
 {
 public:
-    CharacterSource() { }
-    CharacterSource(const String& string) : _string(string) { }
-    CharacterSource(const String& string, const File& file)
+    CharacterSourceTemplate() { }
+    CharacterSourceTemplate(const String& string) : _string(string) { }
+    CharacterSourceTemplate(const String& string, const File& file)
       : _string(string), _location(file) { }
     int get(Span* span = 0)
     {
