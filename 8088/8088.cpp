@@ -3067,7 +3067,7 @@ public:
         rom->initialize(romdata);
         _bus.addComponent(rom);
 
-        _cpu.setStopAtCycle(6000000);
+        _cpu.setStopAtCycle(28000000);
         addComponent(&_bus);
         _bus.addComponent(&_ram);
         _bus.addComponent(&_nmiSwitch);

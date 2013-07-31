@@ -45,6 +45,10 @@ public:
                 _icw4 = data;
                 _state = stateReady;
             }
+			if(_state == stateReady)
+			{
+				_imr = data;
+			}
             break;
         }
     }
