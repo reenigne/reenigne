@@ -1,44 +1,39 @@
-#include "common.h"
-
 class Intel8255PPI : public ISA8BitComponent
 {
 public:
     Intel8255PPI()
     {
     }
-	void simulateCycle()
+    void simulateCycle()
     {
-	}
-	void setAddress(UInt32 address)
+    }
+    void setAddress(UInt32 address)
     {
         _address = address & 0x3;
         _active = (address & 0x400003f0) == 0x40000060;
     }
-	void read()
+    void read()
     {
-		switch(_address)
-		{
-		case 0:
-			set(0x00); //Hardcoded for now.
-		case 2:
-			if(_portb & 0x08) set(0x00); //Hardcoded for now.
-			else set(0x03);
-			break;
-		}
-	}
-	void write(UInt8 data)
+        switch(_address)
+        {
+        case 0:
+            set(0x00); //Hardcoded for now.
+        case 2:
+            if(_portb & 0x08) set(0x00); //Hardcoded for now.
+            else set(0x03);
+            break;
+        }
+    }
+    void write(UInt8 data)
     {
-		switch(_address)
-		{
-		case 1:
-			_portb = data;
-			break;
-		}
-	}
-	void handleInterrupt()
-	{
-	}
+        switch(_address)
+        {
+        case 1:
+            _portb = data;
+            break;
+        }
+    }
 private:
-	UInt32 _address;
-	UInt8 _portb;
+    UInt32 _address;
+    UInt8 _portb;
 };

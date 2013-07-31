@@ -14,7 +14,167 @@
 //{
 //};
 
-#include "8253.h"
+int parseHexadecimalCharacter(CharacterSource* source, Span* span)
+{
+    CharacterSource s = *source;
+    int c = s.get(span);
+    if (c >= '0' && c <= '9') {
+        *source = s;
+        return c - '0';
+    }
+    if (c >= 'A' && c <= 'F') {
+        *source = s;
+        return c + 10 - 'A';
+    }
+    if (c >= 'a' && c <= 'f') {
+        *source = s;
+        return c + 10 - 'a';
+    }
+    return -1;
+}
+
+class Simulator;
+
+template<class T> class Intel8088Template;
+
+typedef Intel8088Template<void> Intel8088;
+
+class Component
+{
+public:
+    Component() : _simulator(0) { }
+    void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
+    virtual void site() { }
+    virtual void simulateCycle() { }
+    virtual String save() { return String(); }
+    virtual Type type() { return Type(); }
+    virtual String name() { return String(); }
+    virtual void load(const TypedValue& value) { }
+    virtual TypedValue initial() { return TypedValue(); }
+protected:
+    Simulator* _simulator;
+};
+
+class ISA8BitBus;
+
+template<class T> class ISA8BitComponentTemplate : public Component
+{
+public:
+    // Address bit 31 = write
+    // Address bit 30 = IO
+    virtual void setAddress(UInt32 address) = 0;
+    virtual void write(UInt8 data) = 0;
+    virtual bool wait() { return false; }
+    void setBus(ISA8BitBus* bus) { _bus = bus; }
+    virtual UInt8 memory(UInt32 address) { return 0xff; }
+    bool active() const { return _active; }
+    virtual void read() { }
+    void requestInterrupt(UInt8 data)
+    {
+        _bus->_interruptnum = data & 7;
+        _bus->_interrupt = true;
+    }
+protected:
+    void set(UInt8 data) { _bus->_data = data; }
+    ISA8BitBus* _bus;
+    bool _active;
+};
+
+typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
+
+class ISA8BitBus : public Component
+{
+public:
+    ISA8BitBus() : _interrupt(false), _interruptrdy(false)
+    {
+    }
+    void simulateCycle()
+    {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            (*i)->simulateCycle();
+    }
+    void addComponent(ISA8BitComponent* component)
+    {
+        _components.add(component);
+        component->setBus(this);
+    }
+    void setAddress(UInt32 address)
+    {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            (*i)->setAddress(address);
+    }
+    void write(UInt8 data)
+    {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            if ((*i)->active())
+                (*i)->write(data);
+    }
+    UInt8 read() const
+    {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            if ((*i)->active())
+                (*i)->read();
+        return _data;
+    }
+    UInt8 memory(UInt32 address)
+    {
+        UInt8 data = 0xff;
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            data &= (*i)->memory(address);
+        return data;
+    }
+    String save()
+    {
+        String s("bus: {");
+        bool needComma = false;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            if ((*i)->name().empty())
+                continue;
+            if (needComma)
+                s += ", ";
+            needComma = true;
+            s += (*i)->save();
+        }
+        return s + "}";
+    }
+    Type type()
+    {
+        List<StructuredType::Member> members;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            Type type = (*i)->type();
+            if (!type.valid())
+                continue;
+            members.add(StructuredType::Member((*i)->name(), (*i)->type()));
+        }
+        return StructuredType("Bus", members);
+    }
+    void load(const TypedValue& value)
+    {
+        Value<HashTable<String, TypedValue> > object =
+            value.value<Value<HashTable<String, TypedValue> > >();
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            (*i)->load((*object)[(*i)->name()]);
+    }
+    String name() { return "bus"; }
+    TypedValue initial()
+    {
+        Value<HashTable<String, TypedValue> > object;
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            if ((*i)->type().valid())
+                object->operator[]((*i)->name()) = (*i)->initial();
+        return TypedValue(type(), object);
+    }
+
+    UInt8 _interruptnum;
+    bool _interrupt;
+    bool _interruptrdy;
+
+private:
+    List<ISA8BitComponent*> _components;
+    UInt8 _data;
+
+    template<class T> friend class ISA8BitComponentTemplate;
+};
 
 //class Motorola6845CRTC : public Component
 //{
@@ -67,9 +227,6 @@ public:
         for (int a = 0; a < 0xa0000; ++a)
             _data[a] = 0;
     }
-	void handleInterrupt()
-	{
-	}
     void setAddress(UInt32 address)
     {
         _address = address & 0x400fffff;
@@ -133,9 +290,6 @@ class NMISwitch : public ISA8BitComponent
 {
 public:
     NMISwitch() : _nmiOn(false) { }
-	void handleInterrupt()
-	{
-	}
     void setAddress(UInt32 address)
     {
         _active = (address & 0xc00003e0) == 0xc00000a0;
@@ -157,9 +311,6 @@ class DMAPageRegisters : public ISA8BitComponent
 {
 public:
     DMAPageRegisters() { for (int i = 0; i < 4; ++i) _dmaPages[i] = 0; }
-	void handleInterrupt()
-	{
-	}
     void setAddress(UInt32 address)
     {
         _address = address & 3;
@@ -203,11 +354,13 @@ private:
     int _dmaPages[4];
 };
 
+#include "8259.h"
+
 #include "8237.h"
 
 #include "8255.h"
 
-#include "8259.h"
+#include "8253.h"
 
 class ROMData
 {
@@ -252,9 +405,6 @@ public:
             return _data[address & ~_mask];
         return 0xff;
     }
-	void handleInterrupt()
-	{
-	}
 private:
     int _mask;
     int _start;
@@ -595,7 +745,7 @@ typedef DisassemblerTemplate<void> Disassembler;
 template<class T> class Intel8088Template : public Component
 {
 public:
-    Intel8088Template(Simulator* simulator, int stopAtCycle)
+    Intel8088Template()
       : _flagsData(0x0002),  // ?
         _state(stateBegin),
         _ip(0),
@@ -615,8 +765,7 @@ public:
         _newInstruction(true),
         _newIP(0),
         _cycle(0),
-        _simulator(simulator),
-        _stopAtCycle(stopAtCycle),
+        _stopAtCycle(0),
         _opcode(0),
         _modRM(0),
         _data(0),
@@ -628,6 +777,7 @@ public:
         _afterEA(stateWaitingForBIU),
         _afterEAIO(stateWaitingForBIU),
         _afterRep(stateWaitingForBIU),
+        _afterInt(stateWaitingForBIU),
         _savedCS(0),
         _savedIP(0),
         _rep(0),
@@ -682,10 +832,12 @@ public:
 
         _disassembler.setCPU(this);
     }
-    void setBus(ISA8BitBus* bus)
+    void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
+    void site()
     {
-        _bus = bus;
+        _bus = _simulator->getBus();
         _disassembler.setBus(_bus);
+        _pic = _simulator->getPIC();
     }
     UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
     void simulateCycle()
@@ -731,7 +883,7 @@ public:
         if(_newInstruction) console.write(line + "\n");
         _newInstruction = false;
         ++_cycle;
-        if (_halted || _cycle == _stopAtCycle)
+        if (_halted /*|| _cycle == _stopAtCycle*/)
             _simulator->halt();
     }
     void simulateCycleAction()
@@ -907,7 +1059,7 @@ stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
 stateInvalid,      stateInvalid,      stateRet,          stateRet,
 stateLoadFar,      stateLoadFar,      stateMovRMImm,     stateMovRMImm,
 stateInvalid,      stateInvalid,      stateRet,          stateRet,
-stateInt,          stateInt,          stateIntO,         stateIRet,
+stateInt3,         stateInt,          stateIntO,         stateIRet,
 stateShift,        stateShift,        stateShift,        stateShift,
 stateAAM,          stateAAD,          stateSALC,         stateXlatB,
 stateEscape,       stateEscape,       stateEscape,       stateEscape,
@@ -925,12 +1077,12 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateEndInstruction:
                     _segmentOverride = -1;
-                    if(!_bus->_interruptrdy) _state = stateBegin;
-					else _state = stateHWInt;
                     _rep = 0;
                     _usePortSpace = false;
                     _newInstruction = true;
                     _newIP = _ip;
+                    _afterInt = stateBegin;
+                    _state = stateCheckInt;
                     break;
 
                 case stateBeginModRM: fetch(stateDecodeModRM, false); break;
@@ -1314,13 +1466,14 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     stoS(stateRepAction);
                     break;
                 case stateRepAction:
+                    _state = stateEndInstruction;
                     if (_rep != 0) {
                         --cx();
+                        _afterInt = _afterRep;
                         if (cx() == 0 || (zf() == (_rep == 1)))
-                            _state = stateEndInstruction;
-						else _state = _afterRep;
+                            _afterInt = stateEndInstruction;
+                        _state = stateCheckInt;
                     }
-					else _state = stateEndInstruction;
                     break;
                 case stateCmpS: _wait = 14; lodS(stateCmpS2); break;
                 case stateCmpS2:
@@ -1426,9 +1579,31 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                 case stateMovRMImm2: fetch(stateMovRMImm3, _wordSize); break;
                 case stateMovRMImm3: writeEA(_data, _useMemory ? 6 : 4); break;
 
-				case stateHWInt: interrupt(_bus->_interruptnum); _wait = 1; break;
-                case stateInt: interrupt(3); _wait = 1; break;
-                case stateInt3: fetch(stateIntAction, false); break;
+                case stateCheckInt:
+                    _state = _afterInt;
+                    if (intf() && _pic->interruptRequest()) {
+                        _state = stateHardwareInt;
+                        _pic->interruptAcknowledge();
+                        _wait = 1;
+                    }
+                    break;
+                case stateHardwareInt:
+                    _pic->interruptAcknowledge();
+                    _wait = 1;
+                    _state = stateHardwareInt2;
+                    break;
+                case stateHardwareInt2:
+                    _data = _bus->read();
+                    _state = stateIntAction;
+                    break;
+                case stateInt3:
+                    interrupt(3);
+                    _wait = 1;
+                    break;
+                case stateInt:
+                    fetch(stateIntAction, false);
+                    _afterInt = stateEndInstruction;
+                    break;
                 case stateIntAction:
                     _source = _data;
                     push(_flags & 0x0fd7, stateIntAction2);
@@ -1454,6 +1629,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     cs() = _data;
                     setIP(_savedIP);
                     _wait = 13;
+                    _state = _afterInt;
                     break;
                 case stateIntO:
                     if (of()) {
@@ -1926,6 +2102,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  afterIO: ") + stringForState(_afterIO) + ",\n";
         s += String("  afterEAIO: ") + stringForState(_afterEAIO) + ",\n";
         s += String("  afterRep: ") + stringForState(_afterRep) + ",\n";
+        s += String("  afterInt: ") + stringForState(_afterInt) + ",\n";
         s += String("  sourceIsRM: ") + (_sourceIsRM ? "true" : "false") +
             ",\n";
         s += String("  savedCS: ") + hex(_savedCS, 4) + ",\n";
@@ -1984,6 +2161,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("afterIO", _stateType));
         members.add(M("afterModRM", _stateType));
         members.add(M("afterRep", _stateType));
+        members.add(M("afterInt", _stateType));
         members.add(M("sourceIsRM", Type::boolean));
         members.add(M("savedCS", Type::integer));
         members.add(M("savedIP", Type::integer));
@@ -2044,6 +2222,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _afterIO = (*members)["afterIO"].value<State>();
         _afterEAIO = (*members)["afterEAIO"].value<State>();
         _afterRep = (*members)["afterRep"].value<State>();
+        _afterInt = (*members)["afterInt"].value<State>();
         _sourceIsRM = (*members)["sourceIsRM"].value<bool>();
         _savedCS = (*members)["savedCS"].value<int>();
         _savedIP = (*members)["savedIP"].value<int>();
@@ -2120,7 +2299,6 @@ private:
     enum State
     {
         stateWaitingForBIU,
-		stateHWInt,
         stateBegin, stateDecodeOpcode,
         stateEndInstruction,
         stateBeginModRM, stateDecodeModRM,
@@ -2169,6 +2347,7 @@ private:
         stateRet, stateRet2, stateRet3, stateRet4, stateRet5, stateRet6,
         stateLoadFar, stateLoadFar2, stateLoadFar3,
         stateMovRMImm, stateMovRMImm2, stateMovRMImm3,
+        stateCheckInt, stateHardwareInt, stateHardwareInt2,
         stateInt, stateInt3, stateIntAction, stateIntAction2, stateIntAction3,
         stateIntAction4, stateIntAction5, stateIntAction6,
         stateIntO,
@@ -2310,6 +2489,9 @@ private:
             case stateMovRMImm:       return "stateMovRMImm";
             case stateMovRMImm2:      return "stateMovRMImm2";
             case stateMovRMImm3:      return "stateMovRMImm3";
+            case stateCheckInt:       return "stateCheckInt";
+            case stateHardwareInt:    return "stateHardwareInt";
+            case stateHardwareInt2:   return "stateHardwareInt2";
             case stateInt:            return "stateInt";
             case stateInt3:           return "stateInt3";
             case stateIntAction:      return "stateIntAction";
@@ -2429,7 +2611,12 @@ private:
         }
     }
     void jumpShort() { setIP(_ip + signExtend(_data)); }
-    void interrupt(UInt8 number) { _data = number; _state = stateIntAction; }
+    void interrupt(UInt8 number)
+    {
+        _data = number;
+        _state = stateIntAction;
+        _afterInt = stateEndInstruction;
+    }
     void test(UInt16 destination, UInt16 source)
     {
         _destination = destination;
@@ -2819,6 +3006,7 @@ private:
     State _afterIO;
     State _afterEAIO;
     State _afterRep;
+    State _afterInt;
     bool _sourceIsRM;
     UInt16 _savedCS;
     UInt16 _savedIP;
@@ -2828,6 +3016,7 @@ private:
     bool _newInstruction;
     UInt16 _newIP;
     ISA8BitBus* _bus;
+    Intel8259PIC* _pic;
     int _cycle;
     int _stopAtCycle;
     UInt32 _busAddress;
@@ -2838,9 +3027,131 @@ private:
     Type _ioByteType;
     Type _busStateType;
 
-    Simulator* _simulator;
     Disassembler _disassembler;
 };
+
+class Simulator
+{
+public:
+    Simulator() : _halted(false)
+    { 
+        /*ConfigFile config;
+
+        ROMDataType romDataType;
+        Type romImageArrayType = Type::array(romDataType);
+        config.addOption("roms", romImageArrayType);
+        config.addOption("stopAtCycle", Type::integer, -1);
+        config.addOption("stopSaveState", Type::string, "");
+        config.addOption("initialState", Type::string, "");
+
+        config.load(File(_arguments[1], CurrentDirectory(), true));*/
+
+        /*List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
+        Array<ROM> roms(romDatas.count());
+        int r = 0;
+        for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
+            ROMData romData = (*i).value<ROMData>();
+            ROM* rom = &roms[r];
+            rom->initialize(romData);
+            bus.addComponent(rom);
+            ++r;
+        }
+        int stopAtCycle = config.get<int>("stopAtCycle");*
+        String stopSaveState = config.get<String>("stopSaveState");*/
+
+        _roms.allocate(1);
+
+        File biosfile("u33.bin",true);
+        ROMData romdata(0xFE000,0xFE000,biosfile,0);
+        ROM* rom = &_roms[0];
+        rom->initialize(romdata);
+        _bus.addComponent(rom);
+
+        _cpu.setStopAtCycle(6000000);
+        addComponent(&_bus);
+        _bus.addComponent(&_ram);
+        _bus.addComponent(&_nmiSwitch);
+        _bus.addComponent(&_dmaPageRegisters);
+        //_bus.addComponent(&_cga);
+        _bus.addComponent(&_pit);
+        _bus.addComponent(&_dma);
+        _bus.addComponent(&_ppi);
+        _bus.addComponent(&_pic);
+        addComponent(&_cpu);
+    }
+    void simulate()
+    {
+        do {
+            for (auto i = _components.begin(); i != _components.end(); ++i)
+                (*i)->simulateCycle();
+        } while (!_halted);
+    }
+    void addComponent(Component* component)
+    {
+        _components.add(component); 
+        component->setSimulator(this);
+    }
+    String save()
+    {
+        String s("simulator = {");
+        bool needComma = false;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            if ((*i)->name().empty())
+                continue;
+            if (needComma)
+                s += ", ";
+            needComma = true;
+            s += (*i)->save();
+        }
+        s += "};";
+        return s;
+    }
+    Type type()
+    {
+        List<StructuredType::Member> members;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            Type type = (*i)->type();
+            if (!type.valid())
+                continue;
+            members.add(StructuredType::Member((*i)->name(), (*i)->type()));
+        }
+        return StructuredType("Simulator", members);
+    }
+    void load(const TypedValue& value)
+    {
+        Value<HashTable<String, TypedValue> > object =
+            value.value<Value<HashTable<String, TypedValue> > >();
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            (*i)->load(object->operator[]((*i)->name()));
+    }
+    TypedValue initial()
+    {
+        Value<HashTable<String, TypedValue> > object;
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            if ((*i)->type().valid())
+                object->operator[]((*i)->name()) = (*i)->initial();
+        return TypedValue(type(), object);
+    }
+    void halt() { _halted = true; }
+    ISA8BitBus* getBus() { return &_bus; }
+    Intel8259PIC* getPIC() { return &_pic; }
+private:
+    List<Component*> _components;
+    bool _halted;
+
+    ISA8BitBus _bus;
+    RAM640Kb _ram;
+    NMISwitch _nmiSwitch;
+    DMAPageRegisters _dmaPageRegisters;
+    //IBMCGA cga;
+    Intel8253PIT _pit;
+    Intel8237DMA _dma;
+    Intel8255PPI _ppi;
+    Intel8259PIC _pic;
+    Intel8088 _cpu;
+    Array<ROM> _roms;
+};
+
 
 /*class ROMDataType : public AtomicType
 {
@@ -2906,61 +3217,7 @@ protected:
             return;
         }*/
 
-        /*ConfigFile config;
-
-        ROMDataType romDataType;
-        Type romImageArrayType = Type::array(romDataType);
-        config.addOption("roms", romImageArrayType);
-        config.addOption("stopAtCycle", Type::integer, -1);
-        config.addOption("stopSaveState", Type::string, "");
-        config.addOption("initialState", Type::string, "");
-
-        config.load(File(_arguments[1], CurrentDirectory(), true));*/
-
-        ISA8BitBus bus;
-        RAM640Kb ram;
-        bus.addComponent(&ram);
-        NMISwitch nmiSwitch;
-        bus.addComponent(&nmiSwitch);
-        DMAPageRegisters dmaPageRegisters;
-        bus.addComponent(&dmaPageRegisters);
-
-        //IBMCGA cga;
-        //bus.addComponent(&cga);
-        Intel8253PIT pit;
-        bus.addComponent(&pit);
-        Intel8237DMA dma;
-        bus.addComponent(&dma);
-        Intel8255PPI ppi;
-        bus.addComponent(&ppi);
-        //Intel8259PIC pic;
-        //bus.addComponent(&pic);
-
-        /*List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
-        Array<ROM> roms(romDatas.count());
-        int r = 0;
-        for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
-            ROMData romData = (*i).value<ROMData>();
-            ROM* rom = &roms[r];
-            rom->initialize(romData);
-            bus.addComponent(rom);
-            ++r;
-        }
-        int stopAtCycle = config.get<int>("stopAtCycle");*
-        String stopSaveState = config.get<String>("stopSaveState");*/
-
-        File biosfile("u33.bin",true);
-
-        ROMData romdata(0xFE000,0xFE000,biosfile,0);
-        ROM* rom = new ROM();
-        rom->initialize(romdata);
-        bus.addComponent(rom);
-
         Simulator simulator;
-        Intel8088 cpu(&simulator, 6000000);
-        cpu.setBus(&bus);
-        simulator.addComponent(&bus);
-        simulator.addComponent(&cpu);
 
         //ConfigFile initialState;
         //Type simulatorType = simulator.type();
