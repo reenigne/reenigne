@@ -5,13 +5,35 @@
 #include "alfe/hash_table.h"
 #include "alfe/main.h"
 #include "alfe/space.h"
-#include "alfe/config_file.h"
+//#include "alfe/config_file.h"
+#include "alfe/type.h"
 
 #include <stdlib.h>
 
 //class SourceProgram
 //{
 //};
+
+int parseHexadecimalCharacter(CharacterSource* source, Span* span)
+{
+    CharacterSource s = *source;
+    int c = s.get(span);
+    if (c >= '0' && c <= '9') {
+        *source = s;
+        return c - '0';
+    }
+    if (c >= 'A' && c <= 'F') {
+        *source = s;
+        return c + 10 - 'A';
+    }
+    if (c >= 'a' && c <= 'f') {
+        *source = s;
+        return c + 10 - 'a';
+    }
+    return -1;
+}
+
+class Simulator;
 
 template<class T> class Intel8088Template;
 
@@ -20,71 +42,17 @@ typedef Intel8088Template<void> Intel8088;
 class Component
 {
 public:
+    Component() : _simulator(0) { }
+    void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
+    virtual void site() { }
     virtual void simulateCycle() { }
     virtual String save() { return String(); }
     virtual Type type() { return Type(); }
     virtual String name() { return String(); }
     virtual void load(const TypedValue& value) { }
     virtual TypedValue initial() { return TypedValue(); }
-};
-
-class Simulator
-{
-public:
-    Simulator() : _halted(false) { }
-    void simulate()
-    {
-        do {
-            for (auto i = _components.begin(); i != _components.end(); ++i)
-                (*i)->simulateCycle();
-        } while (!_halted);
-    }
-    void addComponent(Component* component) { _components.add(component); }
-    String save()
-    {
-        String s("simulator = {");
-        bool needComma = false;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            if ((*i)->name().empty())
-                continue;
-            if (needComma)
-                s += ", ";
-            needComma = true;
-            s += (*i)->save();
-        }
-        s += "};";
-        return s;
-    }
-    Type type()
-    {
-        List<StructuredType::Member> members;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Type type = (*i)->type();
-            if (!type.valid())
-                continue;
-            members.add(StructuredType::Member((*i)->name(), (*i)->type()));
-        }
-        return StructuredType("Simulator", members);
-    }
-    void load(const TypedValue& value)
-    {
-        Value<HashTable<String, TypedValue> > object =
-            value.value<Value<HashTable<String, TypedValue> > >();
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load(object->operator[]((*i)->name()));
-    }
-    TypedValue initial()
-    {
-        Value<HashTable<String, TypedValue> > object;
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            if ((*i)->type().valid())
-                object->operator[]((*i)->name()) = (*i)->initial();
-        return TypedValue(type(), object);
-    }
-    void halt() { _halted = true; }
-private:
-    List<Component*> _components;
-    bool _halted;
+protected:
+    Simulator* _simulator;
 };
 
 class ISA8BitBus;
@@ -101,6 +69,11 @@ public:
     virtual UInt8 memory(UInt32 address) { return 0xff; }
     bool active() const { return _active; }
     virtual void read() { }
+    void requestInterrupt(UInt8 data)
+    {
+        _bus->_interruptnum = data & 7;
+        _bus->_interrupt = true;
+    }
 protected:
     void set(UInt8 data) { _bus->_data = data; }
     ISA8BitBus* _bus;
@@ -112,6 +85,9 @@ typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
 class ISA8BitBus : public Component
 {
 public:
+    ISA8BitBus() : _interrupt(false), _interruptrdy(false)
+    {
+    }
     void simulateCycle()
     {
         for (auto i = _components.begin(); i != _components.end(); ++i)
@@ -188,6 +164,11 @@ public:
                 object->operator[]((*i)->name()) = (*i)->initial();
         return TypedValue(type(), object);
     }
+
+    UInt8 _interruptnum;
+    bool _interrupt;
+    bool _interruptrdy;
+
 private:
     List<ISA8BitComponent*> _components;
     UInt8 _data;
@@ -373,18 +354,13 @@ private:
     int _dmaPages[4];
 };
 
+#include "8259.h"
 
-//class Intel8237DMA : public ISA8BitComponent
-//{
-//};
-//
-//class Intel8255PPI : public ISA8BitComponent
-//{
-//};
-//
-//class Intel8259PIC : public ISA8BitComponent
-//{
-//};
+#include "8237.h"
+
+#include "8255.h"
+
+#include "8253.h"
 
 class ROMData
 {
@@ -769,9 +745,9 @@ typedef DisassemblerTemplate<void> Disassembler;
 template<class T> class Intel8088Template : public Component
 {
 public:
-    Intel8088Template(Simulator* simulator, int stopAtCycle)
+    Intel8088Template()
       : _flagsData(0x0002),  // ?
-        _state(stateFetch),
+        _state(stateBegin),
         _ip(0),
         _prefetchOffset(0),
         _prefetched(0),
@@ -783,14 +759,13 @@ public:
         _ioInProgress(ioInstructionFetch),
         _busState(t1),
         _abandonFetch(false),
-        _useIO(false),
+        _usePortSpace(false),
         _halted(false),
         _wait(0),
         _newInstruction(true),
         _newIP(0),
         _cycle(0),
-        _simulator(simulator),
-        _stopAtCycle(stopAtCycle),
+        _stopAtCycle(0),
         _opcode(0),
         _modRM(0),
         _data(0),
@@ -800,8 +775,9 @@ public:
         _address(0),
         _aluOperation(0),
         _afterEA(stateWaitingForBIU),
-        _afterModRM(stateWaitingForBIU),
+        _afterEAIO(stateWaitingForBIU),
         _afterRep(stateWaitingForBIU),
+        _afterInt(stateWaitingForBIU),
         _savedCS(0),
         _savedIP(0),
         _rep(0),
@@ -856,10 +832,12 @@ public:
 
         _disassembler.setCPU(this);
     }
-    void setBus(ISA8BitBus* bus)
+    void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
+    void site()
     {
-        _bus = bus;
+        _bus = _simulator->getBus();
         _disassembler.setBus(_bus);
+        _pic = _simulator->getPIC();
     }
     UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
     void simulateCycle()
@@ -902,10 +880,10 @@ public:
             line += _segmentRegisters[i].text();
         }
         line += _flags.text();
+        if(_newInstruction) console.write(line + "\n");
         _newInstruction = false;
-        console.write(line + "\n");
         ++_cycle;
-        if (_halted || _cycle == _stopAtCycle)
+        if (_halted /*|| _cycle == _stopAtCycle*/)
             _simulator->halt();
     }
     void simulateCycleAction()
@@ -922,6 +900,10 @@ public:
                         if (_segmentOverride != -1)
                             segment = _segmentOverride;
                         _busAddress = physicalAddress(segment, _address);
+                        if (_usePortSpace)
+                            _busAddress |= 0x40000000;
+                        if (_ioInProgress == ioWrite)
+                            _busAddress |= 0x80000000;
                     }
                     _bus->setAddress(_busAddress);
                     _busState = t2;
@@ -1019,8 +1001,8 @@ public:
                 case stateWaitingForBIU:
                     return;
 
-                case stateFetch: fetch(stateFetch2, false); break;
-                case stateFetch2:
+                case stateBegin: fetch(stateDecodeOpcode, false); break;
+                case stateDecodeOpcode:
                     {
                         _opcode = _data;
                         _wordSize = ((_opcode & 1) != 0);
@@ -1077,7 +1059,7 @@ stateMovRegImm,    stateMovRegImm,    stateMovRegImm,    stateMovRegImm,
 stateInvalid,      stateInvalid,      stateRet,          stateRet,
 stateLoadFar,      stateLoadFar,      stateMovRMImm,     stateMovRMImm,
 stateInvalid,      stateInvalid,      stateRet,          stateRet,
-stateInt,          stateInt,          stateIntO,         stateIRet,
+stateInt3,         stateInt,          stateIntO,         stateIRet,
 stateShift,        stateShift,        stateShift,        stateShift,
 stateAAM,          stateAAD,          stateSALC,         stateXlatB,
 stateEscape,       stateEscape,       stateEscape,       stateEscape,
@@ -1095,19 +1077,16 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateEndInstruction:
                     _segmentOverride = -1;
-                    _state = stateFetch;
                     _rep = 0;
-                    _useIO = false;
+                    _usePortSpace = false;
                     _newInstruction = true;
                     _newIP = _ip;
+                    _afterInt = stateBegin;
+                    _state = stateCheckInt;
                     break;
 
-                case stateModRM:
-                    _afterModRM = _afterIO;
-                    fetch(stateModRM2, false);
-                    break;
-                case stateModRM2:
-                    _afterIO = _afterModRM;
+                case stateBeginModRM: fetch(stateDecodeModRM, false); break;
+                case stateDecodeModRM:
                     _modRM = _data;
                     if ((_modRM & 0xc0) == 0xc0) {
                         _useMemory = false;
@@ -1161,9 +1140,9 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _state = _afterEA;
                     break;
 
-                case stateIO:
+                case stateEAIO:
                     if (_useMemory)
-                        initIO(_afterIO, _ioType, _wordSize);
+                        initIO(_afterEAIO, _ioType, _wordSize);
                     else {
                         if (!_wordSize)
                             if (_ioType == ioRead)
@@ -1175,7 +1154,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                                 _data = _wordRegisters[_address];
                             else
                                 _wordRegisters[_address] = _data;
-                        _state = _afterIO;
+                        _state = _afterEAIO;
                     }
                     break;
 
@@ -1249,7 +1228,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
 
                 case stateSegOverride:
                     _segmentOverride = (_opcode >> 3) & 3;
-                    _state = stateFetch;
+                    _state = stateBegin;
                     _wait = 2;
                     break;
 
@@ -1490,8 +1469,10 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _state = stateEndInstruction;
                     if (_rep != 0) {
                         --cx();
+                        _afterInt = _afterRep;
                         if (cx() == 0 || (zf() == (_rep == 1)))
-                            _state = _afterRep;
+                            _afterInt = stateEndInstruction;
+                        _state = stateCheckInt;
                     }
                     break;
                 case stateCmpS: _wait = 14; lodS(stateCmpS2); break;
@@ -1595,11 +1576,34 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
 
                 case stateMovRMImm: loadEA(stateMovRMImm2); break;
-                case stateMovRMImm2: fetch(stateMovRMImm2, _wordSize); break;
+                case stateMovRMImm2: fetch(stateMovRMImm3, _wordSize); break;
                 case stateMovRMImm3: writeEA(_data, _useMemory ? 6 : 4); break;
 
-                case stateInt: interrupt(3); _wait = 1; break;
-                case stateInt3: fetch(stateIntAction, false); break;
+                case stateCheckInt:
+                    _state = _afterInt;
+                    if (intf() && _pic->interruptRequest()) {
+                        _state = stateHardwareInt;
+                        _pic->interruptAcknowledge();
+                        _wait = 1;
+                    }
+                    break;
+                case stateHardwareInt:
+                    _pic->interruptAcknowledge();
+                    _wait = 1;
+                    _state = stateHardwareInt2;
+                    break;
+                case stateHardwareInt2:
+                    _data = _bus->read();
+                    _state = stateIntAction;
+                    break;
+                case stateInt3:
+                    interrupt(3);
+                    _wait = 1;
+                    break;
+                case stateInt:
+                    fetch(stateIntAction, false);
+                    _afterInt = stateEndInstruction;
+                    break;
                 case stateIntAction:
                     _source = _data;
                     push(_flags & 0x0fd7, stateIntAction2);
@@ -1625,6 +1629,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     cs() = _data;
                     setIP(_savedIP);
                     _wait = 13;
+                    _state = _afterInt;
                     break;
                 case stateIntO:
                     if (of()) {
@@ -1794,9 +1799,12 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     }
                     break;
                 case stateInOut2:
-                    _useIO = true;
+                    _usePortSpace = true;
                     _ioType = ((_opcode & 2) == 0 ? ioRead : ioWrite);
                     _segment = 7;
+                    _address = _data;
+                    if (_ioType == ioWrite)
+                        _data = getAccum();
                     initIO(stateInOut3, _ioType, _wordSize);
                     break;
                 case stateInOut3:
@@ -1840,7 +1848,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                 case stateRep:
                     _rep = (_opcode == 0xf2 ? 1 : 2);
                     _wait = 9;
-                    _state = stateFetch;
+                    _state = stateBegin;
                     break;
                 case stateHlt: _halted = true; end(2); break;
                 case stateCmC: _flags ^= 1; end(2); break;
@@ -1911,7 +1919,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                                         ((ax() & 0x8000) == 0 ? 0 : 0xffff));
                                     _wait = 128;
                                 }
-                            setZF();
+                            setZF();                                              
                             setOF(cf());
                             if (_useMemory)
                                 _wait += 2;
@@ -2092,14 +2100,16 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  aluOperation: ") + _aluOperation + ",\n";
         s += String("  afterEA: ") + stringForState(_afterEA) + ",\n";
         s += String("  afterIO: ") + stringForState(_afterIO) + ",\n";
-        s += String("  afterModRM: ") + stringForState(_afterModRM) + ",\n";
+        s += String("  afterEAIO: ") + stringForState(_afterEAIO) + ",\n";
         s += String("  afterRep: ") + stringForState(_afterRep) + ",\n";
+        s += String("  afterInt: ") + stringForState(_afterInt) + ",\n";
         s += String("  sourceIsRM: ") + (_sourceIsRM ? "true" : "false") +
             ",\n";
         s += String("  savedCS: ") + hex(_savedCS, 4) + ",\n";
         s += String("  savedIP: ") + hex(_savedIP, 4) + ",\n";
         s += String("  rep: ") + _rep + ",\n";
-        s += String("  useIO: ") + (_useIO ? "true" : "false") + ",\n";
+        s += String("  usePortSpace: ") + (_usePortSpace ? "true" : "false") +
+            ",\n";
         s += String("  halted: ") + (_halted ? "true" : "false") + ",\n";
         s += String("  newInstruction: ") +
             (_newInstruction ? "true" : "false") + ",\n";
@@ -2151,11 +2161,12 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("afterIO", _stateType));
         members.add(M("afterModRM", _stateType));
         members.add(M("afterRep", _stateType));
+        members.add(M("afterInt", _stateType));
         members.add(M("sourceIsRM", Type::boolean));
         members.add(M("savedCS", Type::integer));
         members.add(M("savedIP", Type::integer));
         members.add(M("rep", Type::integer));
-        members.add(M("useIO", Type::boolean));
+        members.add(M("usePortSpace", Type::boolean));
         members.add(M("halted", Type::boolean));
         members.add(M("newInstruction", Type::boolean));
         members.add(M("newIP", Type::integer));
@@ -2209,13 +2220,14 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _aluOperation = (*members)["aluOperation"].value<int>();
         _afterEA = (*members)["afterEA"].value<State>();
         _afterIO = (*members)["afterIO"].value<State>();
-        _afterModRM = (*members)["afterModRM"].value<State>();
+        _afterEAIO = (*members)["afterEAIO"].value<State>();
         _afterRep = (*members)["afterRep"].value<State>();
+        _afterInt = (*members)["afterInt"].value<State>();
         _sourceIsRM = (*members)["sourceIsRM"].value<bool>();
         _savedCS = (*members)["savedCS"].value<int>();
         _savedIP = (*members)["savedIP"].value<int>();
         _rep = (*members)["rep"].value<int>();
-        _useIO = (*members)["useIO"].value<bool>();
+        _usePortSpace = (*members)["usePortSpace"].value<bool>();
         _halted = (*members)["halted"].value<bool>();
         _newInstruction = (*members)["newInstruction"].value<bool>();
         _newIP = (*members)["newIP"].value<int>();
@@ -2251,7 +2263,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         (*members)["byte"] = TypedValue(_ioByteType, ioSingleByte);
         (*members)["abandonFetch"] = TypedValue(Type::boolean, false);
         (*members)["wait"] = TypedValue(Type::integer, 0);
-        (*members)["state"] = TypedValue(_stateType, stateFetch);
+        (*members)["state"] = TypedValue(_stateType, stateBegin);
         (*members)["opcode"] = TypedValue(Type::integer, 0);
         (*members)["modRM"] = TypedValue(Type::integer, 0);
         (*members)["data"] = TypedValue(Type::integer, 0);
@@ -2268,7 +2280,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         (*members)["savedCS"] = TypedValue(Type::integer, 0);
         (*members)["savedIP"] = TypedValue(Type::integer, 0);
         (*members)["rep"] = TypedValue(Type::integer, 0);
-        (*members)["useIO"] = TypedValue(Type::boolean, false);
+        (*members)["usePortSpace"] = TypedValue(Type::boolean, false);
         (*members)["halted"] = TypedValue(Type::boolean, false);
         (*members)["newInstruction"] = TypedValue(Type::boolean, true);
         (*members)["newIP"] = TypedValue(Type::integer, 0);
@@ -2287,15 +2299,15 @@ private:
     enum State
     {
         stateWaitingForBIU,
-        stateFetch, stateFetch2,
+        stateBegin, stateDecodeOpcode,
         stateEndInstruction,
-        stateModRM, stateModRM2,
+        stateBeginModRM, stateDecodeModRM,
         stateEAOffset,
         stateEARegisters,
         stateEAByte,
         stateEAWord,
         stateEASetSegment,
-        stateIO,
+        stateEAIO,
         statePush, statePush2,
         statePop,
 
@@ -2335,6 +2347,7 @@ private:
         stateRet, stateRet2, stateRet3, stateRet4, stateRet5, stateRet6,
         stateLoadFar, stateLoadFar2, stateLoadFar3,
         stateMovRMImm, stateMovRMImm2, stateMovRMImm3,
+        stateCheckInt, stateHardwareInt, stateHardwareInt2,
         stateInt, stateInt3, stateIntAction, stateIntAction2, stateIntAction3,
         stateIntAction4, stateIntAction5, stateIntAction6,
         stateIntO,
@@ -2375,17 +2388,17 @@ private:
     {
         switch (state) {
             case stateWaitingForBIU:  return "waitingForBIU";
-            case stateFetch:          return "stateFetch";
-            case stateFetch2:         return "stateFetch2";
+            case stateBegin:          return "stateBegin";
+            case stateDecodeOpcode:   return "stateDecodeOpcode";
             case stateEndInstruction: return "stateEndInstruction";
-            case stateModRM:          return "stateModRM";
-            case stateModRM2:         return "stateModRM2";
+            case stateBeginModRM:     return "stateBeginModRM";
+            case stateDecodeModRM:    return "stateDecodeModRM";
             case stateEAOffset:       return "stateEAOffset";
             case stateEARegisters:    return "stateEARegisters";
             case stateEAByte:         return "stateEAByte";
             case stateEAWord:         return "stateEAWord";
             case stateEASetSegment:   return "stateEASetSegment";
-            case stateIO:             return "stateIO";
+            case stateEAIO:           return "stateEAIO";
             case statePush:           return "statePush";
             case statePush2:          return "statePush2";
             case statePop:            return "statePop";
@@ -2476,6 +2489,9 @@ private:
             case stateMovRMImm:       return "stateMovRMImm";
             case stateMovRMImm2:      return "stateMovRMImm2";
             case stateMovRMImm3:      return "stateMovRMImm3";
+            case stateCheckInt:       return "stateCheckInt";
+            case stateHardwareInt:    return "stateHardwareInt";
+            case stateHardwareInt2:   return "stateHardwareInt2";
             case stateInt:            return "stateInt";
             case stateInt3:           return "stateInt3";
             case stateIntAction:      return "stateIntAction";
@@ -2595,7 +2611,12 @@ private:
         }
     }
     void jumpShort() { setIP(_ip + signExtend(_data)); }
-    void interrupt(UInt8 number) { _data = number; _state = stateIntAction; }
+    void interrupt(UInt8 number)
+    {
+        _data = number;
+        _state = stateIntAction;
+        _afterInt = stateEndInstruction;
+    }
     void test(UInt16 destination, UInt16 source)
     {
         _destination = destination;
@@ -2637,12 +2658,12 @@ private:
         _wait += 6;
     }
     void pop(State state) { _afterIO = state; _state = statePop; }
-    void loadEA(State state) { _afterEA = state; _state = stateModRM; }
+    void loadEA(State state) { _afterEA = state; _state = stateBeginModRM; }
     void readEA(State state)
     {
-        _afterIO = state;
+        _afterEAIO = state;
         _ioType = ioRead;
-        loadEA(stateIO);
+        loadEA(stateEAIO);
     }
     void fetch(State state, bool wordSize)
     {
@@ -2652,9 +2673,9 @@ private:
     {
         _data = data;
         _wait = wait;
-        _afterIO = stateEndInstruction;
+        _afterEAIO = stateEndInstruction;
         _ioType = ioWrite;
-        _state = stateIO;
+        _state = stateEAIO;
     }
     void setCA() { setCF(true); setAF(true); }
     void clearCA() { setCF(false); setAF(false); }
@@ -2983,17 +3004,19 @@ private:
     int _aluOperation;
     State _afterEA;
     State _afterIO;
-    State _afterModRM;
+    State _afterEAIO;
     State _afterRep;
+    State _afterInt;
     bool _sourceIsRM;
     UInt16 _savedCS;
     UInt16 _savedIP;
     int _rep;
-    bool _useIO;
+    bool _usePortSpace;
     bool _halted;
     bool _newInstruction;
     UInt16 _newIP;
     ISA8BitBus* _bus;
+    Intel8259PIC* _pic;
     int _cycle;
     int _stopAtCycle;
     UInt32 _busAddress;
@@ -3004,11 +3027,133 @@ private:
     Type _ioByteType;
     Type _busStateType;
 
-    Simulator* _simulator;
     Disassembler _disassembler;
 };
 
-class ROMDataType : public AtomicType
+class Simulator
+{
+public:
+    Simulator() : _halted(false)
+    { 
+        /*ConfigFile config;
+
+        ROMDataType romDataType;
+        Type romImageArrayType = Type::array(romDataType);
+        config.addOption("roms", romImageArrayType);
+        config.addOption("stopAtCycle", Type::integer, -1);
+        config.addOption("stopSaveState", Type::string, "");
+        config.addOption("initialState", Type::string, "");
+
+        config.load(File(_arguments[1], CurrentDirectory(), true));*/
+
+        /*List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
+        Array<ROM> roms(romDatas.count());
+        int r = 0;
+        for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
+            ROMData romData = (*i).value<ROMData>();
+            ROM* rom = &roms[r];
+            rom->initialize(romData);
+            bus.addComponent(rom);
+            ++r;
+        }
+        int stopAtCycle = config.get<int>("stopAtCycle");*
+        String stopSaveState = config.get<String>("stopSaveState");*/
+
+        _roms.allocate(1);
+
+        File biosfile("u33.bin",true);
+        ROMData romdata(0xFE000,0xFE000,biosfile,0);
+        ROM* rom = &_roms[0];
+        rom->initialize(romdata);
+        _bus.addComponent(rom);
+
+        _cpu.setStopAtCycle(6000000);
+        addComponent(&_bus);
+        _bus.addComponent(&_ram);
+        _bus.addComponent(&_nmiSwitch);
+        _bus.addComponent(&_dmaPageRegisters);
+        //_bus.addComponent(&_cga);
+        _bus.addComponent(&_pit);
+        _bus.addComponent(&_dma);
+        _bus.addComponent(&_ppi);
+        _bus.addComponent(&_pic);
+        addComponent(&_cpu);
+    }
+    void simulate()
+    {
+        do {
+            for (auto i = _components.begin(); i != _components.end(); ++i)
+                (*i)->simulateCycle();
+        } while (!_halted);
+    }
+    void addComponent(Component* component)
+    {
+        _components.add(component); 
+        component->setSimulator(this);
+    }
+    String save()
+    {
+        String s("simulator = {");
+        bool needComma = false;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            if ((*i)->name().empty())
+                continue;
+            if (needComma)
+                s += ", ";
+            needComma = true;
+            s += (*i)->save();
+        }
+        s += "};";
+        return s;
+    }
+    Type type()
+    {
+        List<StructuredType::Member> members;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            Type type = (*i)->type();
+            if (!type.valid())
+                continue;
+            members.add(StructuredType::Member((*i)->name(), (*i)->type()));
+        }
+        return StructuredType("Simulator", members);
+    }
+    void load(const TypedValue& value)
+    {
+        Value<HashTable<String, TypedValue> > object =
+            value.value<Value<HashTable<String, TypedValue> > >();
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            (*i)->load(object->operator[]((*i)->name()));
+    }
+    TypedValue initial()
+    {
+        Value<HashTable<String, TypedValue> > object;
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            if ((*i)->type().valid())
+                object->operator[]((*i)->name()) = (*i)->initial();
+        return TypedValue(type(), object);
+    }
+    void halt() { _halted = true; }
+    ISA8BitBus* getBus() { return &_bus; }
+    Intel8259PIC* getPIC() { return &_pic; }
+private:
+    List<Component*> _components;
+    bool _halted;
+
+    ISA8BitBus _bus;
+    RAM640Kb _ram;
+    NMISwitch _nmiSwitch;
+    DMAPageRegisters _dmaPageRegisters;
+    //IBMCGA cga;
+    Intel8253PIT _pit;
+    Intel8237DMA _dma;
+    Intel8255PPI _ppi;
+    Intel8259PIC _pic;
+    Intel8088 _cpu;
+    Array<ROM> _roms;
+};
+
+
+/*class ROMDataType : public AtomicType
 {
 public:
     ROMDataType() : AtomicType(implementation()) { }
@@ -3059,67 +3204,20 @@ private:
             _implementation = new Implementation();
         return _implementation;
     }
-};
+};*/
 
 class Program : public ProgramBase
 {
 protected:
     void run()
     {
-        if (_arguments.count() < 2) {
+        /*if (_arguments.count() < 2) {
             console.write("Syntax: " + _arguments[0] +
                 " <config file name>\n");
             return;
-        }
-
-        ConfigFile config;
-
-        ROMDataType romDataType;
-        Type romImageArrayType = Type::array(romDataType);
-        config.addOption("roms", romImageArrayType);
-        config.addOption("stopAtCycle", Type::integer, -1);
-        config.addOption("stopSaveState", Type::string, "");
-        config.addOption("initialState", Type::string, "");
-
-        config.load(File(_arguments[1], CurrentDirectory(), true));
-
-        ISA8BitBus bus;
-        RAM640Kb ram;
-        bus.addComponent(&ram);
-        NMISwitch nmiSwitch;
-        bus.addComponent(&nmiSwitch);
-        DMAPageRegisters dmaPageRegisters;
-        bus.addComponent(&dmaPageRegisters);
-
-        //IBMCGA cga;
-        //bus.addComponent(&cga);
-        //Intel8253PIT pit;
-        //bus.addComponent(&pit);
-        //Intel8237DMA dma;
-        //bus.addComponent(&dma);
-        //Intel8255PPI ppi;
-        //bus.addComponent(&ppi);
-        //Intel8259PIC pic;
-        //bus.addComponent(&pic);
-
-        List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
-        Array<ROM> roms(romDatas.count());
-        int r = 0;
-        for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
-            ROMData romData = (*i).value<ROMData>();
-            ROM* rom = &roms[r];
-            rom->initialize(romData);
-            bus.addComponent(rom);
-            ++r;
-        }
-        int stopAtCycle = config.get<int>("stopAtCycle");
-        String stopSaveState = config.get<String>("stopSaveState");
+        }*/
 
         Simulator simulator;
-        Intel8088 cpu(&simulator, stopAtCycle);
-        cpu.setBus(&bus);
-        simulator.addComponent(&bus);
-        simulator.addComponent(&cpu);
 
         //ConfigFile initialState;
         //Type simulatorType = simulator.type();
@@ -3155,7 +3253,7 @@ protected:
             Simulator* _simulator;
             String _stopSaveState;
         };
-        Saver saver(&simulator, stopSaveState);
+        //Saver saver(&simulator, stopSaveState);
         simulator.simulate();
     }
 };

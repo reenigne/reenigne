@@ -41,7 +41,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>D:\t\reenigne\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -79,6 +79,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="8088.cpp" />
+    <ClInclude Include="8237.h" />
+    <ClInclude Include="8253.h">
+      <FileType>CppHeader</FileType>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\alfe\array.h" />
@@ -94,6 +98,9 @@
     <ClInclude Include="..\include\alfe\string.h" />
     <ClInclude Include="..\include\alfe\type.h" />
     <ClInclude Include="..\include\alfe\value.h" />
+    <ClInclude Include="8255.h" />
+    <ClInclude Include="8259.h" />
+    <ClInclude Include="common.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="scratch.txt" />

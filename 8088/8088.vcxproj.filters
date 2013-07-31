@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\alfe">
+      <UniqueIdentifier>{0c044dd4-0b12-4101-a7bb-09d9d9d7a4c8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="8088.cpp">
@@ -57,6 +60,19 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\alfe\file.h">
+    <ClInclude Include="common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="8253.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="8237.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="8255.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="8259.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

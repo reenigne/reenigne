@@ -557,7 +557,7 @@ public:
     void setValue(Any value) { _value = value; }
     Span span() const { return _span; }
     bool valid() const { return _value.valid(); }
-    TypedValue convertTo(const Type& to)
+    /*TypedValue convertTo(const Type& to)
     {
         if (_type.canConvertTo(to))
             return _type.convertTo(to, *this);
@@ -574,7 +574,7 @@ public:
             else
                 r += String(": ") + s;
             return r;
-    }
+    }*/
 
 private:
     Type _type;

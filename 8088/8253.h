@@ -1,10 +1,22 @@
-class Intel8253PIT : public ISA8BitComponent
+template<class T> class Intel8253PITTemplate;
+
+typedef Intel8253PITTemplate<void> Intel8253PIT;
+
+template<class T> class Intel8253PITTemplate : public ISA8BitComponent
 {
 public:
-    Intel8253PIT() : _cycle(0)
+    Intel8253PITTemplate() : _cycle(0)
     {
+        _timers[0] = &_timer0;
+        _timers[1] = &_timer1;
+        _timers[2] = &_timer2;
         for (int i = 0; i < 3; ++i)
-            _timers[i].setGate(true);
+            _timers[i]->setGate(true);
+    }
+    void site()
+    {
+        _pic = _simulator->getPIC();
+        _timer0.setPIC(_pic);
     }
     void simulateCycle()
     {
@@ -13,7 +25,7 @@ public:
         if (_cycle == 4) {
             _cycle = 0;
             for (int i = 0; i < 3; ++i)
-                _timers[i].simulateCycle();
+                _timers[i]->simulateCycle();
         }
     }
     void setAddress(UInt32 address)
@@ -24,26 +36,27 @@ public:
     void read()
     {
         if (_address < 3)
-            set(_timers[_address].read());
+            set(_timers[_address]->read());
     }
     void write(UInt8 data)
     {
         if (_address < 3)
-            _timers[_address].write(data);
+            _timers[_address]->write(data);
         else {
             int timer = (data >> 6) & 3;
             if (timer < 3)
-                _timers[_address].control(data & 0x3f);
+                _timers[timer]->control(data & 0x3f);
         }
     }
-    void setT2Gate(bool gate) { _timers[2].setGate(gate); }
+    void setT2Gate(bool gate) { _timers[2]->setGate(gate); }
     String save()
     {
+        return "";
     }
-    Type type() { }
+    Type type() {return Type(); }
     void load(const TypedValue& value) { }
     String name() { return "timer"; }
-    TypedValue initial() { }
+    TypedValue initial() { return TypedValue(type());}
 private:
     class Timer
     {
@@ -58,13 +71,13 @@ private:
                         break;
                     countDown();
                     if (_value == 0)
-                        _output = true;
+                        setOutput(true);
                     break;
                 case stateStopped1:
                     break;
                 case stateStart1:
                     _value = _count;
-                    _output = false;
+                    setOutput(false);
                     _state = stateCounting1;
                     break;
                 case stateCounting1:
@@ -72,7 +85,7 @@ private:
                         _value = _count;
                     countDown();
                     if (_value == 0)
-                        _output = true;
+                        setOutput(true);
                     break;
                 case stateStopped2:
                     break;
@@ -86,19 +99,19 @@ private:
                 case stateCounting2:
                     if (!_gate)
                     {
-                        _output = true;
+                        setOutput(true);
                         _state = stateGateLow2;
                         break;
                     }
                     if(_value == 1)
                     {
-                        _output = true;
+                        setOutput(true);
                         _value = _count;
                         break;
                     }
                     countDown();
                     if (_value == 1)
-                        _output = false;
+                        setOutput(false);
                     break;
             }
         }
@@ -106,6 +119,7 @@ private:
         {
             switch (_bytes) {
                 case 0:
+                    return _latch;
                     break;
                 case 1:
                     if (_latched)
@@ -174,15 +188,15 @@ private:
             switch ((data >> 1) & 7) {
                 case 0:
                     _state = stateStopped0;
-                    _output = false;
+                    setOutput(false);
                     break;
                 case 1:
                     _state = stateStopped1;
-                    _output = true;
+                    setOutput(true);
                     break;
                 case 2:
                     _state = stateStopped2;
-                    _output = true;
+                    setOutput(true);
                     break;
             }
         }
@@ -252,6 +266,14 @@ private:
             }
             _value -= (0x1000 - 0x999);
         }
+        void setOutput(bool output)
+        {
+            if (output != _output) {
+                _output = output;
+                outputChanged();
+            }
+        }
+        virtual void outputChanged() { }
 
         UInt16 _value;
         UInt16 _latch;
@@ -265,8 +287,30 @@ private:
         bool _latched;
         State _state;
     };
-    Timer _timers[3];
+    class Timer0 : public Timer
+    {
+    public:
+        void setPIC(Intel8259PIC* pic) { _pic = pic; }
+        void outputChanged(bool output)
+        {
+            if (output)
+                _pic->requestInterrupt(0);
+        }
+    private:
+        Intel8259PIC* _pic;
+    };
+    class Timer1 : public Timer
+    {
+    };
+    class Timer2 : public Timer
+    {
+    };
+    Timer0 _timer0;
+    Timer1 _timer1;
+    Timer2 _timer2;
+    Timer* _timers[3];
     int _address;
     int _cycle;
+    Intel8259PIC* _pic;
 };
 
