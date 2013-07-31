@@ -85,6 +85,7 @@
     <ClInclude Include="..\include\alfe\buffer.h" />
     <ClInclude Include="..\include\alfe\character_source.h" />
     <ClInclude Include="..\include\alfe\config_file.h" />
+    <ClInclude Include="..\include\alfe\file.h" />
     <ClInclude Include="..\include\alfe\hash_table.h" />
     <ClInclude Include="..\include\alfe\integer_types.h" />
     <ClInclude Include="..\include\alfe\main.h" />

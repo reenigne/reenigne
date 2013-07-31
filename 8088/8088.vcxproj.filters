@@ -56,6 +56,9 @@
     <ClInclude Include="..\include\alfe\value.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\alfe\file.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="scratch.txt" />
