@@ -843,48 +843,53 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        String line = String(decimal(_cycle)).alignRight(5) + " ";
-        switch (_busState) {
-            case t1:
-                line += "T1 " + hex(_busAddress, 5, false) + " ";
-                break;
-            case t2:
-                line += "T2 ";
-                if (_ioInProgress == ioWrite)
-                    line += "M<-" + hex(_busData, 2, false) + " ";
-                else
-                    line += "      ";
-                break;
-            case t3: line += "T3       "; break;
-            case tWait: line += "Tw       "; break;
-            case t4:
-                line += "T4 ";
-                if (_ioInProgress == ioWrite)
-                    line += "      ";
-                else
-                    if (_abandonFetch)
-                        line += "----- ";
+        if (_cycle >= 23605000) {
+            String line = String(decimal(_cycle)).alignRight(5) + " ";
+            switch (_busState) {
+                case t1:
+                    line += "T1 " + hex(_busAddress, 5, false) + " ";
+                    break;
+                case t2:
+                    line += "T2 ";
+                    if (_ioInProgress == ioWrite)
+                        line += "M<-" + hex(_busData, 2, false) + " ";
                     else
-                        line += "M->" + hex(_busData, 2, false) + " ";
-                break;
-            case tIdle: line += "         "; break;
+                        line += "      ";
+                    break;
+                case t3: line += "T3       "; break;
+                case tWait: line += "Tw       "; break;
+                case t4:
+                    line += "T4 ";
+                    if (_ioInProgress == ioWrite)
+                        line += "      ";
+                    else
+                        if (_abandonFetch)
+                            line += "----- ";
+                        else
+                            line += "M->" + hex(_busData, 2, false) + " ";
+                    break;
+                case tIdle: line += "         "; break;
+            }
+            if (_newInstruction) {
+                line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false) +
+                    " " + _disassembler.disassemble(_newIP);
+            }
+            line = line.alignLeft(50);
+            for (int i = 0; i < 8; ++i) {
+                line += _byteRegisters[i].text();
+                line += _wordRegisters[i].text();
+                line += _segmentRegisters[i].text();
+            }
+            line += _flags.text();
+            //if(_newInstruction) 
+                console.write(line + "\n");
+            _newInstruction = false;
         }
-        if (_newInstruction) {
-            line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false) +
-                " " + _disassembler.disassemble(_newIP);
-        }
-        line = line.alignLeft(50);
-        for (int i = 0; i < 8; ++i) {
-            line += _byteRegisters[i].text();
-            line += _wordRegisters[i].text();
-            line += _segmentRegisters[i].text();
-        }
-        line += _flags.text();
-        if(_newInstruction) console.write(line + "\n");
-        _newInstruction = false;
         ++_cycle;
-        if (_halted /*|| _cycle == _stopAtCycle*/)
+        if (_halted /*|| _cycle == _stopAtCycle*/) {
+            console.write("Stopped at cycle " + String(decimal(_cycle)) + "\n");
             _simulator->halt();
+        }
     }
     void simulateCycleAction()
     {
@@ -3254,6 +3259,9 @@ protected:
             String _stopSaveState;
         };
         //Saver saver(&simulator, stopSaveState);
+        DWORD tc0 = GetTickCount();
         simulator.simulate();
+        DWORD tc1 = GetTickCount();
+        console.write("Elapsed time: " + String(decimal(tc1 - tc0)) + "ms\n");
     }
 };
