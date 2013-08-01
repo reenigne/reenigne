@@ -112,7 +112,7 @@ public:
     private:
         void write(::Byte* destination) const
         {
-            *destination = static_cast<::Byte>(_b);
+            *destination = static_cast< ::Byte>(_b);
         }
         int _b;
         friend class StringTemplate;
@@ -480,7 +480,7 @@ private:
             virtual void expand(const ::Byte* data, int length) = 0;
             virtual void expand(int length) = 0;
             const ::Byte* constData() const { return _data; }
-            ::Byte* data() { return const_cast<::Byte*>(_data); }
+            ::Byte* data() { return const_cast< ::Byte*>(_data); }
         protected:
             const ::Byte* _data;
         };
@@ -491,7 +491,7 @@ private:
             {
                 _allocated = n;
                 _used = 0;
-                _data = static_cast<::Byte*>(operator new(n));
+                Implementation::_data = static_cast< ::Byte*>(operator new(n));
             }
             ~OwningImplementation()
             {
@@ -511,9 +511,9 @@ private:
                 if (_allocated < allocate) {
                     const ::Byte* newData =
                         static_cast<const ::Byte*>(operator new(allocate));
-                    swap(_data, newData);
+                    swap(Implementation::_data, newData);
                     memcpy(data(), newData, _used);
-                    operator delete(const_cast<::Byte*>(newData));
+                    operator delete(const_cast< ::Byte*>(newData));
                     _allocated = allocate;
                 }
                 _used += length;
@@ -528,7 +528,7 @@ private:
         public:
             LiteralImplementation(const char* data)
             {
-                _data = reinterpret_cast<const ::Byte*>(data);
+                Implementation::_data = reinterpret_cast<const ::Byte*>(data);
             }
             int end() const { return -1; }
             void expand(const ::Byte* data, int length) { throw Exception(); }
@@ -605,8 +605,8 @@ private:
 
     friend class NullTerminatedString;
     friend class ProgramBase;
-    template<class T> friend class FileTemplate;
-    friend class Handle;
+    template<class U> friend class FileTemplate;
+    template<class U> friend class HandleTemplate;
 };
 
 String operator+(const char* a, const String& b)
@@ -622,7 +622,8 @@ String::Hex hex(int n, int digits = 8, bool ox = true)
 String::Decimal decimal(int n) { return String::Decimal(n); }
 String::CodePoint codePoint(int n) { return String::CodePoint(n); }
 
-class Handle;
+template<class T> class HandleTemplate;
+typedef HandleTemplate<void> Handle;
 
 #ifdef _WIN32
 template<class T> class NullTerminatedWideStringTemplate

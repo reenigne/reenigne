@@ -57,7 +57,7 @@ public:
     {
         return _referent == other._referent;
     }
-    template<class U> U* referent() const { return _referent->cast<U>(); }
+    template<class U> U* referent() const { return _referent->template cast<U>(); }
     T* operator->() const { return _referent; }
     operator T*() { return _referent; }
     operator const T*() const { return _referent; }
@@ -111,7 +111,7 @@ public:
     }
     template<class U> const U* referent() const
     {
-        return _referent->constCast<U>();
+        return _referent->template constCast<U>();
     }
     const T* operator->() const { return _referent; }
     operator const T*() const { return _referent; }

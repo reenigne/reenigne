@@ -211,7 +211,7 @@ private:
     T* _data;
     int _n;
 
-    template<class T> friend class AppendableArray;
+    template<class U> friend class AppendableArray;
 };
 
 template<class T> class AppendableArray : public Array<T>
@@ -219,32 +219,32 @@ template<class T> class AppendableArray : public Array<T>
 public:
     AppendableArray() : _allocated(0) { }
     AppendableArray(const List<T>& list)
-      : Array(list), _allocated(list.count()) { }
-    explicit AppendableArray(int n) : Array(n), _allocated(n) { }
+      : Array<T>(list), _allocated(list.count()) { }
+    explicit AppendableArray(int n) : Array<T>(n), _allocated(n) { }
     void swap(AppendableArray& other)
     {
-        Array::swap(other);
+        Array<T>::swap(other);
         swap(_allocated, other._allocated);
     }
     void append(const T& value)
     {
-        if (_allocated == _n) {
+        if (_allocated == Array<T>::_n) {
             int allocate = _allocated *2;
             if (allocate == 0)
                 allocate = 1;
             Array<T> n(*this, allocate);
-            Array::swap(n);
+            Array<T>::swap(n);
             _allocated = allocate;
         }
-        constructElement(_n, value);
-        ++_n;
+        constructElement(Array<T>::_n, value);
+        ++Array<T>::_n;
     }
     void trim()
     {
-        if (_allocated != _n) {
-            Array<T> n(*this, _n);
-            Array::swap(n);
-            _allocated = _n;
+        if (_allocated != Array<T>::_n) {
+            Array<T> n(*this, Array<T>::_n);
+            Array<T>::swap(n);
+            _allocated = Array<T>::_n;
         }
     }
     void reserve(int size)
@@ -256,31 +256,31 @@ public:
             allocate *= 2;
         if (_allocated < allocate) {
             Array<T> n(*this, allocate);
-            Array::swap(n);
+            Array<T>::swap(n);
             _allocated = allocate;
         }
     }
-    void append(const Array& other)
+    void append(const Array<T>& other)
     {
-        reserve(_n + other._n);
+        reserve(Array<T>::_n + other._n);
         int i;
         try {
             for (i = 0; i < other._n; ++i)
-                constructElement(_n + i, other[i]);
+                constructElement(Array<T>::_n + i, other[i]);
         }
         catch (...) {
             destructElements(i);
             throw;
         }
-        _n += other._n;
+        Array<T>::_n += other._n;
     }
     void append(const T* data, int length)
     {
-        reserve(_n + length);
+        reserve(Array<T>::_n + length);
         int i;
         try {
             for (i = 0; i < length; ++i) {
-                constructElement(_n + i, *data);
+                constructElement(Array<T>::_n + i, *data);
                 ++data;
             }
         }
@@ -288,38 +288,41 @@ public:
             destructElements(i);
             throw;
         }
-        _n += length;
+        Array<T>::_n += length;
     }
     // Like append(const Array& other) but with default construction instead of
     // copying.
     void expand(int length)
     {
-        reserve(_n + length);
+        reserve(Array<T>::_n + length);
         int i;
         try {
             for (i = 0; i < length; ++i)
-                constructElement(_n + i);
+                constructElement(Array<T>::_n + i);
         }
         catch (...) {
             destructElements(i);
             throw;
         }
-        _n += length;
+        Array<T>::_n += length;
     }
     void clear()
     {
-        int n = _n;
-        _n = 0;
+        int n = Array<T>::_n;
+        Array<T>::_n = 0;
         destructElements(n);
     }
 
-    Iterator end() const { return Iterator(_data + _allocated); }
+    typename Array<T>::Iterator end() const
+    {
+        return Iterator(Array<T>::_data + _allocated);
+    }
 private:
     void destructElements(int n)
     {
         while (n > 0) {
             --n;
-            destructElement(_n + n);
+            destructElement(Array<T>::_n + n);
         }
     }
 

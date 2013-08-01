@@ -35,7 +35,8 @@ template<class T> class DriveCurrentDirectoryTemplate;
 typedef DriveCurrentDirectoryTemplate<void> DriveCurrentDirectory;
 #endif
 
-class CharacterSource;
+template<class T> class CharacterSourceTemplate;
+typedef CharacterSourceTemplate<void> CharacterSource;
 
 template<class T> class FileSystemObjectTemplate
 {
@@ -106,7 +107,7 @@ protected:
         int compare(const Implementation* other) const
         {
             const NamedImplementation* o =
-                other->constCast<NamedImplementation>();
+                other->template constCast<NamedImplementation>();
             if (o == 0)
                 return 1;
             if (_parent != o->_parent)
@@ -116,7 +117,7 @@ protected:
             return 0;
         }
     private:
-        Directory _parent;
+        DirectoryTemplate<T> _parent;
         String _name;
     };
 
@@ -262,7 +263,7 @@ private:
     static DirectoryTemplate<T> parseRoot(const String& path,
         const Directory& relativeTo, CharacterSource& s)
     {
-        CharacterSource s2 = s;
+        CharacterSourceTemplate<T> s2 = s;
         int c = s2.get();
         Directory dir = relativeTo;
 
@@ -280,8 +281,8 @@ private:
     static FileSystemObject parse(const String& path,
         const Directory& relativeTo)
     {
-        CharacterSource s(path);
-        Directory dir = parseRoot(path, relativeTo, s);
+        CharacterSourceTemplate<T> s(path);
+        DirectoryTemplate<T> dir = parseRoot(path, relativeTo, s);
         int subDirectoryStart = s.offset();
         int c = s.get();
 
@@ -328,11 +329,11 @@ private:
       : _implementation(new NamedImplementation(parent, name)) { }
 
     friend class NamedImplementation;
-    template<class T> friend class CurrentDirectoryTemplate;
-    template<class T> friend class DirectoryTemplate;
+    template<class U> friend class CurrentDirectoryTemplate;
+    template<class U> friend class DirectoryTemplate;
     friend class Console;
 
-    template<class T> friend void applyToWildcard(T functor,
+    template<class U> friend void applyToWildcard(U functor,
         const String& wildcard, int recurseIntoDirectories,
         const Directory& relativeTo);
 };
@@ -360,7 +361,7 @@ public:
     template<class F> void applyToContents(F functor, bool recursive,
         const String& wildcard = "*") const
     {
-        FindHandle handle(*this, wildcard);
+        FindHandleTemplate<T> handle(*this, wildcard);
         while (!handle.complete()) {
             if (handle.isDirectory()) {
                 Directory child = handle.directory();
@@ -430,7 +431,7 @@ private:
 #endif
 };
 
-CurrentDirectory CurrentDirectory::_directory;
+template<> CurrentDirectory CurrentDirectory::_directory;
 
 #ifdef _WIN32
 template<class T> class DriveCurrentDirectoryTemplate : public Directory
@@ -513,7 +514,7 @@ private:
 };
 
 
-RootDirectory RootDirectory::_directory;
+template<> RootDirectory RootDirectory::_directory;
 
 #ifdef _WIN32
 template<class T> class DriveRootDirectoryTemplate : public Directory
@@ -618,7 +619,7 @@ public:
 
     String contents() const
     {
-        FileHandle f = openRead();
+        FileHandleTemplate<T> f = openRead();
         UInt64 size = f.size();
         if (size >= 0x80000000)
             throw Exception("2Gb or more in file " + path());
@@ -641,7 +642,7 @@ public:
         // TODO: Backup file?
         File temp;
         {
-            f = openWriteTemporary();
+            FileHandleTemplate<T> f = openWriteTemporary();
             f.write(contents);
 #ifndef _WIN32
             f.sync();
@@ -715,10 +716,11 @@ public:
         do {
             File temp = parent().file(name() + hex(i, 8, false));
 #ifdef _WIN32
-            FileHandle f = open(tempPath, GENERIC_WRITE, 0, CREATE_NEW,
+            FileHandleTemplate<T> f = temp.open(GENERIC_WRITE, 0, CREATE_NEW,
                 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, false);
 #else
-            FileHandle f = open(tempPath, O_WRONLY | O_CREAT | O_EXCL, false);
+            FileHandleTemplate<T> f = temp.open(O_WRONLY | O_CREAT | O_EXCL,
+                false);
 #endif
             if (f.valid())
                 return f;
@@ -798,14 +800,14 @@ public:
     }
 private:
 #else
-    FileHandle open(int flags, bool throwIfExists = true) const
+    FileHandleTemplate<T> open(int flags, bool throwIfExists = true) const
     {
-        FileHandle f = tryOpen(flags);
+        FileHandleTemplate<T> f = tryOpen(flags);
         if (!f.valid() && (throwIfExists || errno != EEXIST))
             throw Exception::systemError("Opening file " + path());
         return f;
     }
-    FileHandle tryOpen(int flags) const
+    FileHandleTemplate<T> tryOpen(int flags) const
     {
         NullTerminatedString data(path());
         return FileHandle(open(data, flags), *this);
@@ -818,7 +820,7 @@ private:
     friend class Console;
 };
 
-template<class T> void applyToWildcard(T functor, CharacterSource s,
+template<class T> void applyToWildcard(T functor, CharacterSourceTemplate<T> s,
     int recurseIntoDirectories, Directory directory)
 {
     int subDirectoryStart = s.offset();
@@ -896,7 +898,7 @@ template<class T> void applyToWildcard(T functor, CharacterSource s,
         return;
     }
 #endif
-    FindHandle handle(directory, name);
+    FindHandleTemplate<T> handle(directory, name);
     while (!handle.complete()) {
         if (handle.isDirectory()) {
             Directory child = handle.directory();
@@ -924,7 +926,7 @@ template<class T> void applyToWildcard(T functor, const String& wildcard,
     Directory dir =
         FileSystemObject::windowsParseRoot(wildcard, relativeTo, s);
 #else
-    Directory dir = FileSystemObject::parse(wildcard, relativeTo, s);
+    Directory dir = FileSystemObject::parseRoot(wildcard, relativeTo, s);
 #endif
     applyToWildcard(functor, s, recurseIntoDirectories, dir);
 }
