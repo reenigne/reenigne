@@ -17,6 +17,7 @@ public:
     {
         _pic = _simulator->getPIC();
         _timer0.setPIC(_pic);
+        _timer1.setSite(_simulator);
     }
     void simulateCycle()
     {
@@ -301,6 +302,36 @@ private:
     };
     class Timer1 : public Timer
     {
+    public:
+        Timer1() : _dmaRequested(false) { }
+        void setSite(Simulator* simulator)
+        {
+            _bus = simulator->getBus();
+            _dma = simulator->getDMA();
+        }
+        void outputChanged(bool output)
+        {
+            if (output) {
+                _dma->dmaRequest(0);
+                _dmaRequested = true;
+            }
+        }
+        void simulateCycle()
+        {
+            if (_dmaRequested) {
+                if (_dma->dmaAcknowledged(0)) {
+                    _bus->read();
+                    // Don't do anything with the data we read - the only
+                    // purpose of the DMA is to refresh RAM.
+                    _dma->dmaComplete(0);
+                    _dmaRequested = false;
+                }
+            }
+        }
+    private:
+        ISA8BitBus* _bus;
+        Intel8237DMA* _dma;
+        bool _dmaRequested;
     };
     class Timer2 : public Timer
     {

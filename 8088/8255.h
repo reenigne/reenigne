@@ -33,6 +33,11 @@ public:
             break;
         }
     }
+    UInt8 portB()
+    {
+        // TODO
+        return 0;
+    }
 private:
     UInt32 _address;
     UInt8 _portb;

@@ -1,7 +1,10 @@
-class Intel8237DMA : public ISA8BitComponent
+template<class T> class Intel8237DMATemplate;
+typedef Intel8237DMATemplate<void> Intel8237DMA;
+
+template<class T> class Intel8237DMATemplate : public ISA8BitComponent
 {
 public:
-    Intel8237DMA()
+    Intel8237DMATemplate()
     {
     }
     void simulateCycle()
@@ -29,6 +32,43 @@ public:
         {
             _channels[_address >> 1].write(_address & 1,data);
         }
+    }
+    void site()
+    {
+        _bus = _simulator->getBus();
+    }
+    // Step 1: the device calls dmaRequest()
+    // equivalent to raising a DRQ line.
+    void dmaRequest(int channel)
+    {
+        // TODO
+    }
+    // Step 2: at the end of the IO cycle the CPU calls dmaRequested()
+    // equivalent to checking the status of the READY line and raising the HLDA
+    // line.
+    bool dmaRequested()
+    {
+        // TODO: call _bus->setAddress() with the appropriate generated address
+        return false;
+    }
+    // Step 3: device checks dmaAcknowledged() to see when to access the bus.
+    // equivalent to checking the status of the DACK line.
+    bool dmaAcknowledged(int channel)
+    {
+        // TODO
+        return false;
+    }
+    // Step 4: the device calls dmaComplete()
+    // equivalent to lowering a DRQline.
+    void dmaComplete(int channel)
+    {
+        // TODO
+    }
+
+    String getText()
+    {
+        // TODO
+        return String();
     }
 private:
     class Channel
@@ -88,4 +128,5 @@ private:
     };
     Channel _channels[4];
     UInt32 _address;
+    ISA8BitBus* _bus;
 };

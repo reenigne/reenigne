@@ -96,6 +96,7 @@ public:
     void addComponent(ISA8BitComponent* component)
     {
         _components.add(component);
+        component->setSimulator(_simulator);
         component->setBus(this);
     }
     void setAddress(UInt32 address)
@@ -219,20 +220,111 @@ private:
 //    Array<UInt8> _data;
 //};
 
-class RAM640Kb : public ISA8BitComponent
+class NMISwitch : public ISA8BitComponent
 {
 public:
-    RAM640Kb() : _data(0xa0000)
+    NMISwitch() : _nmiOn(false) { }
+    void setAddress(UInt32 address)
     {
+        _active = (address & 0xc00003e0) == 0xc00000a0;
+    }
+    void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }
+    String save()
+    {
+        return String("nmiSwitch: ") + (_nmiOn ? "true" : "false") + "\n";
+    }
+    Type type() { return Type::boolean; }
+    void load(const TypedValue& value) { _nmiOn = value.value<bool>(); }
+    String name() { return "nmiSwitch"; }
+    TypedValue initial() { return TypedValue(Type::boolean, false); }
+    bool nmiOn() const { return _nmiOn; }
+private:
+    bool _nmiOn;
+};
+
+#include "8259.h"
+
+#include "8237.h"
+
+#include "8255.h"
+
+#include "8253.h"
+
+template<class T> class RAM640KbTemplate;
+typedef RAM640KbTemplate<void> RAM640Kb;
+
+template<class T> class RAM640KbTemplate : public ISA8BitComponent
+{
+public:
+    RAM640KbTemplate() : _data(0xa0000)
+    {
+        // _rowBits is 7 for 4116 RAM chips
+        //             8 for 4164 
+        //             9 for 41256
+        // We use 9 here because programs written for _rowBits == N will work
+        // for _rowBits < N but not necessarily _rowBits > N.
+        // TODO: make this settable in the config file.
+        int rowBits = 9;
+
+        // DRAM decay time in cycles.
+        // This is the fastest that DRAM could decay and real hardware would 
+        // still work.
+        // TODO: make this settable in the config file.
+        _decayTime = (18*4) << rowBits;
+
+        // Initially, all memory is decayed so we'll get an NMI if we try to 
+        // read from it.
+        _cycle = _decayTime;
+
+        _rows = 1 << rowBits;
+        _refreshTimes.allocate(_rows);
+        for (int r = 0; r < _rows; ++r)
+            _refreshTimes[r] = 0;
+        _rowMask = _rows - 1;
         for (int a = 0; a < 0xa0000; ++a)
             _data[a] = 0;
+    }
+    void site()
+    {
+        _nmiSwitch = _simulator->getNMISwitch();
+        _ppi = _simulator->getPPI();
+        _cpu = _simulator->getCPU();
+    }
+    void simulateCycle()
+    {
+        ++_cycle;
+        if (_cycle == 0x40000000) {
+            int adjust = _decayTime - _cycle;
+            for (int r = 0; r < _rows; ++r)
+                if (_refreshTimes[r] + adjust > 0)
+                    _refreshTimes[r] += adjust;
+                else
+                    _refreshTimes[r] = 0;
+            _cycle += adjust;
+        }
     }
     void setAddress(UInt32 address)
     {
         _address = address & 0x400fffff;
         _active = (_address < 0xa0000);
     }
-    void read() { return set(_data[_address]); }
+    void read()
+    {
+        int row = _address & _rowMask;
+        if (_cycle >= _refreshTimes[row] + _decayTime) {
+            // RAM has decayed! On a real machine this would not always signal
+            // an NMI but we'll make the NMI happen every time to make DRAM
+            // decay problems easier to find.
+
+            // TODO: In the config file we might want to have an option for
+            // "realistic mode" to prevent this from being used to detect the
+            // emulator.
+            if (_nmiSwitch->nmiOn() && (_ppi->portB() & 0x10) != 0)
+                _cpu->nmi();
+        }
+
+        return set(_data[_address]);
+    }
     void write(UInt8 data) { _data[_address] = data; }
     UInt8 memory(UInt32 address)
     {
@@ -284,27 +376,14 @@ public:
 private:
     int _address;
     Array<UInt8> _data;
-};
-
-class NMISwitch : public ISA8BitComponent
-{
-public:
-    NMISwitch() : _nmiOn(false) { }
-    void setAddress(UInt32 address)
-    {
-        _active = (address & 0xc00003e0) == 0xc00000a0;
-    }
-    void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }
-    String save()
-    {
-        return String("nmiSwitch: ") + (_nmiOn ? "true" : "false") + "\n";
-    }
-    Type type() { return Type::boolean; }
-    void load(const TypedValue& value) { _nmiOn = value.value<bool>(); }
-    String name() { return "nmiSwitch"; }
-    TypedValue initial() { return TypedValue(Type::boolean, false); }
-private:
-    bool _nmiOn;
+    Array<int> _refreshTimes;
+    int _rows;
+    int _rowMask;
+    int _cycle;
+    int _decayTime;
+    NMISwitch* _nmiSwitch;
+    Intel8255PPI* _ppi;
+    Intel8088* _cpu;
 };
 
 class DMAPageRegisters : public ISA8BitComponent
@@ -353,14 +432,6 @@ private:
     int _address;
     int _dmaPages[4];
 };
-
-#include "8259.h"
-
-#include "8237.h"
-
-#include "8255.h"
-
-#include "8253.h"
 
 class ROMData
 {
@@ -838,6 +909,11 @@ public:
         _bus = _simulator->getBus();
         _disassembler.setBus(_bus);
         _pic = _simulator->getPIC();
+        _dma = _simulator->getDMA();
+    }
+    void nmi()
+    {
+        // TODO
     }
     UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
     void simulateCycle()
@@ -869,6 +945,8 @@ public:
                             line += "M->" + hex(_busData, 2, false) + " ";
                     break;
                 case tIdle: line += "         "; break;
+                case tDMA:
+                    line += "D" + _dma->getText();
             }
             if (_newInstruction) {
                 line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false) +
@@ -898,6 +976,10 @@ public:
             busDone = true;
             switch (_busState) {
                 case t1:
+                    if (_dma->dmaRequested()) {
+                        _busState = tDMA;
+                        break;
+                    }
                     if (_ioInProgress == ioInstructionFetch)
                         _busAddress = physicalAddress(1, _prefetchAddress);
                     else {
@@ -994,6 +1076,10 @@ public:
                         _busState = t1;
                     }
                     busDone = true;
+                    break;
+                case tDMA:
+                    if (!_dma->dmaRequested())
+                        _busState = t1;
                     break;
             }
         } while (!busDone);
@@ -2381,7 +2467,8 @@ private:
         t3,
         tWait,
         t4,
-        tIdle
+        tIdle,
+        tDMA
     };
     enum IOByte
     {
@@ -2574,6 +2661,7 @@ private:
             case tWait: return "tWait";
             case t4:    return "t4";
             case tIdle: return "tIdle";
+            case tDMA:  return "tDMA";
         }
         return "";
     }
@@ -3022,6 +3110,7 @@ private:
     UInt16 _newIP;
     ISA8BitBus* _bus;
     Intel8259PIC* _pic;
+    Intel8237DMA* _dma;
     int _cycle;
     int _stopAtCycle;
     UInt32 _busAddress;
@@ -3140,6 +3229,10 @@ public:
     void halt() { _halted = true; }
     ISA8BitBus* getBus() { return &_bus; }
     Intel8259PIC* getPIC() { return &_pic; }
+    Intel8237DMA* getDMA() { return &_dma; }
+    NMISwitch* getNMISwitch() { return &_nmiSwitch; }
+    Intel8255PPI* getPPI() { return &_ppi; }
+    Intel8088* getCPU() { return &_cpu; }
 private:
     List<Component*> _components;
     bool _halted;
