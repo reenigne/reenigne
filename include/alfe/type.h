@@ -162,6 +162,9 @@ protected:
     friend class StructuredType;
 };
 
+template<class T> class TypedValueTemplate;
+typedef TypedValueTemplate<void> TypedValue;
+
 template<class T> class TypeTemplate : public Tyco
 {
 public:
@@ -193,15 +196,39 @@ public:
         throw Exception("Don't know this type.");
     }
     template<> static Type fromCompileTimeType<int>() { return integer; }
+    TypedValueTemplate<T> tryConvert(const TypedValue& value, String* reason)
+        const
+    {
+        return implementation()->tryConvert(value, reason);
+    }
+    TypedValueTemplate<T> tryConvertTo(const Type& to, const TypedValue& value,
+        String* reason) const
+    {
+        return implementation()->tryConvertTo(to, value, reason);
+    }
+    TypeTemplate(const Implementation* implementation)
+      : Tyco(implementation) { }
 protected:
     class Implementation : public Tyco::Implementation
     {
     public:
         Kind kind() const { return Kind::type; }
+        virtual TypedValueTemplate<T> tryConvert(const TypedValue& value,
+            String* reason) const
+        { 
+            return TypedValueTemplate<T>();
+        }
+        virtual TypedValueTemplate<T> tryConvertTo(const Type& to,
+            const TypedValue& value, String* reason) const
+        { 
+            return TypedValueTemplate<T>();
+        }
     };
-    TypeTemplate(const Implementation* implementation)
-      : Tyco(implementation) { }
-private:
+    const Implementation* implementation() const
+    {
+        return _implementation.referent<Implementation>();
+    }
+
     friend class TemplateTemplate<void>;
 };
 
@@ -209,7 +236,9 @@ class AtomicType : public Type
 {
 public:
     AtomicType(String name) : Type(new Implementation(name)) { }
-private:
+protected:
+    AtomicType(const Implementation* implementation) : Type(implementation) { }
+
     class Implementation : public Type::Implementation
     {
     public:
@@ -365,8 +394,12 @@ private:
         const Template::Implementation* _parent;
         Tyco _argument;
     };
+
+    friend class StructuredType;
 };
 
+// If we give Array a class of its own, StructuredType will need to be
+// modified to use it for conversions.
 Template Template::array("Array", TemplateKind(Kind::type, Kind::type));
 Template Template::tuple("Tuple", Kind::variadicTemplate);
 
@@ -484,18 +517,73 @@ private:
     };
 };
 
+template<class T> class TypedValueTemplate
+{
+public:
+    TypedValueTemplate() { }
+    TypedValueTemplate(Type type, Any defaultValue = Any(), Span span = Span())
+        : _type(type), _value(defaultValue), _span(span) { }
+    Type type() const { return _type; }
+    Any value() const { return _value; }
+    template<class T> T value() const { return _value.value<T>(); }
+    void setValue(Any value) { _value = value; }
+    Span span() const { return _span; }
+    bool valid() const { return _value.valid(); }
+    TypedValue convertTo(const Type& to) const
+    {
+        String reason;
+        TypedValue v = tryConvertTo(to, &reason);
+        if (!v.valid())
+            span().throwError(reason);
+        return v;
+    }
+    TypedValue tryConvertTo(const Type& to, String* why) const
+    {
+        String reason;
+        TypedValue v = to.tryConvert(*this, &reason);
+        if (v.valid())
+            return v;
+        String reasonTo;
+        v = _type.tryConvertTo(to, *this, &reasonTo);
+        if (v.valid())
+            return v;
+        String r = "No conversion";
+        String f = _type.toString();
+        if (f != "")
+            r += String(" from type ") + f;
+        r += String(" to type ") + to.toString() + String(" is available");
+        if (reason.empty())
+            reason = reasonTo;
+        if (reason.empty())
+            r += ".";
+        else
+            r += String(": ") + reason;
+        *why = r;
+        return TypedValue();
+    }
+
+private:
+    Type _type;
+    Any _value;
+    Span _span;
+};
+
 class StructuredType : public Type
 {
 public:
     class Member
     {
     public:
-        Member(String name, Type type) : _name(name), _type(type) { }
+        Member(String name, Type type) : _name(name), _default(type) { }
+        Member(String name, TypedValue default)
+          : _name(name), _default(default) { }
         String name() const { return _name; }
-        Type type() const { return _type; }
+        Type type() const { return _default.type(); }
+        TypedValue default() const { return _default; }
+        bool hasDefault() const { return _default.valid(); }
         bool operator==(const Member& other) const
         {
-            return _name == other._name && _type == other._type;
+            return _name == other._name && type() == other.type();
         }
         bool operator!=(const Member& other) const
         {
@@ -503,9 +591,10 @@ public:
         }
     private:
         String _name;
-        Type _type;
+        TypedValue _default;
     };
 
+    StructuredType() { }
     StructuredType(const Type& other)
       : Type(other._implementation.referent<Implementation>()) { }
     StructuredType(String name, List<Member> members)
@@ -534,7 +623,139 @@ private:
         String toString() const { return _name; }
         const HashTable<String, int>* names() const { return &_names; }
         const Array<Member>* members() const { return &_members; }
+
+        TypedValue tryConvertTo(const Type& to, const TypedValue& value,
+            String* why) const
+        {
+            const Implementation* toImplementation =
+                to._implementation.referent<Implementation>();
+            if (toImplementation != 0) {
+                auto input =
+                    value.value<Value<HashTable<String, TypedValue>>>();
+                Value<HashTable<String, TypedValue>> output;
+
+                // First take all named members in the RHS and assign them to
+                // the corresponding named members in the LHS. 
+                int count = _members.count();
+                int toCount = toImplementation->_members.count();
+                Array<bool> assigned(toCount);
+                for (int i = 0; i < toCount; ++i)
+                    assigned[i] = false;
+                for (int i = 0; i < count; ++i) {
+                    const Member* m = &_members[i];
+                    String name = m->name();
+                    if (name.empty())
+                        continue;
+                    // If a member doesn't exist, fail conversion.
+                    if (!toImplementation->_names.hasKey(name)) {
+                        *why = String("The target type has no member named ") +
+                            name;
+                        return TypedValue();
+                    }
+                    int j = toImplementation->_names[name];
+                    if (assigned[j]) {
+                        *why = String("The source type has more than one "
+                            "member named ") + name;
+                        return TypedValue();
+                    }
+                    // If one of the child conversions fails, fail.
+                    TypedValue v = tryConvertHelper((*input)[name],
+                        &toImplementation->_members[j], why);
+                    if (!v.valid())
+                        return TypedValue();
+                    (*output)[name] = v;
+                    assigned[j] = true;
+                }
+                // Then take all unnamed arguments in the RHS and in LTR order
+                // and assign them to unassigned members in the LHS, again in
+                // LTR order.
+                int j = 0;
+                for (int i = 0; i < count; ++i) {
+                    const Member* m = &_members[i];
+                    if (!m->name().empty())
+                        continue;
+                    String fromName = String::Decimal(i);
+                    while (assigned[j] && j < toCount)
+                        ++j;
+                    if (j >= toCount) {
+                        *why = "The source type has too many members";
+                        return TypedValue();
+                    }
+                    const Member* toMember = &toImplementation->_members[j];
+                    TypedValue v =
+                        tryConvertHelper((*input)[String::Decimal(i)],
+                        toMember, why);
+                    if (!v.valid())
+                        return TypedValue();
+                    (*output)[toMember->name()] = v;
+                }
+                // Make sure any unassigned members have defaults.
+                for (;j < toCount; ++j) {
+                    if (assigned[j])
+                        continue;
+                    const Member* toMember = &toImplementation->_members[j];
+                    if (!toMember->hasDefault()) {
+                        *why = String("No default value is available for "
+                            "target type member ") + toMember->name();
+                        return TypedValue();
+                    }
+                    else
+                        (*output)[toMember->name()] = toMember->default();
+                }
+                return TypedValue(Type(this), output, value.span());
+            }
+            const Template::InstantiatedImplementation* arrayImplementation =
+                to._implementation.
+                referent<Template::InstantiatedImplementation>();
+            if (arrayImplementation != 0 && 
+                arrayImplementation->generatingTemplate() == Template::array) {
+                Type contained = arrayImplementation->templateArgument();
+                if (!contained.valid()) {
+                    *why = String("Array instantiated with non-type argument");
+                    return TypedValue();
+                }
+                auto input =
+                    value.value<Value<HashTable<String, TypedValue>>>();
+                List<TypedValue> results;
+                for (int i = 0; i < input->count(); ++i) {
+                    String name = String::Decimal(i);
+                    if (!input->hasKey(name)) {
+                        *why = String("Array cannot be initialized with a "
+                            "structured value containing named members");
+                        return TypedValue();
+                    }
+                    String reason;
+                    TypedValue v =
+                        (*input)[name].tryConvertTo(contained, &reason);
+                    if (!v.valid()) {
+                        *why = String("Cannot convert child member ") + name;
+                        if (!reason.empty())
+                            *why += String(": ") + reason;
+                        return TypedValue();
+                    }
+                    results.add(v);
+                }
+                return TypedValue(to, results, value.span());
+            }
+
+            return TypedValue();
+        }
+
     private:
+        TypedValue tryConvertHelper(const TypedValue& value, const Member* to,
+            String* why) const
+        {
+            String reason;
+            TypedValue v = value.tryConvertTo(to->type(), &reason);
+            if (!v.valid()) {
+                *why = String("Cannot convert child member ") + to->name();
+                if (!reason.empty())
+                    *why += String(": ") + reason;
+                return TypedValue();
+            }
+            return v;
+        }
+
         String _name;
         HashTable<String, int> _names;
         Array<Member> _members;
@@ -543,43 +764,8 @@ private:
     {
         return _implementation.referent<Implementation>();
     }
-};
 
-class TypedValue
-{
-public:
-    TypedValue() { }
-    TypedValue(Type type, Any defaultValue = Any(), Span span = Span())
-        : _type(type), _value(defaultValue), _span(span) { }
-    Type type() const { return _type; }
-    Any value() const { return _value; }
-    template<class T> T value() const { return _value.value<T>(); }
-    void setValue(Any value) { _value = value; }
-    Span span() const { return _span; }
-    bool valid() const { return _value.valid(); }
-    /*TypedValue convertTo(const Type& to)
-    {
-        if (_type.canConvertTo(to))
-            return _type.convertTo(to, *this);
-        if (to.canConvertFrom(_type))
-            return to.convertFrom(*this);
-        String r = String("No conversion");
-        String f = _type.toString();
-        if (f != "")
-            r += String(" from type ") + f;
-        r += String(" to type ") + to.toString() + String(" is available");
-            String s = sub(value);
-            if (s == "")
-                r += ".";
-            else
-                r += String(": ") + s;
-            return r;
-    }*/
-
-private:
-    Type _type;
-    Any _value;
-    Span _span;
+    friend class Implementation;
 };
 
 #endif // INCLUDED_TYPE_H

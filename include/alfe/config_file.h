@@ -32,30 +32,6 @@ int parseHexadecimalCharacter(CharacterSource* source, Span* span)
 class ConfigFile
 {
 public:
-    void addType(Type type)
-    {
-        if (_typeSet.has(type))
-            return;
-        _typeSet.add(type);
-        String name = type.toString();
-        _types.add(name, type);
-        EnumerationType t(type);
-        if (t.valid()) {
-            const Array<EnumerationType::Value>* values = t.values();
-            for (int i = 0; i < values->count(); ++i) {
-                EnumerationType::Value value = (*values)[i];
-                _enumeratedValues.add(value.name(),
-                    TypedValue(type, value.value()));
-            }
-            return;
-        }
-        StructuredType s(type);
-        if (s.valid()) {
-            const Array<StructuredType::Member>* members = s.members();
-            for (int i = 0; i < members->count(); ++i)
-                addType((*members)[i].type());
-        }
-    }
     void addOption(String name, Type type)
     {
         _options.add(name, TypedValue(type));
@@ -265,14 +241,7 @@ private:
                             i.span().throwError("Expected identifier or "
                             "parenthesized expression");
                     }
-                    if (part.type() == Type::integer)
-                        part = TypedValue(Type::string,
-                            decimal(part.value<int>()), part.span());
-                    else
-                        if (part.type() != Type::string)
-                            source->location().throwError(
-                                "Don't know how to convert type " +
-                                part.type().toString() + " to a string");
+                    part = part.convertTo(Type::string);
                     string += s.subString(startOffset, endOffset);
                     startOffset = source->offset();
                     expression = combine(expression, TypedValue(Type::string,
@@ -502,8 +471,8 @@ private:
             for (int i = 0; i < members->count(); ++i) {
                 if (i > 0)
                     Space::assertCharacter(source, ',', &span);
-                TypedValue value = convert(parseExpression(source),
-                    (*members)[i].type());
+                TypedValue value = parseExpression(source).
+                    convertTo((*members)[i].type());
                 values.add(value.value());
             }
             Space::assertCharacter(source, ')', &span);
@@ -653,8 +622,6 @@ private:
     HashTable<String, TypedValue> _enumeratedValues;
     HashTable<String, Type> _types;
     Set<Type> _typeSet;
-    //TypeConverter _typeConverter;
-    //ConversionSource _arrayConversionSource;
 };
 
 #endif // INCLUDED_CONFIG_FILE_H

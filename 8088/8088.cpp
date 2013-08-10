@@ -5,7 +5,7 @@
 #include "alfe/hash_table.h"
 #include "alfe/main.h"
 #include "alfe/space.h"
-//#include "alfe/config_file.h"
+#include "alfe/config_file.h"
 #include "alfe/type.h"
 
 #include <stdlib.h>
@@ -13,25 +13,6 @@
 //class SourceProgram
 //{
 //};
-
-int parseHexadecimalCharacter(CharacterSource* source, Span* span)
-{
-    CharacterSource s = *source;
-    int c = s.get(span);
-    if (c >= '0' && c <= '9') {
-        *source = s;
-        return c - '0';
-    }
-    if (c >= 'A' && c <= 'F') {
-        *source = s;
-        return c + 10 - 'A';
-    }
-    if (c >= 'a' && c <= 'f') {
-        *source = s;
-        return c + 10 - 'a';
-    }
-    return -1;
-}
 
 class Simulator;
 
@@ -63,7 +44,7 @@ public:
     // Address bit 31 = write
     // Address bit 30 = IO
     virtual void setAddress(UInt32 address) = 0;
-    virtual void write(UInt8 data) = 0;
+    virtual void write(UInt8 data) { };
     virtual bool wait() { return false; }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
     virtual UInt8 memory(UInt32 address) { return 0xff; }
@@ -259,7 +240,7 @@ public:
     RAM640KbTemplate() : _data(0xa0000)
     {
         // _rowBits is 7 for 4116 RAM chips
-        //             8 for 4164 
+        //             8 for 4164
         //             9 for 41256
         // We use 9 here because programs written for _rowBits == N will work
         // for _rowBits < N but not necessarily _rowBits > N.
@@ -267,12 +248,16 @@ public:
         int rowBits = 9;
 
         // DRAM decay time in cycles.
-        // This is the fastest that DRAM could decay and real hardware would 
+        // This is the fastest that DRAM could decay and real hardware would
         // still work.
         // TODO: make this settable in the config file.
         _decayTime = (18*4) << rowBits;
+        // 2ms for 4116
+        // 4ms for 4164
+        // 8ms for 41256
+        //   _decayTime =  (13125 << rowBits) / 176;
 
-        // Initially, all memory is decayed so we'll get an NMI if we try to 
+        // Initially, all memory is decayed so we'll get an NMI if we try to
         // read from it.
         _cycle = _decayTime;
 
@@ -322,10 +307,14 @@ public:
             if (_nmiSwitch->nmiOn() && (_ppi->portB() & 0x10) != 0)
                 _cpu->nmi();
         }
-
-        return set(_data[_address]);
+        _refreshTimes[row] = _cycle;
+        set(_data[_address]);
     }
-    void write(UInt8 data) { _data[_address] = data; }
+    void write(UInt8 data)
+    {
+        _refreshTimes[_address & _rowMask] = _cycle;
+        _data[_address] = data;
+    }
     UInt8 memory(UInt32 address)
     {
         if (address < 0xa0000)
@@ -436,27 +425,28 @@ private:
 class ROMData
 {
 public:
-    ROMData(int mask, int start, File file, int offset)
+    ROMData(int mask, int start, String file, int offset)
       : _mask(mask), _start(start), _file(file), _offset(offset) { }
     int mask() const { return _mask; }
     int start() const { return _start; }
-    File file() const { return _file; }
+    String file() const { return _file; }
     int offset() const { return _offset; }
 private:
     int _mask;
     int _start;
-    File _file;
+    String _file;
     int _offset;
 };
 
 class ROM : public ISA8BitComponent
 {
 public:
-    void initialize(const ROMData& romData)
+    void initialize(const ROMData& romData, const File& configFile)
     {
         _mask = romData.mask() | 0xc0000000;
         _start = romData.start();
-        String data = romData.file().contents();
+        String data = File(romData.file(), configFile.parent(), true).
+            contents();
         int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
         _data.allocate(length);
         int offset = romData.offset();
@@ -469,7 +459,6 @@ public:
         _active = ((address & _mask) == _start);
     }
     void read() { set(_data[_address & ~_mask]); }
-    void write(UInt8 data) { }
     UInt8 memory(UInt32 address)
     {
         if ((address & _mask) == _start)
@@ -911,10 +900,7 @@ public:
         _pic = _simulator->getPIC();
         _dma = _simulator->getDMA();
     }
-    void nmi()
-    {
-        // TODO
-    }
+    void nmi() { _nmiRequested = true; }
     UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
     void simulateCycle()
     {
@@ -959,7 +945,7 @@ public:
                 line += _segmentRegisters[i].text();
             }
             line += _flags.text();
-            //if(_newInstruction) 
+            //if(_newInstruction)
                 console.write(line + "\n");
             _newInstruction = false;
         }
@@ -1672,6 +1658,11 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
 
                 case stateCheckInt:
                     _state = _afterInt;
+                    if (_nmiRequested) {
+                        _data = 2;
+                        _state = stateIntAction;
+                        _nmiRequested = false;
+                    }
                     if (intf() && _pic->interruptRequest()) {
                         _state = stateHardwareInt;
                         _pic->interruptAcknowledge();
@@ -2010,7 +2001,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                                         ((ax() & 0x8000) == 0 ? 0 : 0xffff));
                                     _wait = 128;
                                 }
-                            setZF();                                              
+                            setZF();
                             setOF(cf());
                             if (_useMemory)
                                 _wait += 2;
@@ -2205,6 +2196,8 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  newInstruction: ") +
             (_newInstruction ? "true" : "false") + ",\n";
         s += String("  newIP: ") + hex(_newIP, 4) + ",\n";
+        s += String("  nmiRequested: ") + (_nmiRequested ? "true" : "false") +
+            ",\n";
         s += String("  cycle: ") + _cycle;
         return s + "}\n";
     }
@@ -2261,6 +2254,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("halted", Type::boolean));
         members.add(M("newInstruction", Type::boolean));
         members.add(M("newIP", Type::integer));
+        members.add(M("nmiRequested", Type::boolean));
         members.add(M("cycle", Type::integer));
         return StructuredType("CPU", members);
     }
@@ -2322,6 +2316,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _halted = (*members)["halted"].value<bool>();
         _newInstruction = (*members)["newInstruction"].value<bool>();
         _newIP = (*members)["newIP"].value<int>();
+        _nmiRequested = (*members)["nmiRequested"].value<bool>();
         _cycle = (*members)["cycle"].value<int>();
     }
     String name() { return "cpu"; }
@@ -2375,6 +2370,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         (*members)["halted"] = TypedValue(Type::boolean, false);
         (*members)["newInstruction"] = TypedValue(Type::boolean, true);
         (*members)["newIP"] = TypedValue(Type::integer, 0);
+        (*members)["nmiRequested"] = TypedValue(Type::boolean, false);
         (*members)["cycle"] = TypedValue(Type::integer, 0);
         return TypedValue(type(), members);
     }
@@ -3115,6 +3111,7 @@ private:
     int _stopAtCycle;
     UInt32 _busAddress;
     UInt8 _busData;
+    bool _nmiRequested;
 
     Type _stateType;
     Type _ioTypeType;
@@ -3124,12 +3121,59 @@ private:
     Disassembler _disassembler;
 };
 
+class ROMDataType : public AtomicType
+{
+public:
+    ROMDataType() : AtomicType(implementation()) { }
+private:
+    class Implementation : public AtomicType::Implementation
+    {
+    public:
+        Implementation() : AtomicType::Implementation("ROM")
+        {
+            List<StructuredType::Member> members;
+            members.add(StructuredType::Member("mask", Type::integer));
+            members.add(StructuredType::Member("address", Type::integer));
+            members.add(StructuredType::Member("fileName", Type::string));
+            members.add(StructuredType::Member("fileOffset",
+                TypedValue(Type::integer, 0)));
+            _structuredType = StructuredType(toString(), members);
+        }
+        TypedValue tryConvert(const TypedValue& value, String* why) const
+        {
+            TypedValue stv = _structuredType.tryConvert(value, why);
+            if (!stv.valid())
+                return stv;
+            auto romMembers =
+                stv.value<Value<HashTable<String, TypedValue>>>();
+            int mask = (*romMembers)["mask"].value<int>();
+            int address = (*romMembers)["address"].value<int>();
+            String file = (*romMembers)["fileName"].value<String>();
+            int offset = (*romMembers)["fileOffset"].value<int>();
+            return TypedValue(ROMDataType(),
+                Any(ROMData(mask, address, file, offset)), value.span());
+        }
+    private:
+        static StructuredType _structuredType;
+    };
+    static Reference<Implementation> _implementation;
+    static Reference<Implementation> implementation()
+    {
+        if (!_implementation.valid())
+            _implementation = new Implementation();
+        return _implementation;
+    }
+};
+
+Reference<ROMDataType::Implementation> ROMDataType::_implementation;
+StructuredType ROMDataType::Implementation::_structuredType;
+
 class Simulator
 {
 public:
-    Simulator() : _halted(false)
-    { 
-        /*ConfigFile config;
+    Simulator(File configFile) : _halted(false)
+    {
+        ConfigFile config;
 
         ROMDataType romDataType;
         Type romImageArrayType = Type::array(romDataType);
@@ -3138,30 +3182,8 @@ public:
         config.addOption("stopSaveState", Type::string, "");
         config.addOption("initialState", Type::string, "");
 
-        config.load(File(_arguments[1], CurrentDirectory(), true));*/
+        config.load(configFile);
 
-        /*List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
-        Array<ROM> roms(romDatas.count());
-        int r = 0;
-        for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
-            ROMData romData = (*i).value<ROMData>();
-            ROM* rom = &roms[r];
-            rom->initialize(romData);
-            bus.addComponent(rom);
-            ++r;
-        }
-        int stopAtCycle = config.get<int>("stopAtCycle");*
-        String stopSaveState = config.get<String>("stopSaveState");*/
-
-        _roms.allocate(1);
-
-        File biosfile("u33.bin",true);
-        ROMData romdata(0xFE000,0xFE000,biosfile,0);
-        ROM* rom = &_roms[0];
-        rom->initialize(romdata);
-        _bus.addComponent(rom);
-
-        _cpu.setStopAtCycle(28000000);
         addComponent(&_bus);
         _bus.addComponent(&_ram);
         _bus.addComponent(&_nmiSwitch);
@@ -3172,6 +3194,28 @@ public:
         _bus.addComponent(&_ppi);
         _bus.addComponent(&_pic);
         addComponent(&_cpu);
+
+        List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
+        _roms.allocate(romDatas.count());
+        int r = 0;
+        for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
+            ROMData romData = (*i).value<ROMData>();
+            ROM* rom = &_roms[r];
+            rom->initialize(romData, configFile);
+            _bus.addComponent(rom);
+            ++r;
+        }
+        String stopSaveState = config.get<String>("stopSaveState");
+
+        ConfigFile initialState;
+        initialState.addOption("simulator", type(), initial());
+        initialState.load(config.get<String>("initialState"));
+        TypedValue stateValue = initialState.get("simulator");
+        load(stateValue);
+
+        _roms.allocate(1);
+
+        _cpu.setStopAtCycle(config.get<int>("stopAtCycle"));
     }
     void simulate()
     {
@@ -3182,7 +3226,7 @@ public:
     }
     void addComponent(Component* component)
     {
-        _components.add(component); 
+        _components.add(component);
         component->setSimulator(this);
     }
     String save()
@@ -3251,80 +3295,18 @@ private:
 };
 
 
-/*class ROMDataType : public AtomicType
-{
-public:
-    ROMDataType() : AtomicType(implementation()) { }
-private:
-    class Implementation : public AtomicType::Implementation
-    {
-    public:
-        Implementation() : AtomicType::Implementation("ROM")
-        {
-            List<StructuredType::Member> members;
-            members.add(StructuredType::Member("mask", Type::integer));
-            members.add(StructuredType::Member("address", Type::integer));
-            members.add(StructuredType::Member("fileName", Type::string));
-            members.add(StructuredType::Member("fileOffset", Type::integer));
-            _structuredType = StructuredType(toString(),members);
-        }
-        TypedValue convertFrom(const TypedValue& value) const
-        {
-            TypedValue stv = _structuredType.convertFrom(value);
-            List<TypedValue> romMembers = stv.value<List<TypedValue>>();
-            List<TypedValue>::Iterator m = romMembers.begin();
-            int address = (*m).value<int>();
-            ++m;
-            int mask = (*m).value<int>();
-            ++m;
-            File file = (*m).value<String>();
-            ++m;
-            int offset = (*m).value<int>();
-            return TypedValue(ROMDataType(),
-                Any(ROMData(mask, address, file, offset)), value.span());
-        }
-        bool canConvertFrom(const Type& type) const
-        {
-            return _structuredType.canConvertFrom(type);
-        }
-        TypedValue convertTo(const TypedValue& value, const Type& other)
-        {
-            throw Exception("Invalid conversion");
-        }
-        bool canConvertto(const Type& type) const { return false; }
-    private:
-        static StructuredType _structuredType;
-    };
-    static Reference<Implementation> _implementation;
-    static Reference<Implementation> implementation()
-    {
-        if (!_implementation.valid())
-            _implementation = new Implementation();
-        return _implementation;
-    }
-};*/
-
 class Program : public ProgramBase
 {
 protected:
     void run()
     {
-        /*if (_arguments.count() < 2) {
+        if (_arguments.count() < 2) {
             console.write("Syntax: " + _arguments[0] +
                 " <config file name>\n");
             return;
-        }*/
+        }
 
-        Simulator simulator;
-
-        //ConfigFile initialState;
-        //Type simulatorType = simulator.type();
-        //initialState.addType(simulatorType);
-        //initialState.addOption("simulator", simulatorType,
-        //    simulator.initial());
-        //initialState.load(config.get<String>("initialState"));
-        //TypedValue stateValue = initialState.get("simulator");
-        //simulator.load(stateValue);
+        Simulator simulator(File(_arguments[1], CurrentDirectory(), true));
 
         //File file(config.get<String>("sourceFile"));
         //String contents = file.contents();
