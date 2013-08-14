@@ -14,7 +14,7 @@ public:
     void write(const T& t)
     {
         add(1);
-        _buffer[writeOffset(n)] = t;
+        _buffer[writeOffset(0)] = t;
         added(1);
     }
     const T& read(int n = 0) const

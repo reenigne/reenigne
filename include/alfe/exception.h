@@ -51,7 +51,7 @@ public:
 #else
     ExceptionTemplate()
       : _message("Unspecified error"),
-        _implementation(new StaticImplementation(_message))
+        _implementation(new OwningImplementation(_message))
     { }
 #endif
     ExceptionTemplate(const String& message)
@@ -120,22 +120,6 @@ private:
         NullTerminatedWideString _string;
 #else
         NullTerminatedString _string;
-#endif
-    };
-    class StaticImplementation : public Implementation
-    {
-#ifdef UTF16_MESSAGES
-    public:
-        StaticImplementation(const WCHAR* string) : _string(string) { }
-        const WCHAR* message() { return _string; }
-    private:
-        const WCHAR* _string;
-#else
-    public:
-        StaticImplementation(const char* string) : _string(string) { }
-        const char* message() { return _string; }
-    private:
-        const char* _string;
 #endif
     };
 #ifdef _WIN32

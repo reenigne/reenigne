@@ -322,7 +322,10 @@ private:
                 return dir;
             return FileSystemObject(dir.parent(), dir.name());
         }
-        return FileSystemObject(dir, name);
+        //return FileSystemObject(dir, name);
+        FileSystemObject f = FileSystemObject(dir, name);
+        String pp2 = f.path();
+        return f;
     }
 
     FileSystemObjectTemplate(const Directory& parent, const String& name)
@@ -395,6 +398,7 @@ private:
     {
         if (!_directory.valid())
             _directory = currentDirectory();
+        String pp = _directory.path();
         return _directory;
     }
 
@@ -414,10 +418,13 @@ private:
 #else
         size_t size = 100;
         do {
-            Array<char> buf(size);
-            if (getcwd(&buf[0], size) != 0) {
-                String path(&buf[0]);
-                return FileSystemObject::parse(path, RootDirectory(), false);
+            String::Buffer buffer(size);
+            if (getcwd(reinterpret_cast<char*>(buffer.data()), size) != 0) {
+                String path(buffer, 0,
+                    strlen(reinterpret_cast<char*>(buffer.data())));
+                return CurrentDirectory(
+                    FileSystemObject::parse(path, RootDirectory(), false).
+                    _implementation);
             }
             if (errno != ERANGE)
                 throw Exception::systemError("Obtaining current directory");
@@ -431,7 +438,7 @@ private:
 #endif
 };
 
-template<> CurrentDirectory CurrentDirectory::_directory;
+template<> CurrentDirectory CurrentDirectory::_directory(0);
 
 #ifdef _WIN32
 template<class T> class DriveCurrentDirectoryTemplate : public Directory
@@ -514,7 +521,7 @@ private:
 };
 
 
-template<> RootDirectory RootDirectory::_directory;
+template<> RootDirectory RootDirectory::_directory(0);
 
 #ifdef _WIN32
 template<class T> class DriveRootDirectoryTemplate : public Directory
@@ -810,7 +817,7 @@ private:
     FileHandleTemplate<T> tryOpen(int flags) const
     {
         NullTerminatedString data(path());
-        return FileHandle(open(data, flags), *this);
+        return FileHandle(::open(data, flags), *this);
     }
 #endif
 

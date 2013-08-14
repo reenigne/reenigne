@@ -1,8 +1,5 @@
-template<class T> class Intel8253PITTemplate;
-
-typedef Intel8253PITTemplate<void> Intel8253PIT;
-
-template<class T> class Intel8253PITTemplate : public ISA8BitComponent
+template<class T> class Intel8253PITTemplate
+  : public ISA8BitComponentTemplate<T>
 {
 public:
     Intel8253PITTemplate() : _cycle(0)
@@ -15,9 +12,9 @@ public:
     }
     void site()
     {
-        _pic = _simulator->getPIC();
+        _pic = this->_simulator->getPIC();
         _timer0.setPIC(_pic);
-        _timer1.setSite(_simulator);
+        _timer1.setSite(this->_simulator);
     }
     void simulateCycle()
     {
@@ -32,12 +29,12 @@ public:
     void setAddress(UInt32 address)
     {
         _address = address & 3;
-        _active = (address & 0x400003e0) == 0x40000040;
+        this->_active = (address & 0x400003e0) == 0x40000040;
     }
     void read()
     {
         if (_address < 3)
-            set(_timers[_address]->read());
+            this->set(_timers[_address]->read());
     }
     void write(UInt8 data)
     {
@@ -304,7 +301,7 @@ private:
     {
     public:
         Timer1() : _dmaRequested(false) { }
-        void setSite(Simulator* simulator)
+        void setSite(SimulatorTemplate<T>* simulator)
         {
             _bus = simulator->getBus();
             _dma = simulator->getDMA();

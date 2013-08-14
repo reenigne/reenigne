@@ -440,7 +440,7 @@ public:
             return (*this) + String(" ")*spaces;
         return *this;
     }
-private:
+
     class Buffer
     {
     public:
@@ -539,6 +539,7 @@ private:
 
     StringTemplate(const Buffer& buffer, int start, int length)
       : _buffer(buffer), _start(start), _length(length) { }
+private:
     bool expandable() const { return _buffer.end() == _length; }
     ::Byte* data() { return _buffer.data() + _start; }
 #ifdef _WIN32
