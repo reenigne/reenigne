@@ -3278,6 +3278,7 @@ public:
         }
 
         _cpu.setStopAtCycle(config.get<int>("stopAtCycle"));
+        _stopSaveState = config.get<String>("stopSaveState");
     }
     void simulate()
     {
@@ -3361,6 +3362,7 @@ public:
     NMISwitch* getNMISwitch() { return &_nmiSwitch; }
     Intel8255PPI* getPPI() { return &_ppi; }
     Intel8088* getCPU() { return &_cpu; }
+    String getStopSaveState() { return _stopSaveState; }
 private:
     List<Component*> _components;
     bool _halted;
@@ -3376,6 +3378,8 @@ private:
     Intel8259PIC _pic;
     Intel8088 _cpu;
     Array<ROM> _roms;
+
+    String _stopSaveState;
 };
 
 class Program : public ProgramBase
@@ -3416,7 +3420,7 @@ protected:
             Simulator* _simulator;
             String _stopSaveState;
         };
-        //Saver saver(&simulator, stopSaveState);
+        Saver saver(&simulator, stopSaveState);
         //DWORD tc0 = GetTickCount();
         simulator.simulate();
         //DWORD tc1 = GetTickCount();
