@@ -216,11 +216,15 @@ protected:
         virtual TypedValueTemplate<T> tryConvert(const TypedValue& value,
             String* reason) const
         { 
+            if (this == value.type().implementation())
+                return value;
             return TypedValueTemplate<T>();
         }
         virtual TypedValueTemplate<T> tryConvertTo(const Type& to,
             const TypedValue& value, String* reason) const
         { 
+            if (this == to.implementation())
+                return value;
             return TypedValueTemplate<T>();
         }
     };
@@ -682,6 +686,7 @@ private:
                         return TypedValue();
                     }
                     const Member* toMember = &toImplementation->_members[j];
+                    ++j;
                     TypedValue v =
                         tryConvertHelper((*input)[String::Decimal(i)],
                         toMember, why);

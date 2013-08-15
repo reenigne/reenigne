@@ -401,40 +401,6 @@ private:
         TypedValue option = _options[s];
         return TypedValue(option.type(), option.value(), i.span());
     }
-    TypedValue parseStructuredExpression(CharacterSource* source,
-        List<TypedValue> values, TypedValue label, Span span)
-    {
-        Value<HashTable<String, TypedValue> > table;
-        List<StructuredType::Member> members;
-        int n = 0;
-        for (auto i = values.begin(); i != values.end(); ++i) {
-            String name(decimal(n));
-            table->add(name, *i);
-            members.add(StructuredType::Member("", (*i).type()));
-            ++n;
-        }
-        TypedValue v = parseExpression(source);
-        if (!v.valid())
-            source->location().throwError("Expected expression");
-        String name = label.value<String>();
-        table->add(name, v);
-        members.add(StructuredType::Member(name, v.type()));
-        Span span2;
-        while (Space::parseCharacter(source, ',', &span2)) {
-            Identifier identifier = parseIdentifier(source);
-            if (!identifier.valid())
-                source->location().throwError("Expected label");
-            Space::assertCharacter(source, ':', &span2);
-            TypedValue value = parseExpression(source);
-            String name = identifier.name();
-            if (table->hasKey(name))
-                identifier.span().throwError(name + " already defined.");
-            table->add(name, value);
-            members.add(StructuredType::Member(name, value.type()));
-        }
-        Space::assertCharacter(source, '}', &span2);
-        return TypedValue(StructuredType("", members), table, span + span2);
-    }
     TypedValue parseExpressionElement(CharacterSource* source)
     {
         Location location = source->location();
@@ -480,18 +446,33 @@ private:
         }
         Span span;
         if (Space::parseCharacter(source, '{', &span)) {
-            List<TypedValue> values;
+            Value<HashTable<String, TypedValue> > table;
+            List<StructuredType::Member> members;
             Span span2;
-            List<Type> types;
+            int n = 0;
             do {
                 TypedValue e = parseExpression(source);
-                if (e.type() == Type::label)
-                    return parseStructuredExpression(source, values, e, span);
-                values.add(e);
-                types.add(e.type());
+                String name;
+                String memberName;
+                if (e.type() == Type::label) {
+                    TypedValue i = e;
+                    name = e.value<String>();
+                    e = parseExpression(source);
+                    if (!e.valid())
+                        source->location().throwError("Expected expression");
+                    if (table->hasKey(name))
+                        i.span().throwError(name + " already defined.");
+                    memberName = name;
+                }
+                else
+                    name = String::Decimal(n);
+                ++n;
+                table->add(name, e);
+                members.add(StructuredType::Member(memberName, e.type()));
             } while (Space::parseCharacter(source, ',', &span2));
             Space::assertCharacter(source, '}', &span2);
-            return TypedValue(Type::tuple(types), values, span + span2);
+            return TypedValue(StructuredType("", members), table,
+                span + span2);
         }
         if (Space::parseCharacter(source, '(', &span)) {
             e = parseExpression(source);

@@ -905,7 +905,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 23605000) {
+        /*if (_cycle >= 23605000) { */
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
@@ -948,7 +948,7 @@ public:
             //if(_newInstruction)
                 console.write(line + "\n");
             _newInstruction = false;
-        }
+        /*} */
         ++_cycle;
         if (_halted /*|| _cycle == _stopAtCycle*/) {
             console.write("Stopped at cycle " + String(decimal(_cycle)) + "\n");
@@ -3141,7 +3141,8 @@ private:
         }
         TypedValue tryConvert(const TypedValue& value, String* why) const
         {
-            TypedValue stv = _structuredType.tryConvert(value, why);
+            TypedValue stv = value.type().tryConvertTo(_structuredType, value,
+                why);
             if (!stv.valid())
                 return stv;
             auto romMembers =
@@ -3179,8 +3180,8 @@ public:
         Type romImageArrayType = Type::array(romDataType);
         config.addOption("roms", romImageArrayType);
         config.addOption("stopAtCycle", Type::integer, -1);
-        config.addOption("stopSaveState", Type::string, "");
-        config.addOption("initialState", Type::string, "");
+        config.addOption("stopSaveState", Type::string, String(""));
+        config.addOption("initialState", Type::string, String(""));
 
         config.load(configFile);
 
@@ -3207,13 +3208,14 @@ public:
         }
         String stopSaveState = config.get<String>("stopSaveState");
 
-        ConfigFile initialState;
-        initialState.addOption("simulator", type(), initial());
-        initialState.load(config.get<String>("initialState"));
-        TypedValue stateValue = initialState.get("simulator");
-        load(stateValue);
-
-        _roms.allocate(1);
+        String initialStateFile = config.get<String>("initialState");
+        if (!initialStateFile.empty()) {
+            ConfigFile initialState;
+            initialState.addOption("simulator", type(), initial());
+            initialState.load(initialStateFile);
+            TypedValue stateValue = initialState.get("simulator");
+            load(stateValue);
+        }
 
         _cpu.setStopAtCycle(config.get<int>("stopAtCycle"));
     }

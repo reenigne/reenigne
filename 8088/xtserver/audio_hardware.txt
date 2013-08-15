@@ -1,0 +1,5 @@
+Connect +5V to SPKR_OUT via 8 ohm resistor
+Connect SPKR_OUT to left channel input of line-in
+Set volume to 75%
+Run "xtserver < 20130814200542953" to test
+
