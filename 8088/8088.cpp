@@ -843,7 +843,8 @@ public:
         _rep(0),
         _byte(ioSingleByte),
         _useMemory(false),
-        _wordSize(false)
+        _wordSize(false),
+        _nmiRequested(false)
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -905,7 +906,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        /*if (_cycle >= 23605000) { */
+        if (_cycle >= 23605000) {
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
@@ -948,7 +949,7 @@ public:
             //if(_newInstruction)
                 console.write(line + "\n");
             _newInstruction = false;
-        /*} */
+        }
         ++_cycle;
         if (_halted /*|| _cycle == _stopAtCycle*/) {
             console.write("Stopped at cycle " + String(decimal(_cycle)) + "\n");
