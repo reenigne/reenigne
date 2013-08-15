@@ -35,7 +35,12 @@ typedef RAM640KbTemplate<void> RAM640Kb;
 template<class T> class ComponentTemplate
 {
 public:
-    ComponentTemplate() : _simulator(0) { }
+    ComponentTemplate()
+      : _simulator(0)
+    {
+        _counter = 0;
+        _clock = 178827;
+    }
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
     virtual void site() { }
     virtual void simulateCycle() { }
@@ -44,6 +49,8 @@ public:
     virtual String name() { return String(); }
     virtual void load(const TypedValue& value) { }
     virtual TypedValue initial() { return TypedValue(); }
+	int _clock;
+	int _counter;
 protected:
     SimulatorTemplate<T>* _simulator;
 };
@@ -84,8 +91,23 @@ public:
     }
     void simulateCycle()
     {
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->simulateCycle();
+		auto i = _components.begin();
+		(*i)->simulateCycle();
+		for(auto j = _components.begin();j!= _components.end();++j)
+		{
+			if(j == _components.begin())
+			{
+			}
+			else
+			{
+				(*j)->_counter += (*i)->_clock;
+				if((*j)->_counter >= (*j)->_clock)
+				{
+					(*j)->_counter -= (*j)->_clock;
+					(*j)->simulateCycle();
+				}
+			}
+		}
     }
     void addComponent(ISA8BitComponent* component)
     {
@@ -164,8 +186,8 @@ public:
     bool _interrupt;
     bool _interruptrdy;
 
+	List<ISA8BitComponent*> _components;
 private:
-    List<ISA8BitComponent*> _components;
     UInt8 _data;
 
     template<class U> friend class ISA8BitComponentTemplate;
@@ -179,40 +201,66 @@ private:
 //    }
 //};
 //
-//class IBMCGA : public ISA8BitComponent
-//{
-//public:
-//    void setAddress(UInt32 address)
-//    {
-//        _memoryActive = ((address & 0x400f8000) == 0xb8000);
-//        _memoryAddress = address & 0x00003fff;
-//        _portActive = ((address & 0x400003f0) == 0x400003d0);
-//        _active = (_memoryActive || _portActive);
-//    }
-//    UInt8 read()
-//    {
-//        if (_memoryActive)
-//            return _data[_memoryAddress];
-//        return 0;
-//    }
-//    void write(UInt8 data)
-//    {
-//        if (_memoryActive)
-//            _data[_memoryAddress] = data;
-//    }
-    //UInt8 memory(UInt32 address)
-    //{
-    //    if ((address & 0xf8000) == 0xb8000)
-    //        return _data[address & 0x3fff];
-    //    return 0xff;
-    //}
-//private:
-//    int _memoryAddress;
-//    bool _memoryActive;
-//    int _portAddress;
-//    bool _portActive;
-//    Array<UInt8> _data;
-//};
+class IBMCGA : public ISA8BitComponent
+{
+public:
+	IBMCGA() : _cycle(0), _wait(0)
+	{
+		_clock = 59609;
+	}
+	void simulateCycle()
+	{
+		++_cycle;
+		if(_cycle == 16)
+		{
+			_cycle = 0;
+		}
+		if(_wait != 0)
+		{
+			_wait--;
+		}
+	}
+    void setAddress(UInt32 address)
+    {
+        _memoryActive = ((address & 0x400f8000) == 0xb8000);
+        _memoryAddress = address & 0x00003fff;
+        _portActive = ((address & 0x400003f0) == 0x400003d0);
+        _active = (_memoryActive || _portActive);
+    }
+    void read()
+    {
+        if (_memoryActive && _wait == 0)
+		{
+			_wait = 8 + (16 - _cycle);
+            set(_data[_memoryAddress]);
+		}
+        set(0);
+    }
+    void write(UInt8 data)
+    {
+        if (_memoryActive && _wait == 0)
+		{
+			_wait = 8 + (16 - _cycle);
+            _data[_memoryAddress] = data;
+		}
+    }
+    UInt8 memory(UInt32 address)
+    {
+        if ((address & 0xf8000) == 0xb8000)
+		{
+            return _data[address & 0x3fff];
+		}
+        else return 0xff;
+    }
+private:
+    int _memoryAddress;
+    bool _memoryActive;
+    int _portAddress;
+    bool _portActive;
+	int _wait;
+	int _cycle;
+    Array<UInt8> _data;
+};
 
 class NMISwitch : public ISA8BitComponent
 {
@@ -3234,8 +3282,30 @@ public:
     void simulate()
     {
         do {
-            for (auto i = _components.begin(); i != _components.end(); ++i)
-                (*i)->simulateCycle();
+			//Assuming that the first component is the fastest.
+			auto i = _bus._components.begin();
+			(*i)->simulateCycle();
+			for(auto j = _bus._components.begin();j!= _bus._components.end();++j)
+			{
+				if(j == i)
+				{
+				}
+				else
+				{
+					(*j)->_counter += (*i)->_clock;
+					if((*j)->_counter >= (*j)->_clock)
+					{
+						(*j)->_counter -= (*j)->_clock;
+						(*j)->simulateCycle();
+					}
+				}
+			}
+			_cpu._counter += (*i)->_clock;
+			if(_cpu._counter >= _cpu._clock)
+			{
+				_cpu._counter -= _cpu._clock;
+				_cpu.simulateCycle();
+			}
         } while (!_halted);
     }
     void addComponent(Component* component)
