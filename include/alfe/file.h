@@ -697,7 +697,8 @@ public:
 #ifdef _WIN32
         return open(GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
 #else
-        return open(O_WRONLY | O_CREAT | O_TRUNC);
+        return openWrite(O_WRONLY | O_CREAT | O_TRUNC,
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 #endif
     }
     FileHandleTemplate<T> tryOpenRead() const
@@ -714,7 +715,8 @@ public:
 #ifdef _WIN32
         return tryOpen(GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
 #else
-        return tryOpen(O_WRONLY | O_CREAT | O_TRUNC);
+        return tryOpenWrite(O_WRONLY | O_CREAT | O_TRUNC,
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 #endif
     }
     FileHandleTemplate<T> openWriteTemporary() const
@@ -818,6 +820,19 @@ private:
     {
         NullTerminatedString data(path());
         return FileHandle(::open(data, flags), *this);
+    }
+    FileHandleTemplate<T> openWrite(int flags, mode_t mode,
+        bool throwIfExists = true) const
+    {
+        FileHandleTemplate<T> f = tryOpenWrite(flags, mode);
+        if (!f.valid() && (throwIfExists || errno != EEXIST))
+            throw Exception::systemError("Opening file " + path());
+        return f;
+    }
+    FileHandleTemplate<T> tryOpenWrite(int flags, mode_t mode) const
+    {
+        NullTerminatedString data(path());
+        return FileHandle(::open(data, flags, mode), *this);
     }
 #endif
 
