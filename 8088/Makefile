@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-O2 -I../include -std=c++11
+CFLAGS=-O2 -I../include -std=c++11 -lSDL2
 
 all: 8088
 
@@ -7,6 +7,6 @@ debug: CFLAGS += -O0 -g
 debug: 8088
 
 8088: 8088.cpp
-	$(CC) $(CFLAGS) 8088.cpp -o $@
+	$(CC) 8088.cpp -o $@ $(CFLAGS)
 clean:
 	rm -f 8088 8088.o

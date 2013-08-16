@@ -72,7 +72,7 @@
 #ifndef INCLUDED_PIPES_H
 #define INCLUDED_PIPES_H
 
-#include "alfe/thread.h"
+//#include "alfe/thread.h"
 
 // Infrastructure
 
@@ -96,7 +96,7 @@ public:
         _mask(mask)
     { }
     void advance(int count) { _position = offset(count); }
-    T& item(int position) { return _data[offset(position)]; }
+    T& item(int position) { return _buffer[offset(position)]; }
     T& item()
     {
         T& sample = _buffer[_position];
@@ -141,20 +141,6 @@ private:
 };
 
 
-// Specialization to copy from one Accessor to another.
-template<class T> class CopyTo<Accessor<T> >
-{
-public:
-    CopyTo(Accessor<T> destination) : _destination(destination) { }
-    void operator()(T* source, int n)
-    {
-        _destination.items(CopyFrom<T>(source), n);
-    }
-private:
-    Accessor<T> _destination;
-};
-
-
 // Functor to memcpy to an Accessor.
 template<class T> class CopyFrom
 {
@@ -167,6 +153,20 @@ public:
     }
 private:
     T* _source;
+};
+
+
+// Specialization to copy from one Accessor to another.
+template<class T> class CopyTo<Accessor<T> >
+{
+public:
+    CopyTo(Accessor<T> destination) : _destination(destination) { }
+    void operator()(T* source, int n)
+    {
+        _destination.items(CopyFrom<T>(source), n);
+    }
+private:
+    Accessor<T> _destination;
 };
 
 
@@ -252,26 +252,31 @@ public:
         if (_source == source)
             return;
         _source = source;
-        _buffer = source->_buffer;
-        _count = source->_count;
-        _size = source->_size;
-        _mask = source->_mask;
-        _position = (source->_position + _size - _count) & _mask;
+        this->_buffer = source->_buffer;
+        this->_count = source->_count;
+        this->_size = source->_size;
+        this->_mask = source->_mask;
+        this->_position =
+            (source->_position + this->_size - this->_count) & this->_mask;
         source->connect(this);
     }
     virtual void consume(int n) = 0;
-    Accessor<T> reader(int n) { _source->ensureData(n); return accessor(); }
+    Accessor<T> reader(int n)
+    {
+        _source->ensureData(n);
+        return this->accessor();
+    }
     void read(int n)
     {
-        _count -= n;
-        _position = offset(n);
+        this->_count -= n;
+        this->_position = this->offset(n);
         _source->_count -= n;
         _remaining -= n;
     }
     void consume()
     {
-        while (_count >= _n)
-            consume(_count);
+        while (this->_count >= _n)
+            consume(this->_count);
     }
     int remaining()
     {
@@ -301,13 +306,13 @@ template<class T> class Source : public EndPoint<T>
 public:
     Source()
     {
-        _position = 0;
-        _size = 1;
-        _count = 0;
-        _mask = 0;
-        _buffer = new T[1];
+        this->_position = 0;
+        this->_size = 1;
+        this->_count = 0;
+        this->_mask = 0;
+        this->_buffer = new T[1];
     }
-    ~Source() { delete[] _buffer; }
+    ~Source() { delete[] this->_buffer; }
     void connect(Sink<T>* sink)
     {
         if (_sink == sink)
@@ -319,35 +324,36 @@ public:
     Accessor<T> writer(int n)
     {
         // Make sure we have enough space for an additional n items
-        int newN = n + _count;
-        if (_size < newN) {
+        int newN = n + this->_count;
+        if (this->_size < newN) {
             // Double the size of the buffer until it's big enough.
-            int newSize = _size;
+            int newSize = this->_size;
             while (newSize < newN)
                 newSize <<= 1;
             // Since buffers never shrink, this doesn't need to be particularly
             // fast. Just copy all the data to the start of the new buffer.
             T* newBuffer = new T[newSize];
-            int start = offset(-_count);
-            int n1 = min(_count, _size - start);
-            memcpy(newBuffer, _buffer + start, n1*sizeof(T));
-            memcpy(newBuffer + n1, _buffer, (_count - n1)*sizeof(T));
-            delete[] _buffer;
-            _position = _count;
-            _size = newSize;
-            _buffer = newBuffer;
-            _mask = _size - 1;
-            _sink->_buffer = _buffer;
-            _sink->_size = _size;
-            _sink->_mask = _mask;
+            int start = this->offset(-this->_count);
+            int n1 = min(this->_count, this->_size - start);
+            memcpy(newBuffer, this->_buffer + start, n1*sizeof(T));
+            memcpy(newBuffer + n1, this->_buffer,
+                (this->_count - n1)*sizeof(T));
+            delete[] this->_buffer;
+            this->_position = this->_count;
+            this->_size = newSize;
+            this->_buffer = newBuffer;
+            this->_mask = this->_size - 1;
+            _sink->_buffer = this->_buffer;
+            _sink->_size = this->_size;
+            _sink->_mask = this->_mask;
             _sink->_position = 0;
         }
-        return accessor();
+        return this->accessor();
     }
     void written(int n)
     {
-        _position = offset(n);
-        _count += n;
+        this->_position = this->offset(n);
+        this->_count += n;
         _sink->_count += n;
         // If we're pulling, the consumer will process anyway so we don't
         // do it here.
@@ -357,11 +363,11 @@ public:
     void ensureData(int n)
     {
         _pulling = true;
-        while (_count < n)
-            produce(n - _count);
+        while (this->_count < n)
+            produce(n - this->_count);
         _pulling = false;
     }
-    void remaining(int n) { _sink->remaining(n + _count); }
+    void remaining(int n) { _sink->remaining(n + this->_count); }
 private:
     Sink<T>* _sink;
     bool _pulling;
@@ -397,7 +403,7 @@ protected:
     class PipeSink : public Sink<ConsumedT>
     {
     public:
-        PipeSink(P* p, int n) : Sink(n), _p(p) { }
+        PipeSink(P* p, int n) : Sink<ConsumedT>(n), _p(p) { }
         void consume(int n) { _p->consume(n); }
     private:
         P* _p;
@@ -414,7 +420,7 @@ protected:
 template<class T> class BitBucketSink : public Sink<T>
 {
 public:
-    void consume(int n) { reader(n); read(n); }
+    void consume(int n) { this->reader(n); this->read(n); }
 };
 
 
@@ -425,10 +431,10 @@ public:
     ConstantSource(T sample) : _sample(sample) { }
     void produce(int n)
     {
-        Accessor<T> w = writer(n);
+        Accessor<T> w = this->writer(n);
         for (int i = 0; i < n; ++i)
             w.write(_sample);
-        written(n);
+        this->written(n);
     }
 private:
     T _sample;
@@ -477,15 +483,15 @@ public:
         int length = _data->length();
         T* buffer = _data->buffer();
         if (n < length - _offset) {
-            writer(n).items(CopyFrom<T>(buffer + _offset), n);
+            this->writer(n).items(CopyFrom<T>(buffer + _offset), n);
             _offset += n;
         }
         else {
             n = length - _offset;
-            writer(n).items(CopyFrom<T>(buffer + _offset), n);
+            this->writer(n).items(CopyFrom<T>(buffer + _offset), n);
             _offset = 0;
         }
-        written(n);
+        this->written(n);
     }
 private:
     PeriodicSourceData<T>* _data;
@@ -508,7 +514,7 @@ public:
         int nRemaining = n;
         if (nRead > _size)
             nRead = static_cast<int>(_size);
-        Accessor<T> w = writer(n);
+        Accessor<T> w = this->writer(n);
         if (nRead > 0) {
             w.items(ReadFrom<T>(_handle), nRead);
             nRemaining -= nRead;
@@ -516,9 +522,9 @@ public:
         if (nRemaining > 0)
             w.items(Zero<T>(), nRemaining);
         _size -= n;
-        written(n);
+        this->written(n);
         if (_size < 0x40000000)
-            remaining(static_cast<int>(_size));
+            this->remaining(static_cast<int>(_size));
     }
 private:
     FileHandle _handle;
@@ -535,11 +541,12 @@ template<class T> class NopPipe : public Pipe<T, T, NopPipe<T> >
 public:
     void produce(int n)
     {
-        _source.writer(n).items(CopyFrom<Accessor<T> >(_sink.reader(n)), n);
-        _sink.read(n);
-        _source.written(n);
-        if (_sink.finite())
-            _source.remaining(_sink.remaining());
+        this->_source.writer(n).items(
+            CopyFrom<Accessor<T> >(this->_sink.reader(n)), n);
+        this->_sink.read(n);
+        this->_source.written(n);
+        if (this->_sink.finite())
+            this->_source.remaining(this->_sink.remaining());
     }
 };
 
@@ -551,14 +558,14 @@ template<class ProducedT, class ConsumedT> class CastPipe
 public:
     void produce(int n)
     {
-        Accessor<ConsumedT> reader = _sink.reader(n);
-        Accessor<ProducedT> writer = _source.writer(n);
+        Accessor<ConsumedT> reader = this->_sink.reader(n);
+        Accessor<ProducedT> writer = this->_source.writer(n);
         for (int i = 0; i < n; ++i)
             writer.item() = static_cast<ProducedT>(reader.item());
-        _sink.read(n);
-        _source.written(n);
-        if (_sink.finite())
-            _source.remaining(_sink.remaining());
+        this->_sink.read(n);
+        this->_source.written(n);
+        if (this->_sink.finite())
+            this->_source.remaining(this->_sink.remaining());
     }
 };
 
@@ -569,8 +576,7 @@ template<class T> class Tee
 {
 public:
     Tee(int n = defaultSampleCount)
-      : _source(this), _sink(this, n)
-    { }
+      : _source1(this), _source2(this), _sink(this, n) { }
     Sink<T>* sink() { return &_sink; }
     Source<T>* source1() { return &_source1; }
     Source<T>* source2() { return &_source2; }
@@ -599,7 +605,7 @@ protected:
     class TeeSink : public Sink<T>
     {
     public:
-        TeeSink(Tee* t, int n) : Sink(n), _t(t) { }
+        TeeSink(Tee* t, int n) : Sink<T>(n), _t(t) { }
         void consume(int n) { _t->process(n); }
         void remaining(int n) { _t->remaining(n); }
     private:
@@ -620,7 +626,7 @@ public:
     // samples.
     NearestNeighborInterpolator(Rate producerRate, Rate consumerRate,
         Rate offset = 0, int n = defaultSampleCount)
-      : Pipe(this, n),
+      : Pipe<T, T, NearestNeighborInterpolator<T, Rate>>(this, n),
         _producerRate(producerRate),
         _consumerRate(consumerRate),
         _offset(offset)
@@ -628,8 +634,8 @@ public:
     void produce(int n)
     {
         // TODO: We can probably speed this up somewhat by copying blocks
-        Accessor<T> reader = _sink.reader(n);
-        Accessor<T> writer = _source.writer(toProduce(n) + 1);
+        Accessor<T> reader = this->_sink.reader(n);
+        Accessor<T> writer = this->_source.writer(toProduce(n) + 1);
         int written = 0;
         for (int i = 0; i < n; ++i) {
             T sample = reader.item();
@@ -640,11 +646,11 @@ public:
             }
             _offset += _consumerRate;
         }
-        _sink.read(n);
-        _source.written(written);
+        this->_sink.read(n);
+        this->_source.written(written);
         // TODO: Correct for _offset so that remaining goes down smoothly
-        if (_sink.finite())
-            _source.remaining(toProduce(_sink.remaining()));
+        if (this->_sink.finite())
+            this->_source.remaining(toProduce(this->_sink.remaining()));
     }
 private:
     int toProduce(int consume)
@@ -668,7 +674,7 @@ public:
     // samples.
     LinearInterpolator(Rate producerRate, Rate consumerRate, Rate offset = 0,
         T previous = 0, int n = defaultSampleCount)
-      : Pipe(this, n),
+      : Pipe<T, T, LinearInterpolator<T, Rate>>(this, n),
         _producerRate(producerRate),
         _consumerRate(consumerRate),
         _offset(offset),
@@ -676,8 +682,8 @@ public:
     { }
     void produce(int n)
     {
-        Accessor<T> reader = _sink.reader(n);
-        Accessor<T> writer = _source.writer(toProduce(n) + 1);
+        Accessor<T> reader = this->_sink.reader(n);
+        Accessor<T> writer = this->_source.writer(toProduce(n) + 1);
         int written = 0;
         for (int i = 0; i < n; ++i) {
             T sample = reader.item();
@@ -691,11 +697,11 @@ public:
             _offset += _consumerRate;
             _previous = sample;
         }
-        _sink.read(n);
-        _source.written(written);
+        this->_sink.read(n);
+        this->_source.written(written);
         // TODO: Correct for _offset so that remaining goes down smoothly
-        if (_sink.finite())
-            _source.remaining(toProduce(_sink.remaining()));
+        if (this->_sink.finite())
+            this->_source.remaining(toProduce(this->_sink.remaining()));
     }
 private:
     int toProduce(int consume)
@@ -709,7 +715,7 @@ private:
     T _previous;
 };
 
-
+#if 0
 // A pipe that neither pushes or pulls. If you try to push to it without
 // pulling, it continues to accumulate data until it runs out of memory. If
 // you try to pull from it without pushing, it blocks until data is pushed.
@@ -826,5 +832,6 @@ private:
     double _consumed;
     double _rate;
 };
+#endif
 
 #endif // INCLUDED_PIPES_H

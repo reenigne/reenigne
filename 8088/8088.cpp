@@ -9,10 +9,16 @@
 #include "alfe/type.h"
 #include "alfe/rational.h"
 #include "alfe/pipes.h"
-#include "SDL/SDL.h"
+#ifdef _WIN32
+#include "SDL.h"
+#else
+#include "SDL2/SDL.h"
+#endif
 
 #include <stdlib.h>
 #include <limits.h>
+
+typedef UInt8 BGRI;
 
 //class SourceProgram
 //{
@@ -3260,11 +3266,12 @@ public:
         IF_ZERO_THROW_SDL(_renderer, "Creating SDL renderer");
     }
     ~SDLRendererTemplate() { SDL_DestroyRenderer(_renderer); }
-    void renderTexture(SDLTexture* texture)
+    void renderTexture(SDLTextureTemplate<T>* texture)
     {
-        // IF_NONZERO_THROW_SDL(SDL_RenderClear(_renderer));
+        // IF_NONZERO_THROW_SDL(SDL_RenderClear(_renderer), "Clearing target");
         IF_NONZERO_THROW_SDL(
-            SDL_RenderCopy(_renderer, texture->_texture, NULL, NULL));
+            SDL_RenderCopy(_renderer, texture->_texture, NULL, NULL),
+            "Rendering texture");
         SDL_RenderPresent(_renderer);   
     }
     SDL_Renderer* _renderer;
@@ -3300,8 +3307,6 @@ public:
     void* _pixels;
     int _pitch;
 };
-
-typedef UInt8 BGRI;
 
 class RGBIMonitor : public Sink<BGRI>
 {
@@ -3376,6 +3381,7 @@ public:
             reader.advance(1);
         } while (true);
         read(n);
+        _renderer.renderTexture(&_texture);
     }
     
 private:
@@ -3405,7 +3411,7 @@ protected:
 
         RGBIMonitor monitor;
         Simulator simulator(File(_arguments[1], CurrentDirectory(), true));
-        monitor.connect(simulator._cga);
+        monitor.connect(&simulator._cga);
 
         //File file(config.get<String>("sourceFile"));
         //String contents = file.contents();
