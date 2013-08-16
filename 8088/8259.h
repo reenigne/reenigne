@@ -1,9 +1,9 @@
 class Intel8259PIC : public ISA8BitComponent
 {
 public:
-	Intel8259PIC() : _interruptrdy(false)
-	{
-	}
+    Intel8259PIC() : _interruptrdy(false)
+    {
+    }
     void simulateCycle()
     {
     }
@@ -45,10 +45,10 @@ public:
                 _icw4 = data;
                 _state = stateReady;
             }
-			if(_state == stateReady)
-			{
-				_imr = data;
-			}
+            if(_state == stateReady)
+            {
+                _imr = data;
+            }
             break;
         }
     }
@@ -59,7 +59,7 @@ public:
             _secondAck = true;
         else
             _active = true;
-		_interruptrdy = false;
+        _interruptrdy = false;
     }
 
     void requestInterrupt(int line)
@@ -68,7 +68,7 @@ public:
         {
             _interruptnum = line + _offset;
             if((~_imr) & (1 << line)) _interruptrdy = true;
-			else _interruptrdy = false;
+            else _interruptrdy = false;
             _interrupt = false;
             _secondAck = false;
         }
@@ -94,7 +94,7 @@ private:
     UInt32 _address;
     UInt8 _offset;
     UInt8 _irr;
-	UInt8 _imr;
+    UInt8 _imr;
     UInt8 _isr;
 
     UInt8 _icw1;

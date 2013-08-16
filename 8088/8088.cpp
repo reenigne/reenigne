@@ -49,8 +49,8 @@ public:
     virtual String name() { return String(); }
     virtual void load(const TypedValue& value) { }
     virtual TypedValue initial() { return TypedValue(); }
-	int _clock;
-	int _counter;
+    int _clock;
+    int _counter;
 protected:
     SimulatorTemplate<T>* _simulator;
 };
@@ -91,23 +91,23 @@ public:
     }
     void simulateCycle()
     {
-		auto i = _components.begin();
-		(*i)->simulateCycle();
-		for(auto j = _components.begin();j!= _components.end();++j)
-		{
-			if(j == _components.begin())
-			{
-			}
-			else
-			{
-				(*j)->_counter += (*i)->_clock;
-				if((*j)->_counter >= (*j)->_clock)
-				{
-					(*j)->_counter -= (*j)->_clock;
-					(*j)->simulateCycle();
-				}
-			}
-		}
+        auto i = _components.begin();
+        (*i)->simulateCycle();
+        for(auto j = _components.begin();j!= _components.end();++j)
+        {
+            if(j == _components.begin())
+            {
+            }
+            else
+            {
+                (*j)->_counter += (*i)->_clock;
+                if((*j)->_counter >= (*j)->_clock)
+                {
+                    (*j)->_counter -= (*j)->_clock;
+                    (*j)->simulateCycle();
+                }
+            }
+        }
     }
     void addComponent(ISA8BitComponent* component)
     {
@@ -186,7 +186,7 @@ public:
     bool _interrupt;
     bool _interruptrdy;
 
-	List<ISA8BitComponent*> _components;
+    List<ISA8BitComponent*> _components;
 private:
     UInt8 _data;
 
@@ -204,22 +204,22 @@ private:
 class IBMCGA : public ISA8BitComponent
 {
 public:
-	IBMCGA() : _cycle(0), _wait(0)
-	{
-		_clock = 59609;
-	}
-	void simulateCycle()
-	{
-		++_cycle;
-		if(_cycle == 16)
-		{
-			_cycle = 0;
-		}
-		if(_wait != 0)
-		{
-			_wait--;
-		}
-	}
+    IBMCGA() : _cycle(0), _wait(0)
+    {
+        _clock = 59609;
+    }
+    void simulateCycle()
+    {
+        ++_cycle;
+        if(_cycle == 16)
+        {
+            _cycle = 0;
+        }
+        if(_wait != 0)
+        {
+            _wait--;
+        }
+    }
     void setAddress(UInt32 address)
     {
         _memoryActive = ((address & 0x400f8000) == 0xb8000);
@@ -230,26 +230,26 @@ public:
     void read()
     {
         if (_memoryActive && _wait == 0)
-		{
-			_wait = 8 + (16 - _cycle);
+        {
+            _wait = 8 + (16 - _cycle);
             set(_data[_memoryAddress]);
-		}
+        }
         set(0);
     }
     void write(UInt8 data)
     {
         if (_memoryActive && _wait == 0)
-		{
-			_wait = 8 + (16 - _cycle);
+        {
+            _wait = 8 + (16 - _cycle);
             _data[_memoryAddress] = data;
-		}
+        }
     }
     UInt8 memory(UInt32 address)
     {
         if ((address & 0xf8000) == 0xb8000)
-		{
+        {
             return _data[address & 0x3fff];
-		}
+        }
         else return 0xff;
     }
 private:
@@ -257,8 +257,8 @@ private:
     bool _memoryActive;
     int _portAddress;
     bool _portActive;
-	int _wait;
-	int _cycle;
+    int _wait;
+    int _cycle;
     Array<UInt8> _data;
 };
 
@@ -863,61 +863,18 @@ template<class T> class Intel8088Template : public ComponentTemplate<T>
 {
 public:
     Intel8088Template()
-      : _flagsData(0x0002),  // ?
-        _state(stateBegin),
-        _ip(0),
-        _prefetchOffset(0),
-        _prefetched(0),
-        _segment(0),
-        _segmentOverride(-1),
-        _prefetchAddress(_ip),
-        _ioType(ioNone),
-        _ioRequested(ioNone),
-        _ioInProgress(ioInstructionFetch),
-        _busState(t1),
-        _abandonFetch(false),
-        _usePortSpace(false),
-        _halted(false),
-        _wait(0),
-        _newInstruction(true),
-        _newIP(0),
-        _cycle(0),
-        _stopAtCycle(0),
-        _opcode(0),
-        _modRM(0),
-        _data(0),
-        _source(0),
-        _destination(0),
-        _remainder(0),
-        _address(0),
-        _aluOperation(0),
-        _afterEA(stateWaitingForBIU),
-        _afterEAIO(stateWaitingForBIU),
-        _afterRep(stateWaitingForBIU),
-        _afterInt(stateWaitingForBIU),
-        _savedCS(0),
-        _savedIP(0),
-        _rep(0),
-        _byte(ioSingleByte),
-        _useMemory(false),
-        _wordSize(false),
-        _nmiRequested(false)
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
         static String s[8] = {"ES", "CS", "SS", "DS", "??", "??", "??", "??"};
         for (int i = 0; i < 8; ++i) {
-            _registerData[i] = 0;  // ?
             _wordRegisters[i].init(w[i], &_registerData[i]);
             _byteRegisters[i].init(b[i], reinterpret_cast<UInt8*>(
                 &_registerData[i & 3]) + (i >= 4 ? 1 : 0));
             _segmentRegisters[i].init(s[i], &_segmentRegisterData[i]);
         }
         _flags.init("F", &_flagsData);
-        _segmentRegisterData[0] = 0x0000;  // ?
-        _segmentRegisterData[1] = 0xffff;
-        _segmentRegisterData[2] = 0x0000;  // ?
-        _segmentRegisterData[3] = 0x0000;  // ?
+
         _segmentRegisterData[7] = 0x0000;  // For IO accesses
 
         List<EnumerationType::Value> stateValues;
@@ -947,6 +904,8 @@ public:
             busStateValues.add(EnumerationType::Value(stringForBusState(s), s));
         }
         _busStateType = EnumerationType("BusState", busStateValues);
+
+        load(initial());
 
         _disassembler.setCPU(this);
     }
@@ -2263,58 +2222,67 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     {
         typedef StructuredType::Member M;
         List<M> members;
-        members.add(M("ip", Type::integer));
-        members.add(M("ax", Type::integer));
-        members.add(M("cx", Type::integer));
-        members.add(M("dx", Type::integer));
-        members.add(M("bx", Type::integer));
-        members.add(M("sp", Type::integer));
-        members.add(M("bp", Type::integer));
-        members.add(M("si", Type::integer));
-        members.add(M("di", Type::integer));
-        members.add(M("es", Type::integer));
-        members.add(M("cs", Type::integer));
-        members.add(M("ss", Type::integer));
-        members.add(M("ds", Type::integer));
-        members.add(M("flags", Type::integer));
-        members.add(M("prefetch", Type::array(Type::integer)));
-        members.add(M("segment", Type::integer));
-        members.add(M("segmentOverride", Type::integer));
-        members.add(M("prefetchAddress", Type::integer));
-        members.add(M("ioType", _ioTypeType));
-        members.add(M("ioRequested", _ioTypeType));
-        members.add(M("ioInProgress", _ioTypeType));
-        members.add(M("busState", _busStateType));
-        members.add(M("byte", _ioByteType));
-        members.add(M("abandonFetch", Type::boolean));
-        members.add(M("wait", Type::integer));
-        members.add(M("state", _stateType));
-        members.add(M("opcode", Type::integer));
-        members.add(M("modRM", Type::integer));
-        members.add(M("data", Type::integer));
-        members.add(M("source", Type::integer));
-        members.add(M("destination", Type::integer));
-        members.add(M("remainder", Type::integer));
-        members.add(M("address", Type::integer));
-        members.add(M("useMemory", Type::boolean));
-        members.add(M("wordSize", Type::boolean));
-        members.add(M("aluOperation", Type::integer));
-        members.add(M("afterEA", _stateType));
-        members.add(M("afterIO", _stateType));
-        members.add(M("afterModRM", _stateType));
-        members.add(M("afterRep", _stateType));
-        members.add(M("afterInt", _stateType));
-        members.add(M("sourceIsRM", Type::boolean));
-        members.add(M("savedCS", Type::integer));
-        members.add(M("savedIP", Type::integer));
-        members.add(M("rep", Type::integer));
-        members.add(M("usePortSpace", Type::boolean));
-        members.add(M("halted", Type::boolean));
-        members.add(M("newInstruction", Type::boolean));
-        members.add(M("newIP", Type::integer));
-        members.add(M("nmiRequested", Type::boolean));
-        members.add(M("cycle", Type::integer));
+        members.add(M("ip", 0));
+        members.add(M("ax", 0));  // ?
+        members.add(M("cx", 0));  // ?
+        members.add(M("dx", 0));  // ?
+        members.add(M("bx", 0));  // ?
+        members.add(M("sp", 0));  // ?
+        members.add(M("bp", 0));  // ?
+        members.add(M("si", 0));  // ?
+        members.add(M("di", 0));  // ?
+        members.add(M("es", 0));  // ?
+        members.add(M("cs", 0xffff));
+        members.add(M("ss", 0));  // ?
+        members.add(M("ds", 0));  // ?
+        members.add(M("flags", 2));  // ?
+        members.add(M("prefetch",
+            TypedValue(Type::array(Type::integer), List<TypedValue>())));
+        members.add(M("segment", 0));
+        members.add(M("segmentOverride", -1));
+        members.add(M("prefetchAddress", 0));
+        members.add(M("ioType", TypedValue(_ioTypeType, ioNone)));
+        members.add(M("ioRequested", TypedValue(_ioTypeType, ioNone)));
+        members.add(M("ioInProgress",
+            TypedValue(_ioTypeType, ioInstructionFetch)));
+        members.add(M("busState", TypedValue(_busStateType, t1)));
+        members.add(M("byte", TypedValue(_ioByteType, ioSingleByte)));
+        members.add(M("abandonFetch", false));
+        members.add(M("wait", 0));
+        members.add(M("state", TypedValue(_stateType, stateBegin)));
+        members.add(M("opcode", 0));
+        members.add(M("modRM", 0));
+        members.add(M("data", 0));
+        members.add(M("source", 0));
+        members.add(M("destination", 0));
+        members.add(M("remainder", 0));
+        members.add(M("address", 0));
+        members.add(M("useMemory", false));
+        members.add(M("wordSize", false));
+        members.add(M("aluOperation", 0));
+        members.add(M("afterEA", TypedValue(_stateType, stateWaitingForBIU)));
+        members.add(M("afterIO", TypedValue(_stateType, stateWaitingForBIU)));
+        members.add(M("afterEAIO",
+            TypedValue(_stateType, stateWaitingForBIU)));
+        members.add(M("afterRep", TypedValue(_stateType, stateWaitingForBIU)));
+        members.add(M("afterInt", TypedValue(_stateType, stateWaitingForBIU)));
+        members.add(M("sourceIsRM", false));
+        members.add(M("savedCS", 0));
+        members.add(M("savedIP", 0));
+        members.add(M("rep", 0));
+        members.add(M("usePortSpace", false));
+        members.add(M("halted", false));
+        members.add(M("newInstruction", true));
+        members.add(M("newIP", 0));
+        members.add(M("nmiRequested", false));
+        members.add(M("cycle", 0));
         return StructuredType("CPU", members);
+    }
+    TypedValue initial()
+    {
+        return TypedValue(StructuredType(String(),
+            List<StructuredType::Member>()),
+            Value<HashTable<String, TypedValue>>()).convertTo(type());
     }
     void load(const TypedValue& value)
     {
@@ -2378,60 +2346,6 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _cycle = (*members)["cycle"].value<int>();
     }
     String name() { return "cpu"; }
-    TypedValue initial()
-    {
-        Value<HashTable<String, TypedValue> > members;
-        (*members)["ip"] = TypedValue(Type::integer, 0);
-        (*members)["ax"] = TypedValue(Type::integer, 0);
-        (*members)["cx"] = TypedValue(Type::integer, 0);
-        (*members)["dx"] = TypedValue(Type::integer, 0);
-        (*members)["bx"] = TypedValue(Type::integer, 0);
-        (*members)["sp"] = TypedValue(Type::integer, 0);
-        (*members)["bp"] = TypedValue(Type::integer, 0);
-        (*members)["si"] = TypedValue(Type::integer, 0);
-        (*members)["di"] = TypedValue(Type::integer, 0);
-        (*members)["es"] = TypedValue(Type::integer, 0);
-        (*members)["cs"] = TypedValue(Type::integer, 0xffff);
-        (*members)["ss"] = TypedValue(Type::integer, 0);
-        (*members)["ds"] = TypedValue(Type::integer, 0);
-        (*members)["flags"] = TypedValue(Type::integer, 2);
-        (*members)["prefetch"] =
-            TypedValue(Type::array(Type::integer), List<TypedValue>());
-        (*members)["segment"] = TypedValue(Type::integer, 0);
-        (*members)["segmentOverride"] = TypedValue(Type::integer, -1);
-        (*members)["ioType"] = TypedValue(_ioTypeType, ioNone);
-        (*members)["ioRequested"] = TypedValue(_ioTypeType, ioNone);
-        (*members)["ioInProgress"] =
-            TypedValue(_ioTypeType, ioInstructionFetch);
-        (*members)["busState"] = TypedValue(_busStateType, t1);
-        (*members)["byte"] = TypedValue(_ioByteType, ioSingleByte);
-        (*members)["abandonFetch"] = TypedValue(Type::boolean, false);
-        (*members)["wait"] = TypedValue(Type::integer, 0);
-        (*members)["state"] = TypedValue(_stateType, stateBegin);
-        (*members)["opcode"] = TypedValue(Type::integer, 0);
-        (*members)["modRM"] = TypedValue(Type::integer, 0);
-        (*members)["data"] = TypedValue(Type::integer, 0);
-        (*members)["source"] = TypedValue(Type::integer, 0);
-        (*members)["destination"] = TypedValue(Type::integer, 0);
-        (*members)["remainder"] = TypedValue(Type::integer, 0);
-        (*members)["address"] = TypedValue(Type::integer, 0);
-        (*members)["useMemory"] = TypedValue(Type::boolean, false);
-        (*members)["wordSize"] = TypedValue(Type::boolean, false);
-        (*members)["aluOperation"] = TypedValue(Type::integer, 0);
-        (*members)["afterEA"] = TypedValue(_stateType, stateWaitingForBIU);
-        (*members)["afterIO"] = TypedValue(_stateType, stateWaitingForBIU);
-        (*members)["afterModRM"] = TypedValue(_stateType, stateWaitingForBIU);
-        (*members)["savedCS"] = TypedValue(Type::integer, 0);
-        (*members)["savedIP"] = TypedValue(Type::integer, 0);
-        (*members)["rep"] = TypedValue(Type::integer, 0);
-        (*members)["usePortSpace"] = TypedValue(Type::boolean, false);
-        (*members)["halted"] = TypedValue(Type::boolean, false);
-        (*members)["newInstruction"] = TypedValue(Type::boolean, true);
-        (*members)["newIP"] = TypedValue(Type::integer, 0);
-        (*members)["nmiRequested"] = TypedValue(Type::boolean, false);
-        (*members)["cycle"] = TypedValue(Type::integer, 0);
-        return TypedValue(type(), members);
-    }
 
 private:
     enum IOType
@@ -3282,30 +3196,30 @@ public:
     void simulate()
     {
         do {
-			//Assuming that the first component is the fastest.
-			auto i = _bus._components.begin();
-			(*i)->simulateCycle();
-			for(auto j = _bus._components.begin();j!= _bus._components.end();++j)
-			{
-				if(j == i)
-				{
-				}
-				else
-				{
-					(*j)->_counter += (*i)->_clock;
-					if((*j)->_counter >= (*j)->_clock)
-					{
-						(*j)->_counter -= (*j)->_clock;
-						(*j)->simulateCycle();
-					}
-				}
-			}
-			_cpu._counter += (*i)->_clock;
-			if(_cpu._counter >= _cpu._clock)
-			{
-				_cpu._counter -= _cpu._clock;
-				_cpu.simulateCycle();
-			}
+            //Assuming that the first component is the fastest.
+            auto i = _bus._components.begin();
+            (*i)->simulateCycle();
+            for(auto j = _bus._components.begin();j!= _bus._components.end();++j)
+            {
+                if(j == i)
+                {
+                }
+                else
+                {
+                    (*j)->_counter += (*i)->_clock;
+                    if((*j)->_counter >= (*j)->_clock)
+                    {
+                        (*j)->_counter -= (*j)->_clock;
+                        (*j)->simulateCycle();
+                    }
+                }
+            }
+            _cpu._counter += (*i)->_clock;
+            if(_cpu._counter >= _cpu._clock)
+            {
+                _cpu._counter -= _cpu._clock;
+                _cpu.simulateCycle();
+            }
         } while (!_halted);
     }
     void addComponent(Component* component)
