@@ -392,7 +392,8 @@ private:
     {
     public:
         InstantiatedImplementation(
-            const TemplateTemplate::Implementation* parent, Tyco argument)
+            const typename TemplateTemplate::Implementation* parent,
+            Tyco argument)
           : _parent(parent), _argument(argument) { }
         String toString() const
         {
@@ -407,7 +408,7 @@ private:
         virtual Tyco generatingTemplate() const { return Tyco(_parent); }
         virtual Tyco templateArgument() const { return _argument; }
     private:
-        const TemplateTemplate::Implementation* _parent;
+        const typename TemplateTemplate::Implementation* _parent;
         Tyco _argument;
     };
 
