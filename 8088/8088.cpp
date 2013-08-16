@@ -14,20 +14,33 @@
 //{
 //};
 
-class Simulator;
+template<class T> class SimulatorTemplate;
+typedef SimulatorTemplate<void> Simulator;
 
 template<class T> class Intel8088Template;
-
 typedef Intel8088Template<void> Intel8088;
 
-class Component
+template<class T> class ComponentTemplate;
+typedef ComponentTemplate<void> Component;
+
+template<class T> class Intel8237DMATemplate;
+typedef Intel8237DMATemplate<void> Intel8237DMA;
+
+template<class T> class Intel8253PITTemplate;
+typedef Intel8253PITTemplate<void> Intel8253PIT;
+
+template<class T> class RAM640KbTemplate;
+typedef RAM640KbTemplate<void> RAM640Kb;
+
+template<class T> class ComponentTemplate
 {
 public:
-    Component() : _simulator(0)
-	{
-		_counter = 0;
-		_clock = 178827;
-	}
+    ComponentTemplate()
+      : _simulator(0)
+    {
+        _counter = 0;
+        _clock = 178827;
+    }
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
     virtual void site() { }
     virtual void simulateCycle() { }
@@ -39,10 +52,11 @@ public:
 	int _clock;
 	int _counter;
 protected:
-    Simulator* _simulator;
+    SimulatorTemplate<T>* _simulator;
 };
 
-class ISA8BitBus;
+template<class T> class ISA8BitBusTemplate;
+typedef ISA8BitBusTemplate<void> ISA8BitBus;
 
 template<class T> class ISA8BitComponentTemplate : public Component
 {
@@ -63,16 +77,16 @@ public:
     }
 protected:
     void set(UInt8 data) { _bus->_data = data; }
-    ISA8BitBus* _bus;
+    ISA8BitBusTemplate<T>* _bus;
     bool _active;
 };
 
 typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
 
-class ISA8BitBus : public Component
+template<class T> class ISA8BitBusTemplate : public Component
 {
 public:
-    ISA8BitBus() : _interrupt(false), _interruptrdy(false)
+    ISA8BitBusTemplate() : _interrupt(false), _interruptrdy(false)
     {
     }
     void simulateCycle()
@@ -176,7 +190,7 @@ public:
 private:
     UInt8 _data;
 
-    template<class T> friend class ISA8BitComponentTemplate;
+    template<class U> friend class ISA8BitComponentTemplate;
 };
 
 //class Motorola6845CRTC : public Component
@@ -278,9 +292,6 @@ private:
 
 #include "8253.h"
 
-template<class T> class RAM640KbTemplate;
-typedef RAM640KbTemplate<void> RAM640Kb;
-
 template<class T> class RAM640KbTemplate : public ISA8BitComponent
 {
 public:
@@ -318,9 +329,9 @@ public:
     }
     void site()
     {
-        _nmiSwitch = _simulator->getNMISwitch();
-        _ppi = _simulator->getPPI();
-        _cpu = _simulator->getCPU();
+        _nmiSwitch = this->_simulator->getNMISwitch();
+        _ppi = this->_simulator->getPPI();
+        _cpu = this->_simulator->getCPU();
     }
     void simulateCycle()
     {
@@ -419,7 +430,7 @@ private:
     int _decayTime;
     NMISwitch* _nmiSwitch;
     Intel8255PPI* _ppi;
-    Intel8088* _cpu;
+    Intel8088Template<T>* _cpu;
 };
 
 class DMAPageRegisters : public ISA8BitComponent
@@ -518,7 +529,6 @@ private:
     int _address;
     Array<UInt8> _data;
 };
-
 
 template<class T> class DisassemblerTemplate
 {
@@ -838,7 +848,7 @@ private:
     }
 
     ISA8BitBus* _bus;
-    Intel8088* _cpu;
+    Intel8088Template<T>* _cpu;
     UInt16 _address;
     UInt8 _opcode;
     UInt8 _modRM;
@@ -849,7 +859,7 @@ private:
 
 typedef DisassemblerTemplate<void> Disassembler;
 
-template<class T> class Intel8088Template : public Component
+template<class T> class Intel8088Template : public ComponentTemplate<T>
 {
 public:
     Intel8088Template()
@@ -943,10 +953,10 @@ public:
     void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
     void site()
     {
-        _bus = _simulator->getBus();
+        _bus = this->_simulator->getBus();
         _disassembler.setBus(_bus);
-        _pic = _simulator->getPIC();
-        _dma = _simulator->getDMA();
+        _pic = this->_simulator->getPIC();
+        _dma = this->_simulator->getDMA();
     }
     void nmi() { _nmiRequested = true; }
     UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
@@ -1000,7 +1010,7 @@ public:
         ++_cycle;
         if (_halted /*|| _cycle == _stopAtCycle*/) {
             console.write("Stopped at cycle " + String(decimal(_cycle)) + "\n");
-            _simulator->halt();
+            this->_simulator->halt();
         }
     }
     void simulateCycleAction()
@@ -2853,24 +2863,24 @@ private:
         }
     }
     UInt16 signExtend(UInt8 data) { return data + (data < 0x80 ? 0 : 0xff00); }
-    template<class T> class Register
+    template<class U> class Register
     {
     public:
-        void init(String name, T* data)
+        void init(String name, U* data)
         {
             _name = name;
             _data = data;
             _read = false;
             _written = false;
         }
-        const T& operator=(T value)
+        const U& operator=(U value)
         {
             *_data = value;
             _writtenValue = value;
             _written = true;
             return *_data;
         }
-        operator T()
+        operator U()
         {
             if (!_read && !_written) {
                 _read = true;
@@ -2878,51 +2888,51 @@ private:
             }
             return *_data;
         }
-        const T& operator+=(T value)
+        const U& operator+=(U value)
         {
-            return operator=(operator T() + value);
+            return operator=(operator U() + value);
         }
-        const T& operator-=(T value)
+        const U& operator-=(U value)
         {
-            return operator=(operator T() - value);
+            return operator=(operator U() - value);
         }
-        const T& operator%=(T value)
+        const U& operator%=(U value)
         {
-            return operator=(operator T() % value);
+            return operator=(operator U() % value);
         }
-        const T& operator&=(T value)
+        const U& operator&=(U value)
         {
-            return operator=(operator T() & value);
+            return operator=(operator U() & value);
         }
-        const T& operator^=(T value)
+        const U& operator^=(U value)
         {
-            return operator=(operator T() ^ value);
+            return operator=(operator U() ^ value);
         }
-        T operator-() const { return -operator T(); }
-        void operator++() { operator=(operator T() + 1); }
-        void operator--() { operator=(operator T() - 1); }
+        U operator-() const { return -operator U(); }
+        void operator++() { operator=(operator U() + 1); }
+        void operator--() { operator=(operator U() - 1); }
         String text()
         {
             String text;
             if (_read) {
-                text = hex(_readValue, sizeof(T)==1 ? 2 : 4, false) + "<-" +
+                text = hex(_readValue, sizeof(U)==1 ? 2 : 4, false) + "<-" +
                     _name + "  ";
                 _read = false;
             }
             if (_written) {
                 text += _name + "<-" +
-                    hex(_writtenValue, sizeof(T)==1 ? 2 : 4, false) + "  ";
+                    hex(_writtenValue, sizeof(U)==1 ? 2 : 4, false) + "  ";
                 _written = false;
             }
             return text;
         }
     protected:
         String _name;
-        T* _data;
+        U* _data;
         bool _read;
         bool _written;
-        T _readValue;
-        T _writtenValue;
+        U _readValue;
+        U _writtenValue;
     };
     class FlagsRegister : public Register<UInt16>
     {
@@ -2930,18 +2940,20 @@ private:
         UInt32 operator=(UInt32 value)
         {
             Register<UInt16>::operator=(value);
-            return operator UInt16();
+            return Register<UInt16>::operator UInt16();
         }
         String text()
         {
             String text;
-            if (_read) {
-                text = flags(_readValue) + String("<-") + _name + "  ";
-                _read = false;
+            if (this->_read) {
+                text = flags(this->_readValue) + String("<-") + this->_name +
+                    "  ";
+                this->_read = false;
             }
-            if (_written) {
-                text += _name + String("<-") + flags(_writtenValue) + "  ";
-                _written = false;
+            if (this->_written) {
+                text += this->_name + String("<-") +
+                    flags(this->_writtenValue) + "  ";
+                this->_written = false;
             }
             return text;
         }
@@ -3217,10 +3229,10 @@ private:
 Reference<ROMDataType::Implementation> ROMDataType::_implementation;
 StructuredType ROMDataType::Implementation::_structuredType;
 
-class Simulator
+template<class T> class SimulatorTemplate
 {
 public:
-    Simulator(File configFile) : _halted(false)
+    SimulatorTemplate(File configFile) : _halted(false)
     {
         ConfigFile config;
 
@@ -3366,7 +3378,6 @@ private:
     Array<ROM> _roms;
 };
 
-
 class Program : public ProgramBase
 {
 protected:
@@ -3406,9 +3417,9 @@ protected:
             String _stopSaveState;
         };
         //Saver saver(&simulator, stopSaveState);
-        DWORD tc0 = GetTickCount();
+        //DWORD tc0 = GetTickCount();
         simulator.simulate();
-        DWORD tc1 = GetTickCount();
-        console.write("Elapsed time: " + String(decimal(tc1 - tc0)) + "ms\n");
+        //DWORD tc1 = GetTickCount();
+        //console.write("Elapsed time: " + String(decimal(tc1 - tc0)) + "ms\n");
     }
 };

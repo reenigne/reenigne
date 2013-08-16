@@ -107,23 +107,23 @@ public:
             String n = name();
             if (n == "." || n == "..")
                 continue;
-            if (!matches(n, wildcard))
+            if (!matches(n, _wildcard))
                 continue;
             break;
         } while (true);
     }
-    ~FindHandle()
+    ~FindHandleTemplate()
     {
-        if (_handle != NULL)
+        if (_dir != NULL)
             closedir(_dir);
     }
     bool isDirectory() const
     {
-        return _dirent->d_type == DT_DIR;
+        return _data->d_type == DT_DIR;
     }
     String name() const
     {
-        return _data.d_name;
+        return _data->d_name;
     }
     FileSystemObject object() const
     {
@@ -141,8 +141,8 @@ public:
 private:
     static bool matches(String name, String wildcard)
     {
-        CharacterSource sw(wildcard);
-        CharacterSource sn(name);
+        CharacterSourceTemplate<T> sw(wildcard);
+        CharacterSourceTemplate<T> sn(name);
         do {
             int cs = sw.get();
             int cn = sn.get();
@@ -174,6 +174,8 @@ private:
 
     struct dirent* _data;
     DIR* _dir;
+    Directory _directory;
+    String _wildcard;
     String _path;
     bool _complete;
 };

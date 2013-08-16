@@ -63,8 +63,8 @@ public:
             bytesWritten != bytes)
             throw Exception::systemError("Writing file " + _file.path());
 #else
-        ssize_t writeResult = write(_fileDescriptor, buffer, bytes);
-        if (writeResult < length())
+        ssize_t writeResult = ::write(_fileDescriptor, buffer, bytes);
+        if (writeResult != bytes)
             throw Exception::systemError("Writing file " + _file.path());
 #endif
     }
@@ -155,11 +155,11 @@ public:
             throw Exception("End of file reading file " + _file.path());
     }
     int peekByte(int n) { return peek<Byte, int>(n, -1); }
-    template<class U> U peek(int n, const U& default = U())
+    template<class U> U peek(int n, const U& defaultValue = U())
     {
-        return peek<U, U>(n, default);
+        return peek<U, U>(n, defaultValue);
     }
-    template<class U, class R> R peek(int n, const R& default = R())
+    template<class U, class R> R peek(int n, const R& defaultValue = R())
     {
         // Make sure we have enough data in the buffer
         CircularBuffer<Byte>* buffer = &_implementation->_buffer;
@@ -173,11 +173,11 @@ public:
             c = tryReadUnbuffered(buffer->writePointer(), b);
             buffer->added(c);
             if (c < b)
-                return default;
+                return defaultValue;
             c = tryReadUnbuffered(buffer->lowPointer(), r - b);
             buffer->added(c);
             if (c < r - b)
-                return default;
+                return defaultValue;
         }
 
         // The object we want to peek at may be unaligned in the buffer or even
@@ -202,7 +202,7 @@ private:
         }
         return bytesRead;
 #else
-        ssize_t readResult = read(_fileDescriptor, buffer, bytes);
+        ssize_t readResult = ::read(_fileDescriptor, destination, bytes);
         if (readResult == -1)
             throw Exception::systemError("Reading file " + _file.path());
         return readResult;
@@ -269,10 +269,11 @@ public:
     AutoHandleTemplate() { }
 #ifdef _WIN32
     AutoHandleTemplate(HANDLE handle, const File& file = File())
-        : Handle(handle, file, new OwningImplementation(handle)) { }
+      : Handle(handle, file, new OwningImplementation(handle)) { }
 #else
     AutoHandleTemplate(int fileDescriptor, const File& file = File())
-        : Handle(handle, file, new OwningImplementation(fileDescriptor)) { }
+      : Handle(fileDescriptor, file,
+        new OwningImplementation(fileDescriptor)) { }
 #endif
 };
 

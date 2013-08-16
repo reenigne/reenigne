@@ -6,7 +6,10 @@
 template<class Key, class Value, class Base> class HashTableBase : public Base
 {
 private:
-    int row(const Key& key) const { return hash(key) & (_table.count() - 1); }
+    int row(const Key& key) const
+    {
+        return this->hash(key) & (_table.count() - 1); 
+    }
 
     class TableEntry
     {

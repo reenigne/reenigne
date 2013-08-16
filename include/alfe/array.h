@@ -58,7 +58,7 @@ private:
         Node* _last;
         int _count;
 
-        friend class Iterator;
+        friend class List::Iterator;
     };
     Reference<Implementation> _implementation;
 public:

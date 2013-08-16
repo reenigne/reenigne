@@ -148,7 +148,7 @@ protected:
             return false;
         }
         virtual Kind kind() const = 0;
-        virtual int hash() const { return reinterpret_cast<int>(this); }
+        virtual int hash() const { return reinterpret_cast<intptr_t>(this); }
         virtual bool isInstantiation() const { return false; }
         virtual Tyco generatingTemplate() const { throw Exception(); }
         virtual Tyco templateArgument() const { throw Exception(); }
@@ -182,20 +182,15 @@ public:
     {
         List<Tyco> arguments;
         arguments.add(type);
-        return Template::array.instantiate(arguments);
+        return TemplateTemplate<T>::array.instantiate(arguments);
     }
     static Type tuple(const List<Type>& arguments)
     {
         List<Tyco> a;
         for (auto i = arguments.begin(); i != arguments.end(); ++i)
             a.add(*i);
-        return Template::tuple.instantiate(a);
+        return TemplateTemplate<T>::tuple.instantiate(a);
     }
-    template<class T2> static Type fromCompileTimeType()
-    {
-        throw Exception("Don't know this type.");
-    }
-    template<> static Type fromCompileTimeType<int>() { return integer; }
     TypedValueTemplate<T> tryConvert(const TypedValue& value, String* reason)
         const
     {
@@ -213,8 +208,8 @@ protected:
     {
     public:
         Kind kind() const { return Kind::type; }
-        virtual TypedValueTemplate<T> tryConvert(const TypedValue& value,
-            String* reason) const
+        virtual TypedValueTemplate<T> tryConvert(
+            const TypedValueTemplate<T>& value, String* reason) const
         { 
             if (this == value.type().implementation())
                 return value;
@@ -236,6 +231,23 @@ protected:
     friend class TemplateTemplate<void>;
 };
 
+template<class T> Type typeFromCompileTimeType()
+{
+    throw Exception("Don't know this type.");
+}
+template<> Type typeFromCompileTimeType<int>()
+{
+    return Type::integer;
+}
+template<> Type typeFromCompileTimeType<String>()
+{
+    return Type::string;
+}
+template<> Type typeFromCompileTimeType<bool>()
+{
+    return Type::boolean;
+}
+
 class AtomicType : public Type
 {
 public:
@@ -253,12 +265,12 @@ protected:
     };
 };
 
-Type Type::integer = AtomicType("Integer");
-Type Type::string = AtomicType("String");
-Type Type::boolean = AtomicType("Boolean");
-Type Type::object = AtomicType("Object");
-Type Type::label = AtomicType("Label");
-Type Type::voidType = AtomicType("Void");
+template<> Type Type::integer = AtomicType("Integer");
+template<> Type Type::string = AtomicType("String");
+template<> Type Type::boolean = AtomicType("Boolean");
+template<> Type Type::object = AtomicType("Object");
+template<> Type Type::label = AtomicType("Label");
+template<> Type Type::voidType = AtomicType("Void");
 
 template<class T> class TemplateTemplate : public Tyco
 {
@@ -379,7 +391,8 @@ private:
     class InstantiatedImplementation : public Type::Implementation
     {
     public:
-        InstantiatedImplementation(const Template::Implementation* parent,
+        InstantiatedImplementation(
+            const typename TemplateTemplate::Implementation* parent,
             Tyco argument)
           : _parent(parent), _argument(argument) { }
         String toString() const
@@ -395,7 +408,7 @@ private:
         virtual Tyco generatingTemplate() const { return Tyco(_parent); }
         virtual Tyco templateArgument() const { return _argument; }
     private:
-        const Template::Implementation* _parent;
+        const typename TemplateTemplate::Implementation* _parent;
         Tyco _argument;
     };
 
@@ -404,8 +417,9 @@ private:
 
 // If we give Array a class of its own, StructuredType will need to be
 // modified to use it for conversions.
-Template Template::array("Array", TemplateKind(Kind::type, Kind::type));
-Template Template::tuple("Tuple", Kind::variadicTemplate);
+template<> Template Template::array("Array",
+    TemplateKind(Kind::type, Kind::type));
+template<> Template Template::tuple("Tuple", Kind::variadicTemplate);
 
 class PointerType : public Type
 {
@@ -526,10 +540,12 @@ template<class T> class TypedValueTemplate
 public:
     TypedValueTemplate() { }
     TypedValueTemplate(Type type, Any defaultValue = Any(), Span span = Span())
-        : _type(type), _value(defaultValue), _span(span) { }
+      : _type(type), _value(defaultValue), _span(span) { }
+    template<class U> TypedValueTemplate(const U& value, Span span = Span())
+      : _type(typeFromCompileTimeType<U>()), _value(value), _span(span) { }
     Type type() const { return _type; }
     Any value() const { return _value; }
-    template<class T> T value() const { return _value.value<T>(); }
+    template<class U> U value() const { return _value.value<U>(); }
     void setValue(Any value) { _value = value; }
     Span span() const { return _span; }
     bool valid() const { return _value.valid(); }
@@ -579,11 +595,13 @@ public:
     {
     public:
         Member(String name, Type type) : _name(name), _default(type) { }
-        Member(String name, TypedValue default)
-          : _name(name), _default(default) { }
+        Member(String name, TypedValue defaultValue)
+          : _name(name), _default(defaultValue) { }
+        template<class T> Member(String name, const T& defaultValue)
+          : _name(name), _default(defaultValue) { }
         String name() const { return _name; }
         Type type() const { return _default.type(); }
-        TypedValue default() const { return _default; }
+        TypedValue defaultValue() const { return _default; }
         bool hasDefault() const { return _default.valid(); }
         bool operator==(const Member& other) const
         {
@@ -705,7 +723,7 @@ private:
                         return TypedValue();
                     }
                     else
-                        (*output)[toMember->name()] = toMember->default();
+                        (*output)[toMember->name()] = toMember->defaultValue();
                 }
                 return TypedValue(Type(this), output, value.span());
             }

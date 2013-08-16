@@ -87,7 +87,7 @@ public:
             console = Handle(STDOUT_FILENO, Console());
             BEGIN_CHECKED {
                 _arguments.allocate(argc);
-                for (int i = 0; i < argc; ++i) {
+                for (int i = 0; i < argc; ++i)
                     _arguments[i] = String(argv[i]);
                 run();
             }
@@ -282,6 +282,7 @@ private:
 #endif
 };
 
+#ifdef _WIN32
 template<class WindowClass> class WindowProgram : public ProgramBase
 {
 public:
@@ -294,16 +295,17 @@ public:
         pumpMessages();
     }
 };
+#endif
 
 // Put Program in a template because it's not declared yet.
 #ifdef _WIN32
 #ifdef _WINDOWS
-template<class T> INT APIENTRY WinMainTemplate(HINSTANCE hInst, INT nCmdShow)
+template<class Program> INT APIENTRY WinMainTemplate(HINSTANCE hInst, INT nCmdShow)
 #else
-template<class T> int mainTemplate()
+template<class Program> int mainTemplate()
 #endif
 #else
-template<class T> int mainTemplate(int argc, char* argv[])
+template<class Program> int mainTemplate(int argc, char* argv[])
 #endif
 {
     Program program;
@@ -318,30 +320,32 @@ template<class T> int mainTemplate(int argc, char* argv[])
 #endif
 }
 
+class Program;
+
 #ifdef _WIN32
 #ifdef _WINDOWS
 INT APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, INT nCmdShow)
 {
-    return WinMainTemplate<void>(hInst, nCmdShow);
+    return WinMainTemplate<Program>(hInst, nCmdShow);
 }
 
 // Define main() as well in case we want to make a Windows program linked as
 // a Console subsystem program (for debugging purposes).
 int __cdecl main()
 {
-    return WinMainTemplate<void>(GetModuleHandle(NULL), SW_SHOWNORMAL);
+    return WinMainTemplate<Program>(GetModuleHandle(NULL), SW_SHOWNORMAL);
 }
 
 #else
 int main()
 {
-    return mainTemplate<void>();
+    return mainTemplate<Program>();
 }
 #endif
 #else
 int main(int argc, char* argv[])
 {
-    return mainTemplate<void>(argc, argc);
+    return mainTemplate<Program>(argc, argv);
 }
 #endif
 

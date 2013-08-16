@@ -1,7 +1,5 @@
-template<class T> class Intel8237DMATemplate;
-typedef Intel8237DMATemplate<void> Intel8237DMA;
-
-template<class T> class Intel8237DMATemplate : public ISA8BitComponent
+template<class T> class Intel8237DMATemplate
+  : public ISA8BitComponentTemplate<T>
 {
 public:
     Intel8237DMATemplate()
@@ -17,13 +15,13 @@ public:
     void setAddress(UInt32 address)
     {
         _address = address & 0xf;
-        _active = (address & 0x400003f0) == 0x40000000;
+        this->_active = (address & 0x400003f0) == 0x40000000;
     }
     void read()
     {
         if(_address < 8)
         {
-            set(_channels[_address >> 1].read(_address & 1));
+            this->set(_channels[_address >> 1].read(_address & 1));
         }
     }
     void write(UInt8 data)
@@ -35,7 +33,7 @@ public:
     }
     void site()
     {
-        _bus = _simulator->getBus();
+        _bus = this->_simulator->getBus();
     }
     // Step 1: the device calls dmaRequest()
     // equivalent to raising a DRQ line.
