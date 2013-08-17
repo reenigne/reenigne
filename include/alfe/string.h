@@ -174,6 +174,32 @@ public:
         friend class StringTemplate;
     };
 
+    class Boolean
+    {
+    public:
+        explicit Boolean(bool b) : _b(b) { }
+        int bytes() const { return _b ? 4 : 5; }
+        String operator+(const char* a)
+        {
+            String s(bytes() + strlen(a));
+            s += *this;
+            s += a;
+            return s;
+        }
+    private:
+        void write(::Byte* destination) const
+        {
+            const ::Byte* s =
+                reinterpret_cast<const ::Byte*>(_b ? "true" : "false");
+            for (int i = 0; i < bytes(); ++i) {
+                *destination = s[i];
+                ++destination;
+            }
+        }
+        bool _b;
+        friend class StringTemplate;
+    };
+
     StringTemplate() : _start(0), _length(0) { }
     StringTemplate(const char* data)
       : _buffer(data), _start(0), _length(strlen(data)) { }
@@ -307,6 +333,22 @@ public:
         s += b;
         return s;
     }
+    const String& operator+=(const Boolean& b)
+    { 
+        int l = b.bytes();
+        expand(l);
+        _buffer.expand(l);
+        b.write(data() + _length);
+        _length += l;
+        return *this;
+    }
+    String operator+(const Boolean& b) const
+    {
+        String s(*this);
+        s += b;
+        return s;
+    }
+
     const String& operator*=(int n)
     {
         int l = _length*(n - 1);

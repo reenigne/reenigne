@@ -7,7 +7,8 @@
 
 class ZeroDivideException : public Exception
 {
-    ZeroDivideException : Exception(String("Division by zero")) { }
+public:
+    ZeroDivideException() : Exception("Division by zero") { }
 };
 
 template<class T> class Rational
@@ -19,7 +20,11 @@ public:
     }
     Rational(const T& n) : numerator(n), denominator(1) { }
     Rational() { }
-    Rational& operator=(const Rational& r) { numerator = r.numerator; denominator = r.denominator; }
+    Rational& operator=(const Rational& r)
+    {
+        numerator = r.numerator; denominator = r.denominator;
+        return *this;
+    }
     Rational& operator=(const T& n) { numerator = n; denominator = 1; }
     Rational operator*(const Rational& other) const
     {
@@ -68,7 +73,7 @@ public:
         T n = other.numerator;
         T d = other.denominator;
         T a = gcd(numerator, d);
-        T b = gcd(on, denominator);
+        T b = gcd(n, denominator);
         numerator = (numerator/a)*(n/b);
         denominator = (denominator/b)*(d/a);
         return *this;
@@ -138,8 +143,20 @@ private:
 
 template<class T> Rational<T> lcm(const Rational<T>& x, const Rational<T>& y)
 {
-    return Rational<T>(lcm(x.numerator*y.denominator, y.numerator*x.denominator),
+    return Rational<T>(
+        lcm(x.numerator*y.denominator, y.numerator*x.denominator),
         lcm(x.denominator, y.denominator));
 }
+
+template<class T> Rational<T> operator*(const T& x, const Rational<T>& y)
+{
+    return y*x;
+}
+
+template<class T> Rational<T> operator/(const T& x, const Rational<T>& y)
+{
+    return Rational<T>(x)/y;
+}
+
 
 #endif // INCLUDED_RATIONAL_H

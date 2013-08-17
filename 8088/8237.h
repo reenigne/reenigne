@@ -2,6 +2,7 @@ template<class T> class Intel8237DMATemplate
   : public ISA8BitComponentTemplate<T>
 {
 public:
+    Rational<int> hDotsPerCycle() const { return 3; }
     Intel8237DMATemplate()
     {
     }
@@ -30,10 +31,6 @@ public:
         {
             _channels[_address >> 1].write(_address & 1,data);
         }
-    }
-    void site()
-    {
-        _bus = this->_simulator->getBus();
     }
     // Step 1: the device calls dmaRequest()
     // equivalent to raising a DRQ line.
@@ -126,5 +123,4 @@ private:
     };
     Channel _channels[4];
     UInt32 _address;
-    ISA8BitBus* _bus;
 };

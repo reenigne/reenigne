@@ -7,6 +7,7 @@
 #include "alfe/space.h"
 #include "alfe/config_file.h"
 #include "alfe/type.h"
+#include "alfe/rational.h"
 
 #include <stdlib.h>
 
@@ -35,20 +36,15 @@ typedef RAM640KbTemplate<void> RAM640Kb;
 template<class T> class ComponentTemplate
 {
 public:
-    ComponentTemplate()
-      : _simulator(0)
-    {
-        _counter = 0;
-        _clock = 178827;
-    }
+    ComponentTemplate() : _simulator(0) { }
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
     virtual void site() { }
     virtual void simulateCycle() { }
-    virtual String save() { return String(); }
-    virtual Type type() { return Type(); }
-    virtual String name() { return String(); }
+    virtual String save() const { return String(); }
+    virtual Type type() const { return Type(); }
+    virtual String name() const { return String(); }
     virtual void load(const TypedValue& value) { }
-    virtual TypedValue initial()
+    virtual TypedValue initial() const
     { 
         // Default initial value is the result of converting the empty
         // structured type to the component type.
@@ -56,14 +52,32 @@ public:
             List<StructuredType::Member>()),
             Value<HashTable<String, TypedValue>>()).convertTo(type());
     }
-    int _clock;
-    int _counter;
+    virtual Rational<int> cyclesPerSecond() const
+    {
+        Rational<int> h = hDotsPerCycle();
+        if (h == 0)
+            return 0;
+        return 157500000/(11*h);
+    }
+    virtual Rational<int> hDotsPerCycle() const { return 0; }
+    void setTicksPerCycle(int ticksPerCycle)
+    { 
+        _ticksPerCycle = ticksPerCycle;
+        _tick = 0;
+    }
+    void simulateTicks(int ticks)
+    {
+        _tick += ticks;
+        if (_ticksPerCycle != 0 && _tick >= _ticksPerCycle) {
+            simulateCycle();
+            _tick -= _ticksPerCycle;
+        }
+    }
 protected:
     SimulatorTemplate<T>* _simulator;
-};
-
-template<class T> class ComponentContainer
-{
+private:
+    int _ticksPerCycle;
+    int _tick;
 };
 
 template<class T> class ISA8BitBusTemplate;
@@ -97,33 +111,10 @@ typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
 template<class T> class ISA8BitBusTemplate : public Component
 {
 public:
-    ISA8BitBusTemplate() : _interrupt(false), _interruptrdy(false)
-    {
-    }
-    void simulateCycle()
-    {
-        auto i = _components.begin();
-        (*i)->simulateCycle();
-        for(auto j = _components.begin();j!= _components.end();++j)
-        {
-            if(j == _components.begin())
-            {
-            }
-            else
-            {
-                (*j)->_counter += (*i)->_clock;
-                if((*j)->_counter >= (*j)->_clock)
-                {
-                    (*j)->_counter -= (*j)->_clock;
-                    (*j)->simulateCycle();
-                }
-            }
-        }
-    }
     void addComponent(ISA8BitComponent* component)
     {
         _components.add(component);
-        component->setSimulator(_simulator);
+        _simulator->addComponent(component);
         component->setBus(this);
     }
     void setAddress(UInt32 address)
@@ -151,47 +142,12 @@ public:
             data &= (*i)->memory(address);
         return data;
     }
-    String save()
-    {
-        String s("bus: {");
-        bool needComma = false;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            if ((*i)->name().empty())
-                continue;
-            if (needComma)
-                s += ", ";
-            needComma = true;
-            s += (*i)->save();
-        }
-        return s + "}";
-    }
-    Type type()
-    {
-        List<StructuredType::Member> members;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Type type = (*i)->type();
-            if (!type.valid())
-                continue;
-            members.add(StructuredType::Member((*i)->name(),(*i)->initial()));
-        }
-        return StructuredType("Bus", members);
-    }
-    void load(const TypedValue& value)
-    {
-        Value<HashTable<String, TypedValue> > object =
-            value.value<Value<HashTable<String, TypedValue> > >();
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load((*object)[(*i)->name()]);
-    }
-    String name() { return "bus"; }
+    String name() const { return "bus"; }
 
-    UInt8 _interruptnum;
-    bool _interrupt;
-    bool _interruptrdy;
-
-    List<ISA8BitComponent*> _components;
 private:
     UInt8 _data;
+
+    List<ISA8BitComponent*> _components;
 
     template<class U> friend class ISA8BitComponentTemplate;
 };
@@ -207,10 +163,6 @@ private:
 class IBMCGA : public ISA8BitComponent
 {
 public:
-    IBMCGA() : _cycle(0), _wait(0)
-    {
-        _clock = 59609;
-    }
     void simulateCycle()
     {
         ++_cycle;
@@ -255,6 +207,7 @@ public:
         }
         else return 0xff;
     }
+    Rational<int> hDotsPerCycle() { return 1; }
 private:
     int _memoryAddress;
     bool _memoryActive;
@@ -274,14 +227,14 @@ public:
         _active = (address & 0xc00003e0) == 0xc00000a0;
     }
     void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }
-    String save()
+    String save() const
     {
-        return String("nmiSwitch: ") + (_nmiOn ? "true" : "false") + "\n";
+        return String("nmiSwitch: ") + String::Boolean(_nmiOn) + "\n";
     }
-    Type type() { return Type::boolean; }
+    Type type() const { return Type::boolean; }
     void load(const TypedValue& value) { _nmiOn = value.value<bool>(); }
-    String name() { return "nmiSwitch"; }
-    TypedValue initial() { return false; }
+    String name() const { return "nmiSwitch"; }
+    TypedValue initial() const { return false; }
     bool nmiOn() const { return _nmiOn; }
 private:
     bool _nmiOn;
@@ -336,6 +289,7 @@ public:
         _ppi = this->_simulator->getPPI();
         _cpu = this->_simulator->getCPU();
     }
+    Rational<int> hDotsPerCycle() const { return 3; }
     void simulateCycle()
     {
         ++_cycle;
@@ -382,7 +336,7 @@ public:
             return _data[address];
         return 0xff;
     }
-    String save()
+    String save() const
     {
         String s("ram: ###\n");
         for (int y = 0; y < 0xa0000; y += 0x20) {
@@ -402,7 +356,7 @@ public:
         s += "###\n";
         return s;
     }
-    Type type() { return Type::string; }
+    Type type() const { return Type::string; }
     void load(const TypedValue& value)
     {
         String s = value.value<String>();
@@ -436,8 +390,8 @@ public:
         if (s2.get() != -1)
             source.location().throwError("Expected hexadecimal character");
     }
-    String name() { return "ram"; }
-    TypedValue initial() { return String(); }
+    String name() const { return "ram"; }
+    TypedValue initial() const { return String(); }
 private:
     int _address;
     Array<UInt8> _data;
@@ -461,7 +415,7 @@ public:
         _active = (address & 0xc00003e0) == 0xc0000080;
     }
     void write(UInt8 data) { _dmaPages[_address] = data & 0x0f; }
-    String save()
+    String save() const
     {
         String s = "dmaPages: {";
         bool needComma = false;
@@ -471,9 +425,9 @@ public:
             needComma = true;
             s += hex(_dmaPages[i], 1);
         }
-        return s + String("}");
+        return s + "}";
     }
-    Type type() { return Type::array(Type::integer); }
+    Type type() const { return Type::array(Type::integer); }
     void load(const TypedValue& value)
     {
         auto dmaPages = value.value<List<TypedValue>>();
@@ -485,8 +439,8 @@ public:
                 break;
         }
     }
-    String name() { return "dmaPages"; }
-    TypedValue initial()
+    String name() const { return "dmaPages"; }
+    TypedValue initial() const
     {
         List<TypedValue> dmaPages;
         for (int i = 0; i < 4; ++i)
@@ -880,6 +834,7 @@ typedef DisassemblerTemplate<void> Disassembler;
 template<class T> class Intel8088Template : public ComponentTemplate<T>
 {
 public:
+    Rational<int> hDotsPerCycle() const { return 3; }
     Intel8088Template()
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
@@ -923,8 +878,6 @@ public:
         }
         _busStateType = EnumerationType("BusState", busStateValues);
 
-        load(initial());
-
         _disassembler.setCPU(this);
     }
     void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
@@ -940,7 +893,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 23605000) {
+        if (_cycle >= 23605000) { 
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
@@ -2164,7 +2117,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         } while (true);
     }
 
-    String save()
+    String save() const
     {
         String s("cpu: {\n");
         s += String("  ip: ") + hex(_ip, 4) + ",\n";
@@ -2200,7 +2153,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             ",\n";
         s += String("  busState: ") + stringForBusState(_busState) + ",\n";
         s += String("  byte: ") + stringForIOByte(_byte) + ",\n";
-        s += String("  abandonFetch: ") + (_abandonFetch ? "true" : "false") +
+        s += String("  abandonFetch: ") + String::Boolean(_abandonFetch) +
             ",\n";
         s += String("  wait: ") + _wait + ",\n";
         s += String("  state: ") + stringForState(_state) + ",\n";
@@ -2211,32 +2164,30 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  destination: ") + hex(_destination, 8) + ",\n";
         s += String("  remainder: ") + hex(_remainder, 8) + ",\n";
         s += String("  address: 0x") + hex(_address, 4) + ",\n";
-        s += String("  useMemory: ") + (_useMemory ? "true" : "false") +
-            ",\n";
-        s += String("  wordSize: ") + (_wordSize ? "true" : "false") + ",\n";
+        s += String("  useMemory: ") + String::Boolean(_useMemory) + ",\n";
+        s += String("  wordSize: ") + String::Boolean(_wordSize) + ",\n";
         s += String("  aluOperation: ") + _aluOperation + ",\n";
         s += String("  afterEA: ") + stringForState(_afterEA) + ",\n";
         s += String("  afterIO: ") + stringForState(_afterIO) + ",\n";
         s += String("  afterEAIO: ") + stringForState(_afterEAIO) + ",\n";
         s += String("  afterRep: ") + stringForState(_afterRep) + ",\n";
         s += String("  afterInt: ") + stringForState(_afterInt) + ",\n";
-        s += String("  sourceIsRM: ") + (_sourceIsRM ? "true" : "false") +
-            ",\n";
+        s += String("  sourceIsRM: ") + String::Boolean(_sourceIsRM) + ",\n";
         s += String("  savedCS: ") + hex(_savedCS, 4) + ",\n";
         s += String("  savedIP: ") + hex(_savedIP, 4) + ",\n";
         s += String("  rep: ") + _rep + ",\n";
-        s += String("  usePortSpace: ") + (_usePortSpace ? "true" : "false") +
+        s += String("  usePortSpace: ") + String::Boolean(_usePortSpace) +
             ",\n";
-        s += String("  halted: ") + (_halted ? "true" : "false") + ",\n";
-        s += String("  newInstruction: ") +
-            (_newInstruction ? "true" : "false") + ",\n";
+        s += String("  halted: ") + String::Boolean(_halted) + ",\n";
+        s += String("  newInstruction: ") + String::Boolean(_newInstruction) +
+            ",\n";
         s += String("  newIP: ") + hex(_newIP, 4) + ",\n";
-        s += String("  nmiRequested: ") + (_nmiRequested ? "true" : "false") +
+        s += String("  nmiRequested: ") + String::Boolean(_nmiRequested) +
             ",\n";
         s += String("  cycle: ") + _cycle;
         return s + "}\n";
     }
-    Type type()
+    Type type() const
     {
         typedef StructuredType::Member M;
         List<M> members;
@@ -2357,7 +2308,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _nmiRequested = (*members)["nmiRequested"].value<bool>();
         _cycle = (*members)["cycle"].value<int>();
     }
-    String name() { return "cpu"; }
+    String name() const { return "cpu"; }
 
 private:
     enum IOType
@@ -2456,7 +2407,7 @@ private:
         ioWordFirst,
         ioWordSecond
     };
-    String stringForState(State state)
+    static String stringForState(State state)
     {
         switch (state) {
             case stateWaitingForBIU:  return "waitingForBIU";
@@ -2622,7 +2573,7 @@ private:
         }
         return "";
     }
-    String stringForIOType(IOType type)
+    static String stringForIOType(IOType type)
     {
         switch (type) {
             case ioNone:             return "ioNone";
@@ -2632,7 +2583,7 @@ private:
         }
         return "";
     }
-    String stringForBusState(BusState state)
+    static String stringForBusState(BusState state)
     {
         switch (state) {
             case t1:    return "t1";
@@ -2645,7 +2596,7 @@ private:
         }
         return "";
     }
-    String stringForIOByte(IOByte byte)
+    static String stringForIOByte(IOByte byte)
     {
         switch (byte) {
             case ioSingleByte: return "ioSingleByte";
@@ -3155,7 +3106,7 @@ private:
 Reference<ROMDataType::Implementation> ROMDataType::_implementation;
 StructuredType ROMDataType::Implementation::_structuredType;
 
-template<class T> class SimulatorTemplate
+template<class T> class SimulatorTemplate : public Component
 {
 public:
     SimulatorTemplate(File configFile) : _halted(false)
@@ -3208,42 +3159,42 @@ public:
 
         _cpu.setStopAtCycle(config.get<int>("stopAtCycle"));
         _stopSaveState = config.get<String>("stopSaveState");
+
+        Rational<int> l = 0;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            Rational<int> cyclesPerSecond = (*i)->cyclesPerSecond();
+            if (cyclesPerSecond != 0)
+                if (l == 0)
+                    l = cyclesPerSecond;
+                else
+                    l = lcm(l, cyclesPerSecond);
+        }
+        if (l == 0)
+            throw Exception("None of the components is clocked!");
+        _minTicksPerCycle = INT_MAX;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            Rational<int> cyclesPerSecond = (*i)->cyclesPerSecond();
+            if (cyclesPerSecond != 0) {
+                Rational<int> t = l / cyclesPerSecond;
+                if (t.denominator != 1)
+                    throw Exception("Scheduler LCM calculation incorrect");
+                int ticksPerCycle = t.numerator;
+                (*i)->setTicksPerCycle(ticksPerCycle);
+                if (ticksPerCycle < _minTicksPerCycle)
+                    _minTicksPerCycle = ticksPerCycle;
+            }
+            else
+                (*i)->setTicksPerCycle(0);
+        }
     }
     void simulate()
     {
         do {
-            //Assuming that the first component is the fastest.
-            auto i = _bus._components.begin();
-            (*i)->simulateCycle();
-            for(auto j = _bus._components.begin();j!= _bus._components.end();++j)
-            {
-                if(j == i)
-                {
-                }
-                else
-                {
-                    (*j)->_counter += (*i)->_clock;
-                    if((*j)->_counter >= (*j)->_clock)
-                    {
-                        (*j)->_counter -= (*j)->_clock;
-                        (*j)->simulateCycle();
-                    }
-                }
-            }
-            _cpu._counter += (*i)->_clock;
-            if(_cpu._counter >= _cpu._clock)
-            {
-                _cpu._counter -= _cpu._clock;
-                _cpu.simulateCycle();
-            }
+            for (auto i = _components.begin(); i != _components.end(); ++i)
+                (*i)->simulateTicks(_minTicksPerCycle);
         } while (!_halted);
     }
-    void addComponent(Component* component)
-    {
-        _components.add(component);
-        component->setSimulator(this);
-    }
-    String save()
+    String save() const
     {
         String s("simulator = {");
         bool needComma = false;
@@ -3258,33 +3209,7 @@ public:
         s += "};";
         return s;
     }
-    Type type()
-    {
-        List<StructuredType::Member> members;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Type type = (*i)->type();
-            if (!type.valid())
-                continue;
-            members.add(StructuredType::Member((*i)->name(), (*i)->initial()));
-        }
-        return StructuredType("Simulator", members);
-    }
-    void load(const TypedValue& value)
-    {
-        Value<HashTable<String, TypedValue> > object =
-            value.value<Value<HashTable<String, TypedValue> > >();
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load(object->operator[]((*i)->name()));
-    }
-    TypedValue initial()
-    { 
-        // Default initial value is the result of converting the empty
-        // structured type to the component type.
-        return TypedValue(StructuredType(String(),
-            List<StructuredType::Member>()),
-            Value<HashTable<String, TypedValue>>()).convertTo(type());
-    }
-
+    
     void halt() { _halted = true; }
     ISA8BitBus* getBus() { return &_bus; }
     Intel8259PIC* getPIC() { return &_pic; }
@@ -3293,9 +3218,33 @@ public:
     Intel8255PPI* getPPI() { return &_ppi; }
     Intel8088* getCPU() { return &_cpu; }
     String getStopSaveState() { return _stopSaveState; }
+    void addComponent(Component* component)
+    {
+        _components.add(component);
+        component->setSimulator(this);
+    }
+    Type type() const
+    {
+        List<StructuredType::Member> members;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            Type type = (*i)->type();
+            if (!type.valid())
+                continue;
+            members.add(StructuredType::Member((*i)->name(),(*i)->initial()));
+        }
+        return StructuredType("Simulator", members);
+    }
+    void load(const TypedValue& value)
+    {
+        Value<HashTable<String, TypedValue> > object =
+            value.value<Value<HashTable<String, TypedValue> > >();
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            (*i)->load((*object)[(*i)->name()]);
+    }
 private:
     List<Component*> _components;
     bool _halted;
+    int _minTicksPerCycle;
 
     ISA8BitBus _bus;
     RAM640Kb _ram;

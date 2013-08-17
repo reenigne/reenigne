@@ -2,7 +2,9 @@ template<class T> class Intel8253PITTemplate
   : public ISA8BitComponentTemplate<T>
 {
 public:
-    Intel8253PITTemplate() : _cycle(0)
+    // The PIT input clock is 1/4 the frequency of the CPU clock.
+    Rational<int> hDotsPerCycle() const { return 12; }
+    Intel8253PITTemplate()
     {
         _timers[0] = &_timer0;
         _timers[1] = &_timer1;
@@ -18,13 +20,8 @@ public:
     }
     void simulateCycle()
     {
-        // The PIT input clock is 1/4 the frequency of the CPU clock.
-        ++_cycle;
-        if (_cycle == 4) {
-            _cycle = 0;
-            for (int i = 0; i < 3; ++i)
-                _timers[i]->simulateCycle();
-        }
+        for (int i = 0; i < 3; ++i)
+            _timers[i]->simulateCycle();
     }
     void setAddress(UInt32 address)
     {
@@ -338,7 +335,6 @@ private:
     Timer2 _timer2;
     Timer* _timers[3];
     int _address;
-    int _cycle;
     Intel8259PIC* _pic;
 };
 
