@@ -48,11 +48,22 @@ public:
     virtual Type type() { return Type(); }
     virtual String name() { return String(); }
     virtual void load(const TypedValue& value) { }
-    virtual TypedValue initial() { return TypedValue(); }
+    virtual TypedValue initial()
+    { 
+        // Default initial value is the result of converting the empty
+        // structured type to the component type.
+        return TypedValue(StructuredType(String(),
+            List<StructuredType::Member>()),
+            Value<HashTable<String, TypedValue>>()).convertTo(type());
+    }
     int _clock;
     int _counter;
 protected:
     SimulatorTemplate<T>* _simulator;
+};
+
+template<class T> class ComponentContainer
+{
 };
 
 template<class T> class ISA8BitBusTemplate;
@@ -161,7 +172,7 @@ public:
             Type type = (*i)->type();
             if (!type.valid())
                 continue;
-            members.add(StructuredType::Member((*i)->name(), (*i)->type()));
+            members.add(StructuredType::Member((*i)->name(),(*i)->initial()));
         }
         return StructuredType("Bus", members);
     }
@@ -173,14 +184,6 @@ public:
             (*i)->load((*object)[(*i)->name()]);
     }
     String name() { return "bus"; }
-    TypedValue initial()
-    {
-        Value<HashTable<String, TypedValue> > object;
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            if ((*i)->type().valid())
-                object->operator[]((*i)->name()) = (*i)->initial();
-        return TypedValue(type(), object);
-    }
 
     UInt8 _interruptnum;
     bool _interrupt;
@@ -278,7 +281,7 @@ public:
     Type type() { return Type::boolean; }
     void load(const TypedValue& value) { _nmiOn = value.value<bool>(); }
     String name() { return "nmiSwitch"; }
-    TypedValue initial() { return TypedValue(Type::boolean, false); }
+    TypedValue initial() { return false; }
     bool nmiOn() const { return _nmiOn; }
 private:
     bool _nmiOn;
@@ -384,14 +387,17 @@ public:
         String s("ram: ###\n");
         for (int y = 0; y < 0xa0000; y += 0x20) {
             String line;
+            bool gotData = false;
             for (int x = 0; x < 0x20; x += 4) {
                 int p = y + x;
                 UInt32 v = (_data[p]<<24) + (_data[p+1]<<16) +
                     (_data[p+2]<<8) + _data[p+3];
-                line += hex(v, 8, false) + " ";
+                if (v != 0)
+                    gotData = true;
+                line += " " + hex(v, 8, false);
             }
-            line += String("//") + hex(y, 5, false) + "\n";
-            s += line;
+            if (gotData)
+                s += hex(y, 5, false) + ":" + line + "\n";
         }
         s += "###\n";
         return s;
@@ -400,26 +406,38 @@ public:
     void load(const TypedValue& value)
     {
         String s = value.value<String>();
-        CharacterSource source(s, File(""));
-        int a = 0;
+        CharacterSource source(s);
         Space::parse(&source);
         do {
             Span span;
             int t = parseHexadecimalCharacter(&source, &span);
-            if (t < 0)
-                span.throwError("Expected hexadecimal character");
-            int t2 = parseHexadecimalCharacter(&source, &span);
-            if (t < 0)
-                span.throwError("Expected hexadecimal character");
-            _data[a++] = (t << 4) + t2;
-            Space::parse(&source);
-            CharacterSource s2(source);
-            if (s2.get() == -1)
+            if (t == -1)
                 break;
+            int a = t;
+            for (int i = 0; i < 4; ++i) {
+                t = parseHexadecimalCharacter(&source, &span);
+                if (t < 0)
+                    span.throwError("Expected hexadecimal character");
+                a = (a << 4) + t;
+            }
+            Space::assertCharacter(&source, ':', &span);
+            for (int i = 0; i < 16; ++i) {
+                t = parseHexadecimalCharacter(&source, &span);
+                if (t < 0)
+                    span.throwError("Expected hexadecimal character");
+                int t2 = parseHexadecimalCharacter(&source, &span);
+                if (t2 < 0)
+                    span.throwError("Expected hexadecimal character");
+                _data[a++] = (t << 4) + t2;
+                Space::parse(&source);
+            }
         } while (true);
+        CharacterSource s2(source);
+        if (s2.get() != -1)
+            source.location().throwError("Expected hexadecimal character");
     }
     String name() { return "ram"; }
-    TypedValue initial() { return TypedValue(Type::string, String("00")); }
+    TypedValue initial() { return String(); }
 private:
     int _address;
     Array<UInt8> _data;
@@ -2278,12 +2296,6 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("cycle", 0));
         return StructuredType("CPU", members);
     }
-    TypedValue initial()
-    {
-        return TypedValue(StructuredType(String(),
-            List<StructuredType::Member>()),
-            Value<HashTable<String, TypedValue>>()).convertTo(type());
-    }
     void load(const TypedValue& value)
     {
         auto members = value.value<Value<HashTable<String, TypedValue>>>();
@@ -3183,13 +3195,16 @@ public:
         String stopSaveState = config.get<String>("stopSaveState");
 
         String initialStateFile = config.get<String>("initialState");
+        TypedValue stateValue;
         if (!initialStateFile.empty()) {
             ConfigFile initialState;
             initialState.addOption("simulator", type(), initial());
             initialState.load(initialStateFile);
-            TypedValue stateValue = initialState.get("simulator");
-            load(stateValue);
+            stateValue = initialState.get("simulator");
         }
+        else
+            stateValue = initial();
+        load(stateValue);
 
         _cpu.setStopAtCycle(config.get<int>("stopAtCycle"));
         _stopSaveState = config.get<String>("stopSaveState");
@@ -3250,7 +3265,7 @@ public:
             Type type = (*i)->type();
             if (!type.valid())
                 continue;
-            members.add(StructuredType::Member((*i)->name(), (*i)->type()));
+            members.add(StructuredType::Member((*i)->name(), (*i)->initial()));
         }
         return StructuredType("Simulator", members);
     }
@@ -3262,13 +3277,14 @@ public:
             (*i)->load(object->operator[]((*i)->name()));
     }
     TypedValue initial()
-    {
-        Value<HashTable<String, TypedValue> > object;
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            if ((*i)->type().valid())
-                object->operator[]((*i)->name()) = (*i)->initial();
-        return TypedValue(type(), object);
+    { 
+        // Default initial value is the result of converting the empty
+        // structured type to the component type.
+        return TypedValue(StructuredType(String(),
+            List<StructuredType::Member>()),
+            Value<HashTable<String, TypedValue>>()).convertTo(type());
     }
+
     void halt() { _halted = true; }
     ISA8BitBus* getBus() { return &_bus; }
     Intel8259PIC* getPIC() { return &_pic; }
