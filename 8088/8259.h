@@ -9,13 +9,20 @@ public:
     }
     void setAddress(UInt32 address)
     {
-        _address = address & 0xf;
+        _address = address & 0x1;
         _active = (address & 0x400003f0) == 0x40000020;
     }
     void read()
     {
-        if (_secondAck)
-            set(_interruptnum);
+        switch(_address)
+        {
+        case 1:
+            if (_secondAck)
+                set(_interruptnum);
+            else
+                set(_imr);
+            break;
+        }
     }
     void write(UInt8 data)
     {
@@ -36,7 +43,6 @@ public:
             }
             if(_state == stateICW3)
             {
-                _offset = data;
                 if(_icw1 & 1) _state = stateICW4;
                 else _state = stateReady;
             }
@@ -77,6 +83,8 @@ public:
             _interrupt = false;
         }
     }
+    UInt8 _interruptnum;
+    
 private:
     enum State
     {
@@ -86,7 +94,6 @@ private:
         stateICW4,
     } _state;
 
-    UInt8 _interruptnum;
     bool _interrupt;
     bool _interruptrdy;
     bool _secondAck;
