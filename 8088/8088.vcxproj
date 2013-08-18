@@ -101,6 +101,7 @@
     <ClInclude Include="..\include\alfe\value.h" />
     <ClInclude Include="8255.h" />
     <ClInclude Include="8259.h" />
+    <ClInclude Include="cga.h" />
     <ClInclude Include="common.h" />
   </ItemGroup>
   <ItemGroup>
