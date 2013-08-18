@@ -10,6 +10,7 @@
 #include "alfe/rational.h"
 
 #include <stdlib.h>
+#include <limits.h>
 
 //class SourceProgram
 //{
@@ -83,7 +84,7 @@ private:
 template<class T> class ISA8BitBusTemplate;
 typedef ISA8BitBusTemplate<void> ISA8BitBus;
 
-template<class T> class ISA8BitComponentTemplate : public Component
+template<class T> class ISA8BitComponentTemplate : public ComponentTemplate<T>
 {
 public:
     // Address bit 31 = write
@@ -108,13 +109,13 @@ protected:
 
 typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
 
-template<class T> class ISA8BitBusTemplate : public Component
+template<class T> class ISA8BitBusTemplate : public ComponentTemplate<T>
 {
 public:
     void addComponent(ISA8BitComponent* component)
     {
         _components.add(component);
-        _simulator->addComponent(component);
+        this->_simulator->addComponent(component);
         component->setBus(this);
     }
     void setAddress(UInt32 address)

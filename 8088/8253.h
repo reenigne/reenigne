@@ -265,7 +265,7 @@ private:
         {
             if (output != _output) {
                 _output = output;
-                outputChanged();
+                outputChanged(output);
             }
         }
         virtual void outputChanged(bool output)=0;
