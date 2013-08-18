@@ -142,7 +142,11 @@ public:
             data &= (*i)->memory(address);
         return data;
     }
-    String name() const { return "bus"; }
+    String save() const { return String("bus: ") + hex(_data, 2) + "\n"; }
+    virtual Type type() const { return Type::integer; }
+    virtual String name() const { return String("bus"); }
+    virtual void load(const TypedValue& value) { _data = value.value<int>(); }
+    virtual TypedValue initial() const { return 0xff; }
 
 private:
     UInt8 _data;
