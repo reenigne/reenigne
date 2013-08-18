@@ -1378,7 +1378,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         _wait = 4;
                     doALUOperation();
                     if (_aluOperation != 7)
-                        writeEA(stateEndInstruction, _wait);
+                        writeEA(_data, _wait);
                     else
                         _state = stateEndInstruction;
                     break;
