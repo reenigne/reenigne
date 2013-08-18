@@ -1,7 +1,7 @@
 class Intel8259PIC : public ISA8BitComponent
 {
 public:
-    Intel8259PIC() : _interruptrdy(false)
+    Intel8259PIC() : _interruptrdy(false), _secondAck(false)
     {
     }
     void simulateCycle()
@@ -17,8 +17,10 @@ public:
         switch(_address)
         {
         case 1:
-            if (_secondAck)
+            if (_secondAck) {
                 set(_interruptnum);
+                _secondAck = false;
+            }
             else
                 set(_imr);
             break;

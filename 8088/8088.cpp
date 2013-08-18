@@ -898,7 +898,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 30000000) { 
+        if (_cycle % 1000000 == 0) { 
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
@@ -1721,8 +1721,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _flags = _data | 2;
                     cs() = _savedCS;
                     setIP(_savedIP);
-                    _wait = 20;
-                    _state = stateBegin;
+                    end(20);
                     break;
 
                 case stateShift: readEA(stateShift2); break;
