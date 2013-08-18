@@ -893,7 +893,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 23605000) { 
+        if (_cycle >= 30000000) { 
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
@@ -1663,7 +1663,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _state = stateHardwareInt2;
                     break;
                 case stateHardwareInt2:
-                    _data = _bus->read();
+                    _data = _pic->_interruptnum;
                     _state = stateIntAction;
                     break;
                 case stateInt3:
@@ -1692,7 +1692,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateIntAction5:
                     _savedIP = _data;
-                    _address += 2;
+                    _address++;
                     initIO(stateIntAction6, ioRead, true);
                     break;
                 case stateIntAction6:
@@ -1717,6 +1717,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     cs() = _savedCS;
                     setIP(_savedIP);
                     _wait = 20;
+                    _state = stateBegin;
                     break;
 
                 case stateShift: readEA(stateShift2); break;

@@ -77,6 +77,8 @@ public:
             _interrupt = false;
         }
     }
+    UInt8 _interruptnum;
+    
 private:
     enum State
     {
@@ -86,7 +88,6 @@ private:
         stateICW4,
     } _state;
 
-    UInt8 _interruptnum;
     bool _interrupt;
     bool _interruptrdy;
     bool _secondAck;

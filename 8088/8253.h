@@ -268,7 +268,7 @@ private:
                 outputChanged();
             }
         }
-        virtual void outputChanged() { }
+        virtual void outputChanged(bool output)=0;
 
         UInt16 _value;
         UInt16 _latch;
@@ -329,6 +329,9 @@ private:
     };
     class Timer2 : public Timer
     {
+        void outputChanged(bool output)
+        {
+        }
     };
     Timer0 _timer0;
     Timer1 _timer1;
