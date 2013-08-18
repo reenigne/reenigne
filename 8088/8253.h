@@ -56,6 +56,9 @@ private:
     class Timer
     {
     public:
+        Timer() : _output(false), _state(stateStopped0)
+        {
+        }
         void simulateCycle()
         {
             switch (_state) {
@@ -229,6 +232,7 @@ private:
             switch (_state) {
                 case stateStopped0:
                 case stateCounting0:
+                    _value = _count;
                     _state = stateCounting0;
                     break;
                 case stateStopped1:
