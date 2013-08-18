@@ -10,6 +10,7 @@
 #include "alfe/rational.h"
 
 #include <stdlib.h>
+#include <limits.h>
 
 //class SourceProgram
 //{
@@ -83,7 +84,7 @@ private:
 template<class T> class ISA8BitBusTemplate;
 typedef ISA8BitBusTemplate<void> ISA8BitBus;
 
-template<class T> class ISA8BitComponentTemplate : public Component
+template<class T> class ISA8BitComponentTemplate : public ComponentTemplate<T>
 {
 public:
     // Address bit 31 = write
@@ -108,13 +109,13 @@ protected:
 
 typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
 
-template<class T> class ISA8BitBusTemplate : public Component
+template<class T> class ISA8BitBusTemplate : public ComponentTemplate<T>
 {
 public:
     void addComponent(ISA8BitComponent* component)
     {
         _components.add(component);
-        _simulator->addComponent(component);
+        this->_simulator->addComponent(component);
         component->setBus(this);
     }
     void setAddress(UInt32 address)
@@ -893,7 +894,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 23605000) { 
+        if (_cycle >= 30000000) { 
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
@@ -1663,7 +1664,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _state = stateHardwareInt2;
                     break;
                 case stateHardwareInt2:
-                    _data = _bus->read();
+                    _data = _pic->_interruptnum;
                     _state = stateIntAction;
                     break;
                 case stateInt3:
@@ -1692,7 +1693,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateIntAction5:
                     _savedIP = _data;
-                    _address += 2;
+                    _address++;
                     initIO(stateIntAction6, ioRead, true);
                     break;
                 case stateIntAction6:
@@ -1717,6 +1718,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     cs() = _savedCS;
                     setIP(_savedIP);
                     _wait = 20;
+                    _state = stateBegin;
                     break;
 
                 case stateShift: readEA(stateShift2); break;
