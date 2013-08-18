@@ -17,7 +17,8 @@ public:
         switch(_address)
         {
         case 0:
-            set(0x00); //Hardcoded for now.
+            set(0xAA); //Hardcoded for now.
+            break;
         case 2:
             if(_portb & 0x08) set(0x00); //Hardcoded for now.
             else set(0x03);
