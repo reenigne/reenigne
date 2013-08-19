@@ -165,63 +165,6 @@ private:
 //    }
 //};
 //
-class IBMCGA : public ISA8BitComponent
-{
-public:
-    void simulateCycle()
-    {
-        ++_cycle;
-        if(_cycle == 16)
-        {
-            _cycle = 0;
-        }
-        if(_wait != 0)
-        {
-            _wait--;
-        }
-    }
-    void setAddress(UInt32 address)
-    {
-        _memoryActive = ((address & 0x400f8000) == 0xb8000);
-        _memoryAddress = address & 0x00003fff;
-        _portActive = ((address & 0x400003f0) == 0x400003d0);
-        _active = (_memoryActive || _portActive);
-    }
-    void read()
-    {
-        if (_memoryActive && _wait == 0)
-        {
-            _wait = 8 + (16 - _cycle);
-            set(_data[_memoryAddress]);
-        }
-        set(0);
-    }
-    void write(UInt8 data)
-    {
-        if (_memoryActive && _wait == 0)
-        {
-            _wait = 8 + (16 - _cycle);
-            _data[_memoryAddress] = data;
-        }
-    }
-    UInt8 memory(UInt32 address)
-    {
-        if ((address & 0xf8000) == 0xb8000)
-        {
-            return _data[address & 0x3fff];
-        }
-        else return 0xff;
-    }
-    Rational<int> hDotsPerCycle() { return 1; }
-private:
-    int _memoryAddress;
-    bool _memoryActive;
-    int _portAddress;
-    bool _portActive;
-    int _wait;
-    int _cycle;
-    Array<UInt8> _data;
-};
 
 class NMISwitch : public ISA8BitComponent
 {
@@ -252,6 +195,8 @@ private:
 #include "8255.h"
 
 #include "8253.h"
+
+#include "cga.h"
 
 template<class T> class RAM640KbTemplate : public ISA8BitComponent
 {
@@ -898,7 +843,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 13000000) { 
+        if (_cycle >= 17000000) { 
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
@@ -1433,7 +1378,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         _wait = 4;
                     doALUOperation();
                     if (_aluOperation != 7)
-                        writeEA(stateEndInstruction, _wait);
+                        writeEA(_data, _wait);
                     else
                         _state = stateEndInstruction;
                     break;
