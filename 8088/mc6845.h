@@ -7,7 +7,7 @@ public:
     void simulateCycle()
     {
       ma++;
-      ma &= 0x1fff;
+      ma &= 0x3fff;
       _xcounter++;
       if(_xcounter >= _crtcdata[1] || _ycounter >= _crtcdata[6]) _displayenable = false;
       if(_xcounter >= _crtcdata[2] && _xcounter < (_crtcdata[2] + _crtcdata[3])) _hsync = true;
@@ -15,7 +15,7 @@ public:
       if(_xcounter == (_crtcdata[0] - 1))
       {
           ma = _crtcdata[0x1] * _ycounter;
-          ma &= 0x1fff;
+          ma &= 0x3fff;
           _xcounter = 0;
           ra++;
           ra &= 0x1f;

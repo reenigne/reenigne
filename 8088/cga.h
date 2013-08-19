@@ -8,9 +8,25 @@ public:
         {
             _cycle = 0;
         }
+        if(_cycle == 0 || (_cycle == 8 && !(_mode & 1)))
+        {
+            _crtc.simulateCycle();
+            _crtc.ma &= 0x1fff;
+            _crtc.ra &= 0x7;
+            _chr = _data[_crtc.ma << 1];
+            _attr = data[(_crtc.ma << 1) + 1];
+            _chrdata = _romdata[(0x1800 | _crtc.ra) + (chr << 3)];
+        }
         if(_wait != 0)
         {
             _wait--;
+        }
+        if(_mode & 2)
+        {
+        }
+        else
+        {
+            
         }
     }
     void setAddress(UInt32 address)
@@ -42,7 +58,7 @@ public:
                         case 3:
                         case 5:
                         case 7:
-                                set(_crtcdata[_crtcindex]);
+                                set(_crtc._crtcdata[_crtcindex]);
                                 break; 
 			case 8:
 				set(_mode);
@@ -67,12 +83,24 @@ public:
 		{
 			switch(_portAddress)
 			{
+			case 0:
+			case 2:
 			case 4:
+			case 6:
 				_crtcindex = data;
 				break;
+                        case 1:
+                        case 3:
+                        case 5:
+                        case 7:
+                                _crtc._crtcdata[_crtcindex] = data;
+                                break;   
 			case 8:
 				_mode = data;
 				break;
+			case 9:
+			        _colsel = data;
+			        break; 
 			}
 		}
     }
@@ -84,8 +112,22 @@ public:
         }
         else return 0xff;
     }
-    Rational<int> hDotsPerCycle() { return 1; }
+    Rational<int> hDotsPerCycle() { return 1; 
+    void initialize(const ROMData& romData, const File& configFile)
+    {
+        _start = romData.start();
+        String data = File(romData.file(), configFile.parent(), true). contents();
+        int length = 0x2000;
+        _data.allocate(length);
+        int offset = romData.offset();
+        for (int i = 0; i < length; ++i)
+        _data[i] = data[i + offset];
+    }
+    Array<UInt8> _romdata;
 private:
+    UInt8 _chr;
+    UInt8 _attr;
+    UInt8 _chrdata;
     int _memoryAddress;
     bool _memoryActive;
     int _portAddress;
@@ -94,8 +136,12 @@ private:
     int _cycle;
 	UInt8 _mode;
 	UInt8 _crtcindex;
-    UInt8 _crtcdata[0x10];
     UInt8 _colsel;
     UInt8 _status;
-    Array<UInt8> _data;
+    UInt8 _r;
+    UInt8 _g;
+    UInt8 _b;
+    UInt8 _i;
+    Array<UInt8> _data;    
+    Motorola6845CRTC _crtc;
 };

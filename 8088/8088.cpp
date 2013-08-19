@@ -157,15 +157,6 @@ private:
     template<class U> friend class ISA8BitComponentTemplate;
 };
 
-//class Motorola6845CRTC : public Component
-//{
-//public:
-//    void simulateCycle()
-//    {
-//    }
-//};
-//
-
 class NMISwitch : public ISA8BitComponent
 {
 public:
@@ -195,6 +186,8 @@ private:
 #include "8255.h"
 
 #include "8253.h"
+
+#include "mc6845.h"
 
 #include "cga.h"
 
@@ -3066,6 +3059,7 @@ public:
         ROMDataType romDataType;
         Type romImageArrayType = Type::array(romDataType);
         config.addOption("roms", romImageArrayType);
+        config.addOption("cgarom",romDataType);
         config.addOption("stopAtCycle", Type::integer, -1);
         config.addOption("stopSaveState", Type::string, String(""));
         config.addOption("initialState", Type::string, String(""));
@@ -3076,7 +3070,7 @@ public:
         _bus.addComponent(&_ram);
         _bus.addComponent(&_nmiSwitch);
         _bus.addComponent(&_dmaPageRegisters);
-        //_bus.addComponent(&_cga);
+        _bus.addComponent(&_cga);
         _bus.addComponent(&_pit);
         _bus.addComponent(&_dma);
         _bus.addComponent(&_ppi);
@@ -3093,6 +3087,11 @@ public:
             _bus.addComponent(rom);
             ++r;
         }
+        
+        TypedValue cgaRom = config.get<TypedValue>("cgarom");
+        ROMData cgaRomData = cgaRom.value<ROMData>();
+        cga.initialize(cgaRomData, configFile);
+        
         String stopSaveState = config.get<String>("stopSaveState");
 
         String initialStateFile = config.get<String>("initialState");
@@ -3200,7 +3199,7 @@ private:
     RAM640Kb _ram;
     NMISwitch _nmiSwitch;
     DMAPageRegisters _dmaPageRegisters;
-    //IBMCGA cga;
+    IBMCGA cga;
     Intel8253PIT _pit;
     Intel8237DMA _dma;
     Intel8255PPI _ppi;
