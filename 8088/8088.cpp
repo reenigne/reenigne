@@ -843,7 +843,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 13000000) { 
+        if (_cycle >= 17000000) { 
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:

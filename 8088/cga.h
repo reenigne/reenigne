@@ -32,12 +32,27 @@ public:
 		{
 			switch(_portAddress)
 			{
+			case 0:
+			case 2:
 			case 4:
+			case 6:
 				set(_crtcindex);
 				break;
+                        case 1:
+                        case 3:
+                        case 5:
+                        case 7:
+                                set(_crtcdata[_crtcindex]);
+                                break; 
 			case 8:
 				set(_mode);
 				break;
+                        case 9:
+                                set(_colsel);
+                                break;
+                        case 0xa:
+                                set(_status);
+                                break;
 			}
 		}
     }
@@ -79,5 +94,8 @@ private:
     int _cycle;
 	UInt8 _mode;
 	UInt8 _crtcindex;
+    UInt8 _crtcdata[0x10];
+    UInt8 _colsel;
+    UInt8 _status;
     Array<UInt8> _data;
 };
