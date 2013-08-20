@@ -14,8 +14,8 @@ public:
             _crtc.ma &= 0x1fff;
             _crtc.ra &= 0x7;
             _chr = _data[_crtc.ma << 1];
-            _attr = data[(_crtc.ma << 1) + 1];
-            _chrdata = _romdata[(0x1800 | _crtc.ra) + (chr << 3)];
+            _attr = _data[(_crtc.ma << 1) + 1];
+            _chrdata = _romdata[(0x1800 | _crtc.ra) + (_chr << 3)];
         }
         if(_wait != 0)
         {
@@ -112,16 +112,15 @@ public:
         }
         else return 0xff;
     }
-    Rational<int> hDotsPerCycle() { return 1; 
+    Rational<int> hDotsPerCycle() { return 1; }
     void initialize(const ROMData& romData, const File& configFile)
     {
-        _start = romData.start();
-        String data = File(romData.file(), configFile.parent(), true). contents();
+        String data = File(romData.file(), configFile.parent(), true).contents();
         int length = 0x2000;
-        _data.allocate(length);
+        _romdata.allocate(length);
         int offset = romData.offset();
         for (int i = 0; i < length; ++i)
-        _data[i] = data[i + offset];
+        _romdata[i] = data[i + offset];
     }
     Array<UInt8> _romdata;
 private:
