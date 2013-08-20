@@ -34,7 +34,7 @@ public:
         _memoryActive = ((address & 0x400f8000) == 0xb8000);
         _memoryAddress = address & 0x00003fff;
         _portActive = ((address & 0x400003f0) == 0x400003d0);
-		_portAddress = address & 0x0000000f;
+        _portAddress = address & 0x0000000f;
         _active = (_memoryActive || _portActive);
     }
     void read()
@@ -44,33 +44,33 @@ public:
             _wait = 8 + (16 - _cycle);
             set(_data[_memoryAddress]);
         }
-		if(_portActive)
-		{
-			switch(_portAddress)
-			{
-			case 0:
-			case 2:
-			case 4:
-			case 6:
-				set(_crtcindex);
-				break;
-                        case 1:
-                        case 3:
-                        case 5:
-                        case 7:
-                                set(_crtc._crtcdata[_crtcindex]);
-                                break; 
-			case 8:
-				set(_mode);
-				break;
-                        case 9:
-                                set(_colsel);
-                                break;
-                        case 0xa:
-                                set(_status);
-                                break;
-			}
-		}
+        if(_portActive)
+        {
+            switch(_portAddress)
+            {
+            case 0:
+            case 2:
+            case 4:
+            case 6:
+                set(_crtcindex);
+                break;
+            case 1:
+            case 3:
+            case 5:
+            case 7:
+                set(_crtc._crtcdata[_crtcindex]);
+                break; 
+            case 8:
+                set(_mode);
+                break;
+            case 9:
+                set(_colsel);
+                break;
+            case 0xa:
+                set(_status);
+                break;
+            }
+        }
     }
     void write(UInt8 data)
     {
@@ -79,30 +79,30 @@ public:
             _wait = 8 + (16 - _cycle);
             _data[_memoryAddress] = data;
         }
-		if(_portActive)
-		{
-			switch(_portAddress)
-			{
-			case 0:
-			case 2:
-			case 4:
-			case 6:
-				_crtcindex = data;
-				break;
-                        case 1:
-                        case 3:
-                        case 5:
-                        case 7:
-                                _crtc._crtcdata[_crtcindex] = data;
-                                break;   
-			case 8:
-				_mode = data;
-				break;
-			case 9:
-			        _colsel = data;
-			        break; 
-			}
-		}
+        if(_portActive)
+        {
+            switch(_portAddress)
+            {
+            case 0:
+            case 2:
+            case 4:
+            case 6:
+                _crtcindex = data;
+                break;
+            case 1:
+            case 3:
+            case 5:
+            case 7:
+                _crtc._crtcdata[_crtcindex] = data;
+                break;   
+            case 8:
+                _mode = data;
+                break;
+            case 9:
+                _colsel = data;
+                break; 
+            }
+        }
     }
     UInt8 memory(UInt32 address)
     {
@@ -113,14 +113,13 @@ public:
         else return 0xff;
     }
     Rational<int> hDotsPerCycle() { return 1; }
-    void initialize(const ROMData& romData, const File& configFile)
+    void initialize(String fileName, const File& configFile)
     {
-        String data = File(romData.file(), configFile.parent(), true).contents();
+        String data = File(fileName, configFile.parent(), true).contents();
         int length = 0x2000;
         _romdata.allocate(length);
-        int offset = romData.offset();
         for (int i = 0; i < length; ++i)
-        _romdata[i] = data[i + offset];
+            _romdata[i] = data[i];
     }
     Array<UInt8> _romdata;
 private:
@@ -133,8 +132,8 @@ private:
     bool _portActive;
     int _wait;
     int _cycle;
-	UInt8 _mode;
-	UInt8 _crtcindex;
+    UInt8 _mode;
+    UInt8 _crtcindex;
     UInt8 _colsel;
     UInt8 _status;
     UInt8 _r;

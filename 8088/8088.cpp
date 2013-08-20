@@ -8,6 +8,8 @@
 #include "alfe/config_file.h"
 #include "alfe/type.h"
 #include "alfe/rational.h"
+#include "alfe/pipes.h"
+#include "SDL.h"
 
 #include <stdlib.h>
 #include <limits.h>
@@ -3061,10 +3063,10 @@ public:
         ROMDataType romDataType;
         Type romImageArrayType = Type::array(romDataType);
         config.addOption("roms", romImageArrayType);
-        config.addOption("cgarom",romDataType);
-        config.addOption("stopAtCycle", Type::integer, -1);
-        config.addOption("stopSaveState", Type::string, String(""));
-        config.addOption("initialState", Type::string, String(""));
+        config.addDefaultOption("cgarom", Type::string, String(""));
+        config.addDefaultOption("stopAtCycle", Type::integer, -1);
+        config.addDefaultOption("stopSaveState", Type::string, String(""));
+        config.addDefaultOption("initialState", Type::string, String(""));
 
         config.load(configFile);
 
@@ -3090,9 +3092,7 @@ public:
             ++r;
         }
         
-        TypedValue cgaRom = config.get<TypedValue>("cgarom");
-        ROMData cgaRomData = cgaRom.value<ROMData>();
-        _cga.initialize(cgaRomData, configFile);
+        _cga.initialize(config.get<String>("cgarom"), configFile);
         
         String stopSaveState = config.get<String>("stopSaveState");
 
@@ -3100,7 +3100,7 @@ public:
         TypedValue stateValue;
         if (!initialStateFile.empty()) {
             ConfigFile initialState;
-            initialState.addOption("simulator", type(), initial());
+            initialState.addDefaultOption("simulator", type(), initial());
             initialState.load(initialStateFile);
             stateValue = initialState.get("simulator");
         }
@@ -3212,17 +3212,198 @@ private:
     String _stopSaveState;
 };
 
+// This is the exception that we throw if any DirectX methods fail.
+class SDLException : public Exception
+{
+public:
+    SDLException(String message)
+      : Exception(message + ": " + SDL_GetError()) { }
+};
+
+#define IF_ZERO_THROW_SDL(expr, msg) \
+    IF_TRUE_THROW((expr) == 0, SDLException(msg))
+#define IF_NONZERO_THROW_SDL(expr, msg) \
+    IF_TRUE_THROW((expr) != 0, SDLException(msg))
+
+class SDL
+{
+public:
+    SDL(UInt32 flags = 0)
+    {
+        IF_NONZERO_THROW_SDL(SDL_Init(flags), "Initializing SDL");
+    }
+    ~SDL() { SDL_Quit(); }
+};
+
+class SDLWindow
+{
+public:
+    SDLWindow()
+    {
+        _window = SDL_CreateWindow("CGA Digital monitor",
+            SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 912, 262, 0);
+        IF_ZERO_THROW_SDL(_window, "Creating SDL window");
+    }
+    ~SDLWindow() { SDL_DestroyWindow(_window); }
+    SDL_Window* _window;
+};
+
+template<class T> class SDLTextureTemplate;
+typedef SDLTextureTemplate<void> SDLTexture;
+
+template<class T> class SDLRendererTemplate
+{
+public:
+    SDLRendererTemplate(SDLWindow* window)
+    {
+        _renderer = SDL_CreateRenderer(window->_window, -1, 0);
+        IF_ZERO_THROW_SDL(_renderer, "Creating SDL renderer");
+    }
+    ~SDLRendererTemplate() { SDL_DestroyRenderer(_renderer); }
+    void renderTexture(SDLTexture* texture)
+    {
+        // IF_NONZERO_THROW_SDL(SDL_RenderClear(_renderer));
+        IF_NONZERO_THROW_SDL(
+            SDL_RenderCopy(_renderer, texture->_texture, NULL, NULL));
+        SDL_RenderPresent(_renderer);   
+    }
+    SDL_Renderer* _renderer;
+};
+
+typedef SDLRendererTemplate<void> SDLRenderer;
+
+template<class T> class SDLTextureTemplate
+{
+public:
+    SDLTextureTemplate(SDLRenderer* renderer)
+    {
+        _texture = SDL_CreateTexture(renderer->_renderer,
+            SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 912, 262);
+        IF_ZERO_THROW_SDL(_texture, "Creating SDL texture");
+    }
+    ~SDLTextureTemplate() { SDL_DestroyTexture(_texture); }
+    void unlock() { SDL_UnlockTexture(_texture); }
+    SDL_Texture* _texture;
+};
+
+class SDLTextureLock
+{
+public:
+    SDLTextureLock(SDLTexture* texture) : _texture(texture)
+    {
+        IF_NONZERO_THROW_SDL(
+            SDL_LockTexture(_texture->_texture, NULL, &_pixels, &_pitch),
+            "Locking SDL texture");
+    }
+    ~SDLTextureLock() { _texture->unlock(); }
+    SDLTexture* _texture;
+    void* _pixels;
+    int _pitch;
+};
+
+typedef UInt8 BGRI;
+
+class RGBIMonitor : public Sink<BGRI>
+{
+public:
+    RGBIMonitor() : _renderer(&_window), _texture(&_renderer)
+    {
+        _palette.allocate(64);
+        _palette[0x0] = 0xff000000;
+        _palette[0x1] = 0xff0000aa;
+        _palette[0x2] = 0xff00aa00;
+        _palette[0x3] = 0xff00aaaa;
+        _palette[0x4] = 0xffaa0000;
+        _palette[0x5] = 0xffaa00aa;
+        _palette[0x6] = 0xffaa5500;
+        _palette[0x7] = 0xffaaaaaa;
+        _palette[0x8] = 0xff555555;
+        _palette[0x9] = 0xff5555ff;
+        _palette[0xa] = 0xff55ff55;
+        _palette[0xb] = 0xff55ffff;
+        _palette[0xc] = 0xffff5555;
+        _palette[0xd] = 0xffff55ff;
+        _palette[0xe] = 0xffffff55;
+        _palette[0xf] = 0xffffffff;
+
+        // Create some special colours for visualizing sync pulses.
+        for (int i = 0; i < 16; ++i) {
+            _palette[i + 16] = 0xff002200; // hsync
+            _palette[i + 32] = 0xff220022; // vsync
+            _palette[i + 48] = 0xff222222; // hsync+vsync
+        }
+    }
+
+    // We ignore the suggested number of samples and just read a whole frame's
+    // worth once there is enough for a frame.
+    void consume(int nSuggested)
+    {
+        // Since the pumping is currently done by Simulator::simulate(), don't
+        // try to pull more data from the CGA than we have.
+        if (remaining() < 912*262 + 1)
+            return;
+
+        // We have enough data for a frame - update the screen.
+        Accessor<BGRI> reader = Sink::reader(912*262 + 1);
+        SDLTextureLock _lock(&_texture);
+        int y = 0;
+        int x = 0;
+        bool hSync = false;
+        bool vSync = false;
+        bool oldHSync = false;
+        bool oldVSync = false;
+        int n = 0;
+        UInt8* row = reinterpret_cast<UInt8*>(_lock._pixels);
+        int pitch = _lock._pitch;
+        UInt32* output = reinterpret_cast<UInt32*>(row);
+        do {
+            BGRI p = reader.item();
+            hSync = ((p & 0x10) != 0);
+            vSync = ((p & 0x20) != 0);
+            if (x == 912 || (oldHSync && !hSync)) {
+                x = 0;
+                ++y;
+                row += pitch;
+                output = reinterpret_cast<UInt32*>(row);
+            }
+            if (y == 262 || (oldVSync && !vSync))
+                break;
+            oldHSync = hSync;
+            oldVSync = vSync;
+            *output = _palette[p];
+            ++output;
+            ++n;
+            reader.advance(1);
+        } while (true);
+        read(n);
+    }
+    
+private:
+    SDLWindow _window;
+    SDLRenderer _renderer;
+    SDLTexture _texture;
+    Array<UInt32> _palette;
+};
+
 class Program : public ProgramBase
 {
 protected:
     void run()
     {
+        // We should remove SDL_INIT_NOPARACHUTE when building for Linux if we
+        // go fullscreen, otherwise the desktop resolution would not be
+        // restored on a crash. Otherwise it's a bad idea since if the program
+        // crashes all invariants are destroyed and any further execution could
+        // cause data loss.
+        SDL sdl(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
+
         if (_arguments.count() < 2) {
             console.write("Syntax: " + _arguments[0] +
                 " <config file name>\n");
             return;
         }
 
+        RGBIMonitor monitor;
         Simulator simulator(File(_arguments[1], CurrentDirectory(), true));
 
         //File file(config.get<String>("sourceFile"));

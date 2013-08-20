@@ -36,12 +36,12 @@ public:
     {
         _options.add(name, TypedValue(type));
     }
-    template<class T> void addOption(String name, Type type,
+    template<class T> void addDefaultOption(String name, Type type,
         const T& defaultValue)
     {
         _options.add(name, TypedValue(type, Any(defaultValue)));
     }
-    template<class T> void addOption(String name, const T& defaultValue)
+    template<class T> void addDefaultOption(String name, const T& defaultValue)
     {
         _options.add(name, TypedValue(defaultValue));
     }
