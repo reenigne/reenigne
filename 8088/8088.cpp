@@ -189,7 +189,7 @@ private:
 
 #include "mc6845.h"
 
-#include "cga.h"
+
 
 template<class T> class RAM640KbTemplate : public ISA8BitComponent
 {
@@ -3049,6 +3049,8 @@ private:
 Reference<ROMDataType::Implementation> ROMDataType::_implementation;
 StructuredType ROMDataType::Implementation::_structuredType;
 
+#include "cga.h"
+
 template<class T> class SimulatorTemplate : public Component
 {
 public:
@@ -3090,7 +3092,7 @@ public:
         
         TypedValue cgaRom = config.get<TypedValue>("cgarom");
         ROMData cgaRomData = cgaRom.value<ROMData>();
-        cga.initialize(cgaRomData, configFile);
+        _cga.initialize(cgaRomData, configFile);
         
         String stopSaveState = config.get<String>("stopSaveState");
 
@@ -3199,7 +3201,7 @@ private:
     RAM640Kb _ram;
     NMISwitch _nmiSwitch;
     DMAPageRegisters _dmaPageRegisters;
-    IBMCGA cga;
+    IBMCGA _cga;
     Intel8253PIT _pit;
     Intel8237DMA _dma;
     Intel8255PPI _ppi;

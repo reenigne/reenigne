@@ -1,4 +1,4 @@
-class Motorola6845CRTC : public Component;
+class Motorola6845CRTC : public Component
 {
 public:
     Motorola6845CRTC() : _xcounter(0), _ycounter(0), ma(0), ra(0)
@@ -40,4 +40,4 @@ public:
     unsigned int _xcounter;
     UInt8 _charwidth;
     UInt8 _crtcdata[0x10];
-}
+};
