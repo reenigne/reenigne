@@ -9,7 +9,7 @@
 #include "alfe/type.h"
 #include "alfe/rational.h"
 #include "alfe/pipes.h"
-#include "SDL.h"
+#include "SDL/SDL.h"
 
 #include <stdlib.h>
 #include <limits.h>
@@ -3192,6 +3192,7 @@ public:
         for (auto i = _components.begin(); i != _components.end(); ++i)
             (*i)->load((*object)[(*i)->name()]);
     }
+    IBMCGA _cga;
 private:
     List<Component*> _components;
     bool _halted;
@@ -3201,7 +3202,6 @@ private:
     RAM640Kb _ram;
     NMISwitch _nmiSwitch;
     DMAPageRegisters _dmaPageRegisters;
-    IBMCGA _cga;
     Intel8253PIT _pit;
     Intel8237DMA _dma;
     Intel8255PPI _ppi;
@@ -3405,6 +3405,7 @@ protected:
 
         RGBIMonitor monitor;
         Simulator simulator(File(_arguments[1], CurrentDirectory(), true));
+        monitor.connect(simulator._cga);
 
         //File file(config.get<String>("sourceFile"));
         //String contents = file.contents();
