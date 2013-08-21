@@ -1,6 +1,10 @@
 class IBMCGA : public ISA8BitComponent, public Source<BGRI>
 {
 public:
+    IBMCGA()
+    {
+        _data.allocate(0x4000);
+    }
     void simulateCycle()
     {
         ++_cycle;
@@ -16,6 +20,7 @@ public:
             _chr = _data[_crtc.ma << 1];
             _attr = _data[(_crtc.ma << 1) + 1];
             _chrdata = _romdata[(0x1800 | _crtc.ra) + (_chr << 3)];
+            _status = _crtc._displayenable | ((_crtc._ycounter > _crtc._crtcdata[6]) ? 8 : 0);
         }
         if(_wait != 0)
         {
@@ -29,10 +34,10 @@ public:
             UInt8 tmp = _chrdata & (1 << (_cycle & 7));
             if(tmp)
             {
-                _r = 3;
-                _g = 3;
-                _b = 3;
-                _i = 3;
+                _r = 1;
+                _g = 1;
+                _b = 1;
+                _i = 1;
             }
             else
             {
@@ -41,12 +46,13 @@ public:
                 _b = 0;
                 _i = 0;
             }
+            produce(1);
         }
     }
     void produce(int n)
     {
         Accessor<BGRI> acc = writer(n);
-        acc.item() = _i | (_r << 2) | (_g << 4) | (_b << 6);
+        acc.item() = _b | (_g << 1) | (_r << 2) | (_i << 3) | ((_crtc._xcounter > _crtc._crtcdata[1]) ? 0x10 : 0) | ((_crtc._ycounter > _crtc._crtcdata[6]) ? 0x20 : 0);
         written(1);
     }
     void setAddress(UInt32 address)
