@@ -1,4 +1,4 @@
-class IBMCGA : public ISA8BitComponent
+class IBMCGA : public ISA8BitComponent, public Source<BGRI>
 {
 public:
     void simulateCycle()
@@ -26,8 +26,28 @@ public:
         }
         else
         {
-            
+            UInt8 tmp = _chrdata & (1 << (_cycle & 7));
+            if(tmp)
+            {
+                _r = 3;
+                _g = 3;
+                _b = 3;
+                _i = 3;
+            }
+            else
+            {
+                _r = 0;
+                _g = 0;
+                _b = 0;
+                _i = 0;
+            }
         }
+    }
+    void produce(int n)
+    {
+        Accessor<BGRI> acc = writer(n);
+        acc.item() = _i | (_r << 2) | (_g << 4) | (_b << 6);
+        written(1);
     }
     void setAddress(UInt32 address)
     {
