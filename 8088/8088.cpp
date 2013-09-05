@@ -3378,6 +3378,7 @@ public:
             *output = _palette[p];
             ++output;
             ++n;
+            ++x;
             reader.advance(1);
         } while (true);
         read(n);
