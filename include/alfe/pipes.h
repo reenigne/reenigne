@@ -304,7 +304,7 @@ private:
 template<class T> class Source : public EndPoint<T>
 {
 public:
-    Source()
+    Source() : _pulling(false)
     {
         this->_position = 0;
         this->_size = 1;

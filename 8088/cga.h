@@ -138,7 +138,7 @@ public:
         }
         else return 0xff;
     }
-    Rational<int> hDotsPerCycle() { return 1; }
+    Rational<int> hDotsPerCycle() const { return 1; }
     void initialize(String fileName, const File& configFile)
     {
         String data = File(fileName, configFile.parent(), true).contents();
