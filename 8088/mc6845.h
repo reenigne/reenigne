@@ -10,6 +10,7 @@ public:
       ma &= 0x3fff;
       _xcounter++;
       if(_xcounter >= _crtcdata[1] || _ycounter >= _crtcdata[6]) _displayenable = false;
+      else _displayenable = true;
       if(_xcounter >= _crtcdata[2] && _xcounter < (_crtcdata[2] + _crtcdata[3])) _hsync = true;
       else _hsync = false;
       if(_xcounter == (_crtcdata[0] - 1))

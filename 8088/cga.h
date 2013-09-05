@@ -12,7 +12,7 @@ public:
         {
             _cycle = 0;
         }
-        if(_cycle == 0 || (_cycle == 8 && !(_mode & 1)))
+        if(_cycle == 0 || (_cycle == 8 && (_mode & 1) != 0))
         {
             _crtc.simulateCycle();
             _crtc.ma &= 0x1fff;
@@ -20,7 +20,7 @@ public:
             _chr = _data[_crtc.ma << 1];
             _attr = _data[(_crtc.ma << 1) + 1];
             _chrdata = _romdata[(0x1800 | _crtc.ra) + (_chr << 3)];
-            _status = _crtc._displayenable | ((_crtc._ycounter > _crtc._crtcdata[6]) ? 8 : 0);
+            _status = !_crtc._displayenable | ((_crtc._ycounter > _crtc._crtcdata[6]) ? 8 : 0);
         }
         if(_wait != 0)
         {
