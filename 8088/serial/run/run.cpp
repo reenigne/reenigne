@@ -70,7 +70,7 @@ public:
         //Sleep(3000);
 
         _com = AutoHandle(CreateFile(
-            L"COM1",
+            L"COM7",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
             NULL,           // default security attributes

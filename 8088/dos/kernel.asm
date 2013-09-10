@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20130123-com1-115200',0
+  db '20130906-com1-57600f',0
 
 codeStart:
   ; Don't want any stray interrupts interfering with the serial port accesses.
@@ -177,11 +177,14 @@ packetLoop:
 
   ; Receive packet size in bytes
   receiveByte
+
   mov cl,al
   mov ch,0
 
   ; Push a copy to check when we're done and adjust DI for retries
   push cx
+
+;  call printCharNoSerial
 
   ; Init checksum
   mov ah,0
@@ -300,6 +303,11 @@ printCharNoScreen:
   ret
 
 
+printCharNoSerial:
+  push dx
+  jmp printCharCommon
+
+
 printChar:
   push dx
 
@@ -307,6 +315,7 @@ printChar:
   mov dx,0x3f8 + 5
   sendByte
 
+printCharCommon:
   cmp word[cs:screenCounter],0
   jne .complete
 

@@ -221,8 +221,8 @@ cpu 8086
   out dx,al   ; Set baud rate divisor high = 0x00
 
   dec dx      ; 0
-  mov al,0x01 ; (0x02 = 57600 baud)
-  out dx,al   ; Set baud rate divisor low  = 0x01 = 115200 baud
+  mov al,0x02 ; (0x01 = 115200 baud, 0x02 = 57600 baud, 0x0c = 9600)
+  out dx,al   ; Set baud rate divisor low
 
   add dx,3    ; 3
   ; Line Control Register LCR                                03

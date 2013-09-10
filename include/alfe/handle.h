@@ -79,6 +79,7 @@ public:
         int length = read<int>();
         String data(length);
         read(data.writableData(), length);
+        data.setLength(length);
         return data;
     }
     // Read a string from the file. The end of the line (any line ending) or

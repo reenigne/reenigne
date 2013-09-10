@@ -641,6 +641,7 @@ private:
     }
 
     ::Byte* writableData() { return _buffer.data() + _start; }
+    void setLength(int length) { _length= length; }
 
     Buffer _buffer;
     int _start;

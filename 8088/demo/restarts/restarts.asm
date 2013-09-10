@@ -1,4 +1,5 @@
-  %include "../defaults_com.asm"
+;  %include "../defaults_com.asm"
+  %include "../../defaults_bin.asm"
 
 %macro setNextStartAddress 0
     mov bl,ch                      ; 2 0 2
@@ -26,6 +27,10 @@
   mov si,imageData
   cld
   rep movsw
+
+ ; mov dx,0x3d9
+;  mov al,1
+;  out dx,al
 
   ; Mode                                                08
   ;      1 +HRES                                         0
@@ -118,6 +123,11 @@
   out dx,ax
 
 
+;  mov dx,0x3d9
+;  mov al,2
+;  out dx,al
+
+
 ; Lines 0..197 = 99x 2-row screens
 ; Line 198 = line  0 of 63-row screen (visible)
 ; Line 199 = line  1 of 63-row screen (visible)
@@ -131,13 +141,18 @@
   mov di,0  ; Frame number
 
 frameLoop:
-    ; Uncomment for animation
-    mov si,0x200
-    mov cx,0
+    ; Uncomment for no animation
+;    mov si,0x200
+;    mov cx,0
 
   ; We now have over 62 rows (3.9ms) to do per-frame changes.
   waitForVerticalSync
   waitForNoVerticalSync
+
+;  dec dx
+;  mov al,3
+;  out dx,al
+;  inc dx
 
   ; During line 0-1 we set up the start address for line 2 and change the vertical total to 0x01
   waitForDisplayEnable
@@ -176,6 +191,11 @@ frameLoop:
   setNextStartAddress
   mov dl,0xda
   waitForDisplayDisable
+
+;  dec dx
+;  mov al,4
+;  out dx,al
+;  inc dx
 
   inc si
   mov ax,si
