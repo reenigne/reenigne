@@ -45,38 +45,38 @@ public:
         _memoryAddress = address & 0x00003fff;
         _portActive = ((address & 0x400003f0) == 0x400003d0);
         _portAddress = address & 0x0000000f;
-        _active = (_memoryActive || _portActive);
+        this->_active = (_memoryActive || _portActive);
     }
     void read()
     {
         if (_memoryActive && _wait == 0) {
             _wait = 8 + (16 - _cycle);
-            set(_data[_memoryAddress]);
+            this->set(_data[_memoryAddress]);
             return;
         }
         if (!_portActive)
             return;
         if ((_portAddress & 8) == 0) {
-            set(_crtc.read((_portAddress & 1) != 0));
+            this->set(_crtc.read((_portAddress & 1) != 0));
             return;
         }
         switch (_portAddress & 7) {
             case 2: 
-                set((_crtc.displayEnable() ? 0 : 1) |
+                this->set((_crtc.displayEnable() ? 0 : 1) |
                     (_lightPenStrobe ? 2 : 0) |
                     (_lightPenSwitch ? 4 : 0) |
                     (_crtc.verticalSync() ? 8 : 0) | 0xf0);
                 break;
             case 3:
                 _lightPenStrobe = false;
-                set(0xff);
+                this->set(0xff);
                 break;
             case 4:
                 activateLightPen();
-                set(0xff);
+                this->set(0xff);
                 break;
             default:
-                set(0xff);
+                this->set(0xff);
                 break;
         }
     }
@@ -117,7 +117,7 @@ public:
     Rational<int> hDotsPerCycle() const { return 1; }
     void initialize()
     {
-        ConfigFile* config = _simulator->config();
+        ConfigFile* config = this->_simulator->config();
         String data = File(config->get<String>("cgarom"),
             config->file().parent(), true).contents();
         int length = 0x2000;
