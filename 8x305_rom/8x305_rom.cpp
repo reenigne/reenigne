@@ -26,8 +26,8 @@ class Program : public ProgramBase
 public:
     void run()
     {
-        String in1 = File("rom1.txt").contents();
-        String in2 = File("rom3.txt").contents();
+        String in1 = File("q:\\external\\8x305_rom\\rom1.txt", true).contents();
+        String in2 = File("q:\\external\\8x305_rom\\rom3.txt", true).contents();
         Array<Byte> out(2048*2);
         CharacterSource i1s(in1);
         CharacterSource i2s(in2);
@@ -37,6 +37,6 @@ public:
             out[y*2] = r;
             out[y*2 + 1] = r >> 8;
         }
-        File("rom.dat").save(&out[0], 4096);
+        File("q:\\external\\8x305_rom\\rom.dat", true).save(&out[0], 4096);
     }
 };

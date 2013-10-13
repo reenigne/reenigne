@@ -48,6 +48,7 @@ public:
 
     void load(File file)
     {
+        _file = file;
         String contents = file.contents();
         CharacterSource source(contents, file.path());
         Space::parse(&source);
@@ -81,6 +82,7 @@ public:
     }
     template<class T> T get(String name) { return get(name).value<T>(); }
     TypedValue get(String name) { return _options[name]; }
+    File file() const { return _file; }
 private:
     class Identifier
     {
@@ -608,6 +610,7 @@ private:
     HashTable<String, TypedValue> _enumeratedValues;
     HashTable<String, Type> _types;
     Set<Type> _typeSet;
+    File _file;
 };
 
 #endif // INCLUDED_CONFIG_FILE_H

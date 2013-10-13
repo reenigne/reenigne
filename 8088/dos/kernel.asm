@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20130906-com1-57600f',0
+  db '20130921-com1-115200f',0
 
 codeStart:
   ; Don't want any stray interrupts interfering with the serial port accesses.

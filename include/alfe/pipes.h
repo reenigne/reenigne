@@ -246,7 +246,7 @@ template<class T> class Source;
 template<class T> class Sink : public EndPoint<T>
 {
 public:
-    Sink(int n = defaultSampleCount) : _n(n), _finite(false) { }
+    Sink(int n = defaultSampleCount) : _n(n), _finite(false), _source(0) { }
     void connect(Source<T>* source)
     {
         if (_source == source)
@@ -260,6 +260,7 @@ public:
             (source->_position + this->_size - this->_count) & this->_mask;
         source->connect(this);
     }
+    bool connected() const { return _source != 0; }
     virtual void consume(int n) = 0;
     Accessor<T> reader(int n)
     {
@@ -304,7 +305,7 @@ private:
 template<class T> class Source : public EndPoint<T>
 {
 public:
-    Source() : _pulling(false)
+    Source() : _pulling(false), _sink(0)
     {
         this->_position = 0;
         this->_size = 1;
@@ -320,6 +321,7 @@ public:
         _sink = sink;
         sink->connect(this);
     }
+    bool connected() const { return _sink != 0; }
     virtual void produce(int n) = 0;
     Accessor<T> writer(int n)
     {

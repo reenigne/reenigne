@@ -1,46 +1,41 @@
-class IBMCGA : public ISA8BitComponent, public Source<BGRI>
+class IBMCGA : public ISA8BitComponent
 {
 public:
-    IBMCGA()
+    IBMCGA() : _attr(0), _chrdata(0), _memoryAddress(0), _memoryActive(false),
+        _portAddress(0), _portActive(false), _wait(0), _cycle(0), _mode(0),
+        _colsel(0), _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true)
     {
         _data.allocate(0x4000);
     }
+    void site()
+    {
+        _simulator->config()->
+            addDefaultOption("cgarom", Type::string, String(""));
+    }
     void simulateCycle()
     {
-        ++_cycle;
-        if(_cycle == 16)
-        {
-            _cycle = 0;
-        }
-        if(_cycle == 0 || (_cycle == 8 && (_mode & 1) != 0))
-        {
+        _cycle = (_cycle + 1) & 15;
+        if (_cycle == 0 || (_cycle == 8 && (_mode & 1) != 0)) {
             _crtc.simulateCycle();
-            _crtc.ma &= 0x1fff;
-            _crtc.ra &= 0x7;
-            _chr = _data[_crtc.ma << 1];
-            _attr = _data[(_crtc.ma << 1) + 1];
-            _chrdata = _romdata[(0x1800 | _crtc.ra) + (_chr << 3)];
-            _status = !_crtc._displayenable | ((_crtc._ycounter > _crtc._crtcdata[6]) ? 8 : 0);
+
+            int ma = (_crtc.memoryAddress() & 0x1fff) << 1;
+            UInt8 ch = _data[ma];
+            _attr = _data[ma + 1];
+            _chrdata = _romdata[0x1800 + (ch << 3) + (_crtc.rowAddress() & 7)];
         }
-        if(_wait != 0)
-        {
-            _wait--;
+        if (_wait != 0)
+            --_wait;
+        if ((_mode & 2) != 0) {
         }
-        if(_mode & 2)
-        {
-        }
-        else
-        {
+        else {
             UInt8 tmp = _chrdata & (1 << (_cycle & 7));
-            if(tmp)
-            {
+            if(tmp) {
                 _r = 1;
                 _g = 1;
                 _b = 1;
                 _i = 1;
             }
-            else
-            {
+            else {
                 _r = 0;
                 _g = 0;
                 _b = 0;
@@ -48,12 +43,6 @@ public:
             }
             produce(1);
         }
-    }
-    void produce(int n)
-    {
-        Accessor<BGRI> acc = writer(n);
-        acc.item() = _b | (_g << 1) | (_r << 2) | (_i << 3) | ((_crtc._xcounter > _crtc._crtcdata[1]) ? 0x10 : 0) | ((_crtc._ycounter > _crtc._crtcdata[6]) ? 0x20 : 0);
-        written(1);
     }
     void setAddress(UInt32 address)
     {
@@ -65,91 +54,107 @@ public:
     }
     void read()
     {
-        if (_memoryActive && _wait == 0)
-        {
+        if (_memoryActive && _wait == 0) {
             _wait = 8 + (16 - _cycle);
             set(_data[_memoryAddress]);
+            return;
         }
-        if(_portActive)
-        {
-            switch(_portAddress)
-            {
-            case 0:
-            case 2:
-            case 4:
-            case 6:
-                set(_crtcindex);
+        if (!_portActive)
+            return;
+        if ((_portAddress & 8) == 0) {
+            set(_crtc.read((_portAddress & 1) != 0));
+            return;
+        }
+        switch (_portAddress & 7) {
+            case 2: 
+                set((_crtc.displayEnable() ? 0 : 1) |
+                    (_lightPenStrobe ? 2 : 0) |
+                    (_lightPenSwitch ? 4 : 0) |
+                    (_crtc.verticalSync() ? 8 : 0) | 0xf0);
                 break;
-            case 1:
             case 3:
-            case 5:
-            case 7:
-                set(_crtc._crtcdata[_crtcindex]);
-                break; 
-            case 8:
-                set(_mode);
+                _lightPenStrobe = false;
+                set(0xff);
                 break;
-            case 9:
-                set(_colsel);
+            case 4:
+                activateLightPen();
+                set(0xff);
                 break;
-            case 0xa:
-                set(_status);
+            default:
+                set(0xff);
                 break;
-            }
         }
     }
     void write(UInt8 data)
     {
-        if (_memoryActive && _wait == 0)
-        {
+        if (_memoryActive && _wait == 0) {
             _wait = 8 + (16 - _cycle);
             _data[_memoryAddress] = data;
         }
-        if(_portActive)
-        {
-            switch(_portAddress)
-            {
+        if (!_portActive)
+            return;
+        if ((_portAddress & 8) == 0) {
+            _crtc.write((_portAddress & 1) != 0, data);
+            return;
+        }
+        switch (_portAddress & 7) {
             case 0:
-            case 2:
-            case 4:
-            case 6:
-                _crtcindex = data;
-                break;
-            case 1:
-            case 3:
-            case 5:
-            case 7:
-                _crtc._crtcdata[_crtcindex] = data;
-                break;   
-            case 8:
                 _mode = data;
                 break;
-            case 9:
+            case 1:
                 _colsel = data;
-                break; 
-            }
+                break;
+            case 3:
+                _lightPenStrobe = false;
+                break;
+            case 4:
+                activateLightPen();
+                break;
         }
     }
     UInt8 memory(UInt32 address)
     {
         if ((address & 0xf8000) == 0xb8000)
-        {
             return _data[address & 0x3fff];
-        }
-        else return 0xff;
+        else
+            return 0xff;
     }
     Rational<int> hDotsPerCycle() const { return 1; }
-    void initialize(String fileName, const File& configFile)
+    void initialize()
     {
-        String data = File(fileName, configFile.parent(), true).contents();
+        ConfigFile* config = _simulator->config();
+        String data = File(config->get<String>("cgarom"),
+            config->file().parent(), true).contents();
         int length = 0x2000;
         _romdata.allocate(length);
         for (int i = 0; i < length; ++i)
             _romdata[i] = data[i];
     }
-    Array<UInt8> _romdata;
+    class BGRISource : public Source<BGRI>
+    {
+    public:
+        void produce(int n)
+        {
+            Accessor<BGRI> acc = writer(n);
+            acc.item() = _bgri |
+                (_crtc.horizontalSync() ? 0x10 : 0) |
+                (_crtc.verticalSync() ? 0x20 : 0);
+            written(1);
+        }
+
+    };
+    class CompositeSource : public Source<UInt8> { void produce(int n) { } };
+    BGRISource* bgriSource() { return &_bgriSource; }
+    CompositeSource* compositeSource() { return &_compositeSource; }
 private:
-    UInt8 _chr;
+    void activateLightPen()
+    {
+        if (!_lightPenStrobe)
+            _crtc.activateLightPen();
+        _lightPenStrobe = true;
+    }
+
+    Array<UInt8> _romdata;
     UInt8 _attr;
     UInt8 _chrdata;
     int _memoryAddress;
@@ -159,13 +164,12 @@ private:
     int _wait;
     int _cycle;
     UInt8 _mode;
-    UInt8 _crtcindex;
     UInt8 _colsel;
-    UInt8 _status;
-    UInt8 _r;
-    UInt8 _g;
-    UInt8 _b;
-    UInt8 _i;
-    Array<UInt8> _data;    
+    UInt8 _bgri;
+    Array<UInt8> _data;
     Motorola6845CRTC _crtc;
+    bool _lightPenStrobe;
+    bool _lightPenSwitch;
+    BGRISource _bgriSource;
+    CompositeSource _compositeSource;
 };

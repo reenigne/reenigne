@@ -9,11 +9,7 @@
 #include "alfe/type.h"
 #include "alfe/rational.h"
 #include "alfe/pipes.h"
-#ifdef _WIN32
-#include "SDL.h"
-#else
-#include "SDL2/SDL.h"
-#endif
+#include "alfe/sdl.h"
 
 #include <stdlib.h>
 #include <limits.h>
@@ -54,7 +50,7 @@ public:
     virtual String name() const { return String(); }
     virtual void load(const TypedValue& value) { }
     virtual TypedValue initial() const
-    { 
+    {
         // Default initial value is the result of converting the empty
         // structured type to the component type.
         return TypedValue(StructuredType(String(),
@@ -70,7 +66,7 @@ public:
     }
     virtual Rational<int> hDotsPerCycle() const { return 0; }
     void setTicksPerCycle(int ticksPerCycle)
-    { 
+    {
         _ticksPerCycle = ticksPerCycle;
         _tick = 0;
     }
@@ -83,10 +79,11 @@ public:
         }
     }
 protected:
+    int _tick;
+
     SimulatorTemplate<T>* _simulator;
 private:
     int _ticksPerCycle;
-    int _tick;
 };
 
 template<class T> class ISA8BitBusTemplate;
@@ -176,12 +173,23 @@ public:
     void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }
     String save() const
     {
-        return String("nmiSwitch: ") + String::Boolean(_nmiOn) + "\n";
+        return String("nmiSwitch: { on: ") + String::Boolean(_nmiOn) +
+            ", active: " + String::Boolean(_active) + " }\n";
     }
-    Type type() const { return Type::boolean; }
-    void load(const TypedValue& value) { _nmiOn = value.value<bool>(); }
+    Type type() const
+    {
+        List<StructuredType::Member> members;
+        members.add(StructuredType::Member("on", false));
+        members.add(StructuredType::Member("active", false));
+        return StructuredType("NMISwitch", members);
+    }
+    void load(const TypedValue& value)
+    {
+        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        _nmiOn = (*members)["on"].value<bool>();
+        _active = (*members)["active"].value<bool>();
+    }
     String name() const { return "nmiSwitch"; }
-    TypedValue initial() const { return false; }
     bool nmiOn() const { return _nmiOn; }
 private:
     bool _nmiOn;
@@ -197,63 +205,51 @@ private:
 
 #include "mc6845.h"
 
-
+#include "dram.h"
 
 template<class T> class RAM640KbTemplate : public ISA8BitComponent
 {
 public:
-    RAM640KbTemplate() : _data(0xa0000)
-    {
-        // _rowBits is 7 for 4116 RAM chips
-        //             8 for 4164
-        //             9 for 41256
-        // We use 9 here because programs written for _rowBits == N will work
-        // for _rowBits < N but not necessarily _rowBits > N.
-        // TODO: make this settable in the config file.
-        int rowBits = 9;
-
-        // DRAM decay time in cycles.
-        // This is the fastest that DRAM could decay and real hardware would
-        // still work.
-        // TODO: make this settable in the config file.
-        _decayTime = (18*4) << rowBits;
-        // 2ms for 4116
-        // 4ms for 4164
-        // 8ms for 41256
-        //   _decayTime =  (13125 << rowBits) / 176;
-
-        // Initially, all memory is decayed so we'll get an NMI if we try to
-        // read from it.
-        _cycle = _decayTime;
-
-        _rows = 1 << rowBits;
-        _refreshTimes.allocate(_rows);
-        for (int r = 0; r < _rows; ++r)
-            _refreshTimes[r] = 0;
-        _rowMask = _rows - 1;
-        for (int a = 0; a < 0xa0000; ++a)
-            _data[a] = 0;
-    }
     void site()
     {
         _nmiSwitch = this->_simulator->getNMISwitch();
         _ppi = this->_simulator->getPPI();
         _cpu = this->_simulator->getCPU();
+
+        ConfigFile* config = _simulator->config();
+
+        // _rowBits is 7 for 4116 RAM chips
+        //             8 for 4164
+        //             9 for 41256
+        // We use 9 here because programs written for _rowBits == N will work
+        // for _rowBits < N but not necessarily _rowBits > N.
+        config->addDefaultOption("ramRowBits", Type::integer, 9);
+
+        // 640KB should be enough for anyone.
+        config->addDefaultOption("ramBytes", Type::integer, 0xa0000);
+
+        config->addDefaultOption("decayTime", Type::integer, 0);
+    }
+    void initialize()
+    {
+        ConfigFile* config = _simulator->config();
+        int rowBits = config->get<int>("ramRowBits");
+        int bytes = config->get<int>("ramBytes");
+        int decayTime = config->get<int>("decayTime");
+        if (decayTime == 0) {
+            // DRAM decay time in cycles.
+            // This is the fastest that DRAM could decay and real hardware
+            // would still work.
+            decayTime = (18*4) << rowBits;
+            // 2ms for 4116 and 2118
+            // 4ms for 4164
+            // 8ms for 41256
+            //   decayTime =  (13125 << rowBits) / 176;
+        }
+        _dram.initialize(bytes, rowBits, decayTime, 0);
     }
     Rational<int> hDotsPerCycle() const { return 3; }
-    void simulateCycle()
-    {
-        ++_cycle;
-        if (_cycle == 0x40000000) {
-            int adjust = _decayTime - _cycle;
-            for (int r = 0; r < _rows; ++r)
-                if (_refreshTimes[r] + adjust > 0)
-                    _refreshTimes[r] += adjust;
-                else
-                    _refreshTimes[r] = 0;
-            _cycle += adjust;
-        }
-    }
+    void simulateCycle() { _ram.simulateCycle(); }
     void setAddress(UInt32 address)
     {
         _address = address & 0x400fffff;
@@ -261,8 +257,7 @@ public:
     }
     void read()
     {
-        int row = _address & _rowMask;
-        if (_cycle >= _refreshTimes[row] + _decayTime) {
+        if (_dram.decayed(_address)) {
             // RAM has decayed! On a real machine this would not always signal
             // an NMI but we'll make the NMI happen every time to make DRAM
             // decay problems easier to find.
@@ -273,84 +268,41 @@ public:
             if (_nmiSwitch->nmiOn() && (_ppi->portB() & 0x10) != 0)
                 _cpu->nmi();
         }
-        _refreshTimes[row] = _cycle;
-        set(_data[_address]);
+        set(_dram.read(_address));
     }
-    void write(UInt8 data)
-    {
-        _refreshTimes[_address & _rowMask] = _cycle;
-        _data[_address] = data;
-    }
+    void write(UInt8 data) { _dram.write(_address, data); }
     UInt8 memory(UInt32 address)
     {
         if (address < 0xa0000)
-            return _data[address];
+            return _dram.memory(address);
         return 0xff;
+    }
+    Type type() const
+    {
+        List<StructuredType::Member> members;
+        members.add(StructuredType::Member("dram", _dram.initial());
+        members.add(StructuredType::Member("active", false));
+        members.add(StructuredType::Member("tick", 0));
+        members.add(StructuredType::Member("address", 0));
+        return StructuredType("RAM", members);
+    }
+    void load(const TypedValue& value)
+    {
+        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        _dram.load((*members)["dram"]);
+        _active = (*members)["active"].value<bool>();
+        _tick = (*members)["tick"].value<int>();
+        _address = (*members)["address"].value<int>();
     }
     String save() const
     {
-        String s("ram: ###\n");
-        for (int y = 0; y < 0xa0000; y += 0x20) {
-            String line;
-            bool gotData = false;
-            for (int x = 0; x < 0x20; x += 4) {
-                int p = y + x;
-                UInt32 v = (_data[p]<<24) + (_data[p+1]<<16) +
-                    (_data[p+2]<<8) + _data[p+3];
-                if (v != 0)
-                    gotData = true;
-                line += " " + hex(v, 8, false);
-            }
-            if (gotData)
-                s += hex(y, 5, false) + ":" + line + "\n";
-        }
-        s += "###\n";
-        return s;
+        return String("ram: { ") + _dram.save() + ",\n  active: " +
+            String::Boolean(_active) + ", tick: " + _tick + ", address: " +
+            hex(_address, 5) + "}\n";
     }
-    Type type() const { return Type::string; }
-    void load(const TypedValue& value)
-    {
-        String s = value.value<String>();
-        CharacterSource source(s);
-        Space::parse(&source);
-        do {
-            Span span;
-            int t = parseHexadecimalCharacter(&source, &span);
-            if (t == -1)
-                break;
-            int a = t;
-            for (int i = 0; i < 4; ++i) {
-                t = parseHexadecimalCharacter(&source, &span);
-                if (t < 0)
-                    span.throwError("Expected hexadecimal character");
-                a = (a << 4) + t;
-            }
-            Space::assertCharacter(&source, ':', &span);
-            for (int i = 0; i < 16; ++i) {
-                t = parseHexadecimalCharacter(&source, &span);
-                if (t < 0)
-                    span.throwError("Expected hexadecimal character");
-                int t2 = parseHexadecimalCharacter(&source, &span);
-                if (t2 < 0)
-                    span.throwError("Expected hexadecimal character");
-                _data[a++] = (t << 4) + t2;
-                Space::parse(&source);
-            }
-        } while (true);
-        CharacterSource s2(source);
-        if (s2.get() != -1)
-            source.location().throwError("Expected hexadecimal character");
-    }
-    String name() const { return "ram"; }
-    TypedValue initial() const { return String(); }
 private:
     int _address;
-    Array<UInt8> _data;
-    Array<int> _refreshTimes;
-    int _rows;
-    int _rowMask;
-    int _cycle;
-    int _decayTime;
+    DRAM _dram;
     NMISwitch* _nmiSwitch;
     Intel8255PPI* _ppi;
     Intel8088Template<T>* _cpu;
@@ -368,7 +320,7 @@ public:
     void write(UInt8 data) { _dmaPages[_address] = data & 0x0f; }
     String save() const
     {
-        String s = "dmaPages: {";
+        String s = "dmaPages: { data: {";
         bool needComma = false;
         for (int i = 0; i < 4; ++i) {
             if (needComma)
@@ -376,12 +328,22 @@ public:
             needComma = true;
             s += hex(_dmaPages[i], 1);
         }
-        return s + "}";
+        return s + "}, active: " + String::Boolean(_active) + ", address: " +
+            _address + " }\n";
     }
-    Type type() const { return Type::array(Type::integer); }
+    Type type() const
+    {
+        List<StructuredType::Member> members;
+        members.add(StructuredType::Member("data",
+            TypedValue(Type::array(Type::integer), List<TypedValue>())));
+        members.add(StructuredType::Member("active", false));
+        members.add(StructuredType::Member("address", 0));
+        return StructuredType("RAM", members);
+    }
     void load(const TypedValue& value)
     {
-        auto dmaPages = value.value<List<TypedValue>>();
+        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        auto dmaPages = (*members)["data"].value<List<TypedValue>>();
         int j = 0;
         for (auto i = dmaPages.begin(); i != dmaPages.end(); ++i) {
             _dmaPages[j] = (*i).value<int>();
@@ -389,15 +351,12 @@ public:
             if (j == 4)
                 break;
         }
+        for (;j < 4; ++j)
+            _dmaPages[j] = 0;
+        _active = (*members)["active"].value<bool>();
+        _address = (*members)["address"].value<int>();
     }
     String name() const { return "dmaPages"; }
-    TypedValue initial() const
-    {
-        List<TypedValue> dmaPages;
-        for (int i = 0; i < 4; ++i)
-            dmaPages.add(TypedValue(Type::integer, 0));
-        return TypedValue(Type::array(Type::integer), dmaPages);
-    }
 private:
     int _address;
     int _dmaPages[4];
@@ -422,12 +381,12 @@ private:
 class ROM : public ISA8BitComponent
 {
 public:
-    void initialize(const ROMData& romData, const File& configFile)
+    void initialize(const ROMData& romData)
     {
         _mask = romData.mask() | 0xc0000000;
         _start = romData.start();
-        String data = File(romData.file(), configFile.parent(), true).
-            contents();
+        String data = File(romData.file(),
+            _simulator->config()->file().parent(), true).contents();
         int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
         _data.allocate(length);
         int offset = romData.offset();
@@ -445,6 +404,24 @@ public:
         if ((address & _mask) == _start)
             return _data[address & ~_mask];
         return 0xff;
+    }
+    String save() const
+    {
+        return String("rom: { active: " + String::Boolean(_active) +
+            ", address: " + hex(_address, 5) + "}\n";
+    }
+    Tpe type() const
+    {
+        List<StructuredType::Member> members;
+        members.add(StructuredType::Member("active", false));
+        members.add(StructuredType::Member("address", 0));
+        return StructuredType("ROM", members);
+    }
+    void load(const TypeddValue& value)
+    {
+        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        _active = (*members["active"].value<bool>();
+        _address = (*members)["address"].value<int>();
     }
 private:
     int _mask;
@@ -844,7 +821,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 32000000) { 
+        if (_cycle >= 32000000) {
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
@@ -2135,7 +2112,8 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  newIP: ") + hex(_newIP, 4) + ",\n";
         s += String("  nmiRequested: ") + String::Boolean(_nmiRequested) +
             ",\n";
-        s += String("  cycle: ") + _cycle;
+        s += String("  cycle: ") + _cycle + ",\n";
+        s += String("  tick: ") + _tick;
         return s + "}\n";
     }
     Type type() const
@@ -2196,6 +2174,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("newIP", 0));
         members.add(M("nmiRequested", false));
         members.add(M("cycle", 0));
+        members.add(M("tick", 0));
         return StructuredType("CPU", members);
     }
     void load(const TypedValue& value)
@@ -2258,6 +2237,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _newIP = (*members)["newIP"].value<int>();
         _nmiRequested = (*members)["nmiRequested"].value<bool>();
         _cycle = (*members)["cycle"].value<int>();
+        _tick = (*members)["tick"].value<int>();
     }
     String name() const { return "cpu"; }
 
@@ -3064,17 +3044,12 @@ template<class T> class SimulatorTemplate : public Component
 public:
     SimulatorTemplate(File configFile) : _halted(false)
     {
-        ConfigFile config;
-
         ROMDataType romDataType;
         Type romImageArrayType = Type::array(romDataType);
-        config.addOption("roms", romImageArrayType);
-        config.addDefaultOption("cgarom", Type::string, String(""));
-        config.addDefaultOption("stopAtCycle", Type::integer, -1);
-        config.addDefaultOption("stopSaveState", Type::string, String(""));
-        config.addDefaultOption("initialState", Type::string, String(""));
-
-        config.load(configFile);
+        _config.addOption("roms", romImageArrayType);
+        _config.addDefaultOption("stopAtCycle", Type::integer, -1);
+        _config.addDefaultOption("stopSaveState", Type::string, String(""));
+        _config.addDefaultOption("initialState", Type::string, String(""));
 
         addComponent(&_bus);
         _bus.addComponent(&_ram);
@@ -3087,22 +3062,25 @@ public:
         _bus.addComponent(&_pic);
         addComponent(&_cpu);
 
-        List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
+        _config.load(configFile);
+
+        _cga.initialize();
+        _ram.initialize();
+
+        List<TypedValue> romDatas = _config.get<List<TypedValue> >("roms");
         _roms.allocate(romDatas.count());
         int r = 0;
         for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
             ROMData romData = (*i).value<ROMData>();
             ROM* rom = &_roms[r];
-            rom->initialize(romData, configFile);
             _bus.addComponent(rom);
+            rom->initialize(romData);
             ++r;
         }
-        
-        _cga.initialize(config.get<String>("cgarom"), configFile);
-        
-        String stopSaveState = config.get<String>("stopSaveState");
 
-        String initialStateFile = config.get<String>("initialState");
+        String stopSaveState = _config.get<String>("stopSaveState");
+
+        String initialStateFile = _config.get<String>("initialState");
         TypedValue stateValue;
         if (!initialStateFile.empty()) {
             ConfigFile initialState;
@@ -3166,8 +3144,9 @@ public:
         s += "};";
         return s;
     }
-    
+
     void halt() { _halted = true; }
+    ConfigFile* config() { return &_config; }
     ISA8BitBus* getBus() { return &_bus; }
     Intel8259PIC* getPIC() { return &_pic; }
     Intel8237DMA* getDMA() { return &_dma; }
@@ -3204,6 +3183,8 @@ private:
     bool _halted;
     int _minTicksPerCycle;
 
+    ConfigFile _configFile;
+    File _file;
     ISA8BitBus _bus;
     RAM640Kb _ram;
     NMISwitch _nmiSwitch;
@@ -3216,96 +3197,6 @@ private:
     Array<ROM> _roms;
 
     String _stopSaveState;
-};
-
-// This is the exception that we throw if any DirectX methods fail.
-class SDLException : public Exception
-{
-public:
-    SDLException(String message)
-      : Exception(message + ": " + SDL_GetError()) { }
-};
-
-#define IF_ZERO_THROW_SDL(expr, msg) \
-    IF_TRUE_THROW((expr) == 0, SDLException(msg))
-#define IF_NONZERO_THROW_SDL(expr, msg) \
-    IF_TRUE_THROW((expr) != 0, SDLException(msg))
-
-class SDL
-{
-public:
-    SDL(UInt32 flags = 0)
-    {
-        IF_NONZERO_THROW_SDL(SDL_Init(flags), "Initializing SDL");
-    }
-    ~SDL() { SDL_Quit(); }
-};
-
-class SDLWindow
-{
-public:
-    SDLWindow()
-    {
-        _window = SDL_CreateWindow("CGA Digital monitor",
-            SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 912, 262, 0);
-        IF_ZERO_THROW_SDL(_window, "Creating SDL window");
-    }
-    ~SDLWindow() { SDL_DestroyWindow(_window); }
-    SDL_Window* _window;
-};
-
-template<class T> class SDLTextureTemplate;
-typedef SDLTextureTemplate<void> SDLTexture;
-
-template<class T> class SDLRendererTemplate
-{
-public:
-    SDLRendererTemplate(SDLWindow* window)
-    {
-        _renderer = SDL_CreateRenderer(window->_window, -1, 0);
-        IF_ZERO_THROW_SDL(_renderer, "Creating SDL renderer");
-    }
-    ~SDLRendererTemplate() { SDL_DestroyRenderer(_renderer); }
-    void renderTexture(SDLTextureTemplate<T>* texture)
-    {
-        // IF_NONZERO_THROW_SDL(SDL_RenderClear(_renderer), "Clearing target");
-        IF_NONZERO_THROW_SDL(
-            SDL_RenderCopy(_renderer, texture->_texture, NULL, NULL),
-            "Rendering texture");
-        SDL_RenderPresent(_renderer);   
-    }
-    SDL_Renderer* _renderer;
-};
-
-typedef SDLRendererTemplate<void> SDLRenderer;
-
-template<class T> class SDLTextureTemplate
-{
-public:
-    SDLTextureTemplate(SDLRenderer* renderer)
-    {
-        _texture = SDL_CreateTexture(renderer->_renderer,
-            SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 912, 262);
-        IF_ZERO_THROW_SDL(_texture, "Creating SDL texture");
-    }
-    ~SDLTextureTemplate() { SDL_DestroyTexture(_texture); }
-    void unlock() { SDL_UnlockTexture(_texture); }
-    SDL_Texture* _texture;
-};
-
-class SDLTextureLock
-{
-public:
-    SDLTextureLock(SDLTexture* texture) : _texture(texture)
-    {
-        IF_NONZERO_THROW_SDL(
-            SDL_LockTexture(_texture->_texture, NULL, &_pixels, &_pitch),
-            "Locking SDL texture");
-    }
-    ~SDLTextureLock() { _texture->unlock(); }
-    SDLTexture* _texture;
-    void* _pixels;
-    int _pitch;
 };
 
 class RGBIMonitor : public Sink<BGRI>
@@ -3333,9 +3224,13 @@ public:
 
         // Create some special colours for visualizing sync pulses.
         for (int i = 0; i < 16; ++i) {
-            _palette[i + 16] = 0xff002200; // hsync
-            _palette[i + 32] = 0xff220022; // vsync
-            _palette[i + 48] = 0xff222222; // hsync+vsync
+            int r = ((_palette[i] >> 16) & 0xff) >> 4;
+            int g = ((_palette[i] >> 8) & 0xff) >> 4;
+            int b = (_palette[i] & 0xff) >> 4;
+            int rgb = (r << 16) + (g << 8) + b;
+            _palette[i + 16] = 0xff002200 + rgb; // hsync
+            _palette[i + 32] = 0xff220022 + rgb; // vsync
+            _palette[i + 48] = 0xff222222 + rgb; // hsync+vsync
         }
     }
 
@@ -3384,7 +3279,7 @@ public:
         read(n);
         _renderer.renderTexture(&_texture);
     }
-    
+
 private:
     SDLWindow _window;
     SDLRenderer _renderer;
@@ -3412,7 +3307,7 @@ protected:
 
         RGBIMonitor monitor;
         Simulator simulator(File(_arguments[1], CurrentDirectory(), true));
-        monitor.connect(&simulator._cga);
+        monitor.connect(simulator._cga.bgriSource());
 
         //File file(config.get<String>("sourceFile"));
         //String contents = file.contents();

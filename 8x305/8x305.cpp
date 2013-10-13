@@ -9,16 +9,10 @@
 #include "alfe/type.h"
 #include "alfe/rational.h"
 #include "alfe/pipes.h"
-#ifdef _WIN32
-#include "SDL.h"
-#else
-#include "SDL2/SDL.h"
-#endif
+#include "alfe/sdl.h"
 
 #include <stdlib.h>
 #include <limits.h>
-
-typedef UInt8 BGRI;
 
 //class SourceProgram
 //{
@@ -34,7 +28,7 @@ template<class T> class ComponentTemplate;
 typedef ComponentTemplate<void> Component;
 
 template<class T> class RAM32KbTemplate;
-typedef RAM640KbTemplate<void> RAM32Kb;
+typedef RAM32KBTemplate<void> RAM32KB;
 
 template<class T> class ComponentTemplate
 {
@@ -60,7 +54,7 @@ public:
         Rational<int> h = hDotsPerCycle();
         if (h == 0)
             return 0;
-        return 157500000/(11*h);
+        return 20000000/h;
     }
     virtual Rational<int> hDotsPerCycle() const { return 0; }
     void setTicksPerCycle(int ticksPerCycle)
@@ -83,10 +77,10 @@ private:
     int _tick;
 };
 
-template<class T> class RAM32KbTemplate : public Component
+template<class T> class RAM32KBTemplate : public Component
 {
 public:
-    RAM32KbTemplate() : _data(0x8000)
+    RAM32KBTemplate() : _data(0x8000)
     {
         // _rowBits is 7 for 4116 RAM chips
         //             8 for 4164
@@ -504,15 +498,12 @@ StructuredType ROMDataType::Implementation::_structuredType;
 
 template<class T> class SimulatorTemplate : public Component
 {
-public:
+protected:
     SimulatorTemplate(File configFile) : _halted(false)
     {
         ConfigFile config;
 
-        ROMDataType romDataType;
-        Type romImageArrayType = Type::array(romDataType);
-        config.addOption("roms", romImageArrayType);
-        config.addDefaultOption("cgarom", Type::string, String(""));
+        config.addDefaultOption("rom", Type::string, String(""));
         config.addDefaultOption("stopAtCycle", Type::integer, -1);
         config.addDefaultOption("stopSaveState", Type::string, String(""));
         config.addDefaultOption("initialState", Type::string, String(""));
@@ -587,6 +578,7 @@ public:
                 (*i)->setTicksPerCycle(0);
         }
     }
+public:
     void simulate()
     {
         do {
@@ -647,108 +639,15 @@ private:
     bool _halted;
     int _minTicksPerCycle;
 
-    ISA8BitBus _bus;
-    RAM640Kb _ram;
-    NMISwitch _nmiSwitch;
-    DMAPageRegisters _dmaPageRegisters;
-    Intel8253PIT _pit;
-    Intel8237DMA _dma;
-    Intel8255PPI _ppi;
-    Intel8259PIC _pic;
-    Intel8088 _cpu;
-    Array<ROM> _roms;
+    Signetics8x305 _cpu;
+    ROM _rom;
+    Synth _synth;
+    RAM32KB _ram;
+    IVBus _bus;
+    Video _video;
+    Motorola6845CRTC _crtc;
 
     String _stopSaveState;
-};
-
-// This is the exception that we throw if any DirectX methods fail.
-class SDLException : public Exception
-{
-public:
-    SDLException(String message)
-      : Exception(message + ": " + SDL_GetError()) { }
-};
-
-#define IF_ZERO_THROW_SDL(expr, msg) \
-    IF_TRUE_THROW((expr) == 0, SDLException(msg))
-#define IF_NONZERO_THROW_SDL(expr, msg) \
-    IF_TRUE_THROW((expr) != 0, SDLException(msg))
-
-class SDL
-{
-public:
-    SDL(UInt32 flags = 0)
-    {
-        IF_NONZERO_THROW_SDL(SDL_Init(flags), "Initializing SDL");
-    }
-    ~SDL() { SDL_Quit(); }
-};
-
-class SDLWindow
-{
-public:
-    SDLWindow()
-    {
-        _window = SDL_CreateWindow("CGA Digital monitor",
-            SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 912, 262, 0);
-        IF_ZERO_THROW_SDL(_window, "Creating SDL window");
-    }
-    ~SDLWindow() { SDL_DestroyWindow(_window); }
-    SDL_Window* _window;
-};
-
-template<class T> class SDLTextureTemplate;
-typedef SDLTextureTemplate<void> SDLTexture;
-
-template<class T> class SDLRendererTemplate
-{
-public:
-    SDLRendererTemplate(SDLWindow* window)
-    {
-        _renderer = SDL_CreateRenderer(window->_window, -1, 0);
-        IF_ZERO_THROW_SDL(_renderer, "Creating SDL renderer");
-    }
-    ~SDLRendererTemplate() { SDL_DestroyRenderer(_renderer); }
-    void renderTexture(SDLTextureTemplate<T>* texture)
-    {
-        // IF_NONZERO_THROW_SDL(SDL_RenderClear(_renderer), "Clearing target");
-        IF_NONZERO_THROW_SDL(
-            SDL_RenderCopy(_renderer, texture->_texture, NULL, NULL),
-            "Rendering texture");
-        SDL_RenderPresent(_renderer);   
-    }
-    SDL_Renderer* _renderer;
-};
-
-typedef SDLRendererTemplate<void> SDLRenderer;
-
-template<class T> class SDLTextureTemplate
-{
-public:
-    SDLTextureTemplate(SDLRenderer* renderer)
-    {
-        _texture = SDL_CreateTexture(renderer->_renderer,
-            SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 912, 262);
-        IF_ZERO_THROW_SDL(_texture, "Creating SDL texture");
-    }
-    ~SDLTextureTemplate() { SDL_DestroyTexture(_texture); }
-    void unlock() { SDL_UnlockTexture(_texture); }
-    SDL_Texture* _texture;
-};
-
-class SDLTextureLock
-{
-public:
-    SDLTextureLock(SDLTexture* texture) : _texture(texture)
-    {
-        IF_NONZERO_THROW_SDL(
-            SDL_LockTexture(_texture->_texture, NULL, &_pixels, &_pitch),
-            "Locking SDL texture");
-    }
-    ~SDLTextureLock() { _texture->unlock(); }
-    SDLTexture* _texture;
-    void* _pixels;
-    int _pitch;
 };
 
 class VGAMonitor : public Sink<UInt32>
