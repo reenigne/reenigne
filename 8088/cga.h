@@ -7,10 +7,7 @@ public:
     {
         _data.allocate(0x4000);
     }
-    void site()
-    {
-        this->_simulator->config()->addDefaultOption("cgarom", Type::string, String(""));
-    }
+	void site();
     void simulateCycle()
     {
         _cycle = (_cycle + 1) & 15;
@@ -113,16 +110,7 @@ public:
             return 0xff;
     }
     Rational<int> hDotsPerCycle() const { return 1; }
-    void initialize()
-    {
-        ConfigFile* config = _simulator->config();
-        String data = File(config->get<String>("cgarom"),
-            config->file().parent(), true).contents();
-        int length = 0x2000;
-        _romdata.allocate(length);
-        for (int i = 0; i < length; ++i)
-            _romdata[i] = data[i];
-    }
+	void initialize();
     class BGRISource : public Source<BGRI>
     {
     public:

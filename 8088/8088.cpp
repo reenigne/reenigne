@@ -381,18 +381,7 @@ private:
 class ROM : public ISA8BitComponent
 {
 public:
-    void initialize(const ROMData& romData)
-    {
-        _mask = romData.mask() | 0xc0000000;
-        _start = romData.start();
-        String data = File(romData.file(),
-            this->_simulator->config()->file().parent(), true).contents();
-        int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
-        _data.allocate(length);
-        int offset = romData.offset();
-        for (int i = 0; i < length; ++i)
-            _data[i] = data[i + offset];
-    }
+    void initialize(const ROMData& romData);
     void setAddress(UInt32 address)
     {
         _address = address & 0xfffff & ~_mask;
@@ -3198,6 +3187,35 @@ private:
 
     String _stopSaveState;
 };
+
+void IBMCGA::site()
+{
+    this->_simulator->config()->addDefaultOption("cgarom", Type::string, String(""));
+}
+
+void IBMCGA::initialize()
+{
+    ConfigFile* config = _simulator->config();
+    String data = File(config->get<String>("cgarom"),
+        config->file().parent(), true).contents();
+    int length = 0x2000;
+    _romdata.allocate(length);
+    for (int i = 0; i < length; ++i)
+        _romdata[i] = data[i];
+}
+
+void ROM::initialize(const ROMData& romData)
+{
+    _mask = romData.mask() | 0xc0000000;
+    _start = romData.start();
+    String data = File(romData.file(),
+        this->_simulator->config()->file().parent(), true).contents();
+    int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
+    _data.allocate(length);
+    int offset = romData.offset();
+    for (int i = 0; i < length; ++i)
+        _data[i] = data[i + offset];
+}
 
 class RGBIMonitor : public Sink<BGRI>
 {
