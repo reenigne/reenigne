@@ -245,6 +245,12 @@ public:
         b.write(data());
         _length = 1;
     }
+    StringTemplate(const Boolean b): _start(0)
+    {
+        _buffer = Buffer(1);
+        b.write(data());
+        _length = 1;
+    }
     const String& operator+=(const String& other)
     {
         if (other.empty())
