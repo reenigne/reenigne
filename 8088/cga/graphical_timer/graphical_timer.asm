@@ -45,7 +45,7 @@ sixLinesLoop:
 
 
 ;  ; Wait ~55ms
-;  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
+;  mov al,TIMER0 | BOTH | MODE2 | BINARY
 ;  out 0x43,al
 ;  mov al,0
 ;  out 0x40,al
@@ -83,7 +83,7 @@ sixLinesLoop:
   initCGA 0x1e
 
 ;  ; Use IRQ0 to go into lockstep with timer 0
-;  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
+;  mov al,TIMER0 | BOTH | MODE2 | BINARY
 ;  out 0x43,al
 ;  mov al,(76*262) & 0xff
 ;  out 0x40,al

@@ -1,0 +1,5 @@
+When we use the latch command on a channel, it does not affect the mode
+The data returned by the latch command depends on the last write command, it's not both bytes always
+Writing LSB only clears MSB
+Writing MSB only clears LSB
+Datasheet and defaults_common.asm are correct about meaning of byte select bits - http://stanislavs.org/helppc/8253.html is wrong

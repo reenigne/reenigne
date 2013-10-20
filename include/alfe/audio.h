@@ -9,6 +9,7 @@
 #include <mmreg.h>
 #include <dsound.h>
 #include <xaudio2.h>
+#include <mmsystem.h>
 #include "alfe/com.h"
 
 template<class Sample> class AudioSink : public Sink<Sample>
@@ -426,10 +427,10 @@ public:
         int samplesPerBufferChannel = 1024)
       : AudioSink(samplesPerSecond, channels),
         _samplesPerBuffer(samplesPerBufferChannel * channels),
-        _bytes(0)
+        _bytes(0),
+        _handle(file.openWrite())
     {
         // TODO: make endian-neutral. Posix port.
-        _handle = file.openWrite();
         _handle.write("RIFF", 4);
         DWORD t = 36;
         _handle.write(&t, 4);

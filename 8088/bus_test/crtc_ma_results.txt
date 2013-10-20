@@ -1,0 +1,30 @@
+From crtc_ma we learn:
+  The light pen doesn't depend on the display enable bit being set
+  The memory address advances during the vsync period, meaning that the design change mentioned on p17 of the datasheet took place.
+  With r4=r5=r9=0, r8=2 we see ma going up to 1438 (242 samples - i.e. we have 128 lines)
+  With r4=r9=0, r5=1, r8=2 we see ma going up to 1460 and then repeating - looks like 2 lines and then 1 extra
+  With r4=r9=0, r5=31, r8=2 we see ma going up to 1460 and then repeating two rows of 32 (32 and then 31 extra?)
+  With r4=r5=r9, r8=0, we see the same as with r8=0
+  With r4=r5=r9, r8=1, we see a 2-scanline frame? Same with r8=3
+
+The CRTC's address register isn't changed by a read (so probably not by a write either)
+
+
+
+
+
+  With
+
+
+The datasheet says:
+  Interlace modes 0 and 2  normal sync               1 field per frame
+  Interlace mode 1         interlace sync            2 fields per frame with same information in each field  double density
+  Interlace mode 3         interlace sync and video  2 fields per frame with different information           double resolution
+
+If r8 is odd, horizontal character count must be odd (even number of character times)
+If r8 is 3, the max scan line address must be odd (even number of scan lines)
+If r3 is 3, the vertical displayed total characters must be even and the programmed number must be half of the number actually required
+If r8 is 3, the cursor start and cursor end registers must be both even or both odd
+
+Experiments to perform:
+  Use lockstep to get some easier to understand results

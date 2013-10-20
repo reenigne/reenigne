@@ -1,5 +1,4 @@
-org 0
-cpu 8086
+  %include "../defaults_bin.asm"
 
   mov cx,65535
 
@@ -7,7 +6,7 @@ cpu 8086
   or al,3
   out 0x61,al
 
-  mov al,0xb6
+  mov al,TIMER2 | BOTH | MODE3 | BINARY
   out 0x43,al
 
 loopTop:

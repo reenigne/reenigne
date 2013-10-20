@@ -3146,7 +3146,7 @@ public:
     }
 
     void halt() { _halted = true; }
-    ConfigFile* config() { return &_config; }
+    ConfigFile* config() { return &_configFile; }
     ISA8BitBus* getBus() { return &_bus; }
     Intel8259PIC* getPIC() { return &_pic; }
     Intel8237DMA* getDMA() { return &_dma; }

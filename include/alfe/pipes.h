@@ -213,10 +213,10 @@ private:
 template<class T> class WriteTo
 {
 public:
-    WriteTo(Handle handle) : _handle(handle) { }
-    void operator()(T* source, int n) { _handle.write(source, n*sizeof(T)); }
+    WriteTo(Handle* handle) : _handle(handle) { }
+    void operator()(T* source, int n) { _handle->write(source, n*sizeof(T)); }
 private:
-    Handle _handle;
+    Handle* _handle;
 };
 
 
@@ -505,9 +505,8 @@ private:
 template<class T> class FileSource : public Source<T>
 {
 public:
-    FileSource(File file)
+    FileSource(File file) : _handle(file.openRead())
     {
-        _handle = file.openRead();
         _size = _handle.size() / sizeof(T);
     }
     void produce(int n)
