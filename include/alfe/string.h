@@ -247,9 +247,10 @@ public:
     }
     StringTemplate(const Boolean b): _start(0)
     {
-        _buffer = Buffer(1);
+        int l = b.bytes();
+        _buffer = Buffer(l);
         b.write(data());
-        _length = 1;
+        _length = l;
     }
     const String& operator+=(const String& other)
     {

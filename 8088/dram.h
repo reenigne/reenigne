@@ -75,8 +75,10 @@ public:
     Type type() const
     {
         List<StructuredType::Member> members;
-        members.add(StructuredType::Member("data",TypedValue(Type::array(Type::integer), List<TypedValue>())));
-        members.add(StructuredType::Member("refresh",TypedValue(Type::array(Type::integer), List<TypedValue>())));
+        members.add(StructuredType::Member("data",
+            TypedValue(Type::string, String())));
+        members.add(StructuredType::Member("refresh",
+            TypedValue(Type::array(Type::integer), List<TypedValue>())));
         return StructuredType("DRAM", members);
     }
     TypedValue initial() const

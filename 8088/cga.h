@@ -1,13 +1,18 @@
-class IBMCGA : public ISA8BitComponent
+template<class T> class IBMCGATemplate : public ISA8BitComponentTemplate<T>
 {
 public:
-    IBMCGA() : _attr(0), _chrdata(0), _memoryAddress(0), _memoryActive(false),
-        _portAddress(0), _portActive(false), _wait(0), _cycle(0), _mode(0),
-        _colsel(0), _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true), _bgriSource(this)
+    IBMCGATemplate() : _attr(0), _chrdata(0), _memoryAddress(0),
+        _memoryActive(false), _portAddress(0), _portActive(false), _wait(0),
+        _cycle(0), _mode(0), _colsel(0), _bgri(0), _lightPenStrobe(false),
+        _lightPenSwitch(true), _bgriSource(this)
     {
         _data.allocate(0x4000);
     }
-	void site();
+    void site()
+    {
+        this->_simulator->config()->addDefaultOption("cgarom", Type::string,
+            String(""));
+    }
     void simulateCycle()
     {
         _cycle = (_cycle + 1) & 15;
@@ -110,7 +115,16 @@ public:
             return 0xff;
     }
     Rational<int> hDotsPerCycle() const { return 1; }
-	void initialize();
+    void initialize()
+    {
+        ConfigFile* config = _simulator->config();
+        String data = File(config->get<String>("cgarom"),
+            config->file().parent(), true).contents();
+        int length = 0x2000;
+        _romdata.allocate(length);
+        for (int i = 0; i < length; ++i)
+            _romdata[i] = data[i];
+    }
     class BGRISource : public Source<BGRI>
     {
     public:

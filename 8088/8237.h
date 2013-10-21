@@ -74,46 +74,33 @@ private:
         }
         UInt8 read(UInt32 address)
         {
-            switch(address)
-            {
-            case 0:
-                if(_firstbyte) return _startaddress;
-                else return (_startaddress >> 8);
-                break;
-            case 1:
-                if(_firstbyte) return _count;
-                else return (_count >> 8);
-                break;
+            switch(address) {
+                case 0:
+                    if (_firstbyte)
+                        return _startaddress & 0xff;
+                    return _startaddress >> 8;
+                case 1:
+                    if (_firstbyte)
+                        return _count & 0xff;
+                    return _count >> 8;
             }
+            return 0;
         }
         void write(UInt32 address, UInt8 data)
         {
-            switch(address)
-            {
-            case 0:
-                if(_firstbyte)
-                {
-                    _startaddress = (_startaddress & 0xFF00) | data;
+            switch(address) {
+                case 0:
+                    if (_firstbyte)
+                        _startaddress = (_startaddress & 0xFF00) | data;
+                    else
+                        _startaddress = (_startaddress & 0xFF) | (data << 8);
                     break;
-                }
-                else
-                {
-                    _startaddress = (_startaddress & 0xFF) | (data << 8);
+                case 1:
+                    if (_firstbyte)
+                        _count = (_count & 0xFF00) | data;
+                    else
+                        _count = (_count & 0xFF) | (data << 8);
                     break;
-                }
-                break;
-            case 1:
-                if(_firstbyte)
-                {
-                    _count = (_count & 0xFF00) | data;
-                    break;
-                }
-                else
-                {
-                    _count = (_count & 0xFF) | (data << 8);
-                    break;
-                }
-                break;
             }
         }
     private:
