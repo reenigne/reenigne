@@ -403,9 +403,9 @@ public:
     void setAddress(UInt32 address)
     {
         _address = address & 0xfffff & ~_mask;
-        _active = ((address & _mask) == _start);
+        this->_active = ((address & _mask) == _start);
     }
-    void read() { set(_data[_address & ~_mask]); }
+    void read() { this->set(_data[_address & ~_mask]); }
     UInt8 memory(UInt32 address)
     {
         if ((address & _mask) == _start)
@@ -414,7 +414,7 @@ public:
     }
     String save() const
     {
-        return String("rom: { active: ") + String::Boolean(_active) +
+        return String("rom: { active: ") + String::Boolean(this->_active) +
             ", address: " + hex(_address, 5) + "}\n";
     }
     Type type() const
@@ -427,7 +427,7 @@ public:
     void load(const TypedValue& value)
     {
         auto members = value.value<Value<HashTable<String, TypedValue>>>();
-        _active = (*members)["active"].value<bool>();
+        this->_active = (*members)["active"].value<bool>();
         _address = (*members)["address"].value<int>();
     }
 private:
