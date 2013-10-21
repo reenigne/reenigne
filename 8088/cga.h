@@ -3,15 +3,11 @@ class IBMCGA : public ISA8BitComponent
 public:
     IBMCGA() : _attr(0), _chrdata(0), _memoryAddress(0), _memoryActive(false),
         _portAddress(0), _portActive(false), _wait(0), _cycle(0), _mode(0),
-        _colsel(0), _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true)
+        _colsel(0), _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true), _bgriSource(this)
     {
         _data.allocate(0x4000);
     }
-    void site()
-    {
-        _simulator->config()->
-            addDefaultOption("cgarom", Type::string, String(""));
-    }
+	void site();
     void simulateCycle()
     {
         _cycle = (_cycle + 1) & 15;
@@ -30,18 +26,12 @@ public:
         else {
             UInt8 tmp = _chrdata & (1 << (_cycle & 7));
             if(tmp) {
-                _r = 1;
-                _g = 1;
-                _b = 1;
-                _i = 1;
+                _bgri |= 0x0F;
             }
             else {
-                _r = 0;
-                _g = 0;
-                _b = 0;
-                _i = 0;
+                _bgri &= 0xF0;
             }
-            produce(1);
+            this->_bgriSource.produce(1);
         }
     }
     void setAddress(UInt32 address)
@@ -120,28 +110,23 @@ public:
             return 0xff;
     }
     Rational<int> hDotsPerCycle() const { return 1; }
-    void initialize()
-    {
-        ConfigFile* config = _simulator->config();
-        String data = File(config->get<String>("cgarom"),
-            config->file().parent(), true).contents();
-        int length = 0x2000;
-        _romdata.allocate(length);
-        for (int i = 0; i < length; ++i)
-            _romdata[i] = data[i];
-    }
+	void initialize();
     class BGRISource : public Source<BGRI>
     {
     public:
+        BGRISource(IBMCGA* cga) : _cga(cga)
+        {
+        }
         void produce(int n)
         {
             Accessor<BGRI> acc = writer(n);
-            acc.item() = _bgri |
-                (_crtc.horizontalSync() ? 0x10 : 0) |
-                (_crtc.verticalSync() ? 0x20 : 0);
+            acc.item() = this->_cga->_bgri |
+                (this->_cga->_crtc.horizontalSync() ? 0x10 : 0) |
+                (this->_cga->_crtc.verticalSync() ? 0x20 : 0);
             written(1);
         }
-
+    private:
+        IBMCGA* _cga;
     };
     class CompositeSource : public Source<UInt8> { void produce(int n) { } };
     BGRISource* bgriSource() { return &_bgriSource; }

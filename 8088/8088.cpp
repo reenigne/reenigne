@@ -216,7 +216,7 @@ public:
         _ppi = this->_simulator->getPPI();
         _cpu = this->_simulator->getCPU();
 
-        ConfigFile* config = _simulator->config();
+        ConfigFile* config = this->_simulator->config();
 
         // _rowBits is 7 for 4116 RAM chips
         //             8 for 4164
@@ -232,7 +232,7 @@ public:
     }
     void initialize()
     {
-        ConfigFile* config = _simulator->config();
+        ConfigFile* config = this->_simulator->config();
         int rowBits = config->get<int>("ramRowBits");
         int bytes = config->get<int>("ramBytes");
         int decayTime = config->get<int>("decayTime");
@@ -249,7 +249,7 @@ public:
         _dram.initialize(bytes, rowBits, decayTime, 0);
     }
     Rational<int> hDotsPerCycle() const { return 3; }
-    void simulateCycle() { _ram.simulateCycle(); }
+    void simulateCycle() { _dram.simulateCycle(); }
     void setAddress(UInt32 address)
     {
         _address = address & 0x400fffff;
@@ -280,7 +280,7 @@ public:
     Type type() const
     {
         List<StructuredType::Member> members;
-        members.add(StructuredType::Member("dram", _dram.initial());
+        members.add(StructuredType::Member("dram", _dram.initial()));
         members.add(StructuredType::Member("active", false));
         members.add(StructuredType::Member("tick", 0));
         members.add(StructuredType::Member("address", 0));
@@ -381,18 +381,7 @@ private:
 class ROM : public ISA8BitComponent
 {
 public:
-    void initialize(const ROMData& romData)
-    {
-        _mask = romData.mask() | 0xc0000000;
-        _start = romData.start();
-        String data = File(romData.file(),
-            _simulator->config()->file().parent(), true).contents();
-        int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
-        _data.allocate(length);
-        int offset = romData.offset();
-        for (int i = 0; i < length; ++i)
-            _data[i] = data[i + offset];
-    }
+    void initialize(const ROMData& romData);
     void setAddress(UInt32 address)
     {
         _address = address & 0xfffff & ~_mask;
@@ -408,19 +397,19 @@ public:
     String save() const
     {
         return String("rom: { active: " + String::Boolean(_active) +
-            ", address: " + hex(_address, 5) + "}\n";
+            ", address: " + hex(_address, 5) + "}\n");
     }
-    Tpe type() const
+    Type type() const
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("active", false));
         members.add(StructuredType::Member("address", 0));
         return StructuredType("ROM", members);
     }
-    void load(const TypeddValue& value)
+    void load(const TypedValue& value)
     {
         auto members = value.value<Value<HashTable<String, TypedValue>>>();
-        _active = (*members["active"].value<bool>();
+        _active = (*members)["active"].value<bool>();
         _address = (*members)["address"].value<int>();
     }
 private:
@@ -2113,7 +2102,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  nmiRequested: ") + String::Boolean(_nmiRequested) +
             ",\n";
         s += String("  cycle: ") + _cycle + ",\n";
-        s += String("  tick: ") + _tick;
+        s += String("  tick: ") + ComponentTemplate<T>::_tick;
         return s + "}\n";
     }
     Type type() const
@@ -2237,7 +2226,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _newIP = (*members)["newIP"].value<int>();
         _nmiRequested = (*members)["nmiRequested"].value<bool>();
         _cycle = (*members)["cycle"].value<int>();
-        _tick = (*members)["tick"].value<int>();
+        ComponentTemplate<T>::_tick = (*members)["tick"].value<int>();
     }
     String name() const { return "cpu"; }
 
@@ -3092,8 +3081,8 @@ public:
             stateValue = initial();
         load(stateValue);
 
-        _cpu.setStopAtCycle(config.get<int>("stopAtCycle"));
-        _stopSaveState = config.get<String>("stopSaveState");
+        this->_cpu.setStopAtCycle(this->_config.template get<int>("stopAtCycle"));
+        _stopSaveState = this->_config.template get<String>("stopSaveState");
 
         Rational<int> l = 0;
         for (auto i = _components.begin(); i != _components.end(); ++i) {
@@ -3183,8 +3172,8 @@ private:
     bool _halted;
     int _minTicksPerCycle;
 
-    ConfigFile _configFile;
     File _file;
+    ConfigFile _config; 
     ISA8BitBus _bus;
     RAM640Kb _ram;
     NMISwitch _nmiSwitch;
@@ -3198,6 +3187,35 @@ private:
 
     String _stopSaveState;
 };
+
+void IBMCGA::site()
+{
+    this->_simulator->config()->addDefaultOption("cgarom", Type::string, String(""));
+}
+
+void IBMCGA::initialize()
+{
+    ConfigFile* config = _simulator->config();
+    String data = File(config->get<String>("cgarom"),
+        config->file().parent(), true).contents();
+    int length = 0x2000;
+    _romdata.allocate(length);
+    for (int i = 0; i < length; ++i)
+        _romdata[i] = data[i];
+}
+
+void ROM::initialize(const ROMData& romData)
+{
+    _mask = romData.mask() | 0xc0000000;
+    _start = romData.start();
+    String data = File(romData.file(),
+        this->_simulator->config()->file().parent(), true).contents();
+    int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
+    _data.allocate(length);
+    int offset = romData.offset();
+    for (int i = 0; i < length; ++i)
+        _data[i] = data[i + offset];
+}
 
 class RGBIMonitor : public Sink<BGRI>
 {
