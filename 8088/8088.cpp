@@ -306,6 +306,7 @@ public:
             String::Boolean(_active) + ", tick: " + _tick + ", address: " +
             hex(_address, 5) + "}\n";
     }
+    String name() const { return "ram"; }
 private:
     int _address;
     DRAM _dram;
@@ -344,7 +345,7 @@ public:
             TypedValue(Type::array(Type::integer), List<TypedValue>())));
         members.add(StructuredType::Member("active", false));
         members.add(StructuredType::Member("address", 0));
-        return StructuredType("RAM", members);
+        return StructuredType("DMAPages", members);
     }
     void load(const TypedValue& value)
     {
