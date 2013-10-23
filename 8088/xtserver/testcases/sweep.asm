@@ -1,4 +1,4 @@
-  %include "../defaults_bin.asm"
+  %include "../../defaults_bin.asm"
 
   mov cx,65535
 

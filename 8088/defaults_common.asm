@@ -315,7 +315,7 @@ cpu 8086
 
 
 %macro refreshOff 0
-  mov al,TIMER1 | LSB | MODE0 | BINARY
+  mov al,TIMER1 | MSB | MODE0 | BINARY  ;LSB | MODE0 | BINARY
   out 0x43,al
   mov al,0x01  ; Count = 0x0001 so we'll stop almost immediately
   out 0x41,al

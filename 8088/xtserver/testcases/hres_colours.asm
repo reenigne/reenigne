@@ -1,7 +1,7 @@
   %include "../../defaults_bin.asm"
 
-;  int 0x60
-;  int 0x60
+  captureScreen
+  captureScreen
 
   lockstep
 
@@ -257,17 +257,17 @@ drawComplete:
 
   writePIT16 0, 2, 76*262
 
-  mov cx,5*60 *50  ; Number of frames to display
+  mov cx,5*60  ; Number of frames to display
   mov dx,0x3d4
   sti
 waitLoop:
   hlt
-;  loop waitLoop
-  jmp waitLoop
+  loop waitLoop
 
   int 0x67
 
 
+drawBottom EQU 0
 
 
 interrupt8:
@@ -286,17 +286,22 @@ interrupt8:
 
   mov ax,((20 - 1) << 8) | 0x00        ;Horizontal total
   out dx,ax
-;  mov ax,0x150c
-;  out dx,ax
-;  mov ax,0x180d
-;  out dx,ax
-  mov ax,0x070c
-  out dx,ax
-  mov ax,0x080d
-  out dx,ax
+
+  %if drawBottom != 0
+    mov ax,0x150c
+    out dx,ax
+    mov ax,0x180d
+    out dx,ax
+  %else
+    mov ax,0x070c
+    out dx,ax
+    mov ax,0x080d
+    out dx,ax
+  %endif
+
   mov ax,((100 - 1) << 8) | 0x04       ;Vertical total
   out dx,ax
-  times 12 nop
+  times 11 nop
   mov ax,((54 - 1) << 8) | 0x00        ;Horizontal total
   out dx,ax
   mov ax,(18 << 8) | 0x01              ;Horizontal displayed
@@ -305,7 +310,7 @@ interrupt8:
   out dx,ax
   mov ax,0x0005                        ;Vertical adjust
   out dx,ax
-  times 8 nop
+  times 9 nop
 
   %rep 99
     mov ax,((20 - 1) << 8) | 0x00        ;Horizontal total
@@ -330,14 +335,19 @@ interrupt8:
 
   mov ax,((20 - 1) << 8) | 0x00        ;Horizontal total
   out dx,ax
-;  mov ax,0x0e0c
-;  out dx,ax
-;  mov ax,0x100d
-;  out dx,ax
-  mov ax,0x000c
-  out dx,ax
-  mov ax,0x000d
-  out dx,ax
+
+  %if drawBottom != 0
+    mov ax,0x0e0c
+    out dx,ax
+    mov ax,0x100d
+    out dx,ax
+  %else
+    mov ax,0x000c
+    out dx,ax
+    mov ax,0x000d
+    out dx,ax
+  %endif
+
   mov ax,((114 - 1) << 8) | 0x04       ;Vertical total
   out dx,ax
   times 12 nop
