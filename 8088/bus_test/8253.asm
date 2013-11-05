@@ -5,16 +5,16 @@
   out 0x61,al
 
   mov cx,200
-  mov al,TIMER2 | BOTH | MODE3 | BINARY
+  mov al,TIMER2 | BOTH | MODE0 | BINARY
   out 0x43,al
-  mov al,0xff
+  mov al,1
   out 0x42,al
   out 0x42,al
 
-  mov al,TIMER2 | MSB | MODE3 | BINARY
-  out 0x43,al
-  mov al,0x00
-  out 0x42,al
+;  mov al,TIMER2 | MSB | MODE3 | BINARY
+;  out 0x43,al
+;  mov al,0x00
+;  out 0x42,al
 
 looptop:
   mov al,TIMER2 | LATCH
