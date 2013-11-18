@@ -2,26 +2,6 @@
 
   cli
 
-  ; Mode control (port 0x43) values
-
-  TIMER0 EQU 0x00
-  TIMER1 EQU 0x40
-  TIMER2 EQU 0x80
-
-  LATCH  EQU 0x00
-  LSB    EQU 0x10
-  MSB    EQU 0x20
-  BOTH   EQU 0x30 ; LSB first, then MSB
-
-  MODE0  EQU 0x00 ; Interrupt on terminal count: low during countdown then high                            (useful for PWM)
-  MODE1  EQU 0x02 ; Programmable one shot      : low from gate rising to end of countdown
-  MODE2  EQU 0x04 ; Rate generator             : output low for one cycle out of N                         (useful for timing things)
-  MODE3  EQU 0x06 ; Square wave generator      : high for ceil(n/2) and low for floor(n/2)                 (useful for beepy sounds)
-  MODE4  EQU 0x08 ; Software triggered strobe  : high during countdown then low for one cycle
-  MODE5  EQU 0x0a ; Hardware triggered strobe  : wait for gate rising, then high during countdown, then low for one cycle
-
-  BINARY EQU 0x00
-  BCD    EQU 0x01
 
 
   mov al,0x4d  ; speaker off but gate high
@@ -102,22 +82,13 @@ init:
   printHex
   printCharacter ' '
 
-  mov al,TIMER2 | BOTH | MODE0
-  out 0x43,al
-  mov al,0
-  out 0x42,al
-  out 0x42,al
+  writePIT16 2, 0, 0
 
   mov cx,200
 waitLoop:
   loop waitLoop
 
-  mov al,TIMER2 | LATCH
-  out 0x43,al
-  in al,0x42
-  mov ah,al
-  in al,0x42
-  xchg ah,al
+  readPIT16 2
   mov bx,ax
 
 

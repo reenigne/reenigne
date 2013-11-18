@@ -10,10 +10,13 @@
   out dx,ax
   mov ax,0x0005
   out dx,ax
-  mov al,0x0009
+  mov ax,0x0009
   out dx,ax
-  mov al,0x0008
+  mov ax,0x0308
   out dx,ax
+
+  mov al,16
+  out dx,al
 
   mov ax,cs
   mov es,ax
@@ -26,18 +29,23 @@ looptop:
   in al,dx  ; 0x3dc: Activate light pen
   dec dx
   in al,dx  ; 0x3db: Clean light pen strobe
-  mov dl,0xd4
-  mov al,17
-  out dx,al ; 0x3d4<-17: light pen low
-  inc dx
-  in al,dx  ; 0x3d5: register value
+;  mov dl,0xd4
+;  mov al,17
+;  out dx,al ; 0x3d4<-17: light pen low
+;  inc dx
+;  in al,dx  ; 0x3d5: register value
+;  stosb
+;  dec dx
+;  mov al,16
+;  out dx,al ; 0x3d4<-16: light pen high
+;  inc dx
+;  in al,dx  ; 0x3d5: register value
+;  stosb
+  mov dl,0xd5
+  in al,dx
   stosb
-  dec dx
-  mov al,16
-  out dx,al ; 0x3d4<-16: light pen high
-  inc dx
-  in al,dx  ; 0x3d5: register value
   stosb
+
   mov dl,0xdc
   loop looptop
 

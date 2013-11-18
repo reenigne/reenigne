@@ -171,18 +171,13 @@ timerStartStart:
   ; Ensure all memory rows are recently refreshed before turning off refresh
   times 256 nop
 
-  ; Turn off refresh
-  mov al,0x70  ; Timer 1, write LSB+MSB, mode 0, binary
-  out 0x43,al
-  mov al,0
-  out 0x41,al
-  out 0x41,al
+  refreshOff
 
   ; Wait for any pending refresh to occur (unnecessary?)
   times 18 nop
 
   ; Reset timer 0 so that the CPU is in lockstep with timer 0
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
+  mov al,TIMER0 | BOTH | MODE2 | BINARY
   out 0x43,al
   xor al,al
   out 0x40,al
@@ -202,10 +197,7 @@ timerEndStart:
   mov dx,[startTime]
   sub dx,ax
 
-  mov al,0x54  ; Timer 1, write LSB, mode 2, binary
-  out 0x43,al
-  mov al,18
-  out 0x41,al  ; Timer 1 rate
+  refreshOn
 
   sti
   mov ax,dx

@@ -111,6 +111,7 @@ public:
                 case 3:
                     return noise[(position >> 16) & 0xff];
             }
+            return 0;
         }
         int _volume;     // 0 to 0xfff (really 0xff*0xf = 0xef1)
         int _pulseWidth; // 0 to 0x100

@@ -93,6 +93,8 @@
     <ClInclude Include="8253.h">
       <FileType>CppHeader</FileType>
     </ClInclude>
+    <ClInclude Include="dram.h" />
+    <ClInclude Include="mc6845.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\alfe\array.h" />

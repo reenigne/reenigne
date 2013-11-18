@@ -1,6 +1,6 @@
   %include "../defaults_bin.asm"
 
-  mov al,0x34
+  mov al,TIMER0 | BOTH | MODE2 | BINARY
   out 0x43,al
   xor al,al
   out 0x40,al
@@ -120,18 +120,14 @@ printNybble:
 
 
 doExperiment:
-  ; Turn off refresh
-  mov al,0x60  ; Timer 1, write LSB, mode 0, binary
-  out 0x43,al
-  mov al,0x01  ; Count = 0x0001 so we'll stop almost immediately
-  out 0x41,al
+  refreshOff
 
   ; Enable IRQ0
   mov al,0xfe  ; Enable IRQ 0 (timer), disable others
   out 0x21,al
 
   ; Use IRQ0 to go into lockstep with timer 0
-  mov al,0x24  ; Timer 0, write LSB, mode 2, binary
+  mov al,TIMER0 | LSB | MODE2 | BINARY
   out 0x43,al
   mov al,0x04  ; Count = 0x0004 which should be after the hlt instruction has
   out 0x40,al  ; taken effect.
@@ -275,7 +271,7 @@ interrupt8:
   mov ax,[loadSeg]
   mov ds,ax
 
-  mov al,0x34  ; Timer 0, write LSB+MSB, mode 2, binary
+  mov al,TIMER0 | BOTH | MODE2 | BINARY
   out 0x43,al
   mov al,0x00
   out 0x40,al
@@ -297,10 +293,7 @@ interrupt8:
   in al,0x40
   mov bh,al
 
-  mov al,0x54  ; Timer 1, write LSB, mode 2, binary
-  out 0x43,al
-  mov al,18
-  out 0x41,al  ; Timer 1 rate
+  refreshOn
 
   mov al,0x20
   out 0x20,al

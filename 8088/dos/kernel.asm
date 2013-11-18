@@ -21,7 +21,7 @@ codeStart:
   rep stosw
 
   ; Set up the timer interrupt
-  mov al,0x36  ; Timer 0, write both bytes, mode 3 (square wave), binary mode
+  mov al,TIMER0 | BOTH | MODE3 | BINARY
   out 0x43,al
   mov al,0     ; rate = 13125000/11/2^16 ~= 18.2Hz
   out 0x40,al

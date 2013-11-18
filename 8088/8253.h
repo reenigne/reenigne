@@ -117,12 +117,12 @@ private:
         {
             switch (_bytes) {
                 case 0:
-                    return _latch;
+                    return _latch & 0xff;
                     break;
                 case 1:
                     if (_latched)
-                        return _latch;
-                    return _value;
+                        return _latch & 0xff;
+                    return _value & 0xff;
                 case 2:
                     if (_latched)
                         return _latch >> 8;
@@ -130,11 +130,11 @@ private:
                 case 3:
                     if (_latched) {
                         if (_firstByte)
-                            return _latch;
+                            return _latch & 0xff;
                         return _latch >> 8;
                     }
                     if (_firstByte)
-                        return _value;
+                        return _value & 0xff;
                     return _value >> 8;
             }
             return 0;

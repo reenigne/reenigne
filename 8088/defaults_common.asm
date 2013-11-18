@@ -292,11 +292,40 @@ cpu 8086
 %endmacro
 
 
+  ; 8253 PIT Mode control (port 0x43) values
+
+  TIMER0 EQU 0x00
+  TIMER1 EQU 0x40
+  TIMER2 EQU 0x80
+
+  LATCH  EQU 0x00
+  LSB    EQU 0x10
+  MSB    EQU 0x20
+  BOTH   EQU 0x30 ; LSB first, then MSB
+
+  MODE0  EQU 0x00 ; Interrupt on terminal count: low during countdown then high                            (useful for PWM)
+  MODE1  EQU 0x02 ; Programmable one shot      : low from gate rising to end of countdown
+  MODE2  EQU 0x04 ; Rate generator             : output low for one cycle out of N                         (useful for timing things)
+  MODE3  EQU 0x06 ; Square wave generator      : high for ceil(n/2) and low for floor(n/2)                 (useful for beepy sounds)
+  MODE4  EQU 0x08 ; Software triggered strobe  : high during countdown then low for one cycle
+  MODE5  EQU 0x0a ; Hardware triggered strobe  : wait for gate rising, then high during countdown, then low for one cycle
+
+  BINARY EQU 0x00
+  BCD    EQU 0x01
+
+
 %macro refreshOff 0
-  mov al,0x60  ; Timer 1, write LSB, mode 0, binary
+  mov al,TIMER1 | MSB | MODE0 | BINARY  ;LSB | MODE0 | BINARY
   out 0x43,al
   mov al,0x01  ; Count = 0x0001 so we'll stop almost immediately
   out 0x41,al
+%endmacro
+
+%macro refreshOn 0
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,18
+  out 0x41,al  ; Timer 1 rate
 %endmacro
 
 
@@ -426,7 +455,7 @@ cpu 8086
 ; mode 5 = hardware triggered strobe
 ; value = 13125000Hz/(11*frequency), or 0 for 18.2Hz
 %macro writePIT16 3
-  mov al,(%1 << 6) | 0x30 | (%2 << 1)  ; Don't use BCD mode
+  mov al,(%1 << 6) | BOTH | (%2 << 1)  ; Don't use BCD mode
   out 0x43,al
   mov al,(%3) & 0xff
   out 0x40 + %1,al
@@ -436,8 +465,9 @@ cpu 8086
 
 ; readPIT16 <timer>
 ; Value returned in AX
+; Timer must have been written to with both bytes
 %macro readPIT16 1
-  mov al,%1 << 6
+  mov al,(%1 << 6) | LATCH
   out 0x43,al
   in al,0x40 + %1
   mov ah,al
