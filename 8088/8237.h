@@ -6,6 +6,13 @@ public:
     Intel8237DMATemplate()
     {
     }
+    void site()
+    {
+        for(int i = 0; i < 4; ++i)
+        {
+            _channels[i]._bus = this->_simulator->getBus();
+        }
+    }
     void simulateCycle()
     {
         for(int i = 0; i < 4; ++i)
@@ -31,12 +38,30 @@ public:
         {
             _channels[_address >> 1].write(_address & 1,data);
         }
+        switch(_address)
+        {
+            case 0x08:
+            {
+                if(data & 4) _enabled = false;
+                else _enabled = true;
+                break;
+            }
+            case 0x0B:
+            {
+                _channels[data & 3]._mode = data & 0xFC;
+                break;
+            }
+        }
     }
     // Step 1: the device calls dmaRequest()
     // equivalent to raising a DRQ line.
     void dmaRequest(int channel)
     {
         // TODO
+        if(!_enabled) return;
+        _channels[channel]._started = true;
+        _channels[channel]._state = Channel::State::stateIdle;
+        _channels[channel]._transferaddress = _channels[channel]._startaddress;
     }
     // Step 2: at the end of the IO cycle the CPU calls dmaRequested()
     // equivalent to checking the status of the READY line and raising the HLDA
@@ -44,6 +69,15 @@ public:
     bool dmaRequested()
     {
         // TODO: call _bus->setAddress() with the appropriate generated address
+        if(!_enabled) return false;
+        for(int i = 0;i<4;i++)
+        {
+            if(_channels[i]._started)
+            {
+                if(_channels[i]._state == Channel::State::stateIdle) _channels[i]._state = Channel::State::stateS1;
+                return true;
+            }
+        }
         return false;
     }
     // Step 3: device checks dmaAcknowledged() to see when to access the bus.
@@ -51,13 +85,14 @@ public:
     bool dmaAcknowledged(int channel)
     {
         // TODO
-        return false;
+        return !_channels[channel]._started;
     }
     // Step 4: the device calls dmaComplete()
     // equivalent to lowering a DRQline.
     void dmaComplete(int channel)
     {
         // TODO
+        _channels[channel]._started = false;
     }
 
     String getText()
@@ -69,8 +104,52 @@ private:
     class Channel
     {
     public:
+        Channel()
+        {
+            _started = false;
+        }
         void simulateCycle()
         {
+            if(_started)
+            {
+               switch(_mode & 0x0C)
+               {
+                   case 0x08:
+                   {
+                       switch(_state)
+                       {
+                           case stateS1:
+                           {
+                               _bus->setAddress(_transferaddress);
+                               _transferaddress++;
+                               if(_transferaddress == _startaddress + _count + 1)
+                               {
+                                   _started = false;
+                               }
+                               _state = stateS2;
+                               break;
+                           }
+                           case stateS2:
+                           {
+                               _state = stateS3;
+                               break;
+                           }
+                           case stateS3:
+                           {
+                               _bus->read();
+                               _state = stateS4;
+                               break;
+                           }
+                           case stateS4:
+                           {
+                               _state = stateS1;
+                               break;
+                           }
+                       }
+                       break;
+                   }
+               }
+            }
         }
         UInt8 read(UInt32 address)
         {
@@ -103,11 +182,24 @@ private:
                     break;
             }
         }
-    private:
+        UInt8 _mode;
+        bool _started;
+        enum State
+        {
+            stateIdle = 0,
+            stateS1,
+            stateS2,
+            stateS3,
+            stateS4
+        } _state;
+        UInt16 _transferaddress;
         UInt16 _startaddress;
+        ISA8BitBus* _bus;
+    private:
         UInt16 _count;
         bool _firstbyte;
     };
     Channel _channels[4];
     UInt32 _address;
+    bool _enabled;
 };
