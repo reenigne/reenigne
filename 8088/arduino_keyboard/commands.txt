@@ -25,6 +25,7 @@ Commands: (sent as 0x70 + command in scancode mode or command in ASCII mode)
 0x09 tester raw mode off
 0x0a remote mode on, ASCII mode off
 0x0b remote mode off
+0x0c set speed to send keyboard bits to XT in cycles per half-bit (followed by low byte of count and then high byte of count - default 800, min ~13, resolution ~8)
 
 
 Make  Break     Key                         Remote key               Remote code          ASCII key      Windows code  Windows key
