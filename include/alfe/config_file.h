@@ -201,6 +201,9 @@ private:
                         case '`':
                             insert = "`";
                             break;
+                        case '\\':
+                            insert = "\\";
+                            break;
                         case 'U':
                             source->assert('+', &stringEndSpan);
                             n = 0;

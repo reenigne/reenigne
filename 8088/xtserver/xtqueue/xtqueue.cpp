@@ -4,6 +4,7 @@
 #include "alfe/linked_list.h"
 #include "alfe/email.h"
 #include "alfe/com.h"
+#include "alfe/config_file.h"
 #include <MMReg.h>
 #include <dsound.h>
 
@@ -12,8 +13,9 @@
 class QueueItem : public LinkedListMember<QueueItem>
 {
 public:
-    QueueItem(AutoHandle pipe) : _pipe(pipe),
-        _broken(false), _aborted(false), _lastNotifiedPosition(-1)
+    QueueItem(AutoHandle pipe, String fromAddress) : _pipe(pipe),
+        _fromAddress(fromAddress), _broken(false), _aborted(false),
+        _lastNotifiedPosition(-1)
     {
         _email = pipe.readLengthString();
         _emailValid = true;
@@ -91,8 +93,7 @@ public:
 
                 console.write("Sending email\n");
 
-                sendMail("XT Server <xtserver@reenigne.org>", _email,
-                    "Your XT Server results",
+                sendMail(_fromAddress, _email, "Your XT Server results",
                     "A program was sent to the XT Server at\n"
                     "http://www.reenigne.org/xtserver but the browser was\n"
                     "disconnected before the program completed. The results of"
@@ -196,6 +197,7 @@ public:
 private:
     AutoHandle _pipe;
 
+    String _fromAddress;
     String _email;
     String _fileName;
     String _data;
@@ -370,26 +372,39 @@ private:
 class XTThread : public Thread
 {
 public:
-    XTThread() : _queuedItems(0), _ending(false), _processing(false),
+    XTThread(ConfigFile* configFile)
+      : _queuedItems(0), _ending(false), _processing(false),
         _needArduinoReset(false), _needReboot(false), _diskBytes(0x10000)
     {
+        String quickBootPort = configFile->get<String>("quickBootPort");
+        int quickBootBaudRate = configFile->get<int>("quickBootBaudRate");
+        String serialPort = configFile->get<String>("serialPort");
+        int serialBaudRate = configFile->get<int>("serialBaudPrate");
+        _fromAddress = configFile->get<String>("fromAddress");
+        _lamePath = configFile->get<String>("lamePath");
+        _lameOptions = configFile->get<String>("lameOptions");
+        _adminAddress = configFile->get<String>("adminAddress");
+        _htdocsPath = configFile->get<String>("htdocsPath");
+        _captureFieldPath = configFile->get<String>("captureFieldPath");
+
         // Open handle to Arduino for rebooting machine
 #if 1
+        NullTerminatedWideString quickBootPath(quickBootPort);
         _arduinoCom = AutoHandle(CreateFile(
-            L"COM3",
+            quickBootPath,
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
             NULL,           // default security attributes
             OPEN_EXISTING,  // must use OPEN_EXISTING
             0,              // not overlapped I/O
             NULL),          // hTemplate must be NULL for comm devices
-            String("Arduino COM port"));
+            String("Quickboot COM port"));
 
         DCB deviceControlBlock;
         SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
         IF_ZERO_THROW(GetCommState(_arduinoCom, &deviceControlBlock));
         deviceControlBlock.DCBlength = sizeof(DCB);
-        deviceControlBlock.BaudRate = 19200;
+        deviceControlBlock.BaudRate = quickBootBaudRate;
         deviceControlBlock.fBinary = TRUE;
         deviceControlBlock.fParity = FALSE;
         deviceControlBlock.fOutxCtsFlow = FALSE;
@@ -415,8 +430,9 @@ public:
 
 
         // Open handle to serial port for data transfer
+        NullTerminatedWideString serialPath(serialPort);
         _com = AutoHandle(CreateFile(
-            L"COM7",
+            serialPath,
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
             NULL,           // default security attributes
@@ -428,7 +444,7 @@ public:
         SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
         IF_ZERO_THROW(GetCommState(_com, &deviceControlBlock));
         deviceControlBlock.DCBlength = sizeof(DCB);
-        deviceControlBlock.BaudRate = 57600; //115200; //38400; //
+        deviceControlBlock.BaudRate = serialBaudRate;
         deviceControlBlock.fBinary = TRUE;
         deviceControlBlock.fParity = FALSE;
         deviceControlBlock.fOutxCtsFlow = FALSE;
@@ -473,7 +489,7 @@ public:
     ~XTThread() { _ending = true; _ready.signal(); }
     void run(AutoHandle pipe)
     {
-        QueueItem* item = new QueueItem(pipe);
+        QueueItem* item = new QueueItem(pipe, _fromAddress);
 
         switch (item->command()) {
             case 0:
@@ -661,11 +677,7 @@ public:
         } while (retry < 10);
         return error;
     }
-    String htDocsPath(String name)
-    {
-        return "C:\\Program Files\\Apache Software Foundation\\Apache2.2\\"
-            "htdocs\\" + name;
-    }
+    String htDocsPath(String name) { return _htdocsPath + "\\" + name; }
     void threadProc()
     {
         do {
@@ -819,12 +831,11 @@ public:
                                     processed = true;
                                     String fileName = _item->secret() +
                                         imageCount + ".png";
-                                    String path = "C:\\Program Files\\Apache S"
-                                        "oftware Foundation\\Apache2.2\\htdocs"
-                                        "\\" + fileName;
+                                    String path = htDocsPath(fileName);
 
-                                    String commandLine = "\"C:\\capture_field."
-                                        "exe\" \"" + path + "\"";
+                                    String commandLine = "\"" +
+                                        _captureFieldPath + "\" \"" + path +
+                                        "\"";
                                     NullTerminatedWideString data(commandLine);
 
                                     PROCESS_INFORMATION pi;
@@ -870,10 +881,9 @@ public:
                                     File wave(waveName, true);
                                     audioCapture->finish(wave);
                                     audioCapture = 0;
-                                    String commandLine = "\"C:\\Program Files"
-                                        "\\LAME\\lame.exe\" \"" + waveName +
-                                        "\" \"" + fileName + ".mp3\" -r -s "
-                                        "44100 -m l";
+                                    String commandLine = "\"" + _lamePath +
+                                        "\" \"" + waveName + "\" \"" +
+                                        fileName + ".mp3\" " + _lameOptions;
                                     NullTerminatedWideString data(commandLine);
 
                                     PROCESS_INFORMATION pi;
@@ -1087,7 +1097,7 @@ public:
                     bothWrite("The program did not complete within 5 "
                         "minutes and has been\nterminated. If you really need "
                         "to run a program for longer,\n"
-                        "please send email to andrew@reenigne.org.");
+                        "please send email to " + _adminAddress + ".");
                     _needReboot = true;
                 }
                 else
@@ -1121,6 +1131,12 @@ public:
         } while (true);
     }
 private:
+    String _fromAddress;
+    String _lamePath;
+    String _lameOptions;
+    String _adminAddress;
+    String _htdocsPath;
+    String _captureFieldPath;
     LinkedList<QueueItem> _queue;
     int _queuedItems;
 
@@ -1147,13 +1163,40 @@ class Program : public ProgramBase
 public:
     void run()
     {
+        if (_arguments.count() < 2) {
+            console.write("Syntax: " + _arguments[0] +
+                " <config file name>\n");
+            return;
+        }
+
+        ConfigFile configFile;
+        configFile.addDefaultOption("quickBootPort", String("COM4"));
+        configFile.addDefaultOption("quickBootBaudRate", 19200);
+        configFile.addDefaultOption("serialPort", String("COM1"));
+        configFile.addDefaultOption("serialBaudRate", 115200);
+        configFile.addDefaultOption("fromAddress",
+            String("XT Server <xtserver@reenigne.org>"));
+        configFile.addDefaultOption("pipe", String("\\\\.\\pipe\\xtserver"));
+        configFile.addDefaultOption("lamePath",
+            String("C:\\Program Files\\LAME\\lame.exe"));
+        configFile.addDefaultOption("lameOptions", String("-r -s 44100 -m l"));
+        configFile.addDefaultOption("adminAddress",
+            String("andrew@reenigne.org"));
+        configFile.addDefaultOption("htdocsPath",
+            String("C:\\Program Files\\Apache Software Foundation\\Apache2.2\\"
+            "htdocs"));
+        configFile.addDefaultOption("captureFieldPath",
+            String("C:\\capture_field.exe"));
+        configFile.load(File(_arguments[1], CurrentDirectory(), true));
+
         COMInitializer com;
-        XTThread xtThread;
+        XTThread xtThread(&configFile);
         xtThread.start();
         while (true)
         {
             console.write("Waiting for connection\n");
-            AutoHandle h = File("\\\\.\\pipe\\xtserver", true).createPipe();
+            AutoHandle h =
+                File(configFile.get<String>("pipe"), true).createPipe();
 
             bool connected = (ConnectNamedPipe(h, NULL) != 0) ? true : 
                 (GetLastError() == ERROR_PIPE_CONNECTED); 

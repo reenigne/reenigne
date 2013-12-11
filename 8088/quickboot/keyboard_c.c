@@ -31,6 +31,9 @@ bool getClock();
 void reset();
 bool getQuickBoot();
 uint8_t receiveKeyboardByte();
+void waitCycles32(uint8_t cycles3);
+void waitCycles31(uint8_t cycles3);
+void waitCycles30(uint8_t cycles3);
 
 //  2us = 32 count - wait after sending 0xaa for keyboard data to go low
 //  50us = 800 count - keyboard half clock cycle - this the one we want to vary, down to about 13 count (1 IO)?
@@ -74,6 +77,7 @@ volatile bool expectingCheckSum = false;
 volatile bool testerRaw = false;
 volatile bool remoteMode = false;
 volatile uint8_t speedBytesRemaining = 0;
+volatile uint8_t whichSpeed = 0;
 
 SIGNAL(PCINT1_vect)
 {
@@ -83,7 +87,10 @@ SIGNAL(PCINT1_vect)
 
 uint8_t receivedKeyboardByte = 0;
 volatile bool blockedKeyboard = false;
-volatile uint16_t bitDelay = 800;
+volatile uint16_t receivedDelay = 0;
+volatile uint8_t bitDelay = 100;
+volatile uint16_t slowAckDelay = 1200;
+volatile uint16_t fastAckDelay = 68;
 
 SIGNAL(PCINT2_vect)
 {
@@ -228,7 +235,7 @@ bool processCommand(uint8_t command)
             remoteMode = false;
             return true;
         case 0xc:
-            speedBytesRemaining = 2;
+            speedBytesRemaining = 3;
             return true;
     }
     return false;
@@ -338,8 +345,17 @@ void processCharacter(uint8_t received)
         return;
     }
     if (speedBytesRemaining > 0) {
-        bitDelay = (bitDelay >> 8) | (((uint16_t)received) << 8);
+        if (speedBytesRemaining == 3)
+            whichSpeed = received;
+        else
+            receivedDelay = (receivedDelay >> 8) | (((uint16_t)received) << 8);
         --speedBytesRemaining;
+        if (speedBytesRemaining == 0)
+            switch (whichSpeed) {
+                case 1: bitDelay = receivedDelay; break;
+                case 2: slowAckDelay = receivedDelay; break;
+                case 3: fastAckDelay = receivedDelay; break;
+            }
         return;
     }
     if (received == 0) {
@@ -418,11 +434,9 @@ void clearInterruptedKeystroke()
 {
     while (getData()) {
         lowerClock();
-        waitCycles(bitDelay);
-//        wait50us();
+        waitCycles30(bitDelay);
         raiseClock();
-        waitCycles(bitDelay);
-//        wait50us();
+        waitCycles30(bitDelay);
     }
 }
 
@@ -432,26 +446,31 @@ void sendKeyboardBit(uint8_t bit)
         raiseData();
     else
         lowerData();
-    waitCycles(bitDelay);
-//    wait50us();
+    waitCycles30(bitDelay);
     lowerClock();
-    waitCycles(bitDelay);
-//    wait50us();
+    waitCycles30(bitDelay);
     raiseClock();
 }
 
-bool sendKeyboardByte(uint8_t data)
+bool sendKeyboardByte(uint8_t data, uint16_t ackDelay)
 {
     // We read the clock as high immediately before entering this routine.
     // The XT keyboard hardware holds the data line low to signal that the
     // previous byte has not yet been acknowledged by software.
     while (!getData()) { }
+
+    // We need to wait until we're sure the XT has finished it's ACK cycle
+    // (raised and lowered bit 7 of port B). If the XT gets any data from
+    // the keyboard port during this period it'll be lost.
+    waitCycles(ackDelay);
+
     if (!getClock()) {
         // Uh oh - the clock went low - the XT wants something (send byte or
         // reset). This should never happen during a reset, so we can just
         // abandon this byte.
         return false;
     }
+
     sendKeyboardBit(0);
     sendKeyboardBit(1);
     for (uint8_t i = 0; i < 8; ++i) {
@@ -459,6 +478,7 @@ bool sendKeyboardByte(uint8_t data)
         data >>= 1;
     }
     raiseData();
+
     if (!getClock()) {
         // The clock went low while we were sending - retry this byte once
         // the reset or send-requested condition has been resolved.
@@ -717,13 +737,24 @@ int main()
                     // clock line low during a reset. If it does the data will
                     // be corrupted as we don't attempt to remember where we
                     // got to and retry from there.
-                    sendKeyboardByte(0x65);
+                    sendKeyboardByte(0x65, slowAckDelay);
+                    uint8_t checksum = 0;
                     if (!testerRaw) {
                         if (ramProgram) {
-                            sendKeyboardByte(programBytes & 0xff);
-                            sendKeyboardByte(programBytes >> 8);
-                            for (uint16_t i = 0; i < programBytes; ++i)
-                                sendKeyboardByte(programBuffer[i]);
+                            sendKeyboardByte(programBytes & 0xff, slowAckDelay);
+                            sendKeyboardByte(programBytes >> 8, slowAckDelay);
+
+                            // After sending the second length byte there may
+                            // be another slow ack delay - account for that
+                            // here so we don't have to do it inside the loop.
+                            while (!getData()) { }
+                            waitCycles(slowAckDelay);
+
+                            for (uint16_t i = 0; i < programBytes - 1; ++i) {
+                                uint8_t v = programBuffer[i];
+                                sendKeyboardByte(v, fastAckDelay);
+                                checksum += v;
+                            }
                         }
                         else {
                             uint16_t programBytes =
@@ -731,16 +762,27 @@ int main()
                             programBytes |=
                                 (uint16_t)(pgm_read_byte(&defaultProgram[1]))
                                 << 8;
-                            sendKeyboardByte(programBytes & 0xff);
-                            sendKeyboardByte(programBytes >> 8);
-                            for (uint16_t i = 0; i < programBytes; ++i)
-                                sendKeyboardByte(
-                                    pgm_read_byte(&defaultProgram[i+2]));
+                            sendKeyboardByte(programBytes & 0xff, slowAckDelay);
+                            sendKeyboardByte(programBytes >> 8, slowAckDelay);
+
+                            // After sending the second length byte there may
+                            // be another slow ack delay - account for that
+                            // here so we don't have to do it inside the loop.
+                            while (!getData()) { }
+                            waitCycles(slowAckDelay);
+
+                            for (uint16_t i = 0; i < programBytes - 1; ++i) {
+                                uint8_t v =
+                                    pgm_read_byte(&defaultProgram[i+2]);
+                                sendKeyboardByte(v, fastAckDelay);
+                                checksum += v;
+                            }
                         }
                     }
+                    sendKeyboardByte(checksum, fastAckDelay);
                 }
                 else {
-                    sendKeyboardByte(0xaa);
+                    sendKeyboardByte(0xaa, slowAckDelay);
                     wait2us();
                     while (!getData()) { }
                     // If we send anything in the first 250ms after a reset,
@@ -762,7 +804,7 @@ int main()
                 // Send the number of bytes that the XT can safely send us.
                 cli();
                 sendKeyboardByte(serialBufferCharacters == 0 ? 255 :
-                    256-serialBufferCharacters);
+                    256-serialBufferCharacters, fastAckDelay);
                 sei();
                 uint8_t count = receiveKeyboardByte();
                 for (uint8_t i = 0; i < count; ++i) {
@@ -775,7 +817,7 @@ int main()
         else {
             // Clock is high - we're free to send if we have data.
             if (countdown == 0 && keyboardBufferCharacters != 0) {
-                if (sendKeyboardByte(keyboardBuffer[keyboardBufferPointer])) {
+                if (sendKeyboardByte(keyboardBuffer[keyboardBufferPointer], fastAckDelay)) {
                     // Successfully sent - remove this character from the
                     // buffer. This needs to be done with interrupts off in
                     // case a character is received (and added to the buffer)

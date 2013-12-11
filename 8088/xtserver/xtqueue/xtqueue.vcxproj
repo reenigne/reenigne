@@ -80,6 +80,18 @@
   <ItemGroup>
     <ClCompile Include="xtqueue.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\include\alfe\any.h" />
+    <ClInclude Include="..\..\..\include\alfe\config_file.h" />
+    <ClInclude Include="..\..\..\include\alfe\file.h" />
+    <ClInclude Include="..\..\..\include\alfe\file_handle.h" />
+    <ClInclude Include="..\..\..\include\alfe\handle.h" />
+    <ClInclude Include="..\..\..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\..\..\include\alfe\main.h" />
+    <ClInclude Include="..\..\..\include\alfe\reference.h" />
+    <ClInclude Include="..\..\..\include\alfe\string.h" />
+    <ClInclude Include="..\..\..\include\alfe\type.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

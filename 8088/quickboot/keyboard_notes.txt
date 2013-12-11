@@ -90,7 +90,6 @@ In the U27 configuration:
 OPERATION    INPUTS                                                                        |  INPUTS/OUTPUTS                  |  OUTPUTS
              CLEAR  REGISTER ENABLE                                  OUTPUT ENABLE  CLOCK  |  QA  QB  QC  QD  QE  QF  QG  QH  |  QH'
                                                                                            |                                  |
-Clear        L      H                                                L              X      |  L   L   L   L   L   L   L   L   |  L
 Clear        L      X                                                L              X      |  L   L   L   L   L   L   L   L   |  L
 Hold         H      H                                                L              X      |  QA0 QB0 QC0 QD0 QE0 QF0 QG0 QH0 |  QH0
 Shift Right  H      L                                                L              ^      |  Q1  QAn QBn QCn QDn QEn QFn QGn |  QGn
@@ -117,4 +116,121 @@ So algorithm for clock rising interrupt:
   shift data byte right 1 and save shifted out bit
   Load data from keyboard data line and put in highest bit of data
   If the shifted out bit was 1 then send data to XT and clear data byte
+
+
+
+
+SP_TEST:                                ; ENTRY FOR MANUFACTURING TEST 2
+        MOV     AL,48H                  ; SET KBD CLK HIGH, ENABLE LOW
+        OUT     PORT_B,AL
+        MOV     AL,0FDH                 ; ENABLE KEYBOARD INTERRUPTS
+        OUT     INTA01,AL               ; WRITE 8259 IMR
+        MOV     DATA_AREA[INTR_FLAG-DATA_BASE],0
+                                        ; RESET INTERRUPT INDICATOR
+        STI                             ; ENABLE INTERRUPTS
+        SUB     CX,CX                   ; SETUP INTERRUPT TIMEOUT CNT
+G9:
+        TEST    DATA_AREA[INTR_FLAG-DATA_BASE],02H
+                                        ; DID A KEYBOARD INTR OCCUR?
+        JNZ     G10                     ; YES - READ SCAN CODE RETURNED
+        LOOP    G9                      ; NO - LOOP TILL TIMEOUT
+G10:
+        IN      AL,PORT_A               ; READ KEYBOARD SCAN CODE
+        MOV     BL,AL                   ; SAVE SCAN CODE JUST READ
+        MOV     AL,0C8H                 ; CLEAR KEYBOARD
+        OUT     PORT_B,AL
+        RET                             ; RETURN TO CALLER
+
+
+
+
+
+MFG_BOOT:
+        CALL    SP_TEST                 ; GET COUNT LOW
+        MOV     BH,BL                   ; MOVE IT
+        CALL    SP_TEST                 ; GET COUNT HI
+        MOV     CH,BL
+        MOV     CL,BH                   ; CX NOW HAS COUNT
+        CLD                             ; SET DIR FLAG TO INCREMENT
+        CLI
+        MOV     DI,0500H                ; SET TARGET OFFSET (DS=0000)
+        MOV     AL,0FDH                 ; UNMASK K/B INTERRRUPT
+        OUT     INTA01,AL
+        MOV     AL,0AH                  ; SEND READ INT.REQUEST REG. CMD
+        OUT     INTA00,AL
+        MOV     DX,61H                  ; SET UP PORT B ADDRESS
+        MOV     BX,4CCCH                ; CONTROL BITS FOR PORT B
+        MOV     AH,02H                  ; K/B REQUEST PENDING MASK
+TST:
+        MOV     AL,BL
+        OUT     DX,AL                   ; TOGGLE K/B CLOCK                        0xcc  11001100    - comment is wrong, this just ACKs the keyboard byte, it doesn't lower the clock.
+        MOV     AL,BH
+        OUT     DX,AL                                                             0x4c  01001100
+        DEC     DX                      ; POINT DX AT ADDR 60 (KB DATA)
+TST1:
+        IN      AL,INTA00               ; GET IRR REG
+        AND     AL,AH                   ; KB REQUEST PENDING?
+        JZ      TST1                    ; LOOP TILL DATA PRESENT
+        IN      AL,DX                   ; GET DATA
+        STOSB                           ; STORE IT
+        INC     DX                      ; POINT DX BACK AT PORT B (61)
+        LOOP    TST                     ; LOOP TILL ALL BYTES READ
+
+
+
+
+When we ack a byte, is there a period during which the keyboard can't be transmitting?
+
+Ack sequence:
+  PB7 is set to high
+    => -OE set to high, QA..QH tristated (not sure if this makes a difference to anything)
+    => -CLR set to low, shift register zeroed, QH' goes low
+    => CLR input of U70 set to low (PR should already be low)
+      => Q and -Q go high
+        => keyboard data line goes high
+          => If data comes in now we'll lose it
+        => PR high
+          => Q low, -Q high
+  PB7 is set to low
+    => -OE set to low, QA..QH reinstated, now they are all low
+    => -CLR is set to high, shift register back to normal operation
+    => CLR input to U70 set to high => flip-flop back to normal operation
+  Now if keyboard clock lowered (CLOCK input to U27 raised) a bit will be shifted
+    Shifting an initial 0 is a no-op
+
+Protocol 1 (synchronous):
+  ACK keyboard byte with 0x8c, 0x4c
+  Then clock is raised just when ack completes. Data is high so a 1 could be shifted in (race condition).
+
+Protocol 2 (asynchronous):
+  Just wait for a certain period of time before sending additional data to ensure ACK bit is lowered
+  4 IOs (5 with refresh) for main data in MFG_BOOT
+    This is minimal
+    4.2 microseconds, 68 AVR cycles
+    Say we get 1Mbit/s send time (10us byte)
+    Then add the time it takes the XT to recognize, store and ACK
+      At least 23 IOs (24 with refresh)
+        => 50KB/s
+
+  Note: longer for initial length bytes!
+
+
+XT's reset protocol:
+  KBD_RESET called
+    08->B  (no data reset, clock low)
+    wait 20ms
+    C8->B  (data reset, clock normal)
+    SP_TEST
+      48->B  (no data reset, clock normal)
+      Wait for byte from keyboard
+      C8->B  (data reset, clock normal)
+  Check and jump to MFG_BOOT
+    SP_TEST - move to CL
+      48->B  (no data reset, clock normal)
+      Wait for byte from keyboard
+      C8->B  (data reset, clock normal)
+    SP_TEST - move to CH
+      48->B  (no data reset, clock normal)
+      Wait for byte from keyboard
+      C8->B  (data reset, clock normal)
 

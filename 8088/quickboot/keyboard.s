@@ -170,6 +170,17 @@ waitCyclesLoop:
   brcs waitCyclesLoop
   ret
 
+.global waitCycles32
+waitCycles32:
+  nop
+.global waitCycles31
+waitCycles31:
+  nop
+.global waitCycles30
+waitCycles30:
+  dec r24             ; n*1
+  brne waitCycles30   ; n*2 - 1
+  ret                 ; 4
 
 .global wait2us       ; 32 cycles
 wait2us:              ; 4
