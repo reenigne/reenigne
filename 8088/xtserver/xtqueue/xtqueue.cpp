@@ -408,12 +408,12 @@ public:
         deviceControlBlock.fBinary = TRUE;
         deviceControlBlock.fParity = FALSE;
         deviceControlBlock.fOutxCtsFlow = FALSE;
-        deviceControlBlock.fOutxDsrFlow = FALSE;
-        deviceControlBlock.fDtrControl = DTR_CONTROL_DISABLE;
+        deviceControlBlock.fOutxDsrFlow = TRUE; //FALSE;
+        deviceControlBlock.fDtrControl = DTR_CONTROL_HANDSHAKE; //DTR_CONTROL_DISABLE;
         deviceControlBlock.fDsrSensitivity = FALSE;
         deviceControlBlock.fTXContinueOnXoff = TRUE;
-        deviceControlBlock.fOutX = TRUE;
-        deviceControlBlock.fInX = TRUE;
+        deviceControlBlock.fOutX = FALSE; //TRUE;
+        deviceControlBlock.fInX = FALSE; //TRUE;
         deviceControlBlock.fErrorChar = FALSE;
         deviceControlBlock.fNull = FALSE;
         deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
@@ -599,10 +599,15 @@ public:
         }
 
         // Reset the machine
+
+        IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+        IF_ZERO_THROW(PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
         _arduinoCom.write<Byte>(0x7f);
         _arduinoCom.write<Byte>(0x77);
         IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
-        _needReboot = false;
+
+        Byte b = _com.tryReadByte();
+        _needReboot = (b != 'R');
     }
     void bothWrite(String s)
     {
@@ -617,8 +622,8 @@ public:
         do {
             IF_ZERO_THROW(PurgeComm(_com, PURGE_RXCLEAR | PURGE_TXCLEAR));
 
-            error = false;
             reboot();
+            error = _needReboot;
 
             bothWrite("Transferring attempt " + String::Decimal(retry) + "\n");
 
@@ -629,10 +634,6 @@ public:
             int p = 0;
             int bytes;
 //            int timeouts = 10;
-
-            Byte b = _com.tryReadByte();
-            if (b != 'R')
-                error = true;
 
             do {
                 if (error)
@@ -934,6 +935,7 @@ public:
                             case 0x1a:
                                 complete = true;
                                 processed = true;
+                                _needReboot = (_com.tryReadByte() != 'R');
                                 break;
                         }
                         if (c != 0)

@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20131208-com1-115200f',0
+  db '20131215a-com1-115200',0
 
 codeStart:
   sub di,0x500
@@ -16,17 +16,28 @@ findSP:
   pop si
   sub si,findSP
 
+
   mov ah,0
-  mov cx,kernelEnd
+  mov cx,checkSum
+;  mov [cs:kernelLength],cx
+;  mov [cs:kernelOffset],si
+
 checksumLoop:
   lodsb
   add ah,al
   loop checksumLoop
-  cmp ah,[cS:checkSum]
+;  mov [cs:computedChecksum],ah
+  cmp ah,[cs:checkSum]
   je checksumOk1
   or byte[cs:flags],2
 checksumOk1:
 
+;  call findSP2
+;findSP2:
+;  pop si
+;  sub si,findSP2
+;  mov [cs:kernelOffset],si
+;  mov word[cs:kernelLength],checkSum
 
   ; Don't want any stray interrupts interfering with the serial port accesses.
   cli
@@ -171,12 +182,20 @@ lengthOk:
   mov si,checksumWrong
   mov cx,checksumWrongEnd - checksumWrong
   printString
+
+;  mov ax,[cs:computedChecksum]
+;  printHex
+;  mov ax,[cs:kernelOffset]
+;  printHex
+;  mov ax,[cs:kernelLength]
+;  printHex
+
 checksumOk:
 
   ; Print the boot message
-  mov si,bootMessage
-  mov cx,bootMessageEnd - bootMessage
-  printString
+;  mov si,bootMessage
+;  mov cx,bootMessageEnd - bootMessage
+;  printString
 
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
@@ -514,9 +533,9 @@ column:
   db 0
 startAddress:
   dw 0
-bootMessage:
-  db 'XT Serial Kernel',10
-bootMessageEnd:
+;bootMessage:
+;  db 'XT Serial Kernel',10
+;bootMessageEnd:
 lengthWrong:
   db 'Length incorrect',10
 lengthWrongEnd:
@@ -531,6 +550,13 @@ screenCounter:
 
 flags:
   db 0
+
+;kernelLength:
+;  dw 0
+;kernelOffset:
+;  dw 0
+;computedChecksum:
+;  db 0
 
 checkSum:
   db 0     ; This will be overwritten by quickboot

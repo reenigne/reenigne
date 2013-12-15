@@ -25,7 +25,11 @@ Commands: (sent as 0x70 + command in scancode mode or command in ASCII mode)
 0x09 tester raw mode off
 0x0a remote mode on, ASCII mode off
 0x0b remote mode off
-0x0c set speed to send keyboard bits to XT in cycles per half-bit (followed by low byte of count and then high byte of count - default 800, min ~13, resolution ~8)
+0x0c set speed to send keyboard bits to XT in cycles per half-bit (followed by speed number to set, low byte of count and then high byte of count)
+  1 = bit delay - default 100, min ~13, resolution ~8) - only low byte used - 1 is the fastest that works
+  2 = slow Ack delay - default 1200 - 385 seems to be the fastest that works
+  3 = fast Ack delay - default 68 - 1 seems to be the fastest that works
+
 
 
 Make  Break     Key                         Remote key               Remote code          ASCII key      Windows code  Windows key
