@@ -208,6 +208,11 @@ checksumOk:
 loadSerialDataRoutine:
   initSerial
 
+  inc dx      ; 5
+  mov al,'R'
+  sendByte
+  dec dx
+
 packetLoop:
   ; Activate DTR
   mov al,1

@@ -67,8 +67,8 @@ public:
     }
     void printInfo()
     {
-        console.write("Starting work item" + _logFile + ": " + _fileName +
-            "for" + _email + "\n");
+        console.write("Starting work item " + _logFile + ": " + _fileName +
+            " for " + _email + "\n");
     }
 
     ~QueueItem()
@@ -379,7 +379,7 @@ public:
         String quickBootPort = configFile->get<String>("quickBootPort");
         int quickBootBaudRate = configFile->get<int>("quickBootBaudRate");
         String serialPort = configFile->get<String>("serialPort");
-        int serialBaudRate = configFile->get<int>("serialBaudPrate");
+        int serialBaudRate = configFile->get<int>("serialBaudRate");
         _fromAddress = configFile->get<String>("fromAddress");
         _lamePath = configFile->get<String>("lamePath");
         _lameOptions = configFile->get<String>("lameOptions");
@@ -582,7 +582,7 @@ public:
     void reboot()
     {
         if (!_needReboot)
-            false;
+            return;
         bothWrite("Resetting\n");
 
         if (_needArduinoReset) {
@@ -628,9 +628,16 @@ public:
 
             int p = 0;
             int bytes;
-            int timeouts = 10;
+//            int timeouts = 10;
+
+            Byte b = _com.tryReadByte();
+            if (b != 'R')
+                error = true;
+
             do {
-                int p0 = p;
+                if (error)
+                    break;
+                //int p0 = p;
                 bytes = min(l, 0xff);
                 _packet[0] = bytes;
                 checksum = 0;
@@ -644,21 +651,22 @@ public:
                 _com.write(&_packet[0], 2 + _packet[0]);
                 IF_ZERO_THROW(FlushFileBuffers(_com));
                 Byte b = _com.tryReadByte();
-                bothWrite(String::Decimal(b));
-                if (b == 255) {
-                    --timeouts;
-                    if (timeouts == 0)
-                        error = true;
-                    else {
-                        p = p0;
-                        continue;
-                    }
-                }
-                else {
-                    timeouts = 10; 
+                console.write(" " + String::Decimal(b));
+                //bothWrite(String::Decimal(b));
+                //if (b == 255) {
+                //    --timeouts;
+                //    if (timeouts == 0)
+                //        error = true;
+                //    else {
+                //        p = p0;
+                //        continue;
+                //    }
+                //}
+                //else {
+                //    timeouts = 10; 
                     if (b != 'K')
                         error = true;
-                }
+                //}
                 l -= bytes;
                 if (_killed || _cancelled) {
                     _needReboot = true;

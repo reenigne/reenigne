@@ -11,7 +11,7 @@ public:
             return;
         }
         String fileName = _arguments[1];
-        String data = File(fileName).contents();
+        String data = File(fileName, CurrentDirectory(), true).contents();
         int l = data.length();
 
         // Write length bytes
@@ -22,7 +22,7 @@ public:
             int c = i & 7;
             if (c == 0)
                 console.write("  .byte ");
-            console.write(hex(data[i], 2));
+            console.write(String(hex(data[i], 2)));
             if (c < 7 && i < l - 1)
                 console.write(", ");
             else
@@ -30,3 +30,4 @@ public:
         }
     }
 };
+
