@@ -88,9 +88,9 @@ SIGNAL(PCINT1_vect)
 uint8_t receivedKeyboardByte = 0;
 volatile bool blockedKeyboard = false;
 volatile uint16_t receivedDelay = 0;
-volatile uint8_t bitDelay = 100;
-volatile uint16_t slowAckDelay = 1200;
-volatile uint16_t fastAckDelay = 68;
+volatile uint8_t bitDelay = 1;
+volatile uint16_t slowAckDelay = 400;
+volatile uint16_t fastAckDelay = 1;
 
 SIGNAL(PCINT2_vect)
 {
