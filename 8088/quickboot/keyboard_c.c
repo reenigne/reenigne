@@ -78,6 +78,7 @@ volatile bool testerRaw = false;
 volatile bool remoteMode = false;
 volatile uint8_t speedBytesRemaining = 0;
 volatile uint8_t whichSpeed = 0;
+volatile bool sendRamProgram = false;
 
 SIGNAL(PCINT1_vect)
 {
@@ -91,6 +92,7 @@ volatile uint16_t receivedDelay = 0;
 volatile uint8_t bitDelay = 1;
 volatile uint16_t slowAckDelay = 400;
 volatile uint16_t fastAckDelay = 1;
+volatile uint16_t baudRate = 0x67;
 
 SIGNAL(PCINT2_vect)
 {
@@ -137,10 +139,19 @@ void sendSerialByte()
         }
         else {
             if (serialBufferCharacters == 0) {
-                // There's nothing we need to send!
-                return;
+                if (sendRamProgram) {
+                    c = programBuffer[programBytes - programBytesRemaining];
+                    --programBytesRemaining;
+                    if (programBytesRemaining == 0)
+                        sendRamProgram = false;
+                }
+                else {
+                    // There's nothing we need to send!
+                    return;
+                }
             }
-            c = serialBuffer[serialBufferPointer];
+            else
+                c = serialBuffer[serialBufferPointer];
             if (c == 0 || c == 17 || c == 19) {
                 if (!sentEscape) {
                     c = 0;
@@ -236,6 +247,12 @@ bool processCommand(uint8_t command)
             return true;
         case 0xc:
             speedBytesRemaining = 3;
+            return true;
+        case 0xd:
+            sendRamProgram = true;
+            programBytesRemaining = programBytes;
+            enqueueSerialByte(programBytes & 0xff);
+            enqueueSerialByte(programBytes >> 8);
             return true;
     }
     return false;
@@ -355,6 +372,10 @@ void processCharacter(uint8_t received)
                 case 1: bitDelay = receivedDelay; break;
                 case 2: slowAckDelay = receivedDelay; break;
                 case 3: fastAckDelay = receivedDelay; break;
+                case 4:
+                    UBRR0L = receivedDelay & 0xff;
+                    UBRR0H = receivedDelay >> 8;
+                    break;
             }
         return;
     }

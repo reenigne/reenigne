@@ -892,7 +892,7 @@ public:
                                     audioCapture = 0;
                                     String commandLine = "\"" + _lamePath +
                                         "\" \"" + waveName + "\" \"" +
-                                        fileName + ".mp3\" " + _lameOptions;
+                                        baseName + ".mp3\" " + _lameOptions;
                                     NullTerminatedWideString data(commandLine);
 
                                     PROCESS_INFORMATION pi;
@@ -992,94 +992,96 @@ public:
                                 ++fileCount;
                             }
                             break;
-                        //case 5:
-                        //    // Get host interrupt data
-                        //    hostBytes[17 - hostBytesRemaining] = c;
-                        //    --hostBytesRemaining;
-                        //    if (hostBytesRemaining != 0)
-                        //        break;
-                        //    fileState = 0;
-                        //    if (hostBytes[0] != 0x13) {
-                        //        bothWrite("Unknown host interrupt " +
-                        //            String::Hex(hostBytes[0], 2, true));
-                        //        break;
-                        //    }
-                        //    // The host bytes are as follows:
-                        //    Byte sectorCount = hostBytes[1];
-                        //    Byte operation = hostBytes[2];
-                        //    Byte sector = hostBytes[3] & 0x3f;
-                        //    int error = 0;
-                        //    if (sector >= 9)
-                        //        error = 4;
-                        //    Word track = hostBytes[4] |
-                        //        ((hostBytes[3] & 0xc0) << 2);
-                        //    if (track >= 40)
-                        //        error = 4;
-                        //    Byte drive = hostBytes[5];
-                        //    if (drive != 0)
-                        //        error = 4;
-                        //    Byte head = hostBytes[6];
-                        //    if (head >= 2)
-                        //        error = 4;
-                        //    //  7 == step rate time / head unload time
-                        //    //  8 == head load time / DMA mode
-                        //    //  9 == motor shutoff time
-                        //    int sectorSize = 128 << hostBytes[10];
-                        //    if (sectorSize != bytesPerSector)
-                        //        error = 4;
-                        //    Byte sectorsPerTrack = hostBytes[11];
-                        //    // 12 == gap length for read/write/verify
-                        //    // 13 == data length
-                        //    // 14 == gap length for format
-                        //    // 15 == fill byte for format
-                        //    // 16 == head settle time
-                        //    // 17 == motor startup time
+                        case 5:
+                            // Get host interrupt data
+                            hostBytes[17 - hostBytesRemaining] = c;
+                            --hostBytesRemaining;
+                            if (hostBytesRemaining != 0)
+                                break;
+                            fileState = 0;
+                            if (hostBytes[0] != 0x13) {
+                                bothWrite("Unknown host interrupt " +
+                                    String::Hex(hostBytes[0], 2, true));
+                                break;
+                            }
+                            {
+                                // The host bytes are as follows:
+                                Byte sectorCount = hostBytes[1];
+                                Byte operation = hostBytes[2];
+                                Byte sector = hostBytes[3] & 0x3f;
+                                int error = 0;
+                                if (sector >= 9)
+                                    error = 4;
+                                Word track = hostBytes[4] |
+                                    ((hostBytes[3] & 0xc0) << 2);
+                                if (track >= 40)
+                                    error = 4;
+                                Byte drive = hostBytes[5];
+                                if (drive != 0)
+                                    error = 4;
+                                Byte head = hostBytes[6];
+                                if (head >= 2)
+                                    error = 4;
+                                //  7 == step rate time / head unload time
+                                //  8 == head load time / DMA mode
+                                //  9 == motor shutoff time
+                                int sectorSize = 128 << hostBytes[10];
+                                if (sectorSize != bytesPerSector)
+                                    error = 4;
+                                Byte sectorsPerTrack = hostBytes[11];
+                                // 12 == gap length for read/write/verify
+                                // 13 == data length
+                                // 14 == gap length for format
+                                // 15 == fill byte for format
+                                // 16 == head settle time
+                                // 17 == motor startup time
 
-                        //    int start = ((track*heads + head)*sectorsPerTrack + 
-                        //        sector)*bytesPerSector;
-                        //    int length = sectorCount*bytesPerSector;
-                        //    String image = _item->data();
-                        //    if (operation != 5 &&
-                        //        start + length > image.length())
-                        //        error = 4;
-                        //    Byte status[3];
-                        //    status[0] = (error != 0 ? sectorCount : 0);
-                        //    status[1] = error;
-                        //    status[2] = (error != 0 ? 3 : 2);
-                        //    switch (operation) {
-                        //        case 2:
-                        //            // Read disk sectors
-                        //            if (error != 0)
-                        //                upload("");
-                        //            else
-                        //                upload(image.
-                        //                    subString(start, length));
-                        //            break;
-                        //        case 3:
-                        //            // Write disk sectors
-                        //        case 4:
-                        //            // Verify disk sectors
-                        //            diskByteCount = length;
-                        //            diskDataPointer = 0;
-                        //            fileState = 6;
-                        //            break;
-                        //        case 5:
-                        //            // Format disk sectors
-                        //            diskByteCount = 
-                        //            break;
-                        //    }
-                        //    upload(String(reinterpret_cast<const char*>
-                        //        (&status[0]), 3));
-                        //    break;
-                        //case 6:
-                        //    // Get disk data
-                        //    _diskBytes[diskDataPointer] = c;
-                        //    ++diskDataPointer;
-                        //    if (diskDataPointer != diskByteCount)
-                        //        break;
-                        //    fileState = 0;
-
-                            
+                                int start =
+                                    ((track*heads + head)*sectorsPerTrack + 
+                                    sector)*bytesPerSector;
+                                int length = sectorCount*bytesPerSector;
+                                String image = _item->data();
+                                if (operation != 5 &&
+                                    start + length > image.length())
+                                    error = 4;
+                                Byte status[3];
+                                status[0] = (error != 0 ? sectorCount : 0);
+                                status[1] = error;
+                                status[2] = (error != 0 ? 3 : 2);
+                                switch (operation) {
+                                    case 2:
+                                        // Read disk sectors
+                                        if (error != 0)
+                                            upload("");
+                                        else
+                                            upload(image.
+                                                subString(start, length));
+                                        break;
+                                    case 3:
+                                        // Write disk sectors
+                                    case 4:
+                                        // Verify disk sectors
+                                        diskByteCount = length;
+                                        diskDataPointer = 0;
+                                        fileState = 6;
+                                        break;
+                                    case 5:
+                                        // Format disk sectors
+                                        diskByteCount = 4*sectorsPerTrack;
+                                        break;
+                                }
+                                upload(String(reinterpret_cast<const char*>
+                                    (&status[0]), 3));
+                            }
+                            break;
+                        case 6:
+                            // Get disk data
+                            _diskBytes[diskDataPointer] = c;
+                            ++diskDataPointer;
+                            if (diskDataPointer != diskByteCount)
+                                break;
+                            fileState = 0;
+                            break;
                     }
                     if (_item->aborted())
                         break;
