@@ -26,11 +26,11 @@ public:
             for (i = 0; i < _email.length(); ++i) {
                 int c = _email[i];
                 if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                    (c >= '0' && c <= '9') || c == '@' || c == '!' || 
-                    c == '#' || c == '$' || c == '%' || c == '&' || 
-                    c == '\'' || c == '*' || c == '+' || c == '-' || 
-                    c == '/' || c == '=' || c == '?' || c == '^' || 
-                    c == '_' || c == '`'  || c == '{' || c == '|' || 
+                    (c >= '0' && c <= '9') || c == '@' || c == '!' ||
+                    c == '#' || c == '$' || c == '%' || c == '&' ||
+                    c == '\'' || c == '*' || c == '+' || c == '-' ||
+                    c == '/' || c == '=' || c == '?' || c == '^' ||
+                    c == '_' || c == '`'  || c == '{' || c == '|' ||
                     c == '}' || c == '~' || c == '.')
                     continue;
                 break;
@@ -78,7 +78,7 @@ public:
                 if (_command == 0)
                     writeNoEmail("</pre>\n");
 
-                FlushFileBuffers(_pipe); 
+                FlushFileBuffers(_pipe);
                 DisconnectNamedPipe(_pipe);
 
                 if (!_emailValid)
@@ -123,12 +123,12 @@ public:
         write(static_cast<const void*>(&value), 1);
     }
     void write(const String& s)
-    { 
+    {
         _log += s;
         write(s.data(), s.length());
     }
     void writeNoEmail(const String& s)
-    { 
+    {
         write(s.data(), s.length());
     }
     void write(const void* buffer, int bytes)
@@ -156,7 +156,7 @@ public:
             if (position == 1)
                 write("Your program is next in the queue.\n");
             else
-                write(String("Your program is at position ") + 
+                write(String("Your program is at position ") +
                     String::Decimal(position) + " in the queue.\n");
         _lastNotifiedPosition = position;
     }
@@ -222,7 +222,7 @@ private:
 };
 
 // We want to send an email to the user if and only if the HTTP connection was
-// terminated before all the information was sent. However, the only way to 
+// terminated before all the information was sent. However, the only way to
 // know if the connection was terminated is to send data across it and wait for
 // a few seconds. If the connection was terminated the CGI process will be
 // terminated when Apache notices that the last transmission was not received.
@@ -278,7 +278,7 @@ public:
                     "\n");
             }
             catch (...)
-            { 
+            {
                 console.write("Unknown exception in email thread.\n");
             }
         } while (true);
@@ -428,6 +428,7 @@ public:
 
         IF_ZERO_THROW(SetCommMask(_arduinoCom, EV_RXCHAR));
 
+        waitForQuickbootReady();
 
         // Open handle to serial port for data transfer
         NullTerminatedWideString serialPath(serialPort);
@@ -478,7 +479,7 @@ public:
         timeOuts.WriteTotalTimeoutConstant = 10*1000;
         timeOuts.WriteTotalTimeoutMultiplier = 0;
         IF_ZERO_THROW(SetCommTimeouts(_com, &timeOuts));
-#endif 
+#endif
 
         //_imager = File("C:\\imager.bin", true).contents();
 
@@ -594,7 +595,8 @@ public:
             EscapeCommFunction(_arduinoCom, SETRTS);
             // The Arduino bootloader waits a bit to see if it needs to
             // download a new program.
-            Sleep(2000);
+
+            waitForQuickbootReady();
             _needArduinoReset = false;
         }
 
@@ -664,7 +666,7 @@ public:
                 //    }
                 //}
                 //else {
-                //    timeouts = 10; 
+                //    timeouts = 10;
                     if (b != 'K')
                         error = true;
                 //}
@@ -1037,7 +1039,7 @@ public:
                                 // 17 == motor startup time
 
                                 int start =
-                                    ((track*heads + head)*sectorsPerTrack + 
+                                    ((track*heads + head)*sectorsPerTrack +
                                     sector)*bytesPerSector;
                                 int length = sectorCount*bytesPerSector;
                                 String image = _item->data();
@@ -1143,6 +1145,20 @@ public:
         } while (true);
     }
 private:
+    bool waitForQuickbootReady()
+    {
+        int i = 0;
+        do {
+            Byte b = _arduinoCom.tryReadByte();
+            if (b == '>')
+                return true;
+            if (b != -1)
+                i = 0;
+            ++i;
+        } while (i < 10);
+        return false;
+    }
+
     String _fromAddress;
     String _lamePath;
     String _lameOptions;
@@ -1210,8 +1226,8 @@ public:
             AutoHandle h =
                 File(configFile.get<String>("pipe"), true).createPipe();
 
-            bool connected = (ConnectNamedPipe(h, NULL) != 0) ? true : 
-                (GetLastError() == ERROR_PIPE_CONNECTED); 
+            bool connected = (ConnectNamedPipe(h, NULL) != 0) ? true :
+                (GetLastError() == ERROR_PIPE_CONNECTED);
 
             if (connected) {
                 console.write("Connected\n");

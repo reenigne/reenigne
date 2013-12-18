@@ -43,6 +43,16 @@ public:
 
         IF_ZERO_THROW(SetCommMask(_com, EV_RXCHAR));
 
+        int i = 0;
+        do {
+            Byte b = _com.tryReadByte();
+            if (b == '>')
+                break;
+            if (b != -1)
+                i = 0;
+            ++i;
+        } while (i < 10);
+
         int baudDivisor = 104;
         deviceControlBlock.BaudRate =
             static_cast<int>(2000000.0 / baudDivisor + 0.5);

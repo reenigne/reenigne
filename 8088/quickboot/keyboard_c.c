@@ -733,10 +733,10 @@ int main()
 
     sei();
 
-    print(PSTR("Quickboot 20131116\n"));
+    print(PSTR("Quickboot 20131217\n"));
     print(PSTR("Kernel version "));
     print((const char*)defaultProgram + 4);
-    print(PSTR("\n"));
+    print(PSTR("\n>"));
 
     // All the keyboard interface stuff is done on the main thread.
     do {
