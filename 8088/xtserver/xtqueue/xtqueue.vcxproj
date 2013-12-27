@@ -87,7 +87,9 @@
     <ClInclude Include="..\..\..\include\alfe\file_handle.h" />
     <ClInclude Include="..\..\..\include\alfe\handle.h" />
     <ClInclude Include="..\..\..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\..\..\include\alfe\linked_list.h" />
     <ClInclude Include="..\..\..\include\alfe\main.h" />
+    <ClInclude Include="..\..\..\include\alfe\rdif.h" />
     <ClInclude Include="..\..\..\include\alfe\reference.h" />
     <ClInclude Include="..\..\..\include\alfe\string.h" />
     <ClInclude Include="..\..\..\include\alfe\type.h" />

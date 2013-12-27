@@ -5,6 +5,7 @@
 #include "alfe/email.h"
 #include "alfe/com.h"
 #include "alfe/config_file.h"
+#include "alfe/rdif.h"
 #include <MMReg.h>
 #include <dsound.h>
 
@@ -745,23 +746,9 @@ public:
                 if (fileNameLength >= 4)
                     extension = fileName.subString(fileNameLength - 4, 4);
                 String program;
-                int sectorsPerTrack = 9;
-                int heads = 2;
-                int bytesPerSector = 512;
                 if (extension.equalsIgnoreCase(".img")) {
                     program = _imager;
-                    switch (program.length()) {
-                        case 320*1024:
-                            sectorsPerTrack = 8;
-                            break;
-                        case 160*1024:
-                            sectorsPerTrack = 8;
-                            heads = 1;
-                            break;
-                        case 180*1024:
-                            heads = 1;
-                            break;
-                    }
+                    _diskImage.load(_item->data());
                 }
                 else
                     //if (extension.equalsIgnoreCase(".com")) {
@@ -793,301 +780,7 @@ public:
                     delete _item;
                     continue;
                 }
-                // Dump bytes from COM port to pipe until we receive ^Z or we
-                // time out.
-
-                DWORD startTime = GetTickCount();
-                bool timedOut = false;
-                bool escape = false;
-                bool audio = false;
-                int fileState = 0;
-                int fileSize = 0;
-                //String fileName;
-                bool complete = false;
-                int filePointer;
-                Array<Byte> file;
-                int fileCount = 0;
-                int imageCount = 0;
-                int audioCount = 0;
-                int hostBytesRemaining = 0;
-                int diskByteCount = 0;
-                int diskDataPointer;
-                Reference<AudioCapture> audioCapture;
-                Byte hostBytes[18];
-                do {
-                    DWORD elapsed = GetTickCount() - startTime;
-                    DWORD timeout = 5*60*1000 - elapsed;
-                    if (timeout == 0 || timeout > 5*60*1000) {
-                        timedOut = true;
-                        break;
-                    }
-                    if (_killed || _cancelled)
-                        break;
-
-                    int c = _com.tryReadByte();
-                    if (c == -1)
-                        continue;
-                    if (!escape && fileState != 5) {
-                        bool processed = false;
-                        switch (c) {
-                            case 0x00:
-                                // Transfer following byte directly, don't
-                                // interpret it as an action.
-                                escape = true;
-                                processed = true;
-                                break;
-                            case 0x01:
-                                // Take screenshot
-                                {
-                                    processed = true;
-                                    String fileName = _item->secret() +
-                                        imageCount + ".png";
-                                    String path = htDocsPath(fileName);
-
-                                    String commandLine = "\"" +
-                                        _captureFieldPath + "\" \"" + path +
-                                        "\"";
-                                    NullTerminatedWideString data(commandLine);
-
-                                    PROCESS_INFORMATION pi;
-                                    ZeroMemory(&pi,
-                                        sizeof(PROCESS_INFORMATION));
-
-                                    STARTUPINFO si;
-                                    ZeroMemory(&si, sizeof(STARTUPINFO));
-                                    si.cb = sizeof(STARTUPINFO);
-
-                                    IF_FALSE_THROW(CreateProcess(NULL, data,
-                                        NULL, NULL, FALSE, 0, NULL, NULL, &si,
-                                        &pi) != 0);
-                                    CloseHandle(pi.hThread);
-                                    AutoHandle hLame = pi.hProcess;
-                                    IF_FALSE_THROW(
-                                        WaitForSingleObject(hLame, 3*60*1000)
-                                        == WAIT_OBJECT_0);
-
-                                    _item->write("\n<img src=\"../" +
-                                        fileName + "\"/>\n");
-                                    ++imageCount;
-                                }
-                                break;
-                            case 0x02:
-                                // Start recording audio
-                                {
-                                    audioCapture = new AudioCapture;
-                                    processed = true;
-                                    audio = true;
-                                }
-                                break;
-                            case 0x03:
-                                // Stop recording audio
-                                {
-                                    processed = true;
-                                    if (!audio)
-                                        break;
-                                    String rawName = _item->secret() +
-                                        audioCount;
-                                    String baseName = htDocsPath(rawName);
-                                    String waveName = baseName + ".pcm";
-                                    File wave(waveName, true);
-                                    audioCapture->finish(wave);
-                                    audioCapture = 0;
-                                    String commandLine = "\"" + _lamePath +
-                                        "\" \"" + waveName + "\" \"" +
-                                        baseName + ".mp3\" " + _lameOptions;
-                                    NullTerminatedWideString data(commandLine);
-
-                                    PROCESS_INFORMATION pi;
-                                    ZeroMemory(&pi,
-                                        sizeof(PROCESS_INFORMATION));
-
-                                    STARTUPINFO si;
-                                    ZeroMemory(&si, sizeof(STARTUPINFO));
-                                    si.cb = sizeof(STARTUPINFO);
-
-                                    IF_FALSE_THROW(CreateProcess(NULL, data,
-                                        NULL, NULL, FALSE, 0, NULL, NULL, &si,
-                                        &pi) != 0);
-                                    CloseHandle(pi.hThread);
-                                    AutoHandle hLame = pi.hProcess;
-                                    IF_FALSE_THROW(
-                                        WaitForSingleObject(hLame, 3*60*1000)
-                                        == WAIT_OBJECT_0);
-
-                                    wave.remove();
-
-                                    _item->write("\n<embed height=\"50\" "
-                                        "width=\"100\" src=\"../" + rawName +
-                                        ".mp3\"><a href=\"../" + rawName +
-                                        ".mp3\">Recorded audio</a></embed>\n");
-                                    ++audioCount;
-                                }
-                                break;
-                            case 0x04:
-                                // Transfer file
-                                fileState = 1;
-                                processed = true;
-                                break;
-                            case 0x05:
-                                // Host interrupt
-                                fileState = 5;
-                                hostBytesRemaining = 18;
-                                processed = true;
-                                break;
-                            case 0x1a:
-                                complete = true;
-                                processed = true;
-                                _needReboot = (_com.tryReadByte() != 'R');
-                                break;
-                        }
-                        if (c != 0)
-                            escape = false;
-                        if (complete)
-                            break;
-                        if (processed)
-                            continue;
-                    }
-                    escape = false;
-                    switch (fileState) {
-                        case 0:
-                            // No file operation in progress - output to HTTP
-                            if (c == '<')
-                                _item->write("&lt;");
-                            else
-                                if (c == '&')
-                                    _item->write("&amp;");
-                                else
-                                    _item->write(c);
-                            if ((c < 32 || c > 126) &&
-                                (c != 9 && c != 10 && c != 13))
-                                console.write<Byte>('.');
-                            else
-                                console.write<Byte>(c);
-                            break;
-                        case 1:
-                            // Get first byte of size
-                            fileSize = c;
-                            fileState = 2;
-                            break;
-                        case 2:
-                            // Get second byte of size
-                            fileSize |= (c << 8);
-                            fileState = 3;
-                            break;
-                        case 3:
-                            // Get third byte of size
-                            fileSize |= (c << 16);
-                            fileState = 4;
-                            filePointer = 0;
-                            file.allocate(fileSize);
-                            break;
-                        case 4:
-                            // Get file data
-                            file[filePointer++] = c;
-                            if (filePointer == fileSize) {
-                                fileState = 0;
-                                String fileName = _item->secret() + fileCount +
-                                    ".dat";
-                                File(htDocsPath(fileName), true).save(file);
-                                _item->write("\n<a href=\"../" + fileName +
-                                    "\">Captured file</a>\n");
-                                ++fileCount;
-                            }
-                            break;
-                        case 5:
-                            // Get host interrupt data
-                            hostBytes[17 - hostBytesRemaining] = c;
-                            --hostBytesRemaining;
-                            if (hostBytesRemaining != 0)
-                                break;
-                            fileState = 0;
-                            if (hostBytes[0] != 0x13) {
-                                bothWrite("Unknown host interrupt " +
-                                    String::Hex(hostBytes[0], 2, true));
-                                break;
-                            }
-                            {
-                                // The host bytes are as follows:
-                                Byte sectorCount = hostBytes[1];
-                                Byte operation = hostBytes[2];
-                                Byte sector = hostBytes[3] & 0x3f;
-                                int error = 0;
-                                if (sector >= 9)
-                                    error = 4;
-                                Word track = hostBytes[4] |
-                                    ((hostBytes[3] & 0xc0) << 2);
-                                if (track >= 40)
-                                    error = 4;
-                                Byte drive = hostBytes[5];
-                                if (drive != 0)
-                                    error = 4;
-                                Byte head = hostBytes[6];
-                                if (head >= 2)
-                                    error = 4;
-                                //  7 == step rate time / head unload time
-                                //  8 == head load time / DMA mode
-                                //  9 == motor shutoff time
-                                int sectorSize = 128 << hostBytes[10];
-                                if (sectorSize != bytesPerSector)
-                                    error = 4;
-                                Byte sectorsPerTrack = hostBytes[11];
-                                // 12 == gap length for read/write/verify
-                                // 13 == data length
-                                // 14 == gap length for format
-                                // 15 == fill byte for format
-                                // 16 == head settle time
-                                // 17 == motor startup time
-
-                                int start =
-                                    ((track*heads + head)*sectorsPerTrack +
-                                    sector)*bytesPerSector;
-                                int length = sectorCount*bytesPerSector;
-                                String image = _item->data();
-                                if (operation != 5 &&
-                                    start + length > image.length())
-                                    error = 4;
-                                Byte status[3];
-                                status[0] = (error != 0 ? sectorCount : 0);
-                                status[1] = error;
-                                status[2] = (error != 0 ? 3 : 2);
-                                switch (operation) {
-                                    case 2:
-                                        // Read disk sectors
-                                        if (error != 0)
-                                            upload("");
-                                        else
-                                            upload(image.
-                                                subString(start, length));
-                                        break;
-                                    case 3:
-                                        // Write disk sectors
-                                    case 4:
-                                        // Verify disk sectors
-                                        diskByteCount = length;
-                                        diskDataPointer = 0;
-                                        fileState = 6;
-                                        break;
-                                    case 5:
-                                        // Format disk sectors
-                                        diskByteCount = 4*sectorsPerTrack;
-                                        break;
-                                }
-                                upload(String(reinterpret_cast<const char*>
-                                    (&status[0]), 3));
-                            }
-                            break;
-                        case 6:
-                            // Get disk data
-                            _diskBytes[diskDataPointer] = c;
-                            ++diskDataPointer;
-                            if (diskDataPointer != diskByteCount)
-                                break;
-                            fileState = 0;
-                            break;
-                    }
-                    if (_item->aborted())
-                        break;
-                } while (true);
+                bool timedOut = stream();
                 console.write("\n");
                 _item->write("\n");
                 if (_item->aborted()) {
@@ -1145,6 +838,250 @@ public:
         } while (true);
     }
 private:
+    // Dump bytes from COM port to pipe until we receive ^Z or we time out.
+    // Also process any commands from the XT.
+    bool stream()
+    {
+        DWORD startTime = GetTickCount();
+        bool escape = false;
+        bool audio = false;
+        _fileState = 0;
+        int fileSize = 0;
+        //String fileName;
+        bool complete = false;
+        int filePointer;
+        Array<Byte> file;
+        int fileCount = 0;
+        _imageCount = 0;
+        int audioCount = 0;
+        int hostBytesRemaining = 0;
+        _diskByteCount = 0;
+        do {
+            DWORD elapsed = GetTickCount() - startTime;
+            DWORD timeout = 5*60*1000 - elapsed;
+            if (timeout == 0 || timeout > 5*60*1000)
+                return true;
+            if (_killed || _cancelled)
+                return false;
+
+            int c = _com.tryReadByte();
+            if (c == -1)
+                continue;
+            if (!escape && _fileState != 5) {
+                bool processed = false;
+                switch (c) {
+                    case 0x00:
+                        // Transfer following byte directly, don't
+                        // interpret it as an action.
+                        escape = true;
+                        processed = true;
+                        break;
+                    case 0x01:
+                        takeScreenshot();
+                        processed = true;
+                        break;
+                    case 0x02:
+                        // Start recording audio
+                        _audioCapture = new AudioCapture;
+                        processed = true;
+                        break;
+                    case 0x03:
+                        processed = true;
+                        stopRecording();
+                        break;
+                    case 0x04:
+                        // Transfer file
+                        _fileState = 1;
+                        processed = true;
+                        break;
+                    case 0x05:
+                        // Host interrupt
+                        _fileState = 5;
+                        hostBytesRemaining = 18;
+                        processed = true;
+                        break;
+                    case 0x1a:
+                        complete = true;
+                        processed = true;
+                        _needReboot = (_com.tryReadByte() != 'R');
+                        break;
+                }
+
+                if (c != 0)
+                    escape = false;
+                if (complete)
+                    break;
+                if (processed)
+                    continue;
+            }
+            escape = false;
+            switch (_fileState) {
+                case 0:
+                    // No file operation in progress - output to HTTP
+                    if (c == '<')
+                        _item->write("&lt;");
+                    else
+                        if (c == '&')
+                            _item->write("&amp;");
+                        else
+                            _item->write(c);
+                    if ((c < 32 || c > 126) && (c != 9 && c != 10 && c != 13))
+                        console.write<Byte>('.');
+                    else
+                        console.write<Byte>(c);
+                    break;
+                case 1:
+                    // Get first byte of size
+                    fileSize = c;
+                    _fileState = 2;
+                    break;
+                case 2:
+                    // Get second byte of size
+                    fileSize |= (c << 8);
+                    _fileState = 3;
+                    break;
+                case 3:
+                    // Get third byte of size
+                    fileSize |= (c << 16);
+                    _fileState = 4;
+                    filePointer = 0;
+                    file.allocate(fileSize);
+                    break;
+                case 4:
+                    // Get file data
+                    file[filePointer++] = c;
+                    if (filePointer == fileSize) {
+                        _fileState = 0;
+                        String fileName = _item->secret() + fileCount + ".dat";
+                        File(htDocsPath(fileName), true).save(file);
+                        _item->write("\n<a href=\"../" + fileName +
+                            "\">Captured file</a>\n");
+                        ++fileCount;
+                    }
+                    break;
+                case 5:
+                    // Get host interrupt data
+                    _hostBytes[17 - hostBytesRemaining] = c;
+                    --hostBytesRemaining;
+                    if (hostBytesRemaining != 0)
+                        break;
+                    _fileState = 0;
+                    if (_hostBytes[0] != 0x13) {
+                        bothWrite("Unknown host interrupt " +
+                            String::Hex(_hostBytes[0], 2, true));
+                        break;
+                    }
+                    diskHostInterruptStart();
+                    break;
+                case 6:
+                    // Get disk data
+                    _diskBytes[_diskDataPointer] = c;
+                    ++_diskDataPointer;
+                    if (_diskDataPointer != _diskByteCount)
+                        break;
+                    _fileState = 0;
+                    _diskImage.bios(&_diskData, _hostBytes);
+                    sendDiskResult();
+                    break;
+            }
+            if (_item->aborted())
+                return false;
+        } while (true);
+    }
+    void takeScreenshot()
+    {
+        String fileName = _item->secret() + _imageCount + ".png";
+        String path = htDocsPath(fileName);
+
+        String commandLine = "\"" + _captureFieldPath + "\" \"" + path + "\"";
+        NullTerminatedWideString data(commandLine);
+
+        PROCESS_INFORMATION pi;
+        ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+
+        STARTUPINFO si;
+        ZeroMemory(&si, sizeof(STARTUPINFO));
+        si.cb = sizeof(STARTUPINFO);
+
+        IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0, NULL,
+            NULL, &si, &pi) != 0);
+        CloseHandle(pi.hThread);
+        AutoHandle hLame = pi.hProcess;
+        IF_FALSE_THROW(WaitForSingleObject(hLame, 3*60*1000) == WAIT_OBJECT_0);
+
+        _item->write("\n<img src=\"../" + fileName + "\"/>\n");
+        ++_imageCount;
+    }
+    void stopRecording()
+    {
+        if (!_audioCapture.valid())
+            return;
+        String rawName = _item->secret() + _audioCount;
+        String baseName = htDocsPath(rawName);
+        String waveName = baseName + ".pcm";
+        File wave(waveName, true);
+        _audioCapture->finish(wave);
+        _audioCapture = 0;
+        String commandLine = "\"" + _lamePath + "\" \"" + waveName + "\" \"" +
+            baseName + ".mp3\" " + _lameOptions;
+        NullTerminatedWideString data(commandLine);
+
+        PROCESS_INFORMATION pi;
+        ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+
+        STARTUPINFO si;
+        ZeroMemory(&si, sizeof(STARTUPINFO));
+        si.cb = sizeof(STARTUPINFO);
+
+        IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0, NULL,
+            NULL, &si, &pi) != 0);
+        CloseHandle(pi.hThread);
+        AutoHandle hLame = pi.hProcess;
+        IF_FALSE_THROW(WaitForSingleObject(hLame, 3*60*1000) == WAIT_OBJECT_0);
+
+        wave.remove();
+
+        _item->write("\n<embed height=\"50\" width=\"100\" src=\"../" + 
+            rawName + ".mp3\"><a href=\"../" + rawName +
+            ".mp3\">Recorded audio</a></embed>\n");
+        ++_audioCount;
+    }
+    void diskHostInterruptStart()
+    {
+        _diskSectorCount = _hostBytes[1];
+        _hostInterruptOperation = _hostBytes[2];
+        int sectorSize = 128 << _hostBytes[10];
+        int sectorsPerTrack = _hostBytes[11];
+        _hostBytes[18] = 0;
+        _hostBytes[19] = (_hostBytes[5] != 0 ? 0x80 : 0);
+        _hostBytes[20] = 3;  // 3 for error, 2 for success
+        switch (_hostInterruptOperation) {
+            case 2:
+                // Read disk sectors
+                _diskImage.bios(&_diskData, _hostBytes);
+                upload(String(_diskData));
+                break;
+            case 3:
+                // Write disk sectors
+            case 4:
+                // Verify disk sectors
+                _diskByteCount = _diskSectorCount << (_hostBytes[10] + 7);
+                _diskDataPointer = 0;
+                _fileState = 6;
+                return;
+            case 5:
+                // Format track
+                _diskByteCount = 4*sectorsPerTrack;
+                _diskDataPointer = 0;
+                _fileState = 6;
+                return;
+        }
+        sendDiskResult();
+    }
+    void sendDiskResult()
+    {
+        upload(String(reinterpret_cast<const char*>(&_hostBytes[18]), 3));
+    }
     bool waitForQuickbootReady()
     {
         int i = 0;
@@ -1182,8 +1119,21 @@ private:
     bool _needArduinoReset;
     bool _needReboot;
     Array<Byte> _diskBytes;
+    Byte _hostBytes[21];
 
     String _imager;
+
+    int _imageCount;
+    Reference<AudioCapture> _audioCapture;
+    int _audioCount;
+    Byte _hostInterruptOperation;
+    Byte _diskError;
+    int _fileState;
+    Array<Byte> _diskData;
+    DiskImage _diskImage;
+    int _diskByteCount;
+    int _diskDataPointer;
+    Byte _diskSectorCount;
 };
 
 class Program : public ProgramBase

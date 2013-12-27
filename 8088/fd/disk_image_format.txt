@@ -1,4 +1,4 @@
-If a file is 160KB, 180KB, 320KB, 360KB, 720KB, 1440KB or 2880KB, just interpret it as raw data. If it's a structured file, make sure it is not one of these sizes by adding an extra padding byte if
+If a file is 160KB, 180KB, 320KB, 360KB, 720KB, 1200KB, 1440KB or 2880KB, just interpret it as raw data. If it's a structured file, make sure it is not one of these sizes by adding an extra padding byte if
 necessary.
 
 Otherwise, the structured file format is as follows:
@@ -12,17 +12,18 @@ Label string pointer word
 Label string length word
 Description string pointer word
 Description string length word
-Medium word: 0 = 8" disk, 1 = 5.25" disk, 2 = 3.5" disk
-Tracks per inch word: 48, 96, 100
+Medium word: 0 = 8" disk, 1 = 5.25" disk (minifloppy), 2 = 3.5" disk (microfloppy)
+Tracks per inch word: 48, 96, 100 (?), 135
 Write enable word
 RPM word
 Bit rate word
 FM/MFM word
+Number of heads
 Default number of bytes per sector
 Default number of sectors per track
+Number of entries in Block table word: N
 
 File base: this is offset 0 in the file
-Number of entries in Block table word: N
 Block table: N entries of:
   Offset word: relative to file base
   Size word: in bytes when uncompressed. Overlapping the index hole causes the next part to go onto the following track.
@@ -32,9 +33,10 @@ Block table: N entries of:
   Data rate word: 24.8 bits per revolution
   Type word:
     0 = just the data as 512 byte sectors (logical, not physical order)
-    1 = data including gaps
-    2 = FM/MFM flux-reversal data (two bits per one actual data bit)
-    3 = raw flux measurement (2 bytes per one actual data bit)
+    1 = FM/MFM flux-reversal data (two bits per one actual data bit) including gaps
+    2 = raw flux measurement (2 bytes per one actual data bit, -127 to 127 are flux measurements, -128 represents media missing)
+  Track width (24.8 sign fixed point)
+  Initial flux word
   Block compression word: same meaning as file compression word
 
 Block table should be kept sorted in order of cylinder major, head middle, track position minor
@@ -45,4 +47,70 @@ Raw block data chunks follow, should be kept sorted in same order as block table
 Look at http://www.kryoflux.com/
   http://www.softpres.org/_media/files:ipfdoc102a.zip
 
-Laser holes: type 3, -128 represents media missing
+
+
+The idea is that data is stored using the lowest block Type that can accurately store it.
+  Reading, writing and formatting using the standard values yields type 0
+  Formatting using non-standard values (e.g. different sector layout, bad CRC or non-standard GAP3) yields type 1
+  Physical media weirdness (weak bits, laser holes) yields type 2
+
+Bytes that can occur in raw MFM flux reversal data: 32:
+00010001 11 0 5  10001000 88 a 0
+00010010 12 1 4  01001000 48 2 8
+00010100 14 0 6  00101000 28 6 0
+00010101 15 0 7  10101000 a8 e 0
+00100010 22 5 0  01000100 44 0 a
+00100100 24 4 2
+00100101 25 4 3  10100100 a4 c 2
+00101001 29 6 1  10010100 94 8 6
+00101010 2a 7 0  01010100 54 0 e
+01000101 45 0 b  10100010 a2 d 0
+01001001 49 2 9  10010010 92 9 4
+01001010 4a 3 8  01010010 52 1 c
+01010001 51 0 d  10001010 8a b 0
+01010101 55 0 f  10101010 aa f 0
+10001001 89 a 1  10010001 91 8 5
+10010101 95 8 7  10101001 a9 e 1
+10100101 a5 c 3
+
+
+
+
+0 8 8
+1 2 3  8 3 2
+2 2 2  4 2 2
+3 1 2  c 2 1
+5 1 2  a 2 1
+6 2 2
+7 1 2  e 2 1
+9 1 1
+b 1 1  d 1 1
+f 1 1
+
+Therefore this data should be highly compressible
+Therefore don't bother having separate "data including gaps" and "flux reversal data" types
+
+
+Problems:
+* Types 1 and 2 don't describe exactly the same thing - the bits from type 1 occur between the bytes of type 2
+  * That's fine, it's just a different sampling structure.
+  * Equivalently a type 1 bit could be considered to be "is the flux the same or different from the previous bit?".
+  * To ensure compatibility, each type 1 block needs a field that specifies whether the initial flux is positive or negative
+    * Then "1: (+) 101001" is the same as "2: --+++-"
+* With type 0 the sectors are in logical order and with types 1 and 2 the sectors are in physical order.
+  * To avoid having lots of annoying algorithms to try to figure out where type 0 sectors can be allocated in the physical gaps,
+  * each track (cylinder/head combination) must be either logical (type 0) or physical (type 1/2).
+* Why do we need separate block compression and file compression?
+  * The default (as created by berapa) is to leave the file and type 0 blocks uncompressed, and compress type 1 and 2 blocks (because they are big and highly redundant)
+  * We might have a structure with many small blocks for some reason (e.g. lots of writes with different rates) - in that case it would be nice to be able to compress the file as a whole as well
+* How do we cope with tracks of different widths?
+  * For simplicity, let's assume (for now) that the read head has infinitesimal width, so we don't have to average flux across multiple tracks
+  * Let's say it's an error for tracks to overlap
+  * We still might have to go back and forth to find all the bits of the track
+    * How can we do this without silly performance?
+      * Figure out which track(s) we're interested in
+      * Walk through the block list and add each block's data to the buffer
+        * I
+  * Also, how do physical/logical blocks interact with non-integer track positions and widths?
+    * A logical block is shorthand for one or more physical tracks. Because logical and physical tracks can't overlap, if we find a logical track we've found the entire track.
+

@@ -217,6 +217,7 @@ bool processCommand(uint8_t command)
             return true;
         case 3:
             ramProgram = true;
+            sendRamProgram = false;
             programBytesRemaining = 0xffff;
             return true;
         case 4:
@@ -354,7 +355,7 @@ void processCharacter(uint8_t received)
         enqueueSerialByte('p');
         return;
     }
-    if (programBytesRemaining > 0) {
+    if (programBytesRemaining > 0 && !sendRamProgram) {
         programBuffer[programBytes - programBytesRemaining] = received;
         --programBytesRemaining;
         if (programBytesRemaining == 0)

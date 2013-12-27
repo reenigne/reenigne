@@ -45,7 +45,7 @@ public:
 
         int i = 0;
         do {
-            Byte b = _com.tryReadByte();
+            int b = _com.tryReadByte();
             if (b == '>')
                 break;
             if (b != -1)
@@ -73,8 +73,14 @@ public:
             writeByte(0x73);
             writeByte(0x00);
             writeByte(0x04);
+            int b = _com.tryReadByte();
+            if (b != 'p')
+                console.write(String("Expected 'p' after length"));
             for (int i = 0; i < 0x400; ++i)
                 writeByte(buffer[i]);
+            b = _com.tryReadByte();
+            if (b != 'd')
+                console.write(String("Expected 'd' after data"));
             writeByte(0x7d);
             for (int i = 0; i < 0x400; ++i) {
                 Byte b = _com.tryReadByte();

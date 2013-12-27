@@ -1,0 +1,62 @@
+quickboot -> host data stream
+     0 = escape = ransfer following byte directly, don't interpret it as an action.
+     1 = Take screenshot
+     2 = Start recording audio
+     3 = Stop recording audio
+     4 = Transfer file
+     5 = Host interrupt, followed by 18 bytes hostBytes as below, followed by payload data (if any). Host then sends result data (for read) and resultBytes.
+  0x1a = disconnect host
+others = send literal byte to user
+
+hostBytes
+  0 = 0x13                               interrupt number
+  1 = sector count                       AL
+  2 = operation                          AH
+  3 = sector/track                       CH
+  4 = track                              CL
+  5 = drive                              DL
+  6 = head                               DH
+  7 = step rate time / head unload time  DBT byte 0
+  8 = head load time / DMA mode          DBT byte 1
+  9 = motor shutoff time                 DBT byte 2
+ 10 = sector size shift                  DBT byte 3
+ 11 = sectors per track                  DBT byte 4
+ 12 = gap length for read/write/verify   DBT byte 5
+ 13 = data length                        DBT byte 6
+ 14 = gap length for format              DBT byte 7
+ 15 = fill byte for format               DBT byte 8
+ 16 = head settle time                   DBT byte 9
+ 17 = motor startup time                 DBT byte 0x0a
+
+file states:
+  0 = No file operation in progress - output to HTTP
+  1 = Get first byte of size
+  2 = Get second byte of size
+  3 = Get third byte of size
+  4 = Get file data
+  5 = Get host interrupt data
+  6 = Get disk data
+
+
+Operation must be 2 (read), 3 (write), 4 (verify) or 5 (format) - operations 0 (reset) and 1 (status) are done entirely on the XT
+The read block and resultBytes block are sent using the normal loadSerialData routine, so are checksummed and
+
+resultBytes
+  0 = returned AL
+  1 = returned AH = status byte
+  2 = returned flags
+
+status byte:
+	   00  no error
+	   01  bad command passed to driver
+	   02  address mark not found or bad sector
+	   03  diskette write protect error
+	   04  sector not found
+	   08  DMA overrun
+	   09  DMA access across 64k boundary
+	   10  ECC/CRC error on disk read
+	   20  controller error (NEC for floppies)
+	   40  seek failure
+	   80  time out, drive not ready
+
+
