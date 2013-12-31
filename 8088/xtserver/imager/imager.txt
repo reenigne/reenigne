@@ -49,14 +49,14 @@ resultBytes
 status byte:
 	   00  no error
 	   01  bad command passed to driver
-	   02  address mark not found or bad sector
-	   03  diskette write protect error
-	   04  sector not found
-	   08  DMA overrun
-	   09  DMA access across 64k boundary
-	   10  ECC/CRC error on disk read
-	   20  controller error (NEC for floppies)
-	   40  seek failure
-	   80  time out, drive not ready
+	   02  address mark not found or bad sector   - MA in ST1
+	   03  diskette write protect error           - NW in ST1
+	   04  sector not found                       - EN in ST1 or ND in ST1
+	   08  DMA overrun                            - OR in ST1
+	   09  DMA access across 64k boundary         - carry set by DMA_SETUP
+	   10  ECC/CRC error on disk read             - DE in ST1
+	   20  controller error (NEC for floppies)    - ST0 & 0xc0 != 0
+	   40  seek failure                           - ST0 & 0x60 == 0x60 in seek
+	   80  time out, drive not ready              - wait for interrupt or result took too long
 
 

@@ -103,6 +103,8 @@ Problems:
 * Why do we need separate block compression and file compression?
   * The default (as created by berapa) is to leave the file and type 0 blocks uncompressed, and compress type 1 and 2 blocks (because they are big and highly redundant)
   * We might have a structure with many small blocks for some reason (e.g. lots of writes with different rates) - in that case it would be nice to be able to compress the file as a whole as well
+  * The reason for doing it this was probably to allow programs running under berapa to save to disk and have the changes persist immediately - even if the emulator crashes after that the data is
+    still safe, as expected. This may not be worth the trouble, though.
 * How do we cope with tracks of different widths?
   * For simplicity, let's assume (for now) that the read head has infinitesimal width, so we don't have to average flux across multiple tracks
   * Let's say it's an error for tracks to overlap
@@ -110,7 +112,12 @@ Problems:
     * How can we do this without silly performance?
       * Figure out which track(s) we're interested in
       * Walk through the block list and add each block's data to the buffer
-        * I
+        * If we need logical and have physical, we need an intermediate physical buffer to deal with CHRN and CRC.
+          * Use a binary tree overlaid on the block structure - null leaf means data missing
   * Also, how do physical/logical blocks interact with non-integer track positions and widths?
     * A logical block is shorthand for one or more physical tracks. Because logical and physical tracks can't overlap, if we find a logical track we've found the entire track.
-
+* If we format a disk in berapa using the normal DOS format, should the data stay as logical or get transformed to physical? If the former, how do we know we're standard?
+  * Need some code to detect the standard format (gap lengths etc) and transform it to physical. Also need the bit rate to not change.
+    * That means that if we have exactly 6250 bytes per revolution, 0 offsets and standard formatting parameters, we should always get logical sectors.
+    * But if we switch to a realistic mode where the motor speed fluctuates with respect to the bit clock then we'll get physical sectors.
+* The header RPM and bitrates are nominal - the data rate word in a block is the real recording speed.

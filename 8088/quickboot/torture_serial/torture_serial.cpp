@@ -50,6 +50,14 @@ public:
                 break;
             if (b != -1)
                 i = 0;
+            else {
+                // Reset the Arduino
+                EscapeCommFunction(_com, CLRDTR);
+                EscapeCommFunction(_com, CLRRTS);
+                Sleep(250);
+                EscapeCommFunction(_com, SETDTR);
+                EscapeCommFunction(_com, SETRTS);
+            }
             ++i;
         } while (i < 10);
 

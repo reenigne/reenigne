@@ -1,4 +1,5 @@
 #include "alfe/main.h"
+#include "zlib/zlib.h"
 
 #ifndef INCLUDED_RDIF_H
 #define INCLUDED_RDIF_H
@@ -8,6 +9,26 @@ class DiskImage
 public:
     DiskImage() : _version(0) { }
     ~DiskImage() { _blocks.release(); }
+    void clear()
+    {
+        _blocks.release();
+        _isRaw = false;
+        _version = 0;
+        _compressed = false;
+        _creator = "";
+        _label = "";
+        _description = "";
+        _medium = miniFloppy;
+        _tracksPerInch = 48;
+        _writeEnable = true;
+        _rotationsPerMinute = 300;
+        _bitsPerSecond = 250000;
+        _encoding = modifiedFrequencyModulation;
+        _heads = 2;
+        _defaultBytesPerSector = 512;
+        _defaultSectorsPerTrack = 9;
+        _blockCount = 0;
+    }
     void load(String data)
     {
         _blocks.release();
@@ -72,17 +93,7 @@ public:
     }
     void create(int length)
     {
-        _writeEnable = false;
-        _encoding = modifiedFrequencyModulation;
-        _defaultBytesPerSector = 512;
-        _rotationsPerMinute = 300;
-        _medium = miniFloppy;
-        _tracksPerInch = 48;
-        _writeEnable = true;
-        _defaultSectorsPerTrack = 9;
-        _compressed = true;
-        _bitsPerSecond = 250000;
-
+        clear();
         switch (length) {
             case 160*1024:
                 _isRaw = true;

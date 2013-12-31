@@ -746,6 +746,7 @@ public:
                 if (fileNameLength >= 4)
                     extension = fileName.subString(fileNameLength - 4, 4);
                 String program;
+                _diskImage.clear();
                 if (extension.equalsIgnoreCase(".img")) {
                     program = _imager;
                     _diskImage.load(_item->data());
@@ -848,7 +849,6 @@ private:
         _fileState = 0;
         int fileSize = 0;
         //String fileName;
-        bool complete = false;
         int filePointer;
         Array<Byte> file;
         int fileCount = 0;
@@ -901,7 +901,7 @@ private:
                         processed = true;
                         break;
                     case 0x1a:
-                        complete = true;
+                        return false;
                         processed = true;
                         _needReboot = (_com.tryReadByte() != 'R');
                         break;
@@ -909,8 +909,6 @@ private:
 
                 if (c != 0)
                     escape = false;
-                if (complete)
-                    break;
                 if (processed)
                     continue;
             }
