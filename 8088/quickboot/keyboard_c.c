@@ -141,6 +141,8 @@ void sendSerialByte()
             if (serialBufferCharacters == 0) {
                 if (sendRamProgram) {
                     c = programBuffer[programBytes - programBytesRemaining];
+                    serialBuffer[(serialBufferPointer + serialBufferCharacters) & 0xff] = c;
+                    ++serialBufferCharacters;
                     --programBytesRemaining;
                     if (programBytesRemaining == 0)
                         sendRamProgram = false;
@@ -150,8 +152,7 @@ void sendSerialByte()
                     return;
                 }
             }
-            else
-                c = serialBuffer[serialBufferPointer];
+            c = serialBuffer[serialBufferPointer];
             if (c == 0 || c == 17 || c == 19) {
                 if (!sentEscape) {
                     c = 0;

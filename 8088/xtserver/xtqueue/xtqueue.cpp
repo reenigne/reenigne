@@ -378,7 +378,7 @@ public:
         _needArduinoReset(false), _needReboot(false), _diskBytes(0x10000)
     {
         String quickBootPort = configFile->get<String>("quickBootPort");
-        int quickBootBaudRate = configFile->get<int>("quickBootBaudRate");
+        _quickBootBaudRate = configFile->get<int>("quickBootBaudRate");
         String serialPort = configFile->get<String>("serialPort");
         int serialBaudRate = configFile->get<int>("serialBaudRate");
         _fromAddress = configFile->get<String>("fromAddress");
@@ -387,6 +387,8 @@ public:
         _adminAddress = configFile->get<String>("adminAddress");
         _htdocsPath = configFile->get<String>("htdocsPath");
         _captureFieldPath = configFile->get<String>("captureFieldPath");
+        _kernel = configFile->get<String>("kernel");
+        _quickBootNewBaudRate = configFile->get<int>("quickBootNewBaudRate");
 
         // Open handle to Arduino for rebooting machine
 #if 1
@@ -401,35 +403,7 @@ public:
             NULL),          // hTemplate must be NULL for comm devices
             String("Quickboot COM port"));
 
-        DCB deviceControlBlock;
-        SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
-        IF_ZERO_THROW(GetCommState(_arduinoCom, &deviceControlBlock));
-        deviceControlBlock.DCBlength = sizeof(DCB);
-        deviceControlBlock.BaudRate = quickBootBaudRate;
-        deviceControlBlock.fBinary = TRUE;
-        deviceControlBlock.fParity = FALSE;
-        deviceControlBlock.fOutxCtsFlow = FALSE;
-        deviceControlBlock.fOutxDsrFlow = TRUE; //FALSE;
-        deviceControlBlock.fDtrControl = DTR_CONTROL_HANDSHAKE; //DTR_CONTROL_DISABLE;
-        deviceControlBlock.fDsrSensitivity = FALSE;
-        deviceControlBlock.fTXContinueOnXoff = TRUE;
-        deviceControlBlock.fOutX = FALSE; //TRUE;
-        deviceControlBlock.fInX = FALSE; //TRUE;
-        deviceControlBlock.fErrorChar = FALSE;
-        deviceControlBlock.fNull = FALSE;
-        deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
-        deviceControlBlock.fAbortOnError = TRUE;
-        deviceControlBlock.wReserved = 0;
-        deviceControlBlock.ByteSize = 8;
-        deviceControlBlock.Parity = NOPARITY;
-        deviceControlBlock.StopBits = ONESTOPBIT;
-        deviceControlBlock.XonChar = 17;
-        deviceControlBlock.XoffChar = 19;
-        IF_ZERO_THROW(SetCommState(_arduinoCom, &deviceControlBlock));
-
-        IF_ZERO_THROW(SetCommMask(_arduinoCom, EV_RXCHAR));
-
-        waitForQuickbootReady();
+        initQuickBoot();
 
         // Open handle to serial port for data transfer
         NullTerminatedWideString serialPath(serialPort);
@@ -588,16 +562,7 @@ public:
         bothWrite("Resetting\n");
 
         if (_needArduinoReset) {
-            // Reset the Arduino
-            EscapeCommFunction(_arduinoCom, CLRDTR);
-            EscapeCommFunction(_arduinoCom, CLRRTS);
-            Sleep(250);
-            EscapeCommFunction(_arduinoCom, SETDTR);
-            EscapeCommFunction(_arduinoCom, SETRTS);
-            // The Arduino bootloader waits a bit to see if it needs to
-            // download a new program.
-
-            waitForQuickbootReady();
+            initQuickBoot();
             _needArduinoReset = false;
         }
 
@@ -1080,18 +1045,124 @@ private:
     {
         upload(String(reinterpret_cast<const char*>(&_hostBytes[18]), 3));
     }
-    bool waitForQuickbootReady()
+    void initQuickBoot()
     {
+        DCB deviceControlBlock;
+        SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
+        IF_ZERO_THROW(GetCommState(_arduinoCom, &deviceControlBlock));
+        deviceControlBlock.DCBlength = sizeof(DCB);
+        deviceControlBlock.BaudRate = _quickBootBaudRate;
+        deviceControlBlock.fBinary = TRUE;
+        deviceControlBlock.fParity = FALSE;
+        deviceControlBlock.fOutxCtsFlow = FALSE;
+        deviceControlBlock.fOutxDsrFlow = FALSE;
+        deviceControlBlock.fDtrControl = DTR_CONTROL_ENABLE;
+        deviceControlBlock.fDsrSensitivity = FALSE;
+        deviceControlBlock.fTXContinueOnXoff = TRUE;
+        deviceControlBlock.fOutX = FALSE; //TRUE;
+        deviceControlBlock.fInX = FALSE; //TRUE;
+        deviceControlBlock.fErrorChar = FALSE;
+        deviceControlBlock.fNull = FALSE;
+        deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
+        deviceControlBlock.fAbortOnError = TRUE;
+        deviceControlBlock.wReserved = 0;
+        deviceControlBlock.ByteSize = 8;
+        deviceControlBlock.Parity = NOPARITY;
+        deviceControlBlock.StopBits = ONESTOPBIT;
+        deviceControlBlock.XonChar = 17;
+        deviceControlBlock.XoffChar = 19;
+        IF_ZERO_THROW(SetCommState(_arduinoCom, &deviceControlBlock));
+
+        IF_ZERO_THROW(SetCommMask(_arduinoCom, EV_RXCHAR));
+
+        // Reset the Arduino
+        EscapeCommFunction(_arduinoCom, CLRDTR);
+        //EscapeCommFunction(_arduinoCom, CLRRTS);
+        Sleep(250);
+        EscapeCommFunction(_arduinoCom, SETDTR);
+        //EscapeCommFunction(_arduinoCom, SETRTS);
+        // The Arduino bootloader waits a bit to see if it needs to
+        // download a new program.
+
         int i = 0;
         do {
             Byte b = _arduinoCom.tryReadByte();
             if (b == '>')
-                return true;
+                break;
             if (b != -1)
                 i = 0;
             ++i;
         } while (i < 10);
-        return false;
+
+        if (i == 10)
+            throw Exception("No response from QuickBoot");
+
+        if (_quickBootNewBaudRate != 0) {
+            deviceControlBlock.BaudRate = _quickBootNewBaudRate;
+            int baudDivisor =
+                static_cast<int>(2000000.0 / _quickBootNewBaudRate + 0.5);
+            writeByte(0x7f);
+            writeByte(0x7c);
+            writeByte(0x04);
+            writeByte((baudDivisor - 1) & 0xff);
+            writeByte((baudDivisor - 1) >> 8);
+            IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+
+            IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
+        }
+
+        if (_kernel.length() != 0) {
+            String kernel = File(_kernel).contents();
+            int l = kernel.length();
+
+            writeByte(0x73);
+            writeByte(l & 0xff);
+            writeByte(l >> 8);
+            int b = getByte();
+            if (b != 'p')
+                throw Exception(String("Expected 'p' after length, received " + hex(b, 2) + "\n"));
+            for (int i = 0; i < l; ++i)
+                writeByte(kernel[i]);
+            b = getByte();
+            if (b != 'd')
+                throw Exception(String("Expected 'd' after data, received " + hex(b, 2) + "\n"));
+            //writeByte(0x7d);
+            //b = getByte();
+            //if (b != 0x00)
+            //    throw Exception();
+            //    //console.write(String("Expected low length byte 0, received " + hex(b, 2) + "\n"));
+            //b = getByte();
+            //if (b != 0x04)
+            //    throw Exception();
+            //    //console.write(String("Expected high length byte 4, received " + hex(b, 2) + "\n"));
+            //for (int i = 0; i < 0x400; ++i) {
+            //    b = getByte();
+            //    if (b != buffer[i])
+            //        throw Exception();
+            //        //console.write(String(String::Decimal(i)) + ": Expected " +
+            //        //hex(buffer[i], 2) + ", received " + hex(b, 2) + ".\n");
+            //}
+        }
+    }
+    void writeByte(UInt8 value)
+    {
+        if (value == 0 || value == 0x11 || value == 0x13)
+            _arduinoCom.write<Byte>(0);
+        _arduinoCom.write<Byte>(value);
+    }
+   int getByte()
+    {
+        int b = getByte2();
+        if (b == 0)
+            b = getByte2();
+        return b;
+    }
+    int getByte2()
+    {
+        int b = _arduinoCom.tryReadByte();
+        if (b == -1)
+            throw Exception(String("Timeout from QuickBoot\n"));
+        return b;
     }
 
     String _fromAddress;
@@ -1100,6 +1171,9 @@ private:
     String _adminAddress;
     String _htdocsPath;
     String _captureFieldPath;
+    String _kernel;
+    int _quickBootBaudRate;
+    int _quickBootNewBaudRate;
     LinkedList<QueueItem> _queue;
     int _queuedItems;
 
@@ -1163,6 +1237,8 @@ public:
             "htdocs"));
         configFile.addDefaultOption("captureFieldPath",
             String("C:\\capture_field.exe"));
+        configFile.addDefaultOption("kernel", String(""));
+        configFile.addDefaultOption("quickBootNewBaudRate", 0);
         configFile.load(File(_arguments[1], CurrentDirectory(), true));
 
         COMInitializer com;
