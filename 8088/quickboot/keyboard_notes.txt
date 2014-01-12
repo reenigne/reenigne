@@ -1,0 +1,236 @@
+XT BIOS resets keyboard by:
+  0x08 -> port B
+  wait 20ms
+  0xc8 -> port B
+
+XT BIOS acks keyboard byte by:
+  0xcc -> port B
+  0x4c -> port B
+
+B7 clear keyboard
+ 7	clear keyboard (only pulse, normally kept at 0)    XT? 048?       clear keyboard
+
+B6 hold keyboard clock low
+6	=0  hold keyboard clock low                                       hold keyboard clock low
+
+
+On system board, Clock signal from port is inverted, delayed by 2 PCLKs (1 IO) and passed to pin 11 of shift register
+pin 11 rising shifts in new data
+=> keyboard clock falling shifts in new data
+This gels with the current code in sendKeyboardBit - we load the data, wait 50us, lower the clock, wait 50us and then raise the clock again
+
+Data select is always high so new data always comes in on D1 (pin 17 - connected to keyboard data via 47pF to GND, 4.7K to +5V, pin 8 of U68 and pin 3 of U85)
+
+
+sendKeyboardByte does:
+  (implicitly - check that clock line is high)
+  wait for data line high (XT's flow control)
+  send 0
+  send 1
+  send 8 bits of data
+
+
+74LS74 function table:
+
+PR  CLR  CLK  D  |  Q  -Q
+4    1    3   2  |  5   6
+                 |
+L    H    -   -  |  H   L
+H    L    -   -  |  L   H
+L    L    -   -  |  H   H  (unstable - does not persist when either PR and/or CLR return to H)
+H    H    ^   H  |  H   L
+H    H    ^   L  |  L   H
+H    H    L   -  |  Q0 -Q0
+
+
+In the U70 configuration, PR = -Q so:
+                  IRQ1
+PR  CLR  CLK  D  |  Q  -Q
+4    1    3   2  |  5   6
+                 |
+L    H    -   -  |  H   L
+H    L    -   -  |  L   H
+H    H    ^   L  |  L   H
+H    H    L   -  |  Q0 -Q0
+
+Keyboard data is forced low when U70 pin 6 is low
+  This happens when PR (pin 4) goes low which happens when pin 6 is low (so this is a self-reinforcing condition until CLR goes low)
+  This also happens when we get a high on D combined with CLK rising. D is connected to U27.12
+
+
+U27:
+  QA..QH (4, 16, 5, 15, 6, 14, 7, 13) are data output to PPI port A (IO port 0x60)  - QA is A7, QH is A0
+  -OE (8) is connected to PPI port B7 (clear keyboard pulse) - OUTPUT ENABLE
+  D1 (17) is connected to keyboard data
+  -CLR (9) is NOT B7 - CLEAR
+  CLOCK (11) is delayed keyboard clock
+  -G (1) is IRQ1 (U70.5) - REGISTER ENABLE
+  -QH' (12) is U70.2 - needs to go high once full byte received
+
+  D0 (3) is +5V
+  -SE (18) is +5V - SIGN EXTEND
+  DS (19) is +5V - DATA SELECT
+  S/-P (2) is +5V - Serial/-Parallel
+
+Function table:
+
+OPERATION    INPUTS                                                                        |  INPUTS/OUTPUTS                  |  OUTPUTS
+             CLEAR  REGISTER ENABLE  S/-P  SIGN EXTEND  DATA SELECT  OUTPUT ENABLE  CLOCK  |  QA  QB  QC  QD  QE  QF  QG  QH  |  QH'
+                                                                                           |                                  |
+Clear        L      H                X     X            X            L              X      |  L   L   L   L   L   L   L   L   |  L
+Clear        L      X                H     X            X            L              X      |  L   L   L   L   L   L   L   L   |  L
+Hold         H      H                X     X            X            L              X      |  QA0 QB0 QC0 QD0 QE0 QF0 QG0 QH0 |  QH0
+Shift Right  H      L                H     H            L            L              ^      |  D0  QAn QBn QCn QDn QEn QFn QGn |  QGn
+Shift Right  H      L                H     H            H            L              ^      |  Q1  QAn QBn QCn QDn QEn QFn QGn |  QGn
+Sign Extend  H      L                H     L            X            L              ^      |  QAn QAn QBn QCn QDn QEn QFn QGn |  QGn
+Load         H      L                L     X            X            X              ^      |  a   b   c   d   e   f   g   h   |  h
+
+In the U27 configuration:
+
+OPERATION    INPUTS                                                                        |  INPUTS/OUTPUTS                  |  OUTPUTS
+             CLEAR  REGISTER ENABLE                                  OUTPUT ENABLE  CLOCK  |  QA  QB  QC  QD  QE  QF  QG  QH  |  QH'
+                                                                                           |                                  |
+Clear        L      X                                                L              X      |  L   L   L   L   L   L   L   L   |  L
+Hold         H      H                                                L              X      |  QA0 QB0 QC0 QD0 QE0 QF0 QG0 QH0 |  QH0
+Shift Right  H      L                                                L              ^      |  Q1  QAn QBn QCn QDn QEn QFn QGn |  QGn
+
+When the output enable is high, the eight input/output terminals are disabled to the high-impedance state; however, sequential operation or clearing of the register is not affected.
+
+QA is most recent and highest
+QH is least recent and lowest
+=> Lowest bit first
+
+00000000
+00000000  initial zero sent
+10000000  initial 1 sent
+h1000000  lowest bit sent
+gh100000
+fgh10000
+efgh1000
+defgh100
+cdefgh10
+bcdefgh1  bit 6 sent -> QH' will still be 0 when U70 latches data
+abcdefgh  bit 7 sent -> QH' will be 1 when U70 latches data => IRQ1
+
+So algorithm for clock rising interrupt:
+  shift data byte right 1 and save shifted out bit
+  Load data from keyboard data line and put in highest bit of data
+  If the shifted out bit was 1 then send data to XT and clear data byte
+
+
+
+
+SP_TEST:                                ; ENTRY FOR MANUFACTURING TEST 2
+        MOV     AL,48H                  ; SET KBD CLK HIGH, ENABLE LOW
+        OUT     PORT_B,AL
+        MOV     AL,0FDH                 ; ENABLE KEYBOARD INTERRUPTS
+        OUT     INTA01,AL               ; WRITE 8259 IMR
+        MOV     DATA_AREA[INTR_FLAG-DATA_BASE],0
+                                        ; RESET INTERRUPT INDICATOR
+        STI                             ; ENABLE INTERRUPTS
+        SUB     CX,CX                   ; SETUP INTERRUPT TIMEOUT CNT
+G9:
+        TEST    DATA_AREA[INTR_FLAG-DATA_BASE],02H
+                                        ; DID A KEYBOARD INTR OCCUR?
+        JNZ     G10                     ; YES - READ SCAN CODE RETURNED
+        LOOP    G9                      ; NO - LOOP TILL TIMEOUT
+G10:
+        IN      AL,PORT_A               ; READ KEYBOARD SCAN CODE
+        MOV     BL,AL                   ; SAVE SCAN CODE JUST READ
+        MOV     AL,0C8H                 ; CLEAR KEYBOARD
+        OUT     PORT_B,AL
+        RET                             ; RETURN TO CALLER
+
+
+
+
+
+MFG_BOOT:
+        CALL    SP_TEST                 ; GET COUNT LOW
+        MOV     BH,BL                   ; MOVE IT
+        CALL    SP_TEST                 ; GET COUNT HI
+        MOV     CH,BL
+        MOV     CL,BH                   ; CX NOW HAS COUNT
+        CLD                             ; SET DIR FLAG TO INCREMENT
+        CLI
+        MOV     DI,0500H                ; SET TARGET OFFSET (DS=0000)
+        MOV     AL,0FDH                 ; UNMASK K/B INTERRRUPT
+        OUT     INTA01,AL
+        MOV     AL,0AH                  ; SEND READ INT.REQUEST REG. CMD
+        OUT     INTA00,AL
+        MOV     DX,61H                  ; SET UP PORT B ADDRESS
+        MOV     BX,4CCCH                ; CONTROL BITS FOR PORT B
+        MOV     AH,02H                  ; K/B REQUEST PENDING MASK
+TST:
+        MOV     AL,BL
+        OUT     DX,AL                   ; TOGGLE K/B CLOCK                        0xcc  11001100    - comment is wrong, this just ACKs the keyboard byte, it doesn't lower the clock.
+        MOV     AL,BH
+        OUT     DX,AL                                                             0x4c  01001100
+        DEC     DX                      ; POINT DX AT ADDR 60 (KB DATA)
+TST1:
+        IN      AL,INTA00               ; GET IRR REG
+        AND     AL,AH                   ; KB REQUEST PENDING?
+        JZ      TST1                    ; LOOP TILL DATA PRESENT
+        IN      AL,DX                   ; GET DATA
+        STOSB                           ; STORE IT
+        INC     DX                      ; POINT DX BACK AT PORT B (61)
+        LOOP    TST                     ; LOOP TILL ALL BYTES READ
+
+
+
+
+When we ack a byte, is there a period during which the keyboard can't be transmitting?
+
+Ack sequence:
+  PB7 is set to high
+    => -OE set to high, QA..QH tristated (not sure if this makes a difference to anything)
+    => -CLR set to low, shift register zeroed, QH' goes low
+    => CLR input of U70 set to low (PR should already be low)
+      => Q and -Q go high
+        => keyboard data line goes high
+          => If data comes in now we'll lose it
+        => PR high
+          => Q low, -Q high
+  PB7 is set to low
+    => -OE set to low, QA..QH reinstated, now they are all low
+    => -CLR is set to high, shift register back to normal operation
+    => CLR input to U70 set to high => flip-flop back to normal operation
+  Now if keyboard clock lowered (CLOCK input to U27 raised) a bit will be shifted
+    Shifting an initial 0 is a no-op
+
+Protocol 1 (synchronous):
+  ACK keyboard byte with 0x8c, 0x4c
+  Then clock is raised just when ack completes. Data is high so a 1 could be shifted in (race condition).
+
+Protocol 2 (asynchronous):
+  Just wait for a certain period of time before sending additional data to ensure ACK bit is lowered
+  4 IOs (5 with refresh) for main data in MFG_BOOT
+    This is minimal
+    4.2 microseconds, 68 AVR cycles
+    Say we get 1Mbit/s send time (10us byte)
+    Then add the time it takes the XT to recognize, store and ACK
+      At least 23 IOs (24 with refresh)
+        => 50KB/s
+
+  Note: longer for initial length bytes!
+
+
+XT's reset protocol:
+  KBD_RESET called
+    08->B  (no data reset, clock low)
+    wait 20ms
+    C8->B  (data reset, clock normal)
+    SP_TEST
+      48->B  (no data reset, clock normal)
+      Wait for byte from keyboard
+      C8->B  (data reset, clock normal)
+  Check and jump to MFG_BOOT
+    SP_TEST - move to CL
+      48->B  (no data reset, clock normal)
+      Wait for byte from keyboard
+      C8->B  (data reset, clock normal)
+    SP_TEST - move to CH
+      48->B  (no data reset, clock normal)
+      Wait for byte from keyboard
+      C8->B  (data reset, clock normal)
+

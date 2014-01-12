@@ -1,5 +1,33 @@
   %include "../defaults_bin.asm"
 
+  jmp codeStart
+
+  db '20131208-keyb',0
+
+codeStart:
+  sub di,0x500
+  cmp di,kernelEnd
+  jne lengthOk1
+  or byte[cs:flags],1
+lengthOk1:
+
+  call findSP
+findSP:
+  pop si
+  sub si,findSP
+
+  mov ah,0
+  mov cx,kernelEnd
+checksumLoop:
+  lodsb
+  add ah,al
+  loop checksumLoop
+  cmp ah,[cS:checkSum]
+  je checksumOk1
+  or byte[cs:flags],2
+checksumOk1:
+
+
   ; Turn interrupts off - the keyboard send routine is cycle-counted.
   cli
 
@@ -144,9 +172,27 @@ noRelocationNeeded:
   ; Print a message
   mov ax,cs
   mov ds,ax
+
+  test byte[flags],1
+  jz lengthOk
+
+  mov si,lengthWrong
+  mov cx,lengthWrongEnd - lengthWrong
+  printString
+
+lengthOk:
+  test byte[flags],2
+  jz checksumOk
+
+  mov si,checksumWrong
+  mov cx,checksumWrongEnd - checksumWrong
+  printString
+checksumOk:
+
+  ; Print the boot message
   mov si,bootMessage
   mov cx,bootMessageEnd - bootMessage
-  int 0x64
+  printString
 
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
@@ -645,6 +691,12 @@ startAddress:
 bootMessage:
   db 'XT OS Kernel',10
 bootMessageEnd:
+lengthWrong:
+  db 'Length incorrect',10
+lengthWrongEnd:
+checksumWrong:
+  db 'Checksum incorrect',10
+checksumWrongEnd:
 okMessage:
   db 'OK',10
 okMessageEnd:
@@ -652,5 +704,10 @@ failMessage:
   db 'Checksum failure',10
 failMessageEnd:
 
+flags:
+  db 0
+
+checkSum:
+  db 0     ; This will be overwritten by quickboot
 
 kernelEnd:

@@ -2,9 +2,43 @@
 
   jmp codeStart
 
-  db '20130921-com1-115200f',0
+  db '20131215a-com1-115200',0
 
 codeStart:
+  sub di,0x500
+  cmp di,kernelEnd
+  jne lengthOk1
+  or byte[cs:flags],1
+lengthOk1:
+
+  call findSP
+findSP:
+  pop si
+  sub si,findSP
+
+
+  mov ah,0
+  mov cx,checkSum
+;  mov [cs:kernelLength],cx
+;  mov [cs:kernelOffset],si
+
+checksumLoop:
+  lodsb
+  add ah,al
+  loop checksumLoop
+;  mov [cs:computedChecksum],ah
+  cmp ah,[cs:checkSum]
+  je checksumOk1
+  or byte[cs:flags],2
+checksumOk1:
+
+;  call findSP2
+;findSP2:
+;  pop si
+;  sub si,findSP2
+;  mov [cs:kernelOffset],si
+;  mov word[cs:kernelLength],checkSum
+
   ; Don't want any stray interrupts interfering with the serial port accesses.
   cli
 
@@ -134,6 +168,30 @@ noRelocationNeeded:
   mov [column],al
   mov [startAddress],ax
 
+  test byte[flags],1
+  jz lengthOk
+
+  mov si,lengthWrong
+  mov cx,lengthWrongEnd - lengthWrong
+  printString
+
+lengthOk:
+  test byte[flags],2
+  jz checksumOk
+
+  mov si,checksumWrong
+  mov cx,checksumWrongEnd - checksumWrong
+  printString
+
+;  mov ax,[cs:computedChecksum]
+;  printHex
+;  mov ax,[cs:kernelOffset]
+;  printHex
+;  mov ax,[cs:kernelLength]
+;  printHex
+
+checksumOk:
+
   ; Print the boot message
 ;  mov si,bootMessage
 ;  mov cx,bootMessageEnd - bootMessage
@@ -168,6 +226,11 @@ noRelocationNeeded:
 
 loadSerialDataRoutine:
   initSerial
+
+  inc dx      ; 5
+  mov al,'R'
+  sendByte
+  dec dx
 
 packetLoop:
   ; Activate DTR
@@ -473,11 +536,29 @@ startAddress:
 ;bootMessage:
 ;  db 'XT Serial Kernel',10
 ;bootMessageEnd:
+lengthWrong:
+  db 'Length incorrect',10
+lengthWrongEnd:
+checksumWrong:
+  db 'Checksum incorrect',10
+checksumWrongEnd:
 okMessage:
   db 'OK',10
 okMessageEnd:
 screenCounter:
   dw 0
 
+flags:
+  db 0
+
+;kernelLength:
+;  dw 0
+;kernelOffset:
+;  dw 0
+;computedChecksum:
+;  db 0
+
+checkSum:
+  db 0     ; This will be overwritten by quickboot
 
 kernelEnd:

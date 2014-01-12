@@ -25,6 +25,13 @@ Commands: (sent as 0x70 + command in scancode mode or command in ASCII mode)
 0x09 tester raw mode off
 0x0a remote mode on, ASCII mode off
 0x0b remote mode off
+0x0c set speed to send keyboard bits to XT in cycles per half-bit (followed by speed number to set, low byte of count and then high byte of count)
+  1 = bit delay - default 100, min ~13, resolution ~8) - only low byte used - 1 is the fastest that works
+  2 = slow Ack delay - default 1200 - 385 seems to be the fastest that works
+  3 = fast Ack delay - default 68 - 1 seems to be the fastest that works
+  4 = baud rate divisor - default 103 = 19200. rate = 2000000/(divisor + 1). 51 = 38400, 16 = 115200
+0x0d send RAM program over serial port
+
 
 
 Make  Break     Key                         Remote key               Remote code          ASCII key      Windows code  Windows key

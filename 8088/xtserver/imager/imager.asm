@@ -350,10 +350,10 @@ int13routine:
   call sendParameters
 
   ; Send the formatting data
-  mov cl,ah
+  mov cl,ch      ; Sector count from sendParameters
   mov ch,0
   shl cx,1
-  shl cx,1
+  shl cx,1       ; *4 = number of bytes to send for format
   mov ax,es
   mov ds,ax
   mov si,bx
@@ -387,16 +387,15 @@ sendParameters:
   ; Send the contents of the disk parameter table
   xor ax,ax
   mov ds,ax
-  mov si,[0x1e*4]
-  mov ds,[0x1e*4 + 2]
-  push word[si+3]    ; Bytes-per-sector shift...
+  lds si,[0x1e*4]
+  push word[si+3]    ; Bytes-per-sector shift and sectors per track...
   mov cx,0x0b
   printString
-  pop cx         ; in CL
+  pop cx             ; ...in CL and CH respectively
   pop ax         ; Saved sector count from above
   mov ah,0
   add cl,7
-  shl ax,cl      ; Return number of bytes to write
+  shl ax,cl      ; Return number of bytes to read/write in AX and sector count in CH
   ret
 
 tempBuffer:
