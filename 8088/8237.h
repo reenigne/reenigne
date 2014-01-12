@@ -71,7 +71,9 @@ public:
     {
         // TODO: call _bus->setAddress() with the appropriate generated address
         if(!_enabled) return false;
-        if(_channels[_activechannel]._state != Channel::State::stateIdle) _channels[_activechannel]._state = Channel::State::stateS1;
+        if(_channels[_activechannel]._state == Channel::State::stateIdle
+            || _channels[_activechannel]._state == Channel::State::stateS0)
+             _channels[_activechannel]._state = Channel::State::stateS1;
         else return false;
         return true;
     }
@@ -103,6 +105,7 @@ private:
         {
             _state = stateIdle;
             _dack = false;
+            _mode = 0;
         }
         void simulateCycle()
         {
