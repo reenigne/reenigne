@@ -59,9 +59,10 @@ public:
     {
         // TODO
         if(!_enabled) return;
-        _channels[channel]._started = true;
-        _channels[channel]._state = Channel::State::stateIdle;
+        if(_channels[channel]._state != Channel::State::stateIdle) return;
+        _channels[channel]._state = Channel::State::stateS0;
         _channels[channel]._transferaddress = _channels[channel]._startaddress;
+        _activechannel = channel;
     }
     // Step 2: at the end of the IO cycle the CPU calls dmaRequested()
     // equivalent to checking the status of the READY line and raising the HLDA
@@ -70,29 +71,23 @@ public:
     {
         // TODO: call _bus->setAddress() with the appropriate generated address
         if(!_enabled) return false;
-        for(int i = 0;i<4;i++)
-        {
-            if(_channels[i]._started)
-            {
-                if(_channels[i]._state == Channel::State::stateIdle) _channels[i]._state = Channel::State::stateS1;
-                return true;
-            }
-        }
-        return false;
+        if(_channels[_activechannel]._state != Channel::State::stateIdle) _channels[_activechannel]._state = Channel::State::stateS1;
+        else return false;
+        return true;
     }
     // Step 3: device checks dmaAcknowledged() to see when to access the bus.
     // equivalent to checking the status of the DACK line.
     bool dmaAcknowledged(int channel)
     {
         // TODO
-        return !_channels[channel]._started;
+        return _channels[channel]._dack;
     }
     // Step 4: the device calls dmaComplete()
     // equivalent to lowering a DRQline.
     void dmaComplete(int channel)
     {
         // TODO
-        _channels[channel]._started = false;
+        _channels[channel]._state = Channel::State::stateIdle;
     }
 
     String getText()
@@ -106,49 +101,60 @@ private:
     public:
         Channel()
         {
-            _started = false;
+            _state = stateIdle;
+            _dack = false;
         }
         void simulateCycle()
         {
-            if(_started)
+            switch(_state)
             {
-               switch(_mode & 0x0C)
-               {
-                   case 0x08:
-                   {
-                       switch(_state)
-                       {
-                           case stateS1:
-                           {
-                               _bus->setAddress(_transferaddress);
-                               _transferaddress++;
-                               if(_transferaddress == _startaddress + _count + 1)
-                               {
-                                   _started = false;
-                               }
-                               _state = stateS2;
-                               break;
-                           }
-                           case stateS2:
-                           {
-                               _state = stateS3;
-                               break;
-                           }
-                           case stateS3:
-                           {
-                               _bus->read();
-                               _state = stateS4;
-                               break;
-                           }
-                           case stateS4:
-                           {
-                               _state = stateS1;
-                               break;
-                           }
-                       }
-                       break;
-                   }
-               }
+                case stateS1:
+                {
+                    _state = stateS2;
+                    break;
+                }
+                case stateS2:
+                {
+                    _dack = true;
+                    _bus->setAddress(_transferaddress);
+                    _state = stateS3;
+                    break;
+                }
+                case stateS3:
+                {
+                    switch(_mode & 0x0C)
+                    {
+                        case 0x08:
+                        {
+                            _bus->read();
+                            break;
+                        }
+                    }
+                    _state = stateS4;
+                    break;
+                }
+                case stateS4:
+                {
+                    _transferaddress++;
+                    _currentcount--;
+                    if(_currentcount == 0xFFFF)
+                    {
+                        _dack = false;
+                        _state = stateIdle;
+                    }
+                    else
+                    {
+                        switch(_mode & 0xC0)
+                        {
+                            case 0x40:
+                            {
+                                _dack = false;
+                                _state = stateIdle;
+                            }
+                        }
+                    }
+                    break;
+                }
             }
         }
         UInt8 read(UInt32 address)
@@ -176,17 +182,23 @@ private:
                     break;
                 case 1:
                     if (_firstbyte)
+                    {
                         _count = (_count & 0xFF00) | data;
+                        _currentcount = _count;
+                    }
                     else
+                    {
                         _count = (_count & 0xFF) | (data << 8);
+                        _currentcount = _count;
+                    }
                     break;
             }
         }
         UInt8 _mode;
-        bool _started;
         enum State
         {
             stateIdle = 0,
+            stateS0,
             stateS1,
             stateS2,
             stateS3,
@@ -195,11 +207,14 @@ private:
         UInt16 _transferaddress;
         UInt16 _startaddress;
         ISA8BitBus* _bus;
+        bool _dack;
     private:
         UInt16 _count;
+        UInt16 _currentcount;
         bool _firstbyte;
     };
     Channel _channels[4];
     UInt32 _address;
     bool _enabled;
+    int _activechannel;
 };
