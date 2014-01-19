@@ -71,10 +71,9 @@ public:
     {
         // TODO: call _bus->setAddress() with the appropriate generated address
         if(!_enabled) return false;
-        if(_channels[_activechannel]._state == Channel::State::stateIdle
-            || _channels[_activechannel]._state == Channel::State::stateS0)
+        if(_channels[_activechannel]._state == Channel::State::stateS0)
              _channels[_activechannel]._state = Channel::State::stateS1;
-        else return false;
+        if(_channels[_activechannel]._state == Channel::State::stateIdle) return false;
         return true;
     }
     // Step 3: device checks dmaAcknowledged() to see when to access the bus.
