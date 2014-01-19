@@ -231,7 +231,7 @@ bool processCommand(uint8_t command)
             keyboardBufferCharacters = 0;
             return true;
         case 7:
-            print(PSTR("Resetting\n"));
+            print(PSTR("resetting\n"));
             reset();
             return true;
         case 8:

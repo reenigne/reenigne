@@ -678,7 +678,7 @@
   out dx,ax   ; Unreset sequencer
   mov dl,0??  ; CRTC port address low byte              d4  d4  d4  d4  d4  d4  d4  b4  d4  b4  d4  b4  d4  d4  d4  b4  d4  b4  d4  d4  d4  d4  d4  d4  d4  b4  d4  d4  d4  Corresponds to Input Output Address Select
 
-  ;   0xff Horizontal Total Register                    2d  2d  5f  5f  2d  2d  5f  5f  5f  00  37  5f  5f  2d  5f  60  5b  5f  5f  2d  2d  5f  5f  2d  5f  5f  5f  5f  5f  Horizontal Total - 2
+  ;   0xff Horizontal Total Register                    2d  2d  5f  5f  2d  2d  5f  5f  5f  00  37  5f  5f  2d  5f  60  5b  5f  5f  2d  2d  5f  5f  2d  5f  5f  5f  5f  5f  Horizontal Total - 5
   mov ax,0??00
   out dx,ax
 

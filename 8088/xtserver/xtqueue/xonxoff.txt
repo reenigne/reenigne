@@ -1,0 +1,20 @@
+Is XON/XOFF needed?
+  When one machine is sending, the state of the other machine should be well-known
+    What about if we're sending a block of data from tybalt to quickboot and it's coming in over serial faster than it can be sent to the keyboard?
+      Serial is 40000 bytes/s and keyboard is 50000 bytes/s - we should be able to keep up
+    What about if tybalt wants to send a keystroke to the quickboot while the XT is sending a data block (e.g. write request) over the keyboard port and keeping quickboot busy?
+      keystrokes should be infrequent - we shouldn't have so many of them that we overflow the AVR's (1-byte) UART queue during the period of a block
+        But network congestion could mean that we get lots of keystrokes at once
+          When we're about to ignore the UART for more than 25us we send an XOFF at that point to tell tybalt to not send anything
+            So we need XON/XOFF as a top-level command for this purpose, but don't need them during block transfers
+    tybalt should not ever need to send XOFF to quickboot - it has large buffers and shouldn't be blocked for long periods
+      If this turns out not to be true we'd probably need to use XON/XOFF at the Windows level, not the application level (by using SetCommState appropriately) and have quickboot send them
+        This is okay since quickboot process a byte at a time, so doesn't need to specify how many bytes it is receiving.
+
+So, plan:
+  Modify quickboot:
+    * Move block transfers ahead of XON/XOFF/escape processing
+    * Send XOFF to tybalt at start of keyboard receive block processing
+    * Send XON to tybalt at end of keyboard receive block processing
+  Modify xtqueue:
+    * Send/receive blocks with no escaping/XON/XOFF
