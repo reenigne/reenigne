@@ -5,6 +5,7 @@ public:
     Rational<int> hDotsPerCycle() const { return 3; }
     Intel8237DMATemplate()
     {
+        _enabled = false;
     }
     void site()
     {

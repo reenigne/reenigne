@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-O2 -I../include -std=c++11 -lSDL2
+CFLAGS=-O3 -I../include -std=c++11 -lSDL2
 
 all: 8088
 
