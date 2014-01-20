@@ -23,18 +23,18 @@ newInt10:
   mov dl,0xd4
   mov ax,0x0e11
   out dx,ax        ; Unprotect CRTC registers
-  mov ax,0x3300
-  out dx,ax        ; Horizontal Total = character 56
-  mov ax,0x2701
-  out dx,ax        ; Horizontal Display Enable End = character 40
-  mov ax,0x2802
-  out dx,ax        ; Start Horizontal Blanking = character 41
-  mov ax,0x9603
-  out dx,ax        ; End Horizontal Blanking = character 54
-  mov ax,0x2f04
-  out dx,ax        ; Start Horizontal Retrace = character 47
-  mov ax,0xb305
-  out dx,ax        ; End Horizontal Retrace = character 51
+  mov ax,0x6b00
+  out dx,ax        ; Horizontal Total = character 112
+  mov ax,0x4f01
+  out dx,ax        ; Horizontal Display Enable End = character 80
+  mov ax,0x5002
+  out dx,ax        ; Start Horizontal Blanking = character 81
+  mov ax,0x8e03
+  out dx,ax        ; End Horizontal Blanking = character 110
+  mov ax,0x5e04
+  out dx,ax        ; Start Horizontal Retrace = character 94
+  mov ax,0x8605
+  out dx,ax        ; End Horizontal Retrace = character 102
   mov ax,0x0506
   out dx,ax        ; Vertical total = scanline 262
   mov ax,0x0107
