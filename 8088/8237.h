@@ -63,7 +63,6 @@ public:
         if(!_enabled) return;
         if(_channels[channel]._state != Channel::State::stateIdle) return;
         _channels[channel]._state = Channel::State::stateS0;
-        _channels[channel]._transferaddress = _channels[channel]._startaddress;
         _activechannel = channel;
     }
     // Step 2: at the end of the IO cycle the CPU calls dmaRequested()
@@ -96,7 +95,7 @@ public:
     String getText()
     {
         // TODO
-        return String();
+        return String(hex(_channels[_activechannel]._transferaddress,4,false));
     }
 private:
     class Channel
@@ -183,6 +182,7 @@ private:
                         _startaddress = (_startaddress & 0xFF00) | data;
                     else
                         _startaddress = (_startaddress & 0xFF) | (data << 8);
+                    _transferaddress = _startaddress;
                     break;
                 case 1:
                     if (_firstbyte)

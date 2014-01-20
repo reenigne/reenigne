@@ -52,6 +52,7 @@ public:
             this->set(_scancode);
             break;
         case 2:
+            this->set(0x03);
             break;
         }
     }

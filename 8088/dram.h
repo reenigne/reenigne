@@ -9,6 +9,7 @@ public:
         _decayValue = decayValue;
         _adjustRow = 0;
         _rowMask = (1 << rowBits) - 1;
+        _ramSize = size;
     }
     void simulateCycle()
     {
@@ -26,12 +27,14 @@ public:
         if (decayed(address))
             return _decayValue;
         refresh(address) = _cycle;
+        if (address >= _ramSize)
+            return _decayValue;
         return _data[address];
     }
     void write(int address, UInt8 data)
     {
         refresh(address) = _cycle;
-        _data[address] = data;
+        if(address < _ramSize) _data[address] = data;
     }
     UInt8 memory(int address) { return _data[address]; }
 
@@ -151,6 +154,7 @@ private:
     Array<int> _refreshTimes;
     int _cycle;
     int _decayTime;
+    int _ramSize;
     int _rowMask;
     UInt8 _decayValue;
     int _adjustRow;

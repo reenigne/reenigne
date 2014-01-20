@@ -249,11 +249,11 @@ public:
             // DRAM decay time in cycles.
             // This is the fastest that DRAM could decay and real hardware
             // would still work.
-            decayTime = (18*4) << rowBits;
+            //decayTime = (18*4) << rowBits;
             // 2ms for 4116 and 2118
             // 4ms for 4164
             // 8ms for 41256
-            //   decayTime =  (13125 << rowBits) / 176;
+            decayTime =  (13125 << rowBits) / 176;
         }
         _dram.initialize(bytes, rowBits, decayTime, 0);
     }
@@ -831,7 +831,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 3000000) {
+        if (_cycle >= 14000000) {
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
@@ -858,7 +858,7 @@ public:
                     break;
                 case tIdle: line += "         "; break;
                 case tDMA:
-                    line += "D" + _dma->getText();
+                    line += "D " + _dma->getText();
             }
             if (_newInstruction) {
                 line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false) +
