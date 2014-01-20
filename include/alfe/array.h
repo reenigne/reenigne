@@ -163,7 +163,7 @@ public:
     };
 
     Iterator begin() const { return Iterator(_data); }
-    Iterator end() const { return Iteraotr(_data + _n); }
+    Iterator end() const { return Iterator(_data + _n); }
 
 private:
     Array(const Array& other, int allocated)

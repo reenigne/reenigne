@@ -5,6 +5,8 @@ public:
     Rational<int> hDotsPerCycle() const { return 3; }
     Intel8237DMATemplate()
     {
+        _enabled = false;
+        _activechannel = 0;
     }
     void site()
     {
@@ -61,7 +63,6 @@ public:
         if(!_enabled) return;
         if(_channels[channel]._state != Channel::State::stateIdle) return;
         _channels[channel]._state = Channel::State::stateS0;
-        _channels[channel]._transferaddress = _channels[channel]._startaddress;
         _activechannel = channel;
     }
     // Step 2: at the end of the IO cycle the CPU calls dmaRequested()
@@ -71,8 +72,9 @@ public:
     {
         // TODO: call _bus->setAddress() with the appropriate generated address
         if(!_enabled) return false;
-        if(_channels[_activechannel]._state != Channel::State::stateIdle) _channels[_activechannel]._state = Channel::State::stateS1;
-        else return false;
+        if(_channels[_activechannel]._state == Channel::State::stateS0)
+             _channels[_activechannel]._state = Channel::State::stateS1;
+        if(_channels[_activechannel]._state == Channel::State::stateIdle) return false;
         return true;
     }
     // Step 3: device checks dmaAcknowledged() to see when to access the bus.
@@ -93,7 +95,7 @@ public:
     String getText()
     {
         // TODO
-        return String();
+        return String(hex(_channels[_activechannel]._transferaddress,4,false));
     }
 private:
     class Channel
@@ -103,6 +105,7 @@ private:
         {
             _state = stateIdle;
             _dack = false;
+            _mode = 0;
         }
         void simulateCycle()
         {
@@ -179,6 +182,7 @@ private:
                         _startaddress = (_startaddress & 0xFF00) | data;
                     else
                         _startaddress = (_startaddress & 0xFF) | (data << 8);
+                    _transferaddress = _startaddress;
                     break;
                 case 1:
                     if (_firstbyte)

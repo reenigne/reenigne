@@ -1,27 +1,58 @@
-class Intel8255PPI : public ISA8BitComponent
+template<class T> class Intel8255PPITemplate
+  : public ISA8BitComponentTemplate<T>
 {
 public:
-    Intel8255PPI()
+    Intel8255PPITemplate()
     {
+        _keyboardclk = true;
+        _keyboarddata = true;
+        _keyboardtick = 0;
+        _portb = 0xCC;
+        _scancode = 0;
+        _wait = 0;
+    }
+    void site()
+    {
+        _pic = this->_simulator->getPIC();
     }
     void simulateCycle()
     {
+        _keyboardtick++;
+        if(_keyboardtick == 716)
+        {
+            _keyboardtick = 0;
+            simulateKeyboardCycle();
+        }
+    }
+    void simulateKeyboardCycle()
+    {
+        if(_keyboardclk == true && _keyboarddata == true)
+        {
+            if(_wait != 0)
+            {
+                _wait--;
+                if(_wait == 0)
+                {
+                    _pic->requestInterrupt(1);
+                    _keyboarddata = false;
+                }
+            }
+        }
     }
     void setAddress(UInt32 address)
     {
         _address = address & 0x3;
-        _active = (address & 0x400003f0) == 0x40000060;
+        this->_active = (address & 0x400003f0) == 0x40000060;
     }
     void read()
     {
         switch(_address)
         {
         case 0:
-            set(0xAA); //Hardcoded for now.
+            this->set(_scancode);
             break;
         case 2:
-            if(_portb & 0x08) set(0x00); //Hardcoded for now.
-            else set(0x03);
+            this->set(0x03);
             break;
         }
     }
@@ -30,7 +61,18 @@ public:
         switch(_address)
         {
         case 1:
+            if(!(_portb & 0x40) && (data & 0x40)) //low to high transition
+            {
+                _scancode = 0xaa;
+                _wait = 10;
+            }
+            if(!(_portb & 0x80) && (data & 0x80))
+            {
+                _scancode = 0x00;
+                _keyboarddata = true;
+            }
             _portb = data;
+            _keyboardclk = data & 0x40;
             break;
         }
     }
@@ -42,4 +84,10 @@ public:
 private:
     UInt32 _address;
     UInt8 _portb;
+    UInt8 _scancode;
+    int _wait;
+    Intel8259PIC* _pic;
+    int _keyboardtick; //Counter to tick the keyboard at approximately 20 KHz.
+    bool _keyboardclk;
+    bool _keyboarddata;
 };
