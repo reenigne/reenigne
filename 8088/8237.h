@@ -6,6 +6,7 @@ public:
     Intel8237DMATemplate()
     {
         _enabled = false;
+        _activechannel = 0;
     }
     void site()
     {

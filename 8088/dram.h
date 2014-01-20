@@ -8,6 +8,7 @@ public:
         _decayTime = decayTime;
         _decayValue = decayValue;
         _adjustRow = 0;
+        _rowMask = (1 << rowBits) - 1;
     }
     void simulateCycle()
     {

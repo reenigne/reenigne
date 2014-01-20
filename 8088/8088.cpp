@@ -35,6 +35,9 @@ typedef Intel8237DMATemplate<void> Intel8237DMA;
 template<class T> class Intel8253PITTemplate;
 typedef Intel8253PITTemplate<void> Intel8253PIT;
 
+template<class T> class Intel8255PPITemplate;
+typedef Intel8255PPITemplate<void> Intel8255PPI;
+
 template<class T> class RAM640KbTemplate;
 typedef RAM640KbTemplate<void> RAM640Kb;
 
@@ -828,7 +831,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 15000000) {
+        if (_cycle >= 3000000) {
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
