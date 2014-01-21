@@ -43,17 +43,17 @@ public:
                 _offset = data;
                 _state = stateICW3;
             }
-            if(_state == stateICW3)
+            else if(_state == stateICW3)
             {
                 if(_icw1 & 1) _state = stateICW4;
                 else _state = stateReady;
             }
-            if(_state == stateICW4)
+            else if(_state == stateICW4)
             {
                 _icw4 = data;
                 _state = stateReady;
             }
-            if(_state == stateReady)
+            else if(_state == stateReady)
             {
                 _imr = data;
             }

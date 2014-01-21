@@ -13,6 +13,9 @@ public:
         this->_simulator->config()->addDefaultOption("cgarom", Type::string,
             String(""));
     }
+    void simulateCycles(int cycles)
+    {
+    }
     void simulateCycle()
     {
         _cycle = (_cycle + 1) & 15;
