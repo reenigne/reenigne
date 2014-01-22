@@ -50,6 +50,7 @@ public:
         {
         case 0:
             this->set(_scancode);
+            _scancode = 0;
             break;
         case 2:
             this->set(0x03);
@@ -61,18 +62,18 @@ public:
         switch(_address)
         {
         case 1:
-            if(!(_portb & 0x40) && (data & 0x40)) //low to high transition
+            if(!(data & 0x40))
             {
                 _scancode = 0xaa;
-                _wait = 10;
+                _keyboarddata = true;
+                _wait = 1;
             }
-            if(!(_portb & 0x80) && (data & 0x80))
+            if((data & 0x80))
             {
-                _scancode = 0x00;
                 _keyboarddata = true;
             }
             _portb = data;
-            _keyboardclk = data & 0x40;
+            _keyboardclk = !(data & 0x40);
             break;
         }
     }

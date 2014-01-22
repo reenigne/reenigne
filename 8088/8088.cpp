@@ -54,6 +54,7 @@ public:
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
     virtual void site() { }
     virtual void simulateCycle() { }
+    virtual void simulateCycles(int cycles) { }
     virtual String save() const { return String(); }
     virtual Type type() const { return Type(); }
     virtual String name() const { return String(); }
