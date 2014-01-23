@@ -73,7 +73,7 @@ public:
                 _keyboarddata = true;
             }
             _portb = data;
-            _keyboardclk = !(data & 0x40);
+            _keyboardclk = ((data & 0x40) != 0);
             break;
         }
     }

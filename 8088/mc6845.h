@@ -31,6 +31,7 @@ public:
             _horizontal = 0;
             _horizontalDisplay = true;
             _rowAddress = (_rowAddress + 1) & 0x1f;
+            _verticalAdjustCount++;
             bool newRow = _newRow;
             _newRow = (_rowAddress == maxScanLineAddress());
             if (_rowAddress == cursorStart())
@@ -51,13 +52,14 @@ public:
                 }
                 if (_vertical == verticalDisplayed())
                     _verticalDisplay = false;
-                bool newScreen = _newScreen;
-                _newScreen = (_vertical == verticalTotal());
-                if (newScreen) {
-                    _vertical = 0;
-                    _verticalDisplay = true;
-                    _leftMemoryAddress = startAddress();
-                }
+            }
+            bool newScreen = _newScreen;
+            _newScreen = (_verticalAdjustCount == ((verticalTotal() * maxScanLineAddress()) + verticalTotalAdjust()));
+            if (newScreen) {
+                _vertical = 0;
+                _verticalAdjustCount = 0;
+                _verticalDisplay = true;
+                _leftMemoryAddress = startAddress();
             }
             _memoryAddress = _leftMemoryAddress;
         }
@@ -104,11 +106,11 @@ public:
     bool cursorOn() const { return _cursorLine && _memoryAddress == cursor(); }
 
 private:
-    int horizontalTotal() const { return _registers[0]; }
-    int horizontalDisplayed() const { return _registers[1]; }
+    int horizontalTotal() const { return _registers[0] + 1; }
+    int horizontalDisplayed() const { return _registers[1] + 1; }
     int horizontalSyncPosition() const { return _registers[2]; }
     int horizontalSyncWidth() const { return _registers[3]; }
-    int verticalTotal() const { return _registers[4]; }
+    int verticalTotal() const { return _registers[4] + 1; }
     int verticalTotalAdjust() const { return _registers[5]; }
     int verticalDisplayed() const { return _registers[6]; }
     int verticalSyncPosition() const { return _registers[7]; }
@@ -137,6 +139,7 @@ private:
     bool _cursorLine;
     UInt16 _leftMemoryAddress;
     int _verticalSyncCount;
+    int _verticalAdjustCount;
 
     UInt8 _registers[0x10];
     UInt8 _address;

@@ -37,8 +37,8 @@ class SDLWindow
 public:
     SDLWindow()
     {
-        _window = SDL_CreateWindow("VGA monitor",
-            SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 525, 0);
+        _window = SDL_CreateWindow("CGA monitor",
+            SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 912, 525, 0);
         IF_ZERO_THROW_SDL(_window, "Creating SDL window");
     }
     ~SDLWindow() { SDL_DestroyWindow(_window); }
@@ -76,7 +76,7 @@ public:
     SDLTextureTemplate(SDLRenderer* renderer)
     {
         _texture = SDL_CreateTexture(renderer->_renderer,
-            SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 640, 525);
+            SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 912, 525);
         IF_ZERO_THROW_SDL(_texture, "Creating SDL texture");
     }
     ~SDLTextureTemplate() { SDL_DestroyTexture(_texture); }
