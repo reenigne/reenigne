@@ -1,7 +1,7 @@
 class Intel8259PIC : public ISA8BitComponent
 {
 public:
-    Intel8259PIC() : _interruptrdy(false), _secondAck(false)
+    Intel8259PIC() : _interruptrdy(false), _secondAck(false), _state(stateReady), _imr(0xFF)
     {
     }
     void simulateCycle()

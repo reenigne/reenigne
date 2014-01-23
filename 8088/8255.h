@@ -8,9 +8,11 @@ public:
         _keyboarddata = true;
         _keyboardtick = 0;
         _portb = 0xCC;
+        _portc = 0x03;
         _scancode = 0;
         _wait = 0;
     }
+    Rational<int> hDotsPerCycle() const { return 3; }
     void site()
     {
         _pic = this->_simulator->getPIC();
@@ -18,7 +20,7 @@ public:
     void simulateCycle()
     {
         _keyboardtick++;
-        if(_keyboardtick == 716)
+        if(_keyboardtick == 239)
         {
             _keyboardtick = 0;
             simulateKeyboardCycle();
@@ -53,7 +55,7 @@ public:
             _scancode = 0;
             break;
         case 2:
-            this->set(0x03);
+            this->set(_portc);
             break;
         }
     }
@@ -80,8 +82,9 @@ public:
     UInt8 portB()
     {
         // TODO
-        return 0;
+        return _portb;
     }
+    UInt8 _portc;
 private:
     UInt32 _address;
     UInt8 _portb;
