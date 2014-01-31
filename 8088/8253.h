@@ -17,6 +17,7 @@ public:
         _pic = this->_simulator->getPIC();
         _timer0.setPIC(_pic);
         _timer1.setSite(this->_simulator);
+        _timer2.setPPI(this->_simulator->getPPI());
     }
     void simulateCycle()
     {
@@ -318,7 +319,6 @@ private:
         {
             if (_dmaRequested) {
                 if (_dma->dmaAcknowledged(0)) {
-                    _bus->read();
                     // Don't do anything with the data we read - the only
                     // purpose of the DMA is to refresh RAM.
                     _dma->dmaComplete(0);
@@ -333,9 +333,15 @@ private:
     };
     class Timer2 : public Timer
     {
+    public:
+        void setPPI(Intel8255PPI* ppi) { _ppi = ppi; }
         void outputChanged(bool output)
         {
+            if(_ppi->portB() & 1) _ppi->_portc = (_ppi->_portc & ~0x10) | (output ? 0x10 : 0);
+            _ppi->_portc = (_ppi->_portc & ~0x40) | (output ? 0x40 : 0);
         }
+    private:
+        Intel8255PPI* _ppi;
     };
     Timer0 _timer0;
     Timer1 _timer1;

@@ -19,7 +19,7 @@ public:
     void simulateCycle()
     {
         _cycle = (_cycle + 1) & 15;
-        if (_cycle == 0 || (_cycle == 8 && (_mode & 1) != 0)) {
+        if (_cycle == 0) {
             _crtc.simulateCycle();
 
             int ma = (_crtc.memoryAddress() & 0x1fff) << 1;
@@ -27,17 +27,15 @@ public:
             _attr = _data[ma + 1];
             _chrdata = _romdata[0x1800 + (ch << 3) + (_crtc.rowAddress() & 7)];
         }
-        if (_wait != 0)
-            --_wait;
         if ((_mode & 2) != 0) {
         }
         else {
-            UInt8 tmp = _chrdata & (1 << (_cycle & 7));
+            UInt8 tmp = _chrdata & (0x80 >> (_cycle >> 1));
             if(tmp) {
-                _bgri |= 0x0F;
+                _bgri = 0x0F;
             }
             else {
-                _bgri &= 0xF0;
+                _bgri = 0;
             }
             this->_bgriSource.produce(1);
         }
@@ -52,7 +50,7 @@ public:
     }
     void read()
     {
-        if (_memoryActive && _wait == 0) {
+        if (_memoryActive) {
             _wait = 8 + (16 - _cycle);
             this->set(_data[_memoryAddress]);
             return;
@@ -85,7 +83,7 @@ public:
     }
     void write(UInt8 data)
     {
-        if (_memoryActive && _wait == 0) {
+        if (_memoryActive) {
             _wait = 8 + (16 - _cycle);
             _data[_memoryAddress] = data;
         }
