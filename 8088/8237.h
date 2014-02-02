@@ -5,7 +5,6 @@ public:
     Rational<int> hDotsPerCycle() const { return 3; }
     Intel8237DMATemplate()
     {
-        _enabled = false;
         _activechannel = 0;
     }
     void site()
@@ -42,12 +41,7 @@ public:
         }
         switch(_address)
         {
-            case 0x08:
-            {
-                if(data & 4) _enabled = false;
-                else _enabled = true;
-                break;
-            }
+            case 0x08: _command = data; break;
             case 0x0B:
             {
                 _channels[data & 3]._mode = data & 0xFC;
@@ -60,7 +54,8 @@ public:
     void dmaRequest(int channel)
     {
         // TODO
-        if(!_enabled) return;
+        if (disabled())
+            return;
         if(_channels[channel]._state != Channel::State::stateIdle) return;
         _channels[channel]._state = Channel::State::stateS0;
         _activechannel = channel;
@@ -71,7 +66,8 @@ public:
     bool dmaRequested()
     {
         // TODO: call _bus->setAddress() with the appropriate generated address
-        if(!_enabled) return false;
+        if (disabled())
+            return;
         if(_channels[_activechannel]._state == Channel::State::stateS0)
              _channels[_activechannel]._state = Channel::State::stateS1;
         if(_channels[_activechannel]._state == Channel::State::stateIdle) return false;
@@ -97,6 +93,45 @@ public:
         // TODO
         return String(hex(_channels[_activechannel]._transferaddress,4,false));
     }
+
+    String save() const
+    {
+        String s = String("{ ") + _dram.save() + ",\n  active: " +
+            String::Boolean(_active) + ", tick: " + _tick + ", address: " +
+            hex(_address, 5) + ", command: " + hex(_command, 2) +
+            ", channels: { ";
+        bool needComma = false;
+        for (int i = 0; i < 4; ++i) {
+            if (needComma)
+                s += ", ";
+            needComma = true;
+            s += _channels[i].save();
+        }
+        return s + " }\n";
+    }
+    Type type() const
+    {
+        List<StructuredType::Member> members;
+        members.add(StructuredType::Member("active", false));
+        members.add(StructuredType::Member("tick", 0));
+        members.add(StructuredType::Member("address", 0));
+        members.add(StructuredType::Member("command", 4));
+        members.add(StructuredType::Member("channels",
+            TypedValue(Type::array(_channels[0].type()), List<TypedValue>()));
+        return StructuredType("DMA", members);
+    }
+    void load(const TypedValue& value)
+    {
+        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        _active = (*members)["active"].value<bool>();
+        _tick = (*members["tick"].value<int>();
+        _address = (*members["address"].value<int>();
+        _command = (*members["command"].value<int>();
+        auto channels = (*members)["channels"].value<List<TypedValue>>();
+        for (int i = 0; i < 4; ++i) {
+            _channels[i].load((*i).value<TypedValue>());
+    }
+    String name() const { return "dma"; }
 private:
     class Channel
     {
@@ -217,8 +252,11 @@ private:
         UInt16 _currentcount;
         bool _firstbyte;
     };
+
+    bool disabled() const { return (_command & 4) != 0; }
+
     Channel _channels[4];
-    UInt32 _address;
-    bool _enabled;
+    int _address;
+    Byte _command;
     int _activechannel;
 };
