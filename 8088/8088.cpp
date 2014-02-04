@@ -394,6 +394,14 @@ public:
         _address = (*members)["address"].value<int>();
     }
     String name() const { return "dmaPages"; }
+    UInt8 pageForChannel(int channel)
+    {
+        switch (channel) {
+            case 2: return _dmaPages[1];
+            case 3: return _dmaPages[2];
+            default: return _dmaPages[3];
+        }
+    }
 private:
     int _address;
     int _dmaPages[4];
@@ -887,7 +895,7 @@ public:
                     break;
                 case tIdle: line += "         "; break;
                 case tDMA:
-                    line += "D " + _dma->getText();
+                    line += _dma->getText();
             }
             if (_newInstruction) {
                 line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false) +
@@ -3197,6 +3205,7 @@ public:
     Intel8255PPI* getPPI() { return &_ppi; }
     Intel8088* getCPU() { return &_cpu; }
     IBMCGA* getCGA() { return &_cga; }
+    DMAPageRegisters* getDMAPageRegisters() { return &_dmaPageRegisters; }
     String getStopSaveState() { return _stopSaveState; }
     void addComponent(Component* component)
     {

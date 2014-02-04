@@ -5,26 +5,75 @@ public:
     Rational<int> hDotsPerCycle() const { return 3; }
     Intel8237DMATemplate()
     {
-        _activechannel = 0;
+        List<EnumerationType::Value> stateValues;
+        for (int i = stateIdle; i <= stateS4; ++i) {
+            State s = static_cast<State>(i);
+            stateValues.add(EnumerationType::Value(stringForState(s), s));
+        }
+        _stateType = EnumerationType("DMAState", stateValues);
     }
     void site()
     {
-        for(int i = 0; i < 4; ++i)
-        {
-            _channels[i]._bus = this->_simulator->getBus();
-        }
+        _pageRegisters = this->_simulator->getDMAPageRegisters();
+        _bus = this->_simulator->getBus();
     }
     void simulateCycle()
     {
-        for(int i = 0; i < 4; ++i)
-        {
-            _channels[i].simulateCycle();
+        switch(_state) {
+            case stateS1:
+                _state = stateS2;
+                break;
+            case stateS2:
+                _dAck = true;
+                _bus->setAddress(getAddress());
+                _state = stateS3;
+                break;
+            case stateS3:
+                switch (_channels[_channel].transferType()) {
+                    case Channel::transferTypeVerify:
+                        // TODO
+                        break;
+                    case Channel::transferTypeWrite:
+                        // TODO
+                        break;
+                    case Channel::transferTypeRead:
+                        _bus->read();
+                        break;
+                    case Channel::transferTypeIllegal:
+                        // TODO
+                        break;
+                }
+                _state = stateS4;
+                break;
+            case stateS4:
+                if (_channels[_channel].update()) {
+                    _dAck = false;
+                    _state = stateIdle;
+                }
+                else {
+                    switch (_channels[_channel].transferMode()) {
+                        case Channel::transferModeDemand:
+                            // TODO
+                            break;
+                        case Channel::transferModeSingle:
+                            _dAck = false;
+                            _state = stateIdle;
+                            break;
+                        case Channel::transferModeBlock:
+                            // TODO
+                            break;
+                        case Channel::transferModeCascade:
+                            // TODO
+                            break;
+                    }
+                }
+                break;
         }
     }
     void setAddress(UInt32 address)
     {
         _address = address & 0xf;
-        this->_active = (address & 0x400003f0) == 0x40000000;
+        this->_active = ((address & 0x400003f0) == 0x40000000);
     }
     void read()
     {
@@ -35,12 +84,12 @@ public:
         }
         switch (address) {
             case 8:
-                // TODO: read status register
-                // this->set(data);
+                this->set(_channels[0].status() | (_channels[1].status() << 1)
+                    | (_channels[2].status() << 2) |
+                    (_channels[3].status() << 3));
                 return;
             case 13:
-                // TODO: read temporary register
-                // this->set(data);
+                this->set(_temporary);
                 return;
         }
     }
@@ -53,26 +102,34 @@ public:
         }
         switch(_address) {
             case 8: _command = data; break;
-            case 9: _channels[data & 3].setRequest((data & 4) != 0); break;
+            case 9: _channels[data & 3].setSoftRequest((data & 4) != 0); break;
             case 10: _channels[data & 3].setMask((data & 4) != 0); break;
             case 11: _channels[data & 3].setMode(data & 0xfc); break;
             case 12: _lastByte = false; break;
             case 13:
-                // Master clear
-                _command = 0;
-                _status = 0;
-                _request = 0;
-                _temporary = 0;
-                _lastByte = false;
-                _mask = 15;
-                _state = stateIdle;
+                {
+                    // Master clear
+                    _command = 0;
+                    _status = 0;
+                    _request = 0;
+                    _temporary = 0;
+                    _lastByte = false;
+                    for (int i = 0; i < 4; ++i)
+                        _channels[i].clear();
+                    _state = stateIdle;
+                }
                 break;
-            case 14: _mask = 0; break;
+            case 14:
+                {
+                    for (int i = 0; i < 4; ++i)
+                        _channels[i].setMask(false);
+                }
+                break;
             case 15:
-                _channels[0].setMask((data & 1) ! = 0);
-                _channels[1].setMask((data & 2) ! = 0);
-                _channels[2].setMask((data & 4) ! = 0);
-                _channels[3].setMask((data & 8) ! = 0);
+                {
+                    for (int i = 0; i < 4; ++i)
+                        _channels[i].setMask((data & (1 << i)) ! = 0);
+                }
                 break;
         }
     }
@@ -80,52 +137,75 @@ public:
     // equivalent to raising a DRQ line.
     void dmaRequest(int channel)
     {
-        // TODO
-        if (disabled())
-            return;
-        if(_channels[channel]._state != Channel::State::stateIdle) return;
-        _channels[channel]._state = Channel::State::stateS0;
-        _activechannel = channel;
+        bool oldRequest = _channels[channel].request();
+        _channels[channel].setHardRequest(true);
+        if (!oldRequest && !disabled() && _state == stateIdle) {
+            _state = stateS0;
+            _channel = channel;
+        }
     }
     // Step 2: at the end of the IO cycle the CPU calls dmaRequested()
     // equivalent to checking the status of the READY line and raising the HLDA
     // line.
     bool dmaRequested()
     {
-        // TODO: call _bus->setAddress() with the appropriate generated address
-        if (disabled())
-            return;
-        if(_channels[_activechannel]._state == Channel::State::stateS0)
-             _channels[_activechannel]._state = Channel::State::stateS1;
-        if(_channels[_activechannel]._state == Channel::State::stateIdle) return false;
-        return true;
+        //if (disabled())
+        //    return;
+        if (_state == stateS0)
+            _state = stateS1;
+        return _state != stateIdle;
     }
     // Step 3: device checks dmaAcknowledged() to see when to access the bus.
     // equivalent to checking the status of the DACK line.
     bool dmaAcknowledged(int channel)
     {
-        // TODO
-        return _channels[channel]._dack;
+        return channel == _channel && _dAck;
     }
     // Step 4: the device calls dmaComplete()
     // equivalent to lowering a DRQline.
-    void dmaComplete(int channel)
-    {
-        // TODO
-        _channels[channel]._state = Channel::State::stateIdle;
-    }
+    void dmaComplete(int channel) { _channels[channel].setHardRequest(false); }
 
     String getText()
     {
-        // TODO
-        return String(hex(_channels[_activechannel]._transferaddress,4,false));
+        String line;
+        //// TODO
+        //return String(hex(_channels[_activechannel]._transferaddress,4,false));
+        switch (_state) {
+            case stateS1:
+                line += "D1 " + hex(_busAddress, 5, false) + " ";
+                break;
+            case stateS2:
+                line += "D2 ";
+                if (_ioInProgress == ioWrite)
+                    line += "M<-" + hex(_busData, 2, false) + " ";
+                else
+                    line += "      ";
+                break;
+            case stateS3: line += "D3       "; break;
+            case stateWait: line += "Dw       "; break;
+            case stateS4:
+                line += "D4 ";
+                if (_ioInProgress == ioWrite)
+                    line += "      ";
+                else
+                    if (_abandonFetch)
+                        line += "----- ";
+                    else
+                        line += "M->" + hex(_busData, 2, false) + " ";
+                break;
+            case tIdle: line += "         "; break;
+        }
+        return line;
     }
 
     String save() const
     {
-        String s = String("{ active: " + String::Boolean(_active) +
-            ", tick: " + _tick + ", address: " + hex(_address, 5) +
-            ", command: " + hex(_command, 2) + ", channels: { ";
+        String s = String() + 
+            "{ active: " + String::Boolean(_active) +
+            ", tick: " + _tick +
+            ", address: " + hex(_address, 5) +
+            ", command: " + hex(_command, 2) +
+            ", channels: { ";
         bool needComma = false;
         for (int i = 0; i < 4; ++i) {
             if (needComma)
@@ -133,7 +213,11 @@ public:
             needComma = true;
             s += _channels[i].save();
         }
-        return s + " }, lastByte: " + String::Boolean(_lastByte + " }\n";
+        return s + " }, lastByte: " + String::Boolean(_lastByte) +
+            ", temporary: " + hex(_temporary, 2) +
+            ", channel: " + decimal(_channel) +
+            ", state: " + stringForState(_state) +
+            " }\n";
     }
     Type type() const
     {
@@ -145,84 +229,32 @@ public:
         members.add(StructuredType::Member("channels",
             TypedValue(Type::array(_channels[0].type()), List<TypedValue>()));
         members.add(StructuredType::Member("lastByte", false));
+        members.add(StructuredType::Member("temporary", 0));
+        members.add(StructuredType::Member("channel", 0));
+        members.add(StructuredType::Member("state",
+            TypedValue(_stateType, stateIdle)));
         return StructuredType("DMA", members);
     }
     void load(const TypedValue& value)
     {
         auto members = value.value<Value<HashTable<String, TypedValue>>>();
         _active = (*members)["active"].value<bool>();
-        _tick = (*members["tick"].value<int>();
+        _tick = (*members)["tick"].value<int>();
         _address = (*members)["address"].value<int>();
         _command = (*members)["command"].value<int>();
         auto channels = (*members)["channels"].value<List<TypedValue>>();
         for (int i = 0; i < 4; ++i)
             _channels[i].load((*i).value<TypedValue>());
         _lastByte = (*members)["lastByte"].value<bool>();
+        _temporary = (*members)["temporary"].value<int>();
+        _channel = (*members)["channel"].value<int>();
+        _state = (*members)["state"].value<State>();
     }
     String name() const { return "dma"; }
 private:
     class Channel
     {
     public:
-        Channel()
-        {
-            _state = stateIdle;
-            _dack = false;
-            _mode = 0;
-        }
-        void simulateCycle()
-        {
-            switch(_state)
-            {
-                case stateS1:
-                {
-                    _state = stateS2;
-                    break;
-                }
-                case stateS2:
-                {
-                    _dack = true;
-                    _bus->setAddress(_transferaddress);
-                    _state = stateS3;
-                    break;
-                }
-                case stateS3:
-                {
-                    switch(_mode & 0x0C)
-                    {
-                        case 0x08:
-                        {
-                            _bus->read();
-                            break;
-                        }
-                    }
-                    _state = stateS4;
-                    break;
-                }
-                case stateS4:
-                {
-                    _transferaddress++;
-                    _currentcount--;
-                    if(_currentcount == 0xFFFF)
-                    {
-                        _dack = false;
-                        _state = stateIdle;
-                    }
-                    else
-                    {
-                        switch(_mode & 0xC0)
-                        {
-                            case 0x40:
-                            {
-                                _dack = false;
-                                _state = stateIdle;
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-        }
         UInt8 read(UInt32 address, bool lastByte)
         {
             int shift = (lastByte ? 8 : 0);
@@ -245,42 +277,140 @@ private:
             }
         }
         void setMode(UInt8 mode) { _mode = mode; }
+        void setHardRequest(bool hardRequest) { _hardRequest = hardRequest; }
+        void setSoftRequest(bool softRequest) { _softRequest = softRequest; }
+        void setMask(bool mask) { _mask = mask; }
+        void clear() { _mask = true; _terminalCount = false; }
+        UInt16 currentAddress() const { return _currentAddress; }
+        bool update()
+        {
+            if (addressDecrement())
+                --_currentAddress;
+            else
+                ++_currentAddress;
+            --_currentCount;
+            return _currentCount == 0xffff;
+        }
 
         String save() const
         {
-
+            return String("\n    ") + 
+                "{ mode: " + hex(_mode, 2) +
+                ", baseAddress: " + hex(_baseAddress, 4) +
+                ", baseCount: " + hex(_baseCount, 4) +
+                ", currentAddress: " + hex(_currentAddress, 4) +
+                ", currentCount: " + hex(_currentCount, 4) +
+                ", hardRequest: " + String::Boolean(_hardRequest) +
+                ", softRequest: " + String::Boolean(_softRequest) +
+                ", mask: " + String::Boolean(_mask) +
+                ", terminalCount: " + String::Boolean(_terminalCount) +
+                " }";
         }
         Type type() const
         {
+            List<StructuredType::Member> members;
+            members.add(StructuredType::Member("mode", 0));
+            members.add(StructuredType::Member("baseAddress", 0));
+            members.add(StructuredType::Member("baseCount", 0));
+            members.add(StructuredType::Member("currentAddress", 0));
+            members.add(StructuredType::Member("currentCount", 0));
+            members.add(StructuredType::Member("hardRequest", false));
+            members.add(StructuredType::Member("softRequest", false));
+            members.add(StructuredType::Member("mask", true));
+            members.add(StructuredType::Member("terminalCount", false));
+            return StructuredType("DMAChannel", members);
         }
         void load(const TypedValue& value)
         {
+            auto members = value.value<Value<HashTable<String, TypedValue>>>();
+            _mode = (*members)["mode"].value<int>();
+            _baseAddress = (*members)["baseAddress"].value<int>();
+            _baseCount = (*members)["baseCount"].value<int>();
+            _currentAddress = (*members)["currentAddress"].value<int>();
+            _currentCount = (*members)["currentCount"].value<int>();
+            _hardRequest = (*members)["hardRequest"].value<bool>();
+            _softRequest = (*members)["softRequest"].value<bool>();
+            _mask = (*members)["mask"].value<bool>();
+            _terminalCount = (*members)["terminalCount"].value<bool>();
+        }
+        Byte status() const
+        {
+            Byte s = (_terminalCount ? 1 : 0) | (request() ? 0x10 : 0);
+            _terminalCount = false;
+            return s;
         }
 
+        bool request() const { return _hardRequest | _softRequest; }
+
+        TransferType transferType() const { return (_mode >> 2) & 3; }
+        bool autoInitialization() const { return (_mode & 0x10) != 0; }
+        bool addressDecrement() const { return (_mode & 0x20) != 0; }
+        TransferMode transferMode() const { return (_mode >> 6) & 3; }
+
+        enum TransferType
+        {
+            transferTypeVerify,
+            transferTypeWrite,
+            transferTypeRead,
+            transferTypeIllegal
+        };
+        enum TransferMode
+        {
+            transferModeDemand,
+            transferModeSingle,
+            transferModeBlock,
+            transferModeCascade
+        };
     private:
+        Byte _mode;
         UInt16 _baseAddress;
         UInt16 _baseCount;
         UInt16 _currentAddress;
         UInt16 _currentCount;
-        UInt8 _mode;
-
-    //    UInt16 _transferaddress;     
-    //    UInt16 _startaddress;        
-    //    ISA8BitBus* _bus;
-    //    bool _dack;
-    //private:
-    //    UInt16 _count;
-    //    UInt16 _currentcount;
-    //    bool _firstbyte;
+        bool _hardRequest;
+        bool _softRequest;
+        bool _mask;
+        bool _terminalCount;
     };
 
+    bool memoryToMemory() const { return (_command & 1) != 0; }
+    bool channel0AddressHold() const { return (_command & 2) != 0; }
     bool disabled() const { return (_command & 4) != 0; }
+    bool compressedTiming() const { return (_command & 8) != 0; }
+    bool rotatingPriority() const { return (_command & 0x10) != 0; }
+    bool extendedWriteSelection() const { return (_command & 0x20) != 0; }
+    bool dreqSenseActiveLow() const { return (_command & 0x40) != 0; }
+    bool dackSenseActiveHigh() const { return (_command & 0x80) != 0; }
 
+    UInt32 getAddress() const
+    {
+        return _channels[_channel].currentAddress() |
+            (_pageRegisters->pageForChannel(_channel) << 16);
+    }
+
+    static String stringForState(State state)
+    {
+        switch (_state) {
+            case stateIdle: return "idle";
+            case stateS0:   return "s0";
+            case stateS1:   return "s1";
+            case stateS2:   return "s2";
+            case stateS3:   return "s3";
+            case stateWait: return "wait";
+            case stateS4:   return "s4";
+        }
+        return "";
+    }
+
+    DMAPageRegisters* _pageRegisters;
+    ISA8BitBus* _bus;
     Channel _channels[4];
     int _address;
     Byte _command;
-    int _activechannel;
+    int _channel;
     bool _lastByte;
+    Byte _temporary;
+    bool _dAck;
 
     enum State
     {
@@ -292,4 +422,5 @@ private:
         stateS4
     } _state;
 
+    Type _stateType;
 };
