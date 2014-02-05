@@ -82,6 +82,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\include\alfe\any.h" />
+    <ClInclude Include="..\..\..\include\alfe\array.h" />
     <ClInclude Include="..\..\..\include\alfe\config_file.h" />
     <ClInclude Include="..\..\..\include\alfe\file.h" />
     <ClInclude Include="..\..\..\include\alfe\file_handle.h" />

@@ -40,7 +40,7 @@ public:
 
     String save() const
     {
-        String s("dram: { data: ###\n");
+        String s("{ data: ###\n");
         for (int y = 0; y < _data.count(); y += 0x20) {
             String line;
             bool gotData = false;

@@ -47,6 +47,32 @@ typedef ROMTemplate<void> ROM;
 template<class T> class IBMCGATemplate;
 typedef IBMCGATemplate<void> IBMCGA;
 
+class Tick
+{
+    typedef unsigned int BaseType;
+public:
+    Tick(const BaseType& t) { _t = t; }
+    bool operator==(const Tick& other) const { return _t == other._t; }
+    bool operator!=(const Tick& other) const { return _t != other._t; }
+    bool operator<=(const Tick& other) const
+    {
+        return other._t - _t < (static_cast<BaseType>(-1) >> 1);
+    }
+    bool operator<(const Tick& other) const
+    {
+        return (*this) <= other && (*this) != other;
+    }
+    bool operator>=(const Tick& other) const { return other <= *this; }
+    bool operator>(const Tick& other) const { return other < *this; }
+    const Tick& operator+=(const Tick& other) { _t += other._t; return *this; }
+    const Tick& operator-=(const Tick& other) { _t -= other._t; return *this; }
+    Tick operator+(const Tick& other) { return Tick(_t + other._t); }
+    Tick operator-(const Tick& other) { return Tick(_t - other._t); }
+
+private:
+    BaseType _t;
+};
+
 template<class T> class ComponentTemplate
 {
 public:
@@ -75,12 +101,12 @@ public:
         return 157500000/(11*h);
     }
     virtual Rational<int> hDotsPerCycle() const { return 0; }
-    void setTicksPerCycle(int ticksPerCycle)
+    void setTicksPerCycle(Tick ticksPerCycle)
     {
         _ticksPerCycle = ticksPerCycle;
         _tick = 0;
     }
-    void simulateTicks(int ticks)
+    void simulateTicks(Tick ticks)
     {
         _tick += ticks;
         if (_ticksPerCycle != 0 && _tick >= _ticksPerCycle) {
@@ -89,11 +115,11 @@ public:
         }
     }
 protected:
-    int _tick;
+    Tick _tick;
 
     SimulatorTemplate<T>* _simulator;
 private:
-    int _ticksPerCycle;
+    Tick _ticksPerCycle;
 };
 
 template<class T> class ISA8BitBusTemplate;
@@ -158,7 +184,7 @@ public:
             data &= (*i)->memory(address);
         return data;
     }
-    String save() const { return String("bus: ") + hex(_data, 2) + "\n"; }
+    String save() const { return hex(_data, 2) + "\n"; }
     virtual Type type() const { return Type::integer; }
     virtual String name() const { return String("bus"); }
     virtual void load(const TypedValue& value) { _data = value.value<int>(); }
@@ -183,8 +209,8 @@ public:
     void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }
     String save() const
     {
-        return String("nmiSwitch: { on: ") + String::Boolean(_nmiOn) +
-            ", active: " + String::Boolean(_active) + " }\n";
+        return String("{ on: ") + String::Boolean(_nmiOn) + ", active: " +
+            String::Boolean(_active) + " }\n";
     }
     Type type() const
     {
@@ -306,9 +332,9 @@ public:
     }
     String save() const
     {
-        return String("ram: { ") + _dram.save() + ",\n  active: " +
-            String::Boolean(_active) + ", tick: " + _tick + ", address: " +
-            hex(_address, 5) + "}\n";
+        return String("{ ") + _dram.name() + ": " + _dram.save() +
+            ",\n  active: " + String::Boolean(_active) + ", tick: " + _tick +
+            ", address: " + hex(_address, 5) + "}\n";
     }
     String name() const { return "ram"; }
 private:
@@ -331,7 +357,7 @@ public:
     void write(UInt8 data) { _dmaPages[_address] = data & 0x0f; }
     String save() const
     {
-        String s = "dmaPages: { data: {";
+        String s = "{ data: {";
         bool needComma = false;
         for (int i = 0; i < 4; ++i) {
             if (needComma)
@@ -368,6 +394,14 @@ public:
         _address = (*members)["address"].value<int>();
     }
     String name() const { return "dmaPages"; }
+    UInt8 pageForChannel(int channel)
+    {
+        switch (channel) {
+            case 2: return _dmaPages[1];
+            case 3: return _dmaPages[2];
+            default: return _dmaPages[3];
+        }
+    }
 private:
     int _address;
     int _dmaPages[4];
@@ -418,7 +452,7 @@ public:
     }
     String save() const
     {
-        return String("rom: { active: ") + String::Boolean(this->_active) +
+        return String("{ active: ") + String::Boolean(this->_active) +
             ", address: " + hex(_address, 5) + "}\n";
     }
     Type type() const
@@ -434,6 +468,7 @@ public:
         this->_active = (*members)["active"].value<bool>();
         _address = (*members)["address"].value<int>();
     }
+    String name() const { return String("rom") + hex(_start, 5, false); }
 private:
     int _mask;
     int _start;
@@ -832,6 +867,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
+#if 0
         if (_cycle >= 14000000) {
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
@@ -859,7 +895,7 @@ public:
                     break;
                 case tIdle: line += "         "; break;
                 case tDMA:
-                    line += "D " + _dma->getText();
+                    line += _dma->getText();
             }
             if (_newInstruction) {
                 line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false) +
@@ -876,7 +912,10 @@ public:
                 console.write(line + "\n");
             _newInstruction = false;
         }
+#endif
         ++_cycle;
+        if (_cycle % 1000000 == 0)
+            console.write(".");
         if (_halted /*|| _cycle == _stopAtCycle*/) {
             console.write("Stopped at cycle " + String(decimal(_cycle)) + "\n");
             this->_simulator->halt();
@@ -2058,7 +2097,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
 
     String save() const
     {
-        String s("cpu: {\n");
+        String s("{\n");
         s += String("  ip: ") + hex(_ip, 4) + ",\n";
         s += String("  ax: ") + hex(_registerData[0], 4) + ",\n";
         s += String("  cx: ") + hex(_registerData[1], 4) + ",\n";
@@ -3096,9 +3135,9 @@ public:
         TypedValue stateValue;
         if (!initialStateFile.empty()) {
             ConfigFile initialState;
-            initialState.addDefaultOption("simulator", type(), initial());
+            initialState.addDefaultOption(name(), type(), initial());
             initialState.load(initialStateFile);
-            stateValue = initialState.get("simulator");
+            stateValue = initialState.get(name());
         }
         else
             stateValue = initial();
@@ -3143,7 +3182,7 @@ public:
     }
     String save() const
     {
-        String s("simulator = {");
+        String s("{");
         bool needComma = false;
         for (auto i = _components.begin(); i != _components.end(); ++i) {
             if ((*i)->name().empty())
@@ -3151,7 +3190,7 @@ public:
             if (needComma)
                 s += ", ";
             needComma = true;
-            s += (*i)->save();
+            s += (*i)->name() + ": " + (*i)->save();
         }
         s += "};";
         return s;
@@ -3166,6 +3205,7 @@ public:
     Intel8255PPI* getPPI() { return &_ppi; }
     Intel8088* getCPU() { return &_cpu; }
     IBMCGA* getCGA() { return &_cga; }
+    DMAPageRegisters* getDMAPageRegisters() { return &_dmaPageRegisters; }
     String getStopSaveState() { return _stopSaveState; }
     void addComponent(Component* component)
     {
@@ -3190,6 +3230,7 @@ public:
         for (auto i = _components.begin(); i != _components.end(); ++i)
             (*i)->load((*object)[(*i)->name()]);
     }
+    String name() const { return "simulator"; }
 private:
     List<Component*> _components;
     bool _halted;
@@ -3211,93 +3252,7 @@ private:
     String _stopSaveState;
 };
 
-class RGBIMonitor : public Sink<BGRI>
-{
-public:
-    RGBIMonitor() : _renderer(&_window), _texture(&_renderer)
-    {
-        _palette.allocate(64);
-        _palette[0x0] = 0xff000000;
-        _palette[0x1] = 0xff0000aa;
-        _palette[0x2] = 0xff00aa00;
-        _palette[0x3] = 0xff00aaaa;
-        _palette[0x4] = 0xffaa0000;
-        _palette[0x5] = 0xffaa00aa;
-        _palette[0x6] = 0xffaa5500;
-        _palette[0x7] = 0xffaaaaaa;
-        _palette[0x8] = 0xff555555;
-        _palette[0x9] = 0xff5555ff;
-        _palette[0xa] = 0xff55ff55;
-        _palette[0xb] = 0xff55ffff;
-        _palette[0xc] = 0xffff5555;
-        _palette[0xd] = 0xffff55ff;
-        _palette[0xe] = 0xffffff55;
-        _palette[0xf] = 0xffffffff;
-
-        // Create some special colours for visualizing sync pulses.
-        for (int i = 0; i < 16; ++i) {
-            int r = ((_palette[i] >> 16) & 0xff) >> 4;
-            int g = ((_palette[i] >> 8) & 0xff) >> 4;
-            int b = (_palette[i] & 0xff) >> 4;
-            int rgb = (r << 16) + (g << 8) + b;
-            _palette[i + 16] = 0xff002200 + rgb; // hsync
-            _palette[i + 32] = 0xff220022 + rgb; // vsync
-            _palette[i + 48] = 0xff222222 + rgb; // hsync+vsync
-        }
-    }
-
-    // We ignore the suggested number of samples and just read a whole frame's
-    // worth once there is enough for a frame.
-    void consume(int nSuggested)
-    {
-        // Since the pumping is currently done by Simulator::simulate(), don't
-        // try to pull more data from the CGA than we have.
-        if (remaining() < 912*262 + 1)
-            return;
-
-        // We have enough data for a frame - update the screen.
-        Accessor<BGRI> reader = Sink::reader(912*262 + 1);
-        SDLTextureLock _lock(&_texture);
-        int y = 0;
-        int x = 0;
-        bool hSync = false;
-        bool vSync = false;
-        bool oldHSync = false;
-        bool oldVSync = false;
-        int n = 0;
-        UInt8* row = reinterpret_cast<UInt8*>(_lock._pixels);
-        int pitch = _lock._pitch;
-        UInt32* output = reinterpret_cast<UInt32*>(row);
-        do {
-            BGRI p = reader.item();
-            hSync = ((p & 0x10) != 0);
-            vSync = ((p & 0x20) != 0);
-            if (x == 912 || (oldHSync && !hSync)) {
-                x = 0;
-                ++y;
-                row += pitch;
-                output = reinterpret_cast<UInt32*>(row);
-            }
-            if (y == 262 || (oldVSync && !vSync))
-                break;
-            oldHSync = hSync;
-            oldVSync = vSync;
-            *output = _palette[p];
-            ++output;
-            ++n;
-            ++x;
-            reader.advance(1);
-        } while (true);
-        read(n);
-        _renderer.renderTexture(&_texture);
-    }
-
-private:
-    SDLWindow _window;
-    SDLRenderer _renderer;
-    SDLTexture _texture;
-    Array<UInt32> _palette;
-};
+#include "rgbi_monitor.h"
 
 class Program : public ProgramBase
 {
@@ -3334,7 +3289,8 @@ protected:
             ~Saver()
             {
                 try {
-                    String save = _simulator->save();
+                    String save = _simulator->name() + " = " +
+                        _simulator->save();
                     String stopSaveState = _simulator->getStopSaveState();
                     if (!stopSaveState.empty())
                         File(stopSaveState).save(save);

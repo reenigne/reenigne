@@ -94,6 +94,9 @@
       <FileType>CppHeader</FileType>
     </ClInclude>
     <ClInclude Include="dram.h" />
+    <ClInclude Include="rgbi_monitor.h" />
+    <ClInclude Include="xt_keyboard.h" />
+    <ClInclude Include="xt_keyboard_shift_register.h" />
     <ClInclude Include="mc6845.h" />
   </ItemGroup>
   <ItemGroup>
@@ -113,7 +116,6 @@
     <ClInclude Include="8255.h" />
     <ClInclude Include="8259.h" />
     <ClInclude Include="cga.h" />
-    <ClInclude Include="common.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="scratch.txt" />
