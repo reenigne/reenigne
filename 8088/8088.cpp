@@ -47,6 +47,9 @@ typedef ROMTemplate<void> ROM;
 template<class T> class IBMCGATemplate;
 typedef IBMCGATemplate<void> IBMCGA;
 
+template<class T> class DMAPageRegistersTemplate;
+typedef DMAPageRegistersTemplate<void> DMAPageRegisters;
+
 class Tick
 {
     typedef unsigned int BaseType;
@@ -76,7 +79,7 @@ private:
 template<class T> class ComponentTemplate
 {
 public:
-    ComponentTemplate() : _simulator(0) { }
+    ComponentTemplate() : _simulator(0), _tick(0) { }
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
     virtual void site() { }
     virtual void simulateCycle() { }
@@ -333,7 +336,7 @@ public:
     String save() const
     {
         return String("{ ") + _dram.name() + ": " + _dram.save() +
-            ",\n  active: " + String::Boolean(_active) + ", tick: " + _tick +
+            ",\n  active: " + String::Boolean(this->_active) + ", tick: " + String::Decimal(this->_tick) +
             ", address: " + hex(_address, 5) + "}\n";
     }
     String name() const { return "ram"; }
@@ -345,14 +348,14 @@ private:
     Intel8088Template<T>* _cpu;
 };
 
-class DMAPageRegisters : public ISA8BitComponent
+template<class T> class DMAPageRegistersTemplate : public ISA8BitComponentTemplate<T>
 {
 public:
-    DMAPageRegisters() { for (int i = 0; i < 4; ++i) _dmaPages[i] = 0; }
+    DMAPageRegistersTemplate() { for (int i = 0; i < 4; ++i) _dmaPages[i] = 0; }
     void setAddress(UInt32 address)
     {
         _address = address & 3;
-        _active = (address & 0xc00003e0) == 0xc0000080;
+        this->_active = (address & 0xc00003e0) == 0xc0000080;
     }
     void write(UInt8 data) { _dmaPages[_address] = data & 0x0f; }
     String save() const
@@ -365,7 +368,7 @@ public:
             needComma = true;
             s += hex(_dmaPages[i], 1);
         }
-        return s + "}, active: " + String::Boolean(_active) + ", address: " +
+        return s + "}, active: " + String::Boolean(this->_active) + ", address: " +
             _address + " }\n";
     }
     Type type() const
@@ -390,7 +393,7 @@ public:
         }
         for (;j < 4; ++j)
             _dmaPages[j] = 0;
-        _active = (*members)["active"].value<bool>();
+        this->_active = (*members)["active"].value<bool>();
         _address = (*members)["address"].value<int>();
     }
     String name() const { return "dmaPages"; }
@@ -2163,7 +2166,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  nmiRequested: ") + String::Boolean(_nmiRequested) +
             ",\n";
         s += String("  cycle: ") + _cycle + ",\n";
-        s += String("  tick: ") + this->_tick;
+        s += String("  tick: ") + String::Decimal(this->_tick);
         return s + "}\n";
     }
     Type type() const
