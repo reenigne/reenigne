@@ -3,6 +3,15 @@ template<class T> class Intel8237DMATemplate
 {
 public:
     Rational<int> hDotsPerCycle() const { return 3; }
+    enum State
+    {
+        stateIdle = 0,
+        stateS0,
+        stateS1,
+        stateS2,
+        stateS3,
+        stateS4
+    } _state;
     Intel8237DMATemplate()
     {
         List<EnumerationType::Value> stateValues;
@@ -82,7 +91,7 @@ public:
             _lastByte = !_lastByte;
             return;
         }
-        switch (address) {
+        switch (_address) {
             case 8:
                 this->set(_channels[0].status() | (_channels[1].status() << 1)
                     | (_channels[2].status() << 2) |
@@ -128,7 +137,10 @@ public:
             case 15:
                 {
                     for (int i = 0; i < 4; ++i)
-                        _channels[i].setMask((data & (1 << i)) ! = 0);
+                    {
+                        Byte tmp = data & (1 << i); //Workaround for dumb compilers.
+                        _channels[i].setMask(tmp != 0);
+                    }
                 }
                 break;
         }
@@ -172,28 +184,29 @@ public:
         //return String(hex(_channels[_activechannel]._transferaddress,4,false));
         switch (_state) {
             case stateS1:
-                line += "D1 " + hex(_busAddress, 5, false) + " ";
+                line += "D1 " + hex(getAddress(), 5, false) + " ";
                 break;
             case stateS2:
                 line += "D2 ";
-                if (_ioInProgress == ioWrite)
-                    line += "M<-" + hex(_busData, 2, false) + " ";
-                else
+                //if (_channels[_channel].transferType == Channel::transferTypeRead)
+                    //TODO: line += "M<-" + hex(_busData, 2, false) + " ";
+                //else
                     line += "      ";
                 break;
             case stateS3: line += "D3       "; break;
-            case stateWait: line += "Dw       "; break;
             case stateS4:
                 line += "D4 ";
-                if (_ioInProgress == ioWrite)
+                if (_channels[_channel].transferType == Channel::transferTypeWrite)
                     line += "      ";
-                else
+                /*else
                     if (_abandonFetch)
                         line += "----- ";
                     else
-                        line += "M->" + hex(_busData, 2, false) + " ";
+                        line += "M->" + hex(_busData, 2, false) + " ";*/
                 break;
-            case tIdle: line += "         "; break;
+            case stateIdle:
+                line = "";
+                break;
         }
         return line;
     }
@@ -201,8 +214,8 @@ public:
     String save() const
     {
         String s = String() + 
-            "{ active: " + String::Boolean(_active) +
-            ", tick: " + _tick +
+            "{ active: " + String::Boolean(this->_active) +
+            ", tick: " + String::Decimal(this->_tick) +
             ", address: " + hex(_address, 5) +
             ", command: " + hex(_command, 2) +
             ", channels: { ";
@@ -227,7 +240,7 @@ public:
         members.add(StructuredType::Member("address", 0));
         members.add(StructuredType::Member("command", 0));
         members.add(StructuredType::Member("channels",
-            TypedValue(Type::array(_channels[0].type()), List<TypedValue>()));
+            TypedValue(Type::array(_channels[0].type()), List<TypedValue>())));
         members.add(StructuredType::Member("lastByte", false));
         members.add(StructuredType::Member("temporary", 0));
         members.add(StructuredType::Member("channel", 0));
@@ -238,12 +251,12 @@ public:
     void load(const TypedValue& value)
     {
         auto members = value.value<Value<HashTable<String, TypedValue>>>();
-        _active = (*members)["active"].value<bool>();
-        _tick = (*members)["tick"].value<int>();
+        this->_active = (*members)["active"].value<bool>();
+        this->_tick = (*members)["tick"].value<int>();
         _address = (*members)["address"].value<int>();
         _command = (*members)["command"].value<int>();
         auto channels = (*members)["channels"].value<List<TypedValue>>();
-        for (int i = 0; i < 4; ++i)
+        for (auto i = channels.begin(); i != channels.end(); ++i)
             _channels[i].load((*i).value<TypedValue>());
         _lastByte = (*members)["lastByte"].value<bool>();
         _temporary = (*members)["temporary"].value<int>();
@@ -255,6 +268,20 @@ private:
     class Channel
     {
     public:
+        enum TransferType
+        {
+            transferTypeVerify,
+            transferTypeWrite,
+            transferTypeRead,
+            transferTypeIllegal
+        };
+        enum TransferMode
+        {
+            transferModeDemand,
+            transferModeSingle,
+            transferModeBlock,
+            transferModeCascade
+        };
         UInt8 read(UInt32 address, bool lastByte)
         {
             int shift = (lastByte ? 8 : 0);
@@ -347,20 +374,6 @@ private:
         bool addressDecrement() const { return (_mode & 0x20) != 0; }
         TransferMode transferMode() const { return (_mode >> 6) & 3; }
 
-        enum TransferType
-        {
-            transferTypeVerify,
-            transferTypeWrite,
-            transferTypeRead,
-            transferTypeIllegal
-        };
-        enum TransferMode
-        {
-            transferModeDemand,
-            transferModeSingle,
-            transferModeBlock,
-            transferModeCascade
-        };
     private:
         Byte _mode;
         UInt16 _baseAddress;
@@ -396,7 +409,6 @@ private:
             case stateS1:   return "s1";
             case stateS2:   return "s2";
             case stateS3:   return "s3";
-            case stateWait: return "wait";
             case stateS4:   return "s4";
         }
         return "";
@@ -407,20 +419,12 @@ private:
     Channel _channels[4];
     int _address;
     Byte _command;
+    Byte _status;
+    Byte _request;
     int _channel;
     bool _lastByte;
     Byte _temporary;
     bool _dAck;
-
-    enum State
-    {
-        stateIdle = 0,
-        stateS0,
-        stateS1,
-        stateS2,
-        stateS3,
-        stateS4
-    } _state;
 
     Type _stateType;
 };
