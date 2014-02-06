@@ -192,6 +192,7 @@ public:
     virtual String name() const { return String("bus"); }
     virtual void load(const TypedValue& value) { _data = value.value<int>(); }
     virtual TypedValue initial() const { return 0xff; }
+    UInt8 data() const { return _data; }
 
 private:
     UInt8 _data;
@@ -335,9 +336,11 @@ public:
     }
     String save() const
     {
-        return String("{ ") + _dram.name() + ": " + _dram.save() +
-            ",\n  active: " + String::Boolean(this->_active) + ", tick: " + String::Decimal(this->_tick) +
-            ", address: " + hex(_address, 5) + "}\n";
+        return String("{ ") + _dram.name() +
+            ": " + _dram.save() +
+            ",\n  active: " + String::Boolean(this->_active) +
+            ", tick: " + String::Decimal(this->_tick) +
+            ", address: " + hex(_address, 5) + " }\n";
     }
     String name() const { return "ram"; }
 private:
@@ -348,10 +351,15 @@ private:
     Intel8088Template<T>* _cpu;
 };
 
-template<class T> class DMAPageRegistersTemplate : public ISA8BitComponentTemplate<T>
+template<class T> class DMAPageRegistersTemplate :
+    public ISA8BitComponentTemplate<T>
 {
 public:
-    DMAPageRegistersTemplate() { for (int i = 0; i < 4; ++i) _dmaPages[i] = 0; }
+    DMAPageRegistersTemplate()
+    {
+        for (int i = 0; i < 4; ++i)
+            _dmaPages[i] = 0;
+    }
     void setAddress(UInt32 address)
     {
         _address = address & 3;
@@ -368,8 +376,9 @@ public:
             needComma = true;
             s += hex(_dmaPages[i], 1);
         }
-        return s + "}, active: " + String::Boolean(this->_active) + ", address: " +
-            _address + " }\n";
+        return s + "}, active: " + String::Boolean(this->_active) +
+            ", address: " + _address +
+            " }\n";
     }
     Type type() const
     {
@@ -851,7 +860,8 @@ public:
         List<EnumerationType::Value> busStateValues;
         for (int i = t1; i <= tIdle; ++i) {
             BusState s = static_cast<BusState>(i);
-            busStateValues.add(EnumerationType::Value(stringForBusState(s), s));
+            busStateValues.add(
+                EnumerationType::Value(stringForBusState(s), s));
         }
         _busStateType = EnumerationType("BusState", busStateValues);
 
@@ -901,8 +911,8 @@ public:
                     line += _dma->getText();
             }
             if (_newInstruction) {
-                line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false) +
-                    " " + _disassembler.disassemble(_newIP);
+                line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false)
+                    + " " + _disassembler.disassemble(_newIP);
             }
             line = line.alignLeft(50);
             for (int i = 0; i < 8; ++i) {
@@ -920,7 +930,8 @@ public:
         if (_cycle % 1000000 == 0)
             console.write(".");
         if (_halted /*|| _cycle == _stopAtCycle*/) {
-            console.write("Stopped at cycle " + String(decimal(_cycle)) + "\n");
+            console.write("Stopped at cycle " + String(decimal(_cycle)) +
+                "\n");
             this->_simulator->halt();
         }
     }
