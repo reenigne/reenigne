@@ -50,11 +50,12 @@ typedef IBMCGATemplate<void> IBMCGA;
 template<class T> class DMAPageRegistersTemplate;
 typedef DMAPageRegistersTemplate<void> DMAPageRegisters;
 
+typedef unsigned int BaseType;
+
 class Tick
 {
-    typedef unsigned int BaseType;
 public:
-    Tick(const BaseType& t) { _t = t; }
+    Tick(BaseType t) { _t = t; }
     bool operator==(const Tick& other) const { return _t == other._t; }
     bool operator!=(const Tick& other) const { return _t != other._t; }
     bool operator<=(const Tick& other) const
@@ -71,15 +72,16 @@ public:
     const Tick& operator-=(const Tick& other) { _t -= other._t; return *this; }
     Tick operator+(const Tick& other) { return Tick(_t + other._t); }
     Tick operator-(const Tick& other) { return Tick(_t - other._t); }
-
-private:
+    
     BaseType _t;
 };
 
 template<class T> class ComponentTemplate
 {
 public:
-    ComponentTemplate() : _simulator(0), _tick(0) { }
+    ComponentTemplate() : _simulator(0), _tick(0), _ticksPerCycle(0)
+    {
+    }
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
     virtual void site() { }
     virtual void simulateCycle() { }
@@ -339,7 +341,7 @@ public:
         return String("{ ") + _dram.name() +
             ": " + _dram.save() +
             ",\n  active: " + String::Boolean(this->_active) +
-            ", tick: " + String::Decimal(this->_tick) +
+            ", tick: " + String::Decimal(this->_tick._t) +
             ", address: " + hex(_address, 5) + " }\n";
     }
     String name() const { return "ram"; }
@@ -406,18 +408,22 @@ public:
         _address = (*members)["address"].value<int>();
     }
     String name() const { return "dmaPages"; }
-    UInt8 pageForChannel(int channel)
-    {
-        switch (channel) {
-            case 2: return _dmaPages[1];
-            case 3: return _dmaPages[2];
-            default: return _dmaPages[3];
-        }
-    }
+    
+    UInt8 pageForChannel(int channel);
 private:
     int _address;
     int _dmaPages[4];
 };
+
+template<class T>
+UInt8 DMAPageRegistersTemplate<T>::pageForChannel(int channel)
+{
+    switch (channel) {
+        case 2: return _dmaPages[1];
+        case 3: return _dmaPages[2];
+        default: return _dmaPages[3];
+    }
+}
 
 class ROMData
 {
@@ -880,8 +886,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-#if 0
-        if (_cycle >= 14000000) {
+        if (_cycle >= 000000) {
             String line = String(decimal(_cycle)).alignRight(5) + " ";
             switch (_busState) {
                 case t1:
@@ -925,7 +930,6 @@ public:
                 console.write(line + "\n");
             _newInstruction = false;
         }
-#endif
         ++_cycle;
         if (_cycle % 1000000 == 0)
             console.write(".");
@@ -2177,7 +2181,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  nmiRequested: ") + String::Boolean(_nmiRequested) +
             ",\n";
         s += String("  cycle: ") + _cycle + ",\n";
-        s += String("  tick: ") + String::Decimal(this->_tick);
+        s += String("  tick: ") + String::Decimal(this->_tick._t);
         return s + "}\n";
     }
     Type type() const
