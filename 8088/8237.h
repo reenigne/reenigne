@@ -20,6 +20,7 @@ public:
             stateValues.add(EnumerationType::Value(stringForState(s), s));
         }
         _stateType = EnumerationType("DMAState", stateValues);
+        _state = stateIdle;
     }
     void site()
     {
@@ -58,7 +59,6 @@ public:
                 if (_channels[_channel].update()) {
                     _dAck = false;
                     _state = stateIdle;
-                    checkForDMA();
                 }
                 else {
                     switch (_channels[_channel].transferMode()) {
@@ -114,11 +114,11 @@ public:
             case 8: _command = data; break;
             case 9:
                 _channels[data & 3].setSoftRequest((data & 4) != 0);
-                checkForDMA();
+                checkForDMA(data & 3);
                 break;
             case 10:
                 _channels[data & 3].setMask((data & 4) != 0); 
-                checkForDMA();
+                checkForDMA(data & 3);
                 break;
             case 11: _channels[data & 3].setMode(data & 0xfc); break;
             case 12: _lastByte = false; break;
@@ -136,15 +136,19 @@ public:
             case 14:
                 {
                     for (int i = 0; i < 4; ++i)
+                    {
                         _channels[i].setMask(false);
-                    checkForDMA();
+                        checkForDMA(i);
+                    }
                 }
                 break;
             case 15:
                 {
                     for (int i = 0; i < 4; ++i)
+                    {
                         _channels[i].setMask((data & (1 << i)) != 0);
-                    checkForDMA();
+                        checkForDMA(i);
+                    }
                 }
                 break;
         }
@@ -154,13 +158,15 @@ public:
     void dmaRequest(int channel)
     {
         _channels[channel].setHardRequest(true);
-        checkForDMA();
+        checkForDMA(channel);
     }
     // Step 2: at the end of the IO cycle the CPU calls dmaRequested()
     // equivalent to checking the status of the READY line and raising the HLDA
     // line.
     bool dmaRequested()
     {
+        if(disabled())
+            return false;
         if (_state == stateS0)
             _state = stateS1;
         return _state != stateIdle;
@@ -169,14 +175,13 @@ public:
     // equivalent to checking the status of the DACK line.
     bool dmaAcknowledged(int channel)
     {
-        return channel == _channel && _dAck;
+        return _dAck;
     }
     // Step 4: the device calls dmaComplete()
     // equivalent to lowering a DRQline.
     void dmaComplete(int channel)
     {
         _channels[channel].setHardRequest(false);
-        checkForDMA();
     }
 
     String getText()
@@ -188,7 +193,7 @@ public:
                 break;
             case stateS2:
                 line += "D2 ";
-                if (_channels[_channel].transferType ==
+                if (_channels[_channel].transferType() ==
                     Channel::transferTypeWrite)
                     line += "M<-" + hex(_bus->data(), 2, false) + " ";
                 else
@@ -197,13 +202,13 @@ public:
             case stateS3: line += "D3       "; break;
             case stateS4:
                 line += "D4 ";
-                if (_channels[_channel].transferType ==
+                if (_channels[_channel].transferType() ==
                     Channel::transferTypeWrite)
                     line += "      ";
                 else
-                    if (_abandonFetch)
-                        line += "----- ";
-                    else
+                    //if (_abandonFetch)
+                    //    line += "----- ";
+                    //else
                         line += "M->" + hex(_bus->data(), 2, false) + " ";
                 break;
             case stateIdle:
@@ -217,7 +222,7 @@ public:
     {
         String s = String() + 
             "{ active: " + String::Boolean(this->_active) +
-            ", tick: " + String::Decimal(this->_tick) +
+            ", tick: " + String::Decimal(this->_tick._t) +
             ", address: " + hex(_address, 5) +
             ", command: " + hex(_command, 2) +
             ", channels: { ";
@@ -258,12 +263,10 @@ public:
         _address = (*members)["address"].value<int>();
         _command = (*members)["command"].value<int>();
         auto channels = (*members)["channels"].value<List<TypedValue>>();
-        for (auto i = channels.begin(); i != channels.end(); ++i)
-            _channels[i].load((*i).value<TypedValue>());
 
         int j = 0;
         for (auto i = channels.begin(); i != channels.end(); ++i) {
-            _channels[j].load(((*i).value<TypedValue>());
+            _channels[j].load(((*i).value<TypedValue>()));
             ++j;
             if (j == 4)
                 break;
@@ -282,7 +285,7 @@ public:
     }
     String name() const { return "dma"; }
 private:
-    void checkForDMA()
+    void checkForDMA(int channel)
     {
         if (disabled())
             return;
@@ -296,6 +299,10 @@ private:
 
     class Channel
     {
+    public:
+        Channel() : _hardRequest(false), _softRequest(false)
+        {
+        }
         enum TransferType
         {
             transferTypeVerify,
@@ -310,7 +317,6 @@ private:
             transferModeBlock,
             transferModeCascade
         };
-    public:
         UInt8 read(UInt32 address, bool lastByte)
         {
             int shift = (lastByte ? 8 : 0);
@@ -394,7 +400,7 @@ private:
             _mask = (*members)["mask"].value<bool>();
             _terminalCount = (*members)["terminalCount"].value<bool>();
         }
-        Byte status() const
+        Byte status()
         {
             Byte s = (_terminalCount ? 1 : 0) | (request() ? 0x10 : 0);
             _terminalCount = false;
@@ -422,7 +428,7 @@ private:
 
     bool memoryToMemory() const { return (_command & 1) != 0; }
     bool channel0AddressHold() const { return (_command & 2) != 0; }
-    bool disabled() const { return (_command & 4) != 0; }
+    bool disabled() const { return (_command & 4) == 0; }
     bool compressedTiming() const { return (_command & 8) != 0; }
     bool rotatingPriority() const { return (_command & 0x10) != 0; }
     bool extendedWriteSelection() const { return (_command & 0x20) != 0; }
@@ -432,10 +438,10 @@ private:
     UInt32 getAddress() const
     {
         return _channels[_channel].currentAddress() |
-            (_pageRegisters->pageForChannel(_channel) << 16);
+            (this->_pageRegisters->pageForChannel(_channel) << 16);
     }
 
-    static String stringForState(State state)
+    String stringForState(State state)
     {
         switch (_state) {
             case stateIdle: return "idle";
