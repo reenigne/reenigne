@@ -68,6 +68,7 @@ public:
                         case Channel::transferModeSingle:
                             _dAck = false;
                             _state = stateIdle;
+                            checkForDMA();
                             break;
                         case Channel::transferModeBlock:
                             // TODO
@@ -94,9 +95,12 @@ public:
         }
         switch (_address) {
             case 8:
-                this->set(_channels[0].status() | (_channels[1].status() << 1)
-                    | (_channels[2].status() << 2) |
-                    (_channels[3].status() << 3));
+                {
+                    Byte b = 0;
+                    for (int i = 0; i < 4; ++i)
+                        b |= _channels[i].status() << i;
+                    this->set(b);
+                }
                 return;
             case 13:
                 this->set(_temporary);
@@ -111,7 +115,7 @@ public:
             return;
         }
         switch(_address) {
-            case 8: _command = data; break;
+            case 8: _command = data; checkForDMA(); break;
             case 9:
                 _channels[data & 3].setSoftRequest((data & 4) != 0);
                 checkForDMA();
@@ -153,7 +157,7 @@ public:
     // equivalent to raising a DRQ line.
     void dmaRequest(int channel)
     {
-        _channels[channel].setHardRequest(true);
+        _channels[channel].setHardRequest(!dreqSenseActiveLow());
         checkForDMA();
     }
     // Step 2: at the end of the IO cycle the CPU calls dmaRequested()
@@ -169,13 +173,13 @@ public:
     // equivalent to checking the status of the DACK line.
     bool dmaAcknowledged(int channel)
     {
-        return channel == _channel && _dAck;
+        return channel == _channel && _dAck == dackSenseActiveHigh();
     }
     // Step 4: the device calls dmaComplete()
     // equivalent to lowering a DRQline.
     void dmaComplete(int channel)
     {
-        _channels[channel].setHardRequest(false);
+        _channels[channel].setHardRequest(dreqSenseActiveLow());
         checkForDMA();
     }
 
@@ -284,9 +288,20 @@ private:
         if (_state != stateIdle)
             return;
 
-         _state = stateS0;
-//         _channel = channel;
+         int i;
+         int channel;
+         for (i = 0; i < 4; ++i) {
+             channel = i;
+             if (rotatingPriority)
+                 channel = (channel + _channel) & 3;
+             if (_channels[channel].request())
+                 break;
+         }
+         if (i == 4)
+             return;
 
+         _channel = channel;
+         _state = stateS0;
     }
 
     class Channel
@@ -345,7 +360,16 @@ private:
             else
                 ++_currentAddress;
             --_currentCount;
-            return _currentCount == 0xffff;
+            if (_currentCount == 0xffff) {
+                if (autoInitialization()) {
+                    _currentAddress = _baseAddress;
+                    _currentCount = _baseCount;
+                }
+                else
+                    _terminalCount = true;
+            }
+            
+            return _terminalCount;
         }
 
         String save() const
@@ -396,7 +420,10 @@ private:
             return s;
         }
 
-        bool request() const { return _hardRequest | _softRequest; }
+        bool request() const
+        {
+            return (_hardRequest && !_mask) || _softRequest;
+        }
 
         TransferType transferType() const
         {
