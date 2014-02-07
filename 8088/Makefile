@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-O3 -I../include -std=c++11 -lSDL2 -fpermissive
+CFLAGS=-O3 -I../include -std=c++11 -lSDL2
 
 all: 8088
 

@@ -1,4 +1,4 @@
-#include "alfe/string.h"
+#include "alfe/string.h"                          
 #include "alfe/array.h"
 #include "alfe/file.h"
 #include "alfe/stack.h"
@@ -50,14 +50,13 @@ typedef IBMCGATemplate<void> IBMCGA;
 template<class T> class DMAPageRegistersTemplate;
 typedef DMAPageRegistersTemplate<void> DMAPageRegisters;
 
-typedef unsigned int BaseType;
-
 class Tick
 {
+    typedef unsigned int BaseType;
 public:
-    Tick(BaseType t) { _t = t; }
+    Tick(const BaseType& t) { _t = t; }
     bool operator==(const Tick& other) const { return _t == other._t; }
-    bool operator!=(const Tick& other) const { return _t != other._t; }
+//    bool operator!=(const Tick& other) const { return _t != other._t; }
     bool operator<=(const Tick& other) const
     {
         return other._t - _t < (static_cast<BaseType>(-1) >> 1);
@@ -72,7 +71,8 @@ public:
     const Tick& operator-=(const Tick& other) { _t -= other._t; return *this; }
     Tick operator+(const Tick& other) { return Tick(_t + other._t); }
     Tick operator-(const Tick& other) { return Tick(_t - other._t); }
-    
+    operator BaseType() const { return _t; }
+private:
     BaseType _t;
 };
 
@@ -341,7 +341,7 @@ public:
         return String("{ ") + _dram.name() +
             ": " + _dram.save() +
             ",\n  active: " + String::Boolean(this->_active) +
-            ", tick: " + String::Decimal(this->_tick._t) +
+            ", tick: " + String::Decimal(this->_tick) +
             ", address: " + hex(_address, 5) + " }\n";
     }
     String name() const { return "ram"; }
@@ -409,21 +409,19 @@ public:
     }
     String name() const { return "dmaPages"; }
     
-    UInt8 pageForChannel(int channel);
+    UInt8 pageForChannel(int channel)
+    {
+        switch (channel) {
+            case 2: return _dmaPages[1];
+            case 3: return _dmaPages[2];
+            default: return _dmaPages[3];
+        }
+    }
+ 
 private:
     int _address;
     int _dmaPages[4];
 };
-
-template<class T>
-UInt8 DMAPageRegistersTemplate<T>::pageForChannel(int channel)
-{
-    switch (channel) {
-        case 2: return _dmaPages[1];
-        case 3: return _dmaPages[2];
-        default: return _dmaPages[3];
-    }
-}
 
 class ROMData
 {
@@ -2181,7 +2179,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += String("  nmiRequested: ") + String::Boolean(_nmiRequested) +
             ",\n";
         s += String("  cycle: ") + _cycle + ",\n";
-        s += String("  tick: ") + String::Decimal(this->_tick._t);
+        s += String("  tick: ") + String::Decimal(this->_tick);
         return s + "}\n";
     }
     Type type() const

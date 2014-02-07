@@ -20,7 +20,6 @@ public:
             stateValues.add(EnumerationType::Value(stringForState(s), s));
         }
         _stateType = EnumerationType("DMAState", stateValues);
-        _state = stateIdle;
     }
     void site()
     {
@@ -59,6 +58,7 @@ public:
                 if (_channels[_channel].update()) {
                     _dAck = false;
                     _state = stateIdle;
+                    checkForDMA();
                 }
                 else {
                     switch (_channels[_channel].transferMode()) {
@@ -114,11 +114,11 @@ public:
             case 8: _command = data; break;
             case 9:
                 _channels[data & 3].setSoftRequest((data & 4) != 0);
-                checkForDMA(data & 3);
+                checkForDMA();
                 break;
             case 10:
                 _channels[data & 3].setMask((data & 4) != 0); 
-                checkForDMA(data & 3);
+                checkForDMA();
                 break;
             case 11: _channels[data & 3].setMode(data & 0xfc); break;
             case 12: _lastByte = false; break;
@@ -136,19 +136,15 @@ public:
             case 14:
                 {
                     for (int i = 0; i < 4; ++i)
-                    {
                         _channels[i].setMask(false);
-                        checkForDMA(i);
-                    }
+                    checkForDMA();
                 }
                 break;
             case 15:
                 {
                     for (int i = 0; i < 4; ++i)
-                    {
                         _channels[i].setMask((data & (1 << i)) != 0);
-                        checkForDMA(i);
-                    }
+                    checkForDMA();
                 }
                 break;
         }
@@ -158,15 +154,13 @@ public:
     void dmaRequest(int channel)
     {
         _channels[channel].setHardRequest(true);
-        checkForDMA(channel);
+        checkForDMA();
     }
     // Step 2: at the end of the IO cycle the CPU calls dmaRequested()
     // equivalent to checking the status of the READY line and raising the HLDA
     // line.
     bool dmaRequested()
     {
-        if(disabled())
-            return false;
         if (_state == stateS0)
             _state = stateS1;
         return _state != stateIdle;
@@ -175,13 +169,14 @@ public:
     // equivalent to checking the status of the DACK line.
     bool dmaAcknowledged(int channel)
     {
-        return _dAck;
+        return channel == _channel && _dAck;
     }
     // Step 4: the device calls dmaComplete()
     // equivalent to lowering a DRQline.
     void dmaComplete(int channel)
     {
         _channels[channel].setHardRequest(false);
+        checkForDMA();
     }
 
     String getText()
@@ -206,10 +201,7 @@ public:
                     Channel::transferTypeWrite)
                     line += "      ";
                 else
-                    //if (_abandonFetch)
-                    //    line += "----- ";
-                    //else
-                        line += "M->" + hex(_bus->data(), 2, false) + " ";
+                    line += "M->" + hex(_bus->data(), 2, false) + " ";
                 break;
             case stateIdle:
                 line = "";
@@ -222,7 +214,7 @@ public:
     {
         String s = String() + 
             "{ active: " + String::Boolean(this->_active) +
-            ", tick: " + String::Decimal(this->_tick._t) +
+            ", tick: " + String::Decimal(this->_tick) +
             ", address: " + hex(_address, 5) +
             ", command: " + hex(_command, 2) +
             ", channels: { ";
@@ -285,7 +277,7 @@ public:
     }
     String name() const { return "dma"; }
 private:
-    void checkForDMA(int channel)
+    void checkForDMA()
     {
         if (disabled())
             return;
@@ -293,16 +285,13 @@ private:
             return;
 
          _state = stateS0;
-         _channel = channel;
+//         _channel = channel;
 
     }
 
     class Channel
     {
     public:
-        Channel() : _hardRequest(false), _softRequest(false)
-        {
-        }
         enum TransferType
         {
             transferTypeVerify,
@@ -409,10 +398,16 @@ private:
 
         bool request() const { return _hardRequest | _softRequest; }
 
-        TransferType transferType() const { return (_mode >> 2) & 3; }
+        TransferType transferType() const
+        {
+            return static_cast<TransferType>((_mode >> 2) & 3);
+        }
         bool autoInitialization() const { return (_mode & 0x10) != 0; }
         bool addressDecrement() const { return (_mode & 0x20) != 0; }
-        TransferMode transferMode() const { return (_mode >> 6) & 3; }
+        TransferMode transferMode() const
+        {
+            return static_cast<TransferMode>((_mode >> 6) & 3);
+        }
 
     private:
         Byte _mode;
@@ -428,7 +423,7 @@ private:
 
     bool memoryToMemory() const { return (_command & 1) != 0; }
     bool channel0AddressHold() const { return (_command & 2) != 0; }
-    bool disabled() const { return (_command & 4) == 0; }
+    bool disabled() const { return (_command & 4) != 0; }
     bool compressedTiming() const { return (_command & 8) != 0; }
     bool rotatingPriority() const { return (_command & 0x10) != 0; }
     bool extendedWriteSelection() const { return (_command & 0x20) != 0; }
@@ -441,9 +436,9 @@ private:
             (this->_pageRegisters->pageForChannel(_channel) << 16);
     }
 
-    String stringForState(State state)
+    static String stringForState(State state)
     {
-        switch (_state) {
+        switch (state) {
             case stateIdle: return "idle";
             case stateS0:   return "s0";
             case stateS1:   return "s1";
