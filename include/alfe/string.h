@@ -207,7 +207,7 @@ public:
       : _buffer(data), _start(0), _length(length) { }
     explicit StringTemplate(int length)
       : _buffer(length), _start(0), _length(0) { }
-    StringTemplate(const Array<::Byte>& array)
+    StringTemplate(const Array< ::Byte>& array)
       : _buffer(reinterpret_cast<const char*>(&array[0])), _start(0),
         _length(array.count()) { }
 #ifdef _WIN32
