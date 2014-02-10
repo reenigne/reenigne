@@ -175,6 +175,12 @@ public:
             if ((*i)->active())
                 (*i)->write(data);
     }
+    void write()
+    {
+        for (auto i = _components.begin(); i != _components.end(); ++i)
+            if ((*i)->active())
+                (*i)->write(_data);
+    }
     UInt8 read() const
     {
         for (auto i = _components.begin(); i != _components.end(); ++i)

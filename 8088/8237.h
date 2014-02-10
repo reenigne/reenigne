@@ -8,8 +8,23 @@ template<class T> class Intel8237DMATemplate
         stateS1,
         stateS2,
         stateS3,
-        stateS4
+        stateS4,
+        stateYield
     } _state;
+    enum TransferType
+    {
+        transferTypeVerify,
+        transferTypeWrite,
+        transferTypeRead,
+        transferTypeIllegal
+    };
+    enum TransferMode
+    {
+        transferModeDemand,
+        transferModeSingle,
+        transferModeBlock,
+        transferModeCascade
+    };
 public:
     Rational<int> hDotsPerCycle() const { return 3; }
     Intel8237DMATemplate()
@@ -28,56 +43,55 @@ public:
     }
     void simulateCycle()
     {
+        TransferMode mode = _channels[_channel].transferMode();
+        TransferType type = _channels[_channel].transferType();
         switch(_state) {
             case stateS1:
                 _state = stateS2;
                 break;
             case stateS2:
                 _dAck = true;
-                _bus->setAddress(getAddress());
+                if (mode != transferModeCascade) {
+                    _bus->setAddress(getAddress());
+                    if (type == transferTypeWrite) {
+                        if (_channel == 1 && memoryToMemory())
+                            _bus->write(_temporary);
+                        else
+                            _bus->write();
+                    }
+                }
                 _state = stateS3;
                 break;
             case stateS3:
-                switch (_channels[_channel].transferType()) {
-                    case Channel::transferTypeVerify:
-                        // TODO
-                        break;
-                    case Channel::transferTypeWrite:
-                        // TODO
-                        break;
-                    case Channel::transferTypeRead:
-                        _bus->read();
-                        break;
-                    case Channel::transferTypeIllegal:
-                        // TODO
-                        break;
-                }
                 _state = stateS4;
                 break;
             case stateS4:
-                if (_channels[_channel].update()) {
-                    _dAck = false;
-                    _state = stateIdle;
-                    checkForDMA();
+                if (type == transferTypeRead && mode != transferModeCascade) {
+                    UInt8 d = _bus->read();
+                    if (_channel == 0 && memoryToMemory()) {
+                        _temporary = d;
+                        _channels[1].setInternalRequest(true);
+                    }
                 }
-                else {
-                    switch (_channels[_channel].transferMode()) {
-                        case Channel::transferModeDemand:
-                            // TODO
+                _channels[channel].setInternalRequest(false);
+                _dAck = false;
+                _state = stateIdle;
+                if (!_channels[_channel].update(channel0AddressHold() &&
+                    _channel == 0)) {
+                    switch (mode) {
+                        case transferModeSingle:
+                            _state = stateYield;
                             break;
-                        case Channel::transferModeSingle:
-                            _dAck = false;
-                            _state = stateIdle;
-                            checkForDMA();
-                            break;
-                        case Channel::transferModeBlock:
-                            // TODO
-                            break;
-                        case Channel::transferModeCascade:
-                            // TODO
+                        case transferModeBlock:
+                            _channels[channel].setInternalRequest(true);
                             break;
                     }
                 }
+                checkForDMA();
+                break;
+            case stateYield:
+                _state = stateIdle;
+                checkForDMA();
                 break;
         }
     }
@@ -307,20 +321,6 @@ private:
     class Channel
     {
     public:
-        enum TransferType
-        {
-            transferTypeVerify,
-            transferTypeWrite,
-            transferTypeRead,
-            transferTypeIllegal
-        };
-        enum TransferMode
-        {
-            transferModeDemand,
-            transferModeSingle,
-            transferModeBlock,
-            transferModeCascade
-        };
         UInt8 read(UInt32 address, bool lastByte)
         {
             int shift = (lastByte ? 8 : 0);
@@ -345,6 +345,10 @@ private:
         void setMode(UInt8 mode) { _mode = mode; }
         void setHardRequest(bool hardRequest) { _hardRequest = hardRequest; }
         void setSoftRequest(bool softRequest) { _softRequest = softRequest; }
+        void setInternalRequest(bool internalRequest)
+        {
+            _internalRequest = internalRequest;
+        }
         void setMask(bool mask) { _mask = mask; }
         void clear()
         {
@@ -353,12 +357,13 @@ private:
             _softRequest = false;
         }
         UInt16 currentAddress() const { return _currentAddress; }
-        bool update()
+        bool update(bool holdAddress)
         {
-            if (addressDecrement())
-                --_currentAddress;
-            else
-                ++_currentAddress;
+            if (!holdAddress)
+                if (addressDecrement())
+                    --_currentAddress;
+                else
+                    ++_currentAddress;
             --_currentCount;
             if (_currentCount == 0xffff) {
                 if (autoInitialization()) {
@@ -368,7 +373,6 @@ private:
                 else
                     _terminalCount = true;
             }
-            
             return _terminalCount;
         }
 
@@ -384,6 +388,7 @@ private:
                 ", softRequest: " + String::Boolean(_softRequest) +
                 ", mask: " + String::Boolean(_mask) +
                 ", terminalCount: " + String::Boolean(_terminalCount) +
+                ", internalRequest: " + String::Boolean(_internalRequest) +
                 " }";
         }
         Type type() const
@@ -398,6 +403,7 @@ private:
             members.add(StructuredType::Member("softRequest", false));
             members.add(StructuredType::Member("mask", true));
             members.add(StructuredType::Member("terminalCount", false));
+            members.add(StructuredType::Member("internalRequest", false));
             return StructuredType("DMAChannel", members);
         }
         void load(const TypedValue& value)
@@ -412,6 +418,7 @@ private:
             _softRequest = (*members)["softRequest"].value<bool>();
             _mask = (*members)["mask"].value<bool>();
             _terminalCount = (*members)["terminalCount"].value<bool>();
+            _internalRequest = (*members)["internalRequest"].value<bool>();
         }
         Byte status()
         {
@@ -422,7 +429,8 @@ private:
 
         bool request() const
         {
-            return (_hardRequest && !_mask) || _softRequest;
+            return (_hardRequest && !_mask) || _softRequest ||
+                _internalRequest;
         }
 
         TransferType transferType() const
@@ -446,6 +454,7 @@ private:
         bool _softRequest;
         bool _mask;
         bool _terminalCount;
+        bool _blockContinue;
     };
 
     bool memoryToMemory() const { return (_command & 1) != 0; }
@@ -466,12 +475,13 @@ private:
     static String stringForState(State state)
     {
         switch (state) {
-            case stateIdle: return "idle";
-            case stateS0:   return "s0";
-            case stateS1:   return "s1";
-            case stateS2:   return "s2";
-            case stateS3:   return "s3";
-            case stateS4:   return "s4";
+            case stateIdle:  return "idle";
+            case stateS0:    return "s0";
+            case stateS1:    return "s1";
+            case stateS2:    return "s2";
+            case stateS3:    return "s3";
+            case stateS4:    return "s4";
+            case stateYield: return "yield";
         }
         return "";
     }
