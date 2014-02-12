@@ -10,7 +10,7 @@ template<class T> class Intel8237DMATemplate
         stateS3,
         stateS4,
         stateYield
-    } _state;
+    };
     enum TransferType
     {
         transferTypeVerify,
@@ -45,13 +45,19 @@ public:
     {
         TransferMode mode = _channels[_channel].transferMode();
         TransferType type = _channels[_channel].transferType();
-        switch(_state) {
+        switch (_state) {
             case stateS1:
-                _state = stateS2;
-                break;
+                if (!compressedTiming() || _highAddress !=
+                    (_channels[_channel].currentAddress() & 0xff00)) {
+                    _state = stateS2;
+                    break;
+                }
+                // Fall through when timing is compressed.
             case stateS2:
                 _dAck = true;
                 if (mode != transferModeCascade) {
+                    _highAddress =
+                        _channels[_channel].currentAddress() & 0xff00;
                     _bus->setAddress(getAddress());
                     if (type == transferTypeWrite) {
                         if (_channel == 1 && memoryToMemory())
@@ -63,8 +69,11 @@ public:
                 _state = stateS3;
                 break;
             case stateS3:
-                _state = stateS4;
-                break;
+                if (!compressedTiming()) {
+                    _state = stateS4;
+                    break;
+                }
+                // Fall through when timing is compressed.
             case stateS4:
                 if (type == transferTypeRead && mode != transferModeCascade) {
                     UInt8 d = _bus->read();
@@ -83,7 +92,12 @@ public:
                             _state = stateYield;
                             break;
                         case transferModeBlock:
-                            _channels[channel].setInternalRequest(true);
+                            if (memoryToMemory() && channel < 2) {
+                                _channels[1 - channel].
+                                    setInternalRequest(true);
+                            }
+                            else
+                                _channels[channel].setInternalRequest(true);
                             break;
                     }
                 }
@@ -94,6 +108,8 @@ public:
                 checkForDMA();
                 break;
         }
+        if (_state == stateIdle || _state == stateS0 || _state == stateYield)
+            _highAddress = 0xffff;
     }
     void setAddress(UInt32 address)
     {
@@ -128,7 +144,7 @@ public:
             _lastByte = !_lastByte;
             return;
         }
-        switch(_address) {
+        switch (_address) {
             case 8: _command = data; checkForDMA(); break;
             case 9:
                 _channels[data & 3].setSoftRequest((data & 4) != 0);
@@ -246,6 +262,7 @@ public:
         return s + " }, lastByte: " + String::Boolean(_lastByte) +
             ", temporary: " + hex(_temporary, 2) +
             ", channel: " + decimal(_channel) +
+            ", highAddress: " + hex(_highAddress, 4) +
             ", state: " + stringForState(_state) +
             " }\n";
     }
@@ -261,6 +278,7 @@ public:
         members.add(StructuredType::Member("lastByte", false));
         members.add(StructuredType::Member("temporary", 0));
         members.add(StructuredType::Member("channel", 0));
+        members.add(StructuredType::Member("highAddress", 0xffff));
         members.add(StructuredType::Member("state",
             TypedValue(_stateType, stateIdle)));
         return StructuredType("DMA", members);
@@ -291,6 +309,7 @@ public:
         _lastByte = (*members)["lastByte"].value<bool>();
         _temporary = (*members)["temporary"].value<int>();
         _channel = (*members)["channel"].value<int>();
+        _highAddress = (*members["highAddress"].value<int>();
         _state = (*members)["state"].value<State>();
     }
     String name() const { return "dma"; }
@@ -302,20 +321,34 @@ private:
         if (_state != stateIdle)
             return;
 
-         int i;
-         int channel;
-         for (i = 0; i < 4; ++i) {
-             channel = i;
-             if (rotatingPriority)
-                 channel = (channel + _channel) & 3;
-             if (_channels[channel].request())
-                 break;
-         }
-         if (i == 4)
-             return;
+        if (_channel == 0 && memoryToMemory() && _channels[0].request() &&
+            !_channels[1].terminalCount()) {
+            _channel = 1;
+            _state = stateS0;
+            return;
+        }
 
-         _channel = channel;
-         _state = stateS0;
+        int i;
+        int channel;
+        for (i = 0; i < 4; ++i) {
+            channel = i;
+            if (rotatingPriority)
+                channel = (channel + _channel) & 3;
+            if (channel == 0 && memoryToMemory()) {
+                if (_channels[0].request() && !_channels[1].terminalCount())
+                    break;
+            }
+            else {
+                if (_channels[channel].request() &&
+                    !_channels[channel].terminalCount())
+                    break;
+            }
+        }
+        if (i == 4)
+            return;
+
+        _channel = channel;
+        _state = stateS0;
     }
 
     class Channel
@@ -443,6 +476,7 @@ private:
         {
             return static_cast<TransferMode>((_mode >> 6) & 3);
         }
+        bool terminalCount() const { return _terminalCount; }
 
     private:
         Byte _mode;
@@ -495,6 +529,8 @@ private:
     bool _lastByte;
     Byte _temporary;
     bool _dAck;
+    int _highAddress;
+    State _state;
 
     Type _stateType;
 };
