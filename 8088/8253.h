@@ -45,20 +45,68 @@ public:
         }
     }
     void setT2Gate(bool gate) { _timers[2]->setGate(gate); }
-    String save()
+
+    String save() const
     {
-        return "";
+        String s = String() + 
+            "{ active: " + String::Boolean(this->_active) +
+            ", tick: " + String::Decimal(this->_tick) +
+            ", address: " + hex(_address, 5) +
+            ", timers: { ";
+        bool needComma = false;
+        for (int i = 0; i < 4; ++i) {
+            if (needComma)
+                s += ", ";
+            needComma = true;
+            s += _timers[i]->save();
+        }
+        return s + " }}\n";
     }
-    Type type() {return Type(); }
-    void load(const TypedValue& value) { }
-    String name() { return "timer"; }
-    TypedValue initial() { return TypedValue(type());}
+    Type type() const
+    {
+        List<StructuredType::Member> members;
+        members.add(StructuredType::Member("active", false));
+        members.add(StructuredType::Member("tick", 0));
+        members.add(StructuredType::Member("address", 0));
+        members.add(StructuredType::Member("timers",
+            TypedValue(Type::array(_timer0.type()), List<TypedValue>())));
+        return StructuredType("PIT", members);
+    }
+    void load(const TypedValue& value)
+    {
+        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        this->_active = (*members)["active"].value<bool>();
+        this->_tick = (*members)["tick"].value<int>();
+        _address = (*members)["address"].value<int>();
+        auto timers = (*members)["timers"].value<List<TypedValue>>();
+
+        int j = 0;
+        for (auto i = timers.begin(); i != timers.end(); ++i) {
+            _timers[j]->load((*i).value<TypedValue>());
+            ++j;
+            if (j == 3)
+                break;
+        }
+        for (;j < 3; ++j) {
+            _timers[j]->load(TypedValue(StructuredType(String(),
+                List<StructuredType::Member>()),
+                Value<HashTable<String, TypedValue>>()).
+                convertTo(_timer0.type()));
+        }
+    }
+    String name() const { return "pit"; }
 private:
     class Timer
     {
     public:
-        Timer() : _output(false), _state(stateStopped0)
+        Timer()
         {
+            List<EnumerationType::Value> stateValues;
+            for (int i = stateStopped0; i <= stateCounting2; ++i) {
+                State s = static_cast<State>(i);
+                stateValues.add(EnumerationType::Value(stringForState(s), s));
+            }
+            _stateType = EnumerationType("PITState", stateValues);
         }
         void simulateCycle()
         {
@@ -214,6 +262,56 @@ private:
             }
             _gate = gate;
         }
+
+        String save() const
+        {
+            return String("\n    ") + 
+                "{ value: " + hex(_value, 4) +
+                ", latch: " + hex(_latch, 4) +
+                ", count: " + hex(_count, 4) +
+                ", bcd: " + String::Boolean(_bcd) +
+                ", bytes: " + String::Decimal(_bytes) +
+                ", lowCount: " + hex(_lowCount, 2) +
+                ", firstByte: " + String::Boolean(_firstByte) +
+                ", gate: " + String::Boolean(_gate) +
+                ", output: " + String::Boolean(_output) +
+                ", latched: " + String::Boolean(_latched) +
+                ", state: " + stringForState(_state) +
+                " }";
+        }
+        Type type() const
+        {
+            List<StructuredType::Member> members;
+            members.add(StructuredType::Member("value", 0));
+            members.add(StructuredType::Member("latch", 0));
+            members.add(StructuredType::Member("count", 0));
+            members.add(StructuredType::Member("bcd", false));
+            members.add(StructuredType::Member("bytes", 0));
+            members.add(StructuredType::Member("lowCount", 0));
+            members.add(StructuredType::Member("firstByte", false));
+            members.add(StructuredType::Member("gate", false));
+            members.add(StructuredType::Member("output", false));
+            members.add(StructuredType::Member("latched", false));
+            members.add(StructuredType::Member("state", 
+                TypedValue(_stateType, stateStopped0)));
+            return StructuredType("Timer", members);
+        }
+        void load(const TypedValue& value)
+        {
+            auto members = value.value<Value<HashTable<String, TypedValue>>>();
+            _value = (*members)["value"].value<int>();
+            _latch = (*members)["latch"].value<int>();
+            _count = (*members)["count"].value<int>();
+            _bcd = (*members)["bcd"].value<bool>();
+            _bytes = (*members)["bytes"].value<int>();
+            _lowCount = (*members)["lowCount"].value<int>();
+            _firstByte = (*members)["firstByte"].value<bool>();
+            _gate = (*members)["gate"].value<bool>();
+            _output = (*members)["output"].value<bool>();
+            _latched = (*members)["latched"].value<bool>();
+            _state = (*members)["state"].value<State>();
+        }
+
     private:
         enum State
         {
@@ -226,6 +324,21 @@ private:
             stateGateLow2,
             stateCounting2,
         };
+
+        static String stringForState(State state)
+        {
+            switch (state) {
+                case stateStopped0:  return "stopped0";
+                case stateCounting0: return "counting0";
+                case stateStopped1:  return "stopped1";
+                case stateStart1:    return "start1";
+                case stateCounting1: return "counting1";
+                case stateStopped2:  return "stopped2";
+                case stateGateLow2:  return "gateLow2";
+                case stateCounting2: return "counting2";
+            }
+            return "";
+        }
 
         void loadCount(UInt16 value)
         {
@@ -286,6 +399,7 @@ private:
         bool _output;
         bool _latched;
         State _state;
+        Type _stateType;
     };
     class Timer0 : public Timer
     {

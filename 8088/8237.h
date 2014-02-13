@@ -82,7 +82,7 @@ public:
                         _channels[1].setInternalRequest(true);
                     }
                 }
-                _channels[channel].setInternalRequest(false);
+                _channels[_channel].setInternalRequest(false);
                 _dAck = false;
                 _state = stateIdle;
                 if (!_channels[_channel].update(channel0AddressHold() &&
@@ -92,12 +92,12 @@ public:
                             _state = stateYield;
                             break;
                         case transferModeBlock:
-                            if (memoryToMemory() && channel < 2) {
-                                _channels[1 - channel].
+                            if (memoryToMemory() && _channel < 2) {
+                                _channels[1 - _channel].
                                     setInternalRequest(true);
                             }
                             else
-                                _channels[channel].setInternalRequest(true);
+                                _channels[_channel].setInternalRequest(true);
                             break;
                     }
                 }
@@ -222,8 +222,7 @@ public:
                 break;
             case stateS2:
                 line += "D2 ";
-                if (_channels[_channel].transferType() ==
-                    Channel::transferTypeWrite)
+                if (_channels[_channel].transferType() == transferTypeWrite)
                     line += "M<-" + hex(_bus->data(), 2, false) + " ";
                 else
                     line += "      ";
@@ -231,8 +230,7 @@ public:
             case stateS3: line += "D3       "; break;
             case stateS4:
                 line += "D4 ";
-                if (_channels[_channel].transferType() ==
-                    Channel::transferTypeWrite)
+                if (_channels[_channel].transferType() == transferTypeWrite)
                     line += "      ";
                 else
                     line += "M->" + hex(_bus->data(), 2, false) + " ";
@@ -294,7 +292,7 @@ public:
 
         int j = 0;
         for (auto i = channels.begin(); i != channels.end(); ++i) {
-            _channels[j].load(((*i).value<TypedValue>()));
+            _channels[j].load((*i).value<TypedValue>());
             ++j;
             if (j == 4)
                 break;
@@ -309,7 +307,7 @@ public:
         _lastByte = (*members)["lastByte"].value<bool>();
         _temporary = (*members)["temporary"].value<int>();
         _channel = (*members)["channel"].value<int>();
-        _highAddress = (*members["highAddress"].value<int>();
+        _highAddress = (*members)["highAddress"].value<int>();
         _state = (*members)["state"].value<State>();
     }
     String name() const { return "dma"; }
@@ -332,7 +330,7 @@ private:
         int channel;
         for (i = 0; i < 4; ++i) {
             channel = i;
-            if (rotatingPriority)
+            if (rotatingPriority())
                 channel = (channel + _channel) & 3;
             if (channel == 0 && memoryToMemory()) {
                 if (_channels[0].request() && !_channels[1].terminalCount())
@@ -486,6 +484,7 @@ private:
         UInt16 _currentCount;
         bool _hardRequest;
         bool _softRequest;
+        bool _internalRequest;
         bool _mask;
         bool _terminalCount;
         bool _blockContinue;
