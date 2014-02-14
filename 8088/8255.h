@@ -52,7 +52,6 @@ public:
         {
         case 0:
             this->set(_scancode);
-            _scancode = 0;
             break;
         case 2:
             this->set(_portc);

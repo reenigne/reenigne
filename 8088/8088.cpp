@@ -76,6 +76,20 @@ private:
     BaseType _t;
 };
 
+class ComponentType : public Type
+{
+public:
+private:
+    class Implementation : public Type::Implementation
+    {
+    public:
+    };
+    const Implementation* implementation() const
+    {
+        return _implementation.referent<Implementation>();
+    }
+};
+
 template<class T> class ComponentTemplate
 {
 public:
@@ -85,7 +99,6 @@ public:
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
     virtual void site() { }
     virtual void simulateCycle() { }
-    virtual void simulateCycles(int cycles) { }
     virtual String save() const { return String(); }
     virtual Type type() const { return Type(); }
     virtual String name() const { return String(); }
@@ -125,6 +138,37 @@ protected:
     SimulatorTemplate<T>* _simulator;
 private:
     Tick _ticksPerCycle;
+};
+
+class ConnectorType : public Type
+{
+public:
+    bool compatible(ConnectorType other) const
+    {
+        return implementation()->compatible(other);
+    }
+    bool canConnectMultiple() const
+    {
+        return implementation()->canConnectMultiple();
+    }
+private:
+    class Implementation : public Type::Implementation
+    {
+    public:
+        virtual bool compatible(ConnectorType other) const = 0;
+        virtual bool canConnectMultiple() const = 0;
+    };
+    const Implementation* implementation() const
+    {
+        return _implementation.referent<Implementation>();
+    }
+};
+
+class Connector
+{
+public:
+    virtual ConnectorType type() const = 0;
+
 };
 
 template<class T> class ISA8BitBusTemplate;
@@ -247,6 +291,8 @@ private:
 
 #include "8237.h"
 
+#include "pcxt_keyboard.h"
+#include "pcxt_keyboard_port.h"
 #include "8255.h"
 
 #include "8253.h"
@@ -3224,6 +3270,8 @@ public:
     Intel8259PIC* getPIC() { return &_pic; }
     Intel8237DMA* getDMA() { return &_dma; }
     NMISwitch* getNMISwitch() { return &_nmiSwitch; }
+    PCXTKeyboard* getKeyboard() { return &_keyboard; }
+    PCXTKeyboardPort* getKeyboardPort() { return &_keyboardPort; }
     Intel8255PPI* getPPI() { return &_ppi; }
     Intel8088* getCPU() { return &_cpu; }
     IBMCGA* getCGA() { return &_cga; }
@@ -3265,6 +3313,8 @@ private:
     DMAPageRegisters _dmaPageRegisters;
     Intel8253PIT _pit;
     Intel8237DMA _dma;
+    PCXTKeyboard _keyboard;
+    PCXTKeyboardPort _keyboardPort;
     Intel8255PPI _ppi;
     Intel8259PIC _pic;
     Intel8088 _cpu;
