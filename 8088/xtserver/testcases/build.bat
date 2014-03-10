@@ -15,3 +15,4 @@ yasm image_time.asm -o image_time.bin
 yasm hres_colours.asm -o hres_colours.bin
 yasm vsplit.asm -o vsplit.bin
 yasm 7mhz.asm -o 7mhz.bin
+yasm indirect_call.asm -o indirect_call.bin

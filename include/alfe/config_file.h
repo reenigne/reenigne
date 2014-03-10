@@ -29,7 +29,16 @@ int parseHexadecimalCharacter(CharacterSource* source, Span* span)
     return -1;
 }
 
-class ConfigFile
+class Structure
+{
+public:
+    template<class T> T get(String name) { return get(name).value<T>(); }
+    virtual bool has(String name) = 0;
+    virtual TypedValue get(String name) = 0;
+    virtual void set(String name, TypedValue value) = 0;
+};
+
+class ConfigFile : public Structure
 {
 public:
     void addOption(String name, Type type)
@@ -45,6 +54,15 @@ public:
     {
         _options.add(name, TypedValue(defaultValue));
     }
+    void addType(Type type) { _types.add(type.toString(), type); }
+    HashTable<String, TypedValue>::Iterator begin() const
+    {
+        return _options.begin();
+    }
+    HashTable<String, TypedValue>::Iterator end() const
+    {
+        return _options.end();
+    }
 
     void load(File file)
     {
@@ -56,32 +74,60 @@ public:
             CharacterSource s = source;
             if (s.get() == -1)
                 break;
-            Identifier identifier = parseIdentifier(&source);
+            s = source;
+            Identifier identifier = parseIdentifier(&s);
             String name = identifier.name();
             Span span;
             if (name == "include") {
-                TypedValue e = parseExpression(&source).
-                    convertTo(Type::string);
-                Space::assertCharacter(&source, ';', &span);
+                TypedValue e = parseExpression(&s).convertTo(Type::string);
+                Space::assertCharacter(&s, ';', &span);
                 load(e.value<String>());
+                source = s;
+                continue;
             }
-            if (!_options.hasKey(name))
-                identifier.span().throwError("Unknown identifier " + name);
+            if (name[0] >= 'A' && name[0] <= 'Z') {
+                if (!_types.hasKey(name))
+                    identifier.span().throwError("Unknown type " + name);
+                Type type = _types[name];
+                Identifier objectIdentifier = parseIdentifier(&s);
+                String objectName = objectIdentifier.name();
+                if (has(name))
+                    objectIdentifier.span().throwError(name +
+                        " already exists");
+                Space::assertCharacter(&s, ';', &span);
+                source = s;
+
+                // Default initial value is the result of converting the empty
+                // structured type to the component type.
+                _options[objectName] = TypedValue(StructuredType(String(),
+                    List<StructuredType::Member>()),
+                    Value<HashTable<String, TypedValue>>()).convertTo(type);
+                continue;
+            }
+            TypedValue left = parseDotExpression(&source);
+            //if (!has(name))
+            //    identifier.span().throwError("Unknown identifier " + name);
             Space::assertCharacter(&source, '=', &span);
             TypedValue loadedExpression = parseExpression(&source);
-            TypedValue e = loadedExpression.convertTo(_options[name].type());
+            LValueType lValueType(left.type());
+            if (!lValueType.valid())
+                left.span().throwError("LValue required");
+            Type type = lValueType.inner();
+            LValue p = left.value<LValue>();
+            TypedValue e = rValue(loadedExpression).convertTo(type);
             Space::assertCharacter(&source, ';', &span);
+            p.set(e);
             _options[name].setValue(e.value());
         } while (true);
-        for (HashTable<String, TypedValue>::Iterator i = _options.begin();
-            i != _options.end(); ++i) {
+        for (auto i = _options.begin(); i != _options.end(); ++i) {
             if (!i.value().valid())
                 throw Exception(file.path() + ": " + i.key() +
                     " not defined and no default is available.");
         }
     }
-    template<class T> T get(String name) { return get(name).value<T>(); }
-    TypedValue get(String name) { return _options[name]; }
+    TypedValue get(String name) { return rValue(_options[name]); }
+    bool has(String name) { return _options.hasKey(name); }
+    void set(String name, TypedValue value) { _options[name] = value; }
     File file() const { return _file; }
 private:
     class Identifier
@@ -237,7 +283,7 @@ private:
                         Identifier i = parseIdentifier(source);
                         if (!i.valid()) {
                             if (Space::parseCharacter(source, '(', &span)) {
-                                part = parseExpression(source);
+                                part = rValue(parseExpression(source));
                                 source->assert(')', &span);
                             }
                             else
@@ -246,7 +292,7 @@ private:
                         }
                         String s = i.name();
                         if (s[0] >= 'a' && s[0] <= 'z')
-                            part = valueOfIdentifier(i);
+                            part = rValue(valueOfIdentifier(i));
                         else
                             i.span().throwError("Expected identifier or "
                             "parenthesized expression");
@@ -408,8 +454,8 @@ private:
         }
         if (!_options.hasKey(s))
             i.span().throwError("Unknown identifier " + s);
-        TypedValue option = _options[s];
-        return TypedValue(option.type(), option.value(), i.span());
+        return TypedValue(LValueType(_options[s].type()), LValue(this, s),
+            i.span());
     }
     TypedValue parseExpressionElement(CharacterSource* source)
     {
@@ -447,7 +493,7 @@ private:
             for (int i = 0; i < members->count(); ++i) {
                 if (i > 0)
                     Space::assertCharacter(source, ',', &span);
-                TypedValue value = parseExpression(source).
+                TypedValue value = rValue(parseExpression(source)).
                     convertTo((*members)[i].type());
                 values.add(value.value());
             }
@@ -461,13 +507,13 @@ private:
             Span span2;
             int n = 0;
             do {
-                TypedValue e = parseExpression(source);
+                TypedValue e = rValue(parseExpression(source));
                 String name;
                 String memberName;
                 if (e.type() == Type::label) {
                     TypedValue i = e;
                     name = e.value<String>();
-                    e = parseExpression(source);
+                    e = rValue(parseExpression(source));
                     if (!e.valid())
                         source->location().throwError("Expected expression");
                     if (table->hasKey(name))
@@ -491,18 +537,51 @@ private:
         }
         return TypedValue();
     }
+    TypedValue parseDotExpression(CharacterSource* source)
+    {
+        TypedValue e = parseExpressionElement(source);
+        if (!e.valid())
+            return e;
+        do {
+            Span span;
+            if (Space::parseCharacter(source, '.', &span)) {
+                Identifier i = parseIdentifier(source);
+                if (!i.valid())
+                    source->location().throwError("Identifier expected");
+                String name = i.name();
+                Span s = e.span() + i.span();
+                LValueType lValueType(e.type());
+                if (!lValueType.valid()) {
+                    auto m = e.value<Value<HashTable<String, TypedValue>>>();
+                    if (!(*m).hasKey(name))
+                        s.throwError("Expression has no member named " + name);
+                    e = (*m)[name];
+                    e = TypedValue(e.type(), e.value(), s);
+                }
+                else {
+                    Structure* p =
+                        e.value<LValue>().rValue().value<Structure*>();
+                    if (!p->has(name))
+                        s.throwError("Expression has no member named " + name);
+                    e = TypedValue(LValueType::wrap(p->get(name).type()),
+                        LValue(p, name), s);
+                }
+            }
+        } while (true);
+        return e;
+    }
 
     TypedValue parseUnaryExpression(CharacterSource* source)
     {
         Span span;
         if (Space::parseCharacter(source, '-', &span)) {
-            TypedValue e = parseUnaryExpression(source);
+            TypedValue e = rValue(parseUnaryExpression(source));
             span = span + e.span();
             if (e.type() != Type::integer)
                 span.throwError("Only numbers can be negated");
             return TypedValue(Type::integer, -e.value<int>(), span);
         }
-        return parseExpressionElement(source);
+        return parseDotExpression(source);
     }
 
     TypedValue parseMultiplicativeExpression(CharacterSource* source)
@@ -513,7 +592,8 @@ private:
         do {
             Span span;
             if (Space::parseCharacter(source, '*', &span)) {
-                TypedValue e2 = parseUnaryExpression(source);
+                e = rValue(e);
+                TypedValue e2 = rValue(parseUnaryExpression(source));
                 if (!e2.valid())
                     throwError(source);
                 bool okay = false;
@@ -548,7 +628,8 @@ private:
                 continue;
             }
             if (Space::parseCharacter(source, '/', &span)) {
-                TypedValue e2 = parseUnaryExpression(source);
+                e = rValue(e);
+                TypedValue e2 = rValue(parseUnaryExpression(source));
                 if (!e2.valid())
                     throwError(source);
                 if (e.type() == Type::integer && e2.type() == Type::integer)
@@ -573,7 +654,8 @@ private:
         do {
             Span span;
             if (Space::parseCharacter(source, '+', &span)) {
-                TypedValue e2 = parseMultiplicativeExpression(source);
+                e = rValue(e);
+                TypedValue e2 = rValue(parseMultiplicativeExpression(source));
                 if (!e2.valid())
                     throwError(source);
                 if (e.type() == Type::integer && e2.type() == Type::integer)
@@ -592,7 +674,8 @@ private:
                 continue;
             }
             if (Space::parseCharacter(source, '-', &span)) {
-                TypedValue e2 = parseMultiplicativeExpression(source);
+                e = rValue(e);
+                TypedValue e2 = rValue(parseMultiplicativeExpression(source));
                 if (!e2.valid())
                     throwError(source);
                 if (e.type() == Type::integer && e2.type() == Type::integer)
@@ -608,6 +691,68 @@ private:
             return e;
         } while (true);
     }
+
+    static Type rValueType(Type type)
+    {
+        if (LValueType(type).valid())
+            return LValueType(type).inner();
+        return type;
+    }
+    static TypedValue rValue(TypedValue value)
+    {
+        LValueType lValueType(value.type());
+        if (lValueType.valid())
+            return TypedValue(lValueType.inner(),
+                value.value<LValue>().rValue(), value.span());
+        return value;
+    }
+
+    class LValueType : public Type
+    {
+    public:
+        LValueType(const Tyco& other) : Type(other) { }
+        static LValueType wrap(const Type& inner)
+        {
+            if (LValueType(inner).valid())
+                return inner;
+            return LValueType(new Implementation(inner));
+        }
+        bool valid() const { return implementation() != 0; }
+        Type inner() const { return implementation()->inner(); }
+    private:
+        LValueType(const Implementation* implementation)
+          : Type(implementation) { }
+
+        class Implementation : public Type::Implementation
+        {
+        public:
+            Implementation(Type inner) : _inner(inner) { }
+            Type inner() const { return _inner; }
+            String toString() const
+            {
+                return String("LValue<") + _inner.toString() + ">";
+            }
+        private:
+            Type _inner;
+        };
+
+        const Implementation* implementation() const
+        {
+            return _implementation.referent<Implementation>();
+        }
+    };
+
+    class LValue
+    {
+    public:
+        LValue(Structure* structure, String name)
+          : _structure(structure), _name(name) { }
+        TypedValue rValue() const { return _structure->get(_name); }
+        void set(TypedValue value) const { _structure->set(_name, value); }
+    private:
+        Structure* _structure;
+        String _name;
+    };
 
     HashTable<String, TypedValue> _options;
     HashTable<String, TypedValue> _enumeratedValues;

@@ -252,6 +252,7 @@ class AtomicType : public Type
 {
 public:
     AtomicType(String name) : Type(new Implementation(name)) { }
+    AtomicType(const Tyco& tyco) : Type(tyco) { }
 protected:
     AtomicType(const Implementation* implementation) : Type(implementation) { }
 

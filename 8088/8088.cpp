@@ -219,12 +219,7 @@ public:
             if ((*i)->active())
                 (*i)->write(data);
     }
-    void write()
-    {
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            if ((*i)->active())
-                (*i)->write(_data);
-    }
+    void write() { write(_data); }
     UInt8 read() const
     {
         for (auto i = _components.begin(); i != _components.end(); ++i)
@@ -301,7 +296,7 @@ private:
 
 #include "dram.h"
 
-template<class T> class RAM640KbTemplate : public ISA8BitComponent
+template<class T> class RAM640kBTemplate : public ISA8BitComponent
 {
 public:
     void site()

@@ -19,5 +19,6 @@ org 0
 ; Write a ^Z character to tell the "run" program to finish
 %macro disconnect 0
   printCharacter 26
+  printCharacter 26
 %endmacro
 
