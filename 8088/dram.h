@@ -80,9 +80,9 @@ public:
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("data",
-            TypedValue(Type::string, String())));
+            TypedValue(StringType(), String())));
         members.add(StructuredType::Member("refresh",
-            TypedValue(Type::array(Type::integer), List<TypedValue>())));
+            TypedValue(Type::array(IntegerType()), List<TypedValue>())));
         return StructuredType("DRAM", members);
     }
     TypedValue initial() const

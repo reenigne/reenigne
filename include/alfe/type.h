@@ -10,8 +10,6 @@
 class Kind
 {
 public:
-    static Kind type;
-    static Kind variadic;
     static Kind variadicTemplate;
     String toString() const { return _implementation->toString(); }
     bool operator==(const Kind& other) const
@@ -28,28 +26,60 @@ protected:
         virtual String toString() const = 0;
         virtual bool equals(const Implementation* other) const
         {
-            return false;
+            return this == other;
         }
     };
     Kind(const Implementation* implementation)
       : _implementation(implementation) { }
 private:
-    class TypeImplementation : public Implementation
-    {
-    public:
-        String toString() const { return String(); }
-    };
-    class VariadicImplementation : public Implementation
-    {
-    public:
-        String toString() const { return String("..."); }
-    };
     ConstReference<Implementation> _implementation;
     friend class TemplateKind;
 };
 
-Kind Kind::type = Kind(new Kind::TypeImplementation);
-Kind Kind::variadic = Kind(new Kind::VariadicImplementation);
+template<class T> class AtomicKind : public Kind
+{
+public:
+    AtomicKind() : Kind(kind()) { }
+protected:
+    AtomicKind(const Implementation* implementation) : Type(implementation) { }
+
+    class Implementation : public Type::Implementation
+    {
+    public:
+        Implementation() { }
+        String toString() const { return T::name(); }
+        bool equals(const Tyco::Implementation* other)
+        {
+            const Implementation* o =
+                dynamic_cast<const Implementation*>(other);
+            return o == this;
+        }
+    };
+private:
+    static AtomicKind _kind;
+    static AtomicType kind()
+    {
+        if (!_kind.valid())
+            _kind = new T::Implementation();
+        return _kind;
+    }
+};
+
+class TypeKind : public AtomicKind<TypeKind>
+{
+public:
+    static String name() { return String(); }
+};
+
+AtomicKind<TypeKind> AtomicKind<TypeKind>::_kind;
+
+class VariadicKind : public AtomicKind<VariadicKind>
+{
+public:
+    static String name() { return String("..."); }
+};
+
+AtomicKind<TypeKind> AtomicKind<TypeKind>::_kind;
 
 class TemplateKind : public Kind
 {
@@ -80,7 +110,7 @@ private:
                 s += k.first().toString();
                 k = k.rest();
                 needComma = true;
-            } while (k != Kind::type);
+            } while (k != TypeKind());
             return s + ">";
         }
         bool equals(const Kind::Implementation* other) const
@@ -104,6 +134,21 @@ private:
     }
 };
 
+class VariadicTemplateKind : public AtomicKind
+{
+public:
+    VariadicTemplateKind() { }
+private:
+    static VariadicTemplateKind _kind;
+    static VariadicTemplateKind kind()
+    {
+        if (!_kind.valid())
+            _kind = new Implementation();
+        return _kind;
+    }
+};
+
+VariadicTemplateKind 
 Kind Kind::variadicTemplate = TemplateKind(Kind::variadic, Kind::type);
 
 template<class T> class TemplateTemplate;
@@ -145,7 +190,7 @@ protected:
         virtual String toString() const = 0;
         virtual bool equals(const Implementation* other) const
         {
-            return false;
+            return this == other;
         }
         virtual Kind kind() const = 0;
         virtual int hash() const { return reinterpret_cast<intptr_t>(this); }
@@ -170,13 +215,6 @@ template<class T> class TypeTemplate : public Tyco
 public:
     TypeTemplate() { }
     TypeTemplate(const Tyco& tyco) : Tyco(tyco) { }
-
-    static Type integer;
-    static Type string;
-    static Type boolean;
-    static Type object;
-    static Type label;
-    static Type voidType;
 
     static Type array(const Type& type)
     {
@@ -231,47 +269,90 @@ protected:
     friend class TemplateTemplate<void>;
 };
 
-template<class T> Type typeFromCompileTimeType()
-{
-    throw Exception("Don't know this type.");
-}
-template<> Type typeFromCompileTimeType<int>()
-{
-    return Type::integer;
-}
-template<> Type typeFromCompileTimeType<String>()
-{
-    return Type::string;
-}
-template<> Type typeFromCompileTimeType<bool>()
-{
-    return Type::boolean;
-}
-
-class AtomicType : public Type
+template<class T> class AtomicType : public Type
 {
 public:
-    AtomicType(String name) : Type(new Implementation(name)) { }
-    AtomicType(const Tyco& tyco) : Type(tyco) { }
+    AtomicType() : Type(type()) { }
 protected:
     AtomicType(const Implementation* implementation) : Type(implementation) { }
 
     class Implementation : public Type::Implementation
     {
     public:
-        Implementation(String name) : _name(name) { }
-        String toString() const { return _name; }
-    private:
-        String _name;
+        Implementation() { }
+        String toString() const { return T::name(); }
+        bool equals(const Tyco::Implementation* other)
+        {
+            const Implementation* o =
+                dynamic_cast<const Implementation*>(other);
+            return o == this;
+        }
     };
+private:
+    static AtomicType _type;
+    static AtomicType type()
+    {
+        if (!_type.valid())
+            _type = new T::Implementation();
+        return _type;
+    }
 };
 
-template<> Type Type::integer = AtomicType("Integer");
-template<> Type Type::string = AtomicType("String");
-template<> Type Type::boolean = AtomicType("Boolean");
-template<> Type Type::object = AtomicType("Object");
-template<> Type Type::label = AtomicType("Label");
-template<> Type Type::voidType = AtomicType("Void");
+class StringType : public AtomicType<StringType>
+{
+public:
+    static String name() { return "String"; }
+};
+
+AtomicType<StringType> AtomicType<StringType>::_type;
+
+class IntegerType : public AtomicType<IntegerType>
+{
+public:
+    static String name() { return "Integer"; }
+};
+
+AtomicType<IntegerType> AtomicType<IntegerType>::_type;
+
+class BooleanType : public AtomicType<BooleanType>
+{
+public:
+    static String name() { return "Boolean"; }
+};
+
+AtomicType<BooleanType> AtomicType<BooleanType>::_type;
+
+class ObjectType : public AtomicType<ObjectType>
+{
+public:
+    static String name() { return "Object"; }
+};
+
+AtomicType<ObjectType> AtomicType<ObjectType>::_type;
+
+class LabelType : public AtomicType<LabelType>
+{
+public:
+    static String name() { return "Label"; }
+};
+
+AtomicType<LabelType> AtomicType<LabelType>::_type;
+
+class VoidType : public AtomicType<VoidType>
+{
+public:
+    static String name() { return "Void"; }
+};
+
+AtomicType<VoidType> AtomicType<VoidType>::_type;
+
+template<class T> Type typeFromCompileTimeType()
+{
+    throw Exception("Don't know this type.");
+}
+template<> Type typeFromCompileTimeType<int>() { return IntegerType(); }
+template<> Type typeFromCompileTimeType<String>() { return StringType(); }
+template<> Type typeFromCompileTimeType<bool>() { return BooleanType(); }
 
 template<class T> class TemplateTemplate : public Tyco
 {

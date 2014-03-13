@@ -55,14 +55,6 @@ public:
         _options.add(name, TypedValue(defaultValue));
     }
     void addType(Type type) { _types.add(type.toString(), type); }
-    HashTable<String, TypedValue>::Iterator begin() const
-    {
-        return _options.begin();
-    }
-    HashTable<String, TypedValue>::Iterator end() const
-    {
-        return _options.end();
-    }
 
     void load(File file)
     {
@@ -79,7 +71,7 @@ public:
             String name = identifier.name();
             Span span;
             if (name == "include") {
-                TypedValue e = parseExpression(&s).convertTo(Type::string);
+                TypedValue e = parseExpression(&s).convertTo(StringType());
                 Space::assertCharacter(&s, ';', &span);
                 load(e.value<String>());
                 source = s;
@@ -94,19 +86,17 @@ public:
                 if (has(name))
                     objectIdentifier.span().throwError(name +
                         " already exists");
+                TypedValue value = TypedValue(
+                    StructuredType(String(), List<StructuredType::Member>()),
+                    Value<HashTable<String, TypedValue>>());
+                if (Space::parseCharacter(&s, '=', &span))
+                    value = parseExpression(&s);
                 Space::assertCharacter(&s, ';', &span);
                 source = s;
-
-                // Default initial value is the result of converting the empty
-                // structured type to the component type.
-                _options[objectName] = TypedValue(StructuredType(String(),
-                    List<StructuredType::Member>()),
-                    Value<HashTable<String, TypedValue>>()).convertTo(type);
+                _options[objectName] = value.convertTo(type);
                 continue;
             }
             TypedValue left = parseDotExpression(&source);
-            //if (!has(name))
-            //    identifier.span().throwError("Unknown identifier " + name);
             Space::assertCharacter(&source, '=', &span);
             TypedValue loadedExpression = parseExpression(&source);
             LValueType lValueType(left.type());
@@ -177,7 +167,7 @@ private:
     TypedValue combine(TypedValue left, TypedValue right)
     {
         if (left.valid())
-            return TypedValue(Type::string,
+            return TypedValue(StringType(),
                 left.value<String>() + right.value<String>(),
                 left.span() + right.span());
         return right;
@@ -213,7 +203,7 @@ private:
                 case '"':
                     string += s.subString(startOffset, endOffset);
                     Space::parse(source);
-                    return combine(expression, TypedValue(Type::string, string,
+                    return combine(expression, TypedValue(StringType(), string,
                         stringStartSpan + span));
                 case '\\':
                     string += s.subString(startOffset, endOffset);
@@ -297,10 +287,10 @@ private:
                             i.span().throwError("Expected identifier or "
                             "parenthesized expression");
                     }
-                    part = part.convertTo(Type::string);
+                    part = part.convertTo(StringType());
                     string += s.subString(startOffset, endOffset);
                     startOffset = source->offset();
-                    expression = combine(expression, TypedValue(Type::string,
+                    expression = combine(expression, TypedValue(StringType(),
                         string, stringStartSpan + stringEndSpan));
                     string = "";
                     expression = combine(expression, part);
@@ -354,7 +344,7 @@ private:
                 string += s.subString(startOffset, source->offset());
                 *source = s2;
                 Space::parse(source);
-                return TypedValue(Type::string, string, startSpan + endSpan);
+                return TypedValue(StringType(), string, startSpan + endSpan);
             }
             else
                 if (c == cc) {
@@ -373,7 +363,7 @@ private:
                                 s.subString(startOffset, source->offset());
                             *source = s2;
                             Space::parse(source);
-                            return TypedValue(Type::string, string,
+                            return TypedValue(StringType(), string,
                                 startSpan + endSpan);
                         }
                         int cs = s2.get();
@@ -417,7 +407,7 @@ private:
                             else
                                 if (okay) {
                                     Space::parse(source);
-                                    return TypedValue(Type::integer, n, span);
+                                    return TypedValue(IntegerType(), n, span);
                                 }
                                 else
                                     return TypedValue();
@@ -434,7 +424,7 @@ private:
             c = s.get(&span2);
             if (c < '0' || c > '9') {
                 Space::parse(source);
-                return TypedValue(Type::integer, n, span);
+                return TypedValue(IntegerType(), n, span);
             }
             span += span2;
         } while (true);
@@ -444,10 +434,10 @@ private:
         String s = i.name();
         static String trueKeyword("true");
         if (s == trueKeyword)
-            return TypedValue(Type::boolean, true, i.span());
+            return TypedValue(BooleanType(), true, i.span());
         static String falseKeyword("false");
         if (s == falseKeyword)
-            return TypedValue(Type::boolean, false, i.span());
+            return TypedValue(BooleanType(), false, i.span());
         if (_enumeratedValues.hasKey(s)) {
             TypedValue value = _enumeratedValues[s];
             return TypedValue(value.type(), value.value(), i.span());
@@ -476,7 +466,7 @@ private:
                 Span span;
                 if (Space::parseCharacter(source, ':', &span)) {
                     // Avoid interpreting labels as values
-                    return TypedValue(Type::label, name, i.span() + span);
+                    return TypedValue(LabelType(), name, i.span() + span);
                 }
                 return valueOfIdentifier(i);
             }
@@ -510,7 +500,7 @@ private:
                 TypedValue e = rValue(parseExpression(source));
                 String name;
                 String memberName;
-                if (e.type() == Type::label) {
+                if (e.type() == LabelType()) {
                     TypedValue i = e;
                     name = e.value<String>();
                     e = rValue(parseExpression(source));
@@ -577,9 +567,9 @@ private:
         if (Space::parseCharacter(source, '-', &span)) {
             TypedValue e = rValue(parseUnaryExpression(source));
             span = span + e.span();
-            if (e.type() != Type::integer)
+            if (e.type() != IntegerType())
                 span.throwError("Only numbers can be negated");
-            return TypedValue(Type::integer, -e.value<int>(), span);
+            return TypedValue(IntegerType(), -e.value<int>(), span);
         }
         return parseDotExpression(source);
     }
@@ -597,25 +587,25 @@ private:
                 if (!e2.valid())
                     throwError(source);
                 bool okay = false;
-                if (e.type() == Type::integer) {
-                    if (e2.type() == Type::integer) {
-                        e = TypedValue(Type::integer,
+                if (e.type() == IntegerType()) {
+                    if (e2.type() == IntegerType()) {
+                        e = TypedValue(IntegerType(),
                             e.value<int>() * e2.value<int>(),
                             e.span() + e2.span());
                         okay = true;
                     }
                     else
-                        if (e2.type() == Type::string) {
-                            e = TypedValue(Type::string,
+                        if (e2.type() == StringType()) {
+                            e = TypedValue(StringType(),
                                 e2.value<String>() * e.value<int>(),
                                 e.span() + e2.span());
                             okay = true;
                         }
                 }
                 else
-                    if (e.type() == Type::string) {
-                        if (e2.type() == Type::integer) {
-                            e = TypedValue(Type::string,
+                    if (e.type() == StringType()) {
+                        if (e2.type() == IntegerType()) {
+                            e = TypedValue(StringType(),
                                 e.value<String>() * e2.value<int>(),
                                 e.span() + e2.span());
                             okay = true;
@@ -632,8 +622,8 @@ private:
                 TypedValue e2 = rValue(parseUnaryExpression(source));
                 if (!e2.valid())
                     throwError(source);
-                if (e.type() == Type::integer && e2.type() == Type::integer)
-                    e = TypedValue(Type::integer,
+                if (e.type() == IntegerType() && e2.type() == IntegerType())
+                    e = TypedValue(IntegerType(),
                         e.value<int>() / e2.value<int>(),
                         e.span() + e2.span());
                 else
@@ -658,13 +648,13 @@ private:
                 TypedValue e2 = rValue(parseMultiplicativeExpression(source));
                 if (!e2.valid())
                     throwError(source);
-                if (e.type() == Type::integer && e2.type() == Type::integer)
-                    e = TypedValue(Type::integer,
+                if (e.type() == IntegerType() && e2.type() == IntegerType())
+                    e = TypedValue(IntegerType(),
                         e.value<int>() + e2.value<int>(),
                         e.span() + e2.span());
                 else
-                    if (e.type() == Type::string && e2.type() == Type::string)
-                        e = TypedValue(Type::string,
+                    if (e.type() == StringType() && e2.type() == StringType())
+                        e = TypedValue(StringType(),
                             e.value<String>() + e2.value<String>(),
                             e.span() + e2.span());
                     else
@@ -678,8 +668,8 @@ private:
                 TypedValue e2 = rValue(parseMultiplicativeExpression(source));
                 if (!e2.valid())
                     throwError(source);
-                if (e.type() == Type::integer && e2.type() == Type::integer)
-                    e = TypedValue(Type::integer,
+                if (e.type() == IntegerType() && e2.type() == IntegerType())
+                    e = TypedValue(IntegerType(),
                         e.value<int>() - e2.value<int>(),
                         e.span() + e2.span());
                 else

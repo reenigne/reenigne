@@ -50,16 +50,27 @@ typedef IBMCGATemplate<void> IBMCGA;
 template<class T> class DMAPageRegistersTemplate;
 typedef DMAPageRegistersTemplate<void> DMAPageRegisters;
 
+template<class T> class ISA8BitBusTemplate;
+typedef ISA8BitBusTemplate<void> ISA8BitBus;
+
+class TimeType : public AtomicType<TimeType>
+{
+public:
+    static String name() { return "Time"; }
+};
+
+AtomicType<TimeType> AtomicType<TimeType>::_type;
+
 class Tick
 {
-    typedef unsigned int BaseType;
+    typedef unsigned int Base;
 public:
-    Tick(const BaseType& t) { _t = t; }
+    Tick(const Base& t) { _t = t; }
     bool operator==(const Tick& other) const { return _t == other._t; }
 //    bool operator!=(const Tick& other) const { return _t != other._t; }
     bool operator<=(const Tick& other) const
     {
-        return other._t - _t < (static_cast<BaseType>(-1) >> 1);
+        return other._t - _t < (static_cast<Base>(-1) >> 1);
     }
     bool operator<(const Tick& other) const
     {
@@ -71,14 +82,13 @@ public:
     const Tick& operator-=(const Tick& other) { _t -= other._t; return *this; }
     Tick operator+(const Tick& other) { return Tick(_t + other._t); }
     Tick operator-(const Tick& other) { return Tick(_t - other._t); }
-    operator BaseType() const { return _t; }
+    operator Base() const { return _t; }
 private:
-    BaseType _t;
+    Base _t;
 };
 
 class ComponentType : public Type
 {
-public:
 private:
     class Implementation : public Type::Implementation
     {
@@ -90,17 +100,18 @@ private:
     }
 };
 
-template<class T> class ComponentTemplate
+template<class T> class ComponentTemplate : public Structure
 {
 public:
     ComponentTemplate() : _simulator(0), _tick(0), _ticksPerCycle(0)
     {
     }
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
+    virtual ComponentType type() const = 0;
     virtual void site() { }
     virtual void simulateCycle() { }
     virtual String save() const { return String(); }
-    virtual Type type() const { return Type(); }
+    virtual Type persistenceType() const { return Type(); }
     virtual String name() const { return String(); }
     virtual void load(const TypedValue& value) { }
     virtual TypedValue initial() const
@@ -168,11 +179,8 @@ class Connector
 {
 public:
     virtual ConnectorType type() const = 0;
-
+    virtual void connect(Connector* other) = 0;
 };
-
-template<class T> class ISA8BitBusTemplate;
-typedef ISA8BitBusTemplate<void> ISA8BitBus;
 
 template<class T> class ISA8BitComponentTemplate : public ComponentTemplate<T>
 {
@@ -202,6 +210,11 @@ typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
 template<class T> class ISA8BitBusTemplate : public ComponentTemplate<T>
 {
 public:
+    class Type : public ComponentType
+    {
+    public:
+    };
+
     void addComponent(ISA8BitComponent* component)
     {
         _components.add(component);
@@ -248,6 +261,8 @@ private:
 
     template<class U> friend class ISA8BitComponentTemplate;
 };
+
+static ISA8BitBus::Type _type;
 
 class NMISwitch : public ISA8BitComponent
 {
@@ -3102,22 +3117,22 @@ private:
     Disassembler _disassembler;
 };
 
-class ROMDataType : public AtomicType
+class ROMDataType : public AtomicType<ROMDataType>
 {
 public:
-    ROMDataType() : AtomicType(implementation()) { }
+    static String name() { return "ROM"; }
 private:
     class Implementation : public AtomicType::Implementation
     {
     public:
-        Implementation() : AtomicType::Implementation("ROM")
+        Implementation()
         {
             List<StructuredType::Member> members;
-            members.add(StructuredType::Member("mask", Type::integer));
-            members.add(StructuredType::Member("address", Type::integer));
-            members.add(StructuredType::Member("fileName", Type::string));
+            members.add(StructuredType::Member("mask", IntegerType()));
+            members.add(StructuredType::Member("address", IntegerType()));
+            members.add(StructuredType::Member("fileName", StringType()));
             members.add(StructuredType::Member("fileOffset",
-                TypedValue(Type::integer, 0)));
+                TypedValue(IntegerType(), 0)));
             _structuredType = StructuredType(toString(), members);
         }
         TypedValue tryConvert(const TypedValue& value, String* why) const
@@ -3136,7 +3151,7 @@ private:
                 Any(ROMData(mask, address, file, offset)), value.span());
         }
     private:
-        static StructuredType _structuredType;
+        StructuredType _structuredType;
     };
     static Reference<Implementation> _implementation;
     static Reference<Implementation> implementation()
@@ -3147,8 +3162,7 @@ private:
     }
 };
 
-Reference<ROMDataType::Implementation> ROMDataType::_implementation;
-StructuredType ROMDataType::Implementation::_structuredType;
+AtomicType<ROMDataType> AtomicType<ROMDataType>::_type;
 
 #include "cga.h"
 
@@ -3164,17 +3178,6 @@ public:
         _configFile.addDefaultOption("stopSaveState", Type::string,
             String(""));
         _configFile.addDefaultOption("initialState", Type::string, String(""));
-
-        addComponent(&_bus);
-        _bus.addComponent(&_ram);
-        _bus.addComponent(&_nmiSwitch);
-        _bus.addComponent(&_dmaPageRegisters);
-        _bus.addComponent(&_cga);
-        _bus.addComponent(&_pit);
-        _bus.addComponent(&_dma);
-        _bus.addComponent(&_ppi);
-        _bus.addComponent(&_pic);
-        addComponent(&_cpu);
 
         _configFile.load(configFile);
 
@@ -3260,17 +3263,6 @@ public:
     }
 
     void halt() { _halted = true; }
-    ConfigFile* config() { return &_configFile; }
-    ISA8BitBus* getBus() { return &_bus; }
-    Intel8259PIC* getPIC() { return &_pic; }
-    Intel8237DMA* getDMA() { return &_dma; }
-    NMISwitch* getNMISwitch() { return &_nmiSwitch; }
-    PCXTKeyboard* getKeyboard() { return &_keyboard; }
-    PCXTKeyboardPort* getKeyboardPort() { return &_keyboardPort; }
-    Intel8255PPI* getPPI() { return &_ppi; }
-    Intel8088* getCPU() { return &_cpu; }
-    IBMCGA* getCGA() { return &_cga; }
-    DMAPageRegisters* getDMAPageRegisters() { return &_dmaPageRegisters; }
     String getStopSaveState() { return _stopSaveState; }
     void addComponent(Component* component)
     {
@@ -3301,21 +3293,6 @@ private:
     bool _halted;
     int _minTicksPerCycle;
 
-    ConfigFile _configFile; 
-    ISA8BitBus _bus;
-    RAM640Kb _ram;
-    NMISwitch _nmiSwitch;
-    DMAPageRegisters _dmaPageRegisters;
-    Intel8253PIT _pit;
-    Intel8237DMA _dma;
-    PCXTKeyboard _keyboard;
-    PCXTKeyboardPort _keyboardPort;
-    Intel8255PPI _ppi;
-    Intel8259PIC _pic;
-    Intel8088 _cpu;
-    IBMCGA _cga;
-    Array<ROM> _roms;
-
     String _stopSaveState;
 };
 
@@ -3339,9 +3316,39 @@ protected:
             return;
         }
 
-        RGBIMonitor monitor;
-        Simulator simulator(File(_arguments[1], CurrentDirectory(), true));
-        monitor.connect(simulator.getCGA()->bgriSource());
+        Simulator simulator;
+
+        List<ComponentType> componentTypes;
+        componentTypes.add(Intel8088::Type());
+        componentTypes.add(ISA8BitBus::Type());
+        componentTypes.add(RAM::Type());
+        componentTypes.add(NMISwitch::Type());
+        componentTypes.add(DMAPageRegisters::Type());
+        componentTypes.add(Intel8259PIC::Type());
+        componentTypes.add(Intel8237DMA::Type());
+        componentTypes.add(Intel8255PPI::Type());
+        componentTypes.add(Intel8253PIT::Type());
+        componentTypes.add(PCXTKeyboardPort::Type());
+        componentTypes.add(PCXTKeyboard::Type());
+        componentTypes.add(IBMCGA::Type());
+        componentTypes.add(RGBIMonitor::Type());
+
+        ConfigFile configFile;
+        configFile.addDefaultOption("stopAtCycle", IntegerType(), -1);
+        configFile.addDefaultOption("stopSaveState", StringType(), String(""));
+        configFile.addDefaultOption("initialState", StringType(), String(""));
+        configFile.addType(TimeType());
+
+        for (auto i = componentTypes.begin(); i != componentTypes.end(); ++i) {
+            i->setSimulator(&simulator);
+            configFile.addType(*i);
+
+        configFile.addDefaultOption("second", TimeType(), Rational<int>(1));
+
+
+        //RGBIMonitor monitor;
+        //Simulator simulator(File(_arguments[1], CurrentDirectory(), true));
+        //monitor.connect(simulator.getCGA()->bgriSource());
 
         //File file(config.get<String>("sourceFile"));
         //String contents = file.contents();
