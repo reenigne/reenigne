@@ -82,7 +82,7 @@ public:
         members.add(StructuredType::Member("data",
             TypedValue(StringType(), String())));
         members.add(StructuredType::Member("refresh",
-            TypedValue(Type::array(IntegerType()), List<TypedValue>())));
+            TypedValue(SequenceType(IntegerType()), List<TypedValue>())));
         return StructuredType("DRAM", members);
     }
     TypedValue initial() const

@@ -211,3 +211,115 @@ Overloadable on kind  yes           no
 Variadic templates can't be Kind-checked anyway, so fit better with the Foo<Array> style.
 
 The Foo<Array> style is still statically kind-checked,
+
+
+
+
+
+
+What's the difference between VariadicKind and VariadicTemplateKind?
+  VariadicKind is X...
+  VariadicTemplateKind is TemplateKind(VariadicKind, TypeKind)
+
+TypeKind is nullary - the kind of an actual type.
+TemplateKind(A, B) is the kind of a template which yields a tyco of kind B when instantiated with a tyco of kind A.
+VariadicKind(A) is the kind of a sequence of 0 or more tycos of kind X
+VariadicTemplateKind is the kind of a template which accepts 0 or more tycos - i.e. the kind of Tuple - returned by Template::VariadicImplementation::kind()
+  Should we replace VariadicKind with VariadicTemplateKind?
+    Makes Kind::toString() more complicated but then all three Kind constructors are kinds of actual tyco.
+
+A->B means a template where you supply A to get B
+
+*->*->* means *->(*->*) means <,>
+(*->*)->* means <<>>
+
+<X> means X->*
+<X, Y> means <X><Y> means X->Y->*
+
+Suppose you have Foo<@X, @Y> = (X, Y)
+  Foo<A><B> = (A, B)
+  Foo<A> instantiates the leftmost argument leaving Bar<@Y>
+
+We need a use case for $ to be able to understand it
+  If <X...> means * or <X> or <X, X> or <X, X, X> etc.
+  So <X...> means * or X->* or X->(X->*) or X->(X->(X->*)) etc.
+  So <X...> means * or X->(<X...>)
+
+  <$> means * or <<$>>
+  So <$> means * or (<$>)->*
+  So <$> means * or *->* or (*->*)->* or ((*->*)->*)->* etc.
+  So (<$>)->* means *->* or *->(*->*) or (*->*)->(*->*) or ((*->*)->*)->(*->*) etc.
+  So <<$>> means *->* or *->(<*>) or (*->*)->(<*>) or ((*->*)->*)->(<*>) etc.
+  So <<$>> means <> or (<$>)->(<>)
+
+  But (<$>)->* means <<$>>
+  So <$> means * or <> or <<>> or <<<>>> etc.  - this was our original meaning of $ - any one-argument template kind
+
+
+  So <$Y> means * or (<$Y>)->Y
+  So <$Y> means * or *->Y or (*->Y)->Y or ((*->Y)->Y)->Y etc.
+  So (<$Y>)->* means *->* or *->(Y->*) or (*->Y)->(Y->*) or ((*->Y)->Y)->(Y->*) etc.
+  So <<$Y>> means *->* or *->(<Y>) or (*->Y)->(<Y>) or ((*->Y)->Y)->(<Y>) etc.
+  So <<$Y>> means <> or (<$Y>)->(<Y>)
+
+  (X-><Y>) is a template accepting X and yielding <Y> i.e. yielding something that accepts Y and yields type
+  So (X-><Y>) is the same as X->(Y->*) which is the same as <X, Y>
+  So (<$Y>)->(<Y>) is the same as <<$Y>, Y>
+
+  So <<$Y>> means <> or <<$Y>, Y>
+
+  So (<$Y>)->Y means *->Y or *->(Y->Y) or (*->Y)->(Y->Y) or ((*->Y)->Y)->(Y->Y) etc.
+
+  So <$<Y>> means * or *->(<Y>) or (*->(<Y>))->(<Y>) or ((*->(<Y>))->(<Y>))->(<Y>) etc.
+  So <$<Y>> means * or <,Y> or <<,Y>, Y> or <<<, Y>, Y>, Y> etc.
+  So <$<Y>> means * or <<$<Y>>, Y>
+
+  So <$<Y>> means * or <><Y> or <<><Y>><Y> or <<<><Y>><Y>><Y> etc.
+  So <$<Y>> means * or <<$<Y>>><Y>
+
+  So <$<>> means * or <,<>> or <<,<>>, <>> or <<<, <>>, <>>, <>> etc.
+  So <$<>> means * or <><<>> or <<><<>>><<>> or <<<><<>>><<>>><<>> etc.
+
+  So <$<><>> means * or <><<><>> or <<><<><>>><<><>> or <<<><<><>>><<><>>><<><>> etc.
+  So <$<,>> means * or <,<,>> or <<,<,>>,<,>> or <<<,<,>>,<,>>,<,>> etc.
+
+  So <$<<>>> means * or <><<>> or <<><<>>><<>> or <<<><<>>><<>>><<>> etc.
+  So <$<<>>> means * or <,<>> or <<><<>>><<>> or <<<><<>>><<>>><<>> etc.
+
+
+The unary $ isn't particularly useful, and we'd need a nullary wildkind anyway to reach all kinds without an infinite series of ... and $
+
+Should we have a sum kind?
+  No, the pattern matching of alternate template specializations accomplishes this
+    In that case, we don't really need $ either - just use ... to mean sequence of arbitrary kinds
+
+Example of a template which can be instantiated with any kinds:
+  Foo<> = { base case };
+  Foo<@T, ...> = { do something with T and Foo<...> };  // T is a type here because there's no kind annotation
+  Foo<@T<...>, ...> = { do something with Bar<T> and Foo<...> }; // which ... does this refer to? Here T is any template, the inner ... is just a kind specifier and can't be referred to on the RHS because it's not defined by the instantiator.
+  Bar<<...>> = { do something with Foo<...> };
+
+  Foo<@T<,...>, ...> = { do something with Foo<T<Int>> and Foo<...> };
+  Foo<@T<<...>, ...>, ...> = { do something with Foo<T<Array>> and Foo<...> };
+
+Suppose we write Foo<Array>. We get the second overload which instantiates Bar<Array> and Foo.
+
+If a template has an argument T of completely unknown kind, what can be done with that argument?
+  We can't instantiate it (even partially) since we don't know the kind of it's first argument
+  We can pass it to another template, but that just moves the problem around
+  We can't take the arguments and pass them to another template since they are just kinds, not tycos
+    The kind of tyco required to instantiate T might not even exist!
+  A template can force the caller to pass appropriately-kinded tycos in the remaining arguments, then:
+    Foo<@T<...>, ...> = { do something with T<...> };
+    However, Foo cannot then recurse with arbitrary kinds because the 3rd argument won't necessarily be the first argument to the 2nd argument.
+    Also it's hard to think of a use case for this.
+
+Plan:
+  Get rid of WildKind and allow variadic kinds to be arbitrary
+  For debugging template problems, rather than having static kind-ing on template arguments, have hypertext error messages:
+    Error: cannot instantiate template Tuple with argument Array as it is of the incorrect kind (kind of argument to Tuple is type, kind of Array is <>). _why_
+      _why_ leads to: Tuple instantiates argument T.
+    Default assumption is that template is correct and the error is in the instantiator as templates are instantiated on average more than once.
+  Get rid of VariadicKind and replace with VariadicTemplateKind, a nullary kind constructor
+  Rewrite variadic kind blog post
+

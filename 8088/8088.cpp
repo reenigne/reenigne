@@ -53,13 +53,13 @@ typedef DMAPageRegistersTemplate<void> DMAPageRegisters;
 template<class T> class ISA8BitBusTemplate;
 typedef ISA8BitBusTemplate<void> ISA8BitBus;
 
-class TimeType : public AtomicType<TimeType>
+class TimeType : public Nullary<Type, TimeType>
 {
 public:
     static String name() { return "Time"; }
 };
 
-AtomicType<TimeType> AtomicType<TimeType>::_type;
+Nullary<Type, TimeType> Nullary<Type, TimeType>::_instance;
 
 class Tick
 {
@@ -89,10 +89,17 @@ private:
 
 class ComponentType : public Type
 {
+    void setSimulator(Simulator* simulator)
+    {
+        implementation()->setSimulator(simulator);
+    }
 private:
     class Implementation : public Type::Implementation
     {
     public:
+        void setSimulator(Simulator* simulator) { _simulator = simulator; }
+    private:
+        Simulator* _simulator;
     };
     const Implementation* implementation() const
     {
@@ -3117,12 +3124,12 @@ private:
     Disassembler _disassembler;
 };
 
-class ROMDataType : public AtomicType<ROMDataType>
+class ROMDataType : public Nullary<Type, ROMDataType>
 {
 public:
     static String name() { return "ROM"; }
 private:
-    class Implementation : public AtomicType::Implementation
+    class Implementation : public Nullary::Implementation
     {
     public:
         Implementation()
@@ -3162,7 +3169,7 @@ private:
     }
 };
 
-AtomicType<ROMDataType> AtomicType<ROMDataType>::_type;
+Nullary<Type, ROMDataType> Nullary<Type, ROMDataType>::_implementation;
 
 #include "cga.h"
 
@@ -3342,6 +3349,7 @@ protected:
         for (auto i = componentTypes.begin(); i != componentTypes.end(); ++i) {
             i->setSimulator(&simulator);
             configFile.addType(*i);
+        }
 
         configFile.addDefaultOption("second", TimeType(), Rational<int>(1));
 

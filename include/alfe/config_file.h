@@ -33,7 +33,6 @@ class Structure
 {
 public:
     template<class T> T get(String name) { return get(name).value<T>(); }
-    virtual bool has(String name) = 0;
     virtual TypedValue get(String name) = 0;
     virtual void set(String name, TypedValue value) = 0;
 };
@@ -83,7 +82,7 @@ public:
                 Type type = _types[name];
                 Identifier objectIdentifier = parseIdentifier(&s);
                 String objectName = objectIdentifier.name();
-                if (has(name))
+                if (_options.hasKey(name))
                     objectIdentifier.span().throwError(name +
                         " already exists");
                 TypedValue value = TypedValue(
@@ -93,7 +92,21 @@ public:
                     value = parseExpression(&s);
                 Space::assertCharacter(&s, ';', &span);
                 source = s;
-                _options[objectName] = value.convertTo(type);
+                value = value.convertTo(type);
+                if (type.has("*")) {
+                    // This special member is how ConfigFile tells created
+                    // objects their names so that they can responsible for
+                    // persistence so that this functionality doesn't need to
+                    // be in ConfigFile.
+                    // Using an actual identifier here would lead to collisions
+                    // with real members. ALFE persistence is done by types 
+                    // knowing how to persist themselves.
+                    // I also don't want to use the empty string, since I might
+                    // want to use that as the connector name for
+                    // single-connector components.
+                    value.value<Structure*>()->set("*", name);
+                }
+
                 continue;
             }
             TypedValue left = parseDotExpression(&source);
@@ -116,7 +129,6 @@ public:
         }
     }
     TypedValue get(String name) { return rValue(_options[name]); }
-    bool has(String name) { return _options.hasKey(name); }
     void set(String name, TypedValue value) { _options[name] = value; }
     File file() const { return _file; }
 private:
@@ -542,17 +554,21 @@ private:
                 Span s = e.span() + i.span();
                 LValueType lValueType(e.type());
                 if (!lValueType.valid()) {
-                    auto m = e.value<Value<HashTable<String, TypedValue>>>();
-                    if (!(*m).hasKey(name))
+                    if (!e.type().has(name))
                         s.throwError("Expression has no member named " + name);
+                    auto m = e.value<Value<HashTable<String, TypedValue>>>();
+                    //if (!(*m).hasKey(name))
+                    //    s.throwError("Expression has no member named " + name);
                     e = (*m)[name];
                     e = TypedValue(e.type(), e.value(), s);
                 }
                 else {
+                    if (!lValueType.inner().has(name))
+                        s.throwError("Expression has no member named " + name);
                     Structure* p =
                         e.value<LValue>().rValue().value<Structure*>();
-                    if (!p->has(name))
-                        s.throwError("Expression has no member named " + name);
+                    //if (!p->has(name))
+                    //    s.throwError("Expression has no member named " + name);
                     e = TypedValue(LValueType::wrap(p->get(name).type()),
                         LValue(p, name), s);
                 }
