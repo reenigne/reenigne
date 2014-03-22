@@ -1,4 +1,4 @@
-#include "alfe/string.h"                          
+#include "alfe/string.h"
 #include "alfe/array.h"
 #include "alfe/file.h"
 #include "alfe/stack.h"
@@ -38,8 +38,8 @@ typedef Intel8253PITTemplate<void> Intel8253PIT;
 template<class T> class Intel8255PPITemplate;
 typedef Intel8255PPITemplate<void> Intel8255PPI;
 
-template<class T> class RAM640KbTemplate;
-typedef RAM640KbTemplate<void> RAM640Kb;
+template<class T> class RAMTemplate;
+typedef RAMTemplate<void> RAM;
 
 template<class T> class ROMTemplate;
 typedef ROMTemplate<void> ROM;
@@ -59,7 +59,7 @@ public:
     static String name() { return "Time"; }
 };
 
-Nullary<Type, TimeType> Nullary<Type, TimeType>::_instance;
+template<> Nullary<Type, TimeType> Nullary<Type, TimeType>::_instance;
 
 class Tick
 {
@@ -90,14 +90,18 @@ private:
 class ComponentType : public Type
 {
 protected:
+    ComponentType(const Implementation* implementation)
+      : Type(implementation) { }
     class Implementation : public Type::Implementation
     {
     public:
         Implementation(Simulator* simulator) : _simulator(simulator) { }
-    private:
+    protected:
         Simulator* _simulator;
     };
 };
+
+typedef Type PersistenceType;
 
 template<class T> class ComponentTemplate : public Structure
 {
@@ -110,7 +114,10 @@ public:
     virtual void site() { }
     virtual void simulateCycle() { }
     virtual String save() const { return String(); }
-    virtual Type persistenceType() const { return Type(); }
+    virtual PersistenceType persistenceType() const
+    {
+        return PersistenceType();
+    }
     virtual String name() const { return String(); }
     virtual void load(const TypedValue& value) { }
     virtual TypedValue initial() const
@@ -257,7 +264,7 @@ public:
         return data;
     }
     String save() const { return hex(_data, 2) + "\n"; }
-    virtual Type type() const { return Type::integer; }
+    virtual PersistenceType persistenceType() const { return IntegerType(); }
     virtual String name() const { return String("bus"); }
     virtual void load(const TypedValue& value) { _data = value.value<int>(); }
     virtual TypedValue initial() const { return 0xff; }
@@ -270,8 +277,6 @@ private:
 
     template<class U> friend class ISA8BitComponentTemplate;
 };
-
-static ISA8BitBus::Type _type;
 
 class NMISwitch : public ISA8BitComponent
 {
@@ -287,7 +292,7 @@ public:
         return String("{ on: ") + String::Boolean(_nmiOn) + ", active: " +
             String::Boolean(_active) + " }\n";
     }
-    Type type() const
+    PersistenceType persistenceType() const
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("on", false));
@@ -336,7 +341,7 @@ private:
 
 #include "dram.h"
 
-template<class T> class RAM : public ISA8BitComponent
+template<class T> class RAMTemplate : public ISA8BitComponent
 {
 public:
     void site()
@@ -362,9 +367,9 @@ public:
     void initialize()
     {
         ConfigFile* config = this->_simulator->config();
-        int rowBits = config->get<int>("ramRowBits");
-        int bytes = config->get<int>("ramBytes");
-        int decayTime = config->get<int>("decayTime");
+        int rowBits = config->template get<int>("ramRowBits");
+        int bytes = config->template get<int>("ramBytes");
+        int decayTime = config->template get<int>("decayTime");
         if (decayTime == 0) {
             // DRAM decay time in cycles.
             // This is the fastest that DRAM could decay and real hardware
@@ -406,7 +411,7 @@ public:
             return _dram.memory(address);
         return 0xff;
     }
-    Type type() const
+    PersistenceType persistenceType() const
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("dram", _dram.initial()));
@@ -484,7 +489,7 @@ public:
             ", address: " + _address +
             " }\n";
     }
-    Type type() const
+    PersistenceType persistenceType() const
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("data",
@@ -510,7 +515,7 @@ public:
         _address = (*members)["address"].value<int>();
     }
     String name() const { return "dmaPages"; }
-    
+
     UInt8 pageForChannel(int channel)
     {
         switch (channel) {
@@ -519,7 +524,7 @@ public:
             default: return _dmaPages[3];
         }
     }
- 
+
     class Type : public ComponentType
     {
     public:
@@ -587,7 +592,7 @@ public:
         return String("{ active: ") + String::Boolean(this->_active) +
             ", address: " + hex(_address, 5) + "}\n";
     }
-    Type type() const
+    PersistenceType persistenceType() const
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("active", false));
@@ -601,6 +606,48 @@ public:
         _address = (*members)["address"].value<int>();
     }
     String name() const { return String("rom") + hex(_start, 5, false); }
+
+    class Type : public ComponentType
+    {
+    public:
+        Type(Simulator* simulator)
+          : ComponentType(new Implementation(simulator)) { }
+    private:
+        class Implementation : public ComponentType::Implementation
+        {
+        public:
+            Implementation(Simulator* simulator)
+              : ComponentType::Implementation(simulator)
+            {
+                List<StructuredType::Member> members;
+                members.add(StructuredType::Member("mask", IntegerType()));
+                members.add(StructuredType::Member("address", IntegerType()));
+                members.add(StructuredType::Member("fileName", StringType()));
+                members.add(StructuredType::Member("fileOffset",
+                    TypedValue(IntegerType(), 0)));
+                _structuredType = StructuredType(toString(), members);
+            }
+            String toString() const { return "ROM"; }
+            TypedValue tryConvert(const TypedValue& value, String* why) const
+            {
+                TypedValue stv = value.type().tryConvertTo(_structuredType,
+                    value, why);
+                if (!stv.valid())
+                    return stv;
+                auto romMembers =
+                    stv.value<Value<HashTable<String, TypedValue>>>();
+                int mask = (*romMembers)["mask"].value<int>();
+                int address = (*romMembers)["address"].value<int>();
+                String file = (*romMembers)["fileName"].value<String>();
+                int offset = (*romMembers)["fileOffset"].value<int>();
+                ROM* rom = new ROM(mask, address, file, offset);
+                _simulator->addComponent(rom);
+                return TypedValue(this, rom, value.span());
+            }
+        private:
+            StructuredType _structuredType;
+        };
+    };
 private:
     int _mask;
     int _start;
@@ -2422,7 +2469,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         this->_tick = (*members)["tick"].value<int>();
     }
     String name() const { return "cpu"; }
-    
+
     class Type : public ComponentType
     {
     public:
@@ -3186,53 +3233,6 @@ private:
     Disassembler _disassembler;
 };
 
-class ROMDataType : public Nullary<Type, ROMDataType>
-{
-public:
-    static String name() { return "ROM"; }
-private:
-    class Implementation : public Nullary::Implementation
-    {
-    public:
-        Implementation()
-        {
-            List<StructuredType::Member> members;
-            members.add(StructuredType::Member("mask", IntegerType()));
-            members.add(StructuredType::Member("address", IntegerType()));
-            members.add(StructuredType::Member("fileName", StringType()));
-            members.add(StructuredType::Member("fileOffset",
-                TypedValue(IntegerType(), 0)));
-            _structuredType = StructuredType(toString(), members);
-        }
-        TypedValue tryConvert(const TypedValue& value, String* why) const
-        {
-            TypedValue stv = value.type().tryConvertTo(_structuredType, value,
-                why);
-            if (!stv.valid())
-                return stv;
-            auto romMembers =
-                stv.value<Value<HashTable<String, TypedValue>>>();
-            int mask = (*romMembers)["mask"].value<int>();
-            int address = (*romMembers)["address"].value<int>();
-            String file = (*romMembers)["fileName"].value<String>();
-            int offset = (*romMembers)["fileOffset"].value<int>();
-            return TypedValue(ROMDataType(),
-                Any(ROMData(mask, address, file, offset)), value.span());
-        }
-    private:
-        StructuredType _structuredType;
-    };
-    static Reference<Implementation> _implementation;
-    static Reference<Implementation> implementation()
-    {
-        if (!_implementation.valid())
-            _implementation = new Implementation();
-        return _implementation;
-    }
-};
-
-Nullary<Type, ROMDataType> Nullary<Type, ROMDataType>::_instance;
-
 #include "cga.h"
 
 template<class T> class SimulatorTemplate
@@ -3240,47 +3240,6 @@ template<class T> class SimulatorTemplate
 public:
     SimulatorTemplate(File configFile) : _halted(false)
     {
-        ROMDataType romDataType;
-        Type romImageArrayType = Type::array(romDataType);
-        _configFile.addOption("roms", romImageArrayType);
-        _configFile.addDefaultOption("stopAtCycle", Type::integer, -1);
-        _configFile.addDefaultOption("stopSaveState", Type::string,
-            String(""));
-        _configFile.addDefaultOption("initialState", Type::string, String(""));
-
-        _configFile.load(configFile);
-
-        _cga.initialize();
-        _ram.initialize();
-
-        List<TypedValue> romDatas = _configFile.get<List<TypedValue> >("roms");
-        _roms.allocate(romDatas.count());
-        int r = 0;
-        for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
-            ROMData romData = (*i).value<ROMData>();
-            ROM* rom = &_roms[r];
-            _bus.addComponent(rom);
-            rom->initialize(romData);
-            ++r;
-        }
-
-        String stopSaveState = _configFile.get<String>("stopSaveState");
-
-        String initialStateFile = _configFile.get<String>("initialState");
-        TypedValue stateValue;
-        if (!initialStateFile.empty()) {
-            ConfigFile initialState;
-            initialState.addDefaultOption(name(), type(), initial());
-            initialState.load(initialStateFile);
-            stateValue = initialState.get(name());
-        }
-        else
-            stateValue = initial();
-        load(stateValue);
-
-        this->_cpu.setStopAtCycle(_configFile.get<int>("stopAtCycle"));
-        _stopSaveState = _configFile.get<String>("stopSaveState");
-
         Rational<int> l = 0;
         for (auto i = _components.begin(); i != _components.end(); ++i) {
             Rational<int> cyclesPerSecond = (*i)->cyclesPerSecond();
@@ -3404,7 +3363,6 @@ protected:
         componentTypes.add(RGBIMonitor::Type(p));
 
         ConfigFile configFile;
-        configFile.addDefaultOption("stopAtCycle", IntegerType(), -1);
         configFile.addDefaultOption("stopSaveState", StringType(), String(""));
         configFile.addDefaultOption("initialState", StringType(), String(""));
         configFile.addType(TimeType());
@@ -3413,6 +3371,47 @@ protected:
             configFile.addType(*i);
 
         configFile.addDefaultOption("second", TimeType(), Rational<int>(1));
+
+        ROMDataType romDataType;
+        Type romImageArrayType = SequenceType(romDataType);
+        configFile.addOption("roms", romImageArrayType);
+        configFile.addDefaultOption("stopAtCycle", Type::integer, -1);
+        configFile.addDefaultOption("stopSaveState", Type::string,
+            String(""));
+        configFile.addDefaultOption("initialState", Type::string, String(""));
+
+        configFile.load(configFile);
+
+        _cga.initialize();
+        _ram.initialize();
+
+        List<TypedValue> romDatas = _configFile.get<List<TypedValue> >("roms");
+        _roms.allocate(romDatas.count());
+        int r = 0;
+        for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
+            ROMData romData = (*i).value<ROMData>();
+            ROM* rom = &_roms[r];
+            _bus.addComponent(rom);
+            rom->initialize(romData);
+            ++r;
+        }
+
+        String stopSaveState = _configFile.get<String>("stopSaveState");
+
+        String initialStateFile = _configFile.get<String>("initialState");
+        TypedValue stateValue;
+        if (!initialStateFile.empty()) {
+            ConfigFile initialState;
+            initialState.addDefaultOption(name(), type(), initial());
+            initialState.load(initialStateFile);
+            stateValue = initialState.get(name());
+        }
+        else
+            stateValue = initial();
+        load(stateValue);
+
+        this->_cpu.setStopAtCycle(_configFile.get<int>("stopAtCycle"));
+        _stopSaveState = _configFile.get<String>("stopSaveState");
 
 
 

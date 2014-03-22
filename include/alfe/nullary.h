@@ -32,7 +32,7 @@ private:
     static Nullary instance()
     {
         if (!_instance.valid())
-            _instance = new My::Implementation();
+            _instance = new typename My::Implementation();
         return _instance;
     }
 };

@@ -62,7 +62,7 @@ public:
         }
         return s + " }}\n";
     }
-    Type type() const
+    PersistenceType persistenceType() const
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("active", false));

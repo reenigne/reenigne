@@ -71,7 +71,7 @@ private:
     };
 };
 
-Nullary<Kind, TypeKind> Nullary<Kind, TypeKind>::_instance;
+template<> Nullary<Kind, TypeKind> Nullary<Kind, TypeKind>::_instance;
 
 // VariadicTemplateKind is the kind of a template with a variable number of
 // arguments that are not kind-checked before use.
@@ -90,7 +90,7 @@ private:
     };
 };
 
-Nullary<Kind, VariadicTemplateKind>
+template<> Nullary<Kind, VariadicTemplateKind>
     Nullary<Kind, VariadicTemplateKind>::_instance;
 
 // TemplateKind(first, rest) is the kind of a template that yields a tyco of

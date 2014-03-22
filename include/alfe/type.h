@@ -37,13 +37,13 @@ public:
     bool operator!=(const Tyco& other) const { return !operator==(other); }
     int hash() const { return _implementation->hash(); }
     Kind kind() const { return _implementation->kind(); }
-    template<class T> bool is() const
-    { 
-        return _implementation.referent<T::Implementation>() != 0;
-    }
-    template<class T> T as() const
+    template<class K> bool is() const
     {
-        return T(_implementation.referent<T::Implementation>());
+        return _implementation.template referent<K::Implementation>() != 0;
+    }
+    template<class K> K as() const
+    {
+        return K(_implementation.template referent<K::Implementation>());
     }
 protected:
     class Implementation : public ReferenceCounted
@@ -78,7 +78,7 @@ protected:
 public:
     const Implementation* implementation() const
     {
-        return _implementation.referent<Implementation>();
+        return _implementation.template referent<Implementation>();
     }
 };
 
@@ -115,14 +115,14 @@ protected:
         Kind kind() const { return TypeKind(); }
         TypedValueTemplate<T> tryConvert(const TypedValueTemplate<T>& value,
             String* reason) const
-        { 
+        {
             if (this == value.type().implementation())
                 return value;
             return TypedValueTemplate<T>();
         }
         TypedValueTemplate<T> tryConvertTo(const Type& to,
             const TypedValue& value, String* reason) const
-        { 
+        {
             if (this == to.implementation())
                 return value;
             return TypedValueTemplate<T>();
@@ -138,6 +138,62 @@ protected:
 
     friend class TemplateTemplate<void>;
 };
+
+class StringType : public Nullary<Type, StringType>
+{
+ public:
+    static String name() { return "String"; }
+};
+
+template<> Nullary<Type, StringType> Nullary<Type, StringType>::_instance;
+
+class IntegerType : public Nullary<Type, IntegerType>
+{
+ public:
+    static String name() { return "Integer"; }
+};
+
+template<> Nullary<Type, IntegerType>  Nullary<Type, IntegerType>::_instance;
+
+class BooleanType : public  Nullary<Type, BooleanType>
+{
+ public:
+    static String name() { return "Boolean"; }
+};
+
+template<> Nullary<Type, BooleanType> Nullary<Type, BooleanType>::_instance;
+
+class ObjectType : public Nullary<Type, ObjectType>
+{
+ public:
+    static String name() { return "Object"; }
+};
+
+template<> Nullary<Type, ObjectType> Nullary<Type, ObjectType>::_instance;
+
+class LabelType : public Nullary<Type, LabelType>
+{
+ public:
+    static String name() { return "Label"; }
+};
+
+template<> Nullary<Type, LabelType> Nullary<Type, LabelType>::_instance;
+
+class VoidType : public Nullary<Type, VoidType>
+{
+ public:
+    static String name() { return "Void"; }
+};
+
+template<> Nullary<Type, VoidType> Nullary<Type, VoidType>::_instance;
+
+template<class T> Type typeFromCompileTimeType()
+{
+    throw Exception("Don't know this type.");
+}
+template<> Type typeFromCompileTimeType<int>() { return IntegerType(); }
+template<> Type typeFromCompileTimeType<String>() { return StringType(); }
+template<> Type typeFromCompileTimeType<bool>() { return BooleanType(); }
 
 template<class T> class TypedValueTemplate
 {
@@ -192,62 +248,6 @@ private:
     Span _span;
 };
 
-class StringType : public Nullary<Type, StringType>
-{
-public:
-    static String name() { return "String"; }
-};
-
-Nullary<Type, StringType> Nullary<Type, StringType>::_instance;
-
-class IntegerType : public Nullary<Type, IntegerType>
-{
-public:
-    static String name() { return "Integer"; }
-};
-
- Nullary<Type, IntegerType>  Nullary<Type, IntegerType>::_instance;
-
-class BooleanType : public  Nullary<Type, BooleanType>
-{
-public:
-    static String name() { return "Boolean"; }
-};
-
-Nullary<Type, BooleanType> Nullary<Type, BooleanType>::_instance;
-
-class ObjectType : public Nullary<Type, ObjectType>
-{
-public:
-    static String name() { return "Object"; }
-};
-
-Nullary<Type, ObjectType> Nullary<Type, ObjectType>::_instance;
-
-class LabelType : public Nullary<Type, LabelType>
-{
-public:
-    static String name() { return "Label"; }
-};
-
-Nullary<Type, LabelType> Nullary<Type, LabelType>::_instance;
-
-class VoidType : public Nullary<Type, VoidType>
-{
-public:
-    static String name() { return "Void"; }
-};
-
-Nullary<Type, VoidType> Nullary<Type, VoidType>::_instance;
-
-template<class T> Type typeFromCompileTimeType()
-{
-    throw Exception("Don't know this type.");
-}
-template<> Type typeFromCompileTimeType<int>() { return IntegerType(); }
-template<> Type typeFromCompileTimeType<String>() { return StringType(); }
-template<> Type typeFromCompileTimeType<bool>() { return BooleanType(); }
-
 template<class T> class TemplateTemplate : public Tyco
 {
 public:
@@ -255,17 +255,6 @@ public:
     {
         return _implementation->instantiate(argument);
     }
-    //Tyco instantiate(const List<Tyco>& arguments) const
-    //{
-    //    Tyco t(*this);
-    //    for (auto i = arguments.begin(); i != arguments.end(); ++i) {
-    //        if (kind() == TypeKind())
-    //            throw Exception(String("Can't instantiate ") +
-    //                toString() + " because it's not a template.");
-    //        t = t->instantiate(*i);
-    //    }
-    //    return t;
-    //}
 protected:
     class Implementation : public Tyco::Implementation
     {
@@ -274,7 +263,7 @@ protected:
         {
             if (_instantiations.hasKey(argument))
                 return _instantiations[argument];
- 
+
             Kind k = kind();
             Kind resultKind = k.instantiate(argument.kind());
             if (!resultKind.valid()) {
@@ -397,7 +386,8 @@ private:
     };
 };
 
-Nullary<Template, ArrayTemplate> Nullary<Template, ArrayTemplate>::_instance;
+template<> Nullary<Template, ArrayTemplate>
+    Nullary<Template, ArrayTemplate>::_instance;
 
 class SequenceType : public Type
 {
@@ -450,15 +440,13 @@ private:
     };
 };
 
-Nullary<Template, SequenceTemplate>
+template<> Nullary<Template, SequenceTemplate>
     Nullary<Template, SequenceTemplate>::_instance;
 
 class TupleTyco : public Tyco
 {
 public:
     static String name() { return "Tuple"; }
-    //TupleTyco(const List<Type>& arguments)
-    //  : Tyco(new Implementation(arguments)) { }
     TupleTyco() : Tyco(instance()) { }
     bool isUnit() { return implementation() == 0; }
     Type lastMember()
@@ -483,7 +471,7 @@ private:
     public:
         // Tyco
         String toString() const
-        { 
+        {
             bool needComma = false;
             return "(" + toString2(&needComma) + ")";
         }
@@ -516,7 +504,7 @@ private:
         {
             if (_instantiations.hasKey(argument))
                 return _instantiations[argument];
- 
+
             if (argument.kind() != TypeKind()) {
                 throw Exception(String("Cannot use ") + argument.toString() +
                     " (kind " + argument.kind().toString() +
@@ -573,7 +561,7 @@ private:
             return TypedValue();
         }
         bool has(String memberName) const
-        { 
+        {
             CharacterSource s(memberName);
             int n;
             if (!Space::parseInteger(&s, &n))
@@ -654,7 +642,7 @@ private:
     };
 };
 
-Nullary<Template, PointerTemplate>
+template<> Nullary<Template, PointerTemplate>
     Nullary<Template, PointerTemplate>::_instance;
 
 class FunctionTyco : public Tyco
@@ -662,28 +650,26 @@ class FunctionTyco : public Tyco
 public:
     FunctionTyco(const Type& returnType)
       : Tyco(new NullaryImplementation(returnType)) { }
-    //FunctionTyco(const Type& returnType, const List<Type>& parameterTypes)
-    //  : Type(new Implementation(returnType, parameterTypes)) { }
 private:
     class Implementation : public Tyco::Implementation
     {
     public:
         String toString() const
-        { 
+        {
             bool needComma = false;
             return toString2(&needComma) + ")";
         }
         virtual String toString2(bool* needComma) const = 0;
         Kind kind() const { return VariadicTemplateKind(); }
         TypedValue tryConvert(const TypedValue& value, String* reason) const
-        { 
+        {
             if (this == value.type().implementation())
                 return value;
             return TypedValue();
         }
         TypedValue tryConvertTo(const Type& to, const TypedValue& value,
             String* reason) const
-        { 
+        {
             if (this == to.implementation())
                 return value;
             return TypedValue();
@@ -694,7 +680,7 @@ private:
         {
             if (_instantiations.hasKey(argument))
                 return _instantiations[argument];
- 
+
             if (argument.kind() != TypeKind()) {
                 throw Exception(String("Cannot use ") + argument.toString() +
                     " (kind " + argument.kind().toString() +
@@ -780,7 +766,7 @@ private:
     };
 };
 
-Nullary<Template, FunctionTemplate>
+template<> Nullary<Template, FunctionTemplate>
     Nullary<Template, FunctionTemplate>::_instance;
 
 class EnumerationType : public Type
@@ -922,7 +908,7 @@ private:
                 Value<HashTable<String, TypedValue>> output;
 
                 // First take all named members in the RHS and assign them to
-                // the corresponding named members in the LHS. 
+                // the corresponding named members in the LHS.
                 int count = _members.count();
                 int toCount = toImplementation->_members.count();
                 Array<bool> assigned(toCount);
@@ -1049,7 +1035,7 @@ private:
             }
 
             return TypedValue();
-        }                      
+        }
         bool has(String memberName) const { return _names.hasKey(memberName); }
 
     private:

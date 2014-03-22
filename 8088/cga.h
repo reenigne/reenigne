@@ -119,7 +119,7 @@ public:
     void initialize()
     {
         ConfigFile* config = this->_simulator->config();
-        String data = File(config->get<String>("cgarom"),
+        String data = File(config->template get<String>("cgarom"),
             config->file().parent(), true).contents();
         int length = 0x2000;
         _romdata.allocate(length);

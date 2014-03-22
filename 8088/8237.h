@@ -264,7 +264,7 @@ public:
             ", state: " + stringForState(_state) +
             " }\n";
     }
-    Type type() const
+    PersistenceType persistenceType() const
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("active", false));
