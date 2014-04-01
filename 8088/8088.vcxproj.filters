@@ -29,6 +29,8 @@
     <ClInclude Include="rgbi_monitor.h" />
     <ClInclude Include="pcxt_keyboard.h" />
     <ClInclude Include="pcxt_keyboard_port.h" />
+    <ClInclude Include="..\include\alfe\kind.h" />
+    <ClInclude Include="..\include\alfe\nullary.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="scratch.txt" />

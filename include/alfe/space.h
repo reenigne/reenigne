@@ -81,6 +81,58 @@ public:
         parse(source);
         return true;
     }
+    static bool parseInteger(CharacterSource* source, int* result,
+        Span* span = 0)
+    {
+        CharacterSource s = *source;
+        int n = 0;
+        int c = s.get(span);
+        if (c < '0' || c > '9')
+            return false;
+        if (c == '0') {
+            CharacterSource s2 = s;
+            Span span2;
+            int c = s2.get(&span2);
+            if (c == 'x') {
+                bool okay = false;
+                int n = 0;
+                do {
+                    c = s2.get(&span2);
+                    if (c >= '0' && c <= '9')
+                        n = n*0x10 + c - '0';
+                    else
+                        if (c >= 'A' && c <= 'F')
+                            n = n*0x10 + c + 10 - 'A';
+                        else
+                            if (c >= 'a' && c <= 'f')
+                                n = n*0x10 + c + 10 - 'a';
+                            else
+                                if (okay) {
+                                    parse(source);
+                                    *result = n;
+                                    return true;
+                                }
+                                else
+                                    return false;
+                    okay = true;
+                    *source = s2;
+                    *span += span2;
+                } while (true);
+            }
+        }
+        do {
+            n = n*10 + c - '0';
+            *source = s;
+            Span span2;
+            c = s.get(&span2);
+            if (c < '0' || c > '9') {
+                parse(source);
+                *result = n;
+                return true;
+            }
+            *span += span2;
+        } while (true);
+    }
 private:
     static bool parseComment(CharacterSource* source)
     {

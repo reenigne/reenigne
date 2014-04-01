@@ -87,6 +87,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="8088.cpp" />
+    <ClInclude Include="..\include\alfe\kind.h" />
+    <ClInclude Include="..\include\alfe\nullary.h" />
     <ClInclude Include="..\include\alfe\pipes.h" />
     <ClInclude Include="..\include\alfe\rational.h" />
     <ClInclude Include="8237.h" />

@@ -8,6 +8,7 @@
 #include "alfe/value.h"
 #include "alfe/nullary.h"
 #include "alfe/kind.h"
+#include "alfe/assert.h"
 
 template<class T> class TemplateTemplate;
 typedef TemplateTemplate<void> Template;
@@ -67,13 +68,18 @@ protected:
         // Template
         virtual Tyco instantiate(const Tyco& argument) const = 0;
     };
-    Tyco(const Implementation* implementation)
+    TycoTemplate(const Implementation* implementation)
       : _implementation(implementation) { }
     ConstReference<Implementation> _implementation;
 
     friend class TemplateTemplate<void>;
     friend class EnumerationType;
     friend class StructuredType;
+public:
+    const Implementation* implementation() const
+    {
+        return _implementation.referent<Implementation>();
+    }
 };
 
 template<class T> class TypeTemplate : public Tyco
@@ -85,19 +91,23 @@ public:
     TypedValueTemplate<T> tryConvert(const TypedValue& value, String* reason)
         const
     {
-        return implementation()->tryConvert(value, reason);
+        return _implementation->tryConvert(value, reason);
     }
     TypedValueTemplate<T> tryConvertTo(const Type& to, const TypedValue& value,
         String* reason) const
     {
-        return implementation()->tryConvertTo(to, value, reason);
+        return _implementation->tryConvertTo(to, value, reason);
     }
     bool has(String memberName) const
     {
-        return implementation()->has(memberName);
+        return _implementation->has(memberName);
     }
     TypeTemplate(const Implementation* implementation)
       : Tyco(implementation) { }
+    const Implementation* implementation() const
+    {
+        return _implementation.referent<Implementation>();
+    }
 protected:
     class Implementation : public Tyco::Implementation
     {
@@ -118,13 +128,68 @@ protected:
             return TypedValueTemplate<T>();
         }
         virtual bool has(String memberName) const { return false; }
+
+        Tyco instantiate(const Tyco& argument) const
+        {
+            throw Exception(String("Cannot instantiate ") + toString() +
+                " because it is not a template.");
+        }
     };
-    const Implementation* implementation() const
-    {
-        return _implementation.referent<Implementation>();
-    }
 
     friend class TemplateTemplate<void>;
+};
+
+template<class T> class TypedValueTemplate
+{
+public:
+    TypedValueTemplate() { }
+    TypedValueTemplate(Type type, Any defaultValue = Any(), Span span = Span())
+      : _type(type), _value(defaultValue), _span(span) { }
+    template<class U> TypedValueTemplate(const U& value, Span span = Span())
+      : _type(typeFromCompileTimeType<U>()), _value(value), _span(span) { }
+    Type type() const { return _type; }
+    Any value() const { return _value; }
+    template<class U> U value() const { return _value.value<U>(); }
+    void setValue(Any value) { _value = value; }
+    Span span() const { return _span; }
+    bool valid() const { return _value.valid(); }
+    TypedValue convertTo(const Type& to) const
+    {
+        String reason;
+        TypedValue v = tryConvertTo(to, &reason);
+        if (!v.valid())
+            span().throwError(reason);
+        return v;
+    }
+    TypedValue tryConvertTo(const Type& to, String* why) const
+    {
+        String reason;
+        TypedValue v = to.tryConvert(*this, &reason);
+        if (v.valid())
+            return v;
+        String reasonTo;
+        v = _type.tryConvertTo(to, *this, &reasonTo);
+        if (v.valid())
+            return v;
+        String r = "No conversion";
+        String f = _type.toString();
+        if (f != "")
+            r += String(" from type ") + f;
+        r += String(" to type ") + to.toString() + String(" is available");
+        if (reason.empty())
+            reason = reasonTo;
+        if (reason.empty())
+            r += ".";
+        else
+            r += String(": ") + reason;
+        *why = r;
+        return TypedValue();
+    }
+
+private:
+    Type _type;
+    Any _value;
+    Span _span;
 };
 
 class StringType : public Nullary<Type, StringType>
@@ -186,17 +251,86 @@ template<> Type typeFromCompileTimeType<bool>() { return BooleanType(); }
 template<class T> class TemplateTemplate : public Tyco
 {
 public:
-    Tyco instantiate(const List<Tyco>& arguments) const
+    Tyco instantiate(const Tyco& argument) const
     {
-        Tyco t(*this);
-        for (auto i = arguments.begin(); i != arguments.end(); ++i) {
-            if (kind() == TypeKind())
-                throw Exception(String("Can't instantiate ") +
-                    toString() + " because it's not a template.");
-            t = t->instantiate(*i);
-        }
-        return t;
+        return _implementation->instantiate(argument);
     }
+    //Tyco instantiate(const List<Tyco>& arguments) const
+    //{
+    //    Tyco t(*this);
+    //    for (auto i = arguments.begin(); i != arguments.end(); ++i) {
+    //        if (kind() == TypeKind())
+    //            throw Exception(String("Can't instantiate ") +
+    //                toString() + " because it's not a template.");
+    //        t = t->instantiate(*i);
+    //    }
+    //    return t;
+    //}
+protected:
+    class Implementation : public Tyco::Implementation
+    {
+    public:
+        Tyco instantiate(const Tyco& argument) const
+        {
+            if (_instantiations.hasKey(argument))
+                return _instantiations[argument];
+ 
+            Kind k = kind();
+            Kind resultKind = k.instantiate(argument.kind());
+            if (!resultKind.valid()) {
+                throw Exception(String("Cannot use ") + argument.toString() +
+                    " (kind " + argument.kind().toString() +
+                    ") to instantiate " + toString() +
+                    " because it requires a type constructor of kind " +
+                    k.toString());
+            }
+            TemplateKind tk = k;
+            Tyco t = partialInstantiate(tk.rest() == TypeKind(), argument);
+            _instantiations.add(argument, t);
+            return t;
+        }
+        virtual Tyco partialInstantiate(bool final, Tyco argument) const
+        {
+            if (final)
+                return finalInstantiate(this, argument);
+            return new PartialImplementation(this, this, argument);
+        }
+        virtual Type finalInstantiate(Implementation* parent, Tyco argument)
+            const = 0;
+    private:
+        mutable HashTable<Tyco, Tyco> _instantiations;
+    };
+    class PartialImplementation : public Implementation
+    {
+    public:
+        PartialImplementation(Implementation* root, Implementation* parent,
+            Tyco argument)
+          : _root(root), _parent(parent), _argument(argument) { }
+
+        Tyco partialInstantiate(bool final, Tyco argument) const
+        {
+            if (final)
+                return _root->finalInstantiate(this, argument);
+            return new PartialImplementation(_root, this, argument);
+        }
+        bool equals(const Tyco::Implementation* other) const
+        {
+            const PartialImplementation* o =
+                dynamic_cast<const PartialImplementation*>(other);
+            return o != 0 && _parent->equals(o->_parent) &&
+                _argument == o->_argument;
+        }
+        int hash() const
+        {
+            return (_parent->hash()*67 + 5)*67 + _argument.hash();
+        }
+        Implementation* parent() const { return _parent; }
+        Tyco argument() const { return _argument; }
+    private:
+        Implementation* _root;
+        Implementation* _parent;
+        Tyco _argument;
+    };
 };
 
 class ArrayType : public Type
@@ -210,9 +344,13 @@ private:
     class Implementation : public Type::Implementation
     {
     public:
-        Implementation(const Type &contained) : _contained(contained) { }
-        String toString() const { return _contained.toString() + "[]"; }
-        bool equals(const Type::Implementation* other) const
+        Implementation(const Type &contained, const Type& indexer)
+          : _contained(contained), _indexer(indexer) { }
+        String toString() const
+        {
+            return _contained.toString() + "[" + _indexer.toString() + "]";
+        }
+        bool equals(const Tyco::Implementation* other) const
         {
             const Implementation* o =
                 dynamic_cast<const Implementation*>(other);
@@ -244,15 +382,18 @@ private:
     class Implementation : public Nullary::Implementation
     {
     public:
-        Tyco instantiate(const Tyco& tyco) const
+        Kind kind() const
         {
-            if (tyco.kind() != TypeKind())
-                throw Exception(String("Can't instantiate Array (argument "
-                    "kind Type) with ") + tyco.toString() + " (kind " +
-                    tyco.kind().toString() + ")");
-            return ArrayType(tyco);
+            return TemplateKind(TypeKind(),
+                TemplateKind(TypeKind(), TypeKind()));
         }
-        Kind kind() const { return TemplateKind(TypeKind(), TypeKind()); }
+        Type finalInstantiate(const Template::Implementation* parent,
+            const Tyco& argument) const
+        {
+            return ArrayType(
+                dynamic_cast<const Template::PartialImplementation*>(parent)->
+                    argument(), argument);
+        }
     };
 };
 
@@ -271,7 +412,7 @@ private:
         Implementation(const Type &contained) : _contained(contained) { }
         String toString() const
         {
-            return String("[") + _contained.toString() + "]";
+            return _contained.toString() + "[]";
         }
         bool equals(const Type::Implementation* other) const
         {
@@ -300,77 +441,177 @@ private:
     class Implementation : public Nullary::Implementation
     {
     public:
-        Tyco instantiate(const Tyco& tyco) const
-        {
-            Type t = tyco.as<Type>();
-            if (!t.valid())
-                throw Exception(String("Can't instantiate Array (argument "
-                    "kind Type) with ") + tyco.toString() + " (kind " +
-                    tyco.kind().toString() + ")");
-            return SequenceType(t);
-        }
         Kind kind() const { return TemplateKind(TypeKind(), TypeKind()); }
+        Type finalInstantiate(const Template::Implementation* parent,
+            const Tyco& argument) const
+        {
+            return SequenceType(argument);
+        }
     };
 };
 
 Nullary<Template, SequenceTemplate>
     Nullary<Template, SequenceTemplate>::_instance;
 
-class TupleType : public Type
-{
-public:
-    TupleType(const List<Type>& arguments)
-      : Type(new Implementation(arguments)) { }
-private:
-    class Implementation : public Type::Implementation
-    {
-    public:
-        Implementation(const List<Type>& arguments) : _arguments(arguments) { }
-        String toString() const
-        {
-            String s = "(";
-            bool needComma = false;
-            for (auto i = _arguments.begin(); i != _arguments.end(); ++i) {
-                if (needComma)
-                    s += ", ";
-                needComma = true;
-                s += i->toString();
-            }
-            return s + ")";
-        }
-    private:
-        List<Type> _arguments;
-    };
-};
-
-class TupleTemplate : public Nullary<Template, TupleTemplate>
+class TupleTyco : public Tyco
 {
 public:
     static String name() { return "Tuple"; }
+    //TupleTyco(const List<Type>& arguments)
+    //  : Tyco(new Implementation(arguments)) { }
+    TupleTyco() : Tyco(instance()) { }
+    bool isUnit() { return implementation() == 0; }
+    Type lastMember()
+    {
+        const NonUnitImplementation* i = implementation();
+        if (i == 0)
+            return Type();
+        return i->contained();
+    }
+    TupleTyco firstMembers()
+    {
+        const NonUnitImplementation* i = implementation();
+        if (i == 0)
+            return TupleTyco();
+        return i->parent();
+    }
 private:
-    class Implementation : public Nullary::Implementation
+    TupleTyco(const Implementation* implementation) : Tyco(implementation) { }
+
+    class Implementation : public Tyco::Implementation
     {
     public:
-        Tyco instantiate(const List<Tyco>& arguments)
+        // Tyco
+        String toString() const
+        { 
+            bool needComma = false;
+            return "(" + toString2(&needComma) + ")";
+        }
+        virtual String toString2(bool* needComma) const { return ""; }
+        bool equals(const Implementation* other) const
         {
-            List<Type> a;
-            int p = 0;
-            for (auto i = arguments.begin(); i != arguments.end(); ++i) {
-                Type t = (*i).as<Type>();
-                if (!t.valid())
-                    throw Exception(String("Can't instantiate argument ") +
-                        decimal(p) + " of Tuple with " + i->toString() +
-                        " because it is not a type but is of kind " +
-                        i->kind().toString() + ".");
-                a.add(t);
-            }
-            return TupleType(a);
+            return this == other;
         }
         Kind kind() const { return VariadicTemplateKind(); }
+        int hash() const { return reinterpret_cast<intptr_t>(this); }
+
+        // Type
+        TypedValue tryConvert(const TypedValue& value, String* reason) const
+        {
+            if (this == value.type().implementation())
+                return value;
+            return TypedValue();
+        }
+        TypedValue tryConvertTo(const Type& to, const TypedValue& value,
+            String* reason) const
+        {
+            if (this == to.implementation())
+                return value;
+            return TypedValue();
+        }
+        bool has(String memberName) const { return false; }
+
+        // Template
+        Tyco instantiate(const Tyco& argument) const
+        {
+            if (_instantiations.hasKey(argument))
+                return _instantiations[argument];
+ 
+            if (argument.kind() != TypeKind()) {
+                throw Exception(String("Cannot use ") + argument.toString() +
+                    " (kind " + argument.kind().toString() +
+                    ") to instantiate Tuple because it requires a type");
+            }
+
+            TupleTyco t(new NonUnitImplementation(this, argument));
+            _instantiations.add(argument, t);
+            return t;
+        }
+    private:
+        mutable HashTable<Tyco, Tyco> _instantiations;
     };
+    class NonUnitImplementation : public Implementation
+    {
+    public:
+        NonUnitImplementation(const Implementation* parent, Type contained)
+          : _parent(parent), _contained(contained) { }
+        String toString2(bool* needComma) const
+        {
+            String s = _parent->toString2(needComma);
+            if (*needComma)
+                s += ", ";
+            *needComma = true;
+            return s + _contained.toString();
+        }
+        bool equals(const Implementation* other) const
+        {
+            const NonUnitImplementation* o =
+                dynamic_cast<const NonUnitImplementation*>(other);
+            return _parent->equals(o->_parent) && _contained == o->_contained;
+        }
+        int hash() const
+        {
+            return (_parent->hash()*67 + 6)*67 + _contained.hash();
+        }
+
+        // Type
+        TypedValue tryConvert(const TypedValue& value, String* reason) const
+        {
+            if (_parent == TupleTyco().implementation())
+                return _contained.tryConvert(value, reason);
+            if (this == value.type().implementation())
+                return value;
+            return TypedValue();
+        }
+        TypedValue tryConvertTo(const Type& to, const TypedValue& value,
+            String* reason) const
+        {
+            if (_parent == TupleTyco().implementation())
+                return _contained.tryConvertTo(to, value, reason);
+            if (this == to.implementation())
+                return value;
+            return TypedValue();
+        }
+        bool has(String memberName) const
+        { 
+            CharacterSource s(memberName);
+            int n;
+            if (!Space::parseInteger(&s, &n))
+                return false;
+            if (s.get() != -1)
+                return false;
+            const NonUnitImplementation* p = this;
+            do {
+                if (n == 1)
+                    return true;
+                --n;
+                p = dynamic_cast<const NonUnitImplementation*>(p->_parent);
+                if (p == 0)
+                    return false;
+            } while (true);
+        }
+        const Implementation* parent() const { return _parent; }
+        Type contained() const { return _contained; }
+    private:
+        const Implementation* _parent;
+        Type _contained;
+    };
+private:
+    static TupleTyco _instance;
+    static TupleTyco instance()
+    {
+        if (!_instance.valid())
+            _instance = new Implementation();
+        return _instance;
+    }
+
+    const NonUnitImplementation* implementation() const
+    {
+        return _implementation.referent<NonUnitImplementation>();
+    }
 };
 
-Nullary<Template, TupleTemplate> Nullary<Template, TupleTemplate>::_instance;
+TupleTyco TupleTyco::_instance;
 
 class PointerType : public Type
 {
@@ -404,71 +645,143 @@ private:
     class Implementation : public Nullary::Implementation
     {
     public:
-        Tyco instantiate(const Tyco& tyco) const
-        {
-            if (tyco.kind() != TypeKind())
-                throw Exception(String("Can't instantiate Pointer (argument "
-                    "kind Type) with ") + tyco.toString() + " (kind " +
-                    tyco.kind().toString() + ")");
-            return PointerType(tyco);
-        }
         Kind kind() const { return TemplateKind(TypeKind(), TypeKind()); }
+        Type finalInstantiate(const Template::Implementation* parent,
+            const Tyco& argument) const
+        {
+            return PointerType(argument);
+        }
     };
 };
 
 Nullary<Template, PointerTemplate>
     Nullary<Template, PointerTemplate>::_instance;
 
-class FunctionType : public Type
+class FunctionTyco : public Tyco
 {
 public:
-    FunctionType(const Type& returnType, const List<Type>& parameterTypes)
-      : Type(new Implementation(returnType, parameterTypes)) { }
+    FunctionTyco(const Type& returnType)
+      : Tyco(new NullaryImplementation(returnType)) { }
+    //FunctionTyco(const Type& returnType, const List<Type>& parameterTypes)
+    //  : Type(new Implementation(returnType, parameterTypes)) { }
 private:
-    class Implementation : public Type::Implementation
+    class Implementation : public Tyco::Implementation
     {
     public:
-        Implementation(const Type& returnType,
-            const List<Type>& parameterTypes)
-          : _returnType(returnType), _parameterTypes(parameterTypes) { }
         String toString() const
+        { 
+            bool needComma = false;
+            return toString2(&needComma) + ")";
+        }
+        virtual String toString2(bool* needComma) const = 0;
+        Kind kind() const { return VariadicTemplateKind(); }
+        TypedValue tryConvert(const TypedValue& value, String* reason) const
+        { 
+            if (this == value.type().implementation())
+                return value;
+            return TypedValue();
+        }
+        TypedValue tryConvertTo(const Type& to, const TypedValue& value,
+            String* reason) const
+        { 
+            if (this == to.implementation())
+                return value;
+            return TypedValue();
+        }
+        virtual bool has(String memberName) const { return false; }
+        // Template
+        Tyco instantiate(const Tyco& argument) const
         {
-            String s = _returnType.toString() + "(";
-            for (int i = 0; i < _parameterTypes.count(); ++i) {
-                if (i > 0)
-                    s += ", ";
-                s += _parameterTypes[i].toString();
+            if (_instantiations.hasKey(argument))
+                return _instantiations[argument];
+ 
+            if (argument.kind() != TypeKind()) {
+                throw Exception(String("Cannot use ") + argument.toString() +
+                    " (kind " + argument.kind().toString() +
+                    ") to instantiate Function because it requires a type");
             }
-            return s + ")";
-        }
-        bool equals(const Type::Implementation* other) const
-        {
-            const Implementation* o =
-                dynamic_cast<const Implementation*>(other);
-            if (o == 0)
-                return false;
-            if (_returnType != o->_returnType)
-                return false;
-            int c = _parameterTypes.count();
-            if (c != o->_parameterTypes.count())
-                return false;
-            for (int i = 0; i < c; ++i)
-                if (_parameterTypes[i] != o->_parameterTypes[i])
-                    return false;
-            return true;
-        }
-        int hash() const
-        {
-            int h = _returnType.hash()*67 + 2;
-            for (int i = 0; i < _parameterTypes.count(); ++i)
-                h = h*67 + _parameterTypes[i].hash();
-            return h;
+
+            FunctionTyco t(new ArgumentImplementation(this, argument));
+            _instantiations.add(argument, t);
+            return t;
         }
     private:
+        mutable HashTable<Tyco, Tyco> _instantiations;
+    };
+    class NullaryImplementation : public Implementation
+    {
+    public:
+        NullaryImplementation(const Type& returnType)
+          : _returnType(returnType) { }
+        String toString2(bool* needComma) const
+        {
+            return _returnType.toString() + "(";
+        }
+        bool equals(const Tyco::Implementation* other) const
+        {
+            const NullaryImplementation* o =
+                dynamic_cast<const NullaryImplementation*>(other);
+            if (o == 0)
+                return false;
+            return (_returnType != o->_returnType);
+        }
+        int hash() const { return _returnType.hash()*67 + 2; }
+    private:
         Type _returnType;
-        Array<Type> _parameterTypes;
+    };
+    class ArgumentImplementation : public Implementation
+    {
+    public:
+        ArgumentImplementation(const Implementation* parent,
+            const Type& argumentType)
+          : _parent(parent), _argumentType(argumentType) { }
+        String toString2(bool* needComma) const
+        {
+            String s = _parent->toString2(needComma);
+            if (*needComma)
+                s += ", ";
+            *needComma = true;
+            return s + _argumentType.toString();
+        }
+        bool equals(const Tyco::Implementation* other) const
+        {
+            const ArgumentImplementation* o =
+                dynamic_cast<const ArgumentImplementation*>(other);
+            if (o == 0)
+                return false;
+            return _parent->equals(o->_parent) &&
+                _argumentType == o->_argumentType;
+        }
+        int hash() const { return _parent->hash()*67 + _argumentType.hash(); }
+    private:
+        const Implementation* _parent;
+        Type _argumentType;
     };
 };
+
+class FunctionTemplate : public Nullary<Template, FunctionTemplate>
+{
+public:
+    static String name() { return "Pointer"; }
+private:
+    class Implementation : public Nullary::Implementation
+    {
+    public:
+        virtual Tyco partialInstantiate(bool final, Tyco argument) const
+        {
+            return FunctionTyco(argument);
+        }
+        Kind kind() const
+        {
+            return TemplateKind(TypeKind(), VariadicTemplateKind());
+        }
+        Type finalInstantiate(const Template::Implementation* parent,
+            const Tyco& argument) const { assert(false); }
+    };
+};
+
+Nullary<Template, FunctionTemplate>
+    Nullary<Template, FunctionTemplate>::_instance;
 
 class EnumerationType : public Type
 {
@@ -519,62 +832,20 @@ private:
     public:
         Implementation(int n) : _n(n) { }
         String toString() const { return decimal(_n); }
+
+        bool equals(const Type::Implementation* other) const
+        {
+            const Implementation* o =
+                dynamic_cast<const Implementation*>(other);
+            if (o == 0)
+                return false;
+            return _n == o->_n;
+        }
+        int hash() const { return 7*67 + _n; }
+
     private:
         int _n;
     };
-};
-
-template<class T> class TypedValueTemplate
-{
-public:
-    TypedValueTemplate() { }
-    TypedValueTemplate(Type type, Any defaultValue = Any(), Span span = Span())
-      : _type(type), _value(defaultValue), _span(span) { }
-    template<class U> TypedValueTemplate(const U& value, Span span = Span())
-      : _type(typeFromCompileTimeType<U>()), _value(value), _span(span) { }
-    Type type() const { return _type; }
-    Any value() const { return _value; }
-    template<class U> U value() const { return _value.value<U>(); }
-    void setValue(Any value) { _value = value; }
-    Span span() const { return _span; }
-    bool valid() const { return _value.valid(); }
-    TypedValue convertTo(const Type& to) const
-    {
-        String reason;
-        TypedValue v = tryConvertTo(to, &reason);
-        if (!v.valid())
-            span().throwError(reason);
-        return v;
-    }
-    TypedValue tryConvertTo(const Type& to, String* why) const
-    {
-        String reason;
-        TypedValue v = to.tryConvert(*this, &reason);
-        if (v.valid())
-            return v;
-        String reasonTo;
-        v = _type.tryConvertTo(to, *this, &reasonTo);
-        if (v.valid())
-            return v;
-        String r = "No conversion";
-        String f = _type.toString();
-        if (f != "")
-            r += String(" from type ") + f;
-        r += String(" to type ") + to.toString() + String(" is available");
-        if (reason.empty())
-            reason = reasonTo;
-        if (reason.empty())
-            r += ".";
-        else
-            r += String(": ") + reason;
-        *why = r;
-        return TypedValue();
-    }
-
-private:
-    Type _type;
-    Any _value;
-    Span _span;
 };
 
 // StructuredType is the type of "{...}" literals, not the base type for all
@@ -746,6 +1017,35 @@ private:
                     results.add(v);
                 }
                 return TypedValue(to, results, value.span());
+            }
+            TupleTyco toTuple = to.as<TupleTyco>();
+            if (toTuple.valid()) {
+                auto input =
+                    value.value<Value<HashTable<String, TypedValue>>>();
+                List<TypedValue> results;
+                int count = _members.count();
+                for (int i = input->count() - 1; i >= 0; --i) {
+                    String name = String::Decimal(i);
+                    if (!input->hasKey(name)) {
+                        *why = String("Tuple cannot be initialized with a "
+                            "structured value containing named members");
+                        return TypedValue();
+                    }
+                    if (toTuple.isUnit())
+                        return String("Tuple type does not have enough members"
+                            " to be initialized with this structured value.");
+                    String reason;
+                    TypedValue v = (*input)[name].
+                        tryConvertTo(toTuple.lastMember(), &reason);
+                    if (!v.valid()) {
+                        *why = String("Cannot convert child member ") + name;
+                        if (!reason.empty())
+                            *why += String(": ") + reason;
+                        return TypedValue();
+                    }
+                    results.add(v);
+                    toTuple = toTuple.firstMembers();
+                }
             }
 
             return TypedValue();

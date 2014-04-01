@@ -5,6 +5,9 @@
 
 #include "alfe/string.h"
 
+// Nullary is a helper class used for implementing classes which carry no data
+// (apart from their vtable pointer). It's used for some subclasses of Type and
+// Kind.
 template<class Base, class My = Base> class Nullary : public Base
 {
 public:

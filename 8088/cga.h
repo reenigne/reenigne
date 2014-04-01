@@ -146,6 +146,21 @@ public:
     class CompositeSource : public Source<UInt8> { void produce(int n) { } };
     BGRISource* bgriSource() { return &_bgriSource; }
     CompositeSource* compositeSource() { return &_compositeSource; }
+
+    class Type : public ComponentType
+    {
+    public:
+        Type(Simulator* simulator)
+          : ComponentType(new Implementation(simulator)) { }
+    private:
+        class Implementation : public ComponentType::Implementation
+        {
+        public:
+            Implementation(Simulator* simulator)
+              : ComponentType::Implementation(simulator) { }
+            String toString() const { return "IBMCGA"; }
+        };
+    };
 private:
     void activateLightPen()
     {

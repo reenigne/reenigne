@@ -315,11 +315,60 @@ If a template has an argument T of completely unknown kind, what can be done wit
     Also it's hard to think of a use case for this.
 
 Plan:
-  Get rid of WildKind and allow variadic kinds to be arbitrary
   For debugging template problems, rather than having static kind-ing on template arguments, have hypertext error messages:
     Error: cannot instantiate template Tuple with argument Array as it is of the incorrect kind (kind of argument to Tuple is type, kind of Array is <>). _why_
       _why_ leads to: Tuple instantiates argument T.
     Default assumption is that template is correct and the error is in the instantiator as templates are instantiated on average more than once.
-  Get rid of VariadicKind and replace with VariadicTemplateKind, a nullary kind constructor
   Rewrite variadic kind blog post
 
+Done:
+  Get rid of WildKind and allow variadic kinds to be arbitrary
+  Get rid of VariadicKind and replace with VariadicTemplateKind, a nullary kind constructor
+
+
+
+Suppose we have a template that takes a variadic template as an argument:
+  Foo<@T<...>> = { ... };
+  Does that mean that Foo must be instantiated with a variadic template, or that it can be instantiated with any template?
+    The former probably makes more sense
+
+We want to have some generic code (in Template) for dealing with instantiations and partially instantiated templates
+  Template::Implementation knows about ArrayType (via ArrayTemplate::Implementation)
+  Template::PartiallyInstantiatedImplementation needs to know about ArrayType
+
+Should we put our instantiations cache in Tyco or in Template and Tuple?
+  In Tyco would add 3 words to every Type::Implementation - quite a lot. Let's try putting it in Tyco and Template first.
+    Or should TupleTyco inherit from Template and just add its own type-stuff?
+
+
+Is T the same type as (T)?
+  We'd like the two to act the same in every way with the possible exception of instantiation:
+    T<Int> should be illegal since T is a type but
+    (T)<Int> should be a synonym for Tuple<T><Int> which is Tuple<T, Int> which is (T, Int).
+    The kind of T is Type but the kind of (T) is VariadicTemplateKind
+      Does that mean that Foo<T> and Foo<(T)> are different?
+        And for that matter can we pass a tyco of kind VariadicTemplateKind to a template expecting a type?
+          Yes. So what about passing a tyco of kind VariadicTemplateKind to a template expecting a <>, say?
+            Since VariadicTemplateKind can be instantiated with anything, it's valid to use one as an argument to any template
+        From the perspective of the type system, T and (T) are identical, they just differ in the kind system
+
+
+Tyco hashes:
+  5 = Template::PartialImplementation
+  3 = ArrayType::Implementation
+  4 = SequenceType::Implementation
+  6 = TupleTyco::NonUnitImplementation
+  1 = PointerType::Implementation
+  2 = FunctionType::Implementation
+  7 = LessThanType::Implementation
+
+
+
+Should the elements of a tuple be addressable, e.g. via []?
+  [] really implies homogeneous containers - "." is used for heterogeneous
+  The obvious would be first, second, third, etc... but we don't want to hard-code those
+  C# uses Item1, Item2, ...
+  Better to use lvalue tuples to avoid the necessity of having to name the elements
+  There's no reason why we shouldn't use 0, 1, 2, 3, ... on the right side of . and -> - terse, easy to remember and unsurprising
+    Slightly confusing in that a=1, foo.a doesn't do foo.1 but that's ok - if you want an array, use one.
+    has() is for . and -> so we do want to implement has().

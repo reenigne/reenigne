@@ -311,6 +311,21 @@ public:
         _state = (*members)["state"].value<State>();
     }
     String name() const { return "dma"; }
+
+    class Type : public ComponentType
+    {
+    public:
+        Type(Simulator* simulator)
+          : ComponentType(new Implementation(simulator)) { }
+    private:
+        class Implementation : public ComponentType::Implementation
+        {
+        public:
+            Implementation(Simulator* simulator)
+              : ComponentType::Implementation(simulator) { }
+            String toString() const { return "Intel8237DMA"; }
+        };
+    };
 private:
     void checkForDMA()
     {

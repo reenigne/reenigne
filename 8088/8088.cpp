@@ -89,22 +89,14 @@ private:
 
 class ComponentType : public Type
 {
-    void setSimulator(Simulator* simulator)
-    {
-        implementation()->setSimulator(simulator);
-    }
-private:
+protected:
     class Implementation : public Type::Implementation
     {
     public:
-        void setSimulator(Simulator* simulator) { _simulator = simulator; }
+        Implementation(Simulator* simulator) : _simulator(simulator) { }
     private:
         Simulator* _simulator;
     };
-    const Implementation* implementation() const
-    {
-        return _implementation.referent<Implementation>();
-    }
 };
 
 template<class T> class ComponentTemplate : public Structure
@@ -220,6 +212,16 @@ public:
     class Type : public ComponentType
     {
     public:
+        Type(Simulator* simulator)
+          : ComponentType(new Implementation(simulator)) { }
+    private:
+        class Implementation : public ComponentType::Implementation
+        {
+        public:
+            Implementation(Simulator* simulator)
+              : ComponentType::Implementation(simulator) { }
+            String toString() const { return "ISA8BitBus"; }
+        };
     };
 
     void addComponent(ISA8BitComponent* component)
@@ -300,6 +302,22 @@ public:
     }
     String name() const { return "nmiSwitch"; }
     bool nmiOn() const { return _nmiOn; }
+
+    class Type : public ComponentType
+    {
+    public:
+        Type(Simulator* simulator)
+          : ComponentType(new Implementation(simulator)) { }
+    private:
+        class Implementation : public ComponentType::Implementation
+        {
+        public:
+            Implementation(Simulator* simulator)
+              : ComponentType::Implementation(simulator) { }
+            String toString() const { return "NMISwitch"; }
+        };
+    };
+
 private:
     bool _nmiOn;
 };
@@ -318,7 +336,7 @@ private:
 
 #include "dram.h"
 
-template<class T> class RAM640kBTemplate : public ISA8BitComponent
+template<class T> class RAM : public ISA8BitComponent
 {
 public:
     void site()
@@ -414,6 +432,21 @@ public:
             ", address: " + hex(_address, 5) + " }\n";
     }
     String name() const { return "ram"; }
+
+    class Type : public ComponentType
+    {
+    public:
+        Type(Simulator* simulator)
+          : ComponentType(new Implementation(simulator)) { }
+    private:
+        class Implementation : public ComponentType::Implementation
+        {
+        public:
+            Implementation(Simulator* simulator)
+              : ComponentType::Implementation(simulator) { }
+            String toString() const { return "RAM"; }
+        };
+    };
 private:
     int _address;
     DRAM _dram;
@@ -487,6 +520,20 @@ public:
         }
     }
  
+    class Type : public ComponentType
+    {
+    public:
+        Type(Simulator* simulator)
+          : ComponentType(new Implementation(simulator)) { }
+    private:
+        class Implementation : public ComponentType::Implementation
+        {
+        public:
+            Implementation(Simulator* simulator)
+              : ComponentType::Implementation(simulator) { }
+            String toString() const { return "DMAPageRegisters"; }
+        };
+    };
 private:
     int _address;
     int _dmaPages[4];
@@ -2375,6 +2422,21 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         this->_tick = (*members)["tick"].value<int>();
     }
     String name() const { return "cpu"; }
+    
+    class Type : public ComponentType
+    {
+    public:
+        Type(Simulator* simulator)
+          : ComponentType(new Implementation(simulator)) { }
+    private:
+        class Implementation : public ComponentType::Implementation
+        {
+        public:
+            Implementation(Simulator* simulator)
+              : ComponentType::Implementation(simulator) { }
+            String toString() const { return "Intel8088"; }
+        };
+    };
 
 private:
     enum IOType
@@ -3169,11 +3231,11 @@ private:
     }
 };
 
-Nullary<Type, ROMDataType> Nullary<Type, ROMDataType>::_implementation;
+Nullary<Type, ROMDataType> Nullary<Type, ROMDataType>::_instance;
 
 #include "cga.h"
 
-template<class T> class SimulatorTemplate : public Component
+template<class T> class SimulatorTemplate
 {
 public:
     SimulatorTemplate(File configFile) : _halted(false)
@@ -3324,21 +3386,22 @@ protected:
         }
 
         Simulator simulator;
+        Simulator* p = &simulator;
 
         List<ComponentType> componentTypes;
-        componentTypes.add(Intel8088::Type());
-        componentTypes.add(ISA8BitBus::Type());
-        componentTypes.add(RAM::Type());
-        componentTypes.add(NMISwitch::Type());
-        componentTypes.add(DMAPageRegisters::Type());
-        componentTypes.add(Intel8259PIC::Type());
-        componentTypes.add(Intel8237DMA::Type());
-        componentTypes.add(Intel8255PPI::Type());
-        componentTypes.add(Intel8253PIT::Type());
-        componentTypes.add(PCXTKeyboardPort::Type());
-        componentTypes.add(PCXTKeyboard::Type());
-        componentTypes.add(IBMCGA::Type());
-        componentTypes.add(RGBIMonitor::Type());
+        componentTypes.add(Intel8088::Type(p));
+        componentTypes.add(ISA8BitBus::Type(p));
+        componentTypes.add(RAM::Type(p));
+        componentTypes.add(NMISwitch::Type(p));
+        componentTypes.add(DMAPageRegisters::Type(p));
+        componentTypes.add(Intel8259PIC::Type(p));
+        componentTypes.add(Intel8237DMA::Type(p));
+        componentTypes.add(Intel8255PPI::Type(p));
+        componentTypes.add(Intel8253PIT::Type(p));
+        componentTypes.add(PCXTKeyboardPort::Type(p));
+        componentTypes.add(PCXTKeyboard::Type(p));
+        componentTypes.add(IBMCGA::Type(p));
+        componentTypes.add(RGBIMonitor::Type(p));
 
         ConfigFile configFile;
         configFile.addDefaultOption("stopAtCycle", IntegerType(), -1);
@@ -3346,12 +3409,11 @@ protected:
         configFile.addDefaultOption("initialState", StringType(), String(""));
         configFile.addType(TimeType());
 
-        for (auto i = componentTypes.begin(); i != componentTypes.end(); ++i) {
-            i->setSimulator(&simulator);
+        for (auto i = componentTypes.begin(); i != componentTypes.end(); ++i)
             configFile.addType(*i);
-        }
 
         configFile.addDefaultOption("second", TimeType(), Rational<int>(1));
+
 
 
         //RGBIMonitor monitor;

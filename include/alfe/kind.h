@@ -15,6 +15,7 @@
 class Kind
 {
 public:
+    Kind() { }
     String toString() const { return _implementation->toString(); }
     bool valid() const { return _implementation.valid(); }
     bool operator==(const Kind& other) const
@@ -33,6 +34,10 @@ public:
     {
         return T(_implementation.referent<T::Implementation>());
     }
+    Kind instantiate(Kind argument) const
+    {
+        return _implementation->instantiate(argument);
+    }
 protected:
     class Implementation : public ReferenceCounted
     {
@@ -43,6 +48,7 @@ protected:
             return this == other;
         }
         virtual int hash() const { return reinterpret_cast<intptr_t>(this); }
+        virtual Kind instantiate(Kind argument) const = 0;
     };
     Kind(const Implementation* implementation)
       : _implementation(implementation) { }
@@ -57,62 +63,41 @@ class TypeKind : public Nullary<Kind, TypeKind>
 {
 public:
     static String name() { return String(); }
+private:
+    class Implementation : public ReferenceCounted
+    {
+    public:
+        Kind instantiate(Kind argument) const { return Kind(); }
+    };
 };
 
 Nullary<Kind, TypeKind> Nullary<Kind, TypeKind>::_instance;
 
-// WildKind is a placeholder kind which can be substituted for the kind of any
-// tyco. It cannot be the kind of a real tyco - it is just used for pattern
-// matching.
-class WildKind : public Nullary<Kind, WildKind>
+// VariadicTemplateKind is the kind of a template with a variable number of
+// arguments that are not kind-checked before use.
+class VariadicTemplateKind : public Nullary<Kind, VariadicTemplateKind>
 {
 public:
-    static String name() { return "$"; }
-};
-
-Nullary<Kind, WildKind> Nullary<Kind, WildKind>::_instance;
-
-// VariadicKind is the kind of a sequence of type constructors of kind inner.
-// It cannot be the kind of a real tyco - it is just used for pattern matching.
-class VariadicKind : public Kind
-{
-public:
-    VariadicKind(const Kind& inner) : Kind(new Implementation(inner)) { }
-    Kind inner() const { return implementation()->inner(); }
+    static String name() { return "<...>"; }
 private:
-    class Implementation : public Kind::Implementation
+    class Implementation : public ReferenceCounted
     {
     public:
-        Implementation(const Kind& inner) : _inner(inner) { }
-        String toString() ocnst { return _inner.toString() + "..."; }
-        bool equals(const Implementation* other) const
+        Kind instantiate(Kind argument) const
         {
-            const Implementation* o =
-                dynamic_cast<const Implementation*>(other);
-            if (o == 0)
-                return false;
-            return _inner == o->_inner;
+            return VariadicTemplateKind();
         }
-        int hash() const { return _inner.hash()*67 + 1; }
-        Kind inner() const { return _inner; }
-    private:
-        Kind _inner;
     };
-    const Implementation* implementation() const
-    {
-        return _implementation.referent<Implementation>();
-    }
 };
 
-Nullary<Kind, VariadicKind> Nullary<Kind, VariadicKind>::_instance;
+Nullary<Kind, VariadicTemplateKind>
+    Nullary<Kind, VariadicTemplateKind>::_instance;
 
 // TemplateKind(first, rest) is the kind of a template that yields a tyco of
 // kind "rest" when instantiated with a tyco of kind "first".
 class TemplateKind : public Kind
 {
 public:
-    // Pass in firstParameterKind and the Kind of the result is
-    // restParameterKind.
     TemplateKind(const Kind& firstParameterKind, const Kind& restParameterKind)
       : Kind(new Implementation(firstParameterKind, restParameterKind)) { }
     TemplateKind(const Kind& kind) : Kind(kind) { }
@@ -126,19 +111,24 @@ protected:
             const Kind& restParameterKind)
           : _firstParameterKind(firstParameterKind),
             _restParameterKind(restParameterKind) { }
-        String toString() const
+        String toString() const { return "<" + toString2(); }
+        String toString2() const
         {
-            String s("<");
-            TemplateKind k(this);
+            Kind k(this);
             bool needComma = false;
+            String s;
             do {
                 if (needComma)
                     s += ", ";
-                s += k.first().toString();
-                k = k.rest();
+                if (k == VariadicTemplateKind())
+                    return s + "...>";
+                if (k == TypeKind())
+                    return s + ">";
+                TemplateKind t(this);
+                s += t.first().toString();
+                k = t.rest();
                 needComma = true;
-            } while (k != TypeKind());
-            return s + ">";
+            } while (true);
         }
         bool equals(const Kind::Implementation* other) const
         {
@@ -156,6 +146,20 @@ protected:
         }
         Kind first() const { return _firstParameterKind; }
         Kind rest() const { return _restParameterKind; }
+        Kind instantiate(Kind argument) const
+        {
+            // A tyco of kind VariadicTemplateKind can act as a type or a
+            // template of any kind so (for the purposes of initial kind
+            // checking) such a tyco can be passed to any template. Note that
+            // the tyco will probably perform its own kind checking when
+            // instantiated, so that there will be a suitable error when, say,
+            // a Tuple is passed to a template of kind <<<>>>.
+
+            if (argument == _firstParameterKind ||
+                argument == VariadicTemplateKind())
+                return _restParameterKind;
+            return Kind();
+        }
     private:
         Kind _firstParameterKind;
         Kind _restParameterKind;
@@ -165,22 +169,5 @@ protected:
         return _implementation.referent<Implementation>();
     }
 };
-
-class VariadicTemplateKind : public Nullary<TemplateKind, VariadicTemplateKind>
-{
-public:
-    class Implementation : public TemplateKind::Implementation
-    {
-    public:
-        Implementation()
-          : TemplateKind::Implementation(
-            VariadicKind(TypeKind()), TypeKind()) { }
-    };
-};
-
-// VariadicTemplateKind is the kind of a template that yields a type for any
-// sequence of types. It is the kind of Tuple.
-Nullary<Kind, VariadicTemplateKind>
-    Nullary<Kind, VariadicTemplateKind>::_instance;
 
 #endif // INCLUDED_KIND_H

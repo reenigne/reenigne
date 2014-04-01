@@ -106,3 +106,9 @@ Problem:
         Text ABIs: XML, JSON, RFC822 etc.
 
 
+A structure with layout is a structure whose binary format is completely specified.
+  Only if a structure has layout can a pointer to it be passed to an external function
+    The compiler will check for this and emit an error message if the ABI is not specified
+  A structure has layout if all its components have structure and defined offsets
+  An integer has layout if its size and endianness are defined
+  A pointer has layout if the type it points to is defined
