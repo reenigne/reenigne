@@ -36,11 +36,11 @@ public:
         }
         _stateType = EnumerationType("DMAState", stateValues);
     }
-    void site()
-    {
-        _pageRegisters = this->_simulator->getDMAPageRegisters();
-        _bus = this->_simulator->getBus();
-    }
+    //void site()
+    //{
+    //    _pageRegisters = this->_simulator->getDMAPageRegisters();
+    //    _bus = this->_simulator->getBus();
+    //}
     void simulateCycle()
     {
         TransferMode mode = _channels[_channel].transferMode();
@@ -264,7 +264,7 @@ public:
             ", state: " + stringForState(_state) +
             " }\n";
     }
-    PersistenceType persistenceType() const
+    ::Type persistenceType() const
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("active", false));
@@ -272,7 +272,8 @@ public:
         members.add(StructuredType::Member("address", 0));
         members.add(StructuredType::Member("command", 0));
         members.add(StructuredType::Member("channels",
-            TypedValue(Type::array(_channels[0].type()), List<TypedValue>())));
+            TypedValue(SequenceType(_channels[0].type()),
+                List<TypedValue>())));
         members.add(StructuredType::Member("lastByte", false));
         members.add(StructuredType::Member("temporary", 0));
         members.add(StructuredType::Member("channel", 0));
@@ -310,19 +311,18 @@ public:
         _highAddress = (*members)["highAddress"].value<int>();
         _state = (*members)["state"].value<State>();
     }
-    String name() const { return "dma"; }
 
-    class Type : public ComponentType
+    class Type : public Component::Type
     {
     public:
         Type(Simulator* simulator)
-          : ComponentType(new Implementation(simulator)) { }
+          : Component::Type(new Implementation(simulator)) { }
     private:
-        class Implementation : public ComponentType::Implementation
+        class Implementation : public Component::Type::Implementation
         {
         public:
             Implementation(Simulator* simulator)
-              : ComponentType::Implementation(simulator) { }
+              : Component::Type::Implementation(simulator) { }
             String toString() const { return "Intel8237DMA"; }
         };
     };

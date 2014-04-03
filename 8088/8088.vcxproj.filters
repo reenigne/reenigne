@@ -1,9 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="8088.cpp" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="8237.h" />
     <ClInclude Include="8253.h" />
     <ClInclude Include="..\include\alfe\array.h" />
@@ -31,8 +28,19 @@
     <ClInclude Include="pcxt_keyboard_port.h" />
     <ClInclude Include="..\include\alfe\kind.h" />
     <ClInclude Include="..\include\alfe\nullary.h" />
+    <ClInclude Include="..\include\alfe\assert.h" />
+    <ClInclude Include="..\include\alfe\handle.h" />
+    <ClInclude Include="rom.h" />
+    <ClInclude Include="dma_page_registers.h" />
+    <ClInclude Include="8088.h" />
+    <ClInclude Include="ram.h" />
+    <ClInclude Include="nmi_switch.h" />
+    <ClInclude Include="isa_8_bit_bus.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="scratch.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="berapa.cpp" />
   </ItemGroup>
 </Project>

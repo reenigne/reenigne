@@ -32,8 +32,8 @@ int parseHexadecimalCharacter(CharacterSource* source, Span* span)
 class Structure
 {
 public:
-    template<class T> T get(String name) { return get(name).value<T>(); }
-    virtual TypedValue get(String name) = 0;
+    template<class T> T get(String name) { return getValue(name).value<T>(); }
+    virtual TypedValue getValue(String name) = 0;
     virtual void set(String name, TypedValue value) = 0;
 };
 
@@ -128,7 +128,7 @@ public:
                     " not defined and no default is available.");
         }
     }
-    TypedValue get(String name) { return rValue(_options[name]); }
+    TypedValue getValue(String name) { return rValue(_options[name]); }
     void set(String name, TypedValue value) { _options[name] = value; }
     File file() const { return _file; }
 private:
@@ -515,8 +515,6 @@ private:
                     if (!e.type().has(name))
                         s.throwError("Expression has no member named " + name);
                     auto m = e.value<Value<HashTable<String, TypedValue>>>();
-                    //if (!(*m).hasKey(name))
-                    //    s.throwError("Expression has no member named " + name);
                     e = (*m)[name];
                     e = TypedValue(e.type(), e.value(), s);
                 }
@@ -525,9 +523,7 @@ private:
                         s.throwError("Expression has no member named " + name);
                     Structure* p =
                         e.value<LValue>().rValue().value<Structure*>();
-                    //if (!p->has(name))
-                    //    s.throwError("Expression has no member named " + name);
-                    e = TypedValue(LValueType::wrap(p->get(name).type()),
+                    e = TypedValue(LValueType::wrap(p->getValue(name).type()),
                         LValue(p, name), s);
                 }
             }
@@ -711,7 +707,7 @@ private:
     public:
         LValue(Structure* structure, String name)
           : _structure(structure), _name(name) { }
-        TypedValue rValue() const { return _structure->get(_name); }
+        TypedValue rValue() const { return _structure->getValue(_name); }
         void set(TypedValue value) const { _structure->set(_name, value); }
     private:
         Structure* _structure;

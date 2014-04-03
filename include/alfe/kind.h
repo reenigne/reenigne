@@ -63,7 +63,7 @@ class TypeKind : public Nullary<Kind, TypeKind>
 {
 public:
     static String name() { return String(); }
-private:
+
     class Implementation : public ReferenceCounted
     {
     public:

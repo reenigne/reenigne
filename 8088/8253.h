@@ -12,13 +12,13 @@ public:
         for (int i = 0; i < 3; ++i)
             _timers[i]->setGate(true);
     }
-    void site()
-    {
-        _pic = this->_simulator->getPIC();
-        _timer0.setPIC(_pic);
-        _timer1.setSite(this->_simulator);
-        _timer2.setPPI(this->_simulator->getPPI());
-    }
+    //void site()
+    //{
+    //    _pic = this->_simulator->getPIC();
+    //    _timer0.setPIC(_pic);
+    //    _timer1.setSite(this->_simulator);
+    //    _timer2.setPPI(this->_simulator->getPPI());
+    //}
     void simulateCycle()
     {
         for (int i = 0; i < 3; ++i)
@@ -62,14 +62,14 @@ public:
         }
         return s + " }}\n";
     }
-    PersistenceType persistenceType() const
+    ::Type persistenceType() const
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("active", false));
         members.add(StructuredType::Member("tick", 0));
         members.add(StructuredType::Member("address", 0));
         members.add(StructuredType::Member("timers",
-            TypedValue(Type::array(_timer0.type()), List<TypedValue>())));
+            TypedValue(SequenceType(_timer0.type()), List<TypedValue>())));
         return StructuredType("PIT", members);
     }
     void load(const TypedValue& value)
@@ -94,19 +94,18 @@ public:
                 convertTo(_timer0.type()));
         }
     }
-    String name() const { return "pit"; }
 
-    class Type : public ComponentType
+    class Type : public Component::Type
     {
     public:
         Type(Simulator* simulator)
-          : ComponentType(new Implementation(simulator)) { }
+          : Component::Type(new Implementation(simulator)) { }
     private:
-        class Implementation : public ComponentType::Implementation
+        class Implementation : public Component::Type::Implementation
         {
         public:
             Implementation(Simulator* simulator)
-              : ComponentType::Implementation(simulator) { }
+              : Component::Type::Implementation(simulator) { }
             String toString() const { return "Intel8253PIT"; }
         };
     };

@@ -85,17 +85,17 @@ public:
             _interrupt = false;
         }
     }
-    class Type : public ComponentType
+    class Type : public Component::Type
     {
     public:
         Type(Simulator* simulator)
-          : ComponentType(new Implementation(simulator)) { }
+          : Component::Type(new Implementation(simulator)) { }
     private:
-        class Implementation : public ComponentType::Implementation
+        class Implementation : public Component::Type::Implementation
         {
         public:
             Implementation(Simulator* simulator)
-              : ComponentType::Implementation(simulator) { }
+              : Component::Type::Implementation(simulator) { }
             String toString() const { return "Intel8259PIC"; }
         };
     };

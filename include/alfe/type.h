@@ -284,17 +284,49 @@ protected:
                 return finalInstantiate(this, argument);
             return new PartialImplementation(this, this, argument);
         }
-        virtual Type finalInstantiate(Implementation* parent, Tyco argument)
-            const = 0;
+        virtual Type finalInstantiate(const Implementation* parent, Tyco
+            argument) const = 0;
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
     class PartialImplementation : public Implementation
     {
     public:
-        PartialImplementation(Implementation* root, Implementation* parent,
-            Tyco argument)
+        PartialImplementation(const Implementation* root,
+            const Implementation* parent, Tyco argument)
           : _root(root), _parent(parent), _argument(argument) { }
+
+        String toString() const
+        {
+            return _argument.toString() + "<" + toString2() + ">";
+        }
+        String toString2() const
+        {
+            auto p = dynamic_cast<const PartialImplementation*>(_parent);
+            String s;
+            if (p != 0)
+                s = _parent->toString2() + ", ";
+            return s + _argument.toString();
+        }
+        Kind kind() const
+        {
+            return _parent->kind().instantiate(_argument.kind());
+        }
+        TypedValue tryConvert(const TypedValue& value, String* reason) const
+        {
+            assert(false);
+        }
+        TypedValue tryConvertTo(const Type& to, const TypedValue& value,
+            String* reason) const
+        {
+            assert(false);
+        }
+        bool has(String memberName) const { assert(false); }
+        Type finalInstantiate(const Implementation* parent, Tyco argument)
+            const
+        {
+            assert(false);
+        }
 
         Tyco partialInstantiate(bool final, Tyco argument) const
         {
@@ -313,11 +345,11 @@ protected:
         {
             return (_parent->hash()*67 + 5)*67 + _argument.hash();
         }
-        Implementation* parent() const { return _parent; }
+        const Implementation* parent() const { return _parent; }
         Tyco argument() const { return _argument; }
     private:
-        Implementation* _root;
-        Implementation* _parent;
+        const Implementation* _root;
+        const Implementation* _parent;
         Tyco _argument;
     };
 };
@@ -879,6 +911,12 @@ public:
     const Array<Member>* members() const
     {
         return implementation()->members();
+    }
+    static TypedValue empty()
+    {
+        return TypedValue(StructuredType(String(),
+            List<StructuredType::Member>()),
+            Value<HashTable<String, TypedValue>>());
     }
 private:
     class Implementation : public Type::Implementation
