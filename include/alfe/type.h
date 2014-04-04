@@ -286,6 +286,16 @@ protected:
         }
         virtual Type finalInstantiate(const Implementation* parent, Tyco
             argument) const = 0;
+        TypedValue tryConvert(const TypedValue& value, String* reason) const
+        {
+            assert(false);
+        }
+        TypedValue tryConvertTo(const Type& to, const TypedValue& value,
+            String* reason) const
+        {
+            assert(false);
+        }
+        bool has(String memberName) const { assert(false); }
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -305,23 +315,13 @@ protected:
             auto p = dynamic_cast<const PartialImplementation*>(_parent);
             String s;
             if (p != 0)
-                s = _parent->toString2() + ", ";
+                s = p->toString2() + ", ";
             return s + _argument.toString();
         }
         Kind kind() const
         {
             return _parent->kind().instantiate(_argument.kind());
         }
-        TypedValue tryConvert(const TypedValue& value, String* reason) const
-        {
-            assert(false);
-        }
-        TypedValue tryConvertTo(const Type& to, const TypedValue& value,
-            String* reason) const
-        {
-            assert(false);
-        }
-        bool has(String memberName) const { assert(false); }
         Type finalInstantiate(const Implementation* parent, Tyco argument)
             const
         {
@@ -352,6 +352,8 @@ protected:
         const Implementation* _parent;
         Tyco _argument;
     };
+    TemplateTemplate(const Implementation* implementation)
+      : Tyco(implementation) { }
 };
 
 class ArrayType : public Type
@@ -359,9 +361,10 @@ class ArrayType : public Type
 public:
     ArrayType(const Type& contained, const Type& indexer)
       : Type(new Implementation(contained, indexer)) { }
+    ArrayType(const Implementation* implementation) : Type(implementation) { }
     Type contained() const { return implementation()->contained(); }
     Type indexer() const { return implementation()->indexer(); }
-private:
+
     class Implementation : public Type::Implementation
     {
     public:
@@ -389,6 +392,7 @@ private:
         Type _contained;
         Type _indexer;
     };
+private:
     const Implementation* implementation() const
     {
         return _implementation.referent<Implementation>();
@@ -399,7 +403,7 @@ class ArrayTemplate : public Nullary<Template, ArrayTemplate>
 {
 public:
     static String name() { return "Array"; }
-private:
+
     class Implementation : public Nullary::Implementation
     {
     public:
@@ -409,7 +413,7 @@ private:
                 TemplateKind(TypeKind(), TypeKind()));
         }
         Type finalInstantiate(const Template::Implementation* parent,
-            const Tyco& argument) const
+            Tyco argument) const
         {
             return ArrayType(
                 dynamic_cast<const Template::PartialImplementation*>(parent)->
@@ -459,13 +463,13 @@ class SequenceTemplate : public Nullary<Template, SequenceTemplate>
 {
 public:
     static String name() { return "Sequence"; }
-private:
+
     class Implementation : public Nullary::Implementation
     {
     public:
         Kind kind() const { return TemplateKind(TypeKind(), TypeKind()); }
         Type finalInstantiate(const Template::Implementation* parent,
-            const Tyco& argument) const
+            Tyco argument) const
         {
             return SequenceType(argument);
         }
@@ -495,9 +499,6 @@ public:
             return TupleTyco();
         return i->parent();
     }
-private:
-    TupleTyco(const Implementation* implementation) : Tyco(implementation) { }
-
     class Implementation : public Tyco::Implementation
     {
     public:
@@ -550,6 +551,9 @@ private:
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
+    TupleTyco(const Implementation* implementation) : Tyco(implementation) { }
+private:
+
     class NonUnitImplementation : public Implementation
     {
     public:
@@ -661,13 +665,13 @@ class PointerTemplate : public Nullary<Template, PointerTemplate>
 {
 public:
     static String name() { return "Pointer"; }
-private:
+
     class Implementation : public Nullary::Implementation
     {
     public:
         Kind kind() const { return TemplateKind(TypeKind(), TypeKind()); }
         Type finalInstantiate(const Template::Implementation* parent,
-            const Tyco& argument) const
+            Tyco argument) const
         {
             return PointerType(argument);
         }
@@ -781,7 +785,7 @@ class FunctionTemplate : public Nullary<Template, FunctionTemplate>
 {
 public:
     static String name() { return "Pointer"; }
-private:
+
     class Implementation : public Nullary::Implementation
     {
     public:
@@ -794,7 +798,7 @@ private:
             return TemplateKind(TypeKind(), VariadicTemplateKind());
         }
         Type finalInstantiate(const Template::Implementation* parent,
-            const Tyco& argument) const { assert(false); }
+            Tyco argument) const { assert(false); }
     };
 };
 

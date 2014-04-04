@@ -64,7 +64,7 @@ class TypeKind : public Nullary<Kind, TypeKind>
 public:
     static String name() { return String(); }
 
-    class Implementation : public ReferenceCounted
+    class Implementation : public Nullary::Implementation
     {
     public:
         Kind instantiate(Kind argument) const { return Kind(); }
@@ -79,8 +79,8 @@ class VariadicTemplateKind : public Nullary<Kind, VariadicTemplateKind>
 {
 public:
     static String name() { return "<...>"; }
-private:
-    class Implementation : public ReferenceCounted
+
+    class Implementation : public Nullary::Implementation
     {
     public:
         Kind instantiate(Kind argument) const

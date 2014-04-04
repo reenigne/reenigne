@@ -293,7 +293,7 @@ private:
                 ", state: " + stringForState(_state) +
                 " }";
         }
-        Type type() const
+        ::Type type() const
         {
             List<StructuredType::Member> members;
             members.add(StructuredType::Member("value", 0));
