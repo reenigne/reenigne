@@ -9,6 +9,8 @@
 #include "alfe/nullary.h"
 #include "alfe/kind.h"
 #include "alfe/assert.h"
+#include "alfe/function.h"
+#include "alfe/identifier.h"
 
 template<class T> class TemplateTemplate;
 typedef TemplateTemplate<void> Template;
@@ -64,6 +66,8 @@ protected:
         virtual TypedValueTemplate<T> tryConvertTo(const Type& to,
             const TypedValue& value, String* reason) const = 0;
         virtual bool has(String memberName) const = 0;
+        virtual Function function(Identifier identifier,
+            const List<Type>& argumentTypes) const = 0;
 
         // Template
         virtual Tyco instantiate(const Tyco& argument) const = 0;
@@ -102,6 +106,11 @@ public:
     {
         return _implementation->has(memberName);
     }
+    Function function(Identifier identifier, const List<Type>& argumentTypes)
+        const
+    {
+        return _implementation->function(identifier, argumentTypes);
+    }
     TypeTemplate(const Implementation* implementation)
       : Tyco(implementation) { }
     const Implementation* implementation() const
@@ -128,6 +137,11 @@ protected:
             return TypedValueTemplate<T>();
         }
         virtual bool has(String memberName) const { return false; }
+        Function function(Identifier identifier,
+            const List<Type>& argumentTypes) const
+        {
+            return Function();
+        }
 
         Tyco instantiate(const Tyco& argument) const
         {
@@ -289,13 +303,22 @@ protected:
         TypedValue tryConvert(const TypedValue& value, String* reason) const
         {
             assert(false);
+            return TypedValue();
         }
         TypedValue tryConvertTo(const Type& to, const TypedValue& value,
             String* reason) const
         {
             assert(false);
+            return TypedValue();
         }
-        bool has(String memberName) const { assert(false); }
+        bool has(String memberName) const { assert(false); return false;  }
+        Function function(Identifier identifier,
+            const List<Type>& argumentTypes) const
+        {
+            assert(false);
+            return Function();
+        }
+
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -326,6 +349,7 @@ protected:
             const
         {
             assert(false);
+            return Type();
         }
 
         Tyco partialInstantiate(bool final, Tyco argument) const
@@ -531,6 +555,11 @@ public:
             return TypedValue();
         }
         bool has(String memberName) const { return false; }
+        Function function(Identifier identifier,
+            const List<Type>& argumentTypes) const
+        {
+            return Function();
+        }
 
         // Template
         Tyco instantiate(const Tyco& argument) const
@@ -711,6 +740,11 @@ private:
             return TypedValue();
         }
         virtual bool has(String memberName) const { return false; }
+        Function function(Identifier identifier,
+            const List<Type>& argumentTypes) const
+        {
+            return Function();
+        }
         // Template
         Tyco instantiate(const Tyco& argument) const
         {
@@ -798,7 +832,11 @@ public:
             return TemplateKind(TypeKind(), VariadicTemplateKind());
         }
         Type finalInstantiate(const Template::Implementation* parent,
-            Tyco argument) const { assert(false); }
+            Tyco argument) const
+        {
+            assert(false);
+            return Type(); 
+        }
     };
 };
 
@@ -1106,5 +1144,7 @@ private:
 
     friend class Implementation;
 };
+
+
 
 #endif // INCLUDED_TYPE_H

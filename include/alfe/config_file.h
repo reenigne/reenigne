@@ -9,6 +9,7 @@
 #include "alfe/type.h"
 #include "alfe/value.h"
 #include "alfe/set.h"
+#include "alfe/expression.h"
 
 int parseHexadecimalCharacter(CharacterSource* source, Span* span)
 {
@@ -66,7 +67,7 @@ public:
             if (s.get() == -1)
                 break;
             s = source;
-            Identifier identifier = parseIdentifier(&s);
+            Identifier identifier = Identifier::parse(&s);
             String name = identifier.name();
             Span span;
             if (name == "include") {
@@ -80,7 +81,7 @@ public:
                 if (!_types.hasKey(name))
                     identifier.span().throwError("Unknown type " + name);
                 Type type = _types[name];
-                Identifier objectIdentifier = parseIdentifier(&s);
+                Identifier objectIdentifier = Identifier::parse(&s);
                 String objectName = objectIdentifier.name();
                 if (_options.hasKey(name))
                     objectIdentifier.span().throwError(name +
@@ -132,45 +133,6 @@ public:
     void set(String name, TypedValue value) { _options[name] = value; }
     File file() const { return _file; }
 private:
-    class Identifier
-    {
-    public:
-        Identifier() { }
-        Identifier(String name, Span span) : _name(name), _span(span) { }
-        String name() const { return _name; }
-        Span span() const { return _span; }
-        bool valid() const { return !_name.empty(); }
-    private:
-        String _name;
-        Span _span;
-    };
-
-    Identifier parseIdentifier(CharacterSource* source)
-    {
-        CharacterSource s = *source;
-        Location startLocation = s.location();
-        int startOffset = s.offset();
-        Span startSpan;
-        Span endSpan;
-        int c = s.get(&startSpan);
-        if (!(c >= 'A'&& c <= 'Z') && !(c >= 'a' && c <= 'z'))
-            return Identifier();
-        CharacterSource s2;
-        do {
-            s2 = s;
-            c = s.get(&endSpan);
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                (c >= '0' && c <= '9') || c == '_')
-                continue;
-            break;
-        } while (true);
-        int endOffset = s2.offset();
-        Location endLocation = s2.location();
-        Space::parse(&s2);
-        String name = s2.subString(startOffset, endOffset);
-        *source = s2;
-        return Identifier(name, startSpan + endSpan);
-    }
     void throwError(CharacterSource* source)
     {
         source->location().throwError("Expected expression");
@@ -282,7 +244,7 @@ private:
                     break;
                 case '$':
                     {
-                        Identifier i = parseIdentifier(source);
+                        Identifier i = Identifier::parse(source);
                         if (!i.valid()) {
                             if (Space::parseCharacter(source, '(', &span)) {
                                 part = rValue(parseExpression(source));
@@ -429,7 +391,7 @@ private:
         e = parseInteger(source);
         if (e.valid())
             return e;
-        Identifier i = parseIdentifier(source);
+        Identifier i = Identifier::parse(source);
         if (i.valid()) {
             String name = i.name();
             if (name[0] >= 'a' && name[0] <= 'z') {
@@ -505,7 +467,7 @@ private:
         do {
             Span span;
             if (Space::parseCharacter(source, '.', &span)) {
-                Identifier i = parseIdentifier(source);
+                Identifier i = Identifier::parse(source);
                 if (!i.valid())
                     source->location().throwError("Identifier expected");
                 String name = i.name();

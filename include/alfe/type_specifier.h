@@ -1,9 +1,16 @@
+#include "alfe/main.h"
+
+#ifndef INCLUDED_TYPE_SPECIFIER_H
+#define INCLUDED_TYPE_SPECIFIER_H
+
+#include "alfe/parse_tree_object.h"
+
 template<class T> class ExpressionTemplate;
 typedef ExpressionTemplate<void> Expression;
 
 template<class T> class IdentifierTemplate;
 typedef IdentifierTemplate<void> Identifier;
-                                                                                                                                                 
+
 template<class T> class TycoSpecifierTemplate;
 typedef TycoSpecifierTemplate<void> TycoSpecifier;
 
@@ -35,7 +42,7 @@ public:
             Span span;
             if (Space::parseCharacter(source, '*', &span)) {
                 tycoSpecifier =
-                    new TycoSpecifier::PointerImplementation(tycoSpecifier,
+                    new TypeSpecifier::PointerImplementation(tycoSpecifier,
                         tycoSpecifier.span() + span);
                 continue;
             }
@@ -44,8 +51,8 @@ public:
                 List<TycoSpecifier> typeListSpecifier =
                     parseList(source);
                 Space::assertCharacter(source, ')', &span);
-                tycoSpecifier = 
-                    new TycoSpecifier::FunctionImplementation(tycoSpecifier,
+                tycoSpecifier =
+                    new TypeSpecifier::FunctionImplementation(tycoSpecifier,
                         typeListSpecifier, tycoSpecifier.span() + span);
                 continue;
             }
@@ -80,7 +87,7 @@ protected:
     };
 
     template<class T> const T* implementation()
-    { 
+    {
         return as<TycoSpecifierTemplate>();
     }
 private:
@@ -585,3 +592,4 @@ private:
 //    }
 //    return s + ")";
 //}
+#endif // INCLUDED_TYPE_SPECIFIER_H

@@ -91,7 +91,7 @@ abc Identifer
 
 -y^2 should be -(y^2), not (-y)^2, so ^ needs to bind more tightly than unary-
 x^y^z should be x^(y^z) not (x^y)^z == x^(y*z) so ^ needs to associate right-to-left
-x.y^2 should be (x.y)^2 not x.(y^2) so ^ needs to bind less tightly that .
+x.y^2 should be (x.y)^2 not x.(y^2) so ^ needs to bind less tightly than .
 
 a ? b ? c : d : e can only mean a ? (b ? c : d) : e
 a ? b : c ? d : e means a ? b : (c ? d : e) not (a ? b : c) ? d : e
@@ -125,4 +125,5 @@ How do we define + in the interpreter?
 
 ~ is overrideable and is a generic (bitwise) NOT. It is defined for Boolean and integer types.
 ! is not overrideable and is only defined for Boolean.
-  However, it is still treated as a
+  The main purpose of using ! instead of ~ is a hint to the compiler "this should be a Boolean"
+    Though we should get that anyway since Boolean isn't convertable

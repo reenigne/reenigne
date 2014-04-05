@@ -1,3 +1,8 @@
+#include "alfe/main.h"
+
+#ifndef INCLUDED_PARSE_TREE_OBJECT_H
+#define INCLUDED_PARSE_TREE_OBJECT_H
+
 class ParseTreeObject
 {
 public:
@@ -39,3 +44,5 @@ protected:
 
     ConstReference<Implementation> _implementation;
 };
+
+#endif // INCLUDED_PARSE_TREE_OBJECT_H

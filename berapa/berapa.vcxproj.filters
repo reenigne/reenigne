@@ -36,6 +36,12 @@
     <ClInclude Include="ram.h" />
     <ClInclude Include="nmi_switch.h" />
     <ClInclude Include="isa_8_bit_bus.h" />
+    <ClInclude Include="..\include\alfe\expression.h" />
+    <ClInclude Include="..\include\alfe\identifier.h" />
+    <ClInclude Include="..\include\alfe\operator.h" />
+    <ClInclude Include="..\include\alfe\parse_tree_object.h" />
+    <ClInclude Include="..\include\alfe\function.h" />
+    <ClInclude Include="..\include\alfe\type_specifier.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="scratch.txt" />
