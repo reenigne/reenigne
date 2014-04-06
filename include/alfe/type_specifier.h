@@ -212,6 +212,8 @@ template<class T> class TycoIdentifierTemplate : public TycoSpecifier
 public:
     TycoIdentifierTemplate(const String& name)
       : TycoSpecifier(new Implementation(name, Span())) { }
+    TycoIdentifierTemplate(const TycoSpecifier& t) : TycoSpecifier(t) { }
+    bool valid() const { return _implementation.is<Implementation>(); }
     static TycoIdentifier parse(CharacterSource* source)
     {
         CharacterSource s = *source;

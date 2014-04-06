@@ -6,6 +6,7 @@
 class Function
 {
 public:
+    virtual TypedValue evaluate(List<TypedValue> arguments) const = 0;
 };
 
 #endif // INCLUDED_FUNCTION_H

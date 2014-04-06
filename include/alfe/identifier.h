@@ -47,18 +47,21 @@ public:
             "else",
             "elseIf",
             "elseUnless",
+            "false",
             "finally",
             "from",
             "for",
             "forever",
             "if",
             "in",
+            "include",
             "new",
             "nothing",
             "return",
             "switch",
             "this",
             "throw",
+            "true"
             "try",
             "unless",
             "until",
@@ -140,7 +143,7 @@ public:
         return Identifier(o, span + endSpan);
     }
 
-    IdentifierTemplate(const Operator& op, const Span& span)
+    IdentifierTemplate(const Operator& op, const Span& span = Span())
       : Expression(new OperatorImplementation(op, span)) { }
 
     String name() const { return as<Identifier>()->name(); }
@@ -150,7 +153,14 @@ public:
     public:
         Implementation(const Span& span) : Expression::Implementation(span) { }
         virtual String name() const = 0;
+        TypedValue evaluate(EvaluationContext* context) const
+        {
+            return context->valueOfIdentifier(this);
+        }
     };
+
+    IdentifierTemplate(Implementation* implementation)
+        : Expression(implementation) { }
 private:
     class NameImplementation : public Implementation
     {
@@ -166,13 +176,11 @@ private:
     public:
         OperatorImplementation(const Operator& op, const Span& span)
           : Implementation(span), _op(op) { }
-        String name() const { return "operator" + _op.name(); }
+        String name() const { return "operator" + _op.toString(); }
     private:
         Operator _op;
     };
     IdentifierTemplate() { }
-    IdentifierTemplate(Implementation* implementation)
-      : Expression(implementation) { }
 };
 
 #endif // INCLUDED_IDENTIFIER_H

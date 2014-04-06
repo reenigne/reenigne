@@ -65,9 +65,7 @@ protected:
             const TypedValueTemplate<T>& value, String* reason) const = 0;
         virtual TypedValueTemplate<T> tryConvertTo(const Type& to,
             const TypedValue& value, String* reason) const = 0;
-        virtual bool has(String memberName) const = 0;
-        virtual Function function(Identifier identifier,
-            const List<Type>& argumentTypes) const = 0;
+        virtual bool has(Identifier memberName) const = 0;
 
         // Template
         virtual Tyco instantiate(const Tyco& argument) const = 0;
@@ -102,14 +100,9 @@ public:
     {
         return _implementation->tryConvertTo(to, value, reason);
     }
-    bool has(String memberName) const
+    bool has(Identifier memberName) const
     {
         return _implementation->has(memberName);
-    }
-    Function function(Identifier identifier, const List<Type>& argumentTypes)
-        const
-    {
-        return _implementation->function(identifier, argumentTypes);
     }
     TypeTemplate(const Implementation* implementation)
       : Tyco(implementation) { }
@@ -136,12 +129,7 @@ protected:
                 return value;
             return TypedValueTemplate<T>();
         }
-        virtual bool has(String memberName) const { return false; }
-        Function function(Identifier identifier,
-            const List<Type>& argumentTypes) const
-        {
-            return Function();
-        }
+        virtual bool has(Identifier memberName) const { return false; }
 
         Tyco instantiate(const Tyco& argument) const
         {
@@ -311,13 +299,7 @@ protected:
             assert(false);
             return TypedValue();
         }
-        bool has(String memberName) const { assert(false); return false;  }
-        Function function(Identifier identifier,
-            const List<Type>& argumentTypes) const
-        {
-            assert(false);
-            return Function();
-        }
+        bool has(Identifier memberName) const { assert(false); return false; }
 
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
@@ -554,12 +536,7 @@ public:
                 return value;
             return TypedValue();
         }
-        bool has(String memberName) const { return false; }
-        Function function(Identifier identifier,
-            const List<Type>& argumentTypes) const
-        {
-            return Function();
-        }
+        bool has(Identifier memberName) const { return false; }
 
         // Template
         Tyco instantiate(const Tyco& argument) const
@@ -625,9 +602,9 @@ private:
                 return value;
             return TypedValue();
         }
-        bool has(String memberName) const
+        bool has(Identifier memberName) const
         {
-            CharacterSource s(memberName);
+            CharacterSource s(memberName.name());
             int n;
             if (!Space::parseInteger(&s, &n))
                 return false;
@@ -713,9 +690,16 @@ template<> Nullary<Template, PointerTemplate>
 class FunctionTyco : public Tyco
 {
 public:
-    FunctionTyco(const Type& returnType)
-      : Tyco(new NullaryImplementation(returnType)) { }
+    FunctionTyco(const Tyco& t) : Tyco(t) { }
+
+    static FunctionTyco nullary(const Type& returnType)
+    {
+        return FunctionTyco(new NullaryImplementation(returnType));
+    }
+    bool valid() const { return implementation() != 0; }
 private:
+    FunctionTyco(const Implementation* implementation)
+      : Tyco(implementation) { }
     class Implementation : public Tyco::Implementation
     {
     public:
@@ -739,12 +723,7 @@ private:
                 return value;
             return TypedValue();
         }
-        virtual bool has(String memberName) const { return false; }
-        Function function(Identifier identifier,
-            const List<Type>& argumentTypes) const
-        {
-            return Function();
-        }
+        virtual bool has(Identifier memberName) const { return false; }
         // Template
         Tyco instantiate(const Tyco& argument) const
         {
@@ -813,6 +792,10 @@ private:
         const Implementation* _parent;
         Type _argumentType;
     };
+    const Implementation* implementation() const
+    {
+        return _implementation.referent<Implementation>();
+    }
 };
 
 class FunctionTemplate : public Nullary<Template, FunctionTemplate>
@@ -1116,7 +1099,7 @@ private:
 
             return TypedValue();
         }
-        bool has(String memberName) const { return _names.hasKey(memberName); }
+        bool has(Identifier memberName) const { return _names.hasKey(memberName); }
 
     private:
         TypedValue tryConvertHelper(const TypedValue& value, const Member* to,

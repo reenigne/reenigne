@@ -3,15 +3,17 @@
 #ifndef INCLUDED_OPERATOR_H
 #define INCLUDED_OPERATOR_H
 
+#include "alfe/nullary.h"
+
 class Operator
 {
 public:
     Operator() { }
 
-    String name() const { return _implementation->name(); }
+    String toString() const { return _implementation->toString(); }
     Operator parse(CharacterSource* source, Span* span) const
     {
-        if (Space::parseOperator(source, name(), span))
+        if (Space::parseOperator(source, toString(), span))
             return *this;
         return Operator();
     }
@@ -21,7 +23,7 @@ protected:
     class Implementation : public ReferenceCounted
     {
     public:
-        virtual String name() const = 0;
+        virtual String toString() const = 0;
     };
 public:
     Operator(const Implementation* implementation)
@@ -30,303 +32,316 @@ private:
     ConstReference<Implementation> _implementation;
 };
 
-template<class T> class OperatorBase : public Operator
-{
-public:
-    OperatorBase() : Operator(op()) { }
-private:
-    class Implementation : public Operator::Implementation
-    {
-    public:
-        String name() const { return T::name(); }
-    };
-    static Operator _operator;
-    static Operator op()
-    {
-        if (!_operator.valid())
-            _operator = new Implementation();
-        return _operator;
-    }
-};
-
-class OperatorEqualTo : public OperatorBase<OperatorEqualTo>
+class OperatorEqualTo : public Nullary<Operator, OperatorEqualTo>
 {
 public:
     static String name() { return "=="; }
 };
 
-Operator OperatorBase<OperatorEqualTo>::_operator;
+Nullary<Operator, OperatorEqualTo>
+    Nullary<Operator, OperatorEqualTo>::_instance;
 
-class OperatorAssignment : public OperatorBase<OperatorAssignment>
+class OperatorAssignment : public Nullary<Operator, OperatorAssignment>
 {
 public:
     static String name() { return "="; }
 };
 
-Operator OperatorBase<OperatorAssignment>::_operator;
+Nullary<Operator, OperatorAssignment>
+    Nullary<Operator, OperatorAssignment>::_instance;
 
-class OperatorAddAssignment : public OperatorBase<OperatorAddAssignment>
+class OperatorAddAssignment : public Nullary<Operator, OperatorAddAssignment>
 {
 public:
     static String name() { return "+="; }
 };
 
-Operator OperatorBase<OperatorAddAssignment>::_operator;
+Nullary<Operator, OperatorAddAssignment>
+    Nullary<Operator, OperatorAddAssignment>::_instance;
 
 class OperatorSubtractAssignment
-  : public OperatorBase<OperatorSubtractAssignment>
+  : public Nullary<Operator, OperatorSubtractAssignment>
 {
 public:
     static String name() { return "-="; }
 };
 
-Operator OperatorBase<OperatorSubtractAssignment>::_operator;
+Nullary<Operator, OperatorSubtractAssignment>
+    Nullary<Operator, OperatorSubtractAssignment>::_instance;
 
 class OperatorMultiplyAssignment
-  : public OperatorBase<OperatorMultiplyAssignment>
+  : public Nullary<Operator, OperatorMultiplyAssignment>
 {
 public:
     static String name() { return "*="; }
 };
 
-Operator OperatorBase<OperatorMultiplyAssignment>::_operator;
+Nullary<Operator, OperatorMultiplyAssignment>
+    Nullary<Operator, OperatorMultiplyAssignment>::_instance;
 
-class OperatorDivideAssignment : public OperatorBase<OperatorDivideAssignment>
+class OperatorDivideAssignment
+  : public Nullary<Operator, OperatorDivideAssignment>
 {
 public:
     static String name() { return "/="; }
 };
 
-Operator OperatorBase<OperatorDivideAssignment>::_operator;
+Nullary<Operator, OperatorDivideAssignment>
+    Nullary<Operator, OperatorDivideAssignment>::_instance;
 
-class OperatorModuloAssignment : public OperatorBase<OperatorModuloAssignment>
+class OperatorModuloAssignment
+  : public Nullary<Operator, OperatorModuloAssignment>
 {
 public:
     static String name() { return "%="; }
 };
 
-Operator OperatorBase<OperatorModuloAssignment>::_operator;
+Nullary<Operator, OperatorModuloAssignment>
+    Nullary<Operator, OperatorModuloAssignment>::_instance;
 
 class OperatorShiftLeftAssignment
-  : public OperatorBase<OperatorShiftLeftAssignment>
+  : public Nullary<Operator, OperatorShiftLeftAssignment>
 {
 public:
     static String name() { return "<<="; }
 };
 
-Operator OperatorBase<OperatorShiftLeftAssignment>::_operator;
+Nullary<Operator, OperatorShiftLeftAssignment>
+    Nullary<Operator, OperatorShiftLeftAssignment>::_instance;
 
 class OperatorShiftRightAssignment
-  : public OperatorBase<OperatorShiftRightAssignment>
+  : public Nullary<Operator, OperatorShiftRightAssignment>
 {
 public:
     static String name() { return ">>="; }
 };
 
-Operator OperatorBase<OperatorShiftRightAssignment>::_operator;
+Nullary<Operator, OperatorShiftRightAssignment>
+    Nullary<Operator, OperatorShiftRightAssignment>::_instance;
 
 class OperatorBitwiseAndAssignment
-  : public OperatorBase<OperatorBitwiseAndAssignment>
+  : public Nullary<Operator, OperatorBitwiseAndAssignment>
 {
 public:
     static String name() { return "&="; }
 };
 
-Operator OperatorBase<OperatorBitwiseAndAssignment>::_operator;
+Nullary<Operator, OperatorBitwiseAndAssignment>
+    Nullary<Operator, OperatorBitwiseAndAssignment>::_instance;
 
 class OperatorBitwiseOrAssignment
-  : public OperatorBase<OperatorBitwiseOrAssignment>
+  : public Nullary<Operator, OperatorBitwiseOrAssignment>
 {
 public:
     static String name() { return "|="; }
 };
 
-Operator OperatorBase<OperatorBitwiseOrAssignment>::_operator;
+Nullary<Operator, OperatorBitwiseOrAssignment>
+    Nullary<Operator, OperatorBitwiseOrAssignment>::_instance;
 
 class OperatorBitwiseXorAssignment
-  : public OperatorBase<OperatorBitwiseXorAssignment>
+  : public Nullary<Operator, OperatorBitwiseXorAssignment>
 {
 public:
     static String name() { return "~="; }
 };
 
-Operator OperatorBase<OperatorBitwiseXorAssignment>::_operator;
+Nullary<Operator, OperatorBitwiseXorAssignment>
+    Nullary<Operator, OperatorBitwiseXorAssignment>::_instance;
 
-class OperatorPowerAssignment : public OperatorBase<OperatorPowerAssignment>
+class OperatorPowerAssignment
+  : public Nullary<Operator, OperatorPowerAssignment>
 {
 public:
     static String name() { return "^="; }
 };
 
-Operator OperatorBase<OperatorPowerAssignment>::_operator;
+Nullary<Operator, OperatorPowerAssignment>
+    Nullary<Operator, OperatorPowerAssignment>::_instance;
 
-class OperatorAmpersand : public OperatorBase<OperatorAmpersand>
+class OperatorAmpersand : public Nullary<Operator, OperatorAmpersand>
 {
 public:
     static String name() { return "&"; }
 };
 
-Operator OperatorBase<OperatorAmpersand>::_operator;
+Nullary<Operator, OperatorAmpersand>
+    Nullary<Operator, OperatorAmpersand>::_instance;
 
-class OperatorBitwiseOr : public OperatorBase<OperatorBitwiseOr>
+class OperatorBitwiseOr : public Nullary<Operator, OperatorBitwiseOr>
 {
 public:
     static String name() { return "|"; }
 };
 
-Operator OperatorBase<OperatorBitwiseOr>::_operator;
+Nullary<Operator, OperatorBitwiseOr>
+    Nullary<Operator, OperatorBitwiseOr>::_instance;
 
-class OperatorTwiddle : public OperatorBase<OperatorTwiddle>
+class OperatorTwiddle : public Nullary<Operator, OperatorTwiddle>
 {
 public:
     static String name() { return "~"; }
 };
 
-Operator OperatorBase<OperatorTwiddle>::_operator;
+Nullary<Operator, OperatorTwiddle>
+    Nullary<Operator, OperatorTwiddle>::_instance;
 
-class OperatorNot : public OperatorBase<OperatorNot>
+class OperatorNot : public Nullary<Operator, OperatorNot>
 {
 public:
     static String name() { return "!"; }
 };
 
-Operator OperatorBase<OperatorNot>::_operator;
+Nullary<Operator, OperatorNot>
+    Nullary<Operator, OperatorNot>::_instance;
 
-class OperatorNotEqualTo : public OperatorBase<OperatorNotEqualTo>
+class OperatorNotEqualTo : public Nullary<Operator, OperatorNotEqualTo>
 {
 public:
     static String name() { return "!="; }
 };
 
-Operator OperatorBase<OperatorNotEqualTo>::_operator;
+Nullary<Operator, OperatorNotEqualTo>
+    Nullary<Operator, OperatorNotEqualTo>::_instance;
 
-class OperatorLessThan : public OperatorBase<OperatorLessThan>
+class OperatorLessThan : public Nullary<Operator, OperatorLessThan>
 {
 public:
     static String name() { return "<"; }
 };
 
-Operator OperatorBase<OperatorLessThan>::_operator;
+Nullary<Operator, OperatorLessThan>
+    Nullary<Operator, OperatorLessThan>::_instance;
 
-class OperatorGreaterThan : public OperatorBase<OperatorGreaterThan>
+class OperatorGreaterThan : public Nullary<Operator, OperatorGreaterThan>
 {
 public:
     static String name() { return ">"; }
 };
 
-Operator OperatorBase<OperatorGreaterThan>::_operator;
+Nullary<Operator, OperatorGreaterThan>
+    Nullary<Operator, OperatorGreaterThan>::_instance;
 
-class OperatorLessThanOrEqualTo : public OperatorBase<OperatorLessThanOrEqualTo>
+class OperatorLessThanOrEqualTo
+  : public Nullary<Operator, OperatorLessThanOrEqualTo>
 {
 public:
     static String name() { return "<="; }
 };
 
-Operator OperatorBase<OperatorLessThanOrEqualTo>::_operator;
+Nullary<Operator, OperatorLessThanOrEqualTo>
+    Nullary<Operator, OperatorLessThanOrEqualTo>::_instance;
 
 class OperatorGreaterThanOrEqualTo
-    : public OperatorBase<OperatorGreaterThanOrEqualTo>
+  : public Nullary<Operator, OperatorGreaterThanOrEqualTo>
 {
 public:
     static String name() { return ">="; }
 };
 
-Operator OperatorBase<OperatorGreaterThanOrEqualTo>::_operator;
+Nullary<Operator, OperatorGreaterThanOrEqualTo>
+    Nullary<Operator, OperatorGreaterThanOrEqualTo>::_instance;
 
-class OperatorShiftLeft : public OperatorBase<OperatorShiftLeft>
+class OperatorShiftLeft : public Nullary<Operator, OperatorShiftLeft>
 {
 public:
     static String name() { return "<<"; }
 };
 
-Operator OperatorBase<OperatorShiftLeft>::_operator;
+Nullary<Operator, OperatorShiftLeft>
+    Nullary<Operator, OperatorShiftLeft>::_instance;
 
-class OperatorShiftRight : public OperatorBase<OperatorShiftRight>
+class OperatorShiftRight : public Nullary<Operator, OperatorShiftRight>
 {
 public:
     static String name() { return ">>"; }
 };
 
-Operator OperatorBase<OperatorShiftRight>::_operator;
+Nullary<Operator, OperatorShiftRight>
+    Nullary<Operator, OperatorShiftRight>::_instance;
 
-class OperatorPlus : public OperatorBase<OperatorPlus>
+class OperatorPlus : public Nullary<Operator, OperatorPlus>
 {
 public:
     static String name() { return "+"; }
 };
 
-Operator OperatorBase<OperatorPlus>::_operator;
+Nullary<Operator, OperatorPlus> Nullary<Operator, OperatorPlus>::_instance;
 
-class OperatorMinus : public OperatorBase<OperatorMinus>
+class OperatorMinus : public Nullary<Operator, OperatorMinus>
 {
 public:
     static String name() { return "-"; }
 };
 
-Operator OperatorBase<OperatorMinus>::_operator;
+Nullary<Operator, OperatorMinus> Nullary<Operator, OperatorMinus>::_instance;
 
-class OperatorStar : public OperatorBase<OperatorStar>
+class OperatorStar : public Nullary<Operator, OperatorStar>
 {
 public:
     static String name() { return "*"; }
 };
 
-Operator OperatorBase<OperatorStar>::_operator;
+Nullary<Operator, OperatorStar> Nullary<Operator, OperatorStar>::_instance;
 
-class OperatorDivide : public OperatorBase<OperatorDivide>
+class OperatorDivide : public Nullary<Operator, OperatorDivide>
 {
 public:
     static String name() { return "/"; }
 };
 
-Operator OperatorBase<OperatorDivide>::_operator;
+Nullary<Operator, OperatorDivide> Nullary<Operator, OperatorDivide>::_instance;
 
-class OperatorModulo : public OperatorBase<OperatorModulo>
+class OperatorModulo : public Nullary<Operator, OperatorModulo>
 {
 public:
     static String name() { return "%"; }
 };
 
-Operator OperatorBase<OperatorModulo>::_operator;
+Nullary<Operator, OperatorModulo> Nullary<Operator, OperatorModulo>::_instance;
 
-class OperatorPower : public OperatorBase<OperatorPower>
+class OperatorPower : public Nullary<Operator, OperatorPower>
 {
 public:
     static String name() { return "^"; }
 };
 
-Operator OperatorBase<OperatorPower>::_operator;
+Nullary<Operator, OperatorPower> Nullary<Operator, OperatorPower>::_instance;
 
-class OperatorFunctionCall : public OperatorBase<OperatorFunctionCall>
+class OperatorFunctionCall : public Nullary<Operator, OperatorFunctionCall>
 {
 public:
     static String name() { return "()"; }
 };
 
-Operator OperatorBase<OperatorFunctionCall>::_operator;
+Nullary<Operator, OperatorFunctionCall>
+    Nullary<Operator, OperatorFunctionCall>::_instance;
 
-class OperatorIndex : public OperatorBase<OperatorIndex>
+class OperatorIndex : public Nullary<Operator, OperatorIndex>
 {
 public:
     static String name() { return "[]"; }
 };
 
-Operator OperatorBase<OperatorIndex>::_operator;
+Nullary<Operator, OperatorIndex>
+    Nullary<Operator, OperatorIndex>::_instance;
 
-class OperatorIncrement : public OperatorBase<OperatorIncrement>
+class OperatorIncrement : public Nullary<Operator, OperatorIncrement>
 {
 public:
     static String name() { return "++"; }
 };
 
-Operator OperatorBase<OperatorIncrement>::_operator;
+Nullary<Operator, OperatorIncrement>
+    Nullary<Operator, OperatorIncrement>::_instance;
 
-class OperatorDecrement : public OperatorBase<OperatorDecrement>
+class OperatorDecrement : public Nullary<Operator, OperatorDecrement>
 {
 public:
     static String name() { return "--"; }
 };
 
-Operator OperatorBase<OperatorDecrement>::_operator;
+Nullary<Operator, OperatorDecrement>
+    Nullary<Operator, OperatorDecrement>::_instance;
 
 #endif // INCLUDED_OPERATOR_H
