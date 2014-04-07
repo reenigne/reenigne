@@ -22,6 +22,11 @@ public:
 class ConfigFile : public Structure
 {
 public:
+    ConfigFile()
+    {
+        FunctionTyco iii(IntegerType(), IntegerType(), IntegerType());
+        addFunction(OperatorPlus(), iii, );
+    }
     void addOption(String name, Type type)
     {
         _options.add(name, TypedValue(type));
@@ -36,6 +41,12 @@ public:
         _options.add(name, TypedValue(defaultValue));
     }
     void addType(Type type) { _types.add(type.toString(), type); }
+    void addFunction(Identifier identifier, FunctionTyco type,
+        Function* function)
+    {
+        if (_options.hasKey(identifier))
+
+    }
 
     void load(File file)
     {
@@ -69,6 +80,10 @@ public:
                     identifier.span().throwError("Unknown type " + name);
                 Type type = _types[name];
                 Identifier objectIdentifier = Identifier::parse(&s);
+                if (objectIdentifier.isOperator()) {
+                    identifier.span().throwError("Cannot create an object "
+                        "with operator name");
+                }
                 String objectName = objectIdentifier.name();
                 if (_options.hasKey(name))
                     objectIdentifier.span().throwError(name +
@@ -165,9 +180,9 @@ private:
         ConfigFile* _configFile;
     };
 
-    HashTable<String, TypedValue> _options;
-    HashTable<String, TypedValue> _enumeratedValues;
-    HashTable<String, Type> _types;
+    HashTable<Identifier, TypedValue> _options;
+    HashTable<Identifier, TypedValue> _enumeratedValues;
+    HashTable<TypeSpecifier, Type> _types;
     File _file;
     EvaluationContext _context;
 };

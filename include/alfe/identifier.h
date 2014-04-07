@@ -147,6 +147,7 @@ public:
       : Expression(new OperatorImplementation(op, span)) { }
 
     String name() const { return as<Identifier>()->name(); }
+    bool isOperator() const { return as<Identifier>()->isOperator(); }
 
     class Implementation : public ExpressionTemplate<T>::Implementation
     {
@@ -157,6 +158,7 @@ public:
         {
             return context->valueOfIdentifier(this);
         }
+        virtual bool isOperator() const = 0;
     };
 
     IdentifierTemplate(Implementation* implementation)
@@ -168,6 +170,7 @@ private:
         NameImplementation(const String& name, const Span& span)
           : Implementation(span), _name(name) { }
         String name() const { return _name; }
+        bool isOperator() const { return false; }
     private:
         String _name;
     };
@@ -177,6 +180,7 @@ private:
         OperatorImplementation(const Operator& op, const Span& span)
           : Implementation(span), _op(op) { }
         String name() const { return "operator" + _op.toString(); }
+        bool isOperator() const { return true; }
     private:
         Operator _op;
     };

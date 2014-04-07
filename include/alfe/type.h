@@ -491,6 +491,10 @@ public:
     static String name() { return "Tuple"; }
     TupleTyco() : Tyco(instance()) { }
     bool isUnit() { return implementation() == 0; }
+    Tyco instantiate(const Tyco& argument) const
+    {
+        return _implementation->instantiate(argument);
+    }
     Type lastMember()
     {
         const NonUnitImplementation* i = implementation();
@@ -696,7 +700,25 @@ public:
     {
         return FunctionTyco(new NullaryImplementation(returnType));
     }
+    FunctionTyco(Type returnType, Type argumentType)
+      : Tyco(FunctionTyco(FunctionTemplate().instantiate(returnType)).
+            instantiate(argumentType).implementation()) { }
+    FunctionTyco(Type returnType, Type argumentType1, Type argumentType2)
+        : Tyco(FunctionTyco(FunctionTyco(FunctionTemplate().
+            instantiate(returnType)).instantiate(argumentType1)).
+            instantiate(argumentType2).implementation()) { }
     bool valid() const { return implementation() != 0; }
+    bool matches(List<Type> argumentTypes)
+    {
+        List<Type>::Iterator i = argumentTypes.begin();
+        if (!implementation()->matches(&i))
+            return false;
+        return i == argumentTypes.end();
+    }
+    Tyco instantiate(const Tyco& argument) const
+    {
+        return _implementation->instantiate(argument);
+    }
 private:
     FunctionTyco(const Implementation* implementation)
       : Tyco(implementation) { }
@@ -740,6 +762,7 @@ private:
             _instantiations.add(argument, t);
             return t;
         }
+        virtual bool matches(List<Type>::Iterator* i) const = 0;
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -761,6 +784,10 @@ private:
             return (_returnType != o->_returnType);
         }
         int hash() const { return _returnType.hash()*67 + 2; }
+        bool matches(List<Type>::Iterator* i) const
+        {
+            return true;
+        }
     private:
         Type _returnType;
     };
@@ -788,6 +815,16 @@ private:
                 _argumentType == o->_argumentType;
         }
         int hash() const { return _parent->hash()*67 + _argumentType.hash(); }
+        bool matches(List<Type>::Iterator* i)
+            const
+        {
+            if (!_parent->matches(i))
+                return false;
+            if (**i != _argumentType)
+                return false;
+            ++*i;
+            return true;
+        }
     private:
         const Implementation* _parent;
         Type _argumentType;
@@ -808,7 +845,7 @@ public:
     public:
         virtual Tyco partialInstantiate(bool final, Tyco argument) const
         {
-            return FunctionTyco(argument);
+            return FunctionTyco::nullary(argument);
         }
         Kind kind() const
         {

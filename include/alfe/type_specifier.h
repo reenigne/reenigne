@@ -561,37 +561,4 @@ private:
     };
 };
 
-//String typeToString(Symbol type)
-//{
-//    switch (type.atom()) {
-//        case atomFunction:
-//            {
-//                String s = typeToString(type[1].symbol()) + "(";
-//                SymbolArray array = type[2].array();
-//                bool hasArguments = false;
-//                for (int i = 0; i < array.count(); ++i) {
-//                    if (hasArguments)
-//                        s += ", ";
-//                    s += typeToString(array[i]);
-//                    hasArguments = true;
-//                }
-//                return s + ")";
-//            }
-//        case atomPointer:
-//            return typeToString(type[1].symbol()) + "*";
-//        default:
-//            return atomToString(type.atom());
-//    }
-//}
-//
-//String typesToString(SymbolArray array)
-//{
-//    String s("(");
-//    for (int i = 0; i < array.count(); ++i) {
-//        if (i != 0)
-//            s += ", ";
-//        s += typeToString(array[i]);
-//    }
-//    return s + ")";
-//}
 #endif // INCLUDED_TYPE_SPECIFIER_H
