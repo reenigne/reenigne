@@ -1,0 +1,122 @@
+  Moire:
+    Take an image, duplicate it, move the two copies around the screen independently, XOR them together
+
+
+  lodsw        1 2
+  xor ax,[bx]  2 2
+  inc bx       1 0
+  inc bx       1 0
+  stosw        1 2    12
+
+  lodsw        1 2
+  xor ax,9999  4 0
+  stosw        1 2    10 for 2 bytes    80x50-ish  Use CRTC start address to move one of the images, change initial SI for the other.
+                                                    ~24000 bytes of code unrolled
+                                                    Double the code so we can scroll to half-word offsets
+
+  lodsb        1 1
+  xor al,99    3 0
+  stosb        1 1   1.5
+  inc di       1 0    9.45 for 2 pixels
+
+  lodsw        1 2
+  xor ax,9999  4 0
+  stosb        1 1
+  inc di       1 0
+  mov al,ah    2 0
+  stosb        1 1
+  inc di       1 0    18 for 4 pixels
+
+
+    47 scanlines => 4 scanlines per row
+      Possible modes:
+        * Text -HRES: 80*47 (1880 pixels, many colours with strange interactions - stick to 00 and b1, 5:3 PAR)
+        * Text -HRES: 80*58 half-width (3 scanlines, 4640 pixels with 16 colours, 10:9 PAR)                          <= 2*40*58*8 = 37120 bytes code, 2*40*58*2 = 9280 bytes data
+            lodsb       1 1
+            xor al,99   3 0
+            stosb       1 1
+            inc di      1 0  8 per 2 pixels
+        * 2bpp: 40*94 (15040 pixels, 4 colours, 5:6 PAR)
+        * 2bpp with doubled scanlines: 56*70 (~15000 pixels, 4 colours, 5:12 PAR - tall)                             <= 8*28*70*10 = 156800 bytes code, 8*28*70*2 = 31360 bytes data
+        * 2bpp with quadrupled scanlines: 80*47 (~15000 pixels, 4 colours, 5:24 PAR - rather tall)
+        * 1bpp: 40*94 (30080 pixels, 2 colours - tall)                                                                  16*40*94*10 = 601600 bytes code, 16*40*94*2 = 120320 bytes data
+        * 1bpp with doubled scanlines: 56*70 (~30000 pixels, 4 colours, 5:24 PAR - rather tall)
+        * 1bpp with quadrupled scanlines: 80*47 (~30000 pixels, 4 colours, 5:24 PAR - very tall)
+        * Text +HRES: 160*29 half-width (6 scanlines, 4640 pixels with 16 colours, 5:18 PAR - rather tall, snow)
+
+
+
+
+
+
+Suppose we have a picture that is 124 pixels wide. 80 displayed, 22 border on each side. Then we need 94 vertically
+
+raw picture = 5828 bytes
+unroll = 32054 bytes
+2 of each = 75764 bytes
+
+
+80x94:
+
+raw picture = 3760 bytes
+unroll = 20680 bytes
+2 of each = 48880 bytes
+
+
+Plan:
+  80x94 picture
+  80x50 viewport
+  Maximum radius 22
+  For each frame, _motion has:
+    Initial SI (including which copy of the picture)
+    Initial DI (0 or 3fff)
+    Call location (including unroll copy) - end is placed here plus 11000 bytes
+  Wait for vertical refresh
+  Inject ret and restore
+  Decompress picture into two copies of raw picture and two unrolled loops
+  Decompress motion
+
+Extensions:
+  Disable DRAM refresh
+    Check how much time we'll be idle
+  Integrate with music
+  Allow using two different images
+  Allow images wider than 80 pixels
+    Inject rets
+      Per scanline:
+        mov [bx+12],99  ; 4 1  times 2
+        ret             ; 1 2
+        add si,bp       ; 2 0
+        call 1234       ; 3 1   total 14    - fits even with DRAM refresh
+      ~700 IOs
+    Inject "add si, bp" and jmp
+        mov [bx+12], 9999  ; 5 2  times 4
+        add si, bp         ; 2 0
+        jmp 12             ; 2 1  total 33  - doesn't fit except without DRAM refresh
+
+
+
+PSP: 256
+Code: ?
+Motion: 3352
+Picture: 5129*2 bytes
+Unroll: 5129*11
+
+If picture ends up as 8kB or more, need to rethink the flags
+
+
+
+
+  Screen edge (*50):
+    add si,dx  ; 2 0        Any
+    jmp $+X    ; 2 1        Up to 128 bytes => 44 pixels
+
+
+
+
+
+   9A cp          CALL cp                 36                                    36
+   E8 cw          CALL cw                 32                                    20    (measured, Zen has EU=23 - 8 will be loading the next instruction)
+   FF /2          CALL rmw              12+8 13+EA+8+8
+   FF /3          CALL mp                 53+EA
+

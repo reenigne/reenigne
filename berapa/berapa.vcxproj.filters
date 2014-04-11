@@ -4,14 +4,12 @@
     <ClInclude Include="8237.h" />
     <ClInclude Include="8253.h" />
     <ClInclude Include="..\include\alfe\array.h" />
-    <ClInclude Include="..\include\alfe\buffer.h" />
     <ClInclude Include="..\include\alfe\character_source.h" />
     <ClInclude Include="..\include\alfe\config_file.h" />
     <ClInclude Include="..\include\alfe\file.h" />
     <ClInclude Include="..\include\alfe\hash_table.h" />
     <ClInclude Include="..\include\alfe\integer_types.h" />
     <ClInclude Include="..\include\alfe\main.h" />
-    <ClInclude Include="..\include\alfe\reference_counted.h" />
     <ClInclude Include="..\include\alfe\space.h" />
     <ClInclude Include="..\include\alfe\string.h" />
     <ClInclude Include="..\include\alfe\type.h" />
@@ -42,9 +40,7 @@
     <ClInclude Include="..\include\alfe\parse_tree_object.h" />
     <ClInclude Include="..\include\alfe\function.h" />
     <ClInclude Include="..\include\alfe\type_specifier.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="scratch.txt" />
+    <ClInclude Include="..\include\alfe\reference.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="berapa.cpp" />
