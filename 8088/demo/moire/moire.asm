@@ -1,6 +1,26 @@
 cpu 8086
 org 0x100
 
+  xor ax,ax
+  mov es,ax
+  mov ax,cs
+  mov ds,ax
+
+  ; Set up keyboard vector and stack
+  cli
+  mov ss,ax
+  mov sp,stackEnd-2
+  mov ax,[es:9*4]
+  mov [oldInt9],ax
+  mov ax,[es:9*4+2]
+  mov [oldInt9+2],ax
+  mov word[es:9*4],interrupt9
+  mov [es:9*4+2],cs
+  sti
+
+  mov ax,cs
+  mov es,ax
+
   ; Create copy of picture shifted over by 1 pixel
 
   ; Fill character is 0xdd which has foreground on left
@@ -14,9 +34,6 @@ org 0x100
   ;   bytes 0xPN 0xUQ ...
   ;   pixels N P Q U V ...
 
-  mov ax,cs
-  mov es,ax
-  mov ds,ax
   mov di,pictureEnd
   mov si,picture
   lodsb       ; al = 0xNM
@@ -28,6 +45,7 @@ shiftLoop:
   mov ax,bx   ; ax = 0xQPNM
   shr ax,cl   ; ax = 0x0QPN
   stosb
+  mov bl,bh   ; bl = 0xQP
   cmp si,pictureEnd
   jne shiftLoop
   mov [picture2End],di
@@ -51,14 +69,15 @@ shiftLoop:
 copyUnroll1:
   mov si,moire4
   movsw
-  movsw
+  inc si
+  inc si
   mov ax,[bx]
   inc bx
   inc bx
   stosw
   movsw
   movsw
-  movsb
+  movsw
   loop copyUnroll1
 
 
@@ -81,14 +100,15 @@ copyUnroll1:
 copyUnroll2:
   mov si,moire4
   movsw
-  movsw
+  inc si
+  inc si
   mov ax,[bx]
   inc bx
   inc bx
   stosw
   movsw
   movsw
-  movsb
+  movsw
   loop copyUnroll2
 
 
@@ -137,12 +157,14 @@ copyUnroll2:
   mov es,ax
   mov ax,0x00dd
   mov cx,40*50
+  xor di,di
   rep stosw
 
 
   ; Frame loop
 
   mov dx,0x3da
+outerLoop:
   mov cx,[frames]
   mov bx,motion
 frameLoop:
@@ -177,19 +199,20 @@ noUnroll2:
 
   ; Patch in RETF
 
-  add di,11*20*50
+  add di,10*20*50
   mov byte[es:di],0xcb
   mov [patchOff],di
   mov [patchSeg],es
 
   ; Setup initial DI and clear flag bits from SI
 
-  xor di,di
+  mov di,1
   test si,0x4000
   jz noOddDI
-  mov di,0x3fff
+  mov di,0xffff ;0x3fff
 noOddDI:
   and si,0x3fff
+  add si,picture
 
   ; Setup screen segment
 
@@ -208,18 +231,33 @@ callInstruction:
 
   ; End of frame
 
+  cmp byte [ending],1
+  je complete
   loop frameLoop
+  jmp outerLoop
 
   ; Effect complete
 
+complete:
+  xor ax,ax
+  mov es,ax
+  cli
+  mov ax,[oldInt9]
+  mov [es:9*4],ax
+  mov ax,[oldInt9+2]
+  mov [es:9*4+2],ax
+  sti
   mov ax,3
   int 0x10
-  ret
+  mov ax,0x4c00
+  int 0x21
 
 
 moire4:
   lodsw
   xor ax,9999
+;  nop
+;  mov ax,9999
   stosb
   mov al,ah
   inc di
@@ -232,4 +270,19 @@ unrolled1Seg: dw 0
 unrolled2Seg: dw 0
 patchOff:     dw 0
 patchSeg:     dw 0
+ending: db 0
 
+stack:
+  times 128 dw 0
+stackEnd:
+
+oldInt9: dw 0, 0
+interrupt9:
+  push ax
+  in al,0x60
+  cmp al,1
+  jne noEnd
+  mov byte [cs: ending],1
+noEnd:
+  pop ax
+  jmp far [cs: oldInt9]

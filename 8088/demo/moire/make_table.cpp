@@ -6,30 +6,34 @@ class Program : public ProgramBase
 public:
     int colour(Vector p)
     {
-        double d = sqrt(static_cast<double>(p.modulus2()));
-        return static_cast<int>(d) & 15;
-        //return p.y & 15;
+        int palette[16] =
+            { 0, 8, 9, 1, 5, 13, 12, 4, 6, 14, 15, 7, 3, 11, 10, 2 };
+        double d = /*sqrt(*/static_cast<double>(p.modulus2())/64 /*)*/;
+        return palette[static_cast<int>(d) & 15];
     }
     void run()
     {
         int stride = 80;
         _screenSize = Vector(80, 50);
         int frames = 13125000 * 14 / (11 * 76 * 262);
-        int maxRadius = 40;
+        int maxRadius = 20;
 
         _o1s.allocate(frames);
         _o2s.allocate(frames);
         int minO = 0, maxO = 0;
         for (int t = 0; t < frames; ++t) {
             double f = static_cast<double>(t) / frames;
-            double r = maxRadius*(1 - cos(f * tau))/2;
-            Rotor2<double> z(f * 14);
-            Vector2<double> p = Vector2<double>(r, 0) * z;
+            double r = maxRadius; // *(1 - cos(f * tau)) / 2;
+            Rotor2<double> z1(f * 3);
+            Rotor2<double> z2(f * 4);
+            Vector2<double> a1 = Vector2<double>(r, 0) * z1;
+            Vector2<double> a2 = Vector2<double>(r, 0) * z2;
+
             Vector2<double> c = Vector2Cast<double>(_screenSize) / 2;
 
             // Positions of picture centres relative to screen top-left
-            Vector2<double> p1 = c + p;
-            Vector2<double> p2 = c - p;
+            Vector2<double> p1 = c + a1;
+            Vector2<double> p2 = c + a2;
 
             // Positions of screen top-left on relative to pictures center
             Vector s1 = -Vector2Cast<int>(p1);
@@ -92,9 +96,7 @@ public:
             if ((o2 & 2) != 0)
                 si |= 0x4000;
 
-            int ip = (o2 / 2) * 11;
-            if ((o2 & 1) != 0)
-                ip += bytes * 11;
+            int ip = (o2 / 4) * 10;
 
             if (t % 4 == 0)
                 output.write("\n  dw ");
@@ -127,7 +129,7 @@ public:
             lastX += 2;
         }
         output.write("\n");
-        output.write("pictureEnd:\n")
+        output.write("pictureEnd:\n");
     }
 private:
     Vector _screenSize;

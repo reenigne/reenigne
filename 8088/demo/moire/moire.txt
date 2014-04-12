@@ -20,12 +20,12 @@
   inc di       1 0    9.45 for 2 pixels
 
   lodsw        1 2
-  xor ax,9999  4 0
+  xor ax,9999  3 0
   stosb        1 1
   inc di       1 0
   mov al,ah    2 0
   stosb        1 1
-  inc di       1 0    18 for 4 pixels
+  inc di       1 0    17 for 4 pixels
 
 
     47 scanlines => 4 scanlines per row
@@ -100,7 +100,7 @@ PSP: 256
 Code: ?
 Motion: 3352
 Picture: 5129*2 bytes
-Unroll: 5129*11
+Unroll: 5129*10
 
 If picture ends up as 8kB or more, need to rethink the flags
 
@@ -119,4 +119,17 @@ If picture ends up as 8kB or more, need to rethink the flags
    E8 cw          CALL cw                 32                                    20    (measured, Zen has EU=23 - 8 will be loading the next instruction)
    FF /2          CALL rmw              12+8 13+EA+8+8
    FF /3          CALL mp                 53+EA
+
+
+
+
+0192:01cb
+
+
+
+
+
+0x3D18 == 15640
+Initial position should be
+
 
