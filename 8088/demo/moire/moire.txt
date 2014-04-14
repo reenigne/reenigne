@@ -24,8 +24,59 @@
   stosb        1 1
   inc di       1 0
   mov al,ah    2 0
+  stosb        1 1                           Actual to system RAM = 15.5
+  inc di       1 0    14+WS for 4 pixels     Actual = 18+2/3.  WS = 3+1/6 = 38 hdots = 19 hdots per byte
+                          Min WS = 9 hdots, Mean WS = 17.4375 hdots, Max WS = 24 hdots
+
+Moire2:
+
+  lodsw        1 2
+  inc di       1 0
+  xor ax,9999  3 0
   stosb        1 1
-  inc di       1 0    17 for 4 pixels
+  inc di       1 0
+  mov al,ah    2 0
+  stosb        1 1   Actual = 17+2/3 WS = 1+5/6 = 22 hdots = 11 hdots per byte
+
+
+Screen-based unroll:
+
+  lodsw        1 2
+  pop dx       1 2
+  xor ax,dx    2 0
+  stosb        1 1
+  inc di       1 0
+  mov al,ah    2 0
+  stosb        1 1
+  inc di       1 0   IOs = 16, noWS = 17.5, Actual = 20
+
+
+  lodsw          1 2
+  xor ax,[bx+12] 3 2
+  stosb          1 1
+  inc di         1 0
+  mov al,ah      2 0
+  stosb          1 1
+  inc di         1 0   IOs = 16, Actual = 20
+
+
+  pop ax          1 2
+  xor ax,[bp+12]  3 2
+  mov [di+2],al   3 1
+  mov [di+4],ah   3 1  IOs = 16, Actual = 20
+
+
+  mov [dl+2],al  is 18 cycles to system, 24 cycles to CPU. WS = 6 cycles = 18 hdots per byte
+
+
+  pop ax          1 2
+  xor ax,[bp+12]  3 2
+  stosb           1 1
+  inc di          1 0
+  mov al,ah       2 0
+  stosb           1 1
+  inc di          1 0  IOs = 16, noWS = 16, Actual = 18+2/3. WS = 2+2/3 = 32 hdots = 16 hdots per byte
+
 
 
     47 scanlines => 4 scanlines per row
@@ -87,7 +138,7 @@ Extensions:
         mov [bx+12],99  ; 4 1  times 2
         ret             ; 1 2
         add si,bp       ; 2 0
-        call 1234       ; 3 1   total 14    - fits even with DRAM refresh
+        call bx         ; 2 1   total 18
       ~700 IOs
     Inject "add si, bp" and jmp
         mov [bx+12], 9999  ; 5 2  times 4
@@ -133,3 +184,109 @@ If picture ends up as 8kB or more, need to rethink the flags
 Initial position should be
 
 
+
+
+
+With wide pictures, what do we do if the unroll-plane byte offset is 1?
+  Have two more unroll sections?
+
+
+
+
+CGA RAM
+
+Moire                074 +080  +081  +081  +080  +081
+Moire2               074 +080  +080  +080  +081  +081
+MoireA               080 +001  +000  +001  079 +119  080 +000
+MoireA2              079 +119  080 +000  +001  +000  +001
+
+System RAM
+
+Moire                062 +000  +000  +000  +000  +000
+Moire2               062 +000  +000  +000  +000  +000
+MoireA               070 +000  +000  +000  +000  +000
+MoireA2              070 +000  +000  +000  +000  +000
+
+
+
+
+
+To minimize the wait state time, we want the number of hdots between successive CGA accesses to be <=8+16*n, i.e.:
+hdots  cycles   IOs
+   8    2+2/3     2/3
+  24    8       2
+  40   13+1/3   3+1/3
+  56   18+2/3   4+2/3
+  72   24       6
+  88   29+1/3   7+1/3
+ 104   34+2/3   8+2/3
+ 120   40      10
+ 136   45+1/3  11+1/3
+ 152   50+2/3  12+2/3
+ 168   56      14
+ 184   61+1/3  15+1/3
+ 200   66+2/3  16+2/3
+ 216   72      18
+ 232   77+1/3  19+1/3
+ 248   82+2/3  20+2/3
+The time without the wait states would be:
+  0    0
+ 16    5+1/3
+ 32   10+2/3
+ 48   16
+ 64   21+1/3
+ 80   26+2/3
+ 96   32
+112   37+1/3
+128   42+2/3
+144   48
+160   53+1/3
+176   58+2/3
+192   64
+208   69+1/3
+224   74+2/3
+240   80
+
+Natural       Actual 0    WS 0         Actual 1    WS 1         Actual 2    WS 2
+dot cy IOs    dot cy IOs  dot cy IOs   dot cy IOs  dot cy IOs   dot cy IOs  dot cy IOs
+ 12  4 1       24  8 2     12  4 1      24  8 2     12  4 1      24  8 2     12  4 1
+ 15  5 1+1/4   24  8 2      9  3   3/4  24  8 2      9  3   3/4  40
+ 18  6 1+1/2
+ 21  7 1+3/4
+ 24  8 2
+ 27  9 2+1/4
+ 30 10 2+1/2
+ 33 11 2+3/4
+ 36 12 3
+ 39 13 3+1/4
+ 42 14 3+1/2
+ 45 15 3+3/4
+ 48 16 4
+ 51 17 4+1/4
+ 54 18 4+1/2
+
+
+
+
+
+mov ax,1234  stosw     4 2
+mov [di+2],1234        5 2
+movsw                  1 4
+
+
+
+
+
+
+Picture size: 5327 bytes = ~88 x 120
+
+Pictures: 5327*2
+Motion: 3352
+Code: 569
+Unroll: 10000 + 1 + 50*6
+= 24876
+
+
+
+0192:38f6
+0192:6114

@@ -80,6 +80,7 @@
     <ClCompile Include="make_table.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\include\alfe\array.h" />
     <ClInclude Include="..\..\..\include\alfe\file.h" />
     <ClInclude Include="..\..\..\include\alfe\handle.h" />
     <ClInclude Include="..\..\..\include\alfe\main.h" />

@@ -1,9 +1,14 @@
-org 0x100
+org 0
 %include "../../defaults_common.asm"
 
   mov ax,cs
   mov es,ax
   mov ds,ax
+
+  cli
+  mov ss,ax
+  mov sp,0xfffe
+  sti
 
   ; Create copy of picture shifted over by 1 pixel
 
@@ -124,10 +129,7 @@ doneUnroll:
 
   ; End program
 
-  mov ax,3
-  int 0x10
-  mov ax,0x4c00
-  int 0x21
+  int 0x67
 
 
   ; This is the inner loop code. It's not called directory, but instead used
