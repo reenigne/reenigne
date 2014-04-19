@@ -97,8 +97,16 @@ doneUnroll:
   ; Sync with raster beam vertically
 
   mov dx,0x3da
-  waitForVerticalSync
-  waitForNoVerticalSync
+waitForVerticalSync1:
+  lodsb
+  in al,dx
+  test al,8
+  jz waitForVerticalSync1
+waitForNoVerticalSync1:
+  lodsb
+  in al,dx
+  test al,8
+  jnz waitForNoVerticalSync1
   dec dx
 
 
@@ -117,7 +125,7 @@ doneUnroll:
   ; Restore DRAM refresh
 
   refreshOn
-  mov cx,256
+  mov cx,256*18
   rep lodsw
   sti
 
@@ -160,6 +168,7 @@ frameLoop:
   mov al,0
   out dx,al
   inc dx
+
   waitForDisplayEnable
   dec dx
   mov al,15
@@ -222,3 +231,4 @@ footerEnd:
 
 savedSP: dw 0
 ending:  db 0
+
