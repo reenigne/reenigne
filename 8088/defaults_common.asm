@@ -443,7 +443,7 @@ cpu 8086
 %endmacro
 
 
-; writePIT16 <timer> <mode> <value>
+; writePIT16 <timer>, <mode>, <value>
 ; timer 0 = IRQ0, BIOS time-of-day (default value 0, default mode ?)
 ; timer 1 = DRAM refresh DMA (default value 18, default mode ?)
 ; timer 2 = PC speaker/cassette

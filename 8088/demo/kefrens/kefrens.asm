@@ -1,26 +1,40 @@
 org 0x100
 %include "../../defaults_common.asm"
 
+frames equ 838
+positions equ 157
+scanlines equ 200
+footerSize equ (footerEnd-footer)
+headerSize equ (headerEnd-header)
+
   mov ax,cs
   mov es,ax
   mov ds,ax
+  cli
+  add ax,((unrolledCode + headerSize + 43*scanlines + footerSize + 15)>>4)
+  mov ss,ax
+  mov sp,0xfffe
+  sti
 
   mov di,unrolledCode
 
   ; Copy header
 
-  mov cx,headerEnd-header
+  mov cx,headerSize
   mov si,header
+  cld
   rep movsb
 
   ; Unroll
 
-  mov cx,200
+  mov cx,scanlines
   mov bl,0x80
-  mov dx,157*16
-  mov bp,cs
-  add bp,((unrolledCode + (headerEnd-header) + 43*200 + (footerEnd-footer) + 15)>>4) + ((157*16)>>4) + ((157*2*200)>>4)
+  mov dx,positions*16
+  mov bp,ax
+  add bp,0x1000
+  mov bh,0x80
 unroll:
+  mov si,kefrensScanline
   movsw
   movsb
   mov al,bl
@@ -33,34 +47,36 @@ unroll:
   movsb
   mov ax,bp
   stosw
-  times 5 movsw
-  movsb
-  inc bx         ; Increase sineTable pointer
-  add dx,157*2   ; Increase mulTable pointer
-  add bp,0x350   ; Increase raster segment (enough for 838 scanlines)
+  movsw
+  movsw
+  mov al,bh
+  stosb
+  movsw
+  movsw
+  movsw
+  add bl,17*2                   ; Increase sineTable pointer
+  add dx,positions*2            ; Increase mulTable pointer
+  xor bh,1                      ; Alternate raster set
+  cmp bh,0x80
+  jne noRasterInc
+  add bp,(frames*2 + 15)>>4     ; Increase raster segment
+  sub bl,(16+17)*2
+noRasterInc:
   loop unroll
 
   ; Copy footer
 
-  mov cx,footerEnd-footer
+  mov cx,footerSize
   mov si,footer
   rep movsb
 
-  ; Find stack segment
-
-  mov ax,cs
-  add di,15
-  mov cl,4
-  shr di,cl
-  add ax,di
-  mov [stackSeg],ax
-  mov es,ax
-
   ; Create pixel table
 
+  mov ax,ss
+  mov es,ax
   mov cx,79
   xor di,di
-  mov bx,0
+  xor bx,bx
 pixelTableLoop:
   mov ax,bx
   stosw
@@ -93,32 +109,85 @@ pixelTableLoop5:
 
   ; Create multiplication table
 
-  mov cx,200
+  mov cx,scanlines
 mulTableLoopY:
   mov bx,cx
-  mov cx,157
-mulTableLoopX:
-  mov ax,157
+
+  mov cx,positions
+mulTableLoopX3:
+  mov ax,positions
   sub ax,cx
   mul bx
-  mov dx,200
-  div dx
+  mov si,scanlines
+  div si
+  shl ax,1
+  shl ax,1
   shl ax,1
   stosw
-  loop mulTableLoopX
+  loop mulTableLoopX3
+
+  dec bx
+  mov cx,positions
+mulTableLoopX1:
+  mov ax,positions
+  sub ax,cx
+  mul bx
+  mov si,scanlines
+  div si
+  shl ax,1
+  shl ax,1
+  shl ax,1
+  add ax,158*8
+  stosw
+  loop mulTableLoopX1
+
   mov cx,bx
   loop mulTableLoopY
 
   ; Find raster bars segment
 
-  mov ax,es
-  add di,15
-  mov cl,4
-  shr di,cl
-  add ax,di
-  mov [rasterSeg],ax
-  mov es,ax
+  mov dx,es
+  add dx,0x1000
+  mov es,dx
 
+  ; Create raster bars table
+
+  mov cx,scanlines/2
+rasterLoopY:
+  mov bx,cx
+
+  mov cx,frames
+  xor di,di
+  mov ax,0x1030
+  rep stosw
+  add dx,(frames*2 + 15) >> 4
+  mov es,dx
+
+  mov cx,bx
+  loop rasterLoopY
+
+  ; Create music table
+
+  mov [sampleSeg],dx
+  mov es,dx
+  xor di,di
+  mov cx,0x8000
+  mov ax,0x0101
+  rep stosw
+
+  ; Create song table
+
+  add dx,0x1000
+  mov [songSeg],dx
+  xor ax,ax
+  stosw
+
+  ; Disable DRAM refresh
+
+  cli
+  mov cx,256
+  rep lodsw
+  lockstep
 
 
   ; Video layout:
@@ -217,23 +286,48 @@ mulTableLoopX:
   out dx,ax
 
 
-  ; Disable DRAM refresh
 
-  cli
-  mov cx,256
-  rep lodsw
-  refreshOff
+  ; Set up speaker
 
-  ; Setup screen segment
+  in al,0x61
+  or al,3
+  out 0x61,al
+
+  ; Set up timer 2 for PWM
+
+  mov al,TIMER2 | LSB | MODE0 | BINARY
+  out 0x43,al
+  mov al,0x01
+  out 0x42,al  ; Counter 2 count = 1 - terminate count quickly
+
+
+  ; Setup initial registers and clear screen
 
   mov ax,0xb800
   mov es,ax
+  mov cx,80
+  xor ax,ax
+  xor di,di
+  rep stosw
+  mov dx,0x03d4
+  mov bp,[sampleSeg]
+  mov bx,0x80
 
 
   ; Do the actual effect
 
-  mov si,transition
-  call unrolledCode
+  mov word[unrollPointer],unrolledCode-sineTable
+  mov ax,cs
+  add ax,(sineTable >> 4)
+  mov [unrollPointer+2],ax
+  call far [unrollPointer]
+
+
+  ; Turn off speaker
+
+  in al,0x61
+  and al,0xfc
+  out 0x61,al
 
 
   ; Restore DRAM refresh
@@ -253,34 +347,33 @@ mulTableLoopX:
 
 
   ; This is the inner loop code. It's not called directory, but instead used
-  ; as source data for the unroller, which creates 1000 copies with the xx
-  ; filled in and the "add" instructions at the end of each line of 20.
+  ; as source data for the unroller, which creates 200 copies with the XXs
+  ; filled in.
 
 kefrensScanline:
-  db 0x2e, 0x8b, 0x5e  ; mov bx,[cs:bp+XX]
-  db 0x36, 0x8b, 0xa7  ; mov sp,[ss:bx+XXXX]   mulTable is a different 157-element table per scanline
+  db 0x2e, 0x8b, 0x7f  ; mov di,[cs:bx+XX]
+  db 0x36, 0x8b, 0xa5  ; mov sp,[ss:di+XXXX]   mulTable is a different 157-element table per scanline
 
   pop di               ; 1 2
   mov al,[es:di]       ; 3 1 +WS
-  pop bx               ; 1 2
-  and ax,bx            ; 2 0
-  pop bx               ; 1 2
-  or ax,bx             ; 2 0
+  pop cx               ; 1 2
+  and ax,cx            ; 2 0
+  pop cx               ; 1 2
+  or ax,cx             ; 2 0
   stosw                ; 1 2 +WS +WS
   mov al,[es:di]       ; 3 1 +WS
-  pop bx               ; 1 2
-  and al,bl            ; 2 0
-  or al,bh             ; 2 0
+  pop cx               ; 1 2
+  and al,cl            ; 2 0
+  or al,ch             ; 2 0
   stosb                ; 1 1 +WS
 
   db 0xb8              ; mov ax,XXXX
   mov ds,ax            ; 2 0
-  mov al,[bp-128]      ; 3 0
+  db 0x8a, 0x47        ; mov al,[bx+XX]
   out dx,al            ; 1 1
-  mov ds,cx            ; 2 0
+  mov ds,bp            ; 2 0
   lodsb                ; 1 1
-  out 0x42,al          ; 2 1        Total 3 (1) 3 (2) 21 (2) 11 = 43 bytes
-kefrensScanline:
+  out 0x42,al          ; 2 1        Total 3 (1) 3 (2) 21 (2) 4 (1) 6 = 43 bytes
 
 
 pixelTable3:
@@ -289,48 +382,99 @@ pixelTable1:
   dw 0x0000, 0xabf5, 0x00ff, 0x000f, 0xbf50, 0x0af0
 
 
-header:
-  mov [savedSP],sp
-  mov bx,motion
-frameLoop:
-  mov di,1
-  mov sp,[bx]
-  mov bp,[bx+2]
-  add bx,4
+%macro audioOnlyScanline 0
+  times 64 nop
+  mov al,[es:di]
+  mov ds,bp
+  lodsb
+  out 0x42,al
+%endmacro
 
-  mov al,0
-  out dx,al
-  inc dx
-  waitForDisplayEnable
-  dec dx
-  mov al,15
-  out dx,al
+
+header:
+  mov [cs:savedSP + (unrolledCode - sineTable) + scanlines*43 - header],sp
+frameLoop:
+  mov ax,[es:di]
+  mov ds,bp
+  lodsb
+  out 0x42,al
+
+  ; Scanline 260: set Vertical Total to 1
+  mov ax,0x0104
+  out dx,ax
+  mov dl,0xd9
+  times 50 nop
+  mov ax,[es:di]
+  mov ds,bp
+  lodsb
+  out 0x42,al
+
+  ; Scanline 261: audio only
+  audioOnlyScanline
+
 headerEnd:
 
+  ; Scanlines 0-199 go in here - actual effect
 
 footer:
-  cmp byte[ending],1
-  jne noTransition
-  cmp si,picture
-  je effectComplete
+  ; Scanline 200: set Vertical Total to 59
+  mov dl,0xd4
+  mov ax,0x3b04
+  out dx,ax
+  times 50 nop
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
+  out 0x42,al
 
-  ; Make the transition modifications
-  lodsw                  ; ax = p
-  xchg ax,di             ; di = p
-  mov ax,0xb8            ; ax = 0x00b8
-  mov word[di],ax
-  mov byte[di+2],ah
-  mov word[di+206],ax
-  mov byte[di+208],ah
-  xchg ax,di             ; di = 0x00b8
-  lodsw                  ; ax = p
-  xchg ax,di             ; ax = 0x00b8, di = p
-  mov word[di],ax
-  mov byte[di+2],ah
-  mov word[di+206],ax
-  mov byte[di+208],ah
+  ; Scanline 201: audio only - video still active
+  audioOnlyScanline
 
-noTransition:
+  ; Scanline 202: clear addresses 0-17
+  xor di,di
+  xor ax,ax
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  mov al,[es:di]
+  mov ds,bp
+  lodsb
+  out 0x42,al
+
+%rep 8
+  ; Scanlines 203-210: clear addresses 18-162
+  xor ax,ax
+  nop
+  nop
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  mov al,[es:di]
+  mov ds,bp
+  lodsb
+  out 0x42,al
+%endrep
+
+  ; Scanlines 211-258: audio only
+%rep 48
+  audioOnlyScanline
+%endrep
+
+  ; Start of scanline 259: check for ending and update
+
+  times 6 nop
   ; See if the keyboard has sent a byte
   in al,0x20
   and al,2
@@ -346,21 +490,31 @@ noTransition:
   out 0x61,al
   ; Check for Escape
   cmp ah,1
-  jne noKey
-;  cmp byte[ending],1
-;  je effectComplete
-  mov byte[ending],ah
+  je effectComplete
+  jmp doneKey
 noKey:
-  cmp bx,motion+4*frames
+  times 28 nop
+doneKey:
+  inc bx
+  inc bx
+  cmp bx,0x80+frames*2
   jne noNewLoop
-  mov bx,motion
+  mov bx,0x80
 noNewLoop:
-  jmp frameLoop-(10*20*50+49*6)
+  jmp frameLoop-43*scanlines
 effectComplete:
-  mov sp,[savedSP]
-  ret
-footerEnd:
+  mov sp,[cs:savedSP + (unrolledCode - sineTable) + scanlines*43 - header]
+  retf
 
 savedSP: dw 0
-ending:  db 0
+
+footerEnd:
+
 stackSeg: dw 0
+sampleSeg: dw 0
+songSeg: dw 0
+unrollPointer: dw 0, 0
+
+  times 128 dw 0
+stackEnd:
+

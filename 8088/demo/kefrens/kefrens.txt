@@ -123,6 +123,21 @@ Plan:
   Multiplication table: 200 y positions times 160 sine positions times 1 byte per entry = 32000 bytes
     Generate at runtime?
 
+  1 position per scanline (and 1 position per frame) need period of tau*157/2 = 493 but that's a very long slow period
+  We want a period of 3 to 4 cycles in 100 scanlines = 25 to 33
+  838 frames
+    /1 = period 838 = repeated scanlines
+    /2 = period 419
+   /25 = period 33.52 = 2.98 cycles on screen
+   /26 =        32.23   3.10
+   /27 =        31.04   3.22
+   /28          29.93   3.34
+    29          28.90   3.46
+    30          27.93   3.58
+    31          27.03   3.70
+    32          26.19   3.82
+   /33 = period 25.39 = 3.94 cycles on screen
+
 
   inc bx
   xor bh,bh
@@ -246,13 +261,14 @@ Register usage for 5A:
   SS =
           pixelTable. Size = 157*2*4*2     =  2512  This must be in SS for pops
           mulTable.   Size = 200*2*157     = 62800  SS, CS or DS. 1 access. DS is natural
+          stack       Size =                   224
   AX = various
-  BX = various
-  CX = DS
+  BX = frame number (0..837)
+  CX = various
   DX = 0x03d9
   SI = audio sample pointer
-  DI = various (pointer into CGA RAM)
-  BP = frame number (0..837)
+  DI = various (unmultiplied position, pointer into CGA RAM)
+  BP = segment for audio DS
   SP = various (pointer into pixelTable)
 
 The raster bars need to move at at least 1 pixel per frame in the fastest parts of their phases
@@ -266,13 +282,15 @@ CS:
          sineTable     2074
          unrolledCode  header+43*200+footer
 SS:
-  0000 = pixelTable    2512
-  09D0 = mulTable      62800
+  0000 = pixelTable    157*16 = 2512
+  09D0 = mulTable      157*2*200 = 62800
   FF20 = DS start
 DS:
          rasterBars    169600
          samples       65536
          song          35954
+
+Each scanline of rasterBars table is
 
 
 17977 frames total = 5 minutes + 696 hdots
@@ -285,3 +303,26 @@ DS:
 158 = odd/1
 ...
 313 = even/3
+
+For frame 0 we want BP = 128
+
+
+
+
+  0*2 +17*2
+ 17*2 -16*2
+  1*2
+ 18*2
+ ...
+ 99*2
+116*2
+
+
+0192 = CS
+  1DE4 = unrolled
+0684 = SS
+1684 = raster
+
+
+Unrelocated savedSP = CS0:savedSP
+Relocated savedSP = CS1:(savedSP + sineTable + scanlines*43 - header)

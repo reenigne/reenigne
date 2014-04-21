@@ -225,8 +225,8 @@ codePreambleEnd:
 
 experimentData:
 
-experimentKefrens5:
-  db "Kefrens5$"
+experimentKefrens259:
+  db "Kefrens259$"
   dw .endInit - ($+2)
   mov ax,0xb800
   mov es,ax
@@ -235,82 +235,51 @@ experimentKefrens5:
   mov ss,ax
   mov si,0
   mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bx,0
 .endInit:
   dw .endCode - ($+2)
+
+  times 6 nop
+  ; See if the keyboard has sent a byte
+  in al,0x20
+  and al,2
+  jz .noKey
+  ; Read byte from keyboard
+  in al,0x60
+  mov ah,al
+  ; Acknowledge keyboard
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
+  ; Check for Escape
+  cmp ah,1
+  je .frameLoop
+  jmp .doneKey
+.noKey:
+  times 28 nop
+.doneKey:
   inc bx
-  xor bh,bh
-  mov ax,bx
-  mov bl,[bx]
-  shl bx,1
-  mov sp,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
-  xchg ax,bx
-
-  pop di
-  mov al,[es:di]     ; 3 1 +WS
-  pop bx
-  and ax,bx          ; 2 0
-  pop bx
-  or ax,bx           ; 2 0
-  stosw              ; 2 2 +WS +WS
-  mov al,[es:di]     ; 3 1 +WS
-  pop bx
-  and al,bl
-  or al,bh
-  stosb              ; 1 1 +WS
-
-  mov al,[bp]
-  inc bp
-  out dx,al
-
-  ss lodsb
+  inc bx
+  cmp bx,0xffff
+  jne .noNewLoop
+  mov bx,0x80
+.noNewLoop:
+  jmp .frameLoop
+.frameLoop:
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
   out 0xe0,al
 
 .endCode:
 
-experimentKefrens5Sys:
-  db "Kefrens5Sys$"
-  dw .endInit - ($+2)
-  mov ax,0x8001
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov si,0
-  mov word[si],0
-.endInit:
-  dw .endCode - ($+2)
-  inc bx
-  xor bh,bh
-  mov ax,bx
-  mov bl,[bx]
-  shl bx,1
-  mov sp,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
-  xchg ax,bx
-
-  pop di
-  mov al,[es:di]     ; 3 1 +WS
-  pop bx
-  and ax,bx          ; 2 0
-  pop bx
-  or ax,bx           ; 2 0
-  stosw              ; 2 2 +WS +WS
-  mov al,[es:di]     ; 3 1 +WS
-  pop bx
-  and al,bl
-  or al,bh
-  stosb              ; 1 1 +WS
-
-  mov al,[bp]
-  inc bp
-  out dx,al
-
-  ss lodsb
-  out 0xe0,al
-
-.endCode:
-
-experimentKefrens5A:
-  db "Kefrens5A$"
+experimentKefrens259a:
+  db "Kefrens259a$"
   dw .endInit - ($+2)
   mov ax,0xb800
   mov es,ax
@@ -319,76 +288,195 @@ experimentKefrens5A:
   mov ss,ax
   mov si,0
   mov word[si],0
-  mov cx,0x8000
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bx,0
 .endInit:
   dw .endCode - ($+2)
-  mov bx,[cs:bp+127]
-  mov sp,[ss:bx+0x4567]  ; mulTable is a different 157-element table per scanline
 
-  pop di
-  mov al,[es:di]     ; 3 1 +WS
-  pop bx
-  and ax,bx          ; 2 0
-  pop bx
-  or ax,bx           ; 2 0
-  stosw              ; 2 2 +WS +WS
-  mov al,[es:di]     ; 3 1 +WS
-  pop bx
-  and al,bl
-  or al,bh
-  stosb              ; 1 1 +WS
-
-  mov ax,0x4567
-  mov ds,ax
-  mov al,[bp]
-  out dx,al
+  times 6 nop
+  ; See if the keyboard has sent a byte
+  in al,0x20
+  and al,2
+  jz .noKey
+  ; Read byte from keyboard
+  in al,0x60
+  mov ah,al
+  ; Acknowledge keyboard
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
+  ; Check for Escape
+  cmp ah,1
+  je .frameLoop
+  jmp .doneKey
+.noKey:
+  times 28 nop
+.doneKey:
+  inc bx
+  inc bx
+  db 0x81, 0xfb, 0x01, 0x00  ;cmp bx,1
+  jne .noNewLoop
+  mov bx,0x80
+.noNewLoop:
+  jmp .frameLoop
+.frameLoop:
+  mov ax,[es:di]
   mov ds,cx
-
   lodsb
   out 0xe0,al
 
 .endCode:
 
-experimentKefrens5ASys:
-  db "Kefrens5ASys$"
+experimentKefrens259k:
+  db "Kefrens259k$"
   dw .endInit - ($+2)
-  mov ax,0x8001
+  mov ax,0xb800
   mov es,ax
   mov ax,0x8000
   mov ds,ax
   mov ss,ax
   mov si,0
   mov word[si],0
-  mov cx,0x8000
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bx,0
 .endInit:
   dw .endCode - ($+2)
-  mov bx,[cs:bp+127]
-  mov sp,[ss:bx+0x4567]  ; mulTable is a different 157-element table per scanline
 
-  pop di
-  mov al,[es:di]     ; 3 1 +WS
-  pop bx
-  and ax,bx          ; 2 0
-  pop bx
-  or ax,bx           ; 2 0
-  stosw              ; 2 2 +WS +WS
-  mov al,[es:di]     ; 3 1 +WS
-  pop bx
-  and al,bl
-  or al,bh
-  stosb              ; 1 1 +WS
+  times 6 nop                             ; 6 0
+  ; See if the keyboard has sent a byte
+  in al,0x20                              ; 2 1
+  and al,2                                ; 3 0
+  jnz .noKey                              ; 2 0
+  ; Read byte from keyboard
+  in al,0x60                              ; 2 1
+  mov ah,al                               ; 2 0
+  ; Acknowledge keyboard
+  in al,0x61                              ; 2 1
+  or al,0x80                              ; 3 0
+  out 0x61,al                             ; 2 1
+  and al,0x7f                             ; 3 0
+  out 0x61,al                             ; 2 1
+  ; Check for Escape
+  cmp ah,1                                ; 3 0
+  je .frameLoop                           ; 2 0
+  jmp .doneKey                            ; 2 1
+.noKey:
+  times 28 nop
+.doneKey:
+  inc bx                                  ; 1 0
+  inc bx                                  ; 1 0
+  cmp bx,0xffff                           ; 3 0
+  jne .noNewLoop                          ; 2 2
+  mov bx,0x80
+.noNewLoop:
+  jmp .frameLoop                          ; 2 3
+.frameLoop:
+  mov ax,[es:di]                          ; 3 2
+  mov ds,cx                               ; 2 0
+  lodsb                                   ; 1 1
+  out 0xe0,al                             ; 2 1
 
-  mov ax,0x4567
+.endCode:
+
+experimentKefrens259ak:
+  db "Kefrens259ak$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
   mov ds,ax
-  mov al,[bp]
-  out dx,al
-  mov ds,cx
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bx,0
+.endInit:
+  dw .endCode - ($+2)
 
+  times 6 nop
+  ; See if the keyboard has sent a byte
+  in al,0x20
+  and al,2
+  jnz .noKey
+  ; Read byte from keyboard
+  in al,0x60
+  mov ah,al
+  ; Acknowledge keyboard
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
+  ; Check for Escape
+  cmp ah,1
+  je .frameLoop
+  jmp .doneKey
+.noKey:
+  times 28 nop
+.doneKey:
+  inc bx
+  inc bx
+  db 0x81, 0xfb, 0x01, 0x00  ;cmp bx,1
+  jne .noNewLoop
+  mov bx,0x80
+.noNewLoop:
+  jmp .frameLoop
+.frameLoop:
+  mov ax,[es:di]
+  mov ds,cx
   lodsb
   out 0xe0,al
 
 .endCode:
 
+
+experimentKefrens5C:
+  db "Kefrens5C$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  mov bp,0x8000
+.endInit:
+  dw .endCode - ($+2)
+  mov di,[cs:bx-0x80]
+  mov sp,[ss:di+0x4567]  ; mulTable is a different 157-element table per scanline
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop cx
+  and ax,cx          ; 2 0
+  pop cx
+  or ax,cx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop cx
+  and al,cl
+  or al,ch
+  stosb              ; 1 1 +WS
+
+  mov ax,0x4567
+  mov ds,ax
+  mov al,[bx-0x80]
+  out dx,al
+  mov ds,bp
+
+  lodsb
+  out 0xe0,al
+
+.endCode:
 
 lastExperiment:
   db '$'
