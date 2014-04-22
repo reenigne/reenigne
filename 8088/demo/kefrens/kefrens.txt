@@ -126,17 +126,26 @@ Plan:
   1 position per scanline (and 1 position per frame) need period of tau*157/2 = 493 but that's a very long slow period
   We want a period of 3 to 4 cycles in 100 scanlines = 25 to 33
   838 frames
-    /1 = period 838 = repeated scanlines
-    /2 = period 419
-   /25 = period 33.52 = 2.98 cycles on screen
-   /26 =        32.23   3.10
-   /27 =        31.04   3.22
-   /28          29.93   3.34
-    29          28.90   3.46
-    30          27.93   3.58
-    31          27.03   3.70
-    32          26.19   3.82
-   /33 = period 25.39 = 3.94 cycles on screen
+    /1 = period 838      0.12                      gap = 0.58 (repeated scanlines)
+    /2 = period 419      0.24                            1.16
+    /3          279.33   0.36                            1.75
+    /4          209.5    0.48                            2.34
+    /5          167.6    0.60                            2.92
+    /6          139.67   0.89                            3.51
+    /7          119.71   1.04                            4.09
+
+   /25 = period  33.52 = 2.98 cycles on screen
+   /26 =         32.23   3.10
+   /27 =         31.04   3.22
+   /28           29.93   3.34
+    29           28.90   3.46
+    30           27.93   3.58
+    31           27.03   3.70
+    32           26.19   3.82
+   /33 = period  25.39 = 3.94 cycles on screen
+
+  We want to avoid having gaps between adjacent bars
+    78*sin(x*tau*D/838) => gap = 78*tau*D/838
 
 
   inc bx

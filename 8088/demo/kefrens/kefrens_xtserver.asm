@@ -1,4 +1,4 @@
-org 0x100
+org 0
 %include "../../defaults_common.asm"
 
 frames equ 838
@@ -350,10 +350,7 @@ noWrap:
 
   ; End program
 
-  mov ax,3
-  int 0x10
-  mov ax,0x4c00
-  int 0x21
+  int 0x67
 
 
   ; This is the inner loop code. It's not called directory, but instead used

@@ -10,7 +10,7 @@ public:
         output.write("align 16\n\n");
         output.write("sineTable:");
         for (int y = 0; y < 838 + 116 - 1; ++y) {
-            int x = static_cast<int>(78.5 + 78.5 * sin(32 * tau*y / 838));
+            int x = static_cast<int>(78.5 + 78.5 * sin(7 * tau*y / 838));
             if (x >= 157)
                 x = 156;
             if (x < 0)
