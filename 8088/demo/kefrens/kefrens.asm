@@ -92,6 +92,7 @@ pixelTableLoop1:
   jmp pixelTableLoop
 pixelTableLoop2:
   mov cx,79
+  mov di,80
 pixelTableLoop3:
   mov ax,bx
   stosw

@@ -377,6 +377,10 @@ public:
     Vector3 operator-() const { return Vector3<T>(-x, -y, -z); }
     bool zeroVolume() const { return x == 0 || y == 0 || z == 0; }
     T modulus2() const { return x*x + y*y + z*z; }
+    T modulus() const { return sqrt(modulus2()); }
+    T dot(const Vector3& o) { return x*o.x + y*o.y + z*o.z; }
+    void normalize() { *this /= modulus(); }
+    Vector3 normalized() const { return *this / modulus(); }
     bool inside(const Vector3& volume) const
     {
         return x >= 0 && y >= 0 && z >= 0 && x < volume.x && y < volume.y &&
@@ -424,6 +428,11 @@ template<class T> Vector3<T> operator^(const T& n, const Vector3<T>& v)
 template<class T> Vector3<T> floor(const Vector3<T>& vector)
 {
     return Vector3<T>(floor(vector.x), floor(vector.y), floor(vector.z));
+}
+
+template<class T> T dot(const Vector3<T>& a, const Vector3<T>& b)
+{
+    return a.x*b.x + a.y*b.y + a.z*b.z;
 }
 
 template<class T> class Vector3Cast : public Vector3<T>
