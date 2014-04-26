@@ -477,8 +477,8 @@ public:
                     // Run a program
                     Lock lock(&_mutex);
                     _queue.add(item);
-                    item->writeNoEmail("<form action='http://reenigne.dyndns.o"
-                        "rg/cgi-bin/xtcancel.exe' method='post'>\n"
+                    item->writeNoEmail("<form action='http://reenigne.homenet."
+                        "org/cgi-bin/xtcancel.exe' method='post'>\n"
                         "<input type='hidden' name='secret' value='" +
                         item->secret() + "'/>\n"
                         "<button type='submit'>Cancel</button>\n"
@@ -1035,7 +1035,7 @@ private:
 
         wave.remove();
 
-        _item->write("\n<embed height=\"50\" width=\"100\" src=\"../" + 
+        _item->write("\n<embed height=\"50\" width=\"100\" src=\"../" +
             rawName + ".mp3\"><a href=\"../" + rawName +
             ".mp3\">Recorded audio</a></embed>\n");
         ++_audioCount;

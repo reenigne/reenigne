@@ -72,36 +72,6 @@ Ilight = light intensity
 
 void ShadeSphere(int SpecIndex, Vector centre, int radius)
 {
-    Colour ambient;
-    Colour diffuse;
-    Colour specular;
-    Vector3<double> L(0.57735, 0.57735, 0.57735);
-    Vector3<double> V(0, 0, 1);
-    H = (L + V)/((L + V).modulus());
-
-    int Ig;
-    int Irb;
-    double specularterm;
-
-    double rsquare = radius*radius;
-    Int p;
-    for (p.y = -radius; p.y <= radius; ++p.y) {
-        double ysquare = p.y*p.y;
-        for (int p.x = -radius; p.x <= radius; ++p.x) {
-            double xsquare = p.x*p.x;
-            double zsquare = rsquare - xsquare - ysquare;
-            if (zsquare < 0)
-                continue;
-            p.z = sqrt(zsquare);
-            Vector normal = p/p.modulus();
-
-            double LdotN = normal.dot(L);
-            Colour I = ambient;
-            if (LdotN > 0)
-                I += diffuse*LdotN + specular*pow(H.dot(normal), SpecIndex));
-            WritePixel(Xcentre + x, Ycenter + y, I);
-        }
-    }
 }
 
 ShadeSphere(0.85,0.15,10,160,100,100);
