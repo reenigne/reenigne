@@ -327,6 +327,7 @@ To get it to 304 cycles, need WS = 20 cycles = 2.5 per write
 
                      4116  4164 41256
 Cell decay time (ms) 1.93  3.86  7.72
+Cell decay time (sl) 30.3  60.6  121
 IOs for decay        2304  4608  9126
 IOs for rep lodsw     272   544  1088
 

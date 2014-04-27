@@ -47,7 +47,7 @@ shiftLoop:
 
   ; Unroll
 
-  mov bx,50
+  mov bx,47
 unrollY:
   mov cx,20
   mov al,0
@@ -92,26 +92,12 @@ doneUnroll:
   rep stosw
 
 
-  ; Disable DRAM refresh
-
-  cli
-  mov cx,256
-  rep lodsw
-  refreshOff
-
   ; Sync with raster beam vertically
 
+  cli
   mov dx,0x3da
-waitForVerticalSync1:
-  lodsb
-  in al,dx
-  test al,8
-  jz waitForVerticalSync1
-waitForNoVerticalSync1:
-  lodsb
-  in al,dx
-  test al,8
-  jnz waitForNoVerticalSync1
+  waitForVerticalSync
+  waitForNoVerticalSync
   dec dx
 
 
@@ -127,16 +113,9 @@ waitForNoVerticalSync1:
   call pictureEnd+pictureEnd-picture-1
 
 
-  ; Restore DRAM refresh
+  ; Finish up
 
-  refreshOn
-  mov cx,256*18
-  rep lodsw
   sti
-
-
-  ; End program
-
   int 0x67
 
 
@@ -189,15 +168,21 @@ footer:
   mov ax,0xb8            ; ax = 0x00b8
   mov word[di],ax
   mov byte[di+2],ah
+  cmp di,pictureEnd+(pictureEnd-picture)+(headerEnd-header)+(10*20+6)*46
+  jge over1
   mov word[di+206],ax
   mov byte[di+208],ah
+over1:
   xchg ax,di             ; di = 0x00b8
   lodsw                  ; ax = p
   xchg ax,di             ; ax = 0x00b8, di = p
   mov word[di],ax
   mov byte[di+2],ah
+  cmp di,pictureEnd+(pictureEnd-picture)+(headerEnd-header)+(10*20+6)*46
+  jge over2
   mov word[di+206],ax
   mov byte[di+208],ah
+over2:
 
 noTransition:
   ; See if the keyboard has sent a byte
@@ -224,7 +209,7 @@ noKey:
   jne noNewLoop
   mov bx,motion
 noNewLoop:
-  jmp frameLoop-(10*20*50+49*6)
+  jmp frameLoop-((10*20+6)*47-6)
 effectComplete:
   mov sp,[savedSP]
   ret

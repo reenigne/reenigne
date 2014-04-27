@@ -33,7 +33,7 @@ public:
 
     void run()
     {
-        Vector screenSize(80, 50);
+        Vector screenSize(80, 48);
         int frames = 13125000 * 14 / (11 * 76 * 262);
         int maxRadius = 20;
 
@@ -88,6 +88,8 @@ public:
             o1s[t] = o1;
             o2s[t] = o2;
         }
+        minO &= -2;
+        maxO = (maxO + 1) & -2;
 
         FileHandle output = File("tables.asm").openWrite();
 /*        output.write("cpu 8086\n"
@@ -153,8 +155,8 @@ public:
             int theta = t % 1000;
             Vector2<double> z =
                 Vector2<double>(r/20.0, 0)*Rotor2<double>(theta / 1000.0);
-            Vector p = Vector2Cast<int>(z + Vector2<double>(10, 6.25));
-            if (p.x >= 0 && p.x < 20 && p.y >= 0 && p.y < 13) {
+            Vector p = Vector2Cast<int>(z + Vector2<double>(10, 6));
+            if (p.x >= 0 && p.x < 20 && p.y >= 0 && p.y < 12) {
                 int aa = p.y * 20 + p.x;
                 if (cleared[aa])
                     continue;
