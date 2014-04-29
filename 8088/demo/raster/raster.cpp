@@ -119,16 +119,41 @@ public:
         bars[0] = &red;
         bars[1] = &green;
         bars[2] = &blue;
-        Array<Colour> x(200);
-        Array<Colour> v(200);
-        for (int y = 0; y < 200; ++y) {
-            x[y] = 0;
-            v[y] = 0;
+        Array<Colour> x(200*838);
+        for (int y = 0; y < 200*838; ++y)
+            x[y] = Colour(128, 128, 128);
+        double decay = 1.0;
+        Colour waterColours[3] =
+            { Colour(1, 1, 0), Colour(0, 1, 1), Colour(1, 0, 1)};
+        console.write("Starting\n");
+        for (int tt = 0;; ++tt) {
+            double a = (tt*2 + 1)/12.0;
+            double te = a*838/14;
+            if (tt >= 1) //te >= 838)
+                break;
+            double ye = 100 + (100 - red._radius)*sin((a + tt/3.0)*tau);
+            int t0 = static_cast<int>(te+1);
+            for (int t1 = 0; t1 < 838; ++t1) {
+                int t2 = (t0 + t1)%838;
+                double tp = (t0 + t1 - te)*0.01; // *(100 - red._radius)*tau*14.0/838;
+                double dp = exp(-decay*tp);
+                for (int n = 1; n < 20; ++n) {
+                    double p = cos(n*ye*tau/(2*200));
+                    double tdp = dp*cos(sqrt(n*n-decay*decay)*tp)*p;
+                    Colour c = 20.0*waterColours[tt%3]*tdp;
+                    double pp = n*tau/(2*200);
+                    for (int y = 0; y < 200; ++y)
+                        x[t2*200+y] += c*cos(y*pp);
+                }
+            }
+            console.write(".");
         }
+        console.write("Water complete\n");
+
         for (int t = 0; t < 838; ++t) {
             Array<SRGB> column(200);
             for (int y = 0; y < 200; ++y)
-                column[y] = SRGB(0, 0, 0);
+                column[y] = ColourSpace::srgb().toSrgb24(x[y+t*200]);
             for (int base = 0; base < 3; ++base) {
                 double a = t*14.0/838;
                 Bar* bar = bars[base];
@@ -151,6 +176,7 @@ public:
             }
         }
         fclose(out);
+        console.write("Bars complete\n");
     }
 };
 

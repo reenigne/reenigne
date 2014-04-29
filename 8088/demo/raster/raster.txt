@@ -205,3 +205,31 @@ ShadeSphere(0.85,0.15,10,160,100,100);
 
 d/dx (N * sin(x/N)) ~= 1
   => d/dx (88 * sin (x*14*tau/838)) = 88*14*tau/838 = 9
+
+
+
+
+sin(x) = sin(x + 2*pi/3) = sin(x)*cos(2*pi/3) + sin(2*pi/3)*cos(x)
+
+sin(x)*(1-cos(2*pi/3)) = sin(2*pi/3)*cos(x)
+
+sin(x)/cos(x) = sin(2*pi/3)/(1-cos(2*pi/3)) = sqrt(1/3)
+x = 0.523598776 rad
+
+sin(x) = 0.5
+
+
+    Can we do this analytically?
+      Energy inserted at (0.5, tau/12), (-0.5, 3*tau/12), (0.5, 5*tau/12), (-0.5, 7*tau/12), (0.5, 9*tau/12), (-0.5, 11*tau/12)
+      Waves are linear
+      Fourier decomposition?
+        Symmetric at edges => sum(k==0..infinity, A(k)*cos(k*pi*y))
+        Each component is a standing wave
+      Assume friction force proportional to velocity
+        d^2x/dt^2 = c^2 * d^2x/dy^2 + f * dx/dt
+      Dispersion => c^2 depends on k - not needed here
+
+
+http://uhaweb.hartford.edu/noonburg/m344lecture16.pdf has the complete solution
+
+

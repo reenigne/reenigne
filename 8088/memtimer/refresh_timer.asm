@@ -1,8 +1,4 @@
-  %include "../defaults_com.asm"
-
-main:
-  mov ax,3
-  int 0x10
+  %include "../defaults_bin.asm"
 
   mov al,TIMER0 | BOTH | MODE2 | BINARY
   out 0x43,al
@@ -14,12 +10,6 @@ main:
 
   mov ax,0
   mov ds,ax
-
-  mov ax,word[0x20]
-  mov word[cs:interrupt8save],ax
-  mov ax,word[0x22]
-  mov word[cs:interrupt8save+2],ax
-
   mov ax,cs
   mov word[0x20],interrupt8
   mov [0x22],ax
@@ -47,15 +37,7 @@ donePrint:
   jne printSpaces
 
   ; Finish
-finish:
-  mov ax,0
-  mov ds,ax
-  mov ax,word[cs:interrupt8save]
-  mov word[0x20],ax
-  mov ax,word[cs:interrupt8save+2]
-  mov word[0x22],ax
-  mov ax,0x4c00
-  int 0x21
+  complete
 
   ; Print spaces for alignment
 printSpaces:
@@ -64,8 +46,7 @@ printSpaces:
   jg spaceLoop
   mov cx,1
 spaceLoop:
-  mov al,' '
-  printCharacter
+  printCharacter ' '
   loop spaceLoop
 
   mov cx,5    ; Number of repeats
@@ -132,7 +113,7 @@ fullPrint:
   mov cx,10
   mov si,output
 doPrint:
-  call printMessage
+  printString
   pop si
   pop cx
   loop repeatLoop1
@@ -143,9 +124,7 @@ doPrint:
   lodsw
   add si,ax
 
-  ; Print a newline
-  mov al,10
-  printCharacter
+  printNewLine
 
   jmp nextExperiment
 
@@ -194,8 +173,11 @@ iterationLoop:
   mov cx,timerEndEnd-timerEndStart
   call codeCopy
 
-  ; Turn off refresh
-  refreshOff
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,18
+  out 0x41,al  ; Timer 1 rate
+
 
   ; Enable IRQ0
   mov al,0xfe  ; Enable IRQ 0 (timer), disable others
@@ -231,23 +213,13 @@ codeCopyDone:
 codeCopyOutOfSpace:
   mov si,outOfSpaceMessage
   mov cx,outOfSpaceMessageEnd-outOfSpaceMessage
-  call printMessage
-  jmp finish
-
-printMessage:
-  push ax
-printMessageLoop:
-  lodsb
-  printCharacter
-  loop printMessageLoop
-  pop ax
-  ret
+  printString
+  complete
 
 outOfSpaceMessage:
   db "Copy out of space - use fewer iterations"
 outOfSpaceMessageEnd:
 
-interrupt8save: dw 0,0
 
 codePreambleStart:
 ;  mov al,0
@@ -256,37 +228,44 @@ codePreambleEnd:
 
 experimentData:
 
-experiment1:
-  db "inc ax; out dx,al$"
+experimentKefrensR1:
+  db "KefrensR1$"
   dw .endInit - ($+2)
-  mov dx,0x3d9
-  mov ax,0
-.endInit
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  mov cx,0x8000
+.endInit:
   dw .endCode - ($+2)
-  inc ax
-  out dx,al
-.endCode:
 
-experiment2:
-  db "mov al,XX; out dx,al$"
-  dw .endInit - ($+2)
-  mov dx,0x3d9
-  mov ax,0
-.endInit
-  dw .endCode - ($+2)
-  mov al,0x10
-  out dx,al
-.endCode:
+  mov ax,0x4567
+  mov ds,ax
+  mov sp,[bx]
 
-experiment3:
-  db "mov ax,XXXX; out dx,ax$"
-  dw .endInit - ($+2)
-  mov dx,0x3d8
-  mov ax,0
-.endInit
-  dw .endCode - ($+2)
-  mov ax,0x002d
-  out dx,ax
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  pop ax
+  and ah,[es:di+1]
+  pop bx
+  or ax,bx
+  stosw
+
+  pop ax
+  out dx,al
+  mov ds,cx
+
+  lodsb
+  out 0xe0,al
+
 .endCode:
 
 lastExperiment:
@@ -348,4 +327,5 @@ times 528 push cs
   out 0x40,al
   out 0x40,al
 timerStartEnd:
+
 

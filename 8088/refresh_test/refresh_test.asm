@@ -3,78 +3,60 @@
   mov ax,cs
   mov ds,ax
 
-  stopScreen
+;  stopScreen
 
   print "Test starting",10
+  mov cx,0x7000
+outerTest:
+  push cx
 
   cli
-  mov cx,256
-  rep lodsw
-  refreshOff
 
-  mov cx,0x1000
-loopTop:
-  times 512 nop
+  mov al,TIMER1 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov al,cl
+  out 0x41,al  ; Timer 1 rate
+  mov al,ch
+  out 0x41,al  ; Timer 1 rate
 
-  printCharacter '-'
-  in al,0x00
-  mov ah,al
-  in al,0x00
-  xchg ah,al
+  mov ax,cx
   printHex
   printCharacter 10
 
-  loop loopTop1
-  jmp loopDone
-loopTop1:
-  jmp loopTop
-loopDone:
 
-
-
-;  mov cx,0x1000
-;loopTop2a:
-;  mov bx,cx
-;  mov cx,0xff
-;loopTop3a:
-;  loop loopTop3a
-;  mov cx,bx
-;
-;  printCharacter '-'
-;  in al,0x00
-;  mov ah,al
-;  in al,0x00
-;  xchg ah,al
-;  printHex
-;  printCharacter 10
-;
-;  loop loopTop2a
-
+  mov cx,0x1000
+loopTop2a:
+  mov bx,cx
+  mov cx,0xff
+loopTop3a:
+  loop loopTop3a
+  mov cx,bx
+  loop loopTop2a
 
   print "Loop complete",10
 
-  refreshOn
-  mov cx,256*18
+  mov cx,0
+segLoop:
+  push cx
+  mov ds,cx
+  xor si,si
+  cld
+  mov cx,0x8000
   rep lodsw
-  sti
+  printCharacter '.'
+  pop cx
+  add cx,0x1000
+  cmp cx,0xa000
+  jne segLoop
 
-  mov cx,0x1000
-loopTop2:
-  mov bx,cx
-  mov cx,0xff
-loopTop3:
-  loop loopTop3
+  mov ax,cs
+  mov ds,ax
 
-  printCharacter '+'
-  in al,0x00
-  mov ah,al
-  in al,0x00
-  xchg ah,al
-  printHex
-  printCharacter 10
+  print "Scan complete",10
 
-  mov cx,bx
-  loop loopTop2
+  pop cx
+  add cx,0x10
+  jmp outerTest
 
   print "Test complete",10
   complete

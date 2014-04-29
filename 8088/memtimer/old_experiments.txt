@@ -1,3 +1,46 @@
+experimentKefrensR:
+  db "KefrensR$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  mov cx,0x8000
+.endInit:
+  dw .endCode - ($+2)
+
+  mov ax,0x4567
+  mov ds,ax
+  mov sp,[bx]
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+
+  pop ax
+  out dx,al
+  mov ds,cx
+
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+
+
 experimentKefrens259:
   db "Kefrens259$"
   dw .endInit - ($+2)

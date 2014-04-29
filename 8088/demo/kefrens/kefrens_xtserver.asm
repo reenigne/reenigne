@@ -28,40 +28,19 @@ headerSize equ (headerEnd-header)
   ; Unroll
 
   mov cx,scanlines
-  mov bl,0x80
-  mov dx,positions*16
   mov bp,ax
   add bp,0x1000
-  mov bh,0x80
 unroll:
   mov si,kefrensScanline
-  movsw
-  movsb
-  mov al,bl
-  stosb
-  movsw
-  movsb
-  mov ax,dx
-  stosw
-  times 10 movsw
   movsb
   mov ax,bp
   stosw
-  movsw
-  movsw
-  mov al,bh
-  stosb
-  movsw
-  movsw
-  movsw
-  add bl,17*2                   ; Increase sineTable pointer
-  add dx,positions*2            ; Increase mulTable pointer
-  xor bh,1                      ; Alternate raster set
-  cmp bh,0x80
-  jne noRasterInc
-  add bp,(frames*2 + 15)>>4     ; Increase raster segment
-  sub bl,(16+17)*2
-noRasterInc:
+  mov dx,cx
+  mov cx,16
+  rep movsw
+  movsb
+  mov cx,dx
+  add bp,(frames*3 + 15)>>4     ; Increase raster segment
   loop unroll
 
   ; Copy footer
@@ -193,12 +172,13 @@ noWrap:
   xor ax,ax
   stosw
 
-  ; Disable DRAM refresh
+  ; Go into lockstep and reduce DRAM refresh frequency to 4 refreshes per scanline
 
-  cli
-  mov cx,256
-  rep lodsw
-  lockstep
+  lockstep2
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,19
+  out 0x41,al  ; Timer 1 rate
 
 
   ; Video layout:
@@ -341,16 +321,12 @@ noWrap:
   out 0x61,al
 
 
-  ; Restore DRAM refresh
+  ; Finish up
 
-  refreshOn
-  mov cx,256*18
-  rep lodsw
   sti
-
-
-  ; End program
-
+  refreshOn
+  mov ax,3
+  int 0x10
   int 0x67
 
 
@@ -359,8 +335,9 @@ noWrap:
   ; filled in.
 
 kefrensScanline:
-  db 0x2e, 0x8b, 0x7f  ; mov di,[cs:bx+XX]
-  db 0x36, 0x8b, 0xa5  ; mov sp,[ss:di+XXXX]   mulTable is a different 157-element table per scanline
+  db 0xb8              ; mov ax,XXXX
+  mov ds,ax            ; 2 0
+  mov sp,[bx]
 
   pop di               ; 1 2
   mov al,[es:di]       ; 3 1 +WS
@@ -375,9 +352,7 @@ kefrensScanline:
   or al,ch             ; 2 0
   stosb                ; 1 1 +WS
 
-  db 0xb8              ; mov ax,XXXX
-  mov ds,ax            ; 2 0
-  db 0x8a, 0x47        ; mov al,[bx+XX]
+  mov al,[bx+2]
   out dx,al            ; 1 1
   mov ds,bp            ; 2 0
   lodsb                ; 1 1
