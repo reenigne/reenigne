@@ -2,7 +2,7 @@ org 0x100
 %include "../../defaults_common.asm"
 
 frames equ 838
-positions equ 157
+positions equ 154
 scanlines equ 200
 footerSize equ (footerEnd-footer)
 headerSize equ (headerEnd-header)
@@ -11,7 +11,7 @@ headerSize equ (headerEnd-header)
   mov es,ax
   mov ds,ax
   cli
-  add ax,((unrolledCode + headerSize + 43*scanlines + footerSize + 15)>>4)
+  add ax,((unrolledCode + headerSize + 34*scanlines + footerSize + 15)>>4)
   mov ss,ax
   mov sp,0xfffe
   sti
@@ -36,7 +36,7 @@ unroll:
   mov ax,bp
   stosw
   mov dx,cx
-  mov cx,16
+  mov cx,15
   rep movsw
   movsb
   mov cx,dx
@@ -49,84 +49,57 @@ unroll:
   mov si,footer
   rep movsb
 
+
   ; Create pixel table
 
   mov ax,ss
   mov es,ax
-  mov cx,79
+  xor dx,dx
   xor di,di
+pixelTableOuterLoop:
+
+  mov cx,positions/2
   xor bx,bx
-pixelTableLoop:
-  mov ax,bx
-  stosw
+pixelTable3Loop:
   mov si,pixelTable3
-  times 3 movsw
-  loop pixelTableLoop1
-  jmp pixelTableLoop2
-pixelTableLoop1:
   mov ax,bx
   stosw
-  times 3 movsw
+  times 4 movsw          ; Even y, even x
+  mov ax,dx
+  or al,0x30
+  stosw
+  mov ax,bx
+  stosw
+  times 4 movsw          ; Even y, odd x
+  mov ax,dx
+  or al,0x30
+  stosw
   inc bx
-  jmp pixelTableLoop
-pixelTableLoop2:
-  mov cx,79
+  loop pixelTable3Loop
+
+  mov cx,positions/2
   mov bx,80
-pixelTableLoop3:
-  mov ax,bx
-  stosw
+pixelTable1Loop:
   mov si,pixelTable1
-  times 3 movsw
-  loop pixelTableLoop4
-  jmp pixelTableLoop5
-pixelTableLoop4:
   mov ax,bx
   stosw
-  times 3 movsw
+  times 4 movsw          ; Odd y, even x
+  mov ax,dx
+  or al,0x10
+  stosw
+  mov ax,bx
+  stosw
+  times 4 movsw          ; Odd y, odd x
+  mov ax,dx
+  or al,0x10
+  stosw
   inc bx
-  jmp pixelTableLoop3
-pixelTableLoop5:
+  loop pixelTable1Loop
 
-  ; Create multiplication table
+  inc dx
+  cmp dx,16
+  jne pixelTableOuterLoop
 
-  mov cx,scanlines
-mulTableLoopY:
-  mov bx,cx
-
-  mov cx,positions
-mulTableLoopX3:
-  mov ax,positions
-  sub ax,cx
-  sub ax,78
-  imul bx
-  mov si,scanlines
-  idiv si
-  add ax,78
-  shl ax,1
-  shl ax,1
-  shl ax,1
-  stosw
-  loop mulTableLoopX3
-
-  dec bx
-  mov cx,positions
-mulTableLoopX1:
-  mov ax,positions
-  sub ax,cx
-  sub ax,78
-  imul bx
-  mov si,scanlines
-  idiv si
-  add ax,78
-  shl ax,1
-  shl ax,1
-  shl ax,1
-  add ax,positions*8
-  stosw
-  loop mulTableLoopX1
-
-  mov cx,bx
-  loop mulTableLoopY
 
   ; Find raster bars segment
 
@@ -134,10 +107,11 @@ mulTableLoopX1:
   add dx,0x1000
   mov es,dx
 
+
   ; Create raster bars table
 
   mov cx,scanlines/2
-  mov ax,0x1030
+  mov ax,0
 rasterLoopY:
   mov bx,cx
 
@@ -147,30 +121,57 @@ rasterLoopY:
   add dx,(frames*2 + 15) >> 4
   mov es,dx
 
-  add ax,0x0101
-  cmp ax,0x2040
-  jne noWrap
-  mov ax,0x1030
+  add ax,positions*6*2*3
+
+  mov cx,frames
+  xor di,di
+  rep stosw
+  add dx,(frames*2 + 15) >> 4
+  mov es,dx
+
+  add ax,positions*6*2
+  cmp ax,positions*6*2*32
+  jb noWrap
+  mov ax,0
 noWrap:
 
   mov cx,bx
   loop rasterLoopY
 
-  ; Create music table
+
+  ; Create sample table
 
   mov [sampleSeg],dx
   mov es,dx
   xor di,di
-  mov cx,0x8000
-  mov ax,0x0101
-  rep stosw
+  mov si,waveInfoTable
+  mov cx,waveInfoLength
+waveInfoLoop:
+  push cx
+  lodsw
+  mov bp,ax
+  lodsw
+  mov cx,ax
+  lodsw
+  push si
+  mov si,ax
+  xor dx,dx
+sampleLoop:
+  mov bl,dh
+  xor bh,bh
+  mov al,[bx+sineTable]
+  add dx,bp
+  mov bx,si
+  imul bl
+  add ax,256*38   ; (-128*75 + 256*38)/256 + 1 = 1, (127*75 + 256*38)/256 + 1 = 76
+  mov al,ah
+  inc ax
+  stosb
+  loop sampleLoop
+  pop si
+  pop cx
+  loop waveInfoLoop
 
-  ; Create song table
-
-  add dx,0x1000
-  mov [songSeg],dx
-  xor ax,ax
-  stosw
 
   ; Go into lockstep and reduce DRAM refresh frequency to 4 refreshes per scanline
 
@@ -179,7 +180,6 @@ noWrap:
   out 0x43,al
   mov al,19
   out 0x41,al  ; Timer 1 rate
-
 
   ; Video layout:
   ;   We don't want to have to use the second 8kB so use Max Scan Line Address = 0
@@ -276,6 +276,7 @@ noWrap:
   mov ax,0xc00f
   out dx,ax
 
+  times 38 nop
 
 
   ; Set up speaker
@@ -284,12 +285,19 @@ noWrap:
   or al,3
   out 0x61,al
 
+
   ; Set up timer 2 for PWM
 
   mov al,TIMER2 | LSB | MODE0 | BINARY
   out 0x43,al
   mov al,0x01
   out 0x42,al  ; Counter 2 count = 1 - terminate count quickly
+
+
+  ; Send read interrupt request command to PIC
+
+  mov al,0x0a
+  out 0x20,al
 
 
   ; Setup initial registers and clear screen
@@ -302,16 +310,14 @@ noWrap:
   rep stosw
   mov dx,0x03d4
   mov bp,[sampleSeg]
-  mov bx,0x80
+  mov bx,0
+  mov word[songPosition],songTable
+  mov si,[songTable]
 
 
   ; Do the actual effect
 
-  mov word[unrollPointer],unrolledCode-sineTable
-  mov ax,cs
-  add ax,(sineTable >> 4)
-  mov [unrollPointer+2],ax
-  call far [unrollPointer]
+  call unrolledCode
 
 
   ; Turn off speaker
@@ -347,28 +353,28 @@ kefrensScanline:
   pop cx               ; 1 2
   or ax,cx             ; 2 0
   stosw                ; 1 2 +WS +WS
-  mov al,[es:di]       ; 3 1 +WS
+  pop ax               ; 1 2
+  and ah,[es:di+1]     ; 4 1 +WS
   pop cx               ; 1 2
-  and al,cl            ; 2 0
-  or al,ch             ; 2 0
-  stosb                ; 1 1 +WS
+  or ax,cx             ; 2 0
+  stosw                ; 1 2 +WS +WS
 
   pop ax               ; 1 2
-  mov al,[bx+2]        ; 3 1
   out dx,al            ; 1 1
   mov ds,bp            ; 2 0
   lodsb                ; 1 1
-  out 0x42,al          ; 2 1        Total 1 (2) 33 = 36 bytes
+  out 0x42,al          ; 2 1        Total 1 (2) 31 = 34 bytes
 
-
+;       AND     OR      AND     OR       AND     OR      AND     OR
+;      cdab    cdab    g.ef    g.ef     bc.a    bc.a    fgde    fgde       abcdefg = 5679abd
 pixelTable3:
-  dw 0x0000, 0x9b57, 0x00ff, 0x00f0, 0x7905, 0xb00f
+  dw 0x0000, 0x7956, 0x0f00, 0xd0ab,  0x00f0, 0x6705, 0x0000, 0xbd9a
 pixelTable1:
-  dw 0x0000, 0xba5f, 0x00ff, 0x00f0, 0xfb05, 0xa00f
+  dw 0x0000, 0x7956, 0x0f00, 0xd0ab,  0x00f0, 0x6706, 0x0000, 0xbd9a
 
 
 %macro audioOnlyScanline 0
-  times 62 nop
+  times 56 nop
   mov al,[es:di]
   mov ds,bp
   lodsb
@@ -377,18 +383,27 @@ pixelTable1:
 
 
 header:
-  mov [cs:savedSP + (unrolledCode - sineTable) + scanlines*43 - header],sp
+  mov [cs:savedSP],sp
 frameLoop:
   mov ax,[es:di]
   mov ds,bp
   lodsb
   out 0x42,al
 
-  ; Scanline 260: set Vertical Total to 1
+  ; Scanline 260: set Vertical Total to 1 and update audio pointer
   mov ax,0x0104
   out dx,ax
   mov dl,0xd9
-  times 50 nop
+  mov di,[cs:songPosition]
+  mov si,[cs:di]
+  inc di
+  inc di
+  cmp di,songTable+songLength*2
+  jne noRestartSong
+  mov di,songTable
+noRestartSong:
+  mov [cs:songPosition],di
+  times 15 nop
   mov ax,[es:di]
   mov ds,bp
   lodsb
@@ -406,19 +421,20 @@ footer:
   mov dl,0xd4
   mov ax,0x3b04
   out dx,ax
-  times 50 nop
+  times 45 nop
   mov ax,[es:di]
-  mov ds,cx
+  mov ds,bp
   lodsb
   out 0x42,al
 
   ; Scanline 201: audio only - video still active
   audioOnlyScanline
 
-  ; Scanline 202: clear addresses 0-17
+  ; Scanline 202: clear addresses 0-15
   xor di,di
   xor ax,ax
-  stosw
+  nop
+  nop
   stosw
   stosw
   stosw
@@ -432,12 +448,10 @@ footer:
   lodsb
   out 0x42,al
 
-%rep 8
-  ; Scanlines 203-210: clear addresses 18-162
+%rep 9
+  ; Scanlines 203-211: clear addresses 18-159
   xor ax,ax
-  nop
-  nop
-  stosw
+  times 4 nop
   stosw
   stosw
   stosw
@@ -452,14 +466,14 @@ footer:
   out 0x42,al
 %endrep
 
-  ; Scanlines 211-258: audio only
-%rep 48
+  ; Scanlines 212-258: audio only
+%rep 47
   audioOnlyScanline
 %endrep
 
   ; Start of scanline 259: check for ending and update
 
-  times 6 nop
+  times 2 nop
   ; See if the keyboard has sent a byte
   in al,0x20
   and al,2
@@ -482,21 +496,20 @@ noKey:
 doneKey:
   inc bx
   inc bx
-  cmp bx,0x80+frames*2
+  cmp bx,frames*2
   jne noNewLoop
-  mov bx,0x80
+  mov bx,0
 noNewLoop:
-  jmp frameLoop-43*scanlines
+  jmp frameLoop-34*scanlines
 effectComplete:
-  mov sp,[cs:savedSP + (unrolledCode - sineTable) + scanlines*43 - header]
-  retf
+  mov sp,[cs:savedSP]
+  ret
 
 savedSP: dw 0
 
 footerEnd:
-
+songPosition: dw 0
 sampleSeg: dw 0
-songSeg: dw 0
 unrollPointer: dw 0, 0
 
   times 128 dw 0

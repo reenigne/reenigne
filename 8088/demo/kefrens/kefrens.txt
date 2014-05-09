@@ -288,14 +288,12 @@ Raster bars table stored in y-major order with a different segment for each y co
 CS:
   0000 = PSP           0x0100
   0100 = code          ?
-         sineTable     2074
-         unrolledCode  header+43*200+footer
+         unrolledCode  header+34*200+footer
 SS:
-  0000 = pixelTable    157*16 = 2512
-  09D0 = mulTable      157*2*200 = 62800
-  FF20 = DS start
+  0000 = pixelTable    154*6*2*2*16 = 59136
+  E700 = DS start
 DS:
-         rasterBars    169600
+         rasterBars    200*((838 | 15)+1)*2 = 339200
          samples       65536
          song          35954
 
@@ -342,3 +340,112 @@ Relocated savedSP = CS1:(savedSP + sineTable + scanlines*43 - header)
 2-byte pip location and 1-byte raster location per scanline*frame:
   (((3*838 + 15)&~15)*200 + 157*8 = 506856
   (((2*838 + 15)&~15)*200 + 157*16*9 = 356096
+
+
+
+2bpp nybbles that don't depend on colour 0 are:
+  5 6 7 9 A B D E F
+
+
+
+Footer at 0194:3c02
+Footer ends at 0194:4968
+
+
+
+If the pip was 1 ccycle there would be 160 positions
+Pip is 7 ccycles so there are 154 positions
+
+.x xx  xx xx
+
+xx xx  xx x.
+
+
+0: Offset of destination for leftmost byte of pip
+1: AND mask for leftmost word
+2: OR mask for leftmost word
+3: AND mask for rightmost word
+4: OR mask for rightmost word
+5: palette register (only low byte used)
+
+
+positions*6*2*0 = palette 0, scanline 0
+positions*6*2*1 = palette 0, scanline 1
+positions*6*2*2 = palette 1, scanline 0
+positions*6*2*3 = palette 1, scanline 1
+...
+positions*6*2*30 = palette 15, scanline 0
+positions*6*2*31 = palette 15, scanline 1
+positions*6*2*32 = end
+
+
+
+
+
+
+KefrensScanline0     152 +006  151 +114  +114  +114  +114                  ok
+KefrensScanline199_200 304 +001  +000  +000  +000  +000                      ok
+KefrensScanline200   152 +000  +003  +003  +000  +003                      ok
+KefrensScanline200_201 304 +040  +000  +000  +000  +000                      ok
+KefrensScanline201   151 +079  +081  +081  +081  +081                      ?
+KefrensScanline201_202 303 +118  304 +000  +000  303 +118  304 +000          ok
+KefrensScanline202   151 +118  +119  152 +001  +000  +001                  ok
+KefrensScanline202_203 304 +001  +001  +000  +000  303 +118                  ok
+KefrensScanline203   152 +001  +000  +001  +000  +001                      ok
+KefrensScanline211_212 304 +000  +001  +000  +000  +000                      ok
+KefrensScanline258_259 304 +001  +001  +001  +000  +001                      ok
+KefrensScanline258_259a 304 +000  +003  +000  303 +116  304 +000             ok
+KefrensScanline258_259b 304 +000  +001  +000  +001  +001                     ok
+KefrensScanline258_259c 304 +000  +003  +000  303 +116  304 +000             ok
+KefrensScanline259   152 +002  +000  +000  +000  +000                      ok
+KefrensScanline259a  151 +119  152 +000  +000  +000  +000                  ok
+KefrensScanline259b  151 +119  152 +000  +000  +000  +000                  ok
+KefrensScanline259c  152 +012  +000  +000  +000  +000                      ok
+KefrensScanline259_260 304 +003  +003  +003  +003  +003                      ok
+KefrensScanline259a_260 304 +000  303 +116  304 +000  303 +116  304 +000     ok
+KefrensScanline259b_260 303 +101  304 +000  +000  +000  +000                 ok
+KefrensScanline259c_260 304 +000  303 +117  304 +000  303 +117  304 +000     ok
+KefrensScanline259_260a 304 +000  +003  +003  +003  +003                     ok
+KefrensScanline259a_260a 304 +000  303 +116  304 +000  303 +116  304 +000    ok
+KefrensScanline259b_260a 303 +100  304 +000  +000  +000  +000                ok
+KefrensScanline259c_260a 304 +000  303 +117  304 +000  303 +117  304 +000    ok
+KefrensScanline260   152 +000  +001  +001  +001  +001                      ok
+KefrensScanline260a  152 +000  +001  +001  +001  +001                      ok
+KefrensScanline260_261 304 +000  +000  +000  +000  +000                      ok
+KefrensScanline260a_261 303 +119  304 +000  303 +119  304 +000  +000         ok
+KefrensScanline261_0 304 +000  +000  303 +105  304 +000  +000                ok
+
+
+
+
+
+CS:                                                           0194
+  static code
+  sineTable
+  songTable
+  waveInfoTable
+  unrolled loop
+    header
+    scanlines (200*34)
+    footer
+SS:                                                           062B
+  pixel table (0xe700 bytes)
+    For each overscan/background colour (16), 3696 bytes:
+      For each scanline (2), 1848 bytes:
+        For each position (154), 12 bytes:
+          destination offset in CGA memory (2)
+          AND first word (2)
+          OR first word (2)
+          AND second word (2)
+          OR second word (2)
+          palette register (2)
+  stack (0x1900 = 6400 bytes)
+DS = SS + 0x1000:                                             162B
+  raster/kefrens bar table (0x52080 bytes):
+    For each scanline (200), 0x690 bytes:
+      For each frame (838), 2 bytes:
+        Pixel table offset (2)
+      Alignment (4)
+DS = SS + 0x6208:                                             7833
+  sample table
+                                                              8833

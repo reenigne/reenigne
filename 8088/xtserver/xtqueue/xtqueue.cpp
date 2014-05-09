@@ -343,6 +343,18 @@ private:
         void write(File file)
         {
             AutoHandle handle = file.openWrite();
+            handle.write("RIFF");
+            handle.write<UInt32>(_bytes + 0x24);
+            handle.write("WAVEfmt ");
+            handle.write<UInt32>(0x10);
+            handle.write<UInt16>(1);
+            handle.write<UInt16>(2);
+            handle.write<UInt32>(44100);
+            handle.write<UInt32>(44100*2*2);
+            handle.write<UInt16>(2*2);
+            handle.write<UInt16>(16);
+            handle.write("data");
+            handle.write<UInt32>(_bytes);
             if (_bytes < _audioBytes1) {
                 handle.write(_audioPointer1, _bytes);
                 _bytesRead1 = _bytes;
@@ -636,12 +648,12 @@ public:
                 if (!_keyboardKernel) {
                     _com.write(&_packet[0], 2 + _packet[0]);
                     IF_ZERO_THROW(FlushFileBuffers(_com));
-                    Byte b = _com.tryReadByte();
+                    b = _com.tryReadByte();
                 }
                 else {
                     _arduinoCom.write(&_packet[0], 2 + _packet[0]);
                     IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
-                    Byte b = _arduinoCom.tryReadByte();
+                    b = _arduinoCom.tryReadByte();
                 }
                 console.write(" " + String::Decimal(b));
                 //bothWrite(String::Decimal(b));
@@ -770,6 +782,7 @@ public:
                     continue;
                 }
                 bool timedOut = stream();
+                stopRecording();
                 console.write("\n");
                 _item->write("\n");
                 if (_item->aborted()) {
@@ -1012,7 +1025,7 @@ private:
             return;
         String rawName = _item->secret() + _audioCount;
         String baseName = htDocsPath(rawName);
-        String waveName = baseName + ".pcm";
+        String waveName = baseName + ".wav";
         File wave(waveName, true);
         _audioCapture->finish(wave);
         _audioCapture = 0;

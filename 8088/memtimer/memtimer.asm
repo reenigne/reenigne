@@ -225,25 +225,61 @@ codePreambleEnd:
 
 experimentData:
 
-experimentKefrensBlank:
-  db "KefrensBlank$"
+experimentSweep:
+  db "Sweep$"
   dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov si,0
-  mov word[si],0
-  xor di,di
+
+  mov di,0xffff
+  mov bx,di
+  mov cx,di
+
 .endInit:
   dw .endCode - ($+2)
 
-  times 64 nop
-  mov al,[es:di]
-  mov ds,cx
-  lodsb
+  mov ax,bx  ; high word                         ffff
+  mul di     ;                                  *ffff = fffe:0001
+  mov bx,dx  ; new high word                     fffe
+  xchg cx,ax ; low word <-> new low word              0001 <> ffff
+  mul di     ;                                  *ffff = fffe:0001
+  add cx,dx  ;                                               ffff
+  adc bx,0   ;                                          fffe
+  mov al,bl
   out 0xe0,al
+  mov al,bh
+  out 0xe0,al
+  cmp bx,0
+  jne .loopTop
+.loopTop:
+
+.endCode:
+
+
+experimentSweepEven:
+  db "SweepEven$"
+  dw .endInit - ($+2)
+
+  mov di,0xffff
+  mov bx,di
+  mov cx,di
+
+.endInit:
+  dw .endCode - ($+2)
+
+  mov ax,bx  ; high word                         ffff
+  mul di     ;                                  *ffff = fffe:0001
+  mov bx,dx  ; new high word                     fffe
+  xchg cx,ax ; low word <-> new low word              0001 <> ffff
+  mul di     ;                                  *ffff = fffe:0001
+  add cx,dx  ;                                               ffff
+  adc bx,0   ;                                          fffe
+  mov al,bl
+  and al,0xfe
+  out 0xe0,al
+  mov al,bh
+  out 0xe0,al
+  cmp bx,0
+  jne .loopTop
+.loopTop:
 
 .endCode:
 

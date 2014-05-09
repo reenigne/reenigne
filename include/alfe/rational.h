@@ -11,47 +11,50 @@ public:
     ZeroDivideException() : Exception("Division by zero") { }
 };
 
-template<class T> class Rational
+template<class T> class RationalTemplate
 {
 public:
-    Rational(const T& n, const T& d) : numerator(n), denominator(d)
+    RationalTemplate(const T& n, const T& d) : numerator(n), denominator(d)
     {
         normalize();
     }
-    Rational(const T& n) : numerator(n), denominator(1) { }
-    Rational() { }
-    Rational& operator=(const Rational& r)
+    RationalTemplate(const T& n) : numerator(n), denominator(1) {}
+    RationalTemplate() {}
+    RationalTemplate& operator=(const RationalTemplate& r)
     {
         numerator = r.numerator; denominator = r.denominator;
         return *this;
     }
-    Rational& operator=(const T& n) { numerator = n; denominator = 1; }
-    Rational operator*(const Rational& other) const
+    RationalTemplate& operator=(const T& n) { numerator = n; denominator = 1; }
+    RationalTemplate operator*(const RationalTemplate& other) const
     {
-        Rational r = *this;
+        RationalTemplate r = *this;
         r *= other;
         return r;
     }
-    Rational operator/(const Rational& other) const
+    RationalTemplate operator/(const RationalTemplate& other) const
     {
-        Rational r = *this;
+        RationalTemplate r = *this;
         r /= other;
         return r;
     }
-    Rational operator+(const Rational& other) const
+    RationalTemplate operator+(const RationalTemplate& other) const
     {
-        Rational r = *this;
+        RationalTemplate r = *this;
         r += other;
         return r;
     }
-    Rational operator-(const Rational& other) const
+    RationalTemplate operator-(const RationalTemplate& other) const
     {
-        Rational r = *this;
+        RationalTemplate r = *this;
         r -= other;
         return r;
     }
-    Rational operator-() const { return Rational(-numerator, denominator); }
-    Rational& operator+=(const Rational& other)
+    RationalTemplate operator-() const
+    {
+        return RationalTemplate(-numerator, denominator);
+    }
+    RationalTemplate& operator+=(const RationalTemplate& other)
     {
         T n = other.numerator;
         T d = other.denominator;
@@ -63,12 +66,12 @@ public:
         denominator *= (d/g);
         return *this;
     }
-    Rational& operator-=(const Rational& other)
+    RationalTemplate& operator-=(const RationalTemplate& other)
     {
         *this += (-other);
         return *this;
     }
-    Rational& operator*=(const Rational& other)
+    RationalTemplate& operator*=(const RationalTemplate& other)
     {
         T n = other.numerator;
         T d = other.denominator;
@@ -78,7 +81,7 @@ public:
         denominator = (denominator/b)*(d/a);
         return *this;
     }
-    Rational& operator/=(const Rational& other)
+    RationalTemplate& operator/=(const RationalTemplate& other)
     {
         T n = other.numerator;
         T d = other.denominator;
@@ -93,27 +96,37 @@ public:
         normalizeSign();
         return *this;
     }
-    bool operator<(const Rational& other) const
+    bool operator<(const RationalTemplate& other) const
     {
         return ((*this) - other).numerator < 0;
     }
-    bool operator>(const Rational& other) const { return other < (*this); }
-    bool operator<=(const Rational& other) const
+    bool operator>(const RationalTemplate& other) const { return other < (*this); }
+    bool operator<=(const RationalTemplate& other) const
     {
         return !((*this) > other);
     }
-    bool operator>=(const Rational& other) const
+    bool operator>=(const RationalTemplate& other) const
     {
         return !((*this) < other);
     }
-    bool operator==(const Rational& other) const
+    bool operator==(const RationalTemplate& other) const
     {
         return numerator == other.numerator &&
             denominator == other.denominator;
     }
-    bool operator!=(const Rational& other) const
+    bool operator!=(const RationalTemplate& other) const
     {
         return !operator==(other);
+    }
+    template<class U> U value() const
+    {
+        return static_cast<U>(numerator)/static_cast<U>(denominator);
+    }
+    T ceiling() const { return (numerator + denominator - 1)/denominator; }
+    int hash() const { return numerator*67 + denominator; }
+    RationalTemplate frac() const
+    {
+        return RationalTemplate(numerator%denominator, denominator);
     }
 
     T numerator;
@@ -141,22 +154,26 @@ private:
     }
 };
 
-template<class T> Rational<T> lcm(const Rational<T>& x, const Rational<T>& y)
+template<class T> RationalTemplate<T>
+    lcm(const RationalTemplate<T>& x, const RationalTemplate<T>& y)
 {
-    return Rational<T>(
+    return RationalTemplate<T>(
         lcm(x.numerator*y.denominator, y.numerator*x.denominator),
         lcm(x.denominator, y.denominator));
 }
 
-template<class T> Rational<T> operator*(const T& x, const Rational<T>& y)
+template<class T> RationalTemplate<T> operator*(const T& x,
+    const RationalTemplate<T>& y)
 {
     return y*x;
 }
 
-template<class T> Rational<T> operator/(const T& x, const Rational<T>& y)
+template<class T> RationalTemplate<T> operator/(const T& x,
+    const RationalTemplate<T>& y)
 {
-    return Rational<T>(x)/y;
+    return RationalTemplate<T>(x)/y;
 }
 
+typedef RationalTemplate<int> Rational;
 
 #endif // INCLUDED_RATIONAL_H

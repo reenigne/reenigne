@@ -2,6 +2,7 @@ memtimer/memtimer is probably the one you want - it outputs "number of CPU cycle
 memtimer/onetimer is if you want to time a piece of code that only runs once (i.e. a loop)
 mintimer is used for the multiplication timings - same experiment with lots of different parameters patched in
 memtimer/mtd is a DOS port of memtimer/memtimer
-memtimer/refresh_timer is used for timing code with DRAM refresh enabled
+memtimer/refresh_timer is used for timing code (equivalent of memtimer) with DRAM refresh enabled
+memtimer/refresh_one is the equivalent of onetimer with DRAM refresh enabled
 
 When timing something that takes more than 546 +016, add multiples of this amount to measured result

@@ -50,7 +50,7 @@ public:
             Rotor2<double> z1(f * 6);
             Rotor2<double> z2(f * 7);
             Vector2<double> a1(r*cos(f*tau * 6), r*sin(f*tau * 7));
-            Vector2<double> a2(r*cos(f*tau * 4), r*sin(f*tau * 5));
+            Vector2<double> a2(r*cos(f*tau * 5), r*sin(f*tau * 4));
 
             // Positions of picture centres relative to screen top-left
             Vector p1 = -Vector2Cast<int>(c + a1);

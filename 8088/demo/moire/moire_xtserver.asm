@@ -101,6 +101,12 @@ doneUnroll:
   dec dx
 
 
+  ; Send read interrupt request command to PIC
+
+  mov al,0x0a
+  out 0x20,al
+
+
   ; Setup screen segment
 
   mov ax,0xb800
@@ -201,8 +207,8 @@ noTransition:
   ; Check for Escape
   cmp ah,1
   jne noKey
-;  cmp byte[ending],1
-;  je effectComplete
+  cmp byte[ending],1
+  je effectComplete
   mov byte[ending],ah
 noKey:
   cmp bx,motion+4*frames
