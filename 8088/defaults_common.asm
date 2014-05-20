@@ -337,7 +337,7 @@ cpu 8086
   ; Set "stosb" destination to be CGA memory
   mov ax,0xb800
   mov es,ax
-  mov di,80*100
+  mov di,0x3ffd
 
   ; Set argument for MUL
   mov cl,1
@@ -416,7 +416,7 @@ cpu 8086
 %macro lockstep2 0
   ; Set up CRTC for 1 character by 2 scanline "frame". This gives us 2 lchars
   ; per frame.
-  mov dl,0xd4
+  mov dx,0x3d4
   ;   0xff Horizontal Total
   mov ax,0x0000
   out dx,ax
@@ -448,27 +448,31 @@ cpu 8086
   mov ax,0x0009
   out dx,ax
 
-  ; Wait until CGA has settled down
-%%settle:
-  mov dl,0xdc
-  in al,dx  ; 0x3dc: Activate light pen
-  dec dx
-  in al,dx  ; 0x3db: Clean light pen strobe
-  mov dl,0xd4
-  mov al,16
-  out dx,al ; 0x3d4<-16: light pen high
-  inc dx
-  in al,dx  ; 0x3d5: register value
-  mov ah,al
-  dec dx
-  mov al,17
-  out dx,al ; 0x3d4<-17: light pen low
-  inc dx
-  in al,dx  ; 0x3d5: register value
-  cmp ax,2
-  jge %%settle
+;  ; Wait until CGA has settled down
+;%%settle:
+;  mov dl,0xdc
+;  in al,dx  ; 0x3dc: Activate light pen
+;  dec dx
+;  in al,dx  ; 0x3db: Clean light pen strobe
+;  mov dl,0xd4
+;  mov al,16
+;  out dx,al ; 0x3d4<-16: light pen high
+;  inc dx
+;  in al,dx  ; 0x3d5: register value
+;  mov ah,al
+;  dec dx
+;  mov al,17
+;  out dx,al ; 0x3d4<-17: light pen low
+;  inc dx
+;  in al,dx  ; 0x3d5: register value
+;  cmp ax,2
+;  jge %%settle
 
   mov cx,256
+  xor ax,ax
+  mov ds,ax
+  mov si,ax
+  cld
   cli
 
   ; Increase refresh frequency to ensure all DRAM is refreshed before turning
@@ -487,13 +491,10 @@ cpu 8086
   ; Set "stosb" destination to be CGA memory
   mov ax,0xb800
   mov es,ax
-  mov di,80*100
+  mov di,0x3ffd
 
   ; Set argument for MUL
   mov cl,1
-
-  ; Ensure "stosb" won't take us out of video memory
-  cld
 
   ; Go into CGA lockstep. The delays were determined by trial and error.
   jmp $+2      ; Clear prefetch queue
@@ -532,11 +533,8 @@ cpu 8086
   out 0x41,al  ; Timer 1 rate
 
   ; Delay for enough time to refresh 512 columns
+  mov cx,256
   rep lodsw
-
-  ; We can now put refresh back to normal safely
-  refreshOn
-
 %endmacro
 
 

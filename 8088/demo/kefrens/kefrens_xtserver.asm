@@ -6,7 +6,7 @@ scanlines equ 200
 footerSize equ (footerEnd-footer)
 headerSize equ (headerEnd-header)
 
-;  startAudio
+  startAudio
 
   mov ax,cs
   mov es,ax
@@ -173,18 +173,18 @@ sampleLoop:
   pop cx
   loop waveInfoLoop
 
-;  mov ax,0x0101
-;  mov cx,262/2
-;  rep stosw
-;  sub di,262
-;  mov bx,cs
-;  mov es,bx
-;  mov ax,di
-;  mov di,songTable
-;  mov cx,songLength
-;  rep stosw
+  mov ax,0x0101
+  mov cx,262/2
+  rep stosw
+  sub di,262
+  mov bx,cs
+  mov es,bx
+  mov ax,di
+  mov di,songTable
+  mov cx,songLength
+  rep stosw
 
-  captureScreen
+;  captureScreen
 
   ; Go into lockstep and reduce DRAM refresh frequency to 4 refreshes per scanline
 

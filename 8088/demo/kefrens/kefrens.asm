@@ -181,6 +181,7 @@ sampleLoop:
   mov al,19
   out 0x41,al  ; Timer 1 rate
 
+
   ; Video layout:
   ;   We don't want to have to use the second 8kB so use Max Scan Line Address = 0
   ; scanlines 260..261 startup - set Vertical Total to 1
@@ -511,7 +512,4 @@ footerEnd:
 songPosition: dw 0
 sampleSeg: dw 0
 unrollPointer: dw 0, 0
-
-  times 128 dw 0
-stackEnd:
 

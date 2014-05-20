@@ -192,15 +192,15 @@ Figure out whether it's -DISPEN or +VSYNC DLY which doesn't change if line is en
 
 For new frame per CRT scanline we want:
 
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..........---SSSSSSSS-.AAAA.......
-                                                                                                       xxxxxxxxxxx  a: change horizontal total to 11
-xxxx                                                                                                       xxxxxxx  b: change horizontal displayed to 80
-xxxxxxxxxxx                                                                                                         c: change horizontal total to 114-11
-                                                                                xxxxxxxxxxxxxxxxxxxxxxxxxxx         change horizontal displayed to 4
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  Anywhere: change start low address
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  Anywhere: change start high address
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.........---SSSSSSSS-.AAAA........
+                                                                                xxxxxxxxxxxxxxxxxxxxxxxxxxx         a: change horizontal displayed to 4   mov ax,0x0401
+                                                                                                      xxxxxxxxxxxx  b: change horizontal total to 12      mov ax,0x0b00
+xxxx                                                                                                      xxxxxxxx  c: change horizontal displayed to 80  mov ax,0x5001
+xxxxxxxxxxxx                                                                                                        d: change horizontal total to 114-12  mov ax,0x6500
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  Anywhere: change start low address    mov ax,0xXX0d
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  Anywhere: change start high address   mov ax,0xXX0c
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  Anywhere: audio
-       c                                                                                               a        b
+         d                                                                                 a          b         c
 
 
 
@@ -235,4 +235,46 @@ xxxxxxxxxxxxxxxxxxxxxxxxxx                                                      
 Todo: figure out:
 * If the sync pulse can start directly after the active area
 * If the sync pulse can start before the active area ends
-* I
+* Can we do a CRTC frame with R4=1, R5=0, R6=1, R9=0 (useful for restarts but not billions)
+
+
+
+Need to come up with some animation parameters
+
+
+
+Writing a CRTC register (mov ax,0xXXXX; out dx,ax assuming dx == 0x3d4) takes:
+  7.6 IOs (average, with refresh period 19)
+  7 IOs (refresh disabled) = 84 hdots = 10.5 hchars
+
+
+
+
+
+
+
+Increase phase change frequency to a large positive value
+Move vertically up fast
+Decrease phase change frequency to a large negative value
+Move vertically down fast
+
+Do the above in a circle, i.e.
+  phase(y,t) = a(t)+b(t)*y = c*cos(w*t)+d*sin(w*t)*y
+
+w = tau/(5*60)  - 5 second repeat period
+d = tau/10 or so
+c =
+
+ mov si,[cTable+frame]
+ mov dx,[dTableFrac+frame]
+ mov cx,[dTable+frame]
+ xor bx,bx
+
+ add bx,dx
+ adc si,cx
+ times 4 movsw
+ add di,bp
+
+160 CPU cycles per iteration (equivalent to ~105 scanlines)
+  Won't fit in vertical inactive period but will if we can do an iteration every scanline or 2.
+
