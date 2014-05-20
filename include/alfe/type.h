@@ -10,7 +10,6 @@
 #include "alfe/kind.h"
 #include "alfe/assert.h"
 #include "alfe/function.h"
-#include "alfe/identifier.h"
 
 template<class T> class TemplateTemplate;
 typedef TemplateTemplate<void> Template;
@@ -23,6 +22,9 @@ typedef TypedValueTemplate<void> TypedValue;
 
 template<class T> class TycoTemplate;
 typedef TycoTemplate<void> Tyco;
+
+template<class T> class IdentifierTemplate;
+typedef IdentifierTemplate<void> Identifier;
 
 template<class T> class TycoTemplate
 {
@@ -65,7 +67,7 @@ protected:
             const TypedValueTemplate<T>& value, String* reason) const = 0;
         virtual TypedValueTemplate<T> tryConvertTo(const Type& to,
             const TypedValue& value, String* reason) const = 0;
-        virtual bool has(Identifier memberName) const = 0;
+        virtual bool has(IdentifierTemplate<T> memberName) const = 0;
 
         // Template
         virtual Tyco instantiate(const Tyco& argument) const = 0;
@@ -76,7 +78,7 @@ protected:
 
     friend class TemplateTemplate<void>;
     friend class EnumerationType;
-    friend class StructuredType;
+    template<class U> friend class StructuredTypeTemplate;
 public:
     const Implementation* implementation() const
     {
@@ -100,7 +102,7 @@ public:
     {
         return _implementation->tryConvertTo(to, value, reason);
     }
-    bool has(Identifier memberName) const
+    bool has(IdentifierTemplate<T> memberName) const
     {
         return _implementation->has(memberName);
     }
@@ -129,8 +131,10 @@ protected:
                 return value;
             return TypedValueTemplate<T>();
         }
-        virtual bool has(Identifier memberName) const { return false; }
-
+        virtual bool has(IdentifierTemplate<T> memberName) const
+        {
+            return false;
+        }
         Tyco instantiate(const Tyco& argument) const
         {
             throw Exception(String("Cannot instantiate ") + toString() +
@@ -299,8 +303,11 @@ protected:
             assert(false);
             return TypedValue();
         }
-        bool has(Identifier memberName) const { assert(false); return false; }
-
+        bool has(IdentifierTemplate<T> memberName) const
+        {
+            assert(false);
+            return false;
+        }
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -485,11 +492,14 @@ public:
 template<> Nullary<Template, SequenceTemplate>
     Nullary<Template, SequenceTemplate>::_instance;
 
-class TupleTyco : public Tyco
+template<class T> class TupleTycoTemplate;
+typedef TupleTycoTemplate<void> TupleTyco;
+
+template<class T> class TupleTycoTemplate : public Tyco
 {
 public:
     static String name() { return "Tuple"; }
-    TupleTyco() : Tyco(instance()) { }
+    TupleTycoTemplate() : Tyco(instance()) { }
     bool isUnit() { return implementation() == 0; }
     Tyco instantiate(const Tyco& argument) const
     {
@@ -540,7 +550,7 @@ public:
                 return value;
             return TypedValue();
         }
-        bool has(Identifier memberName) const { return false; }
+        bool has(IdentifierTemplate<T> memberName) const { return false; }
 
         // Template
         Tyco instantiate(const Tyco& argument) const
@@ -561,7 +571,8 @@ public:
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
-    TupleTyco(const Implementation* implementation) : Tyco(implementation) { }
+    TupleTycoTemplate(const Implementation* implementation)
+      : Tyco(implementation) { }
 private:
 
     class NonUnitImplementation : public Implementation
@@ -606,7 +617,7 @@ private:
                 return value;
             return TypedValue();
         }
-        bool has(Identifier memberName) const
+        bool has(IdentifierTemplate<T> memberName) const
         {
             CharacterSource s(memberName.name());
             int n;
@@ -645,7 +656,7 @@ private:
     }
 };
 
-TupleTyco TupleTyco::_instance;
+template<> TupleTyco TupleTyco::_instance;
 
 class PointerType : public Type
 {
@@ -691,20 +702,28 @@ public:
 template<> Nullary<Template, PointerTemplate>
     Nullary<Template, PointerTemplate>::_instance;
 
-class FunctionTyco : public Tyco
+template<class T> class FunctionTycoTemplate;
+typedef FunctionTycoTemplate<void> FunctionTyco;
+
+template<class T> class FunctionTemplateTemplate;
+typedef FunctionTemplateTemplate<void> FunctionTemplate;
+
+template<class T> class FunctionTycoTemplate : public Tyco
 {
 public:
-    FunctionTyco(const Tyco& t) : Tyco(t) { }
+    FunctionTycoTemplate(const Tyco& t) : Tyco(t) { }
 
     static FunctionTyco nullary(const Type& returnType)
     {
         return FunctionTyco(new NullaryImplementation(returnType));
     }
-    FunctionTyco(Type returnType, Type argumentType)
-      : Tyco(FunctionTyco(FunctionTemplate().instantiate(returnType)).
+    FunctionTycoTemplate(Type returnType, Type argumentType)
+      : Tyco(FunctionTyco(FunctionTemplateTemplate<T>().
+            instantiate(returnType)).
             instantiate(argumentType).implementation()) { }
-    FunctionTyco(Type returnType, Type argumentType1, Type argumentType2)
-        : Tyco(FunctionTyco(FunctionTyco(FunctionTemplate().
+    FunctionTycoTemplate(Type returnType, Type argumentType1,
+        Type argumentType2)
+      : Tyco(FunctionTyco(FunctionTyco(FunctionTemplateTemplate<T>().
             instantiate(returnType)).instantiate(argumentType1)).
             instantiate(argumentType2).implementation()) { }
     bool valid() const { return implementation() != 0; }
@@ -720,7 +739,7 @@ public:
         return _implementation->instantiate(argument);
     }
 private:
-    FunctionTyco(const Implementation* implementation)
+    FunctionTycoTemplate(const Implementation* implementation)
       : Tyco(implementation) { }
     class Implementation : public Tyco::Implementation
     {
@@ -745,7 +764,10 @@ private:
                 return value;
             return TypedValue();
         }
-        virtual bool has(Identifier memberName) const { return false; }
+        virtual bool has(IdentifierTemplate<T> memberName) const
+        {
+            return false;
+        }
         // Template
         Tyco instantiate(const Tyco& argument) const
         {
@@ -835,7 +857,8 @@ private:
     }
 };
 
-class FunctionTemplate : public Nullary<Template, FunctionTemplate>
+template<class T> class FunctionTemplateTemplate
+  : public Nullary<Template, FunctionTemplate>
 {
 public:
     static String name() { return "Pointer"; }
@@ -933,7 +956,11 @@ private:
 // implementation of structures, including using the same conversions at
 // compile-time as at run-time. Also we don't want to have to override
 // conversion functions in children just to avoid unwanted conversions
-class StructuredType : public Type
+
+template<class T> class StructuredTypeTemplate;
+typedef StructuredTypeTemplate<void> StructuredType;
+
+template<class T> class StructuredTypeTemplate : public Type
 {
 public:
     class Member
@@ -942,7 +969,7 @@ public:
         Member(String name, Type type) : _name(name), _default(type) { }
         Member(String name, TypedValue defaultValue)
           : _name(name), _default(defaultValue) { }
-        template<class T> Member(String name, const T& defaultValue)
+        template<class U> Member(String name, const U& defaultValue)
           : _name(name), _default(defaultValue) { }
         String name() const { return _name; }
         Type type() const { return _default.type(); }
@@ -961,10 +988,10 @@ public:
         TypedValue _default;
     };
 
-    StructuredType() { }
-    StructuredType(const Type& other)
+    StructuredTypeTemplate() { }
+    StructuredTypeTemplate(const Type& other)
       : Type(other._implementation.referent<Implementation>()) { }
-    StructuredType(String name, List<Member> members)
+    StructuredTypeTemplate(String name, List<Member> members)
       : Type(new Implementation(name, members)) { }
     const HashTable<String, int>* names() const
     {
@@ -1136,8 +1163,10 @@ private:
 
             return TypedValue();
         }
-        bool has(Identifier memberName) const { return _names.hasKey(memberName); }
-
+        bool has(IdentifierTemplate<T> memberName) const
+        {
+            return _names.hasKey(memberName);
+        }
     private:
         TypedValue tryConvertHelper(const TypedValue& value, const Member* to,
             String* why) const
@@ -1165,6 +1194,6 @@ private:
     friend class Implementation;
 };
 
-
+#include "alfe/identifier.h"
 
 #endif // INCLUDED_TYPE_H

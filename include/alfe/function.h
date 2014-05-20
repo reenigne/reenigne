@@ -3,6 +3,9 @@
 #ifndef INCLUDED_FUNCTION_H
 #define INCLUDED_FUNCTION_H
 
+template<class T> class TypedValueTemplate;
+typedef TypedValueTemplate<void> TypedValue;
+
 class Function
 {
 public:

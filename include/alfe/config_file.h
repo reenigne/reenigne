@@ -11,14 +11,6 @@
 #include "alfe/set.h"
 #include "alfe/expression.h"
 
-class Structure
-{
-public:
-    template<class T> T get(String name) { return getValue(name).value<T>(); }
-    virtual TypedValue getValue(String name) = 0;
-    virtual void set(String name, TypedValue value) = 0;
-};
-
 class ConfigFile : public Structure
 {
 public:

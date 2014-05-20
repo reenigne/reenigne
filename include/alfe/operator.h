@@ -38,7 +38,7 @@ public:
     static String name() { return "=="; }
 };
 
-Nullary<Operator, OperatorEqualTo>
+template<> Nullary<Operator, OperatorEqualTo>
     Nullary<Operator, OperatorEqualTo>::_instance;
 
 class OperatorAssignment : public Nullary<Operator, OperatorAssignment>
@@ -47,7 +47,7 @@ public:
     static String name() { return "="; }
 };
 
-Nullary<Operator, OperatorAssignment>
+template<> Nullary<Operator, OperatorAssignment>
     Nullary<Operator, OperatorAssignment>::_instance;
 
 class OperatorAddAssignment : public Nullary<Operator, OperatorAddAssignment>
@@ -56,7 +56,7 @@ public:
     static String name() { return "+="; }
 };
 
-Nullary<Operator, OperatorAddAssignment>
+template<> Nullary<Operator, OperatorAddAssignment>
     Nullary<Operator, OperatorAddAssignment>::_instance;
 
 class OperatorSubtractAssignment
@@ -66,7 +66,7 @@ public:
     static String name() { return "-="; }
 };
 
-Nullary<Operator, OperatorSubtractAssignment>
+template<> Nullary<Operator, OperatorSubtractAssignment>
     Nullary<Operator, OperatorSubtractAssignment>::_instance;
 
 class OperatorMultiplyAssignment
@@ -76,7 +76,7 @@ public:
     static String name() { return "*="; }
 };
 
-Nullary<Operator, OperatorMultiplyAssignment>
+template<> Nullary<Operator, OperatorMultiplyAssignment>
     Nullary<Operator, OperatorMultiplyAssignment>::_instance;
 
 class OperatorDivideAssignment
@@ -86,7 +86,7 @@ public:
     static String name() { return "/="; }
 };
 
-Nullary<Operator, OperatorDivideAssignment>
+template<> Nullary<Operator, OperatorDivideAssignment>
     Nullary<Operator, OperatorDivideAssignment>::_instance;
 
 class OperatorModuloAssignment
@@ -96,7 +96,7 @@ public:
     static String name() { return "%="; }
 };
 
-Nullary<Operator, OperatorModuloAssignment>
+template<> Nullary<Operator, OperatorModuloAssignment>
     Nullary<Operator, OperatorModuloAssignment>::_instance;
 
 class OperatorShiftLeftAssignment
@@ -106,7 +106,7 @@ public:
     static String name() { return "<<="; }
 };
 
-Nullary<Operator, OperatorShiftLeftAssignment>
+template<> Nullary<Operator, OperatorShiftLeftAssignment>
     Nullary<Operator, OperatorShiftLeftAssignment>::_instance;
 
 class OperatorShiftRightAssignment
@@ -116,7 +116,7 @@ public:
     static String name() { return ">>="; }
 };
 
-Nullary<Operator, OperatorShiftRightAssignment>
+template<> Nullary<Operator, OperatorShiftRightAssignment>
     Nullary<Operator, OperatorShiftRightAssignment>::_instance;
 
 class OperatorBitwiseAndAssignment
@@ -126,7 +126,7 @@ public:
     static String name() { return "&="; }
 };
 
-Nullary<Operator, OperatorBitwiseAndAssignment>
+template<> Nullary<Operator, OperatorBitwiseAndAssignment>
     Nullary<Operator, OperatorBitwiseAndAssignment>::_instance;
 
 class OperatorBitwiseOrAssignment
@@ -136,7 +136,7 @@ public:
     static String name() { return "|="; }
 };
 
-Nullary<Operator, OperatorBitwiseOrAssignment>
+template<> Nullary<Operator, OperatorBitwiseOrAssignment>
     Nullary<Operator, OperatorBitwiseOrAssignment>::_instance;
 
 class OperatorBitwiseXorAssignment
@@ -146,7 +146,7 @@ public:
     static String name() { return "~="; }
 };
 
-Nullary<Operator, OperatorBitwiseXorAssignment>
+template<> Nullary<Operator, OperatorBitwiseXorAssignment>
     Nullary<Operator, OperatorBitwiseXorAssignment>::_instance;
 
 class OperatorPowerAssignment
@@ -156,7 +156,7 @@ public:
     static String name() { return "^="; }
 };
 
-Nullary<Operator, OperatorPowerAssignment>
+template<> Nullary<Operator, OperatorPowerAssignment>
     Nullary<Operator, OperatorPowerAssignment>::_instance;
 
 class OperatorAmpersand : public Nullary<Operator, OperatorAmpersand>
@@ -165,7 +165,7 @@ public:
     static String name() { return "&"; }
 };
 
-Nullary<Operator, OperatorAmpersand>
+template<> Nullary<Operator, OperatorAmpersand>
     Nullary<Operator, OperatorAmpersand>::_instance;
 
 class OperatorBitwiseOr : public Nullary<Operator, OperatorBitwiseOr>
@@ -174,7 +174,7 @@ public:
     static String name() { return "|"; }
 };
 
-Nullary<Operator, OperatorBitwiseOr>
+template<> Nullary<Operator, OperatorBitwiseOr>
     Nullary<Operator, OperatorBitwiseOr>::_instance;
 
 class OperatorTwiddle : public Nullary<Operator, OperatorTwiddle>
@@ -183,7 +183,7 @@ public:
     static String name() { return "~"; }
 };
 
-Nullary<Operator, OperatorTwiddle>
+template<> Nullary<Operator, OperatorTwiddle>
     Nullary<Operator, OperatorTwiddle>::_instance;
 
 class OperatorNot : public Nullary<Operator, OperatorNot>
@@ -192,7 +192,7 @@ public:
     static String name() { return "!"; }
 };
 
-Nullary<Operator, OperatorNot>
+template<> Nullary<Operator, OperatorNot>
     Nullary<Operator, OperatorNot>::_instance;
 
 class OperatorNotEqualTo : public Nullary<Operator, OperatorNotEqualTo>
@@ -201,7 +201,7 @@ public:
     static String name() { return "!="; }
 };
 
-Nullary<Operator, OperatorNotEqualTo>
+template<> Nullary<Operator, OperatorNotEqualTo>
     Nullary<Operator, OperatorNotEqualTo>::_instance;
 
 class OperatorLessThan : public Nullary<Operator, OperatorLessThan>
@@ -210,7 +210,7 @@ public:
     static String name() { return "<"; }
 };
 
-Nullary<Operator, OperatorLessThan>
+template<> Nullary<Operator, OperatorLessThan>
     Nullary<Operator, OperatorLessThan>::_instance;
 
 class OperatorGreaterThan : public Nullary<Operator, OperatorGreaterThan>
@@ -219,7 +219,7 @@ public:
     static String name() { return ">"; }
 };
 
-Nullary<Operator, OperatorGreaterThan>
+template<> Nullary<Operator, OperatorGreaterThan>
     Nullary<Operator, OperatorGreaterThan>::_instance;
 
 class OperatorLessThanOrEqualTo
@@ -229,7 +229,7 @@ public:
     static String name() { return "<="; }
 };
 
-Nullary<Operator, OperatorLessThanOrEqualTo>
+template<> Nullary<Operator, OperatorLessThanOrEqualTo>
     Nullary<Operator, OperatorLessThanOrEqualTo>::_instance;
 
 class OperatorGreaterThanOrEqualTo
@@ -239,7 +239,7 @@ public:
     static String name() { return ">="; }
 };
 
-Nullary<Operator, OperatorGreaterThanOrEqualTo>
+template<> Nullary<Operator, OperatorGreaterThanOrEqualTo>
     Nullary<Operator, OperatorGreaterThanOrEqualTo>::_instance;
 
 class OperatorShiftLeft : public Nullary<Operator, OperatorShiftLeft>
@@ -248,7 +248,7 @@ public:
     static String name() { return "<<"; }
 };
 
-Nullary<Operator, OperatorShiftLeft>
+template<> Nullary<Operator, OperatorShiftLeft>
     Nullary<Operator, OperatorShiftLeft>::_instance;
 
 class OperatorShiftRight : public Nullary<Operator, OperatorShiftRight>
@@ -257,7 +257,7 @@ public:
     static String name() { return ">>"; }
 };
 
-Nullary<Operator, OperatorShiftRight>
+template<> Nullary<Operator, OperatorShiftRight>
     Nullary<Operator, OperatorShiftRight>::_instance;
 
 class OperatorPlus : public Nullary<Operator, OperatorPlus>
@@ -266,7 +266,8 @@ public:
     static String name() { return "+"; }
 };
 
-Nullary<Operator, OperatorPlus> Nullary<Operator, OperatorPlus>::_instance;
+template<> Nullary<Operator, OperatorPlus>
+    Nullary<Operator, OperatorPlus>::_instance;
 
 class OperatorMinus : public Nullary<Operator, OperatorMinus>
 {
@@ -274,7 +275,8 @@ public:
     static String name() { return "-"; }
 };
 
-Nullary<Operator, OperatorMinus> Nullary<Operator, OperatorMinus>::_instance;
+template<> Nullary<Operator, OperatorMinus>
+    Nullary<Operator, OperatorMinus>::_instance;
 
 class OperatorStar : public Nullary<Operator, OperatorStar>
 {
@@ -282,7 +284,8 @@ public:
     static String name() { return "*"; }
 };
 
-Nullary<Operator, OperatorStar> Nullary<Operator, OperatorStar>::_instance;
+template<> Nullary<Operator, OperatorStar>
+    Nullary<Operator, OperatorStar>::_instance;
 
 class OperatorDivide : public Nullary<Operator, OperatorDivide>
 {
@@ -290,7 +293,8 @@ public:
     static String name() { return "/"; }
 };
 
-Nullary<Operator, OperatorDivide> Nullary<Operator, OperatorDivide>::_instance;
+template<> Nullary<Operator, OperatorDivide>
+    Nullary<Operator, OperatorDivide>::_instance;
 
 class OperatorModulo : public Nullary<Operator, OperatorModulo>
 {
@@ -298,7 +302,8 @@ public:
     static String name() { return "%"; }
 };
 
-Nullary<Operator, OperatorModulo> Nullary<Operator, OperatorModulo>::_instance;
+template<> Nullary<Operator, OperatorModulo>
+    Nullary<Operator, OperatorModulo>::_instance;
 
 class OperatorPower : public Nullary<Operator, OperatorPower>
 {
@@ -306,7 +311,8 @@ public:
     static String name() { return "^"; }
 };
 
-Nullary<Operator, OperatorPower> Nullary<Operator, OperatorPower>::_instance;
+template<> Nullary<Operator, OperatorPower>
+    Nullary<Operator, OperatorPower>::_instance;
 
 class OperatorFunctionCall : public Nullary<Operator, OperatorFunctionCall>
 {
@@ -314,7 +320,7 @@ public:
     static String name() { return "()"; }
 };
 
-Nullary<Operator, OperatorFunctionCall>
+template<> Nullary<Operator, OperatorFunctionCall>
     Nullary<Operator, OperatorFunctionCall>::_instance;
 
 class OperatorIndex : public Nullary<Operator, OperatorIndex>
@@ -323,7 +329,7 @@ public:
     static String name() { return "[]"; }
 };
 
-Nullary<Operator, OperatorIndex>
+template<> Nullary<Operator, OperatorIndex>
     Nullary<Operator, OperatorIndex>::_instance;
 
 class OperatorIncrement : public Nullary<Operator, OperatorIncrement>
@@ -332,7 +338,7 @@ public:
     static String name() { return "++"; }
 };
 
-Nullary<Operator, OperatorIncrement>
+template<> Nullary<Operator, OperatorIncrement>
     Nullary<Operator, OperatorIncrement>::_instance;
 
 class OperatorDecrement : public Nullary<Operator, OperatorDecrement>
@@ -341,7 +347,7 @@ public:
     static String name() { return "--"; }
 };
 
-Nullary<Operator, OperatorDecrement>
+template<> Nullary<Operator, OperatorDecrement>
     Nullary<Operator, OperatorDecrement>::_instance;
 
 #endif // INCLUDED_OPERATOR_H

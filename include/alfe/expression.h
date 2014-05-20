@@ -4,6 +4,7 @@
 #define INCLUDED_EXPRESSION_H
 
 #include "alfe/parse_tree_object.h"
+#include "alfe/operator.h"
 
 template<class T> class ExpressionTemplate;
 typedef ExpressionTemplate<void> Expression;
@@ -23,27 +24,24 @@ typedef TypedValueTemplate<void> TypedValue;
 template<class T> class TycoTemplate;
 typedef TycoTemplate<void> Tyco;
 
+template<class T> class TypedValueTemplate;
+typedef TypedValueTemplate<void> TypedValue;
+
+template<class T> class TycoIdentifierTemplate;
+typedef TycoIdentifierTemplate<void> TycoIdentifier;
+
+template<class T> class LogicalOrExpressionTemplate;
+typedef LogicalOrExpressionTemplate<void> LogicalOrExpression;
+
+template<class T> class IntegerLiteralTemplate;
+typedef IntegerLiteralTemplate<void> IntegerLiteral;
+
 class EvaluationContext
 {
 public:
     virtual TypedValue valueOfIdentifier(Identifier i) = 0;
     virtual Tyco resolveTycoIdentifier(TycoIdentifier i) = 0;
 };
-
-static Type rValueType(Type type)
-{
-    if (LValueType(type).valid())
-        return LValueType(type).inner();
-    return type;
-}
-static TypedValue rValue(TypedValue value)
-{
-    LValueType lValueType(value.type());
-    if (lValueType.valid())
-        return TypedValue(lValueType.inner(),
-        value.value<LValue>().rValue(), value.span());
-    return value;
-}
 
 class LValueType : public Type
 {
@@ -80,6 +78,14 @@ private:
     }
 };
 
+class Structure
+{
+ public:
+    template<class T> T get(String name) { return getValue(name).value<T>(); }
+    virtual TypedValue getValue(String name) = 0;
+    virtual void set(String name, TypedValue value) = 0;
+};
+
 class LValue
 {
 public:
@@ -91,6 +97,21 @@ private:
     Structure* _structure;
     String _name;
 };
+
+static Type rValueType(Type type)
+{
+    if (LValueType(type).valid())
+        return LValueType(type).inner();
+    return type;
+}
+static TypedValue rValue(TypedValue value)
+{
+    LValueType lValueType(value.type());
+    if (lValueType.valid())
+        return TypedValue(lValueType.inner(),
+                          value.value<LValue>().rValue(), value.span());
+    return value;
+}
 
 template<class T> class ExpressionTemplate : public ParseTreeObject
 {
@@ -104,7 +125,8 @@ public:
             : ParseTreeObject::Implementation(span) { }
         virtual Expression toString() const
         {
-            return new FunctionCallExpression::Implementation(
+            return new typename
+                FunctionCallExpressionTemplate<T>::Implementation(
                 Expression(this).dot(Identifier("toString")),
                 List<Expression>(), span());
         }
@@ -119,7 +141,7 @@ public:
 
     static Expression parse(CharacterSource* source)
     {
-        return LogicalOrExpression::parse(source);
+        return LogicalOrExpressionTemplate<T>::parse(source);
     }
     static Expression parseOrFail(CharacterSource* source)
     {
@@ -142,19 +164,20 @@ public:
     }
     const Expression& operator+=(const Expression& other)
     {
-        *this = FunctionCallExpression::binary(OperatorPlus(), Span(), *this,
-            other);
+        *this = FunctionCallExpressionTemplate<T>::binary(OperatorPlus(),
+            Span(), *this, other);
         return *this;
     }
     const Expression& operator-=(const Expression& other)
     {
-        *this = FunctionCallExpression::binary(OperatorMinus(), Span(), *this,
-            other);
+        *this = FunctionCallExpressionTemplate<T>::binary(OperatorMinus(),
+            Span(), *this, other);
         return *this;
     }
     Expression operator!() const
     {
-        return FunctionCallExpression::unary(OperatorNot(), Span(), *this);
+        return FunctionCallExpressionTemplate<T>::unary(OperatorNot(),
+            Span(), *this);
     }
     Expression dot(const Identifier& identifier)
     {
@@ -165,13 +188,13 @@ public:
 
     static Expression parseDot(CharacterSource* source)
     {
-        Expression e = FunctionCallExpression::parse(source);
+        Expression e = FunctionCallExpressionTemplate<T>::parse(source);
         if (!e.valid())
             return e;
         do {
             Span span;
-            if (Space::parseCharacter(source, ".", &span)) {
-                Identifier i = Identifier::parse(source);
+            if (Space::parseCharacter(source, '.', &span)) {
+                IdentifierTemplate<T> i = IdentifierTemplate<T>::parse(source);
                 if (!i.valid())
                     source->location().throwError("Identifier expected");
                 e = e.dot(i);
@@ -201,8 +224,8 @@ protected:
         e = parseInteger(source);
         if (e.valid())
             return e;
-        e = Identifier::parse(source);
-        if (i.valid())
+        e = IdentifierTemplate<T>::parse(source);
+        if (e.valid())
             return e;
         Span span;
         if (Space::parseKeyword(source, "true", &span))
@@ -361,7 +384,7 @@ private:
                     startOffset = source->offset();
                     break;
                 case '$':
-                    part = Identifier::parse(source);
+                    part = IdentifierTemplate<T>::parse(source);
                     if (!part.valid()) {
                         if (Space::parseCharacter(source, '(', &span)) {
                             part = Expression::parseOrFail(source);
@@ -420,7 +443,10 @@ private:
     {
     public:
         TrueImplementation(const Span& span) : Implementation(span) { }
-        Expression toString() const { return Expression("true", span()); }
+        Expression toString() const
+        {
+            return Expression("true", this->span());
+        }
         TypedValue evaluate(EvaluationContext* context) const
         {
             return true;
@@ -430,7 +456,10 @@ private:
     {
     public:
         FalseImplementation(const Span& span) : Implementation(span) { }
-        Expression toString() const { return Expression("false", span()); }
+        Expression toString() const
+        {
+            return Expression("false", this->span());
+        }
         TypedValue evaluate(EvaluationContext* context) const
         {
             return false;
@@ -465,46 +494,48 @@ private:
     class DotImplementation : public Implementation
     {
     public:
-        DotImplementation(const Expression& left, const Identifier& right)
+        DotImplementation(const Expression& left,
+            const IdentifierTemplate<T>& right)
           : Implementation(left.span() + right.span()), _left(left),
           _right(right) { }
         TypedValue evaluate(EvaluationContext* context) const
         {
             TypedValue e = _left.evaluate(context);
 
-            String name = i.name();
             LValueType lValueType(e.type());
+            String name = _right.name();
             if (!lValueType.valid()) {
-                if (!e.type().has(name)) {
-                    span().
+                if (!e.type().has(_right)) {
+                    this->span().
                         throwError("Expression has no member named " + name);
                 }
-                auto m = l.value<Value<HashTable<String, TypedValue>>>();
+                auto m = e.value<Value<HashTable<String, TypedValue>>>();
                 e = (*m)[name];
-                e = TypedValue(e.type(), e.value(), span());
+                e = TypedValue(e.type(), e.value(), this->span());
             }
             else {
-                if (!lValueType.inner().has(name))
-                    s.throwError("Expression has no member named " + name);
+                if (!lValueType.inner().has(_right))
+                    this->span().
+                        throwError("Expression has no member named " + name);
                 Structure* p =
                     e.value<LValue>().rValue().value<Structure*>();
                 e = TypedValue(LValueType::wrap(p->getValue(name).type()),
-                    LValue(p, name), span());
+                    LValue(p, name), this->span());
             }
             return e;
         }
     private:
-        Expression _left;
-        Identifier _right;
+        ExpressionTemplate<T> _left;
+        IdentifierTemplate<T> _right;
     };
 };
 
-class IntegerLiteral : public Expression
+template<class T> class IntegerLiteralTemplate : public Expression
 {
 public:
-    IntegerLiteral(int n, Span span = Span())
+    IntegerLiteralTemplate(int n, Span span = Span())
       : Expression(new Implementation(n, span)) { }
-    IntegerLiteral(const Expression& e) : Expression(e) { }
+    IntegerLiteralTemplate(const Expression& e) : Expression(e) { }
     int value() const { return as<IntegerLiteral>()->value(); }
 
     class Implementation : public Expression::Implementation
@@ -713,7 +744,7 @@ private:
     FunctionCallExpressionTemplate(const Implementation* implementation)
       : Expression(implementation) { }
 
-    template<class T> friend class ExpressionTemplate;
+    template<class U> friend class ExpressionTemplate;
 };
 
 template<class T> class BinaryExpression : public Expression
@@ -781,7 +812,8 @@ private:
     };
 };
 
-class LogicalOrExpression : public BinaryExpression<LogicalOrExpression>
+template<class T> class LogicalOrExpressionTemplate
+  : public BinaryExpression<LogicalOrExpression>
 {
 public:
     static Expression parse(CharacterSource* source)
