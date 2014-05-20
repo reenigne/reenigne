@@ -1,0 +1,136 @@
+Pixel aspect ratio = 4:3 / 8:5 = 20:24 = 5:6 so 45 hdots = (45*5/12) = 18.75 scanlines
+
+
+  out dx,al
+  xchg ax,bx
+
+With refresh period 19: average of 16 cycles per iteration = 48 hdots = 19 changes per scanline
+With refresh disabled: 15 cycles per iteration  = 45 hdots = 20.266 changes per scanline
+
+Refresh period 19 => refresh every 228 hdots
+
+With each refresh, we get 4.75 iterations
+
+The refreshes add up to (3*19 = ) 57 hdots - 14.25 hdots per refresh: 12, 15, 15, 15
+
+So the pattern is either:
+45 45 45 57 45 45 45 45 60 45 45 45 45 60 45 45 45 45 60
+45 45 45 45 57 45 45 45 60 45 45 45 45 60 45 45 45 45 60
+
+
+
+xchg ax,bx ; xchg ax,cx              => al, bl, cl
+xchg ax,bx ; xchg ax,bx ; xchg ax,cx => al, bl, al, cl, bl, cl
+xchg ax,bx ; xchg ax,cx ; xchg ax,di => al, bl, cl, di
+
+
+abcdef
+
+ABCDEF
+BACDEF
+CABDEF
+DABCEF
+EABCDF
+FABCDE
+AFBCDE
+BFACDE
+CFABDE
+DFABCE
+EFABCD
+FEABCD
+AEFBCD
+BEFACD
+CEFABD
+DEFABC
+EDFABC
+
+FDEABC
+ADEFBC
+BDEFAC
+
+
+Leave:
+
+
+  ;   0xff Horizontal Total                             38  - this needs to change on two consecutive scanlines when we move the image horizontally
+  mov ax,0??00
+  out dx,ax
+
+  ;   0xff Horizontal Sync Position                     2d  - this needs to change when we move the image horizontally
+  mov ax,0??02
+  out dx,ax
+
+
+  ;   0x7f Vertical Total                               7f  - this needs to change when we move the image vertically
+  mov ax,0??04
+  out dx,ax
+
+  ;   0x1f Vertical Total Adjust                        06  - this needs to change when we move the image vertically in order to get per-scanline vertical resolution
+  mov ax,0??05
+  out dx,ax
+
+  ;   0x7f Vertical Displayed                           64  - this needs to stay at 0x28 except for doing a blank partial frame
+  mov ax,0??06
+  out dx,ax
+
+  ;   0x7f Vertical Sync Position                       70  - this needs to change
+  mov ax,0??07
+  out dx,ax
+
+
+  ;   0x3f Start Address (H)                            00  - change this to rotate ball
+  mov ax,0??0c
+  out dx,ax
+
+  ;   0xff Start Address (L)                            00  - change this to rotate ball
+  mov ax,0??0d
+  out dx,ax
+
+
+
+We would like to be able to move the ball anywhere on the screen with fixed overscan code, with precision of one character and one scanline
+  This implies being able to have an odd or even number of scanlines both between the active area and the vsync, and between the vsync and the active area
+    This implies that we need two CRTC frames per CRT frame.
+Our code will be synchronized with the CRT, not the CRTC, and will take exactly 79648 CPU cycles per frame.
+  Therefore if we want to be between the start of the active area and the hsync pulse we have a window of 5+12 = 17 characters
+The vsync pulse is started at hsync&vsync so the position of the start of the CRTC frame isn't directly observable
+  Nevertheless, we might want to put the horizontal CRTC origin in a known place for the vsync period
+
+Let's set up a coordinate system relative to the sync pulses. With this, a scanline looks like:
+
+---SSSSSSSS--CCCC---....AAAAAAAAAAAAAAAAAAAAAAAA..................................................................
+
+The default origin is character 12 (57-45)
+The minimum origin (with the default hsync width) is -1
+
+Suppose we want to change the origin from X to Y:
+
+<----------------X--------------->
+---SSSSSSSS--CCCC---..............*AAAAAAAAAAAAAAAAAAAAAAA........................................................
+
+<-----------------------Y------------------------>
+---SSSSSSSS--CCCC---..............................*AAAAAAAAAAAAAAAAAAAAAAA........................................
+
+
+
+---SSSSSSSS--CCCC---..............*AAAAAAAAAAAAAAAAAAAAAAA........................................................     scanline 1
+---SSSSSSSS--CCCC---..............................*AAAAAAAAAAAAAAAAAAAAAAA........................................     scanline 2
+---SSSSSSSS--CCCC---..............................*AAAAAAAAAAAAAAAAAAAAAAA........................................     scanline 3
+
+On or after * on scanline 1, increase horizontal total from 57 to 57+(Y-X)
+On or after * on scanline 2, return horizontal total to 57 and reduce sync position from 57-X to 57-Y
+
+
+
+To go from Y to X:
+
+
+
+---SSSSSSSS--CCCC---..............................*AAAAAAAAAAAAAAAAAAAAAAA........................................     scanline 1
+---SSSSSSSS--CCCC---..............*AAAAAAAAAAAAAAAAAAAAAAA........................................................     scanline 2
+---SSSSSSSS--CCCC---..............*AAAAAAAAAAAAAAAAAAAAAAA........................................................     scanline 3
+
+On or after * on scanline 1, reduce horizontal total from 57 to 57+(X-Y)
+On or after * on scanline 2, return horizontal total to 57 and increase sync position from 57-Y to 57-X
+
+

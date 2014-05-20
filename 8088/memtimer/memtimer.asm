@@ -225,62 +225,63 @@ codePreambleEnd:
 
 experimentData:
 
-experimentSweep:
-  db "Sweep$"
+experimentAmiga:
+  db "Amiga$"
   dw .endInit - ($+2)
-
-  mov di,0xffff
-  mov bx,di
-  mov cx,di
-
+  mov dx,0x3d9
+  mov ax,1
+  mov bx,2
+  mov cx,3
+  mov di,4
+  mov bp,5
+  mov sp,6
+  mov si,7
+  mov ax,0x8000
+  mov ds,ax
+  mov es,ax
 .endInit:
   dw .endCode - ($+2)
-
-  mov ax,bx  ; high word                         ffff
-  mul di     ;                                  *ffff = fffe:0001
-  mov bx,dx  ; new high word                     fffe
-  xchg cx,ax ; low word <-> new low word              0001 <> ffff
-  mul di     ;                                  *ffff = fffe:0001
-  add cx,dx  ;                                               ffff
-  adc bx,0   ;                                          fffe
-  mov al,bl
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  lodsb
   out 0xe0,al
-  mov al,bh
-  out 0xe0,al
-  cmp bx,0
-  jne .loopTop
-.loopTop:
-
-.endCode:
-
-
-experimentSweepEven:
-  db "SweepEven$"
-  dw .endInit - ($+2)
-
-  mov di,0xffff
-  mov bx,di
-  mov cx,di
-
-.endInit:
-  dw .endCode - ($+2)
-
-  mov ax,bx  ; high word                         ffff
-  mul di     ;                                  *ffff = fffe:0001
-  mov bx,dx  ; new high word                     fffe
-  xchg cx,ax ; low word <-> new low word              0001 <> ffff
-  mul di     ;                                  *ffff = fffe:0001
-  add cx,dx  ;                                               ffff
-  adc bx,0   ;                                          fffe
-  mov al,bl
-  and al,0xfe
-  out 0xe0,al
-  mov al,bh
-  out 0xe0,al
-  cmp bx,0
-  jne .loopTop
-.loopTop:
-
+  mov al,1
 .endCode:
 
 lastExperiment:

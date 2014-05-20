@@ -53,7 +53,7 @@ spaceLoop:
 repeatLoop:
   push cx
 
-  mov cx,240+48  ; Number of iterations in primary measurement
+  mov cx,480+48  ; Number of iterations in primary measurement
   call doMeasurement
   push bx
   mov cx,48      ; Number of iterations in secondary measurement
@@ -239,1469 +239,150 @@ codePreambleEnd:
 
 experimentData:
 
-experimentKefrensScanline0:
-  db "KefrensScanline0$"
+experimentWater:
+  db "Water$"
   dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  mov ax,0x4567
+  mov ax,0x8000
   mov ds,ax
-  mov sp,[bx]
-  pop di
-  mov al,[es:di]     ; 3 1 +WS
-  pop cx
-  and ax,cx          ; 2 0
-  pop cx
-  or ax,cx           ; 2 0
-  stosw              ; 2 2 +WS +WS
-  pop ax
-  and ah,[es:di+1]
-  pop cx
-  or ax,cx
-  stosw
-  pop ax
-  out dx,al
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline199_200:
-  db "KefrensScanline199_200$"
-  dw .endInit - ($+2)
   mov ax,0xb800
   mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
+  mov si,0
+  mov bh,0
+  mov di,0
 .endInit:
   dw .endCode - ($+2)
-  mov ax,0x4567
+  mov ax,[si]
+  sub al,ah
+  sub al,[si-1]
+  sub al,[si+40]
+  sub al,[si-40]
+  shr al,1
+  shr al,1
+  mov ah,[si+40*25]
+  add ah,al
+  mov [si+40*25],ah
+  shr ah,1
+  shr ah,1
+  mov bl,[si+2*40*25]
+  add bl,ah
+  mov [si+2*40*25],bl
+  mov ax,[bx]
+  stosw
+.endCode
+
+experimentAmiga19:
+  db "Amiga19$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+  mov ax,1
+  mov bx,2
+  mov cx,3
+  mov di,4
+  mov bp,5
+  mov sp,6
+  mov si,7
+  mov ax,0x8000
   mov ds,ax
-  mov sp,[bx]
-  pop di
-  mov al,[es:di]     ; 3 1 +WS
-  pop cx
-  and ax,cx          ; 2 0
-  pop cx
-  or ax,cx           ; 2 0
-  stosw              ; 2 2 +WS +WS
-  pop ax
-  and ah,[es:di+1]
-  pop cx
-  or ax,cx
-  stosw
-  pop ax
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
   out dx,al
-  mov ds,bp
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
   lodsb
   out 0xe0,al
-
-  mov dl,0xd4
-  mov ax,0x3b04
-  out dx,ax
-  times 45 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
+  mov al,1
 .endCode:
 
-experimentKefrensScanline200:
-  db "KefrensScanline200$"
+experimentAmiga76:
+  db "Amiga76$"
   dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  mov dl,0xd4
-  mov ax,0x3b04
-  out dx,ax
-  times 45 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline200_201:
-  db "KefrensScanline200_201$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  mov dl,0xd4
-  mov ax,0x3b04
-  out dx,ax
-  times 45 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline201:
-  db "KefrensScanline201$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline201_202:
-  db "KefrensScanline201_202$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  xor di,di
-  xor ax,ax
-  nop
-  nop
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline202:
-  db "KefrensScanline202$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  xor di,di
-  xor ax,ax
-  nop
-  nop
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline202_203:
-  db "KefrensScanline202_203$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  xor di,di
-  xor ax,ax
-  nop
-  nop
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  xor ax,ax
-  times 4 nop
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline203:
-  db "KefrensScanline203$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  xor ax,ax
-  times 4 nop
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline211_212:
-  db "KefrensScanline211_212$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  xor ax,ax
-  times 4 nop
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  stosw
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline258_259:
-  db "KefrensScanline258_259$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  jne .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline258_259a:
-  db "KefrensScanline258_259a$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jnz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  jne .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline258_259b:
-  db "KefrensScanline258_259b$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline258_259c:
-  db "KefrensScanline258_259c$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jnz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259:
-  db "KefrensScanline259$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  jne .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259a:
-  db "KefrensScanline259a$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jnz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  jne .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259b:
-  db "KefrensScanline259b$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259c:
-  db "KefrensScanline259c$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jnz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259_260:
-  db "KefrensScanline259_260$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  jne .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259a_260:
-  db "KefrensScanline259a_260$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jnz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  jne .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259b_260:
-  db "KefrensScanline259b_260$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259c_260:
-  db "KefrensScanline259c_260$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jnz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259_260a:
-  db "KefrensScanline259_260a$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  jne .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259a_260a:
-  db "KefrensScanline259a_260a$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jnz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  jne .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259b_260a:
-  db "KefrensScanline259b_260a$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline259c_260a:
-  db "KefrensScanline259c_260a$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  times 2 nop
-  ; See if the keyboard has sent a byte
-  in al,0x20
-  and al,2
-  jnz .noKey
-  ; Read byte from keyboard
-  in al,0x60
-  mov ah,al
-  ; Acknowledge keyboard
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
-  ; Check for Escape
-  cmp ah,1
-  je .effectComplete
-  jmp .doneKey
-.noKey:
-  times 28 nop
-.doneKey:
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noNewLoop
-  mov bx,0x80
-.noNewLoop:
-  jmp .frameLoop
-.effectComplete:
-.frameLoop:
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-
-experimentKefrensScanline260:
-  db "KefrensScanline260$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline260a:
-  db "KefrensScanline260a$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline260_261:
-  db "KefrensScanline260_261$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline260a_261:
-  db "KefrensScanline260a_261$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-  mov ax,0x0104
-  out dx,ax
-  mov dl,0xd9
-  mov bx,[cs:dummy]
-  mov si,[cs:bx]
-  inc bx
-  inc bx
-  cmp bx,0xffff
-  je .noRestartSong
-  mov bx,0x0100
-.noRestartSong:
-  mov [cs:dummy],bx
-  times 15 nop
-  mov ax,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-.endCode:
-
-experimentKefrensScanline261_0:
-  db "KefrensScanline261_0$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov bp,0x8000
-  mov ds,bp
-  mov ss,bp
-  xor si,si
-  mov bx,si
-  mov dx,0x3d4
-.endInit:
-  dw .endCode - ($+2)
-
-  times 56 nop
-  mov al,[es:di]
-  mov ds,bp
-  lodsb
-  out 0xe0,al
-
-  mov ax,0x4567
+  mov dx,0x3d9
+  mov ax,1
+  mov bx,2
+  mov cx,3
+  mov di,4
+  mov bp,5
+  mov sp,6
+  mov si,7
+  mov ax,0x8000
   mov ds,ax
-  mov sp,[bx]
-  pop di
-  mov al,[es:di]     ; 3 1 +WS
-  pop cx
-  and ax,cx          ; 2 0
-  pop cx
-  or ax,cx           ; 2 0
-  stosw              ; 2 2 +WS +WS
-  pop ax
-  and ah,[es:di+1]
-  pop cx
-  or ax,cx
-  stosw
-  pop ax
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
   out dx,al
-  mov ds,bp
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
   lodsb
   out 0xe0,al
+  mov al,1
+  nop
+  nop
+  nop
 .endCode:
+
 
 lastExperiment:
   db '$'
@@ -1743,7 +424,7 @@ interrupt8:
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
-  mov al,19
+  mov al,76
   out 0x41,al  ; Timer 1 rate
 
   mov ax,cs

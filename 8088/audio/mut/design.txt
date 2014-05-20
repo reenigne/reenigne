@@ -26,8 +26,12 @@ Items in a Function:
   Domain offset (time shift)
   Range scale (volume)
 
-convolve(x,y) = ((x@i)*(y@i))@(-i)
-shift(x,t) = convolve(x, sineWave@(i*t)) = ((x@i)*(sineWave@t))@(-i)
+i = (-1)^(1/2)
+ft[x] = x@i
+ift[x] = x@(-i)
+convolve[x][y] = ift(ft[x]*ft[y])
+delta = ft[1]
+shift[x][t] = convolve[x][sineWave@(i*t)] = ((x@i)*(sineWave@t))@(-i)
 
 
 Types:
@@ -61,7 +65,7 @@ Types:
 Operators:
   () parentheses
   {} embedded statement
-  ^ convolution, power (RTL)
+  ^ power (RTL)
   - unary negative
   + unary positive
   @ time-scale
@@ -69,11 +73,54 @@ Operators:
   / division
   + addition
   - subtraction
-  & voice
-  | sequence
+  & next-voice
+  | next-in-sequence
   = assignment
+  [] function evaluation/composition
+  ~ next-channel
+  % unary sequence outer
 
-~`!$%\:'/?>,<
+All symbols: !"#$%^&'()*+,-./:;<=>?@[\]^_`{|}~
+_ is interpreted as alphabetic
+. is used for decimal points
+, is used to delimit function arguments
+; is used to delimit statements
+" is used to delimit strings
+Unused: !#$':<>?\`
+
+Built-ins:
+  last     = the current output from the previous voice (ring modulation)
+  division = the increment given by |
+  outputWave
+  outputWaveRate
+  outputWaveBits
+  outputWaveChannels
+  pcSpeaker
+  pitCycle
+  minPotential
+  maxPotential
+  voices
+  amplitudeBaked
+  frequencyBaked
+  outputSimulatedWave
+  outputSimulatedWaveRate
+  outputSimulatedWaveBits
+  outputSimulatedWaveChannels
+  outputPCSpeakerBin
+  outputPCSpeakerScore
+  outputPCSpeakerSampleBank
+  squareWavesOnly
+  allowRingModulation
+  sampleSize
+  sampleBankSize
+  sine
+  square
+  triangle
+  sawtooth
+  whiteNoise
+  tau
+
+
 
 
 +-*/^@
@@ -195,7 +242,7 @@ Given "Sample s" and "Frequency f" should s*f be synonymous to s@f?
 % is the current output from the previous voice (a Waveform)
   Make this a reserved word instead to avoid confusion with the sequence outer operator?
 
-. is just a variable (conventially per voice) which is pronounced "default" and is generally used as the sample for that voice.
+. is just a variable (conventionally per voice) which is pronounced "default" and is generally used as the sample for that voice.
 
 It would be nice to be able to redefine variables right in the grid:
   {.=sine;} .@C2
@@ -217,7 +264,7 @@ It would be nice to be able to create filters (e.g. low-pass, high-pass, bandpas
 
 Have an FFT operator ~
   Sample and Waveform are conceptually continuous valued and repeating
-   Therefore the output of ~ on one of these gives a discrete function of infinite extent
+   Therefore the output of ~ on one of these gives a discrete function (distribution) of infinite extent
   Since the time-reversal operator is @-1, we could make the Fourier Transform operator @((-1)^(1/2))
    Can also make chirps this way
    Does @2 have a different meaning in the LCT sense than the meaning we're giving it?
@@ -226,6 +273,9 @@ Have an FFT operator ~
      http://www.chronowake.com/frft.pdf suggests we can do it by multiplying by a chirp before and after the FFT (see section 6.5)
      Also see (20) on page 36 of the same PDF? (Or is that a different definition?)
    Should we also use @ instead of ^ for convolution?
+Implementation of @:
+  Don't use http://www.cisl.ucar.edu/css/staff/pauls/papers/FFFT/mscpt.pdf - it's about a different Fractional Fourier Transform
+  q:\info\The Fractional Fourier Transform and Its Applications.ppt
 
 Need a shift operator shift(x) which is a delta function at offset x.
   Convolve this with a Sample (or @Hz version for Waveform) to apply a time shift
@@ -235,18 +285,12 @@ Need a shift operator shift(x) which is a delta function at offset x.
 Do all computations internally with complex numbers, just take the real part when outputting
   sine is actually exp(i*x). What are the imaginary parts of square, triangle, sawtooth and whiteNoise?
 
-Syntax for functions:
-  major(x) = x + x@5/4 + x@3/2;
-  minor(x) = x + x@6/5 + x@3/2;
-  If we allow recursion, our language becomes Turing complete
-    How do we terminate recursion?
-      Have conditional operator ?:
-      Boolean-valued operators ==, !=, <, >, <=, >=
-      Boolean-valued functions
-
 Also want to leave space for a stereo operator, maybe %%
   Sample%%Number or Waveform%%Number puts it on the left channel (-1), right channel (+1), center (0) or somewhere else along the real line
     No - just have a separate output for each channel. Doesn't use up an operator, is more flexible and generalizes to any number of channels.
+      It would be nice if Samples, Waveforms, etc. were vector-valued so that they could encode stereo position
+        Would need a way to extract/combine channels to do positional manipulation - maybe use ~ which works a bit like & but which doesn't decay
+
 
 Suppose we have
 
@@ -262,6 +306,7 @@ output =
 
 Generalized Samples can be finite (repeating) or infinite
   Therefore instead of indexing by 0..1 we should index by 0..extent (where extent may be infinite)
+    Do we want -infinity..infinity for infinite functions?
 
 A distribution is a (multiple) derivative of a continuous function
   I think the number of discontinuities in the first derivative must be countable, since if you can't isolate them then the original function won't be continuous
@@ -270,17 +315,14 @@ A distribution is a (multiple) derivative of a continuous function
         int order;  // 1 for delta, N for derivative of N-1
         Complex scale;  // scale factor
         Scalar position;
+      Don't forget there's a factor of (-1)^order when convolving with function to yield Nth derivative of function
 
 We want to evaluate waveforms, samples and filters lazily so that we can work out what resolution we need them at
-However, we also have functions and | requires knowing the current value of division
+However, we also have (functions and) | requires knowing the current value of division
   division must be a scalar - we currently don't have any way of getting a number from a waveform so we can evaluate numbers strictly
-
-1: Parse everything into an AST
-2: Evaluate numbers and annotate | with extents
-3: Lazily evaluate samples and tables
-
-Is division dynamically scoped or lexically scoped? Other variables?
-  I think this might want to be dynamically scoped language
+    No longer true now we have []
+Evaluate lazily, but sequentially. So the laziness is "as if" we did sequential evaluation with infinite precision
+  We can do this by creating a new object each time a variable is assigned - previous uses go to the previous object and subsequent uses go to the new object
 
 Output can be number (dimensionless) - DC, Waveform, Table<DC, s> or Table<Waveform, s> - i.e. something indexed by time
 
@@ -299,7 +341,7 @@ To avoid clicks and pops, we really want each oscillator to have the same Sample
      is defining a whole new object. If we're defining a whole new object we may as well write:
     major = 1 & 5/4 & 3/2;
     chord = sine@C@major;
-    decay as necessary
+    decay (e.g. from VoiceSet to Waveform) as necessary
 
 A sequence is really an "outer" function along with a vector of inner functions. The outer function maps the domain onto an index into the vector.
   The inner functions must all have the same domain and value units.
@@ -337,14 +379,114 @@ Can use a VoiceSet as an LValue:
   Hence we can use "a |" to take the beginning "division" of "a" and repeat it.
   If "a" is a sequence then "a | b" means sequence concatenation rather than slicing.
 
-Implementation of @:
-  Don't use http://www.cisl.ucar.edu/css/staff/pauls/papers/FFFT/mscpt.pdf - it's about a different Fractional Fourier Transform
-  q:\info\The Fractional Fourier Transform and Its Applications.ppt
-
 Unless the domain unit of a function is 0, the only LCTs we can do are pure real or pure imaginary
 
+Note that distributions can be multiplied by infinitely differentiable functions but not by other general distributions - delta*delta is not defined.
+
+Importing a wave from a file yields a band-limited function, not a discrete distribution
+
+Strings:
+  Useful for arguments to include statement
+  Also useful for directly creating a terse function (e.g. simple melody or waveform)
+    Band-limited function like importing from a .wav file
+    Evaluates to ASCII values of characters at integers
+    Extent and period are both length of string
 
 
+Syntax for functions:
+  major[x] = x + x@5/4 + x@3/2;
+  minor[x] = x + x@6/5 + x@3/2;
+  If we allow recursion, our language becomes Turing complete
+    How do we terminate recursion?
+      Have conditional operator ?:, Boolean-valued operators ==, !=, <, >, <=, >=, Boolean-valued functions
+      Or: multiplication by 0 short-circuits function evaluation
+
+Dynamic scoping?
+  This makes a difference for functions:
+    a = 1;
+    f[x] = a*x;
+    a = 2;
+    b = f[3];  // b==3 for lexical scoping, b==6 for dynamic scoping.
+  Dynamic scoping is more difficult to understand.
+  Dynamic scoping makes functions more like macros, lexical scoping more like proper functions
+  Let's use lexical scoping unless we find a really good reason to do otherwise
+
+Functions can be used before they are defined (unlike variables)
+  This is necessary in order to allow (mutual) recursion
+  Use the same function call scoping as ALFE
+
+Do we want to allow functions to specify the types of their arguments? If so, how?
+  In general, is MuT typing static or dynamic?
+    Not sure how to specify static types - there are so many things about variables which could be part of the type, but most operations don't care about most of them
+      Table
+        Of what?
+        VoiceSet?
+        Sequence?
+      Function
+        Constant or non-constant?
+        Domain unit
+        Range unit (integer/rational/double, real/complex)
+        Distribution?
+  Initially just make a dynamic language. If we find a very good reason to add some static types later, do so
+   If something really needs a scalar (e.g. division or "f[x] = ..."), just add an implicit [0] to the end.
+
+Why do we have separate operators for explicit and implicit functions (() and [] respectively)?
+  Explicit functions can return any kind of object. Is the same true for implicit functions?
+    Don't currently have any way to create or manipulate a 2D implicit function
+      And even if we did, there would be ambiguity about how to reference the separate arguments
+        Therefore implicit and explicit functions are separate
+We can convert an implicit function to an explicit function by doing: explicit(x) = implicit[x]
+Can we convert an explicit funciton to an implicit one?
+  In the same way? i.e. "implicit[x] = explicit(x);"
+    What if explicit returns a Function rather than a Scalar?
+      Implicit functions have extra degrees of freedom removed, so the above would be the same as "implicit[x] = explicit(x)[0];"
+Functions are more like macros - there's not much that they can do that can't be done directly (other than recusion and Turing-completeness)
+
+Need to figure out terminology to distinguish between [] functions and () functions.
+  Get rid of () functions - allow functions to be function-valued
+    Where does this leave (mutual) recursion?
+      Make it impossible?
+        There might be some really interesting sounds which are only possible with recursion.
+          Explicitly-specific function (f[x] = ...) can only be assigned once and have above-and-below scope, implicitly-specified function (f = ...) can be reassigned?
+            Seems a little ocunter-intuitive
+          If a name is not found in the above-scope, search the below-scope (in reverse order?)
+            This seems like a neat solution - simple and forgiving.
+            We can implement this by looking up a name as if the reference is at the end of the program (scope?), if it's not defined in the usual place
+              Try the end of the current scope first, then the end of outer scopes until we reach the end of the program - that way we can define mutually recursive functions locally
+
+How should we implement band-limited resampling?
+  Using FFTs?
+  SRC or libresample?
+
+The FFT of a periodic signal is a distribution - does that mean that we can't convolve two periodic signals?
+  No - sin(a)*sin(a+b) = (cos(a-(a+b)) - cos(a+a+b))/2 = (cos(-b) - cos(2a+b))/2 => convolution is cos(-b)/2
+  So perhaps it's just that we can't multiply deltas of different orders
+
+If time-domain signals are band-limited and frequency-domain signals are discrete, what about FRFT signals?
+  Hopefully this is academic and we can just compute arraywise whenever there's an FRFT (or FT?) to do.
+
+Suppose we define "f[x]=x*x;". x can be a scalar or a function
+  When we reference f without []s, assume that x is a scalar?
+    I think we won't have a problem if this rule is followed, since either's an explicit argument or there isn't, and either way the type of the argument is known.
+  Or we could force all arguments in explicitly-defined functions to be scalars, so if you wanted a second order function you'd write:
+    f[x][y]=x[y]*x[y];
+    I don't like that as much though.
+  What are the circumstances where this is ambiguous?
+    Explicit functions are equivalent to macros
+
+If division==infinity, what does a|b yield?
+  a for >0 and b for <0?
+
+Do we want a dot product operator?
+  f[x][y] = x*y; f.sine yields g where g[x] = integral(y=-infinity..infinity, f[x][y]*sine[y])
+  Might be expensive to calculate
+  Is there a use case?
+    Avoid adding it unless we find one, but keep it in mind
+  What if you dot product together two second-order functions (e.g. f.ft) - do we have to integrate over the space of all functions?
 
 
-
+Plan:
+  Create an object for each operator
+  Write code to parse
+  Write code to resolve names
+  Implement evaluations as required

@@ -9,7 +9,7 @@
   mov es,ax
   mov cx,8000
   mov si,data
-  xor di,di
+  mov di,160
   cld
   rep movsw
 
@@ -40,8 +40,6 @@
 burstLoop:
   times 4 movsw
   sub si,8
-  mov ax,0
-  stosw
   inc bx
   cmp bx,1
   jb noNextBurst
@@ -56,42 +54,129 @@ noResetBurst:
   loop burstLoop
 
 
-  mov cx,256
+unrolledCode equ data + 160*102
 
-  ; Increase refresh frequency to ensure all DRAM is refreshed before turning
-  ; off refresh.
+  ; Set up interrupt masks.
+  mov al,0xfd  ; Enable IRQ 1 (keyboard)
+  out 0x21,al  ; Leave disabled 0 (timer), 2 (EGA/VGA/slave 8259) 3 (COM2/COM4), 4 (COM1/COM3), 5 (hard drive, LPT2), 6 (floppy disk) and 7 (LPT1)
+
+  xor ax,ax
+  mov es,ax
+  mov word[es:9*4],interrupt9
+  mov [es:9*4+2],cs
+
+  jmp doUnroll
+
+interrupt9:
+  mov ax,cs
+  mov ds,ax
+
+  in al,0x60
+  mov ah,al
+
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
+
+  mov al,0x20
+  out 0x20,al
+
+  add sp,6
+  cmp ah,0x4b
+  jne notLeft
+  dec byte[refreshPhase]
+  cmp byte[refreshPhase],0xff
+  jne notLeft
+  mov byte[refreshPhase],19*4-1
+notLeft:
+  cmp ah,0x4d
+  jne notRight
+  inc byte[refreshPhase]
+  cmp byte[refreshPhase],19*4
+  jne notRight
+  mov byte[refreshPhase],0
+notRight:
+  cmp ah,0x48
+  jne notUp
+  dec word[crtcPhase]
+  cmp word[refreshPhase],0xffff
+  jne noUp
+  mov word[refreshPhase],76*4-1
+notUp:
+  cmp ah,0x50
+  jne notDown
+  inc word[crtcPhase]
+  cmp word[crtcPhase],76*4
+  jne notDown
+  mov word[crtcPhase],0
+notDown:
+
+doUnroll:
+  print "Refresh: "
+  mov al,[refreshPhase]
+  mov ah,0
+  printHex
+  print ", CRTC: "
+  mov ax,[crtcPhase]
+  printHex
+  printCharacter 10
+
+  mov ax,cs
+  mov es,ax
+  mov si,unrollData1
+  mov di,unrolledCode
+  mov cx,unrollData2-unrollData1
+  rep movsb
+
+  mov cl,[refreshPhase]
+  mov ch,0
+  shr cx,1
+  shr cx,1
+  mov al,0x90
+  rep stosb
+
+  mov si,unrollData2
+  mov cx,unrollData3-unrollData2
+  rep movsb
+
+  mov cx,[crtcPhase]
+  shr cx,1
+  shr cx,1
+  mov al,0x90
+  rep stosb
+
+  mov si,unrollData3
+  mov cx,unrollDataEnd-unrollData3
+  rep movsb
+
+  jmp unrolledCode
+
+
+unrollData1:
+  lockstep2
+  mov ax,cs
+  mov ds,ax
+
+  mov al,[refreshPhase]
+  and al,3
+  mov bx,mulTimingTable
+  xlatb
+  mov cl,0
+  mul cl
+
+unrollData2:
+
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
-  mov al,2
+  mov al,19
   out 0x41,al  ; Timer 1 rate
 
-  ; Delay for enough time to refresh 512 columns
-  rep lodsw
-
-  lockstep
-
-  mov al,TIMER1 | LSB | MODE2 | BINARY
-  out 0x43,al
-  mov al,18
-  out 0x41,al  ; Timer 1 rate
-
-  nop
-  nop
-
-
-; Scanline   0 = row  0 of  2-line screen (Address 0 = blank)
-; Scanline   1 = row  1 of  2-line screen (Address 160 = pixel line 0)
-; Scanline   2 = row  0 of  2-line screen (Address 160 = pixel line 0)
-; Scanline   3 = row  1 of  2-line screen (Address 320 = pixel line 1)
-; ...
-; Scanline 198 = row  0 of  2-line screen (Address 15840 = pixel line 98)
-; Scanline 199 = row  1 of  2-line screen (Address 16000 = pixel line 99)
-; Scanline 200 = row  0 of 62-line screen (Address 16000 = pixel line 99)
-; Scanline 201 = row  1 of 62-line screen (Address 16160 = blank)
-; ...
-; Scanline 224 = row 24 of 62-line screen - sync start
-; ...
-; Scanline 261 = row 61 of 62-line screen
+; Scanlines 0-199 = image display at one CRTC frame per scanline
+; Scanline 200 = set CRTC for vsync      0
+; Scanline 224 = start of vsync pulse   24
+; Scanline 261 = set CRTC for normal
 
 
   ; Mode                                                09
@@ -127,15 +212,15 @@ noResetBurst:
   out dx,ax
 
   ;   0xff Horizontal Sync Position                     5a
-  mov ax,0x6502
+  mov ax,0x5a02
   out dx,ax
 
-  ;   0x0f Horizontal Sync Width                        00
+  ;   0x0f Horizontal Sync Width                        0c
   mov ax,0x0c03
   out dx,ax
 
-  ;   0x7f Vertical Total                               3d
-  mov ax,0x3d04
+  ;   0x7f Vertical Total                               01
+  mov ax,0x0104
   out dx,ax
 
   ;   0x1f Vertical Total Adjust                        00
@@ -184,86 +269,56 @@ noResetBurst:
   mov ax,0xc00f
   out dx,ax
 
+  mov al,[crtcPhase]
+  and al,3
+  mov bx,mulTimingTable
+  xlatb
+  mov cl,0
+  mul cl
 
-  mov dl,0xda
-  mov bx,80     ; Initial
-  mov cx,0      ; Frame counter
+unrollData3:
+
+;  captureScreen
+
+  mov di,0x3fff
+  sti
+
 frameLoop:
-  waitForVerticalSync
-  waitForNoVerticalSync
-
-  ; During line 0-1 we set up the start address for line 2 and change the vertical total to 0x01
-  waitForDisplayEnable
-  mov dl,0xd4
-  mov ax,0x0104 ; 4: Vertical total: 2 rows/frame
-  out dx,ax
-  mov dl,0xda
-  waitForDisplayDisable
-  waitForDisplayEnable
-  mov dl,0xd4
-  mov ah,bh
-  mov al,0x0c
-  out dx,ax     ; Start address high
-  mov ah,bl
-  inc ax
-  out dx,ax     ; Start address low
-  add bx,80     ; Next start address
-  mov dl,0xda
-  waitForDisplayDisable
-
-  ; During lines 2..199 we set up the start address for the next line
-%rep 98
-    waitForDisplayEnable
-    waitForDisplayDisable
-    waitForDisplayEnable
-    mov dl,0xd4
-    mov ah,bh
-    mov al,0x0c
-    out dx,ax     ; Start address high
-    mov ah,bl
-    inc ax
-    out dx,ax     ; Start address low
-    add bx,80     ; Next start address
-    mov dl,0xda
-    waitForDisplayDisable
+%rep 200
+    mov ax,0x0401
+    out dx,ax
+    mov ax,0x0b00
+    out dx,ax
+    mov ax,0x5001
+    out dx,ax
+    mov ax,0x6500
+    out dx,ax
+    stosb
+    dec di
+    times 38 nop
 %endrep
-
-  ; During line 200 we set up the start address for line 0 and change the vertical total to 0x3d
-  waitForDisplayEnable
-  mov dl,0xd4
-  mov ax,0x3d04  ; 4: Vertical total: 62 rows/frame
+  mov ax,0x0401
   out dx,ax
-  mov dl,0xda
-  waitForDisplayDisable
-  waitForDisplayEnable
-  mov dl,0xd4
-  mov ax,0x000c
-  out dx,ax      ; Start address high
-  inc ax
-  out dx,ax      ; Start address low
-  mov bx,80
-  mov dl,0xda
-  waitForDisplayDisable
-
-  ; Take a screenshot after 1 second
-  inc cx
-  cmp cx,60
-  jne noScreenshot
-  int 0x60
-noScreenshot:
-  ; Wait a further minute before exiting
-  cmp cx,3600
-  je finish
-
+  mov ax,0x0b00
+  out dx,ax
+  mov ax,0x5001
+  out dx,ax
+  mov ax,0x6500
+  out dx,ax
+  stosb
+  dec di
+  times 33 nop
   jmp frameLoop
-finish:
 
-  ; Set the CGA back to a normal mode so we don't risk breaking anything
-  mov ax,3
-  int 0x10
+unrollDataEnd:
 
-  ; Relinquish control
-  int 0x67
+
+;  ; Set the CGA back to a normal mode so we don't risk breaking anything
+;  mov ax,3
+;  int 0x10
+;
+;  ; Relinquish control
+;  int 0x67
 
 bursts:
   dw 0x8055, 0x8055, 0x8055, 0x8055
@@ -382,39 +437,11 @@ bursts2:
   dw 0x51b1, 0x11b1, 0x51b1, 0x11b1
   dw 0x51b1, 0x11b1, 0x11b1, 0x11b1
 
+mulTimingTable:
+  db 0x01, 0x03, 0x07, 0x0f
 
+refreshPhase: db 0
+crtcPhase: dw 0xf8
 
 data:
 
-;%rep 80
-;  db 0x00,0x00
-;%endrep
-;
-;%assign i 0
-;%rep 50
-;  %rep 2
-;    db 0x00,0x00
-;    %rep 26
-;      %rep 3
-;        %if (i & 0x3ff) < 256
-;          db 0x55
-;        %elif (i & 0x3ff) < 512
-;          db 0x13
-;        %elif (i & 0x3ff) < 768
-;          db 0xb0
-;        %else
-;          db 0xb1
-;        %endif
-;        db (i & 0xff)
-;      %endrep
-;      %assign i i+1
-;    %endrep
-;    db 0x00,0x00
-;    %assign i i-26
-;  %endrep
-;  %assign i i+26
-;%endrep
-;
-;%rep 80
-;  db 0x00,0x00
-;%endrep

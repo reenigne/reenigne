@@ -1,0 +1,7 @@
+08/04/2014 - 15/04/2014  moire     timer2   complete
+15/04/2014 - 22/04/2014  kefrens   262      needs motion reimplementing
+22/04/2014 - 29/04/2014  raster    262      didn't work - reimplement
+29/04/2014 - 06/05/2014  popcorn   262      quality poor - rearrange
+06/05/2014 - 13/05/2014  billions  262      in progress
+13/05/2014 - 20/05/2014  amiga     262      in progress
+20/05/2014 - 27/05/2014  particle  timer2   needs optimization

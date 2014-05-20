@@ -1,9 +1,10 @@
-i = sqrt(-1);
+i = (-1)^(1/2);
 
 Hz = 1/s;
 outputWave = "mut_output.wav";
 outputWaveRate = 44100*Hz;
 outputWaveBits = 16;
+outputWaveChannels = 1;
 
 tick = s/50;
 division = 6*tick;
