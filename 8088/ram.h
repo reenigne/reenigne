@@ -117,7 +117,7 @@ public:
         {
         public:
             Implementation(Simulator* simulator)
-              : Component::Type::Implementation(simulator) { }
+              : ISA8BitComponent::Type::Implementation(simulator) { }
             String toString() const { return "RAM"; }
             bool has(String name) const
             {

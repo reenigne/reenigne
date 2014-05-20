@@ -1,12 +1,12 @@
 CC=g++
 CFLAGS=-O3 -I../include -std=c++11 -lSDL2
 
-all: 8088
+all: berapa
 
 debug: CFLAGS += -O0 -g
-debug: 8088
+debug: berapa
 
-8088: 8088.cpp
-	$(CC) 8088.cpp -o $@ $(CFLAGS)
+berapa: berapa.cpp
+	$(CC) berapa.cpp -o $@ $(CFLAGS)
 clean:
-	rm -f 8088 8088.o
+	rm -f berapa berapa.o

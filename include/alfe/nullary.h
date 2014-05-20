@@ -26,7 +26,8 @@ protected:
         }
     };
 
-    Nullary(const Implementation* implementation) : Base(implementation) { }
+    Nullary(const Implementation* implementation)
+      : Base(implementation) { }
 private:
     static Nullary _instance;
     static Nullary instance()

@@ -437,7 +437,7 @@ private:
                 ", internalRequest: " + String::Boolean(_internalRequest) +
                 " }";
         }
-        Type type() const
+        ::Type type() const
         {
             List<StructuredType::Member> members;
             members.add(StructuredType::Member("mode", 0));

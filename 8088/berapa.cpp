@@ -270,7 +270,7 @@ public:
 private:
     TypedValue initial() const
     {
-        return StructuredType::empty().convertTo(type());
+        return StructuredType::empty().convertTo(persistenceType());
     }
     ::Type persistenceType() const
     {
