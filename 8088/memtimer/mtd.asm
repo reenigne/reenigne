@@ -1,5 +1,6 @@
   %include "../defaults_com.asm"
 
+main:
   mov ax,3
   int 0x10
 

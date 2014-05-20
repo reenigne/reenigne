@@ -1,0 +1,139 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{E826CBD1-D42C-4CDF-B8D7-7A71C1267ED9}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>My8088</RootNamespace>
+    <ProjectName>berapa</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <IncludePath>..\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <IncludePath>D:\t\reenigne\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;../../external/SDL2-2.0.0/lib/x86/SDL2.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y "$(ProjectDir)..\..\external\SDL2-2.0.0\lib\x86\SDL2.dll" "$(OutDir)"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;../../external/SDL2-2.0.0/lib/x86/SDL2.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y "$(ProjectDir)..\..\external\SDL2-2.0.0\lib\x86\SDL2.dll" "$(OutDir)"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="berapa.cpp" />
+    <ClInclude Include="..\include\alfe\assert.h" />
+    <ClInclude Include="..\include\alfe\expression.h" />
+    <ClInclude Include="..\include\alfe\function.h" />
+    <ClInclude Include="..\include\alfe\handle.h" />
+    <ClInclude Include="..\include\alfe\identifier.h" />
+    <ClInclude Include="..\include\alfe\kind.h" />
+    <ClInclude Include="..\include\alfe\nullary.h" />
+    <ClInclude Include="..\include\alfe\operator.h" />
+    <ClInclude Include="..\include\alfe\parse_tree_object.h" />
+    <ClInclude Include="..\include\alfe\pipes.h" />
+    <ClInclude Include="..\include\alfe\rational.h" />
+    <ClInclude Include="..\include\alfe\reference.h" />
+    <ClInclude Include="..\include\alfe\type_specifier.h" />
+    <ClInclude Include="8088.h" />
+    <ClInclude Include="8237.h" />
+    <ClInclude Include="8253.h">
+      <FileType>CppHeader</FileType>
+    </ClInclude>
+    <ClInclude Include="dma_page_registers.h" />
+    <ClInclude Include="dram.h" />
+    <ClInclude Include="isa_8_bit_bus.h" />
+    <ClInclude Include="nmi_switch.h" />
+    <ClInclude Include="ram.h" />
+    <ClInclude Include="rgbi_monitor.h" />
+    <ClInclude Include="pcxt_keyboard.h" />
+    <ClInclude Include="pcxt_keyboard_port.h" />
+    <ClInclude Include="mc6845.h" />
+    <ClInclude Include="rom.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\include\alfe\array.h" />
+    <ClInclude Include="..\include\alfe\character_source.h" />
+    <ClInclude Include="..\include\alfe\config_file.h" />
+    <ClInclude Include="..\include\alfe\file.h" />
+    <ClInclude Include="..\include\alfe\hash_table.h" />
+    <ClInclude Include="..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\include\alfe\main.h" />
+    <ClInclude Include="..\include\alfe\space.h" />
+    <ClInclude Include="..\include\alfe\string.h" />
+    <ClInclude Include="..\include\alfe\type.h" />
+    <ClInclude Include="..\include\alfe\value.h" />
+    <ClInclude Include="8255.h" />
+    <ClInclude Include="8259.h" />
+    <ClInclude Include="cga.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

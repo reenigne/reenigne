@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="8237.h" />
+    <ClInclude Include="8253.h" />
+    <ClInclude Include="..\include\alfe\array.h" />
+    <ClInclude Include="..\include\alfe\character_source.h" />
+    <ClInclude Include="..\include\alfe\config_file.h" />
+    <ClInclude Include="..\include\alfe\file.h" />
+    <ClInclude Include="..\include\alfe\hash_table.h" />
+    <ClInclude Include="..\include\alfe\integer_types.h" />
+    <ClInclude Include="..\include\alfe\main.h" />
+    <ClInclude Include="..\include\alfe\space.h" />
+    <ClInclude Include="..\include\alfe\string.h" />
+    <ClInclude Include="..\include\alfe\type.h" />
+    <ClInclude Include="..\include\alfe\value.h" />
+    <ClInclude Include="8255.h" />
+    <ClInclude Include="8259.h" />
+    <ClInclude Include="..\include\alfe\rational.h" />
+    <ClInclude Include="cga.h" />
+    <ClInclude Include="..\include\alfe\pipes.h" />
+    <ClInclude Include="dram.h" />
+    <ClInclude Include="mc6845.h" />
+    <ClInclude Include="rgbi_monitor.h" />
+    <ClInclude Include="pcxt_keyboard.h" />
+    <ClInclude Include="pcxt_keyboard_port.h" />
+    <ClInclude Include="..\include\alfe\kind.h" />
+    <ClInclude Include="..\include\alfe\nullary.h" />
+    <ClInclude Include="..\include\alfe\assert.h" />
+    <ClInclude Include="..\include\alfe\handle.h" />
+    <ClInclude Include="rom.h" />
+    <ClInclude Include="dma_page_registers.h" />
+    <ClInclude Include="8088.h" />
+    <ClInclude Include="ram.h" />
+    <ClInclude Include="nmi_switch.h" />
+    <ClInclude Include="isa_8_bit_bus.h" />
+    <ClInclude Include="..\include\alfe\expression.h" />
+    <ClInclude Include="..\include\alfe\identifier.h" />
+    <ClInclude Include="..\include\alfe\operator.h" />
+    <ClInclude Include="..\include\alfe\parse_tree_object.h" />
+    <ClInclude Include="..\include\alfe\function.h" />
+    <ClInclude Include="..\include\alfe\type_specifier.h" />
+    <ClInclude Include="..\include\alfe\reference.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="berapa.cpp" />
+  </ItemGroup>
+</Project>

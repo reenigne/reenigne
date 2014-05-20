@@ -1,0 +1,451 @@
+The Kefrens bars effect depends on being able to write a pattern of pixels in different positions horizontally and have it be identifiably the same
+  Suppose each bar is 16 hdots, then we have 4 effective positions within that bar
+
+Want to use a 2bpp mode so that we can do raster bars separate from the kefrens bars
+  0x3d8 = 0x0a, 0x3d9 = 0x3X
+
+Colours
+ 0 = (depends on palette low nybble)
+ 1 = (depends on palette low nybble)
+ 2 = (depends on palette low nybble)
+ 3 = (depends on palette low nybble)
+ 4 = (depends on palette low nybble)
+ 5 = slightly bluish green
+ 6 = middle blue
+ 7 = aqua
+ 8 = (depends on palette low nybble)
+ 9 = light blue
+10 = magenta
+11 = purple
+12 = (depends on palette low nybble)
+13 = olive
+14 = light red
+15 = white
+
+Initially lets try colours 5, 7, 9, 11
+MSbit of each byte is on left so we want
+  0xB975
+
+Plotting an even bar at DI (75->[DI], B9->[DI+2])
+  mov ax,0xb975
+  stosw
+
+Plotting an odd bar at DI (5X->[DI], 97->[DI+2], XB->[DI+4])
+  mov al,[es:di]
+  and ax,0x000F
+  or ax,0x9750
+  stosw
+  mov al,[es:di]
+  and al,0xF0
+  or al,0x0B
+  stosb
+
+  mov di,[bx]        ; 2 2
+  mov al,[es:di]     ; 3 1 +WS
+  and ax,[bx+2]      ; 3 2
+  or ax,[bx+4]       ; 3 2
+  stosw              ; 1 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  and al,[bx+6]      ; 3 2
+  or al,[bx+7]       ; 3 2
+  stosb              ; 1 1 +WS    ; Est = 37/44.5, NoWS = 40, Actual = 48,
+
+  lodsw              ; 1 2
+  xchg ax,di         ; 1 0
+  mov bl,[es:di]     ; 3 1 +WS
+  lodsw              ; 1 2
+  and bx,ax          ; 2 0
+  lodsw              ; 1 2
+  or bx,ax           ; 2 0
+  xchg ax,bx         ; 1 0
+  stosw              ; 2 2 +WS +WS
+  mov bl,[es:di]     ; 3 1 +WS
+  lodsw              ; 1 2
+  and bl,al          ; 2 0
+  or bl,ah           ; 2 0
+  xchg ax,bx         ; 1 0
+  stosb              ; 1 1 +WS    ; Est = 37/44.5, NoWS = 38.5, Actual = 46+2/3                 <=
+
+  lodsw              ; 1 2
+  xchg ax,di         ; 1 0
+  mov cl,[di]        ; 2 1
+  lodsw              ; 1 2
+  and cx,ax          ; 2 0
+  lodsw              ; 1 2
+  or cx,ax           ; 2 0
+  xchg ax,cx         ; 1 0
+  mov [di],ax        ; 2 2
+  stosw              ; 2 2 +WS +WS
+  mov cl,[di]        ; 2 1
+  lodsw              ; 1 2
+  and cl,al          ; 2 0
+  or cl,ah           ; 2 0
+  xchg ax,cx         ; 1 0
+  mov [di],al        ; 2 1
+  stosb              ; 1 1 +WS     ; Est = 42/46.5, NoWS = 45.75, Actual = 49+1/3
+
+160*8 = 1280 byte LUT
+
+
+
+
+Plotting an odd bar:
+
+Raster bars:
+  838 * 200 * 8 / 4 = 83800 bytes with nybble packing
+
+Our budget is 32kB uncompressed, 16kB compressed
+
+
+
+
+
+
+Plan:
+  Resurrent raster bars stuff in make_table
+
+
+
+
+  Loop is unrolled vertically
+  Put t in bp (and bx initially)
+
+  160 possible positions 0..159 so N=80
+  At steepest point, sin(x) ~= x so  N * sin(x/N) ~= x  so d/dx (N * sin(x/N)) ~= 1
+  Therefore if we want a sine table that doesn't skip any values we need 0 <= x/N < tau  so  0 <= x < tau*N
+  We want a period of maybe 3 or 4 cycles in 200 pixels
+  Maybe table length = 256 entries, period 256/5 (/4 would be repetitive)
+    table[x] = 80 + 80*sin(5*tau*x/256)
+    d/dx (table) = 80*5*tau/256 = 10 entries - that's a bit steep - our bars won't overlap!
+      That might not matter since the farthest ones are at the back - let's try it and see
+
+  Sine table: 256 entries of 1 byte each (range 0..159)
+  Multiplication table: 200 y positions times 160 sine positions times 1 byte per entry = 32000 bytes
+    Generate at runtime?
+
+  1 position per scanline (and 1 position per frame) need period of tau*157/2 = 493 but that's a very long slow period
+  We want a period of 3 to 4 cycles in 100 scanlines = 25 to 33
+  838 frames
+    /1 = period 838      0.12                      gap = 0.58 (repeated scanlines)
+    /2 = period 419      0.24                            1.16
+    /3          279.33   0.36                            1.75
+    /4          209.5    0.48                            2.34
+    /5          167.6    0.60                            2.92
+    /6          139.67   0.89                            3.51
+    /7          119.71   1.04                            4.09
+
+   /25 = period  33.52 = 2.98 cycles on screen
+   /26 =         32.23   3.10
+   /27 =         31.04   3.22
+   /28           29.93   3.34
+    29           28.90   3.46
+    30           27.93   3.58
+    31           27.03   3.70
+    32           26.19   3.82
+   /33 = period  25.39 = 3.94 cycles on screen
+
+  We want to avoid having gaps between adjacent bars
+    78*sin(x*tau*D/838) => gap = 78*tau*D/838
+
+
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx+sineTable]
+  mov bl,[bx+mulTable]  ; mulTable is a different 160-element table per scanline
+  mov si,bx
+  shl si,1
+  shl si,1
+  shl si,1
+  xchg ax,bx
+
+0x0000 - 0x00FF = sine table  - returns half of index into mulTa
+
+
+
+Problem:
+  Can't do one scanline per row and one row per frame
+  Possible solutions:
+    1: CRTC trickery - doesn't seem to be time for this
+    2: 2 scanlines per row (scanline 0 at 0, scanline 1 at 0x2050)
+    3: 2 rows              (scanline 0 at 0, scanline 1 at 0x0050)
+  2 and 3 are the same - essentially we get two interleaved Kefrens images
+
+  1 requires 6 CRTC changes per scanline
+    Main scanline: horizontal total = 41, horizontal displayed = 40, horizontal sync = 42
+    Sync scanline: horizontal total = 16, horizontal displayed = 1, horizontal sync = whatever
+  Or maybe 2:
+    Main/sync scanline: almost normal
+    Sync scanline: horizontal total = small
+  Each CRTC change is 6 IOs, plus we need "mov dl,0xd4" and "mov dl,0xd9" (4 IOs) so 16 IOs minimum
+    Need to take our routine down to 240 cycles to even stand a chance
+      The one way this might be possible is having different routines for odd and even Kefrens pixels and dispatching to them
+
+Plan:
+  1: Try interleaved Kefrens bars first
+  2: See what the 1-line-restart CRTC trick looks like at minimum
+  3: If (2) looks plausible, try odd/even dispatch
+
+We probably want to try an odd/even dispatch anyway because it'll be faster
+
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov di,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  test di,0x4000
+  jz even
+
+  mov al,[es:di]     ; 3 1 +WS
+  and ax,0x000F
+  or ax,0x9750
+  stosw
+  mov al,[es:di]
+  and al,0xF0
+  or al,0x0B
+  stosb
+
+  jmp done
+even:
+
+  mov ax,0xb975
+  stosw
+
+done:
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+
+Kefrens5A:
+
+  mov bx,[cs:bp+127]     ; offset into sineTable
+  mov sp,[ss:bx+0x4567]  ; mulTable is a different 157-element table per scanline
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+
+  mov ax,0x4567            ; segment for rasterBars table (one segment per scanline)
+  mov ds,ax
+  mov al,[bp]
+  out dx,al
+  mov ds,cx
+
+  lodsb
+  out 0xe0,al
+
+
+Even scanlines: palette 3, colours 5, 7, 9, 11
+Odd scanlines: palette 1, colours 5, 15, 11, 10
+
+Let's go with Kefrens5 for now as it's more flexible, even if the dispatch variants are slightly faster
+
+Each of the 320 possible SP values has 4 woeds associated with it:                 odd/3  even/3 odd/1   even/1
+  First is DI, the lowest of the addresses in video memory we'll be writing to     0..79  0..79  80..159 80..159
+  Second is the AND mask for the first two bytes:                                  0x000F 0x0000 0x000F 0x0000
+  Third is the OR mask for the first two bytes:                                    0x9750 0xB975 0xBF50 0xABF5
+  Fourth is the AND mask (low) and OR mask (high) for the final byte:              0x0BF0 0x00FF 0x0AF0 0x00FF
+
+Register usage for 5A:
+  CS = code
+          sineTable.  Size = (838 + 199)*2 =  2074  SS, CS or DS. 1 access. SS is good here since frame number is bp
+  ES = CGA and rasterTable
+  DS = audio
+  SS =
+          pixelTable. Size = 157*2*4*2     =  2512  This must be in SS for pops
+          mulTable.   Size = 200*2*157     = 62800  SS, CS or DS. 1 access. DS is natural
+          stack       Size =                   224
+  AX = various
+  BX = frame number (0..837)
+  CX = various
+  DX = 0x03d9
+  SI = audio sample pointer
+  DI = various (unmultiplied position, pointer into CGA RAM)
+  BP = segment for audio DS
+  SP = various (pointer into pixelTable)
+
+The raster bars need to move at at least 1 pixel per frame in the fastest parts of their phases
+  If amplitude is 100, need 100*tau = 628 frames max => 125600 byte table
+Raster bars table stored in y-major order with a different segment for each y coordinate
+
+
+CS:
+  0000 = PSP           0x0100
+  0100 = code          ?
+         unrolledCode  header+34*200+footer
+SS:
+  0000 = pixelTable    154*6*2*2*16 = 59136
+  E700 = DS start
+DS:
+         rasterBars    200*((838 | 15)+1)*2 = 339200
+         samples       65536
+         song          35954
+
+Each scanline of rasterBars table is
+
+
+17977 frames total = 5 minutes + 696 hdots
+
+0 = even/3
+1 = odd/3
+...
+156 = even/3
+157 = even/1
+158 = odd/1
+...
+313 = even/3
+
+For frame 0 we want BP = 128
+
+
+
+
+  0*2 +17*2
+ 17*2 -16*2
+  1*2
+ 18*2
+ ...
+ 99*2
+116*2
+
+
+0192 = CS
+  1DE4 = unrolled
+0684 = SS
+1684 = raster
+
+
+Unrelocated savedSP = CS0:savedSP
+Relocated savedSP = CS1:(savedSP + sineTable + scanlines*43 - header)
+
+
+
+
+2-byte pip location and 1-byte raster location per scanline*frame:
+  (((3*838 + 15)&~15)*200 + 157*8 = 506856
+  (((2*838 + 15)&~15)*200 + 157*16*9 = 356096
+
+
+
+2bpp nybbles that don't depend on colour 0 are:
+  5 6 7 9 A B D E F
+
+
+
+Footer at 0194:3c02
+Footer ends at 0194:4968
+
+
+
+If the pip was 1 ccycle there would be 160 positions
+Pip is 7 ccycles so there are 154 positions
+
+.x xx  xx xx
+
+xx xx  xx x.
+
+
+0: Offset of destination for leftmost byte of pip
+1: AND mask for leftmost word
+2: OR mask for leftmost word
+3: AND mask for rightmost word
+4: OR mask for rightmost word
+5: palette register (only low byte used)
+
+
+positions*6*2*0 = palette 0, scanline 0
+positions*6*2*1 = palette 0, scanline 1
+positions*6*2*2 = palette 1, scanline 0
+positions*6*2*3 = palette 1, scanline 1
+...
+positions*6*2*30 = palette 15, scanline 0
+positions*6*2*31 = palette 15, scanline 1
+positions*6*2*32 = end
+
+
+
+
+
+
+KefrensScanline0     152 +006  151 +114  +114  +114  +114                  ok
+KefrensScanline199_200 304 +001  +000  +000  +000  +000                      ok
+KefrensScanline200   152 +000  +003  +003  +000  +003                      ok
+KefrensScanline200_201 304 +040  +000  +000  +000  +000                      ok
+KefrensScanline201   151 +079  +081  +081  +081  +081                      ?
+KefrensScanline201_202 303 +118  304 +000  +000  303 +118  304 +000          ok
+KefrensScanline202   151 +118  +119  152 +001  +000  +001                  ok
+KefrensScanline202_203 304 +001  +001  +000  +000  303 +118                  ok
+KefrensScanline203   152 +001  +000  +001  +000  +001                      ok
+KefrensScanline211_212 304 +000  +001  +000  +000  +000                      ok
+KefrensScanline258_259 304 +001  +001  +001  +000  +001                      ok
+KefrensScanline258_259a 304 +000  +003  +000  303 +116  304 +000             ok
+KefrensScanline258_259b 304 +000  +001  +000  +001  +001                     ok
+KefrensScanline258_259c 304 +000  +003  +000  303 +116  304 +000             ok
+KefrensScanline259   152 +002  +000  +000  +000  +000                      ok
+KefrensScanline259a  151 +119  152 +000  +000  +000  +000                  ok
+KefrensScanline259b  151 +119  152 +000  +000  +000  +000                  ok
+KefrensScanline259c  152 +012  +000  +000  +000  +000                      ok
+KefrensScanline259_260 304 +003  +003  +003  +003  +003                      ok
+KefrensScanline259a_260 304 +000  303 +116  304 +000  303 +116  304 +000     ok
+KefrensScanline259b_260 303 +101  304 +000  +000  +000  +000                 ok
+KefrensScanline259c_260 304 +000  303 +117  304 +000  303 +117  304 +000     ok
+KefrensScanline259_260a 304 +000  +003  +003  +003  +003                     ok
+KefrensScanline259a_260a 304 +000  303 +116  304 +000  303 +116  304 +000    ok
+KefrensScanline259b_260a 303 +100  304 +000  +000  +000  +000                ok
+KefrensScanline259c_260a 304 +000  303 +117  304 +000  303 +117  304 +000    ok
+KefrensScanline260   152 +000  +001  +001  +001  +001                      ok
+KefrensScanline260a  152 +000  +001  +001  +001  +001                      ok
+KefrensScanline260_261 304 +000  +000  +000  +000  +000                      ok
+KefrensScanline260a_261 303 +119  304 +000  303 +119  304 +000  +000         ok
+KefrensScanline261_0 304 +000  +000  303 +105  304 +000  +000                ok
+
+
+
+
+
+CS:                                                           0194
+  static code
+  sineTable
+  songTable
+  waveInfoTable
+  unrolled loop
+    header
+    scanlines (200*34)
+    footer
+SS:                                                           062B
+  pixel table (0xe700 bytes)
+    For each overscan/background colour (16), 3696 bytes:
+      For each scanline (2), 1848 bytes:
+        For each position (154), 12 bytes:
+          destination offset in CGA memory (2)
+          AND first word (2)
+          OR first word (2)
+          AND second word (2)
+          OR second word (2)
+          palette register (2)
+  stack (0x1900 = 6400 bytes)
+DS = SS + 0x1000:                                             162B
+  raster/kefrens bar table (0x52080 bytes):
+    For each scanline (200), 0x690 bytes:
+      For each frame (838), 2 bytes:
+        Pixel table offset (2)
+      Alignment (4)
+DS = SS + 0x6208:                                             7833
+  sample table
+                                                              8833

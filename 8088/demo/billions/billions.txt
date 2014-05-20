@@ -1,0 +1,238 @@
+Plan:
+
+Lockstep
+refresh period 19
++HRES
+Copy 1024c mode
+Move image way over to left
+Try 16 50% duty cycle bursts made of colours 0 and 8
+Try 48 hue shifts with colours 1-6 and character 0xb1
+Fix the CRTC/CGA phase
+shift = a*y+b*t
+
+
+Later:
+Use 1 CRTC scanline per CRTC row, 2 CRTC rows per CRTC frame, 1 CRTC frame per scanline
+Figure out what the register writes need to be
+Fine-tune positioning
+
+At 1 scanline per row: 8192 characters total, 4*200 = 800 for burst leaving 7392 for image = 36 per row
+  Make a diamond or circular image?
+
+A = Active
+. = Overscan
+- = Blanking
+S = Sync
+C = Color-burst
+
+Even, sync width 16:  (ye4mgf)
+
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..........---SSSSSSSS--CCC........
+
+Odd, sync width 16:  (gFhw-f)
+
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..........----SSSSSSSS--CC........
+
+odd is further left and has higher saturation (therefore lower color burst amplitude, therefore fewer color burst cycles)
+
+
+-HRES:
+
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..........---SSSSSSSS--CCCC---....
+
+zkDi8ww shows active+overscan = 94, back porch = 3, front porch = 3, sync = 8, breezeway = 2, burst = 4
+
+
+Adding the two NOPs after setting the timer 1 rate makes it even
+
+
+
+4 ccycles +HRES:
+front porch = 3, sync = 9, breezeway = 2, burst = 2: total 16
+
+2 ccycles +HRES:
+front porch + sync = 12, breezeway = 2, burst = 1: total 15
+
+Plan:
+  Try 1024 even with sync moved right by 7, 8 and 9 characters to see what the CRTC does
+
+61: fine
+62: broken
+63: broken
+
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.....................---SSSSSSSS-.
+
+hsync position = 101
+hsync width = 12
+
+
+00880088 00880088 00880088 00880088  dw 0x8055, 0x8055, 0x8055, 0x8055
+00880088 00880088 00880088 80088008  dw 0x8055, 0x8055, 0x8055, 0x8013
+00880088 80088008 00880088 80088008  dw 0x8055, 0x8013, 0x8055, 0x8013
+00880088 80088008 80088008 80088008  dw 0x8055, 0x8013, 0x8013, 0x8013
+80088008 80088008 80088008 80088008  dw 0x8013, 0x8013, 0x8013, 0x8013
+80088008 80088008 80088008 88008800  dw 0x8013, 0x8013, 0x8013, 0x0855
+80088008 88008800 80088008 88008800  dw 0x8013, 0x0855, 0x8013, 0x0855
+80088008 88008800 88008800 88008800  dw 0x8013, 0x0855, 0x0855, 0x0855
+88008800 88008800 88008800 88008800  dw 0x0855, 0x0855, 0x0855, 0x0855
+88008800 88008800 88008800 08800880  dw 0x0855, 0x0855, 0x0855, 0x0813
+88008800 08800880 88008800 08800880  dw 0x0855, 0x0813, 0x0855, 0x0813
+88008800 08800880 08800880 08800880  dw 0x0855, 0x0813, 0x0813, 0x0813
+08800880 08800880 08800880 08800880  dw 0x0813, 0x0813, 0x0813, 0x0813
+08800880 08800880 08800880 00880088  dw 0x0813, 0x0813, 0x0813, 0x8055
+08800880 00880088 08800880 00880088  dw 0x0813, 0x8055, 0x0813, 0x8055
+08800880 00880088 00880088 00880088  dw 0x0813, 0x8055, 0x8055, 0x8055
+
+
+13 0 0: .**..**.
+13 1 0: .**..**.
+13 2 0: .**..**.
+13 3 0: .**..**.
+13 4 0: .**..**.
+13 5 0: ........
+13 6 0: .**..**.
+13 7 0: ........
+
+55 0 0: **..**..
+55 1 0: **..**..
+55 2 0: **..**..
+55 3 0: **..**..
+55 4 0: **..**..
+55 5 0: **..**..
+55 6 0: ******..
+55 7 0: ........
+
+b0 0 0: ..*...*.
+b0 1 0: *...*...
+b0 2 0: ..*...*.
+b0 3 0: *...*...
+b0 4 0: ..*...*.
+b0 5 0: *...*...
+b0 6 0: ..*...*.
+b0 7 0: *...*...
+
+b1 0 0: .*.*.*.*
+b1 1 0: *.*.*.*.
+b1 2 0: .*.*.*.*
+b1 3 0: *.*.*.*.
+b1 4 0: .*.*.*.*
+b1 5 0: *.*.*.*.
+b1 6 0: .*.*.*.*
+b1 7 0: *.*.*.*.
+
+11111111 11111111 11111111 11111111  dw 0x11b1, 0x11b1, 0x11b1, 0x11b1
+11111111 11111111 11111111 13131313  dw 0x11b1, 0x11b1, 0x11b1, 0x13b1
+11111111 13131313 11111111 13131313  dw 0x11b1, 0x13b1, 0x11b1, 0x13b1
+11111111 13131313 13131313 13131313  dw 0x11b1, 0x13b1, 0x13b1, 0x13b1
+13131313 13131313 13131313 13131313  dw 0x13b1, 0x13b1, 0x13b1, 0x13b1
+13131313 13131313 13131313 33333333  dw 0x13b1, 0x13b1, 0x13b1, 0x33b1
+13131313 33333333 13131313 33333333  dw 0x13b1, 0x33b1, 0x13b1, 0x33b1
+13131313 33333333 33333333 33333333  dw 0x13b1, 0x33b1, 0x33b1, 0x33b1
+33333333 33333333 33333333 33333333  dw 0x33b1, 0x33b1, 0x33b1, 0x33b1
+
+  dw 0x11b1, 0x11b1, 0x11b1, 0x11b1
+  dw 0x11b1, 0x11b1, 0x11b1, 0x13b1
+  dw 0x11b1, 0x13b1, 0x11b1, 0x13b1
+  dw 0x11b1, 0x13b1, 0x13b1, 0x13b1
+  dw 0x13b1, 0x13b1, 0x13b1, 0x13b1
+  dw 0x13b1, 0x13b1, 0x13b1, 0x33b1
+  dw 0x13b1, 0x33b1, 0x13b1, 0x33b1
+  dw 0x13b1, 0x33b1, 0x33b1, 0x33b1
+  dw 0x33b1, 0x33b1, 0x33b1, 0x33b1
+  dw 0x33b1, 0x33b1, 0x33b1, 0x32b1
+  dw 0x33b1, 0x32b1, 0x33b1, 0x32b1
+  dw 0x33b1, 0x32b1, 0x32b1, 0x32b1
+  dw 0x32b1, 0x32b1, 0x32b1, 0x32b1
+  dw 0x32b1, 0x32b1, 0x32b1, 0x22b1
+  dw 0x32b1, 0x22b1, 0x32b1, 0x22b1
+  dw 0x32b1, 0x22b1, 0x22b1, 0x22b1
+  dw 0x22b1, 0x22b1, 0x22b1, 0x22b1
+  dw 0x22b1, 0x22b1, 0x22b1, 0x26b1
+  dw 0x22b1, 0x26b1, 0x22b1, 0x26b1
+  dw 0x22b1, 0x26b1, 0x26b1, 0x26b1
+  dw 0x26b1, 0x26b1, 0x26b1, 0x26b1
+  dw 0x26b1, 0x26b1, 0x26b1, 0x66b1
+  dw 0x26b1, 0x66b1, 0x26b1, 0x66b1
+  dw 0x26b1, 0x66b1, 0x66b1, 0x66b1
+  dw 0x66b1, 0x66b1, 0x66b1, 0x66b1
+  dw 0x66b1, 0x66b1, 0x66b1, 0x64b1
+  dw 0x66b1, 0x64b1, 0x66b1, 0x64b1
+  dw 0x66b1, 0x64b1, 0x64b1, 0x64b1
+  dw 0x64b1, 0x64b1, 0x64b1, 0x64b1
+  dw 0x64b1, 0x64b1, 0x64b1, 0x44b1
+  dw 0x64b1, 0x44b1, 0x64b1, 0x44b1
+  dw 0x64b1, 0x44b1, 0x44b1, 0x44b1
+  dw 0x44b1, 0x44b1, 0x44b1, 0x44b1
+  dw 0x44b1, 0x44b1, 0x44b1, 0x45b1
+  dw 0x44b1, 0x45b1, 0x44b1, 0x45b1
+  dw 0x44b1, 0x45b1, 0x45b1, 0x45b1
+  dw 0x45b1, 0x45b1, 0x45b1, 0x45b1
+  dw 0x45b1, 0x45b1, 0x45b1, 0x55b1
+  dw 0x45b1, 0x55b1, 0x45b1, 0x55b1
+  dw 0x45b1, 0x55b1, 0x55b1, 0x55b1
+  dw 0x55b1, 0x55b1, 0x55b1, 0x55b1
+  dw 0x55b1, 0x55b1, 0x55b1, 0x51b1
+  dw 0x55b1, 0x51b1, 0x55b1, 0x51b1
+  dw 0x55b1, 0x51b1, 0x51b1, 0x51b1
+  dw 0x51b1, 0x51b1, 0x51b1, 0x51b1
+  dw 0x51b1, 0x51b1, 0x51b1, 0x11b1
+  dw 0x51b1, 0x11b1, 0x51b1, 0x11b1
+  dw 0x51b1, 0x11b1, 0x11b1, 0x11b1
+
+
+
+
+
+
+Figure out whether it's -DISPEN or +VSYNC DLY which doesn't change if line is ended at or before horizontal sync pulse end
+  Looks like vsync
+
+
+
+
+For new frame per CRT scanline we want:
+
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..........---SSSSSSSS-.AAAA.......
+                                                                                                       xxxxxxxxxxx  a: change horizontal total to 11
+xxxx                                                                                                       xxxxxxx  b: change horizontal displayed to 80
+xxxxxxxxxxx                                                                                                         c: change horizontal total to 114-11
+                                                                                xxxxxxxxxxxxxxxxxxxxxxxxxxx         change horizontal displayed to 4
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  Anywhere: change start low address
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  Anywhere: change start high address
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  Anywhere: audio
+       c                                                                                               a        b
+
+
+
+8192 characters total, 84 characters per row => 97 rows
+
+  mov ax,0xVVRR  ; 3 0
+  out dx,ax      ; 1 2  => 6 IOs per register write (12 writes per scanline)
+
+1 register write = 6 IOs = 72 hdots = 9 hchars
+We need 1 IO (12 hdots, 1.5 hchars) for refresh every 19 IOs (28.5 hchars)
+
+
+
+
+
+For +HRES we can do:
+
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..........---SSSSSSSS--CCCAA......
+
+
+For -HRES we want
+
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA........AA---SSSSSSSS--CCCC---....
+                                                                                xxxxxxxxxx                          change horizontal displayed to 1
+                                                                                        xxxxxxxxxxxxxxxxxxxxxxxxxx  change horizontal total to 13
+xx                                                                                        xxxxxxxxxxxxxxxxxxxxxxxx  change sync pulse position to high
+xx                                                                                        xxxxxxxxxxxxxxxxxxxxxxxx  change horizontal displayed to 40
+xxxxxxxxxxxxxxxxxxxxxxxxxx                                                                                          change horizontal total to 44
+  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                          change sync pulse position to 1
+
+
+Todo: figure out:
+* If the sync pulse can start directly after the active area
+* If the sync pulse can start before the active area ends
+* I

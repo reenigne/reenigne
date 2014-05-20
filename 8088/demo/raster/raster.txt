@@ -1,0 +1,235 @@
+Colour schemes:
+  * 4 bars, colours 1, 2, 4 and 8 - ORed together where they pass through each other
+  * Opaque Z-buffered circular cylinders
+    * Solid colours
+    * Colour schemes like 4, 6, 14, 15, 11, 9, 1 - scaled pointwise
+    * Phong-shaded dithered circles
+      * Hue, light angle and size can be changed arbitrarily
+    * Shadows?
+
+Motion patterns:
+  * N bars moving in a circle
+    * Only taking up part of the circle
+      * Moving the center of that circle in a circle
+  * Braids
+    * Plait^N
+      * Fractal?
+    * Sine waves
+  * Size inversely proportional to distance
+  * Bars at lattice points, rotate around lattice (like 2D NaCl).
+
+
+a   bbbbb   ccccc   aaaaa
+aa bbbbbbb ccccccc aaaaaa
+aaabbbbbbbbccccccccaaaaaa
+ aaa     bbb     ccc
+bbaaa   ccbbb   aaccc   b
+bb aaa ccc bbb aaa ccc bb
+b   aaccc   bbaaa   ccbbb
+     ccc     aaa     bbb
+cccccccaaaaaaaabbbbbbbbcc
+cccccc aaaaaaa bbbbbbb cc
+ccccc   aaaaa   bbbbb   c
+
+1D Bayer matrix:
+
+1
+
+1 2
+
+1 4 2 3
+
+1 5 4 8 2 6 3 7
+
+
+
+
+
+
+Half-schemes (24):
+  137 BGR
+  13B BGI
+  157 BRG
+  15D BRI
+  19B BIG
+  19D BIR
+  237 GBR
+  23B GBI
+  267 GRB
+  26E GRI
+  2AB GIB
+  2AE GIR
+  457 RBG
+  45D RBI
+  467 RGB
+  46E RGI
+  4CD RIB
+  4CE RIG
+  89B IBG
+  89D IBR
+  8AB IGB
+  8AE IGR
+  8CD IRB
+  8CE IRG
+
+Full-schemes with no repeating colours (13 per half-scheme = 312):
+          B G R I
+  137FE62 4 6 4 2
+  137FBA2 5 6 2 3
+  137FEA2 4 6 3 3
+  137FD54 6 3 5 2
+  137FE64 4 5 5 2
+  137FDC4 5 3 5 3
+  137FEC4 4 4 5 3
+  137FB98 6 4 2 4
+  137FD98 6 3 3 4
+  137FBA8 5 5 2 4
+  137FEA8 4 5 3 4
+  137FDC8 5 3 4 4
+  137FEC8 4 4 4 4
+
+
+Balances:
+  4444 1
+  2446 2
+  2356 2
+  3346 2
+  2455 2
+  3355 1
+  3445 3
+
+Balanced schemes:
+  137FEC8 BGR   8CEF731 IRG  blue
+  13BFEC4 BGI   4CEFB31 RIG  magenta
+  157FEA8 BRG   8AEF751 IGR  blue
+  15DFEA2 BRI   2AEFD51 GIR  cyan
+  19BFE64 BIG   46EFB91 RGI  magenta
+  19DFE62 BIR   26EFD91 GRI  cyan
+  237FDC8 GBR   8CDF732 IRB  green
+  23BFDC4 GBI   4CDFB32 RIB  yellow
+  267FD98 GRB   89DF762 IBR  green
+  2ABFD54 GIB   45DFBA2 RBI  yellow
+  457FBA8 RBG   8ABF754 IGB  red
+  467FB98 RGB   89BF764 IBG  red
+
+
+
+
+
+
+
+
+
+
+class RGB
+{
+public:
+    int R;
+    int G;
+    int B;
+};
+
+
+
+class Cylinder
+{
+public:
+    RGB colour(int y)
+    {
+        Vector _normalVector;
+
+    }
+private:
+    int _radius;
+    int _yCenter;
+    RGB _ambientColour;
+    RGB _diffuseColour;
+    RGB _specularColour;
+    Vector _lightVector;
+
+};
+
+colour = ambientColour + (diffuseColour*(lightVector dot normalVector) + specularColour*(reflectedLightVector dot viewVector)^n)
+
+reflectedVector = lightVector - 2*(normalVector dot lightVector)*normalVector
+
+Apropos of nothing, I really like the word birefringence
+
+
+0 1 |    |4 5 |    |
+    | 8 9|6   | C D|
+2 3 |    |  7 |    |
+    | A B|    | E F|
+
+0 1 9 F
+0 2 A F
+0 3 B F
+0 4 C F
+0 5 D F
+0 6 E F
+0 8 7 F
+
+Plan:
+  Create Windows app to visualize raster bar patterns
+  Initially render one large bar
+
+
+
+
+
+
+L = light direction vector (unit)
+V = viewing direction vector (unit)
+H = (L + V)/2 normalized
+Kd = wavelength-dependent empirical diffuse reflection coefficient
+Ks = wavelength-dependent empirical specular reflection coefficient
+SpecIndex = index that simulates surface roughness:
+  infinity for a perfect mirror
+IaKa = ambient light intensity * wavelength-dependent empirical ambient reflection coefficient
+Ilight = light intensity
+
+0.57735 0.57735 1.57735 length = 2/3 + 2.488 = 3.1547
+0.183012 0.183012
+
+
+
+void ShadeSphere(int SpecIndex, Vector centre, int radius)
+{
+}
+
+ShadeSphere(0.85,0.15,10,160,100,100);
+
+
+
+
+
+d/dx (N * sin(x/N)) ~= 1
+  => d/dx (88 * sin (x*14*tau/838)) = 88*14*tau/838 = 9
+
+
+
+
+sin(x) = sin(x + 2*pi/3) = sin(x)*cos(2*pi/3) + sin(2*pi/3)*cos(x)
+
+sin(x)*(1-cos(2*pi/3)) = sin(2*pi/3)*cos(x)
+
+sin(x)/cos(x) = sin(2*pi/3)/(1-cos(2*pi/3)) = sqrt(1/3)
+x = 0.523598776 rad
+
+sin(x) = 0.5
+
+
+    Can we do this analytically?
+      Energy inserted at (0.5, tau/12), (-0.5, 3*tau/12), (0.5, 5*tau/12), (-0.5, 7*tau/12), (0.5, 9*tau/12), (-0.5, 11*tau/12)
+      Waves are linear
+      Fourier decomposition?
+        Symmetric at edges => sum(k==0..infinity, A(k)*cos(k*pi*y))
+        Each component is a standing wave
+      Assume friction force proportional to velocity
+        d^2x/dt^2 = c^2 * d^2x/dy^2 + f * dx/dt
+      Dispersion => c^2 depends on k - not needed here
+
+
+http://uhaweb.hartford.edu/noonburg/m344lecture16.pdf has the complete solution
+
+

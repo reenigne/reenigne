@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
     }
 
     UInt16 paras = totalMemory() << 6;
-    // 32KB is large enough not to fix into any gaps but small enough that
+    // 32KB is large enough not to fit into any gaps but small enough that
     // it's unlikely to fail.
     void __far *p = malloc(32767);
     UInt16 firstPara = _FP_SEG(p) + ((_FP_OFF(p) + 15) >> 4);
@@ -144,7 +144,7 @@ int main(int argc, char* argv[])
     UInt16 nextPara = firstPara;
 //    printf("Memory available: 0x%04x paragraphs starting at 0x%04x\n", paras,
 //        firstPara);
-    printf("%iKB available\n", paras >> 6);
+    printf("%ikB available\n", paras >> 6);
 
     File file;
     const char* filename = argv[1];

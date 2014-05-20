@@ -1,0 +1,3262 @@
+experimeentJJ:
+  db "pearce_jj$"
+  dw .endCode - ($+2)
+  mov dx,0x3d8
+  mov ax,0x9000
+  mov es,ax
+  mov di,0
+.l:
+  in ax,dx
+  stosw
+  loop .l
+.endCode
+
+experiment1:
+  db "samples 1$"
+  dw .endCode - ($+2)
+
+  mov al,TIMER2 | LSB | MODE1 | BINARY
+  out 0x43,al
+  mov dx,0x42
+  mov ax,0x8000
+  mov ds,ax
+  mov si,0
+  mov di,0
+  sub di,cx
+  mov cl,5      ;5
+.l:
+  pop bx        ;nnnnnnnnnnnSSSSS
+  mov al,bl
+  and al,0x1f
+  out dx,al
+  shr bx,cl     ;00000nnnnnnSSSSS
+  mov al,bl
+  and al,0x1f
+  out dx,al
+  shr bx,cl     ;0000000000nSSSSS
+  mov al,bl
+  and al,0x1f
+  out dx,al
+  lodsb
+  add si,4
+  shr al,1
+  shr al,1
+  and al,0x1f
+  out dx,al
+  pop bx        ;nnnnnnSSSSSppppp
+  shr bx,cl     ;00000nnnnnnSSSSS
+  mov al,bl
+  and al,0x1f
+  out dx,al
+  shr bx,cl     ;0000000000nSSSSS
+  mov al,bl
+  and al,0x1f
+  out dx,al
+  dec sp
+  pop bx        ;nnnnnnnnnnSSSSSp
+  shr bx,1      ;0nnnnnnnnnnSSSSS
+  mov al,bl
+  and al,0x1f
+  out dx,al
+  shr bx,cl     ;000000nnnnnSSSSS
+  mov al,bl
+  and al,0x1f
+  out dx,al
+  shr bx,cl     ;00000000000SSSSS
+  mov al,bl
+  out dx,al
+  add di,1
+  jnz .l
+.endCode
+
+
+
+
+
+
+experimentSweep:
+  db "Sweep$"
+  dw .endInit - ($+2)
+
+  mov di,0xffff
+  mov bx,di
+  mov cx,di
+
+.endInit:
+  dw .endCode - ($+2)
+
+  mov ax,bx  ; high word                         ffff
+  mul di     ;                                  *ffff = fffe:0001
+  mov bx,dx  ; new high word                     fffe
+  xchg cx,ax ; low word <-> new low word              0001 <> ffff
+  mul di     ;                                  *ffff = fffe:0001
+  add cx,dx  ;                                               ffff
+  adc bx,0   ;                                          fffe
+  mov al,bl
+  out 0xe0,al
+  mov al,bh
+  out 0xe0,al
+  cmp bx,0
+  jne .loopTop
+.loopTop:
+
+.endCode:
+
+
+experimentSweepEven:
+  db "SweepEven$"
+  dw .endInit - ($+2)
+
+  mov di,0xffff
+  mov bx,di
+  mov cx,di
+
+.endInit:
+  dw .endCode - ($+2)
+
+  mov ax,bx  ; high word                         ffff
+  mul di     ;                                  *ffff = fffe:0001
+  mov bx,dx  ; new high word                     fffe
+  xchg cx,ax ; low word <-> new low word              0001 <> ffff
+  mul di     ;                                  *ffff = fffe:0001
+  add cx,dx  ;                                               ffff
+  adc bx,0   ;                                          fffe
+  mov al,bl
+  and al,0xfe
+  out 0xe0,al
+  mov al,bh
+  out 0xe0,al
+  cmp bx,0
+  jne .loopTop
+.loopTop:
+
+.endCode:
+
+
+
+
+
+
+
+experimentKefrensBlank:
+  db "KefrensBlank$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+.endInit:
+  dw .endCode - ($+2)
+
+  times 64 nop
+  mov al,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+
+
+experimentKefrensR:
+  db "KefrensR$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  mov cx,0x8000
+.endInit:
+  dw .endCode - ($+2)
+
+  mov ax,0x4567
+  mov ds,ax
+  mov sp,[bx]
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+
+  pop ax
+  out dx,al
+  mov ds,cx
+
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+
+
+experimentKefrens259:
+  db "Kefrens259$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bx,0
+.endInit:
+  dw .endCode - ($+2)
+
+  times 6 nop
+  ; See if the keyboard has sent a byte
+  in al,0x20
+  and al,2
+  jz .noKey
+  ; Read byte from keyboard
+  in al,0x60
+  mov ah,al
+  ; Acknowledge keyboard
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
+  ; Check for Escape
+  cmp ah,1
+  je .frameLoop
+  jmp .doneKey
+.noKey:
+  times 28 nop
+.doneKey:
+  inc bx
+  inc bx
+  cmp bx,0xffff
+  jne .noNewLoop
+  mov bx,0x80
+.noNewLoop:
+  jmp .frameLoop
+.frameLoop:
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrens259a:
+  db "Kefrens259a$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bx,0
+.endInit:
+  dw .endCode - ($+2)
+
+  times 6 nop
+  ; See if the keyboard has sent a byte
+  in al,0x20
+  and al,2
+  jz .noKey
+  ; Read byte from keyboard
+  in al,0x60
+  mov ah,al
+  ; Acknowledge keyboard
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
+  ; Check for Escape
+  cmp ah,1
+  je .frameLoop
+  jmp .doneKey
+.noKey:
+  times 28 nop
+.doneKey:
+  inc bx
+  inc bx
+  db 0x81, 0xfb, 0x01, 0x00  ;cmp bx,1
+  jne .noNewLoop
+  mov bx,0x80
+.noNewLoop:
+  jmp .frameLoop
+.frameLoop:
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrens259k:
+  db "Kefrens259k$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bx,0
+.endInit:
+  dw .endCode - ($+2)
+
+  times 6 nop                             ; 6 0
+  ; See if the keyboard has sent a byte
+  in al,0x20                              ; 2 1
+  and al,2                                ; 3 0
+  jnz .noKey                              ; 2 0
+  ; Read byte from keyboard
+  in al,0x60                              ; 2 1
+  mov ah,al                               ; 2 0
+  ; Acknowledge keyboard
+  in al,0x61                              ; 2 1
+  or al,0x80                              ; 3 0
+  out 0x61,al                             ; 2 1
+  and al,0x7f                             ; 3 0
+  out 0x61,al                             ; 2 1
+  ; Check for Escape
+  cmp ah,1                                ; 3 0
+  je .frameLoop                           ; 2 0
+  jmp .doneKey                            ; 2 1
+.noKey:
+  times 28 nop
+.doneKey:
+  inc bx                                  ; 1 0
+  inc bx                                  ; 1 0
+  cmp bx,0xffff                           ; 3 0
+  jne .noNewLoop                          ; 2 2
+  mov bx,0x80
+.noNewLoop:
+  jmp .frameLoop                          ; 2 3
+.frameLoop:
+  mov ax,[es:di]                          ; 3 2
+  mov ds,cx                               ; 2 0
+  lodsb                                   ; 1 1
+  out 0xe0,al                             ; 2 1
+
+.endCode:
+
+experimentKefrens259ak:
+  db "Kefrens259ak$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bx,0
+.endInit:
+  dw .endCode - ($+2)
+
+  times 6 nop
+  ; See if the keyboard has sent a byte
+  in al,0x20
+  and al,2
+  jnz .noKey
+  ; Read byte from keyboard
+  in al,0x60
+  mov ah,al
+  ; Acknowledge keyboard
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
+  ; Check for Escape
+  cmp ah,1
+  je .frameLoop
+  jmp .doneKey
+.noKey:
+  times 28 nop
+.doneKey:
+  inc bx
+  inc bx
+  db 0x81, 0xfb, 0x01, 0x00  ;cmp bx,1
+  jne .noNewLoop
+  mov bx,0x80
+.noNewLoop:
+  jmp .frameLoop
+.frameLoop:
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+experimentKefrens5C:
+  db "Kefrens5C$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  mov bp,0x8000
+.endInit:
+  dw .endCode - ($+2)
+  mov di,[cs:bx-0x80]
+  mov sp,[ss:di+0x4567]  ; mulTable is a different 157-element table per scanline
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop cx
+  and ax,cx          ; 2 0
+  pop cx
+  or ax,cx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop cx
+  and al,cl
+  or al,ch
+  stosb              ; 1 1 +WS
+
+  mov ax,0x4567
+  mov ds,ax
+  mov al,[bx-0x80]
+  out dx,al
+  mov ds,bp
+
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+
+experimentKefrens259:
+  db "Kefrens259$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bp,0
+.endInit:
+  dw .endCode - ($+2)
+
+  times 35 nop
+  cmp byte[cs:0xffff],1
+  je .frameLoop
+  inc bp
+  inc bp
+  cmp bp,0xffff
+  jne .noNewLoop
+  xor bp,bp
+.noNewLoop:
+  jmp .frameLoop
+.frameLoop:
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrens259a:
+  db "Kefrens259a$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bp,0
+.endInit:
+  dw .endCode - ($+2)
+
+  times 35 nop
+  cmp byte[cs:0xffff],1
+  je .frameLoop
+  inc bx
+  inc bx
+  db 0x81, 0xfb, 0x01, 0x00  ;cmp bx,1
+  jne .noNewLoop
+  mov bx,0x80
+;  xor bp,bp
+;  nop
+.noNewLoop:
+  jmp .frameLoop
+.frameLoop:
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+experimentKefrens5B:
+  db "Kefrens5B$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  mov cx,0x8000
+.endInit:
+  dw .endCode - ($+2)
+  mov di,[cs:bx+127]
+  mov sp,[ss:di+0x4567]  ; mulTable is a different 157-element table per scanline
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop cx
+  and ax,cx          ; 2 0
+  pop cx
+  or ax,cx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop cx
+  and al,cl
+  or al,ch
+  stosb              ; 1 1 +WS
+
+  mov ax,0x4567
+  mov ds,ax
+  mov al,[bx-0x80]
+  out dx,al
+  mov ds,bp
+
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrens202:
+  db "Kefrens202$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bp,0
+.endInit:
+  dw .endCode - ($+2)
+
+  xor ax,ax
+  nop
+  nop
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  stosw
+  mov al,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+experimentKefrens259:
+  db "Kefrens259$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bp,0
+.endInit:
+  dw .endCode - ($+2)
+
+  times 35 nop
+  cmp byte[cs:0xffff],1
+  je .frameLoop
+  inc bp
+  inc bp
+  cmp bp,0xffff
+  jne .noNewLoop
+  xor bp,bp
+.noNewLoop:
+  jmp .frameLoop
+.frameLoop:
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrens259a:
+  db "Kefrens259a$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+  mov word[cs:0xffff],0
+  mov bp,0
+.endInit:
+  dw .endCode - ($+2)
+
+  times 35 nop
+  cmp byte[cs:0xffff],1
+  je .frameLoop
+  inc bp
+  inc bp
+  db 0x81, 0xfd, 0x01, 0x00  ;cmp bp,1
+  jne .noNewLoop
+  xor bp,bp
+  nop
+.noNewLoop:
+  jmp .frameLoop
+.frameLoop:
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+experimentKefrens200:
+  db "Kefrens200$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+.endInit:
+  dw .endCode - ($+2)
+
+  mov dl,0xd4
+  mov ax,0x3b04
+  out dx,ax
+  times 50 nop
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+
+experimentKefrens260:
+  db "Kefrens260$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+  mov dx,0x3d4
+.endInit:
+  dw .endCode - ($+2)
+
+  mov ax,0x0104
+  out dx,ax
+  mov dl,0xd9
+  times 50 nop
+  mov ax,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+
+
+
+experimentKefrensBlank:
+  db "KefrensBlank$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  xor di,di
+.endInit:
+  dw .endCode - ($+2)
+
+  times 62 nop
+  mov al,[es:di]
+  mov ds,cx
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+
+experimentKefrens5:
+  db "Kefrens5$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov sp,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrens5Sys:
+  db "Kefrens5Sys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov sp,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrens5A:
+  db "Kefrens5A$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  mov cx,0x8000
+.endInit:
+  dw .endCode - ($+2)
+  mov bx,[cs:bp+127]
+  mov sp,[ss:bx+0x4567]  ; mulTable is a different 157-element table per scanline
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+
+  mov ax,0x4567
+  mov ds,ax
+  mov al,[bp]
+  out dx,al
+  mov ds,cx
+
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrens5ASys:
+  db "Kefrens5ASys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  mov cx,0x8000
+.endInit:
+  dw .endCode - ($+2)
+  mov bx,[cs:bp+127]
+  mov sp,[ss:bx+0x4567]  ; mulTable is a different 157-element table per scanline
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+
+  mov ax,0x4567
+  mov ds,ax
+  mov al,[bp]
+  out dx,al
+  mov ds,cx
+
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+
+
+experimentMoire32:
+  db "Moire32$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov di,0
+  mov cx,2
+  mov dx,0xe0
+.endInit:
+  dw .endCode - ($+2)
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+
+  cs lodsb
+  out dx,al
+
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  cs lodsb
+  out dx,al
+
+;  add sp,stride-40
+;  add bp,stride
+.endCode:
+
+experimentMoire32Sys:
+  db "Moire32Sys$"
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+  mov di,0
+  mov cx,2
+  mov dx,0xe0
+.endInit:
+  dw .endCode - ($+2)
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+
+  cs lodsb
+  out dx,al
+
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+
+  cs lodsb
+  out dx,al
+
+;  add sp,stride-40
+;  add bp,stride
+.endCode:
+
+
+
+
+experimentKefrensDE:
+  db "KefrensDE$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov di,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  mov ax,0xb975
+  test di,0x4000
+  jz .even
+
+  mov al,[es:di]     ; 3 1 +WS
+  and al,0x0F
+  or al,0x50
+  stosb
+  mov ah,[es:di+1]
+  and ax,0xF000
+  or ax,0x0B97
+
+.even:
+  stosw
+
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrensDESys:
+  db "KefrensDESys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov di,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  mov ax,0xb975
+  test di,0x4000
+  jz .even
+
+  mov al,[es:di]     ; 3 1 +WS
+  and al,0x0F
+  or al,0x50
+  stosb
+  mov ah,[es:di+1]
+  and ax,0xF000
+  or ax,0x0B97
+
+.even:
+  stosw
+
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrensDO:
+  db "KefrensDO$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov di,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  mov ax,0xb975
+  test di,0x4000
+  jnz .even
+
+  mov al,[es:di]     ; 3 1 +WS
+  and al,0x0F
+  or al,0x50
+  stosb
+  mov ah,[es:di+1]
+  and ax,0xF000
+  or ax,0x0B97
+
+.even:
+  stosw
+
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrensDOSys:
+  db "KefrensDOSys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov di,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  mov ax,0xb975
+  test di,0x4000
+  jnz .even
+
+  mov al,[es:di]     ; 3 1 +WS
+  and al,0x0F
+  or al,0x50
+  stosb
+  mov ah,[es:di+1]
+  and ax,0xF000
+  or ax,0x0B97
+
+.even:
+  stosw
+
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrensDO0:
+  db "KefrensDO0$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov di,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  test di,0x4000
+  jnz .even
+
+  mov al,[es:di]     ; 3 1 +WS
+  and ax,0x000F
+  or ax,0x9750
+  stosw
+  mov al,[es:di]
+  and al,0xF0
+  or al,0x0B
+  stosb
+
+  jmp .done
+.even:
+
+  mov ax,0xb975
+  stosw
+
+.done:
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrensDO0Sys:
+  db "KefrensDO0Sys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov di,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  test di,0x4000
+  jnz .even
+
+  mov al,[es:di]     ; 3 1 +WS
+  and ax,0x000F
+  or ax,0x9750
+  stosw
+  mov al,[es:di]
+  and al,0xF0
+  or al,0x0B
+  stosb
+
+  jmp .done
+.even:
+
+  mov ax,0xb975
+  stosw
+
+.done:
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrens6:
+  db "Kefrens6$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  inc bx
+  and bx,0x1ff
+  mov bx,[bx]
+  mov di,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  test di,0x4000
+  jnz .even
+
+  mov al,[es:di]     ; 3 1 +WS
+  and ax,0x000F
+  or ax,0x9750
+  stosw
+  mov al,[es:di]
+  and al,0xF0
+  or al,0x0B
+  stosb
+
+  jmp .done
+.even:
+
+  mov ax,0xb975
+  stosw
+
+.done:
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentKefrens6Sys:
+  db "Kefrens6Sys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  inc bx
+  and bx,0x1ff
+  mov bx,[bx]
+  mov di,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  test di,0x4000
+  jnz .even
+
+  mov al,[es:di]     ; 3 1 +WS
+  and ax,0x000F
+  or ax,0x9750
+  stosw
+  mov al,[es:di]
+  and al,0xF0
+  or al,0x0B
+  stosb
+
+  jmp .done
+.even:
+
+  mov ax,0xb975
+  stosw
+
+.done:
+  mov al,[bp]
+  inc bp
+  out dx,al
+
+  ss lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+experimentKefrens2:
+  db "Kefrens2$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw              ; 1 2
+  xchg ax,di         ; 1 0
+  mov bl,[es:di]     ; 3 1 +WS
+  lodsw              ; 1 2
+  and bx,ax          ; 2 0
+  lodsw              ; 1 2
+  or bx,ax           ; 2 0
+  xchg ax,bx         ; 1 0
+  stosw              ; 2 2 +WS +WS
+  mov bl,[es:di]     ; 3 1 +WS
+  lodsw              ; 1 2
+  and bl,al          ; 2 0
+  or bl,ah           ; 2 0
+  xchg ax,bx         ; 1 0
+  stosb              ; 1 1 +WS
+.endCode:
+
+experimentKefrens2Sys:
+  db "Kefrens2Sys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw              ; 1 2
+  xchg ax,di         ; 1 0
+  mov bl,[es:di]     ; 3 1 +WS
+  lodsw              ; 1 2
+  and bx,ax          ; 2 0
+  lodsw              ; 1 2
+  or bx,ax           ; 2 0
+  xchg ax,bx         ; 1 0
+  stosw              ; 2 2 +WS +WS
+  mov bl,[es:di]     ; 3 1 +WS
+  lodsw              ; 1 2
+  and bl,al          ; 2 0
+  or bl,ah           ; 2 0
+  xchg ax,bx         ; 1 0
+  stosb              ; 1 1 +WS
+.endCode:
+
+experimentKefrens2P:
+  db "Kefrens2P$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  mov sp,0
+.endInit:
+  dw .endCode - ($+2)
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+.endCode:
+
+experimentKefrens2PSys:
+  db "Kefrens2PSys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov si,0
+  mov word[si],0
+  mov sp,0
+.endInit:
+  dw .endCode - ($+2)
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+.endCode:
+
+experimentKefrens4:
+  db "Kefrens4$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx+0x1234]
+  mov bl,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  mov si,bx
+  shl si,1
+  shl si,1
+  shl si,1
+  add si,0x89ab
+  xchg ax,bx
+
+  lodsw              ; 1 2
+  xchg ax,di         ; 1 0
+  mov bl,[es:di]     ; 3 1 +WS
+  lodsw              ; 1 2
+  and cx,ax          ; 2 0
+  lodsw              ; 1 2
+  or cx,ax           ; 2 0
+  xchg ax,cx         ; 1 0
+  stosw              ; 2 2 +WS +WS
+  mov cl,[es:di]     ; 3 1 +WS
+  lodsw              ; 1 2
+  and cl,al          ; 2 0
+  or cl,ah           ; 2 0
+  xchg ax,cx         ; 1 0
+  stosb              ; 1 1 +WS
+.endCode:
+
+experimentKefrens4Sys:
+  db "Kefrens4Sys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx+0x1234]
+  mov bl,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  mov si,bx
+  shl si,1
+  shl si,1
+  shl si,1
+  add si,0x89ab
+  xchg ax,bx
+
+  lodsw              ; 1 2
+  xchg ax,di         ; 1 0
+  mov bl,[es:di]     ; 3 1 +WS
+  lodsw              ; 1 2
+  and cx,ax          ; 2 0
+  lodsw              ; 1 2
+  or cx,ax           ; 2 0
+  xchg ax,cx         ; 1 0
+  stosw              ; 2 2 +WS +WS
+  mov cl,[es:di]     ; 3 1 +WS
+  lodsw              ; 1 2
+  and cl,al          ; 2 0
+  or cl,ah           ; 2 0
+  xchg ax,cx         ; 1 0
+  stosb              ; 1 1 +WS
+.endCode:
+
+experimentKefrens4P:
+  db "Kefrens4P$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov sp,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+.endCode:
+
+experimentKefrens4PSys:
+  db "Kefrens4PSys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov si,0
+  mov word[si],0
+.endInit:
+  dw .endCode - ($+2)
+  inc bx
+  xor bh,bh
+  mov ax,bx
+  mov bl,[bx]
+  shl bx,1
+  mov sp,[bx+0x4567]  ; mulTable is a different 160-element table per scanline
+  xchg ax,bx
+
+  pop di
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and ax,bx          ; 2 0
+  pop bx
+  or ax,bx           ; 2 0
+  stosw              ; 2 2 +WS +WS
+  mov al,[es:di]     ; 3 1 +WS
+  pop bx
+  and al,bl
+  or al,bh
+  stosb              ; 1 1 +WS
+.endCode:
+
+
+experimentKefrens:
+  db "Kefrens$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov bx,0
+  mov word[bx],0
+.endInit:
+  dw .endCode - ($+2)
+  mov di,[bx]
+  mov al,[es:di]
+  and ax,[bx+2]
+  or ax,[bx+4]
+  stosw
+  mov al,[es:di]
+  and al,[bx+6]
+  or al,[bx+7]
+  stosb
+.endCode:
+
+experimentKefrensSys:
+  db "KefrensSys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov bx,0
+  mov word[bx],0
+.endInit:
+  dw .endCode - ($+2)
+  mov di,[bx]
+  mov al,[es:di]
+  and ax,[bx+2]
+  or ax,[bx+4]
+  stosw
+  mov al,[es:di]
+  and al,[bx+6]
+  or al,[bx+7]
+  stosb
+.endCode:
+
+experimentKefrens3:
+  db "Kefrens3$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov si,1
+.endInit:
+  dw .endCode - ($+2)
+  lodsw              ; 1 2
+  xchg ax,di         ; 1 0
+  mov cl,[di]        ; 2 1
+  lodsw              ; 1 2
+  and cx,ax          ; 2 0
+  lodsw              ; 1 2
+  or cx,ax           ; 2 0
+  xchg ax,cx         ; 1 0
+  mov [di],ax        ; 2 2
+  stosw              ; 2 2 +WS +WS
+  mov cl,[di]        ; 2 1
+  lodsw              ; 1 2
+  and cl,al          ; 2 0
+  or cl,ah           ; 2 0
+  xchg ax,cx         ; 1 0
+  mov [di],al        ; 2 1
+  stosb              ; 1 1 +WS     ; Est = 42/46.5
+.endCode:
+
+experimentKefrens3Sys:
+  db "Kefrens3Sys$"
+  dw .endInit - ($+2)
+  mov ax,0x8001
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov si,1
+.endInit:
+  dw .endCode - ($+2)
+  lodsw              ; 1 2
+  xchg ax,di         ; 1 0
+  mov cl,[di]        ; 2 1
+  lodsw              ; 1 2
+  and cx,ax          ; 2 0
+  lodsw              ; 1 2
+  or cx,ax           ; 2 0
+  xchg ax,cx         ; 1 0
+  mov [di],ax        ; 2 2
+  stosw              ; 2 2 +WS +WS
+  mov cl,[di]        ; 2 1
+  lodsw              ; 1 2
+  and cl,al          ; 2 0
+  or cl,ah           ; 2 0
+  xchg ax,cx         ; 1 0
+  mov [di],al        ; 2 1
+  stosb              ; 1 1 +WS     ; Est = 42/46.5
+.endCode:
+
+
+experimentMoire:
+  db "Moire$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ss,ax
+.endInit:
+  dw .endCode - ($+2)
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+.endCode:
+
+experimentMoireX:
+  db "MoireX$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ss,ax
+.endInit:
+  dw .endCode - ($+2)
+  pop ax
+  xor ax,[bp+12]
+  stosb
+  mov al,ah
+  inc di
+  stosb
+  inc di
+.endCode:
+
+experimentMoire2:
+  db "Moire2$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ss,ax
+.endInit:
+  dw .endCode - ($+2)
+  pop ax
+  inc di
+  xor ax,[bp+12]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoireX2:
+  db "MoireX2$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ss,ax
+.endInit:
+  dw .endCode - ($+2)
+  pop ax
+  inc di
+  xor ax,[bp+12]
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoire3:
+  db "Moire3$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ss,ax
+.endInit:
+  dw .endCode - ($+2)
+  pop ax
+  xor ax,[bp+12]
+  inc di
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoireX3:
+  db "MoireX3$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ss,ax
+.endInit:
+  dw .endCode - ($+2)
+  pop ax
+  xor ax,[bp+12]
+  inc di
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoire:
+  db "Moire$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  xor ax,[bx+2]
+  stosb
+  mov al,ah
+  inc di
+  stosb
+  inc di
+.endCode:
+
+experimentMoireX:
+  db "MoireX$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  xor ax,[bx+2]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+.endCode:
+
+experimentMoire2:
+  db "Moire2$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  inc di
+  xor ax,[bx+2]
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoire2X:
+  db "Moire2X$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  inc di
+  xor ax,[bx+2]
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoire3:
+  db "Moire3$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  xor ax,[bx+2]
+  inc di
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoire3X:
+  db "Moire3X$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  xor ax,[bx+2]
+  inc di
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoire:
+  db "Moire$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  xor ax,9999
+  stosb
+  mov al,ah
+  inc di
+  stosb
+  inc di
+.endCode:
+
+experimentMoireX:
+  db "MoireX$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  xor ax,9999
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+.endCode:
+
+experimentMoire2:
+  db "Moire2$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  inc di
+  xor ax,9999
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoire2X:
+  db "Moire2X$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  inc di
+  xor ax,9999
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoire3:
+  db "Moire3$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  xor ax,9999
+  inc di
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoire3X:
+  db "Moire3X$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  xor ax,9999
+  inc di
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoireA:
+  db "MoireA$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  pop dx
+  xor ax,dx
+  stosb
+  mov al,ah
+  inc di
+  stosb
+  inc di
+.endCode:
+
+experimentMoireAX:
+  db "MoireAX$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  pop dx
+  xor ax,dx
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+.endCode:
+
+experimentMoireA2:
+  db "MoireA2$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  inc di
+  pop dx
+  xor ax,dx
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoireA2X:
+  db "MoireA2X$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  inc di
+  pop dx
+  xor ax,dx
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoireA3:
+  db "MoireA3$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  pop dx
+  inc di
+  xor ax,dx
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoireA3X:
+  db "MoireA3X$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  pop dx
+  inc di
+  xor ax,dx
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoireA4:
+  db "MoireA4$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  pop dx
+  xor ax,dx
+  inc di
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoireA4X:
+  db "MoireA4X$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+  pop dx
+  xor ax,dx
+  inc di
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoireB:
+  db "MoireB$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  pop dx
+  lodsw
+  xor ax,dx
+  stosb
+  mov al,ah
+  inc di
+  stosb
+  inc di
+.endCode:
+
+experimentMoireBX:
+  db "MoireBX$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  pop dx
+  lodsw
+  xor ax,dx
+  stosb
+  inc di
+  mov al,ah
+  stosb
+  inc di
+.endCode:
+
+experimentMoireB2:
+  db "MoireB2$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  pop dx
+  inc di
+  lodsw
+  xor ax,dx
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoireB2X:
+  db "MoireB2X$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  pop dx
+  inc di
+  lodsw
+  xor ax,dx
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoireB3:
+  db "MoireB3$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  pop dx
+  lodsw
+  inc di
+  xor ax,dx
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoireB3X:
+  db "MoireB3X$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  pop dx
+  lodsw
+  inc di
+  xor ax,dx
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+experimentMoireB4:
+  db "MoireB4$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  pop dx
+  lodsw
+  xor ax,dx
+  inc di
+  stosb
+  mov al,ah
+  inc di
+  stosb
+.endCode:
+
+experimentMoireB4X:
+  db "MoireB4X$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  pop dx
+  lodsw
+  xor ax,dx
+  inc di
+  stosb
+  inc di
+  mov al,ah
+  stosb
+.endCode:
+
+
+;experimentCRTC:
+;  db "CRTC$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d4
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov ax,((114 - 1) << 8) | 0x00       ;Horizontal total
+;  out dx,ax
+;  mov ax,(23 << 8) | 0x01              ;Horizontal displayed
+;  out dx,ax
+;  mov ax,(90 << 8) | 0x02              ;Horizontal sync position
+;  out dx,ax
+;.endCode:
+;
+;experimentLine:
+;  db "Line$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d4
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov ax,((114 - 1) << 8) | 0x00       ;Horizontal total
+;  out dx,ax
+;  mov ax,(23 << 8) | 0x01              ;Horizontal displayed
+;  out dx,ax
+;  mov ax,(90 << 8) | 0x02              ;Horizontal sync position
+;  out dx,ax
+;
+;  times 17 nop
+;
+;  mov ax,((114 - 1) << 8) | 0x00       ;Horizontal total
+;  out dx,ax
+;  mov ax,(23 << 8) | 0x01              ;Horizontal displayed
+;  out dx,ax
+;  mov ax,(90 << 8) | 0x02              ;Horizontal sync position
+;  out dx,ax
+;
+;  times 17 nop
+;.endCode:
+;
+;experimentLine2:
+;  db "Line2$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d4
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  mov dl,0xd9
+;  mov al,9
+;  out dx,al
+;  mov al,6
+;  out dx,al
+;
+;  times 26 nop
+;
+;  mov al,0x0a
+;  out dx,al
+;  mov al,6
+;  out dx,al
+;  mov dl,0xd4
+;
+;  times 27 nop
+;.endCode:
+;
+;
+;experimentBlock:
+;  db "Block$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov al,8
+;  out dx,al
+;  mov al,ah
+;  out dx,al
+;.endCode:
+;
+;experimentBlock2:
+;  db "Block2$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  inc ax
+;  out dx,al
+;.endCode:
+;
+;experimentMOVSBstring:
+;  db "MOVSB string$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov ax,0xb800
+;  mov es,ax
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  movsb
+;.endCode:
+;
+;experimentMOVSWstring:
+;  db "MOVSW string$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov ax,0xb800
+;  mov es,ax
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  movsw
+;.endCode:
+;
+;experimentLODSBSTOSBstring:
+;  db "LODSB STOSB string$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov ax,0xb800
+;  mov es,ax
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  lodsb
+;  stosb
+;.endCode:
+;
+;experimentLODSWSTOSWstring:
+;  db "LODSW STOSW string$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov ax,0xb800
+;  mov es,ax
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  lodsw
+;  stosw
+;.endCode:
+;
+;experimentPaletteRegister:
+;  db "palette change$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov al,99
+;  out dx,al
+;.endCode:
+;
+;experimentJJ:
+;  db "pearce_jj$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov es,ax
+;  mov dx,0x3d8
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  in ax,dx
+;  stosw
+;.endCode:
+;
+;experimentJK:
+;  db "Jordan Knight$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov es,ax
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  lodsw
+;  mov bx,ax
+;  mov ax,[es:di]
+;  and al,bh
+;  or al,bl
+;  stosw
+;.endCode:
+;
+;experimentJL:
+;  db "Jim Leonard$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov es,ax
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov dx,[bx+3]
+;  lodsw
+;  and al,ah
+;  or al,dl
+;  stosw
+;.endCode:
+;
+;experimentAJ:
+;  db "Andrew Jenner$"
+;  dw .endInit - ($+2)
+;  mov ax,0x9000
+;  mov ds,ax
+;  mov es,ax
+;  mov si,0
+;  mov di,0
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov ax,[bx+3]
+;  and al,[di]
+;  or al,ah
+;  stosb
+;  inc di
+;.endCode:
+;
+;
+;experiment1:
+;  db "retrace loop$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  in al,dx
+;  test al,1
+;  jz .endCode
+;.endCode
+;
+;experiment2:
+;  db "retrace found$"
+;  dw .endInit - ($+2)
+;  mov dx,0x3d9
+;.endInit:
+;  dw .endCode - ($+2)
+;  in al,dx
+;  test al,1
+;  jnz .endCode
+;.endCode
+;
+;%macro setNextStartAddress 0       ;    23
+;    mov bl,ch                      ; 2 0 2
+;    mov bh,0x34                    ; 2 0 2
+;    mov ah,[bx]                    ; 2 1 3
+;    mov al,0x0d                    ; 2 0 2
+;    out dx,ax                      ; 1 2 3
+;    mov ah,[bx+0x100]              ; 4 1 5
+;    dec ax                         ; 1 0 1
+;    out dx,ax                      ; 1 2 3
+;    add cx,si                      ; 2 0 2
+;%endMacro
+;
+;experiment3:
+;  db "scanline 0$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x1902 ; 2: Horizontal sync position: 25       ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov ax,0x0104 ; 4: Vertical total: 2 rows/frame       ; 3 0 3  17
+;  out dx,ax                                             ; 1 2 3  20
+;  times 7 nop                                           ; 1 0 1  27
+;
+;  ; Set length of second part of scanline
+;  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
+;  out dx,ax                                             ; 1 2 3  33
+;
+;  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
+;
+;  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
+;  mov dl,0xda                                           ; 2 0 2  58
+;.endCode
+;
+;experiment3a:
+;  db "scanline 0a$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x1902 ; 2: Horizontal sync position: 25       ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov ax,0x0104 ; 4: Vertical total: 2 rows/frame       ; 3 0 3  17
+;  out dx,ax                                             ; 1 2 3  20
+;  times 7 nop                                           ; 1 0 1  27
+;.endCode
+;
+;experiment4:
+;  db "scanlines 1-198$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  times 19 nop                                          ; 1 0 1  27
+;
+;  ; Set length of second part of scanline
+;  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
+;  out dx,ax                                             ; 1 2 3  33
+;
+;  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
+;
+;  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
+;  mov dl,0xda                                           ; 2 0 2  58
+;.endCode
+;
+;experiment4a:
+;  db "scanlines 1-198a$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  times 19 nop                                          ; 1 0 1  27
+;.endCode
+;
+;experiment5:
+;  db "scanline 199$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
+;  times 11 nop                                          ; 1 0 1  27
+;
+;  ; Set length of second part of scanline
+;  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
+;  out dx,ax                                             ; 1 2 3  33
+;
+;  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
+;
+;  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
+;  mov dl,0xda                                           ; 2 0 2  58
+;.endCode
+;
+;experiment5a:
+;  db "scanline 199a$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
+;  times 11 nop                                          ; 1 0 1  27
+;.endCode
+;
+;experiment6:
+;  db "scanline 199-200$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
+;  times 11 nop                                          ; 1 0 1  27
+;
+;  ; Set length of second part of scanline
+;  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
+;  out dx,ax                                             ; 1 2 3  33
+;
+;  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
+;
+;  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
+;  mov dl,0xda                                           ; 2 0 2  58
+;  ; waitForDisplayDisable
+;
+;
+;  ; During line 200 we:
+;  ;   change the horizontal total to 0x38
+;  ;   change the horizontal sync position to 0x2d
+;  ; Can't use waitForDisplayEnable here because it won't activate again until line 0
+;  times 18 nop
+;  mov dl,0xd4
+;  mov ax,0x3800 ; 0: Horizontal total: 57 characters
+;  out dx,ax
+;  mov ax,0x2d02 ; 2: Horizontal sync position: 45
+;  out dx,ax
+;
+;.endCode
+;
+;experiment6a:
+;  db "scanline 199-200$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov dl,0xd4                                           ; 2 0 2   2
+;  mov ax,0x1300 ; 0: Horizontal total: 20 characters    ; 3 0 3   5   = length of first half-line
+;  out dx,ax                                             ; 1 2 3   8
+;  mov ax,0x3f04 ; 4: Vertical total: 64 rows/frame      ; 3 0 3  11
+;  out dx,ax                                             ; 1 2 3  14
+;  mov cx,bp     ; Initial offset in lines/256           ; 2 0 2  16
+;  times 11 nop                                          ; 1 0 1  27
+;
+;  ; Set length of second part of scanline
+;  mov ax,0x2400 ; 0: Horizontal total: 37 characters    ; 3 0 3  30   = length of second half-line, total 57 characters
+;  out dx,ax                                             ; 1 2 3  33
+;
+;  setNextStartAddress                                   ;    23  56   Display will be disabled at around IO 53
+;
+;  ; Might want to put this back in for compatibility with faster machines - see if it makes it too slow on the XT
+;  mov dl,0xda                                           ; 2 0 2  58
+;  ; waitForDisplayDisable
+;
+;
+;  ; During line 200 we:
+;  ;   change the horizontal total to 0x38
+;  ;   change the horizontal sync position to 0x2d
+;  ; Can't use waitForDisplayEnable here because it won't activate again until line 0
+;  times 18 nop
+;
+;.endCode
+
+
+
+;experiment1:
+;  db "load to bh 1$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  lodsb
+;  mov bh,al
+;.endCode
+
+
+;experiment2:
+;  db "load to bh 2$"
+;  dw .endInit - ($+2)
+;.endInit:
+;  dw .endCode - ($+2)
+;  mov bh,[si]
+;  inc si
+;.endCode
+
+
+
+;experiment1:
+;  db "rep lodsb$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep lodsb
+;.endCode
+;
+;experiment2:
+;  db "rep lodsw$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep lodsw
+;.endCode
+;
+;experiment3:
+;  db "rep stosb$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep stosb
+;.endCode
+;
+;experiment4:
+;  db "rep stosw$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep stosw
+;.endCode
+;
+;experiment5:
+;  db "rep movsb$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep movsb
+;.endCode
+;
+;experiment6:
+;  db "rep movsw$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep movsw
+;.endCode
+;
+;experiment7:
+;  db "rep cmpsb$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep cmpsb
+;.endCode
+;
+;experiment8:
+;  db "rep cmpsw$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep cmpsw
+;.endCode
+;
+;experiment9:
+;  db "rep scasb$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;  mov ax,0x7f7f
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep scasb
+;.endCode
+;
+;experiment10:
+;  db "rep scasw$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;  mov ax,0x7f7f
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep scasw
+;.endCode
+;
+;experiment11:
+;  db "rep lodsb CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep lodsb
+;.endCode
+;
+;experiment12:
+;  db "rep lodsw CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep lodsw
+;.endCode
+;
+;experiment13:
+;  db "rep stosb CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep stosb
+;.endCode
+;
+;experiment14:
+;  db "rep stosw CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep stosw
+;.endCode
+;
+;experiment15:
+;  db "rep movsb CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep movsb
+;.endCode
+;
+;experiment16:
+;  db "rep movsw CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep movsw
+;.endCode
+;
+;experiment17:
+;  db "rep cmpsb CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep cmpsb
+;.endCode
+;
+;experiment18:
+;  db "rep cmpsw CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep cmpsw
+;.endCode
+;
+;experiment19:
+;  db "rep scasb CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;  mov ax,0x7f7f
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep scasb
+;.endCode
+;
+;experiment20:
+;  db "rep scasw CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;  mov ax,0x7f7f
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep scasw
+;.endCode
+;
+;experiment21:
+;  db "rep movsb RAM->CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ax,0x8000
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep movsb
+;.endCode
+;
+;experiment22:
+;  db "rep movsw RAM->CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ax,0x8000
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep movsw
+;.endCode
+;
+;experiment23:
+;  db "rep movsb CGA->RAM$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ax,0xb800
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep movsb
+;.endCode
+;
+;experiment24:
+;  db "rep movsw CGA->RAM$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ax,0xb800
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep movsw
+;.endCode
+;
+;experiment25:
+;  db "rep cmpsb RAM->CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ax,0x8000
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep cmpsb
+;.endCode
+;
+;experiment26:
+;  db "rep cmpsw RAM->CGA$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ax,0x8000
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep cmpsw
+;.endCode
+;
+;experiment27:
+;  db "rep cmpsb CGA->RAM$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ax,0xb800
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep cmpsb
+;.endCode
+;
+;experiment28:
+;  db "rep cmpsw CGA->RAM$"
+;  dw .endInit - ($+2)
+;  mov cx,2048
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ax,0xb800
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  rep cmpsw
+;.endCode
+
+
+
+

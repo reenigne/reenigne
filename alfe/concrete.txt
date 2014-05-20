@@ -1,0 +1,40 @@
+Rational<Int> pico  = 1/1000000000000;
+Rational<Int> nano  = 1/1000000000;
+Rational<Int> micro = 1/1000000;
+Rational<Int> milli = 1/1000;
+Rational<Int> kilo = 1000;
+Rational<Int> mega = 1000000;
+Rational<Int> giga = 1000000000;
+Rational<Int> tera = 1000000000000;
+
+
+Length       = Concrete<Class { }>;             Length      metre    = Length.unit;
+Mass         = Concrete<Class { }>;             Mass        kilogram = Mass.unit;
+Time         = Concrete<Class { }>;             Time        second   = Time.unit;
+Current      = Concrete<Class { }>;             Current     ampere   = Current.unit;
+Temperature  = Concrete<Class { }>;             Temperature kelvin   = Temperature.unit;
+Amount       = Concrete<Class { }>;             Amount      mole     = Amount.unit;
+Intensity    = Concrete<Class { }>;             Intensity   candela  = Intensity.unit;
+
+Frequency    = TypeOf(1/second);                Frequency   hz       = Frequency.unit;
+Velocity     = TypeOf(metre/second);
+Acceleration = TypeOf(metre/second^2);
+Force        = TypeOf(kilogram*metre/second^2); Force       newton   = Force.unit;
+Pressure     = TypeOf(newton/metre^2);          Pressure    pascal   = Pressure.unit;
+Energy       = TypeOf(newton*metre);            Energy      joule    = Energy.unit;
+Power        = TypeOf(joule/second);            Power       watt     = Power.unit;
+Charge       = TypeOf(ampere*second);           Charge      coulomb  = Charge.unit;
+Voltage      = TypeOf(watt/ampere);             Voltage     volt     = Voltage.unit;
+Capacitance  = TypeOf(coulomb/volt);            Capacitance farad    = Capacitance.unit;
+Resistance   = TypeOf(volt/ampere);             Resistance  ohm      = Resistance.unit;
+Conductance  = TypeOf(ampere/volt);             Conductance siemens  = Conductance.unit;
+Flux         = TypeOf(volt*second);             Flux        weber    = Flux.unit;
+Strength     = TypeOf(weber/metre^2);           Strength    tesla    = Strength.unit;
+Inductange   = TypeOf(weber/ampere);            Inductance  henry    = Inductance.unit;
+Entropy      = TypeOf(joule/kelvin);
+Area         = TypeOf(metre^2);
+Volume       = TypeOf(metre^3);
+Density      = TypeOf(kilogram/metre^3);
+Momentum     = TypeOf(kilogram*metre/second);
+Moment       = TypeOf(kilogram*metre^2);
+

@@ -80,37 +80,6 @@ Per-pixel effects:
   stosb      1 1
 
 
-  Moire:
-    Take an image, duplicate it, move the two copies around the screen independently, XOR them together
-
-
-  lodsw        1 2
-  xor ax,[bx]  2 2
-  inc bx       1 0
-  inc bx       1 0
-  stosw        1 2    12
-
-  lodsw        1 2
-  xor ax,9999  4 0
-  stosw        1 2    10 for 2 bytes    80x50-ish  Use CRTC start address to move one of the images, change initial SI for the other.
-                                                    ~24000 bytes of code unrolled
-                                                    Double the code so we can scroll to half-word offsets
-
-    47 scanlines => 4 scanlines per row
-      Possible modes:
-        * Text -HRES: 80*47 (1880 pixels, many colours with strange interactions - stick to 00 and b1, 5:3 PAR)
-        * Text -HRES: 80*58 half-width (3 scanlines, 4640 pixels with 16 colours, 10:9 PAR)                          <= 2*40*58*8 = 37120 bytes code, 2*40*58*2 = 9280 bytes data
-            lodsb       1 1
-            xor al,99   3 0
-            stosb       1 1
-            inc di      1 0  8 per 2 pixels
-        * 2bpp: 40*94 (15040 pixels, 4 colours, 5:6 PAR)
-        * 2bpp with doubled scanlines: 56*70 (~15000 pixels, 4 colours, 5:12 PAR - tall)                             <= 8*28*70*10 = 156800 bytes code, 8*28*70*2 = 31360 bytes data
-        * 2bpp with quadrupled scanlines: 80*47 (~15000 pixels, 4 colours, 5:24 PAR - rather tall)
-        * 1bpp: 40*94 (30080 pixels, 2 colours - tall)                                                                  16*40*94*10 = 601600 bytes code, 16*40*94*2 = 120320 bytes data
-        * 1bpp with doubled scanlines: 56*70 (~30000 pixels, 4 colours, 5:24 PAR - rather tall)
-        * 1bpp with quadrupled scanlines: 80*47 (~30000 pixels, 4 colours, 5:24 PAR - very tall)
-        * Text +HRES: 160*29 half-width (6 scanlines, 4640 pixels with 16 colours, 5:18 PAR - rather tall, snow)
 
 
 

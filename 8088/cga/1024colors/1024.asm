@@ -232,35 +232,35 @@ finish:
 
 data:
 
-%rep 80
-  db 0x00,0x00
-%endrep
-
-%assign i 0
-%rep 50
-  %rep 2
-    db 0x00,0x00
-    %rep 26
-      %rep 3
-        %if (i & 0x3ff) < 256
-          db 0x55
-        %elif (i & 0x3ff) < 512
-          db 0x13
-        %elif (i & 0x3ff) < 768
-          db 0xb0
-        %else
-          db 0xb1
-        %endif
-        db (i & 0xff)
-      %endrep
-      %assign i i+1
-    %endrep
-    db 0x00,0x00
-    %assign i i-26
-  %endrep
-  %assign i i+26
-%endrep
-
-%rep 80
-  db 0x00,0x00
-%endrep
+;%rep 80
+;  db 0x00,0x00
+;%endrep
+;
+;%assign i 0
+;%rep 50
+;  %rep 2
+;    db 0x00,0x00
+;    %rep 26
+;      %rep 3
+;        %if (i & 0x3ff) < 256
+;          db 0x55
+;        %elif (i & 0x3ff) < 512
+;          db 0x13
+;        %elif (i & 0x3ff) < 768
+;          db 0xb0
+;        %else
+;          db 0xb1
+;        %endif
+;        db (i & 0xff)
+;      %endrep
+;      %assign i i+1
+;    %endrep
+;    db 0x00,0x00
+;    %assign i i-26
+;  %endrep
+;  %assign i i+26
+;%endrep
+;
+;%rep 80
+;  db 0x00,0x00
+;%endrep

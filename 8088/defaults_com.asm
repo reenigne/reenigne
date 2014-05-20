@@ -18,6 +18,8 @@ org 0x100
   int 0x21
 %endmacro
 
+  jmp main
+
 doPrintCharacter:
   push ax
   push bx
@@ -68,7 +70,7 @@ doPrintHex:
   push si
   push di
   push bp
-  mov bx,dx
+  mov bx,ax
   mov dl,bh
   mov cl,4
   shr dl,cl

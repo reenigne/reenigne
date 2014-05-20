@@ -1,0 +1,121 @@
+	D4,NE, C4,NE,
+	D4,NE, A3,NE, F3,NE, A3,NE, D3,NQ, D4,NE, C4,NE,
+	D4,NE, A3,NE, F3,NE, A3,NE, D3,NQ, D4,NE, E4,NE,
+	F4,NE, E4,NE, F4,NE, D4,NE, E4,NE, D4,NE, E4,NE, C4,NE,
+	D4,NE, C4,NE, D4,NE, AS3,NE, D4,NQ, D4,NE, C4,NE,
+
+	D4,NE, A3,NE, F3,NE, A3,NE, D3,NQ, D4,NE, C4,NE,
+	D4,NE, A3,NE, F3,NE, A3,NE, D3,NQ, D4,NE, E4,NE,
+	F4,NE, E4,NE, F4,NE, D4,NE, E4,NE, D4,NE, E4,NE, C4,NE,
+	D4,NE, C4,NE, D4,NE, E4,NE, F4,NQ, A4,NE, G4,NE,
+
+	A4,NE, F4,NE, C4,NE, F4,NE, A3,NQ, A4,NE, G4,NE,
+	A4,NE, F4,NE, C4,NE, F4,NE, A3,NQ, A4,NE, B4,NE,
+	C5,NE, B4,NE, C5,NE, A4,NE, B4,NE, A4,NE, B4,NE, G4,NE,
+	A4,NE, G4,NE, A4,NE, F4,NE, A4,NQ, A4,NE, G4,NE,
+
+	A4,NE, F4,NE, C4,NE, F4,NE, A3,NQ, A4,NE, G4,NE,
+	A4,NE, F4,NE, C4,NE, F4,NE, A3,NQ, A4,NE, B4,NE,
+	C5,NE, B4,NE, C5,NE, A4,NE, B4,NE, A4,NE, B4,NE, G4,NE,
+	A4,NE, G4,NE, A4,NE, F4,NE, A4,NQ, D5,NE, C5,NE,
+
+	A4,NE, F4,NE, C4,NE, F4,NE, A3,NQ, A4,NE, G4,NE,
+	A4,NE, F4,NE, C4,NE, F4,NE, A3,NQ, A4,NE, B4,NE,
+	C5,NE, B4,NE, C5,NE, A4,NE, B4,NE, A4,NE, B4,NE, G4,NE,
+	A4,NE, G4,NE, F4,NE, G4,NE, A4,NQ,
+
+static const int
+
+
+#define		NE	2
+#define		NQ	4
+
+
+
+#define     D5  2032    3.9995   587.196  4    octave^2             240  60
+
+#define     C5  2280    3.5645   523.325 18/5  octave*minor seventh 216  54
+#define     B4  2416    3.3638   493.867 10/3  octave*sixth         200  50
+
+#define     A4  2712    2.9967   439.964  3    octave*fifth         180  45
+
+#define     G4  3044    2.6698   391.978  8/3  octave*fourth        160  40
+
+#define     F4  3417    2.3784   349.190 12/5  octave*minor third   144  36
+#define     E4  3620    2.2450   329.608  9/4  octave*second        135  33.75
+
+#define     D4  4063    2.0002   293.670  2    octave               120  30
+
+#define     C4  4561    1.7818   261.605  9/5  minor seventh        108  26
+
+#define     AS3 5120    1.5873   233.043  8/5  minor sixth           96  24
+#define     A3  5424    1.4983   219.982  3/2  fifth                 90  22.5
+
+
+
+#define     F3  6834    1.1892   174.595  6/5  minor third           72  18
+
+
+#define     D3  8127    1        146.817  1    prime                 60  15
+
+
+
+
+
+
+D minor or C major
+ - http://en.wikipedia.org/wiki/Popcorn_(instrumental)  suggests minor key
+
+0 1     2   3     4   5   6     7   8     9   10   11
+.       .         .   .         .         .   .    .    .
+C C#    D   D#    E   F   F#    G   G#    A   A#   B    C    C#    D
+1 16/15 9/8 6/5   5/4 4/3 45/32 3/2 8/5   5/3 16/9 15/8 2    32/15 9/4
+        1   16/15 9/8 6/5 5/4   4/3 45/32 3/2 8/5  5/3  16/9 15/8  2
+
+.       .       .   .         .       .        .
+C       D       E   F         G       A        B    C
+1       9/8     5/4 4/3       3/2     5/3      15/8 2
+24      27      30  32        36      40       45   48
+
+
+72.826038707386363636363636363636 chk_music() calls per second
+duration from array * 6 == number of chk_music() calls in note, so notes are .16s per NE, .33s per NQ = 180bpm
+  NE = 16384*6*2 IOs = 196608 = 9.9 frames
+  NQ = 16384*6*4 IOs = 393316 = 19.8 frames
+
+attack_rate=50
+attack_level=50
+hold_rate=15
+hold_level=8
+hold_count=12
+decay_rate=1
+
+50 35 20 8 8 8 8 8 8 8 8 8  7 6 5 4 3 2 0 0 0 0 0 0
+
+To go from increment to frequency  F = 157500000*increment/11/12/76/65536
+
+0x0000 =    0Hz
+0x0001 =    0.24Hz = 1640625/6848512
+0x8000 = 7849.88Hz = 157500000/11/12/76/2 = 1640625/209
+
+To go from cyclesPerFrame to frequency  F = 157500000*cyclesPerFrame/11/12/76/262
+
+Frequency in Hz = 157500000*cyclesPerFrame/11/12/76/262
+
+
+increment = cyclesPerFrame*65536/262
+
+
+Limit of audibility = 5..6 cents = factor of 2^(6/1200) = 1.00347
+
+1 sample off is 1 part in 262
+
+To avoid phase changes at frame boundaries,
+
+Suppose we have N cycles per frame. Then we want N+1 cycles worth of samples so that we can start at any phase.
+We can't insist on having integer numbers of cycles per frame as we'd have too few frequencies (only 131 of them, only 52 different notes)
+Therefore we want one frame plus one cycle to be able to start at any phase.
+  We would need the last cycle to have phases lining up with the first cycle, which is not possible unless they are the same data, which would imply integer N
+  So we can't reduce the noise that way, though we could reduce it by half by doubling the waveform and having two sample phases. But that would be expensive
+    Probably only audible for pure sine waves and not worth the trouble for more realistic sounds
+
