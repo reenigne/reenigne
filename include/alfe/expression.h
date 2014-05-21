@@ -5,12 +5,13 @@
 
 #include "alfe/parse_tree_object.h"
 #include "alfe/operator.h"
+#include "alfe/identifier.h"
 
 template<class T> class ExpressionTemplate;
 typedef ExpressionTemplate<void> Expression;
 
-template<class T> class IdentifierTemplate;
-typedef IdentifierTemplate<void> Identifier;
+//template<class T> class IdentifierTemplate;
+//typedef IdentifierTemplate<void> Identifier;
 
 template<class T> class FunctionCallExpressionTemplate;
 typedef FunctionCallExpressionTemplate<void> FunctionCallExpression;
@@ -81,21 +82,27 @@ private:
 class Structure
 {
  public:
-    template<class T> T get(String name) { return getValue(name).value<T>(); }
-    virtual TypedValue getValue(String name) = 0;
-    virtual void set(String name, TypedValue value) = 0;
+    template<class T> T get(Identifier identifier)
+    {
+        return getValue(identifier).value<T>();
+    }
+    virtual TypedValue getValue(Identifier identifier) = 0;
+    virtual void set(Identifier identifier, TypedValue value) = 0;
 };
 
-class LValue
+template<class T> class LValueTemplate;
+typedef LValueTemplate<void> LValue;
+
+template<class T> class LValueTemplate
 {
 public:
-    LValue(Structure* structure, String name)
-        : _structure(structure), _name(name) { }
-    TypedValue rValue() const { return _structure->getValue(_name); }
-    void set(TypedValue value) const { _structure->set(_name, value); }
+    LValueTemplate(Structure* structure, Identifier identifier)
+        : _structure(structure), _identifier(identifier) { }
+    TypedValue rValue() const { return _structure->getValue(_identifier); }
+    void set(TypedValue value) const { _structure->set(_identifier, value); }
 private:
     Structure* _structure;
-    String _name;
+    Identifier _identifier;
 };
 
 static Type rValueType(Type type)
@@ -111,6 +118,25 @@ static TypedValue rValue(TypedValue value)
         return TypedValue(lValueType.inner(),
                           value.value<LValue>().rValue(), value.span());
     return value;
+}
+
+int parseHexadecimalCharacter(CharacterSource* source, Span* span)
+{
+    CharacterSource s = *source;
+    int c = s.get(span);
+    if (c >= '0' && c <= '9') {
+        *source = s;
+        return c - '0';
+    }
+    if (c >= 'A' && c <= 'F') {
+        *source = s;
+        return c + 10 - 'A';
+    }
+    if (c >= 'a' && c <= 'f') {
+        *source = s;
+        return c + 10 - 'a';
+    }
+    return -1;
 }
 
 template<class T> class ExpressionTemplate : public ParseTreeObject
@@ -205,8 +231,8 @@ public:
     }
 
     TypedValue evaluate(EvaluationContext* context) const
-    { 
-        return implementation->evaluate(context);
+    {
+        return implementation()->evaluate(context);
     }
 
 protected:
@@ -268,25 +294,6 @@ protected:
         source->location().throwError("Expected expression");
     }
 private:
-    static int parseHexadecimalCharacter(CharacterSource* source, Span* span)
-    {
-        CharacterSource s = *source;
-        int c = s.get(span);
-        if (c >= '0' && c <= '9') {
-            *source = s;
-            return c - '0';
-        }
-        if (c >= 'A' && c <= 'F') {
-            *source = s;
-            return c + 10 - 'A';
-        }
-        if (c >= 'a' && c <= 'f') {
-            *source = s;
-            return c + 10 - 'a';
-        }
-        return -1;
-    }
-
     static Expression parseDoubleQuotedString(CharacterSource* source)
     {
         Span span;
@@ -503,24 +510,23 @@ private:
             TypedValue e = _left.evaluate(context);
 
             LValueType lValueType(e.type());
-            String name = _right.name();
             if (!lValueType.valid()) {
                 if (!e.type().has(_right)) {
-                    this->span().
-                        throwError("Expression has no member named " + name);
+                    this->span().throwError("Expression has no member named " +
+                        _right.toString());
                 }
-                auto m = e.value<Value<HashTable<String, TypedValue>>>();
-                e = (*m)[name];
+                auto m = e.value<Value<HashTable<Identifier, TypedValue>>>();
+                e = (*m)[_right];
                 e = TypedValue(e.type(), e.value(), this->span());
             }
             else {
                 if (!lValueType.inner().has(_right))
-                    this->span().
-                        throwError("Expression has no member named " + name);
+                    this->span().throwError("Expression has no member named " +
+                    _right.toString());
                 Structure* p =
                     e.value<LValue>().rValue().value<Structure*>();
                 e = TypedValue(LValueType::wrap(p->getValue(name).type()),
-                    LValue(p, name), this->span());
+                    LValue(p, _right), this->span());
             }
             return e;
         }
@@ -729,10 +735,24 @@ public:
             List<TypedValue> arguments;
             for (auto p = _arguments.begin(); p != _arguments.end(); ++p)
                 arguments.add(p->evaluate(context));
-            if (!FunctionTyco(l.type()).valid()) {
-                if (!l.type().has(OperatorFunctionCall()))
+            Type lType = l.type();
+            if (!FunctionTyco(lType).valid()) {
+                Identifier i = IdentifierFunctionCall();
+                if (!lType.has(i))
                     span().throwError("Expression is not a function.");
-                l = l.dot(OperatorFunctionCall()).evaluate(context);
+                LValueType lValueType(lType);
+                if (!lValueType.valid()) {
+                    auto m =
+                        l.value<Value<HashTable<Identifier, TypedValue>>>();
+                    l = (*m)[i];
+                    l = TypedValue(e.type(), e.value(), this->span());
+                }
+                else {
+                    Structure* p =
+                        l.value<LValue>().rValue().value<Structure*>();
+                    l = TypedValue(LValueType::wrap(p->getValue(i).type()),
+                        LValue(p, name), this->span());
+                }
             }
             return l.value<Function*>()->evaluate(arguments);
         }
@@ -858,7 +878,5 @@ private:
         }
     };
 };
-
-#include "alfe/identifier.h"
 
 #endif // INCLUDED_EXPRESSION_H

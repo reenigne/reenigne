@@ -107,14 +107,14 @@ public:
     {
         return StructuredType::empty().convertTo(type());
     }
-    virtual Rational<int> cyclesPerSecond() const
+    virtual Rational cyclesPerSecond() const
     {
-        Rational<int> h = hDotsPerCycle();
+        Rational h = hDotsPerCycle();
         if (h == 0)
             return 0;
         return 157500000/(11*h);
     }
-    virtual Rational<int> hDotsPerCycle() const { return 0; }
+    virtual Rational hDotsPerCycle() const { return 0; }
     void setTicksPerCycle(Tick ticksPerCycle)
     {
         _ticksPerCycle = ticksPerCycle;
@@ -193,9 +193,9 @@ template<class T> class SimulatorTemplate
 public:
     SimulatorTemplate() : _halted(false)
     {
-        Rational<int> l = 0;
+        Rational l = 0;
         for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Rational<int> cyclesPerSecond = (*i)->cyclesPerSecond();
+            Rational cyclesPerSecond = (*i)->cyclesPerSecond();
             if (cyclesPerSecond != 0)
                 if (l == 0)
                     l = cyclesPerSecond;
@@ -206,9 +206,9 @@ public:
             throw Exception("None of the components is clocked!");
         _minTicksPerCycle = INT_MAX;
         for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Rational<int> cyclesPerSecond = (*i)->cyclesPerSecond();
+            Rational cyclesPerSecond = (*i)->cyclesPerSecond();
             if (cyclesPerSecond != 0) {
-                Rational<int> t = l / cyclesPerSecond;
+                Rational t = l / cyclesPerSecond;
                 if (t.denominator != 1)
                     throw Exception("Scheduler LCM calculation incorrect");
                 int ticksPerCycle = t.numerator;
@@ -261,8 +261,8 @@ public:
         else
             value = initial();
 
-        Value<HashTable<String, TypedValue> > object =
-            value.value<Value<HashTable<String, TypedValue> > >();
+        Value<HashTable<Identifier, TypedValue> > object =
+            value.value<Value<HashTable<Identifier, TypedValue> > >();
         for (auto i = _components.begin(); i != _components.end(); ++i)
             (*i)->load((*object)[(*i)->name()]);
     }
@@ -350,7 +350,7 @@ protected:
         for (auto i = componentTypes.begin(); i != componentTypes.end(); ++i)
             configFile.addType(*i);
 
-        configFile.addDefaultOption("second", TimeType(), Rational<int>(1));
+        configFile.addDefaultOption("second", TimeType(), Rational(1));
 
         configFile.load(File(_arguments[1], CurrentDirectory(), true));
 

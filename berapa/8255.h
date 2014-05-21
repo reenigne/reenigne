@@ -12,7 +12,7 @@ public:
         _scancode = 0;
         _wait = 0;
     }
-    Rational<int> hDotsPerCycle() const { return 3; }
+    Rational hDotsPerCycle() const { return 3; }
     //void site()
     //{
     //    _pic = this->_simulator->getPIC();

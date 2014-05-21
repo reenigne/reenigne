@@ -638,6 +638,7 @@ void setMotion(int pattern)
                     pointsNext[point] = below(point);
             break;
         case 16:
+            // Square rotation
             for (point = 0; point < pointCount; ++point) {
                 SInt16 x = xCoordinate(point)*2 - 79;
                 SInt16 y = yCoordinate(point)*2 - 199;
@@ -662,6 +663,7 @@ void setMotion(int pattern)
             }
             break;
         case 17:
+            // Vortex rotation
             {
                 shuffle();
                 UInt16 first = freeList;
@@ -703,6 +705,7 @@ void setMotion(int pattern)
             }
             break;
         case 18:
+            // Body rotation
             {
                 shuffle();
                 UInt16 first = freeList;
@@ -738,6 +741,7 @@ void setMotion(int pattern)
             }
             break;
         case 19:
+            // Lissajous
             {
                 shuffle();
                 UInt32 xa = 0;
@@ -755,6 +759,7 @@ void setMotion(int pattern)
             }
             break;
         case 20:
+            // Starfield
             {
                 shuffle();
                 SInt16* factors;

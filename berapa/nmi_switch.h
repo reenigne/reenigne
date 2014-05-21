@@ -20,7 +20,7 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
         _nmiOn = (*members)["on"].value<bool>();
         _active = (*members)["active"].value<bool>();
     }

@@ -38,7 +38,7 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
         auto dmaPages = (*members)["data"].value<List<TypedValue>>();
         int j = 0;
         for (auto i = dmaPages.begin(); i != dmaPages.end(); ++i) {

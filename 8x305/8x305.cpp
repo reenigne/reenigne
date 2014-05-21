@@ -42,12 +42,12 @@ public:
     virtual String name() const { return String(); }
     virtual void load(const TypedValue& value) { }
     virtual TypedValue initial() const
-    { 
+    {
         // Default initial value is the result of converting the empty
         // structured type to the component type.
         return TypedValue(StructuredType(String(),
             List<StructuredType::Member>()),
-            Value<HashTable<String, TypedValue>>()).convertTo(type());
+            Value<HashTable<Identifier, TypedValue>>()).convertTo(type());
     }
     virtual Rational<int> cyclesPerSecond() const
     {
@@ -58,7 +58,7 @@ public:
     }
     virtual Rational<int> hDotsPerCycle() const { return 0; }
     void setTicksPerCycle(int ticksPerCycle)
-    { 
+    {
         _ticksPerCycle = ticksPerCycle;
         _tick = 0;
     }
@@ -473,7 +473,7 @@ private:
             if (!stv.valid())
                 return stv;
             auto romMembers =
-                stv.value<Value<HashTable<String, TypedValue>>>();
+                stv.value<Value<HashTable<Identifier, TypedValue>>>();
             int mask = (*romMembers)["mask"].value<int>();
             int address = (*romMembers)["address"].value<int>();
             String file = (*romMembers)["fileName"].value<String>();
@@ -531,9 +531,9 @@ protected:
             _bus.addComponent(rom);
             ++r;
         }
-        
+
         _cga.initialize(config.get<String>("cgarom"), configFile);
-        
+
         String stopSaveState = config.get<String>("stopSaveState");
 
         String initialStateFile = config.get<String>("initialState");
@@ -601,7 +601,7 @@ public:
         s += "};";
         return s;
     }
-    
+
     void halt() { _halted = true; }
     ISA8BitBus* getBus() { return &_bus; }
     Intel8259PIC* getPIC() { return &_pic; }
@@ -628,8 +628,8 @@ public:
     }
     void load(const TypedValue& value)
     {
-        Value<HashTable<String, TypedValue> > object =
-            value.value<Value<HashTable<String, TypedValue> > >();
+        Value<HashTable<Identifier, TypedValue> > object =
+            value.value<Value<HashTable<Identifier, TypedValue> > >();
         for (auto i = _components.begin(); i != _components.end(); ++i)
             (*i)->load((*object)[(*i)->name()]);
     }
@@ -700,7 +700,7 @@ public:
         read(n);
         _renderer.renderTexture(&_texture);
     }
-    
+
 private:
     SDLWindow _window;
     SDLRenderer _renderer;

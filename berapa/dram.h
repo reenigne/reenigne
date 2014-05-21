@@ -89,14 +89,14 @@ public:
     {
         return TypedValue(StructuredType(String(),
             List<StructuredType::Member>()),
-            Value<HashTable<String, TypedValue>>()).convertTo(type());
+            Value<HashTable<Identifier, TypedValue>>()).convertTo(type());
     }
     void load(const TypedValue& value)
     {
         for (int a = 0; a < _data.count(); ++a)
             _data[a] = _decayValue;
 
-        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
         String s = (*members)["data"].value<String>();
         CharacterSource source(s);
         Space::parse(&source);

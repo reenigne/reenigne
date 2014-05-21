@@ -39,7 +39,7 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
         this->_active = (*members)["active"].value<bool>();
         _address = (*members)["address"].value<int>();
     }
@@ -72,7 +72,7 @@ public:
                 if (!stv.valid())
                     return stv;
                 auto romMembers =
-                    stv.value<Value<HashTable<String, TypedValue>>>();
+                    stv.value<Value<HashTable<Identifier, TypedValue>>>();
                 int mask = (*romMembers)["mask"].value<int>();
                 int address = (*romMembers)["address"].value<int>();
                 String file = (*romMembers)["fileName"].value<String>();

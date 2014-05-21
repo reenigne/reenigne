@@ -330,7 +330,7 @@ typedef DisassemblerTemplate<void> Disassembler;
 template<class T> class Intel8088Template : public ComponentTemplate<T>
 {
 public:
-    Rational<int> hDotsPerCycle() const { return 3; }
+    Rational hDotsPerCycle() const { return 3; }
     Intel8088Template()
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
@@ -1748,7 +1748,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
         _ip = (*members)["ip"].value<int>();
         _registerData[0] = (*members)["ax"].value<int>();
         _registerData[1] = (*members)["cx"].value<int>();

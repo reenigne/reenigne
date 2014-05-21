@@ -115,7 +115,7 @@ public:
         else
             return 0xff;
     }
-    Rational<int> hDotsPerCycle() const { return 1; }
+    Rational hDotsPerCycle() const { return 1; }
     void initialize()
     {
         ConfigFile* config = this->_simulator->config();

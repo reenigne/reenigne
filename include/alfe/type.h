@@ -993,7 +993,7 @@ public:
       : Type(other._implementation.referent<Implementation>()) { }
     StructuredTypeTemplate(String name, List<Member> members)
       : Type(new Implementation(name, members)) { }
-    const HashTable<String, int>* names() const
+    const HashTable<Identifier, int>* names() const
     {
         return implementation()->names();
     }
@@ -1005,7 +1005,7 @@ public:
     {
         return TypedValue(StructuredType(String(),
             List<StructuredType::Member>()),
-            Value<HashTable<String, TypedValue>>());
+            Value<HashTable<Identifier, TypedValue>>());
     }
 private:
     class Implementation : public Type::Implementation
@@ -1021,7 +1021,7 @@ private:
             }
         }
         String toString() const { return _name; }
-        const HashTable<String, int>* names() const { return &_names; }
+        const HashTable<Identifier, int>* names() const { return &_names; }
         const Array<Member>* members() const { return &_members; }
 
         TypedValue tryConvertTo(const Type& to, const TypedValue& value,
@@ -1031,8 +1031,8 @@ private:
                 to._implementation.referent<Implementation>();
             if (toImplementation != 0) {
                 auto input =
-                    value.value<Value<HashTable<String, TypedValue>>>();
-                Value<HashTable<String, TypedValue>> output;
+                    value.value<Value<HashTable<Identifier, TypedValue>>>();
+                Value<HashTable<Identifier, TypedValue>> output;
 
                 // First take all named members in the RHS and assign them to
                 // the corresponding named members in the LHS.
@@ -1109,7 +1109,7 @@ private:
             if (toArray.valid()) {
                 Type contained = toArray.contained();
                 auto input =
-                    value.value<Value<HashTable<String, TypedValue>>>();
+                    value.value<Value<HashTable<Identifier, TypedValue>>>();
                 List<TypedValue> results;
                 for (int i = 0; i < input->count(); ++i) {
                     String name = String::Decimal(i);
@@ -1134,7 +1134,7 @@ private:
             TupleTyco toTuple = to.as<TupleTyco>();
             if (toTuple.valid()) {
                 auto input =
-                    value.value<Value<HashTable<String, TypedValue>>>();
+                    value.value<Value<HashTable<Identifier, TypedValue>>>();
                 List<TypedValue> results;
                 int count = _members.count();
                 for (int i = input->count() - 1; i >= 0; --i) {
@@ -1183,7 +1183,7 @@ private:
         }
 
         String _name;
-        HashTable<String, int> _names;
+        HashTable<Identifier, int> _names;
         Array<Member> _members;
     };
     const Implementation* implementation() const

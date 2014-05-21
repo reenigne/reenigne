@@ -3,7 +3,7 @@ template<class T> class Intel8253PITTemplate
 {
 public:
     // The PIT input clock is 1/4 the frequency of the CPU clock.
-    Rational<int> hDotsPerCycle() const { return 12; }
+    Rational hDotsPerCycle() const { return 12; }
     Intel8253PITTemplate()
     {
         _timers[0] = &_timer0;
@@ -74,7 +74,7 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
         this->_active = (*members)["active"].value<bool>();
         this->_tick = (*members)["tick"].value<int>();
         _address = (*members)["address"].value<int>();
@@ -90,7 +90,7 @@ public:
         for (;j < 3; ++j) {
             _timers[j]->load(TypedValue(StructuredType(String(),
                 List<StructuredType::Member>()),
-                Value<HashTable<String, TypedValue>>()).
+                Value<HashTable<Identifier, TypedValue>>()).
                 convertTo(_timer0.type()));
         }
     }
@@ -312,7 +312,8 @@ private:
         }
         void load(const TypedValue& value)
         {
-            auto members = value.value<Value<HashTable<String, TypedValue>>>();
+            auto members =
+                value.value<Value<HashTable<Identifier, TypedValue>>>();
             _value = (*members)["value"].value<int>();
             _latch = (*members)["latch"].value<int>();
             _count = (*members)["count"].value<int>();

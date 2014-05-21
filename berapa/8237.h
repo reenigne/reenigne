@@ -26,7 +26,7 @@ template<class T> class Intel8237DMATemplate
         transferModeCascade
     };
 public:
-    Rational<int> hDotsPerCycle() const { return 3; }
+    Rational hDotsPerCycle() const { return 3; }
     Intel8237DMATemplate()
     {
         List<EnumerationType::Value> stateValues;
@@ -284,7 +284,7 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
         this->_active = (*members)["active"].value<bool>();
         this->_tick = (*members)["tick"].value<int>();
         _address = (*members)["address"].value<int>();
@@ -301,7 +301,7 @@ public:
         for (;j < 4; ++j) {
             _channels[j].load(TypedValue(StructuredType(String(),
                 List<StructuredType::Member>()),
-                Value<HashTable<String, TypedValue>>()).
+                Value<HashTable<Identifier, TypedValue>>()).
                 convertTo(_channels[j].type()));
         }
 
@@ -454,7 +454,8 @@ private:
         }
         void load(const TypedValue& value)
         {
-            auto members = value.value<Value<HashTable<String, TypedValue>>>();
+            auto members =
+                value.value<Value<HashTable<Identifier, TypedValue>>>();
             _mode = (*members)["mode"].value<int>();
             _baseAddress = (*members)["baseAddress"].value<int>();
             _baseCount = (*members)["baseCount"].value<int>();

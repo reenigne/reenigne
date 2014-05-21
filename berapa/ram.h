@@ -36,7 +36,7 @@ public:
         }
         _dram.initialize(_bytes, _rowBits, _decayTime, 0);
     }
-    Rational<int> hDotsPerCycle() const { return 3; }
+    Rational hDotsPerCycle() const { return 3; }
     void simulateCycle() { _dram.simulateCycle(); }
     void setAddress(UInt32 address)
     {
@@ -76,7 +76,7 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<String, TypedValue>>>();
+        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
         _dram.load((*members)["dram"]);
         _active = (*members)["active"].value<bool>();
         _tick = (*members)["tick"].value<int>();
@@ -101,7 +101,7 @@ public:
             return;
         }
         if (name == "decayTime") {
-            _decayTime = value.value<Rational<int>>();
+            _decayTime = value.value<Rational>();
             return;
         }
         ISA8BitComponent::set(name, value);
@@ -136,5 +136,5 @@ private:
     Intel8088Template<T>* _cpu;
     int _rowBits;
     int _bytes;
-    Rational<int> _decayTime;
+    Rational _decayTime;
 };

@@ -14,10 +14,11 @@
 class ConfigFile : public Structure
 {
 public:
-    ConfigFile()
+    ConfigFile() : _context(this)
     {
-        FunctionTyco iii(IntegerType(), IntegerType(), IntegerType());
-        addFunction(OperatorPlus(), iii, );
+        FunctionTyco iii =
+            FunctionTyco(IntegerType(), IntegerType(), IntegerType());
+        //addFunction(OperatorPlus(), iii, );
     }
     void addOption(String name, Type type)
     {
@@ -36,7 +37,7 @@ public:
     void addFunction(Identifier identifier, FunctionTyco type,
         Function* function)
     {
-        if (_options.hasKey(identifier))
+        //if (_options.hasKey(identifier))
 
     }
 
@@ -82,7 +83,7 @@ public:
                         " already exists");
                 TypedValue value = TypedValue(
                     StructuredType(String(), List<StructuredType::Member>()),
-                    Value<HashTable<String, TypedValue>>());
+                    Value<HashTable<Identifier, TypedValue>>());
                 if (Space::parseCharacter(&s, '=', &span))
                     value = Expression::parse(&s).evaluate(&_context);
                 Space::assertCharacter(&s, ';', &span);
@@ -99,7 +100,7 @@ public:
                     // I also don't want to use the empty string, since I might
                     // want to use that as the connector name for
                     // single-connector components.
-                    value.value<Structure*>()->set("*", name);
+                    value.value<Structure*>()->set(Identifier("*"), name);
                 }
 
                 continue;
@@ -127,7 +128,7 @@ public:
         } while (true);
         for (auto i = _options.begin(); i != _options.end(); ++i) {
             if (!i.value().valid())
-                throw Exception(file.path() + ": " + i.key() +
+                throw Exception(file.path() + ": " + i.key().name() +
                     " not defined and no default is available.");
         }
     }
@@ -174,7 +175,7 @@ private:
 
     HashTable<Identifier, TypedValue> _options;
     HashTable<Identifier, TypedValue> _enumeratedValues;
-    HashTable<TypeSpecifier, Type> _types;
+    HashTable<TycoIdentifier, Type> _types;
     File _file;
     EvaluationContext _context;
 };

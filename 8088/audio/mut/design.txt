@@ -483,7 +483,8 @@ Do we want a dot product operator?
   Is there a use case?
     Avoid adding it unless we find one, but keep it in mind
   What if you dot product together two second-order functions (e.g. f.ft) - do we have to integrate over the space of all functions?
-
+  We can implement dot product with an integration operator
+    And we can implement integration by evaluating the Fourier transform at 0
 
 Plan:
   Create an object for each operator
