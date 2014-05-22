@@ -121,7 +121,7 @@ public:
                 left.span().throwError("LValue required");
             Type type = lValueType.inner();
             LValue p = left.value<LValue>();
-            TypedValue e = rValue(loadedExpression).convertTo(type);
+            TypedValue e = loadedExpression.rValue().convertTo(type);
             Space::assertCharacter(&source, ';', &span);
             p.set(e);
             _options[name].setValue(e.value());
@@ -132,7 +132,7 @@ public:
                     " not defined and no default is available.");
         }
     }
-    TypedValue getValue(String name) { return rValue(_options[name]); }
+    TypedValue getValue(String name) { return _options[name].rValue(); }
     void set(String name, TypedValue value) { _options[name] = value; }
     File file() const { return _file; }
 

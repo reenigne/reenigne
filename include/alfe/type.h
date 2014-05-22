@@ -86,6 +86,38 @@ public:
     }
 };
 
+class Structure
+{
+public:
+    template<class T> T get(Identifier identifier)
+    {
+        return getValue(identifier).value<T>();
+    }
+    virtual TypedValue getValue(Identifier identifier) = 0;
+    virtual void set(Identifier identifier, TypedValue value) = 0;
+};
+
+template<class T> class LValueTemplate;
+typedef LValueTemplate<void> LValue;
+
+template<class T> class LValueTemplate
+{
+public:
+    LValueTemplate(Structure* structure, Identifier identifier)
+      : _structure(structure), _identifier(identifier) { }
+    TypedValueTemplate<T> rValue() const
+    {
+        return _structure->getValue(_identifier);
+    }
+    void set(TypedValueTemplate<T> value) const
+    {
+        _structure->set(_identifier, value);
+    }
+private:
+    Structure* _structure;
+    Identifier _identifier;
+};
+
 template<class T> class TypeTemplate : public Tyco
 {
 public:
@@ -111,6 +143,12 @@ public:
     const Implementation* implementation() const
     {
         return _implementation.referent<Implementation>();
+    }
+    Type rValue() const
+    {
+        if (LValueType(*this).valid())
+            return LValueType(*this).inner();
+        return *this;
     }
 protected:
     class Implementation : public Tyco::Implementation
@@ -143,6 +181,41 @@ protected:
     };
 
     friend class TemplateTemplate<void>;
+};
+
+class LValueType : public Type
+{
+public:
+    LValueType(const Tyco& other) : Type(other) {}
+    static LValueType wrap(const Type& inner)
+    {
+        if (LValueType(inner).valid())
+            return inner;
+        return LValueType(new Implementation(inner));
+    }
+    bool valid() const { return implementation() != 0; }
+    Type inner() const { return implementation()->inner(); }
+private:
+    LValueType(const Implementation* implementation)
+      : Type(implementation) { }
+
+    class Implementation : public Type::Implementation
+    {
+    public:
+        Implementation(Type inner) : _inner(inner) {}
+        Type inner() const { return _inner; }
+        String toString() const
+        {
+            return String("LValue<") + _inner.toString() + ">";
+        }
+    private:
+        Type _inner;
+    };
+
+    const Implementation* implementation() const
+    {
+        return _implementation.referent<Implementation>();
+    }
 };
 
 class StringType : public Nullary<Type, StringType>
@@ -247,7 +320,15 @@ public:
         *why = r;
         return TypedValue();
     }
-
+    TypedValue rValue() const
+    {
+        LValueType lValueType(_type);
+        if (lValueType.valid()) {
+            return TypedValue(lValueType.inner(), value<LValue>().rValue(),
+                _span);
+        }
+        return *this;
+    }
 private:
     Type _type;
     Any _value;

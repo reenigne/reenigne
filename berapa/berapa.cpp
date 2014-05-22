@@ -90,9 +90,7 @@ private:
 template<class T> class ComponentTemplate : public Structure
 {
 public:
-    ComponentTemplate() : _simulator(0), _tick(0), _ticksPerCycle(0)
-    {
-    }
+    ComponentTemplate() : _simulator(0), _tick(0), _ticksPerCycle(0) { }
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
     virtual void site() { }
     virtual void simulateCycle() { }
@@ -128,7 +126,7 @@ public:
             _tick -= _ticksPerCycle;
         }
     }
-    void set(String name, TypedValue value)
+    void set(Identifier name, TypedValue value)
     {
         if (name == "*")
             _name = value.value<String>();
