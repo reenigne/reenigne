@@ -6,12 +6,13 @@
 #include "alfe/parse_tree_object.h"
 #include "alfe/operator.h"
 #include "alfe/identifier.h"
+#include "alfe/function.h"
 
 template<class T> class ExpressionTemplate;
 typedef ExpressionTemplate<void> Expression;
 
-//template<class T> class IdentifierTemplate;
-//typedef IdentifierTemplate<void> Identifier;
+template<class T> class IdentifierTemplate;
+typedef IdentifierTemplate<void> Identifier;
 
 template<class T> class FunctionCallExpressionTemplate;
 typedef FunctionCallExpressionTemplate<void> FunctionCallExpression;
@@ -36,6 +37,25 @@ typedef LogicalOrExpressionTemplate<void> LogicalOrExpression;
 
 template<class T> class IntegerLiteralTemplate;
 typedef IntegerLiteralTemplate<void> IntegerLiteral;
+
+template<class T> class StructuredTypeTemplate;
+typedef StructuredTypeTemplate<void> StructuredType;
+
+template<class T> class LValueTypeTemplate;
+typedef LValueTypeTemplate<void> LValueType;
+
+template<class T> class LValueTemplate;
+typedef LValueTemplate<void> LValue;
+
+template<class T> class StructureTemplate;
+typedef StructureTemplate<void> Structure;
+
+template<class T> class FunctionTycoTemplate;
+typedef FunctionTycoTemplate<void> FunctionTyco;
+
+class IdentifierFunctionCall;
+
+class BooleanType;
 
 class EvaluationContext
 {
@@ -154,7 +174,7 @@ public:
         } while (true);
     }
 
-    TypedValue evaluate(EvaluationContext* context) const
+    TypedValueTemplate<T> evaluate(EvaluationContext* context) const
     {
         return implementation()->evaluate(context);
     }
@@ -378,7 +398,7 @@ private:
         {
             return Expression("true", this->span());
         }
-        TypedValue evaluate(EvaluationContext* context) const
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
             return true;
         }
@@ -391,7 +411,7 @@ private:
         {
             return Expression("false", this->span());
         }
-        TypedValue evaluate(EvaluationContext* context) const
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
             return false;
         }
@@ -402,7 +422,7 @@ private:
         StringLiteralImplementation(const String& string, const Span& span)
             : Implementation(span), _string(string) { }
         Expression toString() const { return Expression(this); }
-        TypedValue evaluate(EvaluationContext* context) const
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
             return _string;
         }
@@ -415,9 +435,9 @@ private:
         ArrayLiteralImplementation(const List<Expression>& expressions,
             const Span& span)
           : Implementation(span), _expressions(expressions) { }
-        TypedValue evaluate(EvaluationContext* context) const
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
-            return TypedValue(StructuredType(), _expressions);
+            return TypedValue(StructuredTypeTemplate<T>(), _expressions);
         }
     private:
         List<Expression> _expressions;
@@ -429,17 +449,18 @@ private:
             const IdentifierTemplate<T>& right)
           : Implementation(left.span() + right.span()), _left(left),
           _right(right) { }
-        TypedValue evaluate(EvaluationContext* context) const
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
-            TypedValue e = _left.evaluate(context);
+            TypedValueTemplate<T> e = _left.evaluate(context);
 
-            LValueType lValueType(e.type());
+            LValueTypeTemplate<T> lValueType(e.type());
             if (!lValueType.valid()) {
                 if (!e.type().has(_right)) {
                     this->span().throwError("Expression has no member named " +
                         _right.toString());
                 }
-                auto m = e.value<Value<HashTable<Identifier, TypedValue>>>();
+                auto m = e.value<Value<HashTable<IdentifierTemplate<T>,
+                    TypedValueTemplate<T>>>();
                 e = (*m)[_right];
                 e = TypedValue(e.type(), e.value(), this->span());
             }
@@ -447,9 +468,11 @@ private:
                 if (!lValueType.inner().has(_right))
                     this->span().throwError("Expression has no member named " +
                     _right.toString());
-                Structure* p =
-                    e.value<LValue>().rValue().value<Structure*>();
-                e = TypedValue(LValueType::wrap(p->getValue(name).type()),
+                StructureTemplate<T>* p = e.
+                    template value<LValueTemplate<T>>().
+                    rValue().template value<StructureTemplate<T>*>();
+                e = TypedValue(LValueTypeTemplate<T>::
+                    wrap(p->getValue(_right).type()),
                     LValue(p, _right), this->span());
             }
             return e;
@@ -474,7 +497,10 @@ public:
         Implementation(int n, const Span& span)
           : Expression::Implementation(span), _n(n) { }
         Expression toString() const { return Expression(this); }
-        TypedValue evaluate(EvaluationContext* context) const { return _n; }
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
+        {
+            return _n;
+        }
         int value() const { return _n; }
     private:
         int _n;
@@ -653,32 +679,33 @@ public:
             const List<Expression>& arguments, const Span& span)
           : Expression::Implementation(span), _function(function),
             _arguments(arguments) { }
-        TypedValue evaluate(EvaluationContext* context) const
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
-            TypedValue l = _function.evaluate(context);
+            TypedValueTemplate<T> l = _function.evaluate(context);
             List<TypedValue> arguments;
             for (auto p = _arguments.begin(); p != _arguments.end(); ++p)
                 arguments.add(p->evaluate(context));
-            Type lType = l.type();
-            if (!FunctionTyco(lType).valid()) {
-                Identifier i = IdentifierFunctionCall();
+            TypeTemplate<T> lType = l.type();
+            if (!FunctionTycoTemplate<T>(lType).valid()) {
+                IdentifierTemplate<T> i = IdentifierFunctionCall();
                 if (!lType.has(i))
                     span().throwError("Expression is not a function.");
-                LValueType lValueType(lType);
+                LValueTypeTemplate<T> lValueType(lType);
                 if (!lValueType.valid()) {
-                    auto m =
-                        l.value<Value<HashTable<Identifier, TypedValue>>>();
+                    auto m = l.template
+                        value<Value<HashTable<Identifier, TypedValue>>>();
                     l = (*m)[i];
-                    l = TypedValue(e.type(), e.value(), this->span());
+                    l = TypedValue(l.type(), l.value(), this->span());
                 }
                 else {
-                    Structure* p =
-                        l.value<LValue>().rValue().value<Structure*>();
-                    l = TypedValue(LValueType::wrap(p->getValue(i).type()),
-                        LValue(p, name), this->span());
+                    StructureTemplate<T>* p = l.template
+                        value<LValue>().rValue().template value<Structure*>();
+                    l = TypedValue(LValueTypeTemplate<T>::
+                        wrap(p->getValue(i).type()),
+                        LValue(p, i), this->span());
                 }
             }
-            return l.value<Function*>()->evaluate(arguments);
+            return l.template value<Function*>()->evaluate(arguments);
         }
     private:
         Expression _function;
@@ -710,7 +737,11 @@ protected:
     };
 };
 
-class LogicalAndExpression : public BinaryExpression<LogicalAndExpression>
+template<class T> class LogicalAndExpressionTemplate;
+typedef LogicalAndExpressionTemplate<void> LogicalAndExpression;
+
+template<class T> class LogicalAndExpressionTemplate
+  : public BinaryExpression<LogicalAndExpression>
 {
 public:
     static Expression parse(CharacterSource* source)
@@ -737,21 +768,21 @@ private:
         Implementation(const Expression& left, const Span& operatorSpan,
             const Expression& right)
           : BinaryExpression::Implementation(left, operatorSpan, right) { }
-        TypedValue evaluate(EvaluationContext* context) const
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
-            TypedValue v = left().evaluate(context);
+            TypedValueTemplate<T> v = left().evaluate(context);
             if (v.type() != BooleanType()) {
                 left().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
             }
-            if (!v.value<bool>())
+            if (!v.template value<bool>())
                 return false;
             v = right().evaluate(context);
             if (v.type() != BooleanType()) {
                 right().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
             }
-            return v.value<bool>();
+            return v.template value<bool>();
         }
     };
 };
@@ -784,21 +815,21 @@ private:
         Implementation(const Expression& left, const Span& operatorSpan,
             const Expression& right)
             : BinaryExpression::Implementation(left, operatorSpan, right) { }
-        TypedValue evaluate(EvaluationContext* context) const
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
-            TypedValue v = left().evaluate(context);
+            TypedValueTemplate<T> v = left().evaluate(context);
             if (v.type() != BooleanType()) {
                 left().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
             }
-            if (!v.value<bool>())
+            if (!v.template value<bool>())
                 return false;
             v = right().evaluate(context);
             if (v.type() != BooleanType()) {
                 right().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
             }
-            return v.value<bool>();
+            return v.template value<bool>();
         }
     };
 };

@@ -23,6 +23,15 @@ typedef TycoIdentifierTemplate<void> TycoIdentifier;
 template<class T> class TemplateArgumentsTemplate;
 typedef TemplateArgumentsTemplate<void> TemplateArguments;
 
+template<class T> class ClassTycoSpecifierTemplate;
+typedef ClassTycoSpecifierTemplate<void> ClassTycoSpecifier;
+
+template<class T> class TypeOfTypeSpecifierTemplate;
+typedef TypeOfTypeSpecifierTemplate<void> TypeOfTypeSpecifier;
+
+template<class T> class TypeParameterTemplate;
+typedef TypeParameterTemplate<void> TypeParameter;
+
 //TycoSpecifier :=
 //    TycoIdentifier ("<" TycoSpecifier \ "," ">")*
 //  | TycoSpecifier "*"
@@ -41,9 +50,9 @@ public:
         do {
             Span span;
             if (Space::parseCharacter(source, '*', &span)) {
-                tycoSpecifier =
-                    new TypeSpecifier::PointerImplementation(tycoSpecifier,
-                        tycoSpecifier.span() + span);
+                tycoSpecifier = new typename TypeSpecifierTemplate<T>::
+                    PointerImplementation(tycoSpecifier,
+                    tycoSpecifier.span() + span);
                 continue;
             }
             if (Space::parseCharacter(source, '(', &span)) {
@@ -51,9 +60,9 @@ public:
                 List<TycoSpecifier> typeListSpecifier =
                     parseList(source);
                 Space::assertCharacter(source, ')', &span);
-                tycoSpecifier =
-                    new TypeSpecifier::FunctionImplementation(tycoSpecifier,
-                        typeListSpecifier, tycoSpecifier.span() + span);
+                tycoSpecifier = new typename TypeSpecifierTemplate<T>::
+                    FunctionImplementation(tycoSpecifier,
+                    typeListSpecifier, tycoSpecifier.span() + span);
                 continue;
             }
         } while (true);
@@ -82,29 +91,32 @@ protected:
             _arguments(arguments)
         { }
     private:
-        TycoIdentifier _tycoIdentifier;
-        TemplateArguments _arguments;
+        TycoIdentifierTemplate<T> _tycoIdentifier;
+        TemplateArgumentsTemplate<T> _arguments;
     };
 
-    template<class T> const T* implementation()
+    template<class U> const U* implementation()
     {
         return as<TycoSpecifierTemplate>();
     }
 private:
     static TycoSpecifier parseFundamental(CharacterSource* source)
     {
-        TycoIdentifier tycoIdentifier = TycoIdentifier::parse(source);
+        TycoIdentifierTemplate<T> tycoIdentifier =
+            TycoIdentifierTemplate<T>::parse(source);
         if (tycoIdentifier.valid()) {
             String s = tycoIdentifier.name();
             Span span = tycoIdentifier.span();
-            TemplateArguments arguments = TemplateArguments::parse(source);
+            TemplateArgumentsTemplate<T> arguments =
+                TemplateArgumentsTemplate<T>::parse(source);
             return new InstantiationImplementation(tycoIdentifier,
                 arguments, tycoIdentifier.span() + arguments.span());
         }
-        TycoSpecifier tycoSpecifier = ClassTycoSpecifier::parse(source);
+        TycoSpecifier tycoSpecifier =
+            ClassTycoSpecifierTemplate<T>::parse(source);
         if (tycoSpecifier.valid())
             return tycoSpecifier;
-        tycoSpecifier = TypeOfTypeSpecifier::parse(source);
+        tycoSpecifier = TypeOfTypeSpecifierTemplate<T>::parse(source);
         if (tycoSpecifier.valid())
             return tycoSpecifier;
         return TycoSpecifier();
@@ -204,7 +216,7 @@ private:
         List<TycoSpecifier> _argumentTypes;
     };
 
-    template<class T> friend class TycoSpecifierTemplate;
+    template<class U> friend class TycoSpecifierTemplate;
 };
 
 template<class T> class TycoIdentifierTemplate : public TycoSpecifier
@@ -278,7 +290,7 @@ private:
       : TycoSpecifier(implementation) { }
 };
 
-class ClassTycoSpecifier : public TycoSpecifier
+template<class T> class ClassTycoSpecifierTemplate : public TycoSpecifier
 {
 public:
     static ClassTycoSpecifier parse(CharacterSource* source)
@@ -300,13 +312,10 @@ private:
         Implementation(const Span& span)
           : TycoSpecifier::Implementation(span) { }
     };
-    ClassTycoSpecifier() { }
-    ClassTycoSpecifier(const Span& span)
+    ClassTycoSpecifierTemplate() { }
+    ClassTycoSpecifierTemplate(const Span& span)
       : TycoSpecifier(new Implementation(span)) { }
 };
-
-template<class T> class TypeOfTypeSpecifierTemplate;
-typedef TypeOfTypeSpecifierTemplate<void> TypeOfTypeSpecifier;
 
 template<class T> class TypeOfTypeSpecifierTemplate : public TypeSpecifier
 {
@@ -336,8 +345,6 @@ private:
     };
 };
 
-class TypeParameter;
-
 template<class T> class TemplateParametersTemplate;
 typedef TemplateParametersTemplate<void> TemplateParameters;
 
@@ -361,16 +368,16 @@ public:
         do {
             Span span;
             if (Space::parseCharacter(source, '*', &span)) {
-                parameter = new TypeParameter::PointerImplementation(parameter,
-                    parameter.span() + span);
+                parameter = new typename TypeParameterTemplate<T>::
+                    PointerImplementation(parameter, parameter.span() + span);
                 continue;
             }
             if (Space::parseCharacter(source, '(', &span)) {
                 List<TemplateParameter> parameters = parseList(source);
                 Space::assertCharacter(source, ')', &span);
-                parameter =
-                    new TypeParameter::FunctionImplementation(parameter,
-                    parameters, parameter.span() + span);
+                parameter = new typename TypeParameterTemplate<T>::
+                    FunctionImplementation(parameter, parameters,
+                    parameter.span() + span);
                 continue;
             }
         } while (true);
@@ -412,8 +419,8 @@ private:
             if (!tycoIdentifier.valid())
                 source->location().throwError(
                     "Expected type constructor identifier");
-            TemplateParameters parameters =
-                TemplateParameters::parse(source);
+            TemplateParametersTemplate<T> parameters =
+                TemplateParametersTemplate<T>::parse(source);
             return new BoundVariableImplementation(tycoIdentifier,
                 parameters, span + parameters.span());
         }
@@ -443,11 +450,11 @@ private:
             _parameters(parameters) { }
     private:
         TycoIdentifier _tycoIdentifier;
-        TemplateParameters _parameters;
+        TemplateParametersTemplate<T> _parameters;
     };
 };
 
-class TypeParameter : public TemplateParameter
+template<class T> class TypeParameterTemplate : public TemplateParameter
 {
 public:
     class PointerImplementation : public TemplateParameter::Implementation

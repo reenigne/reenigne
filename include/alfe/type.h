@@ -10,6 +10,7 @@
 #include "alfe/kind.h"
 #include "alfe/assert.h"
 #include "alfe/function.h"
+#include "alfe/identifier.h"
 
 template<class T> class TemplateTemplate;
 typedef TemplateTemplate<void> Template;
@@ -25,6 +26,9 @@ typedef TycoTemplate<void> Tyco;
 
 template<class T> class IdentifierTemplate;
 typedef IdentifierTemplate<void> Identifier;
+
+template<class T> class LValueTypeTemplate;
+typedef LValueTypeTemplate<void> LValueType;
 
 template<class T> class TycoTemplate
 {
@@ -86,12 +90,15 @@ public:
     }
 };
 
-class Structure
+template<class T> class StructureTemplate;
+typedef StructureTemplate<void> Structure;
+
+template<class T> class StructureTemplate
 {
 public:
-    template<class T> T get(Identifier identifier)
+    template<class U> U get(Identifier identifier)
     {
-        return getValue(identifier).value<T>();
+        return getValue(identifier).template value<U>();
     }
     virtual TypedValue getValue(Identifier identifier) = 0;
     virtual void set(Identifier identifier, TypedValue value) = 0;
@@ -146,8 +153,8 @@ public:
     }
     Type rValue() const
     {
-        if (LValueType(*this).valid())
-            return LValueType(*this).inner();
+        if (LValueTypeTemplate<T>(*this).valid())
+            return LValueTypeTemplate<T>(*this).inner();
         return *this;
     }
 protected:
@@ -183,10 +190,10 @@ protected:
     friend class TemplateTemplate<void>;
 };
 
-class LValueType : public Type
+template<class T> class LValueTypeTemplate : public Type
 {
 public:
-    LValueType(const Tyco& other) : Type(other) {}
+    LValueTypeTemplate(const Tyco& other) : Type(other) {}
     static LValueType wrap(const Type& inner)
     {
         if (LValueType(inner).valid())
@@ -196,7 +203,7 @@ public:
     bool valid() const { return implementation() != 0; }
     Type inner() const { return implementation()->inner(); }
 private:
-    LValueType(const Implementation* implementation)
+    LValueTypeTemplate(const Implementation* implementation)
       : Type(implementation) { }
 
     class Implementation : public Type::Implementation
@@ -234,7 +241,7 @@ class IntegerType : public Nullary<Type, IntegerType>
 
 template<> Nullary<Type, IntegerType>  Nullary<Type, IntegerType>::_instance;
 
-class BooleanType : public  Nullary<Type, BooleanType>
+class BooleanType : public Nullary<Type, BooleanType>
 {
  public:
     static String name() { return "Boolean"; }
@@ -1164,9 +1171,9 @@ private:
                     }
                     const Member* toMember = &toImplementation->_members[j];
                     ++j;
-                    TypedValue v =
-                        tryConvertHelper((*input)[String::Decimal(i)],
-                        toMember, why);
+                    TypedValueTemplate<T> v = tryConvertHelper(
+                        (*input)[Identifier(String::Decimal(i))], toMember,
+                        why);
                     if (!v.valid())
                         return TypedValue();
                     (*output)[toMember->name()] = v;
@@ -1274,7 +1281,5 @@ private:
 
     friend class Implementation;
 };
-
-#include "alfe/identifier.h"
 
 #endif // INCLUDED_TYPE_H

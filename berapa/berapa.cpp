@@ -128,7 +128,7 @@ public:
     }
     void set(Identifier name, TypedValue value)
     {
-        if (name == "*")
+        if (name.name() == "*")
             _name = value.value<String>();
     }
     class Type : public ::Type

@@ -7,13 +7,15 @@
 #include "alfe/expression.h"
 #include "alfe/type_specifier.h"
 
+template<class My> class IdentifierOperator;
+
 template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
 {
 public:
     IdentifierTemplate(const String& name)
-      : ExpressionTemplate(new NameImplementation(name, Span())) { }
+      : ExpressionTemplate<T>(new NameImplementation(name, Span())) { }
     IdentifierTemplate(const char* name)
-        : ExpressionTemplate(new NameImplementation(name, Span())) { }
+      : ExpressionTemplate<T>(new NameImplementation(name, Span())) { }
 
     static Identifier parse(CharacterSource* source)
     {
@@ -146,17 +148,23 @@ public:
     }
 
     IdentifierTemplate(const Operator& op, const Span& span = Span())
-      : Expression(new IdentifierOperator::Implementation(op, span)) { }
+      : Expression(new typename IdentifierOperator<T>::Implementation(op, span)) { }
 
-    String name() const { return as<Identifier>()->name(); }
-    bool isOperator() const { return as<Identifier>()->isOperator(); }
+    String name() const
+    {
+        return this->template as<IdentifierTemplate<T>>()->name();
+    }
+    bool isOperator() const
+    {
+        return this->template as<IdentifierTemplate<T>>()->isOperator();
+    }
 
     class Implementation : public ExpressionTemplate<T>::Implementation
     {
     public:
         Implementation(const Span& span) : Expression::Implementation(span) { }
         virtual String name() const = 0;
-        TypedValue evaluate(EvaluationContext* context) const
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
             return context->valueOfIdentifier(this);
         }
@@ -189,14 +197,14 @@ public:
     public:
         Implementation(const Operator& op = My::op(),
             const Span& span = Span())
-          : Implementation(span), _op(op) { }
+          : Identifier::Implementation(span), _op(op) { }
         String name() const { return "operator" + _op.toString(); }
         bool isOperator() const { return true; }
     private:
         Operator _op;
     };
     IdentifierOperator(const Implementation* implementation)
-      : _implementation(implementation) { }
+      : Identifier(implementation) { }
 private:
     static IdentifierOperator _instance;
     static IdentifierOperator instance()
