@@ -486,6 +486,31 @@ Do we want a dot product operator?
   We can implement dot product with an integration operator
     And we can implement integration by evaluating the Fourier transform at 0
 
+Need to figure out how to implement a@b for complex, time-dependent b
+  We know how to implement it for constant complex b
+  To implement it for real, time-dependent b:
+    It's not (a@b)[x] = (a@(b[x]))[x] since we don't want discontinuities in b to imply discontinuities in a@b for continuous a (manifests as clicks when frequency changes)
+    Therefore, integrate b yielding B. (a@b)[x] = (a[B[x]])
+
+division is currently a scalar. What would it mean for division to be a function?
+  The period of the function should be the previous meaning of division
+  Suppose a is an integer and a <= division[x] < a+1 and f = division[x]-a
+  Then the value of the final function should be components(p+a)*(1-f) + components(p+a+1)*f
+  division must be real
+  division is just the default outer function of a sequence
+  If the way to get periodic functions is to use | but you need a periodic function to use |, how do we begin?
+    The default division is 0 with a period of 1
+    Given a periodic function, you can time-scale it and use it as the outer function of a sequence to create new periodic functions
+    Once a sequence decays to a function, its outer function is zeroed
+  One annoying thing about this idea is that the period of a function should be just an unobservable implementation detail - it shouldn't actually change the music
+    Especially for a constant function where the period is not meaningful
+    So maybe instead of being a periodic function, division should encode component and interpolant directly, as with the previous idea of outer functions
+      In that case, might want to have a floor function built-in for simple default behavior.
+
+It's not necessary to decide in advance if the output is:
+  periodic or compact-support
+  band-limited or discrete
+
 Plan:
   Create an object for each operator
   Write code to parse

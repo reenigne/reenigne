@@ -1,0 +1,31 @@
+We'd like to be able to write "if (a==b==c) ..."
+This can be done by having a==b return a value of special type which decays to Boolean
+If a and b are not equal the return value is a special value which never compares equal to c
+If a and b are equal the return value decays to a suitable type for comparing with c
+
+What if a, b and c are of type Boolean?
+  Then does (a==b)==c have a different meaning to a==b==c?
+  Do we have a different equality operator (xnor) for Boolean types?
+    Maybe we should have operators for all gates:
+      gate short-circuiting  non-short-circuiting
+      and   &&                &
+      or    ||                |
+      xnor           !~
+      xor             ~
+      nand  !&&               !&
+      nor   !||               !|
+
+What about a!=b!=c ?
+  This is more difficult. Does it mean (a != b && b != c) or (a != b && b != c && a != c)?
+  If the latter, the number of comparisions that must be done increases quadratically with the number of elements
+    Above a certain point, it would be better to sort the elements and compare only adjacent ones, which should probably not be done automatically by the compiler for a simple comparison
+
+a==b!=c is not ambiguous, nor is a==b==c!=d
+  At most one not-equal-to is fine
+
+It would be nice to be able to write if (a < b <= c < d) as well. This should be fine using similar techniques to a == b == c.
+  There's no Boolean-type-argument ambiguity here, since Boolean does not allow inequalities
+  Similarly a > b >= c >= d
+  What about if (a < b > c)? Is this the same as if (a < b && b > c)?
+    If we allow this we might want to allow (a != b != c) using the same rule.
+    Then we could write (a==b<c!=d) if we wanted to

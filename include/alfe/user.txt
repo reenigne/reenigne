@@ -1,0 +1,95 @@
+Window is a lightweight class that represents an element in the layout hierarchy. Examples:
+  Image
+  Button
+
+Some windows can contain other windows - these are ContainerWindow objects
+
+WindowsWindow is a ContainerWindow that has an HWND
+
+How do we describe the layout hierarchy?
+  A Window can have constraints on its dimensions:
+    Minimum/maximum height/width
+
+Let's refactor and add features as we need them.
+
+We want to avoid having to manually write the resize routine for each window layout.
+We want to avoid manually computing the positions of things.
+
+(1) By default a Window's size is fixed and it's position is fixed relative to the top-left of it's parent:
+  topLeft = parent.topLeft + offset
+  bottomRight = topLeft + size
+(2) We'd like to be able to pin it to the bottom right by doing:
+  topLeft = parent.bottomRight + offset - size
+(3) We'd like to be able to pin it to both corners by doing:
+  bottomRight = parent.bottomRight + offset
+(4) We'd like to be able to centre it in the parent by doing:
+  topLeft = parent.topLeft*2/3 + parent.bottomRight*1/3
+  bottomRight = parent.topLeft*1/3 + parent.bottomRight*2/3
+
+These handles are not just positions - they're live objects so that (e.g. in case 2) as size changes, bottomRight will change as well
+Use the spreadsheet evaluation pattern to avoid circular references
+
+
+
+ImageWindow inherits from Window rather than WindowsWindow but you can get around this by putting an ImageWindow inside a WindowsWindow
+
+
+
+
+Animation:
+
+
+
+
+
+
+Consider the case of calibrate4:
+  We want to have some customizations (caption, size) on the WindowsWindow
+  Therefore the WindowsWindow should be the one that is specified in the template argument of WindowProgram
+  The CalibrateWindow class should be responsible for adding any child windows that it needs
+
+
+
+
+
+When a window is clicked, give it focus and pass the click on to the child
+Handle capture
+Fix focus when child window with focus is removed
+  Have a null focus?
+    Null focus means that the focus is on the container window itself
+  Pass focus onto the next child?
+    Still need a null focus if there are no children remaining
+If a child has focus then the parent has focus as well
+
+
+
+
+
+How does invalidation work?
+  A window calls invalidate() to request that it be repainted
+  If it is a WindowsWindow this calls InvalidateRect
+  If it is a child window then it calls invalidate() on the parent window with the region
+
+
+
+How does resize work for a BitmapWindow
+
+
+
+Figure out animation
+  Assume a WM_TIMER message does an invalidate and a timer reset
+    i.e. just include the functionality in WindowsWindow
+  Or, should we allow any Window to be animated?
+    In that case, we might want to use thread rather than windows timer messages
+      thread is not interruptable (unless we do a WaitForObject kind of thing)
+  This kind of animation is one that automatically pauses if the window is covered - i.e. not synchronous with a simulation
+
+
+
+
+We would like to be able to write programs in an OS-native style or a portable style (and even mix styles)
+  OS-native style puts OS-native controls directly into a WindowsWindow
+  Portable style uses a BitmapWindow and draws controls on the bitmap
+
+
+Implement

@@ -169,12 +169,12 @@ public:
         {
             return implementation()->canConnectMultiple();
         }
-    private:
+    protected:
         class Implementation : public ::Type::Implementation
         {
         public:
             virtual bool compatible(Type other) const = 0;
-            virtual bool canConnectMultiple() const = 0;
+            virtual bool canConnectMultiple() const { return false; }
         };
         const Implementation* implementation() const
         {
@@ -184,6 +184,69 @@ public:
 
     virtual Type type() const = 0;
     virtual void connect(Connector* other) = 0;
+};
+
+class BitInputConnectorType;
+
+class BitOutputConnectorType
+  : public Nullary<Connector::Type, BitOutputConnectorType>
+{
+public:
+private:
+    class Implementation : public Connector::Type::Implementation
+    {
+    public:
+        bool compatible(Connector::Type other) const
+        {
+            return other == BitInputConnectorType();
+        }
+        bool canConnectorMultiple() const { return true; }
+    private:
+    };
+public:
+    static String name() { return "BitOutputConnector"; }
+};
+
+template<> Nullary<Connector::Type, BitOutputConnectorType>
+    Nullary<Connector::Type, BitOutputConnectorType>::_instance;
+
+class BitInputConnectorType
+    : public Nullary<Connector::Type, BitInputConnectorType>
+{
+public:
+private:
+    class Implementation : public Connector::Type::Implementation
+    {
+    public:
+        bool compatible(Connector::Type other) const
+        {
+            return other == BitOutputConnectorType();
+        }
+    private:
+    };
+public:
+    static String name() { return "BitInputConnector"; }
+};
+
+template<> Nullary<Connector::Type, BitInputConnectorType>
+    Nullary<Connector::Type, BitInputConnectorType>::_instance;
+
+class AndComponent : public Component
+{
+public:
+private:
+    BitInputConnector _input1;
+    BitInputConnector _input2;
+    BitInputConnector _output;
+};
+
+class OrComponent : public Component
+{
+public:
+private:
+    BitInputConnector _input1;
+    BitInputConnector _input2;
+    BitInputConnector _output;
 };
 
 template<class T> class SimulatorTemplate

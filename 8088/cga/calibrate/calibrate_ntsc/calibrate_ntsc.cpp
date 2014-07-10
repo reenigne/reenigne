@@ -3,11 +3,6 @@
 #include "alfe/terminal6.h"
 #include "alfe/complex.h"
 
-class CalibrateImage;
-
-typedef RootWindow<Window> RootWindow2;
-typedef ImageWindow<RootWindow2, CalibrateImage> ImageWindow2;
-
 class Slider
 {
 public:
@@ -94,9 +89,12 @@ class NTSCDecoder
 public:
     NTSCDecoder()
     {
-        contrast = 1.41; //1.97;
-        brightness = -11.0; //-72.8;
-        saturation = 0.303; //0.25;
+        //contrast = 1.41;
+        //brightness = -11.0;
+        //saturation = 0.303;
+        contrast = 1.97;
+        brightness = -72.8;
+        saturation = 0.25;
         hue = 0;
         wobbleAmplitude = 0;
         wobblePhase = 180;
@@ -267,23 +265,23 @@ public:
     Byte* _output;
 };
 
-class CalibrateImage : public Image
+class CalibrateBitmapWindow : public BitmapWindow
 {
 public:
-    void setWindow(ImageWindow2* window)
+    void create()
     {
-        _window = window;
+        setSize(Vector(1536, 1024));
 
         BitmapFileFormat<SRGB> png = PNGFileFormat();
-        _top1 = png.load(File("../../../../../top1.png"));
-        _top2 = png.load(File("../../../../../top2.png"));
-        _bottom1 = png.load(File("../../../../../bottom1.png"));
-        _bottom2 = png.load(File("../../../../../bottom2.png"));
+        _top1 = png.load(File("q:\\Pictures\\reenigne\\top1.png", true));
+        _top2 = png.load(File("q:\\Pictures\\reenigne\\top2.png", true));
+        _bottom1 = png.load(File("q:\\Pictures\\reenigne\\bottom1.png", true));
+        _bottom2 = png.load(File("q:\\Pictures\\reenigne\\bottom2.png", true));
         _output = Bitmap<SRGB>(Vector(1536, 1024));
         _rgb = ColourSpace::rgb();
 
-        AutoHandle ht = File("q:\\top.raw", true).openRead();
-        AutoHandle hb = File("q:\\bottom.raw", true).openRead();
+        AutoHandle ht = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
+        AutoHandle hb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
 
         static const int samples = 450*1024;
         static const int sampleSpaceBefore = 256;
@@ -325,16 +323,22 @@ public:
                 }
 
         _sliderCount = 4;
-        _sliders[0] = Slider(0, 1, 0.303 /*0.238*/, "saturation", &_saturation);
+        //_sliders[0] = Slider(0, 1, 0.303, "saturation", &_saturation);
+        //_sliders[1] = Slider(-180, 180, 0, "hue", &_hue);
+        //_sliders[2] = Slider(-255, 255, -11, "brightness", &_brightness);
+        //_sliders[3] = Slider(0, 4, 1.41, "contrast", &_contrast);
+        _sliders[0] = Slider(0, 1, 0.238, "saturation", &_saturation);
         _sliders[1] = Slider(-180, 180, 0, "hue", &_hue);
-        _sliders[2] = Slider(-255, 255, -11 /*-103.6*/, "brightness", &_brightness);
-        _sliders[3] = Slider(0, 4, 1.41 /*1.969*/, "contrast", &_contrast);
+        _sliders[2] = Slider(-255, 255, -103.6, "brightness", &_brightness);
+        _sliders[3] = Slider(0, 4, 1.969, "contrast", &_contrast);
 
         for (int i = 0; i < _sliderCount; ++i) {
             _sliders[i].setBitmap(_output.subBitmap(Vector(1024, i*8), Vector(512, 8)));
             _sliders[i].draw();
         }
         _slider = -1;
+
+        BitmapWindow::create();
     }
 
     virtual void draw()
@@ -349,8 +353,8 @@ public:
         decoder.setBuffers(&_bottomNTSC[0] + 256, _bottomDecoded.data());
         decoder.decode();
 
-        //File("q:\\top_decoded.raw",true).save(_topDecoded.data(), 760*240*3);
-        //File("q:\\bottom_decoded.raw",true).save(_bottomDecoded.data(), 760*240*3);
+        File("q:\\top_decoded.raw",true).save(_topDecoded.data(), 760*240*3);
+        File("q:\\bottom_decoded.raw",true).save(_bottomDecoded.data(), 760*240*3);
 
         for (int fg = 0; fg < 16; ++fg)
             for (int bg = 0; bg < 16; ++bg)
@@ -389,6 +393,21 @@ public:
         }
     }
 
+    bool mouseInput(Vector position, int buttons)
+    {
+        bool capture = false;
+        buttons &= MK_LBUTTON;
+        if (buttons != 0 && _buttons == 0)
+            capture = buttonDown(position);
+        if (buttons == 0 && _buttons != 0)
+            buttonUp(position);
+        if (_position != position)
+            mouseMove(position);
+        _position = position;
+        _buttons = buttons;
+        return capture;
+    }
+
     bool buttonDown(Vector position)
     {
         Vector p = position - Vector(1024, 0);
@@ -414,7 +433,7 @@ public:
             Vector p = position -= _dragStart;
             _sliders[_slider].slideTo(_dragStartX + p.x - p.y);
             draw();
-            _window->invalidate();
+            invalidate();
         }
     }
 
@@ -536,8 +555,6 @@ private:
     double _ab;
     Complex<double> _qamAdjust;
 
-    ImageWindow2* _window;
-
     Slider _sliders[19];
     int _slider;
     int _sliderCount;
@@ -551,73 +568,28 @@ private:
     double _contrast;
 
     Bitmap<Colour> _captures;
+
+    int _buttons;
+    Vector _position;
 };
 
-template<class Base> class CalibrateWindow : public Base
+class CalibrateWindow : public RootWindow
 {
 public:
-    class Params
+    void create()
     {
-        friend class CalibrateWindow;
-    public:
-        Params(typename Base::Params bp)
-          : _bp(bp)
-        { }
-    private:
-        typename Base::Params _bp;
-    };
-
-    CalibrateWindow() { }
-
-    void create(Params p)
-    {
-        Base::create(p._bp);
-        _image->setWindow(this);
+        add(&_bitmap);
+        RootWindow::create();
     }
-
-    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+    void keyboardCharacter(int character)
     {
-        switch (uMsg) {
-            case WM_LBUTTONDOWN:
-                if (_image->buttonDown(vectorFromLParam(lParam)))
-                    SetCapture(_hWnd);
-                break;
-            case WM_LBUTTONUP:
-                ReleaseCapture();
-                _image->buttonUp(vectorFromLParam(lParam));
-                break;
-            case WM_MOUSEMOVE:
-                _image->mouseMove(vectorFromLParam(lParam));
-                break;
-            case WM_KILLFOCUS:
-                ReleaseCapture();
-                break;
-        }
-        return Base::handleMessage(uMsg, wParam, lParam);
+        if (character == VK_ESCAPE)
+            _bitmap.remove();
     }
+    String initialCaption() const { return "CGA Calibration"; }
+    Vector initialSize() const { return Vector(1536, 1024); }
 private:
-    static Vector vectorFromLParam(LPARAM lParam)
-    {
-        return Vector(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-    }
+    CalibrateBitmapWindow _bitmap;
 };
 
-class Program : public ProgramBase
-{
-public:
-    void run()
-    {
-        CalibrateImage image;
-
-        Window::Params wp(&_windows, L"CGA Calibration", Vector(1536, 1024));
-        RootWindow2::Params rwp(wp);
-        ImageWindow2::Params iwp(rwp, &image);
-        typedef CalibrateWindow<ImageWindow2> CalibrateWindow;
-        CalibrateWindow::Params cwp(iwp);
-        CalibrateWindow window;
-        window.create(cwp);
-
-        window.show(_nCmdShow);
-        pumpMessages();
-    }
-};
+class Program : public WindowProgram<CalibrateWindow> { };

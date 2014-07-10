@@ -6,7 +6,7 @@ divisions/beat = 4 (fixed)
 beats/minute = ticks/minute / ticks/division / divisions/beat = 750 / ticks/division
 
 
-z  ticks/division  beats/minute
+z  ticks/division  beats/minute  (
 
 0  0               infinity
 1  1               750
@@ -42,6 +42,225 @@ z  ticks/division  beats/minute
 31 31               24.2
 32 32               23.4375
 
-33 22.7             33
-34 22.1             34
-255 2.9             255
+
+
+mt_TimerVal = 2.5*samplesPerSecond
+samplesPerFrame = samplesPerSecond/50
+framesPerSecond = 50
+
+    if (ch->n_cmd & 0x00FF)
+    {
+        mt_Counter = 0;
+
+        if (mt_TempoMode || ((ch->n_cmd & 0x00FF) < 32))
+            mt_Speed = ch->n_cmd & 0x00FF;
+        else
+            samplesPerFrame = (int16_t)(mt_TimerVal / (ch->n_cmd & 0x00FF));
+    }
+
+
+If playback routine is called from vblank (mt_TempoMode == VBLANK_TEMPO_MODE == 1), command 0xFXX with XX>=0x20 is not valid (pt2play.c gives it the same meaning as XX<0x20).
+If playback routine is called from CIA timer interrupt,
+  samplesPerFrame = 2.5*samplesPerSecond/XX
+  XX*PerFrame = 2.5*PerSecond
+  XX/2.5 = framesPerSecond
+  Default = 125 giving 50 frames per second
+
+ 32 = 12.8 ticks per second = minimum    N = 55420
+125 = 50   ticks per second = default        14187
+255 = 102  ticks per second = maximum         6954
+
+  32 = 0.078125 seconds per tick
+ 125 = 0.02     seconds per tick
+ 255 = 0.009804 seconds per tick
+
+  XX * seconds per tick = 2.5
+
+CIA timer frequency is 709379Hz/N
+
+So N = k/XX
+
+125*709379/50 = k = 1773447.5
+
+
+
+Each pattern is 1024 bytes
+Each pattern has 64 divisions, 16 bytes per division
+  Each division has 4 channels
+
+
+
+
+
+PAL colour carrier = 17734475/4
+Paula clock = 3546895 Hz PAL clock = 17734475/5 Hz
+CPU clock = 17734475/2.5
+17734475 = 25*(1135*625 + 4)
+
+
+
+NTSC rates:
+
+colour carrier = 39375000/11 = Paula clock
+CPU clock = 78750000/11
+
+
+
+
+
+Playback frequency is 3546895/period
+  Minimum period is 123 for a frequency of 28.837kHz
+
+
+
+
+    period = (pattData[0] << 8) | pattData[1];
+    command = (pattData[2] << 8) | pattData[3];
+
+
+
+
+
+
+
+  http://www.pouet.net/topic.php?which=4832&page=1
+  http://www.mediatel.lu/workshop/audio/fileformat/h_mod.html
+  http://coppershade.org/articles/More!/Topics/Protracker_Tempo/
+Three modes: Vic, Sid and Paula
+  Vic and Sid: Assume sample is periodic with single-oscillation   Paula: No sample assumptions
+  Vic: Match frequency, volume and instrument        Sid and Paula: Match volume and instrument
+Assume tick rate of 60Hz for Vic
+
+
+7654-3210 7654-3210 7654-3210 7654-3210
+wwww xxxxxxxxxxxxxx yyyy zzzzzzzzzzzzzz
+
+    wwwwyyyy (8 bits)  is the sample for this channel/division
+xxxxxxxxxxxx (12 bits) is the sample's period (or effect parameter)
+zzzzzzzzzzzz (12 bits) is the effect for this channel/division
+
+Effects are written as groups of 4 bits, eg. 1871 = 7 * 256 + 4 * 16 + 15 = [7][4][15].
+
+Effects:
+[0][x][y] Per-channel Arpeggio between note, note+x semitones, note+y semitones
+[1][ z  ] Per-channel Slide up by z after each tick
+[2][ z  ] Per-channel Slide down by z after each tick
+[3][ z  ] Per-channel Slide by z to specified period
+[4][x][y] Per-channel Vibrato in pitch, amplitude y/16 semitones, (x*ticks)/64 cycles occur in division
+[5][x][y] Per-channel Continue slide to note and do volume slide
+[6][x][y] Per-channel Continue vibrato and do volume slide
+[7][x][y] Per-channel Tremolo in volume, amplitude y*(ticks-1), (x*ticks)/64 cycles occur in division
+[8]
+[9][ z  ] Per-channel Set sample offset to z*256                                                              m
+[A][x][y] Per-channel Volume slide
+[B][ z  ] Global      Position jump at end of division                                                        m
+[C][ z  ] Per-channel Set volume to z                                                                         m
+[D][x][y] Global      Pattern Break (to x*10+y) at end of division                                            m
+[E][0][x] Global      Enable 7kHz low-pass filter if x is 0                                                   both
+[E][1][x] Per-channel Fineslide up (doesn't work?)                                                            both
+[E][2][x] Per-channel Fineslide down                                                                          both
+[E][3][x] Per-channel Enable glissando (slide by semitones) for slide to node if x=1                          both
+[E][4][x] Per-channel Set vibrato waveform                                                                    both
+[E][5][x] Per-channel Set finetune value to x                                                                 both
+[E][6][x] Global      Loop pattern                                                                            both
+[E][7][x] Per-channel Set tremolo waveform                                                                    both
+[E][8]
+[E][9][x] Per-channel Retrigger sample every x ticks                                                          both
+[E][A][x] Per-channel Fine volume slide up                                                                    both
+[E][B][x] Per-channel Fine volume slide down                                                                  both
+[E][C][x] Per-channel Cut sample after x ticks                                                                both
+[E][D][x] Per-channel Delay sample by x ticks                                                                 both
+[E][E][x] Global      Delay pattern by x divisions                                                            both
+[E][F][x] Per-channel Invert Loop                                                                             both
+[F][ z  ] Global      Set speed                                                                               m
+
+
+      0,-48,-46,-42,-42,-38,-36,-34,-32,-30,-28,-27,-25,-24,-23,-21,-21,-19,-18,-17,-16,-15,-14,-14,-12,-12,-12,-10,-10,-10, -9, -8, -8, -8, -7, -7,
+     -6,-48,-45,-42,-41,-37,-36,-34,-32,-30,-28,-27,-25,-24,-22,-22,-20,-19,-18,-16,-16,-15,-14,-14,-12,-12,-12,-10,-10,-10, -9, -8, -8, -8, -7, -6,
+    -12,-48,-44,-43,-39,-38,-35,-34,-31,-30,-28,-27,-25,-24,-22,-21,-20,-19,-18,-16,-16,-15,-14,-13,-13,-12,-11,-11,-10, -9,- 9, -8, -8, -8, -7, -6,
+    -18,-47,-45,-42,-39,-37,-36,-33,-31,-30,-28,-26,-25,-24,-22,-21,-20,-18,-18,-16,-16,-15,-14,-13,-13,-11,-11,-11,-10, -9, -9, -8, -8, -7, -7, -7,
+    -24,-47,-44,-42,-39,-37,-35,-33,-31,-29,-28,-26,-25,-24,-22,-20,-20,-18,-18,-16,-16,-15,-14,-13,-12,-12,-11,-10,-10, -9, -9, -8, -8, -7, -7, -7,
+    -30,-47,-43,-42,-39,-36,-35,-33,-31,-29,-28,-26,-24,-23,-22,-21,-19,-19,-17,-16,-16,-15,-13,-13,-13,-11,-11,-10,-10, -9, -9, -8, -8, -7, -7, -7,
+    -36,-46,-44,-41,-38,-37,-34,-33,-31,-29,-27,-26,-24,-23,-22,-20,-20,-18,-17,-16,-16,-14,-14,-13,-12,-12,-10,-11, -9, -9, -9, -8, -8, -7, -7, -6,
+    -42,-46,-43,-41,-38,-36,-35,-32,-30,-29,-27,-26,-24,-23,-21,-21,-19,-18,-17,-16,-16,-14,-14,-12,-12,-12,-11,-10,-10, -9, -8, -8, -8, -7, -7, -6,
+     51,-51,-48,-46,-42,-42,-38,-36,-34,-32,-30,-28,-27,-25,-24,-23,-21,-21,-19,-18,-17,-16,-15,-14,-14,-12,-12,-12,-10,-10,-10, -9, -8, -8, -8, -7,
+     44,-50,-48,-45,-42,-40,-39,-35,-34,-32,-30,-28,-27,-25,-24,-22,-22,-20,-19,-18,-16,-16,-15,-15,-13,-13,-12,-11,-10,-10,-10, -9, -8, -8, -8, -7,
+     38,-50,-48,-44,-43,-39,-38,-35,-34,-31,-30,-28,-27,-25,-24,-22,-21,-20,-19,-18,-16,-16,-15,-14,-14,-12,-12,-11,-11,-10, -9, -9, -8, -8, -8, -7,
+     31,-49,-47,-45,-42,-39,-37,-36,-33,-31,-30,-28,-26,-25,-24,-22,-21,-20,-18,-18,-16,-16,-15,-14,-13,-13,-11,-11,-11,-10, -9, -9, -8, -8, -7, -7,
+     25,-49,-47,-44,-42,-39,-37,-35,-33,-31,-30,-27,-26,-25,-24,-22,-20,-20,-18,-18,-16,-16,-15,-14,-13,-12,-12,-11,-10,-10, -9, -9, -8, -8, -8, -6,
+     19,-49,-47,-43,-42,-39,-36,-35,-33,-31,-29,-28,-26,-24,-23,-22,-21,-19,-19,-17,-16,-16,-15,-13,-13,-13,-11,-11,-10,-10, -9, -9, -8, -8, -7, -7,
+     12,-48,-46,-44,-41,-38,-37,-34,-33,-31,-29,-27,-26,-24,-23,-22,-20,-20,-18,-17,-16,-16,-14,-14,-13,-12,-12,-10,-11, -9, -9, -9, -8, -8, -7, -7,
+      6,-48,-46,-43,-41,-38,-36,-35,-32,-30,-29,-27,-26,-24,-23,-21,-21,-19,-18,-17,-16,-16,-14,-14,-12,-13,-11,-11,-10,-10, -9, -8, -8, -8, -7, -7
+
+
+
+Simplifications:
+  No filter
+  Don't implement any effects until needed
+
+
+
+856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453, 428, 404, 381, 360, 339, 320, 302, 285, 269, 254, 240, 226, 214, 202, 190, 180, 170, 160, 151, 143, 135, 127, 120, 113,
+850, 802, 757, 715, 674, 637, 601, 567, 535, 505, 477, 450, 425, 401, 379, 357, 337, 318, 300, 284, 268, 253, 239, 225, 213, 201, 189, 179, 169, 159, 150, 142, 134, 126, 119, 113,
+844, 796, 752, 709, 670, 632, 597, 563, 532, 502, 474, 447, 422, 398, 376, 355, 335, 316, 298, 282, 266, 251, 237, 224, 211, 199, 188, 177, 167, 158, 149, 141, 133, 125, 118, 112,
+838, 791, 746, 704, 665, 628, 592, 559, 528, 498, 470, 444, 419, 395, 373, 352, 332, 314, 296, 280, 264, 249, 235, 222, 209, 198, 187, 176, 166, 157, 148, 140, 132, 125, 118, 111,
+832, 785, 741, 699, 660, 623, 588, 555, 524, 495, 467, 441, 416, 392, 370, 350, 330, 312, 294, 278, 262, 247, 233, 220, 208, 196, 185, 175, 165, 156, 147, 139, 131, 124, 117, 110,
+826, 779, 736, 694, 655, 619, 584, 551, 520, 491, 463, 437, 413, 390, 368, 347, 328, 309, 292, 276, 260, 245, 232, 219, 206, 195, 184, 174, 164, 155, 146, 138, 130, 123, 116, 109,
+820, 774, 730, 689, 651, 614, 580, 547, 516, 487, 460, 434, 410, 387, 365, 345, 325, 307, 290, 274, 258, 244, 230, 217, 205, 193, 183, 172, 163, 154, 145, 137, 129, 122, 115, 109,
+814, 768, 725, 684, 646, 610, 575, 543, 513, 484, 457, 431, 407, 384, 363, 342, 323, 305, 288, 272, 256, 242, 228, 216, 204, 192, 181, 171, 161, 152, 144, 136, 128, 121, 114, 108,
+907, 856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453, 428, 404, 381, 360, 339, 320, 302, 285, 269, 254, 240, 226, 214, 202, 190, 180, 170, 160, 151, 143, 135, 127, 120,
+900, 850, 802, 757, 715, 675, 636, 601, 567, 535, 505, 477, 450, 425, 401, 379, 357, 337, 318, 300, 284, 268, 253, 238, 225, 212, 200, 189, 179, 169, 159, 150, 142, 134, 126, 119,
+894, 844, 796, 752, 709, 670, 632, 597, 563, 532, 502, 474, 447, 422, 398, 376, 355, 335, 316, 298, 282, 266, 251, 237, 223, 211, 199, 188, 177, 167, 158, 149, 141, 133, 125, 118,
+887, 838, 791, 746, 704, 665, 628, 592, 559, 528, 498, 470, 444, 419, 395, 373, 352, 332, 314, 296, 280, 264, 249, 235, 222, 209, 198, 187, 176, 166, 157, 148, 140, 132, 125, 118,
+881, 832, 785, 741, 699, 660, 623, 588, 555, 524, 494, 467, 441, 416, 392, 370, 350, 330, 312, 294, 278, 262, 247, 233, 220, 208, 196, 185, 175, 165, 156, 147, 139, 131, 123, 117,
+875, 826, 779, 736, 694, 655, 619, 584, 551, 520, 491, 463, 437, 413, 390, 368, 347, 328, 309, 292, 276, 260, 245, 232, 219, 206, 195, 184, 174, 164, 155, 146, 138, 130, 123, 116,
+868, 820, 774, 730, 689, 651, 614, 580, 547, 516, 487, 460, 434, 410, 387, 365, 345, 325, 307, 290, 274, 258, 244, 230, 217, 205, 193, 183, 172, 163, 154, 145, 137, 129, 122, 115,
+862, 814, 768, 725, 684, 646, 610, 575, 543, 513, 484, 457, 431, 407, 384, 363, 342, 323, 305, 288, 272, 256, 242, 228, 216, 203, 192, 181, 171, 161, 152, 144, 136, 128, 121, 114,
+
+int8_t pt2play_Init(uint32_t outputFreq, int8_t interpolation)
+  static int8_t openMixer(uint32_t _samplingFrequency, uint32_t _soundBufferSize)
+    static void CALLBACK waveOutProc(HWAVEOUT _hWaveOut, UINT uMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
+      static void mixSampleBlock(int16_t *streamOut, uint32_t numSamples)
+      static void mt_MusicIRQ(void)
+        static void mt_PlayVoice(PT_CHN *ch)
+          static void mt_SetPeriod(PT_CHN *ch)
+            static void mt_CheckMoreEfx(PT_CHN *ch)
+          static void mt_CheckMoreEfx(PT_CHN *ch)
+        static inline void mt_NextPosition(void)
+        static void mt_CheckEfx(PT_CHN *ch)
+void pt2play_Play(uint8_t *modData, int8_t tempoMode)
+  static void mt_Init(uint8_t *mt_Data)
+  static void mt_genPans(int8_t stereoSeparation)
+    static inline float cosApx(float x)
+    static inline float sinApx(float x)
+void pt2play_Close(void)
+
+static void mt_CheckEfx(PT_CHN *ch)
+  static void mt_Vibrato(PT_CHN *ch)                 4
+    static void mt_VibratoNoChange(PT_CHN *ch)
+  static void mt_TonePlusVolSlide(PT_CHN *ch)        5
+  static void mt_VibratoPlusVolSlide(PT_CHN *ch)     6
+  static void mt_Tremolo(PT_CHN *ch)                 7
+  static void mt_E_Commands(PT_CHN *ch)              E
+static void mt_CheckMoreEfx(PT_CHN *ch)
+  static void mt_SampleOffset(PT_CHN *ch)            9
+  static void mt_E_Commands(PT_CHN *ch)              E
+
+
+
+0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,-1, 0,-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0,-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

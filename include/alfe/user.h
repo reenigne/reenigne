@@ -30,7 +30,8 @@ public:
         wc.hCursor = LoadCursor(NULL, IDC_ARROW);
         wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
         wc.lpszMenuName = NULL;
-        wc.lpszClassName = caption();
+        NullTerminatedWideString c(caption());
+        wc.lpszClassName = c;
         _classAtom = RegisterClass(&wc);
         IF_ZERO_THROW(_classAtom);
     }
@@ -50,7 +51,7 @@ public:
             throw _exception;
     }
 
-    LPCWSTR caption() const { return L"ALFE Window"; }
+    String caption() const { return "ALFE Window"; }
 
 private:
     static LRESULT CALLBACK wndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
@@ -77,14 +78,15 @@ private:
                     window = getContext(hWnd);
                     window->destroy();
                     window->remove();
-                    delete window;
+                    // delete window;
                     window = 0;
                     setContext(hWnd, 0);
                     break;
                 case WM_COMMAND:
                     switch (HIWORD(wParam)) {
                         case BN_CLICKED:
-                            dynamic_cast<Button*>(getContext(reinterpret_cast<HWND>(lParam)))
+                            dynamic_cast<Button*>(
+                                getContext(reinterpret_cast<HWND>(lParam)))
                                 ->clicked();
                             break;
                     }
@@ -139,58 +141,164 @@ Exception Windows::_exception;
 template<class T> class PaintHandleTemplate;
 typedef PaintHandleTemplate<void> PaintHandle;
 
-class Window : public LinkedListMember<Window>
+class ContainerWindow;
+
+template<class T> class WindowTemplate;
+typedef WindowTemplate<void> Window;
+
+template<class T> class WindowTemplate
+  : public LinkedListMember<WindowTemplate<T>>
 {
 public:
-    Window() : _added(false), _parent(0) { }
-    void outerCreate()
-    {
-        doCreate();
-        Window* window = _container.getNext();
-        while (window != 0) {
-            window->setWindows(_windows);
-            window->setParent(this);
-            window->outerCreate();
-            window = _container.getNext(window);
-        }
-    }
+    WindowTemplate() : _parent(0), _topLeft(Vector(0, 0)) { }
+    ~WindowTemplate() { remove(); }
+    virtual void create() = 0;
     void setWindows(Windows* windows) { _windows = windows; }
-    void add(Window* window) { _container.add(window); window->_added = true; }
-    void remove()
-    {
-        if (_added) {
-            LinkedListMember::remove(); 
-            _added = false;
-        }
-        if (_parent != 0)
-            _parent->removed();
-    }
-    virtual void removed() { }
-    ~Window() { remove(); }
-    void setParent(Window* window) { _parent = window; }
-    virtual void doCreate() { create(); }
-    virtual void create() { }
-    virtual void doPaint(PaintHandle* paintHandle)
-    {
-        paint(paintHandle);
-        Window* window = _container.getNext();
-        while (window != 0) {
-            window->doPaint(paintHandle);
-            window = _container.getNext(window);
-        }
-    }
+    Windows* windows() const { return _windows; }
+    void setParent(ContainerWindow* window) { _parent = window; }
+    ContainerWindow* parent() const { return _parent; }
     virtual void paint(PaintHandle* paintHandle) { }
-    Vector getSize() const { return _size; }
+    void setSize(Vector size) { _size = size; }
+    Vector size() const { return _size; }
+    Vector topLeft() const { return _topLeft; }
     virtual void resize() { }
     virtual void doneResize() { }
+    virtual void keyboardCharacter(int character) { }
+    virtual void draw(Bitmap<DWORD> bitmap) { }
+
+    // mouseInput() should return true if the mouse should be captured
+    virtual bool mouseInput(Vector position, int buttons) { return false; }
+    virtual void releaseCapture() { }
+    void remove()
+    {
+        if (_parent != 0) {
+            _parent->childRemoved(this);
+            LinkedListMember::remove();
+        }
+    }
+
+    virtual void invalidate() { invalidateRectangle(Vector(0, 0), _size); }
+    virtual void invalidateRectangle(Vector topLeft, Vector size)
+    {
+        _parent->invalidateRectangle(_topLeft + topLeft, size);
+    }
+private:
+    Windows* _windows;
+    ContainerWindow* _parent;
+    Vector _size;
+    Vector _topLeft;
+};
+
+class ContainerWindow : public Window
+{
+public:
+    ContainerWindow() : _focus(0), _capture(0) { }
+    void create()
+    {
+        Window* window = _container.getNext();
+        while (window != 0) {
+            window->setWindows(windows());
+            window->setParent(this);
+            window->create();
+            window = _container.getNext(window);
+        }
+    }
+    void remove()
+    {
+        Window* window = _container.getNext();
+        while (window != 0) {
+            window->remove();
+            window = _container.getNext(window);
+        }
+        Window::remove();
+    }
+    void add(Window* window)
+    {
+        _container.add(window);
+        window->setParent(this);
+        if (_focus == 0)
+            _focus = window;
+    }
+    virtual void childRemoved(Window* child)
+    {
+        if (_focus == child) {
+            _focus = _container.getNext(child);
+            if (_focus == 0) {
+                // No more windows after child, try starting from the beginning
+                // again.
+                _focus = _container.getNext();
+                if (_focus == child) {
+                    // It's an only child, so there's nowhere left to put the
+                    // focus.
+                    _focus = 0;
+                }
+            }
+        }
+    }
+    void paint(PaintHandle* paintHandle)
+    {
+        Window* window = _container.getNext();
+        while (window != 0) {
+            window->paint(paintHandle);
+            window = _container.getNext(window);
+        }
+    }
+    void draw(Bitmap<DWORD> bitmap)
+    {
+        Window* window = _container.getNext();
+        while (window != 0) {
+            window->draw(bitmap.subBitmap(window->topLeft(), window->size()));
+            window = _container.getNext(window);
+        }
+    }
+    void keyboardCharacter(int character)
+    {
+        if (_focus != 0)
+            _focus->keyboardCharacter(character);
+    }
+    bool mouseInput(Vector position, int buttons)
+    {
+        // If the mouse is captured, send the input to the capturing window
+        if (_capture != 0) {
+            _capture->mouseInput(position - _capture->topLeft(), buttons);
+            if (buttons == 0)
+                releaseCapture();
+            return false;
+        }
+        // Otherwise, send the input the window under the mouse
+        Window* window = windowForPosition(position);
+        if (window != 0) {
+            bool capture =
+                window->mouseInput(position - window->topLeft(), buttons);
+            if ((buttons & ~_buttons) != 0) {
+                // A button is newly pressed - put focus on this child window
+                _focus = window;
+            }
+            _buttons = buttons;
+            if (capture)
+                _capture = window;
+            return capture;
+        }
+        return false;
+    }
+    void releaseCapture() { _capture = 0; }
 
 protected:
-    Windows* _windows;
     LinkedList<Window> _container;
-    Window* _parent;
-    Vector _size;
+    Window* _focus;
+    Window* _capture;
+    int _buttons;
 private:
-    bool _added;
+    Window* windowForPosition(Vector p)
+    {
+        Window* window = _container.getNext();
+        while (window != 0) {
+            if ((p - window->topLeft()).inside(window->size()))
+                return window;
+            window = _container.getNext(window);
+        }
+        return 0;
+    }
 };
 
 
@@ -258,28 +366,29 @@ private:
 };
 
 
-class WindowsWindow : public Window
+class WindowsWindow : public ContainerWindow
 {
     friend class WindowsTemplate<void>;
 public:
     WindowsWindow() : _hdc(NULL), _hWnd(NULL), _resizing(false) { }
 
-    virtual void doCreate()
+    virtual void create()
     {
-        create();
         reset();
         Vector size = initialSize();
         Vector position = initialPosition();
 
-        WindowsWindow* parent = dynamic_cast<WindowsWindow*>(_parent);
+        WindowsWindow* p = dynamic_cast<WindowsWindow*>(parent());
         HWND hWndParent = NULL;
-        if (parent != 0)
-            hWndParent = parent->hWnd();
+        if (p != 0)
+            hWndParent = p->hWnd();
+
+        NullTerminatedWideString caption(initialCaption());
 
         _hWnd = CreateWindowEx(
             initialExtendedStyle(),   // dwExStyle
             className(),              // lpClassName
-            initialCaption(),         // lpWindowName
+            caption,                  // lpWindowName
             initialStyle(),           // dwStyle
             position.x,               // x
             position.y,               // y
@@ -287,7 +396,7 @@ public:
             size.y,                   // nHeight
             hWndParent,               // hWndParent
             initialMenu(),            // hMenu
-            _windows->instance(),     // hInstance
+            windows()->instance(),    // hInstance
             this);                    // lpParam
         IF_NULL_THROW(_hWnd);
         _hdc = GetDC(_hWnd);
@@ -295,14 +404,23 @@ public:
         Windows::setContext(_hWnd, this);
         RECT rect;
         IF_ZERO_THROW(GetClientRect(_hWnd, &rect));
-        _size = Vector(rect.right, rect.bottom);
+        setSize(Vector(rect.right, rect.bottom));
+        ContainerWindow::create();
     }
 
     ~WindowsWindow() { reset(); }
 
     void show(int nShowCmd) { ShowWindow(_hWnd, nShowCmd); }
 
-    void invalidate() { IF_ZERO_THROW(InvalidateRect(_hWnd, NULL, FALSE)); }
+    void invalidateRectangle(Vector topLeft, Vector size)
+    {
+        RECT rect;
+        rect.left = topLeft.x;
+        rect.top = topLeft.y;
+        rect.right = topLeft.x + size.x;
+        rect.bottom = topLeft.y + size.y;
+        IF_ZERO_THROW(InvalidateRect(_hWnd, &rect, FALSE));
+    }
 
     void outerResize(Vector size)
     {
@@ -317,7 +435,11 @@ public:
             SWP_NOACTIVATE | SWP_NOREPOSITION));  // uFlags
     }
 
-    void setText(LPCTSTR text) { IF_ZERO_THROW(SetWindowText(_hWnd, text)); }
+    void setText(String text)
+    {
+        NullTerminatedWideString w(text);
+        IF_ZERO_THROW(SetWindowText(_hWnd, w));
+    }
 
     HWND hWnd() const { return _hWnd; }
 
@@ -356,13 +478,13 @@ protected:
                 {
                     PaintHandle paintHandle(this);
                     if (!paintHandle.zeroArea())
-                        doPaint(&paintHandle);
+                        paint(&paintHandle);
                 }
                 return 0;
             case WM_SIZE:
                 {
-                    _size = VectorFromLParam(lParam);
-                    if (!_size.zeroArea()) {
+                    setSize(vectorFromLParam(lParam));
+                    if (!size().zeroArea()) {
                         resize();
                         invalidate();
                         _resizing = true;
@@ -374,16 +496,37 @@ protected:
                     doneResize();
                 _resizing = false;
                 break;
+            case WM_LBUTTONDOWN:
+            case WM_LBUTTONUP:
+            case WM_RBUTTONDOWN:
+            case WM_RBUTTONUP:
+            case WM_MBUTTONDOWN:
+            case WM_MBUTTONUP:
+            case WM_MOUSEMOVE:
+                if (mouseInput(vectorFromLParam(lParam), wParam))
+                    SetCapture(_hWnd);
+                break;
+            case WM_CHAR:
+                keyboardCharacter(wParam);
+                break;
+            case WM_KILLFOCUS:
+                releaseCapture();
+                break;
         }
         return DefWindowProc(_hWnd, uMsg, wParam, lParam);
     }
-
-    static Vector VectorFromLParam(LPARAM lParam)
+    void releaseCapture()
+    {
+        ReleaseCapture();
+        ContainerWindow::releaseCapture();
+    }
+                                              
+    static Vector vectorFromLParam(LPARAM lParam)
     {
         return Vector(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
     }
 
-    virtual LPCWSTR className() const { return _windows->className(); }
+    virtual LPCWSTR className() const { return windows()->className(); }
     virtual HMENU initialMenu() const { return NULL; }
     virtual Vector initialSize() const
     {
@@ -393,7 +536,7 @@ protected:
     {
         return Vector(CW_USEDEFAULT, CW_USEDEFAULT);
     }
-    virtual LPCWSTR initialCaption() const { return _windows->caption(); }
+    virtual String initialCaption() const { return windows()->caption(); }
     virtual DWORD initialStyle() const { return WS_OVERLAPPEDWINDOW; }
     virtual DWORD initialExtendedStyle() const { return 0; }
 
@@ -401,6 +544,21 @@ protected:
 private:
     HDC _hdc;
     bool _resizing;
+};
+
+
+class RootWindow : public WindowsWindow
+{
+public:
+    void childRemoved(Window* child)
+    {
+        if (_container.getNext(child) == 0 && _container.getNext() == child) {
+            // Once there are no more child windows left, the thread must
+            // end.
+            PostQuitMessage(0);
+        }
+        WindowsWindow::childRemoved(child);
+    }
 };
 
 
@@ -429,40 +587,6 @@ private:
 };
 
 
-//template<class Base> class RootWindow : public Base
-//{
-//public:
-//    class Params
-//    {
-//        friend class RootWindow;
-//    public:
-//        Params(typename Base::Params bp) : _bp(bp) { }
-//    private:
-//        typename Base::Params _bp;
-//    };
-//
-//    void create(Params p) { Base::create(p._bp); }
-//
-//protected:
-//    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
-//    {
-//        switch (uMsg) {
-//            case WM_KEYDOWN:
-//                if (wParam == VK_ESCAPE)
-//                    destroy();
-//        }
-//
-//        return Base::handleMessage(uMsg, wParam, lParam);
-//    }
-//
-//    void destroy()
-//    {
-//        // Death of the root window ends the thread
-//        PostQuitMessage(0);
-//    }
-//};
-
-
 class WindowDeviceContext : public DeviceContext
 {
 public:
@@ -477,210 +601,133 @@ private:
 };
 
 
-template<class ImageType> class ImageWindow : public Window
+class BitmapWindow : public ContainerWindow
 {
 public:
-    ImageWindow() : _resizing(false) { }
+    BitmapWindow() : _resizing(false) { }
+
+    void create()
+    {
+        ZeroMemory(&_bmi, sizeof(BITMAPINFO));
+        _bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        _bmi.bmiHeader.biPlanes = 1;
+        _bmi.bmiHeader.biBitCount = 32;
+        _bmi.bmiHeader.biCompression = BI_RGB;
+        _bmi.bmiHeader.biSizeImage = 0;
+        _bmi.bmiHeader.biXPelsPerMeter = 0;
+        _bmi.bmiHeader.biYPelsPerMeter = 0;
+        _bmi.bmiHeader.biClrUsed = 0;
+        _bmi.bmiHeader.biClrImportant = 0;
+        resize();
+    }
+
+    void resize()
+    {
+        Vector s = size();
+        _bmi.bmiHeader.biWidth = s.x;
+        _bmi.bmiHeader.biHeight = -s.y;
+        _bitmap = Bitmap<DWORD>(s);
+        draw();
+    }
 
     // doPaint is called only when the area is non-zero. Subclasses can get
     // zero-area WM_PAINT notifications by handling WM_PAINT in their
     // handleMessage() overrides.
-    virtual void doPaint(PaintHandle* paint)
+    virtual void paint(PaintHandle* paint)
     {
-        _image->paint(*paint);
+        if (!_bitmap.valid())
+            return;
+        Vector topLeft = paint->topLeft();
+        Vector bottomRight = paint->bottomRight();
+        Vector paintSize = bottomRight - topLeft;
+        Vector s = size();
+        IF_ZERO_THROW(SetDIBitsToDevice(
+            paint->hDC(),
+            topLeft.x,
+            topLeft.y,
+            paintSize.x,
+            paintSize.y,
+            topLeft.x,
+            (s - bottomRight).y,
+            0,
+            s.y,
+            _bitmap.data(),
+            &_bmi,
+            DIB_RGB_COLORS));
+        ContainerWindow::paint(paint);
     }
-    virtual void destroy() { _image->destroy(); Base::destroy(); }
+
+    virtual void draw() = 0;
+
+    //Vector size() const { return _bitmap.size(); }
+    int stride() const { return _bitmap.stride(); }
+    const Byte* data() const { return _bitmap.data(); }
+    Byte* data() { return _bitmap.data(); }
 
 protected:
-    //virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
-    //{
-    //    switch (uMsg) {
-    //        case WM_PAINT:
-    //            {
-    //                PaintHandle paint(*this);
-    //                if (!paint.zeroArea())
-    //                    doPaint(&paint);
-    //            }
-    //            return 0;
-    //        case WM_SIZE:
-    //            {
-    //                Vector size = VectorFromLParam(lParam);
-    //                if (!size.zeroArea()) {
-    //                    _image->resize(size);
-    //                    invalidate();
-    //                    _resizing = true;
-    //                }
-    //            }
-    //            break;
-    //        case WM_EXITSIZEMOVE:
-    //            if (_resizing)
-    //                _image->doneResize();
-    //            _resizing = false;
-    //            break;
-    //    }
-    //    return Base::handleMessage(uMsg, wParam, lParam);
-    //}
+    Bitmap<DWORD> _bitmap;
 
-    ImageType* _image;
 private:
     bool _resizing;
+    BITMAPINFO _bmi;
 };
 
+class AnimationThread : public Thread
+{
+public:
+    AnimationThread()
+      : _timerExpired(true), _delta(0), _lastTickCount(0), _period(0.05f)
+    { }
+    void setWindow(Window* window) { _window = window; }
+    void setRate(float rate) { _period = 1000.0f/rate; }
+    void threadProc()
+    {
+        bool interrupted;
+        do {
+            _start.wait();
+            _start.reset();
+            _window->invalidate();
 
-//class Image : public Bitmap<DWORD>
-//{
-//public:
-//    Image() { }
-//    Image(Vector size) : Bitmap(size)
-//    {
-//        if (size.x == 0 || size.y == 0)
-//            return;
-//
-//        ZeroMemory(&_bmi, sizeof(BITMAPINFO));
-//        _bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-//        _bmi.bmiHeader.biWidth = size.x;
-//        _bmi.bmiHeader.biHeight = -size.y;
-//        _bmi.bmiHeader.biPlanes = 1;
-//        _bmi.bmiHeader.biBitCount = 32;
-//        _bmi.bmiHeader.biCompression = BI_RGB;
-//        _bmi.bmiHeader.biSizeImage = 0;
-//        _bmi.bmiHeader.biXPelsPerMeter = 0;
-//        _bmi.bmiHeader.biYPelsPerMeter = 0;
-//        _bmi.bmiHeader.biClrUsed = 0;
-//        _bmi.bmiHeader.biClrImportant = 0;
-//
-//        draw();
-//    }
-//
-//    void resize(Vector newSize)
-//    {
-//        if (newSize != size()) {
-//            Image image(newSize);
-//            swap(image, *this);
-//            doResize();
-//            draw();
-//        }
-//    }
-//
-//    void paint(const PaintHandle& paint)
-//    {
-//        if (!valid())
-//            return;
-//        Vector topLeft = paint.topLeft();
-//        Vector bottomRight = paint.bottomRight();
-//        Vector paintSize = bottomRight - topLeft;
-//        Vector s = size();
-//        IF_ZERO_THROW(SetDIBitsToDevice(
-//            paint,
-//            topLeft.x,
-//            topLeft.y,
-//            paintSize.x,
-//            paintSize.y,
-//            topLeft.x,
-//            (s - bottomRight).y,
-//            0,
-//            s.y,
-//            data(),
-//            &_bmi,
-//            DIB_RGB_COLORS));
-//    }
-//
-//    virtual void draw() { }
-//
-//    virtual void doneResize() { }
-//
-//    virtual void destroy() { }
-//private:
-//    BITMAPINFO _bmi;
-//
-//protected:
-//    virtual void doResize() { }
-//};
-//
-//
-//template<class Base> class AnimatedWindow : public Base
-//{
-//public:
-//    class Params
-//    {
-//        friend class AnimatedWindow;
-//    public:
-//        Params(typename Base::Params bp, float rate = 20.0f)
-//          : _bp(bp),
-//            _rate(rate)
-//        { }
-//    private:
-//        typename Base::Params _bp;
-//        float _rate;
-//    };
-//
-//    AnimatedWindow() : _timerExpired(true), _delta(0), _lastTickCount(0) { }
-//
-//    void create(Params p)
-//    {
-//        _period = 1000.0f/p._rate;
-//        Base::create(p._bp);
-//    }
-//
-//protected:
-//    virtual void doPaint(PaintHandle* paint)
-//    {
-//        if (_timerExpired) {
-//            DWORD tickCount = GetTickCount();
-//            _delta += static_cast<float>(tickCount - _lastTickCount);
-//            _lastTickCount = tickCount;
-//            int ms = static_cast<int>(-_delta);
-//            _delta -= _period;
-//            if (ms < -2.0f*_period) {
-//                // Rather than trying to catch up by generating lots of
-//                // events, we'll reset the clock if we're running too
-//                // far behind.
-//                _delta = 0;
-//                ms = 0;
-//            }
-//            if (ms > 2.0f*max(
-//                _period, static_cast<float>(USER_TIMER_MINIMUM))) {
-//                // Chances are we're starting up and the tick count
-//                // wrapped.
-//                _delta = 0;
-//                ms = static_cast<int>(_period) + 1;
-//            }
-//            if (ms < 0)
-//                ms = 0;
-//            if (ms >= USER_TIMER_MINIMUM) {
-//                _timer =
-//                    SetTimer(_hWnd, 1, static_cast<UINT>(ms), NULL);
-//                IF_ZERO_THROW(_timer);
-//            }
-//            else
-//                PostMessage(_hWnd, WM_TIMER, 1, 0);
-//            _timerExpired = false;
-//        }
-//        Base::doPaint(paint);
-//    }
-//
-//    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
-//    {
-//        switch (uMsg) {
-//            case WM_TIMER:
-//                if (wParam == 1) {
-//                    invalidate();
-//                    KillTimer(_hWnd, _timer);
-//                    _timerExpired = true;
-//                }
-//                break;
-//        }
-//        return Base::handleMessage(uMsg, wParam, lParam);
-//    }
-//
-//private:
-//    UINT_PTR _timer;
-//    bool _timerExpired;
-//    float _period;
-//    float _delta;
-//    DWORD _lastTickCount;
-//};
-
+            DWORD tickCount = GetTickCount();
+            _delta += static_cast<float>(tickCount - _lastTickCount);
+            _lastTickCount = tickCount;
+            int ms = static_cast<int>(-_delta);
+            _delta -= _period;
+            if (ms < -2.0f*_period) {
+                // Rather than trying to catch up by generating lots of
+                // events, we'll reset the clock if we're running too
+                // far behind.
+                _delta = 0;
+                ms = 0;
+            }
+            if (ms > 2.0f*_period) {
+                // Chances are we're starting up and the tick count
+                // wrapped.
+                _delta = 0;
+                ms = static_cast<int>(_period);
+            }
+            if (ms < 0)
+                ms = 0;
+            interrupted = _interrupt.wait(ms);
+        } while (!interrupted);
+    }
+    void onPaint() { _start.signal(); }
+    void close()
+    {
+        _interrupt.signal();
+        _start.signal();
+    }
+    ~AnimationThread() { close(); }
+private:
+    UINT_PTR _timer;
+    bool _timerExpired;
+    float _period;
+    float _delta;
+    DWORD _lastTickCount;
+    Window* _window;
+    Event _start;
+    Event _interrupt;
+};
 
 class Pen
 {

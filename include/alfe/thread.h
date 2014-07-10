@@ -13,9 +13,13 @@ public:
         Handle::operator=(AutoHandle(handle));
     }
     void signal() { IF_ZERO_THROW(SetEvent(operator HANDLE())); }
-    void wait()
+    bool wait(DWORD time = INFINITE)
     {
-        IF_FALSE_THROW(WaitForSingleObject(operator HANDLE(), INFINITE) == 0);
+        DWORD r = WaitForSingleObject(operator HANDLE(), time);
+        if (r == 0)
+            return true;
+        IF_FALSE_THROW(r == WAIT_TIMEOUT);
+        return false;
     }
     void reset()
     {

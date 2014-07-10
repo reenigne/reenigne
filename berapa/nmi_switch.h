@@ -25,6 +25,25 @@ public:
         _active = (*members)["active"].value<bool>();
     }
     bool nmiOn() const { return _nmiOn; }
+    TypedValue getValue(Identifier name)
+    {
+        if (name.name() == "bus")
+            return &_connector;
+        return ISA8BitComponent::getValue(name);
+    }
+
+    class ValueConnector : public Connector
+    {
+    public:
+        ValueConnector(NMISwitch* component) : _component(component) { }
+        void connect(Connector* other)
+        {
+            // TODO
+        }
+        Type type() const { return BitOutputConnectorType(); }
+    private:
+        NMISwitch* _component;
+    };
 
     class Type : public ISA8BitComponent::Type
     {
@@ -50,6 +69,12 @@ public:
                 NMISwitch* nmiSwitch = new NMISwitch(Type(this));
                 _simulator->addComponent(nmiSwitch);
                 return TypedValue(this, nmiSwitch, value.span());
+            }
+            bool has(String memberName) const
+            {
+                if (memberName == "value")
+                    return true;
+                return ISA8BitComponent::Type::Implementation::has(memberName);
             }
 
         };

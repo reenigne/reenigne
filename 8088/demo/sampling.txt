@@ -787,12 +787,12 @@ Unrollable with volume tables: 77 cycles (theoretical maximum 14.1KHz)
 ; DS = sample pointer
 ; BP = 0
 ; SI = temp position
-; DI = channel 0 position bits 8..15
+; DI = channel 0 position bits 8..23
 ; BX = temp sample (BH = 0)
 ; AL = sample accumulator
 ; AH = channel 3 position bits 0..7
-; CX = channel 1 position bits 8..15
-; DX = channel 2 position bits 8..15
+; CX = channel 1 position bits 8..23
+; DX = channel 2 position bits 8..23
 ; SP = data pointer
 ; SS = data pointer:
 ;   0 = channel 0 position bits 0..7
@@ -805,7 +805,7 @@ Unrollable with volume tables: 77 cycles (theoretical maximum 14.1KHz)
 ;  10 = channel 1 volume
 ;  12 = channel 2 sample
 ;  14 = channel 2 volume
-;  16 = channel 3 position bits 8..15
+;  16 = channel 3 position bits 8..23
 ;  18 = channel 3 sample
 ;  20 = channel 3 volume
 ;  22 = count
@@ -913,6 +913,159 @@ noOverflow3:
 
 ; total = 106 cycles = 10.6KHz
 
+
+
+; Without overflow checking:
+
+loopTop:
+  add b[bp],99     3 2
+  adc di,0         3 0
+  pop ds           1 2
+  mov al,[di]      2 1        14
+
+  add b[bp+1],99   4 2
+  adc cx,0         3 0
+  mov si,cx        2 0
+  pop ds           1 2
+  add al,[si]      2 1        17
+
+  add b[bp+2],99   4 2
+  adc dx,0         3 0
+  mov si,dx        2 0
+  pop ds           1 2
+  add al,[si]      2 1        17
+
+  add ah,99        3 0
+  pop ds           1 2
+  pop si           1 2
+  adc si,0         3 0
+  push si          1 2
+  add al,[si]      2 1        18
+
+  sub sp,8         3 0
+
+  out 042,al       2 1
+  dec b[bp+12]     3 2
+  jnz loopTop      2 3        16
+
+; total = 82 cycles = 13.7KHz
+
+
+
+; 64kB of samples:
+
+loopTop:
+  add b[bp],99     3 2
+  adc di,0         3 0
+  mov al,[di]      2 1        11
+
+  add b[bp+1],99   4 2
+  adc cx,0         3 0
+  mov si,cx        2 0
+  add al,[si]      2 1        14
+
+  add b[bp+2],99   4 2
+  adc dx,0         3 0
+  mov si,dx        2 0
+  add al,[si]      2 1        14
+
+  add ah,99        3 0
+  pop si           1 2
+  adc si,0         3 0
+  push si          1 2
+  add al,[si]      2 1        15
+
+  sub sp,8         3 0
+
+  out 042,al       2 1
+  dec b[bp+12]     3 2
+  jnz loopTop      2 3        16
+
+; total = 70 cycles = 16.1KHz
+
+
+
+
+
+; Refinement and patching:
+
+loopTop2:
+  times 16 nop
+loopTop:
+  add dl,99        3 0
+  adc si,-1        3 0
+  lodsb            1 1         8
+
+  add dh,99        3 0
+  adc bp,0         3 0
+  add al,[ds:bp]   4 1        11
+
+  add ch,99        3 0
+  adc di,0         3 0
+  add al,[di]      2 1         9
+
+  add byte[t],99   5 2
+  adc bx,0         3 0
+  add al,[bx]      2 1        13
+
+  out 0x42,al      2 1
+  dec cl           2 0
+  jnz loopTop      2 3        10
+
+  xchg ax,bx       1 0
+  pop bx           1 2
+  pop word[cs:bx]  3 4
+  xchg ax,bx       1 0
+  mov cl,1         2 0
+  jmp loopTop2     2 3
+
+; total = 300 cycles = 15.9kHz
+; With refresh period = 19 we get 304 cycles (4 refreshes)
+
+
+
+; More refinement and synchronization:
+
+loopTop2:
+  times 16 nop
+loopTop:
+  nop
+
+  add dl,99        3 0
+  adc si,-1        3 0
+  lodsb            1 1         8
+
+  add dh,99        3 0
+  adc bp,0         3 0
+  add al,[ds:bp]   4 1        11
+
+  add ch,99        3 0
+  adc di,0         3 0
+  add al,[di]      2 1         9
+
+  add cl,99        3 0
+  adc bx,0         3 0
+  add al,[bx]      2 1        13
+
+  out 0x42,al      2 1
+  dec ah           2 0
+  jnz loopTop      2 3        10
+
+  xchg ax,bx       1 0
+  pop bx           1 2
+  pop word[cs:bx]  3 4
+  xchg ax.bx       1 0
+  mov ah,1         2 0
+  jmp loopTop2     2 3
+
+; total = 288 cycles
+
+
+  push dx        1 2
+  mov dx,0x3d4   3 0
+  mov al,0x0c    2 0
+  out dx,al      1 1
+  pop dx         1 2
 
 
 
@@ -1044,6 +1197,172 @@ songPointer:
 ; Can we fill up a buffer and empty it while we're updating to avoid slack time?
 ;   Only with loop unrolling
 ;   Let's say 5 sample lookups per output
+
+
+
+7a with song data attempt 2
+looptop:
+  times 15 nop
+realLooptop:
+  add bp,9999     4 0
+  mov bx,bp       2 0
+  mov bl,99       2 0
+  mov al,[bx]     2 1   ; 11
+  add si,9999     4 0
+  mov bx,si       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1   ; 11
+  add di,9999     4 0
+  mov bx,di       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1   ; 11
+  add dx,9999     4 0
+  mov bx,dx       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1   ; 11
+  inc ax
+  out 042,al      2 1
+  loop looptop    2 1   ; 6
+
+  pop bx          1 2
+  pop ax          1 2
+  mov [bx],ax     2 2
+  mov cx,9999     3 0
+  jmp realLoopTop 2 0   ; 15
+
+Need to figure out sequences for:
+  Updating ss
+  Outputting to screen
+  Modifying CRTC registers
+These can all be done by modifying the nops at looptop
+
+es: mov [xxxx],xxxx  ; 7 2 ~2.9
+
+Set cx = 1
+Update looptop code
+  If cx == 1 the looptop code won't run
+
+
+
+Could also do:
+  mov [bx],al
+  mov cl,ah
+but this doesn't seem to be any faster with refresh 18! (Also less space-efficient)
+
+Can we have "gosub" and "return" looptop codes?
+  Gosub:
+    [vsp] = sp
+    vsp -= 2
+    sp = new_sp
+  Return:
+    vsp += 2
+    sp = [vsp]
+These v-instructions need to be executed only once, so the actual instruction stream needed is:
+  cx=1
+  Write gosub bytes
+  cx=2
+And the first instruction of a new subroutine or after a gosub is cx=1
+Gpsub code:
+  mov bx,[vsp]
+  mov [bx],sp
+  inc bh
+  mov [vsp],bx   ; 18 IOs - too long
+Instead of having a stack, just have each function look in a specific place for its return address
+  No recursion, but that's probably ok
+Examples of h-instructions:
+  Goto immediate
+    mov sp,xxxx       ; 3 0
+  Goto indirect
+    mov sp,[cs:xxxx]  ; 5 2
+    add sp,xx         ; 3 0
+  Save sp
+    mov [cs:xxxx],sp  ; 5 2
+  Move variable, immediate word or modify self
+    mov [cs:xxxx],xxxx ; 7 2
+  Move variable, variable
+    mov ax,[cs:xxxx]  ; 5 2
+    mov [cs:xxxx],ax  ; 5 2
+  Dereference variable:
+    mov bx,[cs:xxxx]  ; 5 2
+    mov ax,[es:bx]    ; 3 2
+    mov [cs:xxxx],ax  ; 5 2  - 19 IOs - too slow!
+  Dereference variable attempt 2:
+    mov bx,xxxx                                   3 0
+    mov ax,[cs:bx]   ; ax = [xxxx]                3 2
+    xchg ax,bx       ; ax = xxxx, bx = [xxxx]     1 0
+    mov bx,[es:bx]   ; bx = [es:[xxxx]]           3 2
+    xchg ax,bx       ; bx = xxxx, ax = [[xxxx]]   1 0
+    mov [cs:bx],ax   ; [xxxx] = [es:[xxxx]]       3 2 - 20 IOs - even worse
+  Dereference variable attempt 3 part 1:
+    mov bx,[cs:xxxx]  ; 5 2
+    mov es,[es:bx]    ; 3 2
+  Dereference variable attempt 3 part 2:
+    mov [cs:xxxx],es
+  CRTC update:
+    mov bx,dx        2 0
+    mov dx,0x3d4     3 0
+    mov ax,0xVVRR    3 0
+    out dx,ax        1 2
+    mov dx,bx        2 0 - 13 IOs
+
+
+
+  ALU operations
+    mov ax,es         ; 2 0
+    alu [cs:xxxx],ax  ; 5 4
+
+A compressed music update h-routine
+  mov ax,[es:xxxx]
+
+
+We have to be careful with memory accesses because they'll make the looptop code take longer
+  We can move the loop destination if necessary
+With 512kB of data:
+  Peak data rate (i.e. cl==1) is 15.8 seconds
+  Slowest data rate (i.e. cl==255) is 67 minutes
+  Standard data rate (i.e. update 12 bytes 50 times per second) is 7.3 minutes - cl~=27
+  Frame rate of 50Hz gives us 331 v-instructions until we need to do 12 updates (so 319 spare)
+    This is about 24 h-instructions
+Each (delta-) v-instruction byte costs 1 word (and takes 1 sample)
+Each v-instruction also costs an additional 2 words and 3 samples
+So if a typical instruction is 10 bytes, we're looking at ~1000 v-instructions per second
+We'd like to be able to write v-code which plays music and does some other things at the same time
+  Can we write a v-code kernel which loads music data from a separate address and doesn't take up too much space itself?
+    It won't update very quickly unless we use native v-code
+
+
+
+
+7a with song data attempt 2 variant 1
+looptop:
+  times 15 nop
+realLooptop:
+  add bp,9999     4 0
+  mov bx,bp       2 0
+  mov bl,99       2 0
+  mov al,[bx]     2 1   ; 11
+  add si,9999     4 0
+  mov bx,si       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1   ; 11
+  add di,9999     4 0
+  mov bx,di       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1   ; 11
+  add dx,9999     4 0
+  mov bx,dx       2 0
+  mov bl,99       2 0
+  add al,[bx]     2 1   ; 11
+  inc ax          1 0
+  out 042,al      2 1
+  loop looptop    2 0   ; 6
+
+  pop bx          1 2
+  mov al,bh       2 0
+  mov bh,0        2 0
+  mov [cs:bx],al  3 1
+  mov cl,1        2 0
+  jmp realLoopTop 2 0   ; 15
 
 
 
@@ -1382,3 +1701,202 @@ Need to run some experiments generating code for various run lengths and sample 
   Voice 3 waveform        1
   Screen update position  2
   Screen update value     1  total 15  750 bytes/sec  11.6 minutes in 512Kb.
+
+
+
+
+
+
+
+
+Some useful v-instructions:
+Jump: mov sp,xxxx
+Jump: mov sp,es
+Jump: mov sp,[cs:xxxx]
+Far jump: mov sp,xxxx  mov ax,yyyy  mov ss,ax
+Immediate load: mov [cs:xxxx],yyyy
+Immediate load: mov ax,xxxx  mov es,ax
+Save current position: mov [cs:xxxx],sp
+Save current position: mov es,sp
+Load: mov es,[cs:xxxx]
+Indirect load: mov bx,es  mov es,[cs:bx]
+Store: mov [cs:xxxx],es
+Indirect store immediate: mov bx,es  mov [cs:bx],xxxx
+Modify waveform table: mov [xxxx],es
+Modify waveform table: mov [xxxx],yyyy
+Modify waveform table: mov es,bx  mov [bx],xxxx
+Modify v-instruction program: mov [ss:xxxx],es
+Modify v-instruction program: mov [ss:xxxx],yyyy
+Modify v-instruction program: mov es,bx  mov [ss:bx],xxxx
+Setup for video memory write: mov ax,0xb800  mov es,ax
+Video memory write: mov [es:xxxx],yyyy
+Copy from one location to another: mov ax,[cs:xxxx]  mov [cs:yyyy],ax
+Write CRTC register: mov bx,dx  mov dx,0x3d4  mov ax,xxxx  out dx,ax  mov dx,bx
+ALU operations (add, sub, and, or, xor): mov ax,es  alu [es:xxxx],ax
+More complicated things (e.g. a store of computed data to video memory) can be done by self-modification of the v-instruction program. Conditional jumps would be very tricky to implement directly (since both code paths need to take the same number of cycles) but could be done via indirect jumps.
+
+
+
+
+Commands:
+  1: Set CRTC start address
+  2: Set write pointer
+  3: Write word and increment write pointer
+
+
+
+
+
+
+
+
+
+
+
+As promised, here's the writeup of the MOD player thingy I've been tinkering
+with.
+
+In order to be able to play a single waveform at a variety of different
+frequencies we need a "phase" or "position" variable which points to the
+current byte of the waveform and a "frequency" or "velocity" variable. For
+each sample that we output we need to add the frequency to the phase, look
+up the sample value at that position in the waveform and then add the result
+to a running total to mix the channels together.
+
+Suppose we have a 16kHz output rate. If we limit ourselves to waveforms
+which are 256 bytes in length and use 8.8-bit fixed point for phase and
+frequency we get a range of frequencies between 0 and 8kHz (the Nyquist
+limit) with a resolution of 0.25Hz which should be quite acceptable for
+musical purposes (off by less than 1/20 of a semitone for frequencies above
+86Hz).
+
+The fastest per-channel, per-iteration code that I've come up with to
+implement that is:
+  add si,9999
+  mov bx,si
+  mov bl,99
+  add al,[bx]
+
+Here, the si register holds the current phase for the channel, the "9999" is
+the current frequency value for the channel (stored as an immediate word in
+the code itself) and the "99" is the current waveform number for this
+channel. The "mov bl,99" line overwrites the fractional bits of the phase,
+so the waveform table (which takes up the entire 64kB data segment) must be
+organized so that the low byte of the address corresponds to the waveform
+number and the high byte of the address corresponds to the sample within
+that waveform (i.e. "sideways" to what you might expect).
+
+If we store the frequencies and waveform numbers in the code itself, then in
+order to update them we have to actually patch the player code as it's
+running. Fortunately the 8088 doesn't have an instruction cache (just a
+4-byte queue which is emptied on a jump).
+
+The output sample rate this routine is limited by the maximum amount of
+stuff it has to do for each iteration: mixing 4 channels, outputting the
+result to the speaker and doing the absolute minimum amount of patching to
+be able to play more than a single chord. The fastest "minimal patching"
+code I've come up with abuses the stack (which happily can be made to not
+overlap the waveform table) to be a sequence of patching locations and
+values, and looks like this:
+  pop bx
+  pop ax
+  mov [bx],ax
+However, we don't want to do that for every output sample, or we'll burn
+through our entire 64kB stack in less than a second. Hence there's one more
+thing we need to do each iteration: decrement a counter and when it reaches
+0 do the patch and reload the counter. So the full routine looks like this:
+
+l1:
+  times 15 nop
+l2:
+  add bp,9999  mov bx,bp  mov bl,99  mov al,[bx]
+  add si,9999  mov bx,si  mov bl,99  add al,[bx]
+  add di,9999  mov bx,di  mov bl,99  add al,[bx]
+  add dx,9999  mov bx,dx  mov bl,99  add al,[bx]
+  out 0x42,al  ; Output total to speaker
+  loop l1
+  pop bx  pop ax  mov [cs:bx],ax
+  mov cx,9999  ; Count until next patch
+  jmp l2
+
+So the phases are stored in the bp, si, di and dx registers. Note the use of "mov al,[bx]" instead of "add al,[bx]" to zero the total when processing the first channel. I've timed this piece of code and it takes 288 CPU cycles to execute with the default DRAM refresh rate of 18, yielding an output sample rate of just under 16.6kHz. I'm using the term v-cycle to describe the time from one output sample to the next, for reasons which will become obvious later.
+
+The 15 NOPs at the start are there to make sure that the two cases (patch
+and don't patch) take the same amount of time - they're skipped (via "jmp
+l2") in the patch case and not skipped (via "loop l1") in the non-patch
+case. So the "inner loop" is partially outside the "outer loop"!
+
+This has some nice properties. As well as updating the frequencies and
+waveform numbers, by patching the right address we can update:
+* The count-until-next-patch value ("mov cx,9999") so that we can patch more
+often in more complicated parts of the song. We can also update all the
+frequencies and waveform numbers in a "burst" at a rate of 50 times a second
+or so if we like rather than distributing all the patches evenly in time.
+* The "jmp l2" (with NOPs) so that we have a way of ending the song when
+it's over.
+* One of the "mov bl,99"s with "mov bl,al" to create (with suitable waveform
+table data) a "ring modulation" effect like the SID has (i.e. multiply the
+output of the first and second channels).
+
+One other thing we need to be able to do is update the stack segment in
+order to be able to access more than 64kB of song data (which would only
+last about 40 seconds if we update all frequencies and waveform numbers 50
+times per second). However, we're running out of things that we can patch.
+We can't patch the mixing/output code without having an audible effect and
+we can't patch the patching code without breaking it.
+
+What's left? Those NOPs at the start! We can put anything we like there as long as it takes the right amount of time. With cx==1 (i.e. "mov cx,1" as the set-count-until-next-patch instruction) it won't even get executed until we're ready. I'm using the term v-instruction (virtual machine instruction) for a chunk of code that replaces the NOPs, because we can think of the patch sequence as being a kind of bytecode or instruction sequence in its own right. We do have to be a bit careful with the timing, but we can accommodate longer-running v-instructions (in particular those that access memory or IO ports and have bus cycles other than instruction fetches) by adjusting the target of the "loop l1" instruction. Often I think we'll just be able to leave cx==2 and run one v-instruction every other v-cycle - i.e. at a blistering 8.3kHz!
+
+As well as updating the stack segment, what other things can we do with v-instructions? Some things I'd like to do:
+* Some kind of animation (e.g. changing the CRTC start address and modifying
+video RAM).
+* Compression - each v-instruction takes a least 4 bytes in the song data stream so it's a very sparse encoding. It would be nice if the song was at least encoded with implied patch addresses so that we can have a 10 minutes of music in 512kB instead of 5.
+
+Most registers are used (or at least stomped) by the main part of the routine so variables have to be kept in memory. Probably in the code segment to avoid using up waveform slots. The one exception is ES which isn't a general register, but can be loaded from or stored to memory or other registers.
+
+One downside to the system of v-instructions is that they take up a lot of space (4-24 bytes per v-instruction) so it might be nice to have some form of compression for the v-instructions themselves (at least for stretches where there is complex logic but the speed isn't too critical) as well as for the song data. This can be done by having a third level of instructions above CPU instructions and v-instructions, which I'm calling h-instructions (high level instructions). The idea is that you have an array of h-instructions, an h-instruction pointer pointing into this array, and a small v-instruction program which increments the pointer, dereferences it and dispatches to one of several small v-instruction sequences before looping back to the beginning of the v-instruction program.
+
+Here's an example of a possible v-instruction program, which decompresses song data and also executes h-instructions for animation. Each 16-byte block contains 12 bytes of song data (4 bytes for waveform numbers and 8 bytes for freuencies) plus one two-byte h-instruction and a two byte associated operand. Each line has one v-instruction or other patch. After the semicolon I've made a rough count of the number of v-cycles required for that v-instruction:
+  start: inc word[cs:compressedDataPointer]  ; 7 (cx=1, 3 words v-insn, loop, cx=2, v)
+  mov es,[cs:compressedDataPointer]  ; 5 (cx=1, 1 word v-insn, loop, cx=2, v)
+  mov ax,[es:0x0]  mov [ss:f0+2],ax  ; 9 (cx=1, 5 words v-insn, loop, cx=2, v)
+  mov ax,[es:0x2]  mov [ss:f1+2],ax  ; 4 (1 word v-insn, v, 1 word v-insn, v)
+  mov ax,[es:0x4]  mov [ss:f2+2],ax  ; 4 (1 word v-insn, v, 1 word v-insn, v)
+  mov ax,[es:0x6]  mov [ss:f3+2],ax  ; 4 (1 word v-insn, v, 1 word v-insn, v)
+  mov ax,[es:0x8]  mov [ss:w0+3],al  ; 6 (cx=1, 2 words v-insn, loop, cx=2, v)
+  mov ax,[es:0x9]  mov [ss:w1+3],al  ; 4 (1 word v-insn, v, 1 word v-insn, v)
+  mov ax,[es:0xa]  mov [ss:w2+3],al  ; 4 (1 word v-insn, v, 1 word v-insn, v)
+  mov ax,[es:0xb]  mov [ss:w3+3],al  ; 4 (1 word v-insn, v, 1 word v-insn, v)
+  f0: frequency0 = xxxx  ; 2 (cx=1, p)
+  f1: frequency1 = xxxx  ; 1 (p)
+  f2: frequency2 = xxxx  ; 1 (p)
+  f3: frequency3 = xxxx  ; 1 (p)
+  w0: waveform0 = xxxx  ; 1 (p)
+  w1: waveform1 = xxxx  ; 1 (p)
+  w2: waveform2 = xxxx  ; 1 (p)
+  w3: waveform3 = xxxx  ; 1 (p)
+  mov sp,[es:0xc]  ; 6 (3 words v-insn, loop, cx=2, v)
+
+Depending on the value of [es:0xc], v-execution then moves on to one of several subroutines:
+
+Set CRTC start address:
+  mov ax,[es:0xe]  mov [ss:sa1+7],al  ; 9 (cx=1, 5 words v-insn, loop, cx=2, v)
+  mov ax,[es:0xf]  mov [ss:sa2+7],al  ; 4 (1 word v-insn, v, 1 word v-insn, v)
+  sa1: mov bx,dx  mov dx,0x3d4  mov ax,0xXX0c  out dx,ax  mov dx,bx  ; 10 (cx=1, 6 words v-insn, loop, cx=2, v)
+  sa2: mov bx,dx  mov dx,0x3d4  mov ax,0xXX0d  out dx,ax  mov dx,bx  ; 2 (1 word v-insn, v)
+  mov sp,start  ; 6 (cx=1, 2 words v-insn, loop, cx=2, v)
+
+Output data to screen:
+  inc word[cs:screenUpdate+3]  ; 7 (cx=1, 3 words v-insn, loop, cx=3, v)
+  inc word[cs:screenUpdate+3]  ; 1 (v)
+  mov ax,[es:0xe]  mov [ss:screenUpdate+5],ax  ; 9 (cx=1, 5 words v-insn, loop, cx=2, v)
+  mov ax,0xb800  mov es,ax  ; 7 (cx=1, 3 words v-insn, loop, cx=2, v)
+  screenUpdate: mov [es:xxxx],yyyy  ; 8 (cx=1, 4 words v-insn, loop, cx=2, v)
+  mov sp,start  ; 6 (cx=1, 2 words v-insn, loop, cx=2, v)
+
+Change screen update pointer:
+  mov ax,[es:0xe]  mov [ss:screenUpdate+3],ax  ; 9 (cx=1, 5 words v-insn, loop, cx=2, v)
+  mov sp,start  ; 6 (cx=1, 2 words v-insn, loop, cx=2, v)
+
+Finish:
+  "jmp l2" = "nop nop"  ; 2 (p, v)

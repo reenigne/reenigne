@@ -1,0 +1,6 @@
+9c85
+9e76
+
+Margin of error ~= 41
+
+Delta = 497 in 40566

@@ -331,6 +331,7 @@ public:
                     v &= aux();
                     break;
                 case 0x6000:
+                    // XOR
                     v ^= aux();
                     break;
             }

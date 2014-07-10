@@ -25,7 +25,7 @@ public:
         }
         return ComponentTemplate<T>::set(name, value);
     }
-    TypedValue getValue(String name)
+    TypedValue getValue(Identifier name)
     {
         if (name == "bus")
             return &_connector;

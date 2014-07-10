@@ -1,0 +1,2 @@
+; If we make the vertical total 116 then the vertical sync position needs to alternate between 118 and 108
+

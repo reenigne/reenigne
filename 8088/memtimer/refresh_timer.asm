@@ -239,149 +239,193 @@ codePreambleEnd:
 
 experimentData:
 
-experimentWater:
-  db "Water$"
+experimentMagi1:
+  db "Magi1$"
   dw .endInit - ($+2)
-  mov ax,0x8000
-  mov ds,ax
+
   mov ax,0xb800
   mov es,ax
-  mov si,0
-  mov bh,0
   mov di,0
+  mov si,0
+  mov ax,0x8000
+  mov ds,ax
 .endInit:
   dw .endCode - ($+2)
-  mov ax,[si]
-  sub al,ah
-  sub al,[si-1]
-  sub al,[si+40]
-  sub al,[si-40]
-  shr al,1
-  shr al,1
-  mov ah,[si+40*25]
-  add ah,al
-  mov [si+40*25],ah
-  shr ah,1
-  shr ah,1
-  mov bl,[si+2*40*25]
-  add bl,ah
-  mov [si+2*40*25],bl
-  mov ax,[bx]
-  stosw
+
+  movsw
+  movsw
+  add di,76
+
 .endCode
 
-experimentAmiga19:
-  db "Amiga19$"
+experimentMagi2:
+  db "Magi2$"
   dw .endInit - ($+2)
-  mov dx,0x3d9
-  mov ax,1
-  mov bx,2
-  mov cx,3
-  mov di,4
-  mov bp,5
-  mov sp,6
-  mov si,7
-  mov ax,0x8000
-  mov ds,ax
-  mov es,ax
-.endInit:
-  dw .endCode - ($+2)
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  out dx,al
-  xchg ax,di
-  out dx,al
-  xchg ax,bp
-  out dx,al
-  xchg ax,sp
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  out dx,al
-  xchg ax,di
-  out dx,al
-  xchg ax,bp
-  out dx,al
-  xchg ax,sp
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  out dx,al
-  xchg ax,di
-  out dx,al
-  xchg ax,bp
-  out dx,al
-  xchg ax,sp
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  lodsb
-  out 0xe0,al
-  mov al,1
-.endCode:
 
-experimentAmiga76:
-  db "Amiga76$"
-  dw .endInit - ($+2)
-  mov dx,0x3d9
-  mov ax,1
-  mov bx,2
-  mov cx,3
-  mov di,4
-  mov bp,5
-  mov sp,6
-  mov si,7
+  mov ax,0xb800
+  mov es,ax
+  mov di,0
+  mov si,0
   mov ax,0x8000
   mov ds,ax
-  mov es,ax
 .endInit:
   dw .endCode - ($+2)
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  out dx,al
-  xchg ax,di
-  out dx,al
-  xchg ax,bp
-  out dx,al
-  xchg ax,sp
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  out dx,al
-  xchg ax,di
-  out dx,al
-  xchg ax,bp
-  out dx,al
-  xchg ax,sp
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  out dx,al
-  xchg ax,di
-  out dx,al
-  xchg ax,bp
-  out dx,al
-  xchg ax,sp
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  lodsb
+
+  movsb
+  inc di
+  movsb
+  add di,77
+
+.endCode
+
+
+experimentDomKeyb:
+  db "DomKeyb$"
+  dw .endInit - ($+2)
+
+  mov ax,0x8000
+  mov es,ax
+  mov dx,0xe0
+  mov si,0
+.endInit:
+  dw .endCode - ($+2)
+
+xchg ax,bx    ; bx=?, ax=0
+out dx,al
+xchg ax,cx    ; cx=0, ax=1
+out dx,al
+xchg ax,bx    ; ax=?, bx=1
+in al,0xe0
+stosb
+xchg ax,cx    ; cx=?, ax=0
+out dx,al
+xchg ax,bx    ; bx=0, ax=1
+out dx,al
+xchg ax,cx    ; cx=1, ax=?
+in al,0xe0
+stosb
+
+.endCode
+
+
+experimentMod1:
+  db "Mod1$"
+  dw .endInit - ($+2)
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov cx,1
+  mov ah,1
+
+.endInit:
+  dw .endCode - ($+2)
+
+  add bp,0x0f0f
+  mov bx,bp
+  mov bl,0x0f
+  mov al,[bx]
+  add si,0x0f0f
+  mov bx,si
+  mov bl,0x0f
+  add al,[bx]
+  add di,0x0f0f
+  mov bx,di
+  mov bl,0x0f
+  add al,[bx]
+  add dx,0x0f0f
+  mov bx,dx
+  mov bl,0x0f
+  add al,[bx]
   out 0xe0,al
-  mov al,1
+  loop .endInit+2
+
+  pop bx
+  pop word[cs:bx]
+  mov cl,1
+  jmp $+2
+
+.endCode
+
+
+experimentMod2:
+  db "Mod2$"
+  dw .endInit - ($+2)
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov cx,1
+  mov ah,1
+
+.endInit:
+  dw .endCode - ($+2)
+
+  add dl,0x0f
+  adc si,-1
+  lodsb
+  add dh,0x0f
+  adc bp,0
+  add al,[ds:bp]
+  add ch,0x0f
+  adc di,0
+  add al,[di]
+  add cl,0x0f
+  adc bx,0
+  add al,[bx]
+  out 0xe0,al
+  dec ah
+  jnz .endInit+2
+
+  xchg ax,bx
+  pop bx
+  pop word[cs:bx]
+  xchg ax,bx
+  mov ah,1
+  jmp $+2
+
+.endCode
+
+
+experimentMod2a:
+  db "Mod2a$"
+  dw .endInit - ($+2)
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov cx,1
+  mov ah,1
+
+.endInit:
+  dw .endCode - ($+2)
+
   nop
-  nop
-  nop
-.endCode:
+
+  add dl,0x0f
+  adc si,-1
+  lodsb
+  add dh,0x0f
+  adc bp,0
+  add al,[ds:bp]
+  add ch,0x0f
+  adc di,0
+  add al,[di]
+  add cl,0x0f
+  adc bx,0
+  add al,[bx]
+  out 0xe0,al
+  dec ah
+  jnz .endInit+2
+
+  xchg ax,bx
+  pop bx
+  pop word[cs:bx]
+  xchg ax,bx
+  mov ah,1
+  jmp $+2
+
+.endCode
 
 
 lastExperiment:
@@ -424,7 +468,7 @@ interrupt8:
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
-  mov al,76
+  mov al,18
   out 0x41,al  ; Timer 1 rate
 
   mov ax,cs

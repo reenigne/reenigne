@@ -1,10 +1,10 @@
-#include "alfe/main.h"
+#include "alfe/main.h"                             _
 #include "alfe/bitmap_png.h"
 #include "alfe/terminal6.h"
 #include "alfe/complex.h"
 
-// #define COLOURS 8
-#define COLOURS 16
+#define ELEMENTS 64
+#define PIXEL_ALIGN 0
 
 void writeCharacter(Bitmap<SRGB> bitmap, int x, char c)
 {
@@ -70,6 +70,228 @@ private:
     Bitmap<SRGB> _bitmap;
 };
 
+float sinc(float z)
+{
+    if (z == 0.0f)
+        return 1.0f;
+    z *= M_PI;
+    return sin(z)/z;
+}
+
+float lanczos(float z)
+{
+    if (z < -3 || z > 3)
+        return 0;
+    return sinc(z)*sinc(z/3);
+}
+
+Complex<float> rotor(float phase)
+{
+    float angle = phase*tau;
+    return Complex<float>(cos(angle), sin(angle));
+}
+
+class NTSCDecoder
+{
+public:
+    NTSCDecoder()
+    {
+        contrast = 1.41; //1.97;
+        brightness = -11.0; //-72.8;
+        saturation = 0.303; //0.25;
+        hue = 0;
+        wobbleAmplitude = 0;
+        wobblePhase = 180;
+    }
+
+    void decode(Byte* input, Bitmap<Colour> output)
+    {
+        // Settings
+
+        static const int lines = 240;
+        static const int nominalSamplesPerLine = 1820;
+        static const int firstSyncSample = -130;  // Assumed position of previous hsync before our samples started
+        static const int pixelsPerLine = 760;
+        static const float kernelSize = 3;  // Lanczos parameter
+        static const int nominalSamplesPerCycle = 8;
+        static const int driftSamples = 40;
+        static const int burstSamples = 40;
+        static const int firstBurstSample = 192;
+        static const int burstCenter = firstBurstSample + burstSamples/2;
+
+        Byte* b = input;
+
+
+        // Pass 1 - find sync and burst pulses, compute wobble amplitude and phase
+
+        float deltaSamplesPerCycle = 0;
+
+        int syncPositions[lines + 1];
+        int oldP = firstSyncSample - driftSamples;
+        int p = oldP + nominalSamplesPerLine;
+        float samplesPerLine = nominalSamplesPerLine;
+        Complex<float> bursts[lines + 1];
+        float burstDCs[lines + 1];
+        Complex<float> wobbleRotor = 0;
+        Complex<float> hueRotor = rotor((33 + hue)/360);
+        float totalBurstAmplitude = 0;
+        float burstDCAverage = 0;
+        for (int line = 0; line < lines + 1; ++line) {
+            Complex<float> burst = 0;
+            float burstDC = 0;
+            for (int i = firstBurstSample; i < firstBurstSample + burstSamples; ++i) {
+                int j = oldP + i;
+                int sample = b[j];
+                float phase = (j&7)/8.0;
+                burst += rotor(phase)*sample;
+                burstDC += sample;
+            }
+
+            float burstAmplitude = burst.modulus()/burstSamples;
+            totalBurstAmplitude += burstAmplitude;
+            wobbleRotor += burstAmplitude*rotor(burst.argument() * 8 / tau);
+            bursts[line] = burst*hueRotor/burstSamples;
+            burstDC /= burstSamples;
+            burstDCs[line] = burstDC;
+
+            syncPositions[line] = p;
+            oldP = p;
+            for (int i = 0; i < driftSamples*2; ++i) {
+                if (b[p] < 9)
+                    break;
+                ++p;
+            }
+            p += nominalSamplesPerLine - driftSamples;
+
+            samplesPerLine = (2*samplesPerLine + p - oldP)/3;
+            burstDCAverage = (2*burstDCAverage + burstDC)/3;
+        }
+        float averageBurstAmplitude = totalBurstAmplitude / (lines + 1);
+        //wobbleAmplitude = 0.0042; //wobbleRotor.modulus() / (lines + 1);
+        //wobblePhase = 0.94;  //wobbleRotor.argument() / tau;
+
+        float deltaSamplesPerLine = samplesPerLine - nominalSamplesPerLine;
+
+
+        // Pass 2 - render
+
+        Byte* outputLine = output.data();
+
+        float q = syncPositions[1] - samplesPerLine;
+        Complex<float> burst = bursts[0];
+        float rotorTable[8];
+        for (int i = 0; i < 8; ++i)
+            rotorTable[i] = rotor(i/8.0).x*saturation;
+        Complex<float> expectedBurst = burst;
+        int oldActualSamplesPerLine = nominalSamplesPerLine;
+        for (int line = 0; line < lines; ++line) {
+            // Determine the phase, amplitude and DC offset of the color signal
+            // from the color burst, which starts shortly after the horizontal
+            // sync pulse ends. The color burst is 9 cycles long, and we look
+            // at the middle 5 cycles.
+
+            float contrast1 = contrast;
+            int samplesPerLineInt = samplesPerLine;
+            Complex<float> actualBurst = bursts[line];
+            burst = (expectedBurst*2 + actualBurst)/3;
+
+            float phaseDifference = (actualBurst*(expectedBurst.conjugate())).argument()/tau;
+            float adjust = -phaseDifference/pixelsPerLine;
+
+            Complex<float> chromaAdjust = burst.conjugate()*contrast1*saturation;
+            burstDCAverage = (2*burstDCAverage + burstDCs[line])/3;
+            float brightness1 = brightness + 65 - burstDCAverage;
+
+            // Resample the image data
+
+            //float samplesPerLine = nominalSamplesPerLine + deltaSamplesPerLine;
+            double* o = reinterpret_cast<double*>(outputLine);
+            for (int x = 0 /*101*/; x < 760 /*101 + 640*/; ++x) {
+                float y = 0;
+                Complex<float> c = 0;
+                float t = 0;
+
+                float kFrac0 = x*samplesPerLine/pixelsPerLine;
+                float kFrac = q + kFrac0;
+                int k = kFrac;
+                kFrac -= k;
+                float samplesPerCycle = nominalSamplesPerCycle + deltaSamplesPerCycle;
+                float z0 = -kFrac/samplesPerCycle;
+                int firstInput = -kernelSize*samplesPerCycle + kFrac;
+                int lastInput = kernelSize*samplesPerCycle + kFrac;
+
+                for (int j = firstInput; j <= lastInput; ++j) {
+                    // The input sample corresponding to the output pixel is k+kFrac
+                    // The sample we're looking at in this iteration is j+k
+                    // The difference is j-kFrac
+                    // So the value we pass to lanczos() is (j-kFrac)/samplesPerCycle
+                    // So z0 = -kFrac/samplesPerCycle;
+
+                    float s = lanczos(j/samplesPerCycle + z0);
+                    int i = j + k;
+                    float z = s*b[i];
+                    y += z;
+                    c.x += rotorTable[i & 7]*z;
+                    c.y += rotorTable[(i + 6) & 7]*z;
+                    //c += rotor((i&7)/8.0)*z*saturation;
+                    t += s;
+                }
+
+                float wobble = 1 - cos(c.argument()*8 + wobblePhase*tau)*wobbleAmplitude; ///(averageBurstAmplitude*contrast);
+
+                y = y*contrast1*wobble/t + brightness1; // - cos(c.argument()*8 + wobblePhase*tau)*wobbleAmplitude*contrast;
+                c = c*chromaAdjust*rotor((x - burstCenter*pixelsPerLine/samplesPerLine)*adjust)*wobble/t;
+
+                o[0] = y + 0.9563*c.x + 0.6210*c.y;
+                o[1] = y - 0.2721*c.x - 0.6474*c.y;
+                o[2] = y - 1.1069*c.x + 1.7046*c.y;
+                o += 3;
+            }
+            outputLine += output.stride();
+            //output += (pixelsPerLine - 190)*3;
+
+            int p = syncPositions[line + 1];
+            int actualSamplesPerLine = p - syncPositions[line];
+            samplesPerLine = (2*samplesPerLine + actualSamplesPerLine)/3;
+            q += samplesPerLine;
+            q = (10*q + p)/11;
+
+            expectedBurst = actualBurst;
+            //printf("line %i: actual=%f, used=%f. difference=%f\n",line,actualBurst.argument()*360/tau, burst.argument()*360/tau, actualBurst.argument()*360/tau - burst.argument()*360/tau);
+        }
+    }
+    float contrast;
+    float brightness;
+    float saturation;
+    float hue;
+    float wobbleAmplitude;
+    float wobblePhase;
+};
+
+class Transition
+{
+public:
+    Transition() : _index(0) {}
+//    Transition(int i) : _index(i) {}
+    Transition(int left, int right, int position)
+#if ELEMENTS==8
+        : _index(((left & 7) << 6) | position)
+#elif ELEMENTS==64
+        : _index(((left & 7) << 6) | ((right & 7) << 2) | position)
+#else
+        : _index((left << 6) | (right << 2) | position)
+#endif
+    {
+    }
+    int left() const { return _index >> 6; }
+    int right() const { return (_index >> 2) & 0x0f; }
+    int position() const { return _index & 3; }
+    int index() const { return _index; }
+    bool operator==(Transition other) const { return _index == other._index; }
+private:
+    int _index;
+};
+
 class Block
 {
 public:
@@ -91,21 +313,37 @@ public:
     int background() const { return (_index >> 4) & 0xf; }
     int bits() const { return _index >> 8; }
     int index() const { return _index; }
-private:
-    int _index;
-};
-
-class Transition
-{
-public:
-    Transition() : _index(0) { }
-    Transition(int i) : _index(i) { }
-    Transition(int left, int right, int position)
-      : _index((left << 6) | (right << 2) | position) { }
-    int left() const { return _index >> 6; }
-    int right() const { return (_index >> 2) & 0x0f; }
-    int position() const { return _index & 3; }
-    int index() const { return _index; }
+    Transition transition(int phase)
+    {
+        int b = bits();
+        int fg = foreground();
+        int bg = background();
+        int leftBit = phase;
+        int rightBit = (phase + 1)&3;
+        bool left = ((b << leftBit) & 8) != 0;
+        bool right = ((b << rightBit) & 8) != 0;
+        int leftColour = (left ? fg : bg);
+        int rightColour = (right ? fg : bg);
+        return Transition(leftColour, rightColour, phase);
+    }
+    int iState(int phase)
+    {
+        int b = bits();
+        int fg = foreground();
+        int bg = background();
+        int leftBit = phase;
+        bool left = ((b << leftBit) & 8) != 0;
+        int leftColour = (left ? fg : bg);
+#if PIXEL_ALIGN
+        int rightColour = 0;
+#else
+        int rightBit = (phase + 1)&3;
+        bool right = ((b << rightBit) & 8) != 0;
+        int rightColour = (right ? fg : bg);
+#endif
+        return (leftColour >> 3) | ((rightColour >> 2) & 2);
+    }
+    bool operator==(Block other) const { return _index == other._index; }
 private:
     int _index;
 };
@@ -130,12 +368,45 @@ public:
         double contrast = 1.052;
         _aPower = 0;
 
-        _top = Bitmap<SRGB>(Vector(760, 240));
-        _bottom = Bitmap<SRGB>(Vector(760, 240));
-        AutoHandle topHandle = File("q:\\pictures\\reenigne\\top_decoded.raw", true).openRead();
-        AutoHandle bottomHandle = File("q:\\pictures\\reenigne\\bottom_decoded.raw", true).openRead();
-        topHandle.read(_top.data(), 760*240*3);
-        bottomHandle.read(_bottom.data(), 760*240*3);
+        AutoHandle ht = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
+        AutoHandle hb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
+
+        static const int samples = 450*1024;
+        static const int sampleSpaceBefore = 256;
+        static const int sampleSpaceAfter = 256;
+        Array<Byte> topNTSC;
+        Array<Byte> bottomNTSC;
+        topNTSC.allocate(sampleSpaceBefore + samples + sampleSpaceAfter);
+        bottomNTSC.allocate(sampleSpaceBefore + samples + sampleSpaceAfter);
+        Byte* bt = &topNTSC[0] + sampleSpaceBefore;
+        Byte* bb = &bottomNTSC[0] + sampleSpaceBefore;
+        for (int i = 0; i < sampleSpaceBefore; ++i) {
+            bt[i - sampleSpaceBefore] = 0;
+            bb[i - sampleSpaceBefore] = 0;
+        }
+        for (int i = 0; i < sampleSpaceAfter; ++i) {
+            bt[i + samples] = 0;
+            bb[i + samples] = 0;
+        }
+        for (int i = 0; i < 450; ++i) {
+            ht.read(&bt[i*1024], 1024);
+            hb.read(&bb[i*1024], 1024);
+        }
+        _top = Bitmap<Colour>(Vector(760, 240));
+        _bottom = Bitmap<Colour>(Vector(760, 240));
+
+        NTSCDecoder decoder;
+        decoder.brightness = -11.0;
+        decoder.contrast = 1.41;
+        decoder.hue = 0;
+        decoder.saturation = 0.303;
+        decoder.decode(bt, _top);
+        decoder.decode(bb, _bottom);
+
+        //AutoHandle topHandle = File("q:\\pictures\\reenigne\\top_decoded.raw", true).openRead();
+        //AutoHandle bottomHandle = File("q:\\pictures\\reenigne\\bottom_decoded.raw", true).openRead();
+        //topHandle.read(_top.data(), 760*240*3);
+        //bottomHandle.read(_bottom.data(), 760*240*3);
 
         _output = Bitmap<SRGB>(Vector(1536, 1024));
         _rgb = ColourSpace::rgb();
@@ -165,19 +436,27 @@ public:
 
         for (int i = 0; i < 1024; ++i)
             _tSamples[i] = 0.5;
+        for (int i = 0; i < 4; ++i)
+            _iSamples[i] = 0;
 
-        _sliderCount = 9;
         _sliders[0] = Slider(0, 2, 0.5655, "saturation", &_saturation);
-        _sliders[1] = Slider(-180, 180, 0, "hue", &_hue, false);
+        _sliders[1] = Slider(-180, 180, 0, "hue", &_hue, PIXEL_ALIGN);
         _sliders[2] = Slider(-1, 1, 0, "brightness", &_brightness, false);
         _sliders[3] = Slider(0, 2, 1, "contrast", &_contrast, false);
-        _sliders[4] = Slider(0, 1, 0.5, "transition", &_transitionPoint, false);
+        _sliders[4] = Slider(0, 1, 0.185, "transition", &_transitionPoint, true);
+#if ELEMENTS!=256
+        _baseSliders = 8;
+        _sliders[5] = Slider(0, 1, "I On", &_iSamples[3], !PIXEL_ALIGN);
+        _sliders[6] = Slider(0, 1, "I Rising", &_iSamples[2], !PIXEL_ALIGN);
+        _sliders[7] = Slider(0, 1, "I Falling", &_iSamples[1]);
+#else
+        _baseSliders = 5;
+#endif
+        _sliderCount = _baseSliders + 4;
+
         int fg = 0;
         _attribute = Vector(fg, fg);
-        _sliders[ 5] = Slider(0, 1, "fg/fg 0", &_tSamples[Transition(fg, fg, 0).index()]);
-        _sliders[ 6] = Slider(0, 1, "fg/fg 1", &_tSamples[Transition(fg, fg, 1).index()]);
-        _sliders[ 7] = Slider(0, 1, "fg/fg 2", &_tSamples[Transition(fg, fg, 2).index()]);
-        _sliders[ 8] = Slider(0, 1, "fg/fg 3", &_tSamples[Transition(fg, fg, 3).index()]);
+        newAttribute();
 
         for (int i = 0; i < _sliderCount; ++i) {
             _sliders[i].setBitmap(_output.subBitmap(Vector(1032, i*8), Vector(512, 8)));
@@ -185,6 +464,8 @@ public:
         }
         _slider = -1;
 
+        for (int i = 0; i < 4096; ++i)
+            _optimizing[i] = true;
         computeFitness();
 
         _clicked = Block(0);
@@ -205,6 +486,9 @@ public:
         _animation.setWindow(this);
         _animation.setRate(1);
         _animation.start();
+
+        _iteration = 0;
+        _doneClimb = false;
     }
 
     void paint(PaintHandle* paint)
@@ -219,6 +503,7 @@ public:
         for (int i = 0; i < _sliderCount; ++i)
             _sliders[i].draw();
 
+        drawCaptures();
         for (int i = 0; i < 4096; ++i) {
             Block b(i);
             Vector p = b.vector();
@@ -228,20 +513,20 @@ public:
                     _output[p + Vector(xx, yy + 8)] = c;
         }
 
-        write(_output.subBitmap(Vector(1024, (20 + 1)*8), Vector(512, 8)), "Fitness", _fitness);
-        write(_output.subBitmap(Vector(1024, (20 + 2)*8), Vector(512, 8)), "Variance", _variance);
+        write(_output.subBitmap(Vector(1024, (23 + 1)*8), Vector(512, 8)), "Fitness", _fitness);
+        write(_output.subBitmap(Vector(1024, (23 + 2)*8), Vector(512, 8)), "Delta", _aPower);
 
         Vector p = _attribute << 6;
         SRGB white(255, 255, 255);
-        for (int x = 0; x < 64; ++x) {
-            _output[p + Vector(0, x)] = white;
-            _output[p + Vector(63, x)] = white;
-            _output[p + Vector(x, 0)] = white;
-            _output[p + Vector(x, 63)] = white;
-        }
-        for (int y = 0; y < 256; ++y)
-            for (int x = 0; x < 256; ++x)
-                _output[_waveformTL + Vector(x, y)] = SRGB(0, 0, 0);
+        //for (int x = 0; x < 64; ++x) {
+        //    _output[p + Vector(0, x)] = white;
+        //    _output[p + Vector(63, x)] = white;
+        //    _output[p + Vector(x, 0)] = white;
+        //    _output[p + Vector(x, 63)] = white;
+        //}
+        //for (int y = 0; y < 256; ++y)
+        //    for (int x = 0; x < 256; ++x)
+        //        _output[_waveformTL + Vector(x, y)] = SRGB(0, 0, 0);
 
         // Copy the _output bitmap to the Image
         Vector zero(0, 0);
@@ -272,7 +557,7 @@ public:
             Block b(i);
             Colour rgb = getPixel4(b.foreground(), b.background(), b.bits());
             _captures[i] = rgb;
-            SRGB c = _rgb.toSrgb24(rgb);
+            SRGB c = _srgb.toSrgb24(rgb);
             Vector p = b.vector();
             for (int xx = 0; xx < 16; ++xx)
                 for (int yy = 0; yy < 8; ++yy)
@@ -282,39 +567,32 @@ public:
 
     void newAttribute()
     {
-        drawCaptures();
+//        drawCaptures();
         int fg = _attribute.x;
         int bg = _attribute.y;
-        if (fg == bg) {
-            _sliders[5] = Slider(0, 1, "fg/fg 0", &_tSamples[Transition(fg, fg, 0).index()]);
-            _sliders[6] = Slider(0, 1, "fg/fg 1", &_tSamples[Transition(fg, fg, 1).index()]);
-            _sliders[7] = Slider(0, 1, "fg/fg 2", &_tSamples[Transition(fg, fg, 2).index()]);
-            _sliders[8] = Slider(0, 1, "fg/fg 3", &_tSamples[Transition(fg, fg, 3).index()]);
-            _sliderCount = 8;
-        }
-        else {
-            _sliders[ 5] = Slider(0, 1, "fg/fg 0", &_tSamples[Transition(fg, fg, 0).index()]);
-            _sliders[ 6] = Slider(0, 1, "fg/fg 1", &_tSamples[Transition(fg, fg, 1).index()]);
-            _sliders[ 7] = Slider(0, 1, "fg/fg 2", &_tSamples[Transition(fg, fg, 2).index()]);
-            _sliders[ 8] = Slider(0, 1, "fg/fg 3", &_tSamples[Transition(fg, fg, 3).index()]);
-            _sliders[ 9] = Slider(0, 1, "bg/bg 0", &_tSamples[Transition(bg, bg, 0).index()]);
-            _sliders[10] = Slider(0, 1, "bg/bg 1", &_tSamples[Transition(bg, bg, 1).index()]);
-            _sliders[11] = Slider(0, 1, "bg/bg 2", &_tSamples[Transition(bg, bg, 2).index()]);
-            _sliders[12] = Slider(0, 1, "bg/bg 3", &_tSamples[Transition(bg, bg, 3).index()]);
-            _sliders[13] = Slider(0, 1, "fg/bg 0", &_tSamples[Transition(fg, bg, 0).index()]);
-            _sliders[14] = Slider(0, 1, "fg/bg 1", &_tSamples[Transition(fg, bg, 1).index()]);
-            _sliders[15] = Slider(0, 1, "fg/bg 2", &_tSamples[Transition(fg, bg, 2).index()]);
-            _sliders[16] = Slider(0, 1, "fg/bg 3", &_tSamples[Transition(fg, bg, 3).index()]);
-            _sliders[17] = Slider(0, 1, "bg/fg 0", &_tSamples[Transition(bg, fg, 0).index()]);
-            _sliders[18] = Slider(0, 1, "bg/fg 1", &_tSamples[Transition(bg, fg, 1).index()]);
-            _sliders[19] = Slider(0, 1, "bg/fg 2", &_tSamples[Transition(bg, fg, 2).index()]);
-            _sliders[20] = Slider(0, 1, "bg/fg 3", &_tSamples[Transition(bg, fg, 3).index()]);
-            _sliderCount = 21;
-        }
-        for (int i = 4; i < _sliderCount; ++i) {
+        if (_attribute.x == _attribute.y)
+            _sliderCount = _baseSliders + 4;
+        else
+            _sliderCount = _baseSliders + 16;
+        for (int i = _baseSliders; i < _sliderCount; ++i) {
+            _sliders[i] = Slider(0, 1, "", &_tSamples[transitionForSlider(i).index()]);
             _sliders[i].setBitmap(_output.subBitmap(Vector(1032, i*8), Vector(512, 8)));
             _sliders[i].draw();
         }
+    }
+    Transition transitionForSlider(int slider)
+    {
+        int fg = _attribute.x;
+        int bg = _attribute.y;
+        slider -= _baseSliders;
+        int phase = slider&3;
+        switch (slider >> 2) {
+            case 0: return Transition(fg, fg, phase);
+            case 1: return Transition(bg, bg, phase);
+            case 2: return Transition(fg, bg, phase);
+            case 3: return Transition(bg, fg, phase);
+        }
+        throw Exception();
     }
 
     bool mouseInput(Vector position, int buttons)
@@ -410,8 +688,11 @@ public:
                                                                    
             double oldFitness = _fitness;
             Colour oldComputes[4096];
-            for (int j = 0; j < 4096; ++j)
+            double oldFitnesses[4096];
+            for (int j = 0; j < 4096; ++j) {
                 oldComputes[j] = _computes[j];
+                oldFitnesses[j] = _fitnesses[j];
+            }
 
             // Pick a direction to move it in
             bool lower = ((i & 1) == 0);
@@ -434,6 +715,21 @@ public:
             }
             slider->setValue(value);
 
+            if (i < (_baseSliders << 1))
+                for (int bn = 0; bn < 4096; ++bn)
+                    _optimizing[bn] = true;
+            else {
+                Transition t = transitionForSlider(i >> 1);
+                if (t.left() == 6 && t.right() == 6)
+                    for (int bn = 0; bn < 4096; ++bn)
+                        _optimizing[bn] = true;
+                else
+                    for (int bn = 0; bn < 4096; ++bn) {
+                        _optimizing[bn] =
+                            (t == Block(bn).transition(t.position()));
+                    }
+            }
+
             computeFitness();
 
             // If old fitness was better, restore _fitness, slider value and
@@ -441,20 +737,29 @@ public:
             if (oldFitness <= _fitness) {
                 _fitness = oldFitness;
                 slider->setValue(oldValue);
-                for (int i = 0; i < 4096; ++i)
-                    _computes[i] = oldComputes[i];
+                for (int j = 0; j < 4096; ++j) {
+                    _computes[j] = oldComputes[j];
+                    _fitnesses[j] = oldFitnesses[j];
+                }
             }
-            else
+            else {
                 climbed = true;
+                _doneClimb = true;
+            }
         }
         if (!climbed) {
             ++_attribute.x;
-            if (_attribute.x == COLOURS) {
+            if (_attribute.x == 16) {
                 _attribute.x = 0;
                 ++_attribute.y;
-                if (_attribute.y == COLOURS) {
+                if (_attribute.y == 16) {
                     _attribute.y = 0;
-                    ++_aPower;
+                    if (!_doneClimb) {
+                        ++_aPower;
+                        if (_aPower == 38)
+                            remove();
+                    }
+                    _doneClimb = false;
                 }
             }
             newAttribute();
@@ -465,25 +770,18 @@ public:
 private:                                                                           
     void integrate(Block b, double* dc, Complex<double>* iq/*, double* hf*/)
     {
-        int bits = b.bits();
-        int fg = b.foreground();
-        int bg = b.background();
         double s[4];
         for (int t = 0; t < 4; ++t) {
-            int leftBit = t;
-            int rightBit = (t + 1)&3;
-            bool left = ((bits << leftBit) & 8) != 0;
-            bool right = ((bits << rightBit) & 8) != 0;
-            int leftColour = (left ? fg : bg);
-            int rightColour = (right ? fg : bg);
-            Transition transition(leftColour, rightColour, t);
-            s[t] = _tSamples[transition.index()];
+            s[t] = _tSamples[b.transition(t).index()];
+#if ELEMENTS!=256
+            s[t] += _iSamples[b.iState(t)];
+#endif
         }
         *dc = (s[0] + s[1] + s[2] + s[3])/4;
         iq->x = (s[0] - s[2])/2;
         iq->y = (s[1] - s[3])/2;
 //        *hf = ((s[0] + s[2]) - (s[1] + s[3]))/4;
-        *iq *= unit(_transitionPoint);
+        //*iq *= unit(_transitionPoint);
     }
 
     void computeFitness()
@@ -493,36 +791,36 @@ private:
 //        double hf;
         integrate(Block(6, 6, 0), &dc, &iqBurst/*, &hf*/);
         Complex<double> iqAdjust = -iqBurst.conjugate()*unit((33 + 90 + _hue)/360.0)*_saturation*_contrast/iqBurst.modulus();
+        if (iqBurst.modulus2() == 0)
+            iqAdjust = 0;
         
         _fitness = 0;
-        int fitCount = 0;
-        for (int bg = 0; bg < COLOURS; ++bg)
-            for (int fg = 0; fg < COLOURS; ++fg)
-                for (int bits = 0; bits < 16; ++bits) {
-                    Complex<double> iq;
-                    Block block(fg, bg, bits);
-                    integrate(block, &dc, &iq /*, &hf*/);
-                    double y = dc*_contrast + _brightness;
-                    iq *= iqAdjust;
+        for (int bn = 0; bn < 4096; ++bn) {
+            Block block(bn);
+            if (_optimizing[bn]) {
+                Complex<double> iq;
+                integrate(block, &dc, &iq /*, &hf*/);
+                double y = dc*_contrast + _brightness;
+                iq *= iqAdjust;
 
-                    double r = clamp(0.0, 255*(y + 0.9563*iq.x + 0.6210*iq.y), 255.0);
-                    double g = clamp(0.0, 255*(y - 0.2721*iq.x - 0.6474*iq.y), 255.0);
-                    double b = clamp(0.0, 255*(y - 1.1069*iq.x + 1.7046*iq.y), 255.0);
-                    Colour c(r, g, b);
-                    _computes[Block(fg, bg, bits).index()] = c;
+                double r = 255*(y + 0.9563*iq.x + 0.6210*iq.y);
+                double g = 255*(y - 0.2721*iq.x - 0.6474*iq.y);
+                double b = 255*(y - 1.1069*iq.x + 1.7046*iq.y);
+                Colour c(r, g, b);
+                _computes[bn] = c;
 
-                    int i = block.index();
-                    if (_optimizing[i]) {
-                        _fitness += (c - _rgb.toSrgb(_captures[i])).modulus2();
-                        ++fitCount;
-                    }
-                }
-        _fitness /= fitCount;
+                double f = (c - /*_rgb.toSrgb*/(_captures[bn])).modulus2();
+                _fitnesses[bn] = f;
+            }
+
+            _fitness += _fitnesses[bn];
+        }
+        _fitness /= 4096;
     }
 
-    SRGB getDecodedPixel0(int bitmap, Vector p)
+    Colour getDecodedPixel0(int bitmap, Vector p)
     {
-        Bitmap<SRGB> b;
+        Bitmap<Colour> b;
         switch (bitmap) {
             case 0: b = _top; break;
             case 1: b = _bottom; break;
@@ -531,7 +829,7 @@ private:
     }
     Colour getDecodedPixel1(int bitmap, Vector p)
     {
-        return _rgb.fromSrgb(getDecodedPixel0(bitmap, p));
+        return /*_rgb.fromSrgb*/(getDecodedPixel0(bitmap, p));
     }
     Colour getPixel2(Vector p)
     {
@@ -589,8 +887,8 @@ private:
 
     AnimationThread _animation;
 
-    Bitmap<SRGB> _top;
-    Bitmap<SRGB> _bottom;
+    Bitmap<Colour> _top;
+    Bitmap<Colour> _bottom;
     Bitmap<SRGB> _output;
     ColourSpace _rgb;
     ColourSpace _srgb;
@@ -601,6 +899,7 @@ private:
     Slider _sliders[25];
     int _slider;
     int _sliderCount;
+    int _baseSliders;
 
     Vector _dragStart;
     int _dragStartX;
@@ -610,7 +909,7 @@ private:
     double _brightness;
     double _contrast;
     
-    double _voltages[4];
+//    double _voltages[4];
     Colour _captures[4096];
     Colour _computes[4096];
     double _fitness;
@@ -619,6 +918,7 @@ private:
     Vector _waveformTL;
     Vector _attribute;
     bool _optimizing[4096];
+    double _fitnesses[4096];
 
     double _sampleScale;
     double _sampleOffset;
@@ -627,9 +927,10 @@ private:
 
     bool _paused;
 
-    double _variance;
+//    double _variance;
 
     double _tSamples[1024];
+    double _iSamples[4];
 
     double _transitionPoint;
 
@@ -637,6 +938,10 @@ private:
 
     int _buttons;
     Vector _position;
+
+    int _iteration;
+
+    bool _doneClimb;
 };
 
 class CalibrateWindow : public RootWindow

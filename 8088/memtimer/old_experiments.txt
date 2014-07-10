@@ -1,3 +1,552 @@
+experimentMod1_17:
+  db "Mod1-17$"
+  dw .endInit - ($+2)
+
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,17
+  out 0x41,al  ; Timer 1 rate
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov cx,1
+  mov ah,1
+
+.endInit:
+  dw .endCode - ($+2)
+
+  add bp,0x0f0f
+  mov bx,bp
+  mov bl,0x0f
+  mov al,[bx]
+  add si,0x0f0f
+  mov bx,si
+  mov bl,0x0f
+  add al,[bx]
+  add di,0x0f0f
+  mov bx,di
+  mov bl,0x0f
+  add al,[bx]
+  add dx,0x0f0f
+  mov bx,dx
+  mov bl,0x0f
+  add al,[bx]
+  out 0xe0,al
+  loop .endInit+2
+
+  pop bx
+  pop word[cs:bx]
+  mov cl,1
+  jmp $+2
+
+.endCode
+
+
+experimentMod1_19:
+  db "Mod1-19$"
+  dw .endInit - ($+2)
+
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,19
+  out 0x41,al  ; Timer 1 rate
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov cx,1
+  mov ah,1
+
+.endInit:
+  dw .endCode - ($+2)
+
+  add bp,0x0f0f
+  mov bx,bp
+  mov bl,0x0f
+  mov al,[bx]
+  add si,0x0f0f
+  mov bx,si
+  mov bl,0x0f
+  add al,[bx]
+  add di,0x0f0f
+  mov bx,di
+  mov bl,0x0f
+  add al,[bx]
+  add dx,0x0f0f
+  mov bx,dx
+  mov bl,0x0f
+  add al,[bx]
+  out 0xe0,al
+  loop .endInit+2
+
+  pop bx
+  pop word[cs:bx]
+  mov cl,1
+  jmp $+2
+
+.endCode
+
+
+experimentMod2a_17:
+  db "Mod2a-17$"
+  dw .endInit - ($+2)
+
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,17
+  out 0x41,al  ; Timer 1 rate
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov cx,1
+  mov ah,1
+
+.endInit:
+  dw .endCode - ($+2)
+
+  add dl,0x0f
+  adc si,-1
+  lodsb
+  add dh,0x0f
+  adc bp,0
+  add al,[ds:bp]
+  add ch,0x0f
+  adc di,0
+  add al,[di]
+  add cl,0x0f
+  adc bx,0
+  add al,[bx]
+  out 0xe0,al
+  dec ah
+  jnz .endInit+2
+
+  xchg ax,bx
+  pop bx
+  pop word[cs:bx]
+  xchg ax,bx
+  mov ah,1
+  jmp $+2
+
+.endCode
+
+
+experimentMod2a_19:
+  db "Mod2a-19$"
+  dw .endInit - ($+2)
+
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,19
+  out 0x41,al  ; Timer 1 rate
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov cx,1
+  mov ah,1
+
+.endInit:
+  dw .endCode - ($+2)
+
+  add dl,0x0f
+  adc si,-1
+  lodsb
+  add dh,0x0f
+  adc bp,0
+  add al,[ds:bp]
+  add ch,0x0f
+  adc di,0
+  add al,[di]
+  add cl,0x0f
+  adc bx,0
+  add al,[bx]
+  out 0xe0,al
+  dec ah
+  jnz .endInit+2
+
+  xchg ax,bx
+  pop bx
+  pop word[cs:bx]
+  xchg ax,bx
+  mov ah,1
+  jmp $+2
+
+.endCode
+
+experimentMod2:
+  db "Mod2$"
+  dw .endInit - ($+2)
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov cx,1
+  mov ah,1
+
+.endInit:
+  dw .endCode - ($+2)
+
+  add dl,0x0f
+  adc si,-1
+  lodsb
+  add dh,0x0f
+  adc bp,0
+  add al,[ds:bp]
+  add ch,0x0f
+  adc di,0
+  add al,[di]
+  add byte[0xffff],0x0f
+  adc bx,0
+  add al,[bx]
+  out 0xe0,al
+  dec cl
+  jnz .endInit+2
+
+  xchg ax,bx
+  pop bx
+  pop word[cs:bx]
+  xchg ax,bx
+  mov cl,1
+  jmp $+2
+
+.endCode
+
+
+experimentMod2_17:
+  db "Mod2-17$"
+  dw .endInit - ($+2)
+
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,17
+  out 0x41,al  ; Timer 1 rate
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov cx,1
+  mov ah,1
+
+.endInit:
+  dw .endCode - ($+2)
+
+  add dl,0x0f
+  adc si,-1
+  lodsb
+  add dh,0x0f
+  adc bp,0
+  add al,[ds:bp]
+  add ch,0x0f
+  adc di,0
+  add al,[di]
+  add byte[0xffff],0x0f
+  adc bx,0
+  add al,[bx]
+  out 0xe0,al
+  dec cl
+  jnz .endInit+2
+
+  xchg ax,bx
+  pop bx
+  pop word[cs:bx]
+  xchg ax,bx
+  mov cl,1
+  jmp $+2
+
+.endCode
+
+
+experimentMod2_19:
+  db "Mod2-19$"
+  dw .endInit - ($+2)
+
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,19
+  out 0x41,al  ; Timer 1 rate
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov cx,1
+  mov ah,1
+
+.endInit:
+  dw .endCode - ($+2)
+
+  add dl,0x0f
+  adc si,-1
+  lodsb
+  add dh,0x0f
+  adc bp,0
+  add al,[ds:bp]
+  add ch,0x0f
+  adc di,0
+  add al,[di]
+  add byte[0xffff],0x0f
+  adc bx,0
+  add al,[bx]
+  out 0xe0,al
+  dec cl
+  jnz .endInit+2
+
+  xchg ax,bx
+  pop bx
+  pop word[cs:bx]
+  xchg ax,bx
+  mov cl,1
+  jmp $+2
+
+.endCode
+
+
+experimentUnp1:
+  db "Unp1$"
+  dw .endInit - ($+2)
+
+.endInit:
+  dw .endCode - ($+2)
+
+   mov dx,[bp+6]
+   mov ax,[bp+4]
+   mov bx,ax
+   and ax,0xF
+   mov cl,4
+   shr bx,cl
+   mov cl,12
+   shl dx,cl
+   add dx,bx
+
+.endCode
+
+experimentUnp2:
+  db "Unp2$"
+  dw .endInit - ($+2)
+
+.endInit:
+  dw .endCode - ($+2)
+
+   mov dx,[bp+6]
+   mov ax,[bp+4]
+   mov bx,ax
+   and ax,0xF
+   and bx,0xFFF0
+   or dx,bx
+   mov cl,4
+   ror dx,cl
+
+.endCode
+
+experimentUnp3:
+  db "Unp3$"
+  dw .endInit - ($+2)
+
+.endInit:
+  dw .endCode - ($+2)
+
+   mov dx,[bp+6]
+   mov ax,[bp+4]
+   mov bx,ax
+   and ax,0xF
+   and bx,0xFFF0
+   and dx,0xf
+   or dx,bx
+   mov cl,4
+   ror dx,cl
+
+.endCode
+
+experimentUnp4:
+  db "Unp4$"
+  dw .endInit - ($+2)
+
+.endInit:
+  dw .endCode - ($+2)
+
+   mov dx,[bp+6]
+   mov ax,[bp+4]
+   mov bx,ax
+   and ax,0xF
+   and bx,0xFFF0
+   or dx,bx
+   ror dx,1
+   ror dx,1
+   ror dx,1
+   ror dx,1
+
+.endCode
+
+experimentUnp5:
+  db "Unp5$"
+  dw .endInit - ($+2)
+
+.endInit:
+  dw .endCode - ($+2)
+
+   mov dx,[bp+6]
+   mov ax,[bp+4]
+   mov bx,ax
+   and ax,0xF
+   and bx,0xFFF0
+   and dx,0xf
+   or dx,bx
+   ror dx,1
+   ror dx,1
+   ror dx,1
+   ror dx,1
+
+.endCode
+
+
+
+
+
+experimentWater:
+  db "Water$"
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov ds,ax
+  mov ax,0xb800
+  mov es,ax
+  mov si,0
+  mov bh,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  mov ax,[si]
+  sub al,ah
+  sub al,[si-1]
+  sub al,[si+40]
+  sub al,[si-40]
+  shr al,1
+  shr al,1
+  mov ah,[si+40*25]
+  add ah,al
+  mov [si+40*25],ah
+  shr ah,1
+  shr ah,1
+  mov bl,[si+2*40*25]
+  add bl,ah
+  mov [si+2*40*25],bl
+  mov ax,[bx]
+  stosw
+.endCode
+
+experimentAmiga19:
+  db "Amiga19$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+  mov ax,1
+  mov bx,2
+  mov cx,3
+  mov di,4
+  mov bp,5
+  mov sp,6
+  mov si,7
+  mov ax,0x8000
+  mov ds,ax
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  lodsb
+  out 0xe0,al
+  mov al,1
+.endCode:
+
+experimentAmiga76:
+  db "Amiga76$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+  mov ax,1
+  mov bx,2
+  mov cx,3
+  mov di,4
+  mov bp,5
+  mov sp,6
+  mov si,7
+  mov ax,0x8000
+  mov ds,ax
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  lodsb
+  out 0xe0,al
+  mov al,1
+  nop
+  nop
+  nop
+.endCode:
+
 experimentHammerPalette:
   db "HammerPalette$"
   dw .endInit - ($+2)

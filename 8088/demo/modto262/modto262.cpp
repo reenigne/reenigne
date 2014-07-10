@@ -2,6 +2,7 @@
 #include "alfe/vectors.h"
 #include "alfe/rational.h"
 #include "alfe/hash_table.h"
+#include "alfe/space.h"
 
 static const int samplesPerFrame = 262;
 static const int minSample = 1;
@@ -76,7 +77,31 @@ class Program : public ProgramBase
 public:
     void run()
     {
-        _modFile = File(_arguments[1]).contents();
+        int mode;
+        bool parsed = false;
+        if (_arguments.count() >= 3) {
+            CharacterSource source(_arguments[2]);
+            Space::parse(&source);
+            Span span;
+            parsed = Space::parseInteger(&source, &mode, &span);
+            CharacterSource s = source;
+            if (s.get() != -1)
+                source.location().throwError("Expected end of string");
+        }
+        if (!parsed) {
+            console.write("Syntax: " + _arguments[0] +
+                " <MOD file name> <mode>\n"
+                "Modes are: \n"
+                "  0 for VIC (1 channel, sample point per scanline, update "
+                "per frame,\n"
+                "    262 sample points per frame, 76 levels, 59.92Hz tick "
+                "rate).\n"
+                "  1 for SID (4 channels, 256-point samples, 65536 "
+                "frequencies).\n"
+                "  2 for Paula (4 channels, 256 frequencies).\n");
+            return;
+        }
+        _modFile = File(_arguments[1], true).contents();
         int type = getIntAt(1080);
         int nSamples;
         switch (type) {
@@ -92,12 +117,13 @@ public:
             default:
                 nSamples = 15;
         }
+        _samples.allocate(nSamples + 1);
         if (type == 0x4d2e4b2e)
             nSamples = 31;
         int offset = 0;
+        int p = 20;
         for (int i = 0; i < nSamples; ++i) {
             Sample sample;
-            int p = i*30 + 20;
             sample._length = getWordAt(p + 22);
             sample._fineTune = getByteAt(p + 24);
             if (sample._fineTune >= 8)
@@ -108,8 +134,78 @@ public:
             sample._offset = o;
             o += sample._length;
             _samples[i] = sample;
+            p += 30;
         }
-        int nPositions = 
+        int nPositions = getByteAt(p);
+        ++p;
+        int nPatterns = 0;
+        for (int i = 0; i < 128; ++i) {
+            int pattern = getByteAt(p);
+            _positions[i] = pattern;
+            nPatterns = max(pattern, nPatterns);
+            ++p;
+        }
+        ++nPatterns;
+        _patterns.allocate(nPatterns);
+        for (int pattern = 0; pattern < nPatterns; ++pattern) {
+            for (int division = 0; division < 64; ++division) {
+                for (int channel = 0; channel < 4; ++channel) {
+                    int period = getWordAt(p);
+                    p += 2;
+                    int command = getWordAt(p);
+                    p += 2;
+                    int sample = ((period & 0xf000) >> 8) |
+                        ((command & 0xf000) >> 12);
+                    period &= 0xfff;
+                    command &= 0xfff;
+                    if (sample > nSamples)
+                        sample = 0;
+                    int operand1 = (command & 0xf0) >> 4;
+                    int operand2 = command & 0x0f;
+                    command = (command & 0xf00) >> 8;
+                    Channel* c = &(_patterns[pattern]._divisions[division].
+                        _channels[channel]);
+                    c->_period = period;
+                    c->_sample = sample;
+                    c->_command = command;
+                    c->_operand1 = operand1;
+                    c->_operand2 = operand2;
+                }
+            }
+        }
+
+        int cyclesPerTick = 1773447/125;
+        int ticksPerDivision = 6;
+        int position = 0;
+        int pattern = _positions[position];
+        int division = 0;
+        int tick = 0;
+        do {
+            // TODO: determine:
+            //   For each channel:
+            for (int channel = 0; channel < 4; ++channel) {
+                int sample_current_position;
+                int sample_end_position;
+                int sample_restart_position;
+                int pitch;
+                int volume = 64;
+                output(channel, sample_current_position, sample_end_position,
+                    sample_restart_position, pitch, volume, cyclesPerTick,
+                    mode);
+
+            }
+
+            ++tick;
+            if (tick == ticksPerDivision) {
+                tick = 0;
+
+            }
+
+        } while (true);
+        for (int position = 0; position < nPatterns; ++position) {
+            int pattern = _positions[position];
+
+        }
             
 
         FileHandle output = File("tables.asm").openWrite();
@@ -145,6 +241,25 @@ private:
         int _repeatLength;  // in words (<2 for no repeat)
         int _offset;
     };
+    class Channel
+    {
+    public:
+        int _period;
+        int _sample;
+        int _command;
+        int _operand1;
+        int _operand2;
+    };
+    class Division
+    {
+    public:
+        Channel _channels[4];
+    };
+    class Pattern
+    {
+    public:
+        Division _divisions[64];
+    };
     int getByteAt(int p)
     {
         return _modFile[p];
@@ -157,6 +272,8 @@ private:
     {
         return (getWordAt(p) << 16) | getWordAt(p + 2);
     }
-    Sample _samples[32];
+    Array<Sample> _samples;
+    Array<Pattern> _patterns;
+    int _positions[128];
     String _modFile;
 };

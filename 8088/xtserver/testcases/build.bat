@@ -17,3 +17,4 @@ yasm hres_colours.asm -o hres_colours.bin
 yasm vsplit.asm -o vsplit.bin
 yasm 7mhz.asm -o 7mhz.bin
 yasm indirect_call.asm -o indirect_call.bin
+yasm 16c_ramp.asm -o 16c_ramp.bin

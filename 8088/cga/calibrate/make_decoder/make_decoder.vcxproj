@@ -11,23 +11,23 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{2A9A2326-C724-4EF6-B2F4-5F1BFA271E74}</ProjectGuid>
+    <ProjectGuid>{2148EFFA-4014-454C-B7EB-BEF663B42D38}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>modto262</RootNamespace>
+    <RootNamespace>make_decoder</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <CharacterSet>Unicode</CharacterSet>
     <PlatformToolset>v120</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -41,7 +41,6 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>D:\t\reenigne\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -52,7 +51,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -64,10 +63,13 @@
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>
       </PrecompiledHeader>
-      <Optimization>MaxSpeed</Optimization>
+      <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Fast</FloatingPointModel>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -77,17 +79,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="modto262.cpp" />
+    <ClCompile Include="make_decoder.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\include\alfe\array.h" />
-    <ClInclude Include="..\..\..\include\alfe\character_source.h" />
-    <ClInclude Include="..\..\..\include\alfe\file.h" />
-    <ClInclude Include="..\..\..\include\alfe\handle.h" />
-    <ClInclude Include="..\..\..\include\alfe\main.h" />
-    <ClInclude Include="..\..\..\include\alfe\rotors.h" />
-    <ClInclude Include="..\..\..\include\alfe\space.h" />
-    <ClInclude Include="..\..\..\include\alfe\vectors.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\array.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\bitmap.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\colour_space.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\complex.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\main.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\rotors.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\terminal6.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\user.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\vectors.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

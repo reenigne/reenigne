@@ -48,14 +48,8 @@ bool alerting = false;
 #include "alfe/reference_counted_array.h"
 #include "alfe/bitmap.h"
 #include "alfe/linked_list.h"
+#include "alfe/thread.h"
 #include "alfe/user.h"
-
-class IdleProcessor
-{
-public:
-    virtual void idle() = 0;
-};
-
 #endif
 
 Handle console;
@@ -106,55 +100,6 @@ protected:
     Windows _windows;
     INT _nCmdShow;
 
-    void add(Window* window)
-    {
-        _rootWindow.add(window);
-    }
-
-    void create()
-    {
-        _rootWindow.setParent(0);
-        _rootWindow.setWindows(&_windows);
-        _rootWindow.outerCreate();
-    }
-
-    void pumpMessages()
-    {
-        BOOL bRet;
-        do {
-            MSG msg;
-            bRet = GetMessage(&msg, NULL, 0, 0);
-            IF_MINUS_ONE_THROW(bRet);
-            if (bRet != 0) {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
-            }
-            else
-                _returnValue = static_cast<int>(msg.wParam);
-        } while (bRet != 0);
-    }
-
-    void pumpMessages(IdleProcessor* idle)
-    {
-        BOOL fMessage;
-        MSG msg;
-        do {
-            do {
-                fMessage = PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE);
-                if (fMessage == 0)
-                    break;
-                if (msg.message == WM_QUIT)
-                    break;
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
-            } while (true);
-            if (msg.message == WM_QUIT)
-                break;
-            idle->idle();
-        } while (true);
-        _returnValue = static_cast<int>(msg.wParam);
-    }
-
 #endif
     virtual void run() = 0;
     Array<String> _arguments;
@@ -176,21 +121,6 @@ private:
             MessageBox(NULL, s, L"Error", MB_OK | MB_ICONERROR);
         }
     }
-
-    class RootWindow : public Window
-    {
-    public:
-        void removed()
-        {
-            if (_container.empty()) {
-                // Once there are no more child windows left, the thread must
-                // end.
-                PostQuitMessage(0);
-            }
-        }
-    };
-
-    RootWindow _rootWindow;
 
 #endif
     void initializeMain()
@@ -288,19 +218,52 @@ template<class WindowClass> class WindowProgram : public ProgramBase
 public:
     void run()
     {
-        WindowClass* window = new WindowClass;
-        add(window);
-        create();
-        window->show(_nCmdShow);
-        pumpMessages();
+        _window.setParent(0);
+        _window.setWindows(&_windows);
+        _window.create();
+        _window.show(_nCmdShow);
+
+        MSG msg;
+        do {
+            bool more = idle();
+            if (!more) {
+                BOOL bRet = GetMessage(&msg, NULL, 0, 0);
+                IF_MINUS_ONE_THROW(bRet);
+                if (bRet == 0)
+                    break;
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+            else {
+                do {
+                    BOOL fMessage = PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE);
+                    if (fMessage == 0)
+                        break;
+                    if (msg.message == WM_QUIT)
+                        break;
+                    TranslateMessage(&msg);
+                    DispatchMessage(&msg);
+                } while (true);
+                if (msg.message == WM_QUIT)
+                    break;
+            }
+        } while (true);
+        _returnValue = static_cast<int>(msg.wParam);
     }
+protected:
+    // idle() returns true if there is more idle processing to do, false if
+    // there isn't and we should wait for a message before calling again.
+    virtual bool idle() { return false; }
+
+    WindowClass _window;
 };
 #endif
 
 // Put Program in a template because it's not declared yet.
 #ifdef _WIN32
 #ifdef _WINDOWS
-template<class Program> INT APIENTRY WinMainTemplate(HINSTANCE hInst, INT nCmdShow)
+template<class Program> INT APIENTRY WinMainTemplate(HINSTANCE hInst,
+    INT nCmdShow)
 #else
 template<class Program> int mainTemplate()
 #endif

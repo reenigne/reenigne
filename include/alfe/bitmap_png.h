@@ -83,7 +83,8 @@ private:
                 png_set_read_fn(_png_ptr, static_cast<png_voidp>(_handle),
                     userReadData);
                 png_set_sig_bytes(_png_ptr, 8);
-                png_read_png(_png_ptr, _info_ptr, PNG_TRANSFORM_IDENTITY, 0);
+                png_read_png(_png_ptr, _info_ptr,
+                    PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_STRIP_16, 0);
                 _row_pointers = png_get_rows(_png_ptr, _info_ptr);
                 Vector size(png_get_image_width(_png_ptr, _info_ptr),
                     png_get_image_height(_png_ptr, _info_ptr));

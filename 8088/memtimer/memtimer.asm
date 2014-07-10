@@ -225,6 +225,60 @@ codePreambleEnd:
 
 experimentData:
 
+experimentMul:
+  db "Mul$"
+  dw .endInit - ($+2)
+  mov dx,0
+  mov ax,0
+.endInit:
+  dw .endCode - ($+2)
+  mul dx
+.endCode:
+
+experimentOrAlAl:
+  db "OrAlAl$"
+  dw .endInit - ($+2)
+  mov dx,0
+  mov ax,0
+.endInit:
+  dw .endCode - ($+2)
+  mul dx
+  or al,al
+.endCode:
+
+experimentXorAlAl:
+  db "XorAlAl$"
+  dw .endInit - ($+2)
+  mov dx,0
+  mov ax,0
+.endInit:
+  dw .endCode - ($+2)
+  mul dx
+  xor al,al
+.endCode:
+
+experimentMovAl0:
+  db "MovAl0$"
+  dw .endInit - ($+2)
+  mov dx,0
+  mov ax,0
+.endInit:
+  dw .endCode - ($+2)
+  mul dx
+  mov al,0
+.endCode:
+
+experimentCmpAl0:
+  db "CmpAl0$"
+  dw .endInit - ($+2)
+  mov dx,0
+  mov ax,0
+.endInit:
+  dw .endCode - ($+2)
+  mul dx
+  cmp al,0
+.endCode:
+
 experimentAmiga:
   db "Amiga$"
   dw .endInit - ($+2)

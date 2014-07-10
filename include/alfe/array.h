@@ -226,6 +226,11 @@ public:
         Array<T>::swap(other);
         swap(_allocated, other._allocated);
     }
+    void allocate(int n)
+    {
+        Array<T>::allocate(n);
+        _allocated = n;
+    }
     void append(const T& value)
     {
         if (_allocated == Array<T>::_n) {

@@ -39,3 +39,389 @@ Why is there a -14 degree hue correction? Just a weird default in WinTV?
   Probably the best way to find out is by implementing the raw frame grabber
 
 
+
+
+
+
+
+calibrate - models circuit with rise and fall parameters for various gates                           2013/02/10
+calibrate_ntsc - includes NTSC decoder from .raw files (to calibrate decoder against WinTV)          2013/03/02
+calibrate2 - solves large system of linear equations via Gaussian elimination (for hillclimbing?)    2013/03/17
+calibrate3 - models gains and offsets of 7.16MHz, 3.58MHz and DC components of waveform              2013/03/20
+calibrate4 - fg/bg combinations for each of the 4 transition positions - this one actually works     2013/03/20
+saturate - checks clipping of final result                                                           2013/03/20
+calibrate5 - included decoder to avoid clipping                                                      2014/07/02
+
+
+
+
+There is a _fitness for each block, but an _optimizing for each transition
+There are 4096 (16*16*16) blocks, one for each possible non-transition nybble in 80-column text mode
+There are (currently) 1024 (16*16*4) transitions, one for each combination of left-pixel-colour, right-pixel-colour and phase
+
+
+Transition ab is used in 8 blocks:
+  (fg=a bg=b) abaa abab abba abbb
+  (fg=b bg=a) abaa abab abba abbb
+Transition aa is used in 136 blocks:
+  (fg=a bg=b) aaaa aaab aaba aabb   *15
+  (fg=b bg=a) aaaa aaab aaba aabb   *15
+  (fg=a bg=a) aaaa *16 bitpatterns
+
+
+srgb = rgb^(1/2.2)
+rgb = srgb^(2.2)
+
+My decoder:
+  srgb = matrix(yiq)
+
+DOSBox:
+  srgb1 = matrix(yiq)
+  srgb2 = (srgb1 - 0.075)/(1-0.075)
+  rgb_ntsc = srgb2^(2.2)
+  rgb_709 = matrix(rgb_ntsc)  <- http://www5.informatik.tu-muenchen.de/lehre/vorlesungen/graphik/info/csc/COL_29.htm
+  srgb = rgb^(1/2.2)
+
+A faster version that also implements 709 correction would be to leave out the gamma correction and combine the matrices.
+This does not seem to impact colour noticably.
+
+  Doing the mixing in RGB space  29.982167808442608
+                   in sRGB space 29.985567491937584
+                   in sRGB space 33.230445402287565 with 64 elements
+
+64-element calibration:
+  0000 0000
+  0001 00ud
+  0010 0ud0
+  0011 0u1d
+  0100 ud00
+  0101 udud
+  0110 u1d0
+  0111 u11d
+  1000 d00u
+  1001 d0u1
+  1010 dudu
+  1011 du11
+  1100 1d0u
+  1101 1du1
+  1110 11du
+  1111 1111
+
+All I behavior can be modelled with 4 samples, corresponding to:
+  brightness
+  on level
+  rise time
+  fall time
+
+
+I On:      0.18384206667542458           1 1   3
+I Rising:  0.15110087022185326           0 1   2
+I Falling: 0.047932237386703491          1 0   1
+                                         0 0   0
+
+
+
+New:
+    +5  360
+ -SYNC  680
+    +G 1000
+    +I  680
+CHROMA  750
+    +R 2000
+    +B 3000
+     0  130
+
+Sync is +SYNC, -CHROMA, -R, -G, -B, -I                     0.172
+Burst pulse is -SYNC, +CHROMA, -R, -G, -B, -I              0.800
+Blank is -SYNC, -CHROMA, -R, -G, -B, -I = same as black    0.497
+B-                                                         0.572
+B+                                                         0.877
+G-                                                         0.724
+G+                                                         1.030
+BG-                                                        0.800
+BG+                                                        1.110
+R-                                                         0.610
+R+                                                         0.915
+BR-                                                        0.686
+BR+                                                        0.992
+GR-                                                        0.839
+GR+                                                        1.150
+BGR-                                                       0.915
+BGR+                                                       1.220
+I-                                                         0.832
+I+                                                         1.140
+BI-                                                        0.908
+BI+                                                        1.220
+GI-                                                        1.060
+GI+                                                        1.370
+BGI-                                                       1.140
+BGI+                                                       1.450
+RI-                                                        0.947
+RI+                                                        1.250
+BRI-                                                       1.020
+BRI+                                                       1.330
+GRI-                                                       1.180
+GRI+                                                       1.490
+BGRI-                                                      1.250
+BGRI+                                                      1.560
+
+
+
+
+Old:
+ -SYNC  3300   SYNC=>BLANK, -CHROMA, -I
+    +I  5600                                                       179
+CHROMA  2200                                                       455
+-BLANK 13000   BLANK=>-I
+
+Sync is +SYNC, +BLANK, -CHROMA, -I                         0
+Blank is -SYNC, +BLANK, -CHROMA, -I                        0.292                                                 SYNC = 0.292
+Burst pulse is -SYNC, +BLANK, +CHROMA, -I                  1.040     CHROMA = 0.748
+-                                                          0.416                                  BLANK = 0.124
++                                                          1.160     CHROMA = 0.744               BLANK = 0.120
+I-                                                         0.709                       I = 0.293
+I+                                                         1.460     CHROMA = 0.751    I = 0.300                       V = 1640/R
+
+
+
+
+PCjr and T1000:
+     R 2200
+     G 1100
+     B 3300
+     I  750
+CHROMA  750
+  SYNC  680
+
+
+
+
+
+$ 1 5.0E-6 10.20027730826997 50 5.0 50
+t 304 240 336 240 0 1 -2.3482557268579054 0.6720248690103994 100.0
+r 336 304 336 352 0 75.0
+r 336 304 400 304 0 20.0
+r 400 304 400 352 0 75.0
+g 336 352 336 368 0
+g 400 352 400 368 0
+R 336 224 336 192 0 0 40.0 5.0 0.0 0.0 0.5
+r 304 240 240 240 0 750.0
+r 240 208 304 208 0 680.0
+r 240 176 304 176 0 1000.0
+r 240 144 304 144 0 680.0
+w 304 144 304 176 0
+w 304 176 304 208 0
+w 304 208 304 240 0
+L 240 144 192 144 0 1 false 5.0 0.0
+L 240 176 192 176 0 1 false 5.0 0.0
+L 240 208 192 208 0 1 false 5.0 0.0
+L 240 240 192 240 0 1 false 5.0 0.0
+O 400 304 464 304 1
+r 304 272 240 272 0 2000.0
+r 304 304 240 304 0 3000.0
+r 304 320 304 368 0 130.0
+r 304 128 304 96 0 360.0
+g 304 368 304 384 0
+R 304 96 304 80 0 0 40.0 5.0 0.0 0.0 0.5
+w 304 128 304 144 0
+w 304 240 304 272 0
+w 304 272 304 304 0
+w 304 304 304 320 0
+L 240 272 192 272 0 1 false 5.0 0.0
+L 240 304 192 304 0 1 false 5.0 0.0
+w 336 256 336 304 0
+
+
+
+
+
+Implement a decoder:
+  Input is a .png file (640x200, 320x200, 640x400 etc)    - cutoff point for doubling is 456
+    Figure out which RGBI nybble is meant by each pixel
+  Output is a .png file with NTSC decoding
+  Need to specify:
+    CGA model: old, new, pcjr or tandy
+    hue
+    contrast
+    brightness
+    saturation
+    709 correction (none, fast, exact)
+    comb filtering (none, 2-line, 3-line)
+
+
+Possible contrast/brightness/saturation defaults:
+  saturation=0, black=black, white=white (no clipping)
+  No clipping - accurate colours
+  Clipping, black=black, white=white, saturated colours
+
+
+
+Tandy: the pixel clock delay must be 135 for mode 6, and 315 for mode 4.
+it must just mean that low-res mode is shifted horizontally by 1 low-res pixel from the high-res mode.
+  See Q:\Pictures\reenigne\nrs_t1k
+PCjr: 45 degrees?
+
+
+For size.x == 8:
+0 0 0 0 0 0 0 a a a a a a a a 0 0 0 0 0 0 0 input
+ 0 0 0 0 0 0 5 a a a a a a a 5 0 0 0 0 0 0  NTSC
+
+             1 2 3 4 5 6 7 7 7 6 5 4 3 2 1      output = size.x+7
+(1,4,7,8,7,4,1)
+
+
+1 2 3 0 1 2 3 0 1 2 3
+0 0 0 0 0 0 0 a a a a a a a a 0 0 0 0 0 0 0 input
+ 0 0 0 0 0 0 5 a a a a a a a 5 0 0 0 0 0 0  NTSC
+ 1 2 3 0 1 2 3 0 1 2 3
+               I Q I Q
+               + + - -
+
+
+
+
+Come up with sensible contrast/saturation settings
+  Is current calibrate5 the same as current capture_field?
+  Is current calibrate5 the same as calibrate_ntsc?
+
+
+calibrate5/cga2ntsc:
+  brightness = 0
+  contrast = 1
+  saturation = 0.87554481017589569
+  black = 43/40/43
+  white = 211/215/211
+  blue = 101/78/220
+
+calibrate5/capture_field:
+  brightness = -11.0
+  contrast = 1.41
+  saturation = 0.303
+  black = 43/40/43
+  white = 211/215/211
+  blue = 101/78/220
+
+calibrate_ntsc/WinTV:
+  brightness = -103.6
+  contrast = 1.969
+  saturation = 0.238
+  black = 0/0/0
+  white = 211/211/212
+  blue = 52/32/156
+
+contrastiness = max(abs(colour - grey).y)
+saturationiness = max(abs(colour - grey).iq.modulus)
+
+
+
+Determinant of YIQ to RGB conversion matrix is ~1.33 - related to composite peak amplitude?
+
+
+
+Inside a unit cube, the maximum distance you can get from the center is sqrt((0.5^2)*3) = sqrt(3/4) = 0.866
+
+
+
+Black level 41.900353
+White level 213.147241
+Max SS = 170.490503
+
+First, adjust brightness such that (black + white) = 255
+
+41.900353 + brightness*255 + 213.147241 + brightness*255 = 255
+
+_brightness =
+
+
+
+Black level 41.876556
+White level 213.123444
+
+
+
+
+minDC + brightness0 = 41.876556
+maxDC + brightness0 = 213.123444
+
+minDC*contrast + brightness = 127.5 - foo
+maxDC*contrast + brightness = 127.5 + foo
+
+(255 - 2*brightness0)*contrast + 2*brightness = 255
+255 - 2*brightness0 = (minDC + maxDC)
+
+brightness = 255/2 - 255/2*contrast + brightness0*contrast
+
+
+
+1               0
+1.2445          0
+1.2750625       0
+1.282703125     0
+                      ideal               Preset: brightness = -0.142403, contrast = 1.284566, saturation = 0.439715
+1.2865234375    1
+1.29034375      3
+1.305625       19
+1.36675       258
+1.489        1656  <= DOSBox preset       Preset: brightness = -0.244639, contrast = 1.489000, saturation = 0.439715
+
+Most saturated colour is 436a
+
+     xxx
+    x...x
+   x.....x
+   x..+..x
+   x.....x
+    x...x
+     xxx
+
+
+
+
+Project point r,g,b onto plane y=0.299*r+0.587*g+0.114*b=constant
+N = sqrt(0.299^2+0.587^2+0.114^2)
+Normal vector is (0.299/N,0.587/N,0.114/N)= (0.4472, 0.8780, 0.1705)
+D = r*0.299/N+g*0.587/N+b*0.114/N
+projection = (r - D*0.299/N, g - D*.587/N, b - D*0.114/N)
+
+
+For (k,k,k):
+D = k*0.299/N+k*0.587/N+k*0.114/N = k/N
+projection = (k - k*0.299/N^2, k - k*0.587/N^2, k - k*0.114/N^2)
+
+However, we don't want orthogonal projection - we want projection along lines parallel to the saturation=0 axis
+  In other words, we want to subtract the Y part of the signal
+    i.e. set Y=0.5
+
+        double r = 255*(y + 0.9563*iq.x + 0.6210*iq.y);
+        double g = 255*(y - 0.2721*iq.x - 0.6474*iq.y);
+        double b = 255*(y - 1.1069*iq.x + 1.7046*iq.y);
+        yy = 0.299*r + 0.587*g + 0.114*b
+        = 255*y
+        We want:
+        rp = 255*(+0.9563*iq.x +0.6210*iq.y) = r - yy
+        gp = 255*(-0.2721*iq.x -0.6474*iq.y) = g - yy
+        bp = 255*(-1.1069*iq.x +1.7046*iq.y) = b - yy
+
+
+
+
+Distance from 128,128,128 to 0,0,0 in sRGB space is sqrt(3*128^2) = 128*sqrt(3)
+Distance from 128,128,128 to 0,0,0 along Y axis is 128
+
+Green<->Purple 66,384   389
+Orange<->Blue  230,83   244
+Green<->Purple 204,40   208
+
+
+
+
+0.5          0
+0.75         0
+0.8125       0
+0.84375      0
+0.8515625    1
+0.859375     3
+0.875        3
+1.0         53
+
+0.908203125 * 256/256.169860;
