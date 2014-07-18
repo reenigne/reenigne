@@ -6,7 +6,8 @@
 #include <png.h>
 #include "alfe/bitmap.h"
 
-class PNGFileFormat : public BitmapFileFormat<SRGB>
+// Currently T needs to be DWORD (0x00RRGGB) or SRGB (0xRR, 0xGG, 0xBB).
+template<class T> class PNGFileFormat : public BitmapFileFormat<T>
 {
 public:
     PNGFileFormat() : BitmapFileFormat(new Implementation) { }
@@ -14,15 +15,13 @@ private:
     class Implementation : public BitmapFileFormat::Implementation
     {
     public:
-        // The bitmap needs to be 8-bit sRGB data for this to work.
-        virtual void save(Bitmap<SRGB>& bitmap, const File& file)
+        virtual void save(Bitmap<T>& bitmap, const File& file)
         {
             FileHandle handle = file.openWrite();
             PNGWrite write(&handle);
             write.write(bitmap);
         }
-        // This will put 8-bit sRGB data in the bitmap.
-        virtual Bitmap<SRGB> load(const File& file)
+        virtual Bitmap<T> load(const File& file)
         {
             FileHandle handle = file.openRead();
             Array<Byte> header(8);
@@ -75,7 +74,7 @@ private:
                 if (_png_ptr == 0)
                     throw Exception("Error creating PNG read structure");
             }
-            Bitmap<SRGB> read()
+            Bitmap<T> read()
             {
                 _info_ptr = png_create_info_struct(_png_ptr);
                 if (_info_ptr == 0)
@@ -88,19 +87,8 @@ private:
                 _row_pointers = png_get_rows(_png_ptr, _info_ptr);
                 Vector size(png_get_image_width(_png_ptr, _info_ptr),
                     png_get_image_height(_png_ptr, _info_ptr));
-                Bitmap<SRGB> bitmap(size);
-                Byte* data = bitmap.data();
-                int stride = bitmap.stride();
-                for (int y = 0; y < size.y; ++y) {
-                    SRGB* line = reinterpret_cast<SRGB*>(data);
-                    png_bytep row = _row_pointers[y];
-                    for (int x = 0; x < size.x; ++x) {
-                        png_bytep p = &row[x*3];
-                        *line = SRGB(p[0], p[1], p[2]);
-                        ++line;
-                    }
-                    data += stride;
-                }
+                Bitmap<T> bitmap(size);
+                doCopy<T>(bitmap);
                 return bitmap;
             }
             ~PNGRead()
@@ -108,6 +96,44 @@ private:
                 png_destroy_read_struct(&_png_ptr, &_info_ptr, 0);
             }
         private:
+            template<class T2> void doCopy(Bitmap<T2> bitmap)
+            {
+                throw Exception();
+            }
+            template<> void doCopy<SRGB>(Bitmap<SRGB> bitmap)
+            {
+                Byte* data = bitmap.data();
+                int stride = bitmap.stride();
+                Vector size = bitmap.size();
+                for (int y = 0; y < size.y; ++y) {
+                    png_bytep row = _row_pointers[y];
+                    memcpy(reinterpret_cast<SRGB*>(data), row, size.x*3);
+                    data += stride;
+                }
+            }
+            template<> void doCopy<DWORD>(Bitmap<DWORD> bitmap)
+            {
+                Byte* data = bitmap.data();
+                int stride = bitmap.stride();
+                Vector size = bitmap.size();
+                for (int y = 0; y < size.y; ++y) {
+                    DWORD* line = reinterpret_cast<DWORD*>(data);
+                    png_bytep row = _row_pointers[y];
+                    png_byte* input = row;
+                    for (int x = 0; x < size.x; ++x) {
+                        png_byte r = *input;
+                        ++input;
+                        png_byte g = *input;
+                        ++input;
+                        png_byte b = *input;
+                        ++input;
+                        *line = (r << 16) | (g << 8) | b;
+                        ++line;
+                    }
+                    data += stride;
+                }
+            }
+            
             png_structp _png_ptr;
             png_infop _info_ptr;
             png_bytep* _row_pointers;
@@ -125,7 +151,7 @@ private:
                 if (_png_ptr == 0)
                     throw Exception("Error creating PNG write structure");
             }
-            void write(Bitmap<SRGB>& bitmap)
+            void write(Bitmap<T>& bitmap)
             {
                 _info_ptr = png_create_info_struct(_png_ptr);
                 if (_info_ptr == 0)
@@ -145,14 +171,28 @@ private:
                 }
                 png_set_rows(_png_ptr, _info_ptr,
                     static_cast<png_bytepp>(&rows[0]));
-                png_write_png(_png_ptr, _info_ptr, PNG_TRANSFORM_IDENTITY,
-                    NULL);
+                doWrite<T>();
             }
             ~PNGWrite()
             {
                 png_destroy_write_struct(&_png_ptr, &_info_ptr);
             }
         private:
+            template<class T2> void doWrite()
+            {
+                throw Exception();
+            }
+            template<> void doWrite<SRGB>()
+            {
+                png_write_png(_png_ptr, _info_ptr, PNG_TRANSFORM_IDENTITY,
+                    NULL);
+            }
+            template<> void doWrite<DWORD>()
+            {
+                png_write_png(_png_ptr, _info_ptr,
+                    PNG_TRANSFORM_BGR | PNG_TRANSFORM_STRIP_FILLER_AFTER,
+                    NULL);
+            }
             png_structp _png_ptr;
             png_infop _info_ptr;
             png_bytep* _row_pointers;

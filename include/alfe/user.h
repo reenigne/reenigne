@@ -1,4 +1,4 @@
-#include "alfe/main.h"
+#include "alfe/main.h"                          w
 
 #ifndef INCLUDED_USER_H
 #define INCLUDED_USER_H
@@ -85,12 +85,21 @@ private:
                 case WM_COMMAND:
                     switch (HIWORD(wParam)) {
                         case BN_CLICKED:
-                            dynamic_cast<Button*>(
-                                getContext(reinterpret_cast<HWND>(lParam)))
+                            dynamic_cast<Button*>(getContext(lParam))
                                 ->clicked();
                             break;
                     }
                     break;
+                case WM_HSCROLL:
+                    switch (HIWORD(wParam)) {
+                        case SB_THUMBPOSITION:
+                        case SB_THUMBTRACK:
+                            dynamic_cast<SliderWindow*>(getContext(lParam))
+                                ->updateValue(LOWORD(wParam));
+                            break;
+                    }
+                    break;
+
                 default:
                     window = getContext(hWnd);
                     break;
@@ -109,19 +118,24 @@ private:
         return DefWindowProc(hWnd, uMsg, wParam, lParam);
     }
 
+    static void setContext(HWND hWnd, WindowsWindow* p)
+    {
+        SetLastError(0);
+        IF_ZERO_CHECK_THROW_LAST_ERROR(SetWindowLongPtr(hWnd, GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(p)));
+    }
+
+    static WindowsWindow* getContext(LPARAM lParam)
+    {
+        return getContext(reinterpret_cast<HWND>(lParam));
+    }
+
     static WindowsWindow* getContext(HWND hWnd)
     {
         SetLastError(0);
         LONG_PTR r = GetWindowLongPtr(hWnd, GWLP_USERDATA);
         IF_ZERO_CHECK_THROW_LAST_ERROR(r);
         return reinterpret_cast<WindowsWindow *>(r);
-    }
-
-    static void setContext(HWND hWnd, void* p)
-    {
-        SetLastError(0);
-        IF_ZERO_CHECK_THROW_LAST_ERROR(SetWindowLongPtr(hWnd, GWLP_USERDATA,
-            reinterpret_cast<LONG_PTR>(p)));
     }
 
     HINSTANCE _hInst;
@@ -153,12 +167,11 @@ public:
     WindowTemplate() : _parent(0), _topLeft(Vector(0, 0)) { }
     ~WindowTemplate() { remove(); }
     virtual void create() = 0;
-    void setWindows(Windows* windows) { _windows = windows; }
-    Windows* windows() const { return _windows; }
     void setParent(ContainerWindow* window) { _parent = window; }
     ContainerWindow* parent() const { return _parent; }
     virtual void paint(PaintHandle* paintHandle) { }
     void setSize(Vector size) { _size = size; }
+    void setPosition(Vector topLeft) { _topLeft = topLeft; }
     Vector size() const { return _size; }
     Vector topLeft() const { return _topLeft; }
     virtual void resize() { }
@@ -183,7 +196,6 @@ public:
         _parent->invalidateRectangle(_topLeft + topLeft, size);
     }
 private:
-    Windows* _windows;
     ContainerWindow* _parent;
     Vector _size;
     Vector _topLeft;
@@ -197,7 +209,6 @@ public:
     {
         Window* window = _container.getNext();
         while (window != 0) {
-            window->setWindows(windows());
             window->setParent(this);
             window->create();
             window = _container.getNext(window);
@@ -370,34 +381,55 @@ class WindowsWindow : public ContainerWindow
 {
     friend class WindowsTemplate<void>;
 public:
-    WindowsWindow() : _hdc(NULL), _hWnd(NULL), _resizing(false) { }
+    WindowsWindow() : _hdc(NULL), _hWnd(NULL), _resizing(false)
+    {
+        setSize(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
+        setPosition(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
+    }
+
+    void setWindows(Windows* windows)
+    {
+        _windows = windows;
+        _text = _windows->caption();
+        _className = _windows->className();
+        _style = WS_OVERLAPPEDWINDOW;
+        _extendedStyle = 0;
+        _menu = NULL;
+        Window* window = _container.getNext();
+        while (window != 0) {
+            WindowsWindow* w = dynamic_cast<WindowsWindow*>(window);
+            if (w != 0)
+                w->setWindows(windows);
+            window = _container.getNext(window);
+        }
+    }
 
     virtual void create()
     {
         reset();
-        Vector size = initialSize();
-        Vector position = initialPosition();
+        Vector s = size();
+        Vector position = topLeft();
 
         WindowsWindow* p = dynamic_cast<WindowsWindow*>(parent());
         HWND hWndParent = NULL;
         if (p != 0)
             hWndParent = p->hWnd();
 
-        NullTerminatedWideString caption(initialCaption());
+        NullTerminatedWideString caption(_text);
 
         _hWnd = CreateWindowEx(
-            initialExtendedStyle(),   // dwExStyle
-            className(),              // lpClassName
-            caption,                  // lpWindowName
-            initialStyle(),           // dwStyle
-            position.x,               // x
-            position.y,               // y
-            size.x,                   // nWidth
-            size.y,                   // nHeight
-            hWndParent,               // hWndParent
-            initialMenu(),            // hMenu
-            windows()->instance(),    // hInstance
-            this);                    // lpParam
+            _extendedStyle,
+            _className,
+            caption,
+            _style,
+            position.x,
+            position.y,
+            s.x,
+            s.y,
+            hWndParent,
+            _menu,
+            _windows->instance(),
+            this);
         IF_NULL_THROW(_hWnd);
         _hdc = GetDC(_hWnd);
         IF_NULL_THROW(_hdc);
@@ -422,23 +454,29 @@ public:
         IF_ZERO_THROW(InvalidateRect(_hWnd, &rect, FALSE));
     }
 
-    void outerResize(Vector size)
-    {
-        IF_ZERO_THROW(SetWindowPos(
-            _hWnd,                                // hWnd
-            NULL,                                 // hWndInsertAfter
-            0,                                    // X
-            0,                                    // Y
-            size.x,                               // cx
-            size.y,                               // cy
-            SWP_NOZORDER | SWP_NOMOVE |
-            SWP_NOACTIVATE | SWP_NOREPOSITION));  // uFlags
-    }
-
     void setText(String text)
     {
-        NullTerminatedWideString w(text);
-        IF_ZERO_THROW(SetWindowText(_hWnd, w));
+        _text = text;
+        if (_hWnd != NULL) {
+            NullTerminatedWideString w(text);
+            IF_ZERO_THROW(SetWindowText(_hWnd, w));
+        }
+    }
+
+    void setSize(Vector size)
+    {
+        if (_hWnd != NULL) {
+            IF_ZERO_THROW(SetWindowPos(
+                _hWnd,                                // hWnd
+                NULL,                                 // hWndInsertAfter
+                0,                                    // X
+                0,                                    // Y
+                size.x,                               // cx
+                size.y,                               // cy
+                SWP_NOZORDER | SWP_NOMOVE |
+                SWP_NOACTIVATE | SWP_NOREPOSITION));  // uFlags
+        }
+        ContainerWindow::setSize(size);
     }
 
     HWND hWnd() const { return _hWnd; }
@@ -446,7 +484,6 @@ public:
 private:
     void destroy()
     { 
-        doDestroy();
         if (_hdc != NULL) {
             ReleaseDC(_hWnd, _hdc);
             _hdc = NULL;
@@ -467,8 +504,6 @@ private:
     }
 
     void setHwnd(HWND hWnd) { _hWnd = hWnd; }
-
-    virtual void doDestroy() { }
 
 protected:
     virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -526,24 +561,20 @@ protected:
         return Vector(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
     }
 
-    virtual LPCWSTR className() const { return windows()->className(); }
-    virtual HMENU initialMenu() const { return NULL; }
-    virtual Vector initialSize() const
-    {
-        return Vector(CW_USEDEFAULT, CW_USEDEFAULT);
-    }
-    virtual Vector initialPosition() const
-    {
-        return Vector(CW_USEDEFAULT, CW_USEDEFAULT);
-    }
-    virtual String initialCaption() const { return windows()->caption(); }
-    virtual DWORD initialStyle() const { return WS_OVERLAPPEDWINDOW; }
-    virtual DWORD initialExtendedStyle() const { return 0; }
+    void setClassName(LPCWSTR className) { _className = className; }
+
+    void setStyle(DWORD style) { _style = style; }
 
     HWND _hWnd;
 private:
     HDC _hdc;
     bool _resizing;
+    String _text;
+    Windows* _windows;
+    DWORD _style;
+    DWORD _extendedStyle;
+    LPCWSTR _className;
+    HMENU _menu;
 };
 
 
@@ -561,31 +592,69 @@ public:
     }
 };
 
-
 class Button : public WindowsWindow
 {
 public:
-    virtual void clicked() const { }
-protected:
-    virtual LPCWSTR className() const { return WC_BUTTON; }
-    virtual LPCWSTR initialCaption() { return _caption; }
-    virtual Vector initialSize() const { return _size; }
-    virtual Vector initialPosition() const { return _position; }
-    virtual DWORD initialStyle() const
-    { 
-        return BS_PUSHBUTTON | BS_TEXT | WS_CHILD | WS_VISIBLE;
-    }
-    virtual HMENU initialMenu() const
+    virtual void clicked() { }
+    void setWindows(Windows* windows)
     {
-        return reinterpret_cast<HMENU>(_childWindowIdentifier);
+        WindowsWindow::setWindows(windows);
+        setClassName(WC_BUTTON);
+        setStyle(BS_PUSHBUTTON | BS_TEXT | WS_CHILD | WS_VISIBLE);
     }
-private:
-    LPCWSTR _caption;
-    Vector _position;
-    Vector _size;
-    int _childWindowIdentifier;
 };
 
+class TextWindow : public WindowsWindow
+{
+public:
+    void setWindows(Windows* windows)
+    {
+        WindowsWindow::setWindows(windows);
+        setClassName(WC_STATIC);
+        setStyle(WS_CHILD | WS_VISIBLE);
+    }
+};
+
+class SliderWindow : public WindowsWindow
+{
+public:
+    virtual void valueSet(double value) { }
+    void setWindows(Windows* windows)
+    {
+        WindowsWindow::setWindows(windows);
+        setClassName(TRACKBAR_CLASS);
+        setStyle(WS_CHILD | WS_VISIBLE);
+        _min = 0;
+        _pos = 0;
+        _max = 1;
+    }
+    void create()
+    {
+        WindowsWindow::create();
+        SendMessage(_hWnd, TBM_SETRANGE, static_cast<WPARAM>(TRUE),
+            static_cast<LPARAM>(MAKELONG(0, 65535)));
+        setValue(_pos);
+    }
+    void setValue(double pos)
+    {
+        _pos = pos;
+        if (_hWnd != NULL) {
+            int iPos = static_cast<int>((pos * 65535)/(_max - _min) + 0.5);
+            SendMessage(_hWnd, TBM_SETPOS, static_cast<WPARAM>(TRUE),
+                static_cast<LPARAM>(iPos));
+        }
+    }
+    void setRange(double min, double max) { _min = min; _max = max; }
+    void updateValue(int pos)
+    {
+        _pos = pos*(_max - _min) / 65535;
+        valueSet(_pos);
+    }
+private:
+    double _min;
+    double _max;
+    double _pos;
+};
 
 class WindowDeviceContext : public DeviceContext
 {

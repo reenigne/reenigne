@@ -89,8 +89,12 @@
     <ClInclude Include="..\..\..\..\include\alfe\bitmap_png.h" />
     <ClInclude Include="..\..\..\..\include\alfe\colour_space.h" />
     <ClInclude Include="..\..\..\..\include\alfe\complex.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\file.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\hash_table.h" />
     <ClInclude Include="..\..\..\..\include\alfe\main.h" />
     <ClInclude Include="..\..\..\..\include\alfe\rotors.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\set.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\string.h" />
     <ClInclude Include="..\..\..\..\include\alfe\terminal6.h" />
     <ClInclude Include="..\..\..\..\include\alfe\thread.h" />
     <ClInclude Include="..\..\..\..\include\alfe\user.h" />

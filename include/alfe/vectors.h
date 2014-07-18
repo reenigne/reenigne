@@ -366,10 +366,15 @@ public:
     }
     Vector3 operator>>(int n) const { Vector3 t = *this; return t >>= n; }
     Vector3 operator<<(int n) const { Vector3 t = *this; return t <<= n; }
-    //template<class T2> Vector3 operator*(const Rotor3<T2>& r) const
-    //{
-    //    return Vector2<T>(x*r._c + y*r._s, y*r._c - x*r._s);
-    //}
+    template<class T2> Vector3 operator*(const Rotor3<T2>& r) const
+    {
+        T2 matrix[9];
+        r.toMatrix(&matrix);
+        return Vector3<T>(
+            matrix[0]*x + matrix[1]*y + matrix[2]*z,
+            matrix[3]*x + matrix[4]*y + matrix[5]*z,
+            matrix[6]*x + matrix[7]*y + matrix[8]*z);
+    }
     template<class T2> Vector3 operator/(const Rotor3<T2>& r) const
     {
         return (*this) * r.conjugate();

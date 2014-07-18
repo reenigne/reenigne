@@ -589,6 +589,7 @@ public:
 
     StringTemplate(const Buffer& buffer, int start, int length)
       : _buffer(buffer), _start(start), _length(length) { }
+
 private:
     bool expandable() const { return _buffer.end() == _length; }
     ::Byte* data() { return _buffer.data() + _start; }
@@ -659,6 +660,7 @@ private:
     friend class ProgramBase;
     template<class U> friend class FileTemplate;
     template<class U> friend class HandleTemplate;
+    friend String format(const char* format, ...);
 };
 
 String operator+(const char* a, const String& b)
@@ -673,6 +675,17 @@ String::Hex hex(int n, int digits = 8, bool ox = true)
 
 String::Decimal decimal(int n) { return String::Decimal(n); }
 String::CodePoint codePoint(int n) { return String::CodePoint(n); }
+
+String format(const char* format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    int c = vsnprintf(0, 0, format, args);
+    String s;
+    s._buffer = String::Buffer(c);
+    vsnprintf(reinterpret_cast<char*>(s.data()), c, format, args);
+    return s;
+}
 
 template<class T> class HandleTemplate;
 typedef HandleTemplate<void> Handle;

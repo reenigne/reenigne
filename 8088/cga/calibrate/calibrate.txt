@@ -51,7 +51,8 @@ calibrate3 - models gains and offsets of 7.16MHz, 3.58MHz and DC components of w
 calibrate4 - fg/bg combinations for each of the 4 transition positions - this one actually works     2013/03/20
 saturate - checks clipping of final result                                                           2013/03/20
 calibrate5 - included decoder to avoid clipping                                                      2014/07/02
-
+cga2ntsc - convert a CGA RGBI .png image to the corresponding composite output image                 2014/07/10
+make_decoder - convert the output.dat from calibrate5 to source code, display the 3D rotating gamut  2014/07/10
 
 
 
@@ -425,3 +426,122 @@ Green<->Purple 204,40   208
 1.0         53
 
 0.908203125 * 256/256.169860;
+
+
+
+
+Gamut images:
+  65536  8x65536 = 1024x512   8x1
+  4096              256x128   8x1         512x128  8x2
+  1024                                    512x128  8x8
+  512                                     512x128 16x8
+  1280                                    512x160 32x2
+
+        abcdabcd
+  xxxxxxx               1
+   xxxxxxx              2
+    xxxxxxx             3
+     xxxxxxx            4
+      xxxxxxx           5
+       xxxxxxx          6
+        xxxxxxx         7
+         xxxxxxx        7
+          xxxxxxx       6
+           xxxxxxx      5
+            xxxxxxx     4
+             xxxxxxx    3
+              xxxxxxx   2
+               xxxxxxx  1
+
+
+Dimension  Matrix  Rotor
+    2        4       2
+    3        9       4
+    4       16       8
+    5       25      16
+    6       36      32
+    7       49      64
+
+e1*e1 = 1
+
+e1*e2 = e12
+e2*e3 = e23
+e3*e1 = e31
+
+e12*e12 = e1*e2*e1*e2 = -e1*e1*e2*e2 = -1
+
+e12*e23 = e1*e2*e2*e3 = e1*e3 = -e31
+e12*e31 = e23
+e31*e23 = e12
+e23*e12 = e31
+
+(a + b*e23 + c*e31 + d*e12)*(x*e1 + y*e2 + z*e3)*(a - b*e23 - c*e31 - d*e12)
+= (a*x*e1 + a*y*e2 + a*z*e3 + b*e23*x*e1 + b*e23*y*e2 + b*e23*z*e3 + c*e31*x*e1 + c*e31*y*e2 + c*e31*z*e3 + d*e12*x*e1 + d*e12*y*e2 + d*e12*z*e3)*(a - b*e23 - c*e31 - d*e12)
+= (a*x*e1 + a*y*e2 + a*z*e3 + b*e123*x - b*e3*y + b*e2*z + c*e3*x + c*e123*y - c*e1*z - d*e2*x + d*e1*y + d*e123*z)*(a - b*e23 - c*e31 - d*e12)
+
+= (a*x*e1*a + a*y*e2*a + a*z*e3*a + b*e123*x*a - b*e3*y*a + b*e2*z*a + c*e3*x*a + c*e123*y*a - c*e1*z*a - d*e2*x*a + d*e1*y*a + d*e123*z*a)
+  -(a*x*e1*b*e23 + a*y*e2*b*e23 + a*z*e3*b*e23 + b*e123*x*b*e23 - b*e3*y*b*e23 + b*e2*z*b*e23 + c*e3*x*b*e23 + c*e123*y*b*e23 - c*e1*z*b*e23 - d*e2*x*b*e23 + d*e1*y*b*e23 + d*e123*z*b*e23)
+  -(a*x*e1*c*e31 + a*y*e2*c*e31 + a*z*e3*c*e31 + b*e123*x*c*e31 - b*e3*y*c*e31 + b*e2*z*c*e31 + c*e3*x*c*e31 + c*e123*y*c*e31 - c*e1*z*c*e31 - d*e2*x*c*e31 + d*e1*y*c*e31 + d*e123*z*c*e31)
+  -(a*x*e1*d*e12 + a*y*e2*d*e12 + a*z*e3*d*e12 + b*e123*x*d*e12 - b*e3*y*d*e12 + b*e2*z*d*e12 + c*e3*x*d*e12 + c*e123*y*d*e12 - c*e1*z*d*e12 - d*e2*x*d*e12 + d*e1*y*d*e12 + d*e123*z*d*e12)
+
+= e1*( x*(+a*a +b*b -c*c -d*d)
+      +y*(+d*a +c*b +b*c +a*d)
+      +z*(-c*a +d*b -a*c +b*d))
+ +e2*( x*(-d*a +c*b +b*c -a*d)
+      +y*(+a*a -b*b +c*c -d*d)
+      +z*(+b*a +a*b +d*c +c*d))
+ +e3*( x*(+c*a +d*b +a*c +b*d)
+      +y*(-b*a -a*b +d*c +c*d)
+      +z*(+a*a -b*b -c*c +d*d))
+
+= e1*( x*(aa+bb-cc-dd)
+      +y*(+2*(ad+bc))
+      +z*(+2*(bd-ac)))
+ +e2*( x*(+2*(bc-ad))
+      +y*(aa-bb+cc-dd)
+      +z*(+2*(ab+cd)))
+ +e3*( x*(+2*(ac+bd))
+      +y*(+2*(cd-ab))
+      +z*(aa-bb-cc+dd))
+
+a<->_sc
+b<->_yz
+c<->_zx
+d<->_xy
+
+   sc yz zx xy
+sc    2  2  2
+yz    2  2  2
+zx       2  2
+xy          2
+
+
+Caption:
+  A WindowsWindow always has a caption
+
+
+Creating the window hierarchy
+  In a window's create() procedure it should:
+    add() all child windows
+    call the base create()
+      that calls create() on the child windows
+
+For Windows windows:
+  Need to call setWindows() before calling add() or create()
+    create() calls setWindows() on children
+The Windows object is how the HINSTANCE and the window class (which encapsulates the window procedure) get passed to the Window
+
+Do we want to use child window identifiers?
+  Nah - I'm not sure it's portable and it would just lead to a switch statement in the handler to determine the button pressed.
+
+
+_white - _brightness = w0*_contrast0
+_black - _brightness = w1*_contrast0
+
+(_white - _black)/_contrast0      = (w0-w1)
+
+_contrast = 256/(w0-w1) = _contrast0*256/(_white - _black)
+
+
+An output pixel depends on 8 consecutive input pixels (7 NTSC samples) => 32 bits
+

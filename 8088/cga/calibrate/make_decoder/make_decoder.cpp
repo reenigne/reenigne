@@ -50,10 +50,16 @@ public:
         double r = 255*(y + 0.9563*iq.x + 0.6210*iq.y);
         double g = 255*(y - 0.2721*iq.x - 0.6474*iq.y);
         double b = 255*(y - 1.1069*iq.x + 1.7046*iq.y);
+        if (_fixPrimaries)
+            return Colour(
+                 1.5073*r -0.3725*g -0.0832*b,
+                -0.0275*r +0.9350*g +0.0670*b,
+                -0.0272*r -0.0401*g +1.1677*b);
         return Colour(r, g, b);
     }
 
     bool _newCGA;
+    bool _fixPrimaries;
     double _chroma[256];
     double _hue;
     double _saturation;
@@ -155,7 +161,8 @@ CGASimulator simulator;
 class GamutBitmapWindow : public BitmapWindow
 {
 public:
-    GamutBitmapWindow() : _lButton(false), _rButton(false), _rPosition(1000, 1000)
+    GamutBitmapWindow()
+      : _lButton(false), _rButton(false), _rPosition(1000, 1000)
     {
         _matrix[0] = 1; _matrix[1] = 0; _matrix[2] = 0;
         _matrix[3] = 0; _matrix[4] = 1; _matrix[5] = 0;
@@ -234,64 +241,9 @@ public:
             _lastPosition = position;
             double theta = delta.x*0.01;
             double phi = delta.y*0.01;
-            double costh = cos(theta);
-            double sinth = sin(theta);
-            double cosph = cos(phi);
-            double sinph = sin(phi);
 
-            double t[9];
-            ////t[0] = (0 1 2) (costh  sinth 0)
-            ////       (3 4 5) (-sinth costh 0)
-            ////       (6 7 8) (0      0     1)
-            //t[0] = _matrix[0] * costh - _matrix[1] * sinth;
-            //t[1] = _matrix[0] * sinth + _matrix[1] * costh;
-            //t[2] = _matrix[2];
-            //t[3] = _matrix[3] * costh - _matrix[4] * sinth;
-            //t[4] = _matrix[3] * sinth + _matrix[4] * costh;
-            //t[5] = _matrix[5];
-            //t[6] = _matrix[6] * costh - _matrix[7] * sinth;
-            //t[7] = _matrix[6] * sinth + _matrix[7] * costh;
-            //t[8] = _matrix[8];
-
-            ////t[0] = (0 1 2) (cosph  0 sinph)
-            ////       (3 4 5) (0      1 0    )
-            ////       (6 7 8) (-sinph 0 cosph)
-            //_matrix[0] = t[0] * cosph - t[2] * sinph;
-            //_matrix[1] = t[1];
-            //_matrix[2] = t[0] * sinph + t[2] * cosph;
-            //_matrix[3] = t[3] * cosph - t[5] * sinph;
-            //_matrix[4] = t[4];
-            //_matrix[5] = t[3] * sinph + t[5] * cosph;
-            //_matrix[6] = t[6] * cosph - t[8] * sinph;
-            //_matrix[7] = t[7];
-            //_matrix[8] = t[6] * sinph + t[8] * cosph;
-
-            //t[0] = (0 3 6) (1 0      0)
-            //       (1 4 7) (0 cosph  sinph)
-            //       (2 5 8) (0 -sinph cosph)
-            t[0] = _matrix[0];
-            t[1] = _matrix[3] * cosph - _matrix[6] * sinph;
-            t[2] = _matrix[3] * sinph + _matrix[6] * cosph;
-            t[3] = _matrix[1];
-            t[4] = _matrix[4] * cosph - _matrix[7] * sinph;
-            t[5] = _matrix[4] * sinph + _matrix[7] * cosph;
-            t[6] = _matrix[2];
-            t[7] = _matrix[5] * cosph - _matrix[8] * sinph;
-            t[8] = _matrix[5] * sinph + _matrix[8] * cosph;
-
-            //t[0] = (0 1 2) (costh  0 sinth)
-            //       (3 4 5) (0      1 0    )
-            //       (6 7 8) (-sinth 0 costh)
-            _matrix[0] = t[0] * costh - t[6] * sinth;
-            _matrix[1] = t[3];
-            _matrix[2] = t[0] * sinth + t[6] * costh;
-            _matrix[3] = t[1] * costh - t[7] * sinth;
-            _matrix[4] = t[4];
-            _matrix[5] = t[1] * sinth + t[7] * costh;
-            _matrix[6] = t[2] * costh - t[8] * sinth;
-            _matrix[7] = t[5];
-            _matrix[8] = t[2] * sinth + t[8] * costh;
-
+            _rotor = Rotor3<double>::yz(-phi)*Rotor3<double>::zx(theta)*_rotor;
+            _rotor.toMatrix(_matrix);
         }
         if (_rButton && position != _lastPosition) {
             _rPosition += (position - _lastPosition);
@@ -301,41 +253,8 @@ public:
         return mouseDown;
     }
 
-    //void setAxes(int* axes)
-    //{
-    //    for (int i = 0; i < 9; ++i)
-    //        _matrix[i] = (i%4 == 0 ? 1 : 0);
-    //    for (int i = 0; i < 3; ++i) {
-    //        double a = static_cast<double>(axes[i] & 0x7f)*2*M_PI/128.0;
-    //        double c = cos(a);
-    //        double s = sin(a);
-    //        double m[9];
-    //        for (int j = 0; j < 9; ++j)
-    //            m[j] = (j%4 == 0 ? 1 : 0);
-    //        static const int a1[3] = {0, 0, 1};
-    //        static const int a2[3] = {1, 2, 2};
-    //        int axis1 = a1[i];
-    //        int axis2 = a2[i];
-    //        m[axis1*3 + axis1] = c;
-    //        m[axis1*3 + axis2] = s;
-    //        m[axis2*3 + axis1] = -s;
-    //        m[axis2*3 + axis2] = c;
-    //        double newMatrix[9];
-    //        newMatrix[0] = _matrix[0]*m[0] + _matrix[1]*m[3] + _matrix[2]*m[6];
-    //        newMatrix[1] = _matrix[0]*m[1] + _matrix[1]*m[4] + _matrix[2]*m[7];
-    //        newMatrix[2] = _matrix[0]*m[2] + _matrix[1]*m[5] + _matrix[2]*m[8];
-    //        newMatrix[3] = _matrix[3]*m[0] + _matrix[4]*m[3] + _matrix[5]*m[6];
-    //        newMatrix[4] = _matrix[3]*m[1] + _matrix[4]*m[4] + _matrix[5]*m[7];
-    //        newMatrix[5] = _matrix[3]*m[2] + _matrix[4]*m[5] + _matrix[5]*m[8];
-    //        newMatrix[6] = _matrix[6]*m[0] + _matrix[7]*m[3] + _matrix[8]*m[6];
-    //        newMatrix[7] = _matrix[6]*m[1] + _matrix[7]*m[4] + _matrix[8]*m[7];
-    //        newMatrix[8] = _matrix[6]*m[2] + _matrix[7]*m[5] + _matrix[8]*m[8];
-    //        for (int j = 0; j < 9; ++j)
-    //            _matrix[j] = newMatrix[j];
-    //    }
-    //}
-
     AnimationThread _animation;
+    Rotor3<double> _rotor;
     double _matrix[9];
     AppendableArray<Particle> _particles;
     Vector _lastPosition;
@@ -370,6 +289,34 @@ public:
     void run()
     {
         simulator._newCGA = false;
+        simulator._fixPrimaries = false;
+        bool unknownArgument = false;
+        for (int i = 1; i < _arguments.count(); ++i) {
+            String argument = _arguments[i];
+            CharacterSource s(argument);
+            if (s.get() == '-') {
+                int o = s.get();
+                if (o == 'n') {
+                    simulator._newCGA = true;
+                    continue;                    
+                }
+                if (o == 'f') {
+                    simulator._fixPrimaries = true;
+                    continue;                    
+                }
+            }
+            unknownArgument = true;
+            break;
+        }
+        if (unknownArgument) {
+            console.write("Syntax: " + _arguments[0] +
+                " [options]\n");
+            console.write("Options are:\n");
+            console.write("  -n - use new CGA card type\n");
+            console.write("  -f - correct for sRGB/NTSC primaries\n");
+            return;
+        }
+
         simulator._hue = 0;
         simulator._saturation = 0.8194739483137471237842610024737;
         simulator._brightness = (255 - (41.900353 + 213.147241))/(2*255);

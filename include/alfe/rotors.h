@@ -9,7 +9,17 @@
 template<class T> class Vector2;
 template<class T> class Rotor2_static_cast;
 
-// A rotor is a way of representing a rotation.
+// A Rotor is a way of representing a rotation. It's faster than Euler angles
+// (since the sines are cosines don't have to be computed each time the rotor
+// is applied) but more memory efficient than a matrix (for dimensions <7).
+
+// A Rotor can be thought of as the exponential of a bivector. The plane
+// described by the bivector is the plane left invariant by the rotation. The
+// magnitude of the bivector is half the rotation angle.
+
+// 2D Rotors are isomorphic to unit complex numbers, and
+// 3D Rotors are isomorphic to unit quaternions.
+
 template<class T> class Rotor2
 {
 public:
@@ -57,10 +67,80 @@ template<class T> class Rotor3_static_cast;
 template<class T> class Rotor3
 {
 public:
-    Rotor3() { }
-    // TODO: Implement using a 4-component representation (scalar + bivector = exponential of a bivector)
+    Rotor3() : _sc(1), _yz(0), _zx(0), _xy(0) { }
+    static Rotor3<T> yz(T a) { return Rotor3<T>(cos(a), sin(a), 0, 0); }
+    static Rotor3<T> zx(T a) { return Rotor3<T>(cos(a), 0, sin(a), 0); }
+    static Rotor3<T> xy(T a) { return Rotor3<T>(cos(a), 0, 0, sin(a)); }
 
+    //    // Construct a rotor that rotates a onto b
+    //Rotor3(Vector3<T>& a, Vector3<T>& b)
+    //{
+    //    T m = sqrt(a.modulus2()*b.modulus2());
+    //    _c = (b.x*a.x + b.y*a.y)/m;
+    //    _s = (b.x*a.y - b.y*a.x)/m;
+    //}
+    Rotor3(const Rotor3& other)
+      : _sc(other._sc), _yz(other._yz), _zx(other._zx), _zy(other._zy) { }
+    template<class T2> Rotor3(const Rotor3<T2>& other)
+      : _sc(other._sc), _yz(other._yz), _zx(other._zx), _zy(other._zy) { }
+    const Rotor3& operator=(const Rotor3& other)
+    { 
+        _sc = other._sc;
+        _yz = other._yz;
+        _zx = other._zx;
+        _xy = other._xy;
+        return *this; 
+    }
+    const Rotor3& operator*=(const Rotor3& other)
+    {
+        *this = *this * other;
+        return *this;
+    }
+    const Rotor3& operator/=(const Rotor3& other)
+    {
+        *this = *this / other;
+        return *this;
+    }
+    Rotor3 operator*(const Rotor3& other) const
+    {   
+        return Rotor3(
+            _sc*other._sc - _yz*other._yz - _zx*other._zx - _xy*other._xy,
+            _sc*other._yz + _yz*other._sc - _zx*other._xy + _xy*other._zx,
+            _sc*other._zx + _yz*other._xy + _zx*other._sc - _xy*other._yz,
+            _sc*other._xy - _yz*other._zx + _zx*other._yz + _xy*other._sc);
+    }
+    Rotor3 operator/(const Rotor3& other) const
+    {
+        return *this * other.conjugate();
+    }
+
+    // There is no 3D version of operator-() because it's not well-defined -
+    // consider the case of the identity Rotor - there are a continuum of
+    // possible rotors that rotate 180 degrees.
+
+    // The conjugate rotor rotates in the opposite direction.
+    Rotor3 conjugate() const { return Rotor3(_sc, -_yz, -zx, -xy); }  
+
+    void toMatrix(T* matrix)
+    {
+        matrix[0] = 1 - 2*(_zx*_zx + _xy*_xy);
+        matrix[1] =     2*(_xy*_sc + _zx*_yz);
+        matrix[2] =     2*(_xy*_yz - _zx*_sc);
+        matrix[3] =     2*(_zx*_yz - _xy*_sc);
+        matrix[4] = 1 - 2*(_yz*_yz + _xy*_xy);
+        matrix[5] =     2*(_yz*_sc + _xy*_zx);
+        matrix[6] =     2*(_zx*_sc + _xy*_yz);
+        matrix[7] =     2*(_xy*_zx - _yz*_sc);
+        matrix[8] = 1 - 2*(_yz*_yz + _zx*_zx);
+    }
 private:
+    Rotor3(const T& sc, const T& yz, const T& zx, const T& xy)
+      : _sc(sc), _yz(yz), _zx(zx), _xy(xy) { }
+
+    T _sc;
+    T _yz;
+    T _zx;
+    T _xy;
 
     template<class T2> friend class Vector3;
     template<class T2> friend class Rotor3_static_cast;

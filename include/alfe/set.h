@@ -27,6 +27,56 @@ public:
         ++_n;
     }
     int count() const { return _n; }
+    class Iterator
+    {
+    public:
+        const Key& operator*() const { return _entry->_key; }
+        bool operator==(const Iterator& other) const
+        {
+            return _entry == other._entry;
+        }
+        bool operator!=(const Iterator& other) const
+        {
+            return !operator==(other);
+        }
+        void operator++()
+        {
+            const TableEntry* e = _entry->_next;
+            if (e != &_table->_table[_row]) {
+                _entry = e;
+                return;
+            }
+            do {
+                ++_row;
+                if (_row == _table->_table.count()) {
+                    _entry = 0;
+                    break;
+                }
+                _entry = &_table->_table[_row];
+            } while (_entry->_next == 0);
+        }
+    private:
+        Iterator(int row, const TableEntry* entry, const SetBase* table)
+          : _row(row), _entry(entry), _table(table) { }
+        int _row;
+        const TableEntry* _entry;
+        const SetBase* _table;
+
+        friend class SetBase;
+    };
+    Iterator begin() const
+    {
+        int row = 0;
+        const TableEntry* entry = &_table[0];
+        while (entry->_next == 0) {
+            ++row;
+            if (row == _n)
+                break;
+            entry = &_table[row];
+        }
+        return Iterator(row, entry, this);
+    }
+    Iterator end() const { return Iterator(_n, 0, this); }
 private:
     int row(const Key& key) const { return hash(key) & (_table.count() - 1); }
 
