@@ -108,7 +108,10 @@ public:
     }
     explicit Array(int n)
     {
-        _data = static_cast<T*>(operator new(n * sizeof(T)));
+        if (n != 0)
+            _data = static_cast<T*>(operator new(n * sizeof(T)));
+        else
+            _data = 0;
         try {
             for (_n = 0; _n < n; ++_n)
                 constructElement(_n);
@@ -234,7 +237,7 @@ public:
     void append(const T& value)
     {
         if (_allocated == Array<T>::_n) {
-            int allocate = _allocated *2;
+            int allocate = _allocated * 2;
             if (allocate == 0)
                 allocate = 1;
             Array<T> n(*this, allocate);

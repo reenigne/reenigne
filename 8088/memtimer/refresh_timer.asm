@@ -239,6 +239,292 @@ codePreambleEnd:
 
 experimentData:
 
+experimentIntroCMP:
+  db "IntroCMP$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+  mov si,0x3d9
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+
+  add sp,[bx]   ; 2 2
+  cmp sp,dx
+  sbb ax,ax     ; 2 0    10
+
+  add di,[bx+2] ; 3 2
+  cmp di,dx
+  adc ax,bx     ; 2 0    11
+
+  add bp,[bx+4] ; 3 2
+  cmp bp,dx
+  adc ax,bx     ; 2 0    11
+
+  add cx,[bx+6] ; 3 2
+  cmp cx,dx
+  adc ax,bx     ; 2 0    11
+
+  xlatb
+  out 0xe0,al
+
+  mov al,[ss:bx+12]
+  out dx,al
+
+  xchg ax,di
+  mov di,5678
+  movsw
+  movsw
+  xchg ax,di
+.endCode
+
+experimentIntroCMP_NoRaster:
+  db "IntroCMP_NoRaster$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+  mov si,0x3d9
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+
+  add sp,[bx]   ; 2 2
+  cmp sp,dx
+  sbb ax,ax     ; 2 0    10
+
+  add di,[bx+2] ; 3 2
+  cmp di,dx
+  adc ax,bx     ; 2 0    11
+
+  add bp,[bx+4] ; 3 2
+  cmp bp,dx
+  adc ax,bx     ; 2 0    11
+
+  add cx,[bx+6] ; 3 2
+  cmp cx,dx
+  adc ax,bx     ; 2 0    11
+
+  xlatb
+  out 0xe0,al
+
+  xchg ax,di
+  mov di,5678
+  movsw
+  movsw
+  movsw
+  xchg ax,di
+.endCode
+
+
+
+experimentIntro:
+  db "Intro$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+  mov si,0x3d9
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+
+  add sp,[bx]   ; 2 2
+  lahf          ; 1 0
+  rcl ah,1      ; 3 0
+  sbb ax,ax     ; 2 0    10
+
+  add di,[bx+2] ; 3 2
+  lahf          ; 1 0
+  rcl ah,1      ; 3 0
+  adc ax,bx     ; 2 0    11
+
+  add bp,[bx+4] ; 3 2
+  lahf          ; 1 0
+  rcl ah,1      ; 3 0
+  adc ax,bx     ; 2 0    11
+
+  add cx,[bx+6] ; 3 2
+  lahf          ; 1 0
+  rcl ah,1      ; 3 0
+  adc ax,bx     ; 2 0    11
+
+  xlatb
+  out 0xe0,al
+
+  mov al,[ss:bx+12]
+  out dx,al
+
+  xchg ax,di
+  mov di,5678
+  movsw
+  movsb
+  xchg ax,di
+.endCode
+
+
+experimentIntroB:
+  db "Intro$"
+  dw .endInit - ($+2)
+  mov dx,0xe0
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+
+  add sp,[bx]   ; 2 2
+  lahf          ; 1 0
+  rcl ah,1      ; 3 0
+  sbb ax,ax     ; 2 0    10
+
+  add di,[bx+2] ; 3 2
+  lahf          ; 1 0
+  rcl ah,1      ; 3 0
+  adc ax,bx     ; 2 0    11
+
+  add bp,[bx+4] ; 3 2
+  lahf          ; 1 0
+  rcl ah,1      ; 3 0
+  adc ax,bx     ; 2 0    11
+
+  add cx,[bx+6] ; 3 2
+  lahf          ; 1 0
+  rcl ah,1      ; 3 0
+  adc ax,bx     ; 2 0    11
+
+  xlatb
+  out 0xe0,al
+
+  xchg ax,di
+  mov di,5678
+  movsw
+  movsw
+  movsb
+  xchg ax,di
+
+.endCode
+
+experimentMod:
+  db "Mod$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+.endInit:
+  dw .endCode - ($+2)
+  xor ax,ax
+
+  add si,[bp]
+  mov bx,si
+  mov bl,99
+  mov al,[bx]
+
+  add di,[bp+2]
+  mov bx,di
+  mov bl,99
+  add al,[bx]
+
+  add cx,[bp+4]
+  mov bx,cx
+  mov bl,99
+  add al,[bx]
+
+  add sp,[bp+6]
+  mov bx,sp
+  mov bl,99
+  add al,[bx]
+
+  out 0xe0,al
+
+  out dx,al
+.endCode
+
+
+experimentIntro2:
+  db "Intro2$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+  xor si,si
+  xor di,di
+  xor bp,bp
+  xor cx,cx
+  mov [bx],si
+  mov [bx+2],si
+  mov [bx+4],si
+  mov [bx+6],si
+
+.endInit:
+  dw .endCode - ($+2)
+  xor ax,ax
+
+  add si,[bx]   ; 2 2
+  js .p1
+  inc ax
+.p1:
+
+  add di,[bx+2] ; 3 2
+  js .p2
+  inc ax
+.p2:
+
+  add bp,[bx+4] ; 3 2
+  js .p3
+  inc ax
+.p3:
+
+  add cx,[bx+6] ; 3 2
+  js .p4
+  inc ax
+.p4:
+
+  xlatb
+  out 0xe0,al
+
+  pop ax
+  out dx,al
+.endCode
+
+experimentIntro2b:
+  db "Intro2b$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+  xor si,si
+  xor di,di
+  xor bp,bp
+  xor cx,cx
+  mov [bx],si
+  mov [bx+2],si
+  mov [bx+4],si
+  mov [bx+6],si
+.endInit:
+  dw .endCode - ($+2)
+  xor ax,ax
+
+  add si,[bx]   ; 2 2
+  jns .p1
+  inc ax
+.p1:
+
+  add di,[bx+2] ; 3 2
+  jns .p2
+  inc ax
+.p2:
+
+  add bp,[bx+4] ; 3 2
+  jns .p3
+  inc ax
+.p3:
+
+  add cx,[bx+6] ; 3 2
+  jns .p4
+  inc ax
+.p4:
+
+  xlatb
+  out 0xe0,al
+
+  pop ax
+  out dx,al
+.endCode
+
+
+
 experimentMagi1:
   db "Magi1$"
   dw .endInit - ($+2)
@@ -468,7 +754,7 @@ interrupt8:
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
-  mov al,18
+  mov al,19
   out 0x41,al  ; Timer 1 rate
 
   mov ax,cs

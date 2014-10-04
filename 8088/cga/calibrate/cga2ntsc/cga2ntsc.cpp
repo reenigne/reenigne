@@ -111,7 +111,7 @@ public:
 private:
     Colour decode(double y, Complex<double> iq)
     {
-        double y = y*_contrast + _brightness;
+        y = y*_contrast + _brightness;
         iq *= _iqAdjust;
         double r = y + 0.9563*iq.x + 0.6210*iq.y;
         double g = y - 0.2721*iq.x - 0.6474*iq.y;
@@ -220,7 +220,7 @@ class GamutWindow : public BitmapWindow
 {
 public:
     GamutWindow()
-      : _lButton(false), _rButton(false), _rPosition(1000, 1000)
+      : _lButton(false), _rButton(false), _rPosition(1000, 1000), _particle(0)
     {
         _matrix[0] = 1; _matrix[1] = 0; _matrix[2] = 0;
         _matrix[3] = 0; _matrix[4] = 1; _matrix[5] = 0;
@@ -230,12 +230,37 @@ public:
     {
         setSize(Vector(640, 480));
 
-        _particles.allocate(65536);
-        int i;
-        for (i = 0; i < 65536; ++i) {
-            _particles[i]._colour = _simulator->decode(i);
-            _particles[i]._big = true;
-        }
+        BitmapWindow::create();
+        _animation.setWindow(this);
+        _animation.start();
+
+        reset();
+    }
+    void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
+    void paint(PaintHandle* paint)
+    {
+        if (_delta.modulus2() >= 0.000001)
+            _animation.onPaint();
+        draw();
+        BitmapWindow::paint(paint);
+    }
+    void draw()
+    {
+        _bitmap.fill(0);
+        for (int i = 0; i < _particle; ++i)
+            _particles[i].transform(_matrix);
+        std::sort(&_particles[0], &_particles[_particle]);
+        for (int i = 0; i < _particle; ++i)
+            _particles[i].plot(_bitmap, _rPosition);
+    }
+    void line(Colour c1, Colour c2)
+    {
+        for (int i = 0; i < 101; ++i)
+            add(c1*(i*0.01) + c2*((100-i)*0.01), false);
+    }
+    void reset()
+    {
+        _particle = 0;
         line(Colour(0, 0, 0), Colour(255, 0, 0));
         line(Colour(0, 0, 0), Colour(0, 255, 0));
         line(Colour(0, 0, 0), Colour(0, 0, 255));
@@ -248,34 +273,17 @@ public:
         line(Colour(255, 255, 0), Colour(255, 255, 255));
         line(Colour(255, 0, 255), Colour(255, 255, 255));
         line(Colour(0, 255, 255), Colour(255, 255, 255));
-
-        BitmapWindow::create();
-        _animation.setWindow(this);
-        _animation.start();
     }
-    void paint(PaintHandle* paint)
+    void add(Colour c, bool big = true)
     {
-        _animation.onPaint();
-        draw();
-        BitmapWindow::paint(paint);
-    }
-    void draw()
-    {
-        _bitmap.fill(0);
-        for (int i = 0; i < _particles.count(); ++i)
-            _particles[i].transform(_matrix);
-        std::sort(&_particles[0], &_particles[_particles.count()]);
-        for (int i = 0; i < _particles.count(); ++i)
-            _particles[i].plot(_bitmap, _rPosition);
-    }
-    void line(Colour c1, Colour c2)
-    {
-        for (int i = 0; i < 101; ++i) {
-            Particle p;
-            p._colour = c1*(i*0.01) + c2*((100-i)*0.01);
-            p._big = false;
+        Particle p;
+        p._colour = c;
+        p._big = big;
+        if (_particle >= _particles.count())
             _particles.append(p);
-        }
+        else
+            _particles[_particle] = p;
+        ++_particle;
     }
     bool mouseInput(Vector position, int buttons)
     {
@@ -295,13 +303,9 @@ public:
         if ((buttons & MK_RBUTTON) == 0)
             _rButton = false;
         if (_lButton && position != _lastPosition) {
-            Vector delta = position - _lastPosition;
+            _delta = Vector2Cast<double>(position - _lastPosition)*0.01;
             _lastPosition = position;
-            double theta = delta.x*0.01;
-            double phi = delta.y*0.01;
-
-            _rotor = Rotor3<double>::yz(-phi)*Rotor3<double>::zx(theta)*_rotor;
-            _rotor.toMatrix(_matrix);
+            animate();
         }
         if (_rButton && position != _lastPosition) {
             _rPosition += (position - _lastPosition);
@@ -309,6 +313,12 @@ public:
         }
 
         return mouseDown;
+    }
+    void animate()
+    {
+        _rotor = Rotor3<double>::yz(-_delta.y)*Rotor3<double>::zx(_delta.x)*_rotor;
+        _rotor.toMatrix(_matrix);
+        _delta *= 0.99;
     }
 
     AnimationThread _animation;
@@ -320,11 +330,14 @@ public:
     bool _lButton;
     bool _rButton;          
     CGASimulator* _simulator;
+    Vector2<double> _delta;
+
+    int _particle;
 };
 
 class CGA2NTSCWindow;
 
-class BrightnessSliderWindow : public SliderWindow
+template<class T> class BrightnessSliderWindowTemplate : public SliderWindow
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -338,8 +351,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
+typedef BrightnessSliderWindowTemplate<void> BrightnessSliderWindow;
 
-class SaturationSliderWindow : public SliderWindow
+template<class T> class SaturationSliderWindowTemplate : public SliderWindow
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -353,8 +367,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
+typedef SaturationSliderWindowTemplate<void> SaturationSliderWindow;
 
-class ContrastSliderWindow : public SliderWindow
+template<class T> class ContrastSliderWindowTemplate : public SliderWindow
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -368,8 +383,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
+typedef ContrastSliderWindowTemplate<void> ContrastSliderWindow;
 
-class HueSliderWindow : public SliderWindow
+template<class T> class HueSliderWindowTemplate : public SliderWindow
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -383,8 +399,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
+typedef HueSliderWindowTemplate<void> HueSliderWindow;
 
-class AutoBrightnessButtonWindow : public Button
+template<class T> class AutoBrightnessButtonWindowTemplate : public Button
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -397,8 +414,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
+typedef AutoBrightnessButtonWindowTemplate<void> AutoBrightnessButtonWindow;
 
-class AutoContrastClipButtonWindow : public Button
+template<class T> class AutoContrastClipButtonWindowTemplate : public Button
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -411,8 +429,10 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
+typedef AutoContrastClipButtonWindowTemplate<void>
+    AutoContrastClipButtonWindow;
 
-class AutoSaturationButtonWindow : public Button
+template<class T> class AutoSaturationButtonWindowTemplate : public Button
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -425,8 +445,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
+typedef AutoSaturationButtonWindowTemplate<void> AutoSaturationButtonWindow;
 
-class AutoContrastMonoButtonWindow : public Button
+template<class T> class AutoContrastMonoButtonWindowTemplate : public Button
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -439,10 +460,13 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
+typedef AutoContrastMonoButtonWindowTemplate<void>
+    AutoContrastMonoButtonWindow;
 
 class OutputWindow : public BitmapWindow
 {
 public:
+    void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
     void setNTSC(Bitmap<double> ntsc)
     {
         _ntsc = ntsc;
@@ -455,7 +479,7 @@ public:
         for (int yy = 0; yy < _ntsc.size().y; ++yy) {
             const double* n = reinterpret_cast<const double*>(ntscRow);
             DWORD* outputPixel = reinterpret_cast<DWORD*>(outputRow);
-            for (int x = 0; x < _ntsc.size.x - 6; ++x) {
+            for (int x = 0; x < _ntsc.size().x - 6; ++x) {
                 if (x == 24 && yy == 24)
                     x = 24;
                 Colour s = _simulator->decode(n, (x + 1) & 3);
@@ -482,22 +506,8 @@ private:
 class CGA2NTSCWindow : public RootWindow
 {
 public:
-    void create()
+    void setWindows(Windows* windows)
     {
-        _brightnessCaption.setText("Brightness:");
-        _saturationCaption.setText("Saturation:");
-        _contrastCaption.setText("Contrast:");
-        _hueCaption.setText("Hue:");
-
-        _brightness.setHost(this);
-        _saturation.setHost(this);
-        _contrast.setHost(this);
-        _hue.setHost(this);
-        _autoBrightness.setHost(this);
-        _autoSaturation.setHost(this);
-        _autoContrastClip.setHost(this);
-        _autoContrastMono.setHost(this);
-
         add(&_output);
         add(&_brightnessCaption);
         add(&_brightness);
@@ -520,6 +530,33 @@ public:
         add(&_mostSaturatedText);
         add(&_clippedColoursText);
         add(&_gamut);
+        RootWindow::setWindows(windows);
+    }
+    void create()
+    {
+        _brightnessCaption.left = _output.right;
+        _brightnessCaption.top = top;
+        _brightness.left = _output.right;
+        _brightness.top = _brightnessCaption.bottom;
+        _autoBrightness.left = _output.right;
+        _autoBrightness.top = _brightness.bottom;
+        _brightnessText.left = _autoBrightness.right;
+        _brightnessText.bottom = _brightness.bottom;
+
+
+        _brightnessCaption.setText("Brightness:");
+        _saturationCaption.setText("Saturation:");
+        _contrastCaption.setText("Contrast:");
+        _hueCaption.setText("Hue:");
+
+        _brightness.setHost(this);
+        _saturation.setHost(this);
+        _contrast.setHost(this);
+        _hue.setHost(this);
+        _autoBrightness.setHost(this);
+        _autoSaturation.setHost(this);
+        _autoContrastClip.setHost(this);
+        _autoContrastMono.setHost(this);
 
         setText("CGA to NTSC");
         setSize(Vector(640, 480));
@@ -534,7 +571,12 @@ public:
             remove();
     }
     void setNTSC(Bitmap<double> ntsc) { _output.setNTSC(ntsc); }
-    void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
+    void setSimulator(CGASimulator* simulator)
+    { 
+        _simulator = simulator;
+        _output.setSimulator(simulator);
+        _gamut.setSimulator(simulator);
+    }
     void update()
     {
         Colour black = _simulator->decode(0);
@@ -543,69 +585,35 @@ public:
         Colour white = _simulator->decode(0xffff);
         _white = 0.299*white.x + 0.587*white.y + 0.114*white.z;
         _whiteText.setText(format("White level: %f", _white));
-        for (Set<UInt32>::Iterator i = _colours.begin(); i != _colours.end();
+        _clips = 0;
+        _maxSaturation = 0;
+        _gamut.reset();
+        for (Set<UInt64>::Iterator i = _colours.begin(); i != _colours.end();
             ++i) {
-            UInt32 seq = *i;
+            UInt64 seq = *i;
             double ntsc[7];
+            int phase = (seq >> 32) & 3;
             for (int x = 0; x < 7; ++x) {
                 ntsc[x] = _simulator->simulateCGA(seq & 15, (seq >> 4) & 15,
-                    x & 3);
+                    (x + phase) & 3);
                 seq >>= 4;
             }
-            _simulator->decode(ntsc, )
+            Colour c = _simulator->decode(ntsc, phase);
+            double r = c.x;
+            double g = c.y;
+            double b = c.z;
+            if (r < 0 || r >= 256 || g < 0 || g >= 256 || b < 0 || b >= 256) {
+                ++_clips;
+                _clipped = seq;
+            }
+            double y = 0.299*r + 0.587*g + 0.114*b;
+            _maxSaturation =
+                max(_maxSaturation, (c - Colour(y, y, y)).modulus());
+            _gamut.add(c);
         }
-
-
-
-
-
-        //int clips = 0;
-        //double maxSS = 0;
-        //simulator.init();
-        //double yBlack = 0;
-        //double yWhite = 0;
-        //for (int block = 0; block < 1024; ++block) {
-        //    int rgbi[4];
-        //    rgbi[0] = ((block & 8) != 0 ? (block >> 4) : (block >> 8)) & 15;
-        //    rgbi[1] = ((block & 4) != 0 ? (block >> 4) : (block >> 8)) & 15;
-        //    rgbi[2] = ((block & 2) != 0 ? (block >> 4) : (block >> 8)) & 15;
-        //    rgbi[3] = ((block & 1) != 0 ? (block >> 4) : (block >> 8)) & 15;
-        //    int i = (rgbi[0]<<12) | (rgbi[1]<<8) | (rgbi[2]<<4) | rgbi[3];
-        //    
-        //    Colour rgb = simulator.decode(i);
-        //    double r = rgb.x;
-        //    double g = rgb.y;
-        //    double b = rgb.z;
-        //    double y = 0.299*r + 0.587*g + 0.114*b;
-        //    bool clip = false;
-        //    if (r < 0 || r >= 256 || g < 0 || g >= 256 || b < 0 || b >= 256) {
-        //        ++clips;
-        //        clip = true;
-        //    }
-        //    if (i == 0)
-        //        yBlack = y;
-        //    if (i == 65535)
-        //        yWhite = y;
-
-        //    double rr = r - y;
-        //    double gg = g - y;
-        //    double bb = b - y;
-        //    double ss = Vector3<double>(rr, gg, bb).modulus();
-        //    if (ss > maxSS) {
-        //        printf("Colour 0x%04x has saturation %f\n",i,ss);
-        //        maxSS = ss;
-        //    }
-        //    if (clip && clips == 1)
-        //        printf("Clipping 0x%04x, r=%f, g=%f, b=%f\n",i,r,g,b);
-        //}
-        //printf("Black level %f\n",yBlack);
-        //printf("White level %f\n",yWhite);
-        //printf("Max SS = %f\n",maxSS);
-        //printf("%i colours clipped\n",clips);
-
-
-
-
+        _mostSaturatedText.setText(
+            format("Most saturated: %f", _maxSaturation));
+        _clippedColoursText.setText(format("%i colours clipped", _clips));
     }
 
     void setBrightness(double brightness)
@@ -637,13 +645,70 @@ public:
     }
     void autoSaturation()
     {
+        _simulator->_saturation *= (_white - _black)/(2*_maxSaturation);
+        update();
     }
     void autoContrastClip()
     {
+        double minContrast = 0;
+        double maxContrast = 1;
+        do {
+            double contrast = (maxContrast + minContrast)/2;
+            _simulator->_contrast = contrast;
+            update();
+            autoBrightness();
+            if (_clips == 0)
+                minContrast = contrast;
+            else
+                if (_clips == 1 || minContrast == maxContrast)
+                    break;
+                else
+                    maxContrast = contrast;
+        } while (true);
+        double midPoint = (_white - _black)/2;
+        double fudge = 0.99999;
+        while (_clips != 0) {
+            UInt64 seq = _clipped;
+            double ntsc[7];
+            for (int x = 0; x < 7; ++x) {
+                ntsc[x] = _simulator->simulateCGA(seq & 15, (seq >> 4) & 15,
+                    x & 3);
+                seq >>= 4;
+            }
+            Colour c = _simulator->decode(ntsc, (seq >> 32) & 3);
+            double r = c.x;
+            double g = c.y;
+            double b = c.z;
+            bool found = false;
+            if (r < 0) {
+                _simulator->_contrast *= fudge*midPoint/(midPoint - r);
+                found = true;
+            }
+            if (!found && r >= 256) {
+                _simulator->_contrast *= fudge*midPoint/(r - midPoint);
+                found = true;
+            }
+            if (!found && g < 0) {
+                _simulator->_contrast *= fudge*midPoint/(midPoint - g);
+                found = true;
+            }
+            if (!found && g >= 256) {
+                _simulator->_contrast *= fudge*midPoint/(g - midPoint);
+                found = true;
+            }
+            if (!found && b < 0) {
+                _simulator->_contrast *= fudge*midPoint/(midPoint - b);
+                found = true;
+            }
+            if (!found && b >= 256)
+                _simulator->_contrast *= fudge*midPoint/(b - midPoint);
+            update();
+            autoBrightness();
+        }
     }
     void autoContrastMono()
     {
-        _simulator->_contrast = _simulator->_contrast*256/(_white - _black);
+        _simulator->_contrast *= 256/(_white - _black);
         _contrast.setValue(_simulator->_contrast);
         update();
     }
@@ -676,7 +741,10 @@ private:
     CGASimulator* _simulator;
     double _black;
     double _white;
-    Set<UInt32> _colours;
+    Set<UInt64> _colours;
+    int _clips;
+    double _maxSaturation;
+    UInt64 _clipped;
 };
 
 class Program : public WindowProgram<CGA2NTSCWindow>
@@ -790,9 +858,10 @@ public:
                 for (int x = 0; x < size.x + 7; ++x) {
                     seq = (seq >> 4) | ((*inputPixel) << 28);
                     ++inputPixel;
-                    _window.addColour(seq);
+                    _window.addColour(static_cast<UInt64>(seq) |
+                        (static_cast<UInt64>(x & 3) << 32));
                 }
-                inputRow += input.stride();
+                inputRow += rgbi.stride();
             }
         }
 
@@ -822,7 +891,7 @@ public:
 
         String outputFileName;
         int i;
-        for (int i = inputFileName.length() - 1; i >= 0; --i)
+        for (i = inputFileName.length() - 1; i >= 0; --i)
             if (inputFileName[i] == '.')
                 break;
         if (i == -1)
@@ -832,6 +901,4 @@ public:
 
         _window.save(outputFileName);
     }
-private:
-    double _tSamples[1024];
 };

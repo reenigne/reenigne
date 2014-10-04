@@ -85,6 +85,7 @@
     <ClCompile Include="cga2ntsc.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\..\include\alfe\array.h" />
     <ClInclude Include="..\..\..\..\include\alfe\bitmap.h" />
     <ClInclude Include="..\..\..\..\include\alfe\bitmap_png.h" />
     <ClInclude Include="..\..\..\..\include\alfe\colour_space.h" />

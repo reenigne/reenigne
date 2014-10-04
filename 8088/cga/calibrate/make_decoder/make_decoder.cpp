@@ -268,11 +268,11 @@ class GamutWindow : public RootWindow
 public:
     void create()
     {
+        setText("CGA Gamut");
+        setSize(Vector(640, 480));
         add(&_bitmap);
         RootWindow::create();
     }
-    String initialCaption() const { return "CGA Gamut"; }
-    Vector initialSize() const { return Vector(640, 480); }
     void keyboardCharacter(int character)
     {
         if (character == VK_ESCAPE)

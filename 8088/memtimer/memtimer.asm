@@ -225,6 +225,63 @@ codePreambleEnd:
 
 experimentData:
 
+
+experimentTestALBL:
+  db "Test AL,BL$"
+  dw .endInit - ($+2)
+  mov bl,1
+  mov ax,1
+.endInit:
+  dw .endCode - ($+2)
+  test al,bl
+.endCode:
+
+experimentTestAL1:
+  db "Test AL,1$"
+  dw .endInit - ($+2)
+  mov bl,1
+  mov ax,1
+.endInit:
+  dw .endCode - ($+2)
+  test al,1
+.endCode:
+
+experimentTestALBLEU:
+  db "Test AL,BL EU bound$"
+  dw .endInit - ($+2)
+  mov bl,1
+  mov ax,1
+  mov dl,1
+.endInit:
+  dw .endCode - ($+2)
+  mul dl
+  test al,bl
+.endCode:
+
+experimentTestAL1EU:
+  db "Test AL,1 EU bound$"
+  dw .endInit - ($+2)
+  mov bl,1
+  mov ax,1
+  mov dl,1
+.endInit:
+  dw .endCode - ($+2)
+  mul dl
+  test al,1
+.endCode:
+
+experimentEU:
+  db "EU bound correction$"
+  dw .endInit - ($+2)
+  mov bl,1
+  mov ax,1
+  mov dl,1
+.endInit:
+  dw .endCode - ($+2)
+  mul dl
+.endCode:
+
+
 experimentMul:
   db "Mul$"
   dw .endInit - ($+2)

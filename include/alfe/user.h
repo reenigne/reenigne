@@ -1,4 +1,4 @@
-#include "alfe/main.h"                          w
+#include "alfe/main.h"                          
 
 #ifndef INCLUDED_USER_H
 #define INCLUDED_USER_H
@@ -160,6 +160,50 @@ class ContainerWindow;
 template<class T> class WindowTemplate;
 typedef WindowTemplate<void> Window;
 
+class Edge;
+
+class EdgeExpression
+{
+public:
+    EdgeExpression operator+(EdgeExpression a) { }
+    EdgeExpression operator-(EdgeExpression a) { }
+    EdgeExpression operator*(double a) { }
+    EdgeExpression operator/(double a) { }
+private:
+    class Clause
+    {
+    public:
+        Clause(Edge* edge, double coefficient)          : _edge(edge), _coefficient(coefficient) { }        Edge* _edge;
+        double _coefficient;
+    };
+    List<Clause> _clauses;
+    double _offset;
+
+    void setToEdge(Edge* edge)
+    {
+        _clauses = List<Clause>();
+        _clauses.add(Clause(edge, 1));
+        _offset = 0;
+    }
+
+    friend class Edge;
+};
+
+class Edge : public EdgeExpression
+{
+public:
+    Edge()
+    {
+        setToEdge(this);
+    }
+    void operator=(const EdgeExpression& expression)
+    {
+        EdgeExpression::operator=(expression);
+    }
+private:
+    List<Edge> _dependents;
+};
+
 template<class T> class WindowTemplate
   : public LinkedListMember<WindowTemplate<T>>
 {
@@ -171,6 +215,7 @@ public:
     ContainerWindow* parent() const { return _parent; }
     virtual void paint(PaintHandle* paintHandle) { }
     void setSize(Vector size) { _size = size; }
+    void sizeSet(Vector size) { _size = size; }
     void setPosition(Vector topLeft) { _topLeft = topLeft; }
     Vector size() const { return _size; }
     Vector topLeft() const { return _topLeft; }
@@ -189,6 +234,11 @@ public:
             LinkedListMember::remove();
         }
     }
+
+    Edge top;
+    Edge left;
+    Edge right;
+    Edge bottom;
 
     virtual void invalidate() { invalidateRectangle(Vector(0, 0), _size); }
     virtual void invalidateRectangle(Vector topLeft, Vector size)
@@ -383,7 +433,7 @@ class WindowsWindow : public ContainerWindow
 public:
     WindowsWindow() : _hdc(NULL), _hWnd(NULL), _resizing(false)
     {
-        setSize(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
+        sizeSet(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
         setPosition(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
     }
 
@@ -436,7 +486,7 @@ public:
         Windows::setContext(_hWnd, this);
         RECT rect;
         IF_ZERO_THROW(GetClientRect(_hWnd, &rect));
-        setSize(Vector(rect.right, rect.bottom));
+        sizeSet(Vector(rect.right, rect.bottom));
         ContainerWindow::create();
     }
 
@@ -475,8 +525,14 @@ public:
                 size.y,                               // cy
                 SWP_NOZORDER | SWP_NOMOVE |
                 SWP_NOACTIVATE | SWP_NOREPOSITION));  // uFlags
+            // sizeSet() will be called via WM_SIZE.
         }
-        ContainerWindow::setSize(size);
+        else
+            sizeSet(size);
+    }
+    virtual void sizeSet(Vector size)
+    { 
+        ContainerWindow::sizeSet(size);
     }
 
     HWND hWnd() const { return _hWnd; }
@@ -518,7 +574,7 @@ protected:
                 return 0;
             case WM_SIZE:
                 {
-                    setSize(vectorFromLParam(lParam));
+                    sizeSet(vectorFromLParam(lParam));
                     if (!size().zeroArea()) {
                         resize();
                         invalidate();

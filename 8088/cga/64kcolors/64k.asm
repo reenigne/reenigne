@@ -1,3 +1,5 @@
+; Flicker between two full screens of +HRES, 4 scanlines per row
+
 org 0  ; 0 for XT Server, 0x100 for .com
 cpu 8086
 
@@ -13,21 +15,6 @@ cpu 8086
   xor di,di
   cld
   rep movsw
-
-
-; Scanline   0 = row  0 of  2-line screen (Address 0 = blank)
-; Scanline   1 = row  1 of  2-line screen (Address 160 = pixel line 0)
-; Scanline   2 = row  0 of  2-line screen (Address 160 = pixel line 0)
-; Scanline   3 = row  1 of  2-line screen (Address 320 = pixel line 1)
-; ...
-; Scanline 198 = row  0 of  2-line screen (Address 15840 = pixel line 98)
-; Scanline 199 = row  1 of  2-line screen (Address 16000 = pixel line 99)
-; Scanline 200 = row  0 of 62-line screen (Address 16000 = pixel line 99)
-; Scanline 201 = row  1 of 62-line screen (Address 16160 = blank)
-; ...
-; Scanline 224 = row 24 of 62-line screen - sync start
-; ...
-; Scanline 261 = row 61 of 62-line screen
 
 
   ; Mode                                                09
