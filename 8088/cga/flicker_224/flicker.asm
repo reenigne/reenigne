@@ -1,4 +1,4 @@
-org 0  ; 0 for XT Server, 0x100 for .com
+org 0x100  ; 0 for XT Server, 0x100 for .com
 cpu 8086
 
   cli
@@ -44,11 +44,11 @@ cpu 8086
   out dx,ax
 
   ;   0xff Horizontal Displayed                         1c  (28 characters)
-  mov ax,0x1801
+  mov ax,0x1c01
   out dx,ax
 
   ;   0xff Horizontal Sync Position                     27  (0x2d - (40 - 28)/2)
-  mov ax,0x2502
+  mov ax,0x2702
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0d
@@ -323,7 +323,7 @@ frameLoop:
   waitForDisplayDisable
 
 
-  loop frameLoop
+  loop frameLoop1
 
   ; Set the CGA back to a normal mode so we don't risk breaking anything
   mov ax,3
@@ -332,5 +332,31 @@ frameLoop:
   ; Relinquish control
   retf
 
+frameLoop1:
+  jmp frameLoop
+
+complete:
+
 data:
+;  %rep 140
+;    dw 0x1100, 0x2200, 0x3300, 0x4400, 0x5500, 0x6600, 0x7700, 0x8800, 0x9900, 0xaa00, 0xbb00, 0xcc00, 0xdd00, 0xee00, 0xff00, 0x0000, 0x1100, 0x2200, 0x3300, 0x4400, 0x5500, 0x6600, 0x7700, 0x8800, 0x9900, 0xaa00, 0xbb00, 0xcc00
+;  %endrep
+;  times 8*28 dw 0x1100
+;  times 8*28 dw 0x2200
+;  times 8*28 dw 0x3300
+;  times 8*28 dw 0x4400
+;  times 8*28 dw 0x5500
+;  times 8*28 dw 0x6600
+;  times 8*28 dw 0x7700
+;  times 8*28 dw 0x8800
+;  times 8*28 dw 0x9900
+;  times 8*28 dw 0xaa00
+;  times 8*28 dw 0xbb00
+;  times 8*28 dw 0xcc00
+;  times 8*28 dw 0xdd00
+;  times 8*28 dw 0xee00
+;  times 8*28 dw 0xff00
+;  times 8*28 dw 0x0000
+;  times 8*28 dw 0x1100
+;  times 4*28 dw 0x2200
 
