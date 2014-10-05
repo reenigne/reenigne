@@ -168,14 +168,14 @@ frameLoop:
 
   waitForDisplayEnable
   mov dl,0xd4
-  mov ax,0x0b0c
+  mov ax,0x0d0c            ; 0xde4 = 28*127
   out dx,ax
   mov dl,0xda
   waitForDisplayDisable
 
   waitForDisplayEnable
   mov dl,0xd4
-  mov ax,0xe80d
+  mov ax,0xe40d
   out dx,ax
   mov dl,0xda
   waitForDisplayDisable
@@ -209,7 +209,7 @@ frameLoop:
 
   waitForDisplayEnable
   mov dl,0xd4
-  mov ax,0x0f0c
+  mov ax,0x0f0c            ; 0xf50 = 28*140
   out dx,ax
   mov dl,0xda
   waitForDisplayDisable
@@ -248,7 +248,7 @@ frameLoop:
 
   waitForDisplayEnable
   mov dl,0xd4
-  mov ax,0x1d0c
+  mov ax,0x1d0c            ; 0x1d34 = 28*(127+140)
   out dx,ax
   mov dl,0xda
   waitForDisplayDisable
@@ -289,7 +289,7 @@ frameLoop:
 
   waitForDisplayEnable
   mov dl,0xd4
-  mov ax,0x000c
+  mov ax,0x000c            ; 0x0000
   out dx,ax
   mov dl,0xda
   waitForDisplayDisable
