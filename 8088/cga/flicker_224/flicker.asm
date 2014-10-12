@@ -1,4 +1,4 @@
-org 0x100  ; 0 for XT Server, 0x100 for .com
+org 0  ; 0 for XT Server, 0x100 for .com
 cpu 8086
 
   cli

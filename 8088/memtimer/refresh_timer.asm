@@ -239,6 +239,84 @@ codePreambleEnd:
 
 experimentData:
 
+experimentSlide:
+  db "IntroSlide$"
+  dw .endInit - ($+2)
+  mov dx,0x3d4
+  mov si,0x3d9
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+
+  add sp,[bx]   ; 2 2
+  cmp sp,dx
+  sbb ax,ax     ; 2 0    10
+
+  add di,[bx+2] ; 3 2
+  cmp di,dx
+  adc ax,bx     ; 2 0    11
+
+  add bp,[bx+4] ; 3 2
+  cmp bp,dx
+  adc ax,bx     ; 2 0    11
+
+  add cx,[bx+6] ; 3 2
+  cmp cx,dx
+  adc ax,bx     ; 2 0    11
+
+  xlatb
+  out 0xe0,al
+
+  mov ax,0x0d06
+  out dx,ax
+
+  xchg ax,di
+  mov di,5678
+  movsw
+  movsw
+  xchg ax,di
+.endCode
+
+
+experimentSlide2:
+  db "IntroSlide2$"
+  dw .endInit - ($+2)
+  mov dx,0x3d4
+  mov si,0x3d9
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+
+  add sp,[bx]   ; 2 2
+  cmp sp,dx
+  sbb ax,ax     ; 2 0    10
+
+  add di,[bx+2] ; 3 2
+  cmp di,dx
+  adc ax,bx     ; 2 0    11
+
+  add bp,[bx+4] ; 3 2
+  cmp bp,dx
+  adc ax,bx     ; 2 0    11
+
+  add cx,[bx+6] ; 3 2
+  cmp cx,dx
+  adc ax,bx     ; 2 0    11
+
+  xlatb
+  out 0xe0,al
+
+  xchg ax,di
+  mov di,5678
+  movsw
+  movsw
+  movsw
+  xchg ax,di
+.endCode
+
+
 experimentIntroCMP:
   db "IntroCMP$"
   dw .endInit - ($+2)

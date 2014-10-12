@@ -485,3 +485,23 @@ Burst low:   24
 
 Burst range:  85
 Chroma range: 85
+
+
+
+  0x08 -HRES, -GRPH, -1BPP  - proper 40x25 text
+  0x09 +HRES, -GRPH, -1BPP  - proper 80x25 text
+  0x0a -HRES, +GRPH, -1BPP  - proper 320x200 graphics
+  0x0b +HRES, +GRPH, -1BPP  - improper 1 (640-column 2bpp)
+  0x18 -HRES, -GRPH, +1BPP  - improper 2 (40-column text + 1bpp)
+  0x19 +HRES, -GRPH, +1BPP  - improper 3 (80-column text + 1bpp)
+  0x1a -HRES, +GRPH, +1BPP  - proper 640x200 graphics
+  0x1b +HRES, +GRPH, +1BPP  - improper 4 (1280-column 1bpp)
+
+1: Bytes repeated ABCB, reducing effective horizontal resolution to 40?
+  That's one of the CRTC phases. What about the other?
+    Probably no difference
+  256 colours. 64 different palettes.
+  No snow?
+2: 1bpp pattern masks text with black. 65536 bit patterns, not sure how many of them work out as pure colours.
+3: 1bpp pattern masks text with black. 65536 bit patterns, not sure how many of them work out as pure colours.
+4: No advantage over 0x1a
