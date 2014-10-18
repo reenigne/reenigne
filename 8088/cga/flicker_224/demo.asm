@@ -3,6 +3,12 @@ cpu 8086
 
 PERIOD EQU (76*262/4)
 
+  cli
+  mov ax,cs
+  mov ss,ax
+  mov sp,stackHigh-2
+  sti
+
   ; Set up pointers for music
 
   mov ax,cs
@@ -143,13 +149,20 @@ loadDone:
   mov [oldInterrupt8],bx
   mov [oldInterrupt8+2],cx
 
-  ; Set up PIT channel 0
   mov al,0x34
   out 0x43,al
-  mov al,PERIOD & 0xff
+  mov al,2
   out 0x40,al
-  mov al,PERIOD >> 8
+  mov al,0
   out 0x40,al
+
+  ; Set up PIT channel 2
+  mov al,0xb6
+  out 0x43,al
+  mov al,2
+  out 0x42,al
+  mov al,0
+  out 0x42,al
 
   ; Set up speaker
   in al,0x61
@@ -209,7 +222,7 @@ loadDone:
   out dx,ax
 
   ;   0x7f Vertical Displayed                           7f
-  mov ax,0x7f06
+  mov ax,0x6006
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       6a
@@ -254,6 +267,26 @@ loadDone:
   mov ax,0xb800
   mov es,ax
 
+  mov dl,0xda
+
+waitForVerticalSync:
+  in al,dx
+  test al,8
+  jz waitForVerticalSync
+
+waitForDisplayEnable:
+  in al,dx
+  test al,1
+  jnz waitForDisplayEnable
+
+  ; Set up PIT channel 0
+  mov al,0x34
+  out 0x43,al
+  mov al,PERIOD & 0xff
+  out 0x40,al
+  mov al,PERIOD >> 8
+  out 0x40,al
+
   ; Set up video update segment
   mov ds,[startSegment]
   xor si,si
@@ -264,7 +297,7 @@ mainLoop:
   lodsw                     ; frame number for next update
 waitForFrame:
   cmp ax,[cs:frameCounter]
-  jge doUpdate
+  jbe doUpdate
   ; Check keyboard
   push ax
   mov ah,1
@@ -274,10 +307,13 @@ waitForFrame:
   pop ax
   jmp waitForFrame
 doUpdate:
+  xor cx,cx
   lodsw                     ; Video memory copy address
   mov di,ax
+  push di
   lodsw                     ; Copy byte count and line count
   mov dx,ax
+  push dx
   mov bx,28  ; 28 words per scanline
   sub bl,dl  ; BX = number of words to skip each row
 yLoop:
@@ -286,23 +322,36 @@ yLoop:
   add di,bx
   dec dh
   jnz yLoop
+
+  pop dx
+  pop di
+  add di,0x2000
+  mov bx,28  ; 28 words per scanline
+  sub bl,dl  ; BX = number of words to skip each row
+yLoop2:
+  mov cl,dl
+  rep movsw
+  add di,bx
+  dec dh
+  jnz yLoop2
+
   lodsw                     ; CRTC start address
-  mov [cs:crtcPointer],ax
+  mov [cs:crtcStartAddress],ax
 
   ; Segment correction
   mov ax,ds
-  mov bx,di
+  mov bx,si
   mov cl,4
   shr bx,cl
   add ax,bx
   mov ds,ax
-  and di,0x0f
+  and si,0x0f
   cmp ax,[cs:endSegment]
   jne mainLoop
   mov ax,[cs:startSegment]
+  mov ds,ax
   mov word[cs:frameCounter],0
   jmp mainLoop
-
 
 finish:
   ; Restore everything
@@ -331,7 +380,8 @@ finish:
 
   sti
 
-  ret
+  int 0x20
+;  ret
 
 
 interrupt8:
@@ -354,8 +404,8 @@ interrupt8:
 noMusicEnd:
   mov [musicPointer],si
   xchg bx,ax
-  mov al,0xb6
-  out 0x43,al
+;  mov al,0xb6
+;  out 0x43,al
   mov al,bl
   out 0x42,al
   mov al,bh
@@ -382,22 +432,22 @@ noResetCrtcPointer:
   mov bx,ax
   mov al,0x0c
   mov ah,bh
-  out dx,al   ; Start Address High
+  out dx,ax   ; Start Address High
   inc ax
   mov ah,bl
-  out dx,al   ; Start Address Low
+  out dx,ax   ; Start Address Low
   lodsw
   mov bx,ax
   lodsb
   mov ah,al
   mov al,5
-  out dx,al   ; Vertical Total Address
+  out dx,ax   ; Vertical Total Adjust
   inc ax
   mov ah,bl
-  out dx,al   ; Vertical Displayed
+  out dx,ax   ; Vertical Displayed
   inc ax
   mov ah,bh
-  out dx,al   ; Vertical Sync Position
+  out dx,ax   ; Vertical Sync Position
   pop dx
 noCrtcUpdate:
 
@@ -430,15 +480,23 @@ crtcTable:
   ;   SAL   SAH    VD   VSP   VTA
   db 0xe4, 0x0d, 0x7f, 0x7f, 0x00  ; 0x0de4 = 28*127
   db 0xe4, 0x0d, 0x7f, 0x7f, 0x00
-  db 0x50, 0x0f, 0x0d, 0x43, 0x08  ; 0x0f50 = 28*140
-  db 0x50, 0x0f, 0x0d, 0x43, 0x08
-  db 0x34, 0x1d, 0x7f, 0x7f, 0x00  ; 0x1d34 = 28*(127+140)
-  db 0x34, 0x1d, 0x7f, 0x7f, 0x00
+;  db 0x50, 0x0f, 0x0d, 0x43, 0x08  ; 0x0f50 = 28*140
+;  db 0x50, 0x0f, 0x0d, 0x43, 0x08
+  db 0x00, 0x10, 0x0d, 0x43, 0x08  ; 0x1000
+  db 0x00, 0x10, 0x0d, 0x43, 0x08
+;  db 0x34, 0x1d, 0x7f, 0x7f, 0x00  ; 0x1d34 = 28*(127+140)
+;  db 0x34, 0x1d, 0x7f, 0x7f, 0x00
+  db 0xe4, 0x1d, 0x7f, 0x7f, 0x00  ; 0x1de4 = 0x1000 + 28*127
+  db 0xe4, 0x1d, 0x7f, 0x7f, 0x00
   db 0x00, 0x00, 0x0d, 0x43, 0x08  ; 0x0000 = 28*0
   db 0x00, 0x00, 0x0d, 0x43, 0x08
 
 musicFileName: db "music.dat",0
 videoFileName: db "video.dat",0
 errorMessage: db "File error$"
+
+stackLow:
+  times 128 dw 0
+stackHigh:
 
 codeEnd:
