@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20131208-keyb',0
+  db '20141018-keyb',0
 
 codeStart:
   sub di,0x500
@@ -11,31 +11,26 @@ codeStart:
   or byte[cs:flags],1
 lengthOk1:
 
-  call findSP
-findSP:
+  call findIP
+findIP:
   pop si
-  sub si,findSP
+  sub si,findIP
 
   mov ah,0
-  mov cx,kernelEnd
+  mov cx,checkSum
 checksumLoop:
   lodsb
   add ah,al
   loop checksumLoop
-  cmp ah,[cS:checkSum]
+  cmp ah,[cs:checkSum]
   je checksumOk1
   or byte[cs:flags],2
 checksumOk1:
 
-
   ; Turn interrupts off - the keyboard send routine is cycle-counted.
   cli
 
-;initLoop:
-;  jmp initLoop
-
   ; Set up the screen so we can debug the keyboard send routine
-
   initCGA 0x2c
 
   ; Clear the video memory
@@ -50,7 +45,7 @@ checksumOk1:
   ; Set up the timer interrupt
   mov al,TIMER0 | BOTH | MODE3 | BINARY
   out 0x43,al
-  mov al,0     ; rate = 13125000/11/2^16 != 18.2Hz
+  mov al,0     ; rate = 13125000/11/2^16 ~= 18.2Hz
   out 0x40,al
   out 0x40,al
 
@@ -71,6 +66,9 @@ interruptSetupLoop:
   inc di
   inc di
   loop interruptSetupLoop
+  mov word[0x02*4], 0xf85f       ; nmi_int
+  mov word[0x05*4], 0xff54       ; print_screen
+  mov word[0x18*4 + 2], 0xf600   ; segment for BASIC
 
   ; Disable NMI
 ;  xor al,al
@@ -157,9 +155,9 @@ noRelocationNeeded:
   setInterrupt 0x60, writeHex
   setInterrupt 0x61, writeString
   setInterrupt 0x62, writeCharacter
-  setInterrupt 0x63, printHex
-  setInterrupt 0x64, printString
-  setInterrupt 0x65, printCharacter
+  setInterrupt 0x63, printHexRoutine
+  setInterrupt 0x64, printStringRoutine
+  setInterrupt 0x65, printCharacterRoutine
   setInterrupt 0x66, beep
 
   ; Reset video variables
@@ -168,7 +166,7 @@ noRelocationNeeded:
   mov [cs:startAddress],ax
 
   ; Beep
-  int 0x66
+;  int 0x66
   ; Print a message
   mov ax,cs
   mov ds,ax
@@ -197,7 +195,7 @@ checksumOk:
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
   push bx
-  mov ax,complete
+  mov ax,completeRoutine
   push ax
 
   ; Find the next segment after the end of the kernel. This is where we'll
@@ -261,12 +259,12 @@ loadProgramDone:
   cmp dl,bl
   mov ax,cs
   mov ds,ax
-  je checksumOk
+  je checksumOk2
   mov si,failMessage
   mov cx,failMessageEnd - failMessage
   int 0x64
   jmp tryLoad
-checksumOk:
+checksumOk2:
   mov si,okMessage
   mov cx,okMessageEnd - okMessage
   int 0x64
@@ -289,19 +287,19 @@ keyboardRead:
   and al,0x7f
   out 0x61,al
 
-;  push bx
-;  push cx
-;  mov cl,4
-;  mov al,bl
-;  shr al,cl
-;  call printNybble
-;  mov al,bl
-;  and al,0xf
-;  call printNybble
-;  mov al,' '
-;  call printChar
-;  pop cx
-;  pop bx
+;   push bx
+;   push cx
+;   mov cl,4
+;   mov al,bl
+;   shr al,cl
+;   call printNybble
+;   mov al,bl
+;   and al,0xf
+;   call printNybble
+;   mov al,' '
+;   call printChar
+;   pop cx
+;   pop bx
 
   ret
 
@@ -450,12 +448,12 @@ gotCount:
   rcl bh,1
 
   mov al,cl
-  call sendByte  ; Send the number of bytes we'll be sending
+  call sendByteRoutine  ; Send the number of bytes we'll be sending
 sendByteLoop:
   cmp cx,0
   je doneSend
   lodsb
-  call sendByte
+  call sendByteRoutine
   dec cx
   jmp sendByteLoop
 doneSend:
@@ -464,7 +462,7 @@ doneSend:
   ret
 
 
-sendByte:
+sendByteRoutine:
   push ax              ; for debugging purposes
   mov bl,al
 
@@ -480,9 +478,9 @@ sendByte:
   rcr al,1
   out dx,al
 
-  rcr bl,1             ; 2 0 8  Each bit takes 40 CPU cycles = 8.38us
-  mov al,bh            ; 2 0 8  = 8.87us with DRAM refresh
-  rcr al,1             ; 2 0 8  = 142 cycles on the Arduino
+  rcr bl,1             ; 2 0 8  Each bit takes 45.6 CPU cycles = 9.55us
+  mov al,bh            ; 2 0 8  = 153 cycles on the Arduino
+  rcr al,1             ; 2 0 8
   rcr al,1             ; 2 0 8
   out dx,al            ; 1 1 8
 
@@ -567,7 +565,7 @@ quietLoop:
   iret
 
 
-complete:
+completeRoutine:
   mov al,26
 ;  int 0x62  ; Write a ^Z character to tell the "run" program to finish
   jmp 0  ; Restart the kernel
@@ -584,7 +582,7 @@ printGotCharacter:
   jmp printChar
 
 
-printHex:
+printHexRoutine:
   push bx
   push cx
   mov bx,ax
@@ -606,14 +604,14 @@ printHex:
   iret
 
 
-printString:
+printStringRoutine:
   lodsb
   call printChar
-  loop printString
+  loop printStringRoutine
   iret
 
 
-printCharacter:
+printCharacterRoutine:
   call printChar
   iret
 
@@ -629,7 +627,7 @@ printChar:
   mov dx,0x3d4
   mov cx,[cs:startAddress]
   cmp al,10
-  je printNewLine
+  je .newLine
   mov di,cx
   add di,cx
   mov bl,[cs:column]
@@ -638,8 +636,8 @@ printChar:
   inc bx
   inc bx
   cmp bx,80
-  jne donePrint
-printNewLine:
+  jne .done
+.newLine:
   add cx,40
   and cx,0x1fff
   mov [cs:startAddress],cx
@@ -661,7 +659,7 @@ printNewLine:
   mov cx,[cs:startAddress]
 
   xor bx,bx
-donePrint:
+.done:
   mov [cs:column],bl
 
   ; Move cursor

@@ -123,7 +123,7 @@ void sendSerialByte()
     if (!spaceAvailable)
         return;
     // We should be able to send XOn/XOff even if we've received XOff.
-    if (!needXOff && !needXOn && receivedXOff)
+    if (!needXOff && !needXOn && (receivedXOff || sentXOff))
         return;
     uint8_t c;
     if (needXOff) {
@@ -482,6 +482,8 @@ bool sendKeyboardByte(uint8_t data, uint16_t ackDelay)
     // previous byte has not yet been acknowledged by software.
     while (!getData()) { }
 
+    cli();
+
     // We need to wait until we're sure the XT has finished it's ACK cycle
     // (raised and lowered bit 7 of port B). If the XT gets any data from
     // the keyboard port during this period it'll be lost.
@@ -491,6 +493,7 @@ bool sendKeyboardByte(uint8_t data, uint16_t ackDelay)
         // Uh oh - the clock went low - the XT wants something (send byte or
         // reset). This should never happen during a reset, so we can just
         // abandon this byte.
+        sei();
         return false;
     }
 
@@ -505,9 +508,11 @@ bool sendKeyboardByte(uint8_t data, uint16_t ackDelay)
     if (!getClock()) {
         // The clock went low while we were sending - retry this byte once
         // the reset or send-requested condition has been resolved.
+        sei();
         return false;
     }
     // The byte went through.
+    sei();
     return true;
 }
 
@@ -735,7 +740,7 @@ int main()
 
     sei();
 
-    print(PSTR("Quickboot 20131217\n"));
+    print(PSTR("Quickboot 20141018\n"));
     print(PSTR("Kernel version "));
     print((const char*)defaultProgram + 4);
     print(PSTR("\n>"));
@@ -743,8 +748,10 @@ int main()
     // All the keyboard interface stuff is done on the main thread.
     do {
         if (!getClock()) {
+//            enqueueSerialByte('#');
             wait1ms();
             if (!getClock()) {
+//                enqueueSerialByte('$');
                 // If the clock line is held low for this long it means the XT
                 // is resetting the keyboard.
                 while (!getClock()) { }  // Wait for clock to go high again.
@@ -819,15 +826,17 @@ int main()
                 // End of reset code
             }
             else {
-                enqueueSerialByte('#');
+//                enqueueSerialByte('%');
                 while (!getClock()) { }  // Wait for clock to go high again.
                 // A short clock-low pulse. This is the XT trying to send us
                 // some data.
                 clearInterruptedKeystroke();
                 // Send the number of bytes that the XT can safely send us.
                 cli();
-                sendKeyboardByte(serialBufferCharacters == 0 ? 255 :
-                    256-serialBufferCharacters, fastAckDelay);
+                uint8_t available = serialBufferCharacters == 0 ? 255 :
+                    256-serialBufferCharacters;
+//                enqueueSerialByte(available);
+                sendKeyboardByte(available, fastAckDelay);
                 sei();
                 uint8_t count = receiveKeyboardByte();
                 for (uint8_t i = 0; i < count; ++i) {

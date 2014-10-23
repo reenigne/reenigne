@@ -22,7 +22,7 @@ public:
         int l = data.length();
 
         _com = AutoHandle(CreateFile(
-            L"COM3",
+            L"COM1",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
             NULL,           // default security attributes
@@ -43,17 +43,19 @@ public:
         deviceControlBlock.fOutxCtsFlow = FALSE;
         deviceControlBlock.fOutxDsrFlow = FALSE;
         // DTR_CONTROL_ENABLE causes Arduino to reset on connect
-        //deviceControlBlock.fDtrControl = DTR_CONTROL_ENABLE;
-        deviceControlBlock.fDtrControl = DTR_CONTROL_DISABLE;
+        deviceControlBlock.fDtrControl = DTR_CONTROL_ENABLE;
+        //deviceControlBlock.fDtrControl = DTR_CONTROL_DISABLE;
         deviceControlBlock.fDsrSensitivity = FALSE;
         deviceControlBlock.fTXContinueOnXoff = TRUE;
-        deviceControlBlock.fOutX = TRUE;
-        deviceControlBlock.fInX = TRUE;
+        deviceControlBlock.fOutX = FALSE; //TRUE;
+        deviceControlBlock.fInX = FALSE; //TRUE;
         deviceControlBlock.fErrorChar = FALSE;
         deviceControlBlock.fNull = FALSE;
         deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
         deviceControlBlock.fAbortOnError = TRUE;
         deviceControlBlock.wReserved = 0;
+        deviceControlBlock.XonLim = 1;
+        deviceControlBlock.XoffLim = 1;
         deviceControlBlock.ByteSize = 8;
         deviceControlBlock.Parity = NOPARITY;
         deviceControlBlock.StopBits = ONESTOPBIT;
@@ -68,7 +70,17 @@ public:
         //timeOuts.ReadTotalTimeoutConstant = 0;
         //IF_ZERO_THROW(SetCommTimeouts(_com, &timeOuts));
 
-        IF_ZERO_THROW(SetCommMask(_com, EV_RXCHAR));
+        //IF_ZERO_THROW(SetCommMask(_com, EV_RXCHAR));
+
+        COMMTIMEOUTS timeOuts;
+        SecureZeroMemory(&timeOuts, sizeof(COMMTIMEOUTS));
+        timeOuts.ReadIntervalTimeout = 10*1000;
+        timeOuts.ReadTotalTimeoutMultiplier = 0;
+        timeOuts.ReadTotalTimeoutConstant = 10*1000;
+        timeOuts.WriteTotalTimeoutConstant = 10*1000;
+        timeOuts.WriteTotalTimeoutMultiplier = 0;
+        IF_ZERO_THROW(SetCommTimeouts(_com, &timeOuts));
+
         //IF_ZERO_THROW(ClearCommBreak(_com));
         //IF_ZERO_THROW(PurgeComm(_com, PURGE_RXCLEAR | PURGE_TXCLEAR));
         //IF_ZERO_THROW(FlushFileBuffers(_com));
@@ -78,9 +90,38 @@ public:
         //_com.set(CreateFile(L"run.output", GENERIC_WRITE, 0, NULL,
         //    CREATE_ALWAYS, 0, NULL));
 
-        Sleep(2000);
+        // Reset the Arduino
+        EscapeCommFunction(_com, CLRDTR);
+        //EscapeCommFunction(_com, CLRRTS);
+        Sleep(250);
+        EscapeCommFunction(_com, SETDTR);
+        //EscapeCommFunction(_com, SETRTS);
+        // The Arduino bootloader waits a bit to see if it needs to
+        // download a new program.
 
-        ReaderThread thread(this);
+        expect(">");
+
+        IF_ZERO_THROW(FlushFileBuffers(_com));
+        IF_ZERO_THROW(PurgeComm(_com, PURGE_RXCLEAR | PURGE_TXCLEAR));
+        _com.write<Byte>(0x7f);
+        _com.write<Byte>(0x77);
+        //IF_ZERO_THROW(FlushFileBuffers(_com));
+
+        expect("resetting");
+
+        //int rate = 115200;
+        //deviceControlBlock.BaudRate = rate;
+        //int baudDivisor = static_cast<int>(2000000.0 / rate + 0.5);
+        //sendByte(0x7f);
+        //sendByte(0x7c);
+        //sendByte(0x04);
+        //sendByte((baudDivisor - 1) & 0xff);
+        //sendByte((baudDivisor - 1) >> 8);
+        //IF_ZERO_THROW(FlushFileBuffers(_com));
+        //IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
+        //Sleep(2000);
+
+        //ReaderThread thread(this);
         //thread.start();
 
         sendByte(0x7f);      // Put Arduino in raw mode
@@ -119,30 +160,64 @@ public:
         console.write("Upload complete.\n");
         // Dump bytes from COM port to stdout until we receive ^Z
         //thread.join();
+
+        int i = 0;
+        do {
+            int b = _com.tryReadByte();
+            if (b != -1 && b != 17 && b != 19) {
+                console.write(String(hex(b,2)) + " ");
+                i = 0;
+            }
+            if (b == 26)
+                return;
+            ++i;
+        } while (true);
     }
 private:
-    class ReaderThread : public Thread
+    void expect(int c)
     {
-    public:
-        ReaderThread(Program* program) : _program(program) { }
-        void threadProc()
-        {
-            int c = 0;
-            do {
-                DWORD eventMask = 0;
-                if (WaitCommEvent(_program->_com, &eventMask, NULL) == 0)
-                    throw Exception::systemError(String("Reading COM port"));
-                do {
-                    c = _program->_com.tryReadByte();
-                    if (c == 26 || c == -1)
-                        break;
-                    console.write<Byte>(c);
-                } while (true);
-            } while (c != 26);
-        }
-    private:
-        Program* _program;
-    };
+        int i = 0;
+        do {
+            int b = _com.tryReadByte();
+            if (b != -1 && b != 17 && b != 19) {
+                console.write<Byte>(b);
+                i = 0;
+            }
+            if (b == c)
+                return;
+            ++i;
+        } while (true);
+
+        throw Exception("No response from QuickBoot");
+    }
+    void expect(String s)
+    {
+        for (int i = 0; i < s.length(); ++i)
+            expect(s[i]);
+    }
+
+    //class ReaderThread : public Thread
+    //{
+    //public:
+    //    ReaderThread(Program* program) : _program(program) { }
+    //    void threadProc()
+    //    {
+    //        int c = 0;
+    //        do {
+    //            DWORD eventMask = 0;
+    //            if (WaitCommEvent(_program->_com, &eventMask, NULL) == 0)
+    //                throw Exception::systemError(String("Reading COM port"));
+    //            do {
+    //                c = _program->_com.tryReadByte();
+    //                if (c == 26 || c == -1)
+    //                    break;
+    //                console.write<Byte>(c);
+    //            } while (true);
+    //        } while (c != 26);
+    //    }
+    //private:
+    //    Program* _program;
+    //};
 
     void addLength(int l)
     {
@@ -161,15 +236,30 @@ private:
     {
         if (_bufferCount == 0)
             return;
+        _bufferCount2 = 0;
         Byte checkSum = _bufferCount;
-        sendByte(0x75);           // "Send raw data" command
-        sendByte(_bufferCount);   // Send length
+        addByte2(0x75);            // "Send raw data" command
+        addByte2(_bufferCount);    // Send length
         for (int i = 0; i < _bufferCount; ++i) {
-            sendByte(_buffer[i]);  // Send data byte
-            checkSum += _buffer[i];
+            Byte b = _buffer[i];
+            addByte2(b);  // Send data byte
+            checkSum += b;
         }
-        sendByte(checkSum);
+        addByte2(checkSum);
+        _com.write(reinterpret_cast<const void*>(&_buffer2[0]), _bufferCount2);
         _bufferCount = 0;
+
+        expect("K");
+    }
+
+    void addByte2(Byte value)
+    {
+        if (value == 0 || value == 17 || value == 19) {
+            _buffer2[_bufferCount2] = 0;
+            ++_bufferCount2;
+        }
+        _buffer2[_bufferCount2] = value;
+        ++_bufferCount2;
     }
 
     void sendByte(Byte value)
@@ -181,8 +271,10 @@ private:
     }
 
     Handle _com;
-    Byte _buffer[0xff];
+    Byte _buffer[0xff+3];
+    Byte _buffer2[(0xff+3)*2];
     int _bufferCount;
+    int _bufferCount2;
 
     friend class ReaderThread;
 };

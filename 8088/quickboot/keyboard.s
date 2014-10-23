@@ -190,13 +190,13 @@ wait2usLoop:
   brne wait2usLoop    ; n*2 - 1
   ret                 ; 4
 
-wait142cycles:        ; 4
-  ldi r31,44          ; 1          ; (cycles to delay - 10)/3
-wait142cyclesLoop:
+wait151cycles:        ; 4
+  ldi r31,47          ; 1          ; (cycles to delay - 10)/3
+wait151cyclesLoop:
   dec r31             ; n*1
-  brne wait142cyclesLoop  ; n*2 - 1
-  rjmp wait142cyclesNop   ; 2
-wait142cyclesNop:
+  brne wait151cyclesLoop  ; n*2 - 1
+  rjmp wait151cyclesNop   ; 2
+wait151cyclesNop:
   ret                 ; 4
 
 .global wait50us      ; 800 cycles
@@ -257,35 +257,35 @@ wait69cyclesLoop:
   dec r31                           ; n*1
   brne wait69cyclesLoop             ; n*2 - 1
 
-  call wait142cycles
+  call wait151cycles
   ; Read bit 0
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 1                        ; 0 1
-  call wait142cycles
+  call wait151cycles
   ; Read bit 1
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 2                        ; 0 1
-  call wait142cycles
+  call wait151cycles
   ; Read bit 2
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 4                        ; 0 1
-  call wait142cycles
+  call wait151cycles
   ; Read bit 3
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 8                        ; 0 1
-  call wait142cycles
+  call wait151cycles
   ; Read bit 4
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 0x10                     ; 0 1
-  call wait142cycles
+  call wait151cycles
   ; Read bit 5
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 0x20                     ; 0 1
-  call wait142cycles
+  call wait151cycles
   ; Read bit 6
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 0x40                     ; 0 1
-  call wait142cycles
+  call wait151cycles
   ; Read bit 7
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 0x80                     ; 0 1

@@ -212,6 +212,14 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
+LoopTaken:
+  db "LoopTaken$"
+  dw .endCode - ($+2)
+.foo:
+  loop .foo
+.endCode:
+
+
 REPSTOSWsys:
   db "REPSTOSWsys$"
   dw .endCode - ($+2)

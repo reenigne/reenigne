@@ -3,7 +3,8 @@ copy keyboard.s temp.s
 cd ..\dos
 call build.bat
 cd ..\quickboot
-..\dos\bin_to_hex\Release\bin_to_hex ..\dos\kernel.bin >>temp.s
+rem ..\dos\bin_to_hex\Release\bin_to_hex ..\dos\kernel.bin >>temp.s
+..\dos\bin_to_hex\Release\bin_to_hex ..\dos\keyboard_kernel.bin >>temp.s
 
 set AVR=C:\Program Files (x86)\Arduino\hardware\tools\avr
 if not exist "%AVR%" set AVR=C:\Program Files\Arduino\hardware\tools\avr

@@ -11,33 +11,21 @@ codeStart:
   or byte[cs:flags],1
 lengthOk1:
 
-  call findSP
-findSP:
+  call findIP
+findIP:
   pop si
-  sub si,findSP
-
+  sub si,findIP
 
   mov ah,0
   mov cx,checkSum
-;  mov [cs:kernelLength],cx
-;  mov [cs:kernelOffset],si
-
 checksumLoop:
   lodsb
   add ah,al
   loop checksumLoop
-;  mov [cs:computedChecksum],ah
   cmp ah,[cs:checkSum]
   je checksumOk1
   or byte[cs:flags],2
 checksumOk1:
-
-;  call findSP2
-;findSP2:
-;  pop si
-;  sub si,findSP2
-;  mov [cs:kernelOffset],si
-;  mov word[cs:kernelLength],checkSum
 
   ; Don't want any stray interrupts interfering with the serial port accesses.
   cli

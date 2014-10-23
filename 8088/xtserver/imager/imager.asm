@@ -33,10 +33,6 @@
   setResidentInterrupt 0x69, stopScreenRoutine
   setResidentInterrupt 0x6a, resumeScreenRoutine
 
-  ; TODO: Install ourselves to top of RAM
-  ; TODO: Reduce available RAM according to BIOS
-
-
   mov ax,0x40
   push ax
   jmp 0xf000:0xe518
