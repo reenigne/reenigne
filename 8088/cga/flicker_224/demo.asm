@@ -5,15 +5,45 @@ PERIOD EQU (76*262/4)
 
   cli
   mov ax,cs
+  mov ds,ax
   mov ss,ax
   mov sp,stackHigh-2
   sti
 
-  ; Set up pointers for music
+  ; Load meta file
 
+  mov ax,0x3d00
+  mov dx,metaFileName
+  int 0x21               ; open file
+  jc error1
+  mov bx,ax
+  mov ax,0x4202
+  xor cx,cx
+  xor dx,dx
+  int 0x21               ; seek to end
+  jc error1
+  cmp dx,0
+  jne error1
+  mov [metaEnd],ax      ; size for now, change it to end later
+  mov ax,0x4200          ; seek to start
+  int 0x21
+  jc error1
+  mov cx,[metaEnd]
+  mov ah,0x3f
+  mov dx,metaStart
+  int 0x21               ; read file
+  jc error1
+  mov ah,0x3e
+  int 0x21               ; close file
+  jnc metaFileSuccess
+error1:
+  jmp error
+
+metaFileSuccess:
   mov ax,cs
-  mov ds,ax
-  mov ax,codeEnd
+  mov ax,[metaEnd]
+  add ax,metaStart
+  mov [metaEnd],ax
   add ax,15
   mov cl,4
   shr ax,cl
@@ -61,10 +91,10 @@ PERIOD EQU (76*262/4)
   add ax,bx
   mov [startSegment],ax
 
-  ; Load video file
+  ; Load images file
 
   mov ax,0x3d00
-  mov dx,videoFileName
+  mov dx,imagesFileName
   int 0x21               ; open file
   jc error
   mov bx,ax
@@ -288,15 +318,16 @@ waitForDisplayEnable:
   out 0x40,al
 
   ; Set up video update segment
-  mov ds,[startSegment]
-  xor si,si
+  mov ax,cs
+  mov ds,ax
+  xor si,metaStart
 
   sti
 
 mainLoop:
   lodsw                     ; frame number for next update
 waitForFrame:
-  cmp ax,[cs:frameCounter]
+  cmp ax,[frameCounter]
   jbe doUpdate
   ; Check keyboard
   push ax
@@ -307,50 +338,59 @@ waitForFrame:
   pop ax
   jmp waitForFrame
 doUpdate:
-  xor cx,cx
+  lodsw
+  mov bx,ax                 ; offset
+  lodsw
+  add ax,[startSegment]
+  mov bp,ax                 ; segment
   lodsw                     ; Video memory copy address
   mov di,ax
-  push di
   lodsw                     ; Copy byte count and line count
   mov dx,ax
-  push dx
+  lodsw                     ; Source skip bytes per line (= stride - width)
+
+  push si                   ; Save current metadata pointer
+;  push di                   ; Save video memory copy address for second page
+  mov si,bx
+  mov ds,bp
+  xor cx,cx
+
+;  push dx
   mov bx,28  ; 28 words per scanline
   sub bl,dl  ; BX = number of words to skip each row
 yLoop:
   mov cl,dl
   rep movsw
+  add si,ax
   add di,bx
   dec dh
   jnz yLoop
 
-  pop dx
-  pop di
-  add di,0x2000
-  mov bx,28  ; 28 words per scanline
-  sub bl,dl  ; BX = number of words to skip each row
-yLoop2:
-  mov cl,dl
-  rep movsw
-  add di,bx
-  dec dh
-  jnz yLoop2
+;  pop dx
+;  pop di
+;  add di,0x2000
+;  mov bx,28  ; 28 words per scanline
+;  sub bl,dl  ; BX = number of words to skip each row
+;yLoop2:
+;  mov cl,dl
+;  rep movsw
+;  add si,ax
+;  add di,bx
+;  dec dh
+;  jnz yLoop2
+
+  pop si
+  mov ax,cs
+  mov ds,ax
 
   lodsw                     ; CRTC start address
-  mov [cs:crtcStartAddress],ax
+  mov [crtcStartAddress],ax
 
-  ; Segment correction
-  mov ax,ds
-  mov bx,si
-  mov cl,4
-  shr bx,cl
-  add ax,bx
-  mov ds,ax
-  and si,0x0f
-  cmp ax,[cs:endSegment]
+  ; Check if we've reached the end of the metadata
+  cmp si,[metaEnd]
   jne mainLoop
-  mov ax,[cs:startSegment]
-  mov ds,ax
-  mov word[cs:frameCounter],0
+  mov si,metaStart
+  mov word[frameCounter],0
   jmp mainLoop
 
 finish:
@@ -413,8 +453,8 @@ noMusicEnd:
 
   ; Update video
   mov al,[crtcPointer]
-  add al,5
-  cmp al,40
+  add al,6
+  cmp al,6*8
   jne noResetCrtcPointer
   xor ax,ax
   inc word[frameCounter]
@@ -448,6 +488,12 @@ noResetCrtcPointer:
   inc ax
   mov ah,bh
   out dx,ax   ; Vertical Sync Position
+
+  ; Change palette for debugging:
+  mov dl,0xd9
+  lodsb
+  out dx,al
+
   pop dx
 noCrtcUpdate:
 
@@ -475,28 +521,30 @@ frameCounter: dw 0
 originalPortB: db 0
 startSegment: dw 0
 endSegment: dw 0
+metaEnd: dw 0
 
 crtcTable:
   ;   SAL   SAH    VD   VSP   VTA
-  db 0xe4, 0x0d, 0x7f, 0x7f, 0x00  ; 0x0de4 = 28*127
-  db 0xe4, 0x0d, 0x7f, 0x7f, 0x00
+  db 0xe4, 0x0d, 0x7f, 0x7f, 0x00, 1  ; 0x0de4 = 28*127
+  db 0xe4, 0x0d, 0x7f, 0x7f, 0x00, 2
 ;  db 0x50, 0x0f, 0x0d, 0x43, 0x08  ; 0x0f50 = 28*140
 ;  db 0x50, 0x0f, 0x0d, 0x43, 0x08
-  db 0x00, 0x10, 0x0d, 0x43, 0x08  ; 0x1000
-  db 0x00, 0x10, 0x0d, 0x43, 0x08
+  db 0x00, 0x10, 0x0d, 0x43, 0x08, 3  ; 0x1000
+  db 0x00, 0x10, 0x0d, 0x43, 0x08, 4
 ;  db 0x34, 0x1d, 0x7f, 0x7f, 0x00  ; 0x1d34 = 28*(127+140)
 ;  db 0x34, 0x1d, 0x7f, 0x7f, 0x00
-  db 0xe4, 0x1d, 0x7f, 0x7f, 0x00  ; 0x1de4 = 0x1000 + 28*127
-  db 0xe4, 0x1d, 0x7f, 0x7f, 0x00
-  db 0x00, 0x00, 0x0d, 0x43, 0x08  ; 0x0000 = 28*0
-  db 0x00, 0x00, 0x0d, 0x43, 0x08
+  db 0xe4, 0x1d, 0x7f, 0x7f, 0x00, 5  ; 0x1de4 = 0x1000 + 28*127
+  db 0xe4, 0x1d, 0x7f, 0x7f, 0x00, 6
+  db 0x00, 0x00, 0x0d, 0x43, 0x08, 7  ; 0x0000 = 28*0
+  db 0x00, 0x00, 0x0d, 0x43, 0x08, 8
 
 musicFileName: db "music.dat",0
-videoFileName: db "video.dat",0
+imagesFileName: db "images.dat",0
+metaFileName: db "meta.dat",0
 errorMessage: db "File error$"
 
 stackLow:
   times 128 dw 0
 stackHigh:
 
-codeEnd:
+metaStart:
