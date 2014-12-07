@@ -1,7 +1,7 @@
 org 0x100
 cpu 8086
 
-PERIOD EQU (76*262/4)
+PERIOD EQU (76*262/4) - 19
 
   cli
   mov ax,cs
@@ -320,7 +320,7 @@ waitForDisplayEnable:
   ; Set up video update segment
   mov ax,cs
   mov ds,ax
-  xor si,metaStart
+  mov si,metaStart
 
   sti
 
@@ -426,12 +426,34 @@ finish:
 
 interrupt8:
   push ax
-  push ds
+  push dx
 
+  test byte[cs:crtcInterrupt],3    ; Don't set up DS yet, we need this to be done ASAP after the interrupt fires
+  jnz noWaitForDisplayEnable
+  mov dx,0x3da
+waitForDisplayEnable1:
+  in al,dx
+  test al,1
+  jnz waitForDisplayEnable1
+
+  mov al,0x34
+  out 0x43,al
+  mov al,PERIOD & 0xff
+  out 0x40,al
+  mov al,PERIOD >> 8
+  out 0x40,al
+noWaitForDisplayEnable:
+
+  push ds
   ; Set up DS
   push bx
   mov bx,cs
   mov ds,bx
+
+  mov al,[crtcInterrupt]
+  inc ax
+  and al,3
+  mov [crtcInterrupt],al
 
   ; Update audio
   push si
@@ -439,7 +461,7 @@ interrupt8:
   lodsw
   mov ds,bx
   cmp si,[musicEnd]
-  jl noMusicEnd
+  jne noMusicEnd
   xor si,si
 noMusicEnd:
   mov [musicPointer],si
@@ -452,6 +474,7 @@ noMusicEnd:
   out 0x42,al
 
   ; Update video
+  not byte[crtcDoUpdate]
   mov al,[crtcPointer]
   add al,6
   cmp al,6*8
@@ -460,14 +483,13 @@ noMusicEnd:
   inc word[frameCounter]
 noResetCrtcPointer:
   mov [crtcPointer],al
-  test al,1
+  test byte[crtcDoUpdate],1
   je noCrtcUpdate
   mov ah,0
   xchg si,ax
   add si,crtcTable
   lodsw
   add ax,[crtcStartAddress]
-  push dx
   mov dx,0x3d4
   mov bx,ax
   mov al,0x0c
@@ -489,12 +511,6 @@ noResetCrtcPointer:
   mov ah,bh
   out dx,ax   ; Vertical Sync Position
 
-  ; Change palette for debugging:
-  mov dl,0xd9
-  lodsb
-  out dx,al
-
-  pop dx
 noCrtcUpdate:
 
   ; Restore and chain interrupt
@@ -505,9 +521,11 @@ noCrtcUpdate:
   jc pitFallback
   mov al,0x20
   out 0x20,al
+  pop dx
   pop ax
   iret
 pitFallback:
+  pop dx
   pop ax
   jmp far [cs:oldInterrupt8]
 
@@ -516,12 +534,14 @@ pitCount: dw 0
 musicPointer: dw 0,0
 musicEnd: dw 0
 crtcPointer: db 0
+crtcDoUpdate: db 0
 crtcStartAddress: dw 0
 frameCounter: dw 0
 originalPortB: db 0
 startSegment: dw 0
 endSegment: dw 0
 metaEnd: dw 0
+crtcInterrupt: db 1
 
 crtcTable:
   ;   SAL   SAH    VD   VSP   VTA

@@ -160,50 +160,6 @@ class ContainerWindow;
 template<class T> class WindowTemplate;
 typedef WindowTemplate<void> Window;
 
-class Edge;
-
-class EdgeExpression
-{
-public:
-    EdgeExpression operator+(EdgeExpression a) { }
-    EdgeExpression operator-(EdgeExpression a) { }
-    EdgeExpression operator*(double a) { }
-    EdgeExpression operator/(double a) { }
-private:
-    class Clause
-    {
-    public:
-        Clause(Edge* edge, double coefficient)          : _edge(edge), _coefficient(coefficient) { }        Edge* _edge;
-        double _coefficient;
-    };
-    List<Clause> _clauses;
-    double _offset;
-
-    void setToEdge(Edge* edge)
-    {
-        _clauses = List<Clause>();
-        _clauses.add(Clause(edge, 1));
-        _offset = 0;
-    }
-
-    friend class Edge;
-};
-
-class Edge : public EdgeExpression
-{
-public:
-    Edge()
-    {
-        setToEdge(this);
-    }
-    void operator=(const EdgeExpression& expression)
-    {
-        EdgeExpression::operator=(expression);
-    }
-private:
-    List<Edge> _dependents;
-};
-
 template<class T> class WindowTemplate
   : public LinkedListMember<WindowTemplate<T>>
 {
@@ -234,11 +190,6 @@ public:
             LinkedListMember::remove();
         }
     }
-
-    Edge top;
-    Edge left;
-    Edge right;
-    Edge bottom;
 
     virtual void invalidate() { invalidateRectangle(Vector(0, 0), _size); }
     virtual void invalidateRectangle(Vector topLeft, Vector size)

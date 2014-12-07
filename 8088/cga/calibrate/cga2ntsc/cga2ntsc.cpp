@@ -534,14 +534,16 @@ public:
     }
     void create()
     {
-        _brightnessCaption.left = _output.right;
-        _brightnessCaption.top = top;
-        _brightness.left = _output.right;
-        _brightness.top = _brightnessCaption.bottom;
-        _autoBrightness.left = _output.right;
-        _autoBrightness.top = _brightness.bottom;
-        _brightnessText.left = _autoBrightness.right;
-        _brightnessText.bottom = _brightness.bottom;
+        //_brightnessCaption.left = _output.right;
+        //_brightnessCaption.top = top;
+        //_brightness.left = _output.right;
+        //_brightness.top = _brightnessCaption.bottom;
+        //_autoBrightness.left = _output.right;
+        //_autoBrightness.top = _brightness.bottom;
+        //_brightnessText.left = _autoBrightness.right;
+        //_brightnessText.bottom = _brightness.bottom;
+
+
 
 
         _brightnessCaption.setText("Brightness:");

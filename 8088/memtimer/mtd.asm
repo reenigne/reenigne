@@ -10,20 +10,17 @@ main:
   out 0x40,al
   out 0x40,al
 
-  cli
-
   mov ax,0
   mov ds,ax
 
+  cli
   mov ax,word[0x20]
   mov word[cs:interrupt8save],ax
   mov ax,word[0x22]
   mov word[cs:interrupt8save+2],ax
+  sti
 
   mov ax,cs
-  mov word[0x20],interrupt8
-  mov [0x22],ax
-
   mov ds,ax
   mov es,ax
   mov ss,ax
@@ -48,12 +45,6 @@ donePrint:
 
   ; Finish
 finish:
-  mov ax,0
-  mov ds,ax
-  mov ax,word[cs:interrupt8save]
-  mov word[0x20],ax
-  mov ax,word[cs:interrupt8save+2]
-  mov word[0x22],ax
   mov ax,0x4c00
   int 0x21
 
@@ -175,11 +166,11 @@ doMeasurement:
 iterationLoop:
   push cx
 
-  push si
-  mov si,codePreambleStart
-  mov cx,codePreambleEnd-codePreambleStart
-  call codeCopy
-  pop si
+;  push si
+;  mov si,codePreambleStart
+;  mov cx,codePreambleEnd-codePreambleStart
+;  call codeCopy
+;  pop si
 
   push si
   mov cx,ax
@@ -195,25 +186,43 @@ iterationLoop:
   call codeCopy
 
   ; Turn off refresh
-  refreshOff
+;  refreshOff
+
+  cli
+  mov ax,0
+  mov ds,ax
+  mov ax,cs
+  mov word[0x20],interrupt8
+  mov [0x22],ax
+  mov ds,ax
+  mov byte[doneMeasurement],0
 
   ; Enable IRQ0
-  mov al,0xfe  ; Enable IRQ 0 (timer), disable others
-  out 0x21,al
+;  mov al,0xfe  ; Enable IRQ 0 (timer), disable others
+;  out 0x21,al
 
   ; Use IRQ0 to go into lockstep with timer 0
-  mov al,TIMER0 | LSB | MODE2 | BINARY
-  out 0x43,al
-  mov al,0x04  ; Count = 0x0004 which should be after the hlt instruction has
-  out 0x40,al  ; taken effect.
+;  mov al,TIMER0 | LSB | MODE2 | BINARY
+;  out 0x43,al
+;  mov al,0x40  ; Count = 0x0004 which should be after the hlt instruction has
+;  out 0x40,al  ; taken effect.
+waitForIRQ0:
   sti
   hlt
-
   ; The actual measurement happens in the the IRQ0 handler which runs here and
   ; returns the timer value in BX.
+  cmp byte[doneMeasurement],1
+  jne waitForIRQ0
 
-  ; Pop the flags pushed when the interrupt occurred
-  pop ax
+  mov ax,0
+  mov ds,ax
+  mov ax,word[cs:interrupt8save]
+  mov word[0x20],ax
+  mov ax,word[cs:interrupt8save+2]
+  mov word[0x22],ax
+  mov ax,cs
+  mov ds,ax
+  sti
 
   pop si
   ret
@@ -295,6 +304,7 @@ lastExperiment:
 
 savedSS: dw 0
 savedSP: dw 0
+doneMeasurement: db 0
 
 timerEndStart:
   in al,0x40
@@ -302,7 +312,7 @@ timerEndStart:
   in al,0x40
   mov bh,al
 
-  refreshOn
+;  refreshOn
 
   mov al,0x20
   out 0x20,al
@@ -313,10 +323,8 @@ timerEndStart:
   mov ss,[savedSS]
   mov sp,[savedSP]
 
-  ; Don't use IRET here - it'll turn interrupts back on and IRQ0 will be
-  ; triggered a second time.
-  popf
-  retf
+  pop bp
+  iret
 timerEndEnd:
 
 
@@ -324,10 +332,14 @@ timerEndEnd:
   ; copied after it.
 
 interrupt8:
-  pushf
+  push bp
+  mov bp,sp
+  and word[bp+6],0xfdff  ; Turn off interrupts on return so that the interrupt doesn't fire again
+
   mov ax,cs
   mov ds,ax
   mov es,ax
+  mov byte[doneMeasurement],1
   mov [savedSS],ss
   mov [savedSP],sp
   mov ss,ax
@@ -349,3 +361,12 @@ times 528 push cs
   out 0x40,al
 timerStartEnd:
 
+
+
+;[bp] old bp
+;[bp+2] return address
+;[bp+4] first argument
+;
+;[bp] old bp
+;[bp+2] return address
+;[bp+6] flags

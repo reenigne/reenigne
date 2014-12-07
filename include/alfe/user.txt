@@ -6,38 +6,9 @@ Some windows can contain other windows - these are ContainerWindow objects
 
 WindowsWindow is a ContainerWindow that has an HWND
 
-How do we describe the layout hierarchy?
-  A Window can have constraints on its dimensions:
-    Minimum/maximum height/width
-
-Let's refactor and add features as we need them.
-
-We want to avoid having to manually write the resize routine for each window layout.
-We want to avoid manually computing the positions of things.
-
-(1) By default a Window's size is fixed and it's position is fixed relative to the top-left of it's parent:
-  topLeft = parent.topLeft + offset
-  bottomRight = topLeft + size
-(2) We'd like to be able to pin it to the bottom right by doing:
-  topLeft = parent.bottomRight + offset - size
-(3) We'd like to be able to pin it to both corners by doing:
-  bottomRight = parent.bottomRight + offset
-(4) We'd like to be able to centre it in the parent by doing:
-  topLeft = parent.topLeft*2/3 + parent.bottomRight*1/3
-  bottomRight = parent.topLeft*1/3 + parent.bottomRight*2/3
-
-These handles are not just positions - they're live objects so that (e.g. in case 2) as size changes, bottomRight will change as well
-Use the spreadsheet evaluation pattern to avoid circular references
-
 
 
 ImageWindow inherits from Window rather than WindowsWindow but you can get around this by putting an ImageWindow inside a WindowsWindow
-
-
-
-
-Animation:
-
 
 
 
@@ -92,4 +63,4 @@ We would like to be able to write programs in an OS-native style or a portable s
   Portable style uses a BitmapWindow and draws controls on the bitmap
 
 
-Implement
+

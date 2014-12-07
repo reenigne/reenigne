@@ -29,7 +29,7 @@ private:
             Node(const T& t) : _value(t), _next(0) { }
             Node* next() const { return _next; }
             void setNext(Node* next) { _next = next; }
-            const T& value() const { return _value; }
+            T& value() const { return _value; }
         private:
             T _value;
             Node* _next;
@@ -65,8 +65,8 @@ public:
     class Iterator
     {
     public:
-        const T& operator*() const { return _node->value(); }
-        const T* operator->() const { return &_node->value(); }
+        T& operator*() const { return _node->value(); }
+        T* operator->() const { return &_node->value(); }
         const Iterator& operator++() { _node = _node->next(); return *this; }
         bool operator==(const Iterator& other) { return _node == other._node; }
         bool operator!=(const Iterator& other) { return !operator==(other); }

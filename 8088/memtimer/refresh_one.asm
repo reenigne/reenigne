@@ -219,7 +219,6 @@ LoopTaken:
   loop .foo
 .endCode:
 
-
 REPSTOSWsys:
   db "REPSTOSWsys$"
   dw .endCode - ($+2)

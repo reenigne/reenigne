@@ -1,0 +1,112 @@
+How do we describe the layout hierarchy?
+  A Window can have constraints on its dimensions:
+    Minimum/maximum height/width
+
+We want to avoid having to manually write the resize routine for each window layout.
+We want to avoid manually computing the positions of things.
+
+(1) By default a Window's size is fixed and it's position is fixed relative to the top-left of it's parent:
+  topLeft = parent.topLeft + offset
+  bottomRight = topLeft + size
+(2) We'd like to be able to pin it to the bottom right by doing:
+  topLeft = parent.bottomRight + offset - size
+(3) We'd like to be able to pin it to both corners by doing:
+  bottomRight = parent.bottomRight + offset
+(4) We'd like to be able to centre it in the parent by doing:
+  topLeft = parent.topLeft*2/3 + parent.bottomRight*1/3
+  bottomRight = parent.topLeft*1/3 + parent.bottomRight*2/3
+
+These handles are not just positions - they're live objects so that (e.g. in case 2) as size changes, bottomRight will change as well
+Use the spreadsheet evaluation pattern to avoid circular references
+
+
+
+After create, each window has a default/natural size
+  create:
+
+We would like the size/position of child windows to be driven by the size of the parent window, not the other way around.
+
+Edge:
+  Computed Edge
+    Parent Edge 1
+    Multiplier 1
+    Parent Edge 2
+    Multiplier 2
+    Offset
+  Real Edge:
+   Left/Right/Top/Bottom
+
+Sides form an affine structure
+
+Edge needs to know which other edges refer to it
+
+
+Maybe we need two edge constrains:
+  One that can be overridden by the mouse and one which can't.[*]
+
+Instead of rewriting constraint code in each window's setSize(), have minimum & maximum size constraints
+
+What do we do about unsatisfyable constraints (e.g. min > max)?
+  Undefined
+
+[*]
+  There is the current size/position which can be overridden with the mouse, and the edge equations/size constrains, which can't.
+
+The "unlimited" edge equation just says, e.g.
+  right=right;  // This means right = left + current_size, overridable
+It's not useful to have "edge = constant" - all edges are relative to some other edge so that the entire top-level window can be moved arbitrarily.
+
+Currently, each constraint is associated with an edge (e.g. right = ...). This doesn't really need to be the case, but it does solve some problems:
+  * Specifying constraints in the first place (rearrange so that an edge is on the left, then use overridden assignment).
+  * Identifying constraints for deletion/replacement.
+
+Each edge will need a list of edges that refer to it.
+  2 child edge per edge is enough - if we need more we can create an intermediate edge
+    Maybe have a helper for this for the aspect ratio case at least.
+
+
+Algorithm for computing edges:
+  Find set of unknown edges required to compute edge we're trying to find
+  Turn this into a set of equations and solve
+
+We'd like to set up rules like:
+  This window should take up the bottom 10% unless that would make it smaller than 10 pixels, in which case make it 10 pixels.
+
+Final position is a function of requested position and computed position
+
+If a window's constraints are not satisfied, it can switch to an alternate set of edge equations, which are then re-solved, fixing the mouse position, so the window can't get smaller than the
+ minimum size.
+   How are such rules specified?
+     In setSize(), check constraints. If not met:
+       Save old edges
+       Set fixed edges
+       Recompute
+       Restore old edges
+  WM_SIZE message returns false  if window size was not set to requested size?
+
+Can set aspect ratio constraints by setting:
+  right = left + (bottom - top)*4/3;
+  That is an example of a 3-edge constraint so 2 is not enough.
+
+
+Who owns fake edges made up for the 3-edge scenario?
+  right = left + (botton - top)*4/3
+Allow just adding an extra edge to the window?
+Or reference count
+
+
+Edge / const -> Edge
+Edte * const -> Edge
+Edge + Edge -> Edge
+Edge - Edge -> Edge
+
+Have a TempEdge or EdgeExpression class which doesn't have a list of its referents
+Instead of having edges form a tree, have a list of component edges in each edge
+  Lists are filled in when edges are assigned (from edge or edgeexpression)
+
+
+
+This does not solve problems like:
+  * Put the bottom edge of this window at the lowest position in which it doesn't overlap any of these windows
+
+It also doesn't really buy us much over just writing the layout specifications in the resize routine
