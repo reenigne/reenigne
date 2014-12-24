@@ -12,7 +12,25 @@
 
 class WindowsWindow;
 
-template<class T> class WindowsTemplate : Uncopyable
+class Font : Uncopyable
+{
+public:
+    Font()
+    {
+        NONCLIENTMETRICS ncm;
+        ncm.cbSize = sizeof(NONCLIENTMETRICS) - sizeof(ncm.iPaddedBorderWidth);
+        IF_FALSE_THROW(SystemParametersInfo(SPI_GETNONCLIENTMETRICS,
+            ncm.cbSize, &ncm, 0));
+        _font = CreateFontIndirect(&ncm.lfMessageFont);
+        IF_NULL_THROW(_font);
+    }
+    ~Font() { DeleteObject(_font); }
+    operator HFONT () const { return _font; }
+private:
+    HFONT _font;
+};
+
+template<class T> class WindowsTemplate : Uncopyable           
 {
 public:
     WindowsTemplate() : _classAtom(0) { }
@@ -28,12 +46,13 @@ public:
         wc.hInstance = hInst;
         wc.hIcon = NULL;
         wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_MENU + 1);
         wc.lpszMenuName = NULL;
         NullTerminatedWideString c(caption());
         wc.lpszClassName = c;
         _classAtom = RegisterClass(&wc);
         IF_ZERO_THROW(_classAtom);
+
     }
 
     LPCWSTR className() const
@@ -52,6 +71,8 @@ public:
     }
 
     String caption() const { return "ALFE Window"; }
+
+    const Font* font() const { return &_font; }
 
 private:
     static LRESULT CALLBACK wndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
@@ -91,11 +112,11 @@ private:
                     }
                     break;
                 case WM_HSCROLL:
-                    switch (HIWORD(wParam)) {
-                        case SB_THUMBPOSITION:
-                        case SB_THUMBTRACK:
+                    switch (LOWORD(wParam)) {
+                        case TB_THUMBPOSITION:
+                        case TB_THUMBTRACK:
                             dynamic_cast<SliderWindow*>(getContext(lParam))
-                                ->updateValue(LOWORD(wParam));
+                                ->updateValue(HIWORD(wParam));
                             break;
                     }
                     break;
@@ -140,6 +161,7 @@ private:
 
     HINSTANCE _hInst;
     ATOM _classAtom;
+    Font _font;
 
     static Exception _exception;
     static bool _failed;
@@ -173,6 +195,7 @@ public:
     void setSize(Vector size) { _size = size; }
     void sizeSet(Vector size) { _size = size; }
     void setPosition(Vector topLeft) { _topLeft = topLeft; }
+    void positionSet(Vector topLeft) { _topLeft = topLeft; }
     Vector size() const { return _size; }
     Vector topLeft() const { return _topLeft; }
     virtual void resize() { }
@@ -196,6 +219,14 @@ public:
     {
         _parent->invalidateRectangle(_topLeft + topLeft, size);
     }
+
+    int top() const { return _topLeft.y; }
+    int bottom() const { return _topLeft.y + _size.y; }
+    int left() const { return _topLeft.x; }
+    int right() const { return _topLeft.x + _size.x; }
+    Vector topRight() const { return _topLeft + Vector(_size.x, 0); }
+    Vector bottomRight() const { return _topLeft + _size; }
+    Vector bottomLeft() const { return _topLeft + Vector(0, _size.y); }
 private:
     ContainerWindow* _parent;
     Vector _size;
@@ -385,15 +416,15 @@ public:
     WindowsWindow() : _hdc(NULL), _hWnd(NULL), _resizing(false)
     {
         sizeSet(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
-        setPosition(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
+        positionSet(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
     }
 
-    void setWindows(Windows* windows)
+    virtual void setWindows(Windows* windows)
     {
         _windows = windows;
         _text = _windows->caption();
         _className = _windows->className();
-        _style = WS_OVERLAPPEDWINDOW;
+        _style = WS_OVERLAPPEDWINDOW /*| WS_CLIPCHILDREN*/;
         _extendedStyle = 0;
         _menu = NULL;
         Window* window = _container.getNext();
@@ -437,8 +468,13 @@ public:
         Windows::setContext(_hWnd, this);
         RECT rect;
         IF_ZERO_THROW(GetClientRect(_hWnd, &rect));
-        sizeSet(Vector(rect.right, rect.bottom));
+        sizeSet(Vector(rect.right - rect.left, rect.bottom - rect.top));
+        positionSet(Vector(rect.left, rect.top));
         ContainerWindow::create();
+
+        SendMessage(_hWnd, WM_SETFONT,
+            reinterpret_cast<WPARAM>(_windows->font()->operator HFONT()),
+            static_cast<LPARAM>(FALSE));
     }
 
     ~WindowsWindow() { reset(); }
@@ -467,16 +503,25 @@ public:
     void setSize(Vector size)
     {
         if (_hWnd != NULL) {
+            RECT rect;
+            rect.left = 0;
+            rect.right = size.x;
+            rect.top = 0;
+            rect.bottom = size.y;
+            AdjustWindowRectEx(&rect, _style, FALSE, _extendedStyle);
             IF_ZERO_THROW(SetWindowPos(
                 _hWnd,                                // hWnd
                 NULL,                                 // hWndInsertAfter
                 0,                                    // X
                 0,                                    // Y
-                size.x,                               // cx
-                size.y,                               // cy
+                rect.right - rect.left,               // cx
+                rect.bottom - rect.top,               // cy
                 SWP_NOZORDER | SWP_NOMOVE |
                 SWP_NOACTIVATE | SWP_NOREPOSITION));  // uFlags
-            // sizeSet() will be called via WM_SIZE.
+            // sizeSet() will be called via WM_SIZE, but we want to make sure
+            // our _topLeft is set correctly now so it can be used for layout
+            // before the message loop next runs.
+            ContainerWindow::sizeSet(size);
         }
         else
             sizeSet(size);
@@ -486,6 +531,30 @@ public:
         ContainerWindow::sizeSet(size);
     }
 
+    void setPosition(Vector position)
+    {
+        if (_hWnd != NULL) {
+            IF_ZERO_THROW(SetWindowPos(
+                _hWnd,                                // hWnd
+                NULL,                                 // hWndInsertAfter
+                position.x,                           // X
+                position.y,                           // Y
+                0,                                    // cx
+                0,                                    // cy
+                SWP_NOZORDER | SWP_NOSIZE |
+                SWP_NOACTIVATE | SWP_NOREPOSITION));  // uFlags
+            // sizeSet() will be called via WM_SIZE, but we want to make sure
+            // our _topLeft is set correctly now so it can be used for layout
+            // before the message loop next runs.
+            ContainerWindow::positionSet(position);
+        }
+        else
+            positionSet(position);
+    }
+    virtual void positionSet(Vector position)
+    { 
+        ContainerWindow::positionSet(position);
+    }
     HWND hWnd() const { return _hWnd; }
 
 private:
@@ -523,6 +592,7 @@ protected:
                         paint(&paintHandle);
                 }
                 return 0;
+                //break;
             case WM_SIZE:
                 {
                     sizeSet(vectorFromLParam(lParam));
@@ -573,10 +643,10 @@ protected:
     void setStyle(DWORD style) { _style = style; }
 
     HWND _hWnd;
-private:
     HDC _hdc;
-    bool _resizing;
     String _text;
+private:
+    bool _resizing;
     Windows* _windows;
     DWORD _style;
     DWORD _extendedStyle;
@@ -609,6 +679,23 @@ public:
         setClassName(WC_BUTTON);
         setStyle(BS_PUSHBUTTON | BS_TEXT | WS_CHILD | WS_VISIBLE);
     }
+    void create()
+    {
+        WindowsWindow::create();
+        SIZE s;
+        NullTerminatedWideString w(_text);
+        IF_ZERO_THROW(GetTextExtentPoint32(_hdc, w, _text.length(), &s));
+        Vector size(s.cx + 20, s.cy + 20);
+        setSize(size);
+    }
+    bool checked()
+    {
+        return SendMessage(_hWnd, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    }
+    void uncheck()
+    {
+        SendMessage(_hWnd, BM_SETCHECK, static_cast<WPARAM>(FALSE), 0);
+    }
 };
 
 class TextWindow : public WindowsWindow
@@ -619,6 +706,21 @@ public:
         WindowsWindow::setWindows(windows);
         setClassName(WC_STATIC);
         setStyle(WS_CHILD | WS_VISIBLE);
+    }
+    void create()
+    {
+        WindowsWindow::create();
+        size();
+    }
+    void size()
+    {
+        if (_hWnd != NULL) {
+            SIZE s;
+            NullTerminatedWideString w(_text);
+            IF_ZERO_THROW(GetTextExtentPoint32(_hdc, w, _text.length(), &s));
+            Vector size(s.cx, s.cy);
+            setSize(size);
+        }
     }
 };
 
@@ -639,22 +741,24 @@ public:
     {
         WindowsWindow::create();
         SendMessage(_hWnd, TBM_SETRANGE, static_cast<WPARAM>(TRUE),
-            static_cast<LPARAM>(MAKELONG(0, 65535)));
+            static_cast<LPARAM>(MAKELONG(0, 16384)));
         setValue(_pos);
     }
     void setValue(double pos)
     {
         _pos = pos;
         if (_hWnd != NULL) {
-            int iPos = static_cast<int>((pos * 65535)/(_max - _min) + 0.5);
+            int iPos =
+                static_cast<int>(((pos - _min) * 16384)/(_max - _min) + 0.5);
             SendMessage(_hWnd, TBM_SETPOS, static_cast<WPARAM>(TRUE),
                 static_cast<LPARAM>(iPos));
         }
+        valueSet(pos);
     }
     void setRange(double min, double max) { _min = min; _max = max; }
     void updateValue(int pos)
     {
-        _pos = pos*(_max - _min) / 65535;
+        _pos = pos*(_max - _min) / 16384 + _min;
         valueSet(_pos);
     }
 private:
@@ -713,18 +817,24 @@ public:
     {
         if (!_bitmap.valid())
             return;
-        Vector topLeft = paint->topLeft();
-        Vector bottomRight = paint->bottomRight();
-        Vector paintSize = bottomRight - topLeft;
+        Vector ptl = paint->topLeft();
+        Vector tl = topLeft();
+        ptl = Vector(max(ptl.x, tl.x), max(ptl.y, tl.y));
+        Vector pbr = paint->bottomRight();
+        Vector br = bottomRight();
+        pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
+        Vector ps = pbr - ptl;
+        if (ps.x <= 0 || ps.y <= 0)
+            return;
         Vector s = size();
         IF_ZERO_THROW(SetDIBitsToDevice(
             paint->hDC(),
-            topLeft.x,
-            topLeft.y,
-            paintSize.x,
-            paintSize.y,
-            topLeft.x,
-            (s - bottomRight).y,
+            ptl.x,
+            ptl.y,
+            ps.x,
+            ps.y,
+            ptl.x - tl.x,
+            (tl.y + s.y) - pbr.y,
             0,
             s.y,
             _bitmap.data(),
@@ -752,7 +862,7 @@ class AnimationThread : public Thread
 {
 public:
     AnimationThread()
-      : _timerExpired(true), _delta(0), _lastTickCount(0), _period(0.05f)
+      : _timerExpired(true), _delta(0), _lastTickCount(0), _period(50)
     { }
     void setWindow(Window* window) { _window = window; }
     void setRate(float rate) { _period = 1000.0f/rate; }
@@ -762,7 +872,6 @@ public:
         do {
             _start.wait();
             _start.reset();
-            _window->invalidate();
 
             DWORD tickCount = GetTickCount();
             _delta += static_cast<float>(tickCount - _lastTickCount);
@@ -785,6 +894,7 @@ public:
             if (ms < 0)
                 ms = 0;
             interrupted = _interrupt.wait(ms);
+            _window->invalidate();
         } while (!interrupted);
     }
     void onPaint() { _start.signal(); }
@@ -792,6 +902,7 @@ public:
     {
         _interrupt.signal();
         _start.signal();
+        noFailJoin();
     }
     ~AnimationThread() { close(); }
 private:

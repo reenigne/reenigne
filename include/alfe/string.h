@@ -684,6 +684,7 @@ String format(const char* format, ...)
     String s;
     s._buffer = String::Buffer(c);
     vsnprintf(reinterpret_cast<char*>(s.data()), c, format, args);
+    s._length = c;
     return s;
 }
 

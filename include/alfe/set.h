@@ -30,19 +30,25 @@ template<class Key, class Base> class SetBase : public Base
             } while (t != this);
             return false;
         }
-        void add(const Key& key)
+        bool add(const Key& key)
         {
             if (_next == 0) {
                 _key = key;
                 _next = this;
-                return;
+                return true;
             }
             TableEntry* t = this;
-            while (t->_next != this)
+            if (t->_key == key)
+                return false;
+            while (t->_next != this) {
                 t = t->_next;
+                if (t->_key == key)
+                    return false;
+            }
             t->_next = new TableEntry();
             t->_next->_key = key;
             t->_next->_next = this;
+            return true;
         }
         void addAllTo(SetBase* table)
         {
@@ -80,8 +86,8 @@ public:
             for (int i = 0; i < table.count(); ++i)
                 table[i].addAllTo(this);
         }
-        _table[row(key)].add(key);
-        ++_n;
+        if (_table[row(key)].add(key))
+            ++_n;
     }
     int count() const { return _n; }
     class Iterator
