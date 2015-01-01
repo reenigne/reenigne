@@ -1,5 +1,6 @@
-  %include "../defaults_com.asm"
+  %include "../../defaults_com.asm"
 
+main:
   cli
   xor ax,ax
   mov ds,ax

@@ -89,6 +89,13 @@ public:
         if (_table[row(key)].add(key))
             ++_n;
     }
+    void reset()
+    {
+        Array<TableEntry> table;
+        table.allocate(1);
+        table.swap(_table);
+        _n = 0;
+    }
     int count() const { return _n; }
     class Iterator
     {

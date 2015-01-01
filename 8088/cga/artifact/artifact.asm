@@ -1,4 +1,4 @@
-  %include "../defaults_bin.asm"
+  %include "../../defaults_bin.asm"
 
   ; Set graphics mode
   mov ax,6

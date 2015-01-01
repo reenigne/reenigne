@@ -109,17 +109,22 @@ private:
                             dynamic_cast<Button*>(getContext(lParam))
                                 ->clicked();
                             break;
-                    }
-                    break;
-                case WM_HSCROLL:
-                    switch (LOWORD(wParam)) {
-                        case TB_THUMBPOSITION:
-                        case TB_THUMBTRACK:
-                            dynamic_cast<SliderWindow*>(getContext(lParam))
-                                ->updateValue(HIWORD(wParam));
+                        case CBN_SELCHANGE:
+                            dynamic_cast<ComboBox*>(getContext(lParam))
+                                ->changed();
                             break;
                     }
                     break;
+                case WM_HSCROLL:
+                    {
+                        Slider* slider =
+                            dynamic_cast<Slider*>(getContext(lParam));
+                        if (slider != 0)
+                            slider->updateValue(
+                                SendMessage(slider->_hWnd, TBM_GETPOS, 0, 0));
+                        break;
+                    }
+                    break; 
 
                 default:
                     window = getContext(hWnd);
@@ -424,7 +429,7 @@ public:
         _windows = windows;
         _text = _windows->caption();
         _className = _windows->className();
-        _style = WS_OVERLAPPEDWINDOW /*| WS_CLIPCHILDREN*/;
+        _style = WS_OVERLAPPEDWINDOW;
         _extendedStyle = 0;
         _menu = NULL;
         Window* window = _container.getNext();
@@ -645,15 +650,88 @@ protected:
     HWND _hWnd;
     HDC _hdc;
     String _text;
+    DWORD _style;
 private:
     bool _resizing;
     Windows* _windows;
-    DWORD _style;
     DWORD _extendedStyle;
     LPCWSTR _className;
     HMENU _menu;
 };
 
+class AnimatedWindow : public WindowsWindow
+{
+public:
+    AnimatedWindow()
+        : _period(50), _timerExpired(true), _delta(0), _lastTickCount(0) { }
+    void setInvalidationWindow(Window* window)
+    {
+        _invalidationWindow = window;
+    }
+    void setRate(float rate) { _period = 1000.0f/rate; }
+    void stop() { KillTimer(_hWnd, _timer); _stopped = true; }
+    void start()
+    {
+        stop();
+        _stopped = false;
+        _timerExpired = true;
+        _invalidationWindow->invalidate();
+    }
+    void onPaint()
+    {
+        if (_timerExpired && !_stopped) {
+            DWORD tickCount = GetTickCount();
+            _delta += static_cast<float>(tickCount - _lastTickCount);
+            _lastTickCount = tickCount;
+            int ms = static_cast<int>(-_delta);
+            _delta -= _period;
+            if (ms < -2.0f*_period) {
+                // Rather than trying to catch up by generating lots of
+                // events, we'll reset the clock if we're running too
+                // far behind.
+                _delta = 0;
+                ms = 0;
+            }
+            if (ms > 2.0f*max(
+                _period, static_cast<float>(USER_TIMER_MINIMUM))) {
+                // Chances are we're starting up and the tick count
+                // wrapped.
+                _delta = 0;
+                ms = static_cast<int>(_period) + 1;
+            }
+            if (ms < 0)
+                ms = 0;
+            if (ms >= USER_TIMER_MINIMUM) {
+                _timer = SetTimer(_hWnd, 1, static_cast<UINT>(ms), NULL);
+                IF_ZERO_THROW(_timer);
+            }
+            else
+                PostMessage(_hWnd, WM_TIMER, 1, 0);
+            _timerExpired = false;
+        }
+    }
+
+protected:
+    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+    {
+        switch (uMsg) {
+            case WM_TIMER:
+                if (wParam == 1)
+                    start();
+                break;
+        }
+        return WindowsWindow::handleMessage(uMsg, wParam, lParam);
+    }
+
+private:
+    UINT_PTR _timer;
+    bool _timerExpired;
+    float _period;
+    float _delta;
+    DWORD _lastTickCount;
+    bool _stopped;
+    Window* _invalidationWindow;
+};
 
 class RootWindow : public WindowsWindow
 {
@@ -698,6 +776,17 @@ public:
     }
 };
 
+class ToggleButton : public Button
+{
+public:
+    void create()
+    {
+        setStyle(BS_AUTOCHECKBOX | BS_PUSHLIKE | BS_PUSHBUTTON | BS_TEXT |
+            WS_CHILD | WS_VISIBLE);
+        Button::create();
+    }
+};
+
 class TextWindow : public WindowsWindow
 {
 public:
@@ -724,7 +813,7 @@ public:
     }
 };
 
-class SliderWindow : public WindowsWindow
+class Slider : public WindowsWindow
 {
 public:
     virtual void valueSet(double value) { }
@@ -765,6 +854,44 @@ private:
     double _min;
     double _max;
     double _pos;
+};
+
+class ComboBox : public WindowsWindow
+{
+public:
+    virtual void changed(int value) { }
+    void setWindows(Windows* windows)
+    {
+        WindowsWindow::setWindows(windows);
+        setClassName(WC_COMBOBOX);
+        setStyle(WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL);
+    }
+    void create()
+    {
+        WindowsWindow::create();
+        _width = 0;
+    }
+    void set(int value)
+    {
+        SendMessage(_hWnd, CB_SETCURSEL, value, 0);
+    }
+    void changed()
+    {
+        changed(SendMessage(_hWnd, CB_GETCURSEL, 0, 0));
+    }
+    void add(String s)
+    {
+        NullTerminatedWideString ns(s);
+        int r = SendMessage(_hWnd, CB_ADDSTRING, 0,
+            reinterpret_cast<LPARAM>(ns.operator WCHAR *()));
+        SIZE size;
+        NullTerminatedWideString w(s);
+        IF_ZERO_THROW(GetTextExtentPoint32(_hdc, w, s.length(), &size));
+        _width = max(_width, static_cast<int>(size.cx));
+    }
+    void autoSize() { setSize(Vector(_width + 20, 200)); }
+private:
+    int _width;
 };
 
 class WindowDeviceContext : public DeviceContext
@@ -856,64 +983,6 @@ protected:
 private:
     bool _resizing;
     BITMAPINFO _bmi;
-};
-
-class AnimationThread : public Thread
-{
-public:
-    AnimationThread()
-      : _timerExpired(true), _delta(0), _lastTickCount(0), _period(50)
-    { }
-    void setWindow(Window* window) { _window = window; }
-    void setRate(float rate) { _period = 1000.0f/rate; }
-    void threadProc()
-    {
-        bool interrupted;
-        do {
-            _start.wait();
-            _start.reset();
-
-            DWORD tickCount = GetTickCount();
-            _delta += static_cast<float>(tickCount - _lastTickCount);
-            _lastTickCount = tickCount;
-            int ms = static_cast<int>(-_delta);
-            _delta -= _period;
-            if (ms < -2.0f*_period) {
-                // Rather than trying to catch up by generating lots of
-                // events, we'll reset the clock if we're running too
-                // far behind.
-                _delta = 0;
-                ms = 0;
-            }
-            if (ms > 2.0f*_period) {
-                // Chances are we're starting up and the tick count
-                // wrapped.
-                _delta = 0;
-                ms = static_cast<int>(_period);
-            }
-            if (ms < 0)
-                ms = 0;
-            interrupted = _interrupt.wait(ms);
-            _window->invalidate();
-        } while (!interrupted);
-    }
-    void onPaint() { _start.signal(); }
-    void close()
-    {
-        _interrupt.signal();
-        _start.signal();
-        noFailJoin();
-    }
-    ~AnimationThread() { close(); }
-private:
-    UINT_PTR _timer;
-    bool _timerExpired;
-    float _period;
-    float _delta;
-    DWORD _lastTickCount;
-    Window* _window;
-    Event _start;
-    Event _interrupt;
 };
 
 class Pen

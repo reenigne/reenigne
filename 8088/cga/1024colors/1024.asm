@@ -177,7 +177,7 @@ frameLoop:
   waitForDisplayDisable
 
   ; During lines 2..199 we set up the start address for the next line
-%rep 98
+%rep 99
     waitForDisplayEnable
     waitForDisplayDisable
     waitForDisplayEnable
