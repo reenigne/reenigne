@@ -144,6 +144,47 @@ public:
             ++srgb;
         }
     }
+    void encodeLine(Byte* ntsc, const SRGB* srgb, int length, int phase)
+    {
+        phase = (phase + 3) & 3;
+        for (int x = 0; x < length; ++x) {
+            Vector3<int> mix = Vector3Cast<int>(srgb[0]) +
+                4*Vector3Cast<int>(srgb[1]) + 7*Vector3Cast<int>(srgb[2]) +
+                8*Vector3Cast<int>(srgb[3]) + 7*Vector3Cast<int>(srgb[4]) +
+                4*Vector3Cast<int>(srgb[5]) + Vector3Cast<int>(srgb[6]);
+            ++srgb;
+            Colour c;
+            if (_fixPrimaries) {
+                c.x = (0.6689*mix.x + 0.2679*mix.y + 0.0323*mix.z);
+                c.y = (0.0185*mix.x + 1.0743*mix.y - 0.0603*mix.z);
+                c.z = (0.0162*mix.x + 0.0431*mix.y + 0.8551*mix.z);
+            }
+            else
+                c = Colour(mix.x, mix.y, mix.z);
+            Complex<double> iq;
+            double y = 0.299*c.x + 0.587*c.y + 0.144*c.z;  
+            iq.x = 0.596*c.x - 0.275*c.y - 0.321*c.z;      
+            iq.y = 0.212*c.x - 0.528*c.y + 0.311*c.z;      
+            iq /= (_iqAdjust*512);
+            y = (y/32 - _brightness2)/(_contrast2*32);
+            switch (phase) {
+                case 0:
+                    *ntsc = byteClamp(y + iq.x);
+                    break;
+                case 1:
+                    *ntsc = byteClamp(y + iq.y);
+                    break;
+                case 2:
+                    *ntsc = byteClamp(y - iq.x);
+                    break;
+                case 3:
+                    *ntsc = byteClamp(y - iq.y);
+                    break;
+            }
+            ++ntsc;
+            phase = (phase + 1) & 3;
+        }
+    }
 
     bool _fixPrimaries;
     double _hue;
@@ -188,18 +229,28 @@ template<class T> class CGAEncoderTemplate
 public:
     CGAEncoderTemplate()
       : _mode(2), _palette(3), _background(15), _characterHeight(1),
-        _matchMode(false), _matchModeSet(false)
+        _matchMode(false), _matchModeSet(false), _horizontalDiffusion(256),
+        _verticalDiffusion(256)
     {
-        _cgaROM = File("5788005.u33").contents();
-        _patterns.allocate(0x10000*8*23);
+        _paletteCharacter.allocate(4*256);
+        for (int x = 0; x < 256; ++x) {
+            _paletteCharacter[0 + x*4] = (x == 0xdd);
+            _paletteCharacter[1 + x*4] = (x == 0x13 || x == 0x55);
+            _paletteCharacter[2 + x*4] = (x == 0x13 || x == 0x55 || x == 0xb0
+                || x == 0xb1);
+            _paletteCharacter[3 + x*4] = true;
+        }
     }
     void setInput(Bitmap<SRGB> input)
     {
+        _cgaROM = File("5788005.u33").contents();
+        _patterns.allocate(0x10000*8*17);
         _input = input;
-        _rgbi = Bitmap<Byte>(input.size() + Vector(14, 0));
-        _input2 = Bitmap<SRGB>(_input.size() + Vector(7, 0));
+        _size = input.size();
+        _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
+        _input2 = Bitmap<SRGB>(_size + Vector(11, 0));
         _input2.fill(SRGB(0, 0, 0));
-        _input2.subBitmap(Vector(3, 0), _input.size()).copyFrom(_input);
+        _input2.subBitmap(Vector(5, 0), _size).copyFrom(_input);
     }
     void setWindow(CGA2NTSCWindow* window) { _window = window; }
     void beginConvert()
@@ -212,10 +263,10 @@ public:
         // Find all different composite colours (sequences of 8 consecutive
         // RGBI pixels).
         const Byte* inputRow = _rgbi.data();
-        for (int y = 0; y < _rgbi.size().y; ++y) {
+        for (int y = 0; y < _size.y; ++y) {
             const Byte* inputPixel = inputRow + 7;
             UInt32 seq = 0;
-            for (int x = 0; x < _rgbi.size().x + 7; ++x) {
+            for (int x = 0; x < _size.x + 14; ++x) {
                 seq = (seq >> 4) | ((*inputPixel) << 28);
                 ++inputPixel;
                 _window->addColour(static_cast<UInt64>(seq) |
@@ -227,14 +278,13 @@ public:
     void showConvert()
     {
         // Convert to RGBI indexes and add left and right borders.
-        Vector size = _input.size();
         int maxDistance = 0;
         const Byte* inputRow = _input.data();
         Byte* rgbiRow = _rgbi.data();
         int background = _background;
         if (_mode == 2)
             background = 0;
-        for (int y = 0; y < size.y; ++y) {
+        for (int y = 0; y < _size.y; ++y) {
             const SRGB* inputPixel =
                 reinterpret_cast<const SRGB*>(inputRow);
             Byte* rgbiPixel = rgbiRow;
@@ -242,7 +292,7 @@ public:
                 *rgbiPixel = background;
                 ++rgbiPixel;
             }
-            for (int x = 0; x < size.x; ++x) {
+            for (int x = 0; x < _size.x; ++x) {
                 SRGB s = *inputPixel;
                 ++inputPixel;
                 int bestDistance = 0x7fffffff;
@@ -277,304 +327,227 @@ public:
                 matchConvert();
         }
     }
+    static void filterHF(const Byte* input, SInt16* output, int n)
+    {
+        for (int x = 0; x < n; ++x)
+            output[x] = (-input[x] + input[x+1]*2 + input[x+2]*6 + input[x+3]*2
+                -input[x+4]);
+    }
     void matchConvert()
     {
-        _characterHeight2 = _characterHeight;
-        if (_characterHeight2 == 0)
-            _characterHeight = 2;
+        if (_mode == 2 || _mode == 3)
+            _block.y = 1;
+        else {
+            _block.y = _characterHeight;
+            if (_characterHeight == 0)
+                _block.y = 2;
+        }
+
+        _ntscInput = Bitmap<SInt16>(_size + Vector(1, 0));
+        Byte* ntscRow = _ntscInput.data();
+        const Byte* srgbRow = _input2.data();
+        Array<Byte> ntscTemp(_size.x + 5);
+        for (int y = 0; y < _size.y; ++y) {
+            _decoder->encodeLine(&ntscTemp[0],
+                reinterpret_cast<const SRGB*>(srgbRow), _size.x + 5, 2);
+            filterHF(&ntscTemp[0], reinterpret_cast<SInt16*>(ntscRow),
+                _size.x + 1);
+            ntscRow += _ntscInput.stride();
+            srgbRow += _input2.stride();
+        }
         
         switch (_mode) {
             case 0:
-                matchConvert40ColumnText();
+                _block.x = 16;
+                _patternCount = 0x10000;
+                _hdots = 16;
                 break;
             case 1:
-                matchConvert80ColumnText();
+                _block.x = 8;
+                _patternCount = 0x10000;
+                _hdots = 8;
                 break;
             case 2:
-                matchConvert1BPPGraphics();
-                break;
             case 3:
-                matchConvert2BPPGraphics();
+                _block.x = 4;
+                _patternCount = 16;
+                _hdots = 16;
                 break;
         }
-    }
-    void matchConvert40ColumnText()
-    {
-        Byte ntsc[29];
-        Byte rgbi[30];
-        for (int x = 0; x < 30; ++x)
-            rgbi[x] = 0;
-        _rgbi.fill(_background);
-        for (int line = 0; line < _characterHeight2; ++line) {
-            for (int colour = 0; colour < 0x10000; ++colour) {
-                Byte a = (colour >> 8) & 0xff;
-                Byte b = _cgaROM[(0x300 + (colour & 0xff))*8 + line];
-                if (_characterHeight == 0)
-                    b = _cgaROM[(0x300 + (colour & 0xff))*8];
-                for (int x = 0; x < 8; ++x) {
-                    int c = ((b & (128 >> x)) != 0 ? a : (a >> 4)) & 15;
-                    rgbi[7 + x*2] = c;
-                    rgbi[8 + x*2] = c;
-                }
-                _simulator->simulateLine(rgbi, ntsc, 29, 0);
-                _decoder->decodeLine(ntsc,
-                    &_patterns[(colour*_characterHeight2 + line)*23], 23, 0);
+        Array<Byte> rgbi(_block.x + 6);
+        ntscTemp.allocate(_block.x + 5);
+        //for (int x = 0; x < _block.x + 6; ++x)
+        //    rgbi[x] = 0;
+        int w = _block.x + 1;
+        for (int pattern = 0; pattern < _patternCount; ++pattern) {
+            for (int line = 0; line < _block.y; ++line) {
+                plotPattern(&rgbi[3], pattern, line);
+                rgbi[0] = rgbi[_block.x];
+                rgbi[1] = rgbi[1 + _block.x];
+                rgbi[2] = rgbi[2 + _block.x];
+                rgbi[3 + _block.x] = rgbi[3];
+                rgbi[4 + _block.x] = rgbi[4];
+                rgbi[5 + _block.x] = rgbi[5];
+                _simulator->simulateLine(&rgbi[0], &ntscTemp[0], _block.x + 5,
+                    0);
+                filterHF(&ntscTemp[0], &_patterns[(pattern*_block.y + line)*w],
+                    w);
             }
         }
-        _inputRow = _input2.data();
-        _rgbiRow = _rgbi.data();
-        _y = 0;
+
+        _rgbi.fill(_mode == 2 ? 0 : _background);
+        _data.allocate((_size.y/_block.y)*(_size.x/_hdots));
         _converting = true;
-    }
-    void matchConvert80ColumnText()
-    {
-        Byte ntsc[21];
-        Byte rgbi[22];
-        for (int x = 0; x < 22; ++x)
-            rgbi[x] = 0;
-        _rgbi.fill(_background);
-        for (int line = 0; line < _characterHeight2; ++line) {
-            for (int colour = 0; colour < 0x10000; ++colour) {
-                Byte a = (colour >> 8) & 0xff;
-                Byte b = _cgaROM[(0x300 + (colour & 0xff))*8 + line];
-                if (_characterHeight == 0)
-                    b = _cgaROM[(0x300 + (colour & 0xff))*8];
-                for (int x = 0; x < 8; ++x)
-                    rgbi[7 + x] = ((b & (128 >> x)) != 0 ? a : (a >> 4)) & 15;
-                _simulator->simulateLine(rgbi, ntsc, 21, 0);
-                _decoder->decodeLine(ntsc,
-                    &_patterns[(colour*_characterHeight2 + line)*15], 15, 0);
-            }
-        }
-        _inputRow = _input2.data();
-        _rgbiRow = _rgbi.data();
         _y = 0;
-        _converting = true;
-    }
-    void matchConvert1BPPGraphics()
-    {
-        static int weights[8] = {1, 5, 11, 15, 15, 11, 5, 1};
-        SRGB data[4*8*2];
-        Byte ntsc[14];
-        Byte rgbi[15];
-        for (int x = 0; x < 15; ++x)
-            rgbi[x] = 0;
-        for (int colour = 0; colour < 2; ++colour)
-            for (int phase = 0; phase < 4; ++phase) {
-                rgbi[7] = (colour != 0 ? _background : 0);
-                _simulator->simulateLine(rgbi, ntsc, 14, phase);
-                _decoder->
-                    decodeLine(ntsc, &data[(colour * 4 + phase)*8], 8, phase);
-            }
-        const Byte* inputRow = _input2.data();
-        _rgbi.fill(0);
-        Byte* rgbiRow = _rgbi.data() + 7;
-        for (int y = 0; y < _rgbi.size().y; ++y) {
-            const SRGB* inputPixel = reinterpret_cast<const SRGB*>(inputRow);
-            Byte* rgbiPixel = rgbiRow;
-            for (int x = 7; x < _rgbi.size().x - 7; ++x) {
-                int bestColour = 0;
-                int bestScore = 0x7fffffff;
-                for (int colour = 0; colour < 2; ++colour) {
-                    int score = 0;
-                    for (int xx = 0; xx < 8; ++xx) {
-                        SRGB test = data[(colour * 4 + (x & 3))*8 + xx];
-                        SRGB target = inputPixel[xx];
-                        score += weights[xx]*
-                            (Vector3Cast<int>(test) - Vector3Cast<int>(target))
-                                .modulus2();
-                    }
-                    if (score < bestScore) {
-                        bestScore = score;
-                        bestColour = colour;
-                    }
-                }
-                *rgbiPixel = (bestColour != 0 ? _background : 0);
-                ++rgbiPixel;
-                ++inputPixel;
-            }
-            inputRow += _input2.stride();
-            rgbiRow += _rgbi.stride();
-        }
-    }
-    void matchConvert2BPPGraphics()
-    {
-        static int palettes[4] = {0, 8, 1, 9};
-        static int weights[9] = {1, 6, 16, 26, 30, 26, 16, 6, 1};
-        int colours[4];
-        SRGB data[4*9*2];
-        Byte ntsc[15];
-        Byte rgbi[16];
-        for (int x = 0; x < 16; ++x)
-            rgbi[x] = 0;
-        for (int colour = 0; colour < 4; ++colour) {
-            int c = _background;
-            if (colour != 0)
-                c = colour*2 + palettes[_palette];
-            colours[colour] = c;
-            for (int phase = 0; phase < 2; ++phase) {
-                rgbi[7] = c;
-                rgbi[8] = c;
-                _simulator->simulateLine(rgbi, ntsc, 15, phase*2);
-                _decoder->decodeLine(ntsc, &_patterns[(colour*2 + phase)*9], 9,
-                    phase*2);
-            }
-        }
-        const Byte* inputRow = _input2.data();
-        _rgbi.fill(_background);
         _rgbiRow = _rgbi.data() + 7;
-        _converting = true;
-        _y = 0;
-        for (int y = 0; y < _rgbi.size().y; ++y) {
-            const SRGB* inputPixel = reinterpret_cast<const SRGB*>(inputRow);
-            Byte* rgbiPixel = _rgbiRow;
-            for (int x = 7; x < _rgbi.size().x - 8; x += 2) {
-                int bestColour = 0;
-                int bestScore = 0x7fffffff;
-                for (int colour = 0; colour < 4; ++colour) {
-                    int score = 0;
-                    for (int xx = 0; xx < 9; ++xx) {
-                        SRGB test = data[(colour * 2 + ((x & 3)>>1))*9 + xx];
-                        SRGB target = inputPixel[xx];
-                        score += weights[xx]*
-                            (Vector3Cast<int>(test) - Vector3Cast<int>(target))
-                                .modulus2();
-                    }
-                    if (score < bestScore) {
-                        bestScore = score;
-                        bestColour = colour;
-                    }
-                }
-                int c = colours[bestColour];
-                *rgbiPixel = c;
-                ++rgbiPixel;
-                *rgbiPixel = c;
-                ++rgbiPixel;
-                ++inputPixel;
-                ++inputPixel;
-            }
-            inputRow += _input2.stride();
-            _rgbiRow += _rgbi.stride();
-        }
+        _inputRow = _ntscInput.data();
+        _error = Bitmap<int>(_size + Vector(4, 1));
+        _error.fill(0);
+        _errorRow = _error.data();
+        _testError = Bitmap<int>(_block + Vector(4, 1));
     }
     bool idle()
     {
         if (!_converting)
             return false;
-        if (_mode == 0)
-            return matchConvertContinue40ColumnText();
-        if (_mode == 1)
-            return matchConvertContinue80ColumnText();
-        _converting = false;
-        return false;
-    }
-    bool matchConvertContinue40ColumnText()
-    {
-        static int weights[23] = {1, 6, 17, 32, 47, 58, 63, 64, 64, 64, 64, 64,
-            64, 64, 64, 63, 58, 47, 32, 17, 6, 1};
-        for (int x = 7; x < _rgbi.size().x - 22; x += 16) {
-            int bestColour = 0;
+        int w = _block.x + 1;
+        for (int x = 0; x < (_size.x & -_hdots); x += _block.x) {
+            int bestPattern = 0;
             int bestScore = 0x7fffffff;
-            for (int colour = 0; colour < 0x10000; ++colour) {
+            for (int pattern = 0; pattern < _patternCount; ++pattern) {
+                if (_mode < 2 &&
+                    !_paletteCharacter[(pattern & 0xff)*4 + _palette])
+                    continue;
                 int score = 0;
                 const Byte* inputRow2 = _inputRow;
-                for (int yy = 0; yy < _characterHeight2; ++yy) {
-                    const SRGB* inputPixel =
-                        reinterpret_cast<const SRGB*>(inputRow2) + x;
-                    for (int xx = 0; xx < 23; ++xx) {
-                        SRGB test =
-                            _patterns[(colour*_characterHeight2 + yy)*23 + xx];
-                        SRGB target = inputPixel[xx];
-                        score += weights[xx]*(Vector3Cast<int>(test) -
-                            Vector3Cast<int>(target)).modulus2();
+                Byte* errorRow2 = _errorRow;
+                _testError.fill(0);
+                for (int yy = 0; yy < _block.y; ++yy) {
+                    const SInt16* inputPixel =
+                        reinterpret_cast<const SInt16*>(inputRow2) + x;
+                    const int* errorPixel =
+                        reinterpret_cast<const int*>(errorRow2) + x;
+                    for (int xx = 0; xx < w; ++xx) {
+                        int test = _patterns[(pattern*_block.y + yy)*w + xx];
+                        Vector p(xx, yy);
+                        int target = inputPixel[xx] +
+                            (errorPixel[xx] + _testError[p])/8;
+                        int d = target - test;
+                        int weight = (xx == 0 || xx == _block.x ? 1 : 2);
+                        score += weight*d*d;
+                        int error = weight*d;
+                        _testError[p + Vector(4, 0)] +=
+                            (error*_horizontalDiffusion)/256;
+                        _testError[p + Vector(0, 1)] +=
+                            (error*_verticalDiffusion)/256;
                     }
-                    inputRow2 += _input2.stride();
+                    inputRow2 += _ntscInput.stride();
+                    errorRow2 += _error.stride();
                 }
                 if (score < bestScore) {
                     bestScore = score;
-                    bestColour = colour;
+                    bestPattern = pattern;
                 }
             }
-            Byte a = (bestColour >> 8) & 0xff;
-            Byte* rgbiRow2 = _rgbiRow;
-            for (int yy = 0; yy < _characterHeight2; ++yy) {
-                Byte b = _cgaROM[(0x300 + (bestColour & 0xff))*8 + yy];
-                Byte* rgbiPixel = rgbiRow2 + x;
-                for (int xx = 0; xx < 8; ++xx) {
-                    int c = ((b & (128 >> xx)) != 0 ? a : (a >> 4)) & 15;
-                    *rgbiPixel = c;
-                    ++rgbiPixel;
-                    *rgbiPixel = c;
-                    ++rgbiPixel;
+            for (int yy = 0; yy < _block.y; ++yy)
+                plotPattern(_rgbiRow + yy*_rgbi.stride() + x, bestPattern, yy);
+            int address = (_y/_block.y)*(_size.x/_hdots) + x/_hdots;
+            if (_mode == 0 || _mode == 1)
+                _data[address] = bestPattern;
+            else {
+                int bit = (x & 12) ^ 4;
+                _data[address] =
+                    (_data[address] & ~(15 << bit)) | (bestPattern << bit);
+            }
+
+            const Byte* inputRow2 = _inputRow;
+            Byte* errorRow2 = _errorRow;
+            for (int yy = 0; yy < _block.y; ++yy) {
+                const SInt16* inputPixel =
+                    reinterpret_cast<const SInt16*>(inputRow2) + x;
+                int* errorPixel = reinterpret_cast<int*>(errorRow2) + x;
+                for (int xx = 0; xx < w; ++xx) {
+                    int test = _patterns[(bestPattern*_block.y + yy)*w + xx];
+                    int target = inputPixel[xx] + errorPixel[xx]/8;
+                    int error =
+                        (target - test)*(xx == 0 || xx == _block.x ? 1 : 2);
+                    errorPixel[xx + 4] += (error*_horizontalDiffusion)/256;
+                    reinterpret_cast<int*>(errorRow2 + _error.stride())[x + xx]
+                        += (error*_verticalDiffusion/256);
                 }
-                rgbiRow2 += _rgbi.stride();
+                inputRow2 += _ntscInput.stride();
+                errorRow2 += _error.stride();
             }
         }
-        _inputRow += _input2.stride() * _characterHeight2;
-        _rgbiRow += _rgbi.stride() * _characterHeight2;
+        _inputRow += _ntscInput.stride() * _block.y;
+        _errorRow += _error.stride() * _block.y;
+        _rgbiRow += _rgbi.stride() * _block.y;
         _window->reCreateNTSC();
-        _y += _characterHeight2;
-        if (_y >= _rgbi.size().y + 1 - _characterHeight2)
+        _y += _block.y;
+        if (_y >= _size.y + 1 - _block.y)
             _converting = false;
         return _converting;
     }
-    bool matchConvertContinue80ColumnText()
+    void save(String outputFileName)
     {
-        static int weights[15] = {1, 6, 17, 32, 47, 58, 63, 64, 63, 58, 47, 32,
-            17, 6, 1};
-        for (int x = 7; x < _rgbi.size().x - 14; x += 8) {
-            int bestColour = 0;
-            int bestScore = 0x7fffffff;
-            for (int colour = 0; colour < 0x10000; ++colour) {
-                int score = 0;
-                const Byte* inputRow2 = _inputRow;
-                for (int yy = 0; yy < _characterHeight2; ++yy) {
-                    const SRGB* inputPixel =
-                        reinterpret_cast<const SRGB*>(inputRow2) + x;
-                    for (int xx = 0; xx < 15; ++xx) {
-                        SRGB test =
-                            _patterns[(colour*_characterHeight2 + yy)*15 + xx];
-                        SRGB target = inputPixel[xx];
-                        score += weights[xx]*(Vector3Cast<int>(test) -
-                            Vector3Cast<int>(target)).modulus2();
+        File(outputFileName, true).
+            save(reinterpret_cast<const Byte*>(&_data[0]), _data.count()*2);
+    }
+    void plotPattern(Byte* rgbi, int pattern, int line)
+    {
+        static int palettes[4] = {0, 8, 1, 9};
+        switch (_mode) {
+            case 0:
+            case 1:
+                {
+                    Byte ch = pattern & 0xff;
+                    Byte at = pattern >> 8;
+                    if (_characterHeight == 0)
+                        line = 0;
+                    Byte b = _cgaROM[(0x300 + ch)*8 + line];
+                    for (int x = 0; x < 8; ++x) {
+                        int c = ((b & (128 >> x)) != 0 ? at : (at >> 4)) & 15;
+                        if (_mode == 0) {
+                            rgbi[x*2] = c;
+                            rgbi[x*2 + 1] = c;
+                        }
+                        else
+                            rgbi[x] = c;
                     }
-                    inputRow2 += _input2.stride();
                 }
-                if (score < bestScore) {
-                    bestScore = score;
-                    bestColour = colour;
+                break;
+            case 2:
+                {
+                    for (int x = 0; x < 4; ++x)
+                        rgbi[x] = (pattern & (8 >> x)) != 0 ? _background : 0;
                 }
-            }
-            Byte a = (bestColour >> 8) & 0xff;
-            Byte* rgbiRow2 = _rgbiRow;
-            for (int yy = 0; yy < _characterHeight2; ++yy) {
-                Byte b = _cgaROM[(0x300 + (bestColour & 0xff))*8 + yy];
-                Byte* rgbiPixel = rgbiRow2 + x;
-                for (int xx = 0; xx < 8; ++xx) {
-                    *rgbiPixel = ((b & (128 >> xx)) != 0 ? a : (a >> 4)) & 15;
-                    ++rgbiPixel;
+                break;
+            case 3:
+                {
+                    for (int x = 0; x < 4; x += 2) {
+                        int c = _background;
+                        int b = ((pattern >> (2 - x)) & 3);
+                        if (b != 0)
+                            c = b + palettes[_palette];
+                        rgbi[x] = c;
+                        rgbi[x + 1] = c;
+                    }
                 }
-                rgbiRow2 += _rgbi.stride();
-            }
+                break;
         }
-        _inputRow += _input2.stride() * _characterHeight2;
-        _rgbiRow += _rgbi.stride() * _characterHeight2;
-        _window->reCreateNTSC();
-        _y += _characterHeight2;
-        if (_y >= _rgbi.size().y + 1 - _characterHeight2)
-            _converting = false;
-        return _converting;
     }
 
     void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
 
+    Array<bool> _paletteCharacter;
     int _mode;
     int _palette;
     int _background;
     int _characterHeight;
     bool _matchModeSet;
     bool _matchMode;
+    Vector _size;
     Bitmap<SRGB> _input;
     Bitmap<Byte> _rgbi;
     CGASimulator* _simulator;
@@ -582,12 +555,21 @@ public:
     CGA2NTSCWindow* _window;
     String _cgaROM;
     bool _converting;
-    Array<SRGB> _patterns;
+    Array<SInt16> _patterns;
     Bitmap<SRGB> _input2;
     const Byte* _inputRow;
     Byte* _rgbiRow;
+    Byte* _errorRow;
     int _y;
-    int _characterHeight2;
+    Array<Word> _data;
+    Bitmap<SInt16> _ntscInput;
+    int _patternCount;
+    Bitmap<int> _error;
+    Bitmap<int> _testError;
+    int _hdots;
+    Vector _block;
+    int _horizontalDiffusion;
+    int _verticalDiffusion;
 };
 
 typedef CGAEncoderTemplate<void> CGAEncoder;
@@ -949,7 +931,7 @@ public:
     void create()
     {
         setText("New CGA");
-        Button::create();
+        ToggleButton::create();
     }
 private:
     CGA2NTSCWindow* _host;
@@ -1062,6 +1044,41 @@ private:
     CGA2NTSCWindow* _host;
 };
 typedef PaletteComboTemplate<void> PaletteCombo;
+
+template<class T> class DiffusionHorizontalSliderWindowTemplate : public Slider
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void valueSet(double value) { _host->setHorizontalDiffusion(value); }
+    void create()
+    {
+        setRange(0, 512);
+        setValue(256);
+        Slider::create();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef DiffusionHorizontalSliderWindowTemplate<void>
+    DiffusionHorizontalSliderWindow;
+
+template<class T> class DiffusionVerticalSliderWindowTemplate : public Slider
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void valueSet(double value) { _host->setVerticalDiffusion(value); }
+    void create()
+    {
+        setRange(0, 512);
+        setValue(256);
+        Slider::create();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef DiffusionVerticalSliderWindowTemplate<void>
+    DiffusionVerticalSliderWindow;
+
 
 class OutputWindow : public BitmapWindow
 {
@@ -1185,6 +1202,12 @@ public:
         add(&_background);
         add(&_palette);
         add(&_characterHeight);
+        add(&_diffusionHorizontalCaption);
+        add(&_diffusionHorizontal);
+        add(&_diffusionHorizontalText);
+        add(&_diffusionVerticalCaption);
+        add(&_diffusionVertical);
+        add(&_diffusionVerticalText);
         RootWindow::setWindows(windows);
     }
     void create()
@@ -1196,6 +1219,8 @@ public:
         _saturationCaption.setText("Saturation: ");
         _contrastCaption.setText("Contrast: ");
         _hueCaption.setText("Hue: ");
+        _diffusionHorizontalCaption.setText("Horizontal diffusion: ");
+        _diffusionVerticalCaption.setText("Vertical diffusion: ");
 
         _brightness.setHost(this);
         _saturation.setHost(this);
@@ -1212,6 +1237,8 @@ public:
         _background.setHost(this);
         _palette.setHost(this);
         _characterHeight.setHost(this);
+        _diffusionHorizontal.setHost(this);
+        _diffusionVertical.setHost(this);
 
         setText("CGA to NTSC");
         setSize(Vector(640, 480));
@@ -1226,6 +1253,9 @@ public:
         _decoder->_brightness = 0;
         _decoder->_saturation = 1;
 
+        if (_encoder->_matchMode)
+            _matchMode.check();
+
         update();
         uiUpdate();
     }
@@ -1236,7 +1266,7 @@ public:
 
         _gamut.setPosition(Vector(20, _output.bottom() + 20));
 
-        Vector vSpace(0, 20);
+        Vector vSpace(0, 15);
 
         _brightness.setSize(Vector(301, 24));
         _brightness.setPosition(Vector(w, 20));
@@ -1255,7 +1285,8 @@ public:
         _contrastCaption.setPosition(_contrast.bottomLeft() + vSpace);
         _contrastText.setPosition(_contrastCaption.topRight());
         _autoContrastClip.setPosition(_contrastCaption.bottomLeft() + vSpace);
-        _autoContrastMono.setPosition(_autoContrastClip.topRight() + Vector(20, 0));
+        _autoContrastMono.setPosition(_autoContrastClip.topRight() +
+            Vector(20, 0));
 
         _hue.setSize(Vector(301, 24));
         _hue.setPosition(_autoContrastClip.bottomLeft() + 2*vSpace);
@@ -1275,6 +1306,21 @@ public:
         _background.setPosition(_mode.topRight());
         _palette.setPosition(_background.topRight());
         _characterHeight.setPosition(_palette.topRight());
+
+        _diffusionHorizontal.setSize(Vector(301, 24));
+        _diffusionHorizontal.setPosition(_matchMode.bottomLeft() + 3*vSpace);
+        _diffusionHorizontalCaption.setPosition(
+            _diffusionHorizontal.bottomLeft() + vSpace);
+        _diffusionHorizontalText.setPosition(
+            _diffusionHorizontalCaption.topRight());
+
+        _diffusionVertical.setSize(Vector(301, 24));
+        _diffusionVertical.setPosition(_diffusionHorizontalCaption.bottomLeft()
+            + vSpace);
+        _diffusionVerticalCaption.setPosition(
+            _diffusionVertical.bottomLeft() + vSpace);
+        _diffusionVerticalText.setPosition(
+            _diffusionVerticalCaption.topRight());
     }
     void keyboardCharacter(int character)
     {
@@ -1373,28 +1419,40 @@ public:
     {
         _encoder->_mode = value;
         _encoder->beginConvert();
-        reCreateNTSC();
     }
 
     void setBackground(int value)
     {
         _encoder->_background = value;
         _encoder->beginConvert();
-        reCreateNTSC();
     }
 
     void setPalette(int value)
     {
         _encoder->_palette = value;
         _encoder->beginConvert();
-        reCreateNTSC();
     }
 
     void setCharacterHeight(int value)
     {
         _encoder->_characterHeight = value;
         _encoder->beginConvert();
-        reCreateNTSC();
+    }
+
+    void setHorizontalDiffusion(double value)
+    {
+        _encoder->_horizontalDiffusion = static_cast<int>(value);
+        _diffusionHorizontalText.setText(format("%f", value / 256.0));
+        _diffusionHorizontalText.size();
+        _encoder->beginConvert();
+    }
+
+    void setVerticalDiffusion(double value)
+    {
+        _encoder->_verticalDiffusion = static_cast<int>(value);
+        _diffusionVerticalText.setText(format("%f", value / 256.0));
+        _diffusionVerticalText.size();
+        _encoder->beginConvert();
     }
 
     void matchModePressed()
@@ -1583,7 +1641,7 @@ public:
     void save(String outputFileName) { _output.save(outputFileName); }
     void resetColours() { _colours.reset(); }
     void addColour(UInt64 seq) { _colours.add(seq); }
-
+    
 private:
     AnimatedWindow _animated;
     OutputWindow _output;
@@ -1615,6 +1673,12 @@ private:
     BackgroundCombo _background;
     PaletteCombo _palette;
     CharacterHeightCombo _characterHeight;
+    TextWindow _diffusionHorizontalCaption;
+    DiffusionHorizontalSliderWindow _diffusionHorizontal;
+    TextWindow _diffusionHorizontalText;
+    TextWindow _diffusionVerticalCaption;
+    DiffusionVerticalSliderWindow _diffusionVertical;
+    TextWindow _diffusionVerticalText;
     CGAEncoder* _encoder;
     CGASimulator* _simulator;
     NTSCDecoder* _decoder;
@@ -1725,17 +1789,15 @@ public:
 
         WindowProgram::run();
 
-        String outputFileName;
         int i;
         for (i = inputFileName.length() - 1; i >= 0; --i)
             if (inputFileName[i] == '.')
                 break;
-        if (i == -1)
-            outputFileName = inputFileName + "_out.png";
-        else
-            outputFileName = inputFileName.subString(0, i) + "_out.png";
+        if (i != -1)
+            inputFileName = inputFileName.subString(0, i);
 
-        _window.save(outputFileName);
+        _window.save(inputFileName + "_out.png");
+        _encoder.save(inputFileName + "_out.dat");
     }
     bool idle() { return _encoder.idle(); }
 private:

@@ -239,6 +239,38 @@ codePreambleEnd:
 
 experimentData:
 
+experimentSSTTLUT:
+  db "SSTTLUT$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov di,0
+  mov si,0
+.endInit
+  dw .endCode - ($+2)
+  mov ax,[bx+9999]
+  stosw
+.endCode:
+
+experimentSSTTLUT_attributes:
+  db "SSTTLUT_attr$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov di,0
+  mov si,0
+.endInit
+  dw .endCode - ($+2)
+  mov ax,[bx+9999]
+  stosb
+  inc di
+.endCode:
+
+
 experimentADDMOVW:
   db "ADDMOVW$"
   dw .endInit - ($+2)

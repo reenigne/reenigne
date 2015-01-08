@@ -169,7 +169,7 @@ protected:
 template<> class SetRow<UInt64> : Uncopyable
 {
 protected:
-    int hash(UInt64 key) const { return key; }
+    int hash(UInt64 key) const { return static_cast<int>(key); }
 };
 
 template<class Key> class Set

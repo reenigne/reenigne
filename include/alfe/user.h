@@ -774,6 +774,10 @@ public:
     {
         SendMessage(_hWnd, BM_SETCHECK, static_cast<WPARAM>(FALSE), 0);
     }
+    void check()
+    {
+        SendMessage(_hWnd, BM_SETCHECK, static_cast<WPARAM>(TRUE), 0);
+    }
 };
 
 class ToggleButton : public Button
