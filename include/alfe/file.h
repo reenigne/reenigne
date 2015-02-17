@@ -636,6 +636,18 @@ public:
         buffer._length = intSize;
         return buffer;
     }
+    template<class U> void readIntoArray(Array<U>* array)
+    {
+        FileHandleTemplate<T> f = openRead();
+        UInt64 size = f.size();
+        if (size >= 0x80000000)
+            throw Exception("2Gb or more in file " + path());
+        int intSize = static_cast<int>(size);
+        int n = intSize/sizeof(U);
+        array->allocate(n);
+        f.read(&(*array)[0], n*sizeof(U));
+    }
+
     template<class U> void save(const U& contents) const
     {
         openWrite().write(contents);

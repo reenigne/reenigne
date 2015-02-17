@@ -11,6 +11,7 @@
 #include <xaudio2.h>
 #include <mmsystem.h>
 #include "alfe/com.h"
+#include "alfe\pipes.h"
 
 template<class Sample> class AudioSink : public Sink<Sample>
 {

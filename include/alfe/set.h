@@ -137,6 +137,8 @@ public:
     Iterator begin() const
     {
         int row = 0;
+        if (row == _n)
+            return end();
         const TableEntry* entry = &_table[0];
         while (entry->_next == 0) {
             ++row;

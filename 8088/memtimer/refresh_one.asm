@@ -53,17 +53,17 @@ spaceLoop:
 repeatLoop:
   push cx
 
-  mov cx,48*3*17+48*3*17  ; Number of iterations in primary measurement
+  mov cx,480+48  ; Number of iterations in primary measurement
   call doMeasurement
   push bx
-  mov cx,48*3*17      ; Number of iterations in secondary measurement
+  mov cx,48      ; Number of iterations in secondary measurement
   call doMeasurement
   pop ax         ; The primary measurement will have the lower value, since the counter counts down
   sub ax,bx      ; Subtract the secondary value, which will be higher, now AX is negative
   neg ax         ; Negate to get the positive difference.
 
   xor dx,dx
-  mov cx,12*17
+  mov cx,120
   div cx       ; Divide by 120 to get number of cycles (quotient) and number of extra tcycles (remainder)
 
   push dx      ; Store remainder
@@ -211,6 +211,36 @@ outOfSpaceMessageEnd:
 
 
 experimentData:
+
+
+experimentPlasma:
+  db "Plasma$"
+  dw .endCode - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov di,0
+  mov si,0
+  mov dx,0
+  mov bp,0
+.xloop:
+        mov     bl,dl
+        mov     al,[bx+si]
+        mov     bl,dh
+        add     al,[bx+si]
+        mov     bl,al
+        mov     al,[bx+1234]
+        stosb
+        inc     di
+        inc     dl
+        dec     dh
+        loop    .xloop
+.endCode:
+
+
+
 
 LoopTaken:
   db "LoopTaken$"
@@ -606,7 +636,7 @@ interrupt8:
 
   mov al,TIMER1 | BOTH | MODE2 | BINARY
   out 0x43,al
-  mov al,18
+  mov al,19
   out 0x41,al  ; Timer 1 rate
   mov al,0
   out 0x41,al

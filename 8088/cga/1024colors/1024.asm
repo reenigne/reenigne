@@ -217,7 +217,7 @@ frameLoop:
   int 0x60
 noScreenshot:
   ; Wait a further minute before exiting
-  cmp cx,3600
+  cmp cx,3600*5
   je finish
 
   jmp frameLoop
