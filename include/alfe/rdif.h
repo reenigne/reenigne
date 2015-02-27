@@ -157,7 +157,7 @@ public:
         Byte dataLength = hostBytes[13];
         Byte formatGapLength = hostBytes[14];
         Byte formatFillByte = hostBytes[15];
-        Block* block;
+//        Block* block;
         switch (hostBytes[2]) {
             case 2:
                 // Read

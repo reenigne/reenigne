@@ -274,6 +274,11 @@ public:
         return new Implementation(name, Span(location, endLocation));
     }
     String name() const { return as<TycoIdentifier>()->name(); }
+    int hash() const { return name().hash(); }
+    bool operator==(const TycoIdentifier& other) const
+    {
+        return name() == other.name();
+    }
 
     class Implementation : public TycoSpecifier::Implementation
     {
@@ -284,8 +289,9 @@ public:
     private:
         String _name;
     };
-private:
+
     TycoIdentifierTemplate() { }
+private:
     TycoIdentifierTemplate(const Implementation* implementation)
       : TycoSpecifier(implementation) { }
 };

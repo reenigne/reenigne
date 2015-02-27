@@ -590,7 +590,7 @@ public:
         _arduinoCom.write<Byte>(0x77);
         //IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
 
-        Byte b;
+//        Byte b;
         if (!_keyboardKernel)
             _needReboot = (_com.tryReadByte() != 'R');
         else {

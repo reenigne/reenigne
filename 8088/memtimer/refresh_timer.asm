@@ -239,6 +239,43 @@ codePreambleEnd:
 
 experimentData:
 
+experimentPlasmaChange:
+  db "PlasmaChange$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov di,0
+  mov si,0
+  mov dx,0
+  mov bp,0
+.endInit
+  dw .endCode - ($+2)
+  mov al,[bx+1234]
+  stosb
+.endCode:
+
+experimentPlasmaChangeW:
+  db "PlasmaChangeW$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov di,0
+  mov si,0
+  mov dx,0
+  mov bp,0
+.endInit
+  dw .endCode - ($+2)
+  mov al,[bx+1234]
+  mov ah,[bx+1237]
+  stosw
+.endCode:
+
 experimentPlasmaLockstep2:
   db "PlasmaLockstep2$"
   dw .endInit - ($+2)
@@ -319,7 +356,7 @@ experimentPlasmaLockstep2:
 
 .endCode:
 
-546/16 61/110
+; 546/16 61/110
 
 experimentPlasmaW2:
   db "PlasmaW2$"

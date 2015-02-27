@@ -6,8 +6,8 @@
 #include "alfe/string.h"
 
 // Nullary is a helper class used for implementing classes which carry no data
-// (apart from their vtable pointer). It's used for some subclasses of Type and
-// Kind.
+// (apart from their vtable pointer). It's used for Operator and some
+// subclasses of Type and Kind.
 template<class Base, class My = Base> class Nullary : public Base
 {
 public:
@@ -18,16 +18,16 @@ protected:
     public:
         Implementation() { }
         String toString() const { return My::name(); }
-        bool equals(const typename Base::Implementation* other)
+        bool equals(const typename Base::Implementation* other) const
         {
             const Implementation* o =
                 dynamic_cast<const Implementation*>(other);
             return o == this;
         }
+        int hash() const { return reinterpret_cast<int>(this); }
     };
 
-    Nullary(const Implementation* implementation)
-      : Base(implementation) { }
+    Nullary(const Implementation* implementation) : Base(implementation) { }
 private:
     static Nullary _instance;
     static Nullary instance()
