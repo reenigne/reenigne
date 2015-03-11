@@ -239,8 +239,8 @@ codePreambleEnd:
 
 experimentData:
 
-experimentPlasmaLockstep2:
-  db "PlasmaLockstep2$"
+experimentPlasmaChangeB:
+  db "PlasmaChangeB$"
   dw .endInit - ($+2)
   mov ax,0xb800
   mov es,ax
@@ -253,223 +253,12 @@ experimentPlasmaLockstep2:
   mov bp,0
 .endInit
   dw .endCode - ($+2)
-
-        lodsw
-        add     ax,[bp+si]
-        xlatb
-        xchg al,ah
-        xlatb
-
-        stosb
-        inc di
-        mov al,ah
-        stosb
-        inc di
-        xchg ax,cx
-        stosb
-        inc di
-        mov al,ah
-        stosb
-        inc di
-        xchg ax,dx
-        stosb
-        inc di
-        mov al,ah
-        stosb
-        inc di
-
-        lodsw
-        add     ax,[bp+si]
-        xlatb
-        xchg al,ah
-        xlatb
-        xchg ax,cx
-
-        lodsw
-        add     ax,[bp+si]
-        xlatb
-        xchg al,ah
-        xlatb
-
-        stosb
-        inc di
-        mov al,ah
-        stosb
-        inc di
-        xchg ax,cx
-        stosb
-        inc di
-        mov al,ah
-        stosb
-        inc di
-
-        lodsw
-        add     ax,[bp+si]
-        xlatb
-        xchg al,ah
-        xlatb
-        xchg ax,cx
-
-        lodsw
-        add     ax,[bp+si]
-        xlatb
-        xchg al,ah
-        xlatb
-        xchg ax,dx
-
-.endCode:
-
-546/16 61/110
-
-experimentPlasmaW2:
-  db "PlasmaW2$"
-  dw .endInit - ($+2)
-  mov ax,0x7000
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-        lodsw
-        add     ax,[bp+si]
-        xlatb
-        xchg al,ah
-        xlatb
-        stosw
-.endCode:
-
-experimentPlasmaW:
-  db "PlasmaW$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-        lodsw
-        add     ax,[bp+si]
-        xlatb
-        stosb
-        inc di
-        mov al,ah
-        xlatb
-        stosb
-        inc di
-.endCode:
-
-experimentBlit:
-  db "Blit$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov di,0
-  mov si,0
-.endInit
-  dw .endCode - ($+2)
-  movsb
-  inc di
-.endCode:
-
-experimentPlasmaScali2c:
-  db "PlasmaScali2c$"
-  dw .endInit - ($+2)
-  mov ax,0x7000
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-        lodsb
-        add     al,[bp+si]
-        xlatb
-        stosb
-.endCode:
-
-
-experimentPlasmaScali2b:
-  db "PlasmaScali2b$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-        lodsb
-        add     al,[bp+si]
-        xlatb
-        stosw
-.endCode:
-
-
-experimentPlasmaScali2:
-  db "PlasmaScali2$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-        lodsb
-        add     al,[bp+si]
-        xlatb
-        stosb
-        inc     di
-.endCode:
-
-experimentPlasmaScali:
-  db "PlasmaScali$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-  lodsb
-  add al,[bp]
-  xlatb
+  mov al,[bx+12]
   stosb
-  inc di
-  dec bp
 .endCode:
 
-experimentPlasmaMe:
-  db "PlasmaMe$"
+experimentPlasmaChangeBW:
+  db "PlasmaChangeBW$"
   dw .endInit - ($+2)
   mov ax,0xb800
   mov es,ax
@@ -482,189 +271,69 @@ experimentPlasmaMe:
   mov bp,0
 .endInit
   dw .endCode - ($+2)
-        mov     bl,[si]
-        add     bl,[bp+si]
-        mov     al,[bx]
-        stosb
-        inc di
-        inc si
-.endCode:
-
-experimentPlasma2:
-  db "Plasma2$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-        mov     bl,[si]
-        add     bl,[bp+si]
-        mov     al,[bx]
-        stosb
-        inc di
-        mov al,dl
-        stosb
-        inc di
-        mov al,dh
-        stosb
-        inc di
-        mov al,ah
-        stosb
-        inc di
-        inc     si
-        mov     bl,[si]
-        add     bl,[bp+si]
-        mov     dl,[bx]
-        inc     si
-        mov     bl,[si]
-        add     bl,[bp+si]
-        mov     dh,[bx]
-        inc     si
-        mov     bl,[si]
-        add     bl,[bp+si]
-        mov     ah,[bx]
-        inc     si
-.endCode:
-
-
-experimentCopyAttributes:
-  db "CopyAttrs$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-  stosb
-  inc di
-  mov al,dl
-  stosb
-  inc di
-  mov al,dh
-  stosb
-  inc di
-  mov al,ah
-.endCode:
-
-experimentCopyAttributes2:
-  db "CopyAttrs2$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-  stosb
-  mov [es:di+1],dl
-  mov [es:di+3],dh
-  mov [es:di+5],ah
-.endCode:
-
-experimentCopyAttribute:
-  db "CopyAttr$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-  movsb
-  inc di
-.endCode:
-
-experimentPlasma:
-  db "Plasma$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
-.endInit
-  dw .endCode - ($+2)
-        mov     bl,[si]
-        add     bl,[bp+si]
-        mov     al,[bx]
-        stosb
-        inc     di
-        inc     si
-.endCode:
-
-
-experimentSSTTLUT:
-  db "SSTTLUT$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0x8000
-  mov ds,ax
-  mov di,0
-  mov si,0
-.endInit
-  dw .endCode - ($+2)
-  mov ax,[bx+9999]
+  mov al,[bx+12]
+  mov ah,[bx+17]
   stosw
 .endCode:
 
-experimentSSTTLUT_attributes:
-  db "SSTTLUT_attr$"
+
+experimentPlasmaChange:
+  db "PlasmaChange$"
   dw .endInit - ($+2)
   mov ax,0xb800
   mov es,ax
   mov ax,0x8000
   mov ds,ax
+  mov ss,ax
   mov di,0
   mov si,0
+  mov dx,0
+  mov bp,0
 .endInit
   dw .endCode - ($+2)
-  mov ax,[bx+9999]
+  mov al,[bx+1234]
   stosb
-  inc di
 .endCode:
 
-
-experimentADDMOVW:
-  db "ADDMOVW$"
+experimentPlasmaChangeW:
+  db "PlasmaChangeW$"
   dw .endInit - ($+2)
   mov ax,0xb800
   mov es,ax
   mov ax,0x8000
   mov ds,ax
+  mov ss,ax
   mov di,0
   mov si,0
+  mov dx,0
+  mov bp,0
 .endInit
   dw .endCode - ($+2)
-  or di,0x101
-  movsw
+  mov al,[bx+1234]
+  mov ah,[bx+1237]
+  stosw
+.endCode:
+
+experimentPlasmaOrig:
+  db "PlasmaOrig$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0x8000
+  mov ds,ax
+  mov ss,ax
+  mov di,0
+  mov si,0
+  mov dx,0
+  mov bp,0
+.endInit:
+  dw .endCode - ($+2)
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
 .endCode:
 
 

@@ -18,11 +18,11 @@ public:
             fileNameArgument = 2;
         }
         String fileName = _arguments[fileNameArgument];
-        String data = File(fileName).contents();
+        String data = File(fileName, true).contents();
         int l = data.length();
 
         _com = AutoHandle(CreateFile(
-            L"COM1",
+            L"COM3",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
             NULL,           // default security attributes
