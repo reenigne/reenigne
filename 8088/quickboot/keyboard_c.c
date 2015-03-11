@@ -740,7 +740,7 @@ int main()
 
     sei();
 
-    print(PSTR("Quickboot 20141018\n"));
+    print(PSTR("Quickboot 20150222\n"));
     print(PSTR("Kernel version "));
     print((const char*)defaultProgram + 4);
     print(PSTR("\n>"));
