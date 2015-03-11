@@ -1,4 +1,5 @@
 Pixel aspect ratio = 4:3 / 8:5 = 20:24 = 5:6 so 45 hdots = (45*5/12) = 18.75 scanlines
+                                                48 hdots =             20    scanlines
 
 
   out dx,al
@@ -134,3 +135,74 @@ On or after * on scanline 1, reduce horizontal total from 57 to 57+(X-Y)
 On or after * on scanline 2, return horizontal total to 57 and increase sync position from 57-Y to 57-X
 
 
+
+
+
+Similarly, vertically:
+
+   24 -
+   16 S
+   22 -
+    N .
+   80 A
+120-N .
+
+We'd like to be able to do arbitrary vertical moves in a single frame. Let's look at the worst cases:
+
+N=0 to 120  (top to bottom movement)
+
+   24 -
+   16 S
+   22 -
+    0 .
+
+   80 A
+  120 .
+   24 -
+   16 S
+   22 -
+  120 . After the standard sync pulse,
+
+   80 A Can't change CRTC parameters here, so need to change them...
+    0 .
+   24 - ...here
+   16 S
+   22 -
+
+
+N=120 to 0  (bottom to top movement)
+
+   24 -
+   16 S
+   22 -
+  120 .
+   80 A
+    0 .
+   24 -
+   16 S
+   22 -
+    0 .
+   80 A
+  120 .
+   24 -
+   16 S
+   22 -
+
+
+- and . are visually indistinguishable
+
+
+
+CRTC frames in the CRT frame:
+  One that starts at the top of the active area and ends after the sync pulse
+    This is possible for both the smallest and largest frames, so it's always possible
+  One that starts after the sync pulse and ends right before the active area
+    Active period for this can be hidden in the top overscan - only needs to be 1 scanline
+    Total needs to be at least 200 (224 would be better)
+    Needs to be between 22 and 142 scanlines = 11 to 71 rows
+      We can't vary the size of this frame using vertical total and vertical total adjust because the minimum would then be too short (right when we need it to be longest)
+        If it's 288 rows at the bottom then it would be 168 rows at the top which isn't even enough to reach the bottom of the standard active area
+    Therefore we need to leave the total alone and fast forward some rows in the top overscan
+      Fast-forwarding with row precision could be difficult
+        Do a coarse adjustment with fastforwarding and a fine adjustment with vertical total
+          Have a scanline routine which fastforwards 32 scanlines (using horizontal total = 1 for 32 characters)
