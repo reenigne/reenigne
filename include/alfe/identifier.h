@@ -148,15 +148,20 @@ public:
     }
 
     IdentifierTemplate(const Operator& op, const Span& span = Span())
-      : Expression(new typename IdentifierOperator<T>::Implementation(op, span)) { }
+      : Expression(
+            new typename IdentifierOperator<T>::Implementation(op, span)) { }
 
-    String name() const
+    String name() const { return implementation()->name(); }
+    bool isOperator() const { return implementation()->isOperator(); }
+    int hash() const
     {
-        return this->template as<IdentifierTemplate<T>>()->name();
+        return this->template as<IdentifierTemplate<T>>()->hash();
     }
-    bool isOperator() const
+    bool operator==(const Identifier& other) const
     {
-        return this->template as<IdentifierTemplate<T>>()->isOperator();
+        if (_implementation == other._implementation)
+            return true;
+        return implementation()->equals(other.implementation());
     }
 
     class Implementation : public ExpressionTemplate<T>::Implementation
@@ -169,10 +174,17 @@ public:
             return context->valueOfIdentifier(this);
         }
         virtual bool isOperator() const = 0;
+        virtual int hash() const = 0;
+        virtual bool equals(const Implementation* other) const
+        {
+            return this == other;
+        }
     };
 
-    IdentifierTemplate(Implementation* implementation)
-        : Expression(implementation) { }
+    IdentifierTemplate(const Implementation* implementation)
+      : Expression(implementation) { }
+
+    IdentifierTemplate() { }
 private:
     class NameImplementation : public Implementation
     {
@@ -181,10 +193,23 @@ private:
           : Implementation(span), _name(name) { }
         String name() const { return _name; }
         bool isOperator() const { return false; }
+        int hash() const { return _name.hash(); }
+        bool equals(const Implementation* other) const
+        {
+            const NameImplementation* o =
+                dynamic_cast<const NameImplementation*>(other);
+            if (o == 0)
+                return false;
+            return _name == o->_name;
+        }
     private:
         String _name;
     };
-    IdentifierTemplate() { }
+
+    const Implementation* implementation() const
+    {
+        return this->template as<IdentifierTemplate<T>>();
+    }
 };
 
 template<class My> class IdentifierOperator : public Identifier
@@ -195,11 +220,12 @@ public:
     class Implementation : public Identifier::Implementation
     {
     public:
-        Implementation(const Operator& op = My::op(),
+        Implementation(const Operator& op = My.op(),
             const Span& span = Span())
           : Identifier::Implementation(span), _op(op) { }
         String name() const { return "operator" + _op.toString(); }
         bool isOperator() const { return true; }
+        int hash() const { return _op.hash(); }
     private:
         Operator _op;
     };

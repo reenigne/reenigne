@@ -17,6 +17,17 @@ public:
             return *this;
         return Operator();
     }
+    int hash() const
+    {
+        // All the implementations are nullary
+        return
+            reinterpret_cast<int>(_implementation.referent<Implementation>());
+    }
+    bool operator==(const Operator& other) const
+    {
+        // All the implementations are nullary
+        return _implementation == other._implementation;
+    }
 
     bool valid() const { return _implementation.valid(); }
 protected:

@@ -457,17 +457,17 @@ private:
             if (!lValueType.valid()) {
                 if (!e.type().has(_right)) {
                     this->span().throwError("Expression has no member named " +
-                        _right.toString());
+                        _right.name());
                 }
                 auto m = e.value<Value<HashTable<IdentifierTemplate<T>,
-                    TypedValueTemplate<T>>>();
+                    TypedValueTemplate<T>>>>();
                 e = (*m)[_right];
                 e = TypedValue(e.type(), e.value(), this->span());
             }
             else {
                 if (!lValueType.inner().has(_right))
                     this->span().throwError("Expression has no member named " +
-                    _right.toString());
+                    _right.name());
                 StructureTemplate<T>* p = e.
                     template value<LValueTemplate<T>>().
                     rValue().template value<StructureTemplate<T>*>();

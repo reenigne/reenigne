@@ -19,7 +19,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v110_xp</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -84,14 +84,21 @@
     <ClInclude Include="..\..\..\include\alfe\any.h" />
     <ClInclude Include="..\..\..\include\alfe\array.h" />
     <ClInclude Include="..\..\..\include\alfe\config_file.h" />
+    <ClInclude Include="..\..\..\include\alfe\expression.h" />
     <ClInclude Include="..\..\..\include\alfe\file.h" />
     <ClInclude Include="..\..\..\include\alfe\file_handle.h" />
     <ClInclude Include="..\..\..\include\alfe\handle.h" />
+    <ClInclude Include="..\..\..\include\alfe\hash_table.h" />
+    <ClInclude Include="..\..\..\include\alfe\identifier.h" />
     <ClInclude Include="..\..\..\include\alfe\integer_types.h" />
     <ClInclude Include="..\..\..\include\alfe\linked_list.h" />
     <ClInclude Include="..\..\..\include\alfe\main.h" />
+    <ClInclude Include="..\..\..\include\alfe\operator.h" />
+    <ClInclude Include="..\..\..\include\alfe\parse_tree_object.h" />
     <ClInclude Include="..\..\..\include\alfe\rdif.h" />
     <ClInclude Include="..\..\..\include\alfe\reference.h" />
+    <ClInclude Include="..\..\..\include\alfe\set.h" />
+    <ClInclude Include="..\..\..\include\alfe\space.h" />
     <ClInclude Include="..\..\..\include\alfe\string.h" />
     <ClInclude Include="..\..\..\include\alfe\type.h" />
   </ItemGroup>

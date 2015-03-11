@@ -132,8 +132,15 @@ public:
                     " not defined and no default is available.");
         }
     }
-    TypedValue getValue(String name) { return _options[name].rValue(); }
-    void set(String name, TypedValue value) { _options[name] = value; }
+
+    TypedValue getValue(Identifier identifier)
+    {
+        return _options[identifier].rValue();
+    }
+    void set(Identifier identifier, TypedValue value)
+    {
+        _options[identifier] = value;
+    }
     File file() const { return _file; }
 
     TypedValue valueOfIdentifier(Identifier i)
