@@ -1,5 +1,5 @@
 org 0x100
-%include "../../defaults_common.asm"
+%include "../defaults_common.asm"
 
 frames equ 838
 positions equ 154
@@ -10,6 +10,7 @@ headerSize equ (headerEnd-header)
   mov ax,cs
   mov es,ax
   mov ds,ax
+;  mov sp,stackTop
   cli
   add ax,((unrolledCode + headerSize + 34*scanlines + footerSize + 15)>>4)
   mov ss,ax
@@ -110,33 +111,172 @@ pixelTable1Loop:
 
   ; Create raster bars table
 
-  mov cx,scanlines/2
-  mov ax,0
-rasterLoopY:
-  mov bx,cx
+;  mov cx,scanlines/2
+;  mov ax,0
+;rasterLoopY:
+;  mov bx,cx
+;
+;  mov cx,frames
+;  xor di,di
+;  rep stosw
+;  add dx,(frames*2 + 15) >> 4
+;  mov es,dx
+;
+;  add ax,positions*6*2*3
+;
+;  mov cx,frames
+;  xor di,di
+;  rep stosw
+;  add dx,(frames*2 + 15) >> 4
+;  mov es,dx
+;
+;  add ax,positions*6*2
+;  cmp ax,positions*6*2*32
+;  jb noWrap
+;  mov ax,0
+;noWrap:
+;  mov cx,bx
+;  loop rasterLoopY
+
+
+  mov cx,scanlines
+  mov si,yTable
+adjustLoopTop:
+  add [si+12],dx
+  add si,14
+  loop adjustLoopTop
+
 
   mov cx,frames
-  xor di,di
-  rep stosw
-  add dx,(frames*2 + 15) >> 4
-  mov es,dx
+  mov si,frameTable
+  cld
+initFrameLoop:
+  push cx
 
-  add ax,positions*6*2*3
+  cli
+  mov ax,cs
+  mov ss,ax
+  mov sp,yTable
+  mov bx,0
+  mov cx,scanlines
+  mov word[y_accum],0
 
-  mov cx,frames
-  xor di,di
-  rep stosw
-  add dx,(frames*2 + 15) >> 4
-  mov es,dx
+initYLoop:
+  pop bp                 ; bp = y_82
+  pop dx                 ; dl = y_1024, dh = y_900
+  lodsw                  ; al = frameno_8, ah = frameno_6
+  mov bl,al              ; bl = frameno_8
+  sub bl,dl              ; bl = (frameno_8 - y_1024) & 0xff
+  mov bh,0               ; bx = (frameno_8 - y_1024) & 0xff
+  add bx,bx              ; bx = ((frameno_8 - y_1024) & 0xff) << 1
+  add bp,[bx+sintab_16]  ; bp = y_82 + sintab_16[frameno_8 - y_1024]
+  mov bl,ah              ; bl = frameno_6
+  sub bl,dh              ; bl = (frameno_6 - y_900) & 0xff
+  mov bh,0               ; bx = (frameno_6 - y_900) & 0xff
+  add bx,bx              ; bx = (frameno_6 - y_900) & 0xff
+  add bp,[bx+sintab_12]  ; bp = y_82 + sintab_16[frameno_8 - y_1024] + sintab_12[frameno_6 - y_900] = ym
 
-  add ax,positions*6*2
-  cmp ax,positions*6*2*32
-  jb noWrap
-  mov ax,0
-noWrap:
+  mov bx,[y_accum]       ; bx = y_accum
+  mov ax,bp              ; ax = ym
+  and ax,0x1fc0          ; ax = ym & 0x1fc0
+  add ax,bx              ; ax = y_accum + (ym & 0x1fc0) = y_accum{new}
+  mov bx,bp              ; bx = ym
 
-  mov cx,bx
-  loop rasterLoopY
+  rol bx,1
+  rol bx,1
+  rol bx,1
+  inc bx
+  and bx,7               ; bx = (ym + 0x2000) >> 13 = ym3
+  add bx,bx
+  cmp ax,0x2000
+  jle useLC              ; if (y_accum > 0x2000) {
+  mov di,[hcTab+bx]      ;   colour = hc[ym3];
+  sub ax,0x2000          ;   y_accum -= 0x2000;
+  jmp gotColour          ; }
+useLC:                   ; else
+  mov di,[lcTab+bx]      ;   colour = lc[ym3];
+gotColour:
+  mov [y_accum],ax
+
+  pop dx                 ; dl = y_469, dh = y_1064
+  lodsw                  ; al = frameno_1017_acc, ah = frameno_547_acc
+  mov bl,al              ; bl = frameno_1017_acc
+  add bl,dl              ; bl = (frameno_1017_acc + y_469) & 0xff
+  mov bh,0               ; bx = (frameno_1017_acc + y_469) & 0xff
+  add bx,bx              ; bx = ((frameno_1017_acc + y_469) & 0xff) << 1
+  mov bp,[bx+sintab_76]  ; bp = sintab_76[frameno_1017_acc + y_469]
+  mov bl,ah              ; bl = frameno_547_acc
+  add bl,dh              ; bl = (frameno_547_acc + y_1064) & 0xff
+  mov bh,0               ; bx = (frameno_547_acc + y_1064) & 0xff
+  add bx,bx              ; bx = ((frameno_547_acc + y_1064) & 0xff) << 1
+  add bp,[bx+sintab_76]  ; bp = sintab_76[frameno_1017_acc + y_469] + sintab_76[frameno_547_acc + y_1064]
+  pop dx                 ; dl = y_2107, dh = y_521
+  lodsw                  ; al = frameno_78_acc, ah = frameno_20020_acc
+  mov bl,al              ; bl = frameno_78_acc
+  add bl,dl              ; bl = frameno_78_acc + y_2107
+  mov bh,0               ; bx = (frameno_78_acc + y_2107) & 0xff
+  add bx,bx              ; bx = ((frameno_78_acc + y_2107) & 0xff) << 1
+  add bp,[bx+sintab_25]  ; bp = sintab_76[frameno_1017_acc + y_469] + sintab_76[frameno_547_acc + y_1064] + sintab_25[frameno_78_acc + y_2107] = ovtmp
+  cmp bp,0x2000
+  jl noHighlight         ; if (ovtmp >= 8192)
+  mov bx,bp                ; bx = ovtmp
+  mov bl,bh                ; bl = ovtmp >> 8
+  shr bx,1                 ; bx = ovtmp >> 9
+  shr bx,1                 ; bx = ovtmp >> 10
+  and bx,0x003e
+  mov di,[highlightTab+bx] ; colour = highlight[ovtmp >> 11]
+noHighlight:
+
+  mov bl,ah              ; bl = frameno_20020_acc
+  add bl,dh              ; bl = frameno_20020_acc + y_521
+  mov bh,0               ; bx = (frameno_20020_acc + y_521) & 0xff
+  add bx,bx              ; bx = ((frameno_20020_acc + y_521) & 0xff) << 1
+  mov bp,[bx+sintab_42]  ; bp = sintab_42[frameno_20020_acc + y_521]
+  pop dx                 ; dl = y_1043, dh = y_642
+  lodsw                  ; al = frameno_240247_acc. ah = frameno_140144_acc
+  mov bl,al              ; bl = frameno_240247_acc
+  add bl,dl              ; bl = frameno_240247_acc + y_1043
+  mov bh,0               ; bx = (frameno_240247_acc + y_1043) & 0xff
+  add bx,bx              ; bx = ((frameno_240247_acc + y_1043) & 0xff) << 1
+  add bp,[bx+sintab_25]  ; bp = sintab_42[frameno_20020_acc + y_521] + sintab_25[frameno_240247_acc + y_1043]
+  mov bl,ah              ; bl = frameno_140144_acc
+  add bl,dh              ; bl = frameno_140144_acc + y_642
+  mov bh,0               ; bx = (frameno_140144_acc + y_642) & 0xff
+  add bx,bx              ; bx = ((frameno_140144_acc + y_642) & 0xff) << 1
+  add bp,[bx+sintab_76]  ; bp = sintab_42[frameno_20020_acc + y_521] + sintab_25[frameno_240247_acc + y_1043] + sintab_76[frameno_140144_acc + y_642] = x
+
+  add bp,bp
+  add di,[xTab+bp]       ; di = colour + xTab[x]
+  pop dx                 ; dx = yTab
+  add dx,di              ; dx = colour + xTab[x] + yTab
+  lodsw                  ; ax = framePointer
+  xchg ax,di             ; di = framePointer
+  pop es                 ; es = yPointer
+
+  xchg ax,dx             ; ax = final value
+  stosw                  ; store final value at framePointer+yPointer
+
+  sub si,8
+  loop initYLoop2
+  jmp doneInitYLoop
+initYLoop2:
+  jmp initYLoop
+doneInitYLoop:
+
+  mov ax,ds
+  add ax,((unrolledCode + headerSize + 34*scanlines + footerSize + 15)>>4)
+  mov ss,ax
+  mov sp,0xfffc
+  sti
+
+  add si,8
+  pop cx
+
+  loop initFrameLoop2
+  jmp doneInitFrameLoop
+initFrameLoop2:
+  jmp initFrameLoop
+doneInitFrameLoop:
 
 
   ; Create sample table
@@ -507,6 +647,11 @@ effectComplete:
   ret
 
 savedSP: dw 0
+
+times 128 nop
+stackTop:
+
+y_accum: dw 0
 
 footerEnd:
 songPosition: dw 0
