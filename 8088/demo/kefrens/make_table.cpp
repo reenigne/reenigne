@@ -56,16 +56,16 @@ public:
             frameno_240247_acc[frame] = ((frame*240247)>>16) & 0xff;
             frameno_140144_acc[frame] = ((frame*140144)>>16) & 0xff;
 
-            output.write(String("  db "));
-            output.write(String(hex(frameno_8[frame], 2)) + ", ");
-            output.write(String(hex(frameno_6[frame], 2)) + ", ");
-            output.write(String(hex(frameno_1017_acc[frame], 2)) + ", ");
-            output.write(String(hex(frameno_547_acc[frame], 2)) + ", ");
-            output.write(String(hex(frameno_78_acc[frame], 2)) + ", ");
-            output.write(String(hex(frameno_20020_acc[frame], 2)) + ", ");
-            output.write(String(hex(frameno_240247_acc[frame], 2)) + ", ");
-            output.write(String(hex(frameno_140144_acc[frame], 2)) + "\n");
-            output.write(String("  dw ") + hex(frame*2, 4) + "\n");
+            output.write(String("  dw "));
+            //output.write(String("sintab_16+") + hex(frameno_8[frame]<<1, 4) + ", ");
+            //output.write(String("sintab_12+") + hex(frameno_6[frame]<<1, 4) + ", ");
+            //output.write(String("sintab_76+") + hex(frameno_1017_acc[frame]<<1, 4) + ", ");
+            //output.write(String("sintab_76+") + hex(frameno_547_acc[frame]<<1, 4) + ", ");
+            //output.write(String("sintab_25+") + hex(frameno_78_acc[frame]<<1, 4) + ", ");
+            output.write(String(hex(frameno_20020_acc[frame]<<1, 4)) + ", ");
+            output.write(String(hex(frameno_240247_acc[frame]<<1, 4)) + ", ");
+            output.write(String(hex(frameno_140144_acc[frame]<<1, 4)) + "\n");
+            //output.write(String(hex(frame*2, 4)) + "\n");
         }
         output.write(String("\n"));
 
@@ -92,17 +92,17 @@ public:
             y_2107[y] = ((y*263) >> 5) & 0xff;
             yTab[y] = (y & 1)*1848;
 
-            output.write("  dw " + String(hex(y_82[y], 4)) + "\n");
-            output.write("  db " + String(hex(y_1024[y], 2)) + ", ");
-            output.write(String(hex(y_900[y], 2)) + ", ");
-            output.write(String(hex(y_469[y], 2)) + ", ");
-            output.write(String(hex(y_1064[y], 2)) + ", ");
-            output.write(String(hex(y_2107[y], 2)) + ", ");
-            output.write(String(hex(y_521[y], 2)) + ", ");
-            output.write(String(hex(y_1043[y], 2)) + ", ");
-            output.write(String(hex(y_642[y], 2)) + "\n");
-            output.write("  dw " + String(hex(yTab[y], 4)) + ", ");
-            output.write(String(hex(y * ((numFrames*2 + 15) >> 4), 4)) + "\n");
+            //output.write("  dw " + String(hex(y_82[y], 4)) + ", ");
+            //output.write(String(hex(((-y_1024[y])&0xff)<<1, 4)) + ", ");
+            //output.write(String(hex(y_900[y]<<1, 4)) + ", ");
+            //output.write(String(hex(y_469[y]<<1, 4)) + ", ");
+            //output.write(String(hex(y_1064[y]<<1, 4)) + ", ");
+            //output.write(String(hex(y_2107[y]<<1, 4)) + ", ");
+            output.write("  dw " + String("sintab_42+") + String(hex(y_521[y]<<1, 4)) + ", ");
+            output.write(String("sintab_25+") + String(hex(y_1043[y]<<1, 4)) + ", ");
+            output.write(String("sintab_76+") + String(hex(y_642[y]<<1, 4)) + "\n");
+            //output.write(String(hex(yTab[y], 4)) + "\n");
+            //output.write(String(hex(y * ((numFrames*2 + 15) >> 4), 4)) + "\n");
         }
         output.write(String("\n"));
 
@@ -117,62 +117,87 @@ public:
             sintab_12[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 12.0);
             //sintab_13[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 13.0);
             sintab_25[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 25.0);
-            sintab_42[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 42.0) + 77*256;
+            sintab_42[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 42.0 * 2.38) + 77*256;
             //sintab_48[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 12.0);
-            sintab_16[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 16.0);
-            sintab_76[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 76.0);
+            sintab_16[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 16.0 * 2.38);
+            sintab_76[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 12.0 * 2.38); //76.0);
         
         }
-        output.write(String("sintab_12:\n"));
-        for (int i = 0; i < 256; ++i)
-            output.write(String("  dw ") + hex(sintab_12[i], 4) + "\n");
+        //output.write(String("sintab_12:\n"));
+        //for (int i = 0; i < 512; ++i)
+        //    output.write(String("  dw ") + hex(sintab_12[i], 4) + "\n");
         output.write(String("sintab_25:\n"));
-        for (int i = 0; i < 256; ++i)
+        for (int i = 0; i < 512; ++i)
             output.write(String("  dw ") + hex(sintab_25[i], 4) + "\n");
         output.write(String("sintab_42:\n"));
-        for (int i = 0; i < 256; ++i)
+        for (int i = 0; i < 512; ++i)
             output.write(String("  dw ") + hex(sintab_42[i], 4) + "\n");
-        output.write(String("sintab_16:\n"));
-        for (int i = 0; i < 256; ++i)
-            output.write(String("  dw ") + hex(sintab_16[i], 4) + "\n");
+        //output.write(String("sintab_16:\n"));
+        //for (int i = 0; i < 512; ++i)
+        //    output.write(String("  dw ") + hex(sintab_16[i], 4) + "\n");
         output.write(String("sintab_76:\n"));
-        for (int i = 0; i < 256; ++i)
+        for (int i = 0; i < 512; ++i)
             output.write(String("  dw ") + hex(sintab_76[i], 4) + "\n");
 
         int xTab[154];
-        output.write(String("xTab:\n"));
+        //output.write(String("xTable:\n"));
         for (int x = 0; x < 154; ++x) {
             xTab[x] = x*12;
-            output.write(String("  dw ") + hex(xTab[x], 4) + "\n");
+        //    output.write(String("  dw ") + hex(xTab[x], 4) + "\n");
         }
 
+        //output.write(String("xTableOdd:\n"));
+        //for (int x = 0; x < 154; ++x) {
+        //    output.write(String("  dw ") + hex(xTab[x] + 1848, 4) + "\n");
+        //}
+
         int colourTab[16];
-        //output.write(String("colourTab:\n"));
-        for (int colour = 0; colour < 16; ++colour)
+        //output.write(String("colourTable:\n"));
+        for (int colour = 0; colour < 16; ++colour) {
             colourTab[colour] = colour*3696;
+        //    output.write(String("  dw ") + hex(colourTab[colour], 4) + "\n");
+        }
+        //output.write(String("colourTableEven:\n"));
+        //for (int colour = 0; colour < 16; ++colour) {
+        //    colourTab[colour] = colour*3696;
+        //    output.write(String("  dw ") + hex(colourTab[colour], 4) + "\n");
+        //}
+        //output.write(String("colourTableOdd:\n"));
+        //for (int colour = 0; colour < 16; ++colour) {
+        //    output.write(String("  dw ") + hex(colourTab[colour] + 1848, 4) + "\n");
+        //}
 
-        output.write(String("lcTab:\n"));
+        //output.write(String("lcTab:\n"));
         static char lc[] = { 0, 0, 1, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-        for (int colour = 0; colour < 16; ++colour)
-            output.write(String("  dw ") + hex(colourTab[lc[colour]], 4) + "\n");
-        
-        output.write(String("hcTab:\n"));
+        //for (int colour = 0; colour < 16; ++colour)
+        //    output.write(String("  dw ") + hex(colourTab[lc[colour]], 4) + "\n");
+        //
+        //output.write(String("hcTab:\n"));
         static char hc[] = { 0, 1, 9, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-        for (int colour = 0; colour < 16; ++colour)
-            output.write(String("  dw ") + hex(colourTab[hc[colour]], 4) + "\n");
+        //for (int colour = 0; colour < 16; ++colour)
+        //    output.write(String("  dw ") + hex(colourTab[hc[colour]], 4) + "\n");
 
-        output.write(String("highlightTab:\n"));
+        //output.write(String("highlightTab:\n"));
         static char highlight[] = { 0, 0, 0, 0, 4, 6, 14, 15, 
             15, 15, 15, 15, 15, 15, 15, 15,
         };
-        for (int colour = 0; colour < 16; ++colour)
-            output.write(String("  dw ") + hex(colourTab[highlight[colour]], 4) + "\n");
+        //for (int colour = 0; colour < 16; ++colour)
+        //    output.write(String("  dw ") + hex(colourTab[highlight[colour]], 4) + "\n");
 
         UInt16 finalTable[numLines*(numFrames + 2)];
+        memset(finalTable, 0, numLines*(numFrames + 2)*sizeof(UInt16));
+        UInt8 kefrensTable[numLines*(numFrames + 2)];
+        UInt8 rasterTable[numLines*(numFrames + 2)];
+
+        int minx = 999;
+        int maxx = 0;
 
         for (int frame = 0; frame < numFrames; ++frame) {
             UInt16 y_accum = 0;
             int p = frame;
+            int lastX = 0;
+            int lastColour = 0;
+            int lastV = 0;
             for (int y = 0; y < numLines; ++y) {
                 UInt16 ym = y_82[y]
                     + sintab_16[frameno_8[frame] - y_1024[y]]
@@ -202,12 +227,85 @@ public:
                     + sintab_25[frameno_240247_acc[frame] + y_1043[y]]
                     + sintab_76[frameno_140144_acc[frame] + y_642[y]]) >> 8;
 
-                int v = xTab[x] + yTab[y] + colour;
+                if (x < minx)
+                    minx = x;
+                if (x > maxx)
+                    maxx = x;
+
+                kefrensTable[p] = x - lastX;
+                lastX = x;
+                rasterTable[p] = colour - lastColour;
+                lastColour = colour;
+
+                int v = /*xTab[x] + yTab[y] +*/ colourTab[colour];
 
                 finalTable[p] = v;
+
                 p += (numFrames + 2);
             }
         }
-        output.write("\n\nunrolledCode:\n");
+
+        printf("%i %i\n",minx,maxx);
+
+        //for (int y = 0; y < numLines; ++y) {
+        //    int lastX = 0;
+        //    for (int frame = 0; frame < numFrames; ++frame) {
+        //        int x = finalTable[y*(numFrames+2) + frame];
+        //        finalTable[y*(numFrames+2) + frame] = lastX - x;
+        //        lastX = x;
+        //    }
+        //}
+
+
+        //////output.write(String("rasterTab:\n"));
+        ////for (int y = 0; y < numLines; ++y) {
+        ////    int lastX = 0;
+        ////    //output.write(String("  db "));
+        ////    for (int frame = 0; frame < numFrames; ++frame) {
+        ////        int x = kefrensTable[y*(numFrames+2) + frame];
+        ////        //output.write(String(hex(x - lastX, 2)));
+        ////        //if (frame != numFrames - 1)
+        ////        //    output.write(", ");
+        ////        //else
+        ////        //    output.write("\n");
+        ////        kefrensTable[y*(numFrames+2) + frame] = x - lastX;
+        ////        lastX = x;
+        ////    }
+        ////}
+        //////output.write("\n");
+
+        //////output.write(String("kefrensTab:\n"));
+        ////for (int y = 0; y < numLines; ++y) {
+        ////    int lastColour = 0;
+        ////    //output.write("  db ");
+        ////    for (int frame = 0; frame < numFrames; ++frame) {
+        ////        int colour = rasterTable[y*(numFrames+2) + frame];
+        ////        //output.write(String(hex(colour - lastColour, 2)));
+        ////        //if (frame != numFrames - 1)
+        ////        //    output.write(", ");
+        ////        //else
+        ////        //    output.write("\n");
+        ////        rasterTable[y*(numFrames+2) + frame] = colour - lastColour;
+        ////        finalTable[y*(numFrames+2) + frame] = rasterTable[y*(numFrames+2) + frame]*512 + (kefrensTable[y*(numFrames+2) + frame] & 0xff);
+        ////        lastColour = colour;
+        ////    }
+        ////}
+
+        //FILE* fp = fopen("tables.dat", "wb");
+        //fwrite(kefrensTable, 1, numLines*(numFrames + 2), fp);
+        //fwrite(rasterTable, 1, numLines*(numFrames + 2), fp);
+        //fwrite(finalTable, 2, numLines*(numFrames + 2), fp);
+        //fclose(fp);
+
+        FILE* fp2 = fopen("q:\\raster_colours.raw", "rb");
+        Byte rasterColours[154];
+        fread(rasterColours, 1, 154, fp2);
+        fclose(fp2);
+
+        output.write("rasterData:\n");
+        for (int i = 0; i < 154; ++i)
+            output.write(String("  dw ") + hex(3696*rasterColours[i], 4) + "\n");
+
+        output.write("\nunrolledCode:\n");
     }
 };

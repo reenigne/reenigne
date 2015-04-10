@@ -1,6 +1,27 @@
 org 0x100
-%include "../../defaults_common.asm"
 
+%include "../defaults_common.asm"
+
+demoAPI EQU 0F8h
+
+  ; Determine if loader is present, and abort if not
+
+  ; First, check to see if the API is even present.
+  ; If not, don't try to call anything since it will hang the system.
+  xor bx,bx
+  mov es,bx
+  mov di,(demoAPI * 4)+2      ;check to see if our INT is empty
+  cmp [word es:di],bx         ;int. vector empty?
+  je  exitShort               ;abort if so
+  mov ax,0700h                ;check int. vector to see if it's ours
+  int demoAPI
+  cmp ax,0C0DEh               ;magic cookie received?
+  jne exitShort               ;abort if not
+  jmp mstart
+exitShort:
+  jmp exitEffect
+
+mstart:
   mov ax,cs
   mov es,ax
   mov ds,ax
@@ -71,6 +92,16 @@ doneUnroll:
   rep movsb
 
 
+  ; Ready to start; tell API we are waiting, then proceed when
+  ; we get the signal.
+  mov ah,01                   ;tell loader we are ready to start
+  int demoAPI
+  mov ah,02                   ;wait for signal to proceed
+  stc
+waitLoader:
+  int demoAPI
+  jnc waitLoader              ;if carry not set, don't start yet
+
 
   ; Set video mode to 40-column text mode, black border, 50 rows
 
@@ -93,7 +124,7 @@ doneUnroll:
   mov dx,0x3da
   waitForVerticalSync
   waitForNoVerticalSync
-  dec dx
+ ; dec dx
 
 
   ; Send read interrupt request command to PIC
@@ -117,13 +148,13 @@ doneUnroll:
   ; Finish up
 
   sti
-  mov ax,3
-  int 0x10
+;  mov ax,3
+;  int 0x10
   mov ax,0x4c00
   int 0x21
 
 
-  ; This is the inner loop code. It's not called directory, but instead used
+  ; This is the inner loop code. It's not called directly, but instead used
   ; as source data for the unroller, which creates 1000 copies with the xx
   ; filled in and the "add" instructions at the end of each line of 20.
 
@@ -150,13 +181,13 @@ frameLoop:
   mov bp,[bx+2]
   add bx,4
 
-  mov al,0
-  out dx,al
-  inc dx
+;  mov al,0
+;  out dx,al
+;  inc dx
   waitForDisplayEnable
-  dec dx
-  mov al,15
-  out dx,al
+;  dec dx
+;  mov al,15
+;  out dx,al
 headerEnd:
 
 
@@ -189,6 +220,20 @@ over1:
 over2:
 
 noTransition:
+  mov sp,[savedSP]
+  ; call API housekeeping
+  xor ax,ax
+  int demoAPI
+  ; See if the API wants us to exit, fall through if not
+  ; Carry is set if we are supposed to be running, clear if not
+  mov ah,2
+  int demoAPI
+  ; Copy inverted carry flag to al
+  ; Target is intel only, so we can get away with:
+  db 0D6h                ; SALC: al=0 if no carry, ff if carry
+  inc al                 ; al=1 if nc, 0 if c
+  mov byte[ending],al
+
   ; See if the keyboard has sent a byte
   in al,0x20
   and al,2
@@ -216,6 +261,7 @@ noNewLoop:
   jmp frameLoop-((10*20+6)*47-6)
 effectComplete:
   mov sp,[savedSP]
+exitEffect:
   ret
 footerEnd:
 
