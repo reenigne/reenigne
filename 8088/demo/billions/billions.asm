@@ -102,7 +102,7 @@ notRight:
   jne notUp
   dec word[crtcPhase]
   cmp word[refreshPhase],0xffff
-  jne noUp
+  jne notUp
   mov word[refreshPhase],76*4-1
 notUp:
   cmp ah,0x50
@@ -308,6 +308,13 @@ frameLoop:
   stosb
   dec di
   times 33 nop
+
+  mov dl,0xda
+  waitForVerticalSync
+  waitForNoVerticalSync
+  waitForDisplayEnable
+  mov dl,0xd8
+
   jmp frameLoop
 
 unrollDataEnd:

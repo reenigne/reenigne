@@ -1,6 +1,8 @@
 #include <malloc.h>
 #include <stdlib.h>
 #include <dos.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <conio.h>
 #include <memory.h>
 #include <stdio.h>
@@ -128,6 +130,8 @@ static const UInt8 particleCode[] = {
 
 // Should we
 
+/* composite patterns: 00111100 11100000 00111000 00011100 00000111 01100000 00000011 */
+
 static const UInt8 headerCode[] = {
 //    0xcc,                    // int 3
     0x06,                    // push es
@@ -143,10 +147,14 @@ static const UInt8 headerCode[] = {
 //    0xb9, 0x55, 0xaa,        // mov cx,0aa55
 //    0xba, 0x11, 0x22,        // mov dx,02211
 //    0xbb, 0xdd, 0xee         // mov bx,0eedd
-   0xb8, 0x00, 0xc0,
-   0xb9, 0x30, 0x0c,
-   0xba, 0x10, 0x04,
-   0xbb, 0x01, 0x02
+//    0xb8, 0x00, 0xc0,
+//    0xb9, 0x30, 0x0c,
+//    0xba, 0x10, 0x04,
+//    0xbb, 0x01, 0x02
+    0xb8, 0x00, 0x3c,
+    0xb9, 0xe0, 0x38,
+    0xba, 0x1c, 0x07,
+    0xbb, 0x60, 0x03
 };
 
 static const UInt8 footerCode[] = {
@@ -827,6 +835,44 @@ void setMotion(int pattern)
     }
 }
 
+#if 0
+#define DO_SAVE
+#undef DO_LOAD
+#undef INTERNAL_DATA
+#else
+#undef DO_SAVE
+#undef DO_LOAD
+#define INTERNAL_DATA
+#endif
+
+#ifdef INTERNAL_DATA
+extern "C" UInt16 __far stardata[];
+#endif
+
+#if 0
+/* This doesn't work */
+int f8_handler (void)
+{
+  int retcode;
+  __asm {
+    xor ax, ax
+    mov es, ax
+    mov di,(0f8h * 4) + 2
+    mov bx,es:[di]
+    cmp bx,0
+    je blank
+    mov ax,1
+    mov [retcode],ax
+    ret
+    blank:
+    mov ax,0
+    mov [retcode],ax
+    ret
+  };
+  return retcode;
+}
+#endif
+
 int main()
 {
     UInt8 far* program = (UInt8 far*)(_fmalloc((pointCount + 1)*2 +
@@ -836,8 +882,24 @@ int main()
     UInt16 segment = (UInt16)((address + 0xf) >> 4);
     UInt16 far* points = (UInt16 far*)MK_FP(segment, 0);
     pointsPrev = (UInt16 far*)(_fmalloc(pointCount*2));
+    Bool in_loader = false;
+
+    union REGS regs;
+
+    if (1 /*f8_handler ()*/) {
+      regs.h.ah = 7;
+      int86 (0xf8, &regs, &regs);
+      if (regs.x.ax == 0xC0DE)
+	in_loader = true;
+    }
 
     _fmemset(points, 0, (pointCount + 1)*2);
+
+    int unused = 0;
+    int colour = 1;
+
+    /*printf ("stars are at: %x:%x\n", points);
+    exit (0);*/
 
     // Initialize the code block
     UInt8 far* particles = (UInt8 far*)MK_FP(segment, (pointCount + 1)*2);
@@ -851,6 +913,7 @@ int main()
         UInt16 r;
         do {
             r = rand() % pointCount;
+	    //r = unused++;
         } while (points[r] != 0 || !isVisible(r));
         points[r] = 1;
 
@@ -859,26 +922,89 @@ int main()
         *(UInt16 far*)(p) = r;
         *(UInt16 far*)(&particles[13]) = FP_OFF(p);
         particles[10] = ((rand()%7 + 1) << 3) + 5;
+	//particles[10] = ((colour << 3) + 5);
+
+	colour++;
+	if (colour > 7)
+	  colour = 1;
 
         particles += particleSize;
     }
     _fmemcpy(particles, footerCode, footerSize);
     pointsNext = points + 1;
 
-    // Set screen mode to 4 (CGA 320x200 2bpp)
-    union REGS regs;
-    regs.x.ax = 0x04;
-    int86(0x10, &regs, &regs);
+#ifndef INTERNAL_DATA
+    int f, result;
+#endif
 
     // Call code repeatedly. TODO: jmp instead of retf in the code and use interrupt for keyboard
     void (far* code)() = (void (far*)())MK_FP(segment, (pointCount + 1)*2);
     int k = 0;
-    int pattern = 0;
+    int pattern = 20; // 0;
+#if !defined(DO_LOAD) && !defined(INTERNAL_DATA)
     setMotion(pattern);
+#elif defined(DO_LOAD)
+    result = _dos_open ("stars.dat", _O_RDONLY, &f);
+    if (result != 0)
+      {
+        fprintf (stderr, "Error!\n");
+	exit (1);
+      }
+    _dos_read (f, points, sizeof (UInt16) * pointCount, 0);
+    _dos_close (f);
+#elif defined(INTERNAL_DATA)
+    _fmemcpy(points, stardata, pointCount * 2);
+#endif
+
+
+#ifdef DO_SAVE
+    //result = _dos_open ("stars.dat", _O_WRONLY, &f);
+    result = _dos_creat ("stars.dat", _A_NORMAL, &f);
+    if (result != 0)
+      {
+        fprintf (stderr, "Error! (%s)\n",
+		 result == EACCES ? "Access denied"
+		 : result == EINVAL ? "Invalid"
+		 : result == EMFILE ? "Too many open files"
+		 : result == ENOENT ? "File not found" : "?");
+	exit (1);
+      }
+    unsigned numwr;
+    _dos_write (f, points, sizeof (UInt16) * pointCount, &numwr);
+    _dos_commit (f);
+    _dos_close (f);
+#endif
+
+    _ffree(pointsPrev);
+    pointsPrev = 0;
+
+    if (in_loader) {
+      /* Signal to the loader that we're loaded.  */
+      regs.h.ah = 1;
+      int86 (0xf8, &regs, &regs);
+
+      do {
+        regs.h.ah = 2;
+        int86 (0xf8, &regs, &regs);
+      } while (!regs.x.cflag);
+    }
+
+    // Set screen mode to 4 (CGA 320x200 2bpp)
+    regs.x.ax = 0x06;
+    int86(0x10, &regs, &regs);
+    _outp(0x3d8,0x1a);
+
+    k = 0;
 
     do {
         code();
-        if (kbhit()) {
+
+	if (in_loader) {
+	  regs.h.ah = 2;
+	  int86 (0xf8, &regs, &regs);
+	  if (regs.x.cflag == 0)
+	    k = 27; /* oh lol. */
+	} else if (kbhit()) {
             k = getch();
             if (k == 27)
                 break;
@@ -896,10 +1022,9 @@ int main()
             setMotion(pattern);
         }
     } while (k != 27);
-    regs.x.ax = 0x03;
-    int86(0x10, &regs, &regs);
+/*    regs.x.ax = 0x03;
+    int86(0x10, &regs, &regs); */
 
-    _ffree(pointsPrev);
     _ffree(program);
     return 0;
 }

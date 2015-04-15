@@ -1,34 +1,71 @@
-org 0
+org 0x100
 cpu 8086
 
-  cli
+demoAPI EQU 0F8h
+
+  ; Determine if loader is present, and abort if not
+
+  ; First, check to see if the API is even present.
+  ; If not, don't try to call anything since it will hang the system.
+  xor bx,bx
+  mov es,bx
+  mov di,(demoAPI * 4)+2      ;check to see if our INT is empty
+  cmp [word es:di],bx         ;int. vector empty?
+  je  exitShort               ;abort if so
+  mov ax,0700h                ;check int. vector to see if it's ours
+  int demoAPI
+  cmp ax,0C0DEh               ;magic cookie received?
+  jne exitShort               ;abort if not
+  jmp mstart
+exitShort:
+  jmp exitEffect
+mstart:
+
+
+; Move vsync start up 50 scanlines (25 rows) to scanline 174 = row 37
+
+; Active region:
+; Scanline   0 = row   0 scanline 0 of 100-line screen
+; Scanline   1 = row   1 scanline 0 of 100-line screen
+; ...
+
+; Overscan region:
+; Scanline 100 = row   0 scanline 0 of 162-line screen
+; Scanline 101 = row   0 scanline 1 of 162-line screen = last visible
+; Scanline 102 = row   1 scanline 0 of 162-line screen
+; Scanline 103 = row   1 scanline 1 of 162-line screen
+; ...
+; Scanline 126 = row 126 scanline 0 of 162-line screen
+; Scanline 127 = row   0 scanline 0 of 162-line screen
+
+; Common:  0x7100, 0x5001, 0x5a02, 0x0003, 0x0005, 0x0208, 0x060a, 0x070b, 0x030a, 0xc00f
+; Active region: 0x6304, 0x6406, 0x7f07, 0x0009, 0x1f0c, 0x400d
+; Overscan region: 0x5004, 0x0106, 0x2507, 0x0109, 0x000c, 0x000d
+
+
+  ; Ready to start; tell API we are waiting, then proceed when
+  ; we get the signal.
+  mov ah,01                   ;tell loader we are ready to start
+  int demoAPI
+  mov ah,02                   ;wait for signal to proceed
+  stc
+waitLoader:
+  int demoAPI
+  jnc waitLoader              ;if carry not set, don't start yet
+
 
   ; Copy data
   mov ax,cs
   mov ds,ax
   mov ax,0xb800
   mov es,ax
-  mov cx,8000
+  mov cx,8160
   mov si,data
   xor di,di
   cld
   rep movsw
-
-
-; Scanline   0 = row  0 of  2-line screen (Address 0 = blank)
-; Scanline   1 = row  1 of  2-line screen (Address 160 = pixel line 0)
-; Scanline   2 = row  0 of  2-line screen (Address 160 = pixel line 0)
-; Scanline   3 = row  1 of  2-line screen (Address 320 = pixel line 1)
-; ...
-; Scanline 198 = row  0 of  2-line screen (Address 15840 = pixel line 98)
-; Scanline 199 = row  1 of  2-line screen (Address 16000 = pixel line 99)
-; Scanline 200 = row  0 of 62-line screen (Address 16000 = pixel line 99)
-; Scanline 201 = row  1 of 62-line screen (Address 16160 = blank)
-; ...
-; Scanline 224 = row 24 of 62-line screen - sync start
-; ...
-; Scanline 261 = row 61 of 62-line screen
-
+  xor ax,ax
+  stosw
 
   ; Mode                                                09
   ;      1 +HRES                                         1
@@ -49,7 +86,7 @@ cpu 8086
   ;   0x10 +BACKGROUND I                                 0
   ;   0x20 +COLOR SEL                                    0
   inc dx
-  mov al,0
+  mov al,0x00
   out dx,al
 
   mov dl,0xd4
@@ -71,7 +108,7 @@ cpu 8086
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
-  mov ax,0x3d04
+  mov ax,0x6304
   out dx,ax
 
   ;   0x1f Vertical Total Adjust                        00
@@ -79,11 +116,11 @@ cpu 8086
   out dx,ax
 
   ;   0x7f Vertical Displayed                           02
-  mov ax,0x0206
+  mov ax,0x6406
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       18
-  mov ax,0x1807
+  mov ax,0x7f07
   out dx,ax
 
   ;   0x03 Interlace Mode                               02
@@ -97,11 +134,11 @@ cpu 8086
   ; Cursor Start                                        06
   ;   0x1f Cursor Start                                  6
   ;   0x60 Cursor Mode                                   0
-  mov ax,0x060a
+  mov ax,0x000a
   out dx,ax
 
   ;   0x1f Cursor End                                   07
-  mov ax,0x070b
+  mov ax,0x000b
   out dx,ax
 
   ;   0x3f Start Address (H)                            00
@@ -113,11 +150,11 @@ cpu 8086
   out dx,ax
 
   ;   0x3f Cursor (H)                                   03
-  mov ax,0x030e
+  mov ax,0x1f0e
   out dx,ax
 
   ;   0xff Cursor (L)                                   c0
-  mov ax,0xc00f
+  mov ax,0xff0f
   out dx,ax
 
 
@@ -149,118 +186,72 @@ cpu 8086
     jnz %%waitForNoVerticalSync
 %endmacro
 
+  cli
+
 
   mov dl,0xda
   mov bx,80     ; Initial
   mov cx,0      ; Frame counter
 frameLoop:
+
+  ; Scanline 0
+  waitForDisplayEnable
+; Active region: 0x6304, 0x6406, 0x7f07, 0x0009, 0x1f0c, 0x400d
+  mov dl,0xd4
+  mov ax,0x0009
+  out dx,ax
+  mov ax,0x6304
+  out dx,ax
+  mov ax,0x6406
+  out dx,ax
+  mov ax,0x7f07
+  out dx,ax
+  mov ax,0x1f0c
+  out dx,ax
+  mov ax,0x400d
+  out dx,ax
+  mov dl,0xda
+  waitForDisplayDisable
+
+  ; Scanlines 1-99
+%rep 99
+  waitForDisplayEnable
+  waitForDisplayDisable
+%endrep
+
+  ; Scanline 100
+  waitForDisplayEnable
+; Overscan region: 0x5004, 0x0106, 0x2507, 0x0109, 0x000c, 0x000d
+  mov dl,0xd4
+  mov ax,0x0109
+  out dx,ax
+  mov ax,0x0106
+  out dx,ax
+  mov ax,0x2507
+  out dx,ax
+  mov ax,0x5004
+  out dx,ax
+  mov ax,0x000c
+  out dx,ax
+  inc ax
+  out dx,ax
+  mov dl,0xda
+  waitForDisplayDisable
+
   waitForVerticalSync
   waitForNoVerticalSync
 
-  ; During line 0-1 we set up the start address for line 2 and change the vertical total to 0x01
-  waitForDisplayEnable
-  mov dl,0xd4
-  mov ax,0x0104 ; 4: Vertical total: 2 rows/frame
-  out dx,ax
-  mov dl,0xda
-  waitForDisplayDisable
-  waitForDisplayEnable
-  mov dl,0xd4
-  mov ah,bh
-  mov al,0x0c
-  out dx,ax     ; Start address high
-  mov ah,bl
-  inc ax
-  out dx,ax     ; Start address low
-  add bx,80     ; Next start address
-  mov dl,0xda
-  waitForDisplayDisable
-
-  ; During lines 2..199 we set up the start address for the next line
-%rep 99
-    waitForDisplayEnable
-    waitForDisplayDisable
-    waitForDisplayEnable
-    mov dl,0xd4
-    mov ah,bh
-    mov al,0x0c
-    out dx,ax     ; Start address high
-    mov ah,bl
-    inc ax
-    out dx,ax     ; Start address low
-    add bx,80     ; Next start address
-    mov dl,0xda
-    waitForDisplayDisable
-%endrep
-
-  ; During line 200 we set up the start address for line 0 and change the vertical total to 0x3d
-  waitForDisplayEnable
-  mov dl,0xd4
-  mov ax,0x3d04  ; 4: Vertical total: 62 rows/frame
-  out dx,ax
-  mov dl,0xda
-  waitForDisplayDisable
-  waitForDisplayEnable
-  mov dl,0xd4
-  mov ax,0x000c
-  out dx,ax      ; Start address high
-  inc ax
-  out dx,ax      ; Start address low
-  mov bx,80
-  mov dl,0xda
-  waitForDisplayDisable
-
-  ; Take a screenshot after 1 second
-  inc cx
-  cmp cx,60
-  jne noScreenshot
-;  int 0x60
-noScreenshot:
-  ; Wait a further minute before exiting
-  cmp cx,3600*5
-  je finish
+  push dx
+  mov ah,0
+  int demoAPI
+  mov ah,2
+  int demoAPI
+  jnc exitEffect
+  pop dx
 
   jmp frameLoop
-finish:
-
-  ; Set the CGA back to a normal mode so we don't risk breaking anything
-  mov ax,3
-  int 0x10
-
-  ; Relinquish control
-  int 0x67
-
+exitEffect:
+  mov ax,0x4c00
+  int 0x21
 data:
 
-;%rep 80
-;  db 0x00,0x00
-;%endrep
-;
-;%assign i 0
-;%rep 50
-;  %rep 2
-;    db 0x00,0x00
-;    %rep 26
-;      %rep 3
-;        %if (i & 0x3ff) < 256
-;          db 0x55
-;        %elif (i & 0x3ff) < 512
-;          db 0x13
-;        %elif (i & 0x3ff) < 768
-;          db 0xb0
-;        %else
-;          db 0xb1
-;        %endif
-;        db (i & 0xff)
-;      %endrep
-;      %assign i i+1
-;    %endrep
-;    db 0x00,0x00
-;    %assign i i-26
-;  %endrep
-;  %assign i i+26
-;%endrep
-;
-;%rep 80
-;  db 0x00,0x00
-;%endrep
