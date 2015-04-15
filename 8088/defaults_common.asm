@@ -414,6 +414,10 @@ cpu 8086
 %endmacro
 
 %macro lockstep2 0
+  mov dx,0x03d8
+  mov al,0x0a
+  out dx,al
+
   ; Set up CRTC for 1 character by 2 scanline "frame". This gives us 2 lchars
   ; per frame.
   mov dx,0x3d4
@@ -506,10 +510,6 @@ cpu 8086
   mul cl
   stosb        ; Down to 1 possible CGA/CPU relative phase: lockstep achieved.
 
-  mov dx,0x03d8
-  mov al,0x0a
-  out dx,al
-
   ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
   ; which of the two possible CRTC states we're in and switch states if we're
   ; in the wrong one by waiting for an odd number of lchars more in one code
@@ -539,28 +539,28 @@ cpu 8086
 
 
 %macro waitForDisplayEnable 0
-  %%waitForDisplayEnable
+  %%waitForDisplayEnable:
     in al,dx                       ; 1 1 2
     test al,1                      ; 2 0 2
     jnz %%waitForDisplayEnable     ; 2 0 2
 %endmacro
 
 %macro waitForDisplayDisable 0
-  %%waitForDisplayDisable
+  %%waitForDisplayDisable:
     in al,dx                       ; 1 1 2
     test al,1                      ; 2 0 2
     jz %%waitForDisplayDisable     ; 2 0 2
 %endmacro
 
 %macro waitForVerticalSync 0
-  %%waitForVerticalSync
+  %%waitForVerticalSync:
     in al,dx
     test al,8
     jz %%waitForVerticalSync
 %endmacro
 
 %macro waitForNoVerticalSync 0
-  %%waitForNoVerticalSync
+  %%waitForNoVerticalSync:
     in al,dx
     test al,8
     jnz %%waitForNoVerticalSync

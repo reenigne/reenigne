@@ -1,4 +1,4 @@
-#include "alfe/main.h"                             _
+#include "alfe/main.h"
 #include "alfe/bitmap_png.h"
 #include "alfe/terminal6.h"
 #include "alfe/complex.h"
@@ -665,7 +665,7 @@ public:
     }
 
     void escapePressed()
-    { 
+    {
         for (int i = 0; i < 4096; ++i) {
             Block b(i);
             int bits = b.bits();
@@ -685,7 +685,7 @@ public:
             Slider* slider = &_sliders[i >> 1];
             if (!slider->use())
                 continue;
-                                                                   
+
             double oldFitness = _fitness;
             Colour oldComputes[4096];
             double oldFitnesses[4096];
@@ -767,7 +767,7 @@ public:
         return true;
     }
 
-private:                                                                           
+private:
     void integrate(Block b, double* dc, Complex<double>* iq/*, double* hf*/)
     {
         double s[4];
@@ -793,7 +793,7 @@ private:
         Complex<double> iqAdjust = -iqBurst.conjugate()*unit((33 + 90 + _hue)/360.0)*_saturation*_contrast/iqBurst.modulus();
         if (iqBurst.modulus2() == 0)
             iqAdjust = 0;
-        
+
         _fitness = 0;
         for (int bn = 0; bn < 4096; ++bn) {
             Block block(bn);
@@ -908,7 +908,7 @@ private:
     double _hue;
     double _brightness;
     double _contrast;
-    
+
 //    double _voltages[4];
     Colour _captures[4096];
     Colour _computes[4096];
@@ -968,7 +968,7 @@ private:
     CalibrateBitmapWindow _bitmap;
 };
 
-class Program : public WindowProgram<CalibrateWindow> 
+class Program : public WindowProgram<CalibrateWindow>
 {
 public:
     bool idle() { return _window.idle(); }

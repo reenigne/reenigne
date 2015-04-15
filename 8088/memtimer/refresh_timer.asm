@@ -1,5 +1,8 @@
   %include "../defaults_bin.asm"
 
+REFRESH_RATE EQU 18
+ITERATIONS EQU 120
+
   mov al,TIMER0 | BOTH | MODE2 | BINARY
   out 0x43,al
   xor al,al
@@ -53,7 +56,7 @@ spaceLoop:
 repeatLoop:
   push cx
 
-  mov cx,480+48  ; Number of iterations in primary measurement
+  mov cx,ITERATIONS*4+48  ; Number of iterations in primary measurement
   call doMeasurement
   push bx
   mov cx,48      ; Number of iterations in secondary measurement
@@ -63,7 +66,7 @@ repeatLoop:
   neg ax         ; Negate to get the positive difference.
 
   xor dx,dx
-  mov cx,120
+  mov cx,ITERATIONS
   div cx       ; Divide by 120 to get number of cycles (quotient) and number of extra tcycles (remainder)
 
   push dx      ; Store remainder
@@ -140,6 +143,7 @@ output:
 
 doMeasurement:
   push si
+;  push cx
   push cx  ; Save number of iterations
 
   ; Copy init
@@ -153,12 +157,6 @@ doMeasurement:
   pop cx
 iterationLoop:
   push cx
-
-  push si
-  mov si,codePreambleStart
-  mov cx,codePreambleEnd-codePreambleStart
-  call codeCopy
-  pop si
 
   push si
   mov cx,ax
@@ -199,6 +197,9 @@ iterationLoop:
   out 0x43,al
   mov al,0x04  ; Count = 0x0004 which should be after the hlt instruction has
   out 0x40,al  ; taken effect.
+
+;  pop cx
+
   sti
   hlt
 
@@ -232,35 +233,536 @@ outOfSpaceMessage:
 outOfSpaceMessageEnd:
 
 
-codePreambleStart:
-;  mov al,0
-;  mul cl
-codePreambleEnd:
-
 experimentData:
 
+%assign nops -1
+%rep 18
+%assign nops nops+1
 
-experimentPlasmaOrig:
-  db "PlasmaOrig$"
+experimentSIDPatch %+ nops:
+  db "SIDPatch$"
   dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
+
   mov ax,0x8000
   mov ds,ax
   mov ss,ax
-  mov di,0
-  mov si,0
-  mov dx,0
-  mov bp,0
+  mov cx,1
+  mov ah,1
+  times nops nop
+
 .endInit:
   dw .endCode - ($+2)
-  add cx,si
-  add dx,bp
-  mov al,ch
-  mov bh,dh
-  xlatb
-  stosb
+
+  add bp,0x0f0f
+  mov bx,bp
+  mov bl,0x0f
+  mov al,[bx]
+  add si,0x0f0f
+  mov bx,si
+  mov bl,0x0f
+  add al,[bx]
+  add di,0x0f0f
+  mov bx,di
+  mov bl,0x0f
+  add al,[bx]
+  add dx,0x0f0f
+  mov bx,dx
+  mov bl,0x0f
+  add al,[bx]
+  out 0xe0,al
+  loop .endInit+2
+
+  pop bx
+  pop word[cs:bx]
+  mov cl,1
+
+  jmp $+2
+
+.endCode
+
+
+;experimentSID_CS_INC_mw %+ nops:
+;  db "SID_CS_INC_mw$"
+;  dw .endInit - ($+2)
+;
+;  mov ax,0x8000
+;  mov ds,ax
+;  mov ss,ax
+;  mov cx,0xffff
+;  mov ah,1
+;  times nops nop
+;
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  add bp,0x0f0f
+;  mov bx,bp
+;  mov bl,0x0f
+;  mov al,[bx]
+;  add si,0x0f0f
+;  mov bx,si
+;  mov bl,0x0f
+;  add al,[bx]
+;  add di,0x0f0f
+;  mov bx,di
+;  mov bl,0x0f
+;  add al,[bx]
+;  add dx,0x0f0f
+;  mov bx,dx
+;  mov bl,0x0f
+;  add al,[bx]
+;  out 0xe0,al
+;  loop $+2
+;
+;  inc word[cs:0]
+;  times 3 nop
+;
+;.endCode
+;
+;
+;experimentSID_CS_MOV_ES_mw %+ nops:
+;  db "SID_CS_MOV_ES_mw$"
+;  dw .endInit - ($+2)
+;
+;  mov ax,0x8000
+;  mov ds,ax
+;  mov ss,ax
+;  mov cx,0xffff
+;  mov ah,1
+;  times nops nop
+;
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  add bp,0x0f0f
+;  mov bx,bp
+;  mov bl,0x0f
+;  mov al,[bx]
+;  add si,0x0f0f
+;  mov bx,si
+;  mov bl,0x0f
+;  add al,[bx]
+;  add di,0x0f0f
+;  mov bx,di
+;  mov bl,0x0f
+;  add al,[bx]
+;  add dx,0x0f0f
+;  mov bx,dx
+;  mov bl,0x0f
+;  add al,[bx]
+;  out 0xe0,al
+;  loop $+2
+;
+;  mov es,[cs:0]
+;  times 6 nop
+;
+;.endCode
+;
+;
+;experimentSID_mem_mem_byte %+ nops:
+;  db "SID_mem_mem_byte$"
+;  dw .endInit - ($+2)
+;
+;  mov ax,0x8000
+;  mov ds,ax
+;  mov ss,ax
+;  mov es,ax
+;  mov cx,0xffff
+;  mov ah,1
+;  times nops nop
+;
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  add bp,0x0f0f
+;  mov bx,bp
+;  mov bl,0x0f
+;  mov al,[bx]
+;  add si,0x0f0f
+;  mov bx,si
+;  mov bl,0x0f
+;  add al,[bx]
+;  add di,0x0f0f
+;  mov bx,di
+;  mov bl,0x0f
+;  add al,[bx]
+;  add dx,0x0f0f
+;  mov bx,dx
+;  mov bl,0x0f
+;  add al,[bx]
+;  out 0xe0,al
+;  loop $+2
+;
+;  mov al,[es:0]
+;  mov [ss:0],al
+;  times 3 nop
+;
+;.endCode
+;
+;
+;experimentSID_mem_mem_word %+ nops:
+;  db "SID_mem_mem_word$"
+;  dw .endInit - ($+2)
+;
+;  mov ax,0x8000
+;  mov ds,ax
+;  mov ss,ax
+;  mov es,ax
+;  mov cx,0xffff
+;  mov ah,1
+;  times nops nop
+;
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  add bp,0x0f0f
+;  mov bx,bp
+;  mov bl,0x0f
+;  mov al,[bx]
+;  add si,0x0f0f
+;  mov bx,si
+;  mov bl,0x0f
+;  add al,[bx]
+;  add di,0x0f0f
+;  mov bx,di
+;  mov bl,0x0f
+;  add al,[bx]
+;  add dx,0x0f0f
+;  mov bx,dx
+;  mov bl,0x0f
+;  add al,[bx]
+;  out 0xe0,al
+;  loop $+2
+;
+;  mov ax,[es:0]
+;  mov [ss:0],ax
+;  times 1 nop
+;
+;.endCode
+;
+;
+;experimentSID_ES_MOV_SP_mw %+ nops:
+;  db "SID_ES_MOV_SP_mw$"
+;  dw .endInit - ($+2)
+;
+;  mov ax,0x8000
+;  mov ds,ax
+;  mov ss,ax
+;  mov es,ax
+;  mov cx,0xffff
+;  mov ah,1
+;  times nops nop
+;
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  add bp,0x0f0f
+;  mov bx,bp
+;  mov bl,0x0f
+;  mov al,[bx]
+;  add si,0x0f0f
+;  mov bx,si
+;  mov bl,0x0f
+;  add al,[bx]
+;  add di,0x0f0f
+;  mov bx,di
+;  mov bl,0x0f
+;  add al,[bx]
+;  add dx,0x0f0f
+;  mov bx,dx
+;  mov bl,0x0f
+;  add al,[bx]
+;  out 0xe0,al
+;  loop $+2
+;
+;  mov sp,[es:0]
+;  times 6 nop
+;
+;.endCode
+;
+;
+;experimentSID_CRTC %+ nops:
+;  db "SID_CRTC$"
+;  dw .endInit - ($+2)
+;
+;  mov ax,0x8000
+;  mov ds,ax
+;  mov ss,ax
+;  mov cx,0xffff
+;  mov ah,1
+;  times nops nop
+;
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  add bp,0x0f0f
+;  mov bx,bp
+;  mov bl,0x0f
+;  mov al,[bx]
+;  add si,0x0f0f
+;  mov bx,si
+;  mov bl,0x0f
+;  add al,[bx]
+;  add di,0x0f0f
+;  mov bx,di
+;  mov bl,0x0f
+;  add al,[bx]
+;  add dx,0x0f0f
+;  mov bx,dx
+;  mov bl,0x0f
+;  add al,[bx]
+;  out 0xe0,al
+;  loop $+2
+;
+;  mov bx,dx
+;  mov dx,0x3d4
+;  mov ax,0x000c
+;  out dx,ax
+;  mov dx,bx
+;;  times 4 nop
+;
+;.endCode
+;
+;
+;experimentSID_MOV_SP_iw %+ nops:
+;  db "SID_MOV_SP_iw$"
+;  dw .endInit - ($+2)
+;
+;  mov ax,0x8000
+;  mov ds,ax
+;  mov ss,ax
+;  mov cx,0xffff
+;  mov ah,1
+;  times nops nop
+;
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  add bp,0x0f0f
+;  mov bx,bp
+;  mov bl,0x0f
+;  mov al,[bx]
+;  add si,0x0f0f
+;  mov bx,si
+;  mov bl,0x0f
+;  add al,[bx]
+;  add di,0x0f0f
+;  mov bx,di
+;  mov bl,0x0f
+;  add al,[bx]
+;  add dx,0x0f0f
+;  mov bx,dx
+;  mov bl,0x0f
+;  add al,[bx]
+;  out 0xe0,al
+;  loop $+2
+;
+;  mov sp,1234
+;  times 12 nop
+;
+;.endCode
+;
+;
+;experimentSID_load_ES %+ nops:
+;  db "SID_load_ES$"
+;  dw .endInit - ($+2)
+;
+;  mov ax,0x8000
+;  mov ds,ax
+;  mov ss,ax
+;  mov cx,0xffff
+;  mov ah,1
+;  times nops nop
+;
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  add bp,0x0f0f
+;  mov bx,bp
+;  mov bl,0x0f
+;  mov al,[bx]
+;  add si,0x0f0f
+;  mov bx,si
+;  mov bl,0x0f
+;  add al,[bx]
+;  add di,0x0f0f
+;  mov bx,di
+;  mov bl,0x0f
+;  add al,[bx]
+;  add dx,0x0f0f
+;  mov bx,dx
+;  mov bl,0x0f
+;  add al,[bx]
+;  out 0xe0,al
+;  loop $+2
+;
+;  mov ax,0xb800
+;  mov es,ax
+;  times 10 nop
+;
+;.endCode
+;
+;
+;experimentSID_draw %+ nops:
+;  db "SID_draw$"
+;  dw .endInit - ($+2)
+;
+;  mov ax,0x8000
+;  mov ds,ax
+;  mov ss,ax
+;  mov cx,0xffff
+;  mov ah,1
+;  mov ax,0xb800
+;  mov es,ax
+;  times nops nop
+;
+;.endInit:
+;  dw .endCode - ($+2)
+;
+;  add bp,0x0f0f
+;  mov bx,bp
+;  mov bl,0x0f
+;  mov al,[bx]
+;  add si,0x0f0f
+;  mov bx,si
+;  mov bl,0x0f
+;  add al,[bx]
+;  add di,0x0f0f
+;  mov bx,di
+;  mov bl,0x0f
+;  add al,[bx]
+;  add dx,0x0f0f
+;  mov bx,dx
+;  mov bl,0x0f
+;  add al,[bx]
+;  out 0xe0,al
+;  loop $+2
+;
+;  mov word[es:0x3ffe],1234
+;  times 1 nop
+;
+;.endCode
+
+%endrep
+
+experimentHLT:
+  db "HLT$"
+  dw .endInit - ($+2)
+
+.endInit:
+  dw .endCode - ($+2)
+
+  hlt
+
+.endCode
+
+
+
+experimentVScroll:
+  db "VScroll$"
+  dw .endInit - ($+2)
+  mov di,8192
+  rep movsw
+.endInit:
+  dw .endCode - ($+2)
 .endCode:
+
+experimentHScroll2:
+  db "HScroll$"
+  dw .endInit - ($+2)
+  mov di,8192
+.endInit:
+  dw .endCode - ($+2)
+  movsw
+  add di,bx
+  add si,bx
+.endCode:
+
+experimentHScroll1:
+  db "HScroll1$"
+  dw .endInit - ($+2)
+  mov di,8192
+.endInit:
+  dw .endCode - ($+2)
+  movsw
+  add di,bx
+.endCode:
+
+experimentHScroll0:
+  db "HScroll0$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov ds,ax
+  mov di,8192
+.endInit:
+  dw .endCode - ($+2)
+  mov ax,[bp+1234]
+  mov [si+2345],ax
+.endCode:
+
+experimentLine10:
+  db "Line10$"
+  dw .endInit - ($+2)
+  mov di,8192
+.endInit:
+  dw .endCode - ($+2)
+  times 10 movsw
+  add di,bx
+.endCode:
+
+experimentLine9:
+  db "Line9$"
+  dw .endInit - ($+2)
+  mov di,8192
+.endInit:
+  dw .endCode - ($+2)
+  times 9 movsw
+  add di,bx
+.endCode:
+
+experimentLine8:
+  db "Line8$"
+  dw .endInit - ($+2)
+  mov di,8192
+.endInit:
+  dw .endCode - ($+2)
+  times 8 movsw
+  add di,bx
+.endCode:
+
+experimentLine9System:
+  db "Line9System$"
+  dw .endInit - ($+2)
+  mov ax,ds
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  times 9 movsw
+  add di,bx
+.endCode:
+
+experimentLine8System:
+  db "Line8System$"
+  dw .endInit - ($+2)
+  mov ax,ds
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  times 8 movsw
+  add di,bx
+.endCode:
+
+experimentHScrollPrep:
+  db "HScrollPrep$"
+  dw .endInit - ($+2)
+  mov ax,ds
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  movsw
+  add si,bx
+.endCode:
+
 
 
 lastExperiment:
@@ -303,23 +805,29 @@ interrupt8:
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
-  mov al,19
+  mov al,REFRESH_RATE
   out 0x41,al  ; Timer 1 rate
 
   mov ax,cs
   mov ds,ax
-  mov es,ax
   mov [savedSS],ss
   mov [savedSP],sp
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ax,0x7000
   mov ss,ax
-  mov dx,0;xffff
-  mov cx,0
-  mov bx,0
-  mov ax,0
-  mov si,0
-  mov di,0
-  mov bp,0
-;  mov sp,0
+  mov ax,0xb800
+  mov es,ax
+  xor ax,ax
+  mov dx,ax
+  mov bx,ax
+  mov si,ax
+  mov di,ax
+  mov bp,ax
+  mov sp,0xfffe
+  cld
+
 
 times 528 push cs
 

@@ -26,9 +26,9 @@ bool getClock();
 void reset();
 uint8_t receiveKeyboardByte();
 
-extern uint8_t PROGMEM asciiToScancodes[0x5f];
-extern uint16_t PROGMEM remoteCodes[0x51];
-extern uint8_t PROGMEM defaultProgram[2];
+extern uint8_t asciiToScancodes[0x5f] PROGMEM;
+extern uint16_t remoteCodes[0x51] PROGMEM;
+extern uint8_t defaultProgram[2] PROGMEM;
 
 uint8_t serialBuffer[0x100];
 uint8_t keyboardBuffer[0x100];

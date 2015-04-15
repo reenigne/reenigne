@@ -1,3 +1,18 @@
+experimentPlasmaOrig:
+  db "PlasmaOrig$"
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+.endCode:
+
+
 experimentADDMOVW:
   db "ADDMOVW$"
   dw .endInit - ($+2)

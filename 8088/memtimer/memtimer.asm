@@ -225,6 +225,38 @@ codePreambleEnd:
 
 experimentData:
 
+experimentLockstep1:
+  db "Lockstep1$"
+  dw .endInit - ($+2)
+  mov al,0
+.endInit:
+  dw .endCode - ($+2)
+  jmp $+2
+  test al,1
+  jz .shortPath
+;  times 2 nop
+  jmp $+2
+.shortPath:
+.endCode:
+
+experimentLockstep2:
+  db "Lockstep2$"
+  dw .endInit - ($+2)
+  mov al,1
+.endInit:
+  dw .endCode - ($+2)
+  jmp $+2
+  test al,1
+  jz .shortPath
+;  times 2 nop
+  jmp $+2
+.shortPath:
+.endCode:
+
+
+
+
+
 
 experimentTestALBL:
   db "Test AL,BL$"

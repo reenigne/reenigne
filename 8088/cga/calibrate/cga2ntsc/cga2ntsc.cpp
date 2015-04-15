@@ -1326,6 +1326,9 @@ public:
     void save(String outputFileName)
     {
         _bitmap.save(PNGFileFormat<DWORD>(), File(outputFileName, true));
+
+        FileHandle h = File(outputFileName + ".ntsc", true).openWrite();
+        h.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
     }
     void paint(PaintHandle* paint)
     {

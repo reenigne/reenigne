@@ -42,3 +42,27 @@ Foo<@T> where T : Bar = Class { ... };
 Foo<@T, @U> where T : U = Class { ... };
 
 
+
+
+Inner classes:
+
+It would be nice to be able to access outer class members from an inner class
+
+A = Structure {
+  Int a;
+  B = Structure {
+    Int b;
+    Int foo()
+    {
+      return a+b;
+    }
+  };
+};
+
+Which instance of the inner class is used? There needs to be an implicit "A* outer" pointer in B which is dereferenced to find outer class members
+  Only added if B methods reference outer class members
+  Any B created by an A method is automatically given an outer_chain pointer equal to this.
+    It then must be illegal to create a B from outside an A context, because there's no valid
+  Should "outer" be reference counted?
+    Maybe only if A inherits from Reference
+

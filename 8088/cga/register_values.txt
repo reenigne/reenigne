@@ -660,7 +660,7 @@
   ; Sequencer Memory Mode Register                      02  02  02  02  02  02  06  03  06  00  03  06  06  06  06  00  00  06  06  02  02  02  02  02  02  02  06  06  0e
   ;      2 Memory Size Specification                     2   2   2   2   2   2   2   2   2   0   2   2   2   2   2   0   0   2   2   2   2   2   2   2   2   2   2   2   2  0 = 64K image memory available.  1 = More than 64K memory available.
   ;      4 Processor Image Memory Access Mode Select     0   0   0   0   0   0   4   0   4   0   0   4   4   4   4   0   0   4   4   0   0   0   0   0   0   0   4   4   4  0 = Odd/even memory access mode.  1 = Normal memory access mode.
-  ;      8 Processor Image Memory Access Mapping Select  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  0 = Memory planes accessed determined by Map Mask Register.  1 = Memory plane accessed determined using low 2 bits of address.
+  ;      8 Processor Image Memory Access Mapping Select  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   8  0 = Memory planes accessed determined by Map Mask Register.  1 = Memory plane accessed determined using low 2 bits of address.
   mov ax,0??04
   out dx,ax
 

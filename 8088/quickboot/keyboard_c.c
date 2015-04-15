@@ -40,9 +40,9 @@ void waitCycles30(uint8_t cycles3);
 //  1ms = 16000 count - delay on checking getClock() to see if we're resetting
 //  250ms = 4000000 count (use different timer?) - reset time
 
-extern uint8_t PROGMEM asciiToScancodes[0x5f];
+extern const uint8_t PROGMEM asciiToScancodes[0x5f];
 /* extern uint16_t PROGMEM remoteCodes[0x51]; */
-extern uint8_t PROGMEM defaultProgram[2];
+extern const uint8_t PROGMEM defaultProgram[5];
 
 uint8_t serialBuffer[0x100];
 uint8_t keyboardBuffer[0x100];
@@ -731,16 +731,18 @@ int main()
     UCSR0C = 0x06;
 
     // UBRR0L value:       (USART Baud Rate Register Low)
-//    UBRR0L = 0x10;  // 115200
+    UBRR0L = 0x10;  // 115200
+//    UBRR0L = 0x19;  // 76800
+//    UBRR0L = 0x22;  // 57600
 //    UBRR0L = 0x33;  // 38400
-    UBRR0L = 0x67;  // 19200
+//    UBRR0L = 0x67;  // 19200
 
     // UBRR0H value: 0x00  (USART Baud Rate Register High)
     UBRR0H = 0x00;
 
     sei();
 
-    print(PSTR("Quickboot 20150222\n"));
+    print(PSTR("Quickboot 20150313-115200\n"));
     print(PSTR("Kernel version "));
     print((const char*)defaultProgram + 4);
     print(PSTR("\n>"));

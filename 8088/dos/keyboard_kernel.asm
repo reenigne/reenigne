@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20150222-keyb',0
+  db '20150313-keyb',0
 
 codeStart:
   sub di,0x500
@@ -159,6 +159,7 @@ noRelocationNeeded:
   setInterrupt 0x64, printStringRoutine
   setInterrupt 0x65, printCharacterRoutine
   setInterrupt 0x66, beep
+  setInterrupt 0x68, loadKeyboardDataRoutine
 
   ; Reset video variables
   xor ax,ax
@@ -304,6 +305,27 @@ keyboardRead:
   ret
 
 
+; Load data to ES:DI
+loadKeyboardDataRoutine:
+  push ax
+  push bx
+  push cx
+  push dx
+  push si
+  push ds
+  mov ax,es
+  mov ds,ax
+  push cs
+  call tryLoad
+  pop ds
+  pop si
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  iret
+
+
 ; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
 loadBytes:
   call keyboardRead
@@ -319,11 +341,11 @@ noOverflow:
   jnz noPrint
 
   ; Debug: print load address
-  mov byte[cs:column],0
-  mov ax,ds
-  int 0x63
-  mov ax,di
-  int 0x63
+;  mov byte[cs:column],0
+;  mov ax,ds
+;  int 0x63
+;  mov ax,di
+;  int 0x63
 
 noPrint:
   loop loadBytes

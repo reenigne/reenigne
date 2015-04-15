@@ -53,6 +53,18 @@ Special syntax for Tuples:
   (f, b) = func(baz);
   (a, b) = (b, a);  // swap
 
+  (a, b, c) op (d, e, f) == (a op d, b op e, c op f)
+  (a, b, c) op d == (a op d, b op d, c op d)
+    Or maybe not, since op could in principle be overloaded for Tuple
+      Maybe these are built-in overloads for the built-in operators
+    What about functions (especially pure functions) that do not accept a Tuple directly?
+      Might be confusing for user-defined functions, but perhaps built-in functions
+        Maybe have an easy way to define such functions so that user-defined functions can do it too
+          Auto foo<@K : K is Tuple<@T, ...>>(K k) { (T t, Auto r) = k; return (foo(t), foo(r)); }  // But that would only work for 2-tuples
+          Or perhaps a special syntax like "Auto foo(Tuple);"
+
+
+
 "Foo?" is not the same as "Foo | Null" since "Foo??" is not the same as "Foo | Null | Null" which would be the same as "Foo | Null"
   Hence the operand of "?" has to be wrapped in some way to distinguish between operand Null and "?" Null.
     So Foo? is more like "Just<Foo> | Null"
