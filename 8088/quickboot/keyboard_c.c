@@ -40,9 +40,9 @@ void waitCycles30(uint8_t cycles3);
 //  1ms = 16000 count - delay on checking getClock() to see if we're resetting
 //  250ms = 4000000 count (use different timer?) - reset time
 
-extern uint8_t PROGMEM asciiToScancodes[0x5f];
+extern const uint8_t PROGMEM asciiToScancodes[0x5f];
 /* extern uint16_t PROGMEM remoteCodes[0x51]; */
-extern uint8_t PROGMEM defaultProgram[2];
+extern const uint8_t PROGMEM defaultProgram[5];
 
 uint8_t serialBuffer[0x100];
 uint8_t keyboardBuffer[0x100];
@@ -60,20 +60,20 @@ volatile bool ctrl = false;
 volatile bool alt = false;
 volatile bool asciiMode = false;
 volatile bool testerMode = true;
-volatile bool receivedEscape = false;
+//volatile bool receivedEscape = false;
 volatile bool receivedXOff = false;
 volatile bool sentXOff = false;
 volatile bool needXOff = false;
 volatile bool needXOn = false;
-volatile uint8_t rawBytesRemaining = 0;
+volatile uint16_t rawBytesRemaining = 0;
 volatile uint16_t programCounter = 0;
 volatile uint16_t programBytes = 0;
 volatile uint16_t programBytesRemaining = 0;
 volatile bool ramProgram = false;
 volatile bool expectingRawCount = false;
 volatile bool sentEscape = false;
-volatile bool checkSum = 0;
-volatile bool expectingCheckSum = false;
+//volatile bool checkSum = 0;
+//volatile bool expectingCheckSum = false;
 volatile bool testerRaw = false;
 volatile bool remoteMode = false;
 volatile uint8_t speedBytesRemaining = 0;
@@ -91,7 +91,7 @@ volatile bool blockedKeyboard = false;
 volatile uint16_t receivedDelay = 0;
 volatile uint8_t bitDelay = 1;
 volatile uint16_t slowAckDelay = 400;
-volatile uint16_t fastAckDelay = 1;
+volatile uint16_t fastAckDelay = 5; //2; //400; //1;
 volatile uint16_t baudRate = 0x67;
 
 SIGNAL(PCINT2_vect)
@@ -314,37 +314,37 @@ volatile uint16_t remoteCode = 0; */
 
 void processCharacter(uint8_t received)
 {
-    if (received == 0 && !receivedEscape) {
-        receivedEscape = true;
-        return;
-    }
-    if ((received == 17 || received == 19) && !receivedEscape) {
-        receivedXOff = (received == 19);
-        enqueueSerialByte(receivedXOff ? 'F' : 'N');
-        receivedEscape = false;
-        return;
-    }
-    receivedEscape = false;
+//    if (received == 0 && !receivedEscape) {
+//        receivedEscape = true;
+//        return;
+//    }
+//    if ((received == 17 || received == 19) && !receivedEscape) {
+//        receivedXOff = (received == 19);
+//        enqueueSerialByte(receivedXOff ? 'F' : 'N');
+//        receivedEscape = false;
+//        return;
+//    }
+//    receivedEscape = false;
 
     if (expectingRawCount) {
-        rawBytesRemaining = received;
-        checkSum = received;
+        rawBytesRemaining = received + 2;
+//        checkSum = received;
         expectingRawCount = false;
         return;
     }
     if (rawBytesRemaining > 0) {
         enqueueKeyboardByte(received);
-        checkSum += received;
+//        checkSum += received;
         --rawBytesRemaining;
-        if (rawBytesRemaining == 0)
-            expectingCheckSum = true;
+//        if (rawBytesRemaining == 0)
+//            expectingCheckSum = true;
         return;
     }
-    if (expectingCheckSum) {
-        enqueueSerialByte(received == checkSum ? 'K' : '~');
-        expectingCheckSum = false;
-        return;
-    }
+//    if (expectingCheckSum) {
+//        enqueueSerialByte(received == checkSum ? 'K' : '~');
+//        expectingCheckSum = false;
+//        return;
+//    }
     if (programBytesRemaining == 0xffff) {
         programBytes = received;
         --programBytesRemaining;
@@ -731,19 +731,23 @@ int main()
     UCSR0C = 0x06;
 
     // UBRR0L value:       (USART Baud Rate Register Low)
-//    UBRR0L = 0x10;  // 115200
+    UBRR0L = 0x10;  // 115200
+//    UBRR0L = 0x19;  // 76800
+//    UBRR0L = 0x22;  // 57600
 //    UBRR0L = 0x33;  // 38400
-    UBRR0L = 0x67;  // 19200
+//    UBRR0L = 0x67;  // 19200
 
     // UBRR0H value: 0x00  (USART Baud Rate Register High)
     UBRR0H = 0x00;
 
     sei();
 
-    print(PSTR("Quickboot 20150222\n"));
+    print(PSTR("Quickboot 20150415-115200\n"));
     print(PSTR("Kernel version "));
     print((const char*)defaultProgram + 4);
     print(PSTR("\n>"));
+
+    reset();
 
     // All the keyboard interface stuff is done on the main thread.
     do {
@@ -826,16 +830,15 @@ int main()
                 // End of reset code
             }
             else {
-//                enqueueSerialByte('%');
                 while (!getClock()) { }  // Wait for clock to go high again.
                 // A short clock-low pulse. This is the XT trying to send us
                 // some data.
                 clearInterruptedKeystroke();
                 // Send the number of bytes that the XT can safely send us.
+                while (serialBufferCharacters == 255)
+                  ;
                 cli();
-                uint8_t available = serialBufferCharacters == 0 ? 255 :
-                    256-serialBufferCharacters;
-//                enqueueSerialByte(available);
+                uint8_t available = 255 - serialBufferCharacters;
                 sendKeyboardByte(available, fastAckDelay);
                 sei();
                 uint8_t count = receiveKeyboardByte();
@@ -844,6 +847,7 @@ int main()
                     enqueueSerialByte(receiveKeyboardByte());
                     sei();
                 }
+                sendKeyboardByte(0, fastAckDelay);
             }
         }
         else {

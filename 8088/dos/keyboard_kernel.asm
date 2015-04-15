@@ -2,36 +2,61 @@
 
   jmp codeStart
 
-  db '20150222-keyb',0
+  db '20150415-keyb',0
 
 codeStart:
-  sub di,0x500
-  cmp di,kernelEnd
-  jne lengthOk1
-  or byte[cs:flags],1
-lengthOk1:
+;  initCGA 8
+;
+;   push dx
+;   push ax
+;   mov al,1
+;   mov dx,0x3d9
+;   out dx,al
+;   pop ax
+;   pop dx
+
+  mov ax,cs
+  mov ds,ax
 
   call findIP
 findIP:
-  pop si
-  sub si,findIP
+  pop bx
+  sub bx,findIP
+
+  sub di,0x500
+  cmp di,kernelEnd
+  je lengthOk1
+  or byte[flags + bx],1
+  mov [foundLength + bx],di
+lengthOk1:
+
 
   mov ah,0
   mov cx,checkSum
+  mov si,bx
 checksumLoop:
   lodsb
   add ah,al
   loop checksumLoop
-  cmp ah,[cs:checkSum]
+  cmp ah,[checkSum + bx]
   je checksumOk1
-  or byte[cs:flags],2
+  or byte[flags + bx],2
+  mov byte[foundCheckSum + bx],ah
 checksumOk1:
 
   ; Turn interrupts off - the keyboard send routine is cycle-counted.
   cli
 
   ; Set up the screen so we can debug the keyboard send routine
-  initCGA 0x2c
+  initCGA 8
+
+;   push dx
+;   push ax
+;   mov al,2
+;   mov dx,0x3d9
+;   out dx,al
+;   pop ax
+;   pop dx
 
   ; Clear the video memory
   mov ax,0xb800
@@ -70,9 +95,6 @@ interruptSetupLoop:
   mov word[0x05*4], 0xff54       ; print_screen
   mov word[0x18*4 + 2], 0xf600   ; segment for BASIC
 
-  ; Disable NMI
-;  xor al,al
-;  out 0xa0,al
   ; Find end of memory. Memory is always added in 16Kb units. We can't use
   ; the BIOS measurement since it won't have been initialized.
   mov ax,0x9c00
@@ -139,58 +161,93 @@ doMove:
   xor di,di
   push di  ; Push return offset
   rep movsb
+  add di,0x500
   retf
 
 noRelocationNeeded:
+
+;   push dx
+;   push ax
+;   mov al,3
+;   mov dx,0x3d9
+;   out dx,al
+;   pop ax
+;   pop dx
+
   ; Set up some interrupts
-  ; int 0x60 == output AX as a 4-digit hex number
-  ; int 0x61 == output CX bytes from DS:SI
-  ; int 0x62 == output AL as a character
-  ; int 0x63 == print AX as a 4-digit hex number
-  ; int 0x64 == print CX bytes from DS:SI
-  ; int 0x65 == print AL as a character
-  ; int 0x66 == beep (for debugging)
+  ; int 0x60 == capture screen
+  ; int 0x61 == start audio recording
+  ; int 0x62 == stop audio recording
+  ; int 0x63 == output AX as a 4-digit hex number
+  ; int 0x64 == output CX bytes from DS:SI
+  ; int 0x65 == output AL as a character
+  ; int 0x66 == send file
+  ; int 0x67 == finish
+  ; int 0x68 == load data from keyboard port at ES:DI. On completion, ES:DI points to end of loaded data.
+  ; int 0x69 == stop screen output
+  ; int 0x6a == start screen output
+  ; int 0x6b == stop keyboard port output
+  ; int 0x6c == start keyboard port output
   xor ax,ax
   mov ds,ax
-  setInterrupt 0x60, writeHex
-  setInterrupt 0x61, writeString
-  setInterrupt 0x62, writeCharacter
-  setInterrupt 0x63, printHexRoutine
-  setInterrupt 0x64, printStringRoutine
-  setInterrupt 0x65, printCharacterRoutine
-  setInterrupt 0x66, beep
+  setInterrupt 0x60, captureScreenRoutine
+  setInterrupt 0x61, startAudioRoutine
+  setInterrupt 0x62, stopAudioRoutine
+  setInterrupt 0x63, outputHexRoutine
+  setInterrupt 0x64, outputStringRoutine
+  setInterrupt 0x65, outputCharacterRoutine
+  setInterrupt 0x66, sendFileRoutine
+  setInterrupt 0x67, completeRoutine
+  setInterrupt 0x68, loadDataRoutine
+  setInterrupt 0x69, stopScreenRoutine
+  setInterrupt 0x6a, resumeScreenRoutine
+  setInterrupt 0x6b, stopKeyboardRoutine
+  setInterrupt 0x6c, resumeKeyboardRoutine
 
   ; Reset video variables
-  xor ax,ax
-  mov [cs:column],al
-  mov [cs:startAddress],ax
-
-  ; Beep
-;  int 0x66
-  ; Print a message
   mov ax,cs
   mov ds,ax
+  xor ax,ax
+  mov [column],al
+  mov [startAddress],ax
 
   test byte[flags],1
   jz lengthOk
 
+   mov ax,[foundLength]
+   outputHex
+   mov ax,kernelEnd
+   outputHex
+
   mov si,lengthWrong
   mov cx,lengthWrongEnd - lengthWrong
-  printString
+  outputString
 
 lengthOk:
   test byte[flags],2
   jz checksumOk
 
+   mov ax,[foundCheckSum]
+   outputHex
+
   mov si,checksumWrong
   mov cx,checksumWrongEnd - checksumWrong
-  printString
+  outputString
+
 checksumOk:
 
+;   push dx
+;   push ax
+;   mov al,4
+;   mov dx,0x3d9
+;   out dx,al
+;   pop ax
+;   pop dx
+
   ; Print the boot message
-  mov si,bootMessage
-  mov cx,bootMessageEnd - bootMessage
-  printString
+;  mov si,bootMessage
+;  mov cx,bootMessageEnd - bootMessage
+;  outputString
 
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
@@ -203,6 +260,7 @@ checksumOk:
   mov ax,(kernelEnd + 15) >> 4
   add ax,bx
   mov ds,ax
+  mov es,ax
 
   ; Push the address
   push ds
@@ -220,55 +278,212 @@ checksumOk:
   and al,0x7f
   out 0x61,al
 
-tryLoad:
-  ; Read a 3-byte count and then a number of bytes into memory, starting at
-  ; DS:DI
-  call keyboardRead
-  mov cl,bl
-  call keyboardRead
-  mov ch,bl
-  call keyboardRead
-  mov bh,0
+;   push dx
+;   push ax
+;   mov al,5
+;   mov dx,0x3d9
+;   out dx,al
+;   pop ax
+;   pop dx
 
-  ; Debug: print number of bytes to load
-  mov ax,bx
-  int 0x63
-  mov ax,cx
-  int 0x63
-  mov al,10
-  int 0x65
+  loadData
 
-  mov si,bx
-  push cx
-  xor dl,dl
-pagesLoop:
-  cmp si,0
-  je noFullPages
-  xor cx,cx
-  call loadBytes
-  dec si
-  jmp pagesLoop
-noFullPages:
-  pop cx
-  test cx,cx
-  jz loadProgramDone
-  call loadBytes
-loadProgramDone:
-  ; Check that the checksum matches
-  call keyboardRead
-  cmp dl,bl
-  mov ax,cs
-  mov ds,ax
-  je checksumOk2
-  mov si,failMessage
-  mov cx,failMessageEnd - failMessage
-  int 0x64
-  jmp tryLoad
-checksumOk2:
+  ; Print the OK message
   mov si,okMessage
   mov cx,okMessageEnd - okMessage
-  int 0x64
+  outputString
+
+  mov al,6
+  mov dx,0x3d9
+  out dx,al
+
   retf
+
+
+; Load data to ES:DI
+loadDataRoutine:
+  push ax
+  push bx
+  push cx
+  push dx
+  push si
+  push ds
+
+;   push dx
+;   push ax
+;   mov al,6
+;   mov dx,0x3d9
+;   out dx,al
+;   pop ax
+;   pop dx
+
+;  outputCharacter 'R'
+  push di
+  mov al,'R'
+  call sendChar
+  pop di
+
+packetLoop:
+  ; Receive packet size in bytes
+  call keyboardRead
+
+;   inc word[cs:keyboardCounter]
+;   mov al,bl
+;   outputHex
+;   dec word[cs:keyboardCounter]
+
+  mov cl,bl
+  mov ch,0
+
+  ; Push a copy to check when we're done and adjust DI for retries
+  push cx
+
+  ; Init checksum
+  mov ah,0
+
+  ; Receive CX bytes and store them at ES:DI
+  jcxz noBytes
+byteLoop:
+  call keyboardRead
+
+;   inc word[cs:keyboardCounter]
+;   mov al,bl
+;   outputHex
+;   dec word[cs:keyboardCounter]
+
+  mov al,bl
+  add ah,al
+  stosb
+  loop byteLoop
+noBytes:
+
+  ; Receive checksum
+  call keyboardRead
+
+;   inc word[cs:keyboardCounter]
+;   mov al,bl
+;   outputHex
+;   dec word[cs:keyboardCounter]
+
+  sub ah,bl
+
+  cmp ah,0
+  jne checkSumFailed
+
+;  outputCharacter 'K'
+  push di
+  mov al,'K'
+  call sendChar
+  pop di
+
+  ; Normalize ES:DI
+  mov ax,di
+  mov cl,4
+  shr ax,cl
+  mov bx,es
+  add bx,ax
+  mov es,bx
+  and di,0xf
+
+  pop cx
+  jcxz transferComplete
+  jmp packetLoop
+
+checkSumFailed:
+   push ax
+  ; Send fail byte
+;  outputCharacter 'F'
+  push di
+  mov al,'F'
+  call sendChar
+  pop di
+
+;   pop ax
+;   inc word[cs:keyboardCounter]
+;   outputHex
+;   dec word[cs:keyboardCounter]
+
+
+  pop cx
+  sub di,cx
+  jmp packetLoop
+
+transferComplete:
+  pop ds
+  pop si
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  iret
+
+
+;loadDataRoutine:
+;  push ax
+;  push bx
+;  push cx
+;  push dx
+;  push si
+;  push ds
+;  mov ax,es
+;  mov ds,ax
+;tryLoad:
+;  mov al,'R'
+;  call sendChar
+;
+;  ; Read a 3-byte count and then a number of bytes into memory, starting at
+;  ; DS:DI
+;  call keyboardRead
+;  mov cl,bl
+;  call keyboardRead
+;  mov ch,bl
+;  call keyboardRead
+;  mov bh,0
+;
+;   ; Debug: print number of bytes to load
+;   mov ax,bx
+;   outputHex
+;   mov ax,cx
+;   outputHex
+;   outputNewLine
+;
+;  mov si,bx
+;  push cx
+;  xor dl,dl
+;pagesLoop:
+;  cmp si,0
+;  je noFullPages
+;  xor cx,cx
+;  call loadBytes
+;  dec si
+;  jmp pagesLoop
+;noFullPages:
+;  pop cx
+;  test cx,cx
+;  jz loadProgramDone
+;  call loadBytes
+;loadProgramDone:
+;  ; Check that the checksum matches
+;  call keyboardRead
+;  cmp dl,bl
+;  mov ax,cs
+;  mov ds,ax
+;  je checksumOk2
+;  mov si,failMessage
+;  mov cx,failMessageEnd - failMessage
+;  outputString
+;  jmp tryLoad
+;checksumOk2:
+;  mov si,okMessage
+;  mov cx,okMessageEnd - okMessage
+;  outputString
+;  pop ds
+;  pop si
+;  pop dx
+;  pop cx
+;  pop bx
+;  pop ax
+;  iret
 
 
 ; Reads the next keyboard scancode into BL
@@ -286,21 +501,6 @@ keyboardRead:
   out 0x61,al
   and al,0x7f
   out 0x61,al
-
-;   push bx
-;   push cx
-;   mov cl,4
-;   mov al,bl
-;   shr al,cl
-;   call printNybble
-;   mov al,bl
-;   and al,0xf
-;   call printNybble
-;   mov al,' '
-;   call printChar
-;   pop cx
-;   pop bx
-
   ret
 
 
@@ -317,112 +517,33 @@ loadBytes:
 noOverflow:
   test di,0x000f
   jnz noPrint
-
-  ; Debug: print load address
-  mov byte[cs:column],0
-  mov ax,ds
-  int 0x63
-  mov ax,di
-  int 0x63
-
 noPrint:
   loop loadBytes
   ret
 
 
-writeBuffer:
-  db 0, 0, 0, 0
-
-
-convertNybble:
-  cmp al,10
-  jge alphabetic
-  add al,'0'
-  jmp gotCharacter
-alphabetic:
-  add al,'A' - 10
-gotCharacter:
-  stosb
-  ret
-
-
-writeHex:
-  push ds
-  push es
-  push di
-  push si
-  push bx
-  push cx
-  mov bx,cs
-  mov ds,bx
-  mov es,bx
-  mov di,writeBuffer
-  mov bx,ax
-  mov al,bh
-  mov cx,4
-  shr al,cl
-  call convertNybble
-  mov al,bh
-  and al,0xf
-  call convertNybble
-  mov al,bl
-  shr al,cl
-  call convertNybble
-  mov al,bl
-  and al,0xf
-  call convertNybble
-  mov si,writeBuffer
-  call sendLoop
-  pop cx
-  pop bx
-  pop si
-  pop di
-  pop es
-  pop ds
-  iret
-
-
-writeString:
-  push di
-  push bx
-  push dx
-  call sendLoop
-  pop dx
-  pop bx
-  pop di
-  iret
-
-
-writeCharacter:
-  push ds
-  push si
-  push bx
-  push cx
+; Send a single byte packet, contents AL
+sendChar:
   mov bx,cs
   mov ds,bx
   mov si,writeBuffer
   mov [si],al
   mov cx,1
-  call sendLoop
-  pop cx
-  pop bx
-  pop si
-  pop ds
-  iret
+  mov ah,0
 
-
-; Send CX bytes pointed to by DS:SI
+; Send AH:CX bytes pointed to by DS:SI
 sendLoop:
   mov di,cx
+.loop:
   ; Lower clock line to tell the Arduino we want to send data
   in al,0x61
   and al,0xbf
   out 0x61,al
-  ; Wait for 1ms
+  ; Wait for 0.5ms
   mov bx,cx
-  mov cx,52500000*18/(11*17*4*2*1000)
-waitLoop:
-  loop waitLoop
+  mov cx,52500000/(11*54*2000)
+.waitLoop:
+  loop .waitLoop
   ; Raise clock line again
   in al,0x61
   or al,0x40
@@ -431,14 +552,29 @@ waitLoop:
   ; Throw away the keystroke that comes from clearInterruptedKeystroke()
   call keyboardRead
 
+  ; Normalise DS:SI
+  mov bx,si
+  mov cl,4
+  shr bx,cl
+  and si,0x0f
+  mov cx,ds
+  add cx,bx
+  mov ds,cx
+
   ; Read the number of bytes that we can send
   call keyboardRead
   xor bh,bh
-  cmp bx,cx
-  jae gotCount
-  mov cx,bx      ; Write as many bytes as we can
-gotCount:
+
+  ; Calculate number of bytes to actually send
+  mov cx,bx
+  cmp ah,0
+  jne .gotCount
+  cmp di,cx
+  jae .gotCount
+  mov cx,di
+.gotCount:
   sub di,cx
+  sbb ah,0
 
   ; Set up the bh register for sendByte
   mov dx,0x61
@@ -449,21 +585,31 @@ gotCount:
 
   mov al,cl
   call sendByteRoutine  ; Send the number of bytes we'll be sending
-sendByteLoop:
-  cmp cx,0
-  je doneSend
+.sendByteLoop:
   lodsb
   call sendByteRoutine
-  dec cx
-  jmp sendByteLoop
-doneSend:
+  loop .sendByteLoop
   cmp di,0
-  jne sendLoop
+  jne .loop
+  cmp ah,0
+  jne .loop
+
+;   push dx
+;   push ax
+;   mov al,7
+;   mov dx,0x3d9
+;   out dx,al
+;   pop ax
+;   pop dx
+
+
+  ; Read and ignore a final byte so that the keyboard is in a good state
+  call keyboardRead
+
   ret
 
 
 sendByteRoutine:
-  push ax              ; for debugging purposes
   mov bl,al
 
   clc
@@ -531,88 +677,129 @@ sendByteRoutine:
   rcr al,1
   rcr al,1
   out dx,al
-
-  pop ax               ; for debugging purposes
-  call printChar       ; for debugging purposes
   ret
 
 
-beep:
-  push ax
-  push cx
-  in al,0x61
-  mov ah,al
-  or al,3
-  out 0x61,al
-  mov al,TIMER2 | BOTH | MODE3 | BINARY
-  out 0x43,al
-  mov cx,1193182 / 440
-  mov al,cl
-  out 0x42,al
-  mov al,ch
-  out 0x42,al
-  xor cx,cx
-beepLoop:
-  loop beepLoop
-  mov al,ah
-  and al,0xfc
-  out 0x61,al
-  xor cx,cx
-quietLoop:
-  loop quietLoop
-  pop cx
-  pop ax
-  iret
-
-
 completeRoutine:
-  mov al,26
-;  int 0x62  ; Write a ^Z character to tell the "run" program to finish
+  disconnect
   jmp 0  ; Restart the kernel
 
 
-printNybble:
+writeBuffer:
+  db 0, 0, 0, 0
+
+convertNybble:
   cmp al,10
-  jge printAlphabetic
+  jge alphabetic
   add al,'0'
-  jmp printGotCharacter
-printAlphabetic:
+  jmp gotCharacter
+alphabetic:
   add al,'A' - 10
-printGotCharacter:
-  jmp printChar
+gotCharacter:
+  stosb
+  ret
 
-
-printHexRoutine:
+outputHexRoutine:
+  push ds
+  push es
+  push di
+  push si
   push bx
   push cx
+  push dx
+  mov bx,cs
+  mov ds,bx
+  mov es,bx
+  mov di,writeBuffer
   mov bx,ax
   mov al,bh
-  mov cl,4
+  mov cx,4
   shr al,cl
-  call printNybble
+  call convertNybble
   mov al,bh
   and al,0xf
-  call printNybble
+  call convertNybble
   mov al,bl
   shr al,cl
-  call printNybble
+  call convertNybble
   mov al,bl
   and al,0xf
-  call printNybble
+  call convertNybble
+  mov si,writeBuffer
+
+  cmp word[cs:screenCounter],0
+  jne .noScreen
+  call printLoop
+.noScreen:
+  cmp word[cs:keyboardCounter],0
+  jne .noKeyboard
+  mov ah,0
+  call sendLoop
+.noKeyboard:
+  pop dx
   pop cx
   pop bx
+  pop si
+  pop di
+  pop es
+  pop ds
   iret
 
 
-printStringRoutine:
+printLoop:
+  push si
+  push cx
+.loop:
   lodsb
   call printChar
-  loop printStringRoutine
+  loop .loop
+  pop cx
+  pop si
+  ret
+
+
+outputStringRoutine:
+  cmp word[cs:screenCounter],0
+  jne .noScreen
+  call printLoop
+.noScreen:
+  cmp word[cs:keyboardCounter],0
+  jne .noKeyboard
+  push ds
+  push ax
+  push di
+  push bx
+  push dx
+  mov ah,0
+  call sendLoop
+  pop dx
+  pop bx
+  pop di
+  pop ax
+  pop ds
+.noKeyboard:
   iret
 
 
-printCharacterRoutine:
+outputCharacterRoutine:
+  cmp word[cs:screenCounter],0
+  jne .noScreen
+  push ax
   call printChar
+  pop ax
+.noScreen:
+  cmp word[cs:keyboardCounter],0
+  jne .noKeyboard
+  push ds
+  push si
+  push bx
+  push cx
+  call sendChar
+  pop cx
+  pop bx
+  pop si
+  pop ds
+.noKeyboard:
   iret
 
 
@@ -682,13 +869,96 @@ printChar:
   ret
 
 
+stopScreenRoutine:
+  inc word[cs:screenCounter]
+  iret
+
+resumeScreenRoutine:
+  dec word[cs:screenCounter]
+  iret
+
+stopKeyboardRoutine:
+  inc word[cs:keyboardCounter]
+  iret
+
+resumeKeyboardRoutine:
+  dec word[cs:keyboardCounter]
+  iret
+
+sendChar2:
+  push bx
+  push cx
+  push dx
+  push si
+  push di
+  push ds
+  call sendChar
+  pop ds
+  pop di
+  pop si
+  pop dx
+  pop cx
+  pop bx
+  ret
+
+captureScreenRoutine:
+  push ax
+  mov al,1
+  call sendChar2
+  pop ax
+  iret
+
+startAudioRoutine:
+  push ax
+  mov al,2
+  call sendChar2
+  pop ax
+  iret
+
+stopAudioRoutine:
+  push ax
+  mov al,3
+  call sendChar2
+  pop ax
+  iret
+
+sendFileRoutine:
+  cld
+  push ax
+  push di
+  push ds
+  push si
+  mov ax,cs
+  mov ds,ax
+  mov di,writeBuffer
+  mov al,4
+  stosb
+  mov ax,cx
+  stosw
+  mov al,dl
+  stosb
+  mov si,writeBuffer
+  push cx
+  mov cx,4
+  mov ah,0
+  call sendLoop
+  pop cx
+  pop si
+  pop ds
+  mov ah,dl
+  call sendLoop
+  pop di
+  pop ax
+  iret
+
+
 column:
   db 0
 startAddress:
   dw 0
-bootMessage:
-  db 'XT OS Kernel',10
-bootMessageEnd:
+;bootMessage:
+;  db 'XT OS Kernel',10
+;bootMessageEnd:
 lengthWrong:
   db 'Length incorrect',10
 lengthWrongEnd:
@@ -701,8 +971,18 @@ okMessageEnd:
 failMessage:
   db 'Checksum failure',10
 failMessageEnd:
+screenCounter:
+  dw 0
+keyboardCounter:
+  dw 0
+
+foundLength:
+  dw 0
 
 flags:
+  db 0
+
+foundCheckSum:
   db 0
 
 checkSum:

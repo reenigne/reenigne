@@ -8,7 +8,9 @@ public:
     void run()
     {
         if (_arguments.count() == 1) {
-            console.write("Usage: run [-c] <name of file to send>\n");
+            console.write("Usage: run [-c] [-r] <name of file to send>\n");
+            console.write("-c for .com file (0x100 offset)\n");
+            console.write("-r to reset XT first\n");
             return;
         }
         int fileNameArgument = 1;
@@ -16,6 +18,11 @@ public:
         if (_arguments[1] == String("-c")) {
             comFile = true;
             fileNameArgument = 2;
+        }
+        bool reset = false;
+        if (_arguments[fileNameArgument] == String("-r")) {
+            reset = true;
+            ++fileNameArgument;
         }
         String fileName = _arguments[fileNameArgument];
         String data = File(fileName, true).contents();
@@ -37,7 +44,7 @@ public:
         SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
         IF_ZERO_THROW(GetCommState(_com, &deviceControlBlock));
         deviceControlBlock.DCBlength = sizeof(DCB);
-        deviceControlBlock.BaudRate = 19200;
+        deviceControlBlock.BaudRate = 115200;
         deviceControlBlock.fBinary = TRUE;
         deviceControlBlock.fParity = FALSE;
         deviceControlBlock.fOutxCtsFlow = FALSE;
@@ -101,13 +108,15 @@ public:
 
         expect(">");
 
-        IF_ZERO_THROW(FlushFileBuffers(_com));
-        IF_ZERO_THROW(PurgeComm(_com, PURGE_RXCLEAR | PURGE_TXCLEAR));
-        _com.write<Byte>(0x7f);
-        _com.write<Byte>(0x77);
-        //IF_ZERO_THROW(FlushFileBuffers(_com));
+        if (reset) {
+            IF_ZERO_THROW(FlushFileBuffers(_com));
+            IF_ZERO_THROW(PurgeComm(_com, PURGE_RXCLEAR | PURGE_TXCLEAR));
+            _com.write<Byte>(0x7f);
+            _com.write<Byte>(0x77);
+            //IF_ZERO_THROW(FlushFileBuffers(_com));
 
-        expect("resetting");
+            expect("resetting");
+        }
 
         //int rate = 115200;
         //deviceControlBlock.BaudRate = rate;
@@ -150,8 +159,8 @@ public:
         for (int i = 0; i < l; ++i) {
             addByte(data[i]);       // Send data byte
             checkSum += data[i];
-            if ((i & 0xff) == 0)
-                console.write(".");
+            //if ((i & 0xff) == 0)
+            //    console.write(".");
         }
         addByte(checkSum);
         flush();
@@ -165,7 +174,8 @@ public:
         do {
             int b = _com.tryReadByte();
             if (b != -1 && b != 17 && b != 19) {
-                console.write(String(hex(b,2)) + " ");
+                //console.write(String(hex(b,2)) + " ");
+                console.write<Byte>(b);
                 i = 0;
             }
             if (b == 26)

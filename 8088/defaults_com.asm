@@ -1,15 +1,15 @@
 org 0x100
 %include "defaults_common.asm"
 
-%macro printCharacter 0
+%macro outputCharacter 0
   call doPrintCharacter
 %endmacro
 
-%macro printHex 0
+%macro outputHex 0
   call doPrintHex
 %endMacro
 
-%macro printString 0
+%macro outputString 0
   call doPrintString
 %endMacro
 

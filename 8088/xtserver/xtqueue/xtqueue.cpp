@@ -387,24 +387,18 @@ class XTThread : public Thread
 public:
     XTThread(ConfigFile* configFile)
       : _queuedItems(0), _ending(false), _processing(false),
-        _needArduinoReset(false), _needReboot(false), _diskBytes(0x10000)
+        _diskBytes(0x10000), _item(0)
     {
         String quickBootPort = configFile->get<String>("quickBootPort");
         _quickBootBaudRate = configFile->get<int>("quickBootBaudRate");
-        String serialPort = configFile->get<String>("serialPort");
-        int serialBaudRate = configFile->get<int>("serialBaudRate");
         _fromAddress = configFile->get<String>("fromAddress");
         _lamePath = configFile->get<String>("lamePath");
         _lameOptions = configFile->get<String>("lameOptions");
         _adminAddress = configFile->get<String>("adminAddress");
         _htdocsPath = configFile->get<String>("htdocsPath");
         _captureFieldPath = configFile->get<String>("captureFieldPath");
-        _kernel = configFile->get<String>("kernel");
-        _quickBootNewBaudRate = configFile->get<int>("quickBootNewBaudRate");
-        _keyboardKernel = configFile->get<bool>("keyboardKernel");
 
         // Open handle to Arduino for rebooting machine
-#if 1
         NullTerminatedWideString quickBootPath(quickBootPort);
         _arduinoCom = AutoHandle(CreateFile(
             quickBootPath,
@@ -416,65 +410,48 @@ public:
             NULL),          // hTemplate must be NULL for comm devices
             String("Quickboot COM port"));
 
-        initQuickBoot();
+        DCB deviceControlBlock;
+        SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
+        IF_ZERO_THROW(GetCommState(_arduinoCom, &deviceControlBlock));
+        deviceControlBlock.DCBlength = sizeof(DCB);
+        deviceControlBlock.BaudRate = _quickBootBaudRate;
+        deviceControlBlock.fBinary = TRUE;
+        deviceControlBlock.fParity = FALSE;
+        deviceControlBlock.fOutxCtsFlow = FALSE;
+        deviceControlBlock.fOutxDsrFlow = FALSE;
+        deviceControlBlock.fDtrControl = DTR_CONTROL_ENABLE;
+        deviceControlBlock.fDsrSensitivity = FALSE;
+        deviceControlBlock.fTXContinueOnXoff = TRUE;
+        deviceControlBlock.fOutX = FALSE; //TRUE;
+        deviceControlBlock.fInX = FALSE; //TRUE;
+        deviceControlBlock.fErrorChar = FALSE;
+        deviceControlBlock.fNull = FALSE;
+        deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
+        deviceControlBlock.fAbortOnError = TRUE;
+        deviceControlBlock.wReserved = 0;
+        deviceControlBlock.ByteSize = 8;
+        deviceControlBlock.Parity = NOPARITY;
+        deviceControlBlock.StopBits = ONESTOPBIT;
+        deviceControlBlock.XonChar = 17;
+        deviceControlBlock.XoffChar = 19;
+        IF_ZERO_THROW(SetCommState(_arduinoCom, &deviceControlBlock));
 
-        if (!_keyboardKernel) {
-            // Open handle to serial port for data transfer
-            NullTerminatedWideString serialPath(serialPort);
-            _com = AutoHandle(CreateFile(
-                serialPath,
-                GENERIC_READ | GENERIC_WRITE,
-                0,              // must be opened with exclusive-access
-                NULL,           // default security attributes
-                OPEN_EXISTING,  // must use OPEN_EXISTING
-                0,              // not overlapped I/O
-                NULL),          // hTemplate must be NULL for comm devices
-                String("COM port"));
+        IF_ZERO_THROW(SetCommMask(_arduinoCom, EV_RXCHAR));
 
-            DCB deviceControlBlock;
-            SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
-            IF_ZERO_THROW(GetCommState(_com, &deviceControlBlock));
-            deviceControlBlock.DCBlength = sizeof(DCB);
-            deviceControlBlock.BaudRate = serialBaudRate;
-            deviceControlBlock.fBinary = TRUE;
-            deviceControlBlock.fParity = FALSE;
-            deviceControlBlock.fOutxCtsFlow = FALSE;
-            deviceControlBlock.fOutxDsrFlow = TRUE;
-            //deviceControlBlock.fDtrControl = DTR_CONTROL_ENABLE;
-            deviceControlBlock.fDtrControl = DTR_CONTROL_HANDSHAKE;
-            deviceControlBlock.fDsrSensitivity = FALSE; //TRUE;
-            deviceControlBlock.fTXContinueOnXoff = TRUE;
-            deviceControlBlock.fOutX = FALSE;
-            deviceControlBlock.fInX = FALSE;
-            deviceControlBlock.fErrorChar = FALSE;
-            deviceControlBlock.fNull = FALSE;
-            deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
-            deviceControlBlock.fAbortOnError = TRUE;
-            deviceControlBlock.wReserved = 0;
-            deviceControlBlock.ByteSize = 8;
-            deviceControlBlock.Parity = NOPARITY;
-            deviceControlBlock.StopBits = ONESTOPBIT;
-            deviceControlBlock.XonChar = 17;
-            deviceControlBlock.XoffChar = 19;
-            IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
-            IF_ZERO_THROW(ClearCommError(_com, NULL, NULL));
+        COMMTIMEOUTS timeOuts;
+        SecureZeroMemory(&timeOuts, sizeof(COMMTIMEOUTS));
+        timeOuts.ReadIntervalTimeout = 10*1000;
+        timeOuts.ReadTotalTimeoutMultiplier = 0;
+        timeOuts.ReadTotalTimeoutConstant = 10*1000;
+        timeOuts.WriteTotalTimeoutConstant = 10*1000;
+        timeOuts.WriteTotalTimeoutMultiplier = 0;
+        IF_ZERO_THROW(SetCommTimeouts(_arduinoCom, &timeOuts));
 
-            IF_ZERO_THROW(SetCommMask(_com, EV_RXCHAR));
-
-            COMMTIMEOUTS timeOuts;
-            SecureZeroMemory(&timeOuts, sizeof(COMMTIMEOUTS));
-            timeOuts.ReadIntervalTimeout = 10*1000;
-            timeOuts.ReadTotalTimeoutMultiplier = 0;
-            timeOuts.ReadTotalTimeoutConstant = 10*1000;
-            timeOuts.WriteTotalTimeoutConstant = 10*1000;
-            timeOuts.WriteTotalTimeoutMultiplier = 0;
-            IF_ZERO_THROW(SetCommTimeouts(_com, &timeOuts));
-        }
-#endif
+        //reboot();
 
         //_imager = File("C:\\imager.bin", true).contents();
 
-        _packet.allocate(0x101);
+        _packet.allocate(0x104);
 
         _emailThread.start();
     }
@@ -573,32 +550,30 @@ public:
     }
     void reboot()
     {
-        if (!_needReboot)
-            return;
         bothWrite("Resetting\n");
 
-        if (_needArduinoReset) {
-            initQuickBoot();
-            _needArduinoReset = false;
-        }
+        // Reset the Arduino
+        EscapeCommFunction(_arduinoCom, CLRDTR);
+        Sleep(250);
+        EscapeCommFunction(_arduinoCom, SETDTR);
+        // The Arduino bootloader waits a bit to see if it needs to
+        // download a new program.
 
-        // Reset the machine
+        int i = 0;
+        do {
+            Byte b = _arduinoCom.tryReadByte();
+            if (b == 'R')
+                break;
+            if (b != -1)
+                i = 0;
+            ++i;
+        } while (i < 10);
+
+        if (i == 10)
+            throw Exception("No response from QuickBoot");
 
         IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
         IF_ZERO_THROW(PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
-        _arduinoCom.write<Byte>(0x7f);
-        _arduinoCom.write<Byte>(0x77);
-        //IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
-
-//        Byte b;
-        if (!_keyboardKernel)
-            _needReboot = (_com.tryReadByte() != 'R');
-        else {
-            _needReboot = true;
-            for (int i = 0; i < 11; ++i)
-                if (_arduinoCom.tryReadByte() == 'R')
-                    _needReboot = true;
-        }
     }
     void bothWrite(String s)
     {
@@ -611,15 +586,10 @@ public:
         int retry = 1;
         bool error;
         do {
-            if (!_keyboardKernel)
-                IF_ZERO_THROW(PurgeComm(_com, PURGE_RXCLEAR | PURGE_TXCLEAR));
-            else
-                IF_ZERO_THROW(
-                    PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
+            IF_ZERO_THROW(
+                PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
 
             reboot();
-            error = _needReboot;
-
             bothWrite("Transferring attempt " + String::Decimal(retry) + "\n");
 
             int l = program.length();
@@ -628,65 +598,38 @@ public:
 
             int p = 0;
             int bytes;
-//            int timeouts = 10;
-
+            error = false;
             do {
-                if (error)
-                    break;
-                //int p0 = p;
                 bytes = min(l, 0xff);
-                _packet[0] = bytes;
+                _packet[0] = 0x76;  // clear keyboard buffer
+                _packet[1] = 0x75;  // raw mode
+                _packet[2] = bytes;
+                _packet[3] = bytes;
                 checksum = 0;
                 for (int i = 0; i < bytes; ++i) {
                     Byte d = program[p];
                     ++p;
-                    _packet[i + 1] = d;
+                    _packet[i + 4] = d;
                     checksum += d;
                 }
-                _packet[bytes + 1] = checksum;
-                Byte b;
-                if (!_keyboardKernel) {
-                    _com.write(&_packet[0], 2 + _packet[0]);
-                    IF_ZERO_THROW(FlushFileBuffers(_com));
-                    b = _com.tryReadByte();
-                }
-                else {
-                    _arduinoCom.write(&_packet[0], 2 + _packet[0]);
+                _packet[bytes + 4] = checksum;
+                int tries = 0;
+                do {
+                    _arduinoCom.write(&_packet[0], 5 + bytes);
                     IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
-                    b = _arduinoCom.tryReadByte();
-                }
-                console.write(" " + String::Decimal(b));
-                //bothWrite(String::Decimal(b));
-                //if (b == 255) {
-                //    --timeouts;
-                //    if (timeouts == 0)
-                //        error = true;
-                //    else {
-                //        p = p0;
-                //        continue;
-                //    }
-                //}
-                //else {
-                //    timeouts = 10;
-                    if (b != 'K')
-                        error = true;
-                //}
-                l -= bytes;
-                if (_killed || _cancelled) {
-                    _needReboot = true;
+                    Byte b = _arduinoCom.tryReadByte();
+                    if (b == 'K')
+                        break;
+                    ++tries;
+                } while (tries < 10);
+                if (tries == 10) {
+                    error = true;
+                    ++retry;
                     break;
                 }
+                l -= bytes;
             } while (bytes != 0);
-
-            if (error) {
-                ++retry;
-                _needReboot = true;
-                if (retry >= 3)
-                    _needArduinoReset = true;
-            }
-            else
-                break;
-        } while (retry < 10);
+        } while (error && retry < 10);
         return error;
     }
     String htDocsPath(String name) { return _htdocsPath + "\\" + name; }
@@ -700,9 +643,9 @@ public:
                 //   1 - _queue is not volatile - will this thread notice the
                 //       change from the other thread?
                 if (_queue.getNext() == 0) {
-                    reboot();
                     // We have nothing to do - stop the the thread until we do.
                     console.write("XT Thread going idle\n");
+                    reboot();
                     _ready.wait();
                 }
                 if (_ending) {
@@ -770,14 +713,12 @@ public:
                     _item->write("Could not transfer the program to the XT. "
                         "The machine may be offline for maintainance - please "
                         "try again later.\n");
-                    _needReboot = true;
                     delete _item;
                     continue;
                 }
 
                 bothWrite("Upload complete.\n");
                 if (_item->aborted()) {
-                    _needReboot = true;
                     delete _item;
                     continue;
                 }
@@ -786,29 +727,24 @@ public:
                 console.write("\n");
                 _item->write("\n");
                 if (_item->aborted()) {
-                    _needReboot = true;
                     delete _item;
                     continue;
                 }
 
                 if (_killed) {
                     _item->kill();
-                    _needReboot = true;
                     continue;
                 }
                 if (_cancelled) {
                     _item->cancel();
-                    _needReboot = true;
                     continue;
                 }
 
-                if (timedOut) {
+                if (timedOut)
                     bothWrite("The program did not complete within 5 "
                         "minutes and has been\nterminated. If you really need "
                         "to run a program for longer,\n"
                         "please send email to " + _adminAddress + ".");
-                    _needReboot = true;
-                }
                 else
                     bothWrite("Program ended normally.");
 
@@ -866,13 +802,10 @@ private:
                 return false;
 
             int c;
-            if (!_keyboardKernel)
-                c = _com.tryReadByte();
-            else
-                c = _arduinoCom.tryReadByte();
+            c = _arduinoCom.tryReadByte();
             if (c == -1)
                 continue;
-            if (!escape && _fileState != 5) {
+            if (!escape && _fileState == 0) {
                 bool processed = false;
                 switch (c) {
                     case 0x00:
@@ -908,11 +841,6 @@ private:
                     case 0x1a:
                         return false;
                         processed = true;
-                        if (!_keyboardKernel)
-                            c = _com.tryReadByte();
-                        else
-                            c = _arduinoCom.tryReadByte();
-                        _needReboot = (c != 'R');
                         break;
                 }
 
@@ -1089,114 +1017,6 @@ private:
     {
         upload(String(reinterpret_cast<const char*>(&_hostBytes[18]), 3));
     }
-    void initQuickBoot()
-    {
-        DCB deviceControlBlock;
-        SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
-        IF_ZERO_THROW(GetCommState(_arduinoCom, &deviceControlBlock));
-        deviceControlBlock.DCBlength = sizeof(DCB);
-        deviceControlBlock.BaudRate = _quickBootBaudRate;
-        deviceControlBlock.fBinary = TRUE;
-        deviceControlBlock.fParity = FALSE;
-        deviceControlBlock.fOutxCtsFlow = FALSE;
-        deviceControlBlock.fOutxDsrFlow = FALSE;
-        deviceControlBlock.fDtrControl = DTR_CONTROL_ENABLE;
-        deviceControlBlock.fDsrSensitivity = FALSE;
-        deviceControlBlock.fTXContinueOnXoff = TRUE;
-        deviceControlBlock.fOutX = FALSE; //TRUE;
-        deviceControlBlock.fInX = FALSE; //TRUE;
-        deviceControlBlock.fErrorChar = FALSE;
-        deviceControlBlock.fNull = FALSE;
-        deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
-        deviceControlBlock.fAbortOnError = TRUE;
-        deviceControlBlock.wReserved = 0;
-        deviceControlBlock.ByteSize = 8;
-        deviceControlBlock.Parity = NOPARITY;
-        deviceControlBlock.StopBits = ONESTOPBIT;
-        deviceControlBlock.XonChar = 17;
-        deviceControlBlock.XoffChar = 19;
-        IF_ZERO_THROW(SetCommState(_arduinoCom, &deviceControlBlock));
-
-        IF_ZERO_THROW(SetCommMask(_arduinoCom, EV_RXCHAR));
-
-        COMMTIMEOUTS timeOuts;
-        SecureZeroMemory(&timeOuts, sizeof(COMMTIMEOUTS));
-        timeOuts.ReadIntervalTimeout = 10*1000;
-        timeOuts.ReadTotalTimeoutMultiplier = 0;
-        timeOuts.ReadTotalTimeoutConstant = 10*1000;
-        timeOuts.WriteTotalTimeoutConstant = 10*1000;
-        timeOuts.WriteTotalTimeoutMultiplier = 0;
-        IF_ZERO_THROW(SetCommTimeouts(_arduinoCom, &timeOuts));
-
-        // Reset the Arduino
-        EscapeCommFunction(_arduinoCom, CLRDTR);
-        //EscapeCommFunction(_arduinoCom, CLRRTS);
-        Sleep(250);
-        EscapeCommFunction(_arduinoCom, SETDTR);
-        //EscapeCommFunction(_arduinoCom, SETRTS);
-        // The Arduino bootloader waits a bit to see if it needs to
-        // download a new program.
-
-        int i = 0;
-        do {
-            Byte b = _arduinoCom.tryReadByte();
-            if (b == '>')
-                break;
-            if (b != -1)
-                i = 0;
-            ++i;
-        } while (i < 10);
-
-        if (i == 10)
-            throw Exception("No response from QuickBoot");
-
-        if (_quickBootNewBaudRate != 0) {
-            deviceControlBlock.BaudRate = _quickBootNewBaudRate;
-            int baudDivisor =
-                static_cast<int>(2000000.0 / _quickBootNewBaudRate + 0.5);
-            writeByte(0x7f);
-            writeByte(0x7c);
-            writeByte(0x04);
-            writeByte((baudDivisor - 1) & 0xff);
-            writeByte((baudDivisor - 1) >> 8);
-            IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
-
-            IF_ZERO_THROW(SetCommState(_arduinoCom, &deviceControlBlock));
-        }
-
-        if (_kernel.length() != 0) {
-            String kernel = File(_kernel).contents();
-            int l = kernel.length();
-
-            writeByte(0x73);
-            writeByte(l & 0xff);
-            writeByte(l >> 8);
-            int b = getByte();
-            if (b != 'p')
-                throw Exception(String("Expected 'p' after length, received " + hex(b, 2) + "\n"));
-            for (int i = 0; i < l; ++i)
-                writeByte(kernel[i]);
-            b = getByte();
-            if (b != 'd')
-                throw Exception(String("Expected 'd' after data, received " + hex(b, 2) + "\n"));
-            //writeByte(0x7d);
-            //b = getByte();
-            //if (b != 0x00)
-            //    throw Exception();
-            //    //console.write(String("Expected low length byte 0, received " + hex(b, 2) + "\n"));
-            //b = getByte();
-            //if (b != 0x04)
-            //    throw Exception();
-            //    //console.write(String("Expected high length byte 4, received " + hex(b, 2) + "\n"));
-            //for (int i = 0; i < 0x400; ++i) {
-            //    b = getByte();
-            //    if (b != buffer[i])
-            //        throw Exception();
-            //        //console.write(String(String::Decimal(i)) + ": Expected " +
-            //        //hex(buffer[i], 2) + ", received " + hex(b, 2) + ".\n");
-            //}
-        }
-    }
     void writeByte(UInt8 value)
     {
         if (value == 0 || value == 0x11 || value == 0x13)
@@ -1224,10 +1044,7 @@ private:
     String _adminAddress;
     String _htdocsPath;
     String _captureFieldPath;
-    String _kernel;
     int _quickBootBaudRate;
-    int _quickBootNewBaudRate;
-    bool _keyboardKernel;
     LinkedList<QueueItem> _queue;
     int _queuedItems;
 
@@ -1242,8 +1059,6 @@ private:
     EmailThread _emailThread;
     bool _killed;
     bool _cancelled;
-    bool _needArduinoReset;
-    bool _needReboot;
     Array<Byte> _diskBytes;
     Byte _hostBytes[21];
 
@@ -1276,8 +1091,6 @@ public:
         ConfigFile configFile;
         configFile.addDefaultOption("quickBootPort", String("COM4"));
         configFile.addDefaultOption("quickBootBaudRate", 19200);
-        configFile.addDefaultOption("serialPort", String("COM1"));
-        configFile.addDefaultOption("serialBaudRate", 115200);
         configFile.addDefaultOption("fromAddress",
             String("XT Server <xtserver@reenigne.org>"));
         configFile.addDefaultOption("pipe", String("\\\\.\\pipe\\xtserver"));
@@ -1291,9 +1104,6 @@ public:
             "htdocs"));
         configFile.addDefaultOption("captureFieldPath",
             String("C:\\capture_field.exe"));
-        configFile.addDefaultOption("kernel", String(""));
-        configFile.addDefaultOption("quickBootNewBaudRate", 0);
-        configFile.addDefaultOption("keyboardKernel", false);
         configFile.load(File(_arguments[1], CurrentDirectory(), true));
 
         COMInitializer com;

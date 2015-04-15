@@ -161,7 +161,7 @@ noRelocationNeeded:
 
   mov si,lengthWrong
   mov cx,lengthWrongEnd - lengthWrong
-  printString
+  outputString
 
 lengthOk:
   test byte[flags],2
@@ -169,7 +169,7 @@ lengthOk:
 
   mov si,checksumWrong
   mov cx,checksumWrongEnd - checksumWrong
-  printString
+  outputString
 
 ;  mov ax,[cs:computedChecksum]
 ;  printHex
@@ -183,7 +183,7 @@ checksumOk:
   ; Print the boot message
 ;  mov si,bootMessage
 ;  mov cx,bootMessageEnd - bootMessage
-;  printString
+;  outputString
 
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
@@ -207,7 +207,7 @@ checksumOk:
   ; Print the OK message
   mov si,okMessage
   mov cx,okMessageEnd - okMessage
-  printString
+  outputString
 
   retf
 

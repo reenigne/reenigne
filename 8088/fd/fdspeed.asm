@@ -1,5 +1,6 @@
   %include "../defaults_com.asm"
 
+main:
   mov ax,cs
   mov ds,ax
 
@@ -97,7 +98,7 @@ notEsc:
   mov dl,[driveNumber]
   mov dh,0
   int 0x21
-  jnc .readOk:
+  jnc .readOk
   print "Error reading first sector via BIOS",10
   jmp [cleanup]
 .readOk:
@@ -173,11 +174,11 @@ notEsc:
   ; shouldn't happen unless somebody made a drive with a density higher than
   ; extended.
   test byte[resultST0],0x40
-  jnz .readOk
+  jnz .readOk2
 .readError:
   print "Error reading for backup",10
   jmp [cleanup]
-.readOk:
+.readOk2:
   ; Save the number of sectors we actually read
   mov al,[resultR]
   mov [commandEOT],al
@@ -339,15 +340,16 @@ testRead:
   shr ax,1
   mov [trialSize],ax
   cmp ax,bx
-  jne doneTrial
+  jne .doneTrial2
   ; lowestSize is good and highestSize is bad. We've just had a bad, so try
   ; decreasing.
   mov byte[searchPattern],2
+.doneTrial2:
   jmp doneTrial
 
 .increase:
   ; Bad read, increase - stop increasing and switch to binary search.
-  mov [searchPattern],0
+  mov byte[searchPattern],0
   jmp doneTrial
 
 success:
@@ -358,7 +360,7 @@ success:
   je .increase
 
   ; Good read, decrease - stop decreasing and switch to binary search.
-  mov [searchPattern],0
+  mov byte[searchPattern],0
   jmp doScan
 
 .binarySearch:
@@ -402,10 +404,12 @@ doScan:
   cmp al,0
   je .search00
   cmp al,0xff
-  je .searchFF
+  je .searchFF2
 .unexpected:
   print "Unexpected byte read from disk",10
   jmp [cleanup]
+.searchFF2:
+  jmp .searchFF
 .search00:
   dec bx
   mov al,[es:bx]
@@ -452,9 +456,11 @@ doScan:
   jmp .found
 .notC0:
   cmp al,0x80
-  jne .unexpected
+  jne .unexpected2
   mov al,2
   jmp .found
+.unexpected2:
+  jmp .unexpected
 
 .searchFF:
   dec bx
@@ -502,7 +508,7 @@ doScan:
   jmp .found
 .not3F:
   cmp al,0x7f
-  jne .unexpected
+  jne .unexpected2
   mov al,1
 
 

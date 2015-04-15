@@ -39,6 +39,7 @@ donePrint:
   ; Finish
   complete
 
+
   ; Print spaces for alignment
 printSpaces:
   mov cx,21  ; Width of column
@@ -46,7 +47,7 @@ printSpaces:
   jg spaceLoop
   mov cx,1
 spaceLoop:
-  printCharacter ' '
+  outputCharacter ' '
   loop spaceLoop
 
   mov cx,5    ; Number of repeats
@@ -113,7 +114,7 @@ fullPrint:
   mov cx,10
   mov si,output
 doPrint:
-  printString
+  outputString
   pop si
   pop cx
   loop repeatLoop1
@@ -124,7 +125,7 @@ doPrint:
   lodsw
   add si,ax
 
-  printNewLine
+  outputNewLine
 
   jmp nextExperiment
 
@@ -210,7 +211,7 @@ codeCopyDone:
 codeCopyOutOfSpace:
   mov si,outOfSpaceMessage
   mov cx,outOfSpaceMessageEnd-outOfSpaceMessage
-  printString
+  outputString
   complete
 
 outOfSpaceMessage:

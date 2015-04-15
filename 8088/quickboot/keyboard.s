@@ -252,7 +252,7 @@ clockWaitLoop2:
   sbic 0x03, 1                      ; 2 1  ; Port B
   rjmp clockWaitLoop2               ; 0 2
 
-  ldi r31,23                        ; 1          ; (cycles to delay)/3
+  ldi r31,23+51                     ; 1          ; (cycles to delay)/3
 wait69cyclesLoop:
   dec r31                           ; n*1
   brne wait69cyclesLoop             ; n*2 - 1
@@ -289,6 +289,7 @@ wait69cyclesLoop:
   ; Read bit 7
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 0x80                     ; 0 1
+  call wait151cycles
   sei
   ret
 
