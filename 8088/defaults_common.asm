@@ -1,20 +1,20 @@
 cpu 8086
 
-%macro printCharacter 1
+%macro outputCharacter 1
   mov al,%1
-  printCharacter
+  outputCharacter
 %endmacro
 
-%define printNewLine printCharacter 10
+%define outputNewLine outputCharacter 10
 
-%macro print 1+
+%macro outputString 1+
     jmp %%overMessage
   %%message:
     db %1
   %%overMessage:
     mov si,%%message
     mov cx,%%overMessage - %%message
-    printString
+    outputString
 %endmacro
 
 ; initCGA m

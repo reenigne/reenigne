@@ -174,7 +174,8 @@ public:
         do {
             int b = _com.tryReadByte();
             if (b != -1 && b != 17 && b != 19) {
-                console.write(String(hex(b,2)) + " ");
+                //console.write(String(hex(b,2)) + " ");
+                console.write<Byte>(b);
                 i = 0;
             }
             if (b == 26)

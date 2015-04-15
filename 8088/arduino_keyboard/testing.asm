@@ -76,7 +76,7 @@ finish:
 
 
 sendByteRoutine:
-   push ax
+  push ax
   mov bl,al
 
   clc

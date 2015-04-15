@@ -60,20 +60,20 @@ volatile bool ctrl = false;
 volatile bool alt = false;
 volatile bool asciiMode = false;
 volatile bool testerMode = true;
-volatile bool receivedEscape = false;
+//volatile bool receivedEscape = false;
 volatile bool receivedXOff = false;
 volatile bool sentXOff = false;
 volatile bool needXOff = false;
 volatile bool needXOn = false;
-volatile uint8_t rawBytesRemaining = 0;
+volatile uint16_t rawBytesRemaining = 0;
 volatile uint16_t programCounter = 0;
 volatile uint16_t programBytes = 0;
 volatile uint16_t programBytesRemaining = 0;
 volatile bool ramProgram = false;
 volatile bool expectingRawCount = false;
 volatile bool sentEscape = false;
-volatile bool checkSum = 0;
-volatile bool expectingCheckSum = false;
+//volatile bool checkSum = 0;
+//volatile bool expectingCheckSum = false;
 volatile bool testerRaw = false;
 volatile bool remoteMode = false;
 volatile uint8_t speedBytesRemaining = 0;
@@ -91,7 +91,7 @@ volatile bool blockedKeyboard = false;
 volatile uint16_t receivedDelay = 0;
 volatile uint8_t bitDelay = 1;
 volatile uint16_t slowAckDelay = 400;
-volatile uint16_t fastAckDelay = 1;
+volatile uint16_t fastAckDelay = 5; //2; //400; //1;
 volatile uint16_t baudRate = 0x67;
 
 SIGNAL(PCINT2_vect)
@@ -314,37 +314,37 @@ volatile uint16_t remoteCode = 0; */
 
 void processCharacter(uint8_t received)
 {
-    if (received == 0 && !receivedEscape) {
-        receivedEscape = true;
-        return;
-    }
-    if ((received == 17 || received == 19) && !receivedEscape) {
-        receivedXOff = (received == 19);
-        enqueueSerialByte(receivedXOff ? 'F' : 'N');
-        receivedEscape = false;
-        return;
-    }
-    receivedEscape = false;
+//    if (received == 0 && !receivedEscape) {
+//        receivedEscape = true;
+//        return;
+//    }
+//    if ((received == 17 || received == 19) && !receivedEscape) {
+//        receivedXOff = (received == 19);
+//        enqueueSerialByte(receivedXOff ? 'F' : 'N');
+//        receivedEscape = false;
+//        return;
+//    }
+//    receivedEscape = false;
 
     if (expectingRawCount) {
-        rawBytesRemaining = received;
-        checkSum = received;
+        rawBytesRemaining = received + 2;
+//        checkSum = received;
         expectingRawCount = false;
         return;
     }
     if (rawBytesRemaining > 0) {
         enqueueKeyboardByte(received);
-        checkSum += received;
+//        checkSum += received;
         --rawBytesRemaining;
-        if (rawBytesRemaining == 0)
-            expectingCheckSum = true;
+//        if (rawBytesRemaining == 0)
+//            expectingCheckSum = true;
         return;
     }
-    if (expectingCheckSum) {
-        enqueueSerialByte(received == checkSum ? 'K' : '~');
-        expectingCheckSum = false;
-        return;
-    }
+//    if (expectingCheckSum) {
+//        enqueueSerialByte(received == checkSum ? 'K' : '~');
+//        expectingCheckSum = false;
+//        return;
+//    }
     if (programBytesRemaining == 0xffff) {
         programBytes = received;
         --programBytesRemaining;
@@ -742,10 +742,12 @@ int main()
 
     sei();
 
-    print(PSTR("Quickboot 20150313-115200\n"));
+    print(PSTR("Quickboot 20150415-115200\n"));
     print(PSTR("Kernel version "));
     print((const char*)defaultProgram + 4);
     print(PSTR("\n>"));
+
+    reset();
 
     // All the keyboard interface stuff is done on the main thread.
     do {
@@ -828,16 +830,15 @@ int main()
                 // End of reset code
             }
             else {
-//                enqueueSerialByte('%');
                 while (!getClock()) { }  // Wait for clock to go high again.
                 // A short clock-low pulse. This is the XT trying to send us
                 // some data.
                 clearInterruptedKeystroke();
                 // Send the number of bytes that the XT can safely send us.
+                while (serialBufferCharacters == 255)
+                  ;
                 cli();
-                uint8_t available = serialBufferCharacters == 0 ? 255 :
-                    256-serialBufferCharacters;
-//                enqueueSerialByte(available);
+                uint8_t available = 255 - serialBufferCharacters;
                 sendKeyboardByte(available, fastAckDelay);
                 sei();
                 uint8_t count = receiveKeyboardByte();
@@ -846,6 +847,7 @@ int main()
                     enqueueSerialByte(receiveKeyboardByte());
                     sei();
                 }
+                sendKeyboardByte(0, fastAckDelay);
             }
         }
         else {

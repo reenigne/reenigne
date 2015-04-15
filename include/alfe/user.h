@@ -206,6 +206,7 @@ public:
     virtual void resize() { }
     virtual void doneResize() { }
     virtual void keyboardCharacter(int character) { }
+    virtual bool keyboardEvent(int key, bool up) { return false; }
     virtual void draw(Bitmap<DWORD> bitmap) { }
 
     // mouseInput() should return true if the mouse should be captured
@@ -303,6 +304,12 @@ public:
     {
         if (_focus != 0)
             _focus->keyboardCharacter(character);
+    }
+    bool keyboardEvent(int key, bool up)
+    {
+        if (_focus != 0)
+            return _focus->keyboardEvent(key, up);
+        return false;
     }
     bool mouseInput(Vector position, int buttons)
     {
@@ -625,6 +632,16 @@ protected:
                 break;
             case WM_CHAR:
                 keyboardCharacter(wParam);
+                break;
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+                if (keyboardEvent(wParam, false))
+                    return 0;
+                break;
+            case WM_KEYUP:
+            case WM_SYSKEYUP:
+                if (keyboardEvent(wParam, true))
+                    return 0;
                 break;
             case WM_KILLFOCUS:
                 releaseCapture();

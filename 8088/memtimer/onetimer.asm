@@ -46,7 +46,7 @@ printSpaces:
   jg spaceLoop
   mov cx,1
 spaceLoop:
-  printCharacter ' '
+  outputCharacter ' '
   loop spaceLoop
 
   mov cx,5    ; Number of repeats
@@ -189,7 +189,7 @@ codeCopyDone:
 codeCopyOutOfSpace:
   mov si,outOfSpaceMessage
   mov cx,outOfSpaceMessageEnd-outOfSpaceMessage
-  printString
+  outputString
   complete
 
 outOfSpaceMessage:

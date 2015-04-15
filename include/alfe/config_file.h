@@ -152,8 +152,8 @@ public:
         }
         if (!_options.hasKey(s))
             i.span().throwError("Unknown identifier " + s);
-        return TypedValue(LValueType(_options[s].type()), LValue(this, s),
-            i.span());
+        return TypedValue(LValueType::wrap(_options[s].type()),
+            LValue(this, s), i.span());
     }
     Tyco resolveTycoIdentifier(TycoIdentifier i)
     {

@@ -266,10 +266,14 @@ private:
             *source = s;
             switch (c) {
                 case '"':
-                    string += s.subString(startOffset, endOffset);
-                    Space::parse(source);
-                    return expression +
-                        Expression(string, stringStartSpan + span);
+                    {
+                        string += s.subString(startOffset, endOffset);
+                        Space::parse(source);
+                        Expression r(string, stringStartSpan + span);
+                        if (expression.valid())
+                            return expression + r;
+                        return r;
+                    }
                 case '\\':
                     string += s.subString(startOffset, endOffset);
                     c = s.get(&stringEndSpan);
@@ -580,13 +584,15 @@ public:
         const Operator* op = ops;
         do {
             Span span;
-            Operator o = op->parse(source, &span);
-            if (!o.valid()) {
+            Operator o;
+            do {
+                o = op->parse(source, &span);
+                if (o.valid())
+                    break;
                 ++op;
                 if (!op->valid())
-                    break;
-                return expression;
-            }
+                    return expression;
+            } while (true);
             Expression right = parser(source);
             if (!right.valid())
                 throwError(source);
