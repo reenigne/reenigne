@@ -1,5 +1,5 @@
 quickboot -> host data stream
-     0 = escape = ransfer following byte directly, don't interpret it as an action.
+     0 = escape = transfer following byte directly, don't interpret it as an action.
      1 = Take screenshot
      2 = Start recording audio
      3 = Stop recording audio
@@ -58,5 +58,6 @@ status byte:
 	   20  controller error (NEC for floppies)    - ST0 & 0xc0 != 0
 	   40  seek failure                           - ST0 & 0x60 == 0x60 in seek
 	   80  time out, drive not ready              - wait for interrupt or result took too long
+
 
 

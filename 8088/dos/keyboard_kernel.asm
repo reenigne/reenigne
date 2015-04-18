@@ -5,16 +5,6 @@
   db '20150415-keyb',0
 
 codeStart:
-;  initCGA 8
-;
-;   push dx
-;   push ax
-;   mov al,1
-;   mov dx,0x3d9
-;   out dx,al
-;   pop ax
-;   pop dx
-
   mov ax,cs
   mov ds,ax
 
@@ -27,7 +17,6 @@ findIP:
   cmp di,kernelEnd
   je lengthOk1
   or byte[flags + bx],1
-  mov [foundLength + bx],di
 lengthOk1:
 
 
@@ -41,7 +30,6 @@ checksumLoop:
   cmp ah,[checkSum + bx]
   je checksumOk1
   or byte[flags + bx],2
-  mov byte[foundCheckSum + bx],ah
 checksumOk1:
 
   ; Turn interrupts off - the keyboard send routine is cycle-counted.
@@ -49,14 +37,6 @@ checksumOk1:
 
   ; Set up the screen so we can debug the keyboard send routine
   initCGA 8
-
-;   push dx
-;   push ax
-;   mov al,2
-;   mov dx,0x3d9
-;   out dx,al
-;   pop ax
-;   pop dx
 
   ; Clear the video memory
   mov ax,0xb800
@@ -165,15 +145,6 @@ doMove:
   retf
 
 noRelocationNeeded:
-
-;   push dx
-;   push ax
-;   mov al,3
-;   mov dx,0x3d9
-;   out dx,al
-;   pop ax
-;   pop dx
-
   ; Set up some interrupts
   ; int 0x60 == capture screen
   ; int 0x61 == start audio recording
@@ -214,11 +185,6 @@ noRelocationNeeded:
   test byte[flags],1
   jz lengthOk
 
-   mov ax,[foundLength]
-   outputHex
-   mov ax,kernelEnd
-   outputHex
-
   mov si,lengthWrong
   mov cx,lengthWrongEnd - lengthWrong
   outputString
@@ -227,28 +193,11 @@ lengthOk:
   test byte[flags],2
   jz checksumOk
 
-   mov ax,[foundCheckSum]
-   outputHex
-
   mov si,checksumWrong
   mov cx,checksumWrongEnd - checksumWrong
   outputString
 
 checksumOk:
-
-;   push dx
-;   push ax
-;   mov al,4
-;   mov dx,0x3d9
-;   out dx,al
-;   pop ax
-;   pop dx
-
-  ; Print the boot message
-;  mov si,bootMessage
-;  mov cx,bootMessageEnd - bootMessage
-;  outputString
-
   ; Push the cleanup address for the program to retf back to.
   mov bx,cs
   push bx
@@ -278,24 +227,7 @@ checksumOk:
   and al,0x7f
   out 0x61,al
 
-;   push dx
-;   push ax
-;   mov al,5
-;   mov dx,0x3d9
-;   out dx,al
-;   pop ax
-;   pop dx
-
   loadData
-
-  ; Print the OK message
-  mov si,okMessage
-  mov cx,okMessageEnd - okMessage
-  outputString
-
-  mov al,6
-  mov dx,0x3d9
-  out dx,al
 
   retf
 
@@ -309,15 +241,6 @@ loadDataRoutine:
   push si
   push ds
 
-;   push dx
-;   push ax
-;   mov al,6
-;   mov dx,0x3d9
-;   out dx,al
-;   pop ax
-;   pop dx
-
-;  outputCharacter 'R'
   push di
   mov al,'R'
   call sendChar
@@ -326,11 +249,6 @@ loadDataRoutine:
 packetLoop:
   ; Receive packet size in bytes
   call keyboardRead
-
-;   inc word[cs:keyboardCounter]
-;   mov al,bl
-;   outputHex
-;   dec word[cs:keyboardCounter]
 
   mov cl,bl
   mov ch,0
@@ -346,11 +264,6 @@ packetLoop:
 byteLoop:
   call keyboardRead
 
-;   inc word[cs:keyboardCounter]
-;   mov al,bl
-;   outputHex
-;   dec word[cs:keyboardCounter]
-
   mov al,bl
   add ah,al
   stosb
@@ -360,17 +273,11 @@ noBytes:
   ; Receive checksum
   call keyboardRead
 
-;   inc word[cs:keyboardCounter]
-;   mov al,bl
-;   outputHex
-;   dec word[cs:keyboardCounter]
-
   sub ah,bl
 
   cmp ah,0
   jne checkSumFailed
 
-;  outputCharacter 'K'
   push di
   mov al,'K'
   call sendChar
@@ -390,19 +297,11 @@ noBytes:
   jmp packetLoop
 
 checkSumFailed:
-   push ax
   ; Send fail byte
-;  outputCharacter 'F'
   push di
   mov al,'F'
   call sendChar
   pop di
-
-;   pop ax
-;   inc word[cs:keyboardCounter]
-;   outputHex
-;   dec word[cs:keyboardCounter]
-
 
   pop cx
   sub di,cx
@@ -416,74 +315,6 @@ transferComplete:
   pop bx
   pop ax
   iret
-
-
-;loadDataRoutine:
-;  push ax
-;  push bx
-;  push cx
-;  push dx
-;  push si
-;  push ds
-;  mov ax,es
-;  mov ds,ax
-;tryLoad:
-;  mov al,'R'
-;  call sendChar
-;
-;  ; Read a 3-byte count and then a number of bytes into memory, starting at
-;  ; DS:DI
-;  call keyboardRead
-;  mov cl,bl
-;  call keyboardRead
-;  mov ch,bl
-;  call keyboardRead
-;  mov bh,0
-;
-;   ; Debug: print number of bytes to load
-;   mov ax,bx
-;   outputHex
-;   mov ax,cx
-;   outputHex
-;   outputNewLine
-;
-;  mov si,bx
-;  push cx
-;  xor dl,dl
-;pagesLoop:
-;  cmp si,0
-;  je noFullPages
-;  xor cx,cx
-;  call loadBytes
-;  dec si
-;  jmp pagesLoop
-;noFullPages:
-;  pop cx
-;  test cx,cx
-;  jz loadProgramDone
-;  call loadBytes
-;loadProgramDone:
-;  ; Check that the checksum matches
-;  call keyboardRead
-;  cmp dl,bl
-;  mov ax,cs
-;  mov ds,ax
-;  je checksumOk2
-;  mov si,failMessage
-;  mov cx,failMessageEnd - failMessage
-;  outputString
-;  jmp tryLoad
-;checksumOk2:
-;  mov si,okMessage
-;  mov cx,okMessageEnd - okMessage
-;  outputString
-;  pop ds
-;  pop si
-;  pop dx
-;  pop cx
-;  pop bx
-;  pop ax
-;  iret
 
 
 ; Reads the next keyboard scancode into BL
@@ -593,15 +424,6 @@ sendLoop:
   jne .loop
   cmp ah,0
   jne .loop
-
-;   push dx
-;   push ax
-;   mov al,7
-;   mov dx,0x3d9
-;   out dx,al
-;   pop ax
-;   pop dx
-
 
   ; Read and ignore a final byte so that the keyboard is in a good state
   call keyboardRead
@@ -956,9 +778,6 @@ column:
   db 0
 startAddress:
   dw 0
-;bootMessage:
-;  db 'XT OS Kernel',10
-;bootMessageEnd:
 lengthWrong:
   db 'Length incorrect',10
 lengthWrongEnd:
@@ -968,21 +787,12 @@ checksumWrongEnd:
 okMessage:
   db 'OK',10
 okMessageEnd:
-failMessage:
-  db 'Checksum failure',10
-failMessageEnd:
 screenCounter:
   dw 0
 keyboardCounter:
   dw 0
 
-foundLength:
-  dw 0
-
 flags:
-  db 0
-
-foundCheckSum:
   db 0
 
 checkSum:
