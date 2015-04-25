@@ -17,6 +17,13 @@ cpu 8086
     outputString
 %endmacro
 
+  VIDEO_ENABLE EQU 0x08
+  HRES         EQU 0x01
+  GRPH         EQU (0x02 | VIDEO_ENABLE)
+  ONE_BPP      EQU (0x10 | GRPH)
+  BW           EQU 0x04
+  ENABLE_BLINK EQU 0x20
+
 ; initCGA m
 ; m = mode register value:
 ; 0x08 = 40x25 text, colour, bright background
@@ -32,7 +39,7 @@ cpu 8086
 ; 0x2c = 40x25 text, B/W, blinking
 ; 0x2d = 80x25 text, B/W, blinking
 %macro initCGA 1
-  %if (%1 & 0x10) != 0
+  %if ((%1) & 0x10) != 0
     initCGA %1, 0x0f
   %else
     initCGA %1, 0
@@ -46,7 +53,7 @@ cpu 8086
 ; 0x20..0x2f = background/cyan/magenta/light grey
 ; 0x30..0x3f = background/light cyan/light magenta/white
 %macro initCGA 2
-  %if (%1 & 2) != 0
+  %if ((%1) & 2) != 0
     initCGA %1, %2, 2
   %else
     initCGA %1, %2, 8
@@ -81,7 +88,7 @@ cpu 8086
   mov dl,0xd4
 
   ;   0xff Horizontal Total                             38 71
-  %if (%1 & 1) != 0
+  %if ((%1) & 1) != 0
     mov ax,0x7100
   %else
     mov ax,0x3800
@@ -89,7 +96,7 @@ cpu 8086
   out dx,ax
 
   ;   0xff Horizontal Displayed                         28 50
-  %if (%1 & 1) != 0
+  %if ((%1) & 1) != 0
     mov ax,0x5001
   %else
     mov ax,0x2801
@@ -97,7 +104,7 @@ cpu 8086
   out dx,ax
 
   ;   0xff Horizontal Sync Position                     2d 5a
-  %if (%1 & 1) != 0
+  %if ((%1) & 1) != 0
     mov ax,0x5a02
   %else
     mov ax,0x2d02
@@ -330,90 +337,6 @@ cpu 8086
 
 
 %macro lockstep 0
-  cli
-
-  refreshOff
-
-  ; Set "stosb" destination to be CGA memory
-  mov ax,0xb800
-  mov es,ax
-  mov di,0x3ffd
-
-  ; Set argument for MUL
-  mov cl,1
-
-  ; Ensure "stosb" won't take us out of video memory
-  cld
-
-  ; Go into CGA lockstep. The delays were determined by trial and error.
-  jmp $+2      ; Clear prefetch queue
-  stosb        ; From 16 down to 3 possible CGA/CPU relative phases.
-  mov al,0x01
-  mul cl
-  stosb        ; Down to 2 possible CGA/CPU relative phases.
-  mov al,0x7f
-  mul cl
-  stosb        ; Down to 1 possible CGA/CPU relative phase: lockstep achieved.
-
-  mov dx,0x03d8
-  mov al,0x0a
-  out dx,al
-
-  ; Set up CRTC for 1 character by 2 scanline "frame". This gives us 2 lchars
-  ; per frame.
-  mov dl,0xd4
-  ;   0xff Horizontal Total
-  mov ax,0x0000
-  out dx,ax
-  ;   0xff Horizontal Displayed                         28
-  mov ax,0x0101
-  out dx,ax
-  ;   0xff Horizontal Sync Position                     2d
-  mov ax,0x2d02
-  out dx,ax
-  ;   0x0f Horizontal Sync Width                        0a
-  mov ax,0x0a03
-  out dx,ax
-  ;   0x7f Vertical Total                               7f
-  mov ax,0x0104
-  out dx,ax
-  ;   0x1f Vertical Total Adjust                        06
-  mov ax,0x0005
-  out dx,ax
-  ;   0x7f Vertical Displayed                           64
-  mov ax,0x0106
-  out dx,ax
-  ;   0x7f Vertical Sync Position                       70
-  mov ax,0x0007
-  out dx,ax
-  ;   0x03 Interlace Mode                               02
-  mov ax,0x0208
-  out dx,ax
-  ;   0x1f Max Scan Line Address                        01
-  mov ax,0x0009
-  out dx,ax
-
-  times 512 nop
-  nop
-
-  ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
-  ; which of the two possible CRTC states we're in and switch states if we're
-  ; in the wrong one by waiting for an odd number of lchars more in one code
-  ; path than in the other. To keep CGA and CPU in lockstep, we also need both
-  ; code paths to take the same time mod 3 lchars, so we wait 3 lchars more on
-  ; one code path than on the other.
-  mov dl,0xda
-  in al,dx
-  jmp $+2
-  test al,1
-  jz %%shortPath
-  times 2 nop
-  jmp $+2
-%%shortPath:
-
-%endmacro
-
-%macro lockstep2 0
   mov dx,0x03d8
   mov al,0x0a
   out dx,al
@@ -452,26 +375,6 @@ cpu 8086
   mov ax,0x0009
   out dx,ax
 
-;  ; Wait until CGA has settled down
-;%%settle:
-;  mov dl,0xdc
-;  in al,dx  ; 0x3dc: Activate light pen
-;  dec dx
-;  in al,dx  ; 0x3db: Clean light pen strobe
-;  mov dl,0xd4
-;  mov al,16
-;  out dx,al ; 0x3d4<-16: light pen high
-;  inc dx
-;  in al,dx  ; 0x3d5: register value
-;  mov ah,al
-;  dec dx
-;  mov al,17
-;  out dx,al ; 0x3d4<-17: light pen low
-;  inc dx
-;  in al,dx  ; 0x3d5: register value
-;  cmp ax,2
-;  jge %%settle
-
   mov cx,256
   xor ax,ax
   mov ds,ax
@@ -492,23 +395,31 @@ cpu 8086
   ; We now have about 1.5ms during which refresh can be off
   refreshOff
 
-  ; Set "stosb" destination to be CGA memory
+  ; Set "lodsb" destination to be CGA memory
   mov ax,0xb800
   mov es,ax
-  mov di,0x3ffd
+  mov ds,ax
+  mov di,0x3ffc
+  mov si,di
+  mov ax,0x0303  ; Found by trial and error
+  stosw
+  stosw
 
   ; Set argument for MUL
   mov cl,1
 
-  ; Go into CGA lockstep. The delays were determined by trial and error.
-  jmp $+2      ; Clear prefetch queue
-  stosb        ; From 16 down to 3 possible CGA/CPU relative phases.
-  mov al,0x01
+  ; Go into CGA/CPU lockstep.
+  mov al,0  ; exact value doesn't matter here - it's just to ensure the prefetch queue is filled
   mul cl
-  stosb        ; Down to 2 possible CGA/CPU relative phases.
-  mov al,0x7f
+  lodsb
   mul cl
-  stosb        ; Down to 1 possible CGA/CPU relative phase: lockstep achieved.
+  nop
+  lodsb
+  mul cl
+  nop
+  lodsb
+  mul cl
+  jmp $+2
 
   ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
   ; which of the two possible CRTC states we're in and switch states if we're
@@ -531,6 +442,10 @@ cpu 8086
   out 0x43,al
   mov al,2
   out 0x41,al  ; Timer 1 rate
+
+  xor ax,ax
+  mov ds,ax
+  mov si,ax
 
   ; Delay for enough time to refresh 512 columns
   mov cx,256

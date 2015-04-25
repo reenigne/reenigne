@@ -29,7 +29,7 @@ printLoop:
   lodsb
   cmp al,'$'
   je donePrint
-  printCharacter
+  outputCharacter
   inc bx
   jmp printLoop
 donePrint:
@@ -225,6 +225,48 @@ codePreambleStart:
 codePreambleEnd:
 
 experimentData:
+
+experimentTracePIT:
+  db "TracePIT$"
+  dw .endInit - ($+2)
+
+  mov ax,0x7000
+  mov es,ax
+  xor di,di
+  mov al,TIMER2 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov dx,0x42
+  mov al,0
+  out dx,al
+  out dx,al
+
+.endInit:
+  dw .endCode - ($+2)
+  readPIT16 2
+  stosw
+.shortPath:
+.endCode:
+
+
+
+experimentLockstepOscillate:
+  db "LockstepOscillate$"
+  dw .endInit - ($+2)
+  mov dx,0x3da
+  mov ax,0x7000
+  mov es,ax
+  xor di,di
+.endInit:
+  dw .endCode - ($+2)
+  in al,dx
+  in al,dx
+  in al,dx
+  nop
+  stosb
+.shortPath:
+.endCode:
+
+
 
 experimentLockstep1:
   db "Lockstep1$"
