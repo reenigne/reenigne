@@ -61,10 +61,10 @@ volatile bool alt = false;
 volatile bool asciiMode = false;
 volatile bool testerMode = true;
 //volatile bool receivedEscape = false;
-volatile bool receivedXOff = false;
-volatile bool sentXOff = false;
-volatile bool needXOff = false;
-volatile bool needXOn = false;
+//volatile bool receivedXOff = false;
+//volatile bool sentXOff = false;
+//volatile bool needXOff = false;
+//volatile bool needXOn = false;
 volatile uint16_t rawBytesRemaining = 0;
 volatile uint16_t programCounter = 0;
 volatile uint16_t programBytes = 0;
@@ -123,21 +123,21 @@ void sendSerialByte()
     if (!spaceAvailable)
         return;
     // We should be able to send XOn/XOff even if we've received XOff.
-    if (!needXOff && !needXOn && (receivedXOff || sentXOff))
-        return;
+//    if (!needXOff && !needXOn && (receivedXOff || sentXOff))
+//        return;
     uint8_t c;
-    if (needXOff) {
-        c = 19;
-        sentXOff = true;
-        needXOff = false;
-    }
-    else {
-        if (needXOn) {
-            c = 17;
-            sentXOff = false;
-            needXOn = false;
-        }
-        else {
+//    if (needXOff) {
+//        c = 19;
+//        sentXOff = true;
+//        needXOff = false;
+//    }
+//    else {
+//        if (needXOn) {
+//            c = 17;
+//            sentXOff = false;
+//            needXOn = false;
+//        }
+//        else {
             if (serialBufferCharacters == 0) {
                 if (sendRamProgram) {
                     c = programBuffer[programBytes - programBytesRemaining];
@@ -153,23 +153,23 @@ void sendSerialByte()
                 }
             }
             c = serialBuffer[serialBufferPointer];
-            if (c == 0 || c == 17 || c == 19) {
-                if (!sentEscape) {
-                    c = 0;
-                    sentEscape = true;
-                }
-                else {
-                    sentEscape = false;
-                    ++serialBufferPointer;
-                    --serialBufferCharacters;
-                }
-            }
-            else {
+//            if (c == 0 || c == 17 || c == 19) {
+//                if (!sentEscape) {
+//                    c = 0;
+//                    sentEscape = true;
+//                }
+//                else {
+//                    sentEscape = false;
+//                    ++serialBufferPointer;
+//                    --serialBufferCharacters;
+//                }
+//            }
+//            else {
                 ++serialBufferPointer;
                 --serialBufferCharacters;
-            }
-        }
-    }
+//            }
+//        }
+//    }
     // Actually send the byte
     UDR0 = c;
     spaceAvailable = false;
@@ -201,10 +201,10 @@ void enqueueKeyboardByte(uint8_t byte)
         = byte;
     ++keyboardBufferCharacters;
     // If our buffer is getting too full, tell the host to stop sending.
-    if (keyboardBufferCharacters >= 0xf0 && !sentXOff) {
-        needXOff = true;
-        sendSerialByte();
-    }
+//    if (keyboardBufferCharacters >= 0xf0 && !sentXOff) {
+//        needXOff = true;
+//        sendSerialByte();
+//    }
 }
 
 bool processCommand(uint8_t command)
@@ -865,10 +865,10 @@ int main()
                     sei();
                     // If we've made enough space in the buffer, allow
                     //  receiving again.
-                    if (keyboardBufferCharacters < 0xf0 && sentXOff) {
-                        needXOn = true;
-                        sendSerialByte();
-                    }
+//                    if (keyboardBufferCharacters < 0xf0 && sentXOff) {
+//                        needXOn = true;
+//                        sendSerialByte();
+//                    }
                     if (keyboardBufferCharacters < 0xf0 && blockedKeyboard) {
                         blockedKeyboard = false;
                         raiseInputData();

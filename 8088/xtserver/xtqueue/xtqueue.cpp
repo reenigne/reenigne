@@ -449,7 +449,7 @@ public:
 
         //reboot();
 
-        //_imager = File("C:\\imager.bin", true).contents();
+        _imager = File(configFile->get<String>("imagerPath"), true).contents();
 
         _packet.allocate(0x104);
 
@@ -548,6 +548,21 @@ public:
                 break;
         }
     }
+    void waitForReady()
+    {
+        int i = 0;
+        do {
+            Byte b = _arduinoCom.tryReadByte();
+            if (b == 'R')
+                break;
+            if (b != -1)
+                i = 0;
+            ++i;
+        } while (i < 10);
+
+        IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+        IF_ZERO_THROW(PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
+    }
     void reboot()
     {
         bothWrite("Resetting\n");
@@ -559,21 +574,19 @@ public:
         // The Arduino bootloader waits a bit to see if it needs to
         // download a new program.
 
-        int i = 0;
-        do {
-            Byte b = _arduinoCom.tryReadByte();
-            if (b == 'R')
-                break;
-            if (b != -1)
-                i = 0;
-            ++i;
-        } while (i < 10);
+        waitForReady();
+        //int i = 0;
+        //do {
+        //    Byte b = _arduinoCom.tryReadByte();
+        //    if (b == 'R')
+        //        break;
+        //    if (b != -1)
+        //        i = 0;
+        //    ++i;
+        //} while (i < 10);
 
-        if (i == 10)
-            throw Exception("No response from QuickBoot");
-
-        IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
-        IF_ZERO_THROW(PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
+        //if (i == 10)
+        //    throw Exception("No response from QuickBoot");
     }
     void bothWrite(String s)
     {
@@ -583,54 +596,39 @@ public:
     }
     bool upload(String program)
     {
-        int retry = 1;
-        bool error;
+        int l = program.length();
+        Byte checksum;
+        int p = 0;
+        int bytes;
         do {
-            IF_ZERO_THROW(
-                PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
-
-            reboot();
-            bothWrite("Transferring attempt " + String::Decimal(retry) + "\n");
-
-            int l = program.length();
-
-            Byte checksum;
-
-            int p = 0;
-            int bytes;
-            error = false;
+            bytes = min(l, 0xff);
+            _packet[0] = 0x76;  // clear keyboard buffer
+            _packet[1] = 0x75;  // raw mode
+            _packet[2] = bytes;
+            _packet[3] = bytes;
+            checksum = 0;
+            for (int i = 0; i < bytes; ++i) {
+                Byte d = program[p];
+                ++p;
+                _packet[i + 4] = d;
+                checksum += d;
+            }
+            _packet[bytes + 4] = checksum;
+            int tries = 0;
             do {
-                bytes = min(l, 0xff);
-                _packet[0] = 0x76;  // clear keyboard buffer
-                _packet[1] = 0x75;  // raw mode
-                _packet[2] = bytes;
-                _packet[3] = bytes;
-                checksum = 0;
-                for (int i = 0; i < bytes; ++i) {
-                    Byte d = program[p];
-                    ++p;
-                    _packet[i + 4] = d;
-                    checksum += d;
-                }
-                _packet[bytes + 4] = checksum;
-                int tries = 0;
-                do {
-                    _arduinoCom.write(&_packet[0], 5 + bytes);
-                    IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
-                    Byte b = _arduinoCom.tryReadByte();
-                    if (b == 'K')
-                        break;
-                    ++tries;
-                } while (tries < 10);
-                if (tries == 10) {
-                    error = true;
-                    ++retry;
+                _arduinoCom.write(&_packet[0], 5 + bytes);
+                IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+                Byte b = _arduinoCom.tryReadByte();
+                console.write<Byte>(b);
+                if (b == 'K')
                     break;
-                }
-                l -= bytes;
-            } while (bytes != 0);
-        } while (error && retry < 10);
-        return error;
+                ++tries;
+            } while (tries < 10);
+            if (tries == 10)
+                return true;
+            l -= bytes;
+        } while (bytes != 0);
+        return false;
     }
     String htDocsPath(String name) { return _htdocsPath + "\\" + name; }
     void threadProc()
@@ -707,7 +705,21 @@ public:
                     //}
                     //else
                         program = _item->data();
-                bool error = upload(program);
+
+                int retry = 1;
+                bool error;
+                for (int retry = 0; retry < 10; ++retry) {
+                    IF_ZERO_THROW(
+                        PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
+
+                    reboot();
+                    bothWrite("Transferring attempt " + String::Decimal(retry) + "\n");
+
+                    error = upload(program);
+                    if (!error)
+                        break;
+                }
+
                 if (error) {
                     console.write("Failed to upload!\n");
                     _item->write("Could not transfer the program to the XT. "
@@ -803,6 +815,7 @@ private:
 
             int c;
             c = _arduinoCom.tryReadByte();
+            console.write(String(" :") + String(decimal(c)) + ":");
             if (c == -1)
                 continue;
             if (!escape && _fileState == 0) {
@@ -896,7 +909,7 @@ private:
                     break;
                 case 5:
                     // Get host interrupt data
-                    _hostBytes[17 - hostBytesRemaining] = c;
+                    _hostBytes[18 - hostBytesRemaining] = c;
                     --hostBytesRemaining;
                     if (hostBytesRemaining != 0)
                         break;
@@ -992,9 +1005,21 @@ private:
         _hostBytes[20] = 3;  // 3 for error, 2 for success
         switch (_hostInterruptOperation) {
             case 2:
+                {
+                    Byte sector = _hostBytes[3] & 0x3f;
+                    Word track = _hostBytes[4] | ((_hostBytes[3] & 0xc0) << 2);
+                    Byte head = _hostBytes[6];
+                    console.write(String("Read sector ") + decimal(sector) + ", " + decimal(head) + ", " + decimal(track) + "\n");
+                }
                 // Read disk sectors
                 _diskImage.bios(&_diskData, _hostBytes);
-                upload(String(_diskData));
+                {
+                    waitForReady();
+                    bool error = upload(String(_diskData));
+                    if (error)
+                        console.write("Data upload failed!\n");
+                }
+                console.write("Data upload complete\n");
                 break;
             case 3:
                 // Write disk sectors
@@ -1012,18 +1037,15 @@ private:
                 return;
         }
         sendDiskResult();
+        console.write("Result upload complete\n");
     }
     void sendDiskResult()
     {
+        console.write(String("Sending result bytes ") + decimal(_hostBytes[18]) + ", " + decimal(_hostBytes[19]) + ", " + decimal(_hostBytes[20]) + "\n");
+        waitForReady();
         upload(String(reinterpret_cast<const char*>(&_hostBytes[18]), 3));
     }
-    void writeByte(UInt8 value)
-    {
-        if (value == 0 || value == 0x11 || value == 0x13)
-            _arduinoCom.write<Byte>(0);
-        _arduinoCom.write<Byte>(value);
-    }
-   int getByte()
+    int getByte()
     {
         int b = getByte2();
         if (b == 0)
@@ -1104,6 +1126,8 @@ public:
             "htdocs"));
         configFile.addDefaultOption("captureFieldPath",
             String("C:\\capture_field.exe"));
+        configFile.addDefaultOption("imagerPath",
+            String("C:\\imager.bin"));
         configFile.load(File(_arguments[1], CurrentDirectory(), true));
 
         COMInitializer com;

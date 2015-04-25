@@ -98,9 +98,11 @@ public:
             case 160*1024:
                 _isRaw = true;
                 _defaultSectorsPerTrack = 8;
+                _heads = 1;
                 break;
             case 180*1024:
                 _isRaw = true;
+                _heads = 1;
                 break;
             case 320*1024:
                 _isRaw = true;
@@ -137,8 +139,6 @@ public:
         }
         if (_medium == microFloppy)
             _tracksPerInch = 135;
-        if (_isRaw)
-            _compressed = false;
     }
 
     // For XT Server.
@@ -157,21 +157,25 @@ public:
         Byte dataLength = hostBytes[13];
         Byte formatGapLength = hostBytes[14];
         Byte formatFillByte = hostBytes[15];
-//        Block* block;
-        switch (hostBytes[2]) {
+        Block* block;
+        switch (operation) {
             case 2:
                 // Read
-                //block = findBlock(track << 8, head);
-                //if (block == 0) {
-                //    hostBytes[19] = 4;
-                //    return;
-                //}
-
-                //data->allocate(sectorSize * sectorCount);
-                //do {
-
-                //} while (true);
-
+                {
+                    block = _blocks.getNext();
+                    int offset = _defaultBytesPerSector*((track*_heads + head)*_defaultSectorsPerTrack + sector - 1);
+                    int bytes = sectorSize * sectorCount;
+                    if (offset < 0 || offset + bytes >= block->_size) {
+                        hostBytes[18] = 0;
+                        hostBytes[19] = 4;  // Sector not found
+                        return;
+                    }
+                    data->allocate(bytes);
+                    memcpy(&(*data)[0], &block->_data[offset], bytes);
+                    hostBytes[18] = sectorCount;
+                    hostBytes[19] = 0;
+                    hostBytes[20] = 2;
+                }
                 break;
             case 3:
                 // Write
