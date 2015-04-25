@@ -29,7 +29,7 @@ printLoop:
   lodsb
   cmp al,'$'
   je donePrint
-  printCharacter
+  outputCharacter
   inc bx
   jmp printLoop
 donePrint:
