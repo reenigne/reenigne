@@ -201,10 +201,11 @@ void enqueueKeyboardByte(uint8_t byte)
         = byte;
     ++keyboardBufferCharacters;
     // If our buffer is getting too full, tell the host to stop sending.
-//    if (keyboardBufferCharacters >= 0xf0 && !sentXOff) {
+    if (keyboardBufferCharacters >= 0xf0 /*&& !sentXOff*/) {
+        enqueueSerialByte('*');
 //        needXOff = true;
 //        sendSerialByte();
-//    }
+    }
 }
 
 bool processCommand(uint8_t command)
@@ -338,6 +339,8 @@ void processCharacter(uint8_t received)
         --rawBytesRemaining;
 //        if (rawBytesRemaining == 0)
 //            expectingCheckSum = true;
+//        if (rawBytesRemaining == 0)
+//            enqueueSerialByte('+');
         return;
     }
 //    if (expectingCheckSum) {
@@ -847,7 +850,7 @@ int main()
                     enqueueSerialByte(receiveKeyboardByte());
                     sei();
                 }
-                sendKeyboardByte(0, fastAckDelay);
+//                sendKeyboardByte(0, fastAckDelay);
             }
         }
         else {

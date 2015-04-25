@@ -14,16 +14,16 @@ residentPortionEnd equ tempBuffer + 19
   cld
   mov si,residentPortion
   mov di,0
-  mov ax,0xa000 - (15 + residentPortionEnd - residentPortion)/16
+  mov ax,0x6000 ;0xa000 - (15 + residentPortionEnd - residentPortion)/16
   mov es,ax
   mov ax,cs
   mov ds,ax
   mov cx,(1 + residentPortionEnd - residentPortion)/2
   rep movsw
 
-  mov ax,0
-  mov ds,ax
-  sub word[0x412],(1023 + residentPortionEnd - residentPortion)/1024   ; Reduce BIOS RAM count to reduce chances of DOS stomping on our resident portion
+;  mov ax,0
+;  mov ds,ax
+;  sub word[0x412],(1023 + residentPortionEnd - residentPortion)/1024   ; Reduce BIOS RAM count to reduce chances of DOS stomping on our resident portion
 
 
   mov dx,0xc000
@@ -118,14 +118,54 @@ loadDataRoutine:
   push si
   push ds
 
+;   push ax
+;   push dx
+;   mov al,1
+;   mov dx,0x3d9
+;   out dx,al
+;   pop dx
+;   pop ax
+
+;   push ax
+;   stopKeyboard
+;   mov ax,bx
+;   mov ax,0x55AA
+;   outputHex
+;   resumeKeyboard
+;   pop ax
+
   push di
   mov al,'R'
   call sendChar
   pop di
 
+;   push ax
+;   push dx
+;   mov al,2
+;   mov dx,0x3d9
+;   out dx,al
+;   pop dx
+;   pop ax
+
 packetLoop:
   ; Receive packet size in bytes
   call keyboardRead
+
+;   push ax
+;   push dx
+;   mov al,3
+;   mov dx,0x3d9
+;   out dx,al
+;   pop dx
+;   pop ax
+
+;   push ax
+;   stopKeyboard
+;   mov ax,bx
+;   mov ah,0x55
+;   outputHex
+;   resumeKeyboard
+;   pop ax
 
   mov cl,bl
   mov ch,0
@@ -141,14 +181,47 @@ packetLoop:
 byteLoop:
   call keyboardRead
 
+;   push ax
+;   stopKeyboard
+;   mov ax,bx
+;   mov ah,0x55
+;   outputHex
+;   resumeKeyboard
+;   pop ax
+
   mov al,bl
   add ah,al
   stosb
   loop byteLoop
 noBytes:
 
+;   push ax
+;   push dx
+;   mov al,4
+;   mov dx,0x3d9
+;   out dx,al
+;   pop dx
+;   pop ax
+
   ; Receive checksum
   call keyboardRead
+
+;   push ax
+;   stopKeyboard
+;   mov ax,bx
+;   mov ah,0x55
+;   outputHex
+;   resumeKeyboard
+ ;  pop ax
+
+;   push ax
+;   push dx
+;   mov al,5
+;   mov dx,0x3d9
+;   out dx,al
+;   pop dx
+;   pop ax
+
 
   sub ah,bl
 
@@ -159,6 +232,16 @@ noBytes:
   mov al,'K'
   call sendChar
   pop di
+
+;   push ax
+;   push dx
+;   mov al,6
+;   mov dx,0x3d9
+;   out dx,al
+;   pop dx
+;   pop ax
+
+
 
   ; Normalize ES:DI
   mov ax,di
@@ -196,10 +279,23 @@ transferComplete:
 
 ; Reads the next keyboard scancode into BL
 keyboardRead:
+  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
+  out 0x20,al  ;  read Interrupt Request Register
+
+;  push ax
+;  stopKeyboard
+;  in al,0x20
+;  mov ah,al
+;  in al,0x61
+;  outputHex
+;  resumeKeyboard
+;  pop ax
+
+.loop:
   ; Loop until the IRR bit 1 (IRQ 1) is high
   in al,0x20
   and al,2
-  jz keyboardRead
+  jz .loop
   ; Read the keyboard byte and store it
   in al,0x60
   mov bl,al
@@ -209,24 +305,6 @@ keyboardRead:
   out 0x61,al
   and al,0x7f
   out 0x61,al
-  ret
-
-
-; Load CX bytes from keyboard to DS:DI (or a full 64Kb if CX == 0)
-loadBytes:
-  call keyboardRead
-  add dl,bl
-  mov [di],bl
-  add di,1
-  jnc noOverflow
-  mov bx,ds
-  add bh,0x10
-  mov ds,bx
-noOverflow:
-  test di,0x000f
-  jnz noPrint
-noPrint:
-  loop loadBytes
   ret
 
 
@@ -271,12 +349,18 @@ sendLoop:
   add cx,bx
   mov ds,cx
 
-  ; Read the number of bytes that we can send
-  call keyboardRead
-  xor bh,bh
+  ; Read the number of bytes that we can send, but do not ack - we want the clock line to stay high
+.readCountLoop:
+  ; Loop until the IRR bit 1 (IRQ 1) is high
+  in al,0x20
+  and al,2
+  jz .readCountLoop
+  ; Read the keyboard byte and store it
+  in al,0x60
+  mov cl,al
+  xor ch,ch
 
   ; Calculate number of bytes to actually send
-  mov cx,bx
   cmp ah,0
   jne .gotCount
   cmp di,cx
@@ -305,7 +389,14 @@ sendLoop:
   jne .loop
 
   ; Read and ignore a final byte so that the keyboard is in a good state
-  call keyboardRead
+;  call keyboardRead
+
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
+
 
   popf
   ret
@@ -659,24 +750,6 @@ int10Routine:
 
 
 int13Routine:
-;   push ax
-;   mov al,'D'
-;   call printChar
-;   pop ax
-;   push ax
-;   stopKeyboard
-;   outputHex
-;   mov ax,bx
-;   outputHex
-;   mov ax,cx
-;   outputHex
-;   mov ax,dx
-;   outputHex
-;   mov ax,es
-;   outputHex
-;   resumeKeyboard
-;   pop ax
-
   push ax
   mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
   out 0x20,al  ;  read Interrupt Request Register
@@ -706,7 +779,7 @@ int13Routine:
   cmp ah,4
   je .verify
   cmp ah,5
-;  je .format
+  je .format
   mov ax,0x100      ; bad command
   stc
   mov byte[0x41],ah
@@ -723,28 +796,18 @@ int13Routine:
 .read:
   call sendParameters
 
+;   stopKeyboard
 ;   push ax
-;   mov al,'A'
-;   call printChar
+;   mov ax,es
+;   outputHex
+;   mov ax,bx
+;   outputHex
 ;   pop ax
-
-   stopKeyboard
-   push ax
-   mov ax,es
-   outputHex
-   mov ax,bx
-   outputHex
-   pop ax
-   resumeKeyboard
-
+;   resumeKeyboard
+;   resumeKeyboard
   ; Receive the data to read
   mov di,bx
   loadData
-
-;   push ax
-;   mov al,'B'
-;   call printChar
-;   pop ax
 
   jmp .getResult
 
@@ -765,18 +828,6 @@ int13Routine:
   mov es,ax
   mov di,tempBuffer - residentPortion
   loadData
-
-;   push ax
-;   mov al,'C'
-;   call printChar
-;   pop ax
-;
-;   stopKeyboard
-;   mov ax,[cs:tempBuffer - residentPortion]
-;   outputHex
-;   mov ax,[cs:tempBuffer+2 - residentPortion]
-;   outputHex
-;   resumeKeyboard
 
   ; Store the status information
   mov ah,[cs:tempBuffer+2 - residentPortion]

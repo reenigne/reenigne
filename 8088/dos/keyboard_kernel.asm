@@ -426,7 +426,13 @@ sendLoop:
   jne .loop
 
   ; Read and ignore a final byte so that the keyboard is in a good state
-  call keyboardRead
+;  call keyboardRead
+
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
 
   ret
 

@@ -2,7 +2,7 @@
 
   initCGA 8
 
-  lockstep2
+  lockstep
 
   hlt
 

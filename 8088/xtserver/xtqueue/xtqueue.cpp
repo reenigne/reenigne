@@ -449,7 +449,9 @@ public:
 
         //reboot();
 
-        _imager = File(configFile->get<String>("imagerPath"), true).contents();
+        //_imager = File(configFile->get<String>("imagerPath"), true).contents();
+        _imager = configFile->get<String>("imagerPath");
+        _vDos = configFile->get<String>("vDosPath");
 
         _packet.allocate(0x104);
 
@@ -548,21 +550,6 @@ public:
                 break;
         }
     }
-    void waitForReady()
-    {
-        int i = 0;
-        do {
-            Byte b = _arduinoCom.tryReadByte();
-            if (b == 'R')
-                break;
-            if (b != -1)
-                i = 0;
-            ++i;
-        } while (i < 10);
-
-        IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
-        IF_ZERO_THROW(PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
-    }
     void reboot()
     {
         bothWrite("Resetting\n");
@@ -574,7 +561,6 @@ public:
         // The Arduino bootloader waits a bit to see if it needs to
         // download a new program.
 
-        waitForReady();
         //int i = 0;
         //do {
         //    Byte b = _arduinoCom.tryReadByte();
@@ -596,6 +582,22 @@ public:
     }
     bool upload(String program)
     {
+        int i = 0;
+        do {
+            int b = _arduinoCom.tryReadByte();
+            console.write<Byte>(b);
+            if (b == 'R')
+                break;
+            if (b != -1)
+                i = 0;
+            ++i;
+        } while (i < 10);
+
+        console.write('u');
+
+        IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+        //IF_ZERO_THROW(PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
+
         int l = program.length();
         Byte checksum;
         int p = 0;
@@ -611,11 +613,12 @@ public:
                 Byte d = program[p];
                 ++p;
                 _packet[i + 4] = d;
-                checksum += d;
+                checksum += d;                                      
             }
             _packet[bytes + 4] = checksum;
             int tries = 0;
             do {
+                console.write('p');
                 _arduinoCom.write(&_packet[0], 5 + bytes);
                 IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
                 Byte b = _arduinoCom.tryReadByte();
@@ -688,23 +691,24 @@ public:
                     extension = fileName.subString(fileNameLength - 4, 4);
                 String program;
                 _diskImage.clear();
+                bool comFile = false;
+                bool exeFile = false;
                 if (extension.equalsIgnoreCase(".img")) {
-                    program = _imager;
+                    program = File(_imager, true).contents();
                     _diskImage.load(_item->data());
                 }
                 else
-                    //if (extension.equalsIgnoreCase(".com")) {
-                    //    String::Buffer header(0x100);
-                    //    Byte* p = header.data();
-                    //    p[0] = 0xe9;
-                    //    p[1] = 0xfd;
-                    //    p[2] = 0x00;
-                    //    for (int i = 3; i < 0x100; ++i)
-                    //        p[i] = 0x90;
-                    //    program = String(header, 0, 0x100) + _item->data();
-                    //}
-                    //else
-                        program = _item->data();
+                    if (extension.equalsIgnoreCase(".com")) {
+                        program = File(_vDos, true).contents();
+                        comFile = true;
+                    }
+                    else
+                        if (extension.equalsIgnoreCase(".exe")) {
+                            program = File(_vDos, true).contents();
+                            exeFile = true;
+                        }
+                        else
+                            program = _item->data();
 
                 int retry = 1;
                 bool error;
@@ -719,6 +723,8 @@ public:
                     if (!error)
                         break;
                 }
+                if (comFile || exeFile)
+                    upload(_item->data());
 
                 if (error) {
                     console.write("Failed to upload!\n");
@@ -736,8 +742,7 @@ public:
                 }
                 bool timedOut = stream();
                 stopRecording();
-                console.write("\n");
-                _item->write("\n");
+                bothWrite("\n");
                 if (_item->aborted()) {
                     delete _item;
                     continue;
@@ -815,7 +820,7 @@ private:
 
             int c;
             c = _arduinoCom.tryReadByte();
-            console.write(String(" :") + String(decimal(c)) + ":");
+            //console.write(String(" :") + String(decimal(c)) + ":");
             if (c == -1)
                 continue;
             if (!escape && _fileState == 0) {
@@ -1014,10 +1019,9 @@ private:
                 // Read disk sectors
                 _diskImage.bios(&_diskData, _hostBytes);
                 {
-                    waitForReady();
                     bool error = upload(String(_diskData));
-                    if (error)
-                        console.write("Data upload failed!\n");
+                    //if (error)
+                    //    console.write("Data upload failed!\n");
                 }
                 console.write("Data upload complete\n");
                 break;
@@ -1042,7 +1046,6 @@ private:
     void sendDiskResult()
     {
         console.write(String("Sending result bytes ") + decimal(_hostBytes[18]) + ", " + decimal(_hostBytes[19]) + ", " + decimal(_hostBytes[20]) + "\n");
-        waitForReady();
         upload(String(reinterpret_cast<const char*>(&_hostBytes[18]), 3));
     }
     int getByte()
@@ -1085,6 +1088,7 @@ private:
     Byte _hostBytes[21];
 
     String _imager;
+    String _vDos;
 
     int _imageCount;
     Reference<AudioCapture> _audioCapture;
@@ -1128,6 +1132,8 @@ public:
             String("C:\\capture_field.exe"));
         configFile.addDefaultOption("imagerPath",
             String("C:\\imager.bin"));
+        configFile.addDefaultOption("vDosPath",
+            String("C:\\vdos.bin"));
         configFile.load(File(_arguments[1], CurrentDirectory(), true));
 
         COMInitializer com;

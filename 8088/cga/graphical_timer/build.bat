@@ -1,2 +1,2 @@
 @echo off
-yasm graphical_timer.asm -o graphical_timer.bin
+nasm graphical_timer.asm -o graphical_timer.bin -l graphical_timer.lst
