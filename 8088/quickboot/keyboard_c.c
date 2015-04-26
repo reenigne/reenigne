@@ -88,6 +88,7 @@ SIGNAL(PCINT1_vect)
 
 uint8_t receivedKeyboardByte = 0;
 volatile bool blockedKeyboard = false;
+volatile bool keyboardBlocked = false;
 volatile uint16_t receivedDelay = 0;
 volatile uint8_t bitDelay = 1;
 volatile uint16_t slowAckDelay = 400;
@@ -241,13 +242,13 @@ bool processCommand(uint8_t command)
         case 9:
             testerRaw = false;
             return true;
-        case 0xa:
-            remoteMode = true;
-            asciiMode = false;
-            return true;
-        case 0xb:
-            remoteMode = false;
-            return true;
+//        case 0xa:
+//            remoteMode = true;
+//            asciiMode = false;
+//            return true;
+//        case 0xb:
+//            remoteMode = false;
+//            return true;
         case 0xc:
             speedBytesRemaining = 3;
             return true;
@@ -256,6 +257,15 @@ bool processCommand(uint8_t command)
             programBytesRemaining = programBytes;
             enqueueSerialByte(programBytes & 0xff);
             enqueueSerialByte(programBytes >> 8);
+            return true;
+        case 0xa:
+            keyboardBlocked = true;
+            lowerInputData();
+            return true;
+        case 0xb:
+            keyboardBlocked = false;
+            if (!blockedKeyboard)
+                raiseInputData();
             return true;
     }
     return false;
@@ -328,7 +338,7 @@ void processCharacter(uint8_t received)
 //    receivedEscape = false;
 
     if (expectingRawCount) {
-        rawBytesRemaining = received + 2;
+        rawBytesRemaining = received + 3;  // +3 for marker, count and checksum
 //        checkSum = received;
         expectingRawCount = false;
         return;
@@ -745,7 +755,7 @@ int main()
 
     sei();
 
-    print(PSTR("Quickboot 20150415-115200\n"));
+    print(PSTR("Quickboot 20150425-115200\n"));
     print(PSTR("Kernel version "));
     print((const char*)defaultProgram + 4);
     print(PSTR("\n>"));
@@ -874,7 +884,8 @@ int main()
 //                    }
                     if (keyboardBufferCharacters < 0xf0 && blockedKeyboard) {
                         blockedKeyboard = false;
-                        raiseInputData();
+                        if (!keyboardBlocked)
+                            raiseInputData();
                     }
                 }
             }

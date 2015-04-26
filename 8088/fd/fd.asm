@@ -3,7 +3,7 @@
 %macro debug 1
   push ax
   pushf
-  printCharacter %1
+  outputCharacter %1
   popf
   pop ax
 %endmacro
@@ -31,7 +31,7 @@
   jz test2
 
   debug 'F'
-  printHex
+  outputHex
   retf
 
 test2:
@@ -182,7 +182,7 @@ chk_stat_2:
   push ax
   pushf
   debug ' '
-  printHex
+  outputHex
   popf
   pop ax
 
@@ -259,7 +259,7 @@ j42:
   debug '-'
   pushf
   push ax
-  printHex
+  outputHex
   pop ax
   popf
 

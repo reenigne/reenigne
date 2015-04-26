@@ -12,12 +12,12 @@
   mov ax,cs
   mov ds,ax
 
-  print "Floppy disk control program",10
+  outputString "Floppy disk control program",10
 
   writePIT16 0, 2, 0
 
 ; Reset the 765.
-  print "Resetting 765",10
+  outputString "Resetting 765",10
   call resetFDC
 
   call commandVersion
@@ -42,7 +42,7 @@
   call breakFormat
 
 
-  print "Writing data",10
+  outputString "Writing data",10
 
   mov byte[dma_mode],0x4a
   call startDMA
@@ -67,7 +67,7 @@ loop1:
 ;  call synchronousDisk
 
 
-  print "Reading data",10
+  outputString "Reading data",10
 
   mov byte[dma_mode],0x46
   call startDMA
@@ -75,18 +75,18 @@ loop1:
   call synchronousDisk
 
 
-  print "Sending data",10
+  outputString "Sending data",10
 
   mov cx,[dma_length]
-  printCharacter 0
-  printCharacter cl
-  printCharacter ch
-  printCharacter 0
+  outputCharacter 0
+  outputCharacter cl
+  outputCharacter ch
+  outputCharacter 0
   mov si,[dma_pointer]
   mov ds,[dma_pointer+2]
-  printString
+  outputString
 
-  print "Data sent",10
+  outputString "Data sent",10
 
   mov dx,0x03f2
   mov al,0x0c  ; Motor A off, DMA/INT enabled, FDC not reset, drive=A
@@ -99,7 +99,7 @@ loop1:
 ; Interrupt the format before it is complete so that the track and sector
 ; headers are not overwritten by data.
 breakFormat:
-  print "Performing break-format",10
+  outputString "Performing break-format",10
   mov byte[dma_mode],0x4a
   call startDMA
 
@@ -165,7 +165,7 @@ dmaWait:
 
   ; Wait for 1 second for the motor to spin up
 motorWait:
-  print "Waiting for spinup",10
+  outputString "Waiting for spinup",10
   mov bx,[time]
 .loop:
   mov cx,[time]
@@ -177,7 +177,7 @@ motorWait:
 
   ; Wait for 25ms for head to settle
 settleWait:
-  print "Waiting for head to settle",10
+  outputString "Waiting for head to settle",10
   readPIT16 0
   mov bx,ax
 .loop:
@@ -196,7 +196,7 @@ synchronousDisk:
   mov word[completionCallback], synchronousCallback
   call ax
 waitInterrupt:
-  print "Waiting",10
+  outputString "Waiting",10
   mov bx,[time]
   sti
 .loop:
@@ -207,7 +207,7 @@ waitInterrupt:
   cmp cx,37  ; 2 seconds timeout
   jb .loop
   ; We timed out
-  print "Timeout waiting for 765 interrupt",10
+  outputString "Timeout waiting for 765 interrupt",10
   complete
 
 synchronousComplete:
@@ -235,7 +235,7 @@ interruptE:
   push ax
   push si
   push cx
-  print "Interrupt received",10
+  outputString "Interrupt received",10
   mov al,0x20
   out 0x20,al
   call word[cs:operationCallback]
@@ -276,13 +276,13 @@ printNybble:
 printAlphabetic:
   add al,'A' - 10
 printGotCharacter:
-  printCharacter
+  outputCharacter
   ret
 
 printByte:
   mov bx,ax
   mov al,' '
-  printCharacter
+  outputCharacter
 printByte2:
   mov al,bl
   mov cl,4
@@ -312,12 +312,12 @@ write765:
   cmp cx,2
   jb .wait
 
-  print 10,"Timeout writing byte to 765"
+  outputString 10,"Timeout writing byte to 765"
 
   in al,dx
   mov [main_status],al
   call printMainStatus
-  printNewLine
+  outputNewLine
 
   complete
 .do:
@@ -330,7 +330,7 @@ write765:
 
 ; Set up DMA addresses
 setupDMA:
-  print "Setting up DMA.",10
+  outputString "Setting up DMA.",10
 
   mov word [dma_low],programEnd
   mov [dma_low+2],cs
@@ -359,7 +359,7 @@ setupDMA:
   jmp .checkHigh
 
 .overflow:
-  print "Trying next page.",10
+  outputString "Trying next page.",10
   mov cl,4
 
   ; The region immediately after the program overlapped the page boundary.
@@ -391,7 +391,7 @@ setupDMA:
   ; Now the first 20-bit address after the DMA buffer is in BL AX - we need to
   ; check that it does not exceed dma_high.
   push ax
-  print "Checking for DMA high.",10
+  outputString "Checking for DMA high.",10
   mov cl,4
   pop ax
 
@@ -410,24 +410,24 @@ setupDMA:
   sbb bh,bl
   jc .tooHigh
 
-  print "DMA buffer at "
+  outputString "DMA buffer at "
   mov al,[dma_page]
   call printNybble
   mov ax,[dma_offset]
-  printHex
-  printCharacter '-'
+  outputHex
+  outputCharacter '-'
   pop ax
   call printNybble
   pop ax
-  printHex
-  printNewLine
+  outputHex
+  outputNewLine
 
   ret
 
 .tooHigh:
   pop ax
   pop ax
-  print "Insufficient space for DMA buffer",10
+  outputString "Insufficient space for DMA buffer",10
   complete
 
 
@@ -510,7 +510,7 @@ standardCommand2:
   call write765
   mov al,[command_dtl]
   call write765
-  print ".",10
+  outputString ".",10
   ret
 
 
@@ -518,7 +518,7 @@ getResults:
   mov ax,cs
   mov es,ax
   mov dx,0x03f4
-  print "Read"
+  outputString "Read"
   mov di,results
   mov cx,7
 .getResult:
@@ -535,7 +535,7 @@ getResults:
   sub ax,bx
   cmp ax,2
   jb .wait
-  print "Timeout reading byte from 765",10
+  outputString "Timeout reading byte from 765",10
   complete
 .do:
   inc dx
@@ -547,7 +547,7 @@ getResults:
   pop cx
   loop .getResult
 .done:
-  print ".",10
+  outputString ".",10
   ret
 
 
@@ -555,23 +555,23 @@ standardCallback:
   push bx
   push dx
   call getResults
-  print "Result: "
+  outputString "Result: "
   call printST0
   call printST1
   call printST2
-  print ", C="
+  outputString ", C="
   mov bl,[result_c]
   call printByte2
-  print ", H="
+  outputString ", H="
   mov bl,[result_h]
   call printByte2
-  print ", R="
+  outputString ", R="
   mov bl,[result_r]
   call printByte2
-  print ", N="
+  outputString ", N="
   mov bl,[result_n]
   call printByte2
-  print ".",10
+  outputString ".",10
   pop dx
   pop bx
   ret
@@ -589,38 +589,38 @@ seekCallback:
 
 
 commandReadData:
-  print "Command Read Data: Writing"
+  outputString "Command Read Data: Writing"
   mov al,0x06
   jmp standardCommand
 
 commandReadDeletedData:
-  print "Command Read Deleted Data: Writing"
+  outputString "Command Read Deleted Data: Writing"
   mov al,0x0c
   jmp standardCommand
 
 commandWriteData:
-  print "Command Write Data: Writing"
+  outputString "Command Write Data: Writing"
   mov al,[command_code]
   and al,0xc0
   or al,0x05
   jmp standardCommand2
 
 commandWriteDeletedData:
-  print "Command Write Deleted Data: Writing"
+  outputString "Command Write Deleted Data: Writing"
   mov al,[command_code]
   and al,0xc0
   or al,0x09
   jmp standardCommand2
 
 commandReadTrack:
-  print "Command Read Track: Writing"
+  outputString "Command Read Track: Writing"
   mov al,[command_code]
   and al,0x60
   or al,0x02
   jmp standardCommand2
 
 commandReadID:
-  print "Command Read ID: Writing"
+  outputString "Command Read ID: Writing"
   mov dx,0x03f4
   mov al,[command_code]
   and al,0x40
@@ -628,11 +628,11 @@ commandReadID:
   call write765
   mov al,[command_unit]
   call write765
-  print ".",10
+  outputString ".",10
   ret
 
 commandFormatTrack:
-  print "Command Format Track: Writing"
+  outputString "Command Format Track: Writing"
   mov dx,0x03f4
   mov al,[command_code]
   and al,0x40
@@ -648,26 +648,26 @@ commandFormatTrack:
   call write765
   mov al,[command_d]
   call write765
-  print ".",10
+  outputString ".",10
   ret
 
 commandScanEqual:
-  print "Command Scan Equal: Writing"
+  outputString "Command Scan Equal: Writing"
   mov al,0x11
   jmp standardCommand
 
 commandScanLowOrEqual:
-  print "Command Scan Low Or Equal: Writing"
+  outputString "Command Scan Low Or Equal: Writing"
   mov al,0x19
   jmp standardCommand
 
 commandScanHighOrEqual:
-  print "Command Scan High Or Equal: Writing"
+  outputString "Command Scan High Or Equal: Writing"
   mov al,0x1d
   jmp standardCommand
 
 commandRecalibrate:
-  print "Command Recalibrate: Writing"
+  outputString "Command Recalibrate: Writing"
   mov word[operationCallback],seekCallback
   mov dx,0x03f4
   mov al,0x07
@@ -675,26 +675,26 @@ commandRecalibrate:
   mov al,[command_unit]
   and al,0x03
   call write765
-  print ".",10
+  outputString ".",10
   ret
 
 commandSenseInterruptStatus:
-  print "Command Sense Interrupt Status: Writing"
+  outputString "Command Sense Interrupt Status: Writing"
   mov dx,0x03f4
   mov al,0x08
   call write765
-  print ". "
+  outputString ". "
   call getResults
-  print "Result: "
+  outputString "Result: "
   call printST0
-  print ", PCN="
+  outputString ", PCN="
   mov bl,[result_pcn]
   call printByte2
-  print ".",10
+  outputString ".",10
   ret
 
 commandSpecify:
-  print "Command Specify: Writing"
+  outputString "Command Specify: Writing"
   mov dx,0x03f4
   mov al,0x03
   call write765
@@ -702,23 +702,23 @@ commandSpecify:
   call write765
   mov al,[specify_2]
   call write765
-  print ".",10
+  outputString ".",10
   ret
 
 commandSenseDriveStatus:
-  print "Command Sense Drive Status: Writing"
+  outputString "Command Sense Drive Status: Writing"
   mov dx,0x03f4
   mov al,0x04
   call write765
-  print ". "
+  outputString ". "
   call getResults
-  print "Result: "
+  outputString "Result: "
   call printST3
-  printNewLine
+  outputNewLine
   ret
 
 commandSeek:
-  print "Command Seek: Writing"
+  outputString "Command Seek: Writing"
   mov word[operationCallback],seekCallback
   mov dx,0x03f4
   mov al,0x0f
@@ -727,74 +727,74 @@ commandSeek:
   call write765
   mov al,[command_ncn]
   call write765
-  print ".",10
+  outputString ".",10
   ret
 
 commandVersion:
-  print "Command Version: Writing"
+  outputString "Command Version: Writing"
   mov dx,0x03f4
   mov al,0x10
   call write765
-  print ". "
+  outputString ". "
   call getResults
-  print "Result: "
+  outputString "Result: "
   cmp byte[result_st0],0x80
   jne .v765b
-  print "765A/A-2",10
+  outputString "765A/A-2",10
   ret
 .v765b:
-  print "765B",10
+  outputString "765B",10
   ret
 
 
 printST0:
-  print "Unit="
+  outputString "Unit="
   mov bl,[result_st0]
   mov al,bl
   and al,3
   add al,'0'
-  printCharacter
+  outputCharacter
 
-  print ", Head="
+  outputString ", Head="
   test bl,4
   jnz .head1
-  printCharacter '0'
+  outputCharacter '0'
   jmp .headDone
 .head1
-  printCharacter '1'
+  outputCharacter '1'
 .headDone:
 
   test bl,8
   jz .no_nr
-  print ", Not Ready"
+  outputString ", Not Ready"
 .no_nr:
 
   test bl,0x10
   jz .no_ec
-  print ", Equipment Check"
+  outputString ", Equipment Check"
 .no_ec:
 
   test bl,0x20
   jz .no_se
-  print ", Seek End"
+  outputString ", Seek End"
 .no_se:
 
   test bl,0x40
   jnz .bitsx1
   test bl,0x80
   jnz .bits10
-  print ", Normal Termination"
+  outputString ", Normal Termination"
   ret
 .bits10:
-  print ", Invalid Command"
+  outputString ", Invalid Command"
   ret
 .bitsx1:
   test bl,0x80
   jnz .bits11
-  print ", Abnormal Termination"
+  outputString ", Abnormal Termination"
   ret
 .bits11:
-  print ", Ready Changed"
+  outputString ", Ready Changed"
   ret
 
 
@@ -802,32 +802,32 @@ printST1:
   mov bl,[result_st1]
   test bl,1
   jz .no_ma
-  print ", Missing Address Mark"
+  outputString ", Missing Address Mark"
 .no_ma:
 
   test bl,2
   jz .no_nw
-  print ", Not Writable"
+  outputString ", Not Writable"
 .no_nw:
 
   test bl,4
   jz .no_nd
-  print ", No Data"
+  outputString ", No Data"
 .no_nd:
 
   test bl,0x10
   jz .no_or
-  print ", Overrun"
+  outputString ", Overrun"
 .no_or:
 
   test bl,0x20
   jz .no_de
-  print ", Data Error"
+  outputString ", Data Error"
 .no_de:
 
   test bl,0x80
   jz .no_en
-  print ", End of Cylinder"
+  outputString ", End of Cylinder"
 .no_en:
   ret
 
@@ -836,81 +836,81 @@ printST2:
   mov bl,[result_st2]
   test bl,1
   jz .no_md
-  print ", Missing Address Mark in Data Field"
+  outputString ", Missing Address Mark in Data Field"
 .no_md:
 
   test bl,2
   jz .no_bc
-  print ", Bad Cylinder"
+  outputString ", Bad Cylinder"
 .no_bc:
 
   test bl,4
   jz .no_sn
-  print ", Scan Not Satisfied"
+  outputString ", Scan Not Satisfied"
 .no_sn:
 
   test bl,8
   jz .no_sh
-  print ", Scan Equal Hit"
+  outputString ", Scan Equal Hit"
 .no_sh:
 
   test bl,0x10
   jz .no_wc
-  print ", Wrong Cylinder"
+  outputString ", Wrong Cylinder"
 .no_wc:
 
   test bl,0x20
   jz .no_dd
-  print ", Data Error in Data Field"
+  outputString ", Data Error in Data Field"
 .no_dd:
 
   test bl,0x40
   jz .no_cm
-  print ", Control Mark"
+  outputString ", Control Mark"
 .no_cm:
   ret
 
 
 printST3:
-  print "Unit="
+  outputString "Unit="
   mov bl,[result_st3]
   mov al,bl
   and al,3
   add al,'0'
-  printCharacter
+  outputCharacter
 
-  print ", Head="
+  outputString ", Head="
   test bl,4
   jnz .head1
-  printCharacter '0'
+  outputCharacter '0'
   jmp .headDone
 .head1
-  printCharacter '1'
+  outputCharacter '1'
 .headDone:
 
   test bl,8
   jz .no_ts
-  print ", Two-Side"
+  outputString ", Two-Side"
 .no_ts:
 
   test bl,0x10
   jz .no_t0
-  print ", Track 0"
+  outputString ", Track 0"
 .no_t0:
 
   test bl,0x20
   jz .no_ry
-  print ", Ready"
+  outputString ", Ready"
 .no_ry:
 
   test bl,0x40
   jz .no_wp
-  print ", Write Protected"
+  outputString ", Write Protected"
 .no_wp
 
   test bl,0x80
   jz .no_ft
-  print ", Fault"
+  outputString ", Fault"
 .no_ft:
   ret
 
@@ -920,45 +920,45 @@ printMainStatus:
 
   test bl,1
   jz .no_d0b
-  print ", FDD 0 Busy"
+  outputString ", FDD 0 Busy"
 .no_d0b:
 
   test bl,2
   jz .no_d1b
-  print ", FDD 1 Busy"
+  outputString ", FDD 1 Busy"
 .no_d1b:
 
   test bl,4
   jz .no_d2b
-  print ", FDD 2 Busy"
+  outputString ", FDD 2 Busy"
 .no_d2b:
 
   test bl,8
   jz .no_d3b
-  print ", FDD 3 Busy"
+  outputString ", FDD 3 Busy"
 .no_d3b:
 
   test bl,0x10
   jz .no_cb
-  print ", FDC Busy"
+  outputString ", FDC Busy"
 .no_cb:
 
   test bl,0x20
   jz .no_exm
-  print ", Execution Mode"
+  outputString ", Execution Mode"
 .no_exm:
 
   test bl,0x40
   jz .no_dio
-  print ", Read"
+  outputString ", Read"
   jmp .done_dio
 .no_dio:
-  print ", Write"
+  outputString ", Write"
 .done_dio:
 
   test bl,0x80
   jz .no_rqm
-  print " Request for Master"
+  outputString " Request for Master"
 .no_rqm:
   ret
 

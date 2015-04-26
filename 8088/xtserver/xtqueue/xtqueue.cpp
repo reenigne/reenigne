@@ -453,7 +453,7 @@ public:
         _imager = configFile->get<String>("imagerPath");
         _vDos = configFile->get<String>("vDosPath");
 
-        _packet.allocate(0x104);
+        _packet.allocate(0x106);
 
         _emailThread.start();
     }
@@ -593,7 +593,7 @@ public:
             ++i;
         } while (i < 10);
 
-        console.write('u');
+        //console.write('u');
 
         IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
         //IF_ZERO_THROW(PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
@@ -605,32 +605,37 @@ public:
         do {
             bytes = min(l, 0xff);
             _packet[0] = 0x76;  // clear keyboard buffer
-            _packet[1] = 0x75;  // raw mode
-            _packet[2] = bytes;
+            _packet[1] = 0x7a;  // block real keyboard
+            _packet[2] = 0x75;  // raw mode
             _packet[3] = bytes;
+            _packet[4] = 'X';  // Marker
+            _packet[5] = bytes;
             checksum = 0;
             for (int i = 0; i < bytes; ++i) {
                 Byte d = program[p];
                 ++p;
-                _packet[i + 4] = d;
+                _packet[i + 6] = d;
                 checksum += d;                                      
             }
-            _packet[bytes + 4] = checksum;
+            _packet[bytes + 6] = checksum;
             int tries = 0;
             do {
-                console.write('p');
-                _arduinoCom.write(&_packet[0], 5 + bytes);
+                //console.write('p');
+                _arduinoCom.write(&_packet[0], 7 + bytes);
                 IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
                 Byte b = _arduinoCom.tryReadByte();
                 console.write<Byte>(b);
                 if (b == 'K')
                     break;
-                ++tries;
+                if (b != 'R')
+                    ++tries;
             } while (tries < 10);
             if (tries == 10)
                 return true;
             l -= bytes;
         } while (bytes != 0);
+        _arduinoCom.write<Byte>(0x7b);
+        IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
         return false;
     }
     String htDocsPath(String name) { return _htdocsPath + "\\" + name; }
@@ -1014,7 +1019,7 @@ private:
                     Byte sector = _hostBytes[3] & 0x3f;
                     Word track = _hostBytes[4] | ((_hostBytes[3] & 0xc0) << 2);
                     Byte head = _hostBytes[6];
-                    console.write(String("Read sector ") + decimal(sector) + ", " + decimal(head) + ", " + decimal(track) + "\n");
+                    console.write(String("Read ") + decimal(_hostBytes[1]) + " sectors at " + decimal(sector) + ", " + decimal(head) + ", " + decimal(track) + "\n");
                 }
                 // Read disk sectors
                 _diskImage.bios(&_diskData, _hostBytes);

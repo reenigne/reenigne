@@ -9,25 +9,59 @@
   mov ah,0  ; Subfunction 0 = Reset Disk System
   mov dl,0  ; Drive 0 (A:)
   int 0x13
-  outputHex
-  outputNewLine
+  printHex
+  printNewLine
 
 
 tryLoad:
   ; Set load location
-  mov ax,0x1000
-  mov es,ax
+  mov bx,0x1000
+  mov es,bx
   xor di,di
 
   ; Push a copy to use when we write the image to disk
   push es
   push di
 
-  ; Load the data
-  loadSerialData
+  stopScreen
 
+loadCylinderLoop:
+
+  mov byte[requestBuffer+7],0
+loadHeadLoop:
+
+  ; Output host interrupt request
+  push cx
+  mov si,requestBuffer
+  mov ax,cs
+  mov ds,ax
+  mov cx,19
+  outputString
+  pop cx
+
+  ; Read data
+  loadData
+
+  ; Read result
+  mov ax,cs
+  mov es,ax
+  mov di,resultBuffer
+  loadData
+
+  add bx,(512*9)/16
+  mov es,ax
+
+  inc byte[requestBuffer+7]
+  cmp byte[requestBuffer+7],2
+  jne loadHeadLoop
+
+  inc byte[requestBuffer+5]
+  cmp byte[requestBuffer+5],40
+  jne loadCylinderLoop
+
+
+  resumeScreen
   outputCharacter 'D'
-
 
   mov byte[cs:cylinder],0
 cylinderLoop:
@@ -127,6 +161,9 @@ diskFailMessage:
   db 'Disk failure',10
 diskFailMessageEnd:
 
+requestBuffer:
+  db 5, 0x13, 9,2, 1,0, 0,0
+
 driveParameters:
   db 0xcf
   db 2
@@ -140,5 +177,7 @@ driveParameters:
   db 25
   db 4
 
+resultBuffer:
+  db 0,0,0
 
 programEnd:

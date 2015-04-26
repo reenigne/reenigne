@@ -1,6 +1,7 @@
 %include "../../defaults_bin.asm"
 
-residentPortionEnd equ tempBuffer + 19
+residentPortionEnd equ (tempBuffer + 19)
+residentPortionLength equ (residentPortionEnd - residentPortion)
 
   ; Non-resident portion
 
@@ -14,16 +15,16 @@ residentPortionEnd equ tempBuffer + 19
   cld
   mov si,residentPortion
   mov di,0
-  mov ax,0x6000 ;0xa000 - (15 + residentPortionEnd - residentPortion)/16
+  mov ax,0x6000 ;0x9f80 - (15 + residentPortionLength)/16
   mov es,ax
   mov ax,cs
   mov ds,ax
-  mov cx,(1 + residentPortionEnd - residentPortion)/2
+  mov cx,(1 + residentPortionLength)/2
   rep movsw
 
-;  mov ax,0
-;  mov ds,ax
-;  sub word[0x412],(1023 + residentPortionEnd - residentPortion)/1024   ; Reduce BIOS RAM count to reduce chances of DOS stomping on our resident portion
+  mov ax,0
+  mov ds,ax
+;  sub word[0x412],16 ;(2048 + (residentPortionLength) + 1023)/1024   ; Reduce BIOS RAM count to reduce chances of DOS stomping on our resident portion
 
 
   mov dx,0xc000
@@ -107,65 +108,26 @@ residentPortion:
 
 loadDataRoutine:
   push ax
-  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 0x20,al  ;  read Interrupt Request Register
-  pop ax
-
-  push ax
   push bx
   push cx
   push dx
   push si
   push ds
 
-;   push ax
-;   push dx
-;   mov al,1
-;   mov dx,0x3d9
-;   out dx,al
-;   pop dx
-;   pop ax
-
-;   push ax
-;   stopKeyboard
-;   mov ax,bx
-;   mov ax,0x55AA
-;   outputHex
-;   resumeKeyboard
-;   pop ax
-
+sendReady:
   push di
   mov al,'R'
   call sendChar
   pop di
 
-;   push ax
-;   push dx
-;   mov al,2
-;   mov dx,0x3d9
-;   out dx,al
-;   pop dx
-;   pop ax
-
 packetLoop:
+  ; Receive an 'X' to start the packet
+  call keyboardRead
+  cmp bl,'X'
+  jne sendReady
+
   ; Receive packet size in bytes
   call keyboardRead
-
-;   push ax
-;   push dx
-;   mov al,3
-;   mov dx,0x3d9
-;   out dx,al
-;   pop dx
-;   pop ax
-
-;   push ax
-;   stopKeyboard
-;   mov ax,bx
-;   mov ah,0x55
-;   outputHex
-;   resumeKeyboard
-;   pop ax
 
   mov cl,bl
   mov ch,0
@@ -181,47 +143,14 @@ packetLoop:
 byteLoop:
   call keyboardRead
 
-;   push ax
-;   stopKeyboard
-;   mov ax,bx
-;   mov ah,0x55
-;   outputHex
-;   resumeKeyboard
-;   pop ax
-
   mov al,bl
   add ah,al
   stosb
   loop byteLoop
 noBytes:
 
-;   push ax
-;   push dx
-;   mov al,4
-;   mov dx,0x3d9
-;   out dx,al
-;   pop dx
-;   pop ax
-
   ; Receive checksum
   call keyboardRead
-
-;   push ax
-;   stopKeyboard
-;   mov ax,bx
-;   mov ah,0x55
-;   outputHex
-;   resumeKeyboard
- ;  pop ax
-
-;   push ax
-;   push dx
-;   mov al,5
-;   mov dx,0x3d9
-;   out dx,al
-;   pop dx
-;   pop ax
-
 
   sub ah,bl
 
@@ -232,16 +161,6 @@ noBytes:
   mov al,'K'
   call sendChar
   pop di
-
-;   push ax
-;   push dx
-;   mov al,6
-;   mov dx,0x3d9
-;   out dx,al
-;   pop dx
-;   pop ax
-
-
 
   ; Normalize ES:DI
   mov ax,di
@@ -281,15 +200,6 @@ transferComplete:
 keyboardRead:
   mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
   out 0x20,al  ;  read Interrupt Request Register
-
-;  push ax
-;  stopKeyboard
-;  in al,0x20
-;  mov ah,al
-;  in al,0x61
-;  outputHex
-;  resumeKeyboard
-;  pop ax
 
 .loop:
   ; Loop until the IRR bit 1 (IRQ 1) is high
@@ -388,15 +298,12 @@ sendLoop:
   cmp ah,0
   jne .loop
 
-  ; Read and ignore a final byte so that the keyboard is in a good state
-;  call keyboardRead
-
+  ; Finally acknowledge the count byte we received earlier to enable keyboard input again.
   in al,0x61
   or al,0x80
   out 0x61,al
   and al,0x7f
   out 0x61,al
-
 
   popf
   ret
@@ -493,11 +400,6 @@ gotCharacter:
   ret
 
 outputHexRoutine:
-  push ax
-  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 0x20,al  ;  read Interrupt Request Register
-  pop ax
-
   push ds
   push es
   push di
@@ -557,11 +459,6 @@ printLoop:
 
 
 outputStringRoutine:
-  push ax
-  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 0x20,al  ;  read Interrupt Request Register
-  pop ax
-
   cmp word[cs:screenCounter - residentPortion],0
   jne .noScreen
   call printLoop
@@ -585,11 +482,6 @@ outputStringRoutine:
 
 
 outputCharacterRoutine:
-  push ax
-  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 0x20,al  ;  read Interrupt Request Register
-  pop ax
-
   cmp word[cs:screenCounter - residentPortion],0
   jne .noScreen
   push ax
@@ -638,11 +530,6 @@ resumeKeyboardRoutine:
   iret
 
 sendChar2:
-  push ax
-  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 0x20,al  ;  read Interrupt Request Register
-  pop ax
-
   push bx
   push cx
   push dx
@@ -680,11 +567,6 @@ stopAudioRoutine:
   iret
 
 sendFileRoutine:
-  push ax
-  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 0x20,al  ;  read Interrupt Request Register
-  pop ax
-
   cld
   push ax
   push di
@@ -726,11 +608,6 @@ int10Routine:
   cmp ah,0x0e
   jne .noIntercept
   push ax
-  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 0x20,al  ;  read Interrupt Request Register
-  pop ax
-
-  push ax
   push bx
   push cx
   push dx
@@ -750,11 +627,6 @@ int10Routine:
 
 
 int13Routine:
-  push ax
-  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 0x20,al  ;  read Interrupt Request Register
-  pop ax
-
   push bx
   push cx
   push dx
@@ -804,7 +676,7 @@ int13Routine:
 ;   outputHex
 ;   pop ax
 ;   resumeKeyboard
-;   resumeKeyboard
+
   ; Receive the data to read
   mov di,bx
   loadData

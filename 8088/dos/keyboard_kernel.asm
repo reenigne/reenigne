@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20150415-keyb',0
+  db '20150425-keyb',0
 
 codeStart:
   mov ax,cs
@@ -241,12 +241,18 @@ loadDataRoutine:
   push si
   push ds
 
+sendReady:
   push di
   mov al,'R'
   call sendChar
   pop di
 
 packetLoop:
+  ; Receive an 'X' to start the packet
+  call keyboardRead
+  cmp bl,'X'
+  jne sendReady
+
   ; Receive packet size in bytes
   call keyboardRead
 
@@ -332,6 +338,14 @@ keyboardRead:
   out 0x61,al
   and al,0x7f
   out 0x61,al
+
+;  stopKeyboard
+;  push ax
+;  mov al,bl
+;  outputHex
+;  pop ax
+;  resumeKeyboard
+
   ret
 
 

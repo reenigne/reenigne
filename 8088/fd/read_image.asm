@@ -48,11 +48,11 @@ retryLoop:
   or cl,byte[sector]
 
   mov ax,word[cylinder]
-  printHex
+  outputHex
   mov al,byte[sector]
   mov ah,dh
-  printHex
-  printNewLine
+  outputHex
+  outputNewLine
 
   mov al,1  ; Number of sectors to read
   mov dl,0  ; Drive number
@@ -60,11 +60,11 @@ retryLoop:
   int 0x13
   pushf
 
-  printHex      ; AX = 1000
+  outputHex      ; AX = 1000
   pop ax
   push ax
-  printHex      ; Flags = F217  CF=1 PF=1 AF=1 ZF=0 SF=0 TF=0 IF=1 DF=0 OF=0   Failure
-  printNewLine
+  outputHex      ; Flags = F217  CF=1 PF=1 AF=1 ZF=0 SF=0 TF=0 IF=1 DF=0 OF=0   Failure
+  outputNewLine
   popf
   jnc output
 
@@ -78,7 +78,7 @@ output:
   mov cx,0x200
 outputLoop:
   lodsb
-  printCharacter
+  outputCharacter
   loop outputLoop
 
 nextSector:
