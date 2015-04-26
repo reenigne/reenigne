@@ -493,8 +493,10 @@ public:
                         n = n*10 + c - '0';
                     } while (true);
                     Lock lock(&_mutex);
-                    if (n == 0)
+                    if (n == 0) {
                         _killed = true;
+                        _interrupt.signal();
+                    }
                     else {
                         --n;
                         QueueItem* i = _queue.getNext();
@@ -529,6 +531,7 @@ public:
                     String newSecret = item->fileName().subString(7, 16);
                     if (_item != 0 && newSecret == _item->secret()) {
                         _cancelled = true;
+                        _interrupt.signal();
                         item->cancel();
                     }
                     else {
@@ -623,6 +626,19 @@ public:
                 //console.write('p');
                 _arduinoCom.write(&_packet[0], 7 + bytes);
                 IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+
+                DWORD elapsed = GetTickCount() - _startTime;
+                DWORD timeout = 5*60*1000 - elapsed;
+                HANDLE handles[2] = {_arduinoCom, _interrupt};
+                DWORD result = WaitForMultipleObjects(2, handles, FALSE, timeout);
+                IF_TRUE_THROW(result == WAIT_FAILED);
+                if (result == WAIT_TIMEOUT)
+                    return true;
+                if (result == WAIT_OBJECT_0 + 1) {
+                    _interrupt.reset();
+                    return false;
+                }
+
                 Byte b = _arduinoCom.tryReadByte();
                 console.write<Byte>(b);
                 if (b == 'K')
@@ -681,6 +697,7 @@ public:
                         _item->remove();
                         --_queuedItems;
                     }
+                    _interrupt.reset();
                     _cancelled = false;
                     _killed = false;
                 }
@@ -717,6 +734,7 @@ public:
 
                 int retry = 1;
                 bool error;
+                _startTime = GetTickCount();
                 for (int retry = 0; retry < 10; ++retry) {
                     IF_ZERO_THROW(
                         PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
@@ -798,11 +816,14 @@ public:
         } while (true);
     }
 private:
+    void sendByte(int byte)
+    {
+        _arduinoCom.write<Byte>(byte);
+    }
     // Dump bytes from COM port to pipe until we receive ^Z or we time out.
     // Also process any commands from the XT.
     bool stream()
     {
-        DWORD startTime = GetTickCount();
         bool escape = false;
         bool audio = false;
         _fileState = 0;
@@ -816,12 +837,164 @@ private:
         int hostBytesRemaining = 0;
         _diskByteCount = 0;
         do {
-            DWORD elapsed = GetTickCount() - startTime;
+            DWORD elapsed = GetTickCount() - _startTime;
             DWORD timeout = 5*60*1000 - elapsed;
             if (timeout == 0 || timeout > 5*60*1000)
                 return true;
             if (_killed || _cancelled)
                 return false;
+
+            HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
+            HANDLE handles[3] = {_arduinoCom, hInput, _interrupt};
+            DWORD result = WaitForMultipleObjects(2, handles, FALSE, timeout);
+            IF_TRUE_THROW(result == WAIT_FAILED);
+            if (result == WAIT_TIMEOUT)
+                return true;
+            if (result == WAIT_OBJECT_0 + 1) {
+                INPUT_RECORD buf[128];
+                DWORD count;
+                IF_ZERO_THROW(ReadConsoleInput(hInput, buf, 128, &count));
+                for (int i = 0; i < count; ++i)
+                    if (buf[i].EventType == KEY_EVENT) {
+                        int key = buf[i].Event.KeyEvent.wVirtualKeyCode;
+                        bool up = !buf[i].Event.KeyEvent.bKeyDown;
+                        int scanCode = 0;
+                        switch (key) {
+                            case VK_BACK:     scanCode = 0x0e; break;
+                            case VK_TAB:      scanCode = 0x0f; break;
+                            case VK_RETURN:   scanCode = 0x1c; break;
+                            case VK_CONTROL:  scanCode = 0x1d; break;
+                            case VK_MENU:     scanCode = 0x38; break;
+                            case VK_CAPITAL:  scanCode = 0x3a; break;
+                            case VK_ESCAPE:   scanCode = 0x01; break;
+                            case VK_SPACE:    scanCode = 0x39; break;
+                            case VK_PRIOR:    scanCode = 0x49; break;
+                            case VK_NEXT:     scanCode = 0x51; break;
+                            case VK_END:      scanCode = 0x4f; break;
+                            case VK_HOME:     scanCode = 0x47; break;
+                            case VK_LEFT:     scanCode = 0x4b; break;
+                            case VK_UP:       scanCode = 0x48; break;
+                            case VK_RIGHT:    scanCode = 0x4d; break;
+                            case VK_DOWN:     scanCode = 0x50; break;
+                            case VK_SNAPSHOT: scanCode = 0x37; break;
+                            case VK_INSERT:   scanCode = 0x52; break;
+                            case VK_DELETE:   scanCode = 0x53; break;
+                            case '0':         scanCode = 0x0b; break;
+                            case '1':         scanCode = 0x02; break;
+                            case '2':         scanCode = 0x03; break;
+                            case '3':         scanCode = 0x04; break;
+                            case '4':         scanCode = 0x05; break;
+                            case '5':         scanCode = 0x06; break;
+                            case '6':         scanCode = 0x07; break;
+                            case '7':         scanCode = 0x08; break;
+                            case '8':         scanCode = 0x09; break;
+                            case '9':         scanCode = 0x0a; break;
+                            case 'A':         scanCode = 0x1e; break;
+                            case 'B':         scanCode = 0x30; break;
+                            case 'C':         scanCode = 0x2e; break;
+                            case 'D':         scanCode = 0x20; break;
+                            case 'E':         scanCode = 0x12; break;
+                            case 'F':         scanCode = 0x21; break;
+                            case 'G':         scanCode = 0x22; break;
+                            case 'H':         scanCode = 0x23; break;
+                            case 'I':         scanCode = 0x17; break;
+                            case 'J':         scanCode = 0x24; break;
+                            case 'K':         scanCode = 0x25; break;
+                            case 'L':         scanCode = 0x26; break;
+                            case 'M':         scanCode = 0x32; break;
+                            case 'N':         scanCode = 0x31; break;
+                            case 'O':         scanCode = 0x18; break;
+                            case 'P':         scanCode = 0x19; break;
+                            case 'Q':         scanCode = 0x10; break;
+                            case 'R':         scanCode = 0x13; break;
+                            case 'S':         scanCode = 0x1f; break;
+                            case 'T':         scanCode = 0x14; break;
+                            case 'U':         scanCode = 0x16; break;
+                            case 'V':         scanCode = 0x2f; break;
+                            case 'W':         scanCode = 0x11; break;
+                            case 'X':         scanCode = 0x2d; break;
+                            case 'Y':         scanCode = 0x15; break;
+                            case 'Z':         scanCode = 0x2c; break;
+                            case VK_NUMPAD0:  scanCode = 0x52; break;
+                            case VK_NUMPAD1:  scanCode = 0x4f; break;
+                            case VK_NUMPAD2:  scanCode = 0x50; break;
+                            case VK_NUMPAD3:  scanCode = 0x51; break;
+                            case VK_NUMPAD4:  scanCode = 0x4b; break;
+                            case VK_NUMPAD5:  scanCode = 0x4c; break;
+                            case VK_NUMPAD6:  scanCode = 0x4d; break;
+                            case VK_NUMPAD7:  scanCode = 0x47; break;
+                            case VK_NUMPAD8:  scanCode = 0x48; break;
+                            case VK_NUMPAD9:  scanCode = 0x49; break;
+                            case VK_MULTIPLY: scanCode = 0x37; break;
+                            case VK_ADD:      scanCode = 0x4e; break;
+                            case VK_SUBTRACT: scanCode = 0x4a; break;
+                            case VK_DECIMAL:  scanCode = 0x53; break;
+                            case VK_DIVIDE:   scanCode = 0x35; break;
+                            case VK_F1:       scanCode = 0x3b; break;
+                            case VK_F2:       scanCode = 0x3c; break;
+                            case VK_F3:       scanCode = 0x3d; break;
+                            case VK_F4:       scanCode = 0x3e; break;
+                            case VK_F5:       scanCode = 0x3f; break;
+                            case VK_F6:       scanCode = 0x40; break;
+                            case VK_F7:       scanCode = 0x41; break;
+                            case VK_F8:       scanCode = 0x42; break;
+                            case VK_F9:       scanCode = 0x43; break;
+                            case VK_F10:      scanCode = 0x44; break;
+                            case VK_F11:      // Ctrl+Alt+Del
+                                if (up) {
+                                    sendByte(0x1d);
+                                    sendByte(0x38);
+                                    sendByte(0x53);
+                                }
+                                else {
+                                    sendByte(0x9d);
+                                    sendByte(0xb8);
+                                    sendByte(0xd3);
+                                }
+                                return false;
+                            case VK_F12:      // Power cycle
+                                if (up)
+                                    return false;
+                                scanCode = 0x77;
+                                break;
+                            case VK_NUMLOCK:  scanCode = 0x45; break;
+                            case VK_SCROLL:   scanCode = 0x46; break;
+                            case VK_SHIFT:
+                                {
+                                    bool lShift = ((GetKeyState(VK_LSHIFT) & 0x80000000) != 0);
+                                    bool rShift = ((GetKeyState(VK_RSHIFT) & 0x80000000) != 0);
+                                    if (lShift != _lShift) {
+                                        _program->sendByte(lShift ? 0x2a : 0xaa);
+                                        _lShift = lShift;
+                                    }
+                                    if (rShift != _rShift) {
+                                        _program->sendByte(rShift ? 0x36 : 0xb6);
+                                        _rShift = rShift;
+                                    }
+                                }
+                                return false;
+                            case VK_OEM_1:    scanCode = 0x27; break;
+                            case VK_OEM_PLUS: scanCode = 0x0d; break;
+                            case VK_OEM_COMMA: scanCode = 0x33; break;
+                            case VK_OEM_MINUS: scanCode = 0x0c; break;
+                            case VK_OEM_PERIOD: scanCode = 0x34; break;     
+                            case VK_OEM_2:    scanCode = 0x35; break;
+                            case VK_OEM_3:    scanCode = 0x29; break;
+                            case VK_OEM_4:    scanCode = 0x1a; break;
+                            case VK_OEM_5:    scanCode = 0x2b; break;
+                            case VK_OEM_6:    scanCode = 0x1b; break;
+                            case VK_OEM_7:    scanCode = 0x28; break;
+                            default: return false;
+                        }
+                        _program->sendByte(scanCode | (up ? 0x80 : 0));
+
+                    }
+
+            }
+            if (result == WAIT_OBJECT_0 + 2) {
+                _interrupt.reset();
+                return false;
+            }
 
             int c;
             c = _arduinoCom.tryReadByte();
@@ -1082,6 +1255,7 @@ private:
     volatile bool _ending;
     Mutex _mutex;
     Event _ready;
+    Event _interrupt;
     AutoHandle _arduinoCom;
     AutoHandle _com;
     Array<Byte> _packet;
@@ -1106,6 +1280,8 @@ private:
     int _diskByteCount;
     int _diskDataPointer;
     Byte _diskSectorCount;
+
+    DWORD _startTime;
 };
 
 class Program : public ProgramBase
