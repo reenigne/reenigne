@@ -12,6 +12,7 @@ public:
         IF_NULL_THROW(handle);
         Handle::operator=(AutoHandle(handle));
     }
+    Event(HANDLE handle) { Handle::operator=(AutoHandle(handle)); }
     void signal() { IF_ZERO_THROW(SetEvent(operator HANDLE())); }
     bool wait(DWORD time = INFINITE)
     {

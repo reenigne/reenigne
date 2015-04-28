@@ -1,110 +1,7 @@
-%include "../../defaults_bin.asm"
+  org 0x100
+  %include "../../defaults_common.asm"
 
-residentPortionEnd equ (tempBuffer + 19)
-residentPortionLength equ (residentPortionEnd - residentPortion)
-
-  ; Non-resident portion
-
-  ; Set up stack
-  cli
-  mov ax,0x30
-  mov ss,ax
-  mov sp,0x100
-  sti
-
-  cld
-  mov si,residentPortion
-  mov di,0
-  mov ax,0xa000 - (15 + residentPortionLength)/16
-  mov es,ax
-  mov ax,cs
-  mov ds,ax
-  mov cx,(1 + residentPortionLength)/2
-  rep movsw
-
-  mov ax,0
-  mov ds,ax
-  mov word[0x412],640 - ((residentPortionLength + 1023)/1024)   ; Reduce BIOS RAM count to reduce chances of DOS stomping on our resident portion
-
-  mov ax,[0x412]
-  outputHex
-
-
-  mov dx,0xc000
-romScanLoop:
-  mov ds,dx
-  cmp word[0],0xaa55
-  jnz noRom
-
-  push dx
-  mov ax,0x40
-  mov es,ax
-  mov word[es:0x67],3
-  mov [es:0x69],ds
-  call far [es:0x67]      ; Init ROM
-  pop dx
-
-noRom:
-  add dx,0x80
-  cmp dx,0xf600
-  jne romScanLoop
-
-
-  ; Do this after initializing add-in ROMs, in case of hard drive or VGA
-
-  mov ax,0
-  mov ds,ax
-
-%macro setResidentInterrupt 2
-  mov word [%1*4], (%2 - residentPortion)
-  mov [%1*4 + 2], es
-%endmacro
-
-  mov ax,[0x10*4]
-  mov [es:oldInterrupt10 - residentPortion],ax
-  mov ax,[0x10*4 + 2]
-  mov [es:2+oldInterrupt10 - residentPortion],ax
-
-  setResidentInterrupt 0x10, int10Routine
-  setResidentInterrupt 0x13, int13Routine
-  setResidentInterrupt 0x60, captureScreenRoutine
-  setResidentInterrupt 0x61, startAudioRoutine
-  setResidentInterrupt 0x62, stopAudioRoutine
-  setResidentInterrupt 0x63, outputHexRoutine
-  setResidentInterrupt 0x64, outputStringRoutine
-  setResidentInterrupt 0x65, outputCharacterRoutine
-  setResidentInterrupt 0x66, sendFileRoutine
-  setResidentInterrupt 0x67, completeRoutine
-  setResidentInterrupt 0x68, loadDataRoutine
-  setResidentInterrupt 0x69, stopScreenRoutine
-  setResidentInterrupt 0x6a, resumeScreenRoutine
-  setResidentInterrupt 0x6b, stopKeyboardRoutine
-  setResidentInterrupt 0x6c, resumeKeyboardRoutine
-
-
-  ; Init keyboard buffer
-  mov si,0x1e
-  mov ax,0x40
-  mov ds,ax
-  mov [0x1a],si
-  mov [0x1c],si
-  mov [0x80],si
-  add si,32
-  mov [0x82],si
-
-  sti
-
-  mov ax,1
-  int 0x10
-
-
-  ; Boot machine
-  int 0x19
-
-
-  ; Resident portion
-
-residentPortion:
+  jmp loader
 
   ; This is basically a copy of the int 0x6X routines in keyboard_kernel.asm, except
   ; that these ones use int 0x10 to write to the screen.
@@ -225,7 +122,7 @@ keyboardRead:
 sendChar:
   mov bx,cs
   mov ds,bx
-  mov si,writeBuffer - residentPortion
+  mov si,writeBuffer
   mov [si],al
   mov cx,1
   mov ah,0
@@ -384,8 +281,9 @@ sendByteRoutine:
 
 
 completeRoutine:
-  disconnect
-  jmp 0  ; Restart the kernel
+  mov dl,26
+  mov ah,2
+  int 0x21
 
 
 writeBuffer:
@@ -413,7 +311,7 @@ outputHexRoutine:
   mov bx,cs
   mov ds,bx
   mov es,bx
-  mov di,writeBuffer - residentPortion
+  mov di,writeBuffer
   mov bx,ax
   mov al,bh
   mov cx,4
@@ -428,13 +326,13 @@ outputHexRoutine:
   mov al,bl
   and al,0xf
   call convertNybble
-  mov si,writeBuffer - residentPortion
+  mov si,writeBuffer
 
-  cmp word[cs:screenCounter - residentPortion],0
+  cmp word[cs:screenCounter],0
   jne .noScreen
   call printLoop
 .noScreen:
-  cmp word[cs:keyboardCounter - residentPortion],0
+  cmp word[cs:keyboardCounter],0
   jne .noKeyboard
   mov ah,0
   call sendLoop
@@ -462,11 +360,11 @@ printLoop:
 
 
 outputStringRoutine:
-  cmp word[cs:screenCounter - residentPortion],0
+  cmp word[cs:screenCounter],0
   jne .noScreen
   call printLoop
 .noScreen:
-  cmp word[cs:keyboardCounter - residentPortion],0
+  cmp word[cs:keyboardCounter],0
   jne .noKeyboard
   push ds
   push ax
@@ -485,13 +383,13 @@ outputStringRoutine:
 
 
 outputCharacterRoutine:
-  cmp word[cs:screenCounter - residentPortion],0
+  cmp word[cs:screenCounter],0
   jne .noScreen
   push ax
   call printChar
   pop ax
 .noScreen:
-  cmp word[cs:keyboardCounter - residentPortion],0
+  cmp word[cs:keyboardCounter],0
   jne .noKeyboard
   push ds
   push si
@@ -511,25 +409,25 @@ printChar:
   mov ah,0x0e
   mov bx,0x0001
   pushf
-  call far [cs:oldInterrupt10 - residentPortion]     ; Note, we can only do this once the BIOS has fully initialized, not on the first INT 13h
+  call far [cs:oldInterrupt10]
   pop bx
   pop ax
   ret
 
 stopScreenRoutine:
-  inc word[cs:screenCounter - residentPortion]
+  inc word[cs:screenCounter]
   iret
 
 resumeScreenRoutine:
-  dec word[cs:screenCounter - residentPortion]
+  dec word[cs:screenCounter]
   iret
 
 stopKeyboardRoutine:
-  inc word[cs:keyboardCounter - residentPortion]
+  inc word[cs:keyboardCounter]
   iret
 
 resumeKeyboardRoutine:
-  dec word[cs:keyboardCounter - residentPortion]
+  dec word[cs:keyboardCounter]
   iret
 
 sendChar2:
@@ -577,14 +475,14 @@ sendFileRoutine:
   push si
   mov ax,cs
   mov ds,ax
-  mov di,writeBuffer - residentPortion
+  mov di,writeBuffer
   mov al,4
   stosb
   mov ax,cx
   stosw
   mov al,dl
   stosb
-  mov si,writeBuffer - residentPortion
+  mov si,writeBuffer
   push cx
   mov cx,4
   mov ah,0
@@ -626,7 +524,7 @@ int10Routine:
   pop bx
   pop ax
 .noIntercept:
-  jmp far [cs:oldInterrupt10 - residentPortion]
+  jmp far [cs:oldInterrupt10]
 
 
 int13Routine:
@@ -671,35 +569,10 @@ int13Routine:
 .read:
   call sendParameters
 
-   stopKeyboard
-   push ax
-   mov ax,es
-   outputHex
-   mov ax,bx
-   outputHex
-   pop ax
-   resumeKeyboard
-
   ; Receive the data to read
   mov di,bx
 
-;   push ax
-;   push dx
-;   mov al,1
-;   mov dx,0x3d9
-;   out dx,al
-;   pop dx
-;   pop ax
-
   loadData
-
-;   push ax
-;   push dx
-;   mov al,2
-;   mov dx,0x3d9
-;   out dx,al
-;   pop dx
-;   pop ax
 
   jmp .getResult
 
@@ -712,36 +585,21 @@ int13Routine:
   mov ax,es
   mov ds,ax
   mov si,bx
-  outputString
+  mov ah,0
+  call sendLoop
 
 .getResult:
   ; Receive the status information
   mov ax,cs
   mov es,ax
-  mov di,tempBuffer - residentPortion
-
-;   push ax
-;   push dx
-;   mov al,3
-;   mov dx,0x3d9
-;   out dx,al
-;   pop dx
-;   pop ax
+  mov di,tempBuffer
 
   loadData
 
-;   push ax
-;   push dx
-;   mov al,4
-;   mov dx,0x3d9
-;   out dx,al
-;   pop dx
-;   pop ax
-
   ; Store the status information
-  mov ah,[cs:tempBuffer+2 - residentPortion]
+  mov ah,[cs:tempBuffer+2]
   sahf
-  mov ax,[cs:tempBuffer - residentPortion]
+  mov ax,[cs:tempBuffer]
   mov bp,0x40
   mov ds,bp
   mov [0x41],ah
@@ -769,7 +627,8 @@ int13Routine:
   mov ax,es
   mov ds,ax
   mov si,bx
-  outputString
+  mov ah,0
+  call sendLoop
 
   jmp .getResult
 
@@ -780,7 +639,7 @@ sendParameters:
   push ax        ; Save sector count and command
   mov ax,cs
   mov es,ax
-  mov di,tempBuffer - residentPortion
+  mov di,tempBuffer
   cld
 
   mov al,0x05
@@ -806,7 +665,7 @@ sendParameters:
   ; Do the actual send
   mov ax,cs
   mov ds,ax
-  mov si,tempBuffer - residentPortion
+  mov si,tempBuffer
   mov ah,0
   mov cx,19
   call sendLoop
@@ -821,4 +680,66 @@ sendParameters:
   ret
 
 tempBuffer:
+  times 19 db 0
+
+
+  ; Non-resident portion
+loader:
+
+  mov ax,0
+  mov ds,ax
+
+%macro setResidentInterrupt 2
+  mov word [%1*4], %2
+  mov [%1*4 + 2], cs
+%endmacro
+
+  cli
+
+  mov bx,[0x10*4]
+  mov ds,[0x10*4 + 2]
+
+  mov ax,[bx-4]
+  mov cx,[bx-2]
+
+  mov [cs:oldInterrupt10],ax
+  mov [cs:oldInterrupt10+2],cx
+
+
+  setResidentInterrupt 0x10, int10Routine
+  setResidentInterrupt 0x13, int13Routine
+  setResidentInterrupt 0x60, captureScreenRoutine
+  setResidentInterrupt 0x61, startAudioRoutine
+  setResidentInterrupt 0x62, stopAudioRoutine
+  setResidentInterrupt 0x63, outputHexRoutine
+  setResidentInterrupt 0x64, outputStringRoutine
+  setResidentInterrupt 0x65, outputCharacterRoutine
+  setResidentInterrupt 0x66, sendFileRoutine
+  setResidentInterrupt 0x67, completeRoutine
+  setResidentInterrupt 0x68, loadDataRoutine
+  setResidentInterrupt 0x69, stopScreenRoutine
+  setResidentInterrupt 0x6a, resumeScreenRoutine
+  setResidentInterrupt 0x6b, stopKeyboardRoutine
+  setResidentInterrupt 0x6c, resumeKeyboardRoutine
+
+  sti
+
+  mov ax,1
+  mov dx,0x3d9
+  out dx,al
+
+  mov
+
+
+  mov dx,loader + 15
+  mov cx,4
+  shr dx,cl
+  mov ax,0x3100
+  int 0x21
+
+  mov ax,2
+  mov dx,0x3d9
+  out dx,al
+  cli
+  hlt
 

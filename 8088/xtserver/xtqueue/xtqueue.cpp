@@ -291,6 +291,60 @@ private:
     bool _ending;
 };
 
+class SerialThread : public Thread
+{
+public:
+    void setHandle(Handle serialPort)
+    {
+        _serialPort = serialPort;
+        memset(&_overlapped, 0, sizeof(OVERLAPPED));
+        _overlappedEvent = Event(CreateEvent(NULL, TRUE, FALSE, NULL));
+        _overlapped.hEvent = _overlappedEvent;
+    }
+    void threadProc()
+    {
+        do {
+            Byte b;
+            ReadFile(_serialPort, &b, 1, NULL, &_overlapped);
+            DWORD error = GetLastError();
+            if (error != ERROR_IO_PENDING)
+                throw Exception::systemError("Reading serial port");
+            DWORD bytes;
+            IF_ZERO_THROW(
+                GetOverlappedResult(_serialPort, &_overlapped, &bytes, TRUE));
+            if (bytes == 0)
+                continue;
+            if (bytes != 1)
+                throw Exception::systemError("Reading serial port");
+            _c = b;
+            //console.write(String("[") + decimal(b) + "]");
+
+            //DWORD mask = EV_RXFLAG;
+            //if (WaitCommEvent(_serialPort, &mask, NULL) == 0)
+            //    break;
+            //_c = _serialPort.tryReadByte();
+            //if (_c == -1)
+            //    continue;
+            _event.signal();
+            _reset.wait();
+        } while (true);
+    }
+    HANDLE eventHandle() { return _event; }
+    int character()
+    {
+        int c = _c;
+        _reset.signal();
+        return _c;
+    }
+private:
+    Handle _serialPort;
+    Event _overlappedEvent;
+    Event _event;
+    Event _reset;
+    int _c;
+    OVERLAPPED _overlapped;
+};
+
 class AudioCapture : public ReferenceCounted
 {
 public:
@@ -406,7 +460,7 @@ public:
             0,              // must be opened with exclusive-access
             NULL,           // default security attributes
             OPEN_EXISTING,  // must use OPEN_EXISTING
-            0,              // not overlapped I/O
+            FILE_FLAG_OVERLAPPED,
             NULL),          // hTemplate must be NULL for comm devices
             String("Quickboot COM port"));
 
@@ -447,6 +501,8 @@ public:
         timeOuts.WriteTotalTimeoutMultiplier = 0;
         IF_ZERO_THROW(SetCommTimeouts(_arduinoCom, &timeOuts));
 
+        _serialThread.setHandle(_arduinoCom);
+
         //reboot();
 
         //_imager = File(configFile->get<String>("imagerPath"), true).contents();
@@ -456,6 +512,11 @@ public:
         _packet.allocate(0x106);
 
         _emailThread.start();
+        _serialThread.start();
+
+        memset(&_overlapped, 0, sizeof(OVERLAPPED));
+        _overlappedEvent = Event(CreateEvent(NULL, TRUE, FALSE, NULL));
+        _overlapped.hEvent = _overlappedEvent;
     }
     ~XTThread() { _ending = true; _ready.signal(); }
     void run(AutoHandle pipe)
@@ -587,7 +648,19 @@ public:
     {
         int i = 0;
         do {
-            int b = _arduinoCom.tryReadByte();
+            DWORD elapsed = GetTickCount() - _startTime;
+            DWORD timeout = 5*60*1000 - elapsed;
+            HANDLE handles[2] = {_serialThread.eventHandle(), _interrupt};
+            DWORD result = WaitForMultipleObjects(2, handles, FALSE, timeout);
+            IF_FALSE_THROW(result != WAIT_FAILED);
+            if (result == WAIT_TIMEOUT)
+                return true;
+            if (result == WAIT_OBJECT_0 + 1) {
+                _interrupt.reset();
+                return false;
+            }
+
+            int b = _serialThread.character();
             console.write<Byte>(b);
             if (b == 'R')
                 break;
@@ -624,14 +697,14 @@ public:
             int tries = 0;
             do {
                 //console.write('p');
-                _arduinoCom.write(&_packet[0], 7 + bytes);
+                writeSerial(&_packet[0], 7 + bytes);
                 IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
 
                 DWORD elapsed = GetTickCount() - _startTime;
                 DWORD timeout = 5*60*1000 - elapsed;
-                HANDLE handles[2] = {_arduinoCom, _interrupt};
+                HANDLE handles[2] = {_serialThread.eventHandle(), _interrupt};
                 DWORD result = WaitForMultipleObjects(2, handles, FALSE, timeout);
-                IF_TRUE_THROW(result == WAIT_FAILED);
+                IF_FALSE_THROW(result != WAIT_FAILED);
                 if (result == WAIT_TIMEOUT)
                     return true;
                 if (result == WAIT_OBJECT_0 + 1) {
@@ -639,7 +712,7 @@ public:
                     return false;
                 }
 
-                Byte b = _arduinoCom.tryReadByte();
+                int b = _serialThread.character();
                 console.write<Byte>(b);
                 if (b == 'K')
                     break;
@@ -650,7 +723,8 @@ public:
                 return true;
             l -= bytes;
         } while (bytes != 0);
-        _arduinoCom.write<Byte>(0x7b);
+        //_arduinoCom.write<Byte>(0x7b);
+        sendByte(0x7b);
         IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
         return false;
     }
@@ -818,7 +892,9 @@ public:
 private:
     void sendByte(int byte)
     {
-        _arduinoCom.write<Byte>(byte);
+        //console.write(String("(") + decimal(byte) + ")");
+        writeSerial(reinterpret_cast<const Byte*>(&byte), 1);
+        //_arduinoCom.write<Byte>(byte);
     }
     // Dump bytes from COM port to pipe until we receive ^Z or we time out.
     // Also process any commands from the XT.
@@ -845,16 +921,18 @@ private:
                 return false;
 
             HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
-            HANDLE handles[3] = {_arduinoCom, hInput, _interrupt};
-            DWORD result = WaitForMultipleObjects(2, handles, FALSE, timeout);
-            IF_TRUE_THROW(result == WAIT_FAILED);
+            HANDLE handles[3] = {_serialThread.eventHandle(), hInput,
+                _interrupt};
+            DWORD result = WaitForMultipleObjects(3, handles, FALSE, timeout);
+            IF_FALSE_THROW(result != WAIT_FAILED);
             if (result == WAIT_TIMEOUT)
                 return true;
             if (result == WAIT_OBJECT_0 + 1) {
                 INPUT_RECORD buf[128];
                 DWORD count;
                 IF_ZERO_THROW(ReadConsoleInput(hInput, buf, 128, &count));
-                for (int i = 0; i < count; ++i)
+                for (int i = 0; i < static_cast<int>(count); ++i) {
+                    //console.write(String(decimal(buf[i].EventType)) + " ");
                     if (buf[i].EventType == KEY_EVENT) {
                         int key = buf[i].Event.KeyEvent.wVirtualKeyCode;
                         bool up = !buf[i].Event.KeyEvent.bKeyDown;
@@ -960,19 +1038,12 @@ private:
                             case VK_NUMLOCK:  scanCode = 0x45; break;
                             case VK_SCROLL:   scanCode = 0x46; break;
                             case VK_SHIFT:
-                                {
-                                    bool lShift = ((GetKeyState(VK_LSHIFT) & 0x80000000) != 0);
-                                    bool rShift = ((GetKeyState(VK_RSHIFT) & 0x80000000) != 0);
-                                    if (lShift != _lShift) {
-                                        _program->sendByte(lShift ? 0x2a : 0xaa);
-                                        _lShift = lShift;
-                                    }
-                                    if (rShift != _rShift) {
-                                        _program->sendByte(rShift ? 0x36 : 0xb6);
-                                        _rShift = rShift;
-                                    }
-                                }
-                                return false;
+                                if (buf[i].Event.KeyEvent.wVirtualScanCode ==
+                                    0x2a)
+                                    scanCode = 0x2a;
+                                else
+                                    scanCode = 0x36;
+                                break;
                             case VK_OEM_1:    scanCode = 0x27; break;
                             case VK_OEM_PLUS: scanCode = 0x0d; break;
                             case VK_OEM_COMMA: scanCode = 0x33; break;
@@ -986,19 +1057,18 @@ private:
                             case VK_OEM_7:    scanCode = 0x28; break;
                             default: return false;
                         }
-                        _program->sendByte(scanCode | (up ? 0x80 : 0));
-
+                        sendByte(scanCode | (up ? 0x80 : 0));
                     }
-
+                }
+                continue;
             }
             if (result == WAIT_OBJECT_0 + 2) {
                 _interrupt.reset();
                 return false;
             }
 
-            int c;
-            c = _arduinoCom.tryReadByte();
-            //console.write(String(" :") + String(decimal(c)) + ":");
+            int c = _serialThread.character();
+            console.write(String(" :") + String(decimal(c)) + ":");
             if (c == -1)
                 continue;
             if (!escape && _fileState == 0) {
@@ -1226,19 +1296,17 @@ private:
         console.write(String("Sending result bytes ") + decimal(_hostBytes[18]) + ", " + decimal(_hostBytes[19]) + ", " + decimal(_hostBytes[20]) + "\n");
         upload(String(reinterpret_cast<const char*>(&_hostBytes[18]), 3));
     }
-    int getByte()
+    void writeSerial(const Byte* data, int bytes)
     {
-        int b = getByte2();
-        if (b == 0)
-            b = getByte2();
-        return b;
-    }
-    int getByte2()
-    {
-        int b = _arduinoCom.tryReadByte();
-        if (b == -1)
-            throw Exception(String("Timeout from QuickBoot\n"));
-        return b;
+        WriteFile(_arduinoCom, data, bytes, NULL, &_overlapped);
+        DWORD error = GetLastError();
+        if (error != ERROR_IO_PENDING)
+            throw Exception::systemError("Writing serial port");
+        DWORD bytesWritten;
+        IF_ZERO_THROW(GetOverlappedResult(_arduinoCom, &_overlapped,
+            &bytesWritten, TRUE));
+        if (bytes != bytesWritten)
+            throw Exception::systemError("Writing serial port");
     }
 
     String _fromAddress;
@@ -1261,6 +1329,7 @@ private:
     Array<Byte> _packet;
     QueueItem* _item;
     EmailThread _emailThread;
+    SerialThread _serialThread;
     bool _killed;
     bool _cancelled;
     Array<Byte> _diskBytes;
@@ -1282,6 +1351,9 @@ private:
     Byte _diskSectorCount;
 
     DWORD _startTime;
+
+    Event _overlappedEvent;
+    OVERLAPPED _overlapped;
 };
 
 class Program : public ProgramBase

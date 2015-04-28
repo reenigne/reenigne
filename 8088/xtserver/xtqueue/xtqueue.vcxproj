@@ -84,6 +84,7 @@
     <ClInclude Include="..\..\..\include\alfe\any.h" />
     <ClInclude Include="..\..\..\include\alfe\array.h" />
     <ClInclude Include="..\..\..\include\alfe\config_file.h" />
+    <ClInclude Include="..\..\..\include\alfe\exception.h" />
     <ClInclude Include="..\..\..\include\alfe\expression.h" />
     <ClInclude Include="..\..\..\include\alfe\file.h" />
     <ClInclude Include="..\..\..\include\alfe\file_handle.h" />
@@ -100,6 +101,7 @@
     <ClInclude Include="..\..\..\include\alfe\set.h" />
     <ClInclude Include="..\..\..\include\alfe\space.h" />
     <ClInclude Include="..\..\..\include\alfe\string.h" />
+    <ClInclude Include="..\..\..\include\alfe\thread.h" />
     <ClInclude Include="..\..\..\include\alfe\type.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
