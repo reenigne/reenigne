@@ -130,13 +130,13 @@ sendChar:
 ; Send AH:CX bytes pointed to by DS:SI
 sendLoop:
   pushf
-  cli
   mov di,cx
 .loop:
   ; Lower clock line to tell the Arduino we want to send data
   in al,0x61
   and al,0xbf
   out 0x61,al
+  cli
   ; Wait for 0.5ms
   mov bx,cx
   mov cx,52500000/(11*54*2000)
@@ -159,7 +159,7 @@ sendLoop:
   add cx,bx
   mov ds,cx
 
-  ; Read the number of bytes that we can send, but do not ack - we want the clock line to stay high
+  ; Read the number of bytes that we can send, but do not ack - we want the data line to stay low
 .readCountLoop:
   ; Loop until the IRR bit 1 (IRQ 1) is high
   in al,0x20
@@ -168,6 +168,19 @@ sendLoop:
   ; Read the keyboard byte and store it
   in al,0x60
   mov cl,al
+;   cmp al,128
+;   ja .goodSpace
+;   push dx
+;   push ax
+;   mov al,4
+;   mov dx,0x3d9
+;   out dx,al
+;   pop ax
+;   stopKeyboard
+;   outputHex
+;   resumeKeyboard
+;   pop dx
+;   .goodSpace:
   xor ch,ch
 
   ; Calculate number of bytes to actually send
@@ -189,14 +202,28 @@ sendLoop:
 
   mov al,cl
   call sendByteRoutine  ; Send the number of bytes we'll be sending
+  push ax
+  mov ah,0
+
+;   cmp byte[si],19
+;   jne .sendByteLoop
+;   push dx
+;   push ax
+;   mov al,5
+;   mov dx,0x3d9
+;   out dx,al
+;   pop ax
+;   pop dx
+
 .sendByteLoop:
   lodsb
+  add ah,al
   call sendByteRoutine
   loop .sendByteLoop
-  cmp di,0
-  jne .loop
-  cmp ah,0
-  jne .loop
+
+  mov al,ah
+  call sendByteRoutine
+  pop ax
 
   ; Finally acknowledge the count byte we received earlier to enable keyboard input again.
   in al,0x61
@@ -204,13 +231,30 @@ sendLoop:
   out 0x61,al
   and al,0x7f
   out 0x61,al
+  sti
+;  popf   ; Turn interrupts on if they were on when we came into the routine
+;  pushf
+
+  cmp di,0
+  jne .loop
+  cmp ah,0
+  jne .loop
 
   popf
   ret
+;.loop2:
+;  jmp .loop
 
 
 sendByteRoutine:
   mov bl,al
+
+;  mov al,'['
+;  call printChar
+;  mov al,bl
+;  call printChar
+;  mov al,']'
+;  call printChar
 
   clc
   mov al,bh
@@ -301,6 +345,7 @@ gotCharacter:
   ret
 
 outputHexRoutine:
+  sti
   push ds
   push es
   push di
@@ -360,6 +405,7 @@ printLoop:
 
 
 outputStringRoutine:
+  sti
   cmp word[cs:screenCounter],0
   jne .noScreen
   call printLoop
@@ -383,6 +429,7 @@ outputStringRoutine:
 
 
 outputCharacterRoutine:
+  sti
   cmp word[cs:screenCounter],0
   jne .noScreen
   push ax
@@ -415,18 +462,22 @@ printChar:
   ret
 
 stopScreenRoutine:
+  sti
   inc word[cs:screenCounter]
   iret
 
 resumeScreenRoutine:
+  sti
   dec word[cs:screenCounter]
   iret
 
 stopKeyboardRoutine:
+  sti
   inc word[cs:keyboardCounter]
   iret
 
 resumeKeyboardRoutine:
+  sti
   dec word[cs:keyboardCounter]
   iret
 
@@ -447,6 +498,7 @@ sendChar2:
   ret
 
 captureScreenRoutine:
+  sti
   push ax
   mov al,1
   call sendChar2
@@ -454,6 +506,7 @@ captureScreenRoutine:
   iret
 
 startAudioRoutine:
+  sti
   push ax
   mov al,2
   call sendChar2
@@ -461,6 +514,7 @@ startAudioRoutine:
   iret
 
 stopAudioRoutine:
+  sti
   push ax
   mov al,3
   call sendChar2
@@ -468,6 +522,7 @@ stopAudioRoutine:
   iret
 
 sendFileRoutine:
+  sti
   cld
   push ax
   push di
@@ -506,6 +561,7 @@ oldInterrupt10:
 
 
 int10Routine:
+  sti
   cmp ah,0x0e
   jne .noIntercept
   push ax
@@ -528,6 +584,12 @@ int10Routine:
 
 
 int13Routine:
+  sti
+;   push ax
+;   mov al,'#'
+;   call printChar
+;   pop ax
+
   push bx
   push cx
   push dx
@@ -567,6 +629,35 @@ int13Routine:
   jmp .complete
 
 .read:
+;   push ax
+;   outputHex
+;   mov ax,bx
+;   outputHex
+;   mov ax,cx
+;   outputHex
+;   mov ax,dx
+;   outputHex
+;   mov ax,si
+;   outputHex
+;   mov ax,di
+;   outputHex
+;   mov ax,bp
+;   outputHex
+;   mov ax,sp
+;   outputHex
+;   mov ax,es
+;   outputHex
+;   mov ax,ds
+;   outputHex
+;   mov ax,cs
+;   outputHex
+;   mov ax,ss
+;   outputHex
+;   pushf
+;   pop ax
+;   outputHex
+;   pop ax
+
   call sendParameters
 
   ; Receive the data to read
@@ -685,9 +776,9 @@ tempBuffer:
 
   ; Non-resident portion
 loader:
-
   mov ax,0
   mov ds,ax
+  push ds
 
 %macro setResidentInterrupt 2
   mov word [%1*4], %2
@@ -705,6 +796,7 @@ loader:
   mov [cs:oldInterrupt10],ax
   mov [cs:oldInterrupt10+2],cx
 
+  pop ds
 
   setResidentInterrupt 0x10, int10Routine
   setResidentInterrupt 0x13, int13Routine
@@ -724,22 +816,14 @@ loader:
 
   sti
 
-  mov ax,1
-  mov dx,0x3d9
-  out dx,al
-
-  mov
-
+;   mov ax,[cs:oldInterrupt10]
+;   outputHex
+;   mov ax,[cs:oldInterrupt10 +2]
+;   outputHex
 
   mov dx,loader + 15
   mov cx,4
   shr dx,cl
   mov ax,0x3100
   int 0x21
-
-  mov ax,2
-  mov dx,0x3d9
-  out dx,al
-  cli
-  hlt
 

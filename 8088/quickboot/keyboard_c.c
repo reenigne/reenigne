@@ -176,11 +176,21 @@ void sendSerialByte()
     spaceAvailable = false;
 }
 
+volatile bool sentSerialFull = false;
+
 void enqueueSerialByte(uint8_t byte)
 {
     serialBuffer[(serialBufferPointer + serialBufferCharacters) & 0xff] =
         byte;
     ++serialBufferCharacters;
+    if (serialBufferCharacters >= 0xf0) {
+        if (!sentSerialFull) {
+            sentSerialFull = true;
+            enqueueSerialByte('+');
+        }
+    }
+    else
+        sentSerialFull = false;
     sendSerialByte();
 }
 
@@ -843,24 +853,39 @@ int main()
                 // End of reset code
             }
             else {
-                while (!getClock()) { }  // Wait for clock to go high again.
                 // A short clock-low pulse. This is the XT trying to send us
                 // some data.
                 clearInterruptedKeystroke();
                 // Send the number of bytes that the XT can safely send us.
                 while (serialBufferCharacters == 255)
                   ;
+                enqueueSerialByte('[');
+                while (serialBufferCharacters != 0)
+                  ;
                 cli();
                 uint8_t available = 255 - serialBufferCharacters;
                 sendKeyboardByte(available, fastAckDelay);
-                sei();
                 uint8_t count = receiveKeyboardByte();
+                sei();
+                uint8_t checksum = 0;
                 for (uint8_t i = 0; i < count; ++i) {
                     cli();
-                    enqueueSerialByte(receiveKeyboardByte());
+                    uint8_t b = receiveKeyboardByte();
                     sei();
+                    enqueueSerialByte(b);
+                    checksum += b;
                 }
-//                sendKeyboardByte(0, fastAckDelay);
+                cli();
+                uint8_t cs2 = receiveKeyboardByte();
+                sei();
+                if (cs2 != checksum) {
+                    enqueueSerialByte('f');
+                    enqueueSerialByte(available);
+                    enqueueSerialByte(count);
+                    enqueueSerialByte(checksum);
+                    enqueueSerialByte(cs2);
+                }
+                enqueueSerialByte(']');
             }
         }
         else {

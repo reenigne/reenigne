@@ -430,10 +430,18 @@ sendLoop:
 
   mov al,cl
   call sendByteRoutine  ; Send the number of bytes we'll be sending
+  push ax
+  mov ah,0
 .sendByteLoop:
   lodsb
+  add ah,al
   call sendByteRoutine
   loop .sendByteLoop
+
+  mov al,ah
+  call sendByteRoutine
+  pop ax
+
   cmp di,0
   jne .loop
   cmp ah,0

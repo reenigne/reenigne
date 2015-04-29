@@ -316,6 +316,7 @@ public:
                 continue;
             if (bytes != 1)
                 throw Exception::systemError("Reading serial port");
+            console.write<Byte>('%');
             _c = b;
             //console.write(String("[") + decimal(b) + "]");
 
@@ -333,6 +334,7 @@ public:
     int character()
     {
         int c = _c;
+        _event.reset();
         _reset.signal();
         return _c;
     }
@@ -490,16 +492,16 @@ public:
         deviceControlBlock.XoffChar = 19;
         IF_ZERO_THROW(SetCommState(_arduinoCom, &deviceControlBlock));
 
-        IF_ZERO_THROW(SetCommMask(_arduinoCom, EV_RXCHAR));
+        //IF_ZERO_THROW(SetCommMask(_arduinoCom, EV_RXCHAR));
 
-        COMMTIMEOUTS timeOuts;
-        SecureZeroMemory(&timeOuts, sizeof(COMMTIMEOUTS));
-        timeOuts.ReadIntervalTimeout = 10*1000;
-        timeOuts.ReadTotalTimeoutMultiplier = 0;
-        timeOuts.ReadTotalTimeoutConstant = 10*1000;
-        timeOuts.WriteTotalTimeoutConstant = 10*1000;
-        timeOuts.WriteTotalTimeoutMultiplier = 0;
-        IF_ZERO_THROW(SetCommTimeouts(_arduinoCom, &timeOuts));
+        //COMMTIMEOUTS timeOuts;
+        //SecureZeroMemory(&timeOuts, sizeof(COMMTIMEOUTS));
+        //timeOuts.ReadIntervalTimeout = 10*1000;
+        //timeOuts.ReadTotalTimeoutMultiplier = 0;
+        //timeOuts.ReadTotalTimeoutConstant = 10*1000;
+        //timeOuts.WriteTotalTimeoutConstant = 10*1000;
+        //timeOuts.WriteTotalTimeoutMultiplier = 0;
+        //IF_ZERO_THROW(SetCommTimeouts(_arduinoCom, &timeOuts));
 
         _serialThread.setHandle(_arduinoCom);
 
@@ -618,10 +620,15 @@ public:
     {
         bothWrite("Resetting\n");
 
+        //IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+        //IF_ZERO_THROW(PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
+
         // Reset the Arduino
         EscapeCommFunction(_arduinoCom, CLRDTR);
         Sleep(250);
+        _serialThread.character();
         EscapeCommFunction(_arduinoCom, SETDTR);
+
         // The Arduino bootloader waits a bit to see if it needs to
         // download a new program.
 
@@ -661,7 +668,7 @@ public:
             }
 
             int b = _serialThread.character();
-            console.write<Byte>(b);
+            console.write(String("(") + debugByte(b) + ")");
             if (b == 'R')
                 break;
             if (b != -1)
@@ -671,7 +678,7 @@ public:
 
         //console.write('u');
 
-        IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+        //IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
         //IF_ZERO_THROW(PurgeComm(_arduinoCom, PURGE_RXCLEAR | PURGE_TXCLEAR));
 
         int l = program.length();
@@ -698,22 +705,25 @@ public:
             do {
                 //console.write('p');
                 writeSerial(&_packet[0], 7 + bytes);
-                IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+                //IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
 
-                DWORD elapsed = GetTickCount() - _startTime;
-                DWORD timeout = 5*60*1000 - elapsed;
-                HANDLE handles[2] = {_serialThread.eventHandle(), _interrupt};
-                DWORD result = WaitForMultipleObjects(2, handles, FALSE, timeout);
-                IF_FALSE_THROW(result != WAIT_FAILED);
-                if (result == WAIT_TIMEOUT)
-                    return true;
-                if (result == WAIT_OBJECT_0 + 1) {
-                    _interrupt.reset();
-                    return false;
-                }
+                int b;
+                do {
+                    DWORD elapsed = GetTickCount() - _startTime;
+                    DWORD timeout = 5*60*1000 - elapsed;
+                    HANDLE handles[2] = {_serialThread.eventHandle(), _interrupt};
+                    DWORD result = WaitForMultipleObjects(2, handles, FALSE, timeout);
+                    IF_FALSE_THROW(result != WAIT_FAILED);
+                    if (result == WAIT_TIMEOUT)
+                        return true;
+                    if (result == WAIT_OBJECT_0 + 1) {
+                        _interrupt.reset();
+                        return false;
+                    }
 
-                int b = _serialThread.character();
-                console.write<Byte>(b);
+                    b = _serialThread.character();
+                    console.write(String("<") + debugByte(b) + ">");
+                } while (b == '[' || b == ']');
                 if (b == 'K')
                     break;
                 if (b != 'R')
@@ -725,7 +735,7 @@ public:
         } while (bytes != 0);
         //_arduinoCom.write<Byte>(0x7b);
         sendByte(0x7b);
-        IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
+        //IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
         return false;
     }
     String htDocsPath(String name) { return _htdocsPath + "\\" + name; }
@@ -892,9 +902,15 @@ public:
 private:
     void sendByte(int byte)
     {
-        //console.write(String("(") + decimal(byte) + ")");
+        console.write(String("=") + debugByte(byte) + "=");
         writeSerial(reinterpret_cast<const Byte*>(&byte), 1);
         //_arduinoCom.write<Byte>(byte);
+    }
+    String debugByte(int b)
+    {
+        if (b >= 32 && b < 127 && !(b >= 48 && b < 58))
+            return codePoint(b);
+        return decimal(b);
     }
     // Dump bytes from COM port to pipe until we receive ^Z or we time out.
     // Also process any commands from the XT.
@@ -1068,7 +1084,7 @@ private:
             }
 
             int c = _serialThread.character();
-            console.write(String(" :") + String(decimal(c)) + ":");
+            console.write(String("{") + debugByte(c) + "}");
             if (c == -1)
                 continue;
             if (!escape && _fileState == 0) {
@@ -1126,10 +1142,10 @@ private:
                             _item->write("&amp;");
                         else
                             _item->write(c);
-                    if ((c < 32 || c > 126) && (c != 9 && c != 10 && c != 13))
-                        console.write<Byte>('.');
-                    else
-                        console.write<Byte>(c);
+                    //if ((c < 32 || c > 126) && (c != 9 && c != 10 && c != 13))
+                    //    console.write<Byte>('.');
+                    //else
+                    //    console.write<Byte>(c);
                     break;
                 case 1:
                     // Get first byte of size
