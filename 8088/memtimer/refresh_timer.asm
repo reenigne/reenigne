@@ -1,6 +1,6 @@
   %include "../defaults_bin.asm"
 
-REFRESH_RATE EQU 12
+REFRESH_RATE EQU 18
 ITERATIONS EQU 120
 
   mov al,TIMER0 | BOTH | MODE2 | BINARY
@@ -234,6 +234,23 @@ outOfSpaceMessageEnd:
 
 
 experimentData:
+
+experimentSendbit:
+  db "Sendbit$"
+  dw .endInit - ($+2)
+
+  mov dx,0xe0
+
+.endInit:
+  dw .endCode - ($+2)
+
+  rcr bl,1             ; 2 0 8
+  mov al,bh            ; 2 0 8
+  rcr al,1             ; 2 0 8
+  rcr al,1             ; 2 0 8
+  out dx,al            ; 1 1 8
+.endCode:
+
 
 experimentPlaywave:
   db "Playwave$"

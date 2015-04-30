@@ -316,7 +316,7 @@ public:
                 continue;
             if (bytes != 1)
                 throw Exception::systemError("Reading serial port");
-            console.write<Byte>('%');
+            //console.write<Byte>('%');
             _c = b;
             //console.write(String("[") + decimal(b) + "]");
 
@@ -668,7 +668,8 @@ public:
             }
 
             int b = _serialThread.character();
-            console.write(String("(") + debugByte(b) + ")");
+            console.write<Byte>(b);
+//            console.write(String("(") + debugByte(b) + ")");
             if (b == 'R')
                 break;
             if (b != -1)
@@ -687,8 +688,8 @@ public:
         int bytes;
         do {
             bytes = min(l, 0xff);
-            _packet[0] = 0x76;  // clear keyboard buffer
-            _packet[1] = 0x7a;  // block real keyboard
+//            _packet[0] = 0x76;  // clear keyboard buffer
+//            _packet[1] = 0x7a;  // block real keyboard
             _packet[2] = 0x75;  // raw mode
             _packet[3] = bytes;
             _packet[4] = 'X';  // Marker
@@ -704,11 +705,11 @@ public:
             int tries = 0;
             do {
                 //console.write('p');
-                writeSerial(&_packet[0], 7 + bytes);
+                writeSerial(&_packet[2], 5 + bytes);
                 //IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
 
                 int b;
-                do {
+//                do {
                     DWORD elapsed = GetTickCount() - _startTime;
                     DWORD timeout = 5*60*1000 - elapsed;
                     HANDLE handles[2] = {_serialThread.eventHandle(), _interrupt};
@@ -722,8 +723,9 @@ public:
                     }
 
                     b = _serialThread.character();
-                    console.write(String("<") + debugByte(b) + ">");
-                } while (b == '[' || b == ']');
+                    console.write<Byte>(b);
+                    //console.write(String("<") + debugByte(b) + ">");
+//                } while (b == '[' || b == ']');
                 if (b == 'K')
                     break;
                 if (b != 'R')
@@ -734,7 +736,7 @@ public:
             l -= bytes;
         } while (bytes != 0);
         //_arduinoCom.write<Byte>(0x7b);
-        sendByte(0x7b);
+        //sendByte(0x7b);
         //IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
         return false;
     }
@@ -902,7 +904,7 @@ public:
 private:
     void sendByte(int byte)
     {
-        console.write(String("=") + debugByte(byte) + "=");
+        console.write(String("(") + debugByte(byte) + ")");
         writeSerial(reinterpret_cast<const Byte*>(&byte), 1);
         //_arduinoCom.write<Byte>(byte);
     }
@@ -1084,7 +1086,7 @@ private:
             }
 
             int c = _serialThread.character();
-            console.write(String("{") + debugByte(c) + "}");
+//            console.write(String("{") + debugByte(c) + "}");
             if (c == -1)
                 continue;
             if (!escape && _fileState == 0) {
@@ -1128,10 +1130,15 @@ private:
 
                 if (c != 0)
                     escape = false;
-                if (processed)
-                    continue;
+                if (processed) {
+                    if (_fileState != 0)
+                        console.write(String("[") + debugByte(c) + String("]"));
+                    continue;   
+                }
             }
             escape = false;
+            if (_fileState != 0)
+                console.write(String("[") + debugByte(c) + String("]"));
             switch (_fileState) {
                 case 0:
                     // No file operation in progress - output to HTTP
@@ -1142,10 +1149,10 @@ private:
                             _item->write("&amp;");
                         else
                             _item->write(c);
-                    //if ((c < 32 || c > 126) && (c != 9 && c != 10 && c != 13))
-                    //    console.write<Byte>('.');
-                    //else
-                    //    console.write<Byte>(c);
+                    if ((c < 32 || c > 126) && c != 9 && c != 10 && c != 13)
+                        console.write<Byte>('.');
+                    else
+                        console.write<Byte>(c);
                     break;
                 case 1:
                     // Get first byte of size

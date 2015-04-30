@@ -44,14 +44,19 @@ extern const uint8_t PROGMEM asciiToScancodes[0x5f];
 /* extern uint16_t PROGMEM remoteCodes[0x51]; */
 extern const uint8_t PROGMEM defaultProgram[5];
 
-uint8_t serialBuffer[0x100];
+// keyboardBuffer holds characters to pass to XT in !dataMode
+// dataBuffer holds characters to pass to XT in dataMode
 uint8_t keyboardBuffer[0x100];
-uint8_t programBuffer[0x400];
+uint8_t dataBuffer[0x100];
+uint8_t serialBuffer[0x100];
+//uint8_t programBuffer[0x400];
 
-volatile uint8_t serialBufferPointer;
-volatile uint16_t serialBufferCharacters;
-volatile uint8_t keyboardBufferPointer;
-volatile uint16_t keyboardBufferCharacters;
+volatile uint8_t serialBufferPointer = 0;
+volatile uint16_t serialBufferCharacters = 0;
+volatile uint8_t keyboardBufferPointer = 0;
+volatile uint16_t keyboardBufferCharacters = 0;
+volatile uint8_t dataBufferPointer = 0;
+volatile uint16_t dataBufferCharacters = 0;
 
 volatile bool spaceAvailable = true;
 
@@ -66,10 +71,10 @@ volatile bool testerMode = true;
 //volatile bool needXOff = false;
 //volatile bool needXOn = false;
 volatile uint16_t rawBytesRemaining = 0;
-volatile uint16_t programCounter = 0;
-volatile uint16_t programBytes = 0;
-volatile uint16_t programBytesRemaining = 0;
-volatile bool ramProgram = false;
+//volatile uint16_t programCounter = 0;
+//volatile uint16_t programBytes = 0;
+//volatile uint16_t programBytesRemaining = 0;
+//volatile bool ramProgram = false;
 volatile bool expectingRawCount = false;
 volatile bool sentEscape = false;
 //volatile bool checkSum = 0;
@@ -78,7 +83,8 @@ volatile bool testerRaw = false;
 volatile bool remoteMode = false;
 volatile uint8_t speedBytesRemaining = 0;
 volatile uint8_t whichSpeed = 0;
-volatile bool sendRamProgram = false;
+//volatile bool sendRamProgram = false;
+volatile bool dataMode = false;
 
 SIGNAL(PCINT1_vect)
 {
@@ -88,7 +94,7 @@ SIGNAL(PCINT1_vect)
 
 uint8_t receivedKeyboardByte = 0;
 volatile bool blockedKeyboard = false;
-volatile bool keyboardBlocked = false;
+//volatile bool keyboardBlocked = false;
 volatile uint16_t receivedDelay = 0;
 volatile uint8_t bitDelay = 1;
 volatile uint16_t slowAckDelay = 400;
@@ -140,18 +146,18 @@ void sendSerialByte()
 //        }
 //        else {
             if (serialBufferCharacters == 0) {
-                if (sendRamProgram) {
-                    c = programBuffer[programBytes - programBytesRemaining];
-                    serialBuffer[(serialBufferPointer + serialBufferCharacters) & 0xff] = c;
-                    ++serialBufferCharacters;
-                    --programBytesRemaining;
-                    if (programBytesRemaining == 0)
-                        sendRamProgram = false;
-                }
-                else {
+//                if (sendRamProgram) {
+//                    c = programBuffer[programBytes - programBytesRemaining];
+//                    serialBuffer[(serialBufferPointer + serialBufferCharacters) & 0xff] = c;
+//                    ++serialBufferCharacters;
+//                    --programBytesRemaining;
+//                    if (programBytesRemaining == 0)
+//                        sendRamProgram = false;
+//                }
+//                else {
                     // There's nothing we need to send!
                     return;
-                }
+//                }
             }
             c = serialBuffer[serialBufferPointer];
 //            if (c == 0 || c == 17 || c == 19) {
@@ -166,8 +172,10 @@ void sendSerialByte()
 //                }
 //            }
 //            else {
+                cli();
                 ++serialBufferPointer;
                 --serialBufferCharacters;
+                sei();
 //            }
 //        }
 //    }
@@ -219,6 +227,19 @@ void enqueueKeyboardByte(uint8_t byte)
     }
 }
 
+void enqueueDataByte(uint8_t byte)
+{
+    dataBuffer[(dataBufferPointer + dataBufferCharacters) & 0xff]
+        = byte;
+    ++dataBufferCharacters;
+    // If our buffer is getting too full, tell the host to stop sending.
+    if (dataBufferCharacters >= 0xf0 /*&& !sentXOff*/) {
+        enqueueSerialByte('#');
+//        needXOff = true;
+//        sendSerialByte();
+    }
+}
+
 bool processCommand(uint8_t command)
 {
     switch (command) {
@@ -228,14 +249,14 @@ bool processCommand(uint8_t command)
         case 2:
             testerMode = true;
             return true;
-        case 3:
-            ramProgram = true;
-            sendRamProgram = false;
-            programBytesRemaining = 0xffff;
-            return true;
-        case 4:
-            ramProgram = false;
-            return true;
+//        case 3:
+//            ramProgram = true;
+//            sendRamProgram = false;
+//            programBytesRemaining = 0xffff;
+//            return true;
+//        case 4:
+//            ramProgram = false;
+//            return true;
         case 5:
             expectingRawCount = true;
             return true;
@@ -262,21 +283,21 @@ bool processCommand(uint8_t command)
         case 0xc:
             speedBytesRemaining = 3;
             return true;
-        case 0xd:
-            sendRamProgram = true;
-            programBytesRemaining = programBytes;
-            enqueueSerialByte(programBytes & 0xff);
-            enqueueSerialByte(programBytes >> 8);
-            return true;
-        case 0xa:
-            keyboardBlocked = true;
-            lowerInputData();
-            return true;
-        case 0xb:
-            keyboardBlocked = false;
-            if (!blockedKeyboard)
-                raiseInputData();
-            return true;
+//        case 0xd:
+//            sendRamProgram = true;
+//            programBytesRemaining = programBytes;
+//            enqueueSerialByte(programBytes & 0xff);
+//            enqueueSerialByte(programBytes >> 8);
+//            return true;
+//        case 0xa:
+//            keyboardBlocked = true;
+//            lowerInputData();
+//            return true;
+//        case 0xb:
+//            keyboardBlocked = false;
+//            if (!blockedKeyboard)
+//                raiseInputData();
+//            return true;
     }
     return false;
 }
@@ -354,7 +375,7 @@ void processCharacter(uint8_t received)
         return;
     }
     if (rawBytesRemaining > 0) {
-        enqueueKeyboardByte(received);
+        enqueueDataByte(received);
 //        checkSum += received;
         --rawBytesRemaining;
 //        if (rawBytesRemaining == 0)
@@ -368,24 +389,24 @@ void processCharacter(uint8_t received)
 //        expectingCheckSum = false;
 //        return;
 //    }
-    if (programBytesRemaining == 0xffff) {
-        programBytes = received;
-        --programBytesRemaining;
-        return;
-    }
-    if (programBytesRemaining == 0xfffe) {
-        programBytes |= received << 8;
-        programBytesRemaining = programBytes;
-        enqueueSerialByte('p');
-        return;
-    }
-    if (programBytesRemaining > 0 && !sendRamProgram) {
-        programBuffer[programBytes - programBytesRemaining] = received;
-        --programBytesRemaining;
-        if (programBytesRemaining == 0)
-            enqueueSerialByte('d');
-        return;
-    }
+//    if (programBytesRemaining == 0xffff) {
+//        programBytes = received;
+//        --programBytesRemaining;
+//        return;
+//    }
+//    if (programBytesRemaining == 0xfffe) {
+//        programBytes |= received << 8;
+//        programBytesRemaining = programBytes;
+//        enqueueSerialByte('p');
+//        return;
+//    }
+//    if (programBytesRemaining > 0 && !sendRamProgram) {
+//        programBuffer[programBytes - programBytesRemaining] = received;
+//        --programBytesRemaining;
+//        if (programBytesRemaining == 0)
+//            enqueueSerialByte('d');
+//        return;
+//    }
     if (speedBytesRemaining > 0) {
         if (speedBytesRemaining == 3)
             whichSpeed = received;
@@ -503,7 +524,7 @@ bool sendKeyboardByte(uint8_t data, uint16_t ackDelay)
     // We read the clock as high immediately before entering this routine.
     // The XT keyboard hardware holds the data line low to signal that the
     // previous byte has not yet been acknowledged by software.
-    while (!getData()) { }
+    while (!getData() && getClock()) { }
 
     cli();
 
@@ -765,7 +786,7 @@ int main()
 
     sei();
 
-    print(PSTR("Quickboot 20150425-115200\n"));
+    print(PSTR("Quickboot 20150430-115200\n"));
     print(PSTR("Kernel version "));
     print((const char*)defaultProgram + 4);
     print(PSTR("\n>"));
@@ -797,23 +818,23 @@ int main()
                     sendKeyboardByte(0x65, slowAckDelay);
                     uint8_t checksum = 0;
                     if (!testerRaw) {
-                        if (ramProgram) {
-                            sendKeyboardByte(programBytes & 0xff, slowAckDelay);
-                            sendKeyboardByte(programBytes >> 8, slowAckDelay);
-
-                            // After sending the second length byte there may
-                            // be another slow ack delay - account for that
-                            // here so we don't have to do it inside the loop.
-                            while (!getData()) { }
-                            waitCycles(slowAckDelay);
-
-                            for (uint16_t i = 0; i < programBytes - 1; ++i) {
-                                uint8_t v = programBuffer[i];
-                                sendKeyboardByte(v, fastAckDelay);
-                                checksum += v;
-                            }
-                        }
-                        else {
+//                        if (ramProgram) {
+//                            sendKeyboardByte(programBytes & 0xff, slowAckDelay);
+//                            sendKeyboardByte(programBytes >> 8, slowAckDelay);
+//
+//                            // After sending the second length byte there may
+//                            // be another slow ack delay - account for that
+//                            // here so we don't have to do it inside the loop.
+//                            while (!getData()) { }
+//                            waitCycles(slowAckDelay);
+//
+//                            for (uint16_t i = 0; i < programBytes - 1; ++i) {
+//                                uint8_t v = programBuffer[i];
+//                                sendKeyboardByte(v, fastAckDelay);
+//                                checksum += v;
+//                            }
+//                        }
+//                        else {
                             uint16_t programBytes =
                                 pgm_read_byte(&defaultProgram[0]);
                             programBytes |=
@@ -835,7 +856,7 @@ int main()
                                 checksum += v;
                             }
                         }
-                    }
+//                    }
                     sendKeyboardByte(checksum, fastAckDelay);
                 }
                 else {
@@ -859,60 +880,83 @@ int main()
                 // Send the number of bytes that the XT can safely send us.
                 while (serialBufferCharacters == 255)
                   ;
-                enqueueSerialByte('[');
-                while (serialBufferCharacters != 0)
-                  ;
-                cli();
+//                enqueueSerialByte('[');
+//                while (serialBufferCharacters != 0)
+//                  ;
+//                cli();
                 uint8_t available = 255 - serialBufferCharacters;
                 sendKeyboardByte(available, fastAckDelay);
-                uint8_t count = receiveKeyboardByte();
-                sei();
-                uint8_t checksum = 0;
-                for (uint8_t i = 0; i < count; ++i) {
-                    cli();
-                    uint8_t b = receiveKeyboardByte();
-                    sei();
-                    enqueueSerialByte(b);
-                    checksum += b;
-                }
-                cli();
-                uint8_t cs2 = receiveKeyboardByte();
-                sei();
-                if (cs2 != checksum) {
-                    enqueueSerialByte('f');
-                    enqueueSerialByte(available);
-                    enqueueSerialByte(count);
-                    enqueueSerialByte(checksum);
-                    enqueueSerialByte(cs2);
-                }
-                enqueueSerialByte(']');
+//                while (true) {
+                    uint8_t count = receiveKeyboardByte();
+                    if (count == 0)
+                        dataMode = false;
+    //                sei();
+//                    uint8_t checksum = 0;
+                    for (uint8_t i = 0; i < count; ++i) {
+    //                    cli();
+                        uint8_t b = receiveKeyboardByte();
+                        if (b == 5)
+                            dataMode = true;
+    //                    sei();
+                        enqueueSerialByte(b);
+//                        checksum += b;
+                    }
+    //                cli();
+//                    uint8_t cs2 = receiveKeyboardByte();
+    //                sei();
+//                    if (cs2 != checksum)
+//                        sendKeyboardByte('f');
+//                    else {
+//                        sendKeyboardByte('k');
+//                        break;
+//                    }
+//                }
+//                    enqueueSerialByte('f');
+//                    enqueueSerialByte(available);
+//                    enqueueSerialByte(count);
+//                    enqueueSerialByte(checksum);
+//                    enqueueSerialByte(cs2);
+//                }
+//                enqueueSerialByte(']');
             }
         }
         else {
             // Clock is high - we're free to send if we have data.
-            if (countdown == 0 && keyboardBufferCharacters != 0) {
-                if (sendKeyboardByte(keyboardBuffer[keyboardBufferPointer], fastAckDelay)) {
-                    // Successfully sent - remove this character from the
-                    // buffer. This needs to be done with interrupts off in
-                    // case a character is received (and added to the buffer)
-                    // while these instruction are being processed (even a
-                    // an 8-bit memory increment is not atomic on 8-bit AVR).
-                    cli();
-                    ++keyboardBufferPointer;
-                    --keyboardBufferCharacters;
-                    sei();
-                    // If we've made enough space in the buffer, allow
-                    //  receiving again.
-//                    if (keyboardBufferCharacters < 0xf0 && sentXOff) {
-//                        needXOn = true;
-//                        sendSerialByte();
-//                    }
-                    if (keyboardBufferCharacters < 0xf0 && blockedKeyboard) {
-                        blockedKeyboard = false;
-                        if (!keyboardBlocked)
-                            raiseInputData();
+            if (countdown == 0) {
+                if (dataMode) {
+                    if (dataBufferCharacters != 0) {
+                        if (sendKeyboardByte(dataBuffer[dataBufferPointer], fastAckDelay)) {
+                            // Successfully sent - remove this character from the
+                            // buffer. This needs to be done with interrupts off in
+                            // case a character is received (and added to the buffer)
+                            // while these instruction are being processed (even a
+                            // an 8-bit memory increment is not atomic on 8-bit AVR).
+                            cli();
+                            ++dataBufferPointer;
+                            --dataBufferCharacters;
+                            sei();
+                        }
                     }
                 }
+                else
+                    if (keyboardBufferCharacters != 0) {
+                        if (sendKeyboardByte(keyboardBuffer[keyboardBufferPointer], fastAckDelay)) {
+                            // Successfully sent - remove this character from the
+                            // buffer. This needs to be done with interrupts off in
+                            // case a character is received (and added to the buffer)
+                            // while these instruction are being processed (even a
+                            // an 8-bit memory increment is not atomic on 8-bit AVR).
+                            cli();
+                            ++keyboardBufferPointer;
+                            --keyboardBufferCharacters;
+                            sei();
+                            if (keyboardBufferCharacters < 0xf0 && blockedKeyboard) {
+                                blockedKeyboard = false;
+        //                        if (!keyboardBlocked)
+                                    raiseInputData();
+                            }
+                        }
+                    }
             }
 /*            if (remoteCode != 0) {
                 sendRemoteCode(remoteCode);

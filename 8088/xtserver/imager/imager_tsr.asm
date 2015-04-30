@@ -202,8 +202,9 @@ sendLoop:
 
   mov al,cl
   call sendByteRoutine  ; Send the number of bytes we'll be sending
-  push ax
-  mov ah,0
+  jcxz .doneData
+;  push ax
+;  mov ah,0
 
 ;   cmp byte[si],19
 ;   jne .sendByteLoop
@@ -217,14 +218,15 @@ sendLoop:
 
 .sendByteLoop:
   lodsb
-  add ah,al
+;  add ah,al
   call sendByteRoutine
   loop .sendByteLoop
 
-  mov al,ah
-  call sendByteRoutine
-  pop ax
+;  mov al,ah
+;  call sendByteRoutine
+;  pop ax
 
+.doneData:
   ; Finally acknowledge the count byte we received earlier to enable keyboard input again.
   in al,0x61
   or al,0x80
@@ -268,8 +270,8 @@ sendByteRoutine:
   rcr al,1
   out dx,al
 
-  rcr bl,1             ; 2 0 8  Each bit takes 45.6 CPU cycles = 9.55us
-  mov al,bh            ; 2 0 8  = 153 cycles on the Arduino
+  rcr bl,1             ; 2 0 8  Each bit takes 46.1666 CPU cycles = 9.67us
+  mov al,bh            ; 2 0 8  = 154.8 cycles on the Arduino
   rcr al,1             ; 2 0 8
   rcr al,1             ; 2 0 8
   out dx,al            ; 1 1 8
@@ -325,9 +327,10 @@ sendByteRoutine:
 
 
 completeRoutine:
-  mov dl,26
-  mov ah,2
-  int 0x21
+  mov al,26
+  call sendChar
+  cli
+  hlt
 
 
 writeBuffer:
@@ -629,34 +632,15 @@ int13Routine:
   jmp .complete
 
 .read:
-;   push ax
-;   outputHex
-;   mov ax,bx
-;   outputHex
-;   mov ax,cx
-;   outputHex
-;   mov ax,dx
-;   outputHex
-;   mov ax,si
-;   outputHex
-;   mov ax,di
-;   outputHex
-;   mov ax,bp
-;   outputHex
-;   mov ax,sp
-;   outputHex
+   stopKeyboard
+   push ax
+   mov ax,cx
 ;   mov ax,es
 ;   outputHex
-;   mov ax,ds
-;   outputHex
-;   mov ax,cs
-;   outputHex
-;   mov ax,ss
-;   outputHex
-;   pushf
-;   pop ax
-;   outputHex
-;   pop ax
+;   mov ax,bx
+   outputHex
+   pop ax
+   resumeKeyboard
 
   call sendParameters
 
@@ -694,6 +678,11 @@ int13Routine:
   mov bp,0x40
   mov ds,bp
   mov [0x41],ah
+
+  ; Zero byte packet to re-enable keyboard
+  mov ah,0
+  xor cx,cx
+  call sendLoop
 
 .complete:
   pop es

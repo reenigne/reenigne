@@ -190,13 +190,19 @@ wait2usLoop:
   brne wait2usLoop    ; n*2 - 1
   ret                 ; 4
 
-wait151cycles:        ; 4
-  ldi r31,47          ; 1          ; (cycles to delay - 10)/3
-wait151cyclesLoop:
+wait77cycles:         ; 4
+  ldi r31,23          ; 1          ; (cycles to delay - 8)/3
+wait77cyclesLoop:
   dec r31             ; n*1
-  brne wait151cyclesLoop  ; n*2 - 1
-  rjmp wait151cyclesNop   ; 2
-wait151cyclesNop:
+  brne wait153cyclesLoop  ; n*2 - 1
+  ret                 ; 4
+
+wait153cycles:        ; 4
+  ldi r31,48          ; 1          ; (cycles to delay - 9)/3
+wait153cyclesLoop:
+  dec r31             ; n*1
+  brne wait153cyclesLoop  ; n*2 - 1
+  nop                 ; 1
   ret                 ; 4
 
 .global wait50us      ; 800 cycles
@@ -249,47 +255,45 @@ clockWaitLoop1:
   rjmp clockWaitLoop1               ; 0 2
   ; Wait for clock line to go high
 clockWaitLoop2:
-  sbic 0x03, 1                      ; 2 1  ; Port B
+  sbis 0x03, 1                      ; 2 1  ; Port B
   rjmp clockWaitLoop2               ; 0 2
 
-  ldi r31,23+51                     ; 1          ; (cycles to delay)/3
-wait69cyclesLoop:
-  dec r31                           ; n*1
-  brne wait69cyclesLoop             ; n*2 - 1
+  call wait77cycles
 
-  call wait151cycles
+  call wait153cycles
   ; Read bit 0
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 1                        ; 0 1
-  call wait151cycles
+  call wait153cycles
   ; Read bit 1
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 2                        ; 0 1
-  call wait151cycles
+  call wait153cycles
   ; Read bit 2
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 4                        ; 0 1
-  call wait151cycles
+  call wait153cycles
   ; Read bit 3
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 8                        ; 0 1
-  call wait151cycles
+  call wait153cycles
   ; Read bit 4
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 0x10                     ; 0 1
-  call wait151cycles
+  call wait153cycles
   ; Read bit 5
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 0x20                     ; 0 1
-  call wait151cycles
+  call wait153cycles
   ; Read bit 6
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 0x40                     ; 0 1
-  call wait151cycles
+  call wait153cycles
   ; Read bit 7
   sbic 0x03, 1                      ; 2 1  ; Port B
   ori r24, 0x80                     ; 0 1
-  call wait151cycles
+  call wait153cycles
+  ; Bit should now be high
   sei
   ret
 

@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20150425-keyb',0
+  db '20150430-keyb',0
 
 codeStart:
   mov ax,cs
@@ -227,7 +227,14 @@ checksumOk:
   and al,0x7f
   out 0x61,al
 
+  mov al,5
+  call sendChar
+
   loadData
+
+  mov ah,0
+  xor cx,cx
+  call sendLoop
 
   retf
 
@@ -430,17 +437,25 @@ sendLoop:
 
   mov al,cl
   call sendByteRoutine  ; Send the number of bytes we'll be sending
-  push ax
-  mov ah,0
+  jcxz .doneData
+;  push ax
+;  mov ah,0
 .sendByteLoop:
   lodsb
-  add ah,al
+;  add ah,al
   call sendByteRoutine
   loop .sendByteLoop
 
-  mov al,ah
-  call sendByteRoutine
-  pop ax
+;  mov al,ah
+;  call sendByteRoutine
+;  pop ax
+
+.doneData:
+  in al,0x61
+  or al,0x80
+  out 0x61,al
+  and al,0x7f
+  out 0x61,al
 
   cmp di,0
   jne .loop
@@ -449,12 +464,6 @@ sendLoop:
 
   ; Read and ignore a final byte so that the keyboard is in a good state
 ;  call keyboardRead
-
-  in al,0x61
-  or al,0x80
-  out 0x61,al
-  and al,0x7f
-  out 0x61,al
 
   ret
 

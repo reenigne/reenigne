@@ -305,8 +305,9 @@ sendLoop:
 
   mov al,cl
   call sendByteRoutine  ; Send the number of bytes we'll be sending
-  push ax
-  mov ah,0
+  jcxz .doneData
+;  push ax
+;  mov ah,0
 
 ;   cmp byte[si],19
 ;   jne .sendByteLoop
@@ -320,14 +321,15 @@ sendLoop:
 
 .sendByteLoop:
   lodsb
-  add ah,al
+;  add ah,al
   call sendByteRoutine
   loop .sendByteLoop
 
-  mov al,ah
-  call sendByteRoutine
-  pop ax
+;  mov al,ah
+;  call sendByteRoutine
+;  pop ax
 
+.doneData:
   ; Finally acknowledge the count byte we received earlier to enable keyboard input again.
   in al,0x61
   or al,0x80
@@ -428,8 +430,10 @@ sendByteRoutine:
 
 
 completeRoutine:
-  disconnect
-  jmp 0  ; Restart the kernel
+  mov al,26
+  call sendChar
+  cli
+  hlt
 
 
 writeBuffer:
@@ -731,16 +735,17 @@ int13Routine:
   jmp .complete
 
 .read:
-  call sendParameters
-
-;   stopKeyboard
-;   push ax
+   stopKeyboard
+   push ax
+   mov ax,cx
 ;   mov ax,es
 ;   outputHex
 ;   mov ax,bx
-;   outputHex
-;   pop ax
-;   resumeKeyboard
+   outputHex
+   pop ax
+   resumeKeyboard
+
+  call sendParameters
 
   ; Receive the data to read
   mov di,bx
@@ -758,7 +763,8 @@ int13Routine:
   mov ax,es
   mov ds,ax
   mov si,bx
-  outputString
+  mov ah,0
+  call sendLoop
 
 .getResult:
   ; Receive the status information
@@ -775,6 +781,11 @@ int13Routine:
   mov bp,0x40
   mov ds,bp
   mov [0x41],ah
+
+  ; Zero byte packet to re-enable keyboard
+  mov ah,0
+  xor cx,cx
+  call sendLoop
 
 .complete:
   pop es
@@ -799,7 +810,8 @@ int13Routine:
   mov ax,es
   mov ds,ax
   mov si,bx
-  outputString
+  mov ah,0
+  call sendLoop
 
   jmp .getResult
 
