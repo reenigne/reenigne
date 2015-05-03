@@ -235,6 +235,47 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
+experimentROLCL:
+  db "ROLCL$"
+  dw .endInit - ($+2)
+
+  mov ax,0x7000
+  mov ds,ax
+  xor si,si
+  xor bx,bx
+  cld
+
+.endInit:
+  dw .endCode - ($+2)
+
+  lodsw
+  mov cl, 4
+  rol ax, cl
+  mov [bx], ax
+.endCode:
+
+experimentROLx4:
+  db "ROLx4$"
+  dw .endInit - ($+2)
+
+  mov ax,0x7000
+  mov ds,ax
+  xor si,si
+  xor bx,bx
+  cld
+
+.endInit:
+  dw .endCode - ($+2)
+
+  lodsw
+  rol ax, 1
+  rol ax, 1
+  rol ax, 1
+  rol ax, 1
+  mov [bx], ax
+.endCode:
+
+
 experimentSendbit:
   db "Sendbit$"
   dw .endInit - ($+2)

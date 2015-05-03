@@ -336,7 +336,7 @@ public:
         int c = _c;
         _event.reset();
         _reset.signal();
-        return _c;
+        return c;
     }
 private:
     Handle _serialPort;

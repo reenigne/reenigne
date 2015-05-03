@@ -26,10 +26,6 @@ residentPortionLength equ (residentPortionEnd - residentPortion)
   mov ds,ax
   mov word[0x412],640 - ((residentPortionLength + 1023)/1024)   ; Reduce BIOS RAM count to reduce chances of DOS stomping on our resident portion
 
-;  mov ax,[0x412]
-;  outputHex
-
-
   mov dx,0xc000
 romScanLoop:
   mov ds,dx
@@ -271,19 +267,6 @@ sendLoop:
   ; Read the keyboard byte and store it
   in al,0x60
   mov cl,al
-;   cmp al,128
-;   ja .goodSpace
-;   push dx
-;   push ax
-;   mov al,4
-;   mov dx,0x3d9
-;   out dx,al
-;   pop ax
-;   stopKeyboard
-;   outputHex
-;   resumeKeyboard
-;   pop dx
-;   .goodSpace:
   xor ch,ch
 
   ; Calculate number of bytes to actually send
@@ -306,28 +289,11 @@ sendLoop:
   mov al,cl
   call sendByteRoutine  ; Send the number of bytes we'll be sending
   jcxz .doneData
-;  push ax
-;  mov ah,0
-
-;   cmp byte[si],19
-;   jne .sendByteLoop
-;   push dx
-;   push ax
-;   mov al,5
-;   mov dx,0x3d9
-;   out dx,al
-;   pop ax
-;   pop dx
 
 .sendByteLoop:
   lodsb
-;  add ah,al
   call sendByteRoutine
   loop .sendByteLoop
-
-;  mov al,ah
-;  call sendByteRoutine
-;  pop ax
 
 .doneData:
   ; Finally acknowledge the count byte we received earlier to enable keyboard input again.
@@ -337,8 +303,6 @@ sendLoop:
   and al,0x7f
   out 0x61,al
   sti
-;  popf   ; Turn interrupts on if they were on when we came into the routine
-;  pushf
 
   cmp di,0
   jne .loop
@@ -353,13 +317,6 @@ sendLoop:
 
 sendByteRoutine:
   mov bl,al
-
-;  mov al,'('
-;  call printChar
-;  mov al,bl
-;  call printChar
-;  mov al,')'
-;  call printChar
 
   clc
   mov al,bh
@@ -691,10 +648,6 @@ int10Routine:
 
 int13Routine:
   sti
-;   push ax
-;   mov al,'#'
-;   call printChar
-;   pop ax
 
   push bx
   push cx
@@ -735,16 +688,6 @@ int13Routine:
   jmp .complete
 
 .read:
-   stopKeyboard
-   push ax
-   mov ax,cx
-;   mov ax,es
-;   outputHex
-;   mov ax,bx
-   outputHex
-   pop ax
-   resumeKeyboard
-
   call sendParameters
 
   ; Receive the data to read

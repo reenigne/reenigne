@@ -22,6 +22,37 @@ top:
   out dx,al
 
 
+;  xor ax,ax
+;  mov ds,ax
+;  cli
+;  mov ax,[8*4]
+;  mov [cs:oldInterrupt8],ax
+;  mov ax,[8*4+2]
+;  mov [cs:oldInterrupt8+2],ax
+;  mov word[8*4],interrupt8
+;  mov [8*4+2],cs
+;  sti
+;
+;  hlt
+;  hlt
+;  mov ax,[cs:oldInterrupt8]
+;  mov [8*4],ax
+;  mov ax,[cs:oldInterrupt8+2]
+;  mov [8*4+2],ax
+
+
+;  in al,0x61
+;  or al,3
+;  out 0x61,al
+
+;  mov al,TIMER2 | BOTH | MODE2 | BINARY
+;  out 0x43,al
+;  mov dx,0x42
+;  mov al,0
+;  out dx,al
+;  out dx,al
+
+
   mov dx,0x03d8
   mov al,0x0a
   out dx,al
@@ -90,10 +121,13 @@ top:
   stosw
   stosw
 
+  mov dl,0xda
+
   ; Set argument for MUL
   mov cl,1
 
   ; Go into CGA/CPU lockstep.
+  jmp $+2
   mov al,0  ; exact value doesn't matter here - it's just to ensure the prefetch queue is filled
   mul cl
   lodsb
@@ -104,7 +138,9 @@ top:
   nop
   lodsb
   mul cl
-  jmp $+2
+
+  nop
+  nop
 
   ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
   ; which of the two possible CRTC states we're in and switch states if we're
@@ -112,29 +148,29 @@ top:
   ; path than in the other. To keep CGA and CPU in lockstep, we also need both
   ; code paths to take the same time mod 3 lchars, so we wait 3 lchars more on
   ; one code path than on the other.
-;  mov dl,0xda
-;  in al,dx
-;  jmp $+2
-;  test al,1
-;  jz shortPath
-;  times 2 nop
-;  jmp $+2
-;shortPath:
+  in al,dx
+  and al,1
+  dec ax
+  mul cl
+  mul cl
+  jmp $+2
+
+  in al,0x61
+  or al,3
+  out 0x61,al
 
   mov ax,0x7000
   mov es,ax
   mov ds,ax
   xor di,di
-%rep 24
-;  in al,dx
-;  stosb
 
-;  mov al,(%1 << 6) | LATCH
-;  out 0x43,al
-;  in al,0x40 + %1
-;  mov ah,al
-;  in al,0x40 + %1
-;  xchg ah,al
+  mov al,TIMER2 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov dx,0x42
+  mov al,0
+  out dx,al
+  out dx,al
+%rep 12
   readPIT16 2
   stosw
 
@@ -157,12 +193,12 @@ top:
 
   refreshOn
 
+  sti
 
   mov ax,0x7000
   mov ds,ax
-  mov cx,23
+  mov cx,11
   xor si,si
-
   lodsw
   xchg ax,bx
 outputLoopTop:
@@ -255,6 +291,9 @@ outputLoopTop:
 
   refreshOff
 
+  mov ax,3
+  int 0x10
+
   ; Wait for a random amount of time
   lea si,[bp+table]
   mov ax,cs
@@ -268,13 +307,25 @@ outputLoopTop:
   mul cl
   lodsb
   mul cl
-  add bp,4
+  add bp,[cs:delta]
+  add word[cs:delta],4
   and bp,31*4
 
 
 
 
   jmp top
+
+interrupt8:
+  push ax
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
+
+oldInterrupt8: dw 0, 0
+
+delta: dw 0
 
 table:
   db   0,  0,  0,  1

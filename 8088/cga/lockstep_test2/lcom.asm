@@ -80,10 +80,13 @@ top:
   stosw
   stosw
 
+  mov dl,0xda
+
   ; Set argument for MUL
   mov cl,1
 
-  ; Go into CGA lockstep. The delays were determined by trial and error.
+  ; Go into CGA/CPU lockstep.
+  jmp $+2
   mov al,0  ; exact value doesn't matter here - it's just to ensure the prefetch queue is filled
   mul cl
   lodsb
@@ -94,11 +97,9 @@ top:
   nop
   lodsb
   mul cl
-  jmp $+2
 
-  mov dx,0x03d8
-  mov al,0x0a
-  out dx,al
+  nop
+  nop
 
   ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
   ; which of the two possible CRTC states we're in and switch states if we're
@@ -106,14 +107,12 @@ top:
   ; path than in the other. To keep CGA and CPU in lockstep, we also need both
   ; code paths to take the same time mod 3 lchars, so we wait 3 lchars more on
   ; one code path than on the other.
-  mov dl,0xda
   in al,dx
+  and al,1
+  dec ax
+  mul cl
+  mul cl
   jmp $+2
-  test al,1
-  jz shortPath
-  times 2 nop
-  jmp $+2
-shortPath:
 
   in al,0x61
   or al,3
@@ -123,6 +122,7 @@ shortPath:
   mov es,ax
   mov ds,ax
   xor di,di
+
   mov al,TIMER2 | BOTH | MODE2 | BINARY
   out 0x43,al
   mov dx,0x42
@@ -130,15 +130,6 @@ shortPath:
   out dx,al
   out dx,al
 %rep 12
-;  in al,dx
-;  stosb
-
-;  mov al,(%1 << 6) | LATCH
-;  out 0x43,al
-;  in al,0x40 + %1
-;  mov ah,al
-;  in al,0x40 + %1
-;  xchg ah,al
   readPIT16 2
   stosw
 

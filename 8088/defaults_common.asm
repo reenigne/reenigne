@@ -423,10 +423,13 @@ cpu 8086
   stosw
   stosw
 
+  mov dl,0xda
+
   ; Set argument for MUL
   mov cl,1
 
   ; Go into CGA/CPU lockstep.
+  jmp $+2
   mov al,0  ; exact value doesn't matter here - it's just to ensure the prefetch queue is filled
   mul cl
   lodsb
@@ -437,7 +440,9 @@ cpu 8086
   nop
   lodsb
   mul cl
-  jmp $+2
+
+  nop
+  nop
 
   ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
   ; which of the two possible CRTC states we're in and switch states if we're
@@ -445,14 +450,11 @@ cpu 8086
   ; path than in the other. To keep CGA and CPU in lockstep, we also need both
   ; code paths to take the same time mod 3 lchars, so we wait 3 lchars more on
   ; one code path than on the other.
-  mov dl,0xda
   in al,dx
-  jmp $+2
-  test al,1
-  jz %%shortPath
-  times 2 nop
-  jmp $+2
-%%shortPath:
+  and al,1
+  dec ax
+  mul cl
+  mul cl
 
   ; Increase refresh frequency to ensure all DRAM is refreshed before turning
   ; off refresh.

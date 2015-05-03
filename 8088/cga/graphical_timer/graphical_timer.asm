@@ -165,11 +165,15 @@ sixLinesLoop:
 
   initCGA ONE_BPP | BW
 
+  inc dx
+  mov al,0
+  out dx,al
+
   mov dx,0x3da
   waitForVerticalSync
   waitForDisplayEnable
 
-  times 76*10 - 16 nop
+  times 76*4 - (16 + 38 + 76) nop    ; + 38 + 76
 
 
   writePIT16 0, 2, 76*6
@@ -201,25 +205,73 @@ sixLinesLoop:
     delay %1
     white
 
+    mov dl,0xd9  ; 0xda
+
     mov cl,1
     mov al,0  ; exact value doesn't matter here - it's just to ensure the prefetch queue is filled
     mul cl
-
     lodsb
-
     mul cl
     nop
-
     lodsb
-
     mul cl
     nop
-
     lodsb
-
     mul cl
 
-    times 76*2 nop
+    in al,dx
+    and al,1
+    dec ax
+    mul cl
+    mul cl
+
+    mov dl,0xd9
+    black
+    white
+
+    times 76*2 - (16+21+8) nop
+
+    mov dl,0xd9
+    black
+    white
+
+    hlt
+%endmacro
+
+%macro testCode2 1
+    mov si,0x3ffc
+
+    black
+    delay %1
+    white
+
+    mov dl,0xd5  ; 0xda
+
+    mov cl,1
+    mov al,0  ; exact value doesn't matter here - it's just to ensure the prefetch queue is filled
+    mul cl
+    lodsb
+    mul cl
+    nop
+    lodsb
+    mul cl
+    nop
+    lodsb
+    mul cl
+
+    in al,dx
+    and al,1
+    dec ax
+    mul cl
+    mul cl
+
+    mov dl,0xd9
+    black
+    white
+
+    times 76*2 - (16+21+8) nop
+
+    mov dl,0xd9
 
     black
     white
@@ -246,6 +298,12 @@ frameLoop:
 %assign i i+1
 %endrep
 
+%assign i 78
+%rep 16
+  testCode2 i
+%assign i i+1
+%endrep
+
   mov al,(76*4) & 0xff
   out 0x40,al
   mov al,(76*4) >> 8
@@ -260,7 +318,7 @@ frameLoop:
   times 76*4 - 50 nop
   hlt
 
-%rep (262-4)/6 - 18
+%rep (262-4)/6 - 34
   times 76*6 - 50 nop
   black
   white

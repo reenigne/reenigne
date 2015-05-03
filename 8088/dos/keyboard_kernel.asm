@@ -332,10 +332,14 @@ transferComplete:
 
 ; Reads the next keyboard scancode into BL
 keyboardRead:
+  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
+  out 0x20,al  ;  read Interrupt Request Register
+
+.loop:
   ; Loop until the IRR bit 1 (IRQ 1) is high
   in al,0x20
   and al,2
-  jz keyboardRead
+  jz .loop
   ; Read the keyboard byte and store it
   in al,0x60
   mov bl,al
@@ -345,14 +349,6 @@ keyboardRead:
   out 0x61,al
   and al,0x7f
   out 0x61,al
-
-;  stopKeyboard
-;  push ax
-;  mov al,bl
-;  outputHex
-;  pop ax
-;  resumeKeyboard
-
   ret
 
 
@@ -385,12 +381,14 @@ sendChar:
 
 ; Send AH:CX bytes pointed to by DS:SI
 sendLoop:
+  pushf
   mov di,cx
 .loop:
   ; Lower clock line to tell the Arduino we want to send data
   in al,0x61
   and al,0xbf
   out 0x61,al
+  cli
   ; Wait for 0.5ms
   mov bx,cx
   mov cx,52500000/(11*54*2000)
@@ -413,12 +411,18 @@ sendLoop:
   add cx,bx
   mov ds,cx
 
-  ; Read the number of bytes that we can send
-  call keyboardRead
-  xor bh,bh
+  ; Read the number of bytes that we can send, but do not ack - we want the data line to stay low
+.readCountLoop:
+  ; Loop until the IRR bit 1 (IRQ 1) is high
+  in al,0x20
+  and al,2
+  jz .readCountLoop
+  ; Read the keyboard byte and store it
+  in al,0x60
+  mov cl,al
+  xor ch,ch
 
   ; Calculate number of bytes to actually send
-  mov cx,bx
   cmp ah,0
   jne .gotCount
   cmp di,cx
@@ -438,33 +442,27 @@ sendLoop:
   mov al,cl
   call sendByteRoutine  ; Send the number of bytes we'll be sending
   jcxz .doneData
-;  push ax
-;  mov ah,0
+
 .sendByteLoop:
   lodsb
-;  add ah,al
   call sendByteRoutine
   loop .sendByteLoop
 
-;  mov al,ah
-;  call sendByteRoutine
-;  pop ax
-
 .doneData:
+  ; Finally acknowledge the count byte we received earlier to enable keyboard input again.
   in al,0x61
   or al,0x80
   out 0x61,al
   and al,0x7f
   out 0x61,al
+  sti
 
   cmp di,0
   jne .loop
   cmp ah,0
   jne .loop
 
-  ; Read and ignore a final byte so that the keyboard is in a good state
-;  call keyboardRead
-
+  popf
   ret
 
 
