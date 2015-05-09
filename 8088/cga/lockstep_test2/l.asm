@@ -109,7 +109,23 @@ top:
   rep lodsw
 
   ; We now have about 1.5ms during which refresh can be off
-  refreshOff
+  mov al,TIMER1 | LSB | MODE0 | BINARY  ;LSB | MODE0 | BINARY
+  out 0x43,al
+  mov al,0x01  ; Count = 0x0001 so we'll stop almost immediately
+  out 0x41,al
+
+;   mov ax,0x8000
+;   mov es,ax
+;   mov dx,0x3da
+;   xor di,di
+;   %rep 66
+;   in al,dx
+;   stosb
+;   nop
+;   mov al,0x7f
+;   mov cl,1
+;   mul cl
+;   %endrep
 
   ; Set "lodsb" destination to be CGA memory
   mov ax,0xb800
@@ -119,7 +135,8 @@ top:
   mov si,di
   mov ax,0x0303  ; Found by trial and error
   stosw
-  stosw
+  mov al,0x00
+  stosb
 
   mov dl,0xda
 
@@ -139,9 +156,6 @@ top:
   lodsb
   mul cl
 
-  nop
-  nop
-
   ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
   ; which of the two possible CRTC states we're in and switch states if we're
   ; in the wrong one by waiting for an odd number of lchars more in one code
@@ -154,6 +168,8 @@ top:
   mul cl
   mul cl
   jmp $+2
+
+;  mov bl,al
 
   in al,0x61
   or al,3
@@ -173,9 +189,7 @@ top:
 %rep 12
   readPIT16 2
   stosw
-
 %endrep
-
 
  ; mov bl,al
 
@@ -194,6 +208,22 @@ top:
   refreshOn
 
   sti
+
+  mov al,bl
+  add al,'1'
+  outputCharacter
+
+;  mov ax,0x8000
+;  mov ds,ax
+;  mov cx,66
+;  xor si,si
+;outputLoopTop2:
+;  lodsb
+;  and al,9
+;  add al,'0'
+;  outputCharacter
+;  loop outputLoopTop2
+
 
   mov ax,0x7000
   mov ds,ax
@@ -217,11 +247,33 @@ outputLoopTop:
   mov al,10
   outputCharacter
 
+
+  ; Wait for a random amount of time
+  mov ax,cs
+  mov ds,ax
+  lea si,[bp+table]
+  mov ax,cs
+  mov ds,ax
+  mov cl,1
+  lodsb
+  mul cl
+  lodsb
+  mul cl
+  lodsb
+  mul cl
+  lodsb
+  mul cl
+  add bp,[cs:delta]
+  mov ax,[cs:delta2]
+  add [cs:delta],ax
+  add word[cs:delta2],4
+  and bp,31*4
+
   jmp top
 
 
 
-  disconnect
+;  disconnect
 
 
   ; Go into +HRES
@@ -294,22 +346,6 @@ outputLoopTop:
   mov ax,3
   int 0x10
 
-  ; Wait for a random amount of time
-  lea si,[bp+table]
-  mov ax,cs
-  mov ds,ax
-  mov cl,1
-  lodsb
-  mul cl
-  lodsb
-  mul cl
-  lodsb
-  mul cl
-  lodsb
-  mul cl
-  add bp,[cs:delta]
-  add word[cs:delta],4
-  and bp,31*4
 
 
 
@@ -326,6 +362,7 @@ interrupt8:
 oldInterrupt8: dw 0, 0
 
 delta: dw 0
+delta2: dw 0
 
 table:
   db   0,  0,  0,  1

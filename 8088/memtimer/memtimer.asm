@@ -50,8 +50,20 @@ spaceLoop:
   outputCharacter ' '
   loop spaceLoop
 
+  lodsb
+  cmp al,0
+  je noRefresh
+  mov byte[pitMode],TIMER1 | LSB | MODE2 | BINARY
+  mov [pitCount],al
+  jmp doneRefresh
+noRefresh:
+  mov byte[pitMode],TIMER1 | LSB | MODE0 | BINARY
+  mov byte[pitCount],1
+doneRefresh:
+
   mov cx,5    ; Number of repeats
 repeatLoop:
+
   push cx
 
   mov cx,480+48  ; Number of iterations in primary measurement
@@ -117,6 +129,8 @@ doPrint:
   outputString
   pop si
   pop cx
+
+
   loop repeatLoop1
 
   ; Advance to the next experiment
@@ -141,6 +155,7 @@ output:
 
 doMeasurement:
   push si
+  push cx
   push cx  ; Save number of iterations
 
   ; Copy init
@@ -154,12 +169,6 @@ doMeasurement:
   pop cx
 iterationLoop:
   push cx
-
-  push si
-  mov si,codePreambleStart
-  mov cx,codePreambleEnd-codePreambleStart
-  call codeCopy
-  pop si
 
   push si
   mov cx,ax
@@ -189,12 +198,16 @@ iterationLoop:
   sti
   hlt
 
+  mov al,0xff  ; Disble IRQs
+  out 0x21,al
+
   ; The actual measurement happens in the the IRQ0 handler which runs here and
   ; returns the timer value in BX.
 
   ; Pop the flags pushed when the interrupt occurred
   pop ax
 
+  pop cx
   pop si
   ret
 
@@ -219,306 +232,23 @@ outOfSpaceMessage:
 outOfSpaceMessageEnd:
 
 
-codePreambleStart:
-;  mov al,0
-;  mul cl
-codePreambleEnd:
-
 experimentData:
 
-experimentROLCL:
-  db "ROLCL$"
-  dw .endInit - ($+2)
-  mov ax,0x7000
-  mov ds,ax
-  xor si,si
-  xor bx,bx
-  cld
-.endInit:
-  dw .endCode - ($+2)
-  jmp $+2
-  lodsw
-  mov cl, 4
-  rol ax, cl
-  mov [bx], ax
-.endCode:
-
-experimentROLx4:
-  db "ROLx4$"
-  dw .endInit - ($+2)
-  mov ax,0x7000
-  mov ds,ax
-  xor si,si
-  xor bx,bx
-  cld
-.endInit:
-  dw .endCode - ($+2)
-  jmp $+2
-  lodsw
-  rol ax, 1
-  rol ax, 1
-  rol ax, 1
-  rol ax, 1
-  mov [bx], ax
-.endCode:
-
-experimentJMPp2:
-  db "JMPp2$"
-  dw .endInit - ($+2)
-  mov ax,0x7000
-  mov ds,ax
-  xor si,si
-  xor bx,bx
-  cld
-.endInit:
-  dw .endCode - ($+2)
-  jmp $+2
-.endCode:
-
-
-
-experimentTracePIT:
-  db "TracePIT$"
-  dw .endInit - ($+2)
-
-  mov ax,0x7000
-  mov es,ax
-  xor di,di
-  mov al,TIMER2 | BOTH | MODE2 | BINARY
-  out 0x43,al
-  mov dx,0x42
-  mov al,0
-  out dx,al
-  out dx,al
-
-.endInit:
-  dw .endCode - ($+2)
-  readPIT16 2
-  stosw
-.shortPath:
-.endCode:
-
-
-
-experimentLockstepOscillate:
-  db "LockstepOscillate$"
+experimentReadStatus:
+  db "ReadStatus$"
+  db 0
   dw .endInit - ($+2)
   mov dx,0x3da
-  mov ax,0x7000
-  mov es,ax
-  xor di,di
-.endInit:
-  dw .endCode - ($+2)
-  in al,dx
-  in al,dx
-  in al,dx
-  nop
-  stosb
-.shortPath:
-.endCode:
-
-
-
-experimentLockstep1:
-  db "Lockstep1$"
-  dw .endInit - ($+2)
-  mov al,0
-.endInit:
-  dw .endCode - ($+2)
-  jmp $+2
-  test al,1
-  jz .shortPath
-;  times 2 nop
-  jmp $+2
-.shortPath:
-.endCode:
-
-experimentLockstep2:
-  db "Lockstep2$"
-  dw .endInit - ($+2)
-  mov al,1
-.endInit:
-  dw .endCode - ($+2)
-  jmp $+2
-  test al,1
-  jz .shortPath
-;  times 2 nop
-  jmp $+2
-.shortPath:
-.endCode:
-
-
-
-
-
-
-experimentTestALBL:
-  db "Test AL,BL$"
-  dw .endInit - ($+2)
-  mov bl,1
-  mov ax,1
-.endInit:
-  dw .endCode - ($+2)
-  test al,bl
-.endCode:
-
-experimentTestAL1:
-  db "Test AL,1$"
-  dw .endInit - ($+2)
-  mov bl,1
-  mov ax,1
-.endInit:
-  dw .endCode - ($+2)
-  test al,1
-.endCode:
-
-experimentTestALBLEU:
-  db "Test AL,BL EU bound$"
-  dw .endInit - ($+2)
-  mov bl,1
-  mov ax,1
-  mov dl,1
-.endInit:
-  dw .endCode - ($+2)
-  mul dl
-  test al,bl
-.endCode:
-
-experimentTestAL1EU:
-  db "Test AL,1 EU bound$"
-  dw .endInit - ($+2)
-  mov bl,1
-  mov ax,1
-  mov dl,1
-.endInit:
-  dw .endCode - ($+2)
-  mul dl
-  test al,1
-.endCode:
-
-experimentEU:
-  db "EU bound correction$"
-  dw .endInit - ($+2)
-  mov bl,1
-  mov ax,1
-  mov dl,1
-.endInit:
-  dw .endCode - ($+2)
-  mul dl
-.endCode:
-
-
-experimentMul:
-  db "Mul$"
-  dw .endInit - ($+2)
-  mov dx,0
-  mov ax,0
-.endInit:
-  dw .endCode - ($+2)
-  mul dx
-.endCode:
-
-experimentOrAlAl:
-  db "OrAlAl$"
-  dw .endInit - ($+2)
-  mov dx,0
-  mov ax,0
-.endInit:
-  dw .endCode - ($+2)
-  mul dx
-  or al,al
-.endCode:
-
-experimentXorAlAl:
-  db "XorAlAl$"
-  dw .endInit - ($+2)
-  mov dx,0
-  mov ax,0
-.endInit:
-  dw .endCode - ($+2)
-  mul dx
-  xor al,al
-.endCode:
-
-experimentMovAl0:
-  db "MovAl0$"
-  dw .endInit - ($+2)
-  mov dx,0
-  mov ax,0
-.endInit:
-  dw .endCode - ($+2)
-  mul dx
-  mov al,0
-.endCode:
-
-experimentCmpAl0:
-  db "CmpAl0$"
-  dw .endInit - ($+2)
-  mov dx,0
-  mov ax,0
-.endInit:
-  dw .endCode - ($+2)
-  mul dx
-  cmp al,0
-.endCode:
-
-experimentAmiga:
-  db "Amiga$"
-  dw .endInit - ($+2)
-  mov dx,0x3d9
-  mov ax,1
-  mov bx,2
-  mov cx,3
-  mov di,4
-  mov bp,5
-  mov sp,6
-  mov si,7
   mov ax,0x8000
-  mov ds,ax
   mov es,ax
 .endInit:
   dw .endCode - ($+2)
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  out dx,al
-  xchg ax,di
-  out dx,al
-  xchg ax,bp
-  out dx,al
-  xchg ax,sp
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  out dx,al
-  xchg ax,di
-  out dx,al
-  xchg ax,bp
-  out dx,al
-  xchg ax,sp
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  out dx,al
-  xchg ax,di
-  out dx,al
-  xchg ax,bp
-  out dx,al
-  xchg ax,sp
-  out dx,al
-  xchg ax,bx
-  out dx,al
-  xchg ax,cx
-  out dx,al
-  xchg ax,di
-  out dx,al
-  xchg ax,bp
-  lodsb
-  out 0xe0,al
-  mov al,1
+  in al,dx
+  stosb
+  nop
+  mov al,0x7f
+  mov cl,1
+  mul cl
 .endCode:
 
 lastExperiment:
@@ -527,6 +257,8 @@ lastExperiment:
 
 savedSS: dw 0
 savedSP: dw 0
+pitMode: db 0
+pitCount: db 0
 
 timerEndStart:
   in al,0x40
@@ -557,28 +289,37 @@ timerEndEnd:
 
 interrupt8:
   pushf
-  mov ax,cs
-  mov ds,ax
-  mov es,ax
+
+;  mov al,[pitMode]
+;  out 0x43,al
+;  mov al,[pitCount]
+;  out 0x41,al
+
+  xor ax,ax
+  push ax
+  popf
   mov [savedSS],ss
   mov [savedSP],sp
-  mov ss,ax
-  mov dx,0;xffff
-  mov cx,0
-  mov bx,0
-  mov ax,0
-  mov si,0
-  mov di,0
-  mov bp,0
-;  mov sp,0
-
-times 528 push cs
+  mov bx,0x8000
+  mov ds,bx
+  mov bx,0x7000
+  mov ss,bx
+  mov bx,0xb800
+  mov es,bx
+  mov dx,ax
+  mov bx,ax
+  mov si,ax
+  mov di,ax
+  mov bp,ax
+  mov sp,ax
 
   mov al,TIMER0 | BOTH | MODE2 | BINARY
   out 0x43,al
   mov al,0x00
   out 0x40,al
   out 0x40,al
+
+  mov ax,bp
 timerStartEnd:
 
 

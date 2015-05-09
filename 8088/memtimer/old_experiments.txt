@@ -1,3 +1,301 @@
+experimentROLCL:
+  db "ROLCL$"
+  dw .endInit - ($+2)
+  mov ax,0x7000
+  mov ds,ax
+  xor si,si
+  xor bx,bx
+  cld
+.endInit:
+  dw .endCode - ($+2)
+  jmp $+2
+  lodsw
+  mov cl, 4
+  rol ax, cl
+  mov [bx], ax
+.endCode:
+
+
+experimentROLx4:
+  db "ROLx4$"
+  dw .endInit - ($+2)
+  mov ax,0x7000
+  mov ds,ax
+  xor si,si
+  xor bx,bx
+  cld
+.endInit:
+  dw .endCode - ($+2)
+  jmp $+2
+  lodsw
+  rol ax, 1
+  rol ax, 1
+  rol ax, 1
+  rol ax, 1
+  mov [bx], ax
+.endCode:
+
+experimentJMPp2:
+  db "JMPp2$"
+  dw .endInit - ($+2)
+  mov ax,0x7000
+  mov ds,ax
+  xor si,si
+  xor bx,bx
+  cld
+.endInit:
+  dw .endCode - ($+2)
+  jmp $+2
+.endCode:
+
+
+
+experimentTracePIT:
+  db "TracePIT$"
+  dw .endInit - ($+2)
+
+  mov ax,0x7000
+  mov es,ax
+  xor di,di
+  mov al,TIMER2 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov dx,0x42
+  mov al,0
+  out dx,al
+  out dx,al
+
+.endInit:
+  dw .endCode - ($+2)
+  readPIT16 2
+  stosw
+.shortPath:
+.endCode:
+
+
+
+experimentLockstepOscillate:
+  db "LockstepOscillate$"
+  dw .endInit - ($+2)
+  mov dx,0x3da
+  mov ax,0x7000
+  mov es,ax
+  xor di,di
+.endInit:
+  dw .endCode - ($+2)
+  in al,dx
+  in al,dx
+  in al,dx
+  nop
+  stosb
+.shortPath:
+.endCode:
+
+
+
+experimentLockstep1:
+  db "Lockstep1$"
+  dw .endInit - ($+2)
+  mov al,0
+.endInit:
+  dw .endCode - ($+2)
+  jmp $+2
+  test al,1
+  jz .shortPath
+;  times 2 nop
+  jmp $+2
+.shortPath:
+.endCode:
+
+experimentLockstep2:
+  db "Lockstep2$"
+  dw .endInit - ($+2)
+  mov al,1
+.endInit:
+  dw .endCode - ($+2)
+  jmp $+2
+  test al,1
+  jz .shortPath
+;  times 2 nop
+  jmp $+2
+.shortPath:
+.endCode:
+
+
+
+
+
+
+experimentTestALBL:
+  db "Test AL,BL$"
+  dw .endInit - ($+2)
+  mov bl,1
+  mov ax,1
+.endInit:
+  dw .endCode - ($+2)
+  test al,bl
+.endCode:
+
+experimentTestAL1:
+  db "Test AL,1$"
+  dw .endInit - ($+2)
+  mov bl,1
+  mov ax,1
+.endInit:
+  dw .endCode - ($+2)
+  test al,1
+.endCode:
+
+experimentTestALBLEU:
+  db "Test AL,BL EU bound$"
+  dw .endInit - ($+2)
+  mov bl,1
+  mov ax,1
+  mov dl,1
+.endInit:
+  dw .endCode - ($+2)
+  mul dl
+  test al,bl
+.endCode:
+
+experimentTestAL1EU:
+  db "Test AL,1 EU bound$"
+  dw .endInit - ($+2)
+  mov bl,1
+  mov ax,1
+  mov dl,1
+.endInit:
+  dw .endCode - ($+2)
+  mul dl
+  test al,1
+.endCode:
+
+experimentEU:
+  db "EU bound correction$"
+  dw .endInit - ($+2)
+  mov bl,1
+  mov ax,1
+  mov dl,1
+.endInit:
+  dw .endCode - ($+2)
+  mul dl
+.endCode:
+
+
+experimentMul:
+  db "Mul$"
+  dw .endInit - ($+2)
+  mov dx,0
+  mov ax,0
+.endInit:
+  dw .endCode - ($+2)
+  mul dx
+.endCode:
+
+experimentOrAlAl:
+  db "OrAlAl$"
+  dw .endInit - ($+2)
+  mov dx,0
+  mov ax,0
+.endInit:
+  dw .endCode - ($+2)
+  mul dx
+  or al,al
+.endCode:
+
+experimentXorAlAl:
+  db "XorAlAl$"
+  dw .endInit - ($+2)
+  mov dx,0
+  mov ax,0
+.endInit:
+  dw .endCode - ($+2)
+  mul dx
+  xor al,al
+.endCode:
+
+experimentMovAl0:
+  db "MovAl0$"
+  dw .endInit - ($+2)
+  mov dx,0
+  mov ax,0
+.endInit:
+  dw .endCode - ($+2)
+  mul dx
+  mov al,0
+.endCode:
+
+experimentCmpAl0:
+  db "CmpAl0$"
+  dw .endInit - ($+2)
+  mov dx,0
+  mov ax,0
+.endInit:
+  dw .endCode - ($+2)
+  mul dx
+  cmp al,0
+.endCode:
+
+experimentAmiga:
+  db "Amiga$"
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+  mov ax,1
+  mov bx,2
+  mov cx,3
+  mov di,4
+  mov bp,5
+  mov sp,6
+  mov si,7
+  mov ax,0x8000
+  mov ds,ax
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  out dx,al
+  xchg ax,sp
+  out dx,al
+  xchg ax,bx
+  out dx,al
+  xchg ax,cx
+  out dx,al
+  xchg ax,di
+  out dx,al
+  xchg ax,bp
+  lodsb
+  out 0xe0,al
+  mov al,1
+.endCode:
+
+
+
 experimentPlasmaOrig:
   db "PlasmaOrig$"
   dw .endInit - ($+2)

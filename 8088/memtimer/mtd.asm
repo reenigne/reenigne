@@ -127,7 +127,7 @@ spaceLoop:
   mov [pitCount],al
   jmp doneRefresh
 noRefresh:
-  mov byte[pitMode],TIMER1 | MSB | MODE0 | BINARY
+  mov byte[pitMode],TIMER1 | LSB | MODE0 | BINARY
   mov byte[pitCount],1
 doneRefresh:
 
@@ -207,6 +207,8 @@ doPrint:
   add si,ax
 
   ; Print a newline
+  mov al,13
+  outputCharacter
   mov al,10
   outputCharacter
 
@@ -382,13 +384,15 @@ timerStartStart:
   mov al,[pitCount]
   out 0x41,al
 
-  mov ax,0x8000
-  mov ds,ax
-  mov ax,0x7000
-  mov ss,ax
-  mov ax,0xb800
-  mov es,ax
   xor ax,ax
+  push ax
+  popf
+  mov bx,0x8000
+  mov ds,bx
+  mov bx,0x7000
+  mov ss,bx
+  mov bx,0xb800
+  mov es,bx
   mov dx,ax
   mov bx,ax
   mov si,ax
@@ -401,6 +405,8 @@ timerStartStart:
   mov al,0x00
   out 0x40,al
   out 0x40,al
+
+  mov ax,bp
 timerStartEnd:
 
 

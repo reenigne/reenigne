@@ -49,7 +49,6 @@ top:
   mov ax,0x0009
   out dx,ax
 
-
   mov cx,256
   xor ax,ax
   mov ds,ax
@@ -78,7 +77,8 @@ top:
   mov si,di
   mov ax,0x0303  ; Found by trial and error
   stosw
-  stosw
+  mov al,0x00
+  stosb
 
   mov dl,0xda
 
@@ -97,9 +97,6 @@ top:
   nop
   lodsb
   mul cl
-
-  nop
-  nop
 
   ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
   ; which of the two possible CRTC states we're in and switch states if we're
