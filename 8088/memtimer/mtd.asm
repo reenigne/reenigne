@@ -1,8 +1,66 @@
-  %include "../defaults_com.asm"
+  %include "../defaults_common.asm"
+  org 0x100
 
-main:
-  mov ax,3
+%macro outputCharacter 0
+  call doPrintCharacter
+%endmacro
+
+  ; Find name of tests file
+  mov si,0x81
+findEndOfFileName:
+  lodsb
+  cmp al,0x20
+  jne .notSpace
+  mov byte[si-1],0
+.notSpace:
+  cmp al,0x0d
+  jne findEndOfFileName
+.found:
+  mov byte[si-1],0
+  mov al,0
+  cmp si,0x82
+  je error
+
+  ; Open tests file
+  mov ax,0x3d00
+  mov dx,0x82
+  int 0x21
+  jnc noError
+error:
+  add al,0x20
+  mov ah,0x0e
   int 0x10
+  mov ax,0x4c01
+  int 0x21
+noError:
+  mov bx,ax
+  xor cx,cx
+  xor dx,dx
+  ; Move file pointer to end
+  mov ax,0x4202
+  int 0x21
+  jc error
+  cmp dx,0
+  jne error
+  mov [testsLength],ax
+
+  ; Move file pointer to start
+  mov ax,0x4200
+  int 0x21
+  jc error
+
+  ; Read tests file
+  mov ah,0x3f
+  mov cx,[testsLength]
+  mov dx,experimentData
+  int 0x21
+  jc error
+
+  ; Close tests file
+  mov ah,0x3e
+  int 0x21
+  jc error
+
 
   mov al,TIMER0 | BOTH | MODE2 | BINARY
   out 0x43,al
@@ -31,6 +89,16 @@ nextExperiment:
   xor bx,bx
   mov [lastQuotient],bx
 
+  mov ax,si
+  sub ax,experimentData
+  cmp ax,[testsLength]
+  jne printLoop
+
+  ; Finish
+finish:
+  mov ax,0x4c00
+  int 0x21
+
   ; Print name of experiment
 printLoop:
   lodsb
@@ -40,13 +108,6 @@ printLoop:
   inc bx
   jmp printLoop
 donePrint:
-  cmp bx,0
-  jne printSpaces
-
-  ; Finish
-finish:
-  mov ax,0x4c00
-  int 0x21
 
   ; Print spaces for alignment
 printSpaces:
@@ -58,6 +119,17 @@ spaceLoop:
   mov al,' '
   outputCharacter
   loop spaceLoop
+
+  lodsb
+  cmp al,0
+  je noRefresh
+  mov byte[pitMode],TIMER1 | LSB | MODE2 | BINARY
+  mov [pitCount],al
+  jmp doneRefresh
+noRefresh:
+  mov byte[pitMode],TIMER1 | LSB | MODE0 | BINARY
+  mov byte[pitCount],1
+doneRefresh:
 
   mov cx,5    ; Number of repeats
 repeatLoop:
@@ -135,6 +207,8 @@ doPrint:
   add si,ax
 
   ; Print a newline
+  mov al,13
+  outputCharacter
   mov al,10
   outputCharacter
 
@@ -143,6 +217,8 @@ doPrint:
 repeatLoop1:
   jmp repeatLoop
 
+testsLength: dw 0
+
 quotient: dw 0
 lastQuotient: dw 0
 
@@ -150,14 +226,45 @@ output:
   db "000 +000  "
 
 
+doPrintCharacter:
+  push ax
+  push bx
+  push cx
+  push dx
+  push si
+  push di
+  push bp
+  mov dl,al
+  mov ah,2
+  int 0x21
+  pop bp
+  pop di
+  pop si
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  ret
+
+
 doMeasurement:
   push si
   push cx  ; Save number of iterations
+  push cx
+
+  mov di,experimentData
+  add di,[testsLength]
+
+  ; Copy timer start
+  push si
+  mov si,timerStartStart
+  mov cx,timerStartEnd-timerStartStart
+  call codeCopy
+  pop si
 
   ; Copy init
   lodsw    ; Number of init bytes
   mov cx,ax
-  mov di,timerStartEnd
   call codeCopy
 
   ; Copy code
@@ -165,18 +272,10 @@ doMeasurement:
   pop cx
 iterationLoop:
   push cx
-
-;  push si
-;  mov si,codePreambleStart
-;  mov cx,codePreambleEnd-codePreambleStart
-;  call codeCopy
-;  pop si
-
   push si
   mov cx,ax
   call codeCopy
   pop si
-
   pop cx
   loop iterationLoop
 
@@ -188,14 +287,18 @@ iterationLoop:
   ; Turn off refresh
 ;  refreshOff
 
+  mov di,experimentData
+  add di,[testsLength]
   cli
   mov ax,0
   mov ds,ax
   mov ax,cs
-  mov word[0x20],interrupt8
+  mov [0x20],di
   mov [0x22],ax
   mov ds,ax
   mov byte[doneMeasurement],0
+
+  pop cx
 
   ; Enable IRQ0
 ;  mov al,0xfe  ; Enable IRQ 0 (timer), disable others
@@ -258,53 +361,54 @@ outOfSpaceMessageEnd:
 
 interrupt8save: dw 0,0
 
-codePreambleStart:
-;  mov al,0
-;  mul cl
-codePreambleEnd:
-
-experimentData:
-
-experiment1:
-  db "inc ax; out dx,al$"
-  dw .endInit - ($+2)
-  mov dx,0x3d9
-  mov ax,0
-.endInit
-  dw .endCode - ($+2)
-  inc ax
-  out dx,al
-.endCode:
-
-experiment2:
-  db "mov al,XX; out dx,al$"
-  dw .endInit - ($+2)
-  mov dx,0x3d9
-  mov ax,0
-.endInit
-  dw .endCode - ($+2)
-  mov al,0x10
-  out dx,al
-.endCode:
-
-experiment3:
-  db "mov ax,XXXX; out dx,ax$"
-  dw .endInit - ($+2)
-  mov dx,0x3d8
-  mov ax,0
-.endInit
-  dw .endCode - ($+2)
-  mov ax,0x002d
-  out dx,ax
-.endCode:
-
-lastExperiment:
-  db '$'
-
-
 savedSS: dw 0
 savedSP: dw 0
 doneMeasurement: db 0
+pitMode: db 0
+pitCount: db 0
+
+
+timerStartStart:
+  push bp
+  mov bp,sp
+  and word[bp+6],0xfdff  ; Turn off interrupts on return so that the interrupt doesn't fire again
+
+  mov ax,cs
+  mov ds,ax
+  mov byte[doneMeasurement],1
+  mov [savedSS],ss
+  mov [savedSP],sp
+
+  mov al,[pitMode]
+  out 0x43,al
+  mov al,[pitCount]
+  out 0x41,al
+
+  xor ax,ax
+  push ax
+  popf
+  mov bx,0x8000
+  mov ds,bx
+  mov bx,0x7000
+  mov ss,bx
+  mov bx,0xb800
+  mov es,bx
+  mov dx,ax
+  mov bx,ax
+  mov si,ax
+  mov di,ax
+  mov bp,ax
+  mov sp,ax
+
+  mov al,TIMER0 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov al,0x00
+  out 0x40,al
+  out 0x40,al
+
+  mov ax,bp
+timerStartEnd:
+
 
 timerEndStart:
   in al,0x40
@@ -312,7 +416,7 @@ timerEndStart:
   in al,0x40
   mov bh,al
 
-;  refreshOn
+  refreshOn
 
   mov al,0x20
   out 0x20,al
@@ -328,45 +432,5 @@ timerEndStart:
 timerEndEnd:
 
 
-  ; This must come last in the program so that the experiment code can be
-  ; copied after it.
+experimentData:
 
-interrupt8:
-  push bp
-  mov bp,sp
-  and word[bp+6],0xfdff  ; Turn off interrupts on return so that the interrupt doesn't fire again
-
-  mov ax,cs
-  mov ds,ax
-  mov es,ax
-  mov byte[doneMeasurement],1
-  mov [savedSS],ss
-  mov [savedSP],sp
-  mov ss,ax
-  mov dx,0;xffff
-  mov cx,0
-  mov bx,0
-  mov ax,0
-  mov si,0
-  mov di,0
-  mov bp,0
-;  mov sp,0
-
-times 528 push cs
-
-  mov al,TIMER0 | BOTH | MODE2 | BINARY
-  out 0x43,al
-  mov al,0x00
-  out 0x40,al
-  out 0x40,al
-timerStartEnd:
-
-
-
-;[bp] old bp
-;[bp+2] return address
-;[bp+4] first argument
-;
-;[bp] old bp
-;[bp+2] return address
-;[bp+6] flags

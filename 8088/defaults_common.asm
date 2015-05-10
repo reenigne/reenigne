@@ -340,7 +340,7 @@ cpu 8086
 
 
 %macro refreshOff 0
-  mov al,TIMER1 | MSB | MODE0 | BINARY  ;LSB | MODE0 | BINARY
+  mov al,TIMER1 | LSB | MODE0 | BINARY
   out 0x43,al
   mov al,0x01  ; Count = 0x0001 so we'll stop almost immediately
   out 0x41,al
@@ -356,7 +356,7 @@ cpu 8086
 
 %macro lockstep 0
   mov dx,0x03d8
-  mov al,0x0a
+  mov al,0
   out dx,al
 
   ; Set up CRTC for 1 character by 2 scanline "frame". This gives us 2 lchars
@@ -421,7 +421,8 @@ cpu 8086
   mov si,di
   mov ax,0x0303  ; Found by trial and error
   stosw
-  stosw
+  mov al,0x00
+  stosb
 
   mov dl,0xda
 
@@ -441,9 +442,6 @@ cpu 8086
   lodsb
   mul cl
 
-  nop
-  nop
-
   ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
   ; which of the two possible CRTC states we're in and switch states if we're
   ; in the wrong one by waiting for an odd number of lchars more in one code
@@ -455,6 +453,9 @@ cpu 8086
   dec ax
   mul cl
   mul cl
+  jmp $+2
+
+  initCGA 1
 
   ; Increase refresh frequency to ensure all DRAM is refreshed before turning
   ; off refresh.
@@ -477,28 +478,28 @@ cpu 8086
   %%waitForDisplayEnable:
     in al,dx                       ; 1 1 2
     test al,1                      ; 2 0 2
-    jnz %%waitForDisplayEnable     ; 2 0 2
+    jnz %%waitForDisplayEnable     ; 2 0 2   jump if -DISPEN, finish if +DISPEN
 %endmacro
 
 %macro waitForDisplayDisable 0
   %%waitForDisplayDisable:
     in al,dx                       ; 1 1 2
     test al,1                      ; 2 0 2
-    jz %%waitForDisplayDisable     ; 2 0 2
+    jz %%waitForDisplayDisable     ; 2 0 2   jump if not -DISPEN, finish if -DISPEN
 %endmacro
 
 %macro waitForVerticalSync 0
   %%waitForVerticalSync:
     in al,dx
     test al,8
-    jz %%waitForVerticalSync
+    jz %%waitForVerticalSync       ;         jump if not +VSYNC, finish if +VSYNC
 %endmacro
 
 %macro waitForNoVerticalSync 0
   %%waitForNoVerticalSync:
     in al,dx
     test al,8
-    jnz %%waitForNoVerticalSync
+    jnz %%waitForNoVerticalSync    ;         jump if +VSYNC, finish if -VSYNC
 %endmacro
 
 

@@ -46,7 +46,7 @@ public:
         _logFile = pipe.readLengthString();
 
         _command = pipe.read<int>();
-        if (_command == 0)
+        if (_command == 0 || _command == 4)
             _serverProcess = OpenProcess(SYNCHRONIZE, FALSE, _serverPId);
 
         HCRYPTPROV hCryptProv;
@@ -169,6 +169,8 @@ public:
     String data() { return _data; }
 
     int command() { return _command; }
+
+    HANDLE serverProcess() { return _serverProcess; }
 
     Byte data(int p) { return _data[p]; }
 
@@ -527,6 +529,7 @@ public:
 
         switch (item->command()) {
             case 0:
+            case 4:  // Run via xtrun (no timeout)
                 {
                     // Run a program
                     Lock lock(&_mutex);
@@ -651,22 +654,55 @@ public:
         if (_item != 0)
             _item->write(s);
     }
+    // returns: 0 for timed out, killed or cancelled
+    // 1 for input from serial inport
+    // 2 for input from console keyboard
+    int waitInput()
+    {
+        do {
+            DWORD elapsed = GetTickCount() - _startTime;
+            int handleCount = 3;
+            if (_item->command() == 4) {
+                elapsed = 0;
+                handleCount = 4;
+            }
+            DWORD timeout = 5*60*1000 - elapsed;
+            if (timeout == 0 || timeout > 5*60*1000)
+                return 0;
+            if (_killed || _cancelled)
+                return 0;
+
+            HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
+            HANDLE handles[4] = {_serialThread.eventHandle(), hInput,
+                _interrupt, _item->serverProcess()};
+            DWORD result = WaitForMultipleObjects(handleCount, handles, FALSE,
+                timeout);
+            IF_FALSE_THROW(result != WAIT_FAILED);
+            if (result == WAIT_TIMEOUT && _item->command() == 0)
+                return 0;
+            if (result == WAIT_OBJECT_0)
+                return 1;
+            if (result == WAIT_OBJECT_0 + 1)
+                return 2;
+            if (result == WAIT_OBJECT_0 + 2) {
+                _interrupt.reset();
+                return 0;
+            }
+            if (result == WAIT_OBJECT_0 + 3)
+                return 0;
+        } while (true);
+    }
+    // returns true if an error occurred and the caller should try again after
+    // rebooting.
     bool upload(String program)
     {
         int i = 0;
         do {
-            DWORD elapsed = GetTickCount() - _startTime;
-            DWORD timeout = 5*60*1000 - elapsed;
-            HANDLE handles[2] = {_serialThread.eventHandle(), _interrupt};
-            DWORD result = WaitForMultipleObjects(2, handles, FALSE, timeout);
-            IF_FALSE_THROW(result != WAIT_FAILED);
-            if (result == WAIT_TIMEOUT)
-                return true;
-            if (result == WAIT_OBJECT_0 + 1) {
-                _interrupt.reset();
+            int x = waitInput();
+            if (x == 0)
                 return false;
-            }
-
+            if (x == 2)
+                continue;
             int b = _serialThread.character();
             console.write<Byte>(b);
 //            console.write(String("(") + debugByte(b) + ")");
@@ -699,7 +735,7 @@ public:
                 Byte d = program[p];
                 ++p;
                 _packet[i + 6] = d;
-                checksum += d;                                      
+                checksum += d;
             }
             _packet[bytes + 6] = checksum;
             int tries = 0;
@@ -709,23 +745,19 @@ public:
                 //IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
 
                 int b;
-//                do {
-                    DWORD elapsed = GetTickCount() - _startTime;
-                    DWORD timeout = 5*60*1000 - elapsed;
-                    HANDLE handles[2] = {_serialThread.eventHandle(), _interrupt};
-                    DWORD result = WaitForMultipleObjects(2, handles, FALSE, timeout);
-                    IF_FALSE_THROW(result != WAIT_FAILED);
-                    if (result == WAIT_TIMEOUT)
-                        return true;
-                    if (result == WAIT_OBJECT_0 + 1) {
-                        _interrupt.reset();
+                int x;
+                do {
+                    x = waitInput();
+                    if (x == 0)
                         return false;
-                    }
+                    if (x == 2)
+                        continue;
+                    break;
+                } while (true);
 
-                    b = _serialThread.character();
-                    console.write<Byte>(b);
-                    //console.write(String("<") + debugByte(b) + ">");
-//                } while (b == '[' || b == ']');
+                b = _serialThread.character();
+                console.write<Byte>(b);
+                //console.write(String("<") + debugByte(b) + ">");
                 if (b == 'K')
                     break;
                 if (b != 'R')
@@ -735,8 +767,6 @@ public:
                 return true;
             l -= bytes;
         } while (bytes != 0);
-        //_arduinoCom.write<Byte>(0x7b);
-        //sendByte(0x7b);
         //IF_ZERO_THROW(FlushFileBuffers(_arduinoCom));
         return false;
     }
@@ -915,7 +945,8 @@ private:
         return decimal(b);
     }
     // Dump bytes from COM port to pipe until we receive ^Z or we time out.
-    // Also process any commands from the XT.
+    // Also process any commands from the XT. Return true for timeout, false
+    // for normal exit.
     bool stream()
     {
         bool escape = false;
@@ -931,23 +962,14 @@ private:
         int hostBytesRemaining = 0;
         _diskByteCount = 0;
         do {
-            DWORD elapsed = GetTickCount() - _startTime;
-            DWORD timeout = 5*60*1000 - elapsed;
-            if (timeout == 0 || timeout > 5*60*1000)
+            int x = waitInput();
+            if (x == 0)
                 return true;
-            if (_killed || _cancelled)
-                return false;
 
-            HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
-            HANDLE handles[3] = {_serialThread.eventHandle(), hInput,
-                _interrupt};
-            DWORD result = WaitForMultipleObjects(3, handles, FALSE, timeout);
-            IF_FALSE_THROW(result != WAIT_FAILED);
-            if (result == WAIT_TIMEOUT)
-                return true;
-            if (result == WAIT_OBJECT_0 + 1) {
+            if (x == 2) {
                 INPUT_RECORD buf[128];
                 DWORD count;
+                HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
                 IF_ZERO_THROW(ReadConsoleInput(hInput, buf, 128, &count));
                 for (int i = 0; i < static_cast<int>(count); ++i) {
                     //console.write(String(decimal(buf[i].EventType)) + " ");
@@ -1066,7 +1088,7 @@ private:
                             case VK_OEM_PLUS: scanCode = 0x0d; break;
                             case VK_OEM_COMMA: scanCode = 0x33; break;
                             case VK_OEM_MINUS: scanCode = 0x0c; break;
-                            case VK_OEM_PERIOD: scanCode = 0x34; break;     
+                            case VK_OEM_PERIOD: scanCode = 0x34; break;
                             case VK_OEM_2:    scanCode = 0x35; break;
                             case VK_OEM_3:    scanCode = 0x29; break;
                             case VK_OEM_4:    scanCode = 0x1a; break;
@@ -1079,10 +1101,6 @@ private:
                     }
                 }
                 continue;
-            }
-            if (result == WAIT_OBJECT_0 + 2) {
-                _interrupt.reset();
-                return false;
             }
 
             int c = _serialThread.character();
@@ -1133,7 +1151,7 @@ private:
                 if (processed) {
                     if (_fileState != 0)
                         console.write(String("[") + debugByte(c) + String("]"));
-                    continue;   
+                    continue;
                 }
             }
             escape = false;

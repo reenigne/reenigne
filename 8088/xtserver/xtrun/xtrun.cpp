@@ -29,7 +29,7 @@ public:
         h.write<DWORD>(GetCurrentProcessId());  // serverPId
         h.write<int>(logName.length());         // logFileLength
         h.write(logName);                       // logFile
-        h.write<int>(0);                        // command
+        h.write<int>(4);                        // command
 
         do {
             int b = h.tryReadByte();

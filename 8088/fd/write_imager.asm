@@ -1,5 +1,7 @@
   %include "../defaults_bin.asm"
 
+  initCGA 8
+
   ; Set up drive parameters
   xor ax,ax
   mov ds,ax
@@ -9,10 +11,6 @@
   mov ah,0  ; Subfunction 0 = Reset Disk System
   mov dl,0  ; Drive 0 (A:)
   int 0x13
-  outputHex
-  outputNewLine
-
-  initCGA 8
 
 tryLoad:
   ; Set load location
@@ -31,14 +29,6 @@ loadCylinderLoop:
   mov byte[requestBuffer+7],0
 loadHeadLoop:
 
-   push ax
-   push dx
-   mov dx,0x3d9
-   mov al,1
-   out dx,al
-   pop dx
-   pop ax
-
   ; Output host interrupt request
   push cx
   mov si,requestBuffer
@@ -48,66 +38,18 @@ loadHeadLoop:
   outputString
   pop cx
 
-   push ax
-   push dx
-   mov dx,0x3d9
-   mov al,2
-   out dx,al
-   pop dx
-   pop ax
-
-;   push cx
-;   xor cx,cx
-;   loop $
-;   pop cx
-
   ; Read data
   xor di,di
   loadData
-
-   push ax
-   push dx
-   mov dx,0x3d9
-   mov al,3
-   out dx,al
-   pop dx
-   pop ax
-
-;   push cx
-;   xor cx,cx
-;   loop $
-;   pop cx
 
   ; Read result
   mov ax,cs
   mov es,ax
   mov di,resultBuffer
-
-   push ax
-   push dx
-   mov dx,0x3d9
-   mov al,4
-   out dx,al
-   pop dx
-   pop ax
-
   loadData
 
-   push ax
-   push dx
-   mov dx,0x3d9
-   mov al,5
-   out dx,al
-   pop dx
-   pop ax
-
-;   push cx
-;   xor cx,cx
-;   loop $
-;   pop cx
-
   add bx,(512*9)/16
-  mov es,ax
+  mov es,bx
 
   inc byte[requestBuffer+7]
   cmp byte[requestBuffer+7],2
