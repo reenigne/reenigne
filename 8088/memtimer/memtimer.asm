@@ -234,6 +234,21 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
+experimentParticle:
+  db "ReadParticle$"
+  db 19
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  mov di,1234
+  stosb
+  shl di,1
+  mov di,[di]
+  mov [es:di],ah
+  mov [1234*2],di
+.endCode:
+
+
 experimentReadStatus:
   db "ReadStatus$"
   db 0
