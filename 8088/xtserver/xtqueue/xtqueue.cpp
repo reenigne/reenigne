@@ -565,6 +565,7 @@ public:
                     }
                     else {
                         --n;
+                        Lock lock(&_mutex);
                         QueueItem* i = _queue.getNext();
                         while (i != 0) {
                             QueueItem* nextItem = _queue.getNext(i);
@@ -601,6 +602,7 @@ public:
                         item->cancel();
                     }
                     else {
+                        Lock lock(&_mutex);
                         QueueItem* i = _queue.getNext();
                         while (i != 0) {
                             QueueItem* nextItem = _queue.getNext(i);
@@ -776,11 +778,13 @@ public:
         do {
             _item = 0;
             try {
-                _processing = false;
-                // TODO: There might be some threading issues here:
-                //   1 - _queue is not volatile - will this thread notice the
-                //       change from the other thread?
-                if (_queue.getNext() == 0) {
+                QueueItem* i;
+                {
+                    Lock lock(&_mutex);
+                    _processing = false;
+                    i = _queue.getNext();
+                }
+                if (i == 0) {
                     // We have nothing to do - stop the the thread until we do.
                     console.write("XT Thread going idle\n");
                     reboot();
@@ -816,11 +820,11 @@ public:
                     _interrupt.reset();
                     _cancelled = false;
                     _killed = false;
+                    if (_item == 0)
+                        continue;
+                    _item->printInfo();
+                    _processing = true;
                 }
-                if (_item == 0)
-                    continue;
-                _item->printInfo();
-                _processing = true;
 
                 String fileName = _item->fileName();
                 int fileNameLength = fileName.length();
@@ -1360,8 +1364,8 @@ private:
     LinkedList<QueueItem> _queue;
     int _queuedItems;
 
-    volatile bool _processing;
-    volatile bool _ending;
+    bool _processing;
+    bool _ending;
     Mutex _mutex;
     Event _ready;
     Event _interrupt;
