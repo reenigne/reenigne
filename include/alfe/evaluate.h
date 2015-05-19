@@ -29,7 +29,7 @@ template<> int evaluate<int>(CharacterSource s)
 template<class T> T evaluate(String s)
 {
     CharacterSource source(s);
-    return evaluate(source);
+    return evaluate<T>(source);
 }
 
 #endif // INCLUDED_EVALUATE_H

@@ -234,37 +234,75 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
-experimentParticle:
-  db "ReadParticle$"
-  db 19
+experimentOctodeXL7:
+  db "OctodeXL7$"
+  db 18
   dw .endInit - ($+2)
 .endInit:
   dw .endCode - ($+2)
-  mov di,1234
-  stosb
-  shl di,1
-  mov di,[di]
-  mov [es:di],ah
-  mov [1234*2],di
+
+  mov di,cx
+
+.top:
+  dec bl
+  jz .noCarry1
+  mov bl,9
+  inc ax
+.noCarry1:
+  shl al,1
+  shl al,1
+  shl al,1
+  out 0xe0,al
+  xor ax,ax
+  dec di
+  jnz .top
+
+
 .endCode:
 
 
-experimentReadStatus:
-  db "ReadStatus$"
-  db 0
+experimentOctodeXL1a:
+  db "OctodeXL1a$"
+  db 18
   dw .endInit - ($+2)
-  mov dx,0x3da
-  mov ax,0x8000
-  mov es,ax
 .endInit:
   dw .endCode - ($+2)
-  in al,dx
-  stosb
-  nop
-  mov al,0x7f
-  mov cl,1
-  mul cl
+
+  dec bl
+  jnz .noCarry1
+  mov bl,9
+  db 5
+.noCarry1:
 .endCode:
+
+experimentOctodeXL1b:
+  db "OctodeXL1b$"
+  db 18
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+
+  dec bl
+  jnz .noCarry1
+  mov bl,9
+  db 5
+.noCarry1:
+.endCode:
+
+experimentOctodeXL2:
+  db "OctodeXL2$"
+  db 18
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+
+  dec bl
+  jz .noCarry1
+  mov bl,9
+  inc ax
+.noCarry1:
+.endCode:
+
 
 lastExperiment:
   db '$'
@@ -305,10 +343,10 @@ timerEndEnd:
 interrupt8:
   pushf
 
-;  mov al,[pitMode]
-;  out 0x43,al
-;  mov al,[pitCount]
-;  out 0x41,al
+  mov al,[pitMode]
+  out 0x43,al
+  mov al,[pitCount]
+  out 0x41,al
 
   xor ax,ax
   push ax
