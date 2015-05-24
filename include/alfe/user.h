@@ -40,7 +40,7 @@ public:
         _hInst = hInst;
         WNDCLASS wc;
         wc.style = CS_OWNDC;
-        wc.lpfnWndProc = wndProc;
+        wc.lpfnWndProc = DefWindowProc; //wndProc;
         wc.cbClsExtra = 0;
         wc.cbWndExtra = 0;
         wc.hInstance = hInst;
@@ -73,6 +73,18 @@ public:
     String caption() const { return "ALFE Window"; }
 
     const Font* font() const { return &_font; }
+
+    static WNDPROC subClass(HWND hWnd)
+    {
+        SetLastError(0);
+        LONG_PTR r = GetWindowLongPtr(hWnd, GWLP_WNDPROC);
+        IF_ZERO_CHECK_THROW_LAST_ERROR(r);
+        WNDPROC origWndProc = reinterpret_cast<WNDPROC>(r);
+        SetLastError(0);
+        IF_ZERO_CHECK_THROW_LAST_ERROR(SetWindowLongPtr(hWnd, GWLP_WNDPROC,
+            reinterpret_cast<LONG>(wndProc)));
+        return origWndProc;
+    }
 
 private:
     static LRESULT CALLBACK wndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
@@ -179,9 +191,6 @@ typedef WindowsTemplate<void> Windows;
 bool Windows::_failed = false;
 Exception Windows::_exception;
 
-template<class T> class PaintHandleTemplate;
-typedef PaintHandleTemplate<void> PaintHandle;
-
 class ContainerWindow;
 
 template<class T> class WindowTemplate;
@@ -196,7 +205,6 @@ public:
     virtual void create() = 0;
     void setParent(ContainerWindow* window) { _parent = window; }
     ContainerWindow* parent() const { return _parent; }
-    virtual void paint(PaintHandle* paintHandle) { }
     void setSize(Vector size) { _size = size; }
     void sizeSet(Vector size) { _size = size; }
     void setPosition(Vector topLeft) { _topLeft = topLeft; }
@@ -282,14 +290,6 @@ public:
                     _focus = 0;
                 }
             }
-        }
-    }
-    void paint(PaintHandle* paintHandle)
-    {
-        Window* window = _container.getNext();
-        while (window != 0) {
-            window->paint(paintHandle);
-            window = _container.getNext(window);
         }
     }
     void draw(Bitmap<DWORD> bitmap)
@@ -396,36 +396,12 @@ protected:
 };
 
 
-template<class T> class PaintHandleTemplate : public DeviceContext
-{
-public:
-    PaintHandleTemplate(const WindowsWindow* window) : _window(window)
-    {
-        IF_NULL_THROW(BeginPaint(_window->hWnd(), &_ps));
-        _hdc = _ps.hdc;
-    }
-    ~PaintHandleTemplate() { EndPaint(_window->hWnd(), &_ps); }
-    HDC hDC() const { return _ps.hdc; }
-    Vector topLeft() const
-    {
-        return Vector(_ps.rcPaint.left, _ps.rcPaint.top);
-    }
-    Vector bottomRight() const
-    {
-        return Vector(_ps.rcPaint.right, _ps.rcPaint.bottom);
-    }
-    bool zeroArea() const { return (topLeft()-bottomRight()).zeroArea(); }
-private:
-    const WindowsWindow* _window;
-    PAINTSTRUCT _ps;
-};
-
-
 class WindowsWindow : public ContainerWindow
 {
     friend class WindowsTemplate<void>;
 public:
-    WindowsWindow() : _hdc(NULL), _hWnd(NULL), _resizing(false)
+    WindowsWindow()
+      : _hdc(NULL), _hWnd(NULL), _resizing(false), _origWndProc(0)
     {
         sizeSet(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
         positionSet(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
@@ -436,7 +412,7 @@ public:
         _windows = windows;
         _text = _windows->caption();
         _className = _windows->className();
-        _style = WS_OVERLAPPEDWINDOW;
+        _style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
         _extendedStyle = 0;
         _menu = NULL;
         Window* window = _container.getNext();
@@ -474,6 +450,7 @@ public:
             _menu,
             _windows->instance(),
             this);
+        _origWndProc = Windows::subClass(_hWnd);
         IF_NULL_THROW(_hWnd);
         _hdc = GetDC(_hWnd);
         IF_NULL_THROW(_hdc);
@@ -597,14 +574,6 @@ protected:
     virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         switch (uMsg) {
-            case WM_PAINT:
-                {
-                    PaintHandle paintHandle(this);
-                    if (!paintHandle.zeroArea())
-                        paint(&paintHandle);
-                }
-                return 0;
-                //break;
             case WM_SIZE:
                 {
                     sizeSet(vectorFromLParam(lParam));
@@ -647,7 +616,9 @@ protected:
                 releaseCapture();
                 break;
         }
-        return DefWindowProc(_hWnd, uMsg, wParam, lParam);
+        if (_origWndProc == 0)
+            return DefWindowProc(_hWnd, uMsg, wParam, lParam);
+        return _origWndProc(_hWnd, uMsg, wParam, lParam);
     }
     void releaseCapture()
     {
@@ -674,6 +645,7 @@ private:
     DWORD _extendedStyle;
     LPCWSTR _className;
     HMENU _menu;
+    WNDPROC _origWndProc;
 };
 
 class AnimatedWindow : public WindowsWindow
@@ -694,7 +666,9 @@ public:
         _timerExpired = true;
         _invalidationWindow->invalidate();
     }
-    void onPaint()
+    // Invalidation window needs to call this on paint or invalidate to restart
+    // timer.
+    void restart()
     {
         if (_timerExpired && !_stopped) {
             DWORD tickCount = GetTickCount();
@@ -929,10 +903,42 @@ private:
 };
 
 
-class BitmapWindow : public ContainerWindow
+class PaintHandle : public DeviceContext
+{
+public:
+    PaintHandle(const WindowsWindow* window) : _window(window)
+    {
+        IF_NULL_THROW(BeginPaint(_window->hWnd(), &_ps));
+        _hdc = _ps.hdc;
+    }
+    ~PaintHandle() { EndPaint(_window->hWnd(), &_ps); }
+    HDC hDC() const { return _ps.hdc; }
+    Vector topLeft() const
+    {
+        return Vector(_ps.rcPaint.left, _ps.rcPaint.top);
+    }
+    Vector bottomRight() const
+    {
+        return Vector(_ps.rcPaint.right, _ps.rcPaint.bottom);
+    }
+    bool zeroArea() const { return (topLeft()-bottomRight()).zeroArea(); }
+private:
+    const WindowsWindow* _window;
+    PAINTSTRUCT _ps;
+};
+
+
+class BitmapWindow : public WindowsWindow
 {
 public:
     BitmapWindow() : _resizing(false) { }
+
+    void setWindows(Windows* windows)
+    {
+        WindowsWindow::setWindows(windows);
+        setClassName(WC_STATIC);
+        setStyle(WS_CHILD | WS_VISIBLE | SS_OWNERDRAW);
+    }
 
     void create()
     {
@@ -947,6 +953,7 @@ public:
         _bmi.bmiHeader.biClrUsed = 0;
         _bmi.bmiHeader.biClrImportant = 0;
         resize();
+        WindowsWindow::create();
     }
 
     void resize()
@@ -958,39 +965,46 @@ public:
         draw();
     }
 
-    // doPaint is called only when the area is non-zero. Subclasses can get
-    // zero-area WM_PAINT notifications by handling WM_PAINT in their
-    // handleMessage() overrides.
-    virtual void paint(PaintHandle* paint)
+    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
-        if (!_bitmap.valid())
-            return;
-        Vector ptl = paint->topLeft();
-        Vector tl = topLeft();
-        ptl = Vector(max(ptl.x, tl.x), max(ptl.y, tl.y));
-        Vector pbr = paint->bottomRight();
-        Vector br = bottomRight();
-        pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
-        Vector ps = pbr - ptl;
-        if (ps.x <= 0 || ps.y <= 0)
-            return;
-        Vector s = size();
-        IF_ZERO_THROW(SetDIBitsToDevice(
-            paint->hDC(),
-            ptl.x,
-            ptl.y,
-            ps.x,
-            ps.y,
-            ptl.x - tl.x,
-            (tl.y + s.y) - pbr.y,
-            0,
-            s.y,
-            _bitmap.data(),
-            &_bmi,
-            DIB_RGB_COLORS));
-        ContainerWindow::paint(paint);
+        switch (uMsg) {
+            case WM_PAINT:
+                {
+                    PaintHandle paintHandle(this);
+                    if (!paintHandle.zeroArea()) {
+                        paint();
+                        if (!_bitmap.valid())
+                            return 0;
+                        Vector ptl = paintHandle.topLeft();
+                        Vector tl = topLeft();
+                        ptl = Vector(max(ptl.x, tl.x), max(ptl.y, tl.y));
+                        Vector pbr = paintHandle.bottomRight();
+                        Vector br = bottomRight();
+                        pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
+                        Vector ps = pbr - ptl;
+                        if (ps.x <= 0 || ps.y <= 0)
+                            return 0;
+                        Vector s = size();
+                        IF_ZERO_THROW(SetDIBitsToDevice(
+                            paintHandle.hDC(),
+                            ptl.x,
+                            ptl.y,
+                            ps.x,
+                            ps.y,
+                            ptl.x - tl.x,
+                            (tl.y + s.y) - pbr.y,
+                            0,
+                            s.y,
+                            _bitmap.data(),
+                            &_bmi,
+                            DIB_RGB_COLORS));
+                    }
+                }
+        }
+        return WindowsWindow::handleMessage(uMsg, wParam, lParam);
     }
 
+    virtual void paint() = 0;
     virtual void draw() = 0;
 
     //Vector size() const { return _bitmap.size(); }

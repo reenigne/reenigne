@@ -37,12 +37,10 @@ template<class T> class NTSCCaptureDecoder
 public:
     NTSCCaptureDecoder()
     {
-        _contrast = 1.41;
-        _brightness = -11.0;
-        _saturation = 0.303;
+        _contrast = 2.3;
+        _brightness = -33.0;
+        _saturation = 0.34;
         _hue = 0;
-        _wobbleAmplitude = 0.0042;
-        _wobblePhase = 0.94;
         _outputPixelsPerLine = 760;
     }
     void setOutputPixelsPerLine(int outputPixelsPerLine)
@@ -54,7 +52,7 @@ public:
         //  760                  533+1/3       640                3+1/3                    400               480
         //  912                  640           768                4                        480               576
         // 1140                  800           960                5                        600               720
-        _outputPixelPerLine = outputPixelsPerLine;
+        _outputPixelsPerLine = outputPixelsPerLine;
     }
     void setBuffers(Byte* input, Bitmap<T> output)
     {
@@ -65,8 +63,6 @@ public:
     void setBrightness(float brightness) { _brightness = brightness; }
     void setSaturation(float saturation) { _saturation = saturation; }
     void setHue(float hue) { _hue = hue; }
-    void setWobbleAmplitude(float wobbleAmplitude) { _wobbleAmplitude = wobbleAmplitude; }
-    void setWobblePhase(float wobblePhase) { _wobblePhase = wobblePhase; }
 
     void decode()
     {
@@ -74,12 +70,12 @@ public:
 
         static const int lines = 240;
         static const int nominalSamplesPerLine = 1820;
-        static const int firstSyncSample = -130;  // Assumed position of previous hsync before our samples started
+        static const int firstSyncSample = -40;  // Assumed position of previous hsync before our samples started (was -130)
         static const float kernelSize = lobes;  // Lanczos parameter
         static const int nominalSamplesPerCycle = 8;
         static const int driftSamples = 40;
-        static const int burstSamples = 40;
-        static const int firstBurstSample = 208;
+        static const int burstSamples = 64; //40; ?                         // TODO: figure out optimal for real NTSC
+        static const int firstBurstSample = 30 + driftSamples;  //118; ?    // TODO: figure out optimal for real NTSC
         static const int burstCenter = firstBurstSample + burstSamples/2;
 
         Byte* b = _input;
@@ -90,20 +86,20 @@ public:
         float deltaSamplesPerCycle = 0;
 
         int syncPositions[lines + 1];
-        int oldP = firstSyncSample - driftSamples;
-        int p = oldP + nominalSamplesPerLine;
-        float samplesPerLine = nominalSamplesPerLine;
+        int fracSyncPositions[lines + 1];
+        int oldP = firstSyncSample - driftSamples;                  // -170
+        int p = oldP + nominalSamplesPerLine;                       
+        float samplesPerLine = nominalSamplesPerLine;               
         Complex<float> bursts[lines + 1];
         float burstDCs[lines + 1];
-        Complex<float> wobbleRotor = 0;
         Complex<float> hueRotor = rotor((33 + _hue)/360);
-        float totalBurstAmplitude = 0;
         float burstDCAverage = 0;
+        float x = 0;
         for (int line = 0; line < lines + 1; ++line) {
             Complex<float> burst = 0;
             float burstDC = 0;
             for (int i = firstBurstSample; i < firstBurstSample + burstSamples; ++i) {
-                int j = oldP + i;
+                int j = oldP + i;                                   // 38
                 int sample = b[j];
                 float phase = (j&7)/8.0f;
                 burst += rotor(phase)*sample;
@@ -111,19 +107,35 @@ public:
             }
 
             float burstAmplitude = burst.modulus()/burstSamples;
-            totalBurstAmplitude += burstAmplitude;
-            wobbleRotor += burstAmplitude*rotor(burst.argument() * 8 / tau);
             bursts[line] = burst*hueRotor/burstSamples;
             burstDC /= burstSamples;
             burstDCs[line] = burstDC;
 
             syncPositions[line] = p;
+            fracSyncPositions[line] = x;
             oldP = p;
-            for (int i = 0; i < driftSamples*2; ++i) {
+            int i;
+            for (i = 0; i < driftSamples*2; ++i) {
                 if (b[p] < 9)
                     break;
                 ++p;
             }
+            for (; i < driftSamples*2; ++i) {
+                if (b[p] >= 12)
+                    break;
+                ++p;
+            }
+            // b[p] >= 12
+            // b[p - 1] < 12
+            // b[p - 1]*x + b[p]*(1 - x) == 12
+            // x == (b[p] - 12)/(b[p] - b[p-1])
+            //   12 position is b[p - x]
+            int d = b[p] - b[p - 1];
+            if (d == 0)
+                x = 0;
+            else
+                x = (b[p] - 12)/d;
+
             p += nominalSamplesPerLine - driftSamples;
 
             if (line < 200) {
@@ -131,7 +143,6 @@ public:
                 burstDCAverage = (2*burstDCAverage + burstDC)/3;
             }
         }
-        float averageBurstAmplitude = totalBurstAmplitude / (lines + 1);
 
         float deltaSamplesPerLine = samplesPerLine - nominalSamplesPerLine;
 
@@ -169,7 +180,7 @@ public:
 
             //float samplesPerLine = nominalSamplesPerLine + deltaSamplesPerLine;
             T* output = reinterpret_cast<T*>(outputRow);
-            int xStart = 101*_outputPixelsPerLine/760;
+            int xStart = 65*_outputPixelsPerLine/760;
             for (int x = xStart; x < xStart + _output.size().x; ++x) {
                 float y = 0;
                 Complex<float> c = 0;
@@ -193,7 +204,7 @@ public:
 
                     float s = lanczos(j/samplesPerCycle + z0);
                     int i = j + k;
-                    float z = s*b[i];
+                    float z = s*(b[i] - 23);
                     y += z;
                     c.x += rotorTable[i & 7]*z;
                     c.y += rotorTable[(i + 6) & 7]*z;
@@ -201,10 +212,8 @@ public:
                     t += s;
                 }
 
-                float wobble = 1 - cos(c.argument()*8 + _wobblePhase*tau)*_wobbleAmplitude; ///(averageBurstAmplitude*contrast);
-
-                y = y*contrast1*wobble/t + brightness1; // - cos(c.argument()*8 + wobblePhase*tau)*wobbleAmplitude*contrast;
-                c = c*chromaAdjust*rotor((x - burstCenter*_outputPixelsPerLine/samplesPerLine)*adjust)*wobble/t;
+                y = y*contrast1/t + brightness1;
+                c = c*chromaAdjust*rotor((x - burstCenter*_outputPixelsPerLine/samplesPerLine)*adjust)/t;
 
                 setOutput(output, SRGB(
                     checkClamp(y + 0.9563*c.x + 0.6210*c.y),
@@ -215,7 +224,7 @@ public:
 
             int p = syncPositions[line + 1];
             int actualSamplesPerLine = p - syncPositions[line];
-            samplesPerLine = (2*samplesPerLine + actualSamplesPerLine)/3;
+            samplesPerLine = (2*samplesPerLine + actualSamplesPerLine + fracSyncPositions[line] - fracSyncPositions[line + 1])/3;
             q += samplesPerLine;
             q = (10*q + p)/11;
 
@@ -236,8 +245,6 @@ private:
     float _brightness;
     float _saturation;
     float _hue;
-    float _wobbleAmplitude;
-    float _wobblePhase;
     Byte* _input;
     Bitmap<T> _output;
 };

@@ -234,6 +234,35 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
+experimentKBload:
+  db "KBload$"
+  db 18
+  dw .endInit - ($+2)
+
+  mov dx,0xe0
+  mov ax,ds
+  mov es,ax
+
+.endInit:
+  dw .endCode - ($+2)
+
+  mov al,bl
+  out dx,al
+  mov al,bh
+  out dx,al
+  dec dx
+.tst1:
+  in al,0xe0
+  and al,ah
+  jnz .tst1
+  stosb
+  inc dx
+  loop .tst
+.tst:
+
+.endCode:
+
+
 experimentOctodeXL7:
   db "OctodeXL7$"
   db 18
