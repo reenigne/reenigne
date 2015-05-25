@@ -223,7 +223,7 @@ public:
         _hue.setHost(this);
 
         setText("NTSC capture and decode");
-        setSize(Vector(1321, 760));
+        setSize(Vector(1321, 760 + 23));
         RootWindow::create();
         _animated.start();
 

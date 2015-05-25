@@ -1,4 +1,4 @@
-#include "alfe/main.h"                          
+#include "alfe/main.h"
 
 #ifndef INCLUDED_USER_H
 #define INCLUDED_USER_H
@@ -30,7 +30,7 @@ private:
     HFONT _font;
 };
 
-template<class T> class WindowsTemplate : Uncopyable           
+template<class T> class WindowsTemplate : Uncopyable
 {
 public:
     WindowsTemplate() : _classAtom(0) { }
@@ -52,7 +52,6 @@ public:
         wc.lpszClassName = c;
         _classAtom = RegisterClass(&wc);
         IF_ZERO_THROW(_classAtom);
-
     }
 
     LPCWSTR className() const
@@ -76,10 +75,7 @@ public:
 
     static WNDPROC subClass(HWND hWnd)
     {
-        SetLastError(0);
-        LONG_PTR r = GetWindowLongPtr(hWnd, GWLP_WNDPROC);
-        IF_ZERO_CHECK_THROW_LAST_ERROR(r);
-        WNDPROC origWndProc = reinterpret_cast<WNDPROC>(r);
+        WNDPROC origWndProc = getWndProc(hWnd);
         SetLastError(0);
         IF_ZERO_CHECK_THROW_LAST_ERROR(SetWindowLongPtr(hWnd, GWLP_WNDPROC,
             reinterpret_cast<LONG>(wndProc)));
@@ -136,8 +132,7 @@ private:
                                 SendMessage(slider->_hWnd, TBM_GETPOS, 0, 0));
                         break;
                     }
-                    break; 
-
+                    break;
                 default:
                     window = getContext(hWnd);
                     break;
@@ -152,8 +147,19 @@ private:
 
         // The first message sent to a window is WM_GETMINMAXINFO rather than
         // WM_NCCREATE. Since we don't have a context at that point, delegate
-        // this message to DefWindowProc.
+        // this message to the original wndProc.
+        WNDPROC origWndProc = getWndProc(hWnd);
+        if (origWndProc != wndProc)
+            return origWndProc(hWnd, uMsg, wParam, lParam);
         return DefWindowProc(hWnd, uMsg, wParam, lParam);
+    }
+
+    static WNDPROC getWndProc(HWND hWnd)
+    {
+        SetLastError(0);
+        LONG_PTR r = GetWindowLongPtr(hWnd, GWLP_WNDPROC);
+        IF_ZERO_CHECK_THROW_LAST_ERROR(r);
+        return reinterpret_cast<WNDPROC>(r);
     }
 
     static void setContext(HWND hWnd, WindowsWindow* p)
@@ -450,8 +456,8 @@ public:
             _menu,
             _windows->instance(),
             this);
-        _origWndProc = Windows::subClass(_hWnd);
         IF_NULL_THROW(_hWnd);
+        _origWndProc = Windows::subClass(_hWnd);
         _hdc = GetDC(_hWnd);
         IF_NULL_THROW(_hdc);
         Windows::setContext(_hWnd, this);
@@ -516,7 +522,7 @@ public:
             sizeSet(size);
     }
     virtual void sizeSet(Vector size)
-    { 
+    {
         ContainerWindow::sizeSet(size);
     }
 
@@ -541,14 +547,14 @@ public:
             positionSet(position);
     }
     virtual void positionSet(Vector position)
-    { 
+    {
         ContainerWindow::positionSet(position);
     }
     HWND hWnd() const { return _hWnd; }
 
 private:
     void destroy()
-    { 
+    {
         if (_hdc != NULL) {
             ReleaseDC(_hWnd, _hdc);
             _hdc = NULL;
@@ -625,7 +631,7 @@ protected:
         ReleaseCapture();
         ContainerWindow::releaseCapture();
     }
-                                              
+
     static Vector vectorFromLParam(LPARAM lParam)
     {
         return Vector(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
@@ -976,10 +982,8 @@ public:
                         if (!_bitmap.valid())
                             return 0;
                         Vector ptl = paintHandle.topLeft();
-                        Vector tl = topLeft();
-                        ptl = Vector(max(ptl.x, tl.x), max(ptl.y, tl.y));
                         Vector pbr = paintHandle.bottomRight();
-                        Vector br = bottomRight();
+                        Vector br = size();
                         pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
                         Vector ps = pbr - ptl;
                         if (ps.x <= 0 || ps.y <= 0)
@@ -991,14 +995,15 @@ public:
                             ptl.y,
                             ps.x,
                             ps.y,
-                            ptl.x - tl.x,
-                            (tl.y + s.y) - pbr.y,
+                            ptl.x,
+                            s.y - pbr.y,
                             0,
                             s.y,
                             _bitmap.data(),
                             &_bmi,
                             DIB_RGB_COLORS));
                     }
+                    return 0;
                 }
         }
         return WindowsWindow::handleMessage(uMsg, wParam, lParam);
