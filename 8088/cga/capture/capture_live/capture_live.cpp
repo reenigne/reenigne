@@ -5,11 +5,43 @@
 #include "alfe/evaluate.h"
 #include "alfe/ntsc_decode.h"
 
+template<class T> class CaptureBitmapWindowTemplate;
+typedef CaptureBitmapWindowTemplate<void> CaptureBitmapWindow;
+
+template<class T> class DecoderThreadTemplate : public Thread
+{
+public:
+    DecoderThreadTemplate() : _ending(false) { }
+    void setWindow(CaptureBitmapWindow* window) { _window = window; }
+    void go() { _go.signal(); }
+    void end() { _ending = true; go(); }
+private:
+    void threadProc()
+    {
+        while (!_ending) {
+            _go.wait();
+            if (_ending)
+                break;
+            _window->update();
+        }
+    }
+
+    Event _go;
+    bool _ending;
+    CaptureBitmapWindow* _window;
+};
+
+typedef DecoderThreadTemplate<void> DecoderThread;
+
 class CaptureWindow;
 
 template<class T> class CaptureBitmapWindowTemplate : public BitmapWindow
 {
 public:
+    ~CaptureBitmapWindowTemplate()
+    {
+        _thread.end();
+    }
     void setCaptureWindow(CaptureWindow* captureWindow)
     {
         _captureWindow = captureWindow;
@@ -17,12 +49,9 @@ public:
     void create()
     {
         setSize(Vector(960, 720));
-        _output = Bitmap<SRGB>(Vector(960, 720));
 
         _vbiCapPipe = File("\\\\.\\pipe\\vbicap", true).openPipe();
         _vbiCapPipe.write<int>(1);
-
-        _decoded = Bitmap<SRGB>(Vector(960, 240));
 
         int samples = 450*1024;
         int sampleSpaceBefore = 256;
@@ -34,61 +63,38 @@ public:
         for (int i = 0; i < sampleSpaceAfter; ++i)
             _b[i + samples] = 0;
 
-        _decoder.setBuffers(_b, _decoded);
+        _decoder.setInputBuffer(_b);
         _decoder.setOutputPixelsPerLine(1140);
+        _decoder.setYScale(3);
 
         BitmapWindow::create();
+        _thread.setWindow(this);
+        _thread.start();
     }
 
-    virtual void draw()
+    void update()
     {
+        printf("Updating\n");
         _vbiCapPipe.read(_b, 1024*450);
-
+        _decoder.setOutputBuffer(_bitmap);
         _decoder.decode();
-
-        {
-            Byte* row = _output.data();
-            const Byte* otherRow = _decoded.data();
-            for (int y = 0; y < 240; ++y) {
-                for (int yy = 0; yy < 3; ++yy) {
-                    const SRGB* op = reinterpret_cast<const SRGB*>(otherRow);
-                    SRGB* p = reinterpret_cast<SRGB*>(row);
-                    for (int x = 0; x < 960; ++x) {
-                        *p = *op;
-                        ++p;
-                        ++op;
-                    }
-                    row += _output.stride();
-                }
-                otherRow += _decoded.stride();
-            }
-        }
-
-        Vector sz = size();
-        if (sz.x > 1536)
-            sz.x = 1536;
-        if (sz.y > 1024)
-            sz.y = 1024;
-
-        Byte* row = data();
-        const Byte* otherRow = _output.data();
-        for (int y = 0; y < sz.y; ++y) {
-            DWORD* p = reinterpret_cast<DWORD*>(row);
-            const SRGB* op = reinterpret_cast<const SRGB*>(otherRow);
-            for (int x = 0; x < sz.x; ++x) {
-                *p = (op->x << 16) | (op->y << 8) | op->z;
-                ++p;
-                ++op;
-            }
-            row += stride();
-            otherRow += _output.stride();
-        }
+        printf("Decoded\n");
+        Bitmap<DWORD> nextBitmap = setNextBitmap(_bitmap);
         invalidate();
+        _bitmap = nextBitmap;
+    }
+
+    void draw()
+    {
+        printf("Drawing\n");
+        if (!_bitmap.valid())
+            _bitmap = Bitmap<DWORD>(Vector(960, 720));
+        _thread.go();
     }
 
     void paint()
     {
-        draw();
+        printf("Painting\n");
         _captureWindow->restart();
     }
 
@@ -104,23 +110,19 @@ public:
     void setHue(double hue) { _decoder.setHue(hue); }
 
 private:
+    Bitmap<DWORD> _bitmap;
+
     CaptureWindow* _captureWindow;
 
-    Bitmap<SRGB> _output;
-    Bitmap<SRGB> _decoded;
-
-    NTSCCaptureDecoder<SRGB> _decoder;
-
-    Vector _dragStart;
-    int _dragStartX;
+    NTSCCaptureDecoder<DWORD> _decoder;
 
     AutoHandle _vbiCapPipe;
 
     Array<Byte> _buffer;
     Byte* _b;
-};
 
-typedef CaptureBitmapWindowTemplate<void> CaptureBitmapWindow;
+    DecoderThread _thread;
+};
 
 template<class T> class BrightnessSliderWindowTemplate : public Slider
 {
@@ -206,7 +208,7 @@ public:
         add(&_hue);
         add(&_hueText);
 
-        _animated.setInvalidationWindow(&_output);
+        _animated.setDrawWindow(&_output);
         _animated.setRate(60);
         RootWindow::setWindows(windows);
     }

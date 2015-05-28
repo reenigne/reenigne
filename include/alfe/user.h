@@ -150,7 +150,7 @@ private:
         // this message to the original wndProc.
         WNDPROC origWndProc = getWndProc(hWnd);
         if (origWndProc != wndProc)
-            return origWndProc(hWnd, uMsg, wParam, lParam);
+            return CallWindowProc(origWndProc, hWnd, uMsg, wParam, lParam);
         return DefWindowProc(hWnd, uMsg, wParam, lParam);
     }
 
@@ -221,7 +221,7 @@ public:
     virtual void doneResize() { }
     virtual void keyboardCharacter(int character) { }
     virtual bool keyboardEvent(int key, bool up) { return false; }
-    virtual void draw(Bitmap<DWORD> bitmap) { }
+    //virtual void draw(Bitmap<DWORD> bitmap) { }
 
     // mouseInput() should return true if the mouse should be captured
     virtual bool mouseInput(Vector position, int buttons) { return false; }
@@ -239,6 +239,13 @@ public:
     {
         _parent->invalidateRectangle(_topLeft + topLeft, size);
     }
+
+    // The draw() function should do any updates necessary for an animation and
+    // (for a BitmapWindow) initiate the process of populating the bitmap. It
+    // should not take a long time though, as it is called on the UI thread. If
+    // longer is spent in draw() than the time between animation frames,
+    // WM_PAINT starvation can result.
+    virtual void draw() { }
 
     int top() const { return _topLeft.y; }
     int bottom() const { return _topLeft.y + _size.y; }
@@ -298,14 +305,14 @@ public:
             }
         }
     }
-    void draw(Bitmap<DWORD> bitmap)
-    {
-        Window* window = _container.getNext();
-        while (window != 0) {
-            window->draw(bitmap.subBitmap(window->topLeft(), window->size()));
-            window = _container.getNext(window);
-        }
-    }
+    //void draw(Bitmap<DWORD> bitmap)
+    //{
+    //    Window* window = _container.getNext();
+    //    while (window != 0) {
+    //        window->draw(bitmap.subBitmap(window->topLeft(), window->size()));
+    //        window = _container.getNext(window);
+    //    }
+    //}
     void keyboardCharacter(int character)
     {
         if (_focus != 0)
@@ -552,6 +559,10 @@ public:
     }
     HWND hWnd() const { return _hWnd; }
 
+    void postMessage(UINT msg, WPARAM wParam = 0, LPARAM lParam = 0)
+    {
+        PostMessage(_hWnd, msg, wParam, lParam);
+    }
 private:
     void destroy()
     {
@@ -624,7 +635,7 @@ protected:
         }
         if (_origWndProc == 0)
             return DefWindowProc(_hWnd, uMsg, wParam, lParam);
-        return _origWndProc(_hWnd, uMsg, wParam, lParam);
+        return CallWindowProc(_origWndProc, _hWnd, uMsg, wParam, lParam);
     }
     void releaseCapture()
     {
@@ -659,9 +670,9 @@ class AnimatedWindow : public WindowsWindow
 public:
     AnimatedWindow()
         : _period(50), _timerExpired(true), _delta(0), _lastTickCount(0) { }
-    void setInvalidationWindow(Window* window)
+    void setDrawWindow(Window* window)
     {
-        _invalidationWindow = window;
+        _drawWindow = window;
     }
     void setRate(float rate) { _period = 1000.0f/rate; }
     void stop() { KillTimer(_hWnd, _timer); _stopped = true; }
@@ -670,7 +681,7 @@ public:
         stop();
         _stopped = false;
         _timerExpired = true;
-        _invalidationWindow->invalidate();
+        _drawWindow->draw();
     }
     // Invalidation window needs to call this on paint or invalidate to restart
     // timer.
@@ -703,7 +714,7 @@ public:
                 IF_ZERO_THROW(_timer);
             }
             else
-                PostMessage(_hWnd, WM_TIMER, 1, 0);
+                postMessage(WM_TIMER, 1, 0);
             _timerExpired = false;
         }
     }
@@ -727,7 +738,7 @@ private:
     float _delta;
     DWORD _lastTickCount;
     bool _stopped;
-    Window* _invalidationWindow;
+    Window* _drawWindow;
 };
 
 class RootWindow : public WindowsWindow
@@ -937,7 +948,7 @@ private:
 class BitmapWindow : public WindowsWindow
 {
 public:
-    BitmapWindow() : _resizing(false) { }
+    BitmapWindow() { }
 
     void setWindows(Windows* windows)
     {
@@ -958,16 +969,12 @@ public:
         _bmi.bmiHeader.biYPelsPerMeter = 0;
         _bmi.bmiHeader.biClrUsed = 0;
         _bmi.bmiHeader.biClrImportant = 0;
-        resize();
+        draw();
         WindowsWindow::create();
     }
 
     void resize()
     {
-        Vector s = size();
-        _bmi.bmiHeader.biWidth = s.x;
-        _bmi.bmiHeader.biHeight = -s.y;
-        _bitmap = Bitmap<DWORD>(s);
         draw();
     }
 
@@ -978,7 +985,6 @@ public:
                 {
                     PaintHandle paintHandle(this);
                     if (!paintHandle.zeroArea()) {
-                        paint();
                         if (!_bitmap.valid())
                             return 0;
                         Vector ptl = paintHandle.topLeft();
@@ -989,6 +995,9 @@ public:
                         if (ps.x <= 0 || ps.y <= 0)
                             return 0;
                         Vector s = size();
+                        _bmi.bmiHeader.biWidth = s.x;
+                        _bmi.bmiHeader.biHeight = -s.y;
+                        paint();
                         IF_ZERO_THROW(SetDIBitsToDevice(
                             paintHandle.hDC(),
                             ptl.x,
@@ -1005,23 +1014,38 @@ public:
                     }
                     return 0;
                 }
+            case WM_USER:
+                {
+                    Lock lock(&_mutex);
+                    _lastBitmap = _bitmap;
+                    _bitmap = _nextBitmap;
+                    _nextBitmap = Bitmap<DWORD>();
+                }
         }
         return WindowsWindow::handleMessage(uMsg, wParam, lParam);
     }
 
     virtual void paint() = 0;
-    virtual void draw() = 0;
 
-    //Vector size() const { return _bitmap.size(); }
+    Bitmap<DWORD> setNextBitmap(Bitmap<DWORD> nextBitmap)
+    {
+        Lock lock(&_mutex);
+        _nextBitmap = nextBitmap;
+        postMessage(WM_USER);
+        return _lastBitmap;
+    }
+
     int stride() const { return _bitmap.stride(); }
     const Byte* data() const { return _bitmap.data(); }
     Byte* data() { return _bitmap.data(); }
 
-protected:
-    Bitmap<DWORD> _bitmap;
-
 private:
-    bool _resizing;
+    Mutex _mutex;
+
+    Bitmap<DWORD> _bitmap;
+    Bitmap<DWORD> _nextBitmap;
+    Bitmap<DWORD> _lastBitmap;
+
     BITMAPINFO _bmi;
 };
 

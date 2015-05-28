@@ -42,6 +42,8 @@ public:
         _saturation = 0.34;
         _hue = 0;
         _outputPixelsPerLine = 760;
+        _yScale = 1;
+        _doDecode = true;
     }
     void setOutputPixelsPerLine(int outputPixelsPerLine)
     {
@@ -54,18 +56,21 @@ public:
         // 1140                  800           960                5                        600               720
         _outputPixelsPerLine = outputPixelsPerLine;
     }
-    void setBuffers(Byte* input, Bitmap<T> output)
-    {
-        _input = input;
-        _output = output;
-    }
+    void setInputBuffer(Byte* input) { _input = input; }
+    void setOutputBuffer(Bitmap<T> output)  { _output = output; }
     void setContrast(float contrast) { _contrast = contrast; }
     void setBrightness(float brightness) { _brightness = brightness; }
     void setSaturation(float saturation) { _saturation = saturation; }
     void setHue(float hue) { _hue = hue; }
+    void setYScale(int yscale) { _yScale = yscale; }
+    void setDoDecode(bool doDecode) { _doDecode = doDecode; }
 
     void decode()
     {
+        if (!_doDecode) {
+            outputRaw();
+            return;
+        }
         // Settings
 
         static const int lines = 240;
@@ -74,8 +79,8 @@ public:
         static const float kernelSize = lobes;  // Lanczos parameter
         static const int nominalSamplesPerCycle = 8;
         static const int driftSamples = 40;
-        static const int burstSamples = 64; //40; ?                         // TODO: figure out optimal for real NTSC
-        static const int firstBurstSample = 30 + driftSamples;  //118; ?    // TODO: figure out optimal for real NTSC
+        static const int burstSamples = 48;  // Central 6 of 8-10 cycles
+        static const int firstBurstSample = 32 + driftSamples;      // == 72
         static const int burstCenter = firstBurstSample + burstSamples/2;
 
         Byte* b = _input;
@@ -87,7 +92,7 @@ public:
 
         int syncPositions[lines + 1];
         int fracSyncPositions[lines + 1];
-        int oldP = firstSyncSample - driftSamples;                  // -170
+        int oldP = firstSyncSample - driftSamples;                  // == -80
         int p = oldP + nominalSamplesPerLine;                       
         float samplesPerLine = nominalSamplesPerLine;               
         Complex<float> bursts[lines + 1];
@@ -99,7 +104,7 @@ public:
             Complex<float> burst = 0;
             float burstDC = 0;
             for (int i = firstBurstSample; i < firstBurstSample + burstSamples; ++i) {
-                int j = oldP + i;                                   // 38
+                int j = oldP + i;                                   // == -8
                 int sample = b[j];
                 float phase = (j&7)/8.0f;
                 burst += rotor(phase)*sample;
@@ -204,7 +209,7 @@ public:
 
                     float s = lanczos(j/samplesPerCycle + z0);
                     int i = j + k;
-                    float z = s*(b[i] - 23);
+                    float z = s*b[i];
                     y += z;
                     c.x += rotorTable[i & 7]*z;
                     c.y += rotorTable[(i + 6) & 7]*z;
@@ -230,12 +235,49 @@ public:
 
             expectedBurst = actualBurst;
 
-            outputRow += _output.stride();
+            Byte* outputRow2 = outputRow + _output.stride();
+            for (int yy = 1; yy < _yScale; ++yy) {
+                T* output = reinterpret_cast<T*>(outputRow2);
+                T* input = reinterpret_cast<T*>(outputRow);
+                for (int x = 0; x < _output.size().x; ++x) {
+                    *output = *input;
+                    ++output;
+                    ++input;
+                }
+                outputRow2 += _output.stride();
+            }
+            outputRow = outputRow2;
         }
     }
 private:
+    void outputRaw()
+    {
+        Byte* outputRow = _output.data();
+        Byte* b = _input;
+        for (int y = 0; y < 252; ++y) {
+            T* output = reinterpret_cast<T*>(outputRow);
+            for (int x = 0; x < 1824; ++x) {
+                setOutput(output, SRGB(*b, *b, *b));
+                ++output;
+                ++b;
+            }
+            outputRow += _output.stride();
+        }
+        T* output = reinterpret_cast<T*>(outputRow);
+        for (int x = 0; x < 450*1024-252*1824; ++x) {
+            setOutput(output, SRGB(*b, *b, *b));
+            ++output;
+            ++b;
+        }
+    }
+
+
     void setOutput(SRGB* output, SRGB x) { *output = x; }
     void setOutput(UInt32* output, SRGB x)
+    {
+        *output = (x.x << 16) | (x.y << 8) | x.z;
+    }
+    void setOutput(DWORD* output, SRGB x)
     {
         *output = (x.x << 16) | (x.y << 8) | x.z;
     }
@@ -247,6 +289,8 @@ private:
     float _hue;
     Byte* _input;
     Bitmap<T> _output;
+    int _yScale;
+    bool _doDecode;
 };
 
 #endif // INCLUDED_NTSC_DECODE_H
