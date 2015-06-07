@@ -74,11 +74,9 @@ public:
 
     void update()
     {
-        printf("Updating\n");
         _vbiCapPipe.read(_b, 1024*450);
         _decoder.setOutputBuffer(_bitmap);
         _decoder.decode();
-        printf("Decoded\n");
         Bitmap<DWORD> nextBitmap = setNextBitmap(_bitmap);
         invalidate();
         _bitmap = nextBitmap;
@@ -86,7 +84,6 @@ public:
 
     void draw()
     {
-        printf("Drawing\n");
         if (!_bitmap.valid())
             _bitmap = Bitmap<DWORD>(Vector(960, 720));
         _thread.go();
@@ -94,7 +91,6 @@ public:
 
     void paint()
     {
-        printf("Painting\n");
         _captureWindow->restart();
     }
 

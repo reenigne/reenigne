@@ -161,23 +161,30 @@ public:
         Complex<float> burst = bursts[0];
         float rotorTable[8];
         for (int i = 0; i < 8; ++i)
-            rotorTable[i] = rotor(i/8.0).x*_saturation;
+            rotorTable[i] = rotor(i/8.0).x;
         Complex<float> expectedBurst = burst;
         int oldActualSamplesPerLine = nominalSamplesPerLine;
+        float contrast1 = _contrast;
+        float saturation1 = _saturation*100;
         for (int line = 0; line < lines; ++line) {
             // Determine the phase, amplitude and DC offset of the color signal
             // from the color burst, which starts shortly after the horizontal
             // sync pulse ends. The color burst is 9 cycles long, and we look
             // at the middle 5 cycles.
 
-            float contrast1 = _contrast;
             Complex<float> actualBurst = bursts[line];
             burst = (expectedBurst*2 + actualBurst)/3;
 
             float phaseDifference = (actualBurst*(expectedBurst.conjugate())).argument()/tau;
             float adjust = -phaseDifference/_outputPixelsPerLine;
 
-            Complex<float> chromaAdjust = burst.conjugate()*contrast1*_saturation;
+            float bm2 = burst.modulus2();
+            Complex<float> chromaAdjust;
+            // TODO: Implement proper colour-killer logic (100 scanlines hysterisis?)
+            if (bm2 < 100)
+                chromaAdjust = 0;
+            else
+                chromaAdjust = burst.conjugate()*contrast1*saturation1 / bm2;
             burstDCAverage = (2*burstDCAverage + burstDCs[line])/3;
             float brightness1 = _brightness + 65 - burstDCAverage;
 

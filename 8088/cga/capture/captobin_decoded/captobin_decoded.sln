@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "captobin", "captobin.vcxproj", "{282424B4-D2BE-4D5D-8A67-E27CCF153495}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "captobin_decoded", "captobin_decoded.vcxproj", "{282424B4-D2BE-4D5D-8A67-E27CCF153495}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{6026AFCB-8ED6-4FAE-9541-536B38717567}"
 EndProject

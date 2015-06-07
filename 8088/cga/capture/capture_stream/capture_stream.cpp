@@ -227,9 +227,9 @@ public:
         } while (k != 27);
 
         while (_uncompressedFrames.count() > 0)
-            //wakeACompressionThread();
+            wakeACompressionThread();
         while (_compressedFrames.count() > 0)
-            //_writeThread.go();
+            _writeThread.go();
 
         _writeThread.end();
         for (int i = 0; i < nThreads; ++i)

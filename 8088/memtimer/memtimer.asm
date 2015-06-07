@@ -234,6 +234,44 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
+experimentKefrens:
+  db "Kefrens$"
+  db 19
+  dw .endInit - ($+2)
+
+  mov dx,0x3d9
+
+.endInit:
+  dw .endCode - ($+2)
+
+  mov ax,0x7000
+  mov ds,ax            ; 2 0
+  mov sp,[bx]          ; 2 2
+
+  pop di               ; 1 2
+  mov al,[es:di]       ; 3 1 +WS
+  pop cx               ; 1 2
+  and ax,cx            ; 2 0
+  pop cx               ; 1 2
+  or ax,cx             ; 2 0
+  stosw                ; 1 2 +WS +WS
+  pop cx               ; 1 2
+  and ch,[es:di+1]     ; 4 1 +WS
+  mov al,0
+  out dx,al
+  pop ax               ; 1 2
+  or ax,cx             ; 2 0
+  stosw                ; 1 2 +WS +WS
+
+  cld
+  cld
+;  mov ds,bp            ; 2 0
+
+  pop ax               ; 1 2
+  out dx,al            ; 1 1
+.endCode:
+
+
 experimentKBload:
   db "KBload$"
   db 18
