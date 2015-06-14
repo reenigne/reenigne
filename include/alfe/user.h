@@ -1019,7 +1019,7 @@ public:
                     Lock lock(&_mutex);
                     _lastBitmap = _bitmap;
                     _bitmap = _nextBitmap;
-                    _nextBitmap = Bitmap<DWORD>();
+					return 0;
                 }
         }
         return WindowsWindow::handleMessage(uMsg, wParam, lParam);

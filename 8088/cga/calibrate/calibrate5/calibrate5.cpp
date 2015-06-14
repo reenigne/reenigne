@@ -26,17 +26,17 @@ void write(Bitmap<SRGB> bitmap, String caption, double value)
         writeCharacter(bitmap, x + x2, buffer[x2]);
 }
 
-class Slider
+class MySlider
 {
 public:
-    Slider() { }
-    Slider(double low, double high, double initial, String caption, double* p, bool use = true)
+    MySlider() { }
+    MySlider(double low, double high, double initial, String caption, double* p, bool use = true)
       : _low(low), _high(high), _caption(caption), _p(p), _max(512), _use(use)
     {
         *p = initial;
         //_dragStartX = static_cast<int>((initial - low)*_max/(high - low));
     }
-    Slider(double low, double high, String caption, double* p, bool use = true)
+    MySlider(double low, double high, String caption, double* p, bool use = true)
       : _low(low), _high(high), _caption(caption), _p(p), _max(512), _use(use)
     {
     }
@@ -348,16 +348,22 @@ private:
     int _index;
 };
 
-class CalibrateBitmapWindow : public BitmapWindow
+class CalibrateWindow;
+
+template<class T> class CalibrateBitmapWindowTemplate : public BitmapWindow
 {
 public:
-    ~CalibrateBitmapWindow()
+    ~CalibrateBitmapWindowTemplate()
     {
         //Array<Byte> data(1024);
         //for (int i = 0; i < 1024; ++i)
         //    data[i] = static_cast<Byte>(_tSamples[i]*256);
         AutoHandle h = File("output.dat").openWrite();
         h.write(reinterpret_cast<Byte*>(&_tSamples[0]), 1024*sizeof(double));
+    }
+    void setCalibrateWindow(CalibrateWindow* window)
+    {
+        _calibrateWindow = window;
     }
 
     void create()
@@ -439,16 +445,16 @@ public:
         for (int i = 0; i < 4; ++i)
             _iSamples[i] = 0;
 
-        _sliders[0] = Slider(0, 2, 0.5655, "saturation", &_saturation);
-        _sliders[1] = Slider(-180, 180, 0, "hue", &_hue, PIXEL_ALIGN);
-        _sliders[2] = Slider(-1, 1, 0, "brightness", &_brightness, false);
-        _sliders[3] = Slider(0, 2, 1, "contrast", &_contrast, false);
-        _sliders[4] = Slider(0, 1, 0.185, "transition", &_transitionPoint, true);
+        _sliders[0] = MySlider(0, 2, 0.5655, "saturation", &_saturation);
+        _sliders[1] = MySlider(-180, 180, 0, "hue", &_hue, PIXEL_ALIGN);
+        _sliders[2] = MySlider(-1, 1, 0, "brightness", &_brightness, false);
+        _sliders[3] = MySlider(0, 2, 1, "contrast", &_contrast, false);
+        _sliders[4] = MySlider(0, 1, 0.185, "transition", &_transitionPoint, true);
 #if ELEMENTS!=256
         _baseSliders = 8;
-        _sliders[5] = Slider(0, 1, "I On", &_iSamples[3], !PIXEL_ALIGN);
-        _sliders[6] = Slider(0, 1, "I Rising", &_iSamples[2], !PIXEL_ALIGN);
-        _sliders[7] = Slider(0, 1, "I Falling", &_iSamples[1]);
+        _sliders[5] = MySlider(0, 1, "I On", &_iSamples[3], !PIXEL_ALIGN);
+        _sliders[6] = MySlider(0, 1, "I Rising", &_iSamples[2], !PIXEL_ALIGN);
+        _sliders[7] = MySlider(0, 1, "I Falling", &_iSamples[1]);
 #else
         _baseSliders = 5;
 #endif
@@ -483,23 +489,22 @@ public:
         _paused = false;
 
         BitmapWindow::create();
-        _animation.setWindow(this);
-        _animation.setRate(1);
-        _animation.start();
 
         _iteration = 0;
         _doneClimb = false;
     }
 
-    void paint(PaintHandle* paint)
+    void paint()
     {
-        _animation.onPaint();
-        draw();
-        BitmapWindow::paint(paint);
+        _calibrateWindow->restart();
     }
 
-    virtual void draw()
+    virtual void draw()										   
     {
+		if (!_bitmap.valid())
+			_bitmap = Bitmap<DWORD>(Vector(1536, 1024));
+		setNextBitmap(_bitmap);
+
         for (int i = 0; i < _sliderCount; ++i)
             _sliders[i].draw();
 
@@ -536,7 +541,7 @@ public:
         if (sz.y > 1024)
             sz.y = 1024;
 
-        Byte* row = data();
+        Byte* row = _bitmap.data();
         const Byte* otherRow = _output.data();
         for (int y = 0; y < sz.y; ++y) {
             DWORD* p = reinterpret_cast<DWORD*>(row);
@@ -546,9 +551,10 @@ public:
                 ++p;
                 ++op;
             }
-            row += stride();
+            row += _bitmap.stride();
             otherRow += _output.stride();
         }
+		invalidate();
     }
 
     void drawCaptures()
@@ -575,7 +581,7 @@ public:
         else
             _sliderCount = _baseSliders + 16;
         for (int i = _baseSliders; i < _sliderCount; ++i) {
-            _sliders[i] = Slider(0, 1, "", &_tSamples[transitionForSlider(i).index()]);
+            _sliders[i] = MySlider(0, 1, "", &_tSamples[transitionForSlider(i).index()]);
             _sliders[i].setBitmap(_output.subBitmap(Vector(1032, i*8), Vector(512, 8)));
             _sliders[i].draw();
         }
@@ -621,7 +627,7 @@ public:
 
             int bestI = 0;
             double bestFitness = 1000000;
-            Slider* slider = &_sliders[_slider];
+            MySlider* slider = &_sliders[_slider];
             double current = slider->value();
             for (int i = -10; i < 10; ++i) {
                 double trial = clamp(slider->low(), current + i*(slider->high() - slider->low())/1000, slider->high());
@@ -674,7 +680,7 @@ public:
     }
 
     void pause() { _paused = !_paused; }
-
+//
     bool idle()
     {
         if (_paused)
@@ -682,7 +688,7 @@ public:
         bool climbed = false;
         for (int i = 0; i < _sliderCount*2; ++i) {
             // Pick a slider
-            Slider* slider = &_sliders[i >> 1];
+            MySlider* slider = &_sliders[i >> 1];
             if (!slider->use())
                 continue;
 
@@ -885,7 +891,7 @@ private:
         return c;
     }
 
-    AnimationThread _animation;
+	Bitmap<DWORD> _bitmap;
 
     Bitmap<Colour> _top;
     Bitmap<Colour> _bottom;
@@ -896,7 +902,7 @@ private:
     double _ab;
     Complex<double> _qamAdjust;
 
-    Slider _sliders[25];
+    MySlider _sliders[25];
     int _slider;
     int _sliderCount;
     int _baseSliders;
@@ -942,15 +948,34 @@ private:
     int _iteration;
 
     bool _doneClimb;
+
+    CalibrateWindow* _calibrateWindow;
 };
+
+typedef CalibrateBitmapWindowTemplate<void> CalibrateBitmapWindow;
 
 class CalibrateWindow : public RootWindow
 {
 public:
+    void restart() { _animated.restart(); }
+    void setWindows(Windows* windows)
+    {
+		_bitmap.setCalibrateWindow(this);
+
+        add(&_bitmap);
+        add(&_animated);
+
+        _animated.setDrawWindow(&_bitmap);
+		_animated.setRate(1);
+		RootWindow::setWindows(windows);
+    }
     void create()
     {
-        add(&_bitmap);
+		setText("CGA Calibration");
+		setSize(Vector(1536, 1024));
+		_bitmap.setPosition(Vector(0, 0));
         RootWindow::create();
+		_animated.start();
     }
     void keyboardCharacter(int character)
     {
@@ -958,14 +983,11 @@ public:
             _bitmap.escapePressed();
         if (character == 'p' || character == 'P')
             _bitmap.pause();
-        if (character == VK_ESCAPE)
-            _bitmap.remove();
     }
-    String initialCaption() const { return "CGA Calibration"; }
-    Vector initialSize() const { return Vector(1536, 1024); }
     bool idle() { return _bitmap.idle(); }
 private:
     CalibrateBitmapWindow _bitmap;
+    AnimatedWindow _animated;
 };
 
 class Program : public WindowProgram<CalibrateWindow>
