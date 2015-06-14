@@ -104,6 +104,10 @@ public:
     }
     void setContrast(double contrast) { _decoder.setContrast(contrast); }
     void setHue(double hue) { _decoder.setHue(hue); }
+    void setSharpness(double sharpness)
+    {
+        _decoder.setChromaSamples(sharpness);
+    }
 
 private:
     Bitmap<DWORD> _bitmap;
@@ -180,6 +184,21 @@ private:
 };
 typedef HueSliderWindowTemplate<void> HueSliderWindow;
 
+template<class T> class SharpnessSliderWindowTemplate : public Slider
+{
+public:
+    void setHost(CaptureWindow* host) { _host = host; }
+    void valueSet(double value) { _host->setSharpness(value); }
+    void create()
+    {
+        setRange(1, 16);
+        Slider::create();
+    }
+private:
+    CaptureWindow* _host;
+};
+typedef SharpnessSliderWindowTemplate<void> SharpnessSliderWindow;
+
 class CaptureWindow : public RootWindow
 {
 public:
@@ -203,6 +222,9 @@ public:
         add(&_hueCaption);
         add(&_hue);
         add(&_hueText);
+        add(&_sharpnessCaption);
+        add(&_sharpness);
+        add(&_sharpnessText);
 
         _animated.setDrawWindow(&_output);
         _animated.setRate(60);
@@ -214,11 +236,13 @@ public:
         _saturationCaption.setText("Saturation: ");
         _contrastCaption.setText("Contrast: ");
         _hueCaption.setText("Hue: ");
+        _sharpnessCaption.setText("Sharpness: ");
 
         _brightness.setHost(this);
         _saturation.setHost(this);
         _contrast.setHost(this);
         _hue.setHost(this);
+        _sharpness.setHost(this);
 
         setText("NTSC capture and decode");
         setSize(Vector(1321, 760 + 23));
@@ -229,6 +253,7 @@ public:
         _contrast.setValue(1.65);
         _saturation.setValue(0.30);
         _hue.setValue(0);
+        _sharpness.setValue(8);
     }
     void sizeSet(Vector size)
     {
@@ -257,6 +282,11 @@ public:
         _hueCaption.setPosition(_hue.bottomLeft() + vSpace);
         _hueText.setPosition(_hueCaption.topRight());
 
+        _sharpness.setSize(Vector(301, 24));
+        _sharpness.setPosition(_hueCaption.bottomLeft() + 2*vSpace);
+        _sharpnessCaption.setPosition(_sharpness.bottomLeft() + vSpace);
+        _sharpnessText.setPosition(_sharpnessCaption.topRight());
+
         RootWindow::sizeSet(size);
     }
     void setBrightness(double brightness)
@@ -283,6 +313,12 @@ public:
         _hueText.setText(format("%f", hue));
         _hueText.size();
     }
+    void setSharpness(double sharpness)
+    {
+        _output.setSharpness(sharpness);
+        _sharpnessText.setText(format("%f", sharpness));
+        _sharpnessText.size();
+    }
 
     void keyboardCharacter(int character)
     {
@@ -304,7 +340,9 @@ private:
     TextWindow _hueCaption;
     HueSliderWindow _hue;
     TextWindow _hueText;
-
+    TextWindow _sharpnessCaption;
+    SharpnessSliderWindow _sharpness;
+    TextWindow _sharpnessText;
 };
 
 class Program : public WindowProgram<CaptureWindow> { };

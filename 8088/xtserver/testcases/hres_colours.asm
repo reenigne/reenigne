@@ -1,9 +1,12 @@
   %include "../../defaults_bin.asm"
 
-  captureScreen
-  captureScreen
-
   lockstep
+  refreshOff
+
+  mov ax,0xb800
+  mov ds,ax
+  mov cx,1000
+  rep lodsw
 
   mov ax,0
   mov ds,ax
@@ -97,100 +100,49 @@ loopTop:
   stosw
 
 
-  mov ah,cl
-
-  mov al,0x4d
-  stosw
-  stosw
-  mov al,0xb0
-  stosw
-  stosw
-  mov al,0x55
-  stosw
-  stosw
-  mov al,0xb1
-  stosw
-  stosw
-  mov al,0x13
-  stosw
-  stosw
-  mov al,0x14
-  stosw
-  mov al,0
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  or ah,al
-  mov al,9
-  stosw
-
-  mov ah,cl
-  inc ah
-
-  mov al,0x4d
-  stosw
-  stosw
-  mov al,0xb0
-  stosw
-  stosw
-  mov al,0x55
-  stosw
-  stosw
-
-
+;  mov ah,cl
+;
+;  mov al,0x4d
+;  stosw
+;  stosw
+;  mov al,0xb0
+;  stosw
+;  stosw
+;  mov al,0x55
+;  stosw
+;  stosw
+;  mov al,0xb1
+;  stosw
+;  stosw
+;  mov al,0x13
+;  stosw
+;  stosw
+;  mov al,0x14
+;  stosw
+;  mov al,0
+;  shr ax,1
+;  shr ax,1
+;  shr ax,1
+;  shr ax,1
+;  or ah,al
+;  mov al,9
+;  stosw
+;
+;  mov ah,cl
+;  inc ah
+;
+;  mov al,0x4d
+;  stosw
+;  stosw
+;  mov al,0xb0
+;  stosw
+;  stosw
+;  mov al,0x55
+;  stosw
+;  stosw
 
 
-  mov al,0xb1
-  stosw
-  stosw
-  mov al,0x13
-  stosw
-  stosw
-  mov al,0x14
-  stosw
-  mov al,0
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  or ah,al
-  mov al,9
-  stosw
 
-  mov ah,cl
-  inc ah
-  inc ah
-
-  mov al,0x4d
-  stosw
-  stosw
-  mov al,0xb0
-  stosw
-  stosw
-  mov al,0x55
-  stosw
-  stosw
-  mov al,0xb1
-  stosw
-  stosw
-  mov al,0x13
-  stosw
-  stosw
-  mov al,0x14
-  stosw
-  mov al,0
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  or ah,al
-  mov al,9
-  stosw
-
-
-  mov ah,cl
-  inc ah
 
   mov al,0xb1
   stosw
@@ -238,6 +190,57 @@ loopTop:
   or ah,al
   mov al,9
   stosw
+
+
+;  mov ah,cl
+;  inc ah
+;
+;  mov al,0xb1
+;  stosw
+;  stosw
+;  mov al,0x13
+;  stosw
+;  stosw
+;  mov al,0x14
+;  stosw
+;  mov al,0
+;  shr ax,1
+;  shr ax,1
+;  shr ax,1
+;  shr ax,1
+;  or ah,al
+;  mov al,9
+;  stosw
+;
+;  mov ah,cl
+;  inc ah
+;  inc ah
+
+;  mov al,0x4d
+;  stosw
+;  stosw
+;  mov al,0xb0
+;  stosw
+;  stosw
+;  mov al,0x55
+;  stosw
+;  stosw
+;  mov al,0xb1
+;  stosw
+;  stosw
+;  mov al,0x13
+;  stosw
+;  stosw
+;  mov al,0x14
+;  stosw
+;  mov al,0
+;  shr ax,1
+;  shr ax,1
+;  shr ax,1
+;  shr ax,1
+;  or ah,al
+;  mov al,9
+;  stosw
 
 
   inc cx
@@ -248,6 +251,12 @@ loopTop:
   jmp loopTop
 drawComplete:
 
+  mov ax,0
+  mov cx,0x4000
+  sub cx,di
+  shr cx,1
+  rep stosw
+
 
   mov dx,0x3da
   waitForVerticalSync
@@ -257,14 +266,11 @@ drawComplete:
 
   writePIT16 0, 2, 76*262
 
-  mov cx,5*60  ; Number of frames to display
   mov dx,0x3d4
   sti
 waitLoop:
   hlt
-  loop waitLoop
-
-  int 0x67
+  jmp waitLoop
 
 
 drawBottom EQU 0
@@ -287,17 +293,17 @@ interrupt8:
   mov ax,((20 - 1) << 8) | 0x00        ;Horizontal total
   out dx,ax
 
-  %if drawBottom != 0
-    mov ax,0x150c
-    out dx,ax
-    mov ax,0x180d
-    out dx,ax
-  %else
+;  %if drawBottom != 0
+;    mov ax,0x150c
+;    out dx,ax
+;    mov ax,0x180d
+;    out dx,ax
+;  %else
     mov ax,0x070c
     out dx,ax
     mov ax,0x080d
     out dx,ax
-  %endif
+;  %endif
 
   mov ax,((100 - 1) << 8) | 0x04       ;Vertical total
   out dx,ax
@@ -336,17 +342,17 @@ interrupt8:
   mov ax,((20 - 1) << 8) | 0x00        ;Horizontal total
   out dx,ax
 
-  %if drawBottom != 0
-    mov ax,0x0e0c
-    out dx,ax
-    mov ax,0x100d
-    out dx,ax
-  %else
+;  %if drawBottom != 0
+;    mov ax,0x0e0c
+;    out dx,ax
+;    mov ax,0x100d
+;    out dx,ax
+;  %else
     mov ax,0x000c
     out dx,ax
     mov ax,0x000d
     out dx,ax
-  %endif
+;  %endif
 
   mov ax,((114 - 1) << 8) | 0x04       ;Vertical total
   out dx,ax
