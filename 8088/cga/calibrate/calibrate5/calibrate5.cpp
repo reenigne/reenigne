@@ -501,9 +501,9 @@ public:
 
     virtual void draw()										   
     {
-		if (!_bitmap.valid())
-			_bitmap = Bitmap<DWORD>(Vector(1536, 1024));
-		setNextBitmap(_bitmap);
+        if (!_bitmap.valid())
+            _bitmap = Bitmap<DWORD>(Vector(1536, 1024));
+        setNextBitmap(_bitmap);
 
         for (int i = 0; i < _sliderCount; ++i)
             _sliders[i].draw();
@@ -554,7 +554,7 @@ public:
             row += _bitmap.stride();
             otherRow += _output.stride();
         }
-		invalidate();
+        invalidate();
     }
 
     void drawCaptures()
@@ -891,7 +891,7 @@ private:
         return c;
     }
 
-	Bitmap<DWORD> _bitmap;
+    Bitmap<DWORD> _bitmap;
 
     Bitmap<Colour> _top;
     Bitmap<Colour> _bottom;
@@ -960,22 +960,22 @@ public:
     void restart() { _animated.restart(); }
     void setWindows(Windows* windows)
     {
-		_bitmap.setCalibrateWindow(this);
+        _bitmap.setCalibrateWindow(this);
 
         add(&_bitmap);
         add(&_animated);
 
         _animated.setDrawWindow(&_bitmap);
-		_animated.setRate(1);
-		RootWindow::setWindows(windows);
+        _animated.setRate(1);
+        RootWindow::setWindows(windows);
     }
     void create()
     {
-		setText("CGA Calibration");
-		setSize(Vector(1536, 1024));
-		_bitmap.setPosition(Vector(0, 0));
+        setText("CGA Calibration");
+        setSize(Vector(1536, 1024));
+        _bitmap.setPosition(Vector(0, 0));
         RootWindow::create();
-		_animated.start();
+        _animated.start();
     }
     void keyboardCharacter(int character)
     {

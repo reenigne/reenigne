@@ -1,4 +1,4 @@
-#include "alfe/main.h"													
+#include "alfe/main.h"
 #include "alfe/bitmap_png.h"
 #include "alfe/terminal6.h"
 #include "alfe/complex.h"
@@ -34,20 +34,19 @@ Complex<float> rotor(float phase)
 template<class T> class NTSCCaptureDecoder
 {
 public:
+    void setInputBuffer(Byte* input) { _input = input; }
+
     void decode()
     {
         // Settings
 
         static const int nominalSamplesPerLine = 1824;
-        static const int firstSyncSample = -40;  
+        static const int firstSyncSample = -40;
         static const int driftSamples = 40;
         static const int burstSamples = 48;  // Central 6 of 8-10 cycles
         static const int firstBurstSample = 32 + driftSamples;      // == 72
 
         Byte* b = _input;
-
-
-        // Pass 1 - find sync and burst pulses, compute wobble amplitude and phase
 
         int p = -40 - driftSamples;                  // == -80
         for (int line = 0; line < 240; ++line) {
@@ -89,7 +88,7 @@ public:
 
     // Get a pointer to the samples that are on scanline y at 8*x color carrier
     // cycles from end of hsync pulse. *p is a pointer to the next sample after
-    // that point. *o is the distance between x and where *p is sampled, in 
+    // that point. *o is the distance between x and where *p is sampled, in
     // eights of a color carrier cycle. 0<=*o<1
     void getSamples(double x, int y, Byte** p, double* o)
     {
@@ -311,12 +310,27 @@ private:
     int _index;
 };
 
+//struct WaveformPoint
+//{
+//public:
+//
+//private:
+//    int _n;
+//    double _total;
+//    double _total2;
+//};
+
 class CalibrateWindow;
 
 template<class T> class CalibrateBitmapWindowTemplate : public BitmapWindow
 {
 public:
-    CalibrateBitmapWindowTemplate() : _rsqrt2(1/sqrt(2.0)) { }
+    CalibrateBitmapWindowTemplate()
+      : _rsqrt2(1/sqrt(2.0)), _doneCapture(false)
+    {
+        _waveforms = Bitmap<Byte>(Vector(16*4*256, 16*4*256));
+        _waveforms.fill(0);
+    }
     ~CalibrateBitmapWindowTemplate()
     {
         AutoHandle h = File("output.dat").openWrite();
@@ -341,6 +355,7 @@ public:
             _b[i - sampleSpaceBefore] = 0;
         for (int i = 0; i < sampleSpaceAfter; ++i)
             _b[i + samples] = 0;
+        _decoder.setInputBuffer(_b);
 
 
         setSize(Vector(1536, 1024));
@@ -430,11 +445,12 @@ public:
         escapePressed();
 
         SRGB white(255, 255, 255);
-        _waveformTL = Vector(1032, (20 + 4)*8);
+        _waveformTL = Vector(1032, (_baseSliders + 32 + 4)*8);
         for (int x = -1; x <= 256; ++x) {
             _output[_waveformTL + Vector(-1, x)] = white;
             _output[_waveformTL + Vector(256, x)] = white;
             _output[_waveformTL + Vector(x, -1)] = white;
+            _output[_waveformTL + Vector(x, 256)] = white;
         }
 
         _paused = false;
@@ -450,10 +466,8 @@ public:
         _calibrateWindow->restart();
     }
 
-    virtual void draw()										   
+    virtual void draw()										
     {
-        _vbiCapPipe.read(_b, 1024*450);
-
         if (!_bitmap.valid())
             _bitmap = Bitmap<DWORD>(Vector(1536, 1024));
         setNextBitmap(_bitmap);
@@ -465,8 +479,8 @@ public:
         for (int i = 0; i < 4096; ++i)
             drawBlock(_computes[i], i, 8);
 
-        write(_output.subBitmap(Vector(1024, (23 + 1)*8), Vector(512, 8)), "Fitness", _fitness);
-        write(_output.subBitmap(Vector(1024, (23 + 2)*8), Vector(512, 8)), "Delta", _aPower);
+        write(_output.subBitmap(Vector(1024, (_baseSliders + 32 + 1)*8), Vector(512, 8)), "Fitness", _fitness);
+        write(_output.subBitmap(Vector(1024, (_baseSliders + 32 + 2)*8), Vector(512, 8)), "Delta", _aPower);
 
         Vector p = _attribute << 6;
         SRGB white(255, 255, 255);
@@ -601,6 +615,8 @@ public:
             return true;
         }
         if (position.inside(Vector(1024, 1024))) {
+            _waveform = position >> 4;
+            newWaveform();
             _attribute = position >> 6;
             newAttribute();
         }
@@ -638,6 +654,9 @@ public:
 
     bool idle()
     {
+        if (!doCapture())
+            return true;
+
         if (_paused)
             return false;
         bool climbed = false;
@@ -729,6 +748,74 @@ public:
     }
 
 private:
+    void newWaveform()
+    {
+        for (int y = 0; y < 256; ++y)
+            for (int x = 0; x < 256; ++x) {
+                Vector p(x,y);
+                Byte b = _waveforms[(_waveform << 8) + p];
+                double v = 255*(1-exp(-0.693*b));
+                _output[p] = SRGB(v, v, v);
+            }
+    }
+
+    bool doCapture()
+    {
+        if (_doneCapture)
+            return true;
+        _vbiCapPipe.read(_b, 1024*450);
+        _decoder.decode();
+
+        for (int i = 0; i < 4096; ++i) {
+            Block b(i);
+            int fg = b.foreground();
+            int bg = b.background();
+            int patch;
+            int line;
+            int set;
+            switch (b.bits()) {
+                case 0x00: patch = 2; line = 0; set = (bg << 4) | bg; break;
+                case 0x01: patch = 0; line = 1; set = (fg << 4) | bg; break;
+                case 0x02: patch = 1; line = 0; set = (bg << 4) | fg; break;
+                case 0x03: patch = 2; line = 0; set = (fg << 4) | bg; break;
+                case 0x04: patch = 5; line = 3; set = (fg << 4) | bg; break;
+                case 0x05: patch = 3; line = 0; set = (bg << 4) | fg; break;
+                case 0x06: patch = 4; line = 0; set = (bg << 4) | fg; break;
+                case 0x07: patch = 1; line = 1; set = (fg << 4) | bg; break;
+                case 0x08: patch = 1; line = 1; set = (bg << 4) | fg; break;
+                case 0x09: patch = 4; line = 0; set = (fg << 4) | bg; break;
+                case 0x0a: patch = 3; line = 0; set = (fg << 4) | bg; break;
+                case 0x0b: patch = 5; line = 3; set = (bg << 4) | fg; break;
+                case 0x0c: patch = 2; line = 0; set = (bg << 4) | fg; break;
+                case 0x0d: patch = 1; line = 0; set = (fg << 4) | bg; break;
+                case 0x0e: patch = 0; line = 1; set = (bg << 4) | fg; break;
+                case 0x0f: patch = 2; line = 0; set = (fg << 4) | fg; break;
+            }
+            Vector p;
+            switch (set % 3) {
+                case 0:
+                    p = Vector(0, 0);
+                    break;
+                case 1:
+                    if (patch < 3)
+                        p = Vector(6, 0);
+                    else
+                        p = Vector(-3, 1);
+                    break;
+                case 2:
+                    p = Vector(3, 1);
+                    break;
+            }
+            p += Vector(patch + line*10, (set/3)*2);
+            p = Vector(p.x*32 + 221, p.y + 17);
+            Byte* bp;
+            double o;
+            _decoder.getSamples(p.x, p.y, &bp, &o);
+        }
+
+        return false;
+    }
+
     void integrate(Block b, double* dc, Complex<double>* iq, Complex<double>* hf)
     {
         double s[8];
@@ -790,76 +877,14 @@ private:
         _fitness /= 4096;
     }
 
-    ColourHF getDecodedPixel0(int bitmap, Vector p)
-    {
-        Bitmap<ColourHF> b;
-        switch (bitmap) {
-            case 0: b = _top; break;
-            case 1: b = _bottom; break;
-        }
-        return b[p];
-    }
-    ColourHF getDecodedPixel1(int bitmap, Vector p)
-    {
-        return getDecodedPixel0(bitmap, p);
-    }
-    ColourHF getPixel2(Vector p)
-    {
-        int bitmap = 0;
-        if (p.y >= 100) {
-            bitmap = 1;
-            p.y -= 100;
-        }
-        Vector p2(p.x*40/3 + 158, p.y*2 + 17);
-        ColourHF c;
-        c += getDecodedPixel1(bitmap, p2);
-        c += getDecodedPixel1(bitmap, p2 + Vector(0, 1));
-        return c/2;
-    }
-    ColourHF getPixel3(int patch, int line, int set)
-    {
-        int y = (set/3)*2;
-        bool firstHalf = (patch < 3);
-        patch += line*10;
-        switch (set % 3) {
-            case 0: return getPixel2(Vector(patch, y));
-            case 1:
-                if (firstHalf)
-                    return getPixel2(Vector(patch + 6, y));
-                return getPixel2(Vector(patch - 3, y + 1));
-            case 2: return getPixel2(Vector(patch + 3, y + 1));
-        }
-        return ColourHF();
-    }
-    ColourHF getPixel4(int fg, int bg, int bits)
-    {
-        int patch = 0;
-        int row = 0;
-        ColourHF c;
-        switch (bits) {
-            case 0x00: return getPixel3(2, 0, (bg << 4) | bg);
-            case 0x01: return getPixel3(0, 1, (fg << 4) | bg);
-            case 0x02: return getPixel3(1, 0, (bg << 4) | fg);
-            case 0x03: return getPixel3(2, 0, (fg << 4) | bg);
-            case 0x04: return getPixel3(5, 3, (fg << 4) | bg);
-            case 0x05: return getPixel3(3, 0, (bg << 4) | fg);
-            case 0x06: return getPixel3(4, 0, (bg << 4) | fg);
-            case 0x07: return getPixel3(1, 1, (fg << 4) | bg);
-            case 0x08: return getPixel3(1, 1, (bg << 4) | fg);
-            case 0x09: return getPixel3(4, 0, (fg << 4) | bg);
-            case 0x0a: return getPixel3(3, 0, (fg << 4) | bg);
-            case 0x0b: return getPixel3(5, 3, (bg << 4) | fg);
-            case 0x0c: return getPixel3(2, 0, (bg << 4) | fg);
-            case 0x0d: return getPixel3(1, 0, (fg << 4) | bg);
-            case 0x0e: return getPixel3(0, 1, (bg << 4) | fg);
-            case 0x0f: return getPixel3(2, 0, (fg << 4) | fg);
-        }
-        return c;
-    }
-
     Array<Byte> _buffer;
     Byte* _b;
     AutoHandle _vbiCapPipe;
+    bool _doneCapture;
+    NTSCDecoder _decoder;
+
+    Bitmap<Byte> _waveforms;
+    Vector _waveform;
 
     double _rsqrt2;
 
@@ -919,6 +944,7 @@ private:
     bool _doneClimb;
 
     CalibrateWindow* _calibrateWindow;
+
 };
 
 typedef CalibrateBitmapWindowTemplate<void> CalibrateBitmapWindow;
