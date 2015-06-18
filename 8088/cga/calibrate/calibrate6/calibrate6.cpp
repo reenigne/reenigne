@@ -3,35 +3,7 @@
 #include "alfe/terminal6.h"
 #include "alfe/complex.h"
 
-float sinc(float z)
-{
-    if (z == 0.0f)
-        return 1.0f;
-    z *= M_PI;
-    return sin(z)/z;
-}
-
-static const int lobes = 3;
-
-float lanczos(float z)
-{
-    return sinc(z)*sinc(z/lobes);
-}
-
-template<class T> Byte checkClamp(T x)
-{
-    int y = static_cast<int>(x);
-    return clamp(0, y, 255);
-//    return x;
-}
-
-Complex<float> rotor(float phase)
-{
-    float angle = static_cast<float>(phase*tau);
-    return Complex<float>(cos(angle), sin(angle));
-}
-
-template<class T> class NTSCCaptureDecoder
+class NTSCCaptureDecoder
 {
 public:
     void setInputBuffer(Byte* input) { _input = input; }
@@ -50,23 +22,26 @@ public:
 
         int p = -40 - driftSamples;                  // == -80
         for (int line = 0; line < 240; ++line) {
-            Complex<float> burst = 0;
-            float burstDC = 0;
+            Complex<double> burst = 0;
+            double burstDC = 0;
             for (int i = firstBurstSample; i < firstBurstSample + burstSamples; ++i) {
                 int j = p + i;                                   // == -8
                 int sample = b[j];
-                float phase = (j&7)/8.0f;
-                burst += rotor(phase)*sample;
+                burst += unit((i&7)/8.0)*sample;
                 burstDC += sample;
             }
             burst /= burstSamples;
-            _burstAmplitude[line] = burst.modulus()/burstSamples;
-            _burstDC[line] = burstDC/burstSamples;
+            burstDC /= burstSamples;
+            double burstAmplitude = burst.modulus();
+            _burstAmplitude[line] = burstAmplitude;
+            _burstDC[line] = burstDC;
+
             double burstPhase = 4 - 8*burst.argument()/tau;  // 0 to 8
 
             int ibp = static_cast<int>(burstPhase);
-            _p[line] = _b+p+ibp;
-            _o[line] = burstPhase - ibp;
+            _p[line] = b+p;
+            _o[line] = burstPhase;
+
             p += nominalSamplesPerLine - driftSamples;
             int i;
             for (i = 0; i < driftSamples*2; ++i) {
@@ -79,27 +54,43 @@ public:
                     break;
                 ++p;
             }
-
             if (line > 0)
-                _v[line] = ((_p[line + 1] - _p[line]) - (_o[line + 1] - _o[line]))/nominalSamplesPerLine;
+                _v[line] = ((_p[line] - _p[line - 1]) - (_o[line] - _o[line - 1]))/nominalSamplesPerLine;
         }
         _v[0] = _v[1];
+
+        double averageVelocity = 0;
+        for (int line = 10; line < 240; ++line)
+            averageVelocity += nominalSamplesPerLine*(1 - _v[line]);
+        averageVelocity /= 230;
+        Complex<double> burstDCRotor = 0;
+        Complex<double> burstAmplitudeRotor = 0;
+        for (int line = 10; line < 240; ++line) {
+            Complex<double> u = unit(line*averageVelocity);
+            burstDCRotor += _burstDC[line]*u;
+            burstAmplitudeRotor += _burstAmplitude[line]*u;
+        }
+        burstDCRotor = 2.0*burstDCRotor.conjugate()/230;
+        burstAmplitudeRotor = 2.0*burstAmplitudeRotor.conjugate()/230;
+        for (int line = 0; line < 240; ++line) {
+            Complex<double> u = unit(line*averageVelocity);
+            _burstDC[line] -= (burstDCRotor*u).x;
+            _burstAmplitude[line] -= (burstAmplitudeRotor*u).x;
+        }
     }
 
     // Get a pointer to the samples that are on scanline y at 8*x color carrier
     // cycles from end of hsync pulse. *p is a pointer to the next sample after
     // that point. *o is the distance between x and where *p is sampled, in
     // eights of a color carrier cycle. 0<=*o<1
-    void getSamples(double x, int y, Byte** p, double* o)
+    double getSample(double x, int y, double* o)
     {
-        // Need:
-        //   z0
-        //   k
         Byte* pp = _p[y];  // Sample at x = 0
-        double oo = _o[y] + _v[y]*x;
+        double oo = _v[y]*x - _o[y];
         int i = static_cast<int>(oo);
-        *o = oo - static_cast<double>(i);
-        *p = pp + i;
+        *o = static_cast<double>(i) - oo;
+        unsigned int z = pp[i];
+        return (z - _burstDC[y])/_burstAmplitude[y];
     }
 private:
     Byte* _input;
@@ -135,13 +126,13 @@ class MySlider
 {
 public:
     MySlider() { }
-    MySlider(double low, double high, double initial, String caption, double* p, bool use = true)
+    MySlider(double low, double high, double initial, String caption, double* p, bool use)
       : _low(low), _high(high), _caption(caption), _p(p), _max(512), _use(use)
     {
         *p = initial;
         //_dragStartX = static_cast<int>((initial - low)*_max/(high - low));
     }
-    MySlider(double low, double high, String caption, double* p, bool use = true)
+    MySlider(double low, double high, String caption, double* p, bool use)
       : _low(low), _high(high), _caption(caption), _p(p), _max(512), _use(use)
     {
     }
@@ -175,46 +166,27 @@ private:
     Bitmap<SRGB> _bitmap;
 };
 
-float sinc(float z)
-{
-    if (z == 0.0f)
-        return 1.0f;
-    z *= M_PI;
-    return sin(z)/z;
-}
-
-float lanczos(float z)
-{
-    if (z < -3 || z > 3)
-        return 0;
-    return sinc(z)*sinc(z/3);
-}
-
-Complex<float> rotor(float phase)
-{
-    float angle = phase*tau;
-    return Complex<float>(cos(angle), sin(angle));
-}
-
 struct ColourHF
 {
-    ColourHF() : c(Colour(0, 0, 0)), hf(0) { }
-    ColourHF(Colour _c, Complex<double> _hf) : c(_c), hf(_hf) { }
+    ColourHF() : y(0), iq(0), hf(0) { }
     const ColourHF& operator-=(const ColourHF& other)
     {
-        c -= other.c;
+        y -= other.y;
+        iq -= other.iq;
         hf -= other.hf;
         return *this;
     }
     const ColourHF& operator+=(const ColourHF& other)
     {
-        c += other.c;
+        y += other.y;
+        iq += other.iq;
         hf += other.hf;
         return *this;
     }
     const ColourHF& operator/=(const double& other)
     {
-        c /= other;
+        y /= other;
+        iq /= other;
         hf /= other;
         return *this;
     }
@@ -236,9 +208,10 @@ struct ColourHF
         t /= other;
         return t;
     }
-    double modulus2() const { return c.modulus2() + hf.modulus2()*10; }
+    double modulus2() const { return y*y + iq.modulus2() + hf.modulus2(); }
 
-    Colour c;
+    double y;
+    Complex<double> iq;
     Complex<double> hf;
 };
 
@@ -310,15 +283,56 @@ private:
     int _index;
 };
 
-//struct WaveformPoint
-//{
-//public:
-//
-//private:
-//    int _n;
-//    double _total;
-//    double _total2;
-//};
+class WaveformPoint
+{
+public:
+    WaveformPoint() : _n(0), _total(0), _enough(false) { }
+    bool add(double v)
+    {
+        ++_n;
+        _total += v;
+        if (!_enough && _n >= 10) {
+            _enough = true;
+            return true;
+        }
+        return false;
+    }
+    double value() { return _total/_n; }
+private:
+    double _total;
+    int _n;
+    bool _enough;
+};
+
+class Waveform
+{
+public:
+    Waveform() : /*_y(0), _iq(0), _hf(0), _n(0),*/ _completed(0)
+    {
+        _points.allocate(0x100);
+    }
+    bool add(double x, double yy)
+    {
+        //++_n;
+        //_y += yy;
+        //_iq += yy*unit(x/8);
+        //_hf += yy*unit(x/4);
+        if (_points[static_cast<int>(x*0x20) & 0xff].add(yy)) {
+            ++_completed;
+            if (_completed == 0x100)
+                return true;
+        }
+        return false;
+    }
+    double getValue(int x) { return _points[x].value(); }
+
+    //double _y;
+    //Complex<double> _iq;
+    //Complex<double> _hf;
+    //int _n;
+    int _completed;
+    Array<WaveformPoint> _points;
+};
 
 class CalibrateWindow;
 
@@ -326,10 +340,10 @@ template<class T> class CalibrateBitmapWindowTemplate : public BitmapWindow
 {
 public:
     CalibrateBitmapWindowTemplate()
-      : _rsqrt2(1/sqrt(2.0)), _doneCapture(false)
+      : _rsqrt2(1/sqrt(2.0)), _doneCapture(false), _graph(0, 0), _completed(0)
     {
-        _waveforms = Bitmap<Byte>(Vector(16*4*256, 16*4*256));
-        _waveforms.fill(0);
+        _graphs = Bitmap<Byte>(Vector(16*4*256, 16*4*256));
+        _graphs.fill(0);
     }
     ~CalibrateBitmapWindowTemplate()
     {
@@ -343,6 +357,9 @@ public:
 
     void create()
     {
+        for (int i = 0; i < 4096; ++i)
+            _fitnesses[i] = 1000000;
+
         _vbiCapPipe = File("\\\\.\\pipe\\vbicap", true).openPipe();
         _vbiCapPipe.write<int>(1);
 
@@ -357,60 +374,22 @@ public:
             _b[i + samples] = 0;
         _decoder.setInputBuffer(_b);
 
-
         setSize(Vector(1536, 1024));
 
         double brightness = -0.124;
         double contrast = 1.052;
         _aPower = 0;
 
-        AutoHandle ht = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
-        AutoHandle hb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
-
-        static const int samples = 450*1024;
-        static const int sampleSpaceBefore = 256;
-        static const int sampleSpaceAfter = 256;
-        Array<Byte> topNTSC;
-        Array<Byte> bottomNTSC;
-        topNTSC.allocate(sampleSpaceBefore + samples + sampleSpaceAfter);
-        bottomNTSC.allocate(sampleSpaceBefore + samples + sampleSpaceAfter);
-        Byte* bt = &topNTSC[0] + sampleSpaceBefore;
-        Byte* bb = &bottomNTSC[0] + sampleSpaceBefore;
-        for (int i = 0; i < sampleSpaceBefore; ++i) {
-            bt[i - sampleSpaceBefore] = 0;
-            bb[i - sampleSpaceBefore] = 0;
-        }
-        for (int i = 0; i < sampleSpaceAfter; ++i) {
-            bt[i + samples] = 0;
-            bb[i + samples] = 0;
-        }
-        for (int i = 0; i < 450; ++i) {
-            ht.read(&bt[i*1024], 1024);
-            hb.read(&bb[i*1024], 1024);
-        }
-        _top = Bitmap<ColourHF>(Vector(760, 240));
-        _bottom = Bitmap<ColourHF>(Vector(760, 240));
-
-        NTSCDecoder decoder;
-        decoder.brightness = -11.0;
-        decoder.contrast = 1.41;
-        decoder.hue = 0;
-        decoder.saturation = 0.303;
-        decoder.decode(bt, _top);
-        decoder.decode(bb, _bottom);
-
         _output = Bitmap<SRGB>(Vector(1536, 1024));
         _rgb = ColourSpace::rgb();
         _srgb = ColourSpace::srgb();
-
-        drawCaptures();
 
         for (int i = 0; i < 2048; ++i)
             _tSamples[i] = 0.5;
         for (int i = 0; i < 8; ++i)
             _iSamples[i] = 0.125;
 
-        _sliders[0] = MySlider(0, 2, 0.5655, "saturation", &_saturation);
+        _sliders[0] = MySlider(0, 2, 0.5655, "saturation", &_saturation, true);
         _sliders[1] = MySlider(-180, 180, 0, "hue", &_hue, false);
         _sliders[2] = MySlider(-1, 1, 0, "brightness", &_brightness, false);
         _sliders[3] = MySlider(0, 2, 1, "contrast", &_contrast, false);
@@ -422,9 +401,11 @@ public:
         _sliders[9] = MySlider(0, 1, "I Falling 1", &_iSamples[3], true);
         _sliders[10] = MySlider(0, 1, "I Off 0", &_iSamples[0], true);
         _sliders[11] = MySlider(0, 1, "I Off 1", &_iSamples[1], true);
-        _sliders[12] = MySlider(0, 2, 1, "Sharpness", &_sharpness, false);
-        _sliders[13] = MySlider(-1, 1, 0, "hf phase", &_hfPhase, true);
-        _baseSliders = 14;
+        _sliders[12] = MySlider(0, 2, 1, "Sharpness", &_sharpness, true);
+        _sliders[13] = MySlider(0, 1, 0.5, "Transition", &_transition, false);
+        _sliders[14] = MySlider(0, 2, 1, "Disp Sat.", &_displaySaturation, false);
+        _sliders[15] = MySlider(0, 2, 1, "Disp Sharp.", &_displaySharpness, false);
+        _baseSliders = 16;
         _sliderCount = _baseSliders + 8;
 
         int fg = 0;
@@ -445,12 +426,12 @@ public:
         escapePressed();
 
         SRGB white(255, 255, 255);
-        _waveformTL = Vector(1032, (_baseSliders + 32 + 4)*8);
+        _graphTL = Vector(1032, (_baseSliders + 32 + 4)*8);
         for (int x = -1; x <= 256; ++x) {
-            _output[_waveformTL + Vector(-1, x)] = white;
-            _output[_waveformTL + Vector(256, x)] = white;
-            _output[_waveformTL + Vector(x, -1)] = white;
-            _output[_waveformTL + Vector(x, 256)] = white;
+            _output[_graphTL + Vector(-1, x)] = white;
+            _output[_graphTL + Vector(256, x)] = white;
+            _output[_graphTL + Vector(x, -1)] = white;
+            _output[_graphTL + Vector(x, 256)] = white;
         }
 
         _paused = false;
@@ -475,9 +456,10 @@ public:
         for (int i = 0; i < _sliderCount; ++i)
             _sliders[i].draw();
 
-        drawCaptures();
-        for (int i = 0; i < 4096; ++i)
+        for (int i = 0; i < 4096; ++i) {
+            drawBlock(_captures[i], i, 0);
             drawBlock(_computes[i], i, 8);
+        }
 
         write(_output.subBitmap(Vector(1024, (_baseSliders + 32 + 1)*8), Vector(512, 8)), "Fitness", _fitness);
         write(_output.subBitmap(Vector(1024, (_baseSliders + 32 + 2)*8), Vector(512, 8)), "Delta", _aPower);
@@ -509,35 +491,32 @@ public:
         invalidate();
     }
 
-    void drawCaptures()
+    void drawBlock(ColourHF colour, int i, int yp)
     {
-        for (int i = 0; i < 4096; ++i) {
-            Block b(i);
-            ColourHF chf = getPixel4(b.foreground(), b.background(), b.bits());
-            _captures[i] = chf;
-            drawBlock(chf, i, 0);
-        }
-    }
+        double y = colour.y*_contrast + _brightness*256;
+        Complex<double> iq = colour.iq*unit(_hue)*_displaySaturation*_contrast;
+        Complex<double> hf = colour.hf*_displaySharpness;
 
-    void drawBlock(ColourHF colour, int i, int y)
-    {
-        Block b(i);
-        Vector p = b.vector();
-        for (int xx = 0; xx < 16; ++xx)
-            for (int yy = 0; yy < 8; ++yy) {
-                int h;
-                switch (xx & 3) {
-                    case 0:	h = colour.hf.x; break;
-                    case 1: h = colour.hf.y; break;
-                    case 2: h = -colour.hf.x; break;
-                    case 3: h = -colour.hf.y; break;
-                }
-                //h *= 256;
-                SRGB c = _srgb.toSrgb24(colour.c);
-                c = SRGB(byteClamp(c.x + h), byteClamp(c.y + h), byteClamp(c.z + h));
-                _output[p + Vector(xx, yy + y)] = c;
+        double r = y + 0.9563*iq.x + 0.6210*iq.y;
+        double g = y - 0.2721*iq.x - 0.6474*iq.y;
+        double b = y - 1.1069*iq.x + 1.7046*iq.y;
+        SRGB c = _srgb.toSrgb24(Colour(r, g, b));
+        if (yp == 0)
+            _captureColours[i] = c;
+
+        Vector p = Block(i).vector();
+        for (int xx = 0; xx < 16; ++xx) {
+            int h;
+            switch (xx & 3) {
+                case 0:	h = static_cast<int>(hf.x); break;
+                case 1: h = static_cast<int>(hf.y); break;
+                case 2: h = -static_cast<int>(hf.x); break;
+                case 3: h = -static_cast<int>(hf.y); break;
             }
-
+            SRGB c1(byteClamp(c.x + h), byteClamp(c.y + h), byteClamp(c.z + h));
+            for (int yy = 0; yy < 8; ++yy)
+                _output[p + Vector(xx, yy + yp)] = c1;
+        }
     }
 
     void newAttribute()
@@ -549,7 +528,7 @@ public:
         else
             _sliderCount = _baseSliders + 32;
         for (int i = _baseSliders; i < _sliderCount; ++i) {
-            _sliders[i] = MySlider(0, 1, "", &_tSamples[transitionForSlider(i).index()*2 + (i&1)]);
+            _sliders[i] = MySlider(0, 1, "", &_tSamples[transitionForSlider(i).index()*2 + (i&1)], true);
             _sliders[i].setBitmap(_output.subBitmap(Vector(1032, i*8), Vector(512, 8)));
             _sliders[i].draw();
         }
@@ -615,10 +594,16 @@ public:
             return true;
         }
         if (position.inside(Vector(1024, 1024))) {
-            _waveform = position >> 4;
-            newWaveform();
+            _graph = position >> 4;
+            newGraph();
+            _entireAttribute = ((position.y & 15) < 8);
             _attribute = position >> 6;
             newAttribute();
+            invalidate();
+        }
+        if ((position - _graphTL).inside(Vector(256, 256))) {
+            _graph = Vector(-1, -1);
+            newGraph();
         }
         return false;
     }
@@ -748,14 +733,74 @@ public:
     }
 
 private:
-    void newWaveform()
+    void newGraph()
     {
+        if (_doneCapture) {
+            influenceGraph();
+            return;
+        }
+        if (_graph.x == -1)
+            return;
+        //for (int y = 0; y < 256; ++y)
+        //    for (int x = 0; x < 256; ++x) {
+        //        Vector p(x,y);
+        //        Byte b = _graphs[(_graph << 8) + p];
+        //        double v = 255*(1-exp(-0.05*b));
+        //        _output[p + _graphTL] = SRGB(v, v, v);
+        //    }
         for (int y = 0; y < 256; ++y)
             for (int x = 0; x < 256; ++x) {
-                Vector p(x,y);
-                Byte b = _waveforms[(_waveform << 8) + p];
-                double v = 255*(1-exp(-0.693*b));
-                _output[p] = SRGB(v, v, v);
+                Vector p(x, y);
+                _output[p + _graphTL] = SRGB(0, 0, 0);
+            }
+        Block b(_graph << 4);
+        for (int x = 0; x < 256; ++x) {
+            double yy = _waveforms[b.index()].getValue(x);
+            int y = byteClamp(255 - yy);
+            Vector p(x, y);
+            _output[p + _graphTL] = SRGB(255, 255, 255);
+        }
+    }
+    void influenceGraph()
+    {
+        // Draw the pixel graph
+        Array<double> pixelGraph(256);
+        for (int y = 0; y < 0x100; ++y)
+            for (int x = 0; x < 0x100; ++x)
+                _output[Vector(x, y) + _graphTL] = SRGB(0, 0, 0);
+        for (int pixel = 0; pixel < 4; ++pixel) {
+            int bit = 1 << pixel;
+            for (int x = 0; x < 0x100; ++x)
+                pixelGraph[x] = 0;
+            int n = 0;
+            for (int i = 0; i < 0x1000; ++i) {
+                int j = i & 0xf77;
+                if (_graph.x != -1) {
+                    j = Block(_graph << 4).index();
+                    if (_entireAttribute)
+                        j = Block(Block(j).foreground(), Block(j).background(), Block(i).bits()).index();
+                }
+
+                Block b1(j);
+                Block b2(b1.foreground(), b1.background(), b1.bits() ^ bit);
+                for (int x = 0; x < 0x100; ++x) {
+                    double d = _waveforms[j].getValue(x) -
+                        _waveforms[b2.index()].getValue(x);
+                    pixelGraph[x] += abs(d);
+                }
+            }
+            for (int x = 0; x < 0x100; ++x) {
+                int yy = 255 - static_cast<int>((pixelGraph[x]/0x1000));
+                for (int y = 0; y < 0x100; ++y)
+                    if (y >= yy)
+                        _output[Vector(x, y) + _graphTL].x |= bit;
+            }
+        }
+        for (int y = 0; y < 0x100; ++y)
+            for (int x = 0; x < 0x100; ++x) {
+                Vector p = Vector(x, y) + _graphTL;
+                int i = Block(0xf, 0, (_output[p]).x).index();
+                _output[p] = _captureColours[i];
             }
     }
 
@@ -807,91 +852,107 @@ private:
                     break;
             }
             p += Vector(patch + line*10, (set/3)*2);
-            p = Vector(p.x*32 + 221, p.y + 17);
-            Byte* bp;
+            p = Vector(p.x*32 + 221, p.y + 18);
             double o;
-            _decoder.getSamples(p.x, p.y, &bp, &o);
+            for (int j = 0; j < 9; ++j) {
+                double yy = _decoder.getSample(p.x + j, p.y, &o)*48 + 85;
+                double xx = j + o;
+                int y = static_cast<int>(255-yy);
+                if (y < 0)
+                    y = 0;
+                if (y > 255)
+                    y = 255;
+                int x = static_cast<int>(xx*32 + 0.5) & 0xff;
+                Vector gv = (b.vector()<<4) + Vector(x, y);
+                if (_graphs[gv] < 255)
+                    ++_graphs[gv];
+                if (_waveforms[i].add(xx, yy)) {
+                    ++_completed;
+                    if (_completed == 4096)
+                        _doneCapture = true;
+                }
+            }
         }
+        newGraph();
+        invalidate();
+
+        if (!_doneCapture)
+            return false;
+
+        for (int i = 0; i < 4096; ++i)
+            _captures[i] = integrateCapture(i);
+        computeFitness();
 
         return false;
     }
 
-    void integrate(Block b, double* dc, Complex<double>* iq, Complex<double>* hf)
+    ColourHF integrate(double* s)
+    {
+        ColourHF c;
+        c.y = (s[0] + s[1] + s[2] + s[3] + s[4] + s[5] + s[6] + s[7])/8;
+        c.iq.x = ((s[0] - s[4]) + _rsqrt2*((s[1]+s[7])-(s[3]+s[5])))/8;
+        c.iq.y = ((s[2] - s[6]) + _rsqrt2*((s[1]+s[3])-(s[5]+s[7])))/8;
+        c.hf.x = ((s[0] + s[4]) - (s[2] + s[6]))/8;
+        c.hf.y = ((s[1] + s[5]) - (s[3] + s[7]))/8;
+        return c;
+    }
+
+    ColourHF integrate(Block b)
     {
         double s[8];
         for (int t = 0; t < 4; ++t) {
-            s[t*2] = _tSamples[b.transition(t).index()*2];
-            s[t*2] += _iSamples[b.iState(t)*2];
-            s[t*2 + 1] = _tSamples[b.transition(t).index()*2 + 1];
-            s[t*2 + 1] += _iSamples[b.iState(t)*2 + 1];
+            s[t*2] = _tSamples[b.transition(t).index()*2]*256;
+            s[t*2] += _iSamples[b.iState(t)*2]*256;
+            s[t*2 + 1] = _tSamples[b.transition(t).index()*2 + 1]*256;
+            s[t*2 + 1] += _iSamples[b.iState(t)*2 + 1]*256;
         }
-        *dc = (s[0] + s[1] + s[2] + s[3] + s[4] + s[5] + s[6] + s[7])/8;
-        iq->x = ((s[0] - s[4]) + _rsqrt2*((s[1]+s[7])-(s[3]+s[5])))/8;
-        iq->y = ((s[2] - s[6]) + _rsqrt2*((s[1]+s[3])-(s[5]+s[7])))/8;
-        hf->x = ((s[0] + s[4]) - (s[2] + s[6]))/8;
-        hf->y = ((s[1] + s[5]) - (s[3] + s[7]))/8;
+        return integrate(s);
+    }
+
+    ColourHF integrateCapture(int i)
+    {
+        double s[8];
+        Waveform* w = &_waveforms[i];
+        for (int t = 0; t < 8; ++t)
+            s[t] = w->getValue(t*32 + static_cast<int>(_transition*32));
+        return integrate(s);
     }
 
     void computeFitness()
     {
-        double dc;
-        Complex<double> iqBurst;
-        Complex<double> hf;
-        integrate(Block(6, 6, 0), &dc, &iqBurst, &hf);
-        Complex<double> iqAdjust;
-        Complex<double> hfAdjust;
-        if (iqBurst.modulus2() < 1.0e-6) {
-            iqAdjust = 0;
-//			hfAdjust = 0; //unit(_hfPhase)*_contrast*_sharpness;
-            _fitness = 4096.0e6;
-        }
-        else {
-            iqAdjust = -iqBurst.conjugate()*unit((33 + 90 + _hue)/360.0)*_saturation*_contrast/iqBurst.modulus();
-//			hfAdjust = unit(_hfPhase)*iqAdjust*iqAdjust*_sharpness/(_saturation*_saturation*_contrast);
-            _fitness = 0;
-        }
-        hfAdjust = unit(_hfPhase)*_contrast*_sharpness;
-
+        _fitness = 0;
         for (int bn = 0; bn < 4096; ++bn) {
             Block block(bn);
             if (_optimizing[bn]) {
-                Complex<double> iq;
-                integrate(block, &dc, &iq, &hf);
-                double y = dc*_contrast + _brightness;
-                iq *= iqAdjust;
-
-                double r = 255*(y + 0.9563*iq.x + 0.6210*iq.y);
-                double g = 255*(y - 0.2721*iq.x - 0.6474*iq.y);
-                double b = 255*(y - 1.1069*iq.x + 1.7046*iq.y);
-                ColourHF c;
-                c.c = Colour(r, g, b);
-                c.hf = hf*255*hfAdjust;
-                _computes[bn] = c;
-
-                double f = (c - _captures[bn]).modulus2();
-                _fitnesses[bn] = f;
+                ColourHF capture = _captures[bn];
+                capture.hf *= _sharpness;
+                capture.iq *= _saturation;
+                ColourHF compute = integrate(block);
+                _computes[bn] = compute;
+                _fitnesses[bn] = (compute - capture).modulus2();
             }
-
             _fitness += _fitnesses[bn];
         }
         _fitness /= 4096;
     }
 
+    Waveform _waveforms[4096];
+    int _completed;
+
     Array<Byte> _buffer;
     Byte* _b;
     AutoHandle _vbiCapPipe;
     bool _doneCapture;
-    NTSCDecoder _decoder;
+    NTSCCaptureDecoder _decoder;
 
-    Bitmap<Byte> _waveforms;
-    Vector _waveform;
+    Bitmap<Byte> _graphs;
+    Vector _graph;
+    bool _entireAttribute;
 
     double _rsqrt2;
 
     Bitmap<DWORD> _bitmap;
 
-    Bitmap<ColourHF> _top;
-    Bitmap<ColourHF> _bottom;
     Bitmap<SRGB> _output;
     ColourSpace _rgb;
     ColourSpace _srgb;
@@ -899,7 +960,7 @@ private:
     double _ab;
     Complex<double> _qamAdjust;
 
-    MySlider _sliders[46];
+    MySlider _sliders[48];
     int _slider;
     int _sliderCount;
     int _baseSliders;
@@ -911,23 +972,21 @@ private:
     double _hue;
     double _brightness;
     double _contrast;
+    double _displaySharpness;
+    double _displaySaturation;
     double _sharpness;
-    double _hfPhase;
+    double _transition;
 
     ColourHF _captures[4096];
     ColourHF _computes[4096];
+    SRGB _captureColours[4096];
     double _fitness;
 
     Block _clicked;
-    Vector _waveformTL;
+    Vector _graphTL;
     Vector _attribute;
     bool _optimizing[4096];
     double _fitnesses[4096];
-
-    double _sampleScale;
-    double _sampleOffset;
-    double _topPhase;
-    double _bottomPhase;
 
     bool _paused;
 

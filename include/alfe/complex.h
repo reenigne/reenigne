@@ -16,6 +16,7 @@ public:
     Real modulus() const { return sqrt(modulus2()); }
     Real modulus2() const { return x*x + y*y; }
     Real argument() const { return atan2(y, x); }
+    Complex unit() const { return *this/modulus(); }
     Complex conjugate() const { return Complex(x, -y); }
     const Complex& operator+=(const Complex& other) { x += other.x; y += other.y; return *this; }
     const Complex& operator-=(const Complex& other) { x -= other.x; y -= other.y; return *this; }
