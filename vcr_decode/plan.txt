@@ -1,0 +1,2 @@
+Make a function for getting the value of the waveform at any point, via Lanczos interpolation
+
