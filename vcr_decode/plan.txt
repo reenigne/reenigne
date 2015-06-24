@@ -1,2 +1,223 @@
-Make a function for getting the value of the waveform at any point, via Lanczos interpolation
+integral(x*sin(x)*dx) = -x*cos(x)+sin(x)
+integral(x*cos(x)*dx) = x*sin(x)+cos(x)
 
+integral(sin(a*x)*dx) = -cos(a*x)/a
+integral(cos(a*x)*dx) = sin(a*x)/a
+integral(x*sin(a*x)*dx) = (sin(a*x)-a*x*cos(a*x))/(a*a)
+integral(x*cos(a*x)*dx) = (a*x*sin(a*x)+cos(a*x))/(a*a)
+integral(sin(a*x)*sin(b*x)*dx) = sin(x*(a-b))/(2*(a-b)) - sin(x*(a+b))/(2*(a+b))
+integral(sin(a*x)*cos(b*x)*dx) = cos(x*(b-a))/(2*(b-a)) - cos(x*(a+b))/(2*(a+b))
+integral(cos(a*x)*sin(b*x)*dx) = cos(x*(a-b))/(2*(a-b)) - cos(x*(a+b))/(2*(a+b))
+integral(cos(a*x)*cos(b*x)*dx) = sin(x*(a-b))/(2*(a-b)) + sin(x*(a+b))/(2*(a+b))
+integral(x,a,b)=eval(integral(x),a,b)=integral(x)(b) - integral(x)(a)
+
+y=a+b*x+c*sin(d*x)+e*cos(d*x)
+
+M = integral(y*sin(tau*x/A)*dx, 0, A)
+N = integral(y*cos(tau*x/A)*dx, 0, A)
+P = integral(y*sin(tau*x/B)*dx, 0, B)
+Q = integral(y*cos(tau*x/B)*dx, 0, B)
+
+M = integral((a+b*x+c*sin(d*x)+e*cos(d*x))*sin(tau*x/A)*dx, 0, A)
+N = integral((a+b*x+c*sin(d*x)+e*cos(d*x))*cos(tau*x/A)*dx, 0, A)
+P = integral((a+b*x+c*sin(d*x)+e*cos(d*x))*sin(tau*x/B)*dx, 0, B)
+Q = integral((a+b*x+c*sin(d*x)+e*cos(d*x))*cos(tau*x/B)*dx, 0, B)
+
+M = integral((a*sin(tau*x/A)+b*x*sin(tau*x/A)+c*sin(d*x)*sin(tau*x/A)+e*cos(d*x)*sin(tau*x/A))*dx, 0, A)
+N = integral((a*cos(tau*x/A)+b*x*cos(tau*x/A)+c*sin(d*x)*cos(tau*x/A)+e*cos(d*x)*cos(tau*x/A))*dx, 0, A)
+P = integral((a*sin(tau*x/B)+b*x*sin(tau*x/B)+c*sin(d*x)*sin(tau*x/B)+e*cos(d*x)*sin(tau*x/B))*dx, 0, B)
+Q = integral((a*cos(tau*x/B)+b*x*cos(tau*x/B)+c*sin(d*x)*cos(tau*x/B)+e*cos(d*x)*cos(tau*x/B))*dx, 0, B)
+
+M = integral(a*sin(tau*x/A)*dx, 0, A) + integral(b*x*sin(tau*x/A)*dx, 0, A) + integral(c*sin(d*x)*sin(tau*x/A)*dx, 0, A) + integral(e*cos(d*x)*sin(tau*x/A)*dx, 0, A)
+N = integral(a*cos(tau*x/A)*dx, 0, A) + integral(b*x*cos(tau*x/A)*dx, 0, A) + integral(c*sin(d*x)*cos(tau*x/A)*dx, 0, A) + integral(e*cos(d*x)*cos(tau*x/A)*dx, 0, A)
+P = integral(a*sin(tau*x/B)*dx, 0, B) + integral(b*x*sin(tau*x/B)*dx, 0, B) + integral(c*sin(d*x)*sin(tau*x/B)*dx, 0, B) + integral(e*cos(d*x)*sin(tau*x/B)*dx, 0, B)
+Q = integral(a*cos(tau*x/B)*dx, 0, B) + integral(b*x*cos(tau*x/B)*dx, 0, B) + integral(c*sin(d*x)*cos(tau*x/B)*dx, 0, B) + integral(e*cos(d*x)*cos(tau*x/B)*dx, 0, B)
+
+M = a*integral(sin(tau*x/A)*dx, 0, A) + b*integral(x*sin(tau*x/A)*dx, 0, A) + c*integral(sin(d*x)*sin(tau*x/A)*dx, 0, A) + e*integral(cos(d*x)*sin(tau*x/A)*dx, 0, A)
+N = a*integral(cos(tau*x/A)*dx, 0, A) + b*integral(x*cos(tau*x/A)*dx, 0, A) + c*integral(sin(d*x)*cos(tau*x/A)*dx, 0, A) + e*integral(cos(d*x)*cos(tau*x/A)*dx, 0, A)
+P = a*integral(sin(tau*x/B)*dx, 0, B) + b*integral(x*sin(tau*x/B)*dx, 0, B) + c*integral(sin(d*x)*sin(tau*x/B)*dx, 0, B) + e*integral(cos(d*x)*sin(tau*x/B)*dx, 0, B)
+Q = a*integral(cos(tau*x/B)*dx, 0, B) + b*integral(x*cos(tau*x/B)*dx, 0, B) + c*integral(sin(d*x)*cos(tau*x/B)*dx, 0, B) + e*integral(cos(d*x)*cos(tau*x/B)*dx, 0, B)
+
+M = a*eval(-cos(tau*x/A)*A/tau, 0, A) + b*eval((sin(tau*x/A)-x*cos(tau*x/A)*tau/A)*A*A/(tau*tau), 0, A) + c*eval(sin(x*(d-tau/A))/(2*(d-tau/A)) - sin(x*(d+tau/A))/(2*(d+tau/A)), 0, A) + e*eval(cos(x*(d-tau/A))/(2*(d-tau/A)) - cos(x*(d+tau/A))/(2*(d+tau/A)), 0, A)
+N = a*eval(+sin(tau*x/A)*A/tau, 0, A) + b*eval((x*sin(tau*x/A)*tau/A+cos(tau*x/A))*A*A/(tau*tau), 0, A) + c*eval(cos(x*(tau/A-d))/(2*(tau/A-d)) - cos(x*(d+tau/A))/(2*(d+tau/A)), 0, A) + e*eval(sin(x*(d-tau/A))/(2*(d-tau/A)) + sin(x*(d+tau/A))/(2*(d+tau/A)), 0, A)
+P = a*eval(-cos(tau*x/B)*B/tau, 0, B) + b*eval((sin(tau*x/B)-x*cos(tau*x/B)*tau/B)*B*B/(tau*tau), 0, B) + c*eval(sin(x*(d-tau/B))/(2*(d-tau/B)) - sin(x*(d+tau/B))/(2*(d+tau/B)), 0, B) + e*eval(cos(x*(d-tau/B))/(2*(d-tau/B)) - cos(x*(d+tau/B))/(2*(d+tau/B)), 0, B)
+Q = a*eval(+sin(tau*x/B)*B/tau, 0, B) + b*eval((x*sin(tau*x/B)*tau/A+cos(tau*x/B))*B*B/(tau*tau), 0, B) + c*eval(cos(x*(tau/B-d))/(2*(tau/B-d)) - cos(x*(d+tau/B))/(2*(d+tau/B)), 0, B) + e*eval(sin(x*(d-tau/B))/(2*(d-tau/B)) + sin(x*(d+tau/B))/(2*(d+tau/B)), 0, B)
+
+M = b*(sin(tau*A/A)-A*cos(tau*A/A)*tau/A)*A*A/(tau*tau) - b*(sin(tau*0/A)-0*cos(tau*0/A)*tau/A)*A*A/(tau*tau) + c*(sin(A*(d-tau/A))/(2*(d-tau/A)) - sin(A*(d+tau/A))/(2*(d+tau/A))) - c*(sin(0*(d-tau/A))/(2*(d-tau/A)) - sin(0*(d+tau/A))/(2*(d+tau/A))) + e*(cos(A*(d-tau/A))/(2*(d-tau/A)) - cos(A*(d+tau/A))/(2*(d+tau/A))) - e*(cos(0*(d-tau/A))/(2*(d-tau/A)) - cos(0*(d+tau/A))/(2*(d+tau/A)))
+N = b*(A*sin(tau*A/A)*tau/A+cos(tau*A/A))*A*A/(tau*tau) - b*(0*sin(tau*0/A)*tau/A+cos(tau*0/A))*A*A/(tau*tau) + c*(cos(A*(tau/A-d))/(2*(tau/A-d)) - cos(A*(d+tau/A))/(2*(d+tau/A))) - c*(cos(0*(tau/A-d))/(2*(tau/A-d)) - cos(0*(d+tau/A))/(2*(d+tau/A))) + e*(sin(A*(d-tau/A))/(2*(d-tau/A)) + sin(A*(d+tau/A))/(2*(d+tau/A))) - e*(sin(0*(d-tau/A))/(2*(d-tau/A)) + sin(0*(d+tau/A))/(2*(d+tau/A)))
+P = b*(sin(tau*B/B)-B*cos(tau*B/B)*tau/B)*B*B/(tau*tau) - b*(sin(tau*0/B)-0*cos(tau*0/B)*tau/B)*B*B/(tau*tau) + c*(sin(B*(d-tau/B))/(2*(d-tau/B)) - sin(B*(d+tau/B))/(2*(d+tau/B))) - c*(sin(0*(d-tau/B))/(2*(d-tau/B)) - sin(0*(d+tau/B))/(2*(d+tau/B))) + e*(cos(B*(d-tau/B))/(2*(d-tau/B)) - cos(B*(d+tau/B))/(2*(d+tau/B))) - e*(cos(0*(d-tau/B))/(2*(d-tau/B)) - cos(0*(d+tau/B))/(2*(d+tau/B)))
+Q = b*(B*sin(tau*B/B)*tau/A+cos(tau*B/B))*B*B/(tau*tau) - b*(0*sin(tau*0/B)*tau/A+cos(tau*0/B))*B*B/(tau*tau) + c*(cos(B*(tau/B-d))/(2*(tau/B-d)) - cos(B*(d+tau/B))/(2*(d+tau/B))) - c*(cos(0*(tau/B-d))/(2*(tau/B-d)) - cos(0*(d+tau/B))/(2*(d+tau/B))) + e*(sin(B*(d-tau/B))/(2*(d-tau/B)) + sin(B*(d+tau/B))/(2*(d+tau/B))) - e*(sin(0*(d-tau/B))/(2*(d-tau/B)) + sin(0*(d+tau/B))/(2*(d+tau/B)))
+
+M = -b*A*A/tau + c*(sin(A*d)/(2*(d-tau/A)) - sin(A*d)/(2*(d+tau/A)))                                         + e*(cos(A*d)/(2*(d-tau/A)) - cos(A*d)/(2*(d+tau/A))) - e*(1/(2*(d-tau/A)) - 1/(2*(d+tau/A)))
+N =            + c*(cos(A*d)/(2*(tau/A-d)) - cos(A*d)/(2*(d+tau/A))) - c*(1/(2*(tau/A-d)) - 1/(2*(d+tau/A))) + e*(sin(A*d)/(2*(d-tau/A)) + sin(A*d)/(2*(d+tau/A)))
+P = -b*B*B/tau + c*(sin(B*d)/(2*(d-tau/B)) - sin(B*d)/(2*(d+tau/B)))                                         + e*(cos(B*d)/(2*(d-tau/B)) - cos(B*d)/(2*(d+tau/B))) - e*(1/(2*(d-tau/B)) - 1/(2*(d+tau/B)))
+Q =            + c*(cos(B*d)/(2*(tau/B-d)) - cos(B*d)/(2*(d+tau/B))) - c*(1/(2*(tau/B-d)) - 1/(2*(d+tau/B))) + e*(sin(B*d)/(2*(d-tau/B)) + sin(B*d)/(2*(d+tau/B)))
+
+M = -b*A*A/tau + c*sin(A*d)*(1/(2*(d-tau/A)) - 1/(2*(d+tau/A)))                             + e*cos(A*d)*(1/(2*(d-tau/A)) - 1/(2*(d+tau/A))) - e*(tau/A/((d-tau/A)*(d+tau/A)))
+N =            + c*cos(A*d)*(1/(2*(tau/A-d)) - 1/(2*(d+tau/A))) - c*(d/(tau/A-d)*(tau/A+d)) + e*sin(A*d)*(1/(2*(d-tau/A)) + 1/(2*(d+tau/A)))
+P = -b*B*B/tau + c*sin(B*d)*(1/(2*(d-tau/B)) - 1/(2*(d+tau/B)))                             + e*cos(B*d)*(1/(2*(d-tau/B)) - 1/(2*(d+tau/B))) - e*(tau/B/((d-tau/B)*(d+tau/B)))
+Q =            + c*cos(B*d)*(1/(2*(tau/B-d)) - 1/(2*(d+tau/B))) - c*(d/(tau/B-d)*(tau/B+d)) + e*sin(B*d)*(1/(2*(d-tau/B)) + 1/(2*(d+tau/B)))
+
+M = -b*A*A/tau + c*sin(A*d)*(tau/A/(d-tau/A)/(d+tau/A))                             + e*cos(A*d)*(tau/A/(d-tau/A)/(d+tau/A)) - e*tau/A/(d-tau/A)/(d+tau/A)
+N =            + c*cos(A*d)*(    d/(tau/A-d)/(tau/A+d)) - c*(d/(tau/A-d)*(tau/A+d)) + e*sin(A*d)*(    d/(d-tau/A)/(d+tau/A))
+P = -b*B*B/tau + c*sin(B*d)*(tau/B/(d-tau/B)/(d+tau/B))                             + e*cos(B*d)*(tau/B/(d-tau/B)/(d+tau/B)) - e*tau/B/(d-tau/B)/(d+tau/B)
+Q =            + c*cos(B*d)*(    d/(tau/B-d)/(tau/B+d)) - c*(d/(tau/B-d)*(tau/B+d)) + e*sin(B*d)*(    d/(d-tau/B)/(d+tau/B))
+
+u = tau/A
+v = tau/B
+
+x = (d-u)*(d+u)
+y = (d-v)*(d+v)
+
+u/x+d/x = (u+d)/((d-u)*(d+u)) = 1/(d-u)
+v/y+d/y = (v+d)/((d-v)*(d+v)) = 1/(d-v)
+
+su = sin(tau*d/u)
+sv = sin(tau*d/v)
+cu = cos(tau*d/u)
+cv = cos(tau*d/v)
+
+f = b*tau
+
+M = -f/u/u + c*su*u/x         + e*cu*u/x - e*u/x
+           - c*cu*d/x + c*d/x + e*su*d/x
+P = -f/v/v + c*sv*v/y         + e*cv*v/y - e*v/y
+           - c*cv*d/y + c*d/y + e*sv*d/y
+
+M = -f/u/u + (c*   su  + e*(cu-1))*u/x
+           + (c*(1-cu) + e* su   )*d/x
+P = -f/v/v + (c*   sv  + e*(cv-1))*v/y
+           + (c*(1-cv) + e* sv   )*d/y
+
+M = -f/u/u + (c*   su  + e*(cu-1))*u/(d-u)/(d+u)
+N =        + (c*(1-cu) + e* su   )*d/(d-u)/(d+u)
+P = -f/v/v + (c*   sv  + e*(cv-1))*v/(d-v)/(d+v)
+Q =        + (c*(1-cv) + e* sv   )*d/(d-v)/(d+v)
+
+M*M+N*N = (-f/u/u + (c*su + e*(cu-1))*u/(d-u)/(d+u))*(-f/u/u + (c*su + e*(cu-1))*u/(d-u)/(d+u)) + (c*(1-cu) + e*su)*d/(d-u)/(d+u)*(c*(1-cu) + e*su)*d/(d-u)/(d+u)
+P*P+Q*Q = (-f/v/v + (c*sv + e*(cv-1))*v/(d-v)/(d+v))*(-f/v/v + (c*sv + e*(cv-1))*v/(d-v)/(d+v)) + (c*(1-cv) + e*sv)*d/(d-v)/(d+v)*(c*(1-cv) + e*sv)*d/(d-v)/(d+v)
+
+M*M+N*N =  f/u/u*f/u/u
+          -2*f/u/u*(c*su + e*(cu-1))*u/(d-u)/(d+u)
+          +(c*   su  + e*(cu-1))*(c*   su  + e*(cu-1))*u*u/(d-u)/(d+u)/(d-u)/(d+u)
+          +(c*(1-cu) + e* su   )*(c*(1-cu) + e* su   )*d*d/(d-u)/(d+u)/(d-u)/(d+u)
+P*P+Q*Q =  f/v/v*f/v/v
+          -2*f/v/v*(c*sv + e*(cv-1))*v/(d-v)/(d+v)
+          +(c*   sv  + e*(cv-1))*(c*   sv  + e*(cv-1))*v*v/(d-v)/(d+v)/(d-v)/(d+v)
+          +(c*(1-cv) + e* sv   )*(c*(1-cv) + e* sv   )*d*d/(d-v)/(d+v)/(d-v)/(d+v)
+
+M*M+N*N =
+  b*f*tau/u/u/u/u
+ -2*f/u/u*(c*su + e*(cu-1))*u/(d-u)/(d+u)
+ +(c*c*su*su + 2*c*e*su*(cu-1) + e*e*(cu-1)*(cu-1))*u*u/(d-u)/(d+u)/(d-u)/(d+u)
+ +(c*c*(1-cu)*(1-cu) + 2*c*e*su*(1-cu) + e*e*su*su)*d*d/(d-u)/(d+u)/(d-u)/(d+u)
+P*P+Q*Q =
+  b*f*tau/v/v/v/v
+ -2*f/v/v*(c*sv + e*(cv-1))*v/(d-v)/(d+v)
+ +(c*c*sv*sv + 2*c*e*sv*(cv-1) + e*e*(cv-1)*(cv-1))*v*v/(d-v)/(d+v)/(d-v)/(d+v)
+ +(c*c*(1-cv)*(1-cv) + 2*c*e*(1-cv)*sv + e*e*sv*sv)*d*d/(d-v)/(d+v)/(d-v)/(d+v)
+
+d*d*M*M+u*u*N*N =
+  d*d*b*f*tau/u/u/u/u
+ -2*f/u/u*(c*su + e*(cu-1))*u*d*d/(d-u)/(d+u)
+ +(c*c*su*su + 2*c*e*su*(cu-1) + e*e*(cu-1)*(cu-1))*d*d*u*u/(d-u)/(d+u)/(d-u)/(d+u)
+ +(c*c*(1-cu)*(1-cu) + 2*c*e*su*(1-cu) + e*e*su*su)*d*d*u*u/(d-u)/(d+u)/(d-u)/(d+u)
+d*d*P*P+v*v*Q*Q =
+  d*d*b*f*tau/v/v/v/v
+ -2*f/v/v*(c*sv + e*(cv-1))*v*d*d/(d-v)/(d+v)
+ +(c*c*sv*sv + 2*c*e*sv*(cv-1) + e*e*(cv-1)*(cv-1))*d*d*v*v/(d-v)/(d+v)/(d-v)/(d+v)
+ +(c*c*(1-cv)*(1-cv) + 2*c*e*(1-cv)*sv + e*e*sv*sv)*d*d*v*v/(d-v)/(d+v)/(d-v)/(d+v)
+
+d*d*M*M+u*u*N*N =
+  d*d*b*f*tau/u/u/u/u
+ -2*f/u/u*(c*su + e*(cu-1))*u*d*d/(d-u)/(d+u)
+ +(c*c*su*su + 2*c*e*su*(cu-1) + e*e*(cu-1)*(cu-1) + c*c*(1-cu)*(1-cu) + 2*c*e*su*(1-cu) + e*e*su*su)*d*d*u*u/(d-u)/(d+u)/(d-u)/(d+u)
+d*d*P*P+v*v*Q*Q =
+  d*d*b*f*tau/v/v/v/v
+ -2*f/v/v*(c*sv + e*(cv-1))*v*d*d/(d-v)/(d+v)
+ +(c*c*sv*sv + 2*c*e*sv*(cv-1) + e*e*(cv-1)*(cv-1) + c*c*(1-cv)*(1-cv) + 2*c*e*(1-cv)*sv + e*e*sv*sv)*d*d*v*v/(d-v)/(d+v)/(d-v)/(d+v)
+
+d*d*M*M+u*u*N*N =
+  d*d*f*f/u/u/u/u
+ -2*f/u*(c*su + e*(cu-1))*d*d/(d-u)/(d+u)
+ +2*(c*c+e*e)*(1-cu)*d*d*u*u/(d-u)/(d+u)/(d-u)/(d+u)
+d*d*P*P+v*v*Q*Q =
+  d*d*f*f/v/v/v/v
+ -2*f/v*(c*sv + e*(cv-1))*d*d/(d-v)/(d+v)
+ +2*(c*c+e*e)*(1-cv)*d*d*v*v/(d-v)/(d+v)/(d-v)/(d+v)
+
+(d*d*M*M+u*u*N*N)*(d-u)*(d+u)*(d-u)*(d+u) =
+  d*d*f*f/u/u/u/u*(d-u)*(d+u)*(d-u)*(d+u)
+ -2*f/u*(c*su + e*(cu-1))*d*d*(d-u)*(d+u)
+ +2*(c*c+e*e)*(1-cu)*d*d*u*u
+(d*d*P*P+v*v*Q*Q)*(d-v)*(d+v)*(d-v)*(d+v) =
+  d*d*f*f/v/v/v/v*(d-v)*(d+v)*(d-v)*(d+v)
+ -2*f/v*(c*sv + e*(cv-1))*d*d*(d-v)*(d+v)
+ +2*(c*c+e*e)*(1-cv)*d*d*v*v
+
+(d+u)*(d-u) = (d*d-u*u)
+
+(d*d*M*M+u*u*N*N)*(d*d-u*u)*(d*d-u*u) = d*d*f*f/u/u/u/u*(d*d-u*u)*(d*d-u*u) -2*f/u*(c*su + e*(cu-1))*d*d*(d*d-u*u) +2*(c*c+e*e)*(1-cu)*d*d*u*u
+(d*d*P*P+v*v*Q*Q)*(d*d-v*v)*(d*d-v*v) = d*d*f*f/v/v/v/v*(d*d-v*v)*(d*d-v*v) -2*f/v*(c*sv + e*(cv-1))*d*d*(d*d-v*v) +2*(c*c+e*e)*(1-cv)*d*d*v*v
+
+(d*d*M*M+u*u*N*N)*(d*d-u*u)*(d*d-u*u) = d*d*f*f/u/u/u/u*(d*d*d*d-d*d*u*u-u*u*d*d+u*u*u*u) -2*f/u*(c*su*d*d*d*d -c*su*d*d*u*u +e*(cu-1)*d*d*d*d -e*(cu-1)*d*d*u*u) +2*(c*c+e*e)*(1-cu)*d*d*u*u
+(d*d*P*P+v*v*Q*Q)*(d*d-v*v)*(d*d-v*v) = d*d*f*f/v/v/v/v*(d*d*d*d-d*d*v*v-v*v*d*d+v*v*v*v) -2*f/v*(c*sv*d*d*d*d -c*sv*d*d*v*v +e*(cv-1)*d*d*d*d -e*(cv-1)*d*d*v*v) +2*(c*c+e*e)*(1-cv)*d*d*v*v
+
+(d*d*M*M+u*u*N*N)*(d*d-u*u)*(d*d-u*u) = d^6*f^2/u^4 - 2*d^4*f^2/u^2 + d^2*f^2 - 2*f/u*c*su*d^4 + 2*f/u*c*su*d^2*u^2 - 2*f/u*e*d^4*cu + 2*f/u*e*d^4 + 2*f*e*d^2*u*cu - 2*f*e*d^2*u + 2*(c*c+e*e)*(1-cu)*d^2*u^2
+(d*d*P*P+v*v*Q*Q)*(d*d-v*v)*(d*d-v*v) = d^6*f^2/v^4 - 2*d^4*f^2/v^2 + d^2*f^2 - 2*f/v*c*sv*d^4 + 2*f/v*c*sv*d^2*v^2 - 2*f/v*e*d^4*cv + 2*f/v*e*d^4 + 2*f*e*d^2*v*cv - 2*f*e*d^2*v + 2*(c*c+e*e)*(1-cv)*d^2*v^2
+
+M + f/u/u = (c*   su  + e*(cu-1))*u/(d-u)/(d+u)
+N         = (c*(1-cu) + e* su   )*d/(d-u)/(d+u)
+P + f/v/v = (c*   sv  + e*(cv-1))*v/(d-v)/(d+v)
+Q         = (c*(1-cv) + e* sv   )*d/(d-v)/(d+v)
+
+(M + f/u/u)/N*d/u = (c*su + e*(cu-1))/(c*(1-cu) + e*su)
+(P + f/v/v)/Q*d/v = (c*sv + e*(cv-1))/(c*(1-cv) + e*sv)
+
+(M + f/u/u)/N*d/u = (c*su + e*(cu-1))*(c*su + e*(cu-1))/(c*c*su*(1-cu) + 2*c*e*cu-c*e-c*e*cu*cu + e*c*su*su + e*e*su*(cu-1))
+(P + f/v/v)/Q*d/v = (c*sv + e*(cv-1))*(c*sv + e*(cv-1))/(c*c*sv*(1-cv) + 2*c*e*cv-c*e-c*e*cv*cv + e*c*sv*sv + e*e*sv*(cv-1))
+
+(M + f/u/u)/N*d/u = (c*su + e*(cu-1))*(c*su + e*(1-cu))/((c*(1-cu) + e*su)*(c*su + e*(1-cu))
+(P + f/v/v)/Q*d/v = (c*sv + e*(cv-1))*(c*sv + e*(1-cv))/((c*(1-cv) + e*sv)*(c*sv + e*(1-cv))
+
+
+
+
+------------------------
+
+Y=a+b*x+c*sin(d*x)+e*cos(d*x)
+
+Y(-2) = a-2*b-c*sin(2*d)+e*cos(2*d)
+Y(-1) = a-b-c*sin(d)+e*cos(d)
+Y(0) = a+e
+Y(1) = a+b+c*sin(d)+e*cos(d)
+Y(2) = a+2*b+c*sin(2*d)+e*cos(2*d)
+
+O = Y(0) = a + e
+M = Y(-1)+Y(1) = 2*a + 2*e*cos(d)
+N = Y(-2)+Y(2) = 2*a + 2*e*cos(2*d) = 2*a + 2*e*(2*cos(d)*cos(d) - 1) = 2*a + 4*e*cos(d)*cos(d) - 2*e
+
+M*M = (2*a+2*e*cos(d))*(2*a+2*e*cos(d)) = 4*a*a + 8*a*e*cos(d) + 4*e*e*cos(d)*cos(d)
+
+e*N = 2*a*e + 4*e*e*cos(d)*cos(d) - 2*e*e
+
+e*N - M*M = 2*a*e - 2*e*e - 4*a*a - 8*a*e*cos(d)
+
+e*N - M*M + 4*a*M = 2*e*e + 4*a*a
+
+O*O = a*a + 2*a*e + e*e
+
+P = Y(1)-Y(-1) = 2*b + 2*c*sin(d)
+Q = Y(2)-Y(-2) = 4*b + 2*c*sin(2*d) = 4*b + 4*c*sin(d)*cos(d)
+Q-2*P = 4*c*sin(d)*(cos(d) - 1)
+
+e*N - M*M + 4*a*M - 2*O*O = 2*a*(a - 2*e)
+
+e*N - M*M + 4*a*M - 2*O*O + 4*a*O = 2*a*(a - 2*e)
+
+
+M-2*O = 2*e*(cos(d) - 1)
+
+N = 2*a + 4*e*cos(d)*cos(d) - 2*e
+
+N-2*O = 4*e*cos(d)*cos(d) - 4*e = 4*e*(cos(d)*cos(d) - 1)
