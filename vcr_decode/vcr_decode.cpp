@@ -23,163 +23,63 @@ public:
     {
         Array<Byte> input;
         FileHandle inputHandle = File("D:\\t\\c2.raw", true).openRead();
-        int n = inputHandle.size();
-        input.allocate(n);
-        inputHandle.read(&input[0], n);
+        int nn = inputHandle.size();
+        input.allocate(nn);
+        inputHandle.read(&input[0], nn);
 
-        Array<float> output(1820*2000);
         Array<Byte> outputb(1820*2000);
-        static const int resampleFactor = 100;
-        Array<float> resampled(1820*resampleFactor);
+        int z = 2;
+        for (int x = 3*z; x < 1820*2000 - 3*z; ++x) {
+            // Sample rate is 28.6MHz
+            // Luma carrier is 3.4MHz to 4.4MHz = 6.5 to 8.4 samples
+            // d is tau/8.4 to tau/6.5 = 0.75 to 0.97
+            // c is 0.57 to 0.73
 
-        // Sample rate = 28.6MHz*100
-        // low = 3.3MHz = 860 samples  = 
-        // high = 4.5MHz = 640 samples
+            // c = cos(d)
+            // s = sin(d)
+            // v = a + b*x + e*cos(d*x) + f*sin(d*x)
 
-        float lastPhase = 0;
-        float cutoffSamples = 2.8;
-        float kernelSize = lobes;
+            int v_3 = input[x-z*3];  // = a - 3*b + e*cos(3*d) - f*sin(3*d) 
+            int v_2 = input[x-z*2];  // = a - 2*b + e*cos(2*d) - f*sin(2*d)
+            int v_1 = input[x-z];    // = a - b + e*c - f*s
+            int v0 = input[x];       // = a + e
+            int v1 = input[x+z];     // = a + b + e*c + f*s
+            int v2 = input[x+z*2];   // = a + 2*b + e*cos(2*d) + f*sin(2*d)
+            int v3 = input[x+z*3];   // = a + 3*b + e*cos(3*d) + f*sin(3*d)
 
-        for (int y = 1; y < 240 /*1999*/; ++y) {
-            //float minResampled = 1e99;
-            //float maxResampled = -1e99;
-            for (int x = 0; x < 1820*resampleFactor; ++x) {
-                float kFrac = static_cast<float>(x)/resampleFactor;
-                int k = static_cast<int>(kFrac);
-                kFrac -= k;
-                float z0 = -kFrac/cutoffSamples;                     // In cutoff periods
-                k += y*1820;
-                int firstInput = -kernelSize*cutoffSamples + kFrac;
-                int lastInput = kernelSize*cutoffSamples + kFrac;
-                float v = 0;
-                float t = 0;
-                for (int j = firstInput; j <= lastInput; ++j) {
-                    float s = lanczos(j/cutoffSamples + z0);      // When j=0 we're looking at 
-                    int i = j + k;
-                    float z = s*input[i];
-                    v += z;
-                    t += s;
-                }
-                v /= t;
-                resampled[x] = v;
-                //if (v < -1000 || v > 1000)
-                //    printf("v = %f\n",v);
-                //minResampled = min(v, minResampled);
-                //maxResampled = max(v, maxResampled);
-            }
-            //printf("%f %f\n",minResampled,maxResampled);
+            int o = v0;       // = a + e
+            int m = v_1 + v1; // = 2*a + 2*e*c
+            int n = v_2 + v2; // = 2*a + 2*e*cos(2*d) = 2*a + 2*e*(2*c*c - 1)
+            int p = v1 - v_1; // = 2*b + 2*f*s
+            int q = v2 - v_2; // = 4*b + 2*f*sin(2*d) = 4*b + 4*f*s*c
+            int r = v3 - v_3; // = 6*b + 2*f*sin(3*d) = 6*b + 2*f*(3*s + 4*s*s*s) = 6*b + 14*f*s - 8*c*c*f*s
 
-            //Array<Byte> resampledb(1820*100);
-            //for (int i = 0; i < 1820*100; ++i)
-            //    resampledb[i] = byteClamp(resampled[i]);
-            //FileHandle h = File("D:\\t\\resampled.raw", true).openWrite();
-            //h.write(resampledb);
-            //return;
+            int g0 = 2*m - 4*o; // = 4*e*(c - 1)
+            int h0 = 2*o - n;   // = 4*e*(1 - c*c)
+            int i0 = - h0 - g0; // = 4*e*(c*c - c)
+            int g1 = 2*q - 4*p; // = 8*f*s*(c - 1)
+            int h1 = r - 3*p;   // = 8*f*s*(1 - c*c)
+            int i1 = - h1 - g1; // = 8*f*s*(c*c - c)
 
-            //
+            // Now we have two quadratic equations in c: 
+            //   c*c*g0 + c*h0 + i0 = 0
+            //   c*c*g1 + c*h1 + i1 = 0
 
-            // Value range is 38..57
-            // 
-            float low = 38;
-            float high = 57;
-            bool rising = true;
-            bool passedZero = true;
-            int lastChange = 0;
-            int length = 0;
-            for (int x = 0; x < 1820*resampleFactor; ++x) {
-                float v = resampled[x];
-                if (rising) {
-                    if (!passedZero) {
-                        if (v > (high + low)/2.0) {
-                            //length = x - lastChange;
-                            //lastChange = x;
-                            passedZero = true;
-                            high = v;
-                        }
-                    }
-                    else {
-                        high = max(high, v);
-                        if (high - v > 5) {
-                            rising = false;
-                            passedZero = false;
-                        }
-                    }
-                }
-                else {
-                    if (!passedZero) {
-                        if (v <= (high + low)/2.0) {
-                            length = x - lastChange;
-                            lastChange = x;
-                            passedZero = true;
-                            low = v;
-                        }
-                    }
-                    else {
-                        low = min(low, v);
-                        if (v - low > 5) {
-                            rising = true;
-                            passedZero = false;
-                        }
-                    }
-                }
-                outputb[x/resampleFactor + y*1820] = byteClamp(878 - length*100.0/resampleFactor);
-            }
-            printf(".");
+            int k0 = h0*h0 - 4*g0*i0;
+            int k1 = h1*h1 - 4*g1*i1;
+            if (k0 < 0 || k1 < 0)
+                printf("Out of range!\n");
+            float j0 = sqrt(static_cast<float>(k0)); // = 4*e*(c*c - 2*c + 1)
+            float j1 = sqrt(static_cast<float>(k1)); // = 8*f*s*(c*c - 2*c + 1)
+
+            float c0 = (-h0 + j0)/(2*g0);  // The -j solutions give c = 1
+            float c1 = (-h1 + j1)/(2*g1);  
+
+            float c = c1; //(c0*g0*g0 + c1*g1*g1)/(g0*g0 + g1*g1);
+            float d = acos(c);
+            //outputb[x] = byteClamp((d-0.74)*255/(0.98 - 0.74));
+            outputb[x] = byteClamp(d*255/M_PI);
         }
-
-        // Output sample = x
-        // Output sample in cutoffs = x/100/cutoffSamples
-        // Input sample = j+k
-        // Input sample in cutoffs = (j+k)/cutoffSamples
-        // Difference = (j+k)/cutoffSamples - x/100/cutoffSamples
-        // = j/cutoffSamples + (k - kFrac)/cutoffSamples
-
-
-        //for (int x = 0; x < 1820*2000 - 7; ++x) {
-        //    Complex<double> iq = 0;
-        //    for (int t = 0; t < 8; ++t)
-        //        iq += unit(((x + t)&7)/8.0)*input[x+t];
-        //    double phase = iq.argument() / tau;
-        //    double deltaPhase = 1.3 + phase - lastPhase;
-        //    int deltaPhaseInt = static_cast<int>(deltaPhase);
-        //    deltaPhase -= deltaPhaseInt;
-        //    lastPhase = phase;
-        //    outputb[x] = byteClamp(static_cast<int>(385-255*4.5*deltaPhase));
-
-
-        //    //int v = input[x];
-        //    //if (rising) {
-        //    //	if (v < last) {
-        //    //		int t1 = input[x-1] - input[x-2];
-        //    //		int t2 = input[x-1] - input[x];
-        //    //		if (t1 == t2) {
-        //    //			delta = ((x-1) - x_last) - d_last;
-        //    //			d_last = 0;
-        //    //			x_last = x-1;
-        //    //		}
-        //    //		else
-        //    //			if (t1 < t2) {
-        //    //				d = 0.5+t1/(t2*2);   // 1 puts peak at 0.5, 0.5 puts peak at 1
-        //    //				delta = ((x-1) - x_last) - (d_last - d);
-        //    //				d_last = d;
-        //    //				x_last = x-1;
-        //    //			}
-        //    //			else {
-        //    //				d = 0.5-t2/(t1*2);   // 1 puts peak at 0.5, 0.5 puts peak at 1
-        //    //				delta = (x - x_last) - (d_last - d);
-        //    //				d_last = d;
-        //    //				x_last = x;
-        //    //			}
-        //    //		rising = false;
-        //    //	}
-        //    //}
-        //    //else
-        //    //	if (v > last)
-        //    //		rising = true;
-        //    //last = v;
-        //    //++count;
-        //    //output[x] = 255-(delta-6)*80;
-        //}
         FileHandle h = File("D:\\t\\vcr_decoded.raw", true).openWrite();
         h.write(outputb);
     }
