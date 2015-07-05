@@ -61,6 +61,7 @@ public:
         decoder.setSaturation(0.33);
         decoder.setContrast(2.13);
         decoder.setHue(0);
+        decoder.setChromaSamples(16);
 
         FileHandle outputHandle = File("u:\\captured_decoded.bin", true).openWrite();
 

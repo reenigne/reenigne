@@ -1159,8 +1159,8 @@ private:
                 }
             }
             escape = false;
-            if (_fileState != 0)
-                console.write(String("[") + debugByte(c) + String("]"));
+            //if (_fileState != 0)
+            //    console.write(String("[") + debugByte(c) + String("]"));
             switch (_fileState) {
                 case 0:
                     // No file operation in progress - output to HTTP

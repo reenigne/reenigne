@@ -168,7 +168,6 @@ private:
 
 struct ColourHF
 {
-    ColourHF() : y(0), iq(0), hf(0) { }
     const ColourHF& operator-=(const ColourHF& other)
     {
         y -= other.y;
@@ -347,8 +346,6 @@ public:
     }
     ~CalibrateBitmapWindowTemplate()
     {
-        AutoHandle h = File("output.dat").openWrite();
-        h.write(reinterpret_cast<Byte*>(&_tSamples[0]), 2048*sizeof(double));
     }
     void setCalibrateWindow(CalibrateWindow* window)
     {
@@ -357,6 +354,7 @@ public:
 
     void create()
     {
+        _outputHandle = File("output.dat").openWrite();
         for (int i = 0; i < 4096; ++i)
             _fitnesses[i] = 1000000;
 
@@ -384,10 +382,7 @@ public:
         _rgb = ColourSpace::rgb();
         _srgb = ColourSpace::srgb();
 
-        for (int i = 0; i < 2048; ++i)
-            _tSamples[i] = 0.5;
-        for (int i = 0; i < 8; ++i)
-            _iSamples[i] = 0.125;
+        reset();
 
         _sliders[0] = MySlider(0, 2, 0.5655, "saturation", &_saturation, true);
         _sliders[1] = MySlider(-180, 180, 0, "hue", &_hue, false);
@@ -440,6 +435,8 @@ public:
 
         _iteration = 0;
         _doneClimb = false;
+
+        _eight = true;
     }
 
     void paint()
@@ -463,6 +460,8 @@ public:
 
         write(_output.subBitmap(Vector(1024, (_baseSliders + 32 + 1)*8), Vector(512, 8)), "Fitness", _fitness);
         write(_output.subBitmap(Vector(1024, (_baseSliders + 32 + 2)*8), Vector(512, 8)), "Delta", _aPower);
+
+        newGraph();
 
         Vector p = _attribute << 6;
         SRGB white(255, 255, 255);
@@ -596,9 +595,9 @@ public:
         if (position.inside(Vector(1024, 1024))) {
             _graph = position >> 4;
             newGraph();
-            _entireAttribute = ((position.y & 15) < 8);
-            _attribute = position >> 6;
-            newAttribute();
+            //_entireAttribute = ((position.y & 15) < 8);
+            //_attribute = position >> 6;
+            //newAttribute();
             invalidate();
         }
         if ((position - _graphTL).inside(Vector(256, 256))) {
@@ -670,13 +669,13 @@ public:
             double value;
             if (lower) {
                 value = oldValue - amount;
-                if (value < slider->low())
-                    value = slider->low();
+                //if (value < slider->low())
+                //    value = slider->low();
             }
             else {
                 value = oldValue + amount;
-                if (value > slider->high())
-                    value = slider->high();
+                //if (value > slider->high())
+                //    value = slider->high();
             }
             slider->setValue(value);
 
@@ -721,8 +720,33 @@ public:
                     _attribute.y = 0;
                     if (!_doneClimb) {
                         ++_aPower;
-                        if (_aPower == 38)
-                            remove();
+                        if (_aPower == 16) { //30) {
+                            _outputHandle.write(reinterpret_cast<Byte*>(&_tSamples[0]), 2048*sizeof(double));
+                            _outputHandle.write(reinterpret_cast<Byte*>(&_iSamples[0]), 8*sizeof(double));
+                            _outputHandle.write(reinterpret_cast<Byte*>(&_sharpness), sizeof(double));
+                            _outputHandle.write(reinterpret_cast<Byte*>(&_saturation), sizeof(double));
+
+                            double colourFitness = 0;
+                            for (int bn = 0; bn < 4096; ++bn) {
+                                Block block(bn);
+                                ColourHF capture = _captures[bn];
+                                capture.hf *= _sharpness;
+                                capture.iq *= _saturation;
+                                ColourHF delta = integrate(block) - capture;
+                                colourFitness += delta.y*delta.y + delta.iq.modulus2();
+                            }
+                            printf("Transition %f fitness %f colour fitness %f eight %i\n",_transition,_fitness,colourFitness/4096,_eight);
+                            reset();
+                            _fitness = 1000000;
+                            _eight = !_eight;
+                            if (_eight) {
+                                _transition += (sqrt(5.0)-1)/2;
+                                if (_transition > 1)
+                                    _transition -= 1;
+                            }
+                            _aPower = 0;
+                            integrateCaptures();
+                        }
                     }
                     _doneClimb = false;
                 }
@@ -733,12 +757,21 @@ public:
     }
 
 private:
+    void reset()
+    {
+        _sharpness = 1;
+        _saturation = 1;
+        for (int i = 0; i < 2048; ++i)
+            _tSamples[i] = 0.5;
+        for (int i = 0; i < 8; ++i)
+            _iSamples[i] = 0.125;
+    }
     void newGraph()
     {
-        if (_doneCapture) {
-            influenceGraph();
-            return;
-        }
+        //if (_doneCapture) {
+        //    influenceGraph();
+        //    return;
+        //}
         if (_graph.x == -1)
             return;
         //for (int y = 0; y < 256; ++y)
@@ -759,6 +792,17 @@ private:
             int y = byteClamp(255 - yy);
             Vector p(x, y);
             _output[p + _graphTL] = SRGB(255, 255, 255);
+        }
+        double s[8];
+        getCaptureSamples(b.index(), s);
+        for (int t = 0; t < 8; ++t) {
+            Vector p(t*32 + 16, byteClamp(255 - s[t]));
+            _output[p + _graphTL] = SRGB(255, 0, 0);
+        }
+        getComputeSamples(b.index(), s);
+        for (int t = 0; t < 8; ++t) {
+            Vector p(t*32 + 16, byteClamp(255 - s[t]));
+            _output[p + _graphTL] = SRGB(0, 255, 0);
         }
     }
     void influenceGraph()
@@ -879,42 +923,78 @@ private:
         if (!_doneCapture)
             return false;
 
-        for (int i = 0; i < 4096; ++i)
-            _captures[i] = integrateCapture(i);
+        integrateCaptures();
         computeFitness();
 
         return false;
     }
 
+    void integrateCaptures()
+    {
+        for (int i = 0; i < 4096; ++i)
+            _captures[i] = integrateCapture(i);
+    }
+
     ColourHF integrate(double* s)
     {
         ColourHF c;
-        c.y = (s[0] + s[1] + s[2] + s[3] + s[4] + s[5] + s[6] + s[7])/8;
-        c.iq.x = ((s[0] - s[4]) + _rsqrt2*((s[1]+s[7])-(s[3]+s[5])))/8;
-        c.iq.y = ((s[2] - s[6]) + _rsqrt2*((s[1]+s[3])-(s[5]+s[7])))/8;
-        c.hf.x = ((s[0] + s[4]) - (s[2] + s[6]))/8;
-        c.hf.y = ((s[1] + s[5]) - (s[3] + s[7]))/8;
+        if (_eight) {
+            //c.y = (s[0] + s[1] + s[2] + s[3] + s[4] + s[5] + s[6] + s[7])/8;
+            //c.iq.x = ((s[0] - s[4]) + _rsqrt2*((s[1]+s[7])-(s[3]+s[5])))/8;
+            //c.iq.y = ((s[2] - s[6]) + _rsqrt2*((s[1]+s[3])-(s[5]+s[7])))/8;
+            //c.hf.x = ((s[0] + s[4]) - (s[2] + s[6]))/8;
+            //c.hf.y = ((s[1] + s[5]) - (s[3] + s[7]))/8;
+            c.y = (s[0] + s[2] + s[4] + s[6])/4;
+            c.iq.x = (s[0] - s[4])/4;
+            c.iq.y = (s[2] - s[6])/4;
+            c.hf.x = ((s[0] + s[4]) - (s[2] + s[6]))/4;
+            c.hf.y = 0;
+        }
+        else {
+            c.y = (s[0] + s[2] + s[4] + s[6])/4;
+            c.iq.x = (s[0] - s[4])/4;
+            c.iq.y = (s[2] - s[6])/4;
+            c.hf.x = 0;
+            c.hf.y = 0;
+        }
         return c;
     }
 
-    ColourHF integrate(Block b)
+    void getComputeSamples(Block b, double* s)
     {
-        double s[8];
         for (int t = 0; t < 4; ++t) {
             s[t*2] = _tSamples[b.transition(t).index()*2]*256;
             s[t*2] += _iSamples[b.iState(t)*2]*256;
             s[t*2 + 1] = _tSamples[b.transition(t).index()*2 + 1]*256;
             s[t*2 + 1] += _iSamples[b.iState(t)*2 + 1]*256;
         }
+    }
+
+    void getCaptureSamples(int i, double* s)
+    {
+        double tt = _transition*2 - 1;
+        Waveform* w = &_waveforms[i];
+        for (int t = 0; t < 8; ++t) {
+            double x = t*32 + tt*32 + 256;
+            int xx = static_cast<int>(x);
+            double y0 = w->getValue(xx & 0xff);
+            double y1 = w->getValue((xx + 1) & 0xff);
+            x -= xx;
+            s[t] = y0*(1-x)+y1*x;
+        }
+    }
+
+    ColourHF integrate(Block b)
+    {
+        double s[8];
+        getComputeSamples(b, s);
         return integrate(s);
     }
 
     ColourHF integrateCapture(int i)
     {
         double s[8];
-        Waveform* w = &_waveforms[i];
-        for (int t = 0; t < 8; ++t)
-            s[t] = w->getValue(t*32 + static_cast<int>(_transition*32));
+        getCaptureSamples(i, s);
         return integrate(s);
     }
 
@@ -929,7 +1009,8 @@ private:
                 capture.iq *= _saturation;
                 ColourHF compute = integrate(block);
                 _computes[bn] = compute;
-                _fitnesses[bn] = (compute - capture).modulus2();
+                ColourHF delta = compute - capture;
+                _fitnesses[bn] = delta.modulus2();
             }
             _fitness += _fitnesses[bn];
         }
@@ -976,6 +1057,7 @@ private:
     double _displaySaturation;
     double _sharpness;
     double _transition;
+    bool _eight;
 
     ColourHF _captures[4096];
     ColourHF _computes[4096];
@@ -1004,6 +1086,7 @@ private:
 
     CalibrateWindow* _calibrateWindow;
 
+    AutoHandle _outputHandle;
 };
 
 typedef CalibrateBitmapWindowTemplate<void> CalibrateBitmapWindow;
