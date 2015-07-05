@@ -13,7 +13,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D45E5450-9228-4465-AE6A-201BB35CC6F5}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>image_resample</RootNamespace>
+    <RootNamespace>encode</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -86,7 +86,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="image_resample.cpp" />
+    <ClCompile Include="encode.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\alfe\array.h" />
@@ -94,20 +94,14 @@
     <ClInclude Include="..\include\alfe\bitmap_png.h" />
     <ClInclude Include="..\include\alfe\colour_space.h" />
     <ClInclude Include="..\include\alfe\complex.h" />
-    <ClInclude Include="..\include\alfe\config_file.h" />
-    <ClInclude Include="..\include\alfe\expression.h" />
     <ClInclude Include="..\include\alfe\file.h" />
-    <ClInclude Include="..\include\alfe\identifier.h" />
     <ClInclude Include="..\include\alfe\integer_types.h" />
     <ClInclude Include="..\include\alfe\main.h" />
     <ClInclude Include="..\include\alfe\nullary.h" />
-    <ClInclude Include="..\include\alfe\rational.h" />
     <ClInclude Include="..\include\alfe\reference_counted.h" />
     <ClInclude Include="..\include\alfe\space.h" />
     <ClInclude Include="..\include\alfe\string.h" />
     <ClInclude Include="..\include\alfe\symbol.h" />
-    <ClInclude Include="..\include\alfe\type.h" />
-    <ClInclude Include="..\include\alfe\type_specifier.h" />
     <ClInclude Include="..\include\alfe\vectors.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

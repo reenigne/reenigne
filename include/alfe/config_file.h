@@ -11,6 +11,21 @@
 #include "alfe/set.h"
 #include "alfe/expression.h"
 
+class ConfigFile;
+
+template<class T> class ConfigOption
+{
+public:
+    T get() { return _config->get<T>(_member); }
+private:
+    ConfigOption(ConfigFile* config, String member)
+      : _config(config), _member(member) { }
+    ConfigFile* _config;
+    String _member;
+
+    friend class ConfigFile;
+};
+
 class ConfigFile : public Structure
 {
 public:
@@ -20,19 +35,33 @@ public:
             FunctionTyco(IntegerType(), IntegerType(), IntegerType());
         //addFunction(OperatorPlus(), iii, );
     }
+    template<class T> ConfigOption<T> addOption(String name)
+    {
+        addOption(name, typeFromCompileTimeType<T>());
+        return ConfigOption<T>(this, name);
+    }
     void addOption(String name, Type type)
     {
-        _options.add(name, TypedValue(type));
+        addOption(name, TypedValue(type));
     }
     template<class T> void addDefaultOption(String name, Type type,
         const T& defaultValue)
     {
-        _options.add(name, TypedValue(type, Any(defaultValue)));
+        addOption(name, TypedValue(type, Any(defaultValue)));
     }
-    template<class T> void addDefaultOption(String name, const T& defaultValue)
+    template<class T> ConfigOption<T> addDefaultOption(String name,
+        const T& defaultValue)
     {
-        _options.add(name, TypedValue(defaultValue));
+        addOption(name, TypedValue(defaultValue));
+        return ConfigOption<T>(this, name);
     }
+private:
+    void addOption(String name, TypedValue defaultValue)
+    {
+        addType(defaultValue.type());
+        _options.add(name, defaultValue);
+    }
+public:
     void addType(Type type) { _types.add(type.toString(), type); }
     void addFunction(Identifier identifier, FunctionTyco type,
         Function* function)
@@ -114,17 +143,19 @@ public:
             TypedValue left =
                 Expression::parseDot(&source).evaluate(&_context);
             Space::assertCharacter(&source, '=', &span);
-            TypedValue loadedExpression =
-                Expression::parse(&source).evaluate(&_context);
+            Expression e = Expression::parse(&source);
+            if (!e.valid())
+                source.location().throwError("Expected expression.");
+            TypedValue loadedExpression = e.evaluate(&_context);
             LValueType lValueType(left.type());
             if (!lValueType.valid())
                 left.span().throwError("LValue required");
             Type type = lValueType.inner();
             LValue p = left.value<LValue>();
-            TypedValue e = loadedExpression.rValue().convertTo(type);
+            TypedValue v = loadedExpression.rValue().convertTo(type);
             Space::assertCharacter(&source, ';', &span);
-            p.set(e);
-            _options[name].setValue(e.value());
+            p.set(v);
+            _options[name].setValue(v.value());
         } while (true);
         for (auto i = _options.begin(); i != _options.end(); ++i) {
             if (!i.value().valid())

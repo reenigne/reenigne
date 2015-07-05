@@ -6,7 +6,7 @@
 #include <png.h>
 #include "alfe/bitmap.h"
 
-// Currently T needs to be DWORD (0x00RRGGB) or SRGB (0xRR, 0xGG, 0xBB).
+// Currently T needs to be DWORD (0x00RRGGBB) or SRGB (0xRR, 0xGG, 0xBB).
 template<class T> class PNGFileFormat : public BitmapFileFormat<T>
 {
 public:

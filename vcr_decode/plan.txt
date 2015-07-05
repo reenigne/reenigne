@@ -289,4 +289,26 @@ Y = 42 + -2*2 + 16*cos(-0.505360484*2) -12.393546707863734032573649279304*sin(-0
   243: 3.40MHz
   256: 3.58MHz
 
+Suppose we have 16 bits of frequency resolution
+32768 is 7.16MHz * 900/910 = 7.08MHz
+frequency resolution is 216Hz = 157500000/11/2*900/910/32768
+Frequency bucket = 157500000*2/11/2048
+Want to go up 64.71111111 frequency steps per scanline = 2912/45
 
+phase = y*x*2912*256/45
+
+
+
+Knobs:
+  * Luma local oscillator frequency
+  * Cutoff
+
+
+VGA pinout (composite connection, not working): LLLHL LLLZL LHPLZ
+                         VGA monitor connected: LLLLL LLLZL LHPLH
+
+
+
+Scanline 1: frequency 157500000*2/11/2048 = 13.983kHz
+Pixel frequency is 157500000/11*900/910 = 14.161MHz
+Each pixel we increase phase by (91)/(90*1024) =

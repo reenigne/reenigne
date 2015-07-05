@@ -255,6 +255,7 @@ Possible implementations:
 
 
  ~`!@#$%^&*()_-+={[}]|\:;"'<,>.?/
+ !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
 
 
 
@@ -283,3 +284,13 @@ A TycoDefinitionStatement associates a TycoSignifier (i.e. a TycoIdentifier and 
   Similarly, a single FunctionDefinitionStatement may ultimately definite many Functions or none
 
 
+How do we call a constructor?
+  "Foo" is a type
+    but "Foo()" is a type as well (function returning Foo)
+    Does "Foo(Bar)" mean "default construct a Bar then use it to construct a Foo" or does it mean "default construct a type taking Bar and returning Foo"?
+      The latter doesn't make sense - we can't actually construct a function type
+      This doesn't work so well for "Foo[2]" since that could well be a default constructed array of length 2 or a call of operator[] on a default-constructed Foo
+        So maybe we always need parentheses for a constructor call
+          No, but since we can't construct function types we can always use the parentheses for disambiguation
+          This means that we can use a type specifier whereever we need a value
+            The integral types (e.g. "2") are weird because the value constructed doesn't inhabit the type

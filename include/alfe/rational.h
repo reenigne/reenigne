@@ -100,7 +100,10 @@ public:
     {
         return ((*this) - other).numerator < 0;
     }
-    bool operator>(const RationalTemplate& other) const { return other < (*this); }
+    bool operator>(const RationalTemplate& other) const
+    { 
+        return other < (*this);
+    }
     bool operator<=(const RationalTemplate& other) const
     {
         return !((*this) > other);

@@ -55,11 +55,12 @@ public:
                     tycoSpecifier.span() + span);
                 continue;
             }
-            if (Space::parseCharacter(source, '(', &span)) {
-
-                List<TycoSpecifier> typeListSpecifier =
-                    parseList(source);
-                Space::assertCharacter(source, ')', &span);
+            CharacterSource s2 = *source;
+            if (Space::parseCharacter(&s2, '(', &span)) {
+                List<TycoSpecifier> typeListSpecifier = parseList(&s2);
+                if (!Space::parseCharacter(&s2, ')', &span))
+                    return tycoSpecifier;
+                *source = s2;
                 tycoSpecifier = new typename TypeSpecifierTemplate<T>::
                     FunctionImplementation(tycoSpecifier,
                     typeListSpecifier, tycoSpecifier.span() + span);
@@ -109,8 +110,10 @@ private:
             Span span = tycoIdentifier.span();
             TemplateArgumentsTemplate<T> arguments =
                 TemplateArgumentsTemplate<T>::parse(source);
-            return new InstantiationImplementation(tycoIdentifier,
-                arguments, tycoIdentifier.span() + arguments.span());
+            if (arguments.valid())
+                return new InstantiationImplementation(tycoIdentifier,
+                    arguments, span + arguments.span());
+            return tycoIdentifier;
         }
         TycoSpecifier tycoSpecifier =
             ClassTycoSpecifierTemplate<T>::parse(source);

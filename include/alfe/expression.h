@@ -7,6 +7,7 @@
 #include "alfe/operator.h"
 #include "alfe/identifier.h"
 #include "alfe/function.h"
+#include "alfe/type_specifier.h"
 
 template<class T> class ExpressionTemplate;
 typedef ExpressionTemplate<void> Expression;
@@ -35,8 +36,8 @@ typedef TycoIdentifierTemplate<void> TycoIdentifier;
 template<class T> class LogicalOrExpressionTemplate;
 typedef LogicalOrExpressionTemplate<void> LogicalOrExpression;
 
-template<class T> class IntegerLiteralTemplate;
-typedef IntegerLiteralTemplate<void> IntegerLiteral;
+template<class T> class NumericLiteralTemplate;
+typedef NumericLiteralTemplate<void> NumericLiteral;
 
 template<class T> class StructuredTypeTemplate;
 typedef StructuredTypeTemplate<void> StructuredType;
@@ -96,7 +97,7 @@ public:
         virtual Expression toString() const
         {
             return new typename
-                FunctionCallExpressionTemplate<T>::Implementation(
+                FunctionCallExpressionTemplate<T>::FunctionCallImplementation(
                 Expression(this).dot(Identifier("toString")),
                 List<Expression>(), span());
         }
@@ -191,10 +192,13 @@ protected:
         e = parseEmbeddedLiteral(source);
         if (e.valid())
             return e;
-        e = parseInteger(source);
+        e = parseNumber(source);
         if (e.valid())
             return e;
         e = IdentifierTemplate<T>::parse(source);
+        if (e.valid())
+            return e;
+        e = FunctionCallExpression::parseConstructorCall(source);
         if (e.valid())
             return e;
         Span span;
@@ -385,12 +389,12 @@ private:
         return Expression(string, Span(startSpan.start(), s.location()));
     }
 
-    static Expression parseInteger(CharacterSource* source)
+    static Expression parseNumber(CharacterSource* source)
     {
-        int n;
+        Rational n;
         Span span;
-        if (Space::parseInteger(source, &n, &span))
-            return IntegerLiteral(n, span);
+        if (Space::parseNumber(source, &n, &span))
+            return NumericLiteral(n, span);
         return Expression();
     }
 
@@ -487,27 +491,27 @@ private:
     };
 };
 
-template<class T> class IntegerLiteralTemplate : public Expression
+template<class T> class NumericLiteralTemplate : public Expression
 {
 public:
-    IntegerLiteralTemplate(int n, Span span = Span())
+    NumericLiteralTemplate(Rational n, Span span = Span())
       : Expression(new Implementation(n, span)) { }
-    IntegerLiteralTemplate(const Expression& e) : Expression(e) { }
-    int value() const { return as<IntegerLiteral>()->value(); }
+    NumericLiteralTemplate(const Expression& e) : Expression(e) { }
+    int value() const { return as<NumericLiteral>()->value(); }
 
     class Implementation : public Expression::Implementation
     {
     public:
-        Implementation(int n, const Span& span)
+        Implementation(Rational n, const Span& span)
           : Expression::Implementation(span), _n(n) { }
         Expression toString() const { return Expression(this); }
         TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
             return _n;
         }
-        int value() const { return _n; }
+        Rational value() const { return _n; }
     private:
-        int _n;
+        Rational _n;
     };
 };
 
@@ -527,21 +531,27 @@ public:
         return list;
     }
 
+    static Expression parseConstructorCall(CharacterSource* source)
+    {
+        TycoSpecifier t = TycoSpecifier::parse(source);
+        if (!t.valid())
+            return Expression();
+        Span span;
+        if (!Space::parseCharacter(source, '(', &span))
+            return Expression();
+        List<Expression> arguments = parseList(source);
+        Space::assertCharacter(source, ')', &span);
+        Expression e = FunctionCallExpression(
+            new ConstructorCallImplementation(t, arguments, t.span() + span));
+        return parseRemainder(e, source);
+    }
+
     static Expression parse(CharacterSource* source)
     {
         Expression e = parseElement(source);
         if (!e.valid())
             return e;
-        do {
-            Span span;
-            if (!Space::parseCharacter(source, '(', &span))
-                break;
-            List<Expression> arguments = parseList(source);
-            Space::assertCharacter(source, ')', &span);
-            e = FunctionCallExpression(
-                new Implementation(e, arguments, e.span() + span));
-        } while (true);
-        return e;
+        return parseRemainder(e, source);
     }
 
     static Expression parsePower(CharacterSource* source)
@@ -663,7 +673,7 @@ public:
         Identifier identifier(op, span);
         List<Expression> arguments;
         arguments.add(expression);
-        return new Implementation(identifier, arguments,
+        return new FunctionCallImplementation(identifier, arguments,
             span + expression.span());
     }
 
@@ -674,17 +684,24 @@ public:
         List<Expression> arguments;
         arguments.add(left);
         arguments.add(right);
-        return new Implementation(identifier, arguments,
+        return new FunctionCallImplementation(identifier, arguments,
             left.span() + right.span());
     }
 
     class Implementation : public Expression::Implementation
     {
+    protected:
+        Implementation(const Span& span, const List<Expression>& arguments)
+          : Expression::Implementation(span), _arguments(arguments) { }
+        List<Expression> _arguments;
+    };
+
+    class FunctionCallImplementation : public Implementation
+    {
     public:
-        Implementation(const Expression& function,
+        FunctionCallImplementation(const Expression& function,
             const List<Expression>& arguments, const Span& span)
-          : Expression::Implementation(span), _function(function),
-            _arguments(arguments) { }
+          : Implementation(span, arguments), _function(function) { }
         TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
             TypedValueTemplate<T> l = _function.evaluate(context);
@@ -715,9 +732,61 @@ public:
         }
     private:
         Expression _function;
-        List<Expression> _arguments;
+    };
+
+    class ConstructorCallImplementation : public Implementation
+    {
+    public:
+        ConstructorCallImplementation(const TycoSpecifier& type,
+            const List<Expression>& arguments, const Span& span)
+          : Implementation(span, arguments), _type(type) { }
+        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
+        {
+            TycoIdentifier ti = _type;
+            if (!ti.valid())
+                _type.span().throwError(
+                    "Don't know how to evaluate complex types yet.");
+            Tyco t = context->resolveTycoIdentifier(ti);
+            if (!t.valid())
+                _type.span().throwError("Unknown type " + ti.name());
+            List<TypedValue> arguments;
+            for (auto p = _arguments.begin(); p != _arguments.end(); ++p)
+                arguments.add(p->evaluate(context));
+            
+            StructuredType type = t;
+            if (!type.valid())
+                ti.span().throwError(
+                    "Only structure types can be constructed at the moment.");
+            const Array<StructuredType::Member>* members = type.members();
+            List<Any> values;
+            Span span = _type.span();
+            auto ai = arguments.begin();
+            for (int i = 0; i < members->count(); ++i) {
+                TypedValue value = ai->convertTo((*members)[i].type());
+                values.add(value.value());
+                span += value.span();
+                ++ai;
+            }
+            return TypedValue(type, values, span);
+        }
+    private:
+        TycoSpecifier _type;
     };
 private:
+    static Expression parseRemainder(Expression e, CharacterSource* source)
+    {
+        do {
+            Span span;
+            if (!Space::parseCharacter(source, '(', &span))
+                break;
+            List<Expression> arguments = parseList(source);
+            Space::assertCharacter(source, ')', &span);
+            e = FunctionCallExpression(
+                new FunctionCallImplementation(e, arguments, e.span() + span));
+        } while (true);
+        return e;
+    }
+
     FunctionCallExpressionTemplate(const Implementation* implementation)
       : Expression(implementation) { }
 

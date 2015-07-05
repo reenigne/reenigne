@@ -30,6 +30,9 @@ typedef IdentifierTemplate<void> Identifier;
 template<class T> class LValueTypeTemplate;
 typedef LValueTypeTemplate<void> LValueType;
 
+template<class T> class StructuredTypeTemplate;
+typedef StructuredTypeTemplate<void> StructuredType;
+
 template<class T> class TycoTemplate
 {
 public:
@@ -225,61 +228,7 @@ private:
     }
 };
 
-class StringType : public Nullary<Type, StringType>
-{
- public:
-    static String name() { return "String"; }
-};
-
-template<> Nullary<Type, StringType> Nullary<Type, StringType>::_instance;
-
-class IntegerType : public Nullary<Type, IntegerType>
-{
- public:
-    static String name() { return "Integer"; }
-};
-
-template<> Nullary<Type, IntegerType>  Nullary<Type, IntegerType>::_instance;
-
-class BooleanType : public Nullary<Type, BooleanType>
-{
- public:
-    static String name() { return "Boolean"; }
-};
-
-template<> Nullary<Type, BooleanType> Nullary<Type, BooleanType>::_instance;
-
-class ObjectType : public Nullary<Type, ObjectType>
-{
- public:
-    static String name() { return "Object"; }
-};
-
-template<> Nullary<Type, ObjectType> Nullary<Type, ObjectType>::_instance;
-
-class LabelType : public Nullary<Type, LabelType>
-{
- public:
-    static String name() { return "Label"; }
-};
-
-template<> Nullary<Type, LabelType> Nullary<Type, LabelType>::_instance;
-
-class VoidType : public Nullary<Type, VoidType>
-{
- public:
-    static String name() { return "Void"; }
-};
-
-template<> Nullary<Type, VoidType> Nullary<Type, VoidType>::_instance;
-
-template<class T> Type typeFromCompileTimeType()
-{
-    throw Exception("Don't know this type.");
-}
-template<> Type typeFromCompileTimeType<int>() { return IntegerType(); }
-template<> Type typeFromCompileTimeType<String>() { return StringType(); }
-template<> Type typeFromCompileTimeType<bool>() { return BooleanType(); }
+template<class T> Type typeFromCompileTimeType() { return T::type(); }
 
 template<class T> class TypedValueTemplate
 {
@@ -292,6 +241,11 @@ public:
     Type type() const { return _type; }
     Any value() const { return _value; }
     template<class U> U value() const { return _value.value<U>(); }
+    template<> Vector value<Vector>() const
+    {
+        Array<Any> sizeArray = value<List<Any>>();
+        return Vector(sizeArray[0].value<int>(), sizeArray[1].value<int>());
+    }
     void setValue(Any value) { _value = value; }
     Span span() const { return _span; }
     bool valid() const { return _value.valid(); }
@@ -708,9 +662,12 @@ private:
         bool has(IdentifierTemplate<T> memberName) const
         {
             CharacterSource s(memberName.name());
-            int n;
-            if (!Space::parseInteger(&s, &n))
+            Rational r;
+            if (!Space::parseNumber(&s, &r))
                 return false;
+            if (r.denominator != 1)
+                return false;
+            int n = r.numerator;
             if (s.get() != -1)
                 return false;
             const NonUnitImplementation* p = this;
@@ -1045,9 +1002,6 @@ private:
 // compile-time as at run-time. Also we don't want to have to override
 // conversion functions in children just to avoid unwanted conversions
 
-template<class T> class StructuredTypeTemplate;
-typedef StructuredTypeTemplate<void> StructuredType;
-
 template<class T> class StructuredTypeTemplate : public Type
 {
 public:
@@ -1076,6 +1030,11 @@ public:
         TypedValue _default;
     };
 
+    template<class MemberT> static Member member(String name)
+    {
+        return Member(name, typeFromCompileTimeType<MemberT>());
+    }
+
     StructuredTypeTemplate() { }
     StructuredTypeTemplate(const Type& other)
       : Type(other._implementation.referent<Implementation>()) { }
@@ -1095,7 +1054,7 @@ public:
             List<StructuredType::Member>()),
             Value<HashTable<Identifier, TypedValue>>());
     }
-private:
+protected:
     class Implementation : public Type::Implementation
     {
     public:
@@ -1281,5 +1240,118 @@ private:
 
     friend class Implementation;
 };
+
+class StringType : public Nullary<Type, StringType>
+{
+public:
+    static String name() { return "String"; }
+};
+
+template<> Nullary<Type, StringType> Nullary<Type, StringType>::_instance;
+
+class IntegerType : public Nullary<Type, IntegerType>
+{
+public:
+    static String name() { return "Integer"; }
+};
+
+template<> Nullary<Type, IntegerType>  Nullary<Type, IntegerType>::_instance;
+
+class BooleanType : public Nullary<Type, BooleanType>
+{
+public:
+    static String name() { return "Boolean"; }
+};
+
+template<> Nullary<Type, BooleanType> Nullary<Type, BooleanType>::_instance;
+
+class ObjectType : public Nullary<Type, ObjectType>
+{
+public:
+    static String name() { return "Object"; }
+};
+
+template<> Nullary<Type, ObjectType> Nullary<Type, ObjectType>::_instance;
+
+class LabelType : public Nullary<Type, LabelType>
+{
+public:
+    static String name() { return "Label"; }
+};
+
+template<> Nullary<Type, LabelType> Nullary<Type, LabelType>::_instance;
+
+class VoidType : public Nullary<Type, VoidType>
+{
+public:
+    static String name() { return "Void"; }
+};
+
+template<> Nullary<Type, VoidType> Nullary<Type, VoidType>::_instance;
+
+class DoubleType : public Nullary<Type, DoubleType>
+{
+public:
+    static String name() { return "Double"; }
+};
+
+template<> Nullary<Type, DoubleType> Nullary<Type, DoubleType>::_instance;
+
+class RationalType : public Nullary<Type, RationalType>
+{
+public:
+    static String name() { return "Rational"; }
+    class Implementation : public Nullary<Type, RationalType>::Implementation
+    {
+    public:
+        TypedValue tryConvertTo(const Type& to, const TypedValue& value,
+            String* reason) const
+        {
+            if (this == to.implementation())
+                return value;
+            Rational r = value.value<Rational>();
+            if (to == DoubleType())
+                return r.value<double>();
+            if (to == IntegerType()) {
+                if (r.denominator != 1)
+                    *reason = String("Value is not an integer");
+                return r.numerator;
+            }
+            return TypedValue();
+        }
+    };
+};
+
+template<> Nullary<Type, RationalType> Nullary<Type, RationalType>::_instance;
+
+class VectorType : public Nullary<StructuredType, VectorType>
+{
+private:
+    class Implementation : public StructuredType::Implementation
+    {
+    public:
+        Implementation()
+          : StructuredType::Implementation("Vector", members()) { }
+    private:
+        List<StructuredType::Member> members()
+        {
+            List<StructuredType::Member> vectorMembers;
+            vectorMembers.add(StructuredType::member<int>("x"));
+            vectorMembers.add(StructuredType::member<int>("y"));
+            return vectorMembers;
+        }
+    };
+    friend class Nullary<StructuredType, VectorType>;
+};
+
+template<> Nullary<StructuredType, VectorType>
+    Nullary<StructuredType, VectorType>::_instance;
+
+template<> Type typeFromCompileTimeType<int>() { return IntegerType(); }
+template<> Type typeFromCompileTimeType<String>() { return StringType(); }
+template<> Type typeFromCompileTimeType<bool>() { return BooleanType(); }
+template<> Type typeFromCompileTimeType<Vector>() { return VectorType(); }
+template<> Type typeFromCompileTimeType<Rational>() { return RationalType(); }
+template<> Type typeFromCompileTimeType<double>() { return DoubleType(); }
 
 #endif // INCLUDED_TYPE_H

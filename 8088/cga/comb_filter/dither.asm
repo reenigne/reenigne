@@ -6,9 +6,9 @@
   mov ax,6
   int 0x10
 
-;  mov al,0x1a
-;  mov dx,0x3d8
-;  out dx,al
+  mov al,0x1a
+  mov dx,0x3d8
+  out dx,al
 
 ;  mov al,0x0f
 ;  mov dx,0x3d9

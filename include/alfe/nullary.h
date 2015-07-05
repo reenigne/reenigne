@@ -27,7 +27,7 @@ protected:
         int hash() const { return reinterpret_cast<int>(this); }
     };
 
-    Nullary(const Implementation* implementation) : Base(implementation) { }
+    Nullary(const typename Base::Implementation* implementation) : Base(implementation) { }
 private:
     static Nullary _instance;
     static Nullary instance()

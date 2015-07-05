@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="image_resample.cpp">
+    <ClCompile Include="encode.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -24,9 +24,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\alfe\bitmap.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\alfe\config_file.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\alfe\file.h">
@@ -59,25 +56,10 @@
     <ClInclude Include="..\include\alfe\bitmap_png.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\alfe\type.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\alfe\expression.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\alfe\nullary.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\alfe\complex.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\alfe\type_specifier.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\alfe\identifier.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\alfe\rational.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

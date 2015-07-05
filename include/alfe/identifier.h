@@ -65,7 +65,7 @@ public:
             "switch",
             "this",
             "throw",
-            "true"
+            "true",
             "try",
             "unless",
             "until",

@@ -3,6 +3,8 @@
 #ifndef INCLUDED_SPACE_H
 #define INCLUDED_SPACE_H
 
+#include "alfe/rational.h"
+
 class Space
 {
 public:
@@ -81,12 +83,14 @@ public:
         parse(source);
         return true;
     }
-    static bool parseInteger(CharacterSource* source, int* result,
+    static bool parseNumber(CharacterSource* source, Rational* result,
         Span* span = 0)
     {
         CharacterSource s = *source;
         int n = 0;
         int c = s.get(span);
+        int denominator = 1;
+        bool seenPoint = false;
         if (c < '0' || c > '9')
             return false;
         if (c == '0') {
@@ -98,22 +102,34 @@ public:
                 int n = 0;
                 do {
                     c = s2.get(&span2);
-                    if (c >= '0' && c <= '9')
-                        n = n*0x10 + c - '0';
+                    if (c == '.' && !seenPoint)
+                        seenPoint = true;
                     else
-                        if (c >= 'A' && c <= 'F')
-                            n = n*0x10 + c + 10 - 'A';
+                        if (c >= '0' && c <= '9') {
+                            n = n*0x10 + c - '0';
+                            if (seenPoint)
+                                denominator <<= 4;
+                        }
                         else
-                            if (c >= 'a' && c <= 'f')
-                                n = n*0x10 + c + 10 - 'a';
+                            if (c >= 'A' && c <= 'F') {
+                                n = n*0x10 + c + 10 - 'A';
+                                if (seenPoint)
+                                    denominator <<= 4;
+                            }
                             else
-                                if (okay) {
-                                    parse(source);
-                                    *result = n;
-                                    return true;
+                                if (c >= 'a' && c <= 'f') {
+                                    n = n*0x10 + c + 10 - 'a';
+                                    if (seenPoint)
+                                        denominator <<= 4;
                                 }
                                 else
-                                    return false;
+                                    if (okay) {
+                                        parse(source);
+                                        *result = Rational(n, denominator);
+                                        return true;
+                                    }
+                                    else
+                                        return false;
                     okay = true;
                     *source = s2;
                     *span += span2;
@@ -122,14 +138,19 @@ public:
         }
         do {
             n = n*10 + c - '0';
+            if (seenPoint)
+                denominator *= 10;
             *source = s;
             Span span2;
             c = s.get(&span2);
-            if (c < '0' || c > '9') {
-                parse(source);
-                *result = n;
-                return true;
-            }
+            if (c == '.' && !seenPoint)
+                seenPoint = true;
+            else
+                if (c < '0' || c > '9') {
+                    parse(source);
+                    *result = Rational(n, denominator);
+                    return true;
+                }
             *span += span2;
         } while (true);
     }
