@@ -44,6 +44,14 @@ public:
         _outputPixelsPerLine = 760;
         _yScale = 1;
         _doDecode = true;
+        _chromaSamples = 8;
+
+        for (int i = 8; i < 40; ++i)
+            _burstWeights[i] = 1;
+        for (int i = 0; i < 8; ++i) {
+            _burstWeights[i] = 1 - (cos(tau*i/16) + 1)/2;
+            _burstWeights[i + 40] = (cos(tau*i/16) + 1)/2;
+        }
     }
     void setOutputPixelsPerLine(int outputPixelsPerLine)
     {
@@ -64,6 +72,7 @@ public:
     void setHue(float hue) { _hue = hue; }
     void setYScale(int yscale) { _yScale = yscale; }
     void setDoDecode(bool doDecode) { _doDecode = doDecode; }
+    void setChromaSamples(float samples) { _chromaSamples = samples; }
 
     void decode()
     {
@@ -103,17 +112,20 @@ public:
         for (int line = 0; line < lines + 1; ++line) {
             Complex<float> burst = 0;
             float burstDC = 0;
+            float t = 0;
             for (int i = firstBurstSample; i < firstBurstSample + burstSamples; ++i) {
                 int j = oldP + i;                                   // == -8
                 int sample = b[j];
                 float phase = (j&7)/8.0f;
-                burst += rotor(phase)*sample;
+                float w = 1; //_burstWeights[ i - firstBurstSample];
+                burst += rotor(phase)*sample*w;
+                t += w;
                 burstDC += sample;
             }
 
             float burstAmplitude = burst.modulus()/burstSamples;
             bursts[line] = burst*hueRotor/burstSamples;
-            burstDC /= burstSamples;
+            burstDC /= t;
             burstDCs[line] = burstDC;
 
             syncPositions[line] = p;
@@ -203,29 +215,55 @@ public:
                 int k = static_cast<int>(kFrac);
                 kFrac -= k;
                 float samplesPerCycle = nominalSamplesPerCycle + deltaSamplesPerCycle;
-                float z0 = -kFrac/samplesPerCycle;
-                int firstInput = -kernelSize*samplesPerCycle + kFrac;
-                int lastInput = kernelSize*samplesPerCycle + kFrac;
+                float z0 = -kFrac/_chromaSamples;             // TODO: is this correct?
+                int firstInput = -kernelSize*_chromaSamples + kFrac;
+                int lastInput = kernelSize*_chromaSamples + kFrac;
 
                 for (int j = firstInput; j <= lastInput; ++j) {
                     // The input sample corresponding to the output pixel is k+kFrac
                     // The sample we're looking at in this iteration is j+k
                     // The difference is j-kFrac
-                    // So the value we pass to lanczos() is (j-kFrac)/samplesPerCycle
-                    // So z0 = -kFrac/samplesPerCycle;
+                    // So the value we pass to lanczos() is (j-kFrac)/_chromaSamples
+                    // So z0 = -kFrac/_chromaSamples;
 
-                    float s = lanczos(j/samplesPerCycle + z0);
+                    float s = lanczos(j/_chromaSamples + z0);
                     int i = j + k;
                     float z = s*b[i];
-                    y += z;
+                    //y += z;
                     c.x += rotorTable[i & 7]*z;
                     c.y += rotorTable[(i + 6) & 7]*z;
                     //c += rotor((i&7)/8.0)*z*saturation;
                     t += s;
                 }
+                c /= t;
+
+                //float lumaSamples = samplesPerLine/_outputPixelsPerLine;
+                float lumaSamples = samplesPerCycle/2;  // i.e. 7.16MHz
+                firstInput = -kernelSize*lumaSamples + kFrac;
+                lastInput = kernelSize*lumaSamples + kFrac;
+
+                Complex<float> cc = c*2;
+
+                t = 0;
+                z0 = -kFrac/lumaSamples;
+                for (int j = firstInput; j <= lastInput; ++j) {
+                    // The input sample corresponding to the output pixel is k+kFrac
+                    // The sample we're looking at in this iteration is j+k
+                    // The difference is j-kFrac
+                    // So the value we pass to lanczos() is (j-kFrac)/lumaSamples
+                    // So z0 = -kFrac/lumaSamples;
+
+                    float s = lanczos(j/lumaSamples + z0);
+                    int i = j + k;
+                    float z = s*(b[i] - (cc.x*rotorTable[i & 7] + cc.y*rotorTable[(i + 6)&7]));
+                    //float z = s*(cc.x*rotorTable[i & 7] + cc.y*rotorTable[(i + 6)&7]);
+                    y += z;
+                    //c += rotor((i&7)/8.0)*z*saturation;
+                    t += s;
+                }
 
                 y = y*contrast1/t + brightness1;
-                c = c*chromaAdjust*rotor((x - burstCenter*_outputPixelsPerLine/samplesPerLine)*adjust)/t;
+                c = c*chromaAdjust*rotor((x - burstCenter*_outputPixelsPerLine/samplesPerLine)*adjust);
 
                 setOutput(output, SRGB(
                     checkClamp(y + 0.9563*c.x + 0.6210*c.y),
@@ -298,6 +336,8 @@ private:
     Bitmap<T> _output;
     int _yScale;
     bool _doDecode;
+    float _chromaSamples;
+    float _burstWeights[48];
 };
 
 #endif // INCLUDED_NTSC_DECODE_H

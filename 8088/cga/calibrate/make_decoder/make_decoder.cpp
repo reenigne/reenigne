@@ -1,6 +1,7 @@
 #include "alfe/main.h"
 #include "alfe/complex.h"
 
+#if 0
 class CGASimulator
 {
 public:
@@ -282,12 +283,14 @@ public:
 private:
     GamutBitmapWindow _bitmap;
 };
+#endif
 
-class Program : public WindowProgram<GamutWindow>
+class Program : public ProgramBase // : public WindowProgram<GamutWindow>
 {
 public:
     void run()
     {
+#if 0
         simulator._newCGA = false;
         simulator._fixPrimaries = false;
         bool unknownArgument = false;
@@ -298,11 +301,11 @@ public:
                 int o = s.get();
                 if (o == 'n') {
                     simulator._newCGA = true;
-                    continue;                    
+                    continue;
                 }
                 if (o == 'f') {
                     simulator._fixPrimaries = true;
-                    continue;                    
+                    continue;
                 }
             }
             unknownArgument = true;
@@ -324,19 +327,22 @@ public:
         simulator._brightness = 0.5 - 0.5*simulator._contrast + simulator._brightness*simulator._contrast;
 
         printf("Preset: brightness = %f, contrast = %f, saturation = %f\n",simulator._brightness,simulator._contrast,simulator._saturation);
+#endif
+#if 1
+        FileHandle h = File("C:\\t\\reenigne\\8088\\cga\\calibrate\\calibrate6\\output.dat", true).openRead();
+        double tSamples[1024];
+        h.seek((2048+8+2)*8*2*67);
+        h.read(reinterpret_cast<Byte*>(tSamples), 1024*sizeof(double));
 
-#if 0
-        AutoHandle h = File("output.dat").openRead();
-        h.read(reinterpret_cast<Byte*>(_tSamples), 1024*sizeof(double));
-
+        double chroma[256];
         double low = 1e99;
         double high = -1e99;
         for (int i = 0; i < 256; ++i) {
             double s;
-            s = _tSamples[((i & 0xe0) << 1) | (i & 0x1f)];
+            s = tSamples[(((i & 0xe0) << 1) | (i & 0x1f))<<1];
             low = min(s, low);
             high = max(s, high);
-            simulator._chroma[i] = s;
+            chroma[i] = s;
         }
         printf("Low = %lf, High = %lf\n", low, high);
 
@@ -344,7 +350,7 @@ public:
         for (int i = 0; i < 256; ++i) {
             if ((i & 15) == 0)
                 printf("    ");
-            printf("%3i", static_cast<int>((simulator._chroma[i] - low)*256.0/(high-low)));
+            printf("%3i", static_cast<int>((chroma[i] - low)*255.0/(high-low)));
             if (i != 255) {
                 printf(",");
                 if ((i & 15) == 15)
@@ -354,7 +360,26 @@ public:
                         printf(" ");
             }
         }
+
         printf("};\n");
+
+        double iSamples[8];
+        h.seek((2048+8+2)*8*2*67 + 2048*8);
+        h.read(reinterpret_cast<Byte*>(iSamples), 8*sizeof(double));
+        printf("unsigned char iSamples[4] = {\n");
+        for (int i = 0; i < 4; ++i) {
+            printf("%f, ", (iSamples[i*2] - low)*255.0/(high-low));
+        }
+        printf("};\n");
+
+        double s1;
+        double s2;
+        h.read(reinterpret_cast<Byte*>(&s1), sizeof(double));
+        h.read(reinterpret_cast<Byte*>(&s2), sizeof(double));
+        printf("%f %f\n",s1,s2);
+
+
+
 #else
         static Byte chromaData[256] = {
              65, 11, 62,  6, 121, 87, 63,  6,  60,  9,120, 65,  61, 59,129,  5,
@@ -376,7 +401,7 @@ public:
         for (int i = 0; i < 256; ++i)
             simulator._chroma[i] = chromaData[i]*(0.727546-0.070565)/256.0+0.070565;
 #endif
-
+#if 0
         int clips = 0;
         double maxSS = 0;
         simulator.init();
@@ -389,7 +414,7 @@ public:
             rgbi[2] = ((block & 2) != 0 ? (block >> 4) : (block >> 8)) & 15;
             rgbi[3] = ((block & 1) != 0 ? (block >> 4) : (block >> 8)) & 15;
             int i = (rgbi[0]<<12) | (rgbi[1]<<8) | (rgbi[2]<<4) | rgbi[3];
-            
+
             Colour rgb = simulator.decode(i);
             double r = rgb.x;
             double g = rgb.y;
@@ -423,7 +448,6 @@ public:
 
 
         WindowProgram::run();
+#endif
     }
-private:
-    double _tSamples[1024];
 };

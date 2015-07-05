@@ -235,6 +235,40 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
+experimentUnpackShift:
+  db "UnpackShift$"
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  mov cl,4    ;ax = ???????? -xxx-yyy
+  cbw         ;ax = -------- -xxx-yyy
+  shl ax,cl   ;ax = -----xxx -yyy0000
+  sar al,cl   ;ax = -----xxx -----yyy
+.endCode:
+
+experimentUnpackTable:
+  db "UnpackTable$"
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  xor bx,bx
+  mov bl,al
+  shl bx,1
+  mov ax,word[cs:bx+0x1234]
+.endCode:
+
+experimentUnpackTable2:
+  db "UnpackTable$"
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  xchg ax,bx
+  mov bl,0
+  add bx,bx
+  mov ax,word[cs:bx+0x1234]
+.endCode:
+
+
 experimentROLCL:
   db "ROLCL$"
   dw .endInit - ($+2)

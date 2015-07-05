@@ -50,6 +50,8 @@ noRom:
 
   mov ax,0
   mov ds,ax
+  mov ax,0xa000 - (15 + residentPortionLength)/16
+  mov es,ax
 
 %macro setResidentInterrupt 2
   mov word [%1*4], (%2 - residentPortion)
@@ -77,7 +79,6 @@ noRom:
   setResidentInterrupt 0x6b, stopKeyboardRoutine
   setResidentInterrupt 0x6c, resumeKeyboardRoutine
 
-
   ; Init keyboard buffer
   mov si,0x1e
   mov ax,0x40
@@ -92,7 +93,6 @@ noRom:
 
   mov ax,1
   int 0x10
-
 
   ; Boot machine
   int 0x19
