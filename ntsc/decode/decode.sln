@@ -1,0 +1,51 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "decode", "decode.vcxproj", "{D45E5450-9228-4465-AE6A-201BB35CC6F5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug Library|Itanium = Debug Library|Itanium
+		Debug Library|Win32 = Debug Library|Win32
+		Debug Library|x64 = Debug Library|x64
+		Debug|Itanium = Debug|Itanium
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Release Library|Itanium = Release Library|Itanium
+		Release Library|Win32 = Release Library|Win32
+		Release Library|x64 = Release Library|x64
+		Release|Itanium = Release|Itanium
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+		ReleaseWithoutAsm|Itanium = ReleaseWithoutAsm|Itanium
+		ReleaseWithoutAsm|Win32 = ReleaseWithoutAsm|Win32
+		ReleaseWithoutAsm|x64 = ReleaseWithoutAsm|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Debug Library|Itanium.ActiveCfg = Debug|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Debug Library|Win32.ActiveCfg = Debug|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Debug Library|Win32.Build.0 = Debug|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Debug Library|x64.ActiveCfg = Debug|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Debug|Itanium.ActiveCfg = Debug|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Debug|Win32.Build.0 = Debug|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Debug|x64.ActiveCfg = Debug|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Release Library|Itanium.ActiveCfg = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Release Library|Win32.ActiveCfg = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Release Library|Win32.Build.0 = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Release Library|x64.ActiveCfg = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Release|Itanium.ActiveCfg = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Release|Win32.ActiveCfg = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Release|Win32.Build.0 = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.Release|x64.ActiveCfg = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.ReleaseWithoutAsm|Itanium.ActiveCfg = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.ReleaseWithoutAsm|Win32.ActiveCfg = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.ReleaseWithoutAsm|Win32.Build.0 = Release|Win32
+		{D45E5450-9228-4465-AE6A-201BB35CC6F5}.ReleaseWithoutAsm|x64.ActiveCfg = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

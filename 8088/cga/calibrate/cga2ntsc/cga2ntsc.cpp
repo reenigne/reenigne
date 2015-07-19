@@ -390,7 +390,7 @@ public:
                     int y;
                     for (y = 0; y < lines; ++y)
                         if (_cgaROM[(0x300 + i)*8 + y] !=
-                            _cgaROM[(0x300 + j)*8 + y]^0xff)
+                            (_cgaROM[(0x300 + j)*8 + y]^0xff))
                             break;
                     if (y == lines)
                         break;
@@ -858,28 +858,31 @@ public:
     {
         BitmapWindow::create();
         reset();
+        draw();
+        invalidate();
     }
     void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
     void setAnimated(AnimatedWindow* animated) { _animated = animated; }
-    void paint(PaintHandle* paint)
+    void paint()
     {
-        _animated->onPaint();
+        _animated->restart();
+    }
+    void draw()
+    {
         if (_delta.modulus2() >= 0.000001)
             animate();
         else
             _animated->stop();
-        draw();
-        BitmapWindow::paint(paint);
-    }
-    void draw()
-    {
+        if (!_bitmap.valid())
+            _bitmap = Bitmap<DWORD>(Vector(640, 480));
         _bitmap.fill(0);
         for (int i = 0; i < _particle; ++i)
             _particles[i].transform(_matrix);
         std::sort(&_particles[0], &_particles[_particle]);
         for (int i = 0; i < _particle; ++i)
             _particles[i].plot(_bitmap, _rPosition);
+        _bitmap = setNextBitmap(_bitmap);
     }
     void line(Colour c1, Colour c2)
     {
@@ -971,6 +974,7 @@ public:
     NTSCDecoder* _decoder;
     Vector2<double> _delta;
     AnimatedWindow* _animated;
+    Bitmap<DWORD> _bitmap;
 
     int _particle;
 };
@@ -984,7 +988,7 @@ public:
     void valueSet(double value) { _host->setBrightness(value); }
     void create()
     {
-        setRange(-1, 1);
+        setRange(-2, 2);
         Slider::create();
     }
 private:
@@ -999,7 +1003,7 @@ public:
     void valueSet(double value) { _host->setSaturation(value); }
     void create()
     {
-        setRange(0, 2);
+        setRange(0, 4);
         Slider::create();
     }
 private:
@@ -1014,7 +1018,7 @@ public:
     void valueSet(double value) { _host->setContrast(value); }
     void create()
     {
-        setRange(0, 2);
+        setRange(0, 4);
         Slider::create();
     }
 private:
@@ -1265,7 +1269,6 @@ typedef DiffusionVerticalSliderWindowTemplate<void>
 class OutputWindow : public BitmapWindow
 {
 public:
-    OutputWindow() : _needRedraw(true) { }
     void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
     void setRGBI(Bitmap<Byte> rgbi)
@@ -1302,6 +1305,9 @@ public:
     }
     void draw()
     {
+        if (!_bitmap.valid())
+            _bitmap =
+                Bitmap<DWORD>(Vector(_ntsc.size().x - 6, _ntsc.size().y*2));
         const Byte* ntscRow = _ntsc.data();
         Byte* outputRow = _bitmap.data();
         for (int yy = 0; yy < _ntsc.size().y; ++yy) {
@@ -1322,6 +1328,7 @@ public:
             outputRow += _bitmap.stride()*2;
             ntscRow += _ntsc.stride();
         }
+        _bitmap = setNextBitmap(_bitmap);
     }
     void save(String outputFileName)
     {
@@ -1330,18 +1337,9 @@ public:
         FileHandle h = File(outputFileName + ".ntsc", true).openWrite();
         h.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
     }
-    void paint(PaintHandle* paint)
-    {
-        if (_needRedraw) {
-            draw();
-            _needRedraw = false;
-        }
-        BitmapWindow::paint(paint);
-    }
-    void needRedraw() { _needRedraw = true; }
 
 private:
-    bool _needRedraw;
+    Bitmap<DWORD> _bitmap;
     Bitmap<Byte> _rgbi;
     Bitmap<Byte> _ntsc;
     CGASimulator* _simulator;
@@ -1397,7 +1395,7 @@ public:
     }
     void create()
     {
-        _animated.setInvalidationWindow(&_gamut);
+        _animated.setDrawWindow(&_gamut);
         _gamut.setAnimated(&_animated);
 
         _brightnessCaption.setText("Brightness: ");
@@ -1541,7 +1539,7 @@ public:
         _mostSaturatedText.size();
         _clippedColoursText.setText(format("%i colours clipped", _clips));
         _clippedColoursText.size();
-        _output.needRedraw();
+        _output.draw();
         _output.invalidate();
         _gamut.invalidate();
         _hueText.setText(format("%f", _decoder->_hue));
@@ -1598,6 +1596,8 @@ public:
                 max(_maxSaturation, (c - Colour(y, y, y)).modulus());
             _gamut.add(c);
         }
+        _gamut.draw();
+        _gamut.invalidate();
     }
 
     void setMode(int value)

@@ -143,6 +143,11 @@ public:
         else
             output.subBitmap(outputSize/4, outputSize/2).
                 convert(srgbOutput, ConvertLinearToSRGBWithGamma(gamma));
+        //Bitmap<SRGB> srgbOutput(outputSize);
+        //if (gamma < 0)
+        //    output.convert(srgbOutput, ConvertLinearToSRGB());
+        //else
+        //    output.convert(srgbOutput, ConvertLinearToSRGBWithGamma(gamma));
         srgbOutput.save(png, File(outputPicture.get()));
     }
 private:

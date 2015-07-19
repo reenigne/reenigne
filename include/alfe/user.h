@@ -1019,13 +1019,13 @@ public:
                     Lock lock(&_mutex);
                     _lastBitmap = _bitmap;
                     _bitmap = _nextBitmap;
-					return 0;
+                    return 0;
                 }
         }
         return WindowsWindow::handleMessage(uMsg, wParam, lParam);
     }
 
-    virtual void paint() = 0;
+    virtual void paint() { };
 
     Bitmap<DWORD> setNextBitmap(Bitmap<DWORD> nextBitmap)
     {
