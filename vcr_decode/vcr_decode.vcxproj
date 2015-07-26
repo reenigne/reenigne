@@ -85,6 +85,9 @@
   <ItemGroup>
     <ClCompile Include="vcr_decode.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\include\alfe\complex.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
