@@ -1,0 +1,60 @@
+An "if" statement may have the form:
+  if (Foo f = e) {
+    // f is in scope here
+  }
+  The body of the "if" statement is only executed if the (run-time) type of e is a (improper) subtype of Foo (i.e. if the statement "Foo f = e;" would not throw with a dynamic cast failure).
+In the equivalent "unless" statement, "f" is only in scope in the "else" part.
+
+This can also be used in a "switch" statement:
+  switch (x) {
+    case Foo x:
+      // x here has compile-time type Foo
+    case Bar x:
+      // x here has compile-time type Bar
+  }
+
+The product type can be used with constructors too:
+  (Foo x, Bar y) = w;  // Assuming w is (u,v) this is equivalent to Foo x = u; Bar y = v;
+
+This can also be used in the if and switch statements for pattern matching:
+  switch (u, v) {
+    case (1, Bar y):
+      // y in scope here with compile-time type Bar
+    case (Foo x, 2):
+      // x in scope here with compile-time type Foo
+  }
+Potentially overlapping cases are search in top-to-bottom order, only first matching one is run
+
+We'd like to be able to generalize this more with non-product constructors:
+  switch (x) {
+    case Foo(Int y, 2):
+      // If there is a "y" such that Foo(y, 2)==x then that y is in scope here and control ends up here.
+  }
+
+The compiler needs to be able to look inside the Foo constructor here to find y.
+This is a special case of reversable functions:
+  Int f(Int y) { return 2+y; }
+  Int x;
+  f(x) = 2;   // Or f(Int x) = 2;
+  // x now has value 0
+
+The compiler attempts to generate f^-1 and rewrites "f(x) = 2;" as "x = f^-1(2);"
+
+Functions can be combined with the * operator
+  Auto f = g*h;
+  assert(f(x) == g(h(x)));
+
+g*g can be written g^2, same for any natural power.
+  Compiler can also write loops at runtime for g^x for unknown x
+
+If possible, generalize this to integer powers using same g^-1 auto-generation code.
+  g^0 is the identity function for any g
+
+sin^2(x) and cos^2(x) mean sin(sin(x)) and cos(cos(x)) not (sin(x))^2 and (cos(x))^2 - this is a defect in the mathematical notation - we should rise above and be more consistent.
+
+Symbolic differentiation and integration would be nice too. What syntax would be nice for this?
+ Auto d = derivative(Float x,f(x));
+ print(d(y));
+ Auto i = integral(Float x,f(x));
+ print(i(y1) - i(y0));
+ print(i(y));  // Error: i(y) only defined up to a constant of integration
