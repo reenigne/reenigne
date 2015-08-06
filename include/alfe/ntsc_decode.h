@@ -82,7 +82,8 @@ public:
         }
         // Settings
 
-        static const int lines = 240;
+        static const int firstScanline = 0;  // 9
+        static const int lines = 240 + firstScanline;
         static const int nominalSamplesPerLine = 1820;
         static const int firstSyncSample = -40;  // Assumed position of previous hsync before our samples started (was -130)
         static const float kernelSize = lobes;  // Lanczos parameter
@@ -186,6 +187,7 @@ public:
 
             Complex<float> actualBurst = bursts[line];
             burst = (expectedBurst*2 + actualBurst)/3;
+            //burst = actualBurst;
 
             float phaseDifference = (actualBurst*(expectedBurst.conjugate())).argument()/tau;
             float adjust = -phaseDifference/_outputPixelsPerLine;
@@ -193,7 +195,7 @@ public:
             float bm2 = burst.modulus2();
             Complex<float> chromaAdjust;
             // TODO: Implement proper colour-killer logic (100 scanlines hysterisis?)
-            if (bm2 < 100)
+            if (bm2 < 50)
                 chromaAdjust = 0;
             else
                 chromaAdjust = burst.conjugate()*contrast1*saturation1 / bm2;
@@ -202,7 +204,6 @@ public:
 
             // Resample the image data
 
-            //float samplesPerLine = nominalSamplesPerLine + deltaSamplesPerLine;
             T* output = reinterpret_cast<T*>(outputRow);
             int xStart = 65*_outputPixelsPerLine/760;
             for (int x = xStart; x < xStart + _output.size().x; ++x) {
@@ -215,7 +216,7 @@ public:
                 int k = static_cast<int>(kFrac);
                 kFrac -= k;
                 float samplesPerCycle = nominalSamplesPerCycle + deltaSamplesPerCycle;
-                float z0 = -kFrac/_chromaSamples;             // TODO: is this correct?
+                float z0 = -kFrac/_chromaSamples;
                 int firstInput = -kernelSize*_chromaSamples + kFrac;
                 int lastInput = kernelSize*_chromaSamples + kFrac;
 
@@ -229,10 +230,8 @@ public:
                     float s = lanczos(j/_chromaSamples + z0);
                     int i = j + k;
                     float z = s*b[i];
-                    //y += z;
                     c.x += rotorTable[i & 7]*z;
                     c.y += rotorTable[(i + 6) & 7]*z;
-                    //c += rotor((i&7)/8.0)*z*saturation;
                     t += s;
                 }
                 c /= t;
@@ -256,9 +255,7 @@ public:
                     float s = lanczos(j/lumaSamples + z0);
                     int i = j + k;
                     float z = s*(b[i] - (cc.x*rotorTable[i & 7] + cc.y*rotorTable[(i + 6)&7]));
-                    //float z = s*(cc.x*rotorTable[i & 7] + cc.y*rotorTable[(i + 6)&7]);
                     y += z;
-                    //c += rotor((i&7)/8.0)*z*saturation;
                     t += s;
                 }
 
@@ -280,18 +277,20 @@ public:
 
             expectedBurst = actualBurst;
 
-            Byte* outputRow2 = outputRow + _output.stride();
-            for (int yy = 1; yy < _yScale; ++yy) {
-                T* output = reinterpret_cast<T*>(outputRow2);
-                T* input = reinterpret_cast<T*>(outputRow);
-                for (int x = 0; x < _output.size().x; ++x) {
-                    *output = *input;
-                    ++output;
-                    ++input;
+            if (line >= firstScanline) {
+                Byte* outputRow2 = outputRow + _output.stride();
+                for (int yy = 1; yy < _yScale; ++yy) {
+                    T* output = reinterpret_cast<T*>(outputRow2);
+                    T* input = reinterpret_cast<T*>(outputRow);
+                    for (int x = 0; x < _output.size().x; ++x) {
+                        *output = *input;
+                        ++output;
+                        ++input;
+                    }
+                    outputRow2 += _output.stride();
                 }
-                outputRow2 += _output.stride();
+                outputRow = outputRow2;
             }
-            outputRow = outputRow2;
         }
     }
 private:

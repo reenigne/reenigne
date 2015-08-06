@@ -57,9 +57,11 @@ public:
         decoder.setOutputPixelsPerLine(1140);
         decoder.setYScale(1);
         decoder.setDoDecode(doDecode);
-        decoder.setBrightness(-71);
+        //decoder.setBrightness(-71);
+        decoder.setBrightness(-100);
         decoder.setSaturation(0.33);
-        decoder.setContrast(2.13);
+        //decoder.setContrast(2.13);
+        decoder.setContrast(2.47);
         decoder.setHue(0);
         decoder.setChromaSamples(16);
 
