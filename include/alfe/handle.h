@@ -187,6 +187,18 @@ public:
         buffer->copyOut(&x, n*sizeof(U), sizeof(U));
         return x;
     }
+    void close()
+    {
+#ifdef _WIN32
+        if (_handle != INVALID_HANDLE_VALUE)
+            CloseHandle(_handle);
+        _handle = INVALID_HANDLE_VALUE;
+#else
+        if (_fileDescriptor != -1)
+            close(_fileDescriptor);
+        _fileDescriptor = -1;
+#endif
+    }
 private:
     int tryReadUnbuffered(Byte* destination, int bytes) const
     {
@@ -220,24 +232,12 @@ private:
     class OwningImplementation : public Implementation
     {
     public:
-#ifdef _WIN32
-        OwningImplementation(HANDLE handle) : _handle(handle) { }
+        OwningImplementation(Handle handle) : _handle(handle) { }
         ~OwningImplementation()
         {
-            if (_handle != INVALID_HANDLE_VALUE)
-                CloseHandle(_handle);
+            _handle.close();
         }
-        HANDLE _handle;
-#else
-        OwningImplementation(int fileDescriptor)
-          : _fileDescriptor(fileDescriptor) { }
-        ~OwningImplementation()
-        {
-            if (_fileDescriptor != -1)
-                close(_fileDescriptor);
-        }
-        int _fileDescriptor;
-#endif
+        Handle _handle;
     };
 
 #ifdef _WIN32
@@ -270,11 +270,11 @@ public:
     AutoHandleTemplate() { }
 #ifdef _WIN32
     AutoHandleTemplate(HANDLE handle, const File& file = File())
-      : Handle(handle, file, new OwningImplementation(handle)) { }
+      : Handle(handle, file, new OwningImplementation(Handle(handle, file))) { }
 #else
     AutoHandleTemplate(int fileDescriptor, const File& file = File())
       : Handle(fileDescriptor, file,
-        new OwningImplementation(fileDescriptor)) { }
+        new OwningImplementation(Handle(fileDescriptor, file))) { }
 #endif
 };
 

@@ -11,6 +11,7 @@
 #include "alfe/assert.h"
 #include "alfe/function.h"
 #include "alfe/identifier.h"
+#include "alfe/vectors.h"
 
 template<class T> class TemplateTemplate;
 typedef TemplateTemplate<void> Template;

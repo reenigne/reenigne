@@ -154,6 +154,7 @@ output:
 
 
 doMeasurement:
+;  outputCharacter 'a'
   push si
   push cx
   push cx  ; Save number of iterations
@@ -186,6 +187,8 @@ iterationLoop:
   ; Turn off refresh
   refreshOff
 
+  pop cx
+
   ; Enable IRQ0
   mov al,0xfe  ; Enable IRQ 0 (timer), disable others
   out 0x21,al
@@ -204,14 +207,22 @@ iterationLoop:
   ; The actual measurement happens in the the IRQ0 handler which runs here and
   ; returns the timer value in BX.
 
-  ; Pop the flags pushed when the interrupt occurred
-  pop ax
-
   pop cx
   pop si
   ret
 
 codeCopy:
+;  push cx
+;  push ax
+;  push di
+;  outputCharacter 'b'
+;  pop di
+;  push di
+;  mov ax,di
+;  outputHex
+;  pop di
+;  pop ax
+;  pop cx
   cmp cx,0
   je codeCopyDone
 codeCopyLoop:
@@ -234,177 +245,33 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
-experimentUnpackShift:
-  db "UnpackShift$"
-  db 19
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-  mov cl,4    ;ax = ???????? -xxx-yyy
-  cbw         ;ax = -------- -xxx-yyy
-  shl ax,cl   ;ax = -----xxx -yyy0000
-  sar al,cl   ;ax = -----xxx -----yyy
-.endCode:
-
-experimentUnpackTable:
-  db "UnpackTable$"
-  db 19
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-  xor bx,bx
-  mov bl,al
-  shl bx,1
-  mov ax,word[cs:bx+0x1234]
-.endCode:
-
-experimentUnpackTable2:
-  db "UnpackTable$"
-  db 19
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-  xchg ax,bx
-  mov bl,0
-  add bx,bx
-  mov ax,word[cs:bx+0x1234]
-.endCode:
-
-experimentKefrens:
-  db "Kefrens$"
-  db 19
-  dw .endInit - ($+2)
-
-  mov dx,0x3d9
-
-.endInit:
-  dw .endCode - ($+2)
-
-  mov ax,0x7000
-  mov ds,ax            ; 2 0
-  mov sp,[bx]          ; 2 2
-
-  pop di               ; 1 2
-  mov al,[es:di]       ; 3 1 +WS
-  pop cx               ; 1 2
-  and ax,cx            ; 2 0
-  pop cx               ; 1 2
-  or ax,cx             ; 2 0
-  stosw                ; 1 2 +WS +WS
-  pop cx               ; 1 2
-  and ch,[es:di+1]     ; 4 1 +WS
-  mov al,0
-  out dx,al
-  pop ax               ; 1 2
-  or ax,cx             ; 2 0
-  stosw                ; 1 2 +WS +WS
-
-  cld
-  cld
-;  mov ds,bp            ; 2 0
-
-  pop ax               ; 1 2
-  out dx,al            ; 1 1
-.endCode:
-
-
-experimentKBload:
-  db "KBload$"
+experimentLoop:
+  db "loop$"
   db 18
   dw .endInit - ($+2)
-
-  mov dx,0xe0
-  mov ax,ds
-  mov es,ax
-
+.l
+  loop .l
 .endInit:
   dw .endCode - ($+2)
+.endCode
 
-  mov al,bl
-  out dx,al
-  mov al,bh
-  out dx,al
-  dec dx
-.tst1:
-  in al,0xe0
-  and al,ah
-  jnz .tst1
-  stosb
-  inc dx
-  loop .tst
-.tst:
-
-.endCode:
-
-
-experimentOctodeXL7:
-  db "OctodeXL7$"
+experimentLoop1:
+  db "loop1$"
   db 18
   dw .endInit - ($+2)
+  rep lodsw
 .endInit:
   dw .endCode - ($+2)
+.endCode
 
-  mov di,cx
-
-.top:
-  dec bl
-  jz .noCarry1
-  mov bl,9
-  inc ax
-.noCarry1:
-  shl al,1
-  shl al,1
-  shl al,1
-  out 0xe0,al
-  xor ax,ax
-  dec di
-  jnz .top
-
-
-.endCode:
-
-
-experimentOctodeXL1a:
-  db "OctodeXL1a$"
+experimentlodsb:
+  db "lodsb$"
   db 18
   dw .endInit - ($+2)
+  rep lodsb
 .endInit:
   dw .endCode - ($+2)
-
-  dec bl
-  jnz .noCarry1
-  mov bl,9
-  db 5
-.noCarry1:
-.endCode:
-
-experimentOctodeXL1b:
-  db "OctodeXL1b$"
-  db 18
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-
-  dec bl
-  jnz .noCarry1
-  mov bl,9
-  db 5
-.noCarry1:
-.endCode:
-
-experimentOctodeXL2:
-  db "OctodeXL2$"
-  db 18
-  dw .endInit - ($+2)
-.endInit:
-  dw .endCode - ($+2)
-
-  dec bl
-  jz .noCarry1
-  mov bl,9
-  inc ax
-.noCarry1:
-.endCode:
+.endCode
 
 
 lastExperiment:

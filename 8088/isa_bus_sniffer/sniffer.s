@@ -1,7 +1,10 @@
+.global main
+
 ;SIGNAL(RESET_vect)
 ;{
-.global __vector_0
-__vector_0:   ; RESET_vect
+;.global __vector_0
+;__vector_0:   ; RESET_vect
+main:
 
   ; Initialize hardware ports
 
@@ -199,7 +202,7 @@ __vector_0:   ; RESET_vect
   ;   PCIE1          2  Pin Change Interrupt Enable 1: enabled
   ;   PCIE2          0  Pin Change Interrupt Enable 2: disabled
   ldi r31, 0x02
-  sts 0x58, r31
+  sts 0x68, r31
 
   ; PCMSK0 value: 0x00  (Pin Change Mask Register 0)
   ;   PCINT0         0  Pin Change Enable Mask 0: disabled
@@ -269,11 +272,11 @@ __vector_0:   ; RESET_vect
   ;
   ;   UCSZ02         0  Character Size 0: 8 bit
   ;   TXEN0          8  Transmitter Enable 0: enabled
-  ;   RXEN0       0x10  Receiver Enable 0: enabled
+  ;   RXEN0          0  Receiver Enable 0: disabled
   ;   UDRIE0         0  USART Data Register Empty Interrupt Enable 0: disabled
-  ;   TXCIE0      0x40  TX Complete Interrupt Enable 0: enabled
-  ;   RXCIE0      0x80  RX Complete Interrupt Enable 0: enabled
-  ldi r31, 0xd8
+  ;   TXCIE0         0  TX Complete Interrupt Enable 0: disabled
+  ;   RXCIE0         0  RX Complete Interrupt Enable 0: disabled
+  ldi r31, 0x08
   sts 0xc1, r31
 
   ; UCSR0C value: 0x06  (USART Control and Status Register 0 C)
@@ -316,139 +319,365 @@ __vector_0:   ; RESET_vect
   out 0x35, r31
 
 
+.macro waitUART
+1:
+  lds r27, 0xc0
+  sbrs r27, 5
+  rjmp 1b
+.endm
 
+
+  waitUART
+  ldi r31,43    ; '+'
+  sts 0xc6,r31
+
+  waitUART
+  ldi r31,45    ; '-'
+  sts 0xc6,r31
+
+  cli
 
   ; Main loop
 mainLoop:
   ; Set up stack:
-  ldi r31, 0xff
-  out 0x3d, r31
-  ldi r31, 0x08
-  out 0x3e, r31
+  ldi r31, 0xff        ; 21 28 27 32
+  out 0x3d, r31        ; 22 29 28 33
+  ldi r31, 0x08        ; 23 30 29 34
+  out 0x3e, r31        ; 24 31 30 35
+  sei                  ; 25 32 31 36
 
-  sei
-  sleep
+;waitForNoSignal:
+;  in r17, 0x06   ; C
+;  sbrc r17, 1
+;  rjmp waitForNoSignal
+;
+;waitForSignal:
+;  in r17, 0x06       ; 0 5 7  ; C  Total interrupt latency to this point should be 9 hdots, well within a single IO access of 12.
+;  in r16, 0x09       ; 1      ; D
+;
+;  sbrs r17, 1        ; 2
+;  rjmp waitForSignal ;   3
+;  sbrc r17, 0        ; 4
+;  rjmp waitForSignal ;     5
+                     ; 6
+
+  sleep                ; 26 33 32 37
+;sloop:
+;  rjmp sloop
+
   rjmp mainLoop
+
+.macro run port, count
+  .rept \count
+    in r0, \port
+    st Y+, r0
+  .endr
+.endm
+
+;.global __vector_3
+;__vector_3:   ; PCINT0_vect
+;  waitUART
+;  ldi r31,'A'
+;  sts 0xc6,r31
+;  rjmp mainLoop
+;
+;.global __vector_5
+;__vector_5:   ; PCINT1_vect
+;  waitUART
+;  ldi r31,'B'
+;  sts 0xc6,r31
+;  rjmp mainLoop
+
 
 
 ;SIGNAL(PCINT1_vect)
 ;{
 .global __vector_4
 __vector_4:   ; PCINT1_vect
+  ldi r31, 2
+  out 0x1b, r31
 
   ; Pin C1 (address line A19) changed.
   ; First we check if A19==1, A15==0 (address 0xN0000..0xN7fff where N==8..F) - these are the only addresses we respond to.
   in r16, 0x09   ; D
-  in r17, 0x06   ; C
-  andi r16, 0xe0
+  in r17, 0x06   ; C  Total interrupt latency to this point should be 9 hdots, well within a single IO access of 12.
+
+;  waitUART
+;  ldi r31,'C'
+;  sts 0xc6,r31
+
+  andi r17, 3          ;  9
+  cpi r17, 2           ; 10
+  brne mainLoop        ; 11
+
+waitForSignalToStop:
+  in r17, 0x06
   andi r17, 3
   cpi r17, 2
-  breq signalled
-  rjmp mainLoop
+  breq waitForSignalToStop
 
-signalled:
+  andi r16, 0xe0       ; 13
+
+;  ldi r31,49 ; '1'
+;  sts 0xc6,r31
+
   ; Look at address bits A11, A7 and A3 to determine command.
-  cpi r16, 0xe0
-  brne noSample
-
-  ; Perform sample
-
-  in r31, 0x1e  ; GPIOR0 = number of extra cycles to delay
-  cpi r31, 0
-  brne delay1
-delay1:
-  dec r31
-  cpi r31, 0
-  brne delay2
-delay2:
-  ldi r28, 0
-  ldi r29, 1
-  in r30, 0x2a  ; GPIOR1 = sample code address low
-  in r31, 0x2b  ; GPIOR2 = sample code address high
-  ijmp
-
-noSample:
-  cpi r16, 0x60
-  brne noSend
-
-  ; Perform send
-  ldi r28, 0  ; Y = 0x100 = first address to send
-  ldi r29, 1
-  in r30, 0x2a  ; GPIOR1 = sample code address low
-  in r31, 0x2b  ; GPIOR2 = sample code address high
-
-  ; TODO: Convert code address to last address to send + 1
-
-  rjmp __vector_20
-
-noSend:
-  cpi r16, 0
-  brne notStart
+  cpi r16, 0           ; 15
+  brne notStart        ; 16
 
   ; Start of command load sequence
-  ldi r30, 0
-  ldi r31, 0
-  rjmp mainLoop
+  ldi r30, 0           ; 17
+  ldi r31, 1           ; 18
+  rjmp mainLoop        ; 19
 
 notStart:
-  cpi r16, 0x80
-  brne notData0
+  cpi r16, 0x80        ;    18
+  brne notData0        ;    19
 
-  ldi r0, 0
-  st Z+, r0
-  rjmp mainLoop
+  ldi r16, 0           ;    20
+  st Z+, r16           ;    21
+  rjmp checkEndData    ;    23
 
 notData0:
-  cpi r16, 0xc0
-  brne notData1
+  cpi r16, 0xc0        ;       24
+  brne mainLoop        ;       25
 
-  ldi r0, 1
-  st Z+, r0
-  rjmp mainLoop
+  ldi r16, 1           ;          26
+  st Z+, r16           ;          27
 
-notData1:
-  cpi r16, 0x20
-  breq doModify
+checkEndData:
+  cpi r30, 40          ;    25    29
+  brne mainLoop        ;    26    30
 
-  ; Unused command
-  rjmp mainLoop
+  ; Pack bits
+  ldi r25, 0
+.rept 8
+  lsl r25
+  ld r29, -Z
+  or r25, r29
+.endr
 
-doModify:
+  ldi r24, 0
+.rept 8
+  lsl r24
+  ld r29, -Z
+  or r24, r29
+.endr
+
+  ldi r18, 0
+.rept 8
+  lsl r18
+  ld r29, -Z
+  or r18, r29
+.endr
+
+  ldi r17, 0
+.rept 8
+  lsl r17
+  ld r29, -Z
+  or r17, r29
+.endr
+
+  ldi r16, 0
+.rept 8
+  lsl r16
+  ld r29, -Z
+  or r16, r29
+.endr
+
+  ; Delay for N hdots (N is in bytes 3 and 4 of the request data) while we're
+  ; getting DRAM refresh going again.
+  mov r23, r24
+  lsr r25
+  ror r24
+  lsr r25
+  ror r24
+waitLoop:
+  sbiw r24, 1
+  brne waitLoop
+  andi r23, 1
+  cpi r23, 0
+  brne delay1a
+delay1a:
+  dec r23
+  cpi r23, 0
+  brne delay2a
+delay2a:
+  dec r23
+  cpi r23, 0
+  brne delay3a
+delay3a:
 
 
+  ; Set up multiplexer channel bits
+  mov r20, r16
+  ldi r21, 7
+  and r20, r21
+  out 0x05, r20
+
+  ; Set up Z (jump address)
+  ldi r30, lo8(readC + 8188)
+  ldi r31, hi8(readC + 8188)
+  sbrc r16, 3
+  ldi r30, lo8(readD + 8188)
+  sbrc r16, 3
+  ldi r31, hi8(readD + 8188)
+  lsr r31
+  ror r30
+
+  mov r29, r18                                       ; 0x07
+  mov r28, r17                                       ; 0xff
+  andi r29,7
+  add r28, r28                                       ; 0xfe
+  adc r29, r29                                       ; 0x0f
+  sub r30, r28
+  sbc r31, r29
+
+  ; Delay for 0-2 cycles
+  mov r29, r16
+  swap r29
+  andi r29, 3
+  cpi r29, 0
+  brne delay1
+delay1:
+  dec r29
+  cpi r29, 0
+  brne delay2
+delay2:
+
+  ; Do the actual aquisition
+  ldi r28, 0
+  ldi r29, 1
+  ijmp
+readC:
+  run 0x06, 2048
+  jmp doSend
+readD:
+  run 0x09, 2048
+
+  ; Send the data back
+doSend:
+  mov r31, r18                                       ; 0x07
+  mov r30, r17                                       ; 0xff
+  andi r31, 7
+  adiw r30, 1                                        ; 0x800
+
+  ldi r28, 0
+  ldi r29, 1
+
+  mov r19, r16
+  ori r19, 0x80
+  waitUART
+  sts 0xc6, r19
+
+  mov r19, r17
+  andi r19, 0x7f
+  waitUART
+  sts 0xc6, r19
+
+  mov r19, r17
+  rol r19
+  mov r19, r18
+  rol r19
+  andi r19, 0x7f
+  waitUART
+  sts 0xc6, r19
+
+sendLoop:
+  ld r19, Y+
+
+  sbrs r16, 3
+  rjmp noRotate
+  mov r20, r19
+  ror r20  ; C <- bit 0
+  ror r19  ; 07654321
+  ror r19  ; 10765432
+
+noRotate:
+  andi r19, 0x7f
+  waitUART
+  sts 0xc6, r19
+  sbiw r30, 1
+  brne sendLoop
+
+  ; Set the multiplexer channel back to the correct one for our address lines
+  ldi r31, 0x04
+  out 0x05, r31
+
+  ; Clear any spurious interrupts
+  ldi r31, 2
+  out 0x1b, r31
+
+  jmp mainLoop
 
 
-;SIGNAL(USART_TX_vect)
-;{
-.global __vector_20
-__vector_20:  ; USART_TX_vect
+;//SIGNAL(USART_TX_vect)
+;//{
+;.global __vector_20
+;__vector_20:  ; USART_TX_vect
 
 
 ;SIGNAL(USART_RX_vect)
 ;{
-.global __vector_18
-__vector_18:  ; USART_RX_vect
-  ; Get a byte from serial and treat it as a command from the XT
-  lds r16, 0xc6
-  jmp signalled
+;.global __vector_18
+;__vector_18:  ; USART_RX_vect
+;  ; Get a byte from serial and treat it as a command from the XT
+;  lds r16, 0xc6
+;  jmp signalled
 
 
-.macro run port, count
-  .ifne \count 0
-    in r0, \port
-    st Y+, r0
-    run port, "(\count-1)"
-  .endif
-.endm
 
-readC:
-  run 0x06, 2048
-  jmp mainLoop
 
-readD:
-  run 0x09, 2048
-  jmp mainLoop
 
+;signalled:
+;    if (r16 == 0x00) {
+;        Z = 0x100;
+;        goto mainLoop;
+;    }
+;    if (r16 == 0x80) {
+;        *(Z++) = 0;
+;        if (Z == endZ)
+;            goto doSampleAndSend;
+;        goto mainLoop;
+;    }
+;    if (r16 == 0xc0) {
+;        *(Z++) = 1;
+;        if (Z == endZ)
+;            goto doSampleAndSend;
+;        goto mainLoop;
+;    }
+;    goto mainLoop;
+;
+;doSampleAndSend:
+;    Byte byte0 = 0;
+;    Byte byte1 = 0;
+;    Byte byte2 = 0;
+;    for (int i = 0; i < 8; ++i) {
+;        byte0 |= (memory[0x100 + i] << i);
+;        byte1 |= (memory[0x108 + i] << i);
+;        byte2 |= (memory[0x110 + i] << i);
+;    }
+;    int length = ((byte1 | (byte2 << 8)) & 0x7ff) + 1;
+;
+;    // Set up channel bits
+;    out(5, byte0 & 7);
+;
+;    Z = ((byte0 & 8) != 0 ? readC : readD) + (2048 - length)*2;
+;
+;    cycleDelay((byte0 >> 4) & 2);
+;
+;    Y = 0x100;
+;
+;    ijmp
+;
+;doSend:
+;    for (int i = 0; i < length; ++i) {
+;        while ((UCSR0A & 0x20)==0);  // 0x20 == UDRE0, [0xc0] == UCSR0A
+;        UDR0 = memory[i + 0x100];                 // [0xc6] = UDR0
+;    }
+;
+;    out(5, 4);
+;    goto mainLoop;
 
 
 

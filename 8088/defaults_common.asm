@@ -353,6 +353,38 @@ cpu 8086
   out 0x41,al  ; Timer 1 rate
 %endmacro
 
+%macro ensureRefresh 0
+  cli
+  cld
+
+  xor ax,ax
+  mov ds,ax
+  mov si,ax
+
+  ; Delay for enough time to refresh 512 columns
+  mov cx,256
+
+  ; Increase refresh frequency to ensure all DRAM is refreshed before turning
+  ; off refresh.
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,2
+  out 0x41,al  ; Timer 1 rate
+
+  rep lodsw
+%endmacro
+
+%macro safeRefreshOff 0
+  ensureRefresh
+  ; We now have about 1.5ms during which refresh can be off
+  refreshOff
+%endmacro
+
+%macro safeRefreshOn 0
+  ensureRefresh
+  refreshOn
+%endmacro
+
 
 %macro lockstep 0
   mov dx,0x03d8
@@ -393,25 +425,7 @@ cpu 8086
   mov ax,0x0009
   out dx,ax
 
-  mov cx,256
-  xor ax,ax
-  mov ds,ax
-  mov si,ax
-  cld
-  cli
-
-  ; Increase refresh frequency to ensure all DRAM is refreshed before turning
-  ; off refresh.
-  mov al,TIMER1 | LSB | MODE2 | BINARY
-  out 0x43,al
-  mov al,2
-  out 0x41,al  ; Timer 1 rate
-
-  ; Delay for enough time to refresh 512 columns
-  rep lodsw
-
-  ; We now have about 1.5ms during which refresh can be off
-  refreshOff
+  safeRefreshOff
 
   ; Set "lodsb" destination to be CGA memory
   mov ax,0xb800
@@ -456,21 +470,7 @@ cpu 8086
   jmp $+2
 
   initCGA 1
-
-  ; Increase refresh frequency to ensure all DRAM is refreshed before turning
-  ; off refresh.
-  mov al,TIMER1 | LSB | MODE2 | BINARY
-  out 0x43,al
-  mov al,2
-  out 0x41,al  ; Timer 1 rate
-
-  xor ax,ax
-  mov ds,ax
-  mov si,ax
-
-  ; Delay for enough time to refresh 512 columns
-  mov cx,256
-  rep lodsw
+  ensureRefresh
 %endmacro
 
 
