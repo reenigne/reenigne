@@ -1,16 +1,338 @@
 #include "alfe/main.h"
 
+class Disassembler
+{
+public:
+    Disassembler() : _byteCount(0) { }
+    String disassemble(Byte byte, bool firstByte)
+    {
+        String bytes;
+        if (firstByte) {
+            if (_byteCount != 0)
+                bytes = "!a";
+            _byteCount = 0;
+        }
+        _code[_byteCount] = byte;
+        ++_byteCount;
+        _lastOffset = 0;
+        String instruction = disassembleInstruction();
+        if (_lastOffset >= _byteCount)
+            return bytes;  // We don't have the complete instruction yet
+        _byteCount = 0;
+        for (int i = 0; i <= _lastOffset; ++i)
+            bytes += hex(_code[i], 2, false);
+        return bytes.alignLeft(12) + " " + instruction;
+    }
+private:
+    String disassembleInstruction()
+    {
+        _wordSize = (opcode() & 1) != 0;
+        _doubleWord = false;
+        _offset = 1;
+        if ((opcode() & 0xc4) == 0)
+            return alu(op1()) + regMemPair();
+        if ((opcode() & 0xc6) == 4)
+            return alu(op1()) + accum() + ", " + imm();
+        if ((opcode() & 0xe7) == 6)
+            return "PUSH " + segreg(op1());
+        if ((opcode() & 0xe7) == 7)
+            return "POP " + segreg(op1());
+        if ((opcode() & 0xe7) == 0x26)
+            return segreg(op1() & 3) + ":";
+        if ((opcode() & 0xf8) == 0x40)
+            return "INC " + rwo();
+        if ((opcode() & 0xf8) == 0x48)
+            return "DEC " + rwo();
+        if ((opcode() & 0xf8) == 0x50)
+            return "PUSH " + rwo();
+        if ((opcode() & 0xf8) == 0x58)
+            return "POP " + rwo();
+        if ((opcode() & 0xf0) == 0x60)
+            return "???";
+        if ((opcode() & 0xfc) == 0x80)
+            return alu(reg()) + ea() + ", " +
+                (opcode() == 0x81 ? iw(true) : sb(true));
+        if ((opcode() & 0xfc) == 0x88)
+            return "MOV " + regMemPair();
+        if ((opcode() & 0xf8) == 0x90)
+            if (opcode() == 0x90)
+                return "NOP";
+            else
+                return "XCHG AX, " + rwo();
+        if ((opcode() & 0xf8) == 0xb0)
+            return "MOV " + rbo() + ", " + ib();
+        if ((opcode() & 0xf8) == 0xb8)
+            return "MOV " + rwo() + ", " + iw();
+        if ((opcode() & 0xf6) == 0xc0)
+            return "???";
+        if ((opcode() & 0xfc) == 0xd0) {
+            static String shifts[8] = {
+                "ROL", "ROR", "RCL", "RCR", "SHL", "SHR", "SHL", "SAR"};
+            return shifts[reg()] + " " + ea() + ", " +
+                ((op0() & 2) == 0 ? String("1") : byteRegs(1));
+        }
+        if ((opcode() & 0xf8) == 0xd8) {
+            _wordSize = false;
+            _doubleWord = true;
+            return String("ESC ") + op0() + ", " + reg() + ", " + ea();
+        }
+        if ((opcode() & 0xf6) == 0xe4)
+            return "IN " + accum() + ", " + port();
+        if ((opcode() & 0xf6) == 0xe6)
+            return "OUT " + port() + ", " + accum();
+        if ((opcode() & 0xe0) == 0x60) {
+            static String conds[16] = {
+                "O", "NO", "B", "AE", "E", "NE", "BE", "A",
+                "S", "NS", "P", "NP", "L", "GE", "LE", "G"};
+            return "J" + conds[opcode() & 0xf] + " " + cb();
+        }
+        switch (opcode()) {
+            case 0x27: return "DAA";
+            case 0x2f: return "DAS";
+            case 0x37: return "AAA";
+            case 0x3f: return "AAS";
+            case 0x84:
+            case 0x85: return "TEST " + regMemPair();
+            case 0x86:
+            case 0x87: return "XCHG " + regMemPair();
+            case 0x8c:
+                _wordSize = true;
+                return "MOV " + ea() + ", " + segreg(reg());
+            case 0x8d:
+                _doubleWord = true;
+                _wordSize = false;
+                return "LEA " + rw() + ", " + ea();
+            case 0x8e:
+                _wordSize = true;
+                return "MOV " + segreg(reg()) + ", " + ea();
+            case 0x8f: return "POP " + ea();
+            case 0x98: return "CBW";
+            case 0x99: return "CWD";
+            case 0x9a: return "CALL " + cp();
+            case 0x9b: return "WAIT";
+            case 0x9c: return "PUSHF";
+            case 0x9d: return "POPF";
+            case 0x9e: return "SAHF";
+            case 0x9f: return "LAHF";
+            case 0xa0:
+            case 0xa1: return "MOV " + accum() + ", " + size() + "[" + iw() +
+                "]";
+            case 0xa2:
+            case 0xa3: return "MOV " + size() + "[" + iw() + "], " + accum();
+            case 0xa4:
+            case 0xa5: return "MOVS" + size();
+            case 0xa6:
+            case 0xa7: return "CMPS" + size();
+            case 0xa8:
+            case 0xa9: return "TEST " + accum() + ", " + imm();
+            case 0xaa:
+            case 0xab: return "STOS" + size();
+            case 0xac:
+            case 0xad: return "LODS" + size();
+            case 0xae:
+            case 0xaf: return "SCAS" + size();
+            case 0xc2: return "RET " + iw();
+            case 0xc3: return "RET";
+            case 0xc4: _doubleWord = true; return "LDS " + rw() + ", " + ea();
+            case 0xc5:
+                _doubleWord = true;
+                _wordSize = false;
+                return "LES " + rw() + ", " + ea();
+            case 0xc6:
+            case 0xc7: return "MOV " + ea() + ", " + imm(true);
+            case 0xca: return "RETF " + iw();
+            case 0xcb: return "RETF";
+            case 0xcc: return "INT 3";
+            case 0xcd: return "INT " + ib();
+            case 0xce: return "INTO";
+            case 0xcf: return "IRET";
+            case 0xd4: return "AAM " + ib();
+            case 0xd5: return "AAD " + ib();
+            case 0xd6: return "SALC";
+            case 0xd7: return "XLATB";
+            case 0xe0: return "LOOPNE " + cb();
+            case 0xe1: return "LOOPE " + cb();
+            case 0xe2: return "LOOP " + cb();
+            case 0xe3: return "JCXZ " + cb();
+            case 0xe8: return "CALL " + cw();
+            case 0xe9: return "JMP " + cw();
+            case 0xea: return "JMP " + cp();
+            case 0xeb: return "JMP " + cb();
+            case 0xf0: return "LOCK";
+            case 0xf1: return "???";
+            case 0xf2: return "REPNE ";
+            case 0xf3: return "REP ";
+            case 0xf4: return "HLT";
+            case 0xf5: return "CMC";
+            case 0xf6:
+            case 0xf7:
+                switch (reg()) {
+                    case 0:
+                    case 1: return "TEST " + ea() + ", " + imm(true);
+                    case 2: return "NOT " + ea();
+                    case 3: return "NEG " + ea();
+                    case 4: return "NUL " + ea();
+                    case 5: return "IMUL " + ea();
+                    case 6: return "DIV " + ea();
+                    case 7: return "IDIV " + ea();
+                }
+            case 0xf8: return "CLC";
+            case 0xf9: return "STC";
+            case 0xfa: return "CLI";
+            case 0xfb: return "STI";
+            case 0xfc: return "CLD";
+            case 0xfd: return "STD";
+            case 0xfe:
+            case 0xff:
+                switch (reg()) {
+                    case 0: return "INC " + ea();
+                    case 1: return "DEC " + ea();
+                    case 2: return "CALL " + ea();
+                    case 3: _doubleWord = true; return "CALL " + ea();
+                    case 4: return "JMP " + ea();
+                    case 5: _doubleWord = true; return "JMP " + ea();
+                    case 6: return "PUSH " + ea();
+                    case 7: return "??? " + ea();
+                }
+        }
+        return "!b";
+    }
+    UInt8 getByte(int offset)
+    {
+        _lastOffset = max(_lastOffset, offset);
+        return _code[offset];
+    }
+    UInt16 getWord(int offset)
+    {
+        return getByte(offset) | (getByte(offset + 1) << 8);
+    }
+    String regMemPair()
+    {
+        if ((op0() & 2) == 0)
+            return ea() + ", " + r();
+        return r() + ", " + ea();
+    }
+    String r() { return !_wordSize ? rb() : rw(); }
+    String rb() { return byteRegs(reg()); }
+    String rw() { return wordRegs(reg()); }
+    String rbo() { return byteRegs(op0()); }
+    String rwo() { return wordRegs(op0()); }
+    String byteRegs(int r)
+    {
+        static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
+        return b[r];
+    }
+    String wordRegs(int r)
+    {
+        static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
+        return w[r];
+    }
+    String ea()
+    {
+        String s;
+        switch (mod()) {
+            case 0: s = disp(); break;
+            case 1: s = disp() + sb(); _offset = 3; break;
+            case 2: s = disp() + iw(); _offset = 4; break;
+            case 3: return !_wordSize ? byteRegs(rm()) : wordRegs(rm());
+        }
+        return size() + "[" + s + "]";
+    }
+    String size()
+    {
+        if (!_doubleWord)
+            return (!_wordSize ? "B" : "W");
+        else
+            return (!_wordSize ? "" : "D");
+    }
+    String disp()
+    {
+        static String d[8] = {
+            "BX+SI", "BX+DI", "BP+SI", "BP+DI", "SI", "DI", "BP", "BX"};
+        if (mod() == 0 && rm() == 6)
+            return iw();
+        return d[rm()];
+    }
+    String alu(int op)
+    {
+        static String o[8] = {
+            "ADD ", "OR ", "ADC ", "SBB ", "AND ", "SUB ", "XOR ", "CMP "};
+        return o[op];
+    }
+    Byte opcode() { return getByte(0); }
+    int op0() { return opcode() & 7; }
+    int op1() { return (opcode() >> 3) & 7; }
+    Byte modRM() { _offset = 2; return getByte(1); }
+    int mod() { return modRM() >> 6; }
+    int reg() { return (modRM() >> 3) & 7; }
+    int rm() { return modRM() & 7; }
+    String imm(bool m = false) { return !_wordSize ? ib(m) : iw(m); }
+    String iw(bool m = false)
+    {
+        if (m)
+            ea(); 
+        return hex(getWord(_offset), 4, false);
+    }
+    String ib(bool m = false)
+    {
+        if (m)
+            ea(); 
+        return hex(getByte(_offset), 2, false);
+    }
+    String sb(bool m = false)
+    {
+        if (m)
+            ea(); 
+        UInt8 byte = getByte(_offset);
+        if ((byte & 0x80) == 0)
+            return "+" + hex(byte, 2, false);
+        return "-" + hex(-byte, 2, false);
+    }
+    String accum() { return !_wordSize ? "AL" : "AX"; }
+    String segreg(int r)
+    {
+        static String sr[8] = {"ES", "CS", "SS", "DS", "??", "??", "??", "??"};
+        return sr[r];
+    }
+    String cb()
+    {
+        return "IP" + sb();
+        //hex(_address + static_cast<SInt8>(getByte(_offset)), 4, false);
+    }
+    String cw()
+    {
+        return "IP+" + iw();
+        //return hex(_address + getWord(_offset), 4, false);
+    }
+    String cp()
+    {
+        return hex(getWord(_offset + 2), 4, false) + ":" +
+            hex(getWord(_offset), 4, false);
+    }
+    String port() { return ((op1() & 1) == 0 ? ib() : wordRegs(2)); }
+
+    UInt16 _ip;
+    UInt8 _code[6];
+    int _byteCount;
+    bool _wordSize;
+    bool _doubleWord;
+    int _offset;
+    int _lastOffset;
+};
+
 class Program : public ProgramBase
 {
     void run()
     {
+        Disassembler disassembler;
+
         const String data = File(_arguments[1], true).contents();
-        const Byte* d = data.data();
+        const Byte* q = data.data();
         String o;
         int lengths[48];
         for (int i = 0; i < 48; ++i) {
-            lengths[i] = d[0] | (d[1] << 8) | (d[2] << 16) | (d[3] << 24);
-            d += 4;
+            lengths[i] = q[0] | (q[1] << 8) | (q[2] << 16) | (q[3] << 24);
+            q += 4;
         }
 
         int length = lengths[0];
@@ -42,11 +364,19 @@ class Program : public ProgramBase
             return;
         }
 
+        int t = 0;  // 0 = Tidle, 1 = T1, 2 = T2, 3 = T3, 4 = T4, 5 = Tw
+        int d = -1;  // -1 = SI, 0 = S0, 1 = S1, 2 = S2, 3 = S3, 4 = S4, 5 = SW
+
+        Byte queue[4];
+        int queueLength = 0;
+
+        int lastS = 0;
+
         for (int th = 0; th < length; ++th)
             for (int tl = 0; tl < (fastSampling ? 3 : 1); ++tl) {
                 Byte p[16];
                 for (int i = 0; i < 16; ++i) {
-                    p[i] = d[th + (i + tl*16)*2048];
+                    p[i] = q[th + (i + tl*16)*2048];
                     if ((p[i] & 0x80) != 0)
                         o += String("Warning: sniffer packet corrupted.\n");
                     if (i < 8) {
@@ -180,14 +510,162 @@ class Program : public ProgramBase
                 o += String(hex(cpu, 5, false)) + " " +
                     codePoint(qsc[qs]) + codePoint(sc[s]) +
                     (rqgt0 ? "G" : ".") + (ready ? "." : "z") +
-                    (test ? "T" : ".") + // (cpu_clk ? "C" : ".") + "  " +
-                    hex(address, 5, false) + " " + hex(data, 2, false) + " " +
-                    hex(dma, 2, false) + " " + hex(irq, 2, false) + " " +
+                    (test ? "T" : ".") + // (cpu_clk ? "C" : ".") +
+                    "  " + hex(address, 5, false) + " " + hex(data, 2, false) +
+                    " " + hex(dma, 2, false) + " " + hex(irq, 2, false) + " " +
                     (ior ? "R" : ".") + (iow ? "W" : ".") +
                     (memr ? "r" : ".") + (memw ? "w" : ".") +
                     (iochrdy ? "." : "z") + (aen ? "D" : ".") +
                     //(bus_ale ? "a" : ".") +
-                    (tc ? "T" : ".") + "\n";
+                    (tc ? "T" : ".");
+
+                if (tl > 0) {
+                    o += "\n";
+                    continue;
+                }
+
+                o += "  ";
+                if (s != 7)
+                    switch (t) {
+                        case 0:
+                        case 4:
+                            // T1 state occurs after transition out of passive
+                            t = 1;
+                            break;
+                        case 1:
+                            t = 2;
+                            break;
+                        case 2:
+                            t = 3;
+                            break;
+                        case 3:
+                            t = 5;
+                            break;
+                    }
+                else
+                    switch (t) {
+                        case 4:
+                            d = -1;
+                        case 0:
+                            t = 0;
+                            break;
+                        case 1:
+                        case 2:
+                            t = 6;
+                            break;
+                        case 3:
+                        case 5:
+                            d = -1;
+                            t = 4;
+                            break;
+                    }
+                switch (t) {
+                    case 0: o += "  "; break;
+                    case 1: o += "T1"; break;
+                    case 2: o += "T2"; break;
+                    case 3: o += "T3"; break;
+                    case 4: o += "T4"; break;
+                    case 5: o += "Tw"; break;
+                    default: o += "!c"; t = 0; break;
+                }
+                o += " ";
+                if (aen)
+                    switch (d) {
+                        // This is a bit of a hack since we don't have access
+                        // to the right lines to determine the DMA state
+                        // properly. This probably breaks for memory-to-memory
+                        // copies.
+                        case -1: d = 0; break;
+                        case 0: d = 1; break;
+                        case 1: d = 2; break;
+                        case 2: d = 3; break;
+                        case 3:
+                        case 5:
+                            if ((iow && memr) || (ior && memw))
+                                d = 4;
+                            else
+                                d = 5;
+                            break;
+                        case 4:
+                            d = -1;
+                    }
+                switch (d) {
+                    case -1: o += "  "; break;
+                    case 0: o += "S0"; break;
+                    case 1: o += "S1"; break;
+                    case 2: o += "S2"; break;
+                    case 3: o += "S3"; break;
+                    case 4: o += "S4"; break;
+                    case 5: o += "SW"; break;
+                    default: o += "!d"; t = 0; break;
+                }
+                o += " ";
+                String instruction;
+                if (qs != 0) {
+                    if (qs == 2)
+                        queueLength = 0;
+                    else {
+                        Byte b = queue[0];
+                        for (int i = 0; i < 3; ++i)
+                            queue[i] = queue[i + 1];
+                        --queueLength;
+                        if (queueLength < 0) {
+                            o += "!g";
+                            queueLength = 0;
+                        }
+                        instruction = disassembler.disassemble(b, qs == 1);
+                    }
+                }
+                if (t == 4 || d == 4) {
+                    if (t == 4 && d == 4)
+                        o += "!e";
+                    String seg;
+                    switch (cpu & 0x30000) {
+                        case 0x00000: seg = "ES:"; break;
+                        case 0x10000: seg = "SS:"; break;
+                        case 0x20000: seg = "CS:"; break;
+                        case 0x30000: seg = "DS:"; break;
+                    }
+                    String type = "-";
+                    if (lastS == 0) {
+                        type = "i";
+                        seg = "   ";
+                    }
+                    if (lastS == 4) {
+                        type = "f";
+                        seg = "   ";
+                    }
+                    if (d == 4) {
+                        type = "d";
+                        seg = "   ";
+                    }
+                    o += hex(data, 2, false) + " ";
+                    if (ior || memr)
+                        o += "<-" + type + " ";
+                    else
+                        o += type + "-> ";
+                    if (memr || memw)
+                        o += "[" + seg + hex(address, 5, false) + "]";
+                    else
+                        o += "port[" + hex(address, 4, false) + "]";
+                    if (lastS == 4 && d != 4) {
+                        if (queueLength >= 4)
+                            o += "!f";
+                        else {
+                            queue[queueLength] = data;
+                            ++queueLength;
+                        }
+                    }
+                    o += " ";
+                }
+                else
+                    o += "                  ";
+                if (qs != 0)
+                    o += codePoint(qsc[qs]);
+                else
+                    o += " ";
+                o += " " + instruction + "\n";
+                lastS = s;
             }
         File(_arguments[2], true).save(o);
     }

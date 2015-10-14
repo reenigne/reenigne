@@ -1,6 +1,6 @@
   %include "../defaults_bin.asm"
 
-FASTSAMPLING EQU 1     ; Set to one to sample at 14.318MHz. Default is 4.77MHz.
+FASTSAMPLING EQU 0     ; Set to one to sample at 14.318MHz. Default is 4.77MHz.
 LENGTH       EQU 2048  ; Number of samples to capture.
 
   cli
@@ -121,7 +121,7 @@ loopTop:
 ;  outputbit dh,0x80
   outputByte
   outputByte
-  mov dx,18780
+  mov dx,18780+204
   outputByte
   outputByte
 
@@ -185,9 +185,13 @@ lut: db 0x88,8
 
 testRoutine:
 
-  mov cx, 8
+  mov cx,8
   xor ax,ax
   mov ds,ax
+  mov bp,ax
+  mov si,ax
+  mov di,ax
+  mov dx,ax
 v:
   times 15 nop
 mixPatch:
