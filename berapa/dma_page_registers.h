@@ -65,14 +65,12 @@ public:
     class Type : public Component::Type
     {
     public:
-        Type(Simulator* simulator)
-          : Component::Type(new Implementation(simulator)) { }
+        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
     private:
-        class Implementation : public Component::Type::Implementation
+        class Body : public Component::Type::Body
         {
         public:
-            Implementation(Simulator* simulator)
-              : Component::Type::Implementation(simulator) { }
+            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "DMAPageRegisters"; }
         };
     };

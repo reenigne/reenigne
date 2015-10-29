@@ -11,13 +11,13 @@ public:
                 runtest(divisor);
             } catch (...) { }
             console.write(String("\n"));
-            _com = AutoHandle();
+            _com = AutoStream();
         }
     }
 
     void runtest(int divisor)
     {
-        _com = AutoHandle(CreateFile(
+        _com = AutoStream(CreateFile(
             L"COM1",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -172,6 +172,6 @@ public:
         // console.write(String(String::CodePoint(b)));
         return b;
     }
-    Handle _com;
+    Stream _com;
     bool _escape;
 };

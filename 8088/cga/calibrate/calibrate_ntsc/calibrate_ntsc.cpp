@@ -280,8 +280,8 @@ public:
         _output = Bitmap<SRGB>(Vector(1536, 1024));
         _rgb = ColourSpace::rgb();
 
-        AutoHandle ht = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
-        AutoHandle hb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
+        AutoStream st = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
+        AutoStream sb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
 
         static const int samples = 450*1024;
         static const int sampleSpaceBefore = 256;
@@ -299,8 +299,8 @@ public:
             bb[i + samples] = 0;
         }
         for (int i = 0; i < 450; ++i) {
-            ht.read(&bt[i*1024], 1024);
-            hb.read(&bb[i*1024], 1024);
+            st.read(&bt[i*1024], 1024);
+            sb.read(&bb[i*1024], 1024);
         }
         _topDecoded = Bitmap<SRGB>(Vector(760, 240));
         _bottomDecoded = Bitmap<SRGB>(Vector(760, 240));

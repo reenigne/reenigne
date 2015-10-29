@@ -17,7 +17,7 @@ static const int troughChroma = 0x068;
 static const int sync         = 0x010;
 
 static const int syncBurst[] = {
-    // Sync              
+    // Sync
     0x0f0,                      // 768-782
     0x0e9, 0x0a4, 0x044, 0x011, // 783-786
     0x010,                      // 787-849
@@ -271,7 +271,7 @@ public:
                 byteOutput[y*paddedOutputSize + x] = clamp(0, static_cast<int>((v - low)*64/(high - low)), 63);
             }
 
-        FileHandle h = File(fileName + ".raw", true).openWrite();
-        h.write(byteOutput);
+        FileStream s = File(fileName + ".raw", true).openWrite();
+        s.write(byteOutput);
     }
 };

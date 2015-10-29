@@ -3,32 +3,31 @@
 #ifndef INCLUDED_LOCK_H
 #define INCLUDED_LOCK_H
 
-class Event : public Handle
+#include "alfe/windows_handle.h"
+
+class Event : public WindowsHandle
 {
 public:
     Event()
     {
         HANDLE handle = CreateEvent(NULL, FALSE, FALSE, NULL);
         IF_NULL_THROW(handle);
-        Handle::operator=(AutoHandle(handle));
+        WindowsHandle::operator=(handle);
     }
-    Event(HANDLE handle) { Handle::operator=(AutoHandle(handle)); }
-    void signal() { IF_ZERO_THROW(SetEvent(operator HANDLE())); }
+    Event(HANDLE handle) : WindowsHandle(handle) { }
+    void signal() { IF_ZERO_THROW(SetEvent(*this)); }
     bool wait(DWORD time = INFINITE)
     {
-        DWORD r = WaitForSingleObject(operator HANDLE(), time);
+        DWORD r = WaitForSingleObject(*this, time);
         if (r == 0)
             return true;
         IF_FALSE_THROW(r == WAIT_TIMEOUT);
         return false;
     }
-    void reset()
-    {
-        IF_ZERO_THROW(ResetEvent(operator HANDLE()));
-    }
+    void reset() { IF_ZERO_THROW(ResetEvent(*this)); }
 };
 
-class Thread : public AutoHandle
+class Thread : public WindowsHandle
 {
 public:
     Thread() : _started(false), _error(false)
@@ -36,31 +35,30 @@ public:
         HANDLE handle = CreateThread(
             NULL, 0, threadStaticProc, this, CREATE_SUSPENDED, NULL);
         IF_NULL_THROW(handle);
-        Handle::operator=(AutoHandle(handle));
+        WindowsHandle::operator=(handle);
     }
     ~Thread() { noFailJoin(); }
     void setPriority(int nPriority)
     {
-        IF_ZERO_THROW(SetThreadPriority(operator HANDLE(), nPriority));
+        IF_ZERO_THROW(SetThreadPriority(*this, nPriority));
     }
     void noFailJoin()
     {
         if (!_started)
             return;
         _started = false;
-        WaitForSingleObject(operator HANDLE(), INFINITE);
+        WaitForSingleObject(*this, INFINITE);
     }
     void join()
     {
         if (!_started)
             return;
         _started = false;
-        IF_FALSE_THROW(
-            WaitForSingleObject(operator HANDLE(), INFINITE) == WAIT_OBJECT_0);
+        IF_FALSE_THROW(WaitForSingleObject(*this, INFINITE) == WAIT_OBJECT_0);
         if (_error)
             throw _exception;
     }
-    void start() { IF_MINUS_ONE_THROW(ResumeThread(operator HANDLE())); }
+    void start() { IF_MINUS_ONE_THROW(ResumeThread(*this)); }
 
 private:
     static DWORD WINAPI threadStaticProc(LPVOID lpParameter)

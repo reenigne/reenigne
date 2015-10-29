@@ -20,7 +20,7 @@ public:
             return 0;
         }
 
-        _com = AutoHandle(CreateFile(
+        _com = AutoStream(CreateFile(
             L"COM3",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -107,5 +107,5 @@ private:
         _com.write<Byte>(value);
     }
 
-    Handle _com;
+    Stream _com;
 };

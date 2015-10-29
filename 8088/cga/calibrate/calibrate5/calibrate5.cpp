@@ -358,7 +358,7 @@ public:
         //Array<Byte> data(1024);
         //for (int i = 0; i < 1024; ++i)
         //    data[i] = static_cast<Byte>(_tSamples[i]*256);
-        AutoHandle h = File("output.dat").openWrite();
+        AutoStream h = File("output.dat").openWrite();
         h.write(reinterpret_cast<Byte*>(&_tSamples[0]), 1024*sizeof(double));
     }
     void setCalibrateWindow(CalibrateWindow* window)
@@ -374,8 +374,8 @@ public:
         double contrast = 1.052;
         _aPower = 0;
 
-        AutoHandle ht = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
-        AutoHandle hb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
+        AutoStream st = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
+        AutoStream sb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
 
         static const int samples = 450*1024;
         static const int sampleSpaceBefore = 256;
@@ -395,8 +395,8 @@ public:
             bb[i + samples] = 0;
         }
         for (int i = 0; i < 450; ++i) {
-            ht.read(&bt[i*1024], 1024);
-            hb.read(&bb[i*1024], 1024);
+            st.read(&bt[i*1024], 1024);
+            sb.read(&bb[i*1024], 1024);
         }
         _top = Bitmap<Colour>(Vector(760, 240));
         _bottom = Bitmap<Colour>(Vector(760, 240));
@@ -409,10 +409,10 @@ public:
         decoder.decode(bt, _top);
         decoder.decode(bb, _bottom);
 
-        //AutoHandle topHandle = File("q:\\pictures\\reenigne\\top_decoded.raw", true).openRead();
-        //AutoHandle bottomHandle = File("q:\\pictures\\reenigne\\bottom_decoded.raw", true).openRead();
-        //topHandle.read(_top.data(), 760*240*3);
-        //bottomHandle.read(_bottom.data(), 760*240*3);
+        //AutoStream topStream = File("q:\\pictures\\reenigne\\top_decoded.raw", true).openRead();
+        //AutoStream bottomStream = File("q:\\pictures\\reenigne\\bottom_decoded.raw", true).openRead();
+        //topStream.read(_top.data(), 760*240*3);
+        //bottomStream.read(_bottom.data(), 760*240*3);
 
         _output = Bitmap<SRGB>(Vector(1536, 1024));
         _rgb = ColourSpace::rgb();
@@ -499,7 +499,7 @@ public:
         _calibrateWindow->restart();
     }
 
-    virtual void draw()										   
+    virtual void draw()										
     {
         if (!_bitmap.valid())
             _bitmap = Bitmap<DWORD>(Vector(1536, 1024));

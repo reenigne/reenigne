@@ -104,16 +104,16 @@ public:
 
         _top = Bitmap<SRGB>(Vector(760, 240));
         _bottom = Bitmap<SRGB>(Vector(760, 240));
-        AutoHandle topHandle = File("q:\\top_decoded.raw", true).openRead();
-        AutoHandle bottomHandle = File("q:\\bottom_decoded.raw", true).openRead();
-        topHandle.read(_top.data(), 760*240*3);
-        bottomHandle.read(_bottom.data(), 760*240*3);
+        AutoStream topStream = File("q:\\top_decoded.raw", true).openRead();
+        AutoStream bottomStream = File("q:\\bottom_decoded.raw", true).openRead();
+        topStream.read(_top.data(), 760*240*3);
+        bottomStream.read(_bottom.data(), 760*240*3);
         _topRaw.allocate(450*1024);
         _bottomRaw.allocate(450*1024);
-        AutoHandle topRawHandle = File("q:\\top.raw", true).openRead();
-        AutoHandle bottomRawHandle = File("q:\\bottom.raw", true).openRead();
-        topRawHandle.read(&_topRaw[0], 450*1024);
-        bottomRawHandle.read(&_bottomRaw[0], 450*1024);
+        AutoStream topRawStream = File("q:\\top.raw", true).openRead();
+        AutoStream bottomRawStream = File("q:\\bottom.raw", true).openRead();
+        topRawStream.read(&_topRaw[0], 450*1024);
+        bottomRawStream.read(&_bottomRaw[0], 450*1024);
 
         _output = Bitmap<SRGB>(Vector(1536, 1024));
         _rgb = ColourSpace::rgb();
@@ -412,7 +412,7 @@ public:
     }
 
     void escapePressed()
-    { 
+    {
         for (int i = 0; i < 4096; ++i) {
             Block b(i);
             int bits = b.bits();
@@ -474,12 +474,12 @@ public:
 private:
     void computeFitness()
     {
-        _n14MHz = _p14MHz.invert().delay(_u6f); 
+        _n14MHz = _p14MHz.invert().delay(_u6f);
         dFlipFlop(Signal::p3_58MHz(), _p14MHz, &_chromas[6], _u43b);
         _chromas[1] = _chromas[6].invert();
-        dFlipFlop(_chromas[6], _p14MHz, &_chromas[4], _u44a);   
+        dFlipFlop(_chromas[6], _p14MHz, &_chromas[4], _u44a);
         _chromas[3] = _chromas[4].invert();
-        dFlipFlop(_chromas[4], _n14MHz, &_chromas[5], _u44b);   
+        dFlipFlop(_chromas[4], _n14MHz, &_chromas[5], _u44b);
         _chromas[2] = _chromas[5].invert();
         Signal burst = _chromas[6].delay(_u45Data);
         for (int i = 1; i < 7; ++i)

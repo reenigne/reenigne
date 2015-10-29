@@ -20,29 +20,29 @@ public:
                 "</head>\n"
                 "<body><h1>XT Server</h1>\n<p>");
         try {
-            Handle in(GetStdHandle(STD_INPUT_HANDLE));
+            Stream in(GetStdHandle(STD_INPUT_HANDLE));
 
             bool eof;
             String process = in.readString(&eof, 80);
-            
-            AutoHandle h = File("\\\\.\\pipe\\xtserver", true).openPipe();
-            h.write<int>(0);                 // emailLength
-            h.write<int>(process.length());  // fileNameLength
-            h.write(process);                // fileName
-            h.write<int>(0);                 // dataLength
-            h.write<DWORD>(0);               // serverPId
-            h.write<int>(0);                 // logFileLength
-            h.write<int>(3);                 // command
+
+            AutoStream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
+            s.write<int>(0);                 // emailLength
+            s.write<int>(process.length());  // fileNameLength
+            s.write(process);                // fileName
+            s.write<int>(0);                 // dataLength
+            s.write<DWORD>(0);               // serverPId
+            s.write<int>(0);                 // logFileLength
+            s.write<int>(3);                 // command
 
             do {
-                int b = h.tryReadByte();
+                int b = s.tryReadByte();
                 if (b == -1)
                     break;
                 console.write<Byte>(b);
             } while (true);
         }
         catch (...)
-        { 
+        {
             console.write("An error occurred during cancellation.\n");
         }
         console.write("</p>\n");

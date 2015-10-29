@@ -1,31 +1,31 @@
 How are bytes removed from the prefetch queue?
-  Model 1: Bytes are removed as they are decoded
+  Model 1: Bytes are removed as they are decoded     <-
     Cycle 1: Opcode byte removed from prefetch queue
     Cycle 2: ModRM byte removed from prefetch queue
   Model 2: All instruction bytes are removed when execution starts. If the instruction is longer than 4 bytes, further bytes are removed immediately after loading.
 
 PUSHF:
-  Model 1: 10 cycles on 8086 and 14 on 8088
+  Model 1: 10 cycles on 8086 and 14 on 8088          <-
   Model 2: 10 cycles when aligned and 14 otherwise
 
 PUSH rmw:
-  Model 1: 16+EA cycles on 8086 and 24+EA on 8088
+  Model 1: 16+EA cycles on 8086 and 24+EA on 8088    <-
   Model 2: 16+EA cycles when aligned and 24+EA otherwise
 
 PUSH r:
-  Model 1: 11 cycles on 8086 and 15 on 8088
+  Model 1: 11 cycles on 8086 and 15 on 8088          <-
   Model 2: 11 cycles when aligned and 15 otherwise
 
-How long does SALC take?
+How long does SALC take?                            4 cycles
 
-When doing an OUT to CGA, is there a wait state?
+When doing an OUT to CGA, is there a wait state?    Probably 1 from the motherboard
 
 When doing CGA memory operations, under what condition do we get a wait state?
   What about other peripherals?
 
-Is the "RETF iw" timing correct? (Surely it shouldn't be less than RETF)
+Is the "RETF iw" timing correct? (Surely it shouldn't be less than RETF)                     No
 
-Is the "TEST rmw,iw" timing correct? (Surely it shouldn't be the same as "TEST rmb,ib")
+Is the "TEST rmw,iw" timing correct? (Surely it shouldn't be the same as "TEST rmb,ib")      Same
 
 Is the AF ever set after an OR operation?
 
@@ -34,9 +34,6 @@ Sanity check the BCD instructions
   Make sure they are useful for their purpose
   Test them against real hardware
   Try to figure out how the flags are defined
-
-Determine behavior of invalid opcodes:
-  6x
 
 Check timings of "alu rmw,imm" with ADD/ADC/AND - HELPPC says 23+EA which seems wrong. Zen says 25+EA which seems right.
 
@@ -55,7 +52,7 @@ Determine semantics of:
   WAIT (HELPPC says 4 cycles, Zen says 3).
   HLT
   escape
-  Invalid opcodes 6x
+  Invalid opcodes 6x                                                                         Jcond
   Invalid opcodes c0/c1/c8/c9
   Invalid opcode f1
   Figure out what "CALL mp" and "JMP mp" do with a register argument
@@ -113,6 +110,8 @@ Check timings of "JMP mw" - HELPPC says 18+EA, Zen says 22+EA.
 Check timings of "JMP mp" - HELPPC says 24+EA, Zen says 32+EA.
 
 Check "REP" timings - Zen says 9, HELPPC says 2.
+  The REP itself takes 2 cycles to execute (just sets a flag in the CPU)
+  There is also a 9-cycle penalty when executing a string instruction in a REP loop
 
 Check timings of LOOPE - HELPPC says 5/18, Zen says 6/18.
 Check timings of LOOP - HELPPC says 5/18, Zen says 5/17.
@@ -123,10 +122,10 @@ Check timings of "DIV rmw" - HELPPC says 144-162 (150-168)+EA, Zen says 144-162 
 
 Check timings of "REP MOVSB" - HELPPC says 18 per, Zen says 17 per - Zen is right
 Check timings of "REP MOVSW" - HELPPC says 26 per, Zen says 25 per - Zen is right
-Check timings of "REP STOSB" - HELPPC says 11 per, Zen says 10 per
-Check timings of "REP STOSW" - HELPPC says 15 per, Zen says 14 per
-Check timings of "REP LODSB" - HELPPC says 12 per, Zen says 13 per
-Check timings of "REP LODSW" - HELPPC says 16 per, Zen says 17 per
+Check timings of "REP STOSB" - HELPPC says 11 per, Zen says 10 per - Zen is right
+Check timings of "REP STOSW" - HELPPC says 15 per, Zen says 14 per - Zen is right
+Check timings of "REP LODSB" - HELPPC says 12 per, Zen says 13 per - Zen is right
+Check timings of "REP LODSW" - HELPPC says 16 per, Zen says 17 per - Zen is right
 
 Check behavior of REP* with override prefix (hardware bugs)
 

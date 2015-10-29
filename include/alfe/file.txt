@@ -1,11 +1,11 @@
-FileSystemObject         FileSystemObject::Implementation
+FileSystemObject         FileSystemObject::Body
   Directory
     CurrentDirectory
     DriveCurrentDirectory
-    RootDirectory          RootDirectory::Implementation
-    DriveRootDirectory       DriveRootDirectory::Implementation
-    UNCRootDirectory         UNCRootDirectory::Implementation
+    RootDirectory          RootDirectory::Body
+    DriveRootDirectory       DriveRootDirectory::Body
+    UNCRootDirectory         UNCRootDirectory::Body
   File
-                           NamedFileSystemObjectImplementation
+                           NamedFileSystemObjectBody
 
 There are also instances of FileSystemObject where we don't know whether they are a File or Directory

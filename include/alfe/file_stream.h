@@ -1,18 +1,18 @@
 #include "alfe/main.h"
 
-#ifndef INCLUDED_FILE_HANDLE_H
-#define INCLUDED_FILE_HANDLE_H
+#ifndef INCLUDED_FILE_STREAM_H
+#define INCLUDED_FILE_STREAM_H
 
-template<class T> class FileHandleTemplate : public AutoHandle
+template<class T> class FileStreamTemplate : public AutoStream
 {
 public:
 #ifdef _WIN32
-    FileHandleTemplate(HANDLE handle, const File& file)
-      : AutoHandle(handle, file)
+    FileStreamTemplate(HANDLE handle, const File& file)
+      : AutoStream(handle, file)
     { }
 #else
-    FileHandleTemplate(int fileDescriptor, const File& file)
-      : AutoHandle(fileDescriptor, file) { }
+    FileStreamTemplate(int fileDescriptor, const File& file)
+      : AutoStream(fileDescriptor, file) { }
 #endif
 #ifndef _WIN32
     void sync()
@@ -60,4 +60,4 @@ private:
 #endif
 };
 
-#endif // INCLUDED_FILE_HANDLE_H
+#endif // INCLUDED_FILE_STREAM_H

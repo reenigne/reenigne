@@ -13,9 +13,9 @@ template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
 {
 public:
     IdentifierTemplate(const String& name)
-      : ExpressionTemplate<T>(new NameImplementation(name, Span())) { }
+      : ExpressionTemplate<T>(new NameBody(name, Span())) { }
     IdentifierTemplate(const char* name)
-      : ExpressionTemplate<T>(new NameImplementation(name, Span())) { }
+      : ExpressionTemplate<T>(new NameBody(name, Span())) { }
 
     static Identifier parse(CharacterSource* source)
     {
@@ -76,7 +76,7 @@ public:
         Span span(location, endLocation);
         if (name != "operator") {
             *source = s2;
-            return Identifier(new NameImplementation(name, span));
+            return Identifier(new NameBody(name, span));
         }
         Span endSpan;
         Span span3;
@@ -148,26 +148,22 @@ public:
     }
 
     IdentifierTemplate(const Operator& op, const Span& span = Span())
-      : Expression(
-            new typename IdentifierOperator<T>::Implementation(op, span)) { }
+      : Expression(new typename IdentifierOperator<T>::Body(op, span)) { }
 
-    String name() const { return implementation()->name(); }
-    bool isOperator() const { return implementation()->isOperator(); }
-    int hash() const
-    {
-        return this->template as<IdentifierTemplate<T>>()->hash();
-    }
+    String name() const { return body()->name(); }
+    bool isOperator() const { return body()->isOperator(); }
+    int hash() const { return body()->hash(); }
     bool operator==(const Identifier& other) const
     {
-        if (_implementation == other._implementation)
+        if (body() == other.body())
             return true;
-        return implementation()->equals(other.implementation());
+        return body()->equals(other.body());
     }
 
-    class Implementation : public ExpressionTemplate<T>::Implementation
+    class Body : public ExpressionTemplate<T>::Body
     {
     public:
-        Implementation(const Span& span) : Expression::Implementation(span) { }
+        Body(const Span& span) : Expression::Body(span) { }
         virtual String name() const = 0;
         TypedValueTemplate<T> evaluate(EvaluationContext* context) const
         {
@@ -175,29 +171,26 @@ public:
         }
         virtual bool isOperator() const = 0;
         virtual int hash() const = 0;
-        virtual bool equals(const Implementation* other) const
+        virtual bool equals(const Body* other) const
         {
             return this == other;
         }
     };
 
-    IdentifierTemplate(const Implementation* implementation)
-      : Expression(implementation) { }
-
+    IdentifierTemplate(const Body* body) : Expression(body) { }
     IdentifierTemplate() { }
 private:
-    class NameImplementation : public Implementation
+    class NameBody : public Body
     {
     public:
-        NameImplementation(const String& name, const Span& span)
-          : Implementation(span), _name(name) { }
+        NameBody(const String& name, const Span& span)
+          : Body(span), _name(name) { }
         String name() const { return _name; }
         bool isOperator() const { return false; }
         int hash() const { return _name.hash(); }
-        bool equals(const Implementation* other) const
+        bool equals(const Body* other) const
         {
-            const NameImplementation* o =
-                dynamic_cast<const NameImplementation*>(other);
+            auto o = other->as<NameBody>();
             if (o == 0)
                 return false;
             return _name == o->_name;
@@ -206,10 +199,7 @@ private:
         String _name;
     };
 
-    const Implementation* implementation() const
-    {
-        return this->template as<IdentifierTemplate<T>>();
-    }
+    const Body* body() const { return as<Body>(); }
 };
 
 template<class My> class IdentifierOperator : public Identifier
@@ -217,26 +207,26 @@ template<class My> class IdentifierOperator : public Identifier
 public:
     IdentifierOperator() { }
 
-    class Implementation : public Identifier::Implementation
+    class Body : public Identifier::Body
     {
     public:
-        Implementation(const Operator& op = My.op(),
+        Body(const Operator& op = My.op(),
             const Span& span = Span())
-          : Identifier::Implementation(span), _op(op) { }
+          : Identifier::Body(span), _op(op) { }
         String name() const { return "operator" + _op.toString(); }
         bool isOperator() const { return true; }
         int hash() const { return _op.hash(); }
     private:
         Operator _op;
     };
-    IdentifierOperator(const Implementation* implementation)
-      : Identifier(implementation) { }
+    IdentifierOperator(const Body* body)
+      : Identifier(body) { }
 private:
     static IdentifierOperator _instance;
     static IdentifierOperator instance()
     {
         if (!_instance.valid())
-            _instance = new Implementation();
+            _instance = new Body();
         return _instance;
     }
 };

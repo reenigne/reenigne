@@ -2,10 +2,10 @@
 
 int main()
 {
-    FileHandle in =
+    FileStream in =
         File("/t/projects/emulation/pc/ibm5150.net/f/fire/fire.ech").
         openRead();
-    FileHandle out = File("fire.raw").openWrite();
+    FileStream out = File("fire.raw").openWrite();
 
     int s = in.size();
     Array<Byte> four(s);

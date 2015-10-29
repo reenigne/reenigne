@@ -8,7 +8,7 @@
 typedef Vector3<double> Colour;
 typedef Vector3<UInt8> SRGB;
 
-class ColourSpaceImplementation
+class ColourSpaceBody
 {
 public:
     virtual Colour fromSrgb(const Colour& srgb) = 0;
@@ -22,8 +22,7 @@ typedef ColourSpaceTemplate<void> ColourSpace;
 
 // CIELUV L*u*v* conversions from
 // http://en.wikipedia.org/wiki/CIELUV_color_space
-template<class T> class LUVColourSpaceImplementationTemplate
-  : public ColourSpaceImplementation
+template<class T> class LUVColourSpaceBodyTemplate : public ColourSpaceBody
 {
 public:
     Colour fromSrgb(const Colour& srgb)
@@ -58,7 +57,7 @@ public:
             u = 13.0*l*(4*x/r - 0.2105);
             v = 13.0*l*(9*y/r - 0.4737);
         }
-        return Colour(l, u, v);      
+        return Colour(l, u, v);
     }
     Colour toRgb(const Colour& luv)
     {
@@ -82,16 +81,14 @@ public:
         return ColourSpace::xyz().toRgb(Colour(x, y, z));
     }
 private:
-    LUVColourSpaceImplementationTemplate() { }
+    LUVColourSpaceBodyTemplate() { }
     friend class ColourSpaceTemplate<T>;
 };
 
-typedef LUVColourSpaceImplementationTemplate<void>
-    LUVColourSpaceImplementation;
+typedef LUVColourSpaceBodyTemplate<void>  LUVColourSpaceBody;
 
 // CIELAB L*a*b* conversions from http://en.wikipedia.org/wiki/Lab_color_space
-template<class T> class LABColourSpaceImplementationTemplate
-  : public ColourSpaceImplementation
+template<class T> class LABColourSpaceBodyTemplate : public ColourSpaceBody
 {
 public:
     Colour fromSrgb(const Colour& srgb)
@@ -131,15 +128,13 @@ private:
         static const double d = 6.0/29.0;
         return t > d*d*d ? pow(t, 1/3.0) : t/(3.0*d*d) + 4.0/29.0;
     }
-    LABColourSpaceImplementationTemplate() { }
+    LABColourSpaceBodyTemplate() { }
     friend class ColourSpaceTemplate<T>;
 };
 
-typedef LABColourSpaceImplementationTemplate<void>
-    LABColourSpaceImplementation;
+typedef LABColourSpaceBodyTemplate<void>  LABColourSpaceBody;
 
-template<class T> class SRGBColourSpaceImplementationTemplate
-  : public ColourSpaceImplementation
+template<class T> class SRGBColourSpaceBodyTemplate : public ColourSpaceBody
 {
 public:
     Colour fromSrgb(const Colour& srgb) { return srgb; }
@@ -153,15 +148,14 @@ public:
         return ColourSpace::rgb().fromSrgb(srgb);
     }
 private:
-    SRGBColourSpaceImplementationTemplate() { }
+    SRGBColourSpaceBodyTemplate() { }
     friend class ColourSpaceTemplate<T>;
 };
 
-typedef SRGBColourSpaceImplementationTemplate<void>
-    SRGBColourSpaceImplementation;
+typedef SRGBColourSpaceBodyTemplate<void> SRGBColourSpaceBody;
 
 // sRGB conversions from http://en.wikipedia.org/wiki/SRGB
-class RGBColourSpaceImplementation : public ColourSpaceImplementation
+class RGBColourSpaceBody : public ColourSpaceBody
 {
 public:
     Colour fromSrgb(const Colour& srgb)
@@ -198,7 +192,7 @@ private:
         return t <= 0.04045 ? t/12.92 : pow((t + 0.055)/(1 + 0.055), 2.4);
     }
 
-    //RGBColourSpaceImplementation()
+    //RGBColourSpaceBody()
     //{
     //    for (int s = 0; s < 256+200; ++s)
     //        _lFromS[s] = rgbFromSrgbHelper(s-100);
@@ -212,8 +206,7 @@ private:
     friend class ColourSpaceTemplate<void>;
 };
 
-template<class T> class XYZColourSpaceImplementationTemplate
-  : public ColourSpaceImplementation
+template<class T> class XYZColourSpaceBodyTemplate : public ColourSpaceBody
 {
 public:
     Colour fromSrgb(const Colour& srgb)
@@ -239,14 +232,13 @@ public:
              0.0556*xyz.x - 0.2040*xyz.y + 1.0570*xyz.z);
     }
 private:
-    XYZColourSpaceImplementationTemplate() { }
+    XYZColourSpaceBodyTemplate() { }
     friend class ColourSpaceTemplate<T>;
 };
 
-typedef XYZColourSpaceImplementationTemplate<void>
-    XYZColourSpaceImplementation;
+typedef XYZColourSpaceBodyTemplate<void>  XYZColourSpaceBody;
 
-template<class T> class ColourSpaceTemplate
+template<class T> class ColourSpaceTemplate : public ConstHandle
 {
 public:
     ColourSpaceTemplate() { }
@@ -257,40 +249,39 @@ public:
     static ColourSpace xyz() { return ColourSpace(&_xyz); }
     Colour fromSrgb(const Colour& srgb)
     {
-        return _implementation->fromSrgb(srgb);
+        return _body->fromSrgb(srgb);
     }
     Colour toSrgb(const Colour& colour)
     {
-        return _implementation->toSrgb(colour);
+        return _body->toSrgb(colour);
     }
     Colour fromRgb(const Colour& rgb)
     {
-        return _implementation->fromRgb(rgb);
+        return _body->fromRgb(rgb);
     }
     Colour toRgb(const Colour& colour)
     {
-        return _implementation->toRgb(colour);
+        return _body->toRgb(colour);
     }
     SRGB toSrgb24(const Colour& colour)
     {
-        Colour c = _implementation->toSrgb(colour);
+        Colour c = _body->toSrgb(colour);
         return SRGB(byteClamp(c.x), byteClamp(c.y), byteClamp(c.z));
     }
 private:
-    ColourSpaceTemplate(ColourSpaceImplementation* implementation)
-      : _implementation(implementation) { }
-    ColourSpaceImplementation* _implementation;
-    static LUVColourSpaceImplementation _luv;
-    static LABColourSpaceImplementation _lab;
-    static SRGBColourSpaceImplementation _srgb;
-    static RGBColourSpaceImplementation _rgb;
-    static XYZColourSpaceImplementation _xyz;
+    ColourSpaceTemplate(ColourSpaceBody* body) : _body(body) { }
+    ColourSpaceBody* _body;
+    static LUVColourSpaceBody _luv;
+    static LABColourSpaceBody _lab;
+    static SRGBColourSpaceBody _srgb;
+    static RGBColourSpaceBody _rgb;
+    static XYZColourSpaceBody _xyz;
 };
 
-LUVColourSpaceImplementation ColourSpace::_luv;
-LABColourSpaceImplementation ColourSpace::_lab;
-SRGBColourSpaceImplementation ColourSpace::_srgb;
-RGBColourSpaceImplementation ColourSpace::_rgb;
-XYZColourSpaceImplementation ColourSpace::_xyz;
+LUVColourSpaceBody ColourSpace::_luv;
+LABColourSpaceBody ColourSpace::_lab;
+SRGBColourSpaceBody ColourSpace::_srgb;
+RGBColourSpaceBody ColourSpace::_rgb;
+XYZColourSpaceBody ColourSpace::_xyz;
 
 #endif // INCLUDED_COLOUR_SPACE_H

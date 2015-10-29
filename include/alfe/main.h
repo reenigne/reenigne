@@ -30,7 +30,7 @@ bool alerting = false;
 
 #include "alfe/integer_types.h"
 #include "alfe/uncopyable.h"
-#include "alfe/reference.h"
+#include "alfe/handle.h"
 #include "alfe/swap.h"
 #include "alfe/array.h"
 #include "alfe/minimum_maximum.h"
@@ -39,20 +39,19 @@ bool alerting = false;
 #include "alfe/file.h"
 #include "alfe/find_handle.h"
 #include "alfe/circular_buffer.h"
-#include "alfe/handle.h"
-#include "alfe/file_handle.h"
+#include "alfe/stream.h"
+#include "alfe/file_stream.h"
 #include "alfe/character_source.h"
 #if defined(_WIN32) && defined(_WINDOWS)
 #include "alfe/vectors.h"
 #include "alfe/colour_space.h"
-#include "alfe/reference_counted_array.h"
 #include "alfe/bitmap.h"
 #include "alfe/linked_list.h"
 #include "alfe/thread.h"
 #include "alfe/user.h"
 #endif
 
-Handle console;
+Stream console;
 
 class ProgramBase : public Uncopyable
 {
@@ -78,7 +77,7 @@ public:
     int initialize(int argc, char* argv[])
     {
         BEGIN_CHECKED {
-            console = Handle(STDOUT_FILENO, Console());
+            console = Stream(STDOUT_FILENO, Console());
             BEGIN_CHECKED {
                 _arguments.allocate(argc);
                 for (int i = 0; i < argc; ++i)
@@ -149,7 +148,7 @@ private:
         }
 
         BEGIN_CHECKED {
-            console = Handle(GetStdHandle(STD_OUTPUT_HANDLE), Console());
+            console = Stream(GetStdHandle(STD_OUTPUT_HANDLE), Console());
             // We can't validate console here because we might be in a GUI
             // program where there is no console.
             //if (!console.valid())
@@ -200,12 +199,13 @@ private:
         for (int i = 0; i < nArgs; ++i)
             nBytes += String::bytes(szArglist[i]);
         String buffer(nBytes);
-        int s = 0;
+        int start = 0;
+        Byte* p = buffer.data();
         for (int i = 0; i < nArgs; ++i) {
-            buffer += szArglist[i];
-            int n = buffer.length() - s;
-            _arguments[i] = buffer.subString(s, n);
-            s += n;
+            p = String::write(p, szArgList[i]);
+            int end = p - buffer.data();
+            _arguments[i] = buffer.subString(start, end - start);
+            start = end;
         }
         run();
     }

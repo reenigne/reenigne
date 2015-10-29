@@ -98,7 +98,7 @@ private:
 
 class Simulation;
 
-template<class Simulation> class BarTemplate : public ReferenceCounted
+template<class Simulation> class BarTemplate : public Handle::Body
 {
 public:
     BarTemplate(Simulation* simulation, const SimulatedProgram* program,
@@ -551,7 +551,7 @@ public:
         }
     }
 private:
-    Reference<Bar> _bar;
+    Handle _bar;
 };
 
 class Program : public ProgramBase

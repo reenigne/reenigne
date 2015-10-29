@@ -3,19 +3,19 @@
 #ifndef INCLUDED_VALUE_H
 #define INCLUDED_VALUE_H
 
-template<class T> class Value
+template<class T> class Value : private Handle
 {
 public:
-    Value() : _implementation(new Implementation) { }
-    T* operator->() const { return &_implementation->_t; }
-    T& operator*() const { return _implementation->_t; }
+    Value() : Handle(new Body) { }
+    T* operator->() { return &body()->_t; }
+    T& operator*() { return body()->_t; }
 private:
-    class Implementation : public ReferenceCounted
+    class Body : public Handle::Body
     {
     public:
         T _t;
     };
-    Reference<Implementation> _implementation;
+    Body* body() { return as<Body>(); }
 };
 
 #endif // INCLUDED_ANY_H

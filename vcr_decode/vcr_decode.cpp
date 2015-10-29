@@ -216,11 +216,11 @@ class VCRDecoder
 public:
     VCRDecoder()
     {
-        FileHandle inputHandle = File("U:\\c2.raw", true).openRead();
-        //FileHandle inputHandle = File("U:\\captured.bin", true).openRead();
-        int nn = inputHandle.size();
+        FileStream inputStream = File("U:\\c2.raw", true).openRead();
+        //FileStream inputStream = File("U:\\captured.bin", true).openRead();
+        int nn = inputStream.size();
 
-        FileHandle h = File("U:\\vcr_decoded.bin", true).openWrite();
+        FileStream h = File("U:\\vcr_decoded.bin", true).openWrite();
 
         int samplesPerFrame = 1824*253;
         Array<Byte> input(samplesPerFrame);
@@ -258,7 +258,7 @@ public:
     void decodeField()
     {
         while (nn > 0) {
-            inputHandle.read(&input[0], min(nn, samplesPerFrame));
+            inputStream.read(&input[0], min(nn, samplesPerFrame));
             nn -= samplesPerFrame;
 
             Complex<float> linePhase;
@@ -300,7 +300,7 @@ public:
                 else
                     pFrac = static_cast<float>(input[p] - 22)/d;
                 // 22 position is input[p - pFrac]
-                    
+
                 for (x = 0; x < 1820; ++x) {
                     if (p + x - 64 >= samplesPerFrame)
                         break;

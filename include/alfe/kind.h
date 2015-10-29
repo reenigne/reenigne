@@ -5,66 +5,56 @@
 
 #include "alfe/nullary.h"
 #include "alfe/string.h"
-#include "alfe/reference.h"
+#include "alfe/handle.h"
 
 // Kind constructors. See:
 //   http://www.reenigne.org/blog/templates-and-kinds-in-alfe
 //   http://www.reenigne.org/blog/variadic-templates-in-alfe
 // for more information.
 
-class Kind
+class Kind : public ConstHandle
 {
 public:
     Kind() { }
-    String toString() const { return _implementation->toString(); }
-    bool valid() const { return _implementation.valid(); }
+    String toString() const { return body()->toString(); }
     bool operator==(const Kind& other) const
     {
-        if (_implementation == other._implementation)
+        if (body() == other.body())
             return true;
-        return _implementation->equals(other._implementation);
+        return body()->equals(other.body());
     }
     bool operator!=(const Kind& other) const { return !operator==(other); }
-    int hash() const { return _implementation->hash(); }
-    template<class T> bool is() const
-    {
-        return _implementation.referent<T::Implementation>() != 0;
-    }
-    template<class T> T as() const
-    {
-        return T(_implementation.referent<T::Implementation>());
-    }
+    int hash() const { return body()->hash(); }
     Kind instantiate(Kind argument) const
     {
-        return _implementation->instantiate(argument);
+        return body()->instantiate(argument);
     }
 protected:
-    class Implementation : public ReferenceCounted
+    class Body : public Handle::Body
     {
     public:
         virtual String toString() const = 0;
-        virtual bool equals(const Implementation* other) const
+        virtual bool equals(const Body* other) const
         {
             return this == other;
         }
         virtual int hash() const { return reinterpret_cast<intptr_t>(this); }
         virtual Kind instantiate(Kind argument) const = 0;
     };
-    Kind(const Implementation* implementation)
-      : _implementation(implementation) { }
+    Kind(const Body* body) : ConstHandle(body) { }
+    const Body* body() const { return as<Body>(); }
 private:
-    ConstReference<Implementation> _implementation;
     friend class TemplateKind;
 };
 
 // TypeKind is the kind of tycos that describe the types of variables, values
 // and expressions.
-class TypeKind : public Nullary<Kind, TypeKind>
+class TypeKind : public NamedNullary<Kind, TypeKind>
 {
 public:
     static String name() { return String(); }
 
-    class Implementation : public Nullary::Implementation
+    class Body : public NamedNullary::Body
     {
     public:
         Kind instantiate(Kind argument) const { return Kind(); }
@@ -75,12 +65,12 @@ template<> Nullary<Kind, TypeKind> Nullary<Kind, TypeKind>::_instance;
 
 // VariadicTemplateKind is the kind of a template with a variable number of
 // arguments that are not kind-checked before use.
-class VariadicTemplateKind : public Nullary<Kind, VariadicTemplateKind>
+class VariadicTemplateKind : public NamedNullary<Kind, VariadicTemplateKind>
 {
 public:
     static String name() { return "<...>"; }
 
-    class Implementation : public Nullary::Implementation
+    class Body : public NamedNullary::Body
     {
     public:
         Kind instantiate(Kind argument) const
@@ -99,15 +89,15 @@ class TemplateKind : public Kind
 {
 public:
     TemplateKind(const Kind& firstParameterKind, const Kind& restParameterKind)
-      : Kind(new Implementation(firstParameterKind, restParameterKind)) { }
+      : Kind(new Body(firstParameterKind, restParameterKind)) { }
     TemplateKind(const Kind& kind) : Kind(kind) { }
-    Kind first() const { return implementation()->first(); }
-    Kind rest() const { return implementation()->rest(); }
+    Kind first() const { return body()->first(); }
+    Kind rest() const { return body()->rest(); }
 protected:
-    class Implementation : public Kind::Implementation
+    class Body : public Kind::Body
     {
     public:
-        Implementation(const Kind& firstParameterKind,
+        Body(const Kind& firstParameterKind,
             const Kind& restParameterKind)
           : _firstParameterKind(firstParameterKind),
             _restParameterKind(restParameterKind) { }
@@ -130,10 +120,10 @@ protected:
                 needComma = true;
             } while (true);
         }
-        bool equals(const Kind::Implementation* other) const
+        bool equals(const Kind::Body* other) const
         {
-            const Implementation* o =
-                dynamic_cast<const Implementation*>(other);
+            const Body* o =
+                dynamic_cast<const Body*>(other);
             if (o == 0)
                 return false;
             return _firstParameterKind == o->_firstParameterKind &&
@@ -164,10 +154,7 @@ protected:
         Kind _firstParameterKind;
         Kind _restParameterKind;
     };
-    const Implementation* implementation() const
-    {
-        return _implementation.referent<Implementation>();
-    }
+    const Body* body() const { return as<Body>(); }
 };
 
 #endif // INCLUDED_KIND_H

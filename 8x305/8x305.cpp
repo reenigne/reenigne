@@ -449,15 +449,16 @@ private:
     UInt8 _registers[0x10];
 };
 
-class ROMDataType : public AtomicType
+class ROMDataType : public NamedNullary<Type, ROMDataType>
 {
 public:
-    ROMDataType() : AtomicType(implementation()) { }
+    ROMDataType() : AtomicType(body()) { }
 private:
-    class Implementation : public AtomicType::Implementation
+    class Body : public NamedNullary<Type, ROMDataType>::Body
     {
     public:
-        Implementation() : AtomicType::Implementation("ROM")
+        static String name() { return "ROM"; }
+        Body()
         {
             List<StructuredType::Member> members;
             members.add(StructuredType::Member("mask", Type::integer));
@@ -485,17 +486,10 @@ private:
     private:
         static StructuredType _structuredType;
     };
-    static Reference<Implementation> _implementation;
-    static Reference<Implementation> implementation()
-    {
-        if (!_implementation.valid())
-            _implementation = new Implementation();
-        return _implementation;
-    }
 };
 
-Reference<ROMDataType::Implementation> ROMDataType::_implementation;
-StructuredType ROMDataType::Implementation::_structuredType;
+template<> Nullary<Type, ROMDataType> Nullary<Type, ROMDataType>::_instance;
+StructuredType ROMDataType::Body::_structuredType;
 
 template<class T> class SimulatorTemplate : public Component
 {

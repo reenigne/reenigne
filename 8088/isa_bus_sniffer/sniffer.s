@@ -495,17 +495,15 @@ checkEndData:
 waitLoop:
   sbiw r24, 1
   brne waitLoop
-  andi r23, 1
-  cpi r23, 0
-  brne delay1a
+  andi r23, 3
+  cpi r23, 1
+  brge delay1a
 delay1a:
-  dec r23
-  cpi r23, 0
-  brne delay2a
+  cpi r23, 2
+  brge delay2a
 delay2a:
-  dec r23
-  cpi r23, 0
-  brne delay3a
+  cpi r23, 3
+  brge delay3a
 delay3a:
 
 
@@ -537,12 +535,11 @@ delay3a:
   mov r29, r16
   swap r29
   andi r29, 3
-  cpi r29, 0
-  brne delay1
+  cpi r29, 1
+  brge delay1
 delay1:
-  dec r29
-  cpi r29, 0
-  brne delay2
+  cpi r29, 2
+  brge delay2
 delay2:
 
   ; Do the actual aquisition

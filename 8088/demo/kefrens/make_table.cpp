@@ -9,7 +9,7 @@ public:
         static const int numFrames = 838;
         static const int numLines = 200;
 
-        FileHandle output = File("tables.asm").openWrite();
+        FileStream output = File("tables.asm").openWrite();
         output.write("align 16\n\n");
         //output.write("sineTable:");
         //for (int y = 0; y < 838 + 116 - 1; ++y) {
@@ -27,7 +27,7 @@ public:
         //output.write("\npixelTable:");
         //for (int x = 0; x < 320; ++x) {
         //    int xx = x % 160;
-        //    
+        //
         //}
 
 
@@ -121,7 +121,7 @@ public:
             //sintab_48[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 12.0);
             sintab_16[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 16.0 * 2.38);
             sintab_76[i] = (Int16) (sin (i * 2.0 * M_PI / 256.0) * 128.0 * 12.0 * 2.38); //76.0);
-        
+
         }
         //output.write(String("sintab_12:\n"));
         //for (int i = 0; i < 512; ++i)
@@ -178,7 +178,7 @@ public:
         //    output.write(String("  dw ") + hex(colourTab[hc[colour]], 4) + "\n");
 
         //output.write(String("highlightTab:\n"));
-        static char highlight[] = { 0, 0, 0, 0, 4, 6, 14, 15, 
+        static char highlight[] = { 0, 0, 0, 0, 4, 6, 14, 15,
             15, 15, 15, 15, 15, 15, 15, 15,
         };
         //for (int colour = 0; colour < 16; ++colour)
@@ -202,25 +202,25 @@ public:
                 UInt16 ym = y_82[y]
                     + sintab_16[frameno_8[frame] - y_1024[y]]
                     + sintab_12[frameno_6[frame] - y_900[y]];
-                                                                            
+
                 y_accum += ym & 0x1fc0;
-                                                                            
+
                 int ym3 = ((ym + 0x2000) >> 13);
-                
+
                 int colour;
 
                 if (y_accum > 0x2000) {
                     colour = hc[ym3];
                     y_accum -= 0x2000;
                 }
-                else                                                          
+                else
                     colour = lc[ym3];
-                                                                            
+
                 Int16 ovtmp = sintab_76[frameno_1017_acc[frame] + y_469[y]]
                         + sintab_76[frameno_547_acc[frame] + y_1064[y]]
                         + sintab_25[frameno_78_acc[frame] + y_2107[y]];
 
-                if (ovtmp > 8191)                                             
+                if (ovtmp > 8191)
                     colour = highlight[ovtmp >> 11];
 
                 int x = (sintab_42[frameno_20020_acc[frame] + y_521[y]]

@@ -1,6 +1,6 @@
   %include "../defaults_bin.asm"
 
-FASTSAMPLING EQU 1     ; Set to one to sample at 14.318MHz. Default is 4.77MHz.
+FASTSAMPLING EQU 0     ; Set to one to sample at 14.318MHz. Default is 4.77MHz.
 LENGTH       EQU 2048  ; Number of samples to capture.
 
   cli
@@ -93,35 +93,11 @@ loopTop:
   sub dl,cl
 
   outputByte
-;  outputbit dl,1
-;  outputbit dl,2
-;  outputbit dl,4
-;  outputbit dl,8
-;  outputbit dl,0x10
-;  outputbit dl,0x20
-;  outputbit dl,0x40
-;  outputbit dl,0x80
   mov dx,LENGTH
   dec dx
-;  outputbit dl,1
-;  outputbit dl,2
-;  outputbit dl,4
-;  outputbit dl,8
-;  outputbit dl,0x10
-;  outputbit dl,0x20
-;  outputbit dl,0x40
-;  outputbit dl,0x80
-;  outputbit dh,1
-;  outputbit dh,2
-;  outputbit dh,4
-;  outputbit dh,8
-;  outputbit dh,0x10
-;  outputbit dh,0x20
-;  outputbit dh,0x40
-;  outputbit dh,0x80
   outputByte
   outputByte
-  mov dx,18780
+  mov dx,18780+204
   outputByte
   outputByte
 
@@ -158,9 +134,6 @@ loopTop:
   mov cx,25*LENGTH
 flushLoop2:
   loop flushLoop2
-;  mov cx,31*LENGTH
-;flushLoop3:
-;  loop flushLoop3
 
   mov cx,[cs:savedCX]
   loop loopTop2
@@ -185,9 +158,13 @@ lut: db 0x88,8
 
 testRoutine:
 
-  mov cx, 8
+  mov cx,8
   xor ax,ax
   mov ds,ax
+  mov bp,ax
+  mov si,ax
+  mov di,ax
+  mov dx,ax
 v:
   times 15 nop
 mixPatch:

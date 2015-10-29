@@ -20,8 +20,8 @@ public:
         //String inName = "q:\\input.raw";
         //String inName = "q:\\bottom.raw";
         //String inName = "q:\\6cycle.raw";
-        //AutoHandle h = File(inName, true).openRead();
-        AutoHandle h = File("\\\\.\\pipe\\vbicap", true).openPipe();
+        //AutoStream h = File(inName, true).openRead();
+        AutoStream h = File("\\\\.\\pipe\\vbicap", true).openPipe();
         h.write<int>(1);
 
         int samples = 450*1024*frames;
@@ -90,7 +90,7 @@ public:
 
         png.save(output, File(name, true));
 
-        AutoHandle out = File(name + ".raw", true).openWrite();
+        AutoStream out = File(name + ".raw", true).openWrite();
         out.write(b, 450*1024);
     }
 };

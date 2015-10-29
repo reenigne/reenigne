@@ -116,7 +116,7 @@ private:
 
     NTSCCaptureDecoder<DWORD> _decoder;
 
-    AutoHandle _vbiCapPipe;
+    AutoStream _vbiCapPipe;
 
     Array<Byte> _buffer;
     Byte* _b;

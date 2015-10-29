@@ -21,7 +21,7 @@ public:
 
         //// Reset the machine
         //{
-        //    Handle arduinoCom = AutoHandle(CreateFile(
+        //    Stream arduinoCom = AutoStream(CreateFile(
         //        L"COM3",
         //        GENERIC_READ | GENERIC_WRITE,
         //        0,              // must be opened with exclusive-access
@@ -69,7 +69,7 @@ public:
 
         //Sleep(3000);
 
-        _com = AutoHandle(CreateFile(
+        _com = AutoStream(CreateFile(
             L"COM1",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -236,6 +236,6 @@ private:
         } while (!ok);
     }
 
-    Handle _com;
+    Stream _com;
     Array<Byte> _packet;
 };

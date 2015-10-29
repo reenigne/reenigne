@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="String">
+    <DisplayString>{data()}</DisplayString>
+    <Expand>
+        <Item Name="[type]" ExcludeView="simple">small() ? "Small" : _array.valid() ? "External" : "Owning"</Item>
+        <Item Name="[length]" ExcludeView="simple">length()</Item>
+        <Item Name="[capacity]" ExcludeView="simple">small() ? smallStringThreshold() : _array.allocated()</Item>
+        <Item Name="[used]" ExcludeView="simple">small() ? length() : _array.count()</Item>
+        <Item Name="[data]" ExcludeView="simple">data()</Item>
+    </Expand>  
+  </Type>
+</AutoVisualizer>

@@ -1,4 +1,4 @@
-#include "alfe/main.h"                             
+#include "alfe/main.h"
 #include "alfe/bitmap_png.h"
 #include "alfe/complex.h"
 #include "alfe/space.h"
@@ -115,9 +115,9 @@ public:
         int y = n[0] +n[1]*4 +n[2]*7 +n[3]*8 +n[4]*7 +n[5]*4 +n[6];
         Complex<int> iq;
         switch (phase) {
-            case 0: 
+            case 0:
                 iq.x =  n[0]   -n[2]*7 +n[4]*7 -n[6];
-                iq.y =  n[1]*4 -n[3]*8 +n[5]*4; 
+                iq.y =  n[1]*4 -n[3]*8 +n[5]*4;
                 break;
             case 1:
                 iq.x = -n[1]*4 +n[3]*8 -n[5]*4;
@@ -125,7 +125,7 @@ public:
                 break;
             case 2:
                 iq.x = -n[0]   +n[2]*7 -n[4]*7 +n[6];
-                iq.y = -n[1]*4 +n[3]*8 -n[5]*4; 
+                iq.y = -n[1]*4 +n[3]*8 -n[5]*4;
                 break;
             case 3:
                 iq.x = +n[1]*4 -n[3]*8 +n[5]*4;
@@ -162,9 +162,9 @@ public:
             else
                 c = Colour(mix.x, mix.y, mix.z);
             Complex<double> iq;
-            double y = 0.299*c.x + 0.587*c.y + 0.114*c.z;  
-            iq.x = 0.596*c.x - 0.275*c.y - 0.321*c.z;      
-            iq.y = 0.212*c.x - 0.528*c.y + 0.311*c.z;      
+            double y = 0.299*c.x + 0.587*c.y + 0.114*c.z;
+            iq.x = 0.596*c.x - 0.275*c.y - 0.321*c.z;
+            iq.y = 0.212*c.x - 0.528*c.y + 0.311*c.z;
             iq /= (_iqAdjust*512);
             y = (y/32 - _brightness2)/(_contrast2*32);
             switch (phase) {
@@ -278,7 +278,7 @@ public:
                 Byte bestRGBI = 0;
                 for (int i = 0; i < 16; ++i) {
                     int distance =
-                        (Vector3Cast<int>(rgbiPalette[i]) - 
+                        (Vector3Cast<int>(rgbiPalette[i]) -
                         Vector3Cast<int>(s)).modulus2();
                     if (distance < bestDistance) {
                         bestDistance = distance;
@@ -442,7 +442,7 @@ public:
             _startConfig = 0;
             _endConfig = 81;
         }
-        
+
         for (_config = _startConfig; _config < _endConfig; ++_config) {
             config();
             Array<Byte> rgbi(_block.x + 6);
@@ -647,10 +647,10 @@ public:
     }
     void saveRGBI(String outputFileName)
     {
-        FileHandle handle = File(outputFileName, true).openWrite();
+        FileStream stream = File(outputFileName, true).openWrite();
         const Byte* rgbiRow = _rgbi.data() + 7;
         for (int y = 0; y < _size.y; ++y) {
-            handle.write(reinterpret_cast<const void*>(rgbiRow), _size.x);
+            stream.write(reinterpret_cast<const void*>(rgbiRow), _size.x);
             rgbiRow += _rgbi.stride();
         }
     }
@@ -658,21 +658,21 @@ public:
     {
         if (_startConfig + 1 == _endConfig)
             return;
-        FileHandle handle = File(outputFileName, true).openWrite();
+        FileStream stream = File(outputFileName, true).openWrite();
         for (int y = 0; y < _size.y; ++y) {
             int c = _configs[y];
             if (_mode == 4)
-                handle.write<Byte>(c == 80 ? 0x08 : (c < 64 ? 0x0a : 0x1a));
+                stream.write<Byte>(c == 80 ? 0x08 : (c < 64 ? 0x0a : 0x1a));
             if (c == 80)
-                handle.write<Byte>(0);
+                stream.write<Byte>(0);
             else
                 if (c >= 64)
-                    handle.write<Byte>(c & 0x0f);
+                    stream.write<Byte>(c & 0x0f);
                 else
                     if (c >= 16 && c < 48)
-                        handle.write<Byte>(c ^ 0x30);
+                        stream.write<Byte>(c ^ 0x30);
                     else
-                        handle.write<Byte>(c);
+                        stream.write<Byte>(c);
         }
     }
     void plotPattern(Byte* rgbi, int pattern, int line)
@@ -969,7 +969,7 @@ public:
     Vector _lastPosition;
     Vector _rPosition;
     bool _lButton;
-    bool _rButton;          
+    bool _rButton;
     CGASimulator* _simulator;
     NTSCDecoder* _decoder;
     Vector2<double> _delta;
@@ -1272,7 +1272,7 @@ public:
     void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
     void setRGBI(Bitmap<Byte> rgbi)
-    {                           
+    {
         _rgbi = rgbi;
         _ntsc = Bitmap<Byte>(_rgbi.size() - Vector(1, 0));
         setSize(Vector(_ntsc.size().x - 6, _ntsc.size().y*2));
@@ -1334,8 +1334,8 @@ public:
     {
         _bitmap.save(PNGFileFormat<DWORD>(), File(outputFileName, true));
 
-        FileHandle h = File(outputFileName + ".ntsc", true).openWrite();
-        h.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
+        FileStream s = File(outputFileName + ".ntsc", true).openWrite();
+        s.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
     }
 
 private:
@@ -1511,7 +1511,7 @@ public:
             remove();
     }
     void setSimulator(CGASimulator* simulator)
-    { 
+    {
         _simulator = simulator;
         _output.setSimulator(simulator);
         _gamut.setSimulator(simulator);
@@ -1826,7 +1826,7 @@ public:
     void save(String outputFileName) { _output.save(outputFileName); }
     void resetColours() { _colours.reset(); }
     void addColour(UInt64 seq) { _colours.add(seq); }
-    
+
 private:
     AnimatedWindow _animated;
     OutputWindow _output;

@@ -10,66 +10,66 @@
 template<class T> class PNGFileFormat : public BitmapFileFormat<T>
 {
 public:
-    PNGFileFormat() : BitmapFileFormat(new Implementation) { }
+    PNGFileFormat() : BitmapFileFormat(new Body) { }
 private:
-    class Implementation : public BitmapFileFormat::Implementation
+    class Body : public BitmapFileFormat::Body
     {
     public:
         virtual void save(Bitmap<T>& bitmap, const File& file)
         {
-            FileHandle handle = file.openWrite();
-            PNGWrite write(&handle);
+            FileStream stream = file.openWrite();
+            PNGWrite write(&stream);
             write.write(bitmap);
         }
         virtual Bitmap<T> load(const File& file)
         {
-            FileHandle handle = file.openRead();
+            FileStream stream = file.openRead();
             Array<Byte> header(8);
-            handle.read(&header[0], 8);
+            stream.read(&header[0], 8);
             if (png_sig_cmp(&header[0], 0, 8))
                 throw Exception(file.path() + " is not a .png file");
-            return PNGRead(&handle).read();
+            return PNGRead(&stream).read();
         }
     private:
         static void userReadData(png_structp png_ptr, png_bytep data,
             png_size_t length)
         {
-            FileHandle* handle =
-                static_cast<FileHandle*>(png_get_io_ptr(png_ptr));
-            handle->read(static_cast<Byte*>(data), length);
+            FileStream* stream =
+                static_cast<FileStream*>(png_get_io_ptr(png_ptr));
+            stream->read(static_cast<Byte*>(data), length);
         }
         static void userWriteData(png_structp png_ptr, png_bytep data,
             png_size_t length)
         {
-            FileHandle* handle =
-                static_cast<FileHandle*>(png_get_io_ptr(png_ptr));
-            handle->write(static_cast<void*>(data), length);
+            FileStream* stream =
+                static_cast<FileStream*>(png_get_io_ptr(png_ptr));
+            stream->write(static_cast<void*>(data), length);
         }
         static void userFlushData(png_structp png_ptr) { }
         static void userErrorFunction(png_structp png_ptr,
             png_const_charp error_msg)
         {
-            FileHandle* handle =
-                static_cast<FileHandle*>(png_get_error_ptr(png_ptr));
-            throw Exception("Error reading: " + handle->file().path() + ": " +
+            FileStream* stream =
+                static_cast<FileStream*>(png_get_error_ptr(png_ptr));
+            throw Exception("Error reading: " + stream->file().path() + ": " +
                 error_msg);
         }
         static void userWarningFunction(png_structp png_ptr,
             png_const_charp error_msg)
         {
-            FileHandle* handle =
-                static_cast<FileHandle*>(png_get_error_ptr(png_ptr));
-            throw Exception("Error reading: " + handle->file().path() + ": " +
+            FileStream* stream =
+                static_cast<FileStream*>(png_get_error_ptr(png_ptr));
+            throw Exception("Error reading: " + stream->file().path() + ": " +
                 error_msg);
         }
 
         class PNGRead
         {
         public:
-            PNGRead(FileHandle* handle) : _handle(handle)
+            PNGRead(FileStream* stream) : _stream(stream)
             {
                 _png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
-                    static_cast<png_voidp>(handle), userErrorFunction,
+                    static_cast<png_voidp>(stream), userErrorFunction,
                     userWarningFunction);
                 if (_png_ptr == 0)
                     throw Exception("Error creating PNG read structure");
@@ -79,7 +79,7 @@ private:
                 _info_ptr = png_create_info_struct(_png_ptr);
                 if (_info_ptr == 0)
                     throw Exception("Error creating PNG info structure");
-                png_set_read_fn(_png_ptr, static_cast<png_voidp>(_handle),
+                png_set_read_fn(_png_ptr, static_cast<png_voidp>(_stream),
                     userReadData);
                 png_set_sig_bytes(_png_ptr, 8);
                 png_read_png(_png_ptr, _info_ptr,
@@ -133,20 +133,20 @@ private:
                     data += stride;
                 }
             }
-            
+
             png_structp _png_ptr;
             png_infop _info_ptr;
             png_bytep* _row_pointers;
-            FileHandle* _handle;
+            FileStream* _stream;
         };
 
         class PNGWrite
         {
         public:
-            PNGWrite(FileHandle* handle) : _handle(handle)
+            PNGWrite(FileStream* stream) : _stream(stream)
             {
                 _png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
-                    static_cast<png_voidp>(handle), userErrorFunction,
+                    static_cast<png_voidp>(stream), userErrorFunction,
                     userWarningFunction);
                 if (_png_ptr == 0)
                     throw Exception("Error creating PNG write structure");
@@ -156,7 +156,7 @@ private:
                 _info_ptr = png_create_info_struct(_png_ptr);
                 if (_info_ptr == 0)
                     throw Exception("Error creating PNG info structure");
-                png_set_write_fn(_png_ptr, static_cast<png_voidp>(_handle),
+                png_set_write_fn(_png_ptr, static_cast<png_voidp>(_stream),
                     userWriteData, userFlushData);
                 Vector size = bitmap.size();
                 png_set_IHDR(_png_ptr, _info_ptr, size.x, size.y, 8,
@@ -196,7 +196,7 @@ private:
             png_structp _png_ptr;
             png_infop _info_ptr;
             png_bytep* _row_pointers;
-            FileHandle* _handle;
+            FileStream* _stream;
         };
     };
 };

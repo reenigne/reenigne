@@ -224,7 +224,7 @@ What's the difference between VariadicKind and VariadicTemplateKind?
 TypeKind is nullary - the kind of an actual type.
 TemplateKind(A, B) is the kind of a template which yields a tyco of kind B when instantiated with a tyco of kind A.
 VariadicKind(A) is the kind of a sequence of 0 or more tycos of kind X
-VariadicTemplateKind is the kind of a template which accepts 0 or more tycos - i.e. the kind of Tuple - returned by Template::VariadicImplementation::kind()
+VariadicTemplateKind is the kind of a template which accepts 0 or more tycos - i.e. the kind of Tuple - returned by Template::VariadicBody::kind()
   Should we replace VariadicKind with VariadicTemplateKind?
     Makes Kind::toString() more complicated but then all three Kind constructors are kinds of actual tyco.
 
@@ -333,11 +333,11 @@ Suppose we have a template that takes a variadic template as an argument:
     The former probably makes more sense
 
 We want to have some generic code (in Template) for dealing with instantiations and partially instantiated templates
-  Template::Implementation knows about ArrayType (via ArrayTemplate::Implementation)
-  Template::PartiallyInstantiatedImplementation needs to know about ArrayType
+  Template::Body knows about ArrayType (via ArrayTemplate::Body)
+  Template::PartiallyInstantiatedBody needs to know about ArrayType
 
 Should we put our instantiations cache in Tyco or in Template and Tuple?
-  In Tyco would add 3 words to every Type::Implementation - quite a lot. Let's try putting it in Tyco and Template first.
+  In Tyco would add 3 words to every Type::Body - quite a lot. Let's try putting it in Tyco and Template first.
     Or should TupleTyco inherit from Template and just add its own type-stuff?
 
 
@@ -354,13 +354,13 @@ Is T the same type as (T)?
 
 
 Tyco hashes:
-  5 = Template::PartialImplementation
-  3 = ArrayType::Implementation
-  4 = SequenceType::Implementation
-  6 = TupleTyco::NonUnitImplementation
-  1 = PointerType::Implementation
-  2 = FunctionType::Implementation
-  7 = LessThanType::Implementation
+  5 = Template::PartialBody
+  3 = ArrayType::Body
+  4 = SequenceType::Body
+  6 = TupleTyco::NonUnitImpBody
+  1 = PointerType::Body
+  2 = FunctionType::Body
+  7 = LessThanType::Body
 
 
 

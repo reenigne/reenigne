@@ -7,7 +7,7 @@ public:
     void run()
     {
         Array<Word> cga(16384);
-        FileHandle output = File("tables.asm").openWrite();
+        FileStream output = File("tables.asm").openWrite();
         for (int frame = 0; frame < 8; ++frame) {
             String data = File("..\\..\\..\\..\\external\\demo_assets\\shadow_pal1low_frames\\" +
                 decimal(frame + 1) + ".raw").contents();
@@ -15,7 +15,7 @@ public:
                 for (int x = 0; x < 96; x += 4) {
                     int p = ((y&1) << 13) | ((((y >> 1) + frame*40)*96/4) + (x >> 2));
                     Byte b = 0;
-                    for (int xx = 0; xx < 4; ++xx) 
+                    for (int xx = 0; xx < 4; ++xx)
                         b |= data[y * 96 + x + xx]<<((3 - xx) << 1);
                     cga[p] = b;
                 }

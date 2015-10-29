@@ -9,21 +9,21 @@ Structure is the equivalent of a C++ struct or class
   Can be allocated on stack, heap or inside another object
 
 Class is the equivalent of a Java or C# class
-  Inherit from Reference, which is a pointer
-  Implementation is heap allocated and reference counted
+  Inherit from Handle, which is a pointer
+  Body is heap allocated and reference counted
   Any Class can also be written as a Structure.
     T = Class : Base { ... } is equivalent to:
       T = Structure : Base
       {
           ...
-          operator=<@U>(U other) { _implementation = other._implementation; if (!valid()) throw; }
+          operator=<@U>(U other) { _bpdy = other._bpdy; if (!valid()) throw; }
           constructor<@U>(U other) { *this = other; }
       private:
-          Implementation = Structure : Base::Structure { ... };
-          Implementation* implementation() { return dynamic_cast<Implementation*>(_implementation); }
+          Body = Structure : Base::Structure { ... };
+          Body* body() { return dynamic_cast<Body*>(_body); }
       };
-  Compiler generates a Structure method for each Implementation method
-  Casting from one Class type to another does the appropriate Implementation dynamic cast
+  Compiler generates a Structure method for each Body method
+  Casting from one Class type to another does the appropriate Body dynamic cast
   Excess dynamic casting is optimized away
 
 

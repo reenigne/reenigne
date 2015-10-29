@@ -25,7 +25,7 @@ public:
         static const int sampleSpaceBefore = 256;
         static const int sampleSpaceAfter = 256;
 
-        FileHandle in = File("captured.zdr", true).openRead();
+        FileStream in = File("captured.zdr", true).openRead();
         UInt64 inputFileSizeRemaining = in.size();
         Array<Byte> inputBuffer(inputBufferSize);
         int inputBufferRemaining = 0;
@@ -45,8 +45,8 @@ public:
 
         Vector outputSize;
         NTSCCaptureDecoder<UInt32> decoder;
-         
-        if (doDecode) 
+
+        if (doDecode)
             outputSize = Vector(960, 240);
         else
             outputSize = Vector(1824, 253);
@@ -58,7 +58,7 @@ public:
         decoder.setYScale(1);
         decoder.setDoDecode(doDecode);
 
-        FileHandle outputHandle = File("u:\\captured.bin", true).openWrite();
+        FileStream outputStream = File("u:\\captured.bin", true).openWrite();
 
         do {
             if (inputBufferRemaining == 0) {
@@ -89,10 +89,10 @@ public:
 
                 if (doDecode) {
                     decoder.decode();
-                    outputHandle.write(decoded.data(), decoded.stride()*outputSize.y);
+                    outputStream.write(decoded.data(), decoded.stride()*outputSize.y);
                 }
                 else
-                    outputHandle.write(b, 1824*253);
+                    outputStream.write(b, 1824*253);
             }
 
         } while (inputFileSizeRemaining != 0);

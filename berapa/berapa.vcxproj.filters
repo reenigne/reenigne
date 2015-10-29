@@ -1,48 +1,165 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClInclude Include="8237.h" />
-    <ClInclude Include="8253.h" />
-    <ClInclude Include="..\include\alfe\array.h" />
-    <ClInclude Include="..\include\alfe\character_source.h" />
-    <ClInclude Include="..\include\alfe\config_file.h" />
-    <ClInclude Include="..\include\alfe\file.h" />
-    <ClInclude Include="..\include\alfe\hash_table.h" />
-    <ClInclude Include="..\include\alfe\integer_types.h" />
-    <ClInclude Include="..\include\alfe\main.h" />
-    <ClInclude Include="..\include\alfe\space.h" />
-    <ClInclude Include="..\include\alfe\string.h" />
-    <ClInclude Include="..\include\alfe\type.h" />
-    <ClInclude Include="..\include\alfe\value.h" />
-    <ClInclude Include="8255.h" />
-    <ClInclude Include="8259.h" />
-    <ClInclude Include="..\include\alfe\rational.h" />
-    <ClInclude Include="cga.h" />
-    <ClInclude Include="..\include\alfe\pipes.h" />
-    <ClInclude Include="dram.h" />
-    <ClInclude Include="mc6845.h" />
-    <ClInclude Include="rgbi_monitor.h" />
-    <ClInclude Include="pcxt_keyboard.h" />
-    <ClInclude Include="pcxt_keyboard_port.h" />
-    <ClInclude Include="..\include\alfe\kind.h" />
-    <ClInclude Include="..\include\alfe\nullary.h" />
-    <ClInclude Include="..\include\alfe\assert.h" />
-    <ClInclude Include="..\include\alfe\handle.h" />
-    <ClInclude Include="rom.h" />
-    <ClInclude Include="dma_page_registers.h" />
-    <ClInclude Include="8088.h" />
-    <ClInclude Include="ram.h" />
-    <ClInclude Include="nmi_switch.h" />
-    <ClInclude Include="isa_8_bit_bus.h" />
-    <ClInclude Include="..\include\alfe\expression.h" />
-    <ClInclude Include="..\include\alfe\identifier.h" />
-    <ClInclude Include="..\include\alfe\operator.h" />
-    <ClInclude Include="..\include\alfe\parse_tree_object.h" />
-    <ClInclude Include="..\include\alfe\function.h" />
-    <ClInclude Include="..\include\alfe\type_specifier.h" />
-    <ClInclude Include="..\include\alfe\reference.h" />
+    <ClInclude Include="..\include\alfe\array.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\assert.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\body_with_array.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\character_source.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\concrete.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\concrete_functions.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\config_file.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\exception.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\expression.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\file.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\file_stream.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\function.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\handle.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\hash_table.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\identifier.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\integer_functions.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\integer_types.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\kind.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\main.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\nullary.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\operator.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\parse_tree_object.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\pipes.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\rational.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\rational_functions.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\space.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\stream.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\string.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\string_functions.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\type.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\type_specifier.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\uncopyable.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\value.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="8088.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="8237.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="8253.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="8255.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="8259.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="cga.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="dma_page_registers.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="dram.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="isa_8_bit_bus.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="mc6845.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="nmi_switch.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="pcxt_keyboard.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="pcxt_keyboard_port.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="ram.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="rgbi_monitor.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="rom.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="berapa.cpp" />
+    <Filter Include="ALFE">
+      <UniqueIdentifier>{8fce6a5b-74ad-44d0-8393-bca5094898a3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Berapa">
+      <UniqueIdentifier>{eb520ff5-0d22-4cb8-8c5b-645bdc24129e}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="berapa.cpp">
+      <Filter>Berapa</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

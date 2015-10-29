@@ -354,7 +354,7 @@ public:
 
     void create()
     {
-        _outputHandle = File("output.dat").openWrite();
+        _outputStream = File("output.dat").openWrite();
         for (int i = 0; i < 4096; ++i)
             _fitnesses[i] = 1000000;
 
@@ -721,10 +721,10 @@ public:
                     if (!_doneClimb) {
                         ++_aPower;
                         if (_aPower == 16) { //30) {
-                            _outputHandle.write(reinterpret_cast<Byte*>(&_tSamples[0]), 2048*sizeof(double));
-                            _outputHandle.write(reinterpret_cast<Byte*>(&_iSamples[0]), 8*sizeof(double));
-                            _outputHandle.write(reinterpret_cast<Byte*>(&_sharpness), sizeof(double));
-                            _outputHandle.write(reinterpret_cast<Byte*>(&_saturation), sizeof(double));
+                            _outputStream.write(reinterpret_cast<Byte*>(&_tSamples[0]), 2048*sizeof(double));
+                            _outputStream.write(reinterpret_cast<Byte*>(&_iSamples[0]), 8*sizeof(double));
+                            _outputStream.write(reinterpret_cast<Byte*>(&_sharpness), sizeof(double));
+                            _outputStream.write(reinterpret_cast<Byte*>(&_saturation), sizeof(double));
 
                             double colourFitness = 0;
                             for (int bn = 0; bn < 4096; ++bn) {
@@ -1022,7 +1022,7 @@ private:
 
     Array<Byte> _buffer;
     Byte* _b;
-    AutoHandle _vbiCapPipe;
+    AutoStream _vbiCapPipe;
     bool _doneCapture;
     NTSCCaptureDecoder _decoder;
 
@@ -1086,7 +1086,7 @@ private:
 
     CalibrateWindow* _calibrateWindow;
 
-    AutoHandle _outputHandle;
+    AutoStream _outputStream;
 };
 
 typedef CalibrateBitmapWindowTemplate<void> CalibrateBitmapWindow;

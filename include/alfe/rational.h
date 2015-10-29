@@ -177,6 +177,18 @@ template<class T> RationalTemplate<T> operator/(const T& x,
     return RationalTemplate<T>(x)/y;
 }
 
+template<class T> RationalTemplate<T> operator+(const T& x,
+    const RationalTemplate<T>& y)
+{
+    return y+x;
+}
+
+template<class T> RationalTemplate<T> operator-(const T& x,
+    const RationalTemplate<T>& y)
+{
+    return x+(-y);
+}
+
 typedef RationalTemplate<int> Rational;
 
 #endif // INCLUDED_RATIONAL_H

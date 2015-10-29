@@ -50,10 +50,7 @@ typedef IBMCGATemplate<void> IBMCGA;
 template<class T> class DMAPageRegistersTemplate;
 typedef DMAPageRegistersTemplate<void> DMAPageRegisters;
 
-template<class T> class ISA8BitBusTemplate;
-typedef ISA8BitBusTemplate<void> ISA8BitBus;
-
-class TimeType : public Nullary<Type, TimeType>
+class TimeType : public NamedNullary<Type, TimeType>
 {
 public:
     static String name() { return "Time"; }
@@ -134,11 +131,11 @@ public:
     class Type : public ::Type
     {
     protected:
-        Type(const Implementation* implementation) : ::Type(implementation) { }
-        class Implementation : public ::Type::Implementation
+        Type(const Body* body) : ::Type(body) { }
+        class Body : public ::Type::Body
         {
         public:
-            Implementation(Simulator* simulator) : _simulator(simulator) { }
+            Body(Simulator* simulator) : _simulator(simulator) { }
             bool has(String memberName) const { return memberName == "*"; }
         protected:
             Simulator* _simulator;
@@ -163,73 +160,77 @@ public:
     public:
         bool compatible(Type other) const
         {
-            return implementation()->compatible(other);
+            return body()->compatible(other);
         }
         bool canConnectMultiple() const
         {
-            return implementation()->canConnectMultiple();
+            return body()->canConnectMultiple();
         }
+        Type(const Body* body) : ::Type(body) { }
     protected:
-        class Implementation : public ::Type::Implementation
+        class Body : public ::Type::Body
         {
         public:
             virtual bool compatible(Type other) const = 0;
             virtual bool canConnectMultiple() const { return false; }
         };
-        const Implementation* implementation() const
-        {
-            return _implementation.referent<Implementation>();
-        }
+    public:
+        const Body* body() const { return as<Body>(); }
     };
+    TypedValue getValue() { return TypedValue(type(), this); }
 
     virtual Type type() const = 0;
     virtual void connect(Connector* other) = 0;
 };
 
-class BitInputConnectorType;
+template<class T> class BitOutputConnectorTemplate;
+typedef BitOutputConnectorTemplate<void> BitOutputConnector;
 
-class BitOutputConnectorType
-  : public Nullary<Connector::Type, BitOutputConnectorType>
+template<class T> class BitInputConnectorTemplate;
+typedef BitInputConnectorTemplate<void> BitInputConnector;
+
+template<class T> class BitOutputConnectorTemplate
 {
 public:
-private:
-    class Implementation : public Connector::Type::Implementation
+    class Type : public NamedNullary<Connector::Type, Type>
     {
     public:
-        bool compatible(Connector::Type other) const
+        class Body : public NamedNullary<Connector::Type, Type>::Body
         {
-            return other == BitInputConnectorType();
-        }
-        bool canConnectorMultiple() const { return true; }
-    private:
+        public:
+            bool compatible(Connector::Type other) const
+            {
+                return other == BitInputConnector::Type();
+            }
+            bool canConnectorMultiple() const { return true; }
+        };
+        static String name() { return "BitOutputConnector"; }
     };
-public:
-    static String name() { return "BitOutputConnector"; }
 };
 
-template<> Nullary<Connector::Type, BitOutputConnectorType>
-    Nullary<Connector::Type, BitOutputConnectorType>::_instance;
+template<> Nullary<Connector::Type, BitOutputConnector::Type>
+    Nullary<Connector::Type, BitOutputConnector::Type>::_instance;
 
-class BitInputConnectorType
-    : public Nullary<Connector::Type, BitInputConnectorType>
+template<class T> class BitInputConnectorTemplate
 {
 public:
-private:
-    class Implementation : public Connector::Type::Implementation
+    class Type : public NamedNullary<Connector::Type, Type>
     {
     public:
-        bool compatible(Connector::Type other) const
+        class Body : public NamedNullary<Connector::Type, Type>::Body
         {
-            return other == BitOutputConnectorType();
-        }
-    private:
+        public:
+            bool compatible(Connector::Type other) const
+            {
+                return other == BitOutputConnector::Type();
+            }
+        };
+        static String name() { return "BitInputConnector"; }
     };
-public:
-    static String name() { return "BitInputConnector"; }
 };
 
-template<> Nullary<Connector::Type, BitInputConnectorType>
-    Nullary<Connector::Type, BitInputConnectorType>::_instance;
+template<> Nullary<Connector::Type, BitInputConnector::Type>
+    Nullary<Connector::Type, BitInputConnector::Type>::_instance;
 
 class AndComponent : public Component
 {
@@ -252,35 +253,7 @@ private:
 template<class T> class SimulatorTemplate
 {
 public:
-    SimulatorTemplate() : _halted(false)
-    {
-        Rational l = 0;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Rational cyclesPerSecond = (*i)->cyclesPerSecond();
-            if (cyclesPerSecond != 0)
-                if (l == 0)
-                    l = cyclesPerSecond;
-                else
-                    l = lcm(l, cyclesPerSecond);
-        }
-        if (l == 0)
-            throw Exception("None of the components is clocked!");
-        _minTicksPerCycle = INT_MAX;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Rational cyclesPerSecond = (*i)->cyclesPerSecond();
-            if (cyclesPerSecond != 0) {
-                Rational t = l / cyclesPerSecond;
-                if (t.denominator != 1)
-                    throw Exception("Scheduler LCM calculation incorrect");
-                int ticksPerCycle = t.numerator;
-                (*i)->setTicksPerCycle(ticksPerCycle);
-                if (ticksPerCycle < _minTicksPerCycle)
-                    _minTicksPerCycle = ticksPerCycle;
-            }
-            else
-                (*i)->setTicksPerCycle(0);
-        }
-    }
+    SimulatorTemplate() : _halted(false) { }
     void simulate()
     {
         do {
@@ -311,6 +284,33 @@ public:
     }
     void load(String initialStateFile)
     {
+        Rational l = 0;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            Rational cyclesPerSecond = (*i)->cyclesPerSecond();
+            if (cyclesPerSecond != 0)
+                if (l == 0)
+                    l = cyclesPerSecond;
+                else
+                    l = lcm(l, cyclesPerSecond);
+        }
+        if (l == 0)
+            throw Exception("None of the components is clocked!");
+        _minTicksPerCycle = INT_MAX;
+        for (auto i = _components.begin(); i != _components.end(); ++i) {
+            Rational cyclesPerSecond = (*i)->cyclesPerSecond();
+            if (cyclesPerSecond != 0) {
+                Rational t = l / cyclesPerSecond;
+                if (t.denominator != 1)
+                    throw Exception("Scheduler LCM calculation incorrect");
+                int ticksPerCycle = t.numerator;
+                (*i)->setTicksPerCycle(ticksPerCycle);
+                if (ticksPerCycle < _minTicksPerCycle)
+                    _minTicksPerCycle = ticksPerCycle;
+            }
+            else
+                (*i)->setTicksPerCycle(0);
+        }
+
         TypedValue value;
         if (!initialStateFile.empty()) {
             ConfigFile initialState;

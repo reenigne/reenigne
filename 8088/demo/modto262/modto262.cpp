@@ -206,9 +206,9 @@ public:
             int pattern = _positions[position];
 
         }
-            
 
-        FileHandle output = File("tables.asm").openWrite();
+
+        FileStream output = File("tables.asm").openWrite();
         output.write("align 16\n\n");
         //output.write("sineTable:");
         //for (int y = 0; y < 838 + 116 - 1; ++y) {
@@ -226,7 +226,7 @@ public:
         //output.write("\npixelTable:");
         //for (int x = 0; x < 320; ++x) {
         //    int xx = x % 160;
-        //    
+        //
         //}
         output.write("\n\nunrolledCode:\n");
     }

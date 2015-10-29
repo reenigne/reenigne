@@ -28,7 +28,7 @@ public:
         String data = File(fileName, true).contents();
         int l = data.length();
 
-        _com = AutoHandle(CreateFile(
+        _com = AutoStream(CreateFile(
             L"COM2",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -280,7 +280,7 @@ private:
         _com.write<Byte>(value);
     }
 
-    Handle _com;
+    Stream _com;
     Byte _buffer[0xff+3];
     Byte _buffer2[(0xff+3)*2];
     int _bufferCount;

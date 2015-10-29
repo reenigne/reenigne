@@ -47,14 +47,12 @@ public:
     class Type : public ISA8BitComponent::Type
     {
     public:
-        Type(Simulator* simulator)
-          : Component::Type(new Implementation(simulator)) { }
+        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
     private:
-        class Implementation : public ISA8BitComponent::Type::Implementation
+        class Body : public ISA8BitComponent::Type::Body
         {
         public:
-            Implementation(Simulator* simulator)
-              : Component::Type::Implementation(simulator)
+            Body(Simulator* simulator) : Component::Type::Body(simulator)
             {
                 List<StructuredType::Member> members;
                 members.add(StructuredType::Member("mask", IntegerType()));
