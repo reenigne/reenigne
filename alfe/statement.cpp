@@ -68,14 +68,12 @@ public:
     }
     StatementTemplate() { }
 protected:
-    StatementTemplate(const Implementation* implementation)
-      : ParseTreeObject(implementation) { }
+    StatementTemplate(const Body* body) : ParseTreeObject(body) { }
 
-    class Implementation : public ParseTreeObject::Implementation
+    class Body : public ParseTreeObject::Body
     {
     public:
-        Implementation(const Span& span)
-          : ParseTreeObject::Implementation(span) { }
+        Body(const Span& span) : ParseTreeObject::Body(span) { }
     };
 };
 
@@ -131,15 +129,15 @@ public:
             right), left.span() + span);
     }
     ExpressionStatement(const Expression& expression, const Span& span)
-      : Statement(new Implementation(expression, span)) { }
+      : Statement(new Body(expression, span)) { }
 private:
     ExpressionStatement() { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Expression& expression, const Span& span)
-          : Statement::Implementation(span), _expression(expression) { }
+        Body(const Expression& expression, const Span& span)
+          : Statement::Body(span), _expression(expression) { }
     private:
         Expression _expression;
     };
@@ -155,18 +153,18 @@ public:
             return FromStatement();
         Expression dll = Expression::parseOrFail(source);
         Space::assertCharacter(source, ';', &span);
-        return new Implementation(dll, span);
+        return new Body(dll, span);
     }
 private:
     FromStatement() { }
-    FromStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    FromStatement(const Body* body)
+      : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Expression& expression, const Span& span)
-          : Statement::Implementation(span), _expression(expression) { }
+        Body(const Expression& expression, const Span& span)
+          : Statement::Body(span), _expression(expression) { }
     private:
         Expression _expression;
     };
@@ -179,7 +177,7 @@ public:
     {
     public:
         Parameter(const TycoSpecifier& typeSpecifier, const Identifier& name)
-          : ParseTreeObject(new Implementation(typeSpecifier, name)) { }
+          : ParseTreeObject(new Body(typeSpecifier, name)) { }
 
         static Parameter parse(CharacterSource* source)
         {
@@ -193,13 +191,11 @@ public:
         }
     private:
         Parameter() { }
-        class Implementation : public ParseTreeObject::Implementation
+        class Body : public ParseTreeObject::Body
         {
         public:
-            Implementation(const TycoSpecifier& typeSpecifier,
-                const Identifier& name)
-              : ParseTreeObject::Implementation(
-                    typeSpecifier.span() + name.span()),
+            Body(const TycoSpecifier& typeSpecifier, const Identifier& name)
+              : ParseTreeObject::Body(typeSpecifier.span() + name.span()),
                 _typeSpecifier(typeSpecifier), _name(name) { }
         private:
             TycoSpecifier _typeSpecifier;
@@ -210,8 +206,7 @@ public:
     FunctionDefinitionStatement(const TycoSpecifier& returnTypeSpecifier,
         const Identifier& name, const List<Parameter>& parameterList,
         const Statement& body)
-      : Statement(
-        new Implementation(returnTypeSpecifier, name, parameterList, body)) { }
+      : Statement(new Body(returnTypeSpecifier, name, parameterList, body)) { }
 
     static FunctionDefinitionStatement parse(CharacterSource* source)
     {
@@ -253,17 +248,14 @@ private:
     }
 
     FunctionDefinitionStatement() { }
-    FunctionDefinitionStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    FunctionDefinitionStatement(const Body* body) : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const TycoSpecifier& returnTypeSpecifier,
-            const Identifier& name, const List<Parameter>& parameterList,
-            const Statement& body)
-          : Statement::Implementation(
-            returnTypeSpecifier.span() + body.span()),
+        Body(const TycoSpecifier& returnTypeSpecifier, const Identifier& name,
+            const List<Parameter>& parameterList, const Statement& body)
+          : Statement::Body(returnTypeSpecifier.span() + body.span()),
             _returnTypeSpecifier(returnTypeSpecifier), _name(name),
             _parameterList(parameterList), _body(body) { }
     private:
@@ -300,16 +292,14 @@ private:
     VariableDefinitionStatement(const TycoSpecifier& typeSpecifier,
         const Identifier& identifier, const Expression& initializer,
         const Span& span)
-      : Statement(new Implementation(typeSpecifier, identifier, initializer,
-        span)) { }
+      : Statement(new Body(typeSpecifier, identifier, initializer, span)) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const TycoSpecifier& typeSpecifier,
-            const Identifier& identifier, const Expression& initializer,
-            const Span& span)
-          : Statement::Implementation(span), _typeSpecifier(typeSpecifier),
+        Body(const TycoSpecifier& typeSpecifier, const Identifier& identifier,
+            const Expression& initializer, const Span& span)
+          : Statement::Body(span), _typeSpecifier(typeSpecifier),
             _identifier(identifier), _initializer(initializer) { }
     private:
         TycoSpecifier _typeSpecifier;
@@ -332,17 +322,16 @@ public:
             span += statement.span();
             sequence.add(statement);
         } while (true);
-        return new Implementation(sequence, span);
+        return new Body(sequence, span);
     }
 private:
-    StatementSequence(const Implementation* implementation)
-      : ParseTreeObject(implementation) { }
+    StatementSequence(const Body* body) : ParseTreeObject(body) { }
 
-    class Implementation : public ParseTreeObject::Implementation
+    class Body : public ParseTreeObject::Body
     {
     public:
-        Implementation(const List<Statement>& sequence, const Span& span)
-          : ParseTreeObject::Implementation(span), _sequence(sequence) { }
+        Body(const List<Statement>& sequence, const Span& span)
+          : ParseTreeObject::Body(span), _sequence(sequence) { }
     private:
         List<Statement> _sequence;
     };
@@ -358,18 +347,17 @@ public:
             return CompoundStatement();
         StatementSequence sequence = StatementSequence::parse(source);
         Space::assertCharacter(source, '}', &span);
-        return new Implementation(sequence, span);
+        return new Body(sequence, span);
     }
 private:
     CompoundStatement() { }
-    CompoundStatement(const Implementation* implementation)
-      : Statement(implementation) { } 
+    CompoundStatement(const Body* body) : Statement(body) { } 
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const StatementSequence& sequence, const Span& span)
-          : Statement::Implementation(span), _sequence(sequence) { }
+        Body(const StatementSequence& sequence, const Span& span)
+          : Statement::Body(span), _sequence(sequence) { }
     private:
         StatementSequence _sequence;
     };
@@ -392,23 +380,22 @@ public:
         TycoSpecifier tycoSpecifier = TycoSpecifier::parse(source);
         Span span;
         Space::assertCharacter(source, ';', &span);
-        return new Implementation(tycoSignifier, tycoSpecifier,
+        return new Body(tycoSignifier, tycoSpecifier,
             tycoSignifier.span() + span);
     }
     TycoDefinitionStatement(const TycoSignifier& tycoSignifier,
         const TycoSpecifier& tycoSpecifier)
-      : Statement(new Implementation(tycoSignifier, tycoSpecifier, Span())) { }
+      : Statement(new Body(tycoSignifier, tycoSpecifier, Span())) { }
 private:
     TycoDefinitionStatement() { }
-    TycoDefinitionStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    TycoDefinitionStatement(const Body* body) : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const TycoSignifier& tycoSignifier,
+        Body(const TycoSignifier& tycoSignifier,
             const TycoSpecifier& tycoSpecifier, const Span& span)
-          : Statement::Implementation(span), _tycoSignifier(tycoSignifier),
+          : Statement::Body(span), _tycoSignifier(tycoSignifier),
             _tycoSpecifier(tycoSpecifier) { }
 
     private:
@@ -430,13 +417,12 @@ public:
     }
 private:
     NothingStatement() { }
-    NothingStatement(const Span& span)
-      : Statement(new Implementation(span)) { }
+    NothingStatement(const Span& span) : Statement(new Body(span)) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Span& span) : Statement::Implementation(span) { }
+        Body(const Span& span) : Statement::Body(span) { }
     };
 };
 
@@ -502,20 +488,18 @@ private:
                 }
         if (unlessStatement)
             condition = !condition;
-        return new Implementation(condition, statement, elseStatement, span);
+        return new Body(condition, statement, elseStatement, span);
     }
 
     ConditionalStatement() { }
-    ConditionalStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    ConditionalStatement(const Body* body) : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Expression& condition,
-            const Statement& trueStatement, const Statement& falseStatement,
-            const Span& span)
-          : Statement::Implementation(span), _condition(condition),
+        Body(const Expression& condition, const Statement& trueStatement,
+            const Statement& falseStatement, const Span& span)
+          : Statement::Body(span), _condition(condition),
             _trueStatement(trueStatement), _falseStatement(falseStatement) { }
     private:
         Expression _condition;
@@ -554,12 +538,11 @@ public:
                 cases.add(c);
         } while (true);
         Space::assertCharacter(source, '}', &span);
-        return new Implementation(expression, defaultCase, cases, span);
+        return new Body(expression, defaultCase, cases, span);
     }
 private:
     SwitchStatement() { }
-    SwitchStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    SwitchStatement(const Body* body) : Statement(body) { }
 
     class Case : public ParseTreeObject
     {
@@ -587,51 +570,49 @@ private:
             Statement statement = Statement::parseOrFail(source);
             span += statement.span();
             if (defaultType)
-                return new DefaultImplementation(statement, span);
-            return new ValueImplementation(expressions, statement, span);
+                return new DefaultBody(statement, span);
+            return new ValueBody(expressions, statement, span);
         }
         bool isDefault() const { return as<Case>()->isDefault(); }
 
         Case() { }
-        Case(const Implementation* implementation)
-          : ParseTreeObject(implementation) { }
+        Case(const Body* body) : ParseTreeObject(body) { }
 
-        class Implementation : public ParseTreeObject::Implementation
+        class Body : public ParseTreeObject::Body
         {
         public:
-            Implementation(const Statement& statement, const Span& span)
-              : ParseTreeObject::Implementation(span), _statement(statement)
-            { }
+            Body(const Statement& statement, const Span& span)
+              : ParseTreeObject::Body(span), _statement(statement) { }
             virtual bool isDefault() const = 0;
         private:
             Statement _statement;
         };
     private:
-        class DefaultImplementation : public Implementation
+        class DefaultBody : public Body
         {
         public:
-            DefaultImplementation(const Statement& statement, const Span& span)
-              : Implementation(statement, span) { }
+            DefaultBody(const Statement& statement, const Span& span)
+              : Body(statement, span) { }
             bool isDefault() const { return true; }
         };
-        class ValueImplementation : public Implementation
+        class ValueBody : public Body
         {
         public:
-            ValueImplementation(const List<Expression>& expressions,
+            ValueBody(const List<Expression>& expressions,
                 const Statement& statement, const Span& span)
-              : Implementation(statement, span), _expressions(expressions) { }
+              : Body(statement, span), _expressions(expressions) { }
             bool isDefault() const { return false; }
         private:
             List<Expression> _expressions;
         };
     };
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Expression& expression, const Case& defaultCase,
+        Body(const Expression& expression, const Case& defaultCase,
             const List<Case>& cases, const Span& span)
-          : Statement::Implementation(span), _expression(expression),
+          : Statement::Body(span), _expression(expression),
             _defaultCase(defaultCase), _cases(cases) { }
     private:
         Expression _expression;
@@ -650,18 +631,18 @@ public:
             return ReturnStatement();
         Expression expression = Expression::parseOrFail(source);
         Space::assertCharacter(source, ';', &span);
-        return new Implementation(expression, span);
+        return new Body(expression, span);
     }
 private:
     ReturnStatement() { }
-    ReturnStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    ReturnStatement(const Body* body)
+      : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Expression& expression, const Span& span)
-          : Statement::Implementation(span), _expression(expression) { }
+        Body(const Expression& expression, const Span& span)
+          : Statement::Body(span), _expression(expression) { }
     private:
         Expression _expression;
     };
@@ -677,18 +658,17 @@ public:
             return IncludeStatement();
         Expression expression = Expression::parseOrFail(source);
         Space::assertCharacter(source, ';', &span);
-        return new Implementation(expression, span);
+        return new Body(expression, span);
     }
 private:
     IncludeStatement() { }
-    IncludeStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    IncludeStatement(const Body* body) : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Expression& expression, const Span& span)
-          : Statement::Implementation(span), _expression(expression) { }
+        Body(const Expression& expression, const Span& span)
+          : Statement::Body(span), _expression(expression) { }
     private:
         Expression _expression;
     };
@@ -709,8 +689,8 @@ public:
     }
 private:
     BreakOrContinueStatementTemplate() { }
-    BreakOrContinueStatementTemplate(const Implementation* implementation)
-      : Statement(implementation) { }
+    BreakOrContinueStatementTemplate(const Body* body)
+      : Statement(body) { }
 
     static BreakOrContinueStatement parseBreak(CharacterSource* source)
     {
@@ -722,7 +702,7 @@ private:
             Space::assertCharacter(source, ';', &span);
         else
             span += statement.span();
-        return new BreakImplementation(statement, span);
+        return new BreakBody(statement, span);
     }
     
     static BreakOrContinueStatement parseContinue(CharacterSource* source)
@@ -731,29 +711,28 @@ private:
         if (!Space::parseKeyword(source, "continue", &span))
             return BreakOrContinueStatement();
         Space::assertCharacter(source, ';', &span);
-        return new ContinueImplementation(span);
+        return new ContinueBody(span);
     }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Span& span) : Statement::Implementation(span) { }
+        Body(const Span& span) : Statement::Body(span) { }
     };
 
-    class BreakImplementation : public Implementation
+    class BreakBody : public Body
     {
     public:
-        BreakImplementation(const BreakOrContinueStatement& statement,
-            const Span& span)
-          : Implementation(span), _statement(statement) { }
+        BreakBody(const BreakOrContinueStatement& statement, const Span& span)
+          : Body(span), _statement(statement) { }
     private:
         BreakOrContinueStatement _statement;
     };
 
-    class ContinueImplementation : public Implementation
+    class ContinueBody : public Body
     {
     public:
-        ContinueImplementation(const Span& span) : Implementation(span) { }
+        ContinueBody(const Span& span) : Body(span) { }
     };
 };
 
@@ -766,18 +745,17 @@ public:
         if (!Space::parseKeyword(source, "forever", &span))
             return ForeverStatement();
         Statement statement = Statement::parseOrFail(source);
-        return new Implementation(statement, span + statement.span());
+        return new Body(statement, span + statement.span());
     }
 private:
     ForeverStatement() { }
-    ForeverStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    ForeverStatement(const Body* body) : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Statement& statement, const Span& span)
-          : Statement::Implementation(span), _statement(statement) { }
+        Body(const Statement& statement, const Span& span)
+          : Statement::Body(span), _statement(statement) { }
     private:
         Statement _statement;
     };
@@ -819,21 +797,20 @@ public:
         }
         if (foundUntil)
             condition = !condition;
-        return new Implementation(doStatement, condition, statement,
+        return new Body(doStatement, condition, statement,
             doneStatement, span);
     }
 private:
     WhileStatement() { }
-    WhileStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    WhileStatement(const Body* body) : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Statement& doStatement,
-            const Expression& condition, const Statement& statement,
-            const Statement& doneStatement, const Span& span)
-          : Statement::Implementation(span), _doStatement(doStatement),
+        Body(const Statement& doStatement, const Expression& condition,
+            const Statement& statement, const Statement& doneStatement,
+            const Span& span)
+          : Statement::Body(span), _doStatement(doStatement),
             _condition(condition), _statement(statement),
             _doneStatement(doneStatement) { }
     private:
@@ -867,22 +844,20 @@ public:
             doneStatement = Statement::parseOrFail(source);
             span += doneStatement.span();
         }
-        return new Implementation(preStatement, expression, postStatement,
+        return new Body(preStatement, expression, postStatement,
             statement, doneStatement, span);
     }
 private:
     ForStatement() { }
-    ForStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    ForStatement(const Body* body) : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Statement& preStatement,
-            const Expression& condition, const Statement& postStatement,
-            const Statement& statement, const Statement& doneStatement,
-            const Span& span)
-          : Statement::Implementation(span), _preStatement(preStatement),
+        Body(const Statement& preStatement, const Expression& condition,
+            const Statement& postStatement, const Statement& statement,
+            const Statement& doneStatement, const Span& span)
+          : Statement::Body(span), _preStatement(preStatement),
             _condition(condition), _postStatement(postStatement),
             _statement(statement), _doneStatement(doneStatement) { }
     private:
@@ -906,18 +881,17 @@ public:
         Span span;
         if (!Space::parseCharacter(&s2, ':', &span))
             return LabelStatement();
-        return new Implementation(identifier, identifier.span() + span);
+        return new Body(identifier, identifier.span() + span);
     }
 private:
     LabelStatement() { }
-    LabelStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    LabelStatement(const Body* body) : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Identifier& identifier, const Span& span)
-          : Statement::Implementation(span), _identifier(identifier) { }
+        Body(const Identifier& identifier, const Span& span)
+          : Statement::Body(span), _identifier(identifier) { }
     private:
         Identifier _identifier;
     };
@@ -934,18 +908,17 @@ public:
         Expression expression = Expression::parseOrFail(source);
         Span span2;
         Space::parseCharacter(source, ';', &span);
-        return new Implementation(expression, span);
+        return new Body(expression, span);
     }
 private:
     GotoStatement() { }
-    GotoStatement(const Implementation* implementation)
-      : Statement(implementation) { }
+    GotoStatement(const Body* body) : Statement(body) { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Expression& expression, const Span& span)
-          : Statement::Implementation(span), _expression(expression) { }
+        Body(const Expression& expression, const Span& span)
+          : Statement::Body(span), _expression(expression) { }
     private:
         Expression _expression;
     };
@@ -957,13 +930,13 @@ class BuiltInStatement : public Statement
 {
 public:
     BuiltInStatement(void (*execute)(RunTimeStack* stack))
-      : Statement(new Implementation(execute)) { }
+      : Statement(new Body(execute)) { }
 protected:
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(void (*execute)(RunTimeStack* stack))
-          : Statement::Implementation(Span()), _execute(execute) { }
+        Body(void (*execute)(RunTimeStack* stack))
+          : Statement::Body(Span()), _execute(execute) { }
     private:
         void (*_execute)(RunTimeStack* stack);
     };

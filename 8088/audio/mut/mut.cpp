@@ -2,6 +2,7 @@
 #include "alfe/space.h"
 #include "alfe/type.h"
 #include "alfe/rational.h"
+#include "alfe/complex.h"
 
 template<class T> class SoundObjectTemplate;
 typedef SoundObjectTemplate<void> SoundObject;
@@ -45,39 +46,62 @@ typedef StatementTemplate<void> Statement;
 template<class T> class SymbolTableTemplate;
 typedef SymbolTableTemplate<void> SymbolTable;
 
-template<class T> class SoundObjectTemplate
+template<class T> class SoundObjectTemplate : public Handle
 {
 public:
-    SoundObject power(const SoundObject& other) const { return _implementation->power(other._implementation); }
-    SoundObject operator-() const { return _implementation->negative(); }
-    SoundObject timeScale(const SoundObject& other) const { return _implementation->timeScale(other._implementation); }
-    SoundObject operator*(const SoundObject& other) const { return _implementation->product(other._implementation); }
-    SoundObject operator/(const SoundObject& other) const { return _implementation->quotient(other._implementation); }
-    SoundObject operator+(const SoundObject& other) const { return _implementation->sum(other._implementation); }
-    SoundObject operator-(const SoundObject& other) const { return _implementation->difference(other._implementation); }
-    SoundObject operator&(const SoundObject& other) const { return _implementation->voice(other._implementation); }
-    SoundObject operator|(const SoundObject& other) const { return _implementation->sequence(other._implementation); }
+    SoundObject power(const SoundObject& other) const
+    {
+        return body()->power(other.body());
+    }
+    SoundObject operator-() const { return body()->negative(); }
+    SoundObject timeScale(const SoundObject& other) const
+    {
+        return body()->timeScale(other.body());
+    }
+    SoundObject operator*(const SoundObject& other) const
+    {
+        return body()->product(other.body());
+    }
+    SoundObject operator/(const SoundObject& other) const
+    {
+        return body()->quotient(other.body());
+    }
+    SoundObject operator+(const SoundObject& other) const
+    {
+        return body()->sum(other.body());
+    }
+    SoundObject operator-(const SoundObject& other) const
+    {
+        return body()->difference(other.body());
+    }
+    SoundObject operator&(const SoundObject& other) const
+    {
+        return body()->voice(other.body());
+    }
+    SoundObject operator|(const SoundObject& other) const
+    {
+        return body()->sequence(other.body());
+    }
 protected:
-    class Implementation : public ReferenceCounted
+    class Body : public Handle::Body
     {
     public:
-        virtual SoundObject power(const Implementation* other) const = 0;
+        virtual SoundObject power(const Body* other) const = 0;
         virtual SoundObject negative() const = 0;
-        virtual SoundObject timeScale(const Implementation* other) const = 0;
-        virtual SoundObject product(const Implementation* other) const = 0;
-        virtual SoundObject quotient(const Implementation* other) const = 0;
-        virtual SoundObject sum(const Implementation* other) const = 0;
-        virtual SoundObject difference(const Implementation* other) const = 0;
-        virtual SoundObject voice(const Implementation* other) const = 0;
-        virtual SoundObject sequence(const Implementation* other) const = 0;
+        virtual SoundObject timeScale(const Body* other) const = 0;
+        virtual SoundObject product(const Body* other) const = 0;
+        virtual SoundObject quotient(const Body* other) const = 0;
+        virtual SoundObject sum(const Body* other) const = 0;
+        virtual SoundObject difference(const Body* other) const = 0;
+        virtual SoundObject voice(const Body* other) const = 0;
+        virtual SoundObject sequence(const Body* other) const = 0;
     };
-    Reference<Implementation> _implementation;
 };
 
 template<class T> class EntryTemplate : public SoundObject
 {
 protected:
-    class Implementation : public SoundObject::Implementation
+    class Body : public SoundObject::Body
     {
     };
 };
@@ -85,105 +109,166 @@ protected:
 template<class T> class ScalarTemplate : public Entry
 {
 public:
-    ScalarTemplate(int value = 0, int unit = 0) : Entry(new RationalImplementation(unit, value)) { }
+    ScalarTemplate(int value = 0, int unit = 0)
+      : Entry(new RationalBody(unit, value)) { }
 
-    bool isReal() { return _implementation->isReal(); }
-    int unit() { return _implementation->unit(); }
-    double toRealDouble() { return _implementation->toDouble().x; }
+    bool isReal() { return body()->isReal(); }
+    int unit() { return body()->unit(); }
+    double toRealDouble() { return body()->toDouble().x; }
 protected:
-    ScalarTemplate(Implementation* implementation) : Entry(implementation) { }
+    ScalarTemplate(Body* body) : Entry(body) { }
 
-    class Implementation : public Entry::Implementation
+    class Body : public Entry::Body
     {
     public:
-        Implementation(int unit) : _unit(unit) { }
+        Body(int unit) : _unit(unit) { }
         bool isNumber() const { return _unit == 0; }
         int unit() const { return _unit; }
         virtual bool isRational() const = 0;
         virtual bool isInteger() const = 0;
         virtual int toInteger() const = 0;
         virtual Complex<double> toDouble() const = 0;
-        virtual Complex<Rational<int>> toRational() const = 0;
+        virtual Complex<Rational> toRational() const = 0;
     protected:
         int _unit;
     };
 
-    class DoubleImplementation : public Implementation
+    class DoubleBody : public Body
     {
     public:
-        DoubleImplementation(int unit = 0, Complex<double> value = 0) : Implementation(unit), _value(value) { }
+        DoubleBody(int unit = 0, Complex<double> value = 0)
+          : Body(unit), _value(value) { }
         bool isRational() const { return false; }
-        bool isInteger() const { return _value.y == 0 && isDoubleInteger(_value.x); }
+        bool isInteger() const
+        {
+            return _value.y == 0 && isDoubleInteger(_value.x);
+        }
         int toInteger() const { return _value.x; }
         Complex<double> toDouble() const { return _value; }
-        Complex<Rational<int>> toRational() const { return Complex<Rational<int>>(rationalFromDouble(_value.x), rationalFromDouble(_value.y)); }
-
-        SoundObject power(const SoundObject::Implementation* o) const
+        Complex<Rational> toRational() const
         {
-            const Implementation* other = dynamic_cast<const Implementation*>(o);
+            return Complex<Rational>(
+                rationalFromDouble(_value.x), rationalFromDouble(_value.y));
+        }
+
+        SoundObject power(const SoundObject::Body* o) const
+        {
+            auto other = o->as<Body>;
             if (other == 0)
                 throw Exception("Don't know how to do that yet!\n");
             if (other->isRational()) {
-                Complex<Rational<int>> p = _unit;
+                Complex<Rational> p = _unit;
                 p *= other->toRational();
                 if (p.y.numerator != 0 || p.x.denominator != 1)
-                    throw Exception("Operation yields a non-integral time power.\n");
-                return new DoubleImplementation(p.x.numerator, pow(_value, other->toDouble()));
+                    throw Exception(
+                        "Operation yields a non-integral time power.\n");
+                return new DoubleBody(p.x.numerator,
+                    pow(_value, other->toDouble()));
             }
             Complex<double> p = _unit;
             p *= other->toDouble();
             if (p.y != 0 || !isDoubleInteger(p.x))
-                throw Exception("Operation yields a non-integral time power.\n");
-            return new DoubleImplementation(static_cast<int>(p.x), pow(_value, other->toDouble()));
+                throw Exception(
+                    "Operation yields a non-integral time power.\n");
+            return new DoubleBody(static_cast<int>(p.x),
+                pow(_value, other->toDouble()));
         }
         SoundObject negative() const
         {
-            return new DoubleImplementation(_unit, -_value);
+            return new DoubleBody(_unit, -_value);
         }
-        SoundObject timeScale(const SoundObject::Implementation* o) const
+        SoundObject timeScale(const SoundObject::Body* o) const
         {
-            throw Exception("Don't know how to do that yet!\n");
+            throw NotYetImplementedException;
         }
-        SoundObject product(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
-        SoundObject quotient(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
-        SoundObject sum(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
-        SoundObject difference(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
-        SoundObject voice(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
-        SoundObject sequence(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
+        SoundObject product(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
+        SoundObject quotient(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
+        SoundObject sum(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
+        SoundObject difference(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
+        SoundObject voice(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
+        SoundObject sequence(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
     private:
         Complex<double> _value;
     };
 
-    class RationalImplementation : public Implementation
+    class RationalBody : public Body
     {
     public:
-        RationalImplementation(int unit = 0, Complex<Rational<int>> value = 0) : Implementation(unit), _value(value) { }
+        RationalBody(int unit = 0, Complex<Rational> value = 0)
+          : Body(unit), _value(value) { }
         bool isRational() const { return true; }
-        bool isInteger() const { return _value.x.denominator == 1 && _value.y.numerator == 0; }
-        int toInteger() const { return _value.x.numerator/_value.x.denominator; }
-        Complex<double> toDouble() const { return Complex<double>(static_cast<double>(_value.numerator.x)/_value.denominator.x, static_cast<double>(_value.numerator.y)/_value.denominator.y); }
+        bool isInteger() const
+        {
+            return _value.x.denominator == 1 && _value.y.numerator == 0;
+        }
+        int toInteger() const
+        {
+            return _value.x.numerator/_value.x.denominator;
+        }
+        Complex<double> toDouble() const
+        {
+            return Complex<double>(
+                static_cast<double>(_value.numerator.x)/_value.denominator.x,
+                static_cast<double>(_value.numerator.y)/_value.denominator.y);
+        }
         Complex<double> toRational() const { return _value; }
 
-        SoundObject power(const SoundObject::Implementation* o) const
+        SoundObject power(const SoundObject::Body* o) const
         {
             throw Exception("Don't know how to do that yet!\n");
         }
         SoundObject negative() const
         {
-            return new RationalImplementation(_unit, -_value);
+            return new RationalBody(_unit, -_value);
         }
-        SoundObject timeScale(const SoundObject::Implementation* o) const
+        SoundObject timeScale(const SoundObject::Body* o) const
         {
             throw Exception("Don't know how to do that yet!\n");
         }
-        SoundObject product(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
-        SoundObject quotient(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
-        SoundObject sum(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
-        SoundObject difference(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
-        SoundObject voice(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
-        SoundObject sequence(const Implementation* other) const { throw Exception("Don't know how to do that yet!\n");}
+        SoundObject product(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
+        SoundObject quotient(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
+        SoundObject sum(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
+        SoundObject difference(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
+        SoundObject voice(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
+        SoundObject sequence(const Body* other) const
+        {
+            throw NotYetImplementedException;
+        }
     private:
-        Complex<Rational<int>> _value;
+        Complex<Rational> _value;
     };
 
 private:
@@ -198,20 +283,21 @@ private:
 template<class T> class SampleTemplate : public Entry
 {
 protected:
-    class Implementation : public Entry::Implementation
+    class Body : public Entry::Body
     {
     public:
-        Implementation(Number extent) : _extent(extent) { }
-        virtual void writeOutput(Byte* destination, int count, int samplesRate) const = 0;
+        Body(Scalar extent) : _extent(extent) { }
+        virtual void writeOutput(Byte* destination, int count, int samplesRate)
+            const = 0;
     protected:
-        Number _extent;
+        Scalar _extent;
     };
 };
 
 template<class T> class ImplicitSampleTemplate : public Sample
 {
 protected:
-    class Implementation : public Sample::Implementation
+    class Body : public Sample::Body
     {
     };
 };
@@ -219,7 +305,7 @@ protected:
 template<class T> class SineSampleTemplate : public ImplicitSample
 {
 protected:
-    class Implementation : public ImplicitSample::Implementation
+    class Body : public ImplicitSample::Body
     {
     public:
 
@@ -242,31 +328,31 @@ template<class T> class NoiseSampleTemplate : public ImplicitSample
 {
 };
 
-class SampleData
+class SampleData : public Handle
 {
 public:
-    SampleData(int count) : _implementation(new Implementation(count)) { }
-    Complex<double>* data() { return _implementation->data(); }
+    SampleData(int count) : Handle(new Body(count)) { }
+    Complex<double>* data() { return body()->data(); }
 private:
-    class Implementation : public ReferenceCounted
+    class Body : public Handle::Body
     {
     public:
-        Implementation(int count) : _data(count) { }
+        Body(int count) : _data(count) { }
         Complex<double>* data() { return &_data[0]; }
     private:
         Array<Complex<double>> _data;  // TODO: Use FFTW type?
     };
-    Reference<Implementation> _implementation;
+    Body* body() { return as<Body>(); }
 };
 
 template<class T> class ExplicitSampleTemplate : public Sample
 {
 protected:
-    class Implementation : public Sample::Implementation
+    class Body : public Sample::Body
     {
     public:
-        Implementation(Number extent, SampleData data)
-          : Sample::Implementation(extent), _data(data) { }
+        Body(Scalar extent, SampleData data)
+          : Sample::Body(extent), _data(data) { }
         void writeOutput(Byte* destination, int count, int samplesRate) const
         {
             // TODO
@@ -280,24 +366,15 @@ template<class T> class TableTemplate : public SoundObject
 {
 };
 
-class ParseTreeObject
+class ParseTreeObject : public ConstHandle
 {
 public:
-    Span span() const { return _implementation->span(); }
-    bool valid() const { return _implementation.valid(); }
-    template<class T> bool is() const
-    {
-        return _implementation.is<T::Implementation>();
-    }
-    template<class T> const typename T::Implementation* as() const
-    {
-        return _implementation.referent<T::Implementation>();
-    }
+    Span span() const { return body()->span(); }
 
-    class Implementation : public ReferenceCounted
+    class Body : public Handle::Body
     {
     public:
-        Implementation(const Span& span) : _span(span) { }
+        Body(const Span& span) : _span(span) { }
         Span span() const { return _span; }
     private:
         Span _span;
@@ -305,21 +382,9 @@ public:
 
 protected:
     ParseTreeObject() { }
-    ParseTreeObject(const Implementation* implementation)
-      : _implementation(implementation) { }
+    ParseTreeObject(const Body* body) : ConstHandle(body) { }
 
-    template<class T> const ParseTreeObject& operator=(const T* implementation)
-    {
-        _implementation = implementation;
-        return *this;
-    }
-    const ParseTreeObject& operator=(const ParseTreeObject& other)
-    {
-        _implementation = other._implementation;
-        return *this;
-    }
-
-    ConstReference<Implementation> _implementation;
+    const Body* body() const { return as<Body>(); }
 };
 
 class ExpressionStatement : public Statement
@@ -341,15 +406,15 @@ public:
     }
 
     ExpressionStatement(const Expression& expression, const Span& span)
-      : Statement(new Implementation(expression, span)) { }
+      : Statement(new Body(expression, span)) { }
 private:
     ExpressionStatement() { }
 
-    class Implementation : public Statement::Implementation
+    class Body : public Statement::Body
     {
     public:
-        Implementation(const Expression& expression, const Span& span)
-          : Statement::Implementation(span), _expression(expression) { }
+        Body(const Expression& expression, const Span& span)
+          : Statement::Body(span), _expression(expression) { }
     private:
         Expression _expression;
     };
@@ -463,14 +528,13 @@ public:
     }
     StatementTemplate() { }
 protected:
-    StatementTemplate(const Implementation* implementation)
-      : ParseTreeObject(implementation) { }
+    StatementTemplate(const Body* body)
+      : ParseTreeObject(body) { }
 
-    class Implementation : public ParseTreeObject::Implementation
+    class Body : public ParseTreeObject::Body
     {
     public:
-        Implementation(const Span& span)
-          : ParseTreeObject::Implementation(span) { }
+        Body(const Span& span) : ParseTreeObject::Body(span) { }
     };
 };
 
@@ -488,30 +552,29 @@ public:
             span += statement.span();
             sequence.add(statement);
         } while (true);
-        return new Implementation(sequence, span);
+        return new Body(sequence, span);
     }
 private:
-    StatementSequence(const Implementation* implementation)
-      : ParseTreeObject(implementation) { }
+    StatementSequence(const Body* body) : ParseTreeObject(body) { }
 
-    class Implementation : public ParseTreeObject::Implementation
+    class Body : public ParseTreeObject::Body
     {
     public:
-        Implementation(const List<Statement>& sequence, const Span& span)
-          : ParseTreeObject::Implementation(span), _sequence(sequence) { }
+        Body(const List<Statement>& sequence, const Span& span)
+          : ParseTreeObject::Body(span), _sequence(sequence) { }
     private:
         List<Statement> _sequence;
     };
 };
 
-template<class T> class SymbolTableTemplate
+template<class T> class SymbolTableTemplate : public Handle
 {
 public:
-    void add(String identifier, Expression expression) { _implementation->add(identifier, expression); }
-    Expression lookup(String identifier) { return _implementation->lookup(identifier); }
+    void add(String identifier, Expression expression) { body()->add(identifier, expression); }
+    Expression lookup(String identifier) { return body()->lookup(identifier); }
 
 private:
-    class Implementation : public ReferenceCounted
+    class Body : public Handle::Body
     {
     public:
         void add(String identifier, Expression expression) { _table[identifier] = expression; }
@@ -526,12 +589,12 @@ private:
         HashTable<String, Expression> _table;
         AppendableArray<SymbolTable> _children;
     };
-    class RootImplementation : public Implementation
+    class RootBody : public Body
     {
     public:
         bool isRoot() const { return true; }
     };
-    class VoiceImplementation : public Implementation
+    class VoiceBody : public Body
     {
     public:
         bool isRoot() const { return false; }
@@ -539,8 +602,6 @@ private:
         SymbolTable _parent;
         int _voice;
     };
-
-    Reference<Implementation> _implementation;
 };
 
 class Program : public ProgramBase
@@ -592,21 +653,21 @@ public:
         int bytesPerSecond = outputWaveRate * blockAlign;
         int count = static_cast<int>(length.toDouble());
         int l = count * bytesPerSecond;
-        AutoHandle h = File(outputWave).openWrite();
-        h.write("RIFF");
-        h.write<UInt32>(l + 0x20);
-        h.write("WAVEfmt ");
-        h.write<UInt32>(0x0c);
-        h.write<UInt16>(1);
-        h.write<UInt16>(1); // Mono only for now
-        h.write<UInt16>(outputWaveRate);
-        h.write<UInt16>(bytesPerSecond);
-        h.write<UInt16>(blockAlign);
-        h.write<UInt16>(0);
-        h.write("data");
-        h.write<UInt16>(l);
+        AutoStream st = File(outputWave).openWrite();
+        st.write("RIFF");
+        st.write<UInt32>(l + 0x20);
+        st.write("WAVEfmt ");
+        st.write<UInt32>(0x0c);
+        st.write<UInt16>(1);
+        st.write<UInt16>(1); // Mono only for now
+        st.write<UInt16>(outputWaveRate);
+        st.write<UInt16>(bytesPerSecond);
+        st.write<UInt16>(blockAlign);
+        st.write<UInt16>(0);
+        st.write("data");
+        st.write<UInt16>(l);
         Array<Byte> outputData(l);
         output.write(&outputData[0], count, outputWaveRate);
-        h.write(outputData);
+        st.write(outputData);
     }
 };

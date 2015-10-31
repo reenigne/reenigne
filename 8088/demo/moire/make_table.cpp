@@ -91,7 +91,7 @@ public:
         minO &= -2;
         maxO = (maxO + 1) & -2;
 
-        FileHandle output = File("tables.asm").openWrite();
+        FileStream output = File("tables.asm").openWrite();
 /*        output.write("cpu 8086\n"
             "segment _DATA public class = DATA\n"
             "\n"

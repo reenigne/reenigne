@@ -36,11 +36,13 @@ public:
             if (type != 2)
                 _pulseWidth = 0;
         }
-        int hash() const
+        UInt32 hash() const
         {
+            Hash h(typeid(WaveDescriptor));
             if (_volume == 0)
-                return 0;
-            return _volume + (_pulseWidth << 12) + (_type << 21) + (_scale << 24);
+                return h;
+            return h.mixin(_volume).mixin(_pulseWidth).mixin(_type).
+                mixin(_scale);
         }
         bool operator==(const WaveDescriptor& other) const
         {
@@ -121,11 +123,11 @@ public:
     class Wave
     {
     public:
-        int hash() const
+        UInt32 hash() const
         {
-            int h = 0;
+            Hash h(typeid(Wave));
             for (int i = 0; i < 0x100; ++i)
-                h = h * 67 + _data[i] - 113;
+                h.mixin(_data[i]);
             return h;
         }
         bool operator==(const Wave& other)
@@ -240,11 +242,12 @@ public:
             int volume)
           : _tFrequency(tFrequency), _sFrequency(sFrequency), _volume(volume)
         { }
-        int hash() const
+        UInt32 hash() const
         {
+            Hash h(typeid(RingModulationParameters));
             if (_volume == 0)
-                return 0;
-            return ((_tFrequency << 16) + _sFrequency)^_volume;
+                return h;
+            return h.mixin(_tFrequency).mixin(_sFrequency).mixin(_volume);
         }
         bool operator==(const RingModulationParameters& other)
         {

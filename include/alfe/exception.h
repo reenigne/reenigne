@@ -44,23 +44,14 @@ template<class T> class ExceptionTemplate
 {
 public:
 #ifdef _WIN32
-    ExceptionTemplate()
-      : _message(messageFromErrorCode(E_FAIL)),
-        _implementation(new OwningImplementation(_message))
-    { }
+    ExceptionTemplate() : _message(messageFromErrorCode(E_FAIL)) { }
 #else
-    ExceptionTemplate()
-      : _message("Unspecified error"),
-        _implementation(new OwningImplementation(_message))
-    { }
+    ExceptionTemplate() : _message("Unspecified error") { }
 #endif
-    ExceptionTemplate(const String& message)
-      : _message(message),
-        _implementation(new OwningImplementation(message))
-    { }
-    void write(const HandleTemplate<T>& handle) const
+    ExceptionTemplate(const String& message) : _message(message) { }
+    void write(const StreamTemplate<T>& stream) const
     {
-        handle.write(_message + codePoint(10));
+        stream.write(_message + codePoint(10));
     }
     static Exception systemError(const String& message = String())
     {
@@ -97,31 +88,6 @@ public:
     }
 #endif
 private:
-    class Implementation : public ReferenceCounted
-    {
-    public:
-#ifdef UTF16_MESSAGES
-        virtual const WCHAR* message() = 0;
-#else
-        virtual const char* message() = 0;
-#endif
-    };
-    class OwningImplementation : public Implementation
-    {
-    public:
-        OwningImplementation(String string) : _string(string) { }
-#ifdef UTF16_MESSAGES
-        const WCHAR* message() { return _string; }
-#else
-        const char* message() { return _string; }
-#endif
-    private:
-#ifdef UTF16_MESSAGES
-        NullTerminatedWideString _string;
-#else
-        NullTerminatedString _string;
-#endif
-    };
 #ifdef _WIN32
     static String messageFromErrorCode(DWORD error)
     {
@@ -145,11 +111,19 @@ private:
             NULL);
         if (formatted == 0)
             return String("FormatMessage failed: ") + hex(GetLastError(), 8);
+        // It's safe to destruct the LocalString because it uses wide
+        // characters and the String constructor will allocate its own buffer
+        // for the UTF-8 conversion.
         return strMessage.string();
     }
 #endif
     String _message;
-    Reference<Implementation> _implementation;
+};
+
+class NotYetImplementedException : public Exception
+{
+public:
+    NotYetImplementedException() : Exception("Not yet implemented") { }
 };
 
 class PreserveSystemError

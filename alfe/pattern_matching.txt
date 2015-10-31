@@ -1,0 +1,76 @@
+Suppose we have a template
+Foo<X>  (where X may be a tyco other than just a simple type)
+And we invoke
+Foo<Y>  (again Y may be a non-nullary tyco)
+
+How do we decide which (partial) specialization of Foo to instantiate?
+
+Make a list of all the Foo templates
+Throw out any where Y does not match X
+Make a partial ordering graph (poset) on the remainder
+  A is better than B if there is some C that would match B but not A
+If there is exactly one best match, use it
+
+The same algorithm applies to functions as well as to templates
+  the only difference being that we end up with a function instead of a Tyco
+  Overloads are considered to be syntactic sugar for partial specialization
+
+Consider:
+
+Base = Class { };
+Derived = Class : Base { };
+
+Foo<Base> = Class { ... };
+Foo<Derived> = Class { ... };
+
+If X = Derived then the Foo<Derived> beats the Foo<Base> because if there was another "Class : Base { }" then it would match Foo<Base> but not Foo<Derived>
+
+foo(Derived* x)  >  foo(Base* x)  >  foo<@T>(T* x)  >  foo<@T>(T x)
+
+
+foo(Derived* x, Base* y)  >  foo(Base* x, Base* y)
+foo(Base* x, Derived* y)  >  foo(Base* x, Base* y)
+
+=> No maximal element, therefore foo(Derived*, Derived*) is ambiguous and causes an error
+Therefore our ordering is not a total order
+
+
+A function is a special case of a function constructor (by analogy with type and tyco)
+
+
+foo(Base* x)                  creates a single function (nullary fnco)
+foo<@T where T : Base>(T* x)  creates a family of function (template fnco aka template function)
+
+Which is preferred when calling foo(Derived*)?  (Or foo(Base*) for that matter)
+  Neither - therefore it's an error to have both
+
+
+What about scope? If there are two functions or tycos which are unordered but one has a smaller scope, the one with the smaller scope wins
+
+
+In C++, adding a template specialization does not affect overload resolution.
+However, in ALFE function overloads and function template specializations are treated the same.
+
+
+
+The difficult part here is: given two Tycos or Fncos A and B, figure out which of the following is true:
+1) There is at least one set of Tycos that matches A but not B
+2) There is at least one set of Tycos that does not match A but does match B
+3) Both (unordered)
+4) Neither (equal)
+
+Given that all the candidate functions match these functions, there must be some relationship between corresponding parameters in the different candidates
+
+What are all the ways that templates can be defined?
+
+Classes:
+
+Foo<@T> =
+
+
+Functions:
+
+    A f<@A>() { }
+    A<Int> f<@A<>>() { }
+    A<B> f<@A<>,@B>() { }
+

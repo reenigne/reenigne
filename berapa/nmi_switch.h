@@ -20,27 +20,27 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
-        _nmiOn = (*members)["on"].value<bool>();
-        _active = (*members)["active"].value<bool>();
+        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        _nmiOn = members["on"].value<bool>();
+        _active = members["active"].value<bool>();
     }
     bool nmiOn() const { return _nmiOn; }
     TypedValue getValue(Identifier name)
     {
         if (name.name() == "bus")
-            return &_connector;
+            return TypedValue(_connector.type(), &_connector);
         return ISA8BitComponent::getValue(name);
     }
 
-    class ValueConnector : public Connector
+    class ValueConnector : public ::Connector
     {
     public:
         ValueConnector(NMISwitch* component) : _component(component) { }
-        void connect(Connector* other)
+        void connect(::Connector* other)
         {
             // TODO
         }
-        Type type() const { return BitOutputConnectorType(); }
+        ::Connector::Type type() const { return BitOutputConnector::Type(); }
     private:
         NMISwitch* _component;
     };
@@ -49,15 +49,14 @@ public:
     {
     public:
         Type(Simulator* simulator)
-          : ISA8BitComponent::Type(new Implementation(simulator)) { }
-        Type(const Implementation* implementation)
-            : ISA8BitComponent::Type(implementation) { }
+          : ISA8BitComponent::Type(new Body(simulator)) { }
+        Type(const Body* body) : ISA8BitComponent::Type(body) { }
     private:
-        class Implementation : public ISA8BitComponent::Type::Implementation
+        class Body : public ISA8BitComponent::Type::Body
         {
         public:
-            Implementation(Simulator* simulator)
-              : ISA8BitComponent::Type::Implementation(simulator) { }
+            Body(Simulator* simulator)
+              : ISA8BitComponent::Type::Body(simulator) { }
             String toString() const { return "NMISwitch"; }
             TypedValue tryConvert(const TypedValue& value, String* why) const
             {
@@ -74,7 +73,7 @@ public:
             {
                 if (memberName == "value")
                     return true;
-                return ISA8BitComponent::Type::Implementation::has(memberName);
+                return ISA8BitComponent::Type::Body::has(memberName);
             }
 
         };

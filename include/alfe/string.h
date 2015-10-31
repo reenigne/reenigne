@@ -3,15 +3,46 @@
 #ifndef INCLUDED_STRING_H
 #define INCLUDED_STRING_H
 
+#include <cstdarg>
+
 template<class T> class ExceptionTemplate;
 typedef ExceptionTemplate<void> Exception;
 
 template<class T> class StringTemplate;
-typedef StringTemplate<void> String;
+typedef StringTemplate<Byte> String;
 
 template<class T> class StringTemplate
 {
 public:
+#ifdef _WIN32
+    static int bytes(const WCHAR* utf16)
+    {
+        int n = 0;
+        int offset = 0;
+        while (true) {
+            int c = *utf16;
+            ++utf16;
+            if (c == 0)
+                break;
+            if (c >= 0xdc00 && c < 0xe000)
+                throw Exception("String offset " + hex(offset) +
+                    ": expected 0x0000..0xDBFF or 0xE000..0xFFFF, found " +
+                    hex(c, 4));
+            ++offset;
+            if (c >= 0xd800 && c < 0xdc00) {
+                int c2 = *utf16;
+                ++utf16;
+                if (c2 < 0xdc00 || c2 >= 0xe000)
+                    throw Exception("String offset " + hex(offset) +
+                        ": expected 0xDC00..0xDFFF, found " + hex(c2, 4));
+                ++offset;
+                c = (((c & 0x3ff) << 10) | (c2 & 0x3ff)) + 0x10000;
+            }
+            n += CodePoint(c).bytes();
+        }
+        return n;
+    }
+#endif
     class Hex
     {
     public:
@@ -25,7 +56,7 @@ public:
         }
     private:
         int bytes() const { return _digits + (_ox ? 2 : 0); }
-        void write(::Byte* destination) const
+        void write(T* destination) const
         {
             if (_ox) {
                 *destination = '0';
@@ -68,7 +99,7 @@ public:
                 return 3;
             return 4;
         }
-        void write(::Byte* destination) const
+        void write(T* destination) const
         {
             if (_c < 0x80) {
                 *destination = _c;
@@ -101,7 +132,7 @@ public:
     class Byte
     {
     public:
-        Byte(int b) : _b(b) { }
+        Byte(const T& b) : _b(b) { }
         String operator+(const char* a)
         {
             String s(1 + strlen(a));
@@ -110,11 +141,8 @@ public:
             return s;
         }
     private:
-        void write(::Byte* destination) const
-        {
-            *destination = static_cast< ::Byte>(_b);
-        }
-        int _b;
+        void write(T* destination) const { *destination = _b; }
+        T _b;
         friend class StringTemplate;
     };
 
@@ -142,7 +170,7 @@ public:
                 return _digits;
             return l;
         }
-        void write(::Byte* destination) const
+        void write(T* destination) const
         {
             int n = _n;
             int l = bytes();
@@ -187,80 +215,81 @@ public:
             return s;
         }
     private:
-        void write(::Byte* destination) const
+        void write(T* destination) const
         {
-            const ::Byte* s =
-                reinterpret_cast<const ::Byte*>(_b ? "true" : "false");
-            for (int i = 0; i < bytes(); ++i) {
-                *destination = s[i];
-                ++destination;
-            }
+            auto s = reinterpret_cast<const T*>(_b ? "true" : "false");
+            memcpy(destination, s, bytes());
         }
         bool _b;
         friend class StringTemplate;
     };
 
-    StringTemplate() : _start(0), _length(0) { }
-    StringTemplate(const char* data)
-      : _buffer(data), _start(0), _length(strlen(data)) { }
+    StringTemplate() : StringTemplate(0, 0, 0) { }
     StringTemplate(const char* data, int length)
-      : _buffer(data), _start(0), _length(length) { }
-    explicit StringTemplate(int length)
-      : _buffer(length), _start(0), _length(0) { }
-    StringTemplate(const Array< ::Byte>& array)
-      : _buffer(reinterpret_cast<const char*>(&array[0])), _start(0),
-        _length(array.count()) { }
-#ifdef _WIN32
-    StringTemplate(const WCHAR* utf16) : _start(0)
+      : StringTemplate(reinterpret_cast<const T*>(data), length, length, false)
+    { }
+    StringTemplate(const char* data) : StringTemplate(data, strlen(data)) { }
+    StringTemplate(const Array<T>& array)
+      : StringTemplate(reinterpret_cast<const char*>(&array[0]), array.count())
+    { }
+    StringTemplate(const String& other) : StringTemplate(0, 0, 0)
     {
-        int l = bytes(utf16);
-        _buffer = Buffer(l);
+        *this = other;
+    }
+    StringTemplate(const char* a, const String& b) : StringTemplate(0, 0, 0)
+    {
+        int al = strlen(a);
+        if (al == 0)
+            *this = b;
+        else {
+            int bl = b.length();
+            int l = al + bl;
+            *this = StringTemplate(reinterpret_cast<const T*>(a), l, al);
+            memcpy(data() + al, b.data(), bl);
+        }
+    }
+
+    ~StringTemplate() { reset(); }
+    const String& operator=(const String& other)
+    {
+        reset();
+        setLength(other.length());
+        unreset();
+        if (small())
+            memcpy(data(), other.data(), length());
+        else {
+            _array = other._array;
+            _start = other._start;
+        }
+        return *this;
+    }
+
+#ifdef _WIN32
+    StringTemplate(const WCHAR* utf16) : StringTemplate(bytes(utf16))
+    {
         write(data(), utf16);
-        _length = l;
     }
 #endif
-    StringTemplate(const Hex& hex) : _start(0)
+    StringTemplate(const Hex& hex) : StringTemplate(hex.bytes())
     {
-        int l = hex.bytes();
-        _buffer = Buffer(l);
         hex.write(data());
-        _length = l;
     }
-    StringTemplate(const CodePoint& c) : _start(0)
+    StringTemplate(const CodePoint& c) : StringTemplate(c.bytes())
     {
-        int l = c.bytes();
-        _buffer = Buffer(l);
         c.write(data());
-        _length = l;
     }
-    StringTemplate(const Decimal d) : _start(0)
+    StringTemplate(const Decimal d) : StringTemplate(d.bytes())
     {
-        int l = d.bytes();
-        _buffer = Buffer(l);
         d.write(data());
-        _length = l;
     }
-    StringTemplate(const Byte b): _start(0)
+    StringTemplate(const Byte b): StringTemplate(1) { b.write(data()); }
+    StringTemplate(const Boolean b): StringTemplate(b.bytes())
     {
-        _buffer = Buffer(1);
         b.write(data());
-        _length = 1;
-    }
-    StringTemplate(const Boolean b): _start(0)
-    {
-        int l = b.bytes();
-        _buffer = Buffer(l);
-        b.write(data());
-        _length = l;
     }
     const String& operator+=(const String& other)
     {
-        if (other.empty())
-            return *this;
-        int l = other._length;
-        expand(l);
-        _buffer.expand(other.data(), l);
-        _length += l;
+        extend(other.data(), other.length(), other.length());
         return *this;
     }
     String operator+(const String& other) const
@@ -273,10 +302,8 @@ public:
     {
         Decimal dd(d);
         int l = dd.bytes();
-        expand(l);
-        _buffer.expand(l);
-        dd.write(data() + _length);
-        _length += l;
+        extend(0, l, 0);
+        dd.write(data() + length() - l);
         return *this;
     }
     String operator+(int d) const { String s(*this); s += d; return s; }
@@ -284,10 +311,8 @@ public:
     const String& operator+=(const WCHAR* utf16)
     {
         int l = bytes(utf16);
-        expand(l);
-        _buffer.expand(l);
-        write(data() + _length, utf16);
-        _length += l;
+        extend(0, l, 0);
+        write(data() + length() - l, utf16);
         return *this;
     }
     String operator+(const WCHAR* utf16) const
@@ -300,10 +325,8 @@ public:
     const String& operator+=(const Hex& hex)
     {
         int l = hex.bytes();
-        expand(l);
-        _buffer.expand(l);
-        hex.write(data() + _length);
-        _length += l;
+        extend(0, l, 0);
+        hex.write(data() + length() - l);
         return *this;
     }
     String operator+(const Hex& hex) const
@@ -315,10 +338,8 @@ public:
     const String& operator+=(const CodePoint& c)
     {
         int l = c.bytes();
-        expand(l);
-        _buffer.expand(l);
-        c.write(data() + _length);
-        _length += l;
+        extend(0, l, 0);
+        c.write(data() + length() - l);
         return *this;
     }
     String operator+(const CodePoint& c) const
@@ -329,10 +350,7 @@ public:
     }
     const String& operator+=(const Byte& b)
     {
-        expand(1);
-        _buffer.expand(1);
-        b.write(data() + _length);
-        ++_length;
+        extend(&b._b, 1, 1);
         return *this;
     }
     String operator+(const Byte& b) const
@@ -342,12 +360,10 @@ public:
         return s;
     }
     const String& operator+=(const Boolean& b)
-    { 
+    {
         int l = b.bytes();
-        expand(l);
-        _buffer.expand(l);
-        b.write(data() + _length);
-        _length += l;
+        extend(0, l, 0);
+        b.write(data() + length() - l);
         return *this;
     }
     String operator+(const Boolean& b) const
@@ -359,109 +375,67 @@ public:
 
     const String& operator*=(int n)
     {
-        int l = _length*(n - 1);
-        expand(l);
-        _buffer.expand(l);
-        ::Byte* source = data();
-        ::Byte* destination = source + _length;
-        for (int i = 1; i < n; ++i) {
-            memcpy(destination, source, _length);
-            destination += _length;
+        if (n == 0)
+            *this = String();
+        else {
+            int l = length();
+            extend(0, l*(n - 1), 0);
+            T* source = data();
+            T* destination = source + l;
+            for (int i = 1; i < n; ++i) {
+                memcpy(destination, source, l);
+                destination += l;
+            }
         }
-        _length += l;
         return *this;
     }
     String operator*(int n) { String s(*this); s *= n; return s; }
 
-    bool empty() const { return _length == 0; }
-    int length() const { return _length; }
-    const ::Byte* data() const { return _buffer.data() + _start; }
     String subString(int start, int length) const
     {
-        if (length == 0)
-            return String();
-        return String(_buffer, _start + start, length);
+        return String(*this, start, length);
     }
-    void operator++() { ++_start; --_length; }
-    ::Byte operator*() const { return *data(); }
-    ::Byte operator[](int offset) const { return *(data() + offset); }
-    int hash() const
+    void operator++()
     {
-        int h = 0;
-        const ::Byte* p = data();
-        for (int i = 0; i < _length; ++i) {
-            h = h * 67 + *p - 113;
+        if (length() > 0)
+            *this = subString(_start + 1, length() - 1);
+    }
+    T operator*() const { return *data(); }
+    T operator[](int offset) const { return *(data() + offset); }
+    UInt32 hash() const
+    {
+        Hash h(typeid(String));
+        const T* p = data();
+        for (int i = 0; i < length(); ++i) {
+            h.mixin(*p);
             ++p;
         }
         return h;
     }
-    bool equalsIgnoreCase(const String& other) const
-    {
-        if (_length != other._length)
-            return false;
-        if (_length != 0) {
-            const ::Byte* a = data();
-            const ::Byte* b = other.data();
-            for (int i = 0; i < _length; ++i) {
-                if (tolower(*a) != tolower(*b))
-                    return false;
-                ++a;
-                ++b;
-            }
-        }
-        return true;
-    }
-    bool equalsIgnoreCase(const char* b) const
-    {
-        if (_length != 0) {
-            const ::Byte* a = data();
-            for (int i = 0; i < _length; ++i) {
-                if (*b == 0)
-                    return false;
-                if (tolower(*a) != tolower(*b))
-                    return false;
-                ++a;
-                ++b;
-            }
-        }
-        return *b == 0;    
-    }
     bool operator==(const String& other) const
     {
-        if (_length != other._length)
+        if (length() != other.length())
             return false;
-        if (_length != 0) {
-            const ::Byte* a = data();
-            const ::Byte* b = other.data();
-            for (int i = 0; i < _length; ++i) {
-                if (*a != *b)
-                    return false;
-                ++a;
-                ++b;
-            }
-        }
-        return true;
+        return memcmp(data(), other.data(), length()) == 0;
     }
     bool operator==(const char* b) const
     {
-        if (_length != 0) {
-            const ::Byte* a = data();
-            for (int i = 0; i < _length; ++i) {
-                if (*b == 0)
-                    return false;
-                if (*a != *b)
-                    return false;
-                ++a;
-                ++b;
-            }
+        const T* a = data();
+        for (int i = 0; i < length(); ++i) {
+            if (*b == 0)
+                return false;
+            if (*a != *b)
+                return false;
+            ++a;
+            ++b;
         }
         return *b == 0;
     }
     bool operator!=(const String& other) const { return !operator==(other); }
     bool operator<(const String& other) const
     {
-        const ::Byte* a = data();
-        const ::Byte* b = other.data();
+        const T* a = data();
+        const T* b = other.data();
         for (int i = 0; i < min(_length, other._length); ++i) {
             if (*a < *b)
                 return true;
@@ -476,152 +450,140 @@ public:
     bool operator<=(const String& other) const { return !operator>(other); }
     bool operator>=(const String& other) const { return !operator<(other); }
 
-    String alignRight(int n)
+    String alignRight(int n) { return String(" ")*(n - length()) + (*this); }
+    String alignLeft(int n) { return (*this) + String(" ")*(n - length()); }
+
+    bool empty() const { return length() == 0; }
+    const T* data() const
     {
-        int spaces = n - _length;
-        if (spaces > 0)
-            return String(" ")*spaces + (*this);
-        return *this;
+        return small() ? reinterpret_cast<const T*>(this) : _start;
     }
-    String alignLeft(int n)
+    int length() const
     {
-        int spaces = n - _length;
-        if (spaces > 0)
-            return (*this) + String(" ")*spaces;
-        return *this;
+        return *(reinterpret_cast<const int*>(reinterpret_cast<const char*>(
+            this+1)) - 1);
     }
-
-    class Buffer
-    {
-    public:
-        Buffer() { }
-        Buffer(const char* data)
-          : _implementation(new LiteralImplementation(data)) { }
-        Buffer(int length) : _implementation(new OwningImplementation(length))
-        { }
-        int end() const
-        {
-            if (!_implementation.valid())
-                return -1;
-            return _implementation->end();
-        }
-        void expand(const ::Byte* data, int length)
-        {
-            _implementation->expand(data, length);
-        }
-        void expand(int length) { _implementation->expand(length); }
-        const ::Byte* data() const
-        {
-            if (!_implementation.valid())
-                return 0;
-            return _implementation->constData();
-        }
-        ::Byte* data()
-        {
-            if (!_implementation.valid())
-                return 0;
-            return _implementation->data();
-        }
-    private:
-        class Implementation : public ReferenceCounted
-        {
-        public:
-            virtual int end() const = 0;
-            virtual void expand(const ::Byte* data, int length) = 0;
-            virtual void expand(int length) = 0;
-            const ::Byte* constData() const { return _data; }
-            ::Byte* data() { return const_cast< ::Byte*>(_data); }
-        protected:
-            const ::Byte* _data;
-        };
-        class OwningImplementation : public Implementation
-        {
-        public:
-            OwningImplementation(int n)
-            {
-                _allocated = n;
-                _used = 0;
-                Implementation::_data = static_cast< ::Byte*>(operator new(n));
-            }
-            ~OwningImplementation()
-            {
-                operator delete(data());
-            }
-            int end() const { return _used; }
-            void expand(const ::Byte* source, int length)
-            {
-                expand(length);
-                memcpy(data() + _used - length, source, length);
-            }
-            void expand(int length)
-            {
-                int allocate = _allocated;
-                while (allocate < _used + length)
-                    allocate *= 2;
-                if (_allocated < allocate) {
-                    const ::Byte* newData =
-                        static_cast<const ::Byte*>(operator new(allocate));
-                    swap(Implementation::_data, newData);
-                    memcpy(data(), newData, _used);
-                    operator delete(const_cast< ::Byte*>(newData));
-                    _allocated = allocate;
-                }
-                _used += length;
-            }
-        private:
-            int _allocated;
-            int _used;
-        };
-
-        class LiteralImplementation : public Implementation
-        {
-        public:
-            LiteralImplementation(const char* data)
-            {
-                Implementation::_data = reinterpret_cast<const ::Byte*>(data);
-            }
-            int end() const { return -1; }
-            void expand(const ::Byte* data, int length) { throw Exception(); }
-            void expand(int length) { throw Exception(); }
-        };
-        Reference<Implementation> _implementation;
-    };
-
-    StringTemplate(const Buffer& buffer, int start, int length)
-      : _buffer(buffer), _start(start), _length(length) { }
-
 private:
-    bool expandable() const { return _buffer.end() == _length; }
-    ::Byte* data() { return _buffer.data() + _start; }
-#ifdef _WIN32
-    static int bytes(const WCHAR* utf16)
+    explicit StringTemplate(int length) : StringTemplate(0, 0, length, 0) { }
+    void setLength(int l)
     {
-        int n = 0;
-        int offset = 0;
-        while (true) {
-            int c = *utf16;
-            ++utf16;
-            if (c == 0)
-                break;
-            if (c >= 0xdc00 && c < 0xe000)
-                throw Exception("String offset " + hex(offset) +
-                    ": expected 0x0000..0xD800 or 0xE000..0xFFFF, found " +
-                    hex(c, 4));
-            ++offset;
-            if (c >= 0xd800 && c < 0xdc00) {
-                int c2 = *utf16;
-                ++utf16;
-                if (c2 < 0xdc00 || c2 >= 0xe000)
-                    throw Exception("String offset " + hex(offset) +
-                        ": expected 0xDC00..0xDFFF, found " + hex(c2, 4));
-                ++offset;
-                c = (((c & 0x3ff) << 10) | (c2 & 0x3ff)) + 0x10000;
-            }
-            n += CodePoint(c).bytes();
-        }
-        return n;
+        *(reinterpret_cast<int*>(reinterpret_cast<char*>(this+1)) - 1) = l;
     }
-    static void write(::Byte* destination, const WCHAR* utf16)
+    void extend(const T* otherData, int extendLength, int copyLength)
+    {
+        int newLength = length() + extendLength;
+        if (small()) {
+            if (newLength > smallStringThreshold()) {
+                String a(data(), newLength, length());
+                memcpy(a.data() + length(), otherData, copyLength);
+                *this = a;
+            }
+            else {
+                memcpy(data() + length(), otherData, copyLength);
+                setLength(newLength);
+            }
+        }
+        else {
+            if (_array.count() == 0) {
+                // We always need to own concatenations, because we don't know
+                // where the end of the external buffer is.
+                String a(data(), newLength, length());
+                memcpy(a.data() + length(), otherData, copyLength);
+                *this = a;
+            }
+            else {
+                int t = min(static_cast<ptrdiff_t>(copyLength),
+                    bufferStart() + bufferCount() - (data() + length()));
+                if (memcmp(data() + length(), otherData, t) == 0) {
+                    setLength(length() + t);
+                    copyLength -= t;
+                    otherData += t;
+                }
+                if (copyLength <= _array.allocated() - bufferCount())
+                    _array.append(otherData, copyLength);
+                else {
+                    String a(data(), newLength, length());
+                    memcpy(a.data() + length(), otherData, copyLength);
+                    *this = a;
+                }
+            }
+        }
+    }
+
+    const T* bufferStart() const { return &_array[0]; }
+    int bufferCount() const { return _array.count(); }
+    int bufferAllocated() const  // For debugger visualizer
+    {
+        return
+    }
+    T* data()
+    {
+        return small() ? reinterpret_cast<T*>(this) : const_cast<T*>(_start);
+    }
+    // With the small string optimization, we use all the space in String
+    // (_array, _start and any alignment slop space) as the data buffer. Since
+    // _array and _start are pointers (8-byte aligned on 64-bit machines -
+    // checked with VC++ and GCC) we should get 8 bytes for small strings on
+    // 32-bit and 20 bytes on 64-bit.
+    static int smallStringThreshold()
+    {
+        // This is basically offsetof(String, length()) but that would call
+        // length() on a null pointer and invoke undefined behavior.
+        return reinterpret_cast<uintptr_t>(reinterpret_cast<int*>(
+            reinterpret_cast<char*>(reinterpret_cast<String*>(0) + 1)) - 1);
+    }
+    bool small() const { return length() <= smallStringThreshold(); }
+    // All constructors ultimately use this one, as String construction is
+    // quite involved (due to the small string optimization).
+    StringTemplate(const T* start, int size, int copy, bool owning = true)
+    {
+        if (size > smallStringThreshold()) {
+            if (owning) {
+                _array = AppendableArray<T>(size);
+                _array.expand(size);
+                _start = bufferStart();
+            }
+            else
+                _start = start;
+        }
+        else
+            owning = true;
+        setLength(size);
+        unreset();
+        if (owning)
+            memcpy(data(), start, copy);
+    }
+    StringTemplate(const String& other, int start, int size)
+    {
+        if (size > smallStringThreshold()) {
+            *this = other;
+            _start += start;
+            setLength(size);
+        }
+        else {
+            setLength(size);
+            unreset();
+            memcpy(data(), other.data() + start, size);
+        }
+    }
+    void reset()
+    {
+        if (small()) {
+            // Default construct Handle so destructor works correctly. This
+            // should just zero out the _body member.
+            new(&_array) AppendableArray<T>();
+        }
+    }
+    void unreset()
+    {
+        if (small()) {
+            // Should be a no-op. We'll undo this in reset().
+            (&_array)->~AppendableArray<T>();
+        }
+    }
+
+#ifdef _WIN32
+    static T* write(T* destination, const WCHAR* utf16)
     {
         int i = 0;
         while (true) {
@@ -637,35 +599,44 @@ private:
             cp.write(destination);
             destination += cp.bytes();
         }
+        return destination;
     }
 #endif
-    void expand(int l)
-    {
-        if (!expandable()) {
-            Buffer newBuffer = Buffer(_length + l);
-            newBuffer.expand(data(), _length);
-            _buffer = newBuffer;
-            _start = 0;
-        }
-    }
-
-    ::Byte* writableData() { return _buffer.data() + _start; }
-    void setLength(int length) { _length= length; }
-
-    Buffer _buffer;
-    int _start;
+    AppendableArray<T> _array;
+    const T* _start;
+    // Don't use _length, it's only there for size and alignment purposes. Use
+    // length() instead, which places the field at the end of the end of the
+    // class's memory in order to maximize small string space.
     int _length;
 
-    friend class NullTerminatedString;
+    // These things create an uninitialized String of a known length and then
+    // write into it, something we only let our friends do (String is immutable
+    // to non-friends).
     friend class ProgramBase;
     template<class U> friend class FileTemplate;
-    template<class U> friend class HandleTemplate;
+    template<class U> friend class StreamTemplate;
     friend String format(const char* format, ...);
 };
 
-String operator+(const char* a, const String& b)
+String operator*(int n, String a) { a *= n; return a; }
+
+String operator+(const char* a, const String& b) { return String(a, b); }
+String operator+(const char* a, const String::Hex& b) { return String(a) + b; }
+String operator+(const char* a, const String::Decimal& b)
 {
-    String r(strlen(a) + b.length()); r += a; r += b; return r;
+    return String(a) + b;
+}
+String operator+(const char* a, const String::Boolean& b)
+{
+    return String(a) + b;
+}
+String operator+(const char* a, const String::CodePoint& b)
+{
+    return String(a) + b;
+}
+String operator+(const char* a, const String::Byte& b)
+{
+    return String(a) + b;
 }
 
 String::Hex hex(int n, int digits = 8, bool ox = true)
@@ -681,15 +652,13 @@ String format(const char* format, ...)
     va_list args;
     va_start(args, format);
     int c = vsnprintf(0, 0, format, args);
-    String s;
-    s._buffer = String::Buffer(c);
+    String s(c);
     vsnprintf(reinterpret_cast<char*>(s.data()), c, format, args);
-    s._length = c;
-    return s;
+    return s.subString(0, s.length() - 1);  // Discard trailing null byte
 }
 
-template<class T> class HandleTemplate;
-typedef HandleTemplate<void> Handle;
+template<class T> class StreamTemplate;
+typedef StreamTemplate<void> Stream;
 
 #ifdef _WIN32
 template<class T> class NullTerminatedWideStringTemplate
@@ -749,7 +718,7 @@ public:
         return reinterpret_cast<const char*>(_s.data());
     }
 private:
-    String _s;
+    const String _s;
 };
 
 #ifdef _WIN32

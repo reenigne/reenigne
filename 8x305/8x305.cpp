@@ -45,9 +45,9 @@ public:
     {
         // Default initial value is the result of converting the empty
         // structured type to the component type.
-        return TypedValue(StructuredType(String(),
-            List<StructuredType::Member>()),
-            Value<HashTable<Identifier, TypedValue>>()).convertTo(type());
+        return TypedValue(
+            StructuredType(String(), List<StructuredType::Member>()),
+            HashTable<Identifier, TypedValue>()).convertTo(type());
     }
     virtual Rational<int> cyclesPerSecond() const
     {
@@ -449,15 +449,16 @@ private:
     UInt8 _registers[0x10];
 };
 
-class ROMDataType : public AtomicType
+class ROMDataType : public NamedNullary<Type, ROMDataType>
 {
 public:
-    ROMDataType() : AtomicType(implementation()) { }
+    ROMDataType() : AtomicType(body()) { }
 private:
-    class Implementation : public AtomicType::Implementation
+    class Body : public NamedNullary<Type, ROMDataType>::Body
     {
     public:
-        Implementation() : AtomicType::Implementation("ROM")
+        static String name() { return "ROM"; }
+        Body()
         {
             List<StructuredType::Member> members;
             members.add(StructuredType::Member("mask", Type::integer));
@@ -473,29 +474,21 @@ private:
                 why);
             if (!stv.valid())
                 return stv;
-            auto romMembers =
-                stv.value<Value<HashTable<Identifier, TypedValue>>>();
-            int mask = (*romMembers)["mask"].value<int>();
-            int address = (*romMembers)["address"].value<int>();
-            String file = (*romMembers)["fileName"].value<String>();
-            int offset = (*romMembers)["fileOffset"].value<int>();
+            auto romMembers = stv.value<HashTable<Identifier, TypedValue>>();
+            int mask = romMembers["mask"].value<int>();
+            int address = romMembers["address"].value<int>();
+            String file = romMembers["fileName"].value<String>();
+            int offset = romMembers["fileOffset"].value<int>();
             return TypedValue(ROMDataType(),
                 Any(ROMData(mask, address, file, offset)), value.span());
         }
     private:
         static StructuredType _structuredType;
     };
-    static Reference<Implementation> _implementation;
-    static Reference<Implementation> implementation()
-    {
-        if (!_implementation.valid())
-            _implementation = new Implementation();
-        return _implementation;
-    }
 };
 
-Reference<ROMDataType::Implementation> ROMDataType::_implementation;
-StructuredType ROMDataType::Implementation::_structuredType;
+template<> Nullary<Type, ROMDataType> Nullary<Type, ROMDataType>::_instance;
+StructuredType ROMDataType::Body::_structuredType;
 
 template<class T> class SimulatorTemplate : public Component
 {
@@ -629,10 +622,10 @@ public:
     }
     void load(const TypedValue& value)
     {
-        Value<HashTable<Identifier, TypedValue> > object =
-            value.value<Value<HashTable<Identifier, TypedValue> > >();
+        HashTable<Identifier, TypedValue> object =
+            value.value<HashTable<Identifier, TypedValue>>();
         for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load((*object)[(*i)->name()]);
+            (*i)->load(object[(*i)->name()]);
     }
     IBMCGA _cga;
 private:

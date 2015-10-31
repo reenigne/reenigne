@@ -5,32 +5,29 @@
 
 #include "alfe/colour_space.h"
 #include "alfe/vectors.h"
-#include "alfe/reference_counted_array.h"
 
 template<class Pixel> class Bitmap;
 
-template<class Pixel> class BitmapFileFormat
+template<class Pixel> class BitmapFileFormat : public Handle
 {
 public:
     Bitmap<Pixel> load(const File& file)
     {
-        return _implementation->load(file);
+        return body()->load(file);
     }
     void save(Bitmap<Pixel>& bitmap, const File& file) const
     {
-        return _implementation->save(bitmap, file);
+        return body()->save(bitmap, file);
     }
 protected:
-    class Implementation : public ReferenceCounted
+    class Body : public Handle::Body
     {
     public:
         virtual void save(Bitmap<Pixel>& bitmap, const File& file) = 0;
         virtual Bitmap<Pixel> load(const File& file) = 0;
     };
-    BitmapFileFormat(Implementation* implementation)
-      : _implementation(implementation) { }
+    BitmapFileFormat(Body* body) : Handle(body) { }
 private:
-    Reference<Implementation> _implementation;
     friend class Bitmap<Pixel>;
 };
 
@@ -40,34 +37,33 @@ typedef RawFileFormatTemplate<SRGB> RawFileFormat;
 template<class T> class RawFileFormatTemplate : public BitmapFileFormat<T>
 {
 public:
-    RawFileFormatTemplate(Vector size)
-      : BitmapFileFormat(new Implementation(size)) { }
+    RawFileFormatTemplate(Vector size) : BitmapFileFormat(new Body(size)) { }
 private:
-    class Implementation : public BitmapFileFormat::Implementation
+    class Body : public BitmapFileFormat::Body
     {
     public:
-        Implementation(Vector size) : _size(size) { }
+        Body(Vector size) : _size(size) { }
         // The bitmap needs to be 8-bit sRGB data for this to work.
         virtual void save(Bitmap<T>& bitmap, const File& file)
         {
-            FileHandle handle = file.openWrite();
+            FileStream stream = file.openWrite();
             Byte* data = bitmap.data();
             int stride = bitmap.stride();
             Vector size = bitmap.size();
             for (int y = 0; y < size.y; ++y) {
-                handle.write(static_cast<void*>(data), size.x*sizeof(T));
+                stream.write(static_cast<void*>(data), size.x*sizeof(T));
                 data += stride;
             }
         }
         // This will put 8-bit sRGB data in the bitmap.
         virtual Bitmap<T> load(const File& file)
         {
-            FileHandle handle = file.openRead();
+            FileStream stream = file.openRead();
             Bitmap<SRGB> bitmap(_size);
             Byte* data = bitmap.data();
             int stride = bitmap.stride();
             for (int y = 0; y < _size.y; ++y) {
-                handle.read(static_cast<void*>(data), _size.x*sizeof(T));
+                stream.read(static_cast<void*>(data), _size.x*sizeof(T));
                 data += stride;
             }
             return bitmap;
@@ -79,25 +75,17 @@ private:
 
 // A Bitmap is a value class encapsulating a 2D image. Its width, height,
 // stride and pixel format are immutable but the pixels themselves are not.
-template<class Pixel> class Bitmap
+template<class Pixel> class Bitmap : private Array<Pixel>
 {
-    class Implementation : public ReferenceCountedArray<Implementation, Byte>
-    {
-    public:
-        Implementation() { }
-        Byte* topLeft() { return pointer(); }
-    };
 public:
     Bitmap() : _size(0, 0) { }
     Bitmap(Vector size)
     {
         _stride = size.x*sizeof(Pixel);
         _size = size;
-        _implementation = Implementation::create(_stride * size.y);
-        _topLeft = _implementation->topLeft();
+        allocate(size.x*size.y);
+        _topLeft = reinterpret_cast<Byte*>(&(*this)[0]);
     }
-
-    bool valid() const { return _implementation.valid(); }
 
     // Convert from one pixel format to another.
     template<class TargetPixel, class Converter> void convert(
@@ -144,7 +132,7 @@ public:
     // subBitmap().clone().
     Bitmap subBitmap(Vector topLeft, Vector size)
     {
-        return Bitmap(_implementation,
+        return Bitmap(*this,
             _topLeft + topLeft.x*sizeof(Pixel) + topLeft.y*_stride, size,
             _stride);
     }
@@ -194,14 +182,10 @@ public:
     }
 
 private:
-    Bitmap(const Reference<Implementation>& implementation, Byte* topLeft,
-        Vector size, int stride)
-      : _implementation(implementation), _topLeft(topLeft), _size(size),
-        _stride(stride)
-    { }
+    Bitmap(Array<Pixel> array, Byte* topLeft, Vector size, int stride)
+      : Array(array), _topLeft(topLeft), _size(size), _stride(stride) { }
 
     Vector _size;
-    Reference<Implementation> _implementation;
     Byte* _topLeft;
     int _stride;
 };

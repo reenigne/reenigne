@@ -63,7 +63,11 @@ public:
     NoteDescriptor() { }
     NoteDescriptor(Rational cyclesPerFrame, Rational amplitude)
       : _cyclesPerFrame(cyclesPerFrame), _amplitude(amplitude) { }
-    int hash() const { return _cyclesPerFrame.hash()*67 + _amplitude.hash(); }
+    UInt32 hash() const
+    {
+        return Hash(typeid(NoteDescriptor)).mixin(_cyclesPerFrame.hash()).
+            mixin( _amplitude.hash());
+    }
     bool operator==(const NoteDescriptor& other) const
     {
         return _cyclesPerFrame == other._cyclesPerFrame &&
@@ -123,14 +127,14 @@ public:
         _data.allocate(0x10000);
         _offset = 0;
 
-        FileHandle output = File("tables.asm").openWrite();
-        //FileHandle outputWave = File("popcorn.pcm").openWrite();
-        //FileHandle outputWave157 = File("popcorn157.pcm").openWrite();
+        FileStream output = File("tables.asm").openWrite();
+        //FileStream outputWave = File("popcorn.pcm").openWrite();
+        //FileStream outputWave157 = File("popcorn157.pcm").openWrite();
         //output.write("align 16\n\n");
         output.write("sineTable:");
         for (int y = 0; y < 256; ++y) {
             //int x = sampleFromPosition((sin(tau*y / 256)+1)/2);
-            int x = clamp(-128, static_cast<int>(128*sin(tau*y / 256)), 
+            int x = clamp(-128, static_cast<int>(128*sin(tau*y / 256)),
                 127)&0xff;
             if ((y & 7) == 0)
                 output.write("\n  db ");
@@ -189,7 +193,7 @@ public:
             else
                 output.write(", ");
             output.write(String(hex(d.frequency(), 4)) + ", " +
-                String(hex(d.samples(), 4)) + ", " + 
+                String(hex(d.samples(), 4)) + ", " +
                 String(hex(clamp(0,
                     static_cast<int>((maxSample-minSample)*d.amplitude()),
                     maxSample-minSample), 4)));

@@ -94,7 +94,7 @@ public:
     void solve()
     {
         {
-            AutoHandle h = File("matrix.raw").openWrite();
+            AutoStream h = File("matrix.raw").openWrite();
             for (int row = 0; row < _rows; ++row) {
                 for (int column = 0; column < _columns; ++column)
                     h.write<Byte>(static_cast<int>(_data[row*_columns + column]));
@@ -163,7 +163,7 @@ public:
             }
         }
 
-        AutoHandle h = File("matrix2.raw").openWrite();
+        AutoStream h = File("matrix2.raw").openWrite();
         for (int row = 0; row < _rows; ++row) {
             for (int column = 0; column < _columns; ++column)
                 h.write<Byte>(static_cast<int>(_data[row*_columns + column]));
@@ -237,14 +237,14 @@ public:
         _bottomDecoded = Bitmap<SRGB>(Vector(760, 240));
         //_top.allocate(450*1024);
         //_bottom.allocate(450*1024);
-        AutoHandle topDecodedHandle = File("q:\\top_decoded.raw", true).openRead();
-        AutoHandle bottomDecodedHandle = File("q:\\bottom_decoded.raw", true).openRead();
-        topDecodedHandle.read(_topDecoded.data(), 760*240*3);
-        bottomDecodedHandle.read(_bottomDecoded.data(), 760*240*3);
-        //AutoHandle topHandle = File("q:\\top.raw", true).openRead();
-        //AutoHandle bottomHandle = File("q:\\bottom.raw", true).openRead();
-        //topHandle.read(_topDecoded.data(), 1024*450);
-        //bottomHandle.read(_bottomDecoded.data(), 1024*450);
+        AutoStream topDecodedStream = File("q:\\top_decoded.raw", true).openRead();
+        AutoStream bottomDecodedStream = File("q:\\bottom_decoded.raw", true).openRead();
+        topDecodedStream.read(_topDecoded.data(), 760*240*3);
+        bottomDecodedStream.read(_bottomDecoded.data(), 760*240*3);
+        //AutoStream topStream = File("q:\\top.raw", true).openRead();
+        //AutoStream bottomStream = File("q:\\bottom.raw", true).openRead();
+        //topStream.read(_topDecoded.data(), 1024*450);
+        //bottomStream.read(_bottomDecoded.data(), 1024*450);
         //_topResampled.allocate(1824*240);
         //_bottomResampled.allocate(1824*240);
 

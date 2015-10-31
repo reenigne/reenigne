@@ -118,7 +118,7 @@ public:
         //Array<Byte> data(1024);
         //for (int i = 0; i < 1024; ++i)
         //    data[i] = static_cast<Byte>(_tSamples[i]*256);
-        AutoHandle h = File("output.dat").openWrite();
+        AutoStream h = File("output.dat").openWrite();
         h.write(reinterpret_cast<Byte*>(&_tSamples[0]), 1024*sizeof(double));
     }
 
@@ -132,10 +132,10 @@ public:
 
         _top = Bitmap<SRGB>(Vector(760, 240));
         _bottom = Bitmap<SRGB>(Vector(760, 240));
-        AutoHandle topHandle = File("q:\\pictures\\reenigne\\top_decoded.raw", true).openRead();
-        AutoHandle bottomHandle = File("q:\\pictures\\reenigne\\bottom_decoded.raw", true).openRead();
-        topHandle.read(_top.data(), 760*240*3);
-        bottomHandle.read(_bottom.data(), 760*240*3);
+        AutoStream topStream = File("q:\\pictures\\reenigne\\top_decoded.raw", true).openRead();
+        AutoStream bottomStream = File("q:\\pictures\\reenigne\\bottom_decoded.raw", true).openRead();
+        topStream.read(_top.data(), 760*240*3);
+        bottomStream.read(_bottom.data(), 760*240*3);
 
         _output = Bitmap<SRGB>(Vector(1536, 1024));
         _rgb = ColourSpace::rgb();
@@ -387,7 +387,7 @@ public:
     }
 
     void escapePressed()
-    { 
+    {
         for (int i = 0; i < 4096; ++i) {
             Block b(i);
             int bits = b.bits();
@@ -407,7 +407,7 @@ public:
             Slider* slider = &_sliders[i >> 1];
             if (!slider->use())
                 continue;
-                                                                   
+
             double oldFitness = _fitness;
             Colour oldComputes[4096];
             for (int j = 0; j < 4096; ++j)
@@ -462,7 +462,7 @@ public:
         return true;
     }
 
-private:                                                                           
+private:
     void integrate(Block b, double* dc, Complex<double>* iq/*, double* hf*/)
     {
         int bits = b.bits();
@@ -493,7 +493,7 @@ private:
 //        double hf;
         integrate(Block(6, 6, 0), &dc, &iqBurst/*, &hf*/);
         Complex<double> iqAdjust = -iqBurst.conjugate()*unit((33 + 90 + _hue)/360.0)*_saturation*_contrast/iqBurst.modulus();
-        
+
         _fitness = 0;
         int fitCount = 0;
         for (int bg = 0; bg < COLOURS; ++bg)
@@ -609,7 +609,7 @@ private:
     double _hue;
     double _brightness;
     double _contrast;
-    
+
     double _voltages[4];
     Colour _captures[4096];
     Colour _computes[4096];
@@ -663,7 +663,7 @@ private:
     CalibrateBitmapWindow _bitmap;
 };
 
-class Program : public WindowProgram<CalibrateWindow> 
+class Program : public WindowProgram<CalibrateWindow>
 {
 public:
     bool idle() { return _window.idle(); }

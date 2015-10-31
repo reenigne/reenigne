@@ -1,21 +1,21 @@
-Kind                        Kind::Implementation
-                              Kind::TypeImplementation
-                              Kind::VariadicImplementation
-  TemplateKind                TemplateKind::Implementation
+Kind                        Kind::Body
+                              Kind::TypeBody
+                              Kind::VariadicBody
+  TemplateKind                TemplateKind::Body
 
 
-Tyco                        Tyco::Implementation
-  Type                        Type::Implementation
-    AtomicType                  AtomicType::Implementation
-    PointerType                 PointerType::Implementation
-    FunctionType                FunctionType::Implementation
-    EnumerationType             EnumerationType::Implementation
-    StructuredType              StructuredType::Implementation
-  Template                    Template::Implementation
-                                Template::UninstantiatedImplementation
-                                Template::PartiallyInstantiatedImplementation
-                                Template::VariadicImplementation
-                                Template::InstantiatedImplementation
+Tyco                        Tyco::Body
+  Type                        Type::Body
+    AtomicType                  AtomicType::Body
+    PointerType                 PointerType::Body
+    FunctionType                FunctionType::Body
+    EnumerationType             EnumerationType::Body
+    StructuredType              StructuredType::Body
+  Template                    Template::Body
+                                Template::UninstantiatedBody
+                                Template::PartiallyInstantiatedBody
+                                Template::VariadicBody
+                                Template::InstantiatedBody
 TypedValue
 
 

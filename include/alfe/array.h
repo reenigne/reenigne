@@ -3,25 +3,17 @@
 #ifndef INCLUDED_ARRAY_H
 #define INCLUDED_ARRAY_H
 
-template<class T> class List
+#include "alfe/handle.h"
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
+#include <utility>  // For std::forward
+
+// List is not quite a value type, since adding an element to a list will
+// affect copies of the list.
+template<class T> class List : private Handle
 {
-public:
-    List() { }
-    void add(const T& t)
-    {
-        if (!_implementation.valid())
-            _implementation = new Implementation(t);
-        else
-            _implementation->add(t);
-    }
-    int count() const
-    {
-        if (_implementation.valid())
-            return _implementation->count();
-        return 0;
-    }
-private:
-    class Implementation : public ReferenceCounted
+    class Body : public Handle::Body
     {
         class Node
         {
@@ -35,8 +27,8 @@ private:
             Node* _next;
         };
     public:
-        Implementation(const T& t) : _first(t), _last(&_first), _count(1) { }
-        ~Implementation()
+        Body(const T& t) : _first(t), _last(&_first), _count(1) { }
+        ~Body()
         {
             Node* n = _first.next();
             while (n != 0) {
@@ -60,7 +52,25 @@ private:
 
         friend class List::Iterator;
     };
-    Reference<Implementation> _implementation;
+public:
+    List() { }
+    void add(const T& t)
+    {
+        if (!valid())
+            *this = List(new Body(t));
+        else
+            body()->add(t);
+    }
+    int count() const
+    {
+        if (valid())
+            return body()->count();
+        return 0;
+    }
+private:
+    List(Body* body) : Handle(body) { }
+    Body* body() { return as<Body>(); }
+    const Body* body() const { return as<Body>(); }
 public:
     class Iterator
     {
@@ -70,271 +80,428 @@ public:
         const Iterator& operator++() { _node = _node->next(); return *this; }
         bool operator==(const Iterator& other) { return _node == other._node; }
         bool operator!=(const Iterator& other) { return !operator==(other); }
+        bool end() const { return _node == 0; }
     private:
-        const typename Implementation::Node* _node;
+        const typename Body::Node* _node;
 
-        Iterator(const typename Implementation::Node* node) : _node(node) { }
+        Iterator(const typename Body::Node* node) : _node(node) { }
 
         friend class List;
     };
     Iterator begin() const
     {
-        if (_implementation.valid())
-            return Iterator(_implementation->start());
+        if (valid())
+            return Iterator(body()->start());
         return end();
     }
     Iterator end() const { return Iterator(0); }
 };
 
-template<class T> class Array : Uncopyable
+template<class T> class AppendableArray;
+
+// Array is not quite a value type, since changing an element in one array will
+// affect copies of the same array unless a deep copy is made with copy().
+template<class T> class Array : private Handle
 {
 public:
-    Array() : _data(0), _n(0) { }
+    // This class combines an H and an array of Ts in a single memory block.
+    // Also known as the "struct hack". T must be default-constructable.
+    template<class H = Handle::Body> class Body : public H
+    {
+        // HT is never actually used directly - it's just used to figure out
+        // the length and the address of the first T.
+        class HT : public Body { public: T _t; };
+    public:
+        static int headSize() { return sizeof(HT) - sizeof(T); }
+
+        // "allocate" is number of Ts to allocate space for.
+        // "construct" is number of Ts to actually construct.
+        template<typename... Args> static Body* create(int allocate,
+            int construct, int extraBytes = 0, Args&&... args)
+        {
+            void* buffer = operator new(headSize() + allocate*sizeof(T) +
+                extraBytes);
+            Body* b;
+            try {
+                b = new(buffer) Body(std::forward<Args>(args)...);
+                try {
+                    b->constructTail(construct);
+                }
+                catch (...) {
+                    b->destruct();
+                    throw;
+                }
+            }
+            catch (...) {
+                operator delete(buffer);
+                throw;
+            }
+            return b;
+        }
+
+        T* pointer() { return &static_cast<HT*>(this)->_t; }
+        const T* pointer() const { return &static_cast<const HT*>(this)->_t; }
+        T& operator[](int i) { return pointer()[i]; }
+        const T& operator[](int i) const { return pointer()[i]; }
+
+        void destroy() const
+        {
+            destruct();
+            operator delete(const_cast<void*>(static_cast<const void*>(this)));
+        }
+
+        int size() const { return _size; }
+        // Be careful to avoid calling setSize() with a size argument greater
+        // than the "allocate" size passed to create(). 
+        void setSize(int size)
+        {
+            if (size > _size)
+                constructTail(size);
+            else
+                destructTail(size);
+        }
+        void constructT(const T& other)
+        {
+            new(static_cast<void*>(&(*this)[_size])) T(other);
+            ++_size;
+        }
+
+        class Iterator
+        {
+        public:
+            Iterator() : _p(0) { }
+            const T& operator*() const { return *_p; }
+            const T* operator->() const { return _p; }
+            const Iterator& operator++() { ++_p; return *this; }
+            bool operator==(const Iterator& other) { return _p == other._p; }
+            bool operator!=(const Iterator& other)
+            {
+                return !operator==(other);
+            }
+        private:
+            const T* _p;
+
+            Iterator(const T* p) : _p(p) { }
+        };
+
+        Iterator begin() const { return Iterator(&((*this)[0])); }
+        Iterator end() const { return Iterator(&((*this)[size()])); }
+
+    private:
+        void constructTail(int size)
+        {
+            int oldSize = _size;
+            try {
+                while (_size < size)
+                    constructT(T());
+            }
+            catch (...) {
+                destructTail(oldSize);
+                throw;
+            }
+        }
+        void destructTail(int size) const
+        {
+            for (; _size > size; --_size)
+                (&(*this)[_size - 1])->~T();
+        }
+        void destruct() const
+        {
+            destructTail(0);
+            this->~Body();
+        }
+
+        mutable int _size;  // Needs to be mutable so destroy() can be const.
+
+        // Only constructor is private to prevent inheritance, composition and
+        // stack allocation. All instances are constructed via the placement
+        // new call in create().
+        template<typename... Args> Body(Args&&... args)
+          : H(std::forward<Args>(args)...), _size(0) { }
+
+        // HashTable keeps all elements constructed, and uses _size to keep
+        // track of the number of actual entries in the table.
+        template<class Key, class Value> friend class HashTable;
+    };
+    Array() { }
     Array(const List<T>& list)
     {
         int n = list.count();
-        _data = static_cast<T*>(operator new(n * sizeof(T)));
-        _n = 0;
-        try {
-            for (auto p = list.begin(); p != list.end(); ++p) {
-                constructElement(_n, *p);
-                ++_n;
-            }
-        }
-        catch (...) {
-            destructElements();
-            throw;
+        if (n != 0) {
+            *this = Array(Body<>::create(n, 0));
+            for (auto p = list.begin(); p != list.end(); ++p)
+                body()->constructT(*p);
         }
     }
     explicit Array(int n)
     {
         if (n != 0)
-            _data = static_cast<T*>(operator new(n * sizeof(T)));
-        else
-            _data = 0;
-        try {
-            for (_n = 0; _n < n; ++_n)
-                constructElement(_n);
-        }
-        catch (...) {
-            destructElements();
-            throw;
-        }
+            *this = Array(Body<>::create(n, n));
     }
-    void allocate(int n)
-    {
-        Array<T> other(n);
-        swap(other);
-    }
+    void allocate(int n) { *this = Array(n); }
     bool operator==(const Array& other) const
     {
-        if (_n != other._n)
+        int n = count();
+        if (n != other.count())
             return false;
-        for (int i = 0; i < _n; ++i)
-            if (_data[i] != other._data[i])
+        for (int i = 0; i < n; ++i)
+            if ((*this)[i] != other[i])
                 return false;
         return true;
     }
-    bool operator!=(const Array& other) const
+    bool operator==(const AppendableArray<T>& other) const
+    {
+        int n = count();
+        if (n != other.count())
+            return false;
+        for (int i = 0; i < n; ++i)
+            if ((*this)[i] != other[i])
+                return false;
+        return true;
+    }
+    bool operator!=(const Array& other) const { return !operator==(other); }
+    bool operator!=(const AppendableArray<T>& other) const
     {
         return !operator==(other);
     }
-    void swap(Array& other)
+    T& operator[](int i) { return (*body())[i]; }
+    const T& operator[](int i) const { return (*body())[i]; }
+    int count() const { return body()->size(); }
+    Array copy() const
     {
-        ::swap(_data, other._data);
-        ::swap(_n, other._n);
+        Array r(new Body(count(), 0));
+        for (int i = 0; i < count(); ++i)
+            r.body()->constructT((*this)[i]);
+        return r;
     }
-    ~Array() { release(); }
-    T& operator[](int i) { return _data[i]; }
-    const T& operator[](int i) const { return _data[i]; }
-    int count() const { return _n; }
 
-    class Iterator
+    typedef typename Body<>::Iterator Iterator;
+    Iterator begin() const
     {
-    public:
-        const T& operator*() const { return *_p; }
-        const T* operator->() const { return _p; }
-        const Iterator& operator++() { ++_p; return *this; }
-        bool operator==(const Iterator& other) { return _p == other._p; }
-        bool operator!=(const Iterator& other) { return !operator==(other); }
-    private:
-        const T* _p;
-
-        Iterator(const T* p) : _p(p) { }
-
-        friend class Array;
-    };
-
-    Iterator begin() const { return Iterator(_data); }
-    Iterator end() const { return Iterator(_data + _n); }
+        if (body() != 0)
+            return body()->begin();
+        return Body::Iterator();
+    }
+    Iterator end() const
+    {
+        if (body() != 0)
+            return body()->end();
+        return Body::Iterator();
+    }
 
 private:
-    Array(const Array& other, int allocated)
-    {
-        _data = static_cast<T*>(operator new(allocated * sizeof(T)));
-        try {
-            for (_n = 0; _n < other._n; ++_n)
-                constructElement(_n, other[_n]);
-        }
-        catch (...) {
-            destructElements();
-            throw;
-        }
-    }
-    void constructElement(int i, const T& initializer)
-    {
-        new(static_cast<void*>(&(*this)[i])) T(initializer);
-    }
-    void destructElement(int i)
-    {
-        (&(*this)[i])->~T();
-    }
-    void constructElement(int i)
-    {
-        new(static_cast<void*>(&(*this)[i])) T();
-    }
-
-    void release()
-    {
-        if (_data != 0) {
-            for (int i = _n - 1; i >= 0; --i)
-                destructElement(i);
-            operator delete(_data);
-        }
-        _data = 0;
-    }
-    void destructElements()
-    {
-        while (_n > 0) {
-            --_n;
-            destructElement(_n);
-        }
-    }
-
-    T* _data;
-    int _n;
-
+    Array(Body<>* body) : Handle(body) { }
+    Body<>* body() { return as<Body<>>(); }
+    const Body<>* body() const { return as<Body<>>(); }
     template<class U> friend class AppendableArray;
 };
 
-template<class T> class AppendableArray : public Array<T>
+// AppendableArray is not quite a value type, since changing an element in one
+// array will affect copies of the same array unless a deep copy is made with
+// copy(). Appending to an array may cause it to become a deep copy, if more
+// storage space was needed.
+template<class T> class AppendableArray : private Handle
 {
-public:
-    AppendableArray() : _allocated(0) { }
-    AppendableArray(const List<T>& list)
-      : Array<T>(list), _allocated(list.count()) { }
-    explicit AppendableArray(int n) : Array<T>(n), _allocated(n) { }
-    void swap(AppendableArray& other)
+    class BaseBody : public Handle::Body
     {
-        Array<T>::swap(other);
-        swap(_allocated, other._allocated);
+    public:
+        int _allocated;
+    };
+    typedef typename Array<T>::Body<BaseBody> Body;
+
+    static int roundUpToPowerOf2(int n)
+    {
+#ifdef _MSC_VER
+        unsigned long k;
+        _BitScanReverse(&k, n);
+        if ((n & (n - 1)) != 0)
+            ++k;
+        return 1 << k;
+#elif defined __GNUC__
+        int k = (sizeof(int)*8 - 1) - __builtin_clz(n);
+        if ((n & (n - 1)) != 0)
+            ++k;
+        return 1 << k;
+#else
+        --n;
+        n |= n >> 1;
+        n |= n >> 2;
+        n |= n >> 4;
+        n |= n >> 8;
+        n |= n >> 16;
+        return n + 1;
+#endif
+    }
+public:
+    AppendableArray() { }
+    AppendableArray(const List<T>& list) : AppendableArray(list.count())
+    {
+        for (auto p = list.begin(); p != list.end(); ++p)
+            body()->constructT(*p);
+    }
+    explicit AppendableArray(int n)
+    {
+        // The 8 bytes is the observed malloc overhead on both GCC and VC,
+        // 32-bit and 64-bit (though not VC with debug heap). The idea is that
+        // we allocate actual memory blocks that are powers of 2 bytes to
+        // minimize fragmentation, and allocate as many objects as we can in
+        // that space so as to make the best use of it.
+        int overhead = Body::headSize() + 8;
+        int s = n*sizeof(T) + overhead;
+        s = roundUpToPowerOf2(s) - overhead;
+        int count = s/sizeof(T);
+        int extra = s%sizeof(T);
+        auto b = Body::create(count, 0, extra);
+        b->_allocated = count;
+        *this = AppendableArray(b);
     }
     void allocate(int n)
     {
-        Array<T>::allocate(n);
-        _allocated = n;
-    }
-    void append(const T& value)
-    {
-        if (_allocated == Array<T>::_n) {
-            int allocate = _allocated * 2;
-            if (allocate == 0)
-                allocate = 1;
-            Array<T> n(*this, allocate);
-            Array<T>::swap(n);
-            _allocated = allocate;
-        }
-        constructElement(Array<T>::_n, value);
-        ++Array<T>::_n;
-    }
-    void trim()
-    {
-        if (_allocated != Array<T>::_n) {
-            Array<T> n(*this, Array<T>::_n);
-            Array<T>::swap(n);
-            _allocated = Array<T>::_n;
+        if (allocated() < n) {
+            AppendableArray a(n);
+            if (count() > 0)
+                a.addUnchecked(body()->pointer(), count());
+            *this = a;
         }
     }
-    void reserve(int size)
-    {
-        int allocate = _allocated;
-        if (allocate == 0 && size > 0)
-            allocate = 1;
-        while (allocate < size)
-            allocate *= 2;
-        if (_allocated < allocate) {
-            Array<T> n(*this, allocate);
-            Array<T>::swap(n);
-            _allocated = allocate;
-        }
-    }
+    void append(const T& value) { append(&value, 1); }
     void append(const Array<T>& other)
     {
-        reserve(Array<T>::_n + other._n);
-        int i;
-        try {
-            for (i = 0; i < other._n; ++i)
-                constructElement(Array<T>::_n + i, other[i]);
-        }
-        catch (...) {
-            destructElements(i);
-            throw;
-        }
-        Array<T>::_n += other._n;
+        if (other.count() > 0)
+            append(&other[0], other.count());
+    }
+    void append(const AppendableArray<T>& other)
+    {
+        if (other.count() > 0)
+            append(&other[0], other.count());
     }
     void append(const T* data, int length)
     {
-        reserve(Array<T>::_n + length);
-        int i;
-        try {
-            for (i = 0; i < length; ++i) {
-                constructElement(Array<T>::_n + i, *data);
-                ++data;
+        if (allocated() < count() + length) {
+            AppendableArray a(count() + length);
+            if (count() > 0)
+                a.addUnchecked(body()->pointer(), count());
+            a.addUnchecked(data, length);
+            *this = a;
+        }
+        else {
+            int oldCount = count();
+            try {
+                addUnchecked(data, length);
+            }
+            catch (...) {
+                body()->setSize(oldCount);
+                throw;
             }
         }
-        catch (...) {
-            destructElements(i);
-            throw;
-        }
-        Array<T>::_n += length;
     }
-    // Like append(const Array& other) but with default construction instead of
-    // copying.
+    // Like append but with default construction instead of copying.
     void expand(int length)
     {
-        reserve(Array<T>::_n + length);
-        int i;
-        try {
-            for (i = 0; i < length; ++i)
-                constructElement(Array<T>::_n + i);
+        if (allocated() < count() + length) {
+            AppendableArray a(count() + length);
+            if (count() > 0)
+                a.addUnchecked(body()->pointer(), count());
+            a.expandUnchecked(length);
+            *this = a;
         }
-        catch (...) {
-            destructElements(i);
-            throw;
+        else {
+            int oldCount = count();
+            try {
+                expandUnchecked(length);
+            }
+            catch (...) {
+                body()->setSize(oldCount);
+                throw;
+            }
         }
-        Array<T>::_n += length;
     }
     void clear()
     {
-        int n = Array<T>::_n;
-        Array<T>::_n = 0;
-        destructElements(n);
+        if (count() > 0)
+            body()->setSize(0);
     }
 
-    typename Array<T>::Iterator end() const
+    bool operator==(const Array<T>& other) const
     {
-        return Iterator(Array<T>::_data + _allocated);
+        int n = count();
+        if (n != other.count())
+            return false;
+        for (int i = 0; i < n; ++i)
+            if ((*this)[i] != other[i])
+                return false;
+        return true;
     }
-private:
-    void destructElements(int n)
+    bool operator==(const AppendableArray<T>& other) const
     {
-        while (n > 0) {
-            --n;
-            destructElement(Array<T>::_n + n);
+        int n = count();
+        if (n != other.count())
+            return false;
+        for (int i = 0; i < n; ++i)
+            if ((*this)[i] != other[i])
+                return false;
+        return true;
+    }
+
+    bool operator!=(const Array<T>& other) const { return !operator==(other); }
+    bool operator!=(const AppendableArray<T>& other) const
+    {
+        return !operator==(other);
+    }
+    T& operator[](int i) { return (*body())[i]; }
+    const T& operator[](int i) const { return (*body())[i]; }
+    int count() const
+    {
+        if (body() == 0)
+            return 0;
+        return body()->size();
+    }
+    int allocated() const
+    {
+        if (body() == 0)
+            return 0;
+        return body()->_allocated;
+    }
+    AppendableArray copy() const
+    {
+        AppendableArray r(count());
+        r.addUnchecked(&(*this)[0], count());
+        return r;
+    }
+
+    typedef typename Body::Iterator Iterator;
+    Iterator begin() const
+    {
+        if (body() != 0)
+            return body()->begin();
+        return Body::Iterator();
+    }
+    Iterator end() const
+    {
+        if (body() != 0)
+            return body()->end();
+        return Body::Iterator();
+    }
+
+private:
+    void addUnchecked(const T* start, int c)
+    {
+        for (int i = 0; i < c; ++i) {
+            body()->constructT(*start);
+            ++start;
         }
     }
+    void expandUnchecked(int c)
+    {
+        for (int i = 0; i < c; ++i)
+            body()->constructT(T());
+    }
+    Body* body() { return as<Body>(); }
+    const Body* body() const { return as<Body>(); }
+    AppendableArray(Body* body) : Handle(body) { }
 
-    int _allocated;
+    // For access to body().
+    template<class Key, class Value> friend class HashTable;
 };
 
 #endif // INCLUDED_ARRAY_H

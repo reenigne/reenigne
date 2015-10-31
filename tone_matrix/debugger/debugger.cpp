@@ -5,7 +5,7 @@ class Program : public ProgramBase
 public:
     void run()
     {
-        Handle com = AutoHandle(CreateFile(
+        Stream com = AutoStream(CreateFile(
             L"COM3",
             GENERIC_READ | GENERIC_WRITE,
             0,                            // must be opened with exclusive-access

@@ -19,20 +19,20 @@ public:
 
         String logName("nul");
 
-        AutoHandle h = File("\\\\.\\pipe\\xtserver", true).openPipe();
-        h.write<int>(0);                        // emailLength
-        h.write(String(""));                    // email
-        h.write<int>(fileName.length());        // fileNameLength
-        h.write(fileName);                      // fileName
-        h.write<int>(contents.length());        // dataLength
-        h.write(contents);                      // data
-        h.write<DWORD>(GetCurrentProcessId());  // serverPId
-        h.write<int>(logName.length());         // logFileLength
-        h.write(logName);                       // logFile
-        h.write<int>(4);                        // command
+        AutoStream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
+        s.write<int>(0);                        // emailLength
+        s.write(String(""));                    // email
+        s.write<int>(fileName.length());        // fileNameLength
+        s.write(fileName);                      // fileName
+        s.write<int>(contents.length());        // dataLength
+        s.write(contents);                      // data
+        s.write<DWORD>(GetCurrentProcessId());  // serverPId
+        s.write<int>(logName.length());         // logFileLength
+        s.write(logName);                       // logFile
+        s.write<int>(4);                        // command
 
         do {
-            int b = h.tryReadByte();
+            int b = s.tryReadByte();
             if (b == -1)
                 break;
             console.write<Byte>(b);

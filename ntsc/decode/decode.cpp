@@ -20,10 +20,10 @@ public:
         String fileName = _arguments[1];
 
         Array<Byte> input;
-        FileHandle inputHandle = File(fileName, true).openRead();
-        int nn = inputHandle.size();
+        FileStream inputStream = File(fileName, true).openRead();
+        int nn = inputStream.size();
         input.allocate(nn);
-        inputHandle.read(&input[0], nn);
+        inputStream.read(&input[0], nn);
 
         Array<Complex<float>> yTime(900);
         Array<Complex<float>> cTime(900);
@@ -69,7 +69,7 @@ public:
                 float yy = (yTime[x].x/900 - 17)*255/(50-17) + 128;
                 Complex<float> c = cTime[x]*2*255/(900*(50-17));
                 SRGB o(
-                    byteClamp(yy + 0.9563*c.x + 0.6210*c.y),       // 255     255 = (0.9563+1.1069)*I  I = 123.59  
+                    byteClamp(yy + 0.9563*c.x + 0.6210*c.y),       // 255     255 = (0.9563+1.1069)*I  I = 123.59
                     byteClamp(yy - 0.2721*c.x - 0.6474*c.y),       // 103
                     byteClamp(yy - 1.1069*c.x + 1.7046*c.y));      // 0       Y = 136.81
                 output[Vector(x, y)] = o;

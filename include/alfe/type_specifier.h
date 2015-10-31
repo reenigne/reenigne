@@ -51,7 +51,7 @@ public:
             Span span;
             if (Space::parseCharacter(source, '*', &span)) {
                 tycoSpecifier = new typename TypeSpecifierTemplate<T>::
-                    PointerImplementation(tycoSpecifier,
+                    PointerBody(tycoSpecifier,
                     tycoSpecifier.span() + span);
                 continue;
             }
@@ -62,44 +62,36 @@ public:
                     return tycoSpecifier;
                 *source = s2;
                 tycoSpecifier = new typename TypeSpecifierTemplate<T>::
-                    FunctionImplementation(tycoSpecifier,
+                    FunctionBody(tycoSpecifier,
                     typeListSpecifier, tycoSpecifier.span() + span);
                 continue;
             }
+            break;
         } while (true);
         return tycoSpecifier;
     }
-
-    bool valid() const { return _implementation.valid(); }
-    Span span() const { return _implementation->span(); }
 protected:
     TycoSpecifierTemplate() { }
-    TycoSpecifierTemplate(const Implementation* implementation)
-      : ParseTreeObject(implementation) { }
+    TycoSpecifierTemplate(const Body* body) : ParseTreeObject(body) { }
 
-    class Implementation : public ParseTreeObject::Implementation
+    class Body : public ParseTreeObject::Body
     {
     public:
-        Implementation(const Span& span)
-          : ParseTreeObject::Implementation(span) { }
+        Body(const Span& span) : ParseTreeObject::Body(span) { }
     };
-    class InstantiationImplementation : public Implementation
+    class InstantiationBody : public Body
     {
     public:
-        InstantiationImplementation(const TycoIdentifier& tycoIdentifier,
+        InstantiationBody(const TycoIdentifier& tycoIdentifier,
             const TemplateArguments& arguments, const Span& span)
-          : Implementation(span), _tycoIdentifier(tycoIdentifier),
-            _arguments(arguments)
+          : Body(span), _tycoIdentifier(tycoIdentifier), _arguments(arguments)
         { }
     private:
         TycoIdentifierTemplate<T> _tycoIdentifier;
         TemplateArgumentsTemplate<T> _arguments;
     };
 
-    template<class U> const U* implementation()
-    {
-        return as<TycoSpecifierTemplate>();
-    }
+    const Body* body() { return as<Body>(); }
 private:
     static TycoSpecifier parseFundamental(CharacterSource* source)
     {
@@ -111,7 +103,7 @@ private:
             TemplateArgumentsTemplate<T> arguments =
                 TemplateArgumentsTemplate<T>::parse(source);
             if (arguments.valid())
-                return new InstantiationImplementation(tycoIdentifier,
+                return new InstantiationBody(tycoIdentifier,
                     arguments, span + arguments.span());
             return tycoIdentifier;
         }
@@ -165,53 +157,53 @@ public:
         *source = s2;
         if (arguments.count() == 0)
             return TemplateArguments();
-        return new Implementation(arguments, span + span2);
+        return new Body(arguments, span + span2);
     }
     int count() const
     {
-        const Implementation* implementation = as<TemplateArguments>();
-        if (implementation != 0)
-            return implementation->count();
+        const Body* body = as<Body>();
+        if (body != 0)
+            return body->count();
         return 0;
     }
 
-    class Implementation : public ParseTreeObject::Implementation
+    class Body : public ParseTreeObject::Body
     {
     public:
-        Implementation(const List<TycoSpecifier>& arguments, const Span& span)
-          : ParseTreeObject::Implementation(span), _arguments(arguments) { }
+        Body(const List<TycoSpecifier>& arguments, const Span& span)
+          : ParseTreeObject::Body(span), _arguments(arguments) { }
         int count() const { return _arguments.count(); }
     private:
         List<TycoSpecifier> _arguments;
     };
 private:
     TemplateArgumentsTemplate() { }
-    TemplateArgumentsTemplate(const Implementation* implementation)
-        : ParseTreeObject(implementation) { }
+    TemplateArgumentsTemplate(const Body* body)
+        : ParseTreeObject(body) { }
 };
 
 template<class T> class TypeSpecifierTemplate : public TycoSpecifier
 {
 public:
     TypeSpecifierTemplate() { }
-    TypeSpecifierTemplate(const Implementation* implementation)
-      : TycoSpecifier(implementation) { }
+    TypeSpecifierTemplate(const Body* body)
+      : TycoSpecifier(body) { }
 
 private:
-    class PointerImplementation : public TycoSpecifier::Implementation
+    class PointerBody : public TycoSpecifier::Body
     {
     public:
-        PointerImplementation(const TycoSpecifier& referent, const Span& span)
-          : Implementation(span), _referent(referent) { }
+        PointerBody(const TycoSpecifier& referent, const Span& span)
+          : Body(span), _referent(referent) { }
     private:
         TycoSpecifier _referent;
     };
-    class FunctionImplementation : public TycoSpecifier::Implementation
+    class FunctionBody : public TycoSpecifier::Body
     {
     public:
-        FunctionImplementation(const TycoSpecifier& returnType,
+        FunctionBody(const TycoSpecifier& returnType,
             const List<TycoSpecifier>& argumentTypes, const Span& span)
-          : Implementation(span), _returnType(returnType),
+          : Body(span), _returnType(returnType),
             _argumentTypes(argumentTypes)
         { }
     private:
@@ -226,9 +218,8 @@ template<class T> class TycoIdentifierTemplate : public TycoSpecifier
 {
 public:
     TycoIdentifierTemplate(const String& name)
-      : TycoSpecifier(new Implementation(name, Span())) { }
+      : TycoSpecifier(new Body(name, Span())) { }
     TycoIdentifierTemplate(const TycoSpecifier& t) : TycoSpecifier(t) { }
-    bool valid() const { return _implementation.is<Implementation>(); }
     static TycoIdentifier parse(CharacterSource* source)
     {
         CharacterSource s = *source;
@@ -274,29 +265,31 @@ public:
             if (name == keywords[i])
                 return TycoIdentifier();
         *source = s2;
-        return new Implementation(name, Span(location, endLocation));
+        return new Body(name, Span(location, endLocation));
     }
-    String name() const { return as<TycoIdentifier>()->name(); }
-    int hash() const { return name().hash(); }
     bool operator==(const TycoIdentifier& other) const
     {
         return name() == other.name();
     }
 
-    class Implementation : public TycoSpecifier::Implementation
+    class Body : public TycoSpecifier::Body
     {
     public:
-        Implementation(const String& name, const Span& span)
-          : TycoSpecifier::Implementation(span), _name(name) { }
+        Body(const String& name, const Span& span)
+          : TycoSpecifier::Body(span), _name(name) { }
         String name() const { return _name; }
+        Hash hash() const
+        {
+            return TycoSpecifier::Body::hash().mixin(_name.hash());
+        }
     private:
         String _name;
     };
+    String name() const { return as<Body>()->name(); }
 
     TycoIdentifierTemplate() { }
 private:
-    TycoIdentifierTemplate(const Implementation* implementation)
-      : TycoSpecifier(implementation) { }
+    TycoIdentifierTemplate(const Body* body) : TycoSpecifier(body) { }
 };
 
 template<class T> class ClassTycoSpecifierTemplate : public TycoSpecifier
@@ -315,15 +308,15 @@ public:
         return ClassTycoSpecifier(span + span2);
     }
 private:
-    class Implementation : public TycoSpecifier::Implementation
+    class Body : public TycoSpecifier::Body
     {
     public:
-        Implementation(const Span& span)
-          : TycoSpecifier::Implementation(span) { }
+        Body(const Span& span)
+          : TycoSpecifier::Body(span) { }
     };
     ClassTycoSpecifierTemplate() { }
     ClassTycoSpecifierTemplate(const Span& span)
-      : TycoSpecifier(new Implementation(span)) { }
+      : TycoSpecifier(new Body(span)) { }
 };
 
 template<class T> class TypeOfTypeSpecifierTemplate : public TypeSpecifier
@@ -338,17 +331,17 @@ public:
         Space::assertCharacter(source, '(', &span2);
         Expression expression = Expression::parseOrFail(source);
         Space::assertCharacter(source, ')', &span2);
-        return new Implementation(expression, span + span2);
+        return new Body(expression, span + span2);
     }
     TypeOfTypeSpecifierTemplate() { }
-    TypeOfTypeSpecifierTemplate(const Implementation* implementation)
-      : TypeSpecifier(implementation) { }
+    TypeOfTypeSpecifierTemplate(const Body* body)
+      : TypeSpecifier(body) { }
 private:
-    class Implementation : public TypeSpecifier::Implementation
+    class Body : public TypeSpecifier::Body
     {
     public:
-        Implementation(const Expression& expression, const Span& span)
-          : TypeSpecifier::Implementation(span), _expression(expression) { }
+        Body(const Expression& expression, const Span& span)
+          : TypeSpecifier::Body(span), _expression(expression) { }
     private:
         Expression _expression;
     };
@@ -378,14 +371,14 @@ public:
             Span span;
             if (Space::parseCharacter(source, '*', &span)) {
                 parameter = new typename TypeParameterTemplate<T>::
-                    PointerImplementation(parameter, parameter.span() + span);
+                    PointerBody(parameter, parameter.span() + span);
                 continue;
             }
             if (Space::parseCharacter(source, '(', &span)) {
                 List<TemplateParameter> parameters = parseList(source);
                 Space::assertCharacter(source, ')', &span);
                 parameter = new typename TypeParameterTemplate<T>::
-                    FunctionImplementation(parameter, parameters,
+                    FunctionBody(parameter, parameters,
                     parameter.span() + span);
                 continue;
             }
@@ -393,11 +386,11 @@ public:
         return parameter;
     }
 protected:
-    class Implementation : public ParseTreeObject::Implementation
+    class Body : public ParseTreeObject::Body
     {
     public:
-        Implementation(const Span& span)
-          : ParseTreeObject::Implementation(span) { }
+        Body(const Span& span)
+          : ParseTreeObject::Body(span) { }
     };
 private:
     static List<TemplateParameter> parseList(CharacterSource* source)
@@ -421,7 +414,7 @@ private:
     {
         TycoSpecifier tycoSpecifier = TycoSpecifier::parse(source);
         if (tycoSpecifier.valid())
-            return new TycoSpecifierImplementation(tycoSpecifier);
+            return new TycoSpecifierBody(tycoSpecifier);
         Span span;
         if (Space::parseCharacter(source, '@', &span)) {
             TycoIdentifier tycoIdentifier = TycoIdentifier::parse(source);
@@ -430,7 +423,7 @@ private:
                     "Expected type constructor identifier");
             TemplateParametersTemplate<T> parameters =
                 TemplateParametersTemplate<T>::parse(source);
-            return new BoundVariableImplementation(tycoIdentifier,
+            return new BoundVariableBody(tycoIdentifier,
                 parameters, span + parameters.span());
         }
         source->location().throwError("Expected template parameter");
@@ -438,24 +431,24 @@ private:
         return 0;
     }
 
-    TemplateParameterTemplate(const Implementation* implementation)
-      : ParseTreeObject(implementation) { }
+    TemplateParameterTemplate(const Body* body)
+      : ParseTreeObject(body) { }
 
-    class TycoSpecifierImplementation : public Implementation
+    class TycoSpecifierBody : public Body
     {
     public:
-        TycoSpecifierImplementation(const TycoSpecifier& tycoSpecifier)
-            : Implementation(tycoSpecifier.span()),
+        TycoSpecifierBody(const TycoSpecifier& tycoSpecifier)
+            : Body(tycoSpecifier.span()),
             _tycoSpecifier(tycoSpecifier) { }
     private:
         TycoSpecifier _tycoSpecifier;
     };
-    class BoundVariableImplementation : public Implementation
+    class BoundVariableBody : public Body
     {
     public:
-        BoundVariableImplementation(const TycoIdentifier& tycoIdentifier,
+        BoundVariableBody(const TycoIdentifier& tycoIdentifier,
             const TemplateParameters& parameters, const Span& span)
-          : Implementation(span), _tycoIdentifier(tycoIdentifier),
+          : Body(span), _tycoIdentifier(tycoIdentifier),
             _parameters(parameters) { }
     private:
         TycoIdentifier _tycoIdentifier;
@@ -466,21 +459,21 @@ private:
 template<class T> class TypeParameterTemplate : public TemplateParameter
 {
 public:
-    class PointerImplementation : public TemplateParameter::Implementation
+    class PointerBody : public TemplateParameter::Body
     {
     public:
-        PointerImplementation(const TemplateParameter& parameter,
+        PointerBody(const TemplateParameter& parameter,
             const Span& span)
-          : Implementation(span), _parameter(parameter) { }
+          : Body(span), _parameter(parameter) { }
     private:
         TemplateParameter _parameter;
     };
-    class FunctionImplementation : public TemplateParameter::Implementation
+    class FunctionBody : public TemplateParameter::Body
     {
     public:
-        FunctionImplementation(const TemplateParameter& parameter,
+        FunctionBody(const TemplateParameter& parameter,
             const List<TemplateParameter>& parameters, const Span& span)
-          : Implementation(span), _parameter(parameter),
+          : Body(span), _parameter(parameter),
             _parameters(parameters) { }
     private:
         TemplateParameter _parameter;
@@ -509,18 +502,18 @@ public:
                 return TemplateParameters();
         }
         *source = s2;
-        return new Implementation(parameters, span + span2);
+        return new Body(parameters, span + span2);
     }
 private:
-    TemplateParametersTemplate(const Implementation* implementation)
-      : ParseTreeObject(implementation) { }
+    TemplateParametersTemplate(const Body* body)
+      : ParseTreeObject(body) { }
 
-    class Implementation : public ParseTreeObject::Implementation
+    class Body : public ParseTreeObject::Body
     {
     public:
-        Implementation(const List<TemplateParameter>& parameters,
+        Body(const List<TemplateParameter>& parameters,
             const Span& span)
-          : ParseTreeObject::Implementation(span), _parameters(parameters) { }
+          : ParseTreeObject::Body(span), _parameters(parameters) { }
     private:
         List<TemplateParameter> _parameters;
     };
@@ -532,7 +525,7 @@ class TycoSignifier : public ParseTreeObject
 public:
     TycoSignifier(const TycoIdentifier& identifier,
         const TemplateParameters& parameters = TemplateParameters())
-      : ParseTreeObject(new Implementation(identifier, parameters, Span())) { }
+      : ParseTreeObject(new Body(identifier, parameters, Span())) { }
     static TycoSignifier parse(CharacterSource* source)
     {
         CharacterSource s2 = *source;
@@ -540,20 +533,20 @@ public:
         if (!identifier.valid())
             return TycoSignifier();
         TemplateParameters parameters = TemplateParameters::parse(source);
-        return new Implementation(identifier, parameters,
+        return new Body(identifier, parameters,
             identifier.span() + parameters.span());
     }
 private:
     TycoSignifier() { }
-    TycoSignifier(const Implementation* implementation)
-      : ParseTreeObject(implementation) { }
+    TycoSignifier(const Body* body)
+      : ParseTreeObject(body) { }
 
-    class Implementation : public ParseTreeObject::Implementation
+    class Body : public ParseTreeObject::Body
     {
     public:
-        Implementation(const TycoIdentifier& identifier,
+        Body(const TycoIdentifier& identifier,
             const TemplateParameters& parameters, const Span& span)
-          : ParseTreeObject::Implementation(span), _identifier(identifier),
+          : ParseTreeObject::Body(span), _identifier(identifier),
             _parameters(parameters) { }
     private:
         TycoIdentifier _identifier;
@@ -565,13 +558,13 @@ class BuiltInTycoSpecifier : public TycoSpecifier
 {
 public:
     BuiltInTycoSpecifier(const Kind& kind)
-      : TycoSpecifier(new Implementation(kind)) { }
+      : TycoSpecifier(new Body(kind)) { }
 private:
-    class Implementation : public TycoSpecifier::Implementation
+    class Body : public TycoSpecifier::Body
     {
     public:
-        Implementation(const Kind& kind)
-          : TycoSpecifier::Implementation(Span()), _kind(kind) { }
+        Body(const Kind& kind)
+          : TycoSpecifier::Body(Span()), _kind(kind) { }
     private:
         Kind _kind;
     };

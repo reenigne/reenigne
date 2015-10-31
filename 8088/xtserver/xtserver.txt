@@ -27,10 +27,10 @@ http://www.w3.org/TR/html401/interact/forms.html#h-17.13.4.2
 
 
 
-For peeking ahead in streams, should we (1) make Handle have its own circular buffer or (2) use Pipes?
+For peeking ahead in streams, should we (1) make Stream have its own circular buffer or (2) use Pipes?
 
 (1) is preferred because:
-  * We would like to have a Handle::read<String>() that is usable without creating a FileSource and a LineizerPipe and hooking them up
+  * We would like to have a Stream::read<String>() that is usable without creating a FileSource and a LineizerPipe and hooking them up
     * How should this function indicate end-of-file?
 
 (2) is preferred because:

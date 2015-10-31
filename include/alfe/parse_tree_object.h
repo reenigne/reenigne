@@ -3,24 +3,15 @@
 #ifndef INCLUDED_PARSE_TREE_OBJECT_H
 #define INCLUDED_PARSE_TREE_OBJECT_H
 
-class ParseTreeObject
+class ParseTreeObject : public ConstHandle
 {
 public:
-    Span span() const { return _implementation->span(); }
-    bool valid() const { return _implementation.valid(); }
-    template<class T> bool is() const
-    {
-        return _implementation.is<T::Implementation>();
-    }
-    template<class T> const typename T::Implementation* as() const
-    {
-        return _implementation.referent<T::Implementation>();
-    }
+    Span span() const { return body()->span(); }
 
-    class Implementation : public ReferenceCounted
+    class Body : public ConstHandle::Body
     {
     public:
-        Implementation(const Span& span) : _span(span) { }
+        Body(const Span& span) : _span(span) { }
         Span span() const { return _span; }
     private:
         Span _span;
@@ -28,21 +19,9 @@ public:
 
 protected:
     ParseTreeObject() { }
-    ParseTreeObject(const Implementation* implementation)
-      : _implementation(implementation) { }
+    ParseTreeObject(const Body* body) : ConstHandle(body) { }
 
-    template<class T> const ParseTreeObject& operator=(const T* implementation)
-    {
-        _implementation = implementation;
-        return *this;
-    }
-    const ParseTreeObject& operator=(const ParseTreeObject& other)
-    {
-        _implementation = other._implementation;
-        return *this;
-    }
-
-    ConstReference<Implementation> _implementation;
+    const Body* body() const { return as<Body>(); }
 };
 
 #endif // INCLUDED_PARSE_TREE_OBJECT_H

@@ -14,10 +14,10 @@ class ProductKernel;
 
 // A convolution kernel is indexed in such a way that the input samples
 // correspond to integer input values.
-class ConvolutionKernel
+class ConvolutionKernel : private Handle
 {
 public:
-    class Implementation : public ReferenceCounted
+    class Body : public Handle::Body
     {
     public:
         virtual double operator()(double x) const = 0;
@@ -25,22 +25,21 @@ public:
         virtual double rightExtent() const { return DBL_MAX; }
     };
 
-    ConvolutionKernel(Implementation* implementation)
-      : _implementation(implementation) { }
-    double operator()(double x) const { return (implementation->operator())(x); }
-    double leftExtent() const { return _implementation->leftExtent(); }
-    double rightExtent() const { return _implementation->rightExtent(); }
+    ConvolutionKernel(Body* body) : Handle(body) { }
+    double operator()(double x) const { return (body()->operator())(x); }
+    double leftExtent() const { return _body->leftExtent(); }
+    double rightExtent() const { return _body->rightExtent(); }
     ConvolutionKernel& operator*=(const ConvolutionKernel& right)
     {
-        _implementation = new ProductKernel(*this, right);
+        _body = new ProductKernel(*this, right);
     }
     ConvolutionKernel& operator+=(const ConvolutionKernel& right)
     {
-        _implementation = new SumKernel(*this, right);
+        _body = new SumKernel(*this, right);
     }
     ConvolutionKernel& operator-=(const ConvolutionKernel& right)
     {
-        _implementation = new SumKernel(*this, -right);
+        _body = new SumKernel(*this, -right);
     }
     ConvolutionKernel operator-() const
     {
@@ -58,8 +57,6 @@ public:
     {
         ConvolutionKernel k = *this; k -= right; return k;
     }
-private:
-    Reference<Implementation> _implementation;
 };
 
 // Sinc filter corresponds to perfect band-limited interpolation - it removes
@@ -67,8 +64,8 @@ private:
 class SincFilter : public ConvolutionKernel
 {
 public:
-    SincFilter() : ConvolutionKernel(new Implementation) { }
-    class Implementation : public ConvolutionKernel::Implementation
+    SincFilter() : ConvolutionKernel(new Body) { }
+    class Body : public ConvolutionKernel::Body
     {
         virtual double operator()(double x) const
         {
@@ -81,11 +78,11 @@ class RectangleWindow : public ConvolutionKernel
 {
 public:
     RectangleWindow(double semiWidth)
-      : ConvolutionKernel(new Implementation(semiWidth)) { }
-    class Implementation : public ConvolutionKernel::Implementation
+      : ConvolutionKernel(new Body(semiWidth)) { }
+    class Body : public ConvolutionKernel::Body
     {
     public:
-        Implementation(double semiWidth) : _semiWidth(semiWidth) { }
+        Body(double semiWidth) : _semiWidth(semiWidth) { }
         virtual double operator()(double x) const { return 1; }
         virtual double leftExtent() const { return -_semiWidth; }
         virtual double rightExtent() const { return _semiWidth; }
@@ -98,11 +95,11 @@ class ScaledFilter : public ConvolutionKernel
 {
 public:
     ScaledFilter(ConvolutionKernel kernel, double scale)
-      : ConvolutionKernel(new Implementation(kernel, scale)) { }
-    class Implementation : public ConvolutionKernel::Implementation
+      : ConvolutionKernel(new Body(kernel, scale)) { }
+    class Body : public ConvolutionKernel::Body
     {
     public:
-        Implementation(ConvolutionKernel kernel, double scale)
+        Body(ConvolutionKernel kernel, double scale)
           : _kernel(kernel), _scale(scale) { }
         virtual double operator()(double x) const
         {
@@ -126,11 +123,11 @@ class ProductKernel : public ConvolutionKernel
 {
 public:
     ProductKernel(ConvolutionKernel a, ConvolutionKernel b)
-      : ConvolutionKernel(new Implementation(a, b)) { }
-    class Implementation : public ConvolutionKernel::Implementation
+      : ConvolutionKernel(new Body(a, b)) { }
+    class Body : public ConvolutionKernel::Body
     {
     public:
-        Implementation(ConvolutionKernel a, ConvolutionKernel b)
+        Body(ConvolutionKernel a, ConvolutionKernel b)
           : _a(a), _b(b) { }
         virtual double operator()(double x) const { return _a(x)*_b(x); }
         virtual double leftExtent() const
@@ -151,11 +148,11 @@ class SumKernel : public ConvolutionKernel
 {
 public:
     SumKernel(ConvolutionKernel a, ConvolutionKernel b)
-      : ConvolutionKernel(new Implementation(a, b)) { }
-    class Implementation : public ConvolutionKernel::Implementation
+      : ConvolutionKernel(new Body(a, b)) { }
+    class Body : public ConvolutionKernel::Body
     {
     public:
-        Implementation(ConvolutionKernel a, ConvolutionKernel b)
+        Body(ConvolutionKernel a, ConvolutionKernel b)
           : _a(a), _b(b) { }
         virtual double operator()(double x) const { return _a(x)+_b(x); }
         virtual double leftExtent() const
@@ -175,11 +172,11 @@ public:
 class ConstantKernel : public ConvolutionKernel
 {
 public:
-    ConstantKernel(double c) : ConvolutionKernel(new Implementation(c)) { }
-    class Implementation : public ConvolutionKernel::Implementation
+    ConstantKernel(double c) : ConvolutionKernel(new Body(c)) { }
+    class Body : public ConvolutionKernel::Body
     {
     public:
-        Implementation(double c) : _c(c) { }
+        Body(double c) : _c(c) { }
         virtual double operator()(double) const { return c; }
     private:
         double _c;

@@ -1,0 +1,6 @@
+Component Type classes need to have Simulator pointers because they're used to construct Component objects.
+
+Connector classes are not reference counted because Connector objects are expected to be members of Component objects (and hence owned by them).
+
+How are Component objects owned? ROM::Type just creates a ROM* with new
+  Owned by Simulator

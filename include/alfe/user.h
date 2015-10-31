@@ -78,7 +78,7 @@ public:
         WNDPROC origWndProc = getWndProc(hWnd);
         SetLastError(0);
         IF_ZERO_CHECK_THROW_LAST_ERROR(SetWindowLongPtr(hWnd, GWLP_WNDPROC,
-            reinterpret_cast<LONG>(wndProc)));
+            reinterpret_cast<LONG_PTR>(wndProc)));
         return origWndProc;
     }
 

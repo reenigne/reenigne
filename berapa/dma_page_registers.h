@@ -38,8 +38,8 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
-        auto dmaPages = (*members)["data"].value<List<TypedValue>>();
+        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        auto dmaPages = members["data"].value<List<TypedValue>>();
         int j = 0;
         for (auto i = dmaPages.begin(); i != dmaPages.end(); ++i) {
             _dmaPages[j] = (*i).value<int>();
@@ -49,8 +49,8 @@ public:
         }
         for (;j < 4; ++j)
             _dmaPages[j] = 0;
-        this->_active = (*members)["active"].value<bool>();
-        _address = (*members)["address"].value<int>();
+        this->_active = members["active"].value<bool>();
+        _address = members["address"].value<int>();
     }
 
     UInt8 pageForChannel(int channel)
@@ -65,14 +65,12 @@ public:
     class Type : public Component::Type
     {
     public:
-        Type(Simulator* simulator)
-          : Component::Type(new Implementation(simulator)) { }
+        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
     private:
-        class Implementation : public Component::Type::Implementation
+        class Body : public Component::Type::Body
         {
         public:
-            Implementation(Simulator* simulator)
-              : Component::Type::Implementation(simulator) { }
+            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "DMAPageRegisters"; }
         };
     };

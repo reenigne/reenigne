@@ -55,20 +55,20 @@ public:
     {
         NullTerminatedString path(file.path());
 
-        FileHandle handle = file.tryOpenRead();
-        if (!handle.valid()) {
+        FileStream stream = file.tryOpenRead();
+        if (!stream.valid()) {
             printf("<in use> %s\n", (const char*)path);
             return;
         }
 
-        UInt64 size = handle.size();
+        UInt64 size = stream.size();
         DWORD crc = 0xffffffff;
         static const int bufferSize = 0x10000;
         Array<UInt8> buffer(bufferSize);
         while (size > 0) {
             int s =
                 static_cast<int>(min(static_cast<UInt64>(bufferSize), size));
-            handle.read(&buffer[0], s);
+            stream.read(&buffer[0], s);
             for (int i = 0; i < s; ++i) {
                 int c = buffer[i];
                 crc = (crc_32_tab[((crc)^((BYTE)c))&0xff]^((crc)>>8));

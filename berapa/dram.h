@@ -89,15 +89,15 @@ public:
     {
         return TypedValue(StructuredType(String(),
             List<StructuredType::Member>()),
-            Value<HashTable<Identifier, TypedValue>>()).convertTo(type());
+            HashTable<Identifier, TypedValue>()).convertTo(type());
     }
     void load(const TypedValue& value)
     {
         for (int a = 0; a < _data.count(); ++a)
             _data[a] = _decayValue;
 
-        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
-        String s = (*members)["data"].value<String>();
+        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        String s = members["data"].value<String>();
         CharacterSource source(s);
         Space::parse(&source);
         do {
@@ -130,7 +130,7 @@ public:
         if (s2.get() != -1)
             source.location().throwError("Expected hexadecimal character");
 
-        auto refresh = (*members)["refresh"].value<List<TypedValue>>();
+        auto refresh = members["refresh"].value<List<TypedValue>>();
         int n = 0;
         for (auto i = refresh.begin(); i != refresh.end(); ++i) {
             if (n < _refreshTimes.count())

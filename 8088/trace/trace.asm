@@ -132,9 +132,6 @@ loopTop:
   mov cx,25*LENGTH
 flushLoop2:
   loop flushLoop2
-;  mov cx,31*LENGTH
-;flushLoop3:
-;  loop flushLoop3
 
   mov cx,[cs:savedCX]
   loop loopTop2

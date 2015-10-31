@@ -11,16 +11,16 @@ public:
             "Content-Type: text/javascript; charset=utf-8'\n\n");
         console.write("updateStatus('");
         try {
-            AutoHandle h = File("\\\\.\\pipe\\xtserver", true).openPipe();
-            h.write<int>(0);    // emailLength
-            h.write<int>(0);    // fileNameLength 
-            h.write<int>(0);    // dataLength
-            h.write<DWORD>(0);  // serverPId
-            h.write<int>(0);    // logFileLength
-            h.write<int>(2);    // command
+            AutoStream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
+            s.write<int>(0);    // emailLength
+            s.write<int>(0);    // fileNameLength
+            s.write<int>(0);    // dataLength
+            s.write<DWORD>(0);  // serverPId
+            s.write<int>(0);    // logFileLength
+            s.write<int>(2);    // command
 
             do {
-                int b = h.tryReadByte();
+                int b = s.tryReadByte();
                 if (b == -1)
                     break;
                 console.write<Byte>(b);

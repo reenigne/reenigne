@@ -429,20 +429,20 @@ public:
       : AudioSink(samplesPerSecond, channels),
         _samplesPerBuffer(samplesPerBufferChannel * channels),
         _bytes(0),
-        _handle(file.openWrite())
+        _stream(file.openWrite())
     {
         // TODO: make endian-neutral. Posix port.
-        _handle.write("RIFF", 4);
+        _stream.write("RIFF", 4);
         DWORD t = 36;
-        _handle.write(&t, 4);
-        _handle.write("WAVE", 4);
-        _handle.write("fmt ", 4);
+        _stream.write(&t, 4);
+        _stream.write("WAVE", 4);
+        _stream.write("fmt ", 4);
         t = 16;
-        _handle.write(&t, 4);
-        _handle.write(&_format, 16);
-        _handle.write("data", 4);
+        _stream.write(&t, 4);
+        _stream.write(&_format, 16);
+        _stream.write("data", 4);
         t = 0;
-        _handle.write(&t, 4);
+        _stream.write(&t, 4);
     }
     void play()
     {
@@ -456,22 +456,22 @@ public:
             n = remaining();
         if (n > 0) {
             Accessor<Sample> r = reader(n);
-            r.items(WriteTo<Sample>(&_handle), 0, n);
+            r.items(WriteTo<Sample>(&_stream), 0, n);
             _bytes += n*sizeof(Sample);
             read(n);
         }
         if (finite() && remaining() <= 0) {
-            _handle.seek(4);
+            _stream.seek(4);
             DWORD t = _bytes + 36;
-            _handle.write(&t, 4);
-            _handle.seek(40);
+            _stream.write(&t, 4);
+            _stream.seek(40);
             t = _bytes;
-            _handle.write(&t, 4);
+            _stream.write(&t, 4);
         }
     }
 private:
     int _samplesPerBuffer;
-    FileHandle _handle;
+    FileStream _stream;
     int _bytes;
 };
 

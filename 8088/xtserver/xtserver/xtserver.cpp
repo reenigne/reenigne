@@ -39,23 +39,23 @@ public:
     }
     void run()
     {
-        Handle log;
+        Stream log;
         bool sentHeader = false;
         bool sentPre = false;
         try {
             try {
                 bool eof;
-                Handle in(GetStdHandle(STD_INPUT_HANDLE));
+                Stream in(GetStdHandle(STD_INPUT_HANDLE));
 
                 // Open a log file
                 SYSTEMTIME time;
                 GetSystemTime(&time);
-                String base = String() + String::Decimal(time.wYear, 4) + 
-                    String::Decimal(time.wMonth, 2) + 
-                    String::Decimal(time.wDay, 2) + 
-                    String::Decimal(time.wHour, 2) + 
-                    String::Decimal(time.wMinute, 2) + 
-                    String::Decimal(time.wSecond, 2) + 
+                String base = String() + String::Decimal(time.wYear, 4) +
+                    String::Decimal(time.wMonth, 2) +
+                    String::Decimal(time.wDay, 2) +
+                    String::Decimal(time.wHour, 2) +
+                    String::Decimal(time.wMinute, 2) +
+                    String::Decimal(time.wSecond, 2) +
                     String::Decimal(time.wMilliseconds, 3);
                 _logName = base;
                 int i = 0;
@@ -179,7 +179,7 @@ public:
                                     errorPage();
                                     return;
                                 }
-                                String dataBoundary = 
+                                String dataBoundary =
                                     String(String::CodePoint(10)) + boundary;
                                 do {
                                     int b = in.peekByte(0);
@@ -273,17 +273,17 @@ public:
                     }
                 }
 
-                AutoHandle h = File("\\\\.\\pipe\\xtserver", true).openPipe();
-                h.write<int>(email.length());           // emailLength
-                h.write(email);                         // email
-                h.write<int>(fileName.length());        // fileNameLength
-                h.write(fileName);                      // fileName
-                h.write<int>(data.count());             // dataLength
-                h.write(data);                          // data
-                h.write<DWORD>(GetCurrentProcessId());  // serverPId
-                h.write<int>(_logName.length());        // logFileLength
-                h.write(_logName);                      // logFile
-                h.write<int>(0);                        // command
+                AutoStream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
+                s.write<int>(email.length());           // emailLength
+                s.write(email);                         // email
+                s.write<int>(fileName.length());        // fileNameLength
+                s.write(fileName);                      // fileName
+                s.write<int>(data.count());             // dataLength
+                s.write(data);                          // data
+                s.write<DWORD>(GetCurrentProcessId());  // serverPId
+                s.write<int>(_logName.length());        // logFileLength
+                s.write(_logName);                      // logFile
+                s.write<int>(0);                        // command
                 if (terminate)
                     return;
 
@@ -291,7 +291,7 @@ public:
                 sentHeader = true;
                 console.write("<p>The XT Server has received your file.</p>\n");
                 do {
-                    int b = h.tryReadByte();
+                    int b = s.tryReadByte();
                     if (b == -1)
                         break;
                     console.write<Byte>(b);

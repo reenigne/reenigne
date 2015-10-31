@@ -119,16 +119,16 @@ public:
 
         _top = Bitmap<SRGB>(Vector(760, 240));
         _bottom = Bitmap<SRGB>(Vector(760, 240));
-        AutoHandle topHandle = File("q:\\top_decoded.raw", true).openRead();
-        AutoHandle bottomHandle = File("q:\\bottom_decoded.raw", true).openRead();
-        topHandle.read(_top.data(), 760*240*3);
-        bottomHandle.read(_bottom.data(), 760*240*3);
+        AutoStream topStream = File("q:\\top_decoded.raw", true).openRead();
+        AutoStream bottomStream = File("q:\\bottom_decoded.raw", true).openRead();
+        topStream.read(_top.data(), 760*240*3);
+        bottomStream.read(_bottom.data(), 760*240*3);
         _topRaw.allocate(450*1024);
         _bottomRaw.allocate(450*1024);
-        AutoHandle topRawHandle = File("q:\\top.raw", true).openRead();
-        AutoHandle bottomRawHandle = File("q:\\bottom.raw", true).openRead();
-        topRawHandle.read(&_topRaw[0], 450*1024);
-        bottomRawHandle.read(&_bottomRaw[0], 450*1024);
+        AutoStream topRawStream = File("q:\\top.raw", true).openRead();
+        AutoStream bottomRawStream = File("q:\\bottom.raw", true).openRead();
+        topRawStream.read(&_topRaw[0], 450*1024);
+        bottomRawStream.read(&_bottomRaw[0], 450*1024);
 
         _output = Bitmap<SRGB>(Vector(1536, 1024));
         _rgb = ColourSpace::rgb();
@@ -325,7 +325,7 @@ public:
     }
 
     void escapePressed()
-    { 
+    {
         for (int i = 0; i < 4096; ++i) {
             Block b(i);
             int bits = b.bits();
@@ -486,7 +486,7 @@ private:
         double hf;
         integrate(Block(6, 6, 0), &dc, &iqBurst, &hf);
         Complex<double> iqAdjust = iqBurst.conjugate()*unit(-(33 + _hue)/360.0)*_saturation*_contrast/iqBurst.modulus();
-        
+
         _fitness = 0;
         int fitCount = 0;
         for (int bg = 0; bg < 8; ++bg)
@@ -702,7 +702,7 @@ private:
     double _716MHzGain;
     double _358MHzPhase;
     double _716MHzPhase;
-    
+
     double _voltages[4];
     Colour _captures[4096];
     Colour _computes[4096];

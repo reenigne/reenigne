@@ -141,7 +141,7 @@ public:
             case VK_OEM_PLUS: scanCode = 0x0d; break;
             case VK_OEM_COMMA: scanCode = 0x33; break;
             case VK_OEM_MINUS: scanCode = 0x0c; break;
-            case VK_OEM_PERIOD: scanCode = 0x34; break;     
+            case VK_OEM_PERIOD: scanCode = 0x34; break;
             case VK_OEM_2:    scanCode = 0x35; break;
             case VK_OEM_3:    scanCode = 0x29; break;
             case VK_OEM_4:    scanCode = 0x1a; break;
@@ -163,7 +163,7 @@ class Program : public WindowProgram<KeyboardWindow>
 public:
     void run()
     {
-        _com = AutoHandle(CreateFile(
+        _com = AutoStream(CreateFile(
             L"COM3",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -218,5 +218,5 @@ public:
     }
 
 private:
-    Handle _com;
+    Stream _com;
 };

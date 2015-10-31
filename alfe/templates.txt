@@ -16,12 +16,15 @@
 
     B<@A> = Class { }
     B<Int> = Class { }
-    C<@B<A>> = Class { }
-    C<@B<>> = Class { }
-    C<Foo<@A>> = Class { }
-    C<Foo<Int>> = Class { }
-    C<@B<Int>> = Class { }
-    C<B> = Class { }   // specialization of a template template
+    C<@B<A>> = Class { }       // @B is Tyco of kind <>
+    C<@B<>> = Class { }        // Same as above (the parameter to @B does not need to be named here)
+    C<Foo<@A>> = Class { }     // C<@D> = Class { }  where @D is of the form Foo<@A> for some @A. Note that @D is a type
+    C<Foo<Int>> = Class { }    // Specialization of C with Foo<Int> as argument
+    C<@B<Int>> = Class { }     // Same as C<@B<>> again? Though... perhaps this should mean that B can be instantiated with Int (ruling out "E<@F where F : String>")
+    C<B> = Class { }           // specialization of a template template (since B is a template of kind <>)
+    G<@H, @I> = Class { }      // Two-parameter template
+    G<@H, H> = Class { }       // Specialization where both arguments must be the same Tyco
+    G<@H, @J where J : H> = Class { }  // Specialization where
 
     How to do partial specialization for pointers?
       B<@A*> = Class { }  - so the @ prefix binds more tightly than *
@@ -224,7 +227,7 @@ What's the difference between VariadicKind and VariadicTemplateKind?
 TypeKind is nullary - the kind of an actual type.
 TemplateKind(A, B) is the kind of a template which yields a tyco of kind B when instantiated with a tyco of kind A.
 VariadicKind(A) is the kind of a sequence of 0 or more tycos of kind X
-VariadicTemplateKind is the kind of a template which accepts 0 or more tycos - i.e. the kind of Tuple - returned by Template::VariadicImplementation::kind()
+VariadicTemplateKind is the kind of a template which accepts 0 or more tycos - i.e. the kind of Tuple - returned by Template::VariadicBody::kind()
   Should we replace VariadicKind with VariadicTemplateKind?
     Makes Kind::toString() more complicated but then all three Kind constructors are kinds of actual tyco.
 
@@ -333,11 +336,11 @@ Suppose we have a template that takes a variadic template as an argument:
     The former probably makes more sense
 
 We want to have some generic code (in Template) for dealing with instantiations and partially instantiated templates
-  Template::Implementation knows about ArrayType (via ArrayTemplate::Implementation)
-  Template::PartiallyInstantiatedImplementation needs to know about ArrayType
+  Template::Body knows about ArrayType (via ArrayTemplate::Body)
+  Template::PartiallyInstantiatedBody needs to know about ArrayType
 
 Should we put our instantiations cache in Tyco or in Template and Tuple?
-  In Tyco would add 3 words to every Type::Implementation - quite a lot. Let's try putting it in Tyco and Template first.
+  In Tyco would add 3 words to every Type::Body - quite a lot. Let's try putting it in Tyco and Template first.
     Or should TupleTyco inherit from Template and just add its own type-stuff?
 
 
@@ -354,13 +357,13 @@ Is T the same type as (T)?
 
 
 Tyco hashes:
-  5 = Template::PartialImplementation
-  3 = ArrayType::Implementation
-  4 = SequenceType::Implementation
-  6 = TupleTyco::NonUnitImplementation
-  1 = PointerType::Implementation
-  2 = FunctionType::Implementation
-  7 = LessThanType::Implementation
+  5 = Template::PartialBody
+  3 = ArrayType::Body
+  4 = SequenceType::Body
+  6 = TupleTyco::NonUnitImpBody
+  1 = PointerType::Body
+  2 = FunctionType::Body
+  7 = LessThanType::Body
 
 
 
@@ -372,3 +375,18 @@ Should the elements of a tuple be addressable, e.g. via []?
   There's no reason why we shouldn't use 0, 1, 2, 3, ... on the right side of . and -> - terse, easy to remember and unsurprising
     Slightly confusing in that a=1, foo.a doesn't do foo.1 but that's ok - if you want an array, use one.
     has() is for . and -> so we do want to implement has().
+
+
+
+
+
+
+Foo<> = Class { String k = "*"; };                                               // Base case
+Foo<@T, $...> = Class { String k = "*->" + Foo<...>.k; };                        // Peel off first argument, a type
+Foo<@T<$...>, $...> = Class { String k = "(" + Foo<T> + ")->" + Foo<...>.k; };   // Peel off first argument, a template (of any kind). The "..." in the class body refers to the second argument - the "..." in the first argument is just a kind descriptor
+Foo<@T<$...>> = Class { String k = "(" + Foo<...>.k + "->*)->*"; }               // Can't do anything with T directly because it is of unknown kind
+
+
+A<@B> = Class { ... }
+
+Foo<A>

@@ -25,7 +25,7 @@ public:
         static const int sampleSpaceBefore = 256;
         static const int sampleSpaceAfter = 256;
 
-        FileHandle in = File("captured.zdr", true).openRead();
+        FileStream in = File("captured.zdr", true).openRead();
         UInt64 inputFileSizeRemaining = in.size();
         Array<Byte> inputBuffer(inputBufferSize);
         int inputBufferRemaining = 0;
@@ -65,7 +65,7 @@ public:
         decoder.setHue(0);
         decoder.setChromaSamples(16);
 
-        FileHandle outputHandle = File("u:\\captured_decoded.bin", true).openWrite();
+        FileStream outputStream = File("u:\\captured_decoded.bin", true).openWrite();
 
         do {
             if (inputBufferRemaining == 0) {
@@ -96,10 +96,10 @@ public:
 
                 if (doDecode) {
                     decoder.decode();
-                    outputHandle.write(decoded.data(), decoded.stride()*outputSize.y);
+                    outputStream.write(decoded.data(), decoded.stride()*outputSize.y);
                 }
                 else
-                    outputHandle.write(b, 1824*253);
+                    outputStream.write(b, 1824*253);
             }
 
         } while (inputFileSizeRemaining != 0);

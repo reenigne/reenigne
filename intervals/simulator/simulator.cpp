@@ -136,7 +136,7 @@ private:
 
 class Simulation;
 
-template<class Simulation> class BarTemplate : public ReferenceCounted
+template<class Simulation> class BarTemplate : public Handle::Body
 {
 public:
     BarTemplate(Simulation* simulation, const SimulatedProgram* program,
@@ -917,7 +917,7 @@ public:
 
         Bar* root;
         for (int i = 0; i <= _totalBars; ++i) {
-            Reference<Bar> bar;
+            Handle bar;
             bar = new Bar(this, (i == 0 ? &rootProgram : &intervalProgram), i, false);
             if (i == 0)
                 root = bar;
@@ -947,9 +947,9 @@ public:
                     t = static_cast<int>(cyclesBeforeChange*400*256);
                     final = true;
                 }
-                for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
+                for (std::vector<Handle>::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->simulateTo(t);
-                for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
+                for (std::vector<Handle>::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetTime();
 #ifdef DUMP1
                 if (_dumpMatrix)
@@ -1071,7 +1071,7 @@ public:
                     --_connectedPairs;
                 }
                 // Prime to update _indent
-                for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
+                for (std::vector<Handle>::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->clearLive();
                 int liveBars = _bars[0]->prime(0);
 #ifdef DUMP
@@ -1082,7 +1082,7 @@ public:
 #else
                 _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
 #endif
-                for (std::vector<Reference<Bar> >::iterator i = _bars.begin(); i != _bars.end(); ++i)
+                for (std::vector<Handle>::iterator i = _bars.begin(); i != _bars.end(); ++i)
                     (*i)->resetNewlyConnected();
                 //if (_changes == 4251) {
                 //    //_bars[30]->setDebug();
@@ -1226,7 +1226,7 @@ public:
     void setMatrix(int t, int indent, int value) { _matrix[indent + t*101] = value; }
 
 private:
-    std::vector<Reference<Bar> > _bars;
+    std::vector<Handle> _bars;
     int _totalBars;
     std::vector<int> _stream;
     std::vector<int> _expectedStream;

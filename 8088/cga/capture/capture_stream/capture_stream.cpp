@@ -10,7 +10,7 @@ static const int samplesPerFrame = 450*1024;
 
 class Program;
 
-class Frame : public ReferenceCounted
+class Frame : public Handle::Body
 {
 public:
     Frame(int index, int bytes) : _data(bytes), _index(index) { }
@@ -27,13 +27,13 @@ class Queue
 public:
     Queue()
       : _data(1), _addIndex(0), _addOffset(0), _removeOffset(0), _count(0) { }
-    void add(Reference<Frame> frame)
+    void add(Handle frame)
     {
         Lock l(&_mutex);
         int index = frame->index() - _addIndex;
         int items = (_addOffset + _data.count() - _removeOffset) & mask();
         while (_data.count() <= items + index + 1) {
-            Array<Reference<Frame>> data(_data.count() * 2);
+            Array<Handle> data(_data.count() * 2);
             for (int i = 0; i < _data.count(); ++i)
                 data[i] = _data[(i + _removeOffset) & mask()];
             _data.swap(data);
@@ -47,15 +47,15 @@ public:
         }
         ++_count;
     }
-    Reference<Frame> remove()
+    Handle remove()
     {
         Lock l(&_mutex);
         if (_removeOffset == _addOffset)
-            return Reference<Frame>();
+            return Handle();
         if (!_data[_removeOffset].valid())
-            return Reference<Frame>();
-        Reference<Frame> frame = _data[_removeOffset];
-        _data[_removeOffset] = Reference<Frame>();
+            return Handle();
+        Handle frame = _data[_removeOffset];
+        _data[_removeOffset] = Handle();
         _removeOffset = (_removeOffset + 1) & mask();
         --_count;
         return frame;
@@ -73,7 +73,7 @@ public:
 private:
     int mask() { return _data.count() - 1; }
 
-    Array<Reference<Frame>> _data;
+    Array<Handle> _data;
     int _addIndex;     // Index of frame at _addOffset
     int _addOffset;    // Offset into _data
     int _removeOffset; // Offset into _data
@@ -105,7 +105,7 @@ private:
             _go.wait();
             _waiting = false;
             while (!_ending) {
-                Reference<Frame> frame = _program->getUncompressedFrame();
+                Handle frame = _program->getUncompressedFrame();
                 if (!frame.valid())
                     break;
 
@@ -123,7 +123,7 @@ private:
                     throw Exception("deflateReset failed");
 
                 int compressedSize = bufferSize - zs.avail_out;
-                Reference<Frame> compressed =
+                Handle compressed =
                     new Frame(frame->index(), compressedSize);
                 memcpy(compressed->data(), &buffer[0], compressedSize);
                 _program->putCompressedFrame(compressed);
@@ -155,7 +155,7 @@ private:
         while (!_ending) {
             _go.wait();
             while (!_ending) {
-                Reference<Frame> frame = _program->getCompressedFrame();
+                Handle frame = _program->getCompressedFrame();
                 if (!frame.valid())
                     break;
                 _program->write(frame);
@@ -195,16 +195,16 @@ public:
         String name = "captured.zdr";
         if (_arguments.count() >= 2)
             name = _arguments[1];
-        Handle h = File("\\\\.\\pipe\\vbicap", true).openPipe();
+        Stream h = File("\\\\.\\pipe\\vbicap", true).openPipe();
         h.write<int>(1);
 
-        _outputHandle = File(name, true).openWrite();
+        _outputStream = File(name, true).openWrite();
 
         int k = 0;
         int index = 0;
 
         do {
-            Reference<Frame> uncompressed = new Frame(index, samplesPerFrame);
+            Handle uncompressed = new Frame(index, samplesPerFrame);
             Byte* data = uncompressed->data();
             int remaining = samplesPerFrame;
             do {
@@ -218,7 +218,7 @@ public:
 
             _uncompressedFrames.add(uncompressed);
             wakeACompressionThread();
-            
+
             ++index;
             if (index % 60 == 0)
                 printf(".");
@@ -235,15 +235,15 @@ public:
         for (int i = 0; i < nThreads; ++i)
             _compressThreads[i].end();
     }
-    void write(Reference<Frame> frame)
+    void write(Handle frame)
     {
-        _outputHandle.write(frame->data(), frame->bytes());
+        _outputStream.write(frame->data(), frame->bytes());
     }
-    Reference<Frame> getUncompressedFrame()
+    Handle getUncompressedFrame()
     {
         return _uncompressedFrames.remove();
     }
-    Reference<Frame> getCompressedFrame()
+    Handle getCompressedFrame()
     {
         return _compressedFrames.remove();
         //if (frame.valid())
@@ -253,7 +253,7 @@ public:
         //_compressedFrames.dump();
         //return frame;
     }
-    void putCompressedFrame(Reference<Frame> frame)
+    void putCompressedFrame(Handle frame)
     {
         //console.write(String("Completed frame ") + decimal(frame->index()) + "\n");
         _compressedFrames.add(frame);
@@ -270,8 +270,8 @@ private:
             }
     }
     Queue _uncompressedFrames;
-    Queue _compressedFrames; 
+    Queue _compressedFrames;
     WriteThread _writeThread;
     Array<CompressThread> _compressThreads;
-    AutoHandle _outputHandle;
+    AutoStream _outputStream;
 };

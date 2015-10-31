@@ -17,7 +17,11 @@ public:
         : _cyclesPerFrame(cyclesPerFrame), _amplitude(amplitude)
     {
     }
-    int hash() const { return _cyclesPerFrame.hash()*67 + _amplitude.hash(); }
+    UInt32 hash() const
+    {
+        return Hash(typeid(NoteDescriptor)).mixin(_cyclesPerFrame.hash()).
+            mixin( _amplitude.hash());
+    }
     bool operator==(const NoteDescriptor& other) const
     {
         return _cyclesPerFrame == other._cyclesPerFrame &&
@@ -206,9 +210,9 @@ public:
             int pattern = _positions[position];
 
         }
-            
 
-        FileHandle output = File("tables.asm").openWrite();
+
+        FileStream output = File("tables.asm").openWrite();
         output.write("align 16\n\n");
         //output.write("sineTable:");
         //for (int y = 0; y < 838 + 116 - 1; ++y) {
@@ -226,7 +230,7 @@ public:
         //output.write("\npixelTable:");
         //for (int x = 0; x < 320; ++x) {
         //    int xx = x % 160;
-        //    
+        //
         //}
         output.write("\n\nunrolledCode:\n");
     }

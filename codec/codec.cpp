@@ -77,8 +77,8 @@ public:
             }
         }
         if (total == 0) {
-            FileHandle handle = File("hbfs.dat").openWrite();
-            handle.write(_data, sizeof(_data));
+            FileStream stream = File("hbfs.dat").openWrite();
+            stream.write(_data, sizeof(_data));
             printf("Lossless solution found!\n");
             exit(0);
         }
@@ -165,9 +165,9 @@ public:
             for (int sample = 0; sample < samplesPerWaveform; ++sample)
                 waves[sample] = clamp(-32768.0,
                     0x8000*sin(sample*tau/samplesPerWaveform), 32767.0);
-            FileHandle handle = File("waves.raw").openWrite();
+            FileStream stream = File("waves.raw").openWrite();
             for (int i = 0; i < 50; ++i)
-                handle.write(&waves[0], samplesPerWaveform * sizeof(Sample));
+                stream.write(&waves[0], samplesPerWaveform * sizeof(Sample));
             for (int waveform = 1; waveform < totalWaveforms; ++waveform) {
                 for (int sample = 0; sample < samplesPerWaveform; ++sample)
                     wave[sample] = 0;
@@ -189,17 +189,17 @@ public:
                     waves[waveform*samplesPerWaveform + sample] =
                         wave[sample] * 0x7fff / scale;
                 for (int i = 0; i < 50; ++i)
-                    handle.write(&waves[waveform*samplesPerWaveform],samplesPerWaveform * sizeof(Sample));
+                    stream.write(&waves[waveform*samplesPerWaveform],samplesPerWaveform * sizeof(Sample));
             }
         }
 
         Array<Sample> hbfs;
         {
-            FileHandle handle = File("hbfs.wav").openRead();
-            handle.seek(44);
+            FileStream stream = File("hbfs.wav").openRead();
+            stream.seek(44);
             hbfs.allocate(totalSamples);
             original = &hbfs[0];
-            handle.read(original, totalSamples*sizeof(Sample));
+            stream.read(original, totalSamples*sizeof(Sample));
         }
         chromosomes.allocate(population);
         int generation = 0;

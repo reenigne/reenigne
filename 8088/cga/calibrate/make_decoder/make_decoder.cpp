@@ -329,10 +329,10 @@ public:
         printf("Preset: brightness = %f, contrast = %f, saturation = %f\n",simulator._brightness,simulator._contrast,simulator._saturation);
 #endif
 #if 1
-        FileHandle h = File("C:\\t\\reenigne\\8088\\cga\\calibrate\\calibrate6\\output.dat", true).openRead();
+        FileStream s = File("C:\\t\\reenigne\\8088\\cga\\calibrate\\calibrate6\\output.dat", true).openRead();
         double tSamples[1024];
-        h.seek((2048+8+2)*8*2*67);
-        h.read(reinterpret_cast<Byte*>(tSamples), 1024*sizeof(double));
+        s.seek((2048+8+2)*8*2*67);
+        s.read(reinterpret_cast<Byte*>(tSamples), 1024*sizeof(double));
 
         double chroma[256];
         double low = 1e99;
@@ -364,8 +364,8 @@ public:
         printf("};\n");
 
         double iSamples[8];
-        h.seek((2048+8+2)*8*2*67 + 2048*8);
-        h.read(reinterpret_cast<Byte*>(iSamples), 8*sizeof(double));
+        s.seek((2048+8+2)*8*2*67 + 2048*8);
+        s.read(reinterpret_cast<Byte*>(iSamples), 8*sizeof(double));
         printf("unsigned char iSamples[4] = {\n");
         for (int i = 0; i < 4; ++i) {
             printf("%f, ", (iSamples[i*2] - low)*255.0/(high-low));
@@ -374,8 +374,8 @@ public:
 
         double s1;
         double s2;
-        h.read(reinterpret_cast<Byte*>(&s1), sizeof(double));
-        h.read(reinterpret_cast<Byte*>(&s2), sizeof(double));
+        s.read(reinterpret_cast<Byte*>(&s1), sizeof(double));
+        s.read(reinterpret_cast<Byte*>(&s2), sizeof(double));
         printf("%f %f\n",s1,s2);
 
 

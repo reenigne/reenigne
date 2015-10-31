@@ -14,7 +14,7 @@
 class QueueItem : public LinkedListMember<QueueItem>
 {
 public:
-    QueueItem(AutoHandle pipe, String fromAddress) : _pipe(pipe),
+    QueueItem(Stream pipe, String fromAddress) : _pipe(pipe),
         _fromAddress(fromAddress), _broken(false), _aborted(false),
         _lastNotifiedPosition(-1)
     {
@@ -198,7 +198,7 @@ public:
     DWORD getFinishTime() { return _finishTime; }
 
 private:
-    AutoHandle _pipe;
+    Stream _pipe;
 
     String _fromAddress;
     String _email;
@@ -221,7 +221,7 @@ private:
 
     DWORD _finishTime;
 
-    AutoHandle _serverProcess;
+    WindowsHandle _serverProcess;
 };
 
 // We want to send an email to the user if and only if the HTTP connection was
@@ -296,7 +296,7 @@ private:
 class SerialThread : public Thread
 {
 public:
-    void setHandle(Handle serialPort)
+    void setStream(Stream serialPort)
     {
         _serialPort = serialPort;
         memset(&_overlapped, 0, sizeof(OVERLAPPED));
@@ -342,7 +342,7 @@ public:
         return c;
     }
 private:
-    Handle _serialPort;
+    Stream _serialPort;
     Event _event;
     Event _reset;
     int _c;
@@ -364,7 +364,7 @@ public:
         _overlapped.hEvent = _overlappedEvent;
 
         NullTerminatedWideString snifferPath(_port);
-        _handle = AutoHandle(CreateFile(
+        _stream = AutoStream(CreateFile(
             snifferPath,
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -376,7 +376,7 @@ public:
 
         DCB deviceControlBlock;
         SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
-        IF_ZERO_THROW(GetCommState(_handle, &deviceControlBlock));
+        IF_ZERO_THROW(GetCommState(_stream, &deviceControlBlock));
         deviceControlBlock.DCBlength = sizeof(DCB);
         deviceControlBlock.BaudRate = _baudRate;
         deviceControlBlock.fBinary = TRUE;
@@ -398,7 +398,7 @@ public:
         deviceControlBlock.StopBits = ONESTOPBIT;
         deviceControlBlock.XonChar = 17;
         deviceControlBlock.XoffChar = 19;
-        IF_ZERO_THROW(SetCommState(_handle, &deviceControlBlock));
+        IF_ZERO_THROW(SetCommState(_stream, &deviceControlBlock));
 
         COMMTIMEOUTS timeOuts;
         SecureZeroMemory(&timeOuts, sizeof(COMMTIMEOUTS));
@@ -407,19 +407,19 @@ public:
         timeOuts.ReadTotalTimeoutConstant = 0;
         timeOuts.WriteTotalTimeoutConstant = 0;
         timeOuts.WriteTotalTimeoutMultiplier = 0;
-        IF_ZERO_THROW(SetCommTimeouts(_handle, &timeOuts));
+        IF_ZERO_THROW(SetCommTimeouts(_stream, &timeOuts));
     }
     void tryRead(Byte* buffer, int bytes)
     {
         do {
-            if (!ReadFile(_handle, buffer, bytes, NULL, &_overlapped)) {
+            if (!ReadFile(_stream, buffer, bytes, NULL, &_overlapped)) {
                 DWORD error = GetLastError();
                 if (error != ERROR_IO_PENDING)
                     throw Exception::systemError("Reading serial port");
             }
             DWORD read;
             IF_ZERO_THROW(
-                GetOverlappedResult(_handle, &_overlapped, &read, TRUE));
+                GetOverlappedResult(_stream, &_overlapped, &read, TRUE));
             //for (int i = 0; i < read; ++i)
             //    console.write(String("") + hex(buffer[i], 2, false) + " ");
             bytes -= read;
@@ -467,16 +467,16 @@ public:
         for (int i = 0; i < 48; ++i)
             _lengths[i] = -1;
 
-        IF_ZERO_THROW(FlushFileBuffers(_handle));
-        IF_ZERO_THROW(PurgeComm(_handle, PURGE_RXCLEAR | PURGE_TXCLEAR));
+        IF_ZERO_THROW(FlushFileBuffers(_stream));
+        IF_ZERO_THROW(PurgeComm(_stream, PURGE_RXCLEAR | PURGE_TXCLEAR));
     }
-    void saveCapture(Handle h)
+    void saveCapture(Stream s)
     {
-        h.write(reinterpret_cast<const void*>(_lengths), 4*48);
-        h.write(reinterpret_cast<const void*>(&_data[0]), 2048*48);
+        s.write(reinterpret_cast<const void*>(_lengths), 4*48);
+        s.write(reinterpret_cast<const void*>(&_data[0]), 2048*48);
     }
 private:
-    AutoHandle _handle;
+    Stream _stream;
     String _port;
     int _baudRate;
     Array<Byte> _data;
@@ -487,7 +487,7 @@ private:
     OVERLAPPED _overlapped;
 };
 
-class AudioCapture : public ReferenceCounted
+class AudioCapture : public Handle::Body
 {
 public:
     AudioCapture()
@@ -538,28 +538,28 @@ private:
         }
         void write(File file)
         {
-            AutoHandle handle = file.openWrite();
-            handle.write("RIFF");
-            handle.write<UInt32>(_bytes + 0x24);
-            handle.write("WAVEfmt ");
-            handle.write<UInt32>(0x10);
-            handle.write<UInt16>(1);
-            handle.write<UInt16>(2);
-            handle.write<UInt32>(44100);
-            handle.write<UInt32>(44100*2*2);
-            handle.write<UInt16>(2*2);
-            handle.write<UInt16>(16);
-            handle.write("data");
-            handle.write<UInt32>(_bytes);
+            AutoStream stream = file.openWrite();
+            stream.write("RIFF");
+            stream.write<UInt32>(_bytes + 0x24);
+            stream.write("WAVEfmt ");
+            stream.write<UInt32>(0x10);
+            stream.write<UInt16>(1);
+            stream.write<UInt16>(2);
+            stream.write<UInt32>(44100);
+            stream.write<UInt32>(44100*2*2);
+            stream.write<UInt16>(2*2);
+            stream.write<UInt16>(16);
+            stream.write("data");
+            stream.write<UInt32>(_bytes);
             if (_bytes < _audioBytes1) {
-                handle.write(_audioPointer1, _bytes);
+                stream.write(_audioPointer1, _bytes);
                 _bytesRead1 = _bytes;
                 _bytesRead2 = 0;
             }
             else {
-                handle.write(_audioPointer1, _audioBytes1);
+                stream.write(_audioPointer1, _audioBytes1);
                 _bytesRead1 = _audioBytes1;
-                handle.write(_audioPointer2, _bytes - _audioBytes1);
+                stream.write(_audioPointer2, _bytes - _audioBytes1);
                 _bytesRead2 = _bytes - _audioBytes1;
             }
         }
@@ -597,7 +597,7 @@ public:
 
         // Open handle to Arduino for rebooting machine
         NullTerminatedWideString quickBootPath(quickBootPort);
-        _arduinoCom = AutoHandle(CreateFile(
+        _arduinoCom = AutoStream(CreateFile(
             quickBootPath,
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -644,7 +644,7 @@ public:
         timeOuts.WriteTotalTimeoutMultiplier = 0;
         IF_ZERO_THROW(SetCommTimeouts(_arduinoCom, &timeOuts));
 
-        _serialThread.setHandle(_arduinoCom);
+        _serialThread.setStream(_arduinoCom);
 
         //reboot();
 
@@ -671,7 +671,7 @@ public:
         _snifferActive = false;
     }
     ~XTThread() { _ending = true; _ready.signal(); }
-    void run(AutoHandle pipe)
+    void run(Stream pipe)
     {
         QueueItem* item = new QueueItem(pipe, _fromAddress);
 
@@ -1113,7 +1113,7 @@ private:
         IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0, NULL,
             NULL, &si, &pi) != 0);
         CloseHandle(pi.hThread);
-        AutoHandle hDecoder = pi.hProcess;
+        WindowsHandle hDecoder = pi.hProcess;
         IF_FALSE_THROW(WaitForSingleObject(hDecoder, 20000) == WAIT_OBJECT_0);
 
         _item->write("\n<a href=\"../" + rawName +
@@ -1446,8 +1446,9 @@ private:
         IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0, NULL,
             NULL, &si, &pi) != 0);
         CloseHandle(pi.hThread);
-        AutoHandle hLame = pi.hProcess;
-        IF_FALSE_THROW(WaitForSingleObject(hLame, 3*60*1000) == WAIT_OBJECT_0);
+        WindowsHandle hCapture = pi.hProcess;
+        IF_FALSE_THROW(
+            WaitForSingleObject(hCapture, 3*60*1000) == WAIT_OBJECT_0);
 
         _item->write("\n<img src=\"../" + fileName + "\"/>\n");
         ++_imageCount;
@@ -1460,7 +1461,7 @@ private:
         String baseName = htDocsPath(rawName);
         String waveName = baseName + ".wav";
         File wave(waveName, true);
-        _audioCapture->finish(wave);
+        _audioCapture.as<AudioCapture>()->finish(wave);
         _audioCapture = 0;
         String commandLine = "\"" + _lamePath + "\" \"" + waveName + "\" \"" +
             baseName + ".mp3\" " + _lameOptions;
@@ -1476,7 +1477,7 @@ private:
         IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0, NULL,
             NULL, &si, &pi) != 0);
         CloseHandle(pi.hThread);
-        AutoHandle hLame = pi.hProcess;
+        WindowsHandle hLame = pi.hProcess;
         IF_FALSE_THROW(WaitForSingleObject(hLame, 3*60*1000) == WAIT_OBJECT_0);
 
         wave.remove();
@@ -1563,7 +1564,7 @@ private:
     Mutex _mutex;
     Event _ready;
     Event _interrupt;
-    AutoHandle _arduinoCom;
+    Stream _arduinoCom;
     Array<Byte> _packet;
     QueueItem* _item;
     EmailThread _emailThread;
@@ -1581,7 +1582,7 @@ private:
     String _vDos;
 
     int _imageCount;
-    Reference<AudioCapture> _audioCapture;
+    Handle _audioCapture;
     int _audioCount;
     Byte _hostInterruptOperation;
     Byte _diskError;
@@ -1644,15 +1645,15 @@ public:
         while (true)
         {
             console.write("Waiting for connection\n");
-            AutoHandle h =
+            AutoStream s =
                 File(configFile.get<String>("pipe"), true).createPipe();
 
-            bool connected = (ConnectNamedPipe(h, NULL) != 0) ? true :
+            bool connected = (ConnectNamedPipe(s, NULL) != 0) ? true :
                 (GetLastError() == ERROR_PIPE_CONNECTED);
 
             if (connected) {
                 console.write("Connected\n");
-                xtThread.run(h);
+                xtThread.run(s);
             }
         }
     }

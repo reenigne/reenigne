@@ -10,6 +10,11 @@
 #include "alfe/value.h"
 #include "alfe/set.h"
 #include "alfe/expression.h"
+#include "alfe/function.h"
+#include "alfe/integer_functions.h"
+#include "alfe/string_functions.h"
+#include "alfe/rational_functions.h"
+#include "alfe/concrete_functions.h"
 
 class ConfigFile;
 
@@ -26,14 +31,54 @@ private:
     friend class ConfigFile;
 };
 
+class DispatchFunction : public Function
+{
+public:
+    class Body : public Function::Body
+    {
+    public:
+        virtual TypedValue evaluate(List<TypedValue> arguments) const = 0;
+        virtual Identifier identifier() const = 0;
+        virtual TypedValue typedValue() const = 0;
+    };
+};
+
 class ConfigFile : public Structure
 {
 public:
     ConfigFile() : _context(this)
     {
-        FunctionTyco iii =
-            FunctionTyco(IntegerType(), IntegerType(), IntegerType());
-        //addFunction(OperatorPlus(), iii, );
+        addFunction(AddIntegerInteger());
+        addFunction(SubtractIntegerInteger());
+        addFunction(MultiplyIntegerInteger());
+        addFunction(AddStringString());
+        addFunction(MultiplyIntegerString());
+        addFunction(MultiplyStringInteger());
+        addFunction(AddRationalRational());
+        addFunction(AddRationalInteger());
+        addFunction(AddIntegerRational());
+        addFunction(SubtractRationalRational());
+        addFunction(SubtractRationalInteger());
+        addFunction(SubtractIntegerRational());
+        addFunction(MultiplyRationalRational());
+        addFunction(MultiplyRationalInteger());
+        addFunction(MultiplyIntegerRational());
+        addFunction(DivideRationalRational());
+        addFunction(DivideRationalInteger());
+        addFunction(DivideIntegerRational());
+        addFunction(DivideIntegerInteger());
+        addFunction(AddConcreteConcrete());
+        addFunction(SubtractConcreteConcrete());
+        addFunction(MultiplyConcreteConcrete());
+        addFunction(MultiplyConcreteInteger());
+        addFunction(MultiplyConcreteRational());
+        addFunction(MultiplyIntegerConcrete());
+        addFunction(MultiplyRationalConcrete());
+        addFunction(DivideConcreteConcrete());
+        addFunction(DivideConcreteInteger());
+        addFunction(DivideConcreteRational());
+        addFunction(DivideRationalConcrete());
+        addFunction(DivideIntegerInteger());
     }
     template<class T> ConfigOption<T> addOption(String name)
     {
@@ -63,11 +108,14 @@ private:
     }
 public:
     void addType(Type type) { _types.add(type.toString(), type); }
-    void addFunction(Identifier identifier, FunctionTyco type,
-        Function* function)
+    void addFunction(Function function)
     {
+        Identifier identifier = function.identifier();
+        throw NotYetImplementedException();
         //if (_options.hasKey(identifier))
-
+        //    _options[identifier] = function.typedValue();
+        //else
+        //    _options.add(identifier, function.typedValue());
     }
 
     void load(File file)
@@ -112,7 +160,7 @@ public:
                         " already exists");
                 TypedValue value = TypedValue(
                     StructuredType(String(), List<StructuredType::Member>()),
-                    Value<HashTable<Identifier, TypedValue>>());
+                    HashTable<Identifier, TypedValue>());
                 if (Space::parseCharacter(&s, '=', &span))
                     value = Expression::parse(&s).evaluate(&_context);
                 Space::assertCharacter(&s, ';', &span);
@@ -124,7 +172,7 @@ public:
                     // persistence so that this functionality doesn't need to
                     // be in ConfigFile.
                     // Using an actual identifier here would lead to collisions
-                    // with real members. ALFE persistence is done by types 
+                    // with real members. ALFE persistence is done by types
                     // knowing how to persist themselves.
                     // I also don't want to use the empty string, since I might
                     // want to use that as the connector name for

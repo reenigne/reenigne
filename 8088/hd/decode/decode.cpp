@@ -7,8 +7,8 @@ public:
     int run()
     {
         String inputData = File("capture.txt").contents();
-        FileHandle outputStatus = File("status.txt").openWrite();
-        FileHandle outputData = File("hd.dat").openWrite();
+        FileStream outputStatus = File("status.txt").openWrite();
+        FileStream outputData = File("hd.dat").openWrite();
         int i = 7*64 + 24;
         int fails = 0;
         do {

@@ -6,7 +6,7 @@ class Program : public ProgramBase
 public:
     void run()
     {
-        FileHandle output = File("tables.asm").openWrite();
+        FileStream output = File("tables.asm").openWrite();
         output.write("align 16\n\n");
         output.write("motionTable:");
 

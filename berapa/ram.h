@@ -76,11 +76,11 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
-        _dram.load((*members)["dram"]);
-        _active = (*members)["active"].value<bool>();
-        _tick = (*members)["tick"].value<int>();
-        _address = (*members)["address"].value<int>();
+        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        _dram.load(members["dram"]);
+        _active = members["active"].value<bool>();
+        _tick = members["tick"].value<int>();
+        _address = members["address"].value<int>();
     }
     String save() const
     {
@@ -111,20 +111,20 @@ public:
     {
     public:
         Type(Simulator* simulator)
-          : ISA8BitComponent::Type(new Implementation(simulator)) { }
+          : ISA8BitComponent::Type(new Body(simulator)) { }
     private:
-        class Implementation : public ISA8BitComponent::Type::Implementation
+        class Body : public ISA8BitComponent::Type::Body
         {
         public:
-            Implementation(Simulator* simulator)
-              : ISA8BitComponent::Type::Implementation(simulator) { }
+            Body(Simulator* simulator)
+              : ISA8BitComponent::Type::Body(simulator) { }
             String toString() const { return "RAM"; }
             bool has(String name) const
             {
                 if (name == "rowBits" || name == "bytes" ||
                     name == "decayTime")
                     return true;
-                return ISA8BitComponent::Type::Implementation::has(name);
+                return ISA8BitComponent::Type::Body::has(name);
             }
         };
     };

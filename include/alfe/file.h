@@ -18,8 +18,8 @@ typedef DirectoryTemplate<void> Directory;
 template<class T> class FileTemplate;
 typedef FileTemplate<void> File;
 
-template<class T> class RootDirectoryImplementationTemplate;
-typedef RootDirectoryImplementationTemplate<void> RootDirectoryImplementation;
+template<class T> class RootDirectoryBodyTemplate;
+typedef RootDirectoryBodyTemplate<void> RootDirectoryBody;
 
 template<class T> class RootDirectoryTemplate;
 typedef RootDirectoryTemplate<void> RootDirectory;
@@ -38,7 +38,7 @@ typedef DriveCurrentDirectoryTemplate<void> DriveCurrentDirectory;
 template<class T> class CharacterSourceTemplate;
 typedef CharacterSourceTemplate<void> CharacterSource;
 
-template<class T> class FileSystemObjectTemplate
+template<class T> class FileSystemObjectTemplate : public ConstHandle
 {
 public:
     FileSystemObjectTemplate() { }
@@ -49,46 +49,42 @@ public:
         *this = FileSystemObject::parse(path, relativeTo, windowsParsing);
     }
 
-    DirectoryTemplate<T> parent() const { return _implementation->parent(); }
-    String name() const { return _implementation->name(); }
-    bool isRoot() const { return _implementation->isRoot(); }
+    DirectoryTemplate<T> parent() const { return body()->parent(); }
+    String name() const { return body()->name(); }
+    bool isRoot() const { return body()->isRoot(); }
     String path() const
     {
         if (!valid())
             return "(unknown path)";
-        return _implementation->path();
+        return body()->path();
     }
-    bool valid() const { return _implementation.valid(); }
 
     bool operator==(const FileSystemObject& other) const
     {
-        return _implementation->compare(other._implementation) == 0;
+        return body()->compare(other.body()) == 0;
     }
     bool operator!=(const FileSystemObject& other) const
     {
         return !operator==(other);
     }
-    int hash() const { return _implementation->hash(); }
-    class Implementation : public ReferenceCounted
+    class Body : public ConstHandle::Body
     {
     public:
         virtual Directory parent() const = 0;
         virtual String name() const = 0;
         virtual String path() const = 0;
         virtual bool isRoot() const = 0;
-        virtual int hash() const = 0;
-        virtual int compare(const Implementation* other) const = 0;
+        virtual int compare(const Body* other) const = 0;
     };
 protected:
-    FileSystemObjectTemplate(const Implementation* implementation)
-      : _implementation(implementation) { }
+    const Body* body() const { return as<Body>(); }
+    FileSystemObjectTemplate(const Body* body) : ConstHandle(body) { }
 
-    ConstReference<Implementation> _implementation;
-    class NamedImplementation : public Implementation
+    class NamedBody : public Body
     {
     public:
-        NamedImplementation(const Directory& parent,
-            const String& name) : _parent(parent), _name(name) { }
+        NamedBody(const Directory& parent, const String& name)
+          : _parent(parent), _name(name) { }
 #ifdef _WIN32
         String path() const
         {
@@ -103,11 +99,13 @@ protected:
         DirectoryTemplate<T> parent() const { return _parent; }
         String name() const { return _name; }
         bool isRoot() const { return false; }
-        int hash() const { return _parent.hash()*67 + _name.hash(); }
-        int compare(const Implementation* other) const
+        Hash hash() const
         {
-            const NamedImplementation* o =
-                other->template constCast<NamedImplementation>();
+            return Body::hash().mixin(_parent.hash()).mixin(_name.hash());
+        }
+        int compare(const Body* other) const
+        {
+            auto o = other->as<NamedBody>();
             if (o == 0)
                 return 1;
             if (_parent != o->_parent)
@@ -329,9 +327,9 @@ private:
     }
 
     FileSystemObjectTemplate(const Directory& parent, const String& name)
-      : _implementation(new NamedImplementation(parent, name)) { }
+      : ConstHandle(new NamedBody(parent, name)) { }
 
-    friend class NamedImplementation;
+    friend class NamedBody;
     template<class U> friend class CurrentDirectoryTemplate;
     template<class U> friend class DirectoryTemplate;
     friend class Console;
@@ -380,8 +378,7 @@ public:
     }
 protected:
     DirectoryTemplate(FileSystemObject object) : FileSystemObject(object) { }
-    DirectoryTemplate(const Implementation* implementation)
-      : FileSystemObject(implementation) { }
+    DirectoryTemplate(const Body* body) : FileSystemObject(body) { }
 };
 
 template<class T> class CurrentDirectoryTemplate : public Directory
@@ -390,8 +387,7 @@ public:
     CurrentDirectoryTemplate() : Directory(directory()) { }
 
 private:
-    CurrentDirectoryTemplate(const Implementation* implementation)
-      : Directory(implementation) { }
+    CurrentDirectoryTemplate(const Body* body) : Directory(body) { }
 
     static CurrentDirectory _directory;
     static CurrentDirectory directory()
@@ -413,18 +409,17 @@ private:
             throw Exception::systemError("Obtaining current directory");
         String path(&buf[0]);
         return CurrentDirectory(
-            FileSystemObject::parse(path, RootDirectory(), true).
-            _implementation);
+            FileSystemObject::parse(path, RootDirectory(), true).body());
 #else
         size_t size = 100;
         do {
-            String::Buffer buffer(size);
-            if (getcwd(reinterpret_cast<char*>(buffer.data()), size) != 0) {
-                String path(buffer, 0,
-                    strlen(reinterpret_cast<char*>(buffer.data())));
+            String buffer(size);
+            char* p = reinterpret_cast<char*>(buffer.data());
+            if (getcwd(p, size) != 0) {
+                path = buffer.subString(0, strlen(p));
                 return CurrentDirectory(
                     FileSystemObject::parse(path, RootDirectory(), false).
-                    _implementation);
+                    _body);
             }
             if (errno != ERANGE)
                 throw Exception::systemError("Obtaining current directory");
@@ -478,10 +473,10 @@ template<class T> class RootDirectoryTemplate : public Directory
 public:
     RootDirectoryTemplate() : Directory(directory()) { }
 
-    class Implementation : public FileSystemObject::Implementation
+    class Body : public FileSystemObject::Body
     {
     public:
-        Implementation() { }
+        Body() { }
 
         Directory parent() const { return RootDirectory(); }
         String name() const { return String(); }
@@ -496,26 +491,23 @@ public:
         }
         bool isRoot() const { return true; }
 
-        int hash() const { return 0; }
-
-        int compare(const FileSystemObject::Implementation* other) const
+        int compare(const FileSystemObject::Body* other) const
         {
-            const Implementation* root =
-                dynamic_cast<const Implementation*>(other);
+            const Body* root =
+                dynamic_cast<const Body*>(other);
             if (root == 0)
                 return 1;
             return 0;
         }
     };
 private:
-    RootDirectoryTemplate(const Implementation* implementation)
-      : Directory(implementation) { }
+    RootDirectoryTemplate(const Body* body) : Directory(body) { }
 
     static RootDirectory _directory;
     static RootDirectory directory()
     {
         if (!_directory.valid())
-            _directory = new Implementation();
+            _directory = new Body();
         return _directory;
     }
 };
@@ -530,20 +522,20 @@ public:
     DriveRootDirectoryTemplate() { }
     DriveRootDirectoryTemplate(int drive) : Directory(directory(drive)) { }
 private:
-    DriveRootDirectoryTemplate(const Implementation* implementation)
-      : Directory(implementation) { }
+    DriveRootDirectoryTemplate(const Body* body)
+      : Directory(body) { }
 
     static DriveRootDirectory _directories[26];
     static DriveRootDirectory directory(int drive)
     {
         if (!_directories[drive].valid())
-            _directories[drive] = new Implementation(drive);
+            _directories[drive] = new Body(drive);
         return _directories[drive];
     }
-    class Implementation : public RootDirectory::Implementation
+    class Body : public RootDirectory::Body
     {
     public:
-        Implementation(int drive) : _drive(drive) { }
+        Body(int drive) : _drive(drive) { }
 
         Directory parent() const { return DriveRootDirectory(_drive); }
         String path() const
@@ -552,11 +544,11 @@ private:
             return codePoint('A' + _drive) + ":";
         }
 
-        int hash() const { return _drive + 1; }
+        Hash hash() const { return RootDirectory::Body::hash().mixin(_drive); }
 
-        int compare(const FileSystemObject::Implementation* other) const
+        int compare(const FileSystemObject::Body* other) const
         {
-            const Implementation* root = other->constCast<Implementation>();
+            auto root = other->as<Body>();
             if (root == 0)
                 return 1;
             if (_drive != root->_drive)
@@ -574,23 +566,27 @@ template<class T> class UNCRootDirectoryTemplate : public Directory
 {
 public:
     UNCRootDirectoryTemplate(const String& server, const String& share)
-      : Directory(new Implementation(server, share)) { }
+      : Directory(new Body(server, share)) { }
 private:
-    class Implementation : public RootDirectory::Implementation
+    class Body : public RootDirectory::Body
     {
     public:
-        Implementation(const String& server, const String& share)
+        Body(const String& server, const String& share)
           : _server(server), _share(share) { }
 
         Directory parent() const { return UNCRootDirectory(_server, _share); }
         String path() const { return "\\\\" + _server + "\\" + _share; }
 
-        int hash() const { return _server.hash()*67 + _share.hash(); }
-
-        int compare(const FileSystemObject::Implementation* other) const
+        Hash hash() const
         {
-            const Implementation* root =
-                dynamic_cast<const Implementation*>(other);
+            return RootDirectory::Body::hash().mixin(_server.hash()).
+                mixin(_share.hash());
+        }
+
+        int compare(const FileSystemObject::Body* other) const
+        {
+            const Body* root =
+                dynamic_cast<const Body*>(other);
             if (root == 0)
                 return 1;
             if (_server != root->_server)
@@ -606,11 +602,11 @@ private:
 };
 #endif
 
-template<class T> class FileHandleTemplate;
-typedef FileHandleTemplate<void> FileHandle;
+template<class T> class FileStreamTemplate;
+typedef FileStreamTemplate<void> FileStream;
 
-template<class T> class AutoHandleTemplate;
-typedef AutoHandleTemplate<void> AutoHandle;
+template<class T> class AutoStreamTemplate;
+typedef AutoStreamTemplate<void> AutoStream;
 
 template<class T> class FileTemplate : public FileSystemObject
 {
@@ -626,19 +622,18 @@ public:
 
     String contents() const
     {
-        FileHandleTemplate<T> f = openRead();
+        FileStreamTemplate<T> f = openRead();
         UInt64 size = f.size();
         if (size >= 0x80000000)
             throw Exception("2Gb or more in file " + path());
         int intSize = static_cast<int>(size);
         String buffer(intSize);
         f.read(buffer.data(), intSize);
-        buffer._length = intSize;
         return buffer;
     }
     template<class U> void readIntoArray(Array<U>* array)
     {
-        FileHandleTemplate<T> f = openRead();
+        FileStreamTemplate<T> f = openRead();
         UInt64 size = f.size();
         if (size >= 0x80000000)
             throw Exception("2Gb or more in file " + path());
@@ -661,7 +656,7 @@ public:
         // TODO: Backup file?
         File temp;
         {
-            FileHandleTemplate<T> f = openWriteTemporary();
+            FileStreamTemplate<T> f = openWriteTemporary();
             f.write(contents);
 #ifndef _WIN32
             f.sync();
@@ -695,7 +690,7 @@ public:
     {
         openAppend().write(contents);
     }
-    FileHandleTemplate<T> openRead() const
+    FileStreamTemplate<T> openRead() const
     {
 #ifdef _WIN32
         return open(GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING,
@@ -704,7 +699,7 @@ public:
         return open(O_RDONLY);
 #endif
     }
-    FileHandleTemplate<T> openWrite() const
+    FileStreamTemplate<T> openWrite() const
     {
 #ifdef _WIN32
         return open(GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
@@ -713,7 +708,7 @@ public:
             S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 #endif
     }
-    FileHandleTemplate<T> tryOpenRead() const
+    FileStreamTemplate<T> tryOpenRead() const
     {
 #ifdef _WIN32
         return tryOpen(GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING,
@@ -722,7 +717,7 @@ public:
         return tryOpen(O_RDONLY);
 #endif
     }
-    FileHandleTemplate<T> tryOpenWrite() const
+    FileStreamTemplate<T> tryOpenWrite() const
     {
 #ifdef _WIN32
         return tryOpen(GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
@@ -731,16 +726,16 @@ public:
             S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 #endif
     }
-    FileHandleTemplate<T> openWriteTemporary() const
+    FileStreamTemplate<T> openWriteTemporary() const
     {
         int i = 0;
         do {
             File temp = parent().file(name() + hex(i, 8, false));
 #ifdef _WIN32
-            FileHandleTemplate<T> f = temp.open(GENERIC_WRITE, 0, CREATE_NEW,
+            FileStreamTemplate<T> f = temp.open(GENERIC_WRITE, 0, CREATE_NEW,
                 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, false);
 #else
-            FileHandleTemplate<T> f = temp.open(O_WRONLY | O_CREAT | O_EXCL,
+            FileStreamTemplate<T> f = temp.open(O_WRONLY | O_CREAT | O_EXCL,
                 false);
 #endif
             if (f.valid())
@@ -748,7 +743,7 @@ public:
             ++i;
         } while (true);
     }
-    FileHandleTemplate<T> openAppend() const
+    FileStreamTemplate<T> openAppend() const
     {
 #ifdef _WIN32
         return open(name(), GENERIC_WRITE, 0, OPEN_ALWAYS,
@@ -769,22 +764,22 @@ public:
     }
 private:
 #ifdef _WIN32
-    FileHandleTemplate<T> open(DWORD dwDesiredAccess, DWORD dwShareMode,
+    FileStreamTemplate<T> open(DWORD dwDesiredAccess, DWORD dwShareMode,
         DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes,
         bool throwIfExists = true) const
     {
-        FileHandle f = tryOpen(dwDesiredAccess, dwShareMode,
+        FileStream f = tryOpen(dwDesiredAccess, dwShareMode,
             dwCreationDisposition, dwFlagsAndAttributes);
         if (!f.valid() &&
             (throwIfExists || GetLastError() == ERROR_FILE_EXISTS))
             throw Exception::systemError("Opening file " + path());
         return f;
     }
-    FileHandleTemplate<T> tryOpen(DWORD dwDesiredAccess, DWORD dwShareMode,
+    FileStreamTemplate<T> tryOpen(DWORD dwDesiredAccess, DWORD dwShareMode,
         DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes) const
     {
         NullTerminatedWideString data(path());
-        return FileHandle(CreateFile(
+        return FileStream(CreateFile(
             data,   // lpFileName
             dwDesiredAccess,
             dwShareMode,
@@ -795,20 +790,21 @@ private:
             *this);
     }
 public:
-    AutoHandleTemplate<T> openPipe()
+    AutoStreamTemplate<T> openPipe()
     {
-        AutoHandle f = tryOpen(GENERIC_READ | GENERIC_WRITE, 0, OPEN_EXISTING,
+        AutoStream f = tryOpen(GENERIC_READ | GENERIC_WRITE, 0, OPEN_EXISTING,
             FILE_ATTRIBUTE_NORMAL);
         if (!f.valid())
             throw Exception::systemError("Opening pipe " + path());
         return f;
     }
-    AutoHandleTemplate<T> createPipe()
+    AutoStreamTemplate<T> createPipe(bool overlapped = false)
     {
         NullTerminatedWideString data(path());
-        AutoHandle f(CreateNamedPipe(
+        AutoStream f(CreateNamedPipe(
             data,                // lpName
-            PIPE_ACCESS_DUPLEX,  // dwOpenMode
+            PIPE_ACCESS_DUPLEX |
+                (overlapped ? FILE_FLAG_OVERLAPPED : 0),  // dwOpenMode
             PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,  // dwPipeMode
             PIPE_UNLIMITED_INSTANCES,  // nMaxInstances
             512,  // nOutBufferSize
@@ -821,30 +817,30 @@ public:
     }
 private:
 #else
-    FileHandleTemplate<T> open(int flags, bool throwIfExists = true) const
+    FileStreamTemplate<T> open(int flags, bool throwIfExists = true) const
     {
-        FileHandleTemplate<T> f = tryOpen(flags);
+        FileStreamTemplate<T> f = tryOpen(flags);
         if (!f.valid() && (throwIfExists || errno != EEXIST))
             throw Exception::systemError("Opening file " + path());
         return f;
     }
-    FileHandleTemplate<T> tryOpen(int flags) const
+    FileStreamTemplate<T> tryOpen(int flags) const
     {
         NullTerminatedString data(path());
-        return FileHandle(::open(data, flags), *this);
+        return FileStream(::open(data, flags), *this);
     }
-    FileHandleTemplate<T> openWrite(int flags, mode_t mode,
+    FileStreamTemplate<T> openWrite(int flags, mode_t mode,
         bool throwIfExists = true) const
     {
-        FileHandleTemplate<T> f = tryOpenWrite(flags, mode);
+        FileStreamTemplate<T> f = tryOpenWrite(flags, mode);
         if (!f.valid() && (throwIfExists || errno != EEXIST))
             throw Exception::systemError("Opening file " + path());
         return f;
     }
-    FileHandleTemplate<T> tryOpenWrite(int flags, mode_t mode) const
+    FileStreamTemplate<T> tryOpenWrite(int flags, mode_t mode) const
     {
         NullTerminatedString data(path());
-        return FileHandle(::open(data, flags, mode), *this);
+        return FileStream(::open(data, flags, mode), *this);
     }
 #endif
 
@@ -968,20 +964,18 @@ template<class T> void applyToWildcard(T functor, const String& wildcard,
 class Console : public File
 {
 public:
-    Console() : File(FileSystemObject(new Implementation)) { }
+    Console() : File(FileSystemObject(new Body)) { }
 private:
-    class Implementation : public FileSystemObject::Implementation
+    class Body : public FileSystemObject::Body
     {
     public:
         String path() const { return "(console)"; }
         Directory parent() const { return RootDirectory(); }
         String name() const { return path(); }
         bool isRoot() const { return false; }
-        int hash() const { return 27; }
-        int compare(const FileSystemObject::Implementation* other) const
+        int compare(const FileSystemObject::Body* other) const
         {
-            const Implementation* c =
-                dynamic_cast<const Implementation*>(other);
+            auto c = other->as<Body>();
             if (c == 0)
                 return 1;
             return 0;

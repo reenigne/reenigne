@@ -3,138 +3,86 @@
 #ifndef INCLUDED_REFERENCE_H
 #define INCLUDED_REFERENCE_H
 
-class ReferenceCounted : Uncopyable
+class Handle
 {
 public:
-    ReferenceCounted() : _count(0) { }
-
-    template<class T> T* cast() const { return dynamic_cast<T*>(this); }
-    template<class T> const T* constCast() const
-    {
-        return dynamic_cast<const T*>(this);
-    }
-protected:
-    virtual ~ReferenceCounted() { };
-    virtual void destroy() const { delete this; }
-private:
-    void release() const
-    {
-        --_count;
-        if (_count == 0)
-            destroy();
-    }
-    void addReference() const { ++_count; }
-    mutable int _count;
-    template<class T> friend class Reference;
-    template<class T> friend class ConstReference;
-};
-
-template<class T> class Reference
-{
-public:
-    Reference() : _referent(0) { }
-    ~Reference() { reset(); }
+    Handle() : _body(0) { }
+    ~Handle() { reset(); }
     // We need a copy constructor and assignment operator here because
     // otherwise the compiler-generated ones would override the templated ones.
-    Reference(const Reference& other) { set(other._referent); }
-    template<class U> Reference(const Reference<U>& other)
+    Handle(const Handle& other) { set(other._body); }
+    template<class U> Handle(const Handle<U>& other)
     {
-        set(other._referent);
+        set(other._body);
     }
-    Reference(T* referent) { set(referent); }
-    const Reference& operator=(const Reference& other)
+    Handle(const T* body) { set(body); }
+    const Handle& operator=(const Handle& other)
     {
-        modify(other._referent);
+        modify(other._body);
         return *this;
     }
-    template<class U> const Reference& operator=(const Reference<U>& other)
+    template<class U> const Handle& operator=(
+        const Handle<U>& other)
     {
-        modify(other._referent);
+        modify(other._body);
         return *this;
     }
+    bool operator==(const Handle& other) const
+    {
+        return _body == other._body;
+    }
+    template<class U> const U* body() const
+    {
+        return _body->template constCast<U>();
+    }
+    const T* operator->() const { return _body; }
+    operator const T*() const { return _body; }
+    bool valid() const { return _body != 0; }
+    template<class U> bool is() const { return body<U>() != 0; }
 
-    bool operator==(const Reference& other) const
+    class Body : Uncopyable
     {
-        return _referent == other._referent;
-    }
-    template<class U> U* referent() const { return _referent->template cast<U>(); }
-    T* operator->() const { return _referent; }
-    operator T*() { return _referent; }
-    operator const T*() const { return _referent; }
-    bool valid() const { return _referent != 0; }
-    template<class U> bool is() const { return referent<U>() != 0; }
+    public:
+        Body() : _count(0) { }
+
+        template<class T> T* cast() const { return dynamic_cast<T*>(this); }
+        template<class T> const T* constCast() const
+        {
+            return dynamic_cast<const T*>(this);
+        }
+    protected:
+        virtual ~Body() { };
+        virtual void destroy() const { delete this; }
+    private:
+        void release() const
+        {
+            --_count;
+            if (_count == 0)
+                destroy();
+        }
+        void addReference() const { ++_count; }
+        mutable int _count;
+        template<class T> friend class Reference;
+        template<class T> friend class Handle;
+    };
 private:
-    void reset() { if (valid()) _referent->release(); }
-    void set(T* referent)
+    void reset() { if (valid()) _body->release(); }
+    void set(const T* body)
     {
-        _referent = referent;
+        _body = body;
         if (valid())
-            _referent->addReference();
+            _body->addReference();
     }
-    void modify(T* referent)
+    void modify(const T* body)
     {
-        if (referent == _referent)
+        if (body == _body)
             return;
         reset();
-        set(referent);
+        set(body);
     }
-    T* _referent;
-};
+    const T* _body;
 
-template<class T> class ConstReference
-{
-public:
-    ConstReference() : _referent(0) { }
-    ~ConstReference() { reset(); }
-    // We need a copy constructor and assignment operator here because
-    // otherwise the compiler-generated ones would override the templated ones.
-    ConstReference(const ConstReference& other) { set(other._referent); }
-    template<class U> ConstReference(const ConstReference<U>& other)
-    {
-        set(other._referent);
-    }
-    ConstReference(const T* referent) { set(referent); }
-    const ConstReference& operator=(const ConstReference& other)
-    {
-        modify(other._referent);
-        return *this;
-    }
-    template<class U> const ConstReference& operator=(
-        const ConstReference<U>& other)
-    {
-        modify(other._referent);
-        return *this;
-    }
-    bool operator==(const ConstReference& other) const
-    {
-        return _referent == other._referent;
-    }
-    template<class U> const U* referent() const
-    {
-        return _referent->template constCast<U>();
-    }
-    const T* operator->() const { return _referent; }
-    operator const T*() const { return _referent; }
-    bool valid() const { return _referent != 0; }
-    template<class U> bool is() const { return referent<U>() != 0; }
-private:
-    void reset() { if (valid()) _referent->release(); }
-    void set(const T* referent)
-    {
-        _referent = referent;
-        if (valid())
-            _referent->addReference();
-    }
-    void modify(const T* referent)
-    {
-        if (referent == _referent)
-            return;
-        reset();
-        set(referent);
-    }
-    const T* _referent;
-
-    template<class U> friend class ConstReference;
+    template<class U> friend class Handle;
 };
 
 #endif // INCLUDED_REFERENCE_H

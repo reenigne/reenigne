@@ -67,54 +67,47 @@ typedef SymbolArrayTemplate<void> SymbolArray;
 template<class T> class SymbolLabelTemplate;
 typedef SymbolLabelTemplate<void> SymbolLabel;
 
-template<class T> class SymbolEntryTemplate
+template<class T> class SymbolEntryTemplate : public Handle
 {
 public:
     SymbolEntryTemplate() { }
-    SymbolEntryTemplate(int value)
-      : _implementation(new IntegerImplementation(value)) { }
-    SymbolEntryTemplate(String value)
-      : _implementation(new StringImplementation(value)) { }
+    SymbolEntryTemplate(int value) : Handle(new IntegerBody(value)) { }
+    SymbolEntryTemplate(String value) : Handle(new StringBody(value)) { }
     bool operator==(const SymbolEntry& other) const
     {
-        return _implementation->equals(other._implementation);
+        return body()->equals(other.body());
     }
     bool operator!=(const SymbolEntry& other) const
     {
-        return !_implementation->equals(other._implementation);
+        return !body()->equals(other.body());
     }
     int integer() const
     {
-        return dynamic_cast<const IntegerImplementation*>(implementation())
-            ->value();
+        return dynamic_cast<const IntegerBody*>(body())->value();
     }
     String string() const
     {
-        return dynamic_cast<const StringImplementation*>(implementation())
-            ->value();
+        return dynamic_cast<const StringBody*>(body())->value();
     }
     SymbolArrayTemplate<T> array()
     {
-        return SymbolArrayTemplate<T>(_implementation);
+        return SymbolArrayTemplate<T>(body());
     }
     SymbolTemplate<T> symbol()
     {
-        return SymbolTemplate<T>(
-            dynamic_cast<Symbol::Implementation*>(implementation()));
+        return SymbolTemplate<T>(dynamic_cast<Symbol::Body*>(body()));
     }
     SymbolLabelTemplate<T> label()
     {
-        return SymbolLabelTemplate<T>(
-            dynamic_cast<Symbol::Implementation*>(implementation()));
+        return SymbolLabelTemplate<T>(dynamic_cast<Symbol::Body*>(body()));
     }
     Atom atom() { return symbol().atom(); }
-    bool valid() const { return _implementation.valid(); }
-    int length(int max) const { return implementation()->length(max); }
+    bool valid() const { return _body.valid(); }
+    int length(int max) const { return body()->length(max); }
     String toString(int width, int spacesPerIndent, int indent, int& x,
         bool& more) const
     {
-        return
-            _implementation->toString(width, spacesPerIndent, indent, x, more);
+        return body()->toString(width, spacesPerIndent, indent, x, more);
     }
     String toString() const
     {
@@ -122,29 +115,26 @@ public:
         bool more;
         return toString(80, 2, 0, x, more);
     }
-    int hash() const { return implementation()->hash(); }
-    bool isSymbol() const { return _implementation->isSymbol(); }
-    bool isArray() const { return _implementation->isArray(); }
+    bool isSymbol() const { return body()->isSymbol(); }
+    bool isArray() const { return body()->isArray(); }
 protected:
-    class Implementation : public ReferenceCounted
+    class Body : public Handle::Body
     {
     public:
-        virtual bool equals(const Implementation* other) const = 0;
+        virtual bool equals(const Body* other) const = 0;
         virtual int length(int max) const = 0;
         virtual String toString(int width, int spacesPerIndent, int indent,
             int& x, bool& more) const = 0;
-        virtual int hash() const = 0;
         virtual bool isSymbol() const = 0;
         virtual bool isArray() const = 0;
     };
-    class IntegerImplementation : public Implementation
+    class IntegerBody : public Body
     {
     public:
-        IntegerImplementation(int value) : _value(value) { }
-        bool equals(const SymbolEntry::Implementation* other) const
+        IntegerBody(int value) : _value(value) { }
+        bool equals(const SymbolEntry::Body* other) const
         {
-            const IntegerImplementation* o =
-                dynamic_cast<const IntegerImplementation*>(other);
+            const IntegerBody* o = dynamic_cast<const IntegerBody*>(other);
             if (o == 0)
                 return false;
             return _value == o->_value;
@@ -158,20 +148,19 @@ protected:
         }
         int length(int max) const { return decimalLength(_value); }
         int value() const { return _value; }
-        int hash() const { return _value; }
+        Hash hash() const { return Body::hash().mixin(_value); }
         bool isSymbol() const { return false; }
         bool isArray() const { return false; }
     private:
         int _value;
     };
-    class StringImplementation : public Implementation
+    class StringBody : public Body
     {
     public:
-        StringImplementation(String value) : _value(value) { }
-        bool equals(const SymbolEntry::Implementation* other) const
+        StringBody(String value) : _value(value) { }
+        bool equals(const SymbolEntry::Body* other) const
         {
-            const StringImplementation* o =
-                dynamic_cast<const StringImplementation*>(other);
+            const StringBody* o = dynamic_cast<const StringBody*>(other);
             if (o == 0)
                 return false;
             return _value == o->_value;
@@ -185,18 +174,16 @@ protected:
         }
         int length(int max) const { return quotedLength(_value); }
         String value() const { return _value; }
-        int hash() const { return _value.hash(); }
+        Hash hash() const { return Body::hash().mixin(_value.hash()); }
         bool isSymbol() const { return false; }
         bool isArray() const { return false; }
     private:
         String _value;
     };
-    SymbolEntryTemplate(Implementation* implementation)
-      : _implementation(implementation) { }
-    const Implementation* implementation() const { return _implementation; }
-    Implementation* implementation() { return _implementation; }
+    SymbolEntryTemplate(Body* body) : Handle(body) { }
+    const Body* body() const { return Handle::Body<Body>(); }
+    Body* body() { return Handle::Body<Body>(); }
 private:
-    Reference<Implementation> _implementation;
     template<class T> friend class SymbolTemplate;
     template<class T> friend class SymbolArrayTemplate;
 };
@@ -244,34 +231,34 @@ template<class T> class SymbolTemplate : public SymbolEntryTemplate<T>
 public:
     SymbolTemplate() { }
     SymbolTemplate(Atom atom, SymbolCache* cache = 0)
-      : SymbolEntry(new Implementation(atom, cache, 0)) { }
+      : SymbolEntry(new Body(atom, cache, 0)) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolCache* cache = 0)
       : SymbolEntry(
-        new Implementation(atom, cache, new SymbolTail(symbol1, 0))) { }
+        new Body(atom, cache, new SymbolTail(symbol1, 0))) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
         SymbolCache* cache = 0)
-      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1,
+      : SymbolEntry(new Body(atom, cache, new SymbolTail(symbol1,
           new SymbolTail(symbol2, 0)))) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
         SymbolEntry symbol3, SymbolCache* cache = 0)
-      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1,
+      : SymbolEntry(new Body(atom, cache, new SymbolTail(symbol1,
           new SymbolTail(symbol2, new SymbolTail(symbol3, 0))))) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
         SymbolEntry symbol3, SymbolEntry symbol4, SymbolCache* cache = 0)
-      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1,
+      : SymbolEntry(new Body(atom, cache, new SymbolTail(symbol1,
           new SymbolTail(symbol2, new SymbolTail(symbol3,
           new SymbolTail(symbol4, 0)))))) { }
     SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
         SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5,
         SymbolCache* cache = 0)
-      : SymbolEntry(new Implementation(atom, cache, new SymbolTail(symbol1,
+      : SymbolEntry(new Body(atom, cache, new SymbolTail(symbol1,
           new SymbolTail(symbol2, new SymbolTail(symbol3,
           new SymbolTail(symbol4, new SymbolTail(symbol5, 0))))))) { }
 
     SymbolTemplate(Atom atom, const SymbolTail* tail, SymbolCache* cache)
-      : SymbolEntry(new Implementation(atom, cache, tail)) { }
+      : SymbolEntry(new Body(atom, cache, tail)) { }
 
-    Atom atom() const { return implementation()->atom(); }
+    Atom atom() const { return body()->atom(); }
     SymbolEntry operator[](int n) const
     {
         const SymbolTail* t = tail();
@@ -296,28 +283,28 @@ public:
         return t->head();
     }
 
-    const SymbolTail* tail() const { return implementation()->tail(); }
-    SymbolTail* tail() { return implementation()->tail(); }
+    const SymbolTail* tail() const { return body()->tail(); }
+    SymbolTail* tail() { return body()->tail(); }
 
     template<class U> U* cache()
     {
-        return implementation()->cache()->cast<U>();
+        return body()->cache()->cast<U>();
     }
 private:
-    SymbolTemplate(Implementation* implementation)
-      : SymbolEntry(implementation) { }
+    SymbolTemplate(Body* body)
+      : SymbolEntry(body) { }
 
-    class Implementation : public SymbolEntry::Implementation
+    class Body : public SymbolEntry::Body
     {
     public:
-        Implementation(Atom atom, SymbolCache* cache, SymbolTail* tail)
+        Body(Atom atom, SymbolCache* cache, SymbolTail* tail)
           : _atom(atom), _cache(cache), _tail(tail), _labelReferences(0),
           _labelNumber(-1)
         { }
-        bool equals(const SymbolEntry::Implementation* other) const
+        bool equals(const SymbolEntry::Body* other) const
         {
-            const Implementation* o =
-                dynamic_cast<const Implementation*>(other);
+            const Body* o =
+                dynamic_cast<const Body*>(other);
             if (o == 0)
                 return false;
             return _atom == o->_atom && _tail->equals(o->_tail);
@@ -381,12 +368,12 @@ private:
 
         void setCache(Reference<ReferenceCounted> cache) { _cache = cache; }
 
-        int hash() const
+        Hash hash() const
         {
-            int h = atom();
+            Hash h = SymbolEntry::Body::hash().mixin(atom());
             const SymbolTail* t = _tail;
             while (t != 0) {
-                h = h * 67 + t->head().hash() - 113;
+                h.mixin(t->head().hash());
                 t = t->tail();
             }
             return h;
@@ -414,15 +401,15 @@ private:
         static int _labels;
     };
 
-    const Implementation* implementation() const
+    const Body* body() const
     {
-        return dynamic_cast<const Implementation*>(
-            SymbolEntryTemplate::implementation());
+        return dynamic_cast<const Body*>(
+            SymbolEntryTemplate::body());
     }
-    Implementation* implementation()
+    Body* body()
     {
-        return dynamic_cast<Implementation*>(
-            SymbolEntryTemplate::implementation());
+        return dynamic_cast<Body*>(
+            SymbolEntryTemplate::body());
     }
 
     template<class T> friend class SymbolEntryTemplate;
@@ -431,7 +418,7 @@ private:
     template<class T> friend class SymbolLabelTemplate;
 };
 
-int Symbol::Implementation::_labels = 0;
+int Symbol::Body::_labels = 0;
 
 class SymbolList
 {
@@ -439,7 +426,7 @@ public:
     SymbolList() : _count(0) { }
     void add(Symbol symbol)
     {
-        _first = new Implementation(symbol, _first);
+        _first = new Body(symbol, _first);
         if (_count == 0)
             _last = _first;
         ++_count;
@@ -450,28 +437,28 @@ public:
         _count += list._count;
     }
 private:
-    class Implementation : public ReferenceCounted
+    class Body : public ReferenceCounted
     {
     public:
-        Implementation(Symbol symbol, Reference<Implementation> next)
+        Body(Symbol symbol, Reference<Body> next)
           : _symbol(symbol), _next(next) { }
         Symbol symbol() const { return _symbol; }
-        Reference<Implementation> next() const { return _next; }
+        Reference<Body> next() const { return _next; }
     private:
         Symbol _symbol;
-        Reference<Implementation> _next;
+        Reference<Body> _next;
     };
-    Reference<Implementation> _first;
-    Reference<Implementation> _last;
+    Reference<Body> _first;
+    Reference<Body> _last;
     int _count;
 
     void copyTo(Array<Symbol>* symbols)
     {
         symbols->allocate(_count);
-        Reference<Implementation> implementation = _first;
+        Reference<Body> body = _first;
         for (int i = _count - 1; i >= 0; --i) {
-            (*symbols)[i] = implementation->symbol();
-            implementation = implementation->next();
+            (*symbols)[i] = body->symbol();
+            body = body->next();
         }
     }
 
@@ -482,46 +469,46 @@ template<class T> class SymbolArrayTemplate : public SymbolEntry
 {
 public:
     SymbolArrayTemplate() : SymbolEntry(_empty) { }
-    SymbolArrayTemplate(Symbol s1) : SymbolEntry(new Implementation(s1)) { }
+    SymbolArrayTemplate(Symbol s1) : SymbolEntry(new Body(s1)) { }
     SymbolArrayTemplate(Symbol s1, Symbol s2)
-      : SymbolEntry(new Implementation(s1, s2)) { }
+      : SymbolEntry(new Body(s1, s2)) { }
     SymbolArrayTemplate(SymbolList list)
-      : SymbolEntry(new Implementation(list)) { }
+      : SymbolEntry(new Body(list)) { }
     int count() const
     {
-        return dynamic_cast<const Implementation*>(implementation())->count();
+        return dynamic_cast<const Body*>(body())->count();
     }
     Symbol operator[](int i)
     {
-        return (*dynamic_cast<const Implementation*>(implementation()))[i];
+        return (*dynamic_cast<const Body*>(body()))[i];
     }
 private:
-    SymbolArrayTemplate(Implementation* implementation)
-      : SymbolEntry(implementation) { }
+    SymbolArrayTemplate(Body* body)
+      : SymbolEntry(body) { }
 
-    class Implementation : public SymbolEntry::Implementation
+    class Body : public SymbolEntry::Body
     {
     public:
-        Implementation(SymbolList list) { list.copyTo(&_symbols); }
-        Implementation()
+        Body(SymbolList list) { list.copyTo(&_symbols); }
+        Body()
         {
             _symbols.allocate(0);
         }
-        Implementation(Symbol s0)
+        Body(Symbol s0)
         {
             _symbols.allocate(1);
             _symbols[0] = s0;
         }
-        Implementation(Symbol s0, Symbol s1)
+        Body(Symbol s0, Symbol s1)
         {
             _symbols.allocate(2);
             _symbols[0] = s0;
             _symbols[1] = s1;
         }
-        bool equals(const SymbolEntry::Implementation* other) const
+        bool equals(const SymbolEntry::Body* other) const
         {
-            const Implementation* o =
-                dynamic_cast<const Implementation*>(other);
+            const Body* o =
+                dynamic_cast<const Body*>(other);
             if (o == 0)
                 return false;
             int n = _symbols.count();
@@ -532,11 +519,11 @@ private:
                     return false;
             return true;
         }
-        int hash() const
+        Hash hash() const
         {
-            int h = 0;
+            Hash h = SymbolEntry::Body::hash();
             for (int i = 0; i < _symbols.count(); ++i)
-                h = h * 67 + _symbols[i].hash() - 113;
+                h.mixin(_symbols[i].hash());
             return h;
         }
         int length(int max) const
@@ -594,45 +581,45 @@ private:
     private:
         Array<Symbol> _symbols;
     };
-    static Reference<Implementation> _empty;
+    static Reference<Body> _empty;
 
     template<class T> friend class SymbolEntryTemplate;
 };
 
-Reference<SymbolArray::Implementation> SymbolArray::_empty =
-    new SymbolArray::Implementation();
+Reference<SymbolArray::Body> SymbolArray::_empty =
+    new SymbolArray::Body();
 
 template<class T> class SymbolLabelTemplate : public SymbolEntry
 {
 public:
     SymbolLabelTemplate() { }
     SymbolLabelTemplate(Symbol target)
-      : _implementation(new Implementation(target._implementation)) { }
-    Symbol target() { return Symbol(_implementation->target()); }
+      : _body(new Body(target._body)) { }
+    Symbol target() { return Symbol(_body->target()); }
     void setTarget(Symbol target)
     {
-        _implementation->setTarget(target._implementation);
+        _body->setTarget(target._body);
     }
 private:
-    class Implementation : public SymbolEntry::Implementation
+    class Body : public SymbolEntry::Body
     {
     public:
-        Implementation(Symbol::Implementation* target) : _target(target)
+        Body(Symbol::Body* target) : _target(target)
         {
             _target->addLabel();
         }
-        ~Implementation() { _target->removeLabel(); }
-        Symbol::Implementation* target() { return _target; }
-        void setTarget(Symbol::Implementation* target)
+        ~Body() { _target->removeLabel(); }
+        Symbol::Body* target() { return _target; }
+        void setTarget(Symbol::Body* target)
         {
             _target->removeLabel();
             _target = target;
             _target->addLabel();
         }
-        bool equals(const Symbol::Implementation* other) const
+        bool equals(const Symbol::Body* other) const
         {
-            const Implementation* o =
-                dynamic_cast<const Implementation*>(other);
+            const Body* o =
+                dynamic_cast<const Body*>(other);
             if (o == 0)
                 return false;
             return _target == o->_target;
@@ -648,11 +635,15 @@ private:
             more = true;
             return "<" + decimal(_target->label()) + ">";
         }
-        int hash() const { return reinterpret_cast<int>(_target); }
+        Hash hash() const
+        {
+            return SymbolEntry::Body::hash().
+                mixin(reinterpret_cast<int>(_target));
+        }
         bool isSymbol() const { return false; }
         bool isArray() const { return false; }
     private:
-        Symbol::Implementation* _target;
+        Symbol::Body* _target;
     };
 };
 

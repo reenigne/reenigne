@@ -17,12 +17,12 @@ void sendMail(String from, String to, String subject, String body)
         throw Exception::systemError("Could not create pipe");
     }
 
-    AutoHandle pipeRead(pipeReadHandle);
-    AutoHandle pipeWrite(pipeWriteHandle);
+    AutoStream pipeRead(pipeReadHandle);
+    AutoStream pipeWrite(pipeWriteHandle);
 
     if (SetHandleInformation(pipeWriteHandle, HANDLE_FLAG_INHERIT, 0) == 0)
         throw Exception::systemError("Could not set write handle of input "
-        "pipe to not inherited"); 
+        "pipe to not inherited");
 
     PROCESS_INFORMATION pi;
     ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
