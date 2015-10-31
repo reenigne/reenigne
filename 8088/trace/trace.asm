@@ -93,35 +93,11 @@ loopTop:
   sub dl,cl
 
   outputByte
-;  outputbit dl,1
-;  outputbit dl,2
-;  outputbit dl,4
-;  outputbit dl,8
-;  outputbit dl,0x10
-;  outputbit dl,0x20
-;  outputbit dl,0x40
-;  outputbit dl,0x80
   mov dx,LENGTH
   dec dx
-;  outputbit dl,1
-;  outputbit dl,2
-;  outputbit dl,4
-;  outputbit dl,8
-;  outputbit dl,0x10
-;  outputbit dl,0x20
-;  outputbit dl,0x40
-;  outputbit dl,0x80
-;  outputbit dh,1
-;  outputbit dh,2
-;  outputbit dh,4
-;  outputbit dh,8
-;  outputbit dh,0x10
-;  outputbit dh,0x20
-;  outputbit dh,0x40
-;  outputbit dh,0x80
   outputByte
   outputByte
-  mov dx,18780+204
+  mov dx,18996    ;65534 ;
   outputByte
   outputByte
 
@@ -129,8 +105,6 @@ loopTop:
   out 0x0c,al  ; Clear first/last flip-flop
   out 0x00,al  ; Output DMA offset low
   out 0x00,al  ; Output DMA offset high
-;  safeRefreshOn
-
 
   cli
   cld
@@ -183,38 +157,74 @@ savedCX: dw 0
 lut: db 0x88,8
 
 
-testRoutine:
 
-  mov cx,8
-  xor ax,ax
-  mov ds,ax
-  mov bp,ax
-  mov si,ax
-  mov di,ax
-  mov dx,ax
-v:
-  times 15 nop
-mixPatch:
-  add bp,9999  ; 0
-  mov bx,bp    ; 4
-  mov bl,99    ; 6
-  mov al,[bx]  ; 8
-  add si,9999  ; 10
-  mov bx,si    ; 14
-  mov bl,99    ; 16
-  add al,[bx]  ; 18
-  add di,9999  ; 20
-  mov bx,di    ; 24
-  mov bl,99    ; 26
-  add al,[bx]  ; 28
-  add dx,9999  ; 30
-  mov bx,dx    ; 34
-  mov bl,99    ; 36
-  add al,[bx]
-  out 0x42,al  ; Output total to speaker
-loopPatch:
-  loop v
+testRoutine:
+  mov [cs:savedSP],sp
+
+  times 8 nop
+  mov si,0x8000
+  mov word[si],testFarCall
+  mov [si+2],cs
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  call far[si]
+testFarCall:
+%rep 20
+  cbw
+%endrep
+  mov sp,[cs:savedSP]
+
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  db 0xf0
+%rep 20
+  cbw
+%endrep
+
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  db 0xf1
+%rep 20
+  cbw
+%endrep
+
 
 
   ; Append the code to test - it should end with a "ret"
   ret
+
+
+retTest:
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  ret
+
+retTest2:
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  ret 2
+
+retfTest:
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  retf
+
+retfTest2:
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  retf 2
+
+callTest:
+%rep 20
+  cbw
+%endrep
+  ret
+
+savedSP: dw 0

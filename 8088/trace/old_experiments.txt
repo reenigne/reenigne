@@ -1,0 +1,70 @@
+  mov cx,100
+  xor ax,ax
+  mov ds,ax
+  mov bp,ax
+  mov si,ax
+  mov di,ax
+  mov dx,ax
+v:
+  times 15 nop
+  mov word[es:0x1234],0x5678
+  nop
+mixPatch:
+  add bp,9999  ; 0
+  mov bx,bp    ; 4
+  mov bl,99    ; 6
+  mov al,[bx]  ; 8
+  add si,9999  ; 10
+  mov bx,si    ; 14
+  mov bl,99    ; 16
+  add al,[bx]  ; 18
+  add di,9999  ; 20
+  mov bx,di    ; 24
+  mov bl,99    ; 26
+  add al,[bx]  ; 28
+  add dx,9999  ; 30
+  mov bx,dx    ; 34
+  mov bl,99    ; 36
+  add al,[bx]
+  out 0x42,al  ; Output total to speaker
+loopPatch:
+  loop v
+
+
+
+
+
+
+  mov cx,100
+  xor ax,ax
+  mov ds,ax
+  mov bp,ax
+  mov si,ax
+  mov di,ax
+  mov dx,ax
+  mov ax,0xb800
+  mov es,ax
+v:
+  mov word[es:0x1234],0x5678
+  nop
+mixPatch:
+  add bp,9999  ; 0
+  mov bx,bp    ; 4
+  mov bl,99    ; 6
+  mov al,[bx]  ; 8
+  add si,9999  ; 10
+  mov bx,si    ; 14
+  mov bl,99    ; 16
+  add al,[bx]  ; 18
+  add di,9999  ; 20
+  mov bx,di    ; 24
+  mov bl,99    ; 26
+  add al,[bx]  ; 28
+  add dx,9999  ; 30
+  mov bx,dx    ; 34
+  mov bl,99    ; 36
+  add al,[bx]
+  out 0x42,al  ; Output total to speaker
+loopPatch:
+  loop v
+

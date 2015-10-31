@@ -47,8 +47,6 @@ private:
             return "PUSH " + rwo();
         if ((opcode() & 0xf8) == 0x58)
             return "POP " + rwo();
-        if ((opcode() & 0xf0) == 0x60)
-            return "???";
         if ((opcode() & 0xfc) == 0x80)
             return alu(reg()) + ea() + ", " +
                 (opcode() == 0x81 ? iw(true) : sb(true));
@@ -63,8 +61,6 @@ private:
             return "MOV " + rbo() + ", " + ib();
         if ((opcode() & 0xf8) == 0xb8)
             return "MOV " + rwo() + ", " + iw();
-        if ((opcode() & 0xf6) == 0xc0)
-            return "???";
         if ((opcode() & 0xfc) == 0xd0) {
             static String shifts[8] = {
                 "ROL", "ROR", "RCL", "RCR", "SHL", "SHR", "SHL", "SAR"};
@@ -131,7 +127,9 @@ private:
             case 0xad: return "LODS" + size();
             case 0xae:
             case 0xaf: return "SCAS" + size();
+            case 0xc0:
             case 0xc2: return "RET " + iw();
+            case 0xc1:
             case 0xc3: return "RET";
             case 0xc4: _doubleWord = true; return "LDS " + rw() + ", " + ea();
             case 0xc5:
@@ -140,7 +138,9 @@ private:
                 return "LES " + rw() + ", " + ea();
             case 0xc6:
             case 0xc7: return "MOV " + ea() + ", " + imm(true);
+            case 0xc8:
             case 0xca: return "RETF " + iw();
+            case 0xc9:
             case 0xcb: return "RETF";
             case 0xcc: return "INT 3";
             case 0xcd: return "INT " + ib();
@@ -158,8 +158,8 @@ private:
             case 0xe9: return "JMP " + cw();
             case 0xea: return "JMP " + cp();
             case 0xeb: return "JMP " + cb();
-            case 0xf0: return "LOCK";
-            case 0xf1: return "???";
+            case 0xf0: 
+            case 0xf1: return "LOCK";
             case 0xf2: return "REPNE ";
             case 0xf3: return "REP ";
             case 0xf4: return "HLT";
@@ -233,7 +233,7 @@ private:
         switch (mod()) {
             case 0: s = disp(); break;
             case 1: s = disp() + sb(); _offset = 3; break;
-            case 2: s = disp() + iw(); _offset = 4; break;
+            case 2: s = disp() + "+" + iw(); _offset = 4; break;
             case 3: return !_wordSize ? byteRegs(rm()) : wordRegs(rm());
         }
         return size() + "[" + s + "]";
@@ -249,8 +249,11 @@ private:
     {
         static String d[8] = {
             "BX+SI", "BX+DI", "BP+SI", "BP+DI", "SI", "DI", "BP", "BX"};
-        if (mod() == 0 && rm() == 6)
-            return iw();
+        if (mod() == 0 && rm() == 6) {
+            String s = iw();
+            _offset = 4;
+            return s;
+        }
         return d[rm()];
     }
     String alu(int op)
@@ -510,13 +513,14 @@ class Program : public ProgramBase
                 o += String(hex(cpu, 5, false)) + " " +
                     codePoint(qsc[qs]) + codePoint(sc[s]) +
                     (rqgt0 ? "G" : ".") + (ready ? "." : "z") +
-                    (test ? "T" : ".") + // (cpu_clk ? "C" : ".") +
+                    (test ? "T" : ".") +
+                    (fastSampling ? (cpu_clk ? "C" : ".") : "") +
                     "  " + hex(address, 5, false) + " " + hex(data, 2, false) +
                     " " + hex(dma, 2, false) + " " + hex(irq, 2, false) + " " +
                     (ior ? "R" : ".") + (iow ? "W" : ".") +
                     (memr ? "r" : ".") + (memw ? "w" : ".") +
                     (iochrdy ? "." : "z") + (aen ? "D" : ".") +
-                    //(bus_ale ? "a" : ".") +
+                    (fastSampling ? (bus_ale ? "a" : ".") : "") +
                     (tc ? "T" : ".");
 
                 if (tl > 0) {
@@ -525,7 +529,7 @@ class Program : public ProgramBase
                 }
 
                 o += "  ";
-                if (s != 7)
+                if (s != 7 && s != 3)
                     switch (t) {
                         case 0:
                         case 4:
@@ -621,39 +625,39 @@ class Program : public ProgramBase
                         o += "!e";
                     String seg;
                     switch (cpu & 0x30000) {
-                        case 0x00000: seg = "ES:"; break;
-                        case 0x10000: seg = "SS:"; break;
-                        case 0x20000: seg = "CS:"; break;
-                        case 0x30000: seg = "DS:"; break;
+                        case 0x00000: seg = "ES "; break;
+                        case 0x10000: seg = "SS "; break;
+                        case 0x20000: seg = "CS "; break;
+                        case 0x30000: seg = "DS "; break;
                     }
                     String type = "-";
-                    if (lastS == 0) {
-                        type = "i";
-                        seg = "   ";
-                    }
-                    if (lastS == 4) {
-                        type = "f";
-                        seg = "   ";
-                    }
-                    if (d == 4) {
-                        type = "d";
-                        seg = "   ";
-                    }
-                    o += hex(data, 2, false) + " ";
-                    if (ior || memr)
-                        o += "<-" + type + " ";
-                    else
-                        o += type + "-> ";
-                    if (memr || memw)
-                        o += "[" + seg + hex(address, 5, false) + "]";
-                    else
-                        o += "port[" + hex(address, 4, false) + "]";
-                    if (lastS == 4 && d != 4) {
-                        if (queueLength >= 4)
-                            o += "!f";
-                        else {
-                            queue[queueLength] = data;
-                            ++queueLength;
+                    if (lastS == 0)
+                        o += hex(data, 2, false) + " <-i           ";
+                    else {
+                        if (lastS == 4) {
+                            type = "f";
+                            seg = "   ";
+                        }
+                        if (d == 4) {
+                            type = "d";
+                            seg = "   ";
+                        }
+                        o += hex(data, 2, false) + " ";
+                        if (ior || memr)
+                            o += "<-" + type + " ";
+                        else
+                            o += type + "-> ";
+                        if (memr || memw)
+                            o += "[" + seg + hex(address, 5, false) + "]";
+                        else
+                            o += "port[" + hex(address, 4, false) + "]";
+                        if (lastS == 4 && d != 4) {
+                            if (queueLength >= 4)
+                                o += "!f";
+                            else {
+                                queue[queueLength] = data;
+                                ++queueLength;
+                            }
                         }
                     }
                     o += " ";

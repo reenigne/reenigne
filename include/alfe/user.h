@@ -118,7 +118,7 @@ private:
                                 ->clicked();
                             break;
                         case CBN_SELCHANGE:
-                            dynamic_cast<ComboBox*>(getContext(lParam))
+                            dynamic_cast<ComboBox*>(getContext(hWnd))
                                 ->changed();
                             break;
                     }

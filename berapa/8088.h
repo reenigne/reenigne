@@ -19,56 +19,46 @@ private:
         if ((_opcode & 0xc4) == 0)
             return alu(_opcode >> 3) + regMemPair();
         if ((_opcode & 0xc6) == 4)
-            return alu(_opcode >> 3) + accum() + String(", ") + imm();
+            return alu(_opcode >> 3) + accum() + ", " + imm();
         if ((_opcode & 0xe7) == 6)
-            return String("PUSH ") + segreg(_opcode >> 3);
+            return "PUSH " + segreg(_opcode >> 3);
         if ((_opcode & 0xe7) == 7)
-            return String("POP ") + segreg(_opcode >> 3);
+            return "POP " + segreg(_opcode >> 3);
         if ((_opcode & 0xe7) == 0x26)
-            return segreg((_opcode >> 3) & 3) + ": " +
-                disassemble(address + 1);
+            return segreg((_opcode >> 3) & 3) + ":";
         if ((_opcode & 0xf8) == 0x40)
-            return String("INC ") + wordRegs(_opcode & 7);
+            return "INC " + wordRegs(_opcode & 7);
         if ((_opcode & 0xf8) == 0x48)
-            return String("DEC ") + wordRegs(_opcode & 7);
+            return "DEC " + wordRegs(_opcode & 7);
         if ((_opcode & 0xf8) == 0x50)
-            return String("PUSH ") + wordRegs(_opcode & 7);
+            return "PUSH " + wordRegs(_opcode & 7);
         if ((_opcode & 0xf8) == 0x58)
-            return String("POP ") + wordRegs(_opcode & 7);
+            return "POP " + wordRegs(_opcode & 7);
         if ((_opcode & 0xf0) == 0x60)
-            return String("???");
+            return "???";
         if ((_opcode & 0xfc) == 0x80) {
             _modRM = getByte();
             String s = alu(reg()) + ea() + ", ";
             return s + (_opcode == 0x81 ? iw() : sb());
         }
         if ((_opcode & 0xfc) == 0x88)
-            return String("MOV ") + regMemPair();
+            return "MOV " + regMemPair();
         if ((_opcode & 0xf8) == 0x90)
             if (_opcode == 0x90)
-                return String("NOP");
+                return "NOP";
             else
-                return String("XCHG AX, ") + wordRegs(_opcode & 7);
+                return "XCHG AX, " + wordRegs(_opcode & 7);
         if ((_opcode & 0xf8) == 0xb0)
-            return String("MOV ") + byteRegs(_opcode & 7) + ", " + ib();
+            return "MOV " + byteRegs(_opcode & 7) + ", " + ib();
         if ((_opcode & 0xf8) == 0xb8)
-            return String("MOV ") + wordRegs(_opcode & 7) + ", " + iw();
+            return "MOV " + wordRegs(_opcode & 7) + ", " + iw();
         if ((_opcode & 0xf6) == 0xc0)
-            return String("???");
+            return "???";
         if ((_opcode & 0xfc) == 0xd0) {
             _modRM = getByte();
-            String s;
-            switch (reg()) {
-                case 0: s = "ROL "; break;
-                case 1: s = "ROR "; break;
-                case 2: s = "RCL "; break;
-                case 3: s = "RCR "; break;
-                case 4: s = "SHL "; break;
-                case 5: s = "SHR "; break;
-                case 6: s = "SHL "; break;
-                case 7: s = "SAR "; break;
-            }
-            return s + ea() + ", " +
+            static String shifts[8] = {
+                "ROL", "ROR", "RCL", "RCR", "SHL", "SHR", "SHL", "SAR"};
+            return shifts[reg()] + " " + ea() + ", " +
                 ((_opcode & 2) == 0 ? String("1") : byteRegs(1));
         }
         if ((_opcode & 0xf8) == 0xd8) {
@@ -77,152 +67,140 @@ private:
             return String("ESC ") + (_opcode & 7) + ", " + r() + ", " + ea();
         }
         if ((_opcode & 0xf6) == 0xe4)
-            return String("IN ") + accum() + String(", ") +
+            return "IN " + accum() + ", " +
                 ((_opcode & 8) == 0 ? ib() : wordRegs(2));
         if ((_opcode & 0xf6) == 0xe6)
-            return String("OUT ") + ((_opcode & 8) == 0 ? ib() : wordRegs(2)) +
-                String(", ") + accum();
+            return "OUT " + ((_opcode & 8) == 0 ? ib() : wordRegs(2)) + ", " +
+                accum();
+        if ((_opcode & 0xf0) == 0x70) {
+            static String conds[16] = {
+                "O", "NO", "B", "AE", "E", "NE", "BE", "A",
+                "S", "NS", "P", "NP", "L", "GE", "LE", "G"};
+            return "J" + conds[_opcode & 0xf] + " " + cb();
+        }
         switch (_opcode) {
-            case 0x27: return String("DAA");
-            case 0x2f: return String("DAS");
-            case 0x37: return String("AAA");
-            case 0x3f: return String("AAS");
-            case 0x70: return String("JO ") + cb();
-            case 0x71: return String("JNO ") + cb();
-            case 0x72: return String("JB ") + cb();
-            case 0x73: return String("JAE ") + cb();
-            case 0x74: return String("JE ") + cb();
-            case 0x75: return String("JNE ") + cb();
-            case 0x76: return String("JBE ") + cb();
-            case 0x77: return String("JA ") + cb();
-            case 0x78: return String("JS ") + cb();
-            case 0x79: return String("JNS ") + cb();
-            case 0x7a: return String("JP ") + cb();
-            case 0x7b: return String("JNP ") + cb();
-            case 0x7c: return String("JL ") + cb();
-            case 0x7d: return String("JGE ") + cb();
-            case 0x7e: return String("JLE ") + cb();
-            case 0x7f: return String("JG ") + cb();
+            case 0x27: return "DAA";
+            case 0x2f: return "DAS";
+            case 0x37: return "AAA";
+            case 0x3f: return "AAS";
             case 0x84:
-            case 0x85: return String("TEST ") + regMemPair();
+            case 0x85: return "TEST " + regMemPair();
             case 0x86:
-            case 0x87: return String("XCHG" ) + regMemPair();
+            case 0x87: return "XCHG " + regMemPair();
             case 0x8c:
                 _modRM = getByte();
                 _wordSize = true;
-                return String("MOV ") + ea() + ", " + segreg(reg());
+                return "MOV " + ea() + ", " + segreg(reg());
             case 0x8d:
                 _modRM = getByte();
                 _doubleWord = true;
                 _wordSize = false;
-                return String("LEA ") + rw() + ", " + ea();
+                return "LEA " + rw() + ", " + ea();
             case 0x8e:
                 _modRM = getByte();
                 _wordSize = true;
-                return String("MOV ") + segreg(reg()) + ", " + ea();
-            case 0x8f: _modRM = getByte(); return String("POP ") + ea();
-            case 0x98: return String("CBW");
-            case 0x99: return String("CWD");
-            case 0x9a: return String("CALL ") + cp();
-            case 0x9b: return String("WAIT");
-            case 0x9c: return String("PUSHF");
-            case 0x9d: return String("POPF");
-            case 0x9e: return String("SAHF");
-            case 0x9f: return String("LAHF");
+                return "MOV " + segreg(reg()) + ", " + ea();
+            case 0x8f: _modRM = getByte(); return "POP " + ea();
+            case 0x98: return "CBW";
+            case 0x99: return "CWD";
+            case 0x9a: return "CALL " + cp();
+            case 0x9b: return "WAIT";
+            case 0x9c: return "PUSHF";
+            case 0x9d: return "POPF";
+            case 0x9e: return "SAHF";
+            case 0x9f: return "LAHF";
             case 0xa0:
-            case 0xa1: return String("MOV ") + accum() + String(", ") +
-                           size() + String("[") + iw() + String("]");
+            case 0xa1: return "MOV " + accum() + ", " + size() + "[" + iw() +
+                "]";
             case 0xa2:
-            case 0xa3: return String("MOV ") + size() + String("[") + iw() +
-                           String("]") + String(", ") + accum();
+            case 0xa3: return "MOV " + size() + "[" + iw() + "], " + accum();
             case 0xa4:
-            case 0xa5: return String("MOVS") + size();
+            case 0xa5: return "MOVS" + size();
             case 0xa6:
-            case 0xa7: return String("CMPS") + size();
+            case 0xa7: return "CMPS" + size();
             case 0xa8:
-            case 0xa9: return String("TEST ") + accum() + String(", ") +
-                           (!_wordSize ? ib() : iw());
+            case 0xa9: return "TEST " + accum() + ", " +
+                (!_wordSize ? ib() : iw());
             case 0xaa:
-            case 0xab: return String("STOS") + size();
+            case 0xab: return "STOS" + size();
             case 0xac:
-            case 0xad: return String("LODS") + size();
+            case 0xad: return "LODS" + size();
             case 0xae:
-            case 0xaf: return String("SCAS") + size();
-            case 0xc2: return String("RET ") + iw();
-            case 0xc3: return String("RET");
+            case 0xaf: return "SCAS" + size();
+            case 0xc2: return "RET " + iw();
+            case 0xc3: return "RET";
             case 0xc4:
                 _modRM = getByte();
                 _doubleWord = true;
-                return String("LDS ") + rw() + ", " + ea();
+                return "LDS " + rw() + ", " + ea();
             case 0xc5:
                 _modRM = getByte();
                 _doubleWord = true;
                 _wordSize = false;
-                return String("LES ") + rw() + ", " + ea();
+                return "LES " + rw() + ", " + ea();
             case 0xc6:
             case 0xc7:
                 _modRM = getByte();
-                return String("MOV ") + ea() + String(", ") +
-                    (!_wordSize ? ib() : iw());
-            case 0xca: return String("RETF ") + iw();
-            case 0xcb: return String("RETF");
-            case 0xcc: return String("INT 3");
-            case 0xcd: return String("INT ") + ib();
-            case 0xce: return String("INTO");
-            case 0xcf: return String("IRET");
-            case 0xd4: return String("AAM ") + ib();
-            case 0xd5: return String("AAD ") + ib();
-            case 0xd6: return String("SALC");
-            case 0xd7: return String("XLATB");
-            case 0xe0: return String("LOOPNE ") + cb();
-            case 0xe1: return String("LOOPE ") + cb();
-            case 0xe2: return String("LOOP ") + cb();
-            case 0xe3: return String("JCXZ ") + cb();
-            case 0xe8: return String("CALL ") + cw();
-            case 0xe9: return String("JMP ") + cw();
-            case 0xea: return String("JMP ") + cp();
-            case 0xeb: return String("JMP ") + cb();
-            case 0xf0: return String("LOCK");
-            case 0xf1: return String("???");
-            case 0xf2: return String("REPNE ") + disassemble(address + 1);
-            case 0xf3: return String("REP ") + disassemble(address + 1);
-            case 0xf4: return String("HLT");
-            case 0xf5: return String("CMC");
+                return "MOV " + ea() + ", " + (!_wordSize ? ib() : iw());
+            case 0xca: return "RETF " + iw();
+            case 0xcb: return "RETF";
+            case 0xcc: return "INT 3";
+            case 0xcd: return "INT " + ib();
+            case 0xce: return "INTO";
+            case 0xcf: return "IRET";
+            case 0xd4: return "AAM " + ib();
+            case 0xd5: return "AAD " + ib();
+            case 0xd6: return "SALC";
+            case 0xd7: return "XLATB";
+            case 0xe0: return "LOOPNE " + cb();
+            case 0xe1: return "LOOPE " + cb();
+            case 0xe2: return "LOOP " + cb();
+            case 0xe3: return "JCXZ " + cb();
+            case 0xe8: return "CALL " + cw();
+            case 0xe9: return "JMP " + cw();
+            case 0xea: return "JMP " + cp();
+            case 0xeb: return "JMP " + cb();
+            case 0xf0: return "LOCK";
+            case 0xf1: return "???";
+            case 0xf2: return "REPNE ";
+            case 0xf3: return "REP ";
+            case 0xf4: return "HLT";
+            case 0xf5: return "CMC";
             case 0xf6:
             case 0xf7:
                 _modRM = getByte();
                 switch (reg()) {
                     case 0:
-                    case 1: return String("TEST ") + ea() + String(", ") +
-                                (!_wordSize ? ib() : iw());
-                    case 2: return String("NOT ") + ea();
-                    case 3: return String("NEG ") + ea();
-                    case 4: return String("NUL ") + ea();
-                    case 5: return String("IMUL ") + ea();
-                    case 6: return String("DIV ") + ea();
-                    case 7: return String("IDIV ") + ea();
+                    case 1: return "TEST " + ea() + ", " +
+                        (!_wordSize ? ib() : iw());
+                    case 2: return "NOT " + ea();
+                    case 3: return "NEG " + ea();
+                    case 4: return "NUL " + ea();
+                    case 5: return "IMUL " + ea();
+                    case 6: return "DIV " + ea();
+                    case 7: return "IDIV " + ea();
                 }
-            case 0xf8: return String("CLC");
-            case 0xf9: return String("STC");
-            case 0xfa: return String("CLI");
-            case 0xfb: return String("STI");
-            case 0xfc: return String("CLD");
-            case 0xfd: return String("STD");
+            case 0xf8: return "CLC";
+            case 0xf9: return "STC";
+            case 0xfa: return "CLI";
+            case 0xfb: return "STI";
+            case 0xfc: return "CLD";
+            case 0xfd: return "STD";
             case 0xfe:
             case 0xff:
                 _modRM = getByte();
                 switch (reg()) {
-                    case 0: return String("INC ") + ea();
-                    case 1: return String("DEC ") + ea();
-                    case 2: return String("CALL ") + ea();
-                    case 3: _doubleWord = true; return String("CALL ") + ea();
-                    case 4: return String("JMP ") + ea();
-                    case 5: _doubleWord = true; return String("JMP ") + ea();
-                    case 6: return String("PUSH ") + ea();
-                    case 7: return String("??? ") + ea();
+                    case 0: return "INC " + ea();
+                    case 1: return "DEC " + ea();
+                    case 2: return "CALL " + ea();
+                    case 3: _doubleWord = true; return "CALL " + ea();
+                    case 4: return "JMP " + ea();
+                    case 5: _doubleWord = true; return "JMP " + ea();
+                    case 6: return "PUSH " + ea();
+                    case 7: return "??? " + ea();
                 }
         }
-        return String("");
+        return "";
     }
     UInt8 getByte()
     {
@@ -308,7 +286,11 @@ private:
         SInt8 byte = static_cast<SInt8>(getByte());
         return hex(_address + byte, 4, false);
     }
-    String cw() { return hex(_address + getWord(), 4, false); }
+    String cw()
+    {
+        UInt16 word = getWord();
+        return hex(_address + word, 4, false);
+    }
     String cp()
     {
         UInt16 offset = getWord();
