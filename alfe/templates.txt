@@ -16,12 +16,15 @@
 
     B<@A> = Class { }
     B<Int> = Class { }
-    C<@B<A>> = Class { }
-    C<@B<>> = Class { }
-    C<Foo<@A>> = Class { }
-    C<Foo<Int>> = Class { }
-    C<@B<Int>> = Class { }
-    C<B> = Class { }   // specialization of a template template
+    C<@B<A>> = Class { }       // @B is Tyco of kind <>
+    C<@B<>> = Class { }        // Same as above (the parameter to @B does not need to be named here)
+    C<Foo<@A>> = Class { }     // C<@D> = Class { }  where @D is of the form Foo<@A> for some @A. Note that @D is a type
+    C<Foo<Int>> = Class { }    // Specialization of C with Foo<Int> as argument
+    C<@B<Int>> = Class { }     // Same as C<@B<>> again? Though... perhaps this should mean that B can be instantiated with Int (ruling out "E<@F where F : String>")
+    C<B> = Class { }           // specialization of a template template (since B is a template of kind <>)
+    G<@H, @I> = Class { }      // Two-parameter template
+    G<@H, H> = Class { }       // Specialization where both arguments must be the same Tyco
+    G<@H, @J where J : H> = Class { }  // Specialization where
 
     How to do partial specialization for pointers?
       B<@A*> = Class { }  - so the @ prefix binds more tightly than *
@@ -372,3 +375,18 @@ Should the elements of a tuple be addressable, e.g. via []?
   There's no reason why we shouldn't use 0, 1, 2, 3, ... on the right side of . and -> - terse, easy to remember and unsurprising
     Slightly confusing in that a=1, foo.a doesn't do foo.1 but that's ok - if you want an array, use one.
     has() is for . and -> so we do want to implement has().
+
+
+
+
+
+
+Foo<> = Class { String k = "*"; };                                               // Base case
+Foo<@T, $...> = Class { String k = "*->" + Foo<...>.k; };                        // Peel off first argument, a type
+Foo<@T<$...>, $...> = Class { String k = "(" + Foo<T> + ")->" + Foo<...>.k; };   // Peel off first argument, a template (of any kind). The "..." in the class body refers to the second argument - the "..." in the first argument is just a kind descriptor
+Foo<@T<$...>> = Class { String k = "(" + Foo<...>.k + "->*)->*"; }               // Can't do anything with T directly because it is of unknown kind
+
+
+A<@B> = Class { ... }
+
+Foo<A>

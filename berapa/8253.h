@@ -48,7 +48,7 @@ public:
 
     String save() const
     {
-        String s = String() + 
+        String s = String() +
             "{ active: " + String::Boolean(this->_active) +
             ", tick: " + String::Decimal(this->_tick) +
             ", address: " + hex(_address, 5) +
@@ -74,11 +74,11 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
-        this->_active = (*members)["active"].value<bool>();
-        this->_tick = (*members)["tick"].value<int>();
-        _address = (*members)["address"].value<int>();
-        auto timers = (*members)["timers"].value<List<TypedValue>>();
+        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        this->_active = members["active"].value<bool>();
+        this->_tick = members["tick"].value<int>();
+        _address = members["address"].value<int>();
+        auto timers = members["timers"].value<List<TypedValue>>();
 
         int j = 0;
         for (auto i = timers.begin(); i != timers.end(); ++i) {
@@ -90,7 +90,7 @@ public:
         for (;j < 3; ++j) {
             _timers[j]->load(TypedValue(StructuredType(String(),
                 List<StructuredType::Member>()),
-                Value<HashTable<Identifier, TypedValue>>()).
+                HashTable<Identifier, TypedValue>()).
                 convertTo(_timer0.type()));
         }
     }
@@ -277,7 +277,7 @@ private:
 
         String save() const
         {
-            return String("\n    ") + 
+            return String("\n    ") +
                 "{ value: " + hex(_value, 4) +
                 ", latch: " + hex(_latch, 4) +
                 ", count: " + hex(_count, 4) +
@@ -304,25 +304,24 @@ private:
             members.add(StructuredType::Member("gate", false));
             members.add(StructuredType::Member("output", false));
             members.add(StructuredType::Member("latched", false));
-            members.add(StructuredType::Member("state", 
+            members.add(StructuredType::Member("state",
                 TypedValue(_stateType, stateStopped0)));
             return StructuredType("Timer", members);
         }
         void load(const TypedValue& value)
         {
-            auto members =
-                value.value<Value<HashTable<Identifier, TypedValue>>>();
-            _value = (*members)["value"].value<int>();
-            _latch = (*members)["latch"].value<int>();
-            _count = (*members)["count"].value<int>();
-            _bcd = (*members)["bcd"].value<bool>();
-            _bytes = (*members)["bytes"].value<int>();
-            _lowCount = (*members)["lowCount"].value<int>();
-            _firstByte = (*members)["firstByte"].value<bool>();
-            _gate = (*members)["gate"].value<bool>();
-            _output = (*members)["output"].value<bool>();
-            _latched = (*members)["latched"].value<bool>();
-            _state = (*members)["state"].value<State>();
+            auto members = value.value<HashTable<Identifier, TypedValue>>();
+            _value = members["value"].value<int>();
+            _latch = members["latch"].value<int>();
+            _count = members["count"].value<int>();
+            _bcd = members["bcd"].value<bool>();
+            _bytes = members["bytes"].value<int>();
+            _lowCount = members["lowCount"].value<int>();
+            _firstByte = members["firstByte"].value<bool>();
+            _gate = members["gate"].value<bool>();
+            _output = members["output"].value<bool>();
+            _latched = members["latched"].value<bool>();
+            _state = members["state"].value<State>();
         }
 
     private:

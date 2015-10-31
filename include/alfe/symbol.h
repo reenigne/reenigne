@@ -115,7 +115,6 @@ public:
         bool more;
         return toString(80, 2, 0, x, more);
     }
-    int hash() const { return body()->hash(); }
     bool isSymbol() const { return body()->isSymbol(); }
     bool isArray() const { return body()->isArray(); }
 protected:
@@ -126,7 +125,6 @@ protected:
         virtual int length(int max) const = 0;
         virtual String toString(int width, int spacesPerIndent, int indent,
             int& x, bool& more) const = 0;
-        virtual int hash() const = 0;
         virtual bool isSymbol() const = 0;
         virtual bool isArray() const = 0;
     };
@@ -150,7 +148,7 @@ protected:
         }
         int length(int max) const { return decimalLength(_value); }
         int value() const { return _value; }
-        int hash() const { return _value; }
+        Hash hash() const { return Body::hash().mixin(_value); }
         bool isSymbol() const { return false; }
         bool isArray() const { return false; }
     private:
@@ -176,7 +174,7 @@ protected:
         }
         int length(int max) const { return quotedLength(_value); }
         String value() const { return _value; }
-        int hash() const { return _value.hash(); }
+        Hash hash() const { return Body::hash().mixin(_value.hash()); }
         bool isSymbol() const { return false; }
         bool isArray() const { return false; }
     private:
@@ -370,12 +368,12 @@ private:
 
         void setCache(Reference<ReferenceCounted> cache) { _cache = cache; }
 
-        int hash() const
+        Hash hash() const
         {
-            int h = atom();
+            Hash h = SymbolEntry::Body::hash().mixin(atom());
             const SymbolTail* t = _tail;
             while (t != 0) {
-                h = h * 67 + t->head().hash() - 113;
+                h.mixin(t->head().hash());
                 t = t->tail();
             }
             return h;
@@ -521,11 +519,11 @@ private:
                     return false;
             return true;
         }
-        int hash() const
+        Hash hash() const
         {
-            int h = 0;
+            Hash h = SymbolEntry::Body::hash();
             for (int i = 0; i < _symbols.count(); ++i)
-                h = h * 67 + _symbols[i].hash() - 113;
+                h.mixin(_symbols[i].hash());
             return h;
         }
         int length(int max) const
@@ -637,7 +635,11 @@ private:
             more = true;
             return "<" + decimal(_target->label()) + ">";
         }
-        int hash() const { return reinterpret_cast<int>(_target); }
+        Hash hash() const
+        {
+            return SymbolEntry::Body::hash().
+                mixin(reinterpret_cast<int>(_target));
+        }
         bool isSymbol() const { return false; }
         bool isArray() const { return false; }
     private:

@@ -20,9 +20,9 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
-        _nmiOn = (*members)["on"].value<bool>();
-        _active = (*members)["active"].value<bool>();
+        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        _nmiOn = members["on"].value<bool>();
+        _active = members["active"].value<bool>();
     }
     bool nmiOn() const { return _nmiOn; }
     TypedValue getValue(Identifier name)

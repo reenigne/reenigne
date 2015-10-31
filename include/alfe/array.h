@@ -4,29 +4,15 @@
 #define INCLUDED_ARRAY_H
 
 #include "alfe/handle.h"
-#include "alfe/body_with_array.h"
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif
+#include <utility>  // For std::forward
 
+// List is not quite a value type, since adding an element to a list will
+// affect copies of the list.
 template<class T> class List : private Handle
 {
-public:
-    List() { }
-    void add(const T& t)
-    {
-        if (!valid())
-            Handle::operator=(Handle(new Body(t)));
-        else
-            body()->add(t);
-    }
-    int count() const
-    {
-        if (valid())
-            return body()->count();
-        return 0;
-    }
-private:
     class Body : public Handle::Body
     {
         class Node
@@ -66,6 +52,23 @@ private:
 
         friend class List::Iterator;
     };
+public:
+    List() { }
+    void add(const T& t)
+    {
+        if (!valid())
+            *this = List(new Body(t));
+        else
+            body()->add(t);
+    }
+    int count() const
+    {
+        if (valid())
+            return body()->count();
+        return 0;
+    }
+private:
+    List(Body* body) : Handle(body) { }
     Body* body() { return as<Body>(); }
     const Body* body() const { return as<Body>(); }
 public:
@@ -96,16 +99,136 @@ public:
 
 template<class T> class AppendableArray;
 
+// Array is not quite a value type, since changing an element in one array will
+// affect copies of the same array unless a deep copy is made with copy().
 template<class T> class Array : private Handle
 {
-    typedef BodyWithArray<Handle::Body, T> Body;
 public:
+    // This class combines an H and an array of Ts in a single memory block.
+    // Also known as the "struct hack". T must be default-constructable.
+    template<class H = Handle::Body> class Body : public H
+    {
+        // HT is never actually used directly - it's just used to figure out
+        // the length and the address of the first T.
+        class HT : public Body { public: T _t; };
+    public:
+        static int headSize() { return sizeof(HT) - sizeof(T); }
+
+        // "allocate" is number of Ts to allocate space for.
+        // "construct" is number of Ts to actually construct.
+        template<typename... Args> static Body* create(int allocate,
+            int construct, int extraBytes = 0, Args&&... args)
+        {
+            void* buffer = operator new(headSize() + allocate*sizeof(T) +
+                extraBytes);
+            Body* b;
+            try {
+                b = new(buffer) Body(std::forward<Args>(args)...);
+                try {
+                    b->constructTail(construct);
+                }
+                catch (...) {
+                    b->destruct();
+                    throw;
+                }
+            }
+            catch (...) {
+                operator delete(buffer);
+                throw;
+            }
+            return b;
+        }
+
+        T* pointer() { return &static_cast<HT*>(this)->_t; }
+        const T* pointer() const { return &static_cast<const HT*>(this)->_t; }
+        T& operator[](int i) { return pointer()[i]; }
+        const T& operator[](int i) const { return pointer()[i]; }
+
+        void destroy() const
+        {
+            destruct();
+            operator delete(const_cast<void*>(static_cast<const void*>(this)));
+        }
+
+        int size() const { return _size; }
+        // Be careful to avoid calling setSize() with a size argument greater
+        // than the "allocate" size passed to create(). 
+        void setSize(int size)
+        {
+            if (size > _size)
+                constructTail(size);
+            else
+                destructTail(size);
+        }
+        void constructT(const T& other)
+        {
+            new(static_cast<void*>(&(*this)[_size])) T(other);
+            ++_size;
+        }
+
+        class Iterator
+        {
+        public:
+            Iterator() : _p(0) { }
+            const T& operator*() const { return *_p; }
+            const T* operator->() const { return _p; }
+            const Iterator& operator++() { ++_p; return *this; }
+            bool operator==(const Iterator& other) { return _p == other._p; }
+            bool operator!=(const Iterator& other)
+            {
+                return !operator==(other);
+            }
+        private:
+            const T* _p;
+
+            Iterator(const T* p) : _p(p) { }
+        };
+
+        Iterator begin() const { return Iterator(&((*this)[0])); }
+        Iterator end() const { return Iterator(&((*this)[size()])); }
+
+    private:
+        void constructTail(int size)
+        {
+            int oldSize = _size;
+            try {
+                while (_size < size)
+                    constructT(T());
+            }
+            catch (...) {
+                destructTail(oldSize);
+                throw;
+            }
+        }
+        void destructTail(int size) const
+        {
+            for (; _size > size; --_size)
+                (&(*this)[_size - 1])->~T();
+        }
+        void destruct() const
+        {
+            destructTail(0);
+            this->~Body();
+        }
+
+        mutable int _size;  // Needs to be mutable so destroy() can be const.
+
+        // Only constructor is private to prevent inheritance, composition and
+        // stack allocation. All instances are constructed via the placement
+        // new call in create().
+        template<typename... Args> Body(Args&&... args)
+          : H(std::forward<Args>(args)...), _size(0) { }
+
+        // HashTable keeps all elements constructed, and uses _size to keep
+        // track of the number of actual entries in the table.
+        template<class Key, class Value> friend class HashTable;
+    };
     Array() { }
     Array(const List<T>& list)
     {
         int n = list.count();
         if (n != 0) {
-            Handle::operator=(Handle(new Body(n, 0)));
+            *this = Array(Body<>::create(n, 0));
             for (auto p = list.begin(); p != list.end(); ++p)
                 body()->constructT(*p);
         }
@@ -113,7 +236,7 @@ public:
     explicit Array(int n)
     {
         if (n != 0)
-            Handle::operator=(Handle(Body::create(n, n)));
+            *this = Array(Body<>::create(n, n));
     }
     void allocate(int n) { *this = Array(n); }
     bool operator==(const Array& other) const
@@ -152,7 +275,7 @@ public:
         return r;
     }
 
-    typedef typename Body::Iterator Iterator;
+    typedef typename Body<>::Iterator Iterator;
     Iterator begin() const
     {
         if (body() != 0)
@@ -167,9 +290,16 @@ public:
     }
 
 private:
-    Body* body() { return as<Body>(); }
+    Array(Body<>* body) : Handle(body) { }
+    Body<>* body() { return as<Body<>>(); }
+    const Body<>* body() const { return as<Body<>>(); }
+    template<class U> friend class AppendableArray;
 };
 
+// AppendableArray is not quite a value type, since changing an element in one
+// array will affect copies of the same array unless a deep copy is made with
+// copy(). Appending to an array may cause it to become a deep copy, if more
+// storage space was needed.
 template<class T> class AppendableArray : private Handle
 {
     class BaseBody : public Handle::Body
@@ -177,8 +307,8 @@ template<class T> class AppendableArray : private Handle
     public:
         int _allocated;
     };
-    typedef BodyWithArray<BaseBody, T> Body;
-private:
+    typedef typename Array<T>::Body<BaseBody> Body;
+
     static int roundUpToPowerOf2(int n)
     {
 #ifdef _MSC_VER
@@ -223,7 +353,7 @@ public:
         int extra = s%sizeof(T);
         auto b = Body::create(count, 0, extra);
         b->_allocated = count;
-        Handle::operator=(Handle(b));
+        *this = AppendableArray(b);
     }
     void allocate(int n)
     {
@@ -368,6 +498,10 @@ private:
     }
     Body* body() { return as<Body>(); }
     const Body* body() const { return as<Body>(); }
+    AppendableArray(Body* body) : Handle(body) { }
+
+    // For access to body().
+    template<class Key, class Value> friend class HashTable;
 };
 
 #endif // INCLUDED_ARRAY_H

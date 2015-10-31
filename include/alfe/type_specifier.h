@@ -267,7 +267,6 @@ public:
         *source = s2;
         return new Body(name, Span(location, endLocation));
     }
-    int hash() const { return name().hash(); }
     bool operator==(const TycoIdentifier& other) const
     {
         return name() == other.name();
@@ -279,6 +278,10 @@ public:
         Body(const String& name, const Span& span)
           : TycoSpecifier::Body(span), _name(name) { }
         String name() const { return _name; }
+        Hash hash() const
+        {
+            return TycoSpecifier::Body::hash().mixin(_name.hash());
+        }
     private:
         String _name;
     };

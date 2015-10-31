@@ -7,19 +7,18 @@ template<class T> class StreamTemplate : public Handle
 {
 public:
 #ifdef _WIN32
-    StreamTemplate()
-      : _handle(INVALID_HANDLE_VALUE), Handle(new NonOwningBody) { }
+    StreamTemplate() : _handle(INVALID_HANDLE_VALUE), Handle(new Body) { }
     StreamTemplate(HANDLE handle, const File& file = File())
-      : _handle(handle), _file(file), Handle(new NonOwningBody) { }
+      : _handle(handle), _file(file), Handle(new Body) { }
     operator HANDLE() const { return _handle; }
     bool valid() const
     {
         return _handle != INVALID_HANDLE_VALUE && _handle != NULL;
     }
 #else
-    StreamTemplate() : _fileDescriptor(-1), Handle(new NonOwningBody) { }
+    StreamTemplate() : _fileDescriptor(-1), Handle(new Body) { }
     StreamTemplate(int fileDescriptor, const File& file = File())
-      : _fileDescriptor(fileDescriptor), _file(file), Handle(new NonOwningBody)
+      : _fileDescriptor(fileDescriptor), _file(file), Handle(new Body)
     { }
     operator int() const { return _fileDescriptor; }
     bool valid() const { return _fileDescriptor != -1; }
@@ -218,9 +217,6 @@ private:
         mutable CircularBuffer<Byte> _buffer;
     };
     const Body* body() const { return as<Body>(); }
-    class NonOwningBody : public Body
-    {
-    };
     class OwningBody : public Body
     {
     public:

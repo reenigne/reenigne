@@ -18,8 +18,8 @@ public:
     {
         normalize();
     }
-    RationalTemplate(const T& n) : numerator(n), denominator(1) {}
-    RationalTemplate() {}
+    RationalTemplate(const T& n) : numerator(n), denominator(1) { }
+    RationalTemplate() { }
     RationalTemplate& operator=(const RationalTemplate& r)
     {
         numerator = r.numerator; denominator = r.denominator;
@@ -101,7 +101,7 @@ public:
         return ((*this) - other).numerator < 0;
     }
     bool operator>(const RationalTemplate& other) const
-    { 
+    {
         return other < (*this);
     }
     bool operator<=(const RationalTemplate& other) const
@@ -126,7 +126,11 @@ public:
         return static_cast<U>(numerator)/static_cast<U>(denominator);
     }
     T ceiling() const { return (numerator + denominator - 1)/denominator; }
-    int hash() const { return numerator*67 + denominator; }
+    UInt32 hash() const
+    {
+        return Hash(typeid(RationalTemplate<T>)).mixin(numerator).
+            mixin(denominator);
+    }
     RationalTemplate frac() const
     {
         return RationalTemplate(numerator%denominator, denominator);

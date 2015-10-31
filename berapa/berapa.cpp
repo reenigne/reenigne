@@ -50,13 +50,7 @@ typedef IBMCGATemplate<void> IBMCGA;
 template<class T> class DMAPageRegistersTemplate;
 typedef DMAPageRegistersTemplate<void> DMAPageRegisters;
 
-class TimeType : public NamedNullary<Type, TimeType>
-{
-public:
-    static String name() { return "Time"; }
-};
-
-template<> Nullary<Type, TimeType> Nullary<Type, TimeType>::_instance;
+Concrete second;
 
 class Tick
 {
@@ -92,10 +86,7 @@ public:
     virtual void site() { }
     virtual void simulateCycle() { }
     virtual String save() const { return String(); }
-    virtual ::Type persistenceType() const
-    {
-        return ::Type();
-    }
+    virtual ::Type persistenceType() const { return ::Type(); }
     String name() const { return _name; }
     virtual void load(const TypedValue& value) { }
     virtual TypedValue initial() const
@@ -322,10 +313,9 @@ public:
         else
             value = initial();
 
-        Value<HashTable<Identifier, TypedValue> > object =
-            value.value<Value<HashTable<Identifier, TypedValue> > >();
+        auto object = value.value<HashTable<Identifier, TypedValue>>();
         for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load((*object)[(*i)->name()]);
+            (*i)->load(object[(*i)->name()]);
     }
     String name() const { return "simulator"; }
 private:
@@ -406,12 +396,12 @@ protected:
         ConfigFile configFile;
         configFile.addDefaultOption("stopSaveState", StringType(), String(""));
         configFile.addDefaultOption("initialState", StringType(), String(""));
-        configFile.addType(TimeType());
+        configFile.addType(second.type());
 
         for (auto i = componentTypes.begin(); i != componentTypes.end(); ++i)
             configFile.addType(*i);
 
-        configFile.addDefaultOption("second", TimeType(), Rational(1));
+        configFile.addDefaultOption("second", second);
 
         configFile.load(File(_arguments[1], CurrentDirectory(), true));
 

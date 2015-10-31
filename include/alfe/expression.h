@@ -461,9 +461,9 @@ private:
                     this->span().throwError("Expression has no member named " +
                         _right.name());
                 }
-                auto m = e.value<Value<HashTable<IdentifierTemplate<T>,
-                    TypedValueTemplate<T>>>>();
-                e = (*m)[_right];
+                auto m = e.value<HashTable<IdentifierTemplate<T>,
+                    TypedValueTemplate<T>>>();
+                e = m[_right];
                 e = TypedValue(e.type(), e.value(), this->span());
             }
             else {
@@ -705,14 +705,14 @@ public:
             if (!FunctionTycoTemplate<T>(lType).valid()) {
                 // What we have on the left isn't a function, try to call its
                 // operator() method instead.
-                IdentifierTemplate<T> i = IdentifierFunctionCall();
+                IdentifierTemplate<T> i = Identifier(OperatorFunctionCall());
                 if (!lType.has(i))
                     span().throwError("Expression is not a function.");
                 LValueTypeTemplate<T> lValueType(lType);
                 if (!lValueType.valid()) {
                     auto m = l.template
-                        value<Value<HashTable<Identifier, TypedValue>>>();
-                    l = (*m)[i];
+                        value<HashTable<Identifier, TypedValue>>();
+                    l = m[i];
                     l = TypedValue(l.type(), l.value(), this->span());
                 }
                 else {
@@ -747,7 +747,7 @@ public:
             List<TypedValue> arguments;
             for (auto p = _arguments.begin(); p != _arguments.end(); ++p)
                 arguments.add(p->evaluate(context));
-            
+
             StructuredType type = t;
             if (!type.valid())
                 ti.span().throwError(

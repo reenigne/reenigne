@@ -28,6 +28,10 @@ public:
     };
 };
 
+template<> Nullary<Function, AddIntegerInteger>
+    Nullary<Function, AddIntegerInteger>::_instance;
+
+
 class SubtractIntegerInteger : public Nullary<Function, SubtractIntegerInteger>
 {
 public:

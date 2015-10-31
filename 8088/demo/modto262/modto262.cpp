@@ -17,7 +17,11 @@ public:
         : _cyclesPerFrame(cyclesPerFrame), _amplitude(amplitude)
     {
     }
-    int hash() const { return _cyclesPerFrame.hash()*67 + _amplitude.hash(); }
+    UInt32 hash() const
+    {
+        return Hash(typeid(NoteDescriptor)).mixin(_cyclesPerFrame.hash()).
+            mixin( _amplitude.hash());
+    }
     bool operator==(const NoteDescriptor& other) const
     {
         return _cyclesPerFrame == other._cyclesPerFrame &&

@@ -134,12 +134,12 @@ public:
                 body(new StructuredConversionBody(to));
             const Array<StructuredType::Member>* fromMembers =
                 fromStructure.members();
-            const HashTable<String, int>* fromNames = fromStructure.names();
+            const HashTable<Identifier, int> fromNames = fromStructure.names();
             const Array<StructuredType::Member>* toMembers =
                 toStructure.members();
-            const HashTable<String, int>* toNames = toStructure.names();
+            const HashTable<Identifier, int> toNames = toStructure.names();
 
-            int n = toNames->count();
+            int n = toNames.count();
             for (int i = 0; i < n; ++i) {
                 StructuredType::Member member = (*toMembers)[i];
                 String name = member.name();
@@ -147,19 +147,19 @@ public:
                 String number(decimal(i));
                 int fromIndex;
                 if (fromNames->hasKey(name)) {
-                    fromIndex = (*fromNames)[name];
+                    fromIndex = fromNames[name];
                     if (fromNames->hasKey(number))
                         return Conversion(
                             new MultipleDefinitionFailure(from, to, i, name));
                 }
                 else
                     if (fromNames->hasKey(number))
-                        fromIndex = (*fromNames)[number];
+                        fromIndex = fromNames[number];
                     else {
                         return Conversion(
                             new MissingDefinitionFailure(from, to, name));
                     }
-                Type fromType = (*fromMembers)[fromIndex].type();
+                Type fromType = fromMembers[fromIndex].type();
                 Conversion c = conversion(fromType, toType);
                 if (!c.valid())
                     return Conversion(
@@ -219,12 +219,11 @@ private:
         }
         TypedValue convert(const TypedValue& value) const
         {
-            auto input = value.value<Value<HashTable<String, TypedValue>>>();
-            Value<HashTable<String, TypedValue>> output;
-            for (HashTable<String, TypedValue>::Iterator i = input->begin();
-                i != input->end(); ++i) {
+            auto input = value.value<HashTable<Identifier, TypedValue>>();
+            HashTable<Identifier, TypedValue> output;
+            for (auto i = input.begin(); i != input.end(); ++i) {
                 String name = i.key();
-                (*output)[name] = _conversions[name]((*input)[name]);
+                output[name] = _conversions[name](input[name]);
             }
             return TypedValue(_type, output, value.span());
         }
@@ -240,14 +239,14 @@ private:
           : ConversionFailureBody(from, to), _i(i), _name(name) { }
         String sub(const TypedValue& value) const
         {
-            auto input = value.value<Value<HashTable<String, TypedValue>>>();
+            auto input = value.value<HashTable<Identifier, TypedValue>>();
             return "Member " + _name + " defined at " +
-                (*input)[_name].span().toString() + " is already defined at " +
-                (*input)[decimal(_i)].span().toString() + ".";
+                input[_name].span().toString() + " is already defined at " +
+                input[decimal(_i)].span().toString() + ".";
         }
     private:
         int _i;
-        String _name;
+        Identifier _name;
     };
     class MissingDefinitionFailure : public ConversionFailureBody
     {
@@ -271,12 +270,12 @@ private:
             _conversion(conversion) { }
         String sub(const TypedValue& value) const
         {
-            auto input = value.value<Value<HashTable<String, TypedValue>>>();
+            auto input = value.value<HashTable<Identifier, TypedValue>>();
             ConstReference<ConversionFailureBody> i = _conversion.
                 _body.referent<ConversionFailureBody>();
             String r = "For child member " + _name;
             if (i != 0)
-                r += ": " + i->toString((*input)[_name]);
+                r += ": " + i->toString(input[_name]);
             return r + ".";
         }
     private:
@@ -293,7 +292,11 @@ private:
         {
             return _from == other._from && _to == other._to;
         }
-        int hash() const { return _from.hash() * 67 + _to.hash(); }
+        UInt32 hash() const
+        {
+            return Hash(typeid(TypePair)).mixin(_from.hash()).
+                mixin(_to.hash());
+        }
     private:
         Type _from;
         Type _to;

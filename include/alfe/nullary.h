@@ -12,6 +12,8 @@ template<class Base, class My = Base> class Nullary : public Base
 public:
     Nullary() : Base(instance()) { }
 protected:
+    Nullary(const Base& other) : Base(other) { }
+    Nullary(typename Base::Body* body) : Base(body) { }
     Nullary(const typename Base::Body* body) : Base(body) { }
     static Nullary instance()
     {
@@ -31,7 +33,7 @@ template<class Base, class My = Base> class NamedNullary
 public:
     NamedNullary() : Nullary(instance()) { }
 protected:
-    NamedNullary(const Nullary& other) : Nullary(other) { }
+    NamedNullary(const Base& other) : Nullary(other) { }
     class Body : public Base::Body
     {
     public:
@@ -41,7 +43,6 @@ protected:
         {
             return dynamic_cast<const Body*>(other) == this;
         }
-        int hash() const { return reinterpret_cast<int>(this); }
     };
 
     friend class Nullary<Base, My>;

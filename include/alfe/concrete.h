@@ -3,8 +3,8 @@
 #ifndef INCLUDED_CONCRETE_H
 #define INCLUDED_CONCRETE_H
 
-#include "alfe/body_with_array.h"
 #include "alfe/rational.h"
+#include "alfe/type.h"
 
 class UnitMismatchException : public Exception
 {
@@ -12,171 +12,143 @@ public:
     UnitMismatchException() : Exception("Unit mismatch") { }
 };
 
-class Concrete
+template<class T> class ConcreteTypeTemplate;
+
+template<class T> class ConcreteTemplate
 {
 public:
-    Concrete() : Handle(Body::create(_bases + 1)) { ++_bases; }
+    ConcreteTemplate() : _type(ConcreteType()), _value(1) { }
 
-    const Concrete& operator+=(const Concrete& other)
+    const ConcreteTemplate& operator+=(const ConcreteTemplate& other)
     {
         check(other);
-        v() += other.v();
+        _value += other._value;
         return *this;
     }
-    const Concrete& operator-=(const Concrete& other)
+    const ConcreteTemplate& operator-=(const ConcreteTemplate& other)
     {
         check(other);
-        v() -= other.v();
+        _value -= other._value;
         return *this;
     }
-    Concrete operator+(const Concrete& other)
+    ConcreteTemplate operator+(const ConcreteTemplate& other)
     {
         check(other);
-        Body* b = body()->copy(other.body()->size());
-        b->_value = v() + other.v();
-        return Concrete(b);
+        return ConcreteTemplate(_type, _value + other._value);
     }
-    Concrete operator-(const Concrete& other)
+    ConcreteTemplate operator-(const ConcreteTemplate& other)
     {
         check(other);
-        Body* b = body()->copy(other.body()->size());
-        b->_value = v() - other.v();
-        return Concrete(b);
+        return ConcreteTemplate(_type, _value - other._value);
     }
-    Concrete operator*(const Concrete& other)
+    ConcreteTemplate operator*(const ConcreteTemplate& other)
     {
-        Body* b = body()->copy(other.body()->size());
-        for (int i = 0; i < b->size(); ++i)
-            b->set(i, body()->get(i) + other.body()->get(i));
-        b->_value = v() * other.v();
-        return Concrete(b);
+        return ConcreteTemplate(_type + other._type, _value * other._value);
     }
-    Concrete operator/(const Concrete& other)
+    ConcreteTemplate operator/(const ConcreteTemplate& other)
     {
-        Body* b = body()->copy(other.body()->size());
-        for (int i = 0; i < b->size(); ++i)
-            b->set(i, body()->get(i) - other.body()->get(i));
-        b->_value = v() / other.v();
-        return Concrete(b);
+        return ConcreteTemplate(_type - other._type, _value / other._value);
     }
-    const Concrete& operator*=(const Concrete& other)
+    const ConcreteTemplate& operator*=(const ConcreteTemplate& other)
     {
-        Body* b = body();
-        int s = b->size();
-        const Body* o = other.as<Body>();
-        if (s >= other.body()->size()) {
-            for (int i = 0; i < s; ++i)
-                b->set(i, b->get(i) + o->get(i));
-            v() *= other.v();
-        }
-        else
-            *this = *this * other;
-    }
-    const Concrete& operator/=(const Concrete& other)
-    {
-        Body* b = body();
-        int s = b->size();
-        const Body* o = other.as<Body>();
-        if (s >= other.body()->size()) {
-            for (int i = 0; i < s; ++i)
-                b->set(i, b->get(i) - o->get(i));
-            v() /= other.v();
-        }
-        else
-            *this = *this / other;
-    }
-    template<class T> const Concrete& operator*=(const T& other)
-    {
-        v() *= other;
+        _type += other._type;
+        _value *= other._value;
         return *this;
     }
-    template<class T> const Concrete& operator/=(const T& other)
+    const ConcreteTemplate& operator/=(const ConcreteTemplate& other)
     {
-        v() /= other;
+        _type -= other._type;
+        _value /= other._value;
         return *this;
     }
-    template<class T> const Concrete& operator*(const T& other)
+    template<class U> const ConcreteTemplate& operator*=(const U& other)
     {
-        Body* b = body()->copy(0);
-        b->_value = v() * other;
-        return Concrete(b);
+        _value *= other;
+        return *this;
     }
-    template<class T> const Concrete& operator/(const T& other)
+    template<class U> const ConcreteTemplate& operator/=(const U& other)
     {
-        Body* b = body()->copy(0);
-        b->_value = v() / other;
-        return Concrete(b);
+        _value /= other;
+        return *this;
+    }
+    template<class U> ConcreteTemplate operator*(const U& other) const
+    {
+        return ConcreteTemplate(_type, _value * other);
+    }
+    template<class U> ConcreteTemplate operator/(const U& other) const
+    {
+        return ConcreteTemplate(_type, _value / other);
     }
     Rational value() const
     {
         if (!dimensionless())
             throw UnitMismatchException();
-        return v();
+        return _value;
     }
-    bool operator<(const Concrete& other) const
+    bool operator<(const ConcreteTemplate& other) const
     {
         check(other);
-        return v() < other.v();
+        return _value < other._value;
     }
-    bool operator>(const Concrete& other) const { return other < *this; }
-    bool operator<=(const Concrete& other) const { return !(other > *this); }
-    bool operator>=(const Concrete& other) const { return !(other < *this); }
-    bool operator==(const Concrete& other) const
+    bool operator>(const ConcreteTemplate& other) const
+    {
+        return other < *this;
+    }
+    bool operator<=(const ConcreteTemplate& other) const
+    {
+        return !(other > *this);
+    }
+    bool operator>=(const ConcreteTemplate& other) const
+    {
+        return !(other < *this);
+    }
+    bool operator==(const ConcreteTemplate& other) const
     {
         if (!commensurable(other))
             return false;
-        return v() == other.v();
+        return _value == other._value;
     }
-    bool operator!=(const Concrete& other) const { return !(other == *this); }
-    bool commensurable(const Concrete& other) const
+    bool operator!=(const ConcreteTemplate& other) const
     {
-        const Body* o = other.as<Body>();
-        for (int i = 0; i < max(body()->size(), o->size()); ++i)
-            if (body()->get(i) != o->get(i))
-                return false;
-        return true;
+        return !(other == *this);
     }
-    bool dimensionless() const
+    bool commensurable(const ConcreteTemplate& other) const
     {
-        for (int i = 0; i < body()->size(); ++i)
-            if (body()->get(i) != 0)
-                return false;
-        return true;
+        return _type == other._type;
     }
-    Concrete reciprocal() const
+    bool dimensionless() const { return _type.dimensionless(); }
+    ConcreteTemplate reciprocal() const
     {
-        Body* b = body()->copy(0);
-        for (int i = 0; i < size(); ++i)
-            b->set(i, -body()->get(i));
-        b->_value = 1 / v();
-        return Concrete(b);
+        return ConcreteTemplate(-_type, 1 / _value);
     }
+    ConcreteTypeTemplate<T> type() const { return _type; }
 
 private:
-    ConcreteType::Body* body() { return _type.as<ConcreteType::Body>(); }
-    const ConcreteType::Body* body() const { return as<ConcreteType::Body>(); }
+    ConcreteTemplate(const ConcreteTypeTemplate<T>& type, const T& value)
+      : _type(type), _value(value) { }
 
-    void check(const Concrete& other) const
+    void check(const ConcreteTemplate& other) const
     {
         if (!commensurable(other))
             throw UnitMismatchException();
     }
-    const Rational& v() const { return body()->_value; }
-    Rational& v() { return body()->_value; }
-    int size() const { return body()->size(); }
 
-    ConcreteType _type;
-    Rational _value;
+    ConcreteTypeTemplate<T> _type;
+    T _value;
 };
 
-template<class T> Concrete operator*(const T& x, const Concrete& y)
+template<class T, class U> ConcreteTemplate<U> operator*(const T& x,
+    const ConcreteTemplate<U>& y)
 {
     return y*x;
 }
 
-template<class T> Concrete operator/(const T& x, const Concrete& y)
+template<class T, class U> ConcreteTemplate<U> operator/(const T& x,
+    const ConcreteTemplate<U>& y)
 {
     return x*y.reciprocal();
 }
+
+typedef ConcreteTemplate<Rational> Concrete;
 
 #endif // INCLUDED_CONCRETE_H

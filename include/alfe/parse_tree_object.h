@@ -8,7 +8,7 @@ class ParseTreeObject : public ConstHandle
 public:
     Span span() const { return body()->span(); }
 
-    class Body : public Handle::Body
+    class Body : public ConstHandle::Body
     {
     public:
         Body(const Span& span) : _span(span) { }

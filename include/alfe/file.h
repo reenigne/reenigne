@@ -67,15 +67,13 @@ public:
     {
         return !operator==(other);
     }
-    int hash() const { return body()->hash(); }
-    class Body : public Handle::Body
+    class Body : public ConstHandle::Body
     {
     public:
         virtual Directory parent() const = 0;
         virtual String name() const = 0;
         virtual String path() const = 0;
         virtual bool isRoot() const = 0;
-        virtual int hash() const = 0;
         virtual int compare(const Body* other) const = 0;
     };
 protected:
@@ -101,7 +99,10 @@ protected:
         DirectoryTemplate<T> parent() const { return _parent; }
         String name() const { return _name; }
         bool isRoot() const { return false; }
-        int hash() const { return _parent.hash()*67 + _name.hash(); }
+        Hash hash() const
+        {
+            return Body::hash().mixin(_parent.hash()).mixin(_name.hash());
+        }
         int compare(const Body* other) const
         {
             auto o = other->as<NamedBody>();
@@ -490,8 +491,6 @@ public:
         }
         bool isRoot() const { return true; }
 
-        int hash() const { return 0; }
-
         int compare(const FileSystemObject::Body* other) const
         {
             const Body* root =
@@ -545,7 +544,7 @@ private:
             return codePoint('A' + _drive) + ":";
         }
 
-        int hash() const { return _drive + 1; }
+        Hash hash() const { return RootDirectory::Body::hash().mixin(_drive); }
 
         int compare(const FileSystemObject::Body* other) const
         {
@@ -578,7 +577,11 @@ private:
         Directory parent() const { return UNCRootDirectory(_server, _share); }
         String path() const { return "\\\\" + _server + "\\" + _share; }
 
-        int hash() const { return _server.hash()*67 + _share.hash(); }
+        Hash hash() const
+        {
+            return RootDirectory::Body::hash().mixin(_server.hash()).
+                mixin(_share.hash());
+        }
 
         int compare(const FileSystemObject::Body* other) const
         {
@@ -970,7 +973,6 @@ private:
         Directory parent() const { return RootDirectory(); }
         String name() const { return path(); }
         bool isRoot() const { return false; }
-        int hash() const { return 27; }
         int compare(const FileSystemObject::Body* other) const
         {
             auto c = other->as<Body>();

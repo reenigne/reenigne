@@ -29,6 +29,9 @@ public:
     };
 };
 
+template<> Nullary<Function, AddRationalRational>
+    Nullary<Function, AddRationalRational>::_instance;
+
 class AddRationalInteger : public Nullary<Function, AddRationalInteger>
 {
 public:
@@ -52,6 +55,9 @@ public:
     };
 };
 
+template<> Nullary<Function, AddRationalInteger>
+    Nullary<Function, AddRationalInteger>::_instance;
+
 class AddIntegerRational : public Nullary<Function, AddIntegerRational>
 {
 public:
@@ -74,6 +80,9 @@ public:
         }
     };
 };
+
+template<> Nullary<Function, AddIntegerRational>
+    Nullary<Function, AddIntegerRational>::_instance;
 
 class SubtractRationalRational
   : public Nullary<Function, SubtractRationalRational>
@@ -99,6 +108,9 @@ public:
     };
 };
 
+template<> Nullary<Function, SubtractRationalRational>
+    Nullary<Function, SubtractRationalRational>::_instance;
+
 class SubtractRationalInteger
   : public Nullary<Function, SubtractRationalInteger>
 {
@@ -122,6 +134,9 @@ public:
         }
     };
 };
+
+template<> Nullary<Function, SubtractRationalInteger>
+    Nullary<Function, SubtractRationalInteger>::_instance;
 
 class SubtractIntegerRational
   : public Nullary<Function, SubtractIntegerRational>
@@ -147,6 +162,9 @@ public:
     };
 };
 
+template<> Nullary<Function, SubtractIntegerRational>
+    Nullary<Function, SubtractIntegerRational>::_instance;
+
 class MultiplyRationalRational
   : public Nullary<Function, MultiplyRationalRational>
 {
@@ -170,6 +188,9 @@ public:
         }
     };
 };
+
+template<> Nullary<Function, MultiplyRationalRational>
+    Nullary<Function, MultiplyRationalRational>::_instance;
 
 class MultiplyRationalInteger
     : public Nullary<Function, MultiplyRationalInteger>
@@ -195,6 +216,9 @@ public:
     };
 };
 
+template<> Nullary<Function, MultiplyRationalInteger>
+    Nullary<Function, MultiplyRationalInteger>::_instance;
+
 class MultiplyIntegerRational
     : public Nullary<Function, MultiplyIntegerRational>
 {
@@ -219,6 +243,9 @@ public:
     };
 };
 
+template<> Nullary<Function, MultiplyIntegerRational>
+    Nullary<Function, MultiplyIntegerRational>::_instance;
+
 class DivideRationalRational : public Nullary<Function, DivideRationalRational>
 {
 public:
@@ -241,6 +268,9 @@ public:
         }
     };
 };
+
+template<> Nullary<Function, DivideRationalRational>
+    Nullary<Function, DivideRationalRational>::_instance;
 
 class DivideRationalInteger : public Nullary<Function, DivideRationalInteger>
 {
@@ -265,6 +295,9 @@ public:
     };
 };
 
+template<> Nullary<Function, DivideRationalInteger>
+    Nullary<Function, DivideRationalInteger>::_instance;
+
 class DivideIntegerRational : public Nullary<Function, DivideIntegerRational>
 {
 public:
@@ -288,6 +321,9 @@ public:
     };
 };
 
+template<> Nullary<Function, DivideIntegerRational>
+    Nullary<Function, DivideIntegerRational>::_instance;
+
 class DivideIntegerInteger : public Nullary<Function, DivideIntegerInteger>
 {
 public:
@@ -310,5 +346,8 @@ public:
         }
     };
 };
+
+template<> Nullary<Function, DivideIntegerInteger>
+    Nullary<Function, DivideIntegerInteger>::_instance;
 
 #endif // INCLUDED_RATIONAL_FUNCTIONS_H

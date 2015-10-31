@@ -5,7 +5,6 @@
 
 #include "alfe/colour_space.h"
 #include "alfe/vectors.h"
-#include "alfe/body_with_array.h"
 
 template<class Pixel> class Bitmap;
 
@@ -38,8 +37,7 @@ typedef RawFileFormatTemplate<SRGB> RawFileFormat;
 template<class T> class RawFileFormatTemplate : public BitmapFileFormat<T>
 {
 public:
-    RawFileFormatTemplate(Vector size)
-      : BitmapFileFormat(new Body(size)) { }
+    RawFileFormatTemplate(Vector size) : BitmapFileFormat(new Body(size)) { }
 private:
     class Body : public BitmapFileFormat::Body
     {
@@ -77,22 +75,16 @@ private:
 
 // A Bitmap is a value class encapsulating a 2D image. Its width, height,
 // stride and pixel format are immutable but the pixels themselves are not.
-template<class Pixel> class Bitmap : public Handle
+template<class Pixel> class Bitmap : private Array<Pixel>
 {
-    class Body : public BodyWithArray<Body, Byte>
-    {
-    public:
-        Body() { }
-        Byte* topLeft() { return pointer(); }
-    };
 public:
     Bitmap() : _size(0, 0) { }
     Bitmap(Vector size)
     {
         _stride = size.x*sizeof(Pixel);
         _size = size;
-        Handle::operator=(Body::create(_stride * size.y));
-        _topLeft = body()->topLeft();
+        allocate(size.x*size.y);
+        _topLeft = reinterpret_cast<Byte*>(&(*this)[0]);
     }
 
     // Convert from one pixel format to another.
@@ -140,7 +132,7 @@ public:
     // subBitmap().clone().
     Bitmap subBitmap(Vector topLeft, Vector size)
     {
-        return Bitmap(body(),
+        return Bitmap(*this,
             _topLeft + topLeft.x*sizeof(Pixel) + topLeft.y*_stride, size,
             _stride);
     }
@@ -190,9 +182,8 @@ public:
     }
 
 private:
-    Bitmap(const Body* body, Byte* topLeft, Vector size, int stride)
-      : Handle(body), _topLeft(topLeft), _size(size), _stride(stride)
-    { }
+    Bitmap(Array<Pixel> array, Byte* topLeft, Vector size, int stride)
+      : Array(array), _topLeft(topLeft), _size(size), _stride(stride) { }
 
     Vector _size;
     Byte* _topLeft;

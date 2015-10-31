@@ -31,9 +31,9 @@ public:
         }
         return ComponentTemplate<T>::set(name, value);
     }
-    TypedValue getValue(Identifier name)
+    TypedValue getValue(Identifier i)
     {
-        if (name == "bus")
+        if (i.name() == "bus")
             return _connector.getValue();
         return TypedValue();
     }

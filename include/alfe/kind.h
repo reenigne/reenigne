@@ -24,13 +24,12 @@ public:
         return body()->equals(other.body());
     }
     bool operator!=(const Kind& other) const { return !operator==(other); }
-    int hash() const { return body()->hash(); }
     Kind instantiate(Kind argument) const
     {
         return body()->instantiate(argument);
     }
 protected:
-    class Body : public Handle::Body
+    class Body : public ConstHandle::Body
     {
     public:
         virtual String toString() const = 0;
@@ -38,7 +37,6 @@ protected:
         {
             return this == other;
         }
-        virtual int hash() const { return reinterpret_cast<intptr_t>(this); }
         virtual Kind instantiate(Kind argument) const = 0;
     };
     Kind(const Body* body) : ConstHandle(body) { }
@@ -129,10 +127,10 @@ protected:
             return _firstParameterKind == o->_firstParameterKind &&
                 _restParameterKind == o->_restParameterKind;
         }
-        int hash() const
+        Hash hash() const
         {
-            return (_firstParameterKind.hash()*67 + 2)*67 +
-                _restParameterKind.hash();
+            return Kind::Body::hash().mixin(_firstParameterKind.hash()).
+                mixin((_restParameterKind.hash()));
         }
         Kind first() const { return _firstParameterKind; }
         Kind rest() const { return _restParameterKind; }

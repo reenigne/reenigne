@@ -45,9 +45,9 @@ public:
     {
         // Default initial value is the result of converting the empty
         // structured type to the component type.
-        return TypedValue(StructuredType(String(),
-            List<StructuredType::Member>()),
-            Value<HashTable<Identifier, TypedValue>>()).convertTo(type());
+        return TypedValue(
+            StructuredType(String(), List<StructuredType::Member>()),
+            HashTable<Identifier, TypedValue>()).convertTo(type());
     }
     virtual Rational<int> cyclesPerSecond() const
     {
@@ -474,12 +474,11 @@ private:
                 why);
             if (!stv.valid())
                 return stv;
-            auto romMembers =
-                stv.value<Value<HashTable<Identifier, TypedValue>>>();
-            int mask = (*romMembers)["mask"].value<int>();
-            int address = (*romMembers)["address"].value<int>();
-            String file = (*romMembers)["fileName"].value<String>();
-            int offset = (*romMembers)["fileOffset"].value<int>();
+            auto romMembers = stv.value<HashTable<Identifier, TypedValue>>();
+            int mask = romMembers["mask"].value<int>();
+            int address = romMembers["address"].value<int>();
+            String file = romMembers["fileName"].value<String>();
+            int offset = romMembers["fileOffset"].value<int>();
             return TypedValue(ROMDataType(),
                 Any(ROMData(mask, address, file, offset)), value.span());
         }
@@ -623,10 +622,10 @@ public:
     }
     void load(const TypedValue& value)
     {
-        Value<HashTable<Identifier, TypedValue> > object =
-            value.value<Value<HashTable<Identifier, TypedValue> > >();
+        HashTable<Identifier, TypedValue> object =
+            value.value<HashTable<Identifier, TypedValue>>();
         for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load((*object)[(*i)->name()]);
+            (*i)->load(object[(*i)->name()]);
     }
     IBMCGA _cga;
 private:

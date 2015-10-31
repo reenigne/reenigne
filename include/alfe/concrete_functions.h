@@ -6,7 +6,7 @@
 #include "alfe/function.h"
 #include "alfe/concrete.h"
 
-class AddConcreteConcrete : public Nullary<Function, AddConcreteConcrete>
+class AddConcreteConcrete : public Nullary<Funco, AddConcreteConcrete>
 {
 public:
     class Body : public Nullary::Body
@@ -29,8 +29,11 @@ public:
     };
 };
 
+template<> Nullary<Funco, AddConcreteConcrete>
+    Nullary<Funco, AddConcreteConcrete>::_instance;
+
 class SubtractConcreteConcrete
-  : public Nullary<Function, SubtractConcreteConcrete>
+  : public Nullary<Funco, SubtractConcreteConcrete>
 {
 public:
     class Body : public Nullary::Body
@@ -53,8 +56,11 @@ public:
     };
 };
 
+template<> Nullary<Funco, SubtractConcreteConcrete>
+    Nullary<Funco, SubtractConcreteConcrete>::_instance;
+
 class MultiplyConcreteConcrete
-    : public Nullary<Function, MultiplyConcreteConcrete>
+  : public Nullary<Funco, MultiplyConcreteConcrete>
 {
 public:
     class Body : public Nullary::Body
@@ -77,8 +83,11 @@ public:
     };
 };
 
-class MultiplyConcreteInteger
-    : public Nullary<Function, MultiplyConcreteInteger>
+template<> Nullary<Funco, MultiplyConcreteConcrete>
+    Nullary<Funco, MultiplyConcreteConcrete>::_instance;
+
+class MultiplyConcreteAbstract
+  : public Nullary<Funco, MultiplyConcreteAbstract>
 {
 public:
     class Body : public Nullary::Body
@@ -101,32 +110,11 @@ public:
     };
 };
 
-class MultiplyConcreteRational
-    : public Nullary<Function, MultiplyConcreteRational>
-{
-public:
-    class Body : public Nullary::Body
-    {
-    public:
-        TypedValue evaluate(List<TypedValue> arguments) const
-        {
-            auto i = arguments.begin();
-            Concrete l = i->value<Concrete>();
-            ++i;
-            return TypedValue(l * i->value<Rational>());
-        }
-        Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
-        {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), ConcreteType(), RationalType()),
-                this);
-        }
-    };
-};
+template<> Nullary<Funco, MultiplyConcreteAbstract>
+    Nullary<Funco, MultiplyConcreteAbstract>::_instance;
 
-class MultiplyIntegerConcrete
-    : public Nullary<Function, MultiplyIntegerConcrete>
+class MultiplyAbstractConcrete
+  : public Nullary<Funco, MultiplyAbstractConcrete>
 {
 public:
     class Body : public Nullary::Body
@@ -149,31 +137,10 @@ public:
     };
 };
 
-class MultiplyRationalConcrete
-    : public Nullary<Function, MultiplyRationalConcrete>
-{
-public:
-    class Body : public Nullary::Body
-    {
-    public:
-        TypedValue evaluate(List<TypedValue> arguments) const
-        {
-            auto i = arguments.begin();
-            Rational l = i->value<Rational>();
-            ++i;
-            return TypedValue(l * i->value<Concrete>());
-        }
-        Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
-        {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), RationalType(), ConcreteType()),
-                this);
-        }
-    };
-};
+template<> Nullary<Funco, MultiplyAbstractConcrete>
+    Nullary<Funco, MultiplyAbstractConcrete>::_instance;
 
-class DivideConcreteConcrete : public Nullary<Function, DivideConcreteConcrete>
+class DivideConcreteConcrete : public Nullary<Funco, DivideConcreteConcrete>
 {
 public:
     class Body : public Nullary::Body
@@ -196,7 +163,10 @@ public:
     };
 };
 
-class DivideConcreteInteger : public Nullary<Function, DivideConcreteInteger>
+template<> Nullary<Funco, DivideConcreteConcrete>
+    Nullary<Funco, DivideConcreteConcrete>::_instance;
+
+class DivideConcreteAbstract : public Nullary<Funco, DivideConcreteAbstract>
 {
 public:
     class Body : public Nullary::Body
@@ -219,30 +189,10 @@ public:
     };
 };
 
-class DivideConcreteRational : public Nullary<Function, DivideConcreteRational>
-{
-public:
-    class Body : public Nullary::Body
-    {
-    public:
-        TypedValue evaluate(List<TypedValue> arguments) const
-        {
-            auto i = arguments.begin();
-            Concrete l = i->value<Concrete>();
-            ++i;
-            return TypedValue(l / i->value<Rational>());
-        }
-        Identifier identifier() const { return OperatorDivide(); }
-        TypedValue typedValue() const
-        {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), ConcreteType(), RationalType()),
-                this);
-        }
-    };
-};
+template<> Nullary<Funco, DivideConcreteAbstract>
+    Nullary<Funco, DivideConcreteAbstract>::_instance;
 
-class DivideRationalConcrete : public Nullary<Function, DivideRationalConcrete>
+class DivideAbstractConcrete : public Nullary<Funco, DivideAbstractConcrete>
 {
 public:
     class Body : public Nullary::Body
@@ -264,5 +214,8 @@ public:
         }
     };
 };
+
+template<> Nullary<Funco, DivideAbstractConcrete>
+    Nullary<Funco, DivideAbstractConcrete>::_instance;
 
 #endif // INCLUDED_CONCRETE_FUNCTIONS_H

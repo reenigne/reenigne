@@ -12,7 +12,7 @@
 #include "alfe/identifier.h"
 #include "alfe/vectors.h"
 #include "alfe/rational.h"
-#include "alfe/body_with_array.h"
+#include "alfe/concrete.h"
 
 template<class T> class TemplateTemplate;
 typedef TemplateTemplate<void> Template;
@@ -47,7 +47,6 @@ public:
         return body()->equals(other.body());
     }
     bool operator!=(const Tyco& other) const { return !operator==(other); }
-    int hash() const { return body()->hash(); }
     Kind kind() const { return body()->kind(); }
 protected:
     class Body : public ConstHandle::Body
@@ -57,7 +56,6 @@ protected:
         virtual String toString() const = 0;
         virtual bool equals(const Body* other) const { return this == other; }
         virtual Kind kind() const = 0;
-        virtual int hash() const { return reinterpret_cast<intptr_t>(this); }
 
         // Type
         virtual TypedValueTemplate<T> tryConvert(
@@ -205,6 +203,10 @@ private:
 };
 
 template<class T> Type typeFromCompileTimeType() { return T::type(); }
+template<class T> Type typeFromValue(const T&)
+{
+    return typeFromCompileTimeType<T>();
+}
 
 template<class T> class TypedValueTemplate
 {
@@ -213,7 +215,7 @@ public:
     TypedValueTemplate(Type type, Any defaultValue = Any(), Span span = Span())
       : _type(type), _value(defaultValue), _span(span) { }
     template<class U> TypedValueTemplate(const U& value, Span span = Span())
-      : _type(typeFromCompileTimeType<U>()), _value(value), _span(span) { }
+      : _type(typeFromValue(value)), _value(value), _span(span) { }
     Type type() const { return _type; }
     Any value() const { return _value; }
     template<class U> U value() const { return _value.value<U>(); }
@@ -370,10 +372,7 @@ protected:
             return o != 0 && _parent->equals(o->_parent) &&
                 _argument == o->_argument;
         }
-        int hash() const
-        {
-            return (_parent->hash()*67 + 5)*67 + _argument.hash();
-        }
+        Hash hash() const { return Body::hash().mixin(_argument.hash()); }
         const Body* parent() const { return _parent; }
         Tyco argument() const { return _argument; }
     private:
@@ -387,10 +386,11 @@ protected:
 class ArrayType : public Type
 {
 public:
-    ArrayType(const Type& type) : Type(type.as<Body>()) { }
+    ArrayType(const Type& type) : Type(type) { }
     ArrayType(const Type& contained, const Type& indexer)
       : Type(new Body(contained, indexer)) { }
-    ArrayType(const Body* body) : Type(body) { }
+    bool valid() const { return body() != 0; }
+//    ArrayType(const Body* body) : Type(body) { }
     Type contained() const { return body()->contained(); }
     Type indexer() const { return body()->indexer(); }
 
@@ -410,9 +410,10 @@ public:
                 return false;
             return _contained == o->_contained && _indexer == o->_indexer;
         }
-        int hash() const
+        Hash hash() const
         {
-            return (_contained.hash()*67 + 3)*67 + _indexer.hash();
+            return Type::Body::hash().mixin(_contained.hash()).
+                mixin(_indexer.hash());
         }
         Type contained() const { return _contained; }
         Type indexer() const { return _indexer; }
@@ -471,7 +472,10 @@ private:
                 return false;
             return _contained == o->_contained;
         }
-        int hash() const { return _contained.hash()*67 + 4; }
+        Hash hash() const
+        {
+            return Type::Body::hash().mixin(_contained.hash());
+        }
         Type contained() const { return _contained; }
     private:
         Type _contained;
@@ -507,23 +511,24 @@ template<class T> class TupleTycoTemplate
 {
 public:
     TupleTycoTemplate() : NamedNullary(instance()) { }
-    TupleTycoTemplate(const Tyco& other) : NamedNullary(other.as<Body>()) { }
+    TupleTycoTemplate(const Tyco& other) : NamedNullary(other) { }
+    bool valid() const { return body() == 0; }
     static String name() { return "Tuple"; }
-    bool isUnit() { return body() == 0; }
+    bool isUnit() { return *this == TupleTyco(); }
     Tyco instantiate(const Tyco& argument) const
     {
         return _body->instantiate(argument);
     }
     Type lastMember()
     {
-        const NonUnitBody* i = body();
+        auto i = as<NonUnitBody>();
         if (i == 0)
             return Type();
         return i->contained();
     }
     TupleTyco firstMembers()
     {
-        const NonUnitBody* i = body();
+        auto i = as<NonUnitBody>();
         if (i == 0)
             return TupleTyco();
         return i->parent();
@@ -538,12 +543,7 @@ public:
             return "(" + toString2(&needComma) + ")";
         }
         virtual String toString2(bool* needComma) const { return ""; }
-        bool equals(const Body* other) const
-        {
-            return this == other;
-        }
         Kind kind() const { return VariadicTemplateKind(); }
-        int hash() const { return reinterpret_cast<intptr_t>(this); }
 
         // Type
         TypedValue tryConvert(const TypedValue& value, String* reason) const
@@ -586,11 +586,11 @@ private:
     class NonUnitBody : public Body
     {
     public:
-        NonUnitBody(const Body* parent, Type contained)
+        NonUnitBody(TupleTyco parent, Type contained)
           : _parent(parent), _contained(contained) { }
         String toString2(bool* needComma) const
         {
-            String s = _parent->toString2(needComma);
+            String s = _parent.toString2(needComma);
             if (*needComma)
                 s += ", ";
             *needComma = true;
@@ -599,17 +599,19 @@ private:
         bool equals(const Body* other) const
         {
             auto o = other->as<NonUnitBody>();
-            return _parent->equals(o->_parent) && _contained == o->_contained;
+            if (o == 0)
+                return false;
+            return _parent == o->_parent && _contained == o->_contained;
         }
-        int hash() const
+        Hash hash() const
         {
-            return (_parent->hash()*67 + 6)*67 + _contained.hash();
+            return Body::hash().mixin(_parent.hash()).mixin(_contained.hash());
         }
 
         // Type
         TypedValue tryConvert(const TypedValue& value, String* reason) const
         {
-            if (_parent == TupleTyco().body())
+            if (_parent == TupleTyco())
                 return _contained.tryConvert(value, reason);
             if (this == value.type().body())
                 return value;
@@ -618,7 +620,7 @@ private:
         TypedValue tryConvertTo(const Type& to, const TypedValue& value,
             String* reason) const
         {
-            if (_parent == TupleTyco().body())
+            if (_parent == TupleTyco())
                 return _contained.tryConvertTo(to, value, reason);
             if (this == to.body())
                 return value;
@@ -635,24 +637,31 @@ private:
             int n = r.numerator;
             if (s.get() != -1)
                 return false;
-            const NonUnitBody* p = this;
+            TupleTyco p(this);
             do {
+                if (p.isUnit())
+                    return false;
                 if (n == 1)
                     return true;
                 --n;
-                p = dynamic_cast<const NonUnitBody*>(p->_parent);
-                if (p == 0)
-                    return false;
+                p = p.parent();
             } while (true);
         }
-        const Body* parent() const { return _parent; }
         Type contained() const { return _contained; }
+        TupleTyco parent() const { return _parent; }
     private:
-        const Body* _parent;
+        TupleTyco _parent;
         Type _contained;
     };
 private:
-    const NonUnitBody* body() const { return as<NonUnitBody>(); }
+    String toString2(bool* needComma) const
+    {
+        return body()->toString2(needComma);
+    }
+    const Body* body() const { return as<Body>(); }
+    TupleTyco parent() const { return as<NonUnitBody>()->parent(); }
+    friend class Body;
+    friend class NonUnitBody;
 };
 
 template<> Nullary<Tyco, TupleTyco> Nullary<Tyco, TupleTyco>::_instance;
@@ -674,7 +683,10 @@ private:
                 return false;
             return _referent == o->_referent;
         }
-        int hash() const { return _referent.hash()*67 + 1; }
+        Hash hash() const
+        {
+            return Type::Body::hash().mixin(_referent.hash());
+        }
     private:
         Type _referent;
     };
@@ -724,11 +736,10 @@ public:
       : Tyco(FunctionTyco(FunctionTyco(FunctionTemplateTemplate<T>().
             instantiate(returnType)).instantiate(argumentType1)).
             instantiate(argumentType2).body()) { }
-    int argumentsHash() const { return body()->argumentsHash(); }
-    bool argumentsMatch(const List<TypedValue>& arguments) const
-    {
-        return body()->argumentsMatch(arguments.begin());
-    }
+    //bool argumentsMatch(const List<TypedValue>& arguments) const
+    //{
+    //    return body()->argumentsMatch(arguments.begin());
+    //}
     Tyco instantiate(const Tyco& argument) const
     {
         return body()->instantiate(argument);
@@ -778,8 +789,7 @@ private:
             _instantiations.add(argument, t);
             return t;
         }
-        virtual int argumentsHash() const = 0;
-        virtual bool argumentsMatch(List<Type>::Iterator i)
+        //virtual bool argumentsMatch(List<Type>::Iterator i)
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -798,20 +808,19 @@ private:
                 return false;
             return (_returnType != o->_returnType);
         }
-        int hash() const { return _returnType.hash()*67 + 2; }
-        int argumentsHash() const { return 2; }
-        bool argumentsMatch(List<Type>::Iterator i) const { return i.end(); }
+        Hash hash() const { return Body::hash().mixin(_returnType.hash()); }
+        //bool argumentsMatch(List<Type>::Iterator i) const { return i.end(); }
     private:
         Type _returnType;
     };
     class ArgumentBody : public Body
     {
     public:
-        ArgumentBody(const Body* parent, const Type& argumentType)
+        ArgumentBody(FunctionTyco parent, const Type& argumentType)
           : _parent(parent), _argumentType(argumentType) { }
         String toString2(bool* needComma) const
         {
-            String s = _parent->toString2(needComma);
+            String s = _parent.toString2(needComma);
             if (*needComma)
                 s += ", ";
             *needComma = true;
@@ -822,26 +831,29 @@ private:
             auto o = other->as<ArgumentBody>();
             if (o == 0)
                 return false;
-            return _parent->equals(o->_parent) &&
-                _argumentType == o->_argumentType;
+            return _parent == o->_parent && _argumentType == o->_argumentType;
         }
-        int hash() const { return _parent->hash()*67 + _argumentType.hash(); }
-        int argumentsHash() const
+        Hash hash() const
         {
-            return _parent->argumentsHash()*67 + _argumentType.hash();
+            return Body::hash().mixin(_parent.hash()).
+                mixin(_argumentType.hash());
         }
-        bool argumentsMatch(List<Type>::Iterator i) const
-        {
-            if (*i != _argumentType)
-                return false;
-            ++i;
-            return _parent->argumentsMatch(i);
-        }
+        //bool argumentsMatch(List<Type>::Iterator i) const
+        //{
+        //    if (*i != _argumentType)
+        //        return false;
+        //    ++i;
+        //    return _parent.argumentsMatch(i);
+        //}
     private:
-        const Body* _parent;
+        FunctionTyco _parent;
         Type _argumentType;
     };
     const Body* body() const { return as<Body>(); }
+    String toString2(bool* needComma) const
+    {
+        return body()->toString2(needComma);
+    }
 };
 
 template<class T> class FunctionTemplateTemplate
@@ -879,6 +891,7 @@ public:
     class Value
     {
     public:
+        Value() { }
         template<class T> Value(String name, const T& value)
             : _name(name), _value(value)
         { }
@@ -891,7 +904,7 @@ public:
     };
 
     EnumerationType(const Type& other) : Type(other.as<Body>()) { }
-    EnumerationType(String name, List<Value> values) 
+    EnumerationType(String name, List<Value> values)
       : Type(new Body(name, values)) { }
     const Array<Value>* values() const { return as<Body>()->values(); }
 private:
@@ -926,7 +939,7 @@ private:
                 return false;
             return _n == o->_n;
         }
-        int hash() const { return 7*67 + _n; }
+        Hash hash() const { return Type::Body::hash().mixin(_n); }
 
     private:
         int _n;
@@ -945,6 +958,7 @@ public:
     class Member
     {
     public:
+        Member() { }
         Member(String name, Type type) : _name(name), _default(type) { }
         Member(String name, TypedValue defaultValue)
           : _name(name), _default(defaultValue) { }
@@ -988,7 +1002,7 @@ public:
     {
         return TypedValue(StructuredType(String(),
             List<StructuredType::Member>()),
-            Value<HashTable<Identifier, TypedValue>>());
+            HashTable<Identifier, TypedValue>());
     }
 protected:
     class Body : public Type::Body
@@ -1004,7 +1018,7 @@ protected:
             }
         }
         String toString() const { return _name; }
-        const HashTable<Identifier, int>* names() const { return &_names; }
+        const HashTable<Identifier, int> names() const { return _names; }
         const Array<Member>* members() const { return &_members; }
 
         TypedValue tryConvertTo(const Type& to, const TypedValue& value,
@@ -1012,9 +1026,8 @@ protected:
         {
             const Body* toBody = to.as<Body>();
             if (toBody != 0) {
-                auto input =
-                    value.value<Value<HashTable<Identifier, TypedValue>>>();
-                Value<HashTable<Identifier, TypedValue>> output;
+                auto input = value.value<HashTable<Identifier, TypedValue>>();
+                HashTable<Identifier, TypedValue> output;
 
                 // First take all named members in the RHS and assign them to
                 // the corresponding named members in the LHS.
@@ -1041,11 +1054,11 @@ protected:
                         return TypedValue();
                     }
                     // If one of the child conversions fails, fail.
-                    TypedValue v = tryConvertHelper((*input)[name],
+                    TypedValue v = tryConvertHelper(input[name],
                         &toBody->_members[j], why);
                     if (!v.valid())
                         return TypedValue();
-                    (*output)[name] = v;
+                    output[name] = v;
                     assigned[j] = true;
                 }
                 // Then take all unnamed arguments in the RHS and in LTR order
@@ -1066,11 +1079,11 @@ protected:
                     const Member* toMember = &toBody->_members[j];
                     ++j;
                     TypedValueTemplate<T> v = tryConvertHelper(
-                        (*input)[Identifier(String::Decimal(i))], toMember,
+                        input[Identifier(String::Decimal(i))], toMember,
                         why);
                     if (!v.valid())
                         return TypedValue();
-                    (*output)[toMember->name()] = v;
+                    output[toMember->name()] = v;
                 }
                 // Make sure any unassigned members have defaults.
                 for (;j < toCount; ++j) {
@@ -1083,26 +1096,25 @@ protected:
                         return TypedValue();
                     }
                     else
-                        (*output)[toMember->name()] = toMember->defaultValue();
+                        output[toMember->name()] = toMember->defaultValue();
                 }
                 return TypedValue(Type(this), output, value.span());
             }
             ArrayType toArray = to;
             if (toArray.valid()) {
                 Type contained = toArray.contained();
-                auto input =
-                    value.value<Value<HashTable<Identifier, TypedValue>>>();
+                auto input = value.value<HashTable<Identifier, TypedValue>>();
                 List<TypedValue> results;
-                for (int i = 0; i < input->count(); ++i) {
-                    String name = String::Decimal(i);
-                    if (!input->hasKey(name)) {
+                for (int i = 0; i < input.count(); ++i) {
+                    String name = decimal(i);
+                    if (input.hasKey(name)) {
                         *why = String("Array cannot be initialized with a "
                             "structured value containing named members");
                         return TypedValue();
                     }
                     String reason;
                     TypedValue v =
-                        (*input)[name].tryConvertTo(contained, &reason);
+                        input[name].tryConvertTo(contained, &reason);
                     if (!v.valid()) {
                         *why = String("Cannot convert child member ") + name;
                         if (!reason.empty())
@@ -1115,13 +1127,12 @@ protected:
             }
             TupleTyco toTuple = to;
             if (toTuple.valid()) {
-                auto input =
-                    value.value<Value<HashTable<Identifier, TypedValue>>>();
+                auto input = value.value<HashTable<Identifier, TypedValue>>();
                 List<TypedValue> results;
                 int count = _members.count();
-                for (int i = input->count() - 1; i >= 0; --i) {
+                for (int i = input.count() - 1; i >= 0; --i) {
                     String name = String::Decimal(i);
-                    if (!input->hasKey(name)) {
+                    if (!input.hasKey(name)) {
                         *why = String("Tuple cannot be initialized with a "
                             "structured value containing named members");
                         return TypedValue();
@@ -1130,7 +1141,7 @@ protected:
                         return String("Tuple type does not have enough members"
                             " to be initialized with this structured value.");
                     String reason;
-                    TypedValue v = (*input)[name].
+                    TypedValue v = input[name].
                         tryConvertTo(toTuple.lastMember(), &reason);
                     if (!v.valid()) {
                         *why = String("Cannot convert child member ") + name;
@@ -1261,42 +1272,55 @@ template<> Nullary<Type, RationalType> Nullary<Type, RationalType>::_instance;
 // constructor takes no arguments, but constructs a different dimension each
 // time, so care must be taken to keep track of instantiations and use the
 // correct one.
-class ConcreteType : public Type
+template<class T> class ConcreteTypeTemplate : public Type
 {
-    ConcreteType() : Type(Body::create(_bases)) { ++_bases; }
-
-private:
-    class BodyHead : public Type::Body
+    class BaseBody : public Type::Body
     {
-    };
-    class Body : public BodyWithArray<BodyHead, int>
-    {
+        typedef Array<int>::Body<BaseBody> Body;
     public:
-        Body()
-        {
-            for (int i = 0; i < _size; ++i)
-                (*this)[i] = 0;
-        }
         String toString() const { return "Concrete"; }
         bool equals(Type::Body* other) const
         {
-            throw NotYetImplementedException();
+            auto b = other->as<Body>();
+            for (int i = 0; i < max(size(), b->size()); ++i)
+                if ((*body())[i] != (*b)[i])
+                    return false;
+            return true;
         }
-        int hash() const
+        Hash hash() const
         {
-            throw NotYetImplementedException();
+            Hash h = Type::Body::hash();
+            int i;
+            for (i = size() - 1; i >= 0; --i)
+                if ((*body())[i] != 0)
+                    break;
+            for (; i >= 0; --i)
+                h.mixin((*body())[i]);
+            return h;
+        }
+        bool dimensionless() const
+        {
+            for (int i = 0; i < size(); ++i)
+                if ((*body())[i] != 0)
+                    return false;
+            return true;
         }
         TypedValue tryConvertTo(const Type& to, const TypedValue& value,
             String* reason) const
         {
-            if (this == to.body())
-                return value;
-            Concrete c = value.value<Concrete>();
-            if (!c.dimensionless()) {
+            ConcreteType c(to);
+            if (c.valid()) {
+                if (equals(c.body()))
+                    return value;
+                *reason = String("Value is not commensurate");
+                return TypedValue();
+            }
+            if (!dimensionless()) {
                 *reason = String("Value is denominate");
                 return TypedValue();
             }
-            Rational r = c.value();
+            ConcreteTemplate<T> v = value.value<ConcreteTemplate<T>>();
+            Rational r = v.value();
             if (to == DoubleType())
                 return r.value<double>();
             if (to == RationalType())
@@ -1309,28 +1333,65 @@ private:
             return TypedValue();
         }
     private:
-        int get(int i) const
-        {
-            if (i >= _size)
-                return 0;
-            return (*this)[i];
-        }
-        Body* copy(int minSize) const
-        {
-            int s = max(minSize, _size);
-            Body* b = create(s);
-            for (int i = 0; i < s; ++i)
-                b->set(i, get(i));
-            return b;
-        }
-        void set(int i, int v) { (*this)[i] = v; }
-        int size() const { return _size; }
-
-        friend class Concrete;
+        Body* body() { return as<Body>(); }
+        const Body* body() const { return as<Body>(); }
+        int size() const { return body()->size(); }
     };
+    typedef Array<int>::Body<BaseBody> Body;
+
     static int _bases;
-    friend class Concrete;
+public:
+    ConcreteTypeTemplate() : Type(Body::create(_bases, _bases))
+    {
+        for (int i = 0; i < size(); ++i)
+            element(i) = 0;
+        element(size() - 1) = 1;
+        ++_bases;
+    }
+    ConcreteTypeTemplate(const Type& other) : Type(other) { }
+    bool valid() const { return body() != 0; }
+    bool dimensionless() const { return body()->dimensionless(); }
+    const ConcreteTypeTemplate& operator+=(const ConcreteTypeTemplate& other)
+    {
+        *this = *this + other;
+        return *this;
+    }
+    const ConcreteTypeTemplate& operator-=(const ConcreteTypeTemplate& other)
+    {
+        *this = *this - other;
+        return *this;
+    }
+    ConcreteTypeTemplate operator-() const
+    {
+        ConcreteTypeTemplate t(size());
+        for (int i = 0; i < size(); ++i)
+            t.element(i) = -element(i);
+        return t;
+    }
+    ConcreteTypeTemplate operator+(const ConcreteTypeTemplate& other) const
+    {
+        ConcreteTypeTemplate t(size());
+        for (int i = 0; i < size(); ++i)
+            t.element(i) = -element(i);
+        return t;
+    }
+    ConcreteTypeTemplate operator-(const ConcreteTypeTemplate& other) const
+    {
+        ConcreteTypeTemplate t(size());
+        for (int i = 0; i < size(); ++i)
+            t.element(i) = -element(i);
+        return t;
+    }
+private:
+    const Body* body() const { return as<Body>(); }
+    Body* body() { return const_cast<Body*>(as<Body>()); }
+    ConcreteTypeTemplate(int bases) : Type(Body::create(bases, bases)) { }
+    int size() const { return body()->size(); }
+    int& element(int i) { return (*body())[i]; }
+    int element(int i) const { return i >= size() ? 0 : (*body())[i]; }
 };
+
+typedef ConcreteTypeTemplate<Rational> ConcreteType;
 
 int ConcreteType::_bases = 0;
 
@@ -1362,5 +1423,6 @@ template<> Type typeFromCompileTimeType<bool>() { return BooleanType(); }
 template<> Type typeFromCompileTimeType<Vector>() { return VectorType(); }
 template<> Type typeFromCompileTimeType<Rational>() { return RationalType(); }
 template<> Type typeFromCompileTimeType<double>() { return DoubleType(); }
+template<> Type typeFromValue<Concrete>(const Concrete& c) { return c.type(); }
 
 #endif // INCLUDED_TYPE_H

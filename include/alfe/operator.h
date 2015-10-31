@@ -17,18 +17,13 @@ public:
             return *this;
         return Operator();
     }
-    int hash() const
-    {
-        // All the bodies are nullary
-        return reinterpret_cast<int>(body());
-    }
     bool operator==(const Operator& other) const
     {
         // All the bodies are nullary
         return body() == other.body();
     }
 protected:
-    class Body : public Handle::Body
+    class Body : public ConstHandle::Body
     {
     public:
         virtual String toString() const = 0;

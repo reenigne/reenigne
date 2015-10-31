@@ -3,104 +3,46 @@
 #ifndef INCLUDED_SET_H
 #define INCLUDED_SET_H
 
-template<class Key, class Base> class SetBase : public Base
+// Set is not quite a value type, since adding an element in one set will
+// affect copies of the same set. Adding an element may cause it to become a
+// deep copy, if more storage space was needed.
+//
+// Note that the default-constructed Key should not be used for real entries.
+template<class Key> class Set : private AppendableArray<Key>
 {
-    class TableEntry
-    {
-    public:
-        TableEntry() : _next(0) { }
-        ~TableEntry()
-        {
-            while (_next != 0 && _next != this) {
-                TableEntry* t = _next->_next;
-                _next->_next = 0;
-                delete _next;
-                _next = t;
-            }
-        }
-        bool has(const Key& key)
-        {
-            if (_next == 0)
-                return false;
-            TableEntry* t = this;
-            do {
-                if (t->_key == key)
-                    return true;
-                t = t->_next;
-            } while (t != this);
-            return false;
-        }
-        bool add(const Key& key)
-        {
-            if (_next == 0) {
-                _key = key;
-                _next = this;
-                return true;
-            }
-            TableEntry* t = this;
-            if (t->_key == key)
-                return false;
-            while (t->_next != this) {
-                t = t->_next;
-                if (t->_key == key)
-                    return false;
-            }
-            t->_next = new TableEntry();
-            t->_next->_key = key;
-            t->_next->_next = this;
-            return true;
-        }
-        void addAllTo(SetBase* table)
-        {
-            if (_next == 0)
-                return;
-            TableEntry* t = this;
-            do {
-                table->add(t->_key);
-                t = t->_next;
-            } while (t != this);
-        }
-    private:
-        Key _key;
-        TableEntry* _next;
-
-        friend class Iterator;
-        friend class SetBase;
-    };
-
 public:
-    SetBase() : _n(0)
+    bool has(const Key& key) const
     {
-        _table.allocate(1);
-    }
-    bool has(const Key& key)
-    {
-        return _table[row(key)].has(key);
+        auto e = lookup(key);
+        if (e != 0)
+            return *e == key;
+        return false;
     }
     void add(const Key& key)
     {
-        if (_n == _table.count()) {
-            Array<TableEntry> table(_table.count() * 2);
-            table.swap(_table);
-            _n = 0;
-            for (int i = 0; i < table.count(); ++i)
-                table[i].addAllTo(this);
+        auto e = lookup(key);
+        if (e == 0 || e->_key != key) {
+            if (count() >= allocated()*3/4) {
+                int n = allocated()*2;
+                if (n == 0)
+                    n = 1;
+                HashTable other(n);
+                other.expand(n);
+                other.body()->_size = count();
+                for (auto i = begin(), i != end(); ++i)
+                    other[i.key()] = i.value();
+                *this = other;
+                e = lookup(key);
+            }
+            *e = key;
         }
-        if (_table[row(key)].add(key))
-            ++_n;
     }
-    void reset()
-    {
-        Array<TableEntry> table;
-        table.allocate(1);
-        table.swap(_table);
-        _n = 0;
-    }
-    int count() const { return _n; }
+    ~Set() { if (body() != 0) body()->_size = allocated(); }
+    int count() const { return body()->_size; }
     class Iterator
     {
     public:
-        const Key& operator*() const { return _entry->_key; }
+        const Key& operator*() const { return *_key; }
         bool operator==(const Iterator& other) const
         {
             return _entry == other._entry;
@@ -111,72 +53,64 @@ public:
         }
         void operator++()
         {
-            const TableEntry* e = _entry->_next;
-            if (e != &_table->_table[_row]) {
-                _entry = e;
-                return;
-            }
             do {
-                ++_row;
-                if (_row == _table->_table.count()) {
-                    _entry = 0;
-                    break;
-                }
-                _entry = &_table->_table[_row];
-            } while (_entry->_next == 0);
+                ++_entry;
+                if ((*this) == _set.end())
+                    return;
+            } while (_entry->_key == Key());
         }
     private:
-        Iterator(int row, const TableEntry* entry, const SetBase* table)
-          : _row(row), _entry(entry), _table(table) { }
-        int _row;
-        const TableEntry* _entry;
-        const SetBase* _table;
+        Iterator(const Key* key, const Set& set) : _key(key), _set(set) { }
+        const Key* _key;
+        const Set _set;
 
-        friend class SetBase;
+        friend class Set;
     };
     Iterator begin() const
     {
-        int row = 0;
-        if (row == _n)
-            return end();
-        const TableEntry* entry = &_table[0];
-        while (entry->_next == 0) {
-            ++row;
-            if (row == _n)
-                break;
-            entry = &_table[row];
-        }
-        return Iterator(row, entry, this);
+        if (allocated() == 0)
+            return Iterator(0, this);
+        Iterator i(&(*this)[0], this);
+        if (i.key() == Key())
+            ++i;
+        return i;
     }
-    Iterator end() const { return Iterator(_n, 0, this); }
+    Iterator end() const
+    {
+        if (allocated() == 0)
+            return Iterator(0, this);
+        return Iterator(&(*this)[allocated()], this);
+    }
 private:
-    int row(const Key& key) const { return hash(key) & (_table.count() - 1); }
-
-    Array<TableEntry> _table;
-    int _n;
-};
-
-template<class Key> class SetRow : Uncopyable
-{
-protected:
-    int hash(const Key& key) const { return key.hash(); }
-};
-
-template<> class SetRow<int> : Uncopyable
-{
-protected:
-    int hash(int key) const { return key; }
-};
-
-template<> class SetRow<UInt64> : Uncopyable
-{
-protected:
-    int hash(UInt64 key) const { return static_cast<int>(key); }
-};
-
-template<class Key> class Set
-    : public SetBase<Key, SetRow<Key> >
-{
+    int row(const Key& key) const { return hash(key) % allocated(); }
+    Key* lookup(const Key& key)
+    {
+        int r = row(key);
+        for (int i = 0; i < allocated(); ++i) {
+            // We have a decent hash function so linear probing should work
+            // fine.
+            r = (r + 1)%allocated();
+            Key& e = (*this)[r];
+            if (e == key || e == Key())
+                return &e;
+        }
+        // We should only get here if 0 entries in table, since otherwise there
+        // should be at least one empty entry.
+        return 0;
+    }
+    const Key* lookup(const Key& key) const
+    {
+        int r = row(key);
+        for (int i = 0; i < allocated(); ++i) {
+            r = (r + 1)%allocated();
+            const Key& e = (*this)[r];
+            if (e == key || e == Key())
+                return &e;
+        }
+        // We should only get here if 0 entries in table, since otherwise there
+        // should be at least one empty entry.
+        return 0;
+    }
 };
 
 #endif // INCLUDED_SET_H

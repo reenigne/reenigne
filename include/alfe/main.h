@@ -30,6 +30,7 @@ bool alerting = false;
 
 #include "alfe/integer_types.h"
 #include "alfe/uncopyable.h"
+#include "alfe/hash.h"
 #include "alfe/handle.h"
 #include "alfe/swap.h"
 #include "alfe/array.h"
@@ -202,7 +203,7 @@ private:
         int start = 0;
         Byte* p = buffer.data();
         for (int i = 0; i < nArgs; ++i) {
-            p = String::write(p, szArgList[i]);
+            p = String::write(p, szArglist[i]);
             int end = p - buffer.data();
             _arguments[i] = buffer.subString(start, end - start);
             start = end;

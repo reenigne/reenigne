@@ -132,7 +132,7 @@ public:
     class Byte
     {
     public:
-        Byte(int b) : _b(b) { }
+        Byte(const T& b) : _b(b) { }
         String operator+(const char* a)
         {
             String s(1 + strlen(a));
@@ -141,8 +141,8 @@ public:
             return s;
         }
     private:
-        void write(T* destination) const { *destination = static_cast<T>(_b); }
-        int _b;
+        void write(T* destination) const { *destination = _b; }
+        T _b;
         friend class StringTemplate;
     };
 
@@ -215,7 +215,7 @@ public:
             return s;
         }
     private:
-        void write(Y* destination) const
+        void write(T* destination) const
         {
             auto s = reinterpret_cast<const T*>(_b ? "true" : "false");
             memcpy(destination, s, bytes());
@@ -229,7 +229,7 @@ public:
       : StringTemplate(reinterpret_cast<const T*>(data), length, length, false)
     { }
     StringTemplate(const char* data) : StringTemplate(data, strlen(data)) { }
-    StringTemplate(const Array<Y>& array)
+    StringTemplate(const Array<T>& array)
       : StringTemplate(reinterpret_cast<const char*>(&array[0]), array.count())
     { }
     StringTemplate(const String& other) : StringTemplate(0, 0, 0)
@@ -253,7 +253,7 @@ public:
     const String& operator=(const String& other)
     {
         reset();
-        length() = other.length();
+        setLength(other.length());
         unreset();
         if (small())
             memcpy(data(), other.data(), length());
@@ -350,7 +350,7 @@ public:
     }
     const String& operator+=(const Byte& b)
     {
-        extend(&b, 1, 1);
+        extend(&b._b, 1, 1);
         return *this;
     }
     String operator+(const Byte& b) const
@@ -404,11 +404,10 @@ public:
     T operator[](int offset) const { return *(data() + offset); }
     UInt32 hash() const
     {
-        // FNV-1a hash
-        UInt32 h = 0x811c9dc5;
+        Hash h(typeid(String));
         const T* p = data();
         for (int i = 0; i < length(); ++i) {
-            h = (h ^ *p) * 0x01000193;
+            h.mixin(*p);
             ++p;
         }
         return h;
@@ -466,29 +465,29 @@ public:
     }
 private:
     explicit StringTemplate(int length) : StringTemplate(0, 0, length, 0) { }
-    int& length()
+    void setLength(int l)
     {
-        return *(reinterpret_cast<int*>(reinterpret_cast<char*>(this+1)) - 1);
+        *(reinterpret_cast<int*>(reinterpret_cast<char*>(this+1)) - 1) = l;
     }
     void extend(const T* otherData, int extendLength, int copyLength)
     {
         int newLength = length() + extendLength;
         if (small()) {
             if (newLength > smallStringThreshold()) {
-                String a(data(), newLength, newLength, length());
+                String a(data(), newLength, length());
                 memcpy(a.data() + length(), otherData, copyLength);
                 *this = a;
             }
             else {
                 memcpy(data() + length(), otherData, copyLength);
-                length() = newLength;
+                setLength(newLength);
             }
         }
         else {
             if (_array.count() == 0) {
                 // We always need to own concatenations, because we don't know
                 // where the end of the external buffer is.
-                String a(data(), newLength, newLength, length());
+                String a(data(), newLength, length());
                 memcpy(a.data() + length(), otherData, copyLength);
                 *this = a;
             }
@@ -496,14 +495,14 @@ private:
                 int t = min(static_cast<ptrdiff_t>(copyLength),
                     bufferStart() + bufferCount() - (data() + length()));
                 if (memcmp(data() + length(), otherData, t) == 0) {
-                    length() += t;
+                    setLength(length() + t);
                     copyLength -= t;
                     otherData += t;
                 }
                 if (copyLength <= _array.allocated() - bufferCount())
                     _array.append(otherData, copyLength);
                 else {
-                    String a(data(), newLength, newLength, length());
+                    String a(data(), newLength, length());
                     memcpy(a.data() + length(), otherData, copyLength);
                     *this = a;
                 }
@@ -515,7 +514,7 @@ private:
     int bufferCount() const { return _array.count(); }
     int bufferAllocated() const  // For debugger visualizer
     {
-        return  
+        return
     }
     T* data()
     {
@@ -538,7 +537,7 @@ private:
     // quite involved (due to the small string optimization).
     StringTemplate(const T* start, int size, int copy, bool owning = true)
     {
-        if (allocate > smallStringThreshold()) {
+        if (size > smallStringThreshold()) {
             if (owning) {
                 _array = AppendableArray<T>(size);
                 _array.expand(size);
@@ -549,7 +548,7 @@ private:
         }
         else
             owning = true;
-        length() = size;
+        setLength(size);
         unreset();
         if (owning)
             memcpy(data(), start, copy);
@@ -559,10 +558,10 @@ private:
         if (size > smallStringThreshold()) {
             *this = other;
             _start += start;
-            length() = size;
+            setLength(size);
         }
         else {
-            length() = size;
+            setLength(size);
             unreset();
             memcpy(data(), other.data() + start, size);
         }
@@ -572,7 +571,7 @@ private:
         if (small()) {
             // Default construct Handle so destructor works correctly. This
             // should just zero out the _body member.
-            new(&_array) AppendableArray<T>();  
+            new(&_array) AppendableArray<T>();
         }
     }
     void unreset()

@@ -4,8 +4,7 @@ public:
     class Type : public Component::Type
     {
     public:
-        Type(Simulator* simulator)
-          : Component::Type(new Body(simulator)) { }
+        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
     private:
         class Body : public Component::Type::Body
         {

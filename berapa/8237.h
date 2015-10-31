@@ -151,7 +151,7 @@ public:
                 checkForDMA();
                 break;
             case 10:
-                _channels[data & 3].setMask((data & 4) != 0); 
+                _channels[data & 3].setMask((data & 4) != 0);
                 checkForDMA();
                 break;
             case 11: _channels[data & 3].setMode(data & 0xfc); break;
@@ -244,7 +244,7 @@ public:
 
     String save() const
     {
-        String s = String() + 
+        String s = String() +
             "{ active: " + String::Boolean(this->_active) +
             ", tick: " + String::Decimal(this->_tick) +
             ", address: " + hex(_address, 5) +
@@ -284,12 +284,12 @@ public:
     }
     void load(const TypedValue& value)
     {
-        auto members = value.value<Value<HashTable<Identifier, TypedValue>>>();
-        this->_active = (*members)["active"].value<bool>();
-        this->_tick = (*members)["tick"].value<int>();
-        _address = (*members)["address"].value<int>();
-        _command = (*members)["command"].value<int>();
-        auto channels = (*members)["channels"].value<List<TypedValue>>();
+        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        this->_active = members["active"].value<bool>();
+        this->_tick = members["tick"].value<int>();
+        _address = members["address"].value<int>();
+        _command = members["command"].value<int>();
+        auto channels = members["channels"].value<List<TypedValue>>();
 
         int j = 0;
         for (auto i = channels.begin(); i != channels.end(); ++i) {
@@ -301,15 +301,15 @@ public:
         for (;j < 4; ++j) {
             _channels[j].load(TypedValue(StructuredType(String(),
                 List<StructuredType::Member>()),
-                Value<HashTable<Identifier, TypedValue>>()).
+                HashTable<Identifier, TypedValue>()).
                 convertTo(_channels[j].type()));
         }
 
-        _lastByte = (*members)["lastByte"].value<bool>();
-        _temporary = (*members)["temporary"].value<int>();
-        _channel = (*members)["channel"].value<int>();
-        _highAddress = (*members)["highAddress"].value<int>();
-        _state = (*members)["state"].value<State>();
+        _lastByte = members["lastByte"].value<bool>();
+        _temporary = members["temporary"].value<int>();
+        _channel = members["channel"].value<int>();
+        _highAddress = members["highAddress"].value<int>();
+        _state = members["state"].value<State>();
     }
 
     class Type : public Component::Type
@@ -422,7 +422,7 @@ private:
 
         String save() const
         {
-            return String("\n    ") + 
+            return String("\n    ") +
                 "{ mode: " + hex(_mode, 2) +
                 ", baseAddress: " + hex(_baseAddress, 4) +
                 ", baseCount: " + hex(_baseCount, 4) +
@@ -452,18 +452,17 @@ private:
         }
         void load(const TypedValue& value)
         {
-            auto members =
-                value.value<Value<HashTable<Identifier, TypedValue>>>();
-            _mode = (*members)["mode"].value<int>();
-            _baseAddress = (*members)["baseAddress"].value<int>();
-            _baseCount = (*members)["baseCount"].value<int>();
-            _currentAddress = (*members)["currentAddress"].value<int>();
-            _currentCount = (*members)["currentCount"].value<int>();
-            _hardRequest = (*members)["hardRequest"].value<bool>();
-            _softRequest = (*members)["softRequest"].value<bool>();
-            _mask = (*members)["mask"].value<bool>();
-            _terminalCount = (*members)["terminalCount"].value<bool>();
-            _internalRequest = (*members)["internalRequest"].value<bool>();
+            auto members = value.value<HashTable<Identifier, TypedValue>>();
+            _mode = members["mode"].value<int>();
+            _baseAddress = members["baseAddress"].value<int>();
+            _baseCount = members["baseCount"].value<int>();
+            _currentAddress = members["currentAddress"].value<int>();
+            _currentCount = members["currentCount"].value<int>();
+            _hardRequest = members["hardRequest"].value<bool>();
+            _softRequest = members["softRequest"].value<bool>();
+            _mask = members["mask"].value<bool>();
+            _terminalCount = members["terminalCount"].value<bool>();
+            _internalRequest = members["internalRequest"].value<bool>();
         }
         Byte status()
         {

@@ -27,6 +27,9 @@ public:
     };
 };
 
+template<> Nullary<Function, AddStringString>
+    Nullary<Function, AddStringString>::_instance;
+
 class MultiplyIntegerString : public Nullary<Function, MultiplyIntegerString>
 {
 public:
@@ -49,6 +52,9 @@ public:
     };
 };
 
+template<> Nullary<Function, MultiplyIntegerString>
+    Nullary<Function, MultiplyIntegerString>::_instance;
+
 class MultiplyStringInteger : public Nullary<Function, MultiplyStringInteger>
 {
 public:
@@ -70,5 +76,8 @@ public:
         }
     };
 };
+
+template<> Nullary<Function, MultiplyStringInteger>
+    Nullary<Function, MultiplyStringInteger>::_instance;
 
 #endif // INCLUDED_STRING_FUNCTIONS_H

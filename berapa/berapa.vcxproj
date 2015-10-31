@@ -162,13 +162,13 @@
   <ItemGroup>
     <ClCompile Include="berapa.cpp" />
     <ClInclude Include="..\include\alfe\assert.h" />
-    <ClInclude Include="..\include\alfe\body_with_array.h" />
     <ClInclude Include="..\include\alfe\concrete.h" />
     <ClInclude Include="..\include\alfe\concrete_functions.h" />
     <ClInclude Include="..\include\alfe\exception.h" />
     <ClInclude Include="..\include\alfe\expression.h" />
     <ClInclude Include="..\include\alfe\file_stream.h" />
     <ClInclude Include="..\include\alfe\function.h" />
+    <ClInclude Include="..\include\alfe\hash.h" />
     <ClInclude Include="..\include\alfe\rational_functions.h" />
     <ClInclude Include="..\include\alfe\stream.h" />
     <ClInclude Include="..\include\alfe\identifier.h" />
@@ -181,6 +181,7 @@
     <ClInclude Include="..\include\alfe\rational.h" />
     <ClInclude Include="..\include\alfe\handle.h" />
     <ClInclude Include="..\include\alfe\string_functions.h" />
+    <ClInclude Include="..\include\alfe\tuple.h" />
     <ClInclude Include="..\include\alfe\type_specifier.h" />
     <ClInclude Include="..\include\alfe\uncopyable.h" />
     <ClInclude Include="8088.h" />
@@ -214,6 +215,9 @@
     <ClInclude Include="8255.h" />
     <ClInclude Include="8259.h" />
     <ClInclude Include="cga.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="NatvisFile.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

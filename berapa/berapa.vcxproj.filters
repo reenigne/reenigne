@@ -7,9 +7,6 @@
     <ClInclude Include="..\include\alfe\assert.h">
       <Filter>ALFE</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\alfe\body_with_array.h">
-      <Filter>ALFE</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\alfe\character_source.h">
       <Filter>ALFE</Filter>
     </ClInclude>
@@ -148,6 +145,12 @@
     <ClInclude Include="rom.h">
       <Filter>Berapa</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\alfe\hash.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\tuple.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ALFE">
@@ -161,5 +164,8 @@
     <ClCompile Include="berapa.cpp">
       <Filter>Berapa</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="NatvisFile.natvis" />
   </ItemGroup>
 </Project>

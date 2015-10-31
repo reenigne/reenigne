@@ -160,7 +160,7 @@ public:
                         " already exists");
                 TypedValue value = TypedValue(
                     StructuredType(String(), List<StructuredType::Member>()),
-                    Value<HashTable<Identifier, TypedValue>>());
+                    HashTable<Identifier, TypedValue>());
                 if (Space::parseCharacter(&s, '=', &span))
                     value = Expression::parse(&s).evaluate(&_context);
                 Space::assertCharacter(&s, ';', &span);
@@ -172,7 +172,7 @@ public:
                     // persistence so that this functionality doesn't need to
                     // be in ConfigFile.
                     // Using an actual identifier here would lead to collisions
-                    // with real members. ALFE persistence is done by types 
+                    // with real members. ALFE persistence is done by types
                     // knowing how to persist themselves.
                     // I also don't want to use the empty string, since I might
                     // want to use that as the connector name for
