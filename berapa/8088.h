@@ -309,10 +309,9 @@ private:
 
 typedef DisassemblerTemplate<void> Disassembler;
 
-template<class T> class Intel8088Template : public ComponentTemplate<T>
+template<class T> class Intel8088Template : public Component
 {
 public:
-    Rational hDotsPerCycle() const { return 3; }
     Intel8088Template()
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
@@ -1686,19 +1685,19 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("ds", 0));  // ?
         members.add(M("flags", 2));  // ?
         members.add(M("prefetch",
-            TypedValue(SequenceType(IntegerType()), List<TypedValue>())));
+            Value(SequenceType(IntegerType()), List<Value>())));
         members.add(M("segment", 0));
         members.add(M("segmentOverride", -1));
         members.add(M("prefetchAddress", 0));
-        members.add(M("ioType", TypedValue(_ioTypeType, ioNone)));
-        members.add(M("ioRequested", TypedValue(_ioTypeType, ioNone)));
+        members.add(M("ioType", Value(_ioTypeType, ioNone)));
+        members.add(M("ioRequested", Value(_ioTypeType, ioNone)));
         members.add(M("ioInProgress",
-            TypedValue(_ioTypeType, ioInstructionFetch)));
-        members.add(M("busState", TypedValue(_busStateType, t1)));
-        members.add(M("byte", TypedValue(_ioByteType, ioSingleByte)));
+            Value(_ioTypeType, ioInstructionFetch)));
+        members.add(M("busState", Value(_busStateType, t1)));
+        members.add(M("byte", Value(_ioByteType, ioSingleByte)));
         members.add(M("abandonFetch", false));
         members.add(M("wait", 0));
-        members.add(M("state", TypedValue(_stateType, stateBegin)));
+        members.add(M("state", Value(_stateType, stateBegin)));
         members.add(M("opcode", 0));
         members.add(M("modRM", 0));
         members.add(M("data", 0));
@@ -1709,12 +1708,12 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("useMemory", false));
         members.add(M("wordSize", false));
         members.add(M("aluOperation", 0));
-        members.add(M("afterEA", TypedValue(_stateType, stateWaitingForBIU)));
-        members.add(M("afterIO", TypedValue(_stateType, stateWaitingForBIU)));
+        members.add(M("afterEA", Value(_stateType, stateWaitingForBIU)));
+        members.add(M("afterIO", Value(_stateType, stateWaitingForBIU)));
         members.add(M("afterEAIO",
-            TypedValue(_stateType, stateWaitingForBIU)));
-        members.add(M("afterRep", TypedValue(_stateType, stateWaitingForBIU)));
-        members.add(M("afterInt", TypedValue(_stateType, stateWaitingForBIU)));
+            Value(_stateType, stateWaitingForBIU)));
+        members.add(M("afterRep", Value(_stateType, stateWaitingForBIU)));
+        members.add(M("afterInt", Value(_stateType, stateWaitingForBIU)));
         members.add(M("sourceIsRM", false));
         members.add(M("savedCS", 0));
         members.add(M("savedIP", 0));
@@ -1728,9 +1727,9 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("tick", 0));
         return StructuredType("CPU", members);
     }
-    void load(const TypedValue& value)
+    void load(const Value& value)
     {
-        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        auto members = value.value<HashTable<Identifier, Value>>();
         _ip = members["ip"].value<int>();
         _registerData[0] = members["ax"].value<int>();
         _registerData[1] = members["cx"].value<int>();
@@ -1745,11 +1744,11 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _segmentRegisterData[2] = members["ss"].value<int>();
         _segmentRegisterData[3] = members["ds"].value<int>();
         _flagsData = members["flags"].value<int>();
-        auto prefetch = members["prefetch"].value<List<TypedValue>>();
+        auto prefetch = members["prefetch"].value<List<Value>>();
         _prefetched = 0;
         _prefetchOffset = 0;
-        for (auto i = prefetch.begin(); i != prefetch.end(); ++i) {
-            _prefetchQueue[_prefetched] = (*i).value<int>();
+        for (auto i : prefetch) {
+            _prefetchQueue[_prefetched] = i.value<int>();
             ++_prefetched;
         }
         _segment = members["segment"].value<int>();
@@ -1790,6 +1789,18 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _cycle = members["cycle"].value<int>();
         this->_tick = members["tick"].value<int>();
     }
+    void set(Identifier name, Value value)
+    {
+        Component::set(name, value);
+        if (name.name() == "cycleTime")
+            _cyclesPerSecond = (second/value.value<Concrete>()).value();
+    }
+    Value getValue(Identifier name)
+    {
+        if (name.name() == "cycleTime")
+            return second/_cyclesPerSecond;
+        return Component::getValue(name);
+    }
 
     class Type : public Component::Type
     {
@@ -1801,6 +1812,14 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "Intel8088"; }
+            Value tryConvert(const Value& value, String* why) const
+            {
+                Value stv = value.type().tryConvertTo(
+                    StructuredType::empty().type(), value, why);
+                if (!stv.valid())
+                    return stv;
+                return Value(type(), new Intel8088, value.span());
+            }
         };
     };
 
@@ -2544,10 +2563,12 @@ private:
     UInt8 _busData;
     bool _nmiRequested;
 
-    Type _stateType;
-    Type _ioTypeType;
-    Type _ioByteType;
-    Type _busStateType;
+    ::Type _stateType;
+    ::Type _ioTypeType;
+    ::Type _ioByteType;
+    ::Type _busStateType;
 
     Disassembler _disassembler;
+
+    Rational _cyclesPerSecond;
 };

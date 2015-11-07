@@ -12,19 +12,29 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
-            return TypedValue(l + i->value<Concrete>());
+            return Value(l + i->value<Concrete>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        TypedValue typedValue() const
+        bool argumentsMatch(List<Type> argumentTypes) const
         {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), ConcreteType(), ConcreteType()),
-                this);
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            ConcreteType l(*i);
+            if (!l.valid())
+                return false;
+            ++i;
+            return ConcreteType(*i).valid();
+        }
+        FunctionTyco tyco() const
+        {
+            return
+                FunctionTyco(ConcreteTyco(), ConcreteTyco(), ConcreteTyco());
         }
     };
 };
@@ -39,19 +49,29 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
-            return TypedValue(l - i->value<Concrete>());
+            return Value(l - i->value<Concrete>());
         }
         Identifier identifier() const { return OperatorMinus(); }
-        TypedValue typedValue() const
+        bool argumentsMatch(List<Type> argumentTypes) const
         {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), ConcreteType(), ConcreteType()),
-                this);
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            ConcreteType l(*i);
+            if (!l.valid())
+                return false;
+            ++i;
+            return ConcreteType(*i).valid();
+        }
+        FunctionTyco tyco() const
+        {
+            return
+                FunctionTyco(ConcreteTyco(), ConcreteTyco(), ConcreteTyco());
         }
     };
 };
@@ -66,19 +86,29 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
-            return TypedValue(l * i->value<Concrete>());
+            return Value(l * i->value<Concrete>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
+        bool argumentsMatch(List<Type> argumentTypes) const
         {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), ConcreteType(), ConcreteType()),
-                this);
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            ConcreteType l(*i);
+            if (!l.valid())
+                return false;
+            ++i;
+            return ConcreteType(*i).valid();
+        }
+        FunctionTyco tyco() const
+        {
+            return
+                FunctionTyco(ConcreteTyco(), ConcreteTyco(), ConcreteTyco());
         }
     };
 };
@@ -93,19 +123,32 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
-            return TypedValue(l * i->value<int>());
+            if (i->type() == RationalType())
+                return Value(l * i->value<Rational>());
+            else
+                return Value(l * i->value<int>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
+        bool argumentsMatch(List<Type> argumentTypes) const
         {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), ConcreteType(), IntegerType()),
-                this);
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            ConcreteType l(*i);
+            if (!l.valid())
+                return false;
+            ++i;
+            return (*i == RationalType() || *i == IntegerType());
+        }
+        FunctionTyco tyco() const
+        {
+            return
+                FunctionTyco(ConcreteTyco(), ConcreteTyco(), AbstractType());
         }
     };
 };
@@ -120,19 +163,35 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
-            int l = i->value<int>();
-            ++i;
-            return TypedValue(l * i->value<Concrete>());
+            if (i->type() == RationalType()) {
+                Rational l = i->value<Rational>();
+                ++i;
+                return Value(l * i->value<Concrete>());
+            }
+            else {
+                int l = i->value<int>();
+                ++i;
+                return Value(l * i->value<Concrete>());
+            }
         }
         Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
+        bool argumentsMatch(List<Type> argumentTypes) const
         {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), IntegerType(), ConcreteType()),
-                this);
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            if (*i != RationalType() && *i != IntegerType())
+                return false;
+            ++i;
+            return ConcreteType(*i).valid();
+        }
+        FunctionTyco tyco() const
+        {
+            return
+                FunctionTyco(ConcreteTyco(), AbstractType(), ConcreteTyco());
         }
     };
 };
@@ -146,19 +205,29 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
-            return TypedValue(l / i->value<Concrete>());
+            return Value(l / i->value<Concrete>());
         }
         Identifier identifier() const { return OperatorDivide(); }
-        TypedValue typedValue() const
+        bool argumentsMatch(List<Type> argumentTypes) const
         {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), ConcreteType(), ConcreteType()),
-                this);
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            ConcreteType l(*i);
+            if (!l.valid())
+                return false;
+            ++i;
+            return ConcreteType(*i).valid();
+        }
+        FunctionTyco tyco() const
+        {
+            return
+                FunctionTyco(ConcreteTyco(), ConcreteTyco(), ConcreteTyco());
         }
     };
 };
@@ -172,19 +241,33 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
-            return TypedValue(l / i->value<int>());
+            if (i->type() == RationalType())
+                return Value(l / i->value<Rational>());
+            else
+                return Value(l / i->value<int>());
+
         }
         Identifier identifier() const { return OperatorDivide(); }
-        TypedValue typedValue() const
+        bool argumentsMatch(List<Type> argumentTypes) const
         {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), ConcreteType(), IntegerType()),
-                this);
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            ConcreteType l(*i);
+            if (!l.valid())
+                return false;
+            ++i;
+            return (*i == RationalType() || *i == IntegerType());
+        }
+        FunctionTyco tyco() const
+        {
+            return
+                FunctionTyco(ConcreteTyco(), ConcreteTyco(), AbstractType());
         }
     };
 };
@@ -198,19 +281,35 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
-            Rational l = i->value<Rational>();
-            ++i;
-            return TypedValue(l / i->value<Concrete>());
+            if (i->type() == RationalType()) {
+                Rational l = i->value<Rational>();
+                ++i;
+                return Value(l / i->value<Concrete>());
+            }
+            else {
+                int l = i->value<int>();
+                ++i;
+                return Value(l / i->value<Concrete>());
+            }
         }
         Identifier identifier() const { return OperatorDivide(); }
-        TypedValue typedValue() const
+        bool argumentsMatch(List<Type> argumentTypes) const
         {
-            return TypedValue(
-                FunctionTyco(ConcreteType(), RationalType(), ConcreteType()),
-                this);
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            if (*i != RationalType() && *i != IntegerType())
+                return false;
+            ++i;
+            return ConcreteType(*i).valid();
+        }
+        FunctionTyco tyco() const
+        {
+            return
+                FunctionTyco(ConcreteTyco(), AbstractType(), ConcreteTyco());
         }
     };
 };

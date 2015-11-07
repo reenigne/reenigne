@@ -294,3 +294,24 @@ How do we call a constructor?
           No, but since we can't construct function types we can always use the parentheses for disambiguation
           This means that we can use a type specifier whereever we need a value
             The integral types (e.g. "2") are weird because the value constructed doesn't inhabit the type
+
+
+0-valued types:
+  0
+  NoReturn
+  Bottom
+  Either<>
+
+1-valued types:
+  1
+  Bottom[]
+  Tuple<>
+  ()
+  Unit
+  Null
+  Void
+
+2-valued types:
+  2
+  Maybe<Void>
+

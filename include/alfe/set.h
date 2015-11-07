@@ -29,8 +29,8 @@ public:
                 HashTable other(n);
                 other.expand(n);
                 other.body()->_size = count();
-                for (auto i = begin(), i != end(); ++i)
-                    other[i.key()] = i.value();
+                for (auto i : *this)
+                    other.add(i);
                 *this = other;
                 e = lookup(key);
             }

@@ -26,7 +26,6 @@ template<class T> class Intel8237DMATemplate
         transferModeCascade
     };
 public:
-    Rational hDotsPerCycle() const { return 3; }
     Intel8237DMATemplate()
     {
         List<EnumerationType::Value> stateValues;
@@ -272,37 +271,35 @@ public:
         members.add(StructuredType::Member("address", 0));
         members.add(StructuredType::Member("command", 0));
         members.add(StructuredType::Member("channels",
-            TypedValue(SequenceType(_channels[0].type()),
-                List<TypedValue>())));
+            Value(SequenceType(_channels[0].type()),
+                List<Value>())));
         members.add(StructuredType::Member("lastByte", false));
         members.add(StructuredType::Member("temporary", 0));
         members.add(StructuredType::Member("channel", 0));
         members.add(StructuredType::Member("highAddress", 0xffff));
         members.add(StructuredType::Member("state",
-            TypedValue(_stateType, stateIdle)));
+            Value(_stateType, stateIdle)));
         return StructuredType("DMA", members);
     }
-    void load(const TypedValue& value)
+    void load(const Value& value)
     {
-        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        auto members = value.value<HashTable<Identifier, Value>>();
         this->_active = members["active"].value<bool>();
         this->_tick = members["tick"].value<int>();
         _address = members["address"].value<int>();
         _command = members["command"].value<int>();
-        auto channels = members["channels"].value<List<TypedValue>>();
+        auto channels = members["channels"].value<List<Value>>();
 
         int j = 0;
-        for (auto i = channels.begin(); i != channels.end(); ++i) {
-            _channels[j].load((*i).value<TypedValue>());
+        for (auto i : channels) {
+            _channels[j].load(i.value<Value>());
             ++j;
             if (j == 4)
                 break;
         }
         for (;j < 4; ++j) {
-            _channels[j].load(TypedValue(StructuredType(String(),
-                List<StructuredType::Member>()),
-                HashTable<Identifier, TypedValue>()).
-                convertTo(_channels[j].type()));
+            _channels[j].load(
+                StructuredType::empty().convertTo(_channels[j].type()));
         }
 
         _lastByte = members["lastByte"].value<bool>();
@@ -450,9 +447,9 @@ private:
             members.add(StructuredType::Member("internalRequest", false));
             return StructuredType("DMAChannel", members);
         }
-        void load(const TypedValue& value)
+        void load(const Value& value)
         {
-            auto members = value.value<HashTable<Identifier, TypedValue>>();
+            auto members = value.value<HashTable<Identifier, Value>>();
             _mode = members["mode"].value<int>();
             _baseAddress = members["baseAddress"].value<int>();
             _baseCount = members["baseCount"].value<int>();

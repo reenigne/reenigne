@@ -18,17 +18,17 @@ public:
         members.add(StructuredType::Member("active", false));
         return StructuredType("NMISwitch", members);
     }
-    void load(const TypedValue& value)
+    void load(const Value& value)
     {
-        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        auto members = value.value<HashTable<Identifier, Value>>();
         _nmiOn = members["on"].value<bool>();
         _active = members["active"].value<bool>();
     }
     bool nmiOn() const { return _nmiOn; }
-    TypedValue getValue(Identifier name)
+    Value getValue(Identifier name)
     {
         if (name.name() == "bus")
-            return TypedValue(_connector.type(), &_connector);
+            return Value(_connector.type(), &_connector);
         return ISA8BitComponent::getValue(name);
     }
 
@@ -58,16 +58,16 @@ public:
             Body(Simulator* simulator)
               : ISA8BitComponent::Type::Body(simulator) { }
             String toString() const { return "NMISwitch"; }
-            TypedValue tryConvert(const TypedValue& value, String* why) const
+            Value tryConvert(const Value& value, String* why) const
             {
-                TypedValue stv = value.type().tryConvertTo(
+                Value stv = value.type().tryConvertTo(
                     StructuredType::empty().type(), value, why);
                 if (!stv.valid())
                     return stv;
 
                 NMISwitch* nmiSwitch = new NMISwitch(Type(this));
                 _simulator->addComponent(nmiSwitch);
-                return TypedValue(this, nmiSwitch, value.span());
+                return Value(type(), nmiSwitch, value.span());
             }
             bool has(String memberName) const
             {

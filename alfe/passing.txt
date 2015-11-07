@@ -1,0 +1,18 @@
+ALFE doesn't use references
+To pass an object into a function, pass-by-value
+  The compiler can optimize this to pass-by-pointer for a big object that is unmodified
+If the function will modify the object in place, use pass-by-pointer
+To return multiple objects, return a Tuple
+
+What about operator++()?
+  The hidden "this" argument is pass-by-pointer, so "a++" is rewritten to "a.operator++()" which is implemented as "operator++(&a)"
+
+What about operator[]()?
+  This returns a pointer, but "a[b]" is rewritten to "*a.operator[](b)" which is implemented as "*operator++(&a, b)"
+
+What about operator=()?
+  To avoid infinite recursion, "a=b" is rewritten to "a.operator=(&b)" which is implemented as "operator=(&a, &b)"
+
+So LValues are only produced by evaluating identifiers, "." (member) and "*" (pointer dereference)
+  And they are only used by assignment operators and "&" (address-of) - everywhere else they decay to rvalues
+

@@ -11,18 +11,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             String l = i->value<String>();
             ++i;
-            return TypedValue(l + i->value<String>());
+            return Value(l + i->value<String>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(StringType(), StringType(), StringType()), this);
+            return FunctionTyco(StringType(), StringType(), StringType());
         }
     };
 };
@@ -36,18 +35,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
-            return TypedValue(l*i->value<String>());
+            return Value(l*i->value<String>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(StringType(), IntegerType(), StringType()), this);
+            return FunctionTyco(StringType(), IntegerType(), StringType());
         }
     };
 };
@@ -61,18 +59,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             String l = i->value<String>();
             ++i;
-            return TypedValue(l*i->value<int>());
+            return Value(l*i->value<int>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(StringType(), StringType(), IntegerType()), this);
+            return FunctionTyco(StringType(), StringType(), IntegerType());
         }
     };
 };

@@ -88,19 +88,12 @@ public:
     virtual String save() const { return String(); }
     virtual ::Type persistenceType() const { return ::Type(); }
     String name() const { return _name; }
-    virtual void load(const TypedValue& value) { }
-    virtual TypedValue initial() const
+    virtual void load(const Value& value) { }
+    virtual Value initial() const
     {
-        return StructuredType::empty().convertTo(type());
+        return StructuredType::empty().convertTo(persistenceType());
     }
-    virtual Rational cyclesPerSecond() const
-    {
-        Rational h = hDotsPerCycle();
-        if (h == 0)
-            return 0;
-        return 157500000/(11*h);
-    }
-    virtual Rational hDotsPerCycle() const { return 0; }
+    virtual Rational cyclesPerSecond() const { return 0; }
     void setTicksPerCycle(Tick ticksPerCycle)
     {
         _ticksPerCycle = ticksPerCycle;
@@ -114,11 +107,12 @@ public:
             _tick -= _ticksPerCycle;
         }
     }
-    void set(Identifier name, TypedValue value)
+    void set(Identifier name, Value value)
     {
         if (name.name() == "*")
             _name = value.value<String>();
     }
+    Value getValue(Identifier name) { return Value(); }
     class Type : public ::Type
     {
     protected:
@@ -132,8 +126,6 @@ public:
             Simulator* _simulator;
         };
     };
-
-    virtual Type type() const = 0;
 protected:
     Tick _tick;
 
@@ -168,7 +160,7 @@ public:
     public:
         const Body* body() const { return as<Body>(); }
     };
-    TypedValue getValue() { return TypedValue(type(), this); }
+    Value getValue() { return Value(type(), this); }
 
     virtual Type type() const = 0;
     virtual void connect(Connector* other) = 0;
@@ -248,21 +240,21 @@ public:
     void simulate()
     {
         do {
-            for (auto i = _components.begin(); i != _components.end(); ++i)
-                (*i)->simulateTicks(_minTicksPerCycle);
+            for (auto i : _components)
+                i->simulateTicks(_minTicksPerCycle);
         } while (!_halted);
     }
     String save() const
     {
         String s("{");
         bool needComma = false;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            if ((*i)->name().empty())
+        for (auto i : _components) {
+            if (i->name().empty())
                 continue;
             if (needComma)
                 s += ", ";
             needComma = true;
-            s += (*i)->name() + ": " + (*i)->save();
+            s += i->name() + ": " + i->save();
         }
         s += "};";
         return s;
@@ -276,8 +268,8 @@ public:
     void load(String initialStateFile)
     {
         Rational l = 0;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Rational cyclesPerSecond = (*i)->cyclesPerSecond();
+        for (auto i : _components) {
+            Rational cyclesPerSecond = i->cyclesPerSecond();
             if (cyclesPerSecond != 0)
                 if (l == 0)
                     l = cyclesPerSecond;
@@ -287,22 +279,22 @@ public:
         if (l == 0)
             throw Exception("None of the components is clocked!");
         _minTicksPerCycle = INT_MAX;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Rational cyclesPerSecond = (*i)->cyclesPerSecond();
+        for (auto i : _components) {
+            Rational cyclesPerSecond = i->cyclesPerSecond();
             if (cyclesPerSecond != 0) {
                 Rational t = l / cyclesPerSecond;
                 if (t.denominator != 1)
                     throw Exception("Scheduler LCM calculation incorrect");
                 int ticksPerCycle = t.numerator;
-                (*i)->setTicksPerCycle(ticksPerCycle);
+                i->setTicksPerCycle(ticksPerCycle);
                 if (ticksPerCycle < _minTicksPerCycle)
                     _minTicksPerCycle = ticksPerCycle;
             }
             else
-                (*i)->setTicksPerCycle(0);
+                i->setTicksPerCycle(0);
         }
 
-        TypedValue value;
+        Value value;
         if (!initialStateFile.empty()) {
             ConfigFile initialState;
             initialState.addDefaultOption(name(), persistenceType(),
@@ -313,24 +305,24 @@ public:
         else
             value = initial();
 
-        auto object = value.value<HashTable<Identifier, TypedValue>>();
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load(object[(*i)->name()]);
+        auto object = value.value<HashTable<Identifier, Value>>();
+        for (auto i : _components)
+            i->load(object[i->name()]);
     }
     String name() const { return "simulator"; }
 private:
-    TypedValue initial() const
+    Value initial() const
     {
         return StructuredType::empty().convertTo(persistenceType());
     }
     ::Type persistenceType() const
     {
         List<StructuredType::Member> members;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Type type = (*i)->type();
+        for (auto i : _components) {
+            Type type = i->persistenceType();
             if (!type.valid())
                 continue;
-            members.add(StructuredType::Member((*i)->name(), (*i)->initial()));
+            members.add(StructuredType::Member(i->name(), i->initial()));
         }
         return StructuredType("Simulator", members);
     }
@@ -396,10 +388,10 @@ protected:
         ConfigFile configFile;
         configFile.addDefaultOption("stopSaveState", StringType(), String(""));
         configFile.addDefaultOption("initialState", StringType(), String(""));
-        configFile.addType(second.type());
+        configFile.addType(String("Time"), second.type());
 
-        for (auto i = componentTypes.begin(); i != componentTypes.end(); ++i)
-            configFile.addType(*i);
+        for (auto i : componentTypes)
+            configFile.addType(i.toString(), i);
 
         configFile.addDefaultOption("second", second);
 

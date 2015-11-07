@@ -15,16 +15,14 @@ public:
         return *this;
     }
     bool valid() const { return _body != 0; }
-    //void swap(ConstHandle& other)
-    //{
-    //    const Body* t = _body;
-    //    _body = other._body;
-    //    other._body = t;
-    //}
     UInt32 hash() const { return _body->hash(); }
     bool operator==(const ConstHandle& other) const
     {
-        return _body->equals(other._body);
+        if (_body == 0)
+            return other._body == 0;
+        if (other._body == 0)
+            return false;
+        return _body == other._body || _body->equals(other._body);
     }
     bool operator!=(const ConstHandle& other) const
     {
@@ -45,10 +43,7 @@ protected:
         virtual ~Body() { };
         virtual void destroy() const { delete this; }  // for Array::Body
         virtual Hash hash() const { return typeid(*this); }
-        virtual bool equals(const Body* other) const
-        {
-            return typeid(*this) == typeid(*other);
-        }
+        virtual bool equals(const Body* other) const { return true; }
     private:
         void release() const
         {

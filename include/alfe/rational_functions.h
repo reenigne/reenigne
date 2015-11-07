@@ -12,19 +12,18 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
-            return TypedValue(l + i->value<Rational>());
+            return Value(l + i->value<Rational>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), RationalType(), RationalType()),
-                this);
+            return
+                FunctionTyco(RationalType(), RationalType(), RationalType());
         }
     };
 };
@@ -38,19 +37,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
-            return TypedValue(l + i->value<int>());
+            return Value(l + i->value<int>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), RationalType(), IntegerType()),
-                this);
+            return FunctionTyco(RationalType(), RationalType(), IntegerType());
         }
     };
 };
@@ -64,19 +61,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
-            return TypedValue(l + i->value<Rational>());
+            return Value(l + i->value<Rational>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), IntegerType(), RationalType()),
-                this);
+            return FunctionTyco(RationalType(), IntegerType(), RationalType());
         }
     };
 };
@@ -91,19 +86,18 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
-            return TypedValue(l - i->value<Rational>());
+            return Value(l - i->value<Rational>());
         }
         Identifier identifier() const { return OperatorMinus(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), RationalType(), RationalType()),
-                this);
+            return
+                FunctionTyco(RationalType(), RationalType(), RationalType());
         }
     };
 };
@@ -118,19 +112,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
-            return TypedValue(l - i->value<int>());
+            return Value(l - i->value<int>());
         }
         Identifier identifier() const { return OperatorMinus(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), RationalType(), IntegerType()),
-                this);
+            return FunctionTyco(RationalType(), RationalType(), IntegerType());
         }
     };
 };
@@ -145,19 +137,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
-            return TypedValue(l - i->value<Rational>());
+            return Value(l - i->value<Rational>());
         }
         Identifier identifier() const { return OperatorMinus(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), IntegerType(), RationalType()),
-                this);
+            return FunctionTyco(RationalType(), IntegerType(), RationalType());
         }
     };
 };
@@ -172,19 +162,18 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
-            return TypedValue(l * i->value<Rational>());
+            return Value(l * i->value<Rational>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), RationalType(), RationalType()),
-                this);
+            return
+                FunctionTyco(RationalType(), RationalType(), RationalType());
         }
     };
 };
@@ -199,19 +188,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
-            return TypedValue(l * i->value<int>());
+            return Value(l * i->value<int>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), RationalType(), IntegerType()),
-                this);
+            return FunctionTyco(RationalType(), RationalType(), IntegerType());
         }
     };
 };
@@ -226,19 +213,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
-            return TypedValue(l * i->value<Rational>());
+            return Value(l * i->value<Rational>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), IntegerType(), RationalType()),
-                this);
+            return FunctionTyco(RationalType(), IntegerType(), RationalType());
         }
     };
 };
@@ -252,19 +237,18 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
-            return TypedValue(l / i->value<Rational>());
+            return Value(l / i->value<Rational>());
         }
         Identifier identifier() const { return OperatorDivide(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), RationalType(), RationalType()),
-                this);
+            return
+                FunctionTyco(RationalType(), RationalType(), RationalType());
         }
     };
 };
@@ -278,19 +262,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
-            return TypedValue(l / i->value<int>());
+            return Value(l / i->value<int>());
         }
         Identifier identifier() const { return OperatorDivide(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), RationalType(), IntegerType()),
-                this);
+            return FunctionTyco(RationalType(), RationalType(), IntegerType());
         }
     };
 };
@@ -304,19 +286,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
-            return TypedValue(l / i->value<Rational>());
+            return Value(l / i->value<Rational>());
         }
         Identifier identifier() const { return OperatorDivide(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), IntegerType(), RationalType()),
-                this);
+            return FunctionTyco(RationalType(), IntegerType(), RationalType());
         }
     };
 };
@@ -330,19 +310,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
-            return TypedValue(Rational(l, i->value<int>()));
+            return Value(Rational(l, i->value<int>()));
         }
         Identifier identifier() const { return OperatorDivide(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(RationalType(), IntegerType(), IntegerType()),
-                this);
+            return FunctionTyco(RationalType(), IntegerType(), IntegerType());
         }
     };
 };

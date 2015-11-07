@@ -42,7 +42,7 @@ Conversion from one structured type to another:
 
 Have helper methods in StructuredType to make this easier:
   StructuredType canConvertFrom(StructedType other)
-  TypedValue convertFrom(StructuredType other, TypedValue value)
+  Value convertFrom(StructuredType other, Value value)
 
 
 
@@ -55,11 +55,11 @@ public:
     class Body : public ConstHandle::Body
     {
     public:
-        virtual TypedValue convert(const TypedValue& value) const = 0;
+        virtual Value convert(const Value& value) const = 0;
     };
     Conversion() { }
     explicit Conversion(Body* body) : ConstHandle(body) { }
-    TypedValue operator()(const TypedValue& value) const
+    Value operator()(const Value& value) const
     {
         return body()->convert(value);
     }
@@ -132,16 +132,16 @@ public:
             fromStructure.toString().empty()) {
             Reference<StructuredConversionBody>
                 body(new StructuredConversionBody(to));
-            const Array<StructuredType::Member>* fromMembers =
+            const Array<StructuredType::Member> fromMembers =
                 fromStructure.members();
             const HashTable<Identifier, int> fromNames = fromStructure.names();
-            const Array<StructuredType::Member>* toMembers =
+            const Array<StructuredType::Member> toMembers =
                 toStructure.members();
             const HashTable<Identifier, int> toNames = toStructure.names();
 
             int n = toNames.count();
             for (int i = 0; i < n; ++i) {
-                StructuredType::Member member = (*toMembers)[i];
+                StructuredType::Member member = toMembers[i];
                 String name = member.name();
                 Type toType = member.type();
                 String number(decimal(i));
@@ -177,13 +177,13 @@ public:
     public:
         ConversionFailureBody(const Type& from, const Type& to)
           : _from(from), _to(to) { }
-        TypedValue convert(const TypedValue& value) const
+        Value convert(const Value& value) const
         {
             value.span().throwError(toString(value));
-            return TypedValue();
+            return Value();
         }
-        virtual String sub(const TypedValue& value) const { return ""; }
-        String toString(const TypedValue& value) const
+        virtual String sub(const Value& value) const { return ""; }
+        String toString(const Value& value) const
         {
             String r("No conversion");
             String f = _from.toString();
@@ -206,7 +206,7 @@ private:
     class TrivialConversionBody : public Conversion::Body
     {
     public:
-        TypedValue convert(const TypedValue& value) const { return value; }
+        Value convert(const Value& value) const { return value; }
     };
     class StructuredConversionBody
       : public Conversion::Body
@@ -217,15 +217,15 @@ private:
         {
             _conversions[name] = conversion;
         }
-        TypedValue convert(const TypedValue& value) const
+        Value convert(const Value& value) const
         {
-            auto input = value.value<HashTable<Identifier, TypedValue>>();
-            HashTable<Identifier, TypedValue> output;
-            for (auto i = input.begin(); i != input.end(); ++i) {
+            auto input = value.value<HashTable<Identifier, Value>>();
+            HashTable<Identifier, Value> output;
+            for (auto i : input) {
                 String name = i.key();
                 output[name] = _conversions[name](input[name]);
             }
-            return TypedValue(_type, output, value.span());
+            return Value(_type, output, value.span());
         }
     private:
         Type _type;
@@ -237,9 +237,9 @@ private:
         MultipleDefinitionFailure(const Type& from, const Type& to, int i,
             const String& name)
           : ConversionFailureBody(from, to), _i(i), _name(name) { }
-        String sub(const TypedValue& value) const
+        String sub(const Value& value) const
         {
-            auto input = value.value<HashTable<Identifier, TypedValue>>();
+            auto input = value.value<HashTable<Identifier, Value>>();
             return "Member " + _name + " defined at " +
                 input[_name].span().toString() + " is already defined at " +
                 input[decimal(_i)].span().toString() + ".";
@@ -254,7 +254,7 @@ private:
         MissingDefinitionFailure(const Type& from, const Type& to,
             const String& name)
           : ConversionFailureBody(from, to), _name(name) { }
-        String sub(const TypedValue& value) const
+        String sub(const Value& value) const
         {
             return "Member " + _name + " is not defined.";
         }
@@ -268,9 +268,9 @@ private:
             const String& name, const Conversion& conversion)
           : ConversionFailureBody(from, to), _name(name),
             _conversion(conversion) { }
-        String sub(const TypedValue& value) const
+        String sub(const Value& value) const
         {
-            auto input = value.value<HashTable<Identifier, TypedValue>>();
+            auto input = value.value<HashTable<Identifier, Value>>();
             ConstReference<ConversionFailureBody> i = _conversion.
                 _body.referent<ConversionFailureBody>();
             String r = "For child member " + _name;
@@ -347,16 +347,16 @@ private:
         ArrayConversionBody(const Type& type,
             const List<Conversion>& conversions)
           : _type(type), _conversions(conversions) { }
-        TypedValue convert(const TypedValue& value) const
+        Value convert(const TypedValue& value) const
         {
-            List<TypedValue> list = value.value<List<TypedValue>>();
-            List<TypedValue> results;
+            List<Value> list = value.value<List<Value>>();
+            List<Value> results;
             int p = 0;
-            for (auto i = list.begin(); i != list.end(); ++i) {
-                results.add(_conversions[p](*i));
+            for (auto i : list) {
+                results.add(_conversions[p](i));
                 ++p;
             }
-            return TypedValue(_type, results, value.span());
+            return Value(_type, results, value.span());
         }
     private:
         Type _type;
@@ -368,7 +368,7 @@ private:
     public:
         NotArrayConversionFailure(const Type& from, const Type& to)
           : ConversionFailureBody(from, to) { }
-        String sub(const TypedValue& value) const
+        String sub(const Value& value) const
         {
             return "Not a conversion to an Array.";
         }
@@ -379,7 +379,7 @@ private:
     public:
         NotTupleConversionFailure(const Type& from, const Type& to)
           : ConversionFailureBody(from, to) { }
-        String sub(const TypedValue& value) const
+        String sub(const Value& value) const
         {
             return "Not a conversion from a Tuple.";
         }
@@ -392,9 +392,9 @@ private:
             int i, const Conversion& conversion)
           : ConversionFailureBody(from, to), _i(i),
             _conversion(conversion) { }
-        String sub(const TypedValue& value) const
+        String sub(const Value& value) const
         {
-            auto input = value.value<List<TypedValue>>();
+            auto input = value.value<List<Value>>();
             auto iterator = input.begin();
             for (int j = 0; j < _i; ++j)
                 ++iterator;
@@ -460,15 +460,15 @@ Removed from ConfigFile:
             for (int i = 0; i < values->count(); ++i) {
                 EnumerationType::Value value = (*values)[i];
                 _enumeratedValues.add(value.name(),
-                    TypedValue(type, value.value()));
+                    Value(type, value.value()));
             }
             return;
         }
         StructuredType s(type);
         if (s.valid()) {
-            const Array<StructuredType::Member>* members = s.members();
-            for (int i = 0; i < members->count(); ++i)
-                addType((*members)[i].type());
+            const Array<StructuredType::Member> members = s.members();
+            for (int i = 0; i < members.count(); ++i)
+                addType(members[i].type());
         }
     }
 

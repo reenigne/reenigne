@@ -14,15 +14,11 @@ template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
     public:
         Body(const Span& span) : Expression::Body(span) { }
         virtual String name() const = 0;
-        TypedValueTemplate<T> evaluate(EvaluationContext* context) const
+        ValueTemplate<T> evaluate(EvaluationContext* context) const
         {
             return context->valueOfIdentifier(this);
         }
         virtual bool isOperator() const = 0;
-        virtual bool equals(const Body* other) const
-        {
-            return this == other;
-        }
     };
     class NameBody : public Body
     {
@@ -32,12 +28,10 @@ template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
         String name() const { return _name; }
         bool isOperator() const { return false; }
         Hash hash() const { return Body::hash().mixin(_name.hash()); }
-        bool equals(const Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
             auto o = other->as<NameBody>();
-            if (o == 0)
-                return false;
-            return _name == o->_name;
+            return o != 0 && _name == o->_name;
         }
     private:
         String _name;
@@ -50,12 +44,10 @@ template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
         String name() const { return "operator" + _op.toString(); }
         bool isOperator() const { return true; }
         Hash hash() const { return Body::hash().mixin(_op.hash()); }
-        bool equals(const Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
             auto o = other->as<OperatorBody>();
-            if (o == 0)
-                return false;
-            return _op == o->_op;
+            return o != 0 && _op == o->_op;
         }
     private:
         Operator _op;

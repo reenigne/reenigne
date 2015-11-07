@@ -34,6 +34,7 @@ public:
                 n = 1;
             HashTable other;
             other.allocate(n);
+            n = other.allocated();
             other.expand(n);
             other.body()->_size = count();
             for (auto i = begin(); i != end(); ++i)
@@ -53,7 +54,7 @@ public:
     }
     void add(const Key& key, const Value& value) { (*this)[key] = value; }
     ~HashTable() { if (body() != 0) body()->_size = allocated(); }
-    int count() const { return body()->_size; }
+    int count() const { return body() == 0 ? 0 : body()->_size; }
     class Iterator
     {
     public:
@@ -102,6 +103,8 @@ private:
     int row(const Key& key) const { return ::hash(key) % allocated(); }
     Entry* lookup(const Key& key)
     {
+        if (allocated() == 0)
+            return 0;
         int r = row(key);
         for (int i = 0; i < allocated(); ++i) {
             // We have a decent hash function so linear probing should work
@@ -111,12 +114,12 @@ private:
             if (e->first() == key || e->first() == Key())
                 return e;
         }
-        // We should only get here if 0 entries in table, since otherwise there
-        // should be at least one empty entry.
         return 0;
     }
     const Entry* lookup(const Key& key) const
     {
+        if (allocated() == 0)
+            return 0;
         int r = row(key);
         for (int i = 0; i < allocated(); ++i) {
             r = (r + 1)%allocated();
@@ -124,8 +127,6 @@ private:
             if (e->first() == key || e->first() == Key())
                 return e;
         }
-        // We should only get here if 0 entries in table, since otherwise there
-        // should be at least one empty entry.
         return 0;
     }
     Entry* data(int row) { return &static_cast<AppendableArray&>(*this)[row]; }

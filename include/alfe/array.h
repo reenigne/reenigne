@@ -3,11 +3,9 @@
 #ifndef INCLUDED_ARRAY_H
 #define INCLUDED_ARRAY_H
 
-#include "alfe/handle.h"
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif
-#include <utility>  // For std::forward
 
 // List is not quite a value type, since adding an element to a list will
 // affect copies of the list.
@@ -152,7 +150,7 @@ public:
 
         int size() const { return _size; }
         // Be careful to avoid calling setSize() with a size argument greater
-        // than the "allocate" size passed to create(). 
+        // than the "allocate" size passed to create().
         void setSize(int size)
         {
             if (size > _size)
@@ -229,8 +227,8 @@ public:
         int n = list.count();
         if (n != 0) {
             *this = Array(Body<>::create(n, 0));
-            for (auto p = list.begin(); p != list.end(); ++p)
-                body()->constructT(*p);
+            for (auto p : list)
+                body()->constructT(p);
         }
     }
     explicit Array(int n)
@@ -266,7 +264,7 @@ public:
     }
     T& operator[](int i) { return (*body())[i]; }
     const T& operator[](int i) const { return (*body())[i]; }
-    int count() const { return body()->size(); }
+    int count() const { return body() == 0 ? 0 : body()->size(); }
     Array copy() const
     {
         Array r(new Body(count(), 0));
@@ -336,8 +334,8 @@ public:
     AppendableArray() { }
     AppendableArray(const List<T>& list) : AppendableArray(list.count())
     {
-        for (auto p = list.begin(); p != list.end(); ++p)
-            body()->constructT(*p);
+        for (auto p : list)
+            body()->constructT(p);
     }
     explicit AppendableArray(int n)
     {
@@ -450,18 +448,8 @@ public:
     }
     T& operator[](int i) { return (*body())[i]; }
     const T& operator[](int i) const { return (*body())[i]; }
-    int count() const
-    {
-        if (body() == 0)
-            return 0;
-        return body()->size();
-    }
-    int allocated() const
-    {
-        if (body() == 0)
-            return 0;
-        return body()->_allocated;
-    }
+    int count() const { return body() == 0 ? 0 : body()->size(); }
+    int allocated() const { return body() == 0 ? 0 : body()->_allocated; }
     AppendableArray copy() const
     {
         AppendableArray r(count());

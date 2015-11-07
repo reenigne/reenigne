@@ -37,12 +37,7 @@ protected:
     class Body : public Base::Body
     {
     public:
-        Body() { }
         String toString() const { return My::name(); }
-        bool equals(const typename Base::Body* other) const
-        {
-            return dynamic_cast<const Body*>(other) == this;
-        }
     };
 
     friend class Nullary<Base, My>;

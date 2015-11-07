@@ -36,7 +36,6 @@ public:
         }
         _dram.initialize(_bytes, _rowBits, _decayTime, 0);
     }
-    Rational hDotsPerCycle() const { return 3; }
     void simulateCycle() { _dram.simulateCycle(); }
     void setAddress(UInt32 address)
     {
@@ -74,9 +73,9 @@ public:
         members.add(StructuredType::Member("address", 0));
         return StructuredType("RAM", members);
     }
-    void load(const TypedValue& value)
+    void load(const Value& value)
     {
-        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        auto members = value.value<HashTable<Identifier, Value>>();
         _dram.load(members["dram"]);
         _active = members["active"].value<bool>();
         _tick = members["tick"].value<int>();
@@ -90,7 +89,7 @@ public:
             ", tick: " + String::Decimal(this->_tick) +
             ", address: " + hex(_address, 5) + " }\n";
     }
-    void set(String name, TypedValue value)
+    void set(String name, Value value)
     {
         if (name == "rowBits") {
             _rowBits = value.value<int>();

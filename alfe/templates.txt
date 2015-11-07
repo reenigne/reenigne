@@ -378,15 +378,3 @@ Should the elements of a tuple be addressable, e.g. via []?
 
 
 
-
-
-
-Foo<> = Class { String k = "*"; };                                               // Base case
-Foo<@T, $...> = Class { String k = "*->" + Foo<...>.k; };                        // Peel off first argument, a type
-Foo<@T<$...>, $...> = Class { String k = "(" + Foo<T> + ")->" + Foo<...>.k; };   // Peel off first argument, a template (of any kind). The "..." in the class body refers to the second argument - the "..." in the first argument is just a kind descriptor
-Foo<@T<$...>> = Class { String k = "(" + Foo<...>.k + "->*)->*"; }               // Can't do anything with T directly because it is of unknown kind
-
-
-A<@B> = Class { ... }
-
-Foo<A>

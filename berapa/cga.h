@@ -62,7 +62,7 @@ public:
             return;
         }
         switch (_portAddress & 7) {
-            case 2: 
+            case 2:
                 this->set((_crtc.displayEnable() ? 0 : 1) |
                     (_lightPenStrobe ? 2 : 0) |
                     (_lightPenSwitch ? 4 : 0) |
@@ -115,7 +115,6 @@ public:
         else
             return 0xff;
     }
-    Rational hDotsPerCycle() const { return 1; }
     void initialize()
     {
         ConfigFile* config = this->_simulator->config();

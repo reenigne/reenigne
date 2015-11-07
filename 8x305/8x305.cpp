@@ -40,14 +40,12 @@ public:
     virtual String save() const { return String(); }
     virtual Type type() const { return Type(); }
     virtual String name() const { return String(); }
-    virtual void load(const TypedValue& value) { }
-    virtual TypedValue initial() const
+    virtual void load(const Value& value) { }
+    virtual Value initial() const
     {
         // Default initial value is the result of converting the empty
         // structured type to the component type.
-        return TypedValue(
-            StructuredType(String(), List<StructuredType::Member>()),
-            HashTable<Identifier, TypedValue>()).convertTo(type());
+        return StructuredType::empty().convertTo(type());
     }
     virtual Rational<int> cyclesPerSecond() const
     {
@@ -186,7 +184,7 @@ public:
         return s;
     }
     Type type() const { return Type::string; }
-    void load(const TypedValue& value)
+    void load(const Value& value)
     {
         String s = value.value<String>();
         CharacterSource source(s);
@@ -220,7 +218,7 @@ public:
             source.location().throwError("Expected hexadecimal character");
     }
     String name() const { return "ram"; }
-    TypedValue initial() const { return String(); }
+    Value initial() const { return String(); }
 private:
     int _address;
     Array<UInt8> _data;
@@ -465,22 +463,21 @@ private:
             members.add(StructuredType::Member("address", Type::integer));
             members.add(StructuredType::Member("fileName", Type::string));
             members.add(StructuredType::Member("fileOffset",
-                TypedValue(Type::integer, 0)));
+                Value(Type::integer, 0)));
             _structuredType = StructuredType(toString(), members);
         }
-        TypedValue tryConvert(const TypedValue& value, String* why) const
+        Value tryConvert(const Value& value, String* why) const
         {
-            TypedValue stv = value.type().tryConvertTo(_structuredType, value,
-                why);
+            Value stv = value.type().tryConvertTo(_structuredType, value, why);
             if (!stv.valid())
                 return stv;
-            auto romMembers = stv.value<HashTable<Identifier, TypedValue>>();
+            auto romMembers = stv.value<HashTable<Identifier, Value>>();
             int mask = romMembers["mask"].value<int>();
             int address = romMembers["address"].value<int>();
             String file = romMembers["fileName"].value<String>();
             int offset = romMembers["fileOffset"].value<int>();
-            return TypedValue(ROMDataType(),
-                Any(ROMData(mask, address, file, offset)), value.span());
+            return Value(ROMDataType(),
+                ROMData(mask, address, file, offset), value.span());
         }
     private:
         static StructuredType _structuredType;
@@ -515,11 +512,11 @@ protected:
         _bus.addComponent(&_pic);
         addComponent(&_cpu);
 
-        List<TypedValue> romDatas = config.get<List<TypedValue> >("roms");
+        List<Value> romDatas = config.get<List<Value>>("roms");
         _roms.allocate(romDatas.count());
         int r = 0;
-        for (auto i = romDatas.begin(); i != romDatas.end(); ++i) {
-            ROMData romData = (*i).value<ROMData>();
+        for (auto i : romDatas) {
+            ROMData romData = i.value<ROMData>();
             ROM* rom = &_roms[r];
             rom->initialize(romData, configFile);
             _bus.addComponent(rom);
@@ -531,7 +528,7 @@ protected:
         String stopSaveState = config.get<String>("stopSaveState");
 
         String initialStateFile = config.get<String>("initialState");
-        TypedValue stateValue;
+        Value stateValue;
         if (!initialStateFile.empty()) {
             ConfigFile initialState;
             initialState.addDefaultOption("simulator", type(), initial());
@@ -546,8 +543,8 @@ protected:
         _stopSaveState = config.get<String>("stopSaveState");
 
         Rational<int> l = 0;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Rational<int> cyclesPerSecond = (*i)->cyclesPerSecond();
+        for (auto i : _components) {
+            Rational<int> cyclesPerSecond = i->cyclesPerSecond();
             if (cyclesPerSecond != 0)
                 if (l == 0)
                     l = cyclesPerSecond;
@@ -557,40 +554,40 @@ protected:
         if (l == 0)
             throw Exception("None of the components is clocked!");
         _minTicksPerCycle = INT_MAX;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Rational<int> cyclesPerSecond = (*i)->cyclesPerSecond();
+        for (auto i : _components) {
+            Rational<int> cyclesPerSecond = i->cyclesPerSecond();
             if (cyclesPerSecond != 0) {
                 Rational<int> t = l / cyclesPerSecond;
                 if (t.denominator != 1)
                     throw Exception("Scheduler LCM calculation incorrect");
                 int ticksPerCycle = t.numerator;
-                (*i)->setTicksPerCycle(ticksPerCycle);
+                i->setTicksPerCycle(ticksPerCycle);
                 if (ticksPerCycle < _minTicksPerCycle)
                     _minTicksPerCycle = ticksPerCycle;
             }
             else
-                (*i)->setTicksPerCycle(0);
+                i->setTicksPerCycle(0);
         }
     }
 public:
     void simulate()
     {
         do {
-            for (auto i = _components.begin(); i != _components.end(); ++i)
-                (*i)->simulateTicks(_minTicksPerCycle);
+            for (auto i : _components)
+                i->simulateTicks(_minTicksPerCycle);
         } while (!_halted);
     }
     String save() const
     {
         String s("simulator = {");
         bool needComma = false;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            if ((*i)->name().empty())
+        for (auto i : _components) {
+            if (i->name().empty())
                 continue;
             if (needComma)
                 s += ", ";
             needComma = true;
-            s += (*i)->save();
+            s += i->save();
         }
         s += "};";
         return s;
@@ -612,20 +609,20 @@ public:
     Type type() const
     {
         List<StructuredType::Member> members;
-        for (auto i = _components.begin(); i != _components.end(); ++i) {
-            Type type = (*i)->type();
+        for (auto i : _components) {
+            Type type = i->type();
             if (!type.valid())
                 continue;
             members.add(StructuredType::Member((*i)->name(),(*i)->initial()));
         }
         return StructuredType("Simulator", members);
     }
-    void load(const TypedValue& value)
+    void load(const Value& value)
     {
-        HashTable<Identifier, TypedValue> object =
-            value.value<HashTable<Identifier, TypedValue>>();
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->load(object[(*i)->name()]);
+        HashTable<Identifier, Value> object =
+            value.value<HashTable<Identifier, Value>>();
+        for (auto i : _components)
+            i->load(object[i->name()]);
     }
     IBMCGA _cga;
 private:

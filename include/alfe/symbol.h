@@ -73,21 +73,13 @@ public:
     SymbolEntryTemplate() { }
     SymbolEntryTemplate(int value) : Handle(new IntegerBody(value)) { }
     SymbolEntryTemplate(String value) : Handle(new StringBody(value)) { }
-    bool operator==(const SymbolEntry& other) const
-    {
-        return body()->equals(other.body());
-    }
-    bool operator!=(const SymbolEntry& other) const
-    {
-        return !body()->equals(other.body());
-    }
     int integer() const
     {
-        return dynamic_cast<const IntegerBody*>(body())->value();
+        return as<IntegerBody>()->value();
     }
     String string() const
     {
-        return dynamic_cast<const StringBody*>(body())->value();
+        return as<StringBody>()->value();
     }
     SymbolArrayTemplate<T> array()
     {
@@ -121,7 +113,6 @@ protected:
     class Body : public Handle::Body
     {
     public:
-        virtual bool equals(const Body* other) const = 0;
         virtual int length(int max) const = 0;
         virtual String toString(int width, int spacesPerIndent, int indent,
             int& x, bool& more) const = 0;
@@ -132,12 +123,10 @@ protected:
     {
     public:
         IntegerBody(int value) : _value(value) { }
-        bool equals(const SymbolEntry::Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
-            const IntegerBody* o = dynamic_cast<const IntegerBody*>(other);
-            if (o == 0)
-                return false;
-            return _value == o->_value;
+            auto o = other->as<IntegerBody>();
+            return o != 0 && _value == o->_value;
         }
         String toString(int width, int spacesPerIndent, int indent, int& x,
             bool& more) const
@@ -158,12 +147,10 @@ protected:
     {
     public:
         StringBody(String value) : _value(value) { }
-        bool equals(const SymbolEntry::Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
-            const StringBody* o = dynamic_cast<const StringBody*>(other);
-            if (o == 0)
-                return false;
-            return _value == o->_value;
+            auto o = other->as<StringBody>();
+            return o != 0 && _value == o->_value;
         }
         String toString(int width, int spacesPerIndent, int indent, int& x,
             bool& more) const
@@ -188,7 +175,7 @@ private:
     template<class T> friend class SymbolArrayTemplate;
 };
 
-class SymbolTail : public ReferenceCounted
+class SymbolTail : public Handle::Body
 {
 public:
     SymbolTail(SymbolEntry head) : _head(head) { }
@@ -198,17 +185,10 @@ public:
     SymbolEntry& head() { return _head; }
     const SymbolTail* tail() const { return _tail; }
     SymbolTail* tail() { return _tail; }
-    bool equals(const SymbolTail* other) const
+    bool equals(const ConstHandle::Body* other) const
     {
-        if (this == other)
-            return true;
-        if (other == 0)
-            return false;
-        if (_head != other->_head)
-            return false;
-        if (_tail.valid())
-            return _tail->equals(other->_tail);
-        return !other->_tail.valid();
+        auto o = other->as<SymbolTail>();
+        return o != 0 && _head == o->_head && _tail == o->_tail;
     }
     int length(int max) const
     {
@@ -301,13 +281,10 @@ private:
           : _atom(atom), _cache(cache), _tail(tail), _labelReferences(0),
           _labelNumber(-1)
         { }
-        bool equals(const SymbolEntry::Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
-            const Body* o =
-                dynamic_cast<const Body*>(other);
-            if (o == 0)
-                return false;
-            return _atom == o->_atom && _tail->equals(o->_tail);
+            auto o = other->as<Body>();
+            return o != 0 && _atom == o->_atom && _tail == o->_tail;
         }
         int length(int max) const
         {
@@ -505,19 +482,10 @@ private:
             _symbols[0] = s0;
             _symbols[1] = s1;
         }
-        bool equals(const SymbolEntry::Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
-            const Body* o =
-                dynamic_cast<const Body*>(other);
-            if (o == 0)
-                return false;
-            int n = _symbols.count();
-            if (n != o->_symbols.count())
-                return false;
-            for (int i = 0; i < n; ++i)
-                if (_symbols[i] != o->_symbols[i])
-                    return false;
-            return true;
+            auto o = other->as<Body>();
+            return o != 0 && _symbols == o->_symbols;
         }
         Hash hash() const
         {
@@ -616,13 +584,10 @@ private:
             _target = target;
             _target->addLabel();
         }
-        bool equals(const Symbol::Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
-            const Body* o =
-                dynamic_cast<const Body*>(other);
-            if (o == 0)
-                return false;
-            return _target == o->_target;
+            auto o = other->as<Body>();
+            return o != 0 && _target == o->_target;
         }
         int length(int max) const
         {

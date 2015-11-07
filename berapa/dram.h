@@ -80,23 +80,21 @@ public:
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("data",
-            TypedValue(StringType(), String())));
+            Value(StringType(), String())));
         members.add(StructuredType::Member("refresh",
-            TypedValue(SequenceType(IntegerType()), List<TypedValue>())));
+            Value(SequenceType(IntegerType()), List<Value>())));
         return StructuredType("DRAM", members);
     }
-    TypedValue initial() const
+    Value initial() const
     {
-        return TypedValue(StructuredType(String(),
-            List<StructuredType::Member>()),
-            HashTable<Identifier, TypedValue>()).convertTo(type());
+        return StructuredType::empty().convertTo(type());
     }
-    void load(const TypedValue& value)
+    void load(const Value& value)
     {
         for (int a = 0; a < _data.count(); ++a)
             _data[a] = _decayValue;
 
-        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        auto members = value.value<HashTable<Identifier, Value>>();
         String s = members["data"].value<String>();
         CharacterSource source(s);
         Space::parse(&source);
@@ -130,11 +128,11 @@ public:
         if (s2.get() != -1)
             source.location().throwError("Expected hexadecimal character");
 
-        auto refresh = members["refresh"].value<List<TypedValue>>();
+        auto refresh = members["refresh"].value<List<Value>>();
         int n = 0;
-        for (auto i = refresh.begin(); i != refresh.end(); ++i) {
+        for (auto i : refresh) {
             if (n < _refreshTimes.count())
-                _refreshTimes[n] = _decayTime - (*i).value<int>();
+                _refreshTimes[n] = _decayTime - i.value<int>();
             ++n;
         }
         // Initially, all memory is decayed so we'll get an NMI if we try to

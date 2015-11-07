@@ -59,14 +59,6 @@ public:
         return body()->path();
     }
 
-    bool operator==(const FileSystemObject& other) const
-    {
-        return body()->compare(other.body()) == 0;
-    }
-    bool operator!=(const FileSystemObject& other) const
-    {
-        return !operator==(other);
-    }
     class Body : public ConstHandle::Body
     {
     public:
@@ -74,7 +66,6 @@ public:
         virtual String name() const = 0;
         virtual String path() const = 0;
         virtual bool isRoot() const = 0;
-        virtual int compare(const Body* other) const = 0;
     };
 protected:
     const Body* body() const { return as<Body>(); }
@@ -103,16 +94,10 @@ protected:
         {
             return Body::hash().mixin(_parent.hash()).mixin(_name.hash());
         }
-        int compare(const Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
             auto o = other->as<NamedBody>();
-            if (o == 0)
-                return 1;
-            if (_parent != o->_parent)
-                return 1;
-            if (_name != o->_name)
-                return 1;
-            return 0;
+            return o != 0 && _parent == o->_parent & _name == o->_name;
         }
     private:
         DirectoryTemplate<T> _parent;
@@ -320,10 +305,7 @@ private:
                 return dir;
             return FileSystemObject(dir.parent(), dir.name());
         }
-        //return FileSystemObject(dir, name);
-        FileSystemObject f = FileSystemObject(dir, name);
-        String pp2 = f.path();
-        return f;
+        return FileSystemObject(dir, name);
     }
 
     FileSystemObjectTemplate(const Directory& parent, const String& name)
@@ -490,15 +472,6 @@ public:
             return String();
         }
         bool isRoot() const { return true; }
-
-        int compare(const FileSystemObject::Body* other) const
-        {
-            const Body* root =
-                dynamic_cast<const Body*>(other);
-            if (root == 0)
-                return 1;
-            return 0;
-        }
     };
 private:
     RootDirectoryTemplate(const Body* body) : Directory(body) { }
@@ -546,14 +519,10 @@ private:
 
         Hash hash() const { return RootDirectory::Body::hash().mixin(_drive); }
 
-        int compare(const FileSystemObject::Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
-            auto root = other->as<Body>();
-            if (root == 0)
-                return 1;
-            if (_drive != root->_drive)
-                return 1;
-            return 0;
+            auto o = other->as<Body>();
+            return o != 0 && _drive == o->_drive;
         }
     private:
         int _drive;
@@ -583,17 +552,10 @@ private:
                 mixin(_share.hash());
         }
 
-        int compare(const FileSystemObject::Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
-            const Body* root =
-                dynamic_cast<const Body*>(other);
-            if (root == 0)
-                return 1;
-            if (_server != root->_server)
-                return 1;
-            if (_share != root->_share)
-                return 1;
-            return 0;
+            auto o = other->as<Body>();
+            return o != 0 && _server == o->_server && _share == o->_share;
         }
     private:
         String _server;
@@ -973,13 +935,6 @@ private:
         Directory parent() const { return RootDirectory(); }
         String name() const { return path(); }
         bool isRoot() const { return false; }
-        int compare(const FileSystemObject::Body* other) const
-        {
-            auto c = other->as<Body>();
-            if (c == 0)
-                return 1;
-            return 0;
-        }
     };
 };
 

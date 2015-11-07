@@ -37,9 +37,9 @@ public:
         members.add(StructuredType::Member("address", 0));
         return StructuredType("ROM", members);
     }
-    void load(const TypedValue& value)
+    void load(const Value& value)
     {
-        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        auto members = value.value<HashTable<Identifier, Value>>();
         this->_active = members["active"].value<bool>();
         _address = members["address"].value<int>();
     }
@@ -59,25 +59,25 @@ public:
                 members.add(StructuredType::Member("address", IntegerType()));
                 members.add(StructuredType::Member("fileName", StringType()));
                 members.add(StructuredType::Member("fileOffset",
-                    TypedValue(IntegerType(), 0)));
+                    Value(IntegerType(), 0)));
                 _structuredType = StructuredType(toString(), members);
             }
             String toString() const { return "ROM"; }
-            TypedValue tryConvert(const TypedValue& value, String* why) const
+            Value tryConvert(const Value& value, String* why) const
             {
-                TypedValue stv = value.type().tryConvertTo(_structuredType,
+                Value stv = value.type().tryConvertTo(_structuredType,
                     value, why);
                 if (!stv.valid())
                     return stv;
                 auto romMembers =
-                    stv.value<HashTable<Identifier, TypedValue>>();
+                    stv.value<HashTable<Identifier, Value>>();
                 int mask = romMembers["mask"].value<int>();
                 int address = romMembers["address"].value<int>();
                 String file = romMembers["fileName"].value<String>();
                 int offset = romMembers["fileOffset"].value<int>();
                 ROM* rom = new ROM(_simulator, mask, address, file, offset);
                 _simulator->addComponent(rom);
-                return TypedValue(this, rom, value.span());
+                return Value(this, rom, value.span());
             }
         private:
             StructuredType _structuredType;

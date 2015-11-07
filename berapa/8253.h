@@ -2,8 +2,6 @@ template<class T> class Intel8253PITTemplate
   : public ISA8BitComponentTemplate<T>
 {
 public:
-    // The PIT input clock is 1/4 the frequency of the CPU clock.
-    Rational hDotsPerCycle() const { return 12; }
     Intel8253PITTemplate()
     {
         _timers[0] = &_timer0;
@@ -69,29 +67,27 @@ public:
         members.add(StructuredType::Member("tick", 0));
         members.add(StructuredType::Member("address", 0));
         members.add(StructuredType::Member("timers",
-            TypedValue(SequenceType(_timer0.type()), List<TypedValue>())));
+            Value(SequenceType(_timer0.type()), List<Value>())));
         return StructuredType("PIT", members);
     }
-    void load(const TypedValue& value)
+    void load(const Value& value)
     {
-        auto members = value.value<HashTable<Identifier, TypedValue>>();
+        auto members = value.value<HashTable<Identifier, Value>>();
         this->_active = members["active"].value<bool>();
         this->_tick = members["tick"].value<int>();
         _address = members["address"].value<int>();
-        auto timers = members["timers"].value<List<TypedValue>>();
+        auto timers = members["timers"].value<List<Value>>();
 
         int j = 0;
-        for (auto i = timers.begin(); i != timers.end(); ++i) {
-            _timers[j]->load((*i).value<TypedValue>());
+        for (auto i : timers) {
+            _timers[j]->load(i.value<Value>());
             ++j;
             if (j == 3)
                 break;
         }
         for (;j < 3; ++j) {
-            _timers[j]->load(TypedValue(StructuredType(String(),
-                List<StructuredType::Member>()),
-                HashTable<Identifier, TypedValue>()).
-                convertTo(_timer0.type()));
+            _timers[j]->load(
+                StructuredType::empty().convertTo(_timer0.type()));
         }
     }
 
@@ -305,12 +301,12 @@ private:
             members.add(StructuredType::Member("output", false));
             members.add(StructuredType::Member("latched", false));
             members.add(StructuredType::Member("state",
-                TypedValue(_stateType, stateStopped0)));
+                Value(_stateType, stateStopped0)));
             return StructuredType("Timer", members);
         }
-        void load(const TypedValue& value)
+        void load(const Value& value)
         {
-            auto members = value.value<HashTable<Identifier, TypedValue>>();
+            auto members = value.value<HashTable<Identifier, Value>>();
             _value = members["value"].value<int>();
             _latch = members["latch"].value<int>();
             _count = members["count"].value<int>();

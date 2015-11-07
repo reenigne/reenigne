@@ -22,7 +22,7 @@ public:
         _bus->_interruptnum = data & 7;
         _bus->_interrupt = true;
     }
-    void set(String name, TypedValue value)
+    void set(String name, Value value)
     {
         if (name == "bus") {
             Connector* other = value.value<Connector*>();
@@ -31,11 +31,11 @@ public:
         }
         return ComponentTemplate<T>::set(name, value);
     }
-    TypedValue getValue(Identifier i)
+    Value getValue(Identifier i)
     {
         if (i.name() == "bus")
             return _connector.getValue();
-        return TypedValue();
+        return Value();
     }
 
     class Connector : public ::Connector
@@ -79,7 +79,7 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             bool has(String memberName) const
-            { 
+            {
                 if (memberName == "bus")
                     return true;
                 return Component::Type::Body::has(memberName);
@@ -160,34 +160,34 @@ public:
     }
     void setAddress(UInt32 address)
     {
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            (*i)->setAddress(address);
+        for (auto i : _components)
+            i->setAddress(address);
     }
     void write(UInt8 data)
     {
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            if ((*i)->active())
-                (*i)->write(data);
+        for (auto i : _components)
+            if (i->active())
+                i->write(data);
     }
     void write() { write(_data); }
     UInt8 read() const
     {
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            if ((*i)->active())
-                (*i)->read();
+        for (auto i : _components)
+            if (i->active())
+                i->read();
         return _data;
     }
     UInt8 memory(UInt32 address)
     {
         UInt8 data = 0xff;
-        for (auto i = _components.begin(); i != _components.end(); ++i)
-            data &= (*i)->memory(address);
+        for (auto i : _components)
+            data &= i->memory(address);
         return data;
     }
     String save() const { return hex(_data, 2) + "\n"; }
     virtual ::Type persistenceType() const { return IntegerType(); }
-    virtual void load(const TypedValue& value) { _data = value.value<int>(); }
-    virtual TypedValue initial() const { return 0xff; }
+    virtual void load(const Value& value) { _data = value.value<int>(); }
+    virtual Value initial() const { return 0xff; }
     UInt8 data() const { return _data; }
     Component::Type type() const { return _type; }
 private:

@@ -30,9 +30,8 @@ public:
 
         int n = 0;
         float exposure = 0;
-        for (std::vector<Pixel>::const_iterator pp = pixels.begin();
-            pp != pixels.end(); ++pp) {
-            int hits = pp->getHits();
+        for (auto pp : pixels) {
+            int hits = pp.getHits();
             if (hits > 0) {
                 ++n;
                 exposure -= hits;
@@ -40,7 +39,7 @@ public:
         }
         exposure /= n;
 
-        std::vector<Pixel>::const_iterator pp = pixels.begin();
+        auto pp = pixels.begin();
         for (int ys = 0; ys < _region.getSize().y; ++ys) {
             Byte* p = buffer;
             for (int xs = 0; xs < _region.getSize().x; ++xs) {
@@ -80,9 +79,8 @@ private:
     void restart()
     {
         pixels.resize(_region.pixels());
-        for (std::vector<Pixel>::iterator pp = pixels.begin();
-            pp != pixels.end(); ++pp)
-            pp->reset();
+        for (auto pp : pixels)
+            pp.reset();
         offset = 0;
         e = exp(1.0f) - 2; // Any old irrational number will do here
     }

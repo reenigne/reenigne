@@ -3,8 +3,6 @@
 #ifndef INCLUDED_ANY_H
 #define INCLUDED_ANY_H
 
-template<class T> class AnySpecificBody;
-
 class Any : private Handle
 {
 public:

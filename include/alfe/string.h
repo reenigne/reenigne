@@ -49,9 +49,11 @@ public:
         Hex(int n, int digits, bool ox) : _n(n), _digits(digits), _ox(ox) { }
         String operator+(const char* a)
         {
-            String s(bytes() + strlen(a));
-            s += *this;
-            s += a;
+            int l = bytes();
+            int al = strlen(a);
+            String s(l + al);
+            write(s.data());
+            memcpy(s.data() + l, a, al);
             return s;
         }
     private:
@@ -83,9 +85,11 @@ public:
         CodePoint(int c) : _c(c) { }
         String operator+(const char* a)
         {
-            String s(bytes() + strlen(a));
-            s += *this;
-            s += a;
+            int l = bytes();
+            int al = strlen(a);
+            String s(l + al);
+            write(s.data());
+            memcpy(s.data() + l, a, al);
             return s;
         }
     private:
@@ -135,9 +139,10 @@ public:
         Byte(const T& b) : _b(b) { }
         String operator+(const char* a)
         {
-            String s(1 + strlen(a));
-            s += *this;
-            s += a;
+            int al = strlen(a);
+            String s(1 + al);
+            write(s.data());
+            memcpy(s.data() + 1, a, al);
             return s;
         }
     private:
@@ -150,6 +155,15 @@ public:
     {
     public:
         Decimal(int n, int digits = 0) : _n(n), _digits(digits) { }
+        String operator+(const char* a)
+        {
+            int l = bytes();
+            int al = strlen(a);
+            String s(l + al);
+            write(s.data());
+            memcpy(s.data() + l, a, al);
+            return s;
+        }
     private:
         int bytes() const
         {
@@ -209,9 +223,11 @@ public:
         int bytes() const { return _b ? 4 : 5; }
         String operator+(const char* a)
         {
-            String s(bytes() + strlen(a));
-            s += *this;
-            s += a;
+            int l = bytes();
+            int al = strlen(a);
+            String s(l + al);
+            write(s.data());
+            memcpy(s.data() + l, a, al);
             return s;
         }
     private:
@@ -464,7 +480,7 @@ public:
             this+1)) - 1);
     }
 private:
-    explicit StringTemplate(int length) : StringTemplate(0, 0, length, 0) { }
+    explicit StringTemplate(int length) : StringTemplate(0, length, 0) { }
     void setLength(int l)
     {
         *(reinterpret_cast<int*>(reinterpret_cast<char*>(this+1)) - 1) = l;
@@ -499,8 +515,12 @@ private:
                     copyLength -= t;
                     otherData += t;
                 }
-                if (copyLength <= _array.allocated() - bufferCount())
+                if (extendLength <= _array.allocated() - bufferCount() &&
+                    bufferStart() + bufferCount() == data() + length()) {
                     _array.append(otherData, copyLength);
+                    _array.expand(extendLength - copyLength);
+                    setLength(newLength);
+                }
                 else {
                     String a(data(), newLength, length());
                     memcpy(a.data() + length(), otherData, copyLength);

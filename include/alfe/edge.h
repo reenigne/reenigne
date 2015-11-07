@@ -6,14 +6,14 @@ public:
     EdgeExpression operator+(EdgeExpression a)
     {
         EdgeExpression l(*this);
-        for (auto p = a._clauses.begin(); p != a._clauses.end(); ++p)
+        for (auto p : a._clauses)
             l.add(*p);
         return l;
     }
     EdgeExpression operator-(EdgeExpression a)
     {
         EdgeExpression l(*this);
-        for (auto p = a._clauses.begin(); p != a._clauses.end(); ++p) {
+        for (auto p : a._clauses) {
             Clause c = *p;
             c._coefficient = -c._coefficient;
             l.add(c);
@@ -52,9 +52,9 @@ private:
     }
     void add(const Clause& clause)
     {
-        for (auto p = _clauses.begin(); p != _clauses.end(); ++p)
-            if (clause._edge == p->_edge) {
-                p->_coefficient += clause._coefficient;
+        for (auto p = _clauses)
+            if (clause._edge == p._edge) {
+                p._coefficient += clause._coefficient;
                 return;
             }
         _clauses.add(clause);
@@ -65,8 +65,8 @@ private:
     }
     void multiply(double a)
     {
-        for (auto p = _clauses.begin(); p != _clauses.end(); ++p)
-            p->_coefficient *= a;
+        for (auto p : _clauses)
+            p._coefficient *= a;
     }
 
     friend class Edge;

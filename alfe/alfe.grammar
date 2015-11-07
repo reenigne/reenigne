@@ -73,23 +73,25 @@ Expression =
 
 TycoIdentifier = UpperCaseLetter AlphanumericCharacter* {[Space]};
 
+TycoParameter = ["@"] TycoSignifier
+
 TycoSpecifier =
-    TypeIdentifier ("<" TycoSpecifier / "," ">")*
+    TycoParameter
   | TycoSpecifier "*"
   | TycoSpecifier "(" [(TycoSpecifier [Identifier]) / ","] ")"
   | "Class" "{" ClassDefinition "}"
   | "TypeOf" "(" Expression ")"
-  | TycoSpecifier "." TycoIdentifier
+  | TycoSpecifier "." TycoParameter
+  | DecimalNumber
+  | TycoSpecifier "->" TycoSpecifier
+  | TycoSpecifier "|" TycoSpecifier
+  | TycoSpecifier "?"
+  | "(" [TycoSpecifier / ","] ")"
+  | TycoSpecifier "[" TycoSpecifier "]"
+  | TycoSpecifier "-" TycoSpecifier
   ;
 
-TemplateParameter =
-    TycoSpecifier
-  | "@" TycoIdentifier TemplateParameters
-  | TemplateParameter "*"
-  | TemplateParameter "(" TemplateParameter \ "," ")"
-  ;
-
-TemplateParameters = ("<" TemplateParameter \ "," ">")*;
+TemplateParameters = ("<" [TycoSpecifier | TemplateParameters] \ "," ["..."] ">")*;
 
 TycoSignifier = TycoIdentifier TemplateParameters;
 
@@ -97,7 +99,7 @@ ConditionedStatement = "(" Expression ")" Statement;
 
 Statement =
     Expression ";"
-  | TycoSpecifier Identifier "(" [(TycoSpecifier Identifier) / ","] ")" (Statement | `from` Expression ";")
+  | TycoSpecifier Identifier TemplateParameters "(" [(TycoSpecifier Identifier) / ","] ")" (Statement | `from` Expression ";")
   | TycoSpecifier Identifier "=" Expression ";"
   | "{" Statement* "}"
   | TycoSignifier = TycoSpecifier ";"

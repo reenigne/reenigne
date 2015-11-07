@@ -11,19 +11,17 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
-            return TypedValue(l + i->value<int>());
+            return Value(l + i->value<int>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(IntegerType(), IntegerType(), IntegerType()),
-                this);
+            return FunctionTyco(IntegerType(), IntegerType(), IntegerType());
         }
     };
 };
@@ -31,29 +29,29 @@ public:
 template<> Nullary<Function, AddIntegerInteger>
     Nullary<Function, AddIntegerInteger>::_instance;
 
-
 class SubtractIntegerInteger : public Nullary<Function, SubtractIntegerInteger>
 {
 public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
-            return TypedValue(l - i->value<int>());
+            return Value(l - i->value<int>());
         }
         Identifier identifier() const { return OperatorMinus(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(IntegerType(), IntegerType(), IntegerType()),
-                this);
+            return FunctionTyco(IntegerType(), IntegerType(), IntegerType());
         }
     };
 };
+
+template<> Nullary<Function, SubtractIntegerInteger>
+    Nullary<Function, SubtractIntegerInteger>::_instance;
 
 class MultiplyIntegerInteger : public Nullary<Function, MultiplyIntegerInteger>
 {
@@ -61,21 +59,22 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        TypedValue evaluate(List<TypedValue> arguments) const
+        Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
-            return TypedValue(l * i->value<int>());
+            return Value(l * i->value<int>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        TypedValue typedValue() const
+        FunctionTyco tyco() const
         {
-            return TypedValue(
-                FunctionTyco(IntegerType(), IntegerType(), IntegerType()),
-                this);
+            return FunctionTyco(IntegerType(), IntegerType(), IntegerType());
         }
     };
 };
+
+template<> Nullary<Function, MultiplyIntegerInteger>
+    Nullary<Function, MultiplyIntegerInteger>::_instance;
 
 #endif // INCLUDED_INTEGER_FUNCTIONS_H

@@ -1582,8 +1582,8 @@ public:
         _clips = 0;
         _maxSaturation = 0;
         _gamut.reset();
-        for (auto i = _colours.begin(); i != _colours.end(); ++i) {
-            Colour c = colourFromSeq(*i);
+        for (auto i : _colours) {
+            Colour c = colourFromSeq(i);
             double r = c.x;
             double g = c.y;
             double b = c.z;

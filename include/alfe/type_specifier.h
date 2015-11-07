@@ -267,11 +267,6 @@ public:
         *source = s2;
         return new Body(name, Span(location, endLocation));
     }
-    bool operator==(const TycoIdentifier& other) const
-    {
-        return name() == other.name();
-    }
-
     class Body : public TycoSpecifier::Body
     {
     public:
@@ -281,6 +276,11 @@ public:
         Hash hash() const
         {
             return TycoSpecifier::Body::hash().mixin(_name.hash());
+        }
+        bool equals(const ConstHandle::Body* other) const
+        {
+            auto o = other->as<Body>();
+            return _name == o->_name;
         }
     private:
         String _name;

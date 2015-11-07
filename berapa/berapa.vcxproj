@@ -161,6 +161,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="berapa.cpp" />
+    <ClInclude Include="..\include\alfe\any.h" />
     <ClInclude Include="..\include\alfe\assert.h" />
     <ClInclude Include="..\include\alfe\concrete.h" />
     <ClInclude Include="..\include\alfe\concrete_functions.h" />

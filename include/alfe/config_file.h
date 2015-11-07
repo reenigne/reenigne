@@ -7,7 +7,6 @@
 #include "alfe/space.h"
 #include "alfe/any.h"
 #include "alfe/type.h"
-#include "alfe/value.h"
 #include "alfe/set.h"
 #include "alfe/expression.h"
 #include "alfe/function.h"
@@ -37,9 +36,9 @@ public:
     class Body : public Function::Body
     {
     public:
-        virtual TypedValue evaluate(List<TypedValue> arguments) const = 0;
+        virtual Value evaluate(List<Value> arguments) const = 0;
         virtual Identifier identifier() const = 0;
-        virtual TypedValue typedValue() const = 0;
+        virtual Value value() const = 0;
     };
 };
 
@@ -48,37 +47,33 @@ class ConfigFile : public Structure
 public:
     ConfigFile() : _context(this)
     {
-        addFunction(AddIntegerInteger());
-        addFunction(SubtractIntegerInteger());
-        addFunction(MultiplyIntegerInteger());
-        addFunction(AddStringString());
-        addFunction(MultiplyIntegerString());
-        addFunction(MultiplyStringInteger());
-        addFunction(AddRationalRational());
-        addFunction(AddRationalInteger());
-        addFunction(AddIntegerRational());
-        addFunction(SubtractRationalRational());
-        addFunction(SubtractRationalInteger());
-        addFunction(SubtractIntegerRational());
-        addFunction(MultiplyRationalRational());
-        addFunction(MultiplyRationalInteger());
-        addFunction(MultiplyIntegerRational());
-        addFunction(DivideRationalRational());
-        addFunction(DivideRationalInteger());
-        addFunction(DivideIntegerRational());
-        addFunction(DivideIntegerInteger());
-        addFunction(AddConcreteConcrete());
-        addFunction(SubtractConcreteConcrete());
-        addFunction(MultiplyConcreteConcrete());
-        addFunction(MultiplyConcreteInteger());
-        addFunction(MultiplyConcreteRational());
-        addFunction(MultiplyIntegerConcrete());
-        addFunction(MultiplyRationalConcrete());
-        addFunction(DivideConcreteConcrete());
-        addFunction(DivideConcreteInteger());
-        addFunction(DivideConcreteRational());
-        addFunction(DivideRationalConcrete());
-        addFunction(DivideIntegerInteger());
+        addFunco(AddIntegerInteger());
+        addFunco(SubtractIntegerInteger());
+        addFunco(MultiplyIntegerInteger());
+        addFunco(AddStringString());
+        addFunco(MultiplyIntegerString());
+        addFunco(MultiplyStringInteger());
+        addFunco(AddRationalRational());
+        addFunco(AddRationalInteger());
+        addFunco(AddIntegerRational());
+        addFunco(SubtractRationalRational());
+        addFunco(SubtractRationalInteger());
+        addFunco(SubtractIntegerRational());
+        addFunco(MultiplyRationalRational());
+        addFunco(MultiplyRationalInteger());
+        addFunco(MultiplyIntegerRational());
+        addFunco(DivideRationalRational());
+        addFunco(DivideRationalInteger());
+        addFunco(DivideIntegerRational());
+        addFunco(DivideIntegerInteger());
+        addFunco(AddConcreteConcrete());
+        addFunco(SubtractConcreteConcrete());
+        addFunco(MultiplyConcreteConcrete());
+        addFunco(MultiplyConcreteAbstract());
+        addFunco(MultiplyAbstractConcrete());
+        addFunco(DivideConcreteConcrete());
+        addFunco(DivideConcreteAbstract());
+        addFunco(DivideAbstractConcrete());
     }
     template<class T> ConfigOption<T> addOption(String name)
     {
@@ -87,42 +82,43 @@ public:
     }
     void addOption(String name, Type type)
     {
-        addOption(name, TypedValue(type));
+        addOption(name, Value(type));
     }
     template<class T> void addDefaultOption(String name, Type type,
         const T& defaultValue)
     {
-        addOption(name, TypedValue(type, Any(defaultValue)));
+        addOption(name, Value(type, defaultValue));
     }
     template<class T> ConfigOption<T> addDefaultOption(String name,
         const T& defaultValue)
     {
-        addOption(name, TypedValue(defaultValue));
+        addOption(name, Value(defaultValue));
         return ConfigOption<T>(this, name);
     }
 private:
-    void addOption(String name, TypedValue defaultValue)
+    void addOption(String name, Value defaultValue)
     {
-        addType(defaultValue.type());
+        //addType(defaultValue.type());
         _options.add(name, defaultValue);
     }
 public:
-    void addType(Type type) { _types.add(type.toString(), type); }
-    void addFunction(Function function)
+    void addType(TycoIdentifier identifier, Type type)
     {
-        Identifier identifier = function.identifier();
-        throw NotYetImplementedException();
-        //if (_options.hasKey(identifier))
-        //    _options[identifier] = function.typedValue();
-        //else
-        //    _options.add(identifier, function.typedValue());
+        _types.add(identifier, type);
+    }
+    void addFunco(Funco funco)
+    {
+        Identifier identifier = funco.identifier();
+        if (!_options.hasKey(identifier))
+            _options.add(identifier, OverloadedFunctionSet(identifier));
+        _options[identifier].value<OverloadedFunctionSet>().add(funco);
     }
 
     void load(File file)
     {
         _file = file;
         String contents = file.contents();
-        CharacterSource source(contents, file.path());
+        CharacterSource source(contents, file);
         Space::parse(&source);
         do {
             CharacterSource s = source;
@@ -131,10 +127,10 @@ public:
             s = source;
             Span span;
             if (Space::parseKeyword(&s, "include", &span)) {
-                TypedValue e = Expression::parse(&s).evaluate(&_context).
+                Value e = Expression::parse(&s).evaluate(&_context).
                     convertTo(StringType());
                 Space::assertCharacter(&s, ';', &span);
-                load(e.value<String>());
+                load(File(e.value<String>(), file.parent()));
                 source = s;
                 continue;
             }
@@ -146,26 +142,25 @@ public:
                         "Don't understand this type specifier");
                 }
                 String name = identifier.name();
-                if (!_types.hasKey(name))
+                if (!_types.hasKey(identifier))
                     identifier.span().throwError("Unknown type " + name);
-                Type type = _types[name];
+                Type type = _types[identifier];
                 Identifier objectIdentifier = Identifier::parse(&s);
                 if (objectIdentifier.isOperator()) {
                     identifier.span().throwError("Cannot create an object "
                         "with operator name");
                 }
                 String objectName = objectIdentifier.name();
-                if (_options.hasKey(name))
-                    objectIdentifier.span().throwError(name +
+                if (_options.hasKey(objectIdentifier)) {
+                    objectIdentifier.span().throwError(objectName +
                         " already exists");
-                TypedValue value = TypedValue(
-                    StructuredType(String(), List<StructuredType::Member>()),
-                    HashTable<Identifier, TypedValue>());
+                }
+                Value value = StructuredType::empty();
                 if (Space::parseCharacter(&s, '=', &span))
                     value = Expression::parse(&s).evaluate(&_context);
                 Space::assertCharacter(&s, ';', &span);
                 source = s;
-                value = value.convertTo(type);
+                value = value.rValue().convertTo(type);
                 if (type.has(Identifier("*"))) {
                     // This special member is how ConfigFile tells created
                     // objects their names so that they can responsible for
@@ -177,8 +172,10 @@ public:
                     // I also don't want to use the empty string, since I might
                     // want to use that as the connector name for
                     // single-connector components.
-                    value.value<Structure*>()->set(Identifier("*"), name);
+                    value.value<Structure*>()->set(Identifier("*"),
+                        objectName);
                 }
+                _options[objectIdentifier] = value;
 
                 continue;
             }
@@ -187,23 +184,20 @@ public:
                 s.location().throwError("Expected an include statement, an "
                     "object creation statement or an assignment statement.");
             }
-            String name = identifier.name();
-            TypedValue left =
-                Expression::parseDot(&source).evaluate(&_context);
+            Value left = Expression::parseDot(&source).evaluate(&_context);
             Space::assertCharacter(&source, '=', &span);
             Expression e = Expression::parse(&source);
             if (!e.valid())
                 source.location().throwError("Expected expression.");
-            TypedValue loadedExpression = e.evaluate(&_context);
+            Value loadedExpression = e.evaluate(&_context);
             LValueType lValueType(left.type());
             if (!lValueType.valid())
                 left.span().throwError("LValue required");
             Type type = lValueType.inner();
             LValue p = left.value<LValue>();
-            TypedValue v = loadedExpression.rValue().convertTo(type);
+            Value v = loadedExpression.rValue().convertTo(type);
             Space::assertCharacter(&source, ';', &span);
             p.set(v);
-            _options[name].setValue(v.value());
         } while (true);
         for (auto i = _options.begin(); i != _options.end(); ++i) {
             if (!i.value().valid())
@@ -212,27 +206,26 @@ public:
         }
     }
 
-    TypedValue getValue(Identifier identifier)
+    Value getValue(Identifier identifier)
     {
         return _options[identifier].rValue();
     }
-    void set(Identifier identifier, TypedValue value)
+    void set(Identifier identifier, Value value)
     {
         _options[identifier] = value;
     }
     File file() const { return _file; }
 
-    TypedValue valueOfIdentifier(Identifier i)
+    Value valueOfIdentifier(Identifier i)
     {
-        String s = i.name();
-        if (_enumeratedValues.hasKey(s)) {
-            TypedValue value = _enumeratedValues[s];
-            return TypedValue(value.type(), value.value(), i.span());
+        if (_enumeratedValues.hasKey(i)) {
+            Value value = _enumeratedValues[i];
+            return Value(value.type(), value.value(), i.span());
         }
-        if (!_options.hasKey(s))
-            i.span().throwError("Unknown identifier " + s);
-        return TypedValue(LValueType::wrap(_options[s].type()),
-            LValue(this, s), i.span());
+        if (!_options.hasKey(i))
+            i.span().throwError("Unknown identifier " + i.name());
+        return Value(LValueType::wrap(_options[i].type()),
+            LValue(this, i), i.span());
     }
     Tyco resolveTycoIdentifier(TycoIdentifier i)
     {
@@ -247,7 +240,7 @@ private:
     {
     public:
         EvaluationContext(ConfigFile* configFile) : _configFile(configFile) { }
-        TypedValue valueOfIdentifier(Identifier i)
+        Value valueOfIdentifier(Identifier i)
         {
             return _configFile->valueOfIdentifier(i);
         }
@@ -259,8 +252,8 @@ private:
         ConfigFile* _configFile;
     };
 
-    HashTable<Identifier, TypedValue> _options;
-    HashTable<Identifier, TypedValue> _enumeratedValues;
+    HashTable<Identifier, Value> _options;
+    HashTable<Identifier, Value> _enumeratedValues;
     HashTable<TycoIdentifier, Type> _types;
     File _file;
     EvaluationContext _context;

@@ -31,18 +31,18 @@ public:
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("data",
-            TypedValue(SequenceType(IntegerType()), List<TypedValue>())));
+            Value(SequenceType(IntegerType()), List<Value>())));
         members.add(StructuredType::Member("active", false));
         members.add(StructuredType::Member("address", 0));
         return StructuredType("DMAPages", members);
     }
-    void load(const TypedValue& value)
+    void load(const Value& value)
     {
-        auto members = value.value<HashTable<Identifier, TypedValue>>();
-        auto dmaPages = members["data"].value<List<TypedValue>>();
+        auto members = value.value<HashTable<Identifier, Value>>();
+        auto dmaPages = members["data"].value<List<Value>>();
         int j = 0;
-        for (auto i = dmaPages.begin(); i != dmaPages.end(); ++i) {
-            _dmaPages[j] = (*i).value<int>();
+        for (auto i : dmaPages) {
+            _dmaPages[j] = i.value<int>();
             ++j;
             if (j == 4)
                 break;

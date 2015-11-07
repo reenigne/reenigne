@@ -74,3 +74,135 @@ Functions:
     A<Int> f<@A<>>() { }
     A<B> f<@A<>,@B>() { }
 
+
+
+
+The basic idea behind template pattern matching is that we take a TycoDefinitionStatement like:
+
+Foo<@T> = Class { ... }
+
+Instantiate with
+
+Foo<A>
+
+The "Foo<A>" tree is walked in parallel with the "Foo<@T>" tree, the A is assigned to the T and we return success or failure (and, if success, the T=>A symbol table mapping).
+
+More complicated cases:
+  Foo<@T*> (aka Foo<Pointer<@T>>)
+Matches: Foo<Pointer<A>> but not Foo<Label>  (T==A)
+
+Foo<@T,T> matches Foo<A,A>  (Both Ts point to the same symbol table entry. If it's already filled when we match, check it like any other TycoSpecifier).
+
+Foo<@A...> matches Foo<> or Foo<X> or Foo<X,Y> or Foo<X,Y,Z> etc. (Here A points to a list of tycos instead of a single tyco)
+
+Foo<A<@B...>,C<@D...>> demonstrates that we need named for our ellipses (
+
+Foo<@A<Int>> accepts any template as its parameter as long as A can be instantiated with Int
+  It's not really necessary to have this syntax as having the type definition instantiate A<Int> will have the same effect.
+  Actually this means that Foo must be instantiated with something like Foo<B<Int>> not Foo<B> (i.e. a type).
+
+Foo<@A<@B>> can only be instantiated with a tyco that is a type instantiated from a template of kind *->*.
+  This shows that @B can appear anywhere, not just at a top-level argument
+  Suppose C = D<E>. Can we then call Foo<C> and have A=D, B=E?
+    I think so - tyco assignment only creates a new name (alias, like typedef) for a tyco, not a separate type. If you want a separate type use C = Class : D<E> { }
+    So for pattern matching we will need to follow names through to their definitions
+
+The @ always occurs before a type identifier (a type always starts with a type identifier)
+  (@A)<B> and @(A<B>) mean the same thing since in the definition body we would need to use A<B>
+
+Foo<@A.@B> can only be instantiated with a tyco that is a member of a type
+  Foo<@A.@B<>> means we must instantiate Foo as Foo<C.D> (given Foo<E> it's not possible to search through and see if E is some C.D).
+    A must be a class type specifier
+    B must be a member template
+
+Foo<@A<Int>> needs to be instantiated with a type, but Foo<@A<>> needs to be instantiated with a template of kind *->*.
+What about Foo<@A<><Int>> aka Foo<@A<,Int>> and Foo<@A<Int><>> aka Foo<@A<Int,>>
+  All these need to be instantiated with a template of kind *->*.
+  The template must be a partial instantiation of a template of kind *->*->*
+    Bar<@X,@Y> aka Bar<@X><@Y>
+  To partially instantiate we do Bar<Int> which yields Bar<Int><>. Then we can do Foo<Bar<Int>>
+  Or "Baz<@Z> = Bar<Z><Int>" in order to be able to instantiate Foo<@A<><Int>> as Foo<Baz>.
+  But suppose Bar is itself defined as Bar<@X,@Y> = Bop<X,Y,Int> - then neither the passed kind nor the underlying kind is *->*->*.
+    So we have to check each definition level to see if it matches the pattern
+    I think this is unavoidable if we want to allow Foo<Pointer<@A>> specializations.
+
+@A or @A.B (but no other TycoSpecifier constructors) can be followed by a KindSpecifier
+
+
+The following TycoSpecifier constructors always take a type and return a type:
+  A*
+  A[B]
+  A(B,C,...)
+  A->B
+  A|B
+  A?
+  (A,B)
+  A-B
+The following TycoSpecifier constructors just return a type:
+  Class { ... }
+  TypeOf(expression)
+  3
+The A.B TycoSpecifier constructor takes a Type on the left and can return a Tyco on the right
+
+
+    TypeIdentifier ("<" TycoSpecifier / "," ">")*
+  | TycoSpecifier "." TycoIdentifier
+
+
+
+The TemplateParameters form a function from the set of @ placeholders to the actual parameters (that correspond to the arguments)
+  The pattern matching process essentially reverses this function, taking the actual arguments and returning the Tycos and TycoLists corresponding to the @ parameters
+
+
+
+
+What is the type constructor of a template function
+  A f<@B>(C) { }  has a tyco of kind <> aka *->*
+    Give it a type and you get a type back
+      The type you get back is a function type (which may or may not depend on B)
+  Is the tyco of f A<@B>(C) or A(C)<@B>?
+    Why do we need to know this? We don't have a canonical representation of templates in general.
+      It's what appears on the left of the tyco definition statement for a tyco
+      Let's say the former for now, as it looks most similar to the function definition ("A f(B)":"A(B)"::"A f<@B>(C)":"A<@B>(C)")
+  So a function is the one thing that can be named with a non-tyco identifier ("f") which potentially has a template tyco.
+
+
+
+Instead of HashTable<Identifier, Value>, _options needs to be HashTable<Identifier, List<Valco>>
+(Valco is a Value or a Funco)
+  However, we'd like the
+
+
+Need to figure out what to do with overloaded-function-sets
+  Evaluating an identifier can return one of these
+  It's not really a value since it doesn't have a proper type
+    Though we could make up a fake type for them so that we don't have to mess with the C++ type of Expression::evaluate(), EvaluationContext::valueOfIdentifier() and ConfigFile::_options
+
+
+HashTable has pointer to
+  HashTable::Body which has Value which has Any which has pointer to
+    Any::Body which has OverloadedFunctionSet which has pointer to
+      OverloadedFunctionSet::Body which has List<Funco> which has pointer to
+        List<Funco>::Body which has Funco which has pointer to
+          Funco::Body
+
+
+
+
+Suppose we have "Int f<@A>(A.B b)". Is this better or worse than "Int f(X b)"?
+  We don't want to have to look at all possible A classes to see which have B and whether they are all subtypes of X or vice-versa
+  "A.B" is a non-reversible tyco - given A.B we can't necessarily find A
+  Pointer<A> is a reversible tyco - given Pointer<A> we can find A
+    types are trivially reversible tycos (there are no placeholders to find).
+  Treat non-reversible tycos as "matches anything" for purposes of overload resolution
+  As it would not be possible to determine A from A.B, this f must be explicitly instantiated
+    Only tyco arguments that can be reversed from the value arguments may be left out
+
+How do we implement betterThan()?
+  We need some method that it can call to examine the argument types of the other call
+    Should it just be a tyco() method? This returns a FunctionType for a function and a FunctionTyco for a function template
+    Alternative would be to return a list of argument tycos but this may be incomplete information
+    For our concrete funcos, Tyco would need to return a FunctionTyco taking/returning ConcreteTyco and/or AbstractTyco
+      ConcreteTyco doesn't ever need to be instantiated. It's just needed so that there's a tyco for concrete funcos to be
+        ConcreteTyco doesn't show up in symbol tables (unless we move to Concrete<Class { }> syntax).
+      AbstractTyco is just Integer | Rational - it's a type

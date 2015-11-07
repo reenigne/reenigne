@@ -4,6 +4,7 @@
 #include <new>
 #include <exception>
 #include <limits>
+#include <utility>
 #include <string.h>
 
 #ifdef _WIN32

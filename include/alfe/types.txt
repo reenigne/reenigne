@@ -16,6 +16,9 @@ Tyco                        Tyco::Body
                                 Template::PartiallyInstantiatedBody
                                 Template::VariadicBody
                                 Template::InstantiatedBody
-TypedValue
 
+Valco
+  Value
 
+Funco
+  Function

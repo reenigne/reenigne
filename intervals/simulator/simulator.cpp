@@ -947,10 +947,10 @@ public:
                     t = static_cast<int>(cyclesBeforeChange*400*256);
                     final = true;
                 }
-                for (std::vector<Handle>::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                    (*i)->simulateTo(t);
-                for (std::vector<Handle>::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                    (*i)->resetTime();
+                for (auto i : _bars)
+                    i->simulateTo(t);
+                for (auto i : _bars)
+                    i->resetTime();
 #ifdef DUMP1
                 if (_dumpMatrix)
                     for (int i = 0; i < t/(400*256); ++i) {
@@ -1071,8 +1071,8 @@ public:
                     --_connectedPairs;
                 }
                 // Prime to update _indent
-                for (std::vector<Handle>::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                    (*i)->clearLive();
+                for (auto i : _bars)
+                    i->clearLive();
                 int liveBars = _bars[0]->prime(0);
 #ifdef DUMP
                 printf("Live %i connections %i\n", liveBars, _connectedPairs);
@@ -1082,8 +1082,8 @@ public:
 #else
                 _bars[0]->storeExpectedStream(0, &_expectedStream[0]);
 #endif
-                for (std::vector<Handle>::iterator i = _bars.begin(); i != _bars.end(); ++i)
-                    (*i)->resetNewlyConnected();
+                for (auto i : _bars)
+                    i->resetNewlyConnected();
                 //if (_changes == 4251) {
                 //    //_bars[30]->setDebug();
                 //    _bars[98]->setDebug();

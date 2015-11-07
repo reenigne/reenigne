@@ -17,12 +17,6 @@ class Kind : public ConstHandle
 public:
     Kind() { }
     String toString() const { return body()->toString(); }
-    bool operator==(const Kind& other) const
-    {
-        if (body() == other.body())
-            return true;
-        return body()->equals(other.body());
-    }
     bool operator!=(const Kind& other) const { return !operator==(other); }
     Kind instantiate(Kind argument) const
     {
@@ -33,10 +27,6 @@ protected:
     {
     public:
         virtual String toString() const = 0;
-        virtual bool equals(const Body* other) const
-        {
-            return this == other;
-        }
         virtual Kind instantiate(Kind argument) const = 0;
     };
     Kind(const Body* body) : ConstHandle(body) { }
@@ -118,13 +108,10 @@ protected:
                 needComma = true;
             } while (true);
         }
-        bool equals(const Kind::Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
-            const Body* o =
-                dynamic_cast<const Body*>(other);
-            if (o == 0)
-                return false;
-            return _firstParameterKind == o->_firstParameterKind &&
+            auto o = other->as<Body>();
+            return o != 0 && _firstParameterKind == o->_firstParameterKind &&
                 _restParameterKind == o->_restParameterKind;
         }
         Hash hash() const
