@@ -63,12 +63,32 @@ typedef StructureTemplate<void> Structure;
 template<class T> class StructureTemplate
 {
 public:
-    template<class U> U get(Identifier identifier)
+    template<class U> U get(Identifier identifier) const
     {
         return getValue(identifier).template value<U>();
     }
-    virtual Value getValue(Identifier identifier) = 0;
-    virtual void set(Identifier identifier, Value value) = 0;
+    ValueTemplate<T> getValue(Identifier identifier) const
+    {
+        return _values[identifier];
+    }
+    bool has(Identifier identifier) const
+    {
+        return _values.hasKey(identifier);
+    }
+    void set(Identifier identifier, Value value)
+    {
+        _values[identifier] = value;
+    }
+    HashTable<Identifier, Value>::Iterator begin() const
+    {
+        return _values.begin();
+    }
+    HashTable<Identifier, Value>::Iterator end() const
+    {
+        return _values.end();
+    }
+private:
+    HashTable<Identifier, Value> _values;
 };
 
 template<class T> class LValueTemplate;
@@ -107,10 +127,7 @@ public:
     {
         return body()->tryConvertTo(to, value, reason);
     }
-    bool has(IdentifierTemplate<T> memberName) const
-    {
-        return body()->has(memberName);
-    }
+    Type member(IdentifierTemplate<T> i) const { return body()->member(i); }
     Type rValue() const
     {
         if (LValueTypeTemplate<T>(*this).valid())
@@ -136,10 +153,7 @@ protected:
                 return value;
             return ValueTemplate<T>();
         }
-        virtual bool has(IdentifierTemplate<T> memberName) const
-        {
-            return false;
-        }
+        virtual Type member(IdentifierTemplate<T> i) const { return Type(); }
         //Tyco instantiate(const Tyco& argument) const
         //{
         //    throw Exception(String("Cannot instantiate ") + toString() +
@@ -301,11 +315,6 @@ protected:
         {
             assert(false);
             return Value();
-        }
-        bool has(IdentifierTemplate<T> memberName) const
-        {
-            assert(false);
-            return false;
         }
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
@@ -535,8 +544,6 @@ public:
                 return value;
             return Value();
         }
-        bool has(IdentifierTemplate<T> memberName) const { return false; }
-
         // Template
         Tyco instantiate(const Tyco& argument) const
         {
@@ -601,23 +608,23 @@ private:
                 return value;
             return Value();
         }
-        bool has(IdentifierTemplate<T> memberName) const
+        Type member(IdentifierTemplate<T> i) const
         {
             CharacterSource s(memberName.name());
             Rational r;
             if (!Space::parseNumber(&s, &r))
-                return false;
+                return Type();
             if (r.denominator != 1)
-                return false;
+                return Type();
             int n = r.numerator;
             if (s.get() != -1)
-                return false;
+                return Type();
             TupleTyco p(this);
             do {
                 if (p.isUnit())
-                    return false;
+                    return Type();
                 if (n == 1)
-                    return true;
+                    return p.contained();
                 --n;
                 p = p.parent();
             } while (true);
@@ -741,10 +748,6 @@ private:
             if (this == to.body())
                 return value;
             return Value();
-        }
-        virtual bool has(IdentifierTemplate<T> memberName) const
-        {
-            return false;
         }
         // Template
         Tyco instantiate(const Tyco& argument) const
@@ -1116,10 +1119,12 @@ protected:
 
             return Value();
         }
-        bool has(IdentifierTemplate<T> memberName) const
+        Type member(IdentifierTemplate<T> i) const
         {
-            return _names.hasKey(memberName);
-        }
+            if (!_names.hasKey(i))
+                return Type();
+            return _members[_names[i]].type();
+        }                              
     private:
         Value tryConvertHelper(const Value& value, const Member* to,
             String* why) const
@@ -1328,7 +1333,7 @@ template<class T> class ConcreteTypeTemplate : public Type
 
     static int _bases;
 public:
-    ConcreteTypeTemplate() : Type(Body::create(_bases, _bases))
+    ConcreteTypeTemplate() : Type(Body::create(_bases + 1, _bases + 1))
     {
         for (int i = 0; i < size(); ++i)
             element(i) = 0;
@@ -1357,16 +1362,16 @@ public:
     }
     ConcreteTypeTemplate operator+(const ConcreteTypeTemplate& other) const
     {
-        ConcreteTypeTemplate t(size());
-        for (int i = 0; i < size(); ++i)
-            t.element(i) = -element(i);
+        ConcreteTypeTemplate t(max(size(), other.size()));
+        for (int i = 0; i < t.size(); ++i)
+            t.element(i) = element(i) + other.element(i);
         return t;
     }
     ConcreteTypeTemplate operator-(const ConcreteTypeTemplate& other) const
     {
-        ConcreteTypeTemplate t(size());
-        for (int i = 0; i < size(); ++i)
-            t.element(i) = -element(i);
+        ConcreteTypeTemplate t(max(size(), other.size()));
+        for (int i = 0; i < t.size(); ++i)
+            t.element(i) = element(i) - other.element(i);
         return t;
     }
 private:

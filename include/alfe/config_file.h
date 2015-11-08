@@ -98,8 +98,7 @@ public:
 private:
     void addOption(String name, Value defaultValue)
     {
-        //addType(defaultValue.type());
-        _options.add(name, defaultValue);
+        set(name, defaultValue);
     }
 public:
     void addType(TycoIdentifier identifier, Type type)
@@ -109,9 +108,9 @@ public:
     void addFunco(Funco funco)
     {
         Identifier identifier = funco.identifier();
-        if (!_options.hasKey(identifier))
-            _options.add(identifier, OverloadedFunctionSet(identifier));
-        _options[identifier].value<OverloadedFunctionSet>().add(funco);
+        if (!has(identifier))
+            set(identifier, OverloadedFunctionSet(identifier));
+        get<OverloadedFunctionSet>(identifier).add(funco);
     }
 
     void load(File file)
@@ -151,7 +150,7 @@ public:
                         "with operator name");
                 }
                 String objectName = objectIdentifier.name();
-                if (_options.hasKey(objectIdentifier)) {
+                if (has(objectIdentifier)) {
                     objectIdentifier.span().throwError(objectName +
                         " already exists");
                 }
@@ -161,7 +160,7 @@ public:
                 Space::assertCharacter(&s, ';', &span);
                 source = s;
                 value = value.rValue().convertTo(type);
-                if (type.has(Identifier("*"))) {
+                if (type.member(Identifier("*")) == StringType()) {
                     // This special member is how ConfigFile tells created
                     // objects their names so that they can responsible for
                     // persistence so that this functionality doesn't need to
@@ -175,7 +174,7 @@ public:
                     value.value<Structure*>()->set(Identifier("*"),
                         objectName);
                 }
-                _options[objectIdentifier] = value;
+                set(objectIdentifier, value);
 
                 continue;
             }
@@ -199,33 +198,25 @@ public:
             Space::assertCharacter(&source, ';', &span);
             p.set(v);
         } while (true);
-        for (auto i = _options.begin(); i != _options.end(); ++i) {
+        for (auto i = begin(); i != end(); ++i) {
             if (!i.value().valid())
                 throw Exception(file.path() + ": " + i.key().name() +
                     " not defined and no default is available.");
         }
     }
 
-    Value getValue(Identifier identifier)
-    {
-        return _options[identifier].rValue();
-    }
-    void set(Identifier identifier, Value value)
-    {
-        _options[identifier] = value;
-    }
     File file() const { return _file; }
 
     Value valueOfIdentifier(Identifier i)
     {
+        Span s = i.span();
         if (_enumeratedValues.hasKey(i)) {
             Value value = _enumeratedValues[i];
-            return Value(value.type(), value.value(), i.span());
+            return Value(value.type(), value.value(), s);
         }
-        if (!_options.hasKey(i))
-            i.span().throwError("Unknown identifier " + i.name());
-        return Value(LValueType::wrap(_options[i].type()),
-            LValue(this, i), i.span());
+        if (!has(i))
+            s.throwError("Unknown identifier " + i.name());
+        return Value(LValueType::wrap(getValue(i).type()), LValue(this, i), s);
     }
     Tyco resolveTycoIdentifier(TycoIdentifier i)
     {
@@ -252,7 +243,6 @@ private:
         ConfigFile* _configFile;
     };
 
-    HashTable<Identifier, Value> _options;
     HashTable<Identifier, Value> _enumeratedValues;
     HashTable<TycoIdentifier, Type> _types;
     File _file;

@@ -319,6 +319,7 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "Intel8237DMA"; }
+            Component* createComponent() const { return new Intel8237DMA; }
         };
     };
 private:
@@ -541,5 +542,5 @@ private:
     int _highAddress;
     State _state;
 
-    Type _stateType;
+    ::Type _stateType;
 };

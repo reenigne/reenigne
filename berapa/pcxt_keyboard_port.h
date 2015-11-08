@@ -11,6 +11,7 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "PCXTKeyboardPort"; }
+            Component* createComponent() const { return new PCXTKeyboardPort; }
         };
     };
 

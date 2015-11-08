@@ -156,6 +156,7 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "IBMCGA"; }
+            Component* createComponent() const { return new IBMCGA; }
         };
     };
 private:

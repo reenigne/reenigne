@@ -154,6 +154,9 @@
     <ClInclude Include="..\include\alfe\any.h">
       <Filter>ALFE</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\alfe\reference.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ALFE">

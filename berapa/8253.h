@@ -101,6 +101,7 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "Intel8253PIT"; }
+            Component* createComponent() const { return new Intel8253PIT; }
         };
     };
 private:
@@ -407,7 +408,7 @@ private:
         bool _output;
         bool _latched;
         State _state;
-        Type _stateType;
+        ::Type _stateType;
     };
     class Timer0 : public Timer
     {

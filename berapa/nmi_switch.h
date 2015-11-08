@@ -50,39 +50,23 @@ public:
     public:
         Type(Simulator* simulator)
           : ISA8BitComponent::Type(new Body(simulator)) { }
-        Type(const Body* body) : ISA8BitComponent::Type(body) { }
     private:
+        //Type(const Body* body) : ISA8BitComponent::Type(body) { }
         class Body : public ISA8BitComponent::Type::Body
         {
         public:
             Body(Simulator* simulator)
               : ISA8BitComponent::Type::Body(simulator) { }
             String toString() const { return "NMISwitch"; }
-            Value tryConvert(const Value& value, String* why) const
+            ::Type member(Identifier i) const
             {
-                Value stv = value.type().tryConvertTo(
-                    StructuredType::empty().type(), value, why);
-                if (!stv.valid())
-                    return stv;
-
-                NMISwitch* nmiSwitch = new NMISwitch(Type(this));
-                _simulator->addComponent(nmiSwitch);
-                return Value(type(), nmiSwitch, value.span());
+                if (i.name() == "bus")
+                    return ISA8BitComponent::Connector::Type();
+                return ISA8BitComponent::Type::Body::member(i);
             }
-            bool has(String memberName) const
-            {
-                if (memberName == "value")
-                    return true;
-                return ISA8BitComponent::Type::Body::has(memberName);
-            }
-
+            Component* createComponent() const { return new NMISwitch; }
         };
     };
-    NMISwitch(Type type) : _type(type) { }
-
-    Component::Type type() const { return _type; }
-
 private:
     bool _nmiOn;
-    Type _type;
 };

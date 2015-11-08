@@ -10,6 +10,7 @@
 #include "alfe/rational.h"
 #include "alfe/pipes.h"
 #include "alfe/sdl2.h"
+#include "alfe/reference.h"
 
 #include <stdlib.h>
 #include <limits.h>
@@ -121,7 +122,23 @@ public:
         {
         public:
             Body(Simulator* simulator) : _simulator(simulator) { }
-            bool has(String memberName) const { return memberName == "*"; }
+            ::Type member(Identifier i) const
+            {
+                if (i.name() == "*")
+                    return StringType();
+                return ::Type();
+            }
+            virtual Component* createComponent() const = 0;
+            Value tryConvert(const Value& value, String* why) const
+            {
+                Value stv = value.type().tryConvertTo(
+                    StructuredType::empty().type(), value, why);
+                if (!stv.valid())
+                    return stv;
+                auto v = createComponent();
+                _simulator->addComponent(v);
+                return Value(type(), static_cast<Structure*>(v), value.span());
+            }
         protected:
             Simulator* _simulator;
         };
@@ -133,6 +150,31 @@ protected:
 private:
     Tick _ticksPerCycle;
     String _name;
+};
+
+class ClockedComponent : public Component
+{
+public:
+    void set(Identifier name, Value value)
+    {
+        Component::set(name, value);
+        if (name.name() == "frequency")
+            _cyclesPerSecond = (second*value.value<Concrete>()).value();
+    }
+    Value getValue(Identifier name)
+    {
+        if (name.name() == "frequency")
+            return _cyclesPerSecond/second;
+        return Component::getValue(name);
+    }
+    class Type : public Component::Type
+    {
+    protected:
+        Type(const Body* body) : Component::Type(body) { }
+        
+    };
+private:
+    Rational _cyclesPerSecond;
 };
 
 class Connector
@@ -261,10 +303,7 @@ public:
     }
 
     void halt() { _halted = true; }
-    void addComponent(Component* component)
-    {
-        _components.add(component);
-    }
+    void addComponent(Component* c) { _components.add(c); }
     void load(String initialStateFile)
     {
         Rational l = 0;
@@ -327,7 +366,7 @@ private:
         return StructuredType("Simulator", members);
     }
 
-    List<Component*> _components;
+    List<Reference<Component>> _components;
     bool _halted;
     int _minTicksPerCycle;
 };

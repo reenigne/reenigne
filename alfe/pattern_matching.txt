@@ -186,6 +186,14 @@ HashTable has pointer to
         List<Funco>::Body which has Funco which has pointer to
           Funco::Body
 
+If we specialize Any for Handles:
+HashTable has pointer to
+  HashTable::Body which has Value which has Any which has pointer to
+    OverloadedFunctionSet::Body which has List<Funco> which has pointer to
+      List<Funco>::Body which has Funco which has pointer to
+        Funco::Body
+
+
 
 
 

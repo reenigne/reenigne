@@ -309,10 +309,10 @@ private:
 
 typedef DisassemblerTemplate<void> Disassembler;
 
-template<class T> class Intel8088Template : public Component
+template<class T> class Intel8088Template : public ClockedComponent
 {
 public:
-    Intel8088Template()
+    Intel8088Template() : _connector(this)
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -1789,37 +1789,59 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _cycle = members["cycle"].value<int>();
         this->_tick = members["tick"].value<int>();
     }
-    void set(Identifier name, Value value)
+
+    Value getValue(Identifier i)
     {
-        Component::set(name, value);
-        if (name.name() == "cycleTime")
-            _cyclesPerSecond = (second/value.value<Concrete>()).value();
-    }
-    Value getValue(Identifier name)
-    {
-        if (name.name() == "cycleTime")
-            return second/_cyclesPerSecond;
-        return Component::getValue(name);
+        if (i.name() == "bus")
+            return _connector.getValue();
+        return ClockedComponent::getValue(i);
     }
 
-    class Type : public Component::Type
+    class Connector : public ::Connector
     {
     public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
+        Connector(Intel8088* cpu) : _cpu(cpu) { }
+        class Type : public NamedNullary<::Connector::Type, Type>
+        {
+        public:
+            static String name() { return "Intel8088.Connector.Type"; }
+            class Body : public NamedNullary<::Connector::Type, Type>::Body
+            {
+            public:
+                bool compatible(::Connector::Type other) const
+                {
+                    return other == ISA8BitBus::CPUSocket::Type();
+                }
+            };
+        };
+    protected:
+        ::Connector::Type type() const { return Type(); }
+        void connect(::Connector* other)
+        {
+            _cpu->_bus = static_cast<ISA8BitBus::CPUSocket*>(other)->_bus;
+        }
     private:
-        class Body : public Component::Type::Body
+        Intel8088* _cpu;
+    };
+
+    class Type : public ClockedComponent::Type
+    {
+    public:
+        Type(Simulator* simulator)
+          : ClockedComponent::Type(new Body(simulator)) { }
+    private:
+        class Body : public ClockedComponent::Type::Body
         {
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "Intel8088"; }
-            Value tryConvert(const Value& value, String* why) const
+            ::Type member(Identifier i) const
             {
-                Value stv = value.type().tryConvertTo(
-                    StructuredType::empty().type(), value, why);
-                if (!stv.valid())
-                    return stv;
-                return Value(type(), new Intel8088, value.span());
+                if (i.name() == "bus")
+                    return Connector::Type();
+                return ClockedComponent::Type::Body::member(i);
             }
+            Component* createComponent() const { return new Intel8088; }
         };
     };
 
@@ -2570,5 +2592,5 @@ private:
 
     Disassembler _disassembler;
 
-    Rational _cyclesPerSecond;
+    Connector _connector;
 };

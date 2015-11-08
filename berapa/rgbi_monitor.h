@@ -1,4 +1,4 @@
-class RGBIMonitor : public Sink<BGRI>
+class RGBIMonitor : public Component
 {
 public:
     RGBIMonitor() : _renderer(&_window), _texture(&_renderer)
@@ -33,17 +33,34 @@ public:
         }
     }
 
-    // We ignore the suggested number of samples and just read a whole frame's
-    // worth once there is enough for a frame.
-    void consume(int nSuggested)
-    {
-        // Since the pumping is currently done by Simulator::simulate(), don't
-        // try to pull more data from the CGA than we have.
-        if (remaining() < 912*262 + 1)
-            return;
+    //class Connector : public ::Connector
+    //{
 
-        // We have enough data for a frame - update the screen.
-        Accessor<BGRI> reader = Sink::reader(912*262 + 1);
+    //};
+
+    class BGRISink : public Sink<BGRI>
+    {
+    public:
+        BGRISink(RGBIMonitor* monitor) : _monitor(monitor) { }
+        // We ignore the suggested number of samples and just read a whole
+        // frame's worth once there is enough for a frame.
+        void consume(int nSuggested)
+        {
+            // Since the pumping is currently done by Simulator::simulate(),
+            // don't try to pull more data from the CGA than we have.
+            if (remaining() < 912*262 + 1)
+                return;
+
+            // We have enough data for a frame - update the screen.
+            read(_monitor->consume(Sink::reader(912*262 + 1)));
+        }
+
+    private:
+        RGBIMonitor* _monitor;
+    };
+
+    int consume(Accessor<BGRI> reader)
+    {
         SDLTextureLock _lock(&_texture);
         int y = 0;
         int x = 0;
@@ -75,8 +92,8 @@ public:
             ++x;
             reader.advance(1);
         } while (true);
-        read(n);
         _renderer.renderTexture(&_texture);
+        return n;
     }
 
     class Type : public Component::Type
@@ -89,6 +106,7 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "RGBIMonitor"; }
+            Component* createComponent() const { return new RGBIMonitor; }
         };
     };
 private:

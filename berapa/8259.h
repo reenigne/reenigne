@@ -95,6 +95,7 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "Intel8259PIC"; }
+            Component* createComponent() const { return new Intel8259PIC; }
         };
     };
     

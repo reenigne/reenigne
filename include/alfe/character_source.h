@@ -70,6 +70,8 @@ public:
     }
     void throwError(const String& message) const
     {
+        if (_startLine == -1)
+            throw Exception(message);
         throw Exception(toString() + ": " + message);
     }
     Location start() const

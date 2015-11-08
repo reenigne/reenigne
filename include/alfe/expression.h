@@ -455,7 +455,7 @@ private:
 
             LValueTypeTemplate<T> lValueType(e.type());
             if (!lValueType.valid()) {
-                if (!e.type().has(_right)) {
+                if (!e.type().member(_right).valid()) {
                     this->span().throwError("Expression has no member named " +
                         _right.name());
                 }
@@ -465,15 +465,15 @@ private:
                 e = Value(e.type(), e.value(), this->span());
             }
             else {
-                if (!lValueType.inner().has(_right))
+                Type t = lValueType.inner().member(_right);
+                if (!t.valid())
                     this->span().throwError("Expression has no member named " +
                         _right.name());
                 StructureTemplate<T>* p = e.
                     template value<LValueTemplate<T>>().
                     rValue().template value<StructureTemplate<T>*>();
-                e = Value(LValueTypeTemplate<T>::
-                    wrap(p->getValue(_right).type()),
-                    LValue(p, _right), this->span());
+                e = Value(LValueTypeTemplate<T>::wrap(t), LValue(p, _right),
+                    this->span());
             }
             return e;
         }
@@ -706,7 +706,7 @@ public:
             // What we have on the left isn't a function, try to call its
             // operator() method instead.
             IdentifierTemplate<T> i = Identifier(OperatorFunctionCall());
-            if (!lType.has(i))
+            if (!lType.member(i).valid())
                 span().throwError("Expression is not a function.");
             LValueTypeTemplate<T> lValueType(lType);
             if (!lValueType.valid()) {
@@ -717,8 +717,7 @@ public:
             else {
                 StructureTemplate<T>* p = l.template
                     value<LValue>().rValue().template value<Structure*>();
-                l = Value(LValueTypeTemplate<T>::
-                    wrap(p->getValue(i).type()),
+                l = Value(LValueTypeTemplate<T>::wrap(p->getValue(i).type()),
                     LValue(p, i), this->span());
             }
             return l.template value<Function>().evaluate(arguments, span());

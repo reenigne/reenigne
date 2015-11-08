@@ -125,6 +125,7 @@ public:
                     return true;
                 return ISA8BitComponent::Type::Body::has(name);
             }
+            Component* createComponent() const { return new RAM; }
         };
     };
 private:
