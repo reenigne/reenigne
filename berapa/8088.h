@@ -1790,7 +1790,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         this->_tick = members["tick"].value<int>();
     }
 
-    Value getValue(Identifier i)
+    Value getValue(Identifier i) const
     {
         if (i.name() == "bus")
             return _connector.getValue();
@@ -1804,7 +1804,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:
-            static String name() { return "Intel8088.Connector.Type"; }
+            static String name() { return "Intel8088.Connector"; }
             class Body : public NamedNullary<::Connector::Type, Type>::Body
             {
             public:
@@ -1833,7 +1833,8 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         class Body : public ClockedComponent::Type::Body
         {
         public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
+            Body(Simulator* simulator)
+              : ClockedComponent::Type::Body(simulator) { }
             String toString() const { return "Intel8088"; }
             ::Type member(Identifier i) const
             {
@@ -1841,7 +1842,10 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     return Connector::Type();
                 return ClockedComponent::Type::Body::member(i);
             }
-            Component* createComponent() const { return new Intel8088; }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<Intel8088>();
+            }
         };
     };
 
@@ -2594,3 +2598,6 @@ private:
 
     Connector _connector;
 };
+
+template<> Nullary<Connector::Type, Intel8088::Connector::Type>
+    Nullary<Connector::Type, Intel8088::Connector::Type>::_instance;

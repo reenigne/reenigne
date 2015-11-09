@@ -113,7 +113,7 @@ public:
         if (name.name() == "*")
             _name = value.value<String>();
     }
-    Value getValue(Identifier name) { return Value(); }
+    Value getValue(Identifier name) const { return Value(); }
     class Type : public ::Type
     {
     protected:
@@ -128,7 +128,7 @@ public:
                     return StringType();
                 return ::Type();
             }
-            virtual Component* createComponent() const = 0;
+            virtual Reference<Component> createComponent() const = 0;
             Value tryConvert(const Value& value, String* why) const
             {
                 Value stv = value.type().tryConvertTo(
@@ -137,7 +137,8 @@ public:
                     return stv;
                 auto v = createComponent();
                 _simulator->addComponent(v);
-                return Value(type(), static_cast<Structure*>(v), value.span());
+                return Value(type(), static_cast<Structure*>(&(*v)),
+                    value.span());
             }
         protected:
             Simulator* _simulator;
@@ -161,7 +162,7 @@ public:
         if (name.name() == "frequency")
             _cyclesPerSecond = (second*value.value<Concrete>()).value();
     }
-    Value getValue(Identifier name)
+    Value getValue(Identifier name) const
     {
         if (name.name() == "frequency")
             return _cyclesPerSecond/second;
@@ -171,7 +172,17 @@ public:
     {
     protected:
         Type(const Body* body) : Component::Type(body) { }
-        
+        class Body : public Component::Type::Body
+        {
+        public:
+            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
+            ::Type member(Identifier i) const
+            {
+                if (i.name() == "frequency")
+                    return -second.type();
+                return Component::Type::Body::member(i);
+            }
+        };
     };
 private:
     Rational _cyclesPerSecond;
@@ -202,7 +213,7 @@ public:
     public:
         const Body* body() const { return as<Body>(); }
     };
-    Value getValue() { return Value(type(), this); }
+    Value getValue() const { return Value(type(), this); }
 
     virtual Type type() const = 0;
     virtual void connect(Connector* other) = 0;
@@ -303,7 +314,7 @@ public:
     }
 
     void halt() { _halted = true; }
-    void addComponent(Component* c) { _components.add(c); }
+    void addComponent(Reference<Component> c) { _components.add(c); }
     void load(String initialStateFile)
     {
         Rational l = 0;

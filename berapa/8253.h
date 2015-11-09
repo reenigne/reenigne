@@ -101,7 +101,10 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "Intel8253PIT"; }
-            Component* createComponent() const { return new Intel8253PIT; }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<Intel8253PIT>();
+            }
         };
     };
 private:

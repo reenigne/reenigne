@@ -125,7 +125,10 @@ public:
                     return true;
                 return ISA8BitComponent::Type::Body::has(name);
             }
-            Component* createComponent() const { return new RAM; }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<RAM>();
+            }
         };
     };
 private:

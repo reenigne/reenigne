@@ -94,7 +94,10 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "Intel8255PPI"; }
-            Component* createComponent() const { return new Intel8255PPI; }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<Intel8255PPI>();
+            }
         };
     };
 

@@ -72,7 +72,10 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "DMAPageRegisters"; }
-            Component* createComponent() const { return new DMAPageRegisters; }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<DMAPageRegisters>();
+            }
         };
     };
 private:

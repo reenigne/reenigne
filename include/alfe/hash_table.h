@@ -36,12 +36,13 @@ public:
             other.allocate(n);
             n = other.allocated();
             other.expand(n);
-            other.body()->_size = count();
+            other.body()->_size = 0;
             for (auto i = begin(); i != end(); ++i)
                 other[i.key()] = i.value();
             *this = other;
             e = lookup(key);
         }
+        ++body()->_size;
         e->first() = key;
         return e->second();
     }

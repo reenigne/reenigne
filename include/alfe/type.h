@@ -67,7 +67,7 @@ public:
     {
         return getValue(identifier).template value<U>();
     }
-    ValueTemplate<T> getValue(Identifier identifier) const
+    virtual ValueTemplate<T> getValue(Identifier identifier) const
     {
         return _values[identifier];
     }
@@ -75,7 +75,7 @@ public:
     {
         return _values.hasKey(identifier);
     }
-    void set(Identifier identifier, Value value)
+    virtual void set(Identifier identifier, Value value)
     {
         _values[identifier] = value;
     }

@@ -106,7 +106,10 @@ public:
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
             String toString() const { return "RGBIMonitor"; }
-            Component* createComponent() const { return new RGBIMonitor; }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<RGBIMonitor>();
+            }
         };
     };
 private:

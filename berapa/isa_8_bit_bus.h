@@ -35,7 +35,7 @@ public:
     {
         if (i.name() == "bus")
             return _connector.getValue();
-        return Value();
+        return Component::getValue(i);
     }
 
     class Connector : public ::Connector
@@ -116,7 +116,10 @@ public:
                     return CPUSocket::Type();
                 return Component::Type::Body::member(i);
             }
-            Component* createComponent() const { return new ISA8BitBus; }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<ISA8BitBus>();
+            }
         };
         template<class U> friend class
             ISA8BitComponentTemplate<U>::Connector::Type::Body;
@@ -138,7 +141,7 @@ public:
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return ISA8BitBus::Type(other).valid();
+                    return other == ISA8BitComponent::Connector::Type();
                 }
             };
             static String name() { return "ISA8BitBus.Connector"; }
@@ -169,21 +172,18 @@ public:
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return Intel8088CPU::Connector::Type(other).valid();
+                    return other == Intel8088::Connector::Type();
                 }
             };
             static String name() { return "ISA8BitBus.CPUSocket"; }
         };
-    private:
+    //private:
         ISA8BitBus* _bus;
-
-        friend class Intel8088Template<T>::Connector;
     };
 
     void addComponent(ISA8BitComponent* component)
     {
         _components.add(component);
-        this->_simulator->addComponent(component);
         component->setBus(this);
     }
     void setAddress(UInt32 address)
@@ -229,3 +229,6 @@ private:
 
     template<class U> friend class ISA8BitComponentTemplate;
 };
+
+template<> Nullary<Connector::Type, ISA8BitBus::CPUSocket::Type>
+    Nullary<Connector::Type, ISA8BitBus::CPUSocket::Type>::_instance;
