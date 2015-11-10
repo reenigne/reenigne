@@ -11,10 +11,24 @@
 //
 // Note that the default-constructed Key should not be used for real entries.
 
+template<class Key, class Value> class HashTableBody : public Array<Tuple<Key, Value>>::AppendableBaseBody
+{
+public:
+    virtual void justSetSize(int size) const = 0;
+    void preDestroy() const { justSetSize(_allocated); }
+};
+
 template<class Key, class Value> class HashTable
-  : private AppendableArray<Tuple<Key, Value>>
+  : private AppendableArray<Tuple<Key, Value>,
+    HashTableBody<Key, Value>>
+    //typename HashTable<Key, Value>::Body>
 {
     typedef Tuple<Key, Value> Entry;
+    //class Body : public Array<Entry>::AppendableBaseBody
+    //{
+    //public:
+    //    ~Body() { _size = _allocated; }
+    //};
 public:
     bool hasKey(const Key& key) const
     {
@@ -54,7 +68,6 @@ public:
         return Value();
     }
     void add(const Key& key, const Value& value) { (*this)[key] = value; }
-    ~HashTable() { if (body() != 0) body()->_size = allocated(); }
     int count() const { return body() == 0 ? 0 : body()->_size; }
     class Iterator
     {

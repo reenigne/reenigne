@@ -154,11 +154,6 @@ protected:
             return ValueTemplate<T>();
         }
         virtual Type member(IdentifierTemplate<T> i) const { return Type(); }
-        //Tyco instantiate(const Tyco& argument) const
-        //{
-        //    throw Exception(String("Cannot instantiate ") + toString() +
-        //        " because it is not a template.");
-        //}
         Type type() const { return tyco(); }
     };
     TypeTemplate(const Body* body) : Tyco(body) { }

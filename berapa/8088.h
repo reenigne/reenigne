@@ -1598,21 +1598,21 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     String save() const
     {
         String s("{\n");
-        s += String("  ip: ") + hex(_ip, 4) + ",\n";
-        s += String("  ax: ") + hex(_registerData[0], 4) + ",\n";
-        s += String("  cx: ") + hex(_registerData[1], 4) + ",\n";
-        s += String("  dx: ") + hex(_registerData[2], 4) + ",\n";
-        s += String("  bx: ") + hex(_registerData[3], 4) + ",\n";
-        s += String("  sp: ") + hex(_registerData[4], 4) + ",\n";
-        s += String("  bp: ") + hex(_registerData[5], 4) + ",\n";
-        s += String("  si: ") + hex(_registerData[6], 4) + ",\n";
-        s += String("  di: ") + hex(_registerData[7], 4) + ",\n";
-        s += String("  es: ") + hex(_segmentRegisterData[0], 4) + ",\n";
-        s += String("  cs: ") + hex(_segmentRegisterData[1], 4) + ",\n";
-        s += String("  ss: ") + hex(_segmentRegisterData[2], 4) + ",\n";
-        s += String("  ds: ") + hex(_segmentRegisterData[3], 4) + ",\n";
-        s += String("  flags: 0x") + hex(_flagsData, 4) + ",\n";
-        s += String("  prefetch: {");
+        s += "  ip: " + hex(_ip, 4) + ",\n";
+        s += "  ax: " + hex(_registerData[0], 4) + ",\n";
+        s += "  cx: " + hex(_registerData[1], 4) + ",\n";
+        s += "  dx: " + hex(_registerData[2], 4) + ",\n";
+        s += "  bx: " + hex(_registerData[3], 4) + ",\n";
+        s += "  sp: " + hex(_registerData[4], 4) + ",\n";
+        s += "  bp: " + hex(_registerData[5], 4) + ",\n";
+        s += "  si: " + hex(_registerData[6], 4) + ",\n";
+        s += "  di: " + hex(_registerData[7], 4) + ",\n";
+        s += "  es: " + hex(_segmentRegisterData[0], 4) + ",\n";
+        s += "  cs: " + hex(_segmentRegisterData[1], 4) + ",\n";
+        s += "  ss: " + hex(_segmentRegisterData[2], 4) + ",\n";
+        s += "  ds: " + hex(_segmentRegisterData[3], 4) + ",\n";
+        s += "  flags: " + hex(_flagsData, 4) + ",\n";
+        s += "  prefetch: {";
         bool needComma = false;
         for (int i = 0; i < _prefetched; ++i) {
             if (needComma)
@@ -1621,49 +1621,43 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             s += hex(_prefetchQueue[(i + _prefetchOffset) & 3], 2);
         }
         s += "},\n";
-        s += String("  segment: ") + _segment + ",\n";
-        s += String("  segmentOverride: ") + _segmentOverride + ",\n";
-        s += String("  prefetchAddress: ") + hex(_prefetchAddress, 4) + ",\n";
-        s += String("  ioType: ") + stringForIOType(_ioType) + ",\n";
-        s += String("  ioRequested: ") + stringForIOType(_ioRequested) +
-            ",\n";
-        s += String("  ioInProgress: ") + stringForIOType(_ioInProgress) +
-            ",\n";
-        s += String("  busState: ") + stringForBusState(_busState) + ",\n";
-        s += String("  byte: ") + stringForIOByte(_byte) + ",\n";
-        s += String("  abandonFetch: ") + String::Boolean(_abandonFetch) +
-            ",\n";
-        s += String("  wait: ") + _wait + ",\n";
-        s += String("  state: ") + stringForState(_state) + ",\n";
-        s += String("  opcode: ") + hex(_opcode, 2) + ",\n";
-        s += String("  modRM: ") + hex(_modRM, 2) + ",\n";
-        s += String("  data: ") + hex(_data, 8) + ",\n";
-        s += String("  source: ") + hex(_source, 8) + ",\n";
-        s += String("  destination: ") + hex(_destination, 8) + ",\n";
-        s += String("  remainder: ") + hex(_remainder, 8) + ",\n";
-        s += String("  address: 0x") + hex(_address, 4) + ",\n";
-        s += String("  useMemory: ") + String::Boolean(_useMemory) + ",\n";
-        s += String("  wordSize: ") + String::Boolean(_wordSize) + ",\n";
-        s += String("  aluOperation: ") + _aluOperation + ",\n";
-        s += String("  afterEA: ") + stringForState(_afterEA) + ",\n";
-        s += String("  afterIO: ") + stringForState(_afterIO) + ",\n";
-        s += String("  afterEAIO: ") + stringForState(_afterEAIO) + ",\n";
-        s += String("  afterRep: ") + stringForState(_afterRep) + ",\n";
-        s += String("  afterInt: ") + stringForState(_afterInt) + ",\n";
-        s += String("  sourceIsRM: ") + String::Boolean(_sourceIsRM) + ",\n";
-        s += String("  savedCS: ") + hex(_savedCS, 4) + ",\n";
-        s += String("  savedIP: ") + hex(_savedIP, 4) + ",\n";
-        s += String("  rep: ") + _rep + ",\n";
-        s += String("  usePortSpace: ") + String::Boolean(_usePortSpace) +
-            ",\n";
-        s += String("  halted: ") + String::Boolean(_halted) + ",\n";
-        s += String("  newInstruction: ") + String::Boolean(_newInstruction) +
-            ",\n";
-        s += String("  newIP: ") + hex(_newIP, 4) + ",\n";
-        s += String("  nmiRequested: ") + String::Boolean(_nmiRequested) +
-            ",\n";
-        s += String("  cycle: ") + _cycle + ",\n";
-        s += String("  tick: ") + String::Decimal(this->_tick);
+        s += "  segment: " + decimal(_segment) + ",\n";
+        s += "  segmentOverride: " + decimal(_segmentOverride) + ",\n";
+        s += "  prefetchAddress: " + hex(_prefetchAddress, 4) + ",\n";
+        s += "  ioType: " + stringForIOType(_ioType) + ",\n";
+        s += "  ioRequested: " + stringForIOType(_ioRequested) + ",\n";
+        s += "  ioInProgress: " + stringForIOType(_ioInProgress) + ",\n";
+        s += "  busState: " + stringForBusState(_busState) + ",\n";
+        s += "  byte: " + stringForIOByte(_byte) + ",\n";
+        s += "  abandonFetch: " + String::Boolean(_abandonFetch) + ",\n";
+        s += "  wait: " + decimal(_wait) + ",\n";
+        s += "  state: " + stringForState(_state) + ",\n";
+        s += "  opcode: " + hex(_opcode, 2) + ",\n";
+        s += "  modRM: " + hex(_modRM, 2) + ",\n";
+        s += "  data: " + hex(_data, 8) + ",\n";
+        s += "  source: " + hex(_source, 8) + ",\n";
+        s += "  destination: " + hex(_destination, 8) + ",\n";
+        s += "  remainder: " + hex(_remainder, 8) + ",\n";
+        s += "  address: " + hex(_address, 4) + ",\n";
+        s += "  useMemory: " + String::Boolean(_useMemory) + ",\n";
+        s += "  wordSize: " + String::Boolean(_wordSize) + ",\n";
+        s += "  aluOperation: " + decimal(_aluOperation) + ",\n";
+        s += "  afterEA: " + stringForState(_afterEA) + ",\n";
+        s += "  afterIO: " + stringForState(_afterIO) + ",\n";
+        s += "  afterEAIO: " + stringForState(_afterEAIO) + ",\n";
+        s += "  afterRep: " + stringForState(_afterRep) + ",\n";
+        s += "  afterInt: " + stringForState(_afterInt) + ",\n";
+        s += "  sourceIsRM: " + String::Boolean(_sourceIsRM) + ",\n";
+        s += "  savedCS: " + hex(_savedCS, 4) + ",\n";
+        s += "  savedIP: " + hex(_savedIP, 4) + ",\n";
+        s += "  rep: " + decimal(_rep) + ",\n";
+        s += "  usePortSpace: " + String::Boolean(_usePortSpace) + ",\n";
+        s += "  halted: " + String::Boolean(_halted) + ",\n";
+        s += "  newInstruction: " + String::Boolean(_newInstruction) + ",\n";
+        s += "  newIP: " + hex(_newIP, 4) + ",\n";
+        s += "  nmiRequested: " + String::Boolean(_nmiRequested) + ",\n";
+        s += "  cycle: " + decimal(_cycle) + ",\n";
+        s += "  tick: " + _tick;
         return s + "}\n";
     }
     ::Type persistenceType() const

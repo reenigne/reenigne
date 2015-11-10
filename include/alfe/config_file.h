@@ -74,6 +74,12 @@ public:
         addFunco(DivideConcreteConcrete());
         addFunco(DivideConcreteAbstract());
         addFunco(DivideAbstractConcrete());
+        addFunco(ShiftLeftIntegerInteger());
+        addFunco(ShiftRightIntegerInteger());
+        addFunco(ShiftLeftRationalInteger());
+        addFunco(ShiftRightRationalInteger());
+        addFunco(ShiftLeftConcreteInteger());
+        addFunco(ShiftRightConcreteInteger());
     }
     template<class T> ConfigOption<T> addOption(String name)
     {

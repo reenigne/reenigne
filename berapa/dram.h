@@ -7,38 +7,38 @@ public:
         _refreshTimes.allocate(1 << rowBits);
         _decayTime = decayTime;
         _decayValue = decayValue;
-        _adjustRow = 0;
         _rowMask = (1 << rowBits) - 1;
         _ramSize = size;
     }
-    void simulateCycle()
+    bool decayed(Tick tick, int address)
     {
-        ++_cycle;
-        if (_cycle - _refreshTimes[_adjustRow] > _decayTime)
-            _refreshTimes[_adjustRow] = _cycle - _decayTime;
-        _adjustRow = (_adjustRow + 1) & _rowMask;
+        return (tick - refresh(address) >= _decayTime);
     }
-    bool decayed(int address)
+    UInt8 read(Tick tick, int address)
     {
-        return (_cycle - refresh(address) >= _decayTime);
-    }
-    UInt8 read(int address)
-    {
-        if (decayed(address))
+        if (decayed(tick, address))
             return _decayValue;
-        refresh(address) = _cycle;
+        refresh(address) = tick;
         if (address >= _ramSize)
             return _decayValue;
         return _data[address];
     }
-    void write(int address, UInt8 data)
+    void write(Tick tick, int address, UInt8 data)
     {
-        refresh(address) = _cycle;
-        if(address < _ramSize) _data[address] = data;
+        refresh(address) = tick;
+        if (address < _ramSize)
+            _data[address] = data;
     }
     UInt8 memory(int address) { return _data[address]; }
+    void maintain(Tick ticks)
+    {
+        for (auto& r : _refreshTimes) {
+            if (r >= -_decayTime)
+                r -= ticks;
+        }
+    }
 
-    String save() const
+    String save(Tick tick) const
     {
         String s("{ data: ###\n");
         for (int y = 0; y < _data.count(); y += 0x20) {
@@ -58,15 +58,15 @@ public:
         s += "###,\n  refresh: {";
         int n;
         for (n = _refreshTimes.count() - 1; n >= 0; --n)
-            if (_cycle - _refreshTimes[n] < _decayTime)
+            if (tick - _refreshTimes[n] < _decayTime)
                 break;
         ++n;
         for (int y = 0; y < n; y += 8) {
             String line;
             bool gotData = false;
             for (int x = 0; x < 8; ++x) {
-                int v = max(_cycle - _refreshTimes[y + x], _decayTime);
-                line += String("0x") + hex(v, 4);
+                Tick v = max(tick - _refreshTimes[y + x], _decayTime);
+                line += v;
                 if (y + x < n - 1)
                     line += ", ";
             }
@@ -138,22 +138,18 @@ public:
         // Initially, all memory is decayed so we'll get an NMI if we try to
         // read from it.
         for (;n < _refreshTimes.count(); ++n)
-            _refreshTimes[n] = _decayTime;
-        _cycle = _decayTime;
-
-        _adjustRow = 0;
+            _refreshTimes[n] = -_decayTime;
     }
     String name() const { return "dram"; }
 
 private:
-    int& refresh(int address) { return _refreshTimes[address & _rowMask]; }
+    Tick& refresh(int address) { return _refreshTimes[address & _rowMask]; }
 
     Array<UInt8> _data;
-    Array<int> _refreshTimes;
-    int _cycle;
-    int _decayTime;
+    Array<Tick> _refreshTimes;
+    Tick _tick;
+    Tick _decayTime;
     int _ramSize;
     int _rowMask;
     UInt8 _decayValue;
-    int _adjustRow;
 };

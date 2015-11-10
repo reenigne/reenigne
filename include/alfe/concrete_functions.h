@@ -317,4 +317,60 @@ public:
 template<> Nullary<Funco, DivideAbstractConcrete>
     Nullary<Funco, DivideAbstractConcrete>::_instance;
 
+class ShiftLeftConcreteInteger
+    : public Nullary<Function, ShiftLeftConcreteInteger>
+{
+public:
+    class Body : public Nullary::Body
+    {
+    public:
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+            auto i = arguments.begin();
+            auto l = i->value<Concrete>();
+            ++i;
+            int r = i->value<int>();
+            if (r < 0)
+                return l*Rational(1, 1 << -r);
+            return l*Rational(1 << r, 1);
+        }
+        Identifier identifier() const { return OperatorShiftLeft(); }
+        FunctionTyco tyco() const
+        {
+            return FunctionTyco(ConcreteType(), ConcreteType(), IntegerType());
+        }
+    };
+};
+
+template<> Nullary<Function, ShiftLeftConcreteInteger>
+    Nullary<Function, ShiftLeftConcreteInteger>::_instance;
+
+class ShiftRightConcreteInteger
+    : public Nullary<Function, ShiftRightConcreteInteger>
+{
+public:
+    class Body : public Nullary::Body
+    {
+    public:
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+            auto i = arguments.begin();
+            auto l = i->value<Concrete>();
+            ++i;
+            int r = i->value<int>();
+            if (r < 0)
+                return l*Rational(1 << -r, 1);
+            return l*Rational(1, 1 << r);
+        }
+        Identifier identifier() const { return OperatorShiftRight(); }
+        FunctionTyco tyco() const
+        {
+            return FunctionTyco(ConcreteType(), ConcreteType(), IntegerType());
+        }
+    };
+};
+
+template<> Nullary<Function, ShiftRightConcreteInteger>
+    Nullary<Function, ShiftRightConcreteInteger>::_instance;
+
 #endif // INCLUDED_CONCRETE_FUNCTIONS_H

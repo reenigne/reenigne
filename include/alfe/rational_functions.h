@@ -328,4 +328,60 @@ public:
 template<> Nullary<Function, DivideIntegerInteger>
     Nullary<Function, DivideIntegerInteger>::_instance;
 
+class ShiftLeftRationalInteger
+  : public Nullary<Function, ShiftLeftRationalInteger>
+{
+public:
+    class Body : public Nullary::Body
+    {
+    public:
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+            auto i = arguments.begin();
+            auto l = i->value<Rational>();
+            ++i;
+            int r = i->value<int>();
+            if (r < 0)
+                return Rational(l.numerator, l.denominator << -r);
+            return Rational(l.numerator << r, l.denominator);
+        }
+        Identifier identifier() const { return OperatorShiftLeft(); }
+        FunctionTyco tyco() const
+        {
+            return FunctionTyco(RationalType(), RationalType(), IntegerType());
+        }
+    };
+};
+
+template<> Nullary<Function, ShiftLeftRationalInteger>
+    Nullary<Function, ShiftLeftRationalInteger>::_instance;
+
+class ShiftRightRationalInteger
+  : public Nullary<Function, ShiftRightRationalInteger>
+{
+public:
+    class Body : public Nullary::Body
+    {
+    public:
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+            auto i = arguments.begin();
+            auto l = i->value<Rational>();
+            ++i;
+            int r = i->value<int>();
+            if (r < 0)
+                return Rational(l.numerator << -r, l.denominator);
+            return Rational(l.numerator, l.denominator << r);
+        }
+        Identifier identifier() const { return OperatorShiftRight(); }
+        FunctionTyco tyco() const
+        {
+            return FunctionTyco(RationalType(), RationalType(), IntegerType());
+        }
+    };
+};
+
+template<> Nullary<Function, ShiftRightRationalInteger>
+    Nullary<Function, ShiftRightRationalInteger>::_instance;
+
 #endif // INCLUDED_RATIONAL_FUNCTIONS_H

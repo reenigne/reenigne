@@ -1,29 +1,11 @@
 template<class T> class RAMTemplate : public ISA8BitComponent
 {
 public:
-    RAMTemplate() : _rowBits(9), _bytes(0xa0000), _decayTime(0) { }
-    //void site()
-    //{
-    //    ConfigFile* config = this->_simulator->config();
-
-    //    // _rowBits is 7 for 4116 RAM chips
-    //    //             8 for 4164
-    //    //             9 for 41256
-    //    // We use 9 here because programs written for _rowBits == N will work
-    //    // for _rowBits < N but not necessarily _rowBits > N.
-    //    config->addDefaultOption("ramRowBits", IntegerType(), 9);
-
-    //    // 640KB should be enough for anyone.
-    //    config->addDefaultOption("ramBytes", IntegerType(), 0xa0000);
-
-    //    config->addDefaultOption("decayTime", IntegerType(), 0);
-    //}
     void initialize()
     {
-        ConfigFile* config = this->_simulator->config();
-        //int rowBits = config->template get<int>("ramRowBits");
-        //int bytes = config->template get<int>("ramBytes");
-        //int decayTime = config->template get<int>("decayTime");
+        _rowBits = getValue("rowBits").value<int>();
+        _bytes = getValue("bytes").value<int>();
+        _decayTime = (getValue("decayTime").value<Concrete>()/second).value();
         if (_decayTime == 0) {
             // DRAM decay time in cycles.
             // This is the fastest that DRAM could decay and real hardware
@@ -36,15 +18,14 @@ public:
         }
         _dram.initialize(_bytes, _rowBits, _decayTime, 0);
     }
-    void simulateCycle() { _dram.simulateCycle(); }
     void setAddress(UInt32 address)
     {
         _address = address & 0x400fffff;
         _active = (_address < 0xa0000);
     }
-    void read()
+    void read(Tick tick)
     {
-        if (_dram.decayed(_address)) {
+        if (_dram.decayed(tick, _address)) {
             // RAM has decayed! On a real machine this would not always signal
             // an NMI but we'll make the NMI happen every time to make DRAM
             // decay problems easier to find.
@@ -57,7 +38,10 @@ public:
         }
         ISA8BitComponent::set(_dram.read(_address));
     }
-    void write(UInt8 data) { _dram.write(_address, data); }
+    void write(Tick tick, UInt8 data)
+    {
+        _dram.write(tick, _address, data);
+    }
     UInt8 memory(UInt32 address)
     {
         if (address < 0xa0000)
@@ -84,26 +68,9 @@ public:
     String save() const
     {
         return String("{ ") + _dram.name() +
-            ": " + _dram.save() +
+            ": " + _dram.save(_tick) +
             ",\n  active: " + String::Boolean(this->_active) +
-            ", tick: " + String::Decimal(this->_tick) +
-            ", address: " + hex(_address, 5) + " }\n";
-    }
-    void set(String name, Value value)
-    {
-        if (name == "rowBits") {
-            _rowBits = value.value<int>();
-            return;
-        }
-        if (name == "bytes") {
-            _bytes = value.value<int>();
-            return;
-        }
-        if (name == "decayTime") {
-            _decayTime = value.value<Rational>();
-            return;
-        }
-        ISA8BitComponent::set(name, value);
+            ", tick: " + _tick + ", address: " + hex(_address, 5) + " }\n";
     }
 
     class Type : public ISA8BitComponent::Type
@@ -118,12 +85,13 @@ public:
             Body(Simulator* simulator)
               : ISA8BitComponent::Type::Body(simulator) { }
             String toString() const { return "RAM"; }
-            bool has(String name) const
+            ::Type member(Identifier name) const
             {
-                if (name == "rowBits" || name == "bytes" ||
-                    name == "decayTime")
-                    return true;
-                return ISA8BitComponent::Type::Body::has(name);
+                if (name.name() == "rowBits" || name.name() == "bytes")
+                    return IntegerType();
+                if (name.name() == "decayTime")
+                    return second.type();
+                return ISA8BitComponent::Type::Body::member(name);
             }
             Reference<Component> createComponent() const
             {

@@ -95,7 +95,7 @@ public:
     Iterator end() const { return Iterator(0); }
 };
 
-template<class T> class AppendableArray;
+template<class T, class Base = typename Array<T>::AppendableBaseBody> class AppendableArray;
 
 // Array is not quite a value type, since changing an element in one array will
 // affect copies of the same array unless a deep copy is made with copy().
@@ -144,6 +144,7 @@ public:
 
         void destroy() const
         {
+            preDestroy();
             destruct();
             operator delete(const_cast<void*>(static_cast<const void*>(this)));
         }
@@ -168,22 +169,44 @@ public:
         {
         public:
             Iterator() : _p(0) { }
-            const T& operator*() const { return *_p; }
-            const T* operator->() const { return _p; }
+            T& operator*() { return *_p; }
+            T* operator->() { return _p; }
             const Iterator& operator++() { ++_p; return *this; }
             bool operator==(const Iterator& other) { return _p == other._p; }
-            bool operator!=(const Iterator& other)
+            bool operator!=(const Iterator& other) { return _p != other._p; }
+        private:
+            T* _p;
+            Iterator(T* p) : _p(p) { }
+            friend class Body;
+        };
+
+        class ConstIterator
+        {
+        public:
+            ConstIterator() : _p(0) { }
+            const T& operator*() const { return *_p; }
+            const T* operator->() const { return _p; }
+            const ConstIterator& operator++() { ++_p; return *this; }
+            bool operator==(const ConstIterator& other)
             {
-                return !operator==(other);
+                return _p == other._p;
+            }
+            bool operator!=(const ConstIterator& other)
+            {
+                return _p != other._p;
             }
         private:
             const T* _p;
-
-            Iterator(const T* p) : _p(p) { }
+            ConstIterator(T* p) : _p(p) { }
+            friend class Body;
         };
 
-        Iterator begin() const { return Iterator(&((*this)[0])); }
-        Iterator end() const { return Iterator(&((*this)[size()])); }
+        ConstIterator begin() const { return ConstIterator(&((*this)[0])); }
+        ConstIterator end() const { return ConstIterator(&((*this)[size()])); }
+        Iterator begin() { return Iterator(&((*this)[0])); }
+        Iterator end() { return Iterator(&((*this)[size()])); }
+
+        void justSetSize(int size) const { _size = size; }
 
     private:
         void constructTail(int size)
@@ -221,6 +244,11 @@ public:
         // track of the number of actual entries in the table.
         template<class Key, class Value> friend class HashTable;
     };
+    class AppendableBaseBody : public Handle::Body
+    {
+    public:
+        int _allocated;
+    };
     Array() { }
     Array(const List<T>& list)
     {
@@ -247,7 +275,7 @@ public:
                 return false;
         return true;
     }
-    bool operator==(const AppendableArray<T>& other) const
+    template<class B> bool operator==(const AppendableArray<T, B>& other) const
     {
         int n = count();
         if (n != other.count())
@@ -258,7 +286,7 @@ public:
         return true;
     }
     bool operator!=(const Array& other) const { return !operator==(other); }
-    bool operator!=(const AppendableArray<T>& other) const
+    template<class B> bool operator!=(const AppendableArray<T, B>& other) const
     {
         return !operator==(other);
     }
@@ -274,62 +302,52 @@ public:
     }
 
     typedef typename Body<>::Iterator Iterator;
-    Iterator begin() const
+    typedef typename Body<>::ConstIterator ConstIterator;
+    ConstIterator begin() const
     {
         if (body() != 0)
             return body()->begin();
-        return Body::Iterator();
+        return Body::ConstIterator();
     }
-    Iterator end() const
+    ConstIterator end() const
     {
         if (body() != 0)
             return body()->end();
-        return Body::Iterator();
+        return Body::ConstIterator();
+    }
+    Iterator begin()
+    {
+        if (body() != 0)
+            return body()->begin();
+        return Body<>::Iterator();
+    }
+    Iterator end()
+    {
+        if (body() != 0)
+            return body()->end();
+        return Body<>::Iterator();
     }
 
 private:
     Array(Body<>* body) : Handle(body) { }
     Body<>* body() { return as<Body<>>(); }
     const Body<>* body() const { return as<Body<>>(); }
-    template<class U> friend class AppendableArray;
+    template<class U, class B> friend class AppendableArray;
 };
 
 // AppendableArray is not quite a value type, since changing an element in one
 // array will affect copies of the same array unless a deep copy is made with
 // copy(). Appending to an array may cause it to become a deep copy, if more
 // storage space was needed.
-template<class T> class AppendableArray : private Handle
+template<class T, class Base> class AppendableArray : private Handle
 {
+protected:
     class BaseBody : public Handle::Body
     {
     public:
         int _allocated;
     };
-    typedef typename Array<T>::Body<BaseBody> Body;
-
-    static int roundUpToPowerOf2(int n)
-    {
-#ifdef _MSC_VER
-        unsigned long k;
-        _BitScanReverse(&k, n);
-        if ((n & (n - 1)) != 0)
-            ++k;
-        return 1 << k;
-#elif defined __GNUC__
-        int k = (sizeof(int)*8 - 1) - __builtin_clz(n);
-        if ((n & (n - 1)) != 0)
-            ++k;
-        return 1 << k;
-#else
-        --n;
-        n |= n >> 1;
-        n |= n >> 2;
-        n |= n >> 4;
-        n |= n >> 8;
-        n |= n >> 16;
-        return n + 1;
-#endif
-    }
+    typedef typename Array<T>::Body<Base> Body;
 public:
     AppendableArray() { }
     AppendableArray(const List<T>& list) : AppendableArray(list.count())
@@ -368,7 +386,7 @@ public:
         if (other.count() > 0)
             append(&other[0], other.count());
     }
-    void append(const AppendableArray<T>& other)
+    template<class B> void append(const AppendableArray<T, B>& other)
     {
         if (other.count() > 0)
             append(&other[0], other.count());
@@ -430,7 +448,7 @@ public:
                 return false;
         return true;
     }
-    bool operator==(const AppendableArray<T>& other) const
+    template<class B> bool operator==(const AppendableArray<T, B>& other) const
     {
         int n = count();
         if (n != other.count())
@@ -442,7 +460,7 @@ public:
     }
 
     bool operator!=(const Array<T>& other) const { return !operator==(other); }
-    bool operator!=(const AppendableArray<T>& other) const
+    template<class B> bool operator!=(const AppendableArray<T, B>& other) const
     {
         return !operator==(other);
     }
@@ -472,6 +490,29 @@ public:
     }
 
 private:
+    static int roundUpToPowerOf2(int n)
+    {
+#ifdef _MSC_VER
+        unsigned long k;
+        _BitScanReverse(&k, n);
+        if ((n & (n - 1)) != 0)
+            ++k;
+        return 1 << k;
+#elif defined __GNUC__
+        int k = (sizeof(int)*8 - 1) - __builtin_clz(n);
+        if ((n & (n - 1)) != 0)
+            ++k;
+        return 1 << k;
+#else
+        --n;
+        n |= n >> 1;
+        n |= n >> 2;
+        n |= n >> 4;
+        n |= n >> 8;
+        n |= n >> 16;
+        return n + 1;
+#endif
+    }
     void addUnchecked(const T* start, int c)
     {
         for (int i = 0; i < c; ++i) {

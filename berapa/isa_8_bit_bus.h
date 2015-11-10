@@ -99,6 +99,14 @@ template<> Nullary<Connector::Type, ISA8BitComponent::Connector::Type>
 template<class T> class ISA8BitBusTemplate : public ComponentTemplate<T>
 {
 public:
+    ISA8BitBusTemplate() : _cpuSocket(this) { }
+    Value getValue(Identifier i) const
+    {
+        if (i.name() == "cpu")
+            return _cpuSocket.getValue();
+        return Component::getValue(i);
+    }
+
     class Type : public Component::Type
     {
     public:
@@ -222,6 +230,7 @@ private:
     //ISA8BitBusTemplate(Type type) : _type(type) { }
 
     UInt8 _data;
+    CPUSocket _cpuSocket;
 
     List<ISA8BitComponent*> _components;
 

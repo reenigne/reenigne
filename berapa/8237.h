@@ -245,8 +245,7 @@ public:
     {
         String s = String() +
             "{ active: " + String::Boolean(this->_active) +
-            ", tick: " + String::Decimal(this->_tick) +
-            ", address: " + hex(_address, 5) +
+            ", tick: " + _tick + ", address: " + hex(_address, 5) +
             ", command: " + hex(_command, 2) +
             ", channels: { ";
         bool needComma = false;

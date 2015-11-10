@@ -1,0 +1,5 @@
+What should the results of "1 << -1" and "1 << 64" be?
+  Rational(1, 2)  and 0x10000000000000000 respectively? Or undefined?
+    Can get back the undefined (and hence high-performance) behavior back with undefined behavior (assert)
+    But could also implement the uniform behavior implementation in terms of the undefined behavior ones
+      It would be easier to implement the pattern recognition in the case where the behavior is well defined

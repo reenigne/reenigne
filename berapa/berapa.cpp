@@ -55,26 +55,21 @@ Concrete second;
 
 class Tick
 {
-    typedef unsigned int Base;
+    typedef int Base;
 public:
-    Tick(const Base& t) { _t = t; }
-    bool operator==(const Tick& other) const { return _t == other._t; }
-//    bool operator!=(const Tick& other) const { return _t != other._t; }
-    bool operator<=(const Tick& other) const
-    {
-        return other._t - _t < (static_cast<Base>(-1) >> 1);
-    }
-    bool operator<(const Tick& other) const
-    {
-        return (*this) <= other && (*this) != other;
-    }
-    bool operator>=(const Tick& other) const { return other <= *this; }
-    bool operator>(const Tick& other) const { return other < *this; }
+    Tick() : _t(0) { }
+    Tick(const Base& t) : _t(t) { }
+    bool operator<=(const Tick& other) const { return _t <= other._t; }
+    bool operator<(const Tick& other) const { return _t < other._t; }
+    bool operator>=(const Tick& other) const { return _t >= other._t; }
+    bool operator>(const Tick& other) const { return _t > other._t; }
     const Tick& operator+=(const Tick& other) { _t += other._t; return *this; }
     const Tick& operator-=(const Tick& other) { _t -= other._t; return *this; }
     Tick operator+(const Tick& other) { return Tick(_t + other._t); }
     Tick operator-(const Tick& other) { return Tick(_t - other._t); }
-    operator Base() const { return _t; }
+    operator String() const { return decimal(_t); }
+    Tick operator-() const { return Tick(-_t); }
+    Tick operator*(int other) { return Tick(_t*other); }
 private:
     Base _t;
 };
@@ -85,7 +80,8 @@ public:
     ComponentTemplate() : _simulator(0), _tick(0), _ticksPerCycle(0) { }
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
     virtual void site() { }
-    virtual void simulateCycle() { }
+    virtual void runTo(Tick tick) { _tick = tick; }
+    virtual void maintain(Tick ticks) { _tick -= ticks; }
     virtual String save() const { return String(); }
     virtual ::Type persistenceType() const { return ::Type(); }
     String name() const { return _name; }
@@ -100,20 +96,21 @@ public:
         _ticksPerCycle = ticksPerCycle;
         _tick = 0;
     }
-    void simulateTicks(Tick ticks)
-    {
-        _tick += ticks;
-        if (_ticksPerCycle != 0 && _tick >= _ticksPerCycle) {
-            simulateCycle();
-            _tick -= _ticksPerCycle;
-        }
-    }
     void set(Identifier name, Value value)
     {
-        if (name.name() == "*")
+        if (name.name() == "*") {
             _name = value.value<String>();
+            return;
+        }
+        if (Connector::Type(value.type()).valid()) {
+            auto l = getValue(name).value<Connector*>();
+            auto r = value.value<Connector*>();
+            l->connect(r);
+            r->connect(l);
+            return;
+        }
+        Structure::set(name, value);
     }
-    Value getValue(Identifier name) const { return Value(); }
     class Type : public ::Type
     {
     protected:
@@ -158,9 +155,11 @@ class ClockedComponent : public Component
 public:
     void set(Identifier name, Value value)
     {
-        Component::set(name, value);
-        if (name.name() == "frequency")
+        if (name.name() == "frequency") {
             _cyclesPerSecond = (second*value.value<Concrete>()).value();
+            return;
+        }
+        Component::set(name, value);
     }
     Value getValue(Identifier name) const
     {
@@ -194,6 +193,7 @@ public:
     class Type : public ::Type
     {
     public:
+        Type(const ::Type& t) : ::Type(t) { }
         bool compatible(Type other) const
         {
             return body()->compatible(other);
@@ -203,17 +203,40 @@ public:
             return body()->canConnectMultiple();
         }
         Type(const Body* body) : ::Type(body) { }
+        bool valid() const { return body() != 0; }
     protected:
         class Body : public ::Type::Body
         {
         public:
             virtual bool compatible(Type other) const = 0;
             virtual bool canConnectMultiple() const { return false; }
+            Value tryConvert(const Value& value, String* reason) const
+            {
+                Connector::Type t(value.type());
+                if (!t.valid()) {
+                    *reason = value.type().toString() + " is not a connector.";
+                    return Value();
+                }
+                if (!compatible(t)) {
+                    *reason = t.toString() + " and " + toString()
+                        + " are not compatible connectors.";
+                    return Value();
+                }
+                return Value(Type(this), value.value(), value.span());
+            }
         };
     public:
         const Body* body() const { return as<Body>(); }
     };
-    Value getValue() const { return Value(type(), this); }
+    Value getValue() const
+    {
+        // The const_cast here is a result of the syntax
+        // "componentA.connector1 = componentB.connector2;" in the config file.
+        // In pure ALFE syntax, obtaining the "value" of connector2 does not
+        // modify componentB, so getValue() is const. However, in Berapa,
+        // componentB's state may be modified by this connection.
+        return Value(type(), const_cast<Connector*>(this));
+    }
 
     virtual Type type() const = 0;
     virtual void connect(Connector* other) = 0;
@@ -289,12 +312,16 @@ private:
 template<class T> class SimulatorTemplate
 {
 public:
-    SimulatorTemplate() : _halted(false) { }
+    SimulatorTemplate() : _halted(false), _ticksPerSecond(0) { }
     void simulate()
     {
+        // Don't let any component get more than 20ms behind.
+        Tick delta = (_ticksPerSecond / 50).value<int>();
         do {
             for (auto i : _components)
-                i->simulateTicks(_minTicksPerCycle);
+                i->runTo(delta);
+            for (auto i : _components)
+                i->maintain(delta);
         } while (!_halted);
     }
     String save() const
@@ -317,22 +344,21 @@ public:
     void addComponent(Reference<Component> c) { _components.add(c); }
     void load(String initialStateFile)
     {
-        Rational l = 0;
         for (auto i : _components) {
             Rational cyclesPerSecond = i->cyclesPerSecond();
             if (cyclesPerSecond != 0)
-                if (l == 0)
-                    l = cyclesPerSecond;
+                if (_ticksPerSecond == 0)
+                    _ticksPerSecond = cyclesPerSecond;
                 else
-                    l = lcm(l, cyclesPerSecond);
+                    _ticksPerSecond = lcm(_ticksPerSecond, cyclesPerSecond);
         }
-        if (l == 0)
+        if (_ticksPerSecond == 0)
             throw Exception("None of the components is clocked!");
         _minTicksPerCycle = INT_MAX;
         for (auto i : _components) {
             Rational cyclesPerSecond = i->cyclesPerSecond();
             if (cyclesPerSecond != 0) {
-                Rational t = l / cyclesPerSecond;
+                Rational t = _ticksPerSecond / cyclesPerSecond;
                 if (t.denominator != 1)
                     throw Exception("Scheduler LCM calculation incorrect");
                 int ticksPerCycle = t.numerator;
@@ -360,6 +386,7 @@ public:
             i->load(object[i->name()]);
     }
     String name() const { return "simulator"; }
+    Rational ticksPerSecond() const { return _ticksPerSecond; }
 private:
     Value initial() const
     {
@@ -380,6 +407,7 @@ private:
     List<Reference<Component>> _components;
     bool _halted;
     int _minTicksPerCycle;
+    Rational _ticksPerSecond;
 };
 
 #include "isa_8_bit_bus.h"

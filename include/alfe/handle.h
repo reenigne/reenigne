@@ -41,9 +41,10 @@ protected:
         }
     protected:
         virtual ~Body() { };
+        virtual void preDestroy() const { }  // for HashTable::Body
         virtual void destroy() const { delete this; }  // for Array::Body
         virtual Hash hash() const { return typeid(*this); }
-        virtual bool equals(const Body* other) const { return true; }
+        virtual bool equals(const Body* other) const { return false; }
     private:
         void release() const
         {
