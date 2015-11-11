@@ -1,4 +1,4 @@
-class NMISwitch : public ISA8BitComponent
+class NMISwitch : public ISA8BitComponent<NMISwitch>
 {
 public:
     void setAddress(UInt32 address)
@@ -38,32 +38,8 @@ public:
     private:
         NMISwitch* _component;
     };
+    static String name() { return "NMISwitch"; }
 
-    class Type : public ISA8BitComponent::Type
-    {
-    public:
-        Type(Simulator* simulator)
-          : ISA8BitComponent::Type(new Body(simulator)) { }
-    private:
-        //Type(const Body* body) : ISA8BitComponent::Type(body) { }
-        class Body : public ISA8BitComponent::Type::Body
-        {
-        public:
-            Body(Simulator* simulator)
-              : ISA8BitComponent::Type::Body(simulator) { }
-            String toString() const { return "NMISwitch"; }
-            ::Type member(Identifier i) const
-            {
-                if (i.name() == "bus")
-                    return ISA8BitComponent::Connector::Type();
-                return ISA8BitComponent::Type::Body::member(i);
-            }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<NMISwitch>();
-            }
-        };
-    };
 private:
     bool _nmiOn;
 };

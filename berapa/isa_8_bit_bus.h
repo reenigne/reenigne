@@ -1,13 +1,13 @@
-template<class T> class ISA8BitComponentTemplate;
-typedef ISA8BitComponentTemplate<void> ISA8BitComponent;
-
 template<class T> class ISA8BitBusTemplate;
 typedef ISA8BitBusTemplate<void> ISA8BitBus;
 
-template<class T> class ISA8BitComponentTemplate : public ComponentTemplate<T>
+template<class T> class ISA8BitComponentBaseTemplate;
+typedef ISA8BitComponentBaseTemplate<void> ISA8BitComponentBase;
+
+template<class T> class ISA8BitComponentBaseTemplate : public ClockedComponent
 {
 public:
-    ISA8BitComponentTemplate() : _connector(this) { }
+    ISA8BitComponentBaseTemplate() : _connector(this) { }
     // Address bit 31 = write
     // Address bit 30 = IO
     virtual void setAddress(UInt32 address) = 0;
@@ -22,16 +22,7 @@ public:
         _bus->_interruptnum = data & 7;
         _bus->_interrupt = true;
     }
-    void set(String name, Value value)
-    {
-        if (name == "bus") {
-            Connector* other = value.value<Connector*>();
-            _connector.connect(other);
-            other->connect(&_connector);
-        }
-        return ComponentTemplate<T>::set(name, value);
-    }
-    Value getValue(Identifier i)
+    Value getValue(Identifier i) const
     {
         if (i.name() == "bus")
             return _connector.getValue();
@@ -41,7 +32,7 @@ public:
     class Connector : public ::Connector
     {
     public:
-        Connector(ISA8BitComponent* component) : _component(component) { }
+        Connector(ISA8BitComponentBase* component) : _component(component) { }
         void connect(::Connector* other)
         {
             dynamic_cast<ISA8BitBus::Connector*>(other)
@@ -65,45 +56,56 @@ public:
             static String name() { return "ISA8BitBusConnector"; }
         };
     private:
-        ISA8BitComponent* _component;
+        ISA8BitComponentBase* _component;
     };
 
-    class Type : public Component::Type
-    {
-    public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
-        Type(const Body* body) : Component::Type(body) { }
-    protected:
-        class Body : public Component::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            ::Type member(Identifier i) const
-            {
-                if (i.name() == "bus")
-                    return Connector::Type();
-                return Component::Type::Body::member(i);
-            }
-        };
-    };
 protected:
     void set(UInt8 data) { _bus->_data = data; }
-    ISA8BitBusTemplate<T>* _bus;
+    ISA8BitBus* _bus;
     bool _active;
     Connector _connector;
 };
 
-template<> Nullary<Connector::Type, ISA8BitComponent::Connector::Type>
-    Nullary<Connector::Type, ISA8BitComponent::Connector::Type>::_instance;
+template<class T> class ISA8BitComponent : public ISA8BitComponentBase
+{
+public:
+    class Type : public ClockedComponent::Type
+    {
+    public:
+        Type(Simulator* simulator)
+          : ClockedComponent::Type(new Body(simulator)) { }
+    protected:
+        class Body : public ClockedComponent::Type::Body
+        {
+        public:
+            Body(Simulator* simulator)
+              : ClockedComponent::Type::Body(simulator) { }
+            ::Type member(Identifier i) const
+            {
+                if (i.name() == "bus")
+                    return Connector::Type();
+                return ClockedComponent::Type::Body::member(i);
+            }
+            String toString() const { return T::name(); }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<T>();
+            }
+        };
+        Type(const Body* body) : ClockedComponent::Type(body) { }
+    };
+};
 
 template<class T> class ISA8BitBusTemplate : public ComponentTemplate<T>
 {
 public:
-    ISA8BitBusTemplate() : _cpuSocket(this) { }
+    ISA8BitBusTemplate() : _cpuSocket(this), _connector(this) { }
     Value getValue(Identifier i) const
     {
         if (i.name() == "cpu")
             return _cpuSocket.getValue();
+        if (i.name() == "slot")
+            return _connector.getValue();
         return Component::getValue(i);
     }
 
@@ -122,6 +124,8 @@ public:
             {
                 if (i.name() == "cpu")
                     return CPUSocket::Type();
+                if (i.name() == "slot")
+                    return Connector::Type();
                 return Component::Type::Body::member(i);
             }
             Reference<Component> createComponent() const
@@ -130,7 +134,7 @@ public:
             }
         };
         template<class U> friend class
-            ISA8BitComponentTemplate<U>::Connector::Type::Body;
+            ISA8BitComponent<U>::Connector::Type::Body;
         friend class ISA8BitBusTemplate::Connector::Type::Body;
     };
 
@@ -138,7 +142,7 @@ public:
     {
     public:
         Connector(ISA8BitBus* bus) : _bus(bus) { }
-        void connect(Connector* other) { other->connect(this); }
+        void connect(::Connector* other) { }
         Type type() const { return Type(); }
 
         class Type : public NamedNullary<::Connector::Type, Type>
@@ -149,27 +153,27 @@ public:
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return other == ISA8BitComponent::Connector::Type();
+                    return other == ISA8BitComponentBase::Connector::Type();
                 }
             };
             static String name() { return "ISA8BitBus.Connector"; }
         };
     private:
-        void busConnect(ISA8BitComponent* component)
+        void busConnect(ISA8BitComponentBase* component)
         {
             _bus->addComponent(component);
         }
 
         ISA8BitBus* _bus;
 
-        template<class U> friend class ISA8BitComponentTemplate<U>::Connector;
+        template<class U> friend class ISA8BitComponent<U>::Connector;
     };
 
     class CPUSocket : public ::Connector
     {
     public:
         CPUSocket(ISA8BitBus* bus) : _bus(bus) { }
-        void connect(Connector* other) { other->connect(this); }
+        void connect(::Connector* other) { other->connect(this); }
         Type type() const { return Type(); }
 
         class Type : public NamedNullary<::Connector::Type, Type>
@@ -185,11 +189,10 @@ public:
             };
             static String name() { return "ISA8BitBus.CPUSocket"; }
         };
-    //private:
         ISA8BitBus* _bus;
     };
 
-    void addComponent(ISA8BitComponent* component)
+    void addComponent(ISA8BitComponentBase* component)
     {
         _components.add(component);
         component->setBus(this);
@@ -225,19 +228,11 @@ public:
     virtual void load(const Value& value) { _data = value.value<int>(); }
     virtual Value initial() const { return 0xff; }
     UInt8 data() const { return _data; }
-    //Component::Type type() const { return _type; }
 private:
-    //ISA8BitBusTemplate(Type type) : _type(type) { }
-
     UInt8 _data;
     CPUSocket _cpuSocket;
+    Connector _connector;
+    List<ISA8BitComponentBase*> _components;
 
-    List<ISA8BitComponent*> _components;
-
-    //Type _type;
-
-    template<class U> friend class ISA8BitComponentTemplate;
+    template<class U> friend class ISA8BitComponentBaseTemplate;
 };
-
-template<> Nullary<Connector::Type, ISA8BitBus::CPUSocket::Type>
-    Nullary<Connector::Type, ISA8BitBus::CPUSocket::Type>::_instance;

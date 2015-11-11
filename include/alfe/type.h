@@ -430,9 +430,6 @@ public:
     };
 };
 
-template<> Nullary<Template, ArrayTemplate>
-    Nullary<Template, ArrayTemplate>::_instance;
-
 class SequenceType : public Type
 {
 public:
@@ -479,9 +476,6 @@ public:
         }
     };
 };
-
-template<> Nullary<Template, SequenceTemplate>
-    Nullary<Template, SequenceTemplate>::_instance;
 
 template<class T> class TupleTycoTemplate;
 typedef TupleTycoTemplate<void> TupleTyco;
@@ -641,8 +635,6 @@ private:
     friend class NonUnitBody;
 };
 
-template<> Nullary<Tyco, TupleTyco> Nullary<Tyco, TupleTyco>::_instance;
-
 class PointerType : public Type
 {
 public:
@@ -683,9 +675,6 @@ public:
         }
     };
 };
-
-template<> Nullary<Template, PointerTemplate>
-    Nullary<Template, PointerTemplate>::_instance;
 
 template<class T> class FunctionTycoTemplate;
 typedef FunctionTycoTemplate<void> FunctionTyco;
@@ -849,9 +838,6 @@ public:
         }
     };
 };
-
-template<> Nullary<Template, FunctionTemplate>
-    Nullary<Template, FunctionTemplate>::_instance;
 
 class EnumerationType : public Type
 {
@@ -1150,15 +1136,11 @@ public:
     static String name() { return "String"; }
 };
 
-template<> Nullary<Type, StringType> Nullary<Type, StringType>::_instance;
-
 class IntegerType : public NamedNullary<Type, IntegerType>
 {
 public:
     static String name() { return "Integer"; }
 };
-
-template<> Nullary<Type, IntegerType> Nullary<Type, IntegerType>::_instance;
 
 class BooleanType : public NamedNullary<Type, BooleanType>
 {
@@ -1166,15 +1148,11 @@ public:
     static String name() { return "Boolean"; }
 };
 
-template<> Nullary<Type, BooleanType> Nullary<Type, BooleanType>::_instance;
-
 class ObjectType : public NamedNullary<Type, ObjectType>
 {
 public:
     static String name() { return "Object"; }
 };
-
-template<> Nullary<Type, ObjectType> Nullary<Type, ObjectType>::_instance;
 
 class LabelType : public NamedNullary<Type, LabelType>
 {
@@ -1182,23 +1160,17 @@ public:
     static String name() { return "Label"; }
 };
 
-template<> Nullary<Type, LabelType> Nullary<Type, LabelType>::_instance;
-
 class VoidType : public NamedNullary<Type, VoidType>
 {
 public:
     static String name() { return "Void"; }
 };
 
-template<> Nullary<Type, VoidType> Nullary<Type, VoidType>::_instance;
-
 class DoubleType : public NamedNullary<Type, DoubleType>
 {
 public:
     static String name() { return "Double"; }
 };
-
-template<> Nullary<Type, DoubleType> Nullary<Type, DoubleType>::_instance;
 
 class RationalType : public NamedNullary<Type, RationalType>
 {
@@ -1225,8 +1197,6 @@ public:
     };
 };
 
-template<> Nullary<Type, RationalType> Nullary<Type, RationalType>::_instance;
-
 class ConcreteTyco : public NamedNullary<Tyco, ConcreteTyco>
 {
 public:
@@ -1242,15 +1212,11 @@ protected:
     friend class Nullary<Tyco, ConcreteTyco>;
 };
 
-template<> Nullary<Tyco, ConcreteTyco> Nullary<Tyco, ConcreteTyco>::_instance;
-
 class AbstractType : public NamedNullary<Type, AbstractType>
 {
 public:
     static String name() { return "Abstract"; }
 };
-
-template<> Nullary<Type, AbstractType> Nullary<Type, AbstractType>::_instance;
 
 // ConcreteType is a bit strange. It's really a family of types, but these
 // types cannot be instantiated via the usual template syntax. The normal
@@ -1400,9 +1366,6 @@ public:
     };
     friend class NamedNullary<StructuredType, VectorType>;
 };
-
-template<> Nullary<StructuredType, VectorType>
-    Nullary<StructuredType, VectorType>::_instance;
 
 template<> Type typeFromCompileTimeType<int>() { return IntegerType(); }
 template<> Type typeFromCompileTimeType<String>() { return StringType(); }

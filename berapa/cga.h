@@ -1,4 +1,4 @@
-template<class T> class IBMCGATemplate : public ISA8BitComponentTemplate<T>
+template<class T> class IBMCGATemplate : public ISA8BitComponent<IBMCGATemplate<T>>
 {
 public:
     IBMCGATemplate() : _attr(0), _chrdata(0), _memoryAddress(0),
@@ -7,14 +7,6 @@ public:
         _lightPenSwitch(true), _bgriSource(this)
     {
         _data.allocate(0x4000);
-    }
-    //void site()
-    //{
-    //    this->_simulator->config()->addDefaultOption("cgarom", StringType(),
-    //        String(""));
-    //}
-    void simulateCycles(int cycles)
-    {
     }
     void simulateCycle()
     {

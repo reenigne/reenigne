@@ -1,5 +1,5 @@
-template<class T> class DMAPageRegistersTemplate :
-    public ISA8BitComponentTemplate<T>
+template<class T> class DMAPageRegistersTemplate
+  : public ISA8BitComponent<DMAPageRegisters>
 {
 public:
     DMAPageRegistersTemplate()
@@ -62,22 +62,7 @@ public:
         }
     }
 
-    class Type : public Component::Type
-    {
-    public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
-    private:
-        class Body : public Component::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            String toString() const { return "DMAPageRegisters"; }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<DMAPageRegisters>();
-            }
-        };
-    };
+    static String name() { return "DMAPageRegisters"; }
 private:
     int _address;
     int _dmaPages[4];

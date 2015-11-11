@@ -1,4 +1,4 @@
-template<class T> class ROMTemplate : public ISA8BitComponentTemplate<T>
+template<class T> class ROMTemplate : public ISA8BitComponent<ROMTemplate<T>>
 {
 public:
     ROMTemplate(Simulator* simulator, int mask, int address, String fileName,

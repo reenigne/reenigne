@@ -17,12 +17,10 @@ protected:
     Nullary(const typename Base::Body* body) : Base(body) { }
     static Nullary instance()
     {
-        if (!_instance.valid())
-            _instance = new typename My::Body();
-        return _instance;
+        static Nullary instance(new typename My::Body());
+        return instance;
     }
 private:
-    static Nullary _instance;
     template<class Base, class My> friend class NamedNullary;
 };
 

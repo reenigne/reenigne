@@ -1,4 +1,4 @@
-template<class T> class RAMTemplate : public ISA8BitComponent
+template<class T> class RAMTemplate : public ISA8BitComponent<RAM>
 {
 public:
     void initialize()
@@ -72,6 +72,7 @@ public:
             ",\n  active: " + String::Boolean(this->_active) +
             ", tick: " + _tick + ", address: " + hex(_address, 5) + " }\n";
     }
+    static String name() { return "RAM"; }
 
     class Type : public ISA8BitComponent::Type
     {
@@ -84,7 +85,6 @@ public:
         public:
             Body(Simulator* simulator)
               : ISA8BitComponent::Type::Body(simulator) { }
-            String toString() const { return "RAM"; }
             ::Type member(Identifier name) const
             {
                 if (name.name() == "rowBits" || name.name() == "bytes")
@@ -92,10 +92,6 @@ public:
                 if (name.name() == "decayTime")
                     return second.type();
                 return ISA8BitComponent::Type::Body::member(name);
-            }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<RAM>();
             }
         };
     };

@@ -186,9 +186,9 @@
     <ClInclude Include="..\include\alfe\tuple.h" />
     <ClInclude Include="..\include\alfe\type_specifier.h" />
     <ClInclude Include="..\include\alfe\uncopyable.h" />
-    <ClInclude Include="8088.h" />
-    <ClInclude Include="8237.h" />
-    <ClInclude Include="8253.h">
+    <ClInclude Include="i8088cpu.h" />
+    <ClInclude Include="i8237dmac.h" />
+    <ClInclude Include="i8253pit.h">
       <FileType>CppHeader</FileType>
     </ClInclude>
     <ClInclude Include="dma_page_registers.h" />
@@ -199,7 +199,7 @@
     <ClInclude Include="rgbi_monitor.h" />
     <ClInclude Include="pcxt_keyboard.h" />
     <ClInclude Include="pcxt_keyboard_port.h" />
-    <ClInclude Include="mc6845.h" />
+    <ClInclude Include="mc6845crtc.h" />
     <ClInclude Include="rom.h" />
   </ItemGroup>
   <ItemGroup>
@@ -213,9 +213,8 @@
     <ClInclude Include="..\include\alfe\space.h" />
     <ClInclude Include="..\include\alfe\string.h" />
     <ClInclude Include="..\include\alfe\type.h" />
-    <ClInclude Include="..\include\alfe\value.h" />
-    <ClInclude Include="8255.h" />
-    <ClInclude Include="8259.h" />
+    <ClInclude Include="i8255ppi.h" />
+    <ClInclude Include="i8259pic.h" />
     <ClInclude Include="cga.h" />
   </ItemGroup>
   <ItemGroup>

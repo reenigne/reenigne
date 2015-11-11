@@ -24,8 +24,8 @@ typedef UInt8 BGRI;
 template<class T> class SimulatorTemplate;
 typedef SimulatorTemplate<void> Simulator;
 
-template<class T> class Intel8088Template;
-typedef Intel8088Template<void> Intel8088;
+template<class T> class Intel8088CPUTemplate;
+typedef Intel8088CPUTemplate<void> Intel8088CPU;
 
 template<class T> class ComponentTemplate;
 typedef ComponentTemplate<void> Component;
@@ -78,8 +78,7 @@ template<class T> class ComponentTemplate : public Structure
 {
 public:
     ComponentTemplate() : _simulator(0), _tick(0), _ticksPerCycle(0) { }
-    void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
-    virtual void site() { }
+    void setSimulator(Simulator* simulator) { _simulator = simulator; }
     virtual void runTo(Tick tick) { _tick = tick; }
     virtual void maintain(Tick ticks) { _tick -= ticks; }
     virtual String save() const { return String(); }
@@ -155,17 +154,9 @@ class ClockedComponent : public Component
 public:
     void set(Identifier name, Value value)
     {
-        if (name.name() == "frequency") {
-            _cyclesPerSecond = (second*value.value<Concrete>()).value();
-            return;
-        }
-        Component::set(name, value);
-    }
-    Value getValue(Identifier name) const
-    {
         if (name.name() == "frequency")
-            return _cyclesPerSecond/second;
-        return Component::getValue(name);
+            _cyclesPerSecond = (second*value.value<Concrete>()).value();
+        Component::set(name, value);
     }
     class Type : public Component::Type
     {
@@ -242,13 +233,11 @@ public:
     virtual void connect(Connector* other) = 0;
 };
 
-template<class T> class BitOutputConnectorTemplate;
-typedef BitOutputConnectorTemplate<void> BitOutputConnector;
+template<class T> class OutputConnector;
+template<class T> class InputConnector;
+template<class T> class BidirectionalConnector;
 
-template<class T> class BitInputConnectorTemplate;
-typedef BitInputConnectorTemplate<void> BitInputConnector;
-
-template<class T> class BitOutputConnectorTemplate
+template<class T> class OutputConnector
 {
 public:
     class Type : public NamedNullary<Connector::Type, Type>
@@ -259,18 +248,20 @@ public:
         public:
             bool compatible(Connector::Type other) const
             {
-                return other == BitInputConnector::Type();
+                return other == InputConnector<T>::Type() ||
+                    other == BidirectionalConnector<T>::Type();
             }
             bool canConnectorMultiple() const { return true; }
         };
-        static String name() { return "BitOutputConnector"; }
+        static String name()
+        {
+            return "OutputConnector<" +
+                typeFromCompileTimeType<T>().toString() + ">";
+        }
     };
 };
 
-template<> Nullary<Connector::Type, BitOutputConnector::Type>
-    Nullary<Connector::Type, BitOutputConnector::Type>::_instance;
-
-template<class T> class BitInputConnectorTemplate
+template<class T> class InputConnector
 {
 public:
     class Type : public NamedNullary<Connector::Type, Type>
@@ -281,33 +272,151 @@ public:
         public:
             bool compatible(Connector::Type other) const
             {
-                return other == BitOutputConnector::Type();
+                return other == OutputConnector<T>::Type() ||
+                    other == BidirectionalConnector<T>::Type();
             }
         };
-        static String name() { return "BitInputConnector"; }
+        static String name()
+        {
+            return "InputConnector<" +
+                typeFromCompileTimeType<T>().toString() + ">";
+        }
     };
 };
 
-template<> Nullary<Connector::Type, BitInputConnector::Type>
-    Nullary<Connector::Type, BitInputConnector::Type>::_instance;
-
-class AndComponent : public Component
+template<class T> class BidirectionalConnector
 {
 public:
-private:
-    BitInputConnector _input1;
-    BitInputConnector _input2;
-    BitInputConnector _output;
+    class Type : public NamedNullary<Connector::Type, Type>
+    {
+    public:
+        class Body : public NamedNullary<Connector::Type, Type>::Body
+        {
+        public:
+            bool compatible(Connector::Type other) const
+            {
+                return other == OutputConnector<T>::Type() ||
+                    other == InputConnector<T>::Type() ||
+                    other == BidirectionalConnector<T>::Type();
+            }
+            bool canConnectorMultiple() const { return true; }
+        };
+        static String name()
+        {
+            return "BidirectionalConnector<" +
+                typeFromCompileTimeType<T>().toString() + ">";
+        }
+    };
 };
 
-class OrComponent : public Component
+template<class T> class AndComponent : public Component
 {
 public:
+    class Type : public Component::Type
+    {
+    public:
+        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
+    private:
+        class Body : public Component::Type::Body
+        {
+        public:
+            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
+            String toString() const { return "Intel8088CPU"; }
+            ::Type member(Identifier i) const
+            {
+                if (i.name() == "input1" || i.name() == "input2")
+                    return InputConnector<T>::Type();
+                if (i.name() == "output")
+                    return OutputConnector<T>::Type();
+                return Component::Type::Body::member(i);
+            }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<Intel8088CPU>();
+            }
+            String toString() const
+            {
+                return "And<" + typeFromCompileTimeType<T>().toString() + ">";
+            }
+        };
+    };
 private:
-    BitInputConnector _input1;
-    BitInputConnector _input2;
-    BitInputConnector _output;
+    InputConnector<T> _input1;
+    InputConnector<T> _input2;
+    OutputConnector<T> _output;
 };
+
+template<class T> class OrComponent : public Component
+{
+public:
+    class Type : public Component::Type
+    {
+    public:
+        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
+    private:
+        class Body : public Component::Type::Body
+        {
+        public:
+            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
+            String toString() const { return "Intel8088CPU"; }
+            ::Type member(Identifier i) const
+            {
+                if (i.name() == "input1" || i.name() == "input2")
+                    return InputConnector<T>::Type();
+                if (i.name() == "output")
+                    return OutputConnector<T>::Type();
+                return Component::Type::Body::member(i);
+            }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<Intel8088CPU>();
+            }
+            String toString() const
+            {
+                return "Or<" + typeFromCompileTimeType<T>().toString() + ">";
+            }
+        };
+    };
+private:                   
+    InputConnector<T> _input1;
+    InputConnector<T> _input2;
+    OutputConnector<T> _output;
+};
+
+//class AndConnectorFunco : public Nullary<Funco, AndConnectorFunco>
+//{
+//public:
+//    class Body : public Nullary::Body
+//    {
+//    public:
+//        Value evaluate(List<Value> arguments, Span span) const
+//        {
+//            //auto i = arguments.begin();
+//            //Concrete l = i->value<Concrete>();
+//            //++i;
+//            //return Value(l + i->value<Concrete>());
+//        }
+//        Identifier identifier() const { return OperatorPlus(); }
+//        bool argumentsMatch(List<Type> argumentTypes) const
+//        {
+//            if (argumentTypes.count() != 2)
+//                return false;
+//            auto i = argumentTypes.begin();
+//            if ()
+//            ConcreteType l(*i);
+//            if (!l.valid())
+//                return false;
+//            ++i;
+//            return ConcreteType(*i).valid();
+//        }
+//        FunctionTyco tyco() const
+//        {
+//            return
+//                FunctionTyco(ConcreteTyco(), ConcreteTyco(), ConcreteTyco());
+//        }
+//    };
+//};
+
 
 template<class T> class SimulatorTemplate
 {
@@ -412,18 +521,18 @@ private:
 
 #include "isa_8_bit_bus.h"
 #include "nmi_switch.h"
-#include "8259.h"
-#include "8237.h"
+#include "i8259pic.h"
+#include "i8237dmac.h"
 #include "pcxt_keyboard.h"
 #include "pcxt_keyboard_port.h"
-#include "8255.h"
-#include "8253.h"
-#include "mc6845.h"
+#include "i8255ppi.h"
+#include "i8253pit.h"
+#include "mc6845crtc.h"
 #include "dram.h"
 #include "ram.h"
 #include "dma_page_registers.h"
 #include "rom.h"
-#include "8088.h"
+#include "i8088cpu.h"
 #include "cga.h"
 #include "rgbi_monitor.h"
 
@@ -449,7 +558,7 @@ protected:
         Simulator* p = &simulator;
 
         List<Component::Type> componentTypes;
-        componentTypes.add(Intel8088::Type(p));
+        componentTypes.add(Intel8088CPU::Type(p));
         componentTypes.add(ISA8BitBus::Type(p));
         componentTypes.add(RAM::Type(p));
         componentTypes.add(NMISwitch::Type(p));

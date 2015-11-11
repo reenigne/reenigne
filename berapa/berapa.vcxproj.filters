@@ -94,24 +94,6 @@
     <ClInclude Include="..\include\alfe\uncopyable.h">
       <Filter>ALFE</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\alfe\value.h">
-      <Filter>ALFE</Filter>
-    </ClInclude>
-    <ClInclude Include="8088.h">
-      <Filter>Berapa</Filter>
-    </ClInclude>
-    <ClInclude Include="8237.h">
-      <Filter>Berapa</Filter>
-    </ClInclude>
-    <ClInclude Include="8253.h">
-      <Filter>Berapa</Filter>
-    </ClInclude>
-    <ClInclude Include="8255.h">
-      <Filter>Berapa</Filter>
-    </ClInclude>
-    <ClInclude Include="8259.h">
-      <Filter>Berapa</Filter>
-    </ClInclude>
     <ClInclude Include="cga.h">
       <Filter>Berapa</Filter>
     </ClInclude>
@@ -122,9 +104,6 @@
       <Filter>Berapa</Filter>
     </ClInclude>
     <ClInclude Include="isa_8_bit_bus.h">
-      <Filter>Berapa</Filter>
-    </ClInclude>
-    <ClInclude Include="mc6845.h">
       <Filter>Berapa</Filter>
     </ClInclude>
     <ClInclude Include="nmi_switch.h">
@@ -156,6 +135,24 @@
     </ClInclude>
     <ClInclude Include="..\include\alfe\reference.h">
       <Filter>ALFE</Filter>
+    </ClInclude>
+    <ClInclude Include="i8088cpu.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="i8237dmac.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="i8253pit.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="i8255ppi.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="i8259pic.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="mc6845crtc.h">
+      <Filter>Berapa</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

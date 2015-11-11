@@ -133,7 +133,4 @@ public:
     }
 };
 
-template<> Nullary<Type, OverloadedFunctionSet::Type>
-    Nullary<Type, OverloadedFunctionSet::Type>::_instance;
-
 #endif // INCLUDED_FUNCTION_H

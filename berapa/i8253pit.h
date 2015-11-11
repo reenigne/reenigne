@@ -1,5 +1,5 @@
 template<class T> class Intel8253PITTemplate
-  : public ISA8BitComponentTemplate<T>
+  : public ISA8BitComponent<Intel8253PITTemplate<T>>
 {
 public:
     Intel8253PITTemplate()
@@ -10,13 +10,6 @@ public:
         for (int i = 0; i < 3; ++i)
             _timers[i]->setGate(true);
     }
-    //void site()
-    //{
-    //    _pic = this->_simulator->getPIC();
-    //    _timer0.setPIC(_pic);
-    //    _timer1.setSite(this->_simulator);
-    //    _timer2.setPPI(this->_simulator->getPPI());
-    //}
     void simulateCycle()
     {
         for (int i = 0; i < 3; ++i)
@@ -89,23 +82,8 @@ public:
                 StructuredType::empty().convertTo(_timer0.type()));
         }
     }
+    static String name() { return "Intel8253PIT"; }
 
-    class Type : public Component::Type
-    {
-    public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
-    private:
-        class Body : public Component::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            String toString() const { return "Intel8253PIT"; }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<Intel8253PIT>();
-            }
-        };
-    };
 private:
     class Timer
     {
@@ -428,11 +406,11 @@ private:
     {
     public:
         Timer1() : _dmaRequested(false) { }
-        void setSite(SimulatorTemplate<T>* simulator)
-        {
-            _bus = simulator->getBus();
-            _dma = simulator->getDMA();
-        }
+//        void setSite(SimulatorTemplate<T>* simulator)
+//        {
+//            _bus = simulator->getBus();
+//            _dma = simulator->getDMA();
+//        }
         void outputChanged(bool output)
         {
             if (output) {
@@ -475,4 +453,3 @@ private:
     int _address;
     Intel8259PIC* _pic;
 };
-

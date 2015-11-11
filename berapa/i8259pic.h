@@ -1,12 +1,9 @@
-class Intel8259PIC : public ISA8BitComponent
+class Intel8259PIC : public ISA8BitComponent<Intel8259PIC>
 {
 public:
-    Intel8259PIC() : _interruptrdy(false), _secondAck(false), _state(stateReady), _imr(0xFF)
-    {
-    }
-    void simulateCycle()
-    {
-    }
+    Intel8259PIC()
+      : _interruptrdy(false), _secondAck(false), _state(stateReady), _imr(0xFF)
+    { }
     void setAddress(UInt32 address)
     {
         _address = address & 0x1;
@@ -85,23 +82,8 @@ public:
             _interrupt = false;
         }
     }
-    class Type : public Component::Type
-    {
-    public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
-    private:
-        class Body : public Component::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            String toString() const { return "Intel8259PIC"; }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<Intel8259PIC>();
-            }
-        };
-    };
-    
+    static String name() { return "Intel8259PIC"; }
+
     UInt8 _interruptnum;
 private:
     enum State

@@ -39,9 +39,6 @@ public:
     };
 };
 
-template<> Nullary<Funco, AddConcreteConcrete>
-    Nullary<Funco, AddConcreteConcrete>::_instance;
-
 class SubtractConcreteConcrete
   : public Nullary<Funco, SubtractConcreteConcrete>
 {
@@ -76,9 +73,6 @@ public:
     };
 };
 
-template<> Nullary<Funco, SubtractConcreteConcrete>
-    Nullary<Funco, SubtractConcreteConcrete>::_instance;
-
 class MultiplyConcreteConcrete
   : public Nullary<Funco, MultiplyConcreteConcrete>
 {
@@ -112,9 +106,6 @@ public:
         }
     };
 };
-
-template<> Nullary<Funco, MultiplyConcreteConcrete>
-    Nullary<Funco, MultiplyConcreteConcrete>::_instance;
 
 class MultiplyConcreteAbstract
   : public Nullary<Funco, MultiplyConcreteAbstract>
@@ -152,9 +143,6 @@ public:
         }
     };
 };
-
-template<> Nullary<Funco, MultiplyConcreteAbstract>
-    Nullary<Funco, MultiplyConcreteAbstract>::_instance;
 
 class MultiplyAbstractConcrete
   : public Nullary<Funco, MultiplyAbstractConcrete>
@@ -196,9 +184,6 @@ public:
     };
 };
 
-template<> Nullary<Funco, MultiplyAbstractConcrete>
-    Nullary<Funco, MultiplyAbstractConcrete>::_instance;
-
 class DivideConcreteConcrete : public Nullary<Funco, DivideConcreteConcrete>
 {
 public:
@@ -231,9 +216,6 @@ public:
         }
     };
 };
-
-template<> Nullary<Funco, DivideConcreteConcrete>
-    Nullary<Funco, DivideConcreteConcrete>::_instance;
 
 class DivideConcreteAbstract : public Nullary<Funco, DivideConcreteAbstract>
 {
@@ -271,9 +253,6 @@ public:
         }
     };
 };
-
-template<> Nullary<Funco, DivideConcreteAbstract>
-    Nullary<Funco, DivideConcreteAbstract>::_instance;
 
 class DivideAbstractConcrete : public Nullary<Funco, DivideAbstractConcrete>
 {
@@ -314,9 +293,6 @@ public:
     };
 };
 
-template<> Nullary<Funco, DivideAbstractConcrete>
-    Nullary<Funco, DivideAbstractConcrete>::_instance;
-
 class ShiftLeftConcreteInteger
     : public Nullary<Function, ShiftLeftConcreteInteger>
 {
@@ -335,15 +311,22 @@ public:
             return l*Rational(1 << r, 1);
         }
         Identifier identifier() const { return OperatorShiftLeft(); }
+        bool argumentsMatch(List<Type> argumentTypes) const
+        {
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            if (!ConcreteType(*i).valid())
+                return false;
+            ++i;
+            return *i == IntegerType();
+        }
         FunctionTyco tyco() const
         {
             return FunctionTyco(ConcreteType(), ConcreteType(), IntegerType());
         }
     };
 };
-
-template<> Nullary<Function, ShiftLeftConcreteInteger>
-    Nullary<Function, ShiftLeftConcreteInteger>::_instance;
 
 class ShiftRightConcreteInteger
     : public Nullary<Function, ShiftRightConcreteInteger>
@@ -363,14 +346,21 @@ public:
             return l*Rational(1, 1 << r);
         }
         Identifier identifier() const { return OperatorShiftRight(); }
+        bool argumentsMatch(List<Type> argumentTypes) const
+        {
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            if (!ConcreteType(*i).valid())
+                return false;
+            ++i;
+            return *i == IntegerType();
+        }
         FunctionTyco tyco() const
         {
             return FunctionTyco(ConcreteType(), ConcreteType(), IntegerType());
         }
     };
 };
-
-template<> Nullary<Function, ShiftRightConcreteInteger>
-    Nullary<Function, ShiftRightConcreteInteger>::_instance;
 
 #endif // INCLUDED_CONCRETE_FUNCTIONS_H

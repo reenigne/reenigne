@@ -26,9 +26,6 @@ public:
     };
 };
 
-template<> Nullary<Function, AddIntegerInteger>
-    Nullary<Function, AddIntegerInteger>::_instance;
-
 class SubtractIntegerInteger : public Nullary<Function, SubtractIntegerInteger>
 {
 public:
@@ -50,9 +47,6 @@ public:
     };
 };
 
-template<> Nullary<Function, SubtractIntegerInteger>
-    Nullary<Function, SubtractIntegerInteger>::_instance;
-
 class MultiplyIntegerInteger : public Nullary<Function, MultiplyIntegerInteger>
 {
 public:
@@ -73,9 +67,6 @@ public:
         }
     };
 };
-
-template<> Nullary<Function, MultiplyIntegerInteger>
-    Nullary<Function, MultiplyIntegerInteger>::_instance;
 
 class ShiftLeftIntegerInteger
   : public Nullary<Function, ShiftLeftIntegerInteger>
@@ -102,9 +93,6 @@ public:
     };
 };
 
-template<> Nullary<Function, ShiftLeftIntegerInteger>
-    Nullary<Function, ShiftLeftIntegerInteger>::_instance;
-
 class ShiftRightIntegerInteger
   : public Nullary<Function, ShiftRightIntegerInteger>
 {
@@ -129,8 +117,5 @@ public:
         }
     };
 };
-
-template<> Nullary<Function, ShiftRightIntegerInteger>
-    Nullary<Function, ShiftRightIntegerInteger>::_instance;
 
 #endif // INCLUDED_INTEGER_FUNCTIONS_H

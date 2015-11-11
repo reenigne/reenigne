@@ -1,5 +1,5 @@
 template<class T> class Intel8237DMATemplate
-  : public ISA8BitComponentTemplate<T>
+  : public ISA8BitComponent<Intel8237DMATemplate<T>>
 {
     enum State
     {
@@ -35,11 +35,6 @@ public:
         }
         _stateType = EnumerationType("DMAState", stateValues);
     }
-    //void site()
-    //{
-    //    _pageRegisters = this->_simulator->getDMAPageRegisters();
-    //    _bus = this->_simulator->getBus();
-    //}
     void simulateCycle()
     {
         TransferMode mode = _channels[_channel].transferMode();
@@ -307,23 +302,7 @@ public:
         _highAddress = members["highAddress"].value<int>();
         _state = members["state"].value<State>();
     }
-
-    class Type : public Component::Type
-    {
-    public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
-    private:
-        class Body : public Component::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            String toString() const { return "Intel8237DMA"; }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<Intel8237DMA>();
-            }
-        };
-    };
+    static String name() { return "Intel8237DMA"; }
 private:
     void checkForDMA()
     {
@@ -532,7 +511,7 @@ private:
         return "";
     }
 
-    DMAPageRegisters* _pageRegisters;
+    DMAPageRegistersTemplate<T>* _pageRegisters;
     ISA8BitBus* _bus;
     Channel _channels[4];
     int _address;

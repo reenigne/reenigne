@@ -2,7 +2,7 @@ template<class T> class DisassemblerTemplate
 {
 public:
     void setBus(ISA8BitBus* bus) { _bus = bus; }
-    void setCPU(Intel8088* cpu) { _cpu = cpu; }
+    void setCPU(Intel8088CPU* cpu) { _cpu = cpu; }
     String disassemble(UInt16 address)
     {
         _bytes = "";
@@ -298,7 +298,7 @@ private:
     }
 
     ISA8BitBus* _bus;
-    Intel8088Template<T>* _cpu;
+    Intel8088CPUTemplate<T>* _cpu;
     UInt16 _address;
     UInt8 _opcode;
     UInt8 _modRM;
@@ -309,10 +309,10 @@ private:
 
 typedef DisassemblerTemplate<void> Disassembler;
 
-template<class T> class Intel8088Template : public ClockedComponent
+template<class T> class Intel8088CPUTemplate : public ClockedComponent
 {
 public:
-    Intel8088Template() : _connector(this)
+    Intel8088CPUTemplate() : _connector(this)
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -1794,11 +1794,11 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     class Connector : public ::Connector
     {
     public:
-        Connector(Intel8088* cpu) : _cpu(cpu) { }
+        Connector(Intel8088CPU* cpu) : _cpu(cpu) { }
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:
-            static String name() { return "Intel8088.Connector"; }
+            static String name() { return "Intel8088CPU.Connector"; }
             class Body : public NamedNullary<::Connector::Type, Type>::Body
             {
             public:
@@ -1815,7 +1815,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             _cpu->_bus = static_cast<ISA8BitBus::CPUSocket*>(other)->_bus;
         }
     private:
-        Intel8088* _cpu;
+        Intel8088CPU* _cpu;
     };
 
     class Type : public ClockedComponent::Type
@@ -1829,7 +1829,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         public:
             Body(Simulator* simulator)
               : ClockedComponent::Type::Body(simulator) { }
-            String toString() const { return "Intel8088"; }
+            String toString() const { return "Intel8088CPU"; }
             ::Type member(Identifier i) const
             {
                 if (i.name() == "bus")
@@ -1838,7 +1838,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             }
             Reference<Component> createComponent() const
             {
-                return Reference<Component>::create<Intel8088>();
+                return Reference<Component>::create<Intel8088CPU>();
             }
         };
     };
@@ -2592,6 +2592,3 @@ private:
 
     Connector _connector;
 };
-
-template<> Nullary<Connector::Type, Intel8088::Connector::Type>
-    Nullary<Connector::Type, Intel8088::Connector::Type>::_instance;
