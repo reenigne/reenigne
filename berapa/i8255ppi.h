@@ -4,6 +4,12 @@ template<class T> class Intel8255PPITemplate
 public:
     Intel8255PPITemplate()
     {
+        _directionA = true;
+        _directionB = true;
+        _directionCUpper = true;
+        _directionCLower = true;
+        _modeA = 0;
+        _modeB = 0;
         for (int i = 0; i < 3; ++i) {
             _bytes[i]._ppi = this;
             _bytes[i]._i = i;
@@ -22,48 +28,91 @@ public:
     {
         UInt8 d = 0;
         switch(_address) {
-            case 0: d = _data[0]; break;
-            case 1: d = _data[1]; break;
-            case 2: d = _data[2]; break;
-            case 3: d = 0x88; break;
+            case 0:
+                if (_modeA == 0)
+                    if (_directionA)
+                        d = _external[0];
+                    else
+                        d = _output[0];
+                break;
+            case 1:
+                if (_modeB == 0)
+                    if (_directionB)
+                        d = _external[1];
+                    else
+                        d = _output[1];
+                break;
+            case 2:
+                if (_modeA == 0)
+                    if (_directionCUpper)
+                        d = _external[2] & 0xf0;
+                    else
+                        d = _output[2] & 0xf0;
+                if (_modeB == 0)
+                    if (_directionCLower)
+                        d |= _external[2] & 0x0f;
+                    else
+                        d |= _output[2] & 0xf0;
+                break;
+            case 3:
+                // Disallowed by datasheet. TODO: figure out what this actually
+                // is.
+                d = 0xff;
+                break;
         }
         this->set(d);
     }
     void write(UInt8 data)
     {
+        UInt8 d = data;
+        bool needSet = false;
         switch(_address) {
             case 0:
-                switch (_data[3] & 0x60) {
-                    case 0x00:  // Mode 0
-                        if ((_data[3] & 0x10) == 0) {
-                            // Output
-                        }
-                        else {
-                            // Input
-                        }
-                        break;
-                    case 0x20:  // Mode 1
-                        // TODO
-                        break;
-                    default:  // Mode 2
-                        // TODO
-                        break;
-
-                }
+                if (_modeA == 0)
+                    if (!_directionA)
+                        set(0, data);
+                break;
             case 1:
+                if (_modeB == 0)
+                    if (!_directionB)
+                        set(1, data);
+                break;
             case 2:
+                if (_modeA == 0)
+                    if (_directionCUpper)
+                        needSet = true;
+                    else
+                        d = (d & 0x0f) | (_external[2] & 0xf0);
+                if (_modeB == 0)
+                    if (_directionCLower)
+                        needSet = true;
+                    else
+                        d = (d & 0xf0) | (_external[2] & 0x0f);
+                if (needSet)
+                    set(2, data);
+                break;
             case 3:
-                // Whenever the mode is changed, all output registers and status flip-flops are reset.
                 if ((data & 0x80) == 0) {
                     // Bit set/reset
                     if ((data & 1) == 0)
-                        _data[2] &= ~(1 << ((data >> 1) & 3));
+                        _output[2] &= ~(1 << ((data >> 1) & 3));
                     else
-                        _data[2] |= 1 << ((data >> 1) & 3);
+                        _output[2] |= 1 << ((data >> 1) & 3);
                 }
                 else {
                     // Mode set
-                    _data[3] = data;
+                    // TODO: reset status flip-flops
+                    _directionCLower = ((data & 1) != 0);
+                    _directionB = ((data & 2) ! = 0);
+                    _modeB = ((data & 4) >> 2);
+
+                    _directionCUppser = ((data & 8) != 0);
+                    _directionA = ((data & 0x10) != 0);
+                    _modeA = ((data >> 5) & 3);
+
+                    set(0, 0);
+                    set(1, 0);
+                    set(2, 0);
                 }
 
         }
@@ -105,29 +154,43 @@ public:
         return ISA8BitComponent::getValue(i);
     }
 
-    void setData(int i, Byte t) { _data[i] = t; }
-    void setData(int i, bool t)
+    void setData(int i, Byte v) { _external[i] = v; }
+    void setData(int i, bool v)
     {
         int n = i >> 3;
         int b = 1 << (i & 7);
-        _data[n] = (_data[n] & ~b) | (t ? b : 0);
+        _external[n] = (_external[n] & ~b) | (v ? b : 0);
     }
-    Byte getData(int i, Byte) { return _data[i]; }
-    bool getData(int i, bool) { return (_data[i >> 3] & (1 << (i & 7))) != 0; }
 private:
     template<class T> class Connector : public BidirectionalConnector<T>
     {
     public:
-        void setData(T t) { _ppi->setData(i, t); }
-        T getData() { return _ppi->getData(i, T()); }
+        void setData(T v) { _ppi->setData(i, v); }
 
+        BidirectionalConnector<T>* other;
         Intel8255PPI* _ppi;
         int _i;
     };
+    void set(int i, UInt8 v)
+    {
+        if (v != _output[i]) {  // TODO: is this right?
+            _bytes[i].other->setData(v);
+            for (int b = 0; b < 8; ++b)
+                if (((v ^ _output[i]) & (1 << b)) != 0)
+                    _bits[(i<<3) | b].other->setData((v & (1 << b)) != 0);
+            _output[i] = v;
+        }
+    }
 
     Connector<Byte> _bytes[3];
     Connector<bool> _bits[24];
-    Byte _data[4];
+    int _modeA;
+    int _modeB;
+    bool _directionA; // true for input
+    bool _directionB;
+    bool _directionCUpper;
+    bool _directionCLower;
+    Byte _external[3];
     int _address;
     Intel8259PIC* _pic;
 };

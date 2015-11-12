@@ -251,7 +251,6 @@ public:
                 return other == InputConnector<T>::Type() ||
                     other == BidirectionalConnector<T>::Type();
             }
-            bool canConnectorMultiple() const { return true; }
         };
         static String name()
         {
@@ -299,7 +298,6 @@ public:
                     other == InputConnector<T>::Type() ||
                     other == BidirectionalConnector<T>::Type();
             }
-            bool canConnectorMultiple() const { return true; }
         };
         static String name()
         {
