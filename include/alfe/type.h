@@ -1172,6 +1172,12 @@ public:
     static String name() { return "Double"; }
 };
 
+class ByteType : public NamedNullary<Type, ByteType>
+{
+public:
+    static String name() { return "Byte"; }
+};
+
 class RationalType : public NamedNullary<Type, RationalType>
 {
 public:
@@ -1373,6 +1379,7 @@ template<> Type typeFromCompileTimeType<bool>() { return BooleanType(); }
 template<> Type typeFromCompileTimeType<Vector>() { return VectorType(); }
 template<> Type typeFromCompileTimeType<Rational>() { return RationalType(); }
 template<> Type typeFromCompileTimeType<double>() { return DoubleType(); }
+template<> Type typeFromCompileTimeType<Byte>() { return ByteType(); }
 template<> Type typeFromValue<Concrete>(const Concrete& c) { return c.type(); }
 
 #endif // INCLUDED_TYPE_H

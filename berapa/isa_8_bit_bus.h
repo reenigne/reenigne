@@ -184,7 +184,7 @@ public:
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return other == Intel8088::Connector::Type();
+                    return other == Intel8088CPU::Connector::Type();
                 }
             };
             static String name() { return "ISA8BitBus.CPUSocket"; }

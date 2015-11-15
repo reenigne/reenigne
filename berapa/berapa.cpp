@@ -181,10 +181,11 @@ private:
 class Connector
 {
 public:
-    class Type : public ::Type
+    class Type : public NamedNullary<::Type, Type>
     {
     public:
-        Type(const ::Type& t) : ::Type(t) { }
+        Type() { }
+        Type(const ::Type& t) : NamedNullary(t) { }
         bool compatible(Type other) const
         {
             return body()->compatible(other);
@@ -193,13 +194,13 @@ public:
         {
             return body()->canConnectMultiple();
         }
-        Type(const Body* body) : ::Type(body) { }
+        Type(const Body* body) : NamedNullary(body) { }
         bool valid() const { return body() != 0; }
-    protected:
-        class Body : public ::Type::Body
+        static String name() { return "Connector"; }
+        class Body : public NamedNullary::Body
         {
         public:
-            virtual bool compatible(Type other) const = 0;
+            virtual bool compatible(Type other) const { return false; }
             virtual bool canConnectMultiple() const { return false; }
             Value tryConvert(const Value& value, String* reason) const
             {
@@ -213,7 +214,7 @@ public:
                         + " are not compatible connectors.";
                     return Value();
                 }
-                return Value(Type(this), value.value(), value.span());
+                return Value(type(), value.value(), value.span());
             }
         };
     public:
@@ -237,7 +238,7 @@ template<class T> class OutputConnector;
 template<class T> class InputConnector;
 template<class T> class BidirectionalConnector;
 
-template<class T> class OutputConnector
+template<class T> class OutputConnector : public Connector
 {
 public:
     class Type : public NamedNullary<Connector::Type, Type>
@@ -260,9 +261,10 @@ public:
     };
 };
 
-template<class T> class InputConnector
+template<class T> class InputConnector : public Connector
 {
 public:
+    virtual void setData(T v) = 0;
     class Type : public NamedNullary<Connector::Type, Type>
     {
     public:
@@ -283,9 +285,10 @@ public:
     };
 };
 
-template<class T> class BidirectionalConnector
+template<class T> class BidirectionalConnector : public Connector
 {
 public:
+    virtual void setData(T v) = 0;
     class Type : public NamedNullary<Connector::Type, Type>
     {
     public:
@@ -319,7 +322,6 @@ public:
         {
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            String toString() const { return "Intel8088CPU"; }
             ::Type member(Identifier i) const
             {
                 if (i.name() == "input1" || i.name() == "input2")
@@ -356,7 +358,6 @@ public:
         {
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            String toString() const { return "Intel8088CPU"; }
             ::Type member(Identifier i) const
             {
                 if (i.name() == "input1" || i.name() == "input2")
@@ -381,39 +382,72 @@ private:
     OutputConnector<T> _output;
 };
 
-//class AndConnectorFunco : public Nullary<Funco, AndConnectorFunco>
-//{
-//public:
-//    class Body : public Nullary::Body
-//    {
-//    public:
-//        Value evaluate(List<Value> arguments, Span span) const
-//        {
-//            //auto i = arguments.begin();
-//            //Concrete l = i->value<Concrete>();
-//            //++i;
-//            //return Value(l + i->value<Concrete>());
-//        }
-//        Identifier identifier() const { return OperatorPlus(); }
-//        bool argumentsMatch(List<Type> argumentTypes) const
-//        {
-//            if (argumentTypes.count() != 2)
-//                return false;
-//            auto i = argumentTypes.begin();
-//            if ()
-//            ConcreteType l(*i);
-//            if (!l.valid())
-//                return false;
-//            ++i;
-//            return ConcreteType(*i).valid();
-//        }
-//        FunctionTyco tyco() const
-//        {
-//            return
-//                FunctionTyco(ConcreteTyco(), ConcreteTyco(), ConcreteTyco());
-//        }
-//    };
-//};
+template<class T> class BucketComponent : public Component
+{
+public:
+    InputConnector<T> _connector;
+};
+
+template<class T> class ConstantComponent : public Component
+{
+private:
+    OutputConnector<T> _connector;
+};
+
+class AndConnectorFunco : public Nullary<Funco, AndConnectorFunco>
+{
+public:
+    class Body : public Nullary::Body
+    {
+    public:
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+            //auto i = arguments.begin();
+            //Concrete l = i->value<Concrete>();
+            //++i;
+            //return Value(l + i->value<Concrete>());
+        }
+        Identifier identifier() const { return OperatorAmpersand(); }
+        bool argumentsMatch(List<Type> argumentTypes) const
+        {
+            if (argumentTypes.count() != 2)
+                return false;
+            auto i = argumentTypes.begin();
+            //if ()
+            //ConcreteType l(*i);
+            //if (!l.valid())
+            //    return false;
+            //++i;
+            //return ConcreteType(*i).valid();
+        }
+        FunctionTyco tyco() const
+        {
+            return FunctionTyco(Connector::Type(), Connector::Type(),
+                Connector::Type());
+        }
+    };
+};
+
+class OrConnectorFunco : public Nullary<Funco, OrConnectorFunco>
+{
+public:
+    class Body : public Nullary::Body
+    {
+    public:
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+        }
+        Identifier identifier() const { return OperatorBitwiseOr(); }
+        //bool argumentsMatch(List<Type> argumentTypes) const
+        //{
+        //}
+        FunctionTyco tyco() const
+        {
+            return FunctionTyco(Connector::Type(), Connector::Type(),
+                Connector::Type());
+        }
+    };
+};
 
 
 template<class T> class SimulatorTemplate
@@ -461,7 +495,6 @@ public:
         }
         if (_ticksPerSecond == 0)
             throw Exception("None of the components is clocked!");
-        _minTicksPerCycle = INT_MAX;
         for (auto i : _components) {
             Rational cyclesPerSecond = i->cyclesPerSecond();
             if (cyclesPerSecond != 0) {
@@ -470,8 +503,6 @@ public:
                     throw Exception("Scheduler LCM calculation incorrect");
                 int ticksPerCycle = t.numerator;
                 i->setTicksPerCycle(ticksPerCycle);
-                if (ticksPerCycle < _minTicksPerCycle)
-                    _minTicksPerCycle = ticksPerCycle;
             }
             else
                 i->setTicksPerCycle(0);
@@ -513,7 +544,6 @@ private:
 
     List<Reference<Component>> _components;
     bool _halted;
-    int _minTicksPerCycle;
     Rational _ticksPerSecond;
 };
 

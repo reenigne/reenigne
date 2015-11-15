@@ -100,7 +100,7 @@ private:
     DRAM _dram;
     NMISwitch* _nmiSwitch;
     Intel8255PPI* _ppi;
-    Intel8088Template<T>* _cpu;
+    Intel8088CPUTemplate<T>* _cpu;
     int _rowBits;
     int _bytes;
     Rational _decayTime;

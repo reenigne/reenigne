@@ -1,11 +1,16 @@
 class NMISwitch : public ISA8BitComponent<NMISwitch>
 {
 public:
+    NMISwitch() : _connector(this) { }
     void setAddress(UInt32 address)
     {
         _active = (address & 0xc00003e0) == 0xc00000a0;
     }
-    void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }
+    void write(UInt8 data)
+    {
+        _nmiOn = ((data & 0x80) != 0);
+
+    }
     String save() const
     {
         return String("{ on: ") + String::Boolean(_nmiOn) + ", active: " +
@@ -26,15 +31,17 @@ public:
     }
     bool nmiOn() const { return _nmiOn; }
 
-    class ValueConnector : public ::Connector
+    class Connector : public OutputConnector<bool>
     {
     public:
-        ValueConnector(NMISwitch* component) : _component(component) { }
+        Connector(NMISwitch* component) : _component(component) { }
         void connect(::Connector* other)
         {
             // TODO
         }
-        ::Connector::Type type() const { return BitOutputConnector::Type(); }
+    protected:
+        ::Connector::Type type() const { return Type(); }
+
     private:
         NMISwitch* _component;
     };
@@ -42,4 +49,5 @@ public:
 
 private:
     bool _nmiOn;
+    Connector _connector;
 };

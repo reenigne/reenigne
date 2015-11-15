@@ -4,11 +4,8 @@ template<class T> class Intel8253PITTemplate
 public:
     Intel8253PITTemplate()
     {
-        _timers[0] = &_timer0;
-        _timers[1] = &_timer1;
-        _timers[2] = &_timer2;
         for (int i = 0; i < 3; ++i)
-            _timers[i]->setGate(true);
+            _timers[i].setGate(true);
     }
     void simulateCycle()
     {
@@ -23,19 +20,18 @@ public:
     void read()
     {
         if (_address < 3)
-            this->set(_timers[_address]->read());
+            this->set(_timers[_address].read());
     }
     void write(UInt8 data)
     {
         if (_address < 3)
-            _timers[_address]->write(data);
+            _timers[_address].write(data);
         else {
             int timer = (data >> 6) & 3;
             if (timer < 3)
-                _timers[timer]->control(data & 0x3f);
+                _timers[timer].control(data & 0x3f);
         }
     }
-    void setT2Gate(bool gate) { _timers[2]->setGate(gate); }
 
     String save() const
     {
@@ -48,7 +44,7 @@ public:
             if (needComma)
                 s += ", ";
             needComma = true;
-            s += _timers[i]->save();
+            s += _timers[i].save();
         }
         return s + " }}\n";
     }
@@ -59,7 +55,7 @@ public:
         members.add(StructuredType::Member("tick", 0));
         members.add(StructuredType::Member("address", 0));
         members.add(StructuredType::Member("timers",
-            Value(SequenceType(_timer0.type()), List<Value>())));
+            Value(SequenceType(_timers[0].persistenceType()), List<Value>())));
         return StructuredType("PIT", members);
     }
     void load(const Value& value)
@@ -72,14 +68,14 @@ public:
 
         int j = 0;
         for (auto i : timers) {
-            _timers[j]->load(i.value<Value>());
+            _timers[j].load(i.value<Value>());
             ++j;
             if (j == 3)
                 break;
         }
         for (;j < 3; ++j) {
-            _timers[j]->load(
-                StructuredType::empty().convertTo(_timer0.type()));
+            _timers[j].load(StructuredType::empty().
+                convertTo(_timers[0].persistenceType()));
         }
     }
     static String name() { return "Intel8253PIT"; }
@@ -268,7 +264,7 @@ private:
                 ", state: " + stringForState(_state) +
                 " }";
         }
-        ::Type type() const
+        ::Type persistenceType() const
         {
             List<StructuredType::Member> members;
             members.add(StructuredType::Member("value", 0));
@@ -390,66 +386,6 @@ private:
         State _state;
         ::Type _stateType;
     };
-    class Timer0 : public Timer
-    {
-    public:
-        void setPIC(Intel8259PIC* pic) { _pic = pic; }
-        void outputChanged(bool output)
-        {
-            if (output)
-                _pic->requestInterrupt(0);
-        }
-    private:
-        Intel8259PIC* _pic;
-    };
-    class Timer1 : public Timer
-    {
-    public:
-        Timer1() : _dmaRequested(false) { }
-//        void setSite(SimulatorTemplate<T>* simulator)
-//        {
-//            _bus = simulator->getBus();
-//            _dma = simulator->getDMA();
-//        }
-        void outputChanged(bool output)
-        {
-            if (output) {
-                _dma->dmaRequest(0);
-                _dmaRequested = true;
-            }
-        }
-        void simulateCycle()
-        {
-            if (_dmaRequested) {
-                if (_dma->dmaAcknowledged(0)) {
-                    // Don't do anything with the data we read - the only
-                    // purpose of the DMA is to refresh RAM.
-                    _dma->dmaComplete(0);
-                    _dmaRequested = false;
-                }
-            }
-        }
-    private:
-        ISA8BitBus* _bus;
-        Intel8237DMA* _dma;
-        bool _dmaRequested;
-    };
-    class Timer2 : public Timer
-    {
-    public:
-        void setPPI(Intel8255PPI* ppi) { _ppi = ppi; }
-        void outputChanged(bool output)
-        {
-            if(_ppi->portB() & 1) _ppi->_portc = (_ppi->_portc & ~0x10) | (output ? 0x10 : 0);
-            _ppi->_portc = (_ppi->_portc & ~0x40) | (output ? 0x40 : 0);
-        }
-    private:
-        Intel8255PPI* _ppi;
-    };
-    Timer0 _timer0;
-    Timer1 _timer1;
-    Timer2 _timer2;
-    Timer* _timers[3];
+    Timer _timers[3];
     int _address;
-    Intel8259PIC* _pic;
 };
