@@ -105,11 +105,7 @@ public:
         if (_state == stateIdle || _state == stateS0 || _state == stateYield)
             _highAddress = 0xffff;
     }
-    void setAddress(UInt32 address)
-    {
-        _address = address & 0xf;
-        this->_active = ((address & 0x400003f0) == 0x40000000);
-    }
+    void setAddress(UInt32 address) { _address = address & 0xf; }
     void read()
     {
         if (_address < 8) {

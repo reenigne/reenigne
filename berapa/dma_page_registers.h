@@ -7,11 +7,7 @@ public:
         for (int i = 0; i < 4; ++i)
             _dmaPages[i] = 0;
     }
-    void setAddress(UInt32 address)
-    {
-        _address = address & 3;
-        this->_active = (address & 0xc00003e0) == 0xc0000080;
-    }
+    void setAddress(UInt32 address) { _address = address & 3; }
     void write(UInt8 data) { _dmaPages[_address] = data & 0x0f; }
     String save() const
     {

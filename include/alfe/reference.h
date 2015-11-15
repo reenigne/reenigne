@@ -6,6 +6,7 @@
 template<class T> class Reference : private Handle
 {
 public:
+    Reference() { }
     template<class C, typename... Args> static Reference create(Args&&... args)
     {
         Reference r(new Body<C>(std::forward<Args>(args)...));

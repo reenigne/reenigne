@@ -12,11 +12,7 @@ public:
         for (int i = 0; i < 3; ++i)
             _timers[i]->simulateCycle();
     }
-    void setAddress(UInt32 address)
-    {
-        _address = address & 3;
-        this->_active = (address & 0x400003e0) == 0x40000040;
-    }
+    void setAddress(UInt32 address) { _address = address & 3; }
     void read()
     {
         if (_address < 3)

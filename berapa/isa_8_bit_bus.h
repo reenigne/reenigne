@@ -10,7 +10,7 @@ public:
     ISA8BitComponentBaseTemplate() : _connector(this) { }
     // Address bit 31 = write
     // Address bit 30 = IO
-    virtual void setAddress(UInt32 address) = 0;
+    virtual void setAddress(UInt32 address) { };
     virtual void write(UInt8 data) { };
     virtual bool wait() { return false; }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
@@ -99,13 +99,21 @@ public:
 template<class T> class ISA8BitBusTemplate : public ComponentTemplate<T>
 {
 public:
-    ISA8BitBusTemplate() : _cpuSocket(this), _connector(this) { }
+    ISA8BitBusTemplate() : _cpuSocket(this), _connector(this)
+    {
+        for (int i = 0; i < 8; ++i)
+            _chipConnectors[i].init(this, i);
+    }
     Value getValue(Identifier i) const
     {
-        if (i.name() == "cpu")
+        String n = i.name();
+        if (n == "cpu")
             return _cpuSocket.getValue();
-        if (i.name() == "slot")
+        if (n == "slot")
             return _connector.getValue();
+        if (n.length() == 5 && n.subString(0, 4) == "chip" && n[4] >= '0' &&
+            n[4] < '8')
+            return _chipConnectors[n[4] - '0'].getValue();
         return Component::getValue(i);
     }
 
@@ -122,9 +130,13 @@ public:
             String toString() const { return "ISA8BitBus"; }
             ::Type member(Identifier i) const
             {
-                if (i.name() == "cpu")
+                String n = i.name();
+                if (n == "cpu")
                     return CPUSocket::Type();
-                if (i.name() == "slot")
+                if (n == "slot")
+                    return Connector::Type();
+                if (n.length() == 5 && n.subString(0, 4) == "chip" &&
+                    n[4] >= '0' && n[4] < '8')
                     return Connector::Type();
                 return Component::Type::Body::member(i);
             }
@@ -163,10 +175,18 @@ public:
         {
             _bus->addComponent(component);
         }
-
+    protected:
         ISA8BitBus* _bus;
 
         template<class U> friend class ISA8BitComponent<U>::Connector;
+    };
+    class ChipConnector : public Connector
+    {
+    public:
+        ChipConnector() : Connector(0) { }
+        void init(ISA8BitBus* bus, int i) { _bus = bus; _i = i; }
+    private:
+        int _i;
     };
 
     class CPUSocket : public ::Connector
@@ -232,6 +252,7 @@ private:
     UInt8 _data;
     CPUSocket _cpuSocket;
     Connector _connector;
+    ChipConnector _chipConnectors[8];
     List<ISA8BitComponentBase*> _components;
 
     template<class U> friend class ISA8BitComponentBaseTemplate;

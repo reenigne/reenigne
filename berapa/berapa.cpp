@@ -51,6 +51,12 @@ typedef IBMCGATemplate<void> IBMCGA;
 template<class T> class DMAPageRegistersTemplate;
 typedef DMAPageRegistersTemplate<void> DMAPageRegisters;
 
+template<class T> class PCXTKeyboardTemplate;
+typedef PCXTKeyboardTemplate<void> PCXTKeyboard;
+
+template<class T> class PCXTKeyboardPortTemplate;
+typedef PCXTKeyboardPortTemplate<void> PCXTKeyboardPort;
+
 Concrete second;
 
 class Tick
@@ -112,6 +118,11 @@ public:
     }
     class Type : public ::Type
     {
+    public:
+        Reference<Component> createComponent()
+        {
+            return body()->createComponent();
+        }
     protected:
         Type(const Body* body) : ::Type(body) { }
         class Body : public ::Type::Body
@@ -139,6 +150,7 @@ public:
         protected:
             Simulator* _simulator;
         };
+        const Body* body() { return as<Body>(); }
     };
 protected:
     Tick _tick;
@@ -238,19 +250,83 @@ template<class T> class OutputConnector;
 template<class T> class InputConnector;
 template<class T> class BidirectionalConnector;
 
-template<class T> class OutputConnector : public Connector
+class BidirectionalConnectorBase : public Connector
 {
 public:
+    class Type : public Connector::Type
+    {
+    public:
+        Type(const ::Type& t) : Connector::Type(t) { }
+        bool valid() const { return body() != 0; }
+        ::Type transportType() const { return body()->transportType(); }
+    protected:
+        class Body
+        {
+        public:
+            virtual ::Type transportType() const = 0;
+        };
+        const Body* body() const { return as<Body>(); }
+    };
+};
+
+template<class T> class BidirectionalConnector
+    : public BidirectionalConnectorBase
+{
+public:
+    Connector::Type type() const { return Type(); };
+    virtual void setData(Tick t, T v) = 0;
+    void connect(::Connector* other)
+    {
+        _other = dynamic_cast<BidirectionalConnector<T>*>(other);
+    }
     class Type : public NamedNullary<Connector::Type, Type>
     {
     public:
+        Type() { }
+        Type(const ::Type& t) : NamedNullary(t) { }
         class Body : public NamedNullary<Connector::Type, Type>::Body
+        {
+        public:
+            bool compatible(Connector::Type other) const
+            {
+                return other == OutputConnector<T>::Type() ||
+                    other == InputConnector<T>::Type() ||
+                    other == BidirectionalConnector<T>::Type();
+            }
+            ::Type transportType() const
+            {
+                return typeFromCompileTimeType<T>();
+            }
+        };
+        static String name()
+        {
+            return "BidirectionalConnector<" +
+                typeFromCompileTimeType<T>().toString() + ">";
+        }
+    };
+    BidirectionalConnector<T>* _other;
+};
+
+template<class T> class OutputConnector : public BidirectionalConnector<T>
+{
+public:
+    Connector::Type type() const { return Type(); };
+    void setData(Tick t, T v) { }
+    class Type : public NamedNullary<BidirectionalConnector<T>::Type, Type>
+    {
+    public:
+        class Body
+          : public NamedNullary<BidirectionalConnector<T>::Type, Type>::Body
         {
         public:
             bool compatible(Connector::Type other) const
             {
                 return other == InputConnector<T>::Type() ||
                     other == BidirectionalConnector<T>::Type();
+            }
+            ::Type transportType() const
+            {
+                return typeFromCompileTimeType<T>();
             }
         };
         static String name()
@@ -261,10 +337,11 @@ public:
     };
 };
 
-template<class T> class InputConnector : public Connector
+template<class T> class InputConnector : public BidirectionalConnector<T>
 {
 public:
-    virtual void setData(T v) = 0;
+    Connector::Type type() const { return Type(); };
+    virtual void setData(Tick t, T v) = 0;
     class Type : public NamedNullary<Connector::Type, Type>
     {
     public:
@@ -285,39 +362,26 @@ public:
     };
 };
 
-template<class T> class BidirectionalConnector : public Connector
+template<class T, class C> class BooleanComponent : public Component
 {
 public:
-    virtual void setData(T v) = 0;
-    class Type : public NamedNullary<Connector::Type, Type>
+    BooleanComponent() : _input1(this), _input2(this), _output(this) { }
+    Value getValue(Identifier i) const
     {
-    public:
-        class Body : public NamedNullary<Connector::Type, Type>::Body
-        {
-        public:
-            bool compatible(Connector::Type other) const
-            {
-                return other == OutputConnector<T>::Type() ||
-                    other == InputConnector<T>::Type() ||
-                    other == BidirectionalConnector<T>::Type();
-            }
-        };
-        static String name()
-        {
-            return "BidirectionalConnector<" +
-                typeFromCompileTimeType<T>().toString() + ">";
-        }
-    };
-};
-
-template<class T> class AndComponent : public Component
-{
-public:
+        String n = i.name();
+        if (n == "input1")
+            return _input1.getValue();
+        if (n == "input2")
+            return _input2.getValue();
+        if (n == "output")
+            return _input2.getValue();
+        return Component::getValue(i);
+    }
     class Type : public Component::Type
     {
     public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
-    private:
+        Type(Body* body) : Component::Type(body) { }
+    protected:
         class Body : public Component::Type::Body
         {
         public:
@@ -325,61 +389,99 @@ public:
             ::Type member(Identifier i) const
             {
                 if (i.name() == "input1" || i.name() == "input2")
-                    return InputConnector<T>::Type();
+                    return ::InputConnector<T>::Type();
                 if (i.name() == "output")
-                    return OutputConnector<T>::Type();
+                    return ::OutputConnector<T>::Type();
                 return Component::Type::Body::member(i);
+            }
+            String parameters() const
+            {
+                return "<" + typeFromCompileTimeType<T>().toString() + ">";
             }
             Reference<Component> createComponent() const
             {
-                return Reference<Component>::create<Intel8088CPU>();
-            }
-            String toString() const
-            {
-                return "And<" + typeFromCompileTimeType<T>().toString() + ">";
+                return Reference<Component>::create<C>();
             }
         };
     };
+    virtual void update() = 0;
 private:
-    InputConnector<T> _input1;
-    InputConnector<T> _input2;
-    OutputConnector<T> _output;
-};
-
-template<class T> class OrComponent : public Component
-{
-public:
-    class Type : public Component::Type
+    class InputConnector : public ::InputConnector<T>
     {
     public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
+        InputConnector(BooleanComponent *component) : _component(component) { }
+        void connect(::Connector* other) { _other = other; }
+        void setData(Tick tick, T t) { _t = t; _component->update(); }
+        ::Connector* _other;
+        T _t;
+        BooleanComponent* _component;
+    };
+    class OutputConnector : public ::OutputConnector<T>
+    {
+    public:
+        OutputConnector(BooleanComponent *component)
+          : _component(component) { }
+        void connect(::Connector* other)
+        {
+            _other = dynamic_cast<BidirectionalConnector<T>*>(other);
+        }
+        void set(Tick tick, T v)
+        {
+            if (v != _t) {
+                _t = v;
+                _other->setData(tick, v);
+            }
+        }
+        BidirectionalConnector<T>* _other;
+        T _t;
+        BooleanComponent* _component;
+    };
+protected:
+    InputConnector _input1;
+    InputConnector _input2;
+    OutputConnector _output;
+};
+
+template<class T> class AndComponent
+  : public BooleanComponent<T, AndComponent<T>>
+{
+public:
+    void update() { _output.set(_input1._t & _input2._t); }
+    class Type : public BooleanComponent::Type
+    {
+    public:
+        Type(Simulator* simulator)
+          : BooleanComponent::Type(new Body(simulator)) { }
     private:
-        class Body : public Component::Type::Body
+        class Body : public BooleanComponent::Type::Body
         {
         public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            ::Type member(Identifier i) const
-            {
-                if (i.name() == "input1" || i.name() == "input2")
-                    return InputConnector<T>::Type();
-                if (i.name() == "output")
-                    return OutputConnector<T>::Type();
-                return Component::Type::Body::member(i);
-            }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<Intel8088CPU>();
-            }
-            String toString() const
-            {
-                return "Or<" + typeFromCompileTimeType<T>().toString() + ">";
-            }
+            Body(Simulator* simulator)
+              : BooleanComponent::Type::Body(simulator) { }
+            String toString() const { return "And" + parameters(); }
         };
     };
-private:                   
-    InputConnector<T> _input1;
-    InputConnector<T> _input2;
-    OutputConnector<T> _output;
+};
+
+template<class T> class OrComponent
+  : public BooleanComponent<T, OrComponent<T>>
+{
+public:
+    void update() { _output.set(_input1._t | _input2._t); }
+    class Type : public BooleanComponent::Type
+    {
+    public:
+        Type(Simulator* simulator)
+          : BooleanComponent::Type(new Body(simulator)) { }
+    private:
+        class Body : public BooleanComponent::Type::Body
+        {
+        public:
+            Body(Simulator* simulator)
+              : BooleanComponent::Type::Body(simulator) { }
+            String toString() const { return "Or" + parameters(); }
+        };
+    };
 };
 
 template<class T> class BucketComponent : public Component
@@ -394,58 +496,81 @@ private:
     OutputConnector<T> _connector;
 };
 
-class AndConnectorFunco : public Nullary<Funco, AndConnectorFunco>
-{
+template<template<class> class Component> class ComponentFunco : public Funco
+{                      
 public:
-    class Body : public Nullary::Body
+    ComponentFunco(Body* body) : Funco(body) { }
+    class Body : public Funco::Body
     {
     public:
+        Body(Simulator* simulator) : _simulator(simulator) { }
+        Identifier identifier() const { return OperatorAmpersand(); }
         Value evaluate(List<Value> arguments, Span span) const
         {
-            //auto i = arguments.begin();
-            //Concrete l = i->value<Concrete>();
-            //++i;
-            //return Value(l + i->value<Concrete>());
+            auto i = arguments.begin();
+            Type t =
+                BidirectionalConnectorBase::Type(i->type()). transportType();
+            auto l = *i;
+            ++i;
+            auto r = *i;
+            Reference<::Component> c;
+            if (t == ByteType())
+                c = Component<Byte>::Type(_simulator).createComponent();
+            else
+                if (t == BooleanType())
+                    c = Component<bool>::Type(_simulator).createComponent();
+            c->set("input1", l);
+            c->set("input2", r);
+            return c->getValue("output");
         }
-        Identifier identifier() const { return OperatorAmpersand(); }
         bool argumentsMatch(List<Type> argumentTypes) const
         {
             if (argumentTypes.count() != 2)
                 return false;
             auto i = argumentTypes.begin();
-            //if ()
-            //ConcreteType l(*i);
-            //if (!l.valid())
-            //    return false;
-            //++i;
-            //return ConcreteType(*i).valid();
+            BidirectionalConnectorBase::Type l(*i);
+            if (!l.valid())
+                return false;
+            Type lTransport = l.transportType();
+            ++i;
+            BidirectionalConnectorBase::Type r(*i);
+            if (!r.valid())
+                return false;
+            return lTransport == r.transportType();
         }
         FunctionTyco tyco() const
         {
             return FunctionTyco(Connector::Type(), Connector::Type(),
                 Connector::Type());
         }
+    private:
+        Simulator* _simulator;
     };
 };
 
-class OrConnectorFunco : public Nullary<Funco, OrConnectorFunco>
+class AndComponentFunco : public ComponentFunco<AndComponent>
 {
 public:
-    class Body : public Nullary::Body
+    AndComponentFunco(Simulator* simulator)
+      : ComponentFunco(new Body(simulator)) { }
+    class Body : public ComponentFunco::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
-        {
-        }
+        Body(Simulator* simulator) : ComponentFunco::Body(simulator) { }
+        Identifier identifier() const { return OperatorAmpersand(); }
+    };
+};
+
+class OrComponentFunco : public ComponentFunco<OrComponent>
+{
+public:
+    OrComponentFunco(Simulator* simulator)
+      : ComponentFunco(new Body(simulator)) { }
+    class Body : public ComponentFunco::Body
+    {
+    public:
+        Body(Simulator* simulator) : ComponentFunco::Body(simulator) { }
         Identifier identifier() const { return OperatorBitwiseOr(); }
-        //bool argumentsMatch(List<Type> argumentTypes) const
-        //{
-        //}
-        FunctionTyco tyco() const
-        {
-            return FunctionTyco(Connector::Type(), Connector::Type(),
-                Connector::Type());
-        }
     };
 };
 
@@ -604,6 +729,8 @@ protected:
         configFile.addDefaultOption("stopSaveState", StringType(), String(""));
         configFile.addDefaultOption("initialState", StringType(), String(""));
         configFile.addType(String("Time"), second.type());
+        configFile.addFunco(AndComponentFunco(p));
+        configFile.addFunco(OrComponentFunco(p));
 
         for (auto i : componentTypes)
             configFile.addType(i.toString(), i);

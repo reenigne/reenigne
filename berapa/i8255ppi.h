@@ -18,11 +18,7 @@ public:
             _bits[i]._i = i;
         }
     }
-    void setAddress(UInt32 address)
-    {
-        _address = address & 0x3;
-        this->_active = (address & 0x400003f0) == 0x40000060;
-    }
+    void setAddress(UInt32 address) { _address = address & 3; }
     void read()
     {
         // TODO: IBF is reset by rising edge of RD input
@@ -38,7 +34,7 @@ public:
             intrB(false);
 
         UInt8 d = 0;
-        switch(_address) {
+        switch (_address) {
             case 0:
                 if (inputA())
                     d = _input[0];
@@ -234,18 +230,16 @@ private:
     {
     public:
         void setData(T v) { _ppi->setData(_i, v); }
-
-        BidirectionalConnector<T>* other;
         Intel8255PPI* _ppi;
         int _i;
     };
     void outgoing(int i, UInt8 v)
     {
         if (v != _outgoing[i]) {
-            _bytes[i].other->setData(v);
+            _bytes[i]._other->setData(v);
             for (int b = 0; b < 8; ++b)
                 if (((v ^ _outgoing[i]) & (1 << b)) != 0)
-                    _bits[(i<<3) | b].other->setData((v & (1 << b)) != 0);
+                    _bits[(i<<3) | b]._other->setData((v & (1 << b)) != 0);
             _outgoing[i] = v;
         }
     }
