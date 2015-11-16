@@ -34,7 +34,7 @@ __vector_10:  ; TIMER1_CAPT_vect         ; 7
 
   lds r5, 0x86                           ; 1
   lds r6, 0x87                           ; 1
-  rcall sendTimerData                    ; 3
+  call sendTimerData                     ; 3
 
   pop r0                                 ; 2
   out 0x3f, r0                           ; 1

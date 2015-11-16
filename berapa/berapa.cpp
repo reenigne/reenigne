@@ -116,7 +116,7 @@ public:
         }
         Structure::set(name, value);
     }
-    class Type : public ::Type
+    class TypeBase : public ::Type
     {
     public:
         Reference<Component> createComponent()
@@ -124,7 +124,7 @@ public:
             return body()->createComponent();
         }
     protected:
-        Type(const Body* body) : ::Type(body) { }
+        TypeBase(const Body* body) : ::Type(body) { }
         class Body : public ::Type::Body
         {
         public:
@@ -152,7 +152,50 @@ public:
         };
         const Body* body() { return as<Body>(); }
     };
+    template<class C> class Type : public TypeBase
+    {
+    protected:
+        Type(const Body* body) : TypeBase(body) { }
+        class Body : public TypeBase::Body
+        {
+        public:
+            Body(Simulator* simulator) : TypeBase::Body(simulator) { }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<C>();
+            }
+        };
+    };
+    String save()
+    {
+        String s("{\n");
+        bool needComma = false;
+        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
+            if (needComma)
+                s += ",\n";
+            needComma = true;
+            ::Type type = i.value().type();
+            s += "  " + i.key() + ": " +
+                type.toString(i.value().value<void*>());
+        }
+        return s + "}\n";
+    }
+
 protected:
+    template<class C> void config(String name, C* p,
+        ::Type type = typeFromCompileTimeType<C>())
+    {
+        _members.add(name, Value(type, static_cast<void*>(p)));
+    }                                           
+    template<class C> void persist(String name, C* p, C initial,
+        ::Type type = typeFromCompileTimeType<C>())
+    {
+        *p = initial;
+        _persist.add(name, Value(type, static_cast<void*>(p)));
+    }
+    HashTable<String, Value> _config;
+    HashTable<String, Value> _persist;
+
     Tick _tick;
 
     SimulatorTemplate<T>* _simulator;
@@ -161,7 +204,7 @@ private:
     String _name;
 };
 
-class ClockedComponent : public Component
+template<class C> class ClockedComponent : public Component
 {
 public:
     void set(Identifier name, Value value)
@@ -170,7 +213,7 @@ public:
             _cyclesPerSecond = (second*value.value<Concrete>()).value();
         Component::set(name, value);
     }
-    class Type : public Component::Type
+    class Type : public Component::Type<C>
     {
     protected:
         Type(const Body* body) : Component::Type(body) { }
@@ -362,10 +405,31 @@ public:
     };
 };
 
+template<class T, class C> class ParametricComponentType
+  : public Component<C>::Type
+{
+protected:
+    class Body : public Component::Type::Body
+    {
+    public:
+        String parameter() const
+        {
+            return "<" + typeFromCompileTimeType<T>().toString() + ">";
+        }
+    };
+};
+
 template<class T, class C> class BooleanComponent : public Component
 {
 public:
     BooleanComponent() : _input1(this), _input2(this), _output(this) { }
+    void config()
+    {
+        config("input1", &_input1);
+        config("input2", &_input2);
+        config("output", &_output);
+    }
+
     Value getValue(Identifier i) const
     {
         String n = i.name();
@@ -374,10 +438,10 @@ public:
         if (n == "input2")
             return _input2.getValue();
         if (n == "output")
-            return _input2.getValue();
+            return _output.getValue();
         return Component::getValue(i);
     }
-    class Type : public Component::Type
+    class Type : public ParametricComponentType<T, C>
     {
     public:
         Type(Body* body) : Component::Type(body) { }
@@ -393,14 +457,6 @@ public:
                 if (i.name() == "output")
                     return ::OutputConnector<T>::Type();
                 return Component::Type::Body::member(i);
-            }
-            String parameters() const
-            {
-                return "<" + typeFromCompileTimeType<T>().toString() + ">";
-            }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<C>();
             }
         };
     };
@@ -486,13 +542,31 @@ public:
 
 template<class T> class BucketComponent : public Component
 {
-public:
-    InputConnector<T> _connector;
+private:
+    class Type : public Component::Type
+    {
+    public:
+        Type(Simulator* simulator) : Component::Type(simulator) { }
+    private:
+        class Body : public Component::Type::Body
+        {
+        public:
+            String toString() const { return "Sink" + }
+        };
+    };
+    class Connector : public InputConnector<T>
+    {
+    public:
+        void setData(Tick tick, T t) { }
+    };
+    Connector _connector;
 };
 
 template<class T> class ConstantComponent : public Component
 {
 private:
+    ConstantComponent(T v) : _v(v) { }
+    T _v;
     OutputConnector<T> _connector;
 };
 
