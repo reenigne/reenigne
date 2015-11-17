@@ -134,6 +134,11 @@ public:
             return LValueTypeTemplate<T>(*this).inner();
         return *this;
     }
+    String serialize(void* p) const { return body()->serialize(p); }
+    void deserialize(const Value& value, void* p) const
+    {
+        body()->deserialize(value, p);
+    }
 protected:
     class Body : public Tyco::Body
     {
@@ -154,6 +159,8 @@ protected:
             return ValueTemplate<T>();
         }
         virtual Type member(IdentifierTemplate<T> i) const { return Type(); }
+        virtual String serialize(void* p) const { return ""; }
+        virtual void deserialize(const Value& value, void* p) const { }
         Type type() const { return tyco(); }
     };
     TypeTemplate(const Body* body) : Tyco(body) { }
@@ -1140,12 +1147,36 @@ class IntegerType : public NamedNullary<Type, IntegerType>
 {
 public:
     static String name() { return "Integer"; }
+    class Body : public NamedNullary<Type, IntegerType>::Body
+    {
+    public:
+        String serialize(void* p) const
+        {
+            return decimal(*static_cast<int*>(p));
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<int*>(p) = value.value<int>();
+        }
+    };
 };
 
 class BooleanType : public NamedNullary<Type, BooleanType>
 {
 public:
     static String name() { return "Boolean"; }
+    class Body : public NamedNullary<Type, BooleanType>::Body
+    {
+    public:
+        String serialize(void* p) const
+        {
+            return String::Boolean(*static_cast<bool*>(p));
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<bool*>(p) = value.value<bool>();
+        }
+    };
 };
 
 class ObjectType : public NamedNullary<Type, ObjectType>

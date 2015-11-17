@@ -2,6 +2,7 @@ template<class T> class DMAPageRegistersTemplate
   : public ISA8BitComponent<DMAPageRegisters>
 {
 public:
+    static String typeName() { return "DMAPageRegisters"; }
     DMAPageRegistersTemplate()
     {
         for (int i = 0; i < 4; ++i)
@@ -57,8 +58,6 @@ public:
             default: return _dmaPages[3];
         }
     }
-
-    static String name() { return "DMAPageRegisters"; }
 private:
     int _address;
     int _dmaPages[4];

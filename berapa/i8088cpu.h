@@ -312,8 +312,11 @@ typedef DisassemblerTemplate<void> Disassembler;
 template<class T> class Intel8088CPUTemplate : public ClockedComponent
 {
 public:
+    static String typeName() { return "Intel8088CPU"; }
     Intel8088CPUTemplate() : _connector(this)
     {
+        config("bus", &_connector);
+
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
         static String s[8] = {"ES", "CS", "SS", "DS", "??", "??", "??", "??"};
@@ -1657,7 +1660,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         s += "  newIP: " + hex(_newIP, 4) + ",\n";
         s += "  nmiRequested: " + String::Boolean(_nmiRequested) + ",\n";
         s += "  cycle: " + decimal(_cycle) + ",\n";
-        s += "  tick: " + _tick;
+        //s += "  tick: " + _tick;
         return s + "}\n";
     }
     ::Type persistenceType() const
@@ -1718,7 +1721,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         members.add(M("newIP", 0));
         members.add(M("nmiRequested", false));
         members.add(M("cycle", 0));
-        members.add(M("tick", 0));
+        //members.add(M("tick", 0));
         return StructuredType("CPU", members);
     }
     void load(const Value& value)
@@ -1781,15 +1784,15 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _newIP = members["newIP"].value<int>();
         _nmiRequested = members["nmiRequested"].value<bool>();
         _cycle = members["cycle"].value<int>();
-        this->_tick = members["tick"].value<int>();
+        //this->_tick = members["tick"].value<int>();
     }
 
-    Value getValue(Identifier i) const
-    {
-        if (i.name() == "bus")
-            return _connector.getValue();
-        return ClockedComponent::getValue(i);
-    }
+    //Value getValue(Identifier i) const
+    //{
+    //    if (i.name() == "bus")
+    //        return _connector.getValue();
+    //    return ClockedComponent::getValue(i);
+    //}
 
     class Connector : public ::Connector
     {
@@ -1818,30 +1821,31 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         Intel8088CPU* _cpu;
     };
 
-    class Type : public ClockedComponent::Type
-    {
-    public:
-        Type(Simulator* simulator)
-          : ClockedComponent::Type(new Body(simulator)) { }
-    private:
-        class Body : public ClockedComponent::Type::Body
-        {
-        public:
-            Body(Simulator* simulator)
-              : ClockedComponent::Type::Body(simulator) { }
-            String toString() const { return "Intel8088CPU"; }
-            ::Type member(Identifier i) const
-            {
-                if (i.name() == "bus")
-                    return Connector::Type();
-                return ClockedComponent::Type::Body::member(i);
-            }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<Intel8088CPU>();
-            }
-        };
-    };
+    typedef ClockedComponent::Type<Intel8088CPU> Type;
+
+    //class Type : public ClockedComponent::Type<Intel8088CPU>
+    //{
+    //public:
+    //    Type(Simulator* simulator)
+    //      : ClockedComponent::Type<Intel8088CPU>(new Body(simulator)) { }
+    //private:
+    //    class Body : public ClockedComponent::Type<Intel8088CPU>::Body
+    //    {
+    //    public:
+    //        Body(Simulator* simulator)
+    //          : ClockedComponent::Type::Body(simulator) { }
+    //        ::Type member(Identifier i) const
+    //        {
+    //            if (i.name() == "bus")
+    //                return Connector::Type();
+    //            return ClockedComponent::Type::Body::member(i);
+    //        }
+    //        Reference<Component> createComponent() const
+    //        {
+    //            return Reference<Component>::create<Intel8088CPU>();
+    //        }
+    //    };
+    //};
 
 private:
     enum IOType
@@ -2576,7 +2580,7 @@ private:
     UInt16 _newIP;
     ISA8BitBus* _bus;
     Intel8259PIC* _pic;
-    Intel8237DMA* _dma;
+    Intel8237DMAC* _dma;
     int _cycle;
     int _stopAtCycle;
     UInt32 _busAddress;

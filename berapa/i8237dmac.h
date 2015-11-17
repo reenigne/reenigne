@@ -1,5 +1,5 @@
-template<class T> class Intel8237DMATemplate
-  : public ISA8BitComponent<Intel8237DMATemplate<T>>
+template<class T> class Intel8237DMACTemplate
+  : public ISA8BitComponent<Intel8237DMACTemplate<T>>
 {
     enum State
     {
@@ -26,7 +26,8 @@ template<class T> class Intel8237DMATemplate
         transferModeCascade
     };
 public:
-    Intel8237DMATemplate()
+    static String typeName() { return "Intel8237DMAC"; }
+    Intel8237DMACTemplate()
     {
         List<EnumerationType::Value> stateValues;
         for (int i = stateIdle; i <= stateS4; ++i) {
@@ -298,7 +299,6 @@ public:
         _highAddress = members["highAddress"].value<int>();
         _state = members["state"].value<State>();
     }
-    static String name() { return "Intel8237DMA"; }
 private:
     void checkForDMA()
     {

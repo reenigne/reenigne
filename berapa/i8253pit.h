@@ -2,6 +2,7 @@ template<class T> class Intel8253PITTemplate
   : public ISA8BitComponent<Intel8253PITTemplate<T>>
 {
 public:
+    static String typeName() { return "Intel8253PIT"; }
     Intel8253PITTemplate()
     {
         for (int i = 0; i < 3; ++i)
@@ -74,7 +75,6 @@ public:
                 convertTo(_timers[0].persistenceType()));
         }
     }
-    static String name() { return "Intel8253PIT"; }
 
 private:
     class Timer

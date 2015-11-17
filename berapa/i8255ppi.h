@@ -2,6 +2,7 @@ template<class T> class Intel8255PPITemplate
   : public ISA8BitComponent<Intel8255PPITemplate<T>>
 {
 public:
+    static String typeName() { return "Intel8255PPI"; }
     Intel8255PPITemplate()
     {
         _mode = 0x1b;
@@ -117,7 +118,6 @@ public:
 
         setOutgoing();
     }
-    static String name() { return "Intel8255PPI"; }
 
     class Type : public ISA8BitComponent::Type
     {
@@ -236,10 +236,11 @@ private:
     void outgoing(int i, UInt8 v)
     {
         if (v != _outgoing[i]) {
-            _bytes[i]._other->setData(v);
+            _bytes[i]._other->setData(_tick, v);
             for (int b = 0; b < 8; ++b)
                 if (((v ^ _outgoing[i]) & (1 << b)) != 0)
-                    _bits[(i<<3) | b]._other->setData((v & (1 << b)) != 0);
+                    _bits[(i<<3) | b]._other->
+                        setData(_tick, (v & (1 << b)) != 0);
             _outgoing[i] = v;
         }
     }

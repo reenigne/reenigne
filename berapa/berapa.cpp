@@ -30,8 +30,8 @@ typedef Intel8088CPUTemplate<void> Intel8088CPU;
 template<class T> class ComponentTemplate;
 typedef ComponentTemplate<void> Component;
 
-template<class T> class Intel8237DMATemplate;
-typedef Intel8237DMATemplate<void> Intel8237DMA;
+template<class T> class Intel8237DMACTemplate;
+typedef Intel8237DMACTemplate<void> Intel8237DMAC;
 
 template<class T> class Intel8253PITTemplate;
 typedef Intel8253PITTemplate<void> Intel8253PIT;
@@ -56,6 +56,9 @@ typedef PCXTKeyboardTemplate<void> PCXTKeyboard;
 
 template<class T> class PCXTKeyboardPortTemplate;
 typedef PCXTKeyboardPortTemplate<void> PCXTKeyboardPort;
+         
+template<class T> class ConnectorTemplate;
+typedef ConnectorTemplate<void> Connector;
 
 Concrete second;
 
@@ -76,164 +79,12 @@ public:
     operator String() const { return decimal(_t); }
     Tick operator-() const { return Tick(-_t); }
     Tick operator*(int other) { return Tick(_t*other); }
+    typedef IntegerType Type;
 private:
     Base _t;
 };
 
-template<class T> class ComponentTemplate : public Structure
-{
-public:
-    ComponentTemplate() : _simulator(0), _tick(0), _ticksPerCycle(0) { }
-    void setSimulator(Simulator* simulator) { _simulator = simulator; }
-    virtual void runTo(Tick tick) { _tick = tick; }
-    virtual void maintain(Tick ticks) { _tick -= ticks; }
-    virtual String save() const { return String(); }
-    virtual ::Type persistenceType() const { return ::Type(); }
-    String name() const { return _name; }
-    virtual void load(const Value& value) { }
-    virtual Value initial() const
-    {
-        return StructuredType::empty().convertTo(persistenceType());
-    }
-    virtual Rational cyclesPerSecond() const { return 0; }
-    void setTicksPerCycle(Tick ticksPerCycle)
-    {
-        _ticksPerCycle = ticksPerCycle;
-        _tick = 0;
-    }
-    void set(Identifier name, Value value)
-    {
-        if (name.name() == "*") {
-            _name = value.value<String>();
-            return;
-        }
-        if (Connector::Type(value.type()).valid()) {
-            auto l = getValue(name).value<Connector*>();
-            auto r = value.value<Connector*>();
-            l->connect(r);
-            r->connect(l);
-            return;
-        }
-        Structure::set(name, value);
-    }
-    class TypeBase : public ::Type
-    {
-    public:
-        Reference<Component> createComponent()
-        {
-            return body()->createComponent();
-        }
-    protected:
-        TypeBase(const Body* body) : ::Type(body) { }
-        class Body : public ::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : _simulator(simulator) { }
-            ::Type member(Identifier i) const
-            {
-                if (i.name() == "*")
-                    return StringType();
-                return ::Type();
-            }
-            virtual Reference<Component> createComponent() const = 0;
-            Value tryConvert(const Value& value, String* why) const
-            {
-                Value stv = value.type().tryConvertTo(
-                    StructuredType::empty().type(), value, why);
-                if (!stv.valid())
-                    return stv;
-                auto v = createComponent();
-                _simulator->addComponent(v);
-                return Value(type(), static_cast<Structure*>(&(*v)),
-                    value.span());
-            }
-        protected:
-            Simulator* _simulator;
-        };
-        const Body* body() { return as<Body>(); }
-    };
-    template<class C> class Type : public TypeBase
-    {
-    protected:
-        Type(const Body* body) : TypeBase(body) { }
-        class Body : public TypeBase::Body
-        {
-        public:
-            Body(Simulator* simulator) : TypeBase::Body(simulator) { }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<C>();
-            }
-        };
-    };
-    String save()
-    {
-        String s("{\n");
-        bool needComma = false;
-        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
-            if (needComma)
-                s += ",\n";
-            needComma = true;
-            ::Type type = i.value().type();
-            s += "  " + i.key() + ": " +
-                type.toString(i.value().value<void*>());
-        }
-        return s + "}\n";
-    }
-
-protected:
-    template<class C> void config(String name, C* p,
-        ::Type type = typeFromCompileTimeType<C>())
-    {
-        _members.add(name, Value(type, static_cast<void*>(p)));
-    }                                           
-    template<class C> void persist(String name, C* p, C initial,
-        ::Type type = typeFromCompileTimeType<C>())
-    {
-        *p = initial;
-        _persist.add(name, Value(type, static_cast<void*>(p)));
-    }
-    HashTable<String, Value> _config;
-    HashTable<String, Value> _persist;
-
-    Tick _tick;
-
-    SimulatorTemplate<T>* _simulator;
-private:
-    Tick _ticksPerCycle;
-    String _name;
-};
-
-template<class C> class ClockedComponent : public Component
-{
-public:
-    void set(Identifier name, Value value)
-    {
-        if (name.name() == "frequency")
-            _cyclesPerSecond = (second*value.value<Concrete>()).value();
-        Component::set(name, value);
-    }
-    class Type : public Component::Type<C>
-    {
-    protected:
-        Type(const Body* body) : Component::Type(body) { }
-        class Body : public Component::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            ::Type member(Identifier i) const
-            {
-                if (i.name() == "frequency")
-                    return -second.type();
-                return Component::Type::Body::member(i);
-            }
-        };
-    };
-private:
-    Rational _cyclesPerSecond;
-};
-
-class Connector
+template<class T> class ConnectorTemplate
 {
 public:
     class Type : public NamedNullary<::Type, Type>
@@ -251,7 +102,7 @@ public:
         }
         Type(const Body* body) : NamedNullary(body) { }
         bool valid() const { return body() != 0; }
-        static String name() { return "Connector"; }
+        static String typeName() { return "Connector"; }
         class Body : public NamedNullary::Body
         {
         public:
@@ -259,6 +110,16 @@ public:
             virtual bool canConnectMultiple() const { return false; }
             Value tryConvert(const Value& value, String* reason) const
             {
+                // If assigning component=connector, connect to the default
+                // connector on the component instead.
+                Component::Type ct(value.type());
+                if (ct.valid()) {
+                    Structure* s = value.value<Structure*>();
+                    Component* component = static_cast<Component*>(s);
+                    Connector* connector = component->_defaultConnector;
+                    return tryConvert(connector->getValue(), reason);
+                }
+
                 Connector::Type t(value.type());
                 if (!t.valid()) {
                     *reason = value.type().toString() + " is not a connector.";
@@ -287,6 +148,222 @@ public:
 
     virtual Type type() const = 0;
     virtual void connect(Connector* other) = 0;
+};
+
+template<class T> class ComponentTemplate : public Structure
+{
+public:
+    ComponentTemplate() : _simulator(0), _tick(0), _ticksPerCycle(0)
+    {
+        persist("tick", &_tick, Tick(0), Tick::Type());
+    }
+    void setSimulator(Simulator* simulator) { _simulator = simulator; }
+    virtual void runTo(Tick tick) { _tick = tick; }
+    virtual void maintain(Tick ticks) { _tick -= ticks; }
+    String name() const { return _name; }
+    virtual Value initial() const
+    {
+        return StructuredType::empty().convertTo(persistenceType());
+    }
+    virtual Rational cyclesPerSecond() const { return 0; }
+    void setTicksPerCycle(Tick ticksPerCycle)
+    {
+        _ticksPerCycle = ticksPerCycle;
+        _tick = 0;
+    }
+    void set(Identifier name, Value value)
+    {
+        if (name.name() == "*") {
+            _name = value.value<String>();
+            return;
+        }
+        if (Connector::Type(value.type()).valid()) {
+            auto l = getValue(name).value<Connector*>();
+            auto r = value.value<Connector*>();
+            l->connect(r);
+            r->connect(l);
+            return;
+        }
+        Structure::set(name, value);
+    }
+    class Type : public ::Type
+    {
+    public:
+        Type() { }
+        Type(::Type type) : ::Type(type) { }
+        Reference<Component> createComponent()
+        {
+            auto c = body()->createComponent();
+            c->setType(*this);
+            return c;
+        }
+    protected:
+        Type(const Body* body) : ::Type(body) { }
+        class Body : public ::Type::Body
+        {
+        public:
+            Body(Simulator* simulator) : _simulator(simulator) { }
+            ::Type member(Identifier i) const
+            {
+                if (i.name() == "*")
+                    return StringType();
+                return ::Type();
+            }
+            virtual Reference<Component> createComponent() const = 0;
+            Value tryConvert(const Value& value, String* why) const
+            {
+                Value stv = value.type().tryConvertTo(
+                    StructuredType::empty().type(), value, why);
+                if (!stv.valid())
+                    return stv;
+                auto v = createComponent();
+                _simulator->addComponent(v);
+                return Value(type(), static_cast<Structure*>(&(*v)),
+                    value.span());
+            }
+        protected:
+            Simulator* _simulator;
+        };
+        const Body* body() { return as<Body>(); }
+    };
+    template<class C> class TypeHelper : public Type
+    {
+    public:
+        TypeHelper(Simulator* simulator) : Type(new Body(simulator)) { }
+    protected:
+        class Body : public Type::Body
+        {
+        public:
+            Body(Simulator* simulator) : Type::Body(simulator)
+            {
+                C component;
+                for (auto i = component._config.begin();
+                    i != component._config.end(); ++i) {
+                    _members[i.key()] = i.value()._type;
+                }
+            }
+            Reference<Component> createComponent() const
+            {
+                return Reference<Component>::create<C>();
+            }
+            String toString() const { return C::typeName(); }
+            ::Type member(Identifier i) const
+            {
+                if (_members.hasKey(i))
+                    return _members[i];
+                return Type::Body::member(i);
+            }
+        private:
+            HashTable<Identifier, ::Type> _members;
+        };
+        TypeHelper(const Body* body) : Type(body) { }
+    };
+    virtual String save() const
+    {
+        String s("{\n");
+        bool needComma = false;
+        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
+            if (needComma)
+                s += ",\n";
+            needComma = true;
+            ::Type type = i.value()._type;
+            s += "  " + i.key() + ": " +
+                type.serialize(i.value()._p);
+        }
+        return s + "}\n";
+    }
+    virtual ::Type persistenceType() const
+    {
+        List<StructuredType::Member> members;
+        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
+            members.add(StructuredType::Member(
+                i.key(), Value(i.value()._type, i.value()._initial)));
+        }
+        return StructuredType(_type.toString(), members);
+    }
+    virtual void load(const Value& value)
+    {
+        auto members = value.value<HashTable<Identifier, Value>>();
+        for (auto i = _persist.begin(); i != _persist.end(); ++i)
+            i.value()._type.deserialize(members[i.key()], i.value()._p);
+    }
+
+    void setType(Type type) { _type = type; }
+
+protected:
+    template<class C> void config(String name, C* p,
+        ::Type type = typeFromCompileTimeType<C>())
+    {
+        if (name == "") {
+            _defaultConnector = static_cast<Connector*>(p);
+            return;
+        }
+        _config.add(name, Member(type, static_cast<void*>(p)));
+        if (Connector::Type(type).valid())
+            set(name, p->getValue());
+    }                                           
+    template<class C> void persist(String name, C* p, C initial,
+        ::Type type = typeFromCompileTimeType<C>())
+    {
+        _persist.add(name, Member(type, static_cast<void*>(p)));
+    }
+    Tick _tick;
+
+private:
+    class Member
+    {
+    public:
+        Member(::Type type, void* p, Any initial = Any())
+            : _type(type), _p(p), _initial(initial) { }
+        ::Type _type;
+        void* _p;
+        Any _initial;
+    };
+    HashTable<String, Member> _config;
+    HashTable<String, Member> _persist;
+
+    SimulatorTemplate<T>* _simulator;
+    Tick _ticksPerCycle;
+    String _name;
+    Type _type;
+    Connector* _defaultConnector;
+    Connector::Type _defaultConnectorType;
+
+//    template<class C> friend class Type<C>::Body;
+//    friend class Connector::Type::Body;
+};
+
+class ClockedComponent : public Component
+{
+public:
+    void set(Identifier name, Value value)
+    {
+        if (name.name() == "frequency")
+            _cyclesPerSecond = (second*value.value<Concrete>()).value();
+        Component::set(name, value);
+    }
+    template<class C> class Type : public Component::TypeHelper<C>
+    {
+    public:
+        Type(Simulator* simulator)
+          : Component::TypeHelper<C>(new Body(simulator)) { }
+    protected:
+        Type(const Body* body) : Component::TypeHelper<C>(body) { }
+        class Body : public Component::TypeHelper<C>::Body
+        {
+        public:
+            Body(Simulator* simulator)
+              : Component::TypeHelper<C>::Body(simulator) { }
+            ::Type member(Identifier i) const
+            {
+                if (i.name() == "frequency")
+                    return -second.type();
+                return Component::Type::Body::member(i);
+            }
+        };
+    };
+private:
+    Rational _cyclesPerSecond;
 };
 
 template<class T> class OutputConnector;
@@ -406,13 +483,16 @@ public:
 };
 
 template<class T, class C> class ParametricComponentType
-  : public Component<C>::Type
+  : public Component::TypeHelper<C>
 {
 protected:
-    class Body : public Component::Type::Body
+    ParametricComponentType(Body* body) : Component::TypeHelper<C>(body) { }
+    class Body : public Component::TypeHelper<C>::Body
     {
     public:
-        String parameter() const
+        Body(Simulator* simulator)
+          : Component::TypeHelper<C>::Body(simulator) { }
+        static String parameter()
         {
             return "<" + typeFromCompileTimeType<T>().toString() + ">";
         }
@@ -422,54 +502,34 @@ protected:
 template<class T, class C> class BooleanComponent : public Component
 {
 public:
-    BooleanComponent() : _input1(this), _input2(this), _output(this) { }
-    void config()
-    {
+    BooleanComponent() : _input1(this), _input2(this), _output(this)
+    { 
         config("input1", &_input1);
         config("input2", &_input2);
         config("output", &_output);
     }
-
-    Value getValue(Identifier i) const
-    {
-        String n = i.name();
-        if (n == "input1")
-            return _input1.getValue();
-        if (n == "input2")
-            return _input2.getValue();
-        if (n == "output")
-            return _output.getValue();
-        return Component::getValue(i);
-    }
     class Type : public ParametricComponentType<T, C>
     {
     public:
-        Type(Body* body) : Component::Type(body) { }
+        Type(Body* body) : ParametricComponentType(body) { }
     protected:
-        class Body : public Component::Type::Body
+        class Body : public ParametricComponentType::Body
         {
         public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            ::Type member(Identifier i) const
-            {
-                if (i.name() == "input1" || i.name() == "input2")
-                    return ::InputConnector<T>::Type();
-                if (i.name() == "output")
-                    return ::OutputConnector<T>::Type();
-                return Component::Type::Body::member(i);
-            }
+            Body(Simulator* simulator)
+              : ParametricComponentType::Body(simulator) { }
         };
     };
-    virtual void update() = 0;
+    virtual void update(Tick t) = 0;
 private:
     class InputConnector : public ::InputConnector<T>
     {
     public:
         InputConnector(BooleanComponent *component) : _component(component) { }
         void connect(::Connector* other) { _other = other; }
-        void setData(Tick tick, T t) { _t = t; _component->update(); }
+        void setData(Tick t, T v) { _v = v; _component->update(t); }
         ::Connector* _other;
-        T _t;
+        T _v;
         BooleanComponent* _component;
     };
     class OutputConnector : public ::OutputConnector<T>
@@ -481,15 +541,15 @@ private:
         {
             _other = dynamic_cast<BidirectionalConnector<T>*>(other);
         }
-        void set(Tick tick, T v)
+        void set(Tick t, T v)
         {
-            if (v != _t) {
-                _t = v;
-                _other->setData(tick, v);
+            if (v != _v) {
+                _v = v;
+                _other->setData(t, v);
             }
         }
         BidirectionalConnector<T>* _other;
-        T _t;
+        T _v;
         BooleanComponent* _component;
     };
 protected:
@@ -502,7 +562,8 @@ template<class T> class AndComponent
   : public BooleanComponent<T, AndComponent<T>>
 {
 public:
-    void update() { _output.set(_input1._t & _input2._t); }
+    static String typeName() { return "And"; }
+    void update(Tick t) { _output.set(t, _input1._v & _input2._v); }
     class Type : public BooleanComponent::Type
     {
     public:
@@ -514,7 +575,7 @@ public:
         public:
             Body(Simulator* simulator)
               : BooleanComponent::Type::Body(simulator) { }
-            String toString() const { return "And" + parameters(); }
+            String toString() const { return "And" + parameter(); }
         };
     };
 };
@@ -523,7 +584,8 @@ template<class T> class OrComponent
   : public BooleanComponent<T, OrComponent<T>>
 {
 public:
-    void update() { _output.set(_input1._t | _input2._t); }
+    static String typeName() { return "Or"; }
+    void update(Tick t) { _output.set(t, _input1._v | _input2._v); }
     class Type : public BooleanComponent::Type
     {
     public:
@@ -535,7 +597,7 @@ public:
         public:
             Body(Simulator* simulator)
               : BooleanComponent::Type::Body(simulator) { }
-            String toString() const { return "Or" + parameters(); }
+            String toString() const { return "Or" + parameter(); }
         };
     };
 };
@@ -791,7 +853,7 @@ protected:
         componentTypes.add(NMISwitch::Type(p));
         componentTypes.add(DMAPageRegisters::Type(p));
         componentTypes.add(Intel8259PIC::Type(p));
-        componentTypes.add(Intel8237DMA::Type(p));
+        componentTypes.add(Intel8237DMAC::Type(p));
         componentTypes.add(Intel8255PPI::Type(p));
         componentTypes.add(Intel8253PIT::Type(p));
         componentTypes.add(PCXTKeyboardPort::Type(p));

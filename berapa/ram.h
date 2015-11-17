@@ -1,6 +1,7 @@
 template<class T> class RAMTemplate : public ISA8BitComponent<RAM>
 {
 public:
+    static String typeName() { return "RAM"; }
     void initialize()
     {
         _rowBits = getValue("rowBits").value<int>();
@@ -72,7 +73,6 @@ public:
             ",\n  active: " + String::Boolean(this->_active) +
             ", tick: " + _tick + ", address: " + hex(_address, 5) + " }\n";
     }
-    static String name() { return "RAM"; }
 
     class Type : public ISA8BitComponent::Type
     {

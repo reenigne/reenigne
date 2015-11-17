@@ -1,6 +1,7 @@
 class Intel8259PIC : public ISA8BitComponent<Intel8259PIC>
 {
 public:
+    static String typeName() { return "Intel8259PIC"; }
     Intel8259PIC()
       : _interruptrdy(false), _secondAck(false), _state(stateReady), _imr(0xff)
     {
@@ -18,12 +19,13 @@ public:
     class Connector : public InputConnector<bool>
     {
     public:
-        void setData(bool v) { _pic->setIRQ(_i, v); }
+        void init(Intel8259PIC* pic, int i) { _pic = pic; _i = i; }
+        void setData(Tick t, bool v) { _pic->setIRQ(t, _i, v); }
 
         Intel8259PIC* _pic;
         int _i;
     };
-    void setIRQ(int i, bool v)
+    void setIRQ(Tick t, int i, bool v)
     {
         // TODO
     }
@@ -91,8 +93,6 @@ public:
         else
             _interrupt = false;
     }
-    static String name() { return "Intel8259PIC"; }
-
 private:
     UInt8 _interruptnum;
     enum State
@@ -116,5 +116,5 @@ private:
     UInt8 _icw1;
     UInt8 _icw4;
 
-    IRQConnector _irqConnector[8];
+    Connector _irqConnector[8];
 };

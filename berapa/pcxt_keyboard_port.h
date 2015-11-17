@@ -79,7 +79,7 @@ public:
     {
     public:
         ClearConnector(PCXTKeyboardPort* port) : _port(port) { }
-        void setData(bool t) { _port->setClear(t); }
+        void setData(Tick t, bool v) { _port->setClear(t, v); }
     private:
         PCXTKeyboardPort* _port;
     };
@@ -87,15 +87,15 @@ public:
     {
     public:
         ClockConnector(PCXTKeyboardPort* port) : _port(port) { }
-        void setData(bool t) { _port->setClock(t); }
+        void setData(Tick t, bool v) { _port->setClock(t, v); }
     private:
         PCXTKeyboardPort* _port;
     };
 
-    void setClear(bool clear)
+    void setClear(Tick t, bool clear)
     {
     }
-    void setClock(bool clock)
+    void setClock(Tick t, bool clock)
     {
     }
 private:
