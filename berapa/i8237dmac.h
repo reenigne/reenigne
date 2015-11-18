@@ -35,7 +35,15 @@ public:
             stateValues.add(EnumerationType::Value(stringForState(s), s));
         }
         _stateType = EnumerationType("DMAState", stateValues);
+        persist("address", &_address, 0);
+        persist("command", &_command, 0, HexPersistenceType(2));
+        persist("channels", &_channels);
+        persist("lastByte", &_lastByte, false);
+        persist("channel", &_channel, 0);
+        persist("highAddress", &_highAddress, 0xffff, HexPersistenceType(4));
+        persist("state", &_state, stateIdle);
     }
+
     void simulateCycle()
     {
         TransferMode mode = _channels[_channel].transferMode();
@@ -232,73 +240,6 @@ public:
         }
         return line;
     }
-
-    String save() const
-    {
-        String s = String() +
-            "{ active: " + String::Boolean(this->_active) +
-            ", tick: " + _tick + ", address: " + hex(_address, 5) +
-            ", command: " + hex(_command, 2) +
-            ", channels: { ";
-        bool needComma = false;
-        for (int i = 0; i < 4; ++i) {
-            if (needComma)
-                s += ", ";
-            needComma = true;
-            s += _channels[i].save();
-        }
-        return s + " }, lastByte: " + String::Boolean(_lastByte) +
-            ", temporary: " + hex(_temporary, 2) +
-            ", channel: " + decimal(_channel) +
-            ", highAddress: " + hex(_highAddress, 4) +
-            ", state: " + stringForState(_state) +
-            " }\n";
-    }
-    ::Type persistenceType() const
-    {
-        List<StructuredType::Member> members;
-        members.add(StructuredType::Member("active", false));
-        members.add(StructuredType::Member("tick", 0));
-        members.add(StructuredType::Member("address", 0));
-        members.add(StructuredType::Member("command", 0));
-        members.add(StructuredType::Member("channels",
-            Value(SequenceType(_channels[0].type()),
-                List<Value>())));
-        members.add(StructuredType::Member("lastByte", false));
-        members.add(StructuredType::Member("temporary", 0));
-        members.add(StructuredType::Member("channel", 0));
-        members.add(StructuredType::Member("highAddress", 0xffff));
-        members.add(StructuredType::Member("state",
-            Value(_stateType, stateIdle)));
-        return StructuredType("DMA", members);
-    }
-    void load(const Value& value)
-    {
-        auto members = value.value<HashTable<Identifier, Value>>();
-        this->_active = members["active"].value<bool>();
-        this->_tick = members["tick"].value<int>();
-        _address = members["address"].value<int>();
-        _command = members["command"].value<int>();
-        auto channels = members["channels"].value<List<Value>>();
-
-        int j = 0;
-        for (auto i : channels) {
-            _channels[j].load(i.value<Value>());
-            ++j;
-            if (j == 4)
-                break;
-        }
-        for (;j < 4; ++j) {
-            _channels[j].load(
-                StructuredType::empty().convertTo(_channels[j].type()));
-        }
-
-        _lastByte = members["lastByte"].value<bool>();
-        _temporary = members["temporary"].value<int>();
-        _channel = members["channel"].value<int>();
-        _highAddress = members["highAddress"].value<int>();
-        _state = members["state"].value<State>();
-    }
 private:
     void checkForDMA()
     {
@@ -337,9 +278,23 @@ private:
         _state = stateS0;
     }
 
-    class Channel
+    class Channel : public Component
     {
     public:
+        Channel()
+        {
+            persist("mode", &_mode, HexPersistenceType(2));
+            persist("baseAddress", &_baseAddress, HexPersistenceType(4));
+            persist("baseCount", &_baseCount, HexPersistenceType(4));
+            persist("currentAddress", &_currentAddress, HexPersistenceType(4));
+            persist("currentCount", &_currentCount, HexPersistenceType(4));
+            persist("hardRequest", &_hardRequest);
+            persist("softRequest", &_softRequest);
+            persist("mask", &_mask);
+            persist("terminalCount", &_terminalCount);
+            persist("internalRequest", &_internalRequest);
+        }
+
         UInt8 read(UInt32 address, bool lastByte)
         {
             int shift = (lastByte ? 8 : 0);
@@ -393,51 +348,6 @@ private:
                     _terminalCount = true;
             }
             return _terminalCount;
-        }
-
-        String save() const
-        {
-            return String("\n    ") +
-                "{ mode: " + hex(_mode, 2) +
-                ", baseAddress: " + hex(_baseAddress, 4) +
-                ", baseCount: " + hex(_baseCount, 4) +
-                ", currentAddress: " + hex(_currentAddress, 4) +
-                ", currentCount: " + hex(_currentCount, 4) +
-                ", hardRequest: " + String::Boolean(_hardRequest) +
-                ", softRequest: " + String::Boolean(_softRequest) +
-                ", mask: " + String::Boolean(_mask) +
-                ", terminalCount: " + String::Boolean(_terminalCount) +
-                ", internalRequest: " + String::Boolean(_internalRequest) +
-                " }";
-        }
-        ::Type type() const
-        {
-            List<StructuredType::Member> members;
-            members.add(StructuredType::Member("mode", 0));
-            members.add(StructuredType::Member("baseAddress", 0));
-            members.add(StructuredType::Member("baseCount", 0));
-            members.add(StructuredType::Member("currentAddress", 0));
-            members.add(StructuredType::Member("currentCount", 0));
-            members.add(StructuredType::Member("hardRequest", false));
-            members.add(StructuredType::Member("softRequest", false));
-            members.add(StructuredType::Member("mask", true));
-            members.add(StructuredType::Member("terminalCount", false));
-            members.add(StructuredType::Member("internalRequest", false));
-            return StructuredType("DMAChannel", members);
-        }
-        void load(const Value& value)
-        {
-            auto members = value.value<HashTable<Identifier, Value>>();
-            _mode = members["mode"].value<int>();
-            _baseAddress = members["baseAddress"].value<int>();
-            _baseCount = members["baseCount"].value<int>();
-            _currentAddress = members["currentAddress"].value<int>();
-            _currentCount = members["currentCount"].value<int>();
-            _hardRequest = members["hardRequest"].value<bool>();
-            _softRequest = members["softRequest"].value<bool>();
-            _mask = members["mask"].value<bool>();
-            _terminalCount = members["terminalCount"].value<bool>();
-            _internalRequest = members["internalRequest"].value<bool>();
         }
         Byte status()
         {

@@ -9,7 +9,7 @@ template<class T> class ISA8BitComponentBaseTemplate : public ClockedComponent
 public:
     ISA8BitComponentBaseTemplate() : _connector(this)
     {
-        config("bus", &_connector);
+        connector("bus", &_connector);
         persist("active", &_active, false);
     }
     // Address bit 31 = write
@@ -36,13 +36,14 @@ public:
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:
+            Type() { }
+            Type(::Type type) : NamedNullary(type) { }
             class Body : public NamedNullary<::Connector::Type, Type>::Body
             {
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return dynamic_cast<const ISA8BitBus::Type::Body*>(
-                        other.body()) != 0;
+                    return ISA8BitBus::Type(other).valid();
                 }
             private:
             };
@@ -63,20 +64,6 @@ template<class C> class ISA8BitComponent : public ISA8BitComponentBase
 {
 public:
     typedef ClockedComponent::Type<C> Type;
-    //class Type : public ClockedComponent::Type<C>
-    //{
-    //public:
-    //    Type(Simulator* simulator)
-    //      : ClockedComponent::Type<C>(new Body(simulator)) { }
-    //protected:
-    //    class Body : public ClockedComponent::Type<C>::Body
-    //    {
-    //    public:
-    //        Body(Simulator* simulator)
-    //          : ClockedComponent::Type::Body(simulator) { }
-    //    };
-    //    Type(const Body* body) : ClockedComponent::Type(body) { }
-    //};
 };
 
 template<class T> class ISA8BitBusTemplate : public Component
@@ -86,11 +73,11 @@ public:
 
     ISA8BitBusTemplate() : _cpuSocket(this), _connector(this)
     {
-        config("cpu", &_cpuSocket);
-        config("slot", &_connector);
+        connector("cpu", &_cpuSocket);
+        connector("slot", &_connector);
         for (int i = 0; i < 8; ++i) {
             _chipConnectors[i].init(this, i);
-            config("chip" + decimal(i), &_chipConnectors[i]);
+            connector("chip" + decimal(i), &_chipConnectors[i]);
         }
     }
 
@@ -109,7 +96,8 @@ public:
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return other == ISA8BitComponent::Connector::Type();
+                    return
+                        ISA8BitComponentBase::Connector::Type(other).valid();
                 }
             };
             static String name() { return "ISA8BitBus.Connector"; }
@@ -134,23 +122,6 @@ public:
     };
 
     typedef Component::TypeHelper<ISA8BitBus> Type;
-
-    //class Type : public Component::TypeHelper<ISA8BitBus>
-    //{
-    //public:
-    //    Type(Simulator* simulator)
-    //        : Component::TypeHelper<ISA8BitBus>(new Body(simulator)) { }
-    //private:
-    //    class Body : public Component::TypeHelper<ISA8BitBus>::Body
-    //    {
-    //    public:
-    //        Body(Simulator* simulator)
-    //          : Component::TypeHelper<ISA8BitBus>::Body(simulator) { }
-    //    };
-    //    //template<class U> friend class
-    //    //    ISA8BitComponent<U>::Connector::Type::Body;
-    //    //friend class ISA8BitBus::Connector::Type::Body;
-    //};
 
     class CPUSocket : public ::Connector
     {

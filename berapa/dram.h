@@ -76,7 +76,7 @@ public:
         s += "}}";
         return s;
     }
-    Type type() const
+    Type persistenceType() const
     {
         List<StructuredType::Member> members;
         members.add(StructuredType::Member("data",
@@ -84,10 +84,6 @@ public:
         members.add(StructuredType::Member("refresh",
             Value(SequenceType(IntegerType()), List<Value>())));
         return StructuredType("DRAM", members);
-    }
-    Value initial() const
-    {
-        return StructuredType::empty().convertTo(type());
     }
     void load(const Value& value)
     {

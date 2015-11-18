@@ -189,10 +189,7 @@ private:
     public:
         Body(Type inner) : _inner(inner) { }
         Type inner() const { return _inner; }
-        String toString() const
-        {
-            return String("LValue<") + _inner.toString() + ">";
-        }
+        String toString() const { return "LValue<" + _inner.toString() + ">"; }
     private:
         Type _inner;
     };

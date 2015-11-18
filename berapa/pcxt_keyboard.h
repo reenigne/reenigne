@@ -1,7 +1,11 @@
 template<class T> class PCXTKeyboardTemplate : public Component
 {
 public:
-    PCXTKeyboardTemplate() : _connector(this) { }
+    static String typeName() { return "PCXTKeyboard"; }
+    PCXTKeyboardTemplate() : _connector(this)
+    {
+        connector("", &_connector);
+    }
 
     class Connector : public ::Connector
     {
@@ -30,22 +34,7 @@ public:
         }
     };
 
-    class Type : public Component::Type
-    {
-    public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
-    private:
-        class Body : public Component::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            String toString() const { return "PCXTKeyboard"; }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<PCXTKeyboard>();
-            }
-        };
-    };
+    typedef Component::TypeHelper<PCXTKeyboardTemplate> Type;
 private:
     Connector _connector;
     PCXTKeyboardPort* _port;

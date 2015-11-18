@@ -1,6 +1,7 @@
 class RGBIMonitor : public Component
 {
 public:
+    static String typeName() { return "RGBIMonitor"; }
     RGBIMonitor() : _renderer(&_window), _texture(&_renderer)
     {
         _palette.allocate(64);
@@ -96,22 +97,7 @@ public:
         return n;
     }
 
-    class Type : public Component::Type
-    {
-    public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
-    private:
-        class Body : public Component::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            String toString() const { return "RGBIMonitor"; }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<RGBIMonitor>();
-            }
-        };
-    };
+    typedef Component::TypeHelper<RGBIMonitor> Type;
 private:
     SDLWindow _window;
     SDLRenderer _renderer;

@@ -7,6 +7,8 @@ public:
     {
         for (int i = 0; i < 3; ++i)
             _timers[i].setGate(true);
+        persist("address", &_address, 0, HexPersistenceType(5));
+        persist("timers", &_timers[0]);
     }
     void simulateCycle()
     {
@@ -29,53 +31,6 @@ public:
                 _timers[timer].control(data & 0x3f);
         }
     }
-
-    String save() const
-    {
-        String s = String() +
-            "{ active: " + String::Boolean(this->_active) +
-            ", tick: " + _tick + ", address: " + hex(_address, 5) +
-            ", timers: { ";
-        bool needComma = false;
-        for (int i = 0; i < 4; ++i) {
-            if (needComma)
-                s += ", ";
-            needComma = true;
-            s += _timers[i].save();
-        }
-        return s + " }}\n";
-    }
-    ::Type persistenceType() const
-    {
-        List<StructuredType::Member> members;
-        members.add(StructuredType::Member("active", false));
-        members.add(StructuredType::Member("tick", 0));
-        members.add(StructuredType::Member("address", 0));
-        members.add(StructuredType::Member("timers",
-            Value(SequenceType(_timers[0].persistenceType()), List<Value>())));
-        return StructuredType("PIT", members);
-    }
-    void load(const Value& value)
-    {
-        auto members = value.value<HashTable<Identifier, Value>>();
-        this->_active = members["active"].value<bool>();
-        this->_tick = members["tick"].value<int>();
-        _address = members["address"].value<int>();
-        auto timers = members["timers"].value<List<Value>>();
-
-        int j = 0;
-        for (auto i : timers) {
-            _timers[j].load(i.value<Value>());
-            ++j;
-            if (j == 3)
-                break;
-        }
-        for (;j < 3; ++j) {
-            _timers[j].load(StructuredType::empty().
-                convertTo(_timers[0].persistenceType()));
-        }
-    }
-
 private:
     class Timer
     {
@@ -88,6 +43,17 @@ private:
                 stateValues.add(EnumerationType::Value(stringForState(s), s));
             }
             _stateType = EnumerationType("PITState", stateValues);
+            persist("value", &_value, 0, HexPersistenceType(4));
+            persist("latch", &_latch, 0, HexPersistenceType(4));
+            persist("count", &_count, 0, HexPersistenceType(4));
+            persist("bcd", &_bcd, false);
+            persist("bytes", &_bytes, 0);
+            persist("lowCount", &_lowCount, 0, HexPersistenceType(2));
+            persist("firstByte", &_firstByte, false);
+            persist("gate", &_gate, false);
+            persist("output", &_output, false);
+            persist("latched", &_latched, false);
+            persist("state", &_state, stateStopped0);
         }
         void simulateCycle()
         {
@@ -243,56 +209,6 @@ private:
             }
             _gate = gate;
         }
-
-        String save() const
-        {
-            return String("\n    ") +
-                "{ value: " + hex(_value, 4) +
-                ", latch: " + hex(_latch, 4) +
-                ", count: " + hex(_count, 4) +
-                ", bcd: " + String::Boolean(_bcd) +
-                ", bytes: " + String::Decimal(_bytes) +
-                ", lowCount: " + hex(_lowCount, 2) +
-                ", firstByte: " + String::Boolean(_firstByte) +
-                ", gate: " + String::Boolean(_gate) +
-                ", output: " + String::Boolean(_output) +
-                ", latched: " + String::Boolean(_latched) +
-                ", state: " + stringForState(_state) +
-                " }";
-        }
-        ::Type persistenceType() const
-        {
-            List<StructuredType::Member> members;
-            members.add(StructuredType::Member("value", 0));
-            members.add(StructuredType::Member("latch", 0));
-            members.add(StructuredType::Member("count", 0));
-            members.add(StructuredType::Member("bcd", false));
-            members.add(StructuredType::Member("bytes", 0));
-            members.add(StructuredType::Member("lowCount", 0));
-            members.add(StructuredType::Member("firstByte", false));
-            members.add(StructuredType::Member("gate", false));
-            members.add(StructuredType::Member("output", false));
-            members.add(StructuredType::Member("latched", false));
-            members.add(StructuredType::Member("state",
-                Value(_stateType, stateStopped0)));
-            return StructuredType("Timer", members);
-        }
-        void load(const Value& value)
-        {
-            auto members = value.value<HashTable<Identifier, Value>>();
-            _value = members["value"].value<int>();
-            _latch = members["latch"].value<int>();
-            _count = members["count"].value<int>();
-            _bcd = members["bcd"].value<bool>();
-            _bytes = members["bytes"].value<int>();
-            _lowCount = members["lowCount"].value<int>();
-            _firstByte = members["firstByte"].value<bool>();
-            _gate = members["gate"].value<bool>();
-            _output = members["output"].value<bool>();
-            _latched = members["latched"].value<bool>();
-            _state = members["state"].value<State>();
-        }
-
     private:
         enum State
         {

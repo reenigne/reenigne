@@ -18,6 +18,11 @@ public:
             _bits[i]._ppi = this;
             _bits[i]._i = i;
         }
+        persist("address", &_address, HexPersistenceType(5));
+        persist("incoming", &_incoming[0]);
+        persist("outgoing", &_outgoing[0]);
+        persist("input", &_input[0]);
+        persist("output", &_output[0]);
     }
     void setAddress(UInt32 address) { _address = address & 3; }
     void read()
@@ -161,70 +166,6 @@ public:
         int b = 1 << (i & 7);
         incoming(n, (_incoming[n] & ~b) | (v ? b : 0));
     }
-    String save() const
-    {
-        String s("{\n");
-        s += "  active: " + String::Boolean(this->_active) + ",\n";
-        s += "  address: " + hex(_address, 5) + ",\n";
-        s += "  incoming: {" + hex(_incoming[0], 2) + ", " +
-            hex(_incoming[1], 2) + ", " + hex(_incoming[2], 2) + "},\n";
-        s += "  outgoing: {" + hex(_outgoing[0], 2) + ", " +
-            hex(_outgoing[1], 2) + ", " + hex(_outgoing[2], 2) + "},\n";
-        s += "  input: {" + hex(_input[0], 2) + ", " + hex(_input[1], 2) +
-            ", " + hex(_input[2], 2) + "},\n";
-        s += "  output: {" + hex(_output[0], 2) + ", " + hex(_output[1], 2) +
-            ", " + hex(_output[2], 2) + "}}\n";
-        return s;
-    }
-    ::Type persistenceType() const
-    {
-        typedef StructuredType::Member M;
-        List<M> members;
-        members.add(M("active", false));
-        members.add(M("address", 0));
-        members.add(M("mode", 0x1b));
-        members.add(M("incoming",
-            Value(SequenceType(IntegerType()), List<Value>())));
-        members.add(M("outgoing",
-            Value(SequenceType(IntegerType()), List<Value>())));
-        members.add(M("input",
-            Value(SequenceType(IntegerType()), List<Value>())));
-        members.add(M("output",
-            Value(SequenceType(IntegerType()), List<Value>())));
-        return StructuredType("PPI", members);
-    }
-    void load(const Value& value)
-    {
-        auto members = value.value<HashTable<Identifier, Value>>();
-        this->_active = members["active"].value<bool>();
-        _address = members["address"].value<int>();
-
-        auto incoming = members["incoming"].value<List<Value>>();
-        int j = 0;
-        for (auto i : incoming) {
-            _incoming[j % 3] = i.value<int>();
-            ++j;
-        }
-        auto outgoing = members["outgoing"].value<List<Value>>();
-        j = 0;
-        for (auto i : outgoing) {
-            _outgoing[j % 3] = i.value<int>();
-            ++j;
-        }
-        auto input = members["input"].value<List<Value>>();
-        j = 0;
-        for (auto i : input) {
-            _input[j % 3] = i.value<int>();
-            ++j;
-        }
-        auto output = members["output"].value<List<Value>>();
-        j = 0;
-        for (auto i : output) {
-            _output[j % 3] = i.value<int>();
-            ++j;
-        }
-    }
-
 private:
     template<class T> class Connector : public BidirectionalConnector<T>
     {

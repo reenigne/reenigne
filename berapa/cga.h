@@ -1,6 +1,7 @@
 template<class T> class IBMCGATemplate : public ISA8BitComponent<IBMCGATemplate<T>>
 {
 public:
+    static String typeName() { return "IBMCGA"; }
     IBMCGATemplate() : _attr(0), _chrdata(0), _memoryAddress(0),
         _memoryActive(false), _portAddress(0), _portActive(false), _wait(0),
         _cycle(0), _mode(0), _colsel(0), _bgri(0), _lightPenStrobe(false),
@@ -138,22 +139,7 @@ public:
     BGRISource* bgriSource() { return &_bgriSource; }
     CompositeSource* compositeSource() { return &_compositeSource; }
 
-    class Type : public Component::Type
-    {
-    public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
-    private:
-        class Body : public Component::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            String toString() const { return "IBMCGA"; }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<IBMCGA>();
-            }
-        };
-    };
+    typedef Component::TypeHelper<IBMCGA> Type;
 private:
     void activateLightPen()
     {

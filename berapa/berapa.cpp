@@ -84,6 +84,49 @@ private:
     Base _t;
 };
 
+class ConcretePersistenceType : public Type
+{
+public:
+    ConcretePersistenceType(Concrete unit) : Type(new Body(unit)) { }
+private:
+    class Body : public Type::Body
+    {
+    public:
+        Body(Concrete unit) : _unit(unit) { }
+        Concrete _unit;
+        Value tryConvert(const Value& value, String* reason) const
+        {
+            return _unit.type().tryConvert(value, reason);
+        }
+        Value tryConvertTo(const Type& to, const Value& value, String* reason)
+            const
+        {
+            return _unit.type().tryConvertTo(to, value, reason);
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<Rational*>(p) =
+                (value.value<Concrete>()/_unit).value();
+        }
+        String toString() const { return _unit.type().toString(); }
+    };
+};
+
+class HexPersistenceType : public IntegerType
+{
+public:
+    HexPersistenceType(int digits) : IntegerType(new Body(digits)) { }
+private:
+    class Body : public IntegerType::Body
+    {
+    public:
+        Body(int digits) : _digits(digits) { }
+
+    private:
+        int _digits;
+    };
+};
+
 template<class T> class ConnectorTemplate
 {
 public:
@@ -102,7 +145,7 @@ public:
         }
         Type(const Body* body) : NamedNullary(body) { }
         bool valid() const { return body() != 0; }
-        static String typeName() { return "Connector"; }
+        static String name() { return "Connector"; }
         class Body : public NamedNullary::Body
         {
         public:
@@ -117,7 +160,8 @@ public:
                     Structure* s = value.value<Structure*>();
                     Component* component = static_cast<Component*>(s);
                     Connector* connector = component->_defaultConnector;
-                    return tryConvert(connector->getValue(), reason);
+                    if (connector != 0)
+                        return tryConvert(connector->getValue(), reason);
                 }
 
                 Connector::Type t(value.type());
@@ -153,7 +197,8 @@ public:
 template<class T> class ComponentTemplate : public Structure
 {
 public:
-    ComponentTemplate() : _simulator(0), _tick(0), _ticksPerCycle(0)
+    ComponentTemplate()
+      : _simulator(0), _tick(0), _ticksPerCycle(0), _defaultConnector(0)
     {
         persist("tick", &_tick, Tick(0), Tick::Type());
     }
@@ -184,6 +229,11 @@ public:
             r->connect(l);
             return;
         }
+        if (_config.hasKey(name)) {
+            Member m = _config[name];
+            m._type.deserialize(value, m._p);
+            return;
+        }
         Structure::set(name, value);
     }
     class Type : public ::Type
@@ -197,6 +247,7 @@ public:
             c->setType(*this);
             return c;
         }
+        bool valid() const { return body() != 0; }
     protected:
         Type(const Body* body) : ::Type(body) { }
         class Body : public ::Type::Body
@@ -224,11 +275,12 @@ public:
         protected:
             Simulator* _simulator;
         };
-        const Body* body() { return as<Body>(); }
+        const Body* body() const { return as<Body>(); }
     };
     template<class C> class TypeHelper : public Type
     {
     public:
+        TypeHelper(::Type type) : Type(type) { }
         TypeHelper(Simulator* simulator) : Type(new Body(simulator)) { }
     protected:
         class Body : public Type::Body
@@ -291,16 +343,19 @@ public:
     void setType(Type type) { _type = type; }
 
 protected:
+    void connector(String name, Connector* p)
+    {
+        if (name == "")
+            _defaultConnector = p;
+        else {
+            config(name, p, p->type());
+            Structure::set(name, p->getValue());
+        }
+    }
     template<class C> void config(String name, C* p,
         ::Type type = typeFromCompileTimeType<C>())
     {
-        if (name == "") {
-            _defaultConnector = static_cast<Connector*>(p);
-            return;
-        }
         _config.add(name, Member(type, static_cast<void*>(p)));
-        if (Connector::Type(type).valid())
-            set(name, p->getValue());
     }                                           
     template<class C> void persist(String name, C* p, C initial,
         ::Type type = typeFromCompileTimeType<C>())
@@ -313,6 +368,7 @@ private:
     class Member
     {
     public:
+        Member() { }
         Member(::Type type, void* p, Any initial = Any())
             : _type(type), _p(p), _initial(initial) { }
         ::Type _type;
@@ -329,39 +385,19 @@ private:
     Connector* _defaultConnector;
     Connector::Type _defaultConnectorType;
 
-//    template<class C> friend class Type<C>::Body;
-//    friend class Connector::Type::Body;
+    friend class Connector::Type::Body;
 };
 
 class ClockedComponent : public Component
 {
 public:
-    void set(Identifier name, Value value)
+    ClockedComponent()
     {
-        if (name.name() == "frequency")
-            _cyclesPerSecond = (second*value.value<Concrete>()).value();
-        Component::set(name, value);
+        config("frequency", &_cyclesPerSecond, 
+            ConcretePersistenceType(1/second));
     }
-    template<class C> class Type : public Component::TypeHelper<C>
-    {
-    public:
-        Type(Simulator* simulator)
-          : Component::TypeHelper<C>(new Body(simulator)) { }
-    protected:
-        Type(const Body* body) : Component::TypeHelper<C>(body) { }
-        class Body : public Component::TypeHelper<C>::Body
-        {
-        public:
-            Body(Simulator* simulator)
-              : Component::TypeHelper<C>::Body(simulator) { }
-            ::Type member(Identifier i) const
-            {
-                if (i.name() == "frequency")
-                    return -second.type();
-                return Component::Type::Body::member(i);
-            }
-        };
-    };
+    Rational cyclesPerSecond() const { return _cyclesPerSecond; }
+    template<class C> using Type = Component::TypeHelper<C>;
 private:
     Rational _cyclesPerSecond;
 };
@@ -418,11 +454,11 @@ public:
                 return typeFromCompileTimeType<T>();
             }
         };
-        static String name()
+        static String parameter()
         {
-            return "BidirectionalConnector<" +
-                typeFromCompileTimeType<T>().toString() + ">";
+            return "<" + typeFromCompileTimeType<T>().toString() + ">";
         }
+        static String name() { return "BidirectionalConnector" + parameter(); }
     };
     BidirectionalConnector<T>* _other;
 };
@@ -444,15 +480,11 @@ public:
                 return other == InputConnector<T>::Type() ||
                     other == BidirectionalConnector<T>::Type();
             }
-            ::Type transportType() const
-            {
-                return typeFromCompileTimeType<T>();
-            }
         };
         static String name()
         {
-            return "OutputConnector<" +
-                typeFromCompileTimeType<T>().toString() + ">";
+            return "OutputConnector" +
+                BidirectionalConnector::Type::parameter();
         }
     };
 };
@@ -476,8 +508,8 @@ public:
         };
         static String name()
         {
-            return "InputConnector<" +
-                typeFromCompileTimeType<T>().toString() + ">";
+            return "InputConnector" +
+                BidirectionalConnector::Type::parameter();
         }
     };
 };
@@ -504,9 +536,9 @@ template<class T, class C> class BooleanComponent : public Component
 public:
     BooleanComponent() : _input1(this), _input2(this), _output(this)
     { 
-        config("input1", &_input1);
-        config("input2", &_input2);
-        config("output", &_output);
+        connector("input1", &_input1);
+        connector("input2", &_input2);
+        connector("output", &_output);
     }
     class Type : public ParametricComponentType<T, C>
     {

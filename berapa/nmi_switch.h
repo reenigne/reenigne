@@ -5,7 +5,7 @@ public:
     NMISwitch() : _connector(this)
     {
         persist("on", &_nmiOn, false, BooleanType());
-        config("", &_connector);
+        connector("", &_connector);
     }
     void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }
     class Connector : public OutputConnector<bool>

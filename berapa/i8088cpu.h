@@ -315,7 +315,7 @@ public:
     static String typeName() { return "Intel8088CPU"; }
     Intel8088CPUTemplate() : _connector(this)
     {
-        config("bus", &_connector);
+        connector("", &_connector);
 
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -360,7 +360,49 @@ public:
         _busStateType = EnumerationType("BusState", busStateValues);
 
         _disassembler.setCPU(this);
-    }
+
+        HexPersistenceType h4(4);
+        persist("ip", &_ip, 0, h4);
+        persist("registers", &_registerData[0]); // ?
+        persist("segmentRegisters", &_segmentRegisterData[0]);
+        persist("flags", &_flags, 2, h4); // ?
+        persist("prefetch", &_prefetchQueue[0]);  // also _prefetched
+        persist("segment", &_segment, 0);
+        persist("segmentOverride", &_segmentOverride, -1);
+        persist("prefetchQddress", &_prefetchAddress, 0, h4);
+        persist("ioType", &_ioType, ioNone);
+        persist("ioRequested", &_ioRequested, ioNone);
+        persist("ioInProgress", &_ioInProgress, ioInstructionFetch);
+        persist("busState", &_busState, t1);
+        persist("byte", &_byte, _ioSingleByte);
+        persist("abandonFetch", &_abandonFetch, false);
+        persist("wait", &_wait, 0);
+        persist("opcode", &_opcode, 0, HexPersistenceType(2));
+        persist("modRM", &_modRM, 0, HexPersistenceType(2));
+        persist("data", &_data, 0, HexPersistenceType(8));
+        persist("source", &_source, 0, HexPersistenceType(8));
+        persist("destination", &_destination, 0, HexPersistenceType(8));
+        persist("remainder", &_remainder, 0, HexPersistenceType(8));
+        persist("address", &_address, 0, h4);
+        persist("useMemory", &_useMemory, false);
+        persist("wordSize", &_wordSize, false);
+        persist("aluOperation", &_aluOperation, 0);
+        persist("afterEA", &_afterEA, stateWaitingForBIU);
+        persist("afterIO", &_afterIO, stateWaitingForBIU);
+        persist("afterEAIO", &_afterEAIO, stateWaitingForBIU);
+        persist("afterRep", &_afterRep, stateWaitingForBIU);
+        persist("afterInt", &_afterInt, stateWaitingForBIU);
+        persist("sourceIsRM", &_sourceIsRM, false);
+        persist("savedCS", &_savedCS, 0, h4);
+        persist("savedIP", &_savedIP, 0, h4);
+        persist("rep", &_rep, 0);
+        persist("usePortSpace", &_usePortSpace, false);
+        persist("halted", &_halted, false);
+        persist("newInstruction", &_newInstruction, true);
+        persist("newIP", &_newIP, 0, h4);
+        persist("nmiRequested", &_nmiRequested, false);
+        persist("cycle", &_cycle, 0);
+    }                       
     void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
     void site()
     {
@@ -419,8 +461,7 @@ public:
         if (_cycle % 1000000 == 0)
             console.write(".");
         if (_halted) {
-            console.write("Stopped at cycle " + String(decimal(_cycle)) +
-                "\n");
+            console.write("Stopped at cycle " + decimal(_cycle) + "\n");
             this->_simulator->halt();
         }
     }
@@ -1598,202 +1639,6 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         } while (true);
     }
 
-    String save() const
-    {
-        String s("{\n");
-        s += "  ip: " + hex(_ip, 4) + ",\n";
-        s += "  ax: " + hex(_registerData[0], 4) + ",\n";
-        s += "  cx: " + hex(_registerData[1], 4) + ",\n";
-        s += "  dx: " + hex(_registerData[2], 4) + ",\n";
-        s += "  bx: " + hex(_registerData[3], 4) + ",\n";
-        s += "  sp: " + hex(_registerData[4], 4) + ",\n";
-        s += "  bp: " + hex(_registerData[5], 4) + ",\n";
-        s += "  si: " + hex(_registerData[6], 4) + ",\n";
-        s += "  di: " + hex(_registerData[7], 4) + ",\n";
-        s += "  es: " + hex(_segmentRegisterData[0], 4) + ",\n";
-        s += "  cs: " + hex(_segmentRegisterData[1], 4) + ",\n";
-        s += "  ss: " + hex(_segmentRegisterData[2], 4) + ",\n";
-        s += "  ds: " + hex(_segmentRegisterData[3], 4) + ",\n";
-        s += "  flags: " + hex(_flagsData, 4) + ",\n";
-        s += "  prefetch: {";
-        bool needComma = false;
-        for (int i = 0; i < _prefetched; ++i) {
-            if (needComma)
-                s += ", ";
-            needComma = true;
-            s += hex(_prefetchQueue[(i + _prefetchOffset) & 3], 2);
-        }
-        s += "},\n";
-        s += "  segment: " + decimal(_segment) + ",\n";
-        s += "  segmentOverride: " + decimal(_segmentOverride) + ",\n";
-        s += "  prefetchAddress: " + hex(_prefetchAddress, 4) + ",\n";
-        s += "  ioType: " + stringForIOType(_ioType) + ",\n";
-        s += "  ioRequested: " + stringForIOType(_ioRequested) + ",\n";
-        s += "  ioInProgress: " + stringForIOType(_ioInProgress) + ",\n";
-        s += "  busState: " + stringForBusState(_busState) + ",\n";
-        s += "  byte: " + stringForIOByte(_byte) + ",\n";
-        s += "  abandonFetch: " + String::Boolean(_abandonFetch) + ",\n";
-        s += "  wait: " + decimal(_wait) + ",\n";
-        s += "  state: " + stringForState(_state) + ",\n";
-        s += "  opcode: " + hex(_opcode, 2) + ",\n";
-        s += "  modRM: " + hex(_modRM, 2) + ",\n";
-        s += "  data: " + hex(_data, 8) + ",\n";
-        s += "  source: " + hex(_source, 8) + ",\n";
-        s += "  destination: " + hex(_destination, 8) + ",\n";
-        s += "  remainder: " + hex(_remainder, 8) + ",\n";
-        s += "  address: " + hex(_address, 4) + ",\n";
-        s += "  useMemory: " + String::Boolean(_useMemory) + ",\n";
-        s += "  wordSize: " + String::Boolean(_wordSize) + ",\n";
-        s += "  aluOperation: " + decimal(_aluOperation) + ",\n";
-        s += "  afterEA: " + stringForState(_afterEA) + ",\n";
-        s += "  afterIO: " + stringForState(_afterIO) + ",\n";
-        s += "  afterEAIO: " + stringForState(_afterEAIO) + ",\n";
-        s += "  afterRep: " + stringForState(_afterRep) + ",\n";
-        s += "  afterInt: " + stringForState(_afterInt) + ",\n";
-        s += "  sourceIsRM: " + String::Boolean(_sourceIsRM) + ",\n";
-        s += "  savedCS: " + hex(_savedCS, 4) + ",\n";
-        s += "  savedIP: " + hex(_savedIP, 4) + ",\n";
-        s += "  rep: " + decimal(_rep) + ",\n";
-        s += "  usePortSpace: " + String::Boolean(_usePortSpace) + ",\n";
-        s += "  halted: " + String::Boolean(_halted) + ",\n";
-        s += "  newInstruction: " + String::Boolean(_newInstruction) + ",\n";
-        s += "  newIP: " + hex(_newIP, 4) + ",\n";
-        s += "  nmiRequested: " + String::Boolean(_nmiRequested) + ",\n";
-        s += "  cycle: " + decimal(_cycle) + ",\n";
-        //s += "  tick: " + _tick;
-        return s + "}\n";
-    }
-    ::Type persistenceType() const
-    {
-        typedef StructuredType::Member M;
-        List<M> members;
-        members.add(M("ip", 0));
-        members.add(M("ax", 0));  // ?
-        members.add(M("cx", 0));  // ?
-        members.add(M("dx", 0));  // ?
-        members.add(M("bx", 0));  // ?
-        members.add(M("sp", 0));  // ?
-        members.add(M("bp", 0));  // ?
-        members.add(M("si", 0));  // ?
-        members.add(M("di", 0));  // ?
-        members.add(M("es", 0));  // ?
-        members.add(M("cs", 0xffff));
-        members.add(M("ss", 0));  // ?
-        members.add(M("ds", 0));  // ?
-        members.add(M("flags", 2));  // ?
-        members.add(M("prefetch",
-            Value(SequenceType(IntegerType()), List<Value>())));
-        members.add(M("segment", 0));
-        members.add(M("segmentOverride", -1));
-        members.add(M("prefetchAddress", 0));
-        members.add(M("ioType", Value(_ioTypeType, ioNone)));
-        members.add(M("ioRequested", Value(_ioTypeType, ioNone)));
-        members.add(M("ioInProgress",
-            Value(_ioTypeType, ioInstructionFetch)));
-        members.add(M("busState", Value(_busStateType, t1)));
-        members.add(M("byte", Value(_ioByteType, ioSingleByte)));
-        members.add(M("abandonFetch", false));
-        members.add(M("wait", 0));
-        members.add(M("state", Value(_stateType, stateBegin)));
-        members.add(M("opcode", 0));
-        members.add(M("modRM", 0));
-        members.add(M("data", 0));
-        members.add(M("source", 0));
-        members.add(M("destination", 0));
-        members.add(M("remainder", 0));
-        members.add(M("address", 0));
-        members.add(M("useMemory", false));
-        members.add(M("wordSize", false));
-        members.add(M("aluOperation", 0));
-        members.add(M("afterEA", Value(_stateType, stateWaitingForBIU)));
-        members.add(M("afterIO", Value(_stateType, stateWaitingForBIU)));
-        members.add(M("afterEAIO",
-            Value(_stateType, stateWaitingForBIU)));
-        members.add(M("afterRep", Value(_stateType, stateWaitingForBIU)));
-        members.add(M("afterInt", Value(_stateType, stateWaitingForBIU)));
-        members.add(M("sourceIsRM", false));
-        members.add(M("savedCS", 0));
-        members.add(M("savedIP", 0));
-        members.add(M("rep", 0));
-        members.add(M("usePortSpace", false));
-        members.add(M("halted", false));
-        members.add(M("newInstruction", true));
-        members.add(M("newIP", 0));
-        members.add(M("nmiRequested", false));
-        members.add(M("cycle", 0));
-        //members.add(M("tick", 0));
-        return StructuredType("CPU", members);
-    }
-    void load(const Value& value)
-    {
-        auto members = value.value<HashTable<Identifier, Value>>();
-        _ip = members["ip"].value<int>();
-        _registerData[0] = members["ax"].value<int>();
-        _registerData[1] = members["cx"].value<int>();
-        _registerData[2] = members["dx"].value<int>();
-        _registerData[3] = members["bx"].value<int>();
-        _registerData[4] = members["sp"].value<int>();
-        _registerData[5] = members["bp"].value<int>();
-        _registerData[6] = members["si"].value<int>();
-        _registerData[7] = members["di"].value<int>();
-        _segmentRegisterData[0] = members["es"].value<int>();
-        _segmentRegisterData[1] = members["cs"].value<int>();
-        _segmentRegisterData[2] = members["ss"].value<int>();
-        _segmentRegisterData[3] = members["ds"].value<int>();
-        _flagsData = members["flags"].value<int>();
-        auto prefetch = members["prefetch"].value<List<Value>>();
-        _prefetched = 0;
-        _prefetchOffset = 0;
-        for (auto i : prefetch) {
-            _prefetchQueue[_prefetched] = i.value<int>();
-            ++_prefetched;
-        }
-        _segment = members["segment"].value<int>();
-        _segmentOverride = members["segmentOverride"].value<int>();
-        _prefetchAddress = members["prefetchAddress"].value<int>();
-        _ioType = members["ioType"].value<IOType>();
-        _ioRequested = members["ioRequested"].value<IOType>();
-        _ioInProgress = members["ioInProgress"].value<IOType>();
-        _busState = members["busState"].value<BusState>();
-        _byte = members["byte"].value<IOByte>();
-        _abandonFetch = members["abandonFetch"].value<bool>();
-        _wait = members["wait"].value<int>();
-        _state = members["state"].value<State>();
-        _opcode = members["opcode"].value<int>();
-        _modRM = members["modRM"].value<int>();
-        _data = members["data"].value<int>();
-        _source = members["source"].value<int>();
-        _destination = members["destination"].value<int>();
-        _remainder = members["remainder"].value<int>();
-        _address = members["address"].value<int>();
-        _useMemory = members["useMemory"].value<bool>();
-        _wordSize = members["wordSize"].value<bool>();
-        _aluOperation = members["aluOperation"].value<int>();
-        _afterEA = members["afterEA"].value<State>();
-        _afterIO = members["afterIO"].value<State>();
-        _afterEAIO = members["afterEAIO"].value<State>();
-        _afterRep = members["afterRep"].value<State>();
-        _afterInt = members["afterInt"].value<State>();
-        _sourceIsRM = members["sourceIsRM"].value<bool>();
-        _savedCS = members["savedCS"].value<int>();
-        _savedIP = members["savedIP"].value<int>();
-        _rep = members["rep"].value<int>();
-        _usePortSpace = members["usePortSpace"].value<bool>();
-        _halted = members["halted"].value<bool>();
-        _newInstruction = members["newInstruction"].value<bool>();
-        _newIP = members["newIP"].value<int>();
-        _nmiRequested = members["nmiRequested"].value<bool>();
-        _cycle = members["cycle"].value<int>();
-        //this->_tick = members["tick"].value<int>();
-    }
-
-    //Value getValue(Identifier i) const
-    //{
-    //    if (i.name() == "bus")
-    //        return _connector.getValue();
-    //    return ClockedComponent::getValue(i);
-    //}
-
     class Connector : public ::Connector
     {
     public:
@@ -1822,30 +1667,6 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     };
 
     typedef ClockedComponent::Type<Intel8088CPU> Type;
-
-    //class Type : public ClockedComponent::Type<Intel8088CPU>
-    //{
-    //public:
-    //    Type(Simulator* simulator)
-    //      : ClockedComponent::Type<Intel8088CPU>(new Body(simulator)) { }
-    //private:
-    //    class Body : public ClockedComponent::Type<Intel8088CPU>::Body
-    //    {
-    //    public:
-    //        Body(Simulator* simulator)
-    //          : ClockedComponent::Type::Body(simulator) { }
-    //        ::Type member(Identifier i) const
-    //        {
-    //            if (i.name() == "bus")
-    //                return Connector::Type();
-    //            return ClockedComponent::Type::Body::member(i);
-    //        }
-    //        Reference<Component> createComponent() const
-    //        {
-    //            return Reference<Component>::create<Intel8088CPU>();
-    //        }
-    //    };
-    //};
 
 private:
     enum IOType
@@ -2360,13 +2181,11 @@ private:
         {
             String text;
             if (this->_read) {
-                text = flags(this->_readValue) + String("<-") + this->_name +
-                    "  ";
+                text = flags(this->_readValue) + "<-" + this->_name + "  ";
                 this->_read = false;
             }
             if (this->_written) {
-                text += this->_name + String("<-") +
-                    flags(this->_writtenValue) + "  ";
+                text += this->_name + "<-" + flags(this->_writtenValue) + "  ";
                 this->_written = false;
             }
             return text;

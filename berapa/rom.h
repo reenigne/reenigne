@@ -1,6 +1,7 @@
 template<class T> class ROMTemplate : public ISA8BitComponent<ROMTemplate<T>>
 {
 public:
+    static String typeName() { return "ROM"; }
     ROMTemplate(Simulator* simulator, int mask, int address, String fileName,
         int offset)
     {
@@ -12,6 +13,7 @@ public:
         _data.allocate(length);
         for (int i = 0; i < length; ++i)
             _data[i] = data[i + offset];
+        persist("address", &_address, 0, HexPeristenceType(5));
     }
     void setAddress(UInt32 address)
     {
@@ -25,25 +27,6 @@ public:
             return _data[address & ~_mask];
         return 0xff;
     }
-    String save() const
-    {
-        return String("{ active: ") + String::Boolean(this->_active) +
-            ", address: " + hex(_address, 5) + "}\n";
-    }
-    ::Type persistenceType() const
-    {
-        List<StructuredType::Member> members;
-        members.add(StructuredType::Member("active", false));
-        members.add(StructuredType::Member("address", 0));
-        return StructuredType("ROM", members);
-    }
-    void load(const Value& value)
-    {
-        auto members = value.value<HashTable<Identifier, Value>>();
-        this->_active = members["active"].value<bool>();
-        _address = members["address"].value<int>();
-    }
-
     class Type : public ISA8BitComponent::Type
     {
     public:
@@ -65,17 +48,17 @@ public:
             String toString() const { return "ROM"; }
             Value tryConvert(const Value& value, String* why) const
             {
-                Value stv = value.type().tryConvertTo(_structuredType,
-                    value, why);
+                Value stv = value.type().tryConvertTo(_structuredType, value,
+                    why);
                 if (!stv.valid())
                     return stv;
-                auto romMembers =
-                    stv.value<HashTable<Identifier, Value>>();
+                auto romMembers = stv.value<HashTable<Identifier, Value>>();
                 int mask = romMembers["mask"].value<int>();
                 int address = romMembers["address"].value<int>();
                 String file = romMembers["fileName"].value<String>();
                 int offset = romMembers["fileOffset"].value<int>();
-                ROM* rom = new ROM(_simulator, mask, address, file, offset);
+                auto rom = Reference<Component>::create<ROM>(_simulator,
+                    mask, address, file, offset);
                 _simulator->addComponent(rom);
                 return Value(this, rom, value.span());
             }

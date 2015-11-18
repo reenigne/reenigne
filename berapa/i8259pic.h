@@ -5,16 +5,10 @@ public:
     Intel8259PIC()
       : _interruptrdy(false), _secondAck(false), _state(stateReady), _imr(0xff)
     {
-        for (int i = 0; i < 8; ++i)
+        for (int i = 0; i < 8; ++i) {
             _irqConnector[i].init(this, i);
-    }
-    Value getValue(Identifier i) const
-    {
-        String n = i.name();
-        if (n.length() == 4 && n.subString(0, 3) == "irq" && n[3] >= '0' &&
-            n[3] < '8')
-            return _irqConnector[n[3] - '0'].getValue();
-        return Component::getValue(i);
+            connector("irq" + decimal(i), &_irqConnector[i]);
+        }
     }
     class Connector : public InputConnector<bool>
     {

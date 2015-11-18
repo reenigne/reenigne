@@ -1,23 +1,16 @@
 template<class T> class PCXTKeyboardPortTemplate : public Component
 {
 public:
+    static String typeName() { return "PCXTKeyboardPort"; }
     PCXTKeyboardPortTemplate()
-      : _clearConnector(this), _clockConnector(this), _connector(this) { }
-    Value getValue(Identifier i) const
+      : _clearConnector(this), _clockConnector(this), _connector(this)
     {
-        if (i.name() == "data")
-            return _dataConnector.getValue();
-        if (i.name() == "clear")
-            return _clearConnector.getValue();
-        if (i.name() == "clock")
-            return _clockConnector.getValue();
-        if (i.name() == "irq")
-            return _irqConnector.getValue();
-        if (i.name() == "plug")
-            return _connector.getValue();
-        return Component::getValue(i);
+        connector("data", &_dataConnector);
+        connector("clear", &_clearConnector);
+        connector("clock", &_clockConnector);
+        connector("irq", &_irqConnector);
+        connector("plug", &_connector);
     }
-
     class Connector : public ::Connector
     {
     public:
@@ -45,35 +38,7 @@ public:
         }
     };
 
-    class Type : public Component::Type
-    {
-    public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
-    private:
-        class Body : public Component::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
-            String toString() const { return "PCXTKeyboardPort"; }
-            ::Type member(Identifier i) const
-            {
-                String n = i.name();
-                if (n == "data")
-                    return OutputConnector<Byte>::Type();
-                if (n == "clear" || n == "clock")
-                    return InputConnector<bool>::Type();
-                if (n == "irq")
-                    return OutputConnector<bool>::Type();
-                if (n == "plug")
-                    return Connector::Type();
-                return Component::Type::Body::member(i);
-            }
-            Reference<Component> createComponent() const
-            {
-                return Reference<Component>::create<PCXTKeyboardPort>();
-            }
-        };
-    };
+    typedef Component::TypeHelper<PCXTKeyboardPort> Type;
 
     class ClearConnector : public InputConnector<bool>
     {
