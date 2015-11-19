@@ -8,6 +8,23 @@ public:
         _lightPenSwitch(true), _bgriSource(this)
     {
         _data.allocate(0x4000);
+        config("rom", &_rom);
+        persist("memoryActive", &_memoryActive);
+        persist("memoryAddress", &_memoryAddress, HexPersistenceType(4));
+        persist("portActive", &_portActive);
+        persist("portAddress", &_portAddress);
+        persist("mode", &_mode, ByteType());
+        persist("palette", &_palette, ByteType());
+    }
+    void load(Value v)
+    {
+        ISA8BitComponent::load(v);
+        ConfigFile* config = this->_simulator->config();
+        String data = File(_rom, config->file().parent()).contents();
+        int length = 0x2000;
+        _romdata.allocate(length);
+        for (int i = 0; i < length; ++i)
+            _romdata[i] = data[i];
     }
     void simulateCycle()
     {
@@ -91,7 +108,7 @@ public:
                 _mode = data;
                 break;
             case 1:
-                _colsel = data;
+                _palette = data;
                 break;
             case 3:
                 _lightPenStrobe = false;
@@ -107,16 +124,6 @@ public:
             return _data[address & 0x3fff];
         else
             return 0xff;
-    }
-    void initialize()
-    {
-        ConfigFile* config = this->_simulator->config();
-        String data = File(config->template get<String>("cgarom"),
-            config->file().parent(), true).contents();
-        int length = 0x2000;
-        _romdata.allocate(length);
-        for (int i = 0; i < length; ++i)
-            _romdata[i] = data[i];
     }
     class BGRISource : public Source<BGRI>
     {
@@ -148,6 +155,7 @@ private:
         _lightPenStrobe = true;
     }
 
+    String _rom;
     Array<UInt8> _romdata;
     UInt8 _attr;
     UInt8 _chrdata;
@@ -158,7 +166,7 @@ private:
     int _wait;
     int _cycle;
     UInt8 _mode;
-    UInt8 _colsel;
+    UInt8 _palette;
     UInt8 _bgri;
     Array<UInt8> _data;
     Motorola6845CRTC _crtc;

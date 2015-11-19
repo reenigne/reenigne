@@ -161,6 +161,8 @@ protected:
         virtual Type member(IdentifierTemplate<T> i) const { return Type(); }
         virtual String serialize(void* p) const { return ""; }
         virtual void deserialize(const Value& value, void* p) const { }
+        virtual int size() const { return 0; }
+        virtual bool isDefault(void* p) onst { return false; }
         Type type() const { return tyco(); }
     };
     TypeTemplate(const Body* body) : Tyco(body) { }
@@ -376,8 +378,9 @@ public:
     ArrayType(const Type& type) : Type(type) { }
     ArrayType(const Type& contained, const Type& indexer)
       : Type(new Body(contained, indexer)) { }
+    ArrayType(const Type& contained, int size)
+        : Type(new Body(contained, LessThanType(size))) { }
     bool valid() const { return body() != 0; }
-//    ArrayType(const Body* body) : Type(body) { }
     Type contained() const { return body()->contained(); }
     Type indexer() const { return body()->indexer(); }
 
@@ -403,6 +406,36 @@ public:
         }
         Type contained() const { return _contained; }
         Type indexer() const { return _indexer; }
+        String serialize(void* p) const
+        {
+            String s = "{";
+            bool needComma = false;
+            LessThanType l(_indexer);
+            if (!l.valid())
+                throw Exception("Don't know how many elements to serialize.");
+            int n = l.n();
+            char* pc = static_cast<char*>(p);
+            int size = _contained.size();
+            do {
+                if (!_contained.isDefault(
+                    static_cast<void*>(pc + (n - 1)*size)));
+                    break;
+                --n;
+            } while (n > 0);
+            for (int i = 0; i < n; ++i) {
+                if (needComma)
+                    s += ", ";
+                needComma = true;
+                s += _contained.serialize(p);
+                pc += size;
+                p = static_cast<void*>(pc);
+            }
+            return s;
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<bool*>(p) = value.value<bool>();
+        }
     private:
         Type _contained;
         Type _indexer;
@@ -881,7 +914,10 @@ private:
 class LessThanType : public Type
 {
 public:
+    LessThanType(Type t) : Type(t) { }
+    bool valid() const { return body() != 0; }
     LessThanType(int n) : Type(new Body(n)) { }
+    int n() const { return body()->_n; }
 private:
     class Body : public Type::Body
     {
@@ -895,10 +931,9 @@ private:
             return o != 0 && _n == o->_n;
         }
         Hash hash() const { return Type::Body::hash().mixin(_n); }
-
-    private:
         int _n;
     };
+    const Body* body() const { return as<Body>(); }
 };
 
 // StructuredType is the type of "{...}" literals, not the base type for all
@@ -1138,6 +1173,28 @@ class StringType : public NamedNullary<Type, StringType>
 {
 public:
     static String name() { return "String"; }
+    class Body : public NamedNullary<Type, StringType>::Body
+    {
+    public:
+        String serialize(void* p) const
+        {
+            String r = "\"";
+            String s = *static_cast<String*>(p);
+            for (int i = 0; i < s.length(); ++i) {
+                Byte b = s[i];
+                if (b == '\\' || b == '\"')
+                    r += "\\";
+                r += String::Byte(b);
+            }
+            return r + "\"";
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<String*>(p) = value.value<String>();
+        }
+        int size() const { return sizeof(String); }
+        bool isDefault(void* p) const { return *static_cast<Byte*>(p) == 0; }
+    };
 };
 
 class IntegerType : public NamedNullary<Type, IntegerType>
@@ -1155,6 +1212,8 @@ public:
         {
             *static_cast<int*>(p) = value.value<int>();
         }
+        int size() const { return sizeof(int); }
+        bool isDefault(void* p) const { return *static_cast<int*>(p) == 0; }
     };
 };
 
@@ -1173,6 +1232,8 @@ public:
         {
             *static_cast<bool*>(p) = value.value<bool>();
         }
+        int size() const { return sizeof(bool); }
+        bool isDefault(void* p) const { return !*static_cast<bool*>(p); }
     };
 };
 
@@ -1204,6 +1265,20 @@ class ByteType : public NamedNullary<Type, ByteType>
 {
 public:
     static String name() { return "Byte"; }
+    class Body : public NamedNullary<Type, ByteType>::Body
+    {
+    public:
+        String serialize(void* p) const
+        {
+            return hex(*static_cast<Byte*>(p), 2);
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<Byte*>(p) = value.value<int>();
+        }
+        int size() const { return sizeof(bool); }
+        bool isDefault(void* p) const { return *static_cast<Byte*>(p) == 0; }
+    };
 };
 
 class RationalType : public NamedNullary<Type, RationalType>

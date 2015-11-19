@@ -360,7 +360,7 @@ protected:
     template<class C> void persist(String name, C* p, C initial,
         ::Type type = typeFromCompileTimeType<C>())
     {
-        _persist.add(name, Member(type, static_cast<void*>(p)));
+        _persist.add(name, Member(type, static_cast<void*>(p), initial));
     }
     Tick _tick;
 
