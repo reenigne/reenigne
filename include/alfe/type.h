@@ -1276,8 +1276,28 @@ public:
         {
             *static_cast<Byte*>(p) = value.value<int>();
         }
-        int size() const { return sizeof(bool); }
+        int size() const { return sizeof(Byte); }
         bool isDefault(void* p) const { return *static_cast<Byte*>(p) == 0; }
+    };
+};
+
+class WordType : public NamedNullary<Type, WordType>
+{
+public:
+    static String name() { return "Word"; }
+    class Body : public NamedNullary<Type, WordType>::Body
+    {
+    public:
+        String serialize(void* p) const
+        {
+            return hex(*static_cast<Word*>(p), 4);
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<Word*>(p) = value.value<int>();
+        }
+        int size() const { return sizeof(Word); }
+        bool isDefault(void* p) const { return *static_cast<Word*>(p) == 0; }
     };
 };
 

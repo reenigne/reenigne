@@ -37,7 +37,8 @@ public:
         _stateType = EnumerationType("DMAState", stateValues);
         persist("address", &_address, 0);
         persist("command", &_command, 0, HexPersistenceType(2));
-        persist("channels", &_channels);
+        persist("channels", &_channels,
+            ArrayPersistenceType(Channel::Type(), 4));
         persist("lastByte", &_lastByte, false);
         persist("channel", &_channel, 0);
         persist("highAddress", &_highAddress, 0xffff, HexPersistenceType(4));

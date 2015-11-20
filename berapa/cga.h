@@ -1,4 +1,5 @@
-template<class T> class IBMCGATemplate : public ISA8BitComponent<IBMCGATemplate<T>>
+template<class T> class IBMCGATemplate
+  : public ISA8BitComponent<IBMCGATemplate<T>>
 {
 public:
     static String typeName() { return "IBMCGA"; }
@@ -146,7 +147,35 @@ public:
     BGRISource* bgriSource() { return &_bgriSource; }
     CompositeSource* compositeSource() { return &_compositeSource; }
 
-    typedef Component::TypeHelper<IBMCGA> Type;
+    class RGBIConnector : public ::Connector
+    {
+    public:
+        Connector(IBMCGA* cga) : _cga(cga) { }
+        void connect(::Connector* other)
+        {
+            // TODO
+        }
+        ::Connector::Type type() const { return Type(); }
+
+        class Type : public NamedNullary<::Connector::Type, Type>
+        {
+        public:
+            Type() { }
+            Type(::Type type) : NamedNullary(type) { }
+            class Body : public NamedNullary<::Connector::Type, Type>::Body
+            {
+            public:
+                bool compatible(::Connector::Type other) const
+                {
+                    return RGBIMonitor::Connector::Type(other).valid();
+                }
+            };
+            static String name() { return "IBMCGA.RGBIConnector"; }
+        };
+    private:
+        IBMCGA* _cga;
+    };
+
 private:
     void activateLightPen()
     {

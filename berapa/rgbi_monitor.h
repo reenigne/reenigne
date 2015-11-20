@@ -2,7 +2,7 @@ class RGBIMonitor : public Component
 {
 public:
     static String typeName() { return "RGBIMonitor"; }
-    RGBIMonitor() : _renderer(&_window), _texture(&_renderer)
+    RGBIMonitor() : _renderer(&_window), _texture(&_renderer), _connector(this)
     {
         _palette.allocate(64);
         _palette[0x0] = 0xff000000;
@@ -32,12 +32,38 @@ public:
             _palette[i + 32] = 0xff220022 + rgb; // vsync
             _palette[i + 48] = 0xff222222 + rgb; // hsync+vsync
         }
+
+        connector("", &_connector);
     }
 
-    //class Connector : public ::Connector
-    //{
+    class Connector : public ::Connector
+    {
+    public:
+        Connector(RGBIMonitor* monitor) : _monitor(monitor) { }
+        void connect(::Connector* other)
+        {
+            // TODO
+        }
+        ::Connector::Type type() const { return Type(); }
 
-    //};
+        class Type : public NamedNullary<::Connector::Type, Type>
+        {
+        public:
+            Type() { }
+            Type(::Type type) : NamedNullary(type) { }
+            class Body : public NamedNullary<::Connector::Type, Type>::Body
+            {
+            public:
+                bool compatible(::Connector::Type other) const
+                {
+                    return IBMCGA::RGBIConnector::Type(other).valid();
+                }
+            };
+            static String name() { return "RGBIMonitor.Connector"; }
+        };
+    private:
+        RGBIMonitor* _monitor;
+    };
 
     class BGRISink : public Sink<BGRI>
     {
@@ -103,5 +129,7 @@ private:
     SDLRenderer _renderer;
     SDLTexture _texture;
     Array<UInt32> _palette;
+
+    Connector _connector;
 };
 

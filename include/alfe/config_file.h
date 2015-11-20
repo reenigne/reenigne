@@ -194,15 +194,39 @@ public:
             Expression e = Expression::parse(&source);
             if (!e.valid())
                 source.location().throwError("Expected expression.");
+            Space::assertCharacter(&source, ';', &span);
             Value loadedExpression = e.evaluate(&_context);
             LValueType lValueType(left.type());
             if (!lValueType.valid())
                 left.span().throwError("LValue required");
             Type type = lValueType.inner();
             LValue p = left.value<LValue>();
-            Value v = loadedExpression.rValue().convertTo(type);
-            Space::assertCharacter(&source, ';', &span);
-            p.set(v);
+            Identifier i = Identifier(OperatorAssignment());
+            Value v = loadedExpression.rValue();
+            if (!type.member(i).valid()) {
+                List<Value> arguments;
+                arguments.add(left);
+                arguments.add(v);
+                span = left.span() + v.span();
+                auto s = p.rValue().value<Structure*>();
+                Value f = s->getValue(i);
+                if (f.type() == OverloadedFunctionSet::Type())
+                    f.value<OverloadedFunctionSet>().evaluate(arguments, span);
+                else {
+                    List<Type> argumentTypes;
+                    argumentTypes.add(PointerType(type));
+                    argumentTypes.add(PointerType(v.type()));
+                    auto func = f.value<Funco>();
+                    if (!func.argumentsMatch(argumentTypes)) {
+                        span.throwError("Cannot assign value of type " +
+                            v.type().toString() + " to object of type " +
+                            type.toString() + ".");
+                    }
+                    func.evaluate(arguments, span);
+                }
+            }
+            else
+                p.set(v.convertTo(type));
         } while (true);
         for (auto i = begin(); i != end(); ++i) {
             if (!i.value().valid())

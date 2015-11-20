@@ -19,10 +19,11 @@ public:
             _bits[i]._i = i;
         }
         persist("address", &_address, HexPersistenceType(5));
-        persist("incoming", &_incoming[0]);
-        persist("outgoing", &_outgoing[0]);
-        persist("input", &_input[0]);
-        persist("output", &_output[0]);
+        ArrayPersistenceType t(ByteType(), 3);
+        persist("incoming", &_incoming[0], t);
+        persist("outgoing", &_outgoing[0], t);
+        persist("input", &_input[0], t);
+        persist("output", &_output[0], t);
     }
     void setAddress(UInt32 address) { _address = address & 3; }
     void read()

@@ -9,7 +9,7 @@ public:
         connector("clear", &_clearConnector);
         connector("clock", &_clockConnector);
         connector("irq", &_irqConnector);
-        connector("plug", &_connector);
+        connector("", &_connector);
     }
     class Connector : public ::Connector
     {

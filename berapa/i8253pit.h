@@ -8,7 +8,7 @@ public:
         for (int i = 0; i < 3; ++i)
             _timers[i].setGate(true);
         persist("address", &_address, 0, HexPersistenceType(5));
-        persist("timers", &_timers[0]);
+        persist("timers", &_timers[0], ArrayPersistenceType(Timer::Type(), 3));
     }
     void simulateCycle()
     {

@@ -170,8 +170,8 @@ public:
                     return Value();
                 }
                 if (!compatible(t)) {
-                    *reason = t.toString() + " and " + toString()
-                        + " are not compatible connectors.";
+                    *reason = t.toString() + " and " + toString() +
+                        " are not compatible connectors.";
                     return Value();
                 }
                 return Value(type(), value.value(), value.span());
@@ -345,8 +345,11 @@ public:
 protected:
     void connector(String name, Connector* p)
     {
-        if (name == "")
+        if (name == "") {
             _defaultConnector = p;
+            Structure::set(Identifier(OperatorAssignment()),
+                AssignmentFunco(this));
+        }
         else {
             config(name, p, p->type());
             Structure::set(name, p->getValue());
@@ -365,6 +368,59 @@ protected:
     Tick _tick;
 
 private:
+    class AssignmentFunco : public Funco
+    {
+    public:
+        AssignmentFunction(Component* component)
+          : Funco(new Body(component)) { }
+        class Body : public Funco::Body
+        {
+        public:
+            Body(Component* component) : _component(component) { }
+            Value evaluate(List<Value> arguments, Span span) const
+            {
+                auto i = arguments.begin();
+                auto l = i->value<Component*>()->_defaultConnector;
+                auto lt = l->getValue().type();
+                ++i;
+                String reason;
+                if (Type(i->type()).valid()) {
+                    auto r = i->value<Component*>()->_defaultConnector;
+                    if (!lt.tryConvert(r->getValue(), &reason).valid())
+                        span.throwError(reason);
+                    l->connect(r);
+                    r->connect(l);
+                    return;
+                }
+                auto r = i->value<Connector*>();
+                if (!lt.tryConvert(r->getValue(), &reason).valid())
+                    span.throwError(reason);
+                l->connect(r);
+                r->connect(l);
+                return Value();
+            }
+            Identifier identifier() const { return OperatorAssignment(); }
+            bool argumentsMatch(List<Type> argumentTypes) const
+            {
+                if (argumentTypes.count() != 2)
+                    return false;
+                auto i = argumentTypes.begin();
+                if (!Type(*i).valid())
+                    return false;
+                ++i;
+                if (Type(*i).valid())
+                    return true;
+                return Connector::Type(*i).valid();
+            }
+            FunctionTyco tyco() const
+            {
+                return FunctionTyco(VoidType(),
+                    PointerType(Type()), PointerType(Connector::Type()));
+            }
+        private:
+            Component* _component;
+        };
+    };
     class Member
     {
     public:
@@ -383,9 +439,9 @@ private:
     String _name;
     Type _type;
     Connector* _defaultConnector;
-    Connector::Type _defaultConnectorType;
 
     friend class Connector::Type::Body;
+    friend class AssignmentFunco::Body
 };
 
 class ClockedComponent : public Component
