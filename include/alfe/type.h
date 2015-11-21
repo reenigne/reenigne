@@ -139,6 +139,8 @@ public:
     {
         body()->deserialize(value, p);
     }
+    int size() const { return body()->size(); }
+    bool isDefault(void* p) const { return body()->isDefault(); }
 protected:
     class Body : public Tyco::Body
     {
@@ -162,7 +164,7 @@ protected:
         virtual String serialize(void* p) const { return ""; }
         virtual void deserialize(const Value& value, void* p) const { }
         virtual int size() const { return 0; }
-        virtual bool isDefault(void* p) onst { return false; }
+        virtual bool isDefault(void* p) const { return false; }
         Type type() const { return tyco(); }
     };
     TypeTemplate(const Body* body) : Tyco(body) { }
@@ -434,7 +436,28 @@ public:
         }
         void deserialize(const Value& value, void* p) const
         {
-            *static_cast<bool*>(p) = value.value<bool>();
+            LessThanType l(_indexer);
+            if (!l.valid()) {
+                throw Exception(
+                    "Don't know how many elements to deserialize.");
+            }
+            int n = l.n();
+            auto v = value.value<List<Value>>();
+            char* pc = static_cast<char*>(p);
+            int size = _contained.size();
+            for (auto vv : v) {
+                if (n == 0)
+                    break;
+                _contained.deserialize(vv, p);
+                pc += size;
+                p = static_cast<void*>(pc);
+                --n;
+            }
+            for (int i = 0; i < n; ++i) {
+                _contained.deserialize(_contained.defaultValue(), p);
+                pc += size;
+                p = static_cast<void*>(pc);
+            }
         }
     private:
         Type _contained;
@@ -1096,8 +1119,7 @@ protected:
                         return Value();
                     }
                     String reason;
-                    Value v =
-                        input[name].tryConvertTo(contained, &reason);
+                    Value v = input[name].tryConvertTo(contained, &reason);
                     if (!v.valid()) {
                         *why = String("Cannot convert child member ") + name;
                         if (!reason.empty())

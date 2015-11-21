@@ -9,21 +9,17 @@ public:
         for (int i = 0; i < 3; ++i) {
             _bytes[i]._ppi = this;
             _bytes[i]._i = i;
-            _incoming[i] = 0;
-            _outgoing[i] = 0xff;
-            _input[i] = 0;
-            _output[i] = 0;
         }
         for (int i = 0; i < 24; ++i) {
             _bits[i]._ppi = this;
             _bits[i]._i = i;
         }
         persist("address", &_address, HexPersistenceType(5));
-        ArrayPersistenceType t(ByteType(), 3);
-        persist("incoming", &_incoming[0], t);
-        persist("outgoing", &_outgoing[0], t);
-        persist("input", &_input[0], t);
-        persist("output", &_output[0], t);
+        ArrayType t(ByteType(), 3);
+        persist("incoming", &_incoming[0], 0, t);
+        persist("outgoing", &_outgoing[0], 0xff, t);
+        persist("input", &_input[0], 0, ArrayType(ByteType(), 2));
+        persist("output", &_output[0], 0, t);
     }
     void setAddress(UInt32 address) { _address = address & 3; }
     void read()
@@ -105,7 +101,6 @@ public:
                 _output[2] = 0;
                 _input[0] = 0;
                 _input[1] = 0;
-                _input[2] = 0;
                 _mode = data;
             }
         }
@@ -180,9 +175,10 @@ private:
         if (v != _outgoing[i]) {
             _bytes[i]._other->setData(_tick, v);
             for (int b = 0; b < 8; ++b)
-                if (((v ^ _outgoing[i]) & (1 << b)) != 0)
+                if (((v ^ _outgoing[i]) & (1 << b)) != 0) {
                     _bits[(i<<3) | b]._other->
                         setData(_tick, (v & (1 << b)) != 0);
+                }
             _outgoing[i] = v;
         }
     }
@@ -302,7 +298,7 @@ private:
     // open-collector, pull-high logic).
     Byte _incoming[3];
     Byte _outgoing[3];
-    Byte _input[3];
+    Byte _input[2];
     Byte _output[3];
     int _address;
 };

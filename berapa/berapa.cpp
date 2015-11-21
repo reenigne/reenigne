@@ -327,10 +327,8 @@ public:
     virtual ::Type persistenceType() const
     {
         List<StructuredType::Member> members;
-        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
-            members.add(StructuredType::Member(
-                i.key(), Value(i.value()._type, i.value()._initial)));
-        }
+        for (auto i = _persist.begin(); i != _persist.end(); ++i)
+            members.add(StructuredType::Member(i.key(), i.value()._initial));
         return StructuredType(_type.toString(), members);
     }
     virtual void load(const Value& value)
@@ -359,11 +357,26 @@ protected:
         ::Type type = typeFromCompileTimeType<C>())
     {
         _config.add(name, Member(type, static_cast<void*>(p)));
-    }                                           
+    }
     template<class C> void persist(String name, C* p, C initial,
         ::Type type = typeFromCompileTimeType<C>())
     {
-        _persist.add(name, Member(type, static_cast<void*>(p), initial));
+        Value v(type, initial);
+        ArrayType arrayType(type);
+        if (arrayType.valid()) {
+            Value v(arrayType.contained(), initial);
+            List<Value> initial;
+            LessThanType l(arrayType.indexer());
+            if (!l.valid()) {
+                throw Exception(
+                    "Don't know how many elements to put in default.");
+            }
+            int n = l.n();
+            for (int i = 0; i < n; ++i)
+                initial.add(v);
+            v = Value(type, initial);
+        }
+        _persist.add(name, Member(type, static_cast<void*>(p), v));
     }
     Tick _tick;
 
@@ -425,11 +438,11 @@ private:
     {
     public:
         Member() { }
-        Member(::Type type, void* p, Any initial = Any())
-            : _type(type), _p(p), _initial(initial) { }
+        Member(::Type type, void* p, Value initial)
+          : _type(type), _p(p), _initial(initial) { }
         ::Type _type;
         void* _p;
-        Any _initial;
+        Value _initial;
     };
     HashTable<String, Member> _config;
     HashTable<String, Member> _persist;

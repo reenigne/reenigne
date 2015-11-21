@@ -363,9 +363,10 @@ public:
 
         HexPersistenceType h4(4);
         persist("ip", &_ip, 0, h4);
-        persist("registers", &_registerData[0], ArrayType(WordType(), 4)); // ?
-        persist("segmentRegisters", &_segmentRegisterData[0],
-            ArrayType(WordType(), 4));
+        persist("registers", &_registerData[0], 0,
+            ArrayType(WordType(), 4)); // ?
+        persist("segmentRegisters", &_segmentRegisterData[0], 0,
+            ArrayType(WordType(), 4));  // Initial CS needs to be 0xffff
         persist("flags", &_flags, 2, h4); // ?
         persist("prefetch", &_prefetchQueue[0]);  // also _prefetched
         persist("segment", &_segment, 0);
