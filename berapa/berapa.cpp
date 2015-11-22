@@ -231,7 +231,7 @@ public:
         }
         if (_config.hasKey(name)) {
             Member m = _config[name];
-            m._type.deserialize(value, m._p);
+            m.type().deserialize(value, m._p);
             return;
         }
         Structure::set(name, value);
@@ -291,7 +291,7 @@ public:
                 C component;
                 for (auto i = component._config.begin();
                     i != component._config.end(); ++i) {
-                    _members[i.key()] = i.value()._type;
+                    _members[i.key()] = i.value().type();
                 }
             }
             Reference<Component> createComponent() const
@@ -305,6 +305,22 @@ public:
                     return _members[i];
                 return Type::Body::member(i);
             }
+            String serialize(void* p) const
+            {
+                return static_cast<C*>(p)->save();
+            }
+            void deserialize(const Value& value, void* p) const
+            {
+                static_cast<C*>(p)->load(value);
+            }
+            int size() const { return sizeof(C); }
+            Value defaultValue() const
+            {
+                C component;
+                return component.initial();
+            }
+            Value value(void* p) const { return static_cast<C*>(p)->value(); }
+
         private:
             HashTable<Identifier, ::Type> _members;
         };
@@ -318,10 +334,13 @@ public:
             if (needComma)
                 s += ",\n";
             needComma = true;
-            ::Type type = i.value()._type;
-            s += "  " + i.key() + ": " +
-                type.serialize(i.value()._p);
+            Member m = i.value();
+            String v = m.type().serialize(m._p);
+            if (v != "")
+                s += "  " + i.key() + ": " + v;
         }
+        if (s == "{\n")
+            return "";
         return s + "}\n";
     }
     virtual ::Type persistenceType() const
@@ -334,10 +353,20 @@ public:
     virtual void load(const Value& value)
     {
         auto members = value.value<HashTable<Identifier, Value>>();
-        for (auto i = _persist.begin(); i != _persist.end(); ++i)
-            i.value()._type.deserialize(members[i.key()], i.value()._p);
+        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
+            Member m = i.value();
+            m.type().deserialize(members[i.key()], m._p);
+        }
     }
-
+    Value value() const
+    {
+        HashTable<Identifier, Value> h;
+        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
+            Member m = i.value();
+            h.add(i.key(), m.type().value(m._p));
+        }
+        return Value(persistenceType(), h);
+    }
     void setType(Type type) { _type = type; }
 
 protected:
@@ -376,7 +405,11 @@ protected:
                 initial.add(v);
             v = Value(type, initial);
         }
-        _persist.add(name, Member(type, static_cast<void*>(p), v));
+        _persist.add(name, Member(static_cast<void*>(p), v));
+    }
+    template<class C> void persist(String name, C* p, Value initial)
+    {
+        _persist.add(name, Member(static_cast<void*>(p), initial));
     }
     Tick _tick;
 
@@ -438,9 +471,8 @@ private:
     {
     public:
         Member() { }
-        Member(::Type type, void* p, Value initial)
-          : _type(type), _p(p), _initial(initial) { }
-        ::Type _type;
+        Member(void* p, Value initial) : _p(p), _initial(initial) { }
+        ::Type type() const { return _initial.type(); }
         void* _p;
         Value _initial;
     };
@@ -837,7 +869,9 @@ public:
             if (needComma)
                 s += ", ";
             needComma = true;
-            s += i->name() + ": " + i->save();
+            String v = i->save();
+            if (v != "")
+                s += i->name() + ": " + i->save();
         }
         s += "};";
         return s;
@@ -988,11 +1022,12 @@ protected:
               : _simulator(simulator), _stopSaveState(stopSaveState) { }
             ~Saver()
             {
+                if (_stopSaveState.empty())
+                    return;
                 try {
                     String save = _simulator->name() + " = " +
                         _simulator->save();
-                    if (!_stopSaveState.empty())
-                        File(_stopSaveState).save(save);
+                    File(_stopSaveState).save(save);
                 }
                 catch (...) {
                 }

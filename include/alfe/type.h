@@ -140,7 +140,8 @@ public:
         body()->deserialize(value, p);
     }
     int size() const { return body()->size(); }
-    bool isDefault(void* p) const { return body()->isDefault(); }
+    Value defaultValue() const { return body()->defaultValue(); }
+    Value value(void* p) const { return body()->value(p); }
 protected:
     class Body : public Tyco::Body
     {
@@ -164,7 +165,8 @@ protected:
         virtual String serialize(void* p) const { return ""; }
         virtual void deserialize(const Value& value, void* p) const { }
         virtual int size() const { return 0; }
-        virtual bool isDefault(void* p) const { return false; }
+        virtual Value defaultValue() const { return Value(); }
+        virtual Value value(void* p) const { return Value(); }
         Type type() const { return tyco(); }
     };
     TypeTemplate(const Body* body) : Tyco(body) { }
@@ -217,6 +219,11 @@ public:
       : _type(typeFromValue(value)), _value(value), _span(span) { }
     Type type() const { return _type; }
     Any value() const { return _value; }
+    bool operator==(const Value& other) const
+    {
+        return _type == other._type && _value == other._value;
+    }
+    bool operator!=(const Value& other) const { return !(*this == other); }
     template<class U> U value() const { return _value.value<U>(); }
     template<> Vector value<Vector>() const
     {
@@ -418,9 +425,10 @@ public:
             int n = l.n();
             char* pc = static_cast<char*>(p);
             int size = _contained.size();
+            Value d = _contained.defaultValue();
             do {
-                if (!_contained.isDefault(
-                    static_cast<void*>(pc + (n - 1)*size)));
+                if (d !=
+                    _contained.value(static_cast<void*>(pc + (n - 1)*size)))
                     break;
                 --n;
             } while (n > 0);
@@ -432,7 +440,7 @@ public:
                 pc += size;
                 p = static_cast<void*>(pc);
             }
-            return s;
+            return s + "}";
         }
         void deserialize(const Value& value, void* p) const
         {
@@ -459,6 +467,9 @@ public:
                 p = static_cast<void*>(pc);
             }
         }
+        int size() const { return 0; }
+        virtual Value defaultValue() const { return Value(); }
+        virtual Value value(void* p) const { return Value(); }
     private:
         Type _contained;
         Type _indexer;
@@ -1215,7 +1226,8 @@ public:
             *static_cast<String*>(p) = value.value<String>();
         }
         int size() const { return sizeof(String); }
-        bool isDefault(void* p) const { return *static_cast<Byte*>(p) == 0; }
+        Value defaultValue() const { return String(); }
+        Value value(void* p) const { return *static_cast<String*>(p); }
     };
 };
 
@@ -1235,7 +1247,8 @@ public:
             *static_cast<int*>(p) = value.value<int>();
         }
         int size() const { return sizeof(int); }
-        bool isDefault(void* p) const { return *static_cast<int*>(p) == 0; }
+        Value defaultValue() const { return 0; }
+        Value value(void* p) const { return *static_cast<int*>(p); }
     };
 };
 
@@ -1255,7 +1268,8 @@ public:
             *static_cast<bool*>(p) = value.value<bool>();
         }
         int size() const { return sizeof(bool); }
-        bool isDefault(void* p) const { return !*static_cast<bool*>(p); }
+        Value defaultValue() const { return false; }
+        Value value(void* p) const { return *static_cast<bool*>(p); }
     };
 };
 
@@ -1299,7 +1313,11 @@ public:
             *static_cast<Byte*>(p) = value.value<int>();
         }
         int size() const { return sizeof(Byte); }
-        bool isDefault(void* p) const { return *static_cast<Byte*>(p) == 0; }
+        Value defaultValue() const { return 0; }
+        Value value(void* p) const
+        {
+            return static_cast<int>(*static_cast<Byte*>(p));
+        }
     };
 };
 
@@ -1319,7 +1337,11 @@ public:
             *static_cast<Word*>(p) = value.value<int>();
         }
         int size() const { return sizeof(Word); }
-        bool isDefault(void* p) const { return *static_cast<Word*>(p) == 0; }
+        Value defaultValue() const { return 0; }
+        Value value(void* p) const
+        {
+            return static_cast<int>(*static_cast<Word*>(p));
+        }
     };
 };
 
