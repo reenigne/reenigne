@@ -29,12 +29,6 @@ public:
     static String typeName() { return "Intel8237DMAC"; }
     Intel8237DMACTemplate()
     {
-        List<EnumerationType::Value> stateValues;
-        for (int i = stateIdle; i <= stateS4; ++i) {
-            State s = static_cast<State>(i);
-            stateValues.add(EnumerationType::Value(stringForState(s), s));
-        }
-        _stateType = EnumerationType("DMAState", stateValues);
         persist("address", &_address, 0);
         persist("command", &_command, 0, HexPersistenceType(2));
         persist("channels", &_channels, Channel(),
@@ -42,7 +36,17 @@ public:
         persist("lastByte", &_lastByte, false);
         persist("channel", &_channel, 0);
         persist("highAddress", &_highAddress, 0xffff, HexPersistenceType(4));
-        persist("state", &_state, stateIdle);
+
+        EnumerationType<State>::Helper h;
+        h.add(stateIdle,  "idle");
+        h.add(stateS0,    "s0");
+        h.add(stateS1,    "s1");
+        h.add(stateS2,    "s2");
+        h.add(stateS3,    "s3");
+        h.add(stateS4,    "s4");
+        h.add(stateYield, "yield";
+        persist("state", &_state, stateIdle,
+            EnumerationType<State>("Intel8237DMAC.State", h));
     }
 
     void simulateCycle()
@@ -404,20 +408,6 @@ private:
             (this->_pageRegisters->pageForChannel(_channel) << 16);
     }
 
-    static String stringForState(State state)
-    {
-        switch (state) {
-            case stateIdle:  return "idle";
-            case stateS0:    return "s0";
-            case stateS1:    return "s1";
-            case stateS2:    return "s2";
-            case stateS3:    return "s3";
-            case stateS4:    return "s4";
-            case stateYield: return "yield";
-        }
-        return "";
-    }
-
     DMAPageRegistersTemplate<T>* _pageRegisters;
     ISA8BitBus* _bus;
     Channel _channels[4];
@@ -429,6 +419,4 @@ private:
     bool _dAck;
     int _highAddress;
     State _state;
-
-    ::Type _stateType;
 };

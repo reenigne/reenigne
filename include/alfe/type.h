@@ -134,7 +134,21 @@ public:
             return LValueTypeTemplate<T>(*this).inner();
         return *this;
     }
-    String serialize(void* p) const { return body()->serialize(p); }
+    // All measurements in characters (== bytes, no unicode support yet).
+    // "width" is maximum total width of file not including line terminator
+    // (e.g. 79 characters).
+    // "used" is the number of characters that are already used on the left
+    // (including indentation).
+    // "indent" is the number of spaces to indent on any new lines. If 0 then
+    // we'll exit with "*" if the result doesn't fit in the line.
+    // "delta" is the number of spaces by which the indent should be increased
+    // when going in a level.
+    // If "bail" is true, then we'll 
+    // We will leave enough space at the end for a trailing comma.
+    String serialize(void* p, int width, int used, int indent, int delta) const
+    {
+        return body()->serialize(p, width, used, indent, delta);
+    }
     void deserialize(const Value& value, void* p) const
     {
         body()->deserialize(value, p);
@@ -162,7 +176,11 @@ protected:
             return ValueTemplate<T>();
         }
         virtual Type member(IdentifierTemplate<T> i) const { return Type(); }
-        virtual String serialize(void* p) const { return ""; }
+        virtual String serialize(void* p, int width, int used, int indent,
+            int delta) const
+        {
+            return "";
+        }
         virtual void deserialize(const Value& value, void* p) const { }
         virtual int size() const { return 0; }
         virtual Value defaultValue() const { return Value(); }
@@ -415,10 +433,9 @@ public:
         }
         Type contained() const { return _contained; }
         Type indexer() const { return _indexer; }
-        String serialize(void* p) const
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
         {
-            String s = "{";
-            bool needComma = false;
             LessThanType l(_indexer);
             if (!l.valid())
                 throw Exception("Don't know how many elements to serialize.");
@@ -432,15 +449,59 @@ public:
                     break;
                 --n;
             } while (n > 0);
+            // First try putting everything on one line
+            String s("{ ");
+            bool needComma = false;
+            bool separate = false;
+            used += 5;
+            void* pp = p;
             for (int i = 0; i < n; ++i) {
+                if (used > width) {
+                    separate = true;
+                    break;
+                }
+                int u = used + (needComma ? 2 : 0);
+                String v = _contained.serialize(pp, width, u, 0, 0);
+                if (v == "*") {
+                    separate = true;
+                    s = "";
+                    break;
+                }
                 if (needComma)
                     s += ", ";
                 needComma = true;
-                s += _contained.serialize(p);
+                s += v;
+                used = u + v.length();
+                pc += size;
+                pp = static_cast<void*>(pc);
+            }
+            if (s == "{ ")
+                return "{ }";
+            if (!separate && used <= width)
+                return s + " }";
+            else
+                s = "";
+            if (s == "" && indent == 0)
+                return "*";
+            // It doesn't all fit on one line, put each member on a separate
+            // line.
+            s = "{\n";
+            needComma = false;
+            for (int i = 0; i < n; ++i) {
+                int u = indent + delta;
+                String v = "{ }";
+                if (_contained.value(p) != _contained.defaultValue()) {
+                    v = _contained.serialize(p, width, u, indent + delta,
+                        delta);
+                }
+                if (needComma)
+                    s += ",\n";
+                needComma = true;
+                s += String(" ")*indent + v;
                 pc += size;
                 p = static_cast<void*>(pc);
             }
-            return s + "}";
+            return s + " }";
         }
         void deserialize(const Value& value, void* p) const
         {
@@ -910,38 +971,47 @@ public:
     };
 };
 
-class EnumerationType : public Type
+template<class T = int> class EnumerationType : public Type
 {
 public:
-    class Value
+    class Helper
     {
     public:
-        Value() { }
-        template<class T> Value(String name, const T& value)
-          : _name(name), _value(value) { }
-        String name() const { return _name; }
-        template<class T> T value() const { return _value.value<T>(); }
-        Any value() const { return _value; }
+        void add(String i, const T& t)
+        {
+            _stringToT.add(i, t);
+            _tToString.add(t, i);
+        }
     private:
-        String _name;
-        Any _value;
+        HashTable<String, T> _stringToT;
+        HashTable<T, String> _tToString;
+        friend class Body;
     };
 
-    EnumerationType(const Type& other) : Type(other.as<Body>()) { }
-    EnumerationType(String name, List<Value> values)
-      : Type(new Body(name, values)) { }
-    const Array<Value>* values() const { return as<Body>()->values(); }
-private:
+    EnumerationType(String name, const Helper& helper)
+      : Type(new Body(name, helper)) { }
+protected:
     class Body : public Type::Body
     {
     public:
-        Body(String name, List<Value> values)
-          : _name(name), _values(values) { }
+        Body(String name, const Helper& helper)
+          : _name(name), _helper(helper) { }
         String toString() const { return _name; }
-        const Array<Value>* values() const { return &_values; }
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
+        {
+            return _helper._tToString(*static_cast<T*>(p));
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<T*>(p) = value.value<T>();
+        }
+        int size() const { return sizeof(T); }
+        Value defaultValue() const { return static_cast<T>(0); }
+        Value value(void* p) const { return *static_cast<T*>(p); }
     private:
         String _name;
-        Array<Value> _values;
+        const Helper _helper;
     };
 };
 
@@ -1209,7 +1279,8 @@ public:
     class Body : public NamedNullary<Type, StringType>::Body
     {
     public:
-        String serialize(void* p) const
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
         {
             String r = "\"";
             String s = *static_cast<String*>(p);
@@ -1238,7 +1309,8 @@ public:
     class Body : public NamedNullary<Type, IntegerType>::Body
     {
     public:
-        String serialize(void* p) const
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
         {
             return decimal(*static_cast<int*>(p));
         }
@@ -1259,7 +1331,8 @@ public:
     class Body : public NamedNullary<Type, BooleanType>::Body
     {
     public:
-        String serialize(void* p) const
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
         {
             return String::Boolean(*static_cast<bool*>(p));
         }
@@ -1304,7 +1377,8 @@ public:
     class Body : public NamedNullary<Type, ByteType>::Body
     {
     public:
-        String serialize(void* p) const
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
         {
             return hex(*static_cast<Byte*>(p), 2);
         }
@@ -1328,7 +1402,8 @@ public:
     class Body : public NamedNullary<Type, WordType>::Body
     {
     public:
-        String serialize(void* p) const
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
         {
             return hex(*static_cast<Word*>(p), 4);
         }
@@ -1408,7 +1483,7 @@ template<class T> class ConcreteTypeTemplate : public Type
             auto b = other->as<Body>();
             if (b == 0)
                 return false;
-            for (int i = 0; i < max(size(), b->size()); ++i)
+            for (int i = 0; i < max(elements(), b->elements()); ++i)
                 if ((*body())[i] != (*b)[i])
                     return false;
             return true;
@@ -1417,7 +1492,7 @@ template<class T> class ConcreteTypeTemplate : public Type
         {
             Hash h = Type::Body::hash();
             int i;
-            for (i = size() - 1; i >= 0; --i)
+            for (i = elements() - 1; i >= 0; --i)
                 if ((*body())[i] != 0)
                     break;
             for (; i >= 0; --i)
@@ -1426,7 +1501,7 @@ template<class T> class ConcreteTypeTemplate : public Type
         }
         bool dimensionless() const
         {
-            for (int i = 0; i < size(); ++i)
+            for (int i = 0; i < elements(); ++i)
                 if ((*body())[i] != 0)
                     return false;
             return true;
@@ -1461,7 +1536,7 @@ template<class T> class ConcreteTypeTemplate : public Type
     private:
         Body* body() { return as<Body>(); }
         const Body* body() const { return as<Body>(); }
-        int size() const { return body()->size(); }
+        int elements() const { return body()->elements(); }
     };
     typedef Array<int>::Body<BaseBody> Body;
 
@@ -1469,9 +1544,9 @@ template<class T> class ConcreteTypeTemplate : public Type
 public:
     ConcreteTypeTemplate() : Type(Body::create(_bases + 1, _bases + 1))
     {
-        for (int i = 0; i < size(); ++i)
+        for (int i = 0; i < elements(); ++i)
             element(i) = 0;
-        element(size() - 1) = 1;
+        element(elements() - 1) = 1;
         ++_bases;
     }
     ConcreteTypeTemplate(const Type& other) : Type(other) { }
@@ -1489,22 +1564,22 @@ public:
     }
     ConcreteTypeTemplate operator-() const
     {
-        ConcreteTypeTemplate t(size());
-        for (int i = 0; i < size(); ++i)
+        ConcreteTypeTemplate t(elements());
+        for (int i = 0; i < elements(); ++i)
             t.element(i) = -element(i);
         return t;
     }
     ConcreteTypeTemplate operator+(const ConcreteTypeTemplate& other) const
     {
-        ConcreteTypeTemplate t(max(size(), other.size()));
-        for (int i = 0; i < t.size(); ++i)
+        ConcreteTypeTemplate t(max(elements(), other.elements()));
+        for (int i = 0; i < t.elements(); ++i)
             t.element(i) = element(i) + other.element(i);
         return t;
     }
     ConcreteTypeTemplate operator-(const ConcreteTypeTemplate& other) const
     {
-        ConcreteTypeTemplate t(max(size(), other.size()));
-        for (int i = 0; i < t.size(); ++i)
+        ConcreteTypeTemplate t(max(elements(), other.elements()));
+        for (int i = 0; i < t.elements(); ++i)
             t.element(i) = element(i) - other.element(i);
         return t;
     }
@@ -1512,9 +1587,9 @@ private:
     const Body* body() const { return as<Body>(); }
     Body* body() { return const_cast<Body*>(as<Body>()); }
     ConcreteTypeTemplate(int bases) : Type(Body::create(bases, bases)) { }
-    int size() const { return body()->size(); }
+    int elements() const { return body()->elements(); }
     int& element(int i) { return (*body())[i]; }
-    int element(int i) const { return i >= size() ? 0 : (*body())[i]; }
+    int element(int i) const { return i >= elements() ? 0 : (*body())[i]; }
 };
 
 typedef ConcreteTypeTemplate<Rational> ConcreteType;

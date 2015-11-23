@@ -326,22 +326,64 @@ public:
         };
         TypeHelper(const Body* body) : Type(body) { }
     };
-    virtual String save() const
+    virtual String save(int width, int used, int indent, int delta) const
     {
-        String s("{\n");
+        // First try putting everything on one line
+        String s("{ ");
         bool needComma = false;
+        bool separate = false;
+        used += 5;
         for (auto i = _persist.begin(); i != _persist.end(); ++i) {
-            if (needComma)
-                s += ",\n";
-            needComma = true;
+            if (used > width) {
+                separate = true;
+                break;
+            }
             Member m = i.value();
-            String v = m.type().serialize(m._p);
-            if (v != "")
-                s += "  " + i.key() + ": " + v;
+            int u = used + i.key().length() + 2 + (needComma ? 2 : 0);
+            String v = "{ }";
+            ::Type t = m.type();
+            if (t.value(m._p) != t.defaultValue()) {
+                v = t.serialize(m._p, width, u, 0, 0);
+                if (v == "*") {
+                    separate = true;
+                    s = "";
+                    break;
+                }
+            }
+            if (v != "{ }") {
+                if (needComma)
+                    s += ", ";
+                needComma = true;
+                s += i.key() + ": " + v;
+                used = u + v.length();
+            }
         }
-        if (s == "{\n")
-            return "";
-        return s + "}\n";
+        if (s == "{ ")
+            return "{ }";
+        if (!separate && used <= width)
+            return s + " }";
+        else
+            s = "";
+        if (s == "" && indent == 0)
+            return "*";
+        // It doesn't all fit on one line, put each member on a separate line.
+        s = "{\n";
+        needComma = false;
+        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
+            Member m = i.value();
+            int u = indent + i.key().length();
+            String v = "{ }";
+            ::Type t = m.type();
+            if (t.value(m._p) != t.defaultValue())
+                v = t.serialize(m._p, width, u, indent + delta, delta);
+            if (v != "{ }") {
+                if (needComma)
+                    s += ",\n";
+                needComma = true;
+                s += String(" ")*indent + i.key() + ": " + v;
+            }
+        }
+        return s + " }";
     }
     virtual ::Type persistenceType() const
     {
@@ -866,15 +908,16 @@ public:
         for (auto i : _components) {
             if (i->name().empty())
                 continue;
-            if (needComma)
-                s += ", ";
-            needComma = true;
-            String v = i->save();
-            if (v != "")
-                s += i->name() + ": " + i->save();
+            String l = "    " + i->name() + ": ";
+            String v = i->save(79, l.length(), 4, 4);
+            if (v != "") {
+                if (needComma)
+                    s += ",\n";
+                needComma = true;
+                s += l + v;
+            }
         }
-        s += "};";
-        return s;
+        return s + "\n};\n";
     }
 
     void halt() { _halted = true; }
