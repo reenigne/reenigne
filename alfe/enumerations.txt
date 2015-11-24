@@ -1,0 +1,8 @@
+ALFE enums are modelled after C++11 enum classes.
+  Instead of being dumped into the parent namespace, enum items need to be qualified with the type name of the enum
+
+An enum can have any number of conversions built in - these are specified as columns in the original declaration.
+
+If no string conversion is specified but value.toString() is called (or, equivalently, value is used as an insert in a string), then a string conversion is generated automatically, by stringifying
+ the identifiers.
+

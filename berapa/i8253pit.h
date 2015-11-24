@@ -32,17 +32,12 @@ public:
         }
     }
 private:
-    class Timer
+    class Timer : public Component
     {
     public:
+        static String typeName() { return "Timer"; }
         Timer()
         {
-            List<EnumerationType::Value> stateValues;
-            for (int i = stateStopped0; i <= stateCounting2; ++i) {
-                State s = static_cast<State>(i);
-                stateValues.add(EnumerationType::Value(stringForState(s), s));
-            }
-            _stateType = EnumerationType("PITState", stateValues);
             persist("value", &_value, 0, HexPersistenceType(4));
             persist("latch", &_latch, 0, HexPersistenceType(4));
             persist("count", &_count, 0, HexPersistenceType(4));
@@ -53,7 +48,19 @@ private:
             persist("gate", &_gate, false);
             persist("output", &_output, false);
             persist("latched", &_latched, false);
-            persist("state", &_state, stateStopped0);
+
+            EnumerationType<State>::Helper h;
+            h.add(stateStopped0,  "stopped0");
+            h.add(stateCounting0, "counting0");
+            h.add(stateStopped1,  "stopped1");
+            h.add(stateStart1,    "start1");
+            h.add(stateCounting1, "counting1");
+            h.add(stateStopped2,  "stopped2");
+            h.add(stateGateLow2,  "gateLow2");
+            h.add(stateCounting2, "counting2");
+            persist("state", &_state, stateStopped0,
+                EnumerationType<State>("State", h,
+                    Intel8253PIT::typeName() + "." + typeName() + "."));
         }
         void simulateCycle()
         {
@@ -222,21 +229,6 @@ private:
             stateCounting2,
         };
 
-        static String stringForState(State state)
-        {
-            switch (state) {
-                case stateStopped0:  return "stopped0";
-                case stateCounting0: return "counting0";
-                case stateStopped1:  return "stopped1";
-                case stateStart1:    return "start1";
-                case stateCounting1: return "counting1";
-                case stateStopped2:  return "stopped2";
-                case stateGateLow2:  return "gateLow2";
-                case stateCounting2: return "counting2";
-            }
-            return "";
-        }
-
         void loadCount(UInt16 value)
         {
             _count = value;
@@ -296,7 +288,6 @@ private:
         bool _output;
         bool _latched;
         State _state;
-        ::Type _stateType;
     };
     Timer _timers[3];
     int _address;

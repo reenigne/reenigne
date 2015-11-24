@@ -240,10 +240,6 @@ public:
     Value valueOfIdentifier(Identifier i)
     {
         Span s = i.span();
-        if (_enumeratedValues.hasKey(i)) {
-            Value value = _enumeratedValues[i];
-            return Value(value.type(), value.value(), s);
-        }
         if (!has(i))
             s.throwError("Unknown identifier " + i.name());
         return Value(LValueType::wrap(getValue(i).type()), LValue(this, i), s);
@@ -273,7 +269,6 @@ private:
         ConfigFile* _configFile;
     };
 
-    HashTable<Identifier, Value> _enumeratedValues;
     HashTable<TycoIdentifier, Type> _types;
     File _file;
     EvaluationContext _context;

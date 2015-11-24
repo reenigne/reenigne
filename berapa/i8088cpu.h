@@ -330,55 +330,218 @@ public:
 
         _segmentRegisterData[7] = 0x0000;  // For IO accesses
 
-        List<EnumerationType::Value> stateValues;
-        for (int i = stateWaitingForBIU; i <= stateMisc2; ++i) {
-            State s = static_cast<State>(i);
-            stateValues.add(EnumerationType::Value(stringForState(s), s));
-        }
-        _stateType = EnumerationType("State", stateValues);
-
-        List<EnumerationType::Value> ioTypeValues;
-        for (int i = ioNone; i <= ioInstructionFetch; ++i) {
-            IOType t = static_cast<IOType>(i);
-            ioTypeValues.add(EnumerationType::Value(stringForIOType(t), t));
-        }
-        _ioTypeType = EnumerationType("IOType", ioTypeValues);
-
-        List<EnumerationType::Value> ioByteValues;
-        for (int i = ioSingleByte; i <= ioWordSecond; ++i) {
-            IOByte b = static_cast<IOByte>(i);
-            ioByteValues.add(EnumerationType::Value(stringForIOByte(b), b));
-        }
-        _ioByteType = EnumerationType("IOByte", ioByteValues);
-
-        List<EnumerationType::Value> busStateValues;
-        for (int i = t1; i <= tIdle; ++i) {
-            BusState s = static_cast<BusState>(i);
-            busStateValues.add(
-                EnumerationType::Value(stringForBusState(s), s));
-        }
-        _busStateType = EnumerationType("BusState", busStateValues);
-
         _disassembler.setCPU(this);
+
+        EnumerationType<State>::Helper h;
+        h.add(stateStopped0,       "stopped0");
+        h.add(stateWaitingForBIU,  "waitingForBIU");
+        h.add(stateBegin,          "stateBegin");
+        h.add(stateDecodeOpcode,   "stateDecodeOpcode");
+        h.add(stateEndInstruction, "stateEndInstruction");
+        h.add(stateBeginModRM,     "stateBeginModRM");
+        h.add(stateDecodeModRM,    "stateDecodeModRM");
+        h.add(stateEAOffset,       "stateEAOffset");
+        h.add(stateEARegisters,    "stateEARegisters");
+        h.add(stateEAByte,         "stateEAByte");
+        h.add(stateEAWord,         "stateEAWord");
+        h.add(stateEASetSegment,   "stateEASetSegment");
+        h.add(stateEAIO,           "stateEAIO");
+        h.add(statePush,           "statePush");
+        h.add(statePush2,          "statePush2");
+        h.add(statePop,            "statePop");
+        h.add(stateALU,            "stateALU");
+        h.add(stateALU2,           "stateALU2");
+        h.add(stateALU3,           "stateALU3");
+        h.add(stateALUAccumImm,    "stateALUAccumImm");
+        h.add(stateALUAccumImm2,   "stateALUAccumImm2");
+        h.add(statePushSegReg,     "statePushSegReg");
+        h.add(statePopSegReg,      "statePopSegReg");
+        h.add(statePopSegReg2,     "statePopSegReg2");
+        h.add(stateSegOverride,    "stateSegOverride");
+        h.add(stateDAA,            "stateDAA");
+        h.add(stateDAS,            "stateDAS");
+        h.add(stateDA,             "stateDA");
+        h.add(stateAAA,            "stateAAA");
+        h.add(stateAAS,            "stateAAS");
+        h.add(stateAA,             "stateAA");
+        h.add(stateIncDecRW,       "stateIncDecRW");
+        h.add(statePushRW,         "statePushRW");
+        h.add(statePopRW,          "statePopRW");
+        h.add(statePopRW2,         "statePopRW2");
+        h.add(stateInvalid,        "stateInvalid");
+        h.add(stateJCond,          "stateJCond");
+        h.add(stateJCond2,         "stateJCond2");
+        h.add(stateALURMImm,       "stateALURMImm");
+        h.add(stateALURMImm2,      "stateALURMImm2");
+        h.add(stateALURMImm3,      "stateALURMImm3");
+        h.add(stateTestRMReg,      "stateTestRMReg");
+        h.add(stateTestRMReg2,     "stateTestRMReg2");
+        h.add(stateXchgRMReg,      "stateXchgRMReg");
+        h.add(stateXchgRMReg2,     "stateXchgRMReg2");
+        h.add(stateMovRMReg,       "stateMovRMReg");
+        h.add(stateMovRMReg2,      "stateMovRMReg2");
+        h.add(stateMovRegRM,       "stateMovRegRM");
+        h.add(stateMovRegRM2,      "stateMovRegRM2");
+        h.add(stateMovRMWSegReg,   "stateMovRMWSegReg");
+        h.add(stateMovRMWSegReg2,  "stateMovRMWSegReg2");
+        h.add(stateLEA,            "stateLEA");
+        h.add(stateLEA2,           "stateLEA2");
+        h.add(stateMovSegRegRMW,   "stateMovSegRegRMW");
+        h.add(stateMovSegRegRMW2,  "stateMovSegRegRMW2");
+        h.add(statePopMW,          "statePopMW");
+        h.add(statePopMW2,         "statePopMW2");
+        h.add(stateXchgAxRW,       "stateXchgAxRW");
+        h.add(stateCBW,            "stateCBW");
+        h.add(stateCWD,            "stateCWD");
+        h.add(stateCallCP,         "stateCallCP");
+        h.add(stateCallCP2,        "stateCallCP2");
+        h.add(stateCallCP3,        "stateCallCP3");
+        h.add(stateCallCP4,        "stateCallCP4");
+        h.add(stateCallCP5,        "stateCallCP5");
+        h.add(stateWait,           "stateWait");
+        h.add(statePushF,          "statePushF");
+        h.add(statePopF,           "statePopF");
+        h.add(statePopF2,          "statePopF2");
+        h.add(stateSAHF,           "stateSAHF");
+        h.add(stateLAHF,           "stateLAHF");
+        h.add(stateMovAccumInd,    "stateMovAccumInd");
+        h.add(stateMovAccumInd2,   "stateMovAccumInd2");
+        h.add(stateMovAccumInd3,   "stateMovAccumInd3");
+        h.add(stateMovIndAccum,    "stateMovIndAccum");
+        h.add(stateMovIndAccum2,   "stateMovIndAccum2");
+        h.add(stateMovS,           "stateMovS");
+        h.add(stateMovS2,          "stateMovS2");
+        h.add(stateRepAction,      "stateRepAction");
+        h.add(stateCmpS,           "stateCmpS");
+        h.add(stateCmpS2,          "stateCmpS2");
+        h.add(stateCmpS3,          "stateCmpS3");
+        h.add(stateTestAccumImm,   "stateTestAccumImm");
+        h.add(stateTestAccumImm2,  "stateTestAccumImm2");
+        h.add(stateStoS,           "stateStoS");
+        h.add(stateLodS,           "stateLodS");
+        h.add(stateLodS2,          "stateLodS2");
+        h.add(stateScaS,           "stateScaS");
+        h.add(stateScaS2,          "stateScaS2");
+        h.add(stateMovRegImm,      "stateMovRegImm");
+        h.add(stateMovRegImm2,     "stateMovRegImm2");
+        h.add(stateRet,            "stateRet");
+        h.add(stateRet2,           "stateRet2");
+        h.add(stateRet3,           "stateRet3");
+        h.add(stateRet4,           "stateRet4");
+        h.add(stateRet5,           "stateRet5");
+        h.add(stateRet6,           "stateRet6");
+        h.add(stateLoadFar,        "stateLoadFar");
+        h.add(stateLoadFar2,       "stateLoadFar2");
+        h.add(stateLoadFar3,       "stateLoadFar3");
+        h.add(stateMovRMImm,       "stateMovRMImm");
+        h.add(stateMovRMImm2,      "stateMovRMImm2");
+        h.add(stateMovRMImm3,      "stateMovRMImm3");
+        h.add(stateCheckInt,       "stateCheckInt");
+        h.add(stateHardwareInt,    "stateHardwareInt");
+        h.add(stateHardwareInt2,   "stateHardwareInt2");
+        h.add(stateInt,            "stateInt");
+        h.add(stateInt3,           "stateInt3");
+        h.add(stateIntAction,      "stateIntAction");
+        h.add(stateIntAction2,     "stateIntAction2");
+        h.add(stateIntAction3,     "stateIntAction3");
+        h.add(stateIntAction4,     "stateIntAction4");
+        h.add(stateIntAction5,     "stateIntAction5");
+        h.add(stateIntAction6,     "stateIntAction6");
+        h.add(stateIntO,           "stateIntO");
+        h.add(stateIRet,           "stateIRet");
+        h.add(stateIRet2,          "stateIRet2");
+        h.add(stateIRet3,          "stateIRet3");
+        h.add(stateIRet4,          "stateIRet4");
+        h.add(stateShift,          "stateShift");
+        h.add(stateShift2,         "stateShift2");
+        h.add(stateShift3,         "stateShift3");
+        h.add(stateAAM,            "stateAAM");
+        h.add(stateAAM2,           "stateAAM2");
+        h.add(stateAAD,            "stateAAD");
+        h.add(stateAAD2,           "stateAAD2");
+        h.add(stateSALC,           "stateSALC");
+        h.add(stateXlatB,          "stateXlatB");
+        h.add(stateXlatB2,         "stateXlatB2");
+        h.add(stateEscape,         "stateEscape");
+        h.add(stateEscape2,        "stateEscape2");
+        h.add(stateLoop,           "stateLoop");
+        h.add(stateLoop2,          "stateLoop2");
+        h.add(stateInOut,          "stateInOut");
+        h.add(stateInOut2,         "stateInOut2");
+        h.add(stateInOut3,         "stateInOut3");
+        h.add(stateCallCW,         "stateCallCW");
+        h.add(stateCallCW2,        "stateCallCW2");
+        h.add(stateCallCW3,        "stateCallCW3");
+        h.add(stateCallCW4,        "stateCallCW4");
+        h.add(stateJmpCW,          "stateJmpCW");
+        h.add(stateJmpCW2,         "stateJmpCW2");
+        h.add(stateJmpCW3,         "stateJmpCW3");
+        h.add(stateJmpCP,          "stateJmpCP");
+        h.add(stateJmpCP2,         "stateJmpCP2");
+        h.add(stateJmpCP3,         "stateJmpCP3");
+        h.add(stateJmpCP4,         "stateJmpCP4");
+        h.add(stateJmpCB,          "stateJmpCB");
+        h.add(stateJmpCB2,         "stateJmpCB2");
+        h.add(stateLock,           "stateLock");
+        h.add(stateRep,            "stateRep");
+        h.add(stateHlt,            "stateHlt");
+        h.add(stateCmC,            "stateCmC");
+        h.add(stateMath,           "stateMath");
+        h.add(stateMath2,          "stateMath2");
+        h.add(stateMath3,          "stateMath3");
+        h.add(stateLoadC,          "stateLoadC");
+        h.add(stateLoadI,          "stateLoadI");
+        h.add(stateLoadD,          "stateLoadD");
+        h.add(stateMisc,           "stateMisc");
+        h.add(stateMisc2,          "stateMisc2");
+        EnumerationType<State> stateType("State", h, typeName() + ".");
+
+        EnumerationType<IOType> ht;
+        ht.add(ioNone, "ioNone");
+        ht.add(ioRead, "ioRead");
+        ht.add(ioWrite, "ioWrite");
+        ht.add(ioInstructionFetch, "ioInstructionFetch");
+        EnumerationType<IOType> ioTypeType("IOType", ht, typeName() + ".");
+
+        EnumerationType<BusState> hb;
+        hb.add(t1, "t1");
+        hb.add(t2, "t2");
+        hb.add(t3, "t3");
+        hb.add(tWait, "tWait");
+        hb.add(t4, "t4");
+        hb.add(tIdle, "tIdle");
+        hb.add(tDMA, "tDMA");
+
+        EnumerationType<IOByte> hi;
+        hi.add(ioSingleByte, "ioSingleByte");
+        hi.add(ioWordFirst,  "ioWordFirst");
+        hi.add(ioWordSecond, "ioWordSecond");
 
         HexPersistenceType h4(4);
         persist("ip", &_ip, 0, h4);
         persist("registers", &_registerData[0], 0,
             ArrayType(WordType(), 4)); // ?
-        persist("segmentRegisters", &_segmentRegisterData[0], 0,
-            ArrayType(WordType(), 4));  // Initial CS needs to be 0xffff
+        List<Value> initialSegments;
+        initialSegments.add(Value(WordType(), 0));
+        initialSegments.add(Value(WordType(), 0xffff));
+        persist("segmentRegisters", &_segmentRegisterData[0],
+            Value(initialSegments), ArrayType(WordType(), 4));
         persist("flags", &_flags, 2, h4); // ?
         persist("prefetch", &_prefetchQueue[0]);  // also _prefetched
         persist("segment", &_segment, 0);
         persist("segmentOverride", &_segmentOverride, -1);
         persist("prefetchQddress", &_prefetchAddress, 0, h4);
-        persist("ioType", &_ioType, ioNone);
-        persist("ioRequested", &_ioRequested, ioNone);
-        persist("ioInProgress", &_ioInProgress, ioInstructionFetch);
-        persist("busState", &_busState, t1);
-        persist("byte", &_byte, _ioSingleByte);
+        persist("ioType", &_ioType, ioNone, ioTypeType);
+        persist("ioRequested", &_ioRequested, ioNone, ioTypeType);
+        persist("ioInProgress", &_ioInProgress, ioInstructionFetch,
+            ioTypeType);
+        persist("busState", &_busState, t1,
+            EnumerationType<BusState>("BusState", hb, typeName() + "."));
+        persist("byte", &_byte, _ioSingleByte,
+            EnumerationType<IOByte>("IOByte", hi, typeName() + "."));
         persist("abandonFetch", &_abandonFetch, false);
         persist("wait", &_wait, 0);
+        persist("state", &_state, stateBegin, stateType);
         persist("opcode", &_opcode, 0, HexPersistenceType(2));
         persist("modRM", &_modRM, 0, HexPersistenceType(2));
         persist("data", &_data, 0, HexPersistenceType(8));
@@ -389,11 +552,11 @@ public:
         persist("useMemory", &_useMemory, false);
         persist("wordSize", &_wordSize, false);
         persist("aluOperation", &_aluOperation, 0);
-        persist("afterEA", &_afterEA, stateWaitingForBIU);
-        persist("afterIO", &_afterIO, stateWaitingForBIU);
-        persist("afterEAIO", &_afterEAIO, stateWaitingForBIU);
-        persist("afterRep", &_afterRep, stateWaitingForBIU);
-        persist("afterInt", &_afterInt, stateWaitingForBIU);
+        persist("afterEA", &_afterEA, stateWaitingForBIU, stateType);
+        persist("afterIO", &_afterIO, stateWaitingForBIU, stateType);
+        persist("afterEAIO", &_afterEAIO, stateWaitingForBIU, stateType);
+        persist("afterRep", &_afterRep, stateWaitingForBIU, stateType);
+        persist("afterInt", &_afterInt, stateWaitingForBIU, stateType);
         persist("sourceIsRM", &_sourceIsRM, false);
         persist("savedCS", &_savedCS, 0, h4);
         persist("savedIP", &_savedIP, 0, h4);
@@ -404,7 +567,7 @@ public:
         persist("newIP", &_newIP, 0, h4);
         persist("nmiRequested", &_nmiRequested, false);
         persist("cycle", &_cycle, 0);
-    }                       
+    }
     void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
     void site()
     {
@@ -1767,204 +1930,6 @@ private:
         ioWordFirst,
         ioWordSecond
     };
-    static String stringForState(State state)
-    {
-        switch (state) {
-            case stateWaitingForBIU:  return "waitingForBIU";
-            case stateBegin:          return "stateBegin";
-            case stateDecodeOpcode:   return "stateDecodeOpcode";
-            case stateEndInstruction: return "stateEndInstruction";
-            case stateBeginModRM:     return "stateBeginModRM";
-            case stateDecodeModRM:    return "stateDecodeModRM";
-            case stateEAOffset:       return "stateEAOffset";
-            case stateEARegisters:    return "stateEARegisters";
-            case stateEAByte:         return "stateEAByte";
-            case stateEAWord:         return "stateEAWord";
-            case stateEASetSegment:   return "stateEASetSegment";
-            case stateEAIO:           return "stateEAIO";
-            case statePush:           return "statePush";
-            case statePush2:          return "statePush2";
-            case statePop:            return "statePop";
-            case stateALU:            return "stateALU";
-            case stateALU2:           return "stateALU2";
-            case stateALU3:           return "stateALU3";
-            case stateALUAccumImm:    return "stateALUAccumImm";
-            case stateALUAccumImm2:   return "stateALUAccumImm2";
-            case statePushSegReg:     return "statePushSegReg";
-            case statePopSegReg:      return "statePopSegReg";
-            case statePopSegReg2:     return "statePopSegReg2";
-            case stateSegOverride:    return "stateSegOverride";
-            case stateDAA:            return "stateDAA";
-            case stateDAS:            return "stateDAS";
-            case stateDA:             return "stateDA";
-            case stateAAA:            return "stateAAA";
-            case stateAAS:            return "stateAAS";
-            case stateAA:             return "stateAA";
-            case stateIncDecRW:       return "stateIncDecRW";
-            case statePushRW:         return "statePushRW";
-            case statePopRW:          return "statePopRW";
-            case statePopRW2:         return "statePopRW2";
-            case stateInvalid:        return "stateInvalid";
-            case stateJCond:          return "stateJCond";
-            case stateJCond2:         return "stateJCond2";
-            case stateALURMImm:       return "stateALURMImm";
-            case stateALURMImm2:      return "stateALURMImm2";
-            case stateALURMImm3:      return "stateALURMImm3";
-            case stateTestRMReg:      return "stateTestRMReg";
-            case stateTestRMReg2:     return "stateTestRMReg2";
-            case stateXchgRMReg:      return "stateXchgRMReg";
-            case stateXchgRMReg2:     return "stateXchgRMReg2";
-            case stateMovRMReg:       return "stateMovRMReg";
-            case stateMovRMReg2:      return "stateMovRMReg2";
-            case stateMovRegRM:       return "stateMovRegRM";
-            case stateMovRegRM2:      return "stateMovRegRM2";
-            case stateMovRMWSegReg:   return "stateMovRMWSegReg";
-            case stateMovRMWSegReg2:  return "stateMovRMWSegReg2";
-            case stateLEA:            return "stateLEA";
-            case stateLEA2:           return "stateLEA2";
-            case stateMovSegRegRMW:   return "stateMovSegRegRMW";
-            case stateMovSegRegRMW2:  return "stateMovSegRegRMW2";
-            case statePopMW:          return "statePopMW";
-            case statePopMW2:         return "statePopMW2";
-            case stateXchgAxRW:       return "stateXchgAxRW";
-            case stateCBW:            return "stateCBW";
-            case stateCWD:            return "stateCWD";
-            case stateCallCP:         return "stateCallCP";
-            case stateCallCP2:        return "stateCallCP2";
-            case stateCallCP3:        return "stateCallCP3";
-            case stateCallCP4:        return "stateCallCP4";
-            case stateCallCP5:        return "stateCallCP5";
-            case stateWait:           return "stateWait";
-            case statePushF:          return "statePushF";
-            case statePopF:           return "statePopF";
-            case statePopF2:          return "statePopF2";
-            case stateSAHF:           return "stateSAHF";
-            case stateLAHF:           return "stateLAHF";
-            case stateMovAccumInd:    return "stateMovAccumInd";
-            case stateMovAccumInd2:   return "stateMovAccumInd2";
-            case stateMovAccumInd3:   return "stateMovAccumInd3";
-            case stateMovIndAccum:    return "stateMovIndAccum";
-            case stateMovIndAccum2:   return "stateMovIndAccum2";
-            case stateMovS:           return "stateMovS";
-            case stateMovS2:          return "stateMovS2";
-            case stateRepAction:      return "stateRepAction";
-            case stateCmpS:           return "stateCmpS";
-            case stateCmpS2:          return "stateCmpS2";
-            case stateCmpS3:          return "stateCmpS3";
-            case stateTestAccumImm:   return "stateTestAccumImm";
-            case stateTestAccumImm2:  return "stateTestAccumImm2";
-            case stateStoS:           return "stateStoS";
-            case stateLodS:           return "stateLodS";
-            case stateLodS2:          return "stateLodS2";
-            case stateScaS:           return "stateScaS";
-            case stateScaS2:          return "stateScaS2";
-            case stateMovRegImm:      return "stateMovRegImm";
-            case stateMovRegImm2:     return "stateMovRegImm2";
-            case stateRet:            return "stateRet";
-            case stateRet2:           return "stateRet2";
-            case stateRet3:           return "stateRet3";
-            case stateRet4:           return "stateRet4";
-            case stateRet5:           return "stateRet5";
-            case stateRet6:           return "stateRet6";
-            case stateLoadFar:        return "stateLoadFar";
-            case stateLoadFar2:       return "stateLoadFar2";
-            case stateLoadFar3:       return "stateLoadFar3";
-            case stateMovRMImm:       return "stateMovRMImm";
-            case stateMovRMImm2:      return "stateMovRMImm2";
-            case stateMovRMImm3:      return "stateMovRMImm3";
-            case stateCheckInt:       return "stateCheckInt";
-            case stateHardwareInt:    return "stateHardwareInt";
-            case stateHardwareInt2:   return "stateHardwareInt2";
-            case stateInt:            return "stateInt";
-            case stateInt3:           return "stateInt3";
-            case stateIntAction:      return "stateIntAction";
-            case stateIntAction2:     return "stateIntAction2";
-            case stateIntAction3:     return "stateIntAction3";
-            case stateIntAction4:     return "stateIntAction4";
-            case stateIntAction5:     return "stateIntAction5";
-            case stateIntAction6:     return "stateIntAction6";
-            case stateIntO:           return "stateIntO";
-            case stateIRet:           return "stateIRet";
-            case stateIRet2:          return "stateIRet2";
-            case stateIRet3:          return "stateIRet3";
-            case stateIRet4:          return "stateIRet4";
-            case stateShift:          return "stateShift";
-            case stateShift2:         return "stateShift2";
-            case stateShift3:         return "stateShift3";
-            case stateAAM:            return "stateAAM";
-            case stateAAM2:           return "stateAAM2";
-            case stateAAD:            return "stateAAD";
-            case stateAAD2:           return "stateAAD2";
-            case stateSALC:           return "stateSALC";
-            case stateXlatB:          return "stateXlatB";
-            case stateXlatB2:         return "stateXlatB2";
-            case stateEscape:         return "stateEscape";
-            case stateEscape2:        return "stateEscape2";
-            case stateLoop:           return "stateLoop";
-            case stateLoop2:          return "stateLoop2";
-            case stateInOut:          return "stateInOut";
-            case stateInOut2:         return "stateInOut2";
-            case stateInOut3:         return "stateInOut3";
-            case stateCallCW:         return "stateCallCW";
-            case stateCallCW2:        return "stateCallCW2";
-            case stateCallCW3:        return "stateCallCW3";
-            case stateCallCW4:        return "stateCallCW4";
-            case stateJmpCW:          return "stateJmpCW";
-            case stateJmpCW2:         return "stateJmpCW2";
-            case stateJmpCW3:         return "stateJmpCW3";
-            case stateJmpCP:          return "stateJmpCP";
-            case stateJmpCP2:         return "stateJmpCP2";
-            case stateJmpCP3:         return "stateJmpCP3";
-            case stateJmpCP4:         return "stateJmpCP4";
-            case stateJmpCB:          return "stateJmpCB";
-            case stateJmpCB2:         return "stateJmpCB2";
-            case stateLock:           return "stateLock";
-            case stateRep:            return "stateRep";
-            case stateHlt:            return "stateHlt";
-            case stateCmC:            return "stateCmC";
-            case stateMath:           return "stateMath";
-            case stateMath2:          return "stateMath2";
-            case stateMath3:          return "stateMath3";
-            case stateLoadC:          return "stateLoadC";
-            case stateLoadI:          return "stateLoadI";
-            case stateLoadD:          return "stateLoadD";
-            case stateMisc:           return "stateMisc";
-            case stateMisc2:          return "stateMisc2";
-        }
-        return "";
-    }
-    static String stringForIOType(IOType type)
-    {
-        switch (type) {
-            case ioNone:             return "ioNone";
-            case ioRead:             return "ioRead";
-            case ioWrite:            return "ioWrite";
-            case ioInstructionFetch: return "ioInstructionFetch";
-        }
-        return "";
-    }
-    static String stringForBusState(BusState state)
-    {
-        switch (state) {
-            case t1:    return "t1";
-            case t2:    return "t2";
-            case t3:    return "t3";
-            case tWait: return "tWait";
-            case t4:    return "t4";
-            case tIdle: return "tIdle";
-            case tDMA:  return "tDMA";
-        }
-        return "";
-    }
-    static String stringForIOByte(IOByte byte)
-    {
-        switch (byte) {
-            case ioSingleByte: return "ioSingleByte";
-            case ioWordFirst:  return "ioWordFirst";
-            case ioWordSecond: return "ioWordSecond";
-        }
-        return "";
-    }
     void div()
     {
         bool negative = false;
@@ -2407,11 +2372,6 @@ private:
     UInt32 _busAddress;
     UInt8 _busData;
     bool _nmiRequested;
-
-    ::Type _stateType;
-    ::Type _ioTypeType;
-    ::Type _ioByteType;
-    ::Type _busStateType;
 
     Disassembler _disassembler;
 

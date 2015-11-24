@@ -39,8 +39,8 @@ typedef Intel8253PITTemplate<void> Intel8253PIT;
 template<class T> class Intel8255PPITemplate;
 typedef Intel8255PPITemplate<void> Intel8255PPI;
 
-template<class T> class RAMTemplate;
-typedef RAMTemplate<void> RAM;
+template<class T> class ISA8BitRAMTemplate;
+typedef ISA8BitRAMTemplate<void> ISA8BitRAM;
 
 template<class T> class ROMTemplate;
 typedef ROMTemplate<void> ROM;
@@ -448,6 +448,7 @@ protected:
             v = Value(type, initial);
         }
         _persist.add(name, Member(static_cast<void*>(p), v));
+
     }
     template<class C> void persist(String name, C* p, Value initial)
     {
@@ -950,6 +951,8 @@ public:
         Value value;
         if (!initialStateFile.empty()) {
             ConfigFile initialState;
+            for (auto i : _components)
+                initialState.addType(i->typeName(), i->persistenceType());
             initialState.addDefaultOption(name(), persistenceType(),
                 initial());
             initialState.load(initialStateFile);
@@ -995,8 +998,8 @@ private:
 #include "i8255ppi.h"
 #include "i8253pit.h"
 #include "mc6845crtc.h"
-#include "dram.h"
 #include "ram.h"
+#include "isa_8_bit_ram.h"
 #include "dma_page_registers.h"
 #include "rom.h"
 #include "i8088cpu.h"
@@ -1027,7 +1030,7 @@ protected:
         List<Component::Type> componentTypes;
         componentTypes.add(Intel8088CPU::Type(p));
         componentTypes.add(ISA8BitBus::Type(p));
-        componentTypes.add(RAM::Type(p));
+        componentTypes.add(ISA8BitRAM::Type(p));
         componentTypes.add(NMISwitch::Type(p));
         componentTypes.add(DMAPageRegisters::Type(p));
         componentTypes.add(Intel8259PIC::Type(p));

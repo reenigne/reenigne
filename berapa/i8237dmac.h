@@ -46,7 +46,7 @@ public:
         h.add(stateS4,    "s4");
         h.add(stateYield, "yield";
         persist("state", &_state, stateIdle,
-            EnumerationType<State>("Intel8237DMAC.State", h));
+            EnumerationType<State>("State", h, typeName() + "."));
     }
 
     void simulateCycle()

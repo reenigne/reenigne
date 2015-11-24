@@ -988,19 +988,20 @@ public:
         friend class Body;
     };
 
-    EnumerationType(String name, const Helper& helper)
-      : Type(new Body(name, helper)) { }
+    EnumerationType(String name, const Helper& helper, String context = "")
+      : Type(new Body(name, helper, context)) { }
 protected:
     class Body : public Type::Body
     {
     public:
-        Body(String name, const Helper& helper)
-          : _name(name), _helper(helper) { }
+        Body(String name, const Helper& helper, String context)
+          : _name(name), _helper(helper), _context(context) { }
         String toString() const { return _name; }
         String serialize(void* p, int width, int used, int indent, int delta)
             const
         {
-            return _helper._tToString(*static_cast<T*>(p));
+            return _context + _name + "." +
+                _helper._tToString(*static_cast<T*>(p));
         }
         void deserialize(const Value& value, void* p) const
         {
@@ -1010,6 +1011,7 @@ protected:
         Value defaultValue() const { return static_cast<T>(0); }
         Value value(void* p) const { return *static_cast<T*>(p); }
     private:
+        String _context;
         String _name;
         const Helper _helper;
     };

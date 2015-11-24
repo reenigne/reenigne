@@ -648,18 +648,13 @@ public:
         StructuredType vectorType("Vector", vectorMembers);
         config.addType(vectorType);
 
-        List<EnumerationType::Value> colourSpaceMembers;
-        colourSpaceMembers.add(
-            EnumerationType::Value("srgb", ColourSpace::srgb()));
-        colourSpaceMembers.add(
-            EnumerationType::Value("rgb", ColourSpace::rgb()));
-        colourSpaceMembers.add(
-            EnumerationType::Value("xyz", ColourSpace::xyz()));
-        colourSpaceMembers.add(
-            EnumerationType::Value("luv", ColourSpace::luv()));
-        colourSpaceMembers.add(
-            EnumerationType::Value("lab", ColourSpace::lab()));
-        EnumerationType colourSpaceType("colourSpace", colourSpaceMembers);
+        EnumerationType<ColourSpace>::Helper h
+        h.add(ColourSpace::srgb(), "srgb");
+        h.add(ColourSpace::rgb(), "rgb");
+        h.add(ColourSpace::xyz(), "xyz");
+        h.add(ColourSpace::luv(), "luv");
+        h.add(ColourSpace::lab(), "lab");
+        EnumerationType<ColourSpace> colourSpaceType("ColourSpace", h);
         config.addType(colourSpaceType);
 
         config.addOption("cgaRomFile", Type::string);
