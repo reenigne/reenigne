@@ -139,6 +139,8 @@ private:
                 CharacterSource source(value.value<String>());
                 Space::parse(&source);
                 auto data = static_cast<Array<UInt8>*>(p);
+                for (int i = 0; i < data->count(); ++i)
+                    (*data)[i] = _ram->_decayValue;
                 do {
                     Span span;
                     int t = parseHexadecimalCharacter(&source, &span);
@@ -161,6 +163,8 @@ private:
                             span.throwError("Expected hexadecimal character");
                         if (a < data->count())
                             (*data)[a] = (t << 4) + t2;
+                        else
+                            span.throwError("Address out of range");
                         ++a;
                         Space::parse(&source);
                     }
