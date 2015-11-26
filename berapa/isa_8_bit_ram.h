@@ -4,9 +4,10 @@ public:
     static String typeName() { return "ISA8BitRAM"; }
     ISA8BitRAMTemplate()
     {
-        config("rowBits", &_rowBits);
-        config("bytes", &_bytes);
-        config("decayTime", &_decayTime, ConcretePersistenceType(second));
+        connector("parityError", &_ram._parityError);
+        config("rowBits", &_ram._rowBits);
+        config("bytes", &_ram._ramSize);
+        config("decayTime", &_ram._decayTime, ConcretePersistenceType(second));
         persist("address", &_address, HexPersistType(5));
         persist("ram", &_ram);
     }
@@ -29,25 +30,7 @@ public:
             return _ram.memory(address);
         return 0xff;
     }
-    void load(const Value& value)
-    {
-        ISA8BitComponent::load(value);
-        if (_decayTime == 0) {
-            // DRAM decay time in cycles.
-            // This is the fastest that DRAM could decay and real hardware
-            // would still work.
-            //decayTime = (18*4) << rowBits;
-            // 2ms for 4116 and 2118
-            // 4ms for 4164
-            // 8ms for 41256
-            _decayTime =  (13125 << _rowBits) / 176;
-        }
-        _ram.initialize(_bytes, _rowBits, _decayTime, 0);
-    }
 private:
     int _address;
     RAM _ram;
-    int _rowBits;
-    int _bytes;
-    Rational _decayTime;
 };

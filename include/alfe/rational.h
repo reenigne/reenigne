@@ -125,6 +125,7 @@ public:
     {
         return static_cast<U>(numerator)/static_cast<U>(denominator);
     }
+    T floor() const { return numerator/denominator; }
     T ceiling() const { return (numerator + denominator - 1)/denominator; }
     UInt32 hash() const
     {

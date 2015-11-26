@@ -192,10 +192,10 @@
       <FileType>CppHeader</FileType>
     </ClInclude>
     <ClInclude Include="dma_page_registers.h" />
-    <ClInclude Include="dram.h" />
+    <ClInclude Include="ram.h" />
     <ClInclude Include="isa_8_bit_bus.h" />
     <ClInclude Include="nmi_switch.h" />
-    <ClInclude Include="ram.h" />
+    <ClInclude Include="isa_8_bit_ram.h" />
     <ClInclude Include="rgbi_monitor.h" />
     <ClInclude Include="pcxt_keyboard.h" />
     <ClInclude Include="pcxt_keyboard_port.h" />

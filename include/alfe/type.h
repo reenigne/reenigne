@@ -410,7 +410,7 @@ public:
     bool valid() const { return body() != 0; }
     Type contained() const { return body()->contained(); }
     Type indexer() const { return body()->indexer(); }
-
+protected:
     class Body : public Type::Body
     {
     public:
@@ -436,11 +436,21 @@ public:
         String serialize(void* p, int width, int used, int indent, int delta)
             const
         {
-            LessThanType l(_indexer);
-            if (!l.valid())
-                throw Exception("Don't know how many elements to serialize.");
-            int n = l.n();
+            int n;
             char* pc = static_cast<char*>(p);
+            LessThanType l(_indexer);
+            if (l.valid()) {
+                n = l.n();
+                pc = static_cast<char*>(p);
+            }
+            else {
+                if (_indexer == IntegerType()) {
+                    n = elementCount(p);
+                    pc = static_cast<char*>(elementData(p));
+                }
+                else
+                    unknownCount();
+            }
             int size = _contained.size();
             Value d = _contained.defaultValue();
             do {
@@ -529,14 +539,44 @@ public:
             }
         }
         int size() const { return 0; }
-        virtual Value defaultValue() const { return Value(); }
-        virtual Value value(void* p) const { return Value(); }
+        Value defaultValue() const { return Value(); }
+        Value value(void* p) const { return Value(); }
+    protected:
+        virtual int elementCount(void* p) const { unknownCount(); }
+        virtual void* elementData(void* p) const { return 0; }
     private:
+        void unknownCount() const
+        {
+            throw Exception("Don't know how many elements to serialize.");
+        }
         Type _contained;
         Type _indexer;
     };
 private:
     const Body* body() const { return as<Body>(); }
+};
+
+template<class T> class ArrayPersistType : public ArrayType
+{
+public:
+    ArrayPersistType(const Type& type) : ArrayType(type) { }
+    ArrayPersistType(const Type& contained, const Type& indexer)
+      : ArrayType(contained, indexer) { }
+    ArrayPersistType(const Type& contained, int size)
+      : ArrayType(contained, size) { }
+protected:
+    class Body : public ArrayType::Body
+    {
+    protected:
+        virtual int elementCount(void* p) const
+        {
+            return static_cast<Array<T>*>(p)->count();
+        }
+        virtual void* elementData(void* p) const
+        {
+            return static_cast<void*>(&(*static_cast<Array<T>*>(p))[0]);
+        }
+    };
 };
 
 class ArrayTemplate : public NamedNullary<Template, ArrayTemplate>

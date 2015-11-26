@@ -527,7 +527,7 @@ public:
         persist("segmentRegisters", &_segmentRegisterData[0],
             Value(initialSegments), ArrayType(WordType(), 4));
         persist("flags", &_flags, 2, h4); // ?
-        persist("prefetch", &_prefetchQueue[0]);  // also _prefetched
+        persist("prefetch", &_prefetchQueue[0], Prefetch);  // also _prefetched
         persist("segment", &_segment, 0);
         persist("segmentOverride", &_segmentOverride, -1);
         persist("prefetchQddress", &_prefetchAddress, 0, h4);

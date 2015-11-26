@@ -5,22 +5,14 @@ public:
     RAM()
     {
         connector("parityError", &_parityError);
+        config("rowBits", &_rowBits);
+        config("bytes", &_ramSize);
+        config("decayTime", &_decayTime, ConcretePersistenceType(second));
         persist("data", &_data, Value(PersistDataType(this)));
-        persist("refresh", &_refreshTimes[0], Tick(0), ArrayType(Tick::Type(), 0));
+        persist("decay", &_decayTimes,
+            Value(ArrayType(Tick::Type(), 0), List<Value>()));
     }
-    void initialize(int size, int rowBits, int decayTime, UInt8 decayValue)
-    {
-        _data.allocate(size);
-        _refreshTimes.allocate(1 << rowBits);
-        _decayTime = decayTime;
-        _decayValue = decayValue;
-        _rowMask = (1 << rowBits) - 1;
-        _ramSize = size;
-    }
-    bool decayed(Tick tick, int address)
-    {
-        return (tick - refresh(address) >= _decayTime);
-    }
+    bool decayed(Tick tick, int address) { return (tick >= decay(address)); }
     UInt8 read(Tick tick, int address)
     {
         if (decayed(tick, address)) {
@@ -35,69 +27,42 @@ public:
             //    _cpu->nmi();
             return _decayValue;
         }
-        refresh(address) = tick;
+        decay(address) = tick + _decayTicks;
         if (address >= _ramSize)
             return _decayValue;
         return _data[address];
     }
     void write(Tick tick, int address, UInt8 data)
     {
-        refresh(address) = tick;
+        decay(address) = tick + _decayTicks;
         if (address < _ramSize)
             _data[address] = data;
     }
     UInt8 memory(int address) { return _data[address]; }
     void maintain(Tick ticks)
     {
-        for (auto& r : _refreshTimes) {
-            if (r >= -_decayTime)
+        for (auto& r : _decayTimes) {
+            if (r > 0)
                 r -= ticks;
         }
     }
-
-    String save(Tick tick) const
-    {
-        String s = "refresh: {";
-        int n;
-        for (n = _refreshTimes.count() - 1; n >= 0; --n)
-            if (tick - _refreshTimes[n] < _decayTime)
-                break;
-        ++n;
-        for (int y = 0; y < n; y += 8) {
-            String line;
-            bool gotData = false;
-            for (int x = 0; x < 8; ++x) {
-                Tick v = max(tick - _refreshTimes[y + x], _decayTime);
-                line += v;
-                if (y + x < n - 1)
-                    line += ", ";
-            }
-            if (y + 8 < n)
-                s += line + "\n";
-        }
-        s += "}}";
-        return s;
-    }
     void load(const Value& value)
     {
-        for (int a = 0; a < _data.count(); ++a)
-            _data[a] = _decayValue;
-
-        auto members = value.value<HashTable<Identifier, Value>>();
-
-        auto refresh = members["refresh"].value<List<Value>>();
-        int n = 0;
-        for (auto i : refresh) {
-            if (n < _refreshTimes.count())
-                _refreshTimes[n] = _decayTime - i.value<int>();
-            ++n;
+        _data.allocate(_ramSize);
+        _decayTimes.allocate(1 << _rowBits);
+        Component::load(value);
+        _rowMask = (1 << _rowBits) - 1;
+        if (_decayTime == 0) {
+            // DRAM decay time in seconds.
+            // 2ms for 4116 and 2118
+            // 4ms for 4164
+            // 8ms for 41256
+            _decayTime = Rational(1 << _rowBits, 1000 * 64);
         }
-        // Initially, all memory is decayed so we'll get an NMI if we try to
-        // read from it.
-        for (;n < _refreshTimes.count(); ++n)
-            _refreshTimes[n] = -_decayTime;
+        _decayTicks = (_simulator->ticksPerSecond() * _decayTime).floor();
     }
-    String name() const { return "dram"; }
+
+    String name() const { return "ram"; }
 
 private:
     class PersistDataType : public ::Type
@@ -113,8 +78,6 @@ private:
             String serialize(void* p, int width, int used, int indent,
                 int delta) const
             {
-                if (indent == 0)
-                    return "*";
                 auto data = static_cast<Array<UInt8>*>(p);
                 String s("###\n");
                 for (int y = 0; y < data->count(); y += 0x20) {
@@ -127,8 +90,11 @@ private:
                             gotData = true;
                         line += " " + hex(v, 8, false);
                     }
-                    if (gotData)
+                    if (gotData) {
+                        if (indent == 0)
+                            return "*";
                         s += hex(y, 5, false) + ":" + line + "\n";
+                    }
                 }
                 s += "###";
 
@@ -184,14 +150,16 @@ private:
         };
     };
 
-    Tick& refresh(int address) { return _refreshTimes[address & _rowMask]; }
+    Tick& decay(int address) { return _decayTimes[address & _rowMask]; }
 
     OutputConnector<bool> _parityError;
     Array<UInt8> _data;
-    Array<Tick> _refreshTimes;
+    Array<Tick> _decayTimes;
     Tick _tick;
-    Tick _decayTime;
+    Rational _decayTime;
+    Tick _decayTicks;
     int _ramSize;
     int _rowMask;
+    int _rowBits;
     UInt8 _decayValue;
 };

@@ -456,6 +456,8 @@ protected:
     }
     Tick _tick;
 
+protected:
+    SimulatorTemplate<T>* _simulator;
 private:
     class AssignmentFunco : public Funco
     {
@@ -522,14 +524,13 @@ private:
     HashTable<String, Member> _config;
     HashTable<String, Member> _persist;
 
-    SimulatorTemplate<T>* _simulator;
     Tick _ticksPerCycle;
     String _name;
     Type _type;
     Connector* _defaultConnector;
 
     friend class Connector::Type::Body;
-    friend class AssignmentFunco::Body
+    friend class AssignmentFunco::Body;
 };
 
 class ClockedComponent : public Component

@@ -100,9 +100,6 @@
     <ClInclude Include="dma_page_registers.h">
       <Filter>Berapa</Filter>
     </ClInclude>
-    <ClInclude Include="dram.h">
-      <Filter>Berapa</Filter>
-    </ClInclude>
     <ClInclude Include="isa_8_bit_bus.h">
       <Filter>Berapa</Filter>
     </ClInclude>
@@ -113,9 +110,6 @@
       <Filter>Berapa</Filter>
     </ClInclude>
     <ClInclude Include="pcxt_keyboard_port.h">
-      <Filter>Berapa</Filter>
-    </ClInclude>
-    <ClInclude Include="ram.h">
       <Filter>Berapa</Filter>
     </ClInclude>
     <ClInclude Include="rgbi_monitor.h">
@@ -152,6 +146,12 @@
       <Filter>Berapa</Filter>
     </ClInclude>
     <ClInclude Include="mc6845crtc.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="isa_8_bit_ram.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="ram.h">
       <Filter>Berapa</Filter>
     </ClInclude>
   </ItemGroup>
