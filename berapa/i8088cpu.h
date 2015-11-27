@@ -527,7 +527,7 @@ public:
         persist("segmentRegisters", &_segmentRegisterData[0],
             Value(initialSegments), ArrayType(WordType(), 4));
         persist("flags", &_flags, 2, h4); // ?
-        persist("prefetch", &_prefetchQueue[0], Prefetch);  // also _prefetched
+        persist("prefetch", this, PersistQueueType());
         persist("segment", &_segment, 0);
         persist("segmentOverride", &_segmentOverride, -1);
         persist("prefetchQddress", &_prefetchAddress, 0, h4);
@@ -1834,6 +1834,45 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     typedef ClockedComponent::Type<Intel8088CPU> Type;
 
 private:
+    class PersistQueueType : public NamedNullary<::Type, PersistQueueType>
+    {
+    public:
+        static String name() { return "PrefetchQueue"; }
+    private:
+        class Body : public NamedNullary<::Type, PersistQueueType>::Body
+        {
+        public:
+            String serialize(void* p, int width, int used, int indent,
+                int delta) const
+            {
+                auto cpu = static_cast<Intel8088CPU*>(p);
+
+                String s = "{ ";
+                bool needComma = false;
+                for (int i = 0; i < _prefetched; ++i) {
+                    if (needComma)
+                        s += ", ";
+                    needComma = true;
+                    s += hex(cpu->_prefetchQueue[
+                        (i + cpu->_prefetchOffset) & 3], 2);
+                }
+                return s + " }";
+            }
+            void deserialize(const Value& value, void* p) const
+            {
+                auto cpu = static_cast<Intel8088CPU*>(p);
+                auto prefetch = value.value<List<Value>>();
+                int prefetched = 0;
+                for (auto i : prefetch) {
+                      cpu->_prefetchQueue[prefetched] = i.value<int>();
+                      ++prefetched;
+                }
+                cpu->_prefetched = prefetched;
+                cpu->_prefetchOffset = 0;
+            }
+        };
+    };
+
     enum IOType
     {
         ioNone,

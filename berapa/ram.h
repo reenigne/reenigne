@@ -8,7 +8,7 @@ public:
         config("rowBits", &_rowBits);
         config("bytes", &_ramSize);
         config("decayTime", &_decayTime, ConcretePersistenceType(second));
-        persist("data", &_data, Value(PersistDataType(this)));
+        persist("data", this, Value(PersistDataType()));
         persist("decay", &_decayTimes,
             Value(ArrayType(Tick::Type(), 0), List<Value>()));
     }
@@ -65,20 +65,19 @@ public:
     String name() const { return "ram"; }
 
 private:
-    class PersistDataType : public ::Type
+    class PersistDataType : public NamedNullary<::Type, PersistDataType>
     {
     public:
-        PersistDataType(RAM* ram) : ::Type(new Body(ram)) { }
+        static String name() { return "RAMData"; }
     private:
-        class Body : public ::Type::Body
+        class Body : public NamedNullary<::Type, PersistDataType>::Body
         {
         public:
-            Body(RAM* ram) : _ram(ram) { }
-
             String serialize(void* p, int width, int used, int indent,
                 int delta) const
             {
-                auto data = static_cast<Array<UInt8>*>(p);
+                auto ram = static_cast<RAM*>(p);
+                auto data = &(ram->_data);
                 String s("###\n");
                 for (int y = 0; y < data->count(); y += 0x20) {
                     String line;
@@ -86,7 +85,7 @@ private:
                     for (int x = 0; x < 0x20; x += 4) {
                         const UInt8* p = &((*data)[y + x]);
                         UInt32 v = (p[0]<<24) + (p[1]<<16) + (p[2]<<8) + p[3];
-                        if (v != _ram->_decayValue)
+                        if (v != ram->_decayValue)
                             gotData = true;
                         line += " " + hex(v, 8, false);
                     }
@@ -96,17 +95,16 @@ private:
                         s += hex(y, 5, false) + ":" + line + "\n";
                     }
                 }
-                s += "###";
-
-                return decimal(*static_cast<int*>(p));
+                return s + "###";
             }
             void deserialize(const Value& value, void* p) const
             {
+                auto ram = static_cast<RAM*>(p);
+                auto data = &(ram->_data);
                 CharacterSource source(value.value<String>());
                 Space::parse(&source);
-                auto data = static_cast<Array<UInt8>*>(p);
                 for (int i = 0; i < data->count(); ++i)
-                    (*data)[i] = _ram->_decayValue;
+                    (*data)[i] = ram->_decayValue;
                 do {
                     Span span;
                     int t = parseHexadecimalCharacter(&source, &span);
@@ -141,12 +139,6 @@ private:
                         "Expected hexadecimal character");
                 }
             }
-            int size() const { return 0; }
-            Value defaultValue() const { return ""; }
-            Value value(void* p) const { return *static_cast<int*>(p); }
-            String toString() const { return "RAMData"; }
-        private:
-            RAM* _ram;
         };
     };
 
