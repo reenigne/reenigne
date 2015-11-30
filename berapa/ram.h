@@ -38,7 +38,10 @@ public:
         if (address < _ramSize)
             _data[address] = data;
     }
-    UInt8 memory(int address) { return _data[address]; }
+    UInt8 debugRead(int address)
+    {
+        return address < _ramSize ? 0xff : _data[address];
+    }
     void maintain(Tick ticks)
     {
         for (auto& r : _decayTimes) {
@@ -64,12 +67,12 @@ public:
 
     String name() const { return "ram"; }
 
+    int _ramSize;
 private:
     class PersistDataType : public NamedNullary<::Type, PersistDataType>
     {
     public:
         static String name() { return "RAMData"; }
-    private:
         class Body : public NamedNullary<::Type, PersistDataType>::Body
         {
         public:
@@ -150,7 +153,6 @@ private:
     Tick _tick;
     Rational _decayTime;
     Tick _decayTicks;
-    int _ramSize;
     int _rowMask;
     int _rowBits;
     UInt8 _decayValue;

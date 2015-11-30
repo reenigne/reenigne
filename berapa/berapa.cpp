@@ -218,7 +218,8 @@ public:
     }
     void set(Identifier name, Value value)
     {
-        if (name.name() == "*") {
+        String n = name.name();
+        if (n == "*") {
             _name = value.value<String>();
             return;
         }
@@ -229,8 +230,8 @@ public:
             r->connect(l);
             return;
         }
-        if (_config.hasKey(name)) {
-            Member m = _config[name];
+        if (_config.hasKey(n)) {
+            Member m = _config[n];
             m.type().deserialize(value, m._p);
             return;
         }
@@ -427,7 +428,7 @@ protected:
     template<class C> void config(String name, C* p,
         ::Type type = typeFromCompileTimeType<C>())
     {
-        _config.add(name, Member(type, static_cast<void*>(p)));
+        _config.add(name, Member(static_cast<void*>(p), Value(type, Any())));
     }
     template<class C> void persist(String name, C* p, C initial,
         ::Type type = typeFromCompileTimeType<C>())
@@ -462,8 +463,7 @@ private:
     class AssignmentFunco : public Funco
     {
     public:
-        AssignmentFunction(Component* component)
-          : Funco(new Body(component)) { }
+        AssignmentFunco(Component* component) : Funco(new Body(component)) { }
         class Body : public Funco::Body
         {
         public:
@@ -481,7 +481,7 @@ private:
                         span.throwError(reason);
                     l->connect(r);
                     r->connect(l);
-                    return;
+                    return Value();
                 }
                 auto r = i->value<Connector*>();
                 if (!lt.tryConvert(r->getValue(), &reason).valid())
@@ -491,7 +491,7 @@ private:
                 return Value();
             }
             Identifier identifier() const { return OperatorAssignment(); }
-            bool argumentsMatch(List<Type> argumentTypes) const
+            bool argumentsMatch(List<::Type> argumentTypes) const
             {
                 if (argumentTypes.count() != 2)
                     return false;
@@ -805,8 +805,60 @@ template<class T> class ConstantComponent : public Component
 {
 private:
     ConstantComponent(T v) : _v(v) { }
+    void load() { _connector->setData(0, _v); }
     T _v;
     OutputConnector<T> _connector;
+};
+
+// SRLatch works like a NAND latch with inverters on the inputs.
+class SRLatch : public Component
+{
+public:
+    static String typeName() { return "SRLatch"; }
+    SRLatch() : _set(this), _reset(this), _isSet(false)
+    {
+        connector("set", &_set);
+        connector("reset", &_reset);
+        connector("lastSet", &_lastSet);
+        connector("lastReset", &_lastReset);
+    }
+    class Type : public Component::TypeHelper<SRLatch>
+    {
+    public:
+        Type(Simulator* simulator)
+          : Component::TypeHelper<SRLatch>(simulator) { }
+    private:
+        class Body : public Component::Type::Body
+        {
+        public:
+            Body(Simulator* simulator) : Component::Type::Body(simulator) { }
+        };
+    };
+    void doSet(Tick t, bool v) { }
+    void doReset(Tick t, bool v) { }
+private:
+    class SetConnector : public InputConnector<bool>
+    {
+    public:
+        SetConnector(SRLatch* latch) : _latch(latch) { }
+        void setData(Tick t, bool v) { _latch->doSet(t, v); }
+    private:
+        SRLatch* _latch;
+    };
+    class ResetConnector : public InputConnector<bool>
+    {
+    public:
+        ResetConnector(SRLatch* latch) : _latch(latch) { }
+        void setData(Tick t, bool v) { _latch->doReset(t, v); }
+    private:
+        SRLatch* _latch;
+    };
+
+    SetConnector _set;
+    ResetConnector _reset;
+    OutputConnector<bool> _lastSet;
+    OutputConnector<bool> _lastReset;
+    bool _isSet;
 };
 
 template<template<class> class Component> class ComponentFunco : public Funco
@@ -887,11 +939,11 @@ public:
     };
 };
 
-
 template<class T> class SimulatorTemplate
 {
 public:
-    SimulatorTemplate() : _halted(false), _ticksPerSecond(0) { }
+    SimulatorTemplate(Directory directory)
+      : _halted(false), _ticksPerSecond(0), _directory(directory) { }
     void simulate()
     {
         // Don't let any component get more than 20ms behind.
@@ -953,7 +1005,7 @@ public:
         if (!initialStateFile.empty()) {
             ConfigFile initialState;
             for (auto i : _components)
-                initialState.addType(i->typeName(), i->persistenceType());
+                initialState.addType(i->persistenceType());
             initialState.addDefaultOption(name(), persistenceType(),
                 initial());
             initialState.load(initialStateFile);
@@ -968,6 +1020,7 @@ public:
     }
     String name() const { return "simulator"; }
     Rational ticksPerSecond() const { return _ticksPerSecond; }
+    Directory directory() const { return _directory; }
 private:
     Value initial() const
     {
@@ -985,6 +1038,7 @@ private:
         return StructuredType("Simulator", members);
     }
 
+    Directory _directory;
     List<Reference<Component>> _components;
     bool _halted;
     Rational _ticksPerSecond;
@@ -1025,7 +1079,9 @@ protected:
             return;
         }
 
-        Simulator simulator;
+        File configPath(_arguments[1], CurrentDirectory(), true);
+
+        Simulator simulator(configPath.parent());
         Simulator* p = &simulator;
 
         List<Component::Type> componentTypes;
@@ -1042,20 +1098,21 @@ protected:
         componentTypes.add(PCXTKeyboard::Type(p));
         componentTypes.add(IBMCGA::Type(p));
         componentTypes.add(RGBIMonitor::Type(p));
+        componentTypes.add(SRLatch::Type(p));
 
         ConfigFile configFile;
         configFile.addDefaultOption("stopSaveState", StringType(), String(""));
         configFile.addDefaultOption("initialState", StringType(), String(""));
-        configFile.addType(String("Time"), second.type());
+        configFile.addType(second.type(), TycoIdentifier("Time"));
         configFile.addFunco(AndComponentFunco(p));
         configFile.addFunco(OrComponentFunco(p));
 
         for (auto i : componentTypes)
-            configFile.addType(i.toString(), i);
+            configFile.addType(i);
 
         configFile.addDefaultOption("second", second);
 
-        configFile.load(File(_arguments[1], CurrentDirectory(), true));
+        configFile.load(configPath);
 
         String stopSaveState = configFile.get<String>("stopSaveState");
 

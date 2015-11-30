@@ -51,7 +51,7 @@ protected:
     TycoTemplate(const Body* body) : ConstHandle(body) { }
 
     friend class TemplateTemplate<void>;
-    friend class EnumerationType;
+    template<class U> friend class EnumerationType;
     template<class U> friend class StructuredTypeTemplate;
 public:
     const Body* body() const { return as<Body>(); }
@@ -154,8 +154,8 @@ public:
         body()->deserialize(value, p);
     }
     int size() const { return body()->size(); }
-    Value defaultValue() const { return body()->defaultValue(); }
-    Value value(void* p) const { return body()->value(p); }
+    ValueTemplate<T> defaultValue() const { return body()->defaultValue(); }
+    ValueTemplate<T> value(void* p) const { return body()->value(p); }
 protected:
     class Body : public Tyco::Body
     {
@@ -183,8 +183,8 @@ protected:
         }
         virtual void deserialize(const Value& value, void* p) const { }
         virtual int size() const { return 0; }
-        virtual Value defaultValue() const { return Value(); }
-        virtual Value value(void* p) const { return Value(); }
+        virtual ValueTemplate<T> defaultValue() const { return Value(); }
+        virtual ValueTemplate<T> value(void* p) const { return Value(); }
         Type type() const { return tyco(); }
     };
     TypeTemplate(const Body* body) : Tyco(body) { }
@@ -397,6 +397,228 @@ protected:
     };
     const Body* body() const { return as<Body>(); }
     TemplateTemplate(const Body* body) : Tyco(body) { }
+};
+
+class LessThanType : public Type
+{
+public:
+    LessThanType(Type t) : Type(t) { }
+    bool valid() const { return body() != 0; }
+    LessThanType(int n) : Type(new Body(n)) { }
+    int n() const { return body()->_n; }
+private:
+    class Body : public Type::Body
+    {
+    public:
+        Body(int n) : _n(n) { }
+        String toString() const { return decimal(_n); }
+
+        bool equals(const ConstHandle::Body* other) const
+        {
+            auto o = other->as<Body>();
+            return o != 0 && _n == o->_n;
+        }
+        Hash hash() const { return Type::Body::hash().mixin(_n); }
+        int _n;
+    };
+    const Body* body() const { return as<Body>(); }
+};
+
+class StringType : public NamedNullary<Type, StringType>
+{
+public:
+    static String name() { return "String"; }
+    class Body : public NamedNullary<Type, StringType>::Body
+    {
+    public:
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
+        {
+            String r = "\"";
+            String s = *static_cast<String*>(p);
+            for (int i = 0; i < s.length(); ++i) {
+                Byte b = s[i];
+                if (b == '\\' || b == '\"')
+                    r += "\\";
+                r += String::Byte(b);
+            }
+            return r + "\"";
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<String*>(p) = value.value<String>();
+        }
+        int size() const { return sizeof(String); }
+        Value defaultValue() const { return String(); }
+        Value value(void* p) const { return *static_cast<String*>(p); }
+    };
+};
+
+class IntegerType : public NamedNullary<Type, IntegerType>
+{
+public:
+    IntegerType() { }
+    static String name() { return "Integer"; }
+    class Body : public NamedNullary<Type, IntegerType>::Body
+    {
+    public:
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
+        {
+            return decimal(*static_cast<int*>(p));
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<int*>(p) = value.value<int>();
+        }
+        int size() const { return sizeof(int); }
+        Value defaultValue() const { return 0; }
+        Value value(void* p) const { return *static_cast<int*>(p); }
+    };
+protected:
+    IntegerType(const Body* body) : NamedNullary(body) { }
+};
+
+class BooleanType : public NamedNullary<Type, BooleanType>
+{
+public:
+    static String name() { return "Boolean"; }
+    class Body : public NamedNullary<Type, BooleanType>::Body
+    {
+    public:
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
+        {
+            return String::Boolean(*static_cast<bool*>(p));
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<bool*>(p) = value.value<bool>();
+        }
+        int size() const { return sizeof(bool); }
+        Value defaultValue() const { return false; }
+        Value value(void* p) const { return *static_cast<bool*>(p); }
+    };
+};
+
+class ObjectType : public NamedNullary<Type, ObjectType>
+{
+public:
+    static String name() { return "Object"; }
+};
+
+class LabelType : public NamedNullary<Type, LabelType>
+{
+public:
+    static String name() { return "Label"; }
+};
+
+class VoidType : public NamedNullary<Type, VoidType>
+{
+public:
+    static String name() { return "Void"; }
+};
+
+class DoubleType : public NamedNullary<Type, DoubleType>
+{
+public:
+    static String name() { return "Double"; }
+};
+
+class ByteType : public NamedNullary<Type, ByteType>
+{
+public:
+    static String name() { return "Byte"; }
+    class Body : public NamedNullary<Type, ByteType>::Body
+    {
+    public:
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
+        {
+            return hex(*static_cast<Byte*>(p), 2);
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<Byte*>(p) = value.value<int>();
+        }
+        int size() const { return sizeof(Byte); }
+        Value defaultValue() const { return 0; }
+        Value value(void* p) const
+        {
+            return static_cast<int>(*static_cast<Byte*>(p));
+        }
+    };
+};
+
+class WordType : public NamedNullary<Type, WordType>
+{
+public:
+    static String name() { return "Word"; }
+    class Body : public NamedNullary<Type, WordType>::Body
+    {
+    public:
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
+        {
+            return hex(*static_cast<Word*>(p), 4);
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<Word*>(p) = value.value<int>();
+        }
+        int size() const { return sizeof(Word); }
+        Value defaultValue() const { return 0; }
+        Value value(void* p) const
+        {
+            return static_cast<int>(*static_cast<Word*>(p));
+        }
+    };
+};
+
+class RationalType : public NamedNullary<Type, RationalType>
+{
+public:
+    static String name() { return "Rational"; }
+    class Body : public NamedNullary<Type, RationalType>::Body
+    {
+    public:
+        Value tryConvertTo(const Type& to, const Value& value,
+            String* reason) const
+        {
+            if (type() == to)
+                return value;
+            Rational r = value.value<Rational>();
+            if (to == DoubleType())
+                return r.value<double>();
+            if (to == IntegerType()) {
+                if (r.denominator == 1)
+                    return r.numerator;
+                *reason = String("Value is not an integer");
+            }
+            return Value();
+        }
+    };
+};
+
+class ConcreteTyco : public NamedNullary<Tyco, ConcreteTyco>
+{
+public:
+    ConcreteTyco() { }
+    static String name() { return "Concrete"; }
+protected:
+    class Body : public NamedNullary<Tyco, ConcreteTyco>::Body
+    {
+    public:
+        Kind kind() const { assert(false); return Kind(); }
+    };
+    ConcreteTyco(const Body* body) : NamedNullary(body) { }
+    friend class Nullary<Tyco, ConcreteTyco>;
+};
+
+class AbstractType : public NamedNullary<Type, AbstractType>
+{
+public:
+    static String name() { return "Abstract"; }
 };
 
 class ArrayType : public Type
@@ -1017,14 +1239,14 @@ public:
     class Helper
     {
     public:
-        void add(String i, const T& t)
+        void add(const T& t, String i)
         {
             _stringToT.add(i, t);
-            _tToString.add(t, i);
+            _tToString.add(static_cast<int>(t), i);
         }
     private:
         HashTable<String, T> _stringToT;
-        HashTable<T, String> _tToString;
+        HashTable<int, String> _tToString;
         friend class Body;
     };
 
@@ -1041,7 +1263,7 @@ protected:
             const
         {
             return _context + _name + "." +
-                _helper._tToString(*static_cast<T*>(p));
+                _helper._tToString[*static_cast<T*>(p)];
         }
         void deserialize(const Value& value, void* p) const
         {
@@ -1055,31 +1277,6 @@ protected:
         String _name;
         const Helper _helper;
     };
-};
-
-class LessThanType : public Type
-{
-public:
-    LessThanType(Type t) : Type(t) { }
-    bool valid() const { return body() != 0; }
-    LessThanType(int n) : Type(new Body(n)) { }
-    int n() const { return body()->_n; }
-private:
-    class Body : public Type::Body
-    {
-    public:
-        Body(int n) : _n(n) { }
-        String toString() const { return decimal(_n); }
-
-        bool equals(const ConstHandle::Body* other) const
-        {
-            auto o = other->as<Body>();
-            return o != 0 && _n == o->_n;
-        }
-        Hash hash() const { return Type::Body::hash().mixin(_n); }
-        int _n;
-    };
-    const Body* body() const { return as<Body>(); }
 };
 
 // StructuredType is the type of "{...}" literals, not the base type for all
@@ -1314,200 +1511,6 @@ protected:
     friend class Body;
 };
 
-class StringType : public NamedNullary<Type, StringType>
-{
-public:
-    static String name() { return "String"; }
-    class Body : public NamedNullary<Type, StringType>::Body
-    {
-    public:
-        String serialize(void* p, int width, int used, int indent, int delta)
-            const
-        {
-            String r = "\"";
-            String s = *static_cast<String*>(p);
-            for (int i = 0; i < s.length(); ++i) {
-                Byte b = s[i];
-                if (b == '\\' || b == '\"')
-                    r += "\\";
-                r += String::Byte(b);
-            }
-            return r + "\"";
-        }
-        void deserialize(const Value& value, void* p) const
-        {
-            *static_cast<String*>(p) = value.value<String>();
-        }
-        int size() const { return sizeof(String); }
-        Value defaultValue() const { return String(); }
-        Value value(void* p) const { return *static_cast<String*>(p); }
-    };
-};
-
-class IntegerType : public NamedNullary<Type, IntegerType>
-{
-public:
-    static String name() { return "Integer"; }
-    class Body : public NamedNullary<Type, IntegerType>::Body
-    {
-    public:
-        String serialize(void* p, int width, int used, int indent, int delta)
-            const
-        {
-            return decimal(*static_cast<int*>(p));
-        }
-        void deserialize(const Value& value, void* p) const
-        {
-            *static_cast<int*>(p) = value.value<int>();
-        }
-        int size() const { return sizeof(int); }
-        Value defaultValue() const { return 0; }
-        Value value(void* p) const { return *static_cast<int*>(p); }
-    };
-};
-
-class BooleanType : public NamedNullary<Type, BooleanType>
-{
-public:
-    static String name() { return "Boolean"; }
-    class Body : public NamedNullary<Type, BooleanType>::Body
-    {
-    public:
-        String serialize(void* p, int width, int used, int indent, int delta)
-            const
-        {
-            return String::Boolean(*static_cast<bool*>(p));
-        }
-        void deserialize(const Value& value, void* p) const
-        {
-            *static_cast<bool*>(p) = value.value<bool>();
-        }
-        int size() const { return sizeof(bool); }
-        Value defaultValue() const { return false; }
-        Value value(void* p) const { return *static_cast<bool*>(p); }
-    };
-};
-
-class ObjectType : public NamedNullary<Type, ObjectType>
-{
-public:
-    static String name() { return "Object"; }
-};
-
-class LabelType : public NamedNullary<Type, LabelType>
-{
-public:
-    static String name() { return "Label"; }
-};
-
-class VoidType : public NamedNullary<Type, VoidType>
-{
-public:
-    static String name() { return "Void"; }
-};
-
-class DoubleType : public NamedNullary<Type, DoubleType>
-{
-public:
-    static String name() { return "Double"; }
-};
-
-class ByteType : public NamedNullary<Type, ByteType>
-{
-public:
-    static String name() { return "Byte"; }
-    class Body : public NamedNullary<Type, ByteType>::Body
-    {
-    public:
-        String serialize(void* p, int width, int used, int indent, int delta)
-            const
-        {
-            return hex(*static_cast<Byte*>(p), 2);
-        }
-        void deserialize(const Value& value, void* p) const
-        {
-            *static_cast<Byte*>(p) = value.value<int>();
-        }
-        int size() const { return sizeof(Byte); }
-        Value defaultValue() const { return 0; }
-        Value value(void* p) const
-        {
-            return static_cast<int>(*static_cast<Byte*>(p));
-        }
-    };
-};
-
-class WordType : public NamedNullary<Type, WordType>
-{
-public:
-    static String name() { return "Word"; }
-    class Body : public NamedNullary<Type, WordType>::Body
-    {
-    public:
-        String serialize(void* p, int width, int used, int indent, int delta)
-            const
-        {
-            return hex(*static_cast<Word*>(p), 4);
-        }
-        void deserialize(const Value& value, void* p) const
-        {
-            *static_cast<Word*>(p) = value.value<int>();
-        }
-        int size() const { return sizeof(Word); }
-        Value defaultValue() const { return 0; }
-        Value value(void* p) const
-        {
-            return static_cast<int>(*static_cast<Word*>(p));
-        }
-    };
-};
-
-class RationalType : public NamedNullary<Type, RationalType>
-{
-public:
-    static String name() { return "Rational"; }
-    class Body : public NamedNullary<Type, RationalType>::Body
-    {
-    public:
-        Value tryConvertTo(const Type& to, const Value& value,
-            String* reason) const
-        {
-            if (type() == to)
-                return value;
-            Rational r = value.value<Rational>();
-            if (to == DoubleType())
-                return r.value<double>();
-            if (to == IntegerType()) {
-                if (r.denominator == 1)
-                    return r.numerator;
-                *reason = String("Value is not an integer");
-            }
-            return Value();
-        }
-    };
-};
-
-class ConcreteTyco : public NamedNullary<Tyco, ConcreteTyco>
-{
-public:
-    ConcreteTyco() { }
-    static String name() { return "Concrete"; }
-protected:
-    class Body : public NamedNullary<Tyco, ConcreteTyco>::Body
-    {
-    public:
-        Kind kind() const { assert(false); return Kind(); }
-    };
-    ConcreteTyco(const Body* body) : NamedNullary(body) { }
-    friend class Nullary<Tyco, ConcreteTyco>;
-};
-
-class AbstractType : public NamedNullary<Type, AbstractType>
-{
-public:
-    static String name() { return "Abstract"; }
-};
-
 // ConcreteType is a bit strange. It's really a family of types, but these
 // types cannot be instantiated via the usual template syntax. The normal
 // constructor takes no arguments, but constructs a different dimension each
@@ -1575,10 +1578,10 @@ template<class T> class ConcreteTypeTemplate : public Type
             }
             return Value();
         }
+        int elements() const { return body()->elements(); }
     private:
         Body* body() { return as<Body>(); }
         const Body* body() const { return as<Body>(); }
-        int elements() const { return body()->elements(); }
     };
     typedef Array<int>::Body<BaseBody> Body;
 

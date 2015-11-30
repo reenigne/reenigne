@@ -38,12 +38,14 @@ private:
         static String typeName() { return "Timer"; }
         Timer()
         {
-            persist("value", &_value, 0, HexPersistenceType(4));
-            persist("latch", &_latch, 0, HexPersistenceType(4));
-            persist("count", &_count, 0, HexPersistenceType(4));
+            UInt16 z = 0;
+            persist("value", &_value, z, HexPersistenceType(4));
+            persist("latch", &_latch, z, HexPersistenceType(4));
+            persist("count", &_count, z, HexPersistenceType(4));
             persist("bcd", &_bcd, false);
             persist("bytes", &_bytes, 0);
-            persist("lowCount", &_lowCount, 0, HexPersistenceType(2));
+            persist("lowCount", &_lowCount, static_cast<UInt8>(0),
+                HexPersistenceType(2));
             persist("firstByte", &_firstByte, false);
             persist("gate", &_gate, false);
             persist("output", &_output, false);
@@ -275,7 +277,7 @@ private:
                 outputChanged(output);
             }
         }
-        virtual void outputChanged(bool output)=0;
+        void outputChanged(bool output) { }
 
         UInt16 _value;
         UInt16 _latch;

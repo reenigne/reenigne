@@ -16,10 +16,11 @@ public:
         }
         persist("address", &_address, HexPersistenceType(5));
         ArrayType t(ByteType(), 3);
-        persist("incoming", &_incoming[0], 0, t);
-        persist("outgoing", &_outgoing[0], 0xff, t);
-        persist("input", &_input[0], 0, ArrayType(ByteType(), 2));
-        persist("output", &_output[0], 0, t);
+        Byte b = 0;
+        persist("incoming", &_incoming[0], b, t);
+        persist("outgoing", &_outgoing[0], static_cast<Byte>(0xff), t);
+        persist("input", &_input[0], b, ArrayType(ByteType(), 2));
+        persist("output", &_output[0], b, t);
     }
     void setAddress(UInt32 address) { _address = address & 3; }
     void read()

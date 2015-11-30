@@ -7,7 +7,8 @@ public:
     {
         for (int i = 0; i < 4; ++i)
             _dmaPages[i] = 0;
-        persist("data", &_dmaPages[0], 0, ArrayType(ByteType(), 4));
+        persist("data", &_dmaPages[0],
+            Value(ArrayType(ByteType(), 4), Any(List<Value>())));
         persist("address", &_address, 0);
     }
     void setAddress(UInt32 address) { _address = address & 3; }

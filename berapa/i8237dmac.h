@@ -30,9 +30,9 @@ public:
     Intel8237DMACTemplate()
     {
         persist("address", &_address, 0);
-        persist("command", &_command, 0, HexPersistenceType(2));
-        persist("channels", &_channels, Channel(),
-            ArrayType(Channel::Type(), 4));
+        persist("command", &_command, static_cast<Byte>(0),
+            HexPersistenceType(2));
+        persist("channels", &_channels, Value(ArrayType(Channel::Type(), 4)));
         persist("lastByte", &_lastByte, false);
         persist("channel", &_channel, 0);
         persist("highAddress", &_highAddress, 0xffff, HexPersistenceType(4));
@@ -44,7 +44,7 @@ public:
         h.add(stateS2,    "s2");
         h.add(stateS3,    "s3");
         h.add(stateS4,    "s4");
-        h.add(stateYield, "yield";
+        h.add(stateYield, "yield");
         persist("state", &_state, stateIdle,
             EnumerationType<State>("State", h, typeName() + "."));
     }
@@ -293,11 +293,11 @@ private:
             persist("baseCount", &_baseCount, HexPersistenceType(4));
             persist("currentAddress", &_currentAddress, HexPersistenceType(4));
             persist("currentCount", &_currentCount, HexPersistenceType(4));
-            persist("hardRequest", &_hardRequest);
-            persist("softRequest", &_softRequest);
-            persist("mask", &_mask);
-            persist("terminalCount", &_terminalCount);
-            persist("internalRequest", &_internalRequest);
+            persist("hardRequest", &_hardRequest, false);
+            persist("softRequest", &_softRequest, false);
+            persist("mask", &_mask, false);
+            persist("terminalCount", &_terminalCount, false);
+            persist("internalRequest", &_internalRequest, false);
         }
 
         UInt8 read(UInt32 address, bool lastByte)

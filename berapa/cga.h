@@ -3,25 +3,23 @@ template<class T> class IBMCGATemplate
 {
 public:
     static String typeName() { return "IBMCGA"; }
-    IBMCGATemplate() : _attr(0), _chrdata(0), _memoryAddress(0),
-        _memoryActive(false), _portAddress(0), _portActive(false), _wait(0),
-        _cycle(0), _mode(0), _colsel(0), _bgri(0), _lightPenStrobe(false),
-        _lightPenSwitch(true), _bgriSource(this)
+    IBMCGATemplate()
+      : _attr(0), _chrdata(0), _wait(0), _cycle(0), _bgri(0),
+        _lightPenStrobe(false), _lightPenSwitch(true), _bgriSource(this)
     {
         _data.allocate(0x4000);
         config("rom", &_rom);
-        persist("memoryActive", &_memoryActive);
-        persist("memoryAddress", &_memoryAddress, HexPersistenceType(4));
-        persist("portActive", &_portActive);
-        persist("portAddress", &_portAddress);
-        persist("mode", &_mode, ByteType());
-        persist("palette", &_palette, ByteType());
+        persist("memoryActive", &_memoryActive, false);
+        persist("memoryAddress", &_memoryAddress, 0, HexPersistenceType(4));
+        persist("portActive", &_portActive, false);
+        persist("portAddress", &_portAddress, 0, HexPersistenceType(4));
+        persist("mode", &_mode, static_cast<UInt8>(0), ByteType());
+        persist("palette", &_palette, static_cast<UInt8>(0), ByteType());
     }
     void load(Value v)
     {
         ISA8BitComponent::load(v);
-        ConfigFile* config = this->_simulator->config();
-        String data = File(_rom, config->file().parent()).contents();
+        String data = File(_rom, this->_simulator->directory()).contents();
         int length = 0x2000;
         _romdata.allocate(length);
         for (int i = 0; i < length; ++i)
@@ -150,7 +148,7 @@ public:
     class RGBIConnector : public ::Connector
     {
     public:
-        Connector(IBMCGA* cga) : _cga(cga) { }
+        RGBIConnector(IBMCGA* cga) : _cga(cga) { }
         void connect(::Connector* other)
         {
             // TODO

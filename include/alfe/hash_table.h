@@ -113,6 +113,18 @@ public:
             return Iterator(0, *this);
         return Iterator(data(allocated()), *this);
     }
+    bool operator==(HashTable other) const
+    {
+        Iterator l = begin();
+        Iterator r = other.begin();
+        while (l != end() && r != other.end()) {
+            if (*l != *r)
+                return false;
+            ++l;
+            ++r;
+        }
+        return l == end() && r == other.end();
+    }
 private:
     int row(const Key& key) const { return ::hash(key) % allocated(); }
     Entry* lookup(const Key& key)

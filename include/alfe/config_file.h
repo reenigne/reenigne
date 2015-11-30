@@ -107,8 +107,10 @@ private:
         set(name, defaultValue);
     }
 public:
-    void addType(TycoIdentifier identifier, Type type)
+    void addType(Type type, TycoIdentifier identifier = TycoIdentifier())
     {
+        if (!identifier.valid())
+            identifier = TycoIdentifier(type.toString());
         _types.add(identifier, type);
     }
     void addFunco(Funco funco)

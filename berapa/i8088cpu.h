@@ -333,7 +333,6 @@ public:
         _disassembler.setCPU(this);
 
         EnumerationType<State>::Helper h;
-        h.add(stateStopped0,       "stopped0");
         h.add(stateWaitingForBIU,  "waitingForBIU");
         h.add(stateBegin,          "stateBegin");
         h.add(stateDecodeOpcode,   "stateDecodeOpcode");
@@ -496,14 +495,14 @@ public:
         h.add(stateMisc2,          "stateMisc2");
         EnumerationType<State> stateType("State", h, typeName() + ".");
 
-        EnumerationType<IOType> ht;
+        EnumerationType<IOType>::Helper ht;
         ht.add(ioNone, "ioNone");
         ht.add(ioRead, "ioRead");
         ht.add(ioWrite, "ioWrite");
         ht.add(ioInstructionFetch, "ioInstructionFetch");
         EnumerationType<IOType> ioTypeType("IOType", ht, typeName() + ".");
 
-        EnumerationType<BusState> hb;
+        EnumerationType<BusState>::Helper hb;
         hb.add(t1, "t1");
         hb.add(t2, "t2");
         hb.add(t3, "t3");
@@ -512,43 +511,46 @@ public:
         hb.add(tIdle, "tIdle");
         hb.add(tDMA, "tDMA");
 
-        EnumerationType<IOByte> hi;
+        EnumerationType<IOByte>::Helper hi;
         hi.add(ioSingleByte, "ioSingleByte");
         hi.add(ioWordFirst,  "ioWordFirst");
         hi.add(ioWordSecond, "ioWordSecond");
 
+        UInt16 z = 0;
+        UInt8 zb = 0;
+        UInt32 zd = 0;
         HexPersistenceType h4(4);
-        persist("ip", &_ip, 0, h4);
-        persist("registers", &_registerData[0], 0,
+        persist("ip", &_ip, z, h4);
+        persist("registers", &_registerData[0], z,
             ArrayType(WordType(), 4)); // ?
         List<Value> initialSegments;
         initialSegments.add(Value(WordType(), 0));
         initialSegments.add(Value(WordType(), 0xffff));
         persist("segmentRegisters", &_segmentRegisterData[0],
-            Value(initialSegments), ArrayType(WordType(), 4));
-        persist("flags", &_flags, 2, h4); // ?
+            Value(ArrayType(WordType(), 4), initialSegments));
+        persist("flags", &_flagsData, static_cast<UInt16>(2), h4); // ?
         persist("prefetch", this, PersistQueueType());
         persist("segment", &_segment, 0);
         persist("segmentOverride", &_segmentOverride, -1);
-        persist("prefetchQddress", &_prefetchAddress, 0, h4);
+        persist("prefetchQddress", &_prefetchAddress, z, h4);
         persist("ioType", &_ioType, ioNone, ioTypeType);
         persist("ioRequested", &_ioRequested, ioNone, ioTypeType);
         persist("ioInProgress", &_ioInProgress, ioInstructionFetch,
             ioTypeType);
         persist("busState", &_busState, t1,
             EnumerationType<BusState>("BusState", hb, typeName() + "."));
-        persist("byte", &_byte, _ioSingleByte,
+        persist("byte", &_byte, ioSingleByte,
             EnumerationType<IOByte>("IOByte", hi, typeName() + "."));
         persist("abandonFetch", &_abandonFetch, false);
         persist("wait", &_wait, 0);
         persist("state", &_state, stateBegin, stateType);
-        persist("opcode", &_opcode, 0, HexPersistenceType(2));
-        persist("modRM", &_modRM, 0, HexPersistenceType(2));
-        persist("data", &_data, 0, HexPersistenceType(8));
-        persist("source", &_source, 0, HexPersistenceType(8));
-        persist("destination", &_destination, 0, HexPersistenceType(8));
-        persist("remainder", &_remainder, 0, HexPersistenceType(8));
-        persist("address", &_address, 0, h4);
+        persist("opcode", &_opcode, zb, HexPersistenceType(2));
+        persist("modRM", &_modRM, zb, HexPersistenceType(2));
+        persist("data", &_data, zd, HexPersistenceType(8));
+        persist("source", &_source, zd, HexPersistenceType(8));
+        persist("destination", &_destination, zd, HexPersistenceType(8));
+        persist("remainder", &_remainder, zd, HexPersistenceType(8));
+        persist("address", &_address, z, h4);
         persist("useMemory", &_useMemory, false);
         persist("wordSize", &_wordSize, false);
         persist("aluOperation", &_aluOperation, 0);
@@ -558,13 +560,13 @@ public:
         persist("afterRep", &_afterRep, stateWaitingForBIU, stateType);
         persist("afterInt", &_afterInt, stateWaitingForBIU, stateType);
         persist("sourceIsRM", &_sourceIsRM, false);
-        persist("savedCS", &_savedCS, 0, h4);
-        persist("savedIP", &_savedIP, 0, h4);
+        persist("savedCS", &_savedCS, z, h4);
+        persist("savedIP", &_savedIP, z, h4);
         persist("rep", &_rep, 0);
         persist("usePortSpace", &_usePortSpace, false);
         persist("halted", &_halted, false);
         persist("newInstruction", &_newInstruction, true);
-        persist("newIP", &_newIP, 0, h4);
+        persist("newIP", &_newIP, z, h4);
         persist("nmiRequested", &_nmiRequested, false);
         persist("cycle", &_cycle, 0);
     }
@@ -1838,7 +1840,6 @@ private:
     {
     public:
         static String name() { return "PrefetchQueue"; }
-    private:
         class Body : public NamedNullary<::Type, PersistQueueType>::Body
         {
         public:
@@ -1849,7 +1850,7 @@ private:
 
                 String s = "{ ";
                 bool needComma = false;
-                for (int i = 0; i < _prefetched; ++i) {
+                for (int i = 0; i < cpu->_prefetched; ++i) {
                     if (needComma)
                         s += ", ";
                     needComma = true;

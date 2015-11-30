@@ -14,22 +14,11 @@ public:
     void setAddress(UInt32 address)
     {
         _address = address & 0x400fffff;
-        _active = (_address < _bytes);
+        _active = (_address < _ram._ramSize);
     }
-    void read(Tick tick)
-    {
-        ISA8BitComponent::set(_ram.read(_address));
-    }
-    void write(Tick tick, UInt8 data)
-    {
-        _ram.write(tick, _address, data);
-    }
-    UInt8 memory(UInt32 address)
-    {
-        if (address < static_cast<UInt32>(_bytes))
-            return _ram.memory(address);
-        return 0xff;
-    }
+    void read(Tick tick) { ISA8BitComponent::set(_ram.read(tick, _address)); }
+    void write(Tick tick, UInt8 data) { _ram.write(tick, _address, data); }
+    UInt8 debugRead(UInt32 address) { return _ram.debugRead(address); }
 private:
     int _address;
     RAM _ram;

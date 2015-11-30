@@ -9,11 +9,23 @@ public:
     Any() { }
     template<class T> Any(const T& t) : Handle(new Body<T>(t)) { }
     bool valid() const { return Handle::valid(); }
+    bool operator==(const Any& other) const
+    {
+        return Handle::operator==(other);
+    }
+    bool operator!=(const Any& other) const { return !(*this == other); }
     template<class T> class Body : public Handle::Body
     {
     public:
         Body(const T& t) : _t(t) { }
         T value() const { return _t; }
+        bool equals(const Handle::Body* other) const
+        {
+            auto o = other->as<Body>();
+            if (o == 0)
+                return false;
+            return _t == o->_t;
+        }
     private:
         T _t;
     };

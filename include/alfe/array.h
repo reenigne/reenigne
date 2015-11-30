@@ -65,6 +65,18 @@ public:
             return body()->count();
         return 0;
     }
+    bool operator==(List other) const
+    {
+        Iterator l = begin();
+        Iterator r = other.begin();
+        while (l != end() && r != other.end()) {
+            if (*l != *r)
+                return false;
+            ++l;
+            ++r;
+        }
+        return l == end() && r == other.end();
+    }
 private:
     List(Body* body) : Handle(body) { }
     Body* body() { return as<Body>(); }
