@@ -113,17 +113,38 @@ public:
             return Iterator(0, *this);
         return Iterator(data(allocated()), *this);
     }
-    bool operator==(HashTable other) const
+    template<class V1> bool operator==(HashTable<Key, V1> other) const
     {
-        Iterator l = begin();
-        Iterator r = other.begin();
-        while (l != end() && r != other.end()) {
-            if (*l != *r)
+        if (count() != other.count())
+            return false;
+        for (auto i = begin(); i != end(); ++i) {
+            Key k = i.key();
+            if (!other.hasKey(k))
                 return false;
-            ++l;
-            ++r;
+            if (i.value() != other[k])
+                return false;
         }
-        return l == end() && r == other.end();
+        return true;
+    }
+    template<class K1, class V1> bool operator==(HashTable<K1, V1> other) const
+    {
+        if (count() != other.count())
+            return false;
+        for (auto i = begin(); i != end(); ++i) {
+            Key k = i.key();
+            if (!other.hasKey(k))
+                return false;
+            if (i.value() != other[k])
+                return false;
+        }
+        for (auto i = other.begin(); i != other.end(); ++i) {
+            K1 k = i.key();
+            if (!hasKey(k))
+                return false;
+            if (i.value() != (*this)[k])
+                return false;
+        }
+        return true;
     }
 private:
     int row(const Key& key) const { return ::hash(key) % allocated(); }

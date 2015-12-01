@@ -3,7 +3,7 @@ template<class T> class Intel8237DMACTemplate
 {
     enum State
     {
-        stateIdle = 0,
+        stateIdle,
         stateS0,
         stateS1,
         stateS2,
@@ -29,12 +29,11 @@ public:
     static String typeName() { return "Intel8237DMAC"; }
     Intel8237DMACTemplate()
     {
-        persist("address", &_address, 0);
-        persist("command", &_command, static_cast<Byte>(0),
-            HexPersistenceType(2));
-        persist("channels", &_channels, Value(ArrayType(Channel::Type(), 4)));
-        persist("lastByte", &_lastByte, false);
-        persist("channel", &_channel, 0);
+        persist("address", &_address, HexPersistenceType(1));
+        persist("command", &_command);
+        persist("channels", &_channels[0], ArrayType(Channel::Type(), 4));
+        persist("lastByte", &_lastByte);
+        persist("channel", &_channel);
         persist("highAddress", &_highAddress, 0xffff, HexPersistenceType(4));
 
         EnumerationType<State>::Helper h;
@@ -45,7 +44,7 @@ public:
         h.add(stateS3,    "s3");
         h.add(stateS4,    "s4");
         h.add(stateYield, "yield");
-        persist("state", &_state, stateIdle,
+        persist("state", &_state,
             EnumerationType<State>("State", h, typeName() + "."));
     }
 
@@ -288,16 +287,16 @@ private:
     public:
         Channel()
         {
-            persist("mode", &_mode, HexPersistenceType(2));
-            persist("baseAddress", &_baseAddress, HexPersistenceType(4));
-            persist("baseCount", &_baseCount, HexPersistenceType(4));
-            persist("currentAddress", &_currentAddress, HexPersistenceType(4));
-            persist("currentCount", &_currentCount, HexPersistenceType(4));
-            persist("hardRequest", &_hardRequest, false);
-            persist("softRequest", &_softRequest, false);
-            persist("mask", &_mask, false);
-            persist("terminalCount", &_terminalCount, false);
-            persist("internalRequest", &_internalRequest, false);
+            persist("mode", &_mode);
+            persist("baseAddress", &_baseAddress);
+            persist("baseCount", &_baseCount);
+            persist("currentAddress", &_currentAddress);
+            persist("currentCount", &_currentCount);
+            persist("hardRequest", &_hardRequest);
+            persist("softRequest", &_softRequest);
+            persist("mask", &_mask);
+            persist("terminalCount", &_terminalCount);
+            persist("internalRequest", &_internalRequest);
         }
 
         UInt8 read(UInt32 address, bool lastByte)

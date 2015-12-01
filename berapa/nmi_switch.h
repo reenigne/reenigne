@@ -4,7 +4,7 @@ public:
     static String typeName() { return "NMISwitch"; }
     NMISwitch() : _connector(this)
     {
-        persist("on", &_nmiOn, false, BooleanType());
+        persist("on", &_nmiOn);
         connector("", &_connector);
     }
     void write(UInt8 data) { _nmiOn = ((data & 0x80) != 0); }

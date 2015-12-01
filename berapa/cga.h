@@ -9,12 +9,12 @@ public:
     {
         _data.allocate(0x4000);
         config("rom", &_rom);
-        persist("memoryActive", &_memoryActive, false);
-        persist("memoryAddress", &_memoryAddress, 0, HexPersistenceType(4));
-        persist("portActive", &_portActive, false);
-        persist("portAddress", &_portAddress, 0, HexPersistenceType(4));
-        persist("mode", &_mode, static_cast<UInt8>(0), ByteType());
-        persist("palette", &_palette, static_cast<UInt8>(0), ByteType());
+        persist("memoryActive", &_memoryActive);
+        persist("memoryAddress", &_memoryAddress, HexPersistenceType(4));
+        persist("portActive", &_portActive);
+        persist("portAddress", &_portAddress, HexPersistenceType(4));
+        persist("mode", &_mode);
+        persist("palette", &_palette);
     }
     void load(Value v)
     {

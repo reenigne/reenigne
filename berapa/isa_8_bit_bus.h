@@ -10,7 +10,7 @@ public:
     ISA8BitComponentBaseTemplate() : _connector(this)
     {
         connector("bus", &_connector);
-        persist("active", &_active, false);
+        persist("active", &_active);
     }
     // Address bit 31 = write
     // Address bit 30 = IO
@@ -18,7 +18,7 @@ public:
     virtual void write(UInt8 data) { };
     virtual bool wait() { return false; }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
-    virtual UInt8 memory(UInt32 address) { return 0xff; }
+    virtual UInt8 debugRead(UInt32 address) { return 0xff; }
     bool active() const { return _active; }
     virtual void read() { }
     class Connector : public ::Connector
@@ -75,6 +75,7 @@ public:
     {
         connector("cpu", &_cpuSocket);
         connector("slot", &_connector);
+        persist("data", &_data, static_cast<UInt8>(0xff));
         for (int i = 0; i < 8; ++i) {
             _chipConnectors[i].init(this, i);
             connector("chip" + decimal(i), &_chipConnectors[i]);
@@ -170,17 +171,13 @@ public:
                 i->read();
         return _data;
     }
-    UInt8 memory(UInt32 address)
+    UInt8 debugRead(UInt32 address)
     {
         UInt8 data = 0xff;
         for (auto i : _components)
-            data &= i->memory(address);
+            data &= i->debugRead(address);
         return data;
     }
-    String save() const { return hex(_data, 2) + "\n"; }
-    virtual ::Type persistenceType() const { return IntegerType(); }
-    virtual void load(const Value& value) { _data = value.value<int>(); }
-    virtual Value initial() const { return 0xff; }
     UInt8 data() const { return _data; }
 private:
     UInt8 _data;

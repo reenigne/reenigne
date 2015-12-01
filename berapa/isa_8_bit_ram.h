@@ -9,7 +9,7 @@ public:
         config("bytes", &_ram._ramSize);
         config("decayTime", &_ram._decayTime, ConcretePersistenceType(second));
         persist("address", &_address, HexPersistType(5));
-        persist("ram", &_ram);
+        persist("ram", &_ram, RAM::Type());
     }
     void setAddress(UInt32 address)
     {

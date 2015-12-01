@@ -7,8 +7,8 @@ public:
     {
         for (int i = 0; i < 3; ++i)
             _timers[i].setGate(true);
-        persist("address", &_address, 0, HexPersistenceType(5));
-        persist("timers", &_timers[0], Timer(), ArrayType(Timer::Type(), 3));
+        persist("address", &_address);
+        persist("timers", &_timers[0], ArrayType(Timer::Type(), 3));
     }
     void simulateCycle()
     {
@@ -38,18 +38,16 @@ private:
         static String typeName() { return "Timer"; }
         Timer()
         {
-            UInt16 z = 0;
-            persist("value", &_value, z, HexPersistenceType(4));
-            persist("latch", &_latch, z, HexPersistenceType(4));
-            persist("count", &_count, z, HexPersistenceType(4));
-            persist("bcd", &_bcd, false);
-            persist("bytes", &_bytes, 0);
-            persist("lowCount", &_lowCount, static_cast<UInt8>(0),
-                HexPersistenceType(2));
-            persist("firstByte", &_firstByte, false);
-            persist("gate", &_gate, false);
-            persist("output", &_output, false);
-            persist("latched", &_latched, false);
+            persist("value", &_value);
+            persist("latch", &_latch);
+            persist("count", &_count);
+            persist("bcd", &_bcd);
+            persist("bytes", &_bytes);
+            persist("lowCount", &_lowCount);
+            persist("firstByte", &_firstByte);
+            persist("gate", &_gate);
+            persist("output", &_output);
+            persist("latched", &_latched);
 
             EnumerationType<State>::Helper h;
             h.add(stateStopped0,  "stopped0");
@@ -60,7 +58,7 @@ private:
             h.add(stateStopped2,  "stopped2");
             h.add(stateGateLow2,  "gateLow2");
             h.add(stateCounting2, "counting2");
-            persist("state", &_state, stateStopped0,
+            persist("state", &_state,
                 EnumerationType<State>("State", h,
                     Intel8253PIT::typeName() + "." + typeName() + "."));
         }

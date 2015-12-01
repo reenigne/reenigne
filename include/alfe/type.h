@@ -12,6 +12,7 @@
 #include "alfe/vectors.h"
 #include "alfe/rational.h"
 #include "alfe/concrete.h"
+#include <type_traits>
 
 template<class T> class TemplateTemplate;
 typedef TemplateTemplate<void> Template;
@@ -107,6 +108,11 @@ public:
     {
         _structure->set(_identifier, value);
     }
+    bool operator==(const LValue& other) const
+    {
+        return _structure == other._structure &&
+            _identifier == other._identifier;
+    }
 private:
     Structure* _structure;
     Identifier _identifier;
@@ -154,7 +160,6 @@ public:
         body()->deserialize(value, p);
     }
     int size() const { return body()->size(); }
-    ValueTemplate<T> defaultValue() const { return body()->defaultValue(); }
     ValueTemplate<T> value(void* p) const { return body()->value(p); }
 protected:
     class Body : public Tyco::Body
@@ -166,6 +171,8 @@ protected:
         {
             if (this == value.type().body())
                 return value;
+            if (value == StructuredType::empty())
+                return defaultValue();
             return ValueTemplate<T>();
         }
         virtual ValueTemplate<T> tryConvertTo(const Type& to,
@@ -231,8 +238,14 @@ template<class T> class ValueTemplate
 {
 public:
     ValueTemplate() { }
-    ValueTemplate(Type type, Any defaultValue = Any(), Span span = Span())
-      : _type(type), _value(defaultValue), _span(span) { }
+    template<class U, 
+        typename = std::enable_if<std::is_base_of<Type, U>::value>::type>
+        ValueTemplate(U type, Any defaultValue = Any(), Span span = Span())
+      : _type(type), _value(defaultValue), _span(span)
+    {
+        if (!_value.valid())
+            _value = StructuredType::empty().convertTo(type);
+    }
     template<class U> ValueTemplate(const U& value, Span span = Span())
       : _type(typeFromValue(value)), _value(value), _span(span) { }
     Type type() const { return _type; }
@@ -674,7 +687,7 @@ protected:
                     unknownCount();
             }
             int size = _contained.size();
-            Value d = _contained.defaultValue();
+            Value d(_contained);
             do {
                 if (d !=
                     _contained.value(static_cast<void*>(pc + (n - 1)*size)))
@@ -722,7 +735,7 @@ protected:
             for (int i = 0; i < n; ++i) {
                 int u = indent + delta;
                 String v = "{ }";
-                if (_contained.value(p) != _contained.defaultValue()) {
+                if (_contained.value(p) != d) {
                     v = _contained.serialize(p, width, u, indent + delta,
                         delta);
                 }
@@ -755,14 +768,11 @@ protected:
                 --n;
             }
             for (int i = 0; i < n; ++i) {
-                _contained.deserialize(_contained.defaultValue(), p);
+                _contained.deserialize(Value(_contained), p);
                 pc += size;
                 p = static_cast<void*>(pc);
             }
         }
-        int size() const { return 0; }
-        Value defaultValue() const { return Value(); }
-        Value value(void* p) const { return Value(); }
     protected:
         virtual int elementCount(void* p) const { unknownCount(); }
         virtual void* elementData(void* p) const { return 0; }
@@ -1667,6 +1677,7 @@ template<> Type typeFromCompileTimeType<Vector>() { return VectorType(); }
 template<> Type typeFromCompileTimeType<Rational>() { return RationalType(); }
 template<> Type typeFromCompileTimeType<double>() { return DoubleType(); }
 template<> Type typeFromCompileTimeType<Byte>() { return ByteType(); }
+template<> Type typeFromCompileTimeType<Word>() { return WordType(); }
 template<> Type typeFromValue<Concrete>(const Concrete& c) { return c.type(); }
 
 #endif // INCLUDED_TYPE_H

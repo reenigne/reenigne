@@ -83,6 +83,7 @@ public:
 private:
     Base _t;
 };
+template<> Type typeFromCompileTimeType<Tick>() { return Tick::Type(); }
 
 class ConcretePersistenceType : public Type
 {
@@ -198,18 +199,14 @@ template<class T> class ComponentTemplate : public Structure
 {
 public:
     ComponentTemplate()
-      : _simulator(0), _tick(0), _ticksPerCycle(0), _defaultConnector(0)
+      : _simulator(0), _ticksPerCycle(0), _defaultConnector(0)
     {
-        persist("tick", &_tick, Tick(0), Tick::Type());
+        persist("tick", &_tick);
     }
     void setSimulator(Simulator* simulator) { _simulator = simulator; }
     virtual void runTo(Tick tick) { _tick = tick; }
     virtual void maintain(Tick ticks) { _tick -= ticks; }
     String name() const { return _name; }
-    virtual Value initial() const
-    {
-        return StructuredType::empty().convertTo(persistenceType());
-    }
     virtual Rational cyclesPerSecond() const { return 0; }
     void setTicksPerCycle(Tick ticksPerCycle)
     {
@@ -315,13 +312,8 @@ public:
                 static_cast<C*>(p)->load(value);
             }
             int size() const { return sizeof(C); }
-            Value defaultValue() const
-            {
-                C component;
-                return component.initial();
-            }
+            Value defaultValue() const { return C().persistenceType(); }
             Value value(void* p) const { return static_cast<C*>(p)->value(); }
-
         private:
             HashTable<Identifier, ::Type> _members;
         };
@@ -343,7 +335,7 @@ public:
             int u = used + i.key().length() + 2 + (needComma ? 2 : 0);
             String v = "{ }";
             ::Type t = m.type();
-            if (t.value(m._p) != t.defaultValue()) {
+            if (t.value(m._p) != Value(t)) {
                 v = t.serialize(m._p, width, u, 0, 0);
                 if (v == "*") {
                     separate = true;
@@ -375,7 +367,7 @@ public:
             int u = indent + i.key().length();
             String v = "{ }";
             ::Type t = m.type();
-            if (t.value(m._p) != t.defaultValue())
+            if (t.value(m._p) != Value(t))
                 v = t.serialize(m._p, width, u, indent + delta, delta);
             if (v != "{ }") {
                 if (needComma)
@@ -411,6 +403,7 @@ public:
         return Value(persistenceType(), h);
     }
     void setType(Type type) { _type = type; }
+    Type type() const { return _type; }
 
 protected:
     void connector(String name, Connector* p)
@@ -451,7 +444,8 @@ protected:
         _persist.add(name, Member(static_cast<void*>(p), v));
 
     }
-    template<class C> void persist(String name, C* p, Value initial)
+    template<class C> void persist(String name, C* p,
+        Value initial = Value(typeFromCompileTimeType<C>()))
     {
         _persist.add(name, Member(static_cast<void*>(p), initial));
     }
@@ -1022,10 +1016,7 @@ public:
     Rational ticksPerSecond() const { return _ticksPerSecond; }
     Directory directory() const { return _directory; }
 private:
-    Value initial() const
-    {
-        return StructuredType::empty().convertTo(persistenceType());
-    }
+    Value initial() const { return persistenceType(); }
     ::Type persistenceType() const
     {
         List<StructuredType::Member> members;
@@ -1033,7 +1024,7 @@ private:
             Type type = i->persistenceType();
             if (!type.valid())
                 continue;
-            members.add(StructuredType::Member(i->name(), i->initial()));
+            members.add(StructuredType::Member(i->name(), Value(i->type())));
         }
         return StructuredType("Simulator", members);
     }

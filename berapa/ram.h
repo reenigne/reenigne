@@ -8,9 +8,8 @@ public:
         config("rowBits", &_rowBits);
         config("bytes", &_ramSize);
         config("decayTime", &_decayTime, ConcretePersistenceType(second));
-        persist("data", this, Value(PersistDataType()));
-        persist("decay", &_decayTimes,
-            Value(ArrayType(Tick::Type(), 0), List<Value>()));
+        persist("data", this, PersistDataType());
+        persist("decay", &_decayTimes, ArrayType(Tick::Type(), 0));
     }
     bool decayed(Tick tick, int address) { return (tick >= decay(address)); }
     UInt8 read(Tick tick, int address)

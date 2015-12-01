@@ -516,59 +516,54 @@ public:
         hi.add(ioWordFirst,  "ioWordFirst");
         hi.add(ioWordSecond, "ioWordSecond");
 
-        UInt16 z = 0;
-        UInt8 zb = 0;
-        UInt32 zd = 0;
-        HexPersistenceType h4(4);
-        persist("ip", &_ip, z, h4);
-        persist("registers", &_registerData[0], z,
-            ArrayType(WordType(), 4)); // ?
+        persist("ip", &_ip);
+        persist("registers", &_registerData[0], ArrayType(WordType(), 4)); // ?
         List<Value> initialSegments;
         initialSegments.add(Value(WordType(), 0));
         initialSegments.add(Value(WordType(), 0xffff));
         persist("segmentRegisters", &_segmentRegisterData[0],
             Value(ArrayType(WordType(), 4), initialSegments));
-        persist("flags", &_flagsData, static_cast<UInt16>(2), h4); // ?
+        persist("flags", &_flagsData, static_cast<UInt16>(2)); // ?
         persist("prefetch", this, PersistQueueType());
-        persist("segment", &_segment, 0);
+        persist("segment", &_segment);
         persist("segmentOverride", &_segmentOverride, -1);
-        persist("prefetchQddress", &_prefetchAddress, z, h4);
-        persist("ioType", &_ioType, ioNone, ioTypeType);
-        persist("ioRequested", &_ioRequested, ioNone, ioTypeType);
+        persist("prefetchQddress", &_prefetchAddress);
+        persist("ioType", &_ioType, ioTypeType);
+        persist("ioRequested", &_ioRequested, ioTypeType);
         persist("ioInProgress", &_ioInProgress, ioInstructionFetch,
             ioTypeType);
-        persist("busState", &_busState, t1,
+        persist("busState", &_busState,
             EnumerationType<BusState>("BusState", hb, typeName() + "."));
-        persist("byte", &_byte, ioSingleByte,
+        persist("byte", &_byte,
             EnumerationType<IOByte>("IOByte", hi, typeName() + "."));
-        persist("abandonFetch", &_abandonFetch, false);
-        persist("wait", &_wait, 0);
+        persist("abandonFetch", &_abandonFetch);
+        persist("wait", &_wait);
         persist("state", &_state, stateBegin, stateType);
-        persist("opcode", &_opcode, zb, HexPersistenceType(2));
-        persist("modRM", &_modRM, zb, HexPersistenceType(2));
-        persist("data", &_data, zd, HexPersistenceType(8));
-        persist("source", &_source, zd, HexPersistenceType(8));
-        persist("destination", &_destination, zd, HexPersistenceType(8));
-        persist("remainder", &_remainder, zd, HexPersistenceType(8));
-        persist("address", &_address, z, h4);
-        persist("useMemory", &_useMemory, false);
-        persist("wordSize", &_wordSize, false);
-        persist("aluOperation", &_aluOperation, 0);
-        persist("afterEA", &_afterEA, stateWaitingForBIU, stateType);
-        persist("afterIO", &_afterIO, stateWaitingForBIU, stateType);
-        persist("afterEAIO", &_afterEAIO, stateWaitingForBIU, stateType);
-        persist("afterRep", &_afterRep, stateWaitingForBIU, stateType);
-        persist("afterInt", &_afterInt, stateWaitingForBIU, stateType);
-        persist("sourceIsRM", &_sourceIsRM, false);
-        persist("savedCS", &_savedCS, z, h4);
-        persist("savedIP", &_savedIP, z, h4);
-        persist("rep", &_rep, 0);
-        persist("usePortSpace", &_usePortSpace, false);
-        persist("halted", &_halted, false);
+        persist("opcode", &_opcode);
+        persist("modRM", &_modRM);
+        persist("data", &_data, HexPersistenceType(8));
+        persist("source", &_source, HexPersistenceType(8));
+        persist("destination", &_destination, HexPersistenceType(8));
+        persist("remainder", &_remainder, HexPersistenceType(8));
+        persist("address", &_address);
+        persist("useMemory", &_useMemory);
+        persist("wordSize", &_wordSize);
+        persist("aluOperation", &_aluOperation);
+        persist("afterEA", &_afterEA, stateType);
+        persist("afterIO", &_afterIO, stateType);
+        persist("afterEAIO", &_afterEAIO, stateType);
+        persist("afterRep", &_afterRep, stateType);
+        persist("afterInt", &_afterInt, stateType);
+        persist("sourceIsRM", &_sourceIsRM);
+        persist("savedCS", &_savedCS);
+        persist("savedIP", &_savedIP);
+        persist("rep", &_rep);
+        persist("usePortSpace", &_usePortSpace);
+        persist("halted", &_halted);
         persist("newInstruction", &_newInstruction, true);
-        persist("newIP", &_newIP, z, h4);
-        persist("nmiRequested", &_nmiRequested, false);
-        persist("cycle", &_cycle, 0);
+        persist("newIP", &_newIP);
+        persist("nmiRequested", &_nmiRequested);
+        persist("cycle", &_cycle);
     }
     void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
     void site()

@@ -21,7 +21,7 @@ public:
         this->_active = ((address & _mask) == _start);
     }
     void read() { this->set(_data[_address & ~_mask]); }
-    UInt8 memory(UInt32 address)
+    UInt8 debugRead(UInt32 address)
     {
         if ((address & _mask) == _start)
             return _data[address & ~_mask];
