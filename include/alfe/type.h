@@ -149,7 +149,7 @@ public:
     // we'll exit with "*" if the result doesn't fit in the line.
     // "delta" is the number of spaces by which the indent should be increased
     // when going in a level.
-    // If "bail" is true, then we'll 
+    // If "bail" is true, then we'll
     // We will leave enough space at the end for a trailing comma.
     String serialize(void* p, int width, int used, int indent, int delta) const
     {
@@ -228,8 +228,25 @@ private:
     const Body* body() const { return as<Body>(); }
 };
 
+template<typename T> class HasType
+{
+    template <typename U, Type (U::*)() const> struct Check;
+    template <typename U> static char func(Check<U, &U::type> *) { }
+    template <typename U> static int func(...) { }
+public:
+    typedef HasType type;
+    enum { value = sizeof(func<T>(0)) == sizeof(char) };
+};
+
 template<class T> Type typeFromCompileTimeType() { return T::type(); }
-template<class T> Type typeFromValue(const T&)
+template<class T, typename = std::enable_if<HasType<T>::value>::type>
+    Type typeFromValue(const T& value)
+{
+    return value.type();
+}
+template<class T, typename = void,
+    typename = std::enable_if<!HasType<T>::value>::type>
+    Type typeFromValue(const T&)
 {
     return typeFromCompileTimeType<T>();
 }
@@ -238,31 +255,33 @@ template<class T> class ValueTemplate
 {
 public:
     ValueTemplate() { }
-    template<class U, 
+    template<class U,
         typename = std::enable_if<std::is_base_of<Type, U>::value>::type>
-        ValueTemplate(U type, Any defaultValue = Any(), Span span = Span())
-      : _type(type), _value(defaultValue), _span(span)
+        ValueTemplate(U type, Any any = Any(), Span span = Span())
+      : _type(type), _any(any), _span(span)
     {
-        if (!_value.valid())
-            _value = StructuredType::empty().convertTo(type);
+        if (!_any.valid())
+            _any = StructuredType::empty().convertTo(type).value();
     }
-    template<class U> ValueTemplate(const U& value, Span span = Span())
-      : _type(typeFromValue(value)), _value(value), _span(span) { }
+    template<class U,
+        typename = std::enable_if<!std::is_base_of<Type, U>::value>::type>
+        ValueTemplate(const U& value, Span span = Span())
+      : _type(typeFromValue(value)), _any(value), _span(span) { }
     Type type() const { return _type; }
-    Any value() const { return _value; }
+    Any value() const { return _any; }
     bool operator==(const Value& other) const
     {
-        return _type == other._type && _value == other._value;
+        return _type == other._type && _any == other._any;
     }
     bool operator!=(const Value& other) const { return !(*this == other); }
-    template<class U> U value() const { return _value.value<U>(); }
+    template<class U> U value() const { return _any.value<U>(); }
     template<> Vector value<Vector>() const
     {
         Array<Any> sizeArray = value<List<Any>>();
         return Vector(sizeArray[0].value<int>(), sizeArray[1].value<int>());
     }
     Span span() const { return _span; }
-    bool valid() const { return _value.valid(); }
+    bool valid() const { return _any.valid(); }
     Value convertTo(const Type& to) const
     {
         String reason;
@@ -304,7 +323,7 @@ public:
     }
 private:
     Type _type;
-    Any _value;
+    Any _any;
     Span _span;
 };
 
@@ -774,7 +793,7 @@ protected:
             }
         }
     protected:
-        virtual int elementCount(void* p) const { unknownCount(); }
+        virtual int elementCount(void* p) const { unknownCount(); return 0; }
         virtual void* elementData(void* p) const { return 0; }
     private:
         void unknownCount() const
@@ -1252,7 +1271,7 @@ public:
         void add(const T& t, String i)
         {
             _stringToT.add(i, t);
-            _tToString.add(static_cast<int>(t), i);
+            _tToString.add(static_cast<int>(t) + 1, i);
         }
     private:
         HashTable<String, T> _stringToT;
@@ -1273,15 +1292,18 @@ protected:
             const
         {
             return _context + _name + "." +
-                _helper._tToString[*static_cast<T*>(p)];
+                _helper._tToString[*static_cast<T*>(p) + 1];
         }
         void deserialize(const Value& value, void* p) const
         {
             *static_cast<T*>(p) = value.value<T>();
         }
         int size() const { return sizeof(T); }
-        Value defaultValue() const { return static_cast<T>(0); }
-        Value value(void* p) const { return *static_cast<T*>(p); }
+        Value defaultValue() const { return Value(type(), static_cast<T>(0)); }
+        Value value(void* p) const
+        {
+            return Value(type(), *static_cast<T*>(p));
+        }
     private:
         String _context;
         String _name;
@@ -1337,8 +1359,9 @@ public:
     const Array<Member> members() const { return body()->members(); }
     static Value empty()
     {
-        return Value(StructuredType(String(), List<StructuredType::Member>()),
-            HashTable<Identifier, Value>());
+        static Value e = Value(StructuredType(String(),
+            List<StructuredType::Member>()), HashTable<Identifier, Value>());
+        return e;
     }
 protected:
     class Body : public Type::Body
@@ -1496,7 +1519,15 @@ protected:
             if (!_names.hasKey(i))
                 return Type();
             return _members[_names[i]].type();
-        }                              
+        }
+        bool equals(const Body* other) const
+        {
+            auto o = other->as<Body>();
+            if (o == 0)
+                return false;
+            return _name == o->_name && _names == o->_names &&
+                _members == o->_members;
+        }
     private:
         Value tryConvertHelper(const Value& value, const Member* to,
             String* why) const
@@ -1554,7 +1585,7 @@ template<class T> class ConcreteTypeTemplate : public Type
                 h.mixin((*body())[i]);
             return h;
         }
-        bool dimensionless() const
+        bool isAbstract() const
         {
             for (int i = 0; i < elements(); ++i)
                 if ((*body())[i] != 0)
@@ -1571,7 +1602,7 @@ template<class T> class ConcreteTypeTemplate : public Type
                 *reason = String("Value is not commensurate");
                 return Value();
             }
-            if (!dimensionless()) {
+            if (!isAbstract()) {
                 *reason = String("Value is denominate");
                 return Value();
             }
@@ -1588,7 +1619,8 @@ template<class T> class ConcreteTypeTemplate : public Type
             }
             return Value();
         }
-        int elements() const { return body()->elements(); }
+        int elements() const { return body()->size(); }
+        Value defaultValue() const { return Concrete::zero(); }
     private:
         Body* body() { return as<Body>(); }
         const Body* body() const { return as<Body>(); }
@@ -1596,6 +1628,7 @@ template<class T> class ConcreteTypeTemplate : public Type
     typedef Array<int>::Body<BaseBody> Body;
 
     static int _bases;
+    ConcreteTypeTemplate(Body* body) : Type(body) { }
 public:
     ConcreteTypeTemplate() : Type(Body::create(_bases + 1, _bases + 1))
     {
@@ -1605,8 +1638,12 @@ public:
         ++_bases;
     }
     ConcreteTypeTemplate(const Type& other) : Type(other) { }
+    static ConcreteTypeTemplate zero()
+    {
+        return ConcreteTypeTemplate(Body::create(0, 0));
+    }
     bool valid() const { return body() != 0; }
-    bool dimensionless() const { return body()->dimensionless(); }
+    bool isAbstract() const { return body()->isAbstract(); }
     const ConcreteTypeTemplate& operator+=(const ConcreteTypeTemplate& other)
     {
         *this = *this + other;

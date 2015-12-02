@@ -15,7 +15,7 @@ public:
         return *this;
     }
     bool valid() const { return _body != 0; }
-    UInt32 hash() const { return _body->hash(); }
+    UInt32 hash() const { return _body != 0 ? _body->hash() : 0; }
     bool operator==(const ConstHandle& other) const
     {
         if (_body == 0)

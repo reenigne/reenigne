@@ -141,6 +141,7 @@ private:
                         "Expected hexadecimal character");
                 }
             }
+            Value defaultValue() const { return String(); }
         };
     };
 

@@ -35,6 +35,7 @@ public:
     }
     bool betterThan(Funco other) const { return body()->betterThan(other); }
     String toString() const { return body()->toString(); }
+    FunctionTyco tyco() const { return body()->tyco(); }
 };
 
 class Function : public Funco

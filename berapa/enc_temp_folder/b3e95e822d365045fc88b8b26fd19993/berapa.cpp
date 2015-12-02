@@ -416,9 +416,8 @@ protected:
         else {
             // Connectors don't have a default value. If they did, a connector
             // supporting multiple connections would always be connected to the
-            // default. We can't convert directly from the type to the value,
-            // or the conversion would call tryConvert() which would attempt to
-            // connect.
+            // default. We can't return an empty Value() here or the conversion
+            // from type to value would call tryConvert().
             _config.add(name,
                 Member(static_cast<void*>(p), Value(p->type(), 0)));
             Structure::set(name, p->getValue());

@@ -18,6 +18,10 @@ template<class T> class ConcreteTemplate
 {
 public:
     ConcreteTemplate() : _type(ConcreteType()), _value(1) { }
+    static ConcreteTemplate zero()
+    {
+        return ConcreteTemplate(ConcreteTypeTemplate<T>::zero(), 0);
+    }
 
     const ConcreteTemplate& operator+=(const ConcreteTemplate& other)
     {
@@ -34,11 +38,15 @@ public:
     ConcreteTemplate operator+(const ConcreteTemplate& other)
     {
         check(other);
+        if (_value == 0)
+            return other;
         return ConcreteTemplate(_type, _value + other._value);
     }
     ConcreteTemplate operator-(const ConcreteTemplate& other)
     {
         check(other);
+        if (_value == 0)
+            return ConcreteTemplate(other._type, -other._value);
         return ConcreteTemplate(_type, _value - other._value);
     }
     ConcreteTemplate operator*(const ConcreteTemplate& other)
@@ -81,7 +89,7 @@ public:
     }
     Rational value() const
     {
-        if (!dimensionless())
+        if (!isAbstract())
             throw UnitMismatchException();
         return _value;
     }
@@ -114,9 +122,9 @@ public:
     }
     bool commensurable(const ConcreteTemplate& other) const
     {
-        return _type == other._type;
+        return _value == 0 || other._value == 0 || _type == other._type;
     }
-    bool dimensionless() const { return _type.dimensionless(); }
+    bool isAbstract() const { return _type.isAbstract() || _value == 0; }
     ConcreteTemplate reciprocal() const
     {
         return ConcreteTemplate(-_type, 1 / _value);

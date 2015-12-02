@@ -1866,6 +1866,7 @@ private:
                 cpu->_prefetched = prefetched;
                 cpu->_prefetchOffset = 0;
             }
+            Value defaultValue() const { return Value(type(), List<Value>()); }
         };
     };
 

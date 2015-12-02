@@ -11,7 +11,8 @@
 //
 // Note that the default-constructed Key should not be used for real entries.
 
-template<class Key, class Value> class HashTableBody : public Array<Tuple<Key, Value>>::AppendableBaseBody
+template<class Key, class Value> class HashTableBody
+  : public Array<Tuple<Key, Value>>::AppendableBaseBody
 {
 public:
     virtual void justSetSize(int size) const = 0;
@@ -21,14 +22,8 @@ public:
 template<class Key, class Value> class HashTable
   : private AppendableArray<Tuple<Key, Value>,
     HashTableBody<Key, Value>>
-    //typename HashTable<Key, Value>::Body>
 {
     typedef Tuple<Key, Value> Entry;
-    //class Body : public Array<Entry>::AppendableBaseBody
-    //{
-    //public:
-    //    ~Body() { _size = _allocated; }
-    //};
 public:
     bool hasKey(const Key& key) const
     {
