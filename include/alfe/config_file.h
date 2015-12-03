@@ -47,6 +47,7 @@ class ConfigFile : public Structure
 public:
     ConfigFile() : _context(this)
     {
+        addType(IntegerType());
         addFunco(AddIntegerInteger());
         addFunco(SubtractIntegerInteger());
         addFunco(MultiplyIntegerInteger());
@@ -80,6 +81,8 @@ public:
         addFunco(ShiftRightRationalInteger());
         addFunco(ShiftLeftConcreteInteger());
         addFunco(ShiftRightConcreteInteger());
+        addFunco(PowerIntegerInteger());
+        addFunco(PowerRationalInteger());
     }
     template<class T> ConfigOption<T> addOption(String name)
     {
@@ -205,7 +208,7 @@ public:
             LValue p = left.value<LValue>();
             Identifier i = Identifier(OperatorAssignment());
             Value v = loadedExpression.rValue();
-            if (!type.member(i).valid()) {
+            if (type.member(i).valid()) {
                 List<Value> arguments;
                 arguments.add(left);
                 arguments.add(v);

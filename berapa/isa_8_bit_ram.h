@@ -1,4 +1,5 @@
-template<class T> class ISA8BitRAMTemplate : public ISA8BitComponent<RAM>
+template<class T> class ISA8BitRAMTemplate
+  : public ISA8BitComponent<ISA8BitRAMTemplate<T>>
 {
 public:
     static String typeName() { return "ISA8BitRAM"; }
@@ -8,8 +9,9 @@ public:
         config("rowBits", &_ram._rowBits);
         config("bytes", &_ram._ramSize);
         config("decayTime", &_ram._decayTime, ConcretePersistenceType(second));
-        persist("address", &_address, HexPersistType(5));
-        persist("ram", &_ram, RAM::Type());
+        config("decayValue", &_ram._decayValue);
+        persist("address", &_address, HexPersistenceType(5));
+        persist("ram", &_ram, _ram.persistenceType());
     }
     void setAddress(UInt32 address)
     {

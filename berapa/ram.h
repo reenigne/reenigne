@@ -8,6 +8,7 @@ public:
         config("rowBits", &_rowBits);
         config("bytes", &_ramSize);
         config("decayTime", &_decayTime, ConcretePersistenceType(second));
+        config("decayValue", &_decayValue);
         persist("data", this, PersistDataType());
         persist("decay", &_decayTimes, ArrayType(Tick::Type(), 0));
     }
@@ -66,7 +67,11 @@ public:
 
     String name() const { return "ram"; }
 
+    OutputConnector<bool> _parityError;
+    Rational _decayTime;
+    int _rowBits;
     int _ramSize;
+    UInt8 _decayValue;
 private:
     class PersistDataType : public NamedNullary<::Type, PersistDataType>
     {
@@ -147,13 +152,8 @@ private:
 
     Tick& decay(int address) { return _decayTimes[address & _rowMask]; }
 
-    OutputConnector<bool> _parityError;
     Array<UInt8> _data;
     Array<Tick> _decayTimes;
-    Tick _tick;
-    Rational _decayTime;
     Tick _decayTicks;
     int _rowMask;
-    int _rowBits;
-    UInt8 _decayValue;
 };

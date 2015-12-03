@@ -5,6 +5,7 @@
 
 #include "alfe/function.h"
 #include "alfe/rational.h"
+#include "alfe/power.h"
 
 class AddRationalRational : public Nullary<Function, AddRationalRational>
 {
@@ -332,6 +333,50 @@ public:
             return Rational(l.numerator, l.denominator << r);
         }
         Identifier identifier() const { return OperatorShiftRight(); }
+        FunctionTyco tyco() const
+        {
+            return FunctionTyco(RationalType(), RationalType(), IntegerType());
+        }
+    };
+};
+
+class PowerIntegerInteger : public Nullary<Function, PowerIntegerInteger>
+{
+public:
+    class Body : public Nullary::Body
+    {
+    public:
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+            auto i = arguments.begin();
+            int l = i->value<int>();
+            ++i;
+            int r = i->value<int>();
+            return power(Rational(l), r);
+        }
+        Identifier identifier() const { return OperatorPower(); }
+        FunctionTyco tyco() const
+        {
+            return FunctionTyco(RationalType(), IntegerType(), IntegerType());
+        }
+    };
+};
+
+class PowerRationalInteger : public Nullary<Function, PowerRationalInteger>
+{
+public:
+    class Body : public Nullary::Body
+    {
+    public:
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+            auto i = arguments.begin();
+            Rational l = i->value<Rational>();
+            ++i;
+            int r = i->value<int>();
+            return power(l, r);
+        }
+        Identifier identifier() const { return OperatorPower(); }
         FunctionTyco tyco() const
         {
             return FunctionTyco(RationalType(), RationalType(), IntegerType());

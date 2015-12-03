@@ -11,7 +11,6 @@
 #include "alfe/identifier.h"
 #include "alfe/vectors.h"
 #include "alfe/rational.h"
-#include "alfe/concrete.h"
 #include <type_traits>
 
 template<class T> class TemplateTemplate;
@@ -161,13 +160,17 @@ public:
     }
     int size() const { return body()->size(); }
     ValueTemplate<T> value(void* p) const { return body()->value(p); }
+    ValueTemplate<T> simplify(const Value& value) const
+    {
+        return body()->simplify(value);
+    }
 protected:
     class Body : public Tyco::Body
     {
     public:
         Kind kind() const { return TypeKind(); }
-        virtual ValueTemplate<T> tryConvert(const ValueTemplate<T>& value,
-            String* reason) const
+        virtual ValueTemplate<T> tryConvert(const Value& value, String* reason)
+            const
         {
             if (this == value.type().body())
                 return value;
@@ -193,6 +196,10 @@ protected:
         virtual ValueTemplate<T> defaultValue() const { return Value(); }
         virtual ValueTemplate<T> value(void* p) const { return Value(); }
         Type type() const { return tyco(); }
+        virtual ValueTemplate<T> simplify(const Value& value) const
+        {
+            return value;
+        }
     };
     TypeTemplate(const Body* body) : Tyco(body) { }
     const Body* body() const { return as<Body>(); }
@@ -321,6 +328,7 @@ public:
             return value<LValue>().rValue();
         return *this;
     }
+    Value simplify() const { return _type.simplify(*this); }
 private:
     Type _type;
     Any _any;
@@ -629,22 +637,14 @@ public:
             }
             return Value();
         }
+        Value simplify(const Value& value) const
+        {
+            Rational r = value.value<Rational>();
+            if (r.denominator == 1)
+                return Value(IntegerType(), r.numerator, value.span());
+            return value;
+        }
     };
-};
-
-class ConcreteTyco : public NamedNullary<Tyco, ConcreteTyco>
-{
-public:
-    ConcreteTyco() { }
-    static String name() { return "Concrete"; }
-protected:
-    class Body : public NamedNullary<Tyco, ConcreteTyco>::Body
-    {
-    public:
-        Kind kind() const { assert(false); return Kind(); }
-    };
-    ConcreteTyco(const Body* body) : NamedNullary(body) { }
-    friend class Nullary<Tyco, ConcreteTyco>;
 };
 
 class AbstractType : public NamedNullary<Type, AbstractType>
@@ -1552,142 +1552,6 @@ protected:
     friend class Body;
 };
 
-// ConcreteType is a bit strange. It's really a family of types, but these
-// types cannot be instantiated via the usual template syntax. The normal
-// constructor takes no arguments, but constructs a different dimension each
-// time, so care must be taken to keep track of instantiations and use the
-// correct one.
-template<class T> class ConcreteTypeTemplate : public Type
-{
-    class BaseBody : public Type::Body
-    {
-        typedef Array<int>::Body<BaseBody> Body;
-    public:
-        String toString() const { return "Concrete"; }
-        bool equals(const ConstHandle::Body* other) const
-        {
-            auto b = other->as<Body>();
-            if (b == 0)
-                return false;
-            for (int i = 0; i < max(elements(), b->elements()); ++i)
-                if ((*body())[i] != (*b)[i])
-                    return false;
-            return true;
-        }
-        Hash hash() const
-        {
-            Hash h = Type::Body::hash();
-            int i;
-            for (i = elements() - 1; i >= 0; --i)
-                if ((*body())[i] != 0)
-                    break;
-            for (; i >= 0; --i)
-                h.mixin((*body())[i]);
-            return h;
-        }
-        bool isAbstract() const
-        {
-            for (int i = 0; i < elements(); ++i)
-                if ((*body())[i] != 0)
-                    return false;
-            return true;
-        }
-        Value tryConvertTo(const Type& to, const Value& value,
-            String* reason) const
-        {
-            ConcreteType c(to);
-            if (c.valid()) {
-                if (equals(c.body()))
-                    return value;
-                *reason = String("Value is not commensurate");
-                return Value();
-            }
-            if (!isAbstract()) {
-                *reason = String("Value is denominate");
-                return Value();
-            }
-            ConcreteTemplate<T> v = value.value<ConcreteTemplate<T>>();
-            Rational r = v.value();
-            if (to == DoubleType())
-                return r.value<double>();
-            if (to == RationalType())
-                return r;
-            if (to == IntegerType()) {
-                if (r.denominator == 1)
-                    return r.numerator;
-                *reason = String("Value is not an integer");
-            }
-            return Value();
-        }
-        int elements() const { return body()->size(); }
-        Value defaultValue() const { return Concrete::zero(); }
-    private:
-        Body* body() { return as<Body>(); }
-        const Body* body() const { return as<Body>(); }
-    };
-    typedef Array<int>::Body<BaseBody> Body;
-
-    static int _bases;
-    ConcreteTypeTemplate(Body* body) : Type(body) { }
-public:
-    ConcreteTypeTemplate() : Type(Body::create(_bases + 1, _bases + 1))
-    {
-        for (int i = 0; i < elements(); ++i)
-            element(i) = 0;
-        element(elements() - 1) = 1;
-        ++_bases;
-    }
-    ConcreteTypeTemplate(const Type& other) : Type(other) { }
-    static ConcreteTypeTemplate zero()
-    {
-        return ConcreteTypeTemplate(Body::create(0, 0));
-    }
-    bool valid() const { return body() != 0; }
-    bool isAbstract() const { return body()->isAbstract(); }
-    const ConcreteTypeTemplate& operator+=(const ConcreteTypeTemplate& other)
-    {
-        *this = *this + other;
-        return *this;
-    }
-    const ConcreteTypeTemplate& operator-=(const ConcreteTypeTemplate& other)
-    {
-        *this = *this - other;
-        return *this;
-    }
-    ConcreteTypeTemplate operator-() const
-    {
-        ConcreteTypeTemplate t(elements());
-        for (int i = 0; i < elements(); ++i)
-            t.element(i) = -element(i);
-        return t;
-    }
-    ConcreteTypeTemplate operator+(const ConcreteTypeTemplate& other) const
-    {
-        ConcreteTypeTemplate t(max(elements(), other.elements()));
-        for (int i = 0; i < t.elements(); ++i)
-            t.element(i) = element(i) + other.element(i);
-        return t;
-    }
-    ConcreteTypeTemplate operator-(const ConcreteTypeTemplate& other) const
-    {
-        ConcreteTypeTemplate t(max(elements(), other.elements()));
-        for (int i = 0; i < t.elements(); ++i)
-            t.element(i) = element(i) - other.element(i);
-        return t;
-    }
-private:
-    const Body* body() const { return as<Body>(); }
-    Body* body() { return const_cast<Body*>(as<Body>()); }
-    ConcreteTypeTemplate(int bases) : Type(Body::create(bases, bases)) { }
-    int elements() const { return body()->elements(); }
-    int& element(int i) { return (*body())[i]; }
-    int element(int i) const { return i >= elements() ? 0 : (*body())[i]; }
-};
-
-typedef ConcreteTypeTemplate<Rational> ConcreteType;
-
-int ConcreteType::_bases = 0;
-
 class VectorType : public NamedNullary<StructuredType, VectorType>
 {
 public:
@@ -1715,6 +1579,5 @@ template<> Type typeFromCompileTimeType<Rational>() { return RationalType(); }
 template<> Type typeFromCompileTimeType<double>() { return DoubleType(); }
 template<> Type typeFromCompileTimeType<Byte>() { return ByteType(); }
 template<> Type typeFromCompileTimeType<Word>() { return WordType(); }
-template<> Type typeFromValue<Concrete>(const Concrete& c) { return c.type(); }
 
 #endif // INCLUDED_TYPE_H

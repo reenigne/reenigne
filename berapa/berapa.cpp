@@ -85,34 +85,6 @@ private:
 };
 template<> Type typeFromCompileTimeType<Tick>() { return Tick::Type(); }
 
-class ConcretePersistenceType : public Type
-{
-public:
-    ConcretePersistenceType(Concrete unit) : Type(new Body(unit)) { }
-private:
-    class Body : public Type::Body
-    {
-    public:
-        Body(Concrete unit) : _unit(unit) { }
-        Concrete _unit;
-        Value tryConvert(const Value& value, String* reason) const
-        {
-            return _unit.type().tryConvert(value, reason);
-        }
-        Value tryConvertTo(const Type& to, const Value& value, String* reason)
-            const
-        {
-            return _unit.type().tryConvertTo(to, value, reason);
-        }
-        void deserialize(const Value& value, void* p) const
-        {
-            *static_cast<Rational*>(p) =
-                (value.value<Concrete>()/_unit).value();
-        }
-        String toString() const { return _unit.type().toString(); }
-    };
-};
-
 class HexPersistenceType : public IntegerType
 {
 public:

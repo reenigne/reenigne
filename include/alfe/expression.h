@@ -172,7 +172,7 @@ public:
 
     ValueTemplate<T> evaluate(EvaluationContext* context) const
     {
-        return body()->evaluate(context);
+        return body()->evaluate(context).simplify();
     }
 
 protected:

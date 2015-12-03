@@ -4,3 +4,11 @@ Connector classes are not reference counted because Connector objects are expect
 
 How are Component objects owned? ROM::Type just creates a ROM* with new
   Owned by Simulator
+
+
+Input/Output/Bidirectional connectors:
+  It would be nice to be able to have components choose whether data is pushed or pulled depending on whether reads or writes happen more often
+  Connectors can negotiate what protocol they will use to talk to each other
+    The push protocol is the default and must always be available
+    Periodic protocol will also be useful - that way for PC speaker emulation a virtual function call will only be needed when a port is written
+
