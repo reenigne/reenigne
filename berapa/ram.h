@@ -2,7 +2,7 @@ class RAM : public Component
 {
 public:
     static String typeName() { return "RAM"; }
-    RAM()
+    RAM(Component::Type type) : Component(type)
     {
         connector("parityError", &_parityError);
         config("rowBits", &_rowBits);

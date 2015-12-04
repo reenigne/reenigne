@@ -3,9 +3,10 @@ template<class T> class IBMCGATemplate
 {
 public:
     static String typeName() { return "IBMCGA"; }
-    IBMCGATemplate()
-      : _attr(0), _chrdata(0), _wait(0), _cycle(0), _bgri(0),
-        _lightPenStrobe(false), _lightPenSwitch(true), _bgriSource(this)
+    IBMCGATemplate(Component::Type type)
+      : ISA8BitComponent(type), _attr(0), _chrdata(0), _wait(0), _cycle(0),
+        _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true),
+        _bgriSource(this)
     {
         _data.allocate(0x4000);
         config("rom", &_rom);

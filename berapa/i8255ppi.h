@@ -3,7 +3,7 @@ template<class T> class Intel8255PPITemplate
 {
 public:
     static String typeName() { return "Intel8255PPI"; }
-    Intel8255PPITemplate()
+    Intel8255PPITemplate(Component::Type type) : ISA8BitComponent(type)
     {
         _mode = 0x1b;
         for (int i = 0; i < 3; ++i) {

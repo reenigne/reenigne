@@ -3,7 +3,7 @@ template<class T> class DMAPageRegistersTemplate
 {
 public:
     static String typeName() { return "DMAPageRegisters"; }
-    DMAPageRegistersTemplate()
+    DMAPageRegistersTemplate(Component::Type type) : ISA8BitComponent(type)
     {
         for (int i = 0; i < 4; ++i)
             _dmaPages[i] = 0;

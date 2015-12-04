@@ -170,12 +170,55 @@ public:
 template<class T> class ComponentTemplate : public Structure
 {
 public:
-    ComponentTemplate()
-      : _simulator(0), _ticksPerCycle(0), _defaultConnector(0)
+    class Type : public ::Type
+    {
+    public:
+        Type() { }
+        Type(::Type type) : ::Type(type) { }
+        Reference<Component> createComponent()
+        {
+            auto c = body()->createComponent();
+            body()->simulator()->addComponent(c);
+            return c;
+        }
+        Simulator* simulator() const { return body()->simulator(); }
+        bool valid() const { return body() != 0; }
+    protected:
+        Type(const Body* body) : ::Type(body) { }
+        class Body : public ::Type::Body
+        {
+        public:
+            Body(Simulator* simulator) : _simulator(simulator) { }
+            ::Type member(Identifier i) const
+            {
+                if (i.name() == "*")
+                    return StringType();
+                return ::Type();
+            }
+            virtual Reference<Component> createComponent() const = 0;
+            Value tryConvert(const Value& value, String* why) const
+            {
+                Value stv = value.type().tryConvertTo(
+                    StructuredType::empty().type(), value, why);
+                if (!stv.valid())
+                    return stv;
+                auto v = Type(type()).createComponent();
+                return Value(type(), static_cast<Structure*>(&(*v)),
+                    value.span());
+            }
+            Simulator* simulator() const { return _simulator; }
+        protected:
+            Simulator* _simulator;
+        };
+        const Body* body() const { return as<Body>(); }
+    };
+    ComponentTemplate(Type type)
+      : _simulator(type.simulator()), _ticksPerCycle(0),
+        _defaultConnector(0)
     {
         persist("tick", &_tick);
     }
-    void setSimulator(Simulator* simulator) { _simulator = simulator; }
+    virtual void initialize() { }
     virtual void runTo(Tick tick) { _tick = tick; }
     virtual void maintain(Tick ticks) { _tick -= ticks; }
     String name() const { return _name; }
@@ -206,47 +249,6 @@ public:
         }
         Structure::set(name, value);
     }
-    class Type : public ::Type
-    {
-    public:
-        Type() { }
-        Type(::Type type) : ::Type(type) { }
-        Reference<Component> createComponent()
-        {
-            auto c = body()->createComponent();
-            c->setType(*this);
-            return c;
-        }
-        bool valid() const { return body() != 0; }
-    protected:
-        Type(const Body* body) : ::Type(body) { }
-        class Body : public ::Type::Body
-        {
-        public:
-            Body(Simulator* simulator) : _simulator(simulator) { }
-            ::Type member(Identifier i) const
-            {
-                if (i.name() == "*")
-                    return StringType();
-                return ::Type();
-            }
-            virtual Reference<Component> createComponent() const = 0;
-            Value tryConvert(const Value& value, String* why) const
-            {
-                Value stv = value.type().tryConvertTo(
-                    StructuredType::empty().type(), value, why);
-                if (!stv.valid())
-                    return stv;
-                auto v = createComponent();
-                _simulator->addComponent(v);
-                return Value(type(), static_cast<Structure*>(&(*v)),
-                    value.span());
-            }
-        protected:
-            Simulator* _simulator;
-        };
-        const Body* body() const { return as<Body>(); }
-    };
     template<class C> class TypeHelper : public Type
     {
     public:
@@ -258,15 +260,16 @@ public:
         public:
             Body(Simulator* simulator) : Type::Body(simulator)
             {
-                C component;
+                C component(type());
                 for (auto i = component._config.begin();
                     i != component._config.end(); ++i) {
                     _members[i.key()] = i.value().type();
                 }
+                _default = component.persistenceType();
             }
             Reference<Component> createComponent() const
             {
-                return Reference<Component>::create<C>();
+                return Reference<Component>::create<C>(Type(type()));
             }
             String toString() const { return C::typeName(); }
             ::Type member(Identifier i) const
@@ -284,10 +287,11 @@ public:
                 static_cast<C*>(p)->load(value);
             }
             int size() const { return sizeof(C); }
-            Value defaultValue() const { return C().persistenceType(); }
+            Value defaultValue() const { return _default; }
             Value value(void* p) const { return static_cast<C*>(p)->value(); }
         private:
             HashTable<Identifier, ::Type> _members;
+            Value _default;
         };
         TypeHelper(const Body* body) : Type(body) { }
     };
@@ -437,7 +441,8 @@ private:
     class AssignmentFunco : public Funco
     {
     public:
-        AssignmentFunco(Component* component) : Funco(new Body(component)) { }
+        AssignmentFunco(Component* component)
+          : Funco(Funco::create<Body>(component)) { }
         ::Type type() const { return tyco(); }
         class Body : public Funco::Body
         {
@@ -512,7 +517,7 @@ private:
 class ClockedComponent : public Component
 {
 public:
-    ClockedComponent()
+    ClockedComponent(Type type) : Component(type)
     {
         config("frequency", &_cyclesPerSecond,
             ConcretePersistenceType(1/second));
@@ -655,7 +660,8 @@ protected:
 template<class T, class C> class BooleanComponent : public Component
 {
 public:
-    BooleanComponent() : _input1(this), _input2(this), _output(this)
+    BooleanComponent(Component::Type type)
+      : Component(type), _input1(this), _input2(this), _output(this)
     {
         connector("input1", &_input1);
         connector("input2", &_input2);
@@ -716,6 +722,7 @@ template<class T> class AndComponent
 {
 public:
     static String typeName() { return "And"; }
+    AndComponent(Component::Type type) : BooleanComponent(type) { }
     void update(Tick t) { _output.set(t, _input1._v & _input2._v); }
     class Type : public BooleanComponent::Type
     {
@@ -738,6 +745,7 @@ template<class T> class OrComponent
 {
 public:
     static String typeName() { return "Or"; }
+    OrComponent(Component::Type type) : BooleanComponent(type) { }
     void update(Tick t) { _output.set(t, _input1._v | _input2._v); }
     class Type : public BooleanComponent::Type
     {
@@ -791,7 +799,8 @@ class SRLatch : public Component
 {
 public:
     static String typeName() { return "SRLatch"; }
-    SRLatch() : _set(this), _reset(this), _isSet(false)
+    SRLatch(Component::Type type)
+      : Component(type), _set(this), _reset(this), _isSet(false)
     {
         connector("set", &_set);
         connector("reset", &_reset);
@@ -840,7 +849,7 @@ private:
 template<template<class> class Component> class ComponentFunco : public Funco
 {
 public:
-    ComponentFunco(Body* body) : Funco(body) { }
+    ComponentFunco(const Handle& other) : Funco(other) { }
     class Body : public Funco::Body
     {
     public:
@@ -893,7 +902,7 @@ class AndComponentFunco : public ComponentFunco<AndComponent>
 {
 public:
     AndComponentFunco(Simulator* simulator)
-      : ComponentFunco(new Body(simulator)) { }
+      : ComponentFunco(ComponentFunco::create<Body>(simulator)) { }
     class Body : public ComponentFunco::Body
     {
     public:
@@ -906,7 +915,7 @@ class OrComponentFunco : public ComponentFunco<OrComponent>
 {
 public:
     OrComponentFunco(Simulator* simulator)
-      : ComponentFunco(new Body(simulator)) { }
+      : ComponentFunco(ComponentFunco::create<Body>(simulator)) { }
     class Body : public ComponentFunco::Body
     {
     public:

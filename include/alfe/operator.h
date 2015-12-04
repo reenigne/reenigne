@@ -29,8 +29,6 @@ protected:
         virtual String toString() const = 0;
     };
     const Body* body() const { return as<Body>(); }
-public:
-    Operator(const Body* body) : ConstHandle(body) { }
 };
 
 class OperatorEqualTo : public NamedNullary<Operator, OperatorEqualTo>

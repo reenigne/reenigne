@@ -313,7 +313,8 @@ template<class T> class Intel8088CPUTemplate : public ClockedComponent
 {
 public:
     static String typeName() { return "Intel8088CPU"; }
-    Intel8088CPUTemplate() : _connector(this)
+    Intel8088CPUTemplate(Component::Type type)
+      : ClockedComponent(type), _connector(this)
     {
         connector("", &_connector);
 

@@ -3,7 +3,8 @@ template<class T> class ISA8BitRAMTemplate
 {
 public:
     static String typeName() { return "ISA8BitRAM"; }
-    ISA8BitRAMTemplate()
+    ISA8BitRAMTemplate(Component::Type type)
+      : ISA8BitComponent(type), _ram(type)
     {
         connector("parityError", &_ram._parityError);
         config("rowBits", &_ram._rowBits);

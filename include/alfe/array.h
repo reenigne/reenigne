@@ -55,7 +55,7 @@ public:
     void add(const T& t)
     {
         if (!valid())
-            *this = List(new Body(t));
+            *this = List(List::create<Body>(t));
         else
             body()->add(t);
     }
@@ -78,7 +78,7 @@ public:
         return l == end() && r == other.end();
     }
 private:
-    List(Body* body) : Handle(body) { }
+    List(const Handle& other) : Handle(other) { }
     Body* body() { return as<Body>(); }
     const Body* body() const { return as<Body>(); }
 public:
@@ -107,13 +107,39 @@ public:
     Iterator end() const { return Iterator(0); }
 };
 
-template<class T, class Base = typename Array<T>::AppendableBaseBody> class AppendableArray;
+template<class T, class Base = typename Array<T>::AppendableBaseBody>
+    class AppendableArray;
 
 // Array is not quite a value type, since changing an element in one array will
 // affect copies of the same array unless a deep copy is made with copy().
 template<class T> class Array : private Handle
 {
 public:
+    // "allocate" is number of Ts to allocate space for.
+    // "construct" is number of Ts to actually construct.
+    template<class H, typename... Args> static Array create(int allocate,
+        int construct, int extraBytes = 0, Args&&... args)
+    {
+        void* buffer = operator new(Body<H>::headSize() + allocate*sizeof(T) +
+            extraBytes);
+        Body* b;
+        try {
+            b = new(buffer) Body<H>(std::forward<Args>(args)...);
+            try {
+                b->constructTail(construct);
+            }
+            catch (...) {
+                b->destruct();
+                throw;
+            }
+        }
+        catch (...) {
+            operator delete(buffer);
+            throw;
+        }
+        return Array(Handle(b, false));
+    }
+
     // This class combines an H and an array of Ts in a single memory block.
     // Also known as the "struct hack". T must be default-constructable.
     template<class H = Handle::Body> class Body : public H
@@ -123,31 +149,6 @@ public:
         class HT : public Body { public: T _t; };
     public:
         static int headSize() { return sizeof(HT) - sizeof(T); }
-
-        // "allocate" is number of Ts to allocate space for.
-        // "construct" is number of Ts to actually construct.
-        template<typename... Args> static Body* create(int allocate,
-            int construct, int extraBytes = 0, Args&&... args)
-        {
-            void* buffer = operator new(headSize() + allocate*sizeof(T) +
-                extraBytes);
-            Body* b;
-            try {
-                b = new(buffer) Body(std::forward<Args>(args)...);
-                try {
-                    b->constructTail(construct);
-                }
-                catch (...) {
-                    b->destruct();
-                    throw;
-                }
-            }
-            catch (...) {
-                operator delete(buffer);
-                throw;
-            }
-            return b;
-        }
 
         T* pointer() { return &static_cast<HT*>(this)->_t; }
         const T* pointer() const { return &static_cast<const HT*>(this)->_t; }
@@ -379,7 +380,7 @@ public:
         s = roundUpToPowerOf2(s) - overhead;
         int count = s/sizeof(T);
         int extra = s%sizeof(T);
-        auto b = Body::create(count, 0, extra);
+        auto b = Array<T>::create<Base>(count, 0, extra);
         b->_allocated = count;
         *this = AppendableArray(b);
     }
@@ -539,7 +540,6 @@ private:
     }
     Body* body() { return as<Body>(); }
     const Body* body() const { return as<Body>(); }
-    AppendableArray(Body* body) : Handle(body) { }
 
     // For access to body().
     template<class Key, class Value> friend class HashTable;

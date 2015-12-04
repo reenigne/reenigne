@@ -20,10 +20,10 @@ protected:
         virtual String toString() const { return tyco().toString(); }
         // = 0;  // TODO: write properly once we need best-match overloading
     };
-    Funco(Body* body) : Handle(body) { }
     const Body* body() const { return as<Body>(); }
 public:
     Funco() { }
+    Funco(const Handle& other) : Handle(other) { }
     Value evaluate(List<Value> arguments, Span span) const
     {
         return body()->evaluate(arguments, span);
@@ -48,8 +48,7 @@ protected:
         {
             return tyco().argumentsMatch(argumentTypes.begin());
         }
-    };                                                    
-    Function(Body* body) : Funco(body) { }
+    };
     const Body* body() const { return as<Body>(); }
 };
 
@@ -125,7 +124,7 @@ public:
     };
 
     OverloadedFunctionSet(Identifier identifier)
-      : Handle(new Body(identifier)) { }
+      : Handle(Handle::create<Body>(identifier)) { }
     void add(Funco funco) { body()->add(funco); }
     static Type type() { return Type(); }
     Value evaluate(List<Value> arguments, Span span) const

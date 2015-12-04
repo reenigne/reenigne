@@ -7,7 +7,8 @@ typedef ISA8BitComponentBaseTemplate<void> ISA8BitComponentBase;
 template<class T> class ISA8BitComponentBaseTemplate : public ClockedComponent
 {
 public:
-    ISA8BitComponentBaseTemplate() : _connector(this)
+    ISA8BitComponentBaseTemplate(Component::Type type)
+      : ClockedComponent(type), _connector(this)
     {
         connector("bus", &_connector);
         persist("active", &_active);
@@ -63,6 +64,7 @@ protected:
 template<class C> class ISA8BitComponent : public ISA8BitComponentBase
 {
 public:
+    ISA8BitComponent(Component::Type type) : ISA8BitComponentBase(type) { }
     typedef ClockedComponent::Type<C> Type;
 };
 
@@ -71,7 +73,8 @@ template<class T> class ISA8BitBusTemplate : public Component
 public:
     static String typeName() { return "ISA8BitBus"; }
 
-    ISA8BitBusTemplate() : _cpuSocket(this), _connector(this)
+    ISA8BitBusTemplate(Component::Type type)
+      : Component(type), _cpuSocket(this), _connector(this)
     {
         connector("cpu", &_cpuSocket);
         connector("slot", &_connector);

@@ -28,12 +28,17 @@ public:
     {
         return !(*this == other);
     }
+    template<class B, typename... Args> static ConstHandle
+        create(Args&&... args)
+    {
+        return ConstHandle(new B(std::forward<Args>(args)...), false);
+    }
 
 protected:
     class Body : Uncopyable
     {
     public:
-        Body() : _count(0) { }
+        Body() : _count(1) { }
         template<class T> T* as() { return dynamic_cast<T*>(this); }
         template<class T> const T* as() const
         {
@@ -45,6 +50,10 @@ protected:
         virtual void destroy() const { delete this; }  // for Array::Body
         virtual Hash hash() const { return typeid(*this); }
         virtual bool equals(const Body* other) const { return false; }
+        template<class T> T handle() const
+        {
+            return T(ConstHandle(this, true));
+        }
     private:
         void release() const
         {
@@ -58,15 +67,14 @@ protected:
     };
 
     template<class T> const T* as() const { return _body->as<T>(); }
-    template<class T> bool is() const { return as<T::Body>() != 0; }
-    const Body* body() const { return _body; }
-    ConstHandle(const Body* body) { set(body); }
+//    template<class T> bool is() const { return as<T::Body>() != 0; }
+//    const Body* body() const { return _body; }
 private:
     void reset() { if (valid()) _body->release(); }
-    void set(const Body* body)
+    void set(const Body* body, bool acquire = true)
     {
         _body = body;
-        if (valid())
+        if (acquire && valid())
             _body->acquire();
     }
     void modify(const Body* body)
@@ -77,6 +85,7 @@ private:
         set(body);
     }
     const Body* _body;
+    ConstHandle(const Body* body, bool acquire) { set(body, acquire); }
 
     friend class Handle;
 };
@@ -101,14 +110,26 @@ public:
     {
         return ConstHandle::operator!=(other);
     }
+    template<class B, typename... Args> static Handle create(Args&&... args)
+    {
+        return Handle(new B(std::forward<Args>(args)...), false);
+    }
 protected:
-    typedef ConstHandle::Body Body;
-    Handle(Body* body) { set(body); }
-    Body* body() { return const_cast<Body*>(_body); }
-    const Body* body() const { return ConstHandle::body(); }
+    class Body : public ConstHandle::Body
+    {
+    protected:
+        template<class T> T handle() { return T(ConstHandle(this, true)); }
+    };
+//    typedef ConstHandle::Body Body;
+//    Body* body() { return const_cast<ConstHandle::Body*>(_body)->as<Body>(); }
+//    const Body* body() const { return ConstHandle::body(); }
     template<class T> const T* as() const { return ConstHandle::as<T>(); }
-    template<class T> T* as() { return body()->as<T>(); }
-    template<class T> bool is() const { return ConstHandle::is<T>; }
+    template<class T> T* as() { return _body->as<T>(); }
+//    template<class T> bool is() const { return ConstHandle::is<T>; }
+private:
+    Handle(Body* body, bool acquire) { set(body, acquire); }
+    friend class ConstHandle::Body;
+    template<class T> friend class Array;
 };
 
 #endif // INCLUDED_HANDLE_H

@@ -2,7 +2,9 @@ class RGBIMonitor : public Component
 {
 public:
     static String typeName() { return "RGBIMonitor"; }
-    RGBIMonitor() : _renderer(&_window), _texture(&_renderer), _connector(this)
+    RGBIMonitor(Component::Type type)
+      : Component(type), _renderer(&_window), _texture(&_renderer),
+        _connector(this)
     {
         _palette.allocate(64);
         _palette[0x0] = 0xff000000;
@@ -32,7 +34,6 @@ public:
             _palette[i + 32] = 0xff220022 + rgb; // vsync
             _palette[i + 48] = 0xff222222 + rgb; // hsync+vsync
         }
-
         connector("", &_connector);
     }
 

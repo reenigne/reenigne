@@ -250,9 +250,9 @@ template<class T> class ConcreteTypeTemplate : public Type
     typedef Array<int>::Body<BaseBody> Body;
 
     static int _bases;
-    ConcreteTypeTemplate(Body* body) : Type(body) { }
 public:
-    ConcreteTypeTemplate() : Type(Body::create(_bases + 1, _bases + 1))
+    ConcreteTypeTemplate()
+      : Type(Array<int>::create<BaseBody>(_bases + 1, _bases + 1))
     {
         for (int i = 0; i < elements(); ++i)
             element(i) = 0;
@@ -320,7 +320,7 @@ template<> Type typeFromValue<Concrete>(const Concrete& c) { return c.type(); }
 class ConcretePersistenceType : public Type
 {
 public:
-    ConcretePersistenceType(Concrete unit) : Type(new Body(unit)) { }
+    ConcretePersistenceType(Concrete unit) : Type(Type::create<Body>(unit)) { }
 private:
     class Body : public Type::Body
     {

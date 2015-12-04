@@ -2,7 +2,7 @@ class NMISwitch : public ISA8BitComponent<NMISwitch>
 {
 public:
     static String typeName() { return "NMISwitch"; }
-    NMISwitch() : _connector(this)
+    NMISwitch(Component::Type type) : ISA8BitComponent(type), _connector(this)
     {
         persist("on", &_nmiOn);
         connector("", &_connector);

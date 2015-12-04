@@ -96,7 +96,7 @@ public:
     }
     void activateLightPen() { _lightPenActivated = true; }
     bool displayEnable() const
-    { 
+    {
         return _horizontalDisplay && _verticalDisplay;
     }
     UInt16 memoryAddress() const { return _memoryAddress; }

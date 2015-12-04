@@ -42,6 +42,7 @@ template<class T> class FileSystemObjectTemplate : public ConstHandle
 {
 public:
     FileSystemObjectTemplate() { }
+    FileSystemObjectTemplate(const ConstHandle& other) : ConstHandle(other) { }
     FileSystemObjectTemplate(const String& path,
         const Directory& relativeTo = CurrentDirectory(),
         bool windowsParsing = false)
@@ -69,7 +70,6 @@ public:
     };
 protected:
     const Body* body() const { return as<Body>(); }
-    FileSystemObjectTemplate(const Body* body) : ConstHandle(body) { }
 
     class NamedBody : public Body
     {
@@ -574,6 +574,7 @@ template<class T> class FileTemplate : public FileSystemObject
 {
 public:
     FileTemplate() { }
+    FileTemplate(const ConstHandle& other) : FileSystemObject(other) { }
     FileTemplate(const String& path,
         const Directory& relativeTo = CurrentDirectory(),
         bool windowsParsing = false)
@@ -806,8 +807,6 @@ private:
     }
 #endif
 
-    FileTemplate(FileSystemObject object) : FileSystemObject(object) { }
-
     friend class DirectoryTemplate<T>;
     friend class Console;
 };
@@ -926,7 +925,7 @@ template<class T> void applyToWildcard(T functor, const String& wildcard,
 class Console : public File
 {
 public:
-    Console() : File(FileSystemObject(new Body)) { }
+    Console() : File(File::create<Body>()) { }
 private:
     class Body : public FileSystemObject::Body
     {

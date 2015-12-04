@@ -19,7 +19,7 @@ public:
 
 protected:
     ParseTreeObject() { }
-    ParseTreeObject(const Body* body) : ConstHandle(body) { }
+    ParseTreeObject(const ConstHandle& other) : ConstHandle(other) { }
 
     const Body* body() const { return as<Body>(); }
 };

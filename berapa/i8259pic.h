@@ -2,8 +2,9 @@ class Intel8259PIC : public ISA8BitComponent<Intel8259PIC>
 {
 public:
     static String typeName() { return "Intel8259PIC"; }
-    Intel8259PIC()
-      : _interruptrdy(false), _secondAck(false), _state(stateReady), _imr(0xff)
+    Intel8259PIC(Component::Type type)
+      : ISA8BitComponent(type), _interruptrdy(false), _secondAck(false),
+        _state(stateReady), _imr(0xff)
     {
         for (int i = 0; i < 8; ++i) {
             _irqConnector[i].init(this, i);
@@ -53,7 +54,7 @@ public:
                 case stateICW3:
                     if ((_icw1 & 1) != 0)
                         _state = stateICW4;
-                    else 
+                    else
                         _state = stateReady;
                     break;
                 case stateICW4:

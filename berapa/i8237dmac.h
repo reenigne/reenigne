@@ -27,7 +27,8 @@ template<class T> class Intel8237DMACTemplate
     };
 public:
     static String typeName() { return "Intel8237DMAC"; }
-    Intel8237DMACTemplate()
+    Intel8237DMACTemplate(Component::Type type)
+      : ISA8BitComponent(type), _channels{type, type, type, type}
     {
         persist("address", &_address, HexPersistenceType(1));
         persist("command", &_command);
@@ -285,7 +286,7 @@ private:
     class Channel : public Component
     {
     public:
-        Channel()
+        Channel(Component::Type type) : Component(type)
         {
             persist("mode", &_mode);
             persist("baseAddress", &_baseAddress);

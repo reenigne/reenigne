@@ -50,9 +50,9 @@ public:
         do {
             Span span;
             if (Space::parseCharacter(source, '*', &span)) {
-                tycoSpecifier = new typename TypeSpecifierTemplate<T>::
-                    PointerBody(tycoSpecifier,
-                    tycoSpecifier.span() + span);
+                tycoSpecifier = TycoSpecifier::create<
+                    TypeSpecifierTemplate<T>::PointerBody>(
+                    tycoSpecifier, tycoSpecifier.span() + span);
                 continue;
             }
             CharacterSource s2 = *source;
@@ -61,9 +61,10 @@ public:
                 if (!Space::parseCharacter(&s2, ')', &span))
                     return tycoSpecifier;
                 *source = s2;
-                tycoSpecifier = new typename TypeSpecifierTemplate<T>::
-                    FunctionBody(tycoSpecifier,
-                    typeListSpecifier, tycoSpecifier.span() + span);
+                tycoSpecifier = TycoSpecifier::create<
+                    TypeSpecifierTemplate<T>::FunctionBody>(
+                    tycoSpecifier, typeListSpecifier,
+                    tycoSpecifier.span() + span);
                 continue;
             }
             break;
@@ -72,7 +73,8 @@ public:
     }
 protected:
     TycoSpecifierTemplate() { }
-    TycoSpecifierTemplate(const Body* body) : ParseTreeObject(body) { }
+    TycoSpecifierTemplate(const ConstHandle& other)
+      : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
     {
@@ -218,7 +220,7 @@ template<class T> class TycoIdentifierTemplate : public TycoSpecifier
 {
 public:
     TycoIdentifierTemplate(const String& name)
-      : TycoSpecifier(new Body(name, Span())) { }
+      : TycoSpecifier(TycoSpecifier::create<Body>(name, Span())) { }
     TycoIdentifierTemplate(const TycoSpecifier& t) : TycoSpecifier(t) { }
     static TycoIdentifier parse(CharacterSource* source)
     {
@@ -525,7 +527,8 @@ class TycoSignifier : public ParseTreeObject
 public:
     TycoSignifier(const TycoIdentifier& identifier,
         const TemplateParameters& parameters = TemplateParameters())
-      : ParseTreeObject(new Body(identifier, parameters, Span())) { }
+      : ParseTreeObject(ParseTreeObject::create<Body>(
+        identifier, parameters, Span())) { }
     static TycoSignifier parse(CharacterSource* source)
     {
         CharacterSource s2 = *source;
@@ -533,13 +536,12 @@ public:
         if (!identifier.valid())
             return TycoSignifier();
         TemplateParameters parameters = TemplateParameters::parse(source);
-        return new Body(identifier, parameters,
+        return ParseTreeObject::create<Body>(identifier, parameters,
             identifier.span() + parameters.span());
     }
 private:
     TycoSignifier() { }
-    TycoSignifier(const Body* body)
-      : ParseTreeObject(body) { }
+    TycoSignifier(const ConstHandle& other) : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
     {
@@ -558,13 +560,12 @@ class BuiltInTycoSpecifier : public TycoSpecifier
 {
 public:
     BuiltInTycoSpecifier(const Kind& kind)
-      : TycoSpecifier(new Body(kind)) { }
+      : TycoSpecifier(TycoSpecifier::create<Body>(kind)) { }
 private:
     class Body : public TycoSpecifier::Body
     {
     public:
-        Body(const Kind& kind)
-          : TycoSpecifier::Body(Span()), _kind(kind) { }
+        Body(const Kind& kind) : TycoSpecifier::Body(Span()), _kind(kind) { }
     private:
         Kind _kind;
     };

@@ -38,6 +38,7 @@ template<class T> class TycoTemplate : public ConstHandle
 {
 public:
     TycoTemplate() { }
+    TycoTemplate(const ConstHandle& other) : ConstHandle(other) { }
     String toString() const { return body()->toString(); }
     Kind kind() const { return body()->kind(); }
 protected:
@@ -48,13 +49,11 @@ protected:
         virtual Kind kind() const = 0;
         Tyco tyco() const { return this; }
     };
-    TycoTemplate(const Body* body) : ConstHandle(body) { }
+    const Body* body() const { return as<Body>(); }
 
     friend class TemplateTemplate<void>;
     template<class U> friend class EnumerationType;
     template<class U> friend class StructuredTypeTemplate;
-public:
-    const Body* body() const { return as<Body>(); }
 };
 
 template<class T> class StructureTemplate;
@@ -201,7 +200,6 @@ protected:
             return value;
         }
     };
-    TypeTemplate(const Body* body) : Tyco(body) { }
     const Body* body() const { return as<Body>(); }
 
     friend class TemplateTemplate<void>;
@@ -369,7 +367,7 @@ protected:
         {
             if (final)
                 return finalInstantiate(this, argument);
-            return new PartialBody(this, this, argument);
+            return Tyco::create<PartialBody>(this, this, argument);
         }
         virtual Type finalInstantiate(const Body* parent, Tyco argument) const
             = 0;
@@ -419,7 +417,7 @@ protected:
         {
             if (final)
                 return _root->finalInstantiate(this, argument);
-            return new PartialBody(_root, this, argument);
+            return Tyco::create<PartialBody>(_root, this, argument);
         }
         bool equals(const ConstHandle::Body* other) const
         {
@@ -444,7 +442,7 @@ class LessThanType : public Type
 public:
     LessThanType(Type t) : Type(t) { }
     bool valid() const { return body() != 0; }
-    LessThanType(int n) : Type(new Body(n)) { }
+    LessThanType(int n) : Type(Type::create<Body>(n)) { }
     int n() const { return body()->_n; }
 private:
     class Body : public Type::Body
@@ -658,9 +656,9 @@ class ArrayType : public Type
 public:
     ArrayType(const Type& type) : Type(type) { }
     ArrayType(const Type& contained, const Type& indexer)
-      : Type(new Body(contained, indexer)) { }
+      : Type(Type::create<Body>(contained, indexer)) { }
     ArrayType(const Type& contained, int size)
-        : Type(new Body(contained, LessThanType(size))) { }
+      : Type(Type::create<Body>(contained, LessThanType(size))) { }
     bool valid() const { return body() != 0; }
     Type contained() const { return body()->contained(); }
     Type indexer() const { return body()->indexer(); }
@@ -856,7 +854,8 @@ public:
 class SequenceType : public Type
 {
 public:
-    SequenceType(const Type& contained) : Type(new Body(contained)) { }
+    SequenceType(const Type& contained)
+      : Type(Type::create<Body>(contained)) { }
     Type contained() const { return body()->contained(); }
 private:
     class Body : public Type::Body
@@ -1061,7 +1060,7 @@ private:
 class PointerType : public Type
 {
 public:
-    PointerType(const Type& referent) : Type(new Body(referent)) { }
+    PointerType(const Type& referent) : Type(Type::create<Body>(referent)) { }
 private:
     class Body : public Type::Body
     {
@@ -1117,12 +1116,12 @@ public:
     FunctionTycoTemplate(Type returnType, Type argumentType)
       : Tyco(FunctionTyco(
             FunctionTemplateTemplate<T>().instantiate(returnType)).
-            instantiate(argumentType).body()) { }
+            instantiate(argumentType)) { }
     FunctionTycoTemplate(Type returnType, Type argumentType1,
         Type argumentType2)
       : Tyco(FunctionTyco(FunctionTyco(FunctionTemplateTemplate<T>().
             instantiate(returnType)).instantiate(argumentType1)).
-            instantiate(argumentType2).body()) { }
+            instantiate(argumentType2)) { }
     bool argumentsMatch(List<Type>::Iterator argumentTypes) const
     {
         return body()->argumentsMatch(argumentTypes);

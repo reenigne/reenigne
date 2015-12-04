@@ -3,17 +3,16 @@ template<class T> class Intel8253PITTemplate
 {
 public:
     static String typeName() { return "Intel8253PIT"; }
-    Intel8253PITTemplate()
+    Intel8253PITTemplate(Component::Type type)
+      : ISA8BitComponent(type), _timers{type, type, type}
     {
-        for (int i = 0; i < 3; ++i)
-            _timers[i].setGate(true);
         persist("address", &_address);
         persist("timers", &_timers[0], ArrayType(Timer::Type(), 3));
     }
     void simulateCycle()
     {
         for (int i = 0; i < 3; ++i)
-            _timers[i]->simulateCycle();
+            _timers[i].simulateCycle();
     }
     void setAddress(UInt32 address) { _address = address & 3; }
     void read()
@@ -36,7 +35,7 @@ private:
     {
     public:
         static String typeName() { return "Timer"; }
-        Timer()
+        Timer(Component::Type type) : Component(type)
         {
             persist("value", &_value);
             persist("latch", &_latch);
@@ -61,6 +60,8 @@ private:
             persist("state", &_state,
                 EnumerationType<State>("State", h,
                     Intel8253PIT::typeName() + "." + typeName() + "."));
+
+            setGate(true);
         }
         void simulateCycle()
         {

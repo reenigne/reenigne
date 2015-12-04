@@ -16,6 +16,7 @@ class Kind : public ConstHandle
 {
 public:
     Kind() { }
+    Kind(const ConstHandle other) : ConstHandle(other) { }
     String toString() const { return body()->toString(); }
     bool operator!=(const Kind& other) const { return !operator==(other); }
     Kind instantiate(Kind argument) const
@@ -28,8 +29,8 @@ protected:
     public:
         virtual String toString() const = 0;
         virtual Kind instantiate(Kind argument) const = 0;
+        Kind kind() const { return handle<Kind>(); }
     };
-    Kind(const Body* body) : ConstHandle(body) { }
     const Body* body() const { return as<Body>(); }
 private:
     friend class TemplateKind;
@@ -72,7 +73,7 @@ class TemplateKind : public Kind
 {
 public:
     TemplateKind(const Kind& firstParameterKind, const Kind& restParameterKind)
-      : Kind(new Body(firstParameterKind, restParameterKind)) { }
+      : Kind(Kind::create<Body>(firstParameterKind, restParameterKind)) { }
     TemplateKind(const Kind& kind) : Kind(kind) { }
     Kind first() const { return body()->first(); }
     Kind rest() const { return body()->rest(); }
@@ -87,7 +88,7 @@ protected:
         String toString() const { return "<" + toString2(); }
         String toString2() const
         {
-            Kind k(this);
+            Kind k = kind();
             bool needComma = false;
             String s;
             do {
@@ -97,7 +98,7 @@ protected:
                     return s + "...>";
                 if (k == TypeKind())
                     return s + ">";
-                TemplateKind t(this);
+                TemplateKind t = kind();
                 s += t.first().toString();
                 k = t.rest();
                 needComma = true;

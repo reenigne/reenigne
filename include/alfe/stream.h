@@ -7,9 +7,10 @@ template<class T> class StreamTemplate : public Handle
 {
 public:
 #ifdef _WIN32
-    StreamTemplate() : _handle(INVALID_HANDLE_VALUE), Handle(new Body) { }
+    StreamTemplate()
+      : Handle(Handle::create<Body>()), _handle(INVALID_HANDLE_VALUE) { }
     StreamTemplate(HANDLE handle, const File& file = File())
-      : _handle(handle), _file(file), Handle(new Body) { }
+      : Handle(Handle::create<Body>()), _handle(handle), _file(file) { }
     operator HANDLE() const { return _handle; }
     bool valid() const
     {

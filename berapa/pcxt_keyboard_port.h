@@ -2,8 +2,9 @@ template<class T> class PCXTKeyboardPortTemplate : public Component
 {
 public:
     static String typeName() { return "PCXTKeyboardPort"; }
-    PCXTKeyboardPortTemplate()
-      : _clearConnector(this), _clockConnector(this), _connector(this)
+    PCXTKeyboardPortTemplate(Component::Type type)
+      : Component(type), _clearConnector(this), _clockConnector(this),
+        _connector(this)
     {
         connector("data", &_dataConnector);
         connector("clear", &_clearConnector);
