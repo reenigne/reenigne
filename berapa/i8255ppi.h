@@ -9,10 +9,13 @@ public:
         for (int i = 0; i < 3; ++i) {
             _bytes[i]._ppi = this;
             _bytes[i]._i = i;
+            connector(codePoint('a' + i), &_bytes[i]);
         }
         for (int i = 0; i < 24; ++i) {
             _bits[i]._ppi = this;
             _bits[i]._i = i;
+            connector(String(codePoint('a' + (i >> 3))) + decimal(i & 7),
+                &_bits[i]);
         }
         persist("address", &_address);
         ArrayType t(ByteType(), 3);
@@ -120,41 +123,6 @@ public:
         setOutgoing();
     }
 
-    class Type : public ISA8BitComponent::Type
-    {
-    public:
-        Type(Simulator* simulator)
-            : ISA8BitComponent::Type(new Body(simulator)) { }
-    private:
-        class Body : public ISA8BitComponent::Type::Body
-        {
-        public:
-            Body(Simulator* simulator)
-                : ISA8BitComponent::Type::Body(simulator) { }
-            ::Type member(Identifier name) const
-            {
-                String n = name.name();
-                if (n.length() == 1 && n[0] >= 'a' && n[0] <= 'c')
-                    return BidirectionalConnector<Byte>::Type();
-                if (n.length() == 2 && n[0] >= 'a' && n[0] <= 'c' &&
-                    n[1] >= '0' && n[1] <= '7')
-                    return BidirectionalConnector<bool>::Type();
-                return ISA8BitComponent::Type::Body::member(name);
-            }
-        };
-    };
-
-    Value getValue(Identifier i) const
-    {
-        String n = i.name();
-        if (n.length() == 1 && n[0] >= 'a' && n[0] <= 'c')
-            return _bytes[n[0] - 'a'].getValue();
-        if (n.length() == 2 && n[0] >= 'a' && n[0] <= 'c' &&
-            n[1] >= '0' && n[1] <= '7')
-            return _bits[((n[0] - 'a') << 3) | (n[1] - '0')].getValue();
-        return ISA8BitComponent::getValue(i);
-    }
-
     void setData(int i, Byte v) { incoming(i, v); }
     void setData(int i, bool v)
     {
@@ -166,7 +134,7 @@ private:
     template<class T> class Connector : public BidirectionalConnector<T>
     {
     public:
-        void setData(T v) { _ppi->setData(_i, v); }
+        void setData(Tick tick, T v) { _ppi->setData(_i, v); }
         Intel8255PPI* _ppi;
         int _i;
     };

@@ -117,12 +117,13 @@ template<class T> class Array : private Handle
 public:
     // "allocate" is number of Ts to allocate space for.
     // "construct" is number of Ts to actually construct.
-    template<class H, typename... Args> static Array create(int allocate,
-        int construct, int extraBytes = 0, Args&&... args)
+    template<class C = Handle, class H = Handle::Body, typename... Args> static
+        C create(int allocate, int construct, int extraBytes = 0,
+        Args&&... args)
     {
         void* buffer = operator new(Body<H>::headSize() + allocate*sizeof(T) +
             extraBytes);
-        Body* b;
+        Body<H>* b;
         try {
             b = new(buffer) Body<H>(std::forward<Args>(args)...);
             try {
@@ -137,7 +138,7 @@ public:
             operator delete(buffer);
             throw;
         }
-        return Array(Handle(b, false));
+        return C(b, false);
     }
 
     // This class combines an H and an array of Ts in a single memory block.
@@ -256,6 +257,7 @@ public:
         // HashTable keeps all elements constructed, and uses _size to keep
         // track of the number of actual entries in the table.
         template<class Key, class Value> friend class HashTable;
+        friend class Array;
     };
     class AppendableBaseBody : public Handle::Body
     {
@@ -267,7 +269,7 @@ public:
     {
         int n = list.count();
         if (n != 0) {
-            *this = Array(Body<>::create(n, 0));
+            *this = Array(create<>(n, 0));
             for (auto p : list)
                 body()->constructT(p);
         }
@@ -275,7 +277,7 @@ public:
     explicit Array(int n)
     {
         if (n != 0)
-            *this = Array(Body<>::create(n, n));
+            *this = Array(create<>(n, n));
     }
     void allocate(int n) { *this = Array(n); }
     bool operator==(const Array& other) const
@@ -342,7 +344,7 @@ public:
     }
 
 private:
-    Array(Body<>* body) : Handle(body) { }
+    Array(const Handle& other) : Handle(other) { }
     Body<>* body() { return as<Body<>>(); }
     const Body<>* body() const { return as<Body<>>(); }
     template<class U, class B> friend class AppendableArray;
@@ -355,14 +357,10 @@ private:
 template<class T, class Base> class AppendableArray : private Handle
 {
 protected:
-    class BaseBody : public Handle::Body
-    {
-    public:
-        int _allocated;
-    };
     typedef typename Array<T>::Body<Base> Body;
 public:
     AppendableArray() { }
+    AppendableArray(const Handle& other) : Handle(other) { }
     AppendableArray(const List<T>& list) : AppendableArray(list.count())
     {
         for (auto p : list)
@@ -380,9 +378,9 @@ public:
         s = roundUpToPowerOf2(s) - overhead;
         int count = s/sizeof(T);
         int extra = s%sizeof(T);
-        auto b = Array<T>::create<Base>(count, 0, extra);
-        b->_allocated = count;
-        *this = AppendableArray(b);
+        AppendableArray b = Array<T>::create<Handle, Base>(count, 0, extra);
+        b.body()->_allocated = count;
+        *this = b;
     }
     void allocate(int n)
     {

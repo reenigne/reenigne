@@ -47,8 +47,9 @@ protected:
     public:
         virtual String toString() const = 0;
         virtual Kind kind() const = 0;
-        Tyco tyco() const { return this; }
+        Tyco tyco() const { return handle<ConstHandle>(); }
     };
+private:
     const Body* body() const { return as<Body>(); }
 
     friend class TemplateTemplate<void>;
@@ -120,7 +121,7 @@ template<class T> class TypeTemplate : public Tyco
 {
 public:
     TypeTemplate() { }
-    TypeTemplate(const Tyco& tyco) : Tyco(tyco) { }
+    TypeTemplate(const ConstHandle& other) : Tyco(other) { }
 
     ValueTemplate<T> tryConvert(const Value& value, String* reason) const
     {
@@ -213,13 +214,11 @@ public:
     {
         if (LValueType(inner).valid())
             return inner;
-        return LValueType(new Body(inner));
+        return LValueType(LValueType::create<Body>(inner));
     }
     Type inner() const { return body()->inner(); }
     bool valid() const { return body() != 0; }
 private:
-    LValueTypeTemplate(const Body* body) : Type(body) { }
-
     class Body : public Type::Body
     {
     public:
@@ -336,10 +335,12 @@ private:
 template<class T> class TemplateTemplate : public Tyco
 {
 public:
+    TemplateTemplate(const ConstHandle& other) : Tyco(other) { }
     Tyco instantiate(const Tyco& argument) const
     {
         return body()->instantiate(argument);
     }
+    Tyco argument() const { return as<PartialBody>()->argument(); }
 protected:
     class Body : public Tyco::Body
     {
@@ -366,10 +367,10 @@ protected:
         virtual Tyco partialInstantiate(bool final, Tyco argument) const
         {
             if (final)
-                return finalInstantiate(this, argument);
-            return Tyco::create<PartialBody>(this, this, argument);
+                return finalInstantiate(tyco(), argument);
+            return Tyco::create<PartialBody>(tyco(), tyco(), argument);
         }
-        virtual Type finalInstantiate(const Body* parent, Tyco argument) const
+        virtual Type finalInstantiate(Template parent, Tyco argument) const
             = 0;
         Value tryConvert(const Value& value, String* reason) const
         {
@@ -388,7 +389,7 @@ protected:
     class PartialBody : public Body
     {
     public:
-        PartialBody(const Body* root, const Body* parent, Tyco argument)
+        PartialBody(Template root, Template parent, Tyco argument)
           : _root(root), _parent(parent), _argument(argument) { }
 
         String toString() const
@@ -397,7 +398,7 @@ protected:
         }
         String toString2() const
         {
-            auto p = dynamic_cast<const PartialBody*>(_parent);
+            auto p = _parent.as<PartialBody>();
             String s;
             if (p != 0)
                 s = p->toString2() + ", ";
@@ -405,9 +406,9 @@ protected:
         }
         Kind kind() const
         {
-            return _parent->kind().instantiate(_argument.kind());
+            return _parent.kind().instantiate(_argument.kind());
         }
-        Type finalInstantiate(const Body* parent, Tyco argument) const
+        Type finalInstantiate(Template parent, Tyco argument) const
         {
             assert(false);
             return Type();
@@ -416,8 +417,8 @@ protected:
         Tyco partialInstantiate(bool final, Tyco argument) const
         {
             if (final)
-                return _root->finalInstantiate(this, argument);
-            return Tyco::create<PartialBody>(_root, this, argument);
+                return _root.body()->finalInstantiate(tyco(), argument);
+            return Tyco::create<PartialBody>(_root, tyco(), argument);
         }
         bool equals(const ConstHandle::Body* other) const
         {
@@ -429,12 +430,11 @@ protected:
         const Body* parent() const { return _parent; }
         Tyco argument() const { return _argument; }
     private:
-        const Body* _root;
-        const Body* _parent;
+        Template _root;
+        Template _parent;
         Tyco _argument;
     };
     const Body* body() const { return as<Body>(); }
-    TemplateTemplate(const Body* body) : Tyco(body) { }
 };
 
 class LessThanType : public Type
@@ -496,6 +496,7 @@ class IntegerType : public NamedNullary<Type, IntegerType>
 {
 public:
     IntegerType() { }
+    IntegerType(const ConstHandle& other) : NamedNullary(other) { }
     static String name() { return "Integer"; }
     class Body : public NamedNullary<Type, IntegerType>::Body
     {
@@ -513,8 +514,6 @@ public:
         Value defaultValue() const { return 0; }
         Value value(void* p) const { return *static_cast<int*>(p); }
     };
-protected:
-    IntegerType(const Body* body) : NamedNullary(body) { }
 };
 
 class BooleanType : public NamedNullary<Type, BooleanType>
@@ -841,12 +840,9 @@ public:
             return TemplateKind(TypeKind(),
                 TemplateKind(TypeKind(), TypeKind()));
         }
-        Type finalInstantiate(const Template::Body* parent,
-            Tyco argument) const
+        Type finalInstantiate(Template parent, Tyco argument) const
         {
-            return ArrayType(
-                dynamic_cast<const Template::PartialBody*>(parent)->
-                    argument(), argument);
+            return ArrayType(parent.argument(), argument);
         }
     };
 };
@@ -891,8 +887,7 @@ public:
     {
     public:
         Kind kind() const { return TemplateKind(TypeKind(), TypeKind()); }
-        Type finalInstantiate(const Template::Body* parent, Tyco argument)
-            const
+        Type finalInstantiate(Template parent, Tyco argument) const
         {
             return SequenceType(argument);
         }
@@ -1090,8 +1085,7 @@ public:
     {
     public:
         Kind kind() const { return TemplateKind(TypeKind(), TypeKind()); }
-        Type finalInstantiate(const Template::Body* parent, Tyco argument)
-            const
+        Type finalInstantiate(Template parent, Tyco argument) const
         {
             return PointerType(argument);
         }
@@ -1111,7 +1105,7 @@ public:
 
     static FunctionTyco nullary(const Type& returnType)
     {
-        return FunctionTyco(new NullaryBody(returnType));
+        return FunctionTyco(create<NullaryBody>(returnType));
     }
     FunctionTycoTemplate(Type returnType, Type argumentType)
       : Tyco(FunctionTyco(
@@ -1131,7 +1125,6 @@ public:
         return body()->instantiate(argument);
     }
 private:
-    FunctionTycoTemplate(const Body* body) : Tyco(body) { }
     class Body : public Tyco::Body
     {
     public:
@@ -1167,7 +1160,7 @@ private:
                     ") to instantiate Function because it requires a type");
             }
 
-            FunctionTyco t(new ArgumentBody(this, argument));
+            FunctionTyco t(create<ArgumentBody>(tyco(), argument));
             _instantiations.add(argument, t);
             return t;
         }
@@ -1252,8 +1245,7 @@ public:
         {
             return TemplateKind(TypeKind(), VariadicTemplateKind());
         }
-        Type finalInstantiate(const Template::Body* parent, Tyco argument)
-            const
+        Type finalInstantiate(Template parent, Tyco argument) const
         {
             assert(false);
             return Type();
@@ -1279,7 +1271,7 @@ public:
     };
 
     EnumerationType(String name, const Helper& helper, String context = "")
-      : Type(new Body(name, helper, context)) { }
+      : Type(create<Body>(name, helper, context)) { }
 protected:
     class Body : public Type::Body
     {
@@ -1351,9 +1343,9 @@ public:
     }
 
     StructuredTypeTemplate() { }
-    StructuredTypeTemplate(const Type& other) : Type(other) { }
+    StructuredTypeTemplate(const ConstHandle& other) : Type(other) { }
     StructuredTypeTemplate(String name, List<Member> members)
-      : Type(new Body(name, members)) { }
+      : Type(Type::create<Body>(name, members)) { }
     const HashTable<Identifier, int> names() const { return body()->names(); }
     const Array<Member> members() const { return body()->members(); }
     static Value empty()

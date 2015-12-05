@@ -1,0 +1,269 @@
+New:
+
+class String : private Handle
+  class Body : public Handle::Body
+    // vtable pointer from Handle::Body
+    // int _count from Handle::Body
+    int _used;
+  class BodyWithArray<Body, Byte>
+    // vtable pointer from Handle::Body
+    // int _count from Handle::Body
+    // int _used from Body
+    // int _size from BodyWithArray
+  // Body* _body from Handle
+  Byte* _data;
+  int _length;
+
+String is 12 bytes
+OwningBody is 12 bytes+
+1 allocation overhead
+1 dereference to get to data
+
+Array : private Handle
+  class BodyWithArray<Body, T>
+    // vtable pointer from Handle::Body
+    // int _count from Body
+    // int _size from BodyWithArray
+  // Body* _body from Handle
+
+AppendableArray : private Handle
+  class BodyWithArray<Body, T>
+    // vtable pointer from Handle::Body
+    // int _count from Handle::Body
+    // int _size from BodyWithArray
+  // Body* _body from Handle
+  int _allocated;
+
+
+Current:
+
+class String
+  class Buffer : private Handle
+    // Body* _body from Handle
+    class Body : public Handle::Body
+      // vtable pointer from Handle::Body
+      // int _count from Handle::Body
+      const Byte* _data;
+    class OwningBody : public Body
+      // vtable pointer from Handle::Body
+      // int _count from Handle::Body
+      // const Byte* _data from Body
+      int _allocated;
+      int _used;
+  Buffer _buffer;
+  int _start;
+  int _length;
+
+String is 12 bytes
+OwningBody is 16 bytes
+2 allocation overheads
+2 dereferences to get to data
+
+
+
+
+
+VS:
+
+Debug:
+
+32-bit:
+  Alignment: 0x08 bytes
+  Overhead: 0x2c bytes
+64-bit:
+  Alignment: 0x10 bytes
+  Overhead: 0x3c bytes
+
+Release:
+
+32-bit:
+  Alignment: 0x08 bytes
+  Overhead: 0x08 bytes
+
+
+64-bit:
+  Alignment: 0x10 bytes
+  Overhead: 0x08 bytes
+  Minimum total: 0x20 bytes (but sometimes 0x10?)
+
+
+
+GCC:
+
+32-bit:
+  Alignment: 0x08 bytes
+  Overhead: 0x04 bytes
+  Minimum total: 0x10 bytes
+
+64-bit:
+  Alignment: 0x10 bytes
+  Overhead: 0x08 bytes
+  Minimum total: 0x20 bytes
+
+
+
+So, let's assume 0x10 byte alignment and 0x08 byte overhead
+Our overhead is 0x10 bytes on 32-bit and 0x14 bytes on 64-bit
+  We will allocate blocks of sizes:
+
+32-bit:
+  Absolute  malloc-arg  usable
+  0x10      0x08        -
+  0x20      0x18        0x08
+  0x40      0x38        0x28
+  0x80      0x78        0x68
+Start with 8 bytes. Each time, double and add 0x18 bytes
+
+64-bit:
+  Absolute  malloc-arg  usable
+  0x10      0x08        -
+  0x20      0x18        0x04
+  0x40      0x38        0x24
+  0x80      0x78        0x64
+Start with 4 bytes. Each time, double and add 0x1c bytes
+
+Start with 0x10, keep doubling until there's enough space
+  raw_size *= 2;
+  array_size = raw_size - (8 + sizeof(H));
+  array_count = array_size / sizeof(T);
+
+Given number of items allocated (_allocated):
+  x = _allocated*2*sizeof(T) + headSize()+8
+  x = round_to_power_of_2(x)
+  new_allocated = (x - headSize()+8)/sizeof(T)
+
+
+
+
+
+
+    //public:
+    //    Buffer(const char* data) : Handle(new LiteralBody(data)) { }
+    //    Buffer(int length) : Handle(new OwningBody(length)) { }
+    //    int end() const
+    //    {
+    //        if (!valid())
+    //            return -1;
+    //        return body()->end();
+    //    }
+    //    void expand(const ::Byte* data, int length)
+    //    {
+    //        body()->expand(data, length);
+    //    }
+    //    void expand(int length) { body()->expand(length); }
+    //    const ::Byte* data() const
+    //    {
+    //        if (!valid())
+    //            return 0;
+    //        return body()->constData();
+    //    }
+    //    ::Byte* data()
+    //    {
+    //        if (!valid())
+    //            return 0;
+    //        return body()->data();
+    //    }
+    //private:
+    //    class Body : public Handle::Body
+    //    {
+    //    public:
+    //        virtual int end() const = 0;
+    //        virtual void expand(const ::Byte* data, int length) = 0;
+    //        virtual void expand(int length) = 0;
+    //        const ::Byte* constData() const { return _data; }
+    //        ::Byte* data() { return const_cast< ::Byte*>(_data); }
+    //    protected:
+    //        const ::Byte* _data;
+    //    };
+    //    Body* body() { return as<Body>(); }
+    //    const Body* body() const { return as<Body>(); }
+    //    class OwningBody : public Body
+    //    {
+    //    public:
+    //        OwningBody(int n)
+    //        {
+    //            _allocated = n;
+    //            _used = 0;
+    //            Body::_data = static_cast< ::Byte*>(operator new(n));
+    //        }
+    //        ~OwningBody()
+    //        {
+    //            operator delete(data());
+    //        }
+    //        int end() const { return _used; }
+    //        void expand(const ::Byte* source, int length)
+    //        {
+    //            expand(length);
+    //            memcpy(data() + _used - length, source, length);
+    //        }
+    //        void expand(int length)
+    //        {
+    //            int allocate = _allocated;
+    //            while (allocate < _used + length)
+    //                allocate *= 2;
+    //            if (_allocated < allocate) {
+    //                const ::Byte* newData =
+    //                    static_cast<const ::Byte*>(operator new(allocate));
+    //                swap(Body::_data, newData);
+    //                memcpy(data(), newData, _used);
+    //                operator delete(const_cast< ::Byte*>(newData));
+    //                _allocated = allocate;
+    //            }
+    //            _used += length;
+    //        }
+    //    private:
+    //        int _allocated;
+    //        int _used;
+    //    };
+
+    //    class LiteralBody : public Body
+    //    {
+    //    public:
+    //        LiteralBody(const char* data)
+    //        {
+    //            Body::_data = reinterpret_cast<const ::Byte*>(data);
+    //        }
+    //        int end() const { return -1; }
+    //        void expand(const ::Byte* data, int length) { throw Exception(); }
+    //        void expand(int length) { throw Exception(); }
+    //    };
+    private:
+
+
+
+
+Currently, Arrays are Uncopyable.
+One reason to switch to using BodyWithArray is that Array can be copyable.
+  However, they will copy by reference rather than by value.
+Another reason is so that we can cheaply make slices of arrays like we do bitmaps
+  Let's not do this just now, since we don't have a use for it.
+
+
+Currently, an AppendableArray can be used whereever an Array is expected.
+  However, if we put _allocated in the Body then this will no longer be true, since there will be a different offset to the data
+
+Solutions:
+  Have AppendableArray and Array be completely different types, one not convertable to the other
+    This is actually fine - we don't rely on this behavior anywhere
+  Have _allocated in the Handle rather than the body (as in the current implementation)
+    This is fine too because if _allocated changes then the body pointer will change too
+
+String is basically an AppendableArray
+  but with the other way around - the BodyWithArray's size() gives the number of allocated items, not the number used
+    We can do this because String only holds Bytes, which don't have constructors
+    Why did we do this again?
+      Because we're storing _length in the String (for non-owning and small strings) so we don't need it in the Body
+        But the body needs to know the first and last unused storage location separately from _length, so we might as well just use AppendableArray
+
+String is lightweight - copied around and passed/returned a lot, so we want to minimize sizeof(String) and not keep _allocated there
+  It would be nice to be able to implement String in terms of AppendableArray so let's put _allocated in the Body
+
+
+
+https://msdn.microsoft.com/en-us/library/jj620914.aspx
+
+
+
+
+
+

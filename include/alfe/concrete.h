@@ -170,7 +170,6 @@ protected:
     public:
         Kind kind() const { assert(false); return Kind(); }
     };
-    ConcreteTyco(const Body* body) : NamedNullary(body) { }
     friend class Nullary<Tyco, ConcreteTyco>;
 };
 
@@ -252,7 +251,7 @@ template<class T> class ConcreteTypeTemplate : public Type
     static int _bases;
 public:
     ConcreteTypeTemplate()
-      : Type(Array<int>::create<BaseBody>(_bases + 1, _bases + 1))
+      : Type(Array<int>::create<ConstHandle, BaseBody>(_bases + 1, _bases + 1))
     {
         for (int i = 0; i < elements(); ++i)
             element(i) = 0;
@@ -262,7 +261,8 @@ public:
     ConcreteTypeTemplate(const Type& other) : Type(other) { }
     static ConcreteTypeTemplate zero()
     {
-        return ConcreteTypeTemplate(Body::create(0, 0));
+        return ConcreteTypeTemplate(
+            Array<int>::create<ConstHandle, BaseBody>(0, 0));
     }
     bool valid() const { return body() != 0; }
     bool isAbstract() const { return body()->isAbstract(); }
@@ -300,7 +300,8 @@ public:
 private:
     const Body* body() const { return as<Body>(); }
     Body* body() { return const_cast<Body*>(as<Body>()); }
-    ConcreteTypeTemplate(int bases) : Type(Body::create(bases, bases)) { }
+    ConcreteTypeTemplate(int bases)
+      : Type(Array<int>::create<ConstHandle, BaseBody>(bases, bases)) { }
     int elements() const { return body()->elements(); }
     int& element(int i) { return (*body())[i]; }
     int element(int i) const { return i >= elements() ? 0 : (*body())[i]; }

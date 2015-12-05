@@ -88,7 +88,8 @@ template<> Type typeFromCompileTimeType<Tick>() { return Tick::Type(); }
 class HexPersistenceType : public IntegerType
 {
 public:
-    HexPersistenceType(int digits) : IntegerType(new Body(digits)) { }
+    HexPersistenceType(int digits)
+      : IntegerType(IntegerType::create<Body>(digits)) { }
 private:
     class Body : public IntegerType::Body
     {
@@ -107,7 +108,7 @@ public:
     {
     public:
         Type() { }
-        Type(const ::Type& t) : NamedNullary(t) { }
+        Type(const ConstHandle& other) : NamedNullary(other) { }
         bool compatible(Type other) const
         {
             return body()->compatible(other);
@@ -184,7 +185,6 @@ public:
         Simulator* simulator() const { return body()->simulator(); }
         bool valid() const { return body() != 0; }
     protected:
-        Type(const Body* body) : ::Type(body) { }
         class Body : public ::Type::Body
         {
         public:
@@ -213,7 +213,7 @@ public:
         const Body* body() const { return as<Body>(); }
     };
     ComponentTemplate(Type type)
-      : _simulator(type.simulator()), _ticksPerCycle(0),
+      : _type(type), _simulator(type.simulator()), _ticksPerCycle(0),
         _defaultConnector(0)
     {
         persist("tick", &_tick);
@@ -252,8 +252,9 @@ public:
     template<class C> class TypeHelper : public Type
     {
     public:
-        TypeHelper(::Type type) : Type(type) { }
-        TypeHelper(Simulator* simulator) : Type(new Body(simulator)) { }
+        TypeHelper(Simulator* simulator)
+          : Type(Type::create<Body>(simulator)) { }
+        TypeHelper(const ConstHandle& other) : Type(other) { }
     protected:
         class Body : public Type::Body
         {
@@ -293,7 +294,6 @@ public:
             HashTable<Identifier, ::Type> _members;
             Value _default;
         };
-        TypeHelper(const Body* body) : Type(body) { }
     };
     virtual String save(int width, int used, int indent, int delta) const
     {
@@ -378,7 +378,6 @@ public:
         }
         return Value(persistenceType(), h);
     }
-    void setType(Type type) { _type = type; }
     Type type() const { return _type; }
 
 protected:
@@ -538,7 +537,7 @@ public:
     class Type : public Connector::Type
     {
     public:
-        Type(const ::Type& t) : Connector::Type(t) { }
+        Type(const ConstHandle& other) : Connector::Type(other) { }
         bool valid() const { return body() != 0; }
         ::Type transportType() const { return body()->transportType(); }
     protected:
@@ -565,7 +564,7 @@ public:
     {
     public:
         Type() { }
-        Type(const ::Type& t) : NamedNullary(t) { }
+        Type(const ConstHandle& other) : NamedNullary(other) { }
         class Body : public NamedNullary<Connector::Type, Type>::Body
         {
         public:
@@ -643,8 +642,10 @@ public:
 template<class T, class C> class ParametricComponentType
   : public Component::TypeHelper<C>
 {
+public:
+    ParametricComponentType(const ConstHandle& other)
+      : Component::TypeHelper<C>(other) { }
 protected:
-    ParametricComponentType(Body* body) : Component::TypeHelper<C>(body) { }
     class Body : public Component::TypeHelper<C>::Body
     {
     public:
@@ -670,7 +671,7 @@ public:
     class Type : public ParametricComponentType<T, C>
     {
     public:
-        Type(Body* body) : ParametricComponentType(body) { }
+        Type(const ConstHandle& other) : ParametricComponentType(other) { }
     protected:
         class Body : public ParametricComponentType::Body
         {
@@ -728,7 +729,7 @@ public:
     {
     public:
         Type(Simulator* simulator)
-          : BooleanComponent::Type(new Body(simulator)) { }
+          : BooleanComponent::Type(create<Body>(simulator)) { }
     private:
         class Body : public BooleanComponent::Type::Body
         {
@@ -751,7 +752,7 @@ public:
     {
     public:
         Type(Simulator* simulator)
-          : BooleanComponent::Type(new Body(simulator)) { }
+          : BooleanComponent::Type(create<Body>(simulator)) { }
     private:
         class Body : public BooleanComponent::Type::Body
         {

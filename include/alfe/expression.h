@@ -85,6 +85,7 @@ template<class T> class ExpressionTemplate : public ParseTreeObject
 {
 public:
     ExpressionTemplate() { }
+    ExpressionTemplate(const ConstHandle& other) : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
     {
@@ -92,18 +93,17 @@ public:
         Body(const Span& span) : ParseTreeObject::Body(span) { }
         virtual Expression toString() const
         {
-            return new typename
-                FunctionCallExpressionTemplate<T>::FunctionCallBody(
-                Expression(this).dot(Identifier("toString")),
+            return Expression::create<
+                FunctionCallExpressionTemplate<T>::FunctionCallBody>(
+                Expression(expression()).dot(Identifier("toString")),
                 List<Expression>(), span());
         }
         virtual Value evaluate(EvaluationContext* context) const = 0;
+        Expression expression() const { return handle<ConstHandle>(); }
     };
 
-    ExpressionTemplate(const Body* body) : ParseTreeObject(body) { }
-
     ExpressionTemplate(const String& string, const Span& span)
-      : ParseTreeObject(new StringLiteralBody(string, span)) { }
+      : ParseTreeObject(create<StringLiteralBody>(string, span)) { }
 
     static Expression parse(CharacterSource* source)
     {
@@ -147,7 +147,7 @@ public:
     }
     Expression dot(const Identifier& identifier)
     {
-        return new DotBody(*this, identifier);
+        return Expression::create<DotBody>(*this, identifier);
     }
 
     Expression toString() const { return body()->toString(); }
@@ -198,9 +198,9 @@ protected:
             return e;
         Span span;
         if (Space::parseKeyword(source, "true", &span))
-            return new TrueBody(span);
+            return Expression::create<TrueBody>(span);
         if (Space::parseKeyword(source, "false", &span))
-            return new FalseBody(span);
+            return Expression::create<FalseBody>(span);
         CharacterSource s2 = *source;
         if (Space::parseCharacter(&s2, '(', &span)) {
             e = parse(&s2);
@@ -222,7 +222,7 @@ protected:
                 bool seenComma = Space::parseCharacter(&s2, ',', &span2);
                 if (Space::parseCharacter(&s2, '}', &span2)) {
                     *source = s2;
-                    return new ArrayLiteralBody(expressions,
+                    return Expression::create<ArrayLiteralBody>(expressions,
                         span + span2);
                 }
                 if (!seenComma)
@@ -424,7 +424,7 @@ private:
     public:
         StringLiteralBody(const String& string, const Span& span)
           : Body(span), _string(string) { }
-        Expression toString() const { return Expression(this); }
+        Expression toString() const { return expression(); }
         ValueTemplate<T> evaluate(EvaluationContext* context) const
         {
             return _string;
@@ -487,7 +487,7 @@ template<class T> class NumericLiteralTemplate : public Expression
 {
 public:
     NumericLiteralTemplate(Rational n, Span span = Span())
-      : Expression(new Body(n, span)) { }
+      : Expression(create<Body>(n, span)) { }
     NumericLiteralTemplate(const Expression& e) : Expression(e) { }
     int value() const { return as<NumericLiteral>()->value(); }
 
@@ -495,7 +495,7 @@ public:
     {
     public:
         Body(Rational n, const Span& span) : Expression::Body(span), _n(n) { }
-        Expression toString() const { return Expression(this); }
+        Expression toString() const { return expression(); }
         ValueTemplate<T> evaluate(EvaluationContext* context) const
         {
             return _n;
@@ -509,6 +509,9 @@ public:
 template<class T> class FunctionCallExpressionTemplate : public Expression
 {
 public:
+    FunctionCallExpressionTemplate(const ConstHandle& other)
+      : Expression(other) { }
+
     static List<Expression> parseList(CharacterSource* source)
     {
         List<Expression> list;
@@ -533,7 +536,7 @@ public:
         List<Expression> arguments = parseList(source);
         Space::assertCharacter(source, ')', &span);
         Expression e = FunctionCallExpression(
-            new ConstructorCallBody(t, arguments, t.span() + span));
+            create<ConstructorCallBody>(t, arguments, t.span() + span));
         return parseRemainder(e, source);
     }
 
@@ -664,7 +667,7 @@ public:
         Identifier identifier(op, span);
         List<Expression> arguments;
         arguments.add(expression);
-        return new FunctionCallBody(identifier, arguments,
+        return create<FunctionCallBody>(identifier, arguments,
             span + expression.span());
     }
 
@@ -675,7 +678,7 @@ public:
         List<Expression> arguments;
         arguments.add(left);
         arguments.add(right);
-        return new FunctionCallBody(identifier, arguments,
+        return create<FunctionCallBody>(identifier, arguments,
             left.span() + right.span());
     }
 
@@ -774,12 +777,10 @@ private:
             List<Expression> arguments = parseList(source);
             Space::assertCharacter(source, ')', &span);
             e = FunctionCallExpression(
-                new FunctionCallBody(e, arguments, e.span() + span));
+                create<FunctionCallBody>(e, arguments, e.span() + span));
         } while (true);
         return e;
     }
-
-    FunctionCallExpressionTemplate(const Body* body) : Expression(body) { }
 
     template<class U> friend class ExpressionTemplate;
 };
@@ -821,7 +822,7 @@ public:
                 Expression e2 = FunctionCallExpression::parseBitwiseOr(source);
                 if (!e2.valid())
                     throwError(source);
-                e = new Body(e, span, e2);
+                e = Expression::create<Body>(e, span, e2);
                 continue;
             }
             return e;
@@ -868,7 +869,7 @@ public:
                 Expression e2 = LogicalAndExpression::parse(source);
                 if (!e2.valid())
                     throwError(source);
-                e = new Body(e, span, e2);
+                e = LogicalOrExpression::create<Body>(e, span, e2);
                 continue;
             }
             return e;

@@ -45,6 +45,18 @@ Have helper methods in StructuredType to make this easier:
   Value convertFrom(StructuredType other, Value value)
 
 
+In general, there is an automatic conversion from type A to type B if all of A's values are also in B
+  Conversion loses no information (other the fact that the value was originally of type A)
+  Liskov substitution
+  Examples:
+    A = UInt8, B = SInt32
+    A = Integer, B = Rational
+    A = derived, B = base
+    A = X, B = X | Y
+
+
+
+
 
 
 Rejected:

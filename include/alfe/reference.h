@@ -9,7 +9,7 @@ public:
     Reference() { }
     template<class C, typename... Args> static Reference create(Args&&... args)
     {
-        Reference r(new Body<C>(std::forward<Args>(args)...));
+        Reference r(Handle::create<Body<C>>(std::forward<Args>(args)...));
         return r;
     }
     T* operator->() { return body()->t(); }
@@ -28,8 +28,8 @@ private:
         T* t() { return &_c; }
         C _c;
     };
-    Reference(BaseBody* body) : Handle(body) { }
     BaseBody* body() { return as<BaseBody>(); }
+    Reference(const Handle& other) : Handle(other) { }
 };
 
 #endif // INCLUDED_REFERENCE_H

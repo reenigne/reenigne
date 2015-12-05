@@ -7,7 +7,7 @@ class Any : private Handle
 {
 public:
     Any() { }
-    template<class T> Any(const T& t) : Handle(new Body<T>(t)) { }
+    template<class T> Any(const T& t) : Handle(create<Body<T>>(t)) { }
     bool valid() const { return Handle::valid(); }
     bool operator==(const Any& other) const
     {

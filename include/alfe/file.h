@@ -309,7 +309,7 @@ private:
     }
 
     FileSystemObjectTemplate(const Directory& parent, const String& name)
-      : ConstHandle(new NamedBody(parent, name)) { }
+      : ConstHandle(create<NamedBody>(parent, name)) { }
 
     friend class NamedBody;
     template<class U> friend class CurrentDirectoryTemplate;
@@ -360,24 +360,21 @@ public:
     }
 protected:
     DirectoryTemplate(FileSystemObject object) : FileSystemObject(object) { }
-    DirectoryTemplate(const Body* body) : FileSystemObject(body) { }
 };
 
+// This is the current directory at the time of first instantiation - avoid
+// changing the current directory.
 template<class T> class CurrentDirectoryTemplate : public Directory
 {
 public:
     CurrentDirectoryTemplate() : Directory(directory()) { }
-
 private:
-    CurrentDirectoryTemplate(const Body* body) : Directory(body) { }
-
-    static CurrentDirectory _directory;
+    CurrentDirectoryTemplate(const FileSystemObject& other)
+      : Directory(other) { }
     static CurrentDirectory directory()
     {
-        if (!_directory.valid())
-            _directory = currentDirectory();
-        String pp = _directory.path();
-        return _directory;
+        static CurrentDirectory d = currentDirectory();
+        return d;
     }
 
     static CurrentDirectory currentDirectory()
@@ -390,8 +387,7 @@ private:
         if (GetCurrentDirectory(n, &buf[0]) == 0)
             throw Exception::systemError("Obtaining current directory");
         String path(&buf[0]);
-        return CurrentDirectory(
-            FileSystemObject::parse(path, RootDirectory(), true).body());
+        return FileSystemObject::parse(path, RootDirectory(), true);
 #else
         size_t size = 100;
         do {
@@ -399,9 +395,7 @@ private:
             char* p = reinterpret_cast<char*>(buffer.data());
             if (getcwd(p, size) != 0) {
                 path = buffer.subString(0, strlen(p));
-                return CurrentDirectory(
-                    FileSystemObject::parse(path, RootDirectory(), false).
-                    _body);
+                return FileSystemObject::parse(path, RootDirectory(), false);
             }
             if (errno != ERANGE)
                 throw Exception::systemError("Obtaining current directory");
@@ -414,8 +408,6 @@ private:
     template<class T> friend class DriveCurrentDirectoryTemplate;
 #endif
 };
-
-template<> CurrentDirectory CurrentDirectory::_directory(0);
 
 #ifdef _WIN32
 template<class T> class DriveCurrentDirectoryTemplate : public Directory
@@ -454,6 +446,7 @@ template<class T> class RootDirectoryTemplate : public Directory
 {
 public:
     RootDirectoryTemplate() : Directory(directory()) { }
+    RootDirectoryTemplate(const ConstHandle& other) : Directory(other) { }
 
     class Body : public FileSystemObject::Body
     {
@@ -474,19 +467,13 @@ public:
         bool isRoot() const { return true; }
     };
 private:
-    RootDirectoryTemplate(const Body* body) : Directory(body) { }
-
-    static RootDirectory _directory;
     static RootDirectory directory()
     {
-        if (!_directory.valid())
-            _directory = new Body();
-        return _directory;
+        static RootDirectory d = Directory::create<Body>();
+        return d;
     }
 };
 
-
-template<> RootDirectory RootDirectory::_directory(0);
 
 #ifdef _WIN32
 template<class T> class DriveRootDirectoryTemplate : public Directory
@@ -494,15 +481,13 @@ template<class T> class DriveRootDirectoryTemplate : public Directory
 public:
     DriveRootDirectoryTemplate() { }
     DriveRootDirectoryTemplate(int drive) : Directory(directory(drive)) { }
+    DriveRootDirectoryTemplate(const ConstHandle& other) : Directory(other) { }
 private:
-    DriveRootDirectoryTemplate(const Body* body)
-      : Directory(body) { }
-
     static DriveRootDirectory _directories[26];
     static DriveRootDirectory directory(int drive)
     {
         if (!_directories[drive].valid())
-            _directories[drive] = new Body(drive);
+            _directories[drive] = create<Body>(drive);
         return _directories[drive];
     }
     class Body : public RootDirectory::Body
@@ -535,7 +520,7 @@ template<class T> class UNCRootDirectoryTemplate : public Directory
 {
 public:
     UNCRootDirectoryTemplate(const String& server, const String& share)
-      : Directory(new Body(server, share)) { }
+      : Directory(create<Body>(server, share)) { }
 private:
     class Body : public RootDirectory::Body
     {

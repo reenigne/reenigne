@@ -40,6 +40,8 @@ public:
 
 class Function : public Funco
 {
+public:
+    Function(const Handle& other) : Funco(other) { }
 protected:
     class Body : public Funco::Body
     {
@@ -49,7 +51,7 @@ protected:
             return tyco().argumentsMatch(argumentTypes.begin());
         }
     };
-    const Body* body() const { return as<Body>(); }
+//    const Body* body() const { return as<Body>(); }
 };
 
 class OverloadedFunctionSet : public Handle

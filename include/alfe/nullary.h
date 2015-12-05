@@ -13,11 +13,9 @@ public:
     Nullary() : Base(instance()) { }
 protected:
     Nullary(const Base& other) : Base(other) { }
-    Nullary(typename Base::Body* body) : Base(body) { }
-    Nullary(const typename Base::Body* body) : Base(body) { }
     static Nullary instance()
     {
-        static Nullary instance(new typename My::Body());
+        static Nullary instance(Base::create<My::Body>());
         return instance;
     }
 private:
@@ -39,7 +37,6 @@ protected:
     };
 
     friend class Nullary<Base, My>;
-    NamedNullary(const Body* body) : Nullary(body) { }
 };
 
 #endif // INCLUDED_NULLARY_H

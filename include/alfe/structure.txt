@@ -1,0 +1,25 @@
+Use in DotBody and FunctionCallBody
+include\alfe\expression.h:                StructureTemplate<T>* p = e.
+include\alfe\expression.h:                    rValue().template value<StructureTemplate<T>*>();
+include\alfe\expression.h:                StructureTemplate<T>* p = l.template
+include\alfe\expression.h:                    value<LValue>().rValue().template value<Structure*>();
+
+Definition of Structure and use in LValue
+include\alfe\type.h:template<class T> class StructureTemplate
+include\alfe\type.h:    LValueTemplate(Structure* structure, Identifier identifier)
+include\alfe\type.h:    Structure* _structure;
+
+Component is a Structure
+berapa\berapa.cpp:                    Structure* s = value.value<Structure*>();
+berapa\berapa.cpp:template<class T> class ComponentTemplate : public Structure
+berapa\berapa.cpp:        Structure::set(name, value);
+berapa\berapa.cpp:                return Value(type(), static_cast<Structure*>(&(*v)),
+berapa\berapa.cpp:            Structure::set(Identifier(OperatorAssignment()),
+berapa\berapa.cpp:            Structure::set(name, p->getValue());
+
+ConfigFile is a Structure
+include\alfe\config_file.h:class ConfigFile : public Structure
+include\alfe\config_file.h:                Value value = ::empty();
+include\alfe\config_file.h:                    value.value<Structure*>()->set(Identifier("*"),
+include\alfe\config_file.h:                auto s = p.rValue().value<Structure*>();
+

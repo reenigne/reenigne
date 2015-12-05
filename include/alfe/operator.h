@@ -9,6 +9,7 @@ class Operator : public ConstHandle
 {
 public:
     Operator() { }
+    Operator(const ConstHandle& other) : ConstHandle(other) { }
 
     String toString() const { return body()->toString(); }
     Operator parse(CharacterSource* source, Span* span) const

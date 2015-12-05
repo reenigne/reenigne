@@ -38,6 +38,10 @@ protected:
     class Body : Uncopyable
     {
     public:
+        // A Body always start off with count 1, so that if handle() is called
+        // from the child constructor, the Body won't be deleted when that
+        // handle goes away. The owner during construction is the constructor
+        // itself, since that will delete the Body if an exception is thrown.
         Body() : _count(1) { }
         template<class T> T* as() { return dynamic_cast<T*>(this); }
         template<class T> const T* as() const
@@ -88,6 +92,7 @@ private:
     ConstHandle(const Body* body, bool acquire) { set(body, acquire); }
 
     friend class Handle;
+    template<class T> friend class Array;
 };
 
 class Handle : private ConstHandle
@@ -121,10 +126,10 @@ protected:
         template<class T> T handle() { return T(ConstHandle(this, true)); }
     };
 //    typedef ConstHandle::Body Body;
-//    Body* body() { return const_cast<ConstHandle::Body*>(_body)->as<Body>(); }
+    Body* body() { return const_cast<ConstHandle::Body*>(_body)->as<Body>(); }
 //    const Body* body() const { return ConstHandle::body(); }
     template<class T> const T* as() const { return ConstHandle::as<T>(); }
-    template<class T> T* as() { return _body->as<T>(); }
+    template<class T> T* as() { return body()->as<T>(); }
 //    template<class T> bool is() const { return ConstHandle::is<T>; }
 private:
     Handle(Body* body, bool acquire) { set(body, acquire); }

@@ -16,7 +16,7 @@ template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
         virtual String name() const = 0;
         ValueTemplate<T> evaluate(EvaluationContext* context) const
         {
-            return context->valueOfIdentifier(this);
+            return context->valueOfIdentifier(expression());
         }
         virtual bool isOperator() const = 0;
     };
@@ -54,10 +54,13 @@ template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
     };
 
 public:
+    IdentifierTemplate() { }
+    IdentifierTemplate(const ConstHandle& other)
+      : ExpressionTemplate(other) { }
     IdentifierTemplate(const String& name)
-      : ExpressionTemplate<T>(new NameBody(name, Span())) { }
+      : ExpressionTemplate<T>(Expression::create<NameBody>(name, Span())) { }
     IdentifierTemplate(const char* name)
-      : ExpressionTemplate<T>(new NameBody(name, Span())) { }
+      : ExpressionTemplate<T>(Expression::create<NameBody>(name, Span())) { }
 
     static Identifier parse(CharacterSource* source)
     {
@@ -118,7 +121,7 @@ public:
         Span span(location, endLocation);
         if (name != "operator") {
             *source = s2;
-            return Identifier(new NameBody(name, span));
+            return Identifier(Identifier::create<NameBody>(name, span));
         }
         Span endSpan;
         Span span3;
@@ -190,13 +193,10 @@ public:
     }
 
     IdentifierTemplate(const Operator& op, const Span& span = Span())
-      : Expression(new OperatorBody(op, span)) { }
+      : Expression(Expression::create<OperatorBody>(op, span)) { }
 
     String name() const { return body()->name(); }
     bool isOperator() const { return body()->isOperator(); }
-
-    IdentifierTemplate(const Body* body) : Expression(body) { }
-    IdentifierTemplate() { }
 
 private:
     const Body* body() const { return as<Body>(); }

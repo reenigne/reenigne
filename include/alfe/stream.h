@@ -230,11 +230,11 @@ private:
     };
 
 #ifdef _WIN32
-    StreamTemplate(HANDLE handle, const File& file, Body* body)
-      : _handle(handle), _file(file), Handle(body) { }
+    StreamTemplate(HANDLE handle, const File& file, const Handle& other)
+      : Handle(other), _handle(handle), _file(file) { }
 #else
-    StreamTemplate(int fileDescriptor, const File& file, Body* body)
-      : _fileDescriptor(fileDescriptor), _file(file), Handle(body) { }
+    StreamTemplate(int fileDescriptor, const File& file, const Handle& other)
+      : Handle(other), _fileDescriptor(fileDescriptor), _file(file) { }
 #endif
 
 #ifdef _WIN32
@@ -254,11 +254,11 @@ public:
     AutoStreamTemplate() { }
 #ifdef _WIN32
     AutoStreamTemplate(HANDLE handle, const File& file = File())
-      : Stream(handle, file, new OwningBody(Stream(handle, file))) { }
+      : Stream(handle, file, create<OwningBody>(Stream(handle, file))) { }
 #else
     AutoStreamTemplate(int fileDescriptor, const File& file = File())
       : Stream(fileDescriptor, file,
-        new OwningBody(Handle(fileDescriptor, file))) { }
+        create<OwningBody>(Handle(fileDescriptor, file))) { }
 #endif
 };
 
