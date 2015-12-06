@@ -204,7 +204,7 @@ private:
     }
     UInt8 getByte()
     {
-        UInt8 v = _bus->memory(_cpu->codeAddress(_address));
+        UInt8 v = _bus->debugRead(_cpu->codeAddress(_address));
         ++_address;
         _bytes += hex(v, 2, false);
         return v;
@@ -333,7 +333,7 @@ public:
 
         _disassembler.setCPU(this);
 
-        EnumerationType<State>::Helper h;
+        typename EnumerationType<State>::Helper h;
         h.add(stateWaitingForBIU,  "waitingForBIU");
         h.add(stateBegin,          "stateBegin");
         h.add(stateDecodeOpcode,   "stateDecodeOpcode");
@@ -496,14 +496,14 @@ public:
         h.add(stateMisc2,          "stateMisc2");
         EnumerationType<State> stateType("State", h, typeName() + ".");
 
-        EnumerationType<IOType>::Helper ht;
+        typename EnumerationType<IOType>::Helper ht;
         ht.add(ioNone, "ioNone");
         ht.add(ioRead, "ioRead");
         ht.add(ioWrite, "ioWrite");
         ht.add(ioInstructionFetch, "ioInstructionFetch");
         EnumerationType<IOType> ioTypeType("IOType", ht, typeName() + ".");
 
-        EnumerationType<BusState>::Helper hb;
+        typename EnumerationType<BusState>::Helper hb;
         hb.add(t1, "t1");
         hb.add(t2, "t2");
         hb.add(t3, "t3");
@@ -512,7 +512,7 @@ public:
         hb.add(tIdle, "tIdle");
         hb.add(tDMA, "tDMA");
 
-        EnumerationType<IOByte>::Helper hi;
+        typename EnumerationType<IOByte>::Helper hi;
         hi.add(ioSingleByte, "ioSingleByte");
         hi.add(ioWordFirst,  "ioWordFirst");
         hi.add(ioWordSecond, "ioWordSecond");
@@ -1867,7 +1867,10 @@ private:
                 cpu->_prefetched = prefetched;
                 cpu->_prefetchOffset = 0;
             }
-            Value defaultValue() const { return Value(type(), List<Value>()); }
+            Value defaultValue() const
+            {
+                return Value(this->type(), List<Value>());
+            }
         };
     };
 

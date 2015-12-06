@@ -15,11 +15,11 @@ protected:
     Nullary(const Base& other) : Base(other) { }
     static Nullary instance()
     {
-        static Nullary instance(Base::create<My::Body>());
+        static Nullary instance(Base::template create<typename My::Body>());
         return instance;
     }
 private:
-    template<class Base, class My> friend class NamedNullary;
+    template<class B, class M> friend class NamedNullary;
 };
 
 // NamedNullary is used for Operator and some subclasses of Type and Kind.
@@ -27,9 +27,9 @@ template<class Base, class My = Base> class NamedNullary
   : public Nullary<Base, My>
 {
 public:
-    NamedNullary() : Nullary(instance()) { }
+    NamedNullary() : Nullary<Base, My>(Nullary<Base, My>::instance()) { }
 protected:
-    NamedNullary(const Base& other) : Nullary(other) { }
+    NamedNullary(const Base& other) : Nullary<Base, My> (other) { }
     class Body : public Base::Body
     {
     public:

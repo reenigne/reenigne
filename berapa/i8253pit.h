@@ -4,10 +4,12 @@ template<class T> class Intel8253PITTemplate
 public:
     static String typeName() { return "Intel8253PIT"; }
     Intel8253PITTemplate(Component::Type type)
-      : ISA8BitComponent(type), _timers{type, type, type}
+      : ISA8BitComponent<Intel8253PITTemplate<T>>(type),
+        _timers{type, type, type}
     {
-        persist("address", &_address);
-        persist("timers", &_timers[0], ArrayType(Timer::Type(), 3));
+        this->persist("address", &_address);
+        this->persist("timers", &_timers[0],
+            ArrayType(typename Timer::Type(), 3));
     }
     void simulateCycle()
     {
@@ -48,7 +50,7 @@ private:
             persist("output", &_output);
             persist("latched", &_latched);
 
-            EnumerationType<State>::Helper h;
+            typename EnumerationType<State>::Helper h;
             h.add(stateStopped0,  "stopped0");
             h.add(stateCounting0, "counting0");
             h.add(stateStopped1,  "stopped1");

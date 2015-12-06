@@ -28,16 +28,19 @@ template<class T> class Intel8237DMACTemplate
 public:
     static String typeName() { return "Intel8237DMAC"; }
     Intel8237DMACTemplate(Component::Type type)
-      : ISA8BitComponent(type), _channels{type, type, type, type}
+      : ISA8BitComponent<Intel8237DMACTemplate<T>>(type),
+        _channels{type, type, type, type}
     {
-        persist("address", &_address, HexPersistenceType(1));
-        persist("command", &_command);
-        persist("channels", &_channels[0], ArrayType(Channel::Type(), 4));
-        persist("lastByte", &_lastByte);
-        persist("channel", &_channel);
-        persist("highAddress", &_highAddress, 0xffff, HexPersistenceType(4));
+        this->persist("address", &_address, HexPersistenceType(1));
+        this->persist("command", &_command);
+        this->persist("channels", &_channels[0],
+            ArrayType(typename Channel::Type(), 4));
+        this->persist("lastByte", &_lastByte);
+        this->persist("channel", &_channel);
+        this->persist("highAddress", &_highAddress, 0xffff,
+            HexPersistenceType(4));
 
-        EnumerationType<State>::Helper h;
+        typename EnumerationType<State>::Helper h;
         h.add(stateIdle,  "idle");
         h.add(stateS0,    "s0");
         h.add(stateS1,    "s1");
@@ -45,7 +48,7 @@ public:
         h.add(stateS3,    "s3");
         h.add(stateS4,    "s4");
         h.add(stateYield, "yield");
-        persist("state", &_state,
+        this->persist("state", &_state,
             EnumerationType<State>("State", h, typeName() + "."));
     }
 

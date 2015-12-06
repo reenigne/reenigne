@@ -1,8 +1,8 @@
-class RGBIMonitor : public Component
+template<class T> class RGBIMonitorTemplate : public Component
 {
 public:
     static String typeName() { return "RGBIMonitor"; }
-    RGBIMonitor(Component::Type type)
+    RGBIMonitorTemplate(Component::Type type)
       : Component(type), _renderer(&_window), _texture(&_renderer),
         _connector(this)
     {
@@ -51,7 +51,7 @@ public:
         {
         public:
             Type() { }
-            Type(::Type type) : NamedNullary(type) { }
+            Type(::Type type) : NamedNullary<::Connector::Type, Type>(type) { }
             class Body : public NamedNullary<::Connector::Type, Type>::Body
             {
             public:

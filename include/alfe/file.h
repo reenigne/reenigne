@@ -394,7 +394,7 @@ private:
             String buffer(size);
             char* p = reinterpret_cast<char*>(buffer.data());
             if (getcwd(p, size) != 0) {
-                path = buffer.subString(0, strlen(p));
+                String path = buffer.subString(0, strlen(p));
                 return FileSystemObject::parse(path, RootDirectory(), false);
             }
             if (errno != ERANGE)
@@ -469,7 +469,7 @@ public:
 private:
     static RootDirectory directory()
     {
-        static RootDirectory d = Directory::create<Body>();
+        static RootDirectory d = create<Body>();
         return d;
     }
 };
@@ -910,7 +910,7 @@ template<class T> void applyToWildcard(T functor, const String& wildcard,
 class Console : public File
 {
 public:
-    Console() : File(File::create<Body>()) { }
+    Console() : File(create<Body>()) { }
 private:
     class Body : public FileSystemObject::Body
     {

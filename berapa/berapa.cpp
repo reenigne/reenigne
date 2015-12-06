@@ -57,6 +57,9 @@ typedef PCXTKeyboardTemplate<void> PCXTKeyboard;
 template<class T> class PCXTKeyboardPortTemplate;
 typedef PCXTKeyboardPortTemplate<void> PCXTKeyboardPort;
 
+template<class T> class RGBIMonitorTemplate;
+typedef RGBIMonitorTemplate<void> RGBIMonitor;
+
 template<class T> class ConnectorTemplate;
 typedef ConnectorTemplate<void> Connector;
 
@@ -88,14 +91,17 @@ template<> Type typeFromCompileTimeType<Tick>() { return Tick::Type(); }
 class HexPersistenceType : public IntegerType
 {
 public:
-    HexPersistenceType(int digits)
-      : IntegerType(IntegerType::create<Body>(digits)) { }
+    HexPersistenceType(int digits) : IntegerType(create<Body>(digits)) { }
 private:
     class Body : public IntegerType::Body
     {
     public:
         Body(int digits) : _digits(digits) { }
-
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
+        {
+            return hex(*static_cast<int*>(p), _digits);
+        }
     private:
         int _digits;
     };
@@ -108,7 +114,7 @@ public:
     {
     public:
         Type() { }
-        Type(const ConstHandle& other) : NamedNullary(other) { }
+        Type(const ConstHandle& other) : NamedNullary<::Type, Type>(other) { }
         bool compatible(Type other) const
         {
             return body()->compatible(other);
@@ -117,10 +123,9 @@ public:
         {
             return body()->canConnectMultiple();
         }
-        Type(const Body* body) : NamedNullary(body) { }
         bool valid() const { return body() != 0; }
         static String name() { return "Connector"; }
-        class Body : public NamedNullary::Body
+        class Body : public NamedNullary<::Type, Type>::Body
         {
         public:
             virtual bool compatible(Type other) const { return false; }
@@ -129,10 +134,10 @@ public:
             {
                 // If assigning component=connector, connect to the default
                 // connector on the component instead.
-                Component::Type ct(value.type());
+                typename ComponentTemplate<T>::Type ct(value.type());
                 if (ct.valid()) {
                     Structure* s = value.value<Structure*>();
-                    Component* component = static_cast<Component*>(s);
+                    auto component = static_cast<ComponentTemplate<T>*>(s);
                     Connector* connector = component->_defaultConnector;
                     if (connector != 0)
                         return tryConvert(connector->getValue(), reason);
@@ -144,7 +149,7 @@ public:
                     return Value();
                 }
                 if (!compatible(t)) {
-                    *reason = t.toString() + " and " + toString() +
+                    *reason = t.toString() + " and " + this->toString() +
                         " are not compatible connectors.";
                     return Value();
                 }
@@ -152,7 +157,7 @@ public:
             }
         };
     public:
-        const Body* body() const { return as<Body>(); }
+        const Body* body() const { return this->template as<Body>(); }
     };
     Value getValue() const
     {
@@ -236,7 +241,7 @@ public:
             return;
         }
         if (Connector::Type(value.type()).valid()) {
-            auto l = getValue(name).value<Connector*>();
+            auto l = getValue(name).template value<Connector*>();
             auto r = value.value<Connector*>();
             l->connect(r);
             r->connect(l);
@@ -253,7 +258,7 @@ public:
     {
     public:
         TypeHelper(Simulator* simulator)
-          : Type(Type::create<Body>(simulator)) { }
+          : Type(TypeHelper::template create<Body>(simulator)) { }
         TypeHelper(const ConstHandle& other) : Type(other) { }
     protected:
         class Body : public Type::Body
@@ -441,7 +446,7 @@ private:
     {
     public:
         AssignmentFunco(Component* component)
-          : Funco(Funco::create<Body>(component)) { }
+          : Funco(create<Body>(component)) { }
         ::Type type() const { return tyco(); }
         class Body : public Funco::Body
         {
@@ -551,7 +556,7 @@ public:
 };
 
 template<class T> class BidirectionalConnector
-    : public BidirectionalConnectorBase
+  : public BidirectionalConnectorBase
 {
 public:
     Connector::Type type() const { return Type(); };
@@ -564,15 +569,16 @@ public:
     {
     public:
         Type() { }
-        Type(const ConstHandle& other) : NamedNullary(other) { }
+        Type(const ConstHandle& other)
+          : NamedNullary<Connector::Type, Type> (other) { }
         class Body : public NamedNullary<Connector::Type, Type>::Body
         {
         public:
             bool compatible(Connector::Type other) const
             {
-                return other == OutputConnector<T>::Type() ||
-                    other == InputConnector<T>::Type() ||
-                    other == BidirectionalConnector<T>::Type();
+                return other == typename OutputConnector<T>::Type() ||
+                    other == typename InputConnector<T>::Type() ||
+                    other == typename BidirectionalConnector<T>::Type();
             }
             ::Type transportType() const
             {
@@ -593,23 +599,24 @@ template<class T> class OutputConnector : public BidirectionalConnector<T>
 public:
     Connector::Type type() const { return Type(); };
     void setData(Tick t, T v) { }
-    class Type : public NamedNullary<BidirectionalConnector<T>::Type, Type>
+    class Type
+      : public NamedNullary<typename BidirectionalConnector<T>::Type, Type>
     {
     public:
-        class Body
-          : public NamedNullary<BidirectionalConnector<T>::Type, Type>::Body
+        class Body : public
+            NamedNullary<typename BidirectionalConnector<T>::Type, Type>::Body
         {
         public:
             bool compatible(Connector::Type other) const
             {
-                return other == InputConnector<T>::Type() ||
-                    other == BidirectionalConnector<T>::Type();
+                return other == typename InputConnector<T>::Type() ||
+                    other == typename BidirectionalConnector<T>::Type();
             }
         };
         static String name()
         {
             return "OutputConnector" +
-                BidirectionalConnector::Type::parameter();
+                BidirectionalConnector<T>::Type::parameter();
         }
     };
 };
@@ -627,14 +634,14 @@ public:
         public:
             bool compatible(Connector::Type other) const
             {
-                return other == OutputConnector<T>::Type() ||
-                    other == BidirectionalConnector<T>::Type();
+                return other == typename OutputConnector<T>::Type() ||
+                    other == typename BidirectionalConnector<T>::Type();
             }
         };
         static String name()
         {
             return "InputConnector" +
-                BidirectionalConnector::Type::parameter();
+                BidirectionalConnector<T>::Type::parameter();
         }
     };
 };
@@ -671,13 +678,14 @@ public:
     class Type : public ParametricComponentType<T, C>
     {
     public:
-        Type(const ConstHandle& other) : ParametricComponentType(other) { }
+        Type(const ConstHandle& other)
+          : ParametricComponentType<T, C>(other) { }
     protected:
-        class Body : public ParametricComponentType::Body
+        class Body : public ParametricComponentType<T, C>::Body
         {
         public:
             Body(Simulator* simulator)
-              : ParametricComponentType::Body(simulator) { }
+              : ParametricComponentType<T, C>::Body(simulator) { }
         };
     };
     virtual void update(Tick t) = 0;
@@ -723,20 +731,25 @@ template<class T> class AndComponent
 {
 public:
     static String typeName() { return "And"; }
-    AndComponent(Component::Type type) : BooleanComponent(type) { }
-    void update(Tick t) { _output.set(t, _input1._v & _input2._v); }
-    class Type : public BooleanComponent::Type
+    AndComponent(Component::Type type)
+      : BooleanComponent<T, AndComponent<T>>(type) { }
+    void update(Tick t)
+    {
+        this->_output.set(t, this->_input1._v & this->_input2._v);
+    }
+    class Type : public BooleanComponent<T, AndComponent<T>>::Type
     {
     public:
         Type(Simulator* simulator)
-          : BooleanComponent::Type(create<Body>(simulator)) { }
+          : BooleanComponent<T, AndComponent<T>>::Type(
+                Type::template create<Body>(simulator)) { }
     private:
-        class Body : public BooleanComponent::Type::Body
+        class Body : public BooleanComponent<T, AndComponent<T>>::Type::Body
         {
         public:
             Body(Simulator* simulator)
-              : BooleanComponent::Type::Body(simulator) { }
-            String toString() const { return "And" + parameter(); }
+              : BooleanComponent<T, AndComponent<T>>::Type::Body(simulator) { }
+            String toString() const { return "And" + this->parameter(); }
         };
     };
 };
@@ -746,20 +759,25 @@ template<class T> class OrComponent
 {
 public:
     static String typeName() { return "Or"; }
-    OrComponent(Component::Type type) : BooleanComponent(type) { }
-    void update(Tick t) { _output.set(t, _input1._v | _input2._v); }
-    class Type : public BooleanComponent::Type
+    OrComponent(Component::Type type)
+      : BooleanComponent<T, OrComponent<T>>(type) { }
+    void update(Tick t)
+    {
+        this->_output.set(t, this->_input1._v | this->_input2._v);
+    }
+    class Type : public BooleanComponent<T, OrComponent<T>>::Type
     {
     public:
         Type(Simulator* simulator)
-          : BooleanComponent::Type(create<Body>(simulator)) { }
+          : BooleanComponent<T, OrComponent<T>>::Type(
+                Type::template create<Body>(simulator)) { }
     private:
-        class Body : public BooleanComponent::Type::Body
+        class Body : public BooleanComponent<T, OrComponent<T>>::Type::Body
         {
         public:
             Body(Simulator* simulator)
-              : BooleanComponent::Type::Body(simulator) { }
-            String toString() const { return "Or" + parameter(); }
+              : BooleanComponent<T, OrComponent<T>>::Type::Body(simulator) { }
+            String toString() const { return "Or" + this->parameter(); }
         };
     };
 };
@@ -767,7 +785,7 @@ public:
 template<class T> class BucketComponent : public Component
 {
 private:
-    class Type : public Component::Type
+    class Type : public ParametricComponentType<T, BucketComponent<T>>
     {
     public:
         Type(Simulator* simulator) : Component::Type(simulator) { }
@@ -775,7 +793,7 @@ private:
         class Body : public Component::Type::Body
         {
         public:
-            String toString() const { return "Sink" + }
+            String toString() const { return "Sink" + this->parameter(); }
         };
     };
     class Connector : public InputConnector<T>
@@ -865,11 +883,15 @@ public:
             ++i;
             auto r = *i;
             Reference<::Component> c;
-            if (t == ByteType())
-                c = Component<Byte>::Type(_simulator).createComponent();
+            if (t == ByteType()) {
+                c = typename Component<Byte>::Type(_simulator).
+                    createComponent();
+        }
             else
-                if (t == BooleanType())
-                    c = Component<bool>::Type(_simulator).createComponent();
+                if (t == BooleanType()) {
+                    c = typename Component<bool>::Type(_simulator).
+                        createComponent();
+        }
             c->set("input1", l);
             c->set("input2", r);
             return c->getValue("output");
@@ -903,7 +925,7 @@ class AndComponentFunco : public ComponentFunco<AndComponent>
 {
 public:
     AndComponentFunco(Simulator* simulator)
-      : ComponentFunco(ComponentFunco::create<Body>(simulator)) { }
+      : ComponentFunco(create<Body>(simulator)) { }
     class Body : public ComponentFunco::Body
     {
     public:
@@ -916,7 +938,7 @@ class OrComponentFunco : public ComponentFunco<OrComponent>
 {
 public:
     OrComponentFunco(Simulator* simulator)
-      : ComponentFunco(ComponentFunco::create<Body>(simulator)) { }
+      : ComponentFunco(create<Body>(simulator)) { }
     class Body : public ComponentFunco::Body
     {
     public:

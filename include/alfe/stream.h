@@ -8,18 +8,18 @@ template<class T> class StreamTemplate : public Handle
 public:
 #ifdef _WIN32
     StreamTemplate()
-      : Handle(Handle::create<Body>()), _handle(INVALID_HANDLE_VALUE) { }
+      : Handle(create<Body>()), _handle(INVALID_HANDLE_VALUE) { }
     StreamTemplate(HANDLE handle, const File& file = File())
-      : Handle(Handle::create<Body>()), _handle(handle), _file(file) { }
+      : Handle(create<Body>()), _handle(handle), _file(file) { }
     operator HANDLE() const { return _handle; }
     bool valid() const
     {
         return _handle != INVALID_HANDLE_VALUE && _handle != NULL;
     }
 #else
-    StreamTemplate() : _fileDescriptor(-1), Handle(new Body) { }
+    StreamTemplate() : Handle(create<Body>()), _fileDescriptor(-1) { }
     StreamTemplate(int fileDescriptor, const File& file = File())
-      : _fileDescriptor(fileDescriptor), _file(file), Handle(new Body)
+      : Handle(create<Body>()), _fileDescriptor(fileDescriptor), _file(file)
     { }
     operator int() const { return _fileDescriptor; }
     bool valid() const { return _fileDescriptor != -1; }
@@ -154,7 +154,7 @@ public:
     template<class U, class R> R peek(int n, const R& defaultValue = R())
     {
         // Make sure we have enough data in the buffer
-        CircularBuffer<Byte>* buffer = &_body->_buffer;
+        CircularBuffer<Byte>* buffer = &body()->_buffer;
         int r = sizeof(U)*(n + 1) - buffer->count();
         if (r > 0) {
             buffer->add(r);
@@ -186,7 +186,7 @@ public:
         _handle = INVALID_HANDLE_VALUE;
 #else
         if (_fileDescriptor != -1)
-            close(_fileDescriptor);
+            ::close(_fileDescriptor);
         _fileDescriptor = -1;
 #endif
     }
@@ -226,7 +226,7 @@ private:
         {
             _stream.close();
         }
-        Stream _stream;
+        StreamTemplate<T> _stream;
     };
 
 #ifdef _WIN32
@@ -258,7 +258,7 @@ public:
 #else
     AutoStreamTemplate(int fileDescriptor, const File& file = File())
       : Stream(fileDescriptor, file,
-        create<OwningBody>(Handle(fileDescriptor, file))) { }
+        create<OwningBody>(Stream(fileDescriptor, file))) { }
 #endif
 };
 

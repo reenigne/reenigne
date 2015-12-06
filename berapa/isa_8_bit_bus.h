@@ -29,7 +29,7 @@ public:
           : _component(component) { }
         void connect(::Connector* other)
         {
-            dynamic_cast<ISA8BitBusTemplate<T>::Connector*>(other)
+            dynamic_cast<typename ISA8BitBusTemplate<T>::Connector*>(other)
                 ->busConnect(_component);
         }
         ::Connector::Type type() const { return Type(); }
@@ -38,13 +38,13 @@ public:
         {
         public:
             Type() { }
-            Type(::Type type) : NamedNullary(type) { }
+            Type(::Type type) : NamedNullary<::Connector::Type, Type>(type) { }
             class Body : public NamedNullary<::Connector::Type, Type>::Body
             {
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return ISA8BitBus::Type(other).valid();
+                    return typename ISA8BitBusTemplate<T>::Type(other).valid();
                 }
             private:
             };
@@ -56,7 +56,7 @@ public:
 
 protected:
     void set(UInt8 data) { _bus->_data = data; }
-    ISA8BitBus* _bus;
+    ISA8BitBusTemplate<T>* _bus;
     bool _active;
     Connector _connector;
 };
@@ -120,7 +120,11 @@ public:
     {
     public:
         ChipConnector() : Connector(0) { }
-        void init(ISA8BitBus* bus, int i) { _bus = bus; _i = i; }
+        void init(ISA8BitBusTemplate<T>* bus, int i)
+        {
+            this->_bus = bus;
+            _i = i;
+        }
     private:
         int _i;
     };
@@ -142,7 +146,8 @@ public:
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return other == Intel8088CPU::Connector::Type();
+                    return other ==
+                        typename Intel8088CPUTemplate<T>::Connector::Type();
                 }
             };
             static String name() { return "ISA8BitBus.CPUSocket"; }

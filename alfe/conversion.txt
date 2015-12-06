@@ -54,6 +54,23 @@ In general, there is an automatic conversion from type A to type B if all of A's
     A = derived, B = base
     A = X, B = X | Y
 
+What is the relationship between Integer and Rational, and how would such a relationship be described in code?
+  Possibiltiy 1: Integer derives from Rational
+    However, then Integer's denominator would waste memory (even if the compiler could always optimize this away, there would be an issue with const-pointer-to-Integer)
+  Possibility 2: Rational has an implicit (converting) constructor from Integer
+    This is better, but perhaps we should specify that this constructor can't throw?
+    https://en.wikipedia.org/wiki/Subtyping
+      specifically, see the section on Coercions
+
+What does this mean for our function overload resolution
+  We need a mechanism like tryConvert() which just works with types (canConvertTo()?)
+
+Different types of conversions:
+  Coercion (automatic, no information lost - same values inhabit different types)
+  Saturation
+  Truncation
+  Float (i.e. conversion of Double to Float - saturates at +/- infinity, truncates least significant figures)
+  Base-to-derived
 
 
 

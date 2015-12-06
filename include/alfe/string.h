@@ -508,7 +508,7 @@ private:
                 *this = a;
             }
             else {
-                int t = min(static_cast<ptrdiff_t>(copyLength),
+                int t = min(static_cast<std::ptrdiff_t>(copyLength),
                     bufferStart() + bufferCount() - (data() + length()));
                 if (memcmp(data() + length(), otherData, t) == 0) {
                     setLength(length() + t);
@@ -532,10 +532,10 @@ private:
 
     const T* bufferStart() const { return &_array[0]; }
     int bufferCount() const { return _array.count(); }
-    int bufferAllocated() const  // For debugger visualizer
-    {
-        return
-    }
+    // int bufferAllocated() const  // For debugger visualizer
+    // {
+    //     return
+    // }
     T* data()
     {
         return small() ? reinterpret_cast<T*>(this) : const_cast<T*>(_start);
@@ -635,6 +635,7 @@ private:
     friend class ProgramBase;
     template<class U> friend class FileTemplate;
     template<class U> friend class StreamTemplate;
+    template<class U> friend class CurrentDirectoryTemplate;
     friend String format(const char* format, ...);
 };
 

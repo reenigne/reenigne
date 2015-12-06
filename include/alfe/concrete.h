@@ -17,7 +17,7 @@ template<class T> class ConcreteTypeTemplate;
 template<class T> class ConcreteTemplate
 {
 public:
-    ConcreteTemplate() : _type(ConcreteType()), _value(1) { }
+    ConcreteTemplate() : _type(ConcreteTypeTemplate<T>()), _value(1) { }
     static ConcreteTemplate zero()
     {
         return ConcreteTemplate(ConcreteTypeTemplate<T>::zero(), 0);
@@ -216,7 +216,7 @@ template<class T> class ConcreteTypeTemplate : public Type
         Value tryConvertTo(const Type& to, const Value& value,
             String* reason) const
         {
-            ConcreteType c(to);
+            ConcreteTypeTemplate<T> c(to);
             if (c.valid()) {
                 if (equals(c.body()))
                     return value;
@@ -258,11 +258,10 @@ public:
         element(elements() - 1) = 1;
         ++_bases;
     }
-    ConcreteTypeTemplate(const Type& other) : Type(other) { }
+    ConcreteTypeTemplate(const ConstHandle& other) : Type(other) { }
     static ConcreteTypeTemplate zero()
     {
-        return ConcreteTypeTemplate(
-            Array<int>::create<ConstHandle, BaseBody>(0, 0));
+        return Array<int>::create<ConstHandle, BaseBody>(0, 0);
     }
     bool valid() const { return body() != 0; }
     bool isAbstract() const { return body()->isAbstract(); }
@@ -309,7 +308,7 @@ private:
 
 typedef ConcreteTypeTemplate<Rational> ConcreteType;
 
-int ConcreteType::_bases = 0;
+template<> int ConcreteTypeTemplate<Rational>::_bases = 0;
 
 template<> Type typeFromValue<Concrete>(const Concrete& c) { return c.type(); }
 
@@ -321,7 +320,7 @@ template<> Type typeFromValue<Concrete>(const Concrete& c) { return c.type(); }
 class ConcretePersistenceType : public Type
 {
 public:
-    ConcretePersistenceType(Concrete unit) : Type(Type::create<Body>(unit)) { }
+    ConcretePersistenceType(Concrete unit) : Type(create<Body>(unit)) { }
 private:
     class Body : public Type::Body
     {

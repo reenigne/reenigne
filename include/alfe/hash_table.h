@@ -16,7 +16,7 @@ template<class Key, class Value> class HashTableBody
 {
 public:
     virtual void justSetSize(int size) const = 0;
-    void preDestroy() const { justSetSize(_allocated); }
+    void preDestroy() const { justSetSize(this->_allocated); }
 };
 
 template<class Key, class Value> class HashTable
@@ -37,8 +37,8 @@ public:
         auto e = lookup(key);
         if (e != 0 && e->first() == key)
             return e->second();
-        if (count() >= allocated()*3/4) {
-            int n = allocated()*2;
+        if (count() >= this->allocated()*3/4) {
+            int n = this->allocated()*2;
             if (n == 0)
                 n = 1;
             HashTable other;
@@ -51,7 +51,7 @@ public:
             *this = other;
             e = lookup(key);
         }
-        ++body()->_size;
+        ++this->body()->_size;
         e->first() = key;
         return e->second();
     }
@@ -63,7 +63,7 @@ public:
         return Value();
     }
     void add(const Key& key, const Value& value) { (*this)[key] = value; }
-    int count() const { return body() == 0 ? 0 : body()->_size; }
+    int count() const { return this->body() == 0 ? 0 : this->body()->_size; }
     class Iterator
     {
     public:
@@ -95,7 +95,7 @@ public:
     };
     Iterator begin() const
     {
-        if (allocated() == 0)
+        if (this->allocated() == 0)
             return Iterator(0, *this);
         Iterator i(data(0), *this);
         if (i.key() == Key())
@@ -104,9 +104,9 @@ public:
     }
     Iterator end() const
     {
-        if (allocated() == 0)
+        if (this->allocated() == 0)
             return Iterator(0, *this);
-        return Iterator(data(allocated()), *this);
+        return Iterator(data(this->allocated()), *this);
     }
     template<class V1> bool operator==(HashTable<Key, V1> other) const
     {
@@ -142,16 +142,16 @@ public:
         return true;
     }
 private:
-    int row(const Key& key) const { return ::hash(key) % allocated(); }
+    int row(const Key& key) const { return ::hash(key) % this->allocated(); }
     Entry* lookup(const Key& key)
     {
-        if (allocated() == 0)
+        if (this->allocated() == 0)
             return 0;
         int r = row(key);
-        for (int i = 0; i < allocated(); ++i) {
+        for (int i = 0; i < this->allocated(); ++i) {
             // We have a decent hash function so linear probing should work
             // fine.
-            r = (r + 1)%allocated();
+            r = (r + 1)%this->allocated();
             Entry* e = data(r);
             if (e->first() == key || e->first() == Key())
                 return e;
@@ -160,21 +160,26 @@ private:
     }
     const Entry* lookup(const Key& key) const
     {
-        if (allocated() == 0)
+        if (this->allocated() == 0)
             return 0;
         int r = row(key);
-        for (int i = 0; i < allocated(); ++i) {
-            r = (r + 1)%allocated();
+        for (int i = 0; i < this->allocated(); ++i) {
+            r = (r + 1)%this->allocated();
             const Entry* e = data(r);
             if (e->first() == key || e->first() == Key())
                 return e;
         }
         return 0;
     }
-    Entry* data(int row) { return &static_cast<AppendableArray&>(*this)[row]; }
+    Entry* data(int row)
+    {
+        return &static_cast<AppendableArray<Tuple<Key, Value>,
+            HashTableBody<Key, Value>>&>(*this)[row];
+    }
     const Entry* data(int row) const
     {
-        return &static_cast<const AppendableArray&>(*this)[row];
+        return &static_cast<const AppendableArray<Tuple<Key, Value>,
+            HashTableBody<Key, Value>>&>(*this)[row];
     }
 };
 

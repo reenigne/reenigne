@@ -73,7 +73,7 @@ class TemplateKind : public Kind
 {
 public:
     TemplateKind(const Kind& firstParameterKind, const Kind& restParameterKind)
-      : Kind(Kind::create<Body>(firstParameterKind, restParameterKind)) { }
+      : Kind(create<Body>(firstParameterKind, restParameterKind)) { }
     TemplateKind(const Kind& kind) : Kind(kind) { }
     Kind first() const { return body()->first(); }
     Kind rest() const { return body()->rest(); }

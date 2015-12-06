@@ -3,26 +3,27 @@ template<class T> class Intel8255PPITemplate
 {
 public:
     static String typeName() { return "Intel8255PPI"; }
-    Intel8255PPITemplate(Component::Type type) : ISA8BitComponent(type)
+    Intel8255PPITemplate(Component::Type type)
+      : ISA8BitComponent<Intel8255PPITemplate<T>>(type)
     {
         _mode = 0x1b;
         for (int i = 0; i < 3; ++i) {
             _bytes[i]._ppi = this;
             _bytes[i]._i = i;
-            connector(codePoint('a' + i), &_bytes[i]);
+            this->connector(codePoint('a' + i), &_bytes[i]);
         }
         for (int i = 0; i < 24; ++i) {
             _bits[i]._ppi = this;
             _bits[i]._i = i;
-            connector(String(codePoint('a' + (i >> 3))) + decimal(i & 7),
+            this->connector(String(codePoint('a' + (i >> 3))) + decimal(i & 7),
                 &_bits[i]);
         }
-        persist("address", &_address);
+        this->persist("address", &_address);
         ArrayType t(ByteType(), 3);
-        persist("incoming", &_incoming[0], t);
-        persist("outgoing", &_outgoing[0], static_cast<Byte>(0xff), t);
-        persist("input", &_input[0], ArrayType(ByteType(), 2));
-        persist("output", &_output[0], t);
+        this->persist("incoming", &_incoming[0], t);
+        this->persist("outgoing", &_outgoing[0], static_cast<Byte>(0xff), t);
+        this->persist("input", &_input[0], ArrayType(ByteType(), 2));
+        this->persist("output", &_output[0], t);
     }
     void setAddress(UInt32 address) { _address = address & 3; }
     void read()
@@ -131,21 +132,21 @@ public:
         incoming(n, (_incoming[n] & ~b) | (v ? b : 0));
     }
 private:
-    template<class T> class Connector : public BidirectionalConnector<T>
+    template<class U> class Connector : public BidirectionalConnector<U>
     {
     public:
-        void setData(Tick tick, T v) { _ppi->setData(_i, v); }
+        void setData(Tick tick, U v) { _ppi->setData(_i, v); }
         Intel8255PPI* _ppi;
         int _i;
     };
     void outgoing(int i, UInt8 v)
     {
         if (v != _outgoing[i]) {
-            _bytes[i]._other->setData(_tick, v);
+            _bytes[i]._other->setData(this->_tick, v);
             for (int b = 0; b < 8; ++b)
                 if (((v ^ _outgoing[i]) & (1 << b)) != 0) {
                     _bits[(i<<3) | b]._other->
-                        setData(_tick, (v & (1 << b)) != 0);
+                        setData(this->_tick, (v & (1 << b)) != 0);
                 }
             _outgoing[i] = v;
         }

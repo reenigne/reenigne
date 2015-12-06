@@ -30,8 +30,8 @@ public:
         ::Connector::Type type() const { return Type(); }
         void connect(::Connector* other)
         {
-            _keyboard->_port =
-                static_cast<PCXTKeyboardPort::Connector*>(other)->_port;
+            _keyboard->_port = static_cast<typename
+                PCXTKeyboardPortTemplate<T>::Connector*>(other)->_port;
         }
     };
 

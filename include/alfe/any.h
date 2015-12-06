@@ -29,11 +29,11 @@ public:
     private:
         T _t;
     };
-    template<> class Body<void> : public Handle::Body
-    {
-    public:
-        void value() const { }
-    };
+    //    template<> class Body<void> : public Handle::Body
+    //    {
+    //    public:
+    //        void value() const { }
+    //    };
     template<class T> T value() const { return as<Body<T>>()->value(); }
 };
 

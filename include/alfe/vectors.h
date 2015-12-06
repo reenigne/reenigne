@@ -180,9 +180,9 @@ template<class T> class Vector2Cast : public Vector2<T>
 {
 public:
     template<class T2> Vector2Cast(const Vector2<T2>& other)
-      : Vector2(static_cast<T>(other.x), static_cast<T>(other.y)) { }
+      : Vector2<T>(static_cast<T>(other.x), static_cast<T>(other.y)) { }
     template<class T2> Vector2Cast(const T2& x, const T2& y)
-      : Vector2(static_cast<T>(x), static_cast<T>(y)) { }
+      : Vector2<T>(static_cast<T>(x), static_cast<T>(y)) { }
 };
 
 typedef Vector2<int> Vector;
@@ -444,10 +444,10 @@ template<class T> class Vector3Cast : public Vector3<T>
 {
 public:
     template<class T2> Vector3Cast(const Vector3<T2>& other)
-      : Vector3(static_cast<T>(other.x), static_cast<T>(other.y),
+      : Vector3<T>(static_cast<T>(other.x), static_cast<T>(other.y),
         static_cast<T>(other.z)) { }
     template<class T2> Vector3Cast(const T2& x, const T2& y, const T2& z)
-      : Vector3(static_cast<T>(x), static_cast<T>(y), static_cast<T>(z)) { }
+      : Vector3<T>(static_cast<T>(x), static_cast<T>(y), static_cast<T>(z)) { }
 };
 
 #endif // INCLUDED_VECTORS_H

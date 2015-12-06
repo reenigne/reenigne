@@ -50,8 +50,8 @@ public:
         do {
             Span span;
             if (Space::parseCharacter(source, '*', &span)) {
-                tycoSpecifier = TycoSpecifier::create<
-                    TypeSpecifierTemplate<T>::PointerBody>(
+                tycoSpecifier = create<typename
+                     TypeSpecifierTemplate<T>::PointerBody>(
                     tycoSpecifier, tycoSpecifier.span() + span);
                 continue;
             }
@@ -61,7 +61,7 @@ public:
                 if (!Space::parseCharacter(&s2, ')', &span))
                     return tycoSpecifier;
                 *source = s2;
-                tycoSpecifier = TycoSpecifier::create<
+                tycoSpecifier = create<typename
                     TypeSpecifierTemplate<T>::FunctionBody>(
                     tycoSpecifier, typeListSpecifier,
                     tycoSpecifier.span() + span);
@@ -105,8 +105,8 @@ private:
             TemplateArgumentsTemplate<T> arguments =
                 TemplateArgumentsTemplate<T>::parse(source);
             if (arguments.valid()) {
-                return TycoSpecifier::create<InstantiationBody>(tycoIdentifier,
-                    arguments, span + arguments.span());
+                return create<InstantiationBody>(tycoIdentifier, arguments,
+                    span + arguments.span());
             }
             return tycoIdentifier;
         }
@@ -160,7 +160,7 @@ public:
         *source = s2;
         if (arguments.count() == 0)
             return TemplateArguments();
-        return TemplateArguments::create<Body>(arguments, span + span2);
+        return create<Body>(arguments, span + span2);
     }
     int count() const
     {
@@ -220,7 +220,7 @@ template<class T> class TycoIdentifierTemplate : public TycoSpecifier
 {
 public:
     TycoIdentifierTemplate(const String& name)
-      : TycoSpecifier(TycoSpecifier::create<Body>(name, Span())) { }
+      : TycoSpecifier(create<Body>(name, Span())) { }
     TycoIdentifierTemplate(const ConstHandle& other) : TycoSpecifier(other) { }
     static TycoIdentifier parse(CharacterSource* source)
     {
@@ -267,7 +267,7 @@ public:
             if (name == keywords[i])
                 return TycoIdentifier();
         *source = s2;
-        return TycoIdentifier::create<Body>(name, Span(location, endLocation));
+        return create<Body>(name, Span(location, endLocation));
     }
     class Body : public TycoSpecifier::Body
     {
@@ -332,7 +332,8 @@ public:
             return TypeOfTypeSpecifier();
         Span span2;
         Space::assertCharacter(source, '(', &span2);
-        Expression expression = Expression::parseOrFail(source);
+        ExpressionTemplate<T> expression =
+            ExpressionTemplate<T>::parseOrFail(source);
         Space::assertCharacter(source, ')', &span2);
         return create<Body>(expression, span + span2);
     }
@@ -343,7 +344,7 @@ private:
         Body(const Expression& expression, const Span& span)
           : TypeSpecifier::Body(span), _expression(expression) { }
     private:
-        Expression _expression;
+        ExpressionTemplate<T> _expression;
     };
 };
 
@@ -373,17 +374,17 @@ public:
         do {
             Span span;
             if (Space::parseCharacter(source, '*', &span)) {
-                parameter = TemplateParameter::create<
-                    TypeParameterTemplate<T>::PointerBody>(parameter,
-                    parameter.span() + span);
+                parameter = create<typename
+                    TypeParameterTemplate<T>::PointerBody>(
+                    parameter, parameter.span() + span);
                 continue;
             }
             if (Space::parseCharacter(source, '(', &span)) {
                 List<TemplateParameter> parameters = parseList(source);
                 Space::assertCharacter(source, ')', &span);
-                parameter = TemplateParameter::create<
-                    TypeParameterTemplate<T>::FunctionBody>(parameter,
-                    parameters, parameter.span() + span);
+                parameter = create<typename
+                    TypeParameterTemplate<T>::FunctionBody>(
+                    parameter, parameters, parameter.span() + span);
                 continue;
             }
         } while (true);
@@ -417,7 +418,7 @@ private:
     {
         TycoSpecifier tycoSpecifier = TycoSpecifier::parse(source);
         if (tycoSpecifier.valid())
-            return TemplateParameter::create<TycoSpecifierBody>(tycoSpecifier);
+            return create<TycoSpecifierBody>(tycoSpecifier);
         Span span;
         if (Space::parseCharacter(source, '@', &span)) {
             TycoIdentifier tycoIdentifier = TycoIdentifier::parse(source);
@@ -426,8 +427,8 @@ private:
                     "Expected type constructor identifier");
             TemplateParametersTemplate<T> parameters =
                 TemplateParametersTemplate<T>::parse(source);
-            return TemplateParameter::create<BoundVariableBody>(tycoIdentifier,
-                parameters, span + parameters.span());
+            return create<BoundVariableBody>(tycoIdentifier, parameters,
+                span + parameters.span());
         }
         source->location().throwError("Expected template parameter");
         // Not reachable
@@ -504,7 +505,7 @@ public:
                 return TemplateParameters();
         }
         *source = s2;
-        return TemplateParameters::create<Body>(parameters, span + span2);
+        return create<Body>(parameters, span + span2);
     }
 private:
     class Body : public ParseTreeObject::Body
@@ -524,8 +525,7 @@ class TycoSignifier : public ParseTreeObject
 public:
     TycoSignifier(const TycoIdentifier& identifier,
         const TemplateParameters& parameters = TemplateParameters())
-      : ParseTreeObject(ParseTreeObject::create<Body>(
-        identifier, parameters, Span())) { }
+      : ParseTreeObject(create<Body>(identifier, parameters, Span())) { }
     static TycoSignifier parse(CharacterSource* source)
     {
         CharacterSource s2 = *source;
@@ -533,7 +533,7 @@ public:
         if (!identifier.valid())
             return TycoSignifier();
         TemplateParameters parameters = TemplateParameters::parse(source);
-        return ParseTreeObject::create<Body>(identifier, parameters,
+        return create<Body>(identifier, parameters,
             identifier.span() + parameters.span());
     }
 private:
@@ -557,7 +557,7 @@ class BuiltInTycoSpecifier : public TycoSpecifier
 {
 public:
     BuiltInTycoSpecifier(const Kind& kind)
-      : TycoSpecifier(TycoSpecifier::create<Body>(kind)) { }
+      : TycoSpecifier(create<Body>(kind)) { }
 private:
     class Body : public TycoSpecifier::Body
     {

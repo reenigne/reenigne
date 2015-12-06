@@ -4,22 +4,22 @@ template<class T> class IBMCGATemplate
 public:
     static String typeName() { return "IBMCGA"; }
     IBMCGATemplate(Component::Type type)
-      : ISA8BitComponent(type), _attr(0), _chrdata(0), _wait(0), _cycle(0),
-        _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true),
-        _bgriSource(this)
+      : ISA8BitComponent<IBMCGATemplate<T>>(type), _attr(0), _chrdata(0),
+        _wait(0), _cycle(0), _bgri(0), _lightPenStrobe(false),
+        _lightPenSwitch(true), _bgriSource(this)
     {
         _data.allocate(0x4000);
-        config("rom", &_rom);
-        persist("memoryActive", &_memoryActive);
-        persist("memoryAddress", &_memoryAddress, HexPersistenceType(4));
-        persist("portActive", &_portActive);
-        persist("portAddress", &_portAddress, HexPersistenceType(4));
-        persist("mode", &_mode);
-        persist("palette", &_palette);
+        this->config("rom", &_rom);
+        this->persist("memoryActive", &_memoryActive);
+        this->persist("memoryAddress", &_memoryAddress, HexPersistenceType(4));
+        this->persist("portActive", &_portActive);
+        this->persist("portAddress", &_portAddress, HexPersistenceType(4));
+        this->persist("mode", &_mode);
+        this->persist("palette", &_palette);
     }
     void load(Value v)
     {
-        ISA8BitComponent::load(v);
+        ISA8BitComponent<IBMCGATemplate<T>>::load(v);
         String data = File(_rom, this->_simulator->directory()).contents();
         int length = 0x2000;
         _romdata.allocate(length);
@@ -160,13 +160,14 @@ public:
         {
         public:
             Type() { }
-            Type(::Type type) : NamedNullary(type) { }
+            Type(::Type type) : NamedNullary<::Connector::Type, Type>(type) { }
             class Body : public NamedNullary<::Connector::Type, Type>::Body
             {
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return RGBIMonitor::Connector::Type(other).valid();
+                    return RGBIMonitorTemplate<T>::Connector::Type(other).
+                        valid();
                 }
             };
             static String name() { return "IBMCGA.RGBIConnector"; }

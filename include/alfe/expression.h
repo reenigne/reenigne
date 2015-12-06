@@ -53,14 +53,21 @@ typedef StructureTemplate<void> Structure;
 template<class T> class FunctionTycoTemplate;
 typedef FunctionTycoTemplate<void> FunctionTyco;
 
+template<class T> class OverloadedFunctionSetTemplate;
+typedef OverloadedFunctionSetTemplate<void> OverloadedFunctionSet;
+
+class Function;
+
 class BooleanType;
 
-class EvaluationContext
+template<class T> class EvaluationContextTemplate
 {
 public:
-    virtual Value valueOfIdentifier(Identifier i) = 0;
+    virtual ValueTemplate<T> valueOfIdentifier(Identifier i) = 0;
     virtual Tyco resolveTycoIdentifier(TycoIdentifier i) = 0;
 };
+
+typedef EvaluationContextTemplate<void> EvaluationContext;
 
 int parseHexadecimalCharacter(CharacterSource* source, Span* span)
 {
@@ -93,8 +100,8 @@ public:
         Body(const Span& span) : ParseTreeObject::Body(span) { }
         virtual Expression toString() const
         {
-            return Expression::create<
-                FunctionCallExpressionTemplate<T>::FunctionCallBody>(
+            return create<
+                typename FunctionCallExpressionTemplate<T>::FunctionCallBody>(
                 Expression(expression()).dot(Identifier("toString")),
                 List<Expression>(), span());
         }
@@ -147,7 +154,7 @@ public:
     }
     Expression dot(const Identifier& identifier)
     {
-        return Expression::create<DotBody>(*this, identifier);
+        return create<DotBody>(*this, identifier);
     }
 
     Expression toString() const { return body()->toString(); }
@@ -193,14 +200,14 @@ protected:
         e = IdentifierTemplate<T>::parse(source);
         if (e.valid())
             return e;
-        e = FunctionCallExpression::parseConstructorCall(source);
+        e = FunctionCallExpressionTemplate<T>::parseConstructorCall(source);
         if (e.valid())
             return e;
         Span span;
         if (Space::parseKeyword(source, "true", &span))
-            return Expression::create<TrueBody>(span);
+            return create<TrueBody>(span);
         if (Space::parseKeyword(source, "false", &span))
-            return Expression::create<FalseBody>(span);
+            return create<FalseBody>(span);
         CharacterSource s2 = *source;
         if (Space::parseCharacter(&s2, '(', &span)) {
             e = parse(&s2);
@@ -222,8 +229,7 @@ protected:
                 bool seenComma = Space::parseCharacter(&s2, ',', &span2);
                 if (Space::parseCharacter(&s2, '}', &span2)) {
                     *source = s2;
-                    return Expression::create<ArrayLiteralBody>(expressions,
-                        span + span2);
+                    return create<ArrayLiteralBody>(expressions, span + span2);
                 }
                 if (!seenComma)
                     return Expression();
@@ -424,7 +430,7 @@ private:
     public:
         StringLiteralBody(const String& string, const Span& span)
           : Body(span), _string(string) { }
-        Expression toString() const { return expression(); }
+        Expression toString() const { return this->expression(); }
         ValueTemplate<T> evaluate(EvaluationContext* context) const
         {
             return _string;
@@ -459,13 +465,13 @@ private:
                     this->span().throwError("Expression has no member named " +
                         _right.name());
                 }
-                auto m = e.value<HashTable<IdentifierTemplate<T>,
+                auto m = e.template value<HashTable<IdentifierTemplate<T>,
                     ValueTemplate<T>>>();
                 e = m[_right];
                 e = Value(e.type(), e.value(), this->span());
             }
             else {
-                Type t = lValueType.inner().member(_right);
+                TypeTemplate<T> t = lValueType.inner().member(_right);
                 if (!t.valid())
                     this->span().throwError("Expression has no member named " +
                         _right.name());
@@ -696,21 +702,22 @@ public:
         FunctionCallBody(const Expression& function,
             const List<Expression>& arguments, const Span& span)
           : Body(span, arguments), _function(function) { }
-        ValueTemplate<T> evaluate(EvaluationContext* context) const
+        ValueTemplate<T> evaluate(EvaluationContextTemplate<T>* context) const
         {
             ValueTemplate<T> l = _function.evaluate(context).rValue();
             List<Value> arguments;
-            for (auto p : _arguments)
+            for (auto p : this->_arguments)
                 arguments.add(p.evaluate(context).rValue());
             TypeTemplate<T> lType = l.type();
-            if (lType == OverloadedFunctionSet::Type())
-                return l.value<OverloadedFunctionSet>().evaluate(arguments,
-                    span());
+            if (lType == typename OverloadedFunctionSetTemplate<T>::Type()) {
+                return l.template value<OverloadedFunctionSet>().evaluate(
+		    arguments, this->span());
+	    }
             // What we have on the left isn't a function, try to call its
             // operator() method instead.
             IdentifierTemplate<T> i = Identifier(OperatorFunctionCall());
             if (!lType.member(i).valid())
-                span().throwError("Expression is not a function.");
+                this->span().throwError("Expression is not a function.");
             LValueTypeTemplate<T> lValueType(lType);
             if (!lValueType.valid()) {
                 auto m = l.template value<HashTable<Identifier, Value>>();
@@ -723,7 +730,8 @@ public:
                 l = Value(LValueTypeTemplate<T>::wrap(p->getValue(i).type()),
                     LValue(p, i), this->span());
             }
-            return l.template value<Function>().evaluate(arguments, span());
+            return l.template value<Function>().evaluate(arguments,
+                this->span());
         }
     private:
         Expression _function;
@@ -741,23 +749,23 @@ public:
             if (!ti.valid())
                 _type.span().throwError(
                     "Don't know how to evaluate complex types yet.");
-            Tyco t = context->resolveTycoIdentifier(ti);
+            TycoTemplate<T> t = context->resolveTycoIdentifier(ti);
             if (!t.valid())
                 _type.span().throwError("Unknown type " + ti.name());
-            List<Value> arguments;
-            for (auto p : _arguments)
+            List<ValueTemplate<T>> arguments;
+            for (auto p : this->_arguments)
                 arguments.add(p.evaluate(context));
 
-            StructuredType type = t;
+            StructuredTypeTemplate<T> type = t;
             if (!type.valid())
                 ti.span().throwError(
                     "Only structure types can be constructed at the moment.");
-            const Array<StructuredType::Member> members = type.members();
+            auto members = type.members();
             List<Any> values;
             Span span = _type.span();
             auto ai = arguments.begin();
             for (int i = 0; i < members.count(); ++i) {
-                Value value = ai->convertTo(members[i].type());
+                ValueTemplate<T> value = ai->convertTo(members[i].type());
                 values.add(value.value());
                 span += value.span();
                 ++ai;
@@ -822,7 +830,7 @@ public:
                 Expression e2 = FunctionCallExpression::parseBitwiseOr(source);
                 if (!e2.valid())
                     throwError(source);
-                e = Expression::create<Body>(e, span, e2);
+                e = create<Body>(e, span, e2);
                 continue;
             }
             return e;
@@ -869,7 +877,7 @@ public:
                 Expression e2 = LogicalAndExpression::parse(source);
                 if (!e2.valid())
                     throwError(source);
-                e = LogicalOrExpression::create<Body>(e, span, e2);
+                e = create<Body>(e, span, e2);
                 continue;
             }
             return e;

@@ -54,7 +54,7 @@ protected:
 //    const Body* body() const { return as<Body>(); }
 };
 
-class OverloadedFunctionSet : public Handle
+template<class T> class OverloadedFunctionSetTemplate : public Handle
 {
     class Body : public Handle::Body
     {
@@ -125,8 +125,8 @@ public:
         static String name() { return "OverloadedFunctionSet::Type"; }
     };
 
-    OverloadedFunctionSet(Identifier identifier)
-      : Handle(Handle::create<Body>(identifier)) { }
+    OverloadedFunctionSetTemplate(Identifier identifier)
+      : Handle(create<Body>(identifier)) { }
     void add(Funco funco) { body()->add(funco); }
     static Type type() { return Type(); }
     Value evaluate(List<Value> arguments, Span span) const

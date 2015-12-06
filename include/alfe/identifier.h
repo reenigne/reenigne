@@ -16,7 +16,7 @@ template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
         virtual String name() const = 0;
         ValueTemplate<T> evaluate(EvaluationContext* context) const
         {
-            return context->valueOfIdentifier(expression());
+            return context->valueOfIdentifier(this->expression());
         }
         virtual bool isOperator() const = 0;
     };
@@ -56,11 +56,13 @@ template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
 public:
     IdentifierTemplate() { }
     IdentifierTemplate(const ConstHandle& other)
-      : ExpressionTemplate(other) { }
+      : ExpressionTemplate<T>(other) { }
     IdentifierTemplate(const String& name)
-      : ExpressionTemplate<T>(Expression::create<NameBody>(name, Span())) { }
+      : ExpressionTemplate<T>(IdentifierTemplate::template create<NameBody>(
+        name, Span())) { }
     IdentifierTemplate(const char* name)
-      : ExpressionTemplate<T>(Expression::create<NameBody>(name, Span())) { }
+      : ExpressionTemplate<T>(IdentifierTemplate::template create<NameBody>(
+        name, Span())) { }
 
     static Identifier parse(CharacterSource* source)
     {
@@ -121,7 +123,7 @@ public:
         Span span(location, endLocation);
         if (name != "operator") {
             *source = s2;
-            return Identifier(Identifier::create<NameBody>(name, span));
+            return IdentifierTemplate::template create<NameBody>(name, span);
         }
         Span endSpan;
         Span span3;
@@ -193,13 +195,14 @@ public:
     }
 
     IdentifierTemplate(const Operator& op, const Span& span = Span())
-      : Expression(Expression::create<OperatorBody>(op, span)) { }
+      : Expression(IdentifierTemplate::template create<OperatorBody>(op, span))
+    { }
 
     String name() const { return body()->name(); }
     bool isOperator() const { return body()->isOperator(); }
 
 private:
-    const Body* body() const { return as<Body>(); }
+    const Body* body() const { return this->template as<Body>(); }
 };
 
 #endif // INCLUDED_IDENTIFIER_H

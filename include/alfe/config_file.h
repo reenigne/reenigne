@@ -15,20 +15,23 @@
 #include "alfe/rational_functions.h"
 #include "alfe/concrete_functions.h"
 
-class ConfigFile;
+template<class T> class ConfigFileTemplate;
+typedef ConfigFileTemplate<void> ConfigFile;
 
-template<class T> class ConfigOption
+template<class T, class V> class ConfigOptionTemplate
 {
 public:
-    T get() { return _config->get<T>(_member); }
+    T get() { return _config->template get<T>(_member); }
 private:
-    ConfigOption(ConfigFile* config, String member)
+    ConfigOptionTemplate(ConfigFile* config, String member)
       : _config(config), _member(member) { }
-    ConfigFile* _config;
+    ConfigFileTemplate<T>* _config;
     String _member;
 
-    friend class ConfigFile;
+    friend class ConfigFileTemplate<T>;
 };
+
+template<class V> using ConfigOption = ConfigOptionTemplate<void, V>;
 
 class DispatchFunction : public Function
 {
@@ -42,10 +45,10 @@ public:
     };
 };
 
-class ConfigFile : public Structure
+template<class T> class ConfigFileTemplate : public Structure
 {
 public:
-    ConfigFile() : _context(this)
+    ConfigFileTemplate() : _context(this)
     {
         addType(IntegerType());
         addFunco(AddIntegerInteger());
@@ -84,25 +87,25 @@ public:
         addFunco(PowerIntegerInteger());
         addFunco(PowerRationalInteger());
     }
-    template<class T> ConfigOption<T> addOption(String name)
+    template<class V> ConfigOption<V> addOption(String name)
     {
-        addOption(name, typeFromCompileTimeType<T>());
-        return ConfigOption<T>(this, name);
+        addOption(name, typeFromCompileTimeType<V>());
+        return ConfigOption<V>(this, name);
     }
     void addOption(String name, Type type)
     {
         addOption(name, Value(type));
     }
-    template<class T> void addDefaultOption(String name, Type type,
-        const T& defaultValue)
+    template<class V> void addDefaultOption(String name, Type type,
+        const V& defaultValue)
     {
         addOption(name, Value(type, defaultValue));
     }
-    template<class T> ConfigOption<T> addDefaultOption(String name,
-        const T& defaultValue)
+    template<class V> ConfigOption<V> addDefaultOption(String name,
+        const V& defaultValue)
     {
         addOption(name, Value(defaultValue));
-        return ConfigOption<T>(this, name);
+        return ConfigOption<V>(this, name);
     }
 private:
     void addOption(String name, Value defaultValue)

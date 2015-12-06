@@ -75,7 +75,7 @@ public:
     {
         return _values.hasKey(identifier);
     }
-    virtual void set(Identifier identifier, Value value)
+    virtual void set(Identifier identifier, ValueTemplate<T> value)
     {
         _values[identifier] = value;
     }
@@ -169,12 +169,12 @@ protected:
     {
     public:
         Kind kind() const { return TypeKind(); }
-        virtual ValueTemplate<T> tryConvert(const Value& value, String* reason)
-            const
+        virtual ValueTemplate<T> tryConvert(const ValueTemplate<T>& value,
+            String* reason) const
         {
             if (this == value.type().body())
                 return value;
-            if (value == StructuredType::empty())
+            if (value == StructuredTypeTemplate<T>::empty())
                 return defaultValue();
             return ValueTemplate<T>();
         }
@@ -214,7 +214,7 @@ public:
     {
         if (LValueType(inner).valid())
             return inner;
-        return LValueType(LValueType::create<Body>(inner));
+        return LValueType(create<Body>(inner));
     }
     Type inner() const { return body()->inner(); }
     bool valid() const { return body() != 0; }
@@ -243,13 +243,13 @@ public:
 };
 
 template<class T> Type typeFromCompileTimeType() { return T::type(); }
-template<class T, typename = std::enable_if<HasType<T>::value>::type>
+template<class T, typename = typename std::enable_if<HasType<T>::value>::type>
     Type typeFromValue(const T& value)
 {
     return value.type();
 }
 template<class T, typename = void,
-    typename = std::enable_if<!HasType<T>::value>::type>
+    typename = typename std::enable_if<!HasType<T>::value>::type>
     Type typeFromValue(const T&)
 {
     return typeFromCompileTimeType<T>();
@@ -259,17 +259,17 @@ template<class T> class ValueTemplate
 {
 public:
     ValueTemplate() { }
-    template<class U,
-        typename = std::enable_if<std::is_base_of<Type, U>::value>::type>
-        ValueTemplate(U type, Any any = Any(), Span span = Span())
+    template<class U, typename = typename std::enable_if<std::is_base_of<
+        Type, U>::value>::type> ValueTemplate(U type, Any any = Any(),
+        Span span = Span())
       : _type(type), _any(any), _span(span)
     {
         if (!_any.valid())
-            _any = StructuredType::empty().convertTo(type).value();
+            _any = StructuredTypeTemplate<T>::empty().convertTo(type).value();
     }
-    template<class U,
-        typename = std::enable_if<!std::is_base_of<Type, U>::value>::type>
-        ValueTemplate(const U& value, Span span = Span())
+    template<class U, typename = typename std::enable_if<!std::is_base_of<
+        Type, U>::value>::type> ValueTemplate(const U& value,
+        Span span = Span())
       : _type(typeFromValue(value)), _any(value), _span(span) { }
     Type type() const { return _type; }
     Any value() const { return _any; }
@@ -279,11 +279,6 @@ public:
     }
     bool operator!=(const Value& other) const { return !(*this == other); }
     template<class U> U value() const { return _any.value<U>(); }
-    template<> Vector value<Vector>() const
-    {
-        Array<Any> sizeArray = value<List<Any>>();
-        return Vector(sizeArray[0].value<int>(), sizeArray[1].value<int>());
-    }
     Span span() const { return _span; }
     bool valid() const { return _any.valid(); }
     Value convertTo(const Type& to) const
@@ -332,6 +327,12 @@ private:
     Span _span;
 };
 
+template<> template<> Vector ValueTemplate<void>::value<Vector>() const
+{
+    Array<Any> sizeArray = value<List<Any>>();
+    return Vector(sizeArray[0].value<int>(), sizeArray[1].value<int>());
+}
+
 template<class T> class TemplateTemplate : public Tyco
 {
 public:
@@ -368,7 +369,7 @@ protected:
         {
             if (final)
                 return finalInstantiate(tyco(), argument);
-            return Tyco::create<PartialBody>(tyco(), tyco(), argument);
+            return create<PartialBody>(tyco(), tyco(), argument);
         }
         virtual Type finalInstantiate(Template parent, Tyco argument) const
             = 0;
@@ -417,8 +418,8 @@ protected:
         Tyco partialInstantiate(bool final, Tyco argument) const
         {
             if (final)
-                return _root.body()->finalInstantiate(tyco(), argument);
-            return Tyco::create<PartialBody>(_root, tyco(), argument);
+                return _root.body()->finalInstantiate(this->tyco(), argument);
+            return create<PartialBody>(_root, this->tyco(), argument);
         }
         bool equals(const ConstHandle::Body* other) const
         {
@@ -430,8 +431,8 @@ protected:
         const Body* parent() const { return _parent; }
         Tyco argument() const { return _argument; }
     private:
-        Template _root;
-        Template _parent;
+        TemplateTemplate<T> _root;
+        TemplateTemplate<T> _parent;
         Tyco _argument;
     };
     const Body* body() const { return as<Body>(); }
@@ -442,7 +443,7 @@ class LessThanType : public Type
 public:
     LessThanType(Type t) : Type(t) { }
     bool valid() const { return body() != 0; }
-    LessThanType(int n) : Type(Type::create<Body>(n)) { }
+    LessThanType(int n) : Type(create<Body>(n)) { }
     int n() const { return body()->_n; }
 private:
     class Body : public Type::Body
@@ -655,9 +656,9 @@ class ArrayType : public Type
 public:
     ArrayType(const Type& type) : Type(type) { }
     ArrayType(const Type& contained, const Type& indexer)
-      : Type(Type::create<Body>(contained, indexer)) { }
+      : Type(create<Body>(contained, indexer)) { }
     ArrayType(const Type& contained, int size)
-      : Type(Type::create<Body>(contained, LessThanType(size))) { }
+      : Type(create<Body>(contained, LessThanType(size))) { }
     bool valid() const { return body() != 0; }
     Type contained() const { return body()->contained(); }
     Type indexer() const { return body()->indexer(); }
@@ -850,8 +851,7 @@ public:
 class SequenceType : public Type
 {
 public:
-    SequenceType(const Type& contained)
-      : Type(Type::create<Body>(contained)) { }
+    SequenceType(const Type& contained) : Type(create<Body>(contained)) { }
     Type contained() const { return body()->contained(); }
 private:
     class Body : public Type::Body
@@ -908,7 +908,7 @@ public:
     bool isUnit() { return *this == TupleTyco(); }
     Tyco instantiate(const Tyco& argument) const
     {
-        return _body->instantiate(argument);
+        return body()->instantiate(argument);
     }
     Type lastMember()
     {
@@ -1016,7 +1016,7 @@ private:
         }
         Type member(IdentifierTemplate<T> i) const
         {
-            CharacterSource s(memberName.name());
+            CharacterSource s(i.name());
             Rational r;
             if (!Space::parseNumber(&s, &r))
                 return Type();
@@ -1030,7 +1030,7 @@ private:
                 if (p.isUnit())
                     return Type();
                 if (n == 1)
-                    return p.contained();
+                    return p.as<NonUnitBody>()->contained();
                 --n;
                 p = p.parent();
             } while (true);
@@ -1038,7 +1038,7 @@ private:
         Type contained() const { return _contained; }
         TupleTyco parent() const { return _parent; }
     private:
-        TupleTyco _parent;
+        TupleTycoTemplate<T> _parent;
         Type _contained;
     };
 private:
@@ -1055,7 +1055,7 @@ private:
 class PointerType : public Type
 {
 public:
-    PointerType(const Type& referent) : Type(Type::create<Body>(referent)) { }
+    PointerType(const Type& referent) : Type(create<Body>(referent)) { }
 private:
     class Body : public Type::Body
     {
@@ -1218,7 +1218,7 @@ private:
             return _parent.argumentsMatch(i);
         }
     private:
-        FunctionTyco _parent;
+        FunctionTycoTemplate<T> _parent;
         Type _argumentType;
     };
     const Body* body() const { return as<Body>(); }
@@ -1256,20 +1256,7 @@ public:
 template<class T = int> class EnumerationType : public Type
 {
 public:
-    class Helper
-    {
-    public:
-        void add(const T& t, String i)
-        {
-            _stringToT.add(i, t);
-            _tToString.add(static_cast<int>(t) + 1, i);
-        }
-    private:
-        HashTable<String, T> _stringToT;
-        HashTable<int, String> _tToString;
-        friend class Body;
-    };
-
+    class Helper;
     EnumerationType(String name, const Helper& helper, String context = "")
       : Type(create<Body>(name, helper, context)) { }
 protected:
@@ -1299,6 +1286,20 @@ protected:
         String _context;
         String _name;
         const Helper _helper;
+    };
+public:
+    class Helper
+    {
+    public:
+        void add(const T& t, String i)
+        {
+            _stringToT.add(i, t);
+            _tToString.add(static_cast<int>(t) + 1, i);
+        }
+    private:
+        HashTable<String, T> _stringToT;
+        HashTable<int, String> _tToString;
+        friend class Body;
     };
 };
 
@@ -1345,7 +1346,7 @@ public:
     StructuredTypeTemplate() { }
     StructuredTypeTemplate(const ConstHandle& other) : Type(other) { }
     StructuredTypeTemplate(String name, List<Member> members)
-      : Type(Type::create<Body>(name, members)) { }
+      : Type(create<Body>(name, members)) { }
     const HashTable<Identifier, int> names() const { return body()->names(); }
     const Array<Member> members() const { return body()->members(); }
     static Value empty()

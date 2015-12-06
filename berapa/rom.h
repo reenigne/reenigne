@@ -7,13 +7,13 @@ public:
     {
         _mask = mask | 0xc0000000;
         _start = address;
-        String data = File(romData.file(),
-            simulator->config()->file().parent(), true).contents();
+//        String data = File(romData.file(),
+//            simulator->config()->file().parent(), true).contents();
         int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
         _data.allocate(length);
-        for (int i = 0; i < length; ++i)
-            _data[i] = data[i + offset];
-        persist("address", &_address, 0, HexPeristenceType(5));
+//        for (int i = 0; i < length; ++i)
+//            _data[i] = data[i + offset];
+        this->persist("address", &_address, 0, HexPersistenceType(5));
     }
     void setAddress(UInt32 address)
     {
@@ -27,12 +27,12 @@ public:
             return _data[address & ~_mask];
         return 0xff;
     }
-    class Type : public ISA8BitComponent::Type
+    class Type : public ISA8BitComponent<ROMTemplate<T>>::Type
     {
     public:
         Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
     private:
-        class Body : public ISA8BitComponent::Type::Body
+        class Body : public ISA8BitComponent<ROMTemplate<T>>::Type::Body
         {
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator)
@@ -46,22 +46,22 @@ public:
                 _structuredType = StructuredType(toString(), members);
             }
             String toString() const { return "ROM"; }
-            Value tryConvert(const Value& value, String* why) const
-            {
-                Value stv = value.type().tryConvertTo(_structuredType, value,
-                    why);
-                if (!stv.valid())
-                    return stv;
-                auto romMembers = stv.value<HashTable<Identifier, Value>>();
-                int mask = romMembers["mask"].value<int>();
-                int address = romMembers["address"].value<int>();
-                String file = romMembers["fileName"].value<String>();
-                int offset = romMembers["fileOffset"].value<int>();
-                auto rom = Reference<Component>::create<ROM>(_simulator,
-                    mask, address, file, offset);
-                _simulator->addComponent(rom);
-                return Value(this, rom, value.span());
-            }
+//            Value tryConvert(const Value& value, String* why) const
+//            {
+//                Value stv = value.type().tryConvertTo(_structuredType, value,
+//                    why);
+//                if (!stv.valid())
+//                    return stv;
+//                auto romMembers = stv.value<HashTable<Identifier, Value>>();
+//                int mask = romMembers["mask"].value<int>();
+//                int address = romMembers["address"].value<int>();
+//                String file = romMembers["fileName"].value<String>();
+//                int offset = romMembers["fileOffset"].value<int>();
+//                auto rom = Reference<Component>::create<ROM>(_simulator,
+//                    mask, address, file, offset);
+//                _simulator->addComponent(rom);
+//                return Value(this, rom, value.span());
+//            }
         private:
             StructuredType _structuredType;
         };

@@ -55,7 +55,7 @@ public:
     void add(const T& t)
     {
         if (!valid())
-            *this = List(List::create<Body>(t));
+            *this = List(create<Body>(t));
         else
             body()->add(t);
     }
@@ -107,6 +107,8 @@ public:
     Iterator end() const { return Iterator(0); }
 };
 
+template<class T> class Array;
+
 template<class T, class Base = typename Array<T>::AppendableBaseBody>
     class AppendableArray;
 
@@ -117,9 +119,13 @@ template<class T> class Array : private Handle
 public:
     // "allocate" is number of Ts to allocate space for.
     // "construct" is number of Ts to actually construct.
+    template<class C = Handle, class H = Handle::Body> static
+      C create(int allocate, int construct)
+    {
+        return create<C, H>(allocate, construct, 0);
+    }
     template<class C = Handle, class H = Handle::Body, typename... Args> static
-        C create(int allocate, int construct, int extraBytes = 0,
-        Args&&... args)
+        C create(int allocate, int construct, int extraBytes, Args&&... args)
     {
         void* buffer = operator new(Body<H>::headSize() + allocate*sizeof(T) +
             extraBytes);
@@ -147,18 +153,21 @@ public:
     {
         // HT is never actually used directly - it's just used to figure out
         // the length and the address of the first T.
-        class HT : public Body { public: T _t; };
+      //        class HT : public Body { public: T _t; };
     public:
-        static int headSize() { return sizeof(HT) - sizeof(T); }
+        static int headSize() { return sizeof(HT<H>) - sizeof(T); }
 
-        T* pointer() { return &static_cast<HT*>(this)->_t; }
-        const T* pointer() const { return &static_cast<const HT*>(this)->_t; }
+        T* pointer() { return &static_cast<HT<H>*>(this)->_t; }
+        const T* pointer() const
+        {
+            return &static_cast<const HT<H>*>(this)->_t;
+        }
         T& operator[](int i) { return pointer()[i]; }
         const T& operator[](int i) const { return pointer()[i]; }
 
         void destroy() const
         {
-            preDestroy();
+            this->preDestroy();
             destruct();
             operator delete(const_cast<void*>(static_cast<const void*>(this)));
         }
@@ -259,6 +268,9 @@ public:
         template<class Key, class Value> friend class HashTable;
         friend class Array;
     };
+
+    template<class H> class HT : public Body<H> { public: T _t; };
+
     class AppendableBaseBody : public Handle::Body
     {
     public:
@@ -310,7 +322,7 @@ public:
     int count() const { return body() == 0 ? 0 : body()->size(); }
     Array copy() const
     {
-        Array r(new Body(count(), 0));
+        Array r(create<Body>(count(), 0));
         for (int i = 0; i < count(); ++i)
             r.body()->constructT((*this)[i]);
         return r;
@@ -322,25 +334,25 @@ public:
     {
         if (body() != 0)
             return body()->begin();
-        return Body::ConstIterator();
+        return Body<>::ConstIterator();
     }
     ConstIterator end() const
     {
         if (body() != 0)
             return body()->end();
-        return Body::ConstIterator();
+        return Body<>::ConstIterator();
     }
     Iterator begin()
     {
         if (body() != 0)
             return body()->begin();
-        return Body<>::Iterator();
+        return typename Body<>::Iterator();
     }
     Iterator end()
     {
         if (body() != 0)
             return body()->end();
-        return Body<>::Iterator();
+        return typename Body<>::Iterator();
     }
 
 private:
@@ -357,7 +369,7 @@ private:
 template<class T, class Base> class AppendableArray : private Handle
 {
 protected:
-    typedef typename Array<T>::Body<Base> Body;
+    typedef typename Array<T>::template Body<Base> Body;
 public:
     AppendableArray() { }
     AppendableArray(const Handle& other) : Handle(other) { }
@@ -378,7 +390,8 @@ public:
         s = roundUpToPowerOf2(s) - overhead;
         int count = s/sizeof(T);
         int extra = s%sizeof(T);
-        AppendableArray b = Array<T>::create<Handle, Base>(count, 0, extra);
+        AppendableArray b =
+            Array<T>::template create<Handle, Base>(count, 0, extra);
         b.body()->_allocated = count;
         *this = b;
     }
