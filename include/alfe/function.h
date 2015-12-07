@@ -18,7 +18,6 @@ protected:
         virtual bool argumentsMatch(List<Type> argumentTypes) const = 0;
         virtual bool betterThan(Funco other) const { return false; }
         virtual String toString() const { return tyco().toString(); }
-        // = 0;  // TODO: write properly once we need best-match overloading
     };
     const Body* body() const { return as<Body>(); }
 public:
@@ -51,7 +50,6 @@ protected:
             return tyco().argumentsMatch(argumentTypes.begin());
         }
     };
-//    const Body* body() const { return as<Body>(); }
 };
 
 template<class T> class OverloadedFunctionSetTemplate : public Handle

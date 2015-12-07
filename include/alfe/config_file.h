@@ -73,11 +73,11 @@ public:
         addFunco(AddConcreteConcrete());
         addFunco(SubtractConcreteConcrete());
         addFunco(MultiplyConcreteConcrete());
-        addFunco(MultiplyConcreteAbstract());
-        addFunco(MultiplyAbstractConcrete());
+        addFunco(MultiplyConcreteRational());
+        addFunco(MultiplyRationalConcrete());
         addFunco(DivideConcreteConcrete());
-        addFunco(DivideConcreteAbstract());
-        addFunco(DivideAbstractConcrete());
+        addFunco(DivideConcreteRational());
+        addFunco(DivideRationalConcrete());
         addFunco(ShiftLeftIntegerInteger());
         addFunco(ShiftRightIntegerInteger());
         addFunco(ShiftLeftRationalInteger());

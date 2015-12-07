@@ -8,7 +8,9 @@ How do we decide which (partial) specialization of Foo to instantiate?
 Make a list of all the Foo templates
 Throw out any where Y does not match X
 Make a partial ordering graph (poset) on the remainder
-  A is better than B if there is some C that would match B but not A
+  A is better than B if:
+    1) there is some C that would match B but not A or
+    2) B would require calling more conversion functions than A
 If there is exactly one best match, use it
 
 The same algorithm applies to functions as well as to templates

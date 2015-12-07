@@ -71,8 +71,6 @@ protected:
     };
 
     template<class T> const T* as() const { return _body->as<T>(); }
-//    template<class T> bool is() const { return as<T::Body>() != 0; }
-//    const Body* body() const { return _body; }
 private:
     void reset() { if (valid()) _body->release(); }
     void set(const Body* body, bool acquire = true)
@@ -125,12 +123,9 @@ protected:
     protected:
         template<class T> T handle() { return T(ConstHandle(this, true)); }
     };
-//    typedef ConstHandle::Body Body;
     Body* body() { return const_cast<ConstHandle::Body*>(_body)->as<Body>(); }
-//    const Body* body() const { return ConstHandle::body(); }
     template<class T> const T* as() const { return ConstHandle::as<T>(); }
     template<class T> T* as() { return body()->as<T>(); }
-//    template<class T> bool is() const { return ConstHandle::is<T>; }
 private:
     Handle(Body* body, bool acquire) { set(body, acquire); }
     friend class ConstHandle::Body;

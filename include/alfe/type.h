@@ -164,6 +164,10 @@ public:
     {
         return body()->simplify(value);
     }
+    bool canConvertTo(const Type& other)
+    {
+        return body()->canConvertTo(other);
+    }
 protected:
     class Body : public Tyco::Body
     {
@@ -200,6 +204,7 @@ protected:
         {
             return value;
         }
+        virtual bool canConvertTo(const Type& other) const { return false; }
     };
     const Body* body() const { return as<Body>(); }
 
@@ -643,12 +648,6 @@ public:
             return value;
         }
     };
-};
-
-class AbstractType : public NamedNullary<Type, AbstractType>
-{
-public:
-    static String name() { return "Abstract"; }
 };
 
 class ArrayType : public Type

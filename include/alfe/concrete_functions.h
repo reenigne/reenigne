@@ -107,8 +107,8 @@ public:
     };
 };
 
-class MultiplyConcreteAbstract
-  : public Nullary<Funco, MultiplyConcreteAbstract>
+class MultiplyConcreteRational
+  : public Nullary<Funco, MultiplyConcreteRational>
 {
 public:
     class Body : public Nullary::Body
@@ -119,10 +119,7 @@ public:
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
-            if (i->type() == RationalType())
-                return Value(l * i->value<Rational>());
-            else
-                return Value(l * i->value<int>());
+            return Value(l * i->value<Rational>());
         }
         Identifier identifier() const { return OperatorStar(); }
         bool argumentsMatch(List<Type> argumentTypes) const
@@ -134,18 +131,18 @@ public:
             if (!l.valid())
                 return false;
             ++i;
-            return (*i == RationalType() || *i == IntegerType());
+            return *i == RationalType();
         }
         FunctionTyco tyco() const
         {
             return
-                FunctionTyco(ConcreteTyco(), ConcreteTyco(), AbstractType());
+                FunctionTyco(ConcreteTyco(), ConcreteTyco(), RationalType());
         }
     };
 };
 
-class MultiplyAbstractConcrete
-  : public Nullary<Funco, MultiplyAbstractConcrete>
+class MultiplyRationalConcrete
+  : public Nullary<Funco, MultiplyRationalConcrete>
 {
 public:
     class Body : public Nullary::Body
@@ -154,16 +151,9 @@ public:
         Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
-            if (i->type() == RationalType()) {
-                Rational l = i->value<Rational>();
-                ++i;
-                return Value(l * i->value<Concrete>());
-            }
-            else {
-                int l = i->value<int>();
-                ++i;
-                return Value(l * i->value<Concrete>());
-            }
+            Rational l = i->value<Rational>();
+            ++i;
+            return Value(l * i->value<Concrete>());
         }
         Identifier identifier() const { return OperatorStar(); }
         bool argumentsMatch(List<Type> argumentTypes) const
@@ -171,7 +161,7 @@ public:
             if (argumentTypes.count() != 2)
                 return false;
             auto i = argumentTypes.begin();
-            if (*i != RationalType() && *i != IntegerType())
+            if (*i != RationalType())
                 return false;
             ++i;
             return ConcreteType(*i).valid();
@@ -179,7 +169,7 @@ public:
         FunctionTyco tyco() const
         {
             return
-                FunctionTyco(ConcreteTyco(), AbstractType(), ConcreteTyco());
+                FunctionTyco(ConcreteTyco(), RationalType(), ConcreteTyco());
         }
     };
 };
@@ -217,7 +207,7 @@ public:
     };
 };
 
-class DivideConcreteAbstract : public Nullary<Funco, DivideConcreteAbstract>
+class DivideConcreteRational : public Nullary<Funco, DivideConcreteRational>
 {
 public:
     class Body : public Nullary::Body
@@ -228,10 +218,7 @@ public:
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
-            if (i->type() == RationalType())
-                return Value(l / i->value<Rational>());
-            else
-                return Value(l / i->value<int>());
+            return Value(l / i->value<Rational>());
 
         }
         Identifier identifier() const { return OperatorDivide(); }
@@ -244,17 +231,17 @@ public:
             if (!l.valid())
                 return false;
             ++i;
-            return (*i == RationalType() || *i == IntegerType());
+            return *i == RationalType();
         }
         FunctionTyco tyco() const
         {
             return
-                FunctionTyco(ConcreteTyco(), ConcreteTyco(), AbstractType());
+                FunctionTyco(ConcreteTyco(), ConcreteTyco(), RationalType());
         }
     };
 };
 
-class DivideAbstractConcrete : public Nullary<Funco, DivideAbstractConcrete>
+class DivideRationalConcrete : public Nullary<Funco, DivideRationalConcrete>
 {
 public:
     class Body : public Nullary::Body
@@ -263,16 +250,9 @@ public:
         Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
-            if (i->type() == RationalType()) {
-                Rational l = i->value<Rational>();
-                ++i;
-                return Value(l / i->value<Concrete>());
-            }
-            else {
-                int l = i->value<int>();
-                ++i;
-                return Value(l / i->value<Concrete>());
-            }
+            Rational l = i->value<Rational>();
+            ++i;
+            return Value(l / i->value<Concrete>());
         }
         Identifier identifier() const { return OperatorDivide(); }
         bool argumentsMatch(List<Type> argumentTypes) const
@@ -280,7 +260,7 @@ public:
             if (argumentTypes.count() != 2)
                 return false;
             auto i = argumentTypes.begin();
-            if (*i != RationalType() && *i != IntegerType())
+            if (*i != RationalType())
                 return false;
             ++i;
             return ConcreteType(*i).valid();
@@ -288,13 +268,13 @@ public:
         FunctionTyco tyco() const
         {
             return
-                FunctionTyco(ConcreteTyco(), AbstractType(), ConcreteTyco());
+                FunctionTyco(ConcreteTyco(), RationalType(), ConcreteTyco());
         }
     };
 };
 
 class ShiftLeftConcreteInteger
-    : public Nullary<Function, ShiftLeftConcreteInteger>
+  : public Nullary<Function, ShiftLeftConcreteInteger>
 {
 public:
     class Body : public Nullary::Body
@@ -329,7 +309,7 @@ public:
 };
 
 class ShiftRightConcreteInteger
-    : public Nullary<Function, ShiftRightConcreteInteger>
+  : public Nullary<Function, ShiftRightConcreteInteger>
 {
 public:
     class Body : public Nullary::Body

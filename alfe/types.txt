@@ -315,3 +315,18 @@ How do we call a constructor?
   2
   Maybe<Void>
 
+
+Special built-in templates:
+  LessThan
+  Pointer
+  Array
+  Maybe
+  Tuple
+  Either
+  Concrete
+  Sequence
+
+
+
+Can we implement intersection types?
+

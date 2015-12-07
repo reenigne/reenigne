@@ -72,6 +72,26 @@ Different types of conversions:
   Float (i.e. conversion of Double to Float - saturates at +/- infinity, truncates least significant figures)
   Base-to-derived
 
+If A <: B and B <: A then A and B represent the same ethereal type (in that either can be used where the other is expected) but (generally) different representations
+  e.g. date as day/month/year vs. days since epoch
+  Or complex number as cartesian and polar
+    Not the greatest example since the conversion is lossy, unless we assume a lossless real type
+  So the ethereal types form an equivalent class over the actual types
+
+
+Given two types A and B, how do we determine if A <: B and/or B <: A?
+  For each type, keep track of all subtypes and supertypes
+  Whenever a type is added, we go through all the types that convert to/from it
+  What about Either?
+    Given any types A and B, we can convert values of type A to type A|B
+      Is Either a disjoint union or a non-disjoint union?
+        I think it should be non-disjoint since disjoint can be implemented in terms of non-disjoint: (A,Class{})|(B,Class{})
+        "If it matters, you're doing it wrong"
+      So, any type has an infinite number of supertypes
+        So we have to treat the Either subtype relationship differently
+          A <: (X | Y)  <=>  (A <: X) or (A <: Y)
+          (A | B) <: X  <=>  (A <: X) and (B <: X)
+    We have potential problems with templates in general. Consider a template that creates a coercion for every instantiation
 
 
 
