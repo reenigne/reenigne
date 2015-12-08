@@ -130,7 +130,31 @@ public:
         public:
             virtual bool compatible(Type other) const { return false; }
             virtual bool canConnectMultiple() const { return false; }
-            Value tryConvert(const Value& value, String* reason) const
+            virtual bool canConvertFrom(const ::Type& other, String* reason)
+                const
+            {
+                // If assigning component=connector, connect to the default
+                // connector on the component instead.
+                typename ComponentTemplate<T>::Type ct(other);
+                if (ct.valid()) {
+                    auto dct = ct.defaultConnectorType();
+                    if (dct.valid())
+                        return canConvertFrom(dct, reason);
+                }
+                Connector::Type t(other);
+                if (!t.valid()) {
+                    *reason = other.toString() + " is not a connector.";
+                    return false;
+                }
+                if (!compatible(t)) {
+                    *reason = t.toString() + " and " + this->toString() +
+                        " are not compatible connectors.";
+                    return false;
+                }
+                return true;
+            }
+            virtual ValueTemplate<T> convert(const ValueTemplate<T>& value)
+                const
             {
                 // If assigning component=connector, connect to the default
                 // connector on the component instead.
@@ -139,19 +163,7 @@ public:
                     Structure* s = value.value<Structure*>();
                     auto component = static_cast<ComponentTemplate<T>*>(s);
                     Connector* connector = component->_defaultConnector;
-                    if (connector != 0)
-                        return tryConvert(connector->getValue(), reason);
-                }
-
-                Connector::Type t(value.type());
-                if (!t.valid()) {
-                    *reason = value.type().toString() + " is not a connector.";
-                    return Value();
-                }
-                if (!compatible(t)) {
-                    *reason = t.toString() + " and " + this->toString() +
-                        " are not compatible connectors.";
-                    return Value();
+                    return convert(connector->getValue());
                 }
                 return Value(type(), value.value(), value.span());
             }
@@ -201,12 +213,12 @@ public:
                 return ::Type();
             }
             virtual Reference<Component> createComponent() const = 0;
-            Value tryConvert(const Value& value, String* why) const
+            bool canConvert(const ::Type& other, String* why) const
             {
-                Value stv = value.type().tryConvertTo(
-                    StructuredType::empty().type(), value, why);
-                if (!stv.valid())
-                    return stv;
+                return other.canConvertTo(StructuredType::empty().type(), why);
+            }
+            Value convert(const Value& value) const
+            {
                 auto v = Type(type()).createComponent();
                 return Value(type(), static_cast<Structure*>(&(*v)),
                     value.span());
@@ -397,7 +409,7 @@ protected:
             // Connectors don't have a default value. If they did, a connector
             // supporting multiple connections would always be connected to the
             // default. We can't convert directly from the type to the value,
-            // or the conversion would call tryConvert() which would attempt to
+            // or the conversion would call convert() which would attempt to
             // connect.
             _config.add(name,
                 Member(static_cast<void*>(p), Value(p->type(), 0)));
@@ -461,14 +473,14 @@ private:
                 String reason;
                 if (Type(i->type()).valid()) {
                     auto r = i->value<Component*>()->_defaultConnector;
-                    if (!lt.tryConvert(r->getValue(), &reason).valid())
+                    if (!lt.canConvert(r->getValue().type(), &reason))
                         span.throwError(reason);
                     l->connect(r);
                     r->connect(l);
                     return Value();
                 }
                 auto r = i->value<Connector*>();
-                if (!lt.tryConvert(r->getValue(), &reason).valid())
+                if (!lt.canConvert(r->getValue().type(), &reason))
                     span.throwError(reason);
                 l->connect(r);
                 r->connect(l);

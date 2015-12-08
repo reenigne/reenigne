@@ -123,15 +123,6 @@ public:
     TypeTemplate() { }
     TypeTemplate(const ConstHandle& other) : Tyco(other) { }
 
-    ValueTemplate<T> tryConvert(const Value& value, String* reason) const
-    {
-        return body()->tryConvert(value, reason);
-    }
-    ValueTemplate<T> tryConvertTo(const Type& to, const Value& value,
-        String* reason) const
-    {
-        return body()->tryConvertTo(to, value, reason);
-    }
     Type member(IdentifierTemplate<T> i) const { return body()->member(i); }
     Type rValue() const
     {
@@ -148,7 +139,6 @@ public:
     // we'll exit with "*" if the result doesn't fit in the line.
     // "delta" is the number of spaces by which the indent should be increased
     // when going in a level.
-    // If "bail" is true, then we'll
     // We will leave enough space at the end for a trailing comma.
     String serialize(void* p, int width, int used, int indent, int delta) const
     {
@@ -164,31 +154,44 @@ public:
     {
         return body()->simplify(value);
     }
-    bool canConvertTo(const Type& other)
+    bool canConvertFrom(const Type& other, String* reason = 0) const
     {
-        return body()->canConvertTo(other);
+        if (*this == other)
+            return true;
+        String r;
+        if (reason == 0)
+            reason = &r;
+        return body()->canConvertFrom(other, reason);
+    }
+    bool canConvertTo(const Type& other, String* reason = 0) const
+    {
+        if (*this == other)
+            return true;
+        String r;
+        if (reason == 0)
+            reason = &r;
+        return body()->canConvertTo(other, reason);
+    }
+    ValueTemplate<T> convert(const Value& value) const
+    {
+        if (*this == value.type())
+            return value;
+        if (value == StructuredTypeTemplate<T>::empty())
+            return body()->defaultValue();
+        return body()->convert(value);
+    }
+    ValueTemplate<T> convertTo(const Type& to, const Value& value) const
+    {
+        assert(*this == value.type());
+        if (*this == to)
+            return value;
+        return body()->convertTo(to, value);
     }
 protected:
     class Body : public Tyco::Body
     {
     public:
         Kind kind() const { return TypeKind(); }
-        virtual ValueTemplate<T> tryConvert(const ValueTemplate<T>& value,
-            String* reason) const
-        {
-            if (this == value.type().body())
-                return value;
-            if (value == StructuredTypeTemplate<T>::empty())
-                return defaultValue();
-            return ValueTemplate<T>();
-        }
-        virtual ValueTemplate<T> tryConvertTo(const Type& to,
-            const Value& value, String* reason) const
-        {
-            if (this == to.body())
-                return value;
-            return ValueTemplate<T>();
-        }
         virtual Type member(IdentifierTemplate<T> i) const { return Type(); }
         virtual String serialize(void* p, int width, int used, int indent,
             int delta) const
@@ -204,7 +207,23 @@ protected:
         {
             return value;
         }
-        virtual bool canConvertTo(const Type& other) const { return false; }
+        virtual bool canConvertFrom(const Type& other, String* reason) const
+        {
+            return false;
+        }
+        virtual bool canConvertTo(const Type& other, String* reason) const
+        {
+            return false;
+        }
+        virtual ValueTemplate<T> convert(const ValueTemplate<T>& value) const
+        {
+            return ValueTemplate<T>();
+        }
+        virtual ValueTemplate<T> convertTo(const Type& to, const Value& value)
+            const
+        {
+            return ValueTemplate<T>();
+        }
     };
     const Body* body() const { return as<Body>(); }
 
@@ -297,13 +316,11 @@ public:
     Value tryConvertTo(const Type& to, String* why) const
     {
         String reason;
-        Value v = to.tryConvert(*this, &reason);
-        if (v.valid())
-            return v;
+        if (to.canConvertFrom(_type, &reason))
+            return to.convertFrom(*this);
         String reasonTo;
-        v = _type.tryConvertTo(to, *this, &reasonTo);
-        if (v.valid())
-            return v;
+        if (_type.canConvertTo(to, &reasonTo))
+            return _type.convertTo(to, *this);
         String r = "No conversion";
         String f = _type.toString();
         if (f != "")
@@ -378,17 +395,6 @@ protected:
         }
         virtual Type finalInstantiate(Template parent, Tyco argument) const
             = 0;
-        Value tryConvert(const Value& value, String* reason) const
-        {
-            assert(false);
-            return Value();
-        }
-        Value tryConvertTo(const Type& to, const Value& value, String* reason)
-            const
-        {
-            assert(false);
-            return Value();
-        }
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -625,20 +631,26 @@ public:
     class Body : public NamedNullary<Type, RationalType>::Body
     {
     public:
-        Value tryConvertTo(const Type& to, const Value& value,
-            String* reason) const
+        bool canConvertFrom(const Type& from, String* reason) const
         {
-            if (type() == to)
-                return value;
-            Rational r = value.value<Rational>();
-            if (to == DoubleType())
-                return r.value<double>();
-            if (to == IntegerType()) {
-                if (r.denominator == 1)
-                    return r.numerator;
-                *reason = String("Value is not an integer");
-            }
-            return Value();
+            return from == IntegerType();
+        }
+        bool canConvertTo(const Type& to, String* reason) const
+        {
+            // Eventually we may want something more sophisticated here, since
+            // in general the conversion from Rational to Double would be
+            // lossy.
+            return to == DoubleType();
+        }
+        Value convert(const Value& value) const
+        {
+            return Value(RationalType(), Rational(value.value<int>()),
+                value.span());
+        }
+        Value convertTo(const Type& to, const Value& value) const
+        {
+            return Value(DoubleType(), value.value<Rational>().value<double>(),
+                value.span());
         }
         Value simplify(const Value& value) const
         {
@@ -935,20 +947,6 @@ public:
         virtual String toString2(bool* needComma) const { return ""; }
         Kind kind() const { return VariadicTemplateKind(); }
 
-        // Type
-        Value tryConvert(const Value& value, String* reason) const
-        {
-            if (this == value.type().body())
-                return value;
-            return Value();
-        }
-        Value tryConvertTo(const Type& to, const Value& value,
-            String* reason) const
-        {
-            if (this == to.body())
-                return value;
-            return Value();
-        }
         // Template
         Tyco instantiate(const Tyco& argument) const
         {
@@ -996,22 +994,25 @@ private:
         }
 
         // Type
-        Value tryConvert(const Value& value, String* reason) const
+        bool canConvertFrom(const Type& from, String* reason) const
         {
             if (_parent == TupleTyco())
-                return _contained.tryConvert(value, reason);
-            if (this == value.type().body())
-                return value;
-            return Value();
+                return _contained.canConvertFrom(from, reason);
+            return false;
         }
-        Value tryConvertTo(const Type& to, const Value& value, String* reason)
-            const
+        bool canConvertTo(const Type& to, String* reason) const
         {
             if (_parent == TupleTyco())
-                return _contained.tryConvertTo(to, value, reason);
-            if (this == to.body())
-                return value;
-            return Value();
+                return _contained.canConvertTo(to, reason);
+            return false;
+        }
+        Value convert(const Value& value) const
+        {
+            return _contained.convert(value);
+        }
+        Value convertTo(const Type& to, const Value& value) const
+        {
+            return _contained.convertTo(to, value);
         }
         Type member(IdentifierTemplate<T> i) const
         {
@@ -1134,19 +1135,6 @@ private:
         }
         virtual String toString2(bool* needComma) const = 0;
         Kind kind() const { return VariadicTemplateKind(); }
-        Value tryConvert(const Value& value, String* reason) const
-        {
-            if (this == value.type().body())
-                return value;
-            return Value();
-        }
-        Value tryConvertTo(const Type& to, const Value& value, String* reason)
-            const
-        {
-            if (this == to.body())
-                return value;
-            return Value();
-        }
         // Template
         Tyco instantiate(const Tyco& argument) const
         {
@@ -1211,7 +1199,7 @@ private:
         }
         bool argumentsMatch(List<Type>::Iterator i) const
         {
-            if (*i != _argumentType)
+            if (!i->canConvertTo(_argumentType))
                 return false;
             ++i;
             return _parent.argumentsMatch(i);

@@ -119,7 +119,7 @@ public:
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
-            return Value(l * i->value<Rational>());
+            return l * i->convertTo(RationalType()).value<Rational>();
         }
         Identifier identifier() const { return OperatorStar(); }
         bool argumentsMatch(List<Type> argumentTypes) const
@@ -131,7 +131,7 @@ public:
             if (!l.valid())
                 return false;
             ++i;
-            return *i == RationalType();
+            return i->canConvertTo(RationalType());
         }
         FunctionTyco tyco() const
         {
@@ -151,7 +151,7 @@ public:
         Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
-            Rational l = i->value<Rational>();
+            auto l = i->convertTo(RationalType()).value<Rational>();
             ++i;
             return Value(l * i->value<Concrete>());
         }
@@ -161,7 +161,7 @@ public:
             if (argumentTypes.count() != 2)
                 return false;
             auto i = argumentTypes.begin();
-            if (*i != RationalType())
+            if (!i->canConvertTo(RationalType()))
                 return false;
             ++i;
             return ConcreteType(*i).valid();
@@ -218,8 +218,7 @@ public:
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
-            return Value(l / i->value<Rational>());
-
+            return l / i->convertTo(RationalType()).value<Rational>();
         }
         Identifier identifier() const { return OperatorDivide(); }
         bool argumentsMatch(List<Type> argumentTypes) const
@@ -231,7 +230,7 @@ public:
             if (!l.valid())
                 return false;
             ++i;
-            return *i == RationalType();
+            return i->canConvertTo(RationalType());
         }
         FunctionTyco tyco() const
         {
@@ -250,7 +249,7 @@ public:
         Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
-            Rational l = i->value<Rational>();
+            auto l = i->convertTo(RationalType()).value<Rational>();
             ++i;
             return Value(l / i->value<Concrete>());
         }
@@ -260,7 +259,7 @@ public:
             if (argumentTypes.count() != 2)
                 return false;
             auto i = argumentTypes.begin();
-            if (*i != RationalType())
+            if (!i->canConvertTo(RationalType()))
                 return false;
             ++i;
             return ConcreteType(*i).valid();

@@ -213,35 +213,33 @@ template<class T> class ConcreteTypeTemplate : public Type
                     return false;
             return true;
         }
-        Value tryConvertTo(const Type& to, const Value& value,
-            String* reason) const
+        bool canConvertTo(const Type& to, String* reason) const
         {
             ConcreteTypeTemplate<T> c(to);
             if (c.valid()) {
-                if (equals(c.body()))
-                    return value;
-                *reason = String("Value is not commensurate");
-                return Value();
+                *reason = String("Types are not commensurate");
+                return false;
             }
-            ConcreteTemplate<T> v = value.value<ConcreteTemplate<T>>();
-            if (!v.isAbstract()) {
-                *reason = String("Value is denominate");
-                return Value();
+            if (!isAbstract()) {
+                *reason = String("Type is denominate");
+                return false;
             }
-            Rational r = v.value();
-            if (to == DoubleType())
-                return r.value<double>();
-            if (to == RationalType())
-                return r;
-            if (to == IntegerType()) {
-                if (r.denominator == 1)
-                    return r.numerator;
-                *reason = String("Value is not an integer");
-            }
-            return Value();
+            return RationalType().canConvertTo(to);
+        }
+        Value convertTo(const Type& to, const Value& value) const
+        {
+            return RationalType().convertTo(to, Value(RationalType(),
+                value.value<ConcreteTemplate<T>>().value(), value.span());
         }
         int elements() const { return body()->size(); }
         Value defaultValue() const { return Concrete::zero(); }
+        Value simplify(const Value& value) const
+        {
+            auto v = value.value<ConcreteTemplate<T>>();
+            if (v.isAbstract())
+                return Value(RationalType(), v.value(), value.span());
+            return value;
+        }
     private:
         Body* body() { return as<Body>(); }
         const Body* body() const { return as<Body>(); }

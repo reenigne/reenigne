@@ -91,7 +91,13 @@ Given two types A and B, how do we determine if A <: B and/or B <: A?
         So we have to treat the Either subtype relationship differently
           A <: (X | Y)  <=>  (A <: X) or (A <: Y)
           (A | B) <: X  <=>  (A <: X) and (B <: X)
-    We have potential problems with templates in general. Consider a template that creates a coercion for every instantiation
+    We have potential problems with templates in general. Consider "A<@B,@C> = Class : B { construct(C c) { } };" - converts any C to any B
+      This should be disallowed, at least for A not explicitly instantiated
+        conversion from Bottom should be a compile error
+        If the set of available conversions depends on which templates we have instantiated, we have a chicken-and-egg problem
+          The set of instantiations will in general depend on the conversion routines actually chosen
+      On the other hand, there may be situations when we want to instantiate a not-previously-instantiated template in order to do a conversion
+
 
 
 
