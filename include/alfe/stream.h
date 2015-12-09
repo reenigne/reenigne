@@ -3,13 +3,13 @@
 #ifndef INCLUDED_STREAM_H
 #define INCLUDED_STREAM_H
 
-template<class T> class StreamTemplate : public Handle
+template<class T> class StreamT : public Handle
 {
 public:
 #ifdef _WIN32
-    StreamTemplate()
+    StreamT()
       : Handle(create<Body>()), _handle(INVALID_HANDLE_VALUE) { }
-    StreamTemplate(HANDLE handle, const File& file = File())
+    StreamT(HANDLE handle, const File& file = File())
       : Handle(create<Body>()), _handle(handle), _file(file) { }
     operator HANDLE() const { return _handle; }
     bool valid() const
@@ -17,8 +17,8 @@ public:
         return _handle != INVALID_HANDLE_VALUE && _handle != NULL;
     }
 #else
-    StreamTemplate() : Handle(create<Body>()), _fileDescriptor(-1) { }
-    StreamTemplate(int fileDescriptor, const File& file = File())
+    StreamT() : Handle(create<Body>()), _fileDescriptor(-1) { }
+    StreamT(int fileDescriptor, const File& file = File())
       : Handle(create<Body>()), _fileDescriptor(fileDescriptor), _file(file)
     { }
     operator int() const { return _fileDescriptor; }
@@ -226,14 +226,14 @@ private:
         {
             _stream.close();
         }
-        StreamTemplate<T> _stream;
+        StreamT<T> _stream;
     };
 
 #ifdef _WIN32
-    StreamTemplate(HANDLE handle, const File& file, const Handle& other)
+    StreamT(HANDLE handle, const File& file, const Handle& other)
       : Handle(other), _handle(handle), _file(file) { }
 #else
-    StreamTemplate(int fileDescriptor, const File& file, const Handle& other)
+    StreamT(int fileDescriptor, const File& file, const Handle& other)
       : Handle(other), _fileDescriptor(fileDescriptor), _file(file) { }
 #endif
 
@@ -245,18 +245,18 @@ private:
     File _file;
 
     friend class Body;
-    friend class AutoStreamTemplate<void>;
+    friend class AutoStreamT<void>;
 };
 
-template<class T> class AutoStreamTemplate : public Stream
+template<class T> class AutoStreamT : public Stream
 {
 public:
-    AutoStreamTemplate() { }
+    AutoStreamT() { }
 #ifdef _WIN32
-    AutoStreamTemplate(HANDLE handle, const File& file = File())
+    AutoStreamT(HANDLE handle, const File& file = File())
       : Stream(handle, file, create<OwningBody>(Stream(handle, file))) { }
 #else
-    AutoStreamTemplate(int fileDescriptor, const File& file = File())
+    AutoStreamT(int fileDescriptor, const File& file = File())
       : Stream(fileDescriptor, file,
         create<OwningBody>(Stream(fileDescriptor, file))) { }
 #endif

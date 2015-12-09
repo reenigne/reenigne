@@ -4,49 +4,49 @@
 #include "alfe/rational.h"
 #include "alfe/complex.h"
 
-template<class T> class SoundObjectTemplate;
-typedef SoundObjectTemplate<void> SoundObject;
+template<class T> class SoundObjectT;
+typedef SoundObjectT<void> SoundObject;
 
-template<class T> class EntryTemplate;
-typedef EntryTemplate<void> Entry;
+template<class T> class EntryT;
+typedef EntryT<void> Entry;
 
-template<class T> class ScalarTemplate;
-typedef ScalarTemplate<void> Scalar;
+template<class T> class ScalarT;
+typedef ScalarT<void> Scalar;
 
-template<class T> class SampleTemplate;
-typedef SampleTemplate<void> Sample;
+template<class T> class SampleT;
+typedef SampleT<void> Sample;
 
-template<class T> class ImplicitSampleTemplate;
-typedef ImplicitSampleTemplate<void> ImplicitSample;
+template<class T> class ImplicitSampleT;
+typedef ImplicitSampleT<void> ImplicitSample;
 
-template<class T> class SineSampleTemplate;
-typedef SineSampleTemplate<void> SineSample;
+template<class T> class SineSampleT;
+typedef SineSampleT<void> SineSample;
 
-template<class T> class TriangleSampleTemplate;
-typedef TriangleSampleTemplate<void> TriangleSample;
+template<class T> class TriangleSampleT;
+typedef TriangleSampleT<void> TriangleSample;
 
-template<class T> class SquareSampleTemplate;
-typedef SquareSampleTemplate<void> SquareSample;
+template<class T> class SquareSampleT;
+typedef SquareSampleT<void> SquareSample;
 
-template<class T> class SawtoothSampleTemplate;
-typedef SawtoothSampleTemplate<void> SawtoothSample;
+template<class T> class SawtoothSampleT;
+typedef SawtoothSampleT<void> SawtoothSample;
 
-template<class T> class NoiseSampleTemplate;
-typedef NoiseSampleTemplate<void> NoiseSample;
+template<class T> class NoiseSampleT;
+typedef NoiseSampleT<void> NoiseSample;
 
-template<class T> class ExplicitSampleTemplate;
-typedef ExplicitSampleTemplate<void> ExplicitSample;
+template<class T> class ExplicitSampleT;
+typedef ExplicitSampleT<void> ExplicitSample;
 
-template<class T> class TableTemplate;
-typedef TableTemplate<void> Table;
+template<class T> class TableT;
+typedef TableT<void> Table;
 
-template<class T> class StatementTemplate;
-typedef StatementTemplate<void> Statement;
+template<class T> class StatementT;
+typedef StatementT<void> Statement;
 
-template<class T> class SymbolTableTemplate;
-typedef SymbolTableTemplate<void> SymbolTable;
+template<class T> class SymbolTableT;
+typedef SymbolTableT<void> SymbolTable;
 
-template<class T> class SoundObjectTemplate : public Handle
+template<class T> class SoundObjectT : public Handle
 {
 public:
     SoundObject power(const SoundObject& other) const
@@ -98,7 +98,7 @@ protected:
     };
 };
 
-template<class T> class EntryTemplate : public SoundObject
+template<class T> class EntryT : public SoundObject
 {
 protected:
     class Body : public SoundObject::Body
@@ -106,17 +106,17 @@ protected:
     };
 };
 
-template<class T> class ScalarTemplate : public Entry
+template<class T> class ScalarT : public Entry
 {
 public:
-    ScalarTemplate(int value = 0, int unit = 0)
+    ScalarT(int value = 0, int unit = 0)
       : Entry(new RationalBody(unit, value)) { }
 
     bool isReal() { return body()->isReal(); }
     int unit() { return body()->unit(); }
     double toRealDouble() { return body()->toDouble().x; }
 protected:
-    ScalarTemplate(Body* body) : Entry(body) { }
+    ScalarT(Body* body) : Entry(body) { }
 
     class Body : public Entry::Body
     {
@@ -280,7 +280,7 @@ private:
     }
 };
 
-template<class T> class SampleTemplate : public Entry
+template<class T> class SampleT : public Entry
 {
 protected:
     class Body : public Entry::Body
@@ -294,7 +294,7 @@ protected:
     };
 };
 
-template<class T> class ImplicitSampleTemplate : public Sample
+template<class T> class ImplicitSampleT : public Sample
 {
 protected:
     class Body : public Sample::Body
@@ -302,7 +302,7 @@ protected:
     };
 };
 
-template<class T> class SineSampleTemplate : public ImplicitSample
+template<class T> class SineSampleT : public ImplicitSample
 {
 protected:
     class Body : public ImplicitSample::Body
@@ -312,19 +312,19 @@ protected:
     };
 };
 
-template<class T> class TriangleSampleTemplate : public ImplicitSample
+template<class T> class TriangleSampleT : public ImplicitSample
 {
 };
 
-template<class T> class SquareSampleTemplate : public ImplicitSample
+template<class T> class SquareSampleT : public ImplicitSample
 {
 };
 
-template<class T> class SawtoothSampleTemplate : public ImplicitSample
+template<class T> class SawtoothSampleT : public ImplicitSample
 {
 };
 
-template<class T> class NoiseSampleTemplate : public ImplicitSample
+template<class T> class NoiseSampleT : public ImplicitSample
 {
 };
 
@@ -345,7 +345,7 @@ private:
     Body* body() { return as<Body>(); }
 };
 
-template<class T> class ExplicitSampleTemplate : public Sample
+template<class T> class ExplicitSampleT : public Sample
 {
 protected:
     class Body : public Sample::Body
@@ -362,7 +362,7 @@ protected:
     };
 };
 
-template<class T> class TableTemplate : public SoundObject
+template<class T> class TableT : public SoundObject
 {
 };
 
@@ -506,7 +506,7 @@ public:
     }
 };
 
-template<class T> class StatementTemplate : public ParseTreeObject
+template<class T> class StatementT : public ParseTreeObject
 {
 public:
     static Statement parse(CharacterSource* source)
@@ -526,9 +526,9 @@ public:
             source->location().throwError("Expected statement");
         return statement;
     }
-    StatementTemplate() { }
+    StatementT() { }
 protected:
-    StatementTemplate(const Body* body)
+    StatementT(const Body* body)
       : ParseTreeObject(body) { }
 
     class Body : public ParseTreeObject::Body
@@ -567,7 +567,7 @@ private:
     };
 };
 
-template<class T> class SymbolTableTemplate : public Handle
+template<class T> class SymbolTableT : public Handle
 {
 public:
     void add(String identifier, Expression expression) { body()->add(identifier, expression); }

@@ -21,47 +21,47 @@ typedef UInt8 BGRI;
 //{
 //};
 
-template<class T> class SimulatorTemplate;
-typedef SimulatorTemplate<void> Simulator;
+template<class T> class SimulatorT;
+typedef SimulatorT<void> Simulator;
 
-template<class T> class Intel8088CPUTemplate;
-typedef Intel8088CPUTemplate<void> Intel8088CPU;
+template<class T> class Intel8088CPUT;
+typedef Intel8088CPUT<void> Intel8088CPU;
 
-template<class T> class ComponentTemplate;
-typedef ComponentTemplate<void> Component;
+template<class T> class ComponentT;
+typedef ComponentT<void> Component;
 
-template<class T> class Intel8237DMACTemplate;
-typedef Intel8237DMACTemplate<void> Intel8237DMAC;
+template<class T> class Intel8237DMACT;
+typedef Intel8237DMACT<void> Intel8237DMAC;
 
-template<class T> class Intel8253PITTemplate;
-typedef Intel8253PITTemplate<void> Intel8253PIT;
+template<class T> class Intel8253PITT;
+typedef Intel8253PITT<void> Intel8253PIT;
 
-template<class T> class Intel8255PPITemplate;
-typedef Intel8255PPITemplate<void> Intel8255PPI;
+template<class T> class Intel8255PPIT;
+typedef Intel8255PPIT<void> Intel8255PPI;
 
-template<class T> class ISA8BitRAMTemplate;
-typedef ISA8BitRAMTemplate<void> ISA8BitRAM;
+template<class T> class ISA8BitRAMT;
+typedef ISA8BitRAMT<void> ISA8BitRAM;
 
-template<class T> class ROMTemplate;
-typedef ROMTemplate<void> ROM;
+template<class T> class ROMT;
+typedef ROMT<void> ROM;
 
-template<class T> class IBMCGATemplate;
-typedef IBMCGATemplate<void> IBMCGA;
+template<class T> class IBMCGAT;
+typedef IBMCGAT<void> IBMCGA;
 
-template<class T> class DMAPageRegistersTemplate;
-typedef DMAPageRegistersTemplate<void> DMAPageRegisters;
+template<class T> class DMAPageRegistersT;
+typedef DMAPageRegistersT<void> DMAPageRegisters;
 
-template<class T> class PCXTKeyboardTemplate;
-typedef PCXTKeyboardTemplate<void> PCXTKeyboard;
+template<class T> class PCXTKeyboardT;
+typedef PCXTKeyboardT<void> PCXTKeyboard;
 
-template<class T> class PCXTKeyboardPortTemplate;
-typedef PCXTKeyboardPortTemplate<void> PCXTKeyboardPort;
+template<class T> class PCXTKeyboardPortT;
+typedef PCXTKeyboardPortT<void> PCXTKeyboardPort;
 
-template<class T> class RGBIMonitorTemplate;
-typedef RGBIMonitorTemplate<void> RGBIMonitor;
+template<class T> class RGBIMonitorT;
+typedef RGBIMonitorT<void> RGBIMonitor;
 
-template<class T> class ConnectorTemplate;
-typedef ConnectorTemplate<void> Connector;
+template<class T> class ConnectorT;
+typedef ConnectorT<void> Connector;
 
 Concrete second;
 
@@ -107,7 +107,7 @@ private:
     };
 };
 
-template<class T> class ConnectorTemplate
+template<class T> class ConnectorT
 {
 public:
     class Type : public NamedNullary<::Type, Type>
@@ -135,7 +135,7 @@ public:
             {
                 // If assigning component=connector, connect to the default
                 // connector on the component instead.
-                typename ComponentTemplate<T>::Type ct(other);
+                typename ComponentT<T>::Type ct(other);
                 if (ct.valid()) {
                     auto dct = ct.defaultConnectorType();
                     if (dct.valid())
@@ -153,15 +153,15 @@ public:
                 }
                 return true;
             }
-            virtual ValueTemplate<T> convert(const ValueTemplate<T>& value)
+            virtual ValueT<T> convert(const ValueT<T>& value)
                 const
             {
                 // If assigning component=connector, connect to the default
                 // connector on the component instead.
-                typename ComponentTemplate<T>::Type ct(value.type());
+                typename ComponentT<T>::Type ct(value.type());
                 if (ct.valid()) {
                     Structure* s = value.value<Structure*>();
-                    auto component = static_cast<ComponentTemplate<T>*>(s);
+                    auto component = static_cast<ComponentT<T>*>(s);
                     Connector* connector = component->_defaultConnector;
                     return convert(connector->getValue());
                 }
@@ -185,7 +185,7 @@ public:
     virtual void connect(Connector* other) = 0;
 };
 
-template<class T> class ComponentTemplate : public Structure
+template<class T> class ComponentT : public Structure
 {
 public:
     class Type : public ::Type
@@ -201,6 +201,10 @@ public:
         }
         Simulator* simulator() const { return body()->simulator(); }
         bool valid() const { return body() != 0; }
+        Connector::Type defaultConnectorType() const
+        {
+            return body()->defaultConnectorType();
+        }
     protected:
         class Body : public ::Type::Body
         {
@@ -224,12 +228,17 @@ public:
                     value.span());
             }
             Simulator* simulator() const { return _simulator; }
+            Connector::Type defaultConnectorType() const
+            {
+                return _defaultConnectorType;
+            }
         protected:
             Simulator* _simulator;
+            Connector::Type _defaultConnectorType;
         };
         const Body* body() const { return as<Body>(); }
     };
-    ComponentTemplate(Type type)
+    ComponentT(Type type)
       : _type(type), _simulator(type.simulator()), _ticksPerCycle(0),
         _defaultConnector(0)
     {
@@ -279,11 +288,13 @@ public:
             Body(Simulator* simulator) : Type::Body(simulator)
             {
                 C component(type());
-                for (auto i = component._config.begin();
-                    i != component._config.end(); ++i) {
+                for (auto i : component._config)
                     _members[i.key()] = i.value().type();
-                }
                 _default = component.persistenceType();
+                if (component._defaultConnector != 0) {
+                    _defaultConnectorType =
+                        component._defaultConnector->type();
+                }
             }
             Reference<Component> createComponent() const
             {
@@ -310,6 +321,7 @@ public:
         private:
             HashTable<Identifier, ::Type> _members;
             Value _default;
+            Connector::Type _defaultConnectorType;
         };
     };
     virtual String save(int width, int used, int indent, int delta) const
@@ -319,7 +331,7 @@ public:
         bool needComma = false;
         bool separate = false;
         used += 5;
-        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
+        for (auto i : _persist) {
             if (used > width) {
                 separate = true;
                 break;
@@ -355,7 +367,7 @@ public:
         // It doesn't all fit on one line, put each member on a separate line.
         s = "{\n";
         needComma = false;
-        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
+        for (auto i : _persist) {
             Member m = i.value();
             int u = indent + i.key().length();
             String v = "{ }";
@@ -374,14 +386,14 @@ public:
     virtual ::Type persistenceType() const
     {
         List<StructuredType::Member> members;
-        for (auto i = _persist.begin(); i != _persist.end(); ++i)
+        for (auto i : _persist)
             members.add(StructuredType::Member(i.key(), i.value()._initial));
         return StructuredType(_type.toString(), members);
     }
     virtual void load(const Value& value)
     {
         auto members = value.value<HashTable<Identifier, Value>>();
-        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
+        for (auto i : _persist) {
             Member m = i.value();
             m.type().deserialize(members[i.key()], m._p);
         }
@@ -389,7 +401,7 @@ public:
     Value value() const
     {
         HashTable<Identifier, Value> h;
-        for (auto i = _persist.begin(); i != _persist.end(); ++i) {
+        for (auto i : _persist) {
             Member m = i.value();
             h.add(i.key(), m.type().value(m._p));
         }
@@ -452,7 +464,7 @@ protected:
     Tick _tick;
 
 protected:
-    SimulatorTemplate<T>* _simulator;
+    SimulatorT<T>* _simulator;
 private:
     class AssignmentFunco : public Funco
     {
@@ -473,14 +485,14 @@ private:
                 String reason;
                 if (Type(i->type()).valid()) {
                     auto r = i->value<Component*>()->_defaultConnector;
-                    if (!lt.canConvert(r->getValue().type(), &reason))
+                    if (!lt.canConvertFrom(r->getValue().type(), &reason))
                         span.throwError(reason);
                     l->connect(r);
                     r->connect(l);
                     return Value();
                 }
                 auto r = i->value<Connector*>();
-                if (!lt.canConvert(r->getValue().type(), &reason))
+                if (!lt.canConvertFrom(r->getValue().type(), &reason))
                     span.throwError(reason);
                 l->connect(r);
                 r->connect(l);
@@ -528,6 +540,7 @@ private:
 
     friend class Connector::Type::Body;
     friend class AssignmentFunco::Body;
+    template<class C> friend class TypeHelper<C>::Body;
 };
 
 class ClockedComponent : public Component
@@ -959,10 +972,10 @@ public:
     };
 };
 
-template<class T> class SimulatorTemplate
+template<class T> class SimulatorT
 {
 public:
-    SimulatorTemplate(Directory directory)
+    SimulatorT(Directory directory)
       : _halted(false), _ticksPerSecond(0), _directory(directory) { }
     void simulate()
     {

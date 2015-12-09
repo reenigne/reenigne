@@ -335,17 +335,14 @@ public:
 
 class CalibrateWindow;
 
-template<class T> class CalibrateBitmapWindowTemplate : public BitmapWindow
+template<class T> class CalibrateBitmapWindowT : public BitmapWindow
 {
 public:
-    CalibrateBitmapWindowTemplate()
+    CalibrateBitmapWindowT()
       : _rsqrt2(1/sqrt(2.0)), _doneCapture(false), _graph(0, 0), _completed(0)
     {
         _graphs = Bitmap<Byte>(Vector(16*4*256, 16*4*256));
         _graphs.fill(0);
-    }
-    ~CalibrateBitmapWindowTemplate()
-    {
     }
     void setCalibrateWindow(CalibrateWindow* window)
     {
@@ -1089,7 +1086,7 @@ private:
     AutoStream _outputStream;
 };
 
-typedef CalibrateBitmapWindowTemplate<void> CalibrateBitmapWindow;
+typedef CalibrateBitmapWindowT<void> CalibrateBitmapWindow;
 
 class CalibrateWindow : public RootWindow
 {

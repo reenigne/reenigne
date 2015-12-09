@@ -1,8 +1,8 @@
-template<class T> class PCXTKeyboardPortTemplate : public Component
+template<class T> class PCXTKeyboardPortT : public Component
 {
 public:
     static String typeName() { return "PCXTKeyboardPort"; }
-    PCXTKeyboardPortTemplate(Component::Type type)
+    PCXTKeyboardPortT(Component::Type type)
       : Component(type), _clearConnector(this), _clockConnector(this),
         _connector(this)
     {

@@ -224,10 +224,10 @@ static const SRGB rgbiPalette[16] = {
     SRGB(0xff, 0x55, 0x55), SRGB(0xff, 0x55, 0xff),
     SRGB(0xff, 0xff, 0x55), SRGB(0xff, 0xff, 0xff)};
 
-template<class T> class CGAEncoderTemplate
+template<class T> class CGAEncoderT
 {
 public:
-    CGAEncoderTemplate()
+    CGAEncoderT()
       : _mode(2), _palette(3), _background(15), _characterHeight(1),
         _matchMode(false), _matchModeSet(false), _horizontalDiffusion(256),
         _verticalDiffusion(256), _skip(256)
@@ -752,7 +752,7 @@ public:
     int _bestConfig;
 };
 
-typedef CGAEncoderTemplate<void> CGAEncoder;
+typedef CGAEncoderT<void> CGAEncoder;
 
 class Particle
 {
@@ -981,7 +981,7 @@ public:
 
 class CGA2NTSCWindow;
 
-template<class T> class BrightnessSliderWindowTemplate : public Slider
+template<class T> class BrightnessSliderWindowT : public Slider
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -994,9 +994,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef BrightnessSliderWindowTemplate<void> BrightnessSliderWindow;
+typedef BrightnessSliderWindowT<void> BrightnessSliderWindow;
 
-template<class T> class SaturationSliderWindowTemplate : public Slider
+template<class T> class SaturationSliderWindowT : public Slider
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1009,9 +1009,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef SaturationSliderWindowTemplate<void> SaturationSliderWindow;
+typedef SaturationSliderWindowT<void> SaturationSliderWindow;
 
-template<class T> class ContrastSliderWindowTemplate : public Slider
+template<class T> class ContrastSliderWindowT : public Slider
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1024,9 +1024,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef ContrastSliderWindowTemplate<void> ContrastSliderWindow;
+typedef ContrastSliderWindowT<void> ContrastSliderWindow;
 
-template<class T> class HueSliderWindowTemplate : public Slider
+template<class T> class HueSliderWindowT : public Slider
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1039,9 +1039,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef HueSliderWindowTemplate<void> HueSliderWindow;
+typedef HueSliderWindowT<void> HueSliderWindow;
 
-template<class T> class AutoBrightnessButtonWindowTemplate
+template<class T> class AutoBrightnessButtonWindowT
   : public ToggleButton
 {
 public:
@@ -1055,9 +1055,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef AutoBrightnessButtonWindowTemplate<void> AutoBrightnessButtonWindow;
+typedef AutoBrightnessButtonWindowT<void> AutoBrightnessButtonWindow;
 
-template<class T> class AutoContrastClipButtonWindowTemplate
+template<class T> class AutoContrastClipButtonWindowT
   : public ToggleButton
 {
 public:
@@ -1071,10 +1071,10 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef AutoContrastClipButtonWindowTemplate<void>
+typedef AutoContrastClipButtonWindowT<void>
     AutoContrastClipButtonWindow;
 
-template<class T> class AutoSaturationButtonWindowTemplate
+template<class T> class AutoSaturationButtonWindowT
   : public ToggleButton
 {
 public:
@@ -1088,9 +1088,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef AutoSaturationButtonWindowTemplate<void> AutoSaturationButtonWindow;
+typedef AutoSaturationButtonWindowT<void> AutoSaturationButtonWindow;
 
-template<class T> class AutoContrastMonoButtonWindowTemplate
+template<class T> class AutoContrastMonoButtonWindowT
   : public ToggleButton
 {
 public:
@@ -1104,10 +1104,10 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef AutoContrastMonoButtonWindowTemplate<void>
+typedef AutoContrastMonoButtonWindowT<void>
     AutoContrastMonoButtonWindow;
 
-template<class T> class NewCGAButtonWindowTemplate : public ToggleButton
+template<class T> class NewCGAButtonWindowT : public ToggleButton
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1120,9 +1120,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef NewCGAButtonWindowTemplate<void> NewCGAButtonWindow;
+typedef NewCGAButtonWindowT<void> NewCGAButtonWindow;
 
-template<class T> class FixPrimariesButtonWindowTemplate : public ToggleButton
+template<class T> class FixPrimariesButtonWindowT : public ToggleButton
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1135,9 +1135,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef FixPrimariesButtonWindowTemplate<void> FixPrimariesButtonWindow;
+typedef FixPrimariesButtonWindowT<void> FixPrimariesButtonWindow;
 
-template<class T> class MatchModeButtonTemplate : public ToggleButton
+template<class T> class MatchModeButtonT : public ToggleButton
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1150,9 +1150,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef MatchModeButtonTemplate<void> MatchModeButton;
+typedef MatchModeButtonT<void> MatchModeButton;
 
-template<class T> class ModeComboTemplate : public ComboBox
+template<class T> class ModeComboT : public ComboBox
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1171,9 +1171,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef ModeComboTemplate<void> ModeCombo;
+typedef ModeComboT<void> ModeCombo;
 
-template<class T> class BackgroundComboTemplate : public ComboBox
+template<class T> class BackgroundComboT : public ComboBox
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1190,9 +1190,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef BackgroundComboTemplate<void> BackgroundCombo;
+typedef BackgroundComboT<void> BackgroundCombo;
 
-template<class T> class CharacterHeightComboTemplate : public ComboBox
+template<class T> class CharacterHeightComboT : public ComboBox
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1209,9 +1209,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef CharacterHeightComboTemplate<void> CharacterHeightCombo;
+typedef CharacterHeightComboT<void> CharacterHeightCombo;
 
-template<class T> class PaletteComboTemplate : public ComboBox
+template<class T> class PaletteComboT : public ComboBox
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1229,9 +1229,9 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef PaletteComboTemplate<void> PaletteCombo;
+typedef PaletteComboT<void> PaletteCombo;
 
-template<class T> class DiffusionHorizontalSliderWindowTemplate : public Slider
+template<class T> class DiffusionHorizontalSliderWindowT : public Slider
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1245,10 +1245,10 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef DiffusionHorizontalSliderWindowTemplate<void>
+typedef DiffusionHorizontalSliderWindowT<void>
     DiffusionHorizontalSliderWindow;
 
-template<class T> class DiffusionVerticalSliderWindowTemplate : public Slider
+template<class T> class DiffusionVerticalSliderWindowT : public Slider
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
@@ -1262,7 +1262,7 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef DiffusionVerticalSliderWindowTemplate<void>
+typedef DiffusionVerticalSliderWindowT<void>
     DiffusionVerticalSliderWindow;
 
 

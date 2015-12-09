@@ -5,13 +5,13 @@
 #include "alfe/evaluate.h"
 #include "alfe/ntsc_decode.h"
 
-template<class T> class CaptureBitmapWindowTemplate;
-typedef CaptureBitmapWindowTemplate<void> CaptureBitmapWindow;
+template<class T> class CaptureBitmapWindowT;
+typedef CaptureBitmapWindowT<void> CaptureBitmapWindow;
 
-template<class T> class DecoderThreadTemplate : public Thread
+template<class T> class DecoderThreadT : public Thread
 {
 public:
-    DecoderThreadTemplate() : _ending(false) { }
+    DecoderThreadT() : _ending(false) { }
     void setWindow(CaptureBitmapWindow* window) { _window = window; }
     void go() { _go.signal(); }
     void end() { _ending = true; go(); }
@@ -31,14 +31,14 @@ private:
     CaptureBitmapWindow* _window;
 };
 
-typedef DecoderThreadTemplate<void> DecoderThread;
+typedef DecoderThreadT<void> DecoderThread;
 
 class CaptureWindow;
 
-template<class T> class CaptureBitmapWindowTemplate : public BitmapWindow
+template<class T> class CaptureBitmapWindowT : public BitmapWindow
 {
 public:
-    ~CaptureBitmapWindowTemplate()
+    ~CaptureBitmapWindowT()
     {
         _thread.end();
     }
@@ -124,7 +124,7 @@ private:
     DecoderThread _thread;
 };
 
-template<class T> class BrightnessSliderWindowTemplate : public Slider
+template<class T> class BrightnessSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -137,9 +137,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef BrightnessSliderWindowTemplate<void> BrightnessSliderWindow;
+typedef BrightnessSliderWindowT<void> BrightnessSliderWindow;
 
-template<class T> class SaturationSliderWindowTemplate : public Slider
+template<class T> class SaturationSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -152,9 +152,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef SaturationSliderWindowTemplate<void> SaturationSliderWindow;
+typedef SaturationSliderWindowT<void> SaturationSliderWindow;
 
-template<class T> class ContrastSliderWindowTemplate : public Slider
+template<class T> class ContrastSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -167,9 +167,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef ContrastSliderWindowTemplate<void> ContrastSliderWindow;
+typedef ContrastSliderWindowT<void> ContrastSliderWindow;
 
-template<class T> class HueSliderWindowTemplate : public Slider
+template<class T> class HueSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -182,9 +182,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef HueSliderWindowTemplate<void> HueSliderWindow;
+typedef HueSliderWindowT<void> HueSliderWindow;
 
-template<class T> class SharpnessSliderWindowTemplate : public Slider
+template<class T> class SharpnessSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -197,7 +197,7 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef SharpnessSliderWindowTemplate<void> SharpnessSliderWindow;
+typedef SharpnessSliderWindowT<void> SharpnessSliderWindow;
 
 class CaptureWindow : public RootWindow
 {

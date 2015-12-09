@@ -500,7 +500,7 @@ private:
 
 class VCRDecodeWindow;
 
-template<class T> class DecodedBitmapWindowTemplate : public BitmapWindow
+template<class T> class DecodedBitmapWindowT : public BitmapWindow
 {
 public:
     void setCaptureWindow(VCRDecodeWindow* vcrDecodeWindow)
@@ -553,7 +553,7 @@ private:
     VCRDecodeWindow* _vcrDecodeWindow;
 };
 
-template<class T> class BrightnessSliderWindowTemplate : public Slider
+template<class T> class BrightnessSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -566,9 +566,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef BrightnessSliderWindowTemplate<void> BrightnessSliderWindow;
+typedef BrightnessSliderWindowT<void> BrightnessSliderWindow;
 
-template<class T> class SaturationSliderWindowTemplate : public Slider
+template<class T> class SaturationSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -581,9 +581,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef SaturationSliderWindowTemplate<void> SaturationSliderWindow;
+typedef SaturationSliderWindowT<void> SaturationSliderWindow;
 
-template<class T> class ContrastSliderWindowTemplate : public Slider
+template<class T> class ContrastSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -596,9 +596,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef ContrastSliderWindowTemplate<void> ContrastSliderWindow;
+typedef ContrastSliderWindowT<void> ContrastSliderWindow;
 
-template<class T> class HueSliderWindowTemplate : public Slider
+template<class T> class HueSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -611,9 +611,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef HueSliderWindowTemplate<void> HueSliderWindow;
+typedef HueSliderWindowT<void> HueSliderWindow;
 
-template<class T> class LumaCutoffSliderWindowTemplate : public Slider
+template<class T> class LumaCutoffSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -626,9 +626,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef LumaCutoffSliderWindowTemplate<void> LumaCutoffSliderWindow;
+typedef LumaCutoffSliderWindowT<void> LumaCutoffSliderWindow;
 
-template<class T> class LumaHeterodyneFrequencySliderWindowTemplate : public Slider
+template<class T> class LumaHeterodyneFrequencySliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -641,9 +641,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef LumaHeterodyneFrequencySliderWindowTemplate<void> LumaHeterodyneFrequencySliderWindow;
+typedef LumaHeterodyneFrequencySliderWindowT<void> LumaHeterodyneFrequencySliderWindow;
 
-template<class T> class ChromaCutoffSliderWindowTemplate : public Slider
+template<class T> class ChromaCutoffSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -656,9 +656,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef ChromaCutoffSliderWindowTemplate<void> ChromaCutoffSliderWindow;
+typedef ChromaCutoffSliderWindowT<void> ChromaCutoffSliderWindow;
 
-template<class T> class DeinterlacingSliderWindowTemplate : public Slider
+template<class T> class DeinterlacingSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -671,9 +671,9 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef DeinterlacingSliderWindowTemplate<void> DeinterlacingSliderWindow;
+typedef DeinterlacingSliderWindowT<void> DeinterlacingSliderWindow;
 
-template<class T> class FieldNumberSliderWindowTemplate : public Slider
+template<class T> class FieldNumberSliderWindowT : public Slider
 {
 public:
     void setHost(CaptureWindow* host) { _host = host; }
@@ -686,7 +686,7 @@ public:
 private:
     CaptureWindow* _host;
 };
-typedef FieldNumberSliderWindowTemplate<void> FieldNumberSliderWindow;
+typedef FieldNumberSliderWindowT<void> FieldNumberSliderWindow;
 
 class VCRDecodeWindow : public RootWindow
 {

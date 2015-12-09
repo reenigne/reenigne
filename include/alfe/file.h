@@ -3,54 +3,51 @@
 #ifndef INCLUDED_FILE_H
 #define INCLUDED_FILE_H
 
-template<class T> class CurrentDirectoryTemplate;
-typedef CurrentDirectoryTemplate<void> CurrentDirectory;
+template<class T> class CurrentDirectoryT;
+typedef CurrentDirectoryT<void> CurrentDirectory;
 
-template<class T> class FileSystemObjectTemplate;
-typedef FileSystemObjectTemplate<void> FileSystemObject;
+template<class T> class FileSystemObjectT;
+typedef FileSystemObjectT<void> FileSystemObject;
 
-template<class T> class FindHandleTemplate;
-typedef FindHandleTemplate<void> FindHandle;
+template<class T> class FindHandleT;
+typedef FindHandleT<void> FindHandle;
 
-template<class T> class DirectoryTemplate;
-typedef DirectoryTemplate<void> Directory;
+template<class T> class DirectoryT;
+typedef DirectoryT<void> Directory;
 
-template<class T> class FileTemplate;
-typedef FileTemplate<void> File;
+template<class T> class FileT;
+typedef FileT<void> File;
 
-template<class T> class RootDirectoryBodyTemplate;
-typedef RootDirectoryBodyTemplate<void> RootDirectoryBody;
-
-template<class T> class RootDirectoryTemplate;
-typedef RootDirectoryTemplate<void> RootDirectory;
+template<class T> class RootDirectoryT;
+typedef RootDirectoryT<void> RootDirectory;
 
 #ifdef _WIN32
-template<class T> class DriveRootDirectoryTemplate;
-typedef DriveRootDirectoryTemplate<void> DriveRootDirectory;
+template<class T> class DriveRootDirectoryT;
+typedef DriveRootDirectoryT<void> DriveRootDirectory;
 
-template<class T> class UNCRootDirectoryTemplate;
-typedef UNCRootDirectoryTemplate<void> UNCRootDirectory;
+template<class T> class UNCRootDirectoryT;
+typedef UNCRootDirectoryT<void> UNCRootDirectory;
 
-template<class T> class DriveCurrentDirectoryTemplate;
-typedef DriveCurrentDirectoryTemplate<void> DriveCurrentDirectory;
+template<class T> class DriveCurrentDirectoryT;
+typedef DriveCurrentDirectoryT<void> DriveCurrentDirectory;
 #endif
 
-template<class T> class CharacterSourceTemplate;
-typedef CharacterSourceTemplate<void> CharacterSource;
+template<class T> class CharacterSourceT;
+typedef CharacterSourceT<void> CharacterSource;
 
-template<class T> class FileSystemObjectTemplate : public ConstHandle
+template<class T> class FileSystemObjectT : public ConstHandle
 {
 public:
-    FileSystemObjectTemplate() { }
-    FileSystemObjectTemplate(const ConstHandle& other) : ConstHandle(other) { }
-    FileSystemObjectTemplate(const String& path,
+    FileSystemObjectT() { }
+    FileSystemObjectT(const ConstHandle& other) : ConstHandle(other) { }
+    FileSystemObjectT(const String& path,
         const Directory& relativeTo = CurrentDirectory(),
         bool windowsParsing = false)
     {
         *this = FileSystemObject::parse(path, relativeTo, windowsParsing);
     }
 
-    DirectoryTemplate<T> parent() const { return body()->parent(); }
+    DirectoryT<T> parent() const { return body()->parent(); }
     String name() const { return body()->name(); }
     bool isRoot() const { return body()->isRoot(); }
     String path() const
@@ -87,7 +84,7 @@ protected:
             return _parent.path() + "/" + _name;
         }
 #endif
-        DirectoryTemplate<T> parent() const { return _parent; }
+        DirectoryT<T> parent() const { return _parent; }
         String name() const { return _name; }
         bool isRoot() const { return false; }
         Hash hash() const
@@ -100,7 +97,7 @@ protected:
             return o != 0 && _parent == o->_parent & _name == o->_name;
         }
     private:
-        DirectoryTemplate<T> _parent;
+        DirectoryT<T> _parent;
         String _name;
     };
 
@@ -119,7 +116,7 @@ private:
     }
 
 #ifdef _WIN32
-    static DirectoryTemplate<T> windowsParseRoot(const String& path,
+    static DirectoryT<T> windowsParseRoot(const String& path,
         const Directory& relativeTo, CharacterSource& s)
     {
         CharacterSource s2 = s;
@@ -243,10 +240,10 @@ private:
     }
 #endif
 
-    static DirectoryTemplate<T> parseRoot(const String& path,
+    static DirectoryT<T> parseRoot(const String& path,
         const Directory& relativeTo, CharacterSource& s)
     {
-        CharacterSourceTemplate<T> s2 = s;
+        CharacterSourceT<T> s2 = s;
         int c = s2.get();
         Directory dir = relativeTo;
 
@@ -264,8 +261,8 @@ private:
     static FileSystemObject parse(const String& path,
         const Directory& relativeTo)
     {
-        CharacterSourceTemplate<T> s(path);
-        DirectoryTemplate<T> dir = parseRoot(path, relativeTo, s);
+        CharacterSourceT<T> s(path);
+        DirectoryT<T> dir = parseRoot(path, relativeTo, s);
         int subDirectoryStart = s.offset();
         int c = s.get();
 
@@ -308,12 +305,12 @@ private:
         return FileSystemObject(dir, name);
     }
 
-    FileSystemObjectTemplate(const Directory& parent, const String& name)
+    FileSystemObjectT(const Directory& parent, const String& name)
       : ConstHandle(create<NamedBody>(parent, name)) { }
 
     friend class NamedBody;
-    template<class U> friend class CurrentDirectoryTemplate;
-    template<class U> friend class DirectoryTemplate;
+    template<class U> friend class CurrentDirectoryT;
+    template<class U> friend class DirectoryT;
     friend class Console;
 
     template<class U> friend void applyToWildcard(U functor,
@@ -321,11 +318,11 @@ private:
         const Directory& relativeTo);
 };
 
-template<class T> class DirectoryTemplate : public FileSystemObject
+template<class T> class DirectoryT : public FileSystemObject
 {
 public:
-    DirectoryTemplate() { }
-    DirectoryTemplate(const String& path,
+    DirectoryT() { }
+    DirectoryT(const String& path,
         const Directory& relativeTo = CurrentDirectory(),
         bool windowsParsing = false)
       : FileSystemObject(path, relativeTo, windowsParsing) { }
@@ -337,14 +334,14 @@ public:
     {
         return Directory(child(subDirectoryName));
     }
-    FileTemplate<T> file(const String& fileName) const
+    FileT<T> file(const String& fileName) const
     {
         return File(child(fileName));
     }
     template<class F> void applyToContents(F functor, bool recursive,
         const String& wildcard = "*") const
     {
-        FindHandleTemplate<T> handle(*this, wildcard);
+        FindHandleT<T> handle(*this, wildcard);
         while (!handle.complete()) {
             if (handle.isDirectory()) {
                 Directory child = handle.directory();
@@ -359,17 +356,17 @@ public:
         }
     }
 protected:
-    DirectoryTemplate(FileSystemObject object) : FileSystemObject(object) { }
+    DirectoryT(FileSystemObject object) : FileSystemObject(object) { }
 };
 
 // This is the current directory at the time of first instantiation - avoid
 // changing the current directory.
-template<class T> class CurrentDirectoryTemplate : public Directory
+template<class T> class CurrentDirectoryT : public Directory
 {
 public:
-    CurrentDirectoryTemplate() : Directory(directory()) { }
+    CurrentDirectoryT() : Directory(directory()) { }
 private:
-    CurrentDirectoryTemplate(const FileSystemObject& other)
+    CurrentDirectoryT(const FileSystemObject& other)
       : Directory(other) { }
     static CurrentDirectory directory()
     {
@@ -405,16 +402,16 @@ private:
     }
 
 #ifdef _WIN32
-    template<class T> friend class DriveCurrentDirectoryTemplate;
+    template<class T> friend class DriveCurrentDirectoryT;
 #endif
 };
 
 #ifdef _WIN32
-template<class T> class DriveCurrentDirectoryTemplate : public Directory
+template<class T> class DriveCurrentDirectoryT : public Directory
 {
 public:
-    DriveCurrentDirectoryTemplate() { }
-    DriveCurrentDirectoryTemplate(int drive) : Directory(directory(drive)) { }
+    DriveCurrentDirectoryT() { }
+    DriveCurrentDirectoryT(int drive) : Directory(directory(drive)) { }
 private:
     static Directory _directories[26];
     static Directory directory(int drive)
@@ -442,11 +439,11 @@ Directory DriveCurrentDirectory::_directories[26];
 
 #endif
 
-template<class T> class RootDirectoryTemplate : public Directory
+template<class T> class RootDirectoryT : public Directory
 {
 public:
-    RootDirectoryTemplate() : Directory(directory()) { }
-    RootDirectoryTemplate(const ConstHandle& other) : Directory(other) { }
+    RootDirectoryT() : Directory(directory()) { }
+    RootDirectoryT(const ConstHandle& other) : Directory(other) { }
 
     class Body : public FileSystemObject::Body
     {
@@ -476,12 +473,12 @@ private:
 
 
 #ifdef _WIN32
-template<class T> class DriveRootDirectoryTemplate : public Directory
+template<class T> class DriveRootDirectoryT : public Directory
 {
 public:
-    DriveRootDirectoryTemplate() { }
-    DriveRootDirectoryTemplate(int drive) : Directory(directory(drive)) { }
-    DriveRootDirectoryTemplate(const ConstHandle& other) : Directory(other) { }
+    DriveRootDirectoryT() { }
+    DriveRootDirectoryT(int drive) : Directory(directory(drive)) { }
+    DriveRootDirectoryT(const ConstHandle& other) : Directory(other) { }
 private:
     static DriveRootDirectory _directories[26];
     static DriveRootDirectory directory(int drive)
@@ -516,10 +513,10 @@ private:
 
 DriveRootDirectory DriveRootDirectory::_directories[26];
 
-template<class T> class UNCRootDirectoryTemplate : public Directory
+template<class T> class UNCRootDirectoryT : public Directory
 {
 public:
-    UNCRootDirectoryTemplate(const String& server, const String& share)
+    UNCRootDirectoryT(const String& server, const String& share)
       : Directory(create<Body>(server, share)) { }
 private:
     class Body : public RootDirectory::Body
@@ -549,28 +546,28 @@ private:
 };
 #endif
 
-template<class T> class FileStreamTemplate;
-typedef FileStreamTemplate<void> FileStream;
+template<class T> class FileStreamT;
+typedef FileStreamT<void> FileStream;
 
-template<class T> class AutoStreamTemplate;
-typedef AutoStreamTemplate<void> AutoStream;
+template<class T> class AutoStreamT;
+typedef AutoStreamT<void> AutoStream;
 
-template<class T> class FileTemplate : public FileSystemObject
+template<class T> class FileT : public FileSystemObject
 {
 public:
-    FileTemplate() { }
-    FileTemplate(const ConstHandle& other) : FileSystemObject(other) { }
-    FileTemplate(const String& path,
+    FileT() { }
+    FileT(const ConstHandle& other) : FileSystemObject(other) { }
+    FileT(const String& path,
         const Directory& relativeTo = CurrentDirectory(),
         bool windowsParsing = false)
       : FileSystemObject(path, relativeTo, windowsParsing) { }
 
-    FileTemplate(const String& path, bool windowsParsing)
+    FileT(const String& path, bool windowsParsing)
       : FileSystemObject(path, CurrentDirectory(), windowsParsing) { }
 
     String contents() const
     {
-        FileStreamTemplate<T> f = openRead();
+        FileStreamT<T> f = openRead();
         UInt64 size = f.size();
         if (size >= 0x80000000)
             throw Exception("2Gb or more in file " + path());
@@ -581,7 +578,7 @@ public:
     }
     template<class U> void readIntoArray(Array<U>* array)
     {
-        FileStreamTemplate<T> f = openRead();
+        FileStreamT<T> f = openRead();
         UInt64 size = f.size();
         if (size >= 0x80000000)
             throw Exception("2Gb or more in file " + path());
@@ -604,7 +601,7 @@ public:
         // TODO: Backup file?
         File temp;
         {
-            FileStreamTemplate<T> f = openWriteTemporary();
+            FileStreamT<T> f = openWriteTemporary();
             f.write(contents);
 #ifndef _WIN32
             f.sync();
@@ -638,7 +635,7 @@ public:
     {
         openAppend().write(contents);
     }
-    FileStreamTemplate<T> openRead() const
+    FileStreamT<T> openRead() const
     {
 #ifdef _WIN32
         return open(GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING,
@@ -647,7 +644,7 @@ public:
         return open(O_RDONLY);
 #endif
     }
-    FileStreamTemplate<T> openWrite() const
+    FileStreamT<T> openWrite() const
     {
 #ifdef _WIN32
         return open(GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
@@ -656,7 +653,7 @@ public:
             S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 #endif
     }
-    FileStreamTemplate<T> tryOpenRead() const
+    FileStreamT<T> tryOpenRead() const
     {
 #ifdef _WIN32
         return tryOpen(GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING,
@@ -665,7 +662,7 @@ public:
         return tryOpen(O_RDONLY);
 #endif
     }
-    FileStreamTemplate<T> tryOpenWrite() const
+    FileStreamT<T> tryOpenWrite() const
     {
 #ifdef _WIN32
         return tryOpen(GENERIC_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
@@ -674,16 +671,16 @@ public:
             S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 #endif
     }
-    FileStreamTemplate<T> openWriteTemporary() const
+    FileStreamT<T> openWriteTemporary() const
     {
         int i = 0;
         do {
             File temp = parent().file(name() + hex(i, 8, false));
 #ifdef _WIN32
-            FileStreamTemplate<T> f = temp.open(GENERIC_WRITE, 0, CREATE_NEW,
+            FileStreamT<T> f = temp.open(GENERIC_WRITE, 0, CREATE_NEW,
                 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, false);
 #else
-            FileStreamTemplate<T> f = temp.open(O_WRONLY | O_CREAT | O_EXCL,
+            FileStreamT<T> f = temp.open(O_WRONLY | O_CREAT | O_EXCL,
                 false);
 #endif
             if (f.valid())
@@ -691,7 +688,7 @@ public:
             ++i;
         } while (true);
     }
-    FileStreamTemplate<T> openAppend() const
+    FileStreamT<T> openAppend() const
     {
 #ifdef _WIN32
         return open(name(), GENERIC_WRITE, 0, OPEN_ALWAYS,
@@ -712,7 +709,7 @@ public:
     }
 private:
 #ifdef _WIN32
-    FileStreamTemplate<T> open(DWORD dwDesiredAccess, DWORD dwShareMode,
+    FileStreamT<T> open(DWORD dwDesiredAccess, DWORD dwShareMode,
         DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes,
         bool throwIfExists = true) const
     {
@@ -723,7 +720,7 @@ private:
             throw Exception::systemError("Opening file " + path());
         return f;
     }
-    FileStreamTemplate<T> tryOpen(DWORD dwDesiredAccess, DWORD dwShareMode,
+    FileStreamT<T> tryOpen(DWORD dwDesiredAccess, DWORD dwShareMode,
         DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes) const
     {
         NullTerminatedWideString data(path());
@@ -738,7 +735,7 @@ private:
             *this);
     }
 public:
-    AutoStreamTemplate<T> openPipe()
+    AutoStreamT<T> openPipe()
     {
         AutoStream f = tryOpen(GENERIC_READ | GENERIC_WRITE, 0, OPEN_EXISTING,
             FILE_ATTRIBUTE_NORMAL);
@@ -746,7 +743,7 @@ public:
             throw Exception::systemError("Opening pipe " + path());
         return f;
     }
-    AutoStreamTemplate<T> createPipe(bool overlapped = false)
+    AutoStreamT<T> createPipe(bool overlapped = false)
     {
         NullTerminatedWideString data(path());
         AutoStream f(CreateNamedPipe(
@@ -765,38 +762,38 @@ public:
     }
 private:
 #else
-    FileStreamTemplate<T> open(int flags, bool throwIfExists = true) const
+    FileStreamT<T> open(int flags, bool throwIfExists = true) const
     {
-        FileStreamTemplate<T> f = tryOpen(flags);
+        FileStreamT<T> f = tryOpen(flags);
         if (!f.valid() && (throwIfExists || errno != EEXIST))
             throw Exception::systemError("Opening file " + path());
         return f;
     }
-    FileStreamTemplate<T> tryOpen(int flags) const
+    FileStreamT<T> tryOpen(int flags) const
     {
         NullTerminatedString data(path());
         return FileStream(::open(data, flags), *this);
     }
-    FileStreamTemplate<T> openWrite(int flags, mode_t mode,
+    FileStreamT<T> openWrite(int flags, mode_t mode,
         bool throwIfExists = true) const
     {
-        FileStreamTemplate<T> f = tryOpenWrite(flags, mode);
+        FileStreamT<T> f = tryOpenWrite(flags, mode);
         if (!f.valid() && (throwIfExists || errno != EEXIST))
             throw Exception::systemError("Opening file " + path());
         return f;
     }
-    FileStreamTemplate<T> tryOpenWrite(int flags, mode_t mode) const
+    FileStreamT<T> tryOpenWrite(int flags, mode_t mode) const
     {
         NullTerminatedString data(path());
         return FileStream(::open(data, flags, mode), *this);
     }
 #endif
 
-    friend class DirectoryTemplate<T>;
+    friend class DirectoryT<T>;
     friend class Console;
 };
 
-template<class T> void applyToWildcard(T functor, CharacterSourceTemplate<T> s,
+template<class T> void applyToWildcard(T functor, CharacterSourceT<T> s,
     int recurseIntoDirectories, Directory directory)
 {
     int subDirectoryStart = s.offset();
@@ -874,7 +871,7 @@ template<class T> void applyToWildcard(T functor, CharacterSourceTemplate<T> s,
         return;
     }
 #endif
-    FindHandleTemplate<T> handle(directory, name);
+    FindHandleT<T> handle(directory, name);
     while (!handle.complete()) {
         if (handle.isDirectory()) {
             Directory child = handle.directory();

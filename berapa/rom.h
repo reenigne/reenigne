@@ -1,8 +1,8 @@
-template<class T> class ROMTemplate : public ISA8BitComponent<ROMTemplate<T>>
+template<class T> class ROMT : public ISA8BitComponent<ROMT<T>>
 {
 public:
     static String typeName() { return "ROM"; }
-    ROMTemplate(Simulator* simulator, int mask, int address, String fileName,
+    ROMT(Simulator* simulator, int mask, int address, String fileName,
         int offset)
     {
         _mask = mask | 0xc0000000;
@@ -27,12 +27,12 @@ public:
             return _data[address & ~_mask];
         return 0xff;
     }
-    class Type : public ISA8BitComponent<ROMTemplate<T>>::Type
+    class Type : public ISA8BitComponent<ROMT<T>>::Type
     {
     public:
         Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
     private:
-        class Body : public ISA8BitComponent<ROMTemplate<T>>::Type::Body
+        class Body : public ISA8BitComponent<ROMT<T>>::Type::Body
         {
         public:
             Body(Simulator* simulator) : Component::Type::Body(simulator)

@@ -1,9 +1,9 @@
-template<class T> class DMAPageRegistersTemplate
+template<class T> class DMAPageRegistersT
   : public ISA8BitComponent<DMAPageRegisters>
 {
 public:
     static String typeName() { return "DMAPageRegisters"; }
-    DMAPageRegistersTemplate(Component::Type type) : ISA8BitComponent(type)
+    DMAPageRegistersT(Component::Type type) : ISA8BitComponent(type)
     {
         for (int i = 0; i < 4; ++i)
             _dmaPages[i] = 0;

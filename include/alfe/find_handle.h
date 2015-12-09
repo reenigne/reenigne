@@ -4,10 +4,10 @@
 #define INCLUDED_FIND_HANDLE_H
 
 #ifdef _WIN32
-template<class T> class FindHandleTemplate
+template<class T> class FindHandleT
 {
 public:
-    FindHandleTemplate(const Directory& directory, const String& wildcard)
+    FindHandleT(const Directory& directory, const String& wildcard)
       : _directory(directory), _wildcard(wildcard), _complete(false),
         _handle(INVALID_HANDLE_VALUE)
     {
@@ -40,7 +40,7 @@ public:
             break;
         } while (true);
     }
-    ~FindHandleTemplate()
+    ~FindHandleT()
     {
         if (_handle != INVALID_HANDLE_VALUE)
             FindClose(_handle);
@@ -57,11 +57,11 @@ public:
     {
         return _directory.child(name());
     }
-    DirectoryTemplate<T> directory() const
+    DirectoryT<T> directory() const
     {
         return _directory.subDirectory(name());
     }
-    FileTemplate<T> file() const
+    FileT<T> file() const
     {
         return _directory.file(name());
     }
@@ -80,10 +80,10 @@ private:
     bool _complete;
 };
 #else
-template<class T> class FindHandleTemplate
+template<class T> class FindHandleT
 {
 public:
-    FindHandleTemplate(const Directory& directory, const String& wildcard)
+    FindHandleT(const Directory& directory, const String& wildcard)
       : _directory(directory), _wildcard(wildcard), _complete(false),
         _dir(NULL)
     {
@@ -112,7 +112,7 @@ public:
             break;
         } while (true);
     }
-    ~FindHandleTemplate()
+    ~FindHandleT()
     {
         if (_dir != NULL)
             closedir(_dir);
@@ -141,8 +141,8 @@ public:
 private:
     static bool matches(String name, String wildcard)
     {
-        CharacterSourceTemplate<T> sw(wildcard);
-        CharacterSourceTemplate<T> sn(name);
+        CharacterSourceT<T> sw(wildcard);
+        CharacterSourceT<T> sn(name);
         do {
             int cs = sw.get();
             int cn = sn.get();

@@ -13,32 +13,32 @@
 #include "alfe/rational.h"
 #include <type_traits>
 
-template<class T> class TemplateTemplate;
-typedef TemplateTemplate<void> Template;
+template<class T> class TemplateT;
+typedef TemplateT<void> Template;
 
-template<class T> class TypeTemplate;
-typedef TypeTemplate<void> Type;
+template<class T> class TypeT;
+typedef TypeT<void> Type;
 
-template<class T> class ValueTemplate;
-typedef ValueTemplate<void> Value;
+template<class T> class ValueT;
+typedef ValueT<void> Value;
 
-template<class T> class TycoTemplate;
-typedef TycoTemplate<void> Tyco;
+template<class T> class TycoT;
+typedef TycoT<void> Tyco;
 
-template<class T> class IdentifierTemplate;
-typedef IdentifierTemplate<void> Identifier;
+template<class T> class IdentifierT;
+typedef IdentifierT<void> Identifier;
 
-template<class T> class LValueTypeTemplate;
-typedef LValueTypeTemplate<void> LValueType;
+template<class T> class LValueTypeT;
+typedef LValueTypeT<void> LValueType;
 
-template<class T> class StructuredTypeTemplate;
-typedef StructuredTypeTemplate<void> StructuredType;
+template<class T> class StructuredTypeT;
+typedef StructuredTypeT<void> StructuredType;
 
-template<class T> class TycoTemplate : public ConstHandle
+template<class T> class TycoT : public ConstHandle
 {
 public:
-    TycoTemplate() { }
-    TycoTemplate(const ConstHandle& other) : ConstHandle(other) { }
+    TycoT() { }
+    TycoT(const ConstHandle& other) : ConstHandle(other) { }
     String toString() const { return body()->toString(); }
     Kind kind() const { return body()->kind(); }
 protected:
@@ -52,22 +52,22 @@ protected:
 private:
     const Body* body() const { return as<Body>(); }
 
-    friend class TemplateTemplate<void>;
+    friend class TemplateT<void>;
     template<class U> friend class EnumerationType;
-    template<class U> friend class StructuredTypeTemplate;
+    template<class U> friend class StructuredTypeT;
 };
 
-template<class T> class StructureTemplate;
-typedef StructureTemplate<void> Structure;
+template<class T> class StructureT;
+typedef StructureT<void> Structure;
 
-template<class T> class StructureTemplate
+template<class T> class StructureT
 {
 public:
     template<class U> U get(Identifier identifier) const
     {
         return getValue(identifier).template value<U>();
     }
-    virtual ValueTemplate<T> getValue(Identifier identifier) const
+    virtual ValueT<T> getValue(Identifier identifier) const
     {
         return _values[identifier];
     }
@@ -75,7 +75,7 @@ public:
     {
         return _values.hasKey(identifier);
     }
-    virtual void set(Identifier identifier, ValueTemplate<T> value)
+    virtual void set(Identifier identifier, ValueT<T> value)
     {
         _values[identifier] = value;
     }
@@ -91,19 +91,19 @@ private:
     HashTable<Identifier, Value> _values;
 };
 
-template<class T> class LValueTemplate;
-typedef LValueTemplate<void> LValue;
+template<class T> class LValueT;
+typedef LValueT<void> LValue;
 
-template<class T> class LValueTemplate
+template<class T> class LValueT
 {
 public:
-    LValueTemplate(Structure* structure, Identifier identifier)
+    LValueT(Structure* structure, Identifier identifier)
       : _structure(structure), _identifier(identifier) { }
-    ValueTemplate<T> rValue() const
+    ValueT<T> rValue() const
     {
         return _structure->getValue(_identifier);
     }
-    void set(ValueTemplate<T> value) const
+    void set(ValueT<T> value) const
     {
         _structure->set(_identifier, value);
     }
@@ -117,17 +117,17 @@ private:
     Identifier _identifier;
 };
 
-template<class T> class TypeTemplate : public Tyco
+template<class T> class TypeT : public Tyco
 {
 public:
-    TypeTemplate() { }
-    TypeTemplate(const ConstHandle& other) : Tyco(other) { }
+    TypeT() { }
+    TypeT(const ConstHandle& other) : Tyco(other) { }
 
-    Type member(IdentifierTemplate<T> i) const { return body()->member(i); }
+    Type member(IdentifierT<T> i) const { return body()->member(i); }
     Type rValue() const
     {
-        if (LValueTypeTemplate<T>(*this).valid())
-            return LValueTypeTemplate<T>(*this).inner();
+        if (LValueTypeT<T>(*this).valid())
+            return LValueTypeT<T>(*this).inner();
         return *this;
     }
     // All measurements in characters (== bytes, no unicode support yet).
@@ -149,8 +149,8 @@ public:
         body()->deserialize(value, p);
     }
     int size() const { return body()->size(); }
-    ValueTemplate<T> value(void* p) const { return body()->value(p); }
-    ValueTemplate<T> simplify(const Value& value) const
+    ValueT<T> value(void* p) const { return body()->value(p); }
+    ValueT<T> simplify(const Value& value) const
     {
         return body()->simplify(value);
     }
@@ -172,15 +172,15 @@ public:
             reason = &r;
         return body()->canConvertTo(other, reason);
     }
-    ValueTemplate<T> convert(const Value& value) const
+    ValueT<T> convert(const Value& value) const
     {
         if (*this == value.type())
             return value;
-        if (value == StructuredTypeTemplate<T>::empty())
+        if (value == StructuredTypeT<T>::empty())
             return body()->defaultValue();
         return body()->convert(value);
     }
-    ValueTemplate<T> convertTo(const Type& to, const Value& value) const
+    ValueT<T> convertTo(const Type& to, const Value& value) const
     {
         assert(*this == value.type());
         if (*this == to)
@@ -192,7 +192,7 @@ protected:
     {
     public:
         Kind kind() const { return TypeKind(); }
-        virtual Type member(IdentifierTemplate<T> i) const { return Type(); }
+        virtual Type member(IdentifierT<T> i) const { return Type(); }
         virtual String serialize(void* p, int width, int used, int indent,
             int delta) const
         {
@@ -200,10 +200,10 @@ protected:
         }
         virtual void deserialize(const Value& value, void* p) const { }
         virtual int size() const { return 0; }
-        virtual ValueTemplate<T> defaultValue() const { return Value(); }
-        virtual ValueTemplate<T> value(void* p) const { return Value(); }
+        virtual ValueT<T> defaultValue() const { return Value(); }
+        virtual ValueT<T> value(void* p) const { return Value(); }
         Type type() const { return tyco(); }
-        virtual ValueTemplate<T> simplify(const Value& value) const
+        virtual ValueT<T> simplify(const Value& value) const
         {
             return value;
         }
@@ -215,25 +215,25 @@ protected:
         {
             return false;
         }
-        virtual ValueTemplate<T> convert(const ValueTemplate<T>& value) const
+        virtual ValueT<T> convert(const ValueT<T>& value) const
         {
-            return ValueTemplate<T>();
+            return ValueT<T>();
         }
-        virtual ValueTemplate<T> convertTo(const Type& to, const Value& value)
+        virtual ValueT<T> convertTo(const Type& to, const Value& value)
             const
         {
-            return ValueTemplate<T>();
+            return ValueT<T>();
         }
     };
     const Body* body() const { return as<Body>(); }
 
-    friend class TemplateTemplate<void>;
+    friend class TemplateT<void>;
 };
 
-template<class T> class LValueTypeTemplate : public Type
+template<class T> class LValueTypeT : public Type
 {
 public:
-    LValueTypeTemplate(const Tyco& other) : Type(other) {}
+    LValueTypeT(const Tyco& other) : Type(other) {}
     static LValueType wrap(const Type& inner)
     {
         if (LValueType(inner).valid())
@@ -279,20 +279,20 @@ template<class T, typename = void,
     return typeFromCompileTimeType<T>();
 }
 
-template<class T> class ValueTemplate
+template<class T> class ValueT
 {
 public:
-    ValueTemplate() { }
+    ValueT() { }
     template<class U, typename = typename std::enable_if<std::is_base_of<
-        Type, U>::value>::type> ValueTemplate(U type, Any any = Any(),
+        Type, U>::value>::type> ValueT(U type, Any any = Any(),
         Span span = Span())
       : _type(type), _any(any), _span(span)
     {
         if (!_any.valid())
-            _any = StructuredTypeTemplate<T>::empty().convertTo(type).value();
+            _any = StructuredTypeT<T>::empty().convertTo(type).value();
     }
     template<class U, typename = typename std::enable_if<!std::is_base_of<
-        Type, U>::value>::type> ValueTemplate(const U& value,
+        Type, U>::value>::type> ValueT(const U& value,
         Span span = Span())
       : _type(typeFromValue(value)), _any(value), _span(span) { }
     Type type() const { return _type; }
@@ -317,7 +317,7 @@ public:
     {
         String reason;
         if (to.canConvertFrom(_type, &reason))
-            return to.convertFrom(*this);
+            return to.convert(*this);
         String reasonTo;
         if (_type.canConvertTo(to, &reasonTo))
             return _type.convertTo(to, *this);
@@ -349,16 +349,16 @@ private:
     Span _span;
 };
 
-template<> template<> Vector ValueTemplate<void>::value<Vector>() const
+template<> template<> Vector ValueT<void>::value<Vector>() const
 {
     Array<Any> sizeArray = value<List<Any>>();
     return Vector(sizeArray[0].value<int>(), sizeArray[1].value<int>());
 }
 
-template<class T> class TemplateTemplate : public Tyco
+template<class T> class TemplateT : public Tyco
 {
 public:
-    TemplateTemplate(const ConstHandle& other) : Tyco(other) { }
+    TemplateT(const ConstHandle& other) : Tyco(other) { }
     Tyco instantiate(const Tyco& argument) const
     {
         return body()->instantiate(argument);
@@ -442,8 +442,8 @@ protected:
         const Body* parent() const { return _parent; }
         Tyco argument() const { return _argument; }
     private:
-        TemplateTemplate<T> _root;
-        TemplateTemplate<T> _parent;
+        TemplateT<T> _root;
+        TemplateT<T> _parent;
         Tyco _argument;
     };
     const Body* body() const { return as<Body>(); }
@@ -905,15 +905,15 @@ public:
     };
 };
 
-template<class T> class TupleTycoTemplate;
-typedef TupleTycoTemplate<void> TupleTyco;
+template<class T> class TupleTycoT;
+typedef TupleTycoT<void> TupleTyco;
 
-template<class T> class TupleTycoTemplate
+template<class T> class TupleTycoT
   : public NamedNullary<Tyco, TupleTyco>
 {
 public:
-    TupleTycoTemplate() : NamedNullary(instance()) { }
-    TupleTycoTemplate(const Tyco& other) : NamedNullary(other) { }
+    TupleTycoT() : NamedNullary(instance()) { }
+    TupleTycoT(const Tyco& other) : NamedNullary(other) { }
     bool valid() const { return body() == 0; }
     static String name() { return "Tuple"; }
     bool isUnit() { return *this == TupleTyco(); }
@@ -966,7 +966,7 @@ public:
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
-    TupleTycoTemplate(const Body* body) : NamedNullary(body) { }
+    TupleTycoT(const Body* body) : NamedNullary(body) { }
 private:
 
     class NonUnitBody : public Body
@@ -1014,7 +1014,7 @@ private:
         {
             return _contained.convertTo(to, value);
         }
-        Type member(IdentifierTemplate<T> i) const
+        Type member(IdentifierT<T> i) const
         {
             CharacterSource s(i.name());
             Rational r;
@@ -1038,7 +1038,7 @@ private:
         Type contained() const { return _contained; }
         TupleTyco parent() const { return _parent; }
     private:
-        TupleTycoTemplate<T> _parent;
+        TupleTycoT<T> _parent;
         Type _contained;
     };
 private:
@@ -1092,28 +1092,28 @@ public:
     };
 };
 
-template<class T> class FunctionTycoTemplate;
-typedef FunctionTycoTemplate<void> FunctionTyco;
+template<class T> class FunctionTycoT;
+typedef FunctionTycoT<void> FunctionTyco;
 
-template<class T> class FunctionTemplateTemplate;
-typedef FunctionTemplateTemplate<void> FunctionTemplate;
+template<class T> class FunctionTemplateT;
+typedef FunctionTemplateT<void> FunctionTemplate;
 
-template<class T> class FunctionTycoTemplate : public Tyco
+template<class T> class FunctionTycoT : public Tyco
 {
 public:
-    FunctionTycoTemplate(const Tyco& t) : Tyco(t) { }
+    FunctionTycoT(const Tyco& t) : Tyco(t) { }
 
     static FunctionTyco nullary(const Type& returnType)
     {
         return FunctionTyco(create<NullaryBody>(returnType));
     }
-    FunctionTycoTemplate(Type returnType, Type argumentType)
+    FunctionTycoT(Type returnType, Type argumentType)
       : Tyco(FunctionTyco(
-            FunctionTemplateTemplate<T>().instantiate(returnType)).
+            FunctionTemplateT<T>().instantiate(returnType)).
             instantiate(argumentType)) { }
-    FunctionTycoTemplate(Type returnType, Type argumentType1,
+    FunctionTycoT(Type returnType, Type argumentType1,
         Type argumentType2)
-      : Tyco(FunctionTyco(FunctionTyco(FunctionTemplateTemplate<T>().
+      : Tyco(FunctionTyco(FunctionTyco(FunctionTemplateT<T>().
             instantiate(returnType)).instantiate(argumentType1)).
             instantiate(argumentType2)) { }
     bool argumentsMatch(List<Type>::Iterator argumentTypes) const
@@ -1205,7 +1205,7 @@ private:
             return _parent.argumentsMatch(i);
         }
     private:
-        FunctionTycoTemplate<T> _parent;
+        FunctionTycoT<T> _parent;
         Type _argumentType;
     };
     const Body* body() const { return as<Body>(); }
@@ -1215,7 +1215,7 @@ private:
     }
 };
 
-template<class T> class FunctionTemplateTemplate
+template<class T> class FunctionTemplateT
   : public NamedNullary<Template, FunctionTemplate>
 {
 public:
@@ -1296,7 +1296,7 @@ public:
 // compile-time as at run-time. Also we don't want to have to override
 // conversion functions in children just to avoid unwanted conversions
 
-template<class T> class StructuredTypeTemplate : public Type
+template<class T> class StructuredTypeT : public Type
 {
 public:
     class Member
@@ -1330,9 +1330,9 @@ public:
         return Member(name, typeFromCompileTimeType<MemberT>());
     }
 
-    StructuredTypeTemplate() { }
-    StructuredTypeTemplate(const ConstHandle& other) : Type(other) { }
-    StructuredTypeTemplate(String name, List<Member> members)
+    StructuredTypeT() { }
+    StructuredTypeT(const ConstHandle& other) : Type(other) { }
+    StructuredTypeT(String name, List<Member> members)
       : Type(create<Body>(name, members)) { }
     const HashTable<Identifier, int> names() const { return body()->names(); }
     const Array<Member> members() const { return body()->members(); }
@@ -1359,8 +1359,123 @@ protected:
         const HashTable<Identifier, int> names() const { return _names; }
         const Array<Member> members() const { return _members; }
 
-        Value tryConvertTo(const Type& to, const Value& value, String* why)
-            const
+        bool canConvertTo(const Type& to, String* why) const
+        {
+            const Body* toBody = to.as<Body>();
+            if (toBody != 0) {
+                // First take all named members in the RHS and assign them to
+                // the corresponding named members in the LHS.
+                int count = _members.count();
+                int toCount = toBody->_members.count();
+                Array<bool> assigned(toCount);
+                for (int i = 0; i < toCount; ++i)
+                    assigned[i] = false;
+                for (int i = 0; i < count; ++i) {
+                    const Member* m = &_members[i];
+                    String name = m->name();
+                    if (name.empty())
+                        continue;
+                    // If a member doesn't exist, fail conversion.
+                    if (!toBody->_names.hasKey(name)) {
+                        *why = "The target type has no member named " + name;
+                        return false;
+                    }
+                    int j = toBody->_names[name];
+                    if (assigned[j]) {
+                        *why =
+                            "The source type has more than one member named " +
+                            name;
+                        return false;
+                    }
+                    // If one of the child conversions fails, fail.
+                    if (!canConvertHelper(member(name), &toBody->_members[j],
+                        why))
+                        return false;
+                    assigned[j] = true;
+                }
+                // Then take all unnamed arguments in the RHS and in LTR order
+                // and assign them to unassigned members in the LHS, again in
+                // LTR order.
+                int j = 0;
+                for (int i = 0; i < count; ++i) {
+                    const Member* m = &_members[i];
+                    if (!m->name().empty())
+                        continue;
+                    while (assigned[j] && j < toCount)
+                        ++j;
+                    if (j >= toCount) {
+                        *why = "The source type has too many members";
+                        return false;
+                    }
+                    const Member* toMember = &toBody->_members[j];
+                    ++j;
+                    if (!canConvertHelper(member(String(decimal(i))), toMember,
+                        why))
+                        return false;
+                }
+                // Make sure any unassigned members have defaults.
+                for (;j < toCount; ++j) {
+                    if (assigned[j])
+                        continue;
+                    const Member* toMember = &toBody->_members[j];
+                    if (!toMember->hasDefault()) {
+                        *why = "No default value is available for target type "
+                            "member " + toMember->name();
+                        return false;
+                    }
+                }
+                return true;
+            }
+            ArrayType toArray = to;
+            if (toArray.valid()) {
+                Type contained = toArray.contained();
+                for (int i = 0; i < _members.count(); ++i) {
+                    String name = decimal(i);
+                    if (!_names.hasKey(name)) {
+                        *why = "Array cannot be initialized with a structured "
+                            "value containing named members";
+                        return false;
+                    }
+                    String reason;
+                    if (!member(name).canConvertTo(contained, &reason)) {
+                        *why = "Cannot convert child member " + name;
+                        if (!reason.empty())
+                            *why += ": " + reason;
+                        return false;
+                    }
+                }
+                return true;
+            }
+            TupleTyco toTuple = to;
+            if (toTuple.valid()) {
+                int count = _members.count();
+                for (int i = _members.count() - 1; i >= 0; --i) {
+                    String name = decimal(i);
+                    if (!_names.hasKey(name)) {
+                        *why = "Tuple cannot be initialized with a structured "
+                            "value containing named members";
+                        return false;
+                    }
+                    if (toTuple.isUnit()) {
+                        *why = "Tuple type does not have enough members to be "
+                            "initialized with this structured value.";
+                        return false;
+                    }
+                    String reason;
+                    if (!member(name).
+                        canConvertTo(toTuple.lastMember(), &reason)) {
+                        *why = "Cannot convert child member " + name;
+                        if (!reason.empty())
+                            *why += ": " + reason;
+                        return false;
+                    }
+                    toTuple = toTuple.firstMembers();
+                }
+                return true;
+            }
+            return false;
+        }
+        Value convertTo(const Type& to, const Value& value) const
         {
             const Body* toBody = to.as<Body>();
             if (toBody != 0) {
@@ -1379,24 +1494,9 @@ protected:
                     String name = m->name();
                     if (name.empty())
                         continue;
-                    // If a member doesn't exist, fail conversion.
-                    if (!toBody->_names.hasKey(name)) {
-                        *why = String("The target type has no member named ") +
-                            name;
-                        return Value();
-                    }
                     int j = toBody->_names[name];
-                    if (assigned[j]) {
-                        *why = String("The source type has more than one "
-                            "member named ") + name;
-                        return Value();
-                    }
-                    // If one of the child conversions fails, fail.
-                    Value v = tryConvertHelper(input[name],
-                        &toBody->_members[j], why);
-                    if (!v.valid())
-                        return Value();
-                    output[name] = v;
+                    output[name] =
+                        input[name].convertTo(toBody->_members[j].type());
                     assigned[j] = true;
                 }
                 // Then take all unnamed arguments in the RHS and in LTR order
@@ -1407,34 +1507,20 @@ protected:
                     const Member* m = &_members[i];
                     if (!m->name().empty())
                         continue;
-                    String fromName = String::Decimal(i);
                     while (assigned[j] && j < toCount)
                         ++j;
-                    if (j >= toCount) {
-                        *why = "The source type has too many members";
-                        return Value();
-                    }
                     const Member* toMember = &toBody->_members[j];
                     ++j;
-                    ValueTemplate<T> v = tryConvertHelper(
-                        input[Identifier(String::Decimal(i))], toMember,
-                        why);
-                    if (!v.valid())
-                        return Value();
-                    output[toMember->name()] = v;
+                    output[toMember->name()] =
+                        input[Identifier(String::Decimal(i))].
+                        convertTo(toMember->type());
                 }
                 // Make sure any unassigned members have defaults.
-                for (;j < toCount; ++j) {
+                for (; j < toCount; ++j) {
                     if (assigned[j])
                         continue;
                     const Member* toMember = &toBody->_members[j];
-                    if (!toMember->hasDefault()) {
-                        *why = String("No default value is available for "
-                            "target type member ") + toMember->name();
-                        return Value();
-                    }
-                    else
-                        output[toMember->name()] = toMember->defaultValue();
+                    output[toMember->name()] = toMember->defaultValue();
                 }
                 return Value(type(), output, value.span());
             }
@@ -1445,19 +1531,7 @@ protected:
                 List<Value> results;
                 for (int i = 0; i < input.count(); ++i) {
                     String name = decimal(i);
-                    if (input.hasKey(name)) {
-                        *why = String("Array cannot be initialized with a "
-                            "structured value containing named members");
-                        return Value();
-                    }
-                    String reason;
-                    Value v = input[name].tryConvertTo(contained, &reason);
-                    if (!v.valid()) {
-                        *why = String("Cannot convert child member ") + name;
-                        if (!reason.empty())
-                            *why += String(": ") + reason;
-                        return Value();
-                    }
+                    Value v = input[name].convertTo(contained);
                     results.add(v);
                 }
                 return Value(to, results, value.span());
@@ -1468,32 +1542,18 @@ protected:
                 List<Value> results;
                 int count = _members.count();
                 for (int i = input.count() - 1; i >= 0; --i) {
-                    String name = String::Decimal(i);
-                    if (!input.hasKey(name)) {
-                        *why = String("Tuple cannot be initialized with a "
-                            "structured value containing named members");
-                        return Value();
-                    }
-                    if (toTuple.isUnit())
-                        return String("Tuple type does not have enough members"
-                            " to be initialized with this structured value.");
-                    String reason;
-                    Value v = input[name].
-                        tryConvertTo(toTuple.lastMember(), &reason);
-                    if (!v.valid()) {
-                        *why = String("Cannot convert child member ") + name;
-                        if (!reason.empty())
-                            *why += String(": ") + reason;
-                        return Value();
-                    }
+                    String name = decimal(i);
+                    Value v = input[name].convertTo(toTuple.lastMember());
                     results.add(v);
                     toTuple = toTuple.firstMembers();
                 }
+                return Value(to, results, value.span());
             }
-
+            assert(false);
             return Value();
         }
-        Type member(IdentifierTemplate<T> i) const
+
+        Type member(IdentifierT<T> i) const
         {
             if (!_names.hasKey(i))
                 return Type();
@@ -1508,18 +1568,17 @@ protected:
                 _members == o->_members;
         }
     private:
-        Value tryConvertHelper(const Value& value, const Member* to,
-            String* why) const
+        bool canConvertHelper(const Type& type, const Member* to, String* why)
+            const
         {
             String reason;
-            Value v = value.tryConvertTo(to->type(), &reason);
-            if (!v.valid()) {
-                *why = String("Cannot convert child member ") + to->name();
+            if (!type.canConvertTo(to->type(), &reason)) {
+                *why = "Cannot convert child member " + to->name();
                 if (!reason.empty())
-                    *why += String(": ") + reason;
-                return Value();
+                    *why += ": " + reason;
+                return false;
             }
-            return v;
+            return true;
         }
 
         String _name;

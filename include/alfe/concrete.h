@@ -13,6 +13,7 @@ public:
 };
 
 template<class T> class ConcreteTypeTemplate;
+typedef ConcreteTypeTemplate<Rational> ConcreteType;
 
 template<class T> class ConcreteTemplate
 {
@@ -229,7 +230,7 @@ template<class T> class ConcreteTypeTemplate : public Type
         Value convertTo(const Type& to, const Value& value) const
         {
             return RationalType().convertTo(to, Value(RationalType(),
-                value.value<ConcreteTemplate<T>>().value(), value.span());
+                value.value<ConcreteTemplate<T>>().value(), value.span()));
         }
         int elements() const { return body()->size(); }
         Value defaultValue() const { return Concrete::zero(); }
@@ -304,8 +305,6 @@ private:
     int element(int i) const { return i >= elements() ? 0 : (*body())[i]; }
 };
 
-typedef ConcreteTypeTemplate<Rational> ConcreteType;
-
 template<> int ConcreteTypeTemplate<Rational>::_bases = 0;
 
 template<> Type typeFromValue<Concrete>(const Concrete& c) { return c.type(); }
@@ -324,23 +323,27 @@ private:
     {
     public:
         Body(Concrete unit) : _unit(unit) { }
-        Concrete _unit;
-        Value tryConvert(const Value& value, String* reason) const
+        virtual bool canConvertFrom(const Type& other, String* reason) const
+        {
+            return other.canConvertTo(_unit.type(), reason);
+        }
+        virtual bool canConvertTo(const Type& other, String* reason) const
+        {
+            return _unit.type().canConvertTo(other, reason);
+        }
+        virtual Value convert(const Value& value) const
         {
             // First convert to the type of _unit
-            Value v = value.tryConvertTo(_unit.type(), reason);
-            if (!v.valid())
-                return v;
+            Value v = value.convertTo(_unit.type());
             // Then replace the type with our type
             return Value(type(), v.value(), v.span());
         }
-        Value tryConvertTo(const Type& to, const Value& value, String* reason)
-            const
+        virtual Value convertTo(const Type& to, const Value& value) const
         {
             // Replace the type with the one from _unit
-            Value v(_unit.type(), value.value(), value.span());
             // Then ask the unit to do the conversion.
-            return _unit.type().tryConvertTo(to, v, reason);
+            return _unit.type().convertTo(to,
+                Value(_unit.type(), value.value(), value.span()));
         }
         void deserialize(const Value& value, void* p) const
         {
@@ -348,6 +351,7 @@ private:
                 (value.value<Concrete>()/_unit).value();
         }
         String toString() const { return _unit.type().toString(); }
+        Concrete _unit;
     };
 };
 

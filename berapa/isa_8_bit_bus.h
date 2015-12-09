@@ -1,13 +1,13 @@
-template<class T> class ISA8BitBusTemplate;
-typedef ISA8BitBusTemplate<void> ISA8BitBus;
+template<class T> class ISA8BitBusT;
+typedef ISA8BitBusT<void> ISA8BitBus;
 
-template<class T> class ISA8BitComponentBaseTemplate;
-typedef ISA8BitComponentBaseTemplate<void> ISA8BitComponentBase;
+template<class T> class ISA8BitComponentBaseT;
+typedef ISA8BitComponentBaseT<void> ISA8BitComponentBase;
 
-template<class T> class ISA8BitComponentBaseTemplate : public ClockedComponent
+template<class T> class ISA8BitComponentBaseT : public ClockedComponent
 {
 public:
-    ISA8BitComponentBaseTemplate(Component::Type type)
+    ISA8BitComponentBaseT(Component::Type type)
       : ClockedComponent(type), _connector(this)
     {
         connector("bus", &_connector);
@@ -25,11 +25,11 @@ public:
     class Connector : public ::Connector
     {
     public:
-        Connector(ISA8BitComponentBaseTemplate* component)
+        Connector(ISA8BitComponentBaseT* component)
           : _component(component) { }
         void connect(::Connector* other)
         {
-            dynamic_cast<typename ISA8BitBusTemplate<T>::Connector*>(other)
+            dynamic_cast<typename ISA8BitBusT<T>::Connector*>(other)
                 ->busConnect(_component);
         }
         ::Connector::Type type() const { return Type(); }
@@ -44,7 +44,7 @@ public:
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return typename ISA8BitBusTemplate<T>::Type(other).valid();
+                    return typename ISA8BitBusT<T>::Type(other).valid();
                 }
             private:
             };
@@ -56,7 +56,7 @@ public:
 
 protected:
     void set(UInt8 data) { _bus->_data = data; }
-    ISA8BitBusTemplate<T>* _bus;
+    ISA8BitBusT<T>* _bus;
     bool _active;
     Connector _connector;
 };
@@ -68,12 +68,12 @@ public:
     typedef ClockedComponent::Type<C> Type;
 };
 
-template<class T> class ISA8BitBusTemplate : public Component
+template<class T> class ISA8BitBusT : public Component
 {
 public:
     static String typeName() { return "ISA8BitBus"; }
 
-    ISA8BitBusTemplate(Component::Type type)
+    ISA8BitBusT(Component::Type type)
       : Component(type), _cpuSocket(this), _connector(this)
     {
         connector("cpu", &_cpuSocket);
@@ -120,7 +120,7 @@ public:
     {
     public:
         ChipConnector() : Connector(0) { }
-        void init(ISA8BitBusTemplate<T>* bus, int i)
+        void init(ISA8BitBusT<T>* bus, int i)
         {
             this->_bus = bus;
             _i = i;
@@ -147,7 +147,7 @@ public:
                 bool compatible(::Connector::Type other) const
                 {
                     return other ==
-                        typename Intel8088CPUTemplate<T>::Connector::Type();
+                        typename Intel8088CPUT<T>::Connector::Type();
                 }
             };
             static String name() { return "ISA8BitBus.CPUSocket"; }
@@ -194,5 +194,5 @@ private:
     ChipConnector _chipConnectors[8];
     List<ISA8BitComponentBase*> _components;
 
-    friend class ISA8BitComponentBaseTemplate<T>;
+    friend class ISA8BitComponentBaseT<T>;
 };

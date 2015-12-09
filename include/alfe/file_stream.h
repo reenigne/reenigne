@@ -3,15 +3,13 @@
 #ifndef INCLUDED_FILE_STREAM_H
 #define INCLUDED_FILE_STREAM_H
 
-template<class T> class FileStreamTemplate : public AutoStream
+template<class T> class FileStreamT : public AutoStream
 {
 public:
 #ifdef _WIN32
-    FileStreamTemplate(HANDLE handle, const File& file)
-      : AutoStream(handle, file)
-    { }
+    FileStreamT(HANDLE handle, const File& file) : AutoStream(handle, file) { }
 #else
-    FileStreamTemplate(int fileDescriptor, const File& file)
+    FileStreamT(int fileDescriptor, const File& file)
       : AutoStream(fileDescriptor, file) { }
 #endif
 #ifndef _WIN32

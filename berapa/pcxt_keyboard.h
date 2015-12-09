@@ -1,8 +1,8 @@
-template<class T> class PCXTKeyboardTemplate : public Component
+template<class T> class PCXTKeyboardT : public Component
 {
 public:
     static String typeName() { return "PCXTKeyboard"; }
-    PCXTKeyboardTemplate(Component::Type type)
+    PCXTKeyboardT(Component::Type type)
       : Component(type), _connector(this)
     {
         connector("", &_connector);
@@ -31,11 +31,11 @@ public:
         void connect(::Connector* other)
         {
             _keyboard->_port = static_cast<typename
-                PCXTKeyboardPortTemplate<T>::Connector*>(other)->_port;
+                PCXTKeyboardPortT<T>::Connector*>(other)->_port;
         }
     };
 
-    typedef Component::TypeHelper<PCXTKeyboardTemplate> Type;
+    typedef Component::TypeHelper<PCXTKeyboard> Type;
 private:
     Connector _connector;
     PCXTKeyboardPort* _port;

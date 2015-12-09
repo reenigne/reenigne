@@ -45,19 +45,19 @@ public:
     SDL_Window* _window;
 };
 
-template<class T> class SDLTextureTemplate;
-typedef SDLTextureTemplate<void> SDLTexture;
+template<class T> class SDLTextureT;
+typedef SDLTextureT<void> SDLTexture;
 
-template<class T> class SDLRendererTemplate
+template<class T> class SDLRendererT
 {
 public:
-    SDLRendererTemplate(SDLWindow* window)
+    SDLRendererT(SDLWindow* window)
     {
         _renderer = SDL_CreateRenderer(window->_window, -1, 0);
         IF_ZERO_THROW_SDL(_renderer, "Creating SDL renderer");
     }
-    ~SDLRendererTemplate() { SDL_DestroyRenderer(_renderer); }
-    void renderTexture(SDLTextureTemplate<T>* texture)
+    ~SDLRendererT() { SDL_DestroyRenderer(_renderer); }
+    void renderTexture(SDLTextureT<T>* texture)
     {
         // IF_NONZERO_THROW_SDL(SDL_RenderClear(_renderer), "Clearing target");
         IF_NONZERO_THROW_SDL(
@@ -68,18 +68,18 @@ public:
     SDL_Renderer* _renderer;
 };
 
-typedef SDLRendererTemplate<void> SDLRenderer;
+typedef SDLRendererT<void> SDLRenderer;
 
-template<class T> class SDLTextureTemplate
+template<class T> class SDLTextureT
 {
 public:
-    SDLTextureTemplate(SDLRenderer* renderer)
+    SDLTextureT(SDLRenderer* renderer)
     {
         _texture = SDL_CreateTexture(renderer->_renderer,
             SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 912, 525);
         IF_ZERO_THROW_SDL(_texture, "Creating SDL texture");
     }
-    ~SDLTextureTemplate() { SDL_DestroyTexture(_texture); }
+    ~SDLTextureT() { SDL_DestroyTexture(_texture); }
     void unlock() { SDL_UnlockTexture(_texture); }
     SDL_Texture* _texture;
 };

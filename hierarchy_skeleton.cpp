@@ -1,27 +1,32 @@
-template<class T> class BaseTemplate;
-typedef BaseTemplate<void> Base;
+template<class T> class BaseT;
+typedef BaseT<void> Base;
 
-template<class T> class DerivedTemplate;
-typedef DerivedTemplate<void> Derived;
+template<class T> class DerivedT;
+typedef DerivedT<void> Derived;
 
-template<class T> class BaseTemplate : public Handle
+template<class T> class BaseT : public Handle
 {
+public:
+    BaseT(...) : Handle(create<Body>(...)) { }
+    void process() { return body()->process(); }
 protected:
-    BaseTemplate() { }
-    BaseTemplate(Body* body) : Handle(body) { }
+    BaseT(const Handle& other) : Handle(other) { }
 
     class Body : public Handle::Body
     {
     public:
         virtual void process() = 0;
     };
+private:
+    Body* body() { return as<Body>(); }
 };
 
-template<class T> class DerivedTemplate : public Base
+template<class T> class DerivedT : public Base
 {
-protected:
-    DerivedTemplate() { }
-    DerivedTemplate(Body* body) : Base(body) { }
+public:
+    DerivedT(...) : Base(create<Body>(...)) { }
+private:
+    DerivedT(const Handle& other) : Base(other) { }
 
     class Body : public Base::Body
     {

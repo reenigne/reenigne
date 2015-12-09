@@ -81,10 +81,10 @@ private:
     int _count;
 };
 
-template<class T> class CompressThreadTemplate : public Thread
+template<class T> class CompressThreadT : public Thread
 {
 public:
-    CompressThreadTemplate() : _ending(false), _waiting(false) { }
+    CompressThreadT() : _ending(false), _waiting(false) { }
     void setProgram(Program* program) { _program = program; }
     void go() { _go.signal(); }
     void end() { _ending = true; go(); }
@@ -140,12 +140,12 @@ private:
     bool _waiting;
 };
 
-typedef CompressThreadTemplate<void> CompressThread;
+typedef CompressThreadT<void> CompressThread;
 
-template<class T> class WriteThreadTemplate : public Thread
+template<class T> class WriteThreadT : public Thread
 {
 public:
-    WriteThreadTemplate() : _ending(false) { }
+    WriteThreadT() : _ending(false) { }
     void setProgram(Program* program) { _program = program; }
     void go() { _go.signal(); }
     void end() { _ending = true; go(); }
@@ -168,7 +168,7 @@ private:
     bool _ending;
 };
 
-typedef WriteThreadTemplate<void> WriteThread;
+typedef WriteThreadT<void> WriteThread;
 
 class Program : public ProgramBase
 {

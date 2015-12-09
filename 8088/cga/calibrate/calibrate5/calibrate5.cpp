@@ -350,10 +350,10 @@ private:
 
 class CalibrateWindow;
 
-template<class T> class CalibrateBitmapWindowTemplate : public BitmapWindow
+template<class T> class CalibrateBitmapWindowT : public BitmapWindow
 {
 public:
-    ~CalibrateBitmapWindowTemplate()
+    ~CalibrateBitmapWindowT()
     {
         //Array<Byte> data(1024);
         //for (int i = 0; i < 1024; ++i)
@@ -952,7 +952,7 @@ private:
     CalibrateWindow* _calibrateWindow;
 };
 
-typedef CalibrateBitmapWindowTemplate<void> CalibrateBitmapWindow;
+typedef CalibrateBitmapWindowT<void> CalibrateBitmapWindow;
 
 class CalibrateWindow : public RootWindow
 {

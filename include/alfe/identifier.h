@@ -7,14 +7,14 @@
 #include "alfe/expression.h"
 #include "alfe/type_specifier.h"
 
-template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
+template<class T> class IdentifierT : public ExpressionT<T>
 {
-    class Body : public ExpressionTemplate<T>::Body
+    class Body : public ExpressionT<T>::Body
     {
     public:
         Body(const Span& span) : Expression::Body(span) { }
         virtual String name() const = 0;
-        ValueTemplate<T> evaluate(EvaluationContext* context) const
+        ValueT<T> evaluate(EvaluationContext* context) const
         {
             return context->valueOfIdentifier(this->expression());
         }
@@ -54,14 +54,14 @@ template<class T> class IdentifierTemplate : public ExpressionTemplate<T>
     };
 
 public:
-    IdentifierTemplate() { }
-    IdentifierTemplate(const ConstHandle& other)
-      : ExpressionTemplate<T>(other) { }
-    IdentifierTemplate(const String& name)
-      : ExpressionTemplate<T>(IdentifierTemplate::template create<NameBody>(
+    IdentifierT() { }
+    IdentifierT(const ConstHandle& other)
+      : ExpressionT<T>(other) { }
+    IdentifierT(const String& name)
+      : ExpressionT<T>(IdentifierT::template create<NameBody>(
         name, Span())) { }
-    IdentifierTemplate(const char* name)
-      : ExpressionTemplate<T>(IdentifierTemplate::template create<NameBody>(
+    IdentifierT(const char* name)
+      : ExpressionT<T>(IdentifierT::template create<NameBody>(
         name, Span())) { }
 
     static Identifier parse(CharacterSource* source)
@@ -123,7 +123,7 @@ public:
         Span span(location, endLocation);
         if (name != "operator") {
             *source = s2;
-            return IdentifierTemplate::template create<NameBody>(name, span);
+            return IdentifierT::template create<NameBody>(name, span);
         }
         Span endSpan;
         Span span3;
@@ -194,8 +194,8 @@ public:
         return Identifier(o, span + endSpan);
     }
 
-    IdentifierTemplate(const Operator& op, const Span& span = Span())
-      : Expression(IdentifierTemplate::template create<OperatorBody>(op, span))
+    IdentifierT(const Operator& op, const Span& span = Span())
+      : Expression(IdentifierT::template create<OperatorBody>(op, span))
     { }
 
     String name() const { return body()->name(); }

@@ -1,5 +1,5 @@
-template<class T> class Intel8237DMACTemplate
-  : public ISA8BitComponent<Intel8237DMACTemplate<T>>
+template<class T> class Intel8237DMACT
+  : public ISA8BitComponent<Intel8237DMACT<T>>
 {
     enum State
     {
@@ -27,8 +27,8 @@ template<class T> class Intel8237DMACTemplate
     };
 public:
     static String typeName() { return "Intel8237DMAC"; }
-    Intel8237DMACTemplate(Component::Type type)
-      : ISA8BitComponent<Intel8237DMACTemplate<T>>(type),
+    Intel8237DMACT(Component::Type type)
+      : ISA8BitComponent<Intel8237DMACT<T>>(type),
         _channels{type, type, type, type}
     {
         this->persist("address", &_address, HexPersistenceType(1));
@@ -411,7 +411,7 @@ private:
             (this->_pageRegisters->pageForChannel(_channel) << 16);
     }
 
-    DMAPageRegistersTemplate<T>* _pageRegisters;
+    DMAPageRegistersT<T>* _pageRegisters;
     ISA8BitBus* _bus;
     Channel _channels[4];
     int _address;

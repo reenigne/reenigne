@@ -1,4 +1,4 @@
-template<class T> class DisassemblerTemplate
+template<class T> class DisassemblerT
 {
 public:
     void setBus(ISA8BitBus* bus) { _bus = bus; }
@@ -298,7 +298,7 @@ private:
     }
 
     ISA8BitBus* _bus;
-    Intel8088CPUTemplate<T>* _cpu;
+    Intel8088CPUT<T>* _cpu;
     UInt16 _address;
     UInt8 _opcode;
     UInt8 _modRM;
@@ -307,13 +307,13 @@ private:
     String _bytes;
 };
 
-typedef DisassemblerTemplate<void> Disassembler;
+typedef DisassemblerT<void> Disassembler;
 
-template<class T> class Intel8088CPUTemplate : public ClockedComponent
+template<class T> class Intel8088CPUT : public ClockedComponent
 {
 public:
     static String typeName() { return "Intel8088CPU"; }
-    Intel8088CPUTemplate(Component::Type type)
+    Intel8088CPUT(Component::Type type)
       : ClockedComponent(type), _connector(this)
     {
         connector("", &_connector);

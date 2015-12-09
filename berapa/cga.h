@@ -1,12 +1,11 @@
-template<class T> class IBMCGATemplate
-  : public ISA8BitComponent<IBMCGATemplate<T>>
+template<class T> class IBMCGAT : public ISA8BitComponent<IBMCGAT<T>>
 {
 public:
     static String typeName() { return "IBMCGA"; }
-    IBMCGATemplate(Component::Type type)
-      : ISA8BitComponent<IBMCGATemplate<T>>(type), _attr(0), _chrdata(0),
-        _wait(0), _cycle(0), _bgri(0), _lightPenStrobe(false),
-        _lightPenSwitch(true), _bgriSource(this)
+    IBMCGAT(Component::Type type)
+      : ISA8BitComponent<IBMCGAT<T>>(type), _attr(0), _chrdata(0), _wait(0),
+        _cycle(0), _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true),
+        _bgriSource(this)
     {
         _data.allocate(0x4000);
         this->config("rom", &_rom);
@@ -19,7 +18,7 @@ public:
     }
     void load(Value v)
     {
-        ISA8BitComponent<IBMCGATemplate<T>>::load(v);
+        ISA8BitComponent<IBMCGAT<T>>::load(v);
         String data = File(_rom, this->_simulator->directory()).contents();
         int length = 0x2000;
         _romdata.allocate(length);
@@ -148,6 +147,8 @@ public:
 
     class RGBIConnector : public ::Connector
     {
+        typedef ::Connector::Type CType;
+        typedef NamedNullary<CType, Type> NN;
     public:
         RGBIConnector(IBMCGA* cga) : _cga(cga) { }
         void connect(::Connector* other)
@@ -156,18 +157,17 @@ public:
         }
         ::Connector::Type type() const { return Type(); }
 
-        class Type : public NamedNullary<::Connector::Type, Type>
+        class Type : public NN
         {
         public:
             Type() { }
-            Type(::Type type) : NamedNullary<::Connector::Type, Type>(type) { }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
+            Type(::Type type) : NN(type) { }
+            class Body : public NN::Body
             {
             public:
-                bool compatible(::Connector::Type other) const
+                bool compatible(CType other) const
                 {
-                    return RGBIMonitorTemplate<T>::Connector::Type(other).
-                        valid();
+                    return RGBIMonitorT<T>::Connector::Type(other).valid();
                 }
             };
             static String name() { return "IBMCGA.RGBIConnector"; }

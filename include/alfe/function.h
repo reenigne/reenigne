@@ -52,7 +52,7 @@ protected:
     };
 };
 
-template<class T> class OverloadedFunctionSetTemplate : public Handle
+template<class T> class OverloadedFunctionSetT : public Handle
 {
     class Body : public Handle::Body
     {
@@ -123,7 +123,7 @@ public:
         static String name() { return "OverloadedFunctionSet::Type"; }
     };
 
-    OverloadedFunctionSetTemplate(Identifier identifier)
+    OverloadedFunctionSetT(Identifier identifier)
       : Handle(create<Body>(identifier)) { }
     void add(Funco funco) { body()->add(funco); }
     static Type type() { return Type(); }

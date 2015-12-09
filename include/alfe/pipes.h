@@ -157,7 +157,7 @@ private:
 
 
 // Specialization to copy from one Accessor to another.
-template<class T> class CopyTo<Accessor<T> >
+template<class T> class CopyTo<Accessor<T>>
 {
 public:
     CopyTo(Accessor<T> destination) : _destination(destination) { }
@@ -171,7 +171,7 @@ private:
 
 
 // Specialization to copy from a one Accessor to another.
-template<class T> class CopyFrom<Accessor<T> >
+template<class T> class CopyFrom<Accessor<T>>
 {
 public:
     CopyFrom(Accessor<T> source) : _source(source) { }
@@ -537,7 +537,7 @@ private:
 // Source. This is useful as a pump: external code can call the produce()
 // method directly to cause data to be pulled via the Sink and then pushed via
 // the Source.
-template<class T> class NopPipe : public Pipe<T, T, NopPipe<T> >
+template<class T> class NopPipe : public Pipe<T, T, NopPipe<T>>
 {
 public:
     void produce(int n)
@@ -554,7 +554,7 @@ public:
 
 // A filter that converts from one type to another (with static_cast<>).
 template<class ProducedT, class ConsumedT> class CastPipe
-  : public Pipe<ProducedT, ConsumedT, CastPipe<ProducedT, ConsumedT> >
+  : public Pipe<ProducedT, ConsumedT, CastPipe<ProducedT, ConsumedT>>
 {
 public:
     void produce(int n)
@@ -620,7 +620,7 @@ protected:
 
 // A pipe that interpolates using the nearest-neighbor algorithm.
 template<class T, class Rate = int> class NearestNeighborInterpolator
-  : public Pipe<T, T, NearestNeighborInterpolator<T, Rate> >
+  : public Pipe<T, T, NearestNeighborInterpolator<T, Rate>>
 {
 public:
     // For every "consumerRate" samples consumed we will produce "producerRate"
@@ -668,7 +668,7 @@ private:
 // A pipe that interpolates using the linear interpolation. TODO: modify this
 // so it downsamples as well.
 template<class T, class Rate = int> class LinearInterpolator
-  : public Pipe<T, T, LinearInterpolator<T, Rate> >
+  : public Pipe<T, T, LinearInterpolator<T, Rate>>
 {
 public:
     // For every "consumerRate" samples consumed we will produce "producerRate"
@@ -720,7 +720,7 @@ private:
 // A pipe that neither pushes or pulls. If you try to push to it without
 // pulling, it continues to accumulate data until it runs out of memory. If
 // you try to pull from it without pushing, it blocks until data is pushed.
-template<class T, class C = Tank<T> > class Tank : public Pipe<T, T, C>
+template<class T, class C = Tank<T>> class Tank : public Pipe<T, T, C>
 {
 public:
     Tank()
@@ -796,7 +796,7 @@ private:
 // Source to push (PushPullPipe will never push or pull itself). "timeConstant"
 // is measured in samples consumed.
 template<class T, class Interpolator> class PushPullPipe
-  : public Tank<T, PushPullPipe<T, Interpolator> >
+  : public Tank<T, PushPullPipe<T, Interpolator>>
 {
 public:
     PushPullPipe(int timeConstant, Interpolator* interpolator)

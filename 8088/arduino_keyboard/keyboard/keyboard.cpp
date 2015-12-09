@@ -1,10 +1,10 @@
 #include "alfe/main.h"
 #include "alfe/file.h"
 
-template<class T> class KeyboardWindowTemplate;
-typedef KeyboardWindowTemplate<void> KeyboardWindow;
+template<class T> class KeyboardWindowT;
+typedef KeyboardWindowT<void> KeyboardWindow;
 
-template<class T> class KeyboardWindowTemplate : public RootWindow
+template<class T> class KeyboardWindowT : public RootWindow
 {
 public:
     void setProgram(Program* program)

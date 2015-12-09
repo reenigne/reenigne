@@ -17,12 +17,12 @@ public:
     virtual Colour toRgb(const Colour& colour) = 0;
 };
 
-template<class T> class ColourSpaceTemplate;
-typedef ColourSpaceTemplate<void> ColourSpace;
+template<class T> class ColourSpaceT;
+typedef ColourSpaceT<void> ColourSpace;
 
 // CIELUV L*u*v* conversions from
 // http://en.wikipedia.org/wiki/CIELUV_color_space
-template<class T> class LUVColourSpaceBodyTemplate : public ColourSpaceBody
+template<class T> class LUVColourSpaceBodyT : public ColourSpaceBody
 {
 public:
     Colour fromSrgb(const Colour& srgb)
@@ -81,14 +81,14 @@ public:
         return ColourSpace::xyz().toRgb(Colour(x, y, z));
     }
 private:
-    LUVColourSpaceBodyTemplate() { }
-    friend class ColourSpaceTemplate<T>;
+    LUVColourSpaceBodyT() { }
+    friend class ColourSpaceT<T>;
 };
 
-typedef LUVColourSpaceBodyTemplate<void>  LUVColourSpaceBody;
+typedef LUVColourSpaceBodyT<void>  LUVColourSpaceBody;
 
 // CIELAB L*a*b* conversions from http://en.wikipedia.org/wiki/Lab_color_space
-template<class T> class LABColourSpaceBodyTemplate : public ColourSpaceBody
+template<class T> class LABColourSpaceBodyT : public ColourSpaceBody
 {
 public:
     Colour fromSrgb(const Colour& srgb)
@@ -128,13 +128,13 @@ private:
         static const double d = 6.0/29.0;
         return t > d*d*d ? pow(t, 1/3.0) : t/(3.0*d*d) + 4.0/29.0;
     }
-    LABColourSpaceBodyTemplate() { }
-    friend class ColourSpaceTemplate<T>;
+    LABColourSpaceBodyT() { }
+    friend class ColourSpaceT<T>;
 };
 
-typedef LABColourSpaceBodyTemplate<void>  LABColourSpaceBody;
+typedef LABColourSpaceBodyT<void>  LABColourSpaceBody;
 
-template<class T> class SRGBColourSpaceBodyTemplate : public ColourSpaceBody
+template<class T> class SRGBColourSpaceBodyT : public ColourSpaceBody
 {
 public:
     Colour fromSrgb(const Colour& srgb) { return srgb; }
@@ -148,11 +148,11 @@ public:
         return ColourSpace::rgb().fromSrgb(srgb);
     }
 private:
-    SRGBColourSpaceBodyTemplate() { }
-    friend class ColourSpaceTemplate<T>;
+    SRGBColourSpaceBodyT() { }
+    friend class ColourSpaceT<T>;
 };
 
-typedef SRGBColourSpaceBodyTemplate<void> SRGBColourSpaceBody;
+typedef SRGBColourSpaceBodyT<void> SRGBColourSpaceBody;
 
 // sRGB conversions from http://en.wikipedia.org/wiki/SRGB
 class RGBColourSpaceBody : public ColourSpaceBody
@@ -203,10 +203,10 @@ private:
     //double _sFromL[583+200];
     //double _lFromS[256+200];
 
-    friend class ColourSpaceTemplate<void>;
+    friend class ColourSpaceT<void>;
 };
 
-template<class T> class XYZColourSpaceBodyTemplate : public ColourSpaceBody
+template<class T> class XYZColourSpaceBodyT : public ColourSpaceBody
 {
 public:
     Colour fromSrgb(const Colour& srgb)
@@ -232,16 +232,16 @@ public:
              0.0556*xyz.x - 0.2040*xyz.y + 1.0570*xyz.z);
     }
 private:
-    XYZColourSpaceBodyTemplate() { }
-    friend class ColourSpaceTemplate<T>;
+    XYZColourSpaceBodyT() { }
+    friend class ColourSpaceT<T>;
 };
 
-typedef XYZColourSpaceBodyTemplate<void>  XYZColourSpaceBody;
+typedef XYZColourSpaceBodyT<void>  XYZColourSpaceBody;
 
-template<class T> class ColourSpaceTemplate : public ConstHandle
+template<class T> class ColourSpaceT : public ConstHandle
 {
 public:
-    ColourSpaceTemplate() { }
+    ColourSpaceT() { }
     static ColourSpace luv() { return ColourSpace(&_luv); }
     static ColourSpace lab() { return ColourSpace(&_lab); }
     static ColourSpace srgb() { return ColourSpace(&_srgb); }
@@ -269,7 +269,7 @@ public:
         return SRGB(byteClamp(c.x), byteClamp(c.y), byteClamp(c.z));
     }
 private:
-    ColourSpaceTemplate(ColourSpaceBody* body) : _body(body) { }
+    ColourSpaceT(ColourSpaceBody* body) : _body(body) { }
     ColourSpaceBody* _body;
     static LUVColourSpaceBody _luv;
     static LABColourSpaceBody _lab;

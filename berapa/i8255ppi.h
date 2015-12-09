@@ -1,10 +1,10 @@
-template<class T> class Intel8255PPITemplate
-  : public ISA8BitComponent<Intel8255PPITemplate<T>>
+template<class T> class Intel8255PPIT
+  : public ISA8BitComponent<Intel8255PPIT<T>>
 {
 public:
     static String typeName() { return "Intel8255PPI"; }
-    Intel8255PPITemplate(Component::Type type)
-      : ISA8BitComponent<Intel8255PPITemplate<T>>(type)
+    Intel8255PPIT(Component::Type type)
+      : ISA8BitComponent<Intel8255PPIT<T>>(type)
     {
         _mode = 0x1b;
         for (int i = 0; i < 3; ++i) {

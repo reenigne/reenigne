@@ -1,10 +1,10 @@
-template<class T> class Intel8253PITTemplate
-  : public ISA8BitComponent<Intel8253PITTemplate<T>>
+template<class T> class Intel8253PITT
+  : public ISA8BitComponent<Intel8253PITT<T>>
 {
 public:
     static String typeName() { return "Intel8253PIT"; }
-    Intel8253PITTemplate(Component::Type type)
-      : ISA8BitComponent<Intel8253PITTemplate<T>>(type),
+    Intel8253PITT(Component::Type type)
+      : ISA8BitComponent<Intel8253PITT<T>>(type),
         _timers{type, type, type}
     {
         this->persist("address", &_address);

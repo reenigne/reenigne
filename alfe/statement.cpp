@@ -1,7 +1,7 @@
-template<class T> class StatementTemplate;
-typedef StatementTemplate<void> Statement;
+template<class T> class StatementT;
+typedef StatementT<void> Statement;
 
-template<class T> class StatementTemplate : public ParseTreeObject
+template<class T> class StatementT : public ParseTreeObject
 {
 public:
     static Statement parse(CharacterSource* source)
@@ -66,9 +66,9 @@ public:
             source->location().throwError("Expected statement");
         return statement;
     }
-    StatementTemplate() { }
+    StatementT() { }
 protected:
-    StatementTemplate(const Body* body) : ParseTreeObject(body) { }
+    StatementT(const Body* body) : ParseTreeObject(body) { }
 
     class Body : public ParseTreeObject::Body
     {
@@ -351,7 +351,7 @@ public:
     }
 private:
     CompoundStatement() { }
-    CompoundStatement(const Body* body) : Statement(body) { } 
+    CompoundStatement(const Body* body) : Statement(body) { }
 
     class Body : public Statement::Body
     {
@@ -674,10 +674,10 @@ private:
     };
 };
 
-template<class T> class BreakOrContinueStatementTemplate;
-typedef BreakOrContinueStatementTemplate<void> BreakOrContinueStatement;
+template<class T> class BreakOrContinueStatementT;
+typedef BreakOrContinueStatementT<void> BreakOrContinueStatement;
 
-template<class T> class BreakOrContinueStatementTemplate : public Statement
+template<class T> class BreakOrContinueStatementT : public Statement
 {
 public:
     static BreakOrContinueStatement parse(CharacterSource* source)
@@ -688,9 +688,8 @@ public:
         return parseContinue(source);
     }
 private:
-    BreakOrContinueStatementTemplate() { }
-    BreakOrContinueStatementTemplate(const Body* body)
-      : Statement(body) { }
+    BreakOrContinueStatementT() { }
+    BreakOrContinueStatementT(const Body* body) : Statement(body) { }
 
     static BreakOrContinueStatement parseBreak(CharacterSource* source)
     {
@@ -704,7 +703,7 @@ private:
             span += statement.span();
         return new BreakBody(statement, span);
     }
-    
+
     static BreakOrContinueStatement parseContinue(CharacterSource* source)
     {
         Span span;

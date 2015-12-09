@@ -15,23 +15,23 @@
 #include "alfe/rational_functions.h"
 #include "alfe/concrete_functions.h"
 
-template<class T> class ConfigFileTemplate;
-typedef ConfigFileTemplate<void> ConfigFile;
+template<class T> class ConfigFileT;
+typedef ConfigFileT<void> ConfigFile;
 
-template<class T, class V> class ConfigOptionTemplate
+template<class T, class V> class ConfigOptionT
 {
 public:
     T get() { return _config->template get<T>(_member); }
 private:
-    ConfigOptionTemplate(ConfigFile* config, String member)
+    ConfigOptionT(ConfigFile* config, String member)
       : _config(config), _member(member) { }
-    ConfigFileTemplate<T>* _config;
+    ConfigFileT<T>* _config;
     String _member;
 
-    friend class ConfigFileTemplate<T>;
+    friend class ConfigFileT<T>;
 };
 
-template<class V> using ConfigOption = ConfigOptionTemplate<void, V>;
+template<class V> using ConfigOption = ConfigOptionT<void, V>;
 
 class DispatchFunction : public Function
 {
@@ -45,10 +45,10 @@ public:
     };
 };
 
-template<class T> class ConfigFileTemplate : public Structure
+template<class T> class ConfigFileT : public Structure
 {
 public:
-    ConfigFileTemplate() : _context(this)
+    ConfigFileT() : _context(this)
     {
         addType(IntegerType());
         addFunco(AddIntegerInteger());
@@ -236,7 +236,7 @@ public:
             else
                 p.set(v.convertTo(type));
         } while (true);
-        for (auto i = begin(); i != end(); ++i) {
+        for (auto i : *this) {
             if (!i.value().valid())
                 throw Exception(file.path() + ": " + i.key().name() +
                     " not defined and no default is available.");

@@ -30,10 +30,10 @@ private:
     HFONT _font;
 };
 
-template<class T> class WindowsTemplate : Uncopyable
+template<class T> class WindowsT : Uncopyable
 {
 public:
-    WindowsTemplate() : _classAtom(0) { }
+    WindowsT() : _classAtom(0) { }
 
     void initialize(HINSTANCE hInst)
     {
@@ -61,7 +61,7 @@ public:
 
     HINSTANCE instance() const { return _hInst; }
 
-    ~WindowsTemplate() { UnregisterClass(className(), _hInst); }
+    ~WindowsT() { UnregisterClass(className(), _hInst); }
 
     static void check()
     {
@@ -192,22 +192,22 @@ private:
     friend class WindowsWindow;
 };
 
-typedef WindowsTemplate<void> Windows;
+typedef WindowsT<void> Windows;
 
 bool Windows::_failed = false;
 Exception Windows::_exception;
 
 class ContainerWindow;
 
-template<class T> class WindowTemplate;
-typedef WindowTemplate<void> Window;
+template<class T> class WindowT;
+typedef WindowT<void> Window;
 
-template<class T> class WindowTemplate
-  : public LinkedListMember<WindowTemplate<T>>
+template<class T> class WindowT
+  : public LinkedListMember<WindowT<T>>
 {
 public:
-    WindowTemplate() : _parent(0), _topLeft(Vector(0, 0)) { }
-    ~WindowTemplate() { remove(); }
+    WindowT() : _parent(0), _topLeft(Vector(0, 0)) { }
+    ~WindowT() { remove(); }
     virtual void create() = 0;
     void setParent(ContainerWindow* window) { _parent = window; }
     ContainerWindow* parent() const { return _parent; }
@@ -411,7 +411,7 @@ protected:
 
 class WindowsWindow : public ContainerWindow
 {
-    friend class WindowsTemplate<void>;
+    friend class WindowsT<void>;
 public:
     WindowsWindow()
       : _hdc(NULL), _hWnd(NULL), _resizing(false), _origWndProc(0)

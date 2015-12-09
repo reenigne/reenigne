@@ -6,7 +6,7 @@
 template<class T1, class T2> class Tuple
 {
 public:
-    Tuple() : _t1(T1()), _t2(T2()) { }
+    Tuple() { }
     Tuple(const T1& t1, const T2& t2) : _t1(t1), _t2(t2) { }
     const T1& first() const { return _t1; }
     const T2& second() const { return _t2; }

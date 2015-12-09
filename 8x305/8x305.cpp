@@ -18,22 +18,22 @@
 //{
 //};
 
-template<class T> class SimulatorTemplate;
-typedef SimulatorTemplate<void> Simulator;
+template<class T> class SimulatorT;
+typedef SimulatorT<void> Simulator;
 
-template<class T> class Signetics8x305Template;
-typedef Signetics8x305Template<void> Signetics8x305;
+template<class T> class Signetics8x305T;
+typedef Signetics8x305T<void> Signetics8x305;
 
-template<class T> class ComponentTemplate;
-typedef ComponentTemplate<void> Component;
+template<class T> class ComponentT;
+typedef ComponentT<void> Component;
 
-template<class T> class RAM32KbTemplate;
-typedef RAM32KBTemplate<void> RAM32KB;
+template<class T> class RAM32KbT;
+typedef RAM32KBT<void> RAM32KB;
 
-template<class T> class ComponentTemplate
+template<class T> class ComponentT
 {
 public:
-    ComponentTemplate() : _simulator(0) { }
+    ComponentT() : _simulator(0) { }
     void setSimulator(Simulator* simulator) { _simulator = simulator; site(); }
     virtual void site() { }
     virtual void simulateCycle() { }
@@ -69,16 +69,16 @@ public:
         }
     }
 protected:
-    SimulatorTemplate<T>* _simulator;
+    SimulatorT<T>* _simulator;
 private:
     int _ticksPerCycle;
     int _tick;
 };
 
-template<class T> class RAM32KBTemplate : public Component
+template<class T> class RAM32KBT : public Component
 {
 public:
-    RAM32KBTemplate() : _data(0x8000)
+    RAM32KBT() : _data(0x8000)
     {
         // _rowBits is 7 for 4116 RAM chips
         //             8 for 4164
@@ -229,7 +229,7 @@ private:
     int _decayTime;
     NMISwitch* _nmiSwitch;
     Intel8255PPI* _ppi;
-    Intel8088Template<T>* _cpu;
+    Intel8088T<T>* _cpu;
 };
 
 class ROM : public Component
@@ -266,14 +266,14 @@ private:
     Array<UInt8> _data;
 };
 
-template<class T> class DisassemblerTemplate
+template<class T> class DisassemblerT
 {
 public:
 };
 
-typedef DisassemblerTemplate<void> Disassembler;
+typedef DisassemblerT<void> Disassembler;
 
-template<class T> class Signetics8x305Template : public ComponentTemplate<T>
+template<class T> class Signetics8x305T : public ComponentT<T>
 {
 public:
     enum IVBank { ivLeft, ivRight };
@@ -487,10 +487,10 @@ private:
 template<> Nullary<Type, ROMDataType> Nullary<Type, ROMDataType>::_instance;
 StructuredType ROMDataType::Body::_structuredType;
 
-template<class T> class SimulatorTemplate : public Component
+template<class T> class SimulatorT : public Component
 {
 protected:
-    SimulatorTemplate(File configFile) : _halted(false)
+    SimulatorT(File configFile) : _halted(false)
     {
         ConfigFile config;
 

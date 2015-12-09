@@ -5,8 +5,8 @@
 
 #include <cstdarg>
 
-template<class T> class ExceptionTemplate;
-typedef ExceptionTemplate<void> Exception;
+template<class T> class ExceptionT;
+typedef ExceptionT<void> Exception;
 
 template<class T> class StringTemplate;
 typedef StringTemplate<Byte> String;
@@ -633,9 +633,9 @@ private:
     // write into it, something we only let our friends do (String is immutable
     // to non-friends).
     friend class ProgramBase;
-    template<class U> friend class FileTemplate;
-    template<class U> friend class StreamTemplate;
-    template<class U> friend class CurrentDirectoryTemplate;
+    template<class U> friend class FileT;
+    template<class U> friend class StreamT;
+    template<class U> friend class CurrentDirectoryT;
     friend String format(const char* format, ...);
 };
 
@@ -678,14 +678,14 @@ String format(const char* format, ...)
     return s.subString(0, s.length() - 1);  // Discard trailing null byte
 }
 
-template<class T> class StreamTemplate;
-typedef StreamTemplate<void> Stream;
+template<class T> class StreamT;
+typedef StreamT<void> Stream;
 
 #ifdef _WIN32
-template<class T> class NullTerminatedWideStringTemplate
+template<class T> class NullTerminatedWideStringT
 {
 public:
-    NullTerminatedWideStringTemplate(String s)
+    NullTerminatedWideStringT(String s)
     {
         CharacterSource start(s);
         CharacterSource cs = start;
@@ -727,7 +727,7 @@ private:
     Array<WCHAR> _buffer;
 };
 
-typedef NullTerminatedWideStringTemplate<void> NullTerminatedWideString;
+typedef NullTerminatedWideStringT<void> NullTerminatedWideString;
 #endif
 
 class NullTerminatedString

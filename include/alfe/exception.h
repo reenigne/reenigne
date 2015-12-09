@@ -40,16 +40,16 @@
     } \
     catch
 
-template<class T> class ExceptionTemplate
+template<class T> class ExceptionT
 {
 public:
 #ifdef _WIN32
-    ExceptionTemplate() : _message(messageFromErrorCode(E_FAIL)) { }
+    ExceptionT() : _message(messageFromErrorCode(E_FAIL)) { }
 #else
-    ExceptionTemplate() : _message("Unspecified error") { }
+    ExceptionT() : _message("Unspecified error") { }
 #endif
-    ExceptionTemplate(const String& message) : _message(message) { }
-    void write(const StreamTemplate<T>& stream) const
+    ExceptionT(const String& message) : _message(message) { }
+    void write(const StreamT<T>& stream) const
     {
         stream.write(_message + codePoint(10));
     }

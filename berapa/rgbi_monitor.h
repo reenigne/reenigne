@@ -1,8 +1,8 @@
-template<class T> class RGBIMonitorTemplate : public Component
+template<class T> class RGBIMonitorT : public Component
 {
 public:
     static String typeName() { return "RGBIMonitor"; }
-    RGBIMonitorTemplate(Component::Type type)
+    RGBIMonitorT(Component::Type type)
       : Component(type), _renderer(&_window), _texture(&_renderer),
         _connector(this)
     {

@@ -55,24 +55,24 @@ int decimalLength(int v)
     return l;
 }
 
-template<class T> class SymbolEntryTemplate;
-typedef SymbolEntryTemplate<void> SymbolEntry;
+template<class T> class SymbolEntryT;
+typedef SymbolEntryT<void> SymbolEntry;
 
-template<class T> class SymbolTemplate;
-typedef SymbolTemplate<void> Symbol;
+template<class T> class SymbolT;
+typedef SymbolT<void> Symbol;
 
-template<class T> class SymbolArrayTemplate;
-typedef SymbolArrayTemplate<void> SymbolArray;
+template<class T> class SymbolArrayT;
+typedef SymbolArrayT<void> SymbolArray;
 
-template<class T> class SymbolLabelTemplate;
-typedef SymbolLabelTemplate<void> SymbolLabel;
+template<class T> class SymbolLabelT;
+typedef SymbolLabelT<void> SymbolLabel;
 
-template<class T> class SymbolEntryTemplate : public Handle
+template<class T> class SymbolEntryT : public Handle
 {
 public:
-    SymbolEntryTemplate() { }
-    SymbolEntryTemplate(int value) : Handle(new IntegerBody(value)) { }
-    SymbolEntryTemplate(String value) : Handle(new StringBody(value)) { }
+    SymbolEntryT() { }
+    SymbolEntryT(int value) : Handle(new IntegerBody(value)) { }
+    SymbolEntryT(String value) : Handle(new StringBody(value)) { }
     int integer() const
     {
         return as<IntegerBody>()->value();
@@ -81,17 +81,17 @@ public:
     {
         return as<StringBody>()->value();
     }
-    SymbolArrayTemplate<T> array()
+    SymbolArrayT<T> array()
     {
-        return SymbolArrayTemplate<T>(body());
+        return SymbolArrayT<T>(body());
     }
-    SymbolTemplate<T> symbol()
+    SymbolT<T> symbol()
     {
-        return SymbolTemplate<T>(dynamic_cast<Symbol::Body*>(body()));
+        return SymbolT<T>(dynamic_cast<Symbol::Body*>(body()));
     }
-    SymbolLabelTemplate<T> label()
+    SymbolLabelT<T> label()
     {
-        return SymbolLabelTemplate<T>(dynamic_cast<Symbol::Body*>(body()));
+        return SymbolLabelT<T>(dynamic_cast<Symbol::Body*>(body()));
     }
     Atom atom() { return symbol().atom(); }
     bool valid() const { return _body.valid(); }
@@ -167,12 +167,12 @@ protected:
     private:
         String _value;
     };
-    SymbolEntryTemplate(Body* body) : Handle(body) { }
+    SymbolEntryT(Body* body) : Handle(body) { }
     const Body* body() const { return Handle::Body<Body>(); }
     Body* body() { return Handle::Body<Body>(); }
 private:
-    template<class T> friend class SymbolTemplate;
-    template<class T> friend class SymbolArrayTemplate;
+    template<class T> friend class SymbolT;
+    template<class T> friend class SymbolArrayT;
 };
 
 class SymbolTail : public Handle::Body
@@ -206,36 +206,36 @@ class SymbolCache : public ReferenceCounted
 {
 };
 
-template<class T> class SymbolTemplate : public SymbolEntryTemplate<T>
+template<class T> class SymbolT : public SymbolEntryT<T>
 {
 public:
-    SymbolTemplate() { }
-    SymbolTemplate(Atom atom, SymbolCache* cache = 0)
+    SymbolT() { }
+    SymbolT(Atom atom, SymbolCache* cache = 0)
       : SymbolEntry(new Body(atom, cache, 0)) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolCache* cache = 0)
+    SymbolT(Atom atom, SymbolEntry symbol1, SymbolCache* cache = 0)
       : SymbolEntry(
         new Body(atom, cache, new SymbolTail(symbol1, 0))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
+    SymbolT(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
         SymbolCache* cache = 0)
       : SymbolEntry(new Body(atom, cache, new SymbolTail(symbol1,
           new SymbolTail(symbol2, 0)))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
+    SymbolT(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
         SymbolEntry symbol3, SymbolCache* cache = 0)
       : SymbolEntry(new Body(atom, cache, new SymbolTail(symbol1,
           new SymbolTail(symbol2, new SymbolTail(symbol3, 0))))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
+    SymbolT(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
         SymbolEntry symbol3, SymbolEntry symbol4, SymbolCache* cache = 0)
       : SymbolEntry(new Body(atom, cache, new SymbolTail(symbol1,
           new SymbolTail(symbol2, new SymbolTail(symbol3,
           new SymbolTail(symbol4, 0)))))) { }
-    SymbolTemplate(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
+    SymbolT(Atom atom, SymbolEntry symbol1, SymbolEntry symbol2,
         SymbolEntry symbol3, SymbolEntry symbol4, SymbolEntry symbol5,
         SymbolCache* cache = 0)
       : SymbolEntry(new Body(atom, cache, new SymbolTail(symbol1,
           new SymbolTail(symbol2, new SymbolTail(symbol3,
           new SymbolTail(symbol4, new SymbolTail(symbol5, 0))))))) { }
 
-    SymbolTemplate(Atom atom, const SymbolTail* tail, SymbolCache* cache)
+    SymbolT(Atom atom, const SymbolTail* tail, SymbolCache* cache)
       : SymbolEntry(new Body(atom, cache, tail)) { }
 
     Atom atom() const { return body()->atom(); }
@@ -271,7 +271,7 @@ public:
         return body()->cache()->cast<U>();
     }
 private:
-    SymbolTemplate(Body* body)
+    SymbolT(Body* body)
       : SymbolEntry(body) { }
 
     class Body : public SymbolEntry::Body
@@ -381,18 +381,18 @@ private:
     const Body* body() const
     {
         return dynamic_cast<const Body*>(
-            SymbolEntryTemplate::body());
+            SymbolEntryT::body());
     }
     Body* body()
     {
         return dynamic_cast<Body*>(
-            SymbolEntryTemplate::body());
+            SymbolEntryT::body());
     }
 
-    template<class T> friend class SymbolEntryTemplate;
-    template<class T> friend class SymbolTemplate;
-    template<class T> friend class SymbolArrayTemplate;
-    template<class T> friend class SymbolLabelTemplate;
+    template<class T> friend class SymbolEntryT;
+    template<class T> friend class SymbolT;
+    template<class T> friend class SymbolArrayT;
+    template<class T> friend class SymbolLabelT;
 };
 
 int Symbol::Body::_labels = 0;
@@ -439,17 +439,17 @@ private:
         }
     }
 
-    template<class T> friend class SymbolArrayTemplate;
+    template<class T> friend class SymbolArrayT;
 };
 
-template<class T> class SymbolArrayTemplate : public SymbolEntry
+template<class T> class SymbolArrayT : public SymbolEntry
 {
 public:
-    SymbolArrayTemplate() : SymbolEntry(_empty) { }
-    SymbolArrayTemplate(Symbol s1) : SymbolEntry(new Body(s1)) { }
-    SymbolArrayTemplate(Symbol s1, Symbol s2)
+    SymbolArrayT() : SymbolEntry(_empty) { }
+    SymbolArrayT(Symbol s1) : SymbolEntry(new Body(s1)) { }
+    SymbolArrayT(Symbol s1, Symbol s2)
       : SymbolEntry(new Body(s1, s2)) { }
-    SymbolArrayTemplate(SymbolList list)
+    SymbolArrayT(SymbolList list)
       : SymbolEntry(new Body(list)) { }
     int count() const
     {
@@ -460,7 +460,7 @@ public:
         return (*dynamic_cast<const Body*>(body()))[i];
     }
 private:
-    SymbolArrayTemplate(Body* body)
+    SymbolArrayT(Body* body)
       : SymbolEntry(body) { }
 
     class Body : public SymbolEntry::Body
@@ -551,18 +551,17 @@ private:
     };
     static Reference<Body> _empty;
 
-    template<class T> friend class SymbolEntryTemplate;
+    template<class T> friend class SymbolEntryT;
 };
 
 Reference<SymbolArray::Body> SymbolArray::_empty =
     new SymbolArray::Body();
 
-template<class T> class SymbolLabelTemplate : public SymbolEntry
+template<class T> class SymbolLabelT : public SymbolEntry
 {
 public:
-    SymbolLabelTemplate() { }
-    SymbolLabelTemplate(Symbol target)
-      : _body(new Body(target._body)) { }
+    SymbolLabelT() { }
+    SymbolLabelT(Symbol target) : _body(new Body(target._body)) { }
     Symbol target() { return Symbol(_body->target()); }
     void setTarget(Symbol target)
     {
