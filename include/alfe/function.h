@@ -16,7 +16,22 @@ protected:
         virtual Value evaluate(List<Value> arguments, Span span) const = 0;
         virtual Identifier identifier() const = 0;
         virtual bool argumentsMatch(List<Type> argumentTypes) const = 0;
-        virtual bool betterThan(Funco other) const { return false; }
+        virtual int compareTo(Funco other) const
+        {
+            FunctionTyco f = tyco();
+            FunctionTyco b = other.tyco();
+            int r = 0;
+            while (!f.isNullary()) {
+                Type fType = f.lastArgumentType();
+                Type bType = b.lastArgumentType();
+                if (!fType.canConvertTo(bType))
+                    r |= 2;
+                if (!bType.canConvertTo(fType))
+                    r |= 1;
+            }
+            assert(b.isNullary());
+            return r;
+        }
         virtual String toString() const { return tyco().toString(); }
     };
     const Body* body() const { return as<Body>(); }
@@ -32,7 +47,7 @@ public:
     {
         return body()->argumentsMatch(argumentTypes);
     }
-    bool betterThan(Funco other) const { return body()->betterThan(other); }
+    int compareTo(Funco other) const { return body()->compareTo(other); }
     String toString() const { return body()->toString(); }
     FunctionTyco tyco() const { return body()->tyco(); }
 };
@@ -64,38 +79,50 @@ template<class T> class OverloadedFunctionSetT : public Handle
             List<::Type> argumentTypes;
             for (auto i : arguments)
                 argumentTypes.add(i.type());
-            Funco bestCandidate;
+            List<Funco> bestCandidates;
             for (auto f : _funcos) {
                 if (!f.argumentsMatch(argumentTypes))
                     continue;
-                if (bestCandidate.valid()) {
-                    if (bestCandidate.betterThan(f))
-                        continue;
-                    if (!f.betterThan(bestCandidate)) {
-                        String s = "Ambiguous function call of " +
+                List<Funco> newBestCandidates;
+                bool newBest = true;
+                for (auto b : bestCandidates) {
+                    int r = f.compareTo(b);
+                    if (r == 2) {
+                        // b better than f
+                        newBest = false;
+                        break;
+                    }
+                    if (r != 1)
+                        newBestCandidates.add(b);
+                }
+                if (newBest) {
+                    bestCandidates = newBestCandidates;
+                    bestCandidates.add(f);
+                }
+            }
+            for (auto f : bestCandidates) {
+                for (auto b : bestCandidates) {
+                    int r = f.compareTo(b);
+                    if (r == 3) {
+                        span.throwError("Ambiguous function call of " +
                             _identifier.name() + " with argument types " +
                             argumentTypesString(argumentTypes) +
-                            ". Could be " + bestCandidate.toString() +
-                            " or " + f.toString() + ".";
-                        span.throwError(s);
+                            ". Could be " + b.toString() + " or " +
+                            f.toString() + ".");
                     }
                 }
-                bestCandidate = f;
             }
-            if (!bestCandidate.valid()) {
-                String s = "No matches for function " +
-                    _identifier.name() + " with argument types ";
-                bool needComma = false;
-                for (auto t : argumentTypes) {
-                    if (needComma)
-                        s += ", ";
-                    needComma = true;
-                    s += t.toString();
-                }
-                s += ".";
-                span.throwError(s);
+            if (bestCandidates.count() == 0) {
+                span.throwError("No matches for function " +
+                    _identifier.name() + " with argument types " +
+                    argumentTypesString(argumentTypes) + ".");
             }
-            return bestCandidate.evaluate(arguments, span);
+            // We have a choice of possible funcos here. Logically they should
+            // be equivalent, but some may be more optimal. For now we'll just
+            // choose the first one, but later we may want to try to figure out
+            // which one is most optimal.
+            auto i = bestCandidates.begin();
+            return i->evaluate(arguments, span);
         }
     private:
         String argumentTypesString(List<::Type> argumentTypes) const

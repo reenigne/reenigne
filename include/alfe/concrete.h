@@ -350,6 +350,7 @@ private:
             *static_cast<Rational*>(p) =
                 (value.value<Concrete>()/_unit).value();
         }
+        Value defaultValue() const { return _unit.type().defaultValue(); }
         String toString() const { return _unit.type().toString(); }
         Concrete _unit;
     };

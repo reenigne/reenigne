@@ -158,35 +158,47 @@ public:
     {
         if (*this == other)
             return true;
-        String r;
-        if (reason == 0)
-            reason = &r;
-        return body()->canConvertFrom(other, reason);
+        if (other == StructuredTypeT<T>::empty().type() &&
+            body()->defaultValue().valid())
+            return true;
+        String reasonFrom;
+        if (body()->canConvertFrom(other, &reasonFrom))
+            return true;
+        String reasonTo;
+        if (other.body()->canConvertTo(*this, &reasonTo))
+            return true;
+        if (reason != 0) {
+            if (reasonFrom != "")
+                *reason = reasonFrom;
+            else
+                *reason = reasonTo;
+        }
+        return false;
     }
     bool canConvertTo(const Type& other, String* reason = 0) const
     {
-        if (*this == other)
-            return true;
-        String r;
-        if (reason == 0)
-            reason = &r;
-        return body()->canConvertTo(other, reason);
+        return other.canConvertFrom(*this, reason);
     }
     ValueT<T> convert(const Value& value) const
     {
         if (*this == value.type())
             return value;
-        if (value == StructuredTypeT<T>::empty())
-            return body()->defaultValue();
-        return body()->convert(value);
+        if (value == StructuredTypeT<T>::empty()) {
+            Value v = body()->defaultValue();
+            if (v.valid())
+                return v;
+        }
+        Value r = body()->convert(value);
+        if (r.valid())
+            return r;
+        return value.type().body()->convertTo(*this, value);
     }
     ValueT<T> convertTo(const Type& to, const Value& value) const
     {
         assert(*this == value.type());
-        if (*this == to)
-            return value;
-        return body()->convertTo(to, value);
+        return to.convert(value);
     }
+    ValueT<T> defaultValue() const { return body()->defaultValue(); }
 protected:
     class Body : public Tyco::Body
     {
@@ -318,16 +330,11 @@ public:
         String reason;
         if (to.canConvertFrom(_type, &reason))
             return to.convert(*this);
-        String reasonTo;
-        if (_type.canConvertTo(to, &reasonTo))
-            return _type.convertTo(to, *this);
         String r = "No conversion";
         String f = _type.toString();
         if (f != "")
             r += " from type " + f;
         r += " to type " + to.toString() + " is available";
-        if (reason.empty())
-            reason = reasonTo;
         if (reason.empty())
             r += ".";
         else
@@ -908,13 +915,12 @@ public:
 template<class T> class TupleTycoT;
 typedef TupleTycoT<void> TupleTyco;
 
-template<class T> class TupleTycoT
-  : public NamedNullary<Tyco, TupleTyco>
+template<class T> class TupleTycoT : public NamedNullary<Tyco, TupleTyco>
 {
 public:
     TupleTycoT() : NamedNullary(instance()) { }
     TupleTycoT(const Tyco& other) : NamedNullary(other) { }
-    bool valid() const { return body() == 0; }
+    bool valid() const { return body() != 0; }
     static String name() { return "Tuple"; }
     bool isUnit() { return *this == TupleTyco(); }
     Tyco instantiate(const Tyco& argument) const
@@ -1124,6 +1130,9 @@ public:
     {
         return body()->instantiate(argument);
     }
+    bool isNullary() const { return body()->isNullary(); }
+    Type lastArgumentType() const { return body()->lastArgumentType(); }
+    FunctionTyco parent() const { return body()->parent(); }
 private:
     class Body : public Tyco::Body
     {
@@ -1142,7 +1151,7 @@ private:
                 return _instantiations[argument];
 
             if (argument.kind() != TypeKind()) {
-                throw Exception(String("Cannot use ") + argument.toString() +
+                throw Exception("Cannot use " + argument.toString() +
                     " (kind " + argument.kind().toString() +
                     ") to instantiate Function because it requires a type");
             }
@@ -1152,6 +1161,9 @@ private:
             return t;
         }
         virtual bool argumentsMatch(List<Type>::Iterator i) const = 0;
+        virtual bool isNullary() const = 0;
+        virtual Type lastArgumentType() const = 0;
+        virtual FunctionTyco parent() const = 0;
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -1170,6 +1182,9 @@ private:
         }
         Hash hash() const { return Body::hash().mixin(_returnType.hash()); }
         bool argumentsMatch(List<Type>::Iterator i) const { return i.end(); }
+        bool isNullary() const { return true; }
+        Type lastArgumentType() const { return Type(); }
+        FunctionTyco parent() const { return FunctionTyco(Tyco()); }
     private:
         Type _returnType;
     };
@@ -1204,6 +1219,9 @@ private:
             ++i;
             return _parent.argumentsMatch(i);
         }
+        bool isNullary() const { return false; }
+        Type lastArgumentType() const { return _argumentType; }
+        FunctionTyco parent() const { return _parent; }
     private:
         FunctionTycoT<T> _parent;
         Type _argumentType;

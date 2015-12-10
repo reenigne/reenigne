@@ -290,6 +290,7 @@ public:
                 C component(type());
                 for (auto i : component._config)
                     _members[i.key()] = i.value().type();
+                _default = component.persistenceType();
                 if (component._defaultConnector != 0) {
                     _defaultConnectorType =
                         component._defaultConnector->type();
@@ -315,9 +316,11 @@ public:
                 static_cast<C*>(p)->load(value);
             }
             int size() const { return sizeof(C); }
+//            Value defaultValue() const { return _default; }
             Value value(void* p) const { return static_cast<C*>(p)->value(); }
         private:
             HashTable<Identifier, ::Type> _members;
+            Value _default;
         };
     };
     virtual String save(int width, int used, int indent, int delta) const
