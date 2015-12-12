@@ -21,10 +21,10 @@ public:
             return Value(l + i->value<Rational>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
             return
-                FunctionTyco(RationalType(), RationalType(), RationalType());
+                FunctionType(RationalType(), RationalType(), RationalType());
         }
     };
 };
@@ -43,9 +43,9 @@ public:
             return Value(l + i->value<int>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), RationalType(), IntegerType());
+            return FunctionType(RationalType(), RationalType(), IntegerType());
         }
     };
 };
@@ -64,9 +64,9 @@ public:
             return Value(l + i->value<Rational>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), IntegerType(), RationalType());
+            return FunctionType(RationalType(), IntegerType(), RationalType());
         }
     };
 };
@@ -86,10 +86,10 @@ public:
             return Value(l - i->value<Rational>());
         }
         Identifier identifier() const { return OperatorMinus(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
             return
-                FunctionTyco(RationalType(), RationalType(), RationalType());
+                FunctionType(RationalType(), RationalType(), RationalType());
         }
     };
 };
@@ -109,9 +109,9 @@ public:
             return Value(l - i->value<int>());
         }
         Identifier identifier() const { return OperatorMinus(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), RationalType(), IntegerType());
+            return FunctionType(RationalType(), RationalType(), IntegerType());
         }
     };
 };
@@ -131,9 +131,9 @@ public:
             return Value(l - i->value<Rational>());
         }
         Identifier identifier() const { return OperatorMinus(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), IntegerType(), RationalType());
+            return FunctionType(RationalType(), IntegerType(), RationalType());
         }
     };
 };
@@ -153,10 +153,10 @@ public:
             return Value(l * i->value<Rational>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
             return
-                FunctionTyco(RationalType(), RationalType(), RationalType());
+                FunctionType(RationalType(), RationalType(), RationalType());
         }
     };
 };
@@ -176,9 +176,9 @@ public:
             return Value(l * i->value<int>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), RationalType(), IntegerType());
+            return FunctionType(RationalType(), RationalType(), IntegerType());
         }
     };
 };
@@ -198,9 +198,9 @@ public:
             return Value(l * i->value<Rational>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), IntegerType(), RationalType());
+            return FunctionType(RationalType(), IntegerType(), RationalType());
         }
     };
 };
@@ -219,10 +219,10 @@ public:
             return Value(l / i->value<Rational>());
         }
         Identifier identifier() const { return OperatorDivide(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
             return
-                FunctionTyco(RationalType(), RationalType(), RationalType());
+                FunctionType(RationalType(), RationalType(), RationalType());
         }
     };
 };
@@ -241,9 +241,9 @@ public:
             return Value(l / i->value<int>());
         }
         Identifier identifier() const { return OperatorDivide(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), RationalType(), IntegerType());
+            return FunctionType(RationalType(), RationalType(), IntegerType());
         }
     };
 };
@@ -262,9 +262,9 @@ public:
             return Value(l / i->value<Rational>());
         }
         Identifier identifier() const { return OperatorDivide(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), IntegerType(), RationalType());
+            return FunctionType(RationalType(), IntegerType(), RationalType());
         }
     };
 };
@@ -283,9 +283,9 @@ public:
             return Value(Rational(l, i->value<int>()));
         }
         Identifier identifier() const { return OperatorDivide(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), IntegerType(), IntegerType());
+            return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
     };
 };
@@ -308,9 +308,9 @@ public:
             return Rational(l.numerator << r, l.denominator);
         }
         Identifier identifier() const { return OperatorShiftLeft(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), RationalType(), IntegerType());
+            return FunctionType(RationalType(), RationalType(), IntegerType());
         }
     };
 };
@@ -333,9 +333,9 @@ public:
             return Rational(l.numerator, l.denominator << r);
         }
         Identifier identifier() const { return OperatorShiftRight(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), RationalType(), IntegerType());
+            return FunctionType(RationalType(), RationalType(), IntegerType());
         }
     };
 };
@@ -355,9 +355,9 @@ public:
             return power(Rational(l), r);
         }
         Identifier identifier() const { return OperatorPower(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), IntegerType(), IntegerType());
+            return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
     };
 };
@@ -377,9 +377,9 @@ public:
             return power(l, r);
         }
         Identifier identifier() const { return OperatorPower(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), RationalType(), IntegerType());
+            return FunctionType(RationalType(), RationalType(), IntegerType());
         }
     };
 };

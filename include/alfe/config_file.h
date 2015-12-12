@@ -218,7 +218,7 @@ public:
                 span = left.span() + v.span();
                 auto s = p.rValue().value<Structure*>();
                 Value f = s->getValue(i);
-                if (f.type() == OverloadedFunctionSet::Type())
+                if (f.type() == FuncoType())
                     f.value<OverloadedFunctionSet>().evaluate(arguments, span);
                 else {
                     List<Type> argumentTypes;

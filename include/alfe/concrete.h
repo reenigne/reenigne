@@ -160,18 +160,6 @@ template<class T, class U> ConcreteTemplate<U> operator/(const T& x,
 
 typedef ConcreteTemplate<Rational> Concrete;
 
-class ConcreteKind : public NamedNullary<Kind, ConcreteKind>
-{
-public:
-    static String name() { return "Concrete"; }
-
-    class Body : public NamedNullary::Body
-    {
-    public:
-        Kind instantiate(Kind argument) const { assert(false); return Kind(); }
-    };
-};
-
 class ConcreteTyco : public NamedNullary<Tyco, ConcreteTyco>
 {
 public:
@@ -181,7 +169,7 @@ protected:
     class Body : public NamedNullary<Tyco, ConcreteTyco>::Body
     {
     public:
-        Kind kind() const { return ConcreteKind(); }
+        Kind kind() const { assert(false); return Kind(); }
     };
     friend class Nullary<Tyco, ConcreteTyco>;
 };

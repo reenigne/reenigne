@@ -467,7 +467,7 @@ private:
     public:
         AssignmentFunco(Component* component)
           : Funco(create<Body>(component)) { }
-        ::Type type() const { return tyco(); }
+        ::Type type() const { return Funco::type(); }
         class Body : public Funco::Body
         {
         public:
@@ -507,11 +507,15 @@ private:
                     return true;
                 return Connector::Type(*i).valid();
             }
-            FunctionTyco tyco() const
+            // Won't actually be used (since there's only one function matching
+            // the argument types) but necessary to avoid AssignmentFunco being
+            // an abstract class.
+            List<Tyco> parameterTycos() const
             {
-                return FunctionTyco(VoidType(),
-                    PointerType(_component->type()),
-                    PointerType(Connector::Type()));
+                List<Tyco> r;
+                r.add(Connector::Type());
+                r.add(_component->type());
+                return r;
             }
         private:
             Component* _component;
@@ -907,12 +911,12 @@ public:
             if (t == ByteType()) {
                 c = typename Component<Byte>::Type(_simulator).
                     createComponent();
-        }
+            }
             else
                 if (t == BooleanType()) {
                     c = typename Component<bool>::Type(_simulator).
                         createComponent();
-        }
+                }
             c->set("input1", l);
             c->set("input2", r);
             return c->getValue("output");
@@ -932,10 +936,15 @@ public:
                 return false;
             return lTransport == r.transportType();
         }
-        FunctionTyco tyco() const
+        // Won't actually be used (since there's only one function matching the
+        // argument types) but necessary to avoid ComponentFunco being
+        // an abstract class.
+        List<Tyco> parameterTycos() const
         {
-            return FunctionTyco(Connector::Type(), Connector::Type(),
-                Connector::Type());
+            List<Tyco> r;
+            r.add(Connector::Type());
+            r.add(Connector::Type());
+            return r;
         }
     private:
         Simulator* _simulator;

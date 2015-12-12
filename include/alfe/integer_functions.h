@@ -19,9 +19,9 @@ public:
             return Value(l + i->value<int>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(IntegerType(), IntegerType(), IntegerType());
+            return FunctionType(IntegerType(), IntegerType(), IntegerType());
         }
     };
 };
@@ -40,9 +40,9 @@ public:
             return Value(l - i->value<int>());
         }
         Identifier identifier() const { return OperatorMinus(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(IntegerType(), IntegerType(), IntegerType());
+            return FunctionType(IntegerType(), IntegerType(), IntegerType());
         }
     };
 };
@@ -61,9 +61,9 @@ public:
             return Value(l * i->value<int>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(IntegerType(), IntegerType(), IntegerType());
+            return FunctionType(IntegerType(), IntegerType(), IntegerType());
         }
     };
 };
@@ -86,9 +86,9 @@ public:
             return l << r;
         }
         Identifier identifier() const { return OperatorShiftLeft(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), IntegerType(), IntegerType());
+            return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
     };
 };
@@ -111,9 +111,9 @@ public:
             return Rational(l, 1 << r);
         }
         Identifier identifier() const { return OperatorShiftRight(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(RationalType(), IntegerType(), IntegerType());
+            return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
     };
 };

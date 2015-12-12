@@ -31,10 +31,12 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        FunctionTyco tyco() const
+        List<Tyco> parameterTycos() const
         {
-            return
-                FunctionTyco(ConcreteTyco(), ConcreteTyco(), ConcreteTyco());
+            List<Tyco> r;
+            r.add(ConcreteTyco());
+            r.add(ConcreteTyco());
+            return r;
         }
     };
 };
@@ -65,10 +67,12 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        FunctionTyco tyco() const
+        List<Tyco> parameterTycos() const
         {
-            return
-                FunctionTyco(ConcreteTyco(), ConcreteTyco(), ConcreteTyco());
+            List<Tyco> r;
+            r.add(ConcreteTyco());
+            r.add(ConcreteTyco());
+            return r;
         }
     };
 };
@@ -99,10 +103,12 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        FunctionTyco tyco() const
+        List<Tyco> parameterTycos() const
         {
-            return
-                FunctionTyco(ConcreteTyco(), ConcreteTyco(), ConcreteTyco());
+            List<Tyco> r;
+            r.add(ConcreteTyco());
+            r.add(ConcreteTyco());
+            return r;
         }
     };
 };
@@ -133,10 +139,12 @@ public:
             ++i;
             return i->canConvertTo(RationalType());
         }
-        FunctionTyco tyco() const
+        List<Tyco> parameterTycos() const
         {
-            return
-                FunctionTyco(ConcreteTyco(), ConcreteTyco(), RationalType());
+            List<Tyco> r;
+            r.add(RationalType());
+            r.add(ConcreteTyco());
+            return r;
         }
     };
 };
@@ -166,10 +174,12 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        FunctionTyco tyco() const
+        List<Tyco> parameterTycos() const
         {
-            return
-                FunctionTyco(ConcreteTyco(), RationalType(), ConcreteTyco());
+            List<Tyco> r;
+            r.add(ConcreteTyco());
+            r.add(RationalType());
+            return r;
         }
     };
 };
@@ -199,10 +209,12 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        FunctionTyco tyco() const
+        List<Tyco> parameterTycos() const
         {
-            return
-                FunctionTyco(ConcreteTyco(), ConcreteTyco(), ConcreteTyco());
+            List<Tyco> r;
+            r.add(ConcreteTyco());
+            r.add(ConcreteTyco());
+            return r;
         }
     };
 };
@@ -232,10 +244,12 @@ public:
             ++i;
             return i->canConvertTo(RationalType());
         }
-        FunctionTyco tyco() const
+        List<Tyco> parameterTycos() const
         {
-            return
-                FunctionTyco(ConcreteTyco(), ConcreteTyco(), RationalType());
+            List<Tyco> r;
+            r.add(RationalType());
+            r.add(ConcreteTyco());
+            return r;
         }
     };
 };
@@ -264,10 +278,12 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        FunctionTyco tyco() const
+        List<Tyco> parameterTycos() const
         {
-            return
-                FunctionTyco(ConcreteTyco(), RationalType(), ConcreteTyco());
+            List<Tyco> r;
+            r.add(ConcreteTyco());
+            r.add(RationalType());
+            return r;
         }
     };
 };
@@ -300,9 +316,12 @@ public:
             ++i;
             return *i == IntegerType();
         }
-        FunctionTyco tyco() const
+        List<Tyco> parameterTycos() const
         {
-            return FunctionTyco(ConcreteType(), ConcreteType(), IntegerType());
+            List<Tyco> r;
+            r.add(IntegerType());
+            r.add(ConcreteTyco());
+            return r;
         }
     };
 };
@@ -335,9 +354,12 @@ public:
             ++i;
             return *i == IntegerType();
         }
-        FunctionTyco tyco() const
+        List<Tyco> parameterTycos() const
         {
-            return FunctionTyco(ConcreteType(), ConcreteType(), IntegerType());
+            List<Tyco> r;
+            r.add(IntegerType());
+            r.add(ConcreteTyco());
+            return r;
         }
     };
 };

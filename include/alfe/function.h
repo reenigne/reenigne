@@ -5,6 +5,17 @@
 
 #include "alfe/type.h"
 #include "alfe/identifier.h"
+#include "alfe/concrete.h"
+
+// This is not a real type - we can't do anything with it. A funco does not
+// in general have a type (or even a tyco, because we can't do kind checking).
+// However, OverloadedFunctionSet needs to be wrapped in a Value and placed in
+// a symbol table (e.g. in ConfigFile), so this is the stub type for that.
+class FuncoType : public NamedNullary<Type, FuncoType>
+{
+public:
+    static String name() { return "@FunctionConstructor"; }
+};
 
 class Funco : public Handle
 {
@@ -12,27 +23,45 @@ protected:
     class Body : public Handle::Body
     {
     public:
-        virtual FunctionTyco tyco() const = 0;
+        virtual FunctionType type() const { return FuncoType(); };
         virtual Value evaluate(List<Value> arguments, Span span) const = 0;
         virtual Identifier identifier() const = 0;
         virtual bool argumentsMatch(List<Type> argumentTypes) const = 0;
         virtual int compareTo(Funco other) const
         {
-            FunctionTyco f = tyco();
-            FunctionTyco b = other.tyco();
+            List<Tyco> fTycos = parameterTycos();
+            List<Tyco> bTycos = other.parameterTycos();
+            assert(fTycos.count() == bTycos.count());
+            auto bIterator = bTycos.begin();
             int r = 0;
-            while (!f.isNullary()) {
-                Type fType = f.lastArgumentType();
-                Type bType = b.lastArgumentType();
-                if (!fType.canConvertTo(bType))
-                    r |= 2;
-                if (!bType.canConvertTo(fType))
-                    r |= 1;
+            for (auto fTyco : fTycos) {
+                Tyco bTyco = *bIterator;
+                Type fType = fTyco;
+                Type bType = bTyco;
+                if (fType.valid() && bType.valid()) {
+                    if (!fType.canConvertTo(bType))
+                        r |= 2;
+                    if (!bType.canConvertTo(fType))
+                        r |= 1;
+                }
+                else {
+                    // This is enough for Berapa's built-in concrete functions,
+                    // but eventually we'll want to generalize this.
+                    if (bTyco == ConcreteTyco() &&
+                        (fTyco == IntegerType() || fTyco == RationalType()))
+                        r |= 1;
+                    if (fTyco == ConcreteTyco() &&
+                        (bTyco == IntegerType() || bTyco == RationalType()))
+                        r |= 2;
+                }
+                ++bIterator;
             }
-            assert(b.isNullary());
             return r;
         }
-        virtual String toString() const { return tyco().toString(); }
+        // For the convenience of FunctionType, parameterTycos() returns a list
+        // of tycos in right-to-left order.
+        virtual List<Tyco> parameterTycos() const = 0;
+        virtual String toString() const { return type().toString(); }
     };
     const Body* body() const { return as<Body>(); }
 public:
@@ -49,7 +78,8 @@ public:
     }
     int compareTo(Funco other) const { return body()->compareTo(other); }
     String toString() const { return body()->toString(); }
-    FunctionTyco tyco() const { return body()->tyco(); }
+    FunctionType type() const { return body()->type(); }
+    List<Tyco> parameterTycos() const { return body()->parameterTycos(); }
 };
 
 class Function : public Funco
@@ -62,7 +92,17 @@ protected:
     public:
         bool argumentsMatch(List<Type> argumentTypes) const
         {
-            return tyco().argumentsMatch(argumentTypes.begin());
+            return type().argumentsMatch(argumentTypes.begin());
+        }
+        List<Tyco> parameterTycos() const
+        {
+            List<Tyco> tycos;
+            FunctionType t = type();
+            while (!t.isNullary()) {
+                tycos.add(t.lastArgumentType());
+                t = t.parent();
+            }
+            return tycos;
         }
     };
 };
@@ -144,12 +184,6 @@ template<class T> class OverloadedFunctionSetT : public Handle
     Body* body() { return as<Body>(); }
     const Body* body() const { return as<Body>(); }
 public:
-    class Type : public NamedNullary<::Type, Type>
-    {
-    public:
-        static String name() { return "OverloadedFunctionSet::Type"; }
-    };
-
     OverloadedFunctionSetT(Identifier identifier)
       : Handle(create<Body>(identifier)) { }
     void add(Funco funco) { body()->add(funco); }

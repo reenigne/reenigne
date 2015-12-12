@@ -50,9 +50,6 @@ typedef LValueT<void> LValue;
 template<class T> class StructureT;
 typedef StructureT<void> Structure;
 
-template<class T> class FunctionTycoT;
-typedef FunctionTycoT<void> FunctionTyco;
-
 template<class T> class OverloadedFunctionSetT;
 typedef OverloadedFunctionSetT<void> OverloadedFunctionSet;
 
@@ -709,10 +706,10 @@ public:
             for (auto p : this->_arguments)
                 arguments.add(p.evaluate(context).rValue());
             TypeT<T> lType = l.type();
-            if (lType == typename OverloadedFunctionSetT<T>::Type()) {
+            if (lType == FuncoType()) {
                 return l.template value<OverloadedFunctionSet>().evaluate(
-            arguments, this->span());
-        }
+                    arguments, this->span());
+            }
             // What we have on the left isn't a function, try to call its
             // operator() method instead.
             IdentifierT<T> i = Identifier(OperatorFunctionCall());

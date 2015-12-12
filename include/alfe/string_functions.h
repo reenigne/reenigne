@@ -19,9 +19,9 @@ public:
             return Value(l + i->value<String>());
         }
         Identifier identifier() const { return OperatorPlus(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(StringType(), StringType(), StringType());
+            return FunctionType(StringType(), StringType(), StringType());
         }
     };
 };
@@ -40,9 +40,9 @@ public:
             return Value(l*i->value<String>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(StringType(), IntegerType(), StringType());
+            return FunctionType(StringType(), IntegerType(), StringType());
         }
     };
 };
@@ -61,9 +61,9 @@ public:
             return Value(l*i->value<int>());
         }
         Identifier identifier() const { return OperatorStar(); }
-        FunctionTyco tyco() const
+        FunctionType type() const
         {
-            return FunctionTyco(StringType(), StringType(), IntegerType());
+            return FunctionType(StringType(), StringType(), IntegerType());
         }
     };
 };

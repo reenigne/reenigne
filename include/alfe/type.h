@@ -1098,28 +1098,28 @@ public:
     };
 };
 
-template<class T> class FunctionTycoT;
-typedef FunctionTycoT<void> FunctionTyco;
+template<class T> class FunctionTypeT;
+typedef FunctionTypeT<void> FunctionType;
 
 template<class T> class FunctionTemplateT;
 typedef FunctionTemplateT<void> FunctionTemplate;
 
-template<class T> class FunctionTycoT : public Tyco
+template<class T> class FunctionTypeT : public Tyco
 {
 public:
-    FunctionTycoT(const Tyco& t) : Tyco(t) { }
+    FunctionTypeT(const Tyco& t) : Tyco(t) { }
 
-    static FunctionTyco nullary(const Type& returnType)
+    static FunctionType nullary(const Type& returnType)
     {
-        return FunctionTyco(create<NullaryBody>(returnType));
+        return FunctionType(create<NullaryBody>(returnType));
     }
-    FunctionTycoT(Type returnType, Type argumentType)
-      : Tyco(FunctionTyco(
+    FunctionTypeT(Type returnType, Type argumentType)
+      : Tyco(FunctionType(
             FunctionTemplateT<T>().instantiate(returnType)).
             instantiate(argumentType)) { }
-    FunctionTycoT(Type returnType, Type argumentType1,
+    FunctionTypeT(Type returnType, Type argumentType1,
         Type argumentType2)
-      : Tyco(FunctionTyco(FunctionTyco(FunctionTemplateT<T>().
+      : Tyco(FunctionType(FunctionType(FunctionTemplateT<T>().
             instantiate(returnType)).instantiate(argumentType1)).
             instantiate(argumentType2)) { }
     bool argumentsMatch(List<Type>::Iterator argumentTypes) const
@@ -1132,7 +1132,7 @@ public:
     }
     bool isNullary() const { return body()->isNullary(); }
     Type lastArgumentType() const { return body()->lastArgumentType(); }
-    FunctionTyco parent() const { return body()->parent(); }
+    FunctionType parent() const { return body()->parent(); }
 private:
     class Body : public Tyco::Body
     {
@@ -1156,14 +1156,14 @@ private:
                     ") to instantiate Function because it requires a type");
             }
 
-            FunctionTyco t(create<ArgumentBody>(tyco(), argument));
+            FunctionType t(create<ArgumentBody>(tyco(), argument));
             _instantiations.add(argument, t);
             return t;
         }
         virtual bool argumentsMatch(List<Type>::Iterator i) const = 0;
         virtual bool isNullary() const = 0;
         virtual Type lastArgumentType() const = 0;
-        virtual FunctionTyco parent() const = 0;
+        virtual FunctionType parent() const = 0;
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -1184,14 +1184,14 @@ private:
         bool argumentsMatch(List<Type>::Iterator i) const { return i.end(); }
         bool isNullary() const { return true; }
         Type lastArgumentType() const { return Type(); }
-        FunctionTyco parent() const { return FunctionTyco(Tyco()); }
+        FunctionType parent() const { return FunctionType(Tyco()); }
     private:
         Type _returnType;
     };
     class ArgumentBody : public Body
     {
     public:
-        ArgumentBody(FunctionTyco parent, const Type& argumentType)
+        ArgumentBody(FunctionType parent, const Type& argumentType)
           : _parent(parent), _argumentType(argumentType) { }
         String toString2(bool* needComma) const
         {
@@ -1221,9 +1221,9 @@ private:
         }
         bool isNullary() const { return false; }
         Type lastArgumentType() const { return _argumentType; }
-        FunctionTyco parent() const { return _parent; }
+        FunctionType parent() const { return _parent; }
     private:
-        FunctionTycoT<T> _parent;
+        FunctionTypeT<T> _parent;
         Type _argumentType;
     };
     const Body* body() const { return as<Body>(); }
@@ -1244,7 +1244,7 @@ public:
     public:
         virtual Tyco partialInstantiate(bool final, Tyco argument) const
         {
-            return FunctionTyco::nullary(argument);
+            return FunctionType::nullary(argument);
         }
         Kind kind() const
         {

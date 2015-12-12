@@ -216,3 +216,80 @@ How do we implement betterThan()?
       ConcreteTyco doesn't ever need to be instantiated. It's just needed so that there's a tyco for concrete funcos to be
         ConcreteTyco doesn't show up in symbol tables (unless we move to Concrete<Class { }> syntax).
       AbstractTyco is just Integer | Rational - it's a type
+
+
+
+
+
+
+Algorithm for choosing the best overload:
+  Go through each
+
+Throw out any funcos which don't match
+
+Type A is a subtype of B if you can use an A anywhere that you can use a B
+  If there is a conversion from A to B then A is a subtype of B
+Two types A and B are equivalent if A is a subtype of B and B is a subtype of A
+
+When comparing two matching funcos X and Y, they might be:
+  0) Equivalent (arguments of corresponding parameters have equivalent types)
+  1) X might be better (each argument of X is a subtype or equivalent of the corresponding argument of Y, and at least one is not equivalent)
+  2) Y might be better (each argument of Y is a subtype or equivalent of the corresponding argument of X, and at least one is not equivalent)
+  3) Neither is better (at least one argument of X is a subtype or the corresponding argument of Y and at least one argument of Y is a subtype of the corresponding argument of X)
+
+f.compareTo(b) returns
+  0 if they are equivalent  (f.canConvertTo(b) && b.canConvertTo(f))
+  1 if f is better than b   (f.canConvertTo(b) && !b.canConvertTo(f))     b == ConcreteTyco() && (f == IntegerType() || f == RationalType())
+  2 if b is better than f   (!f.canConvertTo(b) && b.canConvertTo(f))     f == ConcreteTyco() && (b == IntegerType() || b == RationalType())
+  3 if neither is better    (!f.canConvertTo(b) && !b.canConvertTo(f))
+
+
+
+
+
+Can we use a tyco anywhere that we can use a type? Suppose B is a template of kind <>. Then:
+
+"void foo(B b) { ... }" is shorthand for "void foo<@T>(B<T> b) { ... }"
+"B b;" is shorthand for "B<T> b<@T>;"
+  This is new - a mapping from a type T to a value of type B<T>
+    This may cause more than one object to be instantiated
+      e.g. if "b<Int>" and "b<String>" are both mentioned later in the code, values of types B<Int> and B<String> will be created here.
+  No equivalent of this in C++.
+  Not terribly useful since there's no complexity associated with instantiating an object - easy to just do "B<Int> bInt; B<String> bString;"
+    Unless there is non-trivial initialization of the objects.
+      But that could be moved to a template function.
+  Should probably not add this syntax unless we find an actual use for it.
+  Similarly for member variables
+Suppose A is a template of kind <>. Then "C = A<B>;" is shorthand for "C<@T> = A<B<T>>;" (point-free style for template functions)
+  This would break kind checking
+
+Let's not do any of these things (because of kind checking).
+
+
+
+What does instantiation actually mean?
+  With tycos, instantiation is straightforward - we have a tyco X, we instantiate it with tyco Y and we get tyco X<Y>.
+    Note that Y is not necessarily the placeholder type: Given "X<Y<@Z>> = ...;" then in the instantiation X<A>, A is the instantantiatio n operand, which must be of the form Y<B>, B being the value of the placeholder.
+  With a funco, we don't necessarily instantiate by supplying tyco arguments - we can also supply valco arguments and have the tyco arguments deduced
+    Though we can still instantiate with a tyco (e.g. for supplying a desired return value).
+
+Funco is not a template since we don't do any kind checking
+  Though we can still get a function (although not a general funco) by instantiating the Function template (which does do some kind checking - it's variadic but only accepts types)
+
+A general funco does not have a tyco (since there's no kind checking)
+  So there is no need for "FunctionTyco tyco() const { return FunctionTyco(ConcreteTyco(), ConcreteTyco(), RationalType()); }"
+  But we still need some way to specify the data for overload resolution
+  We also still need a placeholder tyco so that we can wrap an OverloadedFunctionSet in a Value and store it in a symbol table (e.g. in ConfigFile)
+    This is what FuncoType is for
+
+What does a funco have instead of a tycos?
+  A set of placeholder tycos
+  For each tyco argument, a tyco function from the placeholder tycos to the tyco argument
+  For each value argument, a tyco function from the placeholder tycos to the types of the value argument
+    Both of these tyco functions can be expressed as tycos with arity the same as the number of placeholders
+      For concrete, there are no placeholder tycos but instead an infinite sequence of placeholder integers
+        Let's leave ConcreteTyco as a stub
+
+Given a template funco foo, what does TypeOf(foo) return?
+  This should probably be an error, since it's called TypeOf, not TycoOf
+
