@@ -61,6 +61,8 @@ public:
                 }
             };
             static String name() { return "RGBIMonitor.Connector"; }
+            bool valid() const { return body() != 0; }
+            const Body* body() const { return as<Body>(); }
         };
     private:
         RGBIMonitor* _monitor;

@@ -532,10 +532,6 @@ private:
 
     const T* bufferStart() const { return &_array[0]; }
     int bufferCount() const { return _array.count(); }
-    // int bufferAllocated() const  // For debugger visualizer
-    // {
-    //     return
-    // }
     T* data()
     {
         return small() ? reinterpret_cast<T*>(this) : const_cast<T*>(_start);

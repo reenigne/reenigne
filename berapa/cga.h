@@ -5,7 +5,7 @@ public:
     IBMCGAT(Component::Type type)
       : ISA8BitComponent<IBMCGAT<T>>(type), _attr(0), _chrdata(0), _wait(0),
         _cycle(0), _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true),
-        _bgriSource(this)
+        _bgriSource(this), _ram(RAM::Type(_simulator)), _rgbiConnector(this)
     {
         _data.allocate(0x4000);
         this->config("rom", &_rom);
@@ -15,6 +15,8 @@ public:
         this->persist("portAddress", &_portAddress, HexPersistenceType(4));
         this->persist("mode", &_mode);
         this->persist("palette", &_palette);
+        config("ram", &_ram, RAM::Type(_simulator));
+        connector("rgbiOutput", &_rgbiConnector);
     }
     void load(Value v)
     {
@@ -171,6 +173,8 @@ public:
                 }
             };
             static String name() { return "IBMCGA.RGBIConnector"; }
+            bool valid() const { return body() != 0; }
+            const Body* body() const { return as<Body>(); }
         };
     private:
         IBMCGA* _cga;
@@ -184,6 +188,7 @@ private:
         _lightPenStrobe = true;
     }
 
+    RGBIConnector _rgbiConnector;
     String _rom;
     Array<UInt8> _romdata;
     UInt8 _attr;
@@ -203,4 +208,5 @@ private:
     bool _lightPenSwitch;
     BGRISource _bgriSource;
     CompositeSource _compositeSource;
+    RAM _ram;
 };

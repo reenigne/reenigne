@@ -141,6 +141,7 @@ private:
         if (!commensurable(other))
             throw UnitMismatchException();
     }
+    friend class ConcreteTypeTemplate<T>;
 
     ConcreteTypeTemplate<T> _type;
     T _value;
@@ -241,6 +242,10 @@ template<class T> class ConcreteTypeTemplate : public Type
                 return Value(RationalType(), v.value(), value.span());
             return value;
         }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<Rational*>(p) = value.value<Concrete>()._value;
+        }
     private:
         Body* body() { return as<Body>(); }
         const Body* body() const { return as<Body>(); }
@@ -308,52 +313,5 @@ private:
 template<> int ConcreteTypeTemplate<Rational>::_bases = 0;
 
 template<> Type typeFromValue<Concrete>(const Concrete& c) { return c.type(); }
-
-// We would like to deserialize a concrete value into a Rational so that the
-// calling code can handle it directly without units causing any run-time
-// overhead. However, we cannot directly extract the rational from a concrete,
-// we have to divide by another concrete (the unit) to get an abstract.
-// ConcretePersistenceType exists to hold this unit concrete.
-class ConcretePersistenceType : public Type
-{
-public:
-    ConcretePersistenceType(Concrete unit) : Type(create<Body>(unit)) { }
-private:
-    class Body : public Type::Body
-    {
-    public:
-        Body(Concrete unit) : _unit(unit) { }
-        virtual bool canConvertFrom(const Type& other, String* reason) const
-        {
-            return other.canConvertTo(_unit.type(), reason);
-        }
-        virtual bool canConvertTo(const Type& other, String* reason) const
-        {
-            return _unit.type().canConvertTo(other, reason);
-        }
-        virtual Value convert(const Value& value) const
-        {
-            // First convert to the type of _unit
-            Value v = value.convertTo(_unit.type());
-            // Then replace the type with our type
-            return Value(type(), v.value(), v.span());
-        }
-        virtual Value convertTo(const Type& to, const Value& value) const
-        {
-            // Replace the type with the one from _unit
-            // Then ask the unit to do the conversion.
-            return _unit.type().convertTo(to,
-                Value(_unit.type(), value.value(), value.span()));
-        }
-        void deserialize(const Value& value, void* p) const
-        {
-            *static_cast<Rational*>(p) =
-                (value.value<Concrete>()/_unit).value();
-        }
-        Value defaultValue() const { return _unit.type().defaultValue(); }
-        String toString() const { return _unit.type().toString(); }
-        Concrete _unit;
-    };
-};
 
 #endif // INCLUDED_CONCRETE_H

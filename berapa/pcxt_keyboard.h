@@ -2,8 +2,7 @@ template<class T> class PCXTKeyboardT : public Component
 {
 public:
     static String typeName() { return "PCXTKeyboard"; }
-    PCXTKeyboardT(Component::Type type)
-      : Component(type), _connector(this)
+    PCXTKeyboardT(Component::Type type) : Component(type), _connector(this)
     {
         connector("", &_connector);
     }

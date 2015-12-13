@@ -7,7 +7,7 @@ public:
         connector("parityError", &_parityError);
         config("rowBits", &_rowBits);
         config("bytes", &_ramSize);
-        config("decayTime", &_decayTime, ConcretePersistenceType(second));
+        config("decayTime", &_decayTime, second.type());
         config("decayValue", &_decayValue);
         persist("data", this, PersistDataType());
         persist("decay", &_decayTimes, ArrayType(Tick::Type(), 0));
@@ -64,14 +64,9 @@ public:
         }
         _decayTicks = (_simulator->ticksPerSecond() * _decayTime).floor();
     }
+    int size() const { return _ramSize; }
 
-    String name() const { return "ram"; }
-
-    OutputConnector<bool> _parityError;
-    Rational _decayTime;
-    int _rowBits;
-    int _ramSize;
-    UInt8 _decayValue;
+    typedef Component::TypeHelper<RAM> Type;
 private:
     class PersistDataType : public NamedNullary<::Type, PersistDataType>
     {
@@ -156,4 +151,9 @@ private:
     Array<Tick> _decayTimes;
     Tick _decayTicks;
     int _rowMask;
+    OutputConnector<bool> _parityError;
+    Rational _decayTime;
+    int _rowBits;
+    int _ramSize;
+    UInt8 _decayValue;
 };

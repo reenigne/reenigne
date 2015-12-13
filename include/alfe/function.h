@@ -187,7 +187,7 @@ public:
     OverloadedFunctionSetT(Identifier identifier)
       : Handle(create<Body>(identifier)) { }
     void add(Funco funco) { body()->add(funco); }
-    static Type type() { return Type(); }
+    static Type type() { return FuncoType(); }
     Value evaluate(List<Value> arguments, Span span) const
     {
         return body()->evaluate(arguments, span);

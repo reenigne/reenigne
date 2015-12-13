@@ -271,7 +271,6 @@ public:
         if (_config.hasKey(n)) {
             Member m = _config[n];
             m.type().deserialize(value, m._p);
-            return;
         }
         Structure::set(name, value);
     }
@@ -305,14 +304,6 @@ public:
                 if (_members.hasKey(i))
                     return _members[i];
                 return Type::Body::member(i);
-            }
-            String serialize(void* p) const
-            {
-                return static_cast<C*>(p)->save();
-            }
-            void deserialize(const Value& value, void* p) const
-            {
-                static_cast<C*>(p)->load(value);
             }
             int size() const { return sizeof(C); }
             Value value(void* p) const { return static_cast<C*>(p)->value(); }
@@ -410,8 +401,12 @@ protected:
     {
         if (name == "") {
             _defaultConnector = p;
-            Structure::set(Identifier(OperatorAssignment()),
-                AssignmentFunco(this));
+            Identifier i = Identifier(OperatorAssignment());
+            OverloadedFunctionSet o(i);
+            o.add(AssignmentFunco(this));
+            Value v(o);
+            _config.add(i, Member(0, v));
+            Structure::set(i, v);
         }
         else {
             // Connectors don't have a default value. If they did, a connector
@@ -475,19 +470,21 @@ private:
             Value evaluate(List<Value> arguments, Span span) const
             {
                 auto i = arguments.begin();
-                auto l = i->value<Component*>()->_defaultConnector;
+                auto ls = i->rValue().value<Structure*>();
+                auto l = dynamic_cast<Component*>(ls)->_defaultConnector;
                 auto lt = l->getValue().type();
                 ++i;
                 String reason;
                 if (Type(i->type()).valid()) {
-                    auto r = i->value<Component*>()->_defaultConnector;
+                    auto rs = i->value<Structure*>();
+                    auto r = dynamic_cast<Component*>(rs)->_defaultConnector;
                     if (!lt.canConvertFrom(r->getValue().type(), &reason))
                         span.throwError(reason);
                     l->connect(r);
                     r->connect(l);
                     return Value();
                 }
-                auto r = i->value<Connector*>();
+                auto r = dynamic_cast<Connector*>(i->value<Structure*>());
                 if (!lt.canConvertFrom(r->getValue().type(), &reason))
                     span.throwError(reason);
                 l->connect(r);
@@ -500,7 +497,7 @@ private:
                 if (argumentTypes.count() != 2)
                     return false;
                 auto i = argumentTypes.begin();
-                if (!Type(*i).valid())
+                if (!Type(i->rValue()).valid())
                     return false;
                 ++i;
                 if (Type(*i).valid())
@@ -514,7 +511,7 @@ private:
             {
                 List<Tyco> r;
                 r.add(Connector::Type());
-                r.add(_component->type());
+                r.add(LValueType(_component->type()));
                 return r;
             }
         private:
@@ -530,7 +527,7 @@ private:
         void* _p;
         Value _initial;
     };
-    HashTable<String, Member> _config;
+    HashTable<Identifier, Member> _config;
     HashTable<String, Member> _persist;
 
     Tick _ticksPerCycle;
@@ -548,8 +545,7 @@ class ClockedComponent : public Component
 public:
     ClockedComponent(Type type) : Component(type)
     {
-        config("frequency", &_cyclesPerSecond,
-            ConcretePersistenceType(1/second));
+        config("frequency", &_cyclesPerSecond, (1/second).type());
     }
     Rational cyclesPerSecond() const { return _cyclesPerSecond; }
     template<class C> using Type = Component::TypeHelper<C>;
