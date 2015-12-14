@@ -107,6 +107,9 @@ private:
     };
 };
 
+Value connectorFromValue(Value v);
+Type connectorTypeFromType(Type t);
+
 template<class T> class ConnectorT
 {
 public:
@@ -133,15 +136,7 @@ public:
             virtual bool canConvertFrom(const ::Type& other, String* reason)
                 const
             {
-                // If assigning component=connector, connect to the default
-                // connector on the component instead.
-                typename ComponentT<T>::Type ct(other);
-                if (ct.valid()) {
-                    auto dct = ct.defaultConnectorType();
-                    if (dct.valid())
-                        return canConvertFrom(dct, reason);
-                }
-                Connector::Type t(other);
+                Connector::Type t = connectorTypeFromType(other);
                 if (!t.valid()) {
                     *reason = other.toString() + " is not a connector.";
                     return false;
@@ -153,19 +148,10 @@ public:
                 }
                 return true;
             }
-            virtual ValueT<T> convert(const ValueT<T>& value)
-                const
+            virtual ValueT<T> convert(const ValueT<T>& value) const
             {
-                // If assigning component=connector, connect to the default
-                // connector on the component instead.
-                typename ComponentT<T>::Type ct(value.type());
-                if (ct.valid()) {
-                    Structure* s = value.value<Structure*>();
-                    auto component = static_cast<ComponentT<T>*>(s);
-                    Connector* connector = component->_defaultConnector;
-                    return convert(connector->getValue());
-                }
-                return Value(type(), value.value(), value.span());
+                return Value(type(), connectorFromValue(value).value(),
+                    value.span());
             }
         };
     public:
@@ -395,6 +381,7 @@ public:
         return Value(persistenceType(), h);
     }
     Type type() const { return _type; }
+    Connector* defaultConnector() const { return _defaultConnector; }
 
 protected:
     void connector(String name, Connector* p)
@@ -540,6 +527,26 @@ private:
     template<class C> friend class TypeHelper<C>::Body;
 };
 
+Value connectorFromValue(Value v)
+{
+    Component::Type ct(v.type());
+    if (ct.valid()) {
+        Structure* s = v.value<Structure*>();
+        auto component = static_cast<Component*>(s);
+        Connector* connector = component->defaultConnector();
+        return connector->getValue();
+    }
+    return v;
+}
+
+Type connectorTypeFromType(Type t)
+{
+    Component::Type ct(t);
+    if (ct.valid())
+        return ct.defaultConnectorType();
+    return t;
+}
+
 class ClockedComponent : public Component
 {
 public:
@@ -567,7 +574,7 @@ public:
         bool valid() const { return body() != 0; }
         ::Type transportType() const { return body()->transportType(); }
     protected:
-        class Body
+        class Body : public Connector::Type::Body
         {
         public:
             virtual ::Type transportType() const = 0;
@@ -586,13 +593,14 @@ public:
     {
         _other = dynamic_cast<BidirectionalConnector<T>*>(other);
     }
-    class Type : public NamedNullary<Connector::Type, Type>
+    class Type : public NamedNullary<BidirectionalConnectorBase::Type, Type>
     {
     public:
         Type() { }
         Type(const ConstHandle& other)
-          : NamedNullary<Connector::Type, Type> (other) { }
-        class Body : public NamedNullary<Connector::Type, Type>::Body
+          : NamedNullary<BidirectionalConnectorBase::Type, Type> (other) { }
+        class Body
+          : public NamedNullary<BidirectionalConnectorBase::Type, Type>::Body
         {
         public:
             bool compatible(Connector::Type other) const
@@ -803,6 +811,60 @@ public:
     };
 };
 
+template<class T> class NotComponent;
+
+template<class T> class NotComponentBase : public Component
+{
+public:
+    static String typeName() { return "Not"; }
+    NotComponentBase(Component::Type type) : Component(type), _input(this)
+    {
+        connector("input", &_input);
+        connector("output", &_output);
+    }
+    class Type : public ParametricComponentType<T, NotComponentBase<T>>
+    {
+    public:
+        Type(Simulator* simulator)
+          : ParametricComponentType<T, NotComponentBase<T>>(
+                Type::template create<Body>(simulator)) { }
+    private:
+        class Body
+          : public ParametricComponentType<T, NotComponentBase<T>>::Body
+        {
+        public:
+            Body(Simulator* simulator)
+              : ParametricComponentType<T, NotComponentBase<T>>::Body(
+                    simulator) { }
+            String toString() const { return "Not" + this->parameter(); }
+        };
+    };
+private:
+    class InputConnector : public ::InputConnector<T>
+    {
+    public:
+        InputConnector(NotComponentBase *component)
+          : _component(static_cast<NotComponent<T>*>(component)) { }
+        void setData(Tick t, T v) { _component->update(t, v); }
+        NotComponent<T>* _component;
+    };
+protected:
+    InputConnector _input;
+    OutputConnector<T> _output;
+};
+
+template<class T> class NotComponent : public NotComponentBase<T>
+{
+public:
+    void update(Tick t, T v) { _output._other->setData(t, ~v); }
+};
+
+template<> class NotComponent<bool> : public NotComponentBase<bool>
+{
+public:
+    void update(Tick t, bool v) { _output._other->setData(t, !v); }
+};
+
 template<class T> class BucketComponent : public Component
 {
 private:
@@ -898,21 +960,22 @@ public:
         Value evaluate(List<Value> arguments, Span span) const
         {
             auto i = arguments.begin();
-            Type t =
-                BidirectionalConnectorBase::Type(i->type()). transportType();
-            auto l = *i;
+            Value l = connectorFromValue(*i);
+            Type t = BidirectionalConnectorBase::Type(l.type()).
+                transportType();
             ++i;
-            auto r = *i;
+            Value r = connectorFromValue(*i);
             Reference<::Component> c;
             if (t == ByteType()) {
                 c = typename Component<Byte>::Type(_simulator).
                     createComponent();
             }
-            else
+            else {
                 if (t == BooleanType()) {
                     c = typename Component<bool>::Type(_simulator).
                         createComponent();
                 }
+            }
             c->set("input1", l);
             c->set("input2", r);
             return c->getValue("output");
@@ -922,12 +985,14 @@ public:
             if (argumentTypes.count() != 2)
                 return false;
             auto i = argumentTypes.begin();
-            BidirectionalConnectorBase::Type l(*i);
+            auto lt = connectorTypeFromType(*i);
+            BidirectionalConnectorBase::Type l(lt);
             if (!l.valid())
                 return false;
             Type lTransport = l.transportType();
             ++i;
-            BidirectionalConnectorBase::Type r(*i);
+            auto rt = connectorTypeFromType(*i);
+            BidirectionalConnectorBase::Type r(rt);
             if (!r.valid())
                 return false;
             return lTransport == r.transportType();
@@ -970,6 +1035,54 @@ public:
     public:
         Body(Simulator* simulator) : ComponentFunco::Body(simulator) { }
         Identifier identifier() const { return OperatorBitwiseOr(); }
+    };
+};
+
+class NotComponentFunco : public Funco
+{
+public:
+    NotComponentFunco(Simulator* simulator)
+      : Funco(create<Body>(simulator)) { }
+    class Body : public Funco::Body
+    {
+    public:
+        Body(Simulator* simulator) : _simulator(simulator) { }
+        Identifier identifier() const { return OperatorTwiddle(); }
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+            auto i = arguments.begin();
+            Value l = connectorFromValue(*i);
+            Type t = BidirectionalConnectorBase::Type(l.type()).
+                transportType();
+            Reference<::Component> c;
+            if (t == ByteType())
+                c = NotComponent<Byte>::Type(_simulator).createComponent();
+            else {
+                if (t == BooleanType())
+                    c = NotComponent<bool>::Type(_simulator).createComponent();
+            }
+            c->set("input", l);
+            return c->getValue("output");
+        }
+        bool argumentsMatch(List<Type> argumentTypes) const
+        {
+            if (argumentTypes.count() != 1)
+                return false;
+            auto i = argumentTypes.begin();
+            auto t = connectorTypeFromType(*i);
+            return BidirectionalConnectorBase::Type(t).valid();
+        }
+        // Won't actually be used (since there's only one function matching the
+        // argument types) but necessary to avoid ComponentFunco being
+        // an abstract class.
+        List<Tyco> parameterTycos() const
+        {
+            List<Tyco> r;
+            r.add(Connector::Type());
+            return r;
+        }
+    private:
+        Simulator* _simulator;
     };
 };
 
@@ -1137,6 +1250,7 @@ protected:
         configFile.addType(second.type(), TycoIdentifier("Time"));
         configFile.addFunco(AndComponentFunco(p));
         configFile.addFunco(OrComponentFunco(p));
+        configFile.addFunco(NotComponentFunco(p));
 
         for (auto i : componentTypes)
             configFile.addType(i);

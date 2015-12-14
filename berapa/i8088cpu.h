@@ -314,9 +314,12 @@ template<class T> class Intel8088CPUT : public ClockedComponent
 public:
     static String typeName() { return "Intel8088CPU"; }
     Intel8088CPUT(Component::Type type)
-      : ClockedComponent(type), _connector(this)
+      : ClockedComponent(type), _connector(this), _irqConnector(this),
+        _nmiConnector(this)
     {
         connector("", &_connector);
+        connector("nmi", &_nmiConnector);
+        connector("irq", &_irqConnector);
 
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -564,6 +567,7 @@ public:
         persist("newInstruction", &_newInstruction, true);
         persist("newIP", &_newIP);
         persist("nmiRequested", &_nmiRequested);
+        persist("interruptRequested", &_interruptRequested);
         persist("cycle", &_cycle);
     }
     void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
@@ -571,7 +575,6 @@ public:
     {
         _disassembler.setBus(_bus);
     }
-    void nmi() { _nmiRequested = true; }
     UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
     void simulateCycle()
     {
@@ -1336,19 +1339,19 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         _state = stateIntAction;
                         _nmiRequested = false;
                     }
-                    if (intf() && _pic->interruptRequest()) {
+                    if (intf() && _interruptRequested) {
                         _state = stateHardwareInt;
-                        _pic->interruptAcknowledge();
+                        // TODO: Initiate bus interrupt acknowledge cycle
+                        _interruptRequested = false;
                         _wait = 1;
                     }
                     break;
                 case stateHardwareInt:
-                    _pic->interruptAcknowledge();
                     _wait = 1;
                     _state = stateHardwareInt2;
                     break;
                 case stateHardwareInt2:
-                    _data = _pic->_interruptnum;
+                    // TODO: read interrupt number from bus to _data
                     _state = stateIntAction;
                     break;
                 case stateInt3:
@@ -1826,6 +1829,28 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
             _cpu->_bus = static_cast<ISA8BitBus::CPUSocket*>(other)->_bus;
         }
     private:
+        Intel8088CPU* _cpu;
+    };
+    class NMIConnector : public InputConnector<bool>
+    {
+    public:
+        NMIConnector(Intel8088CPU* cpu) { _cpu = cpu; }
+        void setData(Tick t, bool v)
+        {
+            if (v)
+                _cpu->_nmiRequested = true;
+        }
+        Intel8088CPU* _cpu;
+    };
+    class IRQConnector : public InputConnector<bool>
+    {
+    public:
+        IRQConnector(Intel8088CPU* cpu) { _cpu = cpu; }
+        void setData(Tick t, bool v)
+        {
+            if (v)
+                _cpu->_interruptRequested = true;
+        }
         Intel8088CPU* _cpu;
     };
 
@@ -2412,8 +2437,11 @@ private:
     UInt32 _busAddress;
     UInt8 _busData;
     bool _nmiRequested;
+    bool _interruptRequested;
 
     Disassembler _disassembler;
 
     Connector _connector;
+    IRQConnector _irqConnector;
+    NMIConnector _nmiConnector;
 };

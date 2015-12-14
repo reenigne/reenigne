@@ -345,8 +345,10 @@ public:
     Value rValue() const
     {
         LValueType lValueType(_type);
-        if (lValueType.valid())
-            return value<LValue>().rValue();
+        if (lValueType.valid()) {
+            Value r = value<LValue>().rValue();
+            return Value(r.type(), r.value(), _span);
+        }
         return *this;
     }
     Value simplify() const { return _type.simplify(*this); }

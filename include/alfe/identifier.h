@@ -58,11 +58,11 @@ public:
     IdentifierT(const ConstHandle& other)
       : ExpressionT<T>(other) { }
     IdentifierT(const String& name)
-      : ExpressionT<T>(IdentifierT::template create<NameBody>(
-        name, Span())) { }
+      : ExpressionT<T>(IdentifierT::template create<NameBody>(name, Span()))
+    { }
     IdentifierT(const char* name)
-      : ExpressionT<T>(IdentifierT::template create<NameBody>(
-        name, Span())) { }
+      : ExpressionT<T>(IdentifierT::template create<NameBody>(name, Span()))
+    { }
 
     static Identifier parse(CharacterSource* source)
     {

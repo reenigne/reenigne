@@ -150,7 +150,6 @@ public:
     class RGBIConnector : public ::Connector
     {
         typedef ::Connector::Type CType;
-        typedef NamedNullary<CType, Type> NN;
     public:
         RGBIConnector(IBMCGA* cga) : _cga(cga) { }
         void connect(::Connector* other)
@@ -159,12 +158,12 @@ public:
         }
         ::Connector::Type type() const { return Type(); }
 
-        class Type : public NN
+        class Type : public NamedNullary<CType, Type>
         {
         public:
             Type() { }
-            Type(::Type type) : NN(type) { }
-            class Body : public NN::Body
+            Type(::Type type) : NamedNullary<CType, Type>(type) { }
+            class Body : public NamedNullary<CType, Type>::Body
             {
             public:
                 bool compatible(CType other) const

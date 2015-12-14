@@ -83,6 +83,7 @@ public:
             _chipConnectors[i].init(this, i);
             connector("chip" + decimal(i), &_chipConnectors[i]);
         }
+        connector("parityError", &_parityError);
     }
 
     class Connector : public ::Connector
@@ -193,6 +194,7 @@ private:
     Connector _connector;
     ChipConnector _chipConnectors[8];
     List<ISA8BitComponentBase*> _components;
+    OutputConnector<bool> _parityError;
 
     friend class ISA8BitComponentBaseT<T>;
 };
