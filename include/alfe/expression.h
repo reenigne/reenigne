@@ -442,7 +442,18 @@ private:
           : Body(span), _expressions(expressions) { }
         ValueT<T> evaluate(EvaluationContext* context) const
         {
-            return Value(StructuredTypeT<T>(), _expressions);
+            HashTable<Identifier, Value> values;
+            List<StructuredType::Member> members;
+            int i = 0;
+            for (auto e : _expressions) {
+                Value v = e.evaluate(context);
+                Type t = v.type();
+                String n = decimal(i);
+                values.add(n, v);
+                members.add(StructuredType::Member("", t));
+                ++i;
+            }
+            return Value(StructuredType("", members), values, span());
         }
     private:
         List<Expression> _expressions;

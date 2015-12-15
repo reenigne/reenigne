@@ -2,18 +2,34 @@ template<class T> class ROMT : public ISA8BitComponent<ROMT<T>>
 {
 public:
     static String typeName() { return "ROM"; }
-    ROMT(Simulator* simulator, int mask, int address, String fileName,
+    ROMT(Component::Type type) : ROMT(type, 0, 0, "", 0) { }
+    ROMT(Component::Type type, int mask, int address, String fileName,
         int offset)
+      : ISA8BitComponent(type), _valid(false)
     {
+        this->persist("address", &_address, HexPersistenceType(5));
+        if (fileName == "")
+            return;
+        _valid = true;
         _mask = mask | 0xc0000000;
         _start = address;
-//        String data = File(romData.file(),
-//            simulator->config()->file().parent(), true).contents();
+        String data = File(fileName, _simulator->directory()).contents();
         int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
+        int dl = data.length();
+        int rl = length + offset;
+        if (dl < rl) {
+            throw Exception(fileName + " is too short: " + decimal(dl) +
+                " bytes found, " + decimal(rl) + " bytes required");
+        }
         _data.allocate(length);
-//        for (int i = 0; i < length; ++i)
-//            _data[i] = data[i + offset];
-        this->persist("address", &_address, 0, HexPersistenceType(5));
+        for (int i = 0; i < length; ++i)
+            _data[i] = data[i + offset];
+    }
+    void load(const Value& value)
+    {
+        if (!_valid)
+            throw Exception("Invalid ROM path");
+        ISA8BitComponent::load(value);
     }
     void setAddress(UInt32 address)
     {
@@ -30,12 +46,14 @@ public:
     class Type : public ISA8BitComponent<ROMT<T>>::Type
     {
     public:
-        Type(Simulator* simulator) : Component::Type(new Body(simulator)) { }
+        Type(Simulator* simulator)
+          : ISA8BitComponent<ROMT<T>>::Type(create<Body>(simulator)) { }
     private:
         class Body : public ISA8BitComponent<ROMT<T>>::Type::Body
         {
         public:
-            Body(Simulator* simulator) : Component::Type::Body(simulator)
+            Body(Simulator* simulator)
+              : ISA8BitComponent<ROMT<T>>::Type::Body(simulator)
             {
                 List<StructuredType::Member> members;
                 members.add(StructuredType::Member("mask", IntegerType()));
@@ -46,27 +64,30 @@ public:
                 _structuredType = StructuredType(toString(), members);
             }
             String toString() const { return "ROM"; }
-//            Value tryConvert(const Value& value, String* why) const
-//            {
-//                Value stv = value.type().tryConvertTo(_structuredType, value,
-//                    why);
-//                if (!stv.valid())
-//                    return stv;
-//                auto romMembers = stv.value<HashTable<Identifier, Value>>();
-//                int mask = romMembers["mask"].value<int>();
-//                int address = romMembers["address"].value<int>();
-//                String file = romMembers["fileName"].value<String>();
-//                int offset = romMembers["fileOffset"].value<int>();
-//                auto rom = Reference<Component>::create<ROM>(_simulator,
-//                    mask, address, file, offset);
-//                _simulator->addComponent(rom);
-//                return Value(this, rom, value.span());
-//            }
+            bool canConvertFrom(const ::Type& other, String* why) const
+            {
+                return _structuredType.canConvertFrom(other, why);
+            }
+            Value convert(const Value& value) const
+            {
+                auto m = _structuredType.convert(value).
+                    value<HashTable<Identifier, Value>>();
+                int mask = m["mask"].value<int>();
+                int address = m["address"].value<int>();
+                String file = m["fileName"].value<String>();
+                int offset = m["fileOffset"].value<int>();
+                auto rom = Reference<Component>::create<ROM>(type(), mask,
+                    address, file, offset);
+                _simulator->addComponent(rom);
+                return Value(type(), static_cast<Structure*>(&(*rom)),
+                    value.span());
+            }
         private:
             StructuredType _structuredType;
         };
     };
 private:
+    bool _valid;
     int _mask;
     int _start;
     int _address;

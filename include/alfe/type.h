@@ -1429,8 +1429,7 @@ protected:
                     }
                     const Member* toMember = &toBody->_members[j];
                     ++j;
-                    if (!canConvertHelper(member(String(decimal(i))), toMember,
-                        why))
+                    if (!canConvertHelper(m->type(), toMember, why))
                         return false;
                 }
                 // Make sure any unassigned members have defaults.

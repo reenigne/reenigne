@@ -573,11 +573,15 @@ public:
         Type(const ConstHandle& other) : Connector::Type(other) { }
         bool valid() const { return body() != 0; }
         ::Type transportType() const { return body()->transportType(); }
+        bool isInput() const { return body()->isInput(); }
+        bool isOutput() const { return body()->isOutput(); }
     protected:
         class Body : public Connector::Type::Body
         {
         public:
             virtual ::Type transportType() const = 0;
+            virtual bool isInput() const { return true; }
+            virtual bool isOutput() const { return true; }
         };
         const Body* body() const { return as<Body>(); }
     };
@@ -641,6 +645,7 @@ public:
                 return other == typename InputConnector<T>::Type() ||
                     other == typename BidirectionalConnector<T>::Type();
             }
+            bool isInput() const { return false; }
         };
         static String name()
         {
@@ -666,6 +671,7 @@ public:
                 return other == typename OutputConnector<T>::Type() ||
                     other == typename BidirectionalConnector<T>::Type();
             }
+            bool isOutput() const { return false; }
         };
         static String name()
         {
@@ -985,17 +991,14 @@ public:
             if (argumentTypes.count() != 2)
                 return false;
             auto i = argumentTypes.begin();
-            auto lt = connectorTypeFromType(*i);
-            BidirectionalConnectorBase::Type l(lt);
-            if (!l.valid())
+            BidirectionalConnectorBase::Type l(connectorTypeFromType(*i));
+            if (!l.valid() || !l.isOutput())
                 return false;
-            Type lTransport = l.transportType();
             ++i;
-            auto rt = connectorTypeFromType(*i);
-            BidirectionalConnectorBase::Type r(rt);
-            if (!r.valid())
+            BidirectionalConnectorBase::Type r(connectorTypeFromType(*i));
+            if (!r.valid() || !r.isOutput())
                 return false;
-            return lTransport == r.transportType();
+            return l.transportType() == r.transportType();
         }
         // Won't actually be used (since there's only one function matching the
         // argument types) but necessary to avoid ComponentFunco being
@@ -1069,8 +1072,8 @@ public:
             if (argumentTypes.count() != 1)
                 return false;
             auto i = argumentTypes.begin();
-            auto t = connectorTypeFromType(*i);
-            return BidirectionalConnectorBase::Type(t).valid();
+            BidirectionalConnectorBase::Type t(connectorTypeFromType(*i));
+            return t.valid() && t.isOutput();
         }
         // Won't actually be used (since there's only one function matching the
         // argument types) but necessary to avoid ComponentFunco being
@@ -1243,6 +1246,7 @@ protected:
         componentTypes.add(IBMCGA::Type(p));
         componentTypes.add(RGBIMonitor::Type(p));
         componentTypes.add(SRLatch::Type(p));
+        componentTypes.add(ROM::Type(p));
 
         ConfigFile configFile;
         configFile.addDefaultOption("stopSaveState", StringType(), String(""));
