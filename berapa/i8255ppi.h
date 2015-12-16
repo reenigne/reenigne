@@ -21,7 +21,7 @@ public:
         this->persist("address", &_address);
         ArrayType t(ByteType(), 3);
         this->persist("incoming", &_incoming[0], t);
-        this->persist("outgoing", &_outgoing[0], static_cast<Byte>(0xff), t);
+        this->persist("outgoing", &_outgoing[0], 0xff, t);
         this->persist("input", &_input[0], ArrayType(ByteType(), 2));
         this->persist("output", &_output[0], t);
     }

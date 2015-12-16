@@ -64,7 +64,7 @@
       <Item Name="[default]">_default</Item>
     </Expand>
   </Type>
-  <Type Name="StructureT&lt;*&gt;">
+  <Type Name="StructureT&lt;*&gt;" Inheritable="false">
     <DisplayString>Structure {_values._body,view(count)}</DisplayString>
     <Expand>
       <ExpandedItem>_values</ExpandedItem>
@@ -74,11 +74,17 @@
   
   <!-- ALFE bodies -->
 
-  <Type Name="ConstHandle::Body">
-    <DisplayString>ConstHandle {this,!} refcount={_count,d}</DisplayString>
+  <Type Name="ConstHandle::Body" Inheritable="false">
+    <DisplayString>ConstHandle refcount={_count,d}</DisplayString>
+  </Type>
+  <Type Name="Handle::Body" Inheritable="false">
+    <DisplayString>Handle refcount={_count,d}</DisplayString>
+  </Type>
+  <Type Name="ParseTreeObject::Body" Inheritable="false">
+    <DisplayString>span={_span}</DisplayString>
     <Expand>
-      <ExpandedItem>this,!</ExpandedItem>
-      <Item Name="[refcount]">_count,d</Item>
+      <Item Name="[span]">_span</Item>
+      <Item Name="[ConstHandle]">(ConstHandle::Body*)this,nd</Item>
     </Expand>
   </Type>
 
@@ -201,32 +207,30 @@
     <DisplayString>{_t}</DisplayString>
     <Expand>
       <ExpandedItem>_t</ExpandedItem>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
     </Expand>
   </Type>
   <Type Name="Any::Body&lt;int&gt;">
     <DisplayString>int {_t}</DisplayString>
     <Expand>
       <ExpandedItem>_t</ExpandedItem>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
+    </Expand>
+  </Type>
+  <Type Name="Any::Body&lt;unsigned short&gt;">
+    <DisplayString>Word {_t}</DisplayString>
+    <Expand>
+      <ExpandedItem>_t</ExpandedItem>
     </Expand>
   </Type>
   <Type Name="Any::Body&lt;StringTemplate&lt;*&gt;&gt;">
     <DisplayString>String {_t}</DisplayString>
     <Expand>
       <ExpandedItem>_t</ExpandedItem>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
     </Expand>
   </Type>
   <Type Name="Array&lt;*&gt;::Body&lt;*&gt;" IncludeView="count">
     <DisplayString>{_size,d}</DisplayString>
     <Expand>
       <Item Name="[size]">_size,d</Item>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
     </Expand>
   </Type>
   <Type Name="Array&lt;*&gt;::Body&lt;*&gt;" ExcludeView="count">
@@ -236,8 +240,6 @@
         <Size>_size</Size>
         <ValuePointer>($T1*)(((char*)this) + 12)</ValuePointer>
       </ArrayItems>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
     </Expand>
   </Type>
   <Type Name="Array&lt;*&gt;::Body&lt;HashTableBody&lt;*&gt;&gt;" ExcludeView="count">
@@ -247,8 +249,6 @@
         <Size>_allocated</Size>
         <ValuePointer>($T1*)(((char*)this) + 16)</ValuePointer>
       </ArrayItems>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
     </Expand>
   </Type>
   <Type Name="Array&lt;*&gt;::Body&lt;HashTableBody&lt;*&gt;&gt;" ExcludeView="count">
@@ -264,8 +264,27 @@
           <Exec>++p</Exec>
         </Loop>
       </CustomListItems>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
+      <Item Name="[size]">_size,d</Item>
+      <Item Name="[allocated]">_allocated,d</Item>
+      <Item Name="[Handle]">(Handle::Body*)this,nd</Item>
+    </Expand>
+  </Type>
+  <Type Name="Array&lt;*&gt;::Body&lt;HashTableBody&lt;*&gt;&gt;" ExcludeView="count">
+    <DisplayString>size={_size,d} allocated={_allocated,d}</DisplayString>
+    <Expand>
+      <CustomListItems MaxItemsPerView="5000">
+        <Variable Name="p" InitialValue="($T1*)(((char*)this) + 16)" />
+        <Size>_size</Size>
+        <Loop>
+          <If Condition="p->_key._length != 0">
+            <Item>p,na</Item>
+          </If>
+          <Exec>++p</Exec>
+        </Loop>
+      </CustomListItems>
+      <Item Name="[size]">_size,d</Item>
+      <Item Name="[allocated]">_allocated,d</Item>
+      <Item Name="[Handle]">(Handle::Body*)this,nd</Item>
     </Expand>
   </Type>
   <Type Name="List&lt;*&gt;::Body">
@@ -277,8 +296,7 @@
         <NextPointer>_next</NextPointer>
         <ValueNode>_value</ValueNode>
       </LinkedListItems>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
+      <Item Name="[Handle]">(Handle::Body*)this,nd</Item>
     </Expand>
   </Type>
   <Type Name="List&lt;*&gt;::Iterator">
@@ -287,29 +305,17 @@
       <ExpandedItem>_node->_value</ExpandedItem>
     </Expand>
   </Type>
-  <Type Name="ParseTreeObject::Body">
-    <DisplayString>{this,!} span={_span} refcount={_count,d}</DisplayString>
-    <Expand>
-      <ExpandedItem>_span</ExpandedItem>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
-    </Expand>
-  </Type>
   <Type Name="LValueTypeT&lt;*&gt;::Body">
     <DisplayString>LValue&lt;{_inner}&gt;</DisplayString>
     <Expand>
       <ExpandedItem>_inner</ExpandedItem>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
     </Expand>
   </Type>
   <Type Name="IdentifierT&lt;*&gt;::NameBody">
     <DisplayString>Identifier {_name} {_span}</DisplayString>
     <Expand>
       <Item Name="[name]">_name</Item>
-      <Item Name="[span]">_span</Item>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
+      <Item Name="[ParseTreeObject]">(ParseTreeObject::Body*)this,nd</Item>
     </Expand>
   </Type>
   <Type Name="IdentifierT&lt;*&gt;::OperatorBody">
@@ -317,8 +323,6 @@
     <Expand>
       <Item Name="[op]">_op</Item>
       <Item Name="[span]">_span</Item>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
     </Expand>
   </Type>
   <Type Name="StructuredTypeT&lt;*&gt;::Body">
@@ -326,30 +330,39 @@
     <Expand>
       <Item Name="[names]">_names</Item>
       <Item Name="[members]">_members</Item>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
     </Expand>
   </Type>
   <Type Name="IntegerType::Body">
     <DisplayString>Integer</DisplayString>
-    <Expand>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
-    </Expand>
+  </Type>
+  <Type Name="WordType::Body">
+    <DisplayString>Word</DisplayString>
+  </Type>
+  <Type Name="ByteType::Body">
+    <DisplayString>Byte</DisplayString>
   </Type>
   <Type Name="StringType::Body">
     <DisplayString>String</DisplayString>
-    <Expand>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
-    </Expand>
+  </Type>
+  <Type Name="ArrayType::Body">
+    <DisplayString>{_contained}[{_indexer}]</DisplayString>
+  </Type>
+  <Type Name="LessThanType::Body">
+    <DisplayString>{_n,d}</DisplayString>
   </Type>
   <Type Name="Reference&lt;*&gt;::Body&lt;*&gt;">
     <DisplayString>Reference {_c,na}</DisplayString>
     <Expand>
       <ExpandedItem>_c</ExpandedItem>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
+      <Item Name="[Handle]">(Handle::Body*)this,nd</Item>
+    </Expand>
+  </Type>
+  <Type Name="ExpressionT&lt;*&gt;::DotBody">
+    <DisplayString>{_left} . {_right}</DisplayString>
+    <Expand>
+      <Item Name="[left]">_left</Item>
+      <Item Name="[right]">_right</Item>
+      <Item Name="[ParseTreeObject]">(ParseTreeObject::Body*)this,nd</Item>
     </Expand>
   </Type>
 
@@ -360,24 +373,22 @@
     <DisplayString>RGBIMonitor</DisplayString>
     <Expand>
       <Item Name="[members]">_members</Item>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
     </Expand>
   </Type>
   <Type Name="ComponentT&lt;*&gt;::TypeHelper&lt;NMISwitch&gt;::Body">
     <DisplayString>NMISwitch</DisplayString>
     <Expand>
       <Item Name="[members]">_members</Item>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
+    </Expand>
+  </Type>
+  <Type Name="ComponentT&lt;*&gt;::TypeHelper&lt;Intel8088CPUT&lt;*&gt;&gt;::Body">
+    <DisplayString>Intel8088CPU</DisplayString>
+    <Expand>
+      <Item Name="[members]">_members</Item>
     </Expand>
   </Type>
   <Type Name="OutputConnector&lt;bool&gt;::Type::Body">
     <DisplayString>OutputConnector&lt;bool&gt; refcount={_count,d}</DisplayString>
-    <Expand>
-      <Item Name="[this]">this,!</Item>
-      <Item Name="[refcount]">_count,d</Item>
-    </Expand>
   </Type>
   
   
@@ -385,18 +396,80 @@
 
   <Type Name="RAM">
     <DisplayString>RAM {_ramSize,d} bytes</DisplayString>
+  </Type>
+  <Type Name="Intel8088CPUT&lt;*&gt;">
+    <DisplayString>Intel8088CPU</DisplayString>
+  </Type>
+  <Type Name="ISA8BitBusT&lt;*&gt;">
+    <DisplayString>ISA8BitBus</DisplayString>
+  </Type>
+  <Type Name="ISA8BitRAMT&lt;*&gt;">
+    <DisplayString>ISA8BitRAM</DisplayString>
+  </Type>
+  <Type Name="Intel8237DMACT&lt;*&gt;">
+    <DisplayString>Intel8237DMAC</DisplayString>
+  </Type>
+  <Type Name="Intel8259PIC">
+    <DisplayString>Intel8259PIC</DisplayString>
+  </Type>
+  <Type Name="Intel8253PITT&lt;*&gt;">
+    <DisplayString>Intel8253PIT</DisplayString>
+  </Type>
+  <Type Name="Intel8255PPIT&lt;*&gt;">
+    <DisplayString>Intel8255PPI</DisplayString>
+  </Type>
+  <Type Name="DMAPageRegistersT&lt;*&gt;">
+    <DisplayString>DMAPageRegisters</DisplayString>
+  </Type>
+  <Type Name="NMISwitch">
+    <DisplayString>NMISwitch</DisplayString>
+  </Type>
+  <Type Name="PCXTKeyboardPortT&lt;*&gt;">
+    <DisplayString>PCXTKeyboardPort</DisplayString>
+  </Type>
+  <Type Name="PCXTKeyboardT&lt;*&gt;">
+    <DisplayString>PCXTKeyboard</DisplayString>
+  </Type>
+  <Type Name="IBMCGAT&lt;*&gt;">
+    <DisplayString>IBMCGA</DisplayString>
+  </Type>
+  <Type Name="RGBIMonitorT&lt;*&gt;">
+    <DisplayString>RGBIMonitor</DisplayString>
+  </Type>
+  <Type Name="SRLatch">
+    <DisplayString>SRLatch</DisplayString>
+  </Type>
+  <Type Name="NotComponentBase&lt;bool&gt;">
+    <DisplayString>Not&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="BooleanComponent&lt;bool,OrComponent&lt;bool&gt;&gt;">
+    <DisplayString>Or&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="BooleanComponent&lt;bool,AndComponent&lt;bool&gt;&gt;">
+    <DisplayString>And&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="ROMT&lt;*&gt;">
+    <DisplayString>ROM</DisplayString>
+  </Type>
+  <Type Name="ClockedComponent">
+    <DisplayString>ClockedComponent {_cyclesPerSecond} Hz</DisplayString>
     <Expand>
-      <Item Name="[data]">_data</Item>
-      <Item Name="[decayTimes]">_decayTimes</Item>
-      <Item Name="[decayTicks]">_decayTicks</Item>
-      <Item Name="[rowMask]">_rowMask</Item>
-      <Item Name="[parityError]">_parityError</Item>
-      <Item Name="[decayTime]">_decayTime</Item>
-      <Item Name="[rowBits]">_rowBits,d</Item>
-      <Item Name="[ramSize]">_ramSize,d</Item>
-      <Item Name="[decayValue]">_decayValue</Item>
-      <Item Name="[config]">_values</Item>
+      <Item Name="[cyclesPerSecond]">_cyclesPerSecond</Item>
+      <ExpandedItem>(ComponentT&lt;void&gt;*)this,nd</ExpandedItem>
     </Expand>
   </Type>
+
+
+  <!-- Berapa connectors -->
+
+  <Type Name="Intel8088CPUT&lt;*&gt;::Connector">
+    <DisplayString>Intel8088CPU::Connector</DisplayString>
+  </Type>
+
   
+  <!-- Berapa other -->
+  <Type Name="Tick">
+    <DisplayString>{_t,d}</DisplayString>
+  </Type>
+
 </AutoVisualizer>

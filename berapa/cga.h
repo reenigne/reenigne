@@ -7,7 +7,6 @@ public:
         _cycle(0), _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true),
         _bgriSource(this), _ram(RAM::Type(_simulator)), _rgbiConnector(this)
     {
-        _data.allocate(0x4000);
         this->config("rom", &_rom);
         this->persist("memoryActive", &_memoryActive);
         this->persist("memoryAddress", &_memoryAddress, HexPersistenceType(4));
@@ -15,7 +14,7 @@ public:
         this->persist("portAddress", &_portAddress, HexPersistenceType(4));
         this->persist("mode", &_mode);
         this->persist("palette", &_palette);
-        config("ram", &_ram, RAM::Type(_simulator));
+        config("ram", &_ram, RAM::Type(_simulator, &_ram));
         connector("rgbiOutput", &_rgbiConnector);
     }
     void load(Value v)
@@ -24,8 +23,14 @@ public:
         String data = File(_rom, this->_simulator->directory()).contents();
         int length = 0x2000;
         _romdata.allocate(length);
+        if (data.length() < length) {
+            throw Exception(fileName + " is too short: " +
+                decimal(data.length()) + " bytes found, " + decimal(length) +
+                " bytes required");
+        }
         for (int i = 0; i < length; ++i)
             _romdata[i] = data[i];
+        _data = _ram.data();
     }
     void simulateCycle()
     {
@@ -187,6 +192,7 @@ private:
         _lightPenStrobe = true;
     }
 
+    UInt8* _data;
     RGBIConnector _rgbiConnector;
     String _rom;
     Array<UInt8> _romdata;
@@ -201,7 +207,6 @@ private:
     UInt8 _mode;
     UInt8 _palette;
     UInt8 _bgri;
-    Array<UInt8> _data;
     Motorola6845CRTC _crtc;
     bool _lightPenStrobe;
     bool _lightPenSwitch;

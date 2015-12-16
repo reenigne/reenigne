@@ -230,7 +230,6 @@ public:
     {
         persist("tick", &_tick);
     }
-    virtual void initialize() { }
     virtual void runTo(Tick tick) { _tick = tick; }
     virtual void maintain(Tick ticks) { _tick -= ticks; }
     String name() const { return _name; }
@@ -413,14 +412,16 @@ protected:
         Structure::set(name, type);
         set(name, type);
     }
-    template<class C> void persist(String name, C* p, C initial,
-        ::Type type = typeFromCompileTimeType<C>())
+    template<class C, class I, typename = typename std::enable_if<
+        !std::is_base_of<::Type, I>::value>::type>
+        void persist(String name, C* p, I initial,
+            ::Type type = typeFromCompileTimeType<C>())
     {
         Value v(type, initial);
         ArrayType arrayType(type);
         if (arrayType.valid()) {
-            Value v(arrayType.contained(), initial);
-            List<Value> initial;
+            Value m(arrayType.contained(), initial);
+            List<Value> initialArray;
             LessThanType l(arrayType.indexer());
             if (!l.valid()) {
                 throw Exception(
@@ -428,8 +429,8 @@ protected:
             }
             int n = l.n();
             for (int i = 0; i < n; ++i)
-                initial.add(v);
-            v = Value(type, initial);
+                initialArray.add(m);
+            v = Value(type, initialArray);
         }
         _persist.add(name, Member(static_cast<void*>(p), v));
 
@@ -443,6 +444,7 @@ protected:
 
 protected:
     SimulatorT<T>* _simulator;
+    Tick _ticksPerCycle;
 private:
     class AssignmentFunco : public Funco
     {
@@ -517,7 +519,6 @@ private:
     HashTable<Identifier, Member> _config;
     HashTable<String, Member> _persist;
 
-    Tick _ticksPerCycle;
     String _name;
     Type _type;
     Connector* _defaultConnector;
@@ -525,6 +526,26 @@ private:
     friend class Connector::Type::Body;
     friend class AssignmentFunco::Body;
     template<class C> friend class TypeHelper<C>::Body;
+};
+
+template<class C> class SubComponentType : public Component::TypeHelper<C>
+{
+public:
+    SubComponentType(Simulator* simulator, C* c = 0)
+      : Component::TypeHelper<C>(create<Body>(simulator, c)) { }
+private:
+    class Body : public Component::TypeHelper<C>::Body
+    {
+    public:
+        Body(Simulator* simulator, C* c)
+          : Component::TypeHelper<C>::Body(simulator), _c(c) { }
+        Value convert(const Value& value) const
+        {
+            return Value(type(), static_cast<Structure*>(_c), value.span());
+        }
+    private:
+        C* _c;
+    };
 };
 
 Value connectorFromValue(Value v)
@@ -1180,7 +1201,7 @@ private:
             Type type = i->persistenceType();
             if (!type.valid())
                 continue;
-            members.add(StructuredType::Member(i->name(), Value(i->type())));
+            members.add(StructuredType::Member(i->name(), Value(type)));
         }
         return StructuredType("Simulator", members);
     }

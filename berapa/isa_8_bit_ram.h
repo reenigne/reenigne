@@ -8,7 +8,7 @@ public:
     {
         this->persist("address", &_address, HexPersistenceType(5));
         this->persist("ram", &_ram, _ram.persistenceType());
-        config("ram", &_ram, RAM::Type(_simulator));
+        config("ram", &_ram, RAM::Type(_simulator, &_ram));
     }
     void setAddress(UInt32 address)
     {
@@ -17,8 +17,7 @@ public:
     }
     void read(Tick tick)
     {
-        ISA8BitComponent<ISA8BitRAMT<T>>::set(
-            _ram.read(tick, _address));
+        ISA8BitComponent<ISA8BitRAMT<T>>::set(_ram.read(tick, _address));
     }
     void write(Tick tick, UInt8 data) { _ram.write(tick, _address, data); }
     UInt8 debugRead(UInt32 address) { return _ram.debugRead(address); }

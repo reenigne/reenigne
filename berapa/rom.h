@@ -5,12 +5,11 @@ public:
     ROMT(Component::Type type) : ROMT(type, 0, 0, "", 0) { }
     ROMT(Component::Type type, int mask, int address, String fileName,
         int offset)
-      : ISA8BitComponent(type), _valid(false)
+      : ISA8BitComponent(type)
     {
         this->persist("address", &_address, HexPersistenceType(5));
         if (fileName == "")
             return;
-        _valid = true;
         _mask = mask | 0xc0000000;
         _start = address;
         String data = File(fileName, _simulator->directory()).contents();
@@ -24,12 +23,6 @@ public:
         _data.allocate(length);
         for (int i = 0; i < length; ++i)
             _data[i] = data[i + offset];
-    }
-    void load(const Value& value)
-    {
-        if (!_valid)
-            throw Exception("Invalid ROM path");
-        ISA8BitComponent::load(value);
     }
     void setAddress(UInt32 address)
     {
@@ -75,6 +68,8 @@ public:
                 int mask = m["mask"].value<int>();
                 int address = m["address"].value<int>();
                 String file = m["fileName"].value<String>();
+                if (file == "")
+                    throw Exception("Invalid ROM path");
                 int offset = m["fileOffset"].value<int>();
                 auto rom = Reference<Component>::create<ROM>(type(), mask,
                     address, file, offset);
@@ -87,7 +82,6 @@ public:
         };
     };
 private:
-    bool _valid;
     int _mask;
     int _start;
     int _address;

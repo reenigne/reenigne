@@ -2,9 +2,7 @@ template<class T> class RGBIMonitorT : public Component
 {
 public:
     static String typeName() { return "RGBIMonitor"; }
-    RGBIMonitorT(Component::Type type)
-      : Component(type), _renderer(&_window), _texture(&_renderer),
-        _connector(this)
+    RGBIMonitorT(Component::Type type) : Component(type), _connector(this)
     {
         _palette.allocate(64);
         _palette[0x0] = 0xff000000;
@@ -35,6 +33,13 @@ public:
             _palette[i + 48] = 0xff222222 + rgb; // hsync+vsync
         }
         connector("", &_connector);
+    }
+    void load(const Value& v)
+    {
+        Component::load(v);
+        // Defer creating the window until load time to avoid creating windows
+        // during type building.
+        _window = Reference<Window>::create<Window>();
     }
 
     class Connector : public ::Connector
@@ -91,7 +96,7 @@ public:
 
     int consume(Accessor<BGRI> reader)
     {
-        SDLTextureLock _lock(&_texture);
+        SDLTextureLock _lock(&_window->_texture);
         int y = 0;
         int x = 0;
         bool hSync = false;
@@ -128,9 +133,15 @@ public:
 
     typedef Component::TypeHelper<RGBIMonitor> Type;
 private:
-    SDLWindow _window;
-    SDLRenderer _renderer;
-    SDLTexture _texture;
+    class Window
+    {
+    public:
+        Window() : _renderer(&_window), _texture(&_renderer) { }
+        SDLWindow _window;
+        SDLRenderer _renderer;
+        SDLTexture _texture;
+    };
+    Reference<Window> _window;
     Array<UInt32> _palette;
 
     Connector _connector;

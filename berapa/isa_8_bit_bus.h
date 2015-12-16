@@ -78,7 +78,7 @@ public:
     {
         connector("cpu", &_cpuSocket);
         connector("slot", &_connector);
-        persist("data", &_data, static_cast<UInt8>(0xff));
+        persist("data", &_data, 0xff);
         for (int i = 0; i < 8; ++i) {
             _chipConnectors[i].init(this, i);
             connector("chip" + decimal(i), &_chipConnectors[i]);

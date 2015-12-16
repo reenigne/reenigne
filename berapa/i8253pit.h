@@ -9,7 +9,7 @@ public:
     {
         this->persist("address", &_address);
         this->persist("timers", &_timers[0],
-            ArrayType(typename Timer::Type(), 3));
+            ArrayType(_timers[0].persistenceType(), 3));
     }
     void simulateCycle()
     {

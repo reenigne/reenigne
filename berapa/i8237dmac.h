@@ -34,7 +34,7 @@ public:
         this->persist("address", &_address, HexPersistenceType(1));
         this->persist("command", &_command);
         this->persist("channels", &_channels[0],
-            ArrayType(typename Channel::Type(), 4));
+            ArrayType(_channels[0].persistenceType(), 4));
         this->persist("lastByte", &_lastByte);
         this->persist("channel", &_channel);
         this->persist("highAddress", &_highAddress, 0xffff,
@@ -381,7 +381,6 @@ private:
             return static_cast<TransferMode>((_mode >> 6) & 3);
         }
         bool terminalCount() const { return _terminalCount; }
-
     private:
         Byte _mode;
         UInt16 _baseAddress;

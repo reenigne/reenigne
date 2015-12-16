@@ -527,7 +527,7 @@ public:
         initialSegments.add(Value(WordType(), 0xffff));
         persist("segmentRegisters", &_segmentRegisterData[0],
             Value(ArrayType(WordType(), 4), initialSegments));
-        persist("flags", &_flagsData, static_cast<UInt16>(2)); // ?
+        persist("flags", &_flagsData, 2); // ?
         persist("prefetch", this, PersistQueueType());
         persist("segment", &_segment);
         persist("segmentOverride", &_segmentOverride, -1);
@@ -570,12 +570,20 @@ public:
         persist("interruptRequested", &_interruptRequested);
         persist("cycle", &_cycle);
     }
-    void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
-    void site()
+    void load(const Value& v)
     {
+        ClockedComponent::load(v);
         _disassembler.setBus(_bus);
     }
+    void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
     UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
+    void runTo(Tick tick)
+    {
+        while (_tick < tick) {
+            _tick += _ticksPerCycle;
+            simulateCycle();
+        }
+    }
     void simulateCycle()
     {
         simulateCycleAction();
@@ -605,8 +613,8 @@ public:
                             line += "M->" + hex(_busData, 2, false) + " ";
                     break;
                 case tIdle: line += "         "; break;
-                case tDMA:
-                    line += _dma->getText();
+                //case tDMA:
+                //    line += _dma->getText();
             }
             if (_newInstruction) {
                 line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false)
@@ -638,10 +646,10 @@ public:
             busDone = true;
             switch (_busState) {
                 case t1:
-                    if (_dma->dmaRequested()) {
-                        _busState = tDMA;
-                        break;
-                    }
+                    //if (_dma->dmaRequested()) {
+                    //    _busState = tDMA;
+                    //    break;
+                    //}
                     if (_ioInProgress == ioInstructionFetch)
                         _busAddress = physicalAddress(1, _prefetchAddress);
                     else {
@@ -740,8 +748,8 @@ public:
                     busDone = true;
                     break;
                 case tDMA:
-                    if (!_dma->dmaRequested())
-                        _busState = t1;
+                    //if (!_dma->dmaRequested())
+                    //    _busState = t1;
                     break;
             }
         } while (!busDone);
@@ -2430,8 +2438,6 @@ private:
     bool _newInstruction;
     UInt16 _newIP;
     ISA8BitBus* _bus;
-    Intel8259PIC* _pic;
-    Intel8237DMAC* _dma;
     int _cycle;
     int _stopAtCycle;
     UInt32 _busAddress;

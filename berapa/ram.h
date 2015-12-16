@@ -23,8 +23,6 @@ public:
             // TODO: In the config file we might want to have an option for
             // "realistic mode" to prevent this from being used to detect the
             // emulator.
-            //if (_nmiSwitch->nmiOn() && (_ppi->portB() & 0x10) != 0)
-            //    _cpu->nmi();
             return _decayValue;
         }
         decay(address) = tick + _decayTicks;
@@ -40,7 +38,7 @@ public:
     }
     UInt8 debugRead(int address)
     {
-        return address < _ramSize ? 0xff : _data[address];
+        return address < _ramSize ? _data[address] : 0xff;
     }
     void maintain(Tick ticks)
     {
@@ -65,8 +63,9 @@ public:
         _decayTicks = (_simulator->ticksPerSecond() * _decayTime).floor();
     }
     int size() const { return _ramSize; }
+    UInt8* data() { return &(_data[0]); }
 
-    typedef Component::TypeHelper<RAM> Type;
+    typedef SubComponentType<RAM> Type;
 private:
     class PersistDataType : public NamedNullary<::Type, PersistDataType>
     {
