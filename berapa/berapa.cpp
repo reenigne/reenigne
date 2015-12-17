@@ -113,14 +113,17 @@ Type connectorTypeFromType(Type t);
 template<class T> class ConnectorT
 {
 public:
+    ConnectorT(Component* component) : _component(component) { }
     class Type : public NamedNullary<::Type, Type>
     {
     public:
-        Type() { }
-        Type(const ConstHandle& other) : NamedNullary<::Type, Type>(other) { }
+        Type() : _connected(false) { }
+        Type(const ConstHandle& other)
+          : NamedNullary<::Type, Type>(other), _connected(false) { }
         bool compatible(Type other) const
         {
-            return body()->compatible(other);
+            return body()->compatible(other) ||
+                other.body()->compatible(*this);
         }
         bool canConnectMultiple() const
         {
@@ -166,9 +169,30 @@ public:
         // componentB's state may be modified by this connection.
         return Value(type(), const_cast<Connector*>(this));
     }
+    void doConnect(Connector* other)
+    {
+        connect(other);
+        other->connect(this);
+        _connected = true;
+        other->_connected = true;
+    }
+    void checkConnected()
+    {
+        if (!_connected && !type().canConnectMultiple()) {
+            auto t = defaultComponentType(_component->simulator());
+            Reference<::Component> c = t.createComponent();
+            c->set("", getValue());
+        }
+    }
 
     virtual Type type() const = 0;
     virtual void connect(Connector* other) = 0;
+    virtual typename ComponentT<T>::Type
+        defaultComponentType(Simulator* simulator) = 0;
+
+private:
+    bool _connected;
+    Component* _component;
 };
 
 template<class T> class ComponentT : public Structure
@@ -187,7 +211,7 @@ public:
         }
         Simulator* simulator() const { return body()->simulator(); }
         bool valid() const { return body() != 0; }
-        Connector::Type defaultConnectorType() const
+        typename ConnectorT<T>::Type defaultConnectorType() const
         {
             return body()->defaultConnectorType();
         }
@@ -214,13 +238,13 @@ public:
                     value.span());
             }
             Simulator* simulator() const { return _simulator; }
-            Connector::Type defaultConnectorType() const
+            typename ConnectorT<T>::Type defaultConnectorType() const
             {
                 return _defaultConnectorType;
             }
         protected:
             Simulator* _simulator;
-            Connector::Type _defaultConnectorType;
+            typename ConnectorT<T>::Type _defaultConnectorType;
         };
         const Body* body() const { return as<Body>(); }
     };
@@ -249,8 +273,7 @@ public:
         if (Connector::Type(value.type()).valid()) {
             auto l = getValue(name).template value<Connector*>();
             auto r = value.value<Connector*>();
-            l->connect(r);
-            r->connect(l);
+            l->doConnect(r);
             return;
         }
         if (_config.hasKey(n)) {
@@ -381,6 +404,15 @@ public:
     }
     Type type() const { return _type; }
     Connector* defaultConnector() const { return _defaultConnector; }
+    void checkConnections()
+    {
+        for (auto i : _config) {
+            Member m = i.value();
+            if (Connector::Type(m.type()).valid())
+                static_cast<Connector*>(m._p)->checkConnected();
+        }
+    }
+    SimulatorT<T>* simulator() const { return _simulator; }
 
 protected:
     void connector(String name, Connector* p)
@@ -441,9 +473,6 @@ protected:
         _persist.add(name, Member(static_cast<void*>(p), initial));
     }
     Tick _tick;
-
-protected:
-    SimulatorT<T>* _simulator;
     Tick _ticksPerCycle;
 private:
     class AssignmentFunco : public Funco
@@ -469,15 +498,13 @@ private:
                     auto r = dynamic_cast<Component*>(rs)->_defaultConnector;
                     if (!lt.canConvertFrom(r->getValue().type(), &reason))
                         span.throwError(reason);
-                    l->connect(r);
-                    r->connect(l);
+                    l->doConnect(r);
                     return Value();
                 }
                 auto r = dynamic_cast<Connector*>(i->value<Structure*>());
                 if (!lt.canConvertFrom(r->getValue().type(), &reason))
                     span.throwError(reason);
-                l->connect(r);
-                r->connect(l);
+                l->doConnect(r);
                 return Value();
             }
             Identifier identifier() const { return OperatorAssignment(); }
@@ -522,8 +549,9 @@ private:
     String _name;
     Type _type;
     Connector* _defaultConnector;
+    SimulatorT<T>* _simulator;
 
-    friend class Connector::Type::Body;
+    friend class ConnectorT<T>::Type::Body;
     friend class AssignmentFunco::Body;
     template<class C> friend class TypeHelper<C>::Body;
 };
@@ -612,8 +640,13 @@ template<class T> class BidirectionalConnector
   : public BidirectionalConnectorBase
 {
 public:
+    BidirectionalConnector(Component* c) : BidirectionalConnectorBase(c) { }
     Connector::Type type() const { return Type(); };
     virtual void setData(Tick t, T v) = 0;
+    Component::Type defaultComponentType(Simulator* simulator)
+    {
+        return HighConstantComponent<T>::Type(simulator);
+    }
     void connect(::Connector* other)
     {
         _other = dynamic_cast<BidirectionalConnector<T>*>(other);
@@ -630,9 +663,7 @@ public:
         public:
             bool compatible(Connector::Type other) const
             {
-                return other == typename OutputConnector<T>::Type() ||
-                    other == typename InputConnector<T>::Type() ||
-                    other == typename BidirectionalConnector<T>::Type();
+                return other == typename BidirectionalConnector<T>::Type();
             }
             ::Type transportType() const
             {
@@ -651,8 +682,13 @@ public:
 template<class T> class OutputConnector : public BidirectionalConnector<T>
 {
 public:
+    OutputConnector(Component* c) : BidirectionalConnector<T>(c) { }
     Connector::Type type() const { return Type(); };
     void setData(Tick t, T v) { }
+    Component::Type defaultComponentType(Simulator* simulator)
+    {
+        return BucketComponent<T>::Type(simulator);
+    }
     class Type
       : public NamedNullary<typename BidirectionalConnector<T>::Type, Type>
     {
@@ -679,8 +715,10 @@ public:
 template<class T> class InputConnector : public BidirectionalConnector<T>
 {
 public:
+    InputConnector(Component* c) : BidirectionalConnector<T>(c) { }
     Connector::Type type() const { return Type(); };
     virtual void setData(Tick t, T v) = 0;
+
     class Type : public NamedNullary<Connector::Type, Type>
     {
     public:
@@ -916,11 +954,24 @@ private:
 
 template<class T> class ConstantComponent : public Component
 {
-private:
+public:
     ConstantComponent(T v) : _v(v) { }
+private:
     void load() { _connector->setData(0, _v); }
     T _v;
     OutputConnector<T> _connector;
+};
+
+template<class T> class HighConstantComponent : public ConstantComponent<T>
+{
+public:
+    HighConstantComponent() : ConstantComponent(-1) { }
+};
+
+template<> class HighConstantComponent<bool> : public ConstantComponent<bool>
+{
+public:
+    HighConstantComponent() : ConstantComponent(true) { }
 };
 
 // SRLatch works like a NAND latch with inverters on the inputs.
@@ -929,7 +980,8 @@ class SRLatch : public Component
 public:
     static String typeName() { return "SRLatch"; }
     SRLatch(Component::Type type)
-      : Component(type), _set(this), _reset(this), _isSet(false)
+      : Component(type), _set(this), _reset(this), _isSet(false),
+        _lastSet(this), _lastReset(this)
     {
         connector("set", &_set);
         connector("reset", &_reset);
@@ -954,7 +1006,7 @@ private:
     class SetConnector : public InputConnector<bool>
     {
     public:
-        SetConnector(SRLatch* latch) : _latch(latch) { }
+        SetConnector(SRLatch* latch) : InputConnector(latch), _latch(latch) { }
         void setData(Tick t, bool v) { _latch->doSet(t, v); }
     private:
         SRLatch* _latch;
@@ -962,7 +1014,8 @@ private:
     class ResetConnector : public InputConnector<bool>
     {
     public:
-        ResetConnector(SRLatch* latch) : _latch(latch) { }
+        ResetConnector(SRLatch* latch)
+          : InputConnector(latch), _latch(latch) { }
         void setData(Tick t, bool v) { _latch->doReset(t, v); }
     private:
         SRLatch* _latch;
@@ -1149,6 +1202,8 @@ public:
     void addComponent(Reference<Component> c) { _components.add(c); }
     void load(String initialStateFile)
     {
+        for (auto i : _components)
+            i->checkConnections();
         for (auto i : _components) {
             Rational cyclesPerSecond = i->cyclesPerSecond();
             if (cyclesPerSecond != 0)

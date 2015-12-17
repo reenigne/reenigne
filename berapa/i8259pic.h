@@ -4,17 +4,19 @@ public:
     static String typeName() { return "Intel8259PIC"; }
     Intel8259PIC(Component::Type type)
       : ISA8BitComponent(type), _interruptrdy(false), _secondAck(false),
-        _state(stateReady), _imr(0xff)
+        _state(stateReady), _imr(0xff),
+        _irqConnector{this, this, this, this, this, this, this, this}
     {
         for (int i = 0; i < 8; ++i) {
-            _irqConnector[i].init(this, i);
+            _irqConnector[i].init(i);
             connector("irq" + decimal(i), &_irqConnector[i]);
         }
     }
     class Connector : public InputConnector<bool>
     {
     public:
-        void init(Intel8259PIC* pic, int i) { _pic = pic; _i = i; }
+        Connector(Intel8259PIC* pic) : InputConnector(pic), _pic(pic) { }
+        void init(int i) { _i = i; }
         void setData(Tick t, bool v) { _pic->setIRQ(t, _i, v); }
 
         Intel8259PIC* _pic;

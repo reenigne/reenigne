@@ -2,7 +2,7 @@ class RAM : public Component
 {
 public:
     static String typeName() { return "RAM"; }
-    RAM(Component::Type type) : Component(type)
+    RAM(Component::Type type) : Component(type), _parityError(this)
     {
         connector("parityError", &_parityError);
         config("rowBits", &_rowBits);
@@ -60,7 +60,7 @@ public:
             // 8ms for 41256
             _decayTime = Rational(1 << _rowBits, 1000 * 64);
         }
-        _decayTicks = (_simulator->ticksPerSecond() * _decayTime).floor();
+        _decayTicks = (simulator()->ticksPerSecond() * _decayTime).floor();
     }
     int size() const { return _ramSize; }
     UInt8* data() { return &(_data[0]); }

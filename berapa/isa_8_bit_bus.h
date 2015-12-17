@@ -4,6 +4,25 @@ typedef ISA8BitBusT<void> ISA8BitBus;
 template<class T> class ISA8BitComponentBaseT;
 typedef ISA8BitComponentBaseT<void> ISA8BitComponentBase;
 
+class ISA8BitDefaultComponent : public Component
+{
+public:
+    static String typeName() { return "ISA8BitBus::DefaultComponent"; }
+    ISA8BitDefaultComponent(Component::Type type)
+      : Component(type), _connector(this)
+    {
+        connector("", &_connector);
+    }
+    class Connector : public ::Connector
+    {
+    public:
+        Connector(ISA8BitDefaultComponent* c) : ::Connector(c) { }
+        void connect(::Connector* other)
+    };
+private:
+    Connector _connector;
+};
+
 template<class T> class ISA8BitComponentBaseT : public ClockedComponent
 {
 public:
@@ -26,11 +45,18 @@ public:
     {
     public:
         Connector(ISA8BitComponentBaseT* component)
-          : _component(component) { }
+          : ::Connector(component), _component(component) { }
         void connect(::Connector* other)
         {
             dynamic_cast<typename ISA8BitBusT<T>::Connector*>(other)
                 ->busConnect(_component);
+        }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            throw Exception(_bus->name() + " needs a CPU");
+
+            assert(false);
+            return Component::Type();
         }
         ::Connector::Type type() const { return Type(); }
 
@@ -74,13 +100,14 @@ public:
     static String typeName() { return "ISA8BitBus"; }
 
     ISA8BitBusT(Component::Type type)
-      : Component(type), _cpuSocket(this), _connector(this)
+      : Component(type), _cpuSocket(this), _connector(this),
+        _chipConnectors{this, this, this, this, this, this, this, this}
     {
         connector("cpu", &_cpuSocket);
         connector("slot", &_connector);
         persist("data", &_data, 0xff);
         for (int i = 0; i < 8; ++i) {
-            _chipConnectors[i].init(this, i);
+            _chipConnectors[i].init(i);
             connector("chip" + decimal(i), &_chipConnectors[i]);
         }
         connector("parityError", &_parityError);
@@ -92,6 +119,11 @@ public:
         Connector(ISA8BitBus* bus) : _bus(bus) { }
         void connect(::Connector* other) { }
         Type type() const { return Type(); }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            assert(false);
+            return Component::Type();
+        }
 
         class Type : public NamedNullary<::Connector::Type, Type>
         {
@@ -120,12 +152,8 @@ public:
     class ChipConnector : public Connector
     {
     public:
-        ChipConnector() : Connector(0) { }
-        void init(ISA8BitBusT<T>* bus, int i)
-        {
-            this->_bus = bus;
-            _i = i;
-        }
+        ChipConnector(ISA8BitBusT<T>* bus) : Connector(bus) { }
+        void init(int i) { _i = i; }
     private:
         int _i;
     };
@@ -135,22 +163,17 @@ public:
     class CPUSocket : public ::Connector
     {
     public:
-        CPUSocket(ISA8BitBus* bus) : _bus(bus) { }
+        CPUSocket(ISA8BitBus* bus) : ::Connector(bus), _bus(bus) { }
         void connect(::Connector* other) { other->connect(this); }
         Type type() const { return Type(); }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            throw Exception(_bus->name() + " needs a CPU");
+        }
 
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return other ==
-                        typename Intel8088CPUT<T>::Connector::Type();
-                }
-            };
             static String name() { return "ISA8BitBus.CPUSocket"; }
         };
         ISA8BitBus* _bus;

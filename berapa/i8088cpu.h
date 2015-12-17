@@ -1816,7 +1816,11 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     class Connector : public ::Connector
     {
     public:
-        Connector(Intel8088CPU* cpu) : _cpu(cpu) { }
+        Connector(Intel8088CPU* cpu) : ::Connector(cpu), _cpu(cpu) { }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            throw Exception(_cpu->name() + " needs to be connected");
+        }
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:
@@ -1842,7 +1846,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     class NMIConnector : public InputConnector<bool>
     {
     public:
-        NMIConnector(Intel8088CPU* cpu) { _cpu = cpu; }
+        NMIConnector(Intel8088CPU* cpu) : InputConnector(cpu), _cpu(cpu) { }
         void setData(Tick t, bool v)
         {
             if (v)
@@ -1853,7 +1857,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     class IRQConnector : public InputConnector<bool>
     {
     public:
-        IRQConnector(Intel8088CPU* cpu) { _cpu = cpu; }
+        IRQConnector(Intel8088CPU* cpu) : InputConnector(cpu), _cpu(cpu) { }
         void setData(Tick t, bool v)
         {
             if (v)

@@ -11,15 +11,17 @@ public:
     class Connector : public OutputConnector<bool>
     {
     public:
-        Connector(NMISwitch* component) : _component(component) { }
-        //void connect(::Connector* other)
-        //{
-        //    // TODO
-        //}
+        Connector(NMISwitch* c) : OutputConnector(c), _component(c) { }
+        void connect(::Connector* other)
+        {
+            _component->_other = 
+                static_cast<BidirectionalConnector<bool>*>(other);
+        }
     private:
         NMISwitch* _component;
     };
 
+    BidirectionalConnector<bool>* _other;
 private:
     bool _nmiOn;
     Connector _connector;
