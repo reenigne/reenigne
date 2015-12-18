@@ -14,7 +14,7 @@ public:
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:
-            static String name() { return "PCXTKeyboardPort.Connector"; }
+            static String name() { return "PCXTKeyboard.Connector"; }
             class Body : public NamedNullary<::Connector::Type, Type>::Body
             {
             public:

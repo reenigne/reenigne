@@ -4,25 +4,6 @@ typedef ISA8BitBusT<void> ISA8BitBus;
 template<class T> class ISA8BitComponentBaseT;
 typedef ISA8BitComponentBaseT<void> ISA8BitComponentBase;
 
-class ISA8BitDefaultComponent : public Component
-{
-public:
-    static String typeName() { return "ISA8BitBus::DefaultComponent"; }
-    ISA8BitDefaultComponent(Component::Type type)
-      : Component(type), _connector(this)
-    {
-        connector("", &_connector);
-    }
-    class Connector : public ::Connector
-    {
-    public:
-        Connector(ISA8BitDefaultComponent* c) : ::Connector(c) { }
-        void connect(::Connector* other)
-    };
-private:
-    Connector _connector;
-};
-
 template<class T> class ISA8BitComponentBaseT : public ClockedComponent
 {
 public:
@@ -54,9 +35,6 @@ public:
         Component::Type defaultComponentType(Simulator* simulator)
         {
             throw Exception(_bus->name() + " needs a CPU");
-
-            assert(false);
-            return Component::Type();
         }
         ::Connector::Type type() const { return Type(); }
 
@@ -121,8 +99,7 @@ public:
         Type type() const { return Type(); }
         Component::Type defaultComponentType(Simulator* simulator)
         {
-            assert(false);
-            return Component::Type();
+            return Component::TypeHelper<ISA8BitComponentBase>(simulator);
         }
 
         class Type : public NamedNullary<::Connector::Type, Type>

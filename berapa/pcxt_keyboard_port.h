@@ -1,3 +1,44 @@
+template<class T> class PCXTNoKeyboardT : public Component
+{
+public:
+    static String typeName() { return "PCXTNoKeyboard"; }
+    PCXTNoKeyboardT(Component::Type type) : Component(type), _connector(this)
+    {
+        connector("", &_connector);
+    }
+
+    class Connector : public ::Connector
+    {
+    public:
+        Connector(PCXTNoKeyboardT<T>* keyboard) : ::Connector(keyboard) { }
+        class Type : public NamedNullary<::Connector::Type, Type>
+        {
+        public:
+            static String name() { return "PCXTKeyboard.Connector"; }
+            class Body : public NamedNullary<::Connector::Type, Type>::Body
+            {
+            public:
+                bool compatible(::Connector::Type other) const
+                {
+                    return other == PCXTKeyboardPort::Connector::Type();
+                }
+            };
+        };
+    protected:
+        ::Connector::Type type() const { return Type(); }
+        void connect(::Connector* other) { }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            assert(false);
+            return Component::Type();
+        }
+    };
+
+    typedef Component::TypeHelper<PCXTKeyboard> Type;
+private:
+    Connector _connector;
+};
+
 template<class T> class PCXTKeyboardPortT : public Component
 {
 public:
@@ -36,6 +77,10 @@ public:
         {
             _port->_keyboard =
                 static_cast<PCXTKeyboard::Connector*>(other)->_keyboard;
+        }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            return PCXTNoKeyboardT<T>::Type(simulator);
         }
     };
 
