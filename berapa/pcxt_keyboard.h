@@ -32,6 +32,11 @@ public:
             _keyboard->_port = static_cast<typename
                 PCXTKeyboardPortT<T>::Connector*>(other)->_port;
         }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            assert(false);
+            return Component::Type();
+        }
     };
 
     typedef Component::TypeHelper<PCXTKeyboard> Type;
