@@ -10,11 +10,11 @@ public:
     class Connector : public ::Connector
     {
     public:
-        Connector(PCXTNoKeyboardT<T>* keyboard) : ::Connector(keyboard) { }
+        Connector(PCXTNoKeyboardT<T>* c) : ::Connector(c) { }
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:
-            static String name() { return "PCXTKeyboard.Connector"; }
+            static String name() { return "PCXTNoKeyboard.Connector"; }
             class Body : public NamedNullary<::Connector::Type, Type>::Body
             {
             public:

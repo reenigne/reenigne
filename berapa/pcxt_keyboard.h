@@ -34,8 +34,7 @@ public:
         }
         Component::Type defaultComponentType(Simulator* simulator)
         {
-            assert(false);
-            return Component::Type();
+            throw Exception(_keyboard->name() + " needs to be connected");
         }
     };
 

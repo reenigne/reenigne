@@ -1,3 +1,44 @@
+template<class T> class NoRGBIMonitor : public Component
+{
+public:
+    static String typeName() { return "NoRGBIMonitor"; }
+    NoRGBIMonitor(Component::Type type) : Component(type), _connector(this)
+    {
+        connector("", &_connector);
+    }
+
+    class Connector : public ::Connector
+    {
+    public:
+        Connector(NoRGBIMonitor* c) : ::Connector(c) { }
+        class Type : public NamedNullary<::Connector::Type, Type>
+        {
+        public:
+            static String name() { return "NoRGBIMonitor.Connector"; }
+            class Body : public NamedNullary<::Connector::Type, Type>::Body
+            {
+            public:
+                bool compatible(::Connector::Type other) const
+                {
+                    return other == IBMCGA::RGBIConnector::Type();
+                }
+            };
+        };
+    protected:
+        ::Connector::Type type() const { return Type(); }
+        void connect(::Connector* other) { }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            assert(false);
+            return Component::Type();
+        }
+    };
+
+    typedef Component::TypeHelper<NoRGBIMonitor> Type;
+private:
+    Connector _connector;
+};
+
 template<class T> class IBMCGAT : public ISA8BitComponent<IBMCGAT<T>>
 {
 public:
@@ -162,6 +203,10 @@ public:
             // TODO
         }
         ::Connector::Type type() const { return Type(); }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            return NoRGBIMontitor::Type();
+        }
 
         class Type : public NamedNullary<CType, Type>
         {

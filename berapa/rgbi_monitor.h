@@ -1,3 +1,44 @@
+template<class T> class NoRGBISource : public Component
+{
+public:
+    static String typeName() { return "NoRGBISource"; }
+    NoRGBISource(Component::Type type) : Component(type), _connector(this)
+    {
+        connector("", &_connector);
+    }
+
+    class Connector : public ::Connector
+    {
+    public:
+        Connector(NoRGBISource* c) : ::Connector(c) { }
+        class Type : public NamedNullary<::Connector::Type, Type>
+        {
+        public:
+            static String name() { return "NoRGBISource.Connector"; }
+            class Body : public NamedNullary<::Connector::Type, Type>::Body
+            {
+            public:
+                bool compatible(::Connector::Type other) const
+                {
+                    return other == RGBIMonitor::Connector::Type();
+                }
+            };
+        };
+    protected:
+        ::Connector::Type type() const { return Type(); }
+        void connect(::Connector* other) { }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            assert(false);
+            return Component::Type();
+        }
+    };
+
+    typedef Component::TypeHelper<NoRGBIMonitor> Type;
+private:
+    Connector _connector;
+};
+
 template<class T> class RGBIMonitorT : public Component
 {
 public:
@@ -51,6 +92,10 @@ public:
             // TODO
         }
         ::Connector::Type type() const { return Type(); }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            return NoRGBISource::Type();
+        }
 
         class Type : public NamedNullary<::Connector::Type, Type>
         {
