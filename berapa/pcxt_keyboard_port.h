@@ -45,7 +45,7 @@ public:
     static String typeName() { return "PCXTKeyboardPort"; }
     PCXTKeyboardPortT(Component::Type type)
       : Component(type), _clearConnector(this), _clockConnector(this),
-        _connector(this)
+        _connector(this), _irqConnector(this), _dataConnector(this)
     {
         connector("data", &_dataConnector);
         connector("clear", &_clearConnector);
@@ -56,7 +56,7 @@ public:
     class Connector : public ::Connector
     {
     public:
-        Connector(PCXTKeyboardPort* port) : _port(port) { }
+        Connector(PCXTKeyboardPort* p) : ::Connector(p), _port(p) { }
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:
@@ -89,7 +89,8 @@ public:
     class ClearConnector : public InputConnector<bool>
     {
     public:
-        ClearConnector(PCXTKeyboardPort* port) : _port(port) { }
+        ClearConnector(PCXTKeyboardPort* p)
+          : InputConnector<bool>(p), _port(p) { }
         void setData(Tick t, bool v) { _port->setClear(t, v); }
     private:
         PCXTKeyboardPort* _port;
@@ -97,7 +98,8 @@ public:
     class ClockConnector : public InputConnector<bool>
     {
     public:
-        ClockConnector(PCXTKeyboardPort* port) : _port(port) { }
+        ClockConnector(PCXTKeyboardPort* p)
+          : InputConnector<bool>(p), _port(p) { }
         void setData(Tick t, bool v) { _port->setClock(t, v); }
     private:
         PCXTKeyboardPort* _port;

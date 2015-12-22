@@ -7,10 +7,13 @@ typedef ISA8BitComponentBaseT<void> ISA8BitComponentBase;
 template<class T> class ISA8BitComponentBaseT : public ClockedComponent
 {
 public:
-    ISA8BitComponentBaseT(Component::Type type)
+    ISA8BitComponentBaseT(Component::Type type, bool noConnectorName)
       : ClockedComponent(type), _connector(this)
     {
-        connector("bus", &_connector);
+        if (noConnectorName)
+            connector("", &_connector);
+        else
+            connector("bus", &_connector);
         persist("active", &_active);
     }
     // Address bit 31 = write
@@ -68,21 +71,17 @@ protected:
 template<class C> class ISA8BitComponent : public ISA8BitComponentBase
 {
 public:
-    ISA8BitComponent(Component::Type type) : ISA8BitComponentBase(type) { }
+    ISA8BitComponent(Component::Type type, bool noConnectorName = false)
+      : ISA8BitComponentBase(type, noConnectorName) { }
     typedef ClockedComponent::Type<C> Type;
 };
 
-class NoISA8BitComponent : public Component
+class NoISA8BitComponent : public ISA8BitComponent<NoISA8BitComponent>
 {
 public:
     static String typeName() { return "NoISA8BitComponent"; }
     NoISA8BitComponent(Component::Type type)
-      : Component(type), _connector(this)
-    {
-        connector("", &_connector);
-    }
-private:
-    ISA8BitComponentBase::Connector _connector;
+      : ISA8BitComponent<NoISA8BitComponent>(type, true) { }
 };
 
 template<class T> class ISA8BitBusT : public Component
@@ -92,7 +91,8 @@ public:
 
     ISA8BitBusT(Component::Type type)
       : Component(type), _cpuSocket(this), _connector(this),
-        _chipConnectors{this, this, this, this, this, this, this, this}
+        _chipConnectors{this, this, this, this, this, this, this, this},
+        _parityError(this)
     {
         connector("cpu", &_cpuSocket);
         connector("slot", &_connector);

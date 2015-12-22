@@ -10,7 +10,7 @@ public:
     class Connector : public ::Connector
     {
     public:
-        Connector(PCXTKeyboard* keyboard) : _keyboard(keyboard) { }
+        Connector(PCXTKeyboard* k) : ::Connector(k), _keyboard(k) { }
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:

@@ -89,7 +89,8 @@ public:
     class Connector : public ::Connector
     {
     public:
-        Connector(RGBIMonitor* monitor) : _monitor(monitor) { }
+        Connector(RGBIMonitor* monitor)
+          : ::Connector(monitor), _monitor(monitor) { }
         void connect(::Connector* other)
         {
             // TODO

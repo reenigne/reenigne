@@ -49,7 +49,7 @@ public:
     IBMCGAT(Component::Type type)
       : ISA8BitComponent<IBMCGAT<T>>(type), _attr(0), _chrdata(0), _wait(0),
         _cycle(0), _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true),
-        _bgriSource(this), _ram(RAM::Type(_simulator)), _rgbiConnector(this)
+        _bgriSource(this), _ram(RAM::Type(simulator())), _rgbiConnector(this)
     {
         this->config("rom", &_rom);
         this->persist("memoryActive", &_memoryActive);
@@ -58,7 +58,7 @@ public:
         this->persist("portAddress", &_portAddress, HexPersistenceType(4));
         this->persist("mode", &_mode);
         this->persist("palette", &_palette);
-        config("ram", &_ram, RAM::Type(_simulator, &_ram));
+        config("ram", &_ram, RAM::Type(simulator(), &_ram));
         connector("rgbiOutput", &_rgbiConnector);
     }
     void load(Value v)
@@ -200,7 +200,7 @@ public:
     {
         typedef ::Connector::Type CType;
     public:
-        RGBIConnector(IBMCGA* cga) : _cga(cga) { }
+        RGBIConnector(IBMCGA* cga) : ::Connector(cga), _cga(cga) { }
         void connect(::Connector* other)
         {
             // TODO

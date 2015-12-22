@@ -935,6 +935,7 @@ template<class T> class BucketComponent : public Component
 {
 public:
     static String typeName() { return "Bucket"; }
+    BucketComponent(Component::Type t) : Component(t) { }
 private:
     class Type : public ParametricComponentType<T, BucketComponent<T>>
     {

@@ -4,7 +4,10 @@ template<class T> class Intel8255PPIT
 public:
     static String typeName() { return "Intel8255PPI"; }
     Intel8255PPIT(Component::Type type)
-      : ISA8BitComponent<Intel8255PPIT<T>>(type)
+      : ISA8BitComponent<Intel8255PPIT<T>>(type), _bytes{this, this, this},
+        _bits{this, this, this, this, this, this, this, this, this, this, this,
+        this, this, this, this, this, this, this, this, this, this, this, this,
+        this}
     {
         _mode = 0x1b;
         for (int i = 0; i < 3; ++i) {
@@ -135,6 +138,7 @@ private:
     template<class U> class Connector : public BidirectionalConnector<U>
     {
     public:
+        Connector(Component* c) : BidirectionalConnector<U>(c) { }
         void setData(Tick tick, U v) { _ppi->setData(_i, v); }
         Intel8255PPI* _ppi;
         int _i;
