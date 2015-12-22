@@ -1,8 +1,11 @@
-template<class T> class NoRGBISource : public Component
+template<class T> class NoRGBISourceT;
+typedef NoRGBISourceT<void> NoRGBISource;
+
+template<class T> class NoRGBISourceT : public Component
 {
 public:
     static String typeName() { return "NoRGBISource"; }
-    NoRGBISource(Component::Type type) : Component(type), _connector(this)
+    NoRGBISourceT(Component::Type type) : Component(type), _connector(this)
     {
         connector("", &_connector);
     }
@@ -10,7 +13,7 @@ public:
     class Connector : public ::Connector
     {
     public:
-        Connector(NoRGBISource* c) : ::Connector(c) { }
+        Connector(NoRGBISourceT* c) : ::Connector(c) { }
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:
@@ -34,7 +37,7 @@ public:
         }
     };
 
-    typedef Component::TypeHelper<NoRGBIMonitor> Type;
+    typedef Component::TypeHelper<NoRGBISource> Type;
 private:
     Connector _connector;
 };
@@ -94,7 +97,7 @@ public:
         ::Connector::Type type() const { return Type(); }
         Component::Type defaultComponentType(Simulator* simulator)
         {
-            return NoRGBISource::Type();
+            return NoRGBISource::Type(simulator);
         }
 
         class Type : public NamedNullary<::Connector::Type, Type>

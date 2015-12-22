@@ -634,10 +634,6 @@ public:
         ++_cycle;
         if (_cycle % 1000000 == 0)
             console.write(".");
-        if (_halted) {
-            console.write("Stopped at cycle " + decimal(_cycle) + "\n");
-            this->_simulator->halt();
-        }
     }
     void simulateCycleAction()
     {

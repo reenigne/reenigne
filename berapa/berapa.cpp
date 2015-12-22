@@ -113,13 +113,13 @@ Type connectorTypeFromType(Type t);
 template<class T> class ConnectorT
 {
 public:
-    ConnectorT(Component* component) : _component(component) { }
+    ConnectorT(Component* component)
+      : _component(component), _connected(false) { }
     class Type : public NamedNullary<::Type, Type>
     {
     public:
-        Type() : _connected(false) { }
-        Type(const ConstHandle& other)
-          : NamedNullary<::Type, Type>(other), _connected(false) { }
+        Type() { }
+        Type(const ConstHandle& other) : NamedNullary<::Type, Type>(other) { }
         bool compatible(Type other) const
         {
             return body()->compatible(other) ||
@@ -616,6 +616,7 @@ template<class T> class BidirectionalConnector;
 class BidirectionalConnectorBase : public Connector
 {
 public:
+    BidirectionalConnectorBase(Component* c) : Connector(c) { }
     class Type : public Connector::Type
     {
     public:
@@ -645,7 +646,7 @@ public:
     virtual void setData(Tick t, T v) = 0;
     Component::Type defaultComponentType(Simulator* simulator)
     {
-        return HighConstantComponent<T>::Type(simulator);
+        return HighConstantComponent<T>::Type();
     }
     void connect(::Connector* other)
     {
@@ -932,15 +933,20 @@ public:
 
 template<class T> class BucketComponent : public Component
 {
+public:
+    static String typeName() { return "Bucket"; }
 private:
     class Type : public ParametricComponentType<T, BucketComponent<T>>
     {
     public:
-        Type(Simulator* simulator) : Component::Type(simulator) { }
+        Type(Simulator* s) : ParametricComponentType(create<Body>(s)) { }
     private:
-        class Body : public Component::Type::Body
+        class Body
+          : public ParametricComponentType<T, BucketComponent<T>>::Body
         {
         public:
+            Body(Simulator* s)
+              : ParametricComponentType<T, BucketComponent<T>>::Body(s) { }
             String toString() const { return "Sink" + this->parameter(); }
         };
     };
@@ -955,7 +961,8 @@ private:
 template<class T> class ConstantComponent : public Component
 {
 public:
-    ConstantComponent(T v) : _v(v) { }
+    ConstantComponent(Component::Type t, T v)
+      : Component(t), _v(v), _connector(this) { }
 private:
     void load() { _connector->setData(0, _v); }
     T _v;
@@ -965,13 +972,13 @@ private:
 template<class T> class HighConstantComponent : public ConstantComponent<T>
 {
 public:
-    HighConstantComponent() : ConstantComponent(-1) { }
+    HighConstantComponent(Component::Type t) : ConstantComponent(t, -1) { }
 };
 
 template<> class HighConstantComponent<bool> : public ConstantComponent<bool>
 {
 public:
-    HighConstantComponent() : ConstantComponent(true) { }
+    HighConstantComponent(Component::Type t) : ConstantComponent(t, true) { }
 };
 
 // SRLatch works like a NAND latch with inverters on the inputs.

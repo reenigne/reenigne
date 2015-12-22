@@ -34,7 +34,7 @@ public:
         }
         Component::Type defaultComponentType(Simulator* simulator)
         {
-            throw Exception(_bus->name() + " needs a CPU");
+            throw Exception(_component->name() + " is not plugged in.");
         }
         ::Connector::Type type() const { return Type(); }
 
@@ -72,6 +72,19 @@ public:
     typedef ClockedComponent::Type<C> Type;
 };
 
+class NoISA8BitComponent : public Component
+{
+public:
+    static String typeName() { return "NoISA8BitComponent"; }
+    NoISA8BitComponent(Component::Type type)
+      : Component(type), _connector(this)
+    {
+        connector("", &_connector);
+    }
+private:
+    ISA8BitComponentBase::Connector _connector;
+};
+
 template<class T> class ISA8BitBusT : public Component
 {
 public:
@@ -99,7 +112,7 @@ public:
         Type type() const { return Type(); }
         Component::Type defaultComponentType(Simulator* simulator)
         {
-            return Component::TypeHelper<ISA8BitComponentBase>(simulator);
+            return NoISA8BitComponent::Type(simulator);
         }
 
         class Type : public NamedNullary<::Connector::Type, Type>

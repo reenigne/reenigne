@@ -1,8 +1,11 @@
-template<class T> class NoRGBIMonitor : public Component
+template<class T> class NoRGBIMonitorT;
+typedef NoRGBIMonitorT<void> NoRGBIMonitor;
+
+template<class T> class NoRGBIMonitorT : public Component
 {
 public:
     static String typeName() { return "NoRGBIMonitor"; }
-    NoRGBIMonitor(Component::Type type) : Component(type), _connector(this)
+    NoRGBIMonitorT(Component::Type type) : Component(type), _connector(this)
     {
         connector("", &_connector);
     }
@@ -205,7 +208,7 @@ public:
         ::Connector::Type type() const { return Type(); }
         Component::Type defaultComponentType(Simulator* simulator)
         {
-            return NoRGBIMontitor::Type();
+            return NoRGBIMonitor::Type(simulator);
         }
 
         class Type : public NamedNullary<CType, Type>
