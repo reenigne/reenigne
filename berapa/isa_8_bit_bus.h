@@ -107,7 +107,7 @@ public:
     class Connector : public ::Connector
     {
     public:
-        Connector(ISA8BitBus* bus) : _bus(bus) { }
+        Connector(ISA8BitBus* bus) : ::Connector(bus), _bus(bus) { }
         void connect(::Connector* other) { }
         Type type() const { return Type(); }
         Component::Type defaultComponentType(Simulator* simulator)

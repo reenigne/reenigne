@@ -71,7 +71,7 @@
     </Expand>
   </Type>
 
-  
+
   <!-- ALFE bodies -->
 
   <Type Name="ConstHandle::Body" Inheritable="false">
@@ -368,7 +368,7 @@
 
 
   <!-- Berapa bodies -->
-  
+
   <Type Name="ComponentT&lt;*&gt;::TypeHelper&lt;RGBIMonitorT&lt;*&gt;&gt;::Body">
     <DisplayString>RGBIMonitor</DisplayString>
     <Expand>
@@ -390,8 +390,8 @@
   <Type Name="OutputConnector&lt;bool&gt;::Type::Body">
     <DisplayString>OutputConnector&lt;bool&gt; refcount={_count,d}</DisplayString>
   </Type>
-  
-  
+
+
   <!-- Berapa components -->
 
   <Type Name="RAM">
@@ -458,6 +458,9 @@
       <ExpandedItem>(ComponentT&lt;void&gt;*)this,nd</ExpandedItem>
     </Expand>
   </Type>
+  <Type Name="ConstantComponent&lt;bool&gt;">
+    <DisplayString>ConstantComponent&lt;bool&gt;</DisplayString>
+  </Type>
 
 
   <!-- Berapa connectors -->
@@ -466,7 +469,7 @@
     <DisplayString>Intel8088CPU::Connector</DisplayString>
   </Type>
 
-  
+
   <!-- Berapa other -->
   <Type Name="Tick">
     <DisplayString>{_t,d}</DisplayString>

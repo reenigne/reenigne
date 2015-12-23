@@ -144,7 +144,7 @@ public:
                     *reason = other.toString() + " is not a connector.";
                     return false;
                 }
-                if (!compatible(t)) {
+                if (!Type(type()).compatible(t)) {
                     *reason = t.toString() + " and " + this->toString() +
                         " are not compatible connectors.";
                     return false;
@@ -646,7 +646,7 @@ public:
     virtual void setData(Tick t, T v) = 0;
     Component::Type defaultComponentType(Simulator* simulator)
     {
-        return HighConstantComponent<T>::Type();
+        return HighConstantComponent<T>::Type(simulator);
     }
     void connect(::Connector* other)
     {
@@ -788,7 +788,8 @@ private:
     class InputConnector : public ::InputConnector<T>
     {
     public:
-        InputConnector(BooleanComponent *component) : _component(component) { }
+        InputConnector(BooleanComponent *c)
+          : ::InputConnector<T>(c), _component(c) { }
         void connect(::Connector* other) { _other = other; }
         void setData(Tick t, T v) { _v = v; _component->update(t); }
         ::Connector* _other;
@@ -798,8 +799,8 @@ private:
     class OutputConnector : public ::OutputConnector<T>
     {
     public:
-        OutputConnector(BooleanComponent *component)
-          : _component(component) { }
+        OutputConnector(BooleanComponent *c)
+          : ::OutputConnector<T>(c), _component(c) { }
         void connect(::Connector* other)
         {
             _other = dynamic_cast<BidirectionalConnector<T>*>(other);
@@ -883,7 +884,8 @@ template<class T> class NotComponentBase : public Component
 {
 public:
     static String typeName() { return "Not"; }
-    NotComponentBase(Component::Type type) : Component(type), _input(this)
+    NotComponentBase(Component::Type type)
+      : Component(type), _input(this), _output(this)
     {
         connector("input", &_input);
         connector("output", &_output);
@@ -909,8 +911,10 @@ private:
     class InputConnector : public ::InputConnector<T>
     {
     public:
-        InputConnector(NotComponentBase *component)
-          : _component(static_cast<NotComponent<T>*>(component)) { }
+        InputConnector(NotComponentBase *c)
+          : ::InputConnector<T>(c),
+            _component(static_cast<NotComponent<T>*>(c))
+        { }
         void setData(Tick t, T v) { _component->update(t, v); }
         NotComponent<T>* _component;
     };
@@ -935,7 +939,10 @@ template<class T> class BucketComponent : public Component
 {
 public:
     static String typeName() { return "Bucket"; }
-    BucketComponent(Component::Type t) : Component(t) { }
+    BucketComponent(Component::Type t) : Component(t), _connector(this)
+    {
+        connector("", &_connector);
+    }
 private:
     class Type : public ParametricComponentType<T, BucketComponent<T>>
     {
@@ -948,12 +955,13 @@ private:
         public:
             Body(Simulator* s)
               : ParametricComponentType<T, BucketComponent<T>>::Body(s) { }
-            String toString() const { return "Sink" + this->parameter(); }
+            String toString() const { return "Bucket" + this->parameter(); }
         };
     };
     class Connector : public InputConnector<T>
     {
     public:
+        Connector(BucketComponent* c) : InputConnector(c) { }
         void setData(Tick tick, T t) { }
     };
     Connector _connector;
@@ -962,8 +970,26 @@ private:
 template<class T> class ConstantComponent : public Component
 {
 public:
-    ConstantComponent(Component::Type t, T v)
-      : Component(t), _v(v), _connector(this) { }
+    static String typeName() { return "Constant"; }
+    ConstantComponent(Component::Type t, T v = T())
+      : Component(t), _v(v), _connector(this)
+    {
+        connector("", &_connector);
+    }
+    class Type : public ParametricComponentType<T, ConstantComponent<T>>
+    {
+    public:
+        Type(Simulator* s) : ParametricComponentType(create<Body>(s)) { }
+    private:
+        class Body
+          : public ParametricComponentType<T, ConstantComponent<T>>::Body
+        {
+        public:
+            Body(Simulator* s)
+              : ParametricComponentType<T, ConstantComponent<T>>::Body(s) { }
+            String toString() const { return "Constant" + this->parameter(); }
+        };
+    };
 private:
     void load() { _connector->setData(0, _v); }
     T _v;

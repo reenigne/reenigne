@@ -12,7 +12,7 @@ public:
             return;
         _mask = mask | 0xc0000000;
         _start = address;
-        String data = File(fileName, _simulator->directory()).contents();
+        String data = File(fileName, simulator()->directory()).contents();
         int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
         int dl = data.length();
         int rl = length + offset;
