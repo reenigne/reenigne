@@ -335,6 +335,9 @@
   <Type Name="IntegerType::Body">
     <DisplayString>Integer</DisplayString>
   </Type>
+  <Type Name="BooleanType::Body">
+    <DisplayString>Boolean</DisplayString>
+  </Type>
   <Type Name="WordType::Body">
     <DisplayString>Word</DisplayString>
   </Type>

@@ -181,7 +181,7 @@ public:
         if (!_connected && !type().canConnectMultiple()) {
             auto t = defaultComponentType(_component->simulator());
             Reference<::Component> c = t.createComponent();
-            c->set("", getValue());
+            doConnect(c->defaultConnector());
         }
     }
 
@@ -404,12 +404,16 @@ public:
     }
     Type type() const { return _type; }
     Connector* defaultConnector() const { return _defaultConnector; }
-    void checkConnections()
+    void checkConnections(int* n)
     {
         for (auto i : _config) {
             Member m = i.value();
             if (Connector::Type(m.type()).valid())
                 static_cast<Connector*>(m._p)->checkConnected();
+        }
+        if (_name == "") {
+            _name = decimal(*n);
+            ++*n;
         }
     }
     SimulatorT<T>* simulator() const { return _simulator; }
@@ -1236,8 +1240,9 @@ public:
     void addComponent(Reference<Component> c) { _components.add(c); }
     void load(String initialStateFile)
     {
+        int n = 0;
         for (auto i : _components)
-            i->checkConnections();
+            i->checkConnections(&n);
         for (auto i : _components) {
             Rational cyclesPerSecond = i->cyclesPerSecond();
             if (cyclesPerSecond != 0)
