@@ -768,10 +768,10 @@ template<class T, class C> class BooleanComponent : public Component
 {
 public:
     BooleanComponent(Component::Type type)
-      : Component(type), _input1(this), _input2(this), _output(this)
+      : Component(type), _input0(this, 0), _input1(this, 1), _output(this)
     {
+        connector("input0", &_input0);
         connector("input1", &_input1);
-        connector("input2", &_input2);
         connector("output", &_output);
     }
     class Type : public ParametricComponentType<T, C>
@@ -795,10 +795,21 @@ private:
         InputConnector(BooleanComponent *c)
           : ::InputConnector<T>(c), _component(c) { }
         void connect(::Connector* other) { _other = other; }
-        void setData(Tick t, T v) { _v = v; _component->update(t); }
         ::Connector* _other;
         T _v;
         BooleanComponent* _component;
+    };
+    class InputConnector0 : public InputConnector
+    {
+    public:
+        InputConnector0(BooleanComponent *c) : InputConnector(c) { }
+        void setData(Tick t, T v) { _component->update0(t, v); _v = v; }
+    };
+    class InputConnector1 : public InputConnector
+    {
+    public:
+        InputConnector1(BooleanComponent *c) : InputConnector(c) { }
+        void setData(Tick t, T v) { _component->update1(t, v); _v = v; }
     };
     class OutputConnector : public ::OutputConnector<T>
     {
@@ -821,8 +832,8 @@ private:
         BooleanComponent* _component;
     };
 protected:
-    InputConnector _input1;
-    InputConnector _input2;
+    InputConnector0 _input0;
+    InputConnector1 _input1;
     OutputConnector _output;
 };
 
@@ -833,9 +844,13 @@ public:
     static String typeName() { return "And"; }
     AndComponent(Component::Type type)
       : BooleanComponent<T, AndComponent<T>>(type) { }
-    void update(Tick t)
+    void update0(Tick t)
     {
-        this->_output.set(t, this->_input1._v & this->_input2._v);
+        this->_output.set(t, this->_input0._v & this->_input1._v);
+    }
+    void update1(Tick t)
+    {
+        this->_output.set(t, this->_input0._v & this->_input1._v);
     }
     class Type : public BooleanComponent<T, AndComponent<T>>::Type
     {
@@ -863,7 +878,7 @@ public:
       : BooleanComponent<T, OrComponent<T>>(type) { }
     void update(Tick t)
     {
-        this->_output.set(t, this->_input1._v | this->_input2._v);
+        this->_output.set(t, this->_input0._v | this->_input1._v);
     }
     class Type : public BooleanComponent<T, OrComponent<T>>::Type
     {
