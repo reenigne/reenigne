@@ -803,13 +803,25 @@ private:
     {
     public:
         InputConnector0(BooleanComponent *c) : InputConnector(c) { }
-        void setData(Tick t, T v) { _component->update0(t, v); _v = v; }
+        void setData(Tick t, T v)
+        {
+            if (t < _component->_tick)
+                return;
+            _component->update0(t, v);
+            _v = v;
+        }
     };
     class InputConnector1 : public InputConnector
     {
     public:
         InputConnector1(BooleanComponent *c) : InputConnector(c) { }
-        void setData(Tick t, T v) { _component->update1(t, v); _v = v; }
+        void setData(Tick t, T v)
+        {
+            if (t < _component->_tick)
+                return;
+            _component->update1(t, v);
+            _v = v;
+        }
     };
     class OutputConnector : public ::OutputConnector<T>
     {
@@ -837,6 +849,22 @@ protected:
     OutputConnector _output;
 };
 
+template<class T> class BinaryTraits
+{
+public:
+    static T zero() { return 0; }
+    static T invert(const T& other) { return ~other; }
+    static T one() { return invert(zero()); }
+};
+
+template<> class BinaryTraits<bool>
+{
+public:
+    static bool zero() { return false; }
+    static bool invert(const bool& other) { return !other; }
+    static bool one() { return true; }
+};
+
 template<class T> class AndComponent
   : public BooleanComponent<T, AndComponent<T>>
 {
@@ -844,11 +872,15 @@ public:
     static String typeName() { return "And"; }
     AndComponent(Component::Type type)
       : BooleanComponent<T, AndComponent<T>>(type) { }
-    void update0(Tick t)
+    void update0(Tick t, T v)
     {
+        if (this->_input0._v != BinaryTraits<T>::zero()) {
+            t
+        }
+
         this->_output.set(t, this->_input0._v & this->_input1._v);
     }
-    void update1(Tick t)
+    void update1(Tick t, T v)
     {
         this->_output.set(t, this->_input0._v & this->_input1._v);
     }
@@ -897,9 +929,7 @@ public:
     };
 };
 
-template<class T> class NotComponent;
-
-template<class T> class NotComponentBase : public Component
+template<class T> class NotComponent : public Component
 {
 public:
     static String typeName() { return "Not"; }
@@ -908,6 +938,10 @@ public:
     {
         connector("input", &_input);
         connector("output", &_output);
+    }
+    void update(Tick t, T v)
+    {
+        _output._other->setData(t, BinaryTraits<T>::invert(v));
     }
     class Type : public ParametricComponentType<T, NotComponentBase<T>>
     {
@@ -940,18 +974,6 @@ private:
 protected:
     InputConnector _input;
     OutputConnector<T> _output;
-};
-
-template<class T> class NotComponent : public NotComponentBase<T>
-{
-public:
-    void update(Tick t, T v) { _output._other->setData(t, ~v); }
-};
-
-template<> class NotComponent<bool> : public NotComponentBase<bool>
-{
-public:
-    void update(Tick t, bool v) { _output._other->setData(t, !v); }
 };
 
 template<class T> class BucketComponent : public Component
