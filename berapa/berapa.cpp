@@ -184,6 +184,7 @@ public:
             doConnect(c->defaultConnector());
         }
     }
+    bool componentLoopCheck() { return _component->loopCheck(); }
 
     virtual Type type() const = 0;
     virtual void connect(Connector* other) = 0;
@@ -250,7 +251,7 @@ public:
     };
     ComponentT(Type type)
       : _type(type), _simulator(type.simulator()), _ticksPerCycle(0),
-        _defaultConnector(0)
+        _defaultConnector(0), _loopCheck(false)
     {
         persist("tick", &_tick);
     }
@@ -417,6 +418,18 @@ public:
         }
     }
     SimulatorT<T>* simulator() const { return _simulator; }
+    bool loopCheck()
+    {
+        if (_loopCheck)
+            return true;
+        _loopCheck = true;
+        if (subLoopCheck())
+            return true;
+        _loopCheck = false;
+        return false;
+    }
+    bool isInLoop() const { return _loopCheck; }
+    virtual bool subLoopCheck() { return false; }
 
 protected:
     void connector(String name, Connector* p)
@@ -554,6 +567,7 @@ private:
     Type _type;
     Connector* _defaultConnector;
     SimulatorT<T>* _simulator;
+    bool _loopCheck;
 
     friend class ConnectorT<T>::Type::Body;
     friend class AssignmentFunco::Body;
@@ -650,7 +664,7 @@ public:
     virtual void setData(Tick t, T v) = 0;
     Component::Type defaultComponentType(Simulator* simulator)
     {
-        return HighConstantComponent<T>::Type(simulator);
+        return ConstantComponent<T>::Type(simulator);
     }
     void connect(::Connector* other)
     {
@@ -694,6 +708,7 @@ public:
     {
         return BucketComponent<T>::Type(simulator);
     }
+    bool loopCheck() { return _other->componentLoopCheck(); }
     class Type
       : public NamedNullary<typename BidirectionalConnector<T>::Type, Type>
     {
@@ -774,6 +789,7 @@ public:
         connector("input1", &_input1);
         connector("output", &_output);
     }
+    bool subLoopCheck() { return _output.loopCheck(); }
     class Type : public ParametricComponentType<T, C>
     {
     public:
@@ -805,8 +821,6 @@ private:
         InputConnector0(BooleanComponent *c) : InputConnector(c) { }
         void setData(Tick t, T v)
         {
-            if (t < _component->_tick)
-                return;
             _component->update0(t, v);
             _v = v;
         }
@@ -817,8 +831,6 @@ private:
         InputConnector1(BooleanComponent *c) : InputConnector(c) { }
         void setData(Tick t, T v)
         {
-            if (t < _component->_tick)
-                return;
             _component->update1(t, v);
             _v = v;
         }
@@ -933,30 +945,31 @@ template<class T> class NotComponent : public Component
 {
 public:
     static String typeName() { return "Not"; }
-    NotComponentBase(Component::Type type)
+    NotComponent(Component::Type type)
       : Component(type), _input(this), _output(this)
     {
         connector("input", &_input);
         connector("output", &_output);
     }
+    bool subLoopCheck() { return _output.loopCheck(); }
     void update(Tick t, T v)
     {
         _output._other->setData(t, BinaryTraits<T>::invert(v));
     }
-    class Type : public ParametricComponentType<T, NotComponentBase<T>>
+    class Type : public ParametricComponentType<T, NotComponent<T>>
     {
     public:
         Type(Simulator* simulator)
-          : ParametricComponentType<T, NotComponentBase<T>>(
+          : ParametricComponentType<T, NotComponent<T>>(
                 Type::template create<Body>(simulator)) { }
     private:
         class Body
-          : public ParametricComponentType<T, NotComponentBase<T>>::Body
+          : public ParametricComponentType<T, NotComponent<T>>::Body
         {
         public:
             Body(Simulator* simulator)
-              : ParametricComponentType<T, NotComponentBase<T>>::Body(
-                    simulator) { }
+              : ParametricComponentType<T, NotComponent<T>>::Body(simulator)
+            { }
             String toString() const { return "Not" + this->parameter(); }
         };
     };
@@ -964,7 +977,7 @@ private:
     class InputConnector : public ::InputConnector<T>
     {
     public:
-        InputConnector(NotComponentBase *c)
+        InputConnector(NotComponent *c)
           : ::InputConnector<T>(c),
             _component(static_cast<NotComponent<T>*>(c))
         { }
@@ -1012,7 +1025,7 @@ template<class T> class ConstantComponent : public Component
 {
 public:
     static String typeName() { return "Constant"; }
-    ConstantComponent(Component::Type t, T v = T())
+    ConstantComponent(Component::Type t, T v = BinaryTraits<T>::one())
       : Component(t), _v(v), _connector(this)
     {
         connector("", &_connector);
@@ -1037,18 +1050,6 @@ private:
     OutputConnector<T> _connector;
 };
 
-template<class T> class HighConstantComponent : public ConstantComponent<T>
-{
-public:
-    HighConstantComponent(Component::Type t) : ConstantComponent(t, -1) { }
-};
-
-template<> class HighConstantComponent<bool> : public ConstantComponent<bool>
-{
-public:
-    HighConstantComponent(Component::Type t) : ConstantComponent(t, true) { }
-};
-
 // SRLatch works like a NAND latch with inverters on the inputs.
 class SRLatch : public Component
 {
@@ -1062,6 +1063,10 @@ public:
         connector("reset", &_reset);
         connector("lastSet", &_lastSet);
         connector("lastReset", &_lastReset);
+    }
+    bool subLoopCheck()
+    {
+        return _lastSet.loopCheck() || _lastReset.loopCheck();
     }
     class Type : public Component::TypeHelper<SRLatch>
     {
@@ -1280,6 +1285,21 @@ public:
         int n = 0;
         for (auto i : _components)
             i->checkConnections(&n);
+        for (auto i : _components) {
+            bool r = i->loopCheck();
+            if (r) {
+                String s = "Dependency loop involving ";
+                bool needComma = false;
+                for (auto j : _components) {
+                    if (!j->isInLoop)
+                        continue;
+                    if (needComma)
+                        s += ", ";
+                    s += j->name();
+                }
+                throw Exception(s);
+            }
+        }
         for (auto i : _components) {
             Rational cyclesPerSecond = i->cyclesPerSecond();
             if (cyclesPerSecond != 0)
