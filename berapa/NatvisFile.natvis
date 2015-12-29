@@ -368,6 +368,9 @@
       <Item Name="[ParseTreeObject]">(ParseTreeObject::Body*)this,nd</Item>
     </Expand>
   </Type>
+  <Type Name="FunctionCallExpressionT&lt;*&gt;::FunctionCallBody">
+    <DisplayString>{_function}({_arguments})</DisplayString>
+  </Type>
 
 
   <!-- Berapa bodies -->
@@ -391,7 +394,10 @@
     </Expand>
   </Type>
   <Type Name="OutputConnector&lt;bool&gt;::Type::Body">
-    <DisplayString>OutputConnector&lt;bool&gt; refcount={_count,d}</DisplayString>
+    <DisplayString>OutputConnector&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="InputConnector&lt;bool&gt;::Type::Body">
+    <DisplayString>InputConnector&lt;bool&gt;</DisplayString>
   </Type>
 
 

@@ -184,8 +184,7 @@ public:
             doConnect(c->defaultConnector());
         }
     }
-    bool componentLoopCheck() { return _component->loopCheck(); }
-    void runTo(Tick tick) { _component->runTo(tick); }
+    Component* component() { return _component; }
 
     virtual Type type() const = 0;
     virtual void connect(Connector* other) = 0;
@@ -432,6 +431,8 @@ public:
     bool isInLoop() const { return _loopCheck; }
     virtual bool subLoopCheck() { return false; }
 
+    Tick _tick;
+
 protected:
     void connector(String name, Connector* p)
     {
@@ -490,7 +491,6 @@ protected:
     {
         _persist.add(name, Member(static_cast<void*>(p), initial));
     }
-    Tick _tick;
     Tick _ticksPerCycle;
 private:
     class AssignmentFunco : public Funco
@@ -670,6 +670,7 @@ public:
     void connect(::Connector* other)
     {
         _other = dynamic_cast<BidirectionalConnector<T>*>(other);
+        _otherComponent = _other->component();
     }
     class Type : public NamedNullary<BidirectionalConnectorBase::Type, Type>
     {
@@ -697,6 +698,7 @@ public:
         static String name() { return "BidirectionalConnector" + parameter(); }
     };
     BidirectionalConnector<T>* _other;
+    Component* _otherComponent;
 };
 
 template<class T> class OutputConnector : public BidirectionalConnector<T>
@@ -709,7 +711,7 @@ public:
     {
         return BucketComponent<T>::Type(simulator);
     }
-    bool loopCheck() { return _other->componentLoopCheck(); }
+    bool loopCheck() { return _otherComponent->loopCheck(); }
     class Type
       : public NamedNullary<typename BidirectionalConnector<T>::Type, Type>
     {
@@ -784,7 +786,7 @@ template<class T, class C> class BooleanComponent : public Component
 {
 public:
     BooleanComponent(Component::Type type)
-      : Component(type), _input0(this, 0), _input1(this, 1), _output(this)
+      : Component(type), _input0(this), _input1(this), _output(this)
     {
         connector("input0", &_input0);
         connector("input1", &_input1);
@@ -794,8 +796,8 @@ public:
     void runTo(Tick tick)
     {
         // We're up to date if our inputs are up to date.
-        _input0._other->runTo(tick);
-        _input1._other->runTo(tick);
+        _input0._otherComponent->runTo(tick);
+        _input1._otherComponent->runTo(tick);
         Component::runTo(tick);
     }
     class Type : public ParametricComponentType<T, C>
@@ -811,7 +813,8 @@ public:
               : ParametricComponentType<T, C>::Body(simulator) { }
         };
     };
-    virtual void update(Tick t) = 0;
+    virtual void update0(Tick t, T v) = 0;
+    virtual void update1(Tick t, T v) = 0;
 private:
     class InputConnector : public ::InputConnector<T>
     {
@@ -894,15 +897,23 @@ public:
       : BooleanComponent<T, AndComponent<T>>(type) { }
     void update0(Tick t, T v)
     {
-        if (this->_input0._v != BinaryTraits<T>::zero()) {
-            t
+        if (t > _input1._otherComponent->_tick)
+            _input1._otherComponent->runTo(t);
+        else {
+            _tick = t;
+            if (_input1._v != BinaryTraits<T>::zero())
+                _output.set(t, v & _input1._v);
         }
-
-        this->_output.set(t, this->_input0._v & this->_input1._v);
     }
     void update1(Tick t, T v)
     {
-        this->_output.set(t, this->_input0._v & this->_input1._v);
+        if (t > _input0._otherComponent->_tick)
+            _input0._otherComponent->runTo(t);
+        else {
+            _tick = t;
+            if (_input0._v != BinaryTraits<T>::zero())
+                _output.set(t, v & _input0._v);
+        }
     }
     class Type : public BooleanComponent<T, AndComponent<T>>::Type
     {
@@ -928,9 +939,25 @@ public:
     static String typeName() { return "Or"; }
     OrComponent(Component::Type type)
       : BooleanComponent<T, OrComponent<T>>(type) { }
-    void update(Tick t)
+    void update0(Tick t, T v)
     {
-        this->_output.set(t, this->_input0._v | this->_input1._v);
+        if (t > _input1._otherComponent->_tick)
+            _input1._otherComponent->runTo(t);
+        else {
+            _tick = t;
+            if (_input1._v != BinaryTraits<T>::one())
+                _output.set(t, v | _input1._v);
+        }
+    }
+    void update1(Tick t, T v)
+    {
+        if (t > _input0._otherComponent->_tick)
+            _input0._otherComponent->runTo(t);
+        else {
+            _tick = t;
+            if (_input0._v != BinaryTraits<T>::one())
+                _output.set(t, v | _input0._v);
+        }
     }
     class Type : public BooleanComponent<T, OrComponent<T>>::Type
     {
@@ -963,7 +990,7 @@ public:
     void runTo(Tick tick)
     {
         // We're up to date if our inputs are up to date.
-        _input._other->runTo(tick);
+        _input._otherComponent->runTo(tick);
         Component::runTo(tick);
     }
     void update(Tick t, T v)
@@ -1150,8 +1177,8 @@ public:
                         createComponent();
                 }
             }
-            c->set("input1", l);
-            c->set("input2", r);
+            c->set("input0", l);
+            c->set("input1", r);
             return c->getValue("output");
         }
         bool argumentsMatch(List<Type> argumentTypes) const
@@ -1305,7 +1332,7 @@ public:
                 String s = "Dependency loop involving ";
                 bool needComma = false;
                 for (auto j : _components) {
-                    if (!j->isInLoop)
+                    if (!j->isInLoop())
                         continue;
                     if (needComma)
                         s += ", ";
