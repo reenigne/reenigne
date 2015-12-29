@@ -185,6 +185,7 @@ public:
         }
     }
     bool componentLoopCheck() { return _component->loopCheck(); }
+    void runTo(Tick tick) { _component->runTo(tick); }
 
     virtual Type type() const = 0;
     virtual void connect(Connector* other) = 0;
@@ -790,6 +791,13 @@ public:
         connector("output", &_output);
     }
     bool subLoopCheck() { return _output.loopCheck(); }
+    void runTo(Tick tick)
+    {
+        // We're up to date if our inputs are up to date.
+        _input0._other->runTo(tick);
+        _input1._other->runTo(tick);
+        Component::runTo(tick);
+    }
     class Type : public ParametricComponentType<T, C>
     {
     public:
@@ -952,6 +960,12 @@ public:
         connector("output", &_output);
     }
     bool subLoopCheck() { return _output.loopCheck(); }
+    void runTo(Tick tick)
+    {
+        // We're up to date if our inputs are up to date.
+        _input._other->runTo(tick);
+        Component::runTo(tick);
+    }
     void update(Tick t, T v)
     {
         _output._other->setData(t, BinaryTraits<T>::invert(v));
