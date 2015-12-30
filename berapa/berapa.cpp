@@ -821,7 +821,11 @@ private:
     public:
         InputConnector(BooleanComponent *c)
           : ::InputConnector<T>(c), _component(c) { }
-        void connect(::Connector* other) { _other = other; }
+        void connect(::Connector* other)
+        {
+            _other = other;
+            ::InputConnector<T>::connect(other);
+        }
         ::Connector* _other;
         T _v;
         BooleanComponent* _component;
@@ -854,6 +858,7 @@ private:
         void connect(::Connector* other)
         {
             _other = dynamic_cast<BidirectionalConnector<T>*>(other);
+            ::OutputConnector<T>::connect(other);
         }
         void set(Tick t, T v)
         {
