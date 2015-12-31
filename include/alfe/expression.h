@@ -54,8 +54,8 @@ template<class T> class OverloadedFunctionSetT;
 typedef OverloadedFunctionSetT<void> OverloadedFunctionSet;
 
 class Function;
-
 class BooleanType;
+class FuncoType;
 
 template<class T> class EvaluationContextT
 {
@@ -443,17 +443,17 @@ private:
         ValueT<T> evaluate(EvaluationContext* context) const
         {
             HashTable<Identifier, Value> values;
-            List<StructuredType::Member> members;
+            List<typename StructuredTypeT<T>::Member> members;
             int i = 0;
             for (auto e : _expressions) {
-                Value v = e.evaluate(context);
+                ValueT<T> v = e.evaluate(context);
                 Type t = v.type();
                 String n = decimal(i);
                 values.add(n, v);
-                members.add(StructuredType::Member("", t));
+                members.add(typename StructuredTypeT<T>::Member("", t));
                 ++i;
             }
-            return Value(StructuredType("", members), values, span());
+            return Value(StructuredType("", members), values, this->span());
         }
     private:
         List<Expression> _expressions;

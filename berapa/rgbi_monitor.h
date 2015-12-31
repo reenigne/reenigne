@@ -23,7 +23,8 @@ public:
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return other == RGBIMonitor::Connector::Type();
+                    return other ==
+                        typename RGBIMonitorT<T>::Connector::Type();
                 }
             };
         };
@@ -83,7 +84,7 @@ public:
         Component::load(v);
         // Defer creating the window until load time to avoid creating windows
         // during type building.
-        _window = Reference<Window>::create<Window>();
+        _window = Reference<Window>::template create<Window>();
     }
 
     class Connector : public ::Connector
@@ -116,7 +117,7 @@ public:
             };
             static String name() { return "RGBIMonitor.Connector"; }
             bool valid() const { return body() != 0; }
-            const Body* body() const { return as<Body>(); }
+            const Body* body() const { return this->template as<Body>(); }
         };
     private:
         RGBIMonitor* _monitor;
@@ -176,7 +177,7 @@ public:
             ++x;
             reader.advance(1);
         } while (true);
-        _renderer.renderTexture(&_texture);
+        _window->_renderer.renderTexture(&_window->_texture);
         return n;
     }
 

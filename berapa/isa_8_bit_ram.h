@@ -4,11 +4,12 @@ template<class T> class ISA8BitRAMT
 public:
     static String typeName() { return "ISA8BitRAM"; }
     ISA8BitRAMT(Component::Type type)
-      : ISA8BitComponent<ISA8BitRAMT<T>>(type), _ram(RAM::Type(simulator()))
+      : ISA8BitComponent<ISA8BitRAMT<T>>(type),
+        _ram(RAM::Type(this->simulator()))
     {
         this->persist("address", &_address, HexPersistenceType(5));
         this->persist("ram", &_ram, _ram.persistenceType());
-        config("ram", &_ram, RAM::Type(simulator(), &_ram));
+        this->config("ram", &_ram, RAM::Type(this->simulator(), &_ram));
     }
     void setAddress(UInt32 address)
     {

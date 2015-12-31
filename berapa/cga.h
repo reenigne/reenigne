@@ -23,7 +23,7 @@ public:
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return other == IBMCGA::RGBIConnector::Type();
+                    return other == typename IBMCGAT<T>::RGBIConnector::Type();
                 }
             };
         };
@@ -49,7 +49,8 @@ public:
     IBMCGAT(Component::Type type)
       : ISA8BitComponent<IBMCGAT<T>>(type), _attr(0), _chrdata(0), _wait(0),
         _cycle(0), _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true),
-        _bgriSource(this), _ram(RAM::Type(simulator())), _rgbiConnector(this)
+        _bgriSource(this), _ram(RAM::Type(this->simulator())),
+        _rgbiConnector(this)
     {
         this->config("rom", &_rom);
         this->persist("memoryActive", &_memoryActive);
@@ -58,8 +59,8 @@ public:
         this->persist("portAddress", &_portAddress, HexPersistenceType(4));
         this->persist("mode", &_mode);
         this->persist("palette", &_palette);
-        config("ram", &_ram, RAM::Type(simulator(), &_ram));
-        connector("rgbiOutput", &_rgbiConnector);
+        this->config("ram", &_ram, RAM::Type(this->simulator(), &_ram));
+        this->connector("rgbiOutput", &_rgbiConnector);
     }
     void load(Value v)
     {
@@ -68,7 +69,7 @@ public:
         int length = 0x2000;
         _romdata.allocate(length);
         if (data.length() < length) {
-            throw Exception(fileName + " is too short: " +
+            throw Exception(_rom + " is too short: " +
                 decimal(data.length()) + " bytes found, " + decimal(length) +
                 " bytes required");
         }
@@ -221,12 +222,13 @@ public:
             public:
                 bool compatible(CType other) const
                 {
-                    return RGBIMonitorT<T>::Connector::Type(other).valid();
+                    return typename RGBIMonitorT<T>::Connector::Type(other).
+                        valid();
                 }
             };
             static String name() { return "IBMCGA.RGBIConnector"; }
             bool valid() const { return body() != 0; }
-            const Body* body() const { return as<Body>(); }
+            const Body* body() const { return this->template as<Body>(); }
         };
     private:
         IBMCGA* _cga;

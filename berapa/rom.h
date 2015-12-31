@@ -5,14 +5,15 @@ public:
     ROMT(Component::Type type) : ROMT(type, 0, 0, "", 0) { }
     ROMT(Component::Type type, int mask, int address, String fileName,
         int offset)
-      : ISA8BitComponent(type)
+      : ISA8BitComponent<ROMT<T>>(type)
     {
         this->persist("address", &_address, HexPersistenceType(5));
         if (fileName == "")
             return;
         _mask = mask | 0xc0000000;
         _start = address;
-        String data = File(fileName, simulator()->directory()).contents();
+        String data =
+            File(fileName, this->simulator()->directory()).contents();
         int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
         int dl = data.length();
         int rl = length + offset;
@@ -40,7 +41,8 @@ public:
     {
     public:
         Type(Simulator* simulator)
-          : ISA8BitComponent<ROMT<T>>::Type(create<Body>(simulator)) { }
+          : ISA8BitComponent<ROMT<T>>::Type(ISA8BitComponent<ROMT<T>>::Type::
+                template create<Body>(simulator)) { }
     private:
         class Body : public ISA8BitComponent<ROMT<T>>::Type::Body
         {
@@ -71,10 +73,10 @@ public:
                 if (file == "")
                     throw Exception("Invalid ROM path");
                 int offset = m["fileOffset"].value<int>();
-                auto rom = Reference<Component>::create<ROM>(type(), mask,
-                    address, file, offset);
-                _simulator->addComponent(rom);
-                return Value(type(), static_cast<Structure*>(&(*rom)),
+                auto rom = Reference<Component>::create<ROM>(this->type(),
+                    mask, address, file, offset);
+                this->_simulator->addComponent(rom);
+                return Value(this->type(), static_cast<Structure*>(&(*rom)),
                     value.span());
             }
         private:

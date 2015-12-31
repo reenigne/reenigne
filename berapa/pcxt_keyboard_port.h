@@ -20,7 +20,7 @@ public:
             public:
                 bool compatible(::Connector::Type other) const
                 {
-                    return other == PCXTKeyboardPort::Connector::Type();
+                    return other == PCXTKeyboardPortT<T>::Connector::Type();
                 }
             };
         };
@@ -80,7 +80,7 @@ public:
         }
         Component::Type defaultComponentType(Simulator* simulator)
         {
-            return PCXTNoKeyboardT<T>::Type(simulator);
+            return typename PCXTNoKeyboardT<T>::Type(simulator);
         }
     };
 

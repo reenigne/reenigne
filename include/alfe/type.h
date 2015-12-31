@@ -179,21 +179,21 @@ public:
     {
         return other.canConvertFrom(*this, reason);
     }
-    ValueT<T> convert(const Value& value) const
+    ValueT<T> convert(const ValueT<T>& value) const
     {
         if (*this == value.type())
             return value;
         if (value == StructuredTypeT<T>::empty()) {
-            Value v = body()->defaultValue();
+            ValueT<T> v = body()->defaultValue();
             if (v.valid())
                 return v;
         }
-        Value r = body()->convert(value);
+        ValueT<T> r = body()->convert(value);
         if (r.valid())
             return r;
         return value.type().body()->convertTo(*this, value);
     }
-    ValueT<T> convertTo(const Type& to, const Value& value) const
+    ValueT<T> convertTo(const Type& to, const ValueT<T>& value) const
     {
         assert(*this == value.type());
         return to.convert(value);
