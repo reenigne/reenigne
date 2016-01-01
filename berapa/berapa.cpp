@@ -139,7 +139,7 @@ public:
             virtual bool canConvertFrom(const ::Type& other, String* reason)
                 const
             {
-	        ConnectorT<T>::Type t = connectorTypeFromType(other);
+            ConnectorT<T>::Type t = connectorTypeFromType(other);
                 if (!t.valid()) {
                     *reason = other.toString() + " is not a connector.";
                     return false;
@@ -573,9 +573,10 @@ private:
 
     friend class ConnectorT<T>::Type::Body;
     friend class AssignmentFunco::Body;
-//    template<class C> friend class TypeHelper<C>::Body;
 };
 
+// For sub-components (like RAM) the type doesn't create the component, it just
+// returns the pointer to the member of the parent component.
 template<class C> class SubComponentType : public Component::TypeHelper<C>
 {
 public:
@@ -799,13 +800,6 @@ public:
         connector("output", &_output);
     }
     bool subLoopCheck() { return _output.loopCheck(); }
-    void runTo(Tick tick)
-    {
-        // We're up to date if our inputs are up to date.
-        _input0._otherComponent->runTo(tick);
-        _input1._otherComponent->runTo(tick);
-        Component::runTo(tick);
-    }
     class Type : public ParametricComponentType<T, C>
     {
     public:
@@ -906,6 +900,13 @@ public:
     static String typeName() { return "And"; }
     AndComponent(Component::Type type)
       : BooleanComponent<T, AndComponent<T>>(type) { }
+    void runTo(Tick tick)
+    {
+        _input0._otherComponent->runTo(tick);
+        if (this->_input0._v != BinaryTraits<T>::zero())
+            _input1._otherComponent->runTo(tick);
+        Component::runTo(tick);
+    }
     void update0(Tick t, T v)
     {
         if (t > this->_input1._otherComponent->_tick)
@@ -950,6 +951,13 @@ public:
     static String typeName() { return "Or"; }
     OrComponent(Component::Type type)
       : BooleanComponent<T, OrComponent<T>>(type) { }
+    void runTo(Tick tick)
+    {
+        _input0._otherComponent->runTo(tick);
+        if (this->_input0._v != BinaryTraits<T>::one())
+            _input1._otherComponent->runTo(tick);
+        Component::runTo(tick);
+    }
     void update0(Tick t, T v)
     {
         if (t > this->_input1._otherComponent->_tick)
