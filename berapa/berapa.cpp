@@ -1008,7 +1008,7 @@ public:
     bool subLoopCheck() { return _output.loopCheck(); }
     void runTo(Tick tick)
     {
-        // We're up to date if our inputs are up to date.
+        // We're up to date if our input is up to date.
         _input._otherComponent->runTo(tick);
         Component::runTo(tick);
     }
@@ -1129,6 +1129,12 @@ public:
         connector("lastSet", &_lastSet);
         connector("lastReset", &_lastReset);
     }
+    void runTo(Tick tick)
+    {
+        _set._otherComponent->runTo(tick);
+        _reset._otherComponent->runTo(tick);
+        Component::runTo(tick);
+    }
     bool subLoopCheck()
     {
         return _lastSet.loopCheck() || _lastReset.loopCheck();
@@ -1145,14 +1151,64 @@ public:
             Body(Simulator* simulator) : Component::Type::Body(simulator) { }
         };
     };
-    void doSet(Tick t, bool v) { }
-    void doReset(Tick t, bool v) { }
+    // Truth table:
+    //   set reset _isSet  lastSet lastReset
+    //    0    0      0       0        1
+    //    0    0      1       1        0
+    //    1    0      X       1        0       _isSet <- 1
+    //    0    1      X       0        1       _isSet <- 0
+    //    1    1      X       1        1
+    void doSet(Tick t, bool v)
+    {
+        if (t > _reset._otherComponent->_tick)
+            _reset._otherComponent->runTo(t);
+        else {
+            this->_tick = t;
+            update(t, v, _reset._v);
+        }
+    }
+    void doReset(Tick t, bool v)
+    {
+        if (t > _set._otherComponent->_tick)
+            _set._otherComponent->runTo(t);
+        else {
+            this->_tick = t;
+            update(t, _set._v, v);
+        }
+    }
+    void update(Tick t, bool s, bool r)
+    {
+        if (!s) {
+            if (!r) {
+                _lastSet.setData(t, _isSet);
+                _lastReset.setData(t, !_isSet);
+            }
+            else {
+                _isSet = false;
+                _lastSet.setData(t, false);
+                _lastReset.setData(t, true);
+            }
+        }
+        else {
+            if (!r) {
+                _isSet = true;
+                _lastSet.setData(t, true);
+                _lastReset.setData(t, false);
+            }
+            else {
+                _lastSet.setData(t, true);
+                _lastReset.setData(t, true);
+            }
+        }
+    }
+
 private:
     class SetConnector : public InputConnector<bool>
     {
     public:
         SetConnector(SRLatch* latch) : InputConnector(latch), _latch(latch) { }
-        void setData(Tick t, bool v) { _latch->doSet(t, v); }
+        void setData(Tick t, bool v) { _latch->doSet(t, v); _v = v; }
+        bool _v;
     private:
         SRLatch* _latch;
     };
@@ -1161,7 +1217,8 @@ private:
     public:
         ResetConnector(SRLatch* latch)
           : InputConnector(latch), _latch(latch) { }
-        void setData(Tick t, bool v) { _latch->doReset(t, v); }
+        void setData(Tick t, bool v) { _latch->doReset(t, v); _v = v; }
+        bool _v;
     private:
         SRLatch* _latch;
     };
