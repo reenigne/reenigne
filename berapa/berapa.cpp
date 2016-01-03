@@ -676,7 +676,7 @@ public:
     }
     void connect(::Connector* other)
     {
-        _other = dynamic_cast<BidirectionalConnector<T>*>(other);
+        _other = static_cast<BidirectionalConnector<T>*>(other);
         _otherComponent = _other->component();
     }
     class Type : public NamedNullary<BidirectionalConnectorBase::Type, Type>
@@ -740,6 +740,21 @@ public:
                 BidirectionalConnector<T>::Type::parameter();
         }
     };
+};
+
+template<class T> class OptimizedOutputConnector : public OutputConnector<T>
+{
+public:
+    OptimizedOutputConnector(Component* c) : OutputConnector(c), _v(T()) { }
+    void set(Tick t, T v)
+    {
+        if (v != _v) {
+            _v = v;
+            _other->setData(t, v);
+        }
+    }
+private:
+    T _v;
 };
 
 template<class T> class InputConnector : public BidirectionalConnector<T>
@@ -850,31 +865,10 @@ private:
             this->_v = v;
         }
     };
-    class OutputConnector : public ::OutputConnector<T>
-    {
-    public:
-        OutputConnector(BooleanComponent *c)
-          : ::OutputConnector<T>(c), _component(c) { }
-        void connect(::Connector* other)
-        {
-            _other = dynamic_cast<BidirectionalConnector<T>*>(other);
-            ::OutputConnector<T>::connect(other);
-        }
-        void set(Tick t, T v)
-        {
-            if (v != _v) {
-                _v = v;
-                _other->setData(t, v);
-            }
-        }
-        BidirectionalConnector<T>* _other;
-        T _v;
-        BooleanComponent* _component;
-    };
 protected:
     InputConnector0 _input0;
     InputConnector1 _input1;
-    OutputConnector _output;
+    OptimizedOutputConnector<T> _output;
 };
 
 template<class T> class BinaryTraits
@@ -1225,8 +1219,8 @@ private:
 
     SetConnector _set;
     ResetConnector _reset;
-    OutputConnector<bool> _lastSet;
-    OutputConnector<bool> _lastReset;
+    OptimizedOutputConnector<bool> _lastSet;
+    OptimizedOutputConnector<bool> _lastReset;
     bool _isSet;
 };
 
