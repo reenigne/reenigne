@@ -745,7 +745,7 @@ public:
 template<class T> class OptimizedOutputConnector : public OutputConnector<T>
 {
 public:
-    OptimizedOutputConnector(Component* c) : OutputConnector(c), _v(T()) { }
+    OptimizedOutputConnector(Component* c) : OutputConnector(c) { }
     void set(Tick t, T v)
     {
         if (v != _v) {
@@ -753,6 +753,7 @@ public:
             _other->setData(t, v);
         }
     }
+    void init(T v) { _v = v; }
 private:
     T _v;
 };
@@ -894,6 +895,11 @@ public:
     static String typeName() { return "And"; }
     AndComponent(Component::Type type)
       : BooleanComponent<T, AndComponent<T>>(type) { }
+    void load(Value v)
+    {
+        BooleanComponent::load(v);
+        _output.init(_input0._v & _input1._v);
+    }
     void runTo(Tick tick)
     {
         _input0._otherComponent->runTo(tick);
@@ -945,6 +951,11 @@ public:
     static String typeName() { return "Or"; }
     OrComponent(Component::Type type)
       : BooleanComponent<T, OrComponent<T>>(type) { }
+    void load(Value v)
+    {
+        BooleanComponent::load(v);
+        _output.init(_input0._v | _input1._v);
+    }
     void runTo(Tick tick)
     {
         _input0._otherComponent->runTo(tick);
@@ -1122,6 +1133,18 @@ public:
         connector("reset", &_reset);
         connector("lastSet", &_lastSet);
         connector("lastReset", &_lastReset);
+    }
+    void load(Value v)
+    {
+        Component::load(v);
+        if (!_set._v && !_reset._v) {
+            _lastSet.init(_isSet);
+            _lastReset.init(!_isSet);
+        }
+        else {
+            _lastSet.init(_set._v);
+            _lastReset.init(_reset._v);
+        }
     }
     void runTo(Tick tick)
     {

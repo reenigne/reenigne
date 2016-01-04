@@ -448,7 +448,7 @@
   <Type Name="SRLatch">
     <DisplayString>SRLatch</DisplayString>
   </Type>
-  <Type Name="NotComponentBase&lt;bool&gt;">
+  <Type Name="NotComponent&lt;bool&gt;">
     <DisplayString>Not&lt;bool&gt;</DisplayString>
   </Type>
   <Type Name="BooleanComponent&lt;bool,OrComponent&lt;bool&gt;&gt;">
@@ -468,7 +468,16 @@
     </Expand>
   </Type>
   <Type Name="ConstantComponent&lt;bool&gt;">
-    <DisplayString>ConstantComponent&lt;bool&gt;</DisplayString>
+    <DisplayString>ConstantComponent&lt;bool&gt; {_v,x}</DisplayString>
+  </Type>
+  <Type Name="ConstantComponent&lt;unsigned char&gt;">
+    <DisplayString>ConstantComponent&lt;Byte&gt; {_v,x}</DisplayString>
+  </Type>
+  <Type Name="NoISA8BitComponent">
+    <DisplayString>NoISA8BitComponent</DisplayString>
+  </Type>
+  <Type Name="BucketComponent&lt;bool&gt;">
+    <DisplayString>BucketComponent&lt;bool&gt;</DisplayString>
   </Type>
 
 
