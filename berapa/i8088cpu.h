@@ -521,7 +521,7 @@ public:
         hi.add(ioWordSecond, "ioWordSecond");
 
         persist("ip", &_ip);
-        persist("registers", &_registerData[0], ArrayType(WordType(), 4)); // ?
+        persist("registers", &_registerData[0], ArrayType(WordType(), 8)); // ?
         List<Value> initialSegments;
         initialSegments.add(Value(WordType(), 0));
         initialSegments.add(Value(WordType(), 0xffff));
@@ -531,7 +531,7 @@ public:
         persist("prefetch", this, PersistQueueType());
         persist("segment", &_segment);
         persist("segmentOverride", &_segmentOverride, -1);
-        persist("prefetchQddress", &_prefetchAddress);
+        persist("prefetchAddress", &_prefetchAddress);
         persist("ioType", &_ioType, ioTypeType);
         persist("ioRequested", &_ioRequested, ioTypeType);
         persist("ioInProgress", &_ioInProgress, ioInstructionFetch,
@@ -634,6 +634,8 @@ public:
         ++_cycle;
         if (_cycle % 1000000 == 0)
             console.write(".");
+        if (_cycle == 100)
+            throw Exception("Finished");
     }
     void simulateCycleAction()
     {

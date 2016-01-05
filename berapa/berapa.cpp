@@ -1400,13 +1400,13 @@ public:
     }
     String save() const
     {
-        String s("{");
+        String s("{\n");
         bool needComma = false;
         for (auto i : _components) {
-            if (i->name().empty())
+            if (i->value() == i->persistenceType().defaultValue())
                 continue;
             String l = "    " + i->name() + ": ";
-            String v = i->save(79, l.length(), 4, 4);
+            String v = i->save(79, l.length(), 8, 4);
             if (v != "") {
                 if (needComma)
                     s += ",\n";

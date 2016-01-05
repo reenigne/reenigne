@@ -220,7 +220,7 @@ public:
             }
         private:
             const T* _p;
-            ConstIterator(T* p) : _p(p) { }
+            ConstIterator(const T* p) : _p(p) { }
             friend class Body;
         };
 

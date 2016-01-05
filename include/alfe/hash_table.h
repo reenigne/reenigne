@@ -127,7 +127,7 @@ public:
     {
         if (count() != other.count())
             return false;
-        for (auto i = begin(); i != end(); ++i) {
+        for (auto i : *this) {
             Key k = i.key();
             if (!other.hasKey(k))
                 return false;
@@ -140,14 +140,14 @@ public:
     {
         if (count() != other.count())
             return false;
-        for (auto i = begin(); i != end(); ++i) {
+        for (auto i : *this) {
             Key k = i.key();
             if (!other.hasKey(k))
                 return false;
             if (i.value() != other[k])
                 return false;
         }
-        for (auto i = other.begin(); i != other.end(); ++i) {
+        for (auto i : other) {
             K1 k = i.key();
             if (!hasKey(k))
                 return false;

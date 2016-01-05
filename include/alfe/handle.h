@@ -122,6 +122,12 @@ protected:
     {
     protected:
         template<class T> T handle() { return T(ConstHandle(this, true)); }
+        virtual bool equals(const Body* other) const { return false; }
+    private:
+        bool equals(const ConstHandle::Body* other) const
+        {
+            return equals(static_cast<const Body*>(other));
+        }
     };
     Body* body() { return const_cast<ConstHandle::Body*>(_body)->as<Body>(); }
     template<class T> const T* as() const { return ConstHandle::as<T>(); }

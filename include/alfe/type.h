@@ -603,7 +603,7 @@ public:
         Value defaultValue() const { return 0; }
         Value value(void* p) const
         {
-            return static_cast<int>(*static_cast<Byte*>(p));
+            return Value(ByteType(), static_cast<int>(*static_cast<Byte*>(p)));
         }
     };
 };
@@ -628,7 +628,7 @@ public:
         Value defaultValue() const { return 0; }
         Value value(void* p) const
         {
-            return static_cast<int>(*static_cast<Word*>(p));
+            return Value(WordType(), static_cast<int>(*static_cast<Word*>(p)));
         }
     };
 };
@@ -1571,6 +1571,13 @@ protected:
             assert(false);
             return Value();
         }
+        Value defaultValue() const
+        {
+            HashTable<Identifier, Value> values;
+            for (auto i : _members)
+                values.add(i.name(), i.defaultValue());
+            return Value(type(), values);
+        }
 
         Type member(IdentifierT<T> i) const
         {
@@ -1578,7 +1585,7 @@ protected:
                 return Type();
             return _members[_names[i]].type();
         }
-        bool equals(const Body* other) const
+        bool equals(const ConstHandle::Body* other) const
         {
             auto o = other->as<Body>();
             if (o == 0)
