@@ -384,7 +384,7 @@ public:
         List<StructuredType::Member> members;
         for (auto i : _persist)
             members.add(StructuredType::Member(i.key(), i.value()._initial));
-        return StructuredType(_type.toString(), members);
+        return PersistenceType(_type.toString(), members);
     }
     virtual void load(const Value& value)
     {
@@ -493,6 +493,23 @@ protected:
     }
     Tick _ticksPerCycle;
 private:
+    class PersistenceType : public StructuredType
+    {
+    public:
+        PersistenceType(String name, List<StructuredType::Member> members)
+          : StructuredType(create<Body>(name, members)) { }
+    private:
+        class Body : public StructuredType::Body
+        {
+        public:
+            Body(String name, List<Member> members)
+              : StructuredType::Body(name, members) { }
+            Value value(void* p) const
+            {
+                return static_cast<Component*>(p)->value();
+            }
+        };
+    };
     class AssignmentFunco : public Funco
     {
     public:

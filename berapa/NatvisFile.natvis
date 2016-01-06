@@ -399,6 +399,13 @@
   <Type Name="InputConnector&lt;bool&gt;::Type::Body">
     <DisplayString>InputConnector&lt;bool&gt;</DisplayString>
   </Type>
+  <Type Name="ComponentT&lt;*&gt;::PersistenceType::Body">
+    <DisplayString>PersistenceType {_name}, {_members._body,view(count)} members</DisplayString>
+    <Expand>
+      <Item Name="[names]">_names</Item>
+      <Item Name="[members]">_members</Item>
+    </Expand>
+  </Type>
 
 
   <!-- Berapa components -->

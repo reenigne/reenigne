@@ -5,7 +5,8 @@ public:
     static String typeName() { return "Intel8253PIT"; }
     Intel8253PITT(Component::Type type)
       : ISA8BitComponent<Intel8253PITT<T>>(type),
-        _timers{type, type, type}
+        _timers{Timer::Type(this->simulator()), Timer::Type(this->simulator()),
+            Timer::Type(this->simulator())}
     {
         this->persist("address", &_address);
         this->persist("timers", &_timers[0],
@@ -219,6 +220,7 @@ private:
             }
             _gate = gate;
         }
+        typedef SubComponentType<Timer> Type;
     private:
         enum State
         {

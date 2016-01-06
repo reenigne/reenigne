@@ -29,7 +29,9 @@ public:
     static String typeName() { return "Intel8237DMAC"; }
     Intel8237DMACT(Component::Type type)
       : ISA8BitComponent<Intel8237DMACT<T>>(type),
-        _channels{type, type, type, type}
+        _channels{Channel::Type(this->simulator()),
+            Channel::Type(this->simulator()), Channel::Type(this->simulator()),
+            Channel::Type(this->simulator())}
     {
         this->persist("address", &_address, HexPersistenceType(1));
         this->persist("command", &_command);
@@ -289,6 +291,7 @@ private:
     class Channel : public Component
     {
     public:
+        static String typeName() { return "Channel"; }
         Channel(Component::Type type) : Component(type)
         {
             persist("mode", &_mode);
@@ -381,6 +384,7 @@ private:
             return static_cast<TransferMode>((_mode >> 6) & 3);
         }
         bool terminalCount() const { return _terminalCount; }
+        typedef SubComponentType<Channel> Type;
     private:
         Byte _mode;
         UInt16 _baseAddress;

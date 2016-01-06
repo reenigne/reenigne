@@ -709,20 +709,7 @@ protected:
             const
         {
             int n;
-            char* pc = static_cast<char*>(p);
-            LessThanType l(_indexer);
-            if (l.valid()) {
-                n = l.n();
-                pc = static_cast<char*>(p);
-            }
-            else {
-                if (_indexer == IntegerType()) {
-                    n = elementCount(p);
-                    pc = static_cast<char*>(elementData(p));
-                }
-                else
-                    unknownCount();
-            }
+            char* pc = pointerAndCount(p, &n);
             int size = _contained.size();
             Value d(_contained);
             do {
@@ -810,10 +797,36 @@ protected:
                 p = static_cast<void*>(pc);
             }
         }
+        Value value(void* p) const
+        {
+            int n;
+            char* pc = pointerAndCount(p, &n);
+            List<Value> v;
+            int size = _contained.size();
+            for (int i = 0; i < n; ++i) {
+                v.add(_contained.value(static_cast<void*>(pc)));
+                pc += size;
+            }
+            return Value(type(), v);
+        }
     protected:
         virtual int elementCount(void* p) const { unknownCount(); return 0; }
         virtual void* elementData(void* p) const { return 0; }
     private:
+        char* pointerAndCount(void* p, int *n) const
+        {
+            LessThanType l(_indexer);
+            if (l.valid()) {
+                *n = l.n();
+                return static_cast<char*>(p);
+            }
+            if (_indexer == IntegerType()) {
+                *n = elementCount(p);
+                return static_cast<char*>(elementData(p));
+            }
+            unknownCount();
+            return 0;
+        }
         void unknownCount() const
         {
             throw Exception("Don't know how many elements to serialize.");

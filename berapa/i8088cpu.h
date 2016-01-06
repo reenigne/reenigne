@@ -1906,6 +1906,16 @@ private:
             {
                 return Value(this->type(), List<Value>());
             }
+            Value value(void* p) const
+            {
+                auto cpu = static_cast<Intel8088CPU*>(p);
+                List<Value> v;
+                for (int i = 0; i < cpu->_prefetched; ++i) {
+                    v.add(Value(IntegerType(), static_cast<int>(
+                        cpu->_prefetchQueue[(i + cpu->_prefetchOffset) & 3])));
+                }
+                return Value(type(), v);
+            }
         };
     };
 

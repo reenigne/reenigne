@@ -77,26 +77,7 @@ private:
             String serialize(void* p, int width, int used, int indent,
                 int delta) const
             {
-                auto ram = static_cast<RAM*>(p);
-                auto data = &(ram->_data);
-                String s("###\n");
-                for (int y = 0; y < data->count(); y += 0x20) {
-                    String line;
-                    bool gotData = false;
-                    for (int x = 0; x < 0x20; x += 4) {
-                        const UInt8* p = &((*data)[y + x]);
-                        UInt32 v = (p[0]<<24) + (p[1]<<16) + (p[2]<<8) + p[3];
-                        if (v != ram->_decayValue)
-                            gotData = true;
-                        line += " " + hex(v, 8, false);
-                    }
-                    if (gotData) {
-                        if (indent == 0)
-                            return "*";
-                        s += hex(y, 5, false) + ":" + line + "\n";
-                    }
-                }
-                return s + "###";
+                return "###\n" + stringValue(p, indent) + "###";
             }
             void deserialize(const Value& value, void* p) const
             {
@@ -140,7 +121,35 @@ private:
                         "Expected hexadecimal character");
                 }
             }
-            Value defaultValue() const { return String(); }
+            Value defaultValue() const { return Value(type(), String()); }
+            Value value(void* p) const
+            {
+                return Value(type(), stringValue(p, 0));
+            }
+        private:
+            String stringValue(void* p, int indent) const
+            {
+                auto ram = static_cast<RAM*>(p);
+                auto data = &(ram->_data);
+                String s;
+                for (int y = 0; y < data->count(); y += 0x20) {
+                    String line;
+                    bool gotData = false;
+                    for (int x = 0; x < 0x20; x += 4) {
+                        const UInt8* p = &((*data)[y + x]);
+                        UInt32 v = (p[0]<<24) + (p[1]<<16) + (p[2]<<8) + p[3];
+                        if (v != ram->_decayValue)
+                            gotData = true;
+                        line += " " + hex(v, 8, false);
+                    }
+                    if (gotData) {
+                        if (indent == 0)
+                            return "*";
+                        s += hex(y, 5, false) + ":" + line + "\n";
+                    }
+                }
+                return s;
+            }
         };
     };
 
