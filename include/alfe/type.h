@@ -1302,6 +1302,12 @@ protected:
         {
             return Value(type(), *static_cast<T*>(p));
         }
+        bool equals(const ConstHandle::Body* other) const
+        {
+            auto o = other->as<Body>();
+            return o != 0 && _context == o->_context && _name == o->_name &&
+                _helper == o->_helper;
+        }
     private:
         String _context;
         String _name;
@@ -1315,6 +1321,11 @@ public:
         {
             _stringToT.add(i, t);
             _tToString.add(static_cast<int>(t) + 1, i);
+        }
+        bool operator==(const Helper& other) const
+        {
+            return _stringToT == other._stringToT &&
+                _tToString == other._tToString;
         }
     private:
         HashTable<String, T> _stringToT;
@@ -1461,6 +1472,11 @@ protected:
             ArrayType toArray = to;
             if (toArray.valid()) {
                 Type contained = toArray.contained();
+                LessThanType l(toArray.indexer());
+                if (l.valid() && _members.count() > l.n()) {
+                    *why = "The source type has too many members";
+                    return false;
+                }
                 for (int i = 0; i < _members.count(); ++i) {
                     String name = decimal(i);
                     if (!_names.hasKey(name)) {
@@ -1561,10 +1577,16 @@ protected:
                 Type contained = toArray.contained();
                 auto input = value.value<HashTable<Identifier, Value>>();
                 List<Value> results;
-                for (int i = 0; i < input.count(); ++i) {
+                int i;
+                for (i = 0; i < input.count(); ++i) {
                     String name = decimal(i);
                     Value v = input[name].convertTo(contained);
                     results.add(v);
+                }
+                LessThanType l(toArray.indexer());
+                if (l.valid()) {
+                    for (; i < l.n(); ++i)
+                        results.add(contained.defaultValue());
                 }
                 return Value(to, results, value.span());
             }

@@ -12,3 +12,13 @@ Input/Output/Bidirectional connectors:
     The push protocol is the default and must always be available
     Periodic protocol will also be useful - that way for PC speaker emulation a virtual function call will only be needed when a port is written
 
+
+What does speculative execution actually mean
+  "Unless some other signal comes in, my outputs won't change until time T"
+
+
+    Allow discontiguous ranges without separate tree entries?
+      This would be useful for using 8-bit ROM chips on a 16-bit bus (one ROM for even addresses, one for odd addresses)
+        But on the other hand we might prefer a single 16-bit ROM with two files for that
+          Let's not implement this unless we need it
+

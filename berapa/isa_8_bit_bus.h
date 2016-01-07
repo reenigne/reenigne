@@ -14,17 +14,33 @@ public:
             connector("", &_connector);
         else
             connector("bus", &_connector);
-        persist("active", &_active);
     }
-    // Address bit 31 = write
-    // Address bit 30 = IO
-    virtual void setAddress(UInt32 address) { };
-    virtual void write(UInt8 data) { };
+    virtual ISA8BitComponentBase* setAddressReadMemory(Tick tick,
+        UInt32 address)
+    {
+        return this;
+    }
+    virtual ISA8BitComponentBase* setAddressWriteMemory(Tick tick,
+        UInt32 address)
+    {
+        return this;
+    }
+    virtual ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    {
+        return this;
+    }
+    virtual ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    {
+        return this;
+    }
+    virtual UInt8 readMemory(Tick tick) { }
+    virtual void writeMemory(Tick tick, UInt8 data) { }
+    virtual UInt8 readIO(Tick tick) { }
+    virtual void writeIO(Tick tick, UInt8 data) { }
     virtual bool wait() { return false; }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
-    virtual UInt8 debugRead(UInt32 address) { return 0xff; }
-    bool active() const { return _active; }
-    virtual void read() { }
+    virtual UInt8 debugReadMemory(UInt32 address) { return 0xff; }
+
     class Connector : public ::Connector
     {
     public:
@@ -62,9 +78,7 @@ public:
     };
 
 protected:
-    void set(UInt8 data) { _bus->_data = data; }
     ISA8BitBusT<T>* _bus;
-    bool _active;
     Connector _connector;
 };
 
@@ -96,12 +110,13 @@ public:
     {
         connector("cpu", &_cpuSocket);
         connector("slot", &_connector);
-        persist("data", &_data, 0xff);
         for (int i = 0; i < 8; ++i) {
             _chipConnectors[i].init(i);
             connector("chip" + decimal(i), &_chipConnectors[i]);
         }
         connector("parityError", &_parityError);
+        persist("activeAddress", &_activeAddress);
+        persist("activeAccess", &_activeAccess);
     }
 
     class Connector : public ::Connector
@@ -174,40 +189,160 @@ public:
         _components.add(component);
         component->setBus(this);
     }
-    void setAddress(UInt32 address)
+    ISA8BitComponentBase* setAddressReadMemory(Tick tick, UInt32 address)
     {
-        for (auto i : _components)
-            i->setAddress(address);
+        _activeAddress = address;
+        _activeAccess = 0;
+        _activeComponent = _readMemory.setAddressReadMemory(tick, address);
+        return _activeComponent;
     }
-    void write(UInt8 data)
+    ISA8BitComponentBase* setAddressWriteMemory(Tick tick, UInt32 address)
     {
-        for (auto i : _components)
-            if (i->active())
-                i->write(data);
+        _activeAddress = address;
+        _activeAccess = 1;
+        _activeComponent = _readMemory.setAddressWriteMemory(tick, address);
+        return _activeComponent;
     }
-    void write() { write(_data); }
-    UInt8 read() const
+    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt16 address)
     {
-        for (auto i : _components)
-            if (i->active())
-                i->read();
-        return _data;
+        _activeAddress = address;
+        _activeAccess = 2;
+        _activeComponent = _readMemory.setAddressReadIO(tick, address);
+        return _activeComponent;
     }
-    UInt8 debugRead(UInt32 address)
+    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt16 address)
+    {
+        _activeAddress = address;
+        _activeAccess = 3;
+        _activeComponent = _readMemory.setAddressWriteIO(tick, address);
+        return _activeComponent;
+    }
+    UInt8 readMemory(Tick tick) const
+    {
+        return _activeComponent->readMemory(tick);
+    }
+    void writeMemory(Tick tick, UInt8 data)
+    {
+        _activeComponent->writeMemory(tick, data);
+    }
+    UInt8 readIO(Tick tick) const
+    {
+        return _activeComponent->readIO(tick);
+    }
+    void writeIO(Tick tick, UInt8 data)
+    {
+        _activeComponent->writeIO(tick, data);
+    }
+    UInt8 debugReadMemory(UInt32 address)
     {
         UInt8 data = 0xff;
         for (auto i : _components)
-            data &= i->debugRead(address);
+            data &= i->debugReadMemory(address);
         return data;
     }
-    UInt8 data() const { return _data; }
+    void load(Value v)
+    {
+        Component::load(v);
+        switch (_activeAccess) {
+            case 0: setAddressReadMemory()
+        }
+    }
 private:
-    UInt8 _data;
     CPUSocket _cpuSocket;
     Connector _connector;
     ChipConnector _chipConnectors[8];
     List<ISA8BitComponentBase*> _components;
     OutputConnector<bool> _parityError;
+    UInt32 _activeAddress;
+    int _activeAccess;
+    Tick _accessTick;
+    ISA8BitComponentBase* _activeComponent;
+
+    class Choice : public ISA8BitComponentBase
+    {
+    public:
+        ISA8BitComponentBase* setAddressReadMemory(Tick tick, UInt32 address)
+        {
+            if (address < _secondAddress)
+                return _first->setAddressReadMemory(tick, address);
+            return _second->setAddressReadMemory(tick, address);
+        }
+        ISA8BitComponentBase* setAddressWriteMemory(Tick tick, UInt32 address)
+        {
+            if (address < _secondAddress)
+                return _first->setAddressWriteMemory(tick, address);
+            return _second->setAddressWriteMemory(tick, address);
+        }
+        ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+        {
+            if (address < _secondAddress)
+                return _first->setAddressReadIO(tick, address);
+            return _second->setAddressReadIO(tick, address);
+        }
+        ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+        {
+            if (address < _secondAddress)
+                return _first->setAddressWriteIO(tick, address);
+            return _second->setAddressWriteIO(tick, address);
+        }
+        UInt32 _secondAddress;
+        ISA8BitComponentBase* _first;
+        ISA8BitComponentBase* _second;
+    };
+
+    class Combination : public ISABitComponentBase
+    {
+    public:
+        ISA8BitComponentBase* setAddressReadMemory(Tick tick, UInt32 address)
+        {
+            _first-setAddressReadMemory(tick, address);
+            _second-setAddressReadMemory(tick, address);
+            return this;
+        }
+        ISA8BitComponentBase* setAddressWriteMemory(Tick tick, UInt32 address)
+        {
+            _first-setAddressWriteMemory(tick, address);
+            _second-setAddressWriteMemory(tick, address);
+            return this;
+        }
+        ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+        {
+            _first-setAddressReadIO(tick, address);
+            _second-setAddressReadIO(tick, address);
+            return this;
+        }
+        ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+        {
+            _first-setAddressWriteIO(tick, address);
+            _second-setAddressWriteIO(tick, address);
+            return this;
+        }
+        UInt8 readMemory(Tick tick)
+        {
+            return _first->readMemory(tick) & _second->readMemory(tick);
+        }
+        void writeMemory(Tick tick, UInt8 data)
+        {
+            _first->writeMemory(tick, data);
+            _second->writeMemory(tick, data);
+        }
+        UInt8 readIO(Tick tick)
+        {
+            return _first->readIO(tick) & _second->readIO(tick);
+        }
+        void writeIO(Tick tick, UInt8 data)
+        {
+            _first->writeIO(tick, data);
+            _second->writeIO(tick, data);
+        }
+        ISA8BitComponentBase* _first;
+        ISA8BitComponentBase* _second;
+    };
+
+    Choice _readMemory;
+    Choice _writeMemory;
+    Choice _readIO;
+    Choice _writeIO;
 
     friend class ISA8BitComponentBaseT<T>;
 };

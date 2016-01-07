@@ -384,7 +384,7 @@ public:
         List<StructuredType::Member> members;
         for (auto i : _persist)
             members.add(StructuredType::Member(i.key(), i.value()._initial));
-        return PersistenceType(_type.toString(), members);
+        return PersistenceType(_type.toString(), members, _type.size());
     }
     virtual void load(const Value& value)
     {
@@ -496,18 +496,33 @@ private:
     class PersistenceType : public StructuredType
     {
     public:
-        PersistenceType(String name, List<StructuredType::Member> members)
-          : StructuredType(create<Body>(name, members)) { }
+        PersistenceType(String name, List<StructuredType::Member> members,
+            int size)
+          : StructuredType(create<Body>(name, members, size)) { }
     private:
         class Body : public StructuredType::Body
         {
         public:
-            Body(String name, List<Member> members)
-              : StructuredType::Body(name, members) { }
+            Body(String name, List<Member> members, int size)
+              : StructuredType::Body(name, members), _size(size) { }
             Value value(void* p) const
             {
                 return static_cast<Component*>(p)->value();
             }
+            int size() const { return _size; }
+            String serialize(void* p, int width, int used, int indent,
+                int delta) const
+            {
+                return static_cast<Component*>(p)->
+                    save(width, used, indent, delta);
+            }
+            void deserialize(const Value& value, void* p) const
+            {
+                static_cast<Component*>(p)->load(value);
+            }
+
+        private:
+            int _size;
         };
     };
     class AssignmentFunco : public Funco

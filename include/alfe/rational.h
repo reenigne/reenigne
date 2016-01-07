@@ -166,8 +166,8 @@ template<class T> RationalTemplate<T>
     lcm(const RationalTemplate<T>& x, const RationalTemplate<T>& y)
 {
     return RationalTemplate<T>(
-        lcm(x.numerator*y.denominator, y.numerator*x.denominator),
-        lcm(x.denominator, y.denominator));
+        lcm(x.numerator, y.numerator)*lcm(x.denominator, y.denominator),
+        x.denominator*y.denominator);
 }
 
 template<class T> RationalTemplate<T> operator*(const T& x,

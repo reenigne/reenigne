@@ -10,7 +10,7 @@ public:
         this->persist("address", &_address, HexPersistenceType(5));
         if (fileName == "")
             return;
-        _mask = mask | 0xc0000000;
+        _mask = 0xfffff & ~mask;
         _start = address;
         String data =
             File(fileName, this->simulator()->directory()).contents();
@@ -25,17 +25,18 @@ public:
         for (int i = 0; i < length; ++i)
             _data[i] = data[i + offset];
     }
-    void setAddress(UInt32 address)
-    {
-        _address = address & 0xfffff & ~_mask;
-        this->_active = ((address & _mask) == _start);
-    }
-    void read() { this->set(_data[_address & ~_mask]); }
+    void setAddress(UInt32 address) { _address = address & _mask; }
+    UInt8 read(Tick tick) { return _data[_address & ~_mask]; }
     UInt8 debugRead(UInt32 address)
     {
         if ((address & _mask) == _start)
             return _data[address & ~_mask];
         return 0xff;
+    }
+    void load(Value v)
+    {
+        ISA8BitComponent::load(v);
+        _bus->memoryReadRange(this, _start, _start + _mask);
     }
     class Type : public ISA8BitComponent<ROMT<T>>::Type
     {
