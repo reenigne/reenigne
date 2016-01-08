@@ -25,18 +25,17 @@ public:
         for (int i = 0; i < length; ++i)
             _data[i] = data[i + offset];
     }
-    void setAddress(UInt32 address) { _address = address & _mask; }
-    UInt8 read(Tick tick) { return _data[_address & ~_mask]; }
-    UInt8 debugRead(UInt32 address)
+    ISA8BitComponentBase* setAddressReadMemory(UInt32 address)
     {
-        if ((address & _mask) == _start)
-            return _data[address & ~_mask];
-        return 0xff;
+        _address = address & _mask;
+        return this;
     }
+    UInt8 readMemory(Tick tick) { return _data[_address]; }
+    UInt8 debugRead(UInt32 address) { return _data[address & _mask]; }
     void load(Value v)
     {
         ISA8BitComponent::load(v);
-        _bus->memoryReadRange(this, _start, _start + _mask);
+        readMemoryRange(_start, _start + _mask);
     }
     class Type : public ISA8BitComponent<ROMT<T>>::Type
     {

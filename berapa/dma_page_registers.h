@@ -10,8 +10,12 @@ public:
         persist("data", &_dmaPages[0], ArrayType(ByteType(), 4));
         persist("address", &_address);
     }
-    void setAddress(UInt32 address) { _address = address & 3; }
-    void write(UInt8 data) { _dmaPages[_address] = data & 0x0f; }
+    ISA8BitComponentBase* setAddressWriteIO(UInt32 address)
+    {
+        _address = address & 3;
+        return this;
+    }
+    void writeIO(Tick tick, UInt8 data) { _dmaPages[_address] = data & 0x0f; }
     UInt8 pageForChannel(int channel)
     {
         switch (channel) {

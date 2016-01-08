@@ -33,13 +33,30 @@ public:
     {
         return this;
     }
-    virtual UInt8 readMemory(Tick tick) { }
+    virtual ISA8BitComponentBase* getComponent(UInt32 address) { return this; }
+    virtual UInt8 readMemory(Tick tick) { return 0xff; }
     virtual void writeMemory(Tick tick, UInt8 data) { }
-    virtual UInt8 readIO(Tick tick) { }
+    virtual UInt8 readIO(Tick tick) { return 0xff; }
     virtual void writeIO(Tick tick, UInt8 data) { }
     virtual bool wait() { return false; }
     void setBus(ISA8BitBus* bus) { _bus = bus; }
     virtual UInt8 debugReadMemory(UInt32 address) { return 0xff; }
+    void readMemoryRange(UInt32 low, UInt32 high)
+    {
+        _bus->addRange(0, this, low, high);
+    }
+    void writeMemoryRange(UInt32 low, UInt32 high)
+    {
+        _bus->addRange(1, this, low, high);
+    }
+    void readMemoryRange(UInt32 low, UInt32 high)
+    {
+        _bus->addRange(2, this, low, high);
+    }
+    void writeMemoryRange(UInt32 low, UInt32 high)
+    {
+        _bus->addRange(3, this, low, high);
+    }
 
     class Connector : public ::Connector
     {
@@ -106,7 +123,7 @@ public:
     ISA8BitBusT(Component::Type type)
       : Component(type), _cpuSocket(this), _connector(this),
         _chipConnectors{this, this, this, this, this, this, this, this},
-        _parityError(this)
+        _parityError(this), _noComponent(Component::Type())
     {
         connector("cpu", &_cpuSocket);
         connector("slot", &_connector);
@@ -144,14 +161,13 @@ public:
             };
             static String name() { return "ISA8BitBus.Connector"; }
         };
-    private:
-        void busConnect(ISA8BitComponentBase* component)
-        {
-            _bus->addComponent(component);
-        }
     protected:
         ISA8BitBus* _bus;
 
+        virtual void busConnect(ISA8BitComponentBase* component)
+        {
+            _bus->addComponent(component);
+        }
         template<class U> friend class ISA8BitComponent<U>::Connector;
     };
     class ChipConnector : public Connector
@@ -159,6 +175,10 @@ public:
     public:
         ChipConnector(ISA8BitBusT<T>* bus) : Connector(bus) { }
         void init(int i) { _i = i; }
+        void busConnect(ISA8BitComponentBase* component)
+        {
+            _bus->addRange(2, component, i*0x20, (i + 1)*0x20);
+        }
     private:
         int _i;
     };
@@ -189,33 +209,29 @@ public:
         _components.add(component);
         component->setBus(this);
     }
-    ISA8BitComponentBase* setAddressReadMemory(Tick tick, UInt32 address)
+    void setAddressReadMemory(Tick tick, UInt32 address)
     {
         _activeAddress = address;
         _activeAccess = 0;
         _activeComponent = _readMemory.setAddressReadMemory(tick, address);
-        return _activeComponent;
     }
-    ISA8BitComponentBase* setAddressWriteMemory(Tick tick, UInt32 address)
+    void setAddressWriteMemory(Tick tick, UInt32 address)
     {
         _activeAddress = address;
         _activeAccess = 1;
-        _activeComponent = _readMemory.setAddressWriteMemory(tick, address);
-        return _activeComponent;
+        _activeComponent = _writeMemory.setAddressWriteMemory(tick, address);
     }
-    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt16 address)
+    void setAddressReadIO(Tick tick, UInt16 address)
     {
         _activeAddress = address;
         _activeAccess = 2;
-        _activeComponent = _readMemory.setAddressReadIO(tick, address);
-        return _activeComponent;
+        _activeComponent = _readIO.setAddressReadIO(tick, address);
     }
-    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt16 address)
+    void setAddressWriteIO(Tick tick, UInt16 address)
     {
         _activeAddress = address;
         _activeAccess = 3;
-        _activeComponent = _readMemory.setAddressWriteIO(tick, address);
-        return _activeComponent;
+        _activeComponent = _writeIO.setAddressWriteIO(tick, address);
     }
     UInt8 readMemory(Tick tick) const
     {
@@ -235,17 +251,67 @@ public:
     }
     UInt8 debugReadMemory(UInt32 address)
     {
-        UInt8 data = 0xff;
-        for (auto i : _components)
-            data &= i->debugReadMemory(address);
-        return data;
+        return _readMemory.debugReadMemory(address);
     }
     void load(Value v)
     {
         Component::load(v);
-        switch (_activeAccess) {
-            case 0: setAddressReadMemory()
+        // _activeAccess, _activeAddress and ISA8BitComponent::getComponent()
+        // only exist for the purposes of persisting _activeComponent.
+        _activeComponent =
+            choiceForAccess(_activeAccess)->getComponent(_activeAddress);
+    }
+    void addRange(int access, ISA8BitComponentBase* component, UInt32 low,
+        UInt32 high)
+    {
+        Choice* c = choiceForAccess(access);
+        UInt32 end = (access < 2 ? 0x100000 : 0x10000);
+        if (c->_first == 0 && c->_second == 0) {
+            // Create tree that satisfies invariants:
+            //   Root is always a choice (in theory we could have a single
+            //    component responsible for the entire address range, but we
+            //    don't mind being sub-optimal in this case to avoid a pointer
+            //    dereference in the common case).
+            //   Tree spans entire address range (addresses not corresponding
+            //    to a component are assigned &_noComponent).
+            //   A depth-first traversal of the tree yields the components in
+            //    address order.
+            //   Partially overlapping components are split and the overlapping
+            //    range replaced with a Combination.
+            if (low == 0) {
+                // Component at beginning of address space
+                c->_first = component;
+                c->_secondAddress = high;
+                c->_second = &_noComponent;
+            }
+            else {
+                c->_first = &_noComponent;
+                c->_secondAddress = low;
+                if (high == end) {
+                    // Component at end of address space
+                    c->_second = component;
+                }
+                else {
+                    // Component in middle of address space
+                    auto r = Reference<Component>::create<Choice>();
+                    _treeComponents.add(r);
+                    Choice* sc = &(*r);
+                    c->_second = sc;
+                    sc->_first = component;
+                    sc->_secondAddress = high;
+                    sc->_second = &_noComponent;
+                }
+            }
         }
+        else {
+            // TODO: add the range to the tree
+        }
+        // There is one more invariant that we want the final tree to have - we
+        // want to balance the tree such that both subtrees of each nodes cover
+        // roughly equal amounts of address space (without splitting
+        // components).
+
+        // TODO: adjust the tree to maintain this invariant.
     }
 private:
     CPUSocket _cpuSocket;
@@ -257,33 +323,37 @@ private:
     int _activeAccess;
     Tick _accessTick;
     ISA8BitComponentBase* _activeComponent;
+    List<Reference<Component>> _treeComponents;
 
     class Choice : public ISA8BitComponentBase
     {
     public:
+        Choice() : _first(0), _second(0) { }
         ISA8BitComponentBase* setAddressReadMemory(Tick tick, UInt32 address)
         {
-            if (address < _secondAddress)
-                return _first->setAddressReadMemory(tick, address);
-            return _second->setAddressReadMemory(tick, address);
+            return getComponent(address)->setAddressReadMemory(tick, address);
         }
         ISA8BitComponentBase* setAddressWriteMemory(Tick tick, UInt32 address)
         {
-            if (address < _secondAddress)
-                return _first->setAddressWriteMemory(tick, address);
-            return _second->setAddressWriteMemory(tick, address);
+            return getComponent(address)->setAddressWriteMemory(tick, address);
         }
         ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
         {
-            if (address < _secondAddress)
-                return _first->setAddressReadIO(tick, address);
-            return _second->setAddressReadIO(tick, address);
+            return getComponent(address)->setAddressReadIO(tick, address);
         }
         ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
         {
+            return getComponent(address)->setAddressWriteIO(tick, address);
+        }
+        UInt8 debugReadMemory(UInt32 address)
+        {
+            return getComponent(address)->debugReadMemory(address);
+        }
+        ISA8BitComponentBase* getComponent(UInt32 address) final
+        {
             if (address < _secondAddress)
-                return _first->setAddressWriteIO(tick, address);
-            return _second->setAddressWriteIO(tick, address);
+                return _first;
+            return _second;
         }
         UInt32 _secondAddress;
         ISA8BitComponentBase* _first;
@@ -335,14 +405,33 @@ private:
             _first->writeIO(tick, data);
             _second->writeIO(tick, data);
         }
+        UInt8 debugReadMemory(UInt32 address)
+        {
+            return _first->debugReadMemory(address) &
+                _second->debugReadMemory(address);
+        }
         ISA8BitComponentBase* _first;
         ISA8BitComponentBase* _second;
     };
+    Choice* choiceForAccess(int access)
+    {
+        switch (access) {
+            case 0: return &_readMemory;
+            case 1: return &_writeMemory;
+            case 2: return &_readIO;
+            case 3: return &_writeIO;
+        }
+        assert(false);
+        return 0;
+    }
 
     Choice _readMemory;
     Choice _writeMemory;
     Choice _readIO;
     Choice _writeIO;
+    UInt32 _lowAddress[4];
+    UInt32 _highAddress[4];
+    NoISA8BitComponent _noComponent;
 
     friend class ISA8BitComponentBaseT<T>;
 };

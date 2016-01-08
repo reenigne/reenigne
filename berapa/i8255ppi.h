@@ -28,8 +28,17 @@ public:
         this->persist("input", &_input[0], ArrayType(ByteType(), 2));
         this->persist("output", &_output[0], t);
     }
-    void setAddress(UInt32 address) { _address = address & 3; }
-    void read()
+    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    {
+        _address = address & 3;
+        return this;
+    }
+    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    {
+        _address = address & 3;
+        return this;
+    }
+    UInt8 readIO(Tick tick)
     {
         // TODO: IBF is reset by rising edge of RD input
         if (inputA())
@@ -79,9 +88,9 @@ public:
                 d = _mode;
                 break;
         }
-        this->set(d);
+        return d;
     }
-    void write(UInt8 data)
+    void writeIO(Tick tick, UInt8 data)
     {
         // TODO: INTR is reset by falling edge of -WR
         if (outputA())

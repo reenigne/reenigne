@@ -124,13 +124,22 @@ public:
         if (_state == stateIdle || _state == stateS0 || _state == stateYield)
             _highAddress = 0xffff;
     }
-    void setAddress(UInt32 address) { _address = address & 0xf; }
-    void read()
+    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    {
+        _address = address & 0xf;
+        return this;
+    }
+    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    {
+        _address = address & 0xf;
+        return this;
+    }
+    UInt8 readIO(Tick tick)
     {
         if (_address < 8) {
-            this->set(_channels[_address >> 1].read(_address & 1, _lastByte));
+            UInt8 r = _channels[_address >> 1].read(_address & 1, _lastByte);
             _lastByte = !_lastByte;
-            return;
+            return r;
         }
         switch (_address) {
             case 8:
@@ -138,15 +147,14 @@ public:
                     Byte b = 0;
                     for (int i = 0; i < 4; ++i)
                         b |= _channels[i].status() << i;
-                    this->set(b);
+                    return b;
                 }
-                return;
             case 13:
-                this->set(_temporary);
-                return;
+                return _temporary;
         }
+        return 0xff;
     }
-    void write(UInt8 data)
+    void writeIO(Tick tick, UInt8 data)
     {
         if (_address < 8) {
             _channels[_address >> 1].write(_address & 1, data, _lastByte);

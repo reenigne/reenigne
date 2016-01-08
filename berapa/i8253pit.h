@@ -17,13 +17,24 @@ public:
         for (int i = 0; i < 3; ++i)
             _timers[i].simulateCycle();
     }
-    void setAddress(UInt32 address) { _address = address & 3; }
-    void read()
+    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    {
+        _address = address & 3;
+        return this;
+    }
+    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    {
+        _address = address & 3;
+        return this;
+    }
+    UInt8 readIO(Tick tick)
     {
         if (_address < 3)
-            this->set(_timers[_address].read());
+            return _timers[_address].read();
+        // TODO
+        return 0xff;
     }
-    void write(UInt8 data)
+    void writeIO(Tick tick, UInt8 data)
     {
         if (_address < 3)
             _timers[_address].write(data);

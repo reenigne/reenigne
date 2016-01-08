@@ -11,17 +11,28 @@ public:
         this->persist("ram", &_ram, _ram.persistenceType());
         this->config("ram", &_ram, RAM::Type(this->simulator(), &_ram));
     }
-    void setAddress(UInt32 address)
+    void load(Value v)
     {
-        _address = address & 0x400fffff;
-        this->_active = (_address < _ram.size());
+        ISA8BitComponent::load(v);
+        readMemoryRange(0, _ram.size());
+        writeMemoryRange(0, _ram.size());
     }
-    void read(Tick tick)
+    ISA8BitComponentBase* setAddressReadMemory(Tick tick, UInt32 address)
     {
-        ISA8BitComponent<ISA8BitRAMT<T>>::set(_ram.read(tick, _address));
+        _address = address & 0xfffff;
+        return this;
     }
-    void write(Tick tick, UInt8 data) { _ram.write(tick, _address, data); }
-    UInt8 debugRead(UInt32 address) { return _ram.debugRead(address); }
+    ISA8BitComponentBase* setAddressWriteMemory(Tick tick, UInt32 address)
+    {
+        _address = address & 0xfffff;
+        return this;
+    }
+    UInt8 readMemory(Tick tick) { return _ram.read(tick, _address); }
+    void writeMemory(Tick tick, UInt8 data)
+    {
+        _ram.write(tick, _address, data);
+    }
+    UInt8 debugReadMemory(UInt32 address) { return _ram.debugRead(address); }
 private:
     int _address;
     RAM _ram;

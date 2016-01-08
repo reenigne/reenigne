@@ -76,6 +76,10 @@ public:
         for (int i = 0; i < length; ++i)
             _romdata[i] = data[i];
         _data = _ram.data();
+        readMemoryRange(0xb8000, 0xc0000);
+        writeMemoryRange(0xb8000, 0xc0000);
+        readIORange(0x3d0, 0x3e0);
+        writeIORange(0x3d0, 0x3e0);
     }
     void simulateCycle()
     {
@@ -101,55 +105,57 @@ public:
             this->_bgriSource.produce(1);
         }
     }
-    void setAddress(UInt32 address)
+    ISA8BitComponent* setAddressReadMemory(Tick tick, UInt32 address)
     {
-        _memoryActive = ((address & 0x400f8000) == 0xb8000);
         _memoryAddress = address & 0x00003fff;
-        _portActive = ((address & 0x400003f0) == 0x400003d0);
-        _portAddress = address & 0x0000000f;
-        this->_active = (_memoryActive || _portActive);
+        return this;
     }
-    void read()
+    ISA8BitComponent* setAddressWriteMemory(Tick tick, UInt32 address)
     {
-        if (_memoryActive) {
-            _wait = 8 + (16 - _cycle);
-            this->set(_data[_memoryAddress]);
-            return;
-        }
-        if (!_portActive)
-            return;
-        if ((_portAddress & 8) == 0) {
-            this->set(_crtc.read((_portAddress & 1) != 0));
-            return;
-        }
+        _memoryAddress = address & 0x00003fff;
+        return this;
+    }
+    ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
+    {
+        _ioAddress = address & 0x0000000f;
+        return this;
+    }
+    ISA8BitComponent* setAddressWriteIO(Tick tick, UInt32 address)
+    {
+        _ioAddress = address & 0x0000000f;
+        return this;
+    }
+    UInt8 readMemory(Tick tick)
+    {
+        _wait = 8 + (16 - _cycle);
+        return _data[_memoryAddress];
+    }
+    void writeMemory(Tick tick, UInt8 data)
+    {
+        _wait = 8 + (16 - _cycle);
+        _data[_memoryAddress] = data;
+    }
+    UInt8 readIO(Tick tick)
+    {
+        if ((_portAddress & 8) == 0)
+            return _crtc.read((_portAddress & 1) != 0);
         switch (_portAddress & 7) {
             case 2:
-                this->set((_crtc.displayEnable() ? 0 : 1) |
+                return (_crtc.displayEnable() ? 0 : 1) |
                     (_lightPenStrobe ? 2 : 0) |
                     (_lightPenSwitch ? 4 : 0) |
-                    (_crtc.verticalSync() ? 8 : 0) | 0xf0);
-                break;
+                    (_crtc.verticalSync() ? 8 : 0) | 0xf0;
             case 3:
                 _lightPenStrobe = false;
-                this->set(0xff);
                 break;
             case 4:
                 activateLightPen();
-                this->set(0xff);
-                break;
-            default:
-                this->set(0xff);
                 break;
         }
+        return 0xff;
     }
-    void write(UInt8 data)
+    void writeIO(Tick tick, UInt8 data)
     {
-        if (_memoryActive) {
-            _wait = 8 + (16 - _cycle);
-            _data[_memoryAddress] = data;
-        }
-        if (!_portActive)
-            return;
         if ((_portAddress & 8) == 0) {
             _crtc.write((_portAddress & 1) != 0, data);
             return;
@@ -169,13 +175,7 @@ public:
                 break;
         }
     }
-    UInt8 memory(UInt32 address)
-    {
-        if ((address & 0xf8000) == 0xb8000)
-            return _data[address & 0x3fff];
-        else
-            return 0xff;
-    }
+    UInt8 debugReadMemory(UInt32 address) { return _data[address & 0x3fff]; }
     class BGRISource : public Source<BGRI>
     {
     public:
