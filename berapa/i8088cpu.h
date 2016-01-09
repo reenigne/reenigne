@@ -204,7 +204,7 @@ private:
     }
     UInt8 getByte()
     {
-        UInt8 v = _bus->debugRead(_cpu->codeAddress(_address));
+        UInt8 v = _bus->debugReadMemory(_cpu->codeAddress(_address));
         ++_address;
         _bytes += hex(v, 2, false);
         return v;
@@ -648,19 +648,30 @@ public:
                     //    _busState = tDMA;
                     //    break;
                     //}
-                    if (_ioInProgress == ioInstructionFetch)
+                    if (_ioInProgress == ioInstructionFetch) {
                         _busAddress = physicalAddress(1, _prefetchAddress);
+                        _bus->setAddressReadMemory(_tick, _busAddress);
+                    }
                     else {
                         int segment = _segment;
                         if (_segmentOverride != -1)
                             segment = _segmentOverride;
                         _busAddress = physicalAddress(segment, _address);
-                        if (_usePortSpace)
-                            _busAddress |= 0x40000000;
-                        if (_ioInProgress == ioWrite)
-                            _busAddress |= 0x80000000;
+                        if (_usePortSpace) {
+                            if (_ioInProgress == ioWrite)
+                                _bus->setAddressWriteIO(_tick, _busAddress);
+                            else
+                                _bus->setAddressReadIO(_tick, _busAddress);
+                        }
+                        else {
+                            if (_ioInProgress == ioWrite) {
+                                _bus->setAddressWriteMemory(_tick,
+                                    _busAddress);
+                            }
+                            else
+                                _bus->setAddressReadMemory(_tick, _busAddress);
+                        }
                     }
-                    _bus->setAddress(_busAddress);
                     _busState = t2;
                     break;
                 case t2:
@@ -683,7 +694,10 @@ public:
                                 _byte = ioSingleByte;
                                 break;
                         }
-                        _bus->write(_busData);
+                        if (_usePortSpace)
+                            _bus->writeIO(_tick, _busData);
+                        else
+                            _bus->writeMemory(_tick, _busData);
                     }
                     _busState = t3;
                     break;
@@ -695,7 +709,10 @@ public:
                     _busState = t4;
                     if (_ioInProgress == ioWrite)
                         break;
-                    _busData = _bus->read();
+                    if (_usePortSpace)
+                        _busData = _bus->readIO(_tick);
+                    else
+                        _busData = _bus->readMemory(_tick);
                     if (_ioInProgress == ioRead) {
                         _ioRequested = ioNone;
                         switch (_byte) {

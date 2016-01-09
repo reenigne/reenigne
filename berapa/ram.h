@@ -131,6 +131,9 @@ private:
             {
                 auto ram = static_cast<RAM*>(p);
                 auto data = &(ram->_data);
+                UInt32 allDecayed = ram->_decayValue;
+                allDecayed = (allDecayed << 8) | allDecayed;
+                allDecayed = (allDecayed << 16) | allDecayed;
                 String s;
                 for (int y = 0; y < data->count(); y += 0x20) {
                     String line;
@@ -138,7 +141,7 @@ private:
                     for (int x = 0; x < 0x20; x += 4) {
                         const UInt8* p = &((*data)[y + x]);
                         UInt32 v = (p[0]<<24) + (p[1]<<16) + (p[2]<<8) + p[3];
-                        if (v != ram->_decayValue)
+                        if (v != allDecayed)
                             gotData = true;
                         line += " " + hex(v, 8, false);
                     }

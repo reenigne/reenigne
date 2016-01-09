@@ -53,10 +53,8 @@ public:
         _rgbiConnector(this)
     {
         this->config("rom", &_rom);
-        this->persist("memoryActive", &_memoryActive);
         this->persist("memoryAddress", &_memoryAddress, HexPersistenceType(4));
-        this->persist("portActive", &_portActive);
-        this->persist("portAddress", &_portAddress, HexPersistenceType(4));
+        this->persist("ioAddress", &_ioAddress, HexPersistenceType(4));
         this->persist("mode", &_mode);
         this->persist("palette", &_palette);
         this->config("ram", &_ram, RAM::Type(this->simulator(), &_ram));
@@ -137,9 +135,9 @@ public:
     }
     UInt8 readIO(Tick tick)
     {
-        if ((_portAddress & 8) == 0)
-            return _crtc.read((_portAddress & 1) != 0);
-        switch (_portAddress & 7) {
+        if ((_ioAddress & 8) == 0)
+            return _crtc.read((_ioAddress & 1) != 0);
+        switch (_ioAddress & 7) {
             case 2:
                 return (_crtc.displayEnable() ? 0 : 1) |
                     (_lightPenStrobe ? 2 : 0) |
@@ -156,11 +154,11 @@ public:
     }
     void writeIO(Tick tick, UInt8 data)
     {
-        if ((_portAddress & 8) == 0) {
-            _crtc.write((_portAddress & 1) != 0, data);
+        if ((_ioAddress & 8) == 0) {
+            _crtc.write((_ioAddress & 1) != 0, data);
             return;
         }
-        switch (_portAddress & 7) {
+        switch (_ioAddress & 7) {
             case 0:
                 _mode = data;
                 break;
@@ -249,9 +247,7 @@ private:
     UInt8 _attr;
     UInt8 _chrdata;
     int _memoryAddress;
-    bool _memoryActive;
-    int _portAddress;
-    bool _portActive;
+    int _ioAddress;
     int _wait;
     int _cycle;
     UInt8 _mode;

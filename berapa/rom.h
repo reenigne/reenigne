@@ -14,7 +14,7 @@ public:
         _start = address;
         String data =
             File(fileName, this->simulator()->directory()).contents();
-        int length = ((_start | ~_mask) & 0xfffff) + 1 - _start;
+        int length = (_start | _mask) + 1 - _start;
         int dl = data.length();
         int rl = length + offset;
         if (dl < rl) {

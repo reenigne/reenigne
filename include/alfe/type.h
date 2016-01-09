@@ -633,6 +633,32 @@ public:
     };
 };
 
+class DWordType : public NamedNullary<Type, DWordType>
+{
+public:
+    static String name() { return "DWord"; }
+    class Body : public NamedNullary<Type, DWordType>::Body
+    {
+    public:
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
+        {
+            return hex(*static_cast<DWord*>(p), 4);
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<DWord*>(p) = value.value<int>();
+        }
+        int size() const { return sizeof(DWord); }
+        Value defaultValue() const { return 0; }
+        Value value(void* p) const
+        {
+            return Value(DWordType(),
+                static_cast<int>(*static_cast<DWord*>(p)));
+        }
+    };
+};
+
 class RationalType : public NamedNullary<Type, RationalType>
 {
 public:
@@ -1678,5 +1704,6 @@ template<> Type typeFromCompileTimeType<Rational>() { return RationalType(); }
 template<> Type typeFromCompileTimeType<double>() { return DoubleType(); }
 template<> Type typeFromCompileTimeType<Byte>() { return ByteType(); }
 template<> Type typeFromCompileTimeType<Word>() { return WordType(); }
+template<> Type typeFromCompileTimeType<DWord>() { return DWordType(); }
 
 #endif // INCLUDED_TYPE_H
