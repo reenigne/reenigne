@@ -927,7 +927,7 @@ public:
     static String typeName() { return "And"; }
     AndComponent(Component::Type type)
       : BooleanComponent<T, AndComponent<T>>(type) { }
-    void load(Value v)
+    void load(const Value& v)
     {
         BooleanComponent::load(v);
         _output.init(_input0._v & _input1._v);
@@ -983,7 +983,7 @@ public:
     static String typeName() { return "Or"; }
     OrComponent(Component::Type type)
       : BooleanComponent<T, OrComponent<T>>(type) { }
-    void load(Value v)
+    void load(const Value& v)
     {
         BooleanComponent::load(v);
         _output.init(_input0._v | _input1._v);
@@ -1147,7 +1147,7 @@ public:
         };
     };
 private:
-    void load() { _connector->setData(0, _v); }
+    void load(const Value& v) { _connector.setData(0, _v); }
     T _v;
     OutputConnector<T> _connector;
 };
@@ -1166,7 +1166,7 @@ public:
         connector("lastSet", &_lastSet);
         connector("lastReset", &_lastReset);
     }
-    void load(Value v)
+    void load(const Value& v)
     {
         Component::load(v);
         if (!_set._v && !_reset._v) {

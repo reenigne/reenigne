@@ -486,6 +486,9 @@
   <Type Name="BucketComponent&lt;bool&gt;">
     <DisplayString>BucketComponent&lt;bool&gt;</DisplayString>
   </Type>
+  <Type Name="ISA8BitBusT&lt;*&gt;::Choice">
+    <DisplayString>({_first,na} {_secondAddress,x}:{_second,na})</DisplayString>
+  </Type>
 
 
   <!-- Berapa connectors -->

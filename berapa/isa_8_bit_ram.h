@@ -11,7 +11,7 @@ public:
         this->persist("ram", &_ram, _ram.persistenceType());
         this->config("ram", &_ram, RAM::Type(this->simulator(), &_ram));
     }
-    void load(Value v)
+    void load(const Value& v)
     {
         ISA8BitComponent::load(v);
         readMemoryRange(0, _ram.size());

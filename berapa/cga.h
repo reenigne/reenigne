@@ -60,10 +60,10 @@ public:
         this->config("ram", &_ram, RAM::Type(this->simulator(), &_ram));
         this->connector("rgbiOutput", &_rgbiConnector);
     }
-    void load(Value v)
+    void load(const Value& v)
     {
         ISA8BitComponent<IBMCGAT<T>>::load(v);
-        String data = File(_rom, this->_simulator->directory()).contents();
+        String data = File(_rom, simulator()->directory()).contents();
         int length = 0x2000;
         _romdata.allocate(length);
         if (data.length() < length) {

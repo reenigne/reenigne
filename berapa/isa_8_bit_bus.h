@@ -178,8 +178,10 @@ public:
         void init(int i) { _i = i; }
         void busConnect(ISA8BitComponentBase* component)
         {
-            if (dynamic_cast<NoISA8BitComponent*>(component) == 0)
+            if (dynamic_cast<NoISA8BitComponent*>(component) == 0) {
                 _bus->addRange(2, component, _i*0x20, (_i + 1)*0x20);
+                _bus->addRange(3, component, _i*0x20, (_i + 1)*0x20);
+            }
         }
     private:
         int _i;
@@ -255,7 +257,7 @@ public:
     {
         return _readMemory.debugReadMemory(address);
     }
-    void load(Value v)
+    void load(const Value& v)
     {
         Component::load(v);
         // _activeAccess, _activeAddress and ISA8BitComponent::getComponent()
@@ -272,7 +274,7 @@ public:
 
         // Balance the tree so that both subtrees cover roughly the same amount
         // of address space (without splitting components).
-        c->balance(0, end);
+        c->balance(low, high, 0, end);
     }
 private:
     CPUSocket _cpuSocket;
@@ -347,14 +349,14 @@ private:
                 }
             }
         }
-        void balance(UInt32 start, UInt32 end)
+        void balance(UInt32 low, UInt32 high, UInt32 start, UInt32 end)
         {
             UInt32 mid = start + (end - start)/2;
             bool moved = false;
             if (_secondAddress > mid) {
                 do {
                     UInt32 lowSplit = highSplit(_first, start);
-                    if (lowSplit == start ||
+                    if (lowSplit == start || _secondAddress < mid ||
                         abs((Int64)lowSplit - mid) >= _secondAddress - mid)
                         break;
                     moved = true;
@@ -367,7 +369,7 @@ private:
             else {
                 do {
                     UInt32 highSplit = lowSplit(_second, end);
-                    if (highSplit == end ||
+                    if (highSplit == end || _secondAddress > mid ||
                         abs((Int64)highSplit - mid) >= mid - _secondAddress)
                         break;
                     moved = true;
@@ -378,12 +380,20 @@ private:
                 } while (true);
             }
             if (moved) {
+                if (low > start)
+                    low = start;
+                if (high < end)
+                    high = end;
+            }
+            if (low < _secondAddress && high > start) {
                 auto d = dynamic_cast<Choice*>(_first);
                 if (d != 0)
-                    d->balance(start, _secondAddress);
-                d = dynamic_cast<Choice*>(_second);
+                    d->balance(low, high, start, _secondAddress);
+            }
+            if (high > _secondAddress && low < end) {
+                auto d = dynamic_cast<Choice*>(_second);
                 if (d != 0)
-                    d->balance(_secondAddress, end);
+                    d->balance(low, high, _secondAddress, end);
             }
         }
         UInt32 _secondAddress;
