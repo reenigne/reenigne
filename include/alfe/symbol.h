@@ -94,7 +94,6 @@ public:
         return SymbolLabelT<T>(dynamic_cast<Symbol::Body*>(body()));
     }
     Atom atom() { return symbol().atom(); }
-    bool valid() const { return _body.valid(); }
     int length(int max) const { return body()->length(max); }
     String toString(int width, int spacesPerIndent, int indent, int& x,
         bool& more) const
@@ -125,7 +124,7 @@ protected:
         IntegerBody(int value) : _value(value) { }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<IntegerBody>();
+            auto o = other->to<IntegerBody>();
             return o != 0 && _value == o->_value;
         }
         String toString(int width, int spacesPerIndent, int indent, int& x,
@@ -149,7 +148,7 @@ protected:
         StringBody(String value) : _value(value) { }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<StringBody>();
+            auto o = other->to<StringBody>();
             return o != 0 && _value == o->_value;
         }
         String toString(int width, int spacesPerIndent, int indent, int& x,
@@ -168,8 +167,8 @@ protected:
         String _value;
     };
     SymbolEntryT(Body* body) : Handle(body) { }
-    const Body* body() const { return Handle::Body<Body>(); }
-    Body* body() { return Handle::Body<Body>(); }
+    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>; }
 private:
     template<class T> friend class SymbolT;
     template<class T> friend class SymbolArrayT;
@@ -187,7 +186,7 @@ public:
     SymbolTail* tail() { return _tail; }
     bool equals(const ConstHandle::Body* other) const
     {
-        auto o = other->as<SymbolTail>();
+        auto o = other->to<SymbolTail>();
         return o != 0 && _head == o->_head && _tail == o->_tail;
     }
     int length(int max) const
@@ -283,7 +282,7 @@ private:
         { }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _atom == o->_atom && _tail == o->_tail;
         }
         int length(int max) const
@@ -378,16 +377,8 @@ private:
         static int _labels;
     };
 
-    const Body* body() const
-    {
-        return dynamic_cast<const Body*>(
-            SymbolEntryT::body());
-    }
-    Body* body()
-    {
-        return dynamic_cast<Body*>(
-            SymbolEntryT::body());
-    }
+    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 
     template<class T> friend class SymbolEntryT;
     template<class T> friend class SymbolT;
@@ -453,11 +444,11 @@ public:
       : SymbolEntry(new Body(list)) { }
     int count() const
     {
-        return dynamic_cast<const Body*>(body())->count();
+        return body()->count();
     }
     Symbol operator[](int i)
     {
-        return (*dynamic_cast<const Body*>(body()))[i];
+        return (*body())[i];
     }
 private:
     SymbolArrayT(Body* body)
@@ -484,7 +475,7 @@ private:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _symbols == o->_symbols;
         }
         Hash hash() const
@@ -585,7 +576,7 @@ private:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _target == o->_target;
         }
         int length(int max) const

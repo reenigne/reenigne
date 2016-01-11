@@ -9,6 +9,12 @@ public:
     ConstHandle() : _body(0) { }
     ~ConstHandle() { reset(); }
     ConstHandle(const ConstHandle& other) { set(other._body); }
+    template<class T> static ConstHandle from(const ConstHandle& other)
+    {
+        ConstHandle r;
+        r.set(dynamic_cast<const T*>(other._body));
+        return r;
+    }
     const ConstHandle& operator=(const ConstHandle& other)
     {
         modify(other._body);
@@ -43,8 +49,13 @@ protected:
         // handle goes away. The owner during construction is the constructor
         // itself, since that will delete the Body if an exception is thrown.
         Body() : _count(1) { }
-        template<class T> T* as() { return dynamic_cast<T*>(this); }
+        template<class T> T* as() { return static_cast<T*>(this); }
         template<class T> const T* as() const
+        {
+            return static_cast<const T*>(this);
+        }
+        template<class T> T* to() { return dynamic_cast<T*>(this); }
+        template<class T> const T* to() const
         {
             return dynamic_cast<const T*>(this);
         }

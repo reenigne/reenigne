@@ -189,7 +189,7 @@ template<class T> class ConcreteTypeTemplate : public Type
         String toString() const { return "Concrete"; }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto b = other->as<Body>();
+            auto b = other->to<Body>();
             if (b == 0)
                 return false;
             for (int i = 0; i < max(elements(), b->elements()); ++i)
@@ -262,12 +262,11 @@ public:
         element(elements() - 1) = 1;
         ++_bases;
     }
-    ConcreteTypeTemplate(const ConstHandle& other) : Type(other) { }
+    ConcreteTypeTemplate(const Type& other) : Type(from<Body>(other)) { }
     static ConcreteTypeTemplate zero()
     {
         return Array<int>::create<ConstHandle, BaseBody>(0, 0);
     }
-    bool valid() const { return body() != 0; }
     bool isAbstract() const { return body()->isAbstract(); }
     const ConcreteTypeTemplate& operator+=(const ConcreteTypeTemplate& other)
     {

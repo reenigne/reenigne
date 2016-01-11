@@ -30,7 +30,7 @@ template<class T> class IdentifierT : public ExpressionT<T>
         Hash hash() const { return Body::hash().mixin(_name.hash()); }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<NameBody>();
+            auto o = other->to<NameBody>();
             return o != 0 && _name == o->_name;
         }
     private:
@@ -46,7 +46,7 @@ template<class T> class IdentifierT : public ExpressionT<T>
         Hash hash() const { return Body::hash().mixin(_op.hash()); }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<OperatorBody>();
+            auto o = other->to<OperatorBody>();
             return o != 0 && _op == o->_op;
         }
     private:

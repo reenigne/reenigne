@@ -15,7 +15,9 @@ Input/Output/Bidirectional connectors:
 
 What does speculative execution actually mean
   "Unless some other signal comes in, my outputs won't change until time T"
-
+  A component supporting speculative execution has two time values:
+    _tick: All component state has been computed to this point. Outputs that have changed may be in the process of being set.
+    _speculativeTick: The outputs won't change before this point unless the inputs change
 
     Allow discontiguous ranges without separate tree entries?
       This would be useful for using 8-bit ROM chips on a 16-bit bus (one ROM for even addresses, one for odd addresses)

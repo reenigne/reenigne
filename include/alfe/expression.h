@@ -503,7 +503,7 @@ public:
     NumericLiteralT(Rational n, Span span = Span())
       : Expression(create<Body>(n, span)) { }
     NumericLiteralT(const Expression& e) : Expression(e) { }
-    int value() const { return as<NumericLiteral>()->value(); }
+    int value() const { return as<Body>()->value(); }
 
     class Body : public Expression::Body
     {
@@ -726,8 +726,7 @@ public:
             IdentifierT<T> i = Identifier(OperatorFunctionCall());
             if (!lType.member(i).valid())
                 this->span().throwError("Expression is not a function.");
-            LValueTypeT<T> lValueType(lType);
-            if (!lValueType.valid()) {
+            if (!LValueTypeT<T>(lType).valid()) {
                 auto m = l.template value<HashTable<Identifier, Value>>();
                 l = m[i];
                 l = Value(l.type(), l.value(), this->span());

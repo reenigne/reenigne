@@ -106,7 +106,7 @@ protected:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _firstParameterKind == o->_firstParameterKind &&
                 _restParameterKind == o->_restParameterKind;
         }

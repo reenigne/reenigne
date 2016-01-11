@@ -253,7 +253,6 @@ public:
         return LValueType(create<Body>(inner));
     }
     Type inner() const { return body()->inner(); }
-    bool valid() const { return body() != 0; }
 private:
     class Body : public Type::Body
     {
@@ -419,7 +418,7 @@ protected:
         }
         String toString2() const
         {
-            auto p = _parent.as<PartialBody>();
+            auto p = _parent.to<PartialBody>();
             String s;
             if (p != 0)
                 s = p->toString2() + ", ";
@@ -443,7 +442,7 @@ protected:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<PartialBody>();
+            auto o = other->to<PartialBody>();
             return o != 0 && Template(_parent) == Template(o->_parent) &&
                 _argument == o->_argument;
         }
@@ -462,7 +461,6 @@ class LessThanType : public Type
 {
 public:
     LessThanType(Type t) : Type(t) { }
-    bool valid() const { return body() != 0; }
     LessThanType(int n) : Type(create<Body>(n)) { }
     int n() const { return body()->_n; }
 private:
@@ -474,7 +472,7 @@ private:
 
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _n == o->_n;
         }
         Hash hash() const { return Type::Body::hash().mixin(_n); }
@@ -705,7 +703,6 @@ public:
       : Type(create<Body>(contained, indexer)) { }
     ArrayType(const Type& contained, int size)
       : Type(create<Body>(contained, LessThanType(size))) { }
-    bool valid() const { return body() != 0; }
     Type contained() const { return body()->contained(); }
     Type indexer() const { return body()->indexer(); }
 protected:
@@ -720,7 +717,7 @@ protected:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _contained == o->_contained &&
                 _indexer == o->_indexer;
         }
@@ -923,7 +920,7 @@ private:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _contained == o->_contained;
         }
         Hash hash() const
@@ -961,7 +958,6 @@ template<class T> class TupleTycoT : public NamedNullary<Tyco, TupleTyco>
 public:
     TupleTycoT() : NamedNullary(instance()) { }
     TupleTycoT(const Tyco& other) : NamedNullary(other) { }
-    bool valid() const { return body() != 0; }
     static String name() { return "Tuple"; }
     bool isUnit() { return *this == TupleTyco(); }
     Tyco instantiate(const Tyco& argument) const
@@ -970,14 +966,14 @@ public:
     }
     Type lastMember()
     {
-        auto i = as<NonUnitBody>();
+        auto i = to<NonUnitBody>();
         if (i == 0)
             return Type();
         return i->contained();
     }
     TupleTyco firstMembers()
     {
-        auto i = as<NonUnitBody>();
+        auto i = to<NonUnitBody>();
         if (i == 0)
             return TupleTyco();
         return i->parent();
@@ -1031,7 +1027,7 @@ private:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<NonUnitBody>();
+            auto o = other->to<NonUnitBody>();
             return o != 0 && _parent == o->_parent &&
                 _contained == o->_contained;
         }
@@ -1111,7 +1107,7 @@ private:
         String toString() const { return _referent.toString() + "*"; }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _referent == o->_referent;
         }
         Hash hash() const
@@ -1218,7 +1214,7 @@ private:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<NullaryBody>();
+            auto o = other->to<NullaryBody>();
             return o != 0 && _returnType != o->_returnType;
         }
         Hash hash() const { return Body::hash().mixin(_returnType.hash()); }
@@ -1244,7 +1240,7 @@ private:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<ArgumentBody>();
+            auto o = other->to<ArgumentBody>();
             return o != 0 && _parent == o->_parent &&
                 _argumentType == o->_argumentType;
         }
@@ -1330,7 +1326,7 @@ protected:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _context == o->_context && _name == o->_name &&
                 _helper == o->_helper;
         }
@@ -1431,7 +1427,7 @@ protected:
 
         bool canConvertTo(const Type& to, String* why) const
         {
-            const Body* toBody = to.as<Body>();
+            const Body* toBody = to.to<Body>();
             if (toBody != 0) {
                 // First take all named members in the RHS and assign them to
                 // the corresponding named members in the LHS.
@@ -1551,7 +1547,7 @@ protected:
         }
         Value convertTo(const Type& to, const Value& value) const
         {
-            const Body* toBody = to.as<Body>();
+            const Body* toBody = to.to<Body>();
             if (toBody != 0) {
                 auto input = value.value<HashTable<Identifier, Value>>();
                 HashTable<Identifier, Value> output;
@@ -1648,7 +1644,7 @@ protected:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             if (o == 0)
                 return false;
             return _name == o->_name && _names == o->_names &&

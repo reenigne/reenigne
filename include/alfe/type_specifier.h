@@ -164,7 +164,7 @@ public:
     }
     int count() const
     {
-        const Body* body = as<Body>();
+        const Body* body = to<Body>();
         if (body != 0)
             return body->count();
         return 0;
@@ -281,8 +281,8 @@ public:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
-            return _name == o->_name;
+            auto o = other->to<Body>();
+            return o != 0 && _name == o->_name;
         }
     private:
         String _name;

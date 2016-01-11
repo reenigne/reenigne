@@ -21,7 +21,7 @@ public:
         T value() const { return _t; }
         bool equals(const Handle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             if (o == 0)
                 return false;
             return _t == o->_t;

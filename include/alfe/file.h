@@ -93,7 +93,7 @@ protected:
         }
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<NamedBody>();
+            auto o = other->to<NamedBody>();
             return o != 0 && _parent == o->_parent & _name == o->_name;
         }
     private:
@@ -503,7 +503,7 @@ private:
 
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _drive == o->_drive;
         }
     private:
@@ -536,7 +536,7 @@ private:
 
         bool equals(const ConstHandle::Body* other) const
         {
-            auto o = other->as<Body>();
+            auto o = other->to<Body>();
             return o != 0 && _server == o->_server && _share == o->_share;
         }
     private:
