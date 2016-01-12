@@ -219,9 +219,11 @@ private:
 template<class T> class TycoIdentifierT : public TycoSpecifier
 {
 public:
+    TycoIdentifierT() { }
     TycoIdentifierT(const String& name)
       : TycoSpecifier(create<Body>(name, Span())) { }
-    TycoIdentifierT(const ConstHandle& other) : TycoSpecifier(other) { }
+    TycoIdentifierT(const TycoSpecifier& tycoSpecifier)
+      : TycoSpecifier(to<Body>(tycoSpecifier)) { }
     static TycoIdentifier parse(CharacterSource* source)
     {
         CharacterSource s = *source;
@@ -269,6 +271,9 @@ public:
         *source = s2;
         return create<Body>(name, Span(location, endLocation));
     }
+    String name() const { return as<Body>()->name(); }
+protected:
+    TycoIdentifierT(const ConstHandle& other) : TycoSpecifier(other) { }
     class Body : public TycoSpecifier::Body
     {
     public:
@@ -287,9 +292,6 @@ public:
     private:
         String _name;
     };
-    String name() const { return as<Body>()->name(); }
-
-    TycoIdentifierT() { }
 };
 
 template<class T> class ClassTycoSpecifierT : public TycoSpecifier

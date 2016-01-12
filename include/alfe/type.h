@@ -122,6 +122,7 @@ template<class T> class TypeT : public Tyco
 public:
     TypeT() { }
     TypeT(const ConstHandle& other) : Tyco(other) { }
+    TypeT(const Tyco& other) : Tyco(to<Body>(other)) { }
 
     Type member(IdentifierT<T> i) const { return body()->member(i); }
     Type rValue() const
@@ -245,7 +246,7 @@ protected:
 template<class T> class LValueTypeT : public Type
 {
 public:
-    LValueTypeT(const Tyco& other) : Type(other) {}
+    LValueTypeT(const Type& type) : Type(to<Body>(type)) { }
     static LValueType wrap(const Type& inner)
     {
         if (LValueType(inner).valid())
@@ -460,7 +461,7 @@ protected:
 class LessThanType : public Type
 {
 public:
-    LessThanType(Type t) : Type(t) { }
+    LessThanType(Type type) : Type(to<Body>(type)) { }
     LessThanType(int n) : Type(create<Body>(n)) { }
     int n() const { return body()->_n; }
 private:
@@ -698,7 +699,7 @@ public:
 class ArrayType : public Type
 {
 public:
-    ArrayType(const Type& type) : Type(type) { }
+    ArrayType(const Type& type) : Type(to<Body>(type)) { }
     ArrayType(const Type& contained, const Type& indexer)
       : Type(create<Body>(contained, indexer)) { }
     ArrayType(const Type& contained, int size)
@@ -957,7 +958,7 @@ template<class T> class TupleTycoT : public NamedNullary<Tyco, TupleTyco>
 {
 public:
     TupleTycoT() : NamedNullary(instance()) { }
-    TupleTycoT(const Tyco& other) : NamedNullary(other) { }
+    TupleTycoT(const Tyco& tyco) : NamedNullary(to<Body>(tyco)) { }
     static String name() { return "Tuple"; }
     bool isUnit() { return *this == TupleTyco(); }
     Tyco instantiate(const Tyco& argument) const
@@ -1397,6 +1398,7 @@ public:
     }
 
     StructuredTypeT() { }
+    StructuredTypeT(const Tyco& tyco) : Type(to<Body>(tyco)) { }
     StructuredTypeT(const ConstHandle& other) : Type(other) { }
     StructuredTypeT(String name, List<Member> members)
       : Type(create<Body>(name, members)) { }
@@ -1427,12 +1429,12 @@ protected:
 
         bool canConvertTo(const Type& to, String* why) const
         {
-            const Body* toBody = to.to<Body>();
-            if (toBody != 0) {
+            StructuredType s(to);
+            if (s.valid()) {
                 // First take all named members in the RHS and assign them to
                 // the corresponding named members in the LHS.
                 int count = _members.count();
-                int toCount = toBody->_members.count();
+                int toCount = s.members().count();
                 Array<bool> assigned(toCount);
                 for (int i = 0; i < toCount; ++i)
                     assigned[i] = false;
@@ -1442,11 +1444,11 @@ protected:
                     if (name.empty())
                         continue;
                     // If a member doesn't exist, fail conversion.
-                    if (!toBody->_names.hasKey(name)) {
+                    if (!s.names().hasKey(name)) {
                         *why = "The target type has no member named " + name;
                         return false;
                     }
-                    int j = toBody->_names[name];
+                    int j = s.names()[name];
                     if (assigned[j]) {
                         *why =
                             "The source type has more than one member named " +
@@ -1454,7 +1456,7 @@ protected:
                         return false;
                     }
                     // If one of the child conversions fails, fail.
-                    if (!canConvertHelper(member(name), &toBody->_members[j],
+                    if (!canConvertHelper(member(name), &s.members()[j],
                         why))
                         return false;
                     assigned[j] = true;
@@ -1473,7 +1475,7 @@ protected:
                         *why = "The source type has too many members";
                         return false;
                     }
-                    const Member* toMember = &toBody->_members[j];
+                    const Member* toMember = &s.members()[j];
                     ++j;
                     if (!canConvertHelper(m->type(), toMember, why))
                         return false;
@@ -1482,7 +1484,7 @@ protected:
                 for (;j < toCount; ++j) {
                     if (assigned[j])
                         continue;
-                    const Member* toMember = &toBody->_members[j];
+                    const Member* toMember = &s.members()[j];
                     if (!toMember->hasDefault()) {
                         *why = "No default value is available for target type "
                             "member " + toMember->name();
@@ -1547,15 +1549,15 @@ protected:
         }
         Value convertTo(const Type& to, const Value& value) const
         {
-            const Body* toBody = to.to<Body>();
-            if (toBody != 0) {
+            StructuredType s(to);
+            if (s.valid()) {
                 auto input = value.value<HashTable<Identifier, Value>>();
                 HashTable<Identifier, Value> output;
 
                 // First take all named members in the RHS and assign them to
                 // the corresponding named members in the LHS.
                 int count = _members.count();
-                int toCount = toBody->_members.count();
+                int toCount = s.members().count();
                 Array<bool> assigned(toCount);
                 for (int i = 0; i < toCount; ++i)
                     assigned[i] = false;
@@ -1564,9 +1566,9 @@ protected:
                     String name = m->name();
                     if (name.empty())
                         continue;
-                    int j = toBody->_names[name];
+                    int j = s.names()[name];
                     output[name] =
-                        input[name].convertTo(toBody->_members[j].type());
+                        input[name].convertTo(s.members()[j].type());
                     assigned[j] = true;
                 }
                 // Then take all unnamed arguments in the RHS and in LTR order
@@ -1579,7 +1581,7 @@ protected:
                         continue;
                     while (assigned[j] && j < toCount)
                         ++j;
-                    const Member* toMember = &toBody->_members[j];
+                    const Member* toMember = &s.members()[j];
                     ++j;
                     output[toMember->name()] =
                         input[Identifier(String::Decimal(i))].
@@ -1589,7 +1591,7 @@ protected:
                 for (; j < toCount; ++j) {
                     if (assigned[j])
                         continue;
-                    const Member* toMember = &toBody->_members[j];
+                    const Member* toMember = &s.members()[j];
                     output[toMember->name()] = toMember->defaultValue();
                 }
                 return Value(type(), output, value.span());

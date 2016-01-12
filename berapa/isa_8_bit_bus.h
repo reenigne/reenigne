@@ -78,7 +78,8 @@ public:
         {
         public:
             Type() { }
-            Type(::Type type) : NamedNullary<::Connector::Type, Type>(type) { }
+            Type(::Connector::Type type)
+              : NamedNullary<::Connector::Type, Type>(to<Body>(type)) { }
             class Body : public NamedNullary<::Connector::Type, Type>::Body
             {
             public:
@@ -151,6 +152,7 @@ public:
         class Type : public NamedNullary<::Connector::Type, Type>
         {
         public:
+            Type() { }
             class Body : public NamedNullary<::Connector::Type, Type>::Body
             {
             public:

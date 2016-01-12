@@ -9,7 +9,7 @@ public:
     ConstHandle() : _body(0) { }
     ~ConstHandle() { reset(); }
     ConstHandle(const ConstHandle& other) { set(other._body); }
-    template<class T> static ConstHandle from(const ConstHandle& other)
+    template<class T> static ConstHandle to(const ConstHandle& other)
     {
         ConstHandle r;
         r.set(dynamic_cast<const T*>(other._body));
@@ -82,6 +82,7 @@ protected:
     };
 
     template<class T> const T* as() const { return _body->as<T>(); }
+    template<class T> const T* to() const { return _body->to<T>(); }
 private:
     void reset() { if (valid()) _body->release(); }
     void set(const Body* body, bool acquire = true)

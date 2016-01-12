@@ -214,7 +214,8 @@ public:
         {
         public:
             Type() { }
-            Type(::Type type) : NamedNullary<CType, Type>(type) { }
+            Type(::Connector::Type type)
+              : NamedNullary<CType, Type>(to<Body>(type)) { }
             class Body : public NamedNullary<CType, Type>::Body
             {
             public:
@@ -225,7 +226,6 @@ public:
                 }
             };
             static String name() { return "IBMCGA.RGBIConnector"; }
-            bool valid() const { return body() != 0; }
             const Body* body() const { return this->template as<Body>(); }
         };
     private:

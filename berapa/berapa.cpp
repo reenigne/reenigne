@@ -119,7 +119,8 @@ public:
     {
     public:
         Type() { }
-        Type(const ConstHandle& other) : NamedNullary<::Type, Type>(other) { }
+        Type(ConstHandle other) : NamedNullary<::Type, Type>(other) { }
+        Type(::Type type) : NamedNullary<::Type, Type>(to<Body>(type)) { }
         bool compatible(Type other) const
         {
             return body()->compatible(other) ||
@@ -129,7 +130,6 @@ public:
         {
             return body()->canConnectMultiple();
         }
-        bool valid() const { return body() != 0; }
         static String name() { return "Connector"; }
         class Body : public NamedNullary<::Type, Type>::Body
         {
@@ -139,7 +139,7 @@ public:
             virtual bool canConvertFrom(const ::Type& other, String* reason)
                 const
             {
-            ConnectorT<T>::Type t = connectorTypeFromType(other);
+                ConnectorT<T>::Type t = connectorTypeFromType(other);
                 if (!t.valid()) {
                     *reason = other.toString() + " is not a connector.";
                     return false;
@@ -203,7 +203,7 @@ public:
     {
     public:
         Type() { }
-        Type(::Type type) : ::Type(type) { }
+        Type(::Type type) : ::Type(to<Body>(type)) { }
         Reference<Component> createComponent()
         {
             auto c = body()->createComponent();
@@ -211,7 +211,6 @@ public:
             return c;
         }
         Simulator* simulator() const { return body()->simulator(); }
-        bool valid() const { return body() != 0; }
         typename ConnectorT<T>::Type defaultConnectorType() const
         {
             return body()->defaultConnectorType();
@@ -676,7 +675,6 @@ public:
     {
     public:
         Type(const ConstHandle& other) : Connector::Type(other) { }
-        bool valid() const { return body() != 0; }
         ::Type transportType() const { return body()->transportType(); }
         bool isInput() const { return body()->isInput(); }
         bool isOutput() const { return body()->isOutput(); }
@@ -715,8 +713,12 @@ public:
     {
     public:
         Type() { }
-        Type(const ConstHandle& other)
-          : NamedNullary<BidirectionalConnectorBase::Type, Type> (other) { }
+        Type(ConstHandle other)
+          : NamedNullary<BidirectionalConnectorBase::Type, Type>(other) { }
+        Type(::Type type)
+          : NamedNullary<BidirectionalConnectorBase::Type, Type>(
+                to<Body>(type))
+        { }
         class Body
           : public NamedNullary<BidirectionalConnectorBase::Type, Type>::Body
         {

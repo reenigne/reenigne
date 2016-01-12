@@ -25,6 +25,7 @@ template<class T> class DerivedT : public Base
 {
 public:
     DerivedT(...) : Base(create<Body>(...)) { }
+    DerivedT(const Base& other) : Base(from<Body>) { }
 private:
     DerivedT(const Handle& other) : Base(other) { }
 

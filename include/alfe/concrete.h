@@ -262,7 +262,7 @@ public:
         element(elements() - 1) = 1;
         ++_bases;
     }
-    ConcreteTypeTemplate(const Type& other) : Type(from<Body>(other)) { }
+    ConcreteTypeTemplate(const Type& other) : Type(to<Body>(other)) { }
     static ConcreteTypeTemplate zero()
     {
         return Array<int>::create<ConstHandle, BaseBody>(0, 0);
