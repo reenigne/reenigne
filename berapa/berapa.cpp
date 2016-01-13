@@ -71,6 +71,7 @@ class Tick
 public:
     Tick() : _t(0) { }
     Tick(const Base& t) : _t(t) { }
+    static Tick infinity() { return std::numeric_limits<Base>::max(); }
     bool operator<=(const Tick& other) const { return _t <= other._t; }
     bool operator<(const Tick& other) const { return _t < other._t; }
     bool operator>=(const Tick& other) const { return _t >= other._t; }
