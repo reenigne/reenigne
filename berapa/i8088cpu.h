@@ -513,7 +513,6 @@ public:
         hb.add(tWait, "tWait");
         hb.add(t4, "t4");
         hb.add(tIdle, "tIdle");
-        hb.add(tDMA, "tDMA");
 
         typename EnumerationType<IOByte>::Helper hi;
         hi.add(ioSingleByte, "ioSingleByte");
@@ -569,6 +568,7 @@ public:
         persist("nmiRequested", &_nmiRequested);
         persist("interruptRequested", &_interruptRequested);
         persist("cycle", &_cycle);
+        persist("ready", &_ready);
     }
     void load(const Value& v)
     {
@@ -616,8 +616,6 @@ public:
                             line += "M->" + hex(_busData, 2, false) + " ";
                     break;
                 case tIdle: line += "         "; break;
-                //case tDMA:
-                //    line += _dma->getText();
             }
             if (_newInstruction) {
                 line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false)
@@ -647,10 +645,6 @@ public:
             busDone = true;
             switch (_busState) {
                 case t1:
-                    //if (_dma->dmaRequested()) {
-                    //    _busState = tDMA;
-                    //    break;
-                    //}
                     if (_ioInProgress == ioInstructionFetch) {
                         _busAddress = physicalAddress(1, _prefetchAddress);
                         _bus->setAddressReadMemory(_tick, _busAddress);
@@ -709,6 +703,8 @@ public:
                     busDone = false;
                     break;
                 case tWait:
+                    if (!_ready)
+                        break;
                     _busState = t4;
                     if (_ioInProgress == ioWrite)
                         break;
@@ -764,10 +760,6 @@ public:
                         _busState = t1;
                     }
                     busDone = true;
-                    break;
-                case tDMA:
-                    //if (!_dma->dmaRequested())
-                    //    _busState = t1;
                     break;
             }
         } while (!busDone);
@@ -1831,9 +1823,10 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         } while (true);
     }
 
-    void setWaiting(Tick tick, bool waiting)
+    void setReady(Tick tick, bool ready)
     {
-
+        runTo(tick);
+        _ready = ready;
     }
 
     class Connector : public ::Connector
@@ -2031,8 +2024,7 @@ private:
         t3,
         tWait,
         t4,
-        tIdle,
-        tDMA
+        tIdle
     };
     enum IOByte
     {
@@ -2482,6 +2474,7 @@ private:
     bool _nmiRequested;
     bool _interruptRequested;
     Tick _endTick;
+    bool _ready;
 
     Disassembler _disassembler;
 
