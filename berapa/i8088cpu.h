@@ -315,7 +315,7 @@ public:
     static String typeName() { return "Intel8088CPU"; }
     Intel8088CPUT(Component::Type type)
       : ClockedComponent(type), _connector(this), _irqConnector(this),
-        _nmiConnector(this), _endTick(Tick::infinitity())
+        _nmiConnector(this), _endTick(Tick::infinity())
     {
         connector("", &_connector);
         connector("nmi", &_nmiConnector);

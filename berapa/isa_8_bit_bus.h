@@ -125,7 +125,8 @@ public:
       : Component(type), _cpuSocket(this), _connector(this),
         _chipConnectors{this, this, this, this, this, this, this, this},
         _parityError(this), _noComponent(type), _readMemory(this),
-        _writeMemory(this), _readIO(this), _writeIO(this)
+        _writeMemory(this), _readIO(this), _writeIO(this), _dmacSocket(this),
+        _dmaPageRegistersSocket(this), _picSocket(this)
     {
         connector("cpu", &_cpuSocket);
         connector("slot", &_connector);
@@ -134,6 +135,9 @@ public:
             connector("chip" + decimal(i), &_chipConnectors[i]);
         }
         connector("parityError", &_parityError);
+        connector("dmac", &_dmacSocket);
+        connector("dmaPageRegisters", &_dmaPageRegistersSocket);
+        connector("pic", &_picSocket);
         persist("activeAddress", &_activeAddress);
         persist("activeAccess", &_activeAccess);
     }
@@ -210,6 +214,66 @@ public:
         ISA8BitBus* _bus;
     };
 
+    class DMACSocket : public ::Connector
+    {
+    public:
+        DMACSocket(ISA8BitBus* bus) : ::Connector(bus), _bus(bus) { }
+        void connect(::Connector* other) { other->connect(this); }
+        Type type() const { return Type(); }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            throw Exception(_bus->name() + " needs a DMA controller");
+        }
+
+        class Type : public NamedNullary<::Connector::Type, Type>
+        {
+        public:
+            static String name() { return "ISA8BitBus.DMACSocket"; }
+        };
+        ISA8BitBus* _bus;
+    };
+
+    class DMAPageRegistersSocket : public ::Connector
+    {
+    public:
+        DMAPageRegistersSocket(ISA8BitBus* bus) : ::Connector(bus), _bus(bus) { }
+        void connect(::Connector* other) { other->connect(this); }
+        Type type() const { return Type(); }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            throw Exception(_bus->name() + " needs a DMA page register bank");
+        }
+
+        class Type : public NamedNullary<::Connector::Type, Type>
+        {
+        public:
+            static String name()
+            {
+                return "ISA8BitBus.DMAPageRegistersSocket";
+            }
+        };
+        ISA8BitBus* _bus;
+    };
+
+    class PICSocket : public ::Connector
+    {
+    public:
+        PICSocket(ISA8BitBus* bus) : ::Connector(bus), _bus(bus) { }
+        void connect(::Connector* other) { other->connect(this); }
+        Type type() const { return Type(); }
+        Component::Type defaultComponentType(Simulator* simulator)
+        {
+            throw Exception(_bus->name() + " needs an interrupt controller");
+        }
+
+        class Type : public NamedNullary<::Connector::Type, Type>
+        {
+        public:
+            static String name() { return "ISA8BitBus.PICSocket"; }
+        };
+        ISA8BitBus* _bus;
+    };
+
     void addComponent(ISA8BitComponentBase* component)
     {
         _components.add(component);
@@ -280,6 +344,9 @@ public:
     }
 private:
     CPUSocket _cpuSocket;
+    DMACSocket _dmacSocket;
+    DMAPageRegistersSocket _dmaPageRegistersSocket;
+    PICSocket _picSocket;
     Connector _connector;
     ChipConnector _chipConnectors[8];
     List<ISA8BitComponentBase*> _components;
