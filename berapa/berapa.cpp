@@ -188,7 +188,7 @@ public:
     Component* component() { return _component; }
 
     virtual Type type() const = 0;
-    virtual void connect(Connector* other) = 0;
+    virtual void connect(Connector* other) { }
     virtual typename ComponentT<T>::Type
         defaultComponentType(Simulator* simulator) = 0;
 

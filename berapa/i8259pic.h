@@ -5,12 +5,14 @@ public:
     Intel8259PIC(Component::Type type)
       : ISA8BitComponent(type), _interruptReady(false), _secondAck(false),
         _state(stateReady), _imr(0xff),
-        _irqConnector{this, this, this, this, this, this, this, this}
+        _irqConnector{this, this, this, this, this, this, this, this},
+        _intConnector(this)
     {
         for (int i = 0; i < 8; ++i) {
             _irqConnector[i].init(i);
             connector("irq" + decimal(i), &_irqConnector[i]);
         }
+        connector("int", &_intConnector);
     }
     class Connector : public InputConnector<bool>
     {
@@ -26,6 +28,7 @@ public:
     {
         // TODO
     }
+
 
     ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
     {
@@ -121,4 +124,5 @@ private:
     UInt8 _icw4;
 
     Connector _irqConnector[8];
+    OutputConnector<bool> _intConnector;
 };

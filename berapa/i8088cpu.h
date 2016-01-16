@@ -568,7 +568,7 @@ public:
         persist("nmiRequested", &_nmiRequested);
         persist("interruptRequested", &_interruptRequested);
         persist("cycle", &_cycle);
-        persist("ready", &_ready);
+        persist("ready", &_ready, true);
     }
     void load(const Value& v)
     {
