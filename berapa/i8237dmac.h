@@ -258,6 +258,11 @@ public:
         }
         return line;
     }
+    void setBus(ISA8BitBus* bus)
+    {
+        ISA8BitComponent::setBus(bus);
+        _bus->setDMAC(this);
+    }
 private:
     void checkForDMA()
     {
@@ -416,14 +421,12 @@ private:
     bool dreqSenseActiveLow() const { return (_command & 0x40) != 0; }
     bool dackSenseActiveHigh() const { return (_command & 0x80) != 0; }
 
-    UInt32 getAddress() const
-    {
-        return _channels[_channel].currentAddress() |
-            (this->_pageRegisters->pageForChannel(_channel) << 16);
-    }
+    //UInt32 getAddress() const
+    //{
+    //    return _channels[_channel].currentAddress() |
+    //        (this->_pageRegisters->pageForChannel(_channel) << 16);
+    //}
 
-    DMAPageRegistersT<T>* _pageRegisters;
-    ISA8BitBus* _bus;
     Channel _channels[4];
     int _address;
     Byte _command;

@@ -100,6 +100,11 @@ public:
         else
             _interrupt = false;
     }
+    void setBus(ISA8BitBus* bus)
+    {
+        ISA8BitComponent::setBus(bus);
+        _bus->setPIC(this);
+    }
 private:
     UInt8 _interruptNumber;
     enum State

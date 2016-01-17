@@ -39,7 +39,7 @@ public:
     virtual UInt8 readIO(Tick tick) { return 0xff; }
     virtual void writeIO(Tick tick, UInt8 data) { }
     virtual bool wait() { return false; }
-    void setBus(ISA8BitBus* bus) { _bus = bus; }
+    virtual void setBus(ISA8BitBus* bus) { _bus = bus; }
     virtual UInt8 debugReadMemory(UInt32 address) { return 0xff; }
     void readMemoryRange(UInt32 low, UInt32 high)
     {
@@ -302,6 +302,8 @@ public:
         c->balance(low, high, 0, end);
     }
     void setDMAPageRegisters(DMAPageRegisters* c) { _dmaPageRegisters = c; }
+    void setDMAC(Intel8237DMAC* dmac) { _dmac = dmac; }
+    void setPIC(Intel8259PIC* pic) { _pic = pic; }
 private:
     CPUSocket _cpuSocket;
     DMAPageRegistersSocket _dmaPageRegistersSocket;
@@ -316,6 +318,7 @@ private:
     List<Reference<Component>> _treeComponents;
     Intel8237DMAC* _dmac;
     DMAPageRegisters* _dmaPageRegisters;
+    Intel8259PIC* _pic;
 
     class Choice : public ISA8BitComponentBase
     {
