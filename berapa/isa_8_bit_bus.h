@@ -303,7 +303,14 @@ public:
     }
     void setDMAPageRegisters(DMAPageRegisters* c) { _dmaPageRegisters = c; }
     void setDMAC(Intel8237DMAC* dmac) { _dmac = dmac; }
+
+    // The bus has special knowledge of the PIC because the PIC puts values on
+    // the bus via a special "interrupt acknowledge" mechanism that is neither
+    // memory nor port access. This is implemented by just allowing the CPU to
+    // get a pointer to the PIC, at least for now.
     void setPIC(Intel8259PIC* pic) { _pic = pic; }
+    Intel8259PIC* getPIC() { return _pic; }
+    void maintain(Tick ticks) { _dmaTick -= ticks; }
 private:
     CPUSocket _cpuSocket;
     DMAPageRegistersSocket _dmaPageRegistersSocket;
@@ -319,6 +326,7 @@ private:
     Intel8237DMAC* _dmac;
     DMAPageRegisters* _dmaPageRegisters;
     Intel8259PIC* _pic;
+    Tick _dmaTick;
 
     class Choice : public ISA8BitComponentBase
     {

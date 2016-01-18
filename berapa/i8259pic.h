@@ -1,8 +1,9 @@
-class Intel8259PIC : public ISA8BitComponent<Intel8259PIC>
+template<class T> class Intel8259PICT
+  : public ISA8BitComponent<Intel8259PICT<T>>
 {
 public:
     static String typeName() { return "Intel8259PIC"; }
-    Intel8259PIC(Component::Type type)
+    Intel8259PICT(Component::Type type)
       : ISA8BitComponent(type), _interruptReady(false), _secondAck(false),
         _state(stateReady), _imr(0xff),
         _irqConnector{this, this, this, this, this, this, this, this},
@@ -51,6 +52,11 @@ public:
         }
         // TODO
         return 0xff;
+    }
+    UInt8 getAcknowledgeByte()
+    {
+        // TODO
+        return 0;
     }
     void write(Tick tick, UInt8 data)
     {

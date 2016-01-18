@@ -504,6 +504,7 @@ public:
         ht.add(ioRead, "ioRead");
         ht.add(ioWrite, "ioWrite");
         ht.add(ioInstructionFetch, "ioInstructionFetch");
+        ht.add(ioInterruptAcknowledge, "ioInterruptAcknowledge");
         EnumerationType<IOType> ioTypeType("IOType", ht, typeName() + ".");
 
         typename EnumerationType<BusState>::Helper hb;
@@ -574,6 +575,7 @@ public:
     {
         ClockedComponent::load(v);
         _disassembler.setBus(_bus);
+        _pic = _bus->getPIC();
     }
     void setStopAtCycle(int stopAtCycle) { _stopAtCycle = stopAtCycle; }
     UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
@@ -586,6 +588,11 @@ public:
             simulateCycle();
         }
         _endTick = oldEndTick;
+    }
+    void maintain(Tick ticks)
+    {
+        _interruptTick -= ticks;
+        _readyChangeTick -= ticks;
     }
     void simulateCycle()
     {
@@ -708,10 +715,13 @@ public:
                     _busState = t4;
                     if (_ioInProgress == ioWrite)
                         break;
-                    if (_usePortSpace)
-                        _busData = _bus->readIO(_tick);
+                    if (_ioInProgress == ioInterruptAcknowledge)
+                        _data = _pic->getAcknowledgeByte();
                     else
-                        _busData = _bus->readMemory(_tick);
+                        if (_usePortSpace)
+                            _busData = _bus->readIO(_tick);
+                        else
+                            _busData = _bus->readMemory(_tick);
                     if (_ioInProgress == ioRead) {
                         _ioRequested = ioNone;
                         switch (_byte) {
@@ -1358,8 +1368,8 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         _nmiRequested = false;
                     }
                     if (intf() && _interruptRequested) {
-                        _state = stateHardwareInt;
-                        // TODO: Initiate bus interrupt acknowledge cycle
+                        initIO(stateHardwareInt, ioInterruptAcknowledge,
+                            false);
                         _interruptRequested = false;
                         _wait = 1;
                     }
@@ -1369,8 +1379,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _state = stateHardwareInt2;
                     break;
                 case stateHardwareInt2:
-                    // TODO: read interrupt number from bus to _data
-                    _state = stateIntAction;
+                    initIO(stateIntAction, ioInterruptAcknowledge, false);
                     break;
                 case stateInt3:
                     interrupt(3);
@@ -1942,7 +1951,8 @@ private:
         ioNone,
         ioRead,
         ioWrite,
-        ioInstructionFetch
+        ioInstructionFetch,
+        ioInterruptAcknowledge
     };
     enum State
     {
@@ -2475,10 +2485,13 @@ private:
     bool _interruptRequested;
     Tick _endTick;
     bool _ready;
+    Tick _interruptTick;
+    Tick _readyChangeTick;
 
     Disassembler _disassembler;
 
     Connector _connector;
     IRQConnector _irqConnector;
     NMIConnector _nmiConnector;
+    Intel8259PIC* _pic;
 };

@@ -39,3 +39,11 @@ Components (including CPU) can end up in a state where none of the outputs will 
       Except for calling bus's runTo()
         but bus's runTo() needs to call CPU's runTo(). How do we resolve the potentially infinite recursion?
 
+
+Suppose we want to use an enhanced protocol (e.g. interrupt input on CPU wants to be notified of number of cycles until change)
+  How can we take advantage of that but fall back to the default protocol when an enhanced one is not available?
+    A component can specify multiple Connector objects for a single connector name? Or just have a enhanced connectors derive from base ones
+    The tricky part is that the component needs to decide which protocol to use
+      1) Use "if"
+      2) Use a virtual function call
+      3) Instantiate different versions of components depending on protocol

@@ -39,6 +39,9 @@ typedef Intel8253PITT<void> Intel8253PIT;
 template<class T> class Intel8255PPIT;
 typedef Intel8255PPIT<void> Intel8255PPI;
 
+template<class T> class Intel8259PICT;
+typedef Intel8259PICT<void> Intel8259PIC;
+
 template<class T> class ISA8BitRAMT;
 typedef ISA8BitRAMT<void> ISA8BitRAM;
 
