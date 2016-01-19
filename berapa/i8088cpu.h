@@ -716,7 +716,7 @@ public:
                     if (_ioInProgress == ioWrite)
                         break;
                     if (_ioInProgress == ioInterruptAcknowledge)
-                        _data = _pic->getAcknowledgeByte();
+                        _data = _pic->readAcknowledgeByte(_tick);
                     else
                         if (_usePortSpace)
                             _busData = _bus->readIO(_tick);

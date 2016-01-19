@@ -43,20 +43,21 @@ public:
     }
     UInt8 read(Tick tick)
     {
-        if (_address == 1) {
-            if (_secondAck) {
-                _secondAck = false;
-                return _interruptNumber;
-            }
+        if (_address == 1)
             return _imr;
-        }
         // TODO
         return 0xff;
     }
-    UInt8 getAcknowledgeByte()
+    UInt8 readAcknowledgeByte(Tick tick)
     {
-        // TODO
-        return 0;
+        runTo(tick);
+        if (_secondAck) {
+            _secondAck = false;
+            return _interruptNumber;
+        }
+        _secondAck = true;
+        _interruptReady = false;
+        return 0xff;
     }
     void write(Tick tick, UInt8 data)
     {
@@ -88,12 +89,6 @@ public:
         }
     }
     bool interruptRequest() { return _interruptReady; }
-    void interruptAcknowledge()
-    {
-        if (!_secondAck)
-            _secondAck = true;
-        _interruptReady = false;
-    }
 
     void requestInterrupt(int line)
     {
