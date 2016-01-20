@@ -315,7 +315,7 @@ public:
     static String typeName() { return "Intel8088CPU"; }
     Intel8088CPUT(Component::Type type)
       : ClockedComponent(type), _connector(this), _irqConnector(this),
-        _nmiConnector(this), _endTick(Tick::infinity())
+        _nmiConnector(this)
     {
         connector("", &_connector);
         connector("nmi", &_nmiConnector);
@@ -581,13 +581,10 @@ public:
     UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
     void runTo(Tick tick)
     {
-        tick = max(_endTick, tick);
-        Tick oldEndTick = _endTick;
         while (_tick < tick) {
             _tick += _ticksPerCycle;
             simulateCycle();
         }
-        _endTick = oldEndTick;
     }
     void maintain(Tick ticks)
     {
@@ -2483,7 +2480,6 @@ private:
     UInt8 _busData;
     bool _nmiRequested;
     bool _interruptRequested;
-    Tick _endTick;
     bool _ready;
     Tick _interruptTick;
     Tick _readyChangeTick;

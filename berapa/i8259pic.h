@@ -9,6 +9,17 @@ public:
         _irqConnector{this, this, this, this, this, this, this, this},
         _intConnector(this)
     {
+        persist("address", &_address);
+        persist("offset", &_offset);
+        persist("irr", &_irr);
+        persist("imr", &_imr);
+        persist("isr", &_isr);
+        persist("icw1", &_icw1);
+        persist("icw4", &_icw4);
+        persist("interrupt", &_interrupt);
+        persist("interruptReady", &_interruptReady);
+        persist("secondAck", &_secondAck);
+        persist("interruptNumber", &_interruptNumber);
         for (int i = 0; i < 8; ++i) {
             _irqConnector[i].init(i);
             connector("irq" + decimal(i), &_irqConnector[i]);

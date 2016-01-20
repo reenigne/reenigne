@@ -421,12 +421,6 @@ private:
     bool dreqSenseActiveLow() const { return (_command & 0x40) != 0; }
     bool dackSenseActiveHigh() const { return (_command & 0x80) != 0; }
 
-    //UInt32 getAddress() const
-    //{
-    //    return _channels[_channel].currentAddress() |
-    //        (this->_pageRegisters->pageForChannel(_channel) << 16);
-    //}
-
     Channel _channels[4];
     int _address;
     Byte _command;

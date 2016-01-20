@@ -303,6 +303,7 @@ public:
     }
     void setDMAPageRegisters(DMAPageRegisters* c) { _dmaPageRegisters = c; }
     void setDMAC(Intel8237DMAC* dmac) { _dmac = dmac; }
+    void setDMATick(Tick tick) { _dmaTick = tick; }
 
     // The bus has special knowledge of the PIC because the PIC puts values on
     // the bus via a special "interrupt acknowledge" mechanism that is neither
@@ -327,6 +328,12 @@ private:
     DMAPageRegisters* _dmaPageRegisters;
     Intel8259PIC* _pic;
     Tick _dmaTick;
+
+    //UInt32 getAddress() const
+    //{
+    //    return _channels[_channel].currentAddress() |
+    //        (this->_pageRegisters->pageForChannel(_channel) << 16);
+    //}
 
     class Choice : public ISA8BitComponentBase
     {

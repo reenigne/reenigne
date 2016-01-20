@@ -47,3 +47,8 @@ Suppose we want to use an enhanced protocol (e.g. interrupt input on CPU wants t
       1) Use "if"
       2) Use a virtual function call
       3) Instantiate different versions of components depending on protocol
+      4) Component has a preferred protocol which it talks "natively" and something else to talk other protocols
+         4a) A conversion component instantiated by the simulator
+         4b) A conversion pseudo-component that is built into the component
+
+
