@@ -279,13 +279,13 @@ public:
 };
 
 template<class T> Type typeFromCompileTimeType() { return T::type(); }
-template<class T, typename = typename std::enable_if<HasType<T>::value>::type>
+template<class T, std::enable_if_t<HasType<T>::value>* = nullptr>
     Type typeFromValue(const T& value)
 {
     return value.type();
 }
-template<class T, typename = void,
-    typename = typename std::enable_if<!HasType<T>::value>::type>
+template<class T, typename = void, std::enable_if_t<!HasType<T>::value>* =
+    nullptr>
     Type typeFromValue(const T&)
 {
     return typeFromCompileTimeType<T>();
@@ -295,16 +295,19 @@ template<class T> class ValueT
 {
 public:
     ValueT() { }
-    template<class U, typename = typename std::enable_if<std::is_base_of<
-        Type, U>::value>::type> ValueT(U type, Any any = Any(),
-        Span span = Span())
-      : _type(type), _any(any), _span(span)
+    template<class U, std::enable_if_t<std::is_base_of<Type, U>::value>* =
+        nullptr>
+        ValueT(U type, Any any, Span span = Span())
+      : _type(type), _any(any), _span(span) { }
+    template<class U, std::enable_if_t<std::is_base_of<Type, U>::value>* =
+        nullptr>
+        ValueT(U type, Span span = Span())
+      : _type(type), _span(span)
     {
-        if (!_any.valid())
-            _any = StructuredTypeT<T>::empty().convertTo(type).value();
+        _any = StructuredTypeT<T>::empty().convertTo(type).value();
     }
-    template<class U, typename = typename std::enable_if<!std::is_base_of<
-        Type, U>::value>::type> ValueT(const U& value,
+    template<class U, std::enable_if_t<!std::is_base_of<Type, U>::value>* =
+        nullptr> ValueT(const U& value,
         Span span = Span())
       : _type(typeFromValue(value)), _any(value), _span(span) { }
     Type type() const { return _type; }
@@ -316,7 +319,7 @@ public:
     bool operator!=(const Value& other) const { return !(*this == other); }
     template<class U> U value() const { return _any.value<U>(); }
     Span span() const { return _span; }
-    bool valid() const { return _any.valid(); }
+    bool valid() const { return _type.valid(); }
     Value convertTo(const Type& to) const
     {
         String reason;

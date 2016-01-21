@@ -102,6 +102,7 @@ private:
     ConstHandle(const Body* body, bool acquire) { set(body, acquire); }
 
     friend class Handle;
+    friend class Any;
     template<class T> friend class Array;
 };
 
@@ -147,6 +148,7 @@ protected:
 private:
     Handle(Body* body, bool acquire) { set(body, acquire); }
     friend class ConstHandle::Body;
+    friend class Any;
     template<class T> friend class Array;
 };
 

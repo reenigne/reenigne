@@ -466,8 +466,8 @@ protected:
         Structure::set(name, type);
         set(name, type);
     }
-    template<class C, class I, typename = typename std::enable_if<
-        !std::is_base_of<::Type, I>::value>::type>
+    template<class C, class I, std::enable_if_t<!std::is_base_of<::Type, I>
+        ::value>* = nullptr>
         void persist(String name, C* p, I initial,
             ::Type type = typeFromCompileTimeType<C>())
     {
