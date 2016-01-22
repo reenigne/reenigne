@@ -590,56 +590,57 @@ public:
     {
         _interruptTick -= ticks;
         _readyChangeTick -= ticks;
+        ClockedComponent::maintain(ticks);
     }
     void simulateCycle()
     {
         simulateCycleAction();
-        if (_cycle >= 000000) {
-            String line = String(decimal(_cycle)).alignRight(5) + " ";
-            switch (_busState) {
-                case t1:
-                    line += "T1 " + hex(_busAddress, 5, false) + " ";
-                    break;
-                case t2:
-                    line += "T2 ";
-                    if (_ioInProgress == ioWrite)
-                        line += "M<-" + hex(_busData, 2, false) + " ";
-                    else
-                        line += "      ";
-                    break;
-                case t3: line += "T3       "; break;
-                case tWait: line += "Tw       "; break;
-                case t4:
-                    line += "T4 ";
-                    if (_ioInProgress == ioWrite)
-                        line += "      ";
-                    else
-                        if (_abandonFetch)
-                            line += "----- ";
-                        else
-                            line += "M->" + hex(_busData, 2, false) + " ";
-                    break;
-                case tIdle: line += "         "; break;
-            }
-            if (_newInstruction) {
-                line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false)
-                    + " " + _disassembler.disassemble(_newIP);
-            }
-            line = line.alignLeft(50);
-            for (int i = 0; i < 8; ++i) {
-                line += _byteRegisters[i].text();
-                line += _wordRegisters[i].text();
-                line += _segmentRegisters[i].text();
-            }
-            line += _flags.text();
-            //if(_newInstruction)
-                console.write(line + "\n");
-            _newInstruction = false;
-        }
+        //if (_cycle >= 000000) {
+        //    String line = String(decimal(_cycle)).alignRight(5) + " ";
+        //    switch (_busState) {
+        //        case t1:
+        //            line += "T1 " + hex(_busAddress, 5, false) + " ";
+        //            break;
+        //        case t2:
+        //            line += "T2 ";
+        //            if (_ioInProgress == ioWrite)
+        //                line += "M<-" + hex(_busData, 2, false) + " ";
+        //            else
+        //                line += "      ";
+        //            break;
+        //        case t3: line += "T3       "; break;
+        //        case tWait: line += "Tw       "; break;
+        //        case t4:
+        //            line += "T4 ";
+        //            if (_ioInProgress == ioWrite)
+        //                line += "      ";
+        //            else
+        //                if (_abandonFetch)
+        //                    line += "----- ";
+        //                else
+        //                    line += "M->" + hex(_busData, 2, false) + " ";
+        //            break;
+        //        case tIdle: line += "         "; break;
+        //    }
+        //    if (_newInstruction) {
+        //        line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false)
+        //            + " " + _disassembler.disassemble(_newIP);
+        //    }
+        //    line = line.alignLeft(50);
+        //    for (int i = 0; i < 8; ++i) {
+        //        line += _byteRegisters[i].text();
+        //        line += _wordRegisters[i].text();
+        //        line += _segmentRegisters[i].text();
+        //    }
+        //    line += _flags.text();
+        //    //if(_newInstruction)
+        //        console.write(line + "\n");
+        //    _newInstruction = false;
+        //}
         ++_cycle;
         if (_cycle % 1000000 == 0)
             console.write(".");
-        if (_cycle == 100)
+        if (_cycle == 47727272)
             throw Exception("Finished");
     }
     void simulateCycleAction()

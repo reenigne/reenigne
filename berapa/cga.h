@@ -57,6 +57,7 @@ public:
         this->persist("ioAddress", &_ioAddress, HexPersistenceType(4));
         this->persist("mode", &_mode);
         this->persist("palette", &_palette);
+        this->persist("ram", &_ram, _ram.persistenceType());
         this->config("ram", &_ram, RAM::Type(this->simulator(), &_ram));
         this->connector("rgbiOutput", &_rgbiConnector);
     }
