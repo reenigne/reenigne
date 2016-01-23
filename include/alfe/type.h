@@ -736,7 +736,8 @@ protected:
             const
         {
             int n;
-            char* pc = pointerAndCount(p, &n);
+            char* pc0 = pointerAndCount(p, &n);
+            char* pc = pc0;
             int size = _contained.size();
             Value d(_contained);
             do {
@@ -783,6 +784,7 @@ protected:
             // line.
             s = "{\n";
             needComma = false;
+            pc = pc0;
             for (int i = 0; i < n; ++i) {
                 int u = indent + delta;
                 String v = "{ }";
