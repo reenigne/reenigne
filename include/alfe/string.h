@@ -86,7 +86,7 @@ public:
         String operator+(const char* a)
         {
             int l = bytes();
-            int al = strlen(a);
+            int al = static_cast<int>(strlen(a));
             String s(l + al);
             write(s.data());
             memcpy(s.data() + l, a, al);
@@ -244,7 +244,8 @@ public:
     StringTemplate(const char* data, int length)
       : StringTemplate(reinterpret_cast<const T*>(data), length, length, false)
     { }
-    StringTemplate(const char* data) : StringTemplate(data, strlen(data)) { }
+    StringTemplate(const char* data)
+      : StringTemplate(data, static_cast<int>(strlen(data))) { }
     StringTemplate(const Array<T>& array)
       : StringTemplate(reinterpret_cast<const char*>(&array[0]), array.count())
     { }
@@ -254,7 +255,7 @@ public:
     }
     StringTemplate(const char* a, const String& b) : StringTemplate(0, 0, 0)
     {
-        int al = strlen(a);
+        int al = static_cast<int>(strlen(a));
         if (al == 0)
             *this = b;
         else {
@@ -508,8 +509,9 @@ private:
                 *this = a;
             }
             else {
-                int t = min(static_cast<std::ptrdiff_t>(copyLength),
-                    bufferStart() + bufferCount() - (data() + length()));
+                int t = static_cast<int>(min(
+                    static_cast<std::ptrdiff_t>(copyLength),
+                    bufferStart() + bufferCount() - (data() + length())));
                 if (memcmp(data() + length(), otherData, t) == 0) {
                     setLength(length() + t);
                     copyLength -= t;
@@ -545,8 +547,9 @@ private:
     {
         // This is basically offsetof(String, length()) but that would call
         // length() on a null pointer and invoke undefined behavior.
-        return reinterpret_cast<uintptr_t>(reinterpret_cast<int*>(
-            reinterpret_cast<char*>(reinterpret_cast<String*>(0) + 1)) - 1);
+        return static_cast<int>(reinterpret_cast<uintptr_t>(
+            reinterpret_cast<int*>(reinterpret_cast<char*>(
+            reinterpret_cast<String*>(0) + 1)) - 1));
     }
     bool small() const { return length() <= smallStringThreshold(); }
     // All constructors ultimately use this one, as String construction is

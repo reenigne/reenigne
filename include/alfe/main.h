@@ -205,7 +205,7 @@ private:
         Byte* p = buffer.data();
         for (int i = 0; i < nArgs; ++i) {
             p = String::write(p, szArglist[i]);
-            int end = p - buffer.data();
+            int end = static_cast<int>(p - buffer.data());
             _arguments[i] = buffer.subString(start, end - start);
             start = end;
         }

@@ -10,8 +10,7 @@ class WindowsHandle : public ConstHandle
 public:
     WindowsHandle() : _handle(INVALID_HANDLE_VALUE) { }
     WindowsHandle(HANDLE handle, bool own = true) : _handle(handle),
-        ConstHandle(own ? static_cast<Body*>(new OwningBody(handle)) :
-            static_cast<Body*>(new NonOwningBody))
+        ConstHandle(own ? create<OwningBody>(handle) : create<NonOwningBody>())
     { }
     bool valid() const { return _handle != INVALID_HANDLE_VALUE; }
     operator HANDLE() const { return _handle; }

@@ -119,6 +119,7 @@ public:
     const Byte* data() const { return _topLeft; }
     int stride() const { return _stride; }
     Vector size() const { return _size; }
+    bool valid() const { return _size.x != 0; }
     Pixel* row(int y)
     {
         return reinterpret_cast<Pixel*>(_topLeft + y*_stride);

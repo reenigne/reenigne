@@ -128,8 +128,8 @@ private:
                         Slider* slider =
                             dynamic_cast<Slider*>(getContext(lParam));
                         if (slider != 0)
-                            slider->updateValue(
-                                SendMessage(slider->_hWnd, TBM_GETPOS, 0, 0));
+                            slider->updateValue(static_cast<int>(
+                                SendMessage(slider->_hWnd, TBM_GETPOS, 0, 0)));
                         break;
                     }
                     break;
@@ -590,6 +590,7 @@ private:
 protected:
     virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
+        int w = static_cast<int>(wParam);
         switch (uMsg) {
             case WM_SIZE:
                 {
@@ -613,20 +614,20 @@ protected:
             case WM_MBUTTONDOWN:
             case WM_MBUTTONUP:
             case WM_MOUSEMOVE:
-                if (mouseInput(vectorFromLParam(lParam), wParam))
+                if (mouseInput(vectorFromLParam(lParam), w))
                     SetCapture(_hWnd);
                 break;
             case WM_CHAR:
-                keyboardCharacter(wParam);
+                keyboardCharacter(w);
                 break;
             case WM_KEYDOWN:
             case WM_SYSKEYDOWN:
-                if (keyboardEvent(wParam, false))
+                if (keyboardEvent(w, false))
                     return 0;
                 break;
             case WM_KEYUP:
             case WM_SYSKEYUP:
-                if (keyboardEvent(wParam, true))
+                if (keyboardEvent(w, true))
                     return 0;
                 break;
             case WM_KILLFOCUS:
@@ -889,13 +890,13 @@ public:
     }
     void changed()
     {
-        changed(SendMessage(_hWnd, CB_GETCURSEL, 0, 0));
+        changed(static_cast<int>(SendMessage(_hWnd, CB_GETCURSEL, 0, 0)));
     }
     void add(String s)
     {
         NullTerminatedWideString ns(s);
-        int r = SendMessage(_hWnd, CB_ADDSTRING, 0,
-            reinterpret_cast<LPARAM>(ns.operator WCHAR *()));
+        int r = static_cast<int>(SendMessage(_hWnd, CB_ADDSTRING, 0,
+            reinterpret_cast<LPARAM>(ns.operator WCHAR *())));
         SIZE size;
         NullTerminatedWideString w(s);
         IF_ZERO_THROW(GetTextExtentPoint32(_hdc, w, s.length(), &size));
