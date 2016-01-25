@@ -570,6 +570,10 @@ public:
         persist("interruptRequested", &_interruptRequested);
         persist("cycle", &_cycle);
         persist("ready", &_ready, true);
+
+        _visited.allocate(0x100000);
+        for (int i = 0; i < 0x100000; ++i)
+            _visited[i] = false;
     }
     void load(const Value& v)
     {
@@ -595,7 +599,7 @@ public:
     void simulateCycle()
     {
         simulateCycleAction();
-        //if (_cycle >= 000000) {
+        if (_cycle >= 000000) {
         //    String line = String(decimal(_cycle)).alignRight(5) + " ";
         //    switch (_busState) {
         //        case t1:
@@ -622,10 +626,17 @@ public:
         //            break;
         //        case tIdle: line += "         "; break;
         //    }
-        //    if (_newInstruction) {
+            if (_newInstruction) {
+                UInt32 a = codeAddress(_newIP);
+                if (!_visited[a]) {
+                    console.write(hex(csQuiet(), 4, false) + ":" +
+                        hex(_newIP, 4, false) + " " +
+                        _disassembler.disassemble(_newIP) + "\n");
+                }
+                _visited[a] = true;
         //        line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false)
         //            + " " + _disassembler.disassemble(_newIP);
-        //    }
+            }
         //    line = line.alignLeft(50);
         //    for (int i = 0; i < 8; ++i) {
         //        line += _byteRegisters[i].text();
@@ -635,8 +646,9 @@ public:
         //    line += _flags.text();
         //    //if(_newInstruction)
         //        console.write(line + "\n");
-        //    _newInstruction = false;
-        //}
+            _newInstruction = false;
+        }
+
         ++_cycle;
         if (_cycle % 1000000 == 0)
             console.write(".");
@@ -2484,6 +2496,7 @@ private:
     bool _ready;
     Tick _interruptTick;
     Tick _readyChangeTick;
+    Array<bool> _visited;
 
     Disassembler _disassembler;
 
