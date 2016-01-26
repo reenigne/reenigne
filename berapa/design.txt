@@ -50,5 +50,10 @@ Suppose we want to use an enhanced protocol (e.g. interrupt input on CPU wants t
       4) Component has a preferred protocol which it talks "natively" and something else to talk other protocols
          4a) A conversion component instantiated by the simulator
          4b) A conversion pseudo-component that is built into the component
+            This would result in a lot of duplicated code.
+  Let's make 4a the default but allow for the possibility of others.
+
+Is Protocol a Type? If so, is it a subtype of Connector::Type?
+  Connector::Type is really about which connectors can be connected to each other.
 
 

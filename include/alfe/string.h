@@ -467,8 +467,14 @@ public:
     bool operator<=(const String& other) const { return !operator>(other); }
     bool operator>=(const String& other) const { return !operator<(other); }
 
-    String alignRight(int n) { return String(" ")*(n - length()) + (*this); }
-    String alignLeft(int n) { return (*this) + String(" ")*(n - length()); }
+    String alignRight(int n)
+    {
+        return String(" ")*max(0, n - length()) + (*this);
+    }
+    String alignLeft(int n)
+    {
+        return (*this) + String(" ")*max(0, n - length());
+    }
 
     bool empty() const { return length() == 0; }
     const T* data() const

@@ -488,6 +488,7 @@ public:
         h.add(stateLock,           "stateLock");
         h.add(stateRep,            "stateRep");
         h.add(stateHlt,            "stateHlt");
+        h.add(stateHalted,         "stateHalted");
         h.add(stateCmC,            "stateCmC");
         h.add(stateMath,           "stateMath");
         h.add(stateMath2,          "stateMath2");
@@ -557,13 +558,12 @@ public:
         persist("afterIO", &_afterIO, stateType);
         persist("afterEAIO", &_afterEAIO, stateType);
         persist("afterRep", &_afterRep, stateType);
-        persist("afterInt", &_afterInt, stateType);
+        persist("afterCheckInt", &_afterCheckInt, stateType);
         persist("sourceIsRM", &_sourceIsRM);
         persist("savedCS", &_savedCS);
         persist("savedIP", &_savedIP);
         persist("rep", &_rep);
         persist("usePortSpace", &_usePortSpace);
-        persist("halted", &_halted);
         persist("newInstruction", &_newInstruction, true);
         persist("newIP", &_newIP);
         persist("nmiRequested", &_nmiRequested);
@@ -629,7 +629,8 @@ public:
             if (_newInstruction) {
                 UInt32 a = codeAddress(_newIP);
                 if (!_visited[a]) {
-                    console.write(hex(csQuiet(), 4, false) + ":" +
+                    console.write(String(decimal(_cycle)).alignRight(5) + " " +
+                        hex(csQuiet(), 4, false) + ":" +
                         hex(_newIP, 4, false) + " " +
                         _disassembler.disassemble(_newIP) + "\n");
                 }
@@ -650,10 +651,12 @@ public:
         }
 
         ++_cycle;
+        //if (_cycle == 4793344)
+        //    console.write("!");
         if (_cycle % 1000000 == 0)
             console.write(".");
-        if (_cycle == 47727272)
-            throw Exception("Finished");
+        //if (_cycle == 4900000)
+        //    throw Exception("Finished");
     }
     void simulateCycleAction()
     {
@@ -723,6 +726,16 @@ public:
                     if (!_ready)
                         break;
                     _busState = t4;
+                    if (_ioInProgress == ioInstructionFetch) {
+                        if (_abandonFetch)
+                            break;
+                        _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
+                            _bus->readMemory(_tick);
+                        ++_prefetched;
+                        ++_prefetchAddress;
+                        completeInstructionFetch();
+                        break;
+                    }
                     if (_ioInProgress == ioWrite)
                         break;
                     if (_ioInProgress == ioInterruptAcknowledge)
@@ -732,34 +745,24 @@ public:
                             _busData = _bus->readIO(_tick);
                         else
                             _busData = _bus->readMemory(_tick);
-                    if (_ioInProgress == ioRead) {
-                        _ioRequested = ioNone;
-                        switch (_byte) {
-                            case ioSingleByte:
-                                _data = _busData;
-                                _state = _afterIO;
-                                break;
-                            case ioWordFirst:
-                                _data = _busData;
-                                _ioInProgress = ioRead;
-                                _byte = ioWordSecond;
-                                ++_address;
-                                break;
-                            case ioWordSecond:
-                                _data |= static_cast<UInt16>(_busData) << 8;
-                                _state = _afterIO;
-                                _byte = ioSingleByte;
-                                break;
-                        }
-                        break;
+                    _ioRequested = ioNone;
+                    switch (_byte) {
+                        case ioSingleByte:
+                            _data = _busData;
+                            _state = _afterIO;
+                            break;
+                        case ioWordFirst:
+                            _data = _busData;
+                            _ioInProgress = ioRead;
+                            _byte = ioWordSecond;
+                            ++_address;
+                            break;
+                        case ioWordSecond:
+                            _data |= static_cast<UInt16>(_busData) << 8;
+                            _state = _afterIO;
+                            _byte = ioSingleByte;
+                            break;
                     }
-                    if (_abandonFetch)
-                        break;
-                    _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
-                        _busData;
-                    ++_prefetched;
-                    ++_prefetchAddress;
-                    completeInstructionFetch();
                     break;
                 case t4:
                     _busState = tIdle;
@@ -872,7 +875,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _usePortSpace = false;
                     _newInstruction = true;
                     _newIP = _ip;
-                    _afterInt = stateBegin;
+                    _afterCheckInt = stateBegin;
                     _state = stateCheckInt;
                     break;
 
@@ -1260,9 +1263,9 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _state = stateEndInstruction;
                     if (_rep != 0) {
                         --cx();
-                        _afterInt = _afterRep;
+                        _afterCheckInt = _afterRep;
                         if (cx() == 0 || (zf() == (_rep == 1)))
-                            _afterInt = stateEndInstruction;
+                            _afterCheckInt = stateEndInstruction;
                         _state = stateCheckInt;
                     }
                     break;
@@ -1371,11 +1374,10 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                 case stateMovRMImm3: writeEA(_data, _useMemory ? 6 : 4); break;
 
                 case stateCheckInt:
-                    _state = _afterInt;
+                    _state = _afterCheckInt;
                     if (_nmiRequested) {
-                        _data = 2;
-                        _state = stateIntAction;
                         _nmiRequested = false;
+                        interrupt(2);
                     }
                     if (intf() && _interruptRequested) {
                         initIO(stateHardwareInt, ioInterruptAcknowledge,
@@ -1397,7 +1399,6 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateInt:
                     fetch(stateIntAction, false);
-                    _afterInt = stateEndInstruction;
                     break;
                 case stateIntAction:
                     _source = _data;
@@ -1424,7 +1425,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     cs() = _data;
                     setIP(_savedIP);
                     _wait = 13;
-                    _state = _afterInt;
+                    _state = stateEndInstruction;
                     break;
                 case stateIntO:
                     if (of()) {
@@ -1645,7 +1646,15 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _wait = 9;
                     _state = stateBegin;
                     break;
-                case stateHlt: _halted = true; end(2); break;
+                case stateHlt:
+                    _wait = 1;
+                    _state = stateHalted;
+                    break;
+                case stateHalted:
+                    _wait = 1;
+                    _state = stateCheckInt;
+                    _afterCheckInt = stateHalted;
+                    break;
                 case stateCmC: _flags ^= 1; end(2); break;
 
                 case stateMath: readEA(stateMath2); break;
@@ -2032,7 +2041,7 @@ private:
         stateJmpCW, stateJmpCW2, stateJmpCW3,
         stateJmpCP, stateJmpCP2, stateJmpCP3, stateJmpCP4,
         stateJmpCB, stateJmpCB2,
-        stateLock, stateRep, stateHlt, stateCmC,
+        stateLock, stateRep, stateHlt, stateHalted, stateCmC,
         stateMath, stateMath2, stateMath3,
         stateLoadC, stateLoadI, stateLoadD,
         stateMisc, stateMisc2
@@ -2086,7 +2095,6 @@ private:
     {
         _data = number;
         _state = stateIntAction;
-        _afterInt = stateEndInstruction;
     }
     void test(UInt16 destination, UInt16 source)
     {
@@ -2477,7 +2485,7 @@ private:
     State _afterIO;
     State _afterEAIO;
     State _afterRep;
-    State _afterInt;
+    State _afterCheckInt;
     bool _sourceIsRM;
     UInt16 _savedCS;
     UInt16 _savedIP;
