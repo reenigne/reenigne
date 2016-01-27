@@ -200,6 +200,30 @@ private:
     ComponentT<T>* _component;
 };
 
+class Protocol : public ConstHandle
+{
+};
+
+template<class T> class ConnectorBase : public Connector
+{
+public:
+    class Type : public NamedNullary<::Connector::Type, Type>
+    {
+    public:
+        static String name() { return T::typeName(); }
+        class Body : public NamedNullary<::Connector::Type, Type>::Body
+        {
+        public:
+            bool compatible(::Connector::Type other) const
+            {
+                // TODO
+                return false;
+            }
+        };
+    };
+
+};
+
 template<class T> class ComponentT : public Structure
 {
 public:

@@ -55,5 +55,17 @@ Suppose we want to use an enhanced protocol (e.g. interrupt input on CPU wants t
 
 Is Protocol a Type? If so, is it a subtype of Connector::Type?
   Connector::Type is really about which connectors can be connected to each other.
+    But so is Protocol - connectors which can be connected together are just those for which no conversions exist
 
+Let's rework the entire Connector::Type system
+  Replace Connector::Type with Protocol and a bool for direction
+    We can get rid of ~half of the Connector::Types since most connectors will have a single protocol
+  Instead of having a single Type, a Connector returns a List<Pair<Protocol,bool>>
+  Simulator has a HashTable<Pair<Protocol,Protocol>,Component> for conversion
+  Two Connectors are compatible if they share a Protocol
+  A Connector is an ALFE object and hence has a Type
+    We should make all Connector classes CRTP so that the Type is implemented by the base class
+  a BidirectionalConnector supports at least four Pair<Protocol,bool>s
+    two directions times (one-way or bidirectional)
+    the direction is ignored when the protocol is bidirectional
 
