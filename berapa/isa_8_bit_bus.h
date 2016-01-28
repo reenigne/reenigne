@@ -4,6 +4,8 @@ typedef ISA8BitBusT<void> ISA8BitBus;
 template<class T> class ISA8BitComponentBaseT;
 typedef ISA8BitComponentBaseT<void> ISA8BitComponentBase;
 
+class ISA8BitProtocol : public ProtocolBase<ISA8BitProtocol> { };
+
 template<class T> class ISA8BitComponentBaseT : public ClockedComponent
 {
 public:
@@ -58,7 +60,7 @@ public:
         _bus->addRange(3, this, low, high);
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
         Connector(ISA8BitComponentBaseT* component)

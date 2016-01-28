@@ -111,6 +111,22 @@ private:
     };
 };
 
+class Protocol : public ConstHandle { };
+template<class T> class ProtocolBase : public Nullary<Protocol, T> { };
+
+class ProtocolDirection
+{
+public:
+    ProtocolDirection(Protocol p, bool o) : _protocol(p), _output(o) { }
+    bool matches(ProtocolDirection other) const
+    {
+        return _protocol == other._protocol && _output != other._output;
+    }
+private:
+    Protocol _protocol;
+    bool _output;
+};
+
 Value connectorFromValue(Value v);
 Type connectorTypeFromType(Type t);
 
@@ -119,12 +135,11 @@ template<class T> class ConnectorT
 public:
     ConnectorT(Component* component)
       : _component(component), _connected(false) { }
-    class Type : public NamedNullary<::Type, Type>
+    class Type : public ::Type
     {
     public:
         Type() { }
-        Type(ConstHandle other) : NamedNullary<::Type, Type>(other) { }
-        Type(::Type type) : NamedNullary<::Type, Type>(to<Body>(type)) { }
+        Type(::Type type) : ::Type, Type(to<Body>(type)) { }
         bool compatible(Type other) const
         {
             return body()->compatible(other) ||
@@ -138,7 +153,8 @@ public:
         class Body : public NamedNullary<::Type, Type>::Body
         {
         public:
-            virtual bool compatible(Type other) const { return false; }
+            Body(Simulator* simulator) : _simulator(simulator) { }
+            virtual List<ProtocolDirection> protocolDirections() const = 0;
             virtual bool canConnectMultiple() const { return false; }
             virtual bool canConvertFrom(const ::Type& other, String* reason)
                 const
@@ -148,7 +164,7 @@ public:
                     *reason = other.toString() + " is not a connector.";
                     return false;
                 }
-                if (!Type(type()).compatible(t)) {
+                if (!_simulator->compatibleConnectors(Type(type()), t) {
                     *reason = t.toString() + " and " + this->toString() +
                         " are not compatible connectors.";
                     return false;
@@ -160,6 +176,8 @@ public:
                 return Value(type(), connectorFromValue(value).value(),
                     value.span());
             }
+        private:
+            Simulator* _simulator;
         };
     public:
         const Body* body() const { return this->template as<Body>(); }
@@ -173,51 +191,52 @@ public:
         // componentB's state may be modified by this connection.
         return Value(type(), const_cast<Connector*>(this));
     }
-    void doConnect(ConnectorT<T>* other)
+    void doConnect(ConnectorT<T>* other, ProtocolDirection pd, Span span)
     {
-        connect(other);
-        other->connect(this);
+        if (_connected && !type().canConnectMultiple())
+            span.throwException("Connector is already connected");
+        connect(other, pd);
         _connected = true;
-        other->_connected = true;
     }
     void checkConnected()
     {
-        if (!_connected && !type().canConnectMultiple()) {
-            auto t = defaultComponentType(_component->simulator());
-            Reference<::ComponentT<T>> c = t.createComponent();
-            doConnect(c->defaultConnector());
-        }
+        if (!_connected && !type().canConnectMultiple())
+            _component->simulator()->connectStub(this);
     }
     Component* component() { return _component; }
 
     virtual Type type() const = 0;
-    virtual void connect(Connector* other) { }
-    virtual typename ComponentT<T>::Type
-        defaultComponentType(Simulator* simulator) = 0;
+    virtual void connect(Connector* other, ProtocolDirection pd) { }
 
 private:
     bool _connected;
     ComponentT<T>* _component;
 };
 
-class Protocol : public ConstHandle
-{
-};
-
 template<class T> class ConnectorBase : public Connector
 {
 public:
-    class Type : public NamedNullary<::Connector::Type, Type>
+    static auto protocolDirections()
+    {
+        List<ProtocolDirection> r;
+        r.add(T::protocolDirection());
+        return r;
+    }
+    Connector::Type type() const { return Type(component()->simulator()); }
+    class Type : public Connector::Type
     {
     public:
+        Type(Simulator* simulator)
+          : Connector::Type(Type::template create<Body>(simulator)) { }
+
         static String name() { return T::typeName(); }
-        class Body : public NamedNullary<::Connector::Type, Type>::Body
+        class Body : public Connector::Type::Body
         {
         public:
-            bool compatible(::Connector::Type other) const
+            Body(Simulator* simulator) : Connector::Type::Body(simulator) { }
+            List<ProtocolDirection> protocolDirections() const
             {
-                // TODO
-                return false;
+                return T::protocolDirections();
             }
         };
     };
@@ -291,7 +310,7 @@ public:
         _ticksPerCycle = ticksPerCycle;
         _tick = 0;
     }
-    void set(Identifier name, Value value)
+    void set(Identifier name, Value value, Span span)
     {
         String n = name.name();
         if (n == "*") {
@@ -301,20 +320,20 @@ public:
         if (typename ConnectorT<T>::Type(value.type()).valid()) {
             auto l = getValue(name).template value<Connector*>();
             auto r = value.value<Connector*>();
-            l->doConnect(r);
+            l->doConnect(r, value.span());
             return;
         }
         if (_config.hasKey(n)) {
             Member m = _config[n];
             m.type().deserialize(value, m._p);
         }
-        Structure::set(name, value);
+        Structure::set(name, value, span);
     }
     template<class C> class TypeHelper : public Type
     {
     public:
         TypeHelper(Simulator* simulator)
-          : Type(TypeHelper::template create<Body>(simulator)) { }
+            : Type(TypeHelper::template create<Body>(simulator)) { }
         TypeHelper(const ConstHandle& other) : Type(other) { }
     protected:
         class Body : public Type::Body
@@ -634,27 +653,38 @@ private:
     friend class AssignmentFunco::Body;
 };
 
-// For sub-components (like RAM) the type doesn't create the component, it just
-// returns the pointer to the member of the parent component.
-template<class C> class SubComponentType : public Component::TypeHelper<C>
+template<class C> class ComponentBase : public Component
 {
 public:
-    SubComponentType(Simulator* simulator, C* c = 0)
-      : Component::TypeHelper<C>(
-            Component::TypeHelper<C>::template create<Body>(simulator, c)) { }
-private:
-    class Body : public Component::TypeHelper<C>::Body
+    typedef Component::TypeHelper<C> Type;
+};
+
+// For sub-components (like RAM) the type doesn't create the component, it just
+// returns the pointer to the member of the parent component.
+template<class C> class SubComponent : public ComponentBase<C>
+{
+public:
+    class Type : public ComponentBase<C>::Type
     {
     public:
-        Body(Simulator* simulator, C* c)
-          : Component::TypeHelper<C>::Body(simulator), _c(c) { }
-        Value convert(const Value& value) const
-        {
-            return Value(this->type(), static_cast<Structure*>(_c),
-                value.span());
-        }
+        Type(Simulator* simulator, C* c = 0)
+          : Component::TypeHelper<C>(
+                Component::TypeHelper<C>::template create<Body>(simulator, c))
+        { }
     private:
-        C* _c;
+        class Body : public ComponentBase<C>::Type::Body
+        {
+        public:
+            Body(Simulator* simulator, C* c)
+              : ComponentBase<C>::Type::Body(simulator), _c(c) { }
+            Value convert(const Value& value) const
+            {
+                return Value(this->type(), static_cast<Structure*>(_c),
+                    value.span());
+            }
+        private:
+            C* _c;
+        };
     };
 };
 
@@ -686,9 +716,14 @@ public:
         config("frequency", &_cyclesPerSecond, (1/second).type());
     }
     Rational cyclesPerSecond() const { return _cyclesPerSecond; }
-    template<class C> using Type = Component::TypeHelper<C>;
 private:
     Rational _cyclesPerSecond;
+};
+
+template<class C> class ClockedComponentBase : public ClockedComponent
+{
+public:
+    typedef Component::TypeHelper<C> Type;
 };
 
 template<class T> class OutputConnector;
@@ -1544,7 +1579,65 @@ public:
     String name() const { return "simulator"; }
     Rational ticksPerSecond() const { return _ticksPerSecond; }
     Directory directory() const { return _directory; }
+    bool canConnect(Connector::Type l, Connector::Type r)
+    {
+        return connectScore(l, r) < std::numeric_limits<int>::max;
+    }
+    void connect(Connector* l, Connector* r)
+    {
+        auto lt = l->type();
+        auto rt = r->type();
+        int score = connectScore(lt, rt);
+        auto ll = lt.protocolDirections();
+        auto rl = rt.protocolDirections();
+        for (auto lpd : ll) {
+            for (auto rpd : rr) {
+                if (connectScore(lpd, rpd) == score) {
+                    //l->doConnect(r);
+                    //r->doConnect(l);
+                }
+            }
+        }
+    }
+    // Conversion components are instantiated when a connection is made between
+    // two connectors that don't share a protocol.
+    void registerConversionComponent(Component::Type type)
+    {
+
+    }
+    // Stub components are connected to connectors that don't have anything
+    // connected to them.
+    void registerStubComponent(Component::Type type)
+    {
+        Connector::Type ct = type.defaultConnectorType();
+        auto l = ct.protocolDirections();
+        for (auto pd : l)
+            _stubComponents.add(pd, type);
+    }
+    void connectStub(Connector* c)
+    {
+        //auto t = defaultComponentType(_component->simulator());
+        //Reference<::ComponentT<T>> c = t.createComponent();
+        //doConnect(c->defaultConnector(), Span());
+    }
 private:
+    int connectScore(Connector::Type l, Connector::Type r)
+    {
+        auto ll = l.protocolDirections();
+        auto rl = r.protocolDirections();
+        int bestScore = std::numeric_limits<int>::max;
+        for (auto lpd : ll)
+            for (auto rpd : rr) {
+                int score = connectScore(lpd, rpd);
+                if (score < bestScore)
+                    bestScore = score;
+            }
+        return score;
+    }
+    int connectScore(ProtocolDirection l, ProtocolDirection r)
+    {
+        return l.matches(r) ? 0 : std::numeric_limits<int>::max;
+    }
     Value initial() const { return persistenceType(); }
     ::Type persistenceType() const
     {
@@ -1562,6 +1655,7 @@ private:
     List<Reference<Component>> _components;
     bool _halted;
     Rational _ticksPerSecond;
+    HashTable<ProtocolDirection, Component::Type> _stubComponents;
 };
 
 #include "isa_8_bit_bus.h"

@@ -309,7 +309,8 @@ private:
 
 typedef DisassemblerT<void> Disassembler;
 
-template<class T> class Intel8088CPUT : public ClockedComponent
+template<class T> class Intel8088CPUT
+  : public ClockedComponentBase<Intel8088CPU>
 {
 public:
     static String typeName() { return "Intel8088CPU"; }
@@ -1909,8 +1910,6 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         }
         Intel8088CPU* _cpu;
     };
-
-    typedef ClockedComponent::Type<Intel8088CPU> Type;
 
 private:
     class PersistQueueType : public NamedNullary<::Type, PersistQueueType>

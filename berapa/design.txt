@@ -68,4 +68,19 @@ Let's rework the entire Connector::Type system
   a BidirectionalConnector supports at least four Pair<Protocol,bool>s
     two directions times (one-way or bidirectional)
     the direction is ignored when the protocol is bidirectional
+  Are Protocols Types?
+    They don't need to be - they don't participate in ALFE
+      All we ever do with protocols is compare them. However, we want them to essentially be exstensible enums, hence a ConstHandle implemented by Nullary
+        Use CRTP to minimize amount of typing needed to define a Protocol
 
+Connector::Type::compatible() is only used by Connector::Type::canConvertFrom()
+
+Neither Components nor Connectors should normally need to deal with Types directly
+  Use CRTP to allow the base class to implement the Type
+  Use static methods to give the Type's behavior
+
+Have a special helper class for stub components?
+  Just needs to have knowledge of how to implement a no-op for a ProtocolDirection
+Instead of having defaultComponent(), have the simulator search through its known components for something that can satisfy a disconnected component
+  How would it know to instantiate NoRGBIMonitor rather than RGBIMonitor?
+    It'll have to be a special registry for stub components

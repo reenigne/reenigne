@@ -1,4 +1,4 @@
-class RAM : public Component
+class RAM : public SubComponent<RAM>
 {
 public:
     static String typeName() { return "RAM"; }
@@ -64,8 +64,6 @@ public:
     }
     int size() const { return _ramSize; }
     UInt8* data() { return &(_data[0]); }
-
-    typedef SubComponentType<RAM> Type;
 private:
     class PersistDataType : public NamedNullary<::Type, PersistDataType>
     {

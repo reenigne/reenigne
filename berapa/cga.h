@@ -1,6 +1,8 @@
 template<class T> class NoRGBIMonitorT;
 typedef NoRGBIMonitorT<void> NoRGBIMonitor;
 
+class RGBIProtocol : public ProtocolBase<RGBIProtocol> { };
+
 template<class T> class NoRGBIMonitorT : public Component
 {
 public:
@@ -10,25 +12,16 @@ public:
         connector("", &_connector);
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
         Connector(NoRGBIMonitor* c) : ::Connector(c) { }
-        class Type : public NamedNullary<::Connector::Type, Type>
+        static String typeName() { return "NoRGBIMonitor.Connector"; }
+        static auto protocolDirection()
         {
-        public:
-            static String name() { return "NoRGBIMonitor.Connector"; }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return other == typename IBMCGAT<T>::RGBIConnector::Type();
-                }
-            };
-        };
+            return ProtocolDirection(RGBIProtocol, false);
+        }
     protected:
-        ::Connector::Type type() const { return Type(); }
         void connect(::Connector* other) { }
         Component::Type defaultComponentType(Simulator* simulator)
         {

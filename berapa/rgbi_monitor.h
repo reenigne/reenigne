@@ -1,7 +1,7 @@
 template<class T> class NoRGBISourceT;
 typedef NoRGBISourceT<void> NoRGBISource;
 
-template<class T> class NoRGBISourceT : public Component
+template<class T> class NoRGBISourceT : public ComponentBase<NoRGBISource>
 {
 public:
     static String typeName() { return "NoRGBISource"; }
@@ -10,44 +10,27 @@ public:
         connector("", &_connector);
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(NoRGBISourceT* c) : ::Connector(c) { }
-        class Type : public NamedNullary<::Connector::Type, Type>
+        Connector(NoRGBISourceT* c) : ConnectorBase<Connector>(c) { }
+        static String typeName() { return "NoRGBISource.Connector"; }
+        static auto protocolDirection()
         {
-        public:
-            static String name() { return "NoRGBISource.Connector"; }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return other ==
-                        typename RGBIMonitorT<T>::Connector::Type();
-                }
-            };
-        };
-    protected:
-        ::Connector::Type type() const { return Type(); }
-        void connect(::Connector* other) { }
-        Component::Type defaultComponentType(Simulator* simulator)
-        {
-            assert(false);
-            return Component::Type();
+            return ProtocolDirection(RGBIProtocol, true);
         }
+    protected:
+        void connect(::Connector* other) { }
     };
-
-    typedef Component::TypeHelper<NoRGBISource> Type;
 private:
     Connector _connector;
 };
 
-template<class T> class RGBIMonitorT : public Component
+template<class T> class RGBIMonitorT : public ComponentBase<RGBIMonitor>
 {
 public:
     static String typeName() { return "RGBIMonitor"; }
-    RGBIMonitorT(Component::Type type) : Component(type), _connector(this)
+    RGBIMonitorT(Component::Type type) : ComponentBase(type), _connector(this)
     {
         _palette.allocate(64);
         _palette[0x0] = 0xff000000;
