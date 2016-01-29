@@ -75,7 +75,7 @@ public:
     {
         return _values.hasKey(identifier);
     }
-    virtual void set(Identifier identifier, ValueT<T> value)
+    virtual void set(Identifier identifier, ValueT<T> value, Span span)
     {
         _values[identifier] = value;
     }
@@ -103,9 +103,9 @@ public:
     {
         return _structure->getValue(_identifier);
     }
-    void set(ValueT<T> value) const
+    void set(ValueT<T> value, Span span) const
     {
-        _structure->set(_identifier, value);
+        _structure->set(_identifier, value, span);
     }
     bool operator==(const LValue& other) const
     {

@@ -114,6 +114,10 @@ private:
 class Protocol : public ConstHandle { };
 template<class T> class ProtocolBase : public Nullary<Protocol, T> { };
 
+// The meaning of _output is up to the particular Protocol. In some cases (e.g.
+// ISA card edge/slot) neither is really an output so we just have to pick a
+// direction arbitrarily. Non-gendered connectors should specify two
+// ProtocolDirections, one for each direction.
 class ProtocolDirection
 {
 public:
@@ -122,6 +126,7 @@ public:
     {
         return _protocol == other._protocol && _output != other._output;
     }
+    auto operator-() const { return ProtocolDirection(_protocol, !_output); }
 private:
     Protocol _protocol;
     bool _output;
@@ -213,7 +218,7 @@ private:
     ComponentT<T>* _component;
 };
 
-template<class T> class ConnectorBase : public Connector
+template<class T, class B = Connector> class ConnectorBase : public B
 {
 public:
     static auto protocolDirections()
@@ -222,18 +227,18 @@ public:
         r.add(T::protocolDirection());
         return r;
     }
-    Connector::Type type() const { return Type(component()->simulator()); }
-    class Type : public Connector::Type
+    Connector::Type type() const { return T::Type(component()->simulator()); }
+    class Type : public B::Type
     {
     public:
         Type(Simulator* simulator)
-          : Connector::Type(Type::template create<Body>(simulator)) { }
+          : B::Type(Type::template create<Body>(simulator)) { }
 
         static String name() { return T::typeName(); }
-        class Body : public Connector::Type::Body
+        class Body : public B::Type::Body
         {
         public:
-            Body(Simulator* simulator) : Connector::Type::Body(simulator) { }
+            Body(Simulator* simulator) : B::Type::Body(simulator) { }
             List<ProtocolDirection> protocolDirections() const
             {
                 return T::protocolDirections();
@@ -726,117 +731,101 @@ public:
     typedef Component::TypeHelper<C> Type;
 };
 
+template<class T> class SimpleProtocol
+  : public ProtocolBase<SimpleProtocol<T>> { };
+template<class T> class BidirectionalProtocol
+  : public ProtocolBase<BidirectionalProtocol<T>> { };
+
 template<class T> class OutputConnector;
 template<class T> class InputConnector;
 template<class T> class BidirectionalConnector;
 
-class BidirectionalConnectorBase : public Connector
+class TransportConnector : public Connector
 {
 public:
-    BidirectionalConnectorBase(Component* c) : Connector(c) { }
     class Type : public Connector::Type
     {
     public:
         Type(const ConstHandle& other) : Connector::Type(other) { }
-        ::Type transportType() const { return body()->transportType(); }
-        bool isInput() const { return body()->isInput(); }
-        bool isOutput() const { return body()->isOutput(); }
     protected:
         class Body : public Connector::Type::Body
         {
         public:
             virtual ::Type transportType() const = 0;
-            virtual bool isInput() const { return true; }
-            virtual bool isOutput() const { return true; }
         };
         const Body* body() const { return as<Body>(); }
     };
 };
 
-template<class T> class ConstantComponent;
-template<class T> class BucketComponent;
-
-template<class T> class BidirectionalConnector
-  : public BidirectionalConnectorBase
+template<class C, class T, class B = TransportConnector>
+    class TransportConnectorBase : public ConnectorBase<C, B>
 {
 public:
-    BidirectionalConnector(Component* c) : BidirectionalConnectorBase(c) { }
-    Connector::Type type() const { return Type(); };
-    virtual void setData(Tick t, T v) = 0;
-    Component::Type defaultComponentType(Simulator* simulator)
+    static String typeName()
     {
-        return typename ConstantComponent<T>::Type(simulator);
+        return C::tycoName() + "<" + typeFromCompileTimeType<T>().toString() +
+            ">";
     }
-    void connect(::Connector* other)
-    {
-        _other = static_cast<BidirectionalConnector<T>*>(other);
-        _otherComponent = _other->component();
-    }
-    class Type : public NamedNullary<BidirectionalConnectorBase::Type, Type>
+    class Type : public ConnectorBase<C, TransportConnector>::Type
     {
     public:
-        Type() { }
-        Type(ConstHandle other)
-          : NamedNullary<BidirectionalConnectorBase::Type, Type>(other) { }
-        Type(::Type type)
-          : NamedNullary<BidirectionalConnectorBase::Type, Type>(
-                to<Body>(type))
-        { }
-        class Body
-          : public NamedNullary<BidirectionalConnectorBase::Type, Type>::Body
+        Type(Simulator* simulator)
+          : ConnectorBase<C, TransportConnector>::Type(simulator) { }
+        class Body : public ConnectorBase<C, TransportConnector>::Type::Body
         {
         public:
-            bool compatible(Connector::Type other) const
-            {
-                return other == typename BidirectionalConnector<T>::Type();
-            }
             ::Type transportType() const
             {
                 return typeFromCompileTimeType<T>();
             }
         };
-        static String parameter()
-        {
-            return "<" + typeFromCompileTimeType<T>().toString() + ">";
-        }
-        static String name() { return "BidirectionalConnector" + parameter(); }
     };
     BidirectionalConnector<T>* _other;
     Component* _otherComponent;
 };
 
-template<class T> class OutputConnector : public BidirectionalConnector<T>
+
+template<class T> class ConstantComponent;
+template<class T> class BucketComponent;
+
+template<class T> class BidirectionalConnector
+  : public TransportConnectorBase<BidirectionalConnector<T>, T>
 {
 public:
-    OutputConnector(Component* c) : BidirectionalConnector<T>(c) { }
-    Connector::Type type() const { return Type(); };
-    void setData(Tick t, T v) { }
-    Component::Type defaultComponentType(Simulator* simulator)
+    static String tycoName() { return "BidirectionalConnector"; }
+    static auto protocolDirections()
     {
-        return typename BucketComponent<T>::Type(simulator);
+        List<ProtocolDirection> r;
+        r.add(ProtocolDirection(SimpleProtocol, true));
+        r.add(ProtocolDirection(SimpleProtocol, false));
+        r.add(ProtocolDirection(BidirectionalProtocol, true));
+        r.add(ProtocolDirection(BidirectionalProtocol, false));
+        return r;
     }
-    bool loopCheck() { return this->_otherComponent->loopCheck(); }
-    class Type
-      : public NamedNullary<typename BidirectionalConnector<T>::Type, Type>
+    BidirectionalConnector(Component* c) : BidirectionalConnectorBase(c) { }
+    virtual void setData(Tick t, T v) = 0;
+    void connect(::Connector* other, ProtocolDirection pd)
     {
-    public:
-        class Body : public
-            NamedNullary<typename BidirectionalConnector<T>::Type, Type>::Body
-        {
-        public:
-            bool compatible(Connector::Type other) const
-            {
-                return other == typename InputConnector<T>::Type() ||
-                    other == typename BidirectionalConnector<T>::Type();
-            }
-            bool isInput() const { return false; }
-        };
-        static String name()
-        {
-            return "OutputConnector" +
-                BidirectionalConnector<T>::Type::parameter();
-        }
-    };
+        _other = static_cast<BidirectionalConnector<T>*>(other);
+        _otherComponent = _other->component();
+    }
+    BidirectionalConnector<T>* _other;
+    Component* _otherComponent;
+};
+
+template<class T> class OutputConnector
+  : public TransportConnectorBase<OutputConnector<T>, T,
+        BidirectionalConnector<T>>
+{
+public:
+    static String tycoName() { return "OutputConnector"; }
+    static auto protocolDirections()
+    {
+        return ProtocolDirection(SimpleProtocol, true);
+    }
+    OutputConnector(Component* c) : BidirectionalConnector<T>(c) { }
+    void setData(Tick t, T v) { }
+    bool loopCheck() { return this->_otherComponent->loopCheck(); }
 };
 
 template<class T> class OptimizedOutputConnector : public OutputConnector<T>
@@ -855,32 +844,19 @@ private:
     T _v;
 };
 
-template<class T> class InputConnector : public BidirectionalConnector<T>
+template<class T> class InputConnector
+  : public TransportConnectorBase<InputConnector<T>, T,
+        BidirectionalConnector<T>>
 {
 public:
+    static String tycoName() { return "InputConnector"; }
+    static auto protocolDirections()
+    {
+        return ProtocolDirection(SimpleProtocol, false);
+    }
     InputConnector(Component* c) : BidirectionalConnector<T>(c) { }
     Connector::Type type() const { return Type(); };
     virtual void setData(Tick t, T v) = 0;
-
-    class Type : public NamedNullary<Connector::Type, Type>
-    {
-    public:
-        class Body : public NamedNullary<Connector::Type, Type>::Body
-        {
-        public:
-            bool compatible(Connector::Type other) const
-            {
-                return other == typename OutputConnector<T>::Type() ||
-                    other == typename BidirectionalConnector<T>::Type();
-            }
-            bool isOutput() const { return false; }
-        };
-        static String name()
-        {
-            return "InputConnector" +
-                BidirectionalConnector<T>::Type::parameter();
-        }
-    };
 };
 
 template<class T, class C> class ParametricComponentType
@@ -1581,29 +1557,43 @@ public:
     Directory directory() const { return _directory; }
     bool canConnect(Connector::Type l, Connector::Type r)
     {
-        return connectScore(l, r) < std::numeric_limits<int>::max;
+        return bestPath(l, r).chosen();
     }
-    void connect(Connector* l, Connector* r)
+    void connect(Connector* l, Connector* r, Span span)
     {
-        auto lt = l->type();
-        auto rt = r->type();
-        int score = connectScore(lt, rt);
-        auto ll = lt.protocolDirections();
-        auto rl = rt.protocolDirections();
-        for (auto lpd : ll) {
-            for (auto rpd : rr) {
-                if (connectScore(lpd, rpd) == score) {
-                    //l->doConnect(r);
-                    //r->doConnect(l);
-                }
+        do {
+            auto lt = l->type();
+            auto rt = r->type();
+            auto path = bestPath(l->type(), r->type());
+            if (path._score == 0) {
+                l->doConnect(r, path._pd, span);
+                r->doConnect(l, -path._pd, span);
+                return;
             }
-        }
+            else {
+                auto c = path._componentType.createComponent();
+                connect(l, c.get(""), span);  // ?
+                l = c.get(""); // ?
+            }
+        } while (true);
     }
     // Conversion components are instantiated when a connection is made between
     // two connectors that don't share a protocol.
     void registerConversionComponent(Component::Type type)
     {
-
+        auto i = type.member("input").protocolDirections();
+        auto o = type.member("output").protocolDirections();
+        for (auto ipd : i) {
+            for (auto opd : o) {
+                Pair pair(i, o);
+                if (_conversionComponents.has(pair)) {
+                    auto path = _conversionComponents[pair];
+                    if (path._score >= 2)
+                        _conversionComponents[pair] = Path(1, type);
+                }
+                _conversionCompoennts[pair] = Path(1, type);
+            }
+        }
     }
     // Stub components are connected to connectors that don't have anything
     // connected to them.
@@ -1614,29 +1604,51 @@ public:
         for (auto pd : l)
             _stubComponents.add(pd, type);
     }
-    void connectStub(Connector* c)
+    void connectStub(Connector* connector)
     {
-        //auto t = defaultComponentType(_component->simulator());
-        //Reference<::ComponentT<T>> c = t.createComponent();
-        //doConnect(c->defaultConnector(), Span());
+        auto pds = connector->type().protocolDirections();
+        Path best;
+        for (auto pd : pds)
+            best.choose(stubComponents[pd]);
+        if (!best.chosen())
+            throw Exception(connector->name() + " needs to be connected");
+        Reference<Component> component = t.createComponent();
+        connect(connector, component->defaultConnector(), Span());
     }
 private:
-    int connectScore(Connector::Type l, Connector::Type r)
+    struct Path
+    {
+        Path() : _score(std::numeric_limits<int>::max) { }
+        Path(ProtocolDirection pd) : _score(0), _pd(pd) { }
+        void choose(Path other)
+        {
+            if (other._score < _score)
+                *this = other;
+        }
+        bool chosen() const { return _score < Path()._score; }
+        int _score;
+        ProtocolDirection _pd;
+        Component::Type _componentType;
+    };
+    struct Pair
+    {
+        Pair(ProtocolDirection i, ProtocolDirection o) : _input(i), _output(o)
+        { }
+        ProtocolDirection _input;
+        ProtocolDirection _output;
+    };
+    Path bestPath(Connector::Type l, Connector::Type r)
     {
         auto ll = l.protocolDirections();
         auto rl = r.protocolDirections();
-        int bestScore = std::numeric_limits<int>::max;
+        Path best;
         for (auto lpd : ll)
             for (auto rpd : rr) {
-                int score = connectScore(lpd, rpd);
-                if (score < bestScore)
-                    bestScore = score;
+                if (lpd.matches(rpd))
+                    return Path(lpd);
+                best.choose(_conversionComponents[Pair(lpd, rpd)]);
             }
-        return score;
-    }
-    int connectScore(ProtocolDirection l, ProtocolDirection r)
-    {
-        return l.matches(r) ? 0 : std::numeric_limits<int>::max;
+        return best;
     }
     Value initial() const { return persistenceType(); }
     ::Type persistenceType() const
@@ -1655,7 +1667,8 @@ private:
     List<Reference<Component>> _components;
     bool _halted;
     Rational _ticksPerSecond;
-    HashTable<ProtocolDirection, Component::Type> _stubComponents;
+    HashTable<ProtocolDirection, Path> _stubComponents;
+    HashTable<Pair, Path> _conversionComponents;
 };
 
 #include "isa_8_bit_bus.h"

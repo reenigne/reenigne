@@ -118,7 +118,7 @@ public:
       : ISA8BitComponent<NoISA8BitComponent>(type, true) { }
 };
 
-template<class T> class ISA8BitBusT : public Component
+template<class T> class ISA8BitBusT : public ComponentBase<ISA8BitBusT<T>>
 {
 public:
     static String typeName() { return "ISA8BitBus"; }
@@ -192,8 +192,6 @@ public:
     private:
         int _i;
     };
-
-    typedef Component::TypeHelper<ISA8BitBus> Type;
 
     class CPUSocket : public ::Connector
     {

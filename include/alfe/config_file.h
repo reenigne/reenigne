@@ -110,7 +110,7 @@ public:
 private:
     void addOption(String name, Value defaultValue)
     {
-        set(name, defaultValue);
+        set(name, defaultValue, Span());
     }
 public:
     void addType(Type type, TycoIdentifier identifier = TycoIdentifier())
@@ -123,7 +123,7 @@ public:
     {
         Identifier identifier = funco.identifier();
         if (!has(identifier))
-            set(identifier, OverloadedFunctionSet(identifier));
+            set(identifier, OverloadedFunctionSet(identifier), Span());
         get<OverloadedFunctionSet>(identifier).add(funco);
     }
 
@@ -174,6 +174,7 @@ public:
                 Space::assertCharacter(&s, ';', &span);
                 source = s;
                 value = value.rValue().convertTo(type);
+                span = tycoSpecifier.span() + span;
                 if (type.member(Identifier("*")) == StringType()) {
                     // This special member is how ConfigFile tells created
                     // objects their names so that they can responsible for
@@ -186,9 +187,9 @@ public:
                     // want to use that as the connector name for
                     // single-connector components.
                     value.value<Structure*>()->set(Identifier("*"),
-                        objectName);
+                        objectName, span);
                 }
-                set(objectIdentifier, value);
+                set(objectIdentifier, value, span);
 
                 continue;
             }
@@ -211,11 +212,11 @@ public:
             LValue p = left.value<LValue>();
             Identifier i = Identifier(OperatorAssignment());
             Value v = loadedExpression.rValue();
+            span = left.span() + v.span();
             if (type.member(i).valid()) {
                 List<Value> arguments;
                 arguments.add(left);
                 arguments.add(v);
-                span = left.span() + v.span();
                 auto s = p.rValue().value<Structure*>();
                 Value f = s->getValue(i);
                 if (f.type() == FuncoType())
@@ -234,7 +235,7 @@ public:
                 }
             }
             else
-                p.set(v.convertTo(type));
+                p.set(v.convertTo(type), span);
         } while (true);
         for (auto i : *this) {
             if (!i.value().valid())
