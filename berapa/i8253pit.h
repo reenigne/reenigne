@@ -1,10 +1,10 @@
 template<class T> class Intel8253PITT
-  : public ISA8BitComponent<Intel8253PITT<T>>
+  : public ISA8BitComponentBase<Intel8253PITT<T>>
 {
 public:
     static String typeName() { return "Intel8253PIT"; }
     Intel8253PITT(Component::Type type)
-      : ISA8BitComponent<Intel8253PITT<T>>(type),
+      : ISA8BitComponentBase<Intel8253PITT<T>>(type),
         _timers{Timer::Type(this->simulator()), Timer::Type(this->simulator()),
             Timer::Type(this->simulator())}
     {
@@ -17,12 +17,12 @@ public:
         for (int i = 0; i < 3; ++i)
             _timers[i].simulateCycle();
     }
-    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
     {
         _address = address & 3;
         return this;
     }
-    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressWriteIO(Tick tick, UInt32 address)
     {
         _address = address & 3;
         return this;
@@ -45,7 +45,7 @@ public:
         }
     }
 private:
-    class Timer : public Component
+    class Timer : public SubComponentBase<Timer>
     {
     public:
         static String typeName() { return "Timer"; }
@@ -231,7 +231,6 @@ private:
             }
             _gate = gate;
         }
-        typedef SubComponentType<Timer> Type;
     private:
         enum State
         {

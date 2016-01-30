@@ -1,10 +1,10 @@
 template<class T> class DMAPageRegistersT
-  : public ISA8BitComponent<DMAPageRegisters>
+  : public ISA8BitComponentBase<DMAPageRegisters>
 {
 public:
     static String typeName() { return "DMAPageRegisters"; }
     DMAPageRegistersT(Component::Type type)
-      : ISA8BitComponent(type), _connector(this)
+      : ISA8BitComponentBase(type), _connector(this)
     {
         connector("", &_connector);
         for (int i = 0; i < 4; ++i)
@@ -12,7 +12,7 @@ public:
         persist("data", &_dmaPages[0], ArrayType(ByteType(), 4));
         persist("address", &_address);
     }
-    ISA8BitComponentBase* setAddressWriteIO(UInt32 address)
+    ISA8BitComponent* setAddressWriteIO(UInt32 address)
     {
         _address = address & 3;
         return this;
@@ -27,29 +27,16 @@ public:
         }
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(DMAPageRegisters* c) : ::Connector(c), _c(c) { }
-        Component::Type defaultComponentType(Simulator* simulator)
+        Connector(DMAPageRegisters* c) : ConnectorBase(c), _c(c) { }
+        static String typeName() { return "DMAPageRegisters.Connector"; }
+        static auto protocolDirection()
         {
-            throw Exception(_c->name() + " needs to be connected");
+            return ProtocolDirection(DMAPageRegistersProtocol(), true);
         }
-        class Type : public NamedNullary<::Connector::Type, Type>
-        {
-        public:
-            static String name() { return "DMAPageRegisters.Connector"; }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return other == ISA8BitBus::DMAPageRegistersSocket::Type();
-                }
-            };
-        };
     protected:
-        ::Connector::Type type() const { return Type(); }
         void connect(::Connector* other)
         {
             static_cast<ISA8BitBus::DMAPageRegistersSocket*>(other)->_bus->

@@ -3,11 +3,12 @@ typedef NoRGBIMonitorT<void> NoRGBIMonitor;
 
 class RGBIProtocol : public ProtocolBase<RGBIProtocol> { };
 
-template<class T> class NoRGBIMonitorT : public Component
+template<class T> class NoRGBIMonitorT : public ComponentBase<NoRGBIMonitor>
 {
 public:
     static String typeName() { return "NoRGBIMonitor"; }
-    NoRGBIMonitorT(Component::Type type) : Component(type), _connector(this)
+    NoRGBIMonitorT(Component::Type type)
+      : ComponentBase(type), _connector(this)
     {
         connector("", &_connector);
     }
@@ -21,29 +22,20 @@ public:
         {
             return ProtocolDirection(RGBIProtocol, false);
         }
-    protected:
-        void connect(::Connector* other) { }
-        Component::Type defaultComponentType(Simulator* simulator)
-        {
-            assert(false);
-            return Component::Type();
-        }
     };
-
-    typedef Component::TypeHelper<NoRGBIMonitor> Type;
 private:
     Connector _connector;
 };
 
-template<class T> class IBMCGAT : public ISA8BitComponent<IBMCGAT<T>>
+template<class T> class IBMCGAT : public ISA8BitComponentBase<IBMCGAT<T>>
 {
 public:
     static String typeName() { return "IBMCGA"; }
     IBMCGAT(Component::Type type)
-      : ISA8BitComponent<IBMCGAT<T>>(type), _attr(0), _chrdata(0), _wait(0),
-        _cycle(0), _bgri(0), _lightPenStrobe(false), _lightPenSwitch(true),
-        _bgriSource(this), _ram(RAM::Type(this->simulator())),
-        _rgbiConnector(this)
+      : ISA8BitComponentBase<IBMCGAT<T>>(type), _attr(0), _chrdata(0),
+        _wait(0), _cycle(0), _bgri(0), _lightPenStrobe(false),
+        _lightPenSwitch(true), _bgriSource(this),
+        _ram(RAM::Type(this->simulator())), _rgbiConnector(this)
     {
         this->config("rom", &_rom);
         this->persist("memoryAddress", &_memoryAddress, HexPersistenceType(4));
@@ -56,7 +48,7 @@ public:
     }
     void load(const Value& v)
     {
-        ISA8BitComponent<IBMCGAT<T>>::load(v);
+        ISA8BitComponentBase<IBMCGAT<T>>::load(v);
         String data = File(_rom, simulator()->directory()).contents();
         int length = 0x2000;
         _romdata.allocate(length);
@@ -189,39 +181,19 @@ public:
     BGRISource* bgriSource() { return &_bgriSource; }
     CompositeSource* compositeSource() { return &_compositeSource; }
 
-    class RGBIConnector : public ::Connector
+    class RGBIConnector : public ConnectorBase<RGBIConnector>
     {
-        typedef ::Connector::Type CType;
     public:
-        RGBIConnector(IBMCGA* cga) : ::Connector(cga), _cga(cga) { }
+        RGBIConnector(IBMCGA* cga) : ConnectorBase(cga), _cga(cga) { }
         void connect(::Connector* other)
         {
             // TODO
         }
-        ::Connector::Type type() const { return Type(); }
-        Component::Type defaultComponentType(Simulator* simulator)
+        static String typeName() { return "IBMCGA.RGBIConnector"; }
+        static auto protocolDirection()
         {
-            return NoRGBIMonitor::Type(simulator);
+            return ProtocolDirection(RGBIProtocol, true);
         }
-
-        class Type : public NamedNullary<CType, Type>
-        {
-        public:
-            Type() { }
-            Type(::Connector::Type type)
-              : NamedNullary<CType, Type>(to<Body>(type)) { }
-            class Body : public NamedNullary<CType, Type>::Body
-            {
-            public:
-                bool compatible(CType other) const
-                {
-                    return typename RGBIMonitorT<T>::Connector::Type(other).
-                        valid();
-                }
-            };
-            static String name() { return "IBMCGA.RGBIConnector"; }
-            const Body* body() const { return this->template as<Body>(); }
-        };
     private:
         IBMCGA* _cga;
     };

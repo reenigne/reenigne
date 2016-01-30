@@ -1858,29 +1858,16 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _ready = ready;
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(Intel8088CPU* cpu) : ::Connector(cpu), _cpu(cpu) { }
-        Component::Type defaultComponentType(Simulator* simulator)
+        Connector(Intel8088CPU* cpu) : ConnectorBase(cpu), _cpu(cpu) { }
+        static String typeName() { return "Intel8088CPU.Connector"; }
+        static auto protocolDirection()
         {
-            throw Exception(_cpu->name() + " needs to be connected");
+            return ProtocolDirection(CPU8088Protocol, true);
         }
-        class Type : public NamedNullary<::Connector::Type, Type>
-        {
-        public:
-            static String name() { return "Intel8088CPU.Connector"; }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return other == ISA8BitBus::CPUSocket::Type();
-                }
-            };
-        };
     protected:
-        ::Connector::Type type() const { return Type(); }
         void connect(::Connector* other)
         {
             _cpu->_bus = static_cast<ISA8BitBus::CPUSocket*>(other)->_bus;

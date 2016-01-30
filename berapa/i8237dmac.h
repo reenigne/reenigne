@@ -1,5 +1,5 @@
 template<class T> class Intel8237DMACT
-  : public ISA8BitComponent<Intel8237DMACT<T>>
+  : public ISA8BitComponentBase<Intel8237DMACT<T>>
 {
     enum State
     {
@@ -28,7 +28,7 @@ template<class T> class Intel8237DMACT
 public:
     static String typeName() { return "Intel8237DMAC"; }
     Intel8237DMACT(Component::Type type)
-      : ISA8BitComponent<Intel8237DMACT<T>>(type),
+      : ISA8BitComponentBase<Intel8237DMACT<T>>(type),
         _channels{Channel::Type(this->simulator()),
             Channel::Type(this->simulator()), Channel::Type(this->simulator()),
             Channel::Type(this->simulator())}
@@ -124,12 +124,12 @@ public:
         if (_state == stateIdle || _state == stateS0 || _state == stateYield)
             _highAddress = 0xffff;
     }
-    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
     {
         _address = address & 0xf;
         return this;
     }
-    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressWriteIO(Tick tick, UInt32 address)
     {
         _address = address & 0xf;
         return this;
@@ -260,7 +260,7 @@ public:
     }
     void setBus(ISA8BitBus* bus)
     {
-        ISA8BitComponent::setBus(bus);
+        ISA8BitComponentBase::setBus(bus);
         _bus->setDMAC(this);
     }
 private:
@@ -301,7 +301,7 @@ private:
         _state = stateS0;
     }
 
-    class Channel : public Component
+    class Channel : public SubComponentBase<Channel>
     {
     public:
         static String typeName() { return "Channel"; }
@@ -397,7 +397,6 @@ private:
             return static_cast<TransferMode>((_mode >> 6) & 3);
         }
         bool terminalCount() const { return _terminalCount; }
-        typedef SubComponentType<Channel> Type;
     private:
         Byte _mode;
         UInt16 _baseAddress;

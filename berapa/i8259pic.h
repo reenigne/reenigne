@@ -1,10 +1,10 @@
 template<class T> class Intel8259PICT
-  : public ISA8BitComponent<Intel8259PICT<T>>
+  : public ISA8BitComponentBase<Intel8259PICT<T>>
 {
 public:
     static String typeName() { return "Intel8259PIC"; }
     Intel8259PICT(Component::Type type)
-      : ISA8BitComponent(type), _interruptReady(false), _secondAck(false),
+      : ISA8BitComponentBase(type), _interruptReady(false), _secondAck(false),
         _state(stateReady), _imr(0xff),
         _irqConnector{this, this, this, this, this, this, this, this},
         _intConnector(this)
@@ -42,12 +42,12 @@ public:
     }
 
 
-    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
     {
         _address = address & 1;
         return this;
     }
-    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressWriteIO(Tick tick, UInt32 address)
     {
         _address = address & 1;
         return this;
@@ -114,7 +114,7 @@ public:
     }
     void setBus(ISA8BitBus* bus)
     {
-        ISA8BitComponent::setBus(bus);
+        ISA8BitComponentBase::setBus(bus);
         _bus->setPIC(this);
     }
 private:

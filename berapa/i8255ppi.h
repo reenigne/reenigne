@@ -1,10 +1,10 @@
 template<class T> class Intel8255PPIT
-  : public ISA8BitComponent<Intel8255PPIT<T>>
+  : public ISA8BitComponentBase<Intel8255PPIT<T>>
 {
 public:
     static String typeName() { return "Intel8255PPI"; }
     Intel8255PPIT(Component::Type type)
-      : ISA8BitComponent<Intel8255PPIT<T>>(type), _bytes{this, this, this},
+      : ISA8BitComponentBase<Intel8255PPIT<T>>(type), _bytes{this, this, this},
         _bits{this, this, this, this, this, this, this, this, this, this, this,
         this, this, this, this, this, this, this, this, this, this, this, this,
         this}
@@ -28,12 +28,12 @@ public:
         this->persist("input", &_input[0], ArrayType(ByteType(), 2));
         this->persist("output", &_output[0], t);
     }
-    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
     {
         _address = address & 3;
         return this;
     }
-    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressWriteIO(Tick tick, UInt32 address)
     {
         _address = address & 3;
         return this;

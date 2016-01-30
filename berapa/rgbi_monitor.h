@@ -19,8 +19,6 @@ public:
         {
             return ProtocolDirection(RGBIProtocol, true);
         }
-    protected:
-        void connect(::Connector* other) { }
     };
 private:
     Connector _connector;
@@ -75,33 +73,15 @@ public:
     public:
         Connector(RGBIMonitor* monitor)
           : ::Connector(monitor), _monitor(monitor) { }
-        void connect(::Connector* other)
+        void connect(::Connector* other, ProtcolDirection pd)
         {
             // TODO
         }
-        ::Connector::Type type() const { return Type(); }
-        Component::Type defaultComponentType(Simulator* simulator)
+        static String typeName() { return "RGBIMonitor.Connector"; }
+        static auto protocolDirection()
         {
-            return NoRGBISource::Type(simulator);
+            return ProtocolDirection(RGBIProtocol, false);
         }
-
-        class Type : public NamedNullary<::Connector::Type, Type>
-        {
-        public:
-            Type() { }
-            Type(::Type type)
-              : NamedNullary<::Connector::Type, Type>(to<Body>(type)) { }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return IBMCGA::RGBIConnector::Type(other).valid();
-                }
-            };
-            static String name() { return "RGBIMonitor.Connector"; }
-            const Body* body() const { return this->template as<Body>(); }
-        };
     private:
         RGBIMonitor* _monitor;
     };
@@ -163,8 +143,6 @@ public:
         _window->_renderer.renderTexture(&_window->_texture);
         return n;
     }
-
-    typedef Component::TypeHelper<RGBIMonitor> Type;
 private:
     class Window
     {

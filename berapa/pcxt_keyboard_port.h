@@ -1,45 +1,29 @@
-template<class T> class PCXTNoKeyboardT : public Component
+class PCXTNoKeyboard : public ComponentBase<PCXTNoKeyboard>
 {
 public:
     static String typeName() { return "PCXTNoKeyboard"; }
-    PCXTNoKeyboardT(Component::Type type) : Component(type), _connector(this)
+    PCXTNoKeyboard(Component::Type type)
+      : ComponentBase(type), _connector(this)
     {
         connector("", &_connector);
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(PCXTNoKeyboardT<T>* c) : ::Connector(c) { }
-        class Type : public NamedNullary<::Connector::Type, Type>
+        Connector(PCXTNoKeyboard* c) : ConnectorBase(c) { }
+        static String typeName() { return "PCXTNoKeyboard.Connector"; }
+        static auto protocolDirection()
         {
-        public:
-            static String name() { return "PCXTNoKeyboard.Connector"; }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return other == PCXTKeyboardPortT<T>::Connector::Type();
-                }
-            };
-        };
-    protected:
-        ::Connector::Type type() const { return Type(); }
-        void connect(::Connector* other) { }
-        Component::Type defaultComponentType(Simulator* simulator)
-        {
-            assert(false);
-            return Component::Type();
+            return ProtocolDirection(PCXTKeyboardProtocol(), true);
         }
     };
-
-    typedef Component::TypeHelper<PCXTKeyboard> Type;
 private:
     Connector _connector;
 };
 
-template<class T> class PCXTKeyboardPortT : public Component
+template<class T> class PCXTKeyboardPortT
+  : public ComponentBase<PCXTKeyboardPort>
 {
 public:
     static String typeName() { return "PCXTKeyboardPort"; }
@@ -57,35 +41,19 @@ public:
     {
     public:
         Connector(PCXTKeyboardPort* p) : ::Connector(p), _port(p) { }
-        class Type : public NamedNullary<::Connector::Type, Type>
+        static String typeName() { return "PCXTKeyboardPort.Connector"; }
+        static auto protocolDirection()
         {
-        public:
-            static String name() { return "PCXTKeyboardPort.Connector"; }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return other == PCXTKeyboard::Connector::Type();
-                }
-            };
-        };
+            return ProtocolDirection(PCXTKeyboardProtocol, false);
+        }
         PCXTKeyboardPort* _port;
     protected:
-        ::Connector::Type type() const { return Type(); }
         void connect(::Connector* other)
         {
             _port->_keyboard =
                 static_cast<PCXTKeyboard::Connector*>(other)->_keyboard;
         }
-        Component::Type defaultComponentType(Simulator* simulator)
-        {
-            return typename PCXTNoKeyboardT<T>::Type(simulator);
-        }
     };
-
-    typedef Component::TypeHelper<PCXTKeyboardPort> Type;
-
     class ClearConnector : public InputConnector<bool>
     {
     public:

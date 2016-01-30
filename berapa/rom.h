@@ -1,11 +1,11 @@
-template<class T> class ROMT : public ISA8BitComponent<ROMT<T>>
+template<class T> class ROMT : public ISA8BitComponentBase<ROMT<T>>
 {
 public:
     static String typeName() { return "ROM"; }
     ROMT(Component::Type type) : ROMT(type, 0, 0, "", 0) { }
     ROMT(Component::Type type, int mask, int address, String fileName,
         int offset)
-      : ISA8BitComponent<ROMT<T>>(type)
+      : ISA8BitComponentBase<ROMT<T>>(type)
     {
         this->persist("address", &_address, HexPersistenceType(5));
         if (fileName == "")
@@ -25,7 +25,7 @@ public:
         for (int i = 0; i < length; ++i)
             _data[i] = data[i + offset];
     }
-    ISA8BitComponentBase* setAddressReadMemory(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressReadMemory(Tick tick, UInt32 address)
     {
         _address = address & _mask;
         return this;
@@ -34,21 +34,23 @@ public:
     UInt8 debugReadMemory(UInt32 address) { return _data[address & _mask]; }
     void load(const Value& v)
     {
-        ISA8BitComponent::load(v);
+        ISA8BitComponentBase::load(v);
         readMemoryRange(_start, _start + _mask + 1);
     }
-    class Type : public ISA8BitComponent<ROMT<T>>::Type
+    class Type : public ISA8BitComponentBase<ROMT<T>>::Type
     {
     public:
         Type(Simulator* simulator)
-          : ISA8BitComponent<ROMT<T>>::Type(ISA8BitComponent<ROMT<T>>::Type::
-                template create<Body>(simulator)) { }
+          : ISA8BitComponentBase<ROMT<T>>::Type(
+                ISA8BitComponentBase<ROMT<T>>::Type::template create<Body>(
+                simulator))
+        { }
     private:
-        class Body : public ISA8BitComponent<ROMT<T>>::Type::Body
+        class Body : public ISA8BitComponentBase<ROMT<T>>::Type::Body
         {
         public:
             Body(Simulator* simulator)
-              : ISA8BitComponent<ROMT<T>>::Type::Body(simulator)
+              : ISA8BitComponentBase<ROMT<T>>::Type::Body(simulator)
             {
                 List<StructuredType::Member> members;
                 members.add(StructuredType::Member("mask", IntegerType()));

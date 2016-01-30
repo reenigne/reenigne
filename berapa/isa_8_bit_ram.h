@@ -1,10 +1,10 @@
 template<class T> class ISA8BitRAMT
-  : public ISA8BitComponent<ISA8BitRAMT<T>>
+  : public ISA8BitComponentBase<ISA8BitRAMT<T>>
 {
 public:
     static String typeName() { return "ISA8BitRAM"; }
     ISA8BitRAMT(Component::Type type)
-      : ISA8BitComponent<ISA8BitRAMT<T>>(type),
+      : ISA8BitComponentBase<ISA8BitRAMT<T>>(type),
         _ram(RAM::Type(this->simulator()))
     {
         this->persist("address", &_address, HexPersistenceType(5));
@@ -13,16 +13,16 @@ public:
     }
     void load(const Value& v)
     {
-        ISA8BitComponent::load(v);
+        ISA8BitComponentBase::load(v);
         readMemoryRange(0, _ram.size());
         writeMemoryRange(0, _ram.size());
     }
-    ISA8BitComponentBase* setAddressReadMemory(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressReadMemory(Tick tick, UInt32 address)
     {
         _address = address & 0xfffff;
         return this;
     }
-    ISA8BitComponentBase* setAddressWriteMemory(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressWriteMemory(Tick tick, UInt32 address)
     {
         _address = address & 0xfffff;
         return this;
