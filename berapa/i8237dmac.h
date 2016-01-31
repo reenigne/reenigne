@@ -301,11 +301,11 @@ private:
         _state = stateS0;
     }
 
-    class Channel : public SubComponentBase<Channel>
+    class Channel : public SubComponent<Channel>
     {
     public:
         static String typeName() { return "Channel"; }
-        Channel(Component::Type type) : Component(type)
+        Channel(Component::Type type) : SubComponent(type)
         {
             persist("mode", &_mode);
             persist("baseAddress", &_baseAddress);

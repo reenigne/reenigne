@@ -4,7 +4,7 @@ template<class T> class PCXTKeyboardT : public ComponentBase<PCXTKeyboard>
 {
 public:
     static String typeName() { return "PCXTKeyboard"; }
-    PCXTKeyboardT(Component::Type type) : Component(type), _connector(this)
+    PCXTKeyboardT(Component::Type type) : ComponentBase(type), _connector(this)
     {
         connector("", &_connector);
     }
@@ -12,11 +12,11 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(PCXTKeyboard* k) : ::Connector(k), _keyboard(k) { }
+        Connector(PCXTKeyboard* k) : ConnectorBase(k), _keyboard(k) { }
         static String typeName() { return "PCXTKeyboard.Connector"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(PCXTKeyboardProtocol, true);
+            return ProtocolDirection(PCXTKeyboardProtocol(), true);
         }
         PCXTKeyboard* _keyboard;
     protected:

@@ -16,11 +16,11 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(NoRGBIMonitor* c) : ::Connector(c) { }
+        Connector(NoRGBIMonitor* c) : ConnectorBase(c) { }
         static String typeName() { return "NoRGBIMonitor.Connector"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(RGBIProtocol, false);
+            return ProtocolDirection(RGBIProtocol(), false);
         }
     };
 private:
@@ -192,7 +192,7 @@ public:
         static String typeName() { return "IBMCGA.RGBIConnector"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(RGBIProtocol, true);
+            return ProtocolDirection(RGBIProtocol(), true);
         }
     private:
         IBMCGA* _cga;

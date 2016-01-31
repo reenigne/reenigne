@@ -28,7 +28,7 @@ template<class T> class PCXTKeyboardPortT
 public:
     static String typeName() { return "PCXTKeyboardPort"; }
     PCXTKeyboardPortT(Component::Type type)
-      : Component(type), _clearConnector(this), _clockConnector(this),
+      : ComponentBase(type), _clearConnector(this), _clockConnector(this),
         _connector(this), _irqConnector(this), _dataConnector(this)
     {
         connector("data", &_dataConnector);
@@ -37,14 +37,14 @@ public:
         connector("irq", &_irqConnector);
         connector("", &_connector);
     }
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(PCXTKeyboardPort* p) : ::Connector(p), _port(p) { }
+        Connector(PCXTKeyboardPort* p) : ConnectorBase(p), _port(p) { }
         static String typeName() { return "PCXTKeyboardPort.Connector"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(PCXTKeyboardProtocol, false);
+            return ProtocolDirection(PCXTKeyboardProtocol(), false);
         }
         PCXTKeyboardPort* _port;
     protected:

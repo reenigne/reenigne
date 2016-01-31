@@ -315,7 +315,7 @@ template<class T> class Intel8088CPUT
 public:
     static String typeName() { return "Intel8088CPU"; }
     Intel8088CPUT(Component::Type type)
-      : ClockedComponent(type), _connector(this), _irqConnector(this),
+      : ClockedComponentBase(type), _connector(this), _irqConnector(this),
         _nmiConnector(this)
     {
         connector("", &_connector);
@@ -1865,7 +1865,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         static String typeName() { return "Intel8088CPU.Connector"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(CPU8088Protocol, true);
+            return ProtocolDirection(CPU8088Protocol(), true);
         }
     protected:
         void connect(::Connector* other)

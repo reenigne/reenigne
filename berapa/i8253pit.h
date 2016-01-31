@@ -45,11 +45,11 @@ public:
         }
     }
 private:
-    class Timer : public SubComponentBase<Timer>
+    class Timer : public SubComponent<Timer>
     {
     public:
         static String typeName() { return "Timer"; }
-        Timer(Component::Type type) : Component(type)
+        Timer(Component::Type type) : SubComponent(type)
         {
             persist("value", &_value);
             persist("latch", &_latch);

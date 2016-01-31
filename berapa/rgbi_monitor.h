@@ -68,19 +68,19 @@ public:
         _window = Reference<Window>::template create<Window>();
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
         Connector(RGBIMonitor* monitor)
-          : ::Connector(monitor), _monitor(monitor) { }
-        void connect(::Connector* other, ProtcolDirection pd)
+          : ConnectorBase(monitor), _monitor(monitor) { }
+        void connect(::Connector* other)
         {
             // TODO
         }
         static String typeName() { return "RGBIMonitor.Connector"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(RGBIProtocol, false);
+            return ProtocolDirection(RGBIProtocol(), false);
         }
     private:
         RGBIMonitor* _monitor;

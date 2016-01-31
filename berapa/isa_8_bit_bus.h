@@ -76,7 +76,7 @@ public:
         static String typeName() { return "ISA8BitConnector"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(ISA8BitProtocol, false);
+            return ProtocolDirection(ISA8BitProtocol(), false);
         }
     private:
         ISA8BitComponent* _component;
@@ -92,7 +92,7 @@ template<class C> class ISA8BitComponentBase : public ISA8BitComponent
 public:
     ISA8BitComponentBase(Component::Type type, bool noConnectorName = false)
       : ISA8BitComponent(type, noConnectorName) { }
-    typedef ClockedComponent::Type<C> Type;
+    typedef typename ClockedComponentBase<C>::Type Type;
 };
 
 class NoISA8BitComponent : public ISA8BitComponentBase<NoISA8BitComponent>
@@ -109,7 +109,7 @@ public:
     static String typeName() { return "ISA8BitBus"; }
 
     ISA8BitBusT(Component::Type type)
-      : Component(type), _cpuSocket(this), _connector(this),
+      : ComponentBase(type), _cpuSocket(this), _connector(this),
         _chipConnectors{this, this, this, this, this, this, this, this},
         _parityError(this), _noComponent(type), _readMemory(this),
         _writeMemory(this), _readIO(this), _writeIO(this),
@@ -134,7 +134,7 @@ public:
         static String typeName() { return "ISA8BitBus.Connector"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(ISA8BitProtocol, true);
+            return ProtocolDirection(ISA8BitProtocol(), true);
         }
     protected:
         ISA8BitBus* _bus;
@@ -164,11 +164,11 @@ public:
     class CPUSocket : public ConnectorBase<CPUSocket>
     {
     public:
-        CPUSocket(ISA8BitBus* bus) : ::Connector(bus), _bus(bus) { }
+        CPUSocket(ISA8BitBus* bus) : ConnectorBase(bus), _bus(bus) { }
         static String typeName() { return "ISA8BitBus.CPUSocket"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(CPU8088Protocol, false);
+            return ProtocolDirection(CPU8088Protocol(), false);
         }
         ISA8BitBus* _bus;
     };
@@ -177,14 +177,14 @@ public:
     {
     public:
         DMAPageRegistersSocket(ISA8BitBus* bus)
-          : ::Connector(bus), _bus(bus) { }
+          : ConnectorBase(bus), _bus(bus) { }
         static String typeName()
         {
             return "ISA8BitBus.DMAPageRegistersSocket";
         }
         static auto protocolDirection()
         {
-            return ProtocolDirection(DMAPageRegistersProtocol, false);
+            return ProtocolDirection(DMAPageRegistersProtocol(), false);
         }
         ISA8BitBus* _bus;
     };
