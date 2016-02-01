@@ -33,23 +33,8 @@ typedef ComponentT<void> Component;
 template<class T> class Intel8237DMACT;
 typedef Intel8237DMACT<void> Intel8237DMAC;
 
-template<class T> class Intel8253PITT;
-typedef Intel8253PITT<void> Intel8253PIT;
-
-template<class T> class Intel8255PPIT;
-typedef Intel8255PPIT<void> Intel8255PPI;
-
 template<class T> class Intel8259PICT;
 typedef Intel8259PICT<void> Intel8259PIC;
-
-template<class T> class ISA8BitRAMT;
-typedef ISA8BitRAMT<void> ISA8BitRAM;
-
-template<class T> class ROMT;
-typedef ROMT<void> ROM;
-
-template<class T> class IBMCGAT;
-typedef IBMCGAT<void> IBMCGA;
 
 template<class T> class DMAPageRegistersT;
 typedef DMAPageRegistersT<void> DMAPageRegisters;
@@ -59,9 +44,6 @@ typedef PCXTKeyboardT<void> PCXTKeyboard;
 
 template<class T> class PCXTKeyboardPortT;
 typedef PCXTKeyboardPortT<void> PCXTKeyboardPort;
-
-template<class T> class RGBIMonitorT;
-typedef RGBIMonitorT<void> RGBIMonitor;
 
 template<class T> class ConnectorT;
 typedef ConnectorT<void> Connector;
@@ -126,7 +108,7 @@ template<class T> class ProtocolBase : public Nullary<Protocol, T> { };
 class ProtocolDirection
 {
 public:
-    ProtocolDirection() { }
+    ProtocolDirection() : _output(false) { }
     ProtocolDirection(Protocol p, bool o) : _protocol(p), _output(o) { }
     bool matches(ProtocolDirection other) const
     {
@@ -254,6 +236,7 @@ public:
         r.add(T::protocolDirection());
         return r;
     }
+    static auto canConnectMultiple() { return false; }
     Connector::Type type() const { return T::Type(component()->simulator()); }
     class Type : public B::Type
     {
@@ -270,6 +253,7 @@ public:
             {
                 return T::protocolDirections();
             }
+            bool canConnectMultiple() const { return T::canConnectMultiple(); }
             String toString() const { return T::typeName(); }
         };
     };
@@ -1133,6 +1117,49 @@ private:
     OutputConnector<T> _connector;
 };
 
+template<class T> class FanoutComponent
+  : public TransportComponentBase<FanoutComponent<T>, T>
+{
+public:
+    static String tycoName() { return "Fanout"; }
+    FanoutComponent(Component::Type t)
+      : TransportComponentBase(t), _input(this), _output(this)
+    {
+        connector("input", &_input);
+        connector("output", &_output);
+    }
+private:
+    class InputConnector : public ::InputConnector<T>
+    {
+    public:
+        InputConnector(FanoutComponent* c, OutputConnector* o)
+          : ::InputConnector(c), _output(o) { }
+        void setData(Tick t, T v) { _output->update(t, v); }
+    private:
+        OutputConnector* _output;
+    };
+    class OutputConnector
+      : public TransportConnectorBase<OutputConnector, T, ::OutputConnector<T>>
+    {
+    public:
+        OutputConnector(FanoutComponent* c) :: TransportConnectorBase(c) { }
+        void update(Tick t, T v)
+        {
+            for (auto c : _connected)
+                c->update(t, v);
+        }
+        static auto canConnectMultiple() { return true; }
+        void connect(Connector* other, ProtocolDirection pd)
+        {
+
+        }
+    private:
+        List<BidirectionalConnector<T>*> _connected;
+    };
+    InputConnector _input;
+    OutputConnector _output;
+};
+
 // SRLatch works like a NAND latch with inverters on the inputs.
 class SRLatch : public ComponentBase<SRLatch>
 {
@@ -1525,33 +1552,33 @@ public:
     // connected to them.
     void registerStubComponent(Component::Type type)
     {
-        Connector::Type ct = type.defaultConnectorType();
-        auto l = ct.protocolDirections();
+        auto l = type.defaultConnectorType().protocolDirections();
         auto path = Path(0, type, false);
         for (auto pd : l) {
-            _stubPaths.add(pd, path);
-            for (auto p : _conversionPaths) {
-                if (pd.matches(p.key()._output)) {
-                    auto i = p.key()._input;
-                    if (!_stubPaths.hasKey(i) ||
-                        _stubPaths[i]._score > p.value()._score)
-                        _stubPaths[i] = path;
-                }
-            }
+            // We only need to register the conversion one way because nothing
+            // ever interfaces with NoProtocol.
+            registerConversionPath(
+                Pair(ProtocolDirection(NoProtocol(), false), pd), path);
         }
     }
     void connectStub(Connector* connector)
     {
         auto pds = connector->type().protocolDirections();
         Path best;
-        for (auto pd : pds)
-            best.choose(_stubPaths[pd]);
+        for (auto pd : pds) {
+            best.choose(_conversionPaths[
+                Pair(ProtocolDirection(NoProtocol(), false), -pd)]);
+        }
         if (!best.chosen())
             throw Exception(connector->name() + " needs to be connected");
         Reference<Component> component = best._componentType.createComponent();
         connect(connector, component->defaultConnector(), Span());
     }
 private:
+    // The NoProtocol is used so we can treat stub components internally as
+    // conversion components from their singleton connector to a fake
+    // "NoProtocol" connector which doesn't actually get connected to anything.
+    class NoProtocol : public ProtocolBase<NoProtocol> { };
     struct Path
     {
         Path() : _score(std::numeric_limits<int>::max()) { }
@@ -1601,18 +1628,12 @@ private:
     }
     bool registerConversionPath(Pair pair, Path path)
     {
-        if (_conversionPaths.has(pair)) {
+        if (_conversionPaths.hasKey(pair)) {
             auto existing = _conversionPaths[pair];
             if (path._score >= existing._score)
                 return false;
         }
         _conversionPaths[pair] = path;
-        if (_stubPaths.has(-pair._output)) {
-            if (!_stubPaths.has(pair.input) ||
-                _stubPaths[pair._input]._score >
-                    _stubPaths[-pair._output]._score + path._score)
-                _stubPaths[pair._input] = _stubPaths[-pair._output];
-        }
         bool added;
         do {
             added = false;
@@ -1647,7 +1668,6 @@ private:
     List<Reference<Component>> _components;
     bool _halted;
     Rational _ticksPerSecond;
-    HashTable<ProtocolDirection, Path> _stubPaths;
     HashTable<Pair, Path> _conversionPaths;
 };
 
@@ -1696,6 +1716,7 @@ protected:
         simulator.registerStubComponent(BucketComponent<bool>::Type(p));
         simulator.registerStubComponent(BucketComponent<Byte>::Type(p));
         simulator.registerStubComponent(NoRGBIMonitor::Type(p));
+        simulator.registerStubComponent(NoRGBISource::Type(p));
         simulator.registerStubComponent(NoISA8BitComponent::Type(p));
         simulator.registerStubComponent(PCXTNoKeyboard::Type(p));
 

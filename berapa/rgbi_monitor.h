@@ -1,11 +1,8 @@
-template<class T> class NoRGBISourceT;
-typedef NoRGBISourceT<void> NoRGBISource;
-
-template<class T> class NoRGBISourceT : public ComponentBase<NoRGBISource>
+class NoRGBISource : public ComponentBase<NoRGBISource>
 {
 public:
     static String typeName() { return "NoRGBISource"; }
-    NoRGBISourceT(Component::Type type) : Component(type), _connector(this)
+    NoRGBISource(Component::Type type) : ComponentBase(type), _connector(this)
     {
         connector("", &_connector);
     }
@@ -13,22 +10,22 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(NoRGBISourceT* c) : ConnectorBase<Connector>(c) { }
+        Connector(NoRGBISource* c) : ConnectorBase<Connector>(c) { }
         static String typeName() { return "NoRGBISource.Connector"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(RGBIProtocol, true);
+            return ProtocolDirection(RGBIProtocol(), true);
         }
     };
 private:
     Connector _connector;
 };
 
-template<class T> class RGBIMonitorT : public ComponentBase<RGBIMonitor>
+class RGBIMonitor : public ComponentBase<RGBIMonitor>
 {
 public:
     static String typeName() { return "RGBIMonitor"; }
-    RGBIMonitorT(Component::Type type) : ComponentBase(type), _connector(this)
+    RGBIMonitor(Component::Type type) : ComponentBase(type), _connector(this)
     {
         _palette.allocate(64);
         _palette[0x0] = 0xff000000;

@@ -1,11 +1,11 @@
-template<class T> class ROMT : public ISA8BitComponentBase<ROMT<T>>
+class ROM : public ISA8BitComponentBase<ROM>
 {
 public:
     static String typeName() { return "ROM"; }
-    ROMT(Component::Type type) : ROMT(type, 0, 0, "", 0) { }
-    ROMT(Component::Type type, int mask, int address, String fileName,
+    ROM(Component::Type type) : ROM(type, 0, 0, "", 0) { }
+    ROM(Component::Type type, int mask, int address, String fileName,
         int offset)
-      : ISA8BitComponentBase<ROMT<T>>(type)
+      : ISA8BitComponentBase<ROM>(type)
     {
         this->persist("address", &_address, HexPersistenceType(5));
         if (fileName == "")
@@ -37,20 +37,20 @@ public:
         ISA8BitComponentBase::load(v);
         readMemoryRange(_start, _start + _mask + 1);
     }
-    class Type : public ISA8BitComponentBase<ROMT<T>>::Type
+    class Type : public ISA8BitComponentBase<ROM>::Type
     {
     public:
         Type(Simulator* simulator)
-          : ISA8BitComponentBase<ROMT<T>>::Type(
-                ISA8BitComponentBase<ROMT<T>>::Type::template create<Body>(
+          : ISA8BitComponentBase<ROM>::Type(
+                ISA8BitComponentBase<ROM>::Type::template create<Body>(
                 simulator))
         { }
     private:
-        class Body : public ISA8BitComponentBase<ROMT<T>>::Type::Body
+        class Body : public ISA8BitComponentBase<ROM>::Type::Body
         {
         public:
             Body(Simulator* simulator)
-              : ISA8BitComponentBase<ROMT<T>>::Type::Body(simulator)
+              : ISA8BitComponentBase<ROM>::Type::Body(simulator)
             {
                 List<StructuredType::Member> members;
                 members.add(StructuredType::Member("mask", IntegerType()));

@@ -1,10 +1,9 @@
-template<class T> class Intel8253PITT
-  : public ISA8BitComponentBase<Intel8253PITT<T>>
+class Intel8253PIT : public ISA8BitComponentBase<Intel8253PIT>
 {
 public:
     static String typeName() { return "Intel8253PIT"; }
-    Intel8253PITT(Component::Type type)
-      : ISA8BitComponentBase<Intel8253PITT<T>>(type),
+    Intel8253PIT(Component::Type type)
+      : ISA8BitComponentBase<Intel8253PIT>(type),
         _timers{Timer::Type(this->simulator()), Timer::Type(this->simulator()),
             Timer::Type(this->simulator())}
     {

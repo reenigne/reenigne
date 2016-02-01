@@ -1,10 +1,9 @@
-template<class T> class ISA8BitRAMT
-  : public ISA8BitComponentBase<ISA8BitRAMT<T>>
+class ISA8BitRAM : public ISA8BitComponentBase<ISA8BitRAM>
 {
 public:
     static String typeName() { return "ISA8BitRAM"; }
-    ISA8BitRAMT(Component::Type type)
-      : ISA8BitComponentBase<ISA8BitRAMT<T>>(type),
+    ISA8BitRAM(Component::Type type)
+      : ISA8BitComponentBase<ISA8BitRAM>(type),
         _ram(RAM::Type(this->simulator()))
     {
         this->persist("address", &_address, HexPersistenceType(5));

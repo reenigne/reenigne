@@ -136,6 +136,7 @@ public:
         {
             return ProtocolDirection(ISA8BitProtocol(), true);
         }
+        static auto canConnectMultiple() { return true; }
     protected:
         ISA8BitBus* _bus;
 

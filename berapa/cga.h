@@ -1,14 +1,10 @@
-template<class T> class NoRGBIMonitorT;
-typedef NoRGBIMonitorT<void> NoRGBIMonitor;
-
 class RGBIProtocol : public ProtocolBase<RGBIProtocol> { };
 
-template<class T> class NoRGBIMonitorT : public ComponentBase<NoRGBIMonitor>
+class NoRGBIMonitor : public ComponentBase<NoRGBIMonitor>
 {
 public:
     static String typeName() { return "NoRGBIMonitor"; }
-    NoRGBIMonitorT(Component::Type type)
-      : ComponentBase(type), _connector(this)
+    NoRGBIMonitor(Component::Type type) : ComponentBase(type), _connector(this)
     {
         connector("", &_connector);
     }
@@ -27,12 +23,12 @@ private:
     Connector _connector;
 };
 
-template<class T> class IBMCGAT : public ISA8BitComponentBase<IBMCGAT<T>>
+class IBMCGA : public ISA8BitComponentBase<IBMCGA>
 {
 public:
     static String typeName() { return "IBMCGA"; }
-    IBMCGAT(Component::Type type)
-      : ISA8BitComponentBase<IBMCGAT<T>>(type), _attr(0), _chrdata(0),
+    IBMCGA(Component::Type type)
+      : ISA8BitComponentBase<IBMCGA>(type), _attr(0), _chrdata(0),
         _wait(0), _cycle(0), _bgri(0), _lightPenStrobe(false),
         _lightPenSwitch(true), _bgriSource(this),
         _ram(RAM::Type(this->simulator())), _rgbiConnector(this)
@@ -48,7 +44,7 @@ public:
     }
     void load(const Value& v)
     {
-        ISA8BitComponentBase<IBMCGAT<T>>::load(v);
+        ISA8BitComponentBase<IBMCGA>::load(v);
         String data = File(_rom, simulator()->directory()).contents();
         int length = 0x2000;
         _romdata.allocate(length);
