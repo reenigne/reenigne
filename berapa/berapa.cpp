@@ -748,8 +748,6 @@ public:
 
 template<class T> class SimpleProtocol
   : public ProtocolBase<SimpleProtocol<T>> { };
-template<class T> class BidirectionalProtocol
-  : public ProtocolBase<BidirectionalProtocol<T>> { };
 
 template<class T> class OutputConnector;
 template<class T> class InputConnector;
@@ -800,8 +798,6 @@ public:
             }
         };
     };
-    BidirectionalConnector<T>* _other;
-    Component* _otherComponent;
 };
 
 
@@ -818,16 +814,19 @@ public:
         List<ProtocolDirection> r;
         r.add(ProtocolDirection(SimpleProtocol<T>(), true));
         r.add(ProtocolDirection(SimpleProtocol<T>(), false));
-        r.add(ProtocolDirection(BidirectionalProtocol<T>(), true));
-        r.add(ProtocolDirection(BidirectionalProtocol<T>(), false));
         return r;
     }
-    BidirectionalConnector(Component* c) : TransportConnectorBase(c) { }
+    static auto canConnectMultiple() { return true; }
+    BidirectionalConnector(Component* c)
+      : TransportConnectorBase(c), _other(0) { }
     virtual void setData(Tick t, T v) = 0;
     void connect(::Connector* other)
     {
-        _other = static_cast<BidirectionalConnector<T>*>(other);
-        _otherComponent = _other->component();
+        if (_other == 0) {
+            _other = static_cast<BidirectionalConnector<T>*>(other);
+            _otherComponent = _other->component();
+        }
+
     }
     BidirectionalConnector<T>* _other;
     Component* _otherComponent;
@@ -870,10 +869,14 @@ template<class T> class InputConnector
 {
 public:
     static String tycoName() { return "InputConnector"; }
-    static auto protocolDirection()
-    {
-        return ProtocolDirection(SimpleProtocol<T>(), false);
-    }
+    // It may seem strange that we don't override protocolDirections() here,
+    // meaning that we speak ProtocolDirection(SimpleProtocol<T>(), true). This
+    // is because it's allowed for two InputConnectors to be connected to each
+    // other. The result will be that both are connected to outputs on the same
+    // fanout, with the input stubbbed (and hence connected to
+    // ConstantComponent). The result is ultimately the same as if both
+    // InputConnectors are left disconnected (and hence stubbed to separate
+    // ConstantComponents).
     InputConnector(Component* c) : TransportConnectorBase(c) { }
     virtual void setData(Tick t, T v) = 0;
 };
@@ -1151,7 +1154,7 @@ private:
         static auto canConnectMultiple() { return true; }
         void connect(Connector* other, ProtocolDirection pd)
         {
-
+            _connected.add(static_cast<BidirectionalConnector<T>*>(other));
         }
     private:
         List<BidirectionalConnector<T>*> _connected;
