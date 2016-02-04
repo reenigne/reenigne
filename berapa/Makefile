@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-O3 -I../include -std=c++11 -lSDL2 -Wfatal-errors
+CFLAGS=-O3 -I../include -std=c++14 -lSDL2 -Wfatal-errors
 
 all: berapa
 

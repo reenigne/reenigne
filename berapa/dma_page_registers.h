@@ -30,7 +30,7 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(DMAPageRegisters* c) : ConnectorBase(c), _c(c) { }
+        Connector(DMAPageRegisters* c) : ConnectorBase<Connector>(c), _c(c) { }
         static String typeName() { return "DMAPageRegisters.Connector"; }
         static auto protocolDirection()
         {

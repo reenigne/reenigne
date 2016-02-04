@@ -1,30 +1,31 @@
 template<class T> class Intel8259PICT
   : public ISA8BitComponentBase<Intel8259PICT<T>>
 {
+    using Base = ISA8BitComponentBase<Intel8259PICT<T>>;
 public:
     static String typeName() { return "Intel8259PIC"; }
     Intel8259PICT(Component::Type type)
-      : ISA8BitComponentBase(type), _interruptReady(false), _secondAck(false),
+      : Base(type), _interruptReady(false), _secondAck(false),
         _state(stateReady), _imr(0xff),
         _irqConnector{this, this, this, this, this, this, this, this},
         _intConnector(this)
     {
-        persist("address", &_address);
-        persist("offset", &_offset);
-        persist("irr", &_irr);
-        persist("imr", &_imr);
-        persist("isr", &_isr);
-        persist("icw1", &_icw1);
-        persist("icw4", &_icw4);
-        persist("interrupt", &_interrupt);
-        persist("interruptReady", &_interruptReady);
-        persist("secondAck", &_secondAck);
-        persist("interruptNumber", &_interruptNumber);
+        this->persist("address", &_address);
+        this->persist("offset", &_offset);
+        this->persist("irr", &_irr);
+        this->persist("imr", &_imr);
+        this->persist("isr", &_isr);
+        this->persist("icw1", &_icw1);
+        this->persist("icw4", &_icw4);
+        this->persist("interrupt", &_interrupt);
+        this->persist("interruptReady", &_interruptReady);
+        this->persist("secondAck", &_secondAck);
+        this->persist("interruptNumber", &_interruptNumber);
         for (int i = 0; i < 8; ++i) {
             _irqConnector[i].init(i);
-            connector("irq" + decimal(i), &_irqConnector[i]);
+            this->connector("irq" + decimal(i), &_irqConnector[i]);
         }
-        connector("int", &_intConnector);
+        this->connector("int", &_intConnector);
     }
     class Connector : public InputConnector<bool>
     {
@@ -61,7 +62,7 @@ public:
     }
     UInt8 readAcknowledgeByte(Tick tick)
     {
-        runTo(tick);
+        this->runTo(tick);
         if (_secondAck) {
             _secondAck = false;
             return _interruptNumber;
@@ -114,8 +115,8 @@ public:
     }
     void setBus(ISA8BitBus* bus)
     {
-        ISA8BitComponentBase::setBus(bus);
-        _bus->setPIC(this);
+        Base::setBus(bus);
+        this->_bus->setPIC(this);
     }
 private:
     UInt8 _interruptNumber;

@@ -1,6 +1,7 @@
 template<class T> class Intel8237DMACT
   : public ISA8BitComponentBase<Intel8237DMACT<T>>
 {
+    using Base = ISA8BitComponentBase<Intel8237DMACT<T>>;
     enum State
     {
         stateIdle,
@@ -28,10 +29,10 @@ template<class T> class Intel8237DMACT
 public:
     static String typeName() { return "Intel8237DMAC"; }
     Intel8237DMACT(Component::Type type)
-      : ISA8BitComponentBase<Intel8237DMACT<T>>(type),
-        _channels{Channel::Type(this->simulator()),
-            Channel::Type(this->simulator()), Channel::Type(this->simulator()),
-            Channel::Type(this->simulator())}
+      : Base(type), _channels{typename Channel::Type(this->simulator()),
+            typename Channel::Type(this->simulator()),
+            typename Channel::Type(this->simulator()),
+            typename Channel::Type(this->simulator())}
     {
         this->persist("address", &_address, HexPersistenceType(1));
         this->persist("command", &_command);
@@ -71,12 +72,17 @@ public:
                 if (mode != transferModeCascade) {
                     _highAddress =
                         _channels[_channel].currentAddress() & 0xff00;
-                    _bus->setAddress(getAddress());
                     if (type == transferTypeWrite) {
+                        this->_bus->setDMAAddressWrite(
+                            _channels[_channel].currentAddress());
                         if (_channel == 1 && memoryToMemory())
-                            _bus->write(_temporary);
+                            this->_bus->write(_temporary);
                         else
-                            _bus->write();
+                            this->_bus->write();
+                    }
+                    else {
+                        this->_bus->setDMAAddressRead(
+                            _channels[_channel].currentAddress());
                     }
                 }
                 _state = stateS3;
@@ -89,7 +95,7 @@ public:
                 // Fall through when timing is compressed.
             case stateS4:
                 if (type == transferTypeRead && mode != transferModeCascade) {
-                    UInt8 d = _bus->read();
+                    UInt8 d = this->_bus->read();
                     if (_channel == 0 && memoryToMemory()) {
                         _temporary = d;
                         _channels[1].setInternalRequest(true);
@@ -230,38 +236,38 @@ public:
         checkForDMA();
     }
 
-    String getText()
-    {
-        String line;
-        switch (_state) {
-            case stateS1:
-                line += "D1 " + hex(getAddress(), 5, false) + " ";
-                break;
-            case stateS2:
-                line += "D2 ";
-                if (_channels[_channel].transferType() == transferTypeWrite)
-                    line += "M<-" + hex(_bus->data(), 2, false) + " ";
-                else
-                    line += "      ";
-                break;
-            case stateS3: line += "D3       "; break;
-            case stateS4:
-                line += "D4 ";
-                if (_channels[_channel].transferType() == transferTypeWrite)
-                    line += "      ";
-                else
-                    line += "M->" + hex(_bus->data(), 2, false) + " ";
-                break;
-            case stateIdle:
-                line = "";
-                break;
-        }
-        return line;
-    }
+    //String getText()
+    //{
+    //    String line;
+    //    switch (_state) {
+    //        case stateS1:
+    //            line += "D1 " + hex(getAddress(), 5, false) + " ";
+    //            break;
+    //        case stateS2:
+    //            line += "D2 ";
+    //            if (_channels[_channel].transferType() == transferTypeWrite)
+    //                line += "M<-" + hex(_bus->data(), 2, false) + " ";
+    //            else
+    //                line += "      ";
+    //            break;
+    //        case stateS3: line += "D3       "; break;
+    //        case stateS4:
+    //            line += "D4 ";
+    //            if (_channels[_channel].transferType() == transferTypeWrite)
+    //                line += "      ";
+    //            else
+    //                line += "M->" + hex(_bus->data(), 2, false) + " ";
+    //            break;
+    //        case stateIdle:
+    //            line = "";
+    //            break;
+    //    }
+    //    return line;
+    //}
     void setBus(ISA8BitBus* bus)
     {
-        ISA8BitComponentBase::setBus(bus);
-        _bus->setDMAC(this);
+        Base::setBus(bus);
+        this->_bus->setDMAC(this);
     }
 private:
     void checkForDMA()
@@ -305,18 +311,18 @@ private:
     {
     public:
         static String typeName() { return "Channel"; }
-        Channel(Component::Type type) : SubComponent(type)
+        Channel(Component::Type type) : SubComponent<Channel>(type)
         {
-            persist("mode", &_mode);
-            persist("baseAddress", &_baseAddress);
-            persist("baseCount", &_baseCount);
-            persist("currentAddress", &_currentAddress);
-            persist("currentCount", &_currentCount);
-            persist("hardRequest", &_hardRequest);
-            persist("softRequest", &_softRequest);
-            persist("mask", &_mask);
-            persist("terminalCount", &_terminalCount);
-            persist("internalRequest", &_internalRequest);
+            this->persist("mode", &_mode);
+            this->persist("baseAddress", &_baseAddress);
+            this->persist("baseCount", &_baseCount);
+            this->persist("currentAddress", &_currentAddress);
+            this->persist("currentCount", &_currentCount);
+            this->persist("hardRequest", &_hardRequest);
+            this->persist("softRequest", &_softRequest);
+            this->persist("mask", &_mask);
+            this->persist("terminalCount", &_terminalCount);
+            this->persist("internalRequest", &_internalRequest);
         }
 
         UInt8 read(UInt32 address, bool lastByte)

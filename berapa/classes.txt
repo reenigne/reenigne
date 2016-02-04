@@ -1,0 +1,12 @@
+Connector
+
+Structure
+  Component
+    ComponentBase<C>
+      Subcomponent<C>
+
+ConstHandle
+  Tyco
+    Type
+      Component::Type
+      Connector::Type

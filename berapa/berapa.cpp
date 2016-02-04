@@ -183,7 +183,7 @@ public:
                     value.span());
             }
         private:
-            Simulator* _simulator;
+            SimulatorT<T>* _simulator;
         };
     public:
         const Body* body() const { return this->template as<Body>(); }
@@ -246,7 +246,10 @@ public:
         return r;
     }
     static auto canConnectMultiple() { return false; }
-    Connector::Type type() const { return T::Type(simulator()); }
+    Connector::Type type() const
+    {
+        return typename T::Type(this->simulator());
+    }
     class Type : public B::Type
     {
     public:
@@ -690,7 +693,7 @@ public:
 template<class C> class SubComponent : public ComponentBase<C>
 {
 public:
-    SubComponent(Component::Type type) : ComponentBase(type) { }
+    SubComponent(Component::Type type) : ComponentBase<C>(type) { }
     class Type : public ComponentBase<C>::Type
     {
     public:
@@ -782,8 +785,9 @@ public:
 template<class C, class T, class B = TransportConnector>
     class TransportConnectorBase : public ConnectorBase<C, B>
 {
+    using Base = ConnectorBase<C, B>;
 public:
-    TransportConnectorBase(Component* c) : ConnectorBase(c) { }
+    TransportConnectorBase(Component* c) : Base(c) { }
     static auto protocolDirections()
     {
         List<ProtocolDirection> r;
@@ -797,15 +801,16 @@ public:
         return C::tycoName() + "<" + typeFromCompileTimeType<T>().toString() +
             ">";
     }
-    class Type : public ConnectorBase<C, B>::Type
+    class Type : public Base::Type
     {
     public:
-        Type(Simulator* s) : ConnectorBase<C, B>::Type(create<Body>(s)) { }
-        Type(const ConstHandle& r) : ConnectorBase<C, B>::Type(r) { }
-        class Body : public ConnectorBase<C, B>::Type::Body
+        Type(Simulator* s) : Base::Type(Base::Type::template create<Body>(s))
+        { }
+        Type(const ConstHandle& r) : Base::Type(r) { }
+        class Body : public Base::Type::Body
         {
         public:
-            Body(Simulator* s) : ConnectorBase<C, B>::Type::Body(s) { }
+            Body(Simulator* s) : Base::Type::Body(s) { }
             ::Type transportType() const
             {
                 return typeFromCompileTimeType<T>();
@@ -820,7 +825,7 @@ template<class T> class BidirectionalConnector
 public:
     static String tycoName() { return "BidirectionalConnector"; }
     BidirectionalConnector(Component* c)
-      : TransportConnectorBase(c), _other(0) { }
+      : TransportConnectorBase<BidirectionalConnector<T>, T>(c), _other(0) { }
     virtual void setData(Tick t, T v) = 0;
     void connect(::Connector* other, ProtocolDirection pd, Span span)
     {
@@ -832,8 +837,8 @@ public:
         }
         auto fanout = dynamic_cast<FanoutComponent<T>*>(_otherComponent);
         if (fanout == 0) {
-            fanout = static_cast<FanoutComponent<T>*>(
-                FanoutComponent<T>::Type(simulator()).createComponent());
+            fanout = static_cast<FanoutComponent<T>*>(typename
+                FanoutComponent<T>::Type(this->simulator()).createComponent());
             _other->_other = 0;
             fanout->connect(_other, span);
             _other = 0;
@@ -842,6 +847,7 @@ public:
         o->_other = 0;
         fanout->connect(o, span);
     }
+    bool canBeDisconnected() const { return false; }
     BidirectionalConnector<T>* _other;
     Component* _otherComponent;
 };
@@ -856,7 +862,8 @@ public:
     {
         return ProtocolDirection(SimpleProtocol<T>(), true);
     }
-    OutputConnector(Component* c) : TransportConnectorBase(c) { }
+    OutputConnector(Component* c) : TransportConnectorBase<OutputConnector<T>,
+        T, BidirectionalConnector<T>>(c) { }
     void setData(Tick t, T v) { }
     bool loopCheck() { return this->_otherComponent->loopCheck(); }
 };
@@ -864,12 +871,12 @@ public:
 template<class T> class OptimizedOutputConnector : public OutputConnector<T>
 {
 public:
-    OptimizedOutputConnector(Component* c) : OutputConnector(c) { }
+    OptimizedOutputConnector(Component* c) : OutputConnector<T>(c) { }
     void set(Tick t, T v)
     {
         if (v != _v) {
             _v = v;
-            _other->setData(t, v);
+            this->_other->setData(t, v);
         }
     }
     void init(T v) { _v = v; }
@@ -881,6 +888,8 @@ template<class T> class InputConnector
   : public TransportConnectorBase<InputConnector<T>, T,
         BidirectionalConnector<T>>
 {
+    using Base = TransportConnectorBase<InputConnector<T>, T,
+        BidirectionalConnector<T>>;
 public:
     static String tycoName() { return "InputConnector"; }
     // It may seem strange that we don't override protocolDirections() here,
@@ -891,19 +900,20 @@ public:
     // ConstantComponent). The result is ultimately the same as if both
     // InputConnectors are left disconnected (and hence stubbed to separate
     // ConstantComponents).
-    InputConnector(Component* c) : TransportConnectorBase(c) { }
+    InputConnector(Component* c) : Base(c) { }
     virtual void setData(Tick t, T v) = 0;
     void connect(::Connector* other, ProtocolDirection pd, Span span)
     {
-        if (_other == 0 && dynamic_cast<InputConnector<T>*>(other) != 0) {
-            auto fanout = static_cast<FanoutComponent<T>*>(
-                FanoutComponent<T>::Type(simulator()).createComponent());
+        if (this->_other == 0 &&
+            dynamic_cast<InputConnector<T>*>(other) != 0) {
+            auto fanout = static_cast<FanoutComponent<T>*>(typename
+                FanoutComponent<T>::Type(this->simulator()).createComponent());
             fanout->connect(this, span);
             fanout->connect(static_cast<BidirectionalConnector<T>*>(other),
                 span);
         }
         else
-            TransportConnectorBase::connect(other, pd, span);
+            Base::connect(other, pd, span);
     }
 };
 
@@ -911,7 +921,7 @@ template<class C, class T> class TransportComponentBase
   : public ComponentBase<C>
 {
 public:
-    TransportComponentBase(Component::Type t) : ComponentBase(t) { }
+    TransportComponentBase(Component::Type t) : ComponentBase<C>(t) { }
     static String typeName()
     {
         return C::tycoName() + "<" + typeFromCompileTimeType<T>().toString() +
@@ -924,12 +934,12 @@ template<class T, class C> class BooleanComponent
 {
 public:
     BooleanComponent(Component::Type type)
-      : TransportComponentBase(type), _input0(this), _input1(this),
+      : TransportComponentBase<C, T>(type), _input0(this), _input1(this),
         _output(this)
     {
-        connector("input0", &_input0);
-        connector("input1", &_input1);
-        connector("output", &_output);
+        this->connector("input0", &_input0);
+        this->connector("input1", &_input1);
+        this->connector("output", &_output);
     }
     bool subLoopCheck() { return _output.loopCheck(); }
     virtual void update0(Tick t, T v) = 0;
@@ -940,12 +950,6 @@ private:
     public:
         InputConnector(BooleanComponent *c)
           : ::InputConnector<T>(c), _component(c) { }
-        //void connect(::Connector* other, ProtocolDirection pd, Span span)
-        //{
-        //    _other = other;
-        //    ::InputConnector<T>::connect(other, pd, span);
-        //}
-        //::Connector* _other;
         T _v;
         BooleanComponent* _component;
     };
@@ -994,20 +998,20 @@ public:
 template<class T> class AndComponent
   : public BooleanComponent<T, AndComponent<T>>
 {
+    using Base = BooleanComponent<T, AndComponent<T>>;
 public:
     static String tycoName() { return "And"; }
-    AndComponent(Component::Type type)
-      : BooleanComponent<T, AndComponent<T>>(type) { }
+    AndComponent(Component::Type type) : Base(type) { }
     void load(const Value& v)
     {
-        BooleanComponent::load(v);
-        _output.init(_input0._v & _input1._v);
+        Base::load(v);
+        this->_output.init(this->_input0._v & this->_input1._v);
     }
     void runTo(Tick tick)
     {
-        _input0._otherComponent->runTo(tick);
+        this->_input0._otherComponent->runTo(tick);
         if (this->_input0._v != BinaryTraits<T>::zero())
-            _input1._otherComponent->runTo(tick);
+            this->_input1._otherComponent->runTo(tick);
         Component::runTo(tick);
     }
     void update0(Tick t, T v)
@@ -1035,20 +1039,20 @@ public:
 template<class T> class OrComponent
   : public BooleanComponent<T, OrComponent<T>>
 {
+    using Base = BooleanComponent<T, OrComponent<T>>;
 public:
     static String tycoName() { return "Or"; }
-    OrComponent(Component::Type type)
-      : BooleanComponent<T, OrComponent<T>>(type) { }
+    OrComponent(Component::Type type) : Base(type) { }
     void load(const Value& v)
     {
-        BooleanComponent::load(v);
-        _output.init(_input0._v | _input1._v);
+        Base::load(v);
+        this->_output.init(this->_input0._v | this->_input1._v);
     }
     void runTo(Tick tick)
     {
-        _input0._otherComponent->runTo(tick);
+        this->_input0._otherComponent->runTo(tick);
         if (this->_input0._v != BinaryTraits<T>::one())
-            _input1._otherComponent->runTo(tick);
+            this->_input1._otherComponent->runTo(tick);
         Component::runTo(tick);
     }
     void update0(Tick t, T v)
@@ -1079,10 +1083,11 @@ template<class T> class NotComponent
 public:
     static String tycoName() { return "Not"; }
     NotComponent(Component::Type type)
-      : TransportComponentBase(type), _input(this), _output(this)
+      : TransportComponentBase<NotComponent<T>, T>(type), _input(this),
+        _output(this)
     {
-        connector("input", &_input);
-        connector("output", &_output);
+        this->connector("input", &_input);
+        this->connector("output", &_output);
     }
     bool subLoopCheck() { return _output.loopCheck(); }
     void runTo(Tick tick)
@@ -1117,9 +1122,9 @@ template<class T> class BucketComponent
 public:
     static String tycoName() { return "Bucket"; }
     BucketComponent(Component::Type t)
-      : TransportComponentBase(t), _connector(this)
+      : TransportComponentBase<BucketComponent<T>, T>(t), _connector(this)
     {
-        connector("", &_connector);
+        this->connector("", &_connector);
     }
     class Connector : public InputConnector<T>
     {
@@ -1136,9 +1141,10 @@ template<class T> class ConstantComponent
 public:
     static String tycoName() { return "Constant"; }
     ConstantComponent(Component::Type t, T v = BinaryTraits<T>::one())
-      : TransportComponentBase(t), _v(v), _connector(this)
+      : TransportComponentBase<ConstantComponent<T>, T>(t), _v(v),
+        _connector(this)
     {
-        connector("", &_connector);
+        this->connector("", &_connector);
     }
 private:
     void load(const Value& v) { _connector.setData(0, _v); }
@@ -1152,25 +1158,24 @@ template<class T> class FanoutComponent
 public:
     static String tycoName() { return "Fanout"; }
     FanoutComponent(Component::Type t)
-      : TransportComponentBase(t), _input(this), _output(this),
-        _bidirectional(this)
+      : TransportComponentBase<FanoutComponent<T>, T>(t), _input(this)
     {
-        connector("input", &_input);
+        this->connector("input", &_input);
     }
     void connect(BidirectionalConnector<T>* c, Span span)
     {
         if (dynamic_cast<::InputConnector<T>*>(c) != 0)
-            simulator()->connect(&_output, c, span);
+            this->simulator()->connect(_output.add(this), c, span);
         else
             if (dynamic_cast<::OutputConnector<T>*>(c) == 0)
-                simulator()->connect(&_bidirectional, c, span);
+                this->simulator()->connect(_bidirectional.add(this), c, span);
             else {
-                if (_input._output != 0) {
+                if (_input._other != 0) {
                     span.throwError("Cannot connect " +
-                        _input._output->name() + " and " + c->name() +
+                        _input._other->name() + " and " + c->name() +
                         " together as they are both outputs.");
                 }
-                simulator()->connect(&_input, c, span);
+                this->simulator()->connect(&_input, c, span);
             }
     }
 private:
@@ -1178,67 +1183,46 @@ private:
     {
     public:
         InputConnector(FanoutComponent* c)
-          : ::InputConnector<T>(c), _fanout(c), _output(0) { }
-        void setData(Tick t, T v)
-        {
-            _fanout->_output.update(t, v);
-            _fanout->_bidirectional.update(t, v);
-        }
+          : ::InputConnector<T>(c), _fanout(c) { }
+        void setData(Tick t, T v) { _fanout->update(t, v, 0); }
         bool canBeDisconnected() const
         {
-            return _fanout->_bidirectional._connected.count() != 0;
+            return _fanout->_bidirectional.count() != 0;
         }
-        void connect(Connector* other)
-        {
-            _output = static_cast<::OutputConnector<T>*>(other);
-        }
-        ::OutputConnector<T>* _output;
-        FanoutComponent* _fanout;
-    };
-    class OutputConnector : public ::OutputConnector<T>
-    {
-    public:
-        OutputConnector(FanoutComponent* c)
-          : ::OutputConnector<T>(c), _fanout(c) { }
-        void update(Tick t, T v)
-        {
-            for (auto c : _connected)
-                c->setData(t, v);
-        }
-        static auto canConnectMultiple() { return true; }
-        void connect(Connector* other)
-        {
-            _connected.add(static_cast<::InputConnector<T>*>(other));
-        }
-        List<::InputConnector<T>*> _connected;
         FanoutComponent* _fanout;
     };
     class BidirectionalConnector : public ::BidirectionalConnector<T>
     {
     public:
         BidirectionalConnector(FanoutComponent* c)
-          : ::BidirectionalConnector<T>(c), _fanout(c) { }
-        void update(Tick t, T v)
-        {
-            for (auto c : _connected)
-                c->setData(t, v);
-        }
-        void setData(Tick t, T v)
-        {
-            update(t, v);
-            _fanout->_output.update(t, v);
-        }
-        static auto canConnectMultiple() { return true; }
-        void connect(Connector* other)
-        {
-            _connected.add(static_cast<::BidirectionalConnector<T>*>(other));
-        }
-        List<::BidirectionalConnector<T>*> _connected;
+          : ::BidirectionalConnector<T>(c), _fanout(c),
+            _v(BinaryTraits<T>::one())
+        { }
+        void setData(Tick t, T v) { _v = v; _fanout->update(t, v, this); }
         FanoutComponent* _fanout;
+        T _v;
     };
+    void update(Tick t, T v, BidirectionalConnector* c)
+    {
+        for (auto i : _bidirectional) {
+            if (&i == c)
+                continue;
+            i._otherComponent->runTo(t);
+            v &= i._v;
+        }
+        for (auto i : _output)
+            i._other->setData(t, v);
+        for (auto i : _bidirectional) {
+            if (&i == c)
+                continue;
+            i._other->setData(t, v);
+        }
+    }
     InputConnector _input;
-    OutputConnector _output;
-    BidirectionalConnector _bidirectional;
+    List<OutputConnector<T>> _output;
+    List<BidirectionalConnector> _bidirectional;
+    friend class InputConnector;
+    friend class BidirectionalConnector;
 };
 
 // SRLatch works like a NAND latch with inverters on the inputs.
@@ -1606,12 +1590,12 @@ public:
             else {
                 auto c = path._componentType.createComponent();
                 if (path._output) {
-                    connect(l, c->get<Connector*>("output"), span);
-                    l = c->get<Connector*>("input");
+                    connect(l, c->template get<Connector*>("output"), span);
+                    l = c->template get<Connector*>("input");
                 }
                 else {
-                    connect(l, c->get<Connector*>("input"), span);
-                    l = c->get<Connector*>("output");
+                    connect(l, c->template get<Connector*>("input"), span);
+                    l = c->template get<Connector*>("output");
                 }
             }
         } while (true);
@@ -1620,8 +1604,8 @@ public:
     // two connectors that don't share a protocol.
     void registerConversionComponent(Component::Type type)
     {
-        auto i = type.member("input").protocolDirections();
-        auto o = type.member("output").protocolDirections();
+        auto i = Connector::Type(type.member("input")).protocolDirections();
+        auto o = Connector::Type(type.member("output")).protocolDirections();
         for (auto ipd : i) {
             for (auto opd : o) {
                 registerConversionPath(Pair(ipd, opd), Path(1, type, false));

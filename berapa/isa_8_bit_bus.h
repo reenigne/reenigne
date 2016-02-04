@@ -67,7 +67,7 @@ public:
     {
     public:
         Connector(ISA8BitComponentT* component)
-          : ConnectorBase(component), _component(component) { }
+          : ConnectorBase<Connector>(component), _component(component) { }
         void connect(::Connector* other)
         {
             dynamic_cast<typename ISA8BitBusT<T>::Connector*>(other)
@@ -109,28 +109,30 @@ public:
     static String typeName() { return "ISA8BitBus"; }
 
     ISA8BitBusT(Component::Type type)
-      : ComponentBase(type), _cpuSocket(this), _connector(this),
+      : ComponentBase<ISA8BitBusT<T>>(type), _cpuSocket(this),
+        _connector(this),
         _chipConnectors{this, this, this, this, this, this, this, this},
         _parityError(this), _noComponent(type), _readMemory(this),
         _writeMemory(this), _readIO(this), _writeIO(this),
         _dmaPageRegistersSocket(this)
     {
-        connector("cpu", &_cpuSocket);
-        connector("slot", &_connector);
+        this->connector("cpu", &_cpuSocket);
+        this->connector("slot", &_connector);
         for (int i = 0; i < 8; ++i) {
             _chipConnectors[i].init(i);
-            connector("chip" + decimal(i), &_chipConnectors[i]);
+            this->connector("chip" + decimal(i), &_chipConnectors[i]);
         }
-        connector("parityError", &_parityError);
-        connector("dmaPageRegisters", &_dmaPageRegistersSocket);
-        persist("activeAddress", &_activeAddress);
-        persist("activeAccess", &_activeAccess);
+        this->connector("parityError", &_parityError);
+        this->connector("dmaPageRegisters", &_dmaPageRegistersSocket);
+        this->persist("activeAddress", &_activeAddress);
+        this->persist("activeAccess", &_activeAccess);
     }
 
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(ISA8BitBus* bus) : ConnectorBase(bus), _bus(bus) { }
+        Connector(ISA8BitBus* bus)
+          : ConnectorBase<Connector>(bus), _bus(bus) { }
         static String typeName() { return "ISA8BitBus.Connector"; }
         static auto protocolDirection()
         {
@@ -154,8 +156,8 @@ public:
         void busConnect(ISA8BitComponent* component)
         {
             if (dynamic_cast<NoISA8BitComponent*>(component) == 0) {
-                _bus->addRange(2, component, _i*0x20, (_i + 1)*0x20);
-                _bus->addRange(3, component, _i*0x20, (_i + 1)*0x20);
+                this->_bus->addRange(2, component, _i*0x20, (_i + 1)*0x20);
+                this->_bus->addRange(3, component, _i*0x20, (_i + 1)*0x20);
             }
         }
     private:
@@ -165,7 +167,8 @@ public:
     class CPUSocket : public ConnectorBase<CPUSocket>
     {
     public:
-        CPUSocket(ISA8BitBus* bus) : ConnectorBase(bus), _bus(bus) { }
+        CPUSocket(ISA8BitBus* bus)
+          : ConnectorBase<CPUSocket>(bus), _bus(bus) { }
         static String typeName() { return "ISA8BitBus.CPUSocket"; }
         static auto protocolDirection()
         {
@@ -178,7 +181,7 @@ public:
     {
     public:
         DMAPageRegistersSocket(ISA8BitBus* bus)
-          : ConnectorBase(bus), _bus(bus) { }
+          : ConnectorBase<DMAPageRegistersSocket>(bus), _bus(bus) { }
         static String typeName()
         {
             return "ISA8BitBus.DMAPageRegistersSocket";
@@ -194,6 +197,14 @@ public:
     {
         _components.add(component);
         component->setBus(this);
+    }
+    void setDMAAddressRead(Tick tick, UInt16 address, int channel)
+    {
+        setAddressReadMemory(tick, address | highAddress(tick, channel));
+    }
+    void setDMAAddressWrite(Tick tick, UInt16 address, int channel)
+    {
+        setAddressWriteMemory(tick, address | highAddress(tick, channel));
     }
     void setAddressReadMemory(Tick tick, UInt32 address)
     {
@@ -270,6 +281,12 @@ public:
     Intel8259PIC* getPIC() { return _pic; }
     void maintain(Tick ticks) { _dmaTick -= ticks; }
 private:
+    UInt32 highAddress(Tick tick, int channel)
+    {
+        this->_pageRegisters->runTo(tick);
+        return this->_pageRegisters->pageForChannel(channel) << 16;
+    }
+
     CPUSocket _cpuSocket;
     DMAPageRegistersSocket _dmaPageRegistersSocket;
     Connector _connector;
@@ -285,12 +302,6 @@ private:
     DMAPageRegisters* _dmaPageRegisters;
     Intel8259PIC* _pic;
     Tick _dmaTick;
-
-    //UInt32 getAddress() const
-    //{
-    //    return _channels[_channel].currentAddress() |
-    //        (this->_pageRegisters->pageForChannel(_channel) << 16);
-    //}
 
     class Choice : public ISA8BitComponent
     {

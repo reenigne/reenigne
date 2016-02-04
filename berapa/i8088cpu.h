@@ -1861,7 +1861,8 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(Intel8088CPU* cpu) : ConnectorBase(cpu), _cpu(cpu) { }
+        Connector(Intel8088CPU* cpu)
+          : ConnectorBase<Connector>(cpu), _cpu(cpu) { }
         static String typeName() { return "Intel8088CPU.Connector"; }
         static auto protocolDirection()
         {
@@ -1946,7 +1947,7 @@ private:
                     v.add(Value(IntegerType(), static_cast<int>(
                         cpu->_prefetchQueue[(i + cpu->_prefetchOffset) & 3])));
                 }
-                return Value(type(), v);
+                return Value(this->type(), v);
             }
         };
     };
