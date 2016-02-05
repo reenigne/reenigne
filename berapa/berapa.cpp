@@ -690,7 +690,8 @@ public:
 
 // For sub-components (like RAM) the type doesn't create the component, it just
 // returns the pointer to the member of the parent component.
-template<class C> class SubComponent : public ComponentBase<C>
+template<class C, template<class> class B = ComponentBase> class SubComponent
+  : public B<C>
 {
 public:
     SubComponent(Component::Type type) : ComponentBase<C>(type) { }
@@ -756,6 +757,9 @@ public:
     ClockedComponentBase(Component::Type t) : ClockedComponent(t) { }
     typedef Component::TypeHelper<C> Type;
 };
+
+template<class C> using ClockedSubComponent =
+    SubComponent<C, ClockedComponentBase>;
 
 template<class T> class SimpleProtocol
   : public ProtocolBase<SimpleProtocol<T>> { };

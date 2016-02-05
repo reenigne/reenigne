@@ -1,12 +1,33 @@
 Connector
+  TransportConnector
+    ConnectorBase<BidirectionalConnector<T>, TransportConnector>
+      TransportConnectorBase<BidirectionalConnector<T>, T>
+        BidirectionalConnector<T>
+          ConnectorBase<C, BidirectionalConnector<T>>
+            TransportConnectorBase<C, T, BidirectionalConnector<T>>
+              C = OutputConnector<T>
+                OptimizedOutputConnector<T>
 
 Structure
   Component
     ComponentBase<C>
-      Subcomponent<C>
+      TransportComponentBase<C, T>
+        BooleanComponent<T, C>
+          C = AndComponent<T>
+          C = OrComponent<T>
+        C = NotComponent<T>
+        C = BucketComponent<T>
+        C = ConstantComponent<T>
+        C = FanoutComponent<T>
+      SubComponent<C>
+      C = SRLatch
+    ClockedComponent
+      ClockedComponentBase<C>
+        ClockedSubComponent = SubComponent<C, ClockedComponentBase>
 
 ConstHandle
   Tyco
     Type
       Component::Type
+        Component::TypeHelper<C>
       Connector::Type
