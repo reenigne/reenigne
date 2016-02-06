@@ -271,6 +271,8 @@ public:
     };
 };
 
+class ClockedComponent;
+
 template<class T> class ComponentT : public Structure
 {
 public:
@@ -323,7 +325,7 @@ public:
         const Body* body() const { return as<Body>(); }
     };
     ComponentT(Type type)
-      : _type(type), _simulator(type.simulator()), _ticksPerCycle(0),
+      : _type(type), _simulator(type.simulator()),
         _defaultConnector(0), _loopCheck(false)
     {
         persist("tick", &_tick);
@@ -331,12 +333,6 @@ public:
     virtual void runTo(Tick tick) { _tick = tick; }
     virtual void maintain(Tick ticks) { _tick -= ticks; }
     String name() const { return _name; }
-    virtual Rational cyclesPerSecond() const { return 0; }
-    void setTicksPerCycle(Tick ticksPerCycle)
-    {
-        _ticksPerCycle = ticksPerCycle;
-        _tick = 0;
-    }
     void set(Identifier name, Value value, Span span)
     {
         String n = name.name();
@@ -505,6 +501,10 @@ public:
     virtual bool subLoopCheck() { return false; }
 
     Tick _tick;
+    virtual List<ClockedComponent*> enumerateClocks()
+    {
+        return List<ClockedComponent*>();
+    }
 
 protected:
     void connector(String name, ConnectorT<T>* p)
@@ -565,7 +565,6 @@ protected:
     {
         _persist.add(name, Member(static_cast<void*>(p), initial));
     }
-    Tick _ticksPerCycle;
 private:
     class PersistenceType : public StructuredType
     {
@@ -694,8 +693,8 @@ template<class C, template<class> class B = ComponentBase> class SubComponent
   : public B<C>
 {
 public:
-    SubComponent(Component::Type type) : ComponentBase<C>(type) { }
-    class Type : public ComponentBase<C>::Type
+    SubComponent(Component::Type type) : B<C>(type) { }
+    class Type : public B<C>::Type
     {
     public:
         Type(Simulator* simulator, C* c = 0)
@@ -707,7 +706,7 @@ public:
         {
         public:
             Body(Simulator* simulator, C* c)
-              : ComponentBase<C>::Type::Body(simulator), _c(c) { }
+              : B<C>::Type::Body(simulator), _c(c) { }
             Value convert(const Value& value) const
             {
                 return Value(this->type(), static_cast<Structure*>(_c),
@@ -742,13 +741,28 @@ Type connectorTypeFromType(Type t)
 class ClockedComponent : public Component
 {
 public:
-    ClockedComponent(Type type) : Component(type)
+    ClockedComponent(Type type) : Component(type), _ticksPerCycle(0)
     {
         config("frequency", &_cyclesPerSecond, (1/second).type());
+        config("offset", &_offset, RationalType());
     }
     Rational cyclesPerSecond() const { return _cyclesPerSecond; }
+    void setTicksPerCycle(Tick ticksPerCycle)
+    {
+        _ticksPerCycle = ticksPerCycle;
+        _tick = 0;
+    }
+    List<ClockedComponent*> enumerateClocks()
+    {
+        List<ClockedComponent*> r;
+        r.add(this);
+        return r;
+    }
+protected:
+    Tick _ticksPerCycle;
 private:
     Rational _cyclesPerSecond;
+    Rational _offset;
 };
 
 template<class C> class ClockedComponentBase : public ClockedComponent
@@ -933,7 +947,7 @@ public:
     }
 };
 
-template<class T, class C> class BooleanComponent
+template<class C, class T> class BooleanComponent
   : public TransportComponentBase<C, T>
 {
 public:
@@ -1000,9 +1014,9 @@ public:
 };
 
 template<class T> class AndComponent
-  : public BooleanComponent<T, AndComponent<T>>
+  : public BooleanComponent<AndComponent<T>, T>
 {
-    using Base = BooleanComponent<T, AndComponent<T>>;
+    using Base = BooleanComponent<AndComponent<T>, T>;
 public:
     static String tycoName() { return "And"; }
     AndComponent(Component::Type type) : Base(type) { }
@@ -1041,9 +1055,9 @@ public:
 };
 
 template<class T> class OrComponent
-  : public BooleanComponent<T, OrComponent<T>>
+  : public BooleanComponent<OrComponent<T>, T>
 {
-    using Base = BooleanComponent<T, OrComponent<T>>;
+    using Base = BooleanComponent<OrComponent<T>, T>;
 public:
     static String tycoName() { return "Or"; }
     OrComponent(Component::Type type) : Base(type) { }
@@ -1181,6 +1195,16 @@ public:
                 }
                 this->simulator()->connect(&_input, c, span);
             }
+    }
+    bool subLoopCheck()
+    {
+        for (auto i : _output)
+            if (i.loopCheck())
+                return true;
+        for (auto i : _bidirectional)
+            if (i.loopCheck())
+                return true;
+        return true;
     }
 private:
     class InputConnector : public ::InputConnector<T>

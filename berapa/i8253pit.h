@@ -44,7 +44,7 @@ public:
         }
     }
 private:
-    class Timer : public SubComponent<Timer>
+    class Timer : public ClockedSubComponent<Timer>
     {
     public:
         static String typeName() { return "Timer"; }
