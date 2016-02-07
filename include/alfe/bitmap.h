@@ -26,7 +26,8 @@ protected:
         virtual void save(Bitmap<Pixel>& bitmap, const File& file) = 0;
         virtual Bitmap<Pixel> load(const File& file) = 0;
     };
-    BitmapFileFormat(Body* body) : Handle(body) { }
+    BitmapFileFormat(const Handle& handle) : Handle(handle) { }
+    Body* body() { return as<Body>(); }
 private:
     friend class Bitmap<Pixel>;
 };
@@ -37,7 +38,8 @@ typedef RawFileFormatTemplate<SRGB> RawFileFormat;
 template<class T> class RawFileFormatTemplate : public BitmapFileFormat<T>
 {
 public:
-    RawFileFormatTemplate(Vector size) : BitmapFileFormat(new Body(size)) { }
+    RawFileFormatTemplate(Vector size)
+      : BitmapFileFormat(create<Body>(size)) { }
 private:
     class Body : public BitmapFileFormat::Body
     {
@@ -84,7 +86,7 @@ public:
         _stride = size.x*sizeof(Pixel);
         _size = size;
         allocate(size.x*size.y);
-        _topLeft = reinterpret_cast<Byte*>(&(*this)[0]);
+        _topLeft = reinterpret_cast<Byte*>(&Array<Pixel>::operator[](0));
     }
 
     // Convert from one pixel format to another.

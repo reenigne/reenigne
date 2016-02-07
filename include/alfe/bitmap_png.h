@@ -10,7 +10,7 @@
 template<class T> class PNGFileFormat : public BitmapFileFormat<T>
 {
 public:
-    PNGFileFormat() : BitmapFileFormat(new Body) { }
+    PNGFileFormat() : BitmapFileFormat(create<Body>()) { }
 private:
     class Body : public BitmapFileFormat::Body
     {

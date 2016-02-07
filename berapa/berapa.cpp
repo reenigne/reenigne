@@ -501,6 +501,7 @@ public:
     virtual bool subLoopCheck() { return false; }
 
     Tick _tick;
+    Tick _initialTick;
     virtual List<ClockedComponent*> enumerateClocks()
     {
         return List<ClockedComponent*>();
@@ -564,6 +565,10 @@ protected:
         Value initial = Value(typeFromCompileTimeType<C>()))
     {
         _persist.add(name, Member(static_cast<void*>(p), initial));
+    }
+    void setInitialTick(Tick tick)
+    {
+        _persist["tick"]._initial = Value(tick);
     }
 private:
     class PersistenceType : public StructuredType
@@ -744,13 +749,17 @@ public:
     ClockedComponent(Type type) : Component(type), _ticksPerCycle(0)
     {
         config("frequency", &_cyclesPerSecond, (1/second).type());
-        config("offset", &_offset, RationalType());
+        config("startupCycles", &_offset, RationalType());
     }
     Rational cyclesPerSecond() const { return _cyclesPerSecond; }
-    void setTicksPerCycle(Tick ticksPerCycle)
+    Rational startupCycles() const { return _offset; }
+    void setTicksPerCycle(int ticksPerCycle)
     {
         _ticksPerCycle = ticksPerCycle;
-        _tick = 0;
+        Rational t = _offset*ticksPerCycle;
+        if (t.denominator != 1)
+            throw Exception("Scheduler LCM calculation incorrect");
+        setInitialTick(t.numerator);
     }
     List<ClockedComponent*> enumerateClocks()
     {
@@ -866,6 +875,7 @@ public:
         fanout->connect(o, span);
     }
     bool canBeDisconnected() const { return false; }
+    bool loopCheck() { return _otherComponent->loopCheck(); }
     BidirectionalConnector<T>* _other;
     Component* _otherComponent;
 };
@@ -883,7 +893,6 @@ public:
     OutputConnector(Component* c) : TransportConnectorBase<OutputConnector<T>,
         T, BidirectionalConnector<T>>(c) { }
     void setData(Tick t, T v) { }
-    bool loopCheck() { return this->_otherComponent->loopCheck(); }
 };
 
 template<class T> class OptimizedOutputConnector : public OutputConnector<T>
@@ -1558,26 +1567,34 @@ public:
             }
         }
         for (auto i : _components) {
-            Rational cyclesPerSecond = i->cyclesPerSecond();
-            if (cyclesPerSecond != 0)
+            auto clocks = i->enumerateClocks();
+            for (auto c : clocks) {
+                Rational cyclesPerSecond = c->cyclesPerSecond();
                 if (_ticksPerSecond == 0)
                     _ticksPerSecond = cyclesPerSecond;
                 else
                     _ticksPerSecond = lcm(_ticksPerSecond, cyclesPerSecond);
+                Rational f = cyclesPerSecond*c->startupCycles();
+                if (f != 0)
+                    _ticksPerSecond = lcm(_ticksPerSecond, f);
+            }
         }
         if (_ticksPerSecond == 0)
             throw Exception("None of the components is clocked!");
         for (auto i : _components) {
-            Rational cyclesPerSecond = i->cyclesPerSecond();
-            if (cyclesPerSecond != 0) {
-                Rational t = _ticksPerSecond / cyclesPerSecond;
-                if (t.denominator != 1)
-                    throw Exception("Scheduler LCM calculation incorrect");
-                int ticksPerCycle = t.numerator;
-                i->setTicksPerCycle(ticksPerCycle);
+            auto clocks = i->enumerateClocks();
+            for (auto c : clocks) {
+                Rational cyclesPerSecond = c->cyclesPerSecond();
+                if (cyclesPerSecond != 0) {
+                    Rational t = _ticksPerSecond / cyclesPerSecond;
+                    if (t.denominator != 1)
+                        throw Exception("Scheduler LCM calculation incorrect");
+                    int ticksPerCycle = t.numerator;
+                    c->setTicksPerCycle(ticksPerCycle);
+                }
+                else
+                    c->setTicksPerCycle(0);
             }
-            else
-                i->setTicksPerCycle(0);
         }
 
         Value value;

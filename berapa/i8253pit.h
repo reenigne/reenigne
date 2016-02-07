@@ -1,15 +1,21 @@
 class Intel8253PIT : public ISA8BitComponentBase<Intel8253PIT>
 {
+    using Base = ISA8BitComponentBase<Intel8253PIT>;
 public:
     static String typeName() { return "Intel8253PIT"; }
     Intel8253PIT(Component::Type type)
-      : ISA8BitComponentBase<Intel8253PIT>(type),
-        _timers{Timer::Type(this->simulator()), Timer::Type(this->simulator()),
-            Timer::Type(this->simulator())}
+      : Base(type), _timers{Timer::Type(this->simulator()),
+            Timer::Type(this->simulator()), Timer::Type(this->simulator())}
     {
         this->persist("address", &_address);
         this->persist("timers", &_timers[0],
             ArrayType(_timers[0].persistenceType(), 3));
+        config("timer0", &_timers[0],
+            Timer::Type(this->simulator(), &_timers[0]));
+        config("timer1", &_timers[1],
+            Timer::Type(this->simulator(), &_timers[1]));
+        config("timer2", &_timers[2],
+            Timer::Type(this->simulator(), &_timers[2]));
     }
     void simulateCycle()
     {
@@ -30,8 +36,7 @@ public:
     {
         if (_address < 3)
             return _timers[_address].read();
-        // TODO
-        return 0xff;
+        return 0xff;  // Tristate according to datasheet
     }
     void writeIO(Tick tick, UInt8 data)
     {
@@ -42,6 +47,14 @@ public:
             if (timer < 3)
                 _timers[timer].control(data & 0x3f);
         }
+    }
+    List<ClockedComponent*> enumerateClocks()
+    {
+        auto r = Base::enumerateClocks();
+        r.add(&_timers[0]);
+        r.add(&_timers[1]);
+        r.add(&_timers[2]);
+        return r;
     }
 private:
     class Timer : public ClockedSubComponent<Timer>
