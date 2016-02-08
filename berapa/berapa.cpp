@@ -68,9 +68,32 @@ public:
     operator String() const { return decimal(_t); }
     Tick operator-() const { return Tick(-_t); }
     Tick operator*(int other) { return Tick(_t*other); }
-    typedef IntegerType Type;
+
+    class Type : public NamedNullary<IntegerType, Type>
+    {
+    public:
+        static String name() { return "Tick"; }
+        class Body : public NamedNullary<IntegerType, Type>::Body
+        {
+        public:
+            String serialize(void* p, int width, int used, int indent,
+                int delta) const
+            {
+                return decimal(static_cast<Tick*>(p)->_t);
+            }
+            void deserialize(const Value& value, void* p) const
+            {
+                static_cast<Tick*>(p)->_t = value.value<Base>();
+            }
+            int size() const { return sizeof(int); }
+            Value defaultValue() const { return Tick(0); }
+            Value value(void* p) const { return static_cast<Tick*>(p)->_t; }
+        };
+    };
 private:
     Base _t;
+    bool operator==(const Tick& other) const { return _t == other._t; }
+    friend class Any;
 };
 template<> Type typeFromCompileTimeType<Tick>() { return Tick::Type(); }
 
@@ -356,7 +379,7 @@ public:
     {
     public:
         TypeHelper(Simulator* simulator)
-            : Type(TypeHelper::template create<Body>(simulator)) { }
+          : Type(TypeHelper::template create<Body>(simulator)) { }
         TypeHelper(const ConstHandle& other) : Type(other) { }
     protected:
         class Body : public Type::Body
@@ -630,7 +653,7 @@ private:
                     _component->simulator()->connect(l, r, span);
                     return Value();
                 }
-                auto r = dynamic_cast<ConnectorT<T>*>(i->value<Structure*>());
+                auto r = i->value<ConnectorT<T>*>();
                 if (!lt.canConvertFrom(r->getValue().type(), &reason))
                     span.throwError(reason);
                 _component->simulator()->connect(l, r, span);
@@ -1213,7 +1236,7 @@ public:
         for (auto i : _bidirectional)
             if (i.loopCheck())
                 return true;
-        return true;
+        return false;
     }
 private:
     class InputConnector : public ::InputConnector<T>
@@ -1570,6 +1593,8 @@ public:
             auto clocks = i->enumerateClocks();
             for (auto c : clocks) {
                 Rational cyclesPerSecond = c->cyclesPerSecond();
+                if (cyclesPerSecond == 0)
+                    continue;
                 if (_ticksPerSecond == 0)
                     _ticksPerSecond = cyclesPerSecond;
                 else
@@ -1797,6 +1822,7 @@ private:
 #include "i8088cpu.h"
 #include "cga.h"
 #include "rgbi_monitor.h"
+#include "one_bit_speaker.h"
 
 class Program : public ProgramBase
 {
@@ -1846,11 +1872,13 @@ protected:
         componentTypes.add(RGBIMonitor::Type(p));
         componentTypes.add(SRLatch::Type(p));
         componentTypes.add(ROM::Type(p));
+        componentTypes.add(OneBitSpeaker::Type(p));
 
         ConfigFile configFile;
         configFile.addDefaultOption("stopSaveState", StringType(), String(""));
         configFile.addDefaultOption("initialState", StringType(), String(""));
         configFile.addType(second.type(), TycoIdentifier("Time"));
+        configFile.addType((1/second).type(), TycoIdentifier("Frequency"));
         configFile.addFunco(AndComponentFunco(p));
         configFile.addFunco(OrComponentFunco(p));
         configFile.addFunco(NotComponentFunco(p));

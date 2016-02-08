@@ -192,6 +192,7 @@
       <FileType>CppHeader</FileType>
     </ClInclude>
     <ClInclude Include="dma_page_registers.h" />
+    <ClInclude Include="one_bit_speaker.h" />
     <ClInclude Include="ram.h" />
     <ClInclude Include="isa_8_bit_bus.h" />
     <ClInclude Include="nmi_switch.h" />

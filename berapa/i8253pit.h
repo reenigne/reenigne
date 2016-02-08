@@ -61,7 +61,8 @@ private:
     {
     public:
         static String typeName() { return "Timer"; }
-        Timer(Component::Type type) : SubComponent(type)
+        Timer(Component::Type type)
+          : ClockedSubComponent<Timer>(type), _gateConnector(this), _output(this)
         {
             persist("value", &_value);
             persist("latch", &_latch);
@@ -71,7 +72,6 @@ private:
             persist("lowCount", &_lowCount);
             persist("firstByte", &_firstByte);
             persist("gate", &_gate);
-            persist("output", &_output);
             persist("latched", &_latched);
 
             typename EnumerationType<State>::Helper h;
@@ -87,7 +87,8 @@ private:
                 EnumerationType<State>("State", h,
                     Intel8253PIT::typeName() + "." + typeName() + "."));
 
-            setGate(true);
+            connector("gate", &_gateConnector);
+            connector("output", &_output);
         }
         void simulateCycle()
         {
@@ -99,13 +100,13 @@ private:
                         break;
                     countDown();
                     if (_value == 0)
-                        setOutput(true);
+                        _output.set(_tick, true);
                     break;
                 case stateStopped1:
                     break;
                 case stateStart1:
                     _value = _count;
-                    setOutput(false);
+                    _output.set(_tick, false);
                     _state = stateCounting1;
                     break;
                 case stateCounting1:
@@ -113,7 +114,7 @@ private:
                         _value = _count;
                     countDown();
                     if (_value == 0)
-                        setOutput(true);
+                        _output.set(_tick, true);
                     break;
                 case stateStopped2:
                     break;
@@ -127,19 +128,19 @@ private:
                 case stateCounting2:
                     if (!_gate)
                     {
-                        setOutput(true);
+                        _output.set(_tick, true);
                         _state = stateGateLow2;
                         break;
                     }
                     if(_value == 1)
                     {
-                        setOutput(true);
+                        _output.set(_tick, true);
                         _value = _count;
                         break;
                     }
                     countDown();
                     if (_value == 1)
-                        setOutput(false);
+                        _output.set(_tick, false);
                     break;
             }
         }
@@ -216,19 +217,19 @@ private:
             switch ((data >> 1) & 7) {
                 case 0:
                     _state = stateStopped0;
-                    setOutput(false);
+                    _output.set(_tick, false);
                     break;
                 case 1:
                     _state = stateStopped1;
-                    setOutput(true);
+                    _output.set(_tick, true);
                     break;
                 case 2:
                     _state = stateStopped2;
-                    setOutput(true);
+                    _output.set(_tick, true);
                     break;
             }
         }
-        void setGate(bool gate)
+        void setGate(Tick tick, bool gate)
         {
             switch (_state) {
                 case stateStopped0:
@@ -243,7 +244,6 @@ private:
             }
             _gate = gate;
         }
-    private:
         enum State
         {
             stateStopped0,
@@ -295,14 +295,16 @@ private:
             }
             _value -= (0x1000 - 0x999);
         }
-        void setOutput(bool output)
+
+        class Connector : public InputConnector<bool>
         {
-            if (output != _output) {
-                _output = output;
-                outputChanged(output);
+        public:
+            Connector(Timer* c) : InputConnector<bool>(c) { }
+            void setData(Tick tick, bool v)
+            {
+                static_cast<Timer*>(component())->setGate(tick, v);
             }
-        }
-        void outputChanged(bool output) { }
+        };
 
         UInt16 _value;
         UInt16 _latch;
@@ -312,9 +314,11 @@ private:
         UInt8 _lowCount;
         bool _firstByte;
         bool _gate;
-        bool _output;
         bool _latched;
         State _state;
+
+        Connector _gateConnector;
+        OptimizedOutputConnector<bool> _output;
     };
     Timer _timers[3];
     int _address;

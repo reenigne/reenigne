@@ -10,12 +10,10 @@ public:
     {
         _mode = 0x1b;
         for (int i = 0; i < 3; ++i) {
-            _bytes[i]._ppi = this;
             _bytes[i]._i = i;
             this->connector(codePoint('a' + i), &_bytes[i]);
         }
         for (int i = 0; i < 24; ++i) {
-            _bits[i]._ppi = this;
             _bits[i]._i = i;
             this->connector(String(codePoint('a' + (i >> 3))) + decimal(i & 7),
                 &_bits[i]);
@@ -146,9 +144,11 @@ private:
     template<class U> class Connector : public BidirectionalConnector<U>
     {
     public:
-        Connector(Component* c) : BidirectionalConnector<U>(c) { }
-        void setData(Tick tick, U v) { _ppi->setData(_i, v); }
-        Intel8255PPI* _ppi;
+        Connector(Intel8255PPI* c) : BidirectionalConnector<U>(c) { }
+        void setData(Tick tick, U v)
+        {
+            static_cast<Intel8255PPI*>(component())->setData(_i, v);
+        }
         int _i;
     };
     void outgoing(int i, UInt8 v)

@@ -53,6 +53,11 @@ public:
         h.add(stateYield, "yield");
         this->persist("state", &_state,
             EnumerationType<State>("State", h, typeName() + "."));
+
+        for (int i = 0; i < 4; ++i) {
+            connector("dreq" + decimal(i), &_channels[i]._dReq);
+            connector("dack" + decimal(i), &_channels[i]._dAck);
+        }
     }
 
     void simulateCycle()
@@ -311,7 +316,8 @@ private:
     {
     public:
         static String typeName() { return "Channel"; }
-        Channel(Component::Type type) : SubComponent<Channel>(type)
+        Channel(Component::Type type)
+          : SubComponent<Channel>(type), _dAck(this), _dReq(this)
         {
             this->persist("mode", &_mode);
             this->persist("baseAddress", &_baseAddress);
@@ -403,7 +409,20 @@ private:
             return static_cast<TransferMode>((_mode >> 6) & 3);
         }
         bool terminalCount() const { return _terminalCount; }
-    private:
+        void setDReq(Tick tick, bool v)
+        {
+            // TODO
+        }
+        class Connector : public InputConnector<bool>
+        {
+        public:
+            Connector(Channel* c) : InputConnector<bool>(c) { }
+            void setData(Tick tick, bool v)
+            {
+                static_cast<Channel*>(component())->setDReq(tick, v);
+            }
+        };
+
         Byte _mode;
         UInt16 _baseAddress;
         UInt16 _baseCount;
@@ -415,6 +434,8 @@ private:
         bool _mask;
         bool _terminalCount;
         bool _blockContinue;
+        OutputConnector<bool> _dAck;
+        Connector _dReq;
     };
 
     bool memoryToMemory() const { return (_command & 1) != 0; }
