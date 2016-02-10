@@ -91,3 +91,6 @@ Components should not refer to each other directly
   Actually, this should be left up to the component implementations. If there's only one component that could be connected to a given connector, the owning component can have a pointer to the connected component.
     But we need to be careful to eliminate these pointers when adding a second component
 
+Eventually replace clocks with Transport<bool> connectors?
+  Perhaps once PeriodicProtocol is supported by everything
+  This would be useful for the CGA's CRTC clock

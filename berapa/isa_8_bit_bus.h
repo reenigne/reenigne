@@ -9,11 +9,11 @@ class DMAPageRegistersProtocol : public ProtocolBase<DMAPageRegistersProtocol>
 { };
 class CPU8088Protocol : public ProtocolBase<CPU8088Protocol> { };
 
-template<class T> class ISA8BitComponentT : public ClockedComponent
+template<class T> class ISA8BitComponentT : public Component
 {
 public:
     ISA8BitComponentT(Component::Type type, bool noConnectorName)
-      : ClockedComponent(type), _connector(this)
+      : Component(type), _connector(this)
     {
         if (noConnectorName)
             connector("", &_connector);
@@ -67,19 +67,17 @@ public:
     {
     public:
         Connector(ISA8BitComponentT* component)
-          : ConnectorBase<Connector>(component), _component(component) { }
+          : ConnectorBase<Connector>(component) { }
         void connect(::Connector* other)
         {
             dynamic_cast<typename ISA8BitBusT<T>::Connector*>(other)
-                ->busConnect(_component);
+                ->busConnect(static_cast<ISA8BitComponent*>(component()));
         }
         static String typeName() { return "ISA8BitConnector"; }
         static auto protocolDirection()
         {
             return ProtocolDirection(ISA8BitProtocol(), false);
         }
-    private:
-        ISA8BitComponent* _component;
     };
 
 protected:
@@ -92,7 +90,7 @@ template<class C> class ISA8BitComponentBase : public ISA8BitComponent
 public:
     ISA8BitComponentBase(Component::Type type, bool noConnectorName = false)
       : ISA8BitComponent(type, noConnectorName) { }
-    typedef typename ClockedComponentBase<C>::Type Type;
+    typedef typename ComponentBase<C>::Type Type;
 };
 
 class NoISA8BitComponent : public ISA8BitComponentBase<NoISA8BitComponent>
@@ -131,8 +129,7 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(ISA8BitBus* bus)
-          : ConnectorBase<Connector>(bus), _bus(bus) { }
+        Connector(ISA8BitBus* bus) : ConnectorBase<Connector>(bus) { }
         static String typeName() { return "ISA8BitBus.Connector"; }
         static auto protocolDirection()
         {
@@ -140,11 +137,9 @@ public:
         }
         static auto canConnectMultiple() { return true; }
     protected:
-        ISA8BitBus* _bus;
-
         virtual void busConnect(ISA8BitComponent* component)
         {
-            _bus->addComponent(component);
+            static_cast<ISA8Bit*>(component())->addComponent(component);
         }
         template<class U> friend class ISA8BitComponentT<U>::Connector;
     };
@@ -167,21 +162,19 @@ public:
     class CPUSocket : public ConnectorBase<CPUSocket>
     {
     public:
-        CPUSocket(ISA8BitBus* bus)
-          : ConnectorBase<CPUSocket>(bus), _bus(bus) { }
+        CPUSocket(ISA8BitBus* bus) : ConnectorBase<CPUSocket>(bus) { }
         static String typeName() { return "ISA8BitBus.CPUSocket"; }
         static auto protocolDirection()
         {
             return ProtocolDirection(CPU8088Protocol(), false);
         }
-        ISA8BitBus* _bus;
     };
 
     class DMAPageRegistersSocket : public ConnectorBase<DMAPageRegistersSocket>
     {
     public:
         DMAPageRegistersSocket(ISA8BitBus* bus)
-          : ConnectorBase<DMAPageRegistersSocket>(bus), _bus(bus) { }
+          : ConnectorBase<DMAPageRegistersSocket>(bus) { }
         static String typeName()
         {
             return "ISA8BitBus.DMAPageRegistersSocket";
@@ -190,7 +183,6 @@ public:
         {
             return ProtocolDirection(DMAPageRegistersProtocol(), false);
         }
-        ISA8BitBus* _bus;
     };
 
     void addComponent(ISA8BitComponent* component)

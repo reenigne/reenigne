@@ -30,7 +30,7 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(DMAPageRegisters* c) : ConnectorBase<Connector>(c), _c(c) { }
+        Connector(DMAPageRegisters* c) : ConnectorBase<Connector>(c) { }
         static String typeName() { return "DMAPageRegisters.Connector"; }
         static auto protocolDirection()
         {
@@ -40,10 +40,9 @@ public:
         void connect(::Connector* other)
         {
             static_cast<ISA8BitBus::DMAPageRegistersSocket*>(other)->_bus->
-                setDMAPageRegisters(_c);
+                setDMAPageRegisters(static_cast<DMAPageRegisters*>(
+                    component());
         }
-    private:
-        DMAPageRegisters* _c;
     };
 private:
     int _address;

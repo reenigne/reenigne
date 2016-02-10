@@ -41,38 +41,36 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(PCXTKeyboardPort* p)
-          : ConnectorBase<Connector>(p), _port(p) { }
+        Connector(PCXTKeyboardPort* p) : ConnectorBase<Connector>(p) { }
         static String typeName() { return "PCXTKeyboardPort.Connector"; }
         static auto protocolDirection()
         {
             return ProtocolDirection(PCXTKeyboardProtocol(), false);
         }
-        PCXTKeyboardPort* _port;
     protected:
         void connect(::Connector* other)
         {
-            _port->_keyboard =
+            static_cast<PCXTKeyboardPort*>(component())->_keyboard =
                 static_cast<PCXTKeyboard::Connector*>(other)->_keyboard;
         }
     };
     class ClearConnector : public InputConnector<bool>
     {
     public:
-        ClearConnector(PCXTKeyboardPort* p)
-          : InputConnector<bool>(p), _port(p) { }
-        void setData(Tick t, bool v) { _port->setClear(t, v); }
-    private:
-        PCXTKeyboardPort* _port;
+        ClearConnector(PCXTKeyboardPort* p) : InputConnector<bool>(p) { }
+        void setData(Tick t, bool v)
+        {
+            static_cast<PCXTKeyboardPort*>(component())->setClear(t, v);
+        }
     };
     class ClockConnector : public InputConnector<bool>
     {
     public:
-        ClockConnector(PCXTKeyboardPort* p)
-          : InputConnector<bool>(p), _port(p) { }
-        void setData(Tick t, bool v) { _port->setClock(t, v); }
-    private:
-        PCXTKeyboardPort* _port;
+        ClockConnector(PCXTKeyboardPort* p) : InputConnector<bool>(p) { }
+        void setData(Tick t, bool v)
+        {
+            static_cast<PCXTKeyboardPort*>(component())->setClock(t, v);
+        }
     };
 
     void setClear(Tick t, bool clear)

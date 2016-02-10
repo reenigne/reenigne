@@ -53,7 +53,7 @@ template<class T> class SDLRendererT
 public:
     SDLRendererT(SDLWindow* window)
     {
-        _renderer = SDL_CreateRenderer(window->_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        _renderer = SDL_CreateRenderer(window->_window, -1, 0);
         IF_ZERO_THROW_SDL(_renderer, "Creating SDL renderer");
     }
     ~SDLRendererT() { SDL_DestroyRenderer(_renderer); }

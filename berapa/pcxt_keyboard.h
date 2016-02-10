@@ -13,19 +13,18 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(PCXTKeyboard* k)
-          : ConnectorBase<Connector>(k), _keyboard(k) { }
+        Connector(PCXTKeyboard* k) : ConnectorBase<Connector>(k) { }
         static String typeName() { return "PCXTKeyboard.Connector"; }
         static auto protocolDirection()
         {
             return ProtocolDirection(PCXTKeyboardProtocol(), true);
         }
-        PCXTKeyboard* _keyboard;
     protected:
         void connect(::Connector* other)
         {
-            _keyboard->_port = static_cast<typename
-                PCXTKeyboardPortT<T>::Connector*>(other)->_port;
+            static_cast<PCXTKeyboard*>(component())->_port =
+                static_cast<typename PCXTKeyboardPortT<T>::Connector*>(other)->
+                _port;
         }
     };
 private:

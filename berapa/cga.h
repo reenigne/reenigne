@@ -31,7 +31,8 @@ public:
       : ISA8BitComponentBase<IBMCGA>(type), _attr(0), _chrdata(0),
         _wait(0), _cycle(0), _bgri(0), _lightPenStrobe(false),
         _lightPenSwitch(true), _bgriSource(this),
-        _ram(RAM::Type(this->simulator())), _rgbiConnector(this)
+        _ram(RAM::Type(this->simulator())), _rgbiConnector(this),
+        _clock(Clock::Type(this->simulator()))
     {
         this->config("rom", &_rom);
         this->persist("memoryAddress", &_memoryAddress, HexPersistenceType(4));
@@ -40,6 +41,8 @@ public:
         this->persist("palette", &_palette);
         this->persist("ram", &_ram, _ram.persistenceType());
         this->config("ram", &_ram, RAM::Type(this->simulator(), &_ram));
+        this->config("clock", &_clock,
+            Clock::Type(this->simulator(), &_clock));
         this->connector("rgbiOutput", &_rgbiConnector);
     }
     void load(const Value& v)
@@ -180,7 +183,7 @@ public:
     class RGBIConnector : public ConnectorBase<RGBIConnector>
     {
     public:
-        RGBIConnector(IBMCGA* cga) : ConnectorBase(cga), _cga(cga) { }
+        RGBIConnector(IBMCGA* cga) : ConnectorBase(cga) { }
         void connect(::Connector* other)
         {
             // TODO
@@ -190,8 +193,6 @@ public:
         {
             return ProtocolDirection(RGBIProtocol(), true);
         }
-    private:
-        IBMCGA* _cga;
     };
 
 private:
@@ -221,4 +222,5 @@ private:
     BGRISource _bgriSource;
     CompositeSource _compositeSource;
     RAM _ram;
+    Clock _clock;
 };

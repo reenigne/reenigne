@@ -30,11 +30,12 @@ public:
     class Connector : public InputConnector<bool>
     {
     public:
-        Connector(Intel8259PIC* pic) : InputConnector(pic), _pic(pic) { }
+        Connector(Intel8259PIC* pic) : InputConnector(pic) { }
         void init(int i) { _i = i; }
-        void setData(Tick t, bool v) { _pic->setIRQ(t, _i, v); }
-
-        Intel8259PIC* _pic;
+        void setData(Tick t, bool v)
+        {
+            static_cast<Intel8259PIC*>(component())->setIRQ(t, _i, v);
+        }
         int _i;
     };
     void setIRQ(Tick t, int i, bool v)

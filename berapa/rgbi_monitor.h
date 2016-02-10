@@ -68,8 +68,7 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(RGBIMonitor* monitor)
-          : ConnectorBase(monitor), _monitor(monitor) { }
+        Connector(RGBIMonitor* monitor) : ConnectorBase(monitor) { }
         void connect(::Connector* other)
         {
             // TODO
@@ -79,8 +78,6 @@ public:
         {
             return ProtocolDirection(RGBIProtocol(), false);
         }
-    private:
-        RGBIMonitor* _monitor;
     };
 
     class BGRISink : public Sink<BGRI>

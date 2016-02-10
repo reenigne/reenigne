@@ -48,14 +48,6 @@ public:
                 _timers[timer].control(data & 0x3f);
         }
     }
-    List<ClockedComponent*> enumerateClocks()
-    {
-        auto r = Base::enumerateClocks();
-        r.add(&_timers[0]);
-        r.add(&_timers[1]);
-        r.add(&_timers[2]);
-        return r;
-    }
 private:
     class Timer : public ClockedSubComponent<Timer>
     {
@@ -83,6 +75,9 @@ private:
             h.add(stateStopped2,  "stopped2");
             h.add(stateGateLow2,  "gateLow2");
             h.add(stateCounting2, "counting2");
+            h.add(stateStopped3,  "stopped3");
+            h.add(stateStopped4,  "stopped4");
+            h.add(stateStopped5,  "stopped5");
             persist("state", &_state,
                 EnumerationType<State>("State", h,
                     Intel8253PIT::typeName() + "." + typeName() + "."));
@@ -214,18 +209,32 @@ private:
             }
             _bcd = ((data & 1) != 0);
             _bytes = command;
-            switch ((data >> 1) & 7) {
-                case 0:
+            switch (data & 0xe) {
+                case 0x0:
                     _state = stateStopped0;
                     _output.set(_tick, false);
                     break;
-                case 1:
+                case 0x2:
                     _state = stateStopped1;
                     _output.set(_tick, true);
                     break;
-                case 2:
+                case 0x4:
+                case 0xc:
                     _state = stateStopped2;
                     _output.set(_tick, true);
+                    break;
+                case 0x6:
+                case 0xf:
+                    _state = stateStopped3;
+                    _output.set(_tick, ?);
+                    break;
+                case 0x8:
+                    _state = stateStopped4;
+                    _output.set(_tick, ?);
+                    break;
+                case 0xa:
+                    _state = stateStopped5;
+                    _output.set(_tick, ?);
                     break;
             }
         }
@@ -254,6 +263,9 @@ private:
             stateStopped2,
             stateGateLow2,
             stateCounting2,
+            stateStopped3,
+            stateStopped4,
+            stateStopped5,
         };
 
         void loadCount(UInt16 value)

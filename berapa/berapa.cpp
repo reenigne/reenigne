@@ -525,9 +525,11 @@ public:
 
     Tick _tick;
     Tick _initialTick;
-    virtual List<ClockedComponent*> enumerateClocks()
+    List<Component*> components()
     {
-        return List<ClockedComponent*>();
+        List<Component*> r;
+        addComponents(&r);
+        return r;
     }
 
 protected:
@@ -695,6 +697,15 @@ private:
         void* _p;
         Value _initial;
     };
+    void addComponents(List<Component*>* l)
+    {
+        l->add(this);
+        for (auto m : _config) {
+            auto member = m.value();
+            if (Type(member.type()).valid())
+                static_cast<Component*>(member._p)->addComponents(l);
+        }
+    }
     HashTable<Identifier, Member> _config;
     HashTable<String, Member> _persist;
 
@@ -784,12 +795,6 @@ public:
             throw Exception("Scheduler LCM calculation incorrect");
         setInitialTick(t.numerator);
     }
-    List<ClockedComponent*> enumerateClocks()
-    {
-        List<ClockedComponent*> r;
-        r.add(this);
-        return r;
-    }
 protected:
     Tick _ticksPerCycle;
 private:
@@ -806,6 +811,13 @@ public:
 
 template<class C> using ClockedSubComponent =
     SubComponent<C, ClockedComponentBase>;
+
+class Clock : public ClockedSubComponent<Clock>
+{
+public:
+    Clock(Component::Type type) : ClockedSubComponent<Clock>(type) { }
+    static String typeName() { return "Clock"; }
+};
 
 template<class T> class SimpleProtocol
   : public ProtocolBase<SimpleProtocol<T>> { };
@@ -997,11 +1009,14 @@ public:
 private:
     class InputConnector : public ::InputConnector<T>
     {
+        using Base = ::InputConnector<T>;
     public:
-        InputConnector(BooleanComponent *c)
-          : ::InputConnector<T>(c), _component(c) { }
+        InputConnector(BooleanComponent *c) : Base(c) { }
         T _v;
-        BooleanComponent* _component;
+        BooleanComponent* component()
+        {
+            return static_cast<BooleanComponent*>(Base::component());
+        }
     };
     class InputConnector0 : public InputConnector
     {
@@ -1009,7 +1024,7 @@ private:
         InputConnector0(BooleanComponent *c) : InputConnector(c) { }
         void setData(Tick t, T v)
         {
-            this->_component->update0(t, v);
+            component()->update0(t, v);
             this->_v = v;
         }
     };
@@ -1019,7 +1034,7 @@ private:
         InputConnector1(BooleanComponent *c) : InputConnector(c) { }
         void setData(Tick t, T v)
         {
-            this->_component->update1(t, v);
+            component()->update1(t, v);
             this->_v = v;
         }
     };
@@ -1154,12 +1169,11 @@ private:
     class InputConnector : public ::InputConnector<T>
     {
     public:
-        InputConnector(NotComponent *c)
-          : ::InputConnector<T>(c),
-            _component(static_cast<NotComponent<T>*>(c))
-        { }
-        void setData(Tick t, T v) { _component->update(t, v); }
-        NotComponent<T>* _component;
+        InputConnector(NotComponent *c) : ::InputConnector<T>(c) { }
+        void setData(Tick t, T v)
+        {
+            static_cast<NotComponent*>(component())->update(t, v);
+        }
     };
 protected:
     InputConnector _input;
@@ -1242,24 +1256,27 @@ private:
     class InputConnector : public ::InputConnector<T>
     {
     public:
-        InputConnector(FanoutComponent* c)
-          : ::InputConnector<T>(c), _fanout(c) { }
-        void setData(Tick t, T v) { _fanout->update(t, v, 0); }
+        InputConnector(FanoutComponent* c) : ::InputConnector<T>(c) { }
+        void setData(Tick t, T v) { fanout()->update(t, v, 0); }
         bool canBeDisconnected() const
         {
-            return _fanout->_bidirectional.count() != 0;
+            return fanout()->_bidirectional.count() != 0;
         }
-        FanoutComponent* _fanout;
+        FanoutComponent* fanout()
+        {
+            return static_cast<FanoutComponent*>(component());
+        }
     };
     class BidirectionalConnector : public ::BidirectionalConnector<T>
     {
     public:
         BidirectionalConnector(FanoutComponent* c)
-          : ::BidirectionalConnector<T>(c), _fanout(c),
-            _v(BinaryTraits<T>::one())
-        { }
-        void setData(Tick t, T v) { _v = v; _fanout->update(t, v, this); }
-        FanoutComponent* _fanout;
+          : ::BidirectionalConnector<T>(c), _v(BinaryTraits<T>::one()) { }
+        void setData(Tick t, T v) { _v = v; fanout()->update(t, v, this); }
+        FanoutComponent* fanout()
+        {
+            return static_cast<FanoutComponent*>(component());
+        }
         T _v;
     };
     void update(Tick t, T v, BidirectionalConnector* c)
@@ -1376,21 +1393,24 @@ private:
     class SetConnector : public InputConnector<bool>
     {
     public:
-        SetConnector(SRLatch* latch) : InputConnector(latch), _latch(latch) { }
-        void setData(Tick t, bool v) { _latch->doSet(t, v); _v = v; }
+        SetConnector(SRLatch* latch) : InputConnector(latch) { }
+        void setData(Tick t, bool v)
+        {
+            static_cast<SRLatch*>(component())->doSet(t, v);
+            _v = v;
+        }
         bool _v;
-    private:
-        SRLatch* _latch;
     };
     class ResetConnector : public InputConnector<bool>
     {
     public:
-        ResetConnector(SRLatch* latch)
-          : InputConnector(latch), _latch(latch) { }
-        void setData(Tick t, bool v) { _latch->doReset(t, v); _v = v; }
+        ResetConnector(SRLatch* latch) : InputConnector(latch) { }
+        void setData(Tick t, bool v)
+        {
+            static_cast<SRLatch*>(component())->doReset(t, v);
+            _v = v;
+        }
         bool _v;
-    private:
-        SRLatch* _latch;
     };
 
     SetConnector _set;
@@ -1590,11 +1610,12 @@ public:
             }
         }
         for (auto i : _components) {
-            auto clocks = i->enumerateClocks();
-            for (auto c : clocks) {
-                Rational cyclesPerSecond = c->cyclesPerSecond();
-                if (cyclesPerSecond == 0)
+            auto components = i->components();
+            for (auto component : components) {
+                auto c = dynamic_cast<ClockedComponent*>(component);
+                if (c == 0)
                     continue;
+                Rational cyclesPerSecond = c->cyclesPerSecond();
                 if (_ticksPerSecond == 0)
                     _ticksPerSecond = cyclesPerSecond;
                 else
@@ -1607,18 +1628,15 @@ public:
         if (_ticksPerSecond == 0)
             throw Exception("None of the components is clocked!");
         for (auto i : _components) {
-            auto clocks = i->enumerateClocks();
-            for (auto c : clocks) {
-                Rational cyclesPerSecond = c->cyclesPerSecond();
-                if (cyclesPerSecond != 0) {
-                    Rational t = _ticksPerSecond / cyclesPerSecond;
-                    if (t.denominator != 1)
-                        throw Exception("Scheduler LCM calculation incorrect");
-                    int ticksPerCycle = t.numerator;
-                    c->setTicksPerCycle(ticksPerCycle);
-                }
-                else
-                    c->setTicksPerCycle(0);
+            auto components = i->components();
+            for (auto component : components) {
+                auto c = dynamic_cast<ClockedComponent*>(component);
+                if (c == 0)
+                    continue;
+                Rational t = _ticksPerSecond / c->cyclesPerSecond();
+                if (t.denominator != 1)
+                    throw Exception("Scheduler LCM calculation incorrect");
+                c->setTicksPerCycle(t.numerator);
             }
         }
 
