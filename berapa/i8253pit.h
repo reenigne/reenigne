@@ -3,19 +3,14 @@ class Intel8253PIT : public ISA8BitComponentBase<Intel8253PIT>
     using Base = ISA8BitComponentBase<Intel8253PIT>;
 public:
     static String typeName() { return "Intel8253PIT"; }
-    Intel8253PIT(Component::Type type)
-      : Base(type), _timers{Timer::Type(this->simulator()),
-            Timer::Type(this->simulator()), Timer::Type(this->simulator())}
+    Intel8253PIT(Component::Type type) : Base(type), _timers{this, this, this}
     {
         this->persist("address", &_address);
         this->persist("timers", &_timers[0],
             ArrayType(_timers[0].persistenceType(), 3));
-        config("timer0", &_timers[0],
-            Timer::Type(this->simulator(), &_timers[0]));
-        config("timer1", &_timers[1],
-            Timer::Type(this->simulator(), &_timers[1]));
-        config("timer2", &_timers[2],
-            Timer::Type(this->simulator(), &_timers[2]));
+        config("timer0", &_timers[0], _timers[0].type());
+        config("timer1", &_timers[1], _timers[1].type());
+        config("timer2", &_timers[2], _timers[2].type());
     }
     void simulateCycle()
     {
@@ -53,8 +48,10 @@ private:
     {
     public:
         static String typeName() { return "Timer"; }
+        Timer(Intel8253PIT* pit) : Timer(Type(pit->simulator(), this)) { }
         Timer(Component::Type type)
-          : ClockedSubComponent<Timer>(type), _gateConnector(this), _output(this)
+          : ClockedSubComponent<Timer>(type), _gateConnector(this),
+            _output(this)
         {
             persist("value", &_value);
             persist("latch", &_latch);
@@ -226,15 +223,15 @@ private:
                 case 0x6:
                 case 0xf:
                     _state = stateStopped3;
-                    _output.set(_tick, ?);
+                    _output.set(_tick, false);  // ?
                     break;
                 case 0x8:
                     _state = stateStopped4;
-                    _output.set(_tick, ?);
+                    _output.set(_tick, false);  // ?
                     break;
                 case 0xa:
                     _state = stateStopped5;
-                    _output.set(_tick, ?);
+                    _output.set(_tick, false);  // ?
                     break;
             }
         }

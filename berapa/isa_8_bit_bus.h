@@ -137,9 +137,9 @@ public:
         }
         static auto canConnectMultiple() { return true; }
     protected:
-        virtual void busConnect(ISA8BitComponent* component)
+        virtual void busConnect(ISA8BitComponent* c)
         {
-            static_cast<ISA8Bit*>(component())->addComponent(component);
+            static_cast<ISA8BitBus*>(component())->addComponent(c);
         }
         template<class U> friend class ISA8BitComponentT<U>::Connector;
     };
@@ -148,11 +148,12 @@ public:
     public:
         ChipConnector(ISA8BitBusT<T>* bus) : Connector(bus) { }
         void init(int i) { _i = i; }
-        void busConnect(ISA8BitComponent* component)
+        void busConnect(ISA8BitComponent* c)
         {
-            if (dynamic_cast<NoISA8BitComponent*>(component) == 0) {
-                this->_bus->addRange(2, component, _i*0x20, (_i + 1)*0x20);
-                this->_bus->addRange(3, component, _i*0x20, (_i + 1)*0x20);
+            if (dynamic_cast<NoISA8BitComponent*>(c) == 0) {
+                auto bus = static_cast<ISA8BitBus*>(component());
+                bus->addRange(2, c, _i*0x20, (_i + 1)*0x20);
+                bus->addRange(3, c, _i*0x20, (_i + 1)*0x20);
             }
         }
     private:

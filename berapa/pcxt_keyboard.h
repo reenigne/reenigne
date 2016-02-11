@@ -23,8 +23,7 @@ public:
         void connect(::Connector* other)
         {
             static_cast<PCXTKeyboard*>(component())->_port =
-                static_cast<typename PCXTKeyboardPortT<T>::Connector*>(other)->
-                _port;
+                static_cast<PCXTKeyboardPort*>(other->component());
         }
     };
 private:

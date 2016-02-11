@@ -2,6 +2,7 @@ class RAM : public SubComponent<RAM>
 {
 public:
     static String typeName() { return "RAM"; }
+    RAM(Component* c) : RAM(Type(c->simulator(), this)) { }
     RAM(Component::Type type) : SubComponent(type), _parityError(this)
     {
         connector("parityError", &_parityError);

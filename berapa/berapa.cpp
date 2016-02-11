@@ -815,6 +815,7 @@ template<class C> using ClockedSubComponent =
 class Clock : public ClockedSubComponent<Clock>
 {
 public:
+    Clock(Component* c) : Clock(Type(c->simulator(), this)) { }
     Clock(Component::Type type) : ClockedSubComponent<Clock>(type) { }
     static String typeName() { return "Clock"; }
 };
@@ -1257,14 +1258,14 @@ private:
     {
     public:
         InputConnector(FanoutComponent* c) : ::InputConnector<T>(c) { }
-        void setData(Tick t, T v) { fanout()->update(t, v, 0); }
+        void setData(Tick t, T v)
+        {
+            static_cast<FanoutComponent*>(component())->update(t, v, 0);
+        }
         bool canBeDisconnected() const
         {
-            return fanout()->_bidirectional.count() != 0;
-        }
-        FanoutComponent* fanout()
-        {
-            return static_cast<FanoutComponent*>(component());
+            return static_cast<const FanoutComponent*>(component())->
+                _bidirectional.count() != 0;
         }
     };
     class BidirectionalConnector : public ::BidirectionalConnector<T>

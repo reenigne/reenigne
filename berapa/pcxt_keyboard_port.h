@@ -51,7 +51,7 @@ public:
         void connect(::Connector* other)
         {
             static_cast<PCXTKeyboardPort*>(component())->_keyboard =
-                static_cast<PCXTKeyboard::Connector*>(other)->_keyboard;
+                static_cast<PCXTKeyboard*>(other->component());
         }
     };
     class ClearConnector : public InputConnector<bool>

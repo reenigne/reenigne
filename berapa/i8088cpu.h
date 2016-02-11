@@ -1871,7 +1871,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         void connect(::Connector* other)
         {
             static_cast<Intel8088CPU*>(component())->_bus =
-                static_cast<ISA8BitBus::CPUSocket*>(other)->_bus;
+                static_cast<ISA8BitBus*>(other->component());
         }
     };
     class NMIConnector : public InputConnector<bool>

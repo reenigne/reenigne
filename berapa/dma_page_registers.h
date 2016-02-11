@@ -39,9 +39,8 @@ public:
     protected:
         void connect(::Connector* other)
         {
-            static_cast<ISA8BitBus::DMAPageRegistersSocket*>(other)->_bus->
-                setDMAPageRegisters(static_cast<DMAPageRegisters*>(
-                    component());
+            static_cast<ISA8BitBus*>(other->component())->setDMAPageRegisters(
+                static_cast<DMAPageRegisters*>(component()));
         }
     };
 private:

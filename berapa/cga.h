@@ -30,9 +30,8 @@ public:
     IBMCGA(Component::Type type)
       : ISA8BitComponentBase<IBMCGA>(type), _attr(0), _chrdata(0),
         _wait(0), _cycle(0), _bgri(0), _lightPenStrobe(false),
-        _lightPenSwitch(true), _bgriSource(this),
-        _ram(RAM::Type(this->simulator())), _rgbiConnector(this),
-        _clock(Clock::Type(this->simulator()))
+        _lightPenSwitch(true), _bgriSource(this), _ram(this),
+        _rgbiConnector(this), _clock(this)
     {
         this->config("rom", &_rom);
         this->persist("memoryAddress", &_memoryAddress, HexPersistenceType(4));
@@ -41,8 +40,7 @@ public:
         this->persist("palette", &_palette);
         this->persist("ram", &_ram, _ram.persistenceType());
         this->config("ram", &_ram, RAM::Type(this->simulator(), &_ram));
-        this->config("clock", &_clock,
-            Clock::Type(this->simulator(), &_clock));
+        this->config("clock", &_clock, _clock.type());
         this->connector("rgbiOutput", &_rgbiConnector);
     }
     void load(const Value& v)

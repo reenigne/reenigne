@@ -3,12 +3,11 @@ class ISA8BitRAM : public ISA8BitComponentBase<ISA8BitRAM>
 public:
     static String typeName() { return "ISA8BitRAM"; }
     ISA8BitRAM(Component::Type type)
-      : ISA8BitComponentBase<ISA8BitRAM>(type),
-        _ram(RAM::Type(this->simulator()))
+      : ISA8BitComponentBase<ISA8BitRAM>(type), _ram(this)
     {
         this->persist("address", &_address, HexPersistenceType(5));
         this->persist("ram", &_ram, _ram.persistenceType());
-        this->config("ram", &_ram, RAM::Type(this->simulator(), &_ram));
+        this->config("ram", &_ram, _ram.type());
     }
     void load(const Value& v)
     {

@@ -29,10 +29,7 @@ template<class T> class Intel8237DMACT
 public:
     static String typeName() { return "Intel8237DMAC"; }
     Intel8237DMACT(Component::Type type)
-      : Base(type), _channels{typename Channel::Type(this->simulator()),
-            typename Channel::Type(this->simulator()),
-            typename Channel::Type(this->simulator()),
-            typename Channel::Type(this->simulator())}
+      : Base(type), _channels{this, this, this, this}
     {
         this->persist("address", &_address, HexPersistenceType(1));
         this->persist("command", &_command);
@@ -316,6 +313,7 @@ private:
     {
     public:
         static String typeName() { return "Channel"; }
+        Channel(Intel8237DMAC* dmac) : Channel(Type(dmac->simulator())) { }
         Channel(Component::Type type)
           : SubComponent<Channel>(type), _dAck(this), _dReq(this)
         {
