@@ -7,29 +7,35 @@
 #define TILEX 64
 #define TILEY 64
 #define TILETYPES 256
-#define PLAYERTILE 0
-#define ZOMBIETILE 1
-#define KEYTILE 2
+#define OUTERTILE
+#define PLAYERTILE 7
+#define ZOMBIETILE 9
+#define KEYTILE 0xf1
+#define SKYTILE 0xf0
 
 class Program : public ProgramBase
 {
 public:
     void run()
     {
-        Bitmap<SRGB> bricks =
-            PNGFileFormat<SRGB>().load(File("brick_texture64x64.png", true));
-        Bitmap<SRGB> shkg =
-            PNGFileFormat<SRGB>().load(File("Image1shkg_64.png", true));
-        Bitmap<SRGB> log =
-            PNGFileFormat<SRGB>().load(File("64x64logtexture.png", true));
-        Bitmap<SRGB> grass =
-            PNGFileFormat<SRGB>().load(File("grass_texture64x64.png", true));
-        Bitmap<SRGB> mud =
-            PNGFileFormat<SRGB>().load(File("mud_texture64x64.png", true));
-        Bitmap<SRGB> key =
-            PNGFileFormat<SRGB>().load(File("Image7key_64.png", true));
-        Bitmap<SRGB> zomb =
-            PNGFileFormat<SRGB>().load(File("Image11zomie_64.png", true));
+        Bitmap<DWORD> textures = PNGFileFormat<DWORD>().load(File("textures1.png", false));
+
+        File level("level.dat");
+
+        _tileGrid.allocate(TILESX*TILESY);
+        for (int y = 0; y < TILESY; ++y) {
+            for (int x = 0; x < TILESX; ++x) {
+                if (x < 15 || x >= TILESX-15 || y < 15 || y >= TILESY-15)
+                    _tileGrid[y*TILESX + x] = (y == TILESY-15 ? 2 : 3);
+                else
+                    _tileGrid[y*TILESX + x] = SKYTILE; //rand() % 253 + 2;
+            }
+        }
+        try {
+            String l = level.contents();
+            for (int i = 0; i < TILESX*TILESY; ++i)
+                _tileGrid[i] = l[i] & 0xff;
+        } catch (...) { }
 
         SDLWindow window;
         SDLRenderer renderer(&window);
@@ -37,48 +43,25 @@ public:
         SDL_Event e;
         windowWidth = 912;
         windowHeight = 525;
-        _tileGrid.allocate(TILESX*TILESY);
         _tileData.allocate(TILEX*TILEY*TILETYPES);
+        bool editing = false;
+        int lTile = 192;
+        int rTile = 191;
+        bool lButtonDown = false;
+        bool rButtonDown = false;
+        int mouseX;
+        int mouseY;
         for (int i = 0; i < TILETYPES; ++i) {
             for (int y = 0; y < TILEY; ++y) {
                 for (int x = 0; x < TILEX; ++x) {
-                    Vector v(x, y);
-                    SRGB a;
-                    a.x = x*4;
-                    a.y = y*4;
-                    a.z = i;
-                    if (i == PLAYERTILE)
-                        a = shkg[v];
-                    if (i == KEYTILE) {
-                        SRGB k = key[v];
-                        if (k.x != 255 || k.y != 255 || k.z != 255)
-                            a = k;
-                    }
-                    if (i == ZOMBIETILE)
-                        a = zomb[v];
-                    if (i >= 192)
-                        a = log[v];
-                    if (i >= 224)
-                        a = bricks[v];
-                    if (i == 254)
-                        a = mud[v];
-                    if (i == 255)
-                        a = grass[v];
-                    _tileData[(i*TILEY + y)*TILEX + x] = 0xff000000 | (a.x << 16) | (a.y << 8) | a.z;
+                    UInt32 a = textures[Vector((i&15)*65 + x, (i/16)*65 + y)];
+                    _tileData[(i*TILEY + y)*TILEX + x] = a;
                 }
-            }
-        }
-        for (int y = 0; y < TILESY; ++y) {
-            for (int x = 0; x < TILESX; ++x) {
-                if (x < 15 || x >= TILESX-15 || y < 15 || y >= TILESY-15)
-                    _tileGrid[y*TILESX + x] = (y == TILESY-15 ? 255 : 254);
-                else
-                    _tileGrid[y*TILESX + x] = rand() % 253 + 2;
             }
         }
 
         player.x = 50*TILEX;
-        player.y = 5126; //50*TILEY;
+        player.y = 50*TILEY; //5120; //50*TILEY;
         playerFrac.x = 0;
         playerFrac.y = 0;
         vPlayer.x = 0;
@@ -96,6 +79,7 @@ public:
         int vMaxZombie = 500000;
         int zombieJumpV = 1000000;
         zombieGrounded = false;
+        playerTile = PLAYERTILE;
 
         bool up = false, down = false, left = false, right = false;
 
@@ -117,9 +101,7 @@ public:
                 UInt32* output = reinterpret_cast<UInt32*>(row);
                 output += (windowWidth/2);
                 for (int x = 0; x < TILEX; ++x) {
-                    UInt32 a = _tileData[(PLAYERTILE*TILEY + y)*TILEX + x];
-                    if (a != 0xffffffff)
-                        *output = a;
+                    *output = compose(*output, _tileData[(playerTile*TILEY + y)*TILEX + x]);
                     ++output;
                 }
                 row += pitch;
@@ -151,9 +133,7 @@ public:
                     UInt32* output = reinterpret_cast<UInt32*>(row);
                     output += zScreen.x;
                     for (int x = 0; x < zSize.x; ++x) {
-                        UInt32 a = _tileData[(ZOMBIETILE*TILEY + y + zOffset.y)*TILEX + x + zOffset.x];
-                        if (a != 0xffffffff)
-                            *output = a;
+                        *output = compose(*output, _tileData[(ZOMBIETILE*TILEY + y + zOffset.y)*TILEX + x + zOffset.x]);
                         ++output;
                     }
                     row += pitch;
@@ -167,13 +147,47 @@ public:
                 for (int y = 0; y < TILEY; ++y) {
                     UInt32* output = reinterpret_cast<UInt32*>(row);
                     for (int x = 0; x < TILEX; ++x) {
-                        UInt32 a = _tileData[(KEYTILE*TILEY + y)*TILEX + x];
-                        if (a != 0xffffffff)
-                            *output = a;
+                        *output = compose(*output, _tileData[(KEYTILE*TILEY + y)*TILEX + x]);
                         ++output;
                     }
                     row += pitch;
                 }
+            }
+
+            if (editing) {
+                int paletteX = windowWidth - (4*TILEX + 16);
+                int paletteY = 16;
+                row = reinterpret_cast<UInt8*>(lock._pixels);
+                row += pitch*paletteY;
+                for (int y = 0; y < TILEY*4; ++y) {
+                    UInt32* output = reinterpret_cast<UInt32*>(row) + paletteX;
+                    for (int x = 0; x < TILEX*4; ++x) {
+                        int xg = x/16;
+                        int yg = y/16;
+                        int xp = x&15;
+                        int yp = y&15;
+                        *output = _tileData[((yg*16 + xg)*TILEY + yp*4)*TILEX + xp*4];
+                        ++output;
+                    }
+                    row += pitch;
+                }
+                int xl = (lTile & 15) * (TILEX/4) + paletteX;
+                int yl = (lTile / 16) * (TILEY/4) + paletteY;
+                int xr = (rTile & 15) * (TILEX/4) + paletteX;
+                int yr = (rTile / 16) * (TILEY/4) + paletteY;
+                for (int x = -1; x < TILEX/4 + 1; ++x) {
+                    plot(&lock, xl + x, yl - 1, 0xff000000);
+                    plot(&lock, xl + x, yl + TILEY/4, 0xff000000);
+                    plot(&lock, xr + x, yr - 1, 0xffffffff);
+                    plot(&lock, xr + x, yr + TILEY/4, 0xffffffff);
+                }
+                for (int y = -1; y < TILEX/4 + 1; ++y) {
+                    plot(&lock, xl - 1, yl + y, 0xff000000);
+                    plot(&lock, xl + TILEX/4, yl + y, 0xff000000);
+                    plot(&lock, xr - 1, yr + y, 0xffffffff);
+                    plot(&lock, xr + TILEX/4, yr + y, 0xffffffff);
+                }
+
             }
 
             renderer.renderTexture(&texture);
@@ -195,8 +209,69 @@ public:
                         case SDLK_RIGHT:
                             right = (e.type == SDL_KEYDOWN);
                             break;
+                        case SDLK_e:
+                            editing = true;
+                            break;
+                        case SDLK_p:
+                            if (e.type == SDL_KEYDOWN) {
+                                playerTile = PLAYERTILE + PLAYERTILE + 1 - playerTile;
+                                if (colliding())
+                                    playerTile = PLAYERTILE + PLAYERTILE + 1 - playerTile;
+                            }
+                            break;
                         case SDLK_ESCAPE:
+                            if (e.type == SDL_KEYUP)
+                                break;
+                            if (editing) {
+                                editing = false;
+                                break;
+                            }
                             return;
+                    }
+                }
+                if (editing) {
+                    if (e.type == SDL_MOUSEBUTTONDOWN) {
+                        if (e.button.button == SDL_BUTTON_LEFT)
+                            lButtonDown = true;
+                        if (e.button.button == SDL_BUTTON_RIGHT)
+                            rButtonDown = true;
+                        mouseX = e.button.x;
+                        mouseY = e.button.y;
+                    }
+                    if (e.type == SDL_MOUSEBUTTONUP) {
+                        if (e.button.button == SDL_BUTTON_LEFT)
+                            lButtonDown = false;
+                        if (e.button.button == SDL_BUTTON_RIGHT)
+                            rButtonDown = false;
+                        mouseX = e.button.x;
+                        mouseY = e.button.y;
+                    }
+                    if (e.type == SDL_MOUSEMOTION) {
+                        mouseX = e.motion.x;
+                        mouseY = e.motion.y;
+                    }
+                    if (mouseX >= windowWidth - (4*TILEX + 16) && mouseX < windowWidth - 16 && mouseY >= 16 && mouseY < 4*TILEY + 16) {
+                        mouseX -= windowWidth - (4*TILEX + 16);
+                        mouseY -= 16;
+                        mouseX /= 16;
+                        mouseY /= 16;
+                        if (lButtonDown)
+                            lTile = mouseY*16 + mouseX;
+                        if (rButtonDown)
+                            rTile = mouseY*16 + mouseX;
+                    }
+                    else {
+                        int mTileX = (mouseX + player.x)/TILEX;
+                        int mTileY = (mouseY + player.y)/TILEY;
+                        if (mTileX >= 15 && mTileX < TILESX-15 && mTileY >= 15 && mTileY < TILESY-15) {
+                            int oldTile = _tileGrid[mTileY*TILESX + mTileX];
+                            if (lButtonDown)
+                                _tileGrid[mTileY*TILESX + mTileX] = lTile;
+                            if (rButtonDown)
+                                _tileGrid[mTileY*TILESX + mTileX] = rTile;
+                            if (colliding())
+                                _tileGrid[mTileY*TILESX + mTileX] = oldTile;
+                        }
                     }
                 }
             }
@@ -292,6 +367,7 @@ public:
                 vZombie.y = 0;
 
 
+
             ++t;
             if (t == 60)
                 t = 0;
@@ -311,7 +387,29 @@ public:
             //}
         } while (true);
     }
+    ~Program()
+    {
+        try {
+            Array<UInt8> tg(TILESX*TILESY);
+            for (int i = 0; i < TILESX*TILESY; ++i)
+                tg[i] = _tileGrid[i];
+            File("level.dat").save(tg);
+        }
+        catch (...) { }
+    }
 private:
+    UInt32 compose(UInt32 background, UInt32 sprite)
+    {
+        int alpha = (sprite >> 24) & 0xff;
+        int b = (background & 0xff) * (255 - alpha) + (sprite & 0xff) * alpha;
+        int g = ((background >> 8) & 0xff) * (255 - alpha) + ((sprite >> 8) & 0xff) * alpha;
+        int r = ((background >> 16) & 0xff) * (255 - alpha) + ((sprite >> 16) & 0xff) * alpha;
+        return clamp(0, b/255, 255) | (clamp(0, g/255, 255) << 8) | (clamp(0, r/255, 255) << 16);
+    }
+    void plot(SDLTextureLock* lock, int x, int y, UInt32 colour)
+    {
+        *(reinterpret_cast<UInt32*>(reinterpret_cast<UInt8*>(lock->_pixels) + y*lock->_pitch) + x) = colour;
+    }
     void renderTiles(UInt8* row, int pitch)
     {
         for (int y = 0; y < windowHeight; ++y) {
@@ -327,15 +425,16 @@ private:
             row += pitch;
         }
     }
+    bool opaque(int tile) { return tile < 128; }
     bool colliding()
     {
         for (int y = 0; y < TILEY; ++y)
             for (int x = 0; x < TILEX; ++x) {
-                UInt32 a = _tileData[(PLAYERTILE*TILEY + y)*TILEX + x];
-                if (a != 0xffffffff) {
+                UInt32 a = _tileData[(playerTile*TILEY + y)*TILEX + x];
+                if (static_cast<int>(a >> 24) > 0x80) {
                     Vector v = Vector(x, y) + player + Vector(windowWidth/2, windowHeight/2);
                     v /= Vector(TILEX, TILEY);
-                    if (_tileGrid[v.y*TILESX + v.x] >= 192)
+                    if (opaque(_tileGrid[v.y*TILESX + v.x]))
                         return true;
                 }
             }
@@ -345,11 +444,11 @@ private:
     {
         for (int y = 0; y < TILEY; ++y)
             for (int x = 0; x < TILEX; ++x) {
-                UInt32 a = _tileData[(PLAYERTILE*TILEY + y)*TILEX + x];
-                if (a != 0xffffffff) {
+                UInt32 a = _tileData[(ZOMBIETILE*TILEY + y)*TILEX + x];
+                if (static_cast<int>(a >> 24) > 0x80) {
                     Vector v = Vector(x, y) + zombie;
                     v /= Vector(TILEX, TILEY);
-                    if (_tileGrid[v.y*TILESX + v.x] >= 192)
+                    if (opaque(_tileGrid[v.y*TILESX + v.x]))
                         return true;
                 }
             }
@@ -359,18 +458,19 @@ private:
     {
         for (int y = 0; y < TILEY; ++y)
             for (int x = 0; x < TILEX; ++x) {
-                UInt32 a = _tileData[(PLAYERTILE*TILEY + y)*TILEX + x];
+                UInt32 a = _tileData[(playerTile*TILEY + y)*TILEX + x];
                 if (a != 0xffffffff) {
                     Vector v = Vector(x, y) + player + Vector(windowWidth/2, windowHeight/2);
                     v /= Vector(TILEX, TILEY);
                     if (_tileGrid[v.y*TILESX + v.x] == KEYTILE) {
-                        _tileGrid[v.y*TILESX + v.x] = 3;
+                        _tileGrid[v.y*TILESX + v.x] = SKYTILE;
                         gotKey = true;
                     }
                 }
             }
     }
 
+    int playerTile;
     bool zombieGrounded;
     bool gotKey;
     int windowHeight;

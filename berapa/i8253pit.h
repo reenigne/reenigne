@@ -12,6 +12,13 @@ public:
         config("timer1", &_timers[1], _timers[1].type());
         config("timer2", &_timers[2], _timers[2].type());
     }
+    void runTo(Tick tick)
+    {
+        while (_tick < tick) {
+            _tick += _ticksPerCycle;
+            simulateCycle();
+        }
+    }
     void simulateCycle()
     {
         for (int i = 0; i < 3; ++i)
@@ -140,6 +147,10 @@ private:
                     }
                     break;
                 case stateCounting3:
+                    if (!_gate) {
+                        _state = stateGateLow3;
+                        _value = _count;
+                    }
             }
         }
         UInt8 read()
