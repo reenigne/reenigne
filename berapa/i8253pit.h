@@ -73,6 +73,8 @@ private:
             h.add(stateGateLow2,  "gateLow2");
             h.add(stateCounting2, "counting2");
             h.add(stateStopped3,  "stopped3");
+            h.add(stateGateLow3,  "gateLow3");
+            h.add(stateCounting3, "counting3");
             h.add(stateStopped4,  "stopped4");
             h.add(stateStopped5,  "stopped5");
             persist("state", &_state,
@@ -111,29 +113,33 @@ private:
                 case stateStopped2:
                     break;
                 case stateGateLow2:
-                    if(_gate)
-                    {
+                    if (_gate) {
                         _state = stateCounting2;
                         _value = _count;
                     }
                     break;
                 case stateCounting2:
-                    if (!_gate)
-                    {
+                    if (!_gate) {
                         _output.set(_tick, true);
                         _state = stateGateLow2;
                         break;
                     }
-                    if(_value == 1)
-                    {
+                    countDown();
+                    if (_value == 0) {
                         _output.set(_tick, true);
                         _value = _count;
                         break;
                     }
-                    countDown();
                     if (_value == 1)
                         _output.set(_tick, false);
                     break;
+                case stateGateLow3:
+                    if (_gate) {
+                        _state = stateCounting3;
+                        _value = _count;
+                    }
+                    break;
+                case stateCounting3:
             }
         }
         UInt8 read()
@@ -261,6 +267,8 @@ private:
             stateGateLow2,
             stateCounting2,
             stateStopped3,
+            stateGateLow3,
+            stateCounting3,
             stateStopped4,
             stateStopped5,
         };
