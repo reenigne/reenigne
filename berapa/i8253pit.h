@@ -151,6 +151,23 @@ private:
                         _state = stateGateLow3;
                         _value = _count;
                     }
+                    if ((_value & 1) != 0) {
+                        countDown();
+                        if (!_outputHigh) {
+                            countDown();
+                            countDown();
+                        }
+                    }
+                    else {
+                        countDown();
+                        countDown();
+                    }
+                    if (_value == 0) {
+                        _outputHigh = !_outputHigh;
+                        _output.set(_tick, _outputHigh);
+                        _value = _count;
+                    }
+                    break;
             }
         }
         UInt8 read()
@@ -344,6 +361,7 @@ private:
         bool _gate;
         bool _latched;
         State _state;
+        bool _outputHigh;
 
         Connector _gateConnector;
         OptimizedOutputConnector<bool> _output;
