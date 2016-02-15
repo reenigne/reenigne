@@ -69,6 +69,7 @@ private:
             persist("firstByte", &_firstByte);
             persist("gate", &_gate);
             persist("latched", &_latched);
+            persist("outputHigh", &_outputHigh);
 
             typename EnumerationType<State>::Helper h;
             h.add(stateStopped0,  "stopped0");
