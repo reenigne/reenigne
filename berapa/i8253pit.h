@@ -69,7 +69,6 @@ private:
             persist("firstByte", &_firstByte);
             persist("gate", &_gate);
             persist("latched", &_latched);
-            persist("outputHigh", &_outputHigh);
 
             typename EnumerationType<State>::Helper h;
             h.add(stateStopped0,  "stopped0");
@@ -82,7 +81,8 @@ private:
             h.add(stateCounting2, "counting2");
             h.add(stateStopped3,  "stopped3");
             h.add(stateGateLow3,  "gateLow3");
-            h.add(stateCounting3, "counting3");
+            h.add(stateCounting3High, "counting3High");
+            h.add(stateCounting3Low, "counting3Low");
             h.add(stateStopped4,  "stopped4");
             h.add(stateStopped5,  "stopped5");
             persist("state", &_state,
@@ -143,30 +143,37 @@ private:
                     break;
                 case stateGateLow3:
                     if (_gate) {
-                        _state = stateCounting3;
+                        _state = stateCounting3High;
                         _value = _count;
                     }
                     break;
-                case stateCounting3:
+                case stateCounting3High:
                     if (!_gate) {
                         _state = stateGateLow3;
                         _value = _count;
                     }
-                    if ((_value & 1) != 0) {
+                    countDown();
+                    if ((_value & 1) == 0)
                         countDown();
-                        if (!_outputHigh) {
-                            countDown();
-                            countDown();
-                        }
-                    }
-                    else {
-                        countDown();
-                        countDown();
-                    }
                     if (_value == 0) {
-                        _outputHigh = !_outputHigh;
-                        _output.set(_tick, _outputHigh);
+                        _output.set(_tick, false);
                         _value = _count;
+                        _state = stateCounting3Low;
+                    }
+                    break;
+                case stateCounting3Low:
+                    if (!_gate) {
+                        _state = stateGateLow3;
+                        _value = _count;
+                    }
+                    if ((_value & 1) != 0)
+                        countDown();
+                    countDown();
+                    countDown();
+                    if (_value == 0) {
+                        _output.set(_tick, true);
+                        _value = _count;
+                        _state = stateCounting3High;
                     }
                     break;
             }
@@ -221,6 +228,10 @@ private:
                                 break;
                             case stateCounting2:
                                 _state = stateStopped2;
+                                break;
+                            case stateCounting3High:
+                            case stateCounting3Low:
+                                _state = stateStopped3;
                                 break;
                         }
                     }
@@ -297,7 +308,8 @@ private:
             stateCounting2,
             stateStopped3,
             stateGateLow3,
-            stateCounting3,
+            stateCounting3High,
+            stateCounting3Low,
             stateStopped4,
             stateStopped5,
         };
@@ -318,6 +330,11 @@ private:
                 case stateStopped2:
                 case stateCounting2:
                     _state = stateCounting2;
+                    break;
+                case stateStopped3:
+                case stateCounting3High:
+                case stateCounting3Low:
+                    _state = stateCounting3High;
                     break;
             }
         }
