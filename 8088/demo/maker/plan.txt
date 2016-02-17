@@ -1,0 +1,58 @@
+Let's start with creating .exe files for DOS demos (since that would have been useful for a few other things).
+
+A demo consists of a sequence of effects
+  An effect is made up of a startup code asset plus some number of other assets which may be code, data or whatever
+  An effect may have time points when certain things are supposed to happen
+    time codes for these may be passed in at run time, build time or can be triggered by a timer interrupt - this is up to the startup code
+
+How should we specify the sequence?
+  Some absolute time variable (i.e. some other time point) plus some time offset
+  Time variables can also come from assets (e.g. events in a song)
+    To get them out, run some transformation on the song to get a list of the time codes, then eval() to include the output into the config
+  Can do more sophisticated timing (e.g. "this effect takes 50% of total runtime") later.
+  Times specified as Time(minute, second, frame, scanline, cycle)
+
+So on starting the exe, the framework loads (and if necessary, decompresses or otherwise transforms) all prerequiste assets for the initial effect, then jumps to the initial effect's startup code.
+
+Create a config file format
+
+Built-in asset types:
+
+Binary: load file from disk
+Compiler: name of an .exe (a windows program) that is run at build time and which converts an asset from one type to another
+  Maker will generate a temporary file name for the intermediate file
+Expander: code asset that converts between assets at run time
+
+What about incremental building - keep intermediate files around like make?
+  Keep them in a local intermediates directory, not system temp
+
+If a Compiler takes an ALFE config file as input, allow specifying it inline
+
+Output all commands as they are run to aid debugging
+
+Have maker try multiple different compression techniques to see what takes least time/space?
+  Need a way to specify compressor/decompressor pairs
+  Need a way to measure how long things take to run
+  Need a
+
+For Code assets that are transformations, want a way to run them at build time
+
+Can we have types for assets and have maker automatically run things to convert between them?
+
+
+
+Binary inputImage = "greg.png";
+Compiler convert = "convert.exe";
+Compiler compress = "compress.exe";
+Expander decompress = "decompress.obj";
+Code display = "display.obj";
+Code biosVideoMode = "setmode.obj";
+Code waitForKeyPress = "waitkey.obj";
+Time t0;
+effects = {
+    {t0, biosVideoMode(0x0d)},
+    {t0, display(decompress(compress(convert(inputImage))))},
+    {t0, waitForKeyPress},
+    {t0, biosVideoMode(3)}
+};
+

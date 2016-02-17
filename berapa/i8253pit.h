@@ -14,15 +14,9 @@ public:
     }
     void runTo(Tick tick)
     {
-        while (_tick < tick) {
-            _tick += _ticksPerCycle;
-            simulateCycle();
-        }
-    }
-    void simulateCycle()
-    {
-        for (int i = 0; i < 3; ++i)
-            _timers[i].simulateCycle();
+        _timers[0].runTo(tick);
+        _timers[1].runTo(tick);
+        _timers[2].runTo(tick);
     }
     ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
     {
@@ -84,6 +78,7 @@ private:
             h.add(stateCounting3High, "counting3High");
             h.add(stateCounting3Low, "counting3Low");
             h.add(stateStopped4,  "stopped4");
+            h.add(stateCounting4, "counting4");
             h.add(stateStopped5,  "stopped5");
             persist("state", &_state,
                 EnumerationType<State>("State", h,
@@ -91,6 +86,13 @@ private:
 
             connector("gate", &_gateConnector);
             connector("output", &_output);
+        }
+        void runTo(Tick tick)
+        {
+            while (_tick < tick) {
+                _tick += _ticksPerCycle;
+                simulateCycle();
+            }
         }
         void simulateCycle()
         {
@@ -273,7 +275,7 @@ private:
                     break;
                 case 0x8:
                     _state = stateStopped4;
-                    _output.set(_tick, false);  // ?
+                    _output.set(_tick, true);
                     break;
                 case 0xa:
                     _state = stateStopped5;
@@ -311,6 +313,7 @@ private:
             stateCounting3High,
             stateCounting3Low,
             stateStopped4,
+            stateCounting4,
             stateStopped5,
         };
 
@@ -335,6 +338,9 @@ private:
                 case stateCounting3High:
                 case stateCounting3Low:
                     _state = stateCounting3High;
+                    break;
+                case stateStopped4:
+                    _state = stateCounting4;
                     break;
             }
         }

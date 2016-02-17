@@ -31,7 +31,8 @@ Code assets can be combined?
     Our own compiler to transform high level transformation code into binary code?
 
 Has ability to create final disk images/writers
-  As .exe files for distribution
+  As .exe files (that write disks) for distribution
+  As .exe files for DOS programs
   As .bin files for XT
   As .rdif for emulator
 
