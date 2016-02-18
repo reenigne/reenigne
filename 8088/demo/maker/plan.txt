@@ -7,6 +7,7 @@ A demo consists of a sequence of effects
 
 How should we specify the sequence?
   Some absolute time variable (i.e. some other time point) plus some time offset
+  If time is missing, effect starts as soon as previous one completes (
   Time variables can also come from assets (e.g. events in a song)
     To get them out, run some transformation on the song to get a list of the time codes, then eval() to include the output into the config
   Can do more sophisticated timing (e.g. "this effect takes 50% of total runtime") later.
@@ -33,26 +34,43 @@ Output all commands as they are run to aid debugging
 Have maker try multiple different compression techniques to see what takes least time/space?
   Need a way to specify compressor/decompressor pairs
   Need a way to measure how long things take to run
-  Need a
+
+The config file lists the canonical way to make each asset, but that may not be the way the maker actually chooses
+  Expansions may be done at build time or run time
+  Assets may be compressed
+  There are too many possibilities to try them all individually!
+    For each decision, just try it separately both ways
+
 
 For Code assets that are transformations, want a way to run them at build time
 
 Can we have types for assets and have maker automatically run things to convert between them?
 
+Resource usage chart
+  Time on vertical axis
+    Divided up into effects
+  Resources on horizontal axis
+    CPU time
+    Disk time (DMA, seek)
+    Memory usage (each asset is a block)
+  Disk usage (list of assets by compressed size with compressed sizes)
+
+Want a way to handle sequences of assets
+  Maker will split an asset up into N pieces, run some transformation on each of the pieces and then recombine them back into a new asset
+  Maybe this could be done with generated sub-configs?
+
+Want to keep decisions about which assets to compress with which algorithms and which transforms to do at build time around so they don't have to be redone with every tweak
+  Need a persistence file
 
 
 Binary inputImage = "greg.png";
 Compiler convert = "convert.exe";
-Compiler compress = "compress.exe";
-Expander decompress = "decompress.obj";
+Compression compression(Compiler("compress.exe"), Code("decompress.obj"));
 Code display = "display.obj";
 Code biosVideoMode = "setmode.obj";
 Code waitForKeyPress = "waitkey.obj";
-Time t0;
-effects = {
-    {t0, biosVideoMode(0x0d)},
-    {t0, display(decompress(compress(convert(inputImage))))},
-    {t0, waitForKeyPress},
-    {t0, biosVideoMode(3)}
-};
+effect(biosVideoMode(0x0d);
+effect(display(convert(inputImage)));
+effect(waitForKeyPress);
+effect(biosVideoMode(3));
 

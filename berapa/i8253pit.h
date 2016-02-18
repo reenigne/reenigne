@@ -178,6 +178,15 @@ private:
                         _state = stateCounting3High;
                     }
                     break;
+                case stateCounting4:
+                    if (!_gate)
+                        break;
+                    countDown();
+                    if (_value == 0)
+                        _output.set(_tick, true);
+                    if (_value == 1)
+                        _output.set(_tick, false);
+                    break;
             }
         }
         UInt8 read()
