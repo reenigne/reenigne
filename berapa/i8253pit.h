@@ -80,6 +80,7 @@ private:
             h.add(stateStopped4,  "stopped4");
             h.add(stateCounting4, "counting4");
             h.add(stateStopped5,  "stopped5");
+            h.add(stateCounting5, "counting5");
             persist("state", &_state,
                 EnumerationType<State>("State", h,
                     Intel8253PIT::typeName() + "." + typeName() + "."));
@@ -187,6 +188,14 @@ private:
                     if (_value == 1)
                         _output.set(_tick, false);
                     break;
+                case stateCounting5:
+                    countDown();
+                    if (_value == 0)
+                        _output.set(_tick, true);
+                    if (_value == 1)
+                        _output.set(_tick, false);
+                    break;
+
             }
         }
         UInt8 read()
@@ -288,7 +297,7 @@ private:
                     break;
                 case 0xa:
                     _state = stateStopped5;
-                    _output.set(_tick, false);  // ?
+                    _output.set(_tick, true);
                     break;
             }
         }
@@ -304,6 +313,11 @@ private:
                     if (_gate && !gate)
                         _state = stateStart1;
                     break;
+                case stateStopped5:
+                    if (_gate && !gate)
+                        _state = stateCounting5;
+                    break;
+
             }
             _gate = gate;
         }
@@ -324,6 +338,7 @@ private:
             stateStopped4,
             stateCounting4,
             stateStopped5,
+            stateCounting5
         };
 
         void loadCount(UInt16 value)

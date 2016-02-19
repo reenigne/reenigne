@@ -62,6 +62,8 @@ Want a way to handle sequences of assets
 Want to keep decisions about which assets to compress with which algorithms and which transforms to do at build time around so they don't have to be redone with every tweak
   Need a persistence file
 
+It would be good to have some way to DMA or decompress data directly into video RAM
+  function emplace(asset, segment)
 
 Binary inputImage = "greg.png";
 Compiler convert = "convert.exe";
