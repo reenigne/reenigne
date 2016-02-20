@@ -519,6 +519,18 @@ public:
             return body()->end();
         return Body::Iterator();
     }
+    Iterator begin()
+    {
+        if (body() != 0)
+            return body()->begin();
+        return Body::Iterator();
+    }
+    Iterator end()
+    {
+        if (body() != 0)
+            return body()->end();
+        return Body::Iterator();
+    }
 
 private:
     static int roundUpToPowerOf2(int n)

@@ -12,12 +12,6 @@ public:
         config("timer1", &_timers[1], _timers[1].type());
         config("timer2", &_timers[2], _timers[2].type());
     }
-    void runTo(Tick tick)
-    {
-        _timers[0].runTo(tick);
-        _timers[1].runTo(tick);
-        _timers[2].runTo(tick);
-    }
     ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
     {
         _address = address & 3;
@@ -31,17 +25,17 @@ public:
     UInt8 readIO(Tick tick)
     {
         if (_address < 3)
-            return _timers[_address].read();
+            return _timers[_address].read(tick);
         return 0xff;  // Tristate according to datasheet
     }
     void writeIO(Tick tick, UInt8 data)
     {
         if (_address < 3)
-            _timers[_address].write(data);
+            _timers[_address].write(tick, data);
         else {
             int timer = (data >> 6) & 3;
             if (timer < 3)
-                _timers[timer].control(data & 0x3f);
+                _timers[timer].control(tick, data & 0x3f);
         }
     }
 private:
@@ -198,12 +192,12 @@ private:
 
             }
         }
-        UInt8 read()
+        UInt8 read(Tick tick)
         {
+            runTo(tick);
             switch (_bytes) {
                 case 0:
                     return _latch & 0xff;
-                    break;
                 case 1:
                     if (_latched)
                         return _latch & 0xff;
@@ -224,8 +218,9 @@ private:
             }
             return 0;
         }
-        void write(UInt8 data)
+        void write(Tick tick, UInt8 data)
         {
+            runTo(tick);
             switch (_bytes) {
                 case 0:
                     break;
@@ -262,8 +257,9 @@ private:
                     break;
             }
         }
-        void control(UInt8 data)
+        void control(Tick tick, UInt8 data)
         {
+            runTo(tick);
             int command = (data >> 4) & 3;
             if (command == 0) {
                 _latch = _value;
@@ -303,6 +299,7 @@ private:
         }
         void setGate(Tick tick, bool gate)
         {
+            runTo(tick);
             switch (_state) {
                 case stateStopped0:
                 case stateCounting0:

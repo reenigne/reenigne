@@ -68,11 +68,14 @@ It would be good to have some way to DMA or decompress data directly into video 
 Binary inputImage = "greg.png";
 Compiler convert = "convert.exe";
 Compression compression(Compiler("compress.exe"), Code("decompress.obj"));
-Code display = "display.obj";
 Code biosVideoMode = "setmode.obj";
 Code waitForKeyPress = "waitkey.obj";
+Binary[4] planes = split(convert(inputImage), 80*200);
 effect(biosVideoMode(0x0d);
-effect(display(convert(inputImage)));
+for (Int i = 0; i < 4; ++i) {
+    outportw(0x3c4, (0x100 << i) | 2);
+    emplace(planes[i], 0xa000);
+}
 effect(waitForKeyPress);
 effect(biosVideoMode(3));
 
