@@ -1,6 +1,8 @@
 #include "alfe/sdl2.h"
 #include "alfe/bitmap.h"
 #include "alfe/bitmap_png.h"
+#include "resource.h"
+#include "SDL_syswm.h"
 
 #define TILESX 100
 #define TILESY 100
@@ -203,7 +205,7 @@ public:
 template<class T> class ZombieT : public Character
 {
 public:
-    ZombieT() : _animation(0), _jumpVelocity(1000000)
+    ZombieT() : _animation(0), _jumpVelocity(500000), _previous(0), _next(0)
     {
         _tile = ZOMBIERTILE0;
         _maximumVelocity = 500000;
@@ -233,7 +235,16 @@ public:
                     _velocity.x = min(0, _velocity.x + _acceleration);
             }
         }
+        if (_previous != 0) {
+            *_previous = _next;
+            if (_next != 0)
+                _next->_previous = _previous;
+        }
         Character::move();
+        Vector tile = _position/Vector(TILEX, TILEY);
+        int ti = tile.y*TILESX + tile.x;
+        _next =
+
 
         _animation += _velocity.x;
         int z = (_animation / 1000000)%3;
@@ -286,12 +297,14 @@ public:
     }
     int _jumpVelocity;
     int _animation;
+    Zombie** _previous;
+    Zombie* _next;
 };
 
 template<class T> class GameT
 {
 public:
-    void run()
+    void run(HINSTANCE hInst)
     {
         auto textures =
             PNGFileFormat<DWORD>().load(File("textures1.png", false));
@@ -341,6 +354,19 @@ public:
         } catch (...) { }
 
         SDLWindow window;
+
+        HICON hicon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_ICON1));
+        if (hicon != 0) {
+            struct SDL_SysWMinfo wmInfo;
+            SDL_VERSION(&wmInfo.version);
+            if (SDL_GetWindowWMInfo(window._window, &wmInfo) == -1)
+                throw Exception("SDL_GetWindowWMInfo failed");
+            HWND hWnd = wmInfo.info.win.window;
+            LPARAM l = reinterpret_cast<LPARAM>(hicon);
+            SendMessage(hWnd, WM_SETICON, ICON_BIG, l);
+            SendMessage(hWnd, WM_SETICON, ICON_SMALL, l);
+        }
+
         SDLRenderer renderer(&window);
         SDLTexture texture(&renderer);
         SDL_Event e;
@@ -558,6 +584,7 @@ private:
     int spawnTile;
     bool gotKey;
     Array<Byte> _spawnGrid;
+    Array<Zombie*> _zombieGrid;
 public:
     AppendableArray<Zombie> _zombies;
     bool _up;
@@ -576,6 +603,6 @@ public:
     void run()
     {
         Game game;
-        game.run();
+        game.run(_hInst);
     }
 };
