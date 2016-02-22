@@ -155,6 +155,7 @@ public:
                 bus->addRange(2, c, _i*0x20, (_i + 1)*0x20);
                 bus->addRange(3, c, _i*0x20, (_i + 1)*0x20);
             }
+            Connector::busConnect(c);
         }
     private:
         int _i;
@@ -168,6 +169,11 @@ public:
         static auto protocolDirection()
         {
             return ProtocolDirection(CPU8088Protocol(), false);
+        }
+        void connect(::Connector* other)
+        {
+            static_cast<ISA8BitBus*>(component())->_cpu =
+                static_cast<Intel8088CPU*>(other->component());
         }
     };
 
@@ -188,7 +194,6 @@ public:
 
     void addComponent(ISA8BitComponent* component)
     {
-        _components.add(component);
         component->setBus(this);
     }
     void setDMAAddressRead(Tick tick, UInt16 address, int channel)
@@ -272,6 +277,7 @@ public:
     // get a pointer to the PIC, at least for now.
     void setPIC(Intel8259PIC* pic) { _pic = pic; }
     Intel8259PIC* getPIC() { return _pic; }
+    void runTo(Tick tick) { _cpu->runTo(tick); }
     void maintain(Tick ticks) { _dmaTick -= ticks; }
 private:
     UInt32 highAddress(Tick tick, int channel)
@@ -284,7 +290,6 @@ private:
     DMAPageRegistersSocket _dmaPageRegistersSocket;
     Connector _connector;
     ChipConnector _chipConnectors[8];
-    List<ISA8BitComponent*> _components;
     OutputConnector<bool> _parityError;
     UInt32 _activeAddress;
     int _activeAccess;
@@ -294,6 +299,7 @@ private:
     Intel8237DMAC* _dmac;
     DMAPageRegisters* _dmaPageRegisters;
     Intel8259PIC* _pic;
+    Intel8088CPU* _cpu;
     Tick _dmaTick;
 
     class Choice : public ISA8BitComponent

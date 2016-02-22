@@ -43,10 +43,10 @@ private:
     {
     public:
         static String typeName() { return "Timer"; }
-        Timer(Intel8253PIT* pit) : Timer(Type(pit->simulator(), this)) { }
-        Timer(Component::Type type)
+        Timer(Intel8253PIT* pit) : Timer(Type(pit->simulator(), this), pit) { }
+        Timer(Component::Type type, Intel8253PIT* pit = 0)
           : ClockedSubComponent<Timer>(type), _gateConnector(this),
-            _output(this)
+            _output(this), _pit(pit)
         {
             persist("value", &_value);
             persist("latch", &_latch);
@@ -84,6 +84,7 @@ private:
         }
         void runTo(Tick tick)
         {
+            _pit->_bus->runTo(tick);
             while (_tick < tick) {
                 _tick += _ticksPerCycle;
                 simulateCycle();
@@ -395,7 +396,7 @@ private:
                 static_cast<Timer*>(component())->setGate(tick, v);
             }
         };
-
+        Intel8253PIT* _pit;
         UInt16 _value;
         UInt16 _latch;
         UInt16 _count;

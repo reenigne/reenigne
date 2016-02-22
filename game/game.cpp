@@ -243,7 +243,11 @@ public:
         Character::move();
         Vector tile = _position/Vector(TILEX, TILEY);
         int ti = tile.y*TILESX + tile.x;
-        _next =
+        _next = _game->_zombieGrid[ti];
+        _game->_zombieGrid[ti] = this;
+        _previous = &(_zombieGrid[ti]);
+        if (_next != 0)
+            _next->_previous = this;
 
 
         _animation += _velocity.x;
