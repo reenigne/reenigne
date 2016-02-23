@@ -38,6 +38,16 @@ public:
                 _timers[timer].control(tick, data & 0x3f);
         }
     }
+    void runTo(Tick tick)
+    {
+        for (int i = 0; i < 3; ++i)
+            _timers[i].runTo(tick);
+    }
+    void maintain(Tick ticks)
+    {
+        for (int i = 0; i < 3; ++i)
+            _timers[i].maintain(ticks);
+    }
 private:
     class Timer : public ClockedSubComponent<Timer>
     {
