@@ -928,6 +928,7 @@ public:
     }
     OutputConnector(Component* c) : TransportConnectorBase<OutputConnector<T>,
         T, BidirectionalConnector<T>>(c) { }
+    void set(Tick t, T v) { this->_other->setData(t, v); }
     void setData(Tick t, T v) { }
 };
 
@@ -1212,7 +1213,7 @@ public:
         this->connector("", &_connector);
     }
 private:
-    void load(const Value& v) { _connector.setData(0, _v); }
+    void load(const Value& v) { _connector.set(0, _v); }
     T _v;
     OutputConnector<T> _connector;
 };
@@ -1573,7 +1574,7 @@ public:
     {
         String s("{\n");
         bool needComma = false;
-        for (auto i : _components) {
+        for (auto i : _topLevelComponents) {
             if (i->value() == i->persistenceType().defaultValue())
                 continue;
             String l = "    " + i->name() + ": ";
@@ -1589,7 +1590,13 @@ public:
     }
 
     void halt() { _halted = true; }
-    void addComponent(Reference<Component> c) { _components.add(c); }
+    void addComponent(Reference<Component> c)
+    {
+        _topLevelComponents.add(c);
+        auto components = c->components();
+        for (auto component : components)
+            _components.add(component);
+    }
     void load(String initialStateFile)
     {
         int n = 0;
@@ -1610,41 +1617,35 @@ public:
                 throw Exception(s);
             }
         }
-        for (auto i : _components) {
-            auto components = i->components();
-            for (auto component : components) {
-                auto c = dynamic_cast<ClockedComponent*>(component);
-                if (c == 0)
-                    continue;
-                Rational cyclesPerSecond = c->cyclesPerSecond();
-                if (_ticksPerSecond == 0)
-                    _ticksPerSecond = cyclesPerSecond;
-                else
-                    _ticksPerSecond = lcm(_ticksPerSecond, cyclesPerSecond);
-                Rational f = cyclesPerSecond*c->startupCycles();
-                if (f != 0)
-                    _ticksPerSecond = lcm(_ticksPerSecond, f);
-            }
+        for (auto component : _components) {
+            auto c = dynamic_cast<ClockedComponent*>(component);
+            if (c == 0)
+                continue;
+            Rational cyclesPerSecond = c->cyclesPerSecond();
+            if (_ticksPerSecond == 0)
+                _ticksPerSecond = cyclesPerSecond;
+            else
+                _ticksPerSecond = lcm(_ticksPerSecond, cyclesPerSecond);
+            Rational f = cyclesPerSecond*c->startupCycles();
+            if (f != 0)
+                _ticksPerSecond = lcm(_ticksPerSecond, f);
         }
         if (_ticksPerSecond == 0)
             throw Exception("None of the components is clocked!");
-        for (auto i : _components) {
-            auto components = i->components();
-            for (auto component : components) {
-                auto c = dynamic_cast<ClockedComponent*>(component);
-                if (c == 0)
-                    continue;
-                Rational t = _ticksPerSecond / c->cyclesPerSecond();
-                if (t.denominator != 1)
-                    throw Exception("Scheduler LCM calculation incorrect");
-                c->setTicksPerCycle(t.numerator);
-            }
+        for (auto component : _components) {
+            auto c = dynamic_cast<ClockedComponent*>(component);
+            if (c == 0)
+                continue;
+            Rational t = _ticksPerSecond / c->cyclesPerSecond();
+            if (t.denominator != 1)
+                throw Exception("Scheduler LCM calculation incorrect");
+            c->setTicksPerCycle(t.numerator);
         }
 
         Value value;
         if (!initialStateFile.empty()) {
             ConfigFile initialState;
-            for (auto i : _components)
+            for (auto i : _topLevelComponents)
                 initialState.addType(i->persistenceType());
             initialState.addDefaultOption(name(), persistenceType(),
                 initial());
@@ -1655,7 +1656,7 @@ public:
             value = initial();
 
         auto object = value.value<HashTable<Identifier, Value>>();
-        for (auto i : _components)
+        for (auto i : _topLevelComponents)
             i->load(object[i->name()]);
     }
     String name() const { return "simulator"; }
@@ -1809,7 +1810,7 @@ private:
     ::Type persistenceType() const
     {
         List<StructuredType::Member> members;
-        for (auto i : _components) {
+        for (auto i : _topLevelComponents) {
             Type type = i->persistenceType();
             if (!type.valid())
                 continue;
@@ -1819,7 +1820,8 @@ private:
     }
 
     Directory _directory;
-    List<Reference<Component>> _components;
+    List<Reference<Component>> _topLevelComponents;
+    List<Component*> _components;
     bool _halted;
     Rational _ticksPerSecond;
     HashTable<Pair, Path> _conversionPaths;

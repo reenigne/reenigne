@@ -438,6 +438,9 @@
   <Type Name="Intel8253PIT">
     <DisplayString>Intel8253PIT</DisplayString>
   </Type>
+  <Type Name="Intel8253PIT::Timer">
+    <DisplayString>Intel8253PIT::Timer</DisplayString>
+  </Type>
   <Type Name="Intel8255PPI">
     <DisplayString>Intel8255PPI</DisplayString>
   </Type>

@@ -71,7 +71,7 @@ cpu 8086
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
-  mov ax,0x3f04
+  mov ax,0x7f04
   out dx,ax
 
   ;   0x1f Vertical Total Adjust                        00
@@ -79,11 +79,11 @@ cpu 8086
   out dx,ax
 
   ;   0x7f Vertical Displayed                           02
-  mov ax,0x3206
+  mov ax,0x6406
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       18
-  mov ax,0x3807
+  mov ax,0x7007
   out dx,ax
 
   ;   0x03 Interlace Mode                               02
@@ -91,7 +91,7 @@ cpu 8086
   out dx,ax
 
   ;   0x1f Max Scan Line Address                        00
-  mov ax,0x0309
+  mov ax,0x0009
   out dx,ax
 
   ; Cursor Start                                        06
@@ -121,41 +121,42 @@ cpu 8086
   out dx,ax
 
 
-  xor ax,ax
-  mov ds,ax
-  cli
-  mov ax,[8*4]
-  mov [cs:savedInterrupt8],ax
-  mov ax,[8*4+2]
-  mov [cs:savedInterrupt8+2],ax
-  mov ax,interrupt8
-  mov [8*4],ax
-  mov [8*4+2],cs
-
-  mov al,0x34
-  out 0x43,al
-  mov al,(76*262) & 0xff
-  out 0x40,al
-  mov al,(76*262) >> 8
-  out 0x40,al
-  sti
+;  xor ax,ax
+;  mov ds,ax
+;  cli
+;  mov ax,[8*4]
+;  mov [cs:savedInterrupt8],ax
+;  mov ax,[8*4+2]
+;  mov [cs:savedInterrupt8+2],ax
+;  mov ax,interrupt8
+;  mov [8*4],ax
+;  mov [8*4+2],cs
+;
+;  mov al,0x34
+;  out 0x43,al
+;  mov al,(76*262) & 0xff
+;  out 0x40,al
+;  mov al,(76*262) >> 8
+;  out 0x40,al
+;  sti
 
   ; All video processing is done in the IRQ0 handler!
   mov ah,0
   int 0x16
 
-  cli
-  mov ax,[cs:savedInterrupt8]
-  mov [8*4],ax
-  mov ax,[cs:savedInterrupt8+2]
-  mov [8*4+2],ax
-  mov al,0x34
-  out 0x43,al
-  mov al,0
-  out 0x40,al
-  out 0x40,al
-  sti
+;  cli
+;  mov ax,[cs:savedInterrupt8]
+;  mov [8*4],ax
+;  mov ax,[cs:savedInterrupt8+2]
+;  mov [8*4+2],ax
+;  mov al,0x34
+;  out 0x43,al
+;  mov al,0
+;  out 0x40,al
+;  out 0x40,al
+;  sti
 
+  int 0x67
   ret
 
 

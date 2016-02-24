@@ -1,0 +1,38 @@
+We can tailor our compression routines for the particular circumstances
+Our decompression routines are intrinsically part of the compressed data, and can make as many 8088-specific assumptions as we like
+For DOS programs, we don't know which segments we'll be using until runtime
+  So let's initially have segments passed in (output at ES:0, input at CS:IP)
+    IP is under our control at compile time (0x100 for a .com, 0 for a .bin, whatever for an .exe)
+  If later we want to optimize things so that CS and ES are fixed for a booter demo, we can
+We want to keep the stack valid so that background tasks aren't interrupted
+  If we really need it, a special-purpose decompression routine can temporarily take over the stack as long as it reliquishes it regularly
+  We can still use SS:SP for token popping, the stack will grow into already-used compression data
+    This implies leaving a certain amount of space before the compressed data
+      For .exe files we'll probably load in multiple stages anyway so that we can load and decompress at the same time
+There are various chunks of decompressor code and data that we may want to reuse between decompress calls
+  So these are essentially assets
+If we break into the code while it's decompressing, what would we expect to see?
+  Almost always "rep movsw" or "rep stosw"
+  So, one possibility might be "ret" to determine what routine to end up next, possibilities are:
+    literal:
+      pop ax
+      pop cx
+      rep stosw
+      ret
+    match:
+      pop si
+      pop cx
+      rep movsw
+      ret
+    alternating:
+      pop ax
+      pop si
+      pop cx
+      altloop:
+        movsw
+        stosw
+        loop altloop
+      ret
+    decompressedFinished:
+  Or, have the last-stage decompression code be single-use. It'll be quite sparse, but we can compress it separately
+  Before the last (longest) decompression stage, there will be two
