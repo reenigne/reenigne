@@ -55,8 +55,15 @@ public:
             connector("dreq" + decimal(i), &_channels[i]._dReq);
             connector("dack" + decimal(i), &_channels[i]._dAck);
         }
+        config("clock", &_clock, _clock.type());
     }
-
+    //void runTo(Tick tick)
+    //{
+    //    while (_tick < tick) {
+    //        _tick += _ticksPerCycle;
+    //        simulateCycle();
+    //    }
+    //}
     void simulateCycle()
     {
         TransferMode mode = _channels[_channel].transferMode();
@@ -454,4 +461,5 @@ private:
     bool _dAck;
     int _highAddress;
     State _state;
+    Clock _clock;
 };

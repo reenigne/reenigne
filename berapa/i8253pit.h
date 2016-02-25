@@ -267,6 +267,7 @@ private:
                 _latched = true;
                 return;
             }
+            _latched = false;
             _bcd = ((data & 1) != 0);
             _bytes = command;
             switch (data & 0xe) {
