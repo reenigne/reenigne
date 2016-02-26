@@ -428,17 +428,18 @@ private:
             }
         };
 
-        Byte _mode;
         UInt16 _baseAddress;
         UInt16 _baseCount;
         UInt16 _currentAddress;
         UInt16 _currentCount;
-        bool _hardRequest;
-        bool _softRequest;
-        bool _internalRequest;
+        Byte _mode;
+        //bool _hardRequest;
+        //bool _softRequest;
+        //bool _internalRequest;
         bool _mask;
-        bool _terminalCount;
-        bool _blockContinue;
+        bool _request;
+        //bool _terminalCount;
+        //bool _blockContinue;
         OutputConnector<bool> _dAck;
         Connector _dReq;
     };
@@ -454,12 +455,15 @@ private:
 
     Channel _channels[4];
     int _address;
+    UInt16 _temporaryAddress;
+    UInt16 _temporaryCount;
+    Byte _status;
     Byte _command;
-    int _channel;
-    bool _lastByte;
+    //int _channel;
+    //bool _lastByte;
     Byte _temporary;
-    bool _dAck;
-    int _highAddress;
+    //bool _dAck;
+    //int _highAddress;
     State _state;
     Clock _clock;
 };
