@@ -347,7 +347,7 @@ private:
         {
             int shift = (lastByte ? 8 : 0);
             UInt16 d = data << shift;
-            UInt16 m = 0xff << shift;
+            UInt16 m = 0xff00 >> shift;
             if (address == 0) {
                 _baseAddress = (_baseAddress & m) | d;
                 _currentAddress = (_currentAddress & m) | d;
@@ -460,7 +460,7 @@ private:
     Byte _status;
     Byte _command;
     //int _channel;
-    //bool _lastByte;
+    bool _lastByte;
     Byte _temporary;
     //bool _dAck;
     //int _highAddress;
