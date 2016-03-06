@@ -270,9 +270,10 @@ public:
         template<typename... Args> Body(Args&&... args)
           : H(std::forward<Args>(args)...), _size(0) { }
 
-        // HashTable keeps all elements constructed, and uses _size to keep
-        // track of the number of actual entries in the table.
+        // HashTable and Set keep all elements constructed, and use _size to
+        // keep track of the number of actual entries in the table.
         template<class Key, class Value> friend class HashTable;
+        template<class Key> friend class Set;
         friend class Array;
     };
 
@@ -573,6 +574,7 @@ private:
 
     // For access to body().
     template<class Key, class Value> friend class HashTable;
+    template<class Key> friend class Set;
 };
 
 #endif // INCLUDED_ARRAY_H
