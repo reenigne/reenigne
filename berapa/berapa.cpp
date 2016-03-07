@@ -818,6 +818,7 @@ public:
     Clock(Component* c) : Clock(Type(c->simulator(), this)) { }
     Clock(Component::Type type) : ClockedSubComponent<Clock>(type) { }
     static String typeName() { return "Clock"; }
+    Tick ticksPerCycle() const { return _ticksPerCycle; }
 };
 
 template<class T> class SimpleProtocol
