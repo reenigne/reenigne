@@ -112,7 +112,7 @@ public:
         _chipConnectors{this, this, this, this, this, this, this, this},
         _parityError(this), _noComponent(type), _readMemory(this),
         _writeMemory(this), _readIO(this), _writeIO(this),
-        _dmaPageRegistersSocket(this)
+        _dmaPageRegistersSocket(this), _terminalCount(this)
     {
         this->connector("cpu", &_cpuSocket);
         this->connector("slot", &_connector);
@@ -122,6 +122,7 @@ public:
         }
         this->connector("parityError", &_parityError);
         this->connector("dmaPageRegisters", &_dmaPageRegistersSocket);
+        this->connector("terminalCount", &_terminalCount);
         this->persist("activeAddress", &_activeAddress);
         this->persist("activeAccess", &_activeAccess);
     }
@@ -279,6 +280,11 @@ public:
     Intel8259PIC* getPIC() { return _pic; }
     void runTo(Tick tick) { _cpu->runTo(tick); }
     void maintain(Tick ticks) { _dmaTick -= ticks; }
+
+    void setTerminalCount(Tick tick, bool v)
+    {
+        // TODO
+    }
 private:
     UInt32 highAddress(Tick tick, int channel)
     {
@@ -592,4 +598,17 @@ private:
 
     friend class ISA8BitComponentT<T>;
     friend class Choice;
+
+    class TerminalCountConnector : public InputConnector<bool>
+    {
+    public:
+        TerminalCountConnector(ISA8BitBus* c) : InputConnector<bool>(c) { }
+        void setData(Tick tick, bool v)
+        {
+            static_cast<ISA8BitBus*>(component())->setTerminalCount(tick, v);
+        }
+    };
+
+    TerminalCountConnector _terminalCount;
+
 };

@@ -33,6 +33,8 @@ public:
         int colours = 3*16 + 1;
 
         Array<int> cc(160);
+        AppendableArray<Byte> code;
+        AppendableArray<Byte> data;
 
         for (int x0 = 0; x0 < 2; ++x0) {
             for (int y = 0; y < yr*2 + 1; ++y) {
