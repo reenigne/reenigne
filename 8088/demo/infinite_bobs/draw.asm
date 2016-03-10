@@ -1,6 +1,4 @@
-  add di,99
   mov si,9999
-  mov cx,9999
 
     ; Start on odd nybble
     mov al,[es:di]
@@ -8,6 +6,7 @@
     or al,0x09
     stosb
 
+  mov cx,9999
   rep movsw
 
     ; End with one byte
@@ -18,4 +17,6 @@
     and al,0x0f
     or al,0x90
     stosb
+
+  add di,99
 
