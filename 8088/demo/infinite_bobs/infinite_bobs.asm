@@ -3,16 +3,17 @@ cpu 8086
 
   cli
 
-  ; Copy data
+  ; Clear screen
   mov ax,cs
   mov ds,ax
   mov ax,0xb800
   mov es,ax
-  mov cx,8000
+  mov cx,0x1000 + 4000
   mov si,data
+  xor ax,ax
   xor di,di
   cld
-  rep movsw
+  rep stosw
 
 %macro waitForDisplayEnable 0
   %%waitForDisplayEnable
@@ -50,7 +51,7 @@ cpu 8086
   ;   0x10 +1BPP                                         0
   ;   0x20 +ENABLE BLINK                                 0
   mov dx,0x3d8
-  mov al,0x09
+  mov al,0x1a
   out dx,al
 
   ; Palette                                             00
@@ -61,25 +62,25 @@ cpu 8086
   ;   0x10 +BACKGROUND I                                 0
   ;   0x20 +COLOR SEL                                    0
   inc dx
-  mov al,0
+  mov al,0x0f
   out dx,al
 
   mov dl,0xd4
 
   ;   0xff Horizontal Total                             71
-  mov ax,0x7100
+  mov ax,0x3800
   out dx,ax
 
   ;   0xff Horizontal Displayed                         50
-  mov ax,0x5001
+  mov ax,0x2801
   out dx,ax
 
   ;   0xff Horizontal Sync Position                     5a
-  mov ax,0x5a02
+  mov ax,0x2d02
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0d
-  mov ax,0x0003
+  mov ax,0x0a03
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
@@ -308,8 +309,4 @@ yTable:
 ;%endrep
 
 jumpTable:
-  dw data
-  dw data + 9999
-
-data:
 

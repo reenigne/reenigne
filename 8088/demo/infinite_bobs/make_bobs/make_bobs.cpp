@@ -44,33 +44,40 @@ public:
 
         int colours = 3*16 + 1;
 
-        Array<int> cc(160);
         AppendableArray<Byte> code;
         AppendableArray<Byte> data;
+        AppendableArray<Word> dataPointers;
+        AppendableArray<int> codePatches;
 
         FileStream output = File(_arguments[2], true).openWrite();
         output.write(inputCode);
 
         int positions = 2;
 
-        offset += 2*sizeof(Word);
+        offset += inputCode.length();
+        offset += positions*sizeof(Word);
 
         for (int x0 = 0; x0 < positions; ++x0) {
-            output.write<Word>(offset + 4 + code.count());
+            output.write<Word>(offset + code.count());
+            dataPointers.append(data.count());
             code.append(0xbe);
+            codePatches.append(code.count());
             code.append(0);
             code.append(0);
 
+            int di = 0;
             for (int y = 0; y < yr*2 + 1; ++y) {
                 double yy = (y - (yr-1))/yr;
                 double y2 = yy*yy;
 
+                int bytes = 0;
+                bool extraNybble = false;
+                int last = 0;
                 for (int x = 0; x < xr*2 + 1; ++x) {
                     double xx = (x - (xr - 1))/xr;
                     double x2 = xx*xx;
                     double z2 = 1 - (x2 + y2);
                     bool started = false;
-                    int last = 0;
                     if (z2 >= 0) {
                         double zz = sqrt(z2);
                         double l = xx*lx + yy*ly + zz*lz;
@@ -80,29 +87,56 @@ public:
                         int f = c >> 4;
                         if ((c & 15) > bayer[(y & 3)*4 + (x & 3)])
                             ++f;
-                        cc[x] = fade[f];
                         if (!started) {
                             started = true;
+                            if (y != 0)
+                                code.append(80 + ((x + x0)>>1) - di);
                             if (((x+x0) & 1) != 0) {
                                 code.append(0x26); code.append(0x8a);
                                 code.append(0x05);
                                 code.append(0x24); code.append(0xf0);
-                                code.append(0x0c);
-                                code.append(fade[f]);
+                                code.append(0x0c); code.append(fade[f]);
                                 code.append(0xaa);
                                 continue;
                             }
                         }
-                        if (((x+x0) & 1) != 0)
+                        if (((x+x0) & 1) != 0) {
                             data.append((last << 4) | fade[f]);
-                        else
+                            ++bytes;
+                            extraNybble = false;
+                        }
+                        else {
                             last = fade[f];
+                            extraNybble = true;
+                        }
+                        di = 1 + ((x + x0)>>1);
                     }
                 }
-                code.append(0xb9);
-                code.append()
-
+                if (bytes > 1) {
+                    code.append(0xb9); code.append(bytes >> 1);
+                    code.append(bytes >> 9);
+                    code.append(0xf3); code.append(0xa5);
+                }
+                if ((bytes & 1) != 0)
+                    code.append(0xa4);
+                if (extraNybble) {
+                    code.append(0x26); code.append(0x8a); code.append(0x05);
+                    code.append(0x24); code.append(0x0f);
+                    code.append(0x0c); code.append(last << 4);
+                    code.append(0xaa);
+                }
+                if (y < yr*2) {
+                    code.append(0x83); code.append(0xc7);
+                }
             }
+            code.append(0xc3);
+        }
+        offset += code.count();
+        for (int x0 = 0; x0 < positions; ++x0) {
+            Word dataPointer = offset + dataPointers[x0];
+            int patch = codePatches[x0];
+            code[patch] = dataPointer & 0xff;
+            code[patch + 1] = dataPointer >> 8;
         }
 
         output.write(code);
