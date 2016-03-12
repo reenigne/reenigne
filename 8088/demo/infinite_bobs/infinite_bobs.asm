@@ -1,19 +1,6 @@
 org 0
 cpu 8086
 
-  cli
-
-  ; Clear screen
-  mov ax,cs
-  mov ds,ax
-  mov ax,0xb800
-  mov es,ax
-  mov cx,0x1000 + 4000
-  mov si,data
-  xor ax,ax
-  xor di,di
-  cld
-  rep stosw
 
 %macro waitForDisplayEnable 0
   %%waitForDisplayEnable
@@ -43,6 +30,167 @@ cpu 8086
     jnz %%waitForNoVerticalSync
 %endmacro
 
+
+  mov ax,cs
+  mov ds,ax
+
+  mov dx,[cppData]
+  mov ax,cppData + 4
+  mov [patch2+2],ax
+  add dx,dx
+  add ax,dx
+  mov [patch3+2],ax
+  add ax,dx
+  mov [patch1+2],ax
+
+
+  ; Clear screen
+  mov ax,0xb800
+  mov es,ax
+  mov cx,0x1000 + 4000
+  xor ax,ax
+  xor di,di
+  cld
+  rep stosw
+
+  call startISAV
+
+mainLoop:
+  mov ax,0x100  ; x frequency
+  add [xPhase],ax
+  adc word[xPhase+2],0
+  mov ax,[cppData]  ; nx
+  cmp word[xPhase+1],ax
+  jl noXFixup
+  sub word[xPhase+1],ax
+noXFixup:
+
+  mov ax,0x100  ; y frequency
+  add [yPhase],ax
+  adc word[yPhase+2],0
+  mov ax,[cppData+2]
+  cmp word[yPhase+1],ax
+  jl noYFixup
+  sub word[yPhase+1],ax
+noYFixup:
+
+  mov bx,[yPhase+1]
+  add bx,bx
+patch1:
+  mov di,[bx+0x9999]
+  mov bx,[xPhase+1]
+  add bx,bx
+patch2:
+  add di,[bx+0x9999]
+  cmp byte[page],0
+  je patch3
+  or di,0x2000
+patch3:
+  call [bx+0x9999]
+
+  mov al,[page]
+  xor ah,ah
+  push ax
+  call setDisplayPage
+  ; TODO: wait
+  call waitForSafeToDraw
+  xor byte[page],1
+
+  jmp mainLoop
+
+
+  call stopISAV
+
+  int 0x67
+  ret
+
+
+; interrupt8a runs on scanline 240 and sets up the "short" field for flipping the odd/even bit
+interrupt8a:
+  push ax
+  push dx
+
+  mov dx,0x3d4
+  mov ax,0x0206 ; Vertical Displayed
+  out dx,ax
+  mov ax,0x0404 ; Vertical Total
+  out dx,ax
+  mov ax,0x0105 ; Vertical Total Adjust
+  out dx,ax
+
+  push ds
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8b
+
+  mov al,(240*76) & 0xff
+  out 0x40,al
+  mov al,(240*76) >> 8
+  out 0x40,al
+
+  pop ds
+  pop dx
+doneInterrupt8:
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
+
+
+; interrupt8b runs on scanline 0 and sets up the "normal" field
+interrupt8b:
+  push ax
+  push dx
+
+  mov dx,0x3d4
+  mov ax,0x3206 ; Vertical Displayed
+  out dx,ax
+  mov ax,0x3b04 ; Vertical Total
+  out dx,ax
+  mov ax,0x0005 ; Vertical Total Adjust
+  out dx,ax
+
+  push ds
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8a
+
+  mov al,(22*76) & 0xff
+  out 0x40,al
+  mov al,(22*76) >> 8
+  out 0x40,al
+
+  pop ds
+  pop dx
+  add word[cs:timerCount],76*262
+  jnc doneInterrupt8
+  pop ax
+  jmp far [cs:savedInterrupt8]
+
+
+xPhase:
+  dw 0, 0
+yPhase:
+  dw 0, 0
+xFrequency:
+  dw 0x100
+yFrequency:
+  dw 0x100
+page:
+  db 0
+
+
+
+; ISAV code starts here.
+
+savedInterrupt8:
+  dw 0,0
+timerCount:
+  dw 0
+
+
+; Puts the CGA card in ISAV mode
+startISAV:
   ; Mode                                                09
   ;      1 +HRES                                         1
   ;      2 +GRPH                                         0
@@ -188,11 +336,11 @@ cpu 8086
   mov [8*4],ax
   mov [8*4+2],cs
   sti
+  ret
 
-  ; All video processing is done in the IRQ0 handler!
-  mov ah,0
-  int 0x16
 
+; Returns the CGA to normal mode
+stopISAV:
   cli
   mov ax,[cs:savedInterrupt8]
   mov [8*4],ax
@@ -208,105 +356,34 @@ cpu 8086
   ; Set the CGA back to a normal mode so we don't risk breaking anything
   mov ax,3
   int 0x10
-
-  int 0x67
   ret
 
 
-; interrupt8a runs on scanline 240 and sets up the "short" field for flipping the odd/even bit
-interrupt8a:
-  push ax
-  push dx
+; Sets the page to display next (0 or 1)
+setDisplayPage:
+  push bp
+  mov bp,sp
+  mov ax,[bp+4]
 
-  mov dx,0x3d4
-  mov ax,0x0206 ; Vertical Displayed
-  out dx,ax
-  mov ax,0x0404 ; Vertical Total
-  out dx,ax
-  mov ax,0x0105 ; Vertical Total Adjust
-  out dx,ax
+  ; TODO
 
-  push ds
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],interrupt8b
-
-  mov al,(240*76) & 0xff
-  out 0x40,al
-  mov al,(240*76) >> 8
-  out 0x40,al
-
-  pop ds
-  pop dx
-doneInterrupt8:
-  mov al,0x20
-  out 0x20,al
-  pop ax
-  iret
+  pop bp
+  ret
 
 
-; interrupt8b runs on scanline 0 and sets up the "normal" field
-interrupt8b:
-  push ax
-  push dx
-
-  mov dx,0x3d4
-  mov ax,0x3206 ; Vertical Displayed
-  out dx,ax
-  mov ax,0x3b04 ; Vertical Total
-  out dx,ax
-  mov ax,0x0005 ; Vertical Total Adjust
-  out dx,ax
-
-  push ds
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],interrupt8a
-
-  mov al,(22*76) & 0xff
-  out 0x40,al
-  mov al,(22*76) >> 8
-  out 0x40,al
-
-  pop ds
-  pop dx
-  add word[cs:timerCount],76*262
-  jnc doneInterrupt8
-  pop ax
-  jmp far [cs:savedInterrupt8]
+; Returns true if the drawing page (the one that was not requested in the most recent call to setDisplayPage()) is no longer active
+safeToDraw:
+  ; TODO
+  ret
 
 
-savedInterrupt8:
-  dw 0,0
-timerCount:
-  dw 0
+waitForSafeToDraw:
+  call safeToDraw
+  cmp ax,0
+  je waitForSafeToDraw
+  ret
 
 
 
-drawBob:
-  ; y in bx
-  add bx,bx
-  mov di,[bx+yTable]
-  ; x in ax
-  mov si,ax
-  and si,1
-  add si,si
-  shr ax,1
-  add di,ax
-  jmp [si+jumpTable]
-
-yTable:
-
-%assign i 0
-%rep 100
-  dw i*80
-  %assign i i+1
-%endrep
-;%assign i 0
-;%rep 100
-;  dw i*80 + 0x2000
-;  %assign i i+1
-;%endrep
-
-jumpTable:
+cppData:
 

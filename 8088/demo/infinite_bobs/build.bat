@@ -1,3 +1,4 @@
 @echo off
 yasm infinite_bobs.asm -o 1.bin
-copy /b 1.bin+bobs.bin infinite_bobs.bin
+make_bobs\debug\make_bobs 1.bin infinite_bobs.bin
+

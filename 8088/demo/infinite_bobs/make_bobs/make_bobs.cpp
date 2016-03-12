@@ -30,8 +30,8 @@ public:
             offset = 0x100;
         }
 
-        double yr = 20;
-        double xr = 6*yr/5;
+        int yr = 20;
+        int xr = static_cast<int>(6.0*yr/5);
 
         double l = sqrt(1/3.0);
         double lx = -l;
@@ -47,7 +47,7 @@ public:
         AppendableArray<Byte> code;
         AppendableArray<Byte> data;
         AppendableArray<Word> dataPointers;
-        AppendableArray<int> codePatches;
+        AppendableArray<int> codeOffsets;
 
         FileStream output = File(_arguments[2], true).openWrite();
         output.write(inputCode);
@@ -57,24 +57,24 @@ public:
         offset += inputCode.length();
         offset += positions*sizeof(Word);
 
+        // Generate sprite data
         for (int x0 = 0; x0 < positions; ++x0) {
-            output.write<Word>(offset + code.count());
             dataPointers.append(data.count());
+            codeOffsets.append(code.count());
             code.append(0xbe);
-            codePatches.append(code.count());
             code.append(0);
             code.append(0);
 
             int di = 0;
             for (int y = 0; y < yr*2 + 1; ++y) {
-                double yy = (y - (yr-1))/yr;
+                double yy = (y - (yr - 1.0))/yr;
                 double y2 = yy*yy;
 
                 int bytes = 0;
                 bool extraNybble = false;
                 int last = 0;
                 for (int x = 0; x < xr*2 + 1; ++x) {
-                    double xx = (x - (xr - 1))/xr;
+                    double xx = (x - (xr - 1.0))/xr;
                     double x2 = xx*xx;
                     double z2 = 1 - (x2 + y2);
                     bool started = false;
@@ -131,15 +131,55 @@ public:
             }
             code.append(0xc3);
         }
-        offset += code.count();
+        int nx = 1 + tau*(80-xr);
+        int ny = 1 + tau*(50-yr);
+        output.write<Word>(nx);
+        output.write<Word>(ny);
+        int codeOffset = offset + 4 + 4*nx + 2*ny;
+
+        // Patch sprite data positions into sprite code
         for (int x0 = 0; x0 < positions; ++x0) {
-            Word dataPointer = offset + dataPointers[x0];
-            int patch = codePatches[x0];
+            Word dataPointer = codeOffset + code.count() + dataPointers[x0];
+            int patch = codeOffsets[x0] + 1;
             code[patch] = dataPointer & 0xff;
             code[patch + 1] = dataPointer >> 8;
         }
 
+        //X:
+        //  Number of possible positions = 160-xr*2
+        //  x = ((sin(k*t)+1)/2)*(160-xr*2) = sin(t*tau/N)*(80-xr)+(80-xr)
+        //  then clamp and round down
+        //  At fastest point (t==0), dx/dt = tau*(80-xr)/N = 1, N = tau*(80-xr)
+        //  For xr = 30, 314 positions
+        //Y:
+        //  Number of possible positions = 100-yr*2, N = tau*(50-yr)
+        //  For yr = 20, 188 positions
+        //Want an integral number of positions, so round up
+
+        // Output X sine table, DI part
+        for (int t = 0; t < nx; ++t)
+            output.write<Word>(xSine(t, xr)/2);
+        // Output X sine table, sprite pointer part
+        for (int t = 0; t < nx; ++t)
+            output.write<Word>(codeOffset + codeOffsets[xSine(t, xr)&1]);
+        // Output Y sine table
+        for (int t = 0; t < nx; ++t)
+            output.write<Word>(ySine(t, xr)*80);
+
+
         output.write(code);
         output.write(data);
+    }
+    int xSine(int t, int xr)
+    {
+        int nx = 1 + tau*(80-xr);
+        int x = sin(t*tau/nx)*(80-xr)+(80-xr);
+        return clamp(0, x, 160-(xr*2 + 1));
+    }
+    int ySine(int t, int yr)
+    {
+        int ny = 1 + tau*(80-yr);
+        int y = sin(t*tau/ny)*(50-yr)+(50-yr);
+        return clamp(0, y, 100-(yr*2 + 1));
     }
 };
