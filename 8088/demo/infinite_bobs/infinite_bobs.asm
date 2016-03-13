@@ -92,13 +92,42 @@ patch3:
   xor ah,ah
   push ax
   call setDisplayPage
-  ; TODO: wait
+  mov cx,[delayFrames]
+delayLoop:
+  mov ah,1
+  int 0x16
+  jnz noKey
+  mov ah,0
+  int 0x16
+  cmp al,'+'
+  jne notPlus
+  dec word[delayFrames]
+notPlus:
+  cmp al,'-'
+  jne notMinus
+  inc word[delayFrames]
+notMinus:
+  cmp al,' '
+  jne notSpace
+  mov ah,0
+  int 0x16
+notSpace:
+  cmp al,27
+  je finishLoop
+noKey:
+  jcxz doneDelay
+  mov dx,0x3da
+  waitForVerticalSync
+  waitForNoVerticalSync
+  dec cx
+  jmp delayLoop
+doneDelay:
   call waitForSafeToDraw
   xor byte[page],1
 
   jmp mainLoop
 
-
+finishLoop:
   call stopISAV
 
   int 0x67
@@ -178,7 +207,8 @@ yFrequency:
   dw 0x100
 page:
   db 0
-
+delayFrames:
+  dw 0
 
 
 ; ISAV code starts here.
@@ -187,7 +217,10 @@ savedInterrupt8:
   dw 0,0
 timerCount:
   dw 0
-
+activePage:
+  db 0
+setPage:
+  db 0
 
 ; Puts the CGA card in ISAV mode
 startISAV:
@@ -289,7 +322,6 @@ startISAV:
   mov ds,ax
   cli
 
-
 ; Program timer 0 rate to 2
 ; timer 0 almost immediately fires, now IRQ0 is waiting
 ; We wait for display enable, now raster is on scanline 0 and timer 0 is firing rapidly
@@ -297,10 +329,6 @@ startISAV:
 ; We enable interrupts and IRQ0 (unreprogrammed). The next IRQ0 will be on scanline 240
 ; We program timer 0 for 22*76, this will be what it counts down from when it gets to scanline 240
 ; On scanline 240 we get interrupt8a
-
-
-; With interlace mode 1, we get our blue/black interface moving up. That means the screen is half a scanline longer
-
 
   mov al,0x34
   out 0x43,al
@@ -363,7 +391,20 @@ stopISAV:
 setDisplayPage:
   push bp
   mov bp,sp
-  mov ax,[bp+4]
+  mov cx,[bp+4]
+  push ds
+
+  xor bx,bx
+  mov ds,bx
+  mov al,0x04
+  cli
+  out 0x43,al
+  mov bx,[bx]
+  sti
+  in al,0x40
+  mov ah,al
+  in al,0x40
+  xchg ah,al
 
   ; TODO
 

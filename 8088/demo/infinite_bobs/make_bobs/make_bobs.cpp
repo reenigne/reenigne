@@ -73,11 +73,11 @@ public:
                 int bytes = 0;
                 bool extraNybble = false;
                 int last = 0;
+                bool started = false;
                 for (int x = 0; x < xr*2 + 1; ++x) {
                     double xx = (x - (xr - 1.0))/xr;
                     double x2 = xx*xx;
                     double z2 = 1 - (x2 + y2);
-                    bool started = false;
                     if (z2 >= 0) {
                         double zz = sqrt(z2);
                         double l = xx*lx + yy*ly + zz*lz;
