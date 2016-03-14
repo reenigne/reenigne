@@ -3,28 +3,28 @@ cpu 8086
 
 
 %macro waitForDisplayEnable 0
-  %%waitForDisplayEnable
+  %%waitForDisplayEnable:
     in al,dx                       ; 1 1 2
     test al,1                      ; 2 0 2
     jnz %%waitForDisplayEnable     ; 2 0 2
 %endmacro
 
 %macro waitForDisplayDisable 0
-  %%waitForDisplayDisable
+  %%waitForDisplayDisable:
     in al,dx                       ; 1 1 2
     test al,1                      ; 2 0 2
     jz %%waitForDisplayDisable     ; 2 0 2
 %endmacro
 
 %macro waitForVerticalSync 0
-  %%waitForVerticalSync
+  %%waitForVerticalSync:
     in al,dx
     test al,8
     jz %%waitForVerticalSync
 %endmacro
 
 %macro waitForNoVerticalSync 0
-  %%waitForNoVerticalSync
+  %%waitForNoVerticalSync:
     in al,dx
     test al,8
     jnz %%waitForNoVerticalSync
@@ -134,69 +134,6 @@ finishLoop:
   ret
 
 
-; interrupt8a runs on scanline 240 and sets up the "short" field for flipping the odd/even bit
-interrupt8a:
-  push ax
-  push dx
-
-  mov dx,0x3d4
-  mov ax,0x0206 ; Vertical Displayed
-  out dx,ax
-  mov ax,0x0404 ; Vertical Total
-  out dx,ax
-  mov ax,0x0105 ; Vertical Total Adjust
-  out dx,ax
-
-  push ds
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],interrupt8b
-
-  mov al,(240*76) & 0xff
-  out 0x40,al
-  mov al,(240*76) >> 8
-  out 0x40,al
-
-  pop ds
-  pop dx
-doneInterrupt8:
-  mov al,0x20
-  out 0x20,al
-  pop ax
-  iret
-
-
-; interrupt8b runs on scanline 0 and sets up the "normal" field
-interrupt8b:
-  push ax
-  push dx
-
-  mov dx,0x3d4
-  mov ax,0x3206 ; Vertical Displayed
-  out dx,ax
-  mov ax,0x3b04 ; Vertical Total
-  out dx,ax
-  mov ax,0x0005 ; Vertical Total Adjust
-  out dx,ax
-
-  push ds
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],interrupt8a
-
-  mov al,(22*76) & 0xff
-  out 0x40,al
-  mov al,(22*76) >> 8
-  out 0x40,al
-
-  pop ds
-  pop dx
-  add word[cs:timerCount],76*262
-  jnc doneInterrupt8
-  pop ax
-  jmp far [cs:savedInterrupt8]
-
-
 xPhase:
   dw 0, 0
 yPhase:
@@ -221,6 +158,8 @@ activePage:
   db 0
 setPage:
   db 0
+needCRTCChange:
+  db 1
 
 ; Puts the CGA card in ISAV mode
 startISAV:
@@ -391,7 +330,10 @@ stopISAV:
 setDisplayPage:
   push bp
   mov bp,sp
-  mov cx,[bp+4]
+  mov al,[bp+4]
+  cmp al,[activePage]
+  je .nothingToDo
+  mov [setPage],al
   push ds
 
   xor bx,bx
@@ -399,15 +341,31 @@ setDisplayPage:
   mov al,0x04
   cli
   out 0x43,al
-  mov bx,[bx]
+  mov bl,[0x20]
   sti
   in al,0x40
   mov ah,al
   in al,0x40
   xchg ah,al
 
-  ; TODO
+  cmp bl,interrupt8b & 0xff
+  je .nextFrame
+  cmp ax,76*2  ; Not sure if this is the correct value
+  jl .nextFrame
 
+  mov byte[needCRTCChange],0
+  mov dx,0x3d4
+  mov ax,0x4004
+  out dx,ax
+  mov ax,0x0206
+  sub ah,[activePage]
+  out dx,ax
+  jmp .nothingToDo
+
+.nextFrame:
+  mov byte[needPageFlipNext],1
+
+.nothingToDo:
   pop bp
   ret
 
@@ -424,6 +382,117 @@ waitForSafeToDraw:
   je waitForSafeToDraw
   ret
 
+
+; interrupt8a runs on scanline 240 and sets up the "short" field for flipping the odd/even bit
+interrupt8a:
+  push ax
+
+  cmp byte[cs:needCRTCChange],0
+  je .doneCRTC
+  push dx
+  mov dx,0x3d4
+  mov ax,0x0206 ; Vertical Displayed
+  out dx,ax
+  mov ax,0x0404 ; Vertical Total
+  out dx,ax
+  mov ax,0x0105 ; Vertical Total Adjust
+  out dx,ax
+  pop dx
+.doneCRTC:
+
+  push ds
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8b
+  pop ds
+
+  mov al,(240*76) & 0xff
+  out 0x40,al
+  mov al,(240*76) >> 8
+  out 0x40,al
+
+doneInterrupt8:
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
+
+
+interrupt8aEnd:
+%if ((interrupt8aEnd - interrupt8a) & 0xff) == 0
+  nop
+%endif
+
+
+; interrupt8b runs on scanline 0 and sets up the "normal" field
+interrupt8b:
+  push ax
+
+  push dx
+  mov dx,0x3d4
+  cmp byte[cs:needCRTCChange],0
+  je doneCRTCb
+  mov ax,0x3206 ; Vertical Displayed
+  out dx,ax
+  mov ax,0x3b04 ; Vertical Total
+  out dx,ax
+  mov ax,0x0005 ; Vertical Total Adjust
+  out dx,ax
+doneCRTCb:
+  mov byte[cs:needCRTCChange],1
+  cmp byte[cs:needPageFlipNext],0
+  je noNewChange
+  mov byte[cs:needCRTCChange],0
+  mov byte[cs:needPageFlipNext],0
+  mov ax,0x4004
+  out dx,ax
+  mov ax,0x0206
+  sub ah,[cs:setPage]
+  out dx,ax
+  pop dx
+
+  push ds
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8a
+  pop ds
+
+  mov al,(22*76) & 0xff
+  out 0x40,al
+  mov al,(22*76) >> 8
+  out 0x40,al
+
+  add word[cs:timerCount],76*262
+  jnc doneInterrupt8
+  pop ax
+  jmp far [cs:savedInterrupt8]
+
+
+; Page 0, no page change:
+;   (0x3b + 1) * 2 * 2 == 240 scanlines main field
+;                           0 scanlines main field adjust
+;   (0x04 + 1) * 2 * 2 ==  20 scanlines small field
+;                           1 scanline small field adjust
+;                           1 scanline CRTC extra interlace
+
+; Page 1, no page change:
+;   (0x3b + 1) * 2 * 2 == 240 scanlines main field
+;                           0 scanlines main field adjust
+;                           1 scanline CRTC extra interlace
+;   (0x04 + 1) * 2 * 2 ==  20 scanlines small field
+;                           1 scanline small field adjust
+
+; Page 0, switch to page 1 for next frame:
+;   (0x40 + 1) * 2 * 2 == 260 scanlines
+;                           2 scanlines adjust
+
+; Page 1, switch to page 0 for next frame:
+;   (0x40 + 1) * 2 * 2 == 260 scanlines
+;                           1 scanline adjust
+;                           1 scanline CRTC extra interlace
+
+; In order to be able to switch pages before scanline 240, we'll need to do all our drawing on scanlines -21 .. 238
+; (we can actually ~26 scanlines more drawing after the page flip, though really we should start work on the following page by that point)
 
 
 cppData:
