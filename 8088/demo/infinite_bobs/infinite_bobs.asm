@@ -158,8 +158,12 @@ activePage:
   db 0
 setPage:
   db 0
+displayPage:
+  db 0
 needCRTCChange:
   db 1
+needPageFlipNext:
+  db 0
 
 ; Puts the CGA card in ISAV mode
 startISAV:
@@ -339,10 +343,8 @@ setDisplayPage:
   xor bx,bx
   mov ds,bx
   mov al,0x04
-  cli
-  out 0x43,al
-  mov bl,[0x20]
-  sti
+  out 0x43,al    ; We latch the count before reading the vector otherwise we could end up
+  mov bl,[0x20]  ; on scanline 240 with a timer 0 count indicating scanline 22 or so
   in al,0x40
   mov ah,al
   in al,0x40
@@ -360,6 +362,10 @@ setDisplayPage:
   mov ax,0x0206
   sub ah,[activePage]
   out dx,ax
+
+  mov al,[setPage]
+  mov [activePage],al
+
   jmp .nothingToDo
 
 .nextFrame:
@@ -372,7 +378,28 @@ setDisplayPage:
 
 ; Returns true if the drawing page (the one that was not requested in the most recent call to setDisplayPage()) is no longer active
 safeToDraw:
-  ; TODO
+  ; If we're displaying the set page, it's safe to draw on the other one
+  mov al,[setPage]
+  cmp al,[displayPage]
+  je .is
+
+  ; If we've finished the active area, it's safe to draw because we'll have finished swapping pages by the start of the next active area
+  mov al,0x04
+  out 0x43,al    ; We latch the count before reading the vector otherwise we could end up
+  mov bl,[0x20]  ; on scanline 240 with a timer 0 count indicating scanline 22 or so
+  in al,0x40
+  mov ah,al
+  in al,0x40
+  xchg ah,al
+
+  cmp ax,40*76
+  jl .is         ; includes entire small field, since that's only ~22 scanlines
+
+  xor ax,ax
+  ret
+
+.is:
+  mov ax,1
   ret
 
 
@@ -428,6 +455,9 @@ interrupt8aEnd:
 interrupt8b:
   push ax
 
+  mov al,[cs:activePage]
+  mov [cs:displayPage],al
+
   push dx
   mov dx,0x3d4
   cmp byte[cs:needCRTCChange],0
@@ -450,6 +480,9 @@ doneCRTCb:
   sub ah,[cs:setPage]
   out dx,ax
   pop dx
+
+  mov al,[cs:setPage]
+  mov [cs:activePage],al
 
   push ds
   xor ax,ax
