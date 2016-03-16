@@ -1,3 +1,4 @@
+;org 0x100
 org 0
 cpu 8086
 
@@ -167,6 +168,7 @@ needPageFlipNext:
 
 ; Puts the CGA card in ISAV mode
 startISAV:
+  push ds
   ; Mode                                                09
   ;      1 +HRES                                         1
   ;      2 +GRPH                                         0
@@ -175,7 +177,7 @@ startISAV:
   ;   0x10 +1BPP                                         0
   ;   0x20 +ENABLE BLINK                                 0
   mov dx,0x3d8
-  mov al,0x1a
+  mov al,0x1a  ; 0x0a
   out dx,al
 
   ; Palette                                             00
@@ -307,6 +309,7 @@ startISAV:
   mov [8*4],ax
   mov [8*4+2],cs
   sti
+  pop ds
   ret
 
 
@@ -350,9 +353,9 @@ setDisplayPage:
   in al,0x40
   xchg ah,al
 
-  cmp bl,interrupt8b & 0xff
+  cmp bl,interrupt8b  ; Warning expected here, doing the obvious "& 0xff" turns it into an error.
   je .nextFrame
-  cmp ax,76*2  ; Not sure if this is the correct value
+  cmp ax,76*3
   jl .nextFrame
 
   mov byte[needCRTCChange],0
@@ -424,6 +427,10 @@ interrupt8a:
   out dx,ax
   mov ax,0x0105 ; Vertical Total Adjust
   out dx,ax
+
+;    mov dl,0xd9
+;    mov al,1
+;    out dx,al
   pop dx
 .doneCRTC:
 
@@ -455,23 +462,26 @@ interrupt8aEnd:
 interrupt8b:
   push ax
 
-  mov al,[cs:activePage]
-  mov [cs:displayPage],al
-
   push dx
   mov dx,0x3d4
   cmp byte[cs:needCRTCChange],0
-  je doneCRTCb
+  je .doneCRTC
   mov ax,0x3206 ; Vertical Displayed
   out dx,ax
   mov ax,0x3b04 ; Vertical Total
   out dx,ax
   mov ax,0x0005 ; Vertical Total Adjust
   out dx,ax
-doneCRTCb:
+
+;    mov dl,0xd9
+;    mov al,0
+;    out dx,al
+;    mov dl,0xd4
+
+.doneCRTC:
   mov byte[cs:needCRTCChange],1
   cmp byte[cs:needPageFlipNext],0
-  je noNewChange
+  je .noNewChange
   mov byte[cs:needCRTCChange],0
   mov byte[cs:needPageFlipNext],0
   mov ax,0x4004
@@ -479,7 +489,11 @@ doneCRTCb:
   mov ax,0x0206
   sub ah,[cs:setPage]
   out dx,ax
+.noNewChange:
   pop dx
+
+  mov al,[cs:activePage]
+  mov [cs:displayPage],al
 
   mov al,[cs:setPage]
   mov [cs:activePage],al
@@ -525,8 +539,10 @@ doneCRTCb:
 ;                           1 scanline CRTC extra interlace
 
 ; In order to be able to switch pages before scanline 240, we'll need to do all our drawing on scanlines -21 .. 238
-; (we can actually ~26 scanlines more drawing after the page flip, though really we should start work on the following page by that point)
+; (we can actually do ~26 scanlines more drawing after the page flip, though really we should start work on the following page by that point)
 
+; To avoid having to change the programmed timer counts, we want interrupt8b to fire on scanline 1, and interrupt8a to run on scanline 241
+; (which will be CRTC scanline 0 on page 1 and CRTC scanline 1 on page 0).
 
 cppData:
 

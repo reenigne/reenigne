@@ -25,8 +25,8 @@ public:
         String extension = inputCodeFilename.
             subString(inputCodeFilename.length() - 4, 4);
         if (extension[0] == '.' && (extension[1] == 'c' || extension[1] == 'C')
-            && (extension[1] == 'o' || extension[1] == 'O')
-            && (extension[1] == 'm' || extension[1] == 'M')) {
+            && (extension[2] == 'o' || extension[2] == 'O')
+            && (extension[3] == 'm' || extension[3] == 'M')) {
             offset = 0x100;
         }
 
@@ -55,7 +55,7 @@ public:
         int positions = 2;
 
         offset += inputCode.length();
-        offset += positions*sizeof(Word);
+        //offset += positions*sizeof(Word);
 
         // Generate sprite data
         for (int x0 = 0; x0 < positions; ++x0) {
@@ -67,7 +67,7 @@ public:
 
             int di = 0;
             for (int y = 0; y < yr*2 + 1; ++y) {
-                double yy = (y - (yr - 1.0))/yr;
+                double yy = static_cast<double>(y - yr)/yr;
                 double y2 = yy*yy;
 
                 int bytes = 0;
@@ -75,7 +75,7 @@ public:
                 int last = 0;
                 bool started = false;
                 for (int x = 0; x < xr*2 + 1; ++x) {
-                    double xx = (x - (xr - 1.0))/xr;
+                    double xx = static_cast<double>(x - xr)/xr;
                     double x2 = xx*xx;
                     double z2 = 1 - (x2 + y2);
                     if (z2 >= 0) {
@@ -163,9 +163,8 @@ public:
         for (int t = 0; t < nx; ++t)
             output.write<Word>(codeOffset + codeOffsets[xSine(t, xr)&1]);
         // Output Y sine table
-        for (int t = 0; t < nx; ++t)
-            output.write<Word>(ySine(t, xr)*80);
-
+        for (int t = 0; t < ny; ++t)
+            output.write<Word>(ySine(t, yr)*80);
 
         output.write(code);
         output.write(data);
@@ -178,7 +177,7 @@ public:
     }
     int ySine(int t, int yr)
     {
-        int ny = 1 + tau*(80-yr);
+        int ny = 1 + tau*(50-yr);
         int y = sin(t*tau/ny)*(50-yr)+(50-yr);
         return clamp(0, y, 100-(yr*2 + 1));
     }
