@@ -30,8 +30,10 @@ public:
             offset = 0x100;
         }
 
-        int yr = 20;
-        int xr = static_cast<int>(6.0*yr/5);
+        double yr = 20.5;
+        double xr = 6*yr/5;
+        int yri = static_cast<int>(yr);
+        int xri = static_cast<int>(xr);
 
         double l = sqrt(1/3.0);
         double lx = -l;
@@ -48,6 +50,7 @@ public:
         AppendableArray<Byte> data;
         AppendableArray<Word> dataPointers;
         AppendableArray<int> codeOffsets;
+        AppendableArray<int> initialDi;
 
         FileStream output = File(_arguments[2], true).openWrite();
         output.write(inputCode);
@@ -66,16 +69,16 @@ public:
             code.append(0);
 
             int di = 0;
-            for (int y = 0; y < yr*2 + 1; ++y) {
-                double yy = static_cast<double>(y - yr)/yr;
+            for (int y = 0; y < yri*2 + 1; ++y) {
+                double yy = (y - yri)/yr;
                 double y2 = yy*yy;
 
                 int bytes = 0;
                 bool extraNybble = false;
                 int last = 0;
                 bool started = false;
-                for (int x = 0; x < xr*2 + 1; ++x) {
-                    double xx = static_cast<double>(x - xr)/xr;
+                for (int x = 0; x < xri*2 + 1; ++x) {
+                    double xx = (x - xri)/xr;
                     double x2 = xx*xx;
                     double z2 = 1 - (x2 + y2);
                     if (z2 >= 0) {
@@ -91,6 +94,8 @@ public:
                             started = true;
                             if (y != 0)
                                 code.append(80 + ((x + x0)>>1) - di);
+                            else
+                                initialDi.append(80 + ((x + x0)>>1));
                             if (((x+x0) & 1) != 0) {
                                 code.append(0x26); code.append(0x8a);
                                 code.append(0x05);
@@ -125,14 +130,14 @@ public:
                     code.append(0x0c); code.append(last << 4);
                     code.append(0xaa);
                 }
-                if (y < yr*2) {
+                if (y < yri*2) {
                     code.append(0x83); code.append(0xc7);
                 }
             }
             code.append(0xc3);
         }
-        int nx = 1 + tau*(80-xr);
-        int ny = 1 + tau*(50-yr);
+        int nx = 1 + tau*(80-xri);
+        int ny = 1 + tau*(50-yri);
         output.write<Word>(nx);
         output.write<Word>(ny);
         int codeOffset = offset + 4 + 4*nx + 2*ny;
@@ -146,25 +151,29 @@ public:
         }
 
         //X:
-        //  Number of possible positions = 160-xr*2
-        //  x = ((sin(k*t)+1)/2)*(160-xr*2) = sin(t*tau/N)*(80-xr)+(80-xr)
+        //  Number of possible positions = 160-xri*2
+        //  x = ((sin(k*t)+1)/2)*(160-xri*2) = sin(t*tau/N)*(80-xri)+(80-xri)
         //  then clamp and round down
-        //  At fastest point (t==0), dx/dt = tau*(80-xr)/N = 1, N = tau*(80-xr)
-        //  For xr = 30, 314 positions
+        //  At fastest point (t==0), dx/dt = tau*(80-xri)/N = 1, N = tau*(80-xri)
+        //  For xri = 30, 314 positions
         //Y:
-        //  Number of possible positions = 100-yr*2, N = tau*(50-yr)
-        //  For yr = 20, 188 positions
+        //  Number of possible positions = 100-yr*2, N = tau*(50-yri)
+        //  For yri = 20, 188 positions
         //Want an integral number of positions, so round up
 
         // Output X sine table, DI part
-        for (int t = 0; t < nx; ++t)
-            output.write<Word>(xSine(t, xr)/2);
+        for (int t = 0; t < nx; ++t) {
+            int x = xSine(t, xri);
+            output.write<Word>(x/2 + initialDi[x % positions]);
+        }
         // Output X sine table, sprite pointer part
-        for (int t = 0; t < nx; ++t)
-            output.write<Word>(codeOffset + codeOffsets[xSine(t, xr)&1]);
+        for (int t = 0; t < nx; ++t) {
+            output.write<Word>(codeOffset +
+                codeOffsets[xSine(t, xri) % positions]);
+        }
         // Output Y sine table
         for (int t = 0; t < ny; ++t)
-            output.write<Word>(ySine(t, yr)*80);
+            output.write<Word>(ySine(t, yri)*80);
 
         output.write(code);
         output.write(data);

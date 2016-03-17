@@ -34,6 +34,10 @@ cpu 8086
 
   mov ax,cs
   mov ds,ax
+  cli
+  mov ss,ax
+  mov sp,0xfffe
+  sti
 
   mov dx,[cppData]
   mov ax,cppData + 4
@@ -86,18 +90,26 @@ patch2:
   cmp byte[page],0
   je patch3
   or di,0x2000
+    mov dx,0x3d9
+    mov al,2
+    out dx,al
+
 patch3:
   call [bx+0x9999]
+    mov dx,0x3d9
+    mov al,3
+    out dx,al
 
   mov al,[page]
   xor ah,ah
   push ax
   call setDisplayPage
   mov cx,[delayFrames]
+  and cx,63
 delayLoop:
   mov ah,1
   int 0x16
-  jnz noKey
+  jz noKey
   mov ah,0
   int 0x16
   cmp al,'+'
@@ -123,7 +135,15 @@ noKey:
   dec cx
   jmp delayLoop
 doneDelay:
+    mov dx,0x3d9
+    mov al,4
+    out dx,al
+
   call waitForSafeToDraw
+    mov dx,0x3d9
+    mov al,5
+    out dx,al
+
   xor byte[page],1
 
   jmp mainLoop
@@ -165,9 +185,21 @@ needCRTCChange:
   db 1
 needPageFlipNext:
   db 0
+inISAV:
+  db 0
 
 ; Puts the CGA card in ISAV mode
 startISAV:
+  cmp byte[cs:inISAV],0
+  je .ok
+  mov dx,0x3d9
+  mov al,0x0c
+  out dx,al
+  cli
+  hlt
+.ok:
+  mov byte[cs:inISAV],1
+
   push ds
   ; Mode                                                09
   ;      1 +HRES                                         1
@@ -177,7 +209,7 @@ startISAV:
   ;   0x10 +1BPP                                         0
   ;   0x20 +ENABLE BLINK                                 0
   mov dx,0x3d8
-  mov al,0x1a  ; 0x0a
+  mov al,0x0a  ; 0x1a
   out dx,al
 
   ; Palette                                             00
@@ -285,6 +317,11 @@ startISAV:
   mov al,(240*76) & 0xff
   out 0x40,al
 
+    mov dx,0x3d9
+    mov al,0x0d
+    out dx,al
+    mov dx,0x3da
+
   waitForVerticalSync
   waitForDisplayEnable
 
@@ -308,7 +345,13 @@ startISAV:
   mov ax,interrupt8a
   mov [8*4],ax
   mov [8*4+2],cs
+
   sti
+
+    mov dx,0x3d9
+    mov al,0x0e
+    out dx,al
+
   pop ds
   ret
 
@@ -338,11 +381,11 @@ setDisplayPage:
   push bp
   mov bp,sp
   mov al,[bp+4]
-  cmp al,[activePage]
+  cmp al,[setPage]
   je .nothingToDo
   mov [setPage],al
-  push ds
 
+  push ds
   xor bx,bx
   mov ds,bx
   mov al,0x04
@@ -352,6 +395,7 @@ setDisplayPage:
   mov ah,al
   in al,0x40
   xchg ah,al
+  pop ds
 
   cmp bl,interrupt8b  ; Warning expected here, doing the obvious "& 0xff" turns it into an error.
   je .nextFrame
@@ -362,8 +406,8 @@ setDisplayPage:
   mov dx,0x3d4
   mov ax,0x4004
   out dx,ax
-  mov ax,0x0206
-  sub ah,[activePage]
+  mov ax,0x0106
+  add ah,[activePage]
   out dx,ax
 
   mov al,[setPage]
@@ -427,12 +471,13 @@ interrupt8a:
   out dx,ax
   mov ax,0x0105 ; Vertical Total Adjust
   out dx,ax
-
-;    mov dl,0xd9
-;    mov al,1
-;    out dx,al
   pop dx
 .doneCRTC:
+    push dx
+    mov dx,0x3d9
+    mov al,1
+    out dx,al
+    pop dx
 
   push ds
   xor ax,ax
@@ -472,13 +517,12 @@ interrupt8b:
   out dx,ax
   mov ax,0x0005 ; Vertical Total Adjust
   out dx,ax
-
-;    mov dl,0xd9
-;    mov al,0
-;    out dx,al
-;    mov dl,0xd4
-
 .doneCRTC:
+    mov dl,0xd9
+    mov al,0
+    out dx,al
+    mov dl,0xd4
+
   mov byte[cs:needCRTCChange],1
   cmp byte[cs:needPageFlipNext],0
   je .noNewChange
@@ -486,8 +530,8 @@ interrupt8b:
   mov byte[cs:needPageFlipNext],0
   mov ax,0x4004
   out dx,ax
-  mov ax,0x0206
-  sub ah,[cs:setPage]
+  mov ax,0x0106
+  add ah,[cs:setPage]
   out dx,ax
 .noNewChange:
   pop dx
