@@ -175,31 +175,19 @@ savedInterrupt8:
   dw 0,0
 timerCount:
   dw 0
-activePage:
+displayPage:
+  db 0
+nextPage:
   db 0
 setPage:
   db 0
-displayPage:
+sequence:
   db 0
-needCRTCChange:
-  db 1
-needPageFlipNext:
-  db 0
-inISAV:
+pageWaiting:
   db 0
 
 ; Puts the CGA card in ISAV mode
 startISAV:
-  cmp byte[cs:inISAV],0
-  je .ok
-  mov dx,0x3d9
-  mov al,0x0c
-  out dx,al
-  cli
-  hlt
-.ok:
-  mov byte[cs:inISAV],1
-
   push ds
   ; Mode                                                09
   ;      1 +HRES                                         1
@@ -380,10 +368,19 @@ stopISAV:
 setDisplayPage:
   push bp
   mov bp,sp
-  mov al,[bp+4]
-  cmp al,[setPage]
-  je .nothingToDo
-  mov [setPage],al
+  mov cl,[bp+4]
+  cmp cl,[setPage]
+  je .done
+  call waitForSafeToDraw
+  cmp byte[sequence],1
+  jl .noPageWaiting
+  mov byte[pageWaiting],1
+  jmp .done
+.noPageWaiting:
+  cli
+  mov [setPage],cl
+  mov byte[sequence],2
+  sti
 
   push ds
   xor bx,bx
@@ -398,62 +395,52 @@ setDisplayPage:
   pop ds
 
   cmp bl,interrupt8b  ; Warning expected here, doing the obvious "& 0xff" turns it into an error.
-  je .nextFrame
+  je .done
   cmp ax,76*3
-  jl .nextFrame
+  jl .done
 
-  mov byte[needCRTCChange],0
+  mov byte[sequence],1
   mov dx,0x3d4
   mov ax,0x4004
   out dx,ax
-  mov ax,0x0106
-  add ah,[activePage]
+  mov ax,0x0206
+  sub ah,[setPage]
   out dx,ax
 
-  mov al,[setPage]
-  mov [activePage],al
-
-  jmp .nothingToDo
-
-.nextFrame:
-  mov byte[needPageFlipNext],1
-
-.nothingToDo:
+  mov [nextPage],cl
+.done:
   pop bp
   ret
 
 
-; Returns true if the drawing page (the one that was not requested in the most recent call to setDisplayPage()) is no longer active
+; Returns CF=1 if it's safe to draw, i.e. if the drawing page (the one that was
+; not requested in the most recent call to setDisplayPage()) will not be used
+; as active image data again before the set page becomes the display page.
 safeToDraw:
-  ; If we're displaying the set page, it's safe to draw on the other one
-  mov al,[setPage]
-  cmp al,[displayPage]
-  je .is
+  cmp byte[sequence],1
+  ; if sequence == 2 then it's not safe as the drawing page is being displayed or will be displayed
+  ; if sequence == 0 then it's safe as we're back in the stable state
+  jne .done
 
-  ; If we've finished the active area, it's safe to draw because we'll have finished swapping pages by the start of the next active area
+  cmp byte[pageWaiting],0
+  jne .done
+
+  ; sequence == 1 is only safe if we're after scanline 200
   mov al,0x04
-  out 0x43,al    ; We latch the count before reading the vector otherwise we could end up
-  mov bl,[0x20]  ; on scanline 240 with a timer 0 count indicating scanline 22 or so
+  out 0x43,al
   in al,0x40
   mov ah,al
   in al,0x40
   xchg ah,al
-
   cmp ax,40*76
-  jl .is         ; includes entire small field, since that's only ~22 scanlines
 
-  xor ax,ax
-  ret
-
-.is:
-  mov ax,1
+.done:
   ret
 
 
 waitForSafeToDraw:
   call safeToDraw
-  cmp ax,0
-  je waitForSafeToDraw
+  jnc waitForSafeToDraw
   ret
 
 
@@ -461,7 +448,7 @@ waitForSafeToDraw:
 interrupt8a:
   push ax
 
-  cmp byte[cs:needCRTCChange],0
+  cmp byte[cs:sequence],1
   je .doneCRTC
   push dx
   mov dx,0x3d4
@@ -506,41 +493,47 @@ interrupt8aEnd:
 ; interrupt8b runs on scanline 0 and sets up the "normal" field
 interrupt8b:
   push ax
-
   push dx
+
   mov dx,0x3d4
-  cmp byte[cs:needCRTCChange],0
-  je .doneCRTC
   mov ax,0x3206 ; Vertical Displayed
   out dx,ax
   mov ax,0x3b04 ; Vertical Total
   out dx,ax
   mov ax,0x0005 ; Vertical Total Adjust
   out dx,ax
-.doneCRTC:
     mov dl,0xd9
     mov al,0
     out dx,al
     mov dl,0xd4
 
-  mov byte[cs:needCRTCChange],1
-  cmp byte[cs:needPageFlipNext],0
-  je .noNewChange
-  mov byte[cs:needCRTCChange],0
-  mov byte[cs:needPageFlipNext],0
+  cmp byte[cs:sequence],1
+  jl .noNewChange
+
   mov ax,0x4004
   out dx,ax
-  mov ax,0x0106
-  add ah,[cs:setPage]
+  mov ax,0x0206
+  sub ah,[cs:setPage]
   out dx,ax
-.noNewChange:
-  pop dx
 
-  mov al,[cs:activePage]
+  mov al,[cs:nextPage]
   mov [cs:displayPage],al
-
   mov al,[cs:setPage]
-  mov [cs:activePage],al
+  mov [cs:nextPage],al
+
+  dec byte[cs:sequence]
+  jnz .noNewChange
+
+  cmp byte[cs:pageWaiting],0
+  jne .noNewChange
+
+  mov byte[cs:pageWaiting],0
+  mov byte[cs:sequence],1
+  xor byte[cs:setPage],1
+
+.noNewChange:
+
+  pop dx
 
   push ds
   xor ax,ax

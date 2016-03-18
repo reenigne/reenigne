@@ -47,11 +47,11 @@
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
-  mov ax,0x3f04
+  mov ax,0x4004
   out dx,ax
 
   ;   0x1f Vertical Total Adjust                        00
-  mov ax,0x0305
+  mov ax,0x0205
   out dx,ax
 
   ;   0x7f Vertical Displayed                           02
