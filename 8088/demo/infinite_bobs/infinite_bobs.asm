@@ -58,6 +58,15 @@ cpu 8086
   cld
   rep stosw
 
+  mov byte[es:0x0000],0xff
+  mov byte[es:0x004f],0xff
+  mov byte[es:0x1ef0],0xff
+  mov byte[es:0x1f3f],0xff
+  mov byte[es:0x2000],0x55
+  mov byte[es:0x204f],0x55
+  mov byte[es:0x3ef0],0x55
+  mov byte[es:0x3f3f],0x55
+
   call startISAV
 
 mainLoop:
@@ -305,11 +314,6 @@ startISAV:
   mov al,(240*76) & 0xff
   out 0x40,al
 
-    mov dx,0x3d9
-    mov al,0x0d
-    out dx,al
-    mov dx,0x3da
-
   waitForVerticalSync
   waitForDisplayEnable
 
@@ -335,10 +339,6 @@ startISAV:
   mov [8*4+2],cs
 
   sti
-
-    mov dx,0x3d9
-    mov al,0x0e
-    out dx,al
 
   pop ds
   ret
@@ -381,6 +381,7 @@ setDisplayPage:
   mov [setPage],cl
   mov byte[sequence],2
   sti
+    jmp .done
 
   push ds
   xor bx,bx
@@ -403,7 +404,7 @@ setDisplayPage:
   mov dx,0x3d4
   mov ax,0x4004
   out dx,ax
-  mov ax,0x0206
+  mov ax,0x0205
   sub ah,[setPage]
   out dx,ax
 
@@ -512,7 +513,7 @@ interrupt8b:
 
   mov ax,0x4004
   out dx,ax
-  mov ax,0x0206
+  mov ax,0x0205
   sub ah,[cs:setPage]
   out dx,ax
 

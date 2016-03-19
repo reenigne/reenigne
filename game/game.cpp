@@ -10,7 +10,8 @@
 #define TILEY 64
 #define TILETYPES 256
 #define OUTERTILE
-#define PLAYERTILE 7
+#define SHKGTILE 7
+#define LIANTILE 15
 #define ZOMBIERTILE0 0
 #define ZOMBIERTILE1 13
 #define ZOMBIERTILE2 14
@@ -59,7 +60,6 @@ public:
     }
     void move()
     {
-        _grounded = false;
         _frac.x += _velocity.x;
         _position.x += _frac.x >> 16;
         _frac.x &= 0xffff;
@@ -74,7 +74,10 @@ public:
         if (collided)
             _velocity.x = 0;
         _frac.y += _velocity.y;
+        int oldy = _position.y;
         _position.y += _frac.y >> 16;
+        if (oldy != _position.y)
+            _grounded = false;
         _frac.y &= 0xffff;
         collided = false;
         while (colliding()) {
@@ -91,14 +94,32 @@ public:
     }
     virtual bool colliding()
     {
-        for (int y = 0; y < TILEY; ++y)
-            for (int x = 0; x < TILEX; ++x) {
-                UInt32 a = _tileData[(_tile*TILEY + y)*TILEX + x];
-                if (static_cast<int>(a >> 24) > 0x80) {
-                    Vector v = Vector(x, y) + _position;
-                    v /= Vector(TILEX, TILEY);
-                    if (opaque(_tileGrid[v.y*TILESX + v.x]))
-                        return true;
+        Vector pp = _position%Vector(TILEX, TILEY);
+        for (int yy = 0; yy < 2; ++yy)
+            for (int xx = 0; xx < 2; ++xx) {
+                Vector p = _position/Vector(TILEX, TILEY) + Vector(xx, yy);
+                if (!opaque(_tileGrid[p.y*TILESX + p.x]))
+                    continue;
+                int xl = 0;
+                int xh = TILEX;
+                int yl = 0;
+                int yh = TILEY;
+                int xo = 0;
+                int yo = 0;
+                if (xx == 0)
+                    xh = TILEX - pp.x;
+                else
+                    xl = TILEX - pp.x;
+                if (yy == 0)
+                    yh = TILEY - pp.y;
+                else
+                    yl = TILEX - pp.y;
+                for (int y = yl; y < yh; ++y) {
+                    for (int x = xl; x < xh; ++x) {
+                        UInt32 a = _tileData[(_tile*TILEY + y)*TILEX + x];
+                        if (static_cast<int>(a >> 24) > 0x80)
+                            return true;
+                    }
                 }
             }
         return false;
@@ -156,9 +177,10 @@ public:
 template<class T> class PlayerT : public Character
 {
 public:
-    PlayerT() : _gotKey(false)
+    PlayerT()
+      : _gotKey(false), _animation(0), _isLian(false), _lastRight(false)
     {
-        _tile = PLAYERTILE;
+        _tile = SHKGTILE;
         _maximumVelocity = 1000000;
     }
     void init(Game* game, Vector position)
@@ -185,6 +207,11 @@ public:
                     _velocity.x = min(0, _velocity.x + _acceleration);
             }
         }
+        if (_velocity.x > 0)
+            _lastRight = true;
+        if (_velocity.x < 0)
+            _lastRight = false;
+        _tile = 18;
         Character::move();
         for (int y = 0; y < TILEY; ++y)
             for (int x = 0; x < TILEX; ++x) {
@@ -198,8 +225,58 @@ public:
                     }
                 }
             }
+
+        setTile();
+    }
+    void setTile()
+    {
+        if (_isLian) {
+            _tile = LIANTILE;
+            return;
+        }
+
+        if (!_grounded) {
+            if (_velocity.x > 0)
+                _tile = 24;
+            else
+                _tile = 25;
+            return;
+        }
+        if (_velocity.x == 0) {
+            if (_lastRight)
+                _tile = 19;
+            else
+                _tile = 18;
+            return;
+        }
+        _animation += _velocity.x;
+        int z = (_animation / 1000000)%3;
+        if (_velocity.x > 0) {
+            switch(z) {
+                case 0: _tile = 19; break;
+                case 1: _tile = 22; break;
+                case 2: _tile = 23; break;
+            }
+        }
+        if (_velocity.x < 0) {
+            switch(z) {
+                case 0: _tile = 18; break;
+                case 1: _tile = 20; break;
+                case 2: _tile = 21; break;
+            }
+        }
+    }
+    void toggleLian()
+    {
+        _isLian = !_isLian;
+        setTile();
+        if (colliding())
+            _isLian = !_isLian;
     }
     bool _gotKey;
+    bool _lastRight;
+    unsigned int _animation;
+    bool _isLian;
 };
 
 template<class T> class ZombieT : public Character
@@ -235,20 +312,14 @@ public:
                     _velocity.x = min(0, _velocity.x + _acceleration);
             }
         }
+        // Remove from grid
         if (_previous != 0) {
             *_previous = _next;
             if (_next != 0)
                 _next->_previous = _previous;
         }
         Character::move();
-        Vector tile = _position/Vector(TILEX, TILEY);
-        int ti = tile.y*TILESX + tile.x;
-        _next = _game->_zombieGrid[ti];
-        _game->_zombieGrid[ti] = this;
-        _previous = &(_zombieGrid[ti]);
-        if (_next != 0)
-            _next->_previous = this;
-
+        addToGrid();
 
         _animation += _velocity.x;
         int z = (_animation / 1000000)%3;
@@ -274,10 +345,21 @@ public:
     {
         if (Character::colliding())
             return true;
-        for (auto& z : _game->_zombies) {
-            if (&z == this)
+
+        Vector tile = _position/Vector(TILEX, TILEY);
+        for (int y = -1; y <= 1; ++y)
+            for (int x = -1; x <= 1; ++x)
+                if (gridColliding(tile + Vector(x, y)))
+                    return true;
+        return false;
+    }
+    bool gridColliding(Vector v)
+    {
+        Zombie* z = _game->_zombieGrid[v.y*TILESX + v.x];
+        for (; z != 0; z = z->_next) {
+            if (z == this)
                 continue;
-            Vector other = z._position - _position;
+            Vector other = z->_position - _position;
             if (other.x >= TILEX || other.x + TILEX <= 0 || other.y >= TILEY ||
                 other.y + TILEX <= 0)
                 continue;
@@ -299,8 +381,18 @@ public:
         }
         return false;
     }
+    void addToGrid()
+    {
+        Vector tile = _position/Vector(TILEX, TILEY);
+        int ti = tile.y*TILESX + tile.x;
+        _next = _game->_zombieGrid[ti];
+        _previous = &(_game->_zombieGrid[ti]);
+        *_previous = this;
+        if (_next != 0)
+            _next->_previous = &_next;
+    }
     int _jumpVelocity;
-    int _animation;
+    unsigned int _animation;
     Zombie** _previous;
     Zombie* _next;
 };
@@ -318,6 +410,7 @@ public:
         _windowSize = Vector(912, 525);
         _tileData.allocate(TILEX*TILEY*TILETYPES);
         _tileGrid.allocate(TILESX*TILESY);
+        _zombieGrid.allocate(TILESX*TILESY);
 
         _player.init(this, 50*Vector(TILEX, TILEY) + _windowSize/2);
         spawnTile = (_player._position.x/TILEX) +
@@ -334,6 +427,7 @@ public:
                 int i = y*TILESX + x;
                 _tileGrid[i] = ch;
                 _spawnGrid[i] = ch;
+                _zombieGrid[i] = 0;
             }
         }
         try {
@@ -342,7 +436,7 @@ public:
                 int ch = l[i] & 0xff;
                 _spawnGrid[i] = ch;
                 Vector v = Vector((i % TILESX)*TILEX, (i / TILESX)*TILEY);
-                if (ch == PLAYERTILE) {
+                if (ch == SHKGTILE) {
                     _player._position = v;
                     ch = SKYTILE;
                     spawnTile = i;
@@ -356,6 +450,9 @@ public:
                 _tileGrid[i] = ch;
             }
         } catch (...) { }
+
+        for (auto& z : _zombies)
+            z.addToGrid();
 
         SDLWindow window;
 
@@ -488,11 +585,8 @@ public:
                             editing = true;
                             break;
                         case SDLK_p:
-                            if (e.type == SDL_KEYDOWN) {
-                                _player._tile = PLAYERTILE + PLAYERTILE + 1 - _player._tile;
-                                if (_player.colliding())
-                                    _player._tile = PLAYERTILE + PLAYERTILE + 1 - _player._tile;
-                            }
+                            if (e.type == SDL_KEYDOWN)
+                                _player.toggleLian();
                             break;
                         case SDLK_ESCAPE:
                             if (e.type == SDL_KEYUP)
@@ -570,10 +664,10 @@ public:
     {
         try {
             for (int i = 0; i < TILESX*TILESY; ++i) {
-                if (_spawnGrid[i] == PLAYERTILE)
+                if (_spawnGrid[i] == SHKGTILE)
                     spawnTile = i;
             }
-            _spawnGrid[spawnTile] = PLAYERTILE;
+            _spawnGrid[spawnTile] = SHKGTILE;
             File("level.dat").save(_spawnGrid);
         }
         catch (...) { }
@@ -588,8 +682,8 @@ private:
     int spawnTile;
     bool gotKey;
     Array<Byte> _spawnGrid;
-    Array<Zombie*> _zombieGrid;
 public:
+    Array<Zombie*> _zombieGrid;
     AppendableArray<Zombie> _zombies;
     bool _up;
     bool _down;

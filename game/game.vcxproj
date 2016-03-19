@@ -156,6 +156,7 @@
     <ClCompile Include="game.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\alfe\array.h" />
     <ClInclude Include="..\include\alfe\bitmap.h" />
     <ClInclude Include="..\include\alfe\bitmap_png.h" />
     <ClInclude Include="..\include\alfe\file.h" />
@@ -163,10 +164,13 @@
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="Icon.ico" />
+    <ResourceCompile Include="Resource.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="Resource.rc" />
+    <Natvis Include="NatvisFile.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="icon.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

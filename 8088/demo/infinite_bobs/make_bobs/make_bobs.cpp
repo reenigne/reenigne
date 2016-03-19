@@ -95,7 +95,7 @@ public:
                             if (y != 0)
                                 code.append(80 + ((x + x0)>>1) - di);
                             else
-                                initialDi.append(80 + ((x + x0)>>1));
+                                initialDi.append(((x + x0)>>1));
                             if (((x+x0) & 1) != 0) {
                                 code.append(0x26); code.append(0x8a);
                                 code.append(0x05);
@@ -157,7 +157,7 @@ public:
         //  At fastest point (t==0), dx/dt = tau*(80-xri)/N = 1, N = tau*(80-xri)
         //  For xri = 30, 314 positions
         //Y:
-        //  Number of possible positions = 100-yr*2, N = tau*(50-yri)
+        //  Number of possible positions = 100-yri*2, N = tau*(50-yri)
         //  For yri = 20, 188 positions
         //Want an integral number of positions, so round up
 
