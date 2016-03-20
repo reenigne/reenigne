@@ -30,7 +30,7 @@ public:
             offset = 0x100;
         }
 
-        double yr = 20.5;
+        double yr = 10.5;
         double xr = 6*yr/5;
         int yri = static_cast<int>(yr);
         int xri = static_cast<int>(xr);

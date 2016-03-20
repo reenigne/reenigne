@@ -1,5 +1,5 @@
-;org 0x100
-org 0
+org 0x100
+;org 0
 cpu 8086
 
 
@@ -58,19 +58,10 @@ cpu 8086
   cld
   rep stosw
 
-  mov byte[es:0x0000],0xff
-  mov byte[es:0x004f],0xff
-  mov byte[es:0x1ef0],0xff
-  mov byte[es:0x1f3f],0xff
-  mov byte[es:0x2000],0x55
-  mov byte[es:0x204f],0x55
-  mov byte[es:0x3ef0],0x55
-  mov byte[es:0x3f3f],0x55
-
   call startISAV
 
 mainLoop:
-  mov ax,0x100  ; x frequency
+  mov ax,0x200  ; x frequency
   add [xPhase],ax
   adc word[xPhase+2],0
   mov ax,[cppData]  ; nx
@@ -79,7 +70,7 @@ mainLoop:
   sub word[xPhase+1],ax
 noXFixup:
 
-  mov ax,0x100  ; y frequency
+  mov ax,0x200  ; y frequency
   add [yPhase],ax
   adc word[yPhase+2],0
   mov ax,[cppData+2]
@@ -97,17 +88,18 @@ patch1:
 patch2:
   add di,[bx+0x9999]
   cmp byte[page],0
-  je patch3
+  je firstPage
   or di,0x2000
-    mov dx,0x3d9
-    mov al,2
-    out dx,al
+firstPage:
+;    mov dx,0x3d9
+;    mov al,2
+;    out dx,al
 
 patch3:
   call [bx+0x9999]
-    mov dx,0x3d9
-    mov al,3
-    out dx,al
+;    mov dx,0x3d9
+;    mov al,3
+;    out dx,al
 
   mov al,[page]
   xor ah,ah
@@ -144,14 +136,15 @@ noKey:
   dec cx
   jmp delayLoop
 doneDelay:
-    mov dx,0x3d9
-    mov al,4
-    out dx,al
+;  dec word[delayFrames]
+;    mov dx,0x3d9
+;    mov al,4
+;    out dx,al
 
   call waitForSafeToDraw
-    mov dx,0x3d9
-    mov al,5
-    out dx,al
+;    mov dx,0x3d9
+;    mov al,5
+;    out dx,al
 
   xor byte[page],1
 
@@ -160,7 +153,9 @@ doneDelay:
 finishLoop:
   call stopISAV
 
-  int 0x67
+;  int 0x67
+  mov ax,0x4c00
+  int 0x21
   ret
 
 
@@ -184,15 +179,15 @@ savedInterrupt8:
   dw 0,0
 timerCount:
   dw 0
-displayPage:
-  db 0
-nextPage:
-  db 0
+activePage:
+  db 1
 setPage:
-  db 0
-sequence:
-  db 0
+  db 1
 pageWaiting:
+  db 0
+longField:
+  db 0
+needLongField:
   db 0
 
 ; Puts the CGA card in ISAV mode
@@ -206,7 +201,7 @@ startISAV:
   ;   0x10 +1BPP                                         0
   ;   0x20 +ENABLE BLINK                                 0
   mov dx,0x3d8
-  mov al,0x0a  ; 0x1a
+  mov al,0x1a  ; 0x1a
   out dx,al
 
   ; Palette                                             00
@@ -255,7 +250,7 @@ startISAV:
   out dx,ax
 
   ;   0x03 Interlace Mode                               02   0 = non interlaced, 1 = interlace sync, 3 = interlace sync and video
-  mov ax,0x0308
+  mov ax,0x0008
   out dx,ax
 
   ;   0x1f Max Scan Line Address                        00
@@ -291,9 +286,17 @@ startISAV:
   mov dl,0xda
   waitForVerticalSync
   waitForDisplayEnable
+  waitForVerticalSync
+  waitForDisplayEnable
 
   xor ax,ax
   mov ds,ax
+
+  mov ax,0x0308
+  mov dl,0xd4
+  out dx,ax
+  mov dl,0xda
+
   cli
 
 ; Program timer 0 rate to 2
@@ -347,6 +350,8 @@ startISAV:
 ; Returns the CGA to normal mode
 stopISAV:
   cli
+  xor ax,ax
+  mov ds,ax
   mov ax,[cs:savedInterrupt8]
   mov [8*4],ax
   mov ax,[cs:savedInterrupt8+2]
@@ -372,16 +377,15 @@ setDisplayPage:
   cmp cl,[setPage]
   je .done
   call waitForSafeToDraw
-  cmp byte[sequence],1
-  jl .noPageWaiting
+  cmp byte[longField],0
+  je .noPageWaiting
   mov byte[pageWaiting],1
   jmp .done
 .noPageWaiting:
   cli
   mov [setPage],cl
-  mov byte[sequence],2
+  mov byte[needLongField],1
   sti
-    jmp .done
 
   push ds
   xor bx,bx
@@ -400,15 +404,15 @@ setDisplayPage:
   cmp ax,76*3
   jl .done
 
-  mov byte[sequence],1
   mov dx,0x3d4
   mov ax,0x4004
   out dx,ax
-  mov ax,0x0205
-  sub ah,[setPage]
+  mov ax,0x0105
+  add ah,[activePage]
   out dx,ax
+  mov byte[longField],1
+  mov byte[needLongField],0
 
-  mov [nextPage],cl
 .done:
   pop bp
   ret
@@ -418,15 +422,14 @@ setDisplayPage:
 ; not requested in the most recent call to setDisplayPage()) will not be used
 ; as active image data again before the set page becomes the display page.
 safeToDraw:
-  cmp byte[sequence],1
-  ; if sequence == 2 then it's not safe as the drawing page is being displayed or will be displayed
-  ; if sequence == 0 then it's safe as we're back in the stable state
-  jne .done
-
+  cmp byte[needLongField],0
+  jne .done ; unsafe
+  cmp byte[longField],0
+  je .safe
   cmp byte[pageWaiting],0
-  jne .done
+  jne .done ; unsafe
 
-  ; sequence == 1 is only safe if we're after scanline 200
+  ; longField == 1, needLongField == 0 is only safe if we're after scanline 200
   mov al,0x04
   out 0x43,al
   in al,0x40
@@ -436,6 +439,12 @@ safeToDraw:
   cmp ax,40*76
 
 .done:
+  ret
+.safe:
+  stc
+  ret
+.unsafe:
+  clc
   ret
 
 
@@ -449,8 +458,8 @@ waitForSafeToDraw:
 interrupt8a:
   push ax
 
-  cmp byte[cs:sequence],1
-  je .doneCRTC
+  cmp byte[cs:longField],0
+  jne .doneCRTC
   push dx
   mov dx,0x3d4
   mov ax,0x0206 ; Vertical Displayed
@@ -459,13 +468,11 @@ interrupt8a:
   out dx,ax
   mov ax,0x0105 ; Vertical Total Adjust
   out dx,ax
+;    mov dl,0xd9
+;    mov al,1
+;    out dx,al
   pop dx
 .doneCRTC:
-    push dx
-    mov dx,0x3d9
-    mov al,1
-    out dx,al
-    pop dx
 
   push ds
   xor ax,ax
@@ -503,33 +510,36 @@ interrupt8b:
   out dx,ax
   mov ax,0x0005 ; Vertical Total Adjust
   out dx,ax
-    mov dl,0xd9
-    mov al,0
-    out dx,al
-    mov dl,0xd4
+;    mov dl,0xd9
+;    mov al,2
+;    out dx,al
+;    mov dl,0xd4
+  cmp byte[cs:longField],0
+  je .noActiveFlip
+  mov byte[cs:longField],0
+  xor byte[cs:activePage],1
+.noActiveFlip:
 
-  cmp byte[cs:sequence],1
-  jl .noNewChange
+  cmp byte[cs:needLongField],0
+  je .noNewChange
 
   mov ax,0x4004
   out dx,ax
-  mov ax,0x0205
-  sub ah,[cs:setPage]
+  mov ax,0x0105
+  add ah,[cs:activePage]
   out dx,ax
+  mov byte[cs:longField],1
+  mov byte[cs:needLongField],0
 
-  mov al,[cs:nextPage]
-  mov [cs:displayPage],al
-  mov al,[cs:setPage]
-  mov [cs:nextPage],al
-
-  dec byte[cs:sequence]
-  jnz .noNewChange
+;    mov dl,0xd9
+;    mov al,0
+;    out dx,al
 
   cmp byte[cs:pageWaiting],0
-  jne .noNewChange
+  je .noNewChange
 
   mov byte[cs:pageWaiting],0
-  mov byte[cs:sequence],1
+  mov byte[cs:needLongField],1
   xor byte[cs:setPage],1
 
 .noNewChange:

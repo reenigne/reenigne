@@ -9,14 +9,14 @@ Why do we need 3 pages?
   nextPage is the page that will become the new displayPage once the next full frame is complete
 
 setDisplayPage called
-  Drawing is now disallowed                                sequence = 2
+  Drawing is now disallowed                                sequence = 2   needLongField=1
 (if scanline >=238, wait for scanline 0)
   we are now on the last frame of the old page
-  Drawing is now allowed if scanline >= 200                sequence = 1
+  Drawing is now allowed if scanline >= 200                sequence = 1   needLongField=0, longField=1
 set CRTC for 262-scanline field
 wait for scanline 0 again
   we are now on the new page
-  Drawing is now allowed                                   sequence = 0
+  Drawing is now allowed                                   sequence = 0   needLongField=0, longField=0
 set CRTC for 240-scanline field
   we can now call setDisplayPage again
 
