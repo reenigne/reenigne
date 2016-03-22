@@ -98,12 +98,15 @@
   mov ax,0xc00f
   out dx,ax
 
-
+  mov dl,0xda
   cli
-  hlt
 
   mov al,0x34
   out 0x43,al
+  mov al,0
+  out 0x40,al
+  out 0x40,al
+
   mov al,76*2 + 1
   out 0x40,al
   mov al,0
@@ -115,15 +118,13 @@
   mov [cs:originalInterrupt8],ax
   mov ax,[0x22]
   mov [cs:originalInterrupt8+2],ax
-  mov word[0x20],int8_oe1
+  mov word[0x20],int8_oe0
   mov [0x22],cs
 
   in al,0x21
   mov [cs:originalIMR],al
   mov al,0xfe
   out 0x21,al
-
-  mov dl,0xda
 
   sti
 setupLoop:
@@ -139,6 +140,15 @@ originalInterrupt8:
 originalIMR:
   db 0
 
+
+  ; Step 0 - don't do anything (we've just completed wait for CRTC stabilization)
+int8_oe0:
+  mov word[0x20],int8_oe1
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
   ; Step 1, wait until display is disabled, then change interrupts
 int8_oe1:
   in al,dx
@@ -152,6 +162,7 @@ int8_oe1:
   out 0x20,al
   iret
 
+
   ; Step 2, wait until display is enabled - then we'll be at the start of the active area
 int8_oe2:
   in al,dx
@@ -159,19 +170,25 @@ int8_oe2:
   jnz .noInterruptChange  ; jump if -DISPEN, finish if +DISPEN
 
   mov word[0x20],int8_oe3
+  mov cx,2
 
 .noInterruptChange:
   mov al,0x20
   out 0x20,al
   iret
 
-  ; Step 3 - this interrupt occurs right at the start of the active area
+
+  ; Step 3 - this interrupt occurs right at the start of the active area.
+  ; The pattern of scanlines on the screen is +-+-- As the interrupt runs every other scanline, the pattern of scanlines in terms of what is seen from the interrupt is ++---.
 int8_oe3:
   mov dl,0xd4
   mov ax,0x0308  ; Set interlace mode to ISAV
   out dx,ax
+  mov dl,0xda
 
+  loop .noInterruptChange
   mov word[0x20],int8_oe4
+.noInterruptChange:
 
   mov al,76*2
   out 0x40,al
@@ -182,4 +199,82 @@ int8_oe3:
   out 0x20,al
   iret
 
-  ; Step 4 -
+
+  ; Step 4
+int8_oe4:
+  in al,dx
+  test al,1
+  jnz .noInterruptChange  ; jump if -DISPEN, finish if +DISPEN
+
+  mov word[0x20],int8_oe5
+
+.noInterruptChange:
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 5
+int8_oe5:
+  in al,dx
+  test al,1
+  jz .noInterruptChange   ; jump if not -DISPEN, finish if -DISPEN (i.e. scanline 4)
+
+  mov word[0x20],int8_oe6
+
+.noInterruptChange:
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 6. This occurs on scanline 1. The next interrupt will be on scanline 3.
+int8_oe6:
+  mov word[0x20],int8_oe7
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 7. This occurs on scanline 3. The next interrupt will be on scanline 0.
+int8_oe7:
+  mov word[0x20],int8_oe8
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 8 - scanline 0, next interrupt on scanline 2
+int8_oe8:
+  mov dl,0xd9
+  mov al,0x30
+  out dx,al
+
+  mov al,76*3
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+
+  mov word[0x20],int8_oe9
+
+  mov al,0x20
+  out 0x20,al
+  iret
+
+  ; Step 9 - scanline 2, next interrupt on scanline 0
+int8_oe9:
+  mov dl,0xd9
+  mov al,0x00
+  out dx,al
+
+  mov al,76*2
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+
+  mov word[0x20],int8_oe8
+
+  mov al,0x20
+  out 0x20,al
+  iret
+
