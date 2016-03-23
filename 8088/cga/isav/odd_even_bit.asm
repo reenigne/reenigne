@@ -61,7 +61,7 @@
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       18
-  mov ax,0x7f07
+  mov ax,0x3807
   out dx,ax
 
   ;   0x03 Interlace Mode                               02   0 = non interlaced, 1 = interlace sync, 3 = interlace sync and video
@@ -246,13 +246,9 @@ int8_oe7:
 
   ; Step 8 - scanline 0, next interrupt on scanline 2
 int8_oe8:
-  mov dl,0xd9
-  mov al,0x30
-  out dx,al
-
-  mov al,76*3
+  mov al,(240*76) & 0xff
   out 0x40,al
-  mov al,0
+  mov al,(240*76) >> 8
   out 0x40,al
 
   mov word[0x20],int8_oe9
@@ -261,11 +257,23 @@ int8_oe8:
   out 0x20,al
   iret
 
-  ; Step 9 - scanline 2, next interrupt on scanline 0
+  ; Step 9 - initial short (odd) field
 int8_oe9:
-  mov dl,0xd9
-  mov al,0x00
-  out dx,al
+  mov ax,0x0104
+  out dx,ax
+
+  ;   0x1f Vertical Total Adjust                        00
+  mov ax,0x0005
+  out dx,ax
+
+  ;   0x7f Vertical Displayed                           02
+  mov ax,0x0106
+  out dx,ax
+
+  ;   0x1f Max Scan Line Address                        00
+  mov ax,0x0009
+  out dx,ax
+
 
   mov al,76*2
   out 0x40,al
