@@ -246,43 +246,92 @@ int8_oe7:
 
   ; Step 8 - scanline 0, next interrupt on scanline 2
 int8_oe8:
-  mov al,(240*76) & 0xff
+  mov al,((22 + 40)*76) & 0xff
   out 0x40,al
-  mov al,(240*76) >> 8
+  mov al,((22 + 40)*76) >> 8
   out 0x40,al
 
   mov word[0x20],int8_oe9
 
+  mov dl,0xd4
+
   mov al,0x20
   out 0x20,al
   iret
+
 
   ; Step 9 - initial short (odd) field
 int8_oe9:
-  mov ax,0x0104
+  mov ax,0x0309
+  out dx,ax
+  mov ax,0x0206
+  out dx,ax
+  mov ax,0x0e04    ; 0404
+  out dx,ax
+  mov ax,0x0105
   out dx,ax
 
-  ;   0x1f Vertical Total Adjust                        00
-  mov ax,0x0005
-  out dx,ax
-
-  ;   0x7f Vertical Displayed                           02
-  mov ax,0x0106
-  out dx,ax
-
-  ;   0x1f Max Scan Line Address                        00
-  mov ax,0x0009
-  out dx,ax
-
-
-  mov al,76*2
+  mov al,((240 - 40)*76) & 0xff
   out 0x40,al
-  mov al,0
+  mov al,((240 - 40)*76) >> 8
   out 0x40,al
 
-  mov word[0x20],int8_oe8
+  mov word[0x20],int8_isav0
 
   mov al,0x20
   out 0x20,al
   iret
+
+
+  ; Final 0 - scanline 0
+int8_isav0:
+  mov dl,0xd9
+  mov al,0x31
+  out dx,al
+  mov dl,0xd4
+
+  mov ax,0x2806    ; 3206
+  out dx,ax
+  mov ax,0x3104    ; 3b04
+  out dx,ax
+  mov ax,0x0005
+  out dx,ax
+
+  mov al,((22 + 40)*76) & 0xff
+  out 0x40,al
+  mov al,((22 + 40)*76) >> 8
+  out 0x40,al
+
+  mov word[0x20],int8_isav1
+
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Final 0 - scanline 0
+int8_isav0:
+  mov dl,0xd9
+  mov al,0x00
+  out dx,al
+  mov dl,0xd4
+
+  mov ax,0x0206    ; 3206
+  out dx,ax
+  mov ax,0x0e04    ; 3b04
+  out dx,ax
+  mov ax,0x0105
+  out dx,ax
+
+  mov al,((22 + 40)*76) & 0xff
+  out 0x40,al
+  mov al,((22 + 40)*76) >> 8
+  out 0x40,al
+
+  mov word[0x20],int8_isav1
+
+  mov al,0x20
+  out 0x20,al
+  iret
+
 

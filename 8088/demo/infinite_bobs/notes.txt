@@ -28,4 +28,15 @@ We'd like to be able to call setDisplayPage() at any time that drawing is allowe
   In this case, we need another bit of information to
 
 
+    Move entire vsync upwards 40 scanlines to make both start scanlines visible
+
+  Should I reprogram vertical total adjust every field?
+    Pro:
+      Easier to ensure timings correct
+    Con:
+      Slower when no page flip
+        It's not, though - we change VTA every field anyway in order to get 262 scanlines even
+    What are the timings in question?
+      count < 40*76 in safeToDraw()  (figuring out if we're in the region 200 <= scanline < 262)
+      count < 3*76 in setDisplayPage()  (figuring out if we can safely switch normal field to long)
 
