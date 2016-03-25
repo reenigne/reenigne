@@ -61,7 +61,7 @@
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       18
-  mov ax,0x3807
+  mov ax,0x2e07                                                      ; 38
   out dx,ax
 
   ;   0x03 Interlace Mode                               02   0 = non interlaced, 1 = interlace sync, 3 = interlace sync and video
@@ -246,9 +246,9 @@ int8_oe7:
 
   ; Step 8 - scanline 0, next interrupt on scanline 2
 int8_oe8:
-  mov al,((22 + 40)*76) & 0xff
+  mov al,(20*76) & 0xff
   out 0x40,al
-  mov al,((22 + 40)*76) >> 8
+  mov al,(20*76) >> 8
   out 0x40,al
 
   mov word[0x20],int8_oe9
@@ -266,14 +266,14 @@ int8_oe9:
   out dx,ax
   mov ax,0x0206
   out dx,ax
-  mov ax,0x0e04    ; 0404
+  mov ax,0x0d04    ; 0404
   out dx,ax
-  mov ax,0x0105
+  mov ax,0x0305
   out dx,ax
 
-  mov al,((240 - 40)*76) & 0xff
+  mov al,(242*76) & 0xff
   out 0x40,al
-  mov al,((240 - 40)*76) >> 8
+  mov al,(242*76) >> 8
   out 0x40,al
 
   mov word[0x20],int8_isav0
@@ -285,21 +285,21 @@ int8_oe9:
 
   ; Final 0 - scanline 0
 int8_isav0:
+  mov ax,0x2806    ; 3206
+  out dx,ax
+  mov ax,0x3b04
+  out dx,ax
+  mov ax,0x0205
+  out dx,ax
+
   mov dl,0xd9
   mov al,0x31
   out dx,al
   mov dl,0xd4
 
-  mov ax,0x2806    ; 3206
-  out dx,ax
-  mov ax,0x3104    ; 3b04
-  out dx,ax
-  mov ax,0x0005
-  out dx,ax
-
-  mov al,((22 + 40)*76) & 0xff
+  mov al,(20*76) & 0xff
   out 0x40,al
-  mov al,((22 + 40)*76) >> 8
+  mov al,(20*76) >> 8
   out 0x40,al
 
   mov word[0x20],int8_isav1
@@ -309,29 +309,37 @@ int8_isav0:
   iret
 
 
-  ; Final 0 - scanline 0
-int8_isav0:
+  ; Final 1 - scanline 242 (202)
+int8_isav1:
+  mov ax,0x0206
+  out dx,ax
+  mov ax,0x0304
+  out dx,ax
+  mov ax,0x0305
+  out dx,ax
+
   mov dl,0xd9
   mov al,0x00
   out dx,al
   mov dl,0xd4
 
-  mov ax,0x0206    ; 3206
-  out dx,ax
-  mov ax,0x0e04    ; 3b04
-  out dx,ax
-  mov ax,0x0105
-  out dx,ax
-
-  mov al,((22 + 40)*76) & 0xff
+  mov al,(242*76) & 0xff
   out 0x40,al
-  mov al,((22 + 40)*76) >> 8
+  mov al,(242*76) >> 8
   out 0x40,al
 
-  mov word[0x20],int8_isav1
+  mov word[0x20],int8_isav0
 
   mov al,0x20
   out 0x20,al
   iret
 
+;      Normal field, even
+;        240 scanlines normal 0x3B         200 0x31
+;          2 scanlines extra  0x02           2 0x02
+;          0 scanlines CRTC-created          0
+;      Short field, odd
+;         16 scanlines normal 0x03          56 0x0d
+;          3 scanlines extra  0x03           3 0x03
+;          1 scanline  CRTC-created          1
 
