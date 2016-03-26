@@ -3,9 +3,12 @@
   mov ax,0xb800
   mov es,ax
   mov ax,0xffff
-  mov cx,4096 + 4000
+  mov cx,4096
   xor di,di
   cld
+  rep stosw
+  mov cx,4096
+  mov ax,0xff00
   rep stosw
 
   ; Mode                                                09
@@ -264,9 +267,9 @@ int8_oe8:
 int8_oe9:
   mov ax,0x0309
   out dx,ax
-  mov ax,0x0206
+  mov ax,0x0106
   out dx,ax
-  mov ax,0x0d04    ; 0404
+  mov ax,0x0304    ; 0404
   out dx,ax
   mov ax,0x0305
   out dx,ax
@@ -311,7 +314,7 @@ int8_isav0:
 
   ; Final 1 - scanline 242 (202)
 int8_isav1:
-  mov ax,0x0206
+  mov ax,0x0106
   out dx,ax
   mov ax,0x0304
   out dx,ax
