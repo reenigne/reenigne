@@ -110,7 +110,7 @@
   out 0x40,al
   out 0x40,al
 
-  mov al,76*2 + 1
+  mov al,76*2 - 1
   out 0x40,al
   mov al,0
   out 0x40,al
@@ -152,11 +152,11 @@ int8_oe0:
   iret
 
 
-  ; Step 1, wait until display is disabled, then change interrupts
+  ; Step 1, wait until display is enabled, then change interrupts
 int8_oe1:
   in al,dx
   test al,1
-  jz .noInterruptChange   ; jump if not -DISPEN, finish if -DISPEN
+  jnz .noInterruptChange  ; jump if -DISPEN, finish if +DISPEN
 
   mov word[0x20],int8_oe2
 
@@ -166,11 +166,11 @@ int8_oe1:
   iret
 
 
-  ; Step 2, wait until display is enabled - then we'll be at the start of the active area
+  ; Step 2, wait until display is disabled - then we'll be just before the start of the active area
 int8_oe2:
   in al,dx
   test al,1
-  jnz .noInterruptChange  ; jump if -DISPEN, finish if +DISPEN
+  jz .noInterruptChange   ; jump if not -DISPEN, finish if -DISPEN
 
   mov word[0x20],int8_oe3
   mov cx,2
