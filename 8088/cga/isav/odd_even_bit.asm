@@ -11,6 +11,14 @@
   mov ax,0xff00
   rep stosw
 
+
+  call startISAV
+endLoop:
+  jmp endLoop
+
+
+startISAV:
+  push ds
   ; Mode                                                09
   ;      1 +HRES                                         1
   ;      2 +GRPH                                         0
@@ -134,8 +142,6 @@ setupLoop:
   hlt
   jmp setupLoop
 
-doneSetup:
-  ret
 
 
 originalInterrupt8:
@@ -260,7 +266,10 @@ int8_oe8:
 
   mov al,0x20
   out 0x20,al
-  iret
+  add sp,6
+  sti
+  pop ds
+  ret
 
 
   ; Step 9 - initial short (odd) field
@@ -345,4 +354,113 @@ int8_isav1:
 ;         16 scanlines normal 0x03          56 0x0d
 ;          3 scanlines extra  0x03           3 0x03
 ;          1 scanline  CRTC-created          1
+
+
+
+
+; Returns the CGA to normal mode
+stopISAV:
+  cli
+  xor ax,ax
+  mov ds,ax
+  mov ax,[cs:savedInterrupt8]
+  mov [8*4],ax
+  mov ax,[cs:savedInterrupt8+2]
+  mov [8*4+2],ax
+  mov al,0x34
+  out 0x43,al
+  mov al,0
+  out 0x40,al
+  out 0x40,al
+  sti
+
+  ; Set the CGA back to a normal mode so we don't risk breaking anything
+  mov ax,3
+  int 0x10
+  ret
+
+
+; Sets the page to display next (0 or 1)
+setDisplayPage:
+  push bp
+  mov bp,sp
+  mov cl,[bp+4]
+  cmp cl,[setPage]
+  je .done
+  call waitForSafeToDraw
+  cmp byte[longField],0
+  je .noPageWaiting
+  mov byte[pageWaiting],1
+  jmp .done
+.noPageWaiting:
+  cli
+  mov [setPage],cl
+  mov byte[needLongField],1
+  sti
+
+  push ds
+  xor bx,bx
+  mov ds,bx
+  mov al,0x04
+  out 0x43,al    ; We latch the count before reading the vector otherwise we could end up
+  mov bl,[0x20]  ; on scanline 240 with a timer 0 count indicating scanline 22 or so
+  in al,0x40
+  mov ah,al
+  in al,0x40
+  xchg ah,al
+  pop ds
+
+  cmp bl,interrupt8b  ; Warning expected here, doing the obvious "& 0xff" turns it into an error.
+  je .done
+  cmp ax,76*3
+  jl .done
+
+  mov dx,0x3d4
+  mov ax,0x4004
+  out dx,ax
+  mov ax,0x0105
+  add ah,[activePage]
+  out dx,ax
+  mov byte[longField],1
+  mov byte[needLongField],0
+
+.done:
+  pop bp
+  ret
+
+
+; Returns CF=1 if it's safe to draw, i.e. if the drawing page (the one that was
+; not requested in the most recent call to setDisplayPage()) will not be used
+; as active image data again before the set page becomes the display page.
+safeToDraw:
+  cmp byte[needLongField],0
+  jne .done ; unsafe
+  cmp byte[longField],0
+  je .safe
+  cmp byte[pageWaiting],0
+  jne .done ; unsafe
+
+  ; longField == 1, needLongField == 0 is only safe if we're after scanline 200
+  mov al,0x04
+  out 0x43,al
+  in al,0x40
+  mov ah,al
+  in al,0x40
+  xchg ah,al
+  cmp ax,40*76
+
+.done:
+  ret
+.safe:
+  stc
+  ret
+.unsafe:
+  clc
+  ret
+
+
+waitForSafeToDraw:
+  call safeToDraw
+  jnc waitForSafeToDraw
+  ret
 
