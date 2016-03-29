@@ -297,6 +297,10 @@ int8_oe9:
 
   ; Final 0 - scanline 0
 int8_isav0:
+  push ax
+  push dx
+  mov dx,0x3d4
+
   mov ax,0x2806    ; 3206
   out dx,ax
   mov ax,0x3b04
@@ -304,25 +308,65 @@ int8_isav0:
   mov ax,0x0205
   out dx,ax
 
-  mov dl,0xd9
-  mov al,0x31
-  out dx,al
-  mov dl,0xd4
+    mov dl,0xd9
+    mov al,0x31
+    out dx,al
+    mov dl,0xd4
+
+  cmp byte[cs:longField],0
+  je .noActiveFlip
+  mov byte[cs:longField],0
+  xor byte[cs:activePage],1
+.noActiveFlip:
+
+  cmp byte[cs:needLongField],0
+  je .noNewChange
+
+  mov ax,0x4004
+  out dx,ax
+  mov ax,0x0105
+  add ah,[cs:activePage]
+  out dx,ax
+  mov byte[cs:longField],1
+  mov byte[cs:needLongField],0
+
+  cmp byte[cs:pageWaiting],0
+  je .noNewChange
+
+  mov byte[cs:pageWaiting],0
+  mov byte[cs:needLongField],1
+  xor byte[cs:setPage],1
+
+.noNewChange:
+
+  pop dx
+
+  push ds
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],int8_isav1
+  pop ds
 
   mov al,(20*76) & 0xff
   out 0x40,al
   mov al,(20*76) >> 8
   out 0x40,al
 
-  mov word[0x20],int8_isav1
+  add word[cs:timerCount],76*262
+  jnc doneInterrupt8
+  pop ax
+  jmp far [cs:savedInterrupt8]
 
-  mov al,0x20
-  out 0x20,al
-  iret
 
 
   ; Final 1 - scanline 242 (202)
 int8_isav1:
+  push ax
+  cmp byte[cs:longField],0
+  jne .doneCRTC
+  push dx
+  mov dx,0x3d4
+
   mov ax,0x0106
   out dx,ax
   mov ax,0x0304
@@ -330,21 +374,33 @@ int8_isav1:
   mov ax,0x0305
   out dx,ax
 
-  mov dl,0xd9
-  mov al,0x00
-  out dx,al
-  mov dl,0xd4
+    mov dl,0xd9
+    mov al,0x00
+    out dx,al
+    mov dl,0xd4
+
+  pop dx
+.doneCRTC:
+
+  push ds
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],int8_isav0
+  pop ds
 
   mov al,(242*76) & 0xff
   out 0x40,al
   mov al,(242*76) >> 8
   out 0x40,al
 
-  mov word[0x20],int8_isav0
-
+doneInterrupt8:
   mov al,0x20
   out 0x20,al
+  pop ax
   iret
+
+
+
 
 ;      Normal field, even
 ;        240 scanlines normal 0x3B         200 0x31
