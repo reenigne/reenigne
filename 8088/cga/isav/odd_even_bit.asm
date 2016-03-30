@@ -306,6 +306,7 @@ int8_isav0:
   mov ax,0x3b04
   out dx,ax
   mov ax,0x0205
+  add ah,[cs:activePage]
   out dx,ax
 
     mov dl,0xd9
@@ -372,6 +373,7 @@ int8_isav1:
   mov ax,0x0304
   out dx,ax
   mov ax,0x0305
+  sub ah,[cs:activePage]
   out dx,ax
 
     mov dl,0xd9
