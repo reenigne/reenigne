@@ -148,6 +148,18 @@ originalInterrupt8:
   dw 0, 0
 originalIMR:
   db 0
+timerCount:
+  dw 0
+activePage:
+  db 1
+setPage:
+  db 1
+pageWaiting:
+  db 0
+longField:
+  db 0
+needLongField:
+  db 0
 
 
   ; Step 0 - don't do anything (we've just completed wait for CRTC stabilization)
@@ -288,6 +300,9 @@ int8_oe9:
   mov al,(242*76) >> 8
   out 0x40,al
 
+  mov al,[cs:originalIMR]
+  out 0x21,al
+
   mov word[0x20],int8_isav0
 
   mov al,0x20
@@ -356,11 +371,16 @@ int8_isav0:
   add word[cs:timerCount],76*262
   jnc doneInterrupt8
   pop ax
-  jmp far [cs:savedInterrupt8]
+  jmp far [cs:originalInterrupt8]
 
 
+int8_isav0_end:
+%if ((int8_isav0_end - int8_isav0) & 0xff) == 0
+  nop
+%endif
 
-  ; Final 1 - scanline 242 (202)
+
+  ; Final 1 - scanline 242
 int8_isav1:
   push ax
   cmp byte[cs:longField],0
@@ -400,20 +420,6 @@ doneInterrupt8:
   out 0x20,al
   pop ax
   iret
-
-
-
-
-;      Normal field, even
-;        240 scanlines normal 0x3B         200 0x31
-;          2 scanlines extra  0x02           2 0x02
-;          0 scanlines CRTC-created          0
-;      Short field, odd
-;         16 scanlines normal 0x03          56 0x0d
-;          3 scanlines extra  0x03           3 0x03
-;          1 scanline  CRTC-created          1
-
-
 
 
 ; Returns the CGA to normal mode
@@ -468,10 +474,13 @@ setDisplayPage:
   xchg ah,al
   pop ds
 
-  cmp bl,interrupt8b  ; Warning expected here, doing the obvious "& 0xff" turns it into an error.
+  cmp bl,int8_isav0  ; Warning expected here, doing the obvious "& 0xff" turns it into an error.
   je .done
   cmp ax,76*3
   jl .done
+
+  ; We've got plenty of time until the next IRQ0, but other interrupts could happen in the meantime.
+  cli
 
   mov dx,0x3d4
   mov ax,0x4004
@@ -481,6 +490,8 @@ setDisplayPage:
   out dx,ax
   mov byte[longField],1
   mov byte[needLongField],0
+
+  sti
 
 .done:
   pop bp
@@ -505,7 +516,11 @@ safeToDraw:
   mov ah,al
   in al,0x40
   xchg ah,al
-  cmp ax,40*76
+  cmp ax,42*76 + 21  ; Round down for safety
+
+  ; Interrupt happens on scanline 242 cycle -1
+  ; Safe point is scanline 199 cycle 54
+  ; (242*76 + n/12 - 1) - (199*76 + 53 + 4/12)  = 3123 = 42*76 + 22 + (n-4)/12
 
 .done:
   ret
