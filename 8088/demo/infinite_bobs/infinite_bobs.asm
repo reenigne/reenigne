@@ -1,21 +1,6 @@
-org 0x100
-;org 0
+;org 0x100
+org 0
 cpu 8086
-
-
-%macro waitForDisplayEnable 0
-  %%waitForDisplayEnable:
-    in al,dx                       ; 1 1 2
-    test al,1                      ; 2 0 2
-    jnz %%waitForDisplayEnable     ; 2 0 2
-%endmacro
-
-%macro waitForDisplayDisable 0
-  %%waitForDisplayDisable:
-    in al,dx                       ; 1 1 2
-    test al,1                      ; 2 0 2
-    jz %%waitForDisplayDisable     ; 2 0 2
-%endmacro
 
 %macro waitForVerticalSync 0
   %%waitForVerticalSync:
@@ -30,7 +15,6 @@ cpu 8086
     test al,8
     jnz %%waitForNoVerticalSync
 %endmacro
-
 
   mov ax,cs
   mov ds,ax
@@ -91,15 +75,9 @@ patch2:
   je firstPage
   or di,0x2000
 firstPage:
-;    mov dx,0x3d9
-;    mov al,2
-;    out dx,al
 
 patch3:
   call [bx+0x9999]
-;    mov dx,0x3d9
-;    mov al,3
-;    out dx,al
 
   mov al,[page]
   xor ah,ah
@@ -136,15 +114,8 @@ noKey:
   dec cx
   jmp delayLoop
 doneDelay:
-;  dec word[delayFrames]
-;    mov dx,0x3d9
-;    mov al,4
-;    out dx,al
 
   call waitForSafeToDraw
-;    mov dx,0x3d9
-;    mov al,5
-;    out dx,al
 
   xor byte[page],1
 
@@ -175,24 +146,9 @@ delayFrames:
 
 ; ISAV code starts here.
 
-savedInterrupt8:
-  dw 0,0
-timerCount:
-  dw 0
-activePage:
-  db 1
-setPage:
-  db 1
-pageWaiting:
-  db 0
-longField:
-  db 0
-needLongField:
-  db 0
-
-; Puts the CGA card in ISAV mode
 startISAV:
   push ds
+
   ; Mode                                                09
   ;      1 +HRES                                         1
   ;      2 +GRPH                                         0
@@ -201,7 +157,7 @@ startISAV:
   ;   0x10 +1BPP                                         0
   ;   0x20 +ENABLE BLINK                                 0
   mov dx,0x3d8
-  mov al,0x1a  ; 0x1a
+  mov al,0x1a
   out dx,al
 
   ; Palette                                             00
@@ -234,7 +190,7 @@ startISAV:
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
-  mov ax,0x3b04
+  mov ax,0x0104
   out dx,ax
 
   ;   0x1f Vertical Total Adjust                        00
@@ -242,7 +198,7 @@ startISAV:
   out dx,ax
 
   ;   0x7f Vertical Displayed                           02
-  mov ax,0x3206
+  mov ax,0x0106
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       18
@@ -254,7 +210,7 @@ startISAV:
   out dx,ax
 
   ;   0x1f Max Scan Line Address                        00
-  mov ax,0x0309
+  mov ax,0x0009
   out dx,ax
 
   ; Cursor Start                                        06
@@ -284,67 +240,320 @@ startISAV:
   out dx,ax
 
   mov dl,0xda
-  waitForVerticalSync
-  waitForDisplayEnable
-  waitForVerticalSync
-  waitForDisplayEnable
-
-  xor ax,ax
-  mov ds,ax
-
-  mov ax,0x0308
-  mov dl,0xd4
-  out dx,ax
-  mov dl,0xda
-
   cli
-
-; Program timer 0 rate to 2
-; timer 0 almost immediately fires, now IRQ0 is waiting
-; We wait for display enable, now raster is on scanline 0 and timer 0 is firing rapidly
-; We program timer 0 for 240*76, it almost immediately starts counting down from this value
-; We enable interrupts and IRQ0 (unreprogrammed). The next IRQ0 will be on scanline 240
-; We program timer 0 for 22*76, this will be what it counts down from when it gets to scanline 240
-; On scanline 240 we get interrupt8a
 
   mov al,0x34
   out 0x43,al
-  mov al,2
+  mov al,0
+  out 0x40,al
+  out 0x40,al
+
+  mov al,76*2 + 1
   out 0x40,al
   mov al,0
   out 0x40,al
 
-  mov al,(240*76) & 0xff
-  out 0x40,al
+  xor ax,ax
+  mov ds,ax
+  mov ax,[0x20]
+  mov [cs:originalInterrupt8],ax
+  mov ax,[0x22]
+  mov [cs:originalInterrupt8+2],ax
+  mov word[0x20],int8_oe0
+  mov [0x22],cs
 
-  waitForVerticalSync
-  waitForDisplayEnable
-
-  mov al,(240*76) >> 8
-  out 0x40,al
-
-  times 5 nop
-  sti
-  times 5 nop      ; IRQ0 will fire in here, then the next IRQ0 after that will be interrupt8a at the right time...
-  cli
-
-  mov al,(22*76) & 0xff
-  out 0x40,al
-  mov al,(22*76) >> 8
-  out 0x40,al               ; ... with the right count
-
-  mov ax,[8*4]
-  mov [cs:savedInterrupt8],ax
-  mov ax,[8*4+2]
-  mov [cs:savedInterrupt8+2],ax
-  mov ax,interrupt8a
-  mov [8*4],ax
-  mov [8*4+2],cs
+  in al,0x21
+  mov [cs:originalIMR],al
+  mov al,0xfe
+  out 0x21,al
 
   sti
+setupLoop:
+  hlt
+  jmp setupLoop
 
+
+originalInterrupt8:
+  dw 0, 0
+originalIMR:
+  db 0
+timerCount:
+  dw 0
+activePage:
+  db 1
+setPage:
+  db 1
+pageWaiting:
+  db 0
+longField:
+  db 0
+needLongField:
+  db 0
+
+
+  ; Step 0 - don't do anything (we've just completed wait for CRTC stabilization)
+int8_oe0:
+  mov word[0x20],int8_oe1
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 1, wait until display is disabled, then change interrupts
+int8_oe1:
+  in al,dx
+  test al,1
+  jz .noInterruptChange   ; jump if not -DISPEN, finish if -DISPEN
+
+  mov word[0x20],int8_oe2
+
+.noInterruptChange:
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 2, wait until display is enabled - then we'll be at the start of the active area
+int8_oe2:
+  in al,dx
+  test al,1
+  jnz .noInterruptChange  ; jump if -DISPEN, finish if +DISPEN
+
+  mov word[0x20],int8_oe3
+  mov cx,2
+
+.noInterruptChange:
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 3 - this interrupt occurs one timer cycle into the active area.
+  ; The pattern of scanlines on the screen is +-+-- As the interrupt runs every other scanline, the pattern of scanlines in terms of what is seen from the interrupt is ++---.
+int8_oe3:
+  mov dl,0xd4
+  mov ax,0x0308  ; Set interlace mode to ISAV
+  out dx,ax
+  mov dl,0xda
+
+  loop .noInterruptChange
+  mov word[0x20],int8_oe4
+.noInterruptChange:
+
+  mov al,76*2
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 4 - this interrupt occurs two timer cycles into the active area.
+int8_oe4:
+  in al,dx
+  test al,1
+  jnz .noInterruptChange  ; jump if -DISPEN, finish if +DISPEN
+
+  mov word[0x20],int8_oe5
+
+.noInterruptChange:
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 5
+int8_oe5:
+  in al,dx
+  test al,1
+  jz .noInterruptChange   ; jump if not -DISPEN, finish if -DISPEN (i.e. scanline 4)
+
+  mov word[0x20],int8_oe6
+
+  mov al,76*2 - 3
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+
+.noInterruptChange:
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 6. This occurs on scanline 1. The next interrupt will be on scanline 3.
+int8_oe6:
+  mov word[0x20],int8_oe7
+
+  mov al,76*2
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 7. This occurs on scanline 3 (one timer cycle before the active area starts). The next interrupt will be on scanline 0.
+int8_oe7:
+  mov word[0x20],int8_oe8
+  mov al,0x20
+  out 0x20,al
+  iret
+
+
+  ; Step 8 - scanline 0, next interrupt on scanline 2
+int8_oe8:
+  mov al,(20*76) & 0xff
+  out 0x40,al
+  mov al,(20*76) >> 8
+  out 0x40,al
+
+  mov word[0x20],int8_oe9
+
+  mov dl,0xd4
+
+  mov al,0x20
+  out 0x20,al
+  add sp,6
+  sti
   pop ds
   ret
+
+
+  ; Step 9 - initial short (odd) field
+int8_oe9:
+  push ax
+  push dx
+  mov dx,0x3d4
+  mov ax,0x0309
+  out dx,ax
+  mov ax,0x0106
+  out dx,ax
+  mov ax,0x0304    ; 0404
+  out dx,ax
+  mov ax,0x0305
+  out dx,ax
+  pop dx
+
+  mov al,(242*76) & 0xff
+  out 0x40,al
+  mov al,(242*76) >> 8
+  out 0x40,al
+
+  mov al,[cs:originalIMR]
+  out 0x21,al
+
+  push ds
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],int8_isav0
+  pop ds
+
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
+
+
+  ; Final 0 - scanline 0
+int8_isav0:
+  push ax
+  push dx
+  mov dx,0x3d4
+  mov ax,0x3206
+  out dx,ax
+  mov ax,0x3b04
+  out dx,ax
+
+  cmp byte[cs:longField],0
+  je .noActiveFlip
+  mov byte[cs:longField],0
+  xor byte[cs:activePage],1
+.noActiveFlip:
+
+  mov ax,0x0105
+  add ah,[cs:activePage]
+  out dx,ax
+
+  cmp byte[cs:needLongField],0
+  je .noNewChange
+
+  mov ax,0x4004
+  out dx,ax
+  mov byte[cs:longField],1
+  mov byte[cs:needLongField],0
+
+  cmp byte[cs:pageWaiting],0
+  je .noNewChange
+
+  mov byte[cs:pageWaiting],0
+  mov byte[cs:needLongField],1
+  xor byte[cs:setPage],1
+
+.noNewChange:
+
+  pop dx
+
+  push ds
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],int8_isav1
+  pop ds
+
+  mov al,(20*76) & 0xff
+  out 0x40,al
+  mov al,(20*76) >> 8
+  out 0x40,al
+
+  add word[cs:timerCount],76*262
+  jnc doneInterrupt8
+  pop ax
+  jmp far [cs:originalInterrupt8]
+
+
+int8_isav0_end:
+%if ((int8_isav0_end - int8_isav0) & 0xff) == 0
+  nop
+%endif
+
+
+  ; Final 1 - scanline 242
+int8_isav1:
+  push ax
+  cmp byte[cs:longField],0
+  jne .doneCRTC
+  push dx
+  mov dx,0x3d4
+  mov ax,0x0106
+  out dx,ax
+  mov ax,0x0304
+  out dx,ax
+  mov ax,0x0405
+  sub ah,[cs:activePage]
+  out dx,ax
+  pop dx
+.doneCRTC:
+
+  push ds
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],int8_isav0
+  pop ds
+
+  mov al,(242*76) & 0xff
+  out 0x40,al
+  mov al,(242*76) >> 8
+  out 0x40,al
+
+doneInterrupt8:
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
 
 
 ; Returns the CGA to normal mode
@@ -352,9 +561,9 @@ stopISAV:
   cli
   xor ax,ax
   mov ds,ax
-  mov ax,[cs:savedInterrupt8]
+  mov ax,[cs:originalInterrupt8]
   mov [8*4],ax
-  mov ax,[cs:savedInterrupt8+2]
+  mov ax,[cs:originalInterrupt8+2]
   mov [8*4+2],ax
   mov al,0x34
   out 0x43,al
@@ -399,10 +608,13 @@ setDisplayPage:
   xchg ah,al
   pop ds
 
-  cmp bl,interrupt8b  ; Warning expected here, doing the obvious "& 0xff" turns it into an error.
+  cmp bl,int8_isav0  ; Warning expected here, doing the obvious "& 0xff" turns it into an error.
   je .done
   cmp ax,76*3
   jl .done
+
+  ; We've got plenty of time until the next IRQ0, but other interrupts could happen in the meantime.
+  cli
 
   mov dx,0x3d4
   mov ax,0x4004
@@ -412,6 +624,8 @@ setDisplayPage:
   out dx,ax
   mov byte[longField],1
   mov byte[needLongField],0
+
+  sti
 
 .done:
   pop bp
@@ -436,15 +650,16 @@ safeToDraw:
   mov ah,al
   in al,0x40
   xchg ah,al
-  cmp ax,40*76
+  cmp ax,42*76 + 21  ; Round down for safety
+
+  ; Interrupt happens on scanline 242 cycle -1
+  ; Safe point is scanline 199 cycle 54
+  ; (242*76 + n/12 - 1) - (199*76 + 53 + 4/12)  = 3123 = 42*76 + 22 + (n-4)/12
 
 .done:
   ret
 .safe:
   stc
-  ret
-.unsafe:
-  clc
   ret
 
 
@@ -452,145 +667,6 @@ waitForSafeToDraw:
   call safeToDraw
   jnc waitForSafeToDraw
   ret
-
-
-; interrupt8a runs on scanline 240 and sets up the "short" field for flipping the odd/even bit
-interrupt8a:
-  push ax
-
-  cmp byte[cs:longField],0
-  jne .doneCRTC
-  push dx
-  mov dx,0x3d4
-  mov ax,0x0206 ; Vertical Displayed
-  out dx,ax
-  mov ax,0x0404 ; Vertical Total
-  out dx,ax
-  mov ax,0x0105 ; Vertical Total Adjust
-  out dx,ax
-;    mov dl,0xd9
-;    mov al,1
-;    out dx,al
-  pop dx
-.doneCRTC:
-
-  push ds
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],interrupt8b
-  pop ds
-
-  mov al,(240*76) & 0xff
-  out 0x40,al
-  mov al,(240*76) >> 8
-  out 0x40,al
-
-doneInterrupt8:
-  mov al,0x20
-  out 0x20,al
-  pop ax
-  iret
-
-
-interrupt8aEnd:
-%if ((interrupt8aEnd - interrupt8a) & 0xff) == 0
-  nop
-%endif
-
-
-; interrupt8b runs on scanline 0 and sets up the "normal" field
-interrupt8b:
-  push ax
-  push dx
-
-  mov dx,0x3d4
-  mov ax,0x3206 ; Vertical Displayed
-  out dx,ax
-  mov ax,0x3b04 ; Vertical Total
-  out dx,ax
-  mov ax,0x0005 ; Vertical Total Adjust
-  out dx,ax
-;    mov dl,0xd9
-;    mov al,2
-;    out dx,al
-;    mov dl,0xd4
-  cmp byte[cs:longField],0
-  je .noActiveFlip
-  mov byte[cs:longField],0
-  xor byte[cs:activePage],1
-.noActiveFlip:
-
-  cmp byte[cs:needLongField],0
-  je .noNewChange
-
-  mov ax,0x4004
-  out dx,ax
-  mov ax,0x0105
-  add ah,[cs:activePage]
-  out dx,ax
-  mov byte[cs:longField],1
-  mov byte[cs:needLongField],0
-
-;    mov dl,0xd9
-;    mov al,0
-;    out dx,al
-
-  cmp byte[cs:pageWaiting],0
-  je .noNewChange
-
-  mov byte[cs:pageWaiting],0
-  mov byte[cs:needLongField],1
-  xor byte[cs:setPage],1
-
-.noNewChange:
-
-  pop dx
-
-  push ds
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],interrupt8a
-  pop ds
-
-  mov al,(22*76) & 0xff
-  out 0x40,al
-  mov al,(22*76) >> 8
-  out 0x40,al
-
-  add word[cs:timerCount],76*262
-  jnc doneInterrupt8
-  pop ax
-  jmp far [cs:savedInterrupt8]
-
-
-; Page 0, no page change:
-;   (0x3b + 1) * 2 * 2 == 240 scanlines main field
-;                           0 scanlines main field adjust
-;   (0x04 + 1) * 2 * 2 ==  20 scanlines small field
-;                           1 scanline small field adjust
-;                           1 scanline CRTC extra interlace
-
-; Page 1, no page change:
-;   (0x3b + 1) * 2 * 2 == 240 scanlines main field
-;                           0 scanlines main field adjust
-;                           1 scanline CRTC extra interlace
-;   (0x04 + 1) * 2 * 2 ==  20 scanlines small field
-;                           1 scanline small field adjust
-
-; Page 0, switch to page 1 for next frame:
-;   (0x40 + 1) * 2 * 2 == 260 scanlines
-;                           2 scanlines adjust
-
-; Page 1, switch to page 0 for next frame:
-;   (0x40 + 1) * 2 * 2 == 260 scanlines
-;                           1 scanline adjust
-;                           1 scanline CRTC extra interlace
-
-; In order to be able to switch pages before scanline 240, we'll need to do all our drawing on scanlines -21 .. 238
-; (we can actually do ~26 scanlines more drawing after the page flip, though really we should start work on the following page by that point)
-
-; To avoid having to change the programmed timer counts, we want interrupt8b to fire on scanline 1, and interrupt8a to run on scanline 241
-; (which will be CRTC scanline 0 on page 1 and CRTC scanline 1 on page 0).
 
 cppData:
 
