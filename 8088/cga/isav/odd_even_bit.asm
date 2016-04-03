@@ -1,4 +1,21 @@
-  %include "../../defaults_bin.asm"
+;org 0x100
+org 0
+cpu 8086
+
+%macro waitForVerticalSync 0
+  %%waitForVerticalSync:
+    in al,dx
+    test al,8
+    jz %%waitForVerticalSync
+%endmacro
+
+%macro waitForNoVerticalSync 0
+  %%waitForNoVerticalSync:
+    in al,dx
+    test al,8
+    jnz %%waitForNoVerticalSync
+%endmacro
+
 
   mov ax,0xb800
   mov es,ax
@@ -11,14 +28,162 @@
   mov ax,0xff00
   rep stosw
 
+;  call startISAV
+;endLoop:
+;  jmp endLoop
+
+
+
+
+
+  mov ax,cs
+  mov ds,ax
+  cli
+  mov ss,ax
+  mov sp,0xfffe
+  sti
+
+  mov dx,[cppData]
+  mov ax,cppData + 4
+  mov [patch2+2],ax
+  add dx,dx
+  add ax,dx
+;  mov [patch3+2],ax
+  add ax,dx
+  mov [patch1+2],ax
+
+
+  ; Clear screen
+;  mov ax,0xb800
+;  mov es,ax
+;  mov cx,0x1000 + 4000
+;  xor ax,ax
+;  xor di,di
+;  cld
+;  rep stosw
 
   call startISAV
-endLoop:
-  jmp endLoop
+;endLoop:
+;  jmp endLoop
 
+mainLoop:
+  mov ax,0x200  ; x frequency
+  add [xPhase],ax
+  adc word[xPhase+2],0
+  mov ax,[cppData]  ; nx
+  cmp word[xPhase+1],ax
+  jl noXFixup
+  sub word[xPhase+1],ax
+noXFixup:
+
+  mov ax,0x200  ; y frequency
+  add [yPhase],ax
+  adc word[yPhase+2],0
+  mov ax,[cppData+2]
+  cmp word[yPhase+1],ax
+  jl noYFixup
+  sub word[yPhase+1],ax
+noYFixup:
+
+  mov bx,[yPhase+1]
+  add bx,bx
+patch1:
+  mov di,[bx+0x9999]
+  mov bx,[xPhase+1]
+  add bx,bx
+patch2:
+  add di,[bx+0x9999]
+  cmp byte[page],0
+  je firstPage
+  or di,0x2000
+firstPage:
+;    mov dx,0x3d9
+;    mov al,2
+;    out dx,al
+
+patch3:
+;  call [bx+0x9999]
+;    mov dx,0x3d9
+;    mov al,3
+;    out dx,al
+
+  mov al,[page]
+  xor ah,ah
+  push ax
+  call setDisplayPage
+  mov cx,[delayFrames]
+  and cx,63
+delayLoop:
+  mov ah,1
+  int 0x16
+  jz noKey
+  mov ah,0
+  int 0x16
+  cmp al,'+'
+  jne notPlus
+  dec word[delayFrames]
+notPlus:
+  cmp al,'-'
+  jne notMinus
+  inc word[delayFrames]
+notMinus:
+  cmp al,' '
+  jne notSpace
+  mov ah,0
+  int 0x16
+notSpace:
+  cmp al,27
+  je finishLoop
+noKey:
+  jcxz doneDelay
+  mov dx,0x3da
+  waitForVerticalSync
+  waitForNoVerticalSync
+  dec cx
+  jmp delayLoop
+doneDelay:
+;  dec word[delayFrames]
+;    mov dx,0x3d9
+;    mov al,4
+;    out dx,al
+
+  call waitForSafeToDraw
+;    mov dx,0x3d9
+;    mov al,5
+;    out dx,al
+
+  xor byte[page],1
+
+  jmp mainLoop
+
+finishLoop:
+  call stopISAV
+
+;  int 0x67
+  mov ax,0x4c00
+  int 0x21
+  ret
+
+
+xPhase:
+  dw 0, 0
+yPhase:
+  dw 0, 0
+xFrequency:
+  dw 0x100
+yFrequency:
+  dw 0x100
+page:
+  db 0
+delayFrames:
+  dw 0
+
+
+; ISAV code starts here.
 
 startISAV:
   push ds
+
   ; Mode                                                09
   ;      1 +HRES                                         1
   ;      2 +GRPH                                         0
@@ -118,7 +283,7 @@ startISAV:
   out 0x40,al
   out 0x40,al
 
-  mov al,76*2 - 1
+  mov al,76*2 + 1
   out 0x40,al
   mov al,0
   out 0x40,al
@@ -141,7 +306,6 @@ startISAV:
 setupLoop:
   hlt
   jmp setupLoop
-
 
 
 originalInterrupt8:
@@ -170,11 +334,11 @@ int8_oe0:
   iret
 
 
-  ; Step 1, wait until display is enabled, then change interrupts
+  ; Step 1, wait until display is disabled, then change interrupts
 int8_oe1:
   in al,dx
   test al,1
-  jnz .noInterruptChange  ; jump if -DISPEN, finish if +DISPEN
+  jz .noInterruptChange   ; jump if not -DISPEN, finish if -DISPEN
 
   mov word[0x20],int8_oe2
 
@@ -184,11 +348,11 @@ int8_oe1:
   iret
 
 
-  ; Step 2, wait until display is disabled - then we'll be just before the start of the active area
+  ; Step 2, wait until display is enabled - then we'll be at the start of the active area
 int8_oe2:
   in al,dx
   test al,1
-  jz .noInterruptChange   ; jump if not -DISPEN, finish if -DISPEN
+  jnz .noInterruptChange  ; jump if -DISPEN, finish if +DISPEN
 
   mov word[0x20],int8_oe3
   mov cx,2
@@ -199,7 +363,7 @@ int8_oe2:
   iret
 
 
-  ; Step 3 - this interrupt occurs right at the start of the active area.
+  ; Step 3 - this interrupt occurs one timer cycle into the active area.
   ; The pattern of scanlines on the screen is +-+-- As the interrupt runs every other scanline, the pattern of scanlines in terms of what is seen from the interrupt is ++---.
 int8_oe3:
   mov dl,0xd4
@@ -221,7 +385,7 @@ int8_oe3:
   iret
 
 
-  ; Step 4
+  ; Step 4 - this interrupt occurs two timer cycles into the active area.
 int8_oe4:
   in al,dx
   test al,1
@@ -243,6 +407,11 @@ int8_oe5:
 
   mov word[0x20],int8_oe6
 
+  mov al,76*2 - 3
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+
 .noInterruptChange:
   mov al,0x20
   out 0x20,al
@@ -252,12 +421,18 @@ int8_oe5:
   ; Step 6. This occurs on scanline 1. The next interrupt will be on scanline 3.
 int8_oe6:
   mov word[0x20],int8_oe7
+
+  mov al,76*2
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+
   mov al,0x20
   out 0x20,al
   iret
 
 
-  ; Step 7. This occurs on scanline 3. The next interrupt will be on scanline 0.
+  ; Step 7. This occurs on scanline 3 (one timer cycle before the active area starts). The next interrupt will be on scanline 0.
 int8_oe7:
   mov word[0x20],int8_oe8
   mov al,0x20
@@ -286,6 +461,9 @@ int8_oe8:
 
   ; Step 9 - initial short (odd) field
 int8_oe9:
+  push ax
+  push dx
+  mov dx,0x3d4
   mov ax,0x0309
   out dx,ax
   mov ax,0x0106
@@ -294,6 +472,7 @@ int8_oe9:
   out dx,ax
   mov ax,0x0305
   out dx,ax
+  pop dx
 
   mov al,(242*76) & 0xff
   out 0x40,al
@@ -303,10 +482,15 @@ int8_oe9:
   mov al,[cs:originalIMR]
   out 0x21,al
 
+  push ds
+  xor ax,ax
+  mov ds,ax
   mov word[0x20],int8_isav0
+  pop ds
 
   mov al,0x20
   out 0x20,al
+  pop ax
   iret
 
 
@@ -315,19 +499,10 @@ int8_isav0:
   push ax
   push dx
   mov dx,0x3d4
-
   mov ax,0x2806    ; 3206
   out dx,ax
   mov ax,0x3b04
   out dx,ax
-  mov ax,0x0105
-  add ah,[cs:activePage]
-  out dx,ax
-
-    mov dl,0xd9
-    mov al,0x31
-    out dx,al
-    mov dl,0xd4
 
   cmp byte[cs:longField],0
   je .noActiveFlip
@@ -335,14 +510,22 @@ int8_isav0:
   xor byte[cs:activePage],1
 .noActiveFlip:
 
+  mov ax,0x0105
+  add ah,[cs:activePage]
+  out dx,ax
+    mov dl,0xd9
+    mov al,0x31
+    out dx,al
+    mov dl,0xd4
+
   cmp byte[cs:needLongField],0
   je .noNewChange
 
   mov ax,0x4004
   out dx,ax
-  mov ax,0x0105
-  add ah,[cs:activePage]
-  out dx,ax
+;  mov ax,0x0105
+;  add ah,[cs:activePage]
+;  out dx,ax
   mov byte[cs:longField],1
   mov byte[cs:needLongField],0
 
@@ -387,7 +570,6 @@ int8_isav1:
   jne .doneCRTC
   push dx
   mov dx,0x3d4
-
   mov ax,0x0106
   out dx,ax
   mov ax,0x0304
@@ -395,14 +577,13 @@ int8_isav1:
   mov ax,0x0405
   sub ah,[cs:activePage]
   out dx,ax
-
     mov dl,0xd9
     mov al,0x00
     out dx,al
     mov dl,0xd4
-
   pop dx
 .doneCRTC:
+
 
   push ds
   xor ax,ax
@@ -427,9 +608,9 @@ stopISAV:
   cli
   xor ax,ax
   mov ds,ax
-  mov ax,[cs:savedInterrupt8]
+  mov ax,[cs:originalInterrupt8]
   mov [8*4],ax
-  mov ax,[cs:savedInterrupt8+2]
+  mov ax,[cs:originalInterrupt8+2]
   mov [8*4+2],ax
   mov al,0x34
   out 0x43,al
@@ -527,13 +708,12 @@ safeToDraw:
 .safe:
   stc
   ret
-.unsafe:
-  clc
-  ret
 
 
 waitForSafeToDraw:
   call safeToDraw
   jnc waitForSafeToDraw
   ret
+
+cppData:
 

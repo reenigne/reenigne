@@ -1,5 +1,5 @@
-;org 0x100
-org 0
+org 0x100
+;org 0
 cpu 8086
 
 %macro waitForVerticalSync 0

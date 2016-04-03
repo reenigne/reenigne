@@ -45,7 +45,7 @@ We'd like to be able to call setDisplayPage() at any time that drawing is allowe
       Normal field, even
         240 scanlines normal 0x3B         200 0x31
           2 scanlines extra  0x02           2 0x02
-          0 scanlines CRTC-created          0
+          0 scanlines CRTC-created          0          page 1
       Short field, odd
          16 scanlines normal 0x03          56 0x0d
           3 scanlines extra  0x03           3 0x03
@@ -54,7 +54,7 @@ We'd like to be able to call setDisplayPage() at any time that drawing is allowe
       Normal field, odd
         240 scanlines normal 0x3B         200 0x31
           1 scanline  extra  0x01           1 0x01
-          1 scanline  CRTC-created          1
+          1 scanline  CRTC-created          1          page 0
       Short field, even
          16 scanlines normal 0x03          56 0x0d
           4 scanlines extra  0x04           4 0x04
@@ -63,11 +63,11 @@ We'd like to be able to call setDisplayPage() at any time that drawing is allowe
       Long field, even
         260 scanlines normal 0x40         260 0x40
           2 scanlines extra  0x02           2 0x02
-          0 scanlines CRTC-created          0
+          0 scanlines CRTC-created          0          page 1
 
       Long field, odd
         260 scanlines normal 0x40         260 0x40
           1 scanline  extra  0x01           1 0x01
-          1 scanline  CRTC-created          1
+          1 scanline  CRTC-created          1          page 0
 
 
