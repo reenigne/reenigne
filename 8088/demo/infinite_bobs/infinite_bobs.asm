@@ -1,5 +1,5 @@
-org 0x100
-;org 0
+;org 0x100
+org 0
 cpu 8086
 
 %macro waitForVerticalSync 0
@@ -83,6 +83,7 @@ patch3:
   xor ah,ah
   push ax
   call setDisplayPage
+  pop ax
   mov cx,[delayFrames]
   and cx,63
 delayLoop:

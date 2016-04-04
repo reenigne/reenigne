@@ -187,7 +187,7 @@ private:
                             auto i = _row_pointers[y];
                             for (int x = 0; x < size.x; ++x) {
                                 *o = (i[0] << 16) | (i[1] << 8) | i[2] |
-                                    0xff0000;
+                                    0xff000000;
                                 i += 3;
                                 ++o;
                             }
