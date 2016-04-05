@@ -2,6 +2,8 @@
 #include "alfe/bitmap.h"
 #include "alfe/bitmap_png.h"
 #include "alfe/main.h"
+#include "alfe/complex.h"
+#include "fftw3.h"
 
 class Program : public ProgramBase
 {
@@ -52,6 +54,52 @@ public:
         //    printf("\n");
         //}
 
+        Bitmap<DWORD> background2 = Bitmap<DWORD>(background.size());
+        background2.fill(0xff000000);
+
+        int outputHeight = 2000;
+        int inputHeight = 200;
+        float scanlineWidth = 0.4; //5;
+
+        Array<Complex<float>> fftData(max(outputHeight, inputHeight));
+        fftwf_plan forward = fftwf_plan_dft_1d(inputHeight, reinterpret_cast<fftwf_complex*>(&fftData[0]), reinterpret_cast<fftwf_complex*>(&fftData[0]), -1, FFTW_MEASURE);
+        fftwf_plan backward = fftwf_plan_dft_1d(outputHeight, reinterpret_cast<fftwf_complex*>(&fftData[0]), reinterpret_cast<fftwf_complex*>(&fftData[0]), 1, FFTW_MEASURE);
+
+        Array<float> fdScanline(outputHeight);
+        float sigma = scanlineWidth*outputHeight/inputHeight;
+        float a = 1/(2*sigma*sigma);
+        float scale = sqrt(M_PI/a) / (sigma*sqrt(2*M_PI));
+        for (int y = 0; y < outputHeight; ++y) {
+            int yy = y;
+            if (y > outputHeight/2)
+                yy = y - outputHeight;
+            //scanline[y] = scale*exp(-yy*yy/scanlineWidth/scanlineWidth/2);
+            fdScanline[y] = scale*exp(-M_PI*M_PI*yy*yy/(a * 2000 * 2000));
+        }
+
+        for (int x = 0; x < background.size().x; ++x) {
+            for (int channel = 0; channel < 3; ++channel) {
+                int shift = channel << 3;
+                for (int y = 0; y < inputHeight; ++y)
+                    fftData[y] = static_cast<float>((background[Vector(x, y*2)] >> shift) & 0xff);
+                fftwf_execute(forward);
+                for (int y = 0; y < inputHeight / 2; ++y)
+                    fftData[1900 + y] = fftData[100 + y];
+                for (int y = 200; y < 1900; ++y)
+                    fftData[y] = fftData[y - 200];
+                for (int y = 0; y < 2000; ++y)
+                    fftData[y] *= fdScanline[y];
+                fftwf_execute(backward);
+                for (int y = 0; y < 200; ++y) {
+                    Vector v(x, y);
+                    float f = fftData[y].x / inputHeight;
+                    int b = clamp(0, static_cast<int>(f), 0xff);
+                    background2[v] = (background2[v] & ~(0xff << shift)) | (b << shift);
+                }
+            }
+        }
+
+
         Vector windowSize = Vector(912, 525);
 
         Vector imageOffset = (windowSize - background.size())/2;
@@ -72,7 +120,7 @@ public:
                     l = lens(l) + lensPosition;
                     v = l - imageOffset;
                     if (v.inside(background.size()))
-                        *output = background[v];
+                        *output = background2[v];
                     else
                         *output = 0;
                     ++output;
