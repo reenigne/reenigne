@@ -11,7 +11,7 @@ template<class Pixel> class Bitmap;
 template<class Pixel> class BitmapFileFormat : public Handle
 {
 public:
-    Bitmap<Pixel> load(const File& file)
+    Bitmap<Pixel> load(const File& file) const
     {
         return body()->load(file);
     }
@@ -23,11 +23,12 @@ protected:
     class Body : public Handle::Body
     {
     public:
-        virtual void save(Bitmap<Pixel>& bitmap, const File& file) = 0;
-        virtual Bitmap<Pixel> load(const File& file) = 0;
+        virtual void save(Bitmap<Pixel>& bitmap, const File& file) const = 0;
+        virtual Bitmap<Pixel> load(const File& file) const = 0;
     };
     BitmapFileFormat(const Handle& handle) : Handle(handle) { }
     Body* body() { return as<Body>(); }
+    const Body* body() const { return as<Body>(); }
 private:
     friend class Bitmap<Pixel>;
 };
@@ -46,7 +47,7 @@ private:
     public:
         Body(Vector size) : _size(size) { }
         // The bitmap needs to be 8-bit sRGB data for this to work.
-        virtual void save(Bitmap<T>& bitmap, const File& file)
+        virtual void save(Bitmap<T>& bitmap, const File& file) const
         {
             FileStream stream = file.openWrite();
             Byte* data = bitmap.data();
@@ -58,7 +59,7 @@ private:
             }
         }
         // This will put 8-bit sRGB data in the bitmap.
-        virtual Bitmap<T> load(const File& file)
+        virtual Bitmap<T> load(const File& file) const
         {
             FileStream stream = file.openRead();
             Bitmap<SRGB> bitmap(_size);

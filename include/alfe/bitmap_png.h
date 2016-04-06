@@ -15,13 +15,13 @@ private:
     class Body : public BitmapFileFormat::Body
     {
     public:
-        virtual void save(Bitmap<T>& bitmap, const File& file)
+        virtual void save(Bitmap<T>& bitmap, const File& file) const
         {
             FileStream stream = file.openWrite();
             PNGWrite write(&stream);
             write.write(bitmap);
         }
-        virtual Bitmap<T> load(const File& file)
+        virtual Bitmap<T> load(const File& file) const
         {
             FileStream stream = file.openRead();
             Array<Byte> header(8);

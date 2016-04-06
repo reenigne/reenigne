@@ -68,6 +68,12 @@ We can do an 80x200 16-colour mode.
         dots from character generator
   This means that blinking is suppressed under the cursor (not the entire character, only the part under the cursor).
 
++ALPHA DOTS = (-CURSOR BLINK NOR -CURSOR DLY) OR (+CHG DOTS AND (-BLINK OR 3NAND(-CURSOR DLY, +ENABLE BLINK, +AT7)))
+
+(((NOT (AT7 & ENABLE_BLINK & -CURSOR_DLY)) OR -BLINK) AND +CHG_DOTS) OR (NOT (-CURSOR_BLINK OR -CURSOR_DLY))
+((-AT7 | -ENABLE_BLINK | CURSOR_DLY | -BLINK) AND +CHG_DOTS) OR (CURSOR_BLINK AND CURSOR_DLY)
+
+
 Blinking and cursor:
   Blinking: 16 frames on, 16 frames off
   Cursor: 8 frames on, 8 frames off
