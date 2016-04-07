@@ -31,6 +31,11 @@ public:
     //  ;   0x10 +BACKGROUND I
     //  ;   0x20 +COLOR SEL
 
+//    +HRES +GRPH gives a0 cded ghih in startup phase 0 odd       Except all start at same pixel, so output byte depends on more than 4 bytes of input data
+//    +HRES +GRPH gives abcb efgf ij in other   phase 1 even
+//    with 1bpp +HRES, odd bits are ignored (76543210 = -0-1-2-3)
+
+
     // renders a 16 hdot by 1 scanline region of CGA VRAM data into RGBI data
     // cursor is cursor output pin from CRTC
     // cursor_blink counts from 0..3 then repeats, changes every 8 frames (low bit cursor, high bit blink)
