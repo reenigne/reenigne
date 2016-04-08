@@ -23,10 +23,14 @@
   mov cx,100
   mov ax,0xfffe
 loopTop:
-  mov [es:di],ax
-  mov [es:di+78],ax
-  mov [es:di+0x2000],ax
-  mov [es:di+78+0x2000],ax
+  mov bx,ax
+;  and bx,0x55ff
+;  rol bx,1
+;  and bx,ax
+  mov [es:di],bx
+  mov [es:di+78],bx
+  mov [es:di+0x2000],bx
+  mov [es:di+78+0x2000],bx
 
   mov [es:di+2],ax
   mov [es:di+76],ax
@@ -70,7 +74,7 @@ noSwitchPhase:
   waitForVerticalSync
 
   mov dl,0xd8
-  mov al,8 ;9
+  mov al,8 ;9;
   out dx,al
   mov dl,0xda
 %rep 25
@@ -79,7 +83,7 @@ noSwitchPhase:
 %endrep
 
   mov dl,0xd8
-  mov al,0x0a ;0x0b
+  mov al,0x0a;0x0b;
   out dx,al
   mov dl,0xda
 %rep 25
@@ -88,7 +92,7 @@ noSwitchPhase:
 %endrep
 
   mov dl,0xd8
-  mov al,0x18 ; 0x19
+  mov al,0x18;0x19 ;
   out dx,al
   mov dl,0xda
 %rep 25
@@ -97,7 +101,7 @@ noSwitchPhase:
 %endrep
 
   mov dl,0xd8
-  mov al,0x1a ;0x1b
+  mov al,0x1a;0x1b ;
   out dx,al
   mov dl,0xd9
   mov al,0x0f

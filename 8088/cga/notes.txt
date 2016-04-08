@@ -511,3 +511,127 @@ Chroma range: 85
 2: 1bpp pattern masks text with black. 65536 bit patterns, not sure how many of them work out as pure colours.
 3: 1bpp pattern masks text with black. 65536 bit patterns, not sure how many of them work out as pure colours.
 4: No advantage over 0x1a
+
+
+
++STR handles blanking (in all modes), black overscan (+1BPP mode) and +1BPP dots. It is used to inhibit the RGBI multiplexers
+RGBI multiplexer inputs are:
+  0 = AT0-3 = text foreground
+  1 = AT4-7 = text background
+  2 = +C0/+C1/+SEL_BLUE/+BACKGROUND_I = 2bpp dots
+  3 = overscan colour from palette register
+  +MUX_A = -DISPEN_DLY | ((-GRPH & +ALPHA_DOTS) NOR (+GRPH & ~+1BPP & (+C0 | +C1)))
+  +MUX_B = -DISPEN_DLY | +GRPH
+  +SEL_BLUE = ~((+COLOR_SEL & -BW) | (+C0 & +BW))
++CC_LATCH = loads character from memory bus on rising edge = (+HRES | -CCLK) NAND +CAS_CC
++AT_LATCH = loads attribute from memory bus on rising edge = (+GRPH & -Q2') NOR (-CCLK & -GRPH)
+-CCLK = (+HRES & +HCLK) NOR (-HRES & +LCLK)
+
+
+-HRES -GRPH
+
+           -------+       +-------------------------------------------------------+       +-----------------------------------------------------
++CC_LATCH         |       |                                                       |       |
+                  +-------+                                                       +-------+
+
+           ---+                               +------------------------------+                                +-------------------------------+
++AT_LATCH     |                               |                              |                                |                               |
+              +-------------------------------+                              +--------------------------------+                               +-
+                          C                   A                                           C                   A
+
+
+-HRES +GRPH
+
+           -------+       +-------------------------------------------------------+       +-----------------------------------------------------
++CC_LATCH         |       |                                                       |       |
+                  +-------+                                                       +-------+
+
+                                          +-------------------------------+                               +-------------------------------+
++AT_LATCH                                 |                               |                               |                               |
+           -------------------------------+                               +-------------------------------+                               +-----
+                          C               A                                               C               A
+
+
++HRES -GRPH
+
+           -------+       +-----------------------+       +-----------------------+       +-----------------------+       +---------------------
++CC_LATCH         |       |                       |       |                       |       |                       |       |
+                  +-------+                       +-------+                       +-------+                       +-------+
+
+              +---------------+               +---------------+               +---------------+               +---------------+               +
++AT_LATCH     |               |               |               |               |               |               |               |               |
+           ---+               +---------------+               +---------------+               +---------------+               +---------------+
+              A           C                   A           C                   A           C                   A           C
+
+
++HRES +GRPH
+
+           -------+       +-----------------------+       +-----------------------+       +-----------------------+       +---------------------
++CC_LATCH         |       |                       |       |                       |       |                       |       |
+                  +-------+                       +-------+                       +-------+                       +-------+
+
+                                          +-------------------------------+                               +-------------------------------+
++AT_LATCH                                 |                               |                               |                               |
+           -------------------------------+                               +-------------------------------+                               +-----
+                          C               A               C                               C               A               C
+
+
++S/L' = (-LCLK XOR U5.Q2.5=+Q2') | (U4.Q2.5=+Q2 NOR +HRES)
+
+                  +-------------------------------+                               +-------------------------------+
++Q2               |                               |                               |                               |
+           -------+                               +-------------------------------+                               +-----------------------------
+
+              +---------------------------+   +---------------------------+   +---------------------------+   +---------------------------+   +-
+              |                           |   |                           |   |                           |   |                           |   |
+           ---+                           +---+                           +---+                           +---+                           +---+
+
+
+-HRES
+
+           -------------------------------+   +-----------------------------------------------------------+   +---------------------------------
++S/L'                                     |   |                                                           |   |
+                                          +---+                                                           +---+
+
++HRES
+
+              +---------------------------+   +---------------------------+   +---------------------------+   +---------------------------+   +-
++S/L'         |                           |   |                           |   |                           |   |                           |   |
+           ---+                           +---+                           +---+                           +---+                           +---+
+
+
+  In +GRPH modes "input" can just be the latch contents - deal with latching-old-value in the calling code
+  In +1BPP-GRPH-HRES mode, we can separate the 1bpp and text data
+  That leaves +1BPP-GRPH+HRES
+    Text is CcDd  (C, D = character; c, d = attribute)
+    Graphics is CbDc
+    So we need 40 bits of data to describe 16 hdots
+  Pass in old value of attribute latch, return new value
+    How do we determine phase for +HRES+GRPH?
+      Let's just use the phase which makes the screen position the same as for -HRES. That is phase 1. So we only need to use the old latch for -GRPH+1BPP
+
+List of modes and which data bits are used (memory layout bCcDd)
+                           char  attr  apa (4 hdots per column)
+  0x08 -HRES-GRPH-1BPP     CCCC  cccc
+  0x09 +HRES-GRPH-1BPP     CCDD  ccdd
+  0x0a -HRES+GRPH-1BPP                 CCcc
+  0x0b +HRES+GRPH-1BPP 0               CbDd  problem 1
+  0x0b +HRES+GRPH-1BPP 1               CcDc  problem 1
+  0x18 -HRES-GRPH+1BPP     CCCC  cccc  CCbb  problem 2
+  0x19 +HRES-GRPH+1BPP     CCDD  ccdd  CbDc  problem 2
+  0x1a -HRES+GRPH+1BPP                 CCcc
+  0x1b +HRES+GRPH+1BPP 0               CbDd  problem 1
+  0x1b +HRES+GRPH+1BPP 1               CcDc  problem 1
+
+We don't want to just pass in a pointer to memory data as it's the previous value in the latch and/or SR that's important, not previous in RAM
+  So before character 0 is character -40-1+57 or -80-1+113 or -1+57 or -1+113 depending on +HRES and scanline
+
+The problem in +GRPH+HRES (problem 1) is that the attribute latch value is stale
+The problem in -GRPH+1BPP (problem 2) is that the SR is loaded before the attribute latch is loaded
+Can both of these happen at once?
+  No, because the first only happens with +GRPH and the second only happens with -GRPH
+
+Problem 1: affects 4 hdots out of 16. Each byte affects 4-12 hdots (less bad than -LRES text)
+Problem 2 -HRES: Each byte affects 16-32 hdots
+Problem 2 +HRES: Each byte affects 8-24 hdots
+

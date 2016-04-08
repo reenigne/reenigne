@@ -32,7 +32,7 @@ public:
     //  ;   0x20 +COLOR SEL
 
 //    +HRES +GRPH gives a0 cded ghih in startup phase 0 odd       Except all start at same pixel, so output byte depends on more than 4 bytes of input data
-//    +HRES +GRPH gives abcb efgf ij in other   phase 1 even
+//    +HRES +GRPH gives abcb efgf ij in other   phase 1 even  <- use this one for compatibility with -HRES modes
 //    with 1bpp +HRES, odd bits are ignored (76543210 = -0-1-2-3)
 
 
@@ -40,7 +40,7 @@ public:
     // cursor is cursor output pin from CRTC
     // cursor_blink counts from 0..3 then repeats, changes every 8 frames (low bit cursor, high bit blink)
     UInt64 process(UInt32 input, UInt8 mode, UInt8 palette, int scanline,
-        bool cursor, int cursorBlink)
+        bool cursor, int cursorBlink, UInt8* latch)
     {
         if ((mode & 8) == 0)
             return 0;
