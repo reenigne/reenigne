@@ -1,5 +1,11 @@
   %include "../defaults_bin.asm"
 
+; ITERS EQU 2448
+; DIVISOR EQU 204
+ITERS EQU 480
+DIVISOR EQU 120
+
+
   mov al,TIMER0 | BOTH | MODE2 | BINARY
   out 0x43,al
   xor al,al
@@ -66,7 +72,7 @@ repeatLoop:
 
   push cx
 
-  mov cx,480+48  ; Number of iterations in primary measurement
+  mov cx,ITERS+48  ; Number of iterations in primary measurement
   call doMeasurement
   push bx
   mov cx,48      ; Number of iterations in secondary measurement
@@ -76,7 +82,7 @@ repeatLoop:
   neg ax         ; Negate to get the positive difference.
 
   xor dx,dx
-  mov cx,120
+  mov cx,DIVISOR
   div cx       ; Divide by 120 to get number of cycles (quotient) and number of extra tcycles (remainder)
 
   push dx      ; Store remainder
@@ -245,33 +251,38 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
-experimentLoop:
-  db "loop$"
+experimentRestart:
+  db "restart$"
   db 18
   dw .endInit - ($+2)
-.l
-  loop .l
+  mov dx,0x3d9
 .endInit:
   dw .endCode - ($+2)
+
+  in al,dx
+  jz .next
+.next:
+  mov dl,0xd4
+  mov ax,0x0004 ; 4: Vertical total: 1 row/frame
+  out dx,ax
+    mov bl,ch                      ; 2 0 2
+    mov bh,0x12                    ; 2 0 2
+    mov ah,[bx]                    ; 2 1 3
+    mov al,0x0d                    ; 2 0 2
+    out dx,ax                      ; 1 2 3
+    mov ah,[bx+0x100]              ; 4 1 5
+    dec ax                         ; 1 0 1
+    out dx,ax                      ; 1 2 3
+    add cx,si                      ; 2 0 2
+  mov dl,0xd9                    ; 2 0 2
+  in al,dx
+  jz .next1
+.next1:
+
+; restart              196 +043  +044  +043  +044  +043
+
 .endCode
 
-experimentLoop1:
-  db "loop1$"
-  db 18
-  dw .endInit - ($+2)
-  rep lodsw
-.endInit:
-  dw .endCode - ($+2)
-.endCode
-
-experimentlodsb:
-  db "lodsb$"
-  db 18
-  dw .endInit - ($+2)
-  rep lodsb
-.endInit:
-  dw .endCode - ($+2)
-.endCode
 
 
 lastExperiment:

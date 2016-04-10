@@ -68,3 +68,453 @@ mixPatch:
 loopPatch:
   loop v
 
+
+
+
+
+
+testRoutine:
+  mov [cs:savedSP],sp
+
+  times 8 nop
+  mov si,0x8000
+  mov word[si],testFarCall
+  mov [si+2],cs
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  call far[si]
+testFarCall:
+%rep 20
+  cbw
+%endrep
+  mov sp,[cs:savedSP]
+
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  db 0xf0
+%rep 20
+  cbw
+%endrep
+
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  db 0xf1
+%rep 20
+  cbw
+%endrep
+  ret
+
+retTest:
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  ret
+
+retTest2:
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  ret 2
+
+retfTest:
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  retf
+
+retfTest2:
+  mov al,0xff
+  mov bl,0xff
+  mul bl
+  retf 2
+
+callTest:
+%rep 20
+  cbw
+%endrep
+  ret
+
+savedSP: dw 0
+
+
+
+
+
+
+  mov cl,1
+  mov al,7
+  times 5 nop
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  mul cl
+  ret
+
+
+
+
+
+  mov al,0xb4
+  out 0x43,al
+  mov al,7
+  out 0x42,al
+  mov al,0
+  out 0x42,al
+  in al,0x61
+  or al,3
+  out 0x61,al
+
+  mov cx,10
+  rep lodsw
+
+
+
+
+
+
+  mov dx,0x3d9
+  mov bl,0
+
+  mov cl,0
+  mul bl
+  shl al,cl
+  in al,dx
+
+  mul bl
+  nop
+  shl al,cl
+  in al,dx
+
+  mul bl
+  cbw
+  shl al,cl
+  in al,dx
+
+  mul bl
+  aaa
+  shl al,cl
+  in al,dx
+
+  mul bl
+  shl al,cl
+  nop
+  in al,dx
+
+  mul bl
+  shl al,cl
+  cbw
+  in al,dx
+
+  mul bl
+  shl al,cl
+  aaa
+  in al,dx
+
+
+  inc cx
+  mul bl
+  shl al,cl
+  in al,dx
+
+  mul bl
+  nop
+  shl al,cl
+  in al,dx
+
+  mul bl
+  cbw
+  shl al,cl
+  in al,dx
+
+  mul bl
+  aaa
+  shl al,cl
+  in al,dx
+
+  mul bl
+  shl al,cl
+  nop
+  in al,dx
+
+  mul bl
+  shl al,cl
+  cbw
+  in al,dx
+
+  mul bl
+  shl al,cl
+  aaa
+  in al,dx
+
+
+  inc cx
+  mul bl
+  shl al,cl
+  in al,dx
+
+  mul bl
+  nop
+  shl al,cl
+  in al,dx
+
+  mul bl
+  cbw
+  shl al,cl
+  in al,dx
+
+  mul bl
+  aaa
+  shl al,cl
+  in al,dx
+
+  mul bl
+  shl al,cl
+  nop
+  in al,dx
+
+  mul bl
+  shl al,cl
+  cbw
+  in al,dx
+
+  mul bl
+  shl al,cl
+  aaa
+  in al,dx
+
+
+  inc cx
+  mul bl
+  shl al,cl
+  in al,dx
+
+  mul bl
+  nop
+  shl al,cl
+  in al,dx
+
+  mul bl
+  cbw
+  shl al,cl
+  in al,dx
+
+  mul bl
+  aaa
+  shl al,cl
+  in al,dx
+
+  mul bl
+  shl al,cl
+  nop
+  in al,dx
+
+  mul bl
+  shl al,cl
+  cbw
+  in al,dx
+
+  mul bl
+  shl al,cl
+  aaa
+  in al,dx
+
+
+
+
+
+
+  mov dx,0x3d9
+  mov bl,0
+
+  mov cl,0
+  mul bl
+  cbw
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  nop
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  cbw
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  aaa
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  nop
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  cbw
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  aaa
+  xlatb
+
+
+  inc cx
+  mul bl
+  cbw
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  nop
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  cbw
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  aaa
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  nop
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  cbw
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  aaa
+  xlatb
+
+
+  inc cx
+  mul bl
+  cbw
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  nop
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  cbw
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  aaa
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  nop
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  cbw
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  aaa
+  xlatb
+
+
+  inc cx
+  mul bl
+  cbw
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  nop
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  cbw
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  aaa
+  shl al,cl
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  nop
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  cbw
+  xlatb
+
+  mul bl
+  cbw
+  shl al,cl
+  aaa
+  xlatb
+

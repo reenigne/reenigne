@@ -2,6 +2,7 @@
 
 FASTSAMPLING EQU 0     ; Set to one to sample at 14.318MHz. Default is 4.77MHz.
 LENGTH       EQU 2048  ; Number of samples to capture.
+REFRESH      EQU 0     ; Refresh period in cycles, or 0 to disable
 
   cli
   mov ax,cs
@@ -123,11 +124,26 @@ loopTop:
   out 0x41,al  ; Timer 1 rate
 
   rep lodsw
-  refreshOn
-
-
+ ; refreshOn
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,REFRESH
+  out 0x41,al  ; Timer 1 rate
 
   call testRoutine
+
+  ; Delay for enough time to refresh 512 columns
+  mov cx,256
+
+  ; Increase refresh frequency to ensure all DRAM is refreshed before turning
+  ; off refresh.
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,2
+  out 0x41,al  ; Timer 1 rate
+
+  rep lodsw
+  refreshOn
 
   mov cx,25*LENGTH
 flushLoop2:
@@ -156,72 +172,17 @@ lut: db 0x88,8
 
 
 testRoutine:
-  mov [cs:savedSP],sp
-
-  times 8 nop
-  mov si,0x8000
-  mov word[si],testFarCall
-  mov [si+2],cs
-  mov al,0xff
-  mov bl,0xff
-  mul bl
-  call far[si]
-testFarCall:
-%rep 20
-  cbw
-%endrep
-  mov sp,[cs:savedSP]
-
-  mov al,0xff
-  mov bl,0xff
-  mul bl
-  db 0xf0
-%rep 20
-  cbw
-%endrep
-
-  mov al,0xff
-  mov bl,0xff
-  mul bl
-  db 0xf1
-%rep 20
-  cbw
-%endrep
-
-
-
   ; Append the code to test - it should end with a "ret"
+
+
+  mov word[cs:patch+1],jumpdest
+  mov [cs:patch+3],cs
+  jmp $+2
+patch:
+  db 0xea,0x00,0x00,0x00,0x00
+jumpdest:
+  mov ax,0x40
+  mov ds,ax
+
   ret
 
-
-retTest:
-  mov al,0xff
-  mov bl,0xff
-  mul bl
-  ret
-
-retTest2:
-  mov al,0xff
-  mov bl,0xff
-  mul bl
-  ret 2
-
-retfTest:
-  mov al,0xff
-  mov bl,0xff
-  mul bl
-  retf
-
-retfTest2:
-  mov al,0xff
-  mov bl,0xff
-  mul bl
-  retf 2
-
-callTest:
-%rep 20
-  cbw
-%endrep
-  ret
-
-savedSP: dw 0

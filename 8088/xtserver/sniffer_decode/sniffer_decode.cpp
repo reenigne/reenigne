@@ -477,6 +477,10 @@ class Program : public ProgramBase
                     | ((p[0xb] & 0x40) != 0 ? 0x20 : 0)      // B23 +IRQ5
                     | ((p[0x8] & 0x20) != 0 ? 0x40 : 0)      // B22 +IRQ6
                     | ((p[0x9] & 0x20) != 0 ? 0x80 : 0);     // B21 +IRQ7
+                UInt8 pit =
+                      ((p[0x0] & 0x04) != 0 ? 0x001 : 0)     // JP4/4 clock
+                    | ((p[0x1] & 0x04) != 0 ? 0x002 : 0)     // JP4/3 gate
+                    | ((p[0x2] & 0x04) != 0 ? 0x004 : 0);    // JP4/2 output
 
                 bool ior       = ((p[0x0] & 0x02) == 0);     // B14 -IOR         O -I/O Read Command: This command line instructs an I/O device to drive its data onto the data bus. It may be driven by the processor or the DMA controller. This signal is active low.
                 bool iow       = ((p[0x1] & 0x02) == 0);     // B13 -IOW         O -I/O Write Command: This command line instructs an I/O device to read the data on the data bus. It may be driven by the processor or the DMA controller. This signal is active low.
@@ -492,10 +496,7 @@ class Program : public ProgramBase
                 bool tc        = ((p[0xb] & 0x80) != 0);     // B27 +T/C         O Terminal Count: This line provides a pulse when the terminal count for any DMA channel is reached. This signal is active high.
 
                 //UInt16 jumpers =  // Should always be 0
-                //      ((p[0x0] & 0x04) != 0 ? 0x00001 : 0)    // JP4/4
-                //    | ((p[0x1] & 0x04) != 0 ? 0x00002 : 0)    // JP4/3
                 //    | ((p[0x1] & 0x20) != 0 ? 0x00004 : 0)    // JP9/4
-                //    | ((p[0x2] & 0x04) != 0 ? 0x00008 : 0)    // JP4/2
                 //    | ((p[0x2] & 0x20) != 0 ? 0x00010 : 0)    // JP9/3
                 //    | ((p[0x3] & 0x04) != 0 ? 0x00020 : 0)    // JP4/1
                 //    | ((p[0x3] & 0x10) != 0 ? 0x00040 : 0)    // JP5/1
@@ -517,9 +518,10 @@ class Program : public ProgramBase
                     (fastSampling ? (cpu_clk ? "C" : ".") : "") +
                     "  " + hex(address, 5, false) + " " + hex(data, 2, false) +
                     " " + hex(dma, 2, false) + " " + hex(irq, 2, false) + " " +
-                    (ior ? "R" : ".") + (iow ? "W" : ".") +
-                    (memr ? "r" : ".") + (memw ? "w" : ".") +
-                    (iochrdy ? "." : "z") + (aen ? "D" : ".") +
+                    hex(pit, 1, false) + " " + (ior ? "R" : ".") +
+                    (iow ? "W" : ".") + (memr ? "r" : ".") +
+                    (memw ? "w" : ".") + (iochrdy ? "." : "z") +
+                    (aen ? "D" : ".") +
                     (fastSampling ? (bus_ale ? "a" : ".") : "") +
                     (tc ? "T" : ".");
 

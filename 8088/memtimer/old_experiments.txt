@@ -7028,3 +7028,1174 @@ experimentMoireB4X:
 
 
 
+experimentlodsbSys:
+  db "lodsbSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  lodsb
+.endCode:
+
+experimentlodswSys:
+  db "lodswSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+.endCode:
+
+experimentlodsbCGA:
+  db "lodsbCGA$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  lodsb
+.endCode:
+
+experimentlodswCGA:
+  db "lodswCGA$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+.endCode:
+
+
+experimentstosbSys:
+  db "stosbSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  stosb
+.endCode:
+
+experimentstoswSys:
+  db "stoswSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  stosw
+.endCode:
+
+experimentstosbCGA:
+  db "stosbCGA$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  stosb
+.endCode:
+
+experimentstoswCGA:
+  db "stoswCGA$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  stosw
+.endCode:
+
+
+;experimentmovsbSysSys:
+;  db "movsbSysSys$"
+;  db 18
+;  dw .endInit - ($+2)
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  movsb
+;.endCode:
+;
+;experimentmovswSysSys:
+;  db "movswSysSys$"
+;  db 18
+;  dw .endInit - ($+2)
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  movsw
+;.endCode:
+;
+;experimentmovsbSysCGA:
+;  db "movsbSysCGA$"
+;  db 18
+;  dw .endInit - ($+2)
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ax,0x8000
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  movsb
+;.endCode:
+;
+;experimentmovswSysCGA:
+;  db "movswSysCGA$"
+;  db 18
+;  dw .endInit - ($+2)
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ax,0x8000
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  movsw
+;.endCode:
+;
+;experimentmovsbCGASys:
+;  db "movsbCGASys$"
+;  db 18
+;  dw .endInit - ($+2)
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ax,0xb800
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  movsb
+;.endCode:
+;
+;experimentmovswCGASys:
+;  db "movswCGASys$"
+;  db 18
+;  dw .endInit - ($+2)
+;  mov ax,0x8000
+;  mov es,ax
+;  mov ax,0xb800
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  movsw
+;.endCode:
+;
+;experimentmovsbCGACGA:
+;  db "movsbCGACGA$"
+;  db 18
+;  dw .endInit - ($+2)
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  movsb
+;.endCode:
+;
+;experimentmovswCGACGA:
+;  db "movswCGACGA$"
+;  db 18
+;  dw .endInit - ($+2)
+;  mov ax,0xb800
+;  mov es,ax
+;  mov ds,ax
+;.endInit:
+;  dw .endCode - ($+2)
+;  movsw
+;.endCode:
+
+
+
+experimentPopAX:
+  db "popax$"
+  db 18
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  pop ax
+.endCode:
+
+experimentPopCX:
+  db "popcx$"
+  db 18
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  pop cx
+.endCode:
+
+experimentMovAXiw:
+  db "movaxiw$"
+  db 18
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  mov ax,0x1234
+.endCode:
+
+experimentMovCXiw:
+  db "movcxiw$"
+  db 18
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  mov cx,0x1234
+.endCode:
+
+experimentMovALib:
+  db "movclib$"
+  db 18
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  mov al,0x12
+.endCode:
+
+experimentMovCLib:
+  db "movclib$"
+  db 18
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  mov cl,0x12
+.endCode:
+
+experimentLodsw:
+  db "lodsw$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  lodsw
+.endCode:
+
+experimentLodsb:
+  db "lodsb$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov ds,ax
+.endInit:
+  dw .endCode - ($+2)
+  lodsb
+.endCode:
+
+
+
+experimentRmovsbSysSys:
+  db "rmovsbSysSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+  rep movsb
+.endInit:
+  dw .endCode - ($+2)
+.endCode:
+
+experimentRmovswSysSys:
+  db "rmovswSysSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+  rep movsw
+.endInit:
+  dw .endCode - ($+2)
+.endCode:
+
+experimentRmovsbESSysSys:
+  db "rmovsbESSysSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+  rep es movsb
+.endInit:
+  dw .endCode - ($+2)
+.endCode:
+
+experimentRmovswESSysSys:
+  db "rmovswESSysSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+  rep es movsw
+.endInit:
+  dw .endCode - ($+2)
+.endCode:
+
+experimentESRmovsbSysSys:
+  db "ESrmovsbSysSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+  es rep movsb
+.endInit:
+  dw .endCode - ($+2)
+.endCode:
+
+experimentESRmovswESSysSys:
+  db "ESrmovswSysSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+  es rep movsw
+.endInit:
+  dw .endCode - ($+2)
+.endCode:
+
+
+experimentRmovsbSysSys:
+  db "rmovsbSysSys$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov ds,ax
+  rep movsb
+.endInit:
+  dw .endCode - ($+2)
+  mov ax,[si+1234]
+  stosw
+.endCode:
+
+
+experimentVoxels1:
+  db "voxels 1$"
+  db 18
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+
+mov bh,[0x1234 + bp]
+mov dh,[bx + 0x1b]
+cmp dh,ah
+jg .foo
+  mov dl,[0x1235 + bp]
+  xor al,dl
+  mov [0x12],al
+  xchg ax,dx
+.foo:
+.endCode:
+
+experimentVoxels2:
+  db "voxels 2$"
+  db 18
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+
+mov bh,[0x1234 + bp]
+mov dh,[bx + 0x1b]
+cmp dh,ah
+jng .foo
+  mov dl,[0x1235 + bp]
+  xor al,dl
+  mov [0x12],al
+  xchg ax,dx
+.foo:
+.endCode:
+
+experimentVoxelsWrite3:
+  db "voxels w3$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov bx,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  xor al,[si]
+  inc si
+  stosb
+  add di,bx
+.endCode:
+
+experimentVoxelsWrite4:
+  db "voxels w4$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov bx,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  xor ax,[si]
+  inc si
+  inc si
+  stosb
+  inc di
+  xchg al,ah
+  stosb
+  add di,bx
+.endCode:
+
+experimentVoxelsWrite5:
+  db "voxels w5$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  mov bx,0
+  mov di,0
+.endInit:
+  dw .endCode - ($+2)
+  xor ax,[si]
+  xor bx,[si+2]
+  xor cx,[si+4]
+  xor dx,[si+6]
+  add si,bp
+  stosb
+  inc di
+  xchg al,ah
+  stosb
+  inc di
+  xchg ax,bx
+  stosb
+  inc di
+  xchg al,ah
+  stosb
+  inc di
+  xchg ax,cx
+  stosb
+  inc di
+  xchg al,ah
+  stosb
+  inc di
+  xchg ax,dx
+  stosb
+  inc di
+  xchg al,ah
+  stosb
+  add di,bx
+.endCode:
+
+
+
+
+
+experimentVoxelsWrite6:
+  db "voxels w6$"
+  db 19
+  dw .endInit - ($+2)
+  mov bp,0
+  mov di,0
+  mov si,0
+  mov ax,0xb800
+  mov ds,ax
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+  pop bp
+  xor ax,bp
+  stosb
+  mov [di+4],ah
+  pop bp
+  xor bx,bp
+  xchg ax,bx
+  stosb
+  mov [di+4],ah
+  pop bp
+  xor cx,bp
+  xchg ax,cx
+  stosb
+  mov [di+4],ah
+  pop bp
+  xor dx,bp
+  xchg ax,dx
+  stosb
+  mov [di+4],ah
+  add di,si
+.endCode:
+
+experimentRepStosw:
+  db "rep stosw$"
+  db 19
+  dw .endInit - ($+2)
+  mov di,0
+  mov ax,0x8000
+  mov es,ax
+  cld
+  rep stosw
+.endInit:
+  dw .endCode - ($+2)
+.endCode:
+
+
+
+experimentVoxelsD0:
+  db "voxels d0$"
+  db 18
+  dw .endInit - ($+2)
+  mov di,0
+  mov si,0
+  mov cx,0
+.endInit:
+  dw .endCode - ($+2)
+
+mov bx,[0x1234 + bp]
+xchg al,bl
+mov si,[bx + 0x1b]
+  cmp si,di
+  jng .done
+  stosb
+  add di,cx
+  cmp si,di
+  jng .done
+.done:
+xchg ax,bx
+
+.endCode:
+
+experimentVoxelsD1:
+  db "voxels d1$"
+  db 18
+  dw .endInit - ($+2)
+  mov di,0
+  mov si,0
+  mov cx,0
+.endInit:
+  dw .endCode - ($+2)
+
+mov bx,[0x1234 + bp]
+xchg al,bl
+mov si,[bx + 0x1b]
+  cmp si,di
+  jg .done
+  stosb
+  add di,cx
+  cmp si,di
+  jng .done
+.done:
+xchg ax,bx
+
+.endCode:
+
+experimentVoxelsD2:
+  db "voxels d2$"
+  db 18
+  dw .endInit - ($+2)
+  mov di,0
+  mov si,0
+  mov cx,0
+.endInit:
+  dw .endCode - ($+2)
+
+mov bx,[0x1234 + bp]
+xchg al,bl
+mov si,[bx + 0x1b]
+  cmp si,di
+  jg .done
+  stosb
+  add di,cx
+  cmp si,di
+  jg .done
+  stosb
+  add di,cx
+  cmp si,di
+  jng .done
+.done:
+xchg ax,bx
+
+.endCode:
+
+experimentVoxelsD3:
+  db "voxels d3$"
+  db 18
+  dw .endInit - ($+2)
+  mov di,0
+  mov si,0
+  mov cx,0
+.endInit:
+  dw .endCode - ($+2)
+
+mov bx,[0x1234 + bp]
+xchg al,bl
+mov si,[bx + 0x1b]
+  cmp si,di
+  jg .done
+  stosb
+  add di,cx
+  cmp si,di
+  jg .done
+  stosb
+  add di,cx
+  cmp si,di
+  jg .done
+  stosb
+  add di,cx
+  cmp si,di
+  jng .done
+.done:
+xchg ax,bx
+
+.endCode:
+
+
+
+experimentVoxelsD0:
+  db "voxels d0$"
+  db 18
+  dw .endInit - ($+2)
+  mov sp,.func
+  mov di,0
+  mov bp,0
+  mov cx,0
+  mov bx,[0x1234 + bp]
+  xchg al,bl
+  mov dx,[bx + 0x1b]
+  jmp .endInit
+.func:
+  stosb
+  add si,sp    ; di,sp
+  stosb
+  add si,sp    ; di,sp
+  stosb
+  add si,sp    ; di,sp
+  ret
+.endInit:
+  dw .endCode - ($+2)
+
+mov bx,[0x1234 + bp]                     ; 19 bytes = 152kB (8kB per byte)
+xchg al,bl
+mov si,[bx + 0x1b]
+xchg dx,si
+sub si,dx
+call sp ;cx
+xchg ax,bx
+
+.endCode:
+
+
+
+
+
+experimentVoxelsD0:
+  db "voxels d0$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov word[0x1234 + bp],3
+.endInit:
+  dw .endCode - ($+2)
+
+mov cx,[0x1234 + bp]  ; 4
+xchg al,bl            ; 2
+mov dh,[bx + 0x1b]    ; 3     ; old in dx, new in cx
+xchg dl,dh            ; 2     ; new in dx, old in cx
+sub dh,dl             ; 2
+jbe .occluded         ; 2
+rep stosb             ; 2
+.occluded:
+xchg ax,bx            ; 1   18 bytes = 128kB
+
+.endCode:
+
+
+experimentVoxelsD1:
+  db "voxels d1$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov word[0x1234 + bp],3
+.endInit:
+  dw .endCode - ($+2)
+
+mov cx,[0x1234 + bp]  ; 4
+xchg al,bl            ; 2
+mov dh,[bx + 0x1b]    ; 3     ; old in dx, new in cx
+xchg dl,dh            ; 2     ; new in dx, old in cx
+sub dh,dl             ; 2
+ja .occluded         ; 2
+rep stosb             ; 2
+.occluded:
+xchg ax,bx            ; 1   18 bytes = 128kB
+
+.endCode:
+
+
+experimentVoxelsDb:
+  db "voxels db$"
+  db 18
+  dw .endInit - ($+2)
+  mov di,0
+  mov cx,0
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+
+  movsb
+  add di,cx
+
+.endCode:
+
+
+
+
+
+experimentVoxelsD0:
+  db "voxels d0$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov word[0x1234 + bp],3
+.endInit:
+  dw .endCode - ($+2)
+
+mov cx,[0x1234 + bp]  ; 4
+mov dh,[bx + 0x1b]    ; 3     ; old in dx, new in cx
+xchg dl,dh            ; 2     ; new in dx, old in cx
+sub dh,dl             ; 2
+jbe .occluded         ; 2
+mov ax,[0x1236 + bp]  ; 4
+rep stosw             ; 2  19 bytes
+.occluded:
+
+.endCode:
+
+
+experimentVoxelsD1:
+  db "voxels d1$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov word[0x1234 + bp],1
+.endInit:
+  dw .endCode - ($+2)
+
+mov cx,[0x1234 + bp]  ; 4
+mov dh,[bx + 0x1b]    ; 3     ; old in dx, new in cx
+xchg dl,dh            ; 2     ; new in dx, old in cx
+sub dh,dl             ; 2
+ja .occluded         ; 2
+mov ax,[0x1236 + bp]  ; 4
+rep stosw             ; 2  19 bytes
+.occluded:
+
+.endCode:
+
+
+experimentVoxelsDb:
+  db "voxels db$"
+  db 18
+  dw .endInit - ($+2)
+  mov di,0
+  mov cx,0
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+
+  lodsw
+  mov [es:di + bx],ah
+  stosb
+  add di,cx
+
+.endCode:
+
+
+
+
+
+experimentVoxelsD0:
+  db "voxels d0$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov cx,0
+  mov word[0x1234 + bp],3
+.endInit:
+  dw .endCode - ($+2)
+
+mov si,0x1234
+mov cl,[si + bp]  ; 4
+mov dh,[bx + 0x1b]    ; 3     ; old in dx, new in cx
+xchg dl,dh            ; 2     ; new in dx, old in cx
+sub dh,dl             ; 2
+jbe .occluded         ; 2
+mov al,[si + bp + 1]
+rep stosb             ; 2
+.occluded:
+
+.endCode:
+
+
+experimentVoxelsD1:
+  db "voxels d1$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov word[0x1234 + bp],2
+.endInit:
+  dw .endCode - ($+2)
+
+mov si,0x1234
+mov cl,[si + bp]  ; 4
+mov dh,[bx + 0x1b]    ; 3     ; old in dx, new in cx
+xchg dl,dh            ; 2     ; new in dx, old in cx
+sub dh,dl             ; 2
+ja .occluded         ; 2
+mov al,[si + bp + 1]
+rep stosb             ; 2
+.occluded:
+
+.endCode:
+
+
+experimentVoxelsDb:
+  db "voxels db$"
+  db 18
+  dw .endInit - ($+2)
+  mov di,0
+  mov cx,0
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+
+  movsb
+  inc si
+  add di,cx
+  movsb
+  inc si
+  add di,cx
+
+.endCode:
+
+
+
+
+experimentVoxelsD0:
+  db "voxels d0$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov cx,0
+  mov word[0x1234 + bp],3
+.endInit:
+  dw .endCode - ($+2)
+
+lea sp,[bp+0x1234]
+pop cx
+mov dh,[bx + 0x1b]
+xchg dl,dh
+sub dh,dl
+jbe .occluded
+pop ax
+rep stosb
+.occluded:
+
+.endCode:
+
+
+experimentVoxelsD1:
+  db "voxels d1$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov word[0x1234 + bp],1
+.endInit:
+  dw .endCode - ($+2)
+
+lea sp,[bp+0x1234]
+pop cx
+mov dh,[bx + 0x1b]
+xchg dl,dh
+sub dh,dl
+ja .occluded
+pop ax
+rep stosb
+.occluded:
+
+
+
+experimentVoxelsD0:
+  db "voxels d0$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov cx,0
+  mov word[0x1234 + bp],3
+.endInit:
+  dw .endCode - ($+2)
+
+lds cx,[0x1234 + bp]
+mov dh,[si + 0x1b]
+xchg dl,dh
+sub dh,dl
+jbe .occluded
+rep stosb
+.occluded:
+
+.endCode:
+
+
+experimentVoxelsD1:
+  db "voxels d1$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov word[0x1234 + bp],1
+.endInit:
+  dw .endCode - ($+2)
+
+lds cx,[0x1234 + bp]
+mov dh,[si + 0x1b]
+xchg dl,dh
+sub dh,dl
+ja .occluded
+rep stosb
+.occluded:
+
+
+experimentVoxels1:
+  db "voxels 1$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov word[0x1234 + bp],0
+  mov word[0x1236 + bp],ds
+  xor di,di
+  mov [si+0x1b],di
+.endInit:
+  dw .endCode - ($+2)
+
+lds dx,[0x1234 + bp]
+cmp [si+0x1b],di
+jg .occluded
+  mov di,[si+0x1b]
+  xor al,dl
+  stosb
+  xchg ax,dx
+.occluded:
+.endCode:
+
+experimentVoxels2:
+  db "voxels 2$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov word[0x1234 + bp],0
+  mov word[0x1236 + bp],ds
+  xor di,di
+  mov [si+0x1b],di
+.endInit:
+  dw .endCode - ($+2)
+
+lds dx,[0x1234 + bp]
+cmp [si+0x1b],di
+jng .occluded
+  mov di,[si+0x1b]
+  xor al,dl
+  stosb
+  xchg ax,dx
+.occluded:
+.endCode:
+
+
+
+experimentVoxels1:
+  db "voxels 1$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  xor di,di
+  mov bh,[0x1234 + bp]
+  mov [bx + 0x1b],di
+.endInit:
+  dw .endCode - ($+2)
+
+mov bh,[0x1234 + bp]
+cmp [bx + 0x1b],di
+jg .occluded
+  mov di,[bx+0x1b]
+  mov dl,[0x1235 + bp]
+  xor al,dl
+  stosb
+  xchg ax,dx
+.occluded:
+.endCode:
+
+experimentVoxels2:
+  db "voxels 2$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  xor di,di
+  mov bh,[0x1234 + bp]
+  mov [bx + 0x1b],di
+.endInit:
+  dw .endCode - ($+2)
+
+mov bh,[0x1234 + bp]
+cmp [bx + 0x1b],di
+jng .occluded
+  mov di,[bx+0x1b]
+  mov dl,[0x1235 + bp]
+  xor al,dl
+  stosb
+  xchg ax,dx
+.occluded:
+.endCode:
+
+
+
+experimentVoxelsD0:
+  db "voxels d0$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov cx,0
+  mov word[0x1234 + bp],3
+.endInit:
+  dw .endCode - ($+2)
+
+lds cx,[0x1234 + bp]
+mov dh,[si + 0x1b]
+xchg dl,dh
+sub dh,dl
+jbe .occluded
+rep movsb
+.occluded:
+
+.endCode:
+
+
+experimentVoxelsD1:
+  db "voxels d1$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov word[0x1234 + bp],1
+.endInit:
+  dw .endCode - ($+2)
+
+lds cx,[0x1234 + bp]
+mov dh,[si + 0x1b]
+xchg dl,dh
+sub dh,dl
+ja .occluded
+rep movsb
+.occluded:
+
+
+
+
+
+experimentVoxelsD0:
+  db "voxels d0$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov cx,0
+  mov word[0x1234 + bp],3
+  mov word[0x1236 + bp],ds
+.endInit:
+  dw .endCode - ($+2)
+
+lds cx,[0x1234 + bp]
+mov dh,[si + 0x1b]
+xchg ax,dx
+sub dh,dl
+jbe .occluded
+rep movsb
+.occluded:
+
+.endCode:
+
+
+experimentVoxelsD1:
+  db "voxels d1$"
+  db 18
+  dw .endInit - ($+2)
+  mov ax,0x8000
+  mov es,ax
+  mov bp,0
+  mov ax,0
+  mov word[0x1234 + bp],1
+  mov word[0x1236 + bp],ds
+.endInit:
+  dw .endCode - ($+2)
+
+lds cx,[0x1234 + bp]
+mov dh,[si + 0x1b]
+xchg ax,dx
+sub dh,dl
+ja .occluded
+rep movsb
+.occluded:
+
+.endCode:
+
