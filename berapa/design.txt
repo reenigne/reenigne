@@ -84,3 +84,13 @@ Have a special helper class for stub components?
 Instead of having defaultComponent(), have the simulator search through its known components for something that can satisfy a disconnected component
   How would it know to instantiate NoRGBIMonitor rather than RGBIMonitor?
     It'll have to be a special registry for stub components
+
+Components should not refer to each other directly
+  e.g. ISA8BitBus should not have a DMAPageRegisters* member - it should instead hold a pointer to the connector that DMAPageRegisters has a child of
+  Then we can get rid of some more T<T>s from components
+  Actually, this should be left up to the component implementations. If there's only one component that could be connected to a given connector, the owning component can have a pointer to the connected component.
+    But we need to be careful to eliminate these pointers when adding a second component
+
+Eventually replace clocks with Transport<bool> connectors?
+  Perhaps once PeriodicProtocol is supported by everything
+  This would be useful for the CGA's CRTC clock

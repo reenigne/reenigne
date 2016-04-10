@@ -696,6 +696,26 @@ public:
                 return Value(IntegerType(), r.numerator, value.span());
             return value;
         }
+        String serialize(void* p, int width, int used, int indent, int delta)
+            const
+        {
+            auto r = static_cast<Rational*>(p);
+            return String(decimal(r->numerator)) + "/" +
+                decimal(r->denominator);
+        }
+        void deserialize(const Value& value, void* p) const
+        {
+            *static_cast<Rational*>(p) = value.value<Rational>();
+        }
+        int size() const { return sizeof(Rational); }
+        Value defaultValue() const
+        {
+            return Value(RationalType(), Rational(0));
+        }
+        Value value(void* p) const
+        {
+            return Value(RationalType(), *static_cast<Rational*>(p));
+        }
     };
 };
 

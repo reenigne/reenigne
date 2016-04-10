@@ -1,0 +1,81 @@
+Let's start with creating .exe files for DOS demos (since that would have been useful for a few other things).
+
+A demo consists of a sequence of effects
+  An effect is made up of a startup code asset plus some number of other assets which may be code, data or whatever
+  An effect may have time points when certain things are supposed to happen
+    time codes for these may be passed in at run time, build time or can be triggered by a timer interrupt - this is up to the startup code
+
+How should we specify the sequence?
+  Some absolute time variable (i.e. some other time point) plus some time offset
+  If time is missing, effect starts as soon as previous one completes (
+  Time variables can also come from assets (e.g. events in a song)
+    To get them out, run some transformation on the song to get a list of the time codes, then eval() to include the output into the config
+  Can do more sophisticated timing (e.g. "this effect takes 50% of total runtime") later.
+  Times specified as Time(minute, second, frame, scanline, cycle)
+
+So on starting the exe, the framework loads (and if necessary, decompresses or otherwise transforms) all prerequiste assets for the initial effect, then jumps to the initial effect's startup code.
+
+Create a config file format
+
+Built-in asset types:
+
+Binary: load file from disk
+Compiler: name of an .exe (a windows program) that is run at build time and which converts an asset from one type to another
+  Maker will generate a temporary file name for the intermediate file
+Expander: code asset that converts between assets at run time
+
+What about incremental building - keep intermediate files around like make?
+  Keep them in a local intermediates directory, not system temp
+
+If a Compiler takes an ALFE config file as input, allow specifying it inline
+
+Output all commands as they are run to aid debugging
+
+Have maker try multiple different compression techniques to see what takes least time/space?
+  Need a way to specify compressor/decompressor pairs
+  Need a way to measure how long things take to run
+
+The config file lists the canonical way to make each asset, but that may not be the way the maker actually chooses
+  Expansions may be done at build time or run time
+  Assets may be compressed
+  There are too many possibilities to try them all individually!
+    For each decision, just try it separately both ways
+
+
+For Code assets that are transformations, want a way to run them at build time
+
+Can we have types for assets and have maker automatically run things to convert between them?
+
+Resource usage chart
+  Time on vertical axis
+    Divided up into effects
+  Resources on horizontal axis
+    CPU time
+    Disk time (DMA, seek)
+    Memory usage (each asset is a block)
+  Disk usage (list of assets by compressed size with compressed sizes)
+
+Want a way to handle sequences of assets
+  Maker will split an asset up into N pieces, run some transformation on each of the pieces and then recombine them back into a new asset
+  Maybe this could be done with generated sub-configs?
+
+Want to keep decisions about which assets to compress with which algorithms and which transforms to do at build time around so they don't have to be redone with every tweak
+  Need a persistence file
+
+It would be good to have some way to DMA or decompress data directly into video RAM
+  function emplace(asset, segment)
+
+Binary inputImage = "greg.png";
+Compiler convert = "convert.exe";
+Compression compression(Compiler("compress.exe"), Code("decompress.obj"));
+Code biosVideoMode = "setmode.obj";
+Code waitForKeyPress = "waitkey.obj";
+Binary[4] planes = split(convert(inputImage), 80*200);
+effect(biosVideoMode(0x0d);
+for (Int i = 0; i < 4; ++i) {
+    outportw(0x3c4, (0x100 << i) | 2);
+    emplace(planes[i], 0xa000);
+}
+effect(waitForKeyPress);
+effect(biosVideoMode(3));
+

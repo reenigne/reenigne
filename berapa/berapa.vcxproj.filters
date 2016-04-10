@@ -154,6 +154,12 @@
     <ClInclude Include="ram.h">
       <Filter>Berapa</Filter>
     </ClInclude>
+    <ClInclude Include="one_bit_speaker.h">
+      <Filter>Berapa</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\sdl2.h">
+      <Filter>ALFE</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ALFE">

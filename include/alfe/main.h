@@ -105,10 +105,10 @@ protected:
     virtual void run() = 0;
     Array<String> _arguments;
     int _returnValue;
+    HINSTANCE _hInst;
 private:
 #ifdef _WIN32
 #ifdef _WINDOWS
-    HINSTANCE _hInst;
 
     void initializeWindows()
     {

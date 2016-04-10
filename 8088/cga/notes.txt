@@ -68,6 +68,12 @@ We can do an 80x200 16-colour mode.
         dots from character generator
   This means that blinking is suppressed under the cursor (not the entire character, only the part under the cursor).
 
++ALPHA DOTS = (-CURSOR BLINK NOR -CURSOR DLY) OR (+CHG DOTS AND (-BLINK OR 3NAND(-CURSOR DLY, +ENABLE BLINK, +AT7)))
+
+(((NOT (AT7 & ENABLE_BLINK & -CURSOR_DLY)) OR -BLINK) AND +CHG_DOTS) OR (NOT (-CURSOR_BLINK OR -CURSOR_DLY))
+((-AT7 | -ENABLE_BLINK | CURSOR_DLY | -BLINK) AND +CHG_DOTS) OR (CURSOR_BLINK AND CURSOR_DLY)
+
+
 Blinking and cursor:
   Blinking: 16 frames on, 16 frames off
   Cursor: 8 frames on, 8 frames off
@@ -505,3 +511,238 @@ Chroma range: 85
 2: 1bpp pattern masks text with black. 65536 bit patterns, not sure how many of them work out as pure colours.
 3: 1bpp pattern masks text with black. 65536 bit patterns, not sure how many of them work out as pure colours.
 4: No advantage over 0x1a
+
+
+
++STR handles blanking (in all modes), black overscan (+1BPP mode) and +1BPP dots. It is used to inhibit the RGBI multiplexers
+RGBI multiplexer inputs are:
+  0 = AT0-3 = text foreground
+  1 = AT4-7 = text background
+  2 = +C0/+C1/+SEL_BLUE/+BACKGROUND_I = 2bpp dots
+  3 = overscan colour from palette register
+  +MUX_A = -DISPEN_DLY | ((-GRPH & +ALPHA_DOTS) NOR (+GRPH & ~+1BPP & (+C0 | +C1)))
+  +MUX_B = -DISPEN_DLY | +GRPH
+  +SEL_BLUE = ~((+COLOR_SEL & -BW) | (+C0 & +BW))
++CC_LATCH = loads character from memory bus on rising edge = (+HRES | -CCLK) NAND +CAS_CC
++AT_LATCH = loads attribute from memory bus on rising edge = (+GRPH & -Q2') NOR (-CCLK & -GRPH)
+-CCLK = (+HRES & +HCLK) NOR (-HRES & +LCLK)
+
+
+-HRES -GRPH
+
+           -------+       +-------------------------------------------------------+       +-----------------------------------------------------
++CC_LATCH         |       |                                                       |       |
+                  +-------+                                                       +-------+
+
+           ---+                               +------------------------------+                                +-------------------------------+
++AT_LATCH     |                               |                              |                                |                               |
+              +-------------------------------+                              +--------------------------------+                               +-
+                          C                   A                                           C                   A
+
+
+-HRES +GRPH
+
+           -------+       +-------------------------------------------------------+       +-----------------------------------------------------
++CC_LATCH         |       |                                                       |       |
+                  +-------+                                                       +-------+
+
+                                          +-------------------------------+                               +-------------------------------+
++AT_LATCH                                 |                               |                               |                               |
+           -------------------------------+                               +-------------------------------+                               +-----
+                          C               A                                               C               A
+
+
++HRES -GRPH
+
+           -------+       +-----------------------+       +-----------------------+       +-----------------------+       +---------------------
++CC_LATCH         |       |                       |       |                       |       |                       |       |
+                  +-------+                       +-------+                       +-------+                       +-------+
+
+              +---------------+               +---------------+               +---------------+               +---------------+               +
++AT_LATCH     |               |               |               |               |               |               |               |               |
+           ---+               +---------------+               +---------------+               +---------------+               +---------------+
+              A           C                   A           C                   A           C                   A           C
+
+
++HRES +GRPH
+
+           -------+       +-----------------------+       +-----------------------+       +-----------------------+       +---------------------
++CC_LATCH         |       |                       |       |                       |       |                       |       |
+                  +-------+                       +-------+                       +-------+                       +-------+
+
+                                          +-------------------------------+                               +-------------------------------+
++AT_LATCH                                 |                               |                               |                               |
+           -------------------------------+                               +-------------------------------+                               +-----
+                          C               A               C                               C               A               C
+
+
++S/L' = (-LCLK XOR U5.Q2.5=+Q2') | (U4.Q2.5=+Q2 NOR +HRES)
+
+                  +-------------------------------+                               +-------------------------------+
++Q2               |                               |                               |                               |
+           -------+                               +-------------------------------+                               +-----------------------------
+
+              +---------------------------+   +---------------------------+   +---------------------------+   +---------------------------+   +-
+              |                           |   |                           |   |                           |   |                           |   |
+           ---+                           +---+                           +---+                           +---+                           +---+
+
+
+-HRES
+
+           -------------------------------+   +-----------------------------------------------------------+   +---------------------------------
++S/L'                                     |   |                                                           |   |
+                                          +---+                                                           +---+
+
++HRES
+
+              +---------------------------+   +---------------------------+   +---------------------------+   +---------------------------+   +-
++S/L'         |                           |   |                           |   |                           |   |                           |   |
+           ---+                           +---+                           +---+                           +---+                           +---+
+
+
+  In +GRPH modes "input" can just be the latch contents - deal with latching-old-value in the calling code
+  In +1BPP-GRPH-HRES mode, we can separate the 1bpp and text data
+  That leaves +1BPP-GRPH+HRES
+    Text is CcDd  (C, D = character; c, d = attribute)
+    Graphics is CbDc
+    So we need 40 bits of data to describe 16 hdots
+  Pass in old value of attribute latch, return new value
+    How do we determine phase for +HRES+GRPH?
+      Let's just use the phase which makes the screen position the same as for -HRES. That is phase 1. So we only need to use the old latch for -GRPH+1BPP
+
+List of modes and which data bits are used (memory layout bCcDd)
+                           char  attr  apa (4 hdots per column)
+  0x08 -HRES-GRPH-1BPP     CCCC  cccc
+  0x09 +HRES-GRPH-1BPP     CCDD  ccdd
+  0x0a -HRES+GRPH-1BPP                 CCcc
+  0x0b +HRES+GRPH-1BPP 0               CbDd  problem 1
+  0x0b +HRES+GRPH-1BPP 1               CcDc  problem 1
+  0x18 -HRES-GRPH+1BPP     CCCC  cccc  CCbb  problem 2
+  0x19 +HRES-GRPH+1BPP     CCDD  ccdd  CbDc  problem 2
+  0x1a -HRES+GRPH+1BPP                 CCcc
+  0x1b +HRES+GRPH+1BPP 0               CbDd  problem 1
+  0x1b +HRES+GRPH+1BPP 1               CcDc  problem 1
+
+We don't want to just pass in a pointer to memory data as it's the previous value in the latch and/or SR that's important, not previous in RAM
+  So before character 0 is character -40-1+57 or -80-1+113 or -1+57 or -1+113 depending on +HRES and scanline
+
+The problem in +GRPH+HRES (problem 1) is that the attribute latch value is stale
+The problem in -GRPH+1BPP (problem 2) is that the SR is loaded before the attribute latch is loaded
+Can both of these happen at once?
+  No, because the first only happens with +GRPH and the second only happens with -GRPH
+
+Problem 1: affects 4 hdots out of 16. Each byte affects 4-12 hdots (less bad than -LRES text)
+Problem 2 -HRES: Each byte affects 16-32 hdots
+Problem 2 +HRES: Each byte affects 8-24 hdots
+
+
+
+
+U1     74S112PC    1 2 3 4 5 6 9 10 11 12 13 14 15              Dual J-K Negative-edge-triggered flip-flops with preset and clear                        RAS/CAS computation
+U2   SN74LS74AN    1 2 3 4 5 6 8 9 10 11 12 13                  Dual Positive-Edge-Triggered D Flip-Flops with Preset, Clear and Complementary Outputs   +XACK computation
+U3   DM74S86N      1 2 3 4 5 6 8 9 10 11 12 13                  Quad 2-Input Exclusive-OR Gate
+U4   SN74S174N     1 2 3 4 5 6 7 9 10 11 12 13 14 15            Hex D-Type Flip-Flops with Clear                                                         Clock generator
+U5   SN74S174N     1 2 3 4 5 6 7 9 10 11 12 13 14 15            Hex D-Type Flip-Flops with Clear                                                         Clock generator
+U6   DM74LS04N     1 2 3 4 5 6 8 9 10 11 12 13                  Hex Inverting Gates
+U7   SN74LS166NS   all                                          8-BIT SHIFT REGISTERS                                                                    low/right bits shift register
+U8   SN74LS166NS   all                                          8-BIT SHIFT REGISTERS                                                                    high/left bits shift register
+U9   DM74153N      all                                          Dual 1-of-4 Line Data Selectors/Multiplexers                                             Red/Green multiplexer (0 = text foreground, 1 = text background, 2 = 2bpp, 3 = overscan)
+U10  DM74153N      all                                          Dual 1-of-4 Line Data Selectors/Multiplexers                                             Blue/Intense multiplexer (0 = text foreground, 1 = text background, 2 = 2bpp, 3 = overscan)
+U11  SN74LS74AN    1 2 3 4 5 9 10 11 12 13                      Dual Positive-Edge-Triggered D Flip-Flops with Preset, Clear and Complementary Outputs   CRTC port enable and light pen input latch
+U12  SN74LS393ND   1 2 6 11 12 13                               Dual 4-Bit Binary Counter                                                                Blink generator
+U13    74HC08N no  1 2 3 8 9 10 11 12 13                      1 Quad 2-Input AND Gates
+U14  SN74LS32N     1 2 3 4 5 6 8 9 10 11 12 13                  Quad 2-Input OR Gate
+U15  SN74LS00N     1 2 3 8 9 10 ? 12 13                       1 Quad 2-Input NAND Gate
+U16  DM74LS04N     1 2 3 4 5 6 8 9 10 11 12 13                  Hex Inverting Gates
+U17  SN74LS138N    1 2 3 4 5 6 11 12 13 14 15                   Decoder/Demultiplexer                                                                    Register selector
+U18  SN74LS138N    1 2 3 4 5 6 7                                Decoder/Demultiplexer                                                                    3d8 port select
+U19  SN74LS138N    1 2 3 4 5 6 7                                Decoder/Demultiplexer                                                                    b8000 memory select
+U20  DM74LS04N     1 2 3 4 5 6 8 9 10 11 12 13                  Hex Inverting Gates
+U21  SH74LS174N    1 2 3 4 5 6 7 9 10 11 12 13 14 15            Hex D-Type Flip-Flops with Clear                                                         CRTC output hclk delay
+U22  SN74LS51N     1 2 3 4 5 6 8 9 10 11 12 13                  Dual 2-Wide 2-Input, 2-Wide 3-Input AND-OR-INVERT Gate                                   +MUX_A and +SEL_BLUE computation
+U23  SN74LS32N     1 2 3 4 5 ? 8 9 10 11 12 13                  Quad 2-Input OR Gate
+U24  DM74LS244N    2 3 4 5 6 7 8 9 11 12 13 14 15 16 17 18 19   Octal 3-STATE Buffer/Line Driver/Line Receiver                                           status register, composite output driver
+U25  SN74LS00N     1 2 3 8 9 10 11 12 13                      1 Quad 2-Input NAND Gate
+U26    74S04PC     1 2 3 4 5 6 8 9 10 11 12 13                  Hex Inverting Gates
+U27  SN74LS51N     1 2 3 4 5 6 8 9 10 11 12 13                  Dual 2-Wide 2-Input, 2-Wide 3-Input AND-OR-INVERT Gate                                   dot and character clock select
+U28    74LS10PC    1 2 3 4 5 6 8 9 10 11 12 13                  Triple 3-Input NAND Gate
+U29    74S04PC     1 2 3 4 5 6 8 9 10 11 12 13                  Hex Inverting Gates
+U30  SN74LS32N     1 2 3 4 5 6 8 9 10 11 12 13                  Quad 2-Input OR Gate        (1 2 3 shown as AND in schematic)
+U31    74S08PC     1 2 3 8 9 10                               2 Quad 2-Input AND Gates
+U32    74HC166N no all                                          8-BIT SHIFT REGISTERS                                                                    character shift register
+U33    5788005     all                                          ROM                                                                                      character ROM
+U34    74LS273PC   all                                          8-Bit Register with Clear                                                                character latch
+U35    74LS273PC   all                                          8-Bit Register with Clear                                                                attribute latch
+U36  DM74LS244N    all                                          Octal 3-STATE Buffer/Line Driver/Line Receiver                                           CPU write latch
+U37    74LS374DC   all                                          3-STATE Octal D-Type Edge-Triggered Flip-Flops                                           CPU read latch
+U38  MC6845P       all                                          CRTC                                                                                     CRTC
+U39  SN74LS174P    1 2 3 4 5 6 7 9 10 11 12 13 14 15            Hex D-Type Flip-Flops with Clear                                                         palette register
+U40  DM74LS174N    1 2 3 4 5 6 7 9 10 11 12 13 14 15            Hex D-Type Flip-Flops with Clear                                                         mode register
+U41    74LS08PC    1 2 3 4 5 6 8 9 10 11 12 13                  Quad 2-Input AND Gates
+U42  SN74LS86N     1 2 3 4 5 6 8 9 10 11 12 13                  Quad 2-Input Exclusive-OR Gate
+U43  DM74S74N      1 2 3 4 5 8 9 10 11 12 13                    Dual Positive-Edge-Triggered D Flip-Flops with Preset, Clear and Complementary Outputs   Yellow/blue generator
+U44  DM74S74N      1 2 3 4 5 6 8 9 10 11 12 13                  Dual Positive-Edge-Triggered D Flip-Flops with Preset, Clear and Complementary Outputs   Red/cyan/magenta/green generator
+U45    74LS151PC   all                                          1-of-8 Line Data Selector/Multiplexer                                                    Chroma multiplexer
+U46  SN74LS00N     1 2 3 4 5 6 8 9 10 11 12 13                  Quad 2-Input NAND Gate
+U47    74LS51PC    1 2 3 4 5 6 8 9 10 11 12 13                  Dual 2-Wide 2-Input, 2-Wide 3-Input AND-OR-INVERT Gate                                   snow select and +AT_LATCH computation
+U48    74LS51PC    1 2 3 4 5 6 8 9 10 11 12 13                  Dual 2-Wide 2-Input, 2-Wide 3-Input AND-OR-INVERT Gate                                   MA12 select and +1BPP dots
+U49    74HC02N no  1 2 3 4 5 6 8 9 10 11 12 13                  Quad 2-Input NOR Gate
+U50  MK4516N-12    all                                          DRAM                                                                                     DRAM bit 7
+U51 MCM4517P12     all                                          DRAM                                                                                     DRAM bit 6
+U52  MK4516N-12    all                                          DRAM                                                                                     DRAM bit 5
+U53 MCM4517P12     all                                          DRAM                                                                                     DRAM bit 4
+U54  MK4516N-12    all                                          DRAM                                                                                     DRAM bit 3
+U55 MCM4517P12     all                                          DRAM                                                                                     DRAM bit 2
+U56  MK4516N-12    all                                          DRAM                                                                                     DRAM bit 1
+U57 MCM4517P12     all                                          DRAM                                                                                     DRAM bit 0
+U58    74LS374DC   all                                          3-STATE Octal D-Type Edge-Triggered Flip-Flops                                           CRT high latch
+U59    74LS374DC   all                                          3-STATE Octal D-Type Edge-Triggered Flip-Flops                                           CRT low latch
+U60    74LS374DC   all                                          3-STATE Octal D-Type Edge-Triggered Flip-Flops                                           CPU low latch
+U61    74LS374DC   all                                          3-STATE Octal D-Type Edge-Triggered Flip-Flops                                           CPU high latch
+U62    74LS125APC  1 2 3 4 5 6 8 9 10 11 12 13                  Quad 3-STATE Buffer                                                                      shifter load delay, ram low bit driver, +IO_READY driver
+U63    74LS175PC   1 2 4 5 7 9 10 12 13 14                      Quad D Flip-Flops with Clear                                                             vsync count-to-3
+U64  DM74LS164N    1 2 4 8 9 11 12 13                           8-Bit Serial In/Parallel Out Shift Register                                              sync/burst sequencing
+U65    74LS02PC    1 2 3 4 5 6 8 9 10                         1 Quad 2-Input NOR Gate
+U66  DM74LS245N    all                                          3-STATE Octal Bus Transceiver                                                            ISA bus data lines driver
+U67  DM74LS244N    1 2 3 4 6 7 8 9 11 12 13 14 16 17 18 19    1 Octal 3-STATE Buffer/Line Driver/Line Receiver                                           RGBI output driver, ISA bus A0 driver
+U68  SN74LS86N     1 2 3 4 5 6 8 9 10 11 12 13                  Quad 2-Input Exclusive-OR Gate
+U100 empty 16-pin
+U101 SN74S174N     1 2 3 4 5 6 7 9 10 11 12 13 14 15            Hex D-Type Flip-Flops with Clear                                                         Pixel latch
+
+Spare: 2 NAND gates, 1 NOR gate, 3 AND gates, 1 spare driver
+might be able to simplify clock generation/sequencing
+
+BOM:
+
+3        7400                                                   Quad 2-Input NAND Gate
+2        7402                                                   Quad 2-Input NOR Gate
+5        7404                                                   Hex Inverting Gates
+3        7408                                                   Quad 2-Input AND Gates
+1        7410                                                   Triple 3-Input NAND Gate
+3        7432                                                   Quad 2-Input OR Gate
+4        7451                                                   Dual 2-Wide 2-Input, 2-Wide 3-Input AND-OR-INVERT Gate
+4        7474                                                   Dual Positive-Edge-Triggered D Flip-Flops with Preset, Clear and Complementary Outputs
+3        7486                                                   Quad 2-Input Exclusive-OR Gate
+1        74112                                                  Dual J-K Negative-edge-triggered flip-flops with preset and clear
+1        74125                                                  Quad 3-STATE Buffer
+3        74138                                                  Decoder/Demultiplexer
+1        74151                                                  1-of-8 Line Data Selector/Multiplexer
+2        74153                                                  Dual 1-of-4 Line Data Selectors/Multiplexers
+1        74164                                                  8-Bit Serial In/Parallel Out Shift Register
+3        74166                                                  8-BIT SHIFT REGISTERS
+6        74174                                                  Hex D-Type Flip-Flops with Clear
+1        74175                                                  Quad D Flip-Flops with Clear
+3        74244                                                  Octal 3-STATE Buffer/Line Driver/Line Receiver
+1        74245                                                  3-STATE Octal Bus Transceiver
+2        74273                                                  8-Bit Register with Clear
+5        74374                                                  3-STATE Octal D-Type Edge-Triggered Flip-Flops
+1        74393                                                  Dual 4-Bit Binary Counter
+1        3904
+1        33R
+1        51R
+1        100R
+1        3K3
+1        13K
+1        5K6
+2        2K2
+

@@ -1,41 +1,44 @@
 template<class T> class ISA8BitBusT;
 typedef ISA8BitBusT<void> ISA8BitBus;
 
-template<class T> class ISA8BitComponentBaseT;
-typedef ISA8BitComponentBaseT<void> ISA8BitComponentBase;
+template<class T> class ISA8BitComponentT;
+typedef ISA8BitComponentT<void> ISA8BitComponent;
 
 class ISA8BitProtocol : public ProtocolBase<ISA8BitProtocol> { };
+class DMAPageRegistersProtocol : public ProtocolBase<DMAPageRegistersProtocol>
+{ };
+class CPU8088Protocol : public ProtocolBase<CPU8088Protocol> { };
 
-template<class T> class ISA8BitComponentBaseT : public ClockedComponent
+template<class T> class ISA8BitComponentT : public Component
 {
 public:
-    ISA8BitComponentBaseT(Component::Type type, bool noConnectorName)
-      : ClockedComponent(type), _connector(this)
+    ISA8BitComponentT(Component::Type type, bool noConnectorName)
+      : Component(type), _connector(this)
     {
         if (noConnectorName)
             connector("", &_connector);
         else
             connector("bus", &_connector);
     }
-    virtual ISA8BitComponentBase* setAddressReadMemory(Tick tick,
+    virtual ISA8BitComponent* setAddressReadMemory(Tick tick,
         UInt32 address)
     {
         return this;
     }
-    virtual ISA8BitComponentBase* setAddressWriteMemory(Tick tick,
+    virtual ISA8BitComponent* setAddressWriteMemory(Tick tick,
         UInt32 address)
     {
         return this;
     }
-    virtual ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    virtual ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
     {
         return this;
     }
-    virtual ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    virtual ISA8BitComponent* setAddressWriteIO(Tick tick, UInt32 address)
     {
         return this;
     }
-    virtual ISA8BitComponentBase* getComponent(UInt32 address) { return this; }
+    virtual ISA8BitComponent* getComponent(UInt32 address) { return this; }
     virtual UInt8 readMemory(Tick tick) { return 0xff; }
     virtual void writeMemory(Tick tick, UInt8 data) { }
     virtual UInt8 readIO(Tick tick) { return 0xff; }
@@ -63,38 +66,18 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(ISA8BitComponentBaseT* component)
-          : ::Connector(component), _component(component) { }
+        Connector(ISA8BitComponentT* component)
+          : ConnectorBase<Connector>(component) { }
         void connect(::Connector* other)
         {
             dynamic_cast<typename ISA8BitBusT<T>::Connector*>(other)
-                ->busConnect(_component);
+                ->busConnect(static_cast<ISA8BitComponent*>(component()));
         }
-        Component::Type defaultComponentType(Simulator* simulator)
+        static String typeName() { return "ISA8BitConnector"; }
+        static auto protocolDirection()
         {
-            throw Exception(_component->name() + " is not plugged in.");
+            return ProtocolDirection(ISA8BitProtocol(), false);
         }
-        ::Connector::Type type() const { return Type(); }
-
-        class Type : public NamedNullary<::Connector::Type, Type>
-        {
-        public:
-            Type() { }
-            Type(::Connector::Type type)
-              : NamedNullary<::Connector::Type, Type>(to<Body>(type)) { }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return typename ISA8BitBusT<T>::Type(other).valid();
-                }
-            private:
-            };
-            static String name() { return "ISA8BitBus.Connector"; }
-        };
-    private:
-        ISA8BitComponentBase* _component;
     };
 
 protected:
@@ -102,20 +85,20 @@ protected:
     Connector _connector;
 };
 
-template<class C> class ISA8BitComponent : public ISA8BitComponentBase
+template<class C> class ISA8BitComponentBase : public ISA8BitComponent
 {
 public:
-    ISA8BitComponent(Component::Type type, bool noConnectorName = false)
-      : ISA8BitComponentBase(type, noConnectorName) { }
-    typedef ClockedComponent::Type<C> Type;
+    ISA8BitComponentBase(Component::Type type, bool noConnectorName = false)
+      : ISA8BitComponent(type, noConnectorName) { }
+    typedef typename ComponentBase<C>::Type Type;
 };
 
-class NoISA8BitComponent : public ISA8BitComponent<NoISA8BitComponent>
+class NoISA8BitComponent : public ISA8BitComponentBase<NoISA8BitComponent>
 {
 public:
     static String typeName() { return "NoISA8BitComponent"; }
     NoISA8BitComponent(Component::Type type)
-      : ISA8BitComponent<NoISA8BitComponent>(type, true) { }
+      : ISA8BitComponentBase<NoISA8BitComponent>(type, true) { }
 };
 
 template<class T> class ISA8BitBusT : public ComponentBase<ISA8BitBusT<T>>
@@ -124,119 +107,103 @@ public:
     static String typeName() { return "ISA8BitBus"; }
 
     ISA8BitBusT(Component::Type type)
-      : Component(type), _cpuSocket(this), _connector(this),
+      : ComponentBase<ISA8BitBusT<T>>(type), _cpuSocket(this),
+        _connector(this),
         _chipConnectors{this, this, this, this, this, this, this, this},
         _parityError(this), _noComponent(type), _readMemory(this),
         _writeMemory(this), _readIO(this), _writeIO(this),
-        _dmaPageRegistersSocket(this)
+        _dmaPageRegistersSocket(this), _terminalCount(this)
     {
-        connector("cpu", &_cpuSocket);
-        connector("slot", &_connector);
+        this->connector("cpu", &_cpuSocket);
+        this->connector("slot", &_connector);
         for (int i = 0; i < 8; ++i) {
             _chipConnectors[i].init(i);
-            connector("chip" + decimal(i), &_chipConnectors[i]);
+            this->connector("chip" + decimal(i), &_chipConnectors[i]);
         }
-        connector("parityError", &_parityError);
-        connector("dmaPageRegisters", &_dmaPageRegistersSocket);
-        persist("activeAddress", &_activeAddress);
-        persist("activeAccess", &_activeAccess);
+        this->connector("parityError", &_parityError);
+        this->connector("dmaPageRegisters", &_dmaPageRegistersSocket);
+        this->connector("terminalCount", &_terminalCount);
+        this->persist("activeAddress", &_activeAddress);
+        this->persist("activeAccess", &_activeAccess);
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(ISA8BitBus* bus) : ::Connector(bus), _bus(bus) { }
-        void connect(::Connector* other) { }
-        Type type() const { return Type(); }
-        Component::Type defaultComponentType(Simulator* simulator)
+        Connector(ISA8BitBus* bus) : ConnectorBase<Connector>(bus) { }
+        static String typeName() { return "ISA8BitBus.Connector"; }
+        static auto protocolDirection()
         {
-            return NoISA8BitComponent::Type(simulator);
+            return ProtocolDirection(ISA8BitProtocol(), true);
         }
-
-        class Type : public NamedNullary<::Connector::Type, Type>
-        {
-        public:
-            Type() { }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return
-                        ISA8BitComponentBase::Connector::Type(other).valid();
-                }
-            };
-            static String name() { return "ISA8BitBus.Connector"; }
-        };
+        static auto canConnectMultiple() { return true; }
     protected:
-        ISA8BitBus* _bus;
-
-        virtual void busConnect(ISA8BitComponentBase* component)
+        virtual void busConnect(ISA8BitComponent* c)
         {
-            _bus->addComponent(component);
+            static_cast<ISA8BitBus*>(component())->addComponent(c);
         }
-        template<class U> friend class ISA8BitComponent<U>::Connector;
+        template<class U> friend class ISA8BitComponentT<U>::Connector;
     };
     class ChipConnector : public Connector
     {
     public:
         ChipConnector(ISA8BitBusT<T>* bus) : Connector(bus) { }
         void init(int i) { _i = i; }
-        void busConnect(ISA8BitComponentBase* component)
+        void busConnect(ISA8BitComponent* c)
         {
-            if (dynamic_cast<NoISA8BitComponent*>(component) == 0) {
-                _bus->addRange(2, component, _i*0x20, (_i + 1)*0x20);
-                _bus->addRange(3, component, _i*0x20, (_i + 1)*0x20);
+            if (dynamic_cast<NoISA8BitComponent*>(c) == 0) {
+                auto bus = static_cast<ISA8BitBus*>(component());
+                bus->addRange(2, c, _i*0x20, (_i + 1)*0x20);
+                bus->addRange(3, c, _i*0x20, (_i + 1)*0x20);
             }
+            Connector::busConnect(c);
         }
     private:
         int _i;
     };
 
-    class CPUSocket : public ::Connector
+    class CPUSocket : public ConnectorBase<CPUSocket>
     {
     public:
-        CPUSocket(ISA8BitBus* bus) : ::Connector(bus), _bus(bus) { }
-        Type type() const { return Type(); }
-        Component::Type defaultComponentType(Simulator* simulator)
+        CPUSocket(ISA8BitBus* bus) : ConnectorBase<CPUSocket>(bus) { }
+        static String typeName() { return "ISA8BitBus.CPUSocket"; }
+        static auto protocolDirection()
         {
-            throw Exception(_bus->name() + " needs a CPU");
+            return ProtocolDirection(CPU8088Protocol(), false);
         }
-
-        class Type : public NamedNullary<::Connector::Type, Type>
+        void connect(::Connector* other)
         {
-        public:
-            static String name() { return "ISA8BitBus.CPUSocket"; }
-        };
-        ISA8BitBus* _bus;
+            static_cast<ISA8BitBus*>(component())->_cpu =
+                static_cast<Intel8088CPU*>(other->component());
+        }
     };
 
-    class DMAPageRegistersSocket : public ::Connector
+    class DMAPageRegistersSocket : public ConnectorBase<DMAPageRegistersSocket>
     {
     public:
         DMAPageRegistersSocket(ISA8BitBus* bus)
-          : ::Connector(bus), _bus(bus) { }
-        Type type() const { return Type(); }
-        Component::Type defaultComponentType(Simulator* simulator)
+          : ConnectorBase<DMAPageRegistersSocket>(bus) { }
+        static String typeName()
         {
-            throw Exception(_bus->name() + " needs a DMA page register bank");
+            return "ISA8BitBus.DMAPageRegistersSocket";
         }
-
-        class Type : public NamedNullary<::Connector::Type, Type>
+        static auto protocolDirection()
         {
-        public:
-            static String name()
-            {
-                return "ISA8BitBus.DMAPageRegistersSocket";
-            }
-        };
-        ISA8BitBus* _bus;
+            return ProtocolDirection(DMAPageRegistersProtocol(), false);
+        }
     };
 
-    void addComponent(ISA8BitComponentBase* component)
+    void addComponent(ISA8BitComponent* component)
     {
-        _components.add(component);
         component->setBus(this);
+    }
+    void setDMAAddressRead(Tick tick, UInt16 address, int channel)
+    {
+        setAddressReadMemory(tick, address | highAddress(tick, channel));
+    }
+    void setDMAAddressWrite(Tick tick, UInt16 address, int channel)
+    {
+        setAddressWriteMemory(tick, address | highAddress(tick, channel));
     }
     void setAddressReadMemory(Tick tick, UInt32 address)
     {
@@ -290,7 +257,7 @@ public:
         _activeComponent =
             choiceForAccess(_activeAccess)->getComponent(_activeAddress);
     }
-    void addRange(int access, ISA8BitComponentBase* component, UInt32 low,
+    void addRange(int access, ISA8BitComponent* component, UInt32 low,
         UInt32 high)
     {
         Choice* c = choiceForAccess(access);
@@ -311,50 +278,56 @@ public:
     // get a pointer to the PIC, at least for now.
     void setPIC(Intel8259PIC* pic) { _pic = pic; }
     Intel8259PIC* getPIC() { return _pic; }
+    void runTo(Tick tick) { _cpu->runTo(tick); }
     void maintain(Tick ticks) { _dmaTick -= ticks; }
+
+    void setTerminalCount(Tick tick, bool v)
+    {
+        // TODO
+    }
 private:
+    UInt32 highAddress(Tick tick, int channel)
+    {
+        this->_pageRegisters->runTo(tick);
+        return this->_pageRegisters->pageForChannel(channel) << 16;
+    }
+
     CPUSocket _cpuSocket;
     DMAPageRegistersSocket _dmaPageRegistersSocket;
     Connector _connector;
     ChipConnector _chipConnectors[8];
-    List<ISA8BitComponentBase*> _components;
     OutputConnector<bool> _parityError;
     UInt32 _activeAddress;
     int _activeAccess;
     Tick _accessTick;
-    ISA8BitComponentBase* _activeComponent;
+    ISA8BitComponent* _activeComponent;
     List<Reference<Component>> _treeComponents;
     Intel8237DMAC* _dmac;
     DMAPageRegisters* _dmaPageRegisters;
     Intel8259PIC* _pic;
+    Intel8088CPU* _cpu;
     Tick _dmaTick;
 
-    //UInt32 getAddress() const
-    //{
-    //    return _channels[_channel].currentAddress() |
-    //        (this->_pageRegisters->pageForChannel(_channel) << 16);
-    //}
-
-    class Choice : public ISA8BitComponentBase
+    class Choice : public ISA8BitComponent
     {
     public:
         Choice(ISA8BitBus* bus)
-          : ISA8BitComponentBase(bus->type(), true),
-            _first(&bus->_noComponent), _second(&bus->_noComponent)
+          : ISA8BitComponent(bus->type(), true), _first(&bus->_noComponent),
+            _second(&bus->_noComponent)
         { }
-        ISA8BitComponentBase* setAddressReadMemory(Tick tick, UInt32 address)
+        ISA8BitComponent* setAddressReadMemory(Tick tick, UInt32 address)
         {
             return getComponent(address)->setAddressReadMemory(tick, address);
         }
-        ISA8BitComponentBase* setAddressWriteMemory(Tick tick, UInt32 address)
+        ISA8BitComponent* setAddressWriteMemory(Tick tick, UInt32 address)
         {
             return getComponent(address)->setAddressWriteMemory(tick, address);
         }
-        ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+        ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
         {
             return getComponent(address)->setAddressReadIO(tick, address);
         }
-        ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+        ISA8BitComponent* setAddressWriteIO(Tick tick, UInt32 address)
         {
             return getComponent(address)->setAddressWriteIO(tick, address);
         }
@@ -362,13 +335,13 @@ private:
         {
             return getComponent(address)->debugReadMemory(address);
         }
-        ISA8BitComponentBase* getComponent(UInt32 address) final
+        ISA8BitComponent* getComponent(UInt32 address) final
         {
             if (address < _secondAddress)
                 return _first;
             return _second;
         }
-        void addRange(ISA8BitComponentBase* component, UInt32 low, UInt32 high,
+        void addRange(ISA8BitComponent* component, UInt32 low, UInt32 high,
             UInt32 start, UInt32 end, ISA8BitBus* bus)
         {
             auto none = &bus->_noComponent;
@@ -444,8 +417,8 @@ private:
             }
         }
         UInt32 _secondAddress;
-        ISA8BitComponentBase* _first;
-        ISA8BitComponentBase* _second;
+        ISA8BitComponent* _first;
+        ISA8BitComponent* _second;
     private:
         template<class C> C* create(ISA8BitBus* bus) const
         {
@@ -453,9 +426,9 @@ private:
             bus->_treeComponents.add(r);
             return static_cast<C*>(&(*r));
         }
-        void addToBranch(ISA8BitComponentBase** branch,
-            ISA8BitComponentBase* component, UInt32 low, UInt32 high,
-            UInt32 start, UInt32 end, ISA8BitBus* bus)
+        void addToBranch(ISA8BitComponent** branch,
+            ISA8BitComponent* component, UInt32 low, UInt32 high, UInt32 start,
+            UInt32 end, ISA8BitBus* bus)
         {
             auto none = &bus->_noComponent;
             if (*branch == none) {
@@ -492,14 +465,14 @@ private:
             static_cast<Choice*>(*branch)->addRange(component, low, high,
                 start, end, bus);
         }
-        static UInt32 highSplit(ISA8BitComponentBase* component, UInt32 start)
+        static UInt32 highSplit(ISA8BitComponent* component, UInt32 start)
         {
             auto c = dynamic_cast<Choice*>(component);
             if (c == 0)
                 return start;
             return c->highSplit();
         }
-        static UInt32 lowSplit(ISA8BitComponentBase* component, UInt32 end)
+        static UInt32 lowSplit(ISA8BitComponent* component, UInt32 end)
         {
             auto c = dynamic_cast<Choice*>(component);
             if (c == 0)
@@ -544,30 +517,30 @@ private:
         }
     };
 
-    class Combination : public ISA8BitComponentBase
+    class Combination : public ISA8BitComponent
     {
     public:
-        Combination(ISA8BitBus* bus) : ISA8BitComponentBase(bus->type(), true)
+        Combination(ISA8BitBus* bus) : ISA8BitComponent(bus->type(), true)
         { }
-        ISA8BitComponentBase* setAddressReadMemory(Tick tick, UInt32 address)
+        ISA8BitComponent* setAddressReadMemory(Tick tick, UInt32 address)
         {
             _first->setAddressReadMemory(tick, address);
             _second->setAddressReadMemory(tick, address);
             return this;
         }
-        ISA8BitComponentBase* setAddressWriteMemory(Tick tick, UInt32 address)
+        ISA8BitComponent* setAddressWriteMemory(Tick tick, UInt32 address)
         {
             _first->setAddressWriteMemory(tick, address);
             _second->setAddressWriteMemory(tick, address);
             return this;
         }
-        ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+        ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
         {
             _first->setAddressReadIO(tick, address);
             _second->setAddressReadIO(tick, address);
             return this;
         }
-        ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+        ISA8BitComponent* setAddressWriteIO(Tick tick, UInt32 address)
         {
             _first->setAddressWriteIO(tick, address);
             _second->setAddressWriteIO(tick, address);
@@ -596,8 +569,8 @@ private:
             return _first->debugReadMemory(address) &
                 _second->debugReadMemory(address);
         }
-        ISA8BitComponentBase* _first;
-        ISA8BitComponentBase* _second;
+        ISA8BitComponent* _first;
+        ISA8BitComponent* _second;
     };
     Choice* choiceForAccess(int access)
     {
@@ -623,6 +596,19 @@ private:
     UInt32 _highAddress[4];
     NoISA8BitComponent _noComponent;
 
-    friend class ISA8BitComponentBaseT<T>;
+    friend class ISA8BitComponentT<T>;
     friend class Choice;
+
+    class TerminalCountConnector : public InputConnector<bool>
+    {
+    public:
+        TerminalCountConnector(ISA8BitBus* c) : InputConnector<bool>(c) { }
+        void setData(Tick tick, bool v)
+        {
+            static_cast<ISA8BitBus*>(component())->setTerminalCount(tick, v);
+        }
+    };
+
+    TerminalCountConnector _terminalCount;
+
 };

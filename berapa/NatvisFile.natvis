@@ -406,6 +406,13 @@
       <Item Name="[members]">_members</Item>
     </Expand>
   </Type>
+  <Type Name="SimpleProtocol&lt;bool&gt;::Body">
+    <DisplayString>SimpleProtocol&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="SimpleProtocol&lt;Byte&gt;::Body">
+    <DisplayString>SimpleProtocol&lt;Byte&gt;</DisplayString>
+  </Type>
+
 
 
   <!-- Berapa components -->
@@ -419,7 +426,7 @@
   <Type Name="ISA8BitBusT&lt;*&gt;">
     <DisplayString>ISA8BitBus</DisplayString>
   </Type>
-  <Type Name="ISA8BitRAMT&lt;*&gt;">
+  <Type Name="ISA8BitRAM">
     <DisplayString>ISA8BitRAM</DisplayString>
   </Type>
   <Type Name="Intel8237DMACT&lt;*&gt;">
@@ -428,10 +435,13 @@
   <Type Name="Intel8259PIC">
     <DisplayString>Intel8259PIC</DisplayString>
   </Type>
-  <Type Name="Intel8253PITT&lt;*&gt;">
+  <Type Name="Intel8253PIT">
     <DisplayString>Intel8253PIT</DisplayString>
   </Type>
-  <Type Name="Intel8255PPIT&lt;*&gt;">
+  <Type Name="Intel8253PIT::Timer">
+    <DisplayString>Intel8253PIT::Timer</DisplayString>
+  </Type>
+  <Type Name="Intel8255PPI">
     <DisplayString>Intel8255PPI</DisplayString>
   </Type>
   <Type Name="DMAPageRegistersT&lt;*&gt;">
@@ -446,10 +456,10 @@
   <Type Name="PCXTKeyboardT&lt;*&gt;">
     <DisplayString>PCXTKeyboard</DisplayString>
   </Type>
-  <Type Name="IBMCGAT&lt;*&gt;">
+  <Type Name="IBMCGA">
     <DisplayString>IBMCGA</DisplayString>
   </Type>
-  <Type Name="RGBIMonitorT&lt;*&gt;">
+  <Type Name="RGBIMonitor">
     <DisplayString>RGBIMonitor</DisplayString>
   </Type>
   <Type Name="SRLatch">
@@ -464,7 +474,7 @@
   <Type Name="BooleanComponent&lt;bool,AndComponent&lt;bool&gt;&gt;">
     <DisplayString>And&lt;bool&gt;</DisplayString>
   </Type>
-  <Type Name="ROMT&lt;*&gt;">
+  <Type Name="ROM">
     <DisplayString>ROM</DisplayString>
   </Type>
   <Type Name="ClockedComponent">
@@ -501,6 +511,15 @@
   <!-- Berapa other -->
   <Type Name="Tick">
     <DisplayString>{_t,d}</DisplayString>
+  </Type>
+  <Type Name="SimulatorT&lt;*&gt;::Pair">
+    <DisplayString>({_input},{_output})</DisplayString>
+  </Type>
+  <Type Name="SimulatorT&lt;*&gt;::Path">
+    <DisplayString>{_pd} {_score} {_componentType} {_output}</DisplayString>
+  </Type>
+  <Type Name="ProtocolDirection">
+    <DisplayString>{_protocol} {_output}</DisplayString>
   </Type>
 
 </AutoVisualizer>

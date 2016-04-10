@@ -1589,7 +1589,7 @@ public:
             double b = c.z;
             if (r < 0 || r >= 256 || g < 0 || g >= 256 || b < 0 || b >= 256) {
                 ++_clips;
-                _clipped = *i;
+                _clipped = i;
             }
             double y = 0.299*r + 0.587*g + 0.114*b;
             _maxSaturation =
@@ -1824,7 +1824,7 @@ public:
         update();
     }
     void save(String outputFileName) { _output.save(outputFileName); }
-    void resetColours() { _colours.reset(); }
+    void resetColours() { _colours = Set<UInt64>(); }
     void addColour(UInt64 seq) { _colours.add(seq); }
 
 private:

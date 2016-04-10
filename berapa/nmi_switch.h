@@ -1,8 +1,9 @@
-class NMISwitch : public ISA8BitComponent<NMISwitch>
+class NMISwitch : public ISA8BitComponentBase<NMISwitch>
 {
 public:
     static String typeName() { return "NMISwitch"; }
-    NMISwitch(Component::Type type) : ISA8BitComponent(type), _connector(this)
+    NMISwitch(Component::Type type)
+      : ISA8BitComponentBase(type), _connector(this)
     {
         persist("on", &_nmiOn);
         connector("", &_connector);
@@ -11,14 +12,12 @@ public:
     class Connector : public OutputConnector<bool>
     {
     public:
-        Connector(NMISwitch* c) : OutputConnector(c), _component(c) { }
+        Connector(NMISwitch* c) : OutputConnector(c) { }
         void connect(::Connector* other)
         {
-            _component->_other =
+            static_cast<NMISwitch*>(component())->_other =
                 static_cast<BidirectionalConnector<bool>*>(other);
         }
-    private:
-        NMISwitch* _component;
     };
 
     BidirectionalConnector<bool>* _other;

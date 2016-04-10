@@ -1,6 +1,7 @@
 template<class T> class Intel8237DMACT
-  : public ISA8BitComponent<Intel8237DMACT<T>>
+  : public ISA8BitComponentBase<Intel8237DMACT<T>>
 {
+    using Base = ISA8BitComponentBase<Intel8237DMACT<T>>;
     enum State
     {
         stateIdle,
@@ -18,6 +19,12 @@ template<class T> class Intel8237DMACT
         transferTypeRead,
         transferTypeIllegal
     };
+
+    // Single Transfer Mode: each request causes one byte of DMA
+    // Block Transfer Mode: each request causes a stream of tranfers until
+    //   terminal count or end-of-process
+    // Demand Transfer Mode: DMAs continue while DREQ active
+    // Cascade Mode: a whole other DMAC on the channel
     enum TransferMode
     {
         transferModeDemand,
@@ -28,10 +35,8 @@ template<class T> class Intel8237DMACT
 public:
     static String typeName() { return "Intel8237DMAC"; }
     Intel8237DMACT(Component::Type type)
-      : ISA8BitComponent<Intel8237DMACT<T>>(type),
-        _channels{Channel::Type(this->simulator()),
-            Channel::Type(this->simulator()), Channel::Type(this->simulator()),
-            Channel::Type(this->simulator())}
+      : Base(type), _channels{this, this, this, this}, _clock(this),
+        _eop(this), _hrq(this), _hlda(this)
     {
         this->persist("address", &_address, HexPersistenceType(1));
         this->persist("command", &_command);
@@ -39,8 +44,8 @@ public:
             ArrayType(_channels[0].persistenceType(), 4));
         this->persist("lastByte", &_lastByte);
         this->persist("channel", &_channel);
-        this->persist("highAddress", &_highAddress, 0xffff,
-            HexPersistenceType(4));
+        //this->persist("highAddress", &_highAddress, 0xffff,
+        //    HexPersistenceType(4));
 
         typename EnumerationType<State>::Helper h;
         h.add(stateIdle,  "idle");
@@ -52,84 +57,104 @@ public:
         h.add(stateYield, "yield");
         this->persist("state", &_state,
             EnumerationType<State>("State", h, typeName() + "."));
-    }
 
+        for (int i = 0; i < 4; ++i) {
+            connector("dreq" + decimal(i), &_channels[i]._dReq);
+            connector("dack" + decimal(i), &_channels[i]._dAck);
+        }
+        connector("hrq", &_hrq);
+        connector("hlda", &_hlda);
+        connector("eop", &_eop);
+        config("clock", &_clock, _clock.type());
+    }
+    void runTo(Tick tick)
+    {
+        while (_tick < tick) {
+            _tick += _clock.ticksPerCycle();
+            simulateCycle();
+        }
+    }
     void simulateCycle()
     {
-        TransferMode mode = _channels[_channel].transferMode();
-        TransferType type = _channels[_channel].transferType();
-        switch (_state) {
-            case stateS1:
-                if (!compressedTiming() || _highAddress !=
-                    (_channels[_channel].currentAddress() & 0xff00)) {
-                    _state = stateS2;
-                    break;
-                }
-                // Fall through when timing is compressed.
-            case stateS2:
-                _dAck = true;
-                if (mode != transferModeCascade) {
-                    _highAddress =
-                        _channels[_channel].currentAddress() & 0xff00;
-                    _bus->setAddress(getAddress());
-                    if (type == transferTypeWrite) {
-                        if (_channel == 1 && memoryToMemory())
-                            _bus->write(_temporary);
-                        else
-                            _bus->write();
-                    }
-                }
-                _state = stateS3;
-                break;
-            case stateS3:
-                if (!compressedTiming()) {
-                    _state = stateS4;
-                    break;
-                }
-                // Fall through when timing is compressed.
-            case stateS4:
-                if (type == transferTypeRead && mode != transferModeCascade) {
-                    UInt8 d = _bus->read();
-                    if (_channel == 0 && memoryToMemory()) {
-                        _temporary = d;
-                        _channels[1].setInternalRequest(true);
-                    }
-                }
-                _channels[_channel].setInternalRequest(false);
-                _dAck = false;
-                _state = stateIdle;
-                if (!_channels[_channel].update(channel0AddressHold() &&
-                    _channel == 0)) {
-                    switch (mode) {
-                        case transferModeSingle:
-                            _state = stateYield;
-                            break;
-                        case transferModeBlock:
-                            if (memoryToMemory() && _channel < 2) {
-                                _channels[1 - _channel].
-                                    setInternalRequest(true);
-                            }
-                            else
-                                _channels[_channel].setInternalRequest(true);
-                            break;
-                    }
-                }
-                checkForDMA();
-                break;
-            case stateYield:
-                _state = stateIdle;
-                checkForDMA();
-                break;
-        }
-        if (_state == stateIdle || _state == stateS0 || _state == stateYield)
-            _highAddress = 0xffff;
+        //TransferMode mode = _channels[_channel].transferMode();
+        //TransferType type = _channels[_channel].transferType();
+        //switch (_state) {
+        //    case stateS1:
+        //        if (!compressedTiming() || _highAddress !=
+        //            (_channels[_channel].currentAddress() & 0xff00)) {
+        //            _state = stateS2;
+        //            break;
+        //        }
+        //        // Fall through when timing is compressed.
+        //    case stateS2:
+        //        _dAck = true;
+        //        if (mode != transferModeCascade) {
+        //            _highAddress =
+        //                _channels[_channel].currentAddress() & 0xff00;
+        //            if (type == transferTypeWrite) {
+        //                this->_bus->setDMAAddressWrite(
+        //                    _channels[_channel].currentAddress());
+        //                if (_channel == 1 && memoryToMemory())
+        //                    this->_bus->write(_temporary);
+        //                else
+        //                    this->_bus->write();
+        //            }
+        //            else {
+        //                this->_bus->setDMAAddressRead(
+        //                    _channels[_channel].currentAddress());
+        //            }
+        //        }
+        //        _state = stateS3;
+        //        break;
+        //    case stateS3:
+        //        if (!compressedTiming()) {
+        //            _state = stateS4;
+        //            break;
+        //        }
+        //        // Fall through when timing is compressed.
+        //    case stateS4:
+        //        if (type == transferTypeRead && mode != transferModeCascade) {
+        //            UInt8 d = this->_bus->read();
+        //            if (_channel == 0 && memoryToMemory()) {
+        //                _temporary = d;
+        //                _channels[1].setInternalRequest(true);
+        //            }
+        //        }
+        //        _channels[_channel].setInternalRequest(false);
+        //        _dAck = false;
+        //        _state = stateIdle;
+        //        if (!_channels[_channel].update(channel0AddressHold() &&
+        //            _channel == 0)) {
+        //            switch (mode) {
+        //                case transferModeSingle:
+        //                    _state = stateYield;
+        //                    break;
+        //                case transferModeBlock:
+        //                    if (memoryToMemory() && _channel < 2) {
+        //                        _channels[1 - _channel].
+        //                            setInternalRequest(true);
+        //                    }
+        //                    else
+        //                        _channels[_channel].setInternalRequest(true);
+        //                    break;
+        //            }
+        //        }
+        //        checkForDMA();
+        //        break;
+        //    case stateYield:
+        //        _state = stateIdle;
+        //        checkForDMA();
+        //        break;
+        //}
+        //if (_state == stateIdle || _state == stateS0 || _state == stateYield)
+        //    _highAddress = 0xffff;
     }
-    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
     {
         _address = address & 0xf;
         return this;
     }
-    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressWriteIO(Tick tick, UInt32 address)
     {
         _address = address & 0xf;
         return this;
@@ -164,7 +189,7 @@ public:
         switch (_address) {
             case 8: _command = data; checkForDMA(); break;
             case 9:
-                _channels[data & 3].setSoftRequest((data & 4) != 0);
+                _channels[data & 3].setRequest((data & 4) != 0);
                 checkForDMA();
                 break;
             case 10:
@@ -200,68 +225,76 @@ public:
                 break;
         }
     }
-    // Step 1: the device calls dmaRequest()
-    // equivalent to raising a DRQ line.
-    void dmaRequest(int channel)
-    {
-        _channels[channel].setHardRequest(!dreqSenseActiveLow());
-        checkForDMA();
-    }
-    // Step 2: at the end of the IO cycle the CPU calls dmaRequested()
-    // equivalent to checking the status of the READY line and raising the HLDA
-    // line.
-    bool dmaRequested()
-    {
-        if (_state == stateS0)
-            _state = stateS1;
-        return _state != stateIdle;
-    }
-    // Step 3: device checks dmaAcknowledged() to see when to access the bus.
-    // equivalent to checking the status of the DACK line.
-    bool dmaAcknowledged(int channel)
-    {
-        return channel == _channel && _dAck == dackSenseActiveHigh();
-    }
-    // Step 4: the device calls dmaComplete()
-    // equivalent to lowering a DRQline.
-    void dmaComplete(int channel)
-    {
-        _channels[channel].setHardRequest(dreqSenseActiveLow());
-        checkForDMA();
-    }
+    //// Step 1: the device calls dmaRequest()
+    //// equivalent to raising a DRQ line.
+    //void dmaRequest(int channel)
+    //{
+    //    _channels[channel].setHardRequest(!dreqSenseActiveLow());
+    //    checkForDMA();
+    //}
+    //// Step 2: at the end of the IO cycle the CPU calls dmaRequested()
+    //// equivalent to checking the status of the READY line and raising the HLDA
+    //// line.
+    //bool dmaRequested()
+    //{
+    //    if (_state == stateS0)
+    //        _state = stateS1;
+    //    return _state != stateIdle;
+    //}
+    //// Step 3: device checks dmaAcknowledged() to see when to access the bus.
+    //// equivalent to checking the status of the DACK line.
+    //bool dmaAcknowledged(int channel)
+    //{
+    //    return channel == _channel && _dAck == dackSenseActiveHigh();
+    //}
+    //// Step 4: the device calls dmaComplete()
+    //// equivalent to lowering a DRQline.
+    //void dmaComplete(int channel)
+    //{
+    //    _channels[channel].setHardRequest(dreqSenseActiveLow());
+    //    checkForDMA();
+    //}
 
-    String getText()
-    {
-        String line;
-        switch (_state) {
-            case stateS1:
-                line += "D1 " + hex(getAddress(), 5, false) + " ";
-                break;
-            case stateS2:
-                line += "D2 ";
-                if (_channels[_channel].transferType() == transferTypeWrite)
-                    line += "M<-" + hex(_bus->data(), 2, false) + " ";
-                else
-                    line += "      ";
-                break;
-            case stateS3: line += "D3       "; break;
-            case stateS4:
-                line += "D4 ";
-                if (_channels[_channel].transferType() == transferTypeWrite)
-                    line += "      ";
-                else
-                    line += "M->" + hex(_bus->data(), 2, false) + " ";
-                break;
-            case stateIdle:
-                line = "";
-                break;
-        }
-        return line;
-    }
+    //String getText()
+    //{
+    //    String line;
+    //    switch (_state) {
+    //        case stateS1:
+    //            line += "D1 " + hex(getAddress(), 5, false) + " ";
+    //            break;
+    //        case stateS2:
+    //            line += "D2 ";
+    //            if (_channels[_channel].transferType() == transferTypeWrite)
+    //                line += "M<-" + hex(_bus->data(), 2, false) + " ";
+    //            else
+    //                line += "      ";
+    //            break;
+    //        case stateS3: line += "D3       "; break;
+    //        case stateS4:
+    //            line += "D4 ";
+    //            if (_channels[_channel].transferType() == transferTypeWrite)
+    //                line += "      ";
+    //            else
+    //                line += "M->" + hex(_bus->data(), 2, false) + " ";
+    //            break;
+    //        case stateIdle:
+    //            line = "";
+    //            break;
+    //    }
+    //    return line;
+    //}
     void setBus(ISA8BitBus* bus)
     {
-        ISA8BitComponent::setBus(bus);
-        _bus->setDMAC(this);
+        Base::setBus(bus);
+        this->_bus->setDMAC(this);
+    }
+    void setHLDA(Tick tick, bool v)
+    {
+        // TODO
+    }
+    void setEOP(Tick tick, bool v)
+    {
+        // TODO
     }
 private:
     void checkForDMA()
@@ -271,52 +304,55 @@ private:
         if (_state != stateIdle)
             return;
 
-        if (_channel == 0 && memoryToMemory() && _channels[0].request() &&
-            !_channels[1].terminalCount()) {
-            _channel = 1;
-            _state = stateS0;
-            return;
-        }
+        //if (_channel == 0 && memoryToMemory() && _channels[0].request() &&
+        //    !_channels[1].terminalCount()) {
+        //    _channel = 1;
+        //    _state = stateS0;
+        //    return;
+        //}
 
-        int i;
-        int channel;
-        for (i = 0; i < 4; ++i) {
-            channel = i;
-            if (rotatingPriority())
-                channel = (channel + _channel) & 3;
-            if (channel == 0 && memoryToMemory()) {
-                if (_channels[0].request() && !_channels[1].terminalCount())
-                    break;
-            }
-            else {
-                if (_channels[channel].request() &&
-                    !_channels[channel].terminalCount())
-                    break;
-            }
-        }
-        if (i == 4)
-            return;
+        //int i;
+        //int channel;
+        //for (i = 0; i < 4; ++i) {
+        //    channel = i;
+        //    if (rotatingPriority())
+        //        channel = (channel + _channel) & 3;
+        //    if (channel == 0 && memoryToMemory()) {
+        //        if (_channels[0].request() && !_channels[1].terminalCount())
+        //            break;
+        //    }
+        //    else {
+        //        if (_channels[channel].request() &&
+        //            !_channels[channel].terminalCount())
+        //            break;
+        //    }
+        //}
+        //if (i == 4)
+        //    return;
 
-        _channel = channel;
-        _state = stateS0;
+        //_channel = channel;
+        //_state = stateS0;
     }
 
-    class Channel : public Component
+    class Channel : public SubComponent<Channel>
     {
     public:
         static String typeName() { return "Channel"; }
-        Channel(Component::Type type) : Component(type)
+        Channel(Intel8237DMAC* dmac)
+          : Channel(Type(dmac->simulator()), dmac) { }
+        Channel(Component::Type type, Intel8237DMAC* dmac = 0)
+          : SubComponent<Channel>(type), _dAck(this), _dReq(this), _dmac(dmac)
         {
-            persist("mode", &_mode);
-            persist("baseAddress", &_baseAddress);
-            persist("baseCount", &_baseCount);
-            persist("currentAddress", &_currentAddress);
-            persist("currentCount", &_currentCount);
-            persist("hardRequest", &_hardRequest);
-            persist("softRequest", &_softRequest);
-            persist("mask", &_mask);
-            persist("terminalCount", &_terminalCount);
-            persist("internalRequest", &_internalRequest);
+            this->persist("mode", &_mode);
+            this->persist("baseAddress", &_baseAddress);
+            this->persist("baseCount", &_baseCount);
+            this->persist("currentAddress", &_currentAddress);
+            this->persist("currentCount", &_currentCount);
+            //this->persist("hardRequest", &_hardRequest);
+            //this->persist("softRequest", &_softRequest);
+            this->persist("mask", &_mask);
+            this->persist("terminalCount", &_terminalCount);
+            //this->persist("internalRequest", &_internalRequest);
         }
 
         UInt8 read(UInt32 address, bool lastByte)
@@ -330,7 +366,7 @@ private:
         {
             int shift = (lastByte ? 8 : 0);
             UInt16 d = data << shift;
-            UInt16 m = 0xff << shift;
+            UInt16 m = 0xff00 >> shift;
             if (address == 0) {
                 _baseAddress = (_baseAddress & m) | d;
                 _currentAddress = (_currentAddress & m) | d;
@@ -341,37 +377,36 @@ private:
             }
         }
         void setMode(UInt8 mode) { _mode = mode; }
-        void setHardRequest(bool hardRequest) { _hardRequest = hardRequest; }
-        void setSoftRequest(bool softRequest) { _softRequest = softRequest; }
-        void setInternalRequest(bool internalRequest)
-        {
-            _internalRequest = internalRequest;
-        }
+        void setRequest(bool request) { _request = request; }
+        //void setInternalRequest(bool internalRequest)
+        //{
+        //    _internalRequest = internalRequest;
+        //}
         void setMask(bool mask) { _mask = mask; }
         void clear()
         {
             _mask = true;
             _terminalCount = false;
-            _softRequest = false;
+            _request = false;
         }
         UInt16 currentAddress() const { return _currentAddress; }
         bool update(bool holdAddress)
         {
-            if (!holdAddress)
-                if (addressDecrement())
-                    --_currentAddress;
-                else
-                    ++_currentAddress;
-            --_currentCount;
-            if (_currentCount == 0xffff) {
-                if (autoInitialization()) {
-                    _currentAddress = _baseAddress;
-                    _currentCount = _baseCount;
-                }
-                else
-                    _terminalCount = true;
-            }
-            return _terminalCount;
+            //if (!holdAddress)
+            //    if (addressDecrement())
+            //        --_currentAddress;
+            //    else
+            //        ++_currentAddress;
+            //--_currentCount;
+            //if (_currentCount == 0xffff) {
+            //    if (autoInitialization()) {
+            //        _currentAddress = _baseAddress;
+            //        _currentCount = _baseCount;
+            //    }
+            //    else
+            //        _terminalCount = true;
+            //}
+            //return _terminalCount;
         }
         Byte status()
         {
@@ -379,13 +414,11 @@ private:
             _terminalCount = false;
             return s;
         }
-
         bool request() const
         {
-            return (_hardRequest && !_mask) || _softRequest ||
-                _internalRequest;
+            return (_dReqData != _dmac->dreqSenseActiveLow() && !_mask) ||
+                _request /*|| _internalRequest*/;
         }
-
         TransferType transferType() const
         {
             return static_cast<TransferType>((_mode >> 2) & 3);
@@ -397,19 +430,37 @@ private:
             return static_cast<TransferMode>((_mode >> 6) & 3);
         }
         bool terminalCount() const { return _terminalCount; }
-        typedef SubComponentType<Channel> Type;
-    private:
-        Byte _mode;
+        void setDReq(Tick tick, bool v)
+        {
+            _dmac->runTo(tick);
+            _dReqData = v;
+            _dmac->checkForDMA();
+        }
+        class Connector : public InputConnector<bool>
+        {
+        public:
+            Connector(Channel* c) : InputConnector<bool>(c) { }
+            void setData(Tick tick, bool v)
+            {
+                static_cast<Channel*>(component())->setDReq(tick, v);
+            }
+        };
+
+        Intel8237DMAC* _dmac;
         UInt16 _baseAddress;
         UInt16 _baseCount;
         UInt16 _currentAddress;
         UInt16 _currentCount;
-        bool _hardRequest;
-        bool _softRequest;
-        bool _internalRequest;
+        Byte _mode;
+        //bool _softRequest;
+        //bool _internalRequest;
         bool _mask;
+        bool _request;
         bool _terminalCount;
-        bool _blockContinue;
+        //bool _blockContinue;
+        OutputConnector<bool> _dAck;
+        Connector _dReq;
+        bool _dReqData;
     };
 
     bool memoryToMemory() const { return (_command & 1) != 0; }
@@ -423,11 +474,41 @@ private:
 
     Channel _channels[4];
     int _address;
+    UInt16 _temporaryAddress;
+    UInt16 _temporaryCount;
+    Byte _status;
     Byte _command;
     int _channel;
     bool _lastByte;
     Byte _temporary;
-    bool _dAck;
-    int _highAddress;
+    //bool _dAck;
+    //int _highAddress;
     State _state;
+    Clock _clock;
+
+    class EOPConnector : public BidirectionalConnector<bool>
+    {
+    public:
+        EOPConnector(Intel8237DMAC* c) : BidirectionalConnector<bool>(c) { }
+        void setData(Tick tick, bool v)
+        {
+            static_cast<Intel8237DMAC*>(component())->setEOP(tick, v);
+        }
+    };
+
+    EOPConnector _eop;
+
+    OutputConnector<bool> _hrq;
+
+    class HLDAConnector : public InputConnector<bool>
+    {
+    public:
+        HLDAConnector(Intel8237DMAC* c) : InputConnector<bool>(c) { }
+        void setData(Tick tick, bool v)
+        {
+            static_cast<Intel8237DMAC*>(component())->setHLDA(tick, v);
+        }
+    };
+
+    HLDAConnector _hlda;
 };

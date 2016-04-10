@@ -16,16 +16,20 @@ template<class T> class List : private Handle
         class Node
         {
         public:
-            Node(const T& t) : _value(t), _next(0) { }
+            template<typename... Args> Node(Args&&... args)
+              : _value(std::forward<Args>(args)...), _next(0) { }
             Node* next() const { return _next; }
             void setNext(Node* next) { _next = next; }
             const T& value() const { return _value; }
         private:
             T _value;
             Node* _next;
+            friend class Body;
+            friend class List;
         };
     public:
-        Body(const T& t) : _first(t), _last(&_first), _count(1) { }
+        template<typename... Args> Body(Args&&... args)
+          : _first(std::forward<Args>(args)...), _last(&_first), _count(1) { }
         ~Body()
         {
             Node* n = _first.next();
@@ -35,11 +39,12 @@ template<class T> class List : private Handle
                 n = nn;
             }
         }
-        void add(const T& t)
+        template<typename... Args> T* add(Args&&... args)
         {
-            _last->setNext(new Node(t));
+            _last->setNext(new Node(std::forward<Args>(args)...));
             _last = _last->next();
             ++_count;
+            return &_last->_value;
         }
         int count() const { return _count; }
         const Node* start() const { return &_first; }
@@ -48,16 +53,18 @@ template<class T> class List : private Handle
         Node* _last;
         int _count;
 
+        friend class List;
         friend class List::Iterator;
     };
 public:
     List() { }
-    void add(const T& t)
+    template<typename... Args> T* add(Args&&... args)
     {
-        if (!valid())
-            *this = List(create<Body>(t));
-        else
-            body()->add(t);
+        if (!valid()) {
+            *this = List(create<Body>(std::forward<Args>(args)...));
+            return &body()->_first._value;
+        }
+        return body()->add(std::forward<Args>(args)...);
     }
     int count() const
     {
@@ -263,9 +270,10 @@ public:
         template<typename... Args> Body(Args&&... args)
           : H(std::forward<Args>(args)...), _size(0) { }
 
-        // HashTable keeps all elements constructed, and uses _size to keep
-        // track of the number of actual entries in the table.
+        // HashTable and Set keep all elements constructed, and use _size to
+        // keep track of the number of actual entries in the table.
         template<class Key, class Value> friend class HashTable;
+        template<class Key> friend class Set;
         friend class Array;
     };
 
@@ -334,13 +342,13 @@ public:
     {
         if (body() != 0)
             return body()->begin();
-        return Body<>::ConstIterator();
+        return typename Body<>::ConstIterator();
     }
     ConstIterator end() const
     {
         if (body() != 0)
             return body()->end();
-        return Body<>::ConstIterator();
+        return typename Body<>::ConstIterator();
     }
     Iterator begin()
     {
@@ -512,6 +520,18 @@ public:
             return body()->end();
         return Body::Iterator();
     }
+    Iterator begin()
+    {
+        if (body() != 0)
+            return body()->begin();
+        return Body::Iterator();
+    }
+    Iterator end()
+    {
+        if (body() != 0)
+            return body()->end();
+        return Body::Iterator();
+    }
 
 private:
     static int roundUpToPowerOf2(int n)
@@ -554,6 +574,7 @@ private:
 
     // For access to body().
     template<class Key, class Value> friend class HashTable;
+    template<class Key> friend class Set;
 };
 
 #endif // INCLUDED_ARRAY_H

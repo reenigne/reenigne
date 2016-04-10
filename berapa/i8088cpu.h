@@ -315,7 +315,7 @@ template<class T> class Intel8088CPUT
 public:
     static String typeName() { return "Intel8088CPU"; }
     Intel8088CPUT(Component::Type type)
-      : ClockedComponent(type), _connector(this), _irqConnector(this),
+      : ClockedComponentBase(type), _connector(this), _irqConnector(this),
         _nmiConnector(this)
     {
         connector("", &_connector);
@@ -1858,57 +1858,41 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
         _ready = ready;
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(Intel8088CPU* cpu) : ::Connector(cpu), _cpu(cpu) { }
-        Component::Type defaultComponentType(Simulator* simulator)
+        Connector(Intel8088CPU* cpu) : ConnectorBase<Connector>(cpu) { }
+        static String typeName() { return "Intel8088CPU.Connector"; }
+        static auto protocolDirection()
         {
-            throw Exception(_cpu->name() + " needs to be connected");
+            return ProtocolDirection(CPU8088Protocol(), true);
         }
-        class Type : public NamedNullary<::Connector::Type, Type>
-        {
-        public:
-            static String name() { return "Intel8088CPU.Connector"; }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return other == ISA8BitBus::CPUSocket::Type();
-                }
-            };
-        };
     protected:
-        ::Connector::Type type() const { return Type(); }
         void connect(::Connector* other)
         {
-            _cpu->_bus = static_cast<ISA8BitBus::CPUSocket*>(other)->_bus;
+            static_cast<Intel8088CPU*>(component())->_bus =
+                static_cast<ISA8BitBus*>(other->component());
         }
-    private:
-        Intel8088CPU* _cpu;
     };
     class NMIConnector : public InputConnector<bool>
     {
     public:
-        NMIConnector(Intel8088CPU* cpu) : InputConnector(cpu), _cpu(cpu) { }
+        NMIConnector(Intel8088CPU* cpu) : InputConnector(cpu) { }
         void setData(Tick t, bool v)
         {
             if (v)
-                _cpu->_nmiRequested = true;
+                static_cast<Intel8088CPU*>(component())->_nmiRequested = true;
         }
-        Intel8088CPU* _cpu;
     };
     class IRQConnector : public InputConnector<bool>
     {
     public:
-        IRQConnector(Intel8088CPU* cpu) : InputConnector(cpu), _cpu(cpu) { }
+        IRQConnector(Intel8088CPU* cpu) : InputConnector(cpu) { }
         void setData(Tick t, bool v)
         {
             if (v)
-                _cpu->_interruptRequested = true;
+                static_cast<Intel8088CPU*>(component())->_interruptRequested = true;
         }
-        Intel8088CPU* _cpu;
     };
 
 private:
@@ -1959,7 +1943,7 @@ private:
                     v.add(Value(IntegerType(), static_cast<int>(
                         cpu->_prefetchQueue[(i + cpu->_prefetchOffset) & 3])));
                 }
-                return Value(type(), v);
+                return Value(this->type(), v);
             }
         };
     };

@@ -1,0 +1,73 @@
+VTA are counted normally, not halved like the rest
+vsync output from CRTC starts/ends on character 0/57
+  vsync output from CGA starts/ends on character 90 or 100
+So for even page, vsync is delayed by half a scanline and starts on scanline 240 as normal
+For odd page, vsync is delayed by a whole scanline?
+Why do we need 3 pages?
+  displayPage is the page currently being displayed, set in the interrupt
+  setPage is the page that was last passed to setDisplayPage() (set there)
+  nextPage is the page that will become the new displayPage once the next full frame is complete
+
+setDisplayPage called
+  Drawing is now disallowed                                sequence = 2   needLongField=1
+(if scanline >=238, wait for scanline 0)
+  we are now on the last frame of the old page
+  Drawing is now allowed if scanline >= 200                sequence = 1   needLongField=0, longField=1
+set CRTC for 262-scanline field
+wait for scanline 0 again
+  we are now on the new page
+  Drawing is now allowed                                   sequence = 0   needLongField=0, longField=0
+set CRTC for 240-scanline field
+  we can now call setDisplayPage again
+
+We'd like to be able to call setDisplayPage() at any time that drawing is allowed
+  Then we might have: (with 200 <= scanline < 262)
+    displayPage = 0 (the one that we recently finished displaying)
+    nextPage = 1 (the one that will be the display page once the upcoming 262-scanline field is finished)
+    setPage = 0 (the one we just set)
+  In this case, we need another bit of information to
+
+
+    Move entire vsync upwards 40 scanlines to make both start scanlines visible
+
+  Should I reprogram vertical total adjust every field?
+    Pro:
+      Easier to ensure timings correct
+    Con:
+      Slower when no page flip
+        It's not, though - we change VTA every field anyway in order to get 262 scanlines even
+    What are the timings in question?
+      count < 40*76 in safeToDraw()  (figuring out if we're in the region 200 <= scanline < 262)
+      count < 3*76 in setDisplayPage()  (figuring out if we can safely switch normal field to long)
+
+
+    Figure out VTA and related timings
+      Normal field, even
+        240 scanlines normal 0x3B         200 0x31
+          2 scanlines extra  0x02           2 0x02
+          0 scanlines CRTC-created          0          page 1
+      Short field, odd
+         16 scanlines normal 0x03          56 0x0d
+          3 scanlines extra  0x03           3 0x03
+          1 scanline  CRTC-created          1
+
+      Normal field, odd
+        240 scanlines normal 0x3B         200 0x31
+          1 scanline  extra  0x01           1 0x01
+          1 scanline  CRTC-created          1          page 0
+      Short field, even
+         16 scanlines normal 0x03          56 0x0d
+          4 scanlines extra  0x04           4 0x04
+          0 scanlines CRTC-created          0
+
+      Long field, even
+        260 scanlines normal 0x40         260 0x40
+          2 scanlines extra  0x02           2 0x02
+          0 scanlines CRTC-created          0          page 1
+
+      Long field, odd
+        260 scanlines normal 0x40         260 0x40
+          1 scanline  extra  0x01           1 0x01
+          1 scanline  CRTC-created          1          page 0
+
+

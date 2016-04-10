@@ -1,11 +1,8 @@
-template<class T> class NoRGBISourceT;
-typedef NoRGBISourceT<void> NoRGBISource;
-
-template<class T> class NoRGBISourceT : public ComponentBase<NoRGBISource>
+class NoRGBISource : public ComponentBase<NoRGBISource>
 {
 public:
     static String typeName() { return "NoRGBISource"; }
-    NoRGBISourceT(Component::Type type) : Component(type), _connector(this)
+    NoRGBISource(Component::Type type) : ComponentBase(type), _connector(this)
     {
         connector("", &_connector);
     }
@@ -13,24 +10,22 @@ public:
     class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(NoRGBISourceT* c) : ConnectorBase<Connector>(c) { }
+        Connector(NoRGBISource* c) : ConnectorBase<Connector>(c) { }
         static String typeName() { return "NoRGBISource.Connector"; }
         static auto protocolDirection()
         {
-            return ProtocolDirection(RGBIProtocol, true);
+            return ProtocolDirection(RGBIProtocol(), true);
         }
-    protected:
-        void connect(::Connector* other) { }
     };
 private:
     Connector _connector;
 };
 
-template<class T> class RGBIMonitorT : public ComponentBase<RGBIMonitor>
+class RGBIMonitor : public ComponentBase<RGBIMonitor>
 {
 public:
     static String typeName() { return "RGBIMonitor"; }
-    RGBIMonitorT(Component::Type type) : ComponentBase(type), _connector(this)
+    RGBIMonitor(Component::Type type) : ComponentBase(type), _connector(this)
     {
         _palette.allocate(64);
         _palette[0x0] = 0xff000000;
@@ -70,40 +65,19 @@ public:
         _window = Reference<Window>::template create<Window>();
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(RGBIMonitor* monitor)
-          : ::Connector(monitor), _monitor(monitor) { }
+        Connector(RGBIMonitor* monitor) : ConnectorBase(monitor) { }
         void connect(::Connector* other)
         {
             // TODO
         }
-        ::Connector::Type type() const { return Type(); }
-        Component::Type defaultComponentType(Simulator* simulator)
+        static String typeName() { return "RGBIMonitor.Connector"; }
+        static auto protocolDirection()
         {
-            return NoRGBISource::Type(simulator);
+            return ProtocolDirection(RGBIProtocol(), false);
         }
-
-        class Type : public NamedNullary<::Connector::Type, Type>
-        {
-        public:
-            Type() { }
-            Type(::Type type)
-              : NamedNullary<::Connector::Type, Type>(to<Body>(type)) { }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return IBMCGA::RGBIConnector::Type(other).valid();
-                }
-            };
-            static String name() { return "RGBIMonitor.Connector"; }
-            const Body* body() const { return this->template as<Body>(); }
-        };
-    private:
-        RGBIMonitor* _monitor;
     };
 
     class BGRISink : public Sink<BGRI>
@@ -163,8 +137,6 @@ public:
         _window->_renderer.renderTexture(&_window->_texture);
         return n;
     }
-
-    typedef Component::TypeHelper<RGBIMonitor> Type;
 private:
     class Window
     {

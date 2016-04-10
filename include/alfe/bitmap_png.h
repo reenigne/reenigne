@@ -10,18 +10,18 @@
 template<class T> class PNGFileFormat : public BitmapFileFormat<T>
 {
 public:
-    PNGFileFormat() : BitmapFileFormat(new Body) { }
+    PNGFileFormat() : BitmapFileFormat(create<Body>()) { }
 private:
     class Body : public BitmapFileFormat::Body
     {
     public:
-        virtual void save(Bitmap<T>& bitmap, const File& file)
+        virtual void save(Bitmap<T>& bitmap, const File& file) const
         {
             FileStream stream = file.openWrite();
             PNGWrite write(&stream);
             write.write(bitmap);
         }
-        virtual Bitmap<T> load(const File& file)
+        virtual Bitmap<T> load(const File& file) const
         {
             FileStream stream = file.openRead();
             Array<Byte> header(8);
@@ -83,12 +83,12 @@ private:
                     userReadData);
                 png_set_sig_bytes(_png_ptr, 8);
                 png_read_png(_png_ptr, _info_ptr,
-                    PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_STRIP_16, 0);
+                    PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_STRIP_16 | PNG_TRANSFORM_PACKING | PNG_TRANSFORM_SHIFT, 0);
                 _row_pointers = png_get_rows(_png_ptr, _info_ptr);
                 Vector size(png_get_image_width(_png_ptr, _info_ptr),
                     png_get_image_height(_png_ptr, _info_ptr));
                 Bitmap<T> bitmap(size);
-                doCopy<T>(bitmap);
+                doCopy<T>(bitmap, png_get_channels(_png_ptr, _info_ptr));
                 return bitmap;
             }
             ~PNGRead()
@@ -96,41 +96,117 @@ private:
                 png_destroy_read_struct(&_png_ptr, &_info_ptr, 0);
             }
         private:
-            template<class T2> void doCopy(Bitmap<T2> bitmap)
+            template<class T2> void doCopy(Bitmap<T2> bitmap, int channels)
             {
                 throw Exception();
             }
-            template<> void doCopy<SRGB>(Bitmap<SRGB> bitmap)
+            template<> void doCopy<SRGB>(Bitmap<SRGB> bitmap, int channels)
             {
                 Byte* data = bitmap.data();
                 int stride = bitmap.stride();
                 Vector size = bitmap.size();
-                for (int y = 0; y < size.y; ++y) {
-                    png_bytep row = _row_pointers[y];
-                    memcpy(reinterpret_cast<SRGB*>(data), row, size.x*3);
-                    data += stride;
+                switch (channels) {
+                    case 1:
+                        for (int y = 0; y < size.y; ++y) {
+                            auto o = reinterpret_cast<SRGB*>(data);
+                            auto i = _row_pointers[y];
+                            for (int x = 0; x < size.x; ++x) {
+                                *o = SRGB(*i, *i, *i);
+                                ++i;
+                                ++o;
+                            }
+                            data += stride;
+                        }
+                        break;
+                    case 2:
+                        for (int y = 0; y < size.y; ++y) {
+                            auto o = reinterpret_cast<SRGB*>(data);
+                            auto i = _row_pointers[y];
+                            for (int x = 0; x < size.x; ++x) {
+                                *o = SRGB(*i, *i, *i);
+                                i += 2;
+                                ++o;
+                            }
+                            data += stride;
+                        }
+                        break;
+                    case 3:
+                        for (int y = 0; y < size.y; ++y) {
+                            memcpy(reinterpret_cast<SRGB*>(data),
+                                _row_pointers[y], size.x*3);
+                            data += stride;
+                        }
+                        break;
+                    case 4:
+                        for (int y = 0; y < size.y; ++y) {
+                            auto o = reinterpret_cast<SRGB*>(data);
+                            auto i = _row_pointers[y];
+                            for (int x = 0; x < size.x; ++x) {
+                                *o = SRGB(i[0], i[1], i[2]);
+                                i += 4;
+                                ++o;
+                            }
+                            data += stride;
+                        }
+                        break;
                 }
             }
-            template<> void doCopy<DWORD>(Bitmap<DWORD> bitmap)
+            template<> void doCopy<DWORD>(Bitmap<DWORD> bitmap, int channels)
             {
                 Byte* data = bitmap.data();
                 int stride = bitmap.stride();
                 Vector size = bitmap.size();
-                for (int y = 0; y < size.y; ++y) {
-                    DWORD* line = reinterpret_cast<DWORD*>(data);
-                    png_bytep row = _row_pointers[y];
-                    png_byte* input = row;
-                    for (int x = 0; x < size.x; ++x) {
-                        png_byte r = *input;
-                        ++input;
-                        png_byte g = *input;
-                        ++input;
-                        png_byte b = *input;
-                        ++input;
-                        *line = (r << 16) | (g << 8) | b;
-                        ++line;
-                    }
-                    data += stride;
+                switch (channels) {
+                    case 1:
+                        for (int y = 0; y < size.y; ++y) {
+                            auto o = reinterpret_cast<DWORD*>(data);
+                            auto i = _row_pointers[y];
+                            for (int x = 0; x < size.x; ++x) {
+                                *o = ((*i)*0x010101) | 0xff000000;
+                                ++i;
+                                ++o;
+                            }
+                            data += stride;
+                        }
+                        break;
+                    case 2:
+                        for (int y = 0; y < size.y; ++y) {
+                            auto o = reinterpret_cast<DWORD*>(data);
+                            auto i = _row_pointers[y];
+                            for (int x = 0; x < size.x; ++x) {
+                                *o = ((*i)*0x010101) | (i[1] << 24);
+                                i += 2;
+                                ++o;
+                            }
+                            data += stride;
+                        }
+                        break;
+                    case 3:
+                        for (int y = 0; y < size.y; ++y) {
+                            auto o = reinterpret_cast<DWORD*>(data);
+                            auto i = _row_pointers[y];
+                            for (int x = 0; x < size.x; ++x) {
+                                *o = (i[0] << 16) | (i[1] << 8) | i[2] |
+                                    0xff000000;
+                                i += 3;
+                                ++o;
+                            }
+                            data += stride;
+                        }
+                        break;
+                    case 4:
+                        for (int y = 0; y < size.y; ++y) {
+                            auto o = reinterpret_cast<DWORD*>(data);
+                            auto i = _row_pointers[y];
+                            for (int x = 0; x < size.x; ++x) {
+                                *o = (i[0] << 16) | (i[1] << 8) | i[2] |
+                                    (i[3] << 24);
+                                i += 4;
+                                ++o;
+                            }
+                            data += stride;
+                        }
+                        break;
                 }
             }
 

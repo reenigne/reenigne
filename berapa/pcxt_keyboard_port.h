@@ -1,51 +1,36 @@
-template<class T> class PCXTNoKeyboardT : public Component
+class PCXTNoKeyboard : public ComponentBase<PCXTNoKeyboard>
 {
 public:
     static String typeName() { return "PCXTNoKeyboard"; }
-    PCXTNoKeyboardT(Component::Type type) : Component(type), _connector(this)
+    PCXTNoKeyboard(Component::Type type)
+      : ComponentBase(type), _connector(this)
     {
         connector("", &_connector);
     }
 
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(PCXTNoKeyboardT<T>* c) : ::Connector(c) { }
-        class Type : public NamedNullary<::Connector::Type, Type>
+        Connector(PCXTNoKeyboard* c) : ConnectorBase(c) { }
+        static String typeName() { return "PCXTNoKeyboard.Connector"; }
+        static auto protocolDirection()
         {
-        public:
-            static String name() { return "PCXTNoKeyboard.Connector"; }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return other == PCXTKeyboardPortT<T>::Connector::Type();
-                }
-            };
-        };
-    protected:
-        ::Connector::Type type() const { return Type(); }
-        void connect(::Connector* other) { }
-        Component::Type defaultComponentType(Simulator* simulator)
-        {
-            assert(false);
-            return Component::Type();
+            return ProtocolDirection(PCXTKeyboardProtocol(), true);
         }
     };
-
-    typedef Component::TypeHelper<PCXTKeyboard> Type;
 private:
     Connector _connector;
 };
 
-template<class T> class PCXTKeyboardPortT : public Component
+template<class T> class PCXTKeyboardPortT
+  : public ComponentBase<PCXTKeyboardPort>
 {
 public:
     static String typeName() { return "PCXTKeyboardPort"; }
     PCXTKeyboardPortT(Component::Type type)
-      : Component(type), _clearConnector(this), _clockConnector(this),
-        _connector(this), _irqConnector(this), _dataConnector(this)
+      : ComponentBase<PCXTKeyboardPort>(type), _clearConnector(this),
+        _clockConnector(this), _connector(this), _irqConnector(this),
+        _dataConnector(this)
     {
         connector("data", &_dataConnector);
         connector("clear", &_clearConnector);
@@ -53,56 +38,39 @@ public:
         connector("irq", &_irqConnector);
         connector("", &_connector);
     }
-    class Connector : public ::Connector
+    class Connector : public ConnectorBase<Connector>
     {
     public:
-        Connector(PCXTKeyboardPort* p) : ::Connector(p), _port(p) { }
-        class Type : public NamedNullary<::Connector::Type, Type>
+        Connector(PCXTKeyboardPort* p) : ConnectorBase<Connector>(p) { }
+        static String typeName() { return "PCXTKeyboardPort.Connector"; }
+        static auto protocolDirection()
         {
-        public:
-            static String name() { return "PCXTKeyboardPort.Connector"; }
-            class Body : public NamedNullary<::Connector::Type, Type>::Body
-            {
-            public:
-                bool compatible(::Connector::Type other) const
-                {
-                    return other == PCXTKeyboard::Connector::Type();
-                }
-            };
-        };
-        PCXTKeyboardPort* _port;
+            return ProtocolDirection(PCXTKeyboardProtocol(), false);
+        }
     protected:
-        ::Connector::Type type() const { return Type(); }
         void connect(::Connector* other)
         {
-            _port->_keyboard =
-                static_cast<PCXTKeyboard::Connector*>(other)->_keyboard;
-        }
-        Component::Type defaultComponentType(Simulator* simulator)
-        {
-            return typename PCXTNoKeyboardT<T>::Type(simulator);
+            static_cast<PCXTKeyboardPort*>(component())->_keyboard =
+                static_cast<PCXTKeyboard*>(other->component());
         }
     };
-
-    typedef Component::TypeHelper<PCXTKeyboardPort> Type;
-
     class ClearConnector : public InputConnector<bool>
     {
     public:
-        ClearConnector(PCXTKeyboardPort* p)
-          : InputConnector<bool>(p), _port(p) { }
-        void setData(Tick t, bool v) { _port->setClear(t, v); }
-    private:
-        PCXTKeyboardPort* _port;
+        ClearConnector(PCXTKeyboardPort* p) : InputConnector<bool>(p) { }
+        void setData(Tick t, bool v)
+        {
+            static_cast<PCXTKeyboardPort*>(component())->setClear(t, v);
+        }
     };
     class ClockConnector : public InputConnector<bool>
     {
     public:
-        ClockConnector(PCXTKeyboardPort* p)
-          : InputConnector<bool>(p), _port(p) { }
-        void setData(Tick t, bool v) { _port->setClock(t, v); }
-    private:
-        PCXTKeyboardPort* _port;
+        ClockConnector(PCXTKeyboardPort* p) : InputConnector<bool>(p) { }
+        void setData(Tick t, bool v)
+        {
+            static_cast<PCXTKeyboardPort*>(component())->setClock(t, v);
+        }
     };
 
     void setClear(Tick t, bool clear)

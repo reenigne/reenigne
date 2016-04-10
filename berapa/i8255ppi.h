@@ -1,22 +1,19 @@
-template<class T> class Intel8255PPIT
-  : public ISA8BitComponent<Intel8255PPIT<T>>
+class Intel8255PPI : public ISA8BitComponentBase<Intel8255PPI>
 {
 public:
     static String typeName() { return "Intel8255PPI"; }
-    Intel8255PPIT(Component::Type type)
-      : ISA8BitComponent<Intel8255PPIT<T>>(type), _bytes{this, this, this},
+    Intel8255PPI(Component::Type type)
+      : ISA8BitComponentBase<Intel8255PPI>(type), _bytes{this, this, this},
         _bits{this, this, this, this, this, this, this, this, this, this, this,
         this, this, this, this, this, this, this, this, this, this, this, this,
         this}
     {
         _mode = 0x1b;
         for (int i = 0; i < 3; ++i) {
-            _bytes[i]._ppi = this;
             _bytes[i]._i = i;
             this->connector(codePoint('a' + i), &_bytes[i]);
         }
         for (int i = 0; i < 24; ++i) {
-            _bits[i]._ppi = this;
             _bits[i]._i = i;
             this->connector(String(codePoint('a' + (i >> 3))) + decimal(i & 7),
                 &_bits[i]);
@@ -28,12 +25,12 @@ public:
         this->persist("input", &_input[0], ArrayType(ByteType(), 2));
         this->persist("output", &_output[0], t);
     }
-    ISA8BitComponentBase* setAddressReadIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressReadIO(Tick tick, UInt32 address)
     {
         _address = address & 3;
         return this;
     }
-    ISA8BitComponentBase* setAddressWriteIO(Tick tick, UInt32 address)
+    ISA8BitComponent* setAddressWriteIO(Tick tick, UInt32 address)
     {
         _address = address & 3;
         return this;
@@ -147,9 +144,11 @@ private:
     template<class U> class Connector : public BidirectionalConnector<U>
     {
     public:
-        Connector(Component* c) : BidirectionalConnector<U>(c) { }
-        void setData(Tick tick, U v) { _ppi->setData(_i, v); }
-        Intel8255PPI* _ppi;
+        Connector(Intel8255PPI* c) : BidirectionalConnector<U>(c) { }
+        void setData(Tick tick, U v)
+        {
+            static_cast<Intel8255PPI*>(component())->setData(_i, v);
+        }
         int _i;
     };
     void outgoing(int i, UInt8 v)

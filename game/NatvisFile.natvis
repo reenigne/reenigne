@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <!-- Non-Body objects -->
+
+  <Type Name="StringTemplate&lt;*&gt;">
+    <DisplayString>{ (_length &lt;= 8 ? (const unsigned char*)(this) : _start),[_length] }</DisplayString>
+    <Expand>
+      <Synthetic Name="[type]" Condition="_length &lt;= 8"><DisplayString>Small</DisplayString></Synthetic>
+      <Synthetic Name="[type]" Condition="_length &gt; 8 &amp;&amp; _array._body == 0"><DisplayString>External</DisplayString></Synthetic>
+      <Synthetic Name="[type]" Condition="_length &gt; 8 &amp;&amp; _array._body != 0"><DisplayString>Owning</DisplayString></Synthetic>
+      <Item Name="[length]">_length</Item>
+      <Item Name="[capacity]" Condition="_length &lt;= 8">8</Item>
+      <Item Name="[capacity]" Condition="_length &gt; 8 &amp;&amp; _array._body != 0">((Array&lt;unsigned char&gt;::Body&lt;Array&lt;unsigned char&gt;::AppendableBaseBody&gt;*)(_array._body))->_allocated</Item>
+      <Item Name="[used]" Condition="_length &lt;= 8">_length</Item>
+      <Item Name="[used]" Condition="_length &gt; 8 &amp;&amp; _array._body != 0">((Array&lt;unsigned char&gt;::Body&lt;Array&lt;unsigned char&gt;::AppendableBaseBody&gt;*)(_array._body))->_count</Item>
+      <Item Name="[data]">(_length &lt;= 8 ? (const unsigned char*)(this) : _start),[_length]</Item>
+      <Item Name="[array]" Condition="_length &gt; 8 &amp;&amp; _array._body != 0">_array._body</Item>
+    </Expand>
+  </Type>
+  <Type Name="Span">
+    <DisplayString Condition="_startLine != -1">{_file,na}({_startLine,d},{_startColumn,d})-({_endLine,d},{_endColumn,d})</DisplayString>
+    <DisplayString Condition="_startLine == -1">(no span)</DisplayString>
+  </Type>
+  <Type Name="ConstHandle">
+    <DisplayString>{ _body,na }</DisplayString>
+    <Expand>
+      <ExpandedItem>_body</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="HashTableEntry&lt;*&gt;">
+    <DisplayString>{_key} => {_value}</DisplayString>
+  </Type>
+  <Type Name="RationalTemplate&lt;int&gt;">
+    <DisplayString Condition="denominator != 1">{numerator,d}/{denominator,d}</DisplayString>
+    <DisplayString Condition="denominator == 1">{numerator,d}</DisplayString>
+  </Type>
+  <Type Name="ConfigFileT&lt;*&gt;">
+    <DisplayString>ConfigFile {_file} {_values._body,view(count)} values {_types._body,view(count)} types</DisplayString>
+    <Expand>
+      <Item Name="[file]">_file</Item>
+      <Item Name="[values]">_values</Item>
+      <Item Name="[types]">_types</Item>
+    </Expand>
+  </Type>
+  <Type Name="ValueT&lt;*&gt;">
+    <DisplayString>{_type} {_any} {_span}</DisplayString>
+    <Expand>
+      <Item Name="[type]">_type</Item>
+      <Item Name="[any]">_any</Item>
+      <Item Name="[span]">_span</Item>
+    </Expand>
+  </Type>
+  <Type Name="LValueT&lt;*&gt;">
+    <DisplayString>{_structure} . {_identifier}</DisplayString>
+    <Expand>
+      <Item Name="[structure]">_structure</Item>
+      <Item Name="[identifier]">_identifier</Item>
+    </Expand>
+  </Type>
+  <Type Name="StructuredTypeT&lt;*&gt;::Member">
+    <DisplayString>name {_name,na} default {_default}</DisplayString>
+    <Expand>
+      <Item Name="[name]">_name</Item>
+      <Item Name="[default]">_default</Item>
+    </Expand>
+  </Type>
+  <Type Name="StructureT&lt;*&gt;" Inheritable="false">
+    <DisplayString>Structure {_values._body,view(count)}</DisplayString>
+    <Expand>
+      <ExpandedItem>_values</ExpandedItem>
+    </Expand>
+  </Type>
+
+
+  <!-- ALFE bodies -->
+
+  <Type Name="ConstHandle::Body" Inheritable="false">
+    <DisplayString>ConstHandle refcount={_count,d}</DisplayString>
+  </Type>
+  <Type Name="Handle::Body" Inheritable="false">
+    <DisplayString>Handle refcount={_count,d}</DisplayString>
+  </Type>
+  <Type Name="ParseTreeObject::Body" Inheritable="false">
+    <DisplayString>span={_span}</DisplayString>
+    <Expand>
+      <Item Name="[span]">_span</Item>
+      <Item Name="[ConstHandle]">(ConstHandle::Body*)this,nd</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="FileSystemObjectT&lt;*&gt;::NamedBody">
+    <DisplayString>{_parent,na}\{_name,sb}</DisplayString>
+    <Expand>
+      <Item Name="[parent]">_parent</Item>
+      <Item Name="[name]">_name</Item>
+    </Expand>
+  </Type>
+  <Type Name="DriveRootDirectoryT&lt;*&gt;::Body">
+    <DisplayString>{_drive,d}:</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorEqualTo&gt;::Body">
+    <DisplayString>==</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorAssignment&gt;::Body">
+    <DisplayString>=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorAddAssignment&gt;::Body">
+    <DisplayString>+=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorSubtractAssignment&gt;::Body">
+    <DisplayString>-=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorMultiplyAssignment&gt;::Body">
+    <DisplayString>*=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorDivideAssignment&gt;::Body">
+    <DisplayString>/=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorModuloAssignment&gt;::Body">
+    <DisplayString>%=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorShiftLeftAssignment&gt;::Body">
+    <DisplayString>&lt;&lt;=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorShiftRightAssignment&gt;::Body">
+    <DisplayString>&gt;&gt;=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorBitwiseAndAssignment&gt;::Body">
+    <DisplayString>&amp;=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorBitwiseOrAssignment&gt;::Body">
+    <DisplayString>|=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorBitwiseXorAssignment&gt;::Body">
+    <DisplayString>~=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorBitwisePowerAssignment&gt;::Body">
+    <DisplayString>^=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;TypeT&lt;*&gt;,FuncoType&gt;::Body">
+    <DisplayString>Funco</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorAmpersand&gt;::Body">
+    <DisplayString>&amp;</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorBitwiseOr&gt;::Body">
+    <DisplayString>|</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorTwiddle&gt;::Body">
+    <DisplayString>~</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorNot&gt;::Body">
+    <DisplayString>!</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorNotEqualTo&gt;::Body">
+    <DisplayString>!=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorLessThan&gt;::Body">
+    <DisplayString>&lt;</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorGreaterThan&gt;::Body">
+    <DisplayString>&gt;</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorLessThanOrEqualTo&gt;::Body">
+    <DisplayString>&lt;=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorGreaterThanOrEqualTo&gt;::Body">
+    <DisplayString>&gt;=</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorShiftLeft&gt;::Body">
+    <DisplayString>&lt;&lt;</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorShiftRight&gt;::Body">
+    <DisplayString>&gt;&gt;</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorPlus&gt;::Body">
+    <DisplayString>+</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorMinus&gt;::Body">
+    <DisplayString>-</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorStar&gt;::Body">
+    <DisplayString>*</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorDivide&gt;::Body">
+    <DisplayString>/</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorModulo&gt;::Body">
+    <DisplayString>%</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorBitwisePower&gt;::Body">
+    <DisplayString>^</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorFunctionCall&gt;::Body">
+    <DisplayString>()</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorIndex&gt;::Body">
+    <DisplayString>[]</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorIncrement&gt;::Body">
+    <DisplayString>++</DisplayString>
+  </Type>
+  <Type Name="NamedNullary&lt;Operator,OperatorDecrement&gt;::Body">
+    <DisplayString>--</DisplayString>
+  </Type>
+  <Type Name="Any::Body&lt;*&gt;">
+    <DisplayString>{_t}</DisplayString>
+    <Expand>
+      <ExpandedItem>_t</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="Any::Body&lt;int&gt;">
+    <DisplayString>int {_t}</DisplayString>
+    <Expand>
+      <ExpandedItem>_t</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="Any::Body&lt;unsigned short&gt;">
+    <DisplayString>Word {_t}</DisplayString>
+    <Expand>
+      <ExpandedItem>_t</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="Any::Body&lt;StringTemplate&lt;*&gt;&gt;">
+    <DisplayString>String {_t}</DisplayString>
+    <Expand>
+      <ExpandedItem>_t</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="Array&lt;*&gt;::Body&lt;*&gt;" IncludeView="count">
+    <DisplayString>{_size,d}</DisplayString>
+    <Expand>
+      <Item Name="[size]">_size,d</Item>
+    </Expand>
+  </Type>
+  <Type Name="Array&lt;*&gt;::Body&lt;*&gt;" ExcludeView="count">
+    <DisplayString>Array {_size,d}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>_size</Size>
+        <ValuePointer>($T1*)(((char*)this) + 12)</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  <Type Name="Array&lt;*&gt;::Body&lt;HashTableBody&lt;*&gt;&gt;" ExcludeView="count">
+    <DisplayString>size={_size,d} allocated={_allocated,d}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>_allocated</Size>
+        <ValuePointer>($T1*)(((char*)this) + 16)</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  <Type Name="Array&lt;*&gt;::Body&lt;HashTableBody&lt;*&gt;&gt;" ExcludeView="count">
+    <DisplayString>size={_size,d} allocated={_allocated,d}</DisplayString>
+    <Expand>
+      <CustomListItems MaxItemsPerView="5000">
+        <Variable Name="p" InitialValue="($T1*)(((char*)this) + 16)" />
+        <Size>_size</Size>
+        <Loop>
+          <If Condition="p->_key._body != 0">
+            <Item>p,na</Item>
+          </If>
+          <Exec>++p</Exec>
+        </Loop>
+      </CustomListItems>
+      <Item Name="[size]">_size,d</Item>
+      <Item Name="[allocated]">_allocated,d</Item>
+      <Item Name="[Handle]">(Handle::Body*)this,nd</Item>
+    </Expand>
+  </Type>
+  <Type Name="Array&lt;*&gt;::Body&lt;HashTableBody&lt;*&gt;&gt;" ExcludeView="count">
+    <DisplayString>size={_size,d} allocated={_allocated,d}</DisplayString>
+    <Expand>
+      <CustomListItems MaxItemsPerView="5000">
+        <Variable Name="p" InitialValue="($T1*)(((char*)this) + 16)" />
+        <Size>_size</Size>
+        <Loop>
+          <If Condition="p->_key._length != 0">
+            <Item>p,na</Item>
+          </If>
+          <Exec>++p</Exec>
+        </Loop>
+      </CustomListItems>
+      <Item Name="[size]">_size,d</Item>
+      <Item Name="[allocated]">_allocated,d</Item>
+      <Item Name="[Handle]">(Handle::Body*)this,nd</Item>
+    </Expand>
+  </Type>
+  <Type Name="List&lt;*&gt;::Body">
+    <DisplayString>{_count,d}</DisplayString>
+    <Expand>
+      <LinkedListItems>
+        <Size>_count</Size>
+        <HeadPointer>&amp;_first</HeadPointer>
+        <NextPointer>_next</NextPointer>
+        <ValueNode>_value</ValueNode>
+      </LinkedListItems>
+      <Item Name="[Handle]">(Handle::Body*)this,nd</Item>
+    </Expand>
+  </Type>
+  <Type Name="List&lt;*&gt;::Iterator">
+    <DisplayString>{_node->_value}</DisplayString>
+    <Expand>
+      <ExpandedItem>_node->_value</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="LValueTypeT&lt;*&gt;::Body">
+    <DisplayString>LValue&lt;{_inner}&gt;</DisplayString>
+    <Expand>
+      <ExpandedItem>_inner</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="IdentifierT&lt;*&gt;::NameBody">
+    <DisplayString>Identifier {_name} {_span}</DisplayString>
+    <Expand>
+      <Item Name="[name]">_name</Item>
+      <Item Name="[ParseTreeObject]">(ParseTreeObject::Body*)this,nd</Item>
+    </Expand>
+  </Type>
+  <Type Name="IdentifierT&lt;*&gt;::OperatorBody">
+    <DisplayString>Identifier operator{_op} {_span}</DisplayString>
+    <Expand>
+      <Item Name="[op]">_op</Item>
+      <Item Name="[span]">_span</Item>
+    </Expand>
+  </Type>
+  <Type Name="StructuredTypeT&lt;*&gt;::Body">
+    <DisplayString>StructuredType {_name}, {_members._body,view(count)} members</DisplayString>
+    <Expand>
+      <Item Name="[names]">_names</Item>
+      <Item Name="[members]">_members</Item>
+    </Expand>
+  </Type>
+  <Type Name="IntegerType::Body">
+    <DisplayString>Integer</DisplayString>
+  </Type>
+  <Type Name="BooleanType::Body">
+    <DisplayString>Boolean</DisplayString>
+  </Type>
+  <Type Name="WordType::Body">
+    <DisplayString>Word</DisplayString>
+  </Type>
+  <Type Name="ByteType::Body">
+    <DisplayString>Byte</DisplayString>
+  </Type>
+  <Type Name="StringType::Body">
+    <DisplayString>String</DisplayString>
+  </Type>
+  <Type Name="ArrayType::Body">
+    <DisplayString>{_contained}[{_indexer}]</DisplayString>
+  </Type>
+  <Type Name="LessThanType::Body">
+    <DisplayString>{_n,d}</DisplayString>
+  </Type>
+  <Type Name="Reference&lt;*&gt;::Body&lt;*&gt;">
+    <DisplayString>Reference {_c,na}</DisplayString>
+    <Expand>
+      <ExpandedItem>_c</ExpandedItem>
+      <Item Name="[Handle]">(Handle::Body*)this,nd</Item>
+    </Expand>
+  </Type>
+  <Type Name="ExpressionT&lt;*&gt;::DotBody">
+    <DisplayString>{_left} . {_right}</DisplayString>
+    <Expand>
+      <Item Name="[left]">_left</Item>
+      <Item Name="[right]">_right</Item>
+      <Item Name="[ParseTreeObject]">(ParseTreeObject::Body*)this,nd</Item>
+    </Expand>
+  </Type>
+  <Type Name="FunctionCallExpressionT&lt;*&gt;::FunctionCallBody">
+    <DisplayString>{_function}({_arguments})</DisplayString>
+  </Type>
+</AutoVisualizer>

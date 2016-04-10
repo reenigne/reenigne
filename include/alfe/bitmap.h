@@ -11,7 +11,7 @@ template<class Pixel> class Bitmap;
 template<class Pixel> class BitmapFileFormat : public Handle
 {
 public:
-    Bitmap<Pixel> load(const File& file)
+    Bitmap<Pixel> load(const File& file) const
     {
         return body()->load(file);
     }
@@ -23,10 +23,12 @@ protected:
     class Body : public Handle::Body
     {
     public:
-        virtual void save(Bitmap<Pixel>& bitmap, const File& file) = 0;
-        virtual Bitmap<Pixel> load(const File& file) = 0;
+        virtual void save(Bitmap<Pixel>& bitmap, const File& file) const = 0;
+        virtual Bitmap<Pixel> load(const File& file) const = 0;
     };
-    BitmapFileFormat(Body* body) : Handle(body) { }
+    BitmapFileFormat(const Handle& handle) : Handle(handle) { }
+    Body* body() { return as<Body>(); }
+    const Body* body() const { return as<Body>(); }
 private:
     friend class Bitmap<Pixel>;
 };
@@ -37,14 +39,15 @@ typedef RawFileFormatTemplate<SRGB> RawFileFormat;
 template<class T> class RawFileFormatTemplate : public BitmapFileFormat<T>
 {
 public:
-    RawFileFormatTemplate(Vector size) : BitmapFileFormat(new Body(size)) { }
+    RawFileFormatTemplate(Vector size)
+      : BitmapFileFormat(create<Body>(size)) { }
 private:
     class Body : public BitmapFileFormat::Body
     {
     public:
         Body(Vector size) : _size(size) { }
         // The bitmap needs to be 8-bit sRGB data for this to work.
-        virtual void save(Bitmap<T>& bitmap, const File& file)
+        virtual void save(Bitmap<T>& bitmap, const File& file) const
         {
             FileStream stream = file.openWrite();
             Byte* data = bitmap.data();
@@ -56,7 +59,7 @@ private:
             }
         }
         // This will put 8-bit sRGB data in the bitmap.
-        virtual Bitmap<T> load(const File& file)
+        virtual Bitmap<T> load(const File& file) const
         {
             FileStream stream = file.openRead();
             Bitmap<SRGB> bitmap(_size);
@@ -84,7 +87,7 @@ public:
         _stride = size.x*sizeof(Pixel);
         _size = size;
         allocate(size.x*size.y);
-        _topLeft = reinterpret_cast<Byte*>(&(*this)[0]);
+        _topLeft = reinterpret_cast<Byte*>(&Array<Pixel>::operator[](0));
     }
 
     // Convert from one pixel format to another.

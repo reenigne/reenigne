@@ -172,6 +172,7 @@
     <ClInclude Include="..\include\alfe\hash.h" />
     <ClInclude Include="..\include\alfe\rational_functions.h" />
     <ClInclude Include="..\include\alfe\reference.h" />
+    <ClInclude Include="..\include\alfe\sdl2.h" />
     <ClInclude Include="..\include\alfe\stream.h" />
     <ClInclude Include="..\include\alfe\identifier.h" />
     <ClInclude Include="..\include\alfe\integer_functions.h" />
@@ -192,6 +193,7 @@
       <FileType>CppHeader</FileType>
     </ClInclude>
     <ClInclude Include="dma_page_registers.h" />
+    <ClInclude Include="one_bit_speaker.h" />
     <ClInclude Include="ram.h" />
     <ClInclude Include="isa_8_bit_bus.h" />
     <ClInclude Include="nmi_switch.h" />

@@ -265,7 +265,7 @@ public:
     ConcreteTypeTemplate(const Type& other) : Type(to<Body>(other)) { }
     static ConcreteTypeTemplate zero()
     {
-        return Array<int>::create<ConstHandle, BaseBody>(0, 0);
+        return ConcreteTypeTemplate(0);
     }
     bool isAbstract() const { return body()->isAbstract(); }
     const ConcreteTypeTemplate& operator+=(const ConcreteTypeTemplate& other)

@@ -1,0 +1,9 @@
+        r = sqrt(x*x+y*y)           x,y = coordinates from sphere center
+        sin(incidence) = r/R        R = radius of sphere
+        sin(incidence)/sin(refraction) = n_glass/n_air = 1.52/1.62/2.42
+        alpha = incidence - 2*refraction                         = angle between vertical and normal to sphere at ray entry point
+        d = (D+R*(1 - cos(alpha)))/(cos(alpha + incidence))      = distance ray travels before entering sphere
+        a = R*sin(alpha) + d*sin(alpha + incidence)              = distance along picture from sphere center to ray start
+        X = -a*x/r
+        Y = -a*y/r
+
