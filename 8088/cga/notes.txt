@@ -687,8 +687,8 @@ U46  SN74LS00N     1 2 3 4 5 6 8 9 10 11 12 13                  Quad 2-Input NAN
 U47    74LS51PC    1 2 3 4 5 6 8 9 10 11 12 13                  Dual 2-Wide 2-Input, 2-Wide 3-Input AND-OR-INVERT Gate                                   snow select and +AT_LATCH computation
 U48    74LS51PC    1 2 3 4 5 6 8 9 10 11 12 13                  Dual 2-Wide 2-Input, 2-Wide 3-Input AND-OR-INVERT Gate                                   MA12 select and +1BPP dots
 U49    74HC02N no  1 2 3 4 5 6 8 9 10 11 12 13                  Quad 2-Input NOR Gate
-U50  MK4516N-12    all                                          DRAM                                                                                     DRAM bit 7
-U51 MCM4517P12     all                                          DRAM                                                                                     DRAM bit 6
+U50  MK4516N-12    all                                          DRAM (120ns access, 250ns cycle, 2ms refresh)                                            DRAM bit 7
+U51 MCM4517P12     all                                          DRAM (120ns access                                                                       DRAM bit 6
 U52  MK4516N-12    all                                          DRAM                                                                                     DRAM bit 5
 U53 MCM4517P12     all                                          DRAM                                                                                     DRAM bit 4
 U54  MK4516N-12    all                                          DRAM                                                                                     DRAM bit 3

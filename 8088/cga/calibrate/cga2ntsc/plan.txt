@@ -437,4 +437,7 @@ Auto modes:
   -HRES       0x00-0x50
 
 
+  Normal config.h or Berapa?
+    At least for cgaart we'd like to be able to switch monitors
+      we can do that without full Berapa - in general very few programs need the generality of Berapa.
 

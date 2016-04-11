@@ -3,6 +3,7 @@
 #include "alfe/complex.h"
 #include "alfe/space.h"
 #include "alfe/set.h"
+#include "alfe/config_file.h"
 
 class CGASimulator
 {
@@ -515,15 +516,16 @@ public:
         for (int x = 0; x < (_size.x & -_hdots); x += _block.x) {
             int bestPattern = 0;
             int bestScore = 0x7fffffff;
-            bool unskipped = false;
+            int skipSolidColour = 0xf00;
             for (int pattern = 0; pattern < _patternCount; ++pattern) {
                 if (_mode < 2) {
                     if (_skip[pattern & 0xff])
                         continue;
-                    if ((pattern & 0x0f00) == ((pattern >> 4) & 0x0f00) &&
-                        unskipped)
-                        continue;
-                    unskipped = true;
+                    if ((pattern & 0x0f00) == ((pattern >> 4) & 0x0f00)) {
+                        if ((pattern & 0xf00) == skipSolidColour)
+                            continue;
+                        skipSolidColour = (pattern & 0xf00);
+                    }
                 }
                 int score = 0;
                 const Byte* inputRow2 = _inputRow;
