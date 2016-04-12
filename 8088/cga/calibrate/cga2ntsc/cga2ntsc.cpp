@@ -1887,6 +1887,33 @@ class Program : public WindowProgram<CGA2NTSCWindow>
 public:
     void run()
     {
+        ConfigFile configFile;
+        configFile.addOption("inputPicture", StringType());
+        configFile.addDefaultOption("mode", 0x1a);
+        configFile.addDefaultOption("palette", 0x0f);
+        configFile.addDefaultOption("interlaceMode", 0);
+        configFile.addDefaultOption("scanlinesPerRow", 2);
+        configFile.addDefaultOption("matchMode", true);
+        configFile.addDefaultOption("contrast", Rational(1));
+        configFile.addDefaultOption("brightness", Rational(0));
+        configFile.addDefaultOption("saturation", Rational(1));
+        configFile.addDefaultOption("hue", Rational(0));
+        configFile.addDefaultOption("sharpness", Rational(0));
+        configFile.addDefaultOption("ntscPrimaries", false);
+        configFile.addDefaultOption("horizontalDiffusion", Rational(1, 2));
+        configFile.addDefaultOption("verticalDiffusion", Rational(1, 2));
+        configFile.addDefaultOption("temporalDiffusion", Rational(0));
+        configFile.addDefaultOption("quality", Rational(1, 2));
+        configFile.addDefaultOption("newCGA", false);
+
+        if (_arguments.count() < 2) {
+            console.write("Syntax: " + _arguments[0] +
+                " <input file name>[.png|.config]\n");
+            return;
+        }
+
+
+
         CGASimulator simulator;
         simulator._newCGA = false;
         simulator.initChroma();
@@ -1902,12 +1929,6 @@ public:
         decoder.calculateBurst(burst);
         _encoder.setSimulator(&simulator);
         _encoder.setDecoder(&decoder);
-
-        if (_arguments.count() < 2) {
-            console.write("Syntax: " + _arguments[0] +
-                " <input file name.png>\n");
-            return;
-        }
 
         String inputFileName = _arguments[1];
 
