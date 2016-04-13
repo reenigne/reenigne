@@ -1894,35 +1894,64 @@ public:
         configFile.addDefaultOption("interlaceMode", 0);
         configFile.addDefaultOption("scanlinesPerRow", 2);
         configFile.addDefaultOption("matchMode", true);
-        configFile.addDefaultOption("contrast", Rational(1));
-        configFile.addDefaultOption("brightness", Rational(0));
-        configFile.addDefaultOption("saturation", Rational(1));
-        configFile.addDefaultOption("hue", Rational(0));
-        configFile.addDefaultOption("sharpness", Rational(0));
+        configFile.addDefaultOption("contrast", 1.0);
+        configFile.addDefaultOption("brightness", 0.0);
+        configFile.addDefaultOption("saturation", 1.0);
+        configFile.addDefaultOption("hue", 0.0);
+        configFile.addDefaultOption("sharpness", 0.0);
         configFile.addDefaultOption("ntscPrimaries", false);
-        configFile.addDefaultOption("horizontalDiffusion", Rational(1, 2));
-        configFile.addDefaultOption("verticalDiffusion", Rational(1, 2));
-        configFile.addDefaultOption("temporalDiffusion", Rational(0));
-        configFile.addDefaultOption("quality", Rational(1, 2));
+        configFile.addDefaultOption("horizontalDiffusion", 0.5);
+        configFile.addDefaultOption("verticalDiffusion", 0.5);
+        configFile.addDefaultOption("temporalDiffusion", 0.0);
+        configFile.addDefaultOption("quality", 0.5);
         configFile.addDefaultOption("newCGA", false);
+
+        Array<String> arguments;
 
         if (_arguments.count() < 2) {
             console.write("Syntax: " + _arguments[0] +
-                " <input file name>[.png|.config]\n");
+                " <input file name>(.png|.config)\n");
             return;
         }
+        String configPath = _arguments[1];
+        int n = configPath.length();
+        bool isPng = false;
+        if (n > 4) {
+            auto p = &configPath[n - 4];
+            if (p[0] == '.' && (p[1] == 'p' || p[1] == 'P') &&
+                (p[2] == 'n' || p[2] == 'N') && (p[3] == 'g' || p[3] == 'G'))
+                isPng = true;
+        }
+        if (isPng) {
+            configPath = "default.config";
+            arguments.allocate(_arguments.count());
+            arguments[0] = _arguments[0] + " " + configPath;
+            for (int i = 1; i < _arguments.count(); ++i)
+                arguments[i] = _arguments[i];
+        }
+        else {
+            arguments.allocate(_arguments.count() - 1);
+            arguments[0] = _arguments[0] + " " + configPath;
+            for (int i = 1; i < _arguments.count() - 1; ++i)
+                arguments[i] = _arguments[i + 1];
+        }
+
+        configFile.addDefaultOption("arguments", ArrayType(StringType()),
+            _arguments);
+
+        configFile.load(configPath);
 
 
 
         CGASimulator simulator;
-        simulator._newCGA = false;
+        simulator._newCGA = configFile.get<bool>("newCGA");
         simulator.initChroma();
         NTSCDecoder decoder;
-        decoder._fixPrimaries = false;
-        decoder._brightness = 0;
-        decoder._hue = 0;
-        decoder._contrast = 1;
-        decoder._saturation = 1;
+        decoder._fixPrimaries = configFile.get<bool>("ntscPrimaries");
+        decoder._brightness = configFile.get<double>("brightness");
+        decoder._hue = configFile.get<double>("hue");
+        decoder._contrast = configFile.get<double>("contrast");
+        decoder._saturation = configFile.get<double>("saturation");
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
             burst[i] = simulator.simulateCGA(6, 6, i);
@@ -1930,7 +1959,7 @@ public:
         _encoder.setSimulator(&simulator);
         _encoder.setDecoder(&decoder);
 
-        String inputFileName = _arguments[1];
+        String inputFileName = configFile.get<String>("inputPicture");
 
         Bitmap<SRGB> input =
             PNGFileFormat<SRGB>().load(File(inputFileName, true));

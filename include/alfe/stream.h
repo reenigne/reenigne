@@ -43,7 +43,7 @@ public:
     {
         write(static_cast<const void*>(&value[0]), value.count()*sizeof(U));
     }
-    void write(const String& s) const { write(s.data(), s.length()); }
+    void write(const String& s) const { write(&s[0], s.length()); }
     void write(const Exception& e) const { e.write(*this); }
     void write(const void* buffer, int bytes) const
     {

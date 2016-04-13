@@ -418,7 +418,7 @@ public:
             *this = subString(_start + 1, length() - 1);
     }
     T operator*() const { return *data(); }
-    T operator[](int offset) const { return *(data() + offset); }
+    const T& operator[](int offset) const { return *(data() + offset); }
     UInt32 hash() const
     {
         Hash h(typeid(String));
@@ -477,10 +477,6 @@ public:
     }
 
     bool empty() const { return length() == 0; }
-    const T* data() const
-    {
-        return small() ? reinterpret_cast<const T*>(this) : _start;
-    }
     int length() const
     {
         return *(reinterpret_cast<const int*>(reinterpret_cast<const char*>(
@@ -543,6 +539,10 @@ private:
     T* data()
     {
         return small() ? reinterpret_cast<T*>(this) : const_cast<T*>(_start);
+    }
+    const T* data() const
+    {
+        return small() ? reinterpret_cast<const T*>(this) : _start;
     }
     // With the small string optimization, we use all the space in String
     // (_array, _start and any alignment slop space) as the data buffer. Since
@@ -741,10 +741,10 @@ public:
     NullTerminatedString(String s) : _s(s + codePoint(0)) { }
     operator const char*()
     {
-        return reinterpret_cast<const char*>(_s.data());
+        return reinterpret_cast<const char*>(&_s[0]);
     }
 private:
-    const String _s;
+    String _s;
 };
 
 #ifdef _WIN32

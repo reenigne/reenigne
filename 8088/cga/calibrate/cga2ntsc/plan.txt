@@ -449,3 +449,19 @@ Auto modes:
     hue
     sharpness?
     scaling?
+
+
+
+
+make Bitmap an ALFE object
+  Then we can easily make a generic scriptable image-processing tool (superseding image_resample)
+  If we do this, it makes sense for the CGA conversion, composite output and rendering to be just more transformations we can perform on the image
+    But then what of interactive mode?
+      This is equivalent to match+composite+decode+scanlines all in one interactive block. Unless we can break it down and make the UI scriptable
+  Need to add a lot of infrastructure
+    Vector with x, y members
+    size member of bitmap
+    rescale function
+    constructor from string
+  Let's add this later, but for now just do what old cga2ntsc does
+

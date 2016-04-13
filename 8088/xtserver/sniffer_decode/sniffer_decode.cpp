@@ -329,8 +329,8 @@ class Program : public ProgramBase
     {
         Disassembler disassembler;
 
-        const String data = File(_arguments[1], true).contents();
-        const Byte* q = data.data();
+        String data = File(_arguments[1], true).contents();
+        auto q = &data[0];
         String o;
         int lengths[48];
         for (int i = 0; i < 48; ++i) {

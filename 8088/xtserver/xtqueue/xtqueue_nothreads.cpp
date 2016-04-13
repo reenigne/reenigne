@@ -126,11 +126,11 @@ public:
     void write(const String& s)
     {
         _log += s;
-        write(s.data(), s.length());
+        write(&s[0], s.length());
     }
     void writeNoEmail(const String& s)
     {
-        write(s.data(), s.length());
+        write(&s[0], s.length());
     }
     void write(const void* buffer, int bytes)
     {
