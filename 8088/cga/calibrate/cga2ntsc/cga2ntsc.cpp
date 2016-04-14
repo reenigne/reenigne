@@ -987,7 +987,7 @@ template<class T> class BrightnessSliderWindowT : public Slider
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void valueSet(double value) { _host->setBrightness(value); }
+    void valueSet(double value) { _host->brightnessSet(value); }
     void create()
     {
         setRange(-2, 2);
@@ -1435,7 +1435,6 @@ public:
 
         _decoder->_contrast = 1;
         _decoder->_hue = 0;
-        _decoder->_brightness = 0;
         _decoder->_saturation = 1;
 
         if (_encoder->_matchMode)
@@ -1546,13 +1545,12 @@ public:
         _gamut.invalidate();
         _hueText.setText(format("%f", _decoder->_hue));
         _hueText.size();
-        _brightnessText.setText(format("%f", _decoder->_brightness));
+        _brightnessText.setText(format("%f", _brightness.getValue()));
         _brightnessText.size();
         _saturationText.setText(format("%f", _decoder->_saturation));
         _saturationText.size();
         _contrastText.setText(format("%f", _decoder->_contrast));
         _contrastText.size();
-        _brightness.setValue(_decoder->_brightness);
         _saturation.setValue(_decoder->_saturation);
         _contrast.setValue(_decoder->_contrast);
         _updating = false;
@@ -1657,7 +1655,7 @@ public:
         autoBrightness();
     }
 
-    void setBrightness(double brightness)
+    void brightnessSet(double brightness)
     {
         _decoder->_brightness = brightness;
         if (!_updating) {
@@ -1665,6 +1663,7 @@ public:
             uiUpdate();
         }
     }
+    void setBrightness(double brightness) { _brightness.setValue(brightness); }
     void setSaturation(double saturation)
     {
         _decoder->_saturation = saturation;
@@ -1751,7 +1750,7 @@ public:
     {
         if (!false && !_autoBrightnessFlag)
             return;
-        _decoder->_brightness += (256 - (_black + _white))/512;
+        setBrightness(_brightness.getValue() + (256 - (_black + _white))/512);
         update();
     }
     void autoSaturation()
@@ -1948,7 +1947,7 @@ public:
         simulator.initChroma();
         NTSCDecoder decoder;
         decoder._fixPrimaries = configFile.get<bool>("ntscPrimaries");
-        decoder._brightness = configFile.get<double>("brightness");
+        _window.setBrightness(configFile.get<double>("brightness"));
         decoder._hue = configFile.get<double>("hue");
         decoder._contrast = configFile.get<double>("contrast");
         decoder._saturation = configFile.get<double>("saturation");

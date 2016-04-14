@@ -863,6 +863,7 @@ public:
         _pos = pos*(_max - _min) / 16384 + _min;
         valueSet(_pos);
     }
+    double getValue() const { return _pos; }
 private:
     double _min;
     double _max;
