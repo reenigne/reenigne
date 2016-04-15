@@ -983,20 +983,29 @@ public:
 
 class CGA2NTSCWindow;
 
-template<class T> class BrightnessSliderWindowT : public Slider
+template<class T> class NumericSliderWindowT : public Slider
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
+protected:
+    CGA2NTSCWindow* _host;
+private:
+    TextWindow _caption;
+    TextWindow _text;
+};
+typedef NumericSliderWindowT<void> NumericSliderWindow;
+
+class BrightnessSliderWindow : public NumericSliderWindow
+{
+public:
     void valueSet(double value) { _host->brightnessSet(value); }
     void create()
     {
+        _caption.setText("Brightness: ");
         setRange(-2, 2);
-        Slider::create();
+        NumericSliderWindow::create();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
-typedef BrightnessSliderWindowT<void> BrightnessSliderWindow;
 
 template<class T> class SaturationSliderWindowT : public Slider
 {
@@ -1358,10 +1367,8 @@ public:
     void setWindows(Windows* windows)
     {
         add(&_output);
-        add(&_brightnessCaption);
         add(&_brightness);
         add(&_autoBrightness);
-        add(&_brightnessText);
         add(&_saturationCaption);
         add(&_saturation);
         add(&_autoSaturation);
@@ -1400,7 +1407,6 @@ public:
         _animated.setDrawWindow(&_gamut);
         _gamut.setAnimated(&_animated);
 
-        _brightnessCaption.setText("Brightness: ");
         _saturationCaption.setText("Saturation: ");
         _contrastCaption.setText("Contrast: ");
         _hueCaption.setText("Hue: ");
