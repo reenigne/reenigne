@@ -987,10 +987,26 @@ template<class T> class NumericSliderWindowT : public Slider
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void setPositionAndSize(Vector position, Vector size)
+    {
+        Slider::setSize(size);
+        Slider::setPosition(position);
+        _caption.setPosition(bottomLeft() + Vector(0, 15));
+        _text.setPosition(_caption.topRight());
+    }
+    Vector bottomLeft() { return _caption.bottomLeft(); }
+    void valueSet(double value)
+    {
+        _text.setText(format("%f", value));
+        _text.size();
+        valueSet2(value);
+    }
+    virtual void valueSet2(double value) { }
+
 protected:
     CGA2NTSCWindow* _host;
-private:
     TextWindow _caption;
+private:
     TextWindow _text;
 };
 typedef NumericSliderWindowT<void> NumericSliderWindow;
@@ -998,7 +1014,7 @@ typedef NumericSliderWindowT<void> NumericSliderWindow;
 class BrightnessSliderWindow : public NumericSliderWindow
 {
 public:
-    void valueSet(double value) { _host->brightnessSet(value); }
+    void valueSet2(double value) { _host->brightnessSet(value); }
     void create()
     {
         _caption.setText("Brightness: ");
@@ -1460,9 +1476,7 @@ public:
 
         _brightness.setSize(Vector(301, 24));
         _brightness.setPosition(Vector(w, 20));
-        _brightnessCaption.setPosition(_brightness.bottomLeft() + vSpace);
-        _brightnessText.setPosition(_brightnessCaption.topRight());
-        _autoBrightness.setPosition(_brightnessCaption.bottomLeft() + vSpace);
+        _autoBrightness.setPosition(_brightness.bottomLeft() + vSpace);
 
         _saturation.setSize(Vector(301, 24));
         _saturation.setPosition(_autoBrightness.bottomLeft() + 2*vSpace);
@@ -1551,8 +1565,6 @@ public:
         _gamut.invalidate();
         _hueText.setText(format("%f", _decoder->_hue));
         _hueText.size();
-        _brightnessText.setText(format("%f", _brightness.getValue()));
-        _brightnessText.size();
         _saturationText.setText(format("%f", _decoder->_saturation));
         _saturationText.size();
         _contrastText.setText(format("%f", _decoder->_contrast));
@@ -1837,10 +1849,8 @@ public:
 private:
     AnimatedWindow _animated;
     OutputWindow _output;
-    TextWindow _brightnessCaption;
     BrightnessSliderWindow _brightness;
     AutoBrightnessButtonWindow _autoBrightness;
-    TextWindow _brightnessText;
     TextWindow _saturationCaption;
     SaturationSliderWindow _saturation;
     AutoSaturationButtonWindow _autoSaturation;
