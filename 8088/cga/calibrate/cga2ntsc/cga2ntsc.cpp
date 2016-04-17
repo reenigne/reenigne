@@ -1011,7 +1011,7 @@ private:
 };
 typedef NumericSliderWindowT<void> NumericSliderWindow;
 
-class BrightnessSliderWindow : public NumericSliderWindow
+template<class T> class BrightnessSliderWindowT : public NumericSliderWindow
 {
 public:
     void valueSet2(double value) { _host->brightnessSet(value); }
@@ -1022,49 +1022,44 @@ public:
         NumericSliderWindow::create();
     }
 };
+typedef BrightnessSliderWindowT<void> BrightnessSliderWindow;
 
-template<class T> class SaturationSliderWindowT : public Slider
+template<class T> class SaturationSliderWindowT : public NumericSliderWindow
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void valueSet(double value) { _host->setSaturation(value); }
+    void valueSet2(double value) { _host->saturationSet(value); }
     void create()
     {
+        _caption.setText("Saturation: ");
         setRange(0, 4);
-        Slider::create();
+        NumericSliderWindow::create();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef SaturationSliderWindowT<void> SaturationSliderWindow;
 
-template<class T> class ContrastSliderWindowT : public Slider
+template<class T> class ContrastSliderWindowT: public NumericSliderWindow
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void valueSet(double value) { _host->setContrast(value); }
+    void valueSet2(double value) { _host->contrastSet(value); }
     void create()
     {
+        _caption.setText("Contrast: ");
         setRange(0, 4);
-        Slider::create();
+        NumericSliderWindow::create();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef ContrastSliderWindowT<void> ContrastSliderWindow;
 
-template<class T> class HueSliderWindowT : public Slider
+template<class T> class HueSliderWindowT : public NumericSliderWindow
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void valueSet(double value) { _host->setHue(value); }
+    void valueSetw(double value) { _host->hueSet(value); }
     void create()
     {
+        _caption.setText("Hue: ");
         setRange(-180, 180);
-        Slider::create();
+        NumericSliderWindow::create();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef HueSliderWindowT<void> HueSliderWindow;
 
@@ -1258,40 +1253,33 @@ private:
 };
 typedef PaletteComboT<void> PaletteCombo;
 
-template<class T> class DiffusionHorizontalSliderWindowT : public Slider
+template<class T> class DiffusionHorizontalSliderWindowT
+  : public NumericSliderWindow
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void valueSet(double value) { _host->setHorizontalDiffusion(value); }
+    void valueSet2(double value) { _host->diffusionHorizontalSet(value); }
     void create()
     {
-        setRange(0, 512);
-        setValue(256);
-        Slider::create();
+        _caption.setText("Horizontal diffusion: ");
+        setRange(0, 1);
+        NumericSliderWindow::create();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
-typedef DiffusionHorizontalSliderWindowT<void>
-    DiffusionHorizontalSliderWindow;
+typedef DiffusionHorizontalSliderWindowT<void> DiffusionHorizontalSliderWindow;
 
-template<class T> class DiffusionVerticalSliderWindowT : public Slider
+template<class T> class DiffusionVerticalSliderWindowT
+  : public NumericSliderWindow
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void valueSet(double value) { _host->setVerticalDiffusion(value); }
+    void valueSet2(double value) { _host->diffusionVerticalSet(value); }
     void create()
     {
-        setRange(0, 512);
-        setValue(256);
-        Slider::create();
+        _caption.setText("Vertical diffusion: ");
+        setRange(0, 1);
+        NumericSliderWindow::create();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
-typedef DiffusionVerticalSliderWindowT<void>
-    DiffusionVerticalSliderWindow;
-
+typedef DiffusionVerticalSliderWindowT<void> DiffusionVerticalSliderWindow;
 
 class OutputWindow : public BitmapWindow
 {
@@ -1385,18 +1373,12 @@ public:
         add(&_output);
         add(&_brightness);
         add(&_autoBrightness);
-        add(&_saturationCaption);
         add(&_saturation);
         add(&_autoSaturation);
-        add(&_saturationText);
-        add(&_contrastCaption);
         add(&_contrast);
-        add(&_contrastText);
         add(&_autoContrastClip);
         add(&_autoContrastMono);
-        add(&_hueCaption);
         add(&_hue);
-        add(&_hueText);
         add(&_blackText);
         add(&_whiteText);
         add(&_mostSaturatedText);
@@ -1410,24 +1392,14 @@ public:
         add(&_background);
         add(&_palette);
         add(&_characterHeight);
-        add(&_diffusionHorizontalCaption);
         add(&_diffusionHorizontal);
-        add(&_diffusionHorizontalText);
-        add(&_diffusionVerticalCaption);
         add(&_diffusionVertical);
-        add(&_diffusionVerticalText);
         RootWindow::setWindows(windows);
     }
     void create()
     {
         _animated.setDrawWindow(&_gamut);
         _gamut.setAnimated(&_animated);
-
-        _saturationCaption.setText("Saturation: ");
-        _contrastCaption.setText("Contrast: ");
-        _hueCaption.setText("Hue: ");
-        _diffusionHorizontalCaption.setText("Horizontal diffusion: ");
-        _diffusionVerticalCaption.setText("Vertical diffusion: ");
 
         _brightness.setHost(this);
         _saturation.setHost(this);
@@ -1455,10 +1427,6 @@ public:
         sizeSet(size());
         setSize(Vector(_brightness.right() + 20, _gamut.bottom() + 20));
 
-        _decoder->_contrast = 1;
-        _decoder->_hue = 0;
-        _decoder->_saturation = 1;
-
         if (_encoder->_matchMode)
             _matchMode.check();
 
@@ -1474,30 +1442,23 @@ public:
 
         Vector vSpace(0, 15);
 
-        _brightness.setSize(Vector(301, 24));
-        _brightness.setPosition(Vector(w, 20));
+        _brightness.setPositionAndSize(Vector(w, 20), Vector(301, 24));
         _autoBrightness.setPosition(_brightness.bottomLeft() + vSpace);
 
-        _saturation.setSize(Vector(301, 24));
-        _saturation.setPosition(_autoBrightness.bottomLeft() + 2*vSpace);
-        _saturationCaption.setPosition(_saturation.bottomLeft() + vSpace);
-        _saturationText.setPosition(_saturationCaption.topRight());
-        _autoSaturation.setPosition(_saturationCaption.bottomLeft() + vSpace);
+        _saturation.setPositionAndSize(_autoBrightness.bottomLeft() + 2*vSpace,
+            Vector(301, 24));
+        _autoSaturation.setPosition(_saturation.bottomLeft() + vSpace);
 
-        _contrast.setSize(Vector(301, 24));
-        _contrast.setPosition(_autoSaturation.bottomLeft() + 2*vSpace);
-        _contrastCaption.setPosition(_contrast.bottomLeft() + vSpace);
-        _contrastText.setPosition(_contrastCaption.topRight());
-        _autoContrastClip.setPosition(_contrastCaption.bottomLeft() + vSpace);
+        _contrast.setPositionAndSize(_autoSaturation.bottomLeft() + 2*vSpace,
+            Vector(301, 24));
+        _autoContrastClip.setPosition(_contrast.bottomLeft() + vSpace);
         _autoContrastMono.setPosition(_autoContrastClip.topRight() +
             Vector(20, 0));
 
-        _hue.setSize(Vector(301, 24));
-        _hue.setPosition(_autoContrastClip.bottomLeft() + 2*vSpace);
-        _hueCaption.setPosition(_hue.bottomLeft() + vSpace);
-        _hueText.setPosition(_hueCaption.topRight());
+        _hue.setPositionAndSize(_autoContrastClip.bottomLeft() + 2*vSpace,
+            Vector(301, 24));
 
-        _newCGA.setPosition(_hueCaption.bottomLeft() + 2*vSpace);
+        _newCGA.setPosition(_hue.bottomLeft() + 2*vSpace);
         _fixPrimaries.setPosition(_newCGA.topRight() + Vector(20, 0));
 
         _blackText.setPosition(_newCGA.bottomLeft() + 2*vSpace);
@@ -1511,20 +1472,11 @@ public:
         _palette.setPosition(_background.topRight());
         _characterHeight.setPosition(_palette.topRight());
 
-        _diffusionHorizontal.setSize(Vector(301, 24));
-        _diffusionHorizontal.setPosition(_matchMode.bottomLeft() + 3*vSpace);
-        _diffusionHorizontalCaption.setPosition(
-            _diffusionHorizontal.bottomLeft() + vSpace);
-        _diffusionHorizontalText.setPosition(
-            _diffusionHorizontalCaption.topRight());
+        _diffusionHorizontal.setPositionAndSize(
+            _matchMode.bottomLeft() + 3*vSpace, Vector(301, 24));
 
-        _diffusionVertical.setSize(Vector(301, 24));
-        _diffusionVertical.setPosition(_diffusionHorizontalCaption.bottomLeft()
-            + vSpace);
-        _diffusionVerticalCaption.setPosition(
-            _diffusionVertical.bottomLeft() + vSpace);
-        _diffusionVerticalText.setPosition(
-            _diffusionVerticalCaption.topRight());
+        _diffusionVertical.setPositionAndSize(
+            _diffusionHorizontal.bottomLeft() + vSpace, Vector(301, 24));
     }
     void keyboardCharacter(int character)
     {
@@ -1563,12 +1515,6 @@ public:
         _output.draw();
         _output.invalidate();
         _gamut.invalidate();
-        _hueText.setText(format("%f", _decoder->_hue));
-        _hueText.size();
-        _saturationText.setText(format("%f", _decoder->_saturation));
-        _saturationText.size();
-        _contrastText.setText(format("%f", _decoder->_contrast));
-        _contrastText.size();
         _saturation.setValue(_decoder->_saturation);
         _contrast.setValue(_decoder->_contrast);
         _updating = false;
@@ -1642,19 +1588,23 @@ public:
         _encoder->beginConvert();
     }
 
-    void setHorizontalDiffusion(double value)
+    void setDiffusionHorizontal(double value)
     {
-        _encoder->_horizontalDiffusion = static_cast<int>(value);
-        _diffusionHorizontalText.setText(format("%f", value / 256.0));
-        _diffusionHorizontalText.size();
+        _diffusionHorizontal.setValue(value);
+    }
+    void diffusionHorizontalSet(double value)
+    {
+        _encoder->_horizontalDiffusion = static_cast<int>(value * 256.0);
         _encoder->beginConvert();
     }
 
-    void setVerticalDiffusion(double value)
+    void setDiffusionVertical(double value)
     {
-        _encoder->_verticalDiffusion = static_cast<int>(value);
-        _diffusionVerticalText.setText(format("%f", value / 256.0));
-        _diffusionVerticalText.size();
+        _diffusionVertical.setValue(value);
+    }
+    void diffusionVerticalSet(double value)
+    {
+        _encoder->_verticalDiffusion = static_cast<int>(value * 256.0);
         _encoder->beginConvert();
     }
 
@@ -1682,7 +1632,8 @@ public:
         }
     }
     void setBrightness(double brightness) { _brightness.setValue(brightness); }
-    void setSaturation(double saturation)
+
+    void saturationSet(double saturation)
     {
         _decoder->_saturation = saturation;
         if (!_updating) {
@@ -1691,7 +1642,9 @@ public:
             uiUpdate();
         }
     }
-    void setContrast(double contrast)
+    void setSaturation(double saturation) { _saturation.setValue(saturation); }
+
+    void contrastSet(double contrast)
     {
         _decoder->_contrast = contrast;
         if (!_updating) {
@@ -1701,7 +1654,9 @@ public:
             uiUpdate();
         }
     }
-    void setHue(double hue)
+    void setContrast(double contrast) { _contrast.setValue(contrast); }
+
+    void hueSet(double hue)
     {
         _decoder->_hue = hue;
         if (!_updating) {
@@ -1710,6 +1665,8 @@ public:
             uiUpdate();
         }
     }
+    void setHue(double hue) { _hue.setValue(hue); }
+
     void autoContrastClipPressed()
     {
         _autoContrastClipFlag = _autoContrastClip.checked();
@@ -1851,18 +1808,12 @@ private:
     OutputWindow _output;
     BrightnessSliderWindow _brightness;
     AutoBrightnessButtonWindow _autoBrightness;
-    TextWindow _saturationCaption;
     SaturationSliderWindow _saturation;
     AutoSaturationButtonWindow _autoSaturation;
-    TextWindow _saturationText;
-    TextWindow _contrastCaption;
     ContrastSliderWindow _contrast;
-    TextWindow _contrastText;
     AutoContrastClipButtonWindow _autoContrastClip;
     AutoContrastMonoButtonWindow _autoContrastMono;
-    TextWindow _hueCaption;
     HueSliderWindow _hue;
-    TextWindow _hueText;
     TextWindow _blackText;
     TextWindow _whiteText;
     TextWindow _mostSaturatedText;
@@ -1875,12 +1826,8 @@ private:
     BackgroundCombo _background;
     PaletteCombo _palette;
     CharacterHeightCombo _characterHeight;
-    TextWindow _diffusionHorizontalCaption;
     DiffusionHorizontalSliderWindow _diffusionHorizontal;
-    TextWindow _diffusionHorizontalText;
-    TextWindow _diffusionVerticalCaption;
     DiffusionVerticalSliderWindow _diffusionVertical;
-    TextWindow _diffusionVerticalText;
     CGAEncoder* _encoder;
     CGASimulator* _simulator;
     NTSCDecoder* _decoder;
@@ -1964,9 +1911,13 @@ public:
         NTSCDecoder decoder;
         decoder._fixPrimaries = configFile.get<bool>("ntscPrimaries");
         _window.setBrightness(configFile.get<double>("brightness"));
-        decoder._hue = configFile.get<double>("hue");
-        decoder._contrast = configFile.get<double>("contrast");
-        decoder._saturation = configFile.get<double>("saturation");
+        _window.setHue(configFile.get<double>("hue"));
+        _window.setContrast(configFile.get<double>("contrast"));
+        _window.setSaturation(configFile.get<double>("saturation"));
+        _window.setDiffusionHorizontal(
+            configFile.get<double>("horizontalDiffusion"));
+        _window.setDiffusionVertical(
+            configFile.get<double>("verticalDiffusion"));
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
             burst[i] = simulator.simulateCGA(6, 6, i);
