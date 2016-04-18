@@ -68,5 +68,8 @@
     <ClInclude Include="..\..\..\..\include\alfe\config_file.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\include\alfe\cga.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

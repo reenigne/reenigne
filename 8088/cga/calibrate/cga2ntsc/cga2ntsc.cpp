@@ -1867,6 +1867,16 @@ public:
         configFile.addDefaultOption("temporalDiffusion", 0.0);
         configFile.addDefaultOption("quality", 0.5);
         configFile.addDefaultOption("newCGA", false);
+        configFile.addDefaultOption("characterSet", 3);
+        configFile.addDefaultOption("cgaROM", String("5788005.u33"));
+        configFile.addDefaultOption("scanlinesRepeat", 1);
+        configFile.addDefaultOption("aspectRatio", 5.0/6.0);
+        configFile.addDefaultOption("scanlineWidth", 0.5);
+        configFile.addDefaultOption("scanlineProfile", 0);
+        configFile.addDefaultOption("scanlineBleeding", false);
+        configFile.addDefaultOption("scanlineOffset", 0.0);
+        configFile.addDefaultOption("scanlineSpacing", 2.0);
+        configFile.addDefaultOption("phase", 1);
 
         Array<String> arguments;
 

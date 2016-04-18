@@ -90,6 +90,7 @@
     <ClInclude Include="..\..\..\..\include\alfe\array.h" />
     <ClInclude Include="..\..\..\..\include\alfe\bitmap.h" />
     <ClInclude Include="..\..\..\..\include\alfe\bitmap_png.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\cga.h" />
     <ClInclude Include="..\..\..\..\include\alfe\colour_space.h" />
     <ClInclude Include="..\..\..\..\include\alfe\complex.h" />
     <ClInclude Include="..\..\..\..\include\alfe\config_file.h" />

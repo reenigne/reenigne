@@ -6,9 +6,9 @@
 class CGASequencer
 {
 public:
-    CGASequencer()
+    CGASequencer(File cgaROM)
     {
-        _cgaROM = File("5788005.u33").contents();
+        _cgaROM = rom.contents();
         static Byte palettes[] = {
             0, 2, 4, 6, 0, 10, 12, 14, 0, 3, 5, 7, 0, 11, 13, 15,
             0, 3, 4, 7, 0, 11, 12, 15, 0, 3, 4, 7, 0, 11, 12, 15};
