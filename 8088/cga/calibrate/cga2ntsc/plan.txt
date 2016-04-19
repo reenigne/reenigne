@@ -465,3 +465,30 @@ make Bitmap an ALFE object
     constructor from string
   Let's add this later, but for now just do what old cga2ntsc does
 
+
+What should we do about the "auto" combo members?
+    Get rid of auto?
+      Ideally we'd generalize it to an arbitrary set of mode/palette combinations
+    Should we have seperate auto modes for +HRES and -HRES?
+      How does the current config system work?
+         0-63 2bpp (_mode == 3)
+        64-79 1bpp (_mode == 2)
+        80    40c  (_mode == 0)
+        81    80c  (_mode == 1)
+        Auto goes 0 <= _config < 81 so does not include +HRES
+      So, yes
+    Auto mode +HRES
+    Auto mode -HRES
+    Auto palette/background (not in -GRPH)
+    Does make any sense to have auto mode but not auto palette?
+      Not massively but let's allow it anyway - cga2ntsc is permissive
+//   0x08 = 40-column text                        1 palette
+//   0x0a = 2bpp graphics                        64 palettes
+//   0x18 = 40-column text with 1bpp graphics     1 palette
+//   0x1a = 1bpp graphics                        16 palettes
+
+//   0x09 = 80-column text                        1 palette
+//   0x0b = high-res 2bpp graphics               64 palettes
+//   0x19 = 80-column text with 1bpp graphics     1 palette
+//   0x1b = 1bpp graphics, odd bits ignored      16 palettes
+

@@ -192,6 +192,7 @@ public:
     double _saturation;
     double _contrast;
     double _brightness;
+    double _sharpness;
 private:
     Colour decode(int y, Complex<int> iq)
     {
@@ -1186,7 +1187,12 @@ public:
         add(String("80 column text"));
         add(String("1bpp graphics"));
         add(String("2bpp graphics"));
-        add(String("Auto"));
+        add(String("40 column text with 1bpp graphics"));
+        add(String("high-res 2bpp graphics"));
+        add(String("80 column text with 1bpp graphics"));
+        add(String("1bpp graphics, odd bits ignored"));
+        add(String("Auto +HRES"));
+        add(String("Auto -HRES"));
         set(2);
         autoSize();
     }
@@ -1914,19 +1920,18 @@ public:
         configFile.load(configPath);
 
 
-
         CGASimulator simulator;
         simulator._newCGA = configFile.get<bool>("newCGA");
         simulator.initChroma();
         NTSCDecoder decoder;
         decoder._fixPrimaries = configFile.get<bool>("ntscPrimaries");
-        _window.setBrightness(configFile.get<double>("brightness"));
-        _window.setHue(configFile.get<double>("hue"));
-        _window.setContrast(configFile.get<double>("contrast"));
-        _window.setSaturation(configFile.get<double>("saturation"));
-        _window.setDiffusionHorizontal(
+        decoder._brightness = configFile.get<double>("brightness");
+        decoder._hue = configFile.get<double>("hue");
+        decoder._contrast = configFile.get<double>("contrast");
+        decoder._saturation = configFile.get<double>("saturation");
+        _encoder.setDiffusionHorizontal(
             configFile.get<double>("horizontalDiffusion"));
-        _window.setDiffusionVertical(
+        _encoder.setDiffusionVertical(
             configFile.get<double>("verticalDiffusion"));
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
@@ -1934,6 +1939,8 @@ public:
         decoder.calculateBurst(burst);
         _encoder.setSimulator(&simulator);
         _encoder.setDecoder(&decoder);
+        _encoder.setMode(configFile.get<int>("mode"));
+        _encoder.setPalette(configFile.get<int>("palette"));
 
         String inputFileName = configFile.get<String>("inputPicture");
 
