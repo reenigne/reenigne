@@ -230,7 +230,7 @@ template<class T> class CGAEncoderT
 {
 public:
     CGAEncoderT()
-      : _mode(2), _palette(3), _background(15), _characterHeight(1),
+      : _characterHeight(1),
         _matchMode(false), _matchModeSet(false), _horizontalDiffusion(256),
         _verticalDiffusion(256), _skip(256)
     {
@@ -261,8 +261,8 @@ public:
         int maxDistance = 0;
         const Byte* inputRow = _input.data();
         Byte* rgbiRow = _rgbi.data();
-        int background = _background & 15;
-        if (_mode == 2)
+        int background = _palette & 15;
+        if ((_mode & 0x10) != 0)
             background = 0;
 
         for (int y = 0; y < _size.y; ++y) {
@@ -338,7 +338,7 @@ public:
     }
     void matchConvert()
     {
-        if (_mode == 2 || _mode == 3) {
+        if ((_mode & 2) != 0) {
             _block.y = 1;
             for (int i = 0; i < 256; ++i)
                 _skip[i] = false;
@@ -350,15 +350,15 @@ public:
             int lines = max(_characterHeight, 1);
             for (int i = 0; i < 256; ++i) {
                 _skip[i] = false;
-                if (_palette == 0) {
+                if (_characterSet == 0) {
                     _skip[i] = (i != 0xdd);
                     continue;
                 }
-                if (_palette == 1) {
+                if (_characterSet == 1) {
                     _skip[i] = (i != 0x13 && i != 0x55);
                     continue;
                 }
-                if (_palette == 2) {
+                if (_characterSet == 2) {
                     _skip[i] =
                         (i != 0x13 && i != 0x55 && i != 0xb0 && i != 0xb1);
                     continue;
@@ -415,34 +415,58 @@ public:
             srgbRow += _input2.stride();
         }
 
-        switch (_mode) {
+        // Convert from _mode/_palette to config
+        switch (_mode & 0x13) {
             case 0:
-                _startConfig = 80;
+                _startConfig = 0x50;
                 break;
             case 1:
-                _startConfig = 81;
+                _startConfig = 0xd0;
+                break;
+            case 0x12:
+                _startConfig = 0x40 + (_palette & 0x0f);
                 break;
             case 2:
-                _startConfig = 64 + (_background & 15);
+                _startConfig = _palette;
+                break;
+            case 0x10:
+                _startConfig = 0x51;
+                break;
+            case 0x11:
+                _startConfig = 0xd1;
+                break;
+            case 0x13:
+                _startConfig = 0xc0 + (_palette & 0x0f);
                 break;
             case 3:
-                _startConfig = (_background & 15) | (_palette << 4);
+                _startConfig = 0x80 + _palette;
                 break;
         }
         _endConfig = _startConfig + 1;
-        if (_background == 16) {
-            if (_mode == 2) {
-                _startConfig = 64;
-                _endConfig = 80;
-            }
-            if (_mode == 3) {
-                _startConfig = 0;
-                _endConfig = 64;
+        if (_palette == 0xff) {
+            switch (_mode & 0x13) {
+                case 0x12:
+                    _startConfig = 0x40;
+                    _endConfig = 0x50;
+                    break;
+                case 2:
+                    _startConfig = 0x00;
+                    _endConfig = 0x40;
+                    break;
+                case 0x13:
+                    _startConfig = 0xc0;
+                    _endConfig = 0xd0;
+                    break;
+                case 3:
+                    _startConfig = 0x80;
+                    _endConfig = 0xc0;
+                    break;
+
             }
         }
-        if (_mode == 4) {
-            _startConfig = 0;
-            _endConfig = 81;
+        if ((_mode & 0x80) != 0) {
+            _startConfig = (_mode & 1) == 0 ? 0 : 0x80;
+            _endConfig = _startConfig + 0x51;
         }
 
         for (_config = _startConfig; _config < _endConfig; ++_config) {
@@ -467,7 +491,7 @@ public:
             }
         }
 
-        _rgbi.fill(_mode == 2 ? 0 : (_background & 15));
+        _rgbi.fill((_mode & 0x10) == 0 ? _palette & 0x0f : 0);
         _data.allocate((_size.y/_block.y)*(_size.x/_hdots));
         _converting = true;
         _y = 0;
@@ -519,7 +543,7 @@ public:
             int bestScore = 0x7fffffff;
             int skipSolidColour = 0xf00;
             for (int pattern = 0; pattern < _patternCount; ++pattern) {
-                if (_mode < 2) {
+                if ((_mode & 2) == 0) {
                     if (_skip[pattern & 0xff])
                         continue;
                     if ((pattern & 0x0f00) == ((pattern >> 4) & 0x0f00)) {
@@ -578,7 +602,7 @@ public:
             }
 
             int address = (_y/_block.y)*(_size.x/_hdots) + x/_hdots;
-            if (_mode == 0 || _mode == 1)
+            if ((_mode & 2) == 0)
                 _data[address] = bestPattern;
             else {
                 int bit = (x & 12) ^ 4;
@@ -664,7 +688,7 @@ public:
         FileStream stream = File(outputFileName, true).openWrite();
         for (int y = 0; y < _size.y; ++y) {
             int c = _configs[y];
-            if (_mode == 4)
+            if ((_mode & 0x80) != 0)
                 stream.write<Byte>(c == 80 ? 0x08 : (c < 64 ? 0x0a : 0x1a));
             if (c == 80)
                 stream.write<Byte>(0);
@@ -716,10 +740,26 @@ public:
     void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
 
+    void setDiffusionHorizontal(double diffusionHorizontal)
+    {
+        _diffusionHorizontal = static_cast<int>(diffusionHorizontal*256);
+    }
+    void setDiffusionVerticalDiffusion(double diffusionVertical)
+    {
+        _diffusionVertical = static_cast<int>(diffusionVertical*256);
+    }
+    void setMode(int mode) { _mode = mode; }
+    void setPalette(int palette) { _palette = palette; }
+    int getMode() { return _mode; }
+    int getPalette() { return _palette; }
+
     int _mode;
     int _palette;
-    int _background;
     int _characterHeight;
+    int _scanlinesPerRow;
+    int _scanlinesRepeat;
+    bool _blink;
+    bool _bw;
     bool _matchModeSet;
     bool _matchMode;
     Vector _size;
@@ -743,10 +783,21 @@ public:
     Bitmap<int> _testError;
     int _hdots;
     Vector _block;
-    int _horizontalDiffusion;
-    int _verticalDiffusion;
+    int _diffusionHorizontal;
+    int _diffusionVertical;
     UInt64 _configScore;
     Array<bool> _skip;
+
+    // a config is a mode/palette combination suitable for auto testing
+    // The configs are:
+    //   0x00..0x3f = 2bpp (background in low 4 bits)
+    //   0x40..0x4f = 1bpp
+    //   0x50       = 40-column text
+    //   0x51       = 40-column text with 1bpp graphics
+    //   0x80..0xbf = high-res 2bpp
+    //   0xc0..0xcf = 1bpp odd bits ignored
+    //   0xd0       = 80-column text
+    //   0xd1       = 80-column text with 1bpp graphics
     Array<int> _configs;
     int _startConfig;
     int _endConfig;
@@ -1054,7 +1105,7 @@ typedef ContrastSliderWindowT<void> ContrastSliderWindow;
 template<class T> class HueSliderWindowT : public NumericSliderWindow
 {
 public:
-    void valueSetw(double value) { _host->hueSet(value); }
+    void valueSet2(double value) { _host->hueSet(value); }
     void create()
     {
         _caption.setText("Hue: ");
@@ -1063,6 +1114,19 @@ public:
     }
 };
 typedef HueSliderWindowT<void> HueSliderWindow;
+
+template<class T> class SharpnessSliderWindowT : public NumericSliderWindow
+{
+public:
+    void valueSet2(double value) { _host->sharpnessSet(value); }
+    void create()
+    {
+        _caption.setText("Sharpness: ");
+        setRange(0, 1);
+        NumericSliderWindow::create();
+    }
+};
+typedef SharpnessSliderWindowT<void> SharpnessSliderWindow;
 
 template<class T> class AutoBrightnessButtonWindowT
   : public ToggleButton
@@ -1188,11 +1252,11 @@ public:
         add(String("1bpp graphics"));
         add(String("2bpp graphics"));
         add(String("40 column text with 1bpp graphics"));
-        add(String("high-res 2bpp graphics"));
         add(String("80 column text with 1bpp graphics"));
         add(String("1bpp graphics, odd bits ignored"));
-        add(String("Auto +HRES"));
+        add(String("high-res 2bpp graphics"));
         add(String("Auto -HRES"));
+        add(String("Auto +HRES"));
         set(2);
         autoSize();
     }
@@ -1385,6 +1449,7 @@ public:
         add(&_autoContrastClip);
         add(&_autoContrastMono);
         add(&_hue);
+        add(&_sharpness);
         add(&_blackText);
         add(&_whiteText);
         add(&_mostSaturatedText);
@@ -1411,6 +1476,7 @@ public:
         _saturation.setHost(this);
         _contrast.setHost(this);
         _hue.setHost(this);
+        _sharpness.setHost(this);
         _autoBrightness.setHost(this);
         _autoSaturation.setHost(this);
         _autoContrastClip.setHost(this);
@@ -1435,6 +1501,40 @@ public:
 
         if (_encoder->_matchMode)
             _matchMode.check();
+
+        setBrightness(_decoder->_brightness);
+        setSaturation(_decoder->_saturation);
+        setHue(_decoder->_hue);
+        setContrast(_decoder->_contrast);
+        setSharpness(_decoder->_sharpness);
+        int mode = _encoder->getMode();
+            //_blink = ((mode & 0x20) != 0);
+            //_bw = ((mode & 4) != 0);
+        if ((mode & 0x80) != 0)
+            setMode(8 + (mode & 1));
+        else {
+            switch (mode & 0x13) {
+                case 0: setMode(0); break;
+                case 1: setMode(1); break;
+                case 2: setMode(3); break;
+                case 3: setMode(7); break;
+                case 0x10: setMode(4); break;
+                case 0x11: setMode(5); break;
+                case 0x12: setMode(2); break;
+                case 0x13: setMode(6); break;
+            }
+        }
+        int palette = _encoder->getPalette();
+        if (palette == 0xff) {
+            _paletteSelected = 0;
+            _backgroundSelected = 0x10;
+        }
+        else {
+            _paletteSelected = (palette >> 4) & 3;
+            _backgroundSelected = palette & 0xf;
+        }
+        _palette.set(_paletteSelected);
+        _background.set(_backgroundSelected);
 
         update();
         uiUpdate();
@@ -1464,7 +1564,10 @@ public:
         _hue.setPositionAndSize(_autoContrastClip.bottomLeft() + 2*vSpace,
             Vector(301, 24));
 
-        _newCGA.setPosition(_hue.bottomLeft() + 2*vSpace);
+        _sharpness.setPositionAndSize(_hue.bottomLeft() + 2*vSpace,
+            Vector(301, 24));
+
+        _newCGA.setPosition(_sharpness.bottomLeft() + 2*vSpace);
         _fixPrimaries.setPosition(_newCGA.topRight() + Vector(20, 0));
 
         _blackText.setPosition(_newCGA.bottomLeft() + 2*vSpace);
@@ -1570,22 +1673,34 @@ public:
         _gamut.invalidate();
     }
 
-    void setMode(int value)
+    void modeSet(int value)
     {
-        _encoder->_mode = value;
+        _encoder->setMode(value);
+        _encoder->beginConvert();
+    }
+    void setMode(int value) { _mode.set(value); }
+
+    void backgroundSet(int value)
+    {
+        _backgroundSelected = value;
+        setPaletteAndBackground();
         _encoder->beginConvert();
     }
 
-    void setBackground(int value)
+    void paletteSet(int value)
     {
-        _encoder->_background = value;
+        _paletteSelected = value;
+        setPaletteAndBackground();
         _encoder->beginConvert();
     }
-
-    void setPalette(int value)
+    void setPaletteAndBackground()
     {
-        _encoder->_palette = value;
-        _encoder->beginConvert();
+        if (_backgroundSelected == 0x10)
+            _encoder->setPalette(0xff);
+        else {
+            _encoder->setPalette(
+                _backgroundSelected + (_paletteSelected << 4));
+        }
     }
 
     void setCharacterHeight(int value)
@@ -1672,6 +1787,16 @@ public:
         }
     }
     void setHue(double hue) { _hue.setValue(hue); }
+
+    void sharpnessSet(double sharpness)
+    {
+        _decoder->_sharpness = sharpness;
+        if (!_updating) {
+            update();
+            uiUpdate();
+        }
+    }
+    void setSharpness(double sharpness) { _sharpness.setValue(sharpness); }
 
     void autoContrastClipPressed()
     {
@@ -1820,6 +1945,7 @@ private:
     AutoContrastClipButtonWindow _autoContrastClip;
     AutoContrastMonoButtonWindow _autoContrastMono;
     HueSliderWindow _hue;
+    SharpnessSliderWindow _sharpness;
     TextWindow _blackText;
     TextWindow _whiteText;
     TextWindow _mostSaturatedText;
@@ -1848,6 +1974,8 @@ private:
     bool _autoContrastClipFlag;
     bool _autoContrastMonoFlag;
     bool _updating;
+    int _paletteSelected;
+    int _backgroundSelected;
 };
 
 class Program : public WindowProgram<CGA2NTSCWindow>

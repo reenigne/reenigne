@@ -492,3 +492,49 @@ What should we do about the "auto" combo members?
 //   0x19 = 80-column text with 1bpp graphics     1 palette
 //   0x1b = 1bpp graphics, odd bits ignored      16 palettes
 
+
+
+
+    //void setMode(int mode)
+    //{
+    //    _blink = ((mode & 0x20) != 0);
+    //    _bw = ((mode & 4) != 0);
+    //    if ((mode & 0x80) != 0) {
+    //        _mode = 8 + (mode & 1);
+    //        return;
+    //    }
+    //    mode &= 0x13;
+    //    switch (mode) {
+    //        case 0: _mode = 0; break;
+    //        case 1: _mode = 1; break;
+    //        case 2: _mode = 3; break;
+    //        case 3: _mode = 7; break;
+    //        case 0x10: _mode = 4; break;
+    //        case 0x11: _mode = 5; break;
+    //        case 0x12: _mode = 2; break;
+    //        case 0x13: _mode = 6; break;
+    //    }
+    //}
+    //void setPalette(int palette)
+    //{
+    //    if (palette == 0xff) {
+    //        _palette = 0;
+    //        _background = 0x10;
+    //    }
+    //    else {
+    //        _palette = (palette >> 4) & 3;
+    //        _background = palette & 0xf;
+    //    }
+    //}
+    //int getMode()
+    //{
+    //    static int modes[] = {0, 1, 0x12, 2, 0x10, 3, 0x11, 0x13, 0x80, 0x81};
+    //    return modes[_mode] | (bw ? 4 : 0) | (blink ? 0x20 : 0);
+    //}
+    //int getPalette()
+    //{
+    //    if (_background == 0x10)
+    //        return 0xff;
+    //    return _background | (_palette << 4);
+    //}
+
