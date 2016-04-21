@@ -230,15 +230,12 @@ template<class T> class CGAEncoderT
 {
 public:
     CGAEncoderT()
-      : _characterHeight(1),
-        _matchMode(false), _matchModeSet(false), _horizontalDiffusion(256),
-        _verticalDiffusion(256), _skip(256)
+      : _matchMode(false), _matchModeSet(false), _skip(256)
     {
         _patterns.allocate(0x10000*8*17 + 0x100*80*5);
     }
     void setInput(Bitmap<SRGB> input)
     {
-        _cgaROM = File("5788005.u33").contents();
         _input = input;
         _size = input.size();
         _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
@@ -344,10 +341,9 @@ public:
                 _skip[i] = false;
         }
         else {
-            _block.y = _characterHeight;
-            if (_characterHeight == 0)
-                _block.y = 2;
-            int lines = max(_characterHeight, 1);
+            auto cgaROM = _sequencer.romData();
+            _block.y = _scanlinesPerRow * _scanlinesRepeat;
+            int lines = _scanlinesPerRow;
             for (int i = 0; i < 256; ++i) {
                 _skip[i] = false;
                 if (_characterSet == 0) {
@@ -363,10 +359,23 @@ public:
                         (i != 0x13 && i != 0x55 && i != 0xb0 && i != 0xb1);
                     continue;
                 }
+                if (_characterSet == 4) {
+                    _skip[i] = (i != 0xb1);
+                    continue;
+                }
+                if (_characterSet == 5) {
+                    _skip[i] = (i != 0xb0 && i != 0xb1);
+                    continue;
+                }
+                if (_characterSet == 6) {
+                    _skip[i] = (i != 0x06 && i != 0x13 && i != 0x19 &&
+                        i != 0x22 && i != 0x27 && i != 0x55 && i != 0x57 &&
+                        i != 0x60 && i != 0xb6 && i != 0xdd);
+                }
                 bool isBackground = true;
                 bool isForeground = true;
                 for (int y = 0; y < lines; ++y) {
-                    Byte b = _cgaROM[(0x300 + i)*8 + y];
+                    Byte b = cgaROM[i*8 + y];
                     if (b != 0x00)
                         isBackground = false;
                     if (b != 0xff)
@@ -380,8 +389,7 @@ public:
                 for (j = 0; j < i; ++j) {
                     int y;
                     for (y = 0; y < lines; ++y)
-                        if (_cgaROM[(0x300 + i)*8 + y] !=
-                            _cgaROM[(0x300 + j)*8 + y])
+                        if (cgaROM[i*8 + y] != cgaROM[j*8 + y])
                             break;
                     if (y == lines)
                         break;
@@ -391,8 +399,7 @@ public:
                 for (j = 0; j < i; ++j) {
                     int y;
                     for (y = 0; y < lines; ++y)
-                        if (_cgaROM[(0x300 + i)*8 + y] !=
-                            (_cgaROM[(0x300 + j)*8 + y]^0xff))
+                        if (cgaROM[i*8 + y] != (cgaROM[j*8 + y]^0xff))
                             break;
                     if (y == lines)
                         break;
@@ -702,39 +709,58 @@ public:
                         stream.write<Byte>(c);
         }
     }
-    void plotPattern(Byte* rgbi, int pattern, int line)
+    //void plotPattern(Byte* rgbi, int pattern, int line)
+    //{
+    //    if (_config < 64) {
+    //        static int palettes[4] = {0, 8, 1, 9};
+    //        for (int x = 0; x < 4; x += 2) {
+    //            int c = _config & 15;
+    //            int b = ((pattern >> (2 - x)) & 3);
+    //            if (b != 0)
+    //                c = b + palettes[_config >> 4];
+    //            rgbi[x] = c;
+    //            rgbi[x + 1] = c;
+    //        }
+    //        return;
+    //    }
+    //    if (_config < 80) {
+    //        for (int x = 0; x < 4; ++x)
+    //            rgbi[x] = (pattern & (8 >> x)) != 0 ? (_config & 15) : 0;
+    //        return;
+    //    }
+    //    Byte ch = pattern & 0xff;
+    //    Byte at = pattern >> 8;
+    //    if (_characterHeight == 0)
+    //        line = 0;
+    //    Byte b = _cgaROM[ch*8 + line];
+    //    for (int x = 0; x < 8; ++x) {
+    //        int c = ((b & (128 >> x)) != 0 ? at : (at >> 4)) & 15;
+    //        if (_config == 80) {
+    //            rgbi[x*2] = c;
+    //            rgbi[x*2 + 1] = c;
+    //        }
+    //        else
+    //            rgbi[x] = c;
+    //    }
+    //}
+    int modeAndPaletteFromConfig(int config)
     {
-        if (_config < 64) {
-            static int palettes[4] = {0, 8, 1, 9};
-            for (int x = 0; x < 4; x += 2) {
-                int c = _config & 15;
-                int b = ((pattern >> (2 - x)) & 3);
-                if (b != 0)
-                    c = b + palettes[_config >> 4];
-                rgbi[x] = c;
-                rgbi[x + 1] = c;
-            }
-            return;
-        }
-        if (_config < 80) {
-            for (int x = 0; x < 4; ++x)
-                rgbi[x] = (pattern & (8 >> x)) != 0 ? (_config & 15) : 0;
-            return;
-        }
-        Byte ch = pattern & 0xff;
-        Byte at = pattern >> 8;
-        if (_characterHeight == 0)
-            line = 0;
-        Byte b = _cgaROM[(0x300 + ch)*8 + line];
-        for (int x = 0; x < 8; ++x) {
-            int c = ((b & (128 >> x)) != 0 ? at : (at >> 4)) & 15;
-            if (_config == 80) {
-                rgbi[x*2] = c;
-                rgbi[x*2 + 1] = c;
-            }
-            else
-                rgbi[x] = c;
-        }
+        int b = _mode & 0x24;
+        if (config < 0x40)
+            return (config << 8) | 0x0a | b;
+        if (config < 0x50)
+            return ((config & 0x0f) << 8) | 0x1a | b;
+        if (config == 0x50)
+            return 0x08 | b;
+        if (config == 0x51)
+            return 0x18 | b;
+        if (config < 0xc0)
+            return ((config & 0x3f) << 8) | 0x0b | b;
+        if (config < 0xd0)
+            return ((config & 0x0f) << 8) | 0x1b | b;
+        if (config == 0xd0)
+            return 0x09 | b;
+        return 0x19 | b;
     }
 
     void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
@@ -744,22 +770,26 @@ public:
     {
         _diffusionHorizontal = static_cast<int>(diffusionHorizontal*256);
     }
-    void setDiffusionVerticalDiffusion(double diffusionVertical)
+    void setDiffusionVertical(double diffusionVertical)
     {
         _diffusionVertical = static_cast<int>(diffusionVertical*256);
     }
+    double getDiffusionHorizontal() { return _diffusionHorizontal/256.0; }
+    double getDiffusionVertical() { return _diffusionVertical/256.0; }
     void setMode(int mode) { _mode = mode; }
     void setPalette(int palette) { _palette = palette; }
     int getMode() { return _mode; }
     int getPalette() { return _palette; }
+    void setScanlinesPerRow(int v) { _scanlinesPerRow = v; }
+    void setScanlinesRepeat(int v) { _scanlinesRepeat = v; }
+    int getScanlinesPerRow() { return _scanlinesPerRow; }
+    int getScanlinesRepeat() { return _scanlinesRepeat; }
+    void setROM(File rom) { _sequencer.setROM(rom); }
 
     int _mode;
     int _palette;
-    int _characterHeight;
     int _scanlinesPerRow;
     int _scanlinesRepeat;
-    bool _blink;
-    bool _bw;
     bool _matchModeSet;
     bool _matchMode;
     Vector _size;
@@ -768,7 +798,7 @@ public:
     CGASimulator* _simulator;
     NTSCDecoder* _decoder;
     CGA2NTSCWindow* _window;
-    String _cgaROM;
+    CGASequencer _sequencer;
     bool _converting;
     Array<SInt16> _patterns;
     Bitmap<SRGB> _input2;
@@ -1243,7 +1273,7 @@ template<class T> class ModeComboT : public ComboBox
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void changed(int value) { _host->setMode(value); }
+    void changed(int value) { _host->modeSet(value); }
     void create()
     {
         ComboBox::create();
@@ -1269,7 +1299,7 @@ template<class T> class BackgroundComboT : public ComboBox
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void changed(int value) { _host->setBackground(value); }
+    void changed(int value) { _host->backgroundSet(value); }
     void create()
     {
         ComboBox::create();
@@ -1284,16 +1314,15 @@ private:
 };
 typedef BackgroundComboT<void> BackgroundCombo;
 
-template<class T> class CharacterHeightComboT : public ComboBox
+template<class T> class ScanlinesPerRowComboT : public ComboBox
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void changed(int value) { _host->setCharacterHeight(value); }
+    void changed(int value) { _host->scanlinesPerRowSet(value); }
     void create()
     {
         ComboBox::create();
-        add(String("1 doubled"));
-        for (int i = 1; i <= 8; ++i)
+        for (int i = 1; i <= 32; ++i)
             add(decimal(i));
         set(1);
         autoSize();
@@ -1301,13 +1330,31 @@ public:
 private:
     CGA2NTSCWindow* _host;
 };
-typedef CharacterHeightComboT<void> CharacterHeightCombo;
+typedef ScanlinesPerRowComboT<void> ScanlinesPerRowCombo;
+
+template<class T> class ScanlinesRepeatComboT : public ComboBox
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void changed(int value) { _host->scanlinesRepeatSet(value); }
+    void create()
+    {
+        ComboBox::create();
+        for (int i = 1; i <= 32; ++i)
+            add(decimal(i));
+        set(0);
+        autoSize();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef ScanlinesRepeatComboT<void> ScanlinesRepeatCombo;
 
 template<class T> class PaletteComboT : public ComboBox
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void changed(int value) { _host->setPalette(value); }
+    void changed(int value) { _host->paletteSet(value); }
     void create()
     {
         ComboBox::create();
@@ -1462,7 +1509,8 @@ public:
         add(&_mode);
         add(&_background);
         add(&_palette);
-        add(&_characterHeight);
+        add(&_scanlinesPerRow);
+        add(&_scanlinesRepeat);
         add(&_diffusionHorizontal);
         add(&_diffusionVertical);
         RootWindow::setWindows(windows);
@@ -1487,7 +1535,8 @@ public:
         _mode.setHost(this);
         _background.setHost(this);
         _palette.setHost(this);
-        _characterHeight.setHost(this);
+        _scanlinesPerRow.setHost(this);
+        _scanlinesRepeat.setHost(this);
         _diffusionHorizontal.setHost(this);
         _diffusionVertical.setHost(this);
 
@@ -1535,6 +1584,10 @@ public:
         }
         _palette.set(_paletteSelected);
         _background.set(_backgroundSelected);
+        setDiffusionHorizontal(_encoder->getDiffusionHorizontal());
+        setDiffusionVertical(_encoder->getDiffusionVertical());
+        setScanlinesPerRow(_encoder->getScanlinesPerRow() - 1);
+        setScanlinesRepeat(_encoder->getScanlinesRepeat() - 1);
 
         update();
         uiUpdate();
@@ -1579,7 +1632,8 @@ public:
         _mode.setPosition(_matchMode.bottomLeft() + vSpace);
         _background.setPosition(_mode.topRight());
         _palette.setPosition(_background.topRight());
-        _characterHeight.setPosition(_palette.topRight());
+        _scanlinesPerRow.setPosition(_palette.topRight());
+        _scanlinesRepeat.setPosition(_scanlinesPerRow.topRight());
 
         _diffusionHorizontal.setPositionAndSize(
             _matchMode.bottomLeft() + 3*vSpace, Vector(301, 24));
@@ -1703,11 +1757,19 @@ public:
         }
     }
 
-    void setCharacterHeight(int value)
+    void scanlinesPerRowSet(int value)
     {
-        _encoder->_characterHeight = value;
+        _encoder->setScanlinesPerRow(value + 1);
         _encoder->beginConvert();
     }
+    void setScanlinesPerRow(int value) { _scanlinesPerRow.set(value); }
+
+    void scanlinesPerRepeat(int value)
+    {
+        _encoder->setScanlinesRepeat(value + 1);
+        _encoder->beginConvert();
+    }
+    void setScanlinesRepeat(int value) { _scanlinesRepeat.set(value); }
 
     void setDiffusionHorizontal(double value)
     {
@@ -1715,7 +1777,7 @@ public:
     }
     void diffusionHorizontalSet(double value)
     {
-        _encoder->_horizontalDiffusion = static_cast<int>(value * 256.0);
+        _encoder->setDiffusionHorizontal(value);
         _encoder->beginConvert();
     }
 
@@ -1725,7 +1787,7 @@ public:
     }
     void diffusionVerticalSet(double value)
     {
-        _encoder->_verticalDiffusion = static_cast<int>(value * 256.0);
+        _encoder->setDiffusionVertical(value);
         _encoder->beginConvert();
     }
 
@@ -1957,7 +2019,8 @@ private:
     ModeCombo _mode;
     BackgroundCombo _background;
     PaletteCombo _palette;
-    CharacterHeightCombo _characterHeight;
+    ScanlinesPerRowCombo _scanlinesPerRow;
+    ScanlinesRepeatCombo _scanlinesRepeat;
     DiffusionHorizontalSliderWindow _diffusionHorizontal;
     DiffusionVerticalSliderWindow _diffusionVertical;
     CGAEncoder* _encoder;
@@ -1989,6 +2052,7 @@ public:
         configFile.addDefaultOption("palette", 0x0f);
         configFile.addDefaultOption("interlaceMode", 0);
         configFile.addDefaultOption("scanlinesPerRow", 2);
+        configFile.addDefaultOption("scanlinesRepeat", 1);
         configFile.addDefaultOption("matchMode", true);
         configFile.addDefaultOption("contrast", 1.0);
         configFile.addDefaultOption("brightness", 0.0);
@@ -2003,7 +2067,6 @@ public:
         configFile.addDefaultOption("newCGA", false);
         configFile.addDefaultOption("characterSet", 3);
         configFile.addDefaultOption("cgaROM", String("5788005.u33"));
-        configFile.addDefaultOption("scanlinesRepeat", 1);
         configFile.addDefaultOption("aspectRatio", 5.0/6.0);
         configFile.addDefaultOption("scanlineWidth", 0.5);
         configFile.addDefaultOption("scanlineProfile", 0);
@@ -2011,6 +2074,7 @@ public:
         configFile.addDefaultOption("scanlineOffset", 0.0);
         configFile.addDefaultOption("scanlineSpacing", 2.0);
         configFile.addDefaultOption("phase", 1);
+        configFile.addDefaultOption("interactive", true);
 
         Array<String> arguments;
 
@@ -2069,6 +2133,9 @@ public:
         _encoder.setDecoder(&decoder);
         _encoder.setMode(configFile.get<int>("mode"));
         _encoder.setPalette(configFile.get<int>("palette"));
+        _encoder.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
+        _encoder.setScanlinesRepeat(configFile.get<int>("scanlinesRepeat"));
+        _encoder.setROM(configFile.get<String>("cgaROM"));
 
         String inputFileName = configFile.get<String>("inputPicture");
 
