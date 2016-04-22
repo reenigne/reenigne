@@ -477,6 +477,7 @@ public:
         }
 
         for (_config = _startConfig; _config < _endConfig; ++_config) {
+            SInt16* p = &_patterns[(_config & 0x7f)*5*256];
             config();
             Array<Byte> rgbi(_block.x + 6);
             ntscTemp.allocate(_block.x + 5);
@@ -492,8 +493,7 @@ public:
                     rgbi[5 + _block.x] = rgbi[5];
                     _simulator->simulateLine(&rgbi[0], &ntscTemp[0],
                         _block.x + 5, 0);
-                    filterHF(&ntscTemp[0], &_patterns[_config*5*256 +
-                        (pattern*_block.y + line)*w], w);
+                    filterHF(&ntscTemp[0], &p[(pattern*_block.y + line)*w], w);
                 }
             }
         }
@@ -544,6 +544,7 @@ public:
             savedError.copyFrom(_error.subBitmap(Vector(0, _y),
                 errorLineSize));
         config();
+        SInt16* p = &_patterns[(_config & 0x7f)*5*256];
         UInt64 lineScore = 0;
         for (int x = 0; x < (_size.x & -_hdots); x += _block.x) {
             int bestPattern = 0;
@@ -569,8 +570,7 @@ public:
                     const int* errorPixel =
                         reinterpret_cast<const int*>(errorRow2) + x;
                     for (int xx = 0; xx < w; ++xx) {
-                        int test = _patterns[_config*5*256 +
-                            (pattern*_block.y + yy)*w + xx];
+                        int test = p[(pattern*_block.y + yy)*w + xx];
                         Vector p(xx, yy);
                         int target = inputPixel[xx] +
                             (errorPixel[xx] + _testError[p])/8;
@@ -624,8 +624,7 @@ public:
                     reinterpret_cast<const SInt16*>(inputRow2) + x;
                 int* errorPixel = reinterpret_cast<int*>(errorRow2) + x;
                 for (int xx = 0; xx < w; ++xx) {
-                    int test = _patterns[_config*5*256 +
-                        (bestPattern*_block.y + yy)*w + xx];
+                    int test = p[(bestPattern*_block.y + yy)*w + xx];
                     int target = inputPixel[xx] + errorPixel[xx]/8;
                     int d = target - test;
                     int weight = (xx == 0 || xx == _block.x ? 1 : 2);
@@ -709,40 +708,20 @@ public:
                         stream.write<Byte>(c);
         }
     }
-    //void plotPattern(Byte* rgbi, int pattern, int line)
-    //{
-    //    if (_config < 64) {
-    //        static int palettes[4] = {0, 8, 1, 9};
-    //        for (int x = 0; x < 4; x += 2) {
-    //            int c = _config & 15;
-    //            int b = ((pattern >> (2 - x)) & 3);
-    //            if (b != 0)
-    //                c = b + palettes[_config >> 4];
-    //            rgbi[x] = c;
-    //            rgbi[x + 1] = c;
-    //        }
-    //        return;
-    //    }
-    //    if (_config < 80) {
-    //        for (int x = 0; x < 4; ++x)
-    //            rgbi[x] = (pattern & (8 >> x)) != 0 ? (_config & 15) : 0;
-    //        return;
-    //    }
-    //    Byte ch = pattern & 0xff;
-    //    Byte at = pattern >> 8;
-    //    if (_characterHeight == 0)
-    //        line = 0;
-    //    Byte b = _cgaROM[ch*8 + line];
-    //    for (int x = 0; x < 8; ++x) {
-    //        int c = ((b & (128 >> x)) != 0 ? at : (at >> 4)) & 15;
-    //        if (_config == 80) {
-    //            rgbi[x*2] = c;
-    //            rgbi[x*2 + 1] = c;
-    //        }
-    //        else
-    //            rgbi[x] = c;
-    //    }
-    //}
+    void plotPattern(Byte* rgbi, int pattern, int line)
+    {
+        int modeAndPalette = modeAndPaletteFromConfig(_config);
+        UInt8 latch = 0;
+        UInt64 r = _sequencer.process(pattern, modeAndPalette & 0xff,
+            modeAndPalette >> 8, line, false, 0, &latch);
+        int hdots = 8;
+        if ((modeAndPalette & 3) == 0) {
+            // For -HRES-GRPH need 16 hdots
+            hdots = 16;
+        }
+        for (int x = 0; x < hdots; ++x)
+            rgbi[x] = (r >> (x * 4)) & 0x0f;
+    }
     int modeAndPaletteFromConfig(int config)
     {
         int b = _mode & 0x24;

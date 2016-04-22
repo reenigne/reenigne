@@ -538,3 +538,18 @@ What should we do about the "auto" combo members?
     //    return _background | (_palette << 4);
     //}
 
+
+Improper modes matching:
+  First see if we can improve speed without sacrificing quality by using pixels instead of bytes
+  +GRPH +HRES: abcb (each letter represents a byte and a ccycle)
+    1: find the best a in the usual way
+    2: try all possibilities for b but check entire span of influence of b
+    3: find the best c in the usual way
+    4: repeat step 2
+  In general:
+    For each VRAM byte or pixel (in a sensible order):
+      For each possibility
+        Evaluate possibility over its entire span of influence
+      Set byte/pixel to best possibility
+    Repeat until nothing changes
+

@@ -6,30 +6,15 @@
 class CGASequencer
 {
 public:
-    CGASequencer(File cgaROM)
+    CGASequencer()
     {
-        _cgaROM = rom.contents();
         static Byte palettes[] = {
             0, 2, 4, 6, 0, 10, 12, 14, 0, 3, 5, 7, 0, 11, 13, 15,
             0, 3, 4, 7, 0, 11, 12, 15, 0, 3, 4, 7, 0, 11, 12, 15};
         memcpy(_palettes, palettes, 32);
     }
-
-    //  ; Mode                                                2c  28  2d  29  2a  2e  1a  29
-    //  ;      1 +HRES                                         0   0   1   1   0   0   0   1
-    //  ;      2 +GRPH                                         0   0   0   0   2   2   2   0
-    //  ;      4 +BW                                           4   0   4   0   0   4   0   0
-    //  ;      8 +VIDEO ENABLE                                 8   8   8   8   8   8   8   8
-    //  ;   0x10 +1BPP                                         0   0   0   0   0   0  10   0
-    //  ;   0x20 +ENABLE BLINK                                20  20  20  20  20  20   0  20
-    //
-    //  ; Palette
-    //  ;      1 +OVERSCAN B
-    //  ;      2 +OVERSCAN G
-    //  ;      4 +OVERSCAN R
-    //  ;      8 +OVERSCAN I
-    //  ;   0x10 +BACKGROUND I
-    //  ;   0x20 +COLOR SEL
+    void setROM(File rom) { _cgaROM = rom.contents(); }
+    const Byte* romData() { return &_cgaROM[0x300*8]; }
 
 //    +HRES +GRPH gives a0 cded ghih in startup phase 0 odd       Except all start at same pixel, so output byte depends on more than 4 bytes of input data
 //    +HRES +GRPH gives abcb efgf ij in other   phase 1 even  <- use this one for compatibility with -HRES modes
@@ -46,7 +31,8 @@ public:
 
     // renders a 16 hdot by 1 scanline region of CGA VRAM data into RGBI data
     // cursor is cursor output pin from CRTC
-    // cursor_blink counts from 0..3 then repeats, changes every 8 frames (low bit cursor, high bit blink)
+    // cursorBlink counts from 0..3 then repeats, changes every 8 frames (low
+    // bit cursor, high bit blink)
     UInt64 process(UInt32 input, UInt8 mode, UInt8 palette, int scanline,
         bool cursor, int cursorBlink, UInt8* latch)
     {
@@ -165,15 +151,17 @@ private:
         int attribute;
     };
 
-    Character getCharacter(UInt16 input, UInt8 mode, int scanline, bool cursor, int cursorBlink)
+    Character getCharacter(UInt16 input, UInt8 mode, int scanline, bool cursor,
+        int cursorBlink)
     {
         Character c;
-        c.bits = _cgaROM[(0x300 + (input & 0xff))*8 + (scanline & 7)];
+        c.bits = romData()[(input & 0xff)*8 + (scanline & 7)];
         c.attribute = input >> 8;
-        if (cursor && ((cursor_blink & 1) != 0))
+        if (cursor && ((cursorBlink & 1) != 0))
             c.bits = 0xff;
         else {
-            if ((mode & 0x20) != 0 && (attribute & 0x80) != 0 && (cursor_blink & 2) != 0 && !cursor)
+            if ((mode & 0x20) != 0 && (c.attribute & 0x80) != 0 &&
+                (cursorBlink & 2) != 0 && !cursor)
                 c.bits = 0;
         }
         if ((mode & 0x20) != 0)
