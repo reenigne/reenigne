@@ -787,12 +787,22 @@ private:
     {
         do {
             Span span;
-            if (!Space::parseCharacter(source, '(', &span))
-                break;
-            List<Expression> arguments = parseList(source);
-            Space::assertCharacter(source, ')', &span);
-            e = FunctionCallExpression(
-                create<FunctionCallBody>(e, arguments, e.span() + span));
+            if (Space::parseCharacter(source, '(', &span)) {
+                List<Expression> arguments = parseList(source);
+                Space::assertCharacter(source, ')', &span);
+                e = FunctionCallExpression(
+                    create<FunctionCallBody>(e, arguments, e.span() + span));
+            }
+            else
+                if (Space::parseCharacter(source, '[', &span)) {
+                    Span span2;
+                    Expression index = Expression::parse(source);
+                    Space::assertCharacter(source, ']', &span2);
+                    e = binary(OperatorIndex(), span + span2, e, index);
+                }
+                else
+                    break;
+
         } while (true);
         return e;
     }

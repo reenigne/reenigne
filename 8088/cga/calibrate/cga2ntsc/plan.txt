@@ -553,3 +553,6 @@ Improper modes matching:
       Set byte/pixel to best possibility
     Repeat until nothing changes
 
+
+Make the config file an interpreted language and make it possible to write loops in it
+

@@ -41,7 +41,7 @@ public:
         Character c;
         UInt64 r = 0;
         int x;
-        int* pal;
+        Byte* pal;
         UInt8 temp;
 
         switch (mode & 0x13) {
@@ -62,7 +62,7 @@ public:
                 break;
             case 2:
                 // 2bpp graphics mode
-                pal = &_palettes[((palette & 0x30) >> 2) + ((mode & 4) << 2];
+                pal = &_palettes[((palette & 0x30) >> 2) + ((mode & 4) << 2)];
                 *pal = palette & 0xf;
                 for (x = 0; x < 2; ++x) {
                     Byte b = input >> (x * 8);
@@ -72,7 +72,7 @@ public:
                 break;
             case 3:
                 // Improper: +HRES 2bpp graphics mode
-                pal = &_palettes[((palette & 0x30) >> 2) + ((mode & 4) << 2];
+                pal = &_palettes[((palette & 0x30) >> 2) + ((mode & 4) << 2)];
                 *pal = palette & 0xf;
                 // The attribute byte is not latched for odd hchars, so byte column 1's data is repeated in byte column 3
                 input = (input & 0x00ffffff) | ((input << 16) & 0xff000000);
@@ -173,6 +173,86 @@ private:
     Byte _palettes[32];
 };
 
-class CGA
+class CGAComposite
+{
+public:
+    void initChroma()
+    {
+        static Byte chromaData[256] = {
+            65, 11, 62,  6, 121, 87, 63,  6,  60,  9,120, 65,  61, 59,129,  5,
+            121,  6, 58, 58, 134, 65, 62,  6,  57,  9,108, 72, 126, 72,125, 77,
+            60, 98,160,  6, 113,195,194,  8,  53, 94,218, 64,  56,152,225,  5,
+            118, 90,147, 56, 115,154,156,  0,  52, 92,197, 73, 107,156,213, 62,
+            119, 10, 97,122, 178, 77, 60, 87, 119, 12,174,205, 119, 58,135, 88,
+            185,  6, 54,158, 194, 67, 57, 87, 114, 10,101,168, 181, 67,114,160,
+            64,  8,156,109, 121, 73,177,122,  58,  8,244,207,  65, 58,251,137,
+            127,  5,141,156, 126, 58,144, 97,  57,  7,189,168, 106, 55,201,162,
+            163,124, 62, 10, 185,159, 59,  8, 135,104,128, 80, 119,142,140,  5,
+            241,141, 59, 57, 210,160, 61,  5, 137,108,103, 61, 177,140,110, 65,
+            59,107,124,  4, 180,201,122,  6,  52,104,194, 77,  55,159,197,  3,
+            130,128,121, 51, 174,197,123,  3,  52,100,162, 62, 101,156,171, 51,
+            173, 11, 60,113, 199, 93, 58, 77, 167, 11,118,196, 132, 63,129, 74,
+            255,  9, 54,195, 192, 55, 59, 74, 183, 14,103,199, 206, 74,118,154,
+            153,108,156,105, 255,202,188,123, 143,107,246,203, 164,208,250,129,
+            209,103,148,157, 253,195,171,120, 163,106,196,207, 245,202,249,208
+        };
+
+        static double intensity[4] = {
+            0, 0.047932237386703491, 0.15110087022185326, 0.18384206667542458};
+
+        static const double minChroma = 0.070565;
+        static const double maxChroma = 0.727546;
+
+        for (int x = 0; x < 1024; ++x) {
+            int phase = x & 3;
+            int right = (x >> 2) & 15;
+            int left = (x >> 6) & 15;
+            double c = minChroma +
+                chromaData[((left & 7) << 5) | ((right & 7) << 2) | phase]*
+                (maxChroma-minChroma)/256.0;
+            double i = intensity[(left >> 3) | ((right >> 2) & 2)];
+            if (!_newCGA)
+                _table[x] = byteClamp(static_cast<int>((c + i)*256));
+            else {
+                double r = intensity[((left >> 2) & 1) | ((right >> 1) & 2)];
+                double g = intensity[((left >> 1) & 1) | (right & 2)];
+                double b = intensity[(left & 1) | ((right << 1) & 1)];
+                _table[x] = byteClamp(static_cast<int>(((c/0.72)*0.29 +
+                    (i/0.28)*0.32 + (r/0.28)*0.1 + (g/0.28)*0.22 +
+                    (b/0.28)*0.07)*256));
+            }
+        }
+    }
+    Byte simulateCGA(int left, int right, int phase)
+    {
+        return _table[((left & 15) << 6) | ((right & 15) << 2) | phase];
+    }
+    void simulateLine(const Byte* rgbi, Byte* ntsc, int length, int phase)
+    {
+        for (int x = 0; x < length; ++x) {
+            phase = (phase + 1) & 3;
+            int left = *rgbi;
+            ++rgbi;
+            int right = *rgbi;
+            *ntsc = simulateCGA(left, right, phase);
+            ++ntsc;
+        }
+    }
+    void decode(int pixels, int* s)
+    {
+        int rgbi[4];
+        rgbi[0] = pixels & 15;
+        rgbi[1] = (pixels >> 4) & 15;
+        rgbi[2] = (pixels >> 8) & 15;
+        rgbi[3] = (pixels >> 12) & 15;
+        for (int t = 0; t < 4; ++t)
+            s[t] = simulateCGA(rgbi[t], rgbi[(t+1)&3], t);
+    }
+
+    bool _newCGA;
+private:
+
+    int _table[1024];
+};
 
 #endif // INCLUDED_CGA_H

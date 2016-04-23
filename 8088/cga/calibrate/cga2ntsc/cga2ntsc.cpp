@@ -4,88 +4,7 @@
 #include "alfe/space.h"
 #include "alfe/set.h"
 #include "alfe/config_file.h"
-
-class CGASimulator
-{
-public:
-    void initChroma()
-    {
-        static Byte chromaData[256] = {
-             65, 11, 62,  6, 121, 87, 63,  6,  60,  9,120, 65,  61, 59,129,  5,
-            121,  6, 58, 58, 134, 65, 62,  6,  57,  9,108, 72, 126, 72,125, 77,
-             60, 98,160,  6, 113,195,194,  8,  53, 94,218, 64,  56,152,225,  5,
-            118, 90,147, 56, 115,154,156,  0,  52, 92,197, 73, 107,156,213, 62,
-            119, 10, 97,122, 178, 77, 60, 87, 119, 12,174,205, 119, 58,135, 88,
-            185,  6, 54,158, 194, 67, 57, 87, 114, 10,101,168, 181, 67,114,160,
-             64,  8,156,109, 121, 73,177,122,  58,  8,244,207,  65, 58,251,137,
-            127,  5,141,156, 126, 58,144, 97,  57,  7,189,168, 106, 55,201,162,
-            163,124, 62, 10, 185,159, 59,  8, 135,104,128, 80, 119,142,140,  5,
-            241,141, 59, 57, 210,160, 61,  5, 137,108,103, 61, 177,140,110, 65,
-             59,107,124,  4, 180,201,122,  6,  52,104,194, 77,  55,159,197,  3,
-            130,128,121, 51, 174,197,123,  3,  52,100,162, 62, 101,156,171, 51,
-            173, 11, 60,113, 199, 93, 58, 77, 167, 11,118,196, 132, 63,129, 74,
-            255,  9, 54,195, 192, 55, 59, 74, 183, 14,103,199, 206, 74,118,154,
-            153,108,156,105, 255,202,188,123, 143,107,246,203, 164,208,250,129,
-            209,103,148,157, 253,195,171,120, 163,106,196,207, 245,202,249,208
-        };
-
-        static double intensity[4] = {
-            0, 0.047932237386703491, 0.15110087022185326, 0.18384206667542458};
-
-        static const double minChroma = 0.070565;
-        static const double maxChroma = 0.727546;
-
-        for (int x = 0; x < 1024; ++x) {
-            int phase = x & 3;
-            int right = (x >> 2) & 15;
-            int left = (x >> 6) & 15;
-            double c = minChroma +
-                chromaData[((left & 7) << 5) | ((right & 7) << 2) | phase]*
-                   (maxChroma-minChroma)/256.0;
-            double i = intensity[(left >> 3) | ((right >> 2) & 2)];
-            if (!_newCGA)
-                _table[x] = byteClamp(static_cast<int>((c + i)*256));
-            else {
-                double r = intensity[((left >> 2) & 1) | ((right >> 1) & 2)];
-                double g = intensity[((left >> 1) & 1) | (right & 2)];
-                double b = intensity[(left & 1) | ((right << 1) & 1)];
-                _table[x] = byteClamp(static_cast<int>(((c/0.72)*0.29 +
-                    (i/0.28)*0.32 + (r/0.28)*0.1 + (g/0.28)*0.22 +
-                    (b/0.28)*0.07)*256));
-            }
-        }
-    }
-    Byte simulateCGA(int left, int right, int phase)
-    {
-        return _table[((left & 15) << 6) | ((right & 15) << 2) | phase];
-    }
-    void simulateLine(const Byte* rgbi, Byte* ntsc, int length, int phase)
-    {
-        for (int x = 0; x < length; ++x) {
-            phase = (phase + 1) & 3;
-            int left = *rgbi;
-            ++rgbi;
-            int right = *rgbi;
-            *ntsc = simulateCGA(left, right, phase);
-            ++ntsc;
-        }
-    }
-    void decode(int pixels, int* s)
-    {
-        int rgbi[4];
-        rgbi[0] = pixels & 15;
-        rgbi[1] = (pixels >> 4) & 15;
-        rgbi[2] = (pixels >> 8) & 15;
-        rgbi[3] = (pixels >> 12) & 15;
-        for (int t = 0; t < 4; ++t)
-            s[t] = simulateCGA(rgbi[t], rgbi[(t+1)&3], t);
-    }
-
-    bool _newCGA;
-private:
-
-    int _table[1024];
-};
+#include "alfe/cga.h"
 
 class NTSCDecoder
 {
@@ -276,8 +195,7 @@ public:
                 int bestDistance = 0x7fffffff;
                 Byte bestRGBI = 0;
                 for (int i = 0; i < 16; ++i) {
-                    int distance =
-                        (Vector3Cast<int>(rgbiPalette[i]) -
+                    int distance = (Vector3Cast<int>(rgbiPalette[i]) -
                         Vector3Cast<int>(s)).modulus2();
                     if (distance < bestDistance) {
                         bestDistance = distance;
@@ -335,14 +253,18 @@ public:
     }
     void matchConvert()
     {
+        _block.y = _scanlinesPerRow * _scanlinesRepeat;
         if ((_mode & 2) != 0) {
-            _block.y = 1;
+            // In graphics modes, the data for the second scanline of the row
+            // is independent of the data for the first scanline, so we can
+            // pretend there's one scanline per rof ro matching purposes.
+            if (_scanlinesPerRow == 2)
+                _block.y = _scanlinesRepeat;
             for (int i = 0; i < 256; ++i)
                 _skip[i] = false;
         }
         else {
             auto cgaROM = _sequencer.romData();
-            _block.y = _scanlinesPerRow * _scanlinesRepeat;
             int lines = _scanlinesPerRow;
             for (int i = 0; i < 256; ++i) {
                 _skip[i] = false;
@@ -491,7 +413,7 @@ public:
                     rgbi[3 + _block.x] = rgbi[3];
                     rgbi[4 + _block.x] = rgbi[4];
                     rgbi[5 + _block.x] = rgbi[5];
-                    _simulator->simulateLine(&rgbi[0], &ntscTemp[0],
+                    _composite->simulateLine(&rgbi[0], &ntscTemp[0],
                         _block.x + 5, 0);
                     filterHF(&ntscTemp[0], &p[(pattern*_block.y + line)*w], w);
                 }
@@ -516,22 +438,25 @@ public:
     void config()
     {
         switch (_config) {
-            case 80:
+            case 0x50:
+            case 0x51:
                 _block.x = 16;
                 _patternCount = 0x10000;
-                _hdots = 16;
                 break;
-            case 81:
+            case 0xd0:
+            case 0xd1:
                 _block.x = 8;
                 _patternCount = 0x10000;
-                _hdots = 8;
                 break;
             default:
                 _block.x = 4;
                 _patternCount = 16;
-                _hdots = 16;
                 break;
         }
+        if ((_config & 0x80) == 0)
+            _hdots = 16;
+        else
+            _hdots = 8;
     }
     bool idle()
     {
@@ -579,9 +504,9 @@ public:
                         score += weight*d*d;
                         int error = weight*d;
                         _testError[p + Vector(4, 0)] +=
-                            (error*_horizontalDiffusion)/256;
+                            (error*_diffusionHorizontal)/256;
                         _testError[p + Vector(0, 1)] +=
-                            (error*_verticalDiffusion)/256;
+                            (error*_diffusionVertical)/256;
                     }
                     inputRow2 += _ntscInput.stride();
                     errorRow2 += _error.stride();
@@ -630,9 +555,9 @@ public:
                     int weight = (xx == 0 || xx == _block.x ? 1 : 2);
                     lineScore += weight*d*d;
                     int error = weight*d;
-                    errorPixel[xx + 4] += (error*_horizontalDiffusion)/256;
+                    errorPixel[xx + 4] += (error*_diffusionHorizontal)/256;
                     reinterpret_cast<int*>(errorRow2 + _error.stride())[x + xx]
-                        += (error*_verticalDiffusion/256);
+                        += (error*_diffusionVertical/256);
                 }
                 inputRow2 += _ntscInput.stride();
                 errorRow2 += _error.stride();
@@ -713,7 +638,7 @@ public:
         int modeAndPalette = modeAndPaletteFromConfig(_config);
         UInt8 latch = 0;
         UInt64 r = _sequencer.process(pattern, modeAndPalette & 0xff,
-            modeAndPalette >> 8, line, false, 0, &latch);
+            modeAndPalette >> 8, line / _scanlinesRepeat, false, 0, &latch);
         int hdots = 8;
         if ((modeAndPalette & 3) == 0) {
             // For -HRES-GRPH need 16 hdots
@@ -742,7 +667,7 @@ public:
         return 0x19 | b;
     }
 
-    void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
+    void setComposite(CGAComposite* composite) { _composite = composite; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
 
     void setDiffusionHorizontal(double diffusionHorizontal)
@@ -774,7 +699,7 @@ public:
     Vector _size;
     Bitmap<SRGB> _input;
     Bitmap<Byte> _rgbi;
-    CGASimulator* _simulator;
+    CGAComposite* _composite;
     NTSCDecoder* _decoder;
     CGA2NTSCWindow* _window;
     CGASequencer _sequencer;
@@ -794,6 +719,7 @@ public:
     Vector _block;
     int _diffusionHorizontal;
     int _diffusionVertical;
+    int _characterSet;
     UInt64 _configScore;
     Array<bool> _skip;
 
@@ -924,7 +850,7 @@ public:
         draw();
         invalidate();
     }
-    void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
+    void setComposite(CGAComposite* composite) { _composite = composite; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
     void setAnimated(AnimatedWindow* animated) { _animated = animated; }
     void paint()
@@ -1033,7 +959,7 @@ public:
     Vector _rPosition;
     bool _lButton;
     bool _rButton;
-    CGASimulator* _simulator;
+    CGAComposite* _composite;
     NTSCDecoder* _decoder;
     Vector2<double> _delta;
     AnimatedWindow* _animated;
@@ -1380,7 +1306,7 @@ typedef DiffusionVerticalSliderWindowT<void> DiffusionVerticalSliderWindow;
 class OutputWindow : public BitmapWindow
 {
 public:
-    void setSimulator(CGASimulator* simulator) { _simulator = simulator; }
+    void setComposite(CGAComposite* composite) { _composite = composite; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
     void setRGBI(Bitmap<Byte> rgbi)
     {
@@ -1391,10 +1317,10 @@ public:
     }
     void reCreateNTSC()
     {
-        _simulator->initChroma();
+        _composite->initChroma();
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
-            burst[i] = _simulator->simulateCGA(6, 6, i);
+            burst[i] = _composite->simulateCGA(6, 6, i);
         _decoder->calculateBurst(burst);
         // Convert to raw NTSC
         const Byte* rgbiRow = _rgbi.data();
@@ -1407,7 +1333,7 @@ public:
                 int left = *rgbiPixel;
                 ++rgbiPixel;
                 int right = *rgbiPixel;
-                *ntscPixel = _simulator->simulateCGA(left, right, (x + 1) & 3);
+                *ntscPixel = _composite->simulateCGA(left, right, (x + 1) & 3);
                 ++ntscPixel;
             }
             rgbiRow += _rgbi.stride();
@@ -1453,7 +1379,7 @@ private:
     Bitmap<DWORD> _bitmap;
     Bitmap<Byte> _rgbi;
     Bitmap<Byte> _ntsc;
-    CGASimulator* _simulator;
+    CGAComposite* _composite;
     NTSCDecoder* _decoder;
 };
 
@@ -1625,11 +1551,11 @@ public:
         if (character == VK_ESCAPE)
             remove();
     }
-    void setSimulator(CGASimulator* simulator)
+    void setComposite(CGAComposite* composite)
     {
-        _simulator = simulator;
-        _output.setSimulator(simulator);
-        _gamut.setSimulator(simulator);
+        _composite = composite;
+        _output.setComposite(composite);
+        _gamut.setComposite(composite);
     }
     void setDecoder(NTSCDecoder* decoder)
     {
@@ -1666,7 +1592,7 @@ public:
         Byte ntsc[7];
         int phase = (seq >> 32) & 3;
         for (int x = 0; x < 7; ++x) {
-            ntsc[x] = _simulator->simulateCGA(seq & 15, (seq >> 4) & 15,
+            ntsc[x] = _composite->simulateCGA(seq & 15, (seq >> 4) & 15,
                 (x + phase) & 3);
             seq >>= 4;
         }
@@ -1676,13 +1602,13 @@ public:
     {
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
-            burst[i] = _simulator->simulateCGA(6, 6, i);
+            burst[i] = _composite->simulateCGA(6, 6, i);
         _decoder->calculateBurst(burst);
         int s[4];
-        _simulator->decode(0, s);
+        _composite->decode(0, s);
         Colour black = _decoder->decode(s);
         _black = 0.299*black.x + 0.587*black.y + 0.114*black.z;
-        _simulator->decode(0xffff, s);
+        _composite->decode(0xffff, s);
         Colour white = _decoder->decode(s);
         _white = 0.299*white.x + 0.587*white.y + 0.114*white.z;
         _clips = 0;
@@ -1743,7 +1669,7 @@ public:
     }
     void setScanlinesPerRow(int value) { _scanlinesPerRow.set(value); }
 
-    void scanlinesPerRepeat(int value)
+    void scanlinesRepeatSet(int value)
     {
         _encoder->setScanlinesRepeat(value + 1);
         _encoder->beginConvert();
@@ -1882,7 +1808,7 @@ public:
     }
     void newCGAPressed()
     {
-        _simulator->_newCGA = _newCGA.checked();
+        _composite->_newCGA = _newCGA.checked();
         reCreateNTSC();
     }
     void fixPrimariesPressed()
@@ -2003,7 +1929,7 @@ private:
     DiffusionHorizontalSliderWindow _diffusionHorizontal;
     DiffusionVerticalSliderWindow _diffusionVertical;
     CGAEncoder* _encoder;
-    CGASimulator* _simulator;
+    CGAComposite* _composite;
     NTSCDecoder* _decoder;
     double _black;
     double _white;
@@ -2085,15 +2011,15 @@ public:
                 arguments[i] = _arguments[i + 1];
         }
 
-        configFile.addDefaultOption("arguments", ArrayType(StringType()),
-            _arguments);
+        configFile.addDefaultOption("arguments",
+            ArrayType(StringType(), IntegerType()), arguments);
 
         configFile.load(configPath);
 
 
-        CGASimulator simulator;
-        simulator._newCGA = configFile.get<bool>("newCGA");
-        simulator.initChroma();
+        CGAComposite composite;
+        composite._newCGA = configFile.get<bool>("newCGA");
+        composite.initChroma();
         NTSCDecoder decoder;
         decoder._fixPrimaries = configFile.get<bool>("ntscPrimaries");
         decoder._brightness = configFile.get<double>("brightness");
@@ -2106,9 +2032,9 @@ public:
             configFile.get<double>("verticalDiffusion"));
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
-            burst[i] = simulator.simulateCGA(6, 6, i);
+            burst[i] = composite.simulateCGA(6, 6, i);
         decoder.calculateBurst(burst);
-        _encoder.setSimulator(&simulator);
+        _encoder.setComposite(&composite);
         _encoder.setDecoder(&decoder);
         _encoder.setMode(configFile.get<int>("mode"));
         _encoder.setPalette(configFile.get<int>("palette"));
@@ -2177,7 +2103,7 @@ public:
         _encoder.setWindow(&_window);
         _encoder.beginConvert();
 
-        _window.setSimulator(&simulator);
+        _window.setComposite(&composite);
         _window.setDecoder(&decoder);
         _window.setEncoder(&_encoder);
 
