@@ -667,7 +667,6 @@ public:
         return 0x19 | b;
     }
 
-    void setComposite(CGAComposite* composite) { _composite = composite; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
 
     void setDiffusionHorizontal(double diffusionHorizontal)
@@ -689,6 +688,7 @@ public:
     int getScanlinesPerRow() { return _scanlinesPerRow; }
     int getScanlinesRepeat() { return _scanlinesRepeat; }
     void setROM(File rom) { _sequencer.setROM(rom); }
+    void setNewCGA(bool newCGA) { _composite.setNewCGA(newCGA); }
 
     int _mode;
     int _palette;
@@ -699,7 +699,7 @@ public:
     Vector _size;
     Bitmap<SRGB> _input;
     Bitmap<Byte> _rgbi;
-    CGAComposite* _composite;
+    CGAComposite _composite;
     NTSCDecoder* _decoder;
     CGA2NTSCWindow* _window;
     CGASequencer _sequencer;
@@ -850,7 +850,6 @@ public:
         draw();
         invalidate();
     }
-    void setComposite(CGAComposite* composite) { _composite = composite; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
     void setAnimated(AnimatedWindow* animated) { _animated = animated; }
     void paint()
@@ -959,7 +958,6 @@ public:
     Vector _rPosition;
     bool _lButton;
     bool _rButton;
-    CGAComposite* _composite;
     NTSCDecoder* _decoder;
     Vector2<double> _delta;
     AnimatedWindow* _animated;
@@ -1306,7 +1304,6 @@ typedef DiffusionVerticalSliderWindowT<void> DiffusionVerticalSliderWindow;
 class OutputWindow : public BitmapWindow
 {
 public:
-    void setComposite(CGAComposite* composite) { _composite = composite; }
     void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
     void setRGBI(Bitmap<Byte> rgbi)
     {
@@ -1317,10 +1314,10 @@ public:
     }
     void reCreateNTSC()
     {
-        _composite->initChroma();
+        _composite.initChroma();
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
-            burst[i] = _composite->simulateCGA(6, 6, i);
+            burst[i] = _composite.simulateCGA(6, 6, i);
         _decoder->calculateBurst(burst);
         // Convert to raw NTSC
         const Byte* rgbiRow = _rgbi.data();
@@ -1333,7 +1330,7 @@ public:
                 int left = *rgbiPixel;
                 ++rgbiPixel;
                 int right = *rgbiPixel;
-                *ntscPixel = _composite->simulateCGA(left, right, (x + 1) & 3);
+                *ntscPixel = _composite.simulateCGA(left, right, (x + 1) & 3);
                 ++ntscPixel;
             }
             rgbiRow += _rgbi.stride();
@@ -1374,12 +1371,13 @@ public:
         FileStream s = File(outputFileName + ".ntsc", true).openWrite();
         s.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
     }
+    void setNewCGA(bool newCGA) { _composite.setNewCGA(newCGA); }
 
 private:
     Bitmap<DWORD> _bitmap;
     Bitmap<Byte> _rgbi;
     Bitmap<Byte> _ntsc;
-    CGAComposite* _composite;
+    CGAComposite _composite;
     NTSCDecoder* _decoder;
 };
 
@@ -1550,12 +1548,6 @@ public:
     {
         if (character == VK_ESCAPE)
             remove();
-    }
-    void setComposite(CGAComposite* composite)
-    {
-        _composite = composite;
-        _output.setComposite(composite);
-        _gamut.setComposite(composite);
     }
     void setDecoder(NTSCDecoder* decoder)
     {
@@ -1808,9 +1800,19 @@ public:
     }
     void newCGAPressed()
     {
-        _composite->_newCGA = _newCGA.checked();
+        bool newCGA = _newCGA.checked();
+        _output.setNewCGA(newCGA);
+        _encoder->setNewCGA(newCGA);
         reCreateNTSC();
     }
+    void setNewCGA(bool newCGA)
+    {
+        if (newCGA)
+            _newCGA.check();
+        else
+            _newCGA.uncheck();
+    }
+
     void fixPrimariesPressed()
     {
         _decoder->_fixPrimaries = _fixPrimaries.checked();
@@ -1929,7 +1931,6 @@ private:
     DiffusionHorizontalSliderWindow _diffusionHorizontal;
     DiffusionVerticalSliderWindow _diffusionVertical;
     CGAEncoder* _encoder;
-    CGAComposite* _composite;
     NTSCDecoder* _decoder;
     double _black;
     double _white;
@@ -2034,7 +2035,6 @@ public:
         for (int i = 0; i < 4; ++i)
             burst[i] = composite.simulateCGA(6, 6, i);
         decoder.calculateBurst(burst);
-        _encoder.setComposite(&composite);
         _encoder.setDecoder(&decoder);
         _encoder.setMode(configFile.get<int>("mode"));
         _encoder.setPalette(configFile.get<int>("palette"));
@@ -2103,7 +2103,6 @@ public:
         _encoder.setWindow(&_window);
         _encoder.beginConvert();
 
-        _window.setComposite(&composite);
         _window.setDecoder(&decoder);
         _window.setEncoder(&_encoder);
 
