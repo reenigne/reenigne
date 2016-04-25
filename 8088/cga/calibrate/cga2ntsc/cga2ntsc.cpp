@@ -145,36 +145,18 @@ static const SRGB rgbiPalette[16] = {
     SRGB(0xff, 0x55, 0x55), SRGB(0xff, 0x55, 0xff),
     SRGB(0xff, 0xff, 0x55), SRGB(0xff, 0xff, 0xff)};
 
-template<class T> class CGAEncoderT
+class CGAShower
 {
 public:
-    CGAEncoderT()
-      : _matchMode(false), _matchModeSet(false), _skip(256)
-    {
-        _patterns.allocate(0x10000*8*17 + 0x100*80*5);
-    }
     void setInput(Bitmap<SRGB> input)
     {
         _input = input;
         _size = input.size();
         _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
-        _input2 = Bitmap<SRGB>(_size + Vector(11, 0));
-        _input2.fill(SRGB(0, 0, 0));
-        _input2.subBitmap(Vector(5, 0), _size).copyFrom(_input);
-        _configs.allocate(_size.y);
     }
-    void setWindow(CGA2NTSCWindow* window) { _window = window; }
-    void beginConvert()
-    {
-        if (!_matchMode)
-            showConvert();
-        else
-            matchConvert();
-    }
-    void showConvert()
+    void convert()
     {
         // Convert to RGBI indexes and add left and right borders.
-        int maxDistance = 0;
         const Byte* inputRow = _input.data();
         Byte* rgbiRow = _rgbi.data();
         int background = _palette & 15;
@@ -204,7 +186,6 @@ public:
                             break;
                     }
                 }
-                maxDistance = max(bestDistance, maxDistance);
                 *rgbiPixel = bestRGBI;
                 ++rgbiPixel;
             }
@@ -219,7 +200,6 @@ public:
 
         // Find all different composite colours (sequences of 8 consecutive
         // RGBI pixels).
-        _window->resetColours();
         rgbiRow = _rgbi.data();
         for (int y = 0; y < _size.y; ++y) {
             const Byte* rgbiPixel = rgbiRow;
@@ -231,27 +211,45 @@ public:
             for (int xx = 0; xx < _size.x + 7; ++xx) {
                 seq = (seq >> 4) | ((*rgbiPixel) << 28);
                 ++rgbiPixel;
-                _window->addColour(static_cast<UInt64>(seq) |
-                    (static_cast<UInt64>(xx & 3) << 32));
             }
             rgbiRow += _rgbi.stride();
         }
-
-        if (!_matchModeSet) {
-            _matchMode = (maxDistance >= 15*15*3);
-            _matchModeSet = true;
-            if (_matchMode)
-                matchConvert();
-        }
-        _converting = false;
     }
+    void setMode(int mode) { _mode = mode; }
+    void setPalette(int palette) { _palette = palette; }
+private:
+    Vector _size;
+    Bitmap<SRGB> _input;
+    Bitmap<Byte> _rgbi;
+    int _mode;
+    int _palette;
+};
+
+template<class T> class CGAMatcherT
+{
+public:
+    CGAMatcherT() : _skip(256), _converting(false)
+    {
+        _patterns.allocate(0x10000*8*17 + 0x100*80*5);
+    }
+    void setInput(Bitmap<SRGB> input)
+    {
+        _input = input;
+        _size = input.size();
+        _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
+        _input2 = Bitmap<SRGB>(_size + Vector(11, 0));
+        _input2.fill(SRGB(0, 0, 0));
+        _input2.subBitmap(Vector(5, 0), _size).copyFrom(_input);
+        _configs.allocate(_size.y);
+    }
+    void setWindow(CGA2NTSCWindow* window) { _window = window; }
     static void filterHF(const Byte* input, SInt16* output, int n)
     {
         for (int x = 0; x < n; ++x)
             output[x] = (-input[x] + input[x+1]*2 + input[x+2]*6 + input[x+3]*2
                 -input[x+4]);
     }
-    void matchConvert()
+    void convert()
     {
         _block.y = _scanlinesPerRow * _scanlinesRepeat;
         if ((_mode & 2) != 0) {
@@ -390,7 +388,6 @@ public:
                     _startConfig = 0x80;
                     _endConfig = 0xc0;
                     break;
-
             }
         }
         if ((_mode & 0x80) != 0) {
@@ -413,7 +410,7 @@ public:
                     rgbi[3 + _block.x] = rgbi[3];
                     rgbi[4 + _block.x] = rgbi[4];
                     rgbi[5 + _block.x] = rgbi[5];
-                    _composite->simulateLine(&rgbi[0], &ntscTemp[0],
+                    _composite.simulateLine(&rgbi[0], &ntscTemp[0],
                         _block.x + 5, 0);
                     filterHF(&ntscTemp[0], &p[(pattern*_block.y + line)*w], w);
                 }
@@ -689,13 +686,16 @@ public:
     int getScanlinesRepeat() { return _scanlinesRepeat; }
     void setROM(File rom) { _sequencer.setROM(rom); }
     void setNewCGA(bool newCGA) { _composite.setNewCGA(newCGA); }
+    bool getBW() { return (_mode & 4) != 0; }
+    void setPhase(int phase) { _phase = phase; }
+    int getPhase() { return _phase; }
 
+private:
+    int _phase;
     int _mode;
     int _palette;
     int _scanlinesPerRow;
     int _scanlinesRepeat;
-    bool _matchModeSet;
-    bool _matchMode;
     Vector _size;
     Bitmap<SRGB> _input;
     Bitmap<Byte> _rgbi;
@@ -741,7 +741,7 @@ public:
     int _bestConfig;
 };
 
-typedef CGAEncoderT<void> CGAEncoder;
+typedef CGAMatcherT<void> CGAMatcher;
 
 class Particle
 {
@@ -1301,6 +1301,85 @@ public:
 };
 typedef DiffusionVerticalSliderWindowT<void> DiffusionVerticalSliderWindow;
 
+template<class T> class BWCheckBoxT : public CheckBox
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void clicked() { _host->bwPressed(); }
+    void create()
+    {
+        setText("+BW");
+        CheckBox::create();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef BWCheckBoxT<void> BWCheckBox;
+
+template<class T> class BlinkCheckBoxT : public CheckBox
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void clicked() { _host->blinkPressed(); }
+    void create()
+    {
+        setText("+BLINK");
+        CheckBox::create();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef BlinkCheckBoxT<void> BlinkCheckBox;
+
+template<class T> class PhaseCheckBoxT : public CheckBox
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void clicked() { _host->phasePressed(); }
+    void create()
+    {
+        setText("Phase 0");
+        CheckBox::create();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef PhaseCheckBoxT<void> PhaseCheckBox;
+
+template<class T> class InterlaceComboT : public ComboBox
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void changed(int value) { _host->interlaceSet(value); }
+    void create()
+    {
+        ComboBox::create();
+        add(String("None");
+        add(String("Flicker");
+        add(String("Sync");
+        add(String("Sync and video");
+        add(String("Even");
+        add(String("Odd");
+        add(String("Video");
+        add(String("Video and flicker");
+        add(String("Sync flicker");
+        add(String("Sync video and flicker");
+        add(String("Even flicker");
+        add(String("Odd flicker");
+        add(String("Sync even");
+        add(String("Sync odd");
+        add(String("Sync even flicker");
+        add(String("Sync odd flicker");
+        add(String("Sync and video swapped");
+        add(String("Sync video and flicker swapped");
+        set(0);
+        autoSize();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef InterlaceComboT<void> InterlaceCombo;
+
 class OutputWindow : public BitmapWindow
 {
 public:
@@ -1372,6 +1451,7 @@ public:
         s.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
     }
     void setNewCGA(bool newCGA) { _composite.setNewCGA(newCGA); }
+    void setBW(bool bw) { _composite.setBW(bw); }
 
 private:
     Bitmap<DWORD> _bitmap;
@@ -1416,6 +1496,10 @@ public:
         add(&_scanlinesRepeat);
         add(&_diffusionHorizontal);
         add(&_diffusionVertical);
+        add(&_bwCheckBox);
+        add(&_blinkCheckBox);
+        add(&_phaseCheckBox);
+        add(&_interlaceCombo);
         RootWindow::setWindows(windows);
     }
     void create()
@@ -1442,6 +1526,9 @@ public:
         _scanlinesRepeat.setHost(this);
         _diffusionHorizontal.setHost(this);
         _diffusionVertical.setHost(this);
+        _bwCheckBox.setHost(this);
+        _blinkCheckBox.setHost(this);
+        _interlaceCombo.setHost(this);
 
         setText("CGA to NTSC");
         setSize(Vector(640, 480));
@@ -1451,15 +1538,12 @@ public:
         sizeSet(size());
         setSize(Vector(_brightness.right() + 20, _gamut.bottom() + 20));
 
-        if (_encoder->_matchMode)
-            _matchMode.check();
-
         setBrightness(_decoder->_brightness);
         setSaturation(_decoder->_saturation);
         setHue(_decoder->_hue);
         setContrast(_decoder->_contrast);
         setSharpness(_decoder->_sharpness);
-        int mode = _encoder->getMode();
+        int mode = _matcher->getMode();
             //_blink = ((mode & 0x20) != 0);
             //_bw = ((mode & 4) != 0);
         if ((mode & 0x80) != 0)
@@ -1476,7 +1560,11 @@ public:
                 case 0x13: setMode(6); break;
             }
         }
-        int palette = _encoder->getPalette();
+        setBW((mode & 4) != 0);
+        setBlink((mode & 0x20) != 0);
+        setPhase(_matcher->getPhase());
+        setInterlace(_matcher->getInterlace());
+        int palette = _matcher->getPalette();
         if (palette == 0xff) {
             _paletteSelected = 0;
             _backgroundSelected = 0x10;
@@ -1487,10 +1575,10 @@ public:
         }
         _palette.set(_paletteSelected);
         _background.set(_backgroundSelected);
-        setDiffusionHorizontal(_encoder->getDiffusionHorizontal());
-        setDiffusionVertical(_encoder->getDiffusionVertical());
-        setScanlinesPerRow(_encoder->getScanlinesPerRow() - 1);
-        setScanlinesRepeat(_encoder->getScanlinesRepeat() - 1);
+        setDiffusionHorizontal(_matcher->getDiffusionHorizontal());
+        setDiffusionVertical(_matcher->getDiffusionVertical());
+        setScanlinesPerRow(_matcher->getScanlinesPerRow() - 1);
+        setScanlinesRepeat(_matcher->getScanlinesRepeat() - 1);
 
         update();
         uiUpdate();
@@ -1538,11 +1626,17 @@ public:
         _scanlinesPerRow.setPosition(_palette.topRight());
         _scanlinesRepeat.setPosition(_scanlinesPerRow.topRight());
 
+        _bwCheckBox.setPosition(_matchMode.bottomLeft() + vSpace);
+        _blinkCheckBox.setPosition(_bwCheckBox.topRight());
+        _phaseCheckBox.setPosition(_blinkCheckBox.topRight());
+        _interlaceCombo.setPosition(_phaseCheckBox.topRight());
+
         _diffusionHorizontal.setPositionAndSize(
             _matchMode.bottomLeft() + 3*vSpace, Vector(301, 24));
 
         _diffusionVertical.setPositionAndSize(
             _diffusionHorizontal.bottomLeft() + vSpace, Vector(301, 24));
+
     }
     void keyboardCharacter(int character)
     {
@@ -1555,10 +1649,14 @@ public:
         _output.setDecoder(decoder);
         _gamut.setDecoder(decoder);
     }
-    void setEncoder(CGAEncoder* encoder)
+    void setMatcher(CGAMatcher* matcher)
     {
-        _output.setRGBI(encoder->_rgbi);
-        _encoder = encoder;
+        _output.setRGBI(matcher->_rgbi);
+        _matcher = matcher;
+    }
+    void setShower(CGAShower* shower)
+    {
+        _shower = shower;
     }
     void uiUpdate()
     {
@@ -1584,7 +1682,7 @@ public:
         Byte ntsc[7];
         int phase = (seq >> 32) & 3;
         for (int x = 0; x < 7; ++x) {
-            ntsc[x] = _composite->simulateCGA(seq & 15, (seq >> 4) & 15,
+            ntsc[x] = _composite.simulateCGA(seq & 15, (seq >> 4) & 15,
                 (x + phase) & 3);
             seq >>= 4;
         }
@@ -1594,13 +1692,13 @@ public:
     {
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
-            burst[i] = _composite->simulateCGA(6, 6, i);
+            burst[i] = _composite.simulateCGA(6, 6, i);
         _decoder->calculateBurst(burst);
         int s[4];
-        _composite->decode(0, s);
+        _composite.decode(0, s);
         Colour black = _decoder->decode(s);
         _black = 0.299*black.x + 0.587*black.y + 0.114*black.z;
-        _composite->decode(0xffff, s);
+        _composite.decode(0xffff, s);
         Colour white = _decoder->decode(s);
         _white = 0.299*white.x + 0.587*white.y + 0.114*white.z;
         _clips = 0;
@@ -1623,11 +1721,21 @@ public:
         _gamut.draw();
         _gamut.invalidate();
     }
+    void beginConvert()
+    {
+        if (!_matchMode.checked())
+            _shower->convert();
+        else
+            _matcher->convert();
+    }
 
     void modeSet(int value)
     {
-        _encoder->setMode(value);
-        _encoder->beginConvert();
+        static const int modes[8] = {0, 1, 0x12, 2, 0x10, 0x11, 0x13, 3};
+        int mode = modes[value] | 8 | (_bwCheckBox.checked() ? 4 : 0) |
+            (_blinkCheckBox.checked() ? 0x20 : 0);
+        _matcher->setMode(mode);
+        beginConvert();
     }
     void setMode(int value) { _mode.set(value); }
 
@@ -1635,36 +1743,36 @@ public:
     {
         _backgroundSelected = value;
         setPaletteAndBackground();
-        _encoder->beginConvert();
+        beginConvert();
     }
 
     void paletteSet(int value)
     {
         _paletteSelected = value;
         setPaletteAndBackground();
-        _encoder->beginConvert();
+        beginConvert();
     }
     void setPaletteAndBackground()
     {
         if (_backgroundSelected == 0x10)
-            _encoder->setPalette(0xff);
+            _matcher->setPalette(0xff);
         else {
-            _encoder->setPalette(
+            _matcher->setPalette(
                 _backgroundSelected + (_paletteSelected << 4));
         }
     }
 
     void scanlinesPerRowSet(int value)
     {
-        _encoder->setScanlinesPerRow(value + 1);
-        _encoder->beginConvert();
+        _matcher->setScanlinesPerRow(value + 1);
+        beginConvert();
     }
     void setScanlinesPerRow(int value) { _scanlinesPerRow.set(value); }
 
     void scanlinesRepeatSet(int value)
     {
-        _encoder->setScanlinesRepeat(value + 1);
-        _encoder->beginConvert();
+        _matcher->setScanlinesRepeat(value + 1);
+        beginConvert();
     }
     void setScanlinesRepeat(int value) { _scanlinesRepeat.set(value); }
 
@@ -1674,8 +1782,8 @@ public:
     }
     void diffusionHorizontalSet(double value)
     {
-        _encoder->setDiffusionHorizontal(value);
-        _encoder->beginConvert();
+        _matcher->setDiffusionHorizontal(value);
+        beginConvert();
     }
 
     void setDiffusionVertical(double value)
@@ -1684,15 +1792,65 @@ public:
     }
     void diffusionVerticalSet(double value)
     {
-        _encoder->setDiffusionVertical(value);
-        _encoder->beginConvert();
+        _matcher->setDiffusionVertical(value);
+        beginConvert();
+    }
+
+    void bwPressed()
+    {
+        bool bw = _bwCheckBox.checked();
+        _matcher->setMode((_matcher->getMode() & ~4) | (bw ? 4 : 0));
+        _output.setBW(bw);
+        _composite.setBW(bw);
+        beginConvert();
+    }
+    void setBW(bool bw)
+    {
+        if (bw)
+            _bwCheckBox.check();
+        else
+            _bwCheckBox.uncheck();
+    }
+
+    void blinkPressed()
+    {
+        bool blink = _blinkCheckBox.checked();
+        int mode = _matcher->getMode();
+        _matcher->setMode((mode & ~0x20) | (blink ? 0x20 : 0));
+        if ((mode & 2) == 0)
+            beginConvert();
+    }
+    void setBlink(bool blink)
+    {
+        if (blink)
+            _blinkCheckBox.check();
+        else
+            _blinkCheckBox.uncheck();
+    }
+
+    void phasePressed()
+    {
+        _matcher->setPhase(_phaseCheckBox.checked() ? 0 : 1);
+    }
+    void setPhase(bool phase)
+    {
+        if (phase)
+            _phaseCheckBox.check();
+        else
+            _phaseCheckBox.uncheck();
     }
 
     void matchModePressed()
     {
-        _encoder->_matchMode = _matchMode.checked();
-        _encoder->beginConvert();
+        beginConvert();
         reCreateNTSC();
+    }
+    void setMatchMode(bool matchMode)
+    {
+        if (matchMode)
+            _matchMode.check();
+        else
+            _matchMode.uncheck();
     }
 
     void allAutos()
@@ -1802,7 +1960,8 @@ public:
     {
         bool newCGA = _newCGA.checked();
         _output.setNewCGA(newCGA);
-        _encoder->setNewCGA(newCGA);
+        _matcher->setNewCGA(newCGA);
+        _composite.setNewCGA(newCGA);
         reCreateNTSC();
     }
     void setNewCGA(bool newCGA)
@@ -1930,7 +2089,13 @@ private:
     ScanlinesRepeatCombo _scanlinesRepeat;
     DiffusionHorizontalSliderWindow _diffusionHorizontal;
     DiffusionVerticalSliderWindow _diffusionVertical;
-    CGAEncoder* _encoder;
+    BWCheckBox _bwCheckBox;
+    BlinkCheckBox _blinkCheckBox;
+    PhaseCheckBox _phaseCheckBox;
+    InterlaceCombo _interlaceCombo;
+    CGAMatcher* _matcher;
+    CGAShower* _shower;
+    CGAComposite _composite;
     NTSCDecoder* _decoder;
     double _black;
     double _white;
@@ -1947,13 +2112,82 @@ private:
     int _backgroundSelected;
 };
 
+class BitmapType : public NamedNullary<Type, BitmapType>
+{
+public:
+    static String name() { return "Bitmap"; }
+    class Body : public NamedNullary<Type, BitmapType>::Body
+    {
+    public:
+        bool canConvertFrom(const Type& from, String* reason) const
+        {
+            return from == StringType();
+        }
+        Value convert(const Value& value) const
+        {
+            return Value(BitmapType(), value.value(), value.span());
+        }
+        Value defaultValue() const
+        {
+            return Value(BitmapType(), Any(), Span());
+        }
+    };
+};
+
+class BitmapIsRGBIFunction : public Nullary<Function, BitmapIsRGBIFunction>
+{
+public:
+    class Body : public Nullary::Body
+    {
+    public:
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+            auto s = arguments.begin()->value<String>();
+            Bitmap<SRGB> input = PNGFileFormat<SRGB>().load(File(s, true));
+            Vector size = input.size();
+
+            int maxDistance = 0;
+            const Byte* inputRow = input.data();
+
+            for (int y = 0; y < size.y; ++y) {
+                const SRGB* inputPixel =
+                    reinterpret_cast<const SRGB*>(inputRow);
+                for (int x = 0; x < size.x; ++x) {
+                    SRGB s = *inputPixel;
+                    ++inputPixel;
+                    int bestDistance = 0x7fffffff;
+                    Byte bestRGBI = 0;
+                    for (int i = 0; i < 16; ++i) {
+                        int distance = (Vector3Cast<int>(rgbiPalette[i]) -
+                            Vector3Cast<int>(s)).modulus2();
+                        if (distance < bestDistance) {
+                            bestDistance = distance;
+                            if (distance < 42*42)
+                                break;
+                        }
+                    }
+                    maxDistance = max(bestDistance, maxDistance);
+                }
+                inputRow += input.stride();
+            }
+
+            return Value(maxDistance < 15*15*3);
+        }
+        Identifier identifier() const { return "bitmapIsRGBI"; }
+        FunctionType type() const
+        {
+            return FunctionType(BooleanType(), BitmapType());
+        }
+    };
+};
+
 class Program : public WindowProgram<CGA2NTSCWindow>
 {
 public:
     void run()
     {
         ConfigFile configFile;
-        configFile.addOption("inputPicture", StringType());
+        configFile.addOption("inputPicture", BitmapType());
         configFile.addDefaultOption("mode", 0x1a);
         configFile.addDefaultOption("palette", 0x0f);
         configFile.addDefaultOption("interlaceMode", 0);
@@ -1981,8 +2215,11 @@ public:
         configFile.addDefaultOption("scanlineSpacing", 2.0);
         configFile.addDefaultOption("phase", 1);
         configFile.addDefaultOption("interactive", true);
+        configFile.addDefaultOption("combFilter", false);
 
-        Array<String> arguments;
+        configFile.addFunco(BitmapIsRGBIFunction());
+
+        List<Value> arguments;
 
         if (_arguments.count() < 2) {
             console.write("Syntax: " + _arguments[0] +
@@ -2000,47 +2237,43 @@ public:
         }
         if (isPng) {
             configPath = "default.config";
-            arguments.allocate(_arguments.count());
-            arguments[0] = _arguments[0] + " " + configPath;
+            arguments.add(_arguments[0] + " " + configPath);
             for (int i = 1; i < _arguments.count(); ++i)
-                arguments[i] = _arguments[i];
+                arguments.add(_arguments[i]);
         }
         else {
-            arguments.allocate(_arguments.count() - 1);
-            arguments[0] = _arguments[0] + " " + configPath;
+            arguments.add(_arguments[0] + " " + configPath);
             for (int i = 1; i < _arguments.count() - 1; ++i)
-                arguments[i] = _arguments[i + 1];
+                arguments.add(_arguments[i + 1]);
         }
 
         configFile.addDefaultOption("arguments",
             ArrayType(StringType(), IntegerType()), arguments);
 
         configFile.load(configPath);
+        bool matchMode = configFile.get<bool>("matchMode");
 
 
-        CGAComposite composite;
-        composite._newCGA = configFile.get<bool>("newCGA");
-        composite.initChroma();
         NTSCDecoder decoder;
         decoder._fixPrimaries = configFile.get<bool>("ntscPrimaries");
         decoder._brightness = configFile.get<double>("brightness");
         decoder._hue = configFile.get<double>("hue");
         decoder._contrast = configFile.get<double>("contrast");
         decoder._saturation = configFile.get<double>("saturation");
-        _encoder.setDiffusionHorizontal(
+        _matcher.setDiffusionHorizontal(
             configFile.get<double>("horizontalDiffusion"));
-        _encoder.setDiffusionVertical(
+        _matcher.setDiffusionVertical(
             configFile.get<double>("verticalDiffusion"));
-        Byte burst[4];
-        for (int i = 0; i < 4; ++i)
-            burst[i] = composite.simulateCGA(6, 6, i);
-        decoder.calculateBurst(burst);
-        _encoder.setDecoder(&decoder);
-        _encoder.setMode(configFile.get<int>("mode"));
-        _encoder.setPalette(configFile.get<int>("palette"));
-        _encoder.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
-        _encoder.setScanlinesRepeat(configFile.get<int>("scanlinesRepeat"));
-        _encoder.setROM(configFile.get<String>("cgaROM"));
+        //Byte burst[4];
+        //for (int i = 0; i < 4; ++i)
+        //    burst[i] = composite.simulateCGA(6, 6, i);
+        //decoder.calculateBurst(burst);
+        _matcher.setDecoder(&decoder);
+        _matcher.setMode(configFile.get<int>("mode"));
+        _matcher.setPalette(configFile.get<int>("palette"));
+        _matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
+        _matcher.setScanlinesRepeat(configFile.get<int>("scanlinesRepeat"));
+        _matcher.setROM(configFile.get<String>("cgaROM"));
 
         String inputFileName = configFile.get<String>("inputPicture");
 
@@ -2099,14 +2332,17 @@ public:
             size = input.size();
         }
 
-        _encoder.setInput(input);
-        _encoder.setWindow(&_window);
-        _encoder.beginConvert();
+        _window.setMatchMode(matchMode);
+        _matcher.setInput(input);
+        _matcher.setWindow(&_window);
 
         _window.setDecoder(&decoder);
-        _window.setEncoder(&_encoder);
+        _window.setMatcher(&_matcher);
+        _window.setShower(&_shower);
+        _window.setNewCGA(configFile.get<bool>("newCGA"));
 
-        WindowProgram::run();
+        if (configFile.get<bool>("interactive"))
+            WindowProgram::run();
 
         int i;
         for (i = inputFileName.length() - 1; i >= 0; --i)
@@ -2116,11 +2352,12 @@ public:
             inputFileName = inputFileName.subString(0, i);
 
         _window.save(inputFileName + "_out.png");
-        _encoder.save(inputFileName + "_out.dat");
-        _encoder.saveRGBI(inputFileName + "_out.rgbi");
-        _encoder.savePalettes(inputFileName + "_out.palettes");
+        _matcher.save(inputFileName + "_out.dat");
+        _matcher.saveRGBI(inputFileName + "_out.rgbi");
+        _matcher.savePalettes(inputFileName + "_out.palettes");
     }
-    bool idle() { return _encoder.idle(); }
+    bool idle() { return _matcher.idle(); }
 private:
-    CGAEncoder _encoder;
+    CGAMatcher _matcher;
+    CGAShower _shower;
 };

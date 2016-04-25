@@ -583,6 +583,19 @@ class DoubleType : public NamedNullary<Type, DoubleType>
 {
 public:
     static String name() { return "Double"; }
+    class Body : public NamedNullary<Type, DoubleType>::Body
+    {
+    public:
+        bool canConvertFrom(const Type& from, String* reason) const
+        {
+            return from == IntegerType();
+        }
+        Value convert(const Value& value) const
+        {
+            return Value(DoubleType(), static_cast<double>(value.value<int>()),
+                value.span());
+        }
+    };
 };
 
 class ByteType : public NamedNullary<Type, ByteType>

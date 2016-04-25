@@ -88,6 +88,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\include\alfe\array.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\array_functions.h" />
     <ClInclude Include="..\..\..\..\include\alfe\bitmap.h" />
     <ClInclude Include="..\..\..\..\include\alfe\bitmap_png.h" />
     <ClInclude Include="..\..\..\..\include\alfe\cga.h" />
@@ -105,6 +106,7 @@
     <ClInclude Include="..\..\..\..\include\alfe\string.h" />
     <ClInclude Include="..\..\..\..\include\alfe\terminal6.h" />
     <ClInclude Include="..\..\..\..\include\alfe\thread.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\type.h" />
     <ClInclude Include="..\..\..\..\include\alfe\user.h" />
     <ClInclude Include="..\..\..\..\include\alfe\vectors.h" />
   </ItemGroup>

@@ -800,6 +800,16 @@ public:
     }
 };
 
+class CheckBox : public Button
+{
+public:
+    void create()
+    {
+        setStyle(BS_AUTOCHECKBOX | BS_TEXT | WS_CHILD | WS_VISIBLE);
+        Button::create();
+    }
+};
+
 class TextWindow : public WindowsWindow
 {
 public:
