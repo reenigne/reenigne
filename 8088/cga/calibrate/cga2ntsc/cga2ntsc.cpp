@@ -670,25 +670,35 @@ public:
     {
         _diffusionHorizontal = static_cast<int>(diffusionHorizontal*256);
     }
+    double getDiffusionHorizontal() { return _diffusionHorizontal/256.0; }
     void setDiffusionVertical(double diffusionVertical)
     {
         _diffusionVertical = static_cast<int>(diffusionVertical*256);
     }
-    double getDiffusionHorizontal() { return _diffusionHorizontal/256.0; }
     double getDiffusionVertical() { return _diffusionVertical/256.0; }
+    void setDiffusionTemporal(double diffusionTemporal)
+    {
+        _diffusionTemporal = static_cast<int>(diffusionTemporal*256);
+    }
+    double getDiffusionTemporal() { return _diffusionTemporal/256.0; }
     void setMode(int mode) { _mode = mode; }
-    void setPalette(int palette) { _palette = palette; }
     int getMode() { return _mode; }
+    void setPalette(int palette) { _palette = palette; }
     int getPalette() { return _palette; }
     void setScanlinesPerRow(int v) { _scanlinesPerRow = v; }
-    void setScanlinesRepeat(int v) { _scanlinesRepeat = v; }
     int getScanlinesPerRow() { return _scanlinesPerRow; }
+    void setScanlinesRepeat(int v) { _scanlinesRepeat = v; }
     int getScanlinesRepeat() { return _scanlinesRepeat; }
     void setROM(File rom) { _sequencer.setROM(rom); }
     void setNewCGA(bool newCGA) { _composite.setNewCGA(newCGA); }
-    bool getBW() { return (_mode & 4) != 0; }
     void setPhase(int phase) { _phase = phase; }
     int getPhase() { return _phase; }
+    void setInterlace(int interlace) { _interlace = interlace; }
+    int getInterlace() { _interlace; }
+    void setQuality(double quality) { _quality = quality; }
+    double getQuality() { return _quality; }
+    void setCharacterSet(int characterSet) { _characterSet = characterSet; }
+    int getCharacterSet() { return _characterSet; }
 
 private:
     int _phase;
@@ -719,6 +729,9 @@ private:
     Vector _block;
     int _diffusionHorizontal;
     int _diffusionVertical;
+    int _diffusionTemporal;
+    int _interlace;
+    double _quality;
     int _characterSet;
     UInt64 _configScore;
     Array<bool> _skip;
@@ -1301,6 +1314,33 @@ public:
 };
 typedef DiffusionVerticalSliderWindowT<void> DiffusionVerticalSliderWindow;
 
+template<class T> class DiffusionTemporalSliderWindowT
+  : public NumericSliderWindow
+{
+public:
+    void valueSet2(double value) { _host->diffusionTemporalSet(value); }
+    void create()
+    {
+        _caption.setText("Temporal diffusion: ");
+        setRange(0, 1);
+        NumericSliderWindow::create();
+    }
+};
+typedef DiffusionTemporalSliderWindowT<void> DiffusionTemporalSliderWindow;
+
+template<class T> class QualitySliderWindowT : public NumericSliderWindow
+{
+public:
+    void valueSet2(double value) { _host->qualitySet(value); }
+    void create()
+    {
+        _caption.setText("Quality: ");
+        setRange(0, 1);
+        NumericSliderWindow::create();
+    }
+};
+typedef QualitySliderWindowT<void> QualitySliderWindow;
+
 template<class T> class BWCheckBoxT : public CheckBox
 {
 public:
@@ -1379,6 +1419,29 @@ private:
     CGA2NTSCWindow* _host;
 };
 typedef InterlaceComboT<void> InterlaceCombo;
+
+template<class T> class CharacterSetComboT : public ComboBox
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void changed(int value) { _host->characterSetSet(value); }
+    void create()
+    {
+        ComboBox::create();
+        add(String("0xdd");
+        add(String("0x13/0x55");
+        add(String("1K");
+        add(String("all");
+        add(String("0xb1");
+        add(String("0xb0/0xb1");
+        add(String("ISAV");
+        set(3);
+        autoSize();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef CharacterSetComboT<void> CharacterSetCombo;
 
 class OutputWindow : public BitmapWindow
 {
@@ -1496,10 +1559,13 @@ public:
         add(&_scanlinesRepeat);
         add(&_diffusionHorizontal);
         add(&_diffusionVertical);
+        add(&_diffusionTemporal);
+        add(&_quality);
         add(&_bwCheckBox);
         add(&_blinkCheckBox);
         add(&_phaseCheckBox);
         add(&_interlaceCombo);
+        add(&_characterSetCombo);
         RootWindow::setWindows(windows);
     }
     void create()
@@ -1526,9 +1592,12 @@ public:
         _scanlinesRepeat.setHost(this);
         _diffusionHorizontal.setHost(this);
         _diffusionVertical.setHost(this);
+        _diffusionTemporal.setHost(this);
+        _quality.setHost(this);
         _bwCheckBox.setHost(this);
         _blinkCheckBox.setHost(this);
         _interlaceCombo.setHost(this);
+        _characterSetCombo.setHost(this);
 
         setText("CGA to NTSC");
         setSize(Vector(640, 480));
@@ -1577,6 +1646,9 @@ public:
         _background.set(_backgroundSelected);
         setDiffusionHorizontal(_matcher->getDiffusionHorizontal());
         setDiffusionVertical(_matcher->getDiffusionVertical());
+        setDiffusionTemporal(_matcher->getDiffusionTemporal());
+        setQuality(_matcher->getQuality());
+        setCharacterSet(_matcher->getCharacterSet());
         setScanlinesPerRow(_matcher->getScanlinesPerRow() - 1);
         setScanlinesRepeat(_matcher->getScanlinesRepeat() - 1);
 
@@ -1623,6 +1695,7 @@ public:
         _mode.setPosition(_matchMode.bottomLeft() + vSpace);
         _background.setPosition(_mode.topRight());
         _palette.setPosition(_background.topRight());
+        _characterSetCombo.setPosition(_palette.topLeft());
         _scanlinesPerRow.setPosition(_palette.topRight());
         _scanlinesRepeat.setPosition(_scanlinesPerRow.topRight());
 
@@ -1637,6 +1710,11 @@ public:
         _diffusionVertical.setPositionAndSize(
             _diffusionHorizontal.bottomLeft() + vSpace, Vector(301, 24));
 
+        _diffusionTemporal.setPositionAndSize(
+            _diffusionVertical.bottomLeft() + vSpace, Vector(301, 24));
+
+        _quality.setPositionAndSize(
+            _diffusionTemporal.bottomLeft() + vSpace, Vector(301, 24));
     }
     void keyboardCharacter(int character)
     {
@@ -1796,6 +1874,26 @@ public:
         beginConvert();
     }
 
+    void setDiffusionTemporal(double value)
+    {
+        _diffusionTemporal.setValue(value);
+    }
+    void diffusionTemporalSet(double value)
+    {
+        _matcher->setDiffusionTemporal(value);
+        beginConvert();
+    }
+
+    void setQuality(double value)
+    {
+        _quality.setValue(value);
+    }
+    void qualitySet(double value)
+    {
+        _matcher->setQuality(value);
+        beginConvert();
+    }
+
     void bwPressed()
     {
         bool bw = _bwCheckBox.checked();
@@ -1804,13 +1902,7 @@ public:
         _composite.setBW(bw);
         beginConvert();
     }
-    void setBW(bool bw)
-    {
-        if (bw)
-            _bwCheckBox.check();
-        else
-            _bwCheckBox.uncheck();
-    }
+    void setBW(bool bw) { _bwCheckBox.setCheckState(bw); }
 
     void blinkPressed()
     {
@@ -1820,38 +1912,34 @@ public:
         if ((mode & 2) == 0)
             beginConvert();
     }
-    void setBlink(bool blink)
-    {
-        if (blink)
-            _blinkCheckBox.check();
-        else
-            _blinkCheckBox.uncheck();
-    }
+    void setBlink(bool blink) { _blinkCheckBox.setCheckState(blink); }
 
     void phasePressed()
     {
         _matcher->setPhase(_phaseCheckBox.checked() ? 0 : 1);
     }
-    void setPhase(bool phase)
+    void setPhase(bool phase) { _phaseCheckBox.setCheckState(phase); }
+
+    void interlaceSet(int value)
     {
-        if (phase)
-            _phaseCheckBox.check();
-        else
-            _phaseCheckBox.uncheck();
+        _matcher->setInterlace(value);
+        beginConvert();
     }
+    void setInterlace(int value) { _interlaceCombo.set(value); }
+
+    void characterSetSet(int value)
+    {
+        _matcher->setCharacterSet(value);
+        beginConvert();
+    }
+    void setCharacterSet(int value) { _characterSetCombo.set(value); }
 
     void matchModePressed()
     {
         beginConvert();
         reCreateNTSC();
     }
-    void setMatchMode(bool matchMode)
-    {
-        if (matchMode)
-            _matchMode.check();
-        else
-            _matchMode.uncheck();
-    }
+    void setMatchMode(bool matchMode) { _matchMode.setCheckState(matchMode); }
 
     void allAutos()
     {
@@ -1964,13 +2052,7 @@ public:
         _composite.setNewCGA(newCGA);
         reCreateNTSC();
     }
-    void setNewCGA(bool newCGA)
-    {
-        if (newCGA)
-            _newCGA.check();
-        else
-            _newCGA.uncheck();
-    }
+    void setNewCGA(bool newCGA) { _newCGA.setCheckState(newCGA); }
 
     void fixPrimariesPressed()
     {
@@ -2089,10 +2171,13 @@ private:
     ScanlinesRepeatCombo _scanlinesRepeat;
     DiffusionHorizontalSliderWindow _diffusionHorizontal;
     DiffusionVerticalSliderWindow _diffusionVertical;
+    DiffusionTemporalSliderWindow _diffusionTemporal;
+    QualitySliderWindow _quality;
     BWCheckBox _bwCheckBox;
     BlinkCheckBox _blinkCheckBox;
     PhaseCheckBox _phaseCheckBox;
     InterlaceCombo _interlaceCombo;
+    CharacterSetCombo _characterSetCombo;
     CGAMatcher* _matcher;
     CGAShower* _shower;
     CGAComposite _composite;
@@ -2264,6 +2349,11 @@ public:
             configFile.get<double>("horizontalDiffusion"));
         _matcher.setDiffusionVertical(
             configFile.get<double>("verticalDiffusion"));
+        _matcher.setDiffusionTemporal(
+            configFile.get<double>("temporalDiffusion"));
+        _matcher.setQuality(configFile.get<double>("quality"));
+        _matcher.setInterlace(configFile.get<int>("interlaceMode"));
+        _matcher.setCharacterSet(configFile.get<int>("characterSet"));
         //Byte burst[4];
         //for (int i = 0; i < 4; ++i)
         //    burst[i] = composite.simulateCGA(6, 6, i);

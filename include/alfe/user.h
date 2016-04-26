@@ -787,6 +787,13 @@ public:
     {
         SendMessage(_hWnd, BM_SETCHECK, static_cast<WPARAM>(TRUE), 0);
     }
+    void setCheckState(bool checked)
+    {
+        if (checked)
+            check();
+        else
+            uncheck();
+    }
 };
 
 class ToggleButton : public Button
