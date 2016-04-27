@@ -995,13 +995,23 @@ public:
     Vector bottomLeft() { return _caption.bottomLeft(); }
     void valueSet(double value)
     {
-        _text.setText(format("%f", value));
+        double v = valueFromPosition(value);
+        _text.setText(format("%f", v));
         _text.size();
-        valueSet2(value);
+        valueSet2(v);
     }
-    virtual void valueSet2(double value) { }
+    void setRange(double low, double high)
+    {
+        Slider::setRange(positionFromValue(low), positionFromValue(high));
+    }
+    void setValue(double value) { Slider::setValue(positionFromValue(value)); }
+    double getValue() { return valueFromPosition(Slider::getValue()); }
 
 protected:
+    virtual void valueSet2(double value) { }
+    virtual double positionFromValue(double value) { return value; }
+    virtual double valueFromPosition(double position) { return position; }
+
     CGA2NTSCWindow* _host;
     TextWindow _caption;
 private:
@@ -1193,16 +1203,16 @@ public:
     void create()
     {
         ComboBox::create();
-        add(String("40 column text"));
-        add(String("80 column text"));
-        add(String("1bpp graphics"));
-        add(String("2bpp graphics"));
-        add(String("40 column text with 1bpp graphics"));
-        add(String("80 column text with 1bpp graphics"));
-        add(String("1bpp graphics, odd bits ignored"));
-        add(String("high-res 2bpp graphics"));
-        add(String("Auto -HRES"));
-        add(String("Auto +HRES"));
+        add("40 column text");
+        add("80 column text");
+        add("1bpp graphics");
+        add("2bpp graphics");
+        add("40 column text with 1bpp graphics");
+        add("80 column text with 1bpp graphics");
+        add("1bpp graphics, odd bits ignored");
+        add("high-res 2bpp graphics");
+        add("Auto -HRES");
+        add("Auto +HRES");
         set(2);
         autoSize();
     }
@@ -1221,7 +1231,7 @@ public:
         ComboBox::create();
         for (int i = 0; i < 16; ++i)
             add(decimal(i));
-        add(String("Auto"));
+        add("Auto");
         set(15);
         autoSize();
     }
@@ -1274,10 +1284,10 @@ public:
     void create()
     {
         ComboBox::create();
-        add(String("2/4/6"));
-        add(String("10/12/14"));
-        add(String("3/5/7"));
-        add(String("11/13/15"));
+        add("2/4/6");
+        add("10/12/14");
+        add("3/5/7");
+        add("11/13/15");
         set(3);
         autoSize();
     }
@@ -1394,24 +1404,24 @@ public:
     void create()
     {
         ComboBox::create();
-        add(String("None");
-        add(String("Flicker");
-        add(String("Sync");
-        add(String("Sync and video");
-        add(String("Even");
-        add(String("Odd");
-        add(String("Video");
-        add(String("Video and flicker");
-        add(String("Sync flicker");
-        add(String("Sync video and flicker");
-        add(String("Even flicker");
-        add(String("Odd flicker");
-        add(String("Sync even");
-        add(String("Sync odd");
-        add(String("Sync even flicker");
-        add(String("Sync odd flicker");
-        add(String("Sync and video swapped");
-        add(String("Sync video and flicker swapped");
+        add("None");
+        add("Flicker");
+        add("Sync");
+        add("Sync and video");
+        add("Even");
+        add("Odd");
+        add("Video");
+        add("Video and flicker");
+        add("Sync flicker");
+        add("Sync video and flicker");
+        add("Even flicker");
+        add("Odd flicker");
+        add("Sync even");
+        add("Sync odd");
+        add("Sync even flicker");
+        add("Sync odd flicker");
+        add("Sync and video swapped");
+        add("Sync video and flicker swapped");
         set(0);
         autoSize();
     }
@@ -1428,13 +1438,13 @@ public:
     void create()
     {
         ComboBox::create();
-        add(String("0xdd");
-        add(String("0x13/0x55");
-        add(String("1K");
-        add(String("all");
-        add(String("0xb1");
-        add(String("0xb0/0xb1");
-        add(String("ISAV");
+        add("0xdd");
+        add("0x13/0x55");
+        add("1K");
+        add("all");
+        add("0xb1");
+        add("0xb0/0xb1");
+        add("ISAV");
         set(3);
         autoSize();
     }
@@ -1442,6 +1452,134 @@ private:
     CGA2NTSCWindow* _host;
 };
 typedef CharacterSetComboT<void> CharacterSetCombo;
+
+template<class T> class ScanlineWidthSliderWindowT : public NumericSliderWindow
+{
+public:
+    void valueSet2(double value) { _host->scanlineWidthSet(value); }
+    void create()
+    {
+        _caption.setText("Scanline width: ");
+        setRange(0, 1);
+        NumericSliderWindow::create();
+    }
+};
+typedef ScanlineWidthSliderWindowT<void> ScanlineWidthSliderWindow;
+
+template<class T> class ScanlineProfileComboT : public ComboBox
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void changed(int value) { _host->characterSetSet(value); }
+    void create()
+    {
+        ComboBox::create();
+        add("rectangular");
+        add("triangle");
+        add("semicircle");
+        add("gaussian");
+        set(0);
+        autoSize();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef ScanlineProfileComboT<void> ScanlineProfileCombo;
+
+template<class T> class ScanlineOffsetSliderWindowT
+  : public NumericSliderWindow
+{
+public:
+    void valueSet2(double value) { _host->scanlineOffsetSet(value); }
+    void create()
+    {
+        _caption.setText("Scanline offset: ");
+        setRange(0, 1);
+        NumericSliderWindow::create();
+    }
+};
+typedef ScanlineOffsetSliderWindowT<void> ScanlineOffsetSliderWindow;
+
+template<class T> class ZoomSliderWindowT : public NumericSliderWindow
+{
+public:
+    void valueSet2(double value) { _host->scanlineOffsetSet(value); }
+    void create()
+    {
+        _caption.setText("Zoom: ");
+        setRange(1, 10);
+        NumericSliderWindow::create();
+    }
+    double positionFromValue(double value) { return log(value); }
+    double valueFromPosition(double position) { return exp(position); }
+};
+typedef ZoomSliderWindowT<void> ZoomSliderWindow;
+
+template<class T> class ScanlineBleedingCheckBoxT : public CheckBox
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void clicked() { _host->scanlineBleedingPressed(); }
+    void create()
+    {
+        setText("Scanline bleeding");
+        CheckBox::create();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef ScanlineBleedingCheckBoxT<void> ScanlineBleedingCheckBox;
+
+template<class T> class AspectRatioSliderWindowT : public NumericSliderWindow
+{
+public:
+    void valueSet2(double value) { _host->aspectRatioSet(value); }
+    void create()
+    {
+        _caption.setText("Aspect Ratio: ");
+        setRange(1, 2);
+        NumericSliderWindow::create();
+    }
+};
+typedef AspectRatioSliderWindowT<void> AspectRatioSliderWindow;
+
+template<class T> class CombFilterVerticalComboT : public ComboBox
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void changed(int value) { _host->combFilterVerticalSet(value); }
+    void create()
+    {
+        ComboBox::create();
+        add("none");
+        add("(1, 1)");
+        add("(1, 2, 1)");
+        set(0);
+        autoSize();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef CombFilterVerticalComboT<void> CombFilterVerticalCombo;
+
+template<class T> class CombFilterTemporalComboT : public ComboBox
+{
+public:
+    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void changed(int value) { _host->combFilterTemporalSet(value); }
+    void create()
+    {
+        ComboBox::create();
+        add("none");
+        add("(1, 1)");
+        add("(1, 2, 1)");
+        set(0);
+        autoSize();
+    }
+private:
+    CGA2NTSCWindow* _host;
+};
+typedef CombFilterTemporalComboT<void> CombFilterTemporalCombo;
 
 class OutputWindow : public BitmapWindow
 {
@@ -1515,6 +1653,14 @@ public:
     }
     void setNewCGA(bool newCGA) { _composite.setNewCGA(newCGA); }
     void setBW(bool bw) { _composite.setBW(bw); }
+    void setScanlineWidth(double width) { _scanlineWidth = width; }
+    void setScanlineProfile(int profile) { _scanlineProfile = profile; }
+    void setScanlineOffset(double offset) { _scanlineOffset = offset; }
+    void setZoom(double zoom) { _zoom = zoom; }
+    void setScanlineBleeding(bool bleeding) { _scanlineBleeding = bleeding; }
+    void setAspectRatio(double ratio) { _aspectRatio = ratio; }
+    void setCombFilterVertical(int value) { _combFilterVertical = value; }
+    void setCombFilterTemporal(int value) { _combFilterTemporal = value; }
 
 private:
     Bitmap<DWORD> _bitmap;
@@ -1522,6 +1668,14 @@ private:
     Bitmap<Byte> _ntsc;
     CGAComposite _composite;
     NTSCDecoder* _decoder;
+    double _scanlineWidth;
+    int _scanlineProfile;
+    double _scanlineOffset;
+    double _zoom;
+    bool _scanlineBleeding;
+    double _aspectRatio;
+    int _combFilterVertical;
+    int _combFilterTemporal;
 };
 
 class CGA2NTSCWindow : public RootWindow
@@ -1534,70 +1688,52 @@ public:
     void setWindows(Windows* windows)
     {
         add(&_output);
-        add(&_brightness);
-        add(&_autoBrightness);
-        add(&_saturation);
-        add(&_autoSaturation);
-        add(&_contrast);
-        add(&_autoContrastClip);
-        add(&_autoContrastMono);
-        add(&_hue);
-        add(&_sharpness);
+        add2(&_brightness);
+        add2(&_autoBrightness);
+        add2(&_saturation);
+        add2(&_autoSaturation);
+        add2(&_contrast);
+        add2(&_autoContrastClip);
+        add2(&_autoContrastMono);
+        add2(&_hue);
+        add2(&_sharpness);
         add(&_blackText);
         add(&_whiteText);
         add(&_mostSaturatedText);
         add(&_clippedColoursText);
         add(&_gamut);
-        add(&_newCGA);
-        add(&_fixPrimaries);
+        add2(&_newCGA);
+        add2(&_fixPrimaries);
         add(&_animated);
-        add(&_matchMode);
-        add(&_mode);
-        add(&_background);
-        add(&_palette);
-        add(&_scanlinesPerRow);
-        add(&_scanlinesRepeat);
-        add(&_diffusionHorizontal);
-        add(&_diffusionVertical);
-        add(&_diffusionTemporal);
-        add(&_quality);
-        add(&_bwCheckBox);
-        add(&_blinkCheckBox);
-        add(&_phaseCheckBox);
-        add(&_interlaceCombo);
-        add(&_characterSetCombo);
+        add2(&_matchMode);
+        add2(&_mode);
+        add2(&_background);
+        add2(&_palette);
+        add2(&_scanlinesPerRow);
+        add2(&_scanlinesRepeat);
+        add2(&_diffusionHorizontal);
+        add2(&_diffusionVertical);
+        add2(&_diffusionTemporal);
+        add2(&_quality);
+        add2(&_bwCheckBox);
+        add2(&_blinkCheckBox);
+        add2(&_phaseCheckBox);
+        add2(&_interlaceCombo);
+        add2(&_characterSetCombo);
+        add2(&_scanlineWidth);
+        add2(&_scanlineProfile);
+        add2(&_scanlineOffset);
+        add2(&_zoom);
+        add2(&_scanlineBleeding);
+        add2(&_aspectRatio);
+        add2(&_combFilterVertical);
+        add2(&_combFilterTemporal);
         RootWindow::setWindows(windows);
     }
     void create()
     {
         _animated.setDrawWindow(&_gamut);
         _gamut.setAnimated(&_animated);
-
-        _brightness.setHost(this);
-        _saturation.setHost(this);
-        _contrast.setHost(this);
-        _hue.setHost(this);
-        _sharpness.setHost(this);
-        _autoBrightness.setHost(this);
-        _autoSaturation.setHost(this);
-        _autoContrastClip.setHost(this);
-        _autoContrastMono.setHost(this);
-        _newCGA.setHost(this);
-        _fixPrimaries.setHost(this);
-        _matchMode.setHost(this);
-        _mode.setHost(this);
-        _background.setHost(this);
-        _palette.setHost(this);
-        _scanlinesPerRow.setHost(this);
-        _scanlinesRepeat.setHost(this);
-        _diffusionHorizontal.setHost(this);
-        _diffusionVertical.setHost(this);
-        _diffusionTemporal.setHost(this);
-        _quality.setHost(this);
-        _bwCheckBox.setHost(this);
-        _blinkCheckBox.setHost(this);
-        _interlaceCombo.setHost(this);
-        _characterSetCombo.setHost(this);
 
         setText("CGA to NTSC");
         setSize(Vector(640, 480));
@@ -1631,7 +1767,7 @@ public:
         }
         setBW((mode & 4) != 0);
         setBlink((mode & 0x20) != 0);
-        setPhase(_matcher->getPhase());
+        setPhase(_matcher->getPhase() == 0);
         setInterlace(_matcher->getInterlace());
         int palette = _matcher->getPalette();
         if (palette == 0xff) {
@@ -1715,6 +1851,25 @@ public:
 
         _quality.setPositionAndSize(
             _diffusionTemporal.bottomLeft() + vSpace, Vector(301, 24));
+
+        _scanlineWidth.setPositionAndSize(
+            _quality.bottomLeft() + vSpace, Vector(301, 24));
+
+        _scanlineProfile.setPosition(_scanlineWidth.bottomLeft());
+
+        _scanlineOffset.setPositionAndSize(
+            _scanlineProfile.bottomLeft() + vSpace, Vector(301, 24));
+
+        _zoom.setPositionAndSize(
+            _scanlineOffset.bottomLeft() + vSpace, Vector(301, 24));
+
+        _scanlineBleeding.setPosition(_zoom.bottomLeft());
+
+        _aspectRatio.setPositionAndSize(
+            _scanlineBleeding.bottomLeft() + vSpace, Vector(301, 24));
+
+        _combFilterVertical.setPosition(_aspectRatio.bottomLeft());
+        _combFilterTemporal.setPosition(_combFilterVertical.topRight());
     }
     void keyboardCharacter(int character)
     {
@@ -1884,15 +2039,49 @@ public:
         beginConvert();
     }
 
-    void setQuality(double value)
-    {
-        _quality.setValue(value);
-    }
+    void setQuality(double value) { _quality.setValue(value); }
     void qualitySet(double value)
     {
         _matcher->setQuality(value);
         beginConvert();
     }
+
+    void setScanlineWidth(double value) { _scanlineWidth.setValue(value); }
+    void scanlineWidthSet(double value) { _output.setScanlineWidth(value); }
+
+    void setScanlineProfile(int value) { _scanlineProfile.set(value); }
+    void scanlineProfileSet(int value) { _output.setScanlineProfile(value); }
+
+    void setScanlineOffset(double value) { _scanlineOffset.setValue(value); }
+    void scanlineOffsetSet(double value) { _output.setScanlineOffset(value); }
+
+    void setZoom(double value) { _zoom.setValue(value); }
+    void zoomSet(double value) { _output.setZoom(value); }
+
+    void scanlineBleedingPressed()
+    {
+        _output.setScanlineBleeding(_scanlineBleeding.checked() ? 0 : 1);
+    }
+    void setScanlineBleeding(bool bleeding)
+    {
+        _scanlineBleeding.setCheckState(bleeding);
+    }
+
+    void setAspectRatio(double value) { _aspectRatio.setValue(value); }
+    void aspectRatioSet(double value) { _output.setAspectRatio(value); }
+
+    void setCombFilterVertical(int value) { _combFilterVertical.set(value); }
+    void combFilterVerticalSet(int value)
+    {
+        _output.setCombFilterVertical(value);
+    }
+
+    void setCombFilterTemporal(int value) { _combFilterTemporal.set(value); }
+    void combFilterTemporalSet(int value)
+    {
+        _output.setCombFilterTemporal(value);
+    }
+
 
     void bwPressed()
     {
@@ -2145,6 +2334,12 @@ public:
     void addColour(UInt64 seq) { _colours.add(seq); }
 
 private:
+    template<class T> void add2(T* p)
+    {
+        add(p);
+        p->setHost(this);
+    }
+
     AnimatedWindow _animated;
     OutputWindow _output;
     BrightnessSliderWindow _brightness;
@@ -2178,6 +2373,14 @@ private:
     PhaseCheckBox _phaseCheckBox;
     InterlaceCombo _interlaceCombo;
     CharacterSetCombo _characterSetCombo;
+    ScanlineWidthSliderWindow _scanlineWidth;
+    ScanlineProfileCombo _scanlineProfile;
+    ScanlineOffsetSliderWindow _scanlineOffset;
+    ZoomSliderWindow _zoom;
+    ScanlineBleedingCheckBox _scanlineBleeding;
+    AspectRatioSliderWindow _aspectRatio;
+    CombFilterVerticalCombo _combFilterVertical;
+    CombFilterTemporalCombo _combFilterTemporal;
     CGAMatcher* _matcher;
     CGAShower* _shower;
     CGAComposite _composite;
@@ -2297,10 +2500,11 @@ public:
         configFile.addDefaultOption("scanlineProfile", 0);
         configFile.addDefaultOption("scanlineBleeding", false);
         configFile.addDefaultOption("scanlineOffset", 0.0);
-        configFile.addDefaultOption("scanlineSpacing", 2.0);
+        configFile.addDefaultOption("zoom", 2.0);
         configFile.addDefaultOption("phase", 1);
         configFile.addDefaultOption("interactive", true);
-        configFile.addDefaultOption("combFilter", false);
+        configFile.addDefaultOption("combFilterVertical", 0);
+        configFile.addDefaultOption("combFilterTemporal", 0);
 
         configFile.addFunco(BitmapIsRGBIFunction());
 
@@ -2364,6 +2568,16 @@ public:
         _matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
         _matcher.setScanlinesRepeat(configFile.get<int>("scanlinesRepeat"));
         _matcher.setROM(configFile.get<String>("cgaROM"));
+        _window.setScanlineWidth(configFile.get<double>("scanlineWidth"));
+        _window.setScanlineProfile(configFile.get<int>("scanlineProfile"));
+        _window.setScanlineOffset(configFile.get<double>("scanlineOffset"));
+        _window.setZoom(configFile.get<double>("zoom"));
+        _window.setScanlineBleeding(configFile.get<bool>("scanlineBleeding"));
+        _window.setAspectRatio(configFile.get<double>("aspectRatio"));
+        _window.setCombFilterVertical(
+            configFile.get<int>("combFilterVertical"));
+        _window.setCombFilterTemporal(
+            configFile.get<int>("combFilterTemporal"));
 
         String inputFileName = configFile.get<String>("inputPicture");
 
