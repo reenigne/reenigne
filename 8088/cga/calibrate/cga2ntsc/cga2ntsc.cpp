@@ -5,133 +5,7 @@
 #include "alfe/set.h"
 #include "alfe/config_file.h"
 #include "alfe/cga.h"
-
-class NTSCDecoder
-{
-public:
-    void calculateBurst(Byte* burst)
-    {
-        Complex<double> iq;
-        iq.x = burst[0] - burst[2];
-        iq.y = burst[1] - burst[3];
-        _iqAdjust =
-            -iq.conjugate()*unit((33 + 90 + _hue)/360.0)*_saturation*_contrast/
-            (iq.modulus()*16);
-        _contrast2 = _contrast/32;
-        _brightness2 = _brightness*256.0;
-    }
-    Colour decode(int* s)
-    {
-        int dc = (s[0] + s[1] + s[2] + s[3])*8;
-        Complex<int> iq;
-        iq.x = (s[0] - s[2])*8;
-        iq.y = (s[1] - s[3])*8;
-        return decode(dc, iq);
-    }
-    Colour decode(const Byte* n, int phase)
-    {
-        // Filter kernel must be divisible by (1,1,1,1) so that all phases
-        // contribute equally.
-        int y = n[0] +n[1]*4 +n[2]*7 +n[3]*8 +n[4]*7 +n[5]*4 +n[6];
-        Complex<int> iq;
-        switch (phase) {
-            case 0:
-                iq.x =  n[0]   -n[2]*7 +n[4]*7 -n[6];
-                iq.y =  n[1]*4 -n[3]*8 +n[5]*4;
-                break;
-            case 1:
-                iq.x = -n[1]*4 +n[3]*8 -n[5]*4;
-                iq.y =  n[0]   -n[2]*7 +n[4]*7 -n[6];
-                break;
-            case 2:
-                iq.x = -n[0]   +n[2]*7 -n[4]*7 +n[6];
-                iq.y = -n[1]*4 +n[3]*8 -n[5]*4;
-                break;
-            case 3:
-                iq.x = +n[1]*4 -n[3]*8 +n[5]*4;
-                iq.y = -n[0]   +n[2]*7 -n[4]*7 +n[6];
-                break;
-        }
-        return decode(y, iq);
-    }
-    void decodeLine(const Byte* ntsc, SRGB* srgb, int length, int phase)
-    {
-        for (int x = 0; x < length; ++x) {
-            phase = (phase + 1) & 3;
-            Colour s = decode(ntsc, phase);
-            ++ntsc;
-            *srgb = SRGB(byteClamp(s.x), byteClamp(s.y), byteClamp(s.z));
-            ++srgb;
-        }
-    }
-    void encodeLine(Byte* ntsc, const SRGB* srgb, int length, int phase)
-    {
-        phase = (phase + 3) & 3;
-        for (int x = 0; x < length; ++x) {
-            Vector3<int> mix = Vector3Cast<int>(srgb[0]) +
-                4*Vector3Cast<int>(srgb[1]) + 7*Vector3Cast<int>(srgb[2]) +
-                8*Vector3Cast<int>(srgb[3]) + 7*Vector3Cast<int>(srgb[4]) +
-                4*Vector3Cast<int>(srgb[5]) + Vector3Cast<int>(srgb[6]);
-            ++srgb;
-            Colour c;
-            if (_fixPrimaries) {
-                c.x = (0.6689*mix.x + 0.2679*mix.y + 0.0323*mix.z);
-                c.y = (0.0185*mix.x + 1.0743*mix.y - 0.0603*mix.z);
-                c.z = (0.0162*mix.x + 0.0431*mix.y + 0.8551*mix.z);
-            }
-            else
-                c = Colour(mix.x, mix.y, mix.z);
-            Complex<double> iq;
-            double y = 0.299*c.x + 0.587*c.y + 0.114*c.z;
-            iq.x = 0.596*c.x - 0.275*c.y - 0.321*c.z;
-            iq.y = 0.212*c.x - 0.528*c.y + 0.311*c.z;
-            iq /= (_iqAdjust*512);
-            y = (y/32 - _brightness2)/(_contrast2*32);
-            switch (phase) {
-                case 0:
-                    *ntsc = byteClamp(y + iq.x);
-                    break;
-                case 1:
-                    *ntsc = byteClamp(y + iq.y);
-                    break;
-                case 2:
-                    *ntsc = byteClamp(y - iq.x);
-                    break;
-                case 3:
-                    *ntsc = byteClamp(y - iq.y);
-                    break;
-            }
-            ++ntsc;
-            phase = (phase + 1) & 3;
-        }
-    }
-
-    bool _fixPrimaries;
-    double _hue;
-    double _saturation;
-    double _contrast;
-    double _brightness;
-    double _sharpness;
-private:
-    Colour decode(int y, Complex<int> iq)
-    {
-        double y2 = y*_contrast2 + _brightness2;
-        Complex<double> iq2 = Complex<double>(iq)*_iqAdjust;
-        double r = y2 + 0.9563*iq2.x + 0.6210*iq2.y;
-        double g = y2 - 0.2721*iq2.x - 0.6474*iq2.y;
-        double b = y2 - 1.1069*iq2.x + 1.7046*iq2.y;
-        if (_fixPrimaries)
-            return Colour(
-                 1.5073*r -0.3725*g -0.0832*b,
-                -0.0275*r +0.9350*g +0.0670*b,
-                -0.0272*r -0.0401*g +1.1677*b);
-        return Colour(r, g, b);
-    }
-
-    Complex<double> _iqAdjust;
-    double _contrast2;
-    double _brightness2;
-};
+#include "alfe/ntsc_decode.h"
 
 class CGA2NTSCWindow;
 
@@ -152,8 +26,8 @@ public:
     {
         _input = input;
         _size = input.size();
-        _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
     }
+    void setOutput(Bitmap<Byte> rgbi) { _rgbi = rgbi; }
     void convert()
     {
         // Convert to RGBI indexes and add left and right borders.
@@ -236,12 +110,12 @@ public:
     {
         _input = input;
         _size = input.size();
-        _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
         _input2 = Bitmap<SRGB>(_size + Vector(11, 0));
         _input2.fill(SRGB(0, 0, 0));
         _input2.subBitmap(Vector(5, 0), _size).copyFrom(_input);
         _configs.allocate(_size.y);
     }
+    void setOutput(Bitmap<Byte> rgbi) { _rgbi = rgbi; }
     void setWindow(CGA2NTSCWindow* window) { _window = window; }
     static void filterHF(const Byte* input, SInt16* output, int n)
     {
@@ -334,7 +208,7 @@ public:
         const Byte* srgbRow = _input2.data();
         Array<Byte> ntscTemp(_size.x + 5);
         for (int y = 0; y < _size.y; ++y) {
-            _decoder->encodeLine(&ntscTemp[0],
+            _decoder.encodeLine(&ntscTemp[0],
                 reinterpret_cast<const SRGB*>(srgbRow), _size.x + 5, 2);
             filterHF(&ntscTemp[0], reinterpret_cast<SInt16*>(ntscRow),
                 _size.x + 1);
@@ -664,8 +538,6 @@ public:
         return 0x19 | b;
     }
 
-    void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
-
     void setDiffusionHorizontal(double diffusionHorizontal)
     {
         _diffusionHorizontal = static_cast<int>(diffusionHorizontal*256);
@@ -694,11 +566,33 @@ public:
     void setPhase(int phase) { _phase = phase; }
     int getPhase() { return _phase; }
     void setInterlace(int interlace) { _interlace = interlace; }
-    int getInterlace() { _interlace; }
+    int getInterlace() { return _interlace; }
     void setQuality(double quality) { _quality = quality; }
     double getQuality() { return _quality; }
     void setCharacterSet(int characterSet) { _characterSet = characterSet; }
     int getCharacterSet() { return _characterSet; }
+
+    bool getFixPrimaries() { return _decoder.getFixPrimaries(); }
+    void setFixPrimaries(bool fixPrimaries)
+    {
+        _decoder.setFixPrimaries(fixPrimaries);
+    }
+    double getHue() { return _decoder.getHue(); }
+    void setHue(double hue) { _decoder.setHue(hue); }
+    double getSaturation() { return _decoder.getSaturation(); }
+    void setSaturation(double saturation)
+    {
+        _decoder.setSaturation(saturation);
+    }
+    double getContrast() { return _decoder.getContrast(); }
+    void setContrast(double contrast) { _decoder.setContrast(contrast); }
+    double getBrightness() { return _decoder.getBrightness(); }
+    void setBrightness(double brightness)
+    {
+        _decoder.setBrightness(brightness);
+    }
+    double getSharpness() { return _decoder.getSharpness(); }
+    void setSharpness(double sharpness) { _decoder.setSharpness(sharpness); }
 
 private:
     int _phase;
@@ -710,7 +604,7 @@ private:
     Bitmap<SRGB> _input;
     Bitmap<Byte> _rgbi;
     CGAComposite _composite;
-    NTSCDecoder* _decoder;
+    NTSCDecoder _decoder;
     CGA2NTSCWindow* _window;
     CGASequencer _sequencer;
     bool _converting;
@@ -863,7 +757,6 @@ public:
         draw();
         invalidate();
     }
-    void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
     void setAnimated(AnimatedWindow* animated) { _animated = animated; }
     void paint()
     {
@@ -971,7 +864,6 @@ public:
     Vector _rPosition;
     bool _lButton;
     bool _rButton;
-    NTSCDecoder* _decoder;
     Vector2<double> _delta;
     AnimatedWindow* _animated;
     Bitmap<DWORD> _bitmap;
@@ -1584,7 +1476,6 @@ typedef CombFilterTemporalComboT<void> CombFilterTemporalCombo;
 class OutputWindow : public BitmapWindow
 {
 public:
-    void setDecoder(NTSCDecoder* decoder) { _decoder = decoder; }
     void setRGBI(Bitmap<Byte> rgbi)
     {
         _rgbi = rgbi;
@@ -1598,7 +1489,7 @@ public:
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
             burst[i] = _composite.simulateCGA(6, 6, i);
-        _decoder->calculateBurst(burst);
+        _decoder.calculateBurst(burst);
         // Convert to raw NTSC
         const Byte* rgbiRow = _rgbi.data();
         Byte* ntscRow = _ntsc.data();
@@ -1630,7 +1521,7 @@ public:
             DWORD* outputPixel2 =
                 reinterpret_cast<DWORD*>(outputRow + _bitmap.stride());
             for (int x = 0; x < _ntsc.size().x - 6; ++x) {
-                Colour s = _decoder->decode(n, (x + 1) & 3);
+                Colour s = _decoder.decode(n, (x + 1) & 3);
                 ++n;
                 DWORD d = (byteClamp(s.x) << 16) | (byteClamp(s.y) << 8) |
                     byteClamp(s.z);
@@ -1661,13 +1552,36 @@ public:
     void setAspectRatio(double ratio) { _aspectRatio = ratio; }
     void setCombFilterVertical(int value) { _combFilterVertical = value; }
     void setCombFilterTemporal(int value) { _combFilterTemporal = value; }
+    NTSCDecoder* getDecoder() { return &_decoder; }
+
+    bool getFixPrimaries() { return _decoder.getFixPrimaries(); }
+    void setFixPrimaries(bool fixPrimaries)
+    {
+        _decoder.setFixPrimaries(fixPrimaries);
+    }
+    double getHue() { return _decoder.getHue(); }
+    void setHue(double hue) { _decoder.setHue(hue); }
+    double getSaturation() { return _decoder.getSaturation(); }
+    void setSaturation(double saturation)
+    {
+        _decoder.setSaturation(saturation);
+    }
+    double getContrast() { return _decoder.getContrast(); }
+    void setContrast(double contrast) { _decoder.setContrast(contrast); }
+    double getBrightness() { return _decoder.getBrightness(); }
+    void setBrightness(double brightness)
+    {
+        _decoder.setBrightness(brightness);
+    }
+    double getSharpness() { return _decoder.getSharpness(); }
+    void setSharpness(double sharpness) { _decoder.setSharpness(sharpness); }
 
 private:
     Bitmap<DWORD> _bitmap;
     Bitmap<Byte> _rgbi;
     Bitmap<Byte> _ntsc;
     CGAComposite _composite;
-    NTSCDecoder* _decoder;
+    NTSCDecoder _decoder;
     double _scanlineWidth;
     int _scanlineProfile;
     double _scanlineOffset;
@@ -1684,8 +1598,7 @@ public:
     CGA2NTSCWindow()
       : _autoBrightnessFlag(false), _autoSaturationFlag(false),
         _autoContrastClipFlag(false), _autoContrastMonoFlag(false),
-        _updating(false) { }
-    void setWindows(Windows* windows)
+        _updating(true)
     {
         add(&_output);
         add2(&_brightness);
@@ -1728,7 +1641,7 @@ public:
         add2(&_aspectRatio);
         add2(&_combFilterVertical);
         add2(&_combFilterTemporal);
-        RootWindow::setWindows(windows);
+        _decoder = _output.getDecoder();
     }
     void create()
     {
@@ -1743,11 +1656,6 @@ public:
         sizeSet(size());
         setSize(Vector(_brightness.right() + 20, _gamut.bottom() + 20));
 
-        setBrightness(_decoder->_brightness);
-        setSaturation(_decoder->_saturation);
-        setHue(_decoder->_hue);
-        setContrast(_decoder->_contrast);
-        setSharpness(_decoder->_sharpness);
         int mode = _matcher->getMode();
             //_blink = ((mode & 0x20) != 0);
             //_bw = ((mode & 4) != 0);
@@ -1876,21 +1784,9 @@ public:
         if (character == VK_ESCAPE)
             remove();
     }
-    void setDecoder(NTSCDecoder* decoder)
-    {
-        _decoder = decoder;
-        _output.setDecoder(decoder);
-        _gamut.setDecoder(decoder);
-    }
-    void setMatcher(CGAMatcher* matcher)
-    {
-        _output.setRGBI(matcher->_rgbi);
-        _matcher = matcher;
-    }
-    void setShower(CGAShower* shower)
-    {
-        _shower = shower;
-    }
+    void setMatcher(CGAMatcher* matcher) { _matcher = matcher; }
+    void setShower(CGAShower* shower) { _shower = shower; }
+    void setRGBI(Bitmap<Byte> rgbi) { _output.setRGBI(rgbi); }
     void uiUpdate()
     {
         _updating = true;
@@ -1906,8 +1802,6 @@ public:
         _output.draw();
         _output.invalidate();
         _gamut.invalidate();
-        _saturation.setValue(_decoder->_saturation);
-        _contrast.setValue(_decoder->_contrast);
         _updating = false;
     }
     Colour colourFromSeq(UInt64 seq)
@@ -2140,7 +2034,8 @@ public:
 
     void brightnessSet(double brightness)
     {
-        _decoder->_brightness = brightness;
+        _output.setBrightness(brightness);
+        _matcher->setBrightness(brightness);
         if (!_updating) {
             update();
             uiUpdate();
@@ -2150,7 +2045,8 @@ public:
 
     void saturationSet(double saturation)
     {
-        _decoder->_saturation = saturation;
+        _output.setSaturation(saturation);
+        _matcher->setSaturation(saturation);
         if (!_updating) {
             update();
             autoContrastClip();
@@ -2161,7 +2057,8 @@ public:
 
     void contrastSet(double contrast)
     {
-        _decoder->_contrast = contrast;
+        _output.setContrast(contrast);
+        _matcher->setContrast(contrast);
         if (!_updating) {
             update();
             autoBrightness();
@@ -2173,7 +2070,8 @@ public:
 
     void hueSet(double hue)
     {
-        _decoder->_hue = hue;
+        _output.setHue(hue);
+        _matcher->setHue(hue);
         if (!_updating) {
             update();
             allAutos();
@@ -2184,7 +2082,8 @@ public:
 
     void sharpnessSet(double sharpness)
     {
-        _decoder->_sharpness = sharpness;
+        _output.setSharpness(sharpness);
+        _matcher->setSharpness(sharpness);
         if (!_updating) {
             update();
             uiUpdate();
@@ -2245,10 +2144,15 @@ public:
 
     void fixPrimariesPressed()
     {
-        _decoder->_fixPrimaries = _fixPrimaries.checked();
+        setFixPrimaries(_fixPrimaries.checked());
         update();
         allAutos();
         uiUpdate();
+    }
+    void setFixPrimaries(bool fixPrimaries)
+    {
+        _output.setFixPrimaries(fixPrimaries);
+        _matcher->setFixPrimaries(fixPrimaries);
     }
 
     void autoBrightness(bool force = false)
@@ -2262,8 +2166,8 @@ public:
     {
         if (!_autoSaturationFlag)
             return;
-        _decoder->_saturation *=
-            sqrt(3.0)*(_white - _black)/(2*_maxSaturation);
+        setSaturation(_output.getSaturation()*sqrt(3.0)*(_white - _black)/
+            (2*_maxSaturation));
         update();
     }
     void autoContrastClip()
@@ -2272,9 +2176,10 @@ public:
             return;
         double minContrast = 0;
         double maxContrast = 2;
+        double contrast;
         do {
-            double contrast = (maxContrast + minContrast)/2;
-            _decoder->_contrast = contrast;
+            contrast = (maxContrast + minContrast)/2;
+            setContrast(contrast);
             update();
             autoBrightness();
             if (_clips == 1 || (maxContrast - minContrast) < 0.000001)
@@ -2294,27 +2199,28 @@ public:
             double b = c.z;
             bool found = false;
             if (r < 0) {
-                _decoder->_contrast *= fudge*midPoint/(midPoint - r);
+                contrast *= fudge*midPoint/(midPoint - r);
                 found = true;
             }
             if (!found && r >= 256) {
-                _decoder->_contrast *= fudge*midPoint/(r - midPoint);
+                contrast *= fudge*midPoint/(r - midPoint);
                 found = true;
             }
             if (!found && g < 0) {
-                _decoder->_contrast *= fudge*midPoint/(midPoint - g);
+                contrast *= fudge*midPoint/(midPoint - g);
                 found = true;
             }
             if (!found && g >= 256) {
-                _decoder->_contrast *= fudge*midPoint/(g - midPoint);
+                contrast *= fudge*midPoint/(g - midPoint);
                 found = true;
             }
             if (!found && b < 0) {
-                _decoder->_contrast *= fudge*midPoint/(midPoint - b);
+                contrast *= fudge*midPoint/(midPoint - b);
                 found = true;
             }
             if (!found && b >= 256)
-                _decoder->_contrast *= fudge*midPoint/(b - midPoint);
+                contrast *= fudge*midPoint/(b - midPoint);
+            setContrast(contrast);
             update();
             autoBrightness();
             autoSaturation();
@@ -2326,7 +2232,7 @@ public:
     {
         if (!_autoContrastMonoFlag)
             return;
-        _decoder->_contrast *= 256/(_white - _black);
+        setContrast(_output.getContrast() * 256/(_white - _black));
         update();
     }
     void save(String outputFileName) { _output.save(outputFileName); }
@@ -2542,13 +2448,17 @@ public:
         configFile.load(configPath);
         bool matchMode = configFile.get<bool>("matchMode");
 
+        _matcher.setWindow(&_window);
+        _window.setMatcher(&_matcher);
+        _window.setShower(&_shower);
 
-        NTSCDecoder decoder;
-        decoder._fixPrimaries = configFile.get<bool>("ntscPrimaries");
-        decoder._brightness = configFile.get<double>("brightness");
-        decoder._hue = configFile.get<double>("hue");
-        decoder._contrast = configFile.get<double>("contrast");
-        decoder._saturation = configFile.get<double>("saturation");
+        _window.setFixPrimaries(configFile.get<bool>("ntscPrimaries"));
+        _window.setBrightness(configFile.get<double>("brightness"));
+        _window.setSaturation(configFile.get<double>("saturation"));
+        _window.setHue(configFile.get<double>("hue"));
+        _window.setContrast(configFile.get<double>("contrast"));
+        _window.setSharpness(configFile.get<double>("sharpness"));
+
         _matcher.setDiffusionHorizontal(
             configFile.get<double>("horizontalDiffusion"));
         _matcher.setDiffusionVertical(
@@ -2558,11 +2468,11 @@ public:
         _matcher.setQuality(configFile.get<double>("quality"));
         _matcher.setInterlace(configFile.get<int>("interlaceMode"));
         _matcher.setCharacterSet(configFile.get<int>("characterSet"));
-        //Byte burst[4];
-        //for (int i = 0; i < 4; ++i)
-        //    burst[i] = composite.simulateCGA(6, 6, i);
-        //decoder.calculateBurst(burst);
-        _matcher.setDecoder(&decoder);
+        ////Byte burst[4];
+        ////for (int i = 0; i < 4; ++i)
+        ////    burst[i] = composite.simulateCGA(6, 6, i);
+        ////decoder.calculateBurst(burst);
+        //_matcher.setDecoder(&decoder);
         _matcher.setMode(configFile.get<int>("mode"));
         _matcher.setPalette(configFile.get<int>("palette"));
         _matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
@@ -2635,14 +2545,15 @@ public:
             input = input2;
             size = input.size();
         }
+        Bitmap<Byte> rgbi = Bitmap<Byte>(size + Vector(14, 0));
 
         _window.setMatchMode(matchMode);
         _matcher.setInput(input);
-        _matcher.setWindow(&_window);
+        _matcher.setOutput(rgbi);
+        _shower.setInput(input);
+        _shower.setOutput(rgbi);
+        _window.setRGBI(rgbi);
 
-        _window.setDecoder(&decoder);
-        _window.setMatcher(&_matcher);
-        _window.setShower(&_shower);
         _window.setNewCGA(configFile.get<bool>("newCGA"));
 
         if (configFile.get<bool>("interactive"))

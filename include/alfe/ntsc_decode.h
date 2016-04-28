@@ -1,5 +1,6 @@
 #include "alfe/main.h"
 #include "alfe/bitmap.h"
+#include "alfe/complex.h"
 
 #ifndef INCLUDED_NTSC_DECODE_H
 #define INCLUDED_NTSC_DECODE_H
@@ -8,7 +9,7 @@ float sinc(float z)
 {
     if (z == 0.0f)
         return 1.0f;
-    z *= M_PI;
+    z *= static_cast<float>(M_PI);
     return sin(z)/z;
 }
 
@@ -103,8 +104,8 @@ public:
         int syncPositions[lines + 1];
         int fracSyncPositions[lines + 1];
         int oldP = firstSyncSample - driftSamples;                  // == -80
-        int p = oldP + nominalSamplesPerLine;                       
-        float samplesPerLine = nominalSamplesPerLine;               
+        int p = oldP + nominalSamplesPerLine;
+        float samplesPerLine = nominalSamplesPerLine;
         Complex<float> bursts[lines + 1];
         float burstDCs[lines + 1];
         Complex<float> hueRotor = rotor((33 + _hue)/360);
@@ -337,6 +338,149 @@ private:
     bool _doDecode;
     float _chromaSamples;
     float _burstWeights[48];
+};
+
+// This is a simpler decoder for use with sources that generate exactly 4
+// samples per colour carrier cycle, i.e. emulators such as CGAComposite.
+class NTSCDecoder
+{
+public:
+    void calculateBurst(Byte* burst)
+    {
+        Complex<double> iq;
+        iq.x = burst[0] - burst[2];
+        iq.y = burst[1] - burst[3];
+        _iqAdjust =
+            -iq.conjugate()*unit((33 + 90 + _hue)/360.0)*_saturation*_contrast/
+            (iq.modulus()*16);
+        _contrast2 = _contrast/32;
+        _brightness2 = _brightness*256.0;
+    }
+    Colour decode(int* s)
+    {
+        int dc = (s[0] + s[1] + s[2] + s[3])*8;
+        Complex<int> iq;
+        iq.x = (s[0] - s[2])*8;
+        iq.y = (s[1] - s[3])*8;
+        return decode(dc, iq);
+    }
+    Colour decode(const Byte* n, int phase)
+    {
+        // Filter kernel must be divisible by (1,1,1,1) so that all phases
+        // contribute equally.
+        int y = n[0] +n[1]*4 +n[2]*7 +n[3]*8 +n[4]*7 +n[5]*4 +n[6];
+        Complex<int> iq;
+        switch (phase) {
+        case 0:
+            iq.x =  n[0]   -n[2]*7 +n[4]*7 -n[6];
+            iq.y =  n[1]*4 -n[3]*8 +n[5]*4;
+            break;
+        case 1:
+            iq.x = -n[1]*4 +n[3]*8 -n[5]*4;
+            iq.y =  n[0]   -n[2]*7 +n[4]*7 -n[6];
+            break;
+        case 2:
+            iq.x = -n[0]   +n[2]*7 -n[4]*7 +n[6];
+            iq.y = -n[1]*4 +n[3]*8 -n[5]*4;
+            break;
+        case 3:
+            iq.x = +n[1]*4 -n[3]*8 +n[5]*4;
+            iq.y = -n[0]   +n[2]*7 -n[4]*7 +n[6];
+            break;
+        }
+        return decode(y, iq);
+    }
+    void decodeLine(const Byte* ntsc, SRGB* srgb, int length, int phase)
+    {
+        for (int x = 0; x < length; ++x) {
+            phase = (phase + 1) & 3;
+            Colour s = decode(ntsc, phase);
+            ++ntsc;
+            *srgb = SRGB(byteClamp(s.x), byteClamp(s.y), byteClamp(s.z));
+            ++srgb;
+        }
+    }
+    void encodeLine(Byte* ntsc, const SRGB* srgb, int length, int phase)
+    {
+        phase = (phase + 3) & 3;
+        for (int x = 0; x < length; ++x) {
+            Vector3<int> mix = Vector3Cast<int>(srgb[0]) +
+                4*Vector3Cast<int>(srgb[1]) + 7*Vector3Cast<int>(srgb[2]) +
+                8*Vector3Cast<int>(srgb[3]) + 7*Vector3Cast<int>(srgb[4]) +
+                4*Vector3Cast<int>(srgb[5]) + Vector3Cast<int>(srgb[6]);
+            ++srgb;
+            Colour c;
+            if (_fixPrimaries) {
+                c.x = (0.6689*mix.x + 0.2679*mix.y + 0.0323*mix.z);
+                c.y = (0.0185*mix.x + 1.0743*mix.y - 0.0603*mix.z);
+                c.z = (0.0162*mix.x + 0.0431*mix.y + 0.8551*mix.z);
+            }
+            else
+                c = Colour(mix.x, mix.y, mix.z);
+            Complex<double> iq;
+            double y = 0.299*c.x + 0.587*c.y + 0.114*c.z;
+            iq.x = 0.596*c.x - 0.275*c.y - 0.321*c.z;
+            iq.y = 0.212*c.x - 0.528*c.y + 0.311*c.z;
+            iq /= (_iqAdjust*512);
+            y = (y/32 - _brightness2)/(_contrast2*32);
+            switch (phase) {
+            case 0:
+                *ntsc = byteClamp(y + iq.x);
+                break;
+            case 1:
+                *ntsc = byteClamp(y + iq.y);
+                break;
+            case 2:
+                *ntsc = byteClamp(y - iq.x);
+                break;
+            case 3:
+                *ntsc = byteClamp(y - iq.y);
+                break;
+            }
+            ++ntsc;
+            phase = (phase + 1) & 3;
+        }
+    }
+
+    bool getFixPrimaries() { return _fixPrimaries; }
+    void setFixPrimaries(bool fixPrimaries) { _fixPrimaries = fixPrimaries; }
+    double getHue() { return _hue; }
+    void setHue(double hue) { _hue = hue; }
+    double getSaturation() { return _saturation; }
+    void setSaturation(double saturation) { _saturation = saturation; }
+    double getContrast() { return _contrast; }
+    void setContrast(double contrast) { _contrast = contrast; }
+    double getBrightness() { return _brightness; }
+    void setBrightness(double brightness) { _brightness = brightness; }
+    double getSharpness() { return _sharpness; }
+    void setSharpness(double sharpness) { _sharpness = sharpness; }
+
+private:
+    Colour decode(int y, Complex<int> iq)
+    {
+        double y2 = y*_contrast2 + _brightness2;
+        Complex<double> iq2 = Complex<double>(iq)*_iqAdjust;
+        double r = y2 + 0.9563*iq2.x + 0.6210*iq2.y;
+        double g = y2 - 0.2721*iq2.x - 0.6474*iq2.y;
+        double b = y2 - 1.1069*iq2.x + 1.7046*iq2.y;
+        if (_fixPrimaries)
+            return Colour(
+                1.5073*r -0.3725*g -0.0832*b,
+                -0.0275*r +0.9350*g +0.0670*b,
+                -0.0272*r -0.0401*g +1.1677*b);
+        return Colour(r, g, b);
+    }
+
+    bool _fixPrimaries;
+    double _hue;
+    double _saturation;
+    double _contrast;
+    double _brightness;
+    double _sharpness;
+
+    Complex<double> _iqAdjust;
+    double _contrast2;
+    double _brightness2;
 };
 
 #endif // INCLUDED_NTSC_DECODE_H

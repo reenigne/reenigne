@@ -86,5 +86,8 @@
     <ClInclude Include="..\..\..\..\include\alfe\array_functions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\include\alfe\ntsc_decode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
