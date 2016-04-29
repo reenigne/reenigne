@@ -125,6 +125,11 @@ public:
     }
     void convert()
     {
+        _composite.initChroma();
+        Byte burst[4];
+        for (int i = 0; i < 4; ++i)
+            burst[i] = _composite.simulateCGA(6, 6, i);
+        _decoder.calculateBurst(burst);
         _block.y = _scanlinesPerRow * _scanlinesRepeat;
         if ((_mode & 2) != 0) {
             // In graphics modes, the data for the second scanline of the row
@@ -369,7 +374,7 @@ public:
                         int test = p[(pattern*_block.y + yy)*w + xx];
                         Vector p(xx, yy);
                         int target = inputPixel[xx] +
-                            (errorPixel[xx] + _testError[p])/8;
+                            (errorPixel[xx] + _testError[p])/4;
                         int d = target - test;
                         int weight = (xx == 0 || xx == _block.x ? 1 : 2);
                         score += weight*d*d;
@@ -421,7 +426,7 @@ public:
                 int* errorPixel = reinterpret_cast<int*>(errorRow2) + x;
                 for (int xx = 0; xx < w; ++xx) {
                     int test = p[(bestPattern*_block.y + yy)*w + xx];
-                    int target = inputPixel[xx] + errorPixel[xx]/8;
+                    int target = inputPixel[xx] + errorPixel[xx]/4;
                     int d = target - test;
                     int weight = (xx == 0 || xx == _block.x ? 1 : 2);
                     lineScore += weight*d*d;
@@ -508,6 +513,8 @@ public:
     {
         int modeAndPalette = modeAndPaletteFromConfig(_config);
         UInt8 latch = 0;
+        if ((modeAndPalette & 3) == 2)
+            pattern <<= 4;
         UInt64 r = _sequencer.process(pattern, modeAndPalette & 0xff,
             modeAndPalette >> 8, line / _scanlinesRepeat, false, 0, &latch);
         int hdots = 8;
@@ -873,53 +880,74 @@ public:
 
 class CGA2NTSCWindow;
 
-template<class T> class NumericSliderWindowT : public Slider
+template<class T> class NumericSliderWindowT
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
+    void setText(String text) { _caption.setText(text); }
+    void setHost(CGA2NTSCWindow* host)
+    {
+        _host = host;
+        host->add(&_slider);
+        host->add(&_caption);
+        host->add(&_text);
+        _slider.setHost(this);
+    }
     void setPositionAndSize(Vector position, Vector size)
     {
-        Slider::setSize(size);
-        Slider::setPosition(position);
-        _caption.setPosition(bottomLeft() + Vector(0, 15));
+        _slider.setSize(size);
+        _slider.setPosition(position);
+        _caption.setPosition(_slider.bottomLeft() + Vector(0, 15));
         _text.setPosition(_caption.topRight());
     }
     Vector bottomLeft() { return _caption.bottomLeft(); }
-    void valueSet(double value)
-    {
-        double v = valueFromPosition(value);
-        _text.setText(format("%f", v));
-        _text.size();
-        valueSet2(v);
-    }
+    int right() const { return _slider.right(); }
     void setRange(double low, double high)
     {
-        Slider::setRange(positionFromValue(low), positionFromValue(high));
+        _slider.setRange(positionFromValue(low), positionFromValue(high));
     }
-    void setValue(double value) { Slider::setValue(positionFromValue(value)); }
-    double getValue() { return valueFromPosition(Slider::getValue()); }
+    void setValue(double value) { _slider.setValue(positionFromValue(value)); }
+    double getValue() { return valueFromPosition(_slider.getValue()); }
 
 protected:
-    virtual void valueSet2(double value) { }
+    virtual void create() { }
+    virtual void valueSet(double value) { }
     virtual double positionFromValue(double value) { return value; }
     virtual double valueFromPosition(double position) { return position; }
 
     CGA2NTSCWindow* _host;
-    TextWindow _caption;
 private:
+    void valueSet1(double value)
+    {
+        double v = valueFromPosition(value);
+        _text.setText(format("%f", v));
+        _text.size();
+        valueSet(v);
+    }
+
+    class NumericSlider : public Slider
+    {
+    public:
+        void setHost(NumericSliderWindowT* host) { _host = host; }
+        void valueSet(double value) { _host->valueSet1(value); }
+        void create() { _host->create(); Slider::create(); }
+    private:
+        NumericSliderWindowT* _host;
+    };
+    NumericSlider _slider;
+    TextWindow _caption;
     TextWindow _text;
+    friend class NumericSlider;
 };
 typedef NumericSliderWindowT<void> NumericSliderWindow;
 
 template<class T> class BrightnessSliderWindowT : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->brightnessSet(value); }
+    void valueSet(double value) { _host->brightnessSet(value); }
     void create()
     {
-        _caption.setText("Brightness: ");
+        setText("Brightness: ");
         setRange(-2, 2);
-        NumericSliderWindow::create();
     }
 };
 typedef BrightnessSliderWindowT<void> BrightnessSliderWindow;
@@ -927,12 +955,11 @@ typedef BrightnessSliderWindowT<void> BrightnessSliderWindow;
 template<class T> class SaturationSliderWindowT : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->saturationSet(value); }
+    void valueSet(double value) { _host->saturationSet(value); }
     void create()
     {
-        _caption.setText("Saturation: ");
+        setText("Saturation: ");
         setRange(0, 4);
-        NumericSliderWindow::create();
     }
 };
 typedef SaturationSliderWindowT<void> SaturationSliderWindow;
@@ -940,12 +967,11 @@ typedef SaturationSliderWindowT<void> SaturationSliderWindow;
 template<class T> class ContrastSliderWindowT: public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->contrastSet(value); }
+    void valueSet(double value) { _host->contrastSet(value); }
     void create()
     {
-        _caption.setText("Contrast: ");
+        setText("Contrast: ");
         setRange(0, 4);
-        NumericSliderWindow::create();
     }
 };
 typedef ContrastSliderWindowT<void> ContrastSliderWindow;
@@ -953,12 +979,11 @@ typedef ContrastSliderWindowT<void> ContrastSliderWindow;
 template<class T> class HueSliderWindowT : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->hueSet(value); }
+    void valueSet(double value) { _host->hueSet(value); }
     void create()
     {
-        _caption.setText("Hue: ");
+        setText("Hue: ");
         setRange(-180, 180);
-        NumericSliderWindow::create();
     }
 };
 typedef HueSliderWindowT<void> HueSliderWindow;
@@ -966,12 +991,11 @@ typedef HueSliderWindowT<void> HueSliderWindow;
 template<class T> class SharpnessSliderWindowT : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->sharpnessSet(value); }
+    void valueSet(double value) { _host->sharpnessSet(value); }
     void create()
     {
-        _caption.setText("Sharpness: ");
+        setText("Sharpness: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
     }
 };
 typedef SharpnessSliderWindowT<void> SharpnessSliderWindow;
@@ -1192,12 +1216,11 @@ template<class T> class DiffusionHorizontalSliderWindowT
   : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->diffusionHorizontalSet(value); }
+    void valueSet(double value) { _host->diffusionHorizontalSet(value); }
     void create()
     {
-        _caption.setText("Horizontal diffusion: ");
+        setText("Horizontal diffusion: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
     }
 };
 typedef DiffusionHorizontalSliderWindowT<void> DiffusionHorizontalSliderWindow;
@@ -1206,12 +1229,11 @@ template<class T> class DiffusionVerticalSliderWindowT
   : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->diffusionVerticalSet(value); }
+    void valueSet(double value) { _host->diffusionVerticalSet(value); }
     void create()
     {
-        _caption.setText("Vertical diffusion: ");
+        setText("Vertical diffusion: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
     }
 };
 typedef DiffusionVerticalSliderWindowT<void> DiffusionVerticalSliderWindow;
@@ -1220,12 +1242,11 @@ template<class T> class DiffusionTemporalSliderWindowT
   : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->diffusionTemporalSet(value); }
+    void valueSet(double value) { _host->diffusionTemporalSet(value); }
     void create()
     {
-        _caption.setText("Temporal diffusion: ");
+        setText("Temporal diffusion: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
     }
 };
 typedef DiffusionTemporalSliderWindowT<void> DiffusionTemporalSliderWindow;
@@ -1233,12 +1254,11 @@ typedef DiffusionTemporalSliderWindowT<void> DiffusionTemporalSliderWindow;
 template<class T> class QualitySliderWindowT : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->qualitySet(value); }
+    void valueSet(double value) { _host->qualitySet(value); }
     void create()
     {
-        _caption.setText("Quality: ");
+        setText("Quality: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
     }
 };
 typedef QualitySliderWindowT<void> QualitySliderWindow;
@@ -1348,12 +1368,11 @@ typedef CharacterSetComboT<void> CharacterSetCombo;
 template<class T> class ScanlineWidthSliderWindowT : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->scanlineWidthSet(value); }
+    void valueSet(double value) { _host->scanlineWidthSet(value); }
     void create()
     {
-        _caption.setText("Scanline width: ");
+        setText("Scanline width: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
     }
 };
 typedef ScanlineWidthSliderWindowT<void> ScanlineWidthSliderWindow;
@@ -1382,12 +1401,11 @@ template<class T> class ScanlineOffsetSliderWindowT
   : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->scanlineOffsetSet(value); }
+    void valueSet(double value) { _host->scanlineOffsetSet(value); }
     void create()
     {
-        _caption.setText("Scanline offset: ");
+        setText("Scanline offset: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
     }
 };
 typedef ScanlineOffsetSliderWindowT<void> ScanlineOffsetSliderWindow;
@@ -1395,12 +1413,11 @@ typedef ScanlineOffsetSliderWindowT<void> ScanlineOffsetSliderWindow;
 template<class T> class ZoomSliderWindowT : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->scanlineOffsetSet(value); }
+    void valueSet(double value) { _host->scanlineOffsetSet(value); }
     void create()
     {
-        _caption.setText("Zoom: ");
+        setText("Zoom: ");
         setRange(1, 10);
-        NumericSliderWindow::create();
     }
     double positionFromValue(double value) { return log(value); }
     double valueFromPosition(double position) { return exp(position); }
@@ -1425,12 +1442,11 @@ typedef ScanlineBleedingCheckBoxT<void> ScanlineBleedingCheckBox;
 template<class T> class AspectRatioSliderWindowT : public NumericSliderWindow
 {
 public:
-    void valueSet2(double value) { _host->aspectRatioSet(value); }
+    void valueSet(double value) { _host->aspectRatioSet(value); }
     void create()
     {
-        _caption.setText("Aspect Ratio: ");
+        setText("Aspect Ratio: ");
         setRange(1, 2);
-        NumericSliderWindow::create();
     }
 };
 typedef AspectRatioSliderWindowT<void> AspectRatioSliderWindow;
@@ -1601,15 +1617,15 @@ public:
         _updating(true)
     {
         add(&_output);
-        add2(&_brightness);
+        _brightness.setHost(this);
         add2(&_autoBrightness);
-        add2(&_saturation);
+        _saturation.setHost(this);
         add2(&_autoSaturation);
-        add2(&_contrast);
+        _contrast.setHost(this);
         add2(&_autoContrastClip);
         add2(&_autoContrastMono);
-        add2(&_hue);
-        add2(&_sharpness);
+        _hue.setHost(this);
+        _sharpness.setHost(this);
         add(&_blackText);
         add(&_whiteText);
         add(&_mostSaturatedText);
@@ -1624,21 +1640,21 @@ public:
         add2(&_palette);
         add2(&_scanlinesPerRow);
         add2(&_scanlinesRepeat);
-        add2(&_diffusionHorizontal);
-        add2(&_diffusionVertical);
-        add2(&_diffusionTemporal);
-        add2(&_quality);
+        _diffusionHorizontal.setHost(this);
+        _diffusionVertical.setHost(this);
+        _diffusionTemporal.setHost(this);
+        _quality.setHost(this);
         add2(&_bwCheckBox);
         add2(&_blinkCheckBox);
         add2(&_phaseCheckBox);
         add2(&_interlaceCombo);
         add2(&_characterSetCombo);
-        add2(&_scanlineWidth);
+        _scanlineWidth.setHost(this);
         add2(&_scanlineProfile);
-        add2(&_scanlineOffset);
-        add2(&_zoom);
+        _scanlineOffset.setHost(this);
+        _zoom.setHost(this);
         add2(&_scanlineBleeding);
-        add2(&_aspectRatio);
+        _aspectRatio.setHost(this);
         add2(&_combFilterVertical);
         add2(&_combFilterTemporal);
         _decoder = _output.getDecoder();
@@ -1648,29 +1664,21 @@ public:
         _animated.setDrawWindow(&_gamut);
         _gamut.setAnimated(&_animated);
 
-        setText("CGA to NTSC");
-        setSize(Vector(640, 480));
-
-        RootWindow::create();
-
-        sizeSet(size());
-        setSize(Vector(_brightness.right() + 20, _gamut.bottom() + 20));
-
         int mode = _matcher->getMode();
-            //_blink = ((mode & 0x20) != 0);
-            //_bw = ((mode & 4) != 0);
+        //_blink = ((mode & 0x20) != 0);
+        //_bw = ((mode & 4) != 0);
         if ((mode & 0x80) != 0)
             setMode(8 + (mode & 1));
         else {
             switch (mode & 0x13) {
-                case 0: setMode(0); break;
-                case 1: setMode(1); break;
-                case 2: setMode(3); break;
-                case 3: setMode(7); break;
-                case 0x10: setMode(4); break;
-                case 0x11: setMode(5); break;
-                case 0x12: setMode(2); break;
-                case 0x13: setMode(6); break;
+            case 0: setMode(0); break;
+            case 1: setMode(1); break;
+            case 2: setMode(3); break;
+            case 3: setMode(7); break;
+            case 0x10: setMode(4); break;
+            case 0x11: setMode(5); break;
+            case 0x12: setMode(2); break;
+            case 0x13: setMode(6); break;
             }
         }
         setBW((mode & 4) != 0);
@@ -1696,6 +1704,15 @@ public:
         setScanlinesPerRow(_matcher->getScanlinesPerRow() - 1);
         setScanlinesRepeat(_matcher->getScanlinesRepeat() - 1);
 
+        setText("CGA to NTSC");
+        setSize(Vector(640, 480));
+
+        RootWindow::create();
+
+        sizeSet(size());
+        setSize(Vector(_brightness.right() + 20, _gamut.bottom() + 20));
+
+        _updating = false;
         update();
         uiUpdate();
     }
@@ -1817,6 +1834,9 @@ public:
     }
     void update()
     {
+        if (_updating)
+            return;
+        _composite.initChroma();
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
             burst[i] = _composite.simulateCGA(6, 6, i);
@@ -2468,11 +2488,6 @@ public:
         _matcher.setQuality(configFile.get<double>("quality"));
         _matcher.setInterlace(configFile.get<int>("interlaceMode"));
         _matcher.setCharacterSet(configFile.get<int>("characterSet"));
-        ////Byte burst[4];
-        ////for (int i = 0; i < 4; ++i)
-        ////    burst[i] = composite.simulateCGA(6, 6, i);
-        ////decoder.calculateBurst(burst);
-        //_matcher.setDecoder(&decoder);
         _matcher.setMode(configFile.get<int>("mode"));
         _matcher.setPalette(configFile.get<int>("palette"));
         _matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));

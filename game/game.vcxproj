@@ -167,7 +167,7 @@
     <ResourceCompile Include="Resource.rc" />
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="NatvisFile.natvis" />
+    <Natvis Include="..\include\alfe.natvis" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="icon.ico" />

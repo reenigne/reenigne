@@ -449,7 +449,10 @@ public:
     double getSaturation() { return _saturation; }
     void setSaturation(double saturation) { _saturation = saturation; }
     double getContrast() { return _contrast; }
-    void setContrast(double contrast) { _contrast = contrast; }
+    void setContrast(double contrast)
+    {
+        _contrast = contrast;
+    }
     double getBrightness() { return _brightness; }
     void setBrightness(double brightness) { _brightness = brightness; }
     double getSharpness() { return _sharpness; }

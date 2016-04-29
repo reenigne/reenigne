@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <!-- Berapa bodies -->
+
+  <Type Name="ComponentT&lt;*&gt;::TypeHelper&lt;RGBIMonitorT&lt;*&gt;&gt;::Body">
+    <DisplayString>RGBIMonitor</DisplayString>
+    <Expand>
+      <Item Name="[members]">_members</Item>
+    </Expand>
+  </Type>
+  <Type Name="ComponentT&lt;*&gt;::TypeHelper&lt;NMISwitch&gt;::Body">
+    <DisplayString>NMISwitch</DisplayString>
+    <Expand>
+      <Item Name="[members]">_members</Item>
+    </Expand>
+  </Type>
+  <Type Name="ComponentT&lt;*&gt;::TypeHelper&lt;Intel8088CPUT&lt;*&gt;&gt;::Body">
+    <DisplayString>Intel8088CPU</DisplayString>
+    <Expand>
+      <Item Name="[members]">_members</Item>
+    </Expand>
+  </Type>
+  <Type Name="OutputConnector&lt;bool&gt;::Type::Body">
+    <DisplayString>OutputConnector&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="InputConnector&lt;bool&gt;::Type::Body">
+    <DisplayString>InputConnector&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="ComponentT&lt;*&gt;::PersistenceType::Body">
+    <DisplayString>PersistenceType {_name}, {_members._body,view(count)} members</DisplayString>
+    <Expand>
+      <Item Name="[names]">_names</Item>
+      <Item Name="[members]">_members</Item>
+    </Expand>
+  </Type>
+  <Type Name="SimpleProtocol&lt;bool&gt;::Body">
+    <DisplayString>SimpleProtocol&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="SimpleProtocol&lt;Byte&gt;::Body">
+    <DisplayString>SimpleProtocol&lt;Byte&gt;</DisplayString>
+  </Type>
+
+
+
+  <!-- Berapa components -->
+
+  <Type Name="RAM">
+    <DisplayString>RAM {_ramSize,d} bytes</DisplayString>
+  </Type>
+  <Type Name="Intel8088CPUT&lt;*&gt;">
+    <DisplayString>Intel8088CPU</DisplayString>
+  </Type>
+  <Type Name="ISA8BitBusT&lt;*&gt;">
+    <DisplayString>ISA8BitBus</DisplayString>
+  </Type>
+  <Type Name="ISA8BitRAM">
+    <DisplayString>ISA8BitRAM</DisplayString>
+  </Type>
+  <Type Name="Intel8237DMACT&lt;*&gt;">
+    <DisplayString>Intel8237DMAC</DisplayString>
+  </Type>
+  <Type Name="Intel8259PIC">
+    <DisplayString>Intel8259PIC</DisplayString>
+  </Type>
+  <Type Name="Intel8253PIT">
+    <DisplayString>Intel8253PIT</DisplayString>
+  </Type>
+  <Type Name="Intel8253PIT::Timer">
+    <DisplayString>Intel8253PIT::Timer</DisplayString>
+  </Type>
+  <Type Name="Intel8255PPI">
+    <DisplayString>Intel8255PPI</DisplayString>
+  </Type>
+  <Type Name="DMAPageRegistersT&lt;*&gt;">
+    <DisplayString>DMAPageRegisters</DisplayString>
+  </Type>
+  <Type Name="NMISwitch">
+    <DisplayString>NMISwitch</DisplayString>
+  </Type>
+  <Type Name="PCXTKeyboardPortT&lt;*&gt;">
+    <DisplayString>PCXTKeyboardPort</DisplayString>
+  </Type>
+  <Type Name="PCXTKeyboardT&lt;*&gt;">
+    <DisplayString>PCXTKeyboard</DisplayString>
+  </Type>
+  <Type Name="IBMCGA">
+    <DisplayString>IBMCGA</DisplayString>
+  </Type>
+  <Type Name="RGBIMonitor">
+    <DisplayString>RGBIMonitor</DisplayString>
+  </Type>
+  <Type Name="SRLatch">
+    <DisplayString>SRLatch</DisplayString>
+  </Type>
+  <Type Name="NotComponent&lt;bool&gt;">
+    <DisplayString>Not&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="BooleanComponent&lt;bool,OrComponent&lt;bool&gt;&gt;">
+    <DisplayString>Or&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="BooleanComponent&lt;bool,AndComponent&lt;bool&gt;&gt;">
+    <DisplayString>And&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="ROM">
+    <DisplayString>ROM</DisplayString>
+  </Type>
+  <Type Name="ClockedComponent">
+    <DisplayString>ClockedComponent {_cyclesPerSecond} Hz</DisplayString>
+    <Expand>
+      <Item Name="[cyclesPerSecond]">_cyclesPerSecond</Item>
+      <ExpandedItem>(ComponentT&lt;void&gt;*)this,nd</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="ConstantComponent&lt;bool&gt;">
+    <DisplayString>ConstantComponent&lt;bool&gt; {_v,x}</DisplayString>
+  </Type>
+  <Type Name="ConstantComponent&lt;unsigned char&gt;">
+    <DisplayString>ConstantComponent&lt;Byte&gt; {_v,x}</DisplayString>
+  </Type>
+  <Type Name="NoISA8BitComponent">
+    <DisplayString>NoISA8BitComponent</DisplayString>
+  </Type>
+  <Type Name="BucketComponent&lt;bool&gt;">
+    <DisplayString>BucketComponent&lt;bool&gt;</DisplayString>
+  </Type>
+  <Type Name="ISA8BitBusT&lt;*&gt;::Choice">
+    <DisplayString>({_first,na} {_secondAddress,x}:{_second,na})</DisplayString>
+  </Type>
+
+
+  <!-- Berapa connectors -->
+
+  <Type Name="Intel8088CPUT&lt;*&gt;::Connector">
+    <DisplayString>Intel8088CPU::Connector</DisplayString>
+  </Type>
+
+
+  <!-- Berapa other -->
+  <Type Name="Tick">
+    <DisplayString>{_t,d}</DisplayString>
+  </Type>
+  <Type Name="SimulatorT&lt;*&gt;::Pair">
+    <DisplayString>({_input},{_output})</DisplayString>
+  </Type>
+  <Type Name="SimulatorT&lt;*&gt;::Path">
+    <DisplayString>{_pd} {_score} {_componentType} {_output}</DisplayString>
+  </Type>
+  <Type Name="ProtocolDirection">
+    <DisplayString>{_protocol} {_output}</DisplayString>
+  </Type>
+
+</AutoVisualizer>

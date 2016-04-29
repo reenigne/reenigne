@@ -175,6 +175,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="NatvisFile.natvis" />
+    <Natvis Include="beapa.natvis" />
+    <Natvis Include="..\include\alfe.natvis" />
   </ItemGroup>
 </Project>

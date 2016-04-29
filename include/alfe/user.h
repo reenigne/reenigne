@@ -759,6 +759,7 @@ public:
 class Button : public WindowsWindow
 {
 public:
+    Button() : _checked(false) { }
     virtual void clicked() { }
     void setWindows(Windows* windows)
     {
@@ -774,18 +775,20 @@ public:
         IF_ZERO_THROW(GetTextExtentPoint32(_hdc, w, _text.length(), &s));
         Vector size(s.cx + 20, s.cy + 20);
         setSize(size);
+        setCheckState(_checked);
     }
-    bool checked()
-    {
-        return SendMessage(_hWnd, BM_GETCHECK, 0, 0) == BST_CHECKED;
-    }
+    bool checked() { return _checked; }
     void uncheck()
     {
-        SendMessage(_hWnd, BM_SETCHECK, static_cast<WPARAM>(FALSE), 0);
+        if (_hWnd != NULL)
+            SendMessage(_hWnd, BM_SETCHECK, static_cast<WPARAM>(FALSE), 0);
+        _checked = false;
     }
     void check()
     {
-        SendMessage(_hWnd, BM_SETCHECK, static_cast<WPARAM>(TRUE), 0);
+        if (_hWnd != NULL)
+            SendMessage(_hWnd, BM_SETCHECK, static_cast<WPARAM>(TRUE), 0);
+        _checked = true;
     }
     void setCheckState(bool checked)
     {
@@ -794,6 +797,8 @@ public:
         else
             uncheck();
     }
+private:
+    bool _checked;
 };
 
 class ToggleButton : public Button
@@ -846,15 +851,13 @@ public:
 class Slider : public WindowsWindow
 {
 public:
+    Slider() : _min(0), _pos(0), _max(1) { }
     virtual void valueSet(double value) { }
     void setWindows(Windows* windows)
     {
         WindowsWindow::setWindows(windows);
         setClassName(TRACKBAR_CLASS);
         setStyle(WS_CHILD | WS_VISIBLE);
-        _min = 0;
-        _pos = 0;
-        _max = 1;
     }
     void create()
     {

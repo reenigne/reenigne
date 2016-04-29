@@ -189,9 +189,9 @@ public:
             if (v.valid())
                 return v;
         }
-        ValueT<T> r = body()->convert(value);
-        if (r.valid())
-            return r;
+        String reasonFrom;
+        if (body()->canConvertFrom(value.type(), &reasonFrom))
+            return body()->convert(value);
         return value.type().body()->convertTo(*this, value);
     }
     ValueT<T> convertTo(const Type& to, const ValueT<T>& value) const

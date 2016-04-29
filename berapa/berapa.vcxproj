@@ -220,7 +220,8 @@
     <ClInclude Include="cga.h" />
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="NatvisFile.natvis" />
+    <Natvis Include="berapa.natvis" />
+    <Natvis Include="..\include\alfe.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

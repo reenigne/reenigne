@@ -143,14 +143,15 @@ public:
             *source = s;
             Span span2;
             c = s.get(&span2);
-            if (c == '.' && !seenPoint)
+            if (c == '.' && !seenPoint) {
                 seenPoint = true;
-            else
-                if (c < '0' || c > '9') {
-                    parse(source);
-                    *result = Rational(n, denominator);
-                    return true;
-                }
+                c = s.get(&span2);
+            }
+            if (c < '0' || c > '9') {
+                parse(source);
+                *result = Rational(n, denominator);
+                return true;
+            }
             *span += span2;
         } while (true);
     }
