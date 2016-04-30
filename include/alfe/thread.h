@@ -4,6 +4,7 @@
 #define INCLUDED_LOCK_H
 
 #include "alfe/windows_handle.h"
+#include "alfe/linked_list.h"
 
 class Event : public WindowsHandle
 {
@@ -121,5 +122,135 @@ private:
     Mutex* _mutex;
 };
 
+class Task : public LinkedListMember<Task>
+{
+public:
+    void enqueue(TaskThread* thread)
+    {
+        _thread = thread;
+        thread->enqueueTask(this);
+    }
+    void cancel()
+    {
+        if (_thread == 0) {
+            // We're not enqueued on a thread - return
+            return;
+        }
+        _thread->cancelTask(this);
+    }
+    void join()
+    {
+        if (_thread == 0) {
+            // We're not enqueued on a thread - already complete
+            return;
+        }
+        _thread->waitForTaskComplete(this);
+    }
+
+protected:
+    bool cancelling() { return _thread->cancelling(); }
+private:
+    virtual void run() = 0;
+    void doRun() { run(); _thread = 0; }
+
+    TaskThread* _thread;
+    friend class TaskThread;
+};
+
+class TaskThread : public Thread
+{
+public:
+    TaskThread() : _ending(false), _currentTask(0) { start(); }
+    void enqueueTask(Task* task)
+    {
+        Lock lock(&_mutex);
+        _tasks.add(task);
+        go();
+    }
+    void cancelTask(Task* task)
+    {
+        {
+            Lock lock(&_mutex);
+            if (task != _currentTask) {
+                task->remove();
+                return;
+            }
+            _cancelling = true;
+        }
+        _completed.wait();
+    }
+    void waitForTaskComplete(Task* task)
+    {
+        do {
+            {
+                Lock lock(&_mutex);
+                if (task != _currentTask) {
+                    Task* t = _tasks.getNext();
+                    while (t != 0) {
+                        if (t == _currentTask)
+                            break;
+                        t = _tasks.getNext(t);
+                    }
+                    if (t == 0)
+                        return;
+                }
+            }
+            _completed.wait();
+        } while (true);
+    }
+    void end()
+    {
+        {
+            Lock lock(&_mutex);
+            _ending = true;
+            _cancelling = true;
+            go();
+        }
+        join();
+    }
+    bool cancelling() { return _cancelling; }  // For use by Task::cancelling()
+private:
+    void go()
+    {
+        if (_currentTask != 0)
+            _go.signal();
+    }
+    void threadProc()
+    {
+        do {
+            _go.wait();
+            do {
+                {
+                    Lock lock(&_mutex);
+                    _completed.signal();
+                    if (_ending)
+                        return;
+                    _currentTask = _tasks.getNext();
+                    if (_currentTask != 0) {
+                        _currentTask->remove();
+                        _cancelling = false;
+                    }
+                    else
+                        break;
+                }
+                _currentTask->doRun();
+            } while (true);
+        } while (true);
+    }
+    LinkedList<Task> _tasks;
+    Task* _currentTask;
+    Mutex _mutex;
+    Event _completed;
+    Event _go;
+    bool _ending;
+    bool _cancelling;
+};
+
+class ThreadPool
+{
+public:
+    ThreadPool(int threads) { }
+
+};
 
 #endif // INCLUDED_LOCK_H
