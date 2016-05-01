@@ -125,69 +125,138 @@ private:
 class Task : public LinkedListMember<Task>
 {
 public:
-    void enqueue(TaskThread* thread)
-    {
-        _thread = thread;
-        thread->enqueueTask(this);
-    }
-    void cancel()
-    {
-        if (_thread == 0) {
-            // We're not enqueued on a thread - return
-            return;
-        }
-        _thread->cancelTask(this);
-    }
-    void join()
-    {
-        if (_thread == 0) {
-            // We're not enqueued on a thread - already complete
-            return;
-        }
-        _thread->waitForTaskComplete(this);
-    }
+    Task() : _cancelling(true) { }
+    ~Task() { join(); }
+    void setPool(ThreadPool* threadPool) { _threadPool = threadPool; }
+
+    // Cancel task and remove from pool as quickly as possible.
+    void cancel() { _threadPool->cancel(this); }
+    void join() { _threadPool->join(this); }
+
+    // If task is not running, start it. If task is running, cancel it and then
+    // start it.
+    void restart() { _threadPool->restart(this); }
 
 protected:
-    bool cancelling() { return _thread->cancelling(); }
+    bool cancelling() { return _threadPool->cancelling(this); }
 private:
     virtual void run() = 0;
-    void doRun() { run(); _thread = 0; }
 
+    ThreadPool* _threadPool;
     TaskThread* _thread;
+    bool _cancelling;
+    bool _restarting;
     friend class TaskThread;
+    friend class ThreadPool;
 };
 
 class TaskThread : public Thread
 {
 public:
-    TaskThread() : _ending(false), _currentTask(0) { start(); }
-    void enqueueTask(Task* task)
+    TaskThread() : _nextIdle(0) { } // : _ending(false), _currentTask(0) { start(); }
+private:
+    void go() { _go.signal(); }
+    void threadProc()
+    {
+        do {
+            _go.wait();
+            if (_task == 0)
+                return;
+            _task->run();
+            _threadPool->taskCompleted(this);
+        } while (true);
+    }
+
+    TaskThread* _nextIdle;
+    ThreadPool* _threadPool;
+    Task* _task;
+    Event _go;
+    friend class ThreadPool;
+};
+
+class ThreadPool
+{
+public:
+    ThreadPool(int threads) : _threads(threads)
+    {
+        for (int i = 0; i < threads; ++i) {
+            _threads[i]._threadPool = this;
+            idlePush(&_threads[i]);
+            _threads[i].start();
+        }
+    }
+    ~ThreadPool()
+    {
+        // Wait until queue is empty and all threads are idle.
+        do {
+            {
+                Lock lock(&_mutex);
+                int i;
+                for (i = 0; i < _threads.count(); ++i) {
+                    if (_threads[i]._task != 0)
+                        break;
+                }
+                if (i == _threads.count())
+                    return;
+            }
+            _completed.wait();
+        } while (true);
+        // End all the threads
+        for (int i = 0; i < _threads.count(); ++i) {
+            _threads[i].go();
+            _threads[i].join();
+        }
+    }
+
+    // Cancels all tasks and removes all queued tasks.
+    void abandon()
     {
         Lock lock(&_mutex);
-        _tasks.add(task);
-        go();
-    }
-    void cancelTask(Task* task)
-    {
-        {
-            Lock lock(&_mutex);
-            if (task != _currentTask) {
-                task->remove();
-                return;
-            }
-            _cancelling = true;
+        Task* t = _tasks.getNext();
+        while (t != 0) {
+            Task* next = _tasks.getNext(t);
+            t->remove();
+            t = next;
         }
-        _completed.wait();
+        for (int i = 0; i < _threads.count(); ++i) {
+            Task* task = _threads[i]._task;
+            if (task != 0) {
+                task->_cancelling = true;
+                task->_restarting = false;
+            }
+        }
     }
-    void waitForTaskComplete(Task* task)
+
+    // Adds a task to the pool. If there is an idle thread it will begin
+    // executing immediately.
+    void add(Task* task)
+    {
+        Lock lock(&_mutex);
+        TaskThread* thread = idlePop();
+        if (thread == 0)
+            _tasks.add(task);
+        else {
+            thread->_task = task;
+            thread->go();
+        }
+    }
+
+    // Waits for task to complete.
+    void join(Task* task)
     {
         do {
             {
                 Lock lock(&_mutex);
-                if (task != _currentTask) {
+                if (task->)
+                int i;
+                for (i = 0; i < _threads.count(); ++i) {
+                    if (_threads[i]._task == task)
+                        break;
+                }
+                if (i == _threads.count()) {
                     Task* t = _tasks.getNext();
                     while (t != 0) {
-                        if (t == _currentTask)
+                        if (t == task)
                             break;
                         t = _tasks.getNext(t);
                     }
@@ -198,59 +267,81 @@ public:
             _completed.wait();
         } while (true);
     }
-    void end()
+
+    void restart(Task* task)
     {
-        {
-            Lock lock(&_mutex);
-            _ending = true;
-            _cancelling = true;
-            go();
+        Lock lock(&_mutex);
+
+        // TODO
+    }
+
+    void cancel(Task* task)
+    {
+        Lock lock(&_mutex);
+        if (task->_thread->_task == task) {
+            task->_cancelling = true;
+            task->_restarting = false;
         }
-        join();
+        else
+            task->remove();
     }
-    bool cancelling() { return _cancelling; }  // For use by Task::cancelling()
+
+    bool cancelling(Task* task)
+    {
+        Lock lock(&_mutex);
+        return task->_cancelling;
+    }
+
+    // Called by thread when it has completed its task
+    void taskCompleted(TaskThread* thread)
+    {
+        Lock lock(&_mutex);
+        if (!thread->_task->_restarting) {
+            Task* task = _tasks.getNext();
+            task->remove();
+            thread->_task = task;
+            if (task != 0) {
+                task->_thread = thread;
+                thread->go();
+            }
+            else
+                idlePush(thread);
+            _completed.signal();
+        }
+        else {
+            thread->_task->_restarting = false;
+            thread->go();
+        }
+    }
 private:
-    void go()
+    TaskThread* idlePop()
     {
-        if (_currentTask != 0)
-            _go.signal();
+        if (_idle == 0)
+            return 0;
+        TaskThread* thread = _idle;
+        _idle = thread->_nextIdle;
+        return thread;
     }
-    void threadProc()
+    void idlePush(TaskThread* thread)
     {
-        do {
-            _go.wait();
-            do {
-                {
-                    Lock lock(&_mutex);
-                    _completed.signal();
-                    if (_ending)
-                        return;
-                    _currentTask = _tasks.getNext();
-                    if (_currentTask != 0) {
-                        _currentTask->remove();
-                        _cancelling = false;
-                    }
-                    else
-                        break;
-                }
-                _currentTask->doRun();
-            } while (true);
-        } while (true);
+        thread->_nextIdle = thread;
+        _idle = thread;
     }
-    LinkedList<Task> _tasks;
-    Task* _currentTask;
+
+    TaskThread* _idle;
     Mutex _mutex;
     Event _completed;
-    Event _go;
-    bool _ending;
-    bool _cancelling;
+    LinkedList<Task> _tasks;
+    Array<TaskThread> _threads;
 };
 
-class ThreadPool
+// A ThreadTask has a single thread all to itself.
+class ThreadTask : public Task
 {
 public:
-    ThreadPool(int threads) { }
-
+    ThreadTask() : _threadPool(1) { setPool(this); _threadPool.add(this); }
+private:
+    ThreadPool _threadPool;
 };
 
 #endif // INCLUDED_LOCK_H
