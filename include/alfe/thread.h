@@ -125,17 +125,23 @@ private:
 class Task : public LinkedListMember<Task>
 {
 public:
-    Task() : _cancelling(true) { }
+    Task() : _state(completed) { }
     ~Task() { join(); }
     void setPool(ThreadPool* threadPool) { _threadPool = threadPool; }
 
     // Cancel task and remove from pool as quickly as possible.
     void cancel() { _threadPool->cancel(this); }
+
+    // Wait for task to complete.
     void join() { _threadPool->join(this); }
 
     // If task is not running, start it. If task is running, cancel it and then
-    // start it.
+    // start it again.
     void restart() { _threadPool->restart(this); }
+
+    // Same as restart(), but waits for previous instance of the task to stop
+    // running before continuing.
+    void restartSynchronous() { _threadPool->restartSynchronous(this); }
 
 protected:
     bool cancelling() { return _threadPool->cancelling(this); }
@@ -144,8 +150,15 @@ private:
 
     ThreadPool* _threadPool;
     TaskThread* _thread;
-    bool _cancelling;
-    bool _restarting;
+    enum State {
+        waiting,
+        running,
+        cancelPending,
+        restartPending,
+        completed
+    };
+    State _state;
+
     friend class TaskThread;
     friend class ThreadPool;
 };
@@ -153,7 +166,7 @@ private:
 class TaskThread : public Thread
 {
 public:
-    TaskThread() : _nextIdle(0) { } // : _ending(false), _currentTask(0) { start(); }
+    TaskThread() : _next(0) { }
 private:
     void go() { _go.signal(); }
     void threadProc()
@@ -167,7 +180,7 @@ private:
         } while (true);
     }
 
-    TaskThread* _nextIdle;
+    TaskThread* _next;
     ThreadPool* _threadPool;
     Task* _task;
     Event _go;
@@ -177,11 +190,21 @@ private:
 class ThreadPool
 {
 public:
-    ThreadPool(int threads) : _threads(threads)
+    ThreadPool(int threads = 0)
     {
+        if (threads == 0) {
+            // Count available threads
+            DWORD_PTR pam, sam;
+            IF_ZERO_THROW(
+                GetProcessAffinityMask(GetCurrentProcess(), &pam, &sam));
+            for (DWORD_PTR p = 1; p != 0; p <<= 1)
+                if ((pam&p) != 0)
+                    ++threads;
+        }
+        _threads.allocate(threads);
         for (int i = 0; i < threads; ++i) {
             _threads[i]._threadPool = this;
-            idlePush(&_threads[i]);
+            startTask(&_threads[i], 0);
             _threads[i].start();
         }
     }
@@ -199,7 +222,7 @@ public:
                 if (i == _threads.count())
                     return;
             }
-            _completed.wait();
+            _done.wait();
         } while (true);
         // End all the threads
         for (int i = 0; i < _threads.count(); ++i) {
@@ -208,36 +231,20 @@ public:
         }
     }
 
-    // Cancels all tasks and removes all queued tasks.
+    // Removes all queued tasks and cancels all running tasks,
     void abandon()
     {
         Lock lock(&_mutex);
-        Task* t = _tasks.getNext();
+        Task* t = _waiting.getNext();
         while (t != 0) {
-            Task* next = _tasks.getNext(t);
+            Task* next = _waiting.getNext(t);
             t->remove();
             t = next;
         }
         for (int i = 0; i < _threads.count(); ++i) {
             Task* task = _threads[i]._task;
-            if (task != 0) {
-                task->_cancelling = true;
-                task->_restarting = false;
-            }
-        }
-    }
-
-    // Adds a task to the pool. If there is an idle thread it will begin
-    // executing immediately.
-    void add(Task* task)
-    {
-        Lock lock(&_mutex);
-        TaskThread* thread = idlePop();
-        if (thread == 0)
-            _tasks.add(task);
-        else {
-            thread->_task = task;
-            thread->go();
+            if (task != 0)
+                task->_state = Task::cancelPending;
         }
     }
 
@@ -247,91 +254,115 @@ public:
         do {
             {
                 Lock lock(&_mutex);
-                if (task->)
-                int i;
-                for (i = 0; i < _threads.count(); ++i) {
-                    if (_threads[i]._task == task)
-                        break;
-                }
-                if (i == _threads.count()) {
-                    Task* t = _tasks.getNext();
-                    while (t != 0) {
-                        if (t == task)
-                            break;
-                        t = _tasks.getNext(t);
-                    }
-                    if (t == 0)
-                        return;
-                }
+                if (task->_state == Task::completed)
+                    return;
             }
-            _completed.wait();
+            _done.wait();
         } while (true);
     }
 
     void restart(Task* task)
     {
         Lock lock(&_mutex);
+        if (task->_state == Task::completed) {
+            task->remove();
+            addNoLock(task);
+        }
+        else {
+            if (task->_state != Task::waiting)
+                task->_state = Task::restartPending;
+        }
+    }
 
-        // TODO
+    void restartSynchronous(Task* task)
+    {
+        restart(task);
+        do {
+            {
+                Lock lock(&_mutex);
+                if (task->_state != Task::restartPending)
+                    return;
+            }
+            _done.wait();
+        } while (true);
     }
 
     void cancel(Task* task)
     {
         Lock lock(&_mutex);
-        if (task->_thread->_task == task) {
-            task->_cancelling = true;
-            task->_restarting = false;
-        }
-        else
+        if (task->_state == Task::waiting)
             task->remove();
+        else {
+            if (task->_state != Task::completed)
+                task->_state = Task::cancelPending;
+        }
     }
 
     bool cancelling(Task* task)
     {
         Lock lock(&_mutex);
-        return task->_cancelling;
+        return task->_state == Task::cancelPending;
     }
 
     // Called by thread when it has completed its task
     void taskCompleted(TaskThread* thread)
     {
         Lock lock(&_mutex);
-        if (!thread->_task->_restarting) {
-            Task* task = _tasks.getNext();
+        Task* task = thread->_task;
+        if (task->_state != task->Task::restartPending) {
+            task->_state = Task::completed;
+            _completed.add(task);
+            task = _waiting.getNext();
             task->remove();
-            thread->_task = task;
-            if (task != 0) {
-                task->_thread = thread;
-                thread->go();
-            }
-            else
-                idlePush(thread);
-            _completed.signal();
+        }
+        startTask(thread, task);
+    }
+
+    Task* getCompletedTask()
+    {
+        Lock lock(&_mutex);
+        Task* task = _completed.getNext();
+        if (task != 0)
+            task->remove();
+        return task;
+    }
+
+    void setPriority(int nPriority)
+    {
+        for (int i = 0; i < _threads.count(); ++i)
+            _threads[i].setPriority(nPriority);
+    }
+
+private:
+    void addNoLock(Task* task)
+    {
+        TaskThread* thread = _idle;
+        if (thread == 0) {
+            _waiting.add(task);
+            return;
+        }
+        _idle = thread->_next;
+        startTask(thread, task);
+    }
+    void startTask(TaskThread* thread, Task* task)
+    {
+        thread->_task = task;
+        if (task == 0) {
+            thread->_next = thread;
+            _idle = thread;
         }
         else {
-            thread->_task->_restarting = false;
+            task->_state = Task::running;
             thread->go();
         }
-    }
-private:
-    TaskThread* idlePop()
-    {
-        if (_idle == 0)
-            return 0;
-        TaskThread* thread = _idle;
-        _idle = thread->_nextIdle;
-        return thread;
-    }
-    void idlePush(TaskThread* thread)
-    {
-        thread->_nextIdle = thread;
-        _idle = thread;
+        _done.signal();
     }
 
     TaskThread* _idle;
     Mutex _mutex;
-    Event _completed;
-    LinkedList<Task> _tasks;
+    Event _done;
+    LinkedList<Task> _waiting;
+    LinkedList<Task> _completed;
     Array<TaskThread> _threads;
 };
 
@@ -339,7 +370,8 @@ private:
 class ThreadTask : public Task
 {
 public:
-    ThreadTask() : _threadPool(1) { setPool(this); _threadPool.add(this); }
+    ThreadTask() : _threadPool(1) { setPool(this); restart(); }
+    void setPriority(int nPriority) { _threadPool.setPriority(nPriority); }
 private:
     ThreadPool _threadPool;
 };

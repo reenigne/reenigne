@@ -60,7 +60,6 @@ public:
 
         IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
         ReaderThread thread(this);
-        thread.start();
 
 //        Sleep(2000);
 
@@ -73,15 +72,16 @@ public:
         for (int i = 0; i < l; ++i)
             sendByte(data[i]);  // Send program byte
         console.write("Send complete.\n");
+        thread.cancel();
         thread.join();
         return 0;
     }
 private:
-    class ReaderThread : public Thread
+    class ReaderThread : public ThreadTask
     {
     public:
         ReaderThread(Program* program) : _program(program) { }
-        void threadProc()
+        void run()
         {
             do {
                 DWORD eventMask;
@@ -93,6 +93,8 @@ private:
                         break;
                     console.write<Byte>(c);
                 }
+                if (cancelling())
+                    return;
             } while (true);
         }
     private:

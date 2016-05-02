@@ -1,6 +1,5 @@
 #include "alfe/main.h"
 #include "alfe/file.h"
-#include "alfe/thread.h"
 
 class Program : public ProgramBase
 {
@@ -130,9 +129,6 @@ public:
         //IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
         //Sleep(2000);
 
-        //ReaderThread thread(this);
-        //thread.start();
-
         sendByte(0x7f);      // Put Arduino in raw mode
         sendByte(0x76);      // Clear keyboard buffer
         sendByte(0x72);      // Put Arduino in tester mode
@@ -168,7 +164,6 @@ public:
 
         console.write("Upload complete.\n");
         // Dump bytes from COM port to stdout until we receive ^Z
-        //thread.join();
 
         int i = 0;
         do {
@@ -205,29 +200,6 @@ private:
         for (int i = 0; i < s.length(); ++i)
             expect(s[i]);
     }
-
-    //class ReaderThread : public Thread
-    //{
-    //public:
-    //    ReaderThread(Program* program) : _program(program) { }
-    //    void threadProc()
-    //    {
-    //        int c = 0;
-    //        do {
-    //            DWORD eventMask = 0;
-    //            if (WaitCommEvent(_program->_com, &eventMask, NULL) == 0)
-    //                throw Exception::systemError(String("Reading COM port"));
-    //            do {
-    //                c = _program->_com.tryReadByte();
-    //                if (c == 26 || c == -1)
-    //                    break;
-    //                console.write<Byte>(c);
-    //            } while (true);
-    //        } while (c != 26);
-    //    }
-    //private:
-    //    Program* _program;
-    //};
 
     void addLength(int l)
     {
@@ -285,6 +257,4 @@ private:
     Byte _buffer2[(0xff+3)*2];
     int _bufferCount;
     int _bufferCount2;
-
-    friend class ReaderThread;
 };

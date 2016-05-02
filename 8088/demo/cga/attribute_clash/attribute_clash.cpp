@@ -230,7 +230,7 @@ public:
         _position = Vector(0, 0);
 
         _thread.initialize(this);
-        _thread.start();
+        _thread.restart();
     }
 
     Vector size() const { return Vector(_outputSize.x, _outputSize.y*3); }
@@ -280,8 +280,6 @@ public:
 
     void destroy()
     {
-        _thread.end();
-
         PNGFileFormat png;
         _digitalOutput.save(png, _outputDigitalFile);
         _compositeOutput.save(png, _outputCompositeFile);
@@ -538,48 +536,20 @@ public:
         }
     }
 private:
-    class CalcThread : public Thread
+    class CalcThread : public ThreadTask
     {
     public:
-        CalcThread() : _ending(false) { }
-
-        void initialize(AttributeClashImage* image)
-        {
-            _image = image;
-            doRestart();
-        }
-
-        void end()
-        {
-            _ending = true;
-            join();
-        }
-
-        void finished()
-        {
-            _ending = true;
-        }
-
+        void initialize(AttributeClashImage* image) { _image = image; }
+        void restart() { _finished = false; ThreadTask::restart(); }
+        void finished() { _finished = true; }
     private:
-        void doRestart()
-        {
-            _restartRequested = false;
-        }
-
-        void threadProc()
+        void run()
         {
             do {
-                if (_restartRequested) {
-                    doRestart();
-                    _event.signal();
-                }
                 _image->calculate();
-            } while (!_ending);
+            } while (!_finished && !cancelled());
         }
-
-        bool _restartRequested;
-        bool _ending;
-        Event _event;
+        bool _finished;
         AttributeClashImage* _image;
     };
 

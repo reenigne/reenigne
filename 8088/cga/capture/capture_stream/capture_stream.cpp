@@ -81,86 +81,68 @@ private:
     int _count;
 };
 
-template<class T> class CompressThreadT : public Thread
+template<class T> class CompressTaskT : public Task
 {
 public:
-    CompressThreadT() : _ending(false), _waiting(false) { }
-    void setProgram(Program* program) { _program = program; }
-    void go() { _go.signal(); }
-    void end() { _ending = true; go(); }
-    bool waiting() { return _waiting; }
-private:
-    void threadProc()
+    CompressTaskT(Program* program) : _program(program)
     {
-        z_stream zs;
-        memset(&zs, 0, sizeof(z_stream));
-        int r = deflateInit(&zs, 4);  // or Z_DEFAULT_COMPRESSION?
+        memset(&_zs, 0, sizeof(z_stream));
+        int r = deflateInit(&_zs, 4);  // or Z_DEFAULT_COMPRESSION?
         if (r != Z_OK)
             throw Exception("deflateInit failed");
-        int bufferSize = deflateBound(&zs, samplesPerFrame);
-        Array<Byte> buffer(bufferSize);
+        int bufferSize = deflateBound(&_zs, samplesPerFrame);
+        buffer.allocate(bufferSize);
+    }
+    ~CompressThreadT() { deflateEnd(&_zs); }
+    void setProgram(Program* program) { _program = program; }
+    void setFrame(Handle frame) { _frame = frame; }
+private:
+    void run()
+    {
+        int bufferSize = _buffer.size();
+        _zs.avail_in = samplesPerFrame;
+        _zs.next_in = _frame->data();
+        _zs.avail_out = bufferSize;
+        _zs.next_out = &_buffer[0];
 
-        while (!_ending) {
-            _waiting = true;
-            _go.wait();
-            _waiting = false;
-            while (!_ending) {
-                Handle frame = _program->getUncompressedFrame();
-                if (!frame.valid())
-                    break;
+        r = deflate(&_zs, Z_FINISH);
+        if (r != Z_STREAM_END)
+            throw Exception("deflate failed");
 
-                zs.avail_in = samplesPerFrame;
-                zs.next_in = frame->data();
-                zs.avail_out = bufferSize;
-                zs.next_out = &buffer[0];
-
-                r = deflate(&zs, Z_FINISH);
-                if (r != Z_STREAM_END)
-                    throw Exception("deflate failed");
-
-                r = deflateReset(&zs);
-                if (r != Z_OK)
-                    throw Exception("deflateReset failed");
-
-                int compressedSize = bufferSize - zs.avail_out;
-                Handle compressed =
-                    new Frame(frame->index(), compressedSize);
-                memcpy(compressed->data(), &buffer[0], compressedSize);
-                _program->putCompressedFrame(compressed);
-            }
-        }
-        r = deflateEnd(&zs);
+        r = deflateReset(&_zs);
         if (r != Z_OK)
-            throw Exception("defaultEnd failed");
+            throw Exception("deflateReset failed");
+
+        int compressedSize = bufferSize - _zs.avail_out;
+        Handle compressed = new Frame(_frame->index(), compressedSize);
+        memcpy(compressed->data(), &_buffer[0], compressedSize);
+        _program->putCompressedFrame(compressed);
     }
 
+    Handle _frame;
+    z_stream _zs;
+    Array<Byte> _buffer;
     Program* _program;
-    Event _go;
-    bool _ending;
-    bool _waiting;
 };
 
-typedef CompressThreadT<void> CompressThread;
+typedef CompressTaskT<void> CompressTask;
 
-template<class T> class WriteThreadT : public Thread
+template<class T> class WriteThreadT : public ThreadTask
 {
 public:
-    WriteThreadT() : _ending(false) { }
+    WriteThreadT() : _program(0) { }
     void setProgram(Program* program) { _program = program; }
-    void go() { _go.signal(); }
-    void end() { _ending = true; go(); }
 private:
-    void threadProc()
+    void run()
     {
-        while (!_ending) {
-            _go.wait();
-            while (!_ending) {
-                Handle frame = _program->getCompressedFrame();
-                if (!frame.valid())
-                    break;
-                _program->write(frame);
-            }
-        }
+        if (_program == 0)
+            return;
+        do {
+            Handle frame = _program->getCompressedFrame();
+            if (!frame.valid() || cancelling())
+                return;
+            _program->write(frame);
+        } while (true);
     }
 
     Program* _program;
@@ -175,22 +157,7 @@ class Program : public ProgramBase
 public:
     void run()
     {
-        // Count available threads
-        DWORD_PTR pam, sam;
-        int nThreads = 0;
-        IF_ZERO_THROW(GetProcessAffinityMask(GetCurrentProcess(), &pam, &sam));
-        for (DWORD_PTR p = 1; p != 0; p <<= 1)
-            if ((pam&p) != 0)
-                ++nThreads;
-        _compressThreads.allocate(nThreads);
-        for (int i = 0; i < nThreads; ++i) {
-            _compressThreads[i].setProgram(this);
-            _compressThreads[i].start();
-            _compressThreads[i].go();
-        }
         _writeThread.setProgram(this);
-        _writeThread.start();
-        _writeThread.go();
 
         String name = "captured.zdr";
         if (_arguments.count() >= 2)
@@ -216,8 +183,14 @@ public:
                 remaining -= bytesRead;
             } while (remaining > 0);
 
-            _uncompressedFrames.add(uncompressed);
-            wakeACompressionThread();
+            CompressTask* task = _compressPool.getCompletedTask();
+            if (task == 0) {
+                task = new CompressTask(this);
+                task->setPool(&_compressPool);
+                _tasks.add(task);
+            }
+            task->setFrame(uncompressed);
+            task->restart();
 
             ++index;
             if (index % 60 == 0)
@@ -225,23 +198,10 @@ public:
             if (_kbhit())
                 k = _getch();
         } while (k != 27);
-
-        while (_uncompressedFrames.count() > 0)
-            wakeACompressionThread();
-        while (_compressedFrames.count() > 0)
-            _writeThread.go();
-
-        _writeThread.end();
-        for (int i = 0; i < nThreads; ++i)
-            _compressThreads[i].end();
     }
     void write(Handle frame)
     {
         _outputStream.write(frame->data(), frame->bytes());
-    }
-    Handle getUncompressedFrame()
-    {
-        return _uncompressedFrames.remove();
     }
     Handle getCompressedFrame()
     {
@@ -258,20 +218,17 @@ public:
         //console.write(String("Completed frame ") + decimal(frame->index()) + "\n");
         _compressedFrames.add(frame);
         //_compressedFrames.dump();
-        _writeThread.go();
+        _writeThread.restart();
+    }
+    ~Program()
+    {
+        for (auto t : _tasks)
+            delete t;
     }
 private:
-    void wakeACompressionThread()
-    {
-        for (int i = 0; i < _compressThreads.count(); ++i)
-            if (_compressThreads[i].waiting()) {
-                _compressThreads[i].go();
-                break;
-            }
-    }
-    Queue _uncompressedFrames;
     Queue _compressedFrames;
     WriteThread _writeThread;
-    Array<CompressThread> _compressThreads;
+    ThreadPool _compressPool;
     AutoStream _outputStream;
+    List<CompressTask*> _tasks;
 };

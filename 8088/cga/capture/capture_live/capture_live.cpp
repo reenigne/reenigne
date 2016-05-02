@@ -8,26 +8,21 @@
 template<class T> class CaptureBitmapWindowT;
 typedef CaptureBitmapWindowT<void> CaptureBitmapWindow;
 
-template<class T> class DecoderThreadT : public Thread
+template<class T> class DecoderThreadT : public ThreadTask
 {
 public:
-    DecoderThreadT() : _ending(false) { }
+    DecoderThreadT() : _window(0) { }
     void setWindow(CaptureBitmapWindow* window) { _window = window; }
-    void go() { _go.signal(); }
-    void end() { _ending = true; go(); }
 private:
-    void threadProc()
+    void run()
     {
-        while (!_ending) {
-            _go.wait();
-            if (_ending)
-                break;
+        while (true) {
+            if (cancelling() || _window == 0)
+                return;
             _window->update();
         }
     }
 
-    Event _go;
-    bool _ending;
     CaptureBitmapWindow* _window;
 };
 
@@ -40,7 +35,7 @@ template<class T> class CaptureBitmapWindowT : public BitmapWindow
 public:
     ~CaptureBitmapWindowT()
     {
-        _thread.end();
+        _thread.cancel();
     }
     void setCaptureWindow(CaptureWindow* captureWindow)
     {
@@ -69,7 +64,7 @@ public:
 
         BitmapWindow::create();
         _thread.setWindow(this);
-        _thread.start();
+        _thread.restart();
     }
 
     void update()
@@ -86,7 +81,6 @@ public:
     {
         if (!_bitmap.valid())
             _bitmap = Bitmap<DWORD>(Vector(960, 720));
-        _thread.go();
     }
 
     void paint()

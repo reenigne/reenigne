@@ -29,7 +29,6 @@ Attribute clash: Diffuse error across entire next block?
 Attribute clash: Try all 6 possibilites for overscanColour in AttributeClashImage constructor.
 Attribute clash: For monochrome images, try black as well as +BW
 Attribute clash: Have multiple windows: RGB output, NTSC output
-Attribute clash: Refactor CalcThread with CalcThread in fractal.h as EndableThread?
 Attribute clash: Make a BackgroundCalculationImage base class?
 Attribute clash: Output image scaling. Scanlines? DirectX?
 Attribute clash: Test for repeated iterations

@@ -35,31 +35,26 @@ protected:
 
 template<class Sample> class DirectSoundSink : public AudioSink<Sample>
 {
-    class ProcessingThread : public Thread
+    class ProcessingThread : public ThreadTask
     {
     public:
-        ProcessingThread() : _ending(false) { }
-        void setSink(DirectSoundSink* sink) { _sink = sink; }
+        ProcessingThread() : _sink(0) { }
+        ~ProcessingThread() { cancel(); _sink->_event.signal(); }
+        void setSink(DirectSoundSink* sink) { _sink = sink; restart(); }
 
-        void threadProc()
+        void run()
         {
+            if (_sink == 0)
+                return;
             while (true) {
                 _sink->_event.wait();
-                if (_ending)
+                if (cancelling())
                     return;
-      	        _sink->fillNextHalfBuffer();
+                _sink->fillNextHalfBuffer();
             }
-        }
-
-        void end()
-        {
-            _ending = true;
-            _sink->_event.signal();
-            join();
         }
     private:
         DirectSoundSink* _sink;
-        bool _ending;
     };
 
 public:
@@ -136,7 +131,6 @@ public:
 
         _next = 0;
         _thread.setSink(this);
-        _thread.start();
 
         IF_ERROR_THROW(_directSoundBuffer->SetCurrentPosition(0));
     }
@@ -178,11 +172,7 @@ public:
 
     void consume(int n) { _consumeEvent.wait(); }
 
-    ~DirectSoundSink()
-    {
-        _directSoundBuffer->Stop();
-        _thread.end();
-    }
+    ~DirectSoundSink() { _directSoundBuffer->Stop(); }
     void wait() { _finish.wait(); }
 
 private:
@@ -236,31 +226,26 @@ template<class Sample> class XAudio2Sink : public AudioSink<Sample>
         XAudio2Sink* _sink;
     };
 
-    class ProcessingThread : public Thread
+    class ProcessingThread : public ThreadTask
     {
     public:
-        ProcessingThread() : _ending(false) { }
-        void setSink(XAudio2Sink* sink) { _sink = sink; }
+        ProcessingThread() : _sink(0) { }
+        ~ProcessingThread() { cancel(); _sink->_event.signal(); }
+        void setSink(XAudio2Sink* sink) { _sink = sink; restart(); }
 
         void threadProc()
         {
+            if (_sink == 0)
+                return;
             while (true) {
                 _sink->_event.wait();
-                if (_ending)
+                if (cancelling())
                     return;
-      	        _sink->fillNextBuffer();
+                _sink->fillNextBuffer();
             }
-        }
-
-        void end()
-        {
-            _ending = true;
-            _sink->_event.signal();
-            join();
         }
     private:
         XAudio2Sink* _sink;
-        bool _ending;
     };
 
 public:
@@ -271,7 +256,6 @@ public:
     {
         _callback.setSink(this);
         _thread.setSink(this);
-        _thread.start();
 
         IF_ERROR_THROW(XAudio2Create(&_xAudio2, 0));
 
@@ -297,7 +281,6 @@ public:
         IF_ERROR_THROW(_xAudio2SourceVoice->Start(0));
     }
     void wait() { _finish.wait(); }
-    ~XAudio2Sink() { _thread.end(); }
 private:
     void bufferEnded() { _event.signal(); }
     void fillNextBuffer()
