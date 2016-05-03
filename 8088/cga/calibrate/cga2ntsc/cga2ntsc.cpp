@@ -99,10 +99,10 @@ private:
     int _palette;
 };
 
-template<class T> class CGAMatcherT
+template<class T> class CGAMatcherT : public ThreadTask
 {
 public:
-    CGAMatcherT() : _skip(256), _converting(false)
+    CGAMatcherT() : _skip(256)
     {
         _patterns.allocate(0x10000*8*17 + 0x100*80*5);
     }
@@ -123,7 +123,7 @@ public:
             output[x] = (-input[x] + input[x+1]*2 + input[x+2]*6 + input[x+3]*2
                 -input[x+4]);
     }
-    void convert()
+    void run()
     {
         _composite.initChroma();
         Byte burst[4];
@@ -298,7 +298,6 @@ public:
 
         _rgbi.fill((_mode & 0x10) == 0 ? _palette & 0x0f : 0);
         _data.allocate((_size.y/_block.y)*(_size.x/_hdots));
-        _converting = true;
         _y = 0;
         _rgbiRow = _rgbi.data() + 7;
         _inputRow = _ntscInput.data();
@@ -310,6 +309,144 @@ public:
         _config = _startConfig;
         _testConfig = (_startConfig + 1 != _endConfig);
         _configScore = 0x7fffffffffffffffUL;
+        while (true) {
+            int w = _block.x + 1;
+            Vector errorLineSize(_size.x + 4, 1);
+            Bitmap<int> savedError(errorLineSize);
+            if (_testConfig)
+                savedError.copyFrom(_error.subBitmap(Vector(0, _y),
+                    errorLineSize));
+            config();
+            SInt16* p = &_patterns[(_config & 0x7f)*5*256];
+            UInt64 lineScore = 0;
+            for (int x = 0; x < (_size.x & -_hdots); x += _block.x) {
+                int bestPattern = 0;
+                int bestScore = 0x7fffffff;
+                int skipSolidColour = 0xf00;
+                for (int pattern = 0; pattern < _patternCount; ++pattern) {
+                    if ((_mode & 2) == 0) {
+                        if (_skip[pattern & 0xff])
+                            continue;
+                        if ((pattern & 0x0f00) == ((pattern >> 4) & 0x0f00)) {
+                            if ((pattern & 0xf00) == skipSolidColour)
+                                continue;
+                            skipSolidColour = (pattern & 0xf00);
+                        }
+                    }
+                    int score = 0;
+                    const Byte* inputRow2 = _inputRow;
+                    Byte* errorRow2 = _errorRow;
+                    _testError.fill(0);
+                    for (int yy = 0; yy < _block.y; ++yy) {
+                        const SInt16* inputPixel =
+                            reinterpret_cast<const SInt16*>(inputRow2) + x;
+                        const int* errorPixel =
+                            reinterpret_cast<const int*>(errorRow2) + x;
+                        for (int xx = 0; xx < w; ++xx) {
+                            int test = p[(pattern*_block.y + yy)*w + xx];
+                            Vector p(xx, yy);
+                            int target = inputPixel[xx] +
+                                (errorPixel[xx] + _testError[p])/4;
+                            int d = target - test;
+                            int weight = (xx == 0 || xx == _block.x ? 1 : 2);
+                            score += weight*d*d;
+                            int error = weight*d;
+                            _testError[p + Vector(4, 0)] +=
+                                (error*_diffusionHorizontal)/256;
+                            _testError[p + Vector(0, 1)] +=
+                                (error*_diffusionVertical)/256;
+                        }
+                        inputRow2 += _ntscInput.stride();
+                        errorRow2 += _error.stride();
+                    }
+                    if (score < bestScore) {
+                        bestScore = score;
+                        bestPattern = pattern;
+                    }
+                }
+                for (int yy = 0; yy < _block.y; ++yy) {
+                    Byte* rgbiPixel = _rgbiRow + yy*_rgbi.stride() + x;
+                    plotPattern(rgbiPixel, bestPattern, yy);
+                    UInt32 seq = 0;
+                    rgbiPixel -= 7;
+                    for (int xx = 0; xx < 7; ++xx) {
+                        seq = (seq >> 4) | ((*rgbiPixel) << 28);
+                        ++rgbiPixel;
+                    }
+                    for (int xx = 0; xx < _block.x; ++xx) {
+                        seq = (seq >> 4) | ((*rgbiPixel) << 28);
+                        ++rgbiPixel;
+                        _window->addColour(static_cast<UInt64>(seq) |
+                            (static_cast<UInt64>(xx & 3) << 32));
+                    }
+                }
+
+                int address = (_y/_block.y)*(_size.x/_hdots) + x/_hdots;
+                if ((_mode & 2) == 0)
+                    _data[address] = bestPattern;
+                else {
+                    int bit = (x & 12) ^ 4;
+                    _data[address] =
+                        (_data[address] & ~(15 << bit)) | (bestPattern << bit);
+                }
+
+                const Byte* inputRow2 = _inputRow;
+                Byte* errorRow2 = _errorRow;
+                for (int yy = 0; yy < _block.y; ++yy) {
+                    const SInt16* inputPixel =
+                        reinterpret_cast<const SInt16*>(inputRow2) + x;
+                    int* errorPixel = reinterpret_cast<int*>(errorRow2) + x;
+                    for (int xx = 0; xx < w; ++xx) {
+                        int test = p[(bestPattern*_block.y + yy)*w + xx];
+                        int target = inputPixel[xx] + errorPixel[xx]/4;
+                        int d = target - test;
+                        int weight = (xx == 0 || xx == _block.x ? 1 : 2);
+                        lineScore += weight*d*d;
+                        int error = weight*d;
+                        errorPixel[xx + 4] += (error*_diffusionHorizontal)/256;
+                        reinterpret_cast<int*>(errorRow2 + _error.stride())[x + xx]
+                            += (error*_diffusionVertical/256);
+                    }
+                    inputRow2 += _ntscInput.stride();
+                    errorRow2 += _error.stride();
+                }
+            }
+            _window->reCreateNTSC();
+            bool advance = false;
+            if (_testConfig) {
+                if (lineScore < _configScore) {
+                    _configScore = lineScore;
+                    _bestConfig = _config;
+                }
+                ++_config;
+                if (_config == _endConfig) {
+                    _config = _bestConfig;
+                    _configs[_y] = _bestConfig;
+                    _testConfig = false;
+                    _configScore = 0x7fffffffffffffffUL;
+                }
+                else {
+                    savedError.copyTo(_error.subBitmap(Vector(0, _y),
+                        errorLineSize));
+                    _error.subBitmap(Vector(0, _y + 1), errorLineSize).fill(0);
+                }
+            }
+            else {
+                advance = true;
+                _testConfig = (_startConfig + 1 != _endConfig);
+                _config = _startConfig;
+            }
+            if (advance) {
+                _inputRow += _ntscInput.stride() * _block.y;
+                _errorRow += _error.stride() * _block.y;
+                _rgbiRow += _rgbi.stride() * _block.y;
+                _y += _block.y;
+                if (_y >= _size.y + 1 - _block.y)
+                    return;
+            }
+            if (cancelling())
+                return;
+        }
     }
     void config()
     {
@@ -333,146 +470,6 @@ public:
             _hdots = 16;
         else
             _hdots = 8;
-    }
-    bool idle()
-    {
-        if (!_converting)
-            return false;
-        int w = _block.x + 1;
-        Vector errorLineSize(_size.x + 4, 1);
-        Bitmap<int> savedError(errorLineSize);
-        if (_testConfig)
-            savedError.copyFrom(_error.subBitmap(Vector(0, _y),
-                errorLineSize));
-        config();
-        SInt16* p = &_patterns[(_config & 0x7f)*5*256];
-        UInt64 lineScore = 0;
-        for (int x = 0; x < (_size.x & -_hdots); x += _block.x) {
-            int bestPattern = 0;
-            int bestScore = 0x7fffffff;
-            int skipSolidColour = 0xf00;
-            for (int pattern = 0; pattern < _patternCount; ++pattern) {
-                if ((_mode & 2) == 0) {
-                    if (_skip[pattern & 0xff])
-                        continue;
-                    if ((pattern & 0x0f00) == ((pattern >> 4) & 0x0f00)) {
-                        if ((pattern & 0xf00) == skipSolidColour)
-                            continue;
-                        skipSolidColour = (pattern & 0xf00);
-                    }
-                }
-                int score = 0;
-                const Byte* inputRow2 = _inputRow;
-                Byte* errorRow2 = _errorRow;
-                _testError.fill(0);
-                for (int yy = 0; yy < _block.y; ++yy) {
-                    const SInt16* inputPixel =
-                        reinterpret_cast<const SInt16*>(inputRow2) + x;
-                    const int* errorPixel =
-                        reinterpret_cast<const int*>(errorRow2) + x;
-                    for (int xx = 0; xx < w; ++xx) {
-                        int test = p[(pattern*_block.y + yy)*w + xx];
-                        Vector p(xx, yy);
-                        int target = inputPixel[xx] +
-                            (errorPixel[xx] + _testError[p])/4;
-                        int d = target - test;
-                        int weight = (xx == 0 || xx == _block.x ? 1 : 2);
-                        score += weight*d*d;
-                        int error = weight*d;
-                        _testError[p + Vector(4, 0)] +=
-                            (error*_diffusionHorizontal)/256;
-                        _testError[p + Vector(0, 1)] +=
-                            (error*_diffusionVertical)/256;
-                    }
-                    inputRow2 += _ntscInput.stride();
-                    errorRow2 += _error.stride();
-                }
-                if (score < bestScore) {
-                    bestScore = score;
-                    bestPattern = pattern;
-                }
-            }
-            for (int yy = 0; yy < _block.y; ++yy) {
-                Byte* rgbiPixel = _rgbiRow + yy*_rgbi.stride() + x;
-                plotPattern(rgbiPixel, bestPattern, yy);
-                UInt32 seq = 0;
-                rgbiPixel -= 7;
-                for (int xx = 0; xx < 7; ++xx) {
-                    seq = (seq >> 4) | ((*rgbiPixel) << 28);
-                    ++rgbiPixel;
-                }
-                for (int xx = 0; xx < _block.x; ++xx) {
-                    seq = (seq >> 4) | ((*rgbiPixel) << 28);
-                    ++rgbiPixel;
-                    _window->addColour(static_cast<UInt64>(seq) |
-                        (static_cast<UInt64>(xx & 3) << 32));
-                }
-            }
-
-            int address = (_y/_block.y)*(_size.x/_hdots) + x/_hdots;
-            if ((_mode & 2) == 0)
-                _data[address] = bestPattern;
-            else {
-                int bit = (x & 12) ^ 4;
-                _data[address] =
-                    (_data[address] & ~(15 << bit)) | (bestPattern << bit);
-            }
-
-            const Byte* inputRow2 = _inputRow;
-            Byte* errorRow2 = _errorRow;
-            for (int yy = 0; yy < _block.y; ++yy) {
-                const SInt16* inputPixel =
-                    reinterpret_cast<const SInt16*>(inputRow2) + x;
-                int* errorPixel = reinterpret_cast<int*>(errorRow2) + x;
-                for (int xx = 0; xx < w; ++xx) {
-                    int test = p[(bestPattern*_block.y + yy)*w + xx];
-                    int target = inputPixel[xx] + errorPixel[xx]/4;
-                    int d = target - test;
-                    int weight = (xx == 0 || xx == _block.x ? 1 : 2);
-                    lineScore += weight*d*d;
-                    int error = weight*d;
-                    errorPixel[xx + 4] += (error*_diffusionHorizontal)/256;
-                    reinterpret_cast<int*>(errorRow2 + _error.stride())[x + xx]
-                        += (error*_diffusionVertical/256);
-                }
-                inputRow2 += _ntscInput.stride();
-                errorRow2 += _error.stride();
-            }
-        }
-        _window->reCreateNTSC();
-        bool advance = false;
-        if (_testConfig) {
-            if (lineScore < _configScore) {
-                _configScore = lineScore;
-                _bestConfig = _config;
-            }
-            ++_config;
-            if (_config == _endConfig) {
-                _config = _bestConfig;
-                _configs[_y] = _bestConfig;
-                _testConfig = false;
-                _configScore = 0x7fffffffffffffffUL;
-            }
-            else {
-                savedError.copyTo(_error.subBitmap(Vector(0, _y),
-                    errorLineSize));
-                _error.subBitmap(Vector(0, _y + 1), errorLineSize).fill(0);
-            }
-        }
-        else {
-            advance = true;
-            _testConfig = (_startConfig + 1 != _endConfig);
-            _config = _startConfig;
-        }
-        if (advance) {
-            _inputRow += _ntscInput.stride() * _block.y;
-            _errorRow += _error.stride() * _block.y;
-            _rgbiRow += _rgbi.stride() * _block.y;
-            _y += _block.y;
-            if (_y >= _size.y + 1 - _block.y)
-                _converting = false;
-        }
-        return _converting;
     }
     void save(String outputFileName)
     {
@@ -614,7 +611,6 @@ private:
     NTSCDecoder _decoder;
     CGA2NTSCWindow* _window;
     CGASequencer _sequencer;
-    bool _converting;
     Array<SInt16> _patterns;
     Bitmap<SRGB> _input2;
     const Byte* _inputRow;
@@ -1873,7 +1869,7 @@ public:
         if (!_matchMode.checked())
             _shower->convert();
         else
-            _matcher->convert();
+            _matcher->restart();
     }
 
     void modeSet(int value)
@@ -2586,7 +2582,6 @@ public:
         _matcher.saveRGBI(inputFileName + "_out.rgbi");
         _matcher.savePalettes(inputFileName + "_out.palettes");
     }
-    bool idle() { return _matcher.idle(); }
 private:
     CGAMatcher _matcher;
     CGAShower _shower;
