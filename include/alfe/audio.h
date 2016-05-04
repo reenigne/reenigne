@@ -44,8 +44,6 @@ template<class Sample> class DirectSoundSink : public AudioSink<Sample>
 
         void run()
         {
-            if (_sink == 0)
-                return;
             while (true) {
                 _sink->_event.wait();
                 if (cancelling())
@@ -235,8 +233,6 @@ template<class Sample> class XAudio2Sink : public AudioSink<Sample>
 
         void threadProc()
         {
-            if (_sink == 0)
-                return;
             while (true) {
                 _sink->_event.wait();
                 if (cancelling())

@@ -12,12 +12,16 @@ template<class T> class DecoderThreadT : public ThreadTask
 {
 public:
     DecoderThreadT() : _window(0) { }
-    void setWindow(CaptureBitmapWindow* window) { _window = window; }
+    void setWindow(CaptureBitmapWindow* window)
+    {
+        _window = window;
+        restart();
+    }
 private:
     void run()
     {
         while (true) {
-            if (cancelling() || _window == 0)
+            if (cancelling())
                 return;
             _window->update();
         }
@@ -64,7 +68,6 @@ public:
 
         BitmapWindow::create();
         _thread.setWindow(this);
-        _thread.restart();
     }
 
     void update()

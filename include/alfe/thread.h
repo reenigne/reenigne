@@ -122,12 +122,24 @@ private:
     Mutex* _mutex;
 };
 
-class Task : public LinkedListMember<Task>
+class ThreadPool;
+
+template<class T> class TaskT;
+typedef TaskT<void> Task;
+
+template<class T> class TaskThreadT;
+typedef TaskThreadT<void> TaskThread;
+
+template<class T> class TaskT : public LinkedListMember<Task>
 {
 public:
-    Task() : _state(completed) { }
-    ~Task() { join(); }
-    void setPool(ThreadPool* threadPool) { _threadPool = threadPool; }
+    TaskT() : _state(completed) { }
+    ~TaskT() { join(); }
+    void setPool(ThreadPool* threadPool)
+    {
+        _threadPool = threadPool;
+        _threadPool->addCompleted(this);
+    }
 
     // Cancel task and remove from pool as quickly as possible.
     void cancel() { _threadPool->cancel(this); }
@@ -159,14 +171,14 @@ private:
     };
     State _state;
 
-    friend class TaskThread;
+    template<class U> friend class TaskThreadT;
     friend class ThreadPool;
 };
 
-class TaskThread : public Thread
+template<class T> class TaskThreadT : public Thread
 {
 public:
-    TaskThread() : _next(0) { }
+    TaskThreadT() : _next(0) { }
 private:
     void go() { _go.signal(); }
     void threadProc()
@@ -333,6 +345,7 @@ public:
             _threads[i].setPriority(nPriority);
     }
 
+    void addCompleted(Task* task) { _completed.add(task); }
 private:
     void addNoLock(Task* task)
     {
@@ -348,7 +361,7 @@ private:
     {
         thread->_task = task;
         if (task == 0) {
-            thread->_next = thread;
+            thread->_next = _idle;
             _idle = thread;
         }
         else {
@@ -370,7 +383,7 @@ private:
 class ThreadTask : public Task
 {
 public:
-    ThreadTask() : _threadPool(1) { setPool(this); restart(); }
+    ThreadTask() : _threadPool(1) { setPool(&_threadPool); }
     void setPriority(int nPriority) { _threadPool.setPriority(nPriority); }
 private:
     ThreadPool _threadPool;

@@ -230,7 +230,6 @@ public:
         _position = Vector(0, 0);
 
         _thread.initialize(this);
-        _thread.restart();
     }
 
     Vector size() const { return Vector(_outputSize.x, _outputSize.y*3); }
@@ -539,8 +538,12 @@ private:
     class CalcThread : public ThreadTask
     {
     public:
-        void initialize(AttributeClashImage* image) { _image = image; }
-        void restart() { _finished = false; ThreadTask::restart(); }
+        void initialize(AttributeClashImage* image)
+        {
+            _image = image;
+            _finished = false;
+            restart();
+        }
         void finished() { _finished = true; }
     private:
         void run()

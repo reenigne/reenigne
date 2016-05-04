@@ -95,7 +95,7 @@ public:
     }
     ~CompressThreadT() { deflateEnd(&_zs); }
     void setProgram(Program* program) { _program = program; }
-    void setFrame(Handle frame) { _frame = frame; }
+    void setFrame(Handle frame) { _frame = frame; restart(); }
 private:
     void run()
     {
@@ -131,18 +131,16 @@ template<class T> class WriteThreadT : public ThreadTask
 {
 public:
     WriteThreadT() : _program(0) { }
-    void setProgram(Program* program) { _program = program; }
+    void setProgram(Program* program) { _program = program; restart(); }
 private:
     void run()
     {
-        if (_program == 0)
-            return;
         do {
             Handle frame = _program->getCompressedFrame();
-            if (!frame.valid() || cancelling())
+            if (!frame.valid())
                 return;
             _program->write(frame);
-        } while (true);
+        } while (!cancelling());
     }
 
     Program* _program;
@@ -190,7 +188,6 @@ public:
                 _tasks.add(task);
             }
             task->setFrame(uncompressed);
-            task->restart();
 
             ++index;
             if (index % 60 == 0)

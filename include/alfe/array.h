@@ -189,9 +189,11 @@ public:
             else
                 destructTail(size);
         }
-        void constructT(const T& other)
+
+        template<typename... Args> void constructT(Args&&... args)
         {
-            new(static_cast<void*>(&(*this)[_size])) T(other);
+            new(static_cast<void*>(&(*this)[_size]))
+                T(std::forward<Args>(args)...);
             ++_size;
         }
 
@@ -244,7 +246,7 @@ public:
             int oldSize = _size;
             try {
                 while (_size < size)
-                    constructT(T());
+                    constructT();
             }
             catch (...) {
                 destructTail(oldSize);
@@ -567,7 +569,7 @@ private:
     void expandUnchecked(int c)
     {
         for (int i = 0; i < c; ++i)
-            body()->constructT(T());
+            body()->constructT();
     }
     Body* body() { return as<Body>(); }
     const Body* body() const { return as<Body>(); }

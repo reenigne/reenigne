@@ -70,6 +70,12 @@
       <ExpandedItem>_values</ExpandedItem>
     </Expand>
   </Type>
+  <Type Name="Bitmap&lt;*&gt;">
+    <DisplayString>Bitmap {_size} {_stride}</DisplayString>
+    <Expand>
+      <ExpandedItem>_body</ExpandedItem>
+    </Expand>
+  </Type>
 
 
   <!-- ALFE bodies -->

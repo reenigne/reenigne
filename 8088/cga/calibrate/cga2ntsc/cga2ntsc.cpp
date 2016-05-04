@@ -7,7 +7,8 @@
 #include "alfe/cga.h"
 #include "alfe/ntsc_decode.h"
 
-class CGA2NTSCWindow;
+template<class T> class CGA2NTSCWindowT;
+typedef CGA2NTSCWindowT<void> CGA2NTSCWindow;
 
 static const SRGB rgbiPalette[16] = {
     SRGB(0x00, 0x00, 0x00), SRGB(0x00, 0x00, 0xaa),
@@ -26,8 +27,8 @@ public:
     {
         _input = input;
         _size = input.size();
+        _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
     }
-    void setOutput(Bitmap<Byte> rgbi) { _rgbi = rgbi; }
     void convert()
     {
         // Convert to RGBI indexes and add left and right borders.
@@ -91,6 +92,7 @@ public:
     }
     void setMode(int mode) { _mode = mode; }
     void setPalette(int palette) { _palette = palette; }
+    Bitmap<Byte> getOutput() { return _rgbi; }
 private:
     Vector _size;
     Bitmap<SRGB> _input;
@@ -114,8 +116,9 @@ public:
         _input2.fill(SRGB(0, 0, 0));
         _input2.subBitmap(Vector(5, 0), _size).copyFrom(_input);
         _configs.allocate(_size.y);
+        _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
     }
-    void setOutput(Bitmap<Byte> rgbi) { _rgbi = rgbi; }
+    Bitmap<Byte> getOutput() { return _rgbi; }
     void setWindow(CGA2NTSCWindow* window) { _window = window; }
     static void filterHF(const Byte* input, SInt16* output, int n)
     {
@@ -874,8 +877,6 @@ public:
     int _particle;
 };
 
-class CGA2NTSCWindow;
-
 template<class T> class NumericSliderWindowT
 {
 public:
@@ -1604,10 +1605,10 @@ private:
     int _combFilterTemporal;
 };
 
-class CGA2NTSCWindow : public RootWindow
+template<class T> class CGA2NTSCWindowT : public RootWindow
 {
 public:
-    CGA2NTSCWindow()
+    CGA2NTSCWindowT()
       : _autoBrightnessFlag(false), _autoSaturationFlag(false),
         _autoContrastClipFlag(false), _autoContrastMonoFlag(false),
         _updating(true)
@@ -1699,6 +1700,8 @@ public:
         setCharacterSet(_matcher->getCharacterSet());
         setScanlinesPerRow(_matcher->getScanlinesPerRow() - 1);
         setScanlinesRepeat(_matcher->getScanlinesRepeat() - 1);
+        _matchMode.setCheckState(_program->getMatchMode());
+        matchModePressed();
 
         setText("CGA to NTSC");
         setSize(Vector(640, 480));
@@ -1799,7 +1802,7 @@ public:
     }
     void setMatcher(CGAMatcher* matcher) { _matcher = matcher; }
     void setShower(CGAShower* shower) { _shower = shower; }
-    void setRGBI(Bitmap<Byte> rgbi) { _output.setRGBI(rgbi); }
+    void setProgram(Program* program) { _program = program; }
     void uiUpdate()
     {
         _updating = true;
@@ -2035,10 +2038,15 @@ public:
 
     void matchModePressed()
     {
+        bool matchMode = _matchMode.checked();
+        if (!matchMode)
+            _output.setRGBI(_shower->getOutput());
+        else
+            _output.setRGBI(_matcher->getOutput());
+        _program->setMatchMode(matchMode);
         beginConvert();
         reCreateNTSC();
     }
-    void setMatchMode(bool matchMode) { _matchMode.setCheckState(matchMode); }
 
     void allAutos()
     {
@@ -2305,6 +2313,7 @@ private:
     CombFilterTemporalCombo _combFilterTemporal;
     CGAMatcher* _matcher;
     CGAShower* _shower;
+    Program* _program;
     CGAComposite _composite;
     NTSCDecoder* _decoder;
     double _black;
@@ -2462,11 +2471,12 @@ public:
             ArrayType(StringType(), IntegerType()), arguments);
 
         configFile.load(configPath);
-        bool matchMode = configFile.get<bool>("matchMode");
+        _matchMode = configFile.get<bool>("matchMode");
 
         _matcher.setWindow(&_window);
         _window.setMatcher(&_matcher);
         _window.setShower(&_shower);
+        _window.setProgram(this);
 
         _window.setFixPrimaries(configFile.get<bool>("ntscPrimaries"));
         _window.setBrightness(configFile.get<double>("brightness"));
@@ -2556,19 +2566,17 @@ public:
             input = input2;
             size = input.size();
         }
-        Bitmap<Byte> rgbi = Bitmap<Byte>(size + Vector(14, 0));
 
-        _window.setMatchMode(matchMode);
         _matcher.setInput(input);
-        _matcher.setOutput(rgbi);
         _shower.setInput(input);
-        _shower.setOutput(rgbi);
-        _window.setRGBI(rgbi);
 
         _window.setNewCGA(configFile.get<bool>("newCGA"));
 
         if (configFile.get<bool>("interactive"))
             WindowProgram::run();
+        if (!_matchMode)
+            _matcher.cancel();
+        _matcher.join();
 
         int i;
         for (i = inputFileName.length() - 1; i >= 0; --i)
@@ -2582,7 +2590,10 @@ public:
         _matcher.saveRGBI(inputFileName + "_out.rgbi");
         _matcher.savePalettes(inputFileName + "_out.palettes");
     }
+    bool getMatchMode() { return _matchMode; }
+    void setMatchMode(bool matchMode) { _matchMode = matchMode; }
 private:
     CGAMatcher _matcher;
     CGAShower _shower;
+    bool _matchMode;
 };

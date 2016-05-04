@@ -60,6 +60,7 @@ public:
 
         IF_ZERO_THROW(SetCommState(_com, &deviceControlBlock));
         ReaderThread thread(this);
+        thread.restart();
 
 //        Sleep(2000);
 
