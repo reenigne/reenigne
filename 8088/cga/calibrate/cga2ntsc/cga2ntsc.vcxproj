@@ -95,6 +95,7 @@
     <ClInclude Include="..\..\..\..\include\alfe\colour_space.h" />
     <ClInclude Include="..\..\..\..\include\alfe\complex.h" />
     <ClInclude Include="..\..\..\..\include\alfe\config_file.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\exception.h" />
     <ClInclude Include="..\..\..\..\include\alfe\expression.h" />
     <ClInclude Include="..\..\..\..\include\alfe\file.h" />
     <ClInclude Include="..\..\..\..\include\alfe\hash_table.h" />

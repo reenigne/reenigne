@@ -775,4 +775,18 @@ Think about how to do temporal diffusion
 
 
 
+    Should we not have a rendering thread, since we'd like to be able to render a field in 16ms anyway for emulators?
+      Let's try to start out without a rendering thread, and add one if we need it for UI responsiveness
+        Berapa might have a rendering thread anyway to improve performance
+        We'll want a rendering thread for FFTW
+    When the matcher finishes something, it needs to send a message to the UI thread to request a redraw of a particular scanline (or set of scanlines)
+      Have a (locked) set of bits representing the scanlines which need to be redrawn
+      When the update message is received, the UI thread re-renders all modified scanlines
+      How can we consolidate duplicate messages?
+        Instead of using the message queue, signal an event?
+          MsgWaitForMultipleObjects
+            Figure out how we want to do idle processing
+              Always use MsgWait instead of GetMessage?
+              Have another overrideable function
+      RGBI->composite is very fast compared to composite->output (which needs to redraw the entire frame each time) so let's initially not bother with the bitset
 

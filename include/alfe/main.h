@@ -229,27 +229,21 @@ public:
         do {
             bool more = idle();
             if (!more) {
-                BOOL bRet = GetMessage(&msg, NULL, 0, 0);
-                IF_MINUS_ONE_THROW(bRet);
-                if (bRet == 0)
+                HANDLE handle = _interruptMessageLoop;
+                DWORD r = MsgWaitForMultipleObjects(1, &handle, FALSE,
+                    INFINITE, QS_ALLINPUT);
+                IF_FALSE_THROW(r != WAIT_FAILED);
+            }
+            do {
+                BOOL fMessage = PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE);
+                if (fMessage == 0)
+                    break;
+                if (msg.message == WM_QUIT)
                     break;
                 TranslateMessage(&msg);
                 DispatchMessage(&msg);
-            }
-            else {
-                do {
-                    BOOL fMessage = PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE);
-                    if (fMessage == 0)
-                        break;
-                    if (msg.message == WM_QUIT)
-                        break;
-                    TranslateMessage(&msg);
-                    DispatchMessage(&msg);
-                } while (true);
-                if (msg.message == WM_QUIT)
-                    break;
-            }
-        } while (true);
+            } while (true);
+        } while (msg.message != WM_QUIT);
         _returnValue = static_cast<int>(msg.wParam);
     }
 protected:
@@ -257,6 +251,7 @@ protected:
     // there isn't and we should wait for a message before calling again.
     virtual bool idle() { return false; }
 
+    Event _interruptMessageLoop;
     WindowClass _window;
 };
 #endif

@@ -119,7 +119,7 @@ public:
         _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
     }
     Bitmap<Byte> getOutput() { return _rgbi; }
-    void setWindow(CGA2NTSCWindow* window) { _window = window; }
+    void setProgram(Program* program) { _program = program; }
     static void filterHF(const Byte* input, SInt16* output, int n)
     {
         for (int x = 0; x < n; ++x)
@@ -308,7 +308,7 @@ public:
         _error.fill(0);
         _errorRow = _error.data();
         _testError = Bitmap<int>(_block + Vector(4, 1));
-        _window->resetColours();
+        //_window->resetColours();
         _config = _startConfig;
         _testConfig = (_startConfig + 1 != _endConfig);
         _configScore = 0x7fffffffffffffffUL;
@@ -379,8 +379,8 @@ public:
                     for (int xx = 0; xx < _block.x; ++xx) {
                         seq = (seq >> 4) | ((*rgbiPixel) << 28);
                         ++rgbiPixel;
-                        _window->addColour(static_cast<UInt64>(seq) |
-                            (static_cast<UInt64>(xx & 3) << 32));
+                        //_window->addColour(static_cast<UInt64>(seq) |
+                        //    (static_cast<UInt64>(xx & 3) << 32));
                     }
                 }
 
@@ -414,7 +414,7 @@ public:
                     errorRow2 += _error.stride();
                 }
             }
-            _window->reCreateNTSC();
+            _program->updateOutput();
             bool advance = false;
             if (_testConfig) {
                 if (lineScore < _configScore) {
@@ -612,7 +612,7 @@ private:
     Bitmap<Byte> _rgbi;
     CGAComposite _composite;
     NTSCDecoder _decoder;
-    CGA2NTSCWindow* _window;
+    Program* _program;
     CGASequencer _sequencer;
     Array<SInt16> _patterns;
     Bitmap<SRGB> _input2;
@@ -1487,6 +1487,14 @@ private:
 typedef CombFilterTemporalComboT<void> CombFilterTemporalCombo;
 
 class OutputWindow : public BitmapWindow
+{
+public:
+    void setOutput(CGAOutput* output) { _output = output; }
+private:
+    CGAOutput* _output;
+};
+
+class CGAOutput
 {
 public:
     void setRGBI(Bitmap<Byte> rgbi)
@@ -2473,7 +2481,7 @@ public:
         configFile.load(configPath);
         _matchMode = configFile.get<bool>("matchMode");
 
-        _matcher.setWindow(&_window);
+        _matcher.setProgram(this);
         _window.setMatcher(&_matcher);
         _window.setShower(&_shower);
         _window.setProgram(this);
@@ -2592,8 +2600,22 @@ public:
     }
     bool getMatchMode() { return _matchMode; }
     void setMatchMode(bool matchMode) { _matchMode = matchMode; }
+    void updateOutput()
+    {
+        _updateNeeded = true;
+        _interruptMessageLoop.signal();
+    }
+    bool idle()
+    {
+        if (_updateNeeded) {
+            _updateNeeded = false;
+            _window.reCreateNTSC();
+        }
+        return false;
+    }
 private:
     CGAMatcher _matcher;
     CGAShower _shower;
     bool _matchMode;
+    bool _updateNeeded;
 };

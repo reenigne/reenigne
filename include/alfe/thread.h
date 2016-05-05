@@ -28,7 +28,7 @@ public:
     void reset() { IF_ZERO_THROW(ResetEvent(*this)); }
 };
 
-class Thread : public WindowsHandle
+class Thread : Uncopyable
 {
 public:
     Thread() : _started(false), _error(false)
@@ -36,30 +36,31 @@ public:
         HANDLE handle = CreateThread(
             NULL, 0, threadStaticProc, this, CREATE_SUSPENDED, NULL);
         IF_NULL_THROW(handle);
-        WindowsHandle::operator=(handle);
+        _handle = handle;
     }
     ~Thread() { noFailJoin(); }
     void setPriority(int nPriority)
     {
-        IF_ZERO_THROW(SetThreadPriority(*this, nPriority));
+        IF_ZERO_THROW(SetThreadPriority(_handle, nPriority));
     }
     void noFailJoin()
     {
         if (!_started)
             return;
         _started = false;
-        WaitForSingleObject(*this, INFINITE);
+        WaitForSingleObject(_handle, INFINITE);
     }
     void join()
     {
         if (!_started)
             return;
         _started = false;
-        IF_FALSE_THROW(WaitForSingleObject(*this, INFINITE) == WAIT_OBJECT_0);
+        IF_FALSE_THROW(
+            WaitForSingleObject(_handle, INFINITE) == WAIT_OBJECT_0);
         if (_error)
             throw _exception;
     }
-    void start() { IF_MINUS_ONE_THROW(ResumeThread(*this)); }
+    void start() { IF_MINUS_ONE_THROW(ResumeThread(_handle)); }
 
 private:
     static DWORD WINAPI threadStaticProc(LPVOID lpParameter)
@@ -78,11 +79,12 @@ private:
         }
     }
 
-    virtual void threadProc() { }
+    virtual void threadProc() = 0;
 
     bool _started;
     bool _error;
     Exception _exception;
+    WindowsHandle _handle;
 };
 
 class Mutex : Uncopyable
@@ -133,7 +135,7 @@ typedef TaskThreadT<void> TaskThread;
 template<class T> class TaskT : public LinkedListMember<Task>
 {
 public:
-    TaskT() : _state(completed) { }
+    TaskT() : _state(completed), _threadPool(0) { }
     ~TaskT() { join(); }
     void setPool(ThreadPool* threadPool)
     {
@@ -141,11 +143,17 @@ public:
         _threadPool->addCompleted(this);
     }
 
+    void removeFromPool() { _threadPool = 0; }
+
     // Cancel task and remove from pool as quickly as possible.
     void cancel() { _threadPool->cancel(this); }
 
     // Wait for task to complete.
-    void join() { _threadPool->join(this); }
+    void join()
+    {
+        if (_threadPool != 0)
+            _threadPool->join(this);
+    }
 
     // If task is not running, start it. If task is running, cancel it and then
     // start it again.
@@ -232,7 +240,7 @@ public:
                         break;
                 }
                 if (i == _threads.count())
-                    return;
+                    break;
             }
             _done.wait();
         } while (true);
@@ -325,7 +333,8 @@ public:
             task->_state = Task::completed;
             _completed.add(task);
             task = _waiting.getNext();
-            task->remove();
+            if (task != 0)
+                task->remove();
         }
         startTask(thread, task);
     }
@@ -384,6 +393,7 @@ class ThreadTask : public Task
 {
 public:
     ThreadTask() : _threadPool(1) { setPool(&_threadPool); }
+    ~ThreadTask() { removeFromPool(); }
     void setPriority(int nPriority) { _threadPool.setPriority(nPriority); }
 private:
     ThreadPool _threadPool;
