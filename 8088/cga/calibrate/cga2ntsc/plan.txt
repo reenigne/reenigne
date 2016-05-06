@@ -790,3 +790,15 @@ Think about how to do temporal diffusion
               Have another overrideable function
       RGBI->composite is very fast compared to composite->output (which needs to redraw the entire frame each time) so let's initially not bother with the bitset
 
+
+
+      CGAOutput just reads/writes bitmaps
+      CGAOutput <-> Program <-> CGA2NTSCWindow <-> OutputWindow
+        Actually CGA2NTSCWindow can have a pointer to CGAOutput to simplify UI interactions
+      We want to display a subBitmap of the output bitmap
+        So, make draw() copy the relevant part of the output bitmap to the paint bitmap
+          Why do we need this complicated setNextBitmap() business?
+            It was done for capture_live which decodes on a separate thread
+            We don't actually need to call setNextBitmap() more than once if we don't care about tearing
+            As long as we do the final write (i.e. copy from output) in the same thread as the paint we won't tear anyway
+

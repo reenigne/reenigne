@@ -2616,6 +2616,7 @@ public:
 private:
     CGAMatcher _matcher;
     CGAShower _shower;
+    CGAOutput _output;
     bool _matchMode;
     bool _updateNeeded;
 };
