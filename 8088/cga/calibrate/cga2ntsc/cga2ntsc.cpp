@@ -1489,9 +1489,11 @@ typedef CombFilterTemporalComboT<void> CombFilterTemporalCombo;
 class OutputWindow : public BitmapWindow
 {
 public:
-    void setOutput(CGAOutput* output) { _output = output; }
-private:
-    CGAOutput* _output;
+    void create()
+    {
+        setSize(Vector(648, 400));
+        BitmapWindow::create();
+    }
 };
 
 class CGAOutput
@@ -1501,7 +1503,7 @@ public:
     {
         _rgbi = rgbi;
         _ntsc = Bitmap<Byte>(_rgbi.size() - Vector(1, 0));
-        setSize(Vector(_ntsc.size().x - 6, _ntsc.size().y*2));
+        allocateBitmap();
         reCreateNTSC();
     }
     void reCreateNTSC()
@@ -1531,9 +1533,6 @@ public:
     }
     void draw()
     {
-        if (!_bitmap.valid())
-            _bitmap =
-                Bitmap<DWORD>(Vector(_ntsc.size().x - 6, _ntsc.size().y*2));
         const Byte* ntscRow = _ntsc.data();
         Byte* outputRow = _bitmap.data();
         for (int yy = 0; yy < _ntsc.size().y; ++yy) {
@@ -1554,7 +1553,6 @@ public:
             outputRow += _bitmap.stride()*2;
             ntscRow += _ntsc.stride();
         }
-        _bitmap = setNextBitmap(_bitmap);
     }
     void save(String outputFileName)
     {
@@ -1568,9 +1566,12 @@ public:
     void setScanlineWidth(double width) { _scanlineWidth = width; }
     void setScanlineProfile(int profile) { _scanlineProfile = profile; }
     void setScanlineOffset(double offset) { _scanlineOffset = offset; }
-    void setZoom(double zoom) { _zoom = zoom; }
+    void setZoom(double zoom) { _zoom = zoom; allocateBitmap(); }
     void setScanlineBleeding(bool bleeding) { _scanlineBleeding = bleeding; }
-    void setAspectRatio(double ratio) { _aspectRatio = ratio; }
+    void setAspectRatio(double ratio)
+    {
+        _aspectRatio = ratio; allocateBitmap();
+    }
     void setCombFilterVertical(int value) { _combFilterVertical = value; }
     void setCombFilterTemporal(int value) { _combFilterTemporal = value; }
     NTSCDecoder* getDecoder() { return &_decoder; }
@@ -1598,6 +1599,17 @@ public:
     void setSharpness(double sharpness) { _decoder.setSharpness(sharpness); }
 
 private:
+    void allocateBitmap()
+    {
+        double y = _zoom*_ntsc.size().y;
+        double x = _zoom*(_ntsc.size().x - 6)*_aspectRatio;
+        Vector requiredSize(static_cast<int>(x), static_cast<int>(y));
+        if (requiredSize.x > _bitmap.size().x ||
+            requiredSize.y > _bitmap.size().y) {
+            _bitmap = Bitmap<DWORD>(requiredSize);
+        }
+    }
+
     Bitmap<DWORD> _bitmap;
     Bitmap<Byte> _rgbi;
     Bitmap<Byte> _ntsc;
@@ -1621,7 +1633,7 @@ public:
         _autoContrastClipFlag(false), _autoContrastMonoFlag(false),
         _updating(true)
     {
-        add(&_output);
+        add(&_outputWindow);
         _brightness.setHost(this);
         add2(&_autoBrightness);
         _saturation.setHost(this);
@@ -1662,7 +1674,7 @@ public:
         _aspectRatio.setHost(this);
         add2(&_combFilterVertical);
         add2(&_combFilterTemporal);
-        _decoder = _output.getDecoder();
+        _decoder = _output->getDecoder();
     }
     void create()
     {
@@ -1725,10 +1737,10 @@ public:
     }
     void sizeSet(Vector size)
     {
-        _output.setPosition(Vector(20, 20));
-        int w = max(_output.right(), _gamut.right()) + 20;
+        _outputWindow.setPosition(Vector(20, 20));
+        int w = max(_outputWindow.right(), _gamut.right()) + 20;
 
-        _gamut.setPosition(Vector(20, _output.bottom() + 20));
+        _gamut.setPosition(Vector(20, _outputWindow.bottom() + 20));
 
         Vector vSpace(0, 15);
 
@@ -1810,6 +1822,7 @@ public:
     }
     void setMatcher(CGAMatcher* matcher) { _matcher = matcher; }
     void setShower(CGAShower* shower) { _shower = shower; }
+    void setOutput(CGAOutput* output) { _output_ = output; }
     void setProgram(Program* program) { _program = program; }
     void uiUpdate()
     {
@@ -1823,8 +1836,8 @@ public:
         _mostSaturatedText.size();
         _clippedColoursText.setText(format("%i colours clipped", _clips));
         _clippedColoursText.size();
-        _output.draw();
-        _output.invalidate();
+        _outputWindow.draw();
+        _outputWindow.invalidate();
         _gamut.invalidate();
         _updating = false;
     }
@@ -1968,20 +1981,20 @@ public:
     }
 
     void setScanlineWidth(double value) { _scanlineWidth.setValue(value); }
-    void scanlineWidthSet(double value) { _output.setScanlineWidth(value); }
+    void scanlineWidthSet(double value) { _output->setScanlineWidth(value); }
 
     void setScanlineProfile(int value) { _scanlineProfile.set(value); }
-    void scanlineProfileSet(int value) { _output.setScanlineProfile(value); }
+    void scanlineProfileSet(int value) { _output->setScanlineProfile(value); }
 
     void setScanlineOffset(double value) { _scanlineOffset.setValue(value); }
-    void scanlineOffsetSet(double value) { _output.setScanlineOffset(value); }
+    void scanlineOffsetSet(double value) { _output->setScanlineOffset(value); }
 
     void setZoom(double value) { _zoom.setValue(value); }
-    void zoomSet(double value) { _output.setZoom(value); }
+    void zoomSet(double value) { _output->setZoom(value); }
 
     void scanlineBleedingPressed()
     {
-        _output.setScanlineBleeding(_scanlineBleeding.checked() ? 0 : 1);
+        _output->setScanlineBleeding(_scanlineBleeding.checked() ? 0 : 1);
     }
     void setScanlineBleeding(bool bleeding)
     {
@@ -1989,18 +2002,18 @@ public:
     }
 
     void setAspectRatio(double value) { _aspectRatio.setValue(value); }
-    void aspectRatioSet(double value) { _output.setAspectRatio(value); }
+    void aspectRatioSet(double value) { _output->setAspectRatio(value); }
 
     void setCombFilterVertical(int value) { _combFilterVertical.set(value); }
     void combFilterVerticalSet(int value)
     {
-        _output.setCombFilterVertical(value);
+        _output->setCombFilterVertical(value);
     }
 
     void setCombFilterTemporal(int value) { _combFilterTemporal.set(value); }
     void combFilterTemporalSet(int value)
     {
-        _output.setCombFilterTemporal(value);
+        _output->setCombFilterTemporal(value);
     }
 
 
@@ -2008,7 +2021,7 @@ public:
     {
         bool bw = _bwCheckBox.checked();
         _matcher->setMode((_matcher->getMode() & ~4) | (bw ? 4 : 0));
-        _output.setBW(bw);
+        _output->setBW(bw);
         _composite.setBW(bw);
         beginConvert();
     }
@@ -2048,9 +2061,9 @@ public:
     {
         bool matchMode = _matchMode.checked();
         if (!matchMode)
-            _output.setRGBI(_shower->getOutput());
+            _output->setRGBI(_shower->getOutput());
         else
-            _output.setRGBI(_matcher->getOutput());
+            _output->setRGBI(_matcher->getOutput());
         _program->setMatchMode(matchMode);
         beginConvert();
         reCreateNTSC();
@@ -2066,7 +2079,7 @@ public:
 
     void brightnessSet(double brightness)
     {
-        _output.setBrightness(brightness);
+        _output->setBrightness(brightness);
         _matcher->setBrightness(brightness);
         if (!_updating) {
             update();
@@ -2077,7 +2090,7 @@ public:
 
     void saturationSet(double saturation)
     {
-        _output.setSaturation(saturation);
+        _output->setSaturation(saturation);
         _matcher->setSaturation(saturation);
         if (!_updating) {
             update();
@@ -2089,7 +2102,7 @@ public:
 
     void contrastSet(double contrast)
     {
-        _output.setContrast(contrast);
+        _output->setContrast(contrast);
         _matcher->setContrast(contrast);
         if (!_updating) {
             update();
@@ -2102,7 +2115,7 @@ public:
 
     void hueSet(double hue)
     {
-        _output.setHue(hue);
+        _output->setHue(hue);
         _matcher->setHue(hue);
         if (!_updating) {
             update();
@@ -2114,7 +2127,7 @@ public:
 
     void sharpnessSet(double sharpness)
     {
-        _output.setSharpness(sharpness);
+        _output->setSharpness(sharpness);
         _matcher->setSharpness(sharpness);
         if (!_updating) {
             update();
@@ -2159,7 +2172,7 @@ public:
     }
     void reCreateNTSC()
     {
-        _output.reCreateNTSC();
+        _output->reCreateNTSC();
         update();
         allAutos();
         uiUpdate();
@@ -2167,7 +2180,7 @@ public:
     void newCGAPressed()
     {
         bool newCGA = _newCGA.checked();
-        _output.setNewCGA(newCGA);
+        _output->setNewCGA(newCGA);
         _matcher->setNewCGA(newCGA);
         _composite.setNewCGA(newCGA);
         reCreateNTSC();
@@ -2183,7 +2196,7 @@ public:
     }
     void setFixPrimaries(bool fixPrimaries)
     {
-        _output.setFixPrimaries(fixPrimaries);
+        _output->setFixPrimaries(fixPrimaries);
         _matcher->setFixPrimaries(fixPrimaries);
     }
 
@@ -2198,7 +2211,7 @@ public:
     {
         if (!_autoSaturationFlag)
             return;
-        setSaturation(_output.getSaturation()*sqrt(3.0)*(_white - _black)/
+        setSaturation(_output->getSaturation()*sqrt(3.0)*(_white - _black)/
             (2*_maxSaturation));
         update();
     }
@@ -2264,10 +2277,10 @@ public:
     {
         if (!_autoContrastMonoFlag)
             return;
-        setContrast(_output.getContrast() * 256/(_white - _black));
+        setContrast(_output->getContrast() * 256/(_white - _black));
         update();
     }
-    void save(String outputFileName) { _output.save(outputFileName); }
+    void save(String outputFileName) { _output->save(outputFileName); }
     void resetColours() { _colours = Set<UInt64>(); }
     void addColour(UInt64 seq) { _colours.add(seq); }
 
@@ -2279,7 +2292,7 @@ private:
     }
 
     AnimatedWindow _animated;
-    OutputWindow _output;
+    OutputWindow _outputWindow;
     BrightnessSliderWindow _brightness;
     AutoBrightnessButtonWindow _autoBrightness;
     SaturationSliderWindow _saturation;
@@ -2321,6 +2334,7 @@ private:
     CombFilterTemporalCombo _combFilterTemporal;
     CGAMatcher* _matcher;
     CGAShower* _shower;
+    CGAOutput* _output;
     Program* _program;
     CGAComposite _composite;
     NTSCDecoder* _decoder;
@@ -2616,7 +2630,7 @@ public:
 private:
     CGAMatcher _matcher;
     CGAShower _shower;
-    CGAOutput _output;
+    CGAOutput _outputWindow;
     bool _matchMode;
     bool _updateNeeded;
 };
