@@ -1530,6 +1530,7 @@ public:
             rgbiRow += _rgbi.stride();
             ntscRow += _ntsc.stride();
         }
+        draw();
     }
     void draw()
     {
@@ -1553,6 +1554,8 @@ public:
             outputRow += _bitmap.stride()*2;
             ntscRow += _ntsc.stride();
         }
+        if (_window != 0)
+            _window->draw(_bitmap);
     }
     void save(String outputFileName)
     {
@@ -1561,42 +1564,73 @@ public:
         FileStream s = File(outputFileName + ".ntsc", true).openWrite();
         s.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
     }
-    void setNewCGA(bool newCGA) { _composite.setNewCGA(newCGA); }
-    void setBW(bool bw) { _composite.setBW(bw); }
-    void setScanlineWidth(double width) { _scanlineWidth = width; }
-    void setScanlineProfile(int profile) { _scanlineProfile = profile; }
-    void setScanlineOffset(double offset) { _scanlineOffset = offset; }
+    void setNewCGA(bool newCGA)
+    {
+        _composite.setNewCGA(newCGA);
+        reCreateNTSC();
+    }
+    void setBW(bool bw) { _composite.setBW(bw); reCreateNTSC(); }
+    void setScanlineWidth(double width) { _scanlineWidth = width; draw(); }
+    void setScanlineProfile(int profile)
+    {
+        _scanlineProfile = profile;
+        draw();
+    }
+    void setScanlineOffset(double offset) { _scanlineOffset = offset; draw(); }
     void setZoom(double zoom) { _zoom = zoom; allocateBitmap(); }
-    void setScanlineBleeding(bool bleeding) { _scanlineBleeding = bleeding; }
+    void setScanlineBleeding(bool bleeding)
+    {
+        _scanlineBleeding = bleeding;
+        draw();
+    }
     void setAspectRatio(double ratio)
     {
-        _aspectRatio = ratio; allocateBitmap();
+        _aspectRatio = ratio;
+        allocateBitmap();
     }
-    void setCombFilterVertical(int value) { _combFilterVertical = value; }
-    void setCombFilterTemporal(int value) { _combFilterTemporal = value; }
+    void setCombFilterVertical(int value)
+    {
+        _combFilterVertical = value;
+        draw();
+    }
+    void setCombFilterTemporal(int value)
+    {
+        _combFilterTemporal = value;
+        draw();
+    }
     NTSCDecoder* getDecoder() { return &_decoder; }
 
     bool getFixPrimaries() { return _decoder.getFixPrimaries(); }
     void setFixPrimaries(bool fixPrimaries)
     {
         _decoder.setFixPrimaries(fixPrimaries);
+        draw();
     }
     double getHue() { return _decoder.getHue(); }
-    void setHue(double hue) { _decoder.setHue(hue); }
+    void setHue(double hue) { _decoder.setHue(hue); draw(); }
     double getSaturation() { return _decoder.getSaturation(); }
     void setSaturation(double saturation)
     {
         _decoder.setSaturation(saturation);
+        draw();
     }
     double getContrast() { return _decoder.getContrast(); }
-    void setContrast(double contrast) { _decoder.setContrast(contrast); }
+    void setContrast(double contrast)
+    {
+        _decoder.setContrast(contrast);
+        draw();
+    }
     double getBrightness() { return _decoder.getBrightness(); }
     void setBrightness(double brightness)
     {
         _decoder.setBrightness(brightness);
+        draw();
     }
     double getSharpness() { return _decoder.getSharpness(); }
-    void setSharpness(double sharpness) { _decoder.setSharpness(sharpness); }
+    void setSharpness(double sharpness)
+    {
+        _decoder.setSharpness(sharpness); draw();
+    }
 
 private:
     void allocateBitmap()
@@ -1608,6 +1642,7 @@ private:
             requiredSize.y > _bitmap.size().y) {
             _bitmap = Bitmap<DWORD>(requiredSize);
         }
+        draw();
     }
 
     Bitmap<DWORD> _bitmap;
@@ -1623,6 +1658,7 @@ private:
     double _aspectRatio;
     int _combFilterVertical;
     int _combFilterTemporal;
+    CGA2NTSCWindow* _window;
 };
 
 template<class T> class CGA2NTSCWindowT : public RootWindow
