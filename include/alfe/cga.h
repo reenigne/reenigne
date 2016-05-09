@@ -263,6 +263,7 @@ public:
         _newCGA = newCGA;
         initChroma();
     }
+    bool getNewCGA() { return _newCGA; }
 
     void setBW(bool bw)
     {

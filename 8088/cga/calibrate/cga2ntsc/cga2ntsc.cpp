@@ -137,7 +137,7 @@ public:
         if ((_mode & 2) != 0) {
             // In graphics modes, the data for the second scanline of the row
             // is independent of the data for the first scanline, so we can
-            // pretend there's one scanline per rof ro matching purposes.
+            // pretend there's one scanline per row for matching purposes.
             if (_scanlinesPerRow == 2)
                 _block.y = _scanlinesRepeat;
             for (int i = 0; i < 256; ++i)
@@ -579,10 +579,10 @@ public:
     void setCharacterSet(int characterSet) { _characterSet = characterSet; }
     int getCharacterSet() { return _characterSet; }
 
-    bool getFixPrimaries() { return _decoder.getFixPrimaries(); }
-    void setFixPrimaries(bool fixPrimaries)
+    bool getNTSCPrimaries() { return _decoder.getNTSCPrimaries(); }
+    void setNTSCPrimaries(bool ntscPrimaries)
     {
-        _decoder.setFixPrimaries(fixPrimaries);
+        _decoder.setNTSCPrimaries(ntscPrimaries);
     }
     double getHue() { return _decoder.getHue(); }
     void setHue(double hue) { _decoder.setHue(hue); }
@@ -1078,20 +1078,20 @@ private:
 };
 typedef NewCGAButtonWindowT<void> NewCGAButtonWindow;
 
-template<class T> class FixPrimariesButtonWindowT : public ToggleButton
+template<class T> class NTSCPrimariesButtonWindowT : public ToggleButton
 {
 public:
     void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->fixPrimariesPressed(); }
+    void clicked() { _host->ntscPrimariesPressed(); }
     void create()
     {
-        setText("Fix Primaries");
+        setText("NTSC Primaries");
         ToggleButton::create();
     }
 private:
     CGA2NTSCWindow* _host;
 };
-typedef FixPrimariesButtonWindowT<void> FixPrimariesButtonWindow;
+typedef NTSCPrimariesButtonWindowT<void> NTSCPrimariesButtonWindow;
 
 template<class T> class MatchModeButtonT : public ToggleButton
 {
@@ -1491,14 +1491,29 @@ class OutputWindow : public BitmapWindow
 public:
     void create()
     {
-        setSize(Vector(648, 400));
+        Vector size(648, 400);
+        setSize(size);
         BitmapWindow::create();
+        _bitmap = Bitmap<DWORD>(size);
+        setNextBitmap(_bitmap);
     }
+    void draw(Bitmap<DWORD> bitmap)
+    {
+        // Just copy from the top left corner for now.
+        Vector zero(0, 0);
+        Vector size(min(bitmap.size().x, _bitmap.size().x),
+            min(bitmap.size().y, _bitmap.size().y));
+        bitmap.subBitmap(zero, size).copyTo(_bitmap.subBitmap(zero, size));
+        invalidate();
+    }
+private:
+    Bitmap<DWORD> _bitmap;
 };
 
-class CGAOutput
+template<class T> class CGAOutputT
 {
 public:
+    CGAOutputT() : _window(0), _zoom(0), _aspectRatio(1) { }
     void setRGBI(Bitmap<Byte> rgbi)
     {
         _rgbi = rgbi;
@@ -1559,51 +1574,62 @@ public:
     }
     void save(String outputFileName)
     {
-        _bitmap.save(PNGFileFormat<DWORD>(), File(outputFileName, true));
+        _bitmap.subBitmap(Vector(0, 0), requiredSize()).
+            save(PNGFileFormat<DWORD>(), File(outputFileName, true));
 
         FileStream s = File(outputFileName + ".ntsc", true).openWrite();
         s.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
     }
+
     void setNewCGA(bool newCGA)
     {
         _composite.setNewCGA(newCGA);
         reCreateNTSC();
     }
+    bool getNewCGA() { return _composite.getNewCGA(); }
     void setBW(bool bw) { _composite.setBW(bw); reCreateNTSC(); }
     void setScanlineWidth(double width) { _scanlineWidth = width; draw(); }
+    double getScanlineWidth() { return _scanlineWidth; }
     void setScanlineProfile(int profile)
     {
         _scanlineProfile = profile;
         draw();
     }
+    int getScanlineProfile() { return _scanlineProfile; }
     void setScanlineOffset(double offset) { _scanlineOffset = offset; draw(); }
+    double getScanlineOffset() { return _scanlineOffset; }
     void setZoom(double zoom) { _zoom = zoom; allocateBitmap(); }
+    double getZoom() { return _zoom; }
     void setScanlineBleeding(bool bleeding)
     {
         _scanlineBleeding = bleeding;
         draw();
     }
+    bool getScanlineBleeding() { return _scanlineBleeding; }
     void setAspectRatio(double ratio)
     {
         _aspectRatio = ratio;
         allocateBitmap();
     }
+    double getAspectRatio() { return _aspectRatio; }
     void setCombFilterVertical(int value)
     {
         _combFilterVertical = value;
         draw();
     }
+    int getCombFilterVertical() { return _combFilterVertical; }
     void setCombFilterTemporal(int value)
     {
         _combFilterTemporal = value;
         draw();
     }
+    int getCombFilterTemporal() { return _combFilterTemporal; }
     NTSCDecoder* getDecoder() { return &_decoder; }
 
-    bool getFixPrimaries() { return _decoder.getFixPrimaries(); }
-    void setFixPrimaries(bool fixPrimaries)
+    bool getNTSCPrimaries() { return _decoder.getNTSCPrimaries(); }
+    void setNTSCPrimaries(bool ntscPrimaries)
     {
-        _decoder.setFixPrimaries(fixPrimaries);
+        _decoder.setNTSCPrimaries(ntscPrimaries);
         draw();
     }
     double getHue() { return _decoder.getHue(); }
@@ -1632,17 +1658,20 @@ public:
         _decoder.setSharpness(sharpness); draw();
     }
 
+    void setWindow(CGA2NTSCWindow* window) { _window = window; }
 private:
     void allocateBitmap()
     {
-        double y = _zoom*_ntsc.size().y;
-        double x = _zoom*(_ntsc.size().x - 6)*_aspectRatio;
-        Vector requiredSize(static_cast<int>(x), static_cast<int>(y));
-        if (requiredSize.x > _bitmap.size().x ||
-            requiredSize.y > _bitmap.size().y) {
-            _bitmap = Bitmap<DWORD>(requiredSize);
-        }
+        Vector size = requiredSize();
+        if (size.x > _bitmap.size().x || size.y > _bitmap.size().y)
+            _bitmap = Bitmap<DWORD>(size);
         draw();
+    }
+    Vector requiredSize()
+    {
+        double y = _zoom*_ntsc.size().y;
+        double x = _zoom*(_ntsc.size().x - 6)*_aspectRatio/2;
+        return Vector(static_cast<int>(x), static_cast<int>(y));
     }
 
     Bitmap<DWORD> _bitmap;
@@ -1660,6 +1689,8 @@ private:
     int _combFilterTemporal;
     CGA2NTSCWindow* _window;
 };
+
+typedef CGAOutputT<void> CGAOutput;
 
 template<class T> class CGA2NTSCWindowT : public RootWindow
 {
@@ -1685,7 +1716,7 @@ public:
         add(&_clippedColoursText);
         add(&_gamut);
         add2(&_newCGA);
-        add2(&_fixPrimaries);
+        add2(&_ntscPrimaries);
         add(&_animated);
         add2(&_matchMode);
         add2(&_mode);
@@ -1756,6 +1787,21 @@ public:
         setCharacterSet(_matcher->getCharacterSet());
         setScanlinesPerRow(_matcher->getScanlinesPerRow() - 1);
         setScanlinesRepeat(_matcher->getScanlinesRepeat() - 1);
+        setNTSCPrimaries(_output->getNTSCPrimaries());
+        setBrightness(_output->getBrightness());
+        setSaturation(_output->getSaturation());
+        setHue(_output->getHue());
+        setContrast(_output->getContrast());
+        setSharpness(_output->getSharpness());
+        setNewCGA(_output->getNewCGA());
+        setScanlineWidth(_output->getScanlineWidth());
+        setScanlineProfile(_output->getScanlineProfile());
+        setScanlineOffset(_output->getScanlineOffset());
+        setZoom(_output->getZoom());
+        setScanlineBleeding(_output->getScanlineBleeding());
+        setAspectRatio(_output->getAspectRatio());
+        setCombFilterVertical(_output->getCombFilterVertical());
+        setCombFilterTemporal(_output->getCombFilterTemporal());
         _matchMode.setCheckState(_program->getMatchMode());
         matchModePressed();
 
@@ -1800,7 +1846,7 @@ public:
             Vector(301, 24));
 
         _newCGA.setPosition(_sharpness.bottomLeft() + 2*vSpace);
-        _fixPrimaries.setPosition(_newCGA.topRight() + Vector(20, 0));
+        _ntscPrimaries.setPosition(_newCGA.topRight() + Vector(20, 0));
 
         _blackText.setPosition(_newCGA.bottomLeft() + 2*vSpace);
         _whiteText.setPosition(_blackText.bottomLeft());
@@ -1858,8 +1904,9 @@ public:
     }
     void setMatcher(CGAMatcher* matcher) { _matcher = matcher; }
     void setShower(CGAShower* shower) { _shower = shower; }
-    void setOutput(CGAOutput* output) { _output_ = output; }
+    void setOutput(CGAOutput* output) { _output = output; }
     void setProgram(Program* program) { _program = program; }
+    void draw(Bitmap<DWORD> bitmap) { _outputWindow.draw(bitmap); }
     void uiUpdate()
     {
         _updating = true;
@@ -1872,8 +1919,8 @@ public:
         _mostSaturatedText.size();
         _clippedColoursText.setText(format("%i colours clipped", _clips));
         _clippedColoursText.size();
-        _outputWindow.draw();
-        _outputWindow.invalidate();
+        //_outputWindow.draw();
+        //_outputWindow.invalidate();
         _gamut.invalidate();
         _updating = false;
     }
@@ -1924,13 +1971,7 @@ public:
         _gamut.draw();
         _gamut.invalidate();
     }
-    void beginConvert()
-    {
-        if (!_matchMode.checked())
-            _shower->convert();
-        else
-            _matcher->restart();
-    }
+    void beginConvert() { _program->beginConvert(); }
 
     void modeSet(int value)
     {
@@ -2095,12 +2136,7 @@ public:
 
     void matchModePressed()
     {
-        bool matchMode = _matchMode.checked();
-        if (!matchMode)
-            _output->setRGBI(_shower->getOutput());
-        else
-            _output->setRGBI(_matcher->getOutput());
-        _program->setMatchMode(matchMode);
+        _program->setMatchMode(_matchMode.checked());
         beginConvert();
         reCreateNTSC();
     }
@@ -2223,17 +2259,17 @@ public:
     }
     void setNewCGA(bool newCGA) { _newCGA.setCheckState(newCGA); }
 
-    void fixPrimariesPressed()
+    void ntscPrimariesPressed()
     {
-        setFixPrimaries(_fixPrimaries.checked());
+        setNTSCPrimaries(_ntscPrimaries.checked());
         update();
         allAutos();
         uiUpdate();
     }
-    void setFixPrimaries(bool fixPrimaries)
+    void setNTSCPrimaries(bool ntscPrimaries)
     {
-        _output->setFixPrimaries(fixPrimaries);
-        _matcher->setFixPrimaries(fixPrimaries);
+        _output->setNTSCPrimaries(ntscPrimaries);
+        _matcher->setNTSCPrimaries(ntscPrimaries);
     }
 
     void autoBrightness(bool force = false)
@@ -2344,7 +2380,7 @@ private:
     TextWindow _clippedColoursText;
     GamutWindow _gamut;
     NewCGAButtonWindow _newCGA;
-    FixPrimariesButtonWindow _fixPrimaries;
+    NTSCPrimariesButtonWindow _ntscPrimaries;
     MatchModeButton _matchMode;
     ModeCombo _mode;
     BackgroundCombo _background;
@@ -2529,19 +2565,12 @@ public:
             ArrayType(StringType(), IntegerType()), arguments);
 
         configFile.load(configPath);
-        _matchMode = configFile.get<bool>("matchMode");
 
         _matcher.setProgram(this);
         _window.setMatcher(&_matcher);
         _window.setShower(&_shower);
+        _window.setOutput(&_output);
         _window.setProgram(this);
-
-        _window.setFixPrimaries(configFile.get<bool>("ntscPrimaries"));
-        _window.setBrightness(configFile.get<double>("brightness"));
-        _window.setSaturation(configFile.get<double>("saturation"));
-        _window.setHue(configFile.get<double>("hue"));
-        _window.setContrast(configFile.get<double>("contrast"));
-        _window.setSharpness(configFile.get<double>("sharpness"));
 
         _matcher.setDiffusionHorizontal(
             configFile.get<double>("horizontalDiffusion"));
@@ -2557,15 +2586,37 @@ public:
         _matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
         _matcher.setScanlinesRepeat(configFile.get<int>("scanlinesRepeat"));
         _matcher.setROM(configFile.get<String>("cgaROM"));
-        _window.setScanlineWidth(configFile.get<double>("scanlineWidth"));
-        _window.setScanlineProfile(configFile.get<int>("scanlineProfile"));
-        _window.setScanlineOffset(configFile.get<double>("scanlineOffset"));
-        _window.setZoom(configFile.get<double>("zoom"));
-        _window.setScanlineBleeding(configFile.get<bool>("scanlineBleeding"));
-        _window.setAspectRatio(configFile.get<double>("aspectRatio"));
-        _window.setCombFilterVertical(
+
+        bool ntscPrimaries = configFile.get<bool>("ntscPrimaries");
+        _output.setNTSCPrimaries(ntscPrimaries);
+        _matcher.setNTSCPrimaries(ntscPrimaries);
+        double brightness = configFile.get<double>("brightness");
+        _output.setBrightness(brightness);
+        _matcher.setBrightness(brightness);
+        double saturation = configFile.get<double>("saturation");
+        _output.setSaturation(saturation);
+        _matcher.setSaturation(saturation);
+        double hue = configFile.get<double>("hue");
+        _output.setHue(hue);
+        _matcher.setHue(hue);
+        double contrast = configFile.get<double>("contrast");
+        _output.setContrast(contrast);
+        _matcher.setContrast(contrast);
+        double sharpness = configFile.get<double>("sharpness");
+        _output.setSharpness(sharpness);
+        _matcher.setSharpness(sharpness);
+        bool newCGA = configFile.get<bool>("newCGA");
+        _output.setNewCGA(newCGA);
+        _matcher.setNewCGA(newCGA);
+        _output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
+        _output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
+        _output.setScanlineOffset(configFile.get<double>("scanlineOffset"));
+        _output.setZoom(configFile.get<double>("zoom"));
+        _output.setScanlineBleeding(configFile.get<bool>("scanlineBleeding"));
+        _output.setAspectRatio(configFile.get<double>("aspectRatio"));
+        _output.setCombFilterVertical(
             configFile.get<int>("combFilterVertical"));
-        _window.setCombFilterTemporal(
+        _output.setCombFilterTemporal(
             configFile.get<int>("combFilterTemporal"));
 
         String inputFileName = configFile.get<String>("inputPicture");
@@ -2627,14 +2678,17 @@ public:
 
         _matcher.setInput(input);
         _shower.setInput(input);
+        setMatchMode(configFile.get<bool>("matchMode"));
+        beginConvert();
 
-        _window.setNewCGA(configFile.get<bool>("newCGA"));
-
-        if (configFile.get<bool>("interactive"))
+        if (configFile.get<bool>("interactive")) {
+            _output.setWindow(&_window);
             WindowProgram::run();
+        }
         if (!_matchMode)
             _matcher.cancel();
         _matcher.join();
+        _output.reCreateNTSC();
 
         int i;
         for (i = inputFileName.length() - 1; i >= 0; --i)
@@ -2649,7 +2703,14 @@ public:
         _matcher.savePalettes(inputFileName + "_out.palettes");
     }
     bool getMatchMode() { return _matchMode; }
-    void setMatchMode(bool matchMode) { _matchMode = matchMode; }
+    void setMatchMode(bool matchMode)
+    {
+        _matchMode = matchMode;
+        if (!matchMode)
+            _output.setRGBI(_shower.getOutput());
+        else
+            _output.setRGBI(_matcher.getOutput());
+    }
     void updateOutput()
     {
         _updateNeeded = true;
@@ -2663,10 +2724,17 @@ public:
         }
         return false;
     }
+    void beginConvert()
+    {
+        if (!_matchMode)
+            _shower.convert();
+        else
+            _matcher.restart();
+    }
 private:
     CGAMatcher _matcher;
     CGAShower _shower;
-    CGAOutput _outputWindow;
+    CGAOutput _output;
     bool _matchMode;
     bool _updateNeeded;
 };

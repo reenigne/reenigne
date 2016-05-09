@@ -1,6 +1,7 @@
 #include "alfe/main.h"
 #include "alfe/bitmap.h"
 #include "alfe/complex.h"
+#include "fftw3.h"
 
 #ifndef INCLUDED_NTSC_DECODE_H
 #define INCLUDED_NTSC_DECODE_H
@@ -410,7 +411,7 @@ public:
                 4*Vector3Cast<int>(srgb[5]) + Vector3Cast<int>(srgb[6]);
             ++srgb;
             Colour c;
-            if (_fixPrimaries) {
+            if (_ntscPrimaries) {
                 c.x = (0.6689*mix.x + 0.2679*mix.y + 0.0323*mix.z);
                 c.y = (0.0185*mix.x + 1.0743*mix.y - 0.0603*mix.z);
                 c.z = (0.0162*mix.x + 0.0431*mix.y + 0.8551*mix.z);
@@ -442,8 +443,11 @@ public:
         }
     }
 
-    bool getFixPrimaries() { return _fixPrimaries; }
-    void setFixPrimaries(bool fixPrimaries) { _fixPrimaries = fixPrimaries; }
+    bool getNTSCPrimaries() { return _ntscPrimaries; }
+    void setNTSCPrimaries(bool ntscPrimaries)
+    {
+        _ntscPrimaries = ntscPrimaries;
+    }
     double getHue() { return _hue; }
     void setHue(double hue) { _hue = hue; }
     double getSaturation() { return _saturation; }
@@ -466,7 +470,7 @@ private:
         double r = y2 + 0.9563*iq2.x + 0.6210*iq2.y;
         double g = y2 - 0.2721*iq2.x - 0.6474*iq2.y;
         double b = y2 - 1.1069*iq2.x + 1.7046*iq2.y;
-        if (_fixPrimaries)
+        if (_ntscPrimaries)
             return Colour(
                 1.5073*r -0.3725*g -0.0832*b,
                 -0.0275*r +0.9350*g +0.0670*b,
@@ -474,7 +478,115 @@ private:
         return Colour(r, g, b);
     }
 
-    bool _fixPrimaries;
+    bool _ntscPrimaries;
+    double _hue;
+    double _saturation;
+    double _contrast;
+    double _brightness;
+    double _sharpness;
+
+    Complex<double> _iqAdjust;
+    double _contrast2;
+    double _brightness2;
+};
+
+// Similar to NTSCDecoder except it can resample the output to arbitrary
+// widths.
+class ResamplingNTSCDecoder
+{
+public:
+    //void calculateBurst(Byte* burst)
+    //{
+    //    Complex<double> iq;
+    //    iq.x = burst[0] - burst[2];
+    //    iq.y = burst[1] - burst[3];
+    //    _iqAdjust =
+    //        -iq.conjugate()*unit((33 + 90 + _hue)/360.0)*_saturation*_contrast/
+    //        (iq.modulus()*16);
+    //    _contrast2 = _contrast/32;
+    //    _brightness2 = _brightness*256.0;
+    //}
+    //Colour decode(int* s)
+    //{
+    //    int dc = (s[0] + s[1] + s[2] + s[3])*8;
+    //    Complex<int> iq;
+    //    iq.x = (s[0] - s[2])*8;
+    //    iq.y = (s[1] - s[3])*8;
+    //    return decode(dc, iq);
+    //}
+    //Colour decode(const Byte* n, int phase)
+    //{
+    //    // Filter kernel must be divisible by (1,1,1,1) so that all phases
+    //    // contribute equally.
+    //    int y = n[0] +n[1]*4 +n[2]*7 +n[3]*8 +n[4]*7 +n[5]*4 +n[6];
+    //    Complex<int> iq;
+    //    switch (phase) {
+    //    case 0:
+    //        iq.x =  n[0]   -n[2]*7 +n[4]*7 -n[6];
+    //        iq.y =  n[1]*4 -n[3]*8 +n[5]*4;
+    //        break;
+    //    case 1:
+    //        iq.x = -n[1]*4 +n[3]*8 -n[5]*4;
+    //        iq.y =  n[0]   -n[2]*7 +n[4]*7 -n[6];
+    //        break;
+    //    case 2:
+    //        iq.x = -n[0]   +n[2]*7 -n[4]*7 +n[6];
+    //        iq.y = -n[1]*4 +n[3]*8 -n[5]*4;
+    //        break;
+    //    case 3:
+    //        iq.x = +n[1]*4 -n[3]*8 +n[5]*4;
+    //        iq.y = -n[0]   +n[2]*7 -n[4]*7 +n[6];
+    //        break;
+    //    }
+    //    return decode(y, iq);
+    //}
+    //void decodeLine(const Byte* ntsc, SRGB* srgb, int length, int phase)
+    //{
+    //    for (int x = 0; x < length; ++x) {
+    //        phase = (phase + 1) & 3;
+    //        Colour s = decode(ntsc, phase);
+    //        ++ntsc;
+    //        *srgb = SRGB(byteClamp(s.x), byteClamp(s.y), byteClamp(s.z));
+    //        ++srgb;
+    //    }
+    //}
+
+    bool getNTSCPrimaries() { return _ntscPrimaries; }
+    void setNTSCPrimaries(bool ntscPrimaries)
+    {
+        _ntscPrimaries = ntscPrimaries;
+    }
+    double getHue() { return _hue; }
+    void setHue(double hue) { _hue = hue; }
+    double getSaturation() { return _saturation; }
+    void setSaturation(double saturation) { _saturation = saturation; }
+    double getContrast() { return _contrast; }
+    void setContrast(double contrast)
+    {
+        _contrast = contrast;
+    }
+    double getBrightness() { return _brightness; }
+    void setBrightness(double brightness) { _brightness = brightness; }
+    double getSharpness() { return _sharpness; }
+    void setSharpness(double sharpness) { _sharpness = sharpness; }
+
+private:
+    //Colour decode(int y, Complex<int> iq)
+    //{
+    //    double y2 = y*_contrast2 + _brightness2;
+    //    Complex<double> iq2 = Complex<double>(iq)*_iqAdjust;
+    //    double r = y2 + 0.9563*iq2.x + 0.6210*iq2.y;
+    //    double g = y2 - 0.2721*iq2.x - 0.6474*iq2.y;
+    //    double b = y2 - 1.1069*iq2.x + 1.7046*iq2.y;
+    //    if (_ntscPrimaries)
+    //        return Colour(
+    //            1.5073*r -0.3725*g -0.0832*b,
+    //            -0.0275*r +0.9350*g +0.0670*b,
+    //            -0.0272*r -0.0401*g +1.1677*b);
+    //    return Colour(r, g, b);
+    //}
+
+    bool _ntscPrimaries;
     double _hue;
     double _saturation;
     double _contrast;
