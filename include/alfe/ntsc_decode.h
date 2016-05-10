@@ -425,18 +425,18 @@ public:
             iq /= (_iqAdjust*512);
             y = (y/32 - _brightness2)/(_contrast2*32);
             switch (phase) {
-            case 0:
-                *ntsc = byteClamp(y + iq.x);
-                break;
-            case 1:
-                *ntsc = byteClamp(y + iq.y);
-                break;
-            case 2:
-                *ntsc = byteClamp(y - iq.x);
-                break;
-            case 3:
-                *ntsc = byteClamp(y - iq.y);
-                break;
+                case 0:
+                    *ntsc = byteClamp(y + iq.x);
+                    break;
+                case 1:
+                    *ntsc = byteClamp(y + iq.y);
+                    break;
+                case 2:
+                    *ntsc = byteClamp(y - iq.x);
+                    break;
+                case 3:
+                    *ntsc = byteClamp(y - iq.y);
+                    break;
             }
             ++ntsc;
             phase = (phase + 1) & 3;
@@ -470,11 +470,12 @@ private:
         double r = y2 + 0.9563*iq2.x + 0.6210*iq2.y;
         double g = y2 - 0.2721*iq2.x - 0.6474*iq2.y;
         double b = y2 - 1.1069*iq2.x + 1.7046*iq2.y;
-        if (_ntscPrimaries)
+        if (_ntscPrimaries) {
             return Colour(
                 1.5073*r -0.3725*g -0.0832*b,
                 -0.0275*r +0.9350*g +0.0670*b,
                 -0.0272*r -0.0401*g +1.1677*b);
+        }
         return Colour(r, g, b);
     }
 
@@ -495,61 +496,137 @@ private:
 class ResamplingNTSCDecoder
 {
 public:
-    //void calculateBurst(Byte* burst)
-    //{
-    //    Complex<double> iq;
-    //    iq.x = burst[0] - burst[2];
-    //    iq.y = burst[1] - burst[3];
-    //    _iqAdjust =
-    //        -iq.conjugate()*unit((33 + 90 + _hue)/360.0)*_saturation*_contrast/
-    //        (iq.modulus()*16);
-    //    _contrast2 = _contrast/32;
-    //    _brightness2 = _brightness*256.0;
-    //}
-    //Colour decode(int* s)
-    //{
-    //    int dc = (s[0] + s[1] + s[2] + s[3])*8;
-    //    Complex<int> iq;
-    //    iq.x = (s[0] - s[2])*8;
-    //    iq.y = (s[1] - s[3])*8;
-    //    return decode(dc, iq);
-    //}
-    //Colour decode(const Byte* n, int phase)
-    //{
-    //    // Filter kernel must be divisible by (1,1,1,1) so that all phases
-    //    // contribute equally.
-    //    int y = n[0] +n[1]*4 +n[2]*7 +n[3]*8 +n[4]*7 +n[5]*4 +n[6];
-    //    Complex<int> iq;
-    //    switch (phase) {
-    //    case 0:
-    //        iq.x =  n[0]   -n[2]*7 +n[4]*7 -n[6];
-    //        iq.y =  n[1]*4 -n[3]*8 +n[5]*4;
-    //        break;
-    //    case 1:
-    //        iq.x = -n[1]*4 +n[3]*8 -n[5]*4;
-    //        iq.y =  n[0]   -n[2]*7 +n[4]*7 -n[6];
-    //        break;
-    //    case 2:
-    //        iq.x = -n[0]   +n[2]*7 -n[4]*7 +n[6];
-    //        iq.y = -n[1]*4 +n[3]*8 -n[5]*4;
-    //        break;
-    //    case 3:
-    //        iq.x = +n[1]*4 -n[3]*8 +n[5]*4;
-    //        iq.y = -n[0]   +n[2]*7 -n[4]*7 +n[6];
-    //        break;
-    //    }
-    //    return decode(y, iq);
-    //}
-    //void decodeLine(const Byte* ntsc, SRGB* srgb, int length, int phase)
-    //{
-    //    for (int x = 0; x < length; ++x) {
-    //        phase = (phase + 1) & 3;
-    //        Colour s = decode(ntsc, phase);
-    //        ++ntsc;
-    //        *srgb = SRGB(byteClamp(s.x), byteClamp(s.y), byteClamp(s.z));
-    //        ++srgb;
-    //    }
-    //}
+    void calculateBurst(Byte* burst)
+    {
+        Complex<float> iq;
+        iq.x = burst[0] - burst[2];
+        iq.y = burst[1] - burst[3];
+        _iqAdjust =
+            -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
+            _contrast/(iq.modulus()*16);
+        _contrast2 = _contrast/32;
+        _brightness2 = _brightness*256.0;
+    }
+
+    // inputLength must be a multiple of 4.
+    void decodeLine(const Byte* ntsc, SRGB* srgb, int inputLength,
+        int outputLength)
+    {
+        static const int padding = 32;
+        int inputTimeLength = inputLength + padding*2;
+        int inputFrequencyLength = inputTimeLength/2 + 1;
+        _frequency.ensure(inputFrequencyLength);
+        int outputTimeLength = static_cast<int>(
+            static_cast<float>(inputTimeLength)*outputLength/inputLength);
+        int outputFrequencyLength = outputTimeLength/2 + 1;
+        _frequency.ensure(outputFrequencyLength);
+        if (inputTimeLength != _inputTimeLength) {
+            _inputTime.ensure(inputTimeLength);
+            _forward = fftwf_plan_dft_r2c_1d(inputTimeLength, &_inputTime[0],
+                reinterpret_cast<fftwf_complex*>(&_frequency[0]),
+                FFTW_MEASURE);
+            _inputTimeLength = inputTimeLength;
+        }
+        if (outputTimeLength != _outputFFTLength) {
+            _yTime.ensure(outputTimeLength);
+            _iTime.ensure(outputTimeLength);
+            _qTime.ensure(outputTimeLength);
+            _backwardY = fftwf_plan_dft_c2r_1d(inputTimeLength,
+                reinterpret_cast<fftwf_complex*>(&_frequency[0]), &_yTime[0],
+                FFTW_MEASURE);
+            _backwardI = fftwf_plan_dft_c2r_1d(inputTimeLength,
+                reinterpret_cast<fftwf_complex*>(&_frequency[0]), &_iTime[0],
+                FFTW_MEASURE);
+            _backwardQ = fftwf_plan_dft_c2r_1d(inputTimeLength,
+                reinterpret_cast<fftwf_complex*>(&_frequency[0]), &_qTime[0],
+                FFTW_MEASURE);
+            _outputFFTLength = outputTimeLength;
+        }
+
+        // Pad and transform Y
+        for (int t = 0; t < inputLength; ++t)
+            _inputTime[t + padding] = ntsc[t];
+        padInput(padding, inputLength);
+        fftwf_execute(_forward);
+
+        // Filter Y
+        int chromaLow =
+            static_cast<int>((inputTimeLength*(4 - _chromaBandwidth))/16);
+        int chromaHigh =
+            static_cast<int>((inputTimeLength*(4 + _chromaBandwidth))/16);
+        int lumaHigh = static_cast<int>(inputTimeLength*_lumaBandwidth/4);
+        if (lumaHigh < chromaLow) {
+            for (int f = lumaHigh; f < outputFrequencyLength; ++f)
+                _frequency[f] = 0;
+        }
+        else {
+            if (lumaHigh < chromaHigh) {
+                for (int f = chromaLow; f < outputFrequencyLength; ++f)
+                    _frequency[f] = 0;
+            }
+            else {
+                for (int f = chromaLow; f < chromaHigh; ++f)
+                    _frequency[f] = 0;
+                for (int f = lumaHigh; f < outputFrequencyLength; ++f)
+                    _frequency[f] = 0;
+            }
+        }
+        fftwf_execute(_backwardY);
+
+        // Pad and transform I
+        for (int t = 0; t < inputLength; t += 4) {
+            _inputTime[t + padding] = ntsc[t];
+            _inputTime[t + padding + 1] = 0;
+            _inputTime[t + padding + 2] = -ntsc[t];
+            _inputTime[t + padding + 3] = 0;
+        }
+        padInput(padding, inputLength);
+        fftwf_execute(_forward);
+
+        // Filter I
+        int chromaCutoff =
+            static_cast<int>(inputTimeLength*_chromaBandwidth/16);
+        for (int f = chromaCutoff; f < outputFrequencyLength; ++f)
+            _frequency[f] = 0;
+        fftwf_execute(_backwardI);
+
+        // Pad and transform Q
+
+        for (int t = 0; t < inputLength; t += 4) {
+            _inputTime[t + padding] = 0;
+            _inputTime[t + padding + 1] = ntsc[t];
+            _inputTime[t + padding + 2] = 0;
+            _inputTime[t + padding + 3] = -ntsc[t];
+        }
+        padInput(padding, inputLength);
+        fftwf_execute(_forward);
+
+        // Filter Q
+        for (int f = chromaCutoff; f < outputFrequencyLength; ++f)
+            _frequency[f] = 0;
+        fftwf_execute(_backwardQ);
+
+        int offset = padding*outputTimeLength/inputTimeLength;
+        for (int t = 0; t < outputLength; ++t) {
+            float y = _yTime[t + offset];
+            Complex<float> iq(_iTime[t + offset], _qTime[t + offset]);
+
+            float y2 = y*_contrast2 + _brightness2;
+            Complex<float> iq2 = iq*_iqAdjust;
+            float r = y2 + 0.9563*iq2.x + 0.6210*iq2.y;
+            float g = y2 - 0.2721*iq2.x - 0.6474*iq2.y;
+            float b = y2 - 1.1069*iq2.x + 1.7046*iq2.y;
+            Vector3<float> c(r, g, b);
+            if (_ntscPrimaries) {
+                c = Vector3<float>(
+                    1.5073*r -0.3725*g -0.0832*b,
+                    -0.0275*r +0.9350*g +0.0670*b,
+                    -0.0272*r -0.0401*g +1.1677*b);
+            }
+            *srgb = SRGB(byteClamp(c.x), byteClamp(c.y), byteClamp(c.z));
+            ++srgb;
+        }
+    }
 
     bool getNTSCPrimaries() { return _ntscPrimaries; }
     void setNTSCPrimaries(bool ntscPrimaries)
@@ -567,35 +644,50 @@ public:
     }
     double getBrightness() { return _brightness; }
     void setBrightness(double brightness) { _brightness = brightness; }
-    double getSharpness() { return _sharpness; }
-    void setSharpness(double sharpness) { _sharpness = sharpness; }
+    double getChromaBandwidth() { return _chromaBandwidth; }
+    void setChromaBandwidth(double chromaBandwidth)
+    {
+        _chromaBandwidth = chromaBandwidth;
+    }
+    double getLumaBandwidth() { return _lumaBandwidth; }
+    void setLumaBandwidth(double lumaBandwidth)
+    {
+        _lumaBandwidth = lumaBandwidth;
+    }
 
 private:
-    //Colour decode(int y, Complex<int> iq)
-    //{
-    //    double y2 = y*_contrast2 + _brightness2;
-    //    Complex<double> iq2 = Complex<double>(iq)*_iqAdjust;
-    //    double r = y2 + 0.9563*iq2.x + 0.6210*iq2.y;
-    //    double g = y2 - 0.2721*iq2.x - 0.6474*iq2.y;
-    //    double b = y2 - 1.1069*iq2.x + 1.7046*iq2.y;
-    //    if (_ntscPrimaries)
-    //        return Colour(
-    //            1.5073*r -0.3725*g -0.0832*b,
-    //            -0.0275*r +0.9350*g +0.0670*b,
-    //            -0.0272*r -0.0401*g +1.1677*b);
-    //    return Colour(r, g, b);
-    //}
+    void padInput(int padding, int inputLength)
+    {
+        for (int t = 0; t < padding; ++t) {
+            _inputTime[t] = _inputTime[padding + ((t - padding) & 3)];
+            _inputTime[t + padding + inputLength] =
+                _inputTime[padding + (inputLength - 4) + (t & 3)];
+        }
+    }
 
     bool _ntscPrimaries;
-    double _hue;
-    double _saturation;
-    double _contrast;
-    double _brightness;
-    double _sharpness;
+    float _hue;
+    float _saturation;
+    float _contrast;
+    float _brightness;
+    float _chromaBandwidth;
+    float _lumaBandwidth;
 
-    Complex<double> _iqAdjust;
-    double _contrast2;
-    double _brightness2;
+    Complex<float> _iqAdjust;
+    float _contrast2;
+    float _brightness2;
+
+    int _inputTimeLength;
+    Array<float> _inputTime;
+    fftwf_plan _forward;
+    Array<Complex<float>> _frequency;
+    fftwf_plan _backwardY;
+    Array<float> _yTime;
+    fftwf_plan _backwardI;
+    Array<float> _iTime;
+    fftwf_plan _backwardQ;
+    Array<float> _qTime;
+    int _outputFFTLength;
 };
 
 #endif // INCLUDED_NTSC_DECODE_H

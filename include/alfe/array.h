@@ -302,6 +302,7 @@ public:
             *this = Array(create<>(n, n));
     }
     void allocate(int n) { *this = Array(n); }
+    void ensure(int n) { if (count() < n) allocate(n); }
     bool operator==(const Array& other) const
     {
         int n = count();
