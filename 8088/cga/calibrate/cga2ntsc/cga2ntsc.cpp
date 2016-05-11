@@ -598,8 +598,6 @@ public:
     {
         _decoder.setBrightness(brightness);
     }
-    double getSharpness() { return _decoder.getSharpness(); }
-    void setSharpness(double sharpness) { _decoder.setSharpness(sharpness); }
 
 private:
     int _phase;
@@ -744,139 +742,139 @@ public:
     bool _big;
 };
 
-class GamutWindow : public BitmapWindow
-{
-public:
-    GamutWindow()
-      : _lButton(false), _rButton(false), _rPosition(1000, 1000), _particle(0),
-        _delta(0, 0)
-    {
-        _matrix[0] = 1; _matrix[1] = 0; _matrix[2] = 0;
-        _matrix[3] = 0; _matrix[4] = 1; _matrix[5] = 0;
-        _matrix[6] = 0; _matrix[7] = 0; _matrix[8] = 1;
-        setSize(Vector(640, 480));
-    }
-    void create()
-    {
-        BitmapWindow::create();
-        reset();
-        draw();
-        invalidate();
-    }
-    void setAnimated(AnimatedWindow* animated) { _animated = animated; }
-    void paint()
-    {
-        _animated->restart();
-    }
-    void draw()
-    {
-        if (_delta.modulus2() >= 0.000001)
-            animate();
-        else
-            _animated->stop();
-        if (!_bitmap.valid())
-            _bitmap = Bitmap<DWORD>(Vector(640, 480));
-        _bitmap.fill(0);
-        for (int i = 0; i < _particle; ++i)
-            _particles[i].transform(_matrix);
-        std::sort(&_particles[0], &_particles[_particle]);
-        for (int i = 0; i < _particle; ++i)
-            _particles[i].plot(_bitmap, _rPosition);
-        _bitmap = setNextBitmap(_bitmap);
-    }
-    void line(Colour c1, Colour c2)
-    {
-        for (int i = 0; i < 101; ++i)
-            add(c1*(i*0.01) + c2*((100-i)*0.01), false);
-    }
-    void reset()
-    {
-        _particle = 0;
-        line(Colour(0, 0, 0), Colour(255, 0, 0));
-        line(Colour(0, 0, 0), Colour(0, 255, 0));
-        line(Colour(0, 0, 0), Colour(0, 0, 255));
-        line(Colour(255, 0, 0), Colour(255, 255, 0));
-        line(Colour(255, 0, 0), Colour(255, 0, 255));
-        line(Colour(0, 255, 0), Colour(255, 255, 0));
-        line(Colour(0, 255, 0), Colour(0, 255, 255));
-        line(Colour(0, 0, 255), Colour(0, 255, 255));
-        line(Colour(0, 0, 255), Colour(255, 0, 255));
-        line(Colour(255, 255, 0), Colour(255, 255, 255));
-        line(Colour(255, 0, 255), Colour(255, 255, 255));
-        line(Colour(0, 255, 255), Colour(255, 255, 255));
-    }
-    void add(Colour c, bool big = true)
-    {
-        Particle p;
-        p._colour = c;
-        p._big = big;
-        if (_particle >= _particles.count())
-            _particles.append(p);
-        else
-            _particles[_particle] = p;
-        ++_particle;
-    }
-    bool mouseInput(Vector position, int buttons)
-    {
-        bool oldLButton = _lButton;
-        bool mouseDown = false;
-        if ((buttons & MK_LBUTTON) != 0 && !_lButton) {
-            _lButton = true;
-            mouseDown = true;
-            _lastPosition = position;
-        }
-        if ((buttons & MK_LBUTTON) == 0)
-            _lButton = false;
-        if ((buttons & MK_RBUTTON) != 0 && !_rButton) {
-            _rButton = true;
-            mouseDown = true;
-            _lastPosition = position;
-        }
-        if ((buttons & MK_RBUTTON) == 0)
-            _rButton = false;
-        if (_lButton) {
-            _delta = Vector2Cast<double>(position - _lastPosition)*0.01;
-            if (position != _lastPosition)
-                update();
-            _lastPosition = position;
-        }
-        else
-            if (oldLButton && _delta.modulus2() >= 0.000001)
-                _animated->start();
-        if (_rButton && position != _lastPosition) {
-            _rPosition += (position - _lastPosition);
-            _lastPosition = position;
-        }
-
-        return mouseDown;
-    }
-    void animate()
-    {
-        _rotor =
-            Rotor3<double>::yz(-_delta.y)*Rotor3<double>::zx(_delta.x)*_rotor;
-        _rotor.toMatrix(_matrix);
-        _delta *= 0.95;
-    }
-    void update()
-    {
-        animate();
-        invalidate();
-    }
-
-    Rotor3<double> _rotor;
-    double _matrix[9];
-    AppendableArray<Particle> _particles;
-    Vector _lastPosition;
-    Vector _rPosition;
-    bool _lButton;
-    bool _rButton;
-    Vector2<double> _delta;
-    AnimatedWindow* _animated;
-    Bitmap<DWORD> _bitmap;
-
-    int _particle;
-};
-
+//class GamutWindow : public BitmapWindow
+//{
+//public:
+//    GamutWindow()
+//      : _lButton(false), _rButton(false), _rPosition(1000, 1000), _particle(0),
+//        _delta(0, 0)
+//    {
+//        _matrix[0] = 1; _matrix[1] = 0; _matrix[2] = 0;
+//        _matrix[3] = 0; _matrix[4] = 1; _matrix[5] = 0;
+//        _matrix[6] = 0; _matrix[7] = 0; _matrix[8] = 1;
+//        setSize(Vector(640, 480));
+//    }
+//    void create()
+//    {
+//        BitmapWindow::create();
+//        reset();
+//        draw();
+//        invalidate();
+//    }
+//    void setAnimated(AnimatedWindow* animated) { _animated = animated; }
+//    void paint()
+//    {
+//        _animated->restart();
+//    }
+//    void draw()
+//    {
+//        if (_delta.modulus2() >= 0.000001)
+//            animate();
+//        else
+//            _animated->stop();
+//        if (!_bitmap.valid())
+//            _bitmap = Bitmap<DWORD>(Vector(640, 480));
+//        _bitmap.fill(0);
+//        for (int i = 0; i < _particle; ++i)
+//            _particles[i].transform(_matrix);
+//        std::sort(&_particles[0], &_particles[_particle]);
+//        for (int i = 0; i < _particle; ++i)
+//            _particles[i].plot(_bitmap, _rPosition);
+//        _bitmap = setNextBitmap(_bitmap);
+//    }
+//    void line(Colour c1, Colour c2)
+//    {
+//        for (int i = 0; i < 101; ++i)
+//            add(c1*(i*0.01) + c2*((100-i)*0.01), false);
+//    }
+//    void reset()
+//    {
+//        _particle = 0;
+//        line(Colour(0, 0, 0), Colour(255, 0, 0));
+//        line(Colour(0, 0, 0), Colour(0, 255, 0));
+//        line(Colour(0, 0, 0), Colour(0, 0, 255));
+//        line(Colour(255, 0, 0), Colour(255, 255, 0));
+//        line(Colour(255, 0, 0), Colour(255, 0, 255));
+//        line(Colour(0, 255, 0), Colour(255, 255, 0));
+//        line(Colour(0, 255, 0), Colour(0, 255, 255));
+//        line(Colour(0, 0, 255), Colour(0, 255, 255));
+//        line(Colour(0, 0, 255), Colour(255, 0, 255));
+//        line(Colour(255, 255, 0), Colour(255, 255, 255));
+//        line(Colour(255, 0, 255), Colour(255, 255, 255));
+//        line(Colour(0, 255, 255), Colour(255, 255, 255));
+//    }
+//    void add(Colour c, bool big = true)
+//    {
+//        Particle p;
+//        p._colour = c;
+//        p._big = big;
+//        if (_particle >= _particles.count())
+//            _particles.append(p);
+//        else
+//            _particles[_particle] = p;
+//        ++_particle;
+//    }
+//    bool mouseInput(Vector position, int buttons)
+//    {
+//        bool oldLButton = _lButton;
+//        bool mouseDown = false;
+//        if ((buttons & MK_LBUTTON) != 0 && !_lButton) {
+//            _lButton = true;
+//            mouseDown = true;
+//            _lastPosition = position;
+//        }
+//        if ((buttons & MK_LBUTTON) == 0)
+//            _lButton = false;
+//        if ((buttons & MK_RBUTTON) != 0 && !_rButton) {
+//            _rButton = true;
+//            mouseDown = true;
+//            _lastPosition = position;
+//        }
+//        if ((buttons & MK_RBUTTON) == 0)
+//            _rButton = false;
+//        if (_lButton) {
+//            _delta = Vector2Cast<double>(position - _lastPosition)*0.01;
+//            if (position != _lastPosition)
+//                update();
+//            _lastPosition = position;
+//        }
+//        else
+//            if (oldLButton && _delta.modulus2() >= 0.000001)
+//                _animated->start();
+//        if (_rButton && position != _lastPosition) {
+//            _rPosition += (position - _lastPosition);
+//            _lastPosition = position;
+//        }
+//
+//        return mouseDown;
+//    }
+//    void animate()
+//    {
+//        _rotor =
+//            Rotor3<double>::yz(-_delta.y)*Rotor3<double>::zx(_delta.x)*_rotor;
+//        _rotor.toMatrix(_matrix);
+//        _delta *= 0.95;
+//    }
+//    void update()
+//    {
+//        animate();
+//        invalidate();
+//    }
+//
+//    Rotor3<double> _rotor;
+//    double _matrix[9];
+//    AppendableArray<Particle> _particles;
+//    Vector _lastPosition;
+//    Vector _rPosition;
+//    bool _lButton;
+//    bool _rButton;
+//    Vector2<double> _delta;
+//    AnimatedWindow* _animated;
+//    Bitmap<DWORD> _bitmap;
+//
+//    int _particle;
+//};
+//
 template<class T> class NumericSliderWindowT
 {
 public:
@@ -985,84 +983,97 @@ public:
 };
 typedef HueSliderWindowT<void> HueSliderWindow;
 
-template<class T> class SharpnessSliderWindowT : public NumericSliderWindow
+template<class T> class ChromaBandwidthSliderWindowT
+    : public NumericSliderWindow
 {
 public:
-    void valueSet(double value) { _host->sharpnessSet(value); }
+    void valueSet(double value) { _host->chromaBandwidthSet(value); }
     void create()
     {
-        setText("Sharpness: ");
-        setRange(0, 1);
+        setText("Chroma bandwidth: ");
+        setRange(0, 2);
     }
 };
-typedef SharpnessSliderWindowT<void> SharpnessSliderWindow;
+typedef ChromaBandwidthSliderWindowT<void> ChromaBandwidthSliderWindow;
 
-template<class T> class AutoBrightnessButtonWindowT
-  : public ToggleButton
+template<class T> class LumaBandwidthSliderWindowT : public NumericSliderWindow
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->autoBrightnessPressed(); }
+    void valueSet(double value) { _host->lumaBandwidthSet(value); }
     void create()
     {
-        setText("Auto");
-        ToggleButton::create();
+        setText("Luma bandwidth: ");
+        setRange(0, 2);
     }
-private:
-    CGA2NTSCWindow* _host;
 };
-typedef AutoBrightnessButtonWindowT<void> AutoBrightnessButtonWindow;
+typedef LumaBandwidthSliderWindowT<void> LumaBandwidthSliderWindow;
 
-template<class T> class AutoContrastClipButtonWindowT
-  : public ToggleButton
-{
-public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->autoContrastClipPressed(); }
-    void create()
-    {
-        setText("No clipping");
-        ToggleButton::create();
-    }
-private:
-    CGA2NTSCWindow* _host;
-};
-typedef AutoContrastClipButtonWindowT<void>
-    AutoContrastClipButtonWindow;
-
-template<class T> class AutoSaturationButtonWindowT
-  : public ToggleButton
-{
-public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->autoSaturationPressed(); }
-    void create()
-    {
-        setText("Auto");
-        ToggleButton::create();
-    }
-private:
-    CGA2NTSCWindow* _host;
-};
-typedef AutoSaturationButtonWindowT<void> AutoSaturationButtonWindow;
-
-template<class T> class AutoContrastMonoButtonWindowT
-  : public ToggleButton
-{
-public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->autoContrastMonoPressed(); }
-    void create()
-    {
-        setText("Fix black and white");
-        ToggleButton::create();
-    }
-private:
-    CGA2NTSCWindow* _host;
-};
-typedef AutoContrastMonoButtonWindowT<void>
-    AutoContrastMonoButtonWindow;
-
+//template<class T> class AutoBrightnessButtonWindowT
+//  : public ToggleButton
+//{
+//public:
+//    void setHost(CGA2NTSCWindow* host) { _host = host; }
+//    void clicked() { _host->autoBrightnessPressed(); }
+//    void create()
+//    {
+//        setText("Auto");
+//        ToggleButton::create();
+//    }
+//private:
+//    CGA2NTSCWindow* _host;
+//};
+//typedef AutoBrightnessButtonWindowT<void> AutoBrightnessButtonWindow;
+//
+//template<class T> class AutoContrastClipButtonWindowT
+//  : public ToggleButton
+//{
+//public:
+//    void setHost(CGA2NTSCWindow* host) { _host = host; }
+//    void clicked() { _host->autoContrastClipPressed(); }
+//    void create()
+//    {
+//        setText("No clipping");
+//        ToggleButton::create();
+//    }
+//private:
+//    CGA2NTSCWindow* _host;
+//};
+//typedef AutoContrastClipButtonWindowT<void>
+//    AutoContrastClipButtonWindow;
+//
+//template<class T> class AutoSaturationButtonWindowT
+//  : public ToggleButton
+//{
+//public:
+//    void setHost(CGA2NTSCWindow* host) { _host = host; }
+//    void clicked() { _host->autoSaturationPressed(); }
+//    void create()
+//    {
+//        setText("Auto");
+//        ToggleButton::create();
+//    }
+//private:
+//    CGA2NTSCWindow* _host;
+//};
+//typedef AutoSaturationButtonWindowT<void> AutoSaturationButtonWindow;
+//
+//template<class T> class AutoContrastMonoButtonWindowT
+//  : public ToggleButton
+//{
+//public:
+//    void setHost(CGA2NTSCWindow* host) { _host = host; }
+//    void clicked() { _host->autoContrastMonoPressed(); }
+//    void create()
+//    {
+//        setText("Fix black and white");
+//        ToggleButton::create();
+//    }
+//private:
+//    CGA2NTSCWindow* _host;
+//};
+//typedef AutoContrastMonoButtonWindowT<void>
+//    AutoContrastMonoButtonWindow;
+//
 template<class T> class NewCGAButtonWindowT : public ToggleButton
 {
 public:
@@ -1552,20 +1563,10 @@ public:
         const Byte* ntscRow = _ntsc.data();
         Byte* outputRow = _bitmap.data();
         for (int yy = 0; yy < _ntsc.size().y; ++yy) {
-            const Byte* n = ntscRow;
-            DWORD* outputPixel = reinterpret_cast<DWORD*>(outputRow);
-            DWORD* outputPixel2 =
-                reinterpret_cast<DWORD*>(outputRow + _bitmap.stride());
-            for (int x = 0; x < _ntsc.size().x - 6; ++x) {
-                Colour s = _decoder.decode(n, (x + 1) & 3);
-                ++n;
-                DWORD d = (byteClamp(s.x) << 16) | (byteClamp(s.y) << 8) |
-                    byteClamp(s.z);
-                *outputPixel = d;
-                ++outputPixel;
-                *outputPixel2 = d;
-                ++outputPixel2;
-            }
+            _decoder.decodeLine(ntscRow, reinterpret_cast<DWORD*>(outputRow),
+                _ntsc.size().x - 6, _bitmap.size().x);
+            memcpy(outputRow + _bitmap.stride(), outputRow,
+                _bitmap.size().x*sizeof(DWORD));
             outputRow += _bitmap.stride()*2;
             ntscRow += _ntsc.stride();
         }
@@ -1624,7 +1625,7 @@ public:
         draw();
     }
     int getCombFilterTemporal() { return _combFilterTemporal; }
-    NTSCDecoder* getDecoder() { return &_decoder; }
+    ResamplingNTSCDecoder* getDecoder() { return &_decoder; }
 
     bool getNTSCPrimaries() { return _decoder.getNTSCPrimaries(); }
     void setNTSCPrimaries(bool ntscPrimaries)
@@ -1652,10 +1653,15 @@ public:
         _decoder.setBrightness(brightness);
         draw();
     }
-    double getSharpness() { return _decoder.getSharpness(); }
-    void setSharpness(double sharpness)
+    double getChromaBandwidth() { return _decoder.getChromaBandwidth(); }
+    void setChromaBandwidth(double chromaBandwidth)
     {
-        _decoder.setSharpness(sharpness); draw();
+        _decoder.setChromaBandwidth(chromaBandwidth); draw();
+    }
+    double getLumaBandwidth() { return _decoder.getLumaBandwidth(); }
+    void setLumaBandwidth(double lumaBandwidth)
+    {
+        _decoder.setLumaBandwidth(lumaBandwidth); draw();
     }
 
     void setWindow(CGA2NTSCWindow* window) { _window = window; }
@@ -1678,7 +1684,7 @@ private:
     Bitmap<Byte> _rgbi;
     Bitmap<Byte> _ntsc;
     CGAComposite _composite;
-    NTSCDecoder _decoder;
+    ResamplingNTSCDecoder _decoder;
     double _scanlineWidth;
     int _scanlineProfile;
     double _scanlineOffset;
@@ -1696,28 +1702,29 @@ template<class T> class CGA2NTSCWindowT : public RootWindow
 {
 public:
     CGA2NTSCWindowT()
-      : _autoBrightnessFlag(false), _autoSaturationFlag(false),
-        _autoContrastClipFlag(false), _autoContrastMonoFlag(false),
-        _updating(true)
+      //: _autoBrightnessFlag(false), _autoSaturationFlag(false),
+      //  _autoContrastClipFlag(false), _autoContrastMonoFlag(false),
+      //  _updating(true)
     {
         add(&_outputWindow);
         _brightness.setHost(this);
-        add2(&_autoBrightness);
+        //add2(&_autoBrightness);
         _saturation.setHost(this);
-        add2(&_autoSaturation);
+        //add2(&_autoSaturation);
         _contrast.setHost(this);
-        add2(&_autoContrastClip);
-        add2(&_autoContrastMono);
+        //add2(&_autoContrastClip);
+        //add2(&_autoContrastMono);
         _hue.setHost(this);
-        _sharpness.setHost(this);
-        add(&_blackText);
-        add(&_whiteText);
-        add(&_mostSaturatedText);
-        add(&_clippedColoursText);
-        add(&_gamut);
+        _chromaBandwidth.setHost(this);
+        _lumaBandwidth.setHost(this);
+        //add(&_blackText);
+        //add(&_whiteText);
+        //add(&_mostSaturatedText);
+        //add(&_clippedColoursText);
+        //add(&_gamut);
         add2(&_newCGA);
         add2(&_ntscPrimaries);
-        add(&_animated);
+        //add(&_animated);
         add2(&_matchMode);
         add2(&_mode);
         add2(&_background);
@@ -1741,34 +1748,32 @@ public:
         _aspectRatio.setHost(this);
         add2(&_combFilterVertical);
         add2(&_combFilterTemporal);
-        _decoder = _output->getDecoder();
+        //_decoder = _output->getDecoder();
     }
     void create()
     {
-        _animated.setDrawWindow(&_gamut);
-        _gamut.setAnimated(&_animated);
+        //_animated.setDrawWindow(&_gamut);
+        //_gamut.setAnimated(&_animated);
 
         int mode = _matcher->getMode();
-        //_blink = ((mode & 0x20) != 0);
-        //_bw = ((mode & 4) != 0);
         if ((mode & 0x80) != 0)
-            setMode(8 + (mode & 1));
+            _mode.set(8 + (mode & 1));
         else {
             switch (mode & 0x13) {
-            case 0: setMode(0); break;
-            case 1: setMode(1); break;
-            case 2: setMode(3); break;
-            case 3: setMode(7); break;
-            case 0x10: setMode(4); break;
-            case 0x11: setMode(5); break;
-            case 0x12: setMode(2); break;
-            case 0x13: setMode(6); break;
+                case 0: _mode.set(0); break;
+                case 1: _mode.set(1); break;
+                case 2: _mode.set(3); break;
+                case 3: _mode.set(7); break;
+                case 0x10: _mode.set(4); break;
+                case 0x11: _mode.set(5); break;
+                case 0x12: _mode.set(2); break;
+                case 0x13: _mode.set(6); break;
             }
         }
-        setBW((mode & 4) != 0);
-        setBlink((mode & 0x20) != 0);
-        setPhase(_matcher->getPhase() == 0);
-        setInterlace(_matcher->getInterlace());
+        _bwCheckBox.setCheckState((mode & 4) != 0);
+        _blinkCheckBox.setCheckState((mode & 0x20) != 0);
+        _phaseCheckBox.setCheckState(_matcher->getPhase() == 0);
+        _interlaceCombo.set(_matcher->getInterlace());
         int palette = _matcher->getPalette();
         if (palette == 0xff) {
             _paletteSelected = 0;
@@ -1780,28 +1785,29 @@ public:
         }
         _palette.set(_paletteSelected);
         _background.set(_backgroundSelected);
-        setDiffusionHorizontal(_matcher->getDiffusionHorizontal());
-        setDiffusionVertical(_matcher->getDiffusionVertical());
-        setDiffusionTemporal(_matcher->getDiffusionTemporal());
-        setQuality(_matcher->getQuality());
-        setCharacterSet(_matcher->getCharacterSet());
-        setScanlinesPerRow(_matcher->getScanlinesPerRow() - 1);
-        setScanlinesRepeat(_matcher->getScanlinesRepeat() - 1);
-        setNTSCPrimaries(_output->getNTSCPrimaries());
-        setBrightness(_output->getBrightness());
-        setSaturation(_output->getSaturation());
-        setHue(_output->getHue());
-        setContrast(_output->getContrast());
-        setSharpness(_output->getSharpness());
-        setNewCGA(_output->getNewCGA());
-        setScanlineWidth(_output->getScanlineWidth());
-        setScanlineProfile(_output->getScanlineProfile());
-        setScanlineOffset(_output->getScanlineOffset());
-        setZoom(_output->getZoom());
-        setScanlineBleeding(_output->getScanlineBleeding());
-        setAspectRatio(_output->getAspectRatio());
-        setCombFilterVertical(_output->getCombFilterVertical());
-        setCombFilterTemporal(_output->getCombFilterTemporal());
+        _diffusionHorizontal.setValue(_matcher->getDiffusionHorizontal());
+        _diffusionVertical.setValue(_matcher->getDiffusionVertical());
+        _diffusionTemporal.setValue(_matcher->getDiffusionTemporal());
+        _quality.setValue(_matcher->getQuality());
+        _characterSetCombo.set(_matcher->getCharacterSet());
+        _scanlinesPerRow.set(_matcher->getScanlinesPerRow() - 1);
+        _scanlinesRepeat.set(_matcher->getScanlinesRepeat() - 1);
+        _ntscPrimaries.setCheckState(_output->getNTSCPrimaries());
+        _brightness.setValue(_output->getBrightness());
+        _saturation.setValue(_output->getSaturation());
+        _hue.setValue(_output->getHue());
+        _contrast.setValue(_output->getContrast());
+        _chromaBandwidth.setValue(_output->getChromaBandwidth());
+        _lumaBandwidth.setValue(_output->getLumaBandwidth());
+        _newCGA.setCheckState(_output->getNewCGA());
+        _scanlineWidth.setValue(_output->getScanlineWidth());
+        _scanlineProfile.set(_output->getScanlineProfile());
+        _scanlineOffset.setValue(_output->getScanlineOffset());
+        _zoom.setValue(_output->getZoom());
+        _scanlineBleeding.setCheckState(_output->getScanlineBleeding());
+        _aspectRatio.setValue(_output->getAspectRatio());
+        _combFilterVertical.set(_output->getCombFilterVertical());
+        _combFilterTemporal.set(_output->getCombFilterTemporal());
         _matchMode.setCheckState(_program->getMatchMode());
         matchModePressed();
 
@@ -1811,49 +1817,60 @@ public:
         RootWindow::create();
 
         sizeSet(size());
-        setSize(Vector(_brightness.right() + 20, _gamut.bottom() + 20));
+        setSize(Vector(_brightness.right() + 20, _outputWindow.bottom() + 20));
+        //setSize(Vector(_brightness.right() + 20, _gamut.bottom() + 20));
 
-        _updating = false;
-        update();
-        uiUpdate();
+        //_updating = false;
+        //update();
+        //uiUpdate();
     }
     void sizeSet(Vector size)
     {
         _outputWindow.setPosition(Vector(20, 20));
-        int w = max(_outputWindow.right(), _gamut.right()) + 20;
+        //int w = max(_outputWindow.right(), _gamut.right()) + 20;
+        int w = _outputWindow.right() + 20;
 
-        _gamut.setPosition(Vector(20, _outputWindow.bottom() + 20));
+        //_gamut.setPosition(Vector(20, _outputWindow.bottom() + 20));
 
         Vector vSpace(0, 15);
 
         _brightness.setPositionAndSize(Vector(w, 20), Vector(301, 24));
-        _autoBrightness.setPosition(_brightness.bottomLeft() + vSpace);
+        //_autoBrightness.setPosition(_brightness.bottomLeft() + vSpace);
 
-        _saturation.setPositionAndSize(_autoBrightness.bottomLeft() + 2*vSpace,
+        _saturation.setPositionAndSize(_brightness.bottomLeft() + 2*vSpace,
             Vector(301, 24));
-        _autoSaturation.setPosition(_saturation.bottomLeft() + vSpace);
+        //_saturation.setPositionAndSize(_autoBrightness.bottomLeft() + 2*vSpace,
+        //    Vector(301, 24));
+        //_autoSaturation.setPosition(_saturation.bottomLeft() + vSpace);
 
-        _contrast.setPositionAndSize(_autoSaturation.bottomLeft() + 2*vSpace,
+        _contrast.setPositionAndSize(_saturation.bottomLeft() + 2*vSpace,
             Vector(301, 24));
-        _autoContrastClip.setPosition(_contrast.bottomLeft() + vSpace);
-        _autoContrastMono.setPosition(_autoContrastClip.topRight() +
-            Vector(20, 0));
+        //_contrast.setPositionAndSize(_autoSaturation.bottomLeft() + 2*vSpace,
+        //    Vector(301, 24));
+        //_autoContrastClip.setPosition(_contrast.bottomLeft() + vSpace);
+        //_autoContrastMono.setPosition(_autoContrastClip.topRight() +
+        //    Vector(20, 0));
 
-        _hue.setPositionAndSize(_autoContrastClip.bottomLeft() + 2*vSpace,
+        _hue.setPositionAndSize(_contrast.bottomLeft() + 2*vSpace,
             Vector(301, 24));
+        //_hue.setPositionAndSize(_autoContrastClip.bottomLeft() + 2*vSpace,
+        //    Vector(301, 24));
 
-        _sharpness.setPositionAndSize(_hue.bottomLeft() + 2*vSpace,
+        _chromaBandwidth.setPositionAndSize(_hue.bottomLeft() + 2*vSpace,
             Vector(301, 24));
+        _lumaBandwidth.setPositionAndSize(
+            _chromaBandwidth.bottomLeft() + 2*vSpace, Vector(301, 24));
 
-        _newCGA.setPosition(_sharpness.bottomLeft() + 2*vSpace);
+        _newCGA.setPosition(_lumaBandwidth.bottomLeft() + 2*vSpace);
         _ntscPrimaries.setPosition(_newCGA.topRight() + Vector(20, 0));
 
-        _blackText.setPosition(_newCGA.bottomLeft() + 2*vSpace);
-        _whiteText.setPosition(_blackText.bottomLeft());
-        _mostSaturatedText.setPosition(_whiteText.bottomLeft());
-        _clippedColoursText.setPosition(_mostSaturatedText.bottomLeft());
+        //_blackText.setPosition(_newCGA.bottomLeft() + 2*vSpace);
+        //_whiteText.setPosition(_blackText.bottomLeft());
+        //_mostSaturatedText.setPosition(_whiteText.bottomLeft());
+        //_clippedColoursText.setPosition(_mostSaturatedText.bottomLeft());
 
-        _matchMode.setPosition(_clippedColoursText.bottomLeft() + 2*vSpace);
+        _matchMode.setPosition(_ntscPrimaries.bottomLeft() + 2*vSpace);
+        //_matchMode.setPosition(_clippedColoursText.bottomLeft() + 2*vSpace);
         _mode.setPosition(_matchMode.bottomLeft() + vSpace);
         _background.setPosition(_mode.topRight());
         _palette.setPosition(_background.topRight());
@@ -1907,70 +1924,70 @@ public:
     void setOutput(CGAOutput* output) { _output = output; }
     void setProgram(Program* program) { _program = program; }
     void draw(Bitmap<DWORD> bitmap) { _outputWindow.draw(bitmap); }
-    void uiUpdate()
-    {
-        _updating = true;
-        _whiteText.setText(format("White level: %f", _white));
-        _whiteText.size();
-        _blackText.setText(format("Black level: %f", _black));
-        _blackText.size();
-        _mostSaturatedText.setText(
-            format("Most saturated: %f", _maxSaturation));
-        _mostSaturatedText.size();
-        _clippedColoursText.setText(format("%i colours clipped", _clips));
-        _clippedColoursText.size();
-        //_outputWindow.draw();
-        //_outputWindow.invalidate();
-        _gamut.invalidate();
-        _updating = false;
-    }
-    Colour colourFromSeq(UInt64 seq)
-    {
-        Byte ntsc[7];
-        int phase = (seq >> 32) & 3;
-        for (int x = 0; x < 7; ++x) {
-            ntsc[x] = _composite.simulateCGA(seq & 15, (seq >> 4) & 15,
-                (x + phase) & 3);
-            seq >>= 4;
-        }
-        return _decoder->decode(ntsc, phase);
-    }
-    void update()
-    {
-        if (_updating)
-            return;
-        _composite.initChroma();
-        Byte burst[4];
-        for (int i = 0; i < 4; ++i)
-            burst[i] = _composite.simulateCGA(6, 6, i);
-        _decoder->calculateBurst(burst);
-        int s[4];
-        _composite.decode(0, s);
-        Colour black = _decoder->decode(s);
-        _black = 0.299*black.x + 0.587*black.y + 0.114*black.z;
-        _composite.decode(0xffff, s);
-        Colour white = _decoder->decode(s);
-        _white = 0.299*white.x + 0.587*white.y + 0.114*white.z;
-        _clips = 0;
-        _maxSaturation = 0;
-        _gamut.reset();
-        for (auto i : _colours) {
-            Colour c = colourFromSeq(i);
-            double r = c.x;
-            double g = c.y;
-            double b = c.z;
-            if (r < 0 || r >= 256 || g < 0 || g >= 256 || b < 0 || b >= 256) {
-                ++_clips;
-                _clipped = i;
-            }
-            double y = 0.299*r + 0.587*g + 0.114*b;
-            _maxSaturation =
-                max(_maxSaturation, (c - Colour(y, y, y)).modulus());
-            _gamut.add(c);
-        }
-        _gamut.draw();
-        _gamut.invalidate();
-    }
+    //void uiUpdate()
+    //{
+    //    _updating = true;
+    //    _whiteText.setText(format("White level: %f", _white));
+    //    _whiteText.size();
+    //    _blackText.setText(format("Black level: %f", _black));
+    //    _blackText.size();
+    //    _mostSaturatedText.setText(
+    //        format("Most saturated: %f", _maxSaturation));
+    //    _mostSaturatedText.size();
+    //    _clippedColoursText.setText(format("%i colours clipped", _clips));
+    //    _clippedColoursText.size();
+    //    _outputWindow.draw();
+    //    _outputWindow.invalidate();
+    //    _gamut.invalidate();
+    //    _updating = false;
+    //}
+    //Colour colourFromSeq(UInt64 seq)
+    //{
+    //    Byte ntsc[7];
+    //    int phase = (seq >> 32) & 3;
+    //    for (int x = 0; x < 7; ++x) {
+    //        ntsc[x] = _composite.simulateCGA(seq & 15, (seq >> 4) & 15,
+    //            (x + phase) & 3);
+    //        seq >>= 4;
+    //    }
+    //    return _decoder->decode(ntsc, phase);
+    //}
+    //void update()
+    //{
+    //    if (_updating)
+    //        return;
+    //    _composite.initChroma();
+    //    Byte burst[4];
+    //    for (int i = 0; i < 4; ++i)
+    //        burst[i] = _composite.simulateCGA(6, 6, i);
+    //    _decoder->calculateBurst(burst);
+    //    int s[4];
+    //    _composite.decode(0, s);
+    //    Colour black = _decoder->decode(s);
+    //    _black = 0.299*black.x + 0.587*black.y + 0.114*black.z;
+    //    _composite.decode(0xffff, s);
+    //    Colour white = _decoder->decode(s);
+    //    _white = 0.299*white.x + 0.587*white.y + 0.114*white.z;
+    //    _clips = 0;
+    //    _maxSaturation = 0;
+    //    _gamut.reset();
+    //    for (auto i : _colours) {
+    //        Colour c = colourFromSeq(i);
+    //        double r = c.x;
+    //        double g = c.y;
+    //        double b = c.z;
+    //        if (r < 0 || r >= 256 || g < 0 || g >= 256 || b < 0 || b >= 256) {
+    //            ++_clips;
+    //            _clipped = i;
+    //        }
+    //        double y = 0.299*r + 0.587*g + 0.114*b;
+    //        _maxSaturation =
+    //            max(_maxSaturation, (c - Colour(y, y, y)).modulus());
+    //        _gamut.add(c);
+    //    }
+    //    _gamut.draw();
+    //    _gamut.invalidate();
+    //}
     void beginConvert() { _program->beginConvert(); }
 
     void modeSet(int value)
@@ -1981,15 +1998,12 @@ public:
         _matcher->setMode(mode);
         beginConvert();
     }
-    void setMode(int value) { _mode.set(value); }
-
     void backgroundSet(int value)
     {
         _backgroundSelected = value;
         setPaletteAndBackground();
         beginConvert();
     }
-
     void paletteSet(int value)
     {
         _paletteSelected = value;
@@ -2005,105 +2019,61 @@ public:
                 _backgroundSelected + (_paletteSelected << 4));
         }
     }
-
     void scanlinesPerRowSet(int value)
     {
         _matcher->setScanlinesPerRow(value + 1);
         beginConvert();
     }
-    void setScanlinesPerRow(int value) { _scanlinesPerRow.set(value); }
-
     void scanlinesRepeatSet(int value)
     {
         _matcher->setScanlinesRepeat(value + 1);
         beginConvert();
-    }
-    void setScanlinesRepeat(int value) { _scanlinesRepeat.set(value); }
-
-    void setDiffusionHorizontal(double value)
-    {
-        _diffusionHorizontal.setValue(value);
     }
     void diffusionHorizontalSet(double value)
     {
         _matcher->setDiffusionHorizontal(value);
         beginConvert();
     }
-
-    void setDiffusionVertical(double value)
-    {
-        _diffusionVertical.setValue(value);
-    }
     void diffusionVerticalSet(double value)
     {
         _matcher->setDiffusionVertical(value);
         beginConvert();
-    }
-
-    void setDiffusionTemporal(double value)
-    {
-        _diffusionTemporal.setValue(value);
     }
     void diffusionTemporalSet(double value)
     {
         _matcher->setDiffusionTemporal(value);
         beginConvert();
     }
-
-    void setQuality(double value) { _quality.setValue(value); }
     void qualitySet(double value)
     {
         _matcher->setQuality(value);
         beginConvert();
     }
-
-    void setScanlineWidth(double value) { _scanlineWidth.setValue(value); }
     void scanlineWidthSet(double value) { _output->setScanlineWidth(value); }
-
-    void setScanlineProfile(int value) { _scanlineProfile.set(value); }
     void scanlineProfileSet(int value) { _output->setScanlineProfile(value); }
-
-    void setScanlineOffset(double value) { _scanlineOffset.setValue(value); }
     void scanlineOffsetSet(double value) { _output->setScanlineOffset(value); }
-
-    void setZoom(double value) { _zoom.setValue(value); }
     void zoomSet(double value) { _output->setZoom(value); }
-
     void scanlineBleedingPressed()
     {
         _output->setScanlineBleeding(_scanlineBleeding.checked() ? 0 : 1);
     }
-    void setScanlineBleeding(bool bleeding)
-    {
-        _scanlineBleeding.setCheckState(bleeding);
-    }
-
-    void setAspectRatio(double value) { _aspectRatio.setValue(value); }
     void aspectRatioSet(double value) { _output->setAspectRatio(value); }
-
-    void setCombFilterVertical(int value) { _combFilterVertical.set(value); }
     void combFilterVerticalSet(int value)
     {
         _output->setCombFilterVertical(value);
     }
-
-    void setCombFilterTemporal(int value) { _combFilterTemporal.set(value); }
     void combFilterTemporalSet(int value)
     {
         _output->setCombFilterTemporal(value);
     }
-
-
     void bwPressed()
     {
         bool bw = _bwCheckBox.checked();
         _matcher->setMode((_matcher->getMode() & ~4) | (bw ? 4 : 0));
         _output->setBW(bw);
-        _composite.setBW(bw);
+        //_composite.setBW(bw);
         beginConvert();
     }
-    void setBW(bool bw) { _bwCheckBox.setCheckState(bw); }
-
     void blinkPressed()
     {
         bool blink = _blinkCheckBox.checked();
@@ -2112,28 +2082,20 @@ public:
         if ((mode & 2) == 0)
             beginConvert();
     }
-    void setBlink(bool blink) { _blinkCheckBox.setCheckState(blink); }
-
     void phasePressed()
     {
         _matcher->setPhase(_phaseCheckBox.checked() ? 0 : 1);
     }
-    void setPhase(bool phase) { _phaseCheckBox.setCheckState(phase); }
-
     void interlaceSet(int value)
     {
         _matcher->setInterlace(value);
         beginConvert();
     }
-    void setInterlace(int value) { _interlaceCombo.set(value); }
-
     void characterSetSet(int value)
     {
         _matcher->setCharacterSet(value);
         beginConvert();
     }
-    void setCharacterSet(int value) { _characterSetCombo.set(value); }
-
     void matchModePressed()
     {
         _program->setMatchMode(_matchMode.checked());
@@ -2141,217 +2103,210 @@ public:
         reCreateNTSC();
     }
 
-    void allAutos()
-    {
-        autoSaturation();
-        autoContrastClip();
-        autoContrastMono();
-        autoBrightness();
-    }
-
     void brightnessSet(double brightness)
     {
         _output->setBrightness(brightness);
         _matcher->setBrightness(brightness);
-        if (!_updating) {
-            update();
-            uiUpdate();
-        }
+        //if (!_updating) {
+        //    update();
+        //    uiUpdate();
+        //}
     }
-    void setBrightness(double brightness) { _brightness.setValue(brightness); }
-
     void saturationSet(double saturation)
     {
         _output->setSaturation(saturation);
         _matcher->setSaturation(saturation);
-        if (!_updating) {
-            update();
-            autoContrastClip();
-            uiUpdate();
-        }
+        //if (!_updating) {
+        //    update();
+        //    autoContrastClip();
+        //    uiUpdate();
+        //}
     }
-    void setSaturation(double saturation) { _saturation.setValue(saturation); }
-
     void contrastSet(double contrast)
     {
         _output->setContrast(contrast);
         _matcher->setContrast(contrast);
-        if (!_updating) {
-            update();
-            autoBrightness();
-            autoSaturation();
-            uiUpdate();
-        }
+        //if (!_updating) {
+        //    update();
+        //    autoBrightness();
+        //    autoSaturation();
+        //    uiUpdate();
+        //}
     }
-    void setContrast(double contrast) { _contrast.setValue(contrast); }
-
     void hueSet(double hue)
     {
         _output->setHue(hue);
         _matcher->setHue(hue);
-        if (!_updating) {
-            update();
-            allAutos();
-            uiUpdate();
-        }
+        //if (!_updating) {
+        //    update();
+        //    allAutos();
+        //    uiUpdate();
+        //}
     }
-    void setHue(double hue) { _hue.setValue(hue); }
-
-    void sharpnessSet(double sharpness)
+    void chromaBandwidthSet(double chromaBandwidth)
     {
-        _output->setSharpness(sharpness);
-        _matcher->setSharpness(sharpness);
-        if (!_updating) {
-            update();
-            uiUpdate();
-        }
+        _output->setChromaBandwidth(chromaBandwidth);
+        //if (!_updating) {
+        //    update();
+        //    uiUpdate();
+        //}
     }
-    void setSharpness(double sharpness) { _sharpness.setValue(sharpness); }
-
-    void autoContrastClipPressed()
+    void lumaBandwidthSet(double lumaBandwidth)
     {
-        _autoContrastClipFlag = _autoContrastClip.checked();
-        if (_autoContrastClipFlag) {
-            _autoContrastMono.uncheck();
-            _autoContrastMonoFlag = false;
-        }
-        autoContrastClip();
-        uiUpdate();
-    }
-    void autoContrastMonoPressed()
-    {
-        _autoContrastMonoFlag = _autoContrastMono.checked();
-        if (_autoContrastMonoFlag) {
-            _autoContrastClip.uncheck();
-            _autoContrastClipFlag = false;
-        }
-        autoContrastMono();
-        autoBrightness();
-        uiUpdate();
-    }
-    void autoBrightnessPressed()
-    {
-        _autoBrightnessFlag = _autoBrightness.checked();
-        autoContrastMono();
-        autoBrightness();
-        uiUpdate();
-    }
-    void autoSaturationPressed()
-    {
-        _autoSaturationFlag = _autoSaturation.checked();
-        autoSaturation();
-        uiUpdate();
-    }
-    void reCreateNTSC()
-    {
-        _output->reCreateNTSC();
-        update();
-        allAutos();
-        uiUpdate();
+        _output->setLumaBandwidth(lumaBandwidth);
+        //if (!_updating) {
+        //    update();
+        //    uiUpdate();
+        //}
     }
     void newCGAPressed()
     {
         bool newCGA = _newCGA.checked();
         _output->setNewCGA(newCGA);
         _matcher->setNewCGA(newCGA);
-        _composite.setNewCGA(newCGA);
+        //_composite.setNewCGA(newCGA);
         reCreateNTSC();
     }
-    void setNewCGA(bool newCGA) { _newCGA.setCheckState(newCGA); }
-
     void ntscPrimariesPressed()
     {
-        setNTSCPrimaries(_ntscPrimaries.checked());
-        update();
-        allAutos();
-        uiUpdate();
-    }
-    void setNTSCPrimaries(bool ntscPrimaries)
-    {
+        bool ntscPrimaries = _ntscPrimaries.checked();
         _output->setNTSCPrimaries(ntscPrimaries);
         _matcher->setNTSCPrimaries(ntscPrimaries);
+        //update();
+        //allAutos();
+        //uiUpdate();
     }
 
-    void autoBrightness(bool force = false)
+    //void autoContrastClipPressed()
+    //{
+    //    _autoContrastClipFlag = _autoContrastClip.checked();
+    //    if (_autoContrastClipFlag) {
+    //        _autoContrastMono.uncheck();
+    //        _autoContrastMonoFlag = false;
+    //    }
+    //    autoContrastClip();
+    //    uiUpdate();
+    //}
+    //void autoContrastMonoPressed()
+    //{
+    //    _autoContrastMonoFlag = _autoContrastMono.checked();
+    //    if (_autoContrastMonoFlag) {
+    //        _autoContrastClip.uncheck();
+    //        _autoContrastClipFlag = false;
+    //    }
+    //    autoContrastMono();
+    //    autoBrightness();
+    //    uiUpdate();
+    //}
+    //void autoBrightnessPressed()
+    //{
+    //    _autoBrightnessFlag = _autoBrightness.checked();
+    //    autoContrastMono();
+    //    autoBrightness();
+    //    uiUpdate();
+    //}
+    //void autoSaturationPressed()
+    //{
+    //    _autoSaturationFlag = _autoSaturation.checked();
+    //    autoSaturation();
+    //    uiUpdate();
+    //}
+    void reCreateNTSC()
     {
-        if (!false && !_autoBrightnessFlag)
-            return;
-        setBrightness(_brightness.getValue() + (256 - (_black + _white))/512);
-        update();
+        _output->reCreateNTSC();
+        //update();
+        //allAutos();
+        //uiUpdate();
     }
-    void autoSaturation()
-    {
-        if (!_autoSaturationFlag)
-            return;
-        setSaturation(_output->getSaturation()*sqrt(3.0)*(_white - _black)/
-            (2*_maxSaturation));
-        update();
-    }
-    void autoContrastClip()
-    {
-        if (!_autoContrastClipFlag)
-            return;
-        double minContrast = 0;
-        double maxContrast = 2;
-        double contrast;
-        do {
-            contrast = (maxContrast + minContrast)/2;
-            setContrast(contrast);
-            update();
-            autoBrightness();
-            if (_clips == 1 || (maxContrast - minContrast) < 0.000001)
-                break;
-            else
-                if (_clips == 0)
-                    minContrast = contrast;
-                else
-                    maxContrast = contrast;
-        } while (true);
-        double midPoint = (_white + _black)/2;
-        double fudge = 0.99999;
-        for (int i = 0; i < 3; ++i) {
-            Colour c = colourFromSeq(_clipped);
-            double r = c.x;
-            double g = c.y;
-            double b = c.z;
-            bool found = false;
-            if (r < 0) {
-                contrast *= fudge*midPoint/(midPoint - r);
-                found = true;
-            }
-            if (!found && r >= 256) {
-                contrast *= fudge*midPoint/(r - midPoint);
-                found = true;
-            }
-            if (!found && g < 0) {
-                contrast *= fudge*midPoint/(midPoint - g);
-                found = true;
-            }
-            if (!found && g >= 256) {
-                contrast *= fudge*midPoint/(g - midPoint);
-                found = true;
-            }
-            if (!found && b < 0) {
-                contrast *= fudge*midPoint/(midPoint - b);
-                found = true;
-            }
-            if (!found && b >= 256)
-                contrast *= fudge*midPoint/(b - midPoint);
-            setContrast(contrast);
-            update();
-            autoBrightness();
-            autoSaturation();
-            if (_clips == 0)
-                break;
-        }
-    }
-    void autoContrastMono()
-    {
-        if (!_autoContrastMonoFlag)
-            return;
-        setContrast(_output->getContrast() * 256/(_white - _black));
-        update();
-    }
+
+    //void allAutos()
+    //{
+    //    autoSaturation();
+    //    autoContrastClip();
+    //    autoContrastMono();
+    //    autoBrightness();
+    //}
+    //void autoBrightness(bool force = false)
+    //{
+    //    if (!false && !_autoBrightnessFlag)
+    //        return;
+    //    _brightness.setValue(_brightness.getValue() +
+    //        (256 - (_black + _white))/512);
+    //    update();
+    //}
+    //void autoSaturation()
+    //{
+    //    if (!_autoSaturationFlag)
+    //        return;
+    //    _saturation.setValue(_output->getSaturation()*sqrt(3.0)*
+    //        (_white - _black)/(2*_maxSaturation));
+    //    update();
+    //}
+    //void autoContrastClip()
+    //{
+    //    if (!_autoContrastClipFlag)
+    //        return;
+    //    double minContrast = 0;
+    //    double maxContrast = 2;
+    //    double contrast;
+    //    do {
+    //        contrast = (maxContrast + minContrast)/2;
+    //        setContrast(contrast);
+    //        update();
+    //        autoBrightness();
+    //        if (_clips == 1 || (maxContrast - minContrast) < 0.000001)
+    //            break;
+    //        else
+    //            if (_clips == 0)
+    //                minContrast = contrast;
+    //            else
+    //                maxContrast = contrast;
+    //    } while (true);
+    //    double midPoint = (_white + _black)/2;
+    //    double fudge = 0.99999;
+    //    for (int i = 0; i < 3; ++i) {
+    //        Colour c = colourFromSeq(_clipped);
+    //        double r = c.x;
+    //        double g = c.y;
+    //        double b = c.z;
+    //        bool found = false;
+    //        if (r < 0) {
+    //            contrast *= fudge*midPoint/(midPoint - r);
+    //            found = true;
+    //        }
+    //        if (!found && r >= 256) {
+    //            contrast *= fudge*midPoint/(r - midPoint);
+    //            found = true;
+    //        }
+    //        if (!found && g < 0) {
+    //            contrast *= fudge*midPoint/(midPoint - g);
+    //            found = true;
+    //        }
+    //        if (!found && g >= 256) {
+    //            contrast *= fudge*midPoint/(g - midPoint);
+    //            found = true;
+    //        }
+    //        if (!found && b < 0) {
+    //            contrast *= fudge*midPoint/(midPoint - b);
+    //            found = true;
+    //        }
+    //        if (!found && b >= 256)
+    //            contrast *= fudge*midPoint/(b - midPoint);
+    //        setContrast(contrast);
+    //        update();
+    //        autoBrightness();
+    //        autoSaturation();
+    //        if (_clips == 0)
+    //            break;
+    //    }
+    //}
+    //void autoContrastMono()
+    //{
+    //    if (!_autoContrastMonoFlag)
+    //        return;
+    //    _contrast.setValue(_output->getContrast() * 256/(_white - _black));
+    //    update();
+    //}
     void save(String outputFileName) { _output->save(outputFileName); }
     void resetColours() { _colours = Set<UInt64>(); }
     void addColour(UInt64 seq) { _colours.add(seq); }
@@ -2363,22 +2318,23 @@ private:
         p->setHost(this);
     }
 
-    AnimatedWindow _animated;
+    //AnimatedWindow _animated;
     OutputWindow _outputWindow;
     BrightnessSliderWindow _brightness;
-    AutoBrightnessButtonWindow _autoBrightness;
+    //AutoBrightnessButtonWindow _autoBrightness;
     SaturationSliderWindow _saturation;
-    AutoSaturationButtonWindow _autoSaturation;
+    //AutoSaturationButtonWindow _autoSaturation;
     ContrastSliderWindow _contrast;
-    AutoContrastClipButtonWindow _autoContrastClip;
-    AutoContrastMonoButtonWindow _autoContrastMono;
+    //AutoContrastClipButtonWindow _autoContrastClip;
+    //AutoContrastMonoButtonWindow _autoContrastMono;
     HueSliderWindow _hue;
-    SharpnessSliderWindow _sharpness;
-    TextWindow _blackText;
-    TextWindow _whiteText;
-    TextWindow _mostSaturatedText;
-    TextWindow _clippedColoursText;
-    GamutWindow _gamut;
+    ChromaBandwidthSliderWindow _chromaBandwidth;
+    LumaBandwidthSliderWindow _lumaBandwidth;
+    //TextWindow _blackText;
+    //TextWindow _whiteText;
+    //TextWindow _mostSaturatedText;
+    //TextWindow _clippedColoursText;
+    //GamutWindow _gamut;
     NewCGAButtonWindow _newCGA;
     NTSCPrimariesButtonWindow _ntscPrimaries;
     MatchModeButton _matchMode;
@@ -2408,19 +2364,18 @@ private:
     CGAShower* _shower;
     CGAOutput* _output;
     Program* _program;
-    CGAComposite _composite;
-    NTSCDecoder* _decoder;
-    double _black;
-    double _white;
-    Set<UInt64> _colours;
-    int _clips;
-    double _maxSaturation;
-    UInt64 _clipped;
-    bool _autoBrightnessFlag;
-    bool _autoSaturationFlag;
-    bool _autoContrastClipFlag;
-    bool _autoContrastMonoFlag;
-    bool _updating;
+    //CGAComposite _composite;
+    //double _black;
+    //double _white;
+    //Set<UInt64> _colours;
+    //int _clips;
+    //double _maxSaturation;
+    //UInt64 _clipped;
+    //bool _autoBrightnessFlag;
+    //bool _autoSaturationFlag;
+    //bool _autoContrastClipFlag;
+    //bool _autoContrastMonoFlag;
+    //bool _updating;
     int _paletteSelected;
     int _backgroundSelected;
 };
@@ -2494,6 +2449,23 @@ public:
     };
 };
 
+class FFTWisdom
+{
+public:
+    FFTWisdom(File wisdom) : _wisdom(wisdom)
+    {
+        NullTerminatedString data(_wisdom.path());
+        fftwf_import_wisdom_from_filename(data);
+    }
+    ~FFTWisdom()
+    {
+        NullTerminatedString data(_wisdom.path());
+        fftwf_export_wisdom_to_filename(data);
+    }
+private:
+    File _wisdom;
+};
+
 class Program : public WindowProgram<CGA2NTSCWindow>
 {
 public:
@@ -2511,7 +2483,8 @@ public:
         configFile.addDefaultOption("brightness", 0.0);
         configFile.addDefaultOption("saturation", 1.0);
         configFile.addDefaultOption("hue", 0.0);
-        configFile.addDefaultOption("sharpness", 0.0);
+        configFile.addDefaultOption("chromaBandwidth", 1.0);
+        configFile.addDefaultOption("lumaBandwidth", 1.0);
         configFile.addDefaultOption("ntscPrimaries", false);
         configFile.addDefaultOption("horizontalDiffusion", 0.5);
         configFile.addDefaultOption("verticalDiffusion", 0.5);
@@ -2530,6 +2503,7 @@ public:
         configFile.addDefaultOption("interactive", true);
         configFile.addDefaultOption("combFilterVertical", 0);
         configFile.addDefaultOption("combFilterTemporal", 0);
+        configFile.addDefaultOption("fftWisdom", String("wisdom"));
 
         configFile.addFunco(BitmapIsRGBIFunction());
 
@@ -2564,7 +2538,11 @@ public:
         configFile.addDefaultOption("arguments",
             ArrayType(StringType(), IntegerType()), arguments);
 
-        configFile.load(configPath);
+        File config(configPath, true);
+        configFile.load(config);
+
+        FFTWisdom wisdom(
+            File(configFile.get<String>("fftWisdom"), config.parent()));
 
         _matcher.setProgram(this);
         _window.setMatcher(&_matcher);
@@ -2585,7 +2563,8 @@ public:
         _matcher.setPalette(configFile.get<int>("palette"));
         _matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
         _matcher.setScanlinesRepeat(configFile.get<int>("scanlinesRepeat"));
-        _matcher.setROM(configFile.get<String>("cgaROM"));
+        _matcher.setROM(
+            File(configFile.get<String>("cgaROM"), config.parent()));
 
         bool ntscPrimaries = configFile.get<bool>("ntscPrimaries");
         _output.setNTSCPrimaries(ntscPrimaries);
@@ -2602,9 +2581,8 @@ public:
         double contrast = configFile.get<double>("contrast");
         _output.setContrast(contrast);
         _matcher.setContrast(contrast);
-        double sharpness = configFile.get<double>("sharpness");
-        _output.setSharpness(sharpness);
-        _matcher.setSharpness(sharpness);
+        _output.setChromaBandwidth(configFile.get<double>("chromaBandwidth"));
+        _output.setLumaBandwidth(configFile.get<double>("lumaBandwidth"));
         bool newCGA = configFile.get<bool>("newCGA");
         _output.setNewCGA(newCGA);
         _matcher.setNewCGA(newCGA);
@@ -2621,6 +2599,8 @@ public:
 
         String inputFileName = configFile.get<String>("inputPicture");
 
+        // We use local parsing here instead of portable parsing because the
+        // file usually comes from the command line.
         Bitmap<SRGB> input =
             PNGFileFormat<SRGB>().load(File(inputFileName, true));
         Bitmap<SRGB> input2 = input;
@@ -2679,16 +2659,33 @@ public:
         _matcher.setInput(input);
         _shower.setInput(input);
         setMatchMode(configFile.get<bool>("matchMode"));
+
+        LARGE_INTEGER startTime;
+        QueryPerformanceCounter(&startTime);
+
         beginConvert();
 
-        if (configFile.get<bool>("interactive")) {
+        bool interactive = configFile.get<bool>("interactive");
+        if (interactive) {
             _output.setWindow(&_window);
             WindowProgram::run();
         }
+
         if (!_matchMode)
             _matcher.cancel();
         _matcher.join();
         _output.reCreateNTSC();
+
+        if (!interactive) {
+            LARGE_INTEGER time;
+            QueryPerformanceCounter(&time);
+            time.QuadPart -= startTime.QuadPart;
+            LARGE_INTEGER frequency;
+            QueryPerformanceFrequency(&frequency);
+            console.write("Elapsed time: " + decimal(static_cast<int>(
+                (time.QuadPart*1000000)/frequency.QuadPart)) +
+                " microseconds\n");
+        }
 
         int i;
         for (i = inputFileName.length() - 1; i >= 0; --i)

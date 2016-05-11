@@ -499,17 +499,16 @@ public:
     void calculateBurst(Byte* burst)
     {
         Complex<float> iq;
-        iq.x = burst[0] - burst[2];
-        iq.y = burst[1] - burst[3];
+        iq.x = static_cast<float>(burst[0] - burst[2]);
+        iq.y = static_cast<float>(burst[1] - burst[3]);
         _iqAdjust =
             -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
-            _contrast/(iq.modulus()*16);
-        _contrast2 = _contrast/32;
-        _brightness2 = _brightness*256.0;
+            _contrast/iq.modulus();
+        _contrast2 = _contrast;
+        _brightness2 = _brightness*256.0f;
     }
 
-    // inputLength must be a multiple of 4.
-    void decodeLine(const Byte* ntsc, SRGB* srgb, int inputLength,
+    void decodeLine(const Byte* ntsc, DWORD* srgb, int inputLength,
         int outputLength)
     {
         static const int padding = 32;
@@ -527,20 +526,20 @@ public:
                 FFTW_MEASURE);
             _inputTimeLength = inputTimeLength;
         }
-        if (outputTimeLength != _outputFFTLength) {
+        if (outputTimeLength != _outputTimeLength) {
             _yTime.ensure(outputTimeLength);
             _iTime.ensure(outputTimeLength);
             _qTime.ensure(outputTimeLength);
-            _backwardY = fftwf_plan_dft_c2r_1d(inputTimeLength,
+            _backwardY = fftwf_plan_dft_c2r_1d(outputTimeLength,
                 reinterpret_cast<fftwf_complex*>(&_frequency[0]), &_yTime[0],
                 FFTW_MEASURE);
-            _backwardI = fftwf_plan_dft_c2r_1d(inputTimeLength,
+            _backwardI = fftwf_plan_dft_c2r_1d(outputTimeLength,
                 reinterpret_cast<fftwf_complex*>(&_frequency[0]), &_iTime[0],
                 FFTW_MEASURE);
-            _backwardQ = fftwf_plan_dft_c2r_1d(inputTimeLength,
+            _backwardQ = fftwf_plan_dft_c2r_1d(outputTimeLength,
                 reinterpret_cast<fftwf_complex*>(&_frequency[0]), &_qTime[0],
                 FFTW_MEASURE);
-            _outputFFTLength = outputTimeLength;
+            _outputTimeLength = outputTimeLength;
         }
 
         // Pad and transform Y
@@ -575,10 +574,10 @@ public:
 
         // Pad and transform I
         for (int t = 0; t < inputLength; t += 4) {
-            _inputTime[t + padding] = ntsc[t];
-            _inputTime[t + padding + 1] = 0;
-            _inputTime[t + padding + 2] = -ntsc[t];
-            _inputTime[t + padding + 3] = 0;
+            _inputTime[t + padding] = 0;
+            _inputTime[t + padding + 1] = static_cast<float>(-ntsc[t + 1]);
+            _inputTime[t + padding + 2] = 0;
+            _inputTime[t + padding + 3] = static_cast<float>(ntsc[t + 3]);
         }
         padInput(padding, inputLength);
         fftwf_execute(_forward);
@@ -593,10 +592,10 @@ public:
         // Pad and transform Q
 
         for (int t = 0; t < inputLength; t += 4) {
-            _inputTime[t + padding] = 0;
-            _inputTime[t + padding + 1] = ntsc[t];
-            _inputTime[t + padding + 2] = 0;
-            _inputTime[t + padding + 3] = -ntsc[t];
+            _inputTime[t + padding] = static_cast<float>(ntsc[t]);
+            _inputTime[t + padding + 1] = 0;
+            _inputTime[t + padding + 2] = static_cast<float>(-ntsc[t + 2]);
+            _inputTime[t + padding + 3] = 0;
         }
         padInput(padding, inputLength);
         fftwf_execute(_forward);
@@ -608,22 +607,24 @@ public:
 
         int offset = padding*outputTimeLength/inputTimeLength;
         for (int t = 0; t < outputLength; ++t) {
-            float y = _yTime[t + offset];
+            float y = _yTime[t + offset]/inputTimeLength;
             Complex<float> iq(_iTime[t + offset], _qTime[t + offset]);
 
             float y2 = y*_contrast2 + _brightness2;
-            Complex<float> iq2 = iq*_iqAdjust;
-            float r = y2 + 0.9563*iq2.x + 0.6210*iq2.y;
-            float g = y2 - 0.2721*iq2.x - 0.6474*iq2.y;
-            float b = y2 - 1.1069*iq2.x + 1.7046*iq2.y;
+            Complex<float> iq2 = iq*_iqAdjust/
+                static_cast<float>(inputTimeLength);
+            float r = y2 + 0.9563f*iq2.x + 0.6210f*iq2.y;
+            float g = y2 - 0.2721f*iq2.x - 0.6474f*iq2.y;
+            float b = y2 - 1.1069f*iq2.x + 1.7046f*iq2.y;
             Vector3<float> c(r, g, b);
             if (_ntscPrimaries) {
                 c = Vector3<float>(
-                    1.5073*r -0.3725*g -0.0832*b,
-                    -0.0275*r +0.9350*g +0.0670*b,
-                    -0.0272*r -0.0401*g +1.1677*b);
+                    1.5073f*r -0.3725f*g -0.0832f*b,
+                    -0.0275f*r +0.9350f*g +0.0670f*b,
+                    -0.0272f*r -0.0401f*g +1.1677f*b);
             }
-            *srgb = SRGB(byteClamp(c.x), byteClamp(c.y), byteClamp(c.z));
+            *srgb = (byteClamp(c.x) << 16) | (byteClamp(c.y) << 8) |
+                byteClamp(c.z);
             ++srgb;
         }
     }
@@ -634,25 +635,31 @@ public:
         _ntscPrimaries = ntscPrimaries;
     }
     double getHue() { return _hue; }
-    void setHue(double hue) { _hue = hue; }
+    void setHue(double hue) { _hue = static_cast<float>(hue); }
     double getSaturation() { return _saturation; }
-    void setSaturation(double saturation) { _saturation = saturation; }
+    void setSaturation(double saturation)
+    {
+        _saturation = static_cast<float>(saturation);
+    }
     double getContrast() { return _contrast; }
     void setContrast(double contrast)
     {
-        _contrast = contrast;
+        _contrast = static_cast<float>(contrast);
     }
     double getBrightness() { return _brightness; }
-    void setBrightness(double brightness) { _brightness = brightness; }
+    void setBrightness(double brightness)
+    {
+        _brightness = static_cast<float>(brightness);
+    }
     double getChromaBandwidth() { return _chromaBandwidth; }
     void setChromaBandwidth(double chromaBandwidth)
     {
-        _chromaBandwidth = chromaBandwidth;
+        _chromaBandwidth = static_cast<float>(chromaBandwidth);
     }
     double getLumaBandwidth() { return _lumaBandwidth; }
     void setLumaBandwidth(double lumaBandwidth)
     {
-        _lumaBandwidth = lumaBandwidth;
+        _lumaBandwidth = static_cast<float>(lumaBandwidth);
     }
 
 private:
@@ -687,7 +694,7 @@ private:
     Array<float> _iTime;
     fftwf_plan _backwardQ;
     Array<float> _qTime;
-    int _outputFFTLength;
+    int _outputTimeLength;
 };
 
 #endif // INCLUDED_NTSC_DECODE_H
