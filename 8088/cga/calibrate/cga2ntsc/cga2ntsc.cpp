@@ -5,6 +5,7 @@
 #include "alfe/set.h"
 #include "alfe/config_file.h"
 #include "alfe/cga.h"
+#include "alfe/timer.h"
 #include "alfe/ntsc_decode.h"
 
 template<class T> class CGA2NTSCWindowT;
@@ -1560,6 +1561,7 @@ public:
     }
     void draw()
     {
+        Timer timer;
         const Byte* ntscRow = _ntsc.data();
         Byte* outputRow = _bitmap.data();
         for (int yy = 0; yy < _ntsc.size().y; ++yy) {
@@ -1570,6 +1572,7 @@ public:
             outputRow += _bitmap.stride()*2;
             ntscRow += _ntsc.stride();
         }
+        timer.output("resampling ");
         if (_window != 0)
             _window->draw(_bitmap);
     }
@@ -2449,23 +2452,6 @@ public:
     };
 };
 
-class FFTWisdom
-{
-public:
-    FFTWisdom(File wisdom) : _wisdom(wisdom)
-    {
-        NullTerminatedString data(_wisdom.path());
-        fftwf_import_wisdom_from_filename(data);
-    }
-    ~FFTWisdom()
-    {
-        NullTerminatedString data(_wisdom.path());
-        fftwf_export_wisdom_to_filename(data);
-    }
-private:
-    File _wisdom;
-};
-
 class Program : public WindowProgram<CGA2NTSCWindow>
 {
 public:
@@ -2541,7 +2527,7 @@ public:
         File config(configPath, true);
         configFile.load(config);
 
-        FFTWisdom wisdom(
+        FFTWWisdom<float> wisdom(
             File(configFile.get<String>("fftWisdom"), config.parent()));
 
         _matcher.setProgram(this);
@@ -2660,8 +2646,7 @@ public:
         _shower.setInput(input);
         setMatchMode(configFile.get<bool>("matchMode"));
 
-        LARGE_INTEGER startTime;
-        QueryPerformanceCounter(&startTime);
+        Timer timer;
 
         beginConvert();
 
@@ -2676,16 +2661,8 @@ public:
         _matcher.join();
         _output.reCreateNTSC();
 
-        if (!interactive) {
-            LARGE_INTEGER time;
-            QueryPerformanceCounter(&time);
-            time.QuadPart -= startTime.QuadPart;
-            LARGE_INTEGER frequency;
-            QueryPerformanceFrequency(&frequency);
-            console.write("Elapsed time: " + decimal(static_cast<int>(
-                (time.QuadPart*1000000)/frequency.QuadPart)) +
-                " microseconds\n");
-        }
+        if (!interactive)
+            timer.output("Elapsed time");
 
         int i;
         for (i = inputFileName.length() - 1; i >= 0; --i)

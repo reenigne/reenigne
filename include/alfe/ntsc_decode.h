@@ -1,7 +1,7 @@
 #include "alfe/main.h"
 #include "alfe/bitmap.h"
 #include "alfe/complex.h"
-#include "fftw3.h"
+#include "alfe/fft.h"
 
 #ifndef INCLUDED_NTSC_DECODE_H
 #define INCLUDED_NTSC_DECODE_H
@@ -496,6 +496,7 @@ private:
 class ResamplingNTSCDecoder
 {
 public:
+    ResamplingNTSCDecoder() : _rigor(FFTW_EXHAUSTIVE) { }
     void calculateBurst(Byte* burst)
     {
         Complex<float> iq;
@@ -503,7 +504,7 @@ public:
         iq.y = static_cast<float>(burst[1] - burst[3]);
         _iqAdjust =
             -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
-            _contrast/iq.modulus();
+            _contrast*2/iq.modulus();
         _contrast2 = _contrast;
         _brightness2 = _brightness*256.0f;
     }
@@ -521,32 +522,34 @@ public:
         _frequency.ensure(outputFrequencyLength);
         if (inputTimeLength != _inputTimeLength) {
             _inputTime.ensure(inputTimeLength);
-            _forward = fftwf_plan_dft_r2c_1d(inputTimeLength, &_inputTime[0],
-                reinterpret_cast<fftwf_complex*>(&_frequency[0]),
-                FFTW_MEASURE);
+            //printf("Planning forward %i\n",inputTimeLength);
+            _forward = FFTWPlanDFTR2C1D<float>(inputTimeLength, _inputTime,
+                _frequency, _rigor);
             _inputTimeLength = inputTimeLength;
+            //Timer t;
+            //for (int i = 0; i < 100000; ++i)
+            //    fftwf_execute(_forward);
+            //t.output(String(""));
         }
         if (outputTimeLength != _outputTimeLength) {
+            //printf("Planning backward %i\n",outputTimeLength);
             _yTime.ensure(outputTimeLength);
             _iTime.ensure(outputTimeLength);
             _qTime.ensure(outputTimeLength);
-            _backwardY = fftwf_plan_dft_c2r_1d(outputTimeLength,
-                reinterpret_cast<fftwf_complex*>(&_frequency[0]), &_yTime[0],
-                FFTW_MEASURE);
-            _backwardI = fftwf_plan_dft_c2r_1d(outputTimeLength,
-                reinterpret_cast<fftwf_complex*>(&_frequency[0]), &_iTime[0],
-                FFTW_MEASURE);
-            _backwardQ = fftwf_plan_dft_c2r_1d(outputTimeLength,
-                reinterpret_cast<fftwf_complex*>(&_frequency[0]), &_qTime[0],
-                FFTW_MEASURE);
+            _backward = FFTWPlanDFTC2R1D<float>(outputTimeLength, _frequency,
+                _yTime, _rigor);
             _outputTimeLength = outputTimeLength;
+            //Timer t;
+            //for (int i = 0; i < 100000; ++i)
+            //    fftwf_execute(_backwardY);
+            //t.output(String(""));
         }
 
         // Pad and transform Y
         for (int t = 0; t < inputLength; ++t)
             _inputTime[t + padding] = ntsc[t];
         padInput(padding, inputLength);
-        fftwf_execute(_forward);
+        _forward.execute();
 
         // Filter Y
         int chromaLow =
@@ -570,7 +573,7 @@ public:
                     _frequency[f] = 0;
             }
         }
-        fftwf_execute(_backwardY);
+        _backward.execute(_frequency, _yTime);
 
         // Pad and transform I
         for (int t = 0; t < inputLength; t += 4) {
@@ -580,14 +583,14 @@ public:
             _inputTime[t + padding + 3] = static_cast<float>(ntsc[t + 3]);
         }
         padInput(padding, inputLength);
-        fftwf_execute(_forward);
+        _forward.execute();
 
         // Filter I
         int chromaCutoff =
             static_cast<int>(inputTimeLength*_chromaBandwidth/16);
         for (int f = chromaCutoff; f < outputFrequencyLength; ++f)
             _frequency[f] = 0;
-        fftwf_execute(_backwardI);
+        _backward.execute(_frequency, _iTime);
 
         // Pad and transform Q
 
@@ -598,12 +601,12 @@ public:
             _inputTime[t + padding + 3] = 0;
         }
         padInput(padding, inputLength);
-        fftwf_execute(_forward);
+        _forward.execute();
 
         // Filter Q
         for (int f = chromaCutoff; f < outputFrequencyLength; ++f)
             _frequency[f] = 0;
-        fftwf_execute(_backwardQ);
+        _backward.execute(_frequency, _qTime);
 
         int offset = padding*outputTimeLength/inputTimeLength;
         for (int t = 0; t < outputLength; ++t) {
@@ -685,16 +688,16 @@ private:
     float _brightness2;
 
     int _inputTimeLength;
-    Array<float> _inputTime;
-    fftwf_plan _forward;
-    Array<Complex<float>> _frequency;
-    fftwf_plan _backwardY;
-    Array<float> _yTime;
-    fftwf_plan _backwardI;
-    Array<float> _iTime;
-    fftwf_plan _backwardQ;
-    Array<float> _qTime;
+    FFTWRealArray<float> _inputTime;
+    FFTWPlanDFTR2C1D<float> _forward;
+    FFTWComplexArray<float> _frequency;
+    FFTWPlanDFTC2R1D<float> _backward;
+    FFTWRealArray<float> _yTime;
+    FFTWRealArray<float> _iTime;
+    FFTWRealArray<float> _qTime;
     int _outputTimeLength;
+
+    int _rigor;
 };
 
 #endif // INCLUDED_NTSC_DECODE_H

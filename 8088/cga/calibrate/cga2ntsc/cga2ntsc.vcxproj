@@ -97,6 +97,7 @@
     <ClInclude Include="..\..\..\..\include\alfe\config_file.h" />
     <ClInclude Include="..\..\..\..\include\alfe\exception.h" />
     <ClInclude Include="..\..\..\..\include\alfe\expression.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\fft.h" />
     <ClInclude Include="..\..\..\..\include\alfe\file.h" />
     <ClInclude Include="..\..\..\..\include\alfe\hash_table.h" />
     <ClInclude Include="..\..\..\..\include\alfe\identifier.h" />
@@ -109,6 +110,7 @@
     <ClInclude Include="..\..\..\..\include\alfe\string.h" />
     <ClInclude Include="..\..\..\..\include\alfe\terminal6.h" />
     <ClInclude Include="..\..\..\..\include\alfe\thread.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\timer.h" />
     <ClInclude Include="..\..\..\..\include\alfe\type.h" />
     <ClInclude Include="..\..\..\..\include\alfe\user.h" />
     <ClInclude Include="..\..\..\..\include\alfe\vectors.h" />
