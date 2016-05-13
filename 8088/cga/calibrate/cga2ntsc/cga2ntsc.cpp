@@ -1561,7 +1561,7 @@ public:
     }
     void draw()
     {
-        Timer timer;
+        //Timer timer;
         const Byte* ntscRow = _ntsc.data();
         Byte* outputRow = _bitmap.data();
         for (int yy = 0; yy < _ntsc.size().y; ++yy) {
@@ -1572,7 +1572,7 @@ public:
             outputRow += _bitmap.stride()*2;
             ntscRow += _ntsc.stride();
         }
-        timer.output("resampling ");
+        //timer.output("resampling ");
         if (_window != 0)
             _window->draw(_bitmap);
     }

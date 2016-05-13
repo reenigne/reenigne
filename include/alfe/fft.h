@@ -40,9 +40,14 @@ template<> struct FFTW<float>
     {
         return fftwf_import_wisdom_from_filename(filename);
     }
+    static void print_plan(Plan p) { fftwf_print_plan(p); }
     static float* alloc_real(size_t n) { return fftwf_alloc_real(n); }
     static Complex* alloc_complex(size_t n) { return fftwf_alloc_complex(n); }
     static void free(void* p) { fftwf_free(p); }
+    static void flops(Plan p, double* add, double* mul, double* fmas)
+    {
+        return fftwf_flops(p, add, mul, fmas);
+    }
 };
 
 template<class T> class FFTWArray : public ConstHandle
@@ -103,6 +108,13 @@ template<class T> class FFTWPlan : public ConstHandle
 public:
     FFTWPlan() { }
     void execute() { FFTW<T>::execute(plan()); }
+    void print()
+    {
+        FFTW<T>::print_plan(plan());
+        double add,mul,fmas;
+        FFTW<T>::flops(plan(), &add, &mul, &fmas);
+        printf("\n%lf adds, %lf muls, %lf fmas\n", add, mul, fmas);
+    }
 protected:
     FFTWPlan(typename FFTW<T>::Plan plan) : ConstHandle(create<Body>(plan)) { }
     typename FFTW<T>::Plan plan() { return as<Body>()->_plan; }
