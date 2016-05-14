@@ -300,9 +300,9 @@ public:
             }
         }
 
-        _rgbi.fill((_mode & 0x10) == 0 ? _palette & 0x0f : 0);
+        int overscan = (_mode & 0x10) == 0 ? _palette & 0x0f : 0;
         _data.allocate((_size.y/_block.y)*(_size.x/_hdots));
-        _y = 0;
+        int y = 0;
         _rgbiRow = _rgbi.data() + 7;
         _inputRow = _ntscInput.data();
         _error = Bitmap<int>(_size + Vector(4, 1));
@@ -318,11 +318,16 @@ public:
             Vector errorLineSize(_size.x + 4, 1);
             Bitmap<int> savedError(errorLineSize);
             if (_testConfig)
-                savedError.copyFrom(_error.subBitmap(Vector(0, _y),
+                savedError.copyFrom(_error.subBitmap(Vector(0, y),
                     errorLineSize));
             config();
             SInt16* p = &_patterns[(_config & 0x7f)*5*256];
             UInt64 lineScore = 0;
+
+            _rgbi.subBitmap(Vector(0, y), Vector(7, _block.y)).fill(overscan);
+            _rgbi.subBitmap(Vector(7 + (_size.x & -_hdots), y),
+                Vector(7 + _size.x - (_size.x & -_hdots), _block.y))
+                .fill(overscan);
             for (int x = 0; x < (_size.x & -_hdots); x += _block.x) {
                 int bestPattern = 0;
                 int bestScore = 0x7fffffff;
@@ -385,7 +390,7 @@ public:
                     }
                 }
 
-                int address = (_y/_block.y)*(_size.x/_hdots) + x/_hdots;
+                int address = (y/_block.y)*(_size.x/_hdots) + x/_hdots;
                 if ((_mode & 2) == 0)
                     _data[address] = bestPattern;
                 else {
@@ -425,14 +430,14 @@ public:
                 ++_config;
                 if (_config == _endConfig) {
                     _config = _bestConfig;
-                    _configs[_y] = _bestConfig;
+                    _configs[y] = _bestConfig;
                     _testConfig = false;
                     _configScore = 0x7fffffffffffffffUL;
                 }
                 else {
-                    savedError.copyTo(_error.subBitmap(Vector(0, _y),
+                    savedError.copyTo(_error.subBitmap(Vector(0, y),
                         errorLineSize));
-                    _error.subBitmap(Vector(0, _y + 1), errorLineSize).fill(0);
+                    _error.subBitmap(Vector(0, y + 1), errorLineSize).fill(0);
                 }
             }
             else {
@@ -444,8 +449,8 @@ public:
                 _inputRow += _ntscInput.stride() * _block.y;
                 _errorRow += _error.stride() * _block.y;
                 _rgbiRow += _rgbi.stride() * _block.y;
-                _y += _block.y;
-                if (_y >= _size.y + 1 - _block.y)
+                y += _block.y;
+                if (y >= _size.y + 1 - _block.y)
                     return;
             }
             if (cancelling())
@@ -1511,18 +1516,21 @@ public:
     }
     void draw(Bitmap<DWORD> bitmap)
     {
+        if (!_bitmap.valid())
+            _bitmap = Bitmap<DWORD>(size());
         // Just copy from the top left corner for now.
         Vector zero(0, 0);
         Vector size(min(bitmap.size().x, _bitmap.size().x),
             min(bitmap.size().y, _bitmap.size().y));
         bitmap.subBitmap(zero, size).copyTo(_bitmap.subBitmap(zero, size));
+        _bitmap = setNextBitmap(_bitmap);
         invalidate();
     }
 private:
     Bitmap<DWORD> _bitmap;
 };
 
-template<class T> class CGAOutputT
+template<class T> class CGAOutputT : public ThreadTask
 {
 public:
     CGAOutputT() : _window(0), _zoom(0), _aspectRatio(1) { }
@@ -1557,9 +1565,9 @@ public:
             rgbiRow += _rgbi.stride();
             ntscRow += _ntsc.stride();
         }
-        draw();
+        restart();
     }
-    void draw()
+    void run()
     {
         //Timer timer;
         const Byte* ntscRow = _ntsc.data();
@@ -1592,22 +1600,26 @@ public:
     }
     bool getNewCGA() { return _composite.getNewCGA(); }
     void setBW(bool bw) { _composite.setBW(bw); reCreateNTSC(); }
-    void setScanlineWidth(double width) { _scanlineWidth = width; draw(); }
+    void setScanlineWidth(double width) { _scanlineWidth = width; restart(); }
     double getScanlineWidth() { return _scanlineWidth; }
     void setScanlineProfile(int profile)
     {
         _scanlineProfile = profile;
-        draw();
+        restart();
     }
     int getScanlineProfile() { return _scanlineProfile; }
-    void setScanlineOffset(double offset) { _scanlineOffset = offset; draw(); }
+    void setScanlineOffset(double offset)
+    {
+        _scanlineOffset = offset;
+        restart();
+    }
     double getScanlineOffset() { return _scanlineOffset; }
     void setZoom(double zoom) { _zoom = zoom; allocateBitmap(); }
     double getZoom() { return _zoom; }
     void setScanlineBleeding(bool bleeding)
     {
         _scanlineBleeding = bleeding;
-        draw();
+        restart();
     }
     bool getScanlineBleeding() { return _scanlineBleeding; }
     void setAspectRatio(double ratio)
@@ -1619,13 +1631,13 @@ public:
     void setCombFilterVertical(int value)
     {
         _combFilterVertical = value;
-        draw();
+        restart();
     }
     int getCombFilterVertical() { return _combFilterVertical; }
     void setCombFilterTemporal(int value)
     {
         _combFilterTemporal = value;
-        draw();
+        restart();
     }
     int getCombFilterTemporal() { return _combFilterTemporal; }
     ResamplingNTSCDecoder* getDecoder() { return &_decoder; }
@@ -1634,37 +1646,39 @@ public:
     void setNTSCPrimaries(bool ntscPrimaries)
     {
         _decoder.setNTSCPrimaries(ntscPrimaries);
-        draw();
+        restart();
     }
     double getHue() { return _decoder.getHue(); }
-    void setHue(double hue) { _decoder.setHue(hue); draw(); }
+    void setHue(double hue) { _decoder.setHue(hue); restart(); }
     double getSaturation() { return _decoder.getSaturation(); }
     void setSaturation(double saturation)
     {
         _decoder.setSaturation(saturation);
-        draw();
+        restart();
     }
     double getContrast() { return _decoder.getContrast(); }
     void setContrast(double contrast)
     {
         _decoder.setContrast(contrast);
-        draw();
+        restart();
     }
     double getBrightness() { return _decoder.getBrightness(); }
     void setBrightness(double brightness)
     {
         _decoder.setBrightness(brightness);
-        draw();
+        restart();
     }
     double getChromaBandwidth() { return _decoder.getChromaBandwidth(); }
     void setChromaBandwidth(double chromaBandwidth)
     {
-        _decoder.setChromaBandwidth(chromaBandwidth); draw();
+        _decoder.setChromaBandwidth(chromaBandwidth);
+        restart();
     }
     double getLumaBandwidth() { return _decoder.getLumaBandwidth(); }
     void setLumaBandwidth(double lumaBandwidth)
     {
-        _decoder.setLumaBandwidth(lumaBandwidth); draw();
+        _decoder.setLumaBandwidth(lumaBandwidth);
+        restart();
     }
 
     void setWindow(CGA2NTSCWindow* window) { _window = window; }
@@ -1674,7 +1688,7 @@ private:
         Vector size = requiredSize();
         if (size.x > _bitmap.size().x || size.y > _bitmap.size().y)
             _bitmap = Bitmap<DWORD>(size);
-        draw();
+        restart();
     }
     Vector requiredSize()
     {
@@ -2310,7 +2324,6 @@ public:
     //    _contrast.setValue(_output->getContrast() * 256/(_white - _black));
     //    update();
     //}
-    void save(String outputFileName) { _output->save(outputFileName); }
     void resetColours() { _colours = Set<UInt64>(); }
     void addColour(UInt64 seq) { _colours.add(seq); }
 
@@ -2383,24 +2396,60 @@ private:
     int _backgroundSelected;
 };
 
-class BitmapType : public NamedNullary<Type, BitmapType>
+class BitmapValue : public Structure
+{
+public:
+    BitmapValue() { }
+    BitmapValue(String filename) : _name(filename)
+    {
+        // We parse the filename relative to the current directory here instead
+        // of relative to the config file path because the filename usually
+        // comes from the command line.
+        _bitmap = PNGFileFormat<SRGB>().load(File(filename, true));
+    }
+    Bitmap<SRGB> bitmap() { return _bitmap; }
+    Value getValue(Identifier identifier) const
+    {
+        if (identifier == Identifier("size"))
+            return _bitmap.size();
+        return Structure::getValue(identifier);
+    }
+    String name() { return _name; }
+    bool operator==(const BitmapValue& other) const
+    {
+        return _name == other._name;
+    }
+private:
+    String _name;
+    Bitmap<SRGB> _bitmap;
+};
+
+class BitmapType : public NamedNullary<StructuredType, BitmapType>
 {
 public:
     static String name() { return "Bitmap"; }
-    class Body : public NamedNullary<Type, BitmapType>::Body
+    class Body : public StructuredType::Body
     {
     public:
+        Body() : StructuredType::Body("Bitmap", members()) { }
+        List<StructuredType::Member> members()
+        {
+            List<StructuredType::Member> vectorMembers;
+            vectorMembers.add(StructuredType::member<Vector>("size"));
+            return vectorMembers;
+        }
         bool canConvertFrom(const Type& from, String* reason) const
         {
             return from == StringType();
         }
         Value convert(const Value& value) const
         {
-            return Value(BitmapType(), value.value(), value.span());
+            return Value(BitmapType(), BitmapValue(value.value<String>()),
+                value.span());
         }
         Value defaultValue() const
         {
-            return Value(BitmapType(), Any(), Span());
+            return Value(BitmapType(), BitmapValue(), Span());
         }
     };
 };
@@ -2413,12 +2462,11 @@ public:
     public:
         Value evaluate(List<Value> arguments, Span span) const
         {
-            auto s = arguments.begin()->value<String>();
-            Bitmap<SRGB> input = PNGFileFormat<SRGB>().load(File(s, true));
-            Vector size = input.size();
+            auto bitmap = arguments.begin()->value<BitmapValue>().bitmap();
+            Vector size = bitmap.size();
 
             int maxDistance = 0;
-            const Byte* inputRow = input.data();
+            const Byte* inputRow = bitmap.data();
 
             for (int y = 0; y < size.y; ++y) {
                 const SRGB* inputPixel =
@@ -2439,7 +2487,7 @@ public:
                     }
                     maxDistance = max(bestDistance, maxDistance);
                 }
-                inputRow += input.stride();
+                inputRow += bitmap.stride();
             }
 
             return Value(maxDistance < 15*15*3);
@@ -2490,6 +2538,8 @@ public:
         configFile.addDefaultOption("combFilterVertical", 0);
         configFile.addDefaultOption("combFilterTemporal", 0);
         configFile.addDefaultOption("fftWisdom", String("wisdom"));
+        configFile.addDefaultOption("doubleWidth", false);
+        configFile.addDefaultOption("doubleHeight", false);
 
         configFile.addFunco(BitmapIsRGBIFunction());
 
@@ -2583,15 +2633,11 @@ public:
         _output.setCombFilterTemporal(
             configFile.get<int>("combFilterTemporal"));
 
-        String inputFileName = configFile.get<String>("inputPicture");
-
-        // We use local parsing here instead of portable parsing because the
-        // file usually comes from the command line.
-        Bitmap<SRGB> input =
-            PNGFileFormat<SRGB>().load(File(inputFileName, true));
+        BitmapValue inputBitmap = configFile.get<BitmapValue>("inputPicture");
+        Bitmap<SRGB> input = inputBitmap.bitmap();
         Bitmap<SRGB> input2 = input;
         Vector size = input.size();
-        if (size.y > 262) {
+        if (!configFile.get<bool>("doubleHeight")) {
             // Vertically shrink tall images by a factor of two, to handle the
             // normal case of a DOSBox screenshot.
             input2 = Bitmap<SRGB>(Vector(size.x, size.y/2));
@@ -2617,7 +2663,7 @@ public:
             input = input2;
             size = input.size();
         }
-        if (size.x <= 456) {
+        if (configFile.get<bool>("doubleWidth")) {
             // Image is most likely 2bpp or LRES text mode with 1 pixel per
             // ldot. Rescale it to 1 pixel per hdot.
             input2 = Bitmap<SRGB>(Vector(size.x*2, size.y));
@@ -2660,10 +2706,12 @@ public:
             _matcher.cancel();
         _matcher.join();
         _output.reCreateNTSC();
+        _output.join();
 
         if (!interactive)
             timer.output("Elapsed time");
 
+        String inputFileName = inputBitmap.name();
         int i;
         for (i = inputFileName.length() - 1; i >= 0; --i)
             if (inputFileName[i] == '.')
@@ -2671,7 +2719,7 @@ public:
         if (i != -1)
             inputFileName = inputFileName.subString(0, i);
 
-        _window.save(inputFileName + "_out.png");
+        _output.save(inputFileName + "_out.png");
         _matcher.save(inputFileName + "_out.dat");
         _matcher.saveRGBI(inputFileName + "_out.rgbi");
         _matcher.savePalettes(inputFileName + "_out.palettes");

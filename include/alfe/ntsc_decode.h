@@ -526,7 +526,7 @@ public:
             _forward = FFTWPlanDFTR2C1D<float>(inputTimeLength, _inputTime,
                 _frequency, _rigor);
             _inputTimeLength = inputTimeLength;
-            _forward.print();
+            //_forward.print();
             //printf("Benchmarking\n");
             //Timer t;
             //for (int i = 0; i < 100000; ++i)
@@ -541,7 +541,7 @@ public:
             _backward = FFTWPlanDFTC2R1D<float>(outputTimeLength, _frequency,
                 _yTime, _rigor);
             _outputTimeLength = outputTimeLength;
-            _backward.print();
+            //_backward.print();
             //printf("Benchmarking\n");
             //Timer t;
             //for (int i = 0; i < 100000; ++i)
